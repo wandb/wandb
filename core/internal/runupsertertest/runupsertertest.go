@@ -3,6 +3,7 @@ package runupsertertest
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/Khan/genqlient/graphql"
@@ -11,6 +12,7 @@ import (
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
+	"github.com/wandb/wandb/core/internal/runsyncstate"
 	"github.com/wandb/wandb/core/internal/runupserter"
 	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -50,10 +52,12 @@ func NewTestUpserter(
 	if params.FeatureProvider == nil {
 		params.FeatureProvider = featurechecker.NewPreloaded(nil)
 	}
+	if params.SyncStateStore == nil {
+		params.SyncStateStore = runsyncstate.Noop()
+	}
 	if mockGQL, ok := params.GraphqlClientOrNil.(*gqlmock.MockClient); ok {
 		StubRunResumeStatus(t, mockGQL)
-	}
-
+  }
 	record := &spb.Record{RecordType: &spb.Record_Run{
 		Run: &spb.RunRecord{
 			Entity:  "test-entity",
@@ -92,6 +96,25 @@ func StubUpsertBucket(t *testing.T, mockGQL *gqlmock.MockClient) {
 			}
 		}
 	}`)
+}
+
+func StubRunResumeStatusWithStep(t *testing.T, mock *gqlmock.MockClient, step int64) {
+	mock.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), fmt.Sprintf(`{
+		"model": {
+			"bucket": {
+				"name": "run",
+				"id": "storage-id",
+				"historyLineCount": 0,
+				"eventsLineCount": 0,
+				"logLineCount": 0,
+				"historyTail": "[]",
+				"summaryMetrics": "{\"_step\": %d}",
+				"config": "{}",
+				"eventsTail": "[]",
+				"wandbConfig": "{\"t\": 1}"
+			}
+		}
+	}`, step))
 }
 
 // Telemetry is the telemetry uploaded through an UpsertBucket request.

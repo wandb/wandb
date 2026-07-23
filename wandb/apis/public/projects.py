@@ -111,8 +111,7 @@ class Projects(RelayPaginator["ProjectFragment", "Project"]):
         from wandb._pydantic import Connection
         from wandb.apis._generated import GetProjects, ProjectFragment
 
-        data = self._service_api.execute_graphql(self.QUERY, variables=self.variables)
-        result = GetProjects.model_validate(data)
+        result = self._execute_query(parse=GetProjects.model_validate_json)
         if not (conn := result.models):
             raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
         self.last_response = Connection[ProjectFragment].model_validate(conn)
@@ -123,7 +122,7 @@ class Projects(RelayPaginator["ProjectFragment", "Project"]):
 
         Note: This property is not available for projects.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         # For backwards compatibility, even though this isn't a SizedPaginator
         return None
@@ -176,11 +175,15 @@ class Project(Attrs):
 
         gql_vars = {"name": self.name, "entity": self.entity}
         try:
-            data = self._service_api.execute_graphql(GET_PROJECT_GQL, gql_vars)
+            data = self._service_api.execute_graphql(
+                GET_PROJECT_GQL,
+                variables=gql_vars,
+                parse=GetProject.model_validate_json,
+            )
         except WandbApiFailedError as e:
             raise ValueError(f"Unable to fetch project ID: {gql_vars!r}") from e
 
-        project = GetProject.model_validate(data).project
+        project = data.project
         self._attrs = project.model_dump() if project else {}
         self._is_loaded = True
 
@@ -211,7 +214,7 @@ class Project(Attrs):
     def to_html(self, height: int = 420, hidden: bool = False) -> str:
         """Generate HTML containing an iframe displaying this project.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         url = self.url + "?jupyter=true"
         style = f"border:none;width:100%;height:{height}px;"

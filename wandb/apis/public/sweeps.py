@@ -132,19 +132,19 @@ class Sweeps(SizedPaginator["Sweep"]):
         # On servers that don't support the `filters` argument, strip it from the
         # query so that listing sweeps still works.
         omit_variables = None if self._supports_filtering else ["filters"]
-        data = self._service_api.execute_graphql(
+        self.last_response = self._service_api.execute_graphql(
             self.QUERY,
             variables=self.variables,
             omit_variables=omit_variables,
+            parse=GetSweeps.model_validate_json,
         )
-        self.last_response = GetSweeps.model_validate(data)
 
     @property
     @override
     def _length(self) -> int:
         """The total number of sweeps in the project.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if not self.last_response:
             self._load_page()
@@ -159,7 +159,7 @@ class Sweeps(SizedPaginator["Sweep"]):
     def more(self) -> bool:
         """Returns whether there are more sweeps to fetch.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if (
             self.last_response
@@ -176,7 +176,7 @@ class Sweeps(SizedPaginator["Sweep"]):
     def cursor(self) -> str | None:
         """Returns the cursor for the next page of sweeps.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if (
             self.last_response
@@ -192,7 +192,7 @@ class Sweeps(SizedPaginator["Sweep"]):
     def convert_objects(self) -> list[Sweep]:
         """Converts the last GraphQL response into a list of `Sweep` objects.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         from wandb._pydantic import Connection
         from wandb.apis._generated import SweepFragment
@@ -319,7 +319,7 @@ class Sweep(Attrs):
     def load(self, force: bool = False):
         """Fetch and update sweep data logged to the run from GraphQL database.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if force or not self._attrs:
             if not (
@@ -488,11 +488,11 @@ class Sweep(Attrs):
             "entity": self.entity,
             "project": self.project,
         }
-        data = self._service_api.execute_graphql(
+        parsed = self._service_api.execute_graphql(
             GET_SWEEP_AGENTS_GQL,
             variables=variables,
+            parse=GetSweepAgents.model_validate_json,
         )
-        parsed = GetSweepAgents.model_validate(data)
         if not parsed.project or not parsed.project.sweep:
             return []
         return [

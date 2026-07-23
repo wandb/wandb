@@ -679,8 +679,10 @@ class Api:
         from wandb.apis._generated import GET_DEFAULT_ENTITY_GQL, GetDefaultEntity
 
         if self._default_entity is None:
-            data = self._service_api.execute_graphql(GET_DEFAULT_ENTITY_GQL)
-            result = GetDefaultEntity.model_validate(data)
+            result = self._service_api.execute_graphql(
+                GET_DEFAULT_ENTITY_GQL,
+                parse=GetDefaultEntity.model_validate_json,
+            )
             if (viewer := result.viewer) and (entity := viewer.entity):
                 self._default_entity = entity
         return self._default_entity
@@ -698,8 +700,10 @@ class Api:
         from .users import User
 
         if self._viewer is None:
-            data = self._service_api.execute_graphql(GET_VIEWER_GQL)
-            result = GetViewer.model_validate(data)
+            result = self._service_api.execute_graphql(
+                GET_VIEWER_GQL,
+                parse=GetViewer.model_validate_json,
+            )
             if (viewer := result.viewer) is None:
                 msg = "Unable to fetch user data from W&B, please verify your API key is valid."
                 raise ValueError(msg)
@@ -997,8 +1001,12 @@ class Api:
     def create_team(self, team: str, admin_username: str | None = None) -> Team:
         """Create a new team.
 
+        For W&B Multi-tenant Cloud users, set the Default API organization in
+        your user settings in the W&B UI before calling `create_team()`.
+        This setting determines the organization the new team will belong to.
+
         Args:
-            team: The name of the team
+            team: The name of the team.
             admin_username: Username of the admin user of the team.
                 Defaults to the current user.
 
@@ -1049,11 +1057,11 @@ class Api:
                 non_org_entity=self.settings.get("entity") or self.default_entity,
             )
 
-        gql_op = FETCH_ORGANIZATION_GQL
-        gql_vars = {"org": org_name}
-        data = self._service_api.execute_graphql(gql_op, variables=gql_vars)
-
-        result = FetchOrganization.model_validate(data)
+        result = self._service_api.execute_graphql(
+            FETCH_ORGANIZATION_GQL,
+            variables={"org": org_name},
+            parse=FetchOrganization.model_validate_json,
+        )
         if (org := result.organization) is None:
             raise ValueError(f"Organization {org_name!r} not found.")
         return Organization(self._service_api, **org.model_dump())
@@ -1074,11 +1082,11 @@ class Api:
 
         from .users import User
 
-        data = self._service_api.execute_graphql(
+        result = self._service_api.execute_graphql(
             SEARCH_USERS_GQL,
-            {"query": username_or_email},
+            variables={"query": username_or_email},
+            parse=SearchUsers.model_validate_json,
         )
-        result = SearchUsers.model_validate(data)
         if not (conn := result.users) or not (edges := conn.edges):
             return None
         if len(edges) > 1:
@@ -1102,11 +1110,11 @@ class Api:
 
         from .users import User
 
-        data = self._service_api.execute_graphql(
+        result = self._service_api.execute_graphql(
             SEARCH_USERS_GQL,
-            {"query": username_or_email},
+            variables={"query": username_or_email},
+            parse=SearchUsers.model_validate_json,
         )
-        result = SearchUsers.model_validate(data)
         if not ((conn := result.users) and (edges := conn.edges)):
             return []
         return [
@@ -2534,6 +2542,7 @@ class Api:
                 CREATE_AUTOMATION_GQL,
                 variables=variables,
                 omit_fragments=omit_fragments,
+                parse=CreateAutomation.model_validate_json,
             )
         except WandbApiFailedError as e:
             status = _api_error_status(e)
@@ -2546,18 +2555,15 @@ class Api:
                     f"Automation {name!r} exists. Unable to create another with the same name."
                 ) from None
             raise
-
-        try:
-            result = CreateAutomation.model_validate(data).result
         except ValidationError as e:
             msg = f"Invalid response while creating automation {name!r}"
             raise RuntimeError(msg) from e
 
-        if (result is None) or (result.trigger is None):
+        if not (result := data.result) or not (trigger := result.trigger):
             msg = f"Empty response while creating automation {name!r}"
             raise RuntimeError(msg)
 
-        return Automation.model_validate(result.trigger)
+        return Automation.model_validate(trigger)
 
     @normalize_exceptions
     @tracked
@@ -2655,6 +2661,7 @@ class Api:
                 UPDATE_AUTOMATION_GQL,
                 variables=variables,
                 omit_fragments=self._omitted_automation_fragments(),
+                parse=UpdateAutomation.model_validate_json,
             )
         except WandbApiFailedError as e:
             status = _api_error_status(e)
@@ -2670,18 +2677,15 @@ class Api:
             # Not a (known) recoverable API error
             wandb.termerror(f"Got API error: {e}")
             raise
-
-        try:
-            result = UpdateAutomation.model_validate(data).result
         except ValidationError as e:
             msg = f"Invalid response while updating automation {name!r}"
             raise RuntimeError(msg) from e
 
-        if (result is None) or (result.trigger is None):
+        if not (result := data.result) or not (trigger := result.trigger):
             msg = f"Empty response while updating automation {name!r}"
             raise RuntimeError(msg)
 
-        return Automation.model_validate(result.trigger)
+        return Automation.model_validate(trigger)
 
     @normalize_exceptions
     @tracked
@@ -2698,22 +2702,22 @@ class Api:
         from wandb.automations._utils import extract_id
 
         id_ = extract_id(obj)
-        mutation = DELETE_AUTOMATION_GQL
-        variables = {"id": id_}
-
-        data = self._service_api.execute_graphql(mutation, variables=variables)
 
         try:
-            result = DeleteAutomation.model_validate(data).result
+            data = self._service_api.execute_graphql(
+                DELETE_AUTOMATION_GQL,
+                variables={"id": id_},
+                parse=DeleteAutomation.model_validate_json,
+            )
         except ValidationError as e:
             msg = f"Invalid response while deleting automation {id_!r}"
             raise RuntimeError(msg) from e
 
-        if result is None:
+        if not (result := data.result):
             msg = f"Empty response while deleting automation {id_!r}"
             raise RuntimeError(msg)
 
-        if not result.success:
+        if not (success := result.success):
             raise RuntimeError(f"Failed to delete automation: {id_!r}")
 
-        return result.success
+        return success

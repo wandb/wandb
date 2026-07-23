@@ -31,10 +31,27 @@ class Visibility(str, Enum):
         try:
             return cls(value)
         except ValueError:
-            expected = ",".join(repr(e.value) for e in cls)
+            expected = ", ".join(repr(e.value) for e in cls)
             raise ValueError(
                 f"Invalid visibility {value!r} from backend. Expected one of: {expected}"
             ) from None
+
+    @classmethod
+    def from_project_access(cls, value: str | None) -> Visibility:
+        """Convert a GraphQL project ``access`` value to a Visibility enum.
+
+        Registry search may return legacy or non-registry access levels (e.g.
+        ``USER_READ``) for organization projects. Treat those as organization
+        visibility so registry listing can proceed.
+        """
+        if not value:
+            return cls.organization
+        try:
+            return cls(value)
+        except ValueError:
+            if value == "RESTRICTED":
+                return cls.restricted
+            return cls.organization
 
     @classmethod
     def from_python(cls, name: str) -> Visibility:
@@ -42,7 +59,7 @@ class Visibility(str, Enum):
         try:
             return cls(name)
         except ValueError:
-            expected = ",".join(repr(e.name) for e in cls)
+            expected = ", ".join(repr(e.name) for e in cls)
             raise ValueError(
                 f"Invalid visibility {name!r}. Expected one of: {expected}"
             ) from None
