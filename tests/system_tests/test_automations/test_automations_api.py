@@ -4,7 +4,7 @@ import math
 from collections import deque
 from collections.abc import Callable, Generator
 from itertools import islice
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import wandb
 from pytest import FixtureRequest, fixture, mark, raises, skip
@@ -31,9 +31,14 @@ from wandb.automations import (
 )
 from wandb.automations._run_metric_filters import ChangeDir
 from wandb.automations._run_state_filters import ReportedRunState, StateFilter
+from wandb.automations._utils import event_enabled
 from wandb.automations.actions import InputAction, SavedNoOpAction, SavedWebhookAction
 from wandb.automations.events import InputEvent, RunMetricFilter, RunStateFilter
-from wandb.errors.errors import CommError
+from wandb.errors.errors import CommError, UnsupportedError
+from wandb.proto import wandb_internal_pb2 as pb
+
+if TYPE_CHECKING:
+    from wandb.apis.public import Team
 
 
 @fixture
@@ -120,8 +125,8 @@ def test_fetch_slack_integrations(
 
 @mark.usefixtures(reset_automations.__name__)
 def test_create_automation(
-    module_user: str,
     module_api: wandb.Api,
+    team: Team,
     event,
     action,
     automation_name: str,
@@ -133,10 +138,7 @@ def test_create_automation(
     # We should be able to fetch the automation by name (optionally filtering by entity)
     assert created.name == automation_name
 
-    fetched_a = module_api.automation(
-        entity=module_user,
-        name=created.name,
-    )
+    fetched_a = module_api.automation(entity=team.name, name=created.name)
     fetched_b = module_api.automation(name=created.name)
 
     assert fetched_a == created
@@ -232,12 +234,8 @@ def test_create_automation_for_run_metric_threshold_event(
         payload={"test": {"key": "value"}},
     )
 
-    server_supports_event = module_api._supports_automation(
-        event=event.event_type,
-    )
-
-    if not server_supports_event:
-        with raises(CommError):
+    if not event_enabled(module_api._service_api, event.event_type):
+        with raises(UnsupportedError):
             module_api.create_automation(
                 (event >> action),
                 name=automation_name,
@@ -298,12 +296,8 @@ def test_create_automation_for_run_metric_change_event(
     )
     action = SendWebhook.from_integration(webhook)
 
-    server_supports_event = module_api._supports_automation(
-        event=event.event_type,
-    )
-
-    if not server_supports_event:
-        with raises(CommError):
+    if not event_enabled(module_api._service_api, event.event_type):
+        with raises(UnsupportedError):
             module_api.create_automation(
                 (event >> action),
                 name=automation_name,
@@ -349,12 +343,8 @@ def test_create_automation_for_run_state_event(
     )
     action = SendWebhook.from_integration(webhook)
 
-    server_supports_event = module_api._supports_automation(
-        event=event.event_type,
-    )
-
-    if not server_supports_event:
-        with raises(CommError):
+    if not event_enabled(module_api._service_api, event.event_type):
+        with raises(UnsupportedError):
             module_api.create_automation(
                 (event >> action),
                 name=automation_name,
@@ -374,6 +364,41 @@ def test_create_automation_for_run_state_event(
         refetched = module_api.automation(name=automation_name)
         assert isinstance(refetched, Automation)
         assert refetched.event.filter == expected_filter
+
+
+@mark.usefixtures(reset_automations.__name__)
+def test_create_automation_with_team_scope(
+    module_api: wandb.Api,
+    team: Team,
+    automation_name: str,
+    entity_scope_enabled: bool,
+):
+    """Create and round-trip an entity-scoped automation (team/org entity)."""
+    if not module_api._service_api.feature_enabled(pb.AUTOMATION_SCOPE_ENTITY):
+        skip("Server does not support entity-scoped automations")
+    if not entity_scope_enabled:
+        skip("Entity-scoped automations are not enabled for the test organization")
+
+    event = OnRunMetric(
+        scope=team,
+        filter=RunEvent.metric("my-metric").avg(window=5).gt(123.45),
+    )
+
+    created = module_api.create_automation(
+        (event >> DoNothing()),
+        name=automation_name,
+        description="test entity-scoped automation",
+    )
+
+    assert created.scope.scope_type is ScopeType.ENTITY
+    assert created.scope.id == team.id
+    assert created.scope.name == team.name
+
+    # An entity-scoped automation lives on the entity's `triggers` (not under any
+    # project), so fetching by the team entity exercises the entity-level listing
+    # path in `automations(entity=...)`.
+    fetched = module_api.automation(entity=team.name, name=automation_name)
+    assert fetched.scope == created.scope
 
 
 @mark.usefixtures(reset_automations.__name__)
@@ -415,10 +440,8 @@ def test_create_automation_for_run_metric_zscore_event(
     )
     action = SendWebhook.from_integration(webhook)
 
-    server_supports_event = module_api._supports_automation(event=event.event_type)
-
-    if not server_supports_event:
-        with raises(CommError):
+    if not event_enabled(module_api._service_api, event.event_type):
+        with raises(UnsupportedError):
             module_api.create_automation(
                 (event >> action),
                 name=automation_name,
@@ -817,7 +840,7 @@ class TestUpdateAutomation:
         project: Project,
     ):
         """Updating an automation with a new run event must preserve its filter."""
-        if not module_api._supports_automation(event=event_type):
+        if not event_enabled(module_api._service_api, event_type):
             skip(f"Server does not support event type {event_type.value!r}")
 
         # Run events only work with a project scope, and an update keeps the
@@ -884,9 +907,9 @@ class TestPaginatedAutomations:
     @fixture(scope="class")
     def setup_paginated_automations(
         self,
-        module_user: str,
         make_module_api: Callable[[], wandb.Api],
         webhook: WebhookIntegration,
+        team: Team,
         num_projects: int,
         make_name: Callable[[str], str],
     ):
@@ -908,8 +931,8 @@ class TestPaginatedAutomations:
             project_names, automation_names, strict=True
         ):
             # Create the placeholder project for the automation
-            setup_api.create_project(name=project_name, entity=module_user)
-            project = setup_api.project(name=project_name, entity=module_user)
+            setup_api.create_project(name=project_name, entity=team.name)
+            project = setup_api.project(name=project_name, entity=team.name)
 
             # Create the actual automation
             event = OnLinkArtifact(scope=project)
@@ -934,8 +957,8 @@ class TestPaginatedAutomations:
     def test_paginated_automations(
         self,
         mocker,
-        module_user: str,
         module_api: wandb.Api,
+        team: Team,
         num_projects,
         page_size,
     ):
@@ -943,7 +966,7 @@ class TestPaginatedAutomations:
         client_spy = mocker.spy(module_api._service_api, "execute_graphql")
 
         # Fetch the automations
-        list(module_api.automations(entity=module_user, per_page=page_size))
+        list(module_api.automations(entity=team.name, per_page=page_size))
 
         # Check that the number of GQL requests is at least what we expect from the pagination params
         # Note that a (cached) introspection query may add an extra request the first time this is
@@ -955,23 +978,23 @@ class TestPaginatedAutomations:
     @mark.usefixtures(setup_paginated_automations.__name__)
     def test_paginated_automations_start(
         self,
-        module_user: str,
         module_api: wandb.Api,
-        page_size,
+        team: Team,
+        page_size: int,
     ):
         all_automations = list(
-            module_api.automations(entity=module_user, per_page=page_size)
+            module_api.automations(entity=team.name, per_page=page_size)
         )
         all_ids = [a.id for a in all_automations]
 
-        paginator = module_api.automations(entity=module_user, per_page=page_size)
+        paginator = module_api.automations(entity=team.name, per_page=page_size)
         first_ids = [obj.id for obj in islice(paginator, page_size)]
 
         saved_cursor = paginator.cursor
         assert saved_cursor is not None
 
         resumed_paginator = module_api.automations(
-            entity=module_user, per_page=page_size, start=saved_cursor
+            entity=team.name, per_page=page_size, start=saved_cursor
         )
         remaining_ids = [a.id for a in resumed_paginator]
 

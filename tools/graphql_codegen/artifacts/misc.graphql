@@ -48,3 +48,17 @@ query FetchOrganization($org: String!) {
     }
   }
 }
+
+# A generic probe of the feature flags evaluated for an organization.
+# Note: `OrgName` here is deliberate, and `OrgId` is NOT equivalent.
+# Org-targeted feature gates are included regardless of the ramp ID type, but
+# only `OrgName` also selects legacy backend ramps keyed by org name, which
+# some probes still need on older servers.
+query OrgFeatureFlags($org: String!) {
+  organization(name: $org) {
+    featureFlags(rampIDType: OrgName) {
+      rampKey
+      isEnabled
+    }
+  }
+}

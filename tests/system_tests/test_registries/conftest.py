@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 from collections.abc import Callable
-from operator import itemgetter
 from typing import TYPE_CHECKING, Literal
 
 import wandb
@@ -71,7 +70,11 @@ def org_entity(org: str, api: Api) -> str:
 
 
 @fixture
-def restricted_viewer_role_enabled(api: Api, org: str) -> bool:
+def restricted_viewer_role_enabled(
+    api: Api,
+    org: str,
+    org_feature_flags: Callable[[Api, str], dict[str, bool]],
+) -> bool:
     """Whether the server has the Restricted Viewer registry role enabled.
 
     The role sits behind a backend ramp `gorilla.RegistryObserverRoleUse` with
@@ -82,37 +85,15 @@ def restricted_viewer_role_enabled(api: Api, org: str) -> bool:
     unless the ramp is present and disabled. This lets the guard clear itself
     once the min server version passes the point where the role is always on.
     """
-    query = """
-    query RegistryObserverRoleRamp($org: String!) {
-      organization(name: $org) {
-        featureFlags(rampIDType: OrgName) {
-          rampKey
-          isEnabled
-        }
-      }
-    }
-    """
     try:
-        data = api._service_api.execute_graphql(query, variables={"org": org})
+        flags = org_feature_flags(api, org)
     except WandbApiFailedError:
         # Some servers do not expose this query. If we cannot probe the ramp,
         # assume the role is available and run the test rather than skip.
         return True
 
-    try:
-        flags = data["organization"]["featureFlags"]
-    except LookupError:
-        return True
-    else:
-        # Absent ramp means the server predates it or removed it. Both mean on.
-        return next(
-            (
-                bool(enabled)
-                for enabled, key in map(itemgetter("isEnabled", "rampKey"), flags)
-                if key == "gorilla.RegistryObserverRoleUse"
-            ),
-            True,
-        )
+    # Absent ramp means the server predates it or removed it. Both mean on.
+    return flags.get("gorilla.RegistryObserverRoleUse", True)
 
 
 @fixture
