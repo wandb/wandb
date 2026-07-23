@@ -1399,8 +1399,8 @@ query FetchOrganization($org: String!) {
 """
 
 ORG_FEATURE_FLAGS_GQL = """
-query OrgFeatureFlags($orgName: String!) {
-  organization(name: $orgName) {
+query OrgFeatureFlags($org: String!) {
+  organization(name: $org) {
     featureFlags(rampIDType: OrgName) {
       rampKey
       isEnabled

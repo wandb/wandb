@@ -2436,14 +2436,15 @@ class Api:
 
         gql_input = prepare_to_create(obj, **kwargs)
 
+        # Note: bind these before the check, since `and` short-circuits and the
+        # error message below needs all three names.
+        scope = gql_input.scope_type
+        event = gql_input.triggering_event_type
+        action = gql_input.triggered_action_type
         if not (
-            scope_enabled(self._service_api, (scope := gql_input.scope_type))
-            and event_enabled(
-                self._service_api, (event := gql_input.triggering_event_type)
-            )
-            and action_enabled(
-                self._service_api, (action := gql_input.triggered_action_type)
-            )
+            scope_enabled(self._service_api, scope)
+            and event_enabled(self._service_api, event)
+            and action_enabled(self._service_api, action)
         ):
             msg = (
                 f"Automation scope, event, and/or action ({scope.value!r}, {event.value!r}, {action.value!r}) "
@@ -2555,14 +2556,15 @@ class Api:
 
         gql_input = prepare_to_update(obj, **kwargs)
 
+        # Note: bind these before the check, since `and` short-circuits and the
+        # error message below needs all three names.
+        scope = gql_input.scope_type
+        event = gql_input.triggering_event_type
+        action = gql_input.triggered_action_type
         if not (
-            scope_enabled(self._service_api, (scope := gql_input.scope_type))
-            and event_enabled(
-                self._service_api, (event := gql_input.triggering_event_type)
-            )
-            and action_enabled(
-                self._service_api, (action := gql_input.triggered_action_type)
-            )
+            scope_enabled(self._service_api, scope)
+            and event_enabled(self._service_api, event)
+            and action_enabled(self._service_api, action)
         ):
             msg = (
                 f"Automation scope, event, and/or action ({scope.value!r}, {event.value!r}, {action.value!r}) "

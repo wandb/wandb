@@ -178,7 +178,7 @@ def org_feature_flags() -> Callable[[wandb.Api, str], dict[str, bool]]:
     def probe(api: wandb.Api, org_name: str) -> dict[str, bool]:
         result = api._service_api.execute_graphql(
             ORG_FEATURE_FLAGS_GQL,
-            variables={"orgName": org_name},
+            variables={"org": org_name},
             parse=OrgFeatureFlags.model_validate_json,
         )
         flags = result.organization.feature_flags if result.organization else []
