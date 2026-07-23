@@ -15,7 +15,7 @@ type recordFixture struct {
 
 func recordFixtures(rows []Row) ([]recordFixture, error) {
 	fixtures := make([]recordFixture, 0, 2)
-	for _, mode := range []ValueMode{ValueJSONOnly, TypedOnly} {
+	for _, mode := range []ValueMode{JSONValue, TypedValue} {
 		records, err := recordsFromRows(rows, mode)
 		if err != nil {
 			return nil, err
@@ -69,13 +69,13 @@ func rowsFromRecords(records []*spb.HistoryRecord) ([]Row, error) {
 func itemFromValue(key string, nestedKey []string, value Value, mode ValueMode) (*spb.HistoryItem, error) {
 	item := &spb.HistoryItem{Key: key, NestedKey: slices.Clone(nestedKey)}
 	switch mode {
-	case ValueJSONOnly:
+	case JSONValue:
 		encoded, err := valueJSON(value)
 		if err != nil {
 			return nil, err
 		}
 		item.ValueJson = string(encoded)
-	case TypedOnly:
+	case TypedValue:
 		typed, err := typedValue(value)
 		if err != nil {
 			return nil, err

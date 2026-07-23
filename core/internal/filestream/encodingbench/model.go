@@ -50,8 +50,8 @@ type Dataset struct {
 type ValueMode string
 
 const (
-	ValueJSONOnly ValueMode = "value_json_only"
-	TypedOnly     ValueMode = "typed_only"
+	JSONValue  ValueMode = "json_value"
+	TypedValue ValueMode = "typed_value"
 )
 
 type EncodedEnvelope struct {

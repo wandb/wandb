@@ -1,14 +1,20 @@
 """Build a self-contained HTML dashboard from a parsed benchmark CSV.
 
-    python3 parse_bench.py bench-run.log -o bench.csv
-    python3 build_dashboard.py bench.csv -o bench_dashboard.html
+    python3 parse_bench.py bench-run.log             # writes bench-run.csv
+    python3 build_dashboard.py bench-run.csv         # writes bench-run-dash.html
 
 No external JS/CSS dependencies: the page is plain HTML/CSS/SVG so it opens
 directly from disk (file://) with no server or CDN needed.
+
+The CSV uses the split format components produced by parse_bench.py:
+payload_format (jsonl, row_proto, column_proto), envelope_format (json,
+native), and value_mode (json_value, typed_value). The chart nests bars by
+GROUP_ORDER (see the JS constant) and offers per-variant checkboxes.
 """
 import argparse
 import csv
 import json
+import os
 import sys
 
 FLOAT_FIELDS = [
@@ -18,8 +24,6 @@ FLOAT_FIELDS = [
 ]
 
 DATASET_ORDER = ["tiny", "dense_numeric", "sparse_mixed", "wide_mixed", "nested_json", "system_metrics"]
-FORMAT_ORDER = ["legacy_json_jsonl", "json_row_proto_b64", "proto_row_proto", "json_column_proto_b64", "proto_column_proto"]
-VALUE_MODE_ORDER = ["value_json_only", "typed_only"]
 
 
 def load_rows(path):
@@ -57,12 +61,12 @@ PAGE_TEMPLATE = """<!doctype html>
     --grid:           #e1e0d9;
     --baseline:       #c3c2b7;
     --border:         rgba(11,11,11,0.10);
-    --series-1: #2a78d6; /* legacy_json_jsonl */
-    --series-2: #1baf7a; /* json_row_proto_b64 */
-    --series-3: #eda100; /* proto_row_proto */
-    --series-4: #4a3aa7; /* json_column_proto_b64 */
-    --series-5: #e34948; /* proto_column_proto */
-    --series-1-tint: #88b3e7; /* series colors blended 45% toward the surface, for stacked-bar sub-segments */
+    --series-1: #2a78d6; /* payload: jsonl */
+    --series-2: #1baf7a; /* payload: row_proto */
+    --series-3: #eda100;
+    --series-4: #4a3aa7; /* payload: column_proto */
+    --series-5: #e34948;
+    --series-1-tint: #88b3e7; /* series colors blended 45% toward the surface; tint = json envelope */
     --series-2-tint: #80d2b4;
     --series-3-tint: #f4ca71;
     --series-4-tint: #9a91cd;
@@ -139,10 +143,13 @@ PAGE_TEMPLATE = """<!doctype html>
   }
   .spacer { flex: 1 1 auto; }
   .check-label { font-size: 13px; color: var(--text-secondary); display: flex; gap: 6px; align-items: center; cursor: pointer; white-space: nowrap; }
-  .dataset-filters { margin-bottom: 18px; }
+  .filters-panel { margin-bottom: 12px; align-items: flex-start; }
   #dataset-filters { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+  .variant-groups { display: flex; flex-wrap: wrap; gap: 8px 26px; }
+  .variant-group { display: flex; align-items: center; gap: 10px; }
+  .variant-group .group-name { font-size: 12px; color: var(--text-muted); font-weight: 600; }
 
-  .legend-row { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px 28px; margin-bottom: 16px; }
+  .legend-row { display: flex; flex-wrap: wrap; gap: 8px 28px; margin-bottom: 16px; }
   .legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12.5px; color: var(--text-secondary); }
   .legend-item { display: flex; align-items: center; gap: 6px; }
   .legend-swatch { width: 10px; height: 10px; border-radius: 2px; flex: none; }
@@ -173,7 +180,7 @@ PAGE_TEMPLATE = """<!doctype html>
   .bar-label { font-size: 9.5px; fill: var(--text-secondary); font-variant-numeric: tabular-nums; }
   .mult-label { font-size: 8.5px; fill: var(--text-muted); font-variant-numeric: tabular-nums; }
   .axis-line { stroke: var(--baseline); stroke-width: 1; }
-  .cat-label { font-size: 9.5px; fill: var(--text-muted); }
+  .cat-label { font-size: 9px; fill: var(--text-muted); }
 
   .tooltip {
     position: fixed; pointer-events: none; z-index: 50;
@@ -212,14 +219,20 @@ PAGE_TEMPLATE = """<!doctype html>
     <label class="check-label"><input type="checkbox" id="table-toggle"> Show raw table</label>
   </div>
 
-  <div class="controls dataset-filters">
+  <div class="controls filters-panel">
     <span class="control-label">Workloads</span>
     <div id="dataset-filters"></div>
   </div>
 
+  <div class="controls filters-panel">
+    <span class="control-label">Variants</span>
+    <div class="variant-groups" id="variant-filters"></div>
+  </div>
+
   <div class="legend-row">
-    <div class="legend" id="legend"></div>
-    <div class="legend" id="fixture-legend"></div>
+    <div class="legend" id="payload-legend"></div>
+    <div class="legend" id="envelope-legend"></div>
+    <div class="legend" id="value-mode-legend"></div>
     <div class="legend" id="stack-legend" hidden></div>
   </div>
 
@@ -238,15 +251,30 @@ PAGE_TEMPLATE = """<!doctype html>
 <script>
 const ROWS = __ROWS_JSON__;
 const DATASETS = __DATASETS_JSON__;
-const FORMATS = __FORMATS_JSON__;
-const FORMAT_LABELS = __FORMAT_LABELS_JSON__;
-const FORMAT_SHORT = __FORMAT_SHORT_JSON__;
-const VALUE_MODES = __VALUE_MODES_JSON__;
-const FIXTURE_LABELS = { value_json_only: "value-only fixture", typed_only: "typed fixture" };
 const OPS = ["Encode", "Decode"];
+
+// The three independent format components. `order` fixes display/sort order;
+// `short` is the abbreviation used in the tiered axis labels.
+const COMPONENTS = [
+  { key: "envelope_format", label: "Envelope", order: ["json", "native"],
+    short: { json: "json", native: "native" } },
+  { key: "payload_format",  label: "Payload",  order: ["jsonl", "row_proto", "column_proto"],
+    short: { jsonl: "jsonl", row_proto: "row", column_proto: "col" } },
+  { key: "value_mode",      label: "Value mode", order: ["json_value", "typed_value"],
+    short: { json_value: "jv", typed_value: "tv" } },
+];
+const COMPONENT_BY_KEY = Object.fromEntries(COMPONENTS.map(c => [c.key, c]));
+
+// Nesting order for chart grouping, outermost first. Edit to regroup.
+const GROUP_ORDER = ["envelope_format", "payload_format", "value_mode"];
+
+// Hue follows the payload; tint of the same hue = json envelope.
 const SERIES_VARS = ["--series-1","--series-2","--series-3","--series-4","--series-5"];
 const SERIES_TINT_VARS = ["--series-1-tint","--series-2-tint","--series-3-tint","--series-4-tint","--series-5-tint"];
-const BASELINE_FORMAT = "legacy_json_jsonl";
+const PAYLOAD_SERIES_INDEX = { jsonl: 0, row_proto: 1, column_proto: 3 };
+
+// Multiplier baseline: the legacy transport, matched on value_mode.
+const BASELINE = { payload_format: "jsonl", envelope_format: "json" };
 
 const METRICS = [
   { key: "ns_per_op",     label: "Latency",              fmt: v => fmtNs(v) },
@@ -279,10 +307,68 @@ function fmtMult(v) {
   return (v >= 10 ? v.toFixed(1) : v.toFixed(2)) + "×";
 }
 
-let state = { metric: "ns_per_op", visible: new Set(DATASETS) };
+// Combos that actually exist in the data (not every cross-product is valid,
+// e.g. jsonl only ships in a json envelope).
+const EXISTING_COMBOS = (() => {
+  const seen = new Set();
+  const combos = [];
+  ROWS.forEach(r => {
+    const key = COMPONENTS.map(c => r[c.key]).join("|");
+    if (!seen.has(key)) {
+      seen.add(key);
+      combos.push(Object.fromEntries(COMPONENTS.map(c => [c.key, r[c.key]])));
+    }
+  });
+  return combos;
+})();
 
-function getRow(dataset, op, format, valueMode) {
-  return ROWS.find(r => r.dataset === dataset && r.op === op && r.format === format && r.value_mode === valueMode);
+let state = {
+  metric: "ns_per_op",
+  visible: new Set(DATASETS),
+  variants: Object.fromEntries(COMPONENTS.map(c => [c.key, new Set(c.order)])),
+};
+
+function selectedLeaves() {
+  const leaves = EXISTING_COMBOS.filter(combo =>
+    COMPONENTS.every(c => state.variants[c.key].has(combo[c.key]))
+  );
+  leaves.sort((a, b) => {
+    for (const key of GROUP_ORDER) {
+      const order = COMPONENT_BY_KEY[key].order;
+      const d = order.indexOf(a[key]) - order.indexOf(b[key]);
+      if (d) return d;
+    }
+    return 0;
+  });
+  return leaves;
+}
+
+function getRow(dataset, op, leaf) {
+  return ROWS.find(r =>
+    r.dataset === dataset && r.op === op &&
+    COMPONENTS.every(c => r[c.key] === leaf[c.key])
+  );
+}
+
+function getBaselineRow(dataset, op, valueMode) {
+  return getRow(dataset, op, {
+    payload_format: BASELINE.payload_format,
+    envelope_format: BASELINE.envelope_format,
+    value_mode: valueMode,
+  });
+}
+
+function leafFill(leaf) {
+  const i = PAYLOAD_SERIES_INDEX[leaf.payload_format] ?? 4;
+  return leaf.envelope_format === "native" ? SERIES_VARS[i] : SERIES_TINT_VARS[i];
+}
+
+function leafClasses(leaf) {
+  return "bar" + (leaf.value_mode === "json_value" ? " fixture-faded" : "");
+}
+
+function leafTitle(leaf) {
+  return `${leaf.payload_format} / ${leaf.envelope_format} — ${leaf.value_mode}`;
 }
 
 function populateMetricSelect() {
@@ -316,51 +402,70 @@ function buildDatasetFilters() {
   });
 }
 
-function buildLegend() {
-  const el = document.getElementById("legend");
+function buildVariantFilters() {
+  const el = document.getElementById("variant-filters");
   el.innerHTML = "";
-  FORMATS.forEach((f, i) => {
-    const item = document.createElement("div");
-    item.className = "legend-item";
-    const sw = document.createElement("span");
-    sw.className = "legend-swatch";
-    sw.style.background = `var(${SERIES_VARS[i]})`;
-    const label = document.createElement("span");
-    label.textContent = FORMAT_LABELS[f] || f;
-    item.appendChild(sw); item.appendChild(label);
-    el.appendChild(item);
+  COMPONENTS.forEach(c => {
+    const group = document.createElement("div");
+    group.className = "variant-group";
+    const name = document.createElement("span");
+    name.className = "group-name";
+    name.textContent = c.label + ":";
+    group.appendChild(name);
+    c.order.forEach(variant => {
+      const label = document.createElement("label");
+      label.className = "check-label";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = state.variants[c.key].has(variant);
+      cb.addEventListener("change", () => {
+        if (cb.checked) state.variants[c.key].add(variant);
+        else state.variants[c.key].delete(variant);
+        renderRows();
+      });
+      const span = document.createElement("span");
+      span.textContent = variant;
+      label.appendChild(cb); label.appendChild(span);
+      group.appendChild(label);
+    });
+    el.appendChild(group);
   });
 }
 
-function buildFixtureLegend() {
-  const el = document.getElementById("fixture-legend");
-  el.innerHTML = "";
-  [["typed_only", ""], ["value_json_only", "fixture-faded"]].forEach(([vm, cls]) => {
-    const item = document.createElement("div");
-    item.className = "legend-item";
-    const sw = document.createElement("span");
-    sw.className = "legend-swatch fixture-swatch " + cls;
-    const label = document.createElement("span");
-    label.textContent = FIXTURE_LABELS[vm];
-    item.appendChild(sw); item.appendChild(label);
-    el.appendChild(item);
-  });
+function makeLegendItem(el, swatchStyler, text) {
+  const item = document.createElement("div");
+  item.className = "legend-item";
+  const sw = document.createElement("span");
+  sw.className = "legend-swatch";
+  swatchStyler(sw);
+  const label = document.createElement("span");
+  label.textContent = text;
+  item.appendChild(sw); item.appendChild(label);
+  el.appendChild(item);
 }
 
-function buildStackLegend() {
-  const el = document.getElementById("stack-legend");
-  el.innerHTML = "";
-  [["Body bytes", ""], ["Envelope overhead", "stack-overhead"]].forEach(([label, cls]) => {
-    const item = document.createElement("div");
-    item.className = "legend-item";
-    const sw = document.createElement("span");
-    sw.className = "legend-swatch stack-swatch " + cls;
-    if (!cls) sw.style.background = "var(--text-secondary)";
-    const span = document.createElement("span");
-    span.textContent = label;
-    item.appendChild(sw); item.appendChild(span);
-    el.appendChild(item);
+function buildLegends() {
+  const payloadEl = document.getElementById("payload-legend");
+  payloadEl.innerHTML = "";
+  COMPONENT_BY_KEY.payload_format.order.forEach(p => {
+    const i = PAYLOAD_SERIES_INDEX[p] ?? 4;
+    makeLegendItem(payloadEl, sw => { sw.style.background = `var(${SERIES_VARS[i]})`; }, p);
   });
+
+  const envelopeEl = document.getElementById("envelope-legend");
+  envelopeEl.innerHTML = "";
+  makeLegendItem(envelopeEl, sw => { sw.style.background = "var(--series-1)"; }, "native envelope (solid)");
+  makeLegendItem(envelopeEl, sw => { sw.style.background = "var(--series-1-tint)"; }, "json envelope (tint)");
+
+  const vmEl = document.getElementById("value-mode-legend");
+  vmEl.innerHTML = "";
+  makeLegendItem(vmEl, sw => { sw.classList.add("fixture-swatch"); }, "typed_value");
+  makeLegendItem(vmEl, sw => { sw.classList.add("fixture-swatch", "fixture-faded"); }, "json_value");
+
+  const stackEl = document.getElementById("stack-legend");
+  stackEl.innerHTML = "";
+  makeLegendItem(stackEl, sw => { sw.style.background = "var(--text-secondary)"; }, "Body bytes");
+  makeLegendItem(stackEl, sw => { sw.classList.add("stack-swatch", "stack-overhead"); }, "Envelope overhead");
 }
 
 const tooltip = document.getElementById("tooltip");
@@ -387,19 +492,41 @@ function moveTooltip(evt) {
 }
 function hideTooltip() { tooltip.classList.remove("show"); }
 
-function buildBarSVG(dataset, op, metric) {
-  const W = 560, H = 230;
-  const padTop = 32, padBottom = 30, padLeft = 10, padRight = 10;
-  const groupGap = 16, barGap = 30, barW = 22;
+// Gap (px) between adjacent bars, by the outermost nesting level at which
+// they differ: [outer, middle, inner].
+const LEVEL_GAPS = [32, 20, 10];
+
+function diffLevel(a, b) {
+  for (let i = 0; i < GROUP_ORDER.length; i++) {
+    if (a[GROUP_ORDER[i]] !== b[GROUP_ORDER[i]]) return i;
+  }
+  return GROUP_ORDER.length - 1;
+}
+
+function buildBarSVG(dataset, op, metric, leaves) {
+  const W = 620, H = 252;
+  const padTop = 32, padBottom = 46, padLeft = 10, padRight = 10;
   const plotW = W - padLeft - padRight;
   const plotH = H - padTop - padBottom;
-  const groupW = (plotW - groupGap * (FORMATS.length - 1)) / FORMATS.length;
+  const axisY = padTop + plotH;
+
+  // Horizontal layout: fixed-width bars, level-dependent gaps, centered.
+  const gaps = leaves.slice(1).map((leaf, i) => LEVEL_GAPS[diffLevel(leaves[i], leaf)]);
+  const totalGaps = gaps.reduce((a, b) => a + b, 0);
+  const barW = Math.min(24, Math.max(8, (plotW - totalGaps) / Math.max(1, leaves.length)));
+  const usedW = leaves.length * barW + totalGaps;
+  const xs = [];
+  let x = padLeft + Math.max(0, (plotW - usedW) / 2);
+  leaves.forEach((leaf, i) => {
+    if (i > 0) x += barW + gaps[i - 1];
+    xs.push(x);
+  });
 
   const allVals = [];
-  FORMATS.forEach(f => VALUE_MODES.forEach(vm => {
-    const row = getRow(dataset, op, f, vm);
+  leaves.forEach(leaf => {
+    const row = getRow(dataset, op, leaf);
     if (row && row[metric.key] != null) allVals.push(row[metric.key]);
-  }));
+  });
   const maxV = Math.max(...allVals, 0.0001);
 
   const svgNS = "http://www.w3.org/2000/svg";
@@ -409,118 +536,144 @@ function buildBarSVG(dataset, op, metric) {
   const baseline = document.createElementNS(svgNS, "line");
   baseline.setAttribute("class", "axis-line");
   baseline.setAttribute("x1", padLeft); baseline.setAttribute("x2", W - padRight);
-  baseline.setAttribute("y1", padTop + plotH); baseline.setAttribute("y2", padTop + plotH);
+  baseline.setAttribute("y1", axisY); baseline.setAttribute("y2", axisY);
   svg.appendChild(baseline);
 
-  FORMATS.forEach((f, gi) => {
-    const groupX = padLeft + gi * (groupW + groupGap);
-    const pairW = barW * 2 + barGap;
-    const pairX = groupX + (groupW - pairW) / 2;
+  // Bars + labels. Value labels get a simple greedy collision nudge.
+  let prevLabel = null;
+  leaves.forEach((leaf, i) => {
+    const row = getRow(dataset, op, leaf);
+    if (!row || row[metric.key] == null) return;
+    const v = row[metric.key];
+    const barX = xs[i];
+    const barH = Math.max(1.5, (v / maxV) * (plotH - 4));
+    const barY = axisY - barH;
+    const baselineRow = getBaselineRow(dataset, op, leaf.value_mode);
+    const baselineV = baselineRow ? baselineRow[metric.key] : null;
+    const mult = baselineV ? v / baselineV : null;
+    const fillVar = leafFill(leaf);
+    const cls = leafClasses(leaf);
 
-    const baselineByMode = {};
-    VALUE_MODES.forEach(vm => {
-      const br = getRow(dataset, op, BASELINE_FORMAT, vm);
-      baselineByMode[vm] = br ? br[metric.key] : null;
-    });
+    const addRect = (segY, segH, segFill, tooltipFn) => {
+      const rect = document.createElementNS(svgNS, "rect");
+      rect.setAttribute("class", cls);
+      rect.setAttribute("x", barX); rect.setAttribute("y", segY);
+      rect.setAttribute("width", barW); rect.setAttribute("height", Math.max(0, segH));
+      rect.setAttribute("rx", 3);
+      rect.setAttribute("fill", `var(${segFill})`);
+      rect.addEventListener("pointermove", evt => tooltipFn(evt));
+      rect.addEventListener("pointerleave", hideTooltip);
+      svg.appendChild(rect);
+    };
 
-    VALUE_MODES.forEach((vm, vi) => {
-      const row = getRow(dataset, op, f, vm);
-      const x = pairX + vi * (barW + barGap);
-      if (!row || row[metric.key] == null) return;
-      const v = row[metric.key];
-      const fadedCls = vm === "value_json_only" ? " fixture-faded" : "";
-      const barH = Math.max(1.5, (v / maxV) * (plotH - 4));
-      const y = padTop + plotH - barH;
-      const baselineV = baselineByMode[vm];
-      const mult = baselineV ? v / baselineV : null;
-
-      const addRect = (segY, segH, fillVar, tooltipFn) => {
-        const rect = document.createElementNS(svgNS, "rect");
-        rect.setAttribute("class", "bar" + fadedCls);
-        rect.setAttribute("x", x); rect.setAttribute("y", segY);
-        rect.setAttribute("width", barW); rect.setAttribute("height", Math.max(0, segH));
-        rect.setAttribute("rx", 3);
-        rect.setAttribute("fill", `var(${fillVar})`);
-        rect.addEventListener("pointermove", evt => tooltipFn(evt));
-        rect.addEventListener("pointerleave", hideTooltip);
-        svg.appendChild(rect);
-      };
-
-      if (metric.stacked && row.body_bytes != null) {
-        const bodyV = Math.min(row.body_bytes, v);
-        const overheadV = v - bodyV;
-        const bodyH = (bodyV / v) * barH;
-        const overheadH = barH - bodyH;
-        const gap = bodyH > 0 && overheadH > 0 ? 2 : 0;
-        const bodyY = padTop + plotH - bodyH;
-        const overheadH2 = Math.max(0, overheadH - gap);
-        const overheadY = bodyY - gap - overheadH2;
-
-        addRect(bodyY, bodyH, SERIES_VARS[gi], evt => {
-          const title = `${FORMAT_LABELS[f] || f} — ${FIXTURE_LABELS[vm]} · body`;
-          showTooltip(evt, title, fmtBytes(bodyV), SERIES_VARS[gi]);
-        });
-        if (overheadH2 > 0) {
-          addRect(overheadY, overheadH2, SERIES_TINT_VARS[gi], evt => {
-            const title = `${FORMAT_LABELS[f] || f} — ${FIXTURE_LABELS[vm]} · envelope overhead`;
-            showTooltip(evt, title, fmtBytes(overheadV), SERIES_TINT_VARS[gi]);
-          });
-        }
-      } else {
-        addRect(y, barH, SERIES_VARS[gi], evt => {
-          const title = `${FORMAT_LABELS[f] || f} — ${FIXTURE_LABELS[vm]}`;
-          const valueText = mult != null ? `${metric.fmt(v)} · ${fmtMult(mult)}` : metric.fmt(v);
-          showTooltip(evt, title, valueText, SERIES_VARS[gi]);
+    if (metric.stacked && row.body_bytes != null) {
+      const bodyV = Math.min(row.body_bytes, v);
+      const overheadV = v - bodyV;
+      const bodyH = (bodyV / v) * barH;
+      const overheadH = barH - bodyH;
+      const gap = bodyH > 0 && overheadH > 0 ? 2 : 0;
+      const bodyY = axisY - bodyH;
+      const overheadH2 = Math.max(0, overheadH - gap);
+      const overheadY = bodyY - gap - overheadH2;
+      addRect(bodyY, bodyH, fillVar, evt => {
+        showTooltip(evt, leafTitle(leaf) + " · body", fmtBytes(bodyV), fillVar);
+      });
+      if (overheadH2 > 0) {
+        addRect(overheadY, overheadH2, "--text-muted", evt => {
+          showTooltip(evt, leafTitle(leaf) + " · envelope overhead", fmtBytes(overheadV), "--text-muted");
         });
       }
+    } else {
+      addRect(barY, barH, fillVar, evt => {
+        const valueText = mult != null ? `${metric.fmt(v)} · ${fmtMult(mult)}` : metric.fmt(v);
+        showTooltip(evt, leafTitle(leaf), valueText, fillVar);
+      });
+    }
 
-      const valueLabel = document.createElementNS(svgNS, "text");
-      valueLabel.setAttribute("class", "bar-label");
-      valueLabel.setAttribute("x", x + barW / 2);
-      valueLabel.setAttribute("y", Math.max(11, y - 15));
-      valueLabel.setAttribute("text-anchor", "middle");
-      valueLabel.textContent = metric.fmt(v);
-      svg.appendChild(valueLabel);
+    const valueText = metric.fmt(v);
+    const labelW = valueText.length * 5.3;
+    let valueY = Math.max(11, barY - 15);
+    // Nudge up if this label would collide with the previous bar's label.
+    if (prevLabel &&
+        barX + barW / 2 - labelW / 2 < prevLabel.right + 3 &&
+        Math.abs(valueY - prevLabel.y) < 11) {
+      valueY = Math.max(11, prevLabel.y - 12);
+    }
+    prevLabel = { right: barX + barW / 2 + labelW / 2, y: valueY };
 
-      const multLabel = document.createElementNS(svgNS, "text");
-      multLabel.setAttribute("class", "mult-label");
-      multLabel.setAttribute("x", x + barW / 2);
-      multLabel.setAttribute("y", Math.max(23, y - 4));
-      multLabel.setAttribute("text-anchor", "middle");
-      multLabel.textContent = mult != null ? fmtMult(mult) : "—";
-      svg.appendChild(multLabel);
-    });
+    const valueLabel = document.createElementNS(svgNS, "text");
+    valueLabel.setAttribute("class", "bar-label");
+    valueLabel.setAttribute("x", barX + barW / 2);
+    valueLabel.setAttribute("y", valueY);
+    valueLabel.setAttribute("text-anchor", "middle");
+    valueLabel.textContent = valueText;
+    svg.appendChild(valueLabel);
 
-    const catLabel = document.createElementNS(svgNS, "text");
-    catLabel.setAttribute("class", "cat-label");
-    catLabel.setAttribute("x", groupX + groupW / 2);
-    catLabel.setAttribute("y", padTop + plotH + 18);
-    catLabel.setAttribute("text-anchor", "middle");
-    catLabel.textContent = FORMAT_SHORT[f] || f;
-    svg.appendChild(catLabel);
+    const multLabel = document.createElementNS(svgNS, "text");
+    multLabel.setAttribute("class", "mult-label");
+    multLabel.setAttribute("x", barX + barW / 2);
+    multLabel.setAttribute("y", valueY + 11);
+    multLabel.setAttribute("text-anchor", "middle");
+    multLabel.textContent = mult != null ? fmtMult(mult) : "—";
+    svg.appendChild(multLabel);
   });
+
+  // Tiered category labels: innermost grouping level closest to the axis,
+  // outermost at the bottom; each label spans its run of equal values.
+  const nLevels = GROUP_ORDER.length;
+  for (let level = 0; level < nLevels; level++) {
+    const compo = COMPONENT_BY_KEY[GROUP_ORDER[level]];
+    const tierY = axisY + 12 + (nLevels - 1 - level) * 11;
+    let runStart = 0;
+    for (let i = 1; i <= leaves.length; i++) {
+      const runEnded = i === leaves.length ||
+        GROUP_ORDER.slice(0, level + 1).some(k => leaves[i][k] !== leaves[runStart][k]);
+      if (!runEnded) continue;
+      const x0 = xs[runStart], x1 = xs[i - 1] + barW;
+      const text = compo.short[leaves[runStart][compo.key]] ?? leaves[runStart][compo.key];
+      // Skip labels that would overflow their run (identity still available
+      // via color/opacity, the legend, and tooltips).
+      if (text.length * 5 <= x1 - x0 + 8) {
+        const label = document.createElementNS(svgNS, "text");
+        label.setAttribute("class", "cat-label");
+        label.setAttribute("x", (x0 + x1) / 2);
+        label.setAttribute("y", tierY);
+        label.setAttribute("text-anchor", "middle");
+        label.textContent = text;
+        svg.appendChild(label);
+      }
+      runStart = i;
+    }
+  }
 
   return svg;
 }
 
-function buildFacetContent(dataset, op, metric) {
-  const anyValue = FORMATS.some(f => VALUE_MODES.some(vm => {
-    const row = getRow(dataset, op, f, vm);
+function buildFacetContent(dataset, op, metric, leaves) {
+  if (!leaves.length) {
+    const div = document.createElement("div");
+    div.className = "placeholder";
+    div.textContent = "no variants selected";
+    return div;
+  }
+  const anyValue = leaves.some(leaf => {
+    const row = getRow(dataset, op, leaf);
     return row && row[metric.key] != null;
-  }));
+  });
   if (!anyValue) {
     const div = document.createElement("div");
     div.className = "placeholder";
     div.textContent = `${metric.label} not recorded for ${op}`;
     return div;
   }
-  return buildBarSVG(dataset, op, metric);
+  return buildBarSVG(dataset, op, metric, leaves);
 }
 
 function renderRows() {
   const container = document.getElementById("rows");
   container.innerHTML = "";
   const metric = METRICS.find(m => m.key === state.metric);
+  const leaves = selectedLeaves();
   DATASETS.filter(ds => state.visible.has(ds)).forEach(dataset => {
     const rowEl = document.createElement("div");
     rowEl.className = "dataset-row";
@@ -537,7 +690,7 @@ function renderRows() {
       const h4 = document.createElement("h4");
       h4.textContent = op;
       facet.appendChild(h4);
-      facet.appendChild(buildFacetContent(dataset, op, metric));
+      facet.appendChild(buildFacetContent(dataset, op, metric, leaves));
       chartsEl.appendChild(facet);
     });
     rowEl.appendChild(chartsEl);
@@ -546,7 +699,7 @@ function renderRows() {
 }
 
 function renderTable() {
-  const cols = ["benchmark","op","dataset","value_mode","format","iterations",
+  const cols = ["benchmark","op","dataset","value_mode","payload_format","envelope_format","iterations",
     "ns_per_op","ops_per_sec","mb_per_s","b_per_op","allocs_per_op","body_bytes","envelope_bytes",
     "gzip1_bytes","gzip1_ratio","gzip6_bytes","gzip6_ratio","envelope_ratio","rows_per_op","cells_per_op"];
   const table = document.getElementById("raw-table");
@@ -590,9 +743,8 @@ window.addEventListener("pointermove", moveTooltip);
 
 populateMetricSelect();
 buildDatasetFilters();
-buildLegend();
-buildFixtureLegend();
-buildStackLegend();
+buildVariantFilters();
+buildLegends();
 updateStackLegendVisibility();
 renderTable();
 renderRows();
@@ -601,51 +753,33 @@ renderRows();
 </html>
 """
 
-FORMAT_LABELS = {
-    "legacy_json_jsonl": "legacy JSON (JSONL)",
-    "json_row_proto_b64": "row proto, base64-in-JSON",
-    "proto_row_proto": "row proto, native envelope",
-    "json_column_proto_b64": "column proto, base64-in-JSON",
-    "proto_column_proto": "column proto, native envelope",
-}
-
-FORMAT_SHORT = {
-    "legacy_json_jsonl": "legacy JSON",
-    "json_row_proto_b64": "row · b64",
-    "proto_row_proto": "row · native",
-    "json_column_proto_b64": "col · b64",
-    "proto_column_proto": "col · native",
-}
-
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("csvfile")
-    ap.add_argument("-o", "--html", default="bench_dashboard.html", help="output HTML path")
+    ap.add_argument("-o", "--html", default=None,
+                    help="output HTML path (default: <csvfile minus extension>-dash.html)")
     args = ap.parse_args()
 
     rows = load_rows(args.csvfile)
     if not rows:
         sys.exit(f"no rows in {args.csvfile}")
+    if "payload_format" not in rows[0]:
+        sys.exit(f"{args.csvfile} has no payload_format column; re-run parse_bench.py to regenerate it")
 
     datasets = ordered_uniques(rows, "dataset", DATASET_ORDER)
-    formats = ordered_uniques(rows, "format", FORMAT_ORDER)
-    value_modes = ordered_uniques(rows, "value_mode", VALUE_MODE_ORDER)
+    out_path = args.html or os.path.splitext(args.csvfile)[0] + "-dash.html"
 
     html = (PAGE_TEMPLATE
             .replace("__ROWS_JSON__", json.dumps(rows))
             .replace("__DATASETS_JSON__", json.dumps(datasets))
-            .replace("__FORMATS_JSON__", json.dumps(formats))
-            .replace("__FORMAT_LABELS_JSON__", json.dumps(FORMAT_LABELS))
-            .replace("__FORMAT_SHORT_JSON__", json.dumps(FORMAT_SHORT))
-            .replace("__VALUE_MODES_JSON__", json.dumps(value_modes))
             .replace("__N_ROWS__", str(len(rows)))
             .replace("__SOURCE_NAME__", args.csvfile)
             .replace("__META_LINE__", "Apple M5 Pro &middot; darwin/arm64"))
 
-    with open(args.html, "w") as f:
+    with open(out_path, "w") as f:
         f.write(html)
-    print(f"wrote {args.html}", file=sys.stderr)
+    print(f"wrote {out_path}", file=sys.stderr)
 
 
 if __name__ == "__main__":

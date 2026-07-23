@@ -1,16 +1,20 @@
 # Filestream encoding benchmark
 
 This benchmark measures complete history-only filestream request envelopes,
-starting from prebuilt transaction-log `HistoryRecord` messages. It compares
-five transports:
+starting from prebuilt transaction-log `HistoryRecord` messages. Each
+transport is a `<payload_format>/<envelope_format>` combination — payload
+formats are `jsonl`, `row_proto`, and `column_proto`; envelope formats are
+`json` (the production-shaped JSON envelope, protobuf payloads base64-encoded)
+and `native` (payload messages nested directly in a protobuf envelope). Five
+combinations are benchmarked:
 
-- legacy extended JSONL inside the production-shaped JSON envelope;
-- one base64-encoded row protobuf per JSON `content` entry;
-- row protobuf messages nested directly in a protobuf envelope;
-- one base64-encoded columnar protobuf batch in a JSON envelope;
-- a columnar protobuf batch nested directly in a protobuf envelope.
+- `jsonl/json` — legacy extended JSONL inside the production JSON envelope;
+- `row_proto/json` — one base64-encoded row protobuf per JSON `content` entry;
+- `row_proto/native` — row protobuf messages nested in a protobuf envelope;
+- `column_proto/json` — one base64-encoded columnar protobuf batch in a JSON envelope;
+- `column_proto/native` — a columnar protobuf batch nested in a protobuf envelope.
 
-Every transport runs from both `value_json_only` and `typed_only`
+Every transport runs from both `json_value` and `typed_value`
 `HistoryRecord` fixtures. Fixture construction is outside the timed region;
 history conversion, inner serialization, base64, and outer-envelope encoding
 are timed.

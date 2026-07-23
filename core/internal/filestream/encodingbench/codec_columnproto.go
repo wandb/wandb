@@ -11,7 +11,7 @@ import (
 
 type JSONColumnProtoEnvelopeCodec struct{}
 
-func (JSONColumnProtoEnvelopeCodec) Name() string { return "json_column_proto_b64" }
+func (JSONColumnProtoEnvelopeCodec) Name() string { return "column_proto/json" }
 
 func (JSONColumnProtoEnvelopeCodec) Encode(records []*spb.HistoryRecord) (EncodedEnvelope, error) {
 	batch, err := columnarBatchFromRecords(records)
@@ -50,7 +50,7 @@ func (JSONColumnProtoEnvelopeCodec) Decode(data []byte, mode ValueMode) ([]*spb.
 
 type ProtoColumnEnvelopeCodec struct{}
 
-func (ProtoColumnEnvelopeCodec) Name() string { return "proto_column_proto" }
+func (ProtoColumnEnvelopeCodec) Name() string { return "column_proto/native" }
 
 func (ProtoColumnEnvelopeCodec) Encode(records []*spb.HistoryRecord) (EncodedEnvelope, error) {
 	batch, err := columnarBatchFromRecords(records)

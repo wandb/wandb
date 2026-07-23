@@ -11,7 +11,7 @@ import (
 
 type LegacyJSONEnvelopeCodec struct{}
 
-func (LegacyJSONEnvelopeCodec) Name() string { return "legacy_json_jsonl" }
+func (LegacyJSONEnvelopeCodec) Name() string { return "jsonl/json" }
 
 func (LegacyJSONEnvelopeCodec) Encode(records []*spb.HistoryRecord) (EncodedEnvelope, error) {
 	lines := make([]string, len(records))

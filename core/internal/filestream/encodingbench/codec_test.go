@@ -46,7 +46,7 @@ func TestHistoryValueConversions(t *testing.T) {
 		{Kind: KindJSON, JSON: []byte(`[1,true,"x"]`)},
 		{Kind: KindJSON, JSON: []byte(`{"nested":{"value":1}}`)},
 	}
-	for _, mode := range []ValueMode{ValueJSONOnly, TypedOnly} {
+	for _, mode := range []ValueMode{JSONValue, TypedValue} {
 		for _, value := range values {
 			item, err := itemFromValue("metric", nil, value, mode)
 			require.NoError(t, err)
@@ -104,7 +104,7 @@ func TestJSONEnvelopeWireShape(t *testing.T) {
 }
 
 func TestJSONEnvelopeContentFraming(t *testing.T) {
-	records, err := recordsFromRows([]Row{{Cells: []Cell{{Key: "x", Value: Value{Kind: KindNumber, Number: 1}}}}, {Cells: []Cell{{Key: "x", Value: Value{Kind: KindNumber, Number: 2}}}}}, TypedOnly)
+	records, err := recordsFromRows([]Row{{Cells: []Cell{{Key: "x", Value: Value{Kind: KindNumber, Number: 1}}}}, {Cells: []Cell{{Key: "x", Value: Value{Kind: KindNumber, Number: 2}}}}}, TypedValue)
 	require.NoError(t, err)
 	rowEncoded, err := (JSONRowProtoEnvelopeCodec{}).Encode(records)
 	require.NoError(t, err)
@@ -132,7 +132,7 @@ func TestNestedKeysSurviveProtobufTransports(t *testing.T) {
 	} {
 		encoded, err := codec.Encode(records)
 		require.NoError(t, err)
-		decoded, err := codec.Decode(encoded.Data, TypedOnly)
+		decoded, err := codec.Decode(encoded.Data, TypedValue)
 		require.NoError(t, err)
 		require.Equal(t, []string{"model", "loss"}, decoded[0].Item[0].NestedKey)
 		require.Empty(t, decoded[0].Item[0].Key)
@@ -152,30 +152,30 @@ func TestLegacyNestedKeySemantics(t *testing.T) {
 func TestJSONProtoCodecsRejectInvalidBase64(t *testing.T) {
 	data, err := marshalJSONEnvelope([]string{"%%%"})
 	require.NoError(t, err)
-	_, err = (JSONRowProtoEnvelopeCodec{}).Decode(data, TypedOnly)
+	_, err = (JSONRowProtoEnvelopeCodec{}).Decode(data, TypedValue)
 	require.ErrorContains(t, err, "base64")
-	_, err = (JSONColumnProtoEnvelopeCodec{}).Decode(data, TypedOnly)
+	_, err = (JSONColumnProtoEnvelopeCodec{}).Decode(data, TypedValue)
 	require.ErrorContains(t, err, "base64")
 }
 
 func TestJSONRowProtoRejectsTruncatedRecord(t *testing.T) {
 	data, err := marshalJSONEnvelope([]string{base64.StdEncoding.EncodeToString([]byte{0xff})})
 	require.NoError(t, err)
-	_, err = (JSONRowProtoEnvelopeCodec{}).Decode(data, TypedOnly)
+	_, err = (JSONRowProtoEnvelopeCodec{}).Decode(data, TypedValue)
 	require.ErrorContains(t, err, "unmarshal row")
 }
 
 func TestJSONColumnProtoRejectsTruncatedBatch(t *testing.T) {
 	data, err := marshalJSONEnvelope([]string{base64.StdEncoding.EncodeToString([]byte{0xff})})
 	require.NoError(t, err)
-	_, err = (JSONColumnProtoEnvelopeCodec{}).Decode(data, TypedOnly)
+	_, err = (JSONColumnProtoEnvelopeCodec{}).Decode(data, TypedValue)
 	require.ErrorContains(t, err, "unmarshal columnar batch")
 }
 
 func TestProtoEnvelopeRejectsMissingContent(t *testing.T) {
 	data, err := proto.Marshal(&BenchmarkFileStreamRequest{FileName: historyFileName})
 	require.NoError(t, err)
-	_, err = (ProtoRowEnvelopeCodec{}).Decode(data, TypedOnly)
+	_, err = (ProtoRowEnvelopeCodec{}).Decode(data, TypedValue)
 	require.ErrorContains(t, err, "missing history content")
 }
 
@@ -208,7 +208,7 @@ func TestColumnProtoRejectsInvalidIndexes(t *testing.T) {
 		ValueIndex:  []uint32{0},
 		NumberValue: []float64{1},
 	}
-	_, err := recordsFromColumnarBatch(batch, TypedOnly)
+	_, err := recordsFromColumnarBatch(batch, TypedValue)
 	require.ErrorContains(t, err, "key index")
 }
 
@@ -222,7 +222,7 @@ func TestColumnProtoRejectsInvalidJSON(t *testing.T) {
 		ValueIndex: []uint32{0},
 		JsonValue:  [][]byte{[]byte("not JSON")},
 	}
-	_, err := recordsFromColumnarBatch(batch, TypedOnly)
+	_, err := recordsFromColumnarBatch(batch, TypedValue)
 	require.ErrorContains(t, err, "invalid JSON")
 }
 
@@ -240,10 +240,10 @@ func requireRecordMode(t *testing.T, records []*spb.HistoryRecord, mode ValueMod
 	for _, record := range records {
 		for _, item := range record.Item {
 			switch mode {
-			case ValueJSONOnly:
+			case JSONValue:
 				require.Nil(t, item.Value)
 				require.NotEmpty(t, item.ValueJson)
-			case TypedOnly:
+			case TypedValue:
 				require.NotNil(t, item.Value)
 				require.Empty(t, item.ValueJson)
 			}

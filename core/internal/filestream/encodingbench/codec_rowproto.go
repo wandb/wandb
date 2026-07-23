@@ -10,7 +10,7 @@ import (
 
 type JSONRowProtoEnvelopeCodec struct{}
 
-func (JSONRowProtoEnvelopeCodec) Name() string { return "json_row_proto_b64" }
+func (JSONRowProtoEnvelopeCodec) Name() string { return "row_proto/json" }
 
 func (JSONRowProtoEnvelopeCodec) Encode(records []*spb.HistoryRecord) (EncodedEnvelope, error) {
 	content := make([]string, len(records))
@@ -52,7 +52,7 @@ func (JSONRowProtoEnvelopeCodec) Decode(data []byte, _ ValueMode) ([]*spb.Histor
 
 type ProtoRowEnvelopeCodec struct{}
 
-func (ProtoRowEnvelopeCodec) Name() string { return "proto_row_proto" }
+func (ProtoRowEnvelopeCodec) Name() string { return "row_proto/native" }
 
 func (ProtoRowEnvelopeCodec) Encode(records []*spb.HistoryRecord) (EncodedEnvelope, error) {
 	bodyBytes := 0
