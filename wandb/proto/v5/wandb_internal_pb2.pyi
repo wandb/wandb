@@ -363,15 +363,45 @@ class HistoryRecord(_message.Message):
     _info: _wandb_base_pb2._RecordInfo
     def __init__(self, item: _Optional[_Iterable[_Union[HistoryItem, _Mapping]]] = ..., step: _Optional[_Union[HistoryStep, _Mapping]] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
 
+class HistoryValue(_message.Message):
+    __slots__ = ("kind", "bool_value", "number_value", "string_value", "json_value")
+    class Kind(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+        __slots__ = ()
+        KIND_UNSPECIFIED: _ClassVar[HistoryValue.Kind]
+        KIND_NULL: _ClassVar[HistoryValue.Kind]
+        KIND_BOOL: _ClassVar[HistoryValue.Kind]
+        KIND_NUMBER: _ClassVar[HistoryValue.Kind]
+        KIND_STRING: _ClassVar[HistoryValue.Kind]
+        KIND_JSON: _ClassVar[HistoryValue.Kind]
+    KIND_UNSPECIFIED: HistoryValue.Kind
+    KIND_NULL: HistoryValue.Kind
+    KIND_BOOL: HistoryValue.Kind
+    KIND_NUMBER: HistoryValue.Kind
+    KIND_STRING: HistoryValue.Kind
+    KIND_JSON: HistoryValue.Kind
+    KIND_FIELD_NUMBER: _ClassVar[int]
+    BOOL_VALUE_FIELD_NUMBER: _ClassVar[int]
+    NUMBER_VALUE_FIELD_NUMBER: _ClassVar[int]
+    STRING_VALUE_FIELD_NUMBER: _ClassVar[int]
+    JSON_VALUE_FIELD_NUMBER: _ClassVar[int]
+    kind: HistoryValue.Kind
+    bool_value: bool
+    number_value: float
+    string_value: str
+    json_value: bytes
+    def __init__(self, kind: _Optional[_Union[HistoryValue.Kind, str]] = ..., bool_value: bool = ..., number_value: _Optional[float] = ..., string_value: _Optional[str] = ..., json_value: _Optional[bytes] = ...) -> None: ...
+
 class HistoryItem(_message.Message):
-    __slots__ = ("key", "nested_key", "value_json")
+    __slots__ = ("key", "nested_key", "value", "value_json")
     KEY_FIELD_NUMBER: _ClassVar[int]
     NESTED_KEY_FIELD_NUMBER: _ClassVar[int]
+    VALUE_FIELD_NUMBER: _ClassVar[int]
     VALUE_JSON_FIELD_NUMBER: _ClassVar[int]
     key: str
     nested_key: _containers.RepeatedScalarFieldContainer[str]
+    value: HistoryValue
     value_json: str
-    def __init__(self, key: _Optional[str] = ..., nested_key: _Optional[_Iterable[str]] = ..., value_json: _Optional[str] = ...) -> None: ...
+    def __init__(self, key: _Optional[str] = ..., nested_key: _Optional[_Iterable[str]] = ..., value: _Optional[_Union[HistoryValue, _Mapping]] = ..., value_json: _Optional[str] = ...) -> None: ...
 
 class HistoryResult(_message.Message):
     __slots__ = ()

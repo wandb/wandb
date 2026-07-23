@@ -289,6 +289,23 @@ message HistoryRecord {
   _RecordInfo _info = 200;
 }
 
+message HistoryValue {
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    KIND_NULL = 1;
+    KIND_BOOL = 2;
+    KIND_NUMBER = 3;
+    KIND_STRING = 4;
+    KIND_JSON = 5;
+  }
+
+  Kind kind = 1;
+  bool bool_value = 2;
+  double number_value = 3;
+  string string_value = 4;
+  bytes json_value = 5;
+}
+
 /*
  * HistoryItem:
  *
@@ -299,6 +316,7 @@ message HistoryRecord {
 message HistoryItem {
   string key = 1;
   repeated string nested_key = 2;
+  optional HistoryValue value = 3;
   string value_json = 16;
 }
 

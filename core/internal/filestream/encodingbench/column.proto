@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package wandb.filestream.encodingbench;
+
+option go_package = "github.com/wandb/wandb/core/internal/filestream/encodingbench;encodingbench";
+
+import "wandb/proto/wandb_internal.proto";
+
+// BenchmarkFileStreamRequest is an experimental benchmark-only filestream
+// envelope. It is not a production wire protocol.
+message BenchmarkFileStreamRequest {
+  string file_name = 1;
+  uint64 offset = 2;
+
+  oneof content {
+    RowHistoryBatch row_history = 3;
+    ColumnarHistoryBatch columnar_history = 4;
+  }
+}
+
+message RowHistoryBatch {
+  repeated wandb_internal.HistoryRecord records = 1;
+}
+
+message HistoryKey {
+  string key = 1;
+  repeated string nested_key = 2;
+}
+
+// ColumnarHistoryBatch is an experimental benchmark-only representation.
+// Values are stored in type-specific arrays. value_index selects the value
+// from the array identified by kind; it is ignored for null cells.
+message ColumnarHistoryBatch {
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    KIND_NULL = 1;
+    KIND_BOOL = 2;
+    KIND_NUMBER = 3;
+    KIND_STRING = 4;
+    KIND_JSON = 5;
+  }
+
+  uint32 row_count = 1;
+  repeated HistoryKey keys = 2;
+  repeated uint32 row_index = 3 [packed = true];
+  repeated uint32 key_index = 4 [packed = true];
+  repeated Kind kind = 5 [packed = true];
+  repeated uint32 value_index = 6 [packed = true];
+  repeated bool bool_value = 7 [packed = true];
+  repeated double number_value = 8 [packed = true];
+  repeated string string_value = 9;
+  repeated bytes json_value = 10;
+}
