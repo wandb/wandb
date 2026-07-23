@@ -113,6 +113,21 @@ def action_enabled(service_api: ServiceApi, action: ActionType) -> bool:
     return (action in UNGATED_ACTIONS) or service_api.feature_enabled(flag_name)
 
 
+def automation_enabled(
+    service_api: ServiceApi,
+    *,
+    scope: ScopeType,
+    event: EventType,
+    action: ActionType,
+) -> bool:
+    """Returns whether the server supports the automation's scope, event, and action."""
+    return (
+        scope_enabled(service_api, scope)
+        and event_enabled(service_api, event)
+        and action_enabled(service_api, action)
+    )
+
+
 SCOPE_FRAGMENT_NAMES: Final[dict[ScopeType, str]] = {
     ScopeType.ENTITY: nameof(EntityScopeFields),
 }

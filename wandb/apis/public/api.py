@@ -2427,24 +2427,18 @@ class Api:
         from wandb.automations import Automation
         from wandb.automations._generated import CREATE_AUTOMATION_GQL, CreateAutomation
         from wandb.automations._utils import (
-            action_enabled,
-            event_enabled,
+            automation_enabled,
             omit_automation_fragments,
             prepare_to_create,
-            scope_enabled,
         )
 
         gql_input = prepare_to_create(obj, **kwargs)
 
-        # Note: bind these before the check, since `and` short-circuits and the
-        # error message below needs all three names.
-        scope = gql_input.scope_type
-        event = gql_input.triggering_event_type
-        action = gql_input.triggered_action_type
-        if not (
-            scope_enabled(self._service_api, scope)
-            and event_enabled(self._service_api, event)
-            and action_enabled(self._service_api, action)
+        if not automation_enabled(
+            self._service_api,
+            scope=(scope := gql_input.scope_type),
+            event=(event := gql_input.triggering_event_type),
+            action=(action := gql_input.triggered_action_type),
         ):
             msg = (
                 f"Automation scope, event, and/or action ({scope.value!r}, {event.value!r}, {action.value!r}) "
@@ -2547,24 +2541,18 @@ class Api:
         from wandb.automations import Automation
         from wandb.automations._generated import UPDATE_AUTOMATION_GQL, UpdateAutomation
         from wandb.automations._utils import (
-            action_enabled,
-            event_enabled,
+            automation_enabled,
             omit_automation_fragments,
             prepare_to_update,
-            scope_enabled,
         )
 
         gql_input = prepare_to_update(obj, **kwargs)
 
-        # Note: bind these before the check, since `and` short-circuits and the
-        # error message below needs all three names.
-        scope = gql_input.scope_type
-        event = gql_input.triggering_event_type
-        action = gql_input.triggered_action_type
-        if not (
-            scope_enabled(self._service_api, scope)
-            and event_enabled(self._service_api, event)
-            and action_enabled(self._service_api, action)
+        if not automation_enabled(
+            self._service_api,
+            scope=(scope := gql_input.scope_type),
+            event=(event := gql_input.triggering_event_type),
+            action=(action := gql_input.triggered_action_type),
         ):
             msg = (
                 f"Automation scope, event, and/or action ({scope.value!r}, {event.value!r}, {action.value!r}) "
