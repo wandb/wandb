@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/filestream"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+
 	"google.golang.org/protobuf/proto"
 )
 

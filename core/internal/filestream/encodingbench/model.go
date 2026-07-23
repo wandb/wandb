@@ -9,6 +9,7 @@ import (
 	"slices"
 
 	"github.com/wandb/simplejsonext"
+
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
