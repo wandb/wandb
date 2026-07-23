@@ -34,7 +34,7 @@ from wandb.automations._run_state_filters import ReportedRunState, StateFilter
 from wandb.automations._utils import event_enabled
 from wandb.automations.actions import InputAction, SavedNoOpAction, SavedWebhookAction
 from wandb.automations.events import InputEvent, RunMetricFilter, RunStateFilter
-from wandb.errors.errors import CommError
+from wandb.errors.errors import CommError, UnsupportedError
 from wandb.proto import wandb_internal_pb2 as pb
 
 if TYPE_CHECKING:
@@ -235,7 +235,8 @@ def test_create_automation_for_run_metric_threshold_event(
     )
 
     if not event_enabled(module_api._service_api, event.event_type):
-        with raises(CommError):
+        # The client-side gate rejects unsupported events before calling the server.
+        with raises(UnsupportedError):
             module_api.create_automation(
                 (event >> action),
                 name=automation_name,
@@ -297,7 +298,8 @@ def test_create_automation_for_run_metric_change_event(
     action = SendWebhook.from_integration(webhook)
 
     if not event_enabled(module_api._service_api, event.event_type):
-        with raises(CommError):
+        # The client-side gate rejects unsupported events before calling the server.
+        with raises(UnsupportedError):
             module_api.create_automation(
                 (event >> action),
                 name=automation_name,
@@ -344,7 +346,8 @@ def test_create_automation_for_run_state_event(
     action = SendWebhook.from_integration(webhook)
 
     if not event_enabled(module_api._service_api, event.event_type):
-        with raises(CommError):
+        # The client-side gate rejects unsupported events before calling the server.
+        with raises(UnsupportedError):
             module_api.create_automation(
                 (event >> action),
                 name=automation_name,
@@ -441,7 +444,8 @@ def test_create_automation_for_run_metric_zscore_event(
     action = SendWebhook.from_integration(webhook)
 
     if not event_enabled(module_api._service_api, event.event_type):
-        with raises(CommError):
+        # The client-side gate rejects unsupported events before calling the server.
+        with raises(UnsupportedError):
             module_api.create_automation(
                 (event >> action),
                 name=automation_name,
