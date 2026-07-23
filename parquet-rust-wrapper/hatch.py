@@ -33,13 +33,13 @@ def build_arrow_rs_wrapper(
     """
     arrow_rs_wrapper_dir = pathlib.Path(__file__).parent
 
-    match target_triple or platform.system().lower():
-        case target if "windows" in target:
-            lib_name = "arrow_rs_wrapper.dll"
-        case target if "darwin" in target:
-            lib_name = "libarrow_rs_wrapper.dylib"
-        case _:
-            lib_name = "libarrow_rs_wrapper.so"
+    target_system = target_triple or platform.system().lower()
+    if "windows" in target_system:
+        lib_name = "arrow_rs_wrapper.dll"
+    elif "darwin" in target_system:
+        lib_name = "libarrow_rs_wrapper.dylib"
+    else:  # linux or an unrecognized host: default to .so
+        lib_name = "libarrow_rs_wrapper.so"
 
     cmd = [
         str(cargo_binary),

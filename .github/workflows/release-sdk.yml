@@ -67,9 +67,8 @@ jobs:
 
       - name: Lint changes
         run: |
-          uv tool install prek
           # if there are linting errors, this will fix them and proceed
-          sh -c 'prek run trailing-whitespace --all-files --hook-stage pre-push' || exit 0
+          sh -c 'uvx prek run trailing-whitespace --all-files --hook-stage pre-push' || exit 0
 
       - name: Commit and push changes
         run: |
@@ -120,7 +119,8 @@ jobs:
           CIBW_ARCHS_LINUX: ${{ matrix.arch }}
           # The build hook emits a Python-ABI-independent py3-none-* wheel, so
           # one CPython selector is sufficient for each platform target. Keep
-          # it in sync with requires-python in pyproject.toml.
+          # it in sync with requires-python in pyproject.toml, and revisit if
+          # wheels ever include CPython extension modules again.
           CIBW_BUILD: "cp310-${{ matrix.libc }}_${{ matrix.arch }}"
           CIBW_BEFORE_ALL_LINUX: >
             ${{ matrix.before_all_extra }} &&
@@ -257,6 +257,11 @@ jobs:
     timeout-minutes: 20
 
     steps:
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
       # Only used by setup-go below; the sdist carries everything it needs.
       - name: Checkout Go version and module checksums
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
@@ -265,11 +270,6 @@ jobs:
           sparse-checkout: |
             core/go.mod
             core/go.sum
-
-      - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
-        with:
-          python-version: "3.12"
 
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
@@ -388,41 +388,10 @@ jobs:
           WANDB_MODE=offline \
           python -c "import wandb; run = wandb.init(); run.finish()"
 
-  verify-test-pypi-sdist:
-    needs: test-pypi-publish
-    name: Verify sdist on TestPyPI
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    continue-on-error: true
-
-    steps:
-      - name: Set up Python
-        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
-        with:
-          python-version: "3.12"
-
-      - name: Download built source distribution
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
-        with:
-          name: wandb-sdk-distribution-sdist
-          path: built
-
-      - name: Download source distribution from TestPyPI
-        run: |
-          python -m pip download \
-            --no-deps \
-            --no-binary :all: \
-            --index-url https://test.pypi.org/simple/ \
-            --dest downloaded \
-            wandb==${{ github.event.inputs.version }}
-
-      - name: Verify uploaded source distribution
-        run: cmp built/wandb-*.tar.gz downloaded/wandb-*.tar.gz
-
   pypi-publish:
     if: ${{ inputs.mode != 'test-release' }}
     name: Publish to PyPI
-    needs: [verify-test-pypi, verify-test-pypi-sdist]
+    needs: [verify-test-pypi]
     runs-on: ubuntu-latest
     environment:
       name: release

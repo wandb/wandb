@@ -210,11 +210,8 @@ class CustomBuildHook(BuildHookInterface):
             " cross-compilation.",
         )
 
-        match platform.system().lower():
-            case "windows" | "darwin" | "linux" as goos:
-                pass
-            case _:
-                goos = ""
+        system = platform.system().lower()
+        goos = system if system in ("windows", "darwin", "linux") else ""
 
         goarch = _to_goarch(platform.machine().lower())
 
@@ -257,15 +254,14 @@ def _parse_target_platform(
     """Parse a Python platform name into Go and Rust compiler targets."""
     platform_name = platform_name.lower()
 
-    match platform_name:
-        case name if name.startswith("macosx-"):
-            goos = "darwin"
-        case name if name.startswith("win-"):
-            goos = "windows"
-        case name if name.startswith(("linux-", "manylinux_", "musllinux_")):
-            goos = "linux"
-        case _:
-            return None
+    if platform_name.startswith("macosx-"):
+        goos = "darwin"
+    elif platform_name.startswith("win-"):
+        goos = "windows"
+    elif platform_name.startswith(("linux-", "manylinux_", "musllinux_")):
+        goos = "linux"
+    else:
+        return None
 
     goarch = _platform_goarch(platform_name)
     if not goarch:
@@ -293,16 +289,14 @@ def _to_rust_target(goos: str, goarch: str, *, is_musl: bool) -> str | None:
     if not rust_arch:
         return None
 
-    match goos:
-        case "darwin":
-            return f"{rust_arch}-apple-darwin"
-        case "windows":
-            return f"{rust_arch}-pc-windows-msvc"
-        case "linux":
-            libc = "musl" if is_musl else "gnu"
-            return f"{rust_arch}-unknown-linux-{libc}"
-        case _:
-            return None
+    if goos == "darwin":
+        return f"{rust_arch}-apple-darwin"
+    if goos == "windows":
+        return f"{rust_arch}-pc-windows-msvc"
+    if goos == "linux":
+        libc = "musl" if is_musl else "gnu"
+        return f"{rust_arch}-unknown-linux-{libc}"
+    return None
 
 
 def _platform_goarch(platform_name: str) -> str:
