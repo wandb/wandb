@@ -212,7 +212,7 @@ func (r *TelemetryRecorder) With(
 // It additionally records a log record with the telemetry
 // context's attributes plus the caller-supplied attributes under the same
 // name
-func (r TelemetryRecorder) IncrementCounterAndLogEvent(
+func (r *TelemetryRecorder) IncrementCounterAndLogEvent(
 	ctx context.Context,
 	name string,
 	attributes map[string]string,
@@ -242,7 +242,7 @@ func (r TelemetryRecorder) IncrementCounterAndLogEvent(
 //
 // The log record contains the telemetry context's attributes,
 // in addition to the caller-supplied attributes
-func (r TelemetryRecorder) Log(
+func (r *TelemetryRecorder) Log(
 	ctx context.Context,
 	message string,
 	attributes map[string]string,
@@ -276,7 +276,7 @@ func (r TelemetryRecorder) Log(
 // "error.originator". The stack trace is captured at the point Error is called.
 //
 // errorOriginator is a caller-supplied hint about where the error originated.
-func (r TelemetryRecorder) Error(
+func (r *TelemetryRecorder) Error(
 	ctx context.Context,
 	message string,
 	err error,
