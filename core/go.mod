@@ -30,6 +30,7 @@ require (
 	github.com/prometheus/common v0.70.1
 	github.com/prometheus/procfs v0.21.1
 	github.com/radovskyb/watcher v1.0.7
+	github.com/rogpeppe/go-internal v1.14.1
 	github.com/shirou/gopsutil/v4 v4.26.6
 	github.com/spf13/afero v1.15.0
 	github.com/stretchr/testify v1.11.1
