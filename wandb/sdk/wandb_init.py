@@ -58,7 +58,7 @@ _shared_service_notice_shown = False
 # Extra time to wait for the backend to report the error that caused
 # `wandb.init()` to exceed its timeout, before giving up on it and
 # raising a generic timeout error.
-_init_timeout_grace_seconds = 10.0
+_INIT_TIMEOUT_GRACE_SECONDS = 10.0
 
 
 def _huggingface_version() -> str | None:
@@ -946,13 +946,9 @@ class _WandbInit:
                 run_printer,
                 default_text="Waiting for wandb.init()...",
             ) as progress_printer:
-                # The backend bounds run initialization by init_timeout and
-                # is expected to respond with the error it was retrying, so
-                # wait a little longer for it. The grace period bounds how
-                # long we can hang if the backend fails to respond at all.
                 result = wait_with_progress(
                     run_init_handle,
-                    timeout=timeout + _init_timeout_grace_seconds,
+                    timeout=timeout + _INIT_TIMEOUT_GRACE_SECONDS,
                     display_progress=functools.partial(
                         progress.loop_printing_operation_stats,
                         progress_printer,
