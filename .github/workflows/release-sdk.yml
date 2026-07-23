@@ -98,12 +98,12 @@ jobs:
             before_all_extra: "apk add binutils patchelf gcc musl-dev"
           - arch: x86_64
             libc: manylinux
-            runner: ubuntu-22.04
+            runner: ubuntu-latest-16-cores
             go_arch: linux-amd64
             before_all_extra: "true"
           - arch: x86_64
             libc: musllinux
-            runner: ubuntu-22.04
+            runner: ubuntu-latest-16-cores
             go_arch: linux-amd64
             before_all_extra: "apk add binutils patchelf gcc musl-dev"
 
@@ -159,11 +159,11 @@ jobs:
             arch: ARM64
             build: cp310-win_arm64
             rust_target: aarch64-pc-windows-msvc
-          - os: macos-14
+          - os: macos-latest-xlarge
             arch: x86_64
             build: cp310-macosx_x86_64
             rust_target: x86_64-apple-darwin
-          - os: macos-14
+          - os: macos-latest-xlarge
             arch: arm64
             build: cp310-macosx_arm64
             rust_target: aarch64-apple-darwin
