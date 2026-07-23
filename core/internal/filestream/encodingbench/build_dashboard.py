@@ -1,3 +1,4 @@
+# ruff: noqa: T201
 """Build a self-contained HTML dashboard from a parsed benchmark CSV.
 
     python3 parse_bench.py bench-run.log             # writes bench-run.csv

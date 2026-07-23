@@ -1,3 +1,4 @@
+# ruff: noqa: T201
 """Parse `go test -bench` output for this package into a CSV table.
 
 Benchmark names have the shape:
