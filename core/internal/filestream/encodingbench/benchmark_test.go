@@ -90,7 +90,13 @@ func BenchmarkCompress(b *testing.B) {
 					b.Fatal(err)
 				}
 				for _, level := range []int{gzip.BestSpeed, 6} {
-					name := fmt.Sprintf("%s/%s/%s/gzip%d", workload.Name, fixture.Mode, codec.Name(), level)
+					name := fmt.Sprintf(
+						"%s/%s/%s/gzip%d",
+						workload.Name,
+						fixture.Mode,
+						codec.Name(),
+						level,
+					)
 					b.Run(name, func(b *testing.B) {
 						var destination bytes.Buffer
 						b.SetBytes(int64(len(encoded.Data)))

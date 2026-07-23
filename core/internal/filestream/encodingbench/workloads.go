@@ -127,11 +127,16 @@ func mixedValue(rowIndex, columnIndex int) Value {
 		return Value{Kind: KindNumber, Number: float64(rowIndex*31+columnIndex) / 7}
 	case 3:
 		length := 8 + (rowIndex+columnIndex)%96
-		return Value{Kind: KindString, String: strings.Repeat(string(rune('a'+columnIndex%26)), length)}
+		return Value{
+			Kind:   KindString,
+			String: strings.Repeat(string(rune('a'+columnIndex%26)), length),
+		}
 	default:
 		return Value{
 			Kind: KindJSON,
-			JSON: []byte(fmt.Sprintf(`[%d,%d,{"bucket":%d}]`, rowIndex, columnIndex, columnIndex%16)),
+			JSON: []byte(
+				fmt.Sprintf(`[%d,%d,{"bucket":%d}]`, rowIndex, columnIndex, columnIndex%16),
+			),
 		}
 	}
 }

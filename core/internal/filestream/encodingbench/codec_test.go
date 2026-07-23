@@ -7,11 +7,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/core/internal/filestream"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-
-	"google.golang.org/protobuf/proto"
 )
 
 func TestEnvelopeCodecRoundTrips(t *testing.T) {
@@ -106,7 +105,13 @@ func TestJSONEnvelopeWireShape(t *testing.T) {
 }
 
 func TestJSONEnvelopeContentFraming(t *testing.T) {
-	records, err := recordsFromRows([]Row{{Cells: []Cell{{Key: "x", Value: Value{Kind: KindNumber, Number: 1}}}}, {Cells: []Cell{{Key: "x", Value: Value{Kind: KindNumber, Number: 2}}}}}, TypedValue)
+	records, err := recordsFromRows(
+		[]Row{
+			{Cells: []Cell{{Key: "x", Value: Value{Kind: KindNumber, Number: 1}}}},
+			{Cells: []Cell{{Key: "x", Value: Value{Kind: KindNumber, Number: 2}}}},
+		},
+		TypedValue,
+	)
 	require.NoError(t, err)
 	rowEncoded, err := (JSONRowProtoEnvelopeCodec{}).Encode(records)
 	require.NoError(t, err)
@@ -193,7 +198,9 @@ func TestCodecsRejectInvalidTypedKind(t *testing.T) {
 }
 
 func TestCodecsRejectMalformedValueJSON(t *testing.T) {
-	records := []*spb.HistoryRecord{{Item: []*spb.HistoryItem{{Key: "metric", ValueJson: "not JSON"}}}}
+	records := []*spb.HistoryRecord{
+		{Item: []*spb.HistoryItem{{Key: "metric", ValueJson: "not JSON"}}},
+	}
 	_, err := (ProtoColumnEnvelopeCodec{}).Encode(records)
 	require.ErrorContains(t, err, "decode value_json")
 	_, err = (LegacyJSONEnvelopeCodec{}).Encode(records)
