@@ -1,4 +1,3 @@
-import concurrent.futures
 import dataclasses
 import importlib.util
 import os
@@ -37,11 +36,7 @@ _WANDB_BUILD_GORACEDETECT = "WANDB_BUILD_GORACEDETECT"
 
 # Other build options.
 _WANDB_BUILD_SKIP_WANDB_XPU = "WANDB_BUILD_SKIP_WANDB_XPU"
-_WANDB_BUILD_PARALLEL_RUST = "WANDB_BUILD_PARALLEL_RUST"
 _WANDB_ENABLE_CGO = "WANDB_ENABLE_CGO"
-
-# Cargo's parallelism setting, bounded when running Cargo builds in parallel.
-_CARGO_BUILD_JOBS = "CARGO_BUILD_JOBS"
 
 
 class CustomBuildHook(BuildHookInterface):
@@ -55,31 +50,9 @@ class CustomBuildHook(BuildHookInterface):
 
         artifacts: list[str] = build_data["artifacts"]
         artifacts.extend(self._build_wandb_core())
-
-        rust_builds = [self._build_arrow_rs_wrapper]
+        artifacts.extend(self._build_arrow_rs_wrapper())
         if self._include_wandb_xpu():
-            rust_builds.append(self._build_wandb_xpu)
-
-        if len(rust_builds) > 1 and _get_env_bool(
-            _WANDB_BUILD_PARALLEL_RUST,
-            default=False,
-        ):
-            # These are independent Cargo graphs with separate target
-            # directories; building them concurrently shortens the cold-build
-            # critical path. Split the cores between them to avoid
-            # oversubscription, unless Cargo's parallelism is already bounded.
-            cores = os.cpu_count() or 2
-            os.environ.setdefault(_CARGO_BUILD_JOBS, str(max(1, (cores + 1) // 2)))
-
-            with concurrent.futures.ThreadPoolExecutor(
-                max_workers=len(rust_builds),
-            ) as executor:
-                futures = [executor.submit(build) for build in rust_builds]
-                for future in futures:
-                    artifacts.extend(future.result())
-        else:
-            for build in rust_builds:
-                artifacts.extend(build())
+            artifacts.extend(self._build_wandb_xpu())
 
     def _get_platform_tag(self) -> str:
         """Returns the platform tag for the current platform."""
