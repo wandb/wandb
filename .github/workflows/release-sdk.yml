@@ -68,13 +68,12 @@ jobs:
       - name: Lint changes
         run: |
           uv tool install prek
-          prek install
           # if there are linting errors, this will fix them and proceed
           sh -c 'prek run trailing-whitespace --all-files --hook-stage pre-push' || exit 0
 
       - name: Commit and push changes
         run: |
-          git commit -am "Bump version and update CHANGELOG for release ${{ github.event.inputs.version }}"
+          git commit --no-verify -am "Bump version and update CHANGELOG for release ${{ github.event.inputs.version }}"
           git push --no-verify -f origin release-${{ github.event.inputs.version }}
 
   build-linux-wheels:
@@ -98,12 +97,12 @@ jobs:
             before_all_extra: "apk add binutils patchelf gcc musl-dev"
           - arch: x86_64
             libc: manylinux
-            runner: ubuntu-22.04
+            runner: ubuntu-latest-16-cores
             go_arch: linux-amd64
             before_all_extra: "true"
           - arch: x86_64
             libc: musllinux
-            runner: ubuntu-22.04
+            runner: ubuntu-latest-16-cores
             go_arch: linux-amd64
             before_all_extra: "apk add binutils patchelf gcc musl-dev"
 
@@ -159,11 +158,11 @@ jobs:
             arch: ARM64
             build: cp310-win_arm64
             rust_target: aarch64-pc-windows-msvc
-          - os: macos-14
+          - os: macos-latest-xlarge
             arch: x86_64
             build: cp310-macosx_x86_64
             rust_target: x86_64-apple-darwin
-          - os: macos-14
+          - os: macos-latest-xlarge
             arch: arm64
             build: cp310-macosx_arm64
             rust_target: aarch64-apple-darwin
@@ -205,7 +204,6 @@ jobs:
           # cibuildwheel 4 defaults to delvewheel on Windows; keep the previous
           # no-op repair behavior for wandb-core's custom DLL lookup.
           CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: ""
-          CIBW_ENVIRONMENT_WINDOWS: WANDB_BUILD_PARALLEL_RUST=true
 
           # Work around https://github.com/matthew-brett/delocate/issues/204
           # by adding `--ignore-missing-dependencies` to cibuildwheel's default
@@ -219,7 +217,6 @@ jobs:
               -v {wheel}
           CIBW_ENVIRONMENT_MACOS: >
             MACOSX_DEPLOYMENT_TARGET=12
-            WANDB_BUILD_PARALLEL_RUST=true
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -292,8 +289,6 @@ jobs:
           path: artifacts
 
       - name: Build and install from source distribution
-        env:
-          WANDB_BUILD_PARALLEL_RUST: "true"
         run: python -m pip install --no-binary wandb artifacts/wandb-*.tar.gz
 
       - name: Smoke-test source distribution
