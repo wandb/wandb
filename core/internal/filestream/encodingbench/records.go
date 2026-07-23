@@ -67,7 +67,12 @@ func rowsFromRecords(records []*spb.HistoryRecord) ([]Row, error) {
 	return rows, nil
 }
 
-func itemFromValue(key string, nestedKey []string, value Value, mode ValueMode) (*spb.HistoryItem, error) {
+func itemFromValue(
+	key string,
+	nestedKey []string,
+	value Value,
+	mode ValueMode,
+) (*spb.HistoryItem, error) {
 	item := &spb.HistoryItem{Key: key, NestedKey: slices.Clone(nestedKey)}
 	switch mode {
 	case JSONValue:

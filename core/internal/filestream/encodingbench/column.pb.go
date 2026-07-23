@@ -7,12 +7,13 @@
 package encodingbench
 
 import (
-	service_go_proto "github.com/wandb/wandb/core/pkg/service_go_proto"
-	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
-	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
+
+	service_go_proto "github.com/wandb/wandb/core/pkg/service_go_proto"
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
 const (

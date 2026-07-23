@@ -30,13 +30,19 @@ func (JSONColumnProtoEnvelopeCodec) Encode(records []*spb.HistoryRecord) (Encode
 	return EncodedEnvelope{Data: data, BodyBytes: len(body)}, nil
 }
 
-func (JSONColumnProtoEnvelopeCodec) Decode(data []byte, mode ValueMode) ([]*spb.HistoryRecord, error) {
+func (JSONColumnProtoEnvelopeCodec) Decode(
+	data []byte,
+	mode ValueMode,
+) ([]*spb.HistoryRecord, error) {
 	content, err := unmarshalJSONEnvelope(data)
 	if err != nil {
 		return nil, err
 	}
 	if len(content) != 1 {
-		return nil, fmt.Errorf("columnar JSON envelope has %d content entries, want 1", len(content))
+		return nil, fmt.Errorf(
+			"columnar JSON envelope has %d content entries, want 1",
+			len(content),
+		)
 	}
 	body, err := base64.StdEncoding.DecodeString(content[0])
 	if err != nil {
@@ -152,9 +158,13 @@ func appendColumnValue(batch *ColumnarHistoryBatch, value Value) error {
 	return nil
 }
 
-func recordsFromColumnarBatch(batch *ColumnarHistoryBatch, mode ValueMode) ([]*spb.HistoryRecord, error) {
+func recordsFromColumnarBatch(
+	batch *ColumnarHistoryBatch,
+	mode ValueMode,
+) ([]*spb.HistoryRecord, error) {
 	cellCount := len(batch.RowIndex)
-	if len(batch.KeyIndex) != cellCount || len(batch.Kind) != cellCount || len(batch.ValueIndex) != cellCount {
+	if len(batch.KeyIndex) != cellCount || len(batch.Kind) != cellCount ||
+		len(batch.ValueIndex) != cellCount {
 		return nil, fmt.Errorf(
 			"mismatched cell columns: row=%d key=%d kind=%d value=%d",
 			cellCount,
@@ -199,28 +209,48 @@ func recordsFromColumnarBatch(batch *ColumnarHistoryBatch, mode ValueMode) ([]*s
 	return records, nil
 }
 
-func columnValue(batch *ColumnarHistoryBatch, kind ColumnarHistoryBatch_Kind, index uint32) (Value, error) {
+func columnValue(
+	batch *ColumnarHistoryBatch,
+	kind ColumnarHistoryBatch_Kind,
+	index uint32,
+) (Value, error) {
 	switch kind {
 	case ColumnarHistoryBatch_KIND_NULL:
 		return Value{Kind: KindNull}, nil
 	case ColumnarHistoryBatch_KIND_BOOL:
 		if index >= uint32(len(batch.BoolValue)) {
-			return Value{}, fmt.Errorf("bool index %d exceeds value count %d", index, len(batch.BoolValue))
+			return Value{}, fmt.Errorf(
+				"bool index %d exceeds value count %d",
+				index,
+				len(batch.BoolValue),
+			)
 		}
 		return Value{Kind: KindBool, Bool: batch.BoolValue[index]}, nil
 	case ColumnarHistoryBatch_KIND_NUMBER:
 		if index >= uint32(len(batch.NumberValue)) {
-			return Value{}, fmt.Errorf("number index %d exceeds value count %d", index, len(batch.NumberValue))
+			return Value{}, fmt.Errorf(
+				"number index %d exceeds value count %d",
+				index,
+				len(batch.NumberValue),
+			)
 		}
 		return Value{Kind: KindNumber, Number: batch.NumberValue[index]}, nil
 	case ColumnarHistoryBatch_KIND_STRING:
 		if index >= uint32(len(batch.StringValue)) {
-			return Value{}, fmt.Errorf("string index %d exceeds value count %d", index, len(batch.StringValue))
+			return Value{}, fmt.Errorf(
+				"string index %d exceeds value count %d",
+				index,
+				len(batch.StringValue),
+			)
 		}
 		return Value{Kind: KindString, String: batch.StringValue[index]}, nil
 	case ColumnarHistoryBatch_KIND_JSON:
 		if index >= uint32(len(batch.JsonValue)) {
-			return Value{}, fmt.Errorf("JSON index %d exceeds value count %d", index, len(batch.JsonValue))
+			return Value{}, fmt.Errorf(
+				"JSON index %d exceeds value count %d",
+				index,
+				len(batch.JsonValue),
+			)
 		}
 		value := Value{Kind: KindJSON, JSON: slices.Clone(batch.JsonValue[index])}
 		if _, err := valueJSON(value); err != nil {
