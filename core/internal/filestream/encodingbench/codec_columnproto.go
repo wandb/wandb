@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"slices"
 
-	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/proto"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 type JSONColumnProtoEnvelopeCodec struct{}
