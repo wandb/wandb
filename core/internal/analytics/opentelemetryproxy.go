@@ -116,14 +116,14 @@ type TelemetryContext struct {
 	highCardinalityAttributes map[string]string
 }
 
-func NewTelemetryContext() *TelemetryContext {
+func NewTelemetryContext() TelemetryContext {
 	lowCardinalityAttributes := LowCardinalityAttributes{
 		WandbVersion:    version.Version,
 		GoVersion:       runtime.Version(),
 		OperatingSystem: runtime.GOOS,
 	}
 
-	return &TelemetryContext{
+	return TelemetryContext{
 		lowCardinalityAttributes:  lowCardinalityAttributes,
 		highCardinalityAttributes: map[string]string{},
 	}
@@ -134,17 +134,18 @@ func NewTelemetryContext() *TelemetryContext {
 //
 // Non-empty low-cardinality fields and high-cardinality keys in the
 // arguments take precedence over the parent's attributes.
+
 func (s *TelemetryContext) with(
 	lowCardinalityAttributes LowCardinalityAttributes,
 	highCardinalityAttributes map[string]string,
-) *TelemetryContext {
+) TelemetryContext {
 	low := s.lowCardinalityAttributes
 	low.merge(lowCardinalityAttributes)
 
 	high := maps.Clone(s.highCardinalityAttributes)
 	maps.Copy(high, highCardinalityAttributes)
 
-	return &TelemetryContext{
+	return TelemetryContext{
 		lowCardinalityAttributes:  low,
 		highCardinalityAttributes: high,
 	}
@@ -157,13 +158,22 @@ func (s *TelemetryContext) with(
 // OpenTelemetry providers, and therefore do not need to be shut down.
 type TelemetryRecorder struct {
 	root             *OpenTelemetryProxy
-	telemetryContext *TelemetryContext
+	telemetryContext TelemetryContext
 }
 
+// NewTelemetryRecorder returns a new TelemetryRecorder with the given root
+// OpenTelemetryProxy and telemetry context.
+//
+// If the root is nil, a nil pointer is returned.
+// A nil TelemetryRecorder is a no-op, as if telemetry is disabled.
 func NewTelemetryRecorder(
 	root *OpenTelemetryProxy,
-	telemetryContext *TelemetryContext,
+	telemetryContext TelemetryContext,
 ) *TelemetryRecorder {
+	if root == nil {
+		return nil
+	}
+
 	return &TelemetryRecorder{
 		root:             root,
 		telemetryContext: telemetryContext,
@@ -175,25 +185,22 @@ func NewTelemetryRecorder(
 //
 // The receiver is unchanged: attributes added to the derived recorder
 // never appear on records emitted through the parent or its siblings.
+//
+// If the receiver is nil, a nil pointer is returned.
+// A nil TelemetryRecorder is a no-op, as if telemetry is disabled.
 func (r *TelemetryRecorder) With(
 	lowCardinalityAttributes LowCardinalityAttributes,
 	highCardinalityAttributes map[string]string,
 ) *TelemetryRecorder {
-	mergedLowCardinalityAttributes := r.telemetryContext.lowCardinalityAttributes
-	mergedLowCardinalityAttributes.merge(lowCardinalityAttributes)
+	if r == nil {
+		return nil
+	}
 
-	mergedHighCardinalityAttributes := maps.Clone(
-		r.telemetryContext.highCardinalityAttributes,
-	)
-	maps.Copy(
-		mergedHighCardinalityAttributes,
-		highCardinalityAttributes,
-	)
 	return &TelemetryRecorder{
 		root: r.root,
 		telemetryContext: r.telemetryContext.with(
-			mergedLowCardinalityAttributes,
-			mergedHighCardinalityAttributes,
+			lowCardinalityAttributes,
+			highCardinalityAttributes,
 		),
 	}
 }
@@ -210,7 +217,7 @@ func (r *TelemetryRecorder) IncrementCounterAndLogEvent(
 	attributes map[string]string,
 	lowCardinalityAttributes LowCardinalityAttributes,
 ) {
-	if r.root == nil {
+	if r == nil {
 		return
 	}
 
@@ -240,7 +247,7 @@ func (r *TelemetryRecorder) Log(
 	attributes map[string]string,
 	severity otellogapi.Severity,
 ) {
-	if r.root == nil {
+	if r == nil {
 		return
 	}
 
@@ -274,7 +281,7 @@ func (r *TelemetryRecorder) Error(
 	err error,
 	errorOriginator string,
 ) {
-	if r.root == nil {
+	if r == nil {
 		return
 	}
 
@@ -383,6 +390,10 @@ func newOTLPHTTPClient(wandbSettings *settings.Settings) *http.Client {
 
 // initializeOTelResources initializes the OpenTelemetry meter and log providers.
 func (o *OpenTelemetryProxy) initializeOTelResources(ctx context.Context) error {
+	if o == nil {
+		return nil
+	}
+
 	res, err := resource.New(
 		ctx,
 		resource.WithAttributes(semconv.ServiceName(serviceName)),
@@ -417,6 +428,10 @@ func (o *OpenTelemetryProxy) setupMetrics(
 	ctx context.Context,
 	res *resource.Resource,
 ) (*metric.MeterProvider, error) {
+	if o == nil {
+		return nil, fmt.Errorf("OpenTelemetryProxy is nil")
+	}
+
 	exporter, err := otlpmetrichttp.New(ctx,
 		otlpmetrichttp.WithEndpointURL(o.endpoint),
 		otlpmetrichttp.WithURLPath(metricsPath),
@@ -442,6 +457,10 @@ func (o *OpenTelemetryProxy) setupLogs(
 	ctx context.Context,
 	res *resource.Resource,
 ) (*otellog.LoggerProvider, error) {
+	if o == nil {
+		return nil, fmt.Errorf("OpenTelemetryProxy is nil")
+	}
+
 	exporter, err := otlploghttp.New(ctx,
 		otlploghttp.WithEndpointURL(o.endpoint),
 		otlploghttp.WithURLPath(logsPath),
@@ -486,7 +505,7 @@ func shutdownTelemetryProviders(
 // It should be called once when telemetry is no longer needed.
 // Additional calls to Shutdown are no-ops.
 func (o *OpenTelemetryProxy) Shutdown(ctx context.Context) error {
-	if !o.shutdown.CompareAndSwap(false, true) {
+	if o == nil || !o.shutdown.CompareAndSwap(false, true) {
 		return nil
 	}
 
@@ -501,7 +520,7 @@ func (o *OpenTelemetryProxy) incrementCounter(
 	name string,
 	lowCardinalityAttributes LowCardinalityAttributes,
 ) {
-	if o.meterProvider == nil {
+	if o == nil {
 		return
 	}
 
@@ -522,7 +541,7 @@ func (o *OpenTelemetryProxy) log(
 	attributes map[string]string,
 	severity otellogapi.Severity,
 ) {
-	if o.logProvider == nil {
+	if o == nil {
 		return
 	}
 
