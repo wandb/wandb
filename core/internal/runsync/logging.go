@@ -76,7 +76,7 @@ func OpenDebugSyncLogFile(
 func NewSyncLogger(
 	logFile *DebugSyncLogFile,
 	logLevel slog.Level,
-	telemetryRecorder analytics.TelemetryRecorder,
+	telemetryRecorder *analytics.TelemetryRecorder,
 ) *observability.CoreLogger {
 	return observability.NewCoreLogger(
 		slog.New(
