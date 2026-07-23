@@ -22,6 +22,7 @@ Usage:
     python3 parse_bench.py bench-run.log -o out.csv
     python3 parse_bench.py bench-run.log -o -       # CSV to stdout
 """
+
 import argparse
 import csv
 import os
@@ -54,8 +55,13 @@ OLD_NAME_RE = re.compile(
 METRIC_RE = re.compile(r"([-\d.]+)\s+([A-Za-z][^\s]*)")
 
 KNOWN_COLUMNS = [
-    "benchmark", "op", "dataset", "value_mode",
-    "payload_format", "envelope_format", "iterations",
+    "benchmark",
+    "op",
+    "dataset",
+    "value_mode",
+    "payload_format",
+    "envelope_format",
+    "iterations",
 ]
 
 
@@ -76,14 +82,28 @@ def parse_name(name):
         and m.group("payload") in PAYLOAD_FORMATS
         and m.group("envelope") in ENVELOPE_FORMATS
     ):
-        return (m.group("op"), m.group("dataset"), m.group("value_mode"),
-                m.group("payload"), m.group("envelope"))
+        return (
+            m.group("op"),
+            m.group("dataset"),
+            m.group("value_mode"),
+            m.group("payload"),
+            m.group("envelope"),
+        )
 
     m = OLD_NAME_RE.match(name)
-    if m and m.group("value_mode") in OLD_VALUE_MODE_MAP and m.group("format") in OLD_FORMAT_MAP:
+    if (
+        m
+        and m.group("value_mode") in OLD_VALUE_MODE_MAP
+        and m.group("format") in OLD_FORMAT_MAP
+    ):
         payload, envelope = OLD_FORMAT_MAP[m.group("format")]
-        return (m.group("op"), m.group("dataset"),
-                OLD_VALUE_MODE_MAP[m.group("value_mode")], payload, envelope)
+        return (
+            m.group("op"),
+            m.group("dataset"),
+            OLD_VALUE_MODE_MAP[m.group("value_mode")],
+            payload,
+            envelope,
+        )
 
     return None
 
@@ -144,10 +164,16 @@ def write_csv(rows, out):
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("logfile")
-    ap.add_argument("-o", "--csv", default=None,
-                    help="output CSV path (default: <logfile minus extension>.csv; use '-' for stdout)")
+    ap.add_argument(
+        "-o",
+        "--csv",
+        default=None,
+        help="output CSV path (default: <logfile minus extension>.csv; use '-' for stdout)",
+    )
     args = ap.parse_args()
 
     meta, rows = parse_log(args.logfile)

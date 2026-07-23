@@ -87,10 +87,6 @@ func itemFromValue(key string, nestedKey []string, value Value, mode ValueMode) 
 	return item, nil
 }
 
-func itemWithMode(item *spb.HistoryItem, value Value, mode ValueMode) (*spb.HistoryItem, error) {
-	return itemFromValue(item.Key, item.NestedKey, value, mode)
-}
-
 func typedValue(value Value) (*spb.HistoryValue, error) {
 	typed := &spb.HistoryValue{}
 	switch value.Kind {

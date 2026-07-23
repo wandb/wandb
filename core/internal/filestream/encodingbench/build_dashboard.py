@@ -11,6 +11,7 @@ payload_format (jsonl, row_proto, column_proto), envelope_format (json,
 native), and value_mode (json_value, typed_value). The chart nests bars by
 GROUP_ORDER (see the JS constant) and offers per-variant checkboxes.
 """
+
 import argparse
 import csv
 import json
@@ -18,12 +19,31 @@ import os
 import sys
 
 FLOAT_FIELDS = [
-    "iterations", "allocs_per_op", "b_per_op", "body_bytes", "cells_per_op",
-    "envelope_bytes", "envelope_ratio", "gzip1_bytes", "gzip1_ratio",
-    "gzip6_bytes", "gzip6_ratio", "mb_per_s", "ns_per_op", "ops_per_sec", "rows_per_op",
+    "iterations",
+    "allocs_per_op",
+    "b_per_op",
+    "body_bytes",
+    "cells_per_op",
+    "envelope_bytes",
+    "envelope_ratio",
+    "gzip1_bytes",
+    "gzip1_ratio",
+    "gzip6_bytes",
+    "gzip6_ratio",
+    "mb_per_s",
+    "ns_per_op",
+    "ops_per_sec",
+    "rows_per_op",
 ]
 
-DATASET_ORDER = ["tiny", "dense_numeric", "sparse_mixed", "wide_mixed", "nested_json", "system_metrics"]
+DATASET_ORDER = [
+    "tiny",
+    "dense_numeric",
+    "sparse_mixed",
+    "wide_mixed",
+    "nested_json",
+    "system_metrics",
+]
 
 
 def load_rows(path):
@@ -755,27 +775,36 @@ renderRows();
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     ap.add_argument("csvfile")
-    ap.add_argument("-o", "--html", default=None,
-                    help="output HTML path (default: <csvfile minus extension>-dash.html)")
+    ap.add_argument(
+        "-o",
+        "--html",
+        default=None,
+        help="output HTML path (default: <csvfile minus extension>-dash.html)",
+    )
     args = ap.parse_args()
 
     rows = load_rows(args.csvfile)
     if not rows:
         sys.exit(f"no rows in {args.csvfile}")
     if "payload_format" not in rows[0]:
-        sys.exit(f"{args.csvfile} has no payload_format column; re-run parse_bench.py to regenerate it")
+        sys.exit(
+            f"{args.csvfile} has no payload_format column; re-run parse_bench.py to regenerate it"
+        )
 
     datasets = ordered_uniques(rows, "dataset", DATASET_ORDER)
     out_path = args.html or os.path.splitext(args.csvfile)[0] + "-dash.html"
 
-    html = (PAGE_TEMPLATE
-            .replace("__ROWS_JSON__", json.dumps(rows))
-            .replace("__DATASETS_JSON__", json.dumps(datasets))
-            .replace("__N_ROWS__", str(len(rows)))
-            .replace("__SOURCE_NAME__", args.csvfile)
-            .replace("__META_LINE__", "Apple M5 Pro &middot; darwin/arm64"))
+    html = (
+        PAGE_TEMPLATE.replace("__ROWS_JSON__", json.dumps(rows))
+        .replace("__DATASETS_JSON__", json.dumps(datasets))
+        .replace("__N_ROWS__", str(len(rows)))
+        .replace("__SOURCE_NAME__", args.csvfile)
+        .replace("__META_LINE__", "Apple M5 Pro &middot; darwin/arm64")
+    )
 
     with open(out_path, "w") as f:
         f.write(html)
