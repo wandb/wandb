@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import gc
+import json
+import random
 import re
 from typing import Any
 
@@ -8,14 +10,31 @@ import pytest
 import requests
 import wandb
 from wandb.apis._generated import GET_SWEEP_GQL, GET_SWEEPS_GQL
-from wandb.apis.public.sweeps import Sweep, _SweepLogStream
+from wandb.apis.public.sweeps import Sweep, _StructuredLogLine, _SweepLogStream
+from wandb.proto import wandb_internal_pb2 as pb
 
 _TIMESTAMP_PREFIX_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)? ")
+_TIMESTAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}$")
 
 
-def _make_sweep(attrs: dict[str, Any]) -> Sweep:
+class _FakeServiceApi:
+    """Minimal ServiceApi stand-in exposing only `feature_enabled`."""
+
+    def __init__(self, *, structured_console_logs: bool = False) -> None:
+        self._structured_console_logs = structured_console_logs
+
+    def feature_enabled(self, feature: Any, *, timeout: float = 10) -> bool:
+        if feature == pb.STRUCTURED_CONSOLE_LOGS:
+            return self._structured_console_logs
+        return False
+
+
+def _make_sweep(
+    attrs: dict[str, Any], *, structured_console_logs: bool = False
+) -> Sweep:
     """Construct a Sweep with attrs so that no network load() occurs."""
-    return Sweep(object(), "e", "p", "s", attrs=attrs)
+    service_api = _FakeServiceApi(structured_console_logs=structured_console_logs)
+    return Sweep(service_api, "e", "p", "s", attrs=attrs)
 
 
 class _FakeInternalApi:
@@ -182,16 +201,91 @@ def test_log_timestamps_prefix_every_line(posted_calls):
         assert line.endswith("\n")
 
 
+def test_structured_log_line_to_json():
+    # Assert the semantic contract (content/ts/level/label values) rather than
+    # an exact string, so the choice to include or omit empty fields is free to
+    # change without breaking the test.
+    record = json.loads(
+        _StructuredLogLine("hi", ts="2024-01-02T03:04:05.678901").to_json()
+    )
+    assert record["ts"] == "2024-01-02T03:04:05.678901"
+    assert record["content"] == "hi"
+    assert record.get("level", "") == ""
+    assert record.get("label", "") == ""
+
+    record = json.loads(
+        _StructuredLogLine(
+            "boom", ts="2024-01-02T03:04:05.678901", level="error", label="node-1"
+        ).to_json()
+    )
+    assert record["content"] == "boom"
+    assert record["ts"] == "2024-01-02T03:04:05.678901"
+    assert record["level"] == "error"
+    assert record["label"] == "node-1"
+
+
+def test_log_structured_format_when_server_supports_it(posted_calls):
+    sweep = _make_sweep(
+        {"name": "s", "controllerRunName": "abc123"},
+        structured_console_logs=True,
+    )
+
+    sweep.log("hello world")
+    _flush(sweep)
+
+    content = _all_content(posted_calls)
+    assert len(content) == 1
+    assert content[0].endswith("\n")
+    record = json.loads(content[0])
+    # Each line is a JSON object with the timestamp in a dedicated field
+    # rather than packed into the content text.
+    assert record["content"] == "hello world"
+    assert _TIMESTAMP_RE.match(record["ts"])
+    assert record.get("level", "") == ""
+    assert record.get("label", "") == ""
+
+
+def test_log_structured_without_timestamps_has_empty_ts(posted_calls):
+    sweep = _make_sweep(
+        {"name": "s", "controllerRunName": "abc123"},
+        structured_console_logs=True,
+    )
+
+    sweep.log("hello world", add_timestamps=False)
+    _flush(sweep)
+
+    content = _all_content(posted_calls)
+    assert [json.loads(line)["content"] for line in content] == ["hello world"]
+    # No timestamp requested: `ts` is empty (or omitted, depending on encoding).
+    assert json.loads(content[0]).get("ts", "") == ""
+
+
+def test_log_structured_escapes_special_characters(posted_calls):
+    sweep = _make_sweep(
+        {"name": "s", "controllerRunName": "abc123"},
+        structured_console_logs=True,
+    )
+
+    raw = 'has "quotes" and \t a tab'
+    sweep.log(raw, add_timestamps=False)
+    _flush(sweep)
+
+    content = _all_content(posted_calls)
+    # Exactly one line (JSON escaping keeps the record on a single line) and it
+    # round-trips back to the original text.
+    assert len(content) == 1
+    assert json.loads(content[0])["content"] == raw
+
+
 @pytest.mark.parametrize("lines", ["", [], [""]])
-def test_log_empty_input_is_a_noop(posted_calls, lines):
+def test_log_empty_input_delivers_nothing(posted_calls, lines):
     sweep = _make_sweep({"name": "s", "controllerRunName": "abc123"})
 
     sweep.log(lines)
     _flush(sweep)
 
+    # Input that splits to no console lines results in no delivered content.
     assert posted_calls == []
-    # Empty input never even builds the background sender.
-    assert sweep._log_stream is None
 
 
 def test_log_dict_input_raises_not_implemented(posted_calls):
@@ -238,8 +332,8 @@ def test_log_stream_local_offset_advances_per_batch(posted_calls):
         "https://api.test.example/files/e/p/abc123/file_stream",
     )
 
-    stream._post(["a\n", "b\n"])
-    stream._post(["c\n"])
+    stream._post_no_exception(["a\n", "b\n"])
+    stream._post_no_exception(["c\n"])
 
     offsets = [call["json"]["files"]["output.log"]["offset"] for call in posted_calls]
     assert offsets == [0, 2]
@@ -260,6 +354,28 @@ def test_log_stream_thread_crash_is_caught_not_propagated(monkeypatch):
     stream._run()
 
 
+def test_on_retry_backs_off_with_jitter():
+    stream = _SweepLogStream(requests.Session(), "https://api.test.example/fs")
+    stream._rng = random.Random(0)  # deterministic jitter
+
+    # Non-429 statuses never change the pacing interval.
+    before = stream._interval
+    stream._on_retry(500, "boom")
+    assert stream._interval == before
+
+    # A 429 backs off but lands within the jittered [interval, 2*interval) band
+    # rather than on an exact multiple, so concurrent senders decorrelate.
+    start = stream._interval
+    stream._on_retry(429, "")
+    assert start <= stream._interval < 2 * start
+    assert stream._interval != 2 * start  # jitter applied, not a bare doubling
+
+    # Repeated 429s keep growing but are always clamped to the max interval.
+    for _ in range(100):
+        stream._on_retry(429, "")
+    assert stream._interval <= _SweepLogStream._MAX_INTERVAL
+
+
 def test_log_stream_post_error_is_dropped_not_raised(monkeypatch):
     # An unexpected error while delivering a batch must not kill the sender;
     # the batch is counted as dropped.
@@ -270,7 +386,7 @@ def test_log_stream_post_error_is_dropped_not_raised(monkeypatch):
 
     monkeypatch.setattr(stream, "_post_batch", boom)
 
-    stream._post(["a\n", "b\n"])
+    stream._post_no_exception(["a\n", "b\n"])
 
     assert stream._dropped == 2
 
@@ -286,7 +402,7 @@ def test_log_stream_splits_oversized_batch(posted_calls, monkeypatch):
         "https://api.test.example/files/e/p/abc123/file_stream",
     )
 
-    stream._post(["a\n", "b\n", "c\n"])
+    stream._post_no_exception(["a\n", "b\n", "c\n"])
 
     posts = [call["json"]["files"]["output.log"] for call in posted_calls]
     assert [p["offset"] for p in posts] == [0, 1, 2]

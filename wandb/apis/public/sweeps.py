@@ -33,12 +33,14 @@ import atexit
 import json
 import logging
 import queue
+import random
 import sys
 import threading
 import time
 import urllib
 import weakref
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from typing_extensions import override
@@ -280,6 +282,36 @@ def _get_sweep(
     return sweep
 
 
+class _StructuredLogLine:
+    """A single console log record in the server's structured (JSON) format."""
+
+    __slots__ = ("content", "ts", "level", "label")
+
+    def __init__(
+        self,
+        content: str,
+        *,
+        ts: str = "",
+        level: str = "",
+        label: str = "",
+    ) -> None:
+        self.content = content
+        self.ts = ts
+        self.level = level
+        self.label = label
+
+    def to_json(self) -> str:
+        """Return the compact JSON encoding the filestream expects."""
+        record: dict[str, str] = {
+            "ts": self.ts,
+            "content": self.content,
+            "level": self.level,
+            "label": self.label,
+        }
+        record = {k: v for k, v in record.items() if v}  # remove empty fields
+        return json.dumps(record, separators=(",", ":"))
+
+
 class _SweepLogStream:
     """Background sender that streams `Sweep.log()` console lines.
 
@@ -305,6 +337,9 @@ class _SweepLogStream:
         self._endpoint = endpoint
         self._queue: queue.Queue[str] = queue.Queue()
         self._interval = self._DEFAULT_INTERVAL
+        # Dedicated RNG for retry jitter: isolated from global random.seed()
+        # and not shared across sender threads.
+        self._rng = random.Random()
         # Local monotonic line offset. The backend reassigns real offsets for
         # the co-owned controller run, so this is only meaningful for local
         # debugging of the outgoing payloads.
@@ -312,7 +347,7 @@ class _SweepLogStream:
         self._dropped = 0
         self._warned = False
         self._stop = threading.Event()
-        self._lock = threading.Lock()
+        self._lock = threading.Lock()  # mutex over started and finished
         self._started = False
         self._finished = False
         self._thread = threading.Thread(
@@ -328,14 +363,21 @@ class _SweepLogStream:
         self._thread.start()
         atexit.register(self.finish)
 
-    def push(self, lines: list[str]) -> None:
-        """Enqueue formatted log lines for delivery. Never blocks on I/O."""
-        if self._stop.is_set():
-            # Sender is shutting down; don't accept new lines.
-            self._dropped += len(lines)
-            return
+    def push(self, lines: Iterable[str]) -> None:
+        """Enqueue formatted log lines for delivery. Never blocks on I/O.
+
+        Accepts any iterable (including a lazy generator) so callers can format
+        lines on demand without materializing the whole batch in memory.
+        """
+        dropped = 0
         for line in lines:
+            if self._stop.is_set():
+                # Sender is shutting down; don't accept new lines.
+                dropped += 1
+                continue
             self._queue.put(line)
+        if dropped:
+            self._dropped += dropped
 
     def finish(self, timeout: float | None = None) -> None:
         """Flush queued lines and stop the sender thread (idempotent).
@@ -377,11 +419,9 @@ class _SweepLogStream:
     def _loop(self) -> None:
         last_post = 0.0
         while True:
-            first = self._wait_for_line()
-            if first is None:
+            batch = self._wait_for_batch()
+            if batch is None:
                 break  # stop requested and queue drained
-            batch = [first]
-            batch.extend(self._drain_available(self._MAX_ITEMS_PER_POST - 1))
             if not self._stop.is_set():
                 # Pace posts to at most one per `_interval` seconds, collecting
                 # any lines that arrive while we wait. Skipped while stopping so
@@ -394,6 +434,15 @@ class _SweepLogStream:
                     )
             self._post_no_exception(batch)
             last_post = time.monotonic()
+
+    def _wait_for_batch(self) -> list[str] | None:
+        """Block for the next line, then drain up to a full batch."""
+        first = self._wait_for_line()
+        if first is None:
+            return None
+        batch = [first]
+        batch.extend(self._drain_available(self._MAX_ITEMS_PER_POST - 1))
+        return batch
 
     def _wait_for_line(self) -> str | None:
         """Return the next queued line, or None once stopped and drained."""
@@ -416,7 +465,11 @@ class _SweepLogStream:
     def _on_retry(self, status_code: int, _err_str: str) -> None:
         # Invoked by request_with_retry (on this thread) on each retry.
         if status_code == 429:
-            self._interval = min(self._interval * 2, self._MAX_INTERVAL)
+            backed_off = min(self._interval * 2, self._MAX_INTERVAL)
+            # Equal jitter: keep half of the backed-off interval and randomize
+            # the other half, so many senders throttled by the same rate-limit
+            # event don't resynchronize onto an identical retry cadence.
+            self._interval = backed_off / 2 + self._rng.random() * (backed_off / 2)
 
     def _post_no_exception(self, lines: list[str]) -> None:
         """Deliver a batch of lines to the sweep controller run."""
@@ -519,6 +572,8 @@ class Sweep(Attrs):
 
         # Lazily-built background log sender for `Sweep.log()`.
         self._log_stream: _SweepLogStream | None = None
+        # Cached STRUCTURED_CONSOLE_LOGS server-feature check for `Sweep.log()`.
+        self._structured_console_logs: bool | None = None
 
         self.load(force=not attrs)
 
@@ -734,6 +789,7 @@ class Sweep(Attrs):
         add_timestamps: bool = True,
     ) -> None:
         """Write to the sweep's controller run, dispatching on the input type.
+
         The behavior depends on the type of `data`:
 
         - A `str` or `list[str]` appends console log lines to the controller
@@ -752,8 +808,6 @@ class Sweep(Attrs):
                 yet implemented).
             wandb.Error: If the sweep has no controller run available.
         """
-        from datetime import datetime, timezone
-
         if isinstance(data, Mapping):
             # Dict input logs metrics to the controller run's history
             # (wandb-history.jsonl), matching the format of wandb.Run.log().
@@ -763,29 +817,46 @@ class Sweep(Attrs):
                 "console log lines instead."
             )
 
-        lines: str | list[str] = data
-        if isinstance(lines, str):
-            lines = [lines]
+        self._log_lines(data, add_timestamps=add_timestamps)
 
-        split_lines: list[str] = []
-        for line in lines:
-            segments = line.split("\n")
-            if segments and segments[-1] == "":
-                # Drop the empty segment produced by a terminal newline.
-                segments = segments[:-1]
-            split_lines.extend(segments)
+    def _log_lines(self, lines: list[str] | str, add_timestamps: bool = True) -> None:
+        raw_lines: Iterable[str] = (lines,) if isinstance(lines, str) else lines
+        structured = self._supports_structured_console_logs()
 
-        if not split_lines:
-            return
+        # Split into individual console lines and format them lazily
+        formatted_lines = (
+            self._format_log_line(segment, structured, add_timestamps)
+            for line in raw_lines
+            for segment in line.replace("\r", "").rstrip().splitlines()
+        )
 
-        formatted_lines = []
-        for line in split_lines:
-            if add_timestamps:
-                timestamp = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
-                line = f"{timestamp} {line}"
-            formatted_lines.append(f"{line}\n")
-
+        # Resolve the sender before streaming so a missing controller run still
+        # fails fast (before any line is enqueued).
         self._get_log_stream().push(formatted_lines)
+
+    def _format_log_line(
+        self, segment: str, structured: bool, add_timestamps: bool
+    ) -> str:
+        timestamp = ""
+        if add_timestamps:
+            # Match core's console timestamp: microsecond-precision UTC
+            # with no offset suffix (e.g. "2024-01-02T03:04:05.678901").
+            timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")
+        if structured:
+            content = _StructuredLogLine(segment, ts=timestamp).to_json()
+        elif timestamp:
+            content = f"{timestamp} {segment}"
+        else:
+            content = segment
+        return f"{content}\n"
+
+    def _supports_structured_console_logs(self) -> bool:
+        """Whether the server parses structured (JSON) console log lines."""
+        if self._structured_console_logs is None:
+            self._structured_console_logs = self._service_api.feature_enabled(
+                pb.STRUCTURED_CONSOLE_LOGS
+            )
+        return self._structured_console_logs
 
     def _get_log_stream(self) -> _SweepLogStream:
         """Return the lazily-built background log sender for this sweep."""
