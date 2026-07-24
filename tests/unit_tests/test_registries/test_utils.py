@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import TYPE_CHECKING
 
 from pytest import fixture, mark, param, raises
@@ -15,6 +16,13 @@ if TYPE_CHECKING:
 
     from pytest_mock import MockerFixture
     from wandb.apis.paginator import RelayPaginator
+
+
+@fixture
+def service_api(mocker: MockerFixture) -> MagicMock:
+    from wandb.apis.public.service_api import ServiceApi
+
+    return mocker.Mock(spec=ServiceApi)
 
 
 @mark.parametrize(
@@ -115,11 +123,16 @@ def test_prepare_registry_filter(raw, expected):
     assert prepare_registry_filter(raw) == expected
 
 
-@fixture
-def service_api(mocker: MockerFixture) -> MagicMock:
-    from wandb.apis.public.service_api import ServiceApi
+def test_registry_filter_is_prepared_and_serialized(service_api: MagicMock):
+    paginator = Registries(
+        service_api=service_api,
+        organization="org",
+        filter={"name": "model"},
+    )
 
-    return mocker.Mock(spec=ServiceApi)
+    assert json.loads(paginator.variables["filters"]) == {
+        "name": f"{REGISTRY_PREFIX}model"
+    }
 
 
 @mark.parametrize("cls", [Registries, Collections])
@@ -132,10 +145,6 @@ def service_api(mocker: MockerFixture) -> MagicMock:
         # Explicit signs are retained
         ("+name", "+name"),
         ("-created_at", "-created_at"),
-        # Field names are normalized to lowercase
-        ("NAME", "+name"),
-        ("+Name", "+name"),
-        ("-cReated_At", "-created_at"),
         # Explicit None is untouched
         (None, None),
     ],
@@ -168,11 +177,16 @@ def test_paginator_order_defaults_to_none(
         "unsupported_field",
         "-unsupported_field",
         "+unsupported_field",
+        # Field names are currently case-sensitive
+        "NAME",
+        "+Name",
+        "-cReated_At",
         # Invalid field names, ordering syntax, or both.
         "123name",
         "+123name",
         "-123name",
         "name desc",
+        "multi\nline",
         "++name",
         "--name",
         "",

@@ -9,7 +9,10 @@ __all__ = [
     "Connection",
     "ConnectionWithTotal",
     "Edge",
+    "FilterDict",
     "PageInfo",
+    "OrderValidator",
+    "PaginatorVars",
     "Typename",
     "GQLId",
     "AliasChoices",
@@ -36,7 +39,15 @@ from pydantic.alias_generators import to_camel
 
 from .base import CompatBaseModel, GQLBase, GQLInput, GQLResult, JsonableModel
 from .field_types import GQLId, Typename
-from .pagination import Connection, ConnectionWithTotal, Edge, PageInfo
+from .pagination import (
+    Connection,
+    ConnectionWithTotal,
+    Edge,
+    FilterDict,
+    OrderValidator,
+    PageInfo,
+    PaginatorVars,
+)
 from .utils import (
     default_if_none,
     from_json,

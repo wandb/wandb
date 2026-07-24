@@ -22,6 +22,7 @@ from wandb.sdk.artifacts._generated import (
     ArtifactMembershipFragment,
     FetchOrgInfoFromEntity,
 )
+from wandb.sdk.artifacts._gqlutils import server_supports
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError
 from wandb.sdk.lib.paths import StrPath
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
@@ -162,7 +163,7 @@ def test_artifact_type_collections(api: Api):
     assert remaining_names_via_collection == remaining_names_via_api
     assert all_collection_names == [first_name, *remaining_names_via_api]
 
-    if api._service_api.feature_enabled(pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING):
+    if server_supports(api._service_api, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING):
         filtered_collections = atype.collections(filters={"name": "mnist"})
         assert len(filtered_collections) == 1
         assert [c.name for c in filtered_collections] == ["mnist"]
@@ -238,7 +239,7 @@ def test_project_collections(api: Api):
     project_name = artifact.project
     project = api.project(project_name)
 
-    if api._service_api.feature_enabled(pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING):
+    if server_supports(api._service_api, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING):
         # fetching all collections in the project
         cols = project.collections()
         assert len(cols) == 2
@@ -299,7 +300,7 @@ def test_artifact_file(api: Api):
 @mark.usefixtures("sample_data")
 def test_artifact_files(api: Api):
     art = api.artifact("mnist:v0", type="dataset")
-    if api._service_api.feature_enabled(pb.TOTAL_COUNT_IN_FILE_CONNECTION):
+    if server_supports(api._service_api, pb.TOTAL_COUNT_IN_FILE_CONNECTION):
         assert (
             str(art.files())
             == f"<ArtifactFiles {art.entity}/uncategorized/mnist:v0 (1)>"
@@ -314,7 +315,7 @@ def test_artifact_files(api: Api):
 
 @mark.usefixtures("sample_data")
 def test_artifacts_files_filtered_length(api: Api):
-    if not api._service_api.feature_enabled(pb.TOTAL_COUNT_IN_FILE_CONNECTION):
+    if not server_supports(api._service_api, pb.TOTAL_COUNT_IN_FILE_CONNECTION):
         skip("Server doesn't support FileConnection.totalCount")
 
     # creating a new artifact with files

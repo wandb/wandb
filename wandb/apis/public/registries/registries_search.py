@@ -6,21 +6,15 @@ from collections.abc import Iterator
 from itertools import chain
 from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Protocol, TypeAlias, TypeVar
 
-from pydantic import AfterValidator, PlainSerializer, PositiveInt, ValidationError
-from pydantic.alias_generators import to_camel
+from pydantic import AfterValidator, PositiveInt, ValidationError
 from typing_extensions import Never, override
 
 from wandb._analytics import tracked
-from wandb._pydantic import GQLInput, to_json
+from wandb._pydantic import FilterDict, OrderValidator, PaginatorVars
 from wandb.apis.paginator import Paginator, RelayPaginator, SizedRelayPaginator
 from wandb.errors import UnsupportedError
 
-from ._utils import (
-    OrderArg,
-    prepare_collection_filter,
-    prepare_registry_filter,
-    prepare_version_filter,
-)
+from ._utils import prepare_registry_filter
 
 if TYPE_CHECKING:
     from wandb.apis.public import ArtifactCollection
@@ -41,29 +35,20 @@ if TYPE_CHECKING:
 
 # Type annotations for `filter` arguments.
 _RegistryFilter: TypeAlias = Annotated[
-    dict[str, Any],
+    FilterDict,
     AfterValidator(prepare_registry_filter),
-    PlainSerializer(to_json),
 ]
-_CollectionFilter: TypeAlias = Annotated[
-    dict[str, Any],
-    AfterValidator(prepare_collection_filter),
-    PlainSerializer(to_json),
-]
-_VersionFilter: TypeAlias = Annotated[
-    dict[str, Any],
-    AfterValidator(prepare_version_filter),
-    PlainSerializer(to_json),
-]
+_CollectionFilter: TypeAlias = FilterDict
+_VersionFilter: TypeAlias = FilterDict
 
 # Type annotations for `order` arguments.
 _RegistryOrder: TypeAlias = Annotated[
     str,
-    AfterValidator(OrderArg(allowed=("name", "created_at", "updated_at"))),
+    OrderValidator(valid=("name", "created_at", "updated_at")),
 ]
 _CollectionOrder: TypeAlias = Annotated[
     str,
-    AfterValidator(OrderArg(allowed=("name", "created_at", "updated_at"))),
+    OrderValidator(valid=("name", "created_at", "updated_at")),
 ]
 
 
@@ -79,7 +64,7 @@ _CollectionOrder: TypeAlias = Annotated[
 #
 # Also, using the `@validate_call` decorator does not work at the time of writing,
 # since it would require an eager import of `ServiceApi`, causing an import cycle.
-class _RegistriesVars(GQLInput, alias_generator=to_camel):
+class _RegistriesVars(PaginatorVars):
     """Validated GraphQL variables for a `Registries` paginator."""
 
     organization: str
@@ -89,7 +74,7 @@ class _RegistriesVars(GQLInput, alias_generator=to_camel):
     per_page: PositiveInt = 100
 
 
-class _CollectionsVars(GQLInput, alias_generator=to_camel):
+class _CollectionsVars(PaginatorVars):
     """Validated GraphQL variables for a `Collections` paginator."""
 
     organization: str
@@ -100,7 +85,7 @@ class _CollectionsVars(GQLInput, alias_generator=to_camel):
     per_page: PositiveInt = 100
 
 
-class _VersionsVars(GQLInput, alias_generator=to_camel):
+class _VersionsVars(PaginatorVars):
     """Validated GraphQL variables for a `Versions` paginator."""
 
     organization: str
@@ -159,21 +144,21 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
 
             type(self).QUERY = FETCH_REGISTRIES_GQL
 
-        vars_ = _RegistriesVars(
+        args = _RegistriesVars(
             organization=organization,
             filters=filter,
             order=order,
             per_page=per_page,
         )
 
-        self.organization = vars_.organization
-        self.filter = vars_.filters
-        self.order = vars_.order
+        self.organization = args.organization
+        self.filter = args.filters
+        self.order = args.order
 
         super().__init__(
             service_api,
-            variables=vars_.model_dump(),
-            per_page=vars_.per_page,
+            variables=args.model_dump(),
+            per_page=args.per_page,
             start=start,
         )
 
@@ -345,7 +330,7 @@ class Collections(
 
             type(self).QUERY = REGISTRY_COLLECTIONS_GQL
 
-        vars_ = _CollectionsVars(
+        args = _CollectionsVars(
             organization=organization,
             registry_filter=registry_filter,
             collection_filter=collection_filter,
@@ -353,15 +338,15 @@ class Collections(
             per_page=per_page,
         )
 
-        self.organization = vars_.organization
-        self.registry_filter = vars_.registry_filter
-        self.collection_filter = vars_.collection_filter
-        self.order = vars_.order
+        self.organization = args.organization
+        self.registry_filter = args.registry_filter
+        self.collection_filter = args.collection_filter
+        self.order = args.order
 
         super().__init__(
             service_api,
-            variables=vars_.model_dump(),
-            per_page=vars_.per_page,
+            variables=args.model_dump(),
+            per_page=args.per_page,
             start=start,
         )
 
@@ -482,7 +467,7 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
 
             type(self).QUERY = REGISTRY_VERSIONS_GQL
 
-        vars_ = _VersionsVars(
+        args = _VersionsVars(
             organization=organization,
             registry_filter=registry_filter,
             collection_filter=collection_filter,
@@ -490,15 +475,15 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
             per_page=per_page,
         )
 
-        self.organization = vars_.organization
-        self.registry_filter = vars_.registry_filter
-        self.collection_filter = vars_.collection_filter
-        self.artifact_filter = vars_.artifact_filter
+        self.organization = args.organization
+        self.registry_filter = args.registry_filter
+        self.collection_filter = args.collection_filter
+        self.artifact_filter = args.artifact_filter
 
         super().__init__(
             service_api,
-            variables=vars_.model_dump(),
-            per_page=vars_.per_page,
+            variables=args.model_dump(),
+            per_page=args.per_page,
             start=start,
         )
 

@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-import re
 from collections.abc import Collection
 from enum import Enum
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, ClassVar, TypeVar, overload
-
-from pydantic.dataclasses import dataclass as pydantic_dataclass
+from typing import TYPE_CHECKING, Any, TypeVar, overload
 
 from wandb._strutils import ensureprefix, repr_join
 
@@ -15,32 +12,6 @@ if TYPE_CHECKING:
 
 
 T = TypeVar("T")
-
-
-@pydantic_dataclass(frozen=True, slots=True)
-class OrderArg:
-    """A callable validator that checks and normalizes `order` paginator arguments."""
-
-    _REGEX: ClassVar[re.Pattern[str]] = re.compile(r"^(\+|\-)?(\w+)$", flags=re.ASCII)
-
-    allowed: frozenset[str] | None = None
-    """The allowed field names. If None, all fields are allowed."""
-
-    def __call__(self, order: str) -> str:
-        # Parse the `order` string into its components
-        if (match := self._REGEX.match(order)) is None:
-            raise ValueError(f"Invalid order field: {order!r}")
-
-        # Normalize
-        sign = match.group(1) or "+"
-        name = match.group(2).lower()
-
-        # Check if the field name is allowed
-        if (allowed := self.allowed) and (name not in allowed):
-            msg = f"Invalid order field {name!r}, must be one of: {repr_join(sorted(allowed))}"
-            raise ValueError(msg)
-
-        return f"{sign}{name}"
 
 
 class Visibility(str, Enum):
@@ -109,61 +80,33 @@ def prepare_artifact_types_input(
 
 
 @overload
-def prepare_registry_filter(query: str) -> str: ...
+def prepare_registry_filter(query: str, path=...) -> str: ...
 @overload
-def prepare_registry_filter(query: dict[str, Any]) -> dict[str, Any]: ...
+def prepare_registry_filter(query: dict[str, Any], path=...) -> dict[str, Any]: ...
 @overload
-def prepare_registry_filter(query: list[T] | tuple[T]) -> list[T]: ...
+def prepare_registry_filter(query: list[T] | tuple[T], path=...) -> list[T]: ...
 @overload
-def prepare_registry_filter(query: T) -> T: ...
+def prepare_registry_filter(query: T, path=...) -> T: ...
 
 
-def prepare_registry_filter(query: Any) -> Any:
+def prepare_registry_filter(query: Any, path: tuple[int | str, ...] = ()) -> Any:
     """Normalize a registry filter as a JSON-serializable GraphQL input.
 
     Recursively prepend the registry prefix under "name" keys, excluding regex ops.
 
     EX: {"name": "model"} -> {"name": "wandb-registry-model"}
     """
-    match query:
-        case dict() as dct:
-            return {
-                k: (_prefix_reg_names(v) if k == "name" else prepare_registry_filter(v))
-                for k, v in dct.items()
-            }
-        case list() | tuple() as seq:
-            return list(map(prepare_registry_filter, seq))
-        case _:
-            return query
-
-
-def _prefix_reg_names(query: Any) -> Any:
-    """Under a "name" key, prefix names with 'wandb-registry-', skipping $regex ops."""
     from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
 
     match query:
-        case str() as txt:
+        case str() as txt if "name" in path and "$regex" not in path:
             return ensureprefix(txt, REGISTRY_PREFIX)
         case dict() as dct:
-            # For regex operator, we skip transformation of its value.
-            return {
-                k: (v if k == "$regex" else _prefix_reg_names(v))
-                for k, v in dct.items()
-            }
+            return {k: prepare_registry_filter(v, (*path, k)) for k, v in dct.items()}
         case list() | tuple() as seq:
-            return list(map(_prefix_reg_names, seq))
+            return [prepare_registry_filter(v, (*path, i)) for i, v in enumerate(seq)]
         case _:
             return query
-
-
-def prepare_collection_filter(query: T) -> T:
-    """Normalize a collection filter as a JSON-serializable GraphQL input."""
-    return query  # TODO: Add validation for allowed field names
-
-
-def prepare_version_filter(query: T) -> T:
-    """Normalize an artifact version filter as a JSON-serializable GraphQL input."""
-    return query  # TODO: Add validation for allowed field names
 
 
 @lru_cache(maxsize=10)

@@ -44,8 +44,6 @@ def default_if_none(v: Any) -> Any:
 
     See: https://docs.pydantic.dev/2.11/api/pydantic_core/#pydantic_core.PydanticUseDefault
     """
-    from pydantic_core import PydanticUseDefault
-
     if v is None:
-        raise PydanticUseDefault
+        raise pydantic_core.PydanticUseDefault
     return v

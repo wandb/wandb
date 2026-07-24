@@ -19,16 +19,21 @@ from typing import (  # noqa: UP035
     TypeVar,
 )
 
-from pydantic import Field, PlainSerializer, PositiveInt
-from pydantic.alias_generators import to_camel
+from pydantic import Field, PositiveInt
 from typing_extensions import override
 
 from wandb._iterutils import always_list
-from wandb._pydantic import Connection, ConnectionWithTotal, Edge, GQLInput, to_json
+from wandb._pydantic import (
+    Connection,
+    ConnectionWithTotal,
+    Edge,
+    FilterDict,
+    OrderValidator,
+    PaginatorVars,
+)
 from wandb._strutils import nameof
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import RelayPaginator, SizedRelayPaginator
-from wandb.apis.public.registries._utils import OrderArg
 from wandb.errors.errors import UnsupportedError
 from wandb.errors.term import termlog
 from wandb.proto import wandb_internal_pb2 as pb
@@ -75,6 +80,11 @@ def _run_artifacts_mode_to_gql() -> dict[Literal["logged", "used"], str]:
     return {"logged": RUN_OUTPUT_ARTIFACTS_GQL, "used": RUN_INPUT_ARTIFACTS_GQL}
 
 
+class _ArtifactCollectionAliasesVars(PaginatorVars):
+    id: str
+    per_page: int = 1_000
+
+
 class _ArtifactCollectionAliases(RelayPaginator["ArtifactAliasFragment", str]):
     """An internal iterator of collection alias names."""
 
@@ -93,9 +103,15 @@ class _ArtifactCollectionAliases(RelayPaginator["ArtifactAliasFragment", str]):
 
             type(self).QUERY = ARTIFACT_COLLECTION_ALIASES_GQL
 
-        variables = {"id": collection_id}
+        args = _ArtifactCollectionAliasesVars(
+            id=collection_id,
+            per_page=per_page,
+        )
         super().__init__(
-            service_api, variables=variables, per_page=per_page, start=start
+            service_api,
+            variables=args.model_dump(),
+            per_page=args.per_page,
+            start=start,
         )
 
     def _update_response(self) -> None:
@@ -116,6 +132,12 @@ class _ArtifactCollectionAliases(RelayPaginator["ArtifactAliasFragment", str]):
 
     def _convert(self, node: ArtifactAliasFragment) -> str:
         return node.alias
+
+
+class _ArtifactTypesVars(PaginatorVars):
+    entity: str
+    project: str
+    per_page: PositiveInt = 50
 
 
 class ArtifactTypes(RelayPaginator["ArtifactTypeFragment", "ArtifactType"]):
@@ -140,11 +162,18 @@ class ArtifactTypes(RelayPaginator["ArtifactTypeFragment", "ArtifactType"]):
 
             type(self).QUERY = PROJECT_ARTIFACT_TYPES_GQL
 
-        self.entity = entity
-        self.project = project
-        variables = {"entity": entity, "project": project}
+        args = _ArtifactTypesVars(
+            entity=entity,
+            project=project,
+            per_page=per_page,
+        )
+        self.entity = args.entity
+        self.project = args.project
         super().__init__(
-            service_api, variables=variables, per_page=per_page, start=start
+            service_api,
+            variables=args.model_dump(),
+            per_page=args.per_page,
+            start=start,
         )
 
     @override
@@ -288,12 +317,12 @@ class ArtifactType:
         return f"<ArtifactType {self.type}>"
 
 
-class _ArtifactCollectionsVars(GQLInput, alias_generator=to_camel):
+class _ArtifactCollectionsVars(PaginatorVars):
     entity: str
     project: str
     type_name: Annotated[str, Field(serialization_alias="type")]
-    filters: Annotated[dict[str, Any], PlainSerializer(to_json)] | None = None
-    order: Annotated[str, OrderArg()] | None = None
+    filters: FilterDict | None = None
+    order: Annotated[str, OrderValidator()] | None = None
     per_page: PositiveInt = 50
 
 
@@ -348,7 +377,7 @@ class ArtifactCollections(
                 "Please upgrade your server version or contact support at support@wandb.com."
             )
 
-        vars_ = _ArtifactCollectionsVars(
+        args = _ArtifactCollectionsVars(
             entity=entity,
             project=project,
             type_name=type_name,
@@ -357,16 +386,16 @@ class ArtifactCollections(
             per_page=per_page,
         )
 
-        self.entity = vars_.entity
-        self.project = vars_.project
-        self.type_name = vars_.type_name
-        self.filters = vars_.filters
-        self.order = vars_.order
+        self.entity = args.entity
+        self.project = args.project
+        self.type_name = args.type_name
+        self.filters = args.filters
+        self.order = args.order
 
         super().__init__(
             service_api,
-            variables=vars_.model_dump(),
-            per_page=vars_.per_page,
+            variables=args.model_dump(),
+            per_page=args.per_page,
             start=start,
         )
 
@@ -403,11 +432,11 @@ class ArtifactCollections(
         )
 
 
-class _ProjectArtifactCollectionsVars(GQLInput, alias_generator=to_camel):
+class _ProjectArtifactCollectionsVars(PaginatorVars):
     entity: str
     project: str
-    filters: Annotated[dict[str, Any], PlainSerializer(to_json)] | None = None
-    order: Annotated[str, OrderArg()] | None = None
+    filters: FilterDict | None = None
+    order: Annotated[str, OrderValidator()] | None = None
     per_page: PositiveInt = 50
 
 
@@ -457,22 +486,22 @@ class ProjectArtifactCollections(
                 "Please upgrade your server version or contact support at support@wandb.com."
             )
 
-        vars_ = _ProjectArtifactCollectionsVars(
+        args = _ProjectArtifactCollectionsVars(
             entity=entity,
             project=project,
             filters=filters,
             order=order,
             per_page=per_page,
         )
-        self.entity = vars_.entity
-        self.project = vars_.project
-        self.filters = vars_.filters
-        self.order = vars_.order
+        self.entity = args.entity
+        self.project = args.project
+        self.filters = args.filters
+        self.order = args.order
 
         super().__init__(
             service_api,
-            variables=vars_.model_dump(),
-            per_page=vars_.per_page,
+            variables=args.model_dump(),
+            per_page=args.per_page,
             start=start,
             omit_variables=None if supports_filtering else {"filters"},
             omit_fields=None if supports_filtering else {"totalCount"},
@@ -875,13 +904,13 @@ class _ArtifactConnectionGeneric(ConnectionWithTotal[TNode]):
     edges: List[_ArtifactEdgeGeneric]  # noqa: UP006
 
 
-class _ArtifactsVars(GQLInput, alias_generator=to_camel):
+class _ArtifactsVars(PaginatorVars):
     entity: str
     project: str
     collection: str
     type: str
-    filters: Annotated[dict[str, Any], PlainSerializer(to_json)] | None = None
-    order: Annotated[str, OrderArg()] | None = None
+    filters: FilterDict | None = None
+    order: Annotated[str, OrderValidator()] | None = None
     per_page: PositiveInt = 50
 
 
@@ -931,7 +960,7 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
 
             self.__class__.QUERY = PROJECT_ARTIFACTS_GQL
 
-        vars_ = _ArtifactsVars(
+        args = _ArtifactsVars(
             entity=entity,
             project=project,
             collection=collection_name,
@@ -940,19 +969,19 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
             order=order,
             per_page=per_page,
         )
-        self.entity = vars_.entity
-        self.collection_name = vars_.collection
-        self.type = vars_.type
-        self.project = vars_.project
-        self.filters = vars_.filters
-        self.order = vars_.order
+        self.entity = args.entity
+        self.collection_name = args.collection
+        self.type = args.type
+        self.project = args.project
+        self.filters = args.filters
+        self.order = args.order
 
         self.tags = always_list(tags or [])
 
         super().__init__(
             service_api,
-            variables=vars_.model_dump(),
-            per_page=vars_.per_page,
+            variables=args.model_dump(),
+            per_page=args.per_page,
             start=start,
         )
 
@@ -1011,6 +1040,13 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
         return [art for art in artifacts if required_tags.issubset(art.tags)]
 
 
+class _RunArtifactsVars(PaginatorVars):
+    entity: str
+    project: str
+    run: str
+    per_page: int = 50
+
+
 class RunArtifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
     """An iterable collection of artifacts associated with a specific run.
 
@@ -1035,10 +1071,18 @@ class RunArtifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
         else:
             self.QUERY = query_str
 
+        args = _RunArtifactsVars(
+            entity=run.entity,
+            project=run.project,
+            run=run.id,
+            per_page=per_page,
+        )
         self.run = run
-        variables = {"entity": run.entity, "project": run.project, "run": run.id}
         super().__init__(
-            service_api, variables=variables, per_page=per_page, start=start
+            service_api,
+            variables=args.model_dump(),
+            per_page=args.per_page,
+            start=start,
         )
 
     @override
@@ -1068,6 +1112,15 @@ class RunArtifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
         )
 
 
+class _ArtifactFilesVars(PaginatorVars):
+    entity: str
+    project: str
+    collection: str
+    alias: str
+    file_names: list[str] | None = None
+    per_page: int = 50
+
+
 class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
     """A paginator for files in an artifact.
 
@@ -1085,29 +1138,31 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
         per_page: int = 50,
         start: str | None = None,
     ):
+        from wandb.sdk.artifacts._gqlutils import server_supports
 
         if self.QUERY is None:
             from wandb.sdk.artifacts._generated import ARTIFACT_MEMBERSHIP_FILES_GQL
 
             type(self).QUERY = ARTIFACT_MEMBERSHIP_FILES_GQL
 
+        args = _ArtifactFilesVars(
+            entity=artifact.entity,
+            project=artifact.project,
+            collection=artifact.name.split(":")[0],
+            alias=artifact.version,
+            file_names=names,
+            per_page=per_page,
+        )
         self.artifact = artifact
 
-        variables = {
-            "entity": artifact.entity,
-            "project": artifact.project,
-            "collection": artifact.name.split(":")[0],
-            "alias": artifact.version,
-            "fileNames": names,
-        }
         super().__init__(
             service_api,
-            variables=variables,
-            per_page=per_page,
+            variables=args.model_dump(),
+            per_page=args.per_page,
             start=start,
             omit_fields=(
                 None
-                if service_api.feature_enabled(pb.TOTAL_COUNT_IN_FILE_CONNECTION)
+                if server_supports(service_api, pb.TOTAL_COUNT_IN_FILE_CONNECTION)
                 else {"totalCount"}
             ),
         )
