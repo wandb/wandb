@@ -24,7 +24,7 @@ from wandb.errors.errors import UnsupportedError
 from wandb.errors.term import termlog
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
-from wandb.sdk.artifacts._gqlutils import server_supports
+from wandb.sdk.artifacts._gqlutils import omit_artifact_fields, server_supports
 from wandb.sdk.artifacts._models import ArtifactCollectionData
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 
@@ -903,7 +903,11 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
             "filters": json.dumps(self.filters),
         }
         super().__init__(
-            service_api, variables=variables, per_page=per_page, start=start
+            service_api,
+            variables=variables,
+            per_page=per_page,
+            start=start,
+            omit_fields=omit_artifact_fields(service_api),
         )
 
     @override
@@ -987,15 +991,22 @@ class RunArtifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
 
         self.run = run
         variables = {"entity": run.entity, "project": run.project, "run": run.id}
+        omit_fields = omit_artifact_fields(service_api)
         super().__init__(
-            service_api, variables=variables, per_page=per_page, start=start
+            service_api,
+            variables=variables,
+            per_page=per_page,
+            start=start,
+            omit_fields=omit_fields,
         )
 
     @override
     def _update_response(self) -> None:
         from wandb.sdk.artifacts._models.pagination import RunArtifactConnection
 
-        data = self._service_api.execute_graphql(self.QUERY, variables=self.variables)
+        data = self._service_api.execute_graphql(
+            self.QUERY, variables=self.variables, omit_fields=self._omit_fields
+        )
 
         # Extract the inner `*Connection` result for faster/easier access.
         inner_data = data["project"]["run"]["artifacts"]
