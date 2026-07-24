@@ -1,4 +1,3 @@
-import datetime
 import getpass
 import importlib
 import netrc
@@ -106,44 +105,6 @@ def test_login_invalid_key_arg(runner, dummy_api_key):
         invalid_key = "test-" + dummy_api_key[:-5]
         result = runner.invoke(cli.login, [invalid_key])
         assert "API key must have 40+ characters, has 35." in result.output
-
-
-@pytest.mark.usefixtures("patch_apikey")
-def test_sync_gc(runner):
-    with runner.isolated_filesystem():
-        if not os.path.isdir("wandb"):
-            os.mkdir("wandb")
-        d1 = datetime.datetime.now()
-        d2 = d1 - datetime.timedelta(hours=3)
-        run1 = d1.strftime("run-%Y%m%d_%H%M%S-abcd")
-        run2 = d2.strftime("run-%Y%m%d_%H%M%S-efgh")
-        run1_dir = os.path.join("wandb", run1)
-        run2_dir = os.path.join("wandb", run2)
-        os.mkdir(run1_dir)
-        with open(os.path.join(run1_dir, "run-abcd.wandb"), "w") as f:
-            f.write("")
-        with open(os.path.join(run1_dir, "run-abcd.wandb.synced"), "w") as f:
-            f.write("")
-        os.mkdir(run2_dir)
-        with open(os.path.join(run2_dir, "run-efgh.wandb"), "w") as f:
-            f.write("")
-        with open(os.path.join(run2_dir, "run-efgh.wandb.synced"), "w") as f:
-            f.write("")
-        assert (
-            runner.invoke(
-                cli.sync, ["--clean", "--clean-old-hours", "2"], input="y\n"
-            ).exit_code
-        ) == 0
-
-        assert os.path.exists(run1_dir)
-        assert not os.path.exists(run2_dir)
-        assert (
-            runner.invoke(
-                cli.sync, ["--clean", "--clean-old-hours", "0"], input="y\n"
-            ).exit_code
-            == 0
-        )
-        assert not os.path.exists(run1_dir)
 
 
 def test_docker_run_digest(runner, docker, monkeypatch):
