@@ -167,6 +167,8 @@ def _project_id_from_gql_id(gql_id: str) -> int | None:
     match b64decode_ascii(gql_id).split(":"):
         case ["Project", idx] if idx.isdigit():
             return int(idx)
+        case ["ProjectInternalId", idx] if idx.isdigit():
+            return int(idx)
         case _:
             raise ValueError(f"Invalid project ID: {gql_id!r}")
 

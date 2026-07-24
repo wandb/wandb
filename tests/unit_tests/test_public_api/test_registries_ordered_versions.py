@@ -6,6 +6,7 @@ from collections.abc import Iterable
 import pytest
 from wandb._strutils import b64encode_ascii
 from wandb.apis.public.registries._utils import (
+    _project_id_from_gql_id,
     advanced_search_enabled,
     filter_for_registry,
     registry_filter_for_collection,
@@ -47,7 +48,7 @@ def test_registry_filter_uses_project_id_when_filtering_sorting_disabled(
     service_api.feature_enabled.return_value = False
     registry = mocker.Mock(spec=Registry)
     registry.full_name = "wandb-registry-test"
-    registry.internal_id = b64encode_ascii("Project:42")
+    registry.internal_id = b64encode_ascii("ProjectInternalId:42")
 
     assert filter_for_registry(registry, service_api=service_api, organization=ORG) == {
         "name": "wandb-registry-test",
@@ -65,7 +66,7 @@ def test_filter_for_registry_uses_project_id_key(service_api, mocker, enabled, k
     _mock_advanced_search(service_api, enabled=enabled)
     registry = mocker.Mock(spec=Registry)
     registry.full_name = "wandb-registry-test"
-    registry.internal_id = b64encode_ascii("Project:42")
+    registry.internal_id = b64encode_ascii("ProjectInternalId:42")
 
     assert filter_for_registry(registry, service_api=service_api, organization=ORG) == {
         "name": "wandb-registry-test",
@@ -79,7 +80,7 @@ def test_registry_filter_for_collection_uses_project_id_key(service_api, mocker)
     _mock_advanced_search(service_api, enabled=True)
     collection = mocker.Mock(spec=ArtifactCollection)
     collection.project = "wandb-registry-test"
-    collection.project_internal_id = b64encode_ascii("Project:42")
+    collection.project_internal_id = b64encode_ascii("ProjectInternalId:42")
 
     assert registry_filter_for_collection(
         collection, service_api=service_api, organization=ORG
@@ -87,6 +88,12 @@ def test_registry_filter_for_collection_uses_project_id_key(service_api, mocker)
         "name": "wandb-registry-test",
         "id": 42,
     }
+
+
+def test_project_id_from_gql_id_decodes_project_internal_id():
+    gql_id = b64encode_ascii("ProjectInternalId:933111")
+
+    assert _project_id_from_gql_id(gql_id) == 933111
 
 
 def test_filter_for_registry_falls_back_to_name_without_internal_id(
