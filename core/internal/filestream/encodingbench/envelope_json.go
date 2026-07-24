@@ -7,25 +7,24 @@ import (
 
 const historyFileName = "wandb-history.jsonl"
 
-// These types intentionally mirror filestream.FileStreamRequestJSON and its
-// unexported offsetAndContent value type.
-type fileStreamRequestJSON struct {
-	Files map[string]offsetAndContentJSON `json:"files,omitempty"`
-}
-
-type offsetAndContentJSON struct {
-	Offset  int      `json:"offset"`
-	Content []string `json:"content"`
-}
-
 func marshalJSONEnvelope(content []string) ([]byte, error) {
-	return json.Marshal(&fileStreamRequestJSON{Files: map[string]offsetAndContentJSON{
-		historyFileName: {Offset: 0, Content: content},
-	}})
+	return marshalSortedJSON(map[string]any{
+		"files": map[string]any{
+			historyFileName: map[string]any{
+				"offset":  0,
+				"content": content,
+			},
+		},
+	})
 }
 
 func unmarshalJSONEnvelope(data []byte) ([]string, error) {
-	var request fileStreamRequestJSON
+	var request struct {
+		Files map[string]struct {
+			Offset  int      `json:"offset"`
+			Content []string `json:"content"`
+		} `json:"files"`
+	}
 	if err := json.Unmarshal(data, &request); err != nil {
 		return nil, fmt.Errorf("unmarshal JSON envelope: %w", err)
 	}

@@ -71,7 +71,7 @@ func recordToExtendedJSON(record *spb.HistoryRecord) ([]byte, error) {
 		}
 		setUnmarshaledJSON(tree, path, decoded)
 	}
-	return tree.ToExtendedJSON()
+	return marshalSortedJSON(tree.CloneTree())
 }
 
 func itemPath(item *spb.HistoryItem) (pathtree.TreePath, error) {

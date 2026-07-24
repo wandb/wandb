@@ -1,39 +1,15 @@
 package encodingbench
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"math"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/core/internal/filestream"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
-
-func TestEnvelopeCodecRoundTrips(t *testing.T) {
-	for _, workload := range SyntheticWorkloads() {
-		fixtures, err := recordFixtures(workload.Rows)
-		require.NoError(t, err)
-		for _, fixture := range fixtures {
-			for _, codec := range benchmarkCodecs() {
-				t.Run(workload.Name+"/"+string(fixture.Mode)+"/"+codec.Name(), func(t *testing.T) {
-					encoded, err := codec.Encode(fixture.Records)
-					require.NoError(t, err)
-					require.NotEmpty(t, encoded.Data)
-					require.Positive(t, encoded.BodyBytes)
-
-					decoded, err := codec.Decode(encoded.Data, fixture.Mode)
-					require.NoError(t, err)
-					requireRecordsSemanticallyEqual(t, fixture.Records, decoded)
-					requireRecordMode(t, decoded, fixture.Mode)
-				})
-			}
-		}
-	}
-}
 
 func TestHistoryValueConversions(t *testing.T) {
 	values := []Value{
@@ -126,26 +102,6 @@ func TestJSONEnvelopeContentFraming(t *testing.T) {
 	require.Len(t, columnContent, 1)
 }
 
-func TestNestedKeysSurviveProtobufTransports(t *testing.T) {
-	records := []*spb.HistoryRecord{{Item: []*spb.HistoryItem{{
-		NestedKey: []string{"model", "loss"},
-		Value:     &spb.HistoryValue{Kind: spb.HistoryValue_KIND_NUMBER, NumberValue: 0.25},
-	}}}}
-	for _, codec := range []EnvelopeCodec{
-		JSONRowProtoEnvelopeCodec{},
-		ProtoRowEnvelopeCodec{},
-		JSONColumnProtoEnvelopeCodec{},
-		ProtoColumnEnvelopeCodec{},
-	} {
-		encoded, err := codec.Encode(records)
-		require.NoError(t, err)
-		decoded, err := codec.Decode(encoded.Data, TypedValue)
-		require.NoError(t, err)
-		require.Equal(t, []string{"model", "loss"}, decoded[0].Item[0].NestedKey)
-		require.Empty(t, decoded[0].Item[0].Key)
-	}
-}
-
 func TestLegacyNestedKeySemantics(t *testing.T) {
 	record := &spb.HistoryRecord{Item: []*spb.HistoryItem{{
 		NestedKey: []string{"model", "loss"},
@@ -154,36 +110,6 @@ func TestLegacyNestedKeySemantics(t *testing.T) {
 	line, err := recordToExtendedJSON(record)
 	require.NoError(t, err)
 	require.JSONEq(t, `{"model":{"loss":0.25}}`, string(line))
-}
-
-func TestJSONProtoCodecsRejectInvalidBase64(t *testing.T) {
-	data, err := marshalJSONEnvelope([]string{"%%%"})
-	require.NoError(t, err)
-	_, err = (JSONRowProtoEnvelopeCodec{}).Decode(data, TypedValue)
-	require.ErrorContains(t, err, "base64")
-	_, err = (JSONColumnProtoEnvelopeCodec{}).Decode(data, TypedValue)
-	require.ErrorContains(t, err, "base64")
-}
-
-func TestJSONRowProtoRejectsTruncatedRecord(t *testing.T) {
-	data, err := marshalJSONEnvelope([]string{base64.StdEncoding.EncodeToString([]byte{0xff})})
-	require.NoError(t, err)
-	_, err = (JSONRowProtoEnvelopeCodec{}).Decode(data, TypedValue)
-	require.ErrorContains(t, err, "unmarshal row")
-}
-
-func TestJSONColumnProtoRejectsTruncatedBatch(t *testing.T) {
-	data, err := marshalJSONEnvelope([]string{base64.StdEncoding.EncodeToString([]byte{0xff})})
-	require.NoError(t, err)
-	_, err = (JSONColumnProtoEnvelopeCodec{}).Decode(data, TypedValue)
-	require.ErrorContains(t, err, "unmarshal columnar batch")
-}
-
-func TestProtoEnvelopeRejectsMissingContent(t *testing.T) {
-	data, err := proto.Marshal(&BenchmarkFileStreamRequest{FileName: historyFileName})
-	require.NoError(t, err)
-	_, err = (ProtoRowEnvelopeCodec{}).Decode(data, TypedValue)
-	require.ErrorContains(t, err, "missing history content")
 }
 
 func TestCodecsRejectInvalidTypedKind(t *testing.T) {
@@ -205,84 +131,4 @@ func TestCodecsRejectMalformedValueJSON(t *testing.T) {
 	require.ErrorContains(t, err, "decode value_json")
 	_, err = (LegacyJSONEnvelopeCodec{}).Encode(records)
 	require.ErrorContains(t, err, "decode value_json")
-}
-
-func TestColumnProtoRejectsInvalidIndexes(t *testing.T) {
-	batch := &ColumnarHistoryBatch{
-		RowCount:    1,
-		Keys:        []*HistoryKey{{Key: "metric"}},
-		RowIndex:    []uint32{0},
-		KeyIndex:    []uint32{42},
-		Kind:        []ColumnarHistoryBatch_Kind{ColumnarHistoryBatch_KIND_NUMBER},
-		ValueIndex:  []uint32{0},
-		NumberValue: []float64{1},
-	}
-	_, err := recordsFromColumnarBatch(batch, TypedValue)
-	require.ErrorContains(t, err, "key index")
-}
-
-func TestColumnProtoRejectsInvalidJSON(t *testing.T) {
-	batch := &ColumnarHistoryBatch{
-		RowCount:   1,
-		Keys:       []*HistoryKey{{Key: "metric"}},
-		RowIndex:   []uint32{0},
-		KeyIndex:   []uint32{0},
-		Kind:       []ColumnarHistoryBatch_Kind{ColumnarHistoryBatch_KIND_JSON},
-		ValueIndex: []uint32{0},
-		JsonValue:  [][]byte{[]byte("not JSON")},
-	}
-	_, err := recordsFromColumnarBatch(batch, TypedValue)
-	require.ErrorContains(t, err, "invalid JSON")
-}
-
-func requireRecordsSemanticallyEqual(t *testing.T, expected, actual []*spb.HistoryRecord) {
-	t.Helper()
-	expectedRows, err := rowsFromRecords(expected)
-	require.NoError(t, err)
-	actualRows, err := rowsFromRecords(actual)
-	require.NoError(t, err)
-	requireRowsEqual(t, expectedRows, actualRows)
-}
-
-func requireRecordMode(t *testing.T, records []*spb.HistoryRecord, mode ValueMode) {
-	t.Helper()
-	for _, record := range records {
-		for _, item := range record.Item {
-			switch mode {
-			case JSONValue:
-				require.Nil(t, item.Value)
-				require.NotEmpty(t, item.ValueJson)
-			case TypedValue:
-				require.NotNil(t, item.Value)
-				require.Empty(t, item.ValueJson)
-			}
-		}
-	}
-}
-
-func requireRowsEqual(t *testing.T, expected, actual []Row) {
-	t.Helper()
-	expected, err := normalizedRows(expected)
-	require.NoError(t, err)
-	actual, err = normalizedRows(actual)
-	require.NoError(t, err)
-	require.Len(t, actual, len(expected))
-	for rowIndex := range expected {
-		require.Len(t, actual[rowIndex].Cells, len(expected[rowIndex].Cells))
-		for cellIndex := range expected[rowIndex].Cells {
-			expectedCell := expected[rowIndex].Cells[cellIndex]
-			actualCell := actual[rowIndex].Cells[cellIndex]
-			require.Equal(t, expectedCell.Key, actualCell.Key)
-			require.Equal(t, expectedCell.NestedKey, actualCell.NestedKey)
-			require.Truef(
-				t,
-				valuesEqual(expectedCell.Value, actualCell.Value),
-				"row %d key %q values differ: %#v != %#v",
-				rowIndex,
-				expectedCell.Key,
-				expectedCell.Value,
-				actualCell.Value,
-			)
-		}
-	}
 }

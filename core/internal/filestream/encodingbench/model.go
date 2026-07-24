@@ -134,7 +134,7 @@ func valueFromAny(value any) (Value, error) {
 	case string:
 		return Value{Kind: KindString, String: value}, nil
 	case []any, map[string]any:
-		encoded, err := simplejsonext.Marshal(value)
+		encoded, err := marshalSortedJSON(value)
 		if err != nil {
 			return Value{}, fmt.Errorf("marshal complex value: %w", err)
 		}

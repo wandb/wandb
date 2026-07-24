@@ -16,6 +16,8 @@ func SyntheticWorkloads() []Dataset {
 		makeWideMixed("wide_mixed", 16, 2048),
 		makeNestedJSON("nested_json", 128, 64),
 		makeSystemMetrics("system_metrics", 1024, 64),
+		makeSizedDataset("size_1mib", 1<<20),
+		makeSizedDataset("size_10mib", 10<<20),
 	}
 }
 
@@ -110,6 +112,29 @@ func makeSystemMetrics(name string, rowCount, width int) Dataset {
 					Kind:   KindNumber,
 					Number: float64((rowIndex+1)*(columnIndex+3)%10000) / 100,
 				},
+			}
+		}
+		rows[rowIndex] = Row{Cells: cells}
+	}
+	return Dataset{Name: name, Rows: rows}
+}
+
+func makeSizedDataset(name string, targetBytes int) Dataset {
+	const (
+		width       = 16
+		valueLength = 512
+	)
+	rowBytes := width * (valueLength + 32)
+	rowCount := max(1, targetBytes/rowBytes)
+	rows := make([]Row, rowCount)
+	for rowIndex := range rows {
+		cells := make([]Cell, width)
+		for columnIndex := range cells {
+			prefix := fmt.Sprintf("r%06d-c%02d-", rowIndex, columnIndex)
+			value := prefix + strings.Repeat("x", valueLength-len(prefix))
+			cells[columnIndex] = Cell{
+				Key:   fmt.Sprintf("blob_%02d", columnIndex),
+				Value: Value{Kind: KindString, String: value},
 			}
 		}
 		rows[rowIndex] = Row{Cells: cells}

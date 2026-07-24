@@ -44,6 +44,8 @@ DATASET_ORDER = [
     "wide_mixed",
     "nested_json",
     "system_metrics",
+    "size_1mib",
+    "size_10mib",
 ]
 
 
@@ -272,7 +274,7 @@ PAGE_TEMPLATE = """<!doctype html>
 <script>
 const ROWS = __ROWS_JSON__;
 const DATASETS = __DATASETS_JSON__;
-const OPS = ["Encode", "Decode"];
+const OPS = ["Encode", "Compress"];
 
 // The three independent format components. `order` fixes display/sort order;
 // `short` is the abbreviation used in the tiered axis labels.

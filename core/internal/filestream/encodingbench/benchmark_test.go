@@ -5,8 +5,6 @@ import (
 	"compress/gzip"
 	"fmt"
 	"testing"
-
-	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 var benchmarkSink any
@@ -39,38 +37,6 @@ func BenchmarkEncode(b *testing.B) {
 					reportOpsPerSecond(b)
 					reportEnvelopeMetrics(b, encoded, gzip1Bytes, gzip6Bytes, rows, cells)
 					benchmarkSink = encoded.Data
-				})
-			}
-		}
-	}
-}
-
-func BenchmarkDecode(b *testing.B) {
-	for _, workload := range SyntheticWorkloads() {
-		fixtures, err := recordFixtures(workload.Rows)
-		if err != nil {
-			b.Fatal(err)
-		}
-		for _, fixture := range fixtures {
-			for _, codec := range benchmarkCodecs() {
-				encoded, err := codec.Encode(fixture.Records)
-				if err != nil {
-					b.Fatal(err)
-				}
-				b.Run(workload.Name+"/"+string(fixture.Mode)+"/"+codec.Name(), func(b *testing.B) {
-					rows, cells := recordCounts(fixture.Records)
-					b.SetBytes(int64(len(encoded.Data)))
-					b.ReportAllocs()
-					for b.Loop() {
-						decoded, err := codec.Decode(encoded.Data, fixture.Mode)
-						if err != nil {
-							b.Fatal(err)
-						}
-						benchmarkSink = decoded
-					}
-					reportOpsPerSecond(b)
-					b.ReportMetric(float64(rows), "rows/op")
-					b.ReportMetric(float64(cells), "cells/op")
 				})
 			}
 		}
@@ -122,24 +88,6 @@ func BenchmarkCompress(b *testing.B) {
 			}
 		}
 	}
-}
-
-func benchmarkCodecs() []EnvelopeCodec {
-	return []EnvelopeCodec{
-		LegacyJSONEnvelopeCodec{},
-		JSONRowProtoEnvelopeCodec{},
-		ProtoRowEnvelopeCodec{},
-		JSONColumnProtoEnvelopeCodec{},
-		ProtoColumnEnvelopeCodec{},
-	}
-}
-
-func recordCounts(records []*spb.HistoryRecord) (rows, cells int) {
-	rows = len(records)
-	for _, record := range records {
-		cells += len(record.Item)
-	}
-	return rows, cells
 }
 
 func reportOpsPerSecond(b *testing.B) {

@@ -19,7 +19,7 @@ func (JSONColumnProtoEnvelopeCodec) Encode(records []*spb.HistoryRecord) (Encode
 	if err != nil {
 		return EncodedEnvelope{}, err
 	}
-	body, err := proto.Marshal(batch)
+	body, err := proto.MarshalOptions{Deterministic: true}.Marshal(batch)
 	if err != nil {
 		return EncodedEnvelope{}, fmt.Errorf("marshal columnar batch: %w", err)
 	}
@@ -70,7 +70,7 @@ func (ProtoColumnEnvelopeCodec) Encode(records []*spb.HistoryRecord) (EncodedEnv
 			ColumnarHistory: batch,
 		},
 	}
-	data, err := proto.Marshal(request)
+	data, err := proto.MarshalOptions{Deterministic: true}.Marshal(request)
 	if err != nil {
 		return EncodedEnvelope{}, fmt.Errorf("marshal columnar envelope: %w", err)
 	}

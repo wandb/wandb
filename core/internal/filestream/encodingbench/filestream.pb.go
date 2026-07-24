@@ -2,18 +2,17 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v7.34.1
-// source: internal/filestream/encodingbench/column.proto
+// source: internal/filestream/encodingbench/filestream.proto
 
 package encodingbench
 
 import (
-	reflect "reflect"
-	sync "sync"
-	unsafe "unsafe"
-
 	service_go_proto "github.com/wandb/wandb/core/pkg/service_go_proto"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	reflect "reflect"
+	sync "sync"
+	unsafe "unsafe"
 )
 
 const (
@@ -65,11 +64,11 @@ func (x ColumnarHistoryBatch_Kind) String() string {
 }
 
 func (ColumnarHistoryBatch_Kind) Descriptor() protoreflect.EnumDescriptor {
-	return file_internal_filestream_encodingbench_column_proto_enumTypes[0].Descriptor()
+	return file_internal_filestream_encodingbench_filestream_proto_enumTypes[0].Descriptor()
 }
 
 func (ColumnarHistoryBatch_Kind) Type() protoreflect.EnumType {
-	return &file_internal_filestream_encodingbench_column_proto_enumTypes[0]
+	return &file_internal_filestream_encodingbench_filestream_proto_enumTypes[0]
 }
 
 func (x ColumnarHistoryBatch_Kind) Number() protoreflect.EnumNumber {
@@ -78,7 +77,7 @@ func (x ColumnarHistoryBatch_Kind) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use ColumnarHistoryBatch_Kind.Descriptor instead.
 func (ColumnarHistoryBatch_Kind) EnumDescriptor() ([]byte, []int) {
-	return file_internal_filestream_encodingbench_column_proto_rawDescGZIP(), []int{3, 0}
+	return file_internal_filestream_encodingbench_filestream_proto_rawDescGZIP(), []int{3, 0}
 }
 
 // BenchmarkFileStreamRequest is an experimental benchmark-only filestream
@@ -98,7 +97,7 @@ type BenchmarkFileStreamRequest struct {
 
 func (x *BenchmarkFileStreamRequest) Reset() {
 	*x = BenchmarkFileStreamRequest{}
-	mi := &file_internal_filestream_encodingbench_column_proto_msgTypes[0]
+	mi := &file_internal_filestream_encodingbench_filestream_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -110,7 +109,7 @@ func (x *BenchmarkFileStreamRequest) String() string {
 func (*BenchmarkFileStreamRequest) ProtoMessage() {}
 
 func (x *BenchmarkFileStreamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_filestream_encodingbench_column_proto_msgTypes[0]
+	mi := &file_internal_filestream_encodingbench_filestream_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -123,7 +122,7 @@ func (x *BenchmarkFileStreamRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BenchmarkFileStreamRequest.ProtoReflect.Descriptor instead.
 func (*BenchmarkFileStreamRequest) Descriptor() ([]byte, []int) {
-	return file_internal_filestream_encodingbench_column_proto_rawDescGZIP(), []int{0}
+	return file_internal_filestream_encodingbench_filestream_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *BenchmarkFileStreamRequest) GetFileName() string {
@@ -190,7 +189,7 @@ type RowHistoryBatch struct {
 
 func (x *RowHistoryBatch) Reset() {
 	*x = RowHistoryBatch{}
-	mi := &file_internal_filestream_encodingbench_column_proto_msgTypes[1]
+	mi := &file_internal_filestream_encodingbench_filestream_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -202,7 +201,7 @@ func (x *RowHistoryBatch) String() string {
 func (*RowHistoryBatch) ProtoMessage() {}
 
 func (x *RowHistoryBatch) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_filestream_encodingbench_column_proto_msgTypes[1]
+	mi := &file_internal_filestream_encodingbench_filestream_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -215,7 +214,7 @@ func (x *RowHistoryBatch) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RowHistoryBatch.ProtoReflect.Descriptor instead.
 func (*RowHistoryBatch) Descriptor() ([]byte, []int) {
-	return file_internal_filestream_encodingbench_column_proto_rawDescGZIP(), []int{1}
+	return file_internal_filestream_encodingbench_filestream_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *RowHistoryBatch) GetRecords() []*service_go_proto.HistoryRecord {
@@ -235,7 +234,7 @@ type HistoryKey struct {
 
 func (x *HistoryKey) Reset() {
 	*x = HistoryKey{}
-	mi := &file_internal_filestream_encodingbench_column_proto_msgTypes[2]
+	mi := &file_internal_filestream_encodingbench_filestream_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -247,7 +246,7 @@ func (x *HistoryKey) String() string {
 func (*HistoryKey) ProtoMessage() {}
 
 func (x *HistoryKey) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_filestream_encodingbench_column_proto_msgTypes[2]
+	mi := &file_internal_filestream_encodingbench_filestream_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -260,7 +259,7 @@ func (x *HistoryKey) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HistoryKey.ProtoReflect.Descriptor instead.
 func (*HistoryKey) Descriptor() ([]byte, []int) {
-	return file_internal_filestream_encodingbench_column_proto_rawDescGZIP(), []int{2}
+	return file_internal_filestream_encodingbench_filestream_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *HistoryKey) GetKey() string {
@@ -298,7 +297,7 @@ type ColumnarHistoryBatch struct {
 
 func (x *ColumnarHistoryBatch) Reset() {
 	*x = ColumnarHistoryBatch{}
-	mi := &file_internal_filestream_encodingbench_column_proto_msgTypes[3]
+	mi := &file_internal_filestream_encodingbench_filestream_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -310,7 +309,7 @@ func (x *ColumnarHistoryBatch) String() string {
 func (*ColumnarHistoryBatch) ProtoMessage() {}
 
 func (x *ColumnarHistoryBatch) ProtoReflect() protoreflect.Message {
-	mi := &file_internal_filestream_encodingbench_column_proto_msgTypes[3]
+	mi := &file_internal_filestream_encodingbench_filestream_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -323,7 +322,7 @@ func (x *ColumnarHistoryBatch) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ColumnarHistoryBatch.ProtoReflect.Descriptor instead.
 func (*ColumnarHistoryBatch) Descriptor() ([]byte, []int) {
-	return file_internal_filestream_encodingbench_column_proto_rawDescGZIP(), []int{3}
+	return file_internal_filestream_encodingbench_filestream_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ColumnarHistoryBatch) GetRowCount() uint32 {
@@ -396,11 +395,11 @@ func (x *ColumnarHistoryBatch) GetJsonValue() [][]byte {
 	return nil
 }
 
-var File_internal_filestream_encodingbench_column_proto protoreflect.FileDescriptor
+var File_internal_filestream_encodingbench_filestream_proto protoreflect.FileDescriptor
 
-const file_internal_filestream_encodingbench_column_proto_rawDesc = "" +
+const file_internal_filestream_encodingbench_filestream_proto_rawDesc = "" +
 	"\n" +
-	".internal/filestream/encodingbench/column.proto\x12\x1ewandb.filestream.encodingbench\x1a wandb/proto/wandb_internal.proto\"\x93\x02\n" +
+	"2internal/filestream/encodingbench/filestream.proto\x12\x1ewandb.filestream.encodingbench\x1a wandb/proto/wandb_internal.proto\"\x93\x02\n" +
 	"\x1aBenchmarkFileStreamRequest\x12\x1b\n" +
 	"\tfile_name\x18\x01 \x01(\tR\bfileName\x12\x16\n" +
 	"\x06offset\x18\x02 \x01(\x04R\x06offset\x12R\n" +
@@ -439,20 +438,20 @@ const file_internal_filestream_encodingbench_column_proto_rawDesc = "" +
 	"\tKIND_JSON\x10\x05BMZKgithub.com/wandb/wandb/core/internal/filestream/encodingbench;encodingbenchb\x06proto3"
 
 var (
-	file_internal_filestream_encodingbench_column_proto_rawDescOnce sync.Once
-	file_internal_filestream_encodingbench_column_proto_rawDescData []byte
+	file_internal_filestream_encodingbench_filestream_proto_rawDescOnce sync.Once
+	file_internal_filestream_encodingbench_filestream_proto_rawDescData []byte
 )
 
-func file_internal_filestream_encodingbench_column_proto_rawDescGZIP() []byte {
-	file_internal_filestream_encodingbench_column_proto_rawDescOnce.Do(func() {
-		file_internal_filestream_encodingbench_column_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_internal_filestream_encodingbench_column_proto_rawDesc), len(file_internal_filestream_encodingbench_column_proto_rawDesc)))
+func file_internal_filestream_encodingbench_filestream_proto_rawDescGZIP() []byte {
+	file_internal_filestream_encodingbench_filestream_proto_rawDescOnce.Do(func() {
+		file_internal_filestream_encodingbench_filestream_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_internal_filestream_encodingbench_filestream_proto_rawDesc), len(file_internal_filestream_encodingbench_filestream_proto_rawDesc)))
 	})
-	return file_internal_filestream_encodingbench_column_proto_rawDescData
+	return file_internal_filestream_encodingbench_filestream_proto_rawDescData
 }
 
-var file_internal_filestream_encodingbench_column_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_internal_filestream_encodingbench_column_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
-var file_internal_filestream_encodingbench_column_proto_goTypes = []any{
+var file_internal_filestream_encodingbench_filestream_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_internal_filestream_encodingbench_filestream_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_internal_filestream_encodingbench_filestream_proto_goTypes = []any{
 	(ColumnarHistoryBatch_Kind)(0),         // 0: wandb.filestream.encodingbench.ColumnarHistoryBatch.Kind
 	(*BenchmarkFileStreamRequest)(nil),     // 1: wandb.filestream.encodingbench.BenchmarkFileStreamRequest
 	(*RowHistoryBatch)(nil),                // 2: wandb.filestream.encodingbench.RowHistoryBatch
@@ -460,7 +459,7 @@ var file_internal_filestream_encodingbench_column_proto_goTypes = []any{
 	(*ColumnarHistoryBatch)(nil),           // 4: wandb.filestream.encodingbench.ColumnarHistoryBatch
 	(*service_go_proto.HistoryRecord)(nil), // 5: wandb_internal.HistoryRecord
 }
-var file_internal_filestream_encodingbench_column_proto_depIdxs = []int32{
+var file_internal_filestream_encodingbench_filestream_proto_depIdxs = []int32{
 	2, // 0: wandb.filestream.encodingbench.BenchmarkFileStreamRequest.row_history:type_name -> wandb.filestream.encodingbench.RowHistoryBatch
 	4, // 1: wandb.filestream.encodingbench.BenchmarkFileStreamRequest.columnar_history:type_name -> wandb.filestream.encodingbench.ColumnarHistoryBatch
 	5, // 2: wandb.filestream.encodingbench.RowHistoryBatch.records:type_name -> wandb_internal.HistoryRecord
@@ -473,12 +472,12 @@ var file_internal_filestream_encodingbench_column_proto_depIdxs = []int32{
 	0, // [0:5] is the sub-list for field type_name
 }
 
-func init() { file_internal_filestream_encodingbench_column_proto_init() }
-func file_internal_filestream_encodingbench_column_proto_init() {
-	if File_internal_filestream_encodingbench_column_proto != nil {
+func init() { file_internal_filestream_encodingbench_filestream_proto_init() }
+func file_internal_filestream_encodingbench_filestream_proto_init() {
+	if File_internal_filestream_encodingbench_filestream_proto != nil {
 		return
 	}
-	file_internal_filestream_encodingbench_column_proto_msgTypes[0].OneofWrappers = []any{
+	file_internal_filestream_encodingbench_filestream_proto_msgTypes[0].OneofWrappers = []any{
 		(*BenchmarkFileStreamRequest_RowHistory)(nil),
 		(*BenchmarkFileStreamRequest_ColumnarHistory)(nil),
 	}
@@ -486,18 +485,18 @@ func file_internal_filestream_encodingbench_column_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_filestream_encodingbench_column_proto_rawDesc), len(file_internal_filestream_encodingbench_column_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_internal_filestream_encodingbench_filestream_proto_rawDesc), len(file_internal_filestream_encodingbench_filestream_proto_rawDesc)),
 			NumEnums:      1,
 			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_internal_filestream_encodingbench_column_proto_goTypes,
-		DependencyIndexes: file_internal_filestream_encodingbench_column_proto_depIdxs,
-		EnumInfos:         file_internal_filestream_encodingbench_column_proto_enumTypes,
-		MessageInfos:      file_internal_filestream_encodingbench_column_proto_msgTypes,
+		GoTypes:           file_internal_filestream_encodingbench_filestream_proto_goTypes,
+		DependencyIndexes: file_internal_filestream_encodingbench_filestream_proto_depIdxs,
+		EnumInfos:         file_internal_filestream_encodingbench_filestream_proto_enumTypes,
+		MessageInfos:      file_internal_filestream_encodingbench_filestream_proto_msgTypes,
 	}.Build()
-	File_internal_filestream_encodingbench_column_proto = out.File
-	file_internal_filestream_encodingbench_column_proto_goTypes = nil
-	file_internal_filestream_encodingbench_column_proto_depIdxs = nil
+	File_internal_filestream_encodingbench_filestream_proto = out.File
+	file_internal_filestream_encodingbench_filestream_proto_goTypes = nil
+	file_internal_filestream_encodingbench_filestream_proto_depIdxs = nil
 }
