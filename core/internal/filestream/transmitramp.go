@@ -7,10 +7,27 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// rampTransmitRateLimit gradually slows the limiter from the initial to the
-// target transmit interval, doubling the interval each time it elapses.
+// startsTransmitRamp reports whether the update carries user-visible run
+// data whose arrival should begin ramping the transmit rate limit.
 //
-// The limiter's interval is expected to start at initial, so that a run's
+// Only data the user logs counts: history, summary and console logs.
+// Automatic traffic like system metrics and file upload notifications
+// begins shortly after every run starts, so ramping on it would defeat
+// the point of ramping on first data rather than on run start.
+func startsTransmitRamp(update Update) bool {
+	switch update.(type) {
+	case *HistoryUpdate, *SummaryUpdate, *LogsUpdate:
+		return true
+	default:
+		return false
+	}
+}
+
+// rampTransmitRateLimit speeds the limiter up to the initial transmit
+// interval, then gradually slows it back to the target interval, doubling
+// the interval each time it elapses.
+//
+// It is started when a run's first user-visible data arrives, so that the
 // first batches of data reach the backend (and the UI) quickly before
 // transmissions decay to the steady-state interval.
 //
@@ -22,6 +39,12 @@ func rampTransmitRateLimit(
 	initial time.Duration,
 	target time.Duration,
 ) {
+	if initial >= target {
+		return
+	}
+
+	limiter.SetLimit(rate.Every(initial))
+
 	for interval := initial; interval < target; {
 		select {
 		case <-ctx.Done():

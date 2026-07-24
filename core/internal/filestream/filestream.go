@@ -27,8 +27,9 @@ const (
 	defaultHeartbeatInterval = 30 * time.Second
 	defaultTransmitInterval  = 15 * time.Second
 
-	// defaultInitialTransmitInterval is the default transmit interval at the
-	// start of a run, before the interval ramps up to its configured value.
+	// defaultInitialTransmitInterval is the default transmit interval when
+	// a run's first data arrives, before the interval ramps up to its
+	// configured value.
 	//
 	// Transmitting more frequently at first makes a run's early data visible
 	// in the UI sooner.
@@ -132,9 +133,13 @@ type fileStream struct {
 	// The steady-state time between transmissions to the backend.
 	transmitInterval time.Duration
 
-	// The time between transmissions at the start of the run, before
-	// ramping up to transmitInterval.
+	// The time between transmissions when the run's first data arrives,
+	// before ramping up to transmitInterval.
 	initialTransmitInterval time.Duration
+
+	// transmitRampOnce ensures the transmit interval ramp starts at most
+	// once, when the run's first user-visible data is streamed.
+	transmitRampOnce sync.Once
 
 	// How long to wait between sending heartbeats to the backend
 	// to prove the run is still alive.
@@ -214,7 +219,7 @@ func (f *FileStreamFactory) New(
 		min(fs.initialTransmitInterval, fs.transmitInterval)
 
 	fs.transmitRateLimit = rate.NewLimiter(
-		rate.Every(fs.initialTransmitInterval), 1)
+		rate.Every(fs.transmitInterval), 1)
 
 	return fs
 }
@@ -234,13 +239,6 @@ func (fs *fileStream) Start(
 		runID,
 	)
 
-	go rampTransmitRateLimit(
-		fs.beforeRunEndCtx,
-		fs.transmitRateLimit,
-		fs.initialTransmitInterval,
-		fs.transmitInterval,
-	)
-
 	transmitChan := fs.startProcessingUpdates(fs.processChan)
 	feedbackChan := fs.startTransmitting(transmitChan, offsetMap)
 	fs.startProcessingFeedback(feedbackChan, fs.feedbackWait)
@@ -255,6 +253,17 @@ func (fs *fileStream) StreamUpdate(update Update) {
 	if fs.isFinished {
 		fs.logger.CaptureError(fmt.Errorf("filestream: StreamUpdate after Finish"))
 		return
+	}
+
+	if startsTransmitRamp(update) {
+		fs.transmitRampOnce.Do(func() {
+			go rampTransmitRateLimit(
+				fs.beforeRunEndCtx,
+				fs.transmitRateLimit,
+				fs.initialTransmitInterval,
+				fs.transmitInterval,
+			)
+		})
 	}
 
 	select {

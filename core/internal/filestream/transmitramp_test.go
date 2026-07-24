@@ -62,11 +62,87 @@ func TestFileStreamFactory_TransmitIntervals(t *testing.T) {
 
 			assert.Equal(t, test.wantInitial, fs.initialTransmitInterval)
 			assert.Equal(t, test.wantTarget, fs.transmitInterval)
+
+			// The limiter stays at the steady-state interval until the
+			// run's first user-visible data starts the ramp.
 			assert.Equal(
 				t,
-				rate.Every(test.wantInitial),
+				rate.Every(test.wantTarget),
 				fs.transmitRateLimit.Limit(),
 			)
+		})
+	}
+}
+
+func TestStreamUpdate_RunDataStartsRamp(t *testing.T) {
+	factory := FileStreamFactory{
+		Logger:  observability.NewNoOpLogger(),
+		Printer: observability.NewPrinter(0),
+	}
+	fs := factory.New(
+		nil,
+		context.Background(),
+		0,
+		time.Minute,
+		30*time.Second,
+	).(*fileStream)
+
+	fs.StreamUpdate(&HistoryUpdate{})
+
+	assert.Eventually(
+		t,
+		func() bool {
+			return fs.transmitRateLimit.Limit() == rate.Every(30*time.Second)
+		},
+		time.Second,
+		time.Millisecond,
+	)
+}
+
+func TestStreamUpdate_AutomaticUpdatesDontStartRamp(t *testing.T) {
+	factory := FileStreamFactory{
+		Logger:  observability.NewNoOpLogger(),
+		Printer: observability.NewPrinter(0),
+	}
+	fs := factory.New(
+		nil,
+		context.Background(),
+		0,
+		time.Minute,
+		30*time.Second,
+	).(*fileStream)
+
+	fs.StreamUpdate(&StatsUpdate{})
+	fs.StreamUpdate(&FilesUploadedUpdate{})
+
+	assert.Never(
+		t,
+		func() bool {
+			return fs.transmitRateLimit.Limit() != rate.Every(time.Minute)
+		},
+		50*time.Millisecond,
+		5*time.Millisecond,
+	)
+}
+
+func TestStartsTransmitRamp(t *testing.T) {
+	tests := []struct {
+		name   string
+		update Update
+		want   bool
+	}{
+		{"history", &HistoryUpdate{}, true},
+		{"summary", &SummaryUpdate{}, true},
+		{"console logs", &LogsUpdate{}, true},
+		{"system metrics", &StatsUpdate{}, false},
+		{"files uploaded", &FilesUploadedUpdate{}, false},
+		{"preempting", &PreemptingUpdate{}, false},
+		{"exit", &ExitUpdate{}, false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.want, startsTransmitRamp(test.update))
 		})
 	}
 }
@@ -74,7 +150,7 @@ func TestFileStreamFactory_TransmitIntervals(t *testing.T) {
 func TestRampTransmitRateLimit_ReachesTarget(t *testing.T) {
 	initial := time.Millisecond
 	target := 8 * time.Millisecond
-	limiter := rate.NewLimiter(rate.Every(initial), 1)
+	limiter := rate.NewLimiter(rate.Every(target), 1)
 
 	rampTransmitRateLimit(context.Background(), limiter, initial, target)
 
@@ -86,7 +162,7 @@ func TestRampTransmitRateLimit_NeverExceedsTarget(t *testing.T) {
 	// must be reached exactly, not overshot.
 	initial := time.Millisecond
 	target := 5 * time.Millisecond
-	limiter := rate.NewLimiter(rate.Every(initial), 1)
+	limiter := rate.NewLimiter(rate.Every(target), 1)
 
 	rampTransmitRateLimit(context.Background(), limiter, initial, target)
 
@@ -95,12 +171,15 @@ func TestRampTransmitRateLimit_NeverExceedsTarget(t *testing.T) {
 
 func TestRampTransmitRateLimit_StopsOnContextDone(t *testing.T) {
 	initial := time.Hour
-	limiter := rate.NewLimiter(rate.Every(initial), 1)
+	target := 2 * time.Hour
+	limiter := rate.NewLimiter(rate.Every(target), 1)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	rampTransmitRateLimit(ctx, limiter, initial, 2*time.Hour)
+	rampTransmitRateLimit(ctx, limiter, initial, target)
 
+	// The limiter is sped up to the initial interval, but the ramp stops
+	// before slowing it back down.
 	assert.Equal(t, rate.Every(initial), limiter.Limit())
 }
 

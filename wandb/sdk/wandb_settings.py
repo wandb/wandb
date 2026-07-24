@@ -662,11 +662,11 @@ class Settings(BaseModel, validate_assignment=True):
     x_file_stream_transmit_interval_initial: float | None = None
     """Initial interval in seconds between filestream transmissions.
 
-    After an immediate first transmission, subsequent transmissions start
-    at this interval and gradually slow to `x_file_stream_transmit_interval`,
-    so that data logged at the start of a run is uploaded quickly. Set to a
-    value greater than or equal to `x_file_stream_transmit_interval` to disable
-    the ramp.
+    When the run's first user-visible data (history, summary or console
+    logs) is logged, transmissions start at this interval and gradually slow
+    to `x_file_stream_transmit_interval`, so that a run's first logged data
+    is uploaded quickly no matter when it is logged. Set to a value greater
+    than or equal to `x_file_stream_transmit_interval` to disable the ramp.
 
     <!-- lazydoc-ignore-class-attributes -->
     """
