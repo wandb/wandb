@@ -5,7 +5,7 @@ from collections.abc import Iterable
 import pytest
 from wandb._strutils import b64encode_ascii
 from wandb.apis.public.registries._utils import (
-    fetch_advanced_search_enabled,
+    advanced_search_enabled,
     registry_filter_for_collection,
     registry_filter_for_registry,
     registry_project_id_filter_key,
@@ -20,7 +20,7 @@ REGISTRY_FILTER = {"name": "wandb-registry-test"}
 
 @pytest.fixture(autouse=True)
 def clear_registry_filter_caches():
-    fetch_advanced_search_enabled.cache_clear()
+    advanced_search_enabled.cache_clear()
     registry_project_id_filter_key.cache_clear()
 
 

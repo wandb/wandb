@@ -177,7 +177,7 @@ def _project_id_from_gql_id(gql_id: str) -> int | None:
 
 
 @lru_cache(maxsize=10)
-def fetch_advanced_search_enabled(service_api: ServiceApi, organization: str) -> bool:
+def advanced_search_enabled(service_api: ServiceApi, organization: str) -> bool:
     """Whether the organization has ClickHouse-backed advanced registry search.
 
     The ``advancedRegistryFeatures`` GQL field was added in server 0.78.x alongside
@@ -216,7 +216,7 @@ def fetch_advanced_search_enabled(service_api: ServiceApi, organization: str) ->
 @lru_cache(maxsize=10)
 def registry_project_id_filter_key(service_api: ServiceApi, organization: str) -> str:
     """Return the registry project filter key for the organization's search backend."""
-    if fetch_advanced_search_enabled(service_api, organization):
+    if advanced_search_enabled(service_api, organization):
         return "id"
     return "project_id"
 
