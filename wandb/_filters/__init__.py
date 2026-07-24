@@ -21,9 +21,11 @@ from .operators import (
     Regex,
     Size,
 )
+from .validation import FilterArg
 
 __all__ = [
     "BaseOp",
+    "FilterArg",
     "And",
     "Or",
     "Nor",
