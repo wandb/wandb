@@ -33,7 +33,6 @@ from wandb.errors.errors import UnsupportedError
 from wandb.errors.term import termlog
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
-from wandb.sdk.artifacts._gqlutils import server_supports
 from wandb.sdk.artifacts._models import ArtifactCollectionData
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 
@@ -339,8 +338,10 @@ class ArtifactCollections(
 
             type(self).QUERY = ARTIFACT_TYPE_ARTIFACT_COLLECTIONS_GQL
 
-        if (order is not None or filters is not None) and not server_supports(
-            service_api, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING
+        if (
+            order is not None or filters is not None
+        ) and not service_api.feature_enabled(
+            pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING
         ):
             raise UnsupportedError(
                 "Filtering and ordering of artifact collections is not supported on this wandb server version. "
@@ -447,8 +448,8 @@ class ProjectArtifactCollections(
 
             type(self).QUERY = PROJECT_ARTIFACT_COLLECTIONS_GQL
 
-        supports_filtering = server_supports(
-            service_api, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING
+        supports_filtering = service_api.feature_enabled(
+            pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING
         )
         if (order is not None or filters is not None) and not supports_filtering:
             raise UnsupportedError(
@@ -1084,7 +1085,6 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
         per_page: int = 50,
         start: str | None = None,
     ):
-        from wandb.sdk.artifacts._gqlutils import server_supports
 
         if self.QUERY is None:
             from wandb.sdk.artifacts._generated import ARTIFACT_MEMBERSHIP_FILES_GQL
@@ -1107,7 +1107,7 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
             start=start,
             omit_fields=(
                 None
-                if server_supports(service_api, pb.TOTAL_COUNT_IN_FILE_CONNECTION)
+                if service_api.feature_enabled(pb.TOTAL_COUNT_IN_FILE_CONNECTION)
                 else {"totalCount"}
             ),
         )
