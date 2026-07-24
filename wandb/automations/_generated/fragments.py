@@ -128,11 +128,7 @@ class TriggerFields(GQLResult):
     scope: (
         ArtifactPortfolioScopeFields
         | ArtifactSequenceScopeFields
-<<<<<<< HEAD
         | EntityScopeFields
-=======
-        | TriggerFieldsScopeEntity
->>>>>>> bc21d50a8 (feat(sweeps): expose enqueue_run() on the Sweeps class)
         | ProjectScopeFields
     ) = Field(discriminator="typename__")
     event: FilterEventFields
@@ -143,10 +139,6 @@ class TriggerFields(GQLResult):
         | TriggerFieldsActionPushNotificationTriggeredAction
         | QueueJobActionFields
     ) = Field(discriminator="typename__")
-
-
-class TriggerFieldsScopeEntity(GQLResult):
-    typename__: Typename[Literal["Entity"]]
 
 
 class TriggerFieldsActionPushNotificationTriggeredAction(GQLResult):
