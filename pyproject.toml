@@ -20,6 +20,9 @@ dependencies = [
     "typing_extensions>=4.8,<5",
     "pydantic>=2.6,<3",
     "packaging",
+    "opentelemetry-api>=1.43.0",
+    "opentelemetry-sdk>=1.43.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.43.0",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -493,6 +496,7 @@ module = [
     "grpc.*",
     "ultralytics.*",
     "wandb.vendor.*",
+    "opentelemetry.*",
 ]
 ignore_missing_imports = true
 
