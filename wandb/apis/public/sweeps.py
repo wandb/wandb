@@ -500,6 +500,54 @@ class Sweep(Attrs):
             for edge in parsed.project.sweep.agents.edges
         ]
 
+    def enqueue_run(self, config: dict, display_name: str | None = None) -> str:
+        """Enqueue a run for the sweep.
+
+        Args:
+            config: The config for the run.
+            display_name: The optional display name for the run.
+
+        Returns:
+            The id of the run (not the run queue item).
+
+        Raises:
+            UnsupportedError: If the server doesn't support enqueuing sweep runs.
+        """
+        if not self._service_api.feature_enabled(
+            pb.ServerFeature.SWEEPS_LOCAL_SCHEDULER
+        ):
+            raise UnsupportedError(
+                "Enqueuing sweep runs is not supported on this wandb server "
+                "version. Please upgrade your server version or contact "
+                "support at support@wandb.com."
+            )
+
+        mutation = """
+        mutation EnqueueSweepRun(
+            $id: ID!,
+            $config: JSONString!,
+            $displayName: String,
+        ) {
+            enqueueSweepRun(input: {
+                id: $id,
+                config: $config,
+                displayName: $displayName,
+            }) {
+                id
+                runQueueItemId
+            }
+        }
+        """
+        data = self._service_api.execute_graphql(
+            mutation,
+            variables={
+                "id": self._attrs["id"],
+                "config": json.dumps(config),
+                "displayName": display_name,
+            },
+        )
+        return data["enqueueSweepRun"]["id"]
+
     def to_html(self, height: int = 420, hidden: bool = False) -> str:
         """Generate HTML containing an iframe displaying this sweep."""
         url = self.url + "?jupyter=true"

@@ -50,6 +50,7 @@ class ServerFeature(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     QUERY_AUTOMATIONS_ON_ENTITY: _ClassVar[ServerFeature]
     AUTOMATIONS_ON_ORGANIZATION: _ClassVar[ServerFeature]
     FILESTREAM_GZIP: _ClassVar[ServerFeature]
+    SWEEPS_LOCAL_SCHEDULER: _ClassVar[ServerFeature]
 SERVER_FEATURE_UNSPECIFIED: ServerFeature
 LARGE_FILENAMES: ServerFeature
 ARTIFACT_TAGS: ServerFeature
@@ -85,6 +86,7 @@ AUTOMATION_SCOPE_ENTITY: ServerFeature
 QUERY_AUTOMATIONS_ON_ENTITY: ServerFeature
 AUTOMATIONS_ON_ORGANIZATION: ServerFeature
 FILESTREAM_GZIP: ServerFeature
+SWEEPS_LOCAL_SCHEDULER: ServerFeature
 
 class Record(_message.Message):
     __slots__ = ("num", "history", "summary", "output", "config", "files", "stats", "artifact", "tbrecord", "alert", "telemetry", "metric", "output_raw", "run", "exit", "final", "header", "footer", "preempting", "noop_link_artifact", "use_artifact", "environment", "output_logger", "request", "control", "uuid", "_info")
