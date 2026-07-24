@@ -180,7 +180,7 @@ class Team(Attrs):
     def load(self, force: bool = False) -> dict[str, Any]:
         """Return members that belong to a team.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         from wandb.apis._generated import GET_TEAM_ENTITY_GQL, GetTeamEntity
 

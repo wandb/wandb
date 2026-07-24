@@ -290,7 +290,11 @@ type CreateBucketOutput struct {
 	// [Using tags with directory buckets]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/directory-buckets-tagging.html
 	BucketArn *string
 
-	// A forward slash followed by the name of the bucket.
+	// A forward slash followed by the name of the bucket for all account regional
+	// namespace buckets and all global general purpose buckets created in us-east-1.
+	// For example, /amzn-s3-demo-bucket . For global general purpose buckets created
+	// in other Amazon Web Services Regions, the Location field is the global endpoint
+	// URL. For example, http://amzn-s3-demo-bucket.s3.amazonaws.com/ .
 	Location *string
 
 	// Metadata pertaining to the operation's result.
@@ -321,7 +325,7 @@ func (c *Client) addOperationCreateBucketMiddlewares(stack *middleware.Stack, op
 	if err = addComputePayloadSHA256(stack); err != nil {
 		return err
 	}
-	if err = addRecordResponseTiming(stack); err != nil {
+	if err = addRecordResponseTiming(stack, options); err != nil {
 		return err
 	}
 	if err = smithyhttp.AddErrorCloseResponseBodyMiddleware(stack); err != nil {

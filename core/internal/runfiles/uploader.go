@@ -3,6 +3,7 @@ package runfiles
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -223,6 +224,7 @@ func (u *uploader) Finish() {
 	// Mark as isFinished to prevent new operations.
 	u.stateMu.Lock()
 	if u.isFinished {
+		u.stateMu.Unlock()
 		return
 	}
 	u.isFinished = true
@@ -237,8 +239,9 @@ func (u *uploader) Finish() {
 
 	// Wait for all file uploads to complete.
 	u.stateMu.Lock()
-	defer u.stateMu.Unlock()
-	for _, file := range u.knownFiles {
+	knownFiles := maps.Clone(u.knownFiles)
+	u.stateMu.Unlock()
+	for _, file := range knownFiles {
 		file.Finish()
 	}
 }
