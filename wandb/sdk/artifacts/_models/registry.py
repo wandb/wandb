@@ -26,8 +26,8 @@ class RegistryData(ArtifactsBase):
     id: GQLId = Field(frozen=True)
     """The unique, encoded ID for this registry."""
 
-    internal_id: GQLId = Field(frozen=True, repr=False)
-    """The internal numeric ID for this registry's backing project."""
+    internal_id: GQLId | None = Field(default=None, frozen=True, repr=False)
+    """The internal numeric ID for this registry's backing project, if fetched."""
 
     created_at: str = Field(frozen=True)
     """When this registry was created."""

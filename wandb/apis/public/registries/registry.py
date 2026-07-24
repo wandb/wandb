@@ -77,8 +77,8 @@ class Registry:
         return self._current.id
 
     @property
-    def internal_id(self) -> str:
-        """The internal numeric ID for this registry's backing project."""
+    def internal_id(self) -> str | None:
+        """The internal numeric ID for this registry's backing project, if fetched."""
         return self._current.internal_id
 
     @property

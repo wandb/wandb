@@ -545,8 +545,8 @@ class ArtifactCollection:
         return self._current.project_id
 
     @property
-    def project_internal_id(self) -> str:
-        """The internal numeric ID for this collection's backing project."""
+    def project_internal_id(self) -> str | None:
+        """The internal numeric ID for this collection's backing project, if fetched."""
         return self._current.project_internal_id
 
     @normalize_exceptions
