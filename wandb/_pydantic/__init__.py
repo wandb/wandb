@@ -21,6 +21,7 @@ __all__ = [
     "to_json",
     "from_json",
     "gql_typename",
+    "default_if_none",
     "ValidationError",
 ]
 
@@ -36,4 +37,10 @@ from pydantic.alias_generators import to_camel
 from .base import CompatBaseModel, GQLBase, GQLInput, GQLResult, JsonableModel
 from .field_types import GQLId, Typename
 from .pagination import Connection, ConnectionWithTotal, Edge, PageInfo
-from .utils import from_json, gql_typename, pydantic_isinstance, to_json
+from .utils import (
+    default_if_none,
+    from_json,
+    gql_typename,
+    pydantic_isinstance,
+    to_json,
+)

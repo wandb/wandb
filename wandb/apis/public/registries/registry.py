@@ -379,11 +379,10 @@ class Registry:
             UpsertModelInput,
             UpsertRegistry,
         )
-        from wandb.sdk.artifacts._gqlutils import server_supports
         from wandb.sdk.artifacts._validators import validate_project_name
 
-        if not server_supports(
-            self._service_api, pb.INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION
+        if not self._service_api.feature_enabled(
+            pb.INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION
         ):
             raise RuntimeError(
                 "Saving the registry is not enabled on this wandb server version. "

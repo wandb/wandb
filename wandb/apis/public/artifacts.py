@@ -6,25 +6,33 @@ collections.
 
 from __future__ import annotations
 
-import json
 from collections.abc import Collection, Iterable, Mapping, Sequence
 from copy import copy
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, ClassVar, List, Literal, TypeVar  # noqa: UP035
+from typing import (  # noqa: UP035
+    TYPE_CHECKING,
+    Annotated,
+    Any,
+    ClassVar,
+    List,
+    Literal,
+    TypeVar,
+)
 
-from pydantic import PositiveInt
+from pydantic import Field, PlainSerializer, PositiveInt
+from pydantic.alias_generators import to_camel
 from typing_extensions import override
 
 from wandb._iterutils import always_list
-from wandb._pydantic import Connection, ConnectionWithTotal, Edge
+from wandb._pydantic import Connection, ConnectionWithTotal, Edge, GQLInput, to_json
 from wandb._strutils import nameof
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import RelayPaginator, SizedRelayPaginator
+from wandb.apis.public.registries._utils import OrderArg
 from wandb.errors.errors import UnsupportedError
 from wandb.errors.term import termlog
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
-from wandb.sdk.artifacts._gqlutils import server_supports
 from wandb.sdk.artifacts._models import ArtifactCollectionData
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 
@@ -280,6 +288,15 @@ class ArtifactType:
         return f"<ArtifactType {self.type}>"
 
 
+class _ArtifactCollectionsVars(GQLInput, alias_generator=to_camel):
+    entity: str
+    project: str
+    type_name: Annotated[str, Field(serialization_alias="type")]
+    filters: Annotated[dict[str, Any], PlainSerializer(to_json)] | None = None
+    order: Annotated[str, OrderArg()] | None = None
+    per_page: PositiveInt = 50
+
+
 class ArtifactCollections(
     SizedRelayPaginator["ArtifactCollectionFragment", "ArtifactCollection"]
 ):
@@ -321,28 +338,36 @@ class ArtifactCollections(
 
             type(self).QUERY = ARTIFACT_TYPE_ARTIFACT_COLLECTIONS_GQL
 
-        if (order is not None or filters is not None) and not server_supports(
-            service_api, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING
+        if (
+            order is not None or filters is not None
+        ) and not service_api.feature_enabled(
+            pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING
         ):
             raise UnsupportedError(
                 "Filtering and ordering of artifact collections is not supported on this wandb server version. "
                 "Please upgrade your server version or contact support at support@wandb.com."
             )
 
-        self.entity = entity
-        self.project = project
-        self.type_name = type_name
-        self.filters = filters
-        self.order = order
-        variables = {
-            "entity": entity,
-            "project": project,
-            "type": type_name,
-            "order": order,
-            "filters": json.dumps(f) if (f := filters) else None,
-        }
+        vars_ = _ArtifactCollectionsVars(
+            entity=entity,
+            project=project,
+            type_name=type_name,
+            filters=filters,
+            order=order,
+            per_page=per_page,
+        )
+
+        self.entity = vars_.entity
+        self.project = vars_.project
+        self.type_name = vars_.type_name
+        self.filters = vars_.filters
+        self.order = vars_.order
+
         super().__init__(
-            service_api, variables=variables, per_page=per_page, start=start
+            service_api,
+            variables=vars_.model_dump(),
+            per_page=vars_.per_page,
+            start=start,
         )
 
     @override
@@ -376,6 +401,14 @@ class ArtifactCollections(
             type=node.type.name,
             attrs=node,
         )
+
+
+class _ProjectArtifactCollectionsVars(GQLInput, alias_generator=to_camel):
+    entity: str
+    project: str
+    filters: Annotated[dict[str, Any], PlainSerializer(to_json)] | None = None
+    order: Annotated[str, OrderArg()] | None = None
+    per_page: PositiveInt = 50
 
 
 class ProjectArtifactCollections(
@@ -415,8 +448,8 @@ class ProjectArtifactCollections(
 
             type(self).QUERY = PROJECT_ARTIFACT_COLLECTIONS_GQL
 
-        supports_filtering = server_supports(
-            service_api, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING
+        supports_filtering = service_api.feature_enabled(
+            pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING
         )
         if (order is not None or filters is not None) and not supports_filtering:
             raise UnsupportedError(
@@ -424,21 +457,22 @@ class ProjectArtifactCollections(
                 "Please upgrade your server version or contact support at support@wandb.com."
             )
 
-        self.entity = entity
-        self.project = project
-        self.filters = filters
-        self.order = order
-        variables = {
-            "entity": entity,
-            "project": project,
-            "order": order,
-            "filters": json.dumps(f) if (f := filters) else None,
-        }
+        vars_ = _ProjectArtifactCollectionsVars(
+            entity=entity,
+            project=project,
+            filters=filters,
+            order=order,
+            per_page=per_page,
+        )
+        self.entity = vars_.entity
+        self.project = vars_.project
+        self.filters = vars_.filters
+        self.order = vars_.order
 
         super().__init__(
             service_api,
-            variables=variables,
-            per_page=per_page,
+            variables=vars_.model_dump(),
+            per_page=vars_.per_page,
             start=start,
             omit_variables=None if supports_filtering else {"filters"},
             omit_fields=None if supports_filtering else {"totalCount"},
@@ -841,6 +875,16 @@ class _ArtifactConnectionGeneric(ConnectionWithTotal[TNode]):
     edges: List[_ArtifactEdgeGeneric]  # noqa: UP006
 
 
+class _ArtifactsVars(GQLInput, alias_generator=to_camel):
+    entity: str
+    project: str
+    collection: str
+    type: str
+    filters: Annotated[dict[str, Any], PlainSerializer(to_json)] | None = None
+    order: Annotated[str, OrderArg()] | None = None
+    per_page: PositiveInt = 50
+
+
 class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
     """An iterable collection of artifact versions associated with a project.
 
@@ -887,23 +931,29 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
 
             self.__class__.QUERY = PROJECT_ARTIFACTS_GQL
 
-        self.entity = entity
-        self.collection_name = collection_name
-        self.type = type
-        self.project = project
-        self.filters = {"state": "COMMITTED"} if filters is None else filters
+        vars_ = _ArtifactsVars(
+            entity=entity,
+            project=project,
+            collection=collection_name,
+            type=type,
+            filters={"state": "COMMITTED"} if filters is None else filters,
+            order=order,
+            per_page=per_page,
+        )
+        self.entity = vars_.entity
+        self.collection_name = vars_.collection
+        self.type = vars_.type
+        self.project = vars_.project
+        self.filters = vars_.filters
+        self.order = vars_.order
+
         self.tags = always_list(tags or [])
-        self.order = order
-        variables = {
-            "entity": self.entity,
-            "project": self.project,
-            "order": self.order,
-            "type": self.type,
-            "collection": self.collection_name,
-            "filters": json.dumps(self.filters),
-        }
+
         super().__init__(
-            service_api, variables=variables, per_page=per_page, start=start
+            service_api,
+            variables=vars_.model_dump(),
+            per_page=vars_.per_page,
+            start=start,
         )
 
     @override
@@ -1035,7 +1085,6 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
         per_page: int = 50,
         start: str | None = None,
     ):
-        from wandb.sdk.artifacts._gqlutils import server_supports
 
         if self.QUERY is None:
             from wandb.sdk.artifacts._generated import ARTIFACT_MEMBERSHIP_FILES_GQL
@@ -1058,7 +1107,7 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
             start=start,
             omit_fields=(
                 None
-                if server_supports(service_api, pb.TOTAL_COUNT_IN_FILE_CONNECTION)
+                if service_api.feature_enabled(pb.TOTAL_COUNT_IN_FILE_CONNECTION)
                 else {"totalCount"}
             ),
         )

@@ -64,7 +64,7 @@ from wandb.util import (
 )
 
 from ._factories import make_storage_policy
-from ._gqlutils import org_info_from_entity, resolve_org_entity_name, server_supports
+from ._gqlutils import org_info_from_entity, resolve_org_entity_name
 from ._validators import (
     ensure_logged,
     ensure_not_finalized,
@@ -2469,8 +2469,8 @@ class Artifact:
         # Newer server versions can return `artifactMembership` directly in the response,
         # avoiding the need to re-fetch the linked artifact at the end.
         omit_variables = omit_fields = None
-        if not server_supports(
-            service_api, pb.ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE
+        if not service_api.feature_enabled(
+            pb.ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE
         ):
             omit_variables = {"includeAliases"}
             omit_fields = {"artifactMembership"}

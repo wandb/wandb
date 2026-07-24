@@ -13,7 +13,6 @@ from wandb.apis.public.registries._utils import fetch_org_entity_from_organizati
 from wandb.apis.public.registries.registry import Registry
 from wandb.apis.public.users import User
 from wandb.proto import wandb_internal_pb2 as pb
-from wandb.sdk.artifacts._gqlutils import server_supports
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 from wandb.util import random_string
 
@@ -24,9 +23,8 @@ if TYPE_CHECKING:
 @fixture
 def skip_if_server_does_not_support_create_registry(user_in_orgs_factory, api) -> None:
     """Skips the test for older server versions that do not support Api.create_registry()."""
-    if not server_supports(
-        api._service_api,
-        pb.INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION,
+    if not api._service_api.feature_enabled(
+        pb.INCLUDE_ARTIFACT_TYPES_IN_REGISTRY_CREATION
     ):
         skip("Cannot create a test registry on this server version.")
 
@@ -64,7 +62,7 @@ def org(team_and_org: TeamAndOrgNames) -> str:
 
 @fixture
 def org_entity(org: str, api: Api) -> str:
-    if not server_supports(api._service_api, pb.ARTIFACT_REGISTRY_SEARCH):
+    if not api._service_api.feature_enabled(pb.ARTIFACT_REGISTRY_SEARCH):
         skip("Cannot fetch org entity on this server version.")
 
     return fetch_org_entity_from_organization(api._service_api, org)
@@ -134,7 +132,7 @@ def models_viewer_registry_write_supported(api: Api) -> bool:
     registry writes always work. Between v0.75.0 and v0.76.0 the proxy skips even
     though the behavior exists, so do not rely on it there.
     """
-    return server_supports(api._service_api, pb.TOTAL_COUNT_IN_FILE_CONNECTION)
+    return api._service_api.feature_enabled(pb.TOTAL_COUNT_IN_FILE_CONNECTION)
 
 
 @fixture
