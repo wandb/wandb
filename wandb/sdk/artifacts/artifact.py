@@ -66,10 +66,9 @@ from wandb.util import (
 from ._factories import make_storage_policy
 from ._generated.enums import ArtifactDigestAlgorithm
 from ._gqlutils import (
-    digest_algorithm_from_gql,
+    omit_artifact_fields,
     org_info_from_entity,
     resolve_org_entity_name,
-    server_supports,
 )
 from ._validators import (
     ensure_logged,
@@ -103,11 +102,7 @@ if TYPE_CHECKING:
 
     from wandb.apis.public.service_api import ServiceApi
 
-    from ._generated import (
-        ArtifactFragment,
-        ArtifactMembershipFragment,
-        ArtifactMembershipWithDigestAlgorithmFragment,
-    )
+    from ._generated import ArtifactFragment, ArtifactMembershipFragment
     from ._models.pagination import FileWithUrlConnection
     from ._validators import FullArtifactPath, LinkArtifactFields
 
@@ -280,15 +275,11 @@ class Artifact:
         if cached_artifact := artifact_instance_cache.get(artifact_id):
             return cached_artifact
 
-        omit_fields = None
-        if not server_supports(service_api, pb.ARTIFACT_DIGEST_ALGORITHM):
-            omit_fields = {"digestAlgorithm"}
-
         result = service_api.execute_graphql(
             ARTIFACT_BY_ID_GQL,
             variables={"id": artifact_id},
             parse=ArtifactByID.model_validate_json,
-            omit_fields=omit_fields,
+            omit_fields=omit_artifact_fields(service_api),
         )
 
         if (artifact := result.artifact) is None:
@@ -313,15 +304,11 @@ class Artifact:
             ArtifactMembershipByName,
         )
 
-        omit_fields = None
-        if not server_supports(service_api, pb.ARTIFACT_DIGEST_ALGORITHM):
-            omit_fields = {"digestAlgorithm"}
-
         result = service_api.execute_graphql(
             ARTIFACT_MEMBERSHIP_BY_NAME_GQL,
             {"entity": path.prefix, "project": path.project, "name": path.name},
             parse=ArtifactMembershipByName.model_validate_json,
-            omit_fields=omit_fields,
+            omit_fields=omit_artifact_fields(service_api),
         )
 
         if not (project := result.project):
@@ -338,9 +325,7 @@ class Artifact:
     @classmethod
     def _from_membership(
         cls,
-        membership: (
-            ArtifactMembershipFragment | ArtifactMembershipWithDigestAlgorithmFragment
-        ),
+        membership: ArtifactMembershipFragment,
         target: FullArtifactPath,
         service_api: ServiceApi,
     ) -> Artifact:
@@ -385,11 +370,7 @@ class Artifact:
         service_api: ServiceApi,
         *,
         # aliases/version_index are taken from the membership, if given
-        membership: (
-            ArtifactMembershipFragment
-            | ArtifactMembershipWithDigestAlgorithmFragment
-            | None
-        ) = None,
+        membership: ArtifactMembershipFragment | None = None,
     ) -> Artifact:
         # Placeholder is required to skip validation.
         artifact = cls("placeholder", type="placeholder")
@@ -414,11 +395,7 @@ class Artifact:
         src_art: ArtifactFragment,
         *,
         # aliases/version_index are taken from the membership, if given
-        membership: (
-            ArtifactMembershipFragment
-            | ArtifactMembershipWithDigestAlgorithmFragment
-            | None
-        ) = None,
+        membership: ArtifactMembershipFragment | None = None,
         is_link: bool | None = None,
     ) -> None:
         """Update this Artifact's attributes using the server response."""
@@ -511,7 +488,9 @@ class Artifact:
         self._state = ArtifactState(src_art.state)
         self._size = src_art.size
         self._digest = src_art.digest
-        self._digest_algorithm = digest_algorithm_from_gql(src_art)
+        self._digest_algorithm = (
+            src_art.digest_algorithm or ArtifactDigestAlgorithm.MANIFEST_MD5
+        )
         self._manifest = None
 
         self._commit_hash = src_art.commit_hash
@@ -1277,15 +1256,11 @@ class Artifact:
         if (client := self._service_api) is None:
             raise RuntimeError("Client not initialized for artifact queries")
 
-        omit_fields = None
-        if not server_supports(client, pb.ARTIFACT_DIGEST_ALGORITHM):
-            omit_fields = {"digestAlgorithm"}
-
         result = client.execute_graphql(
             ARTIFACT_BY_ID_GQL,
             variables={"id": artifact_id},
             parse=ArtifactByID.model_validate_json,
-            omit_fields=omit_fields,
+            omit_fields=omit_artifact_fields(client),
         )
 
         if not (artifact := result.artifact):
@@ -1334,6 +1309,7 @@ class Artifact:
                 UPDATE_ARTIFACT_GQL,
                 variables={"input": gql_input.model_dump()},
                 parse=UpdateArtifact.model_validate_json,
+                omit_fields=omit_artifact_fields(client),
             )
 
             if not ((result := data.result) and (artifact := result.artifact)):
@@ -2513,12 +2489,13 @@ class Artifact:
 
         # Newer server versions can return `artifactMembership` directly in the response,
         # avoiding the need to re-fetch the linked artifact at the end.
-        omit_variables = omit_fields = None
-        if not server_supports(
-            service_api, pb.ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE
+        omit_fields = omit_artifact_fields(service_api)
+        omit_variables = None
+        if not service_api.feature_enabled(
+            pb.ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE
         ):
             omit_variables = {"includeAliases"}
-            omit_fields = {"artifactMembership"}
+            omit_fields.add("artifactMembership")
 
         data = service_api.execute_graphql(
             LINK_ARTIFACT_GQL,

@@ -3,22 +3,13 @@
 
 from __future__ import annotations
 
-from pydantic import Field
-
 from wandb._pydantic import GQLResult
 
-from .enums import ArtifactDigestAlgorithm
 from .fragments import ArtifactFragment
 
 
 class ArtifactByID(GQLResult):
-    artifact: ArtifactByIDArtifact | None
-
-
-class ArtifactByIDArtifact(ArtifactFragment):
-    digest_algorithm: ArtifactDigestAlgorithm | None = Field(
-        alias="digestAlgorithm", default=None
-    )
+    artifact: ArtifactFragment | None
 
 
 ArtifactByID.model_rebuild()

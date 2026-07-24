@@ -86,6 +86,9 @@ class ArtifactFragment(GQLResult):
     state: ArtifactState
     size: int
     digest: str
+    digest_algorithm: ArtifactDigestAlgorithm | None = Field(
+        alias="digestAlgorithm", default=None
+    )
     commit_hash: str | None = Field(alias="commitHash")
     file_count: int = Field(alias="fileCount")
     created_at: str = Field(alias="createdAt")
@@ -114,25 +117,6 @@ class ArtifactMembershipFragment(GQLResult):
         alias="artifactCollection"
     )
     artifact: ArtifactFragment | None
-
-
-class ArtifactMembershipWithDigestAlgorithmFragment(GQLResult):
-    typename__: Typename[Literal["ArtifactCollectionMembership"]] = (
-        "ArtifactCollectionMembership"
-    )
-    id: GQLId
-    version_index: int | None = Field(alias="versionIndex")
-    aliases: list[ArtifactAliasFragment]
-    artifact_collection: CollectionInfoFragment | None = Field(
-        alias="artifactCollection"
-    )
-    artifact: ArtifactMembershipWithDigestAlgorithmFragmentArtifact | None
-
-
-class ArtifactMembershipWithDigestAlgorithmFragmentArtifact(ArtifactFragment):
-    digest_algorithm: ArtifactDigestAlgorithm | None = Field(
-        alias="digestAlgorithm", default=None
-    )
 
 
 class ArtifactPortfolioTypeFields(GQLResult):
@@ -320,7 +304,6 @@ CollectionInfoFragment.model_rebuild()
 SourceCollectionInfoFragment.model_rebuild()
 ArtifactFragment.model_rebuild()
 ArtifactMembershipFragment.model_rebuild()
-ArtifactMembershipWithDigestAlgorithmFragment.model_rebuild()
 ArtifactPortfolioTypeFields.model_rebuild()
 ArtifactSequenceTypeFields.model_rebuild()
 ArtifactTypeFragment.model_rebuild()

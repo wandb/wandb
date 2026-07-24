@@ -47,6 +47,7 @@ fragment ArtifactFragment on Artifact {
   state
   size
   digest
+  digestAlgorithm @include(if: true)
   commitHash
   fileCount
   createdAt
@@ -77,22 +78,6 @@ fragment ArtifactMembershipFragment on ArtifactCollectionMembership {
     ...CollectionInfoFragment
   }
   artifact {
-    ...ArtifactFragment
-  }
-}
-
-fragment ArtifactMembershipWithDigestAlgorithmFragment on ArtifactCollectionMembership {
-  __typename
-  id
-  versionIndex
-  aliases {
-    ...ArtifactAliasFragment
-  }
-  artifactCollection {
-    ...CollectionInfoFragment
-  }
-  artifact {
-    digestAlgorithm @include(if: true)
     ...ArtifactFragment
   }
 }
@@ -211,7 +196,6 @@ query FetchArtifactManifest($id: ID!) {
 
 query ArtifactByID($id: ID!, $includeAliases: Boolean = true) {
   artifact(id: $id) {
-    digestAlgorithm @include(if: true)
     ...ArtifactFragment
   }
 }
@@ -224,7 +208,7 @@ query ArtifactMembershipByName(
 ) {
   project(name: $project, entityName: $entity) {
     artifactCollectionMembership(name: $name) {
-      ...ArtifactMembershipWithDigestAlgorithmFragment
+      ...ArtifactMembershipFragment
     }
   }
 }

@@ -14,6 +14,7 @@ from wandb._filters import FilterValidator
 from wandb._pydantic import FilterDict, OrderValidator, PaginatorVars
 from wandb.apis.paginator import Paginator, RelayPaginator, SizedRelayPaginator
 from wandb.errors import UnsupportedError
+from wandb.sdk.artifacts._gqlutils import omit_artifact_fields
 
 from ._utils import (
     ADVANCED_COLLECTIONS_FILTER_ALIASES,
@@ -542,6 +543,7 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
             variables=args.model_dump(),
             per_page=args.per_page,
             start=start,
+            omit_fields=omit_artifact_fields(service_api),
         )
 
     @override

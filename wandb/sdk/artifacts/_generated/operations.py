@@ -633,6 +633,7 @@ fragment ArtifactFragment on Artifact {
   state
   size
   digest
+  digestAlgorithm @include(if: true)
   commitHash
   fileCount
   createdAt
@@ -729,6 +730,7 @@ fragment ArtifactFragment on Artifact {
   state
   size
   digest
+  digestAlgorithm @include(if: true)
   commitHash
   fileCount
   createdAt
@@ -825,6 +827,7 @@ fragment ArtifactFragment on Artifact {
   state
   size
   digest
+  digestAlgorithm @include(if: true)
   commitHash
   fileCount
   createdAt
@@ -938,7 +941,6 @@ fragment DeferredManifestFragment on ArtifactManifest {
 ARTIFACT_BY_ID_GQL = """
 query ArtifactByID($id: ID!, $includeAliases: Boolean = true) {
   artifact(id: $id) {
-    digestAlgorithm @include(if: true)
     ...ArtifactFragment
   }
 }
@@ -970,6 +972,7 @@ fragment ArtifactFragment on Artifact {
   state
   size
   digest
+  digestAlgorithm @include(if: true)
   commitHash
   fileCount
   createdAt
@@ -1018,7 +1021,7 @@ ARTIFACT_MEMBERSHIP_BY_NAME_GQL = """
 query ArtifactMembershipByName($entity: String!, $project: String!, $name: String!, $includeAliases: Boolean = false) {
   project(name: $project, entityName: $entity) {
     artifactCollectionMembership(name: $name) {
-      ...ArtifactMembershipWithDigestAlgorithmFragment
+      ...ArtifactMembershipFragment
     }
   }
 }
@@ -1050,6 +1053,7 @@ fragment ArtifactFragment on Artifact {
   state
   size
   digest
+  digestAlgorithm @include(if: true)
   commitHash
   fileCount
   createdAt
@@ -1062,7 +1066,7 @@ fragment ArtifactFragment on Artifact {
   }
 }
 
-fragment ArtifactMembershipWithDigestAlgorithmFragment on ArtifactCollectionMembership {
+fragment ArtifactMembershipFragment on ArtifactCollectionMembership {
   __typename
   id
   versionIndex
@@ -1073,7 +1077,6 @@ fragment ArtifactMembershipWithDigestAlgorithmFragment on ArtifactCollectionMemb
     ...CollectionInfoFragment
   }
   artifact {
-    digestAlgorithm @include(if: true)
     ...ArtifactFragment
   }
 }
@@ -1237,6 +1240,7 @@ fragment ArtifactFragment on Artifact {
   state
   size
   digest
+  digestAlgorithm @include(if: true)
   commitHash
   fileCount
   createdAt
@@ -1328,6 +1332,7 @@ fragment ArtifactFragment on Artifact {
   state
   size
   digest
+  digestAlgorithm @include(if: true)
   commitHash
   fileCount
   createdAt
@@ -1495,6 +1500,7 @@ fragment ArtifactFragment on Artifact {
   state
   size
   digest
+  digestAlgorithm @include(if: true)
   commitHash
   fileCount
   createdAt

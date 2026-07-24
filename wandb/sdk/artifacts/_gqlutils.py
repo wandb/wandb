@@ -11,20 +11,9 @@ from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeatu
 
 if TYPE_CHECKING:
     from wandb.apis.public.service_api import ServiceApi
-    from wandb.sdk.artifacts._generated.enums import ArtifactDigestAlgorithm
     from wandb.sdk.artifacts._generated.fetch_org_info_from_entity import (
         FetchOrgInfoFromEntityEntity,
     )
-    from wandb.sdk.artifacts._generated.fragments import ArtifactFragment
-
-
-def digest_algorithm_from_gql(src_art: ArtifactFragment) -> ArtifactDigestAlgorithm:
-    """Return digest algorithm when present on the GQL model, else default to MD5."""
-    from ._generated.enums import ArtifactDigestAlgorithm
-
-    if value := getattr(src_art, "digest_algorithm", None):
-        return ArtifactDigestAlgorithm(value)
-    return ArtifactDigestAlgorithm.MANIFEST_MD5
 
 
 @lru_cache(maxsize=16)
@@ -201,3 +190,12 @@ def is_project_read_only(
     if not (result and (proj := result.project)):
         return None
     return proj.read_only
+
+
+def omit_artifact_fields(service_api: ServiceApi) -> set[str]:
+    """Return Artifact fields to omit from GraphQL requests for compatibility."""
+    omit_fields = set()
+    if not service_api.feature_enabled(ServerFeature.ARTIFACT_DIGEST_ALGORITHM):
+        omit_fields.add("digestAlgorithm")
+
+    return omit_fields
