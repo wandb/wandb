@@ -10,11 +10,12 @@ __all__ = (
     "ArtifactTypes",
     "DownloadHistoryResult",
     "RunArtifacts",
-    "Automations",
+    "Automations",  # doc:exclude
     "File",
     "Files",
     "HistoryScan",  # doc:exclude
     "IncompleteRunHistoryError",
+    "Integrations",  # doc:exclude
     "SlackIntegrations",  # doc:exclude
     "WebhookIntegrations",  # doc:exclude
     "Job",  # doc:exclude
@@ -35,10 +36,11 @@ __all__ = (
     "Reports",
     "Run",
     "Runs",
-    "AgentRuns",
+    "AgentRuns",  # doc:exclude
     "Sweep",
     "Member",
     "Team",
+    "Organization",
     "User",
 )
 
@@ -57,7 +59,11 @@ from wandb.apis.public.artifacts import (
 from wandb.apis.public.automations import Automations
 from wandb.apis.public.files import FILE_FRAGMENT, File, Files
 from wandb.apis.public.history import HistoryScan
-from wandb.apis.public.integrations import SlackIntegrations, WebhookIntegrations
+from wandb.apis.public.integrations import (
+    Integrations,
+    SlackIntegrations,
+    WebhookIntegrations,
+)
 from wandb.apis.public.jobs import (
     Job,
     QueuedRun,
@@ -66,6 +72,7 @@ from wandb.apis.public.jobs import (
     RunQueuePrioritizationMode,
     RunQueueResourceType,
 )
+from wandb.apis.public.organizations import Organization
 from wandb.apis.public.projects import Project, Projects, Sweeps
 from wandb.apis.public.query_generator import QueryGenerator
 from wandb.apis.public.registries import Registries, Registry
@@ -79,7 +86,7 @@ from wandb.apis.public.runhistory.downloads import (
     DownloadHistoryResult,
     IncompleteRunHistoryError,
 )
-from wandb.apis.public.runs import RUN_FRAGMENT, AgentRuns, Run, Runs
+from wandb.apis.public.runs import RUN_FRAGMENT, AgentRuns, Run, RunNotFoundError, Runs
 from wandb.apis.public.sweeps import Sweep
 from wandb.apis.public.teams import Member, Team
 from wandb.apis.public.users import User

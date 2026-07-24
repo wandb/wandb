@@ -191,7 +191,7 @@ def test_syncs_run(
     result = runner.invoke(cli.beta, f"sync {run.settings.sync_dir}")
 
     lines = result.output.splitlines()
-    assert lines[0] == "wandb: Syncing 1 run(s) (0 skipped):"
+    assert lines[0] == "wandb: Syncing 1 run(s):"
     assert lines[1].endswith(f"run-{run.id}.wandb")
     # More lines possible depending on status updates. Not deterministic.
     assert lines[-1].startswith(f"wandb: [{run.path}] Finished syncing")
@@ -240,7 +240,7 @@ def test_sync_defaults_to_wandb_dir(tmp_path: pathlib.Path, runner: CliRunner):
     result = runner.invoke(cli.beta, "sync", input="n")
 
     assert result.output.splitlines() == [
-        "wandb: Syncing 5 run(s) (0 skipped):",
+        "wandb: Syncing 5 run(s):",
         f"wandb:   {paths[0]}",
         f"wandb:   {paths[1]}",
         f"wandb:   {paths[2]}",
@@ -282,6 +282,45 @@ def test_syncs_resumed_run(
         # When running this test 100 times on 14 pytest workers reusing the
         # same local-testcontainer, the test flaked once for me.
         assert xs == {0: "a", 1: "b", 2: "c"}
+
+
+def test_resyncs_resumed_offline_run_keep_same_steps(
+    wandb_backend_spy: WandbBackendSpy,
+    runner: CliRunner,
+):
+    """Re-syncing a resumed offline run's files must not shift step numbers.
+
+    The starting step for a resumed offline run's history is only known
+    once `wandb sync` reaches the backend, so it saves it in a .syncstate
+    file on first sync, so it that re-syncing the same files later would
+    not recompute the starting step and shift the step numbers for the
+    same segment.
+    """
+    with wandb.init(mode="offline") as run1:
+        run1.log({"x": "a"})
+    with wandb.init(mode="offline", id=run1.id, resume="must") as run2:
+        run2.log({"x": "b"})
+
+    run1_dir = run1.settings.sync_dir
+    run2_dir = run2.settings.sync_dir
+
+    def resumed_segment_steps(history: dict[int, Any]) -> set[int]:
+        return {row["_step"] for row in history.values() if row["x"] == "b"}
+
+    runner.invoke(cli.beta, f"sync {run1_dir} {run2_dir}")
+
+    with wandb_backend_spy.freeze() as snapshot:
+        history = snapshot.history(run_id=run1.id)
+        first_sync_steps = resumed_segment_steps(history)
+
+    # Re-sync the same files, bypassing the .synced marker.
+    runner.invoke(cli.beta, f"sync --no-skip-synced {run1_dir} {run2_dir}")
+
+    with wandb_backend_spy.freeze() as snapshot:
+        history = snapshot.history(run_id=run1.id)
+        second_sync_steps = resumed_segment_steps(history)
+
+    assert second_sync_steps == first_sync_steps
 
 
 def test_sync_to_other_path(
@@ -354,10 +393,11 @@ def test_skip_synced(
     assert "run-3.wandb" in result.output
 
     if skip_synced:
-        assert "Would sync 2 run(s) (1 skipped)" in result.output
+        assert "Skipped 1 synced run(s)." in result.output
+        assert "Would sync 2 run(s)" in result.output
         assert "run-2.wandb" not in result.output
     else:
-        assert "Would sync 3 run(s) (0 skipped)" in result.output
+        assert "Would sync 3 run(s)" in result.output
         assert "run-2.wandb" in result.output
 
 
@@ -382,10 +422,11 @@ def test_skip_online(
     assert "run-def.wandb" in result.output
 
     if skip_online:
-        assert "Would sync 2 run(s) (1 skipped)" in result.output
+        assert "Skipped 1 online run(s)." in result.output
+        assert "Would sync 2 run(s)" in result.output
         assert "run-xyz.wandb" not in result.output
     else:
-        assert "Would sync 3 run(s) (0 skipped)" in result.output
+        assert "Would sync 3 run(s)" in result.output
         assert "run-xyz.wandb" in result.output
 
 
@@ -402,7 +443,7 @@ def test_merges_symlinks(
     result = runner.invoke(cli.beta, "sync --dry-run .")
 
     assert result.output.splitlines() == [
-        "wandb: Would sync 1 run(s) (0 skipped):",
+        "wandb: Would sync 1 run(s):",
         "wandb:   latest-run/run.wandb",
     ]
 
@@ -415,7 +456,7 @@ def test_sync_wandb_file(tmp_path: pathlib.Path, runner: CliRunner):
     result = runner.invoke(cli.beta, f"sync --dry-run {file}")
 
     lines = result.output.splitlines()
-    assert lines[0] == "wandb: Would sync 1 run(s) (0 skipped):"
+    assert lines[0] == "wandb: Would sync 1 run(s):"
     assert lines[1].endswith("run-abc.wandb")
 
 
@@ -427,7 +468,7 @@ def test_sync_run_directory(tmp_path: pathlib.Path, runner: CliRunner):
     result = runner.invoke(cli.beta, f"sync --dry-run {run_dir}")
 
     lines = result.output.splitlines()
-    assert lines[0] == "wandb: Would sync 1 run(s) (0 skipped):"
+    assert lines[0] == "wandb: Would sync 1 run(s):"
     assert lines[1].endswith("run.wandb")
 
 
@@ -445,7 +486,7 @@ def test_sync_wandb_directory(tmp_path: pathlib.Path, runner: CliRunner):
     result = runner.invoke(cli.beta, f"sync --dry-run {wandb_dir}")
 
     lines = result.output.splitlines()
-    assert lines[0] == "wandb: Would sync 2 run(s) (0 skipped):"
+    assert lines[0] == "wandb: Would sync 2 run(s):"
     assert lines[1].endswith("run-1.wandb")
     assert lines[2].endswith("run-2.wandb")
 
@@ -464,7 +505,7 @@ def test_truncates_printed_paths(
     result = runner.invoke(cli.beta, f"sync --dry-run {tmp_path}")
 
     lines = result.output.splitlines()
-    assert lines[0] == "wandb: Would sync 20 run(s) (0 skipped):"
+    assert lines[0] == "wandb: Would sync 20 run(s):"
     for line in lines[1:6]:
         assert re.fullmatch(r"wandb:   .+/offline-run-\d+/run\.wandb", line)
     assert lines[6] == "wandb:   +15 more (pass --verbose to see all)"
@@ -491,7 +532,7 @@ def test_prints_relative_paths(
     result = runner.invoke(cli.beta, f"sync --dry-run {dir1_cwd} {dir2_not}")
 
     assert result.output.splitlines() == [
-        "wandb: Would sync 2 run(s) (0 skipped):",
+        "wandb: Would sync 2 run(s):",
         *sorted(
             [
                 "wandb:   offline-run-1/run-relative.wandb",

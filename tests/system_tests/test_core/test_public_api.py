@@ -1466,6 +1466,10 @@ def test_run_upload_file_with_directory_traversal(
         gql.Matcher(operation="RunFiles"),
         gql.Constant(content=runs_files_gql_body),
     )
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="MarkRunFilesUploaded"),
+        gql.Constant(content={"data": {"markRunFilesUploaded": {"success": True}}}),
+    )
     mock_push = mock.MagicMock()
     monkeypatch.setattr(wandb.sdk.internal.internal_api.Api, "push", mock_push)
     tmp_path.joinpath("root").mkdir()

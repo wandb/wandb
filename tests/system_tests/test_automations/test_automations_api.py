@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 from collections import deque
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from itertools import islice
 from typing import Any
 
@@ -25,14 +25,14 @@ from wandb.automations import (
     OnRunState,
     ProjectScope,
     RunEvent,
+    ScopeType,
     SendWebhook,
     WebhookIntegration,
 )
-from wandb.automations._filters.run_metrics import ChangeDir
-from wandb.automations._filters.run_states import ReportedRunState, StateFilter
-from wandb.automations.actions import SavedNoOpAction, SavedWebhookAction
-from wandb.automations.events import RunMetricFilter, RunStateFilter
-from wandb.automations.scopes import ArtifactCollectionScopeTypes
+from wandb.automations._run_metric_filters import ChangeDir
+from wandb.automations._run_state_filters import ReportedRunState, StateFilter
+from wandb.automations.actions import InputAction, SavedNoOpAction, SavedWebhookAction
+from wandb.automations.events import InputEvent, RunMetricFilter, RunStateFilter
 from wandb.errors.errors import CommError
 
 
@@ -43,17 +43,16 @@ def automation_name(make_name: Callable[[str], str]) -> str:
 
 @fixture
 def reset_automations(module_api: wandb.Api):
-    """Request this fixture to remove any saved automations both before and after the test."""
+    """Request this fixture to clear any existing automations before a test."""
     # There has to be a better way to do this
     for automation in module_api.automations():
         module_api.delete_automation(automation)
     yield
-    for automation in module_api.automations():
-        module_api.delete_automation(automation)
 
 
 # ------------------------------------------------------------------------------
-def test_no_initial_automations(module_api: wandb.Api, reset_automations):
+@mark.usefixtures(reset_automations.__name__)
+def test_no_initial_automations(module_api: wandb.Api):
     """No automations should be fetched by the API prior to creating any."""
     assert list(module_api.automations()) == []
 
@@ -140,20 +139,8 @@ def test_create_automation(
     )
     fetched_b = module_api.automation(name=created.name)
 
-    # NOTE: On older server versions, the ID returned returned by create_automation()
-    # seems to have an (encoded) index that's off by 1, vs. the ID returned by
-    # automation().
-    # This seems fixed on newer servers.  Use server support for the `RUN_METRIC_THRESHOLD`
-    # event to determine if this is a "newer" server.
-    assert fetched_a.id == fetched_b.id  # these should at least be the same
-
-    is_older_server = not module_api._supports_automation(
-        event=EventType.RUN_METRIC_THRESHOLD
-    )
-    exclude = {"id"} if is_older_server else None
-
-    assert fetched_a.model_dump(exclude=exclude) == created.model_dump(exclude=exclude)
-    assert fetched_b.model_dump(exclude=exclude) == created.model_dump(exclude=exclude)
+    assert fetched_a == created
+    assert fetched_b == created
 
 
 @mark.usefixtures(reset_automations.__name__)
@@ -170,19 +157,9 @@ def test_create_existing_automation_raises_by_default_if_existing(
     with raises(CommError):
         module_api.create_automation((event >> action), name=created.name)
 
-    # Fetching the automation by name should return the original automation,
-    # unchanged.
+    # Fetching the automation by name should return the original automation, unchanged.
     fetched = module_api.automation(name=created.name)
-
-    # NOTE: On older server versions, the ID returned has an encoded index that's off by 1.
-    # This seems fixed on newer servers.  Use RUN_METRIC_THRESHOLD support as a proxy for identifying
-    # newer servers.
-    is_older_server = not module_api._supports_automation(
-        event=EventType.RUN_METRIC_THRESHOLD
-    )
-    exclude = {"id"} if is_older_server else None
-
-    assert fetched.model_dump(exclude=exclude) == created.model_dump(exclude=exclude)
+    assert fetched == created
 
 
 @mark.usefixtures(reset_automations.__name__)
@@ -209,16 +186,8 @@ def test_create_existing_automation_fetches_existing_if_requested(
     # Fetch the automation by name
     fetched = module_api.automation(name=created.name)
 
-    # NOTE: On older server versions, the ID returned has an encoded index that's off by 1.
-    # This seems fixed on newer servers.  Use RUN_METRIC_THRESHOLD support as a proxy for identifying
-    # newer servers.
-    is_older_server = not module_api._supports_automation(
-        event=EventType.RUN_METRIC_THRESHOLD
-    )
-    exclude = {"id"} if is_older_server else None
-
-    assert created.model_dump(exclude=exclude) == existing.model_dump(exclude=exclude)
-    assert existing.model_dump(exclude=exclude) == fetched.model_dump(exclude=exclude)
+    assert created == existing
+    assert existing == fetched
 
     assert created.description is None
     assert existing.description is None
@@ -485,7 +454,6 @@ def created_automation(
         name=automation_name,
     )
 
-    # Fetch the automation by name (avoids the off-by-1 index issue on older servers)
     fetched = module_api.automation(name=created.name)
 
     assert created.name == fetched.name == automation_name  # Sanity check
@@ -540,42 +508,79 @@ def test_delete_automation_raises_on_invalid_id(module_api: wandb.Api):
         module_api.delete_automation("invalid-automation-id")
 
 
-@fixture
-def skip_if_edit_automations_not_supported_on_server(module_api: wandb.Api):
-    # HACK: Use NO_OP as a proxy for whether the server is "new enough"
-    #
-    # FIXME: We need a better way to check this in the absence of
-    # - a prior server feature flag
-    # - use of GraphQL introspection queries
-    if not module_api._supports_automation(action=ActionType.NO_OP):
-        skip("Server does not support editing automations")
-
-
-@mark.usefixtures(skip_if_edit_automations_not_supported_on_server.__name__)
 class TestUpdateAutomation:
+    @fixture
+    def action_type(self) -> ActionType:
+        """Pin the action axis so these tests start from a webhook automation.
+
+        This overrides the parametrized action_type fixture. These update
+        behaviors do not depend on the action, so pinning it avoids multiplying
+        every case by the number of action types.
+        """
+        return ActionType.GENERIC_WEBHOOK
+
+    @fixture(scope="class")
+    def make_automation(
+        self,
+        make_module_api: Callable[[], wandb.Api],
+        make_name: Callable[[str], str],
+    ) -> Generator[Callable[[InputEvent, InputAction], Automation]]:
+        """Factory that creates automations to update, cleaned up once per class.
+
+        Each call uses a fresh unique name. These tests only run against servers
+        new enough to support editing automations, where the created object can
+        be used directly without refetching.
+        """
+        created: deque[Automation] = deque()
+
+        def _make(event: InputEvent, action: InputAction) -> Automation:
+            # A fresh Api per call: the one from a prior test is invalidated by
+            # the teardown that runs between tests.
+            automation = make_module_api().create_automation(
+                (event >> action),
+                name=make_name("test-automation"),
+                description="orig description",
+            )
+            created.append(automation)
+            return automation
+
+        yield _make
+
+        # No test here deletes automations, but other tests share this user and
+        # may reset it, so an automation may already be gone.
+        api = make_module_api()
+        for automation in created:
+            try:
+                api.delete_automation(automation)
+            except CommError:
+                pass
+
     @fixture
     def old_automation(
         self,
-        module_api: wandb.Api,
-        event,
-        action,
-        automation_name: str,
-    ):
-        """The original automation to be updated."""
-        # Setup: Create the original automation
-        automation = module_api.create_automation(
-            (event >> action),
-            name=automation_name,
-            description="orig description",
+        make_automation: Callable[[InputEvent, InputAction], Automation],
+        action: InputAction,
+        artifact_collection: ArtifactCollection,
+    ) -> Automation:
+        """A canonical automation to update.
+
+        Its event, action, and scope are immaterial to most update tests, so we
+        fix them here rather than fan out over every combination. Event- and
+        scope-varying behaviors are covered by the parametrized tests below.
+        """
+        old_event = OnLinkArtifact(
+            scope=artifact_collection,
+            filter=ArtifactEvent.alias.matches_regex("^my-artifact.*"),
         )
-        yield automation
+        return make_automation(old_event, action)
 
-        # Cleanup: Delete the automation for good measure
-        module_api.delete_automation(automation)
-        assert len(list(module_api.automations(name=automation_name))) == 0
-
-    def test_update_name(self, module_api: wandb.Api, old_automation: Automation):
-        updated_value = "new-name"
+    def test_update_name(
+        self,
+        module_api: wandb.Api,
+        old_automation: Automation,
+        make_name: Callable[[str], str],
+    ):
+        updated_value = make_name("renamed-automation")
 
         old_automation.name = updated_value
         new_automation = module_api.update_automation(old_automation)
@@ -640,33 +645,18 @@ class TestUpdateAutomation:
         assert isinstance(new_action, SavedNoOpAction)
         assert new_action.action_type == ActionType.NO_OP
 
-    # This is only meaningful if the original automation has a webhook action
-    @mark.parametrize("action_type", [ActionType.GENERIC_WEBHOOK], indirect=True)
     def test_update_webhook_payload(
         self,
         module_api: wandb.Api,
         old_automation: Automation,
     ):
-        new_payload = {"new-key": "new-value"}
+        assert isinstance(old_automation.action, SavedWebhookAction)  # Precondition
 
+        new_payload = {"new-key": "new-value"}
         old_automation.action.request_payload = new_payload
         new_automation = module_api.update_automation(old_automation)
 
         assert new_automation.action.request_payload == new_payload
-
-    # This is only meaningful if the original automation has a notification action
-    @mark.parametrize("action_type", [ActionType.NOTIFICATION], indirect=True)
-    def test_update_notification_message(
-        self,
-        module_api: wandb.Api,
-        old_automation: Automation,
-    ):
-        new_message = "new message"
-
-        old_automation.action.message = new_message
-        new_automation = module_api.update_automation(old_automation)
-
-        assert new_automation.action.message == new_message
 
     def test_update_scope_to_project(
         self,
@@ -683,27 +673,36 @@ class TestUpdateAutomation:
         assert updated_scope.id == project.id
         assert updated_scope.name == project.name
 
+    # Each mutation event, started on a scope it supports. CREATE_ARTIFACT only
+    # supports collection scope, so it starts and stays there. The rest start on
+    # a project so the update is a genuine scope transition.
+    MUTATION_EVENT_SCOPES = [
+        (EventType.ADD_ARTIFACT_ALIAS, ScopeType.PROJECT),
+        (EventType.ADD_ARTIFACT_TAG, ScopeType.PROJECT),
+        (EventType.ADD_COLLECTION_TAG, ScopeType.PROJECT),
+        (EventType.LINK_ARTIFACT, ScopeType.PROJECT),
+        (EventType.REMOVE_ARTIFACT_TAG, ScopeType.PROJECT),
+        (EventType.REMOVE_COLLECTION_TAG, ScopeType.PROJECT),
+        (EventType.UNLINK_ARTIFACT, ScopeType.PROJECT),
+        (EventType.CREATE_ARTIFACT, ScopeType.ARTIFACT_COLLECTION),
+    ]
+
     @mark.parametrize(
-        # Run events don't support ArtifactCollection scope, so we'll test those separately.
-        "event_type",
-        sorted(
-            set(EventType)
-            - {
-                EventType.RUN_METRIC_THRESHOLD,
-                EventType.RUN_METRIC_CHANGE,
-                EventType.RUN_STATE,
-                EventType.RUN_METRIC_ZSCORE,
-            }
-        ),
+        ("event_type", "scope_type"),
+        MUTATION_EVENT_SCOPES,
         indirect=True,
+        ids=lambda v: v.value,
     )
     def test_update_scope_to_artifact_collection(
         self,
         module_api: wandb.Api,
-        old_automation: Automation,
+        make_automation: Callable[[InputEvent, InputAction], Automation],
+        event: InputEvent,
+        action: InputAction,
         event_type: EventType,
         artifact_collection: ArtifactCollection,
     ):
+        old_automation = make_automation(event, action)
         assert old_automation.event.event_type == event_type  # Consistency check
 
         old_automation.scope = artifact_collection
@@ -711,29 +710,34 @@ class TestUpdateAutomation:
 
         updated_scope = new_automation.scope
 
-        assert isinstance(updated_scope, ArtifactCollectionScopeTypes)
+        assert updated_scope.scope_type is ScopeType.ARTIFACT_COLLECTION
         assert updated_scope.id == artifact_collection.id
         assert updated_scope.name == artifact_collection.name
 
+    # Run events only support project scope. Updating one to a collection must fail.
+    RUN_EVENT_SCOPES = [
+        (EventType.RUN_METRIC_THRESHOLD, ScopeType.PROJECT),
+        (EventType.RUN_METRIC_CHANGE, ScopeType.PROJECT),
+        (EventType.RUN_METRIC_ZSCORE, ScopeType.PROJECT),
+        (EventType.RUN_STATE, ScopeType.PROJECT),
+    ]
+
     @mark.parametrize(
-        "event_type",
-        [
-            EventType.RUN_METRIC_THRESHOLD,
-            EventType.RUN_METRIC_CHANGE,
-            EventType.RUN_STATE,
-            EventType.RUN_METRIC_ZSCORE,
-        ],
+        ("event_type", "scope_type"),
+        RUN_EVENT_SCOPES,
         indirect=True,
+        ids=lambda v: v.value,
     )
     def test_update_scope_to_artifact_collection_fails_for_incompatible_event(
         self,
         module_api: wandb.Api,
-        old_automation: Automation,
-        event_type: EventType,
+        make_automation: Callable[[InputEvent, InputAction], Automation],
+        event: InputEvent,
+        action: InputAction,
         artifact_collection: ArtifactCollection,
     ):
         """Updating automation scope to an artifact collection fails if the event type doesn't support it."""
-        assert old_automation.event.event_type == event_type  # Consistency check
+        old_automation = make_automation(event, action)
 
         with raises(CommError):
             old_automation.scope = artifact_collection
@@ -748,7 +752,6 @@ class TestUpdateAutomation:
     @mark.parametrize(
         "event_type",
         sorted(MUTATION_EVENT_CLASSES.keys()),
-        indirect=True,
         ids=lambda x: f"event={x.value}",
     )
     def test_update_event_preserves_filter(
@@ -758,7 +761,7 @@ class TestUpdateAutomation:
         event_type: EventType,
         artifact_collection: ArtifactCollection,
     ):
-        """Updating an automation with a new InputEvent must preserve the alias filter."""
+        """Updating an automation with a new event must preserve its filter."""
         event_cls = self.MUTATION_EVENT_CLASSES[event_type]
         new_event = event_cls(
             scope=artifact_collection,
@@ -778,13 +781,15 @@ class TestUpdateAutomation:
         self,
         module_api: wandb.Api,
         old_automation: Automation,
+        make_name: Callable[[str], str],
     ):
         """Updating only the name must not alter the event filter."""
         original_filter = old_automation.event.filter
+        new_name = make_name("renamed-automation")
 
-        updated = module_api.update_automation(old_automation, name="updated-name")
+        updated = module_api.update_automation(old_automation, name=new_name)
 
-        assert updated.name == "updated-name"
+        assert updated.name == new_name
         assert updated.event.filter == original_filter
 
     RUN_EVENT_FACTORIES = {
@@ -800,18 +805,28 @@ class TestUpdateAutomation:
 
     @mark.parametrize(
         "event_type",
-        sorted(RUN_EVENT_FACTORIES.keys()),
-        indirect=True,
+        sorted(RUN_EVENT_FACTORIES),
         ids=lambda x: f"event={x.value}",
     )
     def test_update_run_event_preserves_filter(
         self,
         module_api: wandb.Api,
-        old_automation: Automation,
+        make_automation: Callable[[InputEvent, InputAction], Automation],
+        action: InputAction,
         event_type: EventType,
         project: Project,
     ):
-        """Updating an automation with a new run InputEvent must preserve the filter."""
+        """Updating an automation with a new run event must preserve its filter."""
+        if not module_api._supports_automation(event=event_type):
+            skip(f"Server does not support event type {event_type.value!r}")
+
+        # Run events only work with a project scope, and an update keeps the
+        # automation's existing scope, so it must start out on a project.
+        old_event = OnLinkArtifact(
+            scope=project, filter=ArtifactEvent.alias.matches_regex("^my-artifact.*")
+        )
+        old_automation = make_automation(old_event, action)
+
         factory = self.RUN_EVENT_FACTORIES[event_type]
         new_event = factory(project)
         expected_filter = new_event.filter
@@ -839,9 +854,13 @@ class TestUpdateAutomation:
         self,
         module_api: wandb.Api,
         old_automation: Automation,
+        make_name: Callable[[str], str],
         updates: dict[str, Any],
     ):
-        # Update the automation
+        # Names are unique per scope, so give a renamed automation a fresh one.
+        if name_prefix := updates.get("name"):
+            updates = updates | {"name": make_name(name_prefix)}
+
         new_automation = module_api.update_automation(old_automation, **updates)
         for name, value in updates.items():
             assert getattr(new_automation, name) == value
@@ -901,9 +920,8 @@ class TestPaginatedAutomations:
                 description="test description",
             )
 
-            # Refetch (to avoid the off-by-1 index issue on older servers) and retain for later cleanup
-            refetched_id = setup_api.automation(name=created.name).id
-            created_automation_ids.append(refetched_id)
+            # Retain the automation ID for later cleanup.
+            created_automation_ids.append(created.id)
 
         yield
 

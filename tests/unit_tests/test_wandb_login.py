@@ -111,8 +111,8 @@ def test_login_sets_api_base_url():
 
 def test_login_invalid_key(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(
-        "wandb.apis.internal.Api.validate_api_key",
-        lambda self: False,
+        "wandb.sdk.wandb_login.ServiceApi.execute_graphql",
+        lambda self, *_args, **_kwargs: {"viewer": None},
     )
     wandb.ensure_configured()
 

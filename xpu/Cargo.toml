@@ -2,7 +2,7 @@
 name = "wandb-xpu"
 version = "0.7.0"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 
 [[bin]]
 name = "build_proto"

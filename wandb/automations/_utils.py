@@ -6,9 +6,9 @@ from typing import Annotated, Any, Final, Protocol, TypedDict
 from pydantic import Field
 from typing_extensions import Self, Unpack
 
+from wandb._filters import MongoLikeFilter
 from wandb._pydantic import GQLId, GQLInput, computed_field, model_validator, to_json
 
-from ._filters import MongoLikeFilter
 from ._generated import (
     CreateFilterTriggerInput,
     QueueJobActionInput,
@@ -52,6 +52,14 @@ While we forbid new/edited automations from assigning these action types,
 they're defined so that we can still parse existing automations that may use them.
 """
 
+ALWAYS_SUPPORTED_SCOPES: Final[Collection[ScopeType]] = frozenset(
+    {
+        ScopeType.ARTIFACT_COLLECTION,
+        ScopeType.PROJECT,
+    }
+)
+"""Scope types that should be supported by all current, non-EOL server versions."""
+
 ALWAYS_SUPPORTED_EVENTS: Final[Collection[EventType]] = frozenset(
     {
         EventType.CREATE_ARTIFACT,
@@ -75,7 +83,7 @@ class HasId(Protocol):
 
 
 def extract_id(obj: HasId | str) -> str:
-    return obj.id if hasattr(obj, "id") else obj
+    return obj if isinstance(obj, str) else obj.id
 
 
 # ---------------------------------------------------------------------------

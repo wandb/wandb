@@ -1010,7 +1010,7 @@ func (x *Imports) GetDspy() bool {
 	return false
 }
 
-// Next ID: 76
+// Next ID: 80
 type Feature struct {
 	state               protoimpl.MessageState `protogen:"open.v1"`
 	Watch               bool                   `protobuf:"varint,1,opt,name=watch,proto3" json:"watch,omitempty"`                                                           // wandb.watch() called
@@ -1057,6 +1057,7 @@ type Feature struct {
 	KerasWandbEvalCallback   bool `protobuf:"varint,40,opt,name=keras_wandb_eval_callback,json=kerasWandbEvalCallback,proto3" json:"keras_wandb_eval_callback,omitempty"`       // Keras WandbEvalCallback used
 	FlowControlOverflow      bool `protobuf:"varint,41,opt,name=flow_control_overflow,json=flowControlOverflow,proto3" json:"flow_control_overflow,omitempty"`                  // Hit flow control threshold
 	Sync                     bool `protobuf:"varint,42,opt,name=sync,proto3" json:"sync,omitempty"`                                                                             // Run was synced with wandb sync
+	Sync2                    bool `protobuf:"varint,76,opt,name=sync2,proto3" json:"sync2,omitempty"`                                                                           // Run was synced with wandb beta sync
 	FlowControlDisabled      bool `protobuf:"varint,43,opt,name=flow_control_disabled,json=flowControlDisabled,proto3" json:"flow_control_disabled,omitempty"`                  // Flow control disabled by user
 	FlowControlCustom        bool `protobuf:"varint,44,opt,name=flow_control_custom,json=flowControlCustom,proto3" json:"flow_control_custom,omitempty"`                        // Flow control customized by user
 	OpenMetrics              bool `protobuf:"varint,46,opt,name=open_metrics,json=openMetrics,proto3" json:"open_metrics,omitempty"`                                            // Consuming metrics from an OpenMetrics endpoint
@@ -1085,6 +1086,9 @@ type Feature struct {
 	ForkMode                 bool `protobuf:"varint,71,opt,name=fork_mode,json=forkMode,proto3" json:"fork_mode,omitempty"`                                                     // User created a forked run
 	RewindMode               bool `protobuf:"varint,72,opt,name=rewind_mode,json=rewindMode,proto3" json:"rewind_mode,omitempty"`                                               // User created a rewound run
 	DspyCallback             bool `protobuf:"varint,73,opt,name=dspy_callback,json=dspyCallback,proto3" json:"dspy_callback,omitempty"`                                         // User using WandbDSPyCallback
+	EvalTable                bool `protobuf:"varint,77,opt,name=eval_table,json=evalTable,proto3" json:"eval_table,omitempty"`                                                  // User logged an EvalTable via run.log()
+	Table                    bool `protobuf:"varint,78,opt,name=table,proto3" json:"table,omitempty"`                                                                           // User logged a regular (non-incremental) wandb.Table via run.log()
+	IncrementalTable         bool `protobuf:"varint,79,opt,name=incremental_table,json=incrementalTable,proto3" json:"incremental_table,omitempty"`                             // User logged an incremental wandb.Table via run.log()
 	unknownFields            protoimpl.UnknownFields
 	sizeCache                protoimpl.SizeCache
 }
@@ -1420,6 +1424,13 @@ func (x *Feature) GetSync() bool {
 	return false
 }
 
+func (x *Feature) GetSync2() bool {
+	if x != nil {
+		return x.Sync2
+	}
+	return false
+}
+
 func (x *Feature) GetFlowControlDisabled() bool {
 	if x != nil {
 		return x.FlowControlDisabled
@@ -1612,6 +1623,27 @@ func (x *Feature) GetRewindMode() bool {
 func (x *Feature) GetDspyCallback() bool {
 	if x != nil {
 		return x.DspyCallback
+	}
+	return false
+}
+
+func (x *Feature) GetEvalTable() bool {
+	if x != nil {
+		return x.EvalTable
+	}
+	return false
+}
+
+func (x *Feature) GetTable() bool {
+	if x != nil {
+		return x.Table
+	}
+	return false
+}
+
+func (x *Feature) GetIncrementalTable() bool {
+	if x != nil {
+		return x.IncrementalTable
 	}
 	return false
 }
@@ -2126,7 +2158,7 @@ const file_wandb_proto_wandb_telemetry_proto_rawDesc = "" +
 	"\x14curated_transformers\x18h \x01(\bR\x13curatedTransformers\x12\x16\n" +
 	"\x06orjson\x18i \x01(\bR\x06orjson\x12\x1c\n" +
 	"\tlightning\x18j \x01(\bR\tlightning\x12\x12\n" +
-	"\x04dspy\x18k \x01(\bR\x04dspyJ\x04\b\x11\x10\x12J\x04\b\x13\x10\x14J\x04\b\x14\x10\x15J\x04\b\x17\x10\x18J\x04\b\x18\x10\x19J\x04\b\x19\x10\x1aJ\x04\b\x1a\x10\x1bJ\x04\b\x1b\x10\x1cJ\x04\b7\x108\"\xed\x15\n" +
+	"\x04dspy\x18k \x01(\bR\x04dspyJ\x04\b\x11\x10\x12J\x04\b\x13\x10\x14J\x04\b\x14\x10\x15J\x04\b\x17\x10\x18J\x04\b\x18\x10\x19J\x04\b\x19\x10\x1aJ\x04\b\x1a\x10\x1bJ\x04\b\x1b\x10\x1cJ\x04\b7\x108\"\xe5\x16\n" +
 	"\aFeature\x12\x14\n" +
 	"\x05watch\x18\x01 \x01(\bR\x05watch\x12\x16\n" +
 	"\x06finish\x18\x02 \x01(\bR\x06finish\x12%\n" +
@@ -2173,7 +2205,8 @@ const file_wandb_proto_wandb_telemetry_proto_rawDesc = "" +
 	"\x16keras_model_checkpoint\x18' \x01(\bR\x14kerasModelCheckpoint\x129\n" +
 	"\x19keras_wandb_eval_callback\x18( \x01(\bR\x16kerasWandbEvalCallback\x122\n" +
 	"\x15flow_control_overflow\x18) \x01(\bR\x13flowControlOverflow\x12\x12\n" +
-	"\x04sync\x18* \x01(\bR\x04sync\x122\n" +
+	"\x04sync\x18* \x01(\bR\x04sync\x12\x14\n" +
+	"\x05sync2\x18L \x01(\bR\x05sync2\x122\n" +
 	"\x15flow_control_disabled\x18+ \x01(\bR\x13flowControlDisabled\x12.\n" +
 	"\x13flow_control_custom\x18, \x01(\bR\x11flowControlCustom\x12!\n" +
 	"\fopen_metrics\x18. \x01(\bR\vopenMetrics\x12-\n" +
@@ -2206,7 +2239,11 @@ const file_wandb_proto_wandb_telemetry_proto_rawDesc = "" +
 	"\tfork_mode\x18G \x01(\bR\bforkMode\x12\x1f\n" +
 	"\vrewind_mode\x18H \x01(\bR\n" +
 	"rewindMode\x12#\n" +
-	"\rdspy_callback\x18I \x01(\bR\fdspyCallbackJ\x04\b\x17\x10\x18J\x04\b-\x10.J\x04\b0\x101J\x04\b7\x108\"\x9c\x02\n" +
+	"\rdspy_callback\x18I \x01(\bR\fdspyCallback\x12\x1d\n" +
+	"\n" +
+	"eval_table\x18M \x01(\bR\tevalTable\x12\x14\n" +
+	"\x05table\x18N \x01(\bR\x05table\x12+\n" +
+	"\x11incremental_table\x18O \x01(\bR\x10incrementalTableJ\x04\b\x17\x10\x18J\x04\b-\x10.J\x04\b0\x101J\x04\b7\x108\"\x9c\x02\n" +
 	"\x03Env\x12\x18\n" +
 	"\ajupyter\x18\x01 \x01(\bR\ajupyter\x12\x16\n" +
 	"\x06kaggle\x18\x02 \x01(\bR\x06kaggle\x12\x18\n" +

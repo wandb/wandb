@@ -89,6 +89,22 @@ const (
 	ServerFeature_AUTOMATIONS_ON_USER ServerFeature = 27
 	// Indicates that the server supports Trigger.lastExecutedAt.
 	ServerFeature_AUTOMATION_LAST_EXECUTED_AT ServerFeature = 28
+	// Indicates that the server supports the markRunFilesUploaded mutation, used
+	// to commit files uploaded outside a live run (e.g. Run.upload_file).
+	ServerFeature_MARK_RUN_FILES_UPLOADED ServerFeature = 29
+	// Indicates that the server supports filtering sweeps when querying on a project.
+	ServerFeature_SWEEPS_QUERY_FILTERING ServerFeature = 30
+	// Indicates that the server supports automation scope ENTITY.
+	ServerFeature_AUTOMATION_SCOPE_ENTITY ServerFeature = 31
+	// Indicates that the server supports Entity.triggers.
+	ServerFeature_QUERY_AUTOMATIONS_ON_ENTITY ServerFeature = 32
+	// Indicates that the server supports Organization.triggers.
+	ServerFeature_AUTOMATIONS_ON_ORGANIZATION ServerFeature = 33
+	// Indicates that the server supports gzip-compressed filestream request bodies.
+	ServerFeature_FILESTREAM_GZIP ServerFeature = 34
+	// Indicates that the server supports the enqueueSweepRun mutation, used by
+	// the local sweep scheduler to enqueue runs.
+	ServerFeature_SWEEPS_LOCAL_SCHEDULER ServerFeature = 35
 )
 
 // Enum value maps for ServerFeature.
@@ -123,6 +139,13 @@ var (
 		26: "AUTOMATION_EVENT_UNLINK_ARTIFACT",
 		27: "AUTOMATIONS_ON_USER",
 		28: "AUTOMATION_LAST_EXECUTED_AT",
+		29: "MARK_RUN_FILES_UPLOADED",
+		30: "SWEEPS_QUERY_FILTERING",
+		31: "AUTOMATION_SCOPE_ENTITY",
+		32: "QUERY_AUTOMATIONS_ON_ENTITY",
+		33: "AUTOMATIONS_ON_ORGANIZATION",
+		34: "FILESTREAM_GZIP",
+		35: "SWEEPS_LOCAL_SCHEDULER",
 	}
 	ServerFeature_value = map[string]int32{
 		"SERVER_FEATURE_UNSPECIFIED":           0,
@@ -154,6 +177,13 @@ var (
 		"AUTOMATION_EVENT_UNLINK_ARTIFACT":                     26,
 		"AUTOMATIONS_ON_USER":                                  27,
 		"AUTOMATION_LAST_EXECUTED_AT":                          28,
+		"MARK_RUN_FILES_UPLOADED":                              29,
+		"SWEEPS_QUERY_FILTERING":                               30,
+		"AUTOMATION_SCOPE_ENTITY":                              31,
+		"QUERY_AUTOMATIONS_ON_ENTITY":                          32,
+		"AUTOMATIONS_ON_ORGANIZATION":                          33,
+		"FILESTREAM_GZIP":                                      34,
+		"SWEEPS_LOCAL_SCHEDULER":                               35,
 	}
 )
 
@@ -1680,7 +1710,22 @@ func (x *BranchPoint) GetMetric() string {
 	return ""
 }
 
-// RunRecord: wandb/sdk/wandb_run/Run
+// Information about a run.
+//
+// When sent as a standalone record, this creates or updates a run.
+// No other run-modifying records are allowed until the first run record
+// is processed. Generally, only fields that correspond to values the client
+// may know are present in this case; other fields are ignored.
+//
+// Other fields may be included in a RunUpdateResult (like `storage_id`, which
+// the backend returns when creating a new online run), and some fields may be
+// updated (like `entity` and `project`, which are determined through a query
+// if not given).
+//
+// After creating a run, the values in RunUpdateResult must be propagated to
+// the RunStartRequest. This is a legacy pattern that wandb-core uses to
+// communicate with itself. The updated run record may be returned to another
+// process that "attaches" to the run via the AttachResponse.
 type RunRecord struct {
 	state        protoimpl.MessageState `protogen:"open.v1"`
 	RunId        string                 `protobuf:"bytes,1,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
@@ -12595,7 +12640,8 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\finput_source\x18\x01 \x01(\v2\x1e.wandb_internal.JobInputSourceR\vinputSource\x12A\n" +
 	"\rinclude_paths\x18\x02 \x03(\v2\x1c.wandb_internal.JobInputPathR\fincludePaths\x12A\n" +
 	"\rexclude_paths\x18\x03 \x03(\v2\x1c.wandb_internal.JobInputPathR\fexcludePaths\x12!\n" +
-	"\finput_schema\x18\x04 \x01(\tR\vinputSchema*\xd1\b\n" +
+	"\finput_schema\x18\x04 \x01(\tR\vinputSchema*\x9a\n" +
+	"\n" +
 	"\rServerFeature\x12\x1e\n" +
 	"\x1aSERVER_FEATURE_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fLARGE_FILENAMES\x10\x11\x12\x11\n" +
@@ -12627,7 +12673,14 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"&AUTOMATION_EVENT_REMOVE_COLLECTION_TAG\x10\x19\x12$\n" +
 	" AUTOMATION_EVENT_UNLINK_ARTIFACT\x10\x1a\x12\x17\n" +
 	"\x13AUTOMATIONS_ON_USER\x10\x1b\x12\x1f\n" +
-	"\x1bAUTOMATION_LAST_EXECUTED_AT\x10\x1cB\x1bZ\x19core/pkg/service_go_protob\x06proto3"
+	"\x1bAUTOMATION_LAST_EXECUTED_AT\x10\x1c\x12\x1b\n" +
+	"\x17MARK_RUN_FILES_UPLOADED\x10\x1d\x12\x1a\n" +
+	"\x16SWEEPS_QUERY_FILTERING\x10\x1e\x12\x1b\n" +
+	"\x17AUTOMATION_SCOPE_ENTITY\x10\x1f\x12\x1f\n" +
+	"\x1bQUERY_AUTOMATIONS_ON_ENTITY\x10 \x12\x1f\n" +
+	"\x1bAUTOMATIONS_ON_ORGANIZATION\x10!\x12\x13\n" +
+	"\x0fFILESTREAM_GZIP\x10\"\x12\x1a\n" +
+	"\x16SWEEPS_LOCAL_SCHEDULER\x10#B\x1bZ\x19core/pkg/service_go_protob\x06proto3"
 
 var (
 	file_wandb_proto_wandb_internal_proto_rawDescOnce sync.Once

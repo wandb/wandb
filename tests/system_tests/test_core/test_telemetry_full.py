@@ -88,3 +88,46 @@ def test_telemetry_run_organizing_set(wandb_backend_spy):
         assert "set_run_name" in get_features(telemetry)
         assert "set_run_tags" in get_features(telemetry)
         assert "set_config_item" in get_features(telemetry)
+
+
+def test_telemetry_table_logged_to_run(wandb_backend_spy):
+    with wandb.init() as run:
+        run.log({"my_table": wandb.Table(columns=["a"], data=[[1]])})
+
+    with wandb_backend_spy.freeze() as snapshot:
+        features = get_features(snapshot.telemetry(run_id=run.id))
+        assert "table" in features
+        assert "incremental_table" not in features
+
+
+def test_telemetry_incremental_table_logged_to_run(wandb_backend_spy):
+    with wandb.init() as run:
+        t = wandb.Table(columns=["a"], data=[[1]], log_mode="INCREMENTAL")
+        run.log({"my_table": t})
+        t.add_data(2)
+        run.log({"my_table": t})
+
+    with wandb_backend_spy.freeze() as snapshot:
+        features = get_features(snapshot.telemetry(run_id=run.id))
+        assert "incremental_table" in features
+        assert "table" not in features
+
+
+def test_telemetry_table_in_artifact_does_not_set_feature(wandb_backend_spy):
+    """A Table serialized into an artifact (never logged to the run) must not
+    set the run-level table telemetry features.
+
+    Table.to_json records telemetry only in the wandb.Run branch, so artifact
+    serialization should leave the table features unset.
+    """
+    with wandb.init() as run:
+        artifact = wandb.Artifact("my_dataset", type="dataset")
+        artifact.add(wandb.Table(columns=["a"], data=[[1]]), "my_table")
+        run.log_artifact(artifact).wait()
+
+    with wandb_backend_spy.freeze() as snapshot:
+        features = get_features(snapshot.telemetry(run_id=run.id))
+        # Sanity check that telemetry was captured for this run at all.
+        assert "finish" in features
+        assert "table" not in features
+        assert "incremental_table" not in features

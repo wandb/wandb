@@ -1,4 +1,3 @@
-import datetime
 import enum
 import json
 import os
@@ -7,7 +6,6 @@ import random
 import sys
 import tarfile
 import tempfile
-import time
 from dataclasses import dataclass
 from unittest import mock
 
@@ -15,9 +13,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import plotly
 import pytest
-import requests
 import wandb
-import wandb.errors as errors
 from wandb import util
 
 ###############################################################################
@@ -256,6 +252,24 @@ def test_json_dumps_safer_preserves_nonfinite_floats():
     assert '"inf":Infinity' in encoded
     assert '"ninf":-Infinity' in encoded
     assert "null" not in encoded
+
+
+@pytest.mark.parametrize(
+    "dumps", [util.json_dumps_safer, util.json_dumps_safer_history]
+)
+@pytest.mark.parametrize("dtype", [np.float16, np.float32])
+def test_json_dumps_safer_preserves_numpy_float_nan(dumps, dtype):
+    # numpy floats narrower than float64 are not float subclasses, so they reach
+    # the encoder's default(); they must serialize to "NaN" like native float and
+    # np.float64 do (WB-32475).
+    assert dumps({"nan": dtype("nan")}) == '{"nan":NaN}'
+
+
+@pytest.mark.parametrize("dtype", [np.float16, np.float32])
+def test_json_friendly_val_drops_numpy_float_nan(dtype):
+    # json_friendly_val pre-sanitizes values (no JSON serializer involved), so it
+    # keeps dropping NaN to None as it does for native float NaN.
+    assert util.json_friendly_val(dtype("nan")) is None
 
 
 def test_json_dumps_safer_supports_non_string_keys():
@@ -540,17 +554,6 @@ def test_is_pytorch_tensor():
 ###############################################################################
 
 
-def test_launch_browser():
-    with mock.patch("sys.platform", "linux"):
-        with mock.patch.dict("sys.modules", {"webbrowser": mock.MagicMock()}):
-            import webbrowser
-
-            webbrowser.get().name = mock.MagicMock(return_value="lynx")
-            assert not util.launch_browser()
-            webbrowser.get().name = mock.MagicMock(side_effect=webbrowser.Error)
-            assert not util.launch_browser()
-
-
 def test_parse_tfjob_config():
     with mock.patch.dict(
         "os.environ", {"TF_CONFIG": '{"cluster": {"master": ["foo"]}}'}
@@ -561,163 +564,10 @@ def test_parse_tfjob_config():
     assert util.parse_tfjob_config() is False
 
 
-###############################################################################
-# Test retry utilities
-###############################################################################
-
-
-def test_no_retry_auth():
-    e = mock.MagicMock(spec=requests.HTTPError)
-    e.response = mock.MagicMock(spec=requests.Response)
-    for status_code in (400, 409):
-        e.response.status_code = status_code
-        assert not util.no_retry_auth(e)
-    e.response.status_code = 401
-    e.response.reason = "Unauthorized"
-    with pytest.raises(errors.AuthenticationError):
-        util.no_retry_auth(e)
-    e.response.status_code = 403
-    e.response.reason = "Forbidden"
-    with mock.patch("wandb.run", mock.MagicMock()):
-        with pytest.raises(wandb.CommError):
-            util.no_retry_auth(e)
-    e.response.status_code = 404
-    with pytest.raises(LookupError):
-        util.no_retry_auth(e)
-
-    e.response = None
-    assert util.no_retry_auth(e)
-    e = ValueError("foo")
-    assert util.no_retry_auth(e)
-
-
-def test_check_retry_conflict():
-    e = mock.MagicMock(spec=requests.HTTPError)
-    e.response = mock.MagicMock(spec=requests.Response)
-
-    e.response.status_code = 400
-    assert util.check_retry_conflict(e) is None
-
-    e.response.status_code = 500
-    assert util.check_retry_conflict(e) is None
-
-    e.response.status_code = 409
-    assert util.check_retry_conflict(e) is True
-
-
-def test_check_retry_conflict_or_gone():
-    e = mock.MagicMock(spec=requests.HTTPError)
-    e.response = mock.MagicMock(spec=requests.Response)
-
-    e.response.status_code = 400
-    assert util.check_retry_conflict_or_gone(e) is None
-
-    e.response.status_code = 410
-    assert util.check_retry_conflict_or_gone(e) is False
-
-    e.response.status_code = 500
-    assert util.check_retry_conflict_or_gone(e) is None
-
-    e.response.status_code = 409
-    assert util.check_retry_conflict_or_gone(e) is True
-
-
-def test_make_check_reply_fn_timeout():
-    """Verify case where secondary check returns a new timeout."""
-    e = mock.MagicMock(spec=requests.HTTPError)
-    e.response = mock.MagicMock(spec=requests.Response)
-
-    check_retry_fn = util.make_check_retry_fn(
-        check_fn=util.check_retry_conflict_or_gone,
-        check_timedelta=datetime.timedelta(minutes=3),
-        fallback_retry_fn=util.no_retry_auth,
-    )
-
-    e.response.status_code = 400
-    check = check_retry_fn(e)
-    assert check is False
-
-    e.response.status_code = 410
-    check = check_retry_fn(e)
-    assert check is False
-
-    e.response.status_code = 500
-    check = check_retry_fn(e)
-    assert check is True
-
-    e.response.status_code = 409
-    check = check_retry_fn(e)
-    assert check
-    assert check == datetime.timedelta(minutes=3)
-
-
-def test_make_check_reply_fn_false():
-    """Verify case where secondary check forces no retry."""
-    e = mock.MagicMock(spec=requests.HTTPError)
-    e.response = mock.MagicMock(spec=requests.Response)
-
-    def is_special(e):
-        if e.response.status_code == 500:
-            return False
-        return None
-
-    check_retry_fn = util.make_check_retry_fn(
-        check_fn=is_special,
-        fallback_retry_fn=util.no_retry_auth,
-    )
-
-    e.response.status_code = 400
-    check = check_retry_fn(e)
-    assert check is False
-
-    e.response.status_code = 500
-    check = check_retry_fn(e)
-    assert check is False
-
-    e.response.status_code = 409
-    check = check_retry_fn(e)
-    assert check is False
-
-
-def test_make_check_reply_fn_true():
-    """Verify case where secondary check allows retry."""
-    e = mock.MagicMock(spec=requests.HTTPError)
-    e.response = mock.MagicMock(spec=requests.Response)
-
-    def is_special(e):
-        if e.response.status_code == 400:
-            return True
-        return None
-
-    check_retry_fn = util.make_check_retry_fn(
-        check_fn=is_special,
-        fallback_retry_fn=util.no_retry_auth,
-    )
-
-    e.response.status_code = 400
-    check = check_retry_fn(e)
-    assert check is True
-
-    e.response.status_code = 500
-    check = check_retry_fn(e)
-    assert check is True
-
-    e.response.status_code = 409
-    check = check_retry_fn(e)
-    assert check is False
-
-
 def test_downsample():
     with pytest.raises(wandb.UsageError):
         util.downsample([1, 2, 3], 1)
     assert util.downsample([1, 2, 3, 4], 2) == [1, 4]
-
-
-def test_stopwatch_now():
-    t_1 = util.stopwatch_now()
-    time.sleep(0.1)
-    t_2 = util.stopwatch_now()
-    assert t_2 > t_1
 
 
 def test_class_colors():
@@ -736,24 +586,6 @@ def test_is_databricks():
         dbutils.shell.sc = mock.MagicMock()
         dbutils.shell.sc.appName = "Databricks Shell"
         assert util._is_databricks()
-
-
-def test_parse_entity_project_item():
-    def f(*args, **kwargs):
-        return util._parse_entity_project_item(*args, **kwargs)
-
-    with pytest.raises(ValueError):
-        f("boom/a/b/c")
-
-    item, project, entity = f("myproj/mymodel:latest")
-    assert item == "mymodel:latest"
-    assert project == "myproj"
-    assert entity == ""
-
-    item, project, entity = f("boom")
-    assert item == "boom"
-    assert project == ""
-    assert entity == ""
 
 
 def test_resolve_aliases_requires_iterable():

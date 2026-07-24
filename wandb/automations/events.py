@@ -4,30 +4,30 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Annotated, Any, Literal, get_args
 
-from pydantic import AfterValidator, Field
+from pydantic import AfterValidator, BeforeValidator, Discriminator, Field
 
+from wandb._filters import And, FilterableField, MongoLikeFilter
 from wandb._pydantic import GQLBase, model_validator, pydantic_isinstance
 from wandb._strutils import nameof
 
-from ._filters import And, MongoLikeFilter
-from ._filters.expressions import FilterableField
-from ._filters.run_metrics import (
+from ._generated import FilterEventFields
+from ._run_metric_filters import (
     MetricChangeFilter,
     MetricThresholdFilter,
     MetricVal,
     MetricZScoreFilter,
 )
-from ._filters.run_states import StateFilter, StateOperand
-from ._generated import FilterEventFields
+from ._run_state_filters import StateFilter, StateOperand
 from ._validators import (
     JsonEncoded,
     LenientStrEnum,
     ensure_json,
+    parse_scope,
     wrap_mutation_event_filter,
     wrap_run_filter,
 )
 from .actions import InputAction, InputActionTypes, SavedActionTypes
-from .scopes import ArtifactCollectionScope, AutomationScope, ProjectScope
+from .scopes import ArtifactCollectionScope, AutomationScope, EntityScope, ProjectScope
 
 if TYPE_CHECKING:
     from .automations import NewAutomation
@@ -360,8 +360,12 @@ class OnCreateArtifact(_BaseMutationEventInput):
 # ------------------------------------------------------------------------------
 # Events that trigger on run conditions
 class _BaseRunEventInput(_BaseEventInput):
-    scope: ProjectScope
-    """The scope of the event: must be a project."""
+    scope: Annotated[
+        ProjectScope | EntityScope,
+        BeforeValidator(parse_scope),
+        Discriminator("typename__"),
+    ]
+    """The scope of the event: must be a project or a team/org entity."""
 
 
 class OnRunMetric(_BaseRunEventInput):

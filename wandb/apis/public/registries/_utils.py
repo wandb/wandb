@@ -31,10 +31,27 @@ class Visibility(str, Enum):
         try:
             return cls(value)
         except ValueError:
-            expected = ",".join(repr(e.value) for e in cls)
+            expected = ", ".join(repr(e.value) for e in cls)
             raise ValueError(
                 f"Invalid visibility {value!r} from backend. Expected one of: {expected}"
             ) from None
+
+    @classmethod
+    def from_project_access(cls, value: str | None) -> Visibility:
+        """Convert a GraphQL project ``access`` value to a Visibility enum.
+
+        Registry search may return legacy or non-registry access levels (e.g.
+        ``USER_READ``) for organization projects. Treat those as organization
+        visibility so registry listing can proceed.
+        """
+        if not value:
+            return cls.organization
+        try:
+            return cls(value)
+        except ValueError:
+            if value == "RESTRICTED":
+                return cls.restricted
+            return cls.organization
 
     @classmethod
     def from_python(cls, name: str) -> Visibility:
@@ -42,7 +59,7 @@ class Visibility(str, Enum):
         try:
             return cls(name)
         except ValueError:
-            expected = ",".join(repr(e.name) for e in cls)
+            expected = ", ".join(repr(e.name) for e in cls)
             raise ValueError(
                 f"Invalid visibility {name!r}. Expected one of: {expected}"
             ) from None
@@ -122,21 +139,17 @@ def fetch_org_entity_from_organization(
         service_api: The service API instance to use for querying W&B.
         organization (str): The organization to fetch the org entity for.
     """
-    from wandb.sdk.artifacts._generated import (
-        FETCH_ORG_ENTITY_FROM_ORGANIZATION_GQL,
-        FetchOrgEntityFromOrganization,
-    )
+    from wandb.sdk.artifacts._generated import FETCH_ORGANIZATION_GQL, FetchOrganization
 
-    gql_op = FETCH_ORG_ENTITY_FROM_ORGANIZATION_GQL
+    gql_op = FETCH_ORGANIZATION_GQL
+    gql_vars = {"org": organization}
     try:
-        data = service_api.execute_graphql(
-            gql_op, variables={"organization": organization}
-        )
+        data = service_api.execute_graphql(gql_op, variables=gql_vars)
     except Exception as e:
         msg = f"Error fetching org entity for organization: {organization!r}"
         raise ValueError(msg) from e
 
-    result = FetchOrgEntityFromOrganization.model_validate(data)
+    result = FetchOrganization.model_validate(data)
     if (
         not (org := result.organization)
         or not (org_entity := org.org_entity)

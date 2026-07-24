@@ -157,6 +157,20 @@ def test_run_publish_history(mock_run, parse_records, record_q):
     assert history[1]["that"] == "2"
 
 
+def test_run_publish_history_preserves_numpy_float_nan(
+    mock_run, parse_records, record_q
+):
+    run = mock_run()
+    run.log(dict(float16=np.float16("nan"), float32=np.float32("nan")))
+
+    parsed = parse_records(record_q)
+
+    history = parsed.history or parsed.partial_history
+    assert len(history) == 1
+    assert history[0]["float16"] == "NaN"
+    assert history[0]["float32"] == "NaN"
+
+
 @pytest.mark.skipif(
     platform.system() == "Windows",
     reason="numpy.float128 does not exist on windows",

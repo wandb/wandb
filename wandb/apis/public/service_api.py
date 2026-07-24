@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-import contextlib
 import json
 import logging
-import weakref
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import Any, TypeVar, cast
 
 from wandb.proto import wandb_internal_pb2 as pb
+from wandb.proto import wandb_server_pb2 as spb
 from wandb.proto.wandb_api_pb2 import (
     ApiRequest,
     ApiResponse,
@@ -25,10 +24,7 @@ from wandb.sdk.mailbox.mailbox_handle import MailboxHandle
 _logger = logging.getLogger(__name__)
 
 
-def _cleanup(connection: ServiceConnection, api_id: str) -> None:
-    """Clean up the api resources associated with the api id."""
-    with contextlib.suppress(Exception):
-        connection.api_cleanup_request(api_id)
+_T = TypeVar("_T")
 
 
 @dataclass(frozen=True)
@@ -66,12 +62,10 @@ class ServiceApi:
         )
         self._api_session = session
 
-        weakref.finalize(
-            self,
-            _cleanup,
-            session.connection,
-            session.api_id,
-        )
+        # Clean up service-side resources when this object is GC'ed.
+        cleanup_request = spb.ServerRequest()
+        cleanup_request.api_cleanup_request.api_id = response.api_id
+        service_connection.finalize(self, cleanup_request)
 
         return session
 
@@ -88,17 +82,41 @@ class ServiceApi:
         request.api_id = session.api_id
         return session.connection.api_request(request, timeout=timeout)
 
+    def finalize(
+        self,
+        obj: object,
+        cleanup: ApiRequest,
+    ) -> Callable[[], None]:
+        """Send a cleanup request when the object is garbage collected.
+
+        The request must not reference the object, or else it will never be
+        garbage collected. The request is not guaranteed to be sent before
+        the connection is closed, so any resource it would clean up must also be
+        cleaned up automatically by wandb-core when this API instance is
+        cleaned up.
+
+        Returns:
+            A callback that can be used to send the cleanup request immediately.
+        """
+        session = self._get_api_session()
+
+        cleanup.api_id = session.api_id
+        request = spb.ServerRequest(api_request=cleanup)
+
+        return session.connection.finalize(obj, request)
+
     def execute_graphql(
         self,
         query: str,
         variables: Mapping[str, Any] | None = None,
         timeout: float | None = None,
         *,
+        parse: Callable[[str], _T] = json.loads,
         omit_variables: Iterable[str] | None = None,
         omit_fragments: Iterable[str] | None = None,
         omit_fields: Iterable[str] | None = None,
         rename_fields: Mapping[str, str] | None = None,
-    ) -> Any:
+    ) -> _T:
         """Execute a GraphQL operation through the wandb-core sidecar.
 
         The query is sent to wandb-core, which performs the network round-trip
@@ -111,6 +129,9 @@ class ServiceApi:
                 on the wire.
             timeout: Optional timeout in seconds for waiting on wandb-core.
                 On timeout, the request is cancelled on a best-effort basis.
+            parse: Callable used to deserialize the JSON response data.
+                Its must accept a (JSON) string as input. Its output will be
+                returned from this method. Defaults to `json.loads`.
             omit_variables: Variable names ($var) to strip from the query
                 server-side before forwarding to the backend. Use this to
                 drop variables that the deployed server version does not
@@ -131,21 +152,21 @@ class ServiceApi:
                 non-successful HTTP status codes, and GraphQL `errors`
                 returned by the server.
         """
-        request = ApiRequest(
+        req = ApiRequest(
             graphql_request=GraphQLRequest(
                 query=query,
                 variables_json=json.dumps(variables or {}),
-                omit_variables=list(omit_variables) if omit_variables else None,
-                omit_fragments=list(omit_fragments) if omit_fragments else None,
-                omit_fields=list(omit_fields) if omit_fields else None,
-                rename_fields=dict(rename_fields) if rename_fields else None,
+                omit_variables=omit_variables,
+                omit_fragments=omit_fragments,
+                omit_fields=omit_fields,
+                rename_fields=rename_fields,
             )
         )
-        response = self.send_api_request(
-            request,
-            timeout=timeout if timeout is not None else self._timeout,
+        resp = self.send_api_request(
+            req,
+            timeout=self._timeout if timeout is None else timeout,
         )
-        return json.loads(response.graphql_response.data_json)
+        return parse(resp.graphql_response.data_json)
 
     async def send_api_request_async(
         self,

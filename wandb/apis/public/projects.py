@@ -88,7 +88,7 @@ class Projects(RelayPaginator["ProjectFragment", "Project"]):
         service_api: ServiceApi,
         entity: str,
         per_page: int = 50,
-    ) -> Projects:
+    ) -> None:
         """An iterable collection of `Project` objects.
 
         Args:
@@ -111,8 +111,7 @@ class Projects(RelayPaginator["ProjectFragment", "Project"]):
         from wandb._pydantic import Connection
         from wandb.apis._generated import GetProjects, ProjectFragment
 
-        data = self._service_api.execute_graphql(self.QUERY, variables=self.variables)
-        result = GetProjects.model_validate(data)
+        result = self._execute_query(parse=GetProjects.model_validate_json)
         if not (conn := result.models):
             raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
         self.last_response = Connection[ProjectFragment].model_validate(conn)
@@ -123,7 +122,7 @@ class Projects(RelayPaginator["ProjectFragment", "Project"]):
 
         Note: This property is not available for projects.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         # For backwards compatibility, even though this isn't a SizedPaginator
         return None
@@ -156,7 +155,7 @@ class Project(Attrs):
         entity: str,
         project: str,
         attrs: Mapping[str, Any],
-    ) -> Project:
+    ) -> None:
         """A single project associated with an entity.
 
         Args:
@@ -176,11 +175,15 @@ class Project(Attrs):
 
         gql_vars = {"name": self.name, "entity": self.entity}
         try:
-            data = self._service_api.execute_graphql(GET_PROJECT_GQL, gql_vars)
+            data = self._service_api.execute_graphql(
+                GET_PROJECT_GQL,
+                variables=gql_vars,
+                parse=GetProject.model_validate_json,
+            )
         except WandbApiFailedError as e:
             raise ValueError(f"Unable to fetch project ID: {gql_vars!r}") from e
 
-        project = GetProject.model_validate(data).project
+        project = data.project
         self._attrs = project.model_dump() if project else {}
         self._is_loaded = True
 
@@ -211,7 +214,7 @@ class Project(Attrs):
     def to_html(self, height: int = 420, hidden: bool = False) -> str:
         """Generate HTML containing an iframe displaying this project.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         url = self.url + "?jupyter=true"
         style = f"border:none;width:100%;height:{height}px;"
@@ -259,11 +262,18 @@ class Project(Attrs):
         )
 
     @normalize_exceptions
-    def sweeps(self, per_page: int = 50) -> Sweeps:
+    def sweeps(
+        self,
+        per_page: int = 50,
+        filters: dict[str, Any] | None = None,
+        order: str | None = None,
+    ) -> Sweeps:
         """Return a paginated collection of sweeps in this project.
 
         Args:
             per_page: The number of sweeps to fetch per request to the API.
+            filters: (dict) queries for specific sweeps using the runs filters,
+                See wandb/apis/public/api.py:runs for more details.
 
         Returns:
             A `Sweeps` object, which is an iterable collection of `Sweep` objects.
@@ -273,6 +283,7 @@ class Project(Attrs):
             self.entity,
             self.name,
             per_page=per_page,
+            filters=filters,
         )
 
     @property

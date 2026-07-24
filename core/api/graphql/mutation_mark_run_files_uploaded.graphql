@@ -1,0 +1,17 @@
+mutation MarkRunFilesUploaded(
+    $entity: String!,
+    $project: String!,
+    $run: String!,
+    $files: [String!]!,
+) {
+    markRunFilesUploaded(
+        input: {
+            entityName: $entity,
+            projectName: $project,
+            runName: $run,
+            files: $files,
+        }
+    ) {
+        success
+    }
+}

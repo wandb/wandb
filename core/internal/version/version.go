@@ -2,9 +2,9 @@ package version
 
 import "strings"
 
-const Version = "0.28.1.dev1"
+const Version = "0.28.2.dev1"
 
-const MinServerVersion = "0.65.0"
+const MinServerVersion = "0.70.0"
 
 var Environment string
 

@@ -6,10 +6,8 @@ from typing import Annotated, Any, TypeVar
 from pydantic import BeforeValidator, Json, PlainSerializer
 from pydantic_core import PydanticUseDefault
 
+from wandb._filters import And, MongoLikeFilter, Or, simplify_expr
 from wandb._pydantic import to_json
-
-from ._filters import And, MongoLikeFilter, Or
-from ._filters.filterutils import simplify_expr
 
 T = TypeVar("T")
 
@@ -71,17 +69,30 @@ def upper_if_str(v: Any) -> Any:
 # ----------------------------------------------------------------------------
 def parse_scope(v: Any) -> Any:
     """Convert eligible objects (including wandb types) to an automation scope."""
-    from wandb.apis.public import ArtifactCollection, Project
+    from wandb.apis.public import ArtifactCollection, Organization, Project, Team
 
-    from .scopes import ProjectScope, _ArtifactPortfolioScope, _ArtifactSequenceScope
+    from .scopes import (
+        OrgScope,
+        ProjectScope,
+        TeamScope,
+        _ArtifactPortfolioScope,
+        _ArtifactSequenceScope,
+    )
 
     match v:
         case Project():
             return ProjectScope.model_validate(v)
+
         case ArtifactCollection() if v.is_sequence():
             return _ArtifactSequenceScope.model_validate(v)
         case ArtifactCollection():
             return _ArtifactPortfolioScope.model_validate(v)
+
+        case Team():
+            return TeamScope.model_validate(v)
+        case Organization(org_entity=org_entity):
+            return OrgScope.model_validate(org_entity)
+
         case _:
             return v
 

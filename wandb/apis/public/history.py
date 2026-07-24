@@ -11,16 +11,13 @@ Note:
 
 from __future__ import annotations
 
-import contextlib
 import json
-import weakref
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any, TypeAlias
 
 from typing_extensions import Self
 
 from wandb.proto import wandb_api_pb2 as pb
-from wandb.sdk.mailbox.mailbox import MailboxClosedError
 
 if TYPE_CHECKING:
     from . import runs
@@ -31,10 +28,7 @@ _RowDict: TypeAlias = dict[str, Any]
 
 
 class HistoryScan(Iterator[_RowDict]):
-    """Iterator for scanning complete run history.
-
-    <!-- lazydoc-ignore-class: internal -->
-    """
+    """Iterator for scanning complete run history."""
 
     def __init__(
         self,
@@ -79,17 +73,10 @@ class HistoryScan(Iterator[_RowDict]):
         self.rows: list[_RowDict] = []
         self.keys = keys
 
-        # Add cleanup hook to clean up resources in wandb-core
-        # when this scan object is deleted.
-        #
-        # Using weakref.finalize ensures that references to objects needed during cleanup
-        # are not garbage collected before being used.
-        # see: https://docs.python.org/3/library/weakref.html#comparing-finalizers-with-del-methods
-        weakref.finalize(
+        # Clean up resources when the object is GC'ed.
+        self._service_api.finalize(
             self,
-            self.cleanup,
-            self._service_api,
-            self._scan_request_id,
+            _scan_cleanup_request(self._scan_request_id),
         )
 
     @property
@@ -147,16 +134,12 @@ class HistoryScan(Iterator[_RowDict]):
             item.key: json.loads(item.value_json) for item in history_row.history_items
         }
 
-    @staticmethod
-    def cleanup(service_api: ServiceApi, request_id: int) -> None:
-        scan_run_history_cleanup = pb.ScanRunHistoryCleanup(
-            request_id=request_id,
-        )
-        scan_run_history_cleanup_request = pb.ReadRunHistoryRequest(
-            scan_run_history_cleanup=scan_run_history_cleanup
-        )
 
-        with contextlib.suppress(ConnectionResetError, MailboxClosedError):
-            service_api.send_api_request(
-                pb.ApiRequest(read_run_history_request=scan_run_history_cleanup_request)
-            )
+def _scan_cleanup_request(id: int) -> pb.ApiRequest:
+    """Returns a ScanRunHistoryCleanup request for the given ID."""
+    scan_cleanup_request = pb.ScanRunHistoryCleanup(request_id=id)
+    run_history_request = pb.ReadRunHistoryRequest(
+        scan_run_history_cleanup=scan_cleanup_request,
+    )
+
+    return pb.ApiRequest(read_run_history_request=run_history_request)

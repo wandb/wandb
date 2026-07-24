@@ -47,10 +47,15 @@
 # GitHub configuration
 /.github @wandb/sdk-team
 
+# Python requirements in CI
+/requirements/ @wandb/sdk-team
+
 # Internal helpers: used by multiple teams, any here can approve
 /wandb/_iterutils.py @wandb/sdk-team @wandb/art-reg-team
 /wandb/_strutils.py @wandb/sdk-team @wandb/art-reg-team
 /wandb/_pydantic/ @wandb/sdk-team @wandb/art-reg-team
+/wandb/_filters/ @wandb/sdk-team @wandb/art-reg-team
+/tests/unit_tests/test_filters/ @wandb/sdk-team @wandb/art-reg-team
 
 
 # Artifacts, Registries, Automations
@@ -81,6 +86,7 @@
 
 # Sweeps
 /wandb/wandb_agent.py                            @wandb/sweeps-launch-team @wandb/sdk-team
+/wandb/apis/public/sweeps.py                     @wandb/sweeps-launch-team @wandb/sdk-team
 /tests/system_tests/test_sweep/                  @wandb/sweeps-launch-team @wandb/sdk-team
 /tests/unit_tests/test_wandb_agent_teardown.py   @wandb/sweeps-launch-team @wandb/sdk-team
 /tests/unit_tests/test_wandb_agent_signals.py    @wandb/sweeps-launch-team @wandb/sdk-team

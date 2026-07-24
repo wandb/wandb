@@ -9,15 +9,18 @@ from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from threading import Barrier
+from typing import TYPE_CHECKING
 from urllib.parse import quote
 
+import boto3
 import numpy as np
 import requests
 import responses
 import wandb
 import wandb.sdk.internal.sender
-from pytest import fixture, mark, param, raises
-from wandb import Api, Artifact, util
+from moto import mock_aws
+from pytest import MonkeyPatch, fixture, mark, param, raises
+from wandb import Api, Artifact
 from wandb.data_types import ImageMask, PartitionedTable
 from wandb.errors.errors import CommError
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
@@ -27,142 +30,42 @@ from wandb.sdk.artifacts.artifact_file_cache import (
     get_artifact_file_cache,
 )
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
-from wandb.sdk.artifacts.artifact_state import ArtifactState
 from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
 from wandb.sdk.artifacts.exceptions import (
     ArtifactFinalizedError,
     ArtifactNotLoggedError,
-)
-from wandb.sdk.artifacts.storage_handlers.gcs_handler import (
-    GCSHandler,
-    _GCSIsADirectoryError,
 )
 from wandb.sdk.artifacts.storage_handlers.http_handler import HTTPHandler
 from wandb.sdk.artifacts.storage_handlers.s3_handler import S3Handler
 from wandb.sdk.artifacts.storage_handlers.tracking_handler import TrackingHandler
 from wandb.sdk.lib.hashutil import md5_string
 
-
-def mock_boto(artifact, path=False, content_type=None, version_id="1"):
-    class S3Object:
-        def __init__(self, name="my_object.pb", metadata=None, version_id=version_id):
-            self.metadata = metadata or {"md5": "1234567890abcde"}
-            self.e_tag = '"1234567890abcde"'
-            self.bucket_name = "my-bucket"
-            self.version_id = version_id
-            self.name = name
-            self.key = name
-            self.content_length = 10
-            self.content_type = (
-                "application/pb; charset=UTF-8"
-                if content_type is None
-                else content_type
-            )
-
-        def load(self):
-            if path:
-                raise util.get_module("botocore").exceptions.ClientError(
-                    {
-                        "Error": {"Code": "404"},
-                    },
-                    "HeadObject",
-                )
-
-    class S3ObjectSummary:
-        def __init__(self, name=None, size=10):
-            self.e_tag = '"1234567890abcde"'
-            self.bucket_name = "my-bucket"
-            self.key = name or "my_object.pb"
-            self.size = size
-
-    class Filtered:
-        def limit(self, *args, **kwargs):
-            return [S3ObjectSummary(), S3ObjectSummary(name="my_other_object.pb")]
-
-    class S3Objects:
-        def filter(self, **kwargs):
-            return Filtered()
-
-        def limit(self, *args, **kwargs):
-            return [S3ObjectSummary(), S3ObjectSummary(name="my_other_object.pb")]
-
-    class S3Bucket:
-        def __init__(self, *args, **kwargs):
-            self.objects = S3Objects()
-
-    class S3Resource:
-        def Object(self, bucket, key):  # noqa: N802
-            return S3Object(name=key)
-
-        def ObjectVersion(self, bucket, key, version):  # noqa: N802
-            class Version:
-                def Object(self):  # noqa: N802
-                    return S3Object(version_id=version)
-
-            return Version()
-
-        def Bucket(self, bucket):  # noqa: N802
-            return S3Bucket()
-
-        def BucketVersioning(self, bucket):  # noqa: N802
-            class BucketStatus:
-                status = "Enabled"
-
-            return BucketStatus()
-
-    mock = S3Resource()
-    for handler in artifact.manifest.storage_policy._handler._handlers:
-        if isinstance(handler, S3Handler):
-            handler._s3 = mock
-            handler._botocore = util.get_module("botocore")
-            handler._botocore.exceptions = util.get_module("botocore.exceptions")
-    return mock
+if TYPE_CHECKING:
+    from botocore.client import BaseClient
 
 
-def mock_gcs(artifact, override_blob_name="my_object.pb", path=False, hash=True):
-    class Blob:
-        def __init__(self, name=override_blob_name, metadata=None, generation=None):
-            self.md5_hash = "1234567890abcde" if hash else None
-            self.etag = "1234567890abcde"
-            self.generation = generation or "1"
-            self.name = name
-            self.size = 10
+@fixture
+def aws_credentials(monkeypatch: MonkeyPatch) -> None:
+    """Point boto3 at fake credentials so it never reaches real AWS."""
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "testing")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "testing")
+    monkeypatch.setenv("AWS_REGION", "us-east-1")
+    monkeypatch.delenv("AWS_S3_ENDPOINT_URL", raising=False)
 
-    class GSBucket:
-        def __init__(self):
-            self.versioning_enabled = True
 
-        def reload(self, *args, **kwargs):
-            return
+@fixture
+def s3(aws_credentials: None) -> Generator[BaseClient, None, None]:
+    """An in-memory S3 (via moto) and a client pointed at it."""
+    with mock_aws():
+        yield boto3.client("s3", region_name="us-east-1")
 
-        def get_blob(self, key=override_blob_name, *args, **kwargs):
-            return (
-                None
-                if path or key != override_blob_name
-                else Blob(generation=kwargs.get("generation"))
-            )
 
-        def list_blobs(self, *args, **kwargs):
-            if override_blob_name.endswith("/"):
-                return [
-                    Blob(name=override_blob_name),
-                    Blob(name=os.path.join(override_blob_name, "my_other_object.pb")),
-                ]
-            else:
-                return [
-                    Blob(name=override_blob_name),
-                    Blob(name="my_other_object.pb"),
-                ]
-
-    class GSClient:
-        def bucket(self, bucket):
-            return GSBucket()
-
-    mock = GSClient()
-    for handler in artifact.manifest.storage_policy._handler._handlers:
-        if isinstance(handler, GCSHandler):
-            handler._client = mock
-    return mock
+@fixture
+def s3_bucket(s3: BaseClient) -> str:
+    """Create an empty bucket and return its name."""
+    name = "test-bucket"  # Single bucket name shared by all tests
+    s3.create_bucket(Bucket=name)
+    return name
 
 
 @fixture
@@ -616,312 +519,6 @@ def test_add_reference_local_dir_by_uri(tmp_path, artifact):
             "size": 5,
         }
     }
-
-
-def test_add_s3_reference_object(artifact):
-    mock_boto(artifact)
-    artifact.add_reference("s3://my-bucket/my_object.pb")
-
-    assert artifact.digest == "8aec0d6978da8c2b0bf5662b3fd043a4"
-    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    assert manifest_contents == {
-        "my_object.pb": {
-            "digest": "1234567890abcde",
-            "ref": "s3://my-bucket/my_object.pb",
-            "extra": {"etag": "1234567890abcde", "versionID": "1"},
-            "size": 10,
-        }
-    }
-
-
-def test_add_s3_reference_object_directory(artifact):
-    mock_boto(artifact, path=True)
-    artifact.add_reference("s3://my-bucket/my_dir/")
-
-    assert artifact.digest == "17955d00a20e1074c3bc96c74b724bfe"
-    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    assert manifest_contents == {
-        "my_object.pb": {
-            "digest": "1234567890abcde",
-            "ref": "s3://my-bucket/my_dir",
-            "extra": {"etag": "1234567890abcde", "versionID": "1"},
-            "size": 10,
-        },
-        "my_other_object.pb": {
-            "digest": "1234567890abcde",
-            "ref": "s3://my-bucket/my_dir",
-            "extra": {"etag": "1234567890abcde", "versionID": "1"},
-            "size": 10,
-        },
-    }
-
-
-def test_add_s3_reference_object_no_version(artifact):
-    mock_boto(artifact, version_id=None)
-    artifact.add_reference("s3://my-bucket/my_object.pb")
-
-    assert artifact.digest == "8aec0d6978da8c2b0bf5662b3fd043a4"
-    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    assert manifest_contents == {
-        "my_object.pb": {
-            "digest": "1234567890abcde",
-            "ref": "s3://my-bucket/my_object.pb",
-            "extra": {"etag": "1234567890abcde"},
-            "size": 10,
-        },
-    }
-
-
-def test_add_s3_reference_object_with_version(artifact):
-    mock_boto(artifact)
-    artifact.add_reference("s3://my-bucket/my_object.pb?versionId=2")
-
-    assert artifact.digest == "8aec0d6978da8c2b0bf5662b3fd043a4"
-    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    assert manifest_contents == {
-        "my_object.pb": {
-            "digest": "1234567890abcde",
-            "ref": "s3://my-bucket/my_object.pb",
-            "extra": {"etag": "1234567890abcde", "versionID": "2"},
-            "size": 10,
-        },
-    }
-
-
-def test_add_s3_reference_object_with_name(artifact):
-    mock_boto(artifact)
-    artifact.add_reference("s3://my-bucket/my_object.pb", name="renamed.pb")
-
-    assert artifact.digest == "bd85fe009dc9e408a5ed9b55c95f47b2"
-    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    assert manifest_contents == {
-        "renamed.pb": {
-            "digest": "1234567890abcde",
-            "ref": "s3://my-bucket/my_object.pb",
-            "extra": {"etag": "1234567890abcde", "versionID": "1"},
-            "size": 10,
-        },
-    }
-
-
-def test_add_s3_reference_path(runner, capsys, artifact):
-    mock_boto(artifact, path=True)
-    artifact.add_reference("s3://my-bucket/")
-
-    assert artifact.digest == "17955d00a20e1074c3bc96c74b724bfe"
-    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    assert manifest_contents == {
-        "my_object.pb": {
-            "digest": "1234567890abcde",
-            "ref": "s3://my-bucket/my_object.pb",
-            "extra": {"etag": "1234567890abcde", "versionID": "1"},
-            "size": 10,
-        },
-        "my_other_object.pb": {
-            "digest": "1234567890abcde",
-            "extra": {"etag": "1234567890abcde", "versionID": "1"},
-            "ref": "s3://my-bucket/my_other_object.pb",
-            "size": 10,
-        },
-    }
-    _, err = capsys.readouterr()
-    assert "Generating checksum" in err
-
-
-def test_add_s3_reference_path_with_content_type(capsys, artifact):
-    mock_boto(artifact, path=False, content_type="application/x-directory")
-    artifact.add_reference("s3://my-bucket/my_dir")
-
-    assert artifact.digest == "17955d00a20e1074c3bc96c74b724bfe"
-    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    assert manifest_contents == {
-        "my_object.pb": {
-            "digest": "1234567890abcde",
-            "ref": "s3://my-bucket/my_dir",
-            "extra": {"etag": "1234567890abcde", "versionID": "1"},
-            "size": 10,
-        },
-        "my_other_object.pb": {
-            "digest": "1234567890abcde",
-            "ref": "s3://my-bucket/my_dir",
-            "extra": {"etag": "1234567890abcde", "versionID": "1"},
-            "size": 10,
-        },
-    }
-    _, err = capsys.readouterr()
-    assert "Generating checksum" in err
-
-
-def test_add_s3_max_objects(artifact):
-    mock_boto(artifact, path=True)
-    with raises(ValueError):
-        artifact.add_reference("s3://my-bucket/", max_objects=1)
-
-
-def test_add_reference_s3_no_checksum(artifact):
-    Path("file1.txt").write_text("hello")
-    mock_boto(artifact)
-    # TODO: Should we require name in this case?
-    artifact.add_reference("s3://my_bucket/file1.txt", checksum=False)
-
-    assert artifact.digest == "52631787ed3579325f985dc0f2374040"
-    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    assert manifest_contents == {
-        "file1.txt": {
-            "digest": "s3://my_bucket/file1.txt",
-            "ref": "s3://my_bucket/file1.txt",
-        }
-    }
-
-
-def test_add_gs_reference_object(artifact):
-    mock_gcs(artifact)
-    artifact.add_reference("gs://my-bucket/my_object.pb")
-
-    assert artifact.digest == "8aec0d6978da8c2b0bf5662b3fd043a4"
-    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    assert manifest_contents == {
-        "my_object.pb": {
-            "digest": "1234567890abcde",
-            "ref": "gs://my-bucket/my_object.pb",
-            "extra": {"versionID": "1"},
-            "size": 10,
-        },
-    }
-
-
-def test_load_gs_reference_object_without_generation_and_mismatched_etag(
-    artifact,
-):
-    mock_gcs(artifact)
-    artifact.add_reference("gs://my-bucket/my_object.pb")
-    artifact._state = ArtifactState.COMMITTED
-    entry = artifact.get_entry("my_object.pb")
-    entry.extra = {}
-    entry.digest = "abad0"
-
-    with raises(ValueError, match="Digest mismatch"):
-        entry.download()
-
-
-def test_add_gs_reference_object_with_version(artifact):
-    mock_gcs(artifact)
-    artifact.add_reference("gs://my-bucket/my_object.pb#2")
-
-    assert artifact.digest == "8aec0d6978da8c2b0bf5662b3fd043a4"
-    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    assert manifest_contents == {
-        "my_object.pb": {
-            "digest": "1234567890abcde",
-            "ref": "gs://my-bucket/my_object.pb",
-            "extra": {"versionID": "2"},
-            "size": 10,
-        },
-    }
-
-
-def test_add_gs_reference_object_with_name(artifact):
-    mock_gcs(artifact)
-    artifact.add_reference("gs://my-bucket/my_object.pb", name="renamed.pb")
-
-    assert artifact.digest == "bd85fe009dc9e408a5ed9b55c95f47b2"
-    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    assert manifest_contents == {
-        "renamed.pb": {
-            "digest": "1234567890abcde",
-            "ref": "gs://my-bucket/my_object.pb",
-            "extra": {"versionID": "1"},
-            "size": 10,
-        },
-    }
-
-
-def test_add_gs_reference_path(capsys, artifact):
-    mock_gcs(artifact, path=True)
-    artifact.add_reference("gs://my-bucket/")
-
-    assert artifact.digest == "17955d00a20e1074c3bc96c74b724bfe"
-    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    assert manifest_contents == {
-        "my_object.pb": {
-            "digest": "1234567890abcde",
-            "ref": "gs://my-bucket/my_object.pb",
-            "extra": {"versionID": "1"},
-            "size": 10,
-        },
-        "my_other_object.pb": {
-            "digest": "1234567890abcde",
-            "ref": "gs://my-bucket/my_other_object.pb",
-            "extra": {"versionID": "1"},
-            "size": 10,
-        },
-    }
-    _, err = capsys.readouterr()
-    assert "Generating checksum" in err
-
-
-def test_add_gs_reference_object_no_md5(artifact):
-    mock_gcs(artifact, hash=False)
-    artifact.add_reference("gs://my-bucket/my_object.pb")
-
-    assert artifact.digest == "8aec0d6978da8c2b0bf5662b3fd043a4"
-    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    assert manifest_contents == {
-        "my_object.pb": {
-            "digest": "1234567890abcde",
-            "ref": "gs://my-bucket/my_object.pb",
-            "extra": {"versionID": "1"},
-            "size": 10,
-        },
-    }
-
-
-def test_add_gs_reference_with_dir_paths(artifact):
-    mock_gcs(artifact, override_blob_name="my_folder/")
-    artifact.add_reference("gs://my-bucket/my_folder/")
-
-    # uploading a reference to a folder path should add entries for
-    # everything returned by the list_blobs call
-    assert len(artifact.manifest.entries) == 1
-    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    assert manifest_contents == {
-        "my_other_object.pb": {
-            "digest": "1234567890abcde",
-            "ref": "gs://my-bucket/my_folder/my_other_object.pb",
-            "extra": {"versionID": "1"},
-            "size": 10,
-        },
-    }
-
-
-def test_load_gs_reference_with_dir_paths(artifact):
-    mock = mock_gcs(artifact, override_blob_name="my_folder/")
-    artifact.add_reference("gs://my-bucket/my_folder/")
-
-    gcs_handler = GCSHandler()
-    gcs_handler._client = mock
-
-    # simple case where ref ends with "/"
-    simple_entry = ArtifactManifestEntry(
-        path="my-bucket/my_folder",
-        ref="gs://my-bucket/my_folder/",
-        digest="1234567890abcde",
-        size=0,
-        extra={"versionID": 1},
-    )
-    with raises(_GCSIsADirectoryError):
-        gcs_handler.load_path(simple_entry, local=True)
-
-    # case where we didn't store "/" and have to use get_blob
-    entry = ArtifactManifestEntry(
-        path="my-bucket/my_folder",
-        ref="gs://my-bucket/my_folder",
-        digest="1234567890abcde",
-        size=0,
-        extra={"versionID": 1},
-    )
-    with raises(_GCSIsADirectoryError):
-        gcs_handler.load_path(entry, local=True)
 
 
 @responses.activate
@@ -1440,27 +1037,37 @@ def test_http_storage_handler_uses_etag_for_digest(
         assert entry.digest == expected_digest
 
 
-def test_s3_storage_handler_load_path_missing_reference(monkeypatch, user, artifact):
-    # Create an artifact that references a non-existent S3 object.
-    mock_boto(artifact, version_id="")
-    artifact.add_reference("s3://my-bucket/my_object.pb")
+def test_s3_storage_handler_load_path_missing_reference(s3, s3_bucket, user, artifact):
+    # Reference an S3 object that exists when added, but is deleted before download.
+    s3.put_object(Bucket=s3_bucket, Key="my_object.pb", Body=b"0123456789")
 
-    with wandb.init(project="test") as run:
-        run.log_artifact(artifact)
+    artifact.add_reference(f"s3://{s3_bucket}/my_object.pb")
+    artifact.save()
     artifact.wait()
 
-    # Patch the S3 handler to return a 404 error when checking the ETag.
-    def bad_request(*args, **kwargs):
-        raise util.get_module("botocore").exceptions.ClientError(
-            operation_name="HeadObject",
-            error_response={"Error": {"Code": "404", "Message": "Not Found"}},
-        )
+    # Delete the referenced object so the handler hits a 404 on download.
+    s3.delete_object(Bucket=s3_bucket, Key="my_object.pb")
 
-    monkeypatch.setattr(S3Handler, "_etag_from_obj", bad_request)
+    with raises(FileNotFoundError, match="Unable to find"):
+        artifact.download()
 
-    with wandb.init(project="test") as run:
-        with raises(FileNotFoundError, match="Unable to find"):
-            artifact.download()
+
+def test_s3_storage_handler_load_path_missing_reference_allowed(
+    s3, s3_bucket, user, artifact, capsys
+):
+    # Reference an S3 object that exists when added, but is deleted before download.
+    s3.put_object(Bucket=s3_bucket, Key="my_object.pb", Body=b"0123456789")
+
+    artifact.add_reference(f"s3://{s3_bucket}/my_object.pb")
+    artifact.save()
+    artifact.wait()
+
+    # Delete the referenced object so the handler hits a 404 on download.
+    s3.delete_object(Bucket=s3_bucket, Key="my_object.pb")
+
+    # It should still log a warning about skipping the missing reference.
+    artifact.download(allow_missing_references=True)
+    assert "Unable to find" in capsys.readouterr().err
 
 
 def test_change_artifact_collection_type(user):
@@ -1697,33 +1304,6 @@ def test_artifact_collection_aliases(user: str, api: Api, logged_artifact: Artif
     assert sorted(src_collection1.aliases) == sorted(expected_src_aliases1)
     src_collection2 = api.artifact_collection(name="test-artifact-2", type_name="data")
     assert sorted(src_collection2.aliases) == sorted(expected_src_aliases2)
-
-
-def test_s3_storage_handler_load_path_missing_reference_allowed(
-    monkeypatch, user, capsys, artifact
-):
-    # Create an artifact that references a non-existent S3 object.
-    mock_boto(artifact, version_id="")
-    artifact.add_reference("s3://my-bucket/my_object.pb")
-
-    with wandb.init(project="test") as run:
-        run.log_artifact(artifact)
-    artifact.wait()
-
-    # Patch the S3 handler to return a 404 error when checking the ETag.
-    def bad_request(*args, **kwargs):
-        raise util.get_module("botocore").exceptions.ClientError(
-            operation_name="HeadObject",
-            error_response={"Error": {"Code": "404", "Message": "Not Found"}},
-        )
-
-    monkeypatch.setattr(S3Handler, "_etag_from_obj", bad_request)
-
-    with wandb.init(project="test") as run:
-        artifact.download(allow_missing_references=True)
-
-    # It should still log a warning about skipping the missing reference.
-    assert "Unable to find my_object.pb" in capsys.readouterr().err
 
 
 def test_s3_storage_handler_load_path_uses_cache(tmp_path):

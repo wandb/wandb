@@ -122,7 +122,6 @@ class SweepFragment(GQLResult):
     id: GQLId
     name: str
     display_name: str | None = Field(alias="displayName")
-    controller_run_name: str = Field(alias="controllerRunName")
     method: str
     state: str
     description: str | None

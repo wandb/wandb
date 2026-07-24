@@ -4,12 +4,13 @@ import secrets
 from collections.abc import Callable, Generator
 from functools import lru_cache
 from string import ascii_lowercase, digits
-from typing import TypeAlias
+from typing import TYPE_CHECKING, TypeAlias
 
 import wandb
 from pytest import FixtureRequest, fixture, skip
 from wandb import Artifact
-from wandb.apis.public import ArtifactCollection, Project
+from wandb._filters import FilterExpr
+from wandb.apis.public import ArtifactCollection, Organization, Project, Team
 from wandb.automations import (
     ActionType,
     ArtifactEvent,
@@ -30,7 +31,6 @@ from wandb.automations import (
     SendWebhook,
     WebhookIntegration,
 )
-from wandb.automations._filters import FilterExpr
 from wandb.automations._generated import (
     CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL,
     CreateGenericWebhookIntegration,
@@ -38,7 +38,10 @@ from wandb.automations._generated import (
 from wandb.automations._utils import INVALID_INPUT_ACTIONS, INVALID_INPUT_EVENTS
 from wandb.automations.events import InputEvent
 
-ScopableWandbType: TypeAlias = ArtifactCollection | Project
+if TYPE_CHECKING:
+    from tests.system_tests.backend_fixtures import BackendFixtureFactory
+
+ScopableWandbType: TypeAlias = ArtifactCollection | Project | Team | Organization
 
 
 def random_string(chars: str = ascii_lowercase + digits, n: int = 12) -> str:
@@ -104,6 +107,17 @@ def artifact_collection(
 
 
 @fixture(scope="module")
+def team(
+    backend_fixture_factory: BackendFixtureFactory,
+    module_user: str,
+    make_module_api: Callable[[], wandb.Api],
+) -> Team:
+    """A test team entity for tests in this module."""
+    name = backend_fixture_factory.make_team(username=module_user).team
+    return make_module_api().team(name)
+
+
+@fixture(scope="module")
 def make_webhook_integration(
     make_module_api: Callable[[], wandb.Api],
 ) -> Callable[[str, str, str], WebhookIntegration]:
@@ -150,7 +164,8 @@ def webhook(
 # ---------------------------------------------------------------------------
 # Exclude deprecated events/actions that will not be exposed in the API for programmatic creation
 def valid_input_scopes() -> list[ScopeType]:
-    return sorted(ScopeType)
+    # return sorted(ScopeType)  # TODO: restore once ENTITY scope is supported
+    return sorted(set(ScopeType) - {ScopeType.ENTITY})
 
 
 def valid_input_events() -> list[EventType]:
@@ -204,9 +219,12 @@ def pytest_collection_modifyitems(config, items):
 
 
 @fixture(params=valid_input_scopes(), ids=lambda x: f"scope={x.value}")
-def scope_type(request: FixtureRequest) -> ScopeType:
+def scope_type(request: FixtureRequest, module_api: wandb.Api) -> ScopeType:
     """A fixture that parametrizes over all valid scope types."""
-    return request.param
+    if not module_api._supports_automation(scope=(scope_type := request.param)):
+        skip(f"Server does not support scope type: {scope_type!r}")
+
+    return scope_type
 
 
 @fixture(params=valid_input_events(), ids=lambda x: f"event={x.value}")
@@ -216,10 +234,7 @@ def event_type(
     module_api: wandb.Api,
 ) -> EventType:
     """A fixture that parametrizes over all valid event types."""
-
-    event_type = request.param
-
-    if not module_api._supports_automation(event=event_type):
+    if not module_api._supports_automation(event=(event_type := request.param)):
         skip(f"Server does not support event type: {event_type!r}")
 
     if (event_type, scope_type) in invalid_events_and_scopes():
@@ -234,9 +249,7 @@ def action_type(
     module_api: wandb.Api,
 ) -> ActionType:
     """A fixture that parametrizes over all valid action types."""
-    action_type = request.param
-
-    if not module_api._supports_automation(action=action_type):
+    if not module_api._supports_automation(action=(action_type := request.param)):
         skip(f"Server does not support action type: {action_type!r}")
 
     return action_type
@@ -247,6 +260,7 @@ def scope(request: FixtureRequest, scope_type: ScopeType) -> ScopableWandbType:
     scope2fixture: dict[ScopeType, str] = {
         ScopeType.ARTIFACT_COLLECTION: artifact_collection.__name__,
         ScopeType.PROJECT: project.__name__,
+        ScopeType.ENTITY: team.__name__,
     }
     # We want to request the fixture dynamically, hence the request.getfixturevalue workaround
     return request.getfixturevalue(scope2fixture[scope_type])
@@ -321,7 +335,7 @@ def on_run_metric_change(scope) -> OnRunMetric:
 @fixture
 def on_run_metric_zscore(scope) -> OnRunMetric:
     from wandb.automations import MetricZScoreFilter
-    from wandb.automations._filters.run_metrics import ChangeDir
+    from wandb.automations._run_metric_filters import ChangeDir
 
     run_filter = RunEvent.name.contains("my-run")
     metric_filter = MetricZScoreFilter(

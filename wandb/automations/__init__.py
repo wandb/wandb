@@ -20,13 +20,23 @@ from .events import (
     RunStateFilter,
 )
 from .integrations import Integration, SlackIntegration, WebhookIntegration
-from .scopes import ArtifactCollectionScope, ProjectScope, ScopeType
+from .scopes import (
+    ArtifactCollectionScope,
+    EntityScope,
+    OrgScope,
+    ProjectScope,
+    ScopeType,
+    TeamScope,
+)
 
 __all__ = [
     # Scopes
     "ScopeType",  # doc:exclude
     "ArtifactCollectionScope",  # doc:exclude
     "ProjectScope",  # doc:exclude
+    "OrgScope",  # doc:exclude
+    "TeamScope",  # doc:exclude
+    "EntityScope",  # doc:exclude
     # Events
     "EventType",  # doc:exclude
     "OnAddArtifactAlias",

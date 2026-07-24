@@ -44,6 +44,7 @@ from wandb.sdk.lib import filesystem, settings_file
 from wandb.sync import TFEVENT_SUBSTRING, SyncManager, get_run_from_path, get_runs
 
 from .beta import beta
+from .clean import clean
 from .leet import leet
 
 
@@ -566,7 +567,7 @@ def init(ctx, project, entity, reset, mode):
     "--view",
     is_flag=True,
     default=False,
-    help="View runs.",
+    help="(legacy only) View runs. Try `wandb leet` instead!",
     hidden=True,
 )
 @click.option(
@@ -575,6 +576,13 @@ def init(ctx, project, entity, reset, mode):
     default=False,
     help="Enable verbose output.",
     hidden=True,
+)
+@click.option(
+    "--yes",
+    "skip_confirmation",
+    is_flag=True,
+    default=False,
+    help="(beta only) Don't prompt for confirmation.",
 )
 @click.option("--id", "run_id", help="Upload to an existing run ID.")
 @click.option("--project", "-p", help="Set the project to upload the run to.")
@@ -588,20 +596,27 @@ def init(ctx, project, entity, reset, mode):
     "--sync-tensorboard/--no-sync-tensorboard",
     is_flag=True,
     default=None,
-    help="""Sync TensorBoard tfevent files.
+    help="""(legacy only) Sync TensorBoard tfevent files.
     On by default for specific paths,
     off for --sync-all.""",
 )
 @click.option(
     "--include-globs",
-    help="Include only runs matching these glob patterns (comma-separated).",
+    help="""
+        (legacy only) Include only runs matching these glob patterns
+        (comma-separated).
+    """,
 )
 @click.option(
     "--exclude-globs",
-    help="Exclude runs matching these glob patterns (comma-separated).",
+    help="""
+        (legacy only) Exclude runs matching these glob patterns
+        (comma-separated).
+    """,
 )
 @click.option(
     "--include-online/--no-include-online",
+    "--no-skip-online/--skip-online",
     is_flag=True,
     default=None,
     help="Include runs created in online mode.",
@@ -610,10 +625,11 @@ def init(ctx, project, entity, reset, mode):
     "--include-offline/--no-include-offline",
     is_flag=True,
     default=None,
-    help="Include runs created in offline mode.",
+    help="""(legacy only) Include runs created in offline mode.""",
 )
 @click.option(
     "--include-synced/--no-include-synced",
+    "--no-skip-synced/--skip-synced",
     is_flag=True,
     default=None,
     help="Include runs that are already synced.",
@@ -622,19 +638,19 @@ def init(ctx, project, entity, reset, mode):
     "--mark-synced/--no-mark-synced",
     is_flag=True,
     default=True,
-    help="Mark runs as synced after upload.",
+    help="(legacy only) Mark runs as synced after upload.",
 )
 @click.option(
     "--sync-all",
     is_flag=True,
     default=False,
-    help="Sync all unsynced runs in the local wandb directory.",
+    help="(legacy only) Sync all unsynced runs in the local wandb directory.",
 )
 @click.option(
     "--clean",
     is_flag=True,
     default=False,
-    help="Delete local data for runs that are already synced.",
+    help="(legacy only) Delete local data for runs that are already synced.",
 )
 @click.option(
     "--clean-old-hours",
@@ -651,19 +667,24 @@ def init(ctx, project, entity, reset, mode):
 )
 @click.option("--ignore", hidden=True)
 @click.option(
-    "--show", default=5, help="Set the number of runs to show in the summary."
+    "--show",
+    default=5,
+    help="Set the number of runs to show in the summary.",
 )
 @click.option(
     "--append",
     is_flag=True,
     default=False,
-    help="Append data to an existing run instead of creating a new run.",
+    help="""
+        (legacy only) Append data to an existing run instead of creating
+        a new run.
+    """,
 )
 @click.option(
     "--skip-console",
     is_flag=True,
     default=False,
-    help="Skip uploading console logs.",
+    help="(legacy only) Skip uploading console logs.",
 )
 @click.option(
     "--replace-tags",
@@ -680,6 +701,7 @@ def sync(
     path: tuple[str, ...],
     view: bool,
     verbose: bool,
+    skip_confirmation: bool,
     run_id: str | None,
     project: str | None,
     entity: str | None,
@@ -703,6 +725,10 @@ def sync(
     legacy: bool,
 ):
     """Upload existing local W&B run data to the cloud.
+
+    MIGRATION NOTE: This command is being gradually rerouted to
+    `wandb beta sync`. Some options are only allowed in legacy mode, and others
+    only in beta mode. See option descriptions for info.
 
     Sync offline or incomplete runs from the local `wandb` directory to
     the W&B server. If PATH is provided, sync runs at that path. If no
@@ -752,9 +778,9 @@ def sync(
 
         $ wandb sync --clean --clean-old-hours 48 --clean-force
     """
+    # Use `wandb beta sync` if possible.
     if (
         not legacy
-        and len(path) >= 1  # slightly different behavior when no paths
         and not any(TFEVENT_SUBSTRING in p for p in path)  # no tfevents support
         and not view
         # verbose, run_id, project, entity, job_type OK
@@ -783,12 +809,48 @@ def sync(
             job_type=job_type or "",
             replace_tags=replace_tags or "",
             dry_run=False,
+            skip_confirmation=skip_confirmation,
             skip_synced=not include_synced,
             skip_online=not include_online,
             verbose=verbose,
             parallelism=5,  # same default as wandb beta sync
         )
         return
+
+    # Print out deprecations for legacy options, especially if they prevent
+    # us from rerouting through `wandb beta sync`.
+    if view:
+        wandb.termwarn("--view is deprecated. Consider using `wandb leet`.")
+    if include_globs or exclude_globs:
+        wandb.termwarn(
+            "--include-globs and --exclude-globs are deprecated."
+            + " Provide explicit paths instead."
+        )
+    if include_offline is False:
+        wandb.termwarn("--no-include-offline is deprecated and will be removed.")
+    if not mark_synced:
+        wandb.termwarn("--no-mark-synced is deprecated and will be removed.")
+    if sync_all:
+        wandb.termwarn(
+            "--sync-all is deprecated. It is equivalent to"
+            + " `wandb sync --yes --include-online`."
+        )
+    if skip_console:
+        wandb.termwarn("--skip-console is deprecated and will be removed.")
+
+    # Fail if any beta options are provided in legacy mode.
+    bad_options: list[str] = []
+    if skip_confirmation:
+        bad_options.append("--yes")
+    if bad_options:
+        if not legacy:
+            wandb.termlog(
+                "Legacy mode was selected due to presence of legacy options."
+                + " See --help for more info or use `wandb beta sync` directly."
+            )
+
+        bad_opts_str = ", ".join(bad_options)
+        raise ClickException(f"Not allowed in legacy mode: {bad_opts_str}")
 
     api = _get_cling_api()
     if not api.is_authenticated:
@@ -2133,7 +2195,11 @@ def agent(ctx, project, entity, count, forward_signals, sweep_id):
         )
     # TODO: handle other errors with correct exit codes
     except SweepNotFoundError:
-        wandb.termerror("Sweep was deleted or agent was not found. Stopping agent.")
+        # The agent loop has already printed the "Sweep was deleted or agent was
+        # not found" error to the terminal before re-raising, so here we only
+        # need to report that we're stopping and translate it into a non-zero
+        # exit code.
+        wandb.termerror("Stopping agent.")
         sys.exit(1)
 
     # you can send local commands like so:
@@ -3199,21 +3265,8 @@ def pull(run, project, entity):
         if api.file_current(name, urls[name]["md5"]):
             click.echo(f"File {name} is up to date")
         else:
-            length, response = api.download_file(urls[name]["url"])
-            # TODO: I had to add this because some versions in CI broke click.progressbar
-            sys.stdout.write(f"File {name}\r")
-            dirname = os.path.dirname(name)
-            if dirname != "":
-                filesystem.mkdir_exists_ok(dirname)
-            with click.progressbar(
-                length=length,
-                label=f"File {name}",
-                fill_char=click.style("&", fg="green"),
-            ) as bar:
-                with open(name, "wb") as f:
-                    for data in response.iter_content(chunk_size=4096):
-                        f.write(data)
-                        bar.update(len(data))
+            api.download_file(urls[name]["url"], name)
+            click.echo(f"File {name}")
 
 
 @cli.command(context_settings=CONTEXT)
@@ -3329,10 +3382,8 @@ Run `git clone {repo}` and restore from there or pass the --no-git flag."""
 
     if commit and git.enabled:
         wandb.termlog(f"Fetching origin and finding commit: {commit}")
-        subprocess.check_call(["git", "fetch", "--all"])
-        try:
-            git.repo.commit(commit)
-        except ValueError:
+        git.fetch_all()
+        if not git.has_commit(commit):
             wandb.termlog(f"Couldn't find original commit: {commit}")
             commit = None
             files = api.download_urls(project, run=run, entity=entity)
@@ -3341,12 +3392,9 @@ Run `git clone {repo}` and restore from there or pass the --no-git flag."""
                     ".patch"
                 ):
                     commit = filename[len("upstream_diff_") : -len(".patch")]
-                    try:
-                        git.repo.commit(commit)
-                    except ValueError:
-                        commit = None
-                    else:
+                    if git.has_commit(commit):
                         break
+                    commit = None
 
             if commit:
                 wandb.termlog(f"Falling back to upstream commit: {commit}")
@@ -3362,22 +3410,22 @@ Run `git clone {repo}` and restore from there or pass the --no-git flag."""
                 patch_path = None
 
         branch_name = f"wandb/{run}"
-        if branch and branch_name not in git.repo.branches:
-            git.repo.git.checkout(commit, b=branch_name)
+        if branch and not git.has_branch(branch_name):
+            git.checkout_new_branch(branch_name, commit)
             wandb.termlog(f"Created branch {click.style(branch_name, bold=True)}")
         elif branch:
             wandb.termlog(
                 f"Using existing branch, run `git branch -D {branch_name}` from master for a clean checkout"
             )
-            git.repo.git.checkout(branch_name)
+            git.checkout(branch_name)
         else:
             wandb.termlog(f"Checking out {commit} in detached mode")
-            git.repo.git.checkout(commit)
+            git.checkout(commit)
 
         if patch_path:
             # we apply the patch from the repository root so git doesn't exclude
             # things outside the current directory
-            root = git.root
+            root = git.root_dir
             patch_rel_path = os.path.relpath(patch_path, start=root)
             # --reject is necessary or else this fails any time a binary file
             # occurs in the diff
@@ -3731,3 +3779,4 @@ def purge_cache(
 
 cli.add_command(beta)
 cli.add_command(leet)
+cli.add_command(clean)
