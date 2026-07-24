@@ -9,7 +9,7 @@ from wandb.apis.public.registries._utils import (
     advanced_search_enabled,
     registry_filter_for_collection,
     registry_filter_for_registry,
-    registry_project_id_filter_key,
+    registry_id_filter_key,
 )
 from wandb.apis.public.registries.registries_search import Collections, Registries
 from wandb.apis.public.registries.registry import Registry
@@ -22,7 +22,7 @@ REGISTRY_FILTER = {"name": "wandb-registry-test"}
 @pytest.fixture(autouse=True)
 def clear_registry_filter_caches():
     advanced_search_enabled.cache_clear()
-    registry_project_id_filter_key.cache_clear()
+    registry_id_filter_key.cache_clear()
 
 
 def _mock_advanced_search(service_api, *, enabled: bool) -> None:

@@ -209,7 +209,7 @@ def advanced_search_enabled(service_api: ServiceApi, organization: str) -> bool:
 
 
 @lru_cache(maxsize=10)
-def registry_project_id_filter_key(service_api: ServiceApi, organization: str) -> str:
+def registry_id_filter_key(service_api: ServiceApi, organization: str) -> str:
     """Return the registry project filter key for the organization's search backend."""
     if advanced_search_enabled(service_api, organization):
         return "id"
@@ -224,7 +224,7 @@ def registry_filter_for_registry(
 ) -> dict[str, Any]:
     filt: dict[str, Any] = {"name": registry.full_name}
     if project_id := _project_id_from_gql_id(registry.id):
-        filt[registry_project_id_filter_key(service_api, organization)] = project_id
+        filt[registry_id_filter_key(service_api, organization)] = project_id
     return filt
 
 
@@ -240,5 +240,5 @@ def registry_filter_for_collection(
     if (encoded_project_id := collection.project_id) and (
         project_id := _project_id_from_gql_id(encoded_project_id)
     ):
-        filt[registry_project_id_filter_key(service_api, organization)] = project_id
+        filt[registry_id_filter_key(service_api, organization)] = project_id
     return filt
