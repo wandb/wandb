@@ -139,10 +139,8 @@ def validate_project_name(name: str) -> str:
     # Find the first occurrence of any invalid character
     if invalid_chars := set(INVALID_URL_CHARS).intersection(name):
         error_name = registry_name or name
-        invalid_chars_repr = repr_join(sorted(invalid_chars))
-        raise ValueError(
-            f"Invalid project/registry name {error_name!r}, cannot contain characters: {invalid_chars_repr!s}"
-        )
+        msg = f"Invalid project/registry name {error_name!r}, cannot contain characters: {repr_join(sorted(invalid_chars))}"
+        raise ValueError(msg)
     return name
 
 
@@ -154,10 +152,8 @@ def validate_aliases(aliases: Iterable[str] | str) -> list[str]:
     """
     aliases_list = always_list(aliases)
     if any(ARTIFACT_SEP_CHARS.intersection(name) for name in aliases_list):
-        invalid_chars = repr_join(sorted(ARTIFACT_SEP_CHARS))
-        raise ValueError(
-            f"Aliases must not contain any of the following characters: {invalid_chars}"
-        )
+        msg = f"Aliases must not contain any of the following characters: {repr_join(sorted(ARTIFACT_SEP_CHARS))}"
+        raise ValueError(msg)
     return aliases_list
 
 
@@ -165,14 +161,11 @@ def validate_artifact_types(types: Iterable[str] | str) -> list[str]:
     """Validate the artifact type names and return them as a list."""
     types_list = always_list(types)
     if any(ARTIFACT_SEP_CHARS.intersection(name) for name in types_list):
-        invalid_chars = repr_join(sorted(ARTIFACT_SEP_CHARS))
-        raise ValueError(
-            f"Artifact types must not contain any of the following characters: {invalid_chars}"
-        )
+        msg = f"Artifact types must not contain any of the following characters: {repr_join(sorted(ARTIFACT_SEP_CHARS))}"
+        raise ValueError(msg)
     if any(len(name) > NAME_MAXLEN for name in types_list):
-        raise ValueError(
-            f"Artifact types must be less than or equal to {NAME_MAXLEN!r} characters"
-        )
+        msg = f"Artifact types must be less than or equal to {NAME_MAXLEN!r} characters"
+        raise ValueError(msg)
     return types_list
 
 
