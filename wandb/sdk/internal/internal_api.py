@@ -29,7 +29,7 @@ from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk import wandb_setup
 from wandb.sdk.internal import settings_static
 from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
-from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
+from wandb.sdk.lib.hashutil import B64Digest, md5_file_b64
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 from ..lib import retry, wbauth
@@ -2280,7 +2280,7 @@ class Api:
         """
         filename = metadata["name"]
         path = os.path.join(out_dir or self.settings("wandb_dir"), filename)
-        if self.file_current(path, B64MD5(metadata["md5"])):
+        if self.file_current(path, B64Digest(metadata["md5"])):
             return path, False
 
         self.download_file(metadata["url"], path)
@@ -2804,7 +2804,7 @@ class Api:
         return response["upsertSweep"]["sweep"]["name"], warnings
 
     @staticmethod
-    def file_current(fname: str, md5: B64MD5) -> bool:
+    def file_current(fname: str, md5: B64Digest) -> bool:
         """Checksum a file and compare the md5 with the known md5."""
         return os.path.isfile(fname) and md5_file_b64(fname) == md5
 

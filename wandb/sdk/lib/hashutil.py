@@ -5,12 +5,19 @@ import hashlib
 import logging
 import mmap
 import time
-from typing import TYPE_CHECKING, TypeAlias
+from typing import Protocol, TypeAlias
+
+import xxhash
 
 from wandb.sdk.lib.paths import StrPath
 
-if TYPE_CHECKING:
-    import _hashlib  # type: ignore[import-not-found]
+
+class Hasher(Protocol):
+    """Protocol for hashlib-compatible hash objects."""
+
+    def update(self, data: bytes | bytearray | mmap.mmap, /) -> None: ...
+    def digest(self) -> bytes: ...
+    def hexdigest(self) -> str: ...
 
 
 logger = logging.getLogger(__name__)
@@ -20,49 +27,97 @@ logger = logging.getLogger(__name__)
 # - a custom EncodedStr + Encoder impl: https://docs.pydantic.dev/latest/api/types/#pydantic.types.EncodedStr
 #
 ETag: TypeAlias = str
-HexMD5: TypeAlias = str
-B64MD5: TypeAlias = str
+
+HexDigest: TypeAlias = str
+B64Digest: TypeAlias = str
 
 
-def _md5(data: bytes = b"") -> _hashlib.HASH:
+# --- Hasher constructors ---
+
+
+def _md5(data: bytes = b"") -> Hasher:
     """Allow FIPS-compliant md5 hash when supported."""
     return hashlib.md5(data, usedforsecurity=False)
 
 
-def md5_string(string: str) -> B64MD5:
-    return _b64_from_hasher(_md5(string.encode("utf-8")))
+def _xxh128(data: bytes = b"") -> Hasher:
+    """Create an xxHash128 hasher (hashlib-compliant interface)."""
+    return xxhash.xxh128(data)
 
 
-def _b64_from_hasher(hasher: _hashlib.HASH) -> B64MD5:
-    return B64MD5(base64.b64encode(hasher.digest()).decode("ascii"))
+# --- Encoding helpers  ---
 
 
-def b64_to_hex_id(string: B64MD5) -> HexMD5:
-    return HexMD5(base64.standard_b64decode(string).hex())
+def _b64_from_hasher(hasher: Hasher) -> B64Digest:
+    return base64.b64encode(hasher.digest()).decode("ascii")
 
 
-def hex_to_b64_id(encoded_string: str | bytes) -> B64MD5:
+def b64_to_hex_id(string: B64Digest) -> HexDigest:
+    return base64.standard_b64decode(string).hex()
+
+
+def hex_to_b64_id(encoded_string: str | bytes) -> B64Digest:
     if isinstance(encoded_string, bytes):
         encoded_string = encoded_string.decode("utf-8")
     as_str = bytes.fromhex(encoded_string)
-    return B64MD5(base64.standard_b64encode(as_str).decode("utf-8"))
+    return base64.standard_b64encode(as_str).decode("utf-8")
 
 
-def md5_file_b64(*paths: StrPath) -> B64MD5:
+# --- MD5 public API ---
+
+
+def md5_string(string: str) -> B64Digest:
+    return _b64_from_hasher(_md5(string.encode("utf-8")))
+
+
+def md5_file_b64(*paths: StrPath) -> B64Digest:
     start_time = time.monotonic()
     digest = _b64_from_hasher(_md5_file_hasher(*paths))
-    hash_time_seconds = time.monotonic() - start_time
-    if hash_time_seconds > 1.0:
+    if (secs := (time.monotonic() - start_time)) > 1.0:
         logger.debug(
             "Computed MD5 hash for file. paths=%s, hashTimeMs=%d",
             paths,
-            int(hash_time_seconds * 1000),
+            int(secs * 1000),
         )
     return digest
 
 
-def md5_file_hex(*paths: StrPath) -> HexMD5:
-    return HexMD5(_md5_file_hasher(*paths).hexdigest())
+def md5_file_hex(*paths: StrPath) -> HexDigest:
+    return _md5_file_hasher(*paths).hexdigest()
+
+
+def _md5_file_hasher(*paths: StrPath) -> Hasher:
+    return _file_hasher(_md5(), *paths)
+
+
+# --- xxHash128 public API ---
+
+
+def xxh128_string(string: str) -> B64Digest:
+    return _b64_from_hasher(_xxh128(string.encode("utf-8")))
+
+
+def xxh128_file_b64(*paths: StrPath) -> B64Digest:
+    start_time = time.monotonic()
+    digest = _b64_from_hasher(_xxh128_file_hasher(*paths))
+    if (secs := (time.monotonic() - start_time)) > 1.0:
+        logger.debug(
+            "Computed XXH128 hash for file. paths=%s, hashTimeMs=%d",
+            paths,
+            int(secs * 1000),
+        )
+    return digest
+
+
+def xxh128_file_hex(*paths: StrPath) -> HexDigest:
+    return _xxh128_file_hasher(*paths).hexdigest()
+
+
+def _xxh128_file_hasher(*paths: StrPath) -> Hasher:
+    return _file_hasher(_xxh128(), *paths)
+
+
+# --- Shared file hashing implementation ---
 
 
 _KB: int = 1_024
@@ -70,29 +125,18 @@ _CHUNKSIZE: int = 128 * _KB
 """Chunk size (in bytes) for iteratively reading from file, if needed."""
 
 
-def _md5_file_hasher(*paths: StrPath) -> _hashlib.HASH:
-    md5_hash = _md5()
-
-    # Note: We use str paths (instead of pathlib.Path objs) for minor perf improvements.
+def _file_hasher(hasher: Hasher, *paths: StrPath) -> Hasher:
     for path in sorted(map(str, paths)):
         with open(path, "rb") as f:
             try:
                 with mmap.mmap(f.fileno(), length=0, access=mmap.ACCESS_READ) as mview:
-                    md5_hash.update(mview)
+                    hasher.update(mview)
             except OSError:
-                # This occurs if the mmap-ed file is on a different/mounted filesystem,
-                # so we'll fall back on a less performant implementation.
-
-                # Note: At the time of implementation, the walrus operator `:=`
-                # is avoided to maintain support for users on python 3.7.
-                # Consider revisiting once 3.7 support is no longer needed.
-                chunk = f.read(_CHUNKSIZE)
-                while chunk:
-                    md5_hash.update(chunk)
+                while chunk := f.read(_CHUNKSIZE):
+                    hasher.update(chunk)
                     chunk = f.read(_CHUNKSIZE)
             except ValueError:
-                # This occurs when mmap-ing an empty file, which can be skipped.
-                # See: https://github.com/python/cpython/blob/986a4e1b6fcae7fe7a1d0a26aea446107dd58dd2/Modules/mmapmodule.c#L1589
+                # Empty file — mmap raises ValueError, safe to skip.
                 pass
 
-    return md5_hash
+    return hasher

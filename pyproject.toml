@@ -20,6 +20,7 @@ dependencies = [
     "typing_extensions>=4.8,<5",
     "pydantic>=2.6,<3",
     "packaging",
+    "xxhash>=3.0.0",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
