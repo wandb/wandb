@@ -45,6 +45,18 @@ logger = logging.getLogger(__name__)
 _WB_ARTIFACT_SCHEME: Final[str] = "wandb-artifact"
 
 
+# Consts for tracking digest algorithm in an entry's extra field.
+# Only non-MD5 entries are tagged; untagged entries are interpreted as MD5.
+DIGEST_ALGORITHM_EXTRA_KEY: Final[str] = "alg"
+DIGEST_ALGORITHM_TO_STR: Final[Dict[ArtifactDigestAlgorithm, str]] = {
+    ArtifactDigestAlgorithm.MANIFEST_MD5: "MD5",
+    ArtifactDigestAlgorithm.MANIFEST_XXH128: "XXH128",
+}
+_STR_TO_DIGEST_ALGORITHM: Final[Dict[str, ArtifactDigestAlgorithm]] = {
+    v: k for k, v in DIGEST_ALGORITHM_TO_STR.items()
+}
+
+
 def _checksum_cache_path(file_path: str) -> str:
     """Get path for checksum in central cache directory."""
     from wandb.sdk.artifacts.artifact_file_cache import artifacts_cache_dir
@@ -155,6 +167,11 @@ class ArtifactManifestEntry(ArtifactsBase):
             raise NotImplementedError
         return self._parent_artifact
 
+    def digest_algorithm(self) -> ArtifactDigestAlgorithm:
+        """The digest algorithm used to hash this entry's file."""
+        raw = self.extra.get(DIGEST_ALGORITHM_EXTRA_KEY)
+        return _STR_TO_DIGEST_ALGORITHM.get(raw, ArtifactDigestAlgorithm.MANIFEST_MD5)
+
     def download(
         self,
         root: str | None = None,
@@ -184,7 +201,7 @@ class ArtifactManifestEntry(ArtifactsBase):
 
         # Fallback to computing/caching the checksum hash
         try:
-            if artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
+            if self.digest_algorithm() is ArtifactDigestAlgorithm.MANIFEST_XXH128:
                 existing_hash = xxh128_file_b64(dest_path)
             else:
                 existing_hash = md5_file_b64(dest_path)

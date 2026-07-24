@@ -384,11 +384,10 @@ def test_wandb_storage_policy_load_file_uses_cache_xxh128(
         path=file,
         digest=digest,
         size=5,
+        extra={"alg": "XXH128"},
     )
 
     empty_artifact = Artifact("test", type="dataset")
-    empty_artifact._digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_XXH128
-    empty_artifact.manifest.digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_XXH128
 
     local_path = policy.load_file(empty_artifact, entry)
 
