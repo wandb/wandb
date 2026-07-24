@@ -164,16 +164,11 @@ def fetch_org_entity_from_organization(
 
 
 def _project_id_from_gql_id(gql_id: str) -> int | None:
-    try:
-        kind, index = b64decode_ascii(gql_id).split(":", maxsplit=1)
-    except (ValueError, UnicodeDecodeError):
-        return None
-    if kind != "Project":
-        return None
-    try:
-        return int(index)
-    except ValueError:
-        return None
+    match b64decode_ascii(gql_id).split(":"):
+        case ["Project", idx] if idx.isdigit():
+            return int(idx)
+        case _:
+            raise ValueError(f"Invalid project ID: {gql_id!r}")
 
 
 @lru_cache(maxsize=10)
