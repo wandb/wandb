@@ -17,7 +17,6 @@ from typing_extensions import assert_never
 
 from wandb.errors.term import termwarn
 from wandb.proto import wandb_internal_pb2 as pb
-from wandb.sdk.artifacts._generated import ArtifactDigestAlgorithm
 from wandb.sdk.artifacts._models.storage import StoragePolicyConfig
 from wandb.sdk.artifacts.artifact_file_cache import (
     ArtifactFileCache,
@@ -135,7 +134,7 @@ class WandbStoragePolicy(StoragePolicy):
         path, hit, cache_open = self._cache.check_digest_obj_path(
             manifest_entry.digest,
             size=manifest_entry.size or 0,
-            algorithm=artifact.digest_algorithm,
+            algorithm=manifest_entry.digest_algorithm(),
         )
         if hit:
             return path
@@ -362,19 +361,17 @@ class WandbStoragePolicy(StoragePolicy):
 
         return False
 
-    def _write_cache(
-        self,
-        entry: ArtifactManifestEntry,
-        digest_algorithm: ArtifactDigestAlgorithm | None = None,
-    ) -> None:
+    def _write_cache(self, entry: ArtifactManifestEntry) -> None:
         if entry.local_path is None:
             return
 
-        # Cache upon successful upload.
+        # Cache upon successful upload. The cache is keyed by the algorithm that
+        # produced the entry's digest, so use the entry's own algorithm here to
+        # stay consistent with the download path in `load_file`.
         _, hit, cache_open = self._cache.check_digest_obj_path(
             entry.digest,
             size=entry.size or 0,
-            algorithm=digest_algorithm,
+            algorithm=entry.digest_algorithm(),
         )
 
         staging_dir = get_staging_dir()
