@@ -33,7 +33,8 @@ def spy_proxy(
     """
 
     http_client = httpx.AsyncClient()
-    port = _get_free_port()
+    server_socket = _get_bound_socket()
+    port = server_socket.getsockname()[1]
     proxy = WandbBackendProxy(
         client=http_client,
         target_host=target_host,
@@ -44,34 +45,38 @@ def spy_proxy(
 
     proxy_thread = threading.Thread(
         target=asyncio.run,
-        args=[_serve_then_close(server, http_client)],
+        args=[_serve_then_close(server, http_client, [server_socket])],
     )
     proxy_thread.start()
-    _wait_for_server(server)
 
     try:
+        _wait_for_server(server)
         yield proxy
     finally:
-        try:
-            server.should_exit = True
-            proxy_thread.join(timeout=30)
-        except TimeoutError as e:
-            raise AssertionError("Backend proxy server failed to shut down.") from e
+        server.should_exit = True
+        proxy_thread.join(timeout=30)
+        if proxy_thread.is_alive():
+            raise AssertionError("Backend proxy server failed to shut down.")
 
 
-def _get_free_port() -> int:
-    """Returns a free port on the system."""
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
+def _get_bound_socket() -> socket.socket:
+    """Returns a socket bound to an available localhost port."""
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        server_socket.bind(("127.0.0.1", 0))
+    except Exception:
+        server_socket.close()
+        raise
+    return server_socket
 
 
 async def _serve_then_close(
     server: uvicorn.Server,
     http_client: httpx.AsyncClient,
+    sockets: list[socket.socket],
 ) -> None:
     """Start the server, wait for it to shut down, then clean up."""
-    await server.serve()
+    await server.serve(sockets=sockets)
     await http_client.aclose()
 
 
