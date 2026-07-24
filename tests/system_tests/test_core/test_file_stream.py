@@ -70,7 +70,8 @@ def test_file_stream_forward_slashes(wandb_backend_spy):
             assert "\\" not in file
 
 
-def test_gzip_requests_are_processed(api, wandb_backend_spy):
+def test_gzip_requests_are_processed(user, wandb_backend_spy):
+    api = wandb.Api(api_key=user)
     if not api._service_api.feature_enabled(pb.ServerFeature.FILESTREAM_GZIP):
         pytest.skip("Server does not support gzip-compressed filestream requests")
 
