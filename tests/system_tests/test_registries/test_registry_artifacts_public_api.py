@@ -6,7 +6,7 @@ from urllib.parse import quote
 import wandb
 from pytest import fixture
 from wandb import Api, Artifact
-from wandb._strutils import nameof
+from wandb._strutils import b64encode_ascii, nameof
 from wandb.apis.public.registries.registry import Registry
 from wandb.sdk.artifacts._generated import (
     ArtifactFragment,
@@ -16,7 +16,12 @@ from wandb.sdk.artifacts._generated import (
 
 
 @fixture
-def mock_artifact_fragment_data() -> dict[str, Any]:
+def project_gql_id() -> str:
+    return b64encode_ascii("Project:1")
+
+
+@fixture
+def mock_artifact_fragment_data(project_gql_id: str) -> dict[str, Any]:
     fragment = ArtifactFragment(
         name="test-collection",  # NOTE: relevant
         version_index=0,  # NOTE: relevant
@@ -24,6 +29,7 @@ def mock_artifact_fragment_data() -> dict[str, Any]:
         artifact_sequence={
             "name": "test-collection",
             "project": {
+                "id": project_gql_id,
                 "name": "orig-project",
                 "entity": {"name": "test-team"},
             },
@@ -49,6 +55,7 @@ def mock_artifact_fragment_data() -> dict[str, Any]:
 @fixture
 def mock_membership_fragment_data(
     mock_artifact_fragment_data: dict[str, Any],
+    project_gql_id: str,
 ) -> dict[str, Any]:
     fragment = ArtifactMembershipFragment(
         id="PLACEHOLDER",
@@ -57,6 +64,7 @@ def mock_membership_fragment_data(
             "__typename": "ArtifactPortfolio",
             "name": "test-collection",  # NOTE: relevant
             "project": {
+                "id": project_gql_id,
                 "name": "wandb-registry-model",  # NOTE: relevant
                 "entity": {"name": "org-entity-name"},  # NOTE: relevant
             },
