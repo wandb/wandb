@@ -492,18 +492,14 @@ class Sweep(Attrs):
 
         mutation = """
         mutation EnqueueSweepRun(
+            $id: ID!,
             $config: JSONString!,
             $displayName: String,
-            $entityName: String,
-            $projectName: String,
-            $sweepName: String!,
         ) {
             enqueueSweepRun(input: {
+                id: $id,
                 config: $config,
                 displayName: $displayName,
-                entityName: $entityName,
-                projectName: $projectName,
-                sweepName: $sweepName,
             }) {
                 id
                 runQueueItemId
@@ -513,11 +509,9 @@ class Sweep(Attrs):
         data = self._service_api.execute_graphql(
             mutation,
             variables={
+                "id": self._attrs["id"],
                 "config": json.dumps(config),
                 "displayName": display_name,
-                "entityName": self.entity,
-                "projectName": self.project,
-                "sweepName": self.id,
             },
         )
         return data["enqueueSweepRun"]["id"]
