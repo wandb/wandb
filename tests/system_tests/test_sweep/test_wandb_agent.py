@@ -175,6 +175,33 @@ def _write_signal_parent_script(path: Path) -> Path:
     return script
 
 
+def _write_ignore_signals_child_script(path: Path) -> Path:
+    script = path / "child_ignore_signals.py"
+    script.write_text(
+        textwrap.dedent(
+            """
+            import signal
+            import time
+
+            signal.signal(signal.SIGINT, signal.SIG_IGN)
+            signal.signal(signal.SIGTERM, signal.SIG_IGN)
+
+            while True:
+                time.sleep(0.1)
+            """
+        ).strip()
+    )
+    return script
+
+
+# Parent script that used in the term_timeout end-to-end test. Unlike
+# _write_signal_parent_script, it uses an Agent to manage the AgentProcess
+# lifecycle (rather than AgentProcess directly) so it can pass a term_timeout.
+_TERM_TIMEOUT_PARENT_SCRIPT = (
+    Path(__file__).parent / "mock_scripts" / "parent_script_with_term_timeout.py"
+)
+
+
 @pytest.mark.skipif(
     platform.system() == "Windows", reason="POSIX signals required for this test"
 )
@@ -201,6 +228,42 @@ def test_agent_process_forwards_signals_end_to_end(tmp_path):
     assert result.returncode == 0, f"stderr:\n{result.stderr}"
     assert marker.exists()
     assert marker.read_text().strip() == str(int(signal.SIGTERM))
+
+
+@pytest.mark.skipif(
+    platform.system() == "Windows", reason="POSIX signals required for this test"
+)
+def test_agent_term_timeout_escalates_to_sigkill(tmp_path):
+    """Checks that a child that ignores signals past `term_timeout` is
+    escalated straight to SIGKILL rather than re-sent a polite SIGTERM."""
+
+    child_script = _write_ignore_signals_child_script(tmp_path)
+    parent_script = _TERM_TIMEOUT_PARENT_SCRIPT
+    term_timeout = 1
+
+    repo_root = Path(__file__).resolve().parents[3]
+    env = os.environ.copy()
+    env["PYTHONPATH"] = (
+        f"{repo_root}{os.pathsep}{env['PYTHONPATH']}"
+        if "PYTHONPATH" in env and env["PYTHONPATH"]
+        else str(repo_root)
+    )
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(parent_script),
+            str(child_script),
+            str(term_timeout),
+        ],
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=str(tmp_path),
+        timeout=60,
+    )
+
+    assert result.returncode == 0, f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
 
 
 def test_agent_cli_exit_code_on_sweep_not_found(runner, user):

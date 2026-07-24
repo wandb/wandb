@@ -15,6 +15,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 ## Unreleased
 
 ## Added
+- Added a `--term-timeout` flag to `wandb agent`, which automatically kills child processes produced by the Sweep agent if they are unresponsive to forwarded shutdown signals. (@nathancy-wandb in https://github.com/wandb/wandb/pull/12246)
 - Added the `wandb clean` command, which replaces `wandb sync --clean` (@timoffex in https://github.com/wandb/wandb/pull/12238)
 - Added support for gzip compression of filestream requests, reducing network traffic when logging metrics. It is currently opt-in and requires server support: set `x_file_stream_no_gzip=False` in `wandb.Settings` to enable it. Compression will become the default in a future release (@dmitryduev in https://github.com/wandb/wandb/pull/12262)
 
