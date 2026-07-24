@@ -5,11 +5,10 @@ from typing import TYPE_CHECKING, Annotated, Any
 
 from pydantic import BeforeValidator, field_validator
 
+from wandb._filters import BaseOp, FilterExpr
 from wandb._iterutils import always_list
 from wandb._pydantic import GQLBase
 from wandb.automations._validators import LenientStrEnum
-
-from ._filters import BaseOp, FilterExpr
 
 if TYPE_CHECKING:
     from wandb.automations.events import EventType, RunStateFilter

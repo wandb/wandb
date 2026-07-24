@@ -12,6 +12,7 @@ class WandbXpuBuildError(Exception):
 def build_wandb_xpu(
     cargo_binary: pathlib.Path,
     output_path: pathlib.Path,
+    target_triple: str | None = None,
 ) -> None:
     """Builds the `wandb-xpu` Rust binary for monitoring hardware accelerators.
 
@@ -26,17 +27,21 @@ def build_wandb_xpu(
         cargo_binary: Path to the Cargo binary, which must exist.
         output_path: The path where to output the binary, relative to the
             workspace root.
+        target_triple: Rust target triple, or None to build for the host.
     """
     rust_pkg_root = pathlib.Path("./xpu")
 
-    cmd = (
+    cmd = [
         str(cargo_binary),
         "build",
+        "--locked",
         "--release",
         "--bin",
         "wandb-xpu",
         "--message-format=json",
-    )
+    ]
+    if target_triple:
+        cmd.extend(("--target", target_triple))
 
     try:
         cargo_output = subprocess.check_output(cmd, cwd=rust_pkg_root, text=True)

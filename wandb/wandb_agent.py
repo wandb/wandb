@@ -656,29 +656,6 @@ class Agent:
         self._running = False
 
 
-class AgentApi:
-    def __init__(self, queue):
-        self._queue = queue
-        self._command_id = 0
-        self._multiproc_manager = multiprocessing.Manager()
-
-    def command(self, command):
-        command["origin"] = "local"
-        command["id"] = f"local-{self._command_id}"
-        self._command_id += 1
-        resp_queue = self._multiproc_manager.Queue()
-        command["resp_queue"] = resp_queue
-        self._queue.put(command)
-        result = resp_queue.get()
-        print("result:", result)  # noqa: T201
-        if "exception" in result:
-            print("Exception occurred while running command")  # noqa: T201
-            for line in result["traceback"]:
-                print(line.strip())  # noqa: T201
-            print(result["exception"])  # noqa: T201
-        return result
-
-
 def run_agent(
     sweep_id,
     function=None,

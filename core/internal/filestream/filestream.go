@@ -13,6 +13,7 @@ import (
 	"golang.org/x/time/rate"
 
 	"github.com/wandb/wandb/core/internal/api"
+	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/wboperation"
@@ -115,6 +116,9 @@ type fileStream struct {
 	// A way to print console messages to the user.
 	printer *observability.Printer
 
+	// featureProvider indicates which features the server supports.
+	featureProvider *featurechecker.FeatureProvider
+
 	// The client for making API requests.
 	apiClient api.RetryableClient
 	baseURL   *url.URL
@@ -142,11 +146,12 @@ var FileStreamProviders = wire.NewSet(
 )
 
 type FileStreamFactory struct {
-	BaseURL    api.WBBaseURL
-	Logger     *observability.CoreLogger
-	Operations *wboperation.WandbOperations
-	Printer    *observability.Printer
-	Settings   *settings.Settings
+	BaseURL         api.WBBaseURL
+	FeatureProvider *featurechecker.FeatureProvider
+	Logger          *observability.CoreLogger
+	Operations      *wboperation.WandbOperations
+	Printer         *observability.Printer
+	Settings        *settings.Settings
 }
 
 // New returns a new FileStream.
@@ -158,6 +163,8 @@ func (f *FileStreamFactory) New(
 ) FileStream {
 	// Panic early to avoid surprises. These fields are required.
 	switch {
+	case f.FeatureProvider == nil:
+		panic("filestream: nil feature provider")
 	case f.Logger == nil:
 		panic("filestream: nil logger")
 	case f.Printer == nil:
@@ -167,6 +174,7 @@ func (f *FileStreamFactory) New(
 	fs := &fileStream{
 		beforeRunEndCtx: beforeRunEndCtx,
 		settings:        f.Settings,
+		featureProvider: f.FeatureProvider,
 		logger:          f.Logger,
 		operations:      f.Operations,
 		printer:         f.Printer,
