@@ -675,7 +675,7 @@ class Agent:
         run_id = command["run_id"]
         if run_id in self._run_processes:
             proc = self._run_processes[run_id]
-            now = util.stopwatch_now()
+            now = time.monotonic()
             if proc.last_sigterm_time is None:
                 proc.last_sigterm_time = now
                 logger.info("Stop: %s", run_id)

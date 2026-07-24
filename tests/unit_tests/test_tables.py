@@ -386,6 +386,22 @@ def test_table_logging_mode_incremental_relogs_after_mutation(
     assert log_artifact.call_count == 2
 
 
+def test_table_records_telemetry(mocker, mock_run):
+    """Logging a Table sets run-level telemetry, split by incremental vs regular."""
+    run = mock_run()
+    mocker.patch.object(run, "log_artifact")
+
+    assert not run._telemetry_obj.feature.table
+    assert not run._telemetry_obj.feature.incremental_table
+
+    run.log({"regular": wandb.Table(columns=["a"], data=[[1]])})
+    assert run._telemetry_obj.feature.table is True
+    assert run._telemetry_obj.feature.incremental_table is False
+
+    run.log({"inc": wandb.Table(columns=["a"], data=[[1]], log_mode="INCREMENTAL")})
+    assert run._telemetry_obj.feature.incremental_table is True
+
+
 def test_table_logging_mode_incremental_operations():
     """Test that INCREMENTAL mode correctly handles unsupported operations."""
     t = wandb.Table(columns=["a", "b"], log_mode="INCREMENTAL")
