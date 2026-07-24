@@ -2,6 +2,7 @@ package filestream
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 
 	"github.com/wandb/wandb/core/internal/wboperation"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // startProcessingUpdates asynchronously ingests updates.
@@ -135,6 +137,25 @@ func (fs *fileStream) send(
 	}
 	fs.logger.Debug("filestream: post request", "request", string(jsonData))
 
+	useGzip := fs.settings.IsFileStreamGzipEnabled() &&
+		fs.featureProvider.Enabled(
+			fs.beforeRunEndCtx,
+			spb.ServerFeature_FILESTREAM_GZIP,
+		)
+
+	requestBody := jsonData
+	if useGzip {
+		var compressed bytes.Buffer
+		gzipWriter := gzip.NewWriter(&compressed)
+		if _, err := gzipWriter.Write(jsonData); err != nil {
+			return fmt.Errorf("filestream: gzip write error in send(): %v", err)
+		}
+		if err := gzipWriter.Close(); err != nil {
+			return fmt.Errorf("filestream: gzip close error in send(): %v", err)
+		}
+		requestBody = compressed.Bytes()
+	}
+
 	op := fs.trackUploadOperation(data)
 	defer op.Finish()
 
@@ -142,12 +163,15 @@ func (fs *fileStream) send(
 		op.Context(fs.beforeRunEndCtx),
 		http.MethodPost,
 		fs.baseURL.JoinPath(fs.path).String(),
-		bytes.NewReader(jsonData),
+		bytes.NewReader(requestBody),
 	)
 	if err != nil {
 		return fmt.Errorf("filestream: error constructing request: %v", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	if useGzip {
+		req.Header.Set("Content-Encoding", "gzip")
+	}
 
 	shouldLogStartAndEnd := !data.IsHeartbeat()
 	if shouldLogStartAndEnd {

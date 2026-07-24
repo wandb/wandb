@@ -1649,4 +1649,7 @@ enum ServerFeature {
 
   // Indicates that the server supports Organization.triggers.
   AUTOMATIONS_ON_ORGANIZATION = 33;
+
+  // Indicates that the server supports gzip-compressed filestream request bodies.
+  FILESTREAM_GZIP = 34;
 }
