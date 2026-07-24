@@ -144,7 +144,7 @@ class Sweeps(SizedPaginator["Sweep"]):
     def _length(self) -> int:
         """The total number of sweeps in the project.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if not self.last_response:
             self._load_page()
@@ -159,7 +159,7 @@ class Sweeps(SizedPaginator["Sweep"]):
     def more(self) -> bool:
         """Returns whether there are more sweeps to fetch.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if (
             self.last_response
@@ -176,7 +176,7 @@ class Sweeps(SizedPaginator["Sweep"]):
     def cursor(self) -> str | None:
         """Returns the cursor for the next page of sweeps.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if (
             self.last_response
@@ -192,7 +192,7 @@ class Sweeps(SizedPaginator["Sweep"]):
     def convert_objects(self) -> list[Sweep]:
         """Converts the last GraphQL response into a list of `Sweep` objects.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         from wandb._pydantic import Connection
         from wandb.apis._generated import SweepFragment
@@ -319,7 +319,7 @@ class Sweep(Attrs):
     def load(self, force: bool = False):
         """Fetch and update sweep data logged to the run from GraphQL database.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if force or not self._attrs:
             if not (

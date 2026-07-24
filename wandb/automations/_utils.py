@@ -6,9 +6,9 @@ from typing import Annotated, Any, Final, Protocol, TypedDict
 from pydantic import Field
 from typing_extensions import Self, Unpack
 
+from wandb._filters import MongoLikeFilter
 from wandb._pydantic import GQLId, GQLInput, computed_field, model_validator, to_json
 
-from ._filters import MongoLikeFilter
 from ._generated import (
     CreateFilterTriggerInput,
     QueueJobActionInput,

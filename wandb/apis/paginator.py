@@ -159,10 +159,7 @@ class SizedPaginator(Paginator[_WandbT], Sized, ABC):
 
 
 class RelayPaginator(Paginator[_WandbT], Generic[_NodeT, _WandbT], ABC):
-    """A Paginator for GQL relay-style nodes parsed via Pydantic.
-
-    <!-- lazydoc-ignore-class: internal -->
-    """
+    """A Paginator for GQL relay-style nodes parsed via Pydantic."""
 
     last_response: Connection[_NodeT] | None
 
@@ -224,10 +221,7 @@ class RelayPaginator(Paginator[_WandbT], Generic[_NodeT, _WandbT], ABC):
 
 
 class SizedRelayPaginator(RelayPaginator[_NodeT, _WandbT], Sized, ABC):
-    """A Paginator for GQL nodes parsed via Pydantic, with a known total count.
-
-    <!-- lazydoc-ignore-class: internal -->
-    """
+    """A Paginator for GQL nodes parsed via Pydantic, with a known total count."""
 
     last_response: Connection[_NodeT] | None
 

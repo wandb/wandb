@@ -50,11 +50,12 @@ func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.
 		Operations: wandbOperations,
 	}
 	fileStreamFactory := &filestream.FileStreamFactory{
-		BaseURL:    wbBaseURL,
-		Logger:     logger,
-		Operations: wandbOperations,
-		Printer:    printer,
-		Settings:   settings2,
+		BaseURL:         wbBaseURL,
+		FeatureProvider: featureProvider,
+		Logger:          logger,
+		Operations:      wandbOperations,
+		Printer:         printer,
+		Settings:        settings2,
 	}
 	fileTransferStats := filetransfer.NewFileTransferStats()
 	fileTransferManager := stream.NewFileTransferManager(wbBaseURL, fileTransferStats, logger, settings2)

@@ -68,10 +68,7 @@ def _run_artifacts_mode_to_gql() -> dict[Literal["logged", "used"], str]:
 
 
 class _ArtifactCollectionAliases(RelayPaginator["ArtifactAliasFragment", str]):
-    """An internal iterator of collection alias names.
-
-    <!-- lazydoc-ignore-init: internal -->
-    """
+    """An internal iterator of collection alias names."""
 
     QUERY: ClassVar[str | None] = None
     last_response: Connection[ArtifactAliasFragment] | None
@@ -205,7 +202,7 @@ class ArtifactType:
     def load(self) -> ArtifactTypeFragment:
         """Load the artifact type attributes from W&B.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         from wandb.sdk.artifacts._generated import (
             PROJECT_ARTIFACT_TYPE_GQL,
@@ -599,7 +596,7 @@ class ArtifactCollection:
     ) -> ArtifactCollectionFragment:
         """Fetch and return the validated artifact collection data from W&B.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         from wandb.sdk.artifacts._generated import (
             PROJECT_ARTIFACT_COLLECTION_GQL,
@@ -960,7 +957,7 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
     def convert_objects(self) -> list[Artifact]:
         """Convert the raw response data into a list of wandb.Artifact objects.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if (conn := self.last_response) is None:
             return []

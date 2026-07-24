@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, TypeAlias
 import wandb
 from pytest import FixtureRequest, fixture, skip
 from wandb import Artifact
+from wandb._filters import FilterExpr
 from wandb.apis.public import ArtifactCollection, Organization, Project, Team
 from wandb.automations import (
     ActionType,
@@ -30,7 +31,6 @@ from wandb.automations import (
     SendWebhook,
     WebhookIntegration,
 )
-from wandb.automations._filters import FilterExpr
 from wandb.automations._generated import (
     CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL,
     CreateGenericWebhookIntegration,

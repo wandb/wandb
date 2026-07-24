@@ -3,4 +3,4 @@
 package transfermanager
 
 // goModuleVersion is the tagged release for this module
-const goModuleVersion = "0.3.3"
+const goModuleVersion = "0.3.5"

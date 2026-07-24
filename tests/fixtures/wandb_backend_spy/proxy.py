@@ -93,6 +93,7 @@ def _wait_for_server(server: uvicorn.Server) -> None:
 
 _RELAYABLE_REQUEST_HEADERS = {
     "authorization",
+    "content-encoding",
     "x-wandb-username",
     "user-agent",
     "content-type",
@@ -226,6 +227,7 @@ class WandbBackendProxy:
                 entity=entity,
                 project=project,
                 run_id=run_id,
+                content_encoding=request.headers.get("content-encoding"),
             )
 
         return response
