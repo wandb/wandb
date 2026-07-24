@@ -107,6 +107,7 @@ fragment ArtifactCollectionFragment on ArtifactCollection {
 
 fragment ProjectInfoFragment on Project {
   id
+  internalId
   name
   entity {
     name
@@ -154,6 +155,7 @@ fragment ArtifactCollectionFragment on ArtifactCollection {
 
 fragment ProjectInfoFragment on Project {
   id
+  internalId
   name
   entity {
     name
@@ -201,6 +203,7 @@ fragment ArtifactCollectionFragment on ArtifactCollection {
 
 fragment ProjectInfoFragment on Project {
   id
+  internalId
   name
   entity {
     name
@@ -293,6 +296,7 @@ fragment PageInfoFragment on PageInfo {
 
 fragment ProjectInfoFragment on Project {
   id
+  internalId
   name
   entity {
     name
@@ -359,6 +363,7 @@ fragment PageInfoFragment on PageInfo {
 
 fragment ProjectInfoFragment on Project {
   id
+  internalId
   name
   entity {
     name
@@ -408,6 +413,7 @@ fragment ArtifactCollectionFragment on ArtifactCollection {
 
 fragment ProjectInfoFragment on Project {
   id
+  internalId
   name
   entity {
     name
@@ -655,6 +661,7 @@ fragment PageInfoFragment on PageInfo {
 
 fragment ProjectInfoFragment on Project {
   id
+  internalId
   name
   entity {
     name
@@ -750,6 +757,7 @@ fragment PageInfoFragment on PageInfo {
 
 fragment ProjectInfoFragment on Project {
   id
+  internalId
   name
   entity {
     name
@@ -845,6 +853,7 @@ fragment PageInfoFragment on PageInfo {
 
 fragment ProjectInfoFragment on Project {
   id
+  internalId
   name
   entity {
     name
@@ -902,6 +911,7 @@ fragment CollectionInfoFragment on ArtifactCollection {
 
 fragment ProjectInfoFragment on Project {
   id
+  internalId
   name
   entity {
     name
@@ -981,6 +991,7 @@ fragment CollectionInfoFragment on ArtifactCollection {
 
 fragment ProjectInfoFragment on Project {
   id
+  internalId
   name
   entity {
     name
@@ -1075,6 +1086,7 @@ fragment CollectionInfoFragment on ArtifactCollection {
 
 fragment ProjectInfoFragment on Project {
   id
+  internalId
   name
   entity {
     name
@@ -1111,6 +1123,7 @@ query ArtifactUsedBy($id: ID!) {
 
 fragment ProjectInfoFragment on Project {
   id
+  internalId
   name
   entity {
     name
@@ -1141,6 +1154,7 @@ query ArtifactCreatedBy($id: ID!) {
 
 fragment ProjectInfoFragment on Project {
   id
+  internalId
   name
   entity {
     name
@@ -1243,6 +1257,7 @@ fragment CollectionInfoFragment on ArtifactCollection {
 
 fragment ProjectInfoFragment on Project {
   id
+  internalId
   name
   entity {
     name
@@ -1348,6 +1363,7 @@ fragment CollectionInfoFragment on ArtifactCollection {
 
 fragment ProjectInfoFragment on Project {
   id
+  internalId
   name
   entity {
     name
@@ -1520,6 +1536,7 @@ fragment PageInfoFragment on PageInfo {
 
 fragment ProjectInfoFragment on Project {
   id
+  internalId
   name
   entity {
     name
@@ -1577,6 +1594,7 @@ fragment PageInfoFragment on PageInfo {
 
 fragment ProjectInfoFragment on Project {
   id
+  internalId
   name
   entity {
     name
@@ -1624,6 +1642,7 @@ query FetchRegistry($name: String, $entity: String) {
 fragment RegistryFragment on Project {
   __typename
   id
+  internalId
   name
   entity {
     name
@@ -1673,6 +1692,7 @@ fragment PageInfoFragment on PageInfo {
 fragment RegistryFragment on Project {
   __typename
   id
+  internalId
   name
   entity {
     name
@@ -1708,6 +1728,7 @@ mutation RenameRegistry($input: RenameProjectInput!) {
 fragment RegistryFragment on Project {
   __typename
   id
+  internalId
   name
   entity {
     name
@@ -1743,6 +1764,7 @@ mutation UpsertRegistry($input: UpsertModelInput!) {
 fragment RegistryFragment on Project {
   __typename
   id
+  internalId
   name
   entity {
     name

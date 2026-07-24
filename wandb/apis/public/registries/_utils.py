@@ -163,12 +163,34 @@ def fetch_org_entity_from_organization(
     return org_name
 
 
+def _internal_id_value(value: str | int | None) -> int | None:
+    """Coerce a GraphQL ``internalId`` (or legacy project id) to an int, if possible."""
+    if value is None:
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.isdigit():
+        return int(value)
+    return None
+
+
 def _project_id_from_gql_id(gql_id: str) -> int | None:
-    match b64decode_ascii(gql_id).split(":"):
+    """Decode a legacy numeric project ID from a GraphQL project ID, if present.
+
+    Newer registry project IDs use the ``Project:v1:...`` format and do not embed a
+    numeric index. In those cases, return ``None`` so callers can fall back to name-only
+    filters.
+    """
+    try:
+        decoded = b64decode_ascii(gql_id)
+    except (ValueError, UnicodeDecodeError):
+        return None
+
+    match decoded.split(":", maxsplit=1):
         case ["Project", idx] if idx.isdigit():
             return int(idx)
         case _:
-            raise ValueError(f"Invalid project ID: {gql_id!r}")
+            return None
 
 
 @lru_cache(maxsize=10)
@@ -223,8 +245,13 @@ def filter_for_registry(
     organization: str,
 ) -> dict[str, Any]:
     filt: dict[str, Any] = {"name": registry.full_name}
-    if project_id := _project_id_from_gql_id(registry.id):
-        return filt | {registry_id_filter_key(service_api, organization): project_id}
+    internal_id = _internal_id_value(registry.internal_id) or _project_id_from_gql_id(
+        registry.id
+    )
+    if internal_id is not None:
+        return filt | {
+            registry_id_filter_key(service_api, organization): internal_id
+        }
     return filt
 
 
@@ -237,6 +264,11 @@ def registry_filter_for_collection(
     filt: dict[str, Any] = {}
     if registry_name := collection.project:
         filt["name"] = registry_name
-    if project_id := _project_id_from_gql_id(collection.project_id):
-        return filt | {registry_id_filter_key(service_api, organization): project_id}
+    internal_id = _internal_id_value(
+        collection.project_internal_id
+    ) or _project_id_from_gql_id(collection.project_id)
+    if internal_id is not None:
+        return filt | {
+            registry_id_filter_key(service_api, organization): internal_id
+        }
     return filt

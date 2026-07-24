@@ -20,6 +20,7 @@ class ArtifactAliasFragment(GQLResult):
 
 class ProjectInfoFragment(GQLResult):
     id: GQLId
+    internal_id: GQLId = Field(alias="internalId")
     name: str
     entity: ProjectInfoFragmentEntity
 
@@ -205,6 +206,7 @@ class RegistryCollectionFragmentTagsEdges(GQLResult):
 class RegistryFragment(GQLResult):
     typename__: Typename[Literal["Project"]] = "Project"
     id: GQLId
+    internal_id: GQLId = Field(alias="internalId")
     name: str
     entity: RegistryFragmentEntity
     description: str | None

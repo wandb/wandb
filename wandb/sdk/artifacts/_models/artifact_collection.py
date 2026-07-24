@@ -51,6 +51,9 @@ class ArtifactCollectionData(ArtifactsBase):
     project_id: str = Field(frozen=True, repr=False)
     """The encoded GraphQL ID for this collection's project."""
 
+    project_internal_id: GQLId = Field(frozen=True, repr=False)
+    """The internal numeric ID for this collection's backing project."""
+
     entity: str = Field(frozen=True)
     """The name of the entity that owns this collection's project."""
 
@@ -110,6 +113,7 @@ class ArtifactCollectionData(ArtifactsBase):
             updated_at=obj.updated_at,
             project=obj.project.name,
             project_id=obj.project.id,
+            project_internal_id=obj.project.internal_id,
             entity=obj.project.entity.name,
             tags=[e.node.name for e in obj.tags.edges if e.node],
             aliases=None,

@@ -6,6 +6,7 @@ from collections.abc import Iterable
 import pytest
 from wandb._strutils import b64encode_ascii
 from wandb.apis.public.registries._utils import (
+    _project_id_from_gql_id,
     advanced_search_enabled,
     filter_for_registry,
     registry_filter_for_collection,
@@ -48,6 +49,7 @@ def test_registry_filter_uses_project_id_when_filtering_sorting_disabled(
     registry = mocker.Mock(spec=Registry)
     registry.full_name = "wandb-registry-test"
     registry.id = b64encode_ascii("Project:42")
+    registry.internal_id = "42"
 
     assert filter_for_registry(registry, service_api=service_api, organization=ORG) == {
         "name": "wandb-registry-test",
@@ -66,6 +68,7 @@ def test_filter_for_registry_uses_project_id_key(service_api, mocker, enabled, k
     registry = mocker.Mock(spec=Registry)
     registry.full_name = "wandb-registry-test"
     registry.id = b64encode_ascii("Project:42")
+    registry.internal_id = "42"
 
     assert filter_for_registry(registry, service_api=service_api, organization=ORG) == {
         "name": "wandb-registry-test",
@@ -80,6 +83,7 @@ def test_registry_filter_for_collection_uses_project_id_key(service_api, mocker)
     collection = mocker.Mock(spec=ArtifactCollection)
     collection.project = "wandb-registry-test"
     collection.project_id = b64encode_ascii("Project:42")
+    collection.project_internal_id = "42"
 
     assert registry_filter_for_collection(
         collection, service_api=service_api, organization=ORG
@@ -87,6 +91,26 @@ def test_registry_filter_for_collection_uses_project_id_key(service_api, mocker)
         "name": "wandb-registry-test",
         "id": 42,
     }
+
+
+def test_project_id_from_gql_id_returns_none_for_v1_registry_ids():
+    gql_id = b64encode_ascii("Project:v1:wandb-registry-order-test-reg-0:my-org")
+
+    assert _project_id_from_gql_id(gql_id) is None
+
+
+def test_filter_for_registry_falls_back_to_name_for_v1_registry_ids(
+    service_api, mocker
+):
+    registry = mocker.Mock(spec=Registry)
+    registry.full_name = "wandb-registry-order-test-reg-0"
+    registry.id = b64encode_ascii("Project:v1:wandb-registry-order-test-reg-0:my-org")
+    registry.internal_id = None
+
+    assert filter_for_registry(registry, service_api=service_api, organization=ORG) == {
+        "name": "wandb-registry-order-test-reg-0",
+    }
+    service_api.execute_graphql.assert_not_called()
 
 
 @pytest.fixture

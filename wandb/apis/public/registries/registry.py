@@ -77,6 +77,11 @@ class Registry:
         return self._current.id
 
     @property
+    def internal_id(self) -> str:
+        """The internal numeric ID for this registry's backing project."""
+        return self._current.internal_id
+
+    @property
     def full_name(self) -> str:
         """Full name of the registry including the `wandb-registry-` prefix."""
         return self._current.full_name
