@@ -1438,6 +1438,17 @@ def init(  # noqa: C901
     if resume_from is not None:
         init_settings.resume_from = resume_from  # type: ignore
 
+    if (
+        init_settings.sweep_id is not None
+        and config is None
+        and init_settings.sweep_param_path is None
+        and not init_settings.launch
+    ):
+        raise UsageError(
+            "Must specify `config` when associating a run with a sweep via "
+            "`settings=Settings(sweep_id=...)`."
+        )
+
     if config is not None:
         init_telemetry.feature.set_init_config = True
 

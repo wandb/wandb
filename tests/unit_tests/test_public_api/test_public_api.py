@@ -14,7 +14,7 @@ from wandb.errors import UsageError
 from wandb.proto import wandb_api_pb2 as apb
 from wandb.sdk import wandb_login
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
-from wandb.sdk.lib import wbauth
+from wandb.sdk.lib import config_util, wbauth
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 
@@ -484,3 +484,51 @@ def test_api_does_not_use_requests_auth(mocker: MockerFixture):
     Api()
 
     mock_auth.as_requests_auth.assert_not_called()
+
+
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
+def test_create_run_with_sweep_requires_config():
+    api = Api()
+    with pytest.raises(UsageError, match="Must specify `config`"):
+        api.create_run(project="test", entity="test-entity", sweep_id="abc123")
+
+
+def test_config_dict_to_json_uses_json_friendly_val():
+    np = pytest.importorskip("numpy")
+    from wandb.apis.public.api import _config_dict_to_json
+
+    config_json = _config_dict_to_json({"lr": np.float64(0.01)})
+    assert json.loads(config_json) == {"lr": {"value": 0.01, "desc": None}}
+
+
+def test_init_sweep_requires_config():
+    with pytest.raises(UsageError, match="Must specify `config`"):
+        wandb.init(settings={"sweep_id": "abc123"}, mode="disabled")
+
+
+def test_init_sweep_allows_missing_config_with_sweep_param_path(tmp_path):
+    config_path = tmp_path / "sweep-config.yaml"
+    config_util.save_config_file_from_dict(
+        str(config_path),
+        {"lr": {"value": 0.01, "desc": None}},
+    )
+
+    # pyagent supplies trial config via sweep_param_path instead of init(config=...)
+    run = wandb.init(
+        settings={
+            "sweep_id": "abc123",
+            "sweep_param_path": str(config_path),
+        },
+        mode="disabled",
+    )
+    run.finish()
+
+
+def test_init_sweep_allows_missing_config_when_launched():
+    # Launch-scheduled sweep runs get their config injected later via the
+    # WANDB_CONFIG env var, not the config kwarg to init().
+    run = wandb.init(
+        settings={"sweep_id": "abc123", "launch": True},
+        mode="disabled",
+    )
+    run.finish()

@@ -50,6 +50,7 @@ from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 from wandb.sdk.lib import runid, wbauth
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
+from wandb.util import json_friendly_val
 
 if TYPE_CHECKING:
     from wandb.automations import (
@@ -100,6 +101,21 @@ def _is_service_api_transport_error(error: BaseException | None) -> bool:
         HTTPStatus.REQUEST_TIMEOUT.value,
         HTTPStatus.GATEWAY_TIMEOUT.value,
     }
+
+
+def _validate_sweep_requires_config(
+    *,
+    sweep_id: str | None,
+    config: dict[str, Any] | None,
+) -> None:
+    if sweep_id is not None and config is None:
+        raise UsageError("Must specify `config` when associating a run with a sweep.")
+
+
+def _config_dict_to_json(config: dict[str, Any]) -> str:
+    return json.dumps(
+        {k: {"value": json_friendly_val(v), "desc": None} for k, v in config.items()}
+    )
 
 
 class Api:
@@ -259,6 +275,8 @@ class Api:
         run_id: str | None = None,
         project: str | None = None,
         entity: str | None = None,
+        sweep_id: str | None = None,
+        config: dict[str, Any] | None = None,
     ) -> public.Run:
         """Create a new run.
 
@@ -269,13 +287,22 @@ class Api:
                 log the run to a project called "Uncategorized".
             entity: The entity that owns the project. If no entity is
                 specified, log the run to the default entity.
+            sweep_id: The ID of an existing sweep to associate the run with.
+            config: Run hyperparameters and other config values. Required when
+                `sweep_id` is specified.
 
         Returns:
             The newly created `Run`.
         """
         if entity is None:
             entity = self.default_entity
-        return self._create_run(run_id=run_id, project=project, entity=entity)
+        return self._create_run(
+            run_id=run_id,
+            project=project,
+            entity=entity,
+            sweep_id=sweep_id,
+            config=config,
+        )
 
     def _create_run(
         self,
@@ -284,13 +311,31 @@ class Api:
         project: str | None = None,
         entity: str | None = None,
         state: Literal["running", "pending"] = "running",
+        sweep_id: str | None = None,
+        config: dict[str, Any] | None = None,
     ) -> public.Run:
+        _validate_sweep_requires_config(sweep_id=sweep_id, config=config)
         self._sentry.message("Invoking Run.create", level="info")
         run_id = run_id or runid.generate_id()
         project = project or self.settings.get("project") or "uncategorized"
+        config_json = _config_dict_to_json(config) if config is not None else None
         mutation = """
-        mutation UpsertBucket($project: String, $entity: String, $name: String!, $state: String) {
-            upsertBucket(input: {modelName: $project, entityName: $entity, name: $name, state: $state}) {
+        mutation UpsertBucket(
+            $project: String,
+            $entity: String,
+            $name: String!,
+            $state: String,
+            $sweep: String,
+            $config: JSONString,
+        ) {
+            upsertBucket(input: {
+                modelName: $project,
+                entityName: $entity,
+                name: $name,
+                state: $state,
+                sweep: $sweep,
+                config: $config,
+            }) {
                 bucket {
                     project {
                         name
@@ -298,6 +343,7 @@ class Api:
                     }
                     id
                     name
+                    sweepName
                 }
                 inserted
             }
@@ -308,6 +354,8 @@ class Api:
             "project": project,
             "name": run_id,
             "state": state,
+            "sweep": sweep_id,
+            "config": config_json,
         }
         res = self._service_api.execute_graphql(
             mutation,
@@ -321,7 +369,7 @@ class Api:
             res["name"],
             {
                 "id": res["id"],
-                "config": "{}",
+                "config": config_json or "{}",
                 "systemMetrics": "{}",
                 "summaryMetrics": "{}",
                 "tags": [],
