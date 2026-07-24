@@ -216,7 +216,7 @@ def registry_id_filter_key(service_api: ServiceApi, organization: str) -> str:
     return "project_id"
 
 
-def registry_filter_for_registry(
+def filter_for_registry(
     registry: Registry,
     *,
     service_api: ServiceApi,
@@ -224,7 +224,7 @@ def registry_filter_for_registry(
 ) -> dict[str, Any]:
     filt: dict[str, Any] = {"name": registry.full_name}
     if project_id := _project_id_from_gql_id(registry.id):
-        filt[registry_id_filter_key(service_api, organization)] = project_id
+        return filt | {registry_id_filter_key(service_api, organization): project_id}
     return filt
 
 
@@ -240,5 +240,5 @@ def registry_filter_for_collection(
     if (encoded_project_id := collection.project_id) and (
         project_id := _project_id_from_gql_id(encoded_project_id)
     ):
-        filt[registry_id_filter_key(service_api, organization)] = project_id
+        return filt | {registry_id_filter_key(service_api, organization): project_id}
     return filt

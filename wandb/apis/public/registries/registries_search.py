@@ -17,7 +17,7 @@ from wandb.errors import UnsupportedError
 from ._utils import (
     ensure_registry_prefix_on_names,
     registry_filter_for_collection,
-    registry_filter_for_registry,
+    filter_for_registry,
 )
 
 if TYPE_CHECKING:
@@ -140,7 +140,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
                     Collections(
                         service_api=self._service_api,
                         organization=self.organization,
-                        registry_filter=registry_filter_for_registry(
+                        registry_filter=filter_for_registry(
                             reg,
                             service_api=self._service_api,
                             organization=self.organization,
@@ -192,7 +192,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
                 Versions(
                     service_api=self._service_api,
                     organization=self.organization,
-                    registry_filter=registry_filter_for_registry(
+                    registry_filter=filter_for_registry(
                         reg,
                         service_api=self._service_api,
                         organization=self.organization,
