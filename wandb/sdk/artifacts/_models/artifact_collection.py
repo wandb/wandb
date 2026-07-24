@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING, Any
 from pydantic import Field, field_validator
 from typing_extensions import Self
 
+from wandb._pydantic import GQLId
+
 from .base_model import ArtifactsBase
 
 if TYPE_CHECKING:

@@ -249,9 +249,7 @@ def filter_for_registry(
         registry.id
     )
     if internal_id is not None:
-        return filt | {
-            registry_id_filter_key(service_api, organization): internal_id
-        }
+        return filt | {registry_id_filter_key(service_api, organization): internal_id}
     return filt
 
 
@@ -268,7 +266,5 @@ def registry_filter_for_collection(
         collection.project_internal_id
     ) or _project_id_from_gql_id(collection.project_id)
     if internal_id is not None:
-        return filt | {
-            registry_id_filter_key(service_api, organization): internal_id
-        }
+        return filt | {registry_id_filter_key(service_api, organization): internal_id}
     return filt
