@@ -173,7 +173,11 @@ func (fs *fileStream) send(
 		req.Header.Set("Content-Encoding", "gzip")
 	}
 
-	fs.logRequestSummary(data)
+	shouldLogStartAndEnd := !data.IsHeartbeat()
+	if shouldLogStartAndEnd {
+		fs.logRequestSummary(data)
+	}
+
 	resp, err := fs.apiClient.Do(req)
 
 	switch {
@@ -197,9 +201,11 @@ func (fs *fileStream) send(
 		)
 
 	default:
-		// Log after sending to record that the backend responded and should
-		// have the data in the request.
-		fs.logger.Info("filestream: request sent", "status", resp.Status)
+		if shouldLogStartAndEnd {
+			// Log after sending to record that the backend responded and should
+			// have the data in the request.
+			fs.logger.Info("filestream: request sent", "status", resp.Status)
+		}
 	}
 
 	defer func(Body io.ReadCloser) {
