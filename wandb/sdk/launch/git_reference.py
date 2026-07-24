@@ -10,8 +10,6 @@ from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.lib.gitlib import GitCommandError, run_git
 
 PREFIX_HTTPS = "https://"
-PREFIX_SSH = "git@"
-SUFFIX_GIT = ".git"
 
 
 GIT_COMMIT_REGEX = re.compile(r"[0-9a-f]{40}")

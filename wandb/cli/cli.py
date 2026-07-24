@@ -110,11 +110,6 @@ RUN_CONTEXT = {
 }
 
 
-def cli_unsupported(argument):
-    wandb.termerror(f"Unsupported argument `{argument}`")
-    sys.exit(1)
-
-
 class ClickWandbException(ClickException):
     def format_message(self):
         orig_type = f"{self.orig_type.__module__}.{self.orig_type.__name__}"

@@ -3814,16 +3814,6 @@ class Api:
             sweep=sweep, state="RUNNING", entity=entity, project=project
         )
 
-    def _status_request(self, url: str, length: int) -> requests.Response:
-        """Ask google how much we've uploaded."""
-        import requests
-
-        check_httpclient_logger_handler()
-        return requests.put(
-            url=url,
-            headers={"Content-Length": "0", "Content-Range": f"bytes */{length}"},
-        )
-
     def _flatten_edges(self, response: _Response) -> list[dict]:
         """Return an array from the nested graphql relay structure."""
         return [node["node"] for node in response["edges"]]

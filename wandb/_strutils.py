@@ -9,11 +9,6 @@ def ensureprefix(s: str, prefix: str) -> str:
     return s if s.startswith(prefix) else f"{prefix}{s}"
 
 
-def ensuresuffix(s: str, suffix: str) -> str:
-    """Ensures the string has the given suffix appended."""
-    return s if s.endswith(suffix) else f"{s}{suffix}"
-
-
 def nameof(obj: Any, full: bool = True) -> str:
     """Internal convenience helper that returns the object's `__name__` or `__qualname__`.
 
