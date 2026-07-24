@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import datetime
 import getpass
 import json
 import logging
@@ -41,7 +40,7 @@ from wandb.sdk.launch.sweeps import SweepNotFoundError
 from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.lib import filesystem, settings_file
-from wandb.sync import TFEVENT_SUBSTRING, SyncManager, get_run_from_path, get_runs
+from wandb.sync import TFEVENT_SUBSTRING, SyncManager, get_runs
 
 from .beta import beta
 from .clean import clean
@@ -646,24 +645,22 @@ def init(ctx, project, entity, reset, mode):
     default=False,
     help="(legacy only) Sync all unsynced runs in the local wandb directory.",
 )
-@click.option(
+@click.option(  # TODO: Remove wandb sync --clean completely.
     "--clean",
     is_flag=True,
     default=False,
-    help="(legacy only) Delete local data for runs that are already synced.",
+    help="Removed. Use `wandb clean`.",
 )
-@click.option(
+@click.option(  # TODO: Remove wandb sync --clean-old-hours completely.
     "--clean-old-hours",
-    default=24,
-    help="""Delete only synced runs older than this many
-    hours (use with --clean).""",
-    type=int,
+    default=None,
+    help="Removed. Use `wandb clean`.",
 )
-@click.option(
+@click.option(  # TODO: Remove wandb sync --clean-force completely.
     "--clean-force",
     is_flag=True,
     default=False,
-    help="Skip the confirmation prompt if --clean is specified.",
+    help="Removed. Use `wandb clean`.",
 )
 @click.option("--ignore", hidden=True)
 @click.option(
@@ -717,7 +714,7 @@ def sync(
     ignore: str | None,
     show: int,
     clean: bool,
-    clean_old_hours: int,
+    clean_old_hours: int | None,
     clean_force: bool,
     append: bool,
     skip_console: bool,
@@ -770,13 +767,11 @@ def sync(
 
         $ wandb sync --sync-all
 
-    To delete local data for runs that have already been synced:
+    Use `wandb clean` to delete local data for runs that have been synced. See
 
-        $ wandb sync --clean
+        $ wandb clean --help
 
-    To delete synced runs older than 48 hours without a confirmation prompt:
-
-        $ wandb sync --clean --clean-old-hours 48 --clean-force
+    for more info.
     """
     # Use `wandb beta sync` if possible.
     if (
@@ -816,6 +811,9 @@ def sync(
             parallelism=5,  # same default as wandb beta sync
         )
         return
+
+    if clean or clean_old_hours or clean_force:
+        raise ClickException("Use `wandb clean` instead of `wandb sync --clean`")
 
     # Print out deprecations for legacy options, especially if they prevent
     # us from rerouting through `wandb beta sync`.
@@ -897,7 +895,7 @@ def sync(
         else:
             wandb.termlog("No runs to be synced.")
         if synced:
-            clean_cmd = click.style("wandb sync --clean", fg="yellow")
+            clean_cmd = click.style("wandb clean", fg="yellow")
             wandb.termlog(
                 f"NOTE: use {clean_cmd} to delete {len(synced)} synced runs from local directory."
             )
@@ -948,60 +946,8 @@ def sync(
             sync_tb = sync_tensorboard if sync_tensorboard is not None else False
             _sync_path(sync_items, sync_tb)
 
-    def _clean():
-        if path:
-            runs = list(map(get_run_from_path, path))
-            if not clean_force:
-                click.confirm(
-                    click.style(
-                        f"Are you sure you want to remove {len(runs)} runs?",
-                        bold=True,
-                    ),
-                    abort=True,
-                )
-            for run in runs:
-                shutil.rmtree(run.path)
-            click.echo(click.style("Success!", fg="green"))
-            return
-        runs = get_runs(
-            include_online=include_online if include_online is not None else True,
-            include_offline=include_offline if include_offline is not None else True,
-            include_synced=include_synced if include_synced is not None else True,
-            include_unsynced=False,
-            exclude_globs=exclude_globs,
-            include_globs=include_globs,
-        )
-        since = datetime.datetime.now() - datetime.timedelta(hours=clean_old_hours)
-        old_runs = [run for run in runs if run.datetime < since]
-        old_runs.sort(key=lambda _run: _run.datetime)
-        if old_runs:
-            click.echo(
-                f"Found {len(runs)} runs, {len(old_runs)} are older than {clean_old_hours} hours"
-            )
-            for run in old_runs:
-                click.echo(run.path)
-            if not clean_force:
-                click.confirm(
-                    click.style(
-                        f"Are you sure you want to remove {len(old_runs)} runs?",
-                        bold=True,
-                    ),
-                    abort=True,
-                )
-            for run in old_runs:
-                shutil.rmtree(run.path)
-            click.echo(click.style("Success!", fg="green"))
-        else:
-            click.echo(
-                click.style(
-                    f"No runs older than {clean_old_hours} hours found", fg="red"
-                )
-            )
-
     if sync_all:
         _sync_all()
-    elif clean:
-        _clean()
     elif path:
         # When syncing a specific path, default to syncing tensorboard
         sync_tb = sync_tensorboard if sync_tensorboard is not None else True
