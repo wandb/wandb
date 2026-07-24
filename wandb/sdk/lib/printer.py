@@ -29,15 +29,6 @@ INFO = 20
 DEBUG = 10
 NOTSET = 0
 
-_level_to_name = {
-    CRITICAL: "CRITICAL",
-    ERROR: "ERROR",
-    WARNING: "WARNING",
-    INFO: "INFO",
-    DEBUG: "DEBUG",
-    NOTSET: "NOTSET",
-}
-
 _name_to_level = {
     "CRITICAL": CRITICAL,
     "FATAL": FATAL,
