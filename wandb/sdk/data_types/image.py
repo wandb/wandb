@@ -175,6 +175,13 @@ class Image(BatchableMedia):
             converted to uint8 (with a warning if values fall outside [0, 255])
         * Data already in [0, 255] is converted to uint8 without modification
 
+        When you log an image to a run, W&B saves the file under a generated
+        name that includes a content hash, such as
+        `media/images/[key]_[step]_[hash].png`, instead of the original
+        filename. The final filename is not known until you log the image, so
+        to reference a logged image by URL (for example, in the HTML of a W&B
+        Report), log the image first and then use the generated path.
+
         Args:
             data_or_path: Accepts NumPy array/pytorch tensor of image data,
                 a PIL image object, or a path to an image file. If a NumPy

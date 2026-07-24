@@ -6,10 +6,10 @@ from typing import TYPE_CHECKING, Annotated, Any, Literal, get_args
 
 from pydantic import AfterValidator, BeforeValidator, Discriminator, Field
 
+from wandb._filters import And, FilterableField, MongoLikeFilter
 from wandb._pydantic import GQLBase, model_validator, pydantic_isinstance
 from wandb._strutils import nameof
 
-from ._filters import And, FilterableField, MongoLikeFilter
 from ._generated import FilterEventFields
 from ._run_metric_filters import (
     MetricChangeFilter,
