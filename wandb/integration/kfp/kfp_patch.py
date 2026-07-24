@@ -11,7 +11,8 @@ from ._patch_utils import patch, unpatch
 
 try:
     from kfp import __version__ as kfp_version
-    from packaging.version import parse
+
+    from wandb.sdk.lib._packaging_version import parse
 
     _KFP_V2 = parse(kfp_version) >= parse("2.0.0")
 except (ImportError, ValueError):
@@ -48,7 +49,8 @@ else:
         from kfp.components import structures
         from kfp.components._components import _create_task_factory_from_component_spec
         from kfp.components._python_op import _func_to_component_spec
-        from packaging.version import parse
+
+        from wandb.sdk.lib._packaging_version import parse
 
         MIN_KFP_VERSION = "1.6.1"
 

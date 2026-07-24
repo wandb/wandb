@@ -2156,14 +2156,9 @@ class Artifact:
     def _fetch_file_urls(
         self, cursor: str | None, per_page: int = 5000
     ) -> FileWithUrlConnection:
-        import requests
-
-        # `requests` and the generated pydantic models are imported lazily (here and
-        # below) to keep them off the module-level import path, which is expensive.
-        @retry.retriable(
-            retry_timedelta=timedelta(minutes=3),
-            retryable_exceptions=(requests.RequestException),
-        )
+        # The generated pydantic models are imported lazily (here and below) to
+        # keep them off the module-level import path, which is expensive.
+        @retry.retriable(retry_timedelta=timedelta(minutes=3))
         def _fetch() -> FileWithUrlConnection:
             from ._generated import (
                 GET_ARTIFACT_MEMBERSHIP_FILE_URLS_GQL,

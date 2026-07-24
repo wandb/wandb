@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import datetime
 import functools
 import http.client
@@ -34,7 +33,6 @@ from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 from ..lib import retry, wbauth
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
-from .progress import Progress
 
 logger = logging.getLogger(__name__)
 
@@ -209,8 +207,6 @@ class Api:
         retry_callback: Callable[[int, str], Any] | None = None,
         api_key: str | None = None,
     ) -> None:
-        import requests
-
         self._environ = environ
 
         default_overrides: dict[str, Any] = (
@@ -285,14 +281,7 @@ class Api:
         self.retry_callback = retry_callback
         self._current_run_id: str | None = None
         self._file_stream_api = None
-        self._upload_file_session = requests.Session()
-        if self.FILE_PUSHER_TIMEOUT:
-            self._upload_file_session.put = functools.partial(  # type: ignore
-                self._upload_file_session.put,
-                timeout=self.FILE_PUSHER_TIMEOUT,
-            )
-        if proxies:
-            self._upload_file_session.proxies.update(proxies)
+        self._maybe_upload_file_session: requests.Session | None = None
         # This Retry class is initialized once for each Api instance, so this
         # defaults to retrying 1 million times per process or 7 days
         self.upload_file_retry = normalize_exceptions(
@@ -304,8 +293,6 @@ class Api:
             )
         )
         self._client_id_mapping: dict[str, str] = {}
-        # Large file uploads to azure can optionally use their SDK
-        self._azure_blob_module = util.get_module("azure.storage.blob")
 
         self._max_cli_version: str | None = None
 
@@ -2286,41 +2273,26 @@ class Api:
         self.download_file(metadata["url"], path)
         return path, True
 
-    def upload_file_azure(
-        self, url: str, file: Any, extra_headers: dict[str, str]
-    ) -> None:
-        """Upload a file to azure."""
-        import requests
-        from azure.core.exceptions import AzureError  # type: ignore
+    @property
+    def _upload_file_session(self) -> requests.Session:
+        """The session for multipart chunk uploads, created on first use.
 
-        # Configure the client without retries so our existing logic can handle them
-        client = self._azure_blob_module.BlobClient.from_blob_url(
-            url, retry_policy=self._azure_blob_module.LinearRetry(retry_total=0)
-        )
-        try:
-            if extra_headers.get("Content-MD5") is not None:
-                md5: bytes | None = base64.b64decode(extra_headers["Content-MD5"])
-            else:
-                md5 = None
-            content_settings = self._azure_blob_module.ContentSettings(
-                content_md5=md5,
-                content_type=extra_headers.get("Content-Type"),
-            )
-            client.upload_blob(
-                file,
-                max_concurrency=4,
-                length=len(file),
-                overwrite=True,
-                content_settings=content_settings,
-            )
-        except AzureError as e:
-            if hasattr(e, "response"):
-                response = requests.models.Response()
-                response.status_code = e.response.status_code
-                response.headers = e.response.headers
-                raise requests.exceptions.RequestException(e.message, response=response)
-            else:
-                raise requests.exceptions.ConnectionError(e.message)
+        Lazy so that constructing an InternalApi doesn't import `requests`:
+        only the legacy `wandb sync` artifact-upload path still needs it.
+        """
+        if self._maybe_upload_file_session is None:
+            import requests
+
+            session = requests.Session()
+            if self.FILE_PUSHER_TIMEOUT:
+                session.put = functools.partial(  # type: ignore
+                    session.put,
+                    timeout=self.FILE_PUSHER_TIMEOUT,
+                )
+            if self._request_proxies:
+                session.proxies.update(self._request_proxies)
+            self._maybe_upload_file_session = session
+        return self._maybe_upload_file_session
 
     def upload_multipart_file_chunk(
         self,
@@ -2379,85 +2351,31 @@ class Api:
         file: IO[bytes],
         callback: ProgressFn | None = None,
         extra_headers: dict[str, str] | None = None,
-    ) -> requests.Response | None:
+    ) -> None:
         """Upload a file to W&B with failure resumption.
+
+        All uploads go through wandb-core's file transfer subsystem, which
+        owns retries, timeouts and progress reporting. Uploads to Azure blob
+        storage (identified by the `x-ms-blob-type` header) are dispatched to
+        its Azure-specific uploader.
 
         Args:
             url: The destination URL.
             file: An open file object for the file to upload.
-            callback: A callback passed the number of bytes uploaded since
-                the last call, used to report progress. Only honored for
-                Azure uploads.
+            callback: Ignored; retained for API compatibility.
             extra_headers: A dictionary of extra headers to send with the request.
-
-        Returns:
-            The `requests` response for Azure uploads, otherwise None.
         """
         extra_headers = extra_headers.copy() if extra_headers else {}
 
-        # Non-Azure uploads go through wandb-core's file transfer subsystem.
-        if "x-ms-blob-type" not in extra_headers:
-            self._service_api.send_api_request(
-                ApiRequest(
-                    upload_file_request=UploadFileRequest(
-                        url=url,
-                        path=str(Path(file.name).resolve()),
-                        headers=extra_headers,
-                    )
+        self._service_api.send_api_request(
+            ApiRequest(
+                upload_file_request=UploadFileRequest(
+                    url=url,
+                    path=str(Path(file.name).resolve()),
+                    headers=extra_headers,
                 )
             )
-            return None
-
-        # Azure uploads stay on the azure SDK, or a direct PUT for blobs
-        # small enough not to require it.
-        import requests
-
-        check_httpclient_logger_handler()
-        response: requests.Response | None = None
-        progress = Progress(file, callback=callback)
-        try:
-            if self._azure_blob_module:
-                self.upload_file_azure(url, progress, extra_headers)
-            else:
-                wandb.termwarn(
-                    "Azure uploads over 256MB require the azure SDK, install with pip install wandb[azure]",
-                    repeat=False,
-                )
-                if env.is_debug(env=self._environ):
-                    logger.debug("upload_file: %s", url)
-                response = self._upload_file_session.put(
-                    url, data=progress, headers=extra_headers
-                )
-                if env.is_debug(env=self._environ):
-                    logger.debug("upload_file: %s complete", url)
-                response.raise_for_status()
-        except requests.exceptions.RequestException as e:
-            logger.exception(f"upload_file exception for {url=}")
-            response_content = e.response.content if e.response is not None else ""
-            status_code = e.response.status_code if e.response is not None else 0
-            # S3 reports retryable request timeouts out-of-band
-            is_aws_retryable = (
-                "x-amz-meta-md5" in extra_headers
-                and status_code == 400
-                and "RequestTimeout" in str(response_content)
-            )
-            # We need to rewind the file for the next retry (the file passed in is `seek`'ed to 0)
-            progress.rewind()
-            # Retry errors from cloud storage or local network issues
-            if (
-                status_code in (308, 408, 409, 429, 500, 502, 503, 504)
-                or isinstance(
-                    e,
-                    (requests.exceptions.Timeout, requests.exceptions.ConnectionError),
-                )
-                or is_aws_retryable
-            ):
-                _e = retry.TransientError(exc=e)
-                raise _e.with_traceback(sys.exc_info()[2])
-            else:
-                get_sentry().reraise(e)
-
-        return response
+        )
 
     @normalize_exceptions
     def register_agent(
@@ -2858,7 +2776,7 @@ class Api:
         for upload_header in upload_headers:
             key, val = upload_header.split(":", 1)
             extra_headers[key] = val
-        responses = []
+        responses: list[requests.Response | None] = []
         for file_name, file_info in result.items():
             file_url = file_info["uploadUrl"]
 
@@ -3812,16 +3730,6 @@ class Api:
         """Resume the sweep to continue running new runs."""
         self.set_sweep_state(
             sweep=sweep, state="RUNNING", entity=entity, project=project
-        )
-
-    def _status_request(self, url: str, length: int) -> requests.Response:
-        """Ask google how much we've uploaded."""
-        import requests
-
-        check_httpclient_logger_handler()
-        return requests.put(
-            url=url,
-            headers={"Content-Length": "0", "Content-Range": f"bytes */{length}"},
         )
 
     def _flatten_edges(self, response: _Response) -> list[dict]:

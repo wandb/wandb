@@ -10,12 +10,11 @@ import tempfile
 import time
 from typing import Any
 
-from packaging.version import parse
-
 import wandb
 from wandb import util
 from wandb.data_types import Table
 from wandb.sdk.lib import telemetry
+from wandb.sdk.lib._packaging_version import parse
 
 openai = util.get_module(
     name="openai",

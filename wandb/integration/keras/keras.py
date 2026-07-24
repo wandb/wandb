@@ -8,7 +8,8 @@ from wandb.util import add_import_hook
 
 def _check_keras_version() -> None:
     from keras import __version__ as keras_version
-    from packaging.version import parse
+
+    from wandb.sdk.lib._packaging_version import parse
 
     if parse(keras_version) < parse("2.4.0"):
         wandb.termwarn(

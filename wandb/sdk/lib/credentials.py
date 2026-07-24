@@ -107,7 +107,9 @@ def _create_access_token(base_url: str, token_file: Path) -> dict:
         OSError: If there is an issue reading the token file.
         AuthenticationError: If the server fails to provide an access token.
     """
-    import requests
+    import urllib.error
+    import urllib.parse
+    import urllib.request
 
     try:
         with open(token_file) as file:
@@ -126,14 +128,22 @@ def _create_access_token(base_url: str, token_file: Path) -> dict:
     }
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
 
-    response = requests.post(url, data=data, headers=headers)
-
-    if response.status_code != 200:
+    request = urllib.request.Request(
+        url, data=urllib.parse.urlencode(data).encode(), headers=headers
+    )
+    try:
+        with urllib.request.urlopen(request) as response:
+            if response.status != 200:
+                raise AuthenticationError(
+                    f"Failed to retrieve access token: {response.status},"
+                    f" {response.read().decode(errors='replace')}"
+                )
+            resp_json = json.load(response)
+    except urllib.error.HTTPError as e:
         raise AuthenticationError(
-            f"Failed to retrieve access token: {response.status_code}, {response.text}"
-        )
-
-    resp_json = response.json()
+            f"Failed to retrieve access token: {e.code},"
+            f" {e.read().decode(errors='replace')}"
+        ) from e
     expires_at = datetime.utcnow() + timedelta(seconds=float(resp_json["expires_in"]))
     resp_json["expires_at"] = expires_at.strftime(_expires_at_fmt)
     del resp_json["expires_in"]

@@ -22,7 +22,8 @@ if TYPE_CHECKING:
 
 try:
     from kfp import __version__ as _kfp_version
-    from packaging.version import parse
+
+    from wandb.sdk.lib._packaging_version import parse
 
     _KFP_V2 = parse(_kfp_version) >= parse("2.0.0")
 except (ImportError, ValueError):

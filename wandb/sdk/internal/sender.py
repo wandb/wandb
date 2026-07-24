@@ -1470,7 +1470,7 @@ class SendManager:
     def _send_artifact(
         self, artifact: ArtifactRecord, history_step: int | None = None
     ) -> dict | None:
-        from packaging.version import parse
+        from wandb.sdk.lib._packaging_version import parse
 
         assert self._pusher
         saver = ArtifactSaver(
@@ -1519,7 +1519,7 @@ class SendManager:
         return res
 
     def send_alert(self, record: Record) -> None:
-        from packaging.version import parse
+        from wandb.sdk.lib._packaging_version import parse
 
         alert = record.alert
         max_cli_version = self._max_cli_version()
