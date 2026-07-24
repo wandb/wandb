@@ -26,6 +26,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/getsentry/sentry-go"
 
+	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pprof"
@@ -173,6 +174,8 @@ func serviceMain() int {
 		loggerPath = file.Name()
 		defer func() { _ = file.Close() }()
 	}
+
+	analytics.ConfigureOTelErrorHandler()
 
 	// Record certain signals in the log file for debugging.
 	signalCh := make(chan os.Signal, 1)
