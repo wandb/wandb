@@ -105,6 +105,7 @@ def test_add_one_file(digest_algorithm, artifact):
             "file1.txt": {
                 "digest": "tenBrQcbPn/Hec+qXlI4GA==",
                 "size": 5,
+                "extra": {"alg": "XXH128"},
             }
         }
     else:
@@ -132,6 +133,7 @@ def test_add_named_file(digest_algorithm, artifact):
             "great-file.txt": {
                 "digest": "tenBrQcbPn/Hec+qXlI4GA==",
                 "size": 5,
+                "extra": {"alg": "XXH128"},
             }
         }
     else:
@@ -159,6 +161,7 @@ def test_add_new_file(digest_algorithm, artifact):
             "file1.txt": {
                 "digest": "tenBrQcbPn/Hec+qXlI4GA==",
                 "size": 5,
+                "extra": {"alg": "XXH128"},
             }
         }
     else:
@@ -214,6 +217,7 @@ def test_add_dir(digest_algorithm, artifact):
             "file1.txt": {
                 "digest": "tenBrQcbPn/Hec+qXlI4GA==",
                 "size": 5,
+                "extra": {"alg": "XXH128"},
             }
         }
     else:
@@ -241,6 +245,7 @@ def test_add_named_dir(digest_algorithm, artifact):
             "subdir/file1.txt": {
                 "digest": "tenBrQcbPn/Hec+qXlI4GA==",
                 "size": 5,
+                "extra": {"alg": "XXH128"},
             }
         }
     else:
@@ -817,14 +822,17 @@ def test_add_obj_wbimage(digest_algorithm, im_path: str, artifact: Artifact):
             "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
                 "digest": "+xqgbLA2igrfKWtbRYuOPw==",
                 "size": 64,
+                "extra": {"alg": "XXH128"},
             },
             "media/images/641e917f31888a48f546/2x2.png": {
                 "digest": "A+ER///ySqfqzroxc022rA==",
                 "size": 71,
+                "extra": {"alg": "XXH128"},
             },
             "my-image.image-file.json": {
                 "digest": "Lz8Y3vPOzyJ+rGot+Ax+IA==",
                 "size": 346,
+                "extra": {"alg": "XXH128"},
             },
         }
     else:
@@ -918,14 +926,17 @@ def test_add_obj_using_brackets(digest_algorithm, im_path: str, artifact: Artifa
             "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
                 "digest": "+xqgbLA2igrfKWtbRYuOPw==",
                 "size": 64,
+                "extra": {"alg": "XXH128"},
             },
             "media/images/641e917f31888a48f546/2x2.png": {
                 "digest": "A+ER///ySqfqzroxc022rA==",
                 "size": 71,
+                "extra": {"alg": "XXH128"},
             },
             "my-image.image-file.json": {
                 "digest": "Lz8Y3vPOzyJ+rGot+Ax+IA==",
                 "size": 346,
+                "extra": {"alg": "XXH128"},
             },
         }
     else:
@@ -1025,14 +1036,17 @@ def test_add_obj_wbimage_classes_obj(
             "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
                 "digest": "+xqgbLA2igrfKWtbRYuOPw==",
                 "size": 64,
+                "extra": {"alg": "XXH128"},
             },
             "media/images/641e917f31888a48f546/2x2.png": {
                 "digest": "A+ER///ySqfqzroxc022rA==",
                 "size": 71,
+                "extra": {"alg": "XXH128"},
             },
             "my-image.image-file.json": {
                 "digest": "Lz8Y3vPOzyJ+rGot+Ax+IA==",
                 "size": 346,
+                "extra": {"alg": "XXH128"},
             },
         }
     else:
@@ -1072,18 +1086,22 @@ def test_add_obj_wbimage_classes_obj_already_added(
             "my-classes.classes.json": {
                 "digest": "+xqgbLA2igrfKWtbRYuOPw==",
                 "size": 64,
+                "extra": {"alg": "XXH128"},
             },
             "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
                 "digest": "+xqgbLA2igrfKWtbRYuOPw==",
                 "size": 64,
+                "extra": {"alg": "XXH128"},
             },
             "media/images/641e917f31888a48f546/2x2.png": {
                 "digest": "A+ER///ySqfqzroxc022rA==",
                 "size": 71,
+                "extra": {"alg": "XXH128"},
             },
             "my-image.image-file.json": {
                 "digest": "Lz8Y3vPOzyJ+rGot+Ax+IA==",
                 "size": 346,
+                "extra": {"alg": "XXH128"},
             },
         }
     else:
@@ -1126,14 +1144,17 @@ def test_add_obj_wbimage_image_already_added(
             "2x2.png": {
                 "digest": "A+ER///ySqfqzroxc022rA==",
                 "size": 71,
+                "extra": {"alg": "XXH128"},
             },
             "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
                 "digest": "+xqgbLA2igrfKWtbRYuOPw==",
                 "size": 64,
+                "extra": {"alg": "XXH128"},
             },
             "my-image.image-file.json": {
                 "digest": "Hkgsnrh6Hhzq3OHzuDpdDA==",
                 "size": 312,
+                "extra": {"alg": "XXH128"},
             },
         }
     else:
@@ -1169,14 +1190,17 @@ def test_add_obj_wbtable_images(digest_algorithm, im_path: str, artifact: Artifa
             "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
                 "digest": "+xqgbLA2igrfKWtbRYuOPw==",
                 "size": 64,
+                "extra": {"alg": "XXH128"},
             },
             "media/images/641e917f31888a48f546/2x2.png": {
                 "digest": "A+ER///ySqfqzroxc022rA==",
                 "size": 71,
+                "extra": {"alg": "XXH128"},
             },
             "my-table.table.json": {
                 "digest": "JGNyt74ECHUCdLy4T2k1Kg==",
                 "size": 1476,
+                "extra": {"alg": "XXH128"},
             },
         }
     else:
@@ -1221,14 +1245,17 @@ def test_add_obj_wbtable_images_duplicate_name(digest_algorithm, assets_path, ar
             "media/images/641e917f31888a48f546/img.png": {
                 "digest": "A+ER///ySqfqzroxc022rA==",
                 "size": 71,
+                "extra": {"alg": "XXH128"},
             },
             "media/images/cf37c38fd1dca3aaba6e/img.png": {
                 "digest": "AejlaOuKomIlEY8EwEalig==",
                 "size": 8837,
+                "extra": {"alg": "XXH128"},
             },
             "my-table.table.json": {
                 "digest": "DyOndR3vYxEdHAJG+DKX6Q==",
                 "size": 1167,
+                "extra": {"alg": "XXH128"},
             },
         }
     else:
@@ -1264,6 +1291,7 @@ def test_add_partition_folder(digest_algorithm, artifact):
             "dataset.partitioned-table.json": {
                 "digest": "c8UvCotcfBnCM6gvoOZV1Q==",
                 "size": 61,
+                "extra": {"alg": "XXH128"},
             },
         }
     else:

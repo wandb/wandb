@@ -798,3 +798,86 @@ def test_manifest_digest_uses_md5_for_md5_artifact():
     md5_hasher = _md5(b"wandb-artifact-manifest-v1\n")
     md5_hasher.update(f"file.txt:{file_digest}\n".encode())
     assert artifact.digest == md5_hasher.hexdigest()
+
+
+def test_entry_digest_algorithm_defaults_to_md5_when_untagged():
+    entry = ArtifactManifestEntry(path="file.txt", digest="abc123", size=1)
+    assert entry.extra == {}
+    assert entry.digest_algorithm() is ArtifactDigestAlgorithm.MANIFEST_MD5
+
+
+@mark.parametrize(
+    ("tag", "expected"),
+    [
+        ("MD5", ArtifactDigestAlgorithm.MANIFEST_MD5),
+        ("XXH128", ArtifactDigestAlgorithm.MANIFEST_XXH128),
+        # Unknown/garbage tags fall back to the MD5 default.
+        ("bogus", ArtifactDigestAlgorithm.MANIFEST_MD5),
+    ],
+)
+def test_entry_digest_algorithm_reads_extra_tag(tag, expected):
+    entry = ArtifactManifestEntry(
+        path="file.txt", digest="abc123", size=1, extra={"alg": tag}
+    )
+    assert entry.digest_algorithm() is expected
+
+
+def test_add_file_tags_xxh128_entries():
+    f = Path("file.txt")
+    f.write_text("hello")
+    artifact = Artifact("test", type="dataset")
+    artifact._digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_XXH128
+    artifact.manifest.digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_XXH128
+
+    entry = artifact.add_file(str(f))
+
+    assert entry.extra == {"alg": "XXH128"}
+    assert entry.digest_algorithm() is ArtifactDigestAlgorithm.MANIFEST_XXH128
+
+
+def test_add_file_leaves_md5_entries_untagged():
+    f = Path("file.txt")
+    f.write_text("hello")
+    artifact = Artifact("test", type="dataset")
+    artifact._digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_MD5
+    artifact.manifest.digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_MD5
+
+    entry = artifact.add_file(str(f))
+
+    # Untagged entries are interpreted as MD5, so we avoid the per-entry bloat.
+    assert entry.extra == {}
+    assert entry.digest_algorithm() is ArtifactDigestAlgorithm.MANIFEST_MD5
+
+
+def test_mixed_manifest_round_trip_preserves_per_entry_algorithm():
+    from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
+
+    f = Path("xxh.txt")
+    f.write_text("hello")
+    artifact = Artifact("test", type="dataset")
+    artifact._digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_XXH128
+    artifact.manifest.digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_XXH128
+    artifact.add_file(str(f))
+
+    # Simulate an entry carried over untagged from an older (md5) SDK, as
+    # happens with `new_draft` across SDK versions.
+    artifact.manifest.add_entry(
+        ArtifactManifestEntry(path="md5.txt", digest="XUFAKrxLKna5cZ2REBfFkg==", size=5)
+    )
+
+    manifest_json = artifact.manifest.to_manifest_json()
+    # Only the xxh128 entry is tagged; the untagged md5 entry carries no `extra`.
+    assert manifest_json["contents"]["xxh.txt"]["extra"] == {"alg": "XXH128"}
+    assert "extra" not in manifest_json["contents"]["md5.txt"]
+
+    restored = ArtifactManifest.from_manifest_json(
+        manifest_json, artifact.digest_algorithm
+    )
+    assert (
+        restored.entries["xxh.txt"].digest_algorithm()
+        is ArtifactDigestAlgorithm.MANIFEST_XXH128
+    )
+    assert (
+        restored.entries["md5.txt"].digest_algorithm()
+        is ArtifactDigestAlgorithm.MANIFEST_MD5
+    )

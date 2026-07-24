@@ -88,7 +88,11 @@ from .artifact_instance_cache import (
     artifact_instance_cache_by_client_id,
 )
 from .artifact_manifest import ArtifactManifest
-from .artifact_manifest_entry import ArtifactManifestEntry
+from .artifact_manifest_entry import (
+    DIGEST_ALGORITHM_EXTRA_KEY,
+    DIGEST_ALGORITHM_TO_STR,
+    ArtifactManifestEntry,
+)
 from .artifact_manifests.artifact_manifest_v1 import ArtifactManifestV1
 from .artifact_state import ArtifactState
 from .artifact_ttl import ArtifactTTL
@@ -1840,6 +1844,12 @@ class Artifact:
                 upload_path = staging_path
 
         use_xxh128 = self.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128
+        # Tag only non-MD5 entries; untagged entries are interpreted as MD5.
+        extra = (
+            {DIGEST_ALGORITHM_EXTRA_KEY: DIGEST_ALGORITHM_TO_STR[self.digest_algorithm]}
+            if use_xxh128
+            else {}
+        )
 
         entry = ArtifactManifestEntry(
             path=name,
@@ -1852,6 +1862,7 @@ class Artifact:
             size=os.path.getsize(upload_path),
             local_path=upload_path,
             skip_cache=skip_cache,
+            extra=extra,
         )
         self.manifest.add_entry(entry, overwrite=overwrite)
         self._added_local_paths[os.fspath(path)] = entry
@@ -2324,17 +2335,15 @@ class Artifact:
 
         ref_count = 0
         for entry in self.manifest.entries.values():
+            entry_digest_algorithm = entry.digest_algorithm()
             if entry.ref is None:
-                if self.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
+                if entry_digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
                     file_digest = xxh128_file_b64(validate_fspath(root, entry.path))
-                elif (
-                    self.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_MD5
-                    or self.digest_algorithm is None
-                ):
+                elif entry_digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_MD5:
                     file_digest = md5_file_b64(validate_fspath(root, entry.path))
                 else:
                     raise ValueError(
-                        f"Invalid digest algorithm: {self.digest_algorithm}"
+                        f"Invalid digest algorithm: {entry_digest_algorithm}"
                     )
                 if file_digest != entry.digest:
                     raise ValueError(f"Digest mismatch for file: {entry.path}")
