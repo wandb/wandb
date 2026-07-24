@@ -129,10 +129,33 @@ func InitRun(
 		environment.ToRunConfigData(),
 	)
 
+	// Initialize other run metadata.
+	runParams := runbranch.NewRunParams(runRecord, params.Settings)
+
+	operation := params.Operations.New(
+		fmt.Sprintf("setting up run %s", runParams.RunID))
+	defer operation.Finish()
+	ctx := operation.Context(params.BeforeRunEndCtx)
+
+	// Give up at the client's init timeout, so that the error being
+	// retried (if any) can be reported to the client while it is still
+	// listening: the client waits slightly longer than this timeout
+	// before giving up with a generic message.
+	//
+	// This must cover all requests made before the run is initialized,
+	// including the feature check below: any of them may be what's stuck
+	// retrying. The countdown starts when this record is processed, which
+	// is slightly after the client starts waiting.
+	if timeout := params.Settings.GetInitTimeout(); timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+
 	// Initialize the run metrics.
 	enableServerExpandedMetrics := params.Settings.IsEnableServerSideExpandGlobMetrics()
 	if enableServerExpandedMetrics && !params.FeatureProvider.Enabled(
-		params.BeforeRunEndCtx,
+		ctx,
 		spb.ServerFeature_EXPAND_DEFINED_METRIC_GLOBS,
 	) {
 		params.Logger.Warn(
@@ -142,9 +165,6 @@ func InitRun(
 		enableServerExpandedMetrics = false
 	}
 	metrics := runmetric.NewRunConfigMetrics(enableServerExpandedMetrics)
-
-	// Initialize other run metadata.
-	runParams := runbranch.NewRunParams(runRecord, params.Settings)
 
 	upserter := &RunUpserter{
 		debounceDelay: params.DebounceDelay,
@@ -166,11 +186,6 @@ func InitRun(
 		environment: environment,
 	}
 
-	operation := upserter.operations.New(
-		fmt.Sprintf("setting up run %s", runParams.RunID))
-	defer operation.Finish()
-	ctx := operation.Context(upserter.beforeRunEndCtx)
-
 	// If resuming, rewinding or forking, we need to modify metadata
 	// in special ways before upserting the run.
 	//
@@ -184,7 +199,7 @@ func InitRun(
 		err := upserter.updateMetadataForResume(ctx, params.Settings.GetResume())
 
 		if err != nil {
-			return nil, ToRunUpdateError(err)
+			return nil, ToRunUpdateError(explainInitTimeout(err, operation))
 		}
 
 	case branchPoint != nil && branchPoint.GetRun() == runRecord.RunId:
@@ -192,7 +207,7 @@ func InitRun(
 		err := upserter.updateMetadataForRewind(ctx, branchPoint)
 
 		if err != nil {
-			return nil, ToRunUpdateError(err)
+			return nil, ToRunUpdateError(explainInitTimeout(err, operation))
 		}
 
 	case branchPoint != nil && branchPoint.GetRun() != "":
@@ -228,7 +243,7 @@ func InitRun(
 	)
 
 	if err != nil {
-		return nil, ToRunUpdateError(err)
+		return nil, ToRunUpdateError(explainInitTimeout(err, operation))
 	}
 
 	// Fill some metadata based on the server response.
