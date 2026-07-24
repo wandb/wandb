@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Iterable
 
 import pytest
@@ -26,11 +27,18 @@ def clear_registry_filter_caches():
 
 def _mock_advanced_search(service_api, *, enabled: bool) -> None:
     service_api.feature_enabled.return_value = True
-    service_api.execute_graphql.return_value = {
-        "organization": {
-            "advancedRegistryFeatures": {"advancedSearch": enabled},
+    response_json = json.dumps(
+        {
+            "organization": {
+                "advancedRegistryFeatures": {"advancedSearch": enabled},
+            }
         }
-    }
+    )
+
+    def execute_graphql(*args, parse, **kwargs):
+        return parse(response_json)
+
+    service_api.execute_graphql.side_effect = execute_graphql
 
 
 def test_registry_filter_uses_project_id_when_filtering_sorting_disabled(

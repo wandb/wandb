@@ -188,9 +188,10 @@ def advanced_search_enabled(service_api: ServiceApi, organization: str) -> bool:
     )
 
     try:
-        data = service_api.execute_graphql(
+        result = service_api.execute_graphql(
             FETCH_ADVANCED_REGISTRY_FEATURES_GQL,
             variables={"organization": organization},
+            parse=FetchAdvancedRegistryFeatures.model_validate_json,
         )
     except Exception as e:
         msg = (
@@ -199,7 +200,6 @@ def advanced_search_enabled(service_api: ServiceApi, organization: str) -> bool:
         )
         raise ValueError(msg) from e
 
-    result = FetchAdvancedRegistryFeatures.model_validate(data)
     if not (org := result.organization):
         raise ValueError(f"Organization {organization!r} not found.")
     return bool(
