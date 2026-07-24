@@ -237,8 +237,6 @@ def registry_filter_for_collection(
     filt: dict[str, Any] = {}
     if registry_name := collection.project:
         filt["name"] = registry_name
-    if (encoded_project_id := collection.project_id) and (
-        project_id := _project_id_from_gql_id(encoded_project_id)
-    ):
+    if project_id := _project_id_from_gql_id(collection.project_id):
         return filt | {registry_id_filter_key(service_api, organization): project_id}
     return filt

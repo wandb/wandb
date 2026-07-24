@@ -16,8 +16,8 @@ from wandb.errors import UnsupportedError
 
 from ._utils import (
     ensure_registry_prefix_on_names,
-    registry_filter_for_collection,
     filter_for_registry,
+    registry_filter_for_collection,
 )
 
 if TYPE_CHECKING:

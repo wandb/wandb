@@ -48,8 +48,8 @@ class ArtifactCollectionData(ArtifactsBase):
     project: str = Field(frozen=True)
     """The name of this collection's project."""
 
-    project_id: str | None = Field(default=None, frozen=True, repr=False)
-    """The encoded GraphQL ID for this collection's project, if known."""
+    project_id: str = Field(frozen=True, repr=False)
+    """The encoded GraphQL ID for this collection's project."""
 
     entity: str = Field(frozen=True)
     """The name of the entity that owns this collection's project."""

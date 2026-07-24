@@ -7,8 +7,8 @@ import pytest
 from wandb._strutils import b64encode_ascii
 from wandb.apis.public.registries._utils import (
     advanced_search_enabled,
-    registry_filter_for_collection,
     filter_for_registry,
+    registry_filter_for_collection,
     registry_id_filter_key,
 )
 from wandb.apis.public.registries.registries_search import Collections, Registries
@@ -49,9 +49,7 @@ def test_registry_filter_uses_project_id_when_filtering_sorting_disabled(
     registry.full_name = "wandb-registry-test"
     registry.id = b64encode_ascii("Project:42")
 
-    assert filter_for_registry(
-        registry, service_api=service_api, organization=ORG
-    ) == {
+    assert filter_for_registry(registry, service_api=service_api, organization=ORG) == {
         "name": "wandb-registry-test",
         "project_id": 42,
     }
@@ -63,17 +61,13 @@ def test_registry_filter_uses_project_id_when_filtering_sorting_disabled(
     [(True, "id"), (False, "project_id")],
     ids=["advanced_search", "non_advanced_search"],
 )
-def test_filter_for_registry_uses_project_id_key(
-    service_api, mocker, enabled, key
-):
+def test_filter_for_registry_uses_project_id_key(service_api, mocker, enabled, key):
     _mock_advanced_search(service_api, enabled=enabled)
     registry = mocker.Mock(spec=Registry)
     registry.full_name = "wandb-registry-test"
     registry.id = b64encode_ascii("Project:42")
 
-    assert filter_for_registry(
-        registry, service_api=service_api, organization=ORG
-    ) == {
+    assert filter_for_registry(registry, service_api=service_api, organization=ORG) == {
         "name": "wandb-registry-test",
         key: 42,
     }
