@@ -29,6 +29,9 @@ type Workspace struct {
 	// focusMgr is the single source of truth for UI focus state.
 	focusMgr *FocusManager
 
+	// drag owns in-progress pane-boundary resizing (mouse drag).
+	drag paneDragger
+
 	// Configuration and key bindings.
 	config *ConfigManager
 	keyMap map[string]func(*Workspace, tea.KeyPressMsg) tea.Cmd
@@ -178,6 +181,12 @@ func NewWorkspace(
 		runsFilterIndex:     make(map[string]WorkspaceRunFilterData),
 	}
 	w.focusMgr = w.buildWorkspaceFocusManager()
+	w.drag = paneDragger{
+		saved:    cfg.WorkspaceLayout,
+		persist:  cfg.SetWorkspaceLayout,
+		relayout: w.applyLayoutConfig,
+		logger:   logger,
+	}
 	// The runs list starts focused by default.
 	w.focusMgr.SetTarget(FocusTargetRunsList, 1)
 	return w
@@ -553,9 +562,10 @@ func (w *Workspace) computeViewports() Layout {
 	}
 }
 
-// layoutOverrides returns the view's saved pane proportions.
+// layoutOverrides returns the live pane proportions: the in-progress drag's
+// pending values, or the persisted config.
 func (w *Workspace) layoutOverrides() LayoutOverrides {
-	return w.config.WorkspaceLayout()
+	return w.drag.overrides()
 }
 
 // updateSidebarDimensions tells both sidebars to recalculate their expanded
