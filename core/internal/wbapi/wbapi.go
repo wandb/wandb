@@ -34,6 +34,7 @@ type WandbAPI struct {
 
 	settings *settings.Settings
 
+	authHandler          *AuthHandler
 	featuresHandler      *FeaturesHandler
 	fileTransferHandler  *FileTransferHandler
 	graphqlHandler       *GraphQLHandler
@@ -99,6 +100,7 @@ func New(
 		semaphore: make(chan struct{}, maxConcurrency),
 		settings:  s,
 
+		authHandler:          NewAuthHandler(graphqlClient),
 		featuresHandler:      NewFeaturesHandler(featureProvider),
 		fileTransferHandler:  NewFileTransferHandler(fileTransferManager),
 		graphqlHandler:       NewGraphQLHandler(graphqlClient),
@@ -173,6 +175,8 @@ func (p *WandbAPI) HandleRequest(
 	defer func() { <-p.semaphore }()
 
 	switch req := request.Request.(type) {
+	case *spb.ApiRequest_AuthenticateRequest:
+		return p.authHandler.HandleAuthenticate(ctx, req.AuthenticateRequest)
 	case *spb.ApiRequest_FeaturesRequest:
 		return p.featuresHandler.HandleRequest(ctx, req.FeaturesRequest)
 	case *spb.ApiRequest_DownloadFileRequest:
@@ -189,5 +193,9 @@ func (p *WandbAPI) HandleRequest(
 		return p.runHistoryApiHandler.HandleRequest(ctx, req.ReadRunHistoryRequest)
 	}
 
-	return nil
+	// Unknown request types happen when a newer client attaches to an older
+	// wandb-core. Returning an error instead of nil (no response) saves the
+	// client from waiting for a response that will never come.
+	return apiErrorResponse(
+		fmt.Sprintf("unsupported API request type: %T", request.Request), 0)
 }
