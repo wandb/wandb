@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import abc
 import dataclasses
+import functools
 import pathlib
+from typing import TYPE_CHECKING
 
-import requests
-import requests.auth
 from typing_extensions import final, override
 
 from wandb.errors import AuthenticationError
@@ -13,6 +13,10 @@ from wandb.sdk.lib import credentials
 
 from . import validation
 from .host_url import HostUrl
+
+if TYPE_CHECKING:
+    import requests
+    import requests.auth
 
 
 # We use an abstract base class instead of a union because
@@ -98,19 +102,32 @@ class AuthApiKey(Auth):
             Basic auth using "api" as the username and the API key
             as the password.
         """
+        import requests.auth
+
         return requests.auth.HTTPBasicAuth("api", self._api_key)
 
 
-class _IdentityTokenAuth(requests.auth.AuthBase):
-    """Requests auth handler for identity token (JWT) authentication."""
+@functools.cache
+def _identity_token_auth_cls() -> type:
+    """Define the identity token auth handler.
 
-    def __init__(self, auth: AuthIdentityTokenFile) -> None:
-        self._auth = auth
+    Created on first use so that importing this module doesn't import
+    the requests library.
+    """
+    import requests.auth
 
-    def __call__(self, r: requests.PreparedRequest) -> requests.PreparedRequest:
-        token = self._auth.fetch_access_token()
-        r.headers["Authorization"] = f"Bearer {token}"
-        return r
+    class _IdentityTokenAuth(requests.auth.AuthBase):
+        """Requests auth handler for identity token (JWT) authentication."""
+
+        def __init__(self, auth: AuthIdentityTokenFile) -> None:
+            self._auth = auth
+
+        def __call__(self, r: requests.PreparedRequest) -> requests.PreparedRequest:
+            token = self._auth.fetch_access_token()
+            r.headers["Authorization"] = f"Bearer {token}"
+            return r
+
+    return _IdentityTokenAuth
 
 
 @final
@@ -179,7 +196,7 @@ class AuthIdentityTokenFile(Auth):
             a Bearer token fetched (and refreshed as needed) from the
             identity token file.
         """
-        return _IdentityTokenAuth(self)
+        return _identity_token_auth_cls()(self)
 
 
 @dataclasses.dataclass(frozen=True)
