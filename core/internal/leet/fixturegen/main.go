@@ -48,7 +48,15 @@ func main() {
 	verify := flag.Bool("verify", false,
 		"instead of generating, open every corpus .wandb file under -out "+
 			"via transactionlog.OpenReader and report record counts")
+	dump := flag.String("dump", "",
+		"instead of generating, print a per-record digest of the given "+
+			".wandb file (one \"REC <index> <case> <len> <crc32c>\" line per "+
+			"record, then \"OK <count>\" or \"ERROR corrupt|eof\") and exit")
 	flag.Parse()
+
+	if *dump != "" {
+		os.Exit(dumpWandb(*dump))
+	}
 
 	if *out == "" {
 		fmt.Fprintln(os.Stderr,
