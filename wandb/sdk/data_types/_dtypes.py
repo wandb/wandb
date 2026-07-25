@@ -776,10 +776,9 @@ def _register_numpy_types_if_available() -> None:
         ]
     )
 
-    numpy_major_version = np.__version__.split(".")[0]
-    if int(numpy_major_version) < 2:
-        NumberType.types.append(np.float_)
-        NumberType.types.append(np.complex_)
+    # numpy<2 also has np.float_ and np.complex_, but these are aliases of
+    # np.float64 and np.complex128 (the same class objects), which are
+    # registered above.
 
     TimestampType.types.append(np.datetime64)
     BooleanType.types.append(np.bool_)
