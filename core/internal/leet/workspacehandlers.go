@@ -107,6 +107,11 @@ func (w *Workspace) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	mouse := msg.Mouse()
 	layout := w.computeViewports()
 
+	// Pane resizing wins over pane-local mouse handling.
+	if w.drag.handleMouse(msg, layout, w.dragTargets()) {
+		return nil
+	}
+
 	// Clicks in the left sidebar clear all chart focus.
 	if w.runsAnimState.IsVisible() && mouse.X < layout.leftSidebarWidth {
 		w.clearChartFocus()
@@ -147,6 +152,23 @@ func (w *Workspace) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	}
 
 	// Separator or status bar area — no chart interaction.
+	return nil
+}
+
+// dragTargets reports which layout boundaries a mouse event may grab.
+func (w *Workspace) dragTargets() dragTargets {
+	return dragTargets{
+		width:           w.width,
+		height:          w.height,
+		leftExpanded:    w.runsAnimState.IsExpanded(),
+		rightExpanded:   w.runOverviewSidebar.IsExpanded(),
+		mediaFullscreen: w.mediaPane.IsFullscreen(),
+	}
+}
+
+// handleResetLayout resets the view's pane proportions to the defaults.
+func (w *Workspace) handleResetLayout(tea.KeyPressMsg) tea.Cmd {
+	w.drag.reset()
 	return nil
 }
 

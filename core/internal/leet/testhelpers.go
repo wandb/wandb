@@ -75,10 +75,28 @@ func (r *Run) TestStopHeartbeat() {
 	}
 }
 
+// TestLayoutWidths returns the run view's current sidebar widths.
+func (r *Run) TestLayoutWidths() (left, right int) {
+	l := r.computeViewports()
+	return l.leftSidebarWidth, l.rightSidebarWidth
+}
+
+// TestLayoutWidths returns the workspace's current sidebar widths.
+func (w *Workspace) TestLayoutWidths() (left, right int) {
+	l := w.computeViewports()
+	return l.leftSidebarWidth, l.rightSidebarWidth
+}
+
 // TestStackHeights returns the run view's central stack pane heights.
 func (r *Run) TestStackHeights() (metrics, media, logs int) {
 	l := r.computeViewports()
 	return l.height, l.mediaHeight, l.consoleLogsHeight
+}
+
+// TestStackHeights returns the workspace's central stack pane heights.
+func (w *Workspace) TestStackHeights() (metrics, system, media, logs int) {
+	l := w.computeViewports()
+	return l.height, l.systemMetricsHeight, l.mediaHeight, l.consoleLogsHeight
 }
 
 // TestInRunMode reports whether the model shows the single-run view.
