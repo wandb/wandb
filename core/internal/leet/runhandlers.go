@@ -390,8 +390,7 @@ func (r *Run) handleToggleLeftSidebar(msg tea.KeyPressMsg) tea.Cmd {
 		r.logger.Error(fmt.Sprintf("model: failed to save left sidebar state: %v", err))
 	}
 
-	r.leftSidebar.UpdateDimensions(r.width, r.rightSidebar.animState.TargetVisible())
-	r.rightSidebar.UpdateDimensions(r.width, leftWillBeVisible)
+	r.updateSidebarDimensions(leftWillBeVisible, r.rightSidebar.animState.TargetVisible())
 	r.leftSidebar.Toggle()
 
 	r.focusMgr.Resolve()
@@ -413,8 +412,7 @@ func (r *Run) handleToggleRightSidebar(msg tea.KeyPressMsg) tea.Cmd {
 		r.logger.Error(fmt.Sprintf("model: failed to save right sidebar state: %v", err))
 	}
 
-	r.rightSidebar.UpdateDimensions(r.width, r.leftSidebar.animState.TargetVisible())
-	r.leftSidebar.UpdateDimensions(r.width, rightWillBeVisible)
+	r.updateSidebarDimensions(r.leftSidebar.animState.TargetVisible(), rightWillBeVisible)
 	r.rightSidebar.Toggle()
 	r.focusMgr.Resolve()
 
@@ -691,7 +689,8 @@ func (r *Run) handleSidebarAnimation(msg tea.Msg) []tea.Cmd {
 		}
 
 		r.endAnimating()
-		r.rightSidebar.UpdateDimensions(r.width, r.leftSidebar.animState.TargetVisible())
+		r.rightSidebar.UpdateDimensions(
+			r.width, r.leftSidebar.animState.TargetVisible(), r.layoutOverrides().RightSidebar)
 
 	case RightSidebarAnimationMsg:
 		layout := r.computeViewports()
@@ -702,7 +701,8 @@ func (r *Run) handleSidebarAnimation(msg tea.Msg) []tea.Cmd {
 		}
 
 		r.endAnimating()
-		r.leftSidebar.UpdateDimensions(r.width, r.rightSidebar.animState.TargetVisible())
+		r.leftSidebar.UpdateDimensions(
+			r.width, r.rightSidebar.animState.TargetVisible(), r.layoutOverrides().LeftSidebar)
 	}
 
 	return nil

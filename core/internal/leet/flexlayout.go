@@ -1,6 +1,7 @@
 package leet
 
 import (
+	"math"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -102,12 +103,43 @@ func (l verticalStackLayout) Y(id stackSectionID) int {
 	return l.Sections[id].Y
 }
 
-func expandedSidebarWidth(terminalWidth int, oppositeVisible bool) int {
+const (
+	// sidebarDragMinWidth is the narrowest a sidebar override can make it.
+	// Deliberately smaller than SidebarMinWidth so users can shrink
+	// sidebars below the default clamp.
+	sidebarDragMinWidth = 20
+
+	// mainDragMinWidth is the narrowest the main content column can be
+	// squeezed to by a sidebar override.
+	mainDragMinWidth = 24
+)
+
+// expandedSidebarWidth returns a sidebar's expanded width: a user-dragged
+// fraction of the terminal width when set (non-zero), or the golden-ratio
+// default. Dragged widths may go below the default minimum but always leave
+// room for the main content column.
+func expandedSidebarWidth(terminalWidth int, oppositeVisible bool, frac float64) int {
+	if frac > 0 {
+		maxW := max(terminalWidth-mainDragMinWidth, sidebarDragMinWidth)
+		w := int(math.Round(float64(terminalWidth) * frac))
+		return clamp(w, sidebarDragMinWidth, maxW)
+	}
+
 	ratio := SidebarWidthRatio
 	if oppositeVisible {
 		ratio = SidebarWidthRatioBoth
 	}
 	return clamp(int(float64(terminalWidth)*ratio), SidebarMinWidth, SidebarMaxWidth)
+}
+
+// paneHeightFor returns a stacked pane's expanded height for the given
+// override fraction of the terminal height, or the fallback default when no
+// override is set. The pane's own SetExpandedHeight enforces its minimum.
+func paneHeightFor(frac float64, terminalHeight, fallback int) int {
+	if frac <= 0 {
+		return fallback
+	}
+	return int(math.Round(float64(terminalHeight) * frac))
 }
 
 // sidebarContentWidth returns the width available for text content inside a
