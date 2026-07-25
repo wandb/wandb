@@ -186,6 +186,71 @@ func TestRun_InitialFocus_PicksFirstAvailablePane(t *testing.T) {
 		"collapsed overview should not appear focused")
 }
 
+// ---- Esc: unfocus pane first, exit view second ----
+
+func TestRun_EscUnfocusesPane(t *testing.T) {
+	r := newRunForHandlerTest(t)
+	require.True(t, r.HasPaneFocus(), "seeded run should start with pane focus")
+
+	r.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+
+	require.False(t, r.HasPaneFocus(), "Esc should clear pane focus")
+	require.False(t, r.TestLeftSidebarHasActiveSection(),
+		"overview sections should be deactivated after Esc")
+}
+
+func TestRun_DataAfterEscDoesNotRestealFocus(t *testing.T) {
+	r := newRunForHandlerTest(t)
+	r.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	require.False(t, r.HasPaneFocus())
+
+	// More data arriving must not move focus once the user unfocused.
+	r.TestHandleRecordMsg(leet.SummaryMsg{
+		Summary: []*spb.SummaryRecord{{
+			Update: []*spb.SummaryItem{
+				{NestedKey: []string{"acc"}, ValueJson: "0.9"},
+			},
+		}},
+	})
+	require.False(t, r.HasPaneFocus(),
+		"incoming data must not re-steal focus after Esc")
+}
+
+func TestModel_EscExitsRunViewOnlyWhenUnfocused(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	m := leet.NewModel(leet.ModelParams{
+		RunParams: &leet.RunParams{RunFile: "testdata/fake.wandb"},
+		Config:    cfg,
+		Logger:    logger,
+	})
+	var tm tea.Model = m
+	tm, _ = tm.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+
+	// Seed overview data so focus lands on a pane.
+	require.True(t, m.TestInRunMode())
+	m.TestRunModel().TestHandleRecordMsg(leet.RunMsg{
+		ID:      "abc123",
+		Project: "test-project",
+		Config: &spb.ConfigRecord{
+			Update: []*spb.ConfigItem{
+				{NestedKey: []string{"lr"}, ValueJson: "0.01"},
+			},
+		},
+	})
+	require.True(t, m.TestRunModel().HasPaneFocus())
+
+	// First Esc unfocuses the pane but stays in the run view.
+	tm, _ = tm.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	require.True(t, m.TestInRunMode(), "Esc with a focused pane must not exit the view")
+	require.False(t, m.TestRunModel().HasPaneFocus())
+
+	// Second Esc exits to the workspace.
+	_, _ = tm.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	require.False(t, m.TestInRunMode(), "Esc with no pane focus should exit to workspace")
+}
+
 func TestRun_OverviewUpdatesPreserveTabContext(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
