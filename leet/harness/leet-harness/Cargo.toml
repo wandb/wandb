@@ -12,6 +12,15 @@ publish.workspace = true
 anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+portable-pty = "0.9"
+avt = "0.16"
+nix = { version = "0.30", features = ["fs"] }
+tempfile.workspace = true
+clap.workspace = true
+
+[[bin]]
+name = "leet-record"
+path = "src/bin/record.rs"
 
 [lints]
 workspace = true
