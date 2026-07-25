@@ -10,7 +10,19 @@ For reference documentation, see https://docs.wandb.ai/models/ref/python.
 """
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 __version__ = "0.28.2.dev1"
+
+if TYPE_CHECKING:
+    from wandb.apis import InternalApi, PublicApi
+    from wandb.apis import PublicApi as Api
+    from wandb.apis.internal import Api as _InternalApiInstance
+    from wandb.integration.sagemaker.auth import sagemaker_auth
+    from wandb.sdk.artifacts.artifact import Artifact
+    from wandb.wandb_agent import agent
+
+    api: _InternalApiInstance
 
 
 from wandb.errors import Error
@@ -39,12 +51,10 @@ helper = wandb_sdk.helper
 sweep = wandb_sdk.sweep
 controller = wandb_sdk.controller
 require = wandb_sdk.require
-Artifact = wandb_sdk.Artifact
 AlertLevel = wandb_sdk.AlertLevel
 Settings = wandb_sdk.Settings
 Config = wandb_sdk.Config
 
-from wandb.apis import InternalApi, PublicApi
 from wandb.errors import CommError, UsageError
 
 from wandb.sdk.lib import preinit as _preinit
@@ -67,10 +77,7 @@ from wandb.data_types import Histogram
 from wandb.data_types import Classes
 from wandb.data_types import JoinedTable
 
-from wandb.wandb_agent import agent
-
 from wandb.plot import visualize, plot_table
-from wandb.integration.sagemaker import sagemaker_auth
 from wandb.sdk.internal import profiler
 from wandb.sdk.wandb_run import Run
 
@@ -79,8 +86,6 @@ from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
 
 
 # globals
-Api = PublicApi
-api = InternalApi()
 run: Run | None = None
 config = _preinit.PreInitObject("wandb.config", wandb_sdk.wandb_config.Config)
 summary = _preinit.PreInitObject("wandb.summary", wandb_sdk.wandb_summary.Summary)
@@ -142,8 +147,42 @@ jupyter = _lazyloader.LazyLoader("wandb.jupyter", globals(), "wandb.jupyter")
 sacred = _lazyloader.LazyLoader("wandb.sacred", globals(), "wandb.integration.sacred")
 
 
+# Attributes whose imports pull in large parts of the SDK, resolved lazily;
+# see https://docs.python.org/3/reference/datamodel.html#customizing-module-attribute-access
+_LAZY_IMPORTS = {
+    "Artifact": ("wandb.sdk.artifacts.artifact", "Artifact"),
+    "InternalApi": ("wandb.apis", "InternalApi"),
+    "PublicApi": ("wandb.apis", "PublicApi"),
+    "Api": ("wandb.apis", "PublicApi"),
+    "sagemaker_auth": ("wandb.integration.sagemaker.auth", "sagemaker_auth"),
+    "agent": ("wandb.wandb_agent", "agent"),
+}
+
+
+def __getattr__(name: str):
+    if name in _LAZY_IMPORTS:
+        import importlib
+
+        module_name, attr = _LAZY_IMPORTS[name]
+        value = getattr(importlib.import_module(module_name), attr)
+    elif name == "api":
+        from wandb.apis import InternalApi
+
+        value = InternalApi()
+    else:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    globals()[name] = value
+    return value
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(_LAZY_IMPORTS) | {"api"})
+
+
 def ensure_configured():
     global api
+    from wandb.apis import InternalApi
+
     api = InternalApi()
 
 
