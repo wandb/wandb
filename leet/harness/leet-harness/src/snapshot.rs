@@ -42,7 +42,9 @@ pub fn encode(grid: &Grid) -> String {
         if grid.cursor.visible { "visible" } else { "hidden" }
     );
     for row in grid.text_rows() {
-        out.push_str(&row);
+        // Trailing spaces are stripped (repo pre-commit hooks would anyway);
+        // decode() restores missing cells as blanks.
+        out.push_str(row.trim_end_matches(' '));
         out.push('\n');
     }
     out.push_str("#styles\n");
