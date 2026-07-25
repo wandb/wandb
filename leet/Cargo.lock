@@ -255,6 +255,10 @@ version = "0.1.0"
 [[package]]
 name = "leet-tui"
 version = "0.1.0"
+dependencies = [
+ "leet-charts",
+ "leet-data",
+]
 
 [[package]]
 name = "leet-wire"
