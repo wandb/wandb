@@ -98,12 +98,18 @@ func NewSymon(params SymonParams) *Symon {
 
 // Init starts the initial sampling pass.
 func (s *Symon) Init() tea.Cmd {
+	if testModeEnabled() {
+		// No OSC round-trip under the test harness; the background is forced.
+		SetDarkBackground(!testForcedLightBackground())
+		return s.sampleNowCmd()
+	}
 	return tea.Batch(tea.RequestBackgroundColor, s.sampleNowCmd())
 }
 
 // Update handles resize events, help/restart shortcuts, user input, and live
 // StatsMsg updates from the sampler.
 func (s *Symon) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	defer testAckUpdate(msg)
 	if ws, ok := msg.(tea.WindowSizeMsg); ok {
 		s.width, s.height = ws.Width, ws.Height
 		s.help.SetSize(ws.Width, ws.Height)
@@ -153,6 +159,7 @@ func (s *Symon) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the standalone system monitor or its help overlay.
 func (s *Symon) View() tea.View {
+	defer testAckView()
 	if s.width == 0 || s.height == 0 {
 		return tea.NewView("Loading...")
 	}
