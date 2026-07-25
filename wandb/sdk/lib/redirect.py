@@ -23,6 +23,7 @@ from collections.abc import Callable, Iterable
 from typing import Literal
 
 import wandb
+import wandb.util
 from wandb.sdk.lib import console_capture
 
 
@@ -52,9 +53,9 @@ class _Numpy:  # fallback in case numpy is not available
         return Arr(range(x))
 
 
-try:
-    import numpy as np  # type: ignore
-except ImportError:
+# A lazy module reference, so that importing this module doesn't load numpy.
+np = wandb.util.get_module("numpy")
+if np is None:
     np = _Numpy()  # type: ignore
 
 
