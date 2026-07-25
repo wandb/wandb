@@ -75,7 +75,10 @@ impl AckListener {
             })
             .context("spawn ack-listener thread")?;
 
-        Ok(AckListener { rx, history: Vec::new() })
+        Ok(AckListener {
+            rx,
+            history: Vec::new(),
+        })
     }
 
     /// Drain without blocking.
@@ -204,7 +207,9 @@ fn parse_ack(line: &[u8]) -> Option<Ack> {
             seq: seq.parse().ok()?,
             msg_type: parts.next().unwrap_or("").to_string(),
         }),
-        ("v", Some(seq)) => Some(Ack::View { seq: seq.parse().ok()? }),
+        ("v", Some(seq)) => Some(Ack::View {
+            seq: seq.parse().ok()?,
+        }),
         _ => None,
     }
 }
@@ -217,7 +222,10 @@ mod tests {
     fn parses_protocol_lines() {
         assert_eq!(
             parse_ack(b"u 12 tea.KeyPressMsg"),
-            Some(Ack::Update { seq: 12, msg_type: "tea.KeyPressMsg".into() })
+            Some(Ack::Update {
+                seq: 12,
+                msg_type: "tea.KeyPressMsg".into()
+            })
         );
         assert_eq!(parse_ack(b"v 12"), Some(Ack::View { seq: 12 }));
         assert_eq!(parse_ack(b"garbage"), None);

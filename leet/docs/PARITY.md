@@ -186,6 +186,12 @@ Verification layers:
 | FLT-06 | Operators (leftmost, longest-match): `:` pattern (mode-aware; config matches path/value/`path=value`), `=` case-fold exact, `!=`, `>` `>=` `<` `<=` numeric (single-value fields only; non-numeric rhs → false) | runfilterquery.go | unit-diff | unit/runquery-03 | pending |
 | FLT-07 | Bare term searches RunKey/DisplayName/ID/Project/Notes/Tags; unparseable clauses fall back to bare term | runfilterquery.go | unit-diff | unit/runquery-04 | pending |
 
+DIVERGENCE (see PORTING.md module mapping): `filter.go` is split across crates — the
+pure matcher subset (`FilterMatchMode`, `compileTextMatcher`, glob/wildcard/hasRegexMeta;
+covers FLT-02) lives in `leet-data::run_filter_query`; the `Filter` widget and key
+handling (FLT-01) port to `leet-tui`, which must reuse/re-export the `leet-data` matcher
+rather than re-port it.
+
 ### 2.9 Config & editor (config.go, configeditor.go, configeditorfields.go)
 
 | ID | Feature | Go source | Layer | Scenario | Status |
@@ -271,7 +277,7 @@ All `_test.go` files in `core/internal/leet` (46 files, 10,531 LOC total). Each 
 | heartbeat_lifecycle_test.go | 85 | leet-data | pending |
 | heartbeat_test.go | 161 | leet-data | pending |
 | leveldbhistorysource_test.go | 411 | leet-data | pending |
-| liveread_test.go | 126 | leet-data | pending |
+| liveread_test.go | 126 | split: leet-data + leet-tui (§5.1) | pending |
 | livestore_test.go | 335 | leet-data | pending |
 | media_test.go | 203 | leet-data | pending |
 | mediapane_test.go | 812 | leet-tui | pending |
@@ -286,7 +292,7 @@ All `_test.go` files in `core/internal/leet` (46 files, 10,531 LOC total). Each 
 | rightsidebar_test.go | 123 | leet-tui | pending |
 | run_update_test.go | 609 | leet-tui | pending |
 | runconsolelogs_test.go | 53 | leet-tui | pending |
-| runfilterquery_test.go | 181 | leet-tui | pending |
+| runfilterquery_test.go | 181 | leet-data | pending |
 | runhandlers_test.go | 251 | leet-tui | pending |
 | runoverview_test.go | 120 | leet-tui | pending |
 | runoverviewsidebar_test.go | 416 | leet-tui | pending |
@@ -304,3 +310,27 @@ All `_test.go` files in `core/internal/leet` (46 files, 10,531 LOC total). Each 
 | workspace_test.go | 254 | leet-tui | pending |
 | workspacedirwatcher_preload_test.go | 76 | leet-tui | pending |
 | workspacedirwatcher_test.go | 211 | leet-tui | pending |
+
+### 5.1 Deferred cross-module cases from `liveread_test.go`
+
+`liveread_test.go` exercises layers above `LiveStore` (which was ported to `leet-wire`
+together with `livestore_test.go`), so none of its 6 cases could compile in `leet-wire`:
+they cover `ReadRecords` (historysource.go:49), `Run.ReadLiveBatchCmd` (runhandlers.go:820),
+`Workspace.ReadAvailableCmd` (workspacehandlers.go:486), and `ParseHistory`
+(leveldbhistorysource.go:199), and depend on `tea.Msg`/`ConfigManager` types from unported
+phases. They are deferred (see the `PARITY: DEFERRED TESTS` comment in
+`crates/leet-wire/src/live_store.rs`); the units below MUST transliterate them 1:1. The
+`liveread_test.go` row above flips to `done` only when all six exist and pass:
+
+| Go case (liveread_test.go) | Function under test (Go) | Target port unit |
+|---|---|---|
+| TestReadRecords_PassesThroughArguments (:32) | ReadRecords (historysource.go) | leet-data `history_source` |
+| TestRun_ReadLiveBatchCmd_WrapsChunkedBatchAndUsesLiveLimits (:41) | Run.ReadLiveBatchCmd (runhandlers.go) | leet-tui run |
+| TestRun_ReadLiveBatchCmd_DropsEmptyChunk (:69) | Run.ReadLiveBatchCmd (runhandlers.go) | leet-tui run |
+| TestWorkspace_ReadAvailableCmd_WrapsChunkedBatch (:80) | Workspace.ReadAvailableCmd (workspacehandlers.go) | leet-tui workspace |
+| TestWorkspace_ReadAvailableCmd_DropsEmptyChunk (:108) | Workspace.ReadAvailableCmd (workspacehandlers.go) | leet-tui workspace |
+| TestParseHistory_UsesHistoryStepFallback (:117) | ParseHistory (leveldbhistorysource.go) | leet-data `leveldb_history_source` |
+
+Precedent: `media_test.go`'s four `TestParseHistory_*` cases are similarly deferred to the
+`leet-data` `leveldb_history_source` unit (see the `PARITY: DEFERRED TESTS` comment in
+`crates/leet-data/src/media.rs`).

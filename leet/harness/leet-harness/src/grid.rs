@@ -37,7 +37,13 @@ pub struct Cell {
 
 impl Default for Cell {
     fn default() -> Self {
-        Cell { ch: ' ', width: 1, fg: None, bg: None, attrs: 0 }
+        Cell {
+            ch: ' ',
+            width: 1,
+            fg: None,
+            bg: None,
+            attrs: 0,
+        }
     }
 }
 
@@ -71,7 +77,11 @@ impl Grid {
             cols,
             rows,
             cells: vec![Cell::default(); cols * rows],
-            cursor: CursorState { col: 0, row: 0, visible: false },
+            cursor: CursorState {
+                col: 0,
+                row: 0,
+                visible: false,
+            },
         }
     }
 

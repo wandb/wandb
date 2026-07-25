@@ -5,7 +5,15 @@
 //! Mechanical port of the corresponding files in `core/internal/leet`;
 //! see `leet/docs/PORTING.md`.
 
+pub mod config;
 pub mod go_fmt;
+pub mod media;
+pub mod remote;
+pub mod run_config;
+pub mod run_environment;
+pub mod run_filter_query;
 pub mod run_overview;
+pub mod run_summary;
+pub mod system_metrics;
 pub mod test_mode;
 pub mod units;

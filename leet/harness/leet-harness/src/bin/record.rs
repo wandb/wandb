@@ -91,7 +91,11 @@ fn main() -> Result<()> {
                 .with_context(|| format!("{} run 2", scenario.name))?;
 
             if run1.snapshots.len() != run2.snapshots.len() {
-                println!("FAIL: snapshot count {} vs {}", run1.snapshots.len(), run2.snapshots.len());
+                println!(
+                    "FAIL: snapshot count {} vs {}",
+                    run1.snapshots.len(),
+                    run2.snapshots.len()
+                );
                 failures += 1;
                 continue;
             }
@@ -105,8 +109,14 @@ fn main() -> Result<()> {
                 }
             }
             if scenario_clean {
-                println!("OK ({} snaps, {} queries answered)", run1.snapshots.len(),
-                    run1.persona_log.iter().filter(|q| q.reply.is_some()).count());
+                println!(
+                    "OK ({} snaps, {} queries answered)",
+                    run1.snapshots.len(),
+                    run1.persona_log
+                        .iter()
+                        .filter(|q| q.reply.is_some())
+                        .count()
+                );
             } else {
                 failures += 1;
             }
@@ -116,7 +126,10 @@ fn main() -> Result<()> {
                 }
             }
         } else {
-            let out_root = args.out.clone().context("--out required unless --null-test")?;
+            let out_root = args
+                .out
+                .clone()
+                .context("--out required unless --null-test")?;
             let run = run_scenario(&app, &scenario, &args.fixtures)?;
             for (name, grid) in &run.snapshots {
                 let path = out_root.join(&scenario.name).join(format!("{name}.frame"));

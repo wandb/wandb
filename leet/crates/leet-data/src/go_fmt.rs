@@ -17,7 +17,11 @@ pub fn format_float_g(v: f64, prec: usize) -> String {
         return "NaN".to_string();
     }
     if v.is_infinite() {
-        return if v > 0.0 { "+Inf".to_string() } else { "-Inf".to_string() };
+        return if v > 0.0 {
+            "+Inf".to_string()
+        } else {
+            "-Inf".to_string()
+        };
     }
     if v == 0.0 {
         return "0".to_string();
@@ -88,7 +92,11 @@ pub fn format_float_f(v: f64, decimals: usize) -> String {
         return "NaN".to_string();
     }
     if v.is_infinite() {
-        return if v > 0.0 { "+Inf".to_string() } else { "-Inf".to_string() };
+        return if v > 0.0 {
+            "+Inf".to_string()
+        } else {
+            "-Inf".to_string()
+        };
     }
     // Rust's `{:.N}` is correctly rounded from the binary value, matching Go.
     format!("{v:.decimals$}")
@@ -96,7 +104,9 @@ pub fn format_float_f(v: f64, decimals: usize) -> String {
 
 /// Parse Rust `{:e}` output like "1.23e3" / "5e-7" into (mantissa, exponent).
 fn split_scientific(s: &str) -> (&str, i32) {
-    let (m, e) = s.split_once('e').expect("scientific format always has an exponent");
+    let (m, e) = s
+        .split_once('e')
+        .expect("scientific format always has an exponent");
     (m, e.parse().expect("valid exponent"))
 }
 

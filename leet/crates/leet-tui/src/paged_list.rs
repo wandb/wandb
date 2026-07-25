@@ -231,7 +231,10 @@ mod tests {
     use super::*;
 
     fn kv(key: &str) -> KeyValuePair {
-        KeyValuePair { key: key.to_string(), ..Default::default() }
+        KeyValuePair {
+            key: key.to_string(),
+            ..Default::default()
+        }
     }
 
     #[test]

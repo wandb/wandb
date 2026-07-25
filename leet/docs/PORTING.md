@@ -11,15 +11,17 @@ Companion docs: `CONCURRENCY.md` (goroutine→thread mapping, prescriptive),
 ## Module mapping
 
 One Go file → one Rust module of the same snake_case name, in its assigned crate.
-Do not merge or split files during the port.
+Do not merge or split files during the port (one recorded exception: `filter.go`,
+see the DIVERGENCE note below the table).
 
 | Go file(s) | Rust crate | Module |
 |---|---|---|
 | `core/pkg/leveldb/{record,crc}.go`, `core/internal/transactionlog/*`, `livestore.go` | `leet-wire` | `record`, `crc`, `transaction_log`, `live_store` |
 | protobuf types (`spb`) | `leet-proto` | generated, committed |
-| `historysource.go`, `leveldbhistorysource.go`, `media.go`, `runoverview.go` | `leet-data` | same-name modules |
-| `systemmetrics.go`, `units.go`, `config.go`, `workspace_runcolors.go` | `leet-data` | 〃 |
-| `filter.go`, `metricsfilter.go`, `systemmetricsfilter.go`, `runfilterquery.go` | `leet-data` | 〃 |
+| `historysource.go`, `leveldbhistorysource.go`, `media.go`, `runoverview.go` (+ used subset of `core/internal/{runconfig,runsummary,runenvironment}`) | `leet-data` | same-name modules |
+| `systemmetrics.go`, `units.go`, `config.go`, `runfilterquery.go`, `remote.go` | `leet-data` | 〃 |
+| `workspace_runcolors.go` | `leet-charts` | uses `AdaptiveColor`; charts may depend on data, not vice versa |
+| `filter.go`, `metricsfilter.go`, `systemmetricsfilter.go` | `leet-tui` | take `tea.KeyPressMsg` / are `MetricsGrid` methods |
 | `epochlinechart.go`, `timeserieslinechart.go`, `frenchfrieschart.go`, `frenchfriestogglechart.go`, ntcharts braille canvas subset | `leet-charts` | 〃 + `braille` |
 | `styles.go` (palettes/adaptive colors) | `leet-charts` | `styles` |
 | `metricsgrid.go`, `systemmetricsgrid.go`, panes, sidebars, `flexlayout.go`, `panelgrid.go`, `pagedlist.go`, `animation.go`, `help.go`, `mediapane.go`, `consolelogspane.go`, `runconsolelogs.go` + terminal emulator | `leet-tui` | 〃 |
@@ -28,6 +30,15 @@ Do not merge or split files during the port.
 | `parquethistorysource.go`, `remote.go`, gql | `leet-remote` | 〃 |
 | `configeditor.go`, `configeditorfields.go` | `leet-tui` | 〃 |
 | `testhelpers.go` | not ported | see Testing below |
+
+DIVERGENCE (recorded in PARITY.md §2.8): `filter.go` is split. Its pure text-matching
+subset — `FilterMatchMode`, `compileTextMatcher`, `globMatchUnanchoredCaseInsensitive`,
+`wildcardMatch`, `hasRegexMeta` (filter.go:11-29, 168-267) — is hosted in
+`leet-data::run_filter_query`, because `runfilterquery.go` (a `leet-data` module) calls
+`compileTextMatcher` and `leet-tui` depends on `leet-data`, not vice versa. The `Filter`
+widget and its key handling port to `leet-tui` as mapped above and MUST reuse/re-export
+`leet_data::run_filter_query::{FilterMatchMode, compile_text_matcher}` — do not re-port
+the matcher (the two copies would drift).
 
 ## Architecture pattern map
 
@@ -44,7 +55,8 @@ Do not merge or split files during the port.
 | `lipgloss.Style` render | `Style` + explicit cell writes / span builders | port `flexlayout.go` verbatim; implement `join_horizontal/join_vertical/place` helpers replicating lipgloss alignment+padding arithmetic (padding cells are UNSTYLED spaces — Tier-2 parity depends on this) |
 | `lipgloss.Width` | `text_width()` in `leet-data::width` (grapheme-aware shim, proptested vs Go) | never call `unicode_width` directly outside the shim |
 | bubbles `viewport` (help only) | `Paragraph` + scroll offset | do not port bubbles |
-| ntcharts `BrailleGrid`/`linechart` | `leet-charts::braille` — port ONLY the subset leet uses, verbatim | do not use ratatui `Chart`/`Canvas` |
+| ntcharts `BrailleGrid`/`linechart` | `leet-charts::{canvas,braille}` — port ONLY the subset leet uses, verbatim | do not use ratatui `Chart`/`Canvas` |
+| chart `View() string` (ANSI block) | render into `leet_charts::canvas::Canvas` (char + fg/style cell grid) | `leet-tui` blits canvases into the ratatui buffer; keeps leet-charts ratatui-free and unit-diffable against the Go rune grid |
 | `CoreLogger` / observability | `tracing` behind a thin `Logger` facade | Sentry decision deferred to Phase 8 |
 
 ## Language-level rules

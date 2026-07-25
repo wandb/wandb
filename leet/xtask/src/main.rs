@@ -36,7 +36,10 @@ fn main() -> Result<()> {
 
 fn workspace_root() -> PathBuf {
     // xtask always runs from within the workspace via cargo.
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().to_path_buf()
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap()
+        .to_path_buf()
 }
 
 /// Build wandb-core from the sibling core/ module — the pinned oracle.
@@ -50,7 +53,10 @@ fn oracle_build() -> Result<PathBuf> {
     let out = root.join("target/oracle/wandb-core");
     std::fs::create_dir_all(out.parent().unwrap())?;
 
-    eprintln!("building oracle: go build ./cmd/wandb-core -> {}", out.display());
+    eprintln!(
+        "building oracle: go build ./cmd/wandb-core -> {}",
+        out.display()
+    );
     let status = Command::new("go")
         .args(["build", "-o"])
         .arg(&out)
@@ -107,7 +113,15 @@ fn record(oracle: &Path, extra: &[String], null_test: bool) -> Result<()> {
     let root = workspace_root();
     let mut cmd = Command::new("cargo");
     cmd.current_dir(&root)
-        .args(["run", "--quiet", "-p", "leet-harness", "--bin", "leet-record", "--"])
+        .args([
+            "run",
+            "--quiet",
+            "-p",
+            "leet-harness",
+            "--bin",
+            "leet-record",
+            "--",
+        ])
         .arg("--oracle")
         .arg(oracle)
         .arg("--scenarios")

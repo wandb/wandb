@@ -276,7 +276,10 @@ mod tests {
         }
 
         // Should have seen multiple intermediate values.
-        assert!(values_seen.len() > 2, "animation should progress through multiple values");
+        assert!(
+            values_seen.len() > 2,
+            "animation should progress through multiple values"
+        );
         assert_eq!(anim.value(), 50, "should end at target value");
         assert!(!anim.is_animating(), "animation should be complete");
     }

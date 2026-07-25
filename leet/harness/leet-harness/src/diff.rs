@@ -65,8 +65,7 @@ pub fn diff_grids(a: &Grid, b: &Grid, masks: &[Mask]) -> DiffReport {
             let ca = a.cell(col, row);
             let cb = b.cell(col, row);
 
-            let chars_match =
-                ca.ch == cb.ch || (ca.is_char_blank() && cb.is_char_blank());
+            let chars_match = ca.ch == cb.ch || (ca.is_char_blank() && cb.is_char_blank());
             if !chars_match {
                 report.char_diffs.push(CellDiff {
                     col,
@@ -79,9 +78,7 @@ pub fn diff_grids(a: &Grid, b: &Grid, masks: &[Mask]) -> DiffReport {
             }
             // Style tier: skip blanks — padding style is normalized away
             // (lipgloss Join/Place padding is unstyled spaces; see docs).
-            if !ca.is_char_blank()
-                && (ca.fg != cb.fg || ca.bg != cb.bg || ca.attrs != cb.attrs)
-            {
+            if !ca.is_char_blank() && (ca.fg != cb.fg || ca.bg != cb.bg || ca.attrs != cb.attrs) {
                 report.style_diffs.push(CellDiff {
                     col,
                     row,
@@ -94,8 +91,7 @@ pub fn diff_grids(a: &Grid, b: &Grid, masks: &[Mask]) -> DiffReport {
     }
 
     if a.cursor != b.cursor {
-        report.cursor_mismatch =
-            Some((format!("{:?}", a.cursor), format!("{:?}", b.cursor)));
+        report.cursor_mismatch = Some((format!("{:?}", a.cursor), format!("{:?}", b.cursor)));
     }
 
     report
@@ -115,7 +111,10 @@ pub fn render_report(
     let mut out = String::new();
 
     if let Some(((ac, ar), (bc, br))) = report.size_mismatch {
-        let _ = writeln!(out, "SIZE MISMATCH: {a_label}={ac}x{ar} {b_label}={bc}x{br}");
+        let _ = writeln!(
+            out,
+            "SIZE MISMATCH: {a_label}={ac}x{ar} {b_label}={bc}x{br}"
+        );
         return out;
     }
 
@@ -159,7 +158,11 @@ pub fn render_report(
         let _ = writeln!(out, "        {b_label:>8}: |{}|", b_rows[row]);
         let mut marker = String::new();
         for col in 0..a.cols {
-            if report.char_diffs.iter().any(|d| d.row == row && d.col == col) {
+            if report
+                .char_diffs
+                .iter()
+                .any(|d| d.row == row && d.col == col)
+            {
                 marker.push('^');
             } else {
                 marker.push(' ');

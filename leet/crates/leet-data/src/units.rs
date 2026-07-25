@@ -41,12 +41,22 @@ pub const UNIT_PERCENT: Unit = Unit::Percent;
 pub const UNIT_CELSIUS: Unit = Unit::Celsius;
 pub const UNIT_WATT: Unit = Unit::Watt;
 pub const UNIT_MHZ: Unit = Unit::MHz;
-pub const UNIT_BYTES: Unit = Unit::Bytes { factor_to_bytes: 1.0 };
-pub const UNIT_MIB: Unit = Unit::Bytes { factor_to_bytes: 1024.0 * 1024.0 };
-pub const UNIT_GIB: Unit = Unit::Bytes { factor_to_bytes: 1024.0 * 1024.0 * 1024.0 };
+pub const UNIT_BYTES: Unit = Unit::Bytes {
+    factor_to_bytes: 1.0,
+};
+pub const UNIT_MIB: Unit = Unit::Bytes {
+    factor_to_bytes: 1024.0 * 1024.0,
+};
+pub const UNIT_GIB: Unit = Unit::Bytes {
+    factor_to_bytes: 1024.0 * 1024.0 * 1024.0,
+};
 pub const UNIT_BPS: Unit = Unit::BytesPerSecond { factor_to_bps: 1.0 };
-pub const UNIT_MIBPS: Unit = Unit::BytesPerSecond { factor_to_bps: 1024.0 * 1024.0 };
-pub const UNIT_GIBPS: Unit = Unit::BytesPerSecond { factor_to_bps: 1024.0 * 1024.0 * 1024.0 };
+pub const UNIT_MIBPS: Unit = Unit::BytesPerSecond {
+    factor_to_bps: 1024.0 * 1024.0,
+};
+pub const UNIT_GIBPS: Unit = Unit::BytesPerSecond {
+    factor_to_bps: 1024.0 * 1024.0 * 1024.0,
+};
 
 impl Unit {
     /// Base unit symbol without prefixes, e.g. "B", "Hz", "W", "%", "°C", "".
@@ -194,7 +204,10 @@ pub fn format_x_axis_tick(v: f64, max_width: isize) -> String {
         }
 
         // Nothing fit; return minimum precision anyway.
-        return format!("{sign}{}{suffix}", trim_trailing_zeros(&format_float_f(scaled, 0)));
+        return format!(
+            "{sign}{}{suffix}",
+            trim_trailing_zeros(&format_float_f(scaled, 0))
+        );
     }
 }
 

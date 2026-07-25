@@ -55,7 +55,10 @@ pub struct Size {
 }
 
 fn default_size() -> Size {
-    Size { cols: 120, rows: 40 }
+    Size {
+        cols: 120,
+        rows: 40,
+    }
 }
 
 fn default_tier() -> u8 {

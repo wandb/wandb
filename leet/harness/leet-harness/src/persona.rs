@@ -68,7 +68,11 @@ enum Classified {
 
 impl Persona {
     pub fn new(background: PersonaBackground) -> Self {
-        Persona { background, tail: Vec::new(), log: Vec::new() }
+        Persona {
+            background,
+            tail: Vec::new(),
+            log: Vec::new(),
+        }
     }
 
     /// Scan a chunk of oracle output; returns reply bytes to write to the
@@ -183,7 +187,10 @@ fn classify_csi(buf: &[u8]) -> Classified {
             continue;
         }
         if buf.starts_with(pat) {
-            return Classified::Query { len: pat.len(), name: name.to_string() };
+            return Classified::Query {
+                len: pat.len(),
+                name: name.to_string(),
+            };
         }
     }
 
@@ -203,7 +210,10 @@ fn classify_csi(buf: &[u8]) -> Classified {
                 }
                 if buf[j + 1] == b'p' {
                     let mode = String::from_utf8_lossy(&buf[3..j]);
-                    return Classified::Query { len: j + 2, name: format!("DECRQM-{mode}") };
+                    return Classified::Query {
+                        len: j + 2,
+                        name: format!("DECRQM-{mode}"),
+                    };
                 }
             }
         }
@@ -226,14 +236,20 @@ fn classify_osc(buf: &[u8]) -> Classified {
                 return Classified::Partial;
             }
             if rest[0] == 0x07 {
-                return Classified::Query { len: prefix.len() + 1, name: name.to_string() };
+                return Classified::Query {
+                    len: prefix.len() + 1,
+                    name: name.to_string(),
+                };
             }
             if rest[0] == 0x1b {
                 if rest.len() < 2 {
                     return Classified::Partial;
                 }
                 if rest[1] == b'\\' {
-                    return Classified::Query { len: prefix.len() + 2, name: name.to_string() };
+                    return Classified::Query {
+                        len: prefix.len() + 2,
+                        name: name.to_string(),
+                    };
                 }
             }
         }
@@ -244,7 +260,11 @@ fn classify_osc(buf: &[u8]) -> Classified {
 fn classify_dcs(buf: &[u8]) -> Classified {
     // XTGETTCAP: ESC P + q <hex...> ESC \ — recognized, never answered.
     if buf.len() < 4 {
-        return if b"\x1bP+q".starts_with(buf) { Classified::Partial } else { Classified::No };
+        return if b"\x1bP+q".starts_with(buf) {
+            Classified::Partial
+        } else {
+            Classified::No
+        };
     }
     if !buf.starts_with(b"\x1bP+q") {
         return Classified::No;
@@ -255,11 +275,18 @@ fn classify_dcs(buf: &[u8]) -> Classified {
                 return Classified::Partial;
             }
             if buf[j + 1] == b'\\' {
-                return Classified::Query { len: j + 2, name: "XTGETTCAP".to_string() };
+                return Classified::Query {
+                    len: j + 2,
+                    name: "XTGETTCAP".to_string(),
+                };
             }
         }
     }
-    if buf.len() < 64 { Classified::Partial } else { Classified::No }
+    if buf.len() < 64 {
+        Classified::Partial
+    } else {
+        Classified::No
+    }
 }
 
 #[cfg(test)]

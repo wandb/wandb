@@ -36,11 +36,7 @@ pub struct RunOutput {
 const SNAP_DRAIN_QUIET: Duration = Duration::from_millis(40);
 const SNAP_DRAIN_TIMEOUT: Duration = Duration::from_millis(400);
 
-pub fn run_scenario(
-    app: &AppSpec,
-    scenario: &Scenario,
-    fixtures_root: &Path,
-) -> Result<RunOutput> {
+pub fn run_scenario(app: &AppSpec, scenario: &Scenario, fixtures_root: &Path) -> Result<RunOutput> {
     let work = tempfile::TempDir::new().context("scenario temp dir")?;
     let ack_path = work.path().join("ack.fifo");
     let mut acks = AckListener::new(&ack_path)?;
@@ -63,10 +59,22 @@ pub fn run_scenario(
 
     let mut env = vec![
         ("WANDB_LEET_TEST".to_string(), "1".to_string()),
-        ("LEET_TEST_ACK_FILE".to_string(), ack_path.to_string_lossy().to_string()),
-        ("HOME".to_string(), work.path().to_string_lossy().to_string()),
-        ("WANDB_CONFIG_DIR".to_string(), work.path().join("config").to_string_lossy().to_string()),
-        ("WANDB_DIR".to_string(), work.path().to_string_lossy().to_string()),
+        (
+            "LEET_TEST_ACK_FILE".to_string(),
+            ack_path.to_string_lossy().to_string(),
+        ),
+        (
+            "HOME".to_string(),
+            work.path().to_string_lossy().to_string(),
+        ),
+        (
+            "WANDB_CONFIG_DIR".to_string(),
+            work.path().join("config").to_string_lossy().to_string(),
+        ),
+        (
+            "WANDB_DIR".to_string(),
+            work.path().to_string_lossy().to_string(),
+        ),
     ];
     if scenario.background == Background::Light {
         env.push(("WANDB_LEET_TEST_BG".to_string(), "light".to_string()));
@@ -127,7 +135,8 @@ fn drive(
                 let seq = acks
                     .await_update(KEY_ACK_TYPE, 1, since, Duration::from_secs(10))
                     .with_context(step_ctx)?;
-                acks.await_view(seq, Duration::from_secs(10)).with_context(step_ctx)?;
+                acks.await_view(seq, Duration::from_secs(10))
+                    .with_context(step_ctx)?;
                 acks.await_quiet(Duration::from_millis(150), Duration::from_secs(10))
                     .with_context(step_ctx)?;
             }
@@ -141,7 +150,8 @@ fn drive(
                 let seq = acks
                     .await_update(MOUSE_ACK_TYPE, 1, since, Duration::from_secs(10))
                     .with_context(step_ctx)?;
-                acks.await_view(seq, Duration::from_secs(10)).with_context(step_ctx)?;
+                acks.await_view(seq, Duration::from_secs(10))
+                    .with_context(step_ctx)?;
                 acks.await_quiet(Duration::from_millis(150), Duration::from_secs(10))
                     .with_context(step_ctx)?;
             }
@@ -152,22 +162,26 @@ fn drive(
                 let seq = acks
                     .await_update(RESIZE_ACK_TYPE, 1, since, Duration::from_secs(10))
                     .with_context(step_ctx)?;
-                acks.await_view(seq, Duration::from_secs(10)).with_context(step_ctx)?;
+                acks.await_view(seq, Duration::from_secs(10))
+                    .with_context(step_ctx)?;
                 acks.await_quiet(Duration::from_millis(150), Duration::from_secs(10))
                     .with_context(step_ctx)?;
             }
-            Step::AwaitUpdate { type_fragment, count, timeout_ms } => {
+            Step::AwaitUpdate {
+                type_fragment,
+                count,
+                timeout_ms,
+            } => {
                 let seq = acks
-                    .await_update(
-                        type_fragment,
-                        *count,
-                        0,
-                        Duration::from_millis(*timeout_ms),
-                    )
+                    .await_update(type_fragment, *count, 0, Duration::from_millis(*timeout_ms))
                     .with_context(step_ctx)?;
-                acks.await_view(seq, Duration::from_secs(10)).with_context(step_ctx)?;
+                acks.await_view(seq, Duration::from_secs(10))
+                    .with_context(step_ctx)?;
             }
-            Step::Quiesce { quiet_ms, timeout_ms } => {
+            Step::Quiesce {
+                quiet_ms,
+                timeout_ms,
+            } => {
                 acks.await_quiet(
                     Duration::from_millis(*quiet_ms),
                     Duration::from_millis(*timeout_ms),

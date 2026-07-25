@@ -65,16 +65,22 @@ impl PtyProcess {
             cmd.env(k, v);
         }
 
-        let child = pair.slave.spawn_command(cmd).context("spawn oracle in pty")?;
+        let child = pair
+            .slave
+            .spawn_command(cmd)
+            .context("spawn oracle in pty")?;
         drop(pair.slave);
 
         let mut reader = pair.master.try_clone_reader().context("clone pty reader")?;
-        let writer: Arc<Mutex<Box<dyn Write + Send>>> =
-            Arc::new(Mutex::new(pair.master.take_writer().context("take pty writer")?));
+        let writer: Arc<Mutex<Box<dyn Write + Send>>> = Arc::new(Mutex::new(
+            pair.master.take_writer().context("take pty writer")?,
+        ));
 
         let state = Arc::new(SharedState {
             vt: Mutex::new(
-                avt::Vt::builder().size(spec.cols as usize, spec.rows as usize).build(),
+                avt::Vt::builder()
+                    .size(spec.cols as usize, spec.rows as usize)
+                    .build(),
             ),
             persona: Mutex::new(Persona::new(spec.background)),
             raw_len: Mutex::new(0),
@@ -135,7 +141,12 @@ impl PtyProcess {
                 .context("spawn pty-reader thread")?;
         }
 
-        Ok(PtyProcess { master: pair.master, child, writer, state })
+        Ok(PtyProcess {
+            master: pair.master,
+            child,
+            writer,
+            state,
+        })
     }
 
     pub fn write_input(&self, bytes: &[u8]) -> Result<()> {
@@ -147,9 +158,18 @@ impl PtyProcess {
     /// TIOCSWINSZ + SIGWINCH to the child.
     pub fn resize(&self, cols: u16, rows: u16) -> Result<()> {
         self.master
-            .resize(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 })
+            .resize(PtySize {
+                rows,
+                cols,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
             .context("pty resize")?;
-        self.state.vt.lock().unwrap().resize(cols as usize, rows as usize);
+        self.state
+            .vt
+            .lock()
+            .unwrap()
+            .resize(cols as usize, rows as usize);
         Ok(())
     }
 

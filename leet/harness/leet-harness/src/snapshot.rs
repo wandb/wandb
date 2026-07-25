@@ -25,8 +25,7 @@ pub fn save(grid: &Grid, path: &Path) -> Result<()> {
 }
 
 pub fn load(path: &Path) -> Result<Grid> {
-    let data =
-        std::fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
+    let data = std::fs::read_to_string(path).with_context(|| format!("read {}", path.display()))?;
     decode(&data).with_context(|| format!("decode snapshot {}", path.display()))
 }
 
@@ -39,7 +38,11 @@ pub fn encode(grid: &Grid) -> String {
         grid.rows,
         grid.cursor.col,
         grid.cursor.row,
-        if grid.cursor.visible { "visible" } else { "hidden" }
+        if grid.cursor.visible {
+            "visible"
+        } else {
+            "hidden"
+        }
     );
     for row in grid.text_rows() {
         // Trailing spaces are stripped (repo pre-commit hooks would anyway);
@@ -80,7 +83,11 @@ pub fn decode(data: &str) -> Result<Grid> {
 
     let mut cols = 0usize;
     let mut rows = 0usize;
-    let mut cursor = CursorState { col: 0, row: 0, visible: false };
+    let mut cursor = CursorState {
+        col: 0,
+        row: 0,
+        visible: false,
+    };
     for part in rest.split(' ') {
         if let Some(v) = part.strip_prefix("cols=") {
             cols = v.parse()?;
@@ -130,8 +137,13 @@ pub fn decode(data: &str) -> Result<Grid> {
             grid.cell_mut(col, r).width = w;
             col += 1;
             if w == 2 && col < cols {
-                *grid.cell_mut(col, r) =
-                    Cell { ch, width: 0, fg: None, bg: None, attrs: 0 };
+                *grid.cell_mut(col, r) = Cell {
+                    ch,
+                    width: 0,
+                    fg: None,
+                    bg: None,
+                    attrs: 0,
+                };
                 col += 1;
             }
         }
@@ -224,7 +236,13 @@ mod tests {
         let mut g = Grid::blank(6, 1);
         g.cell_mut(0, 0).ch = '日';
         g.cell_mut(0, 0).width = 2;
-        *g.cell_mut(1, 0) = Cell { ch: '日', width: 0, fg: None, bg: None, attrs: 0 };
+        *g.cell_mut(1, 0) = Cell {
+            ch: '日',
+            width: 0,
+            fg: None,
+            bg: None,
+            attrs: 0,
+        };
         g.cell_mut(2, 0).ch = 'x';
 
         let decoded = decode(&encode(&g)).unwrap();
