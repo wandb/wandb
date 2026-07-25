@@ -1229,13 +1229,16 @@ func (w *Workspace) activeSystemMetricsGrid() *SystemMetricsGrid {
 	return w.systemMetrics[cur.Key]
 }
 
-// handleFocusRuns moves focus to the runs list if it's visible.
+// handleFocusRuns moves focus home to the runs list.
 //
-// This gives Esc a natural "return home" feel in workspace mode:
-// wherever focus currently is, Esc snaps it back to the run selector.
+// This gives Esc a natural "return home" feel in workspace mode: wherever
+// focus currently is, Esc snaps it back to the run selector. When the runs
+// list can't take focus (hidden or empty), Esc just clears focus.
 func (w *Workspace) handleFocusRuns(tea.KeyPressMsg) tea.Cmd {
-	if w.runsAnimState.TargetVisible() {
+	if w.runsFocusAvailable() {
 		w.focusMgr.SetTarget(FocusTargetRunsList, 1)
+	} else {
+		w.focusMgr.ClearAll()
 	}
 	return nil
 }
