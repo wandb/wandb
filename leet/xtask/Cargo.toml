@@ -10,6 +10,8 @@ publish.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+prost-build = "0.13"
+tempfile.workspace = true
 
 [lints]
 workspace = true

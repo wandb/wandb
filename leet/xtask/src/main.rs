@@ -21,8 +21,13 @@ fn main() -> Result<()> {
             let oracle = oracle_build()?;
             record(&oracle, &args[1..], false)?;
         }
+        Some("proto-gen") => {
+            proto_gen()?;
+        }
         _ => {
-            eprintln!("usage: cargo xtask <oracle-build|null-test|record> [--filter <s>] [--verbose]");
+            eprintln!(
+                "usage: cargo xtask <oracle-build|null-test|record|proto-gen> [--filter <s>] [--verbose]"
+            );
             std::process::exit(2);
         }
     }
@@ -57,6 +62,45 @@ fn oracle_build() -> Result<PathBuf> {
         bail!("go build failed");
     }
     Ok(out)
+}
+
+/// Regenerate leet-proto's committed prost types from wandb/proto.
+///
+/// Mirrors experimental/rust-sdk/build.rs: proto files import each other as
+/// "wandb/proto/x.proto", so copies with rewritten imports go into a temp
+/// include dir. Generated code is committed (wheel builds stay protoc-free).
+fn proto_gen() -> Result<()> {
+    let root = workspace_root();
+    let proto_dir = root.parent().unwrap().join("wandb/proto");
+    let out_dir = root.join("crates/leet-proto/src/generated");
+    std::fs::create_dir_all(&out_dir)?;
+
+    let protos = [
+        "wandb_base.proto",
+        "wandb_settings.proto",
+        "wandb_telemetry.proto",
+        "wandb_internal.proto",
+        "wandb_system_monitor.proto",
+    ];
+
+    let tmp = tempfile::tempdir().context("temp include dir")?;
+    let mut inputs = Vec::new();
+    for name in protos {
+        let content = std::fs::read_to_string(proto_dir.join(name))
+            .with_context(|| format!("read {name}"))?;
+        let rewritten = content.replace("wandb/proto/", "");
+        let path = tmp.path().join(name);
+        std::fs::write(&path, rewritten)?;
+        inputs.push(path);
+    }
+
+    let mut config = prost_build::Config::new();
+    config.out_dir(&out_dir);
+    config
+        .compile_protos(&inputs, &[tmp.path().to_path_buf()])
+        .context("prost-build compile_protos (needs protoc on PATH)")?;
+    eprintln!("generated {}", out_dir.join("wandb_internal.rs").display());
+    Ok(())
 }
 
 fn record(oracle: &Path, extra: &[String], null_test: bool) -> Result<()> {

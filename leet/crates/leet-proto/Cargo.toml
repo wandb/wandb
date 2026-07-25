@@ -9,6 +9,8 @@ authors.workspace = true
 publish.workspace = true
 
 [dependencies]
+prost.workspace = true
+prost-types.workspace = true
 
 [lints]
 workspace = true
