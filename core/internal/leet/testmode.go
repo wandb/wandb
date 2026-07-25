@@ -3,7 +3,6 @@ package leet
 import (
 	"fmt"
 	"os"
-	"strconv"
 	"sync"
 	"sync/atomic"
 )
@@ -21,7 +20,7 @@ import (
 //   - the media pane never emits Kitty/cell-size capability queries and stays
 //     on the glyph renderer;
 //   - history chunking is bounded by record count only, not wall-clock time;
-//   - if LEET_TEST_ACK_FD names an inherited file descriptor, an ack line is
+//   - if LEET_TEST_ACK_FILE names a FIFO (or file) path, an ack line is
 //     written there after every Update ("u <seq> <msgType>") and View
 //     ("v <seq>"), letting the harness step scenarios without sleeping.
 
@@ -40,15 +39,17 @@ var testAckState = sync.OnceValue(func() *ackState {
 	if !testModeEnabled() {
 		return nil
 	}
-	fdStr := os.Getenv("LEET_TEST_ACK_FD")
-	if fdStr == "" {
+	path := os.Getenv("LEET_TEST_ACK_FILE")
+	if path == "" {
 		return nil
 	}
-	fd, err := strconv.Atoi(fdStr)
-	if err != nil || fd < 3 {
+	// The harness pre-creates the path (a FIFO, with its read end already
+	// open, so this does not block; a regular file also works).
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0)
+	if err != nil {
 		return nil
 	}
-	return &ackState{f: os.NewFile(uintptr(fd), "leet-test-ack")}
+	return &ackState{f: f}
 })
 
 type ackState struct {
