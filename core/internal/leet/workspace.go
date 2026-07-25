@@ -618,77 +618,58 @@ func (w *Workspace) updateBottomPaneHeights(sysVisible, mediaVisible, logsVisibl
 func (w *Workspace) buildWorkspaceFocusManager() *FocusManager {
 	return NewFocusManager([]FocusRegionDef{
 		{
-			Target:          FocusTargetRunsList,
-			Available:       w.runsFocusAvailable,
-			AvailableTarget: w.runsFocusTargetAvailable,
-			Activate:        w.activateRunsFocus,
-			Deactivate:      w.deactivateRunsFocus,
+			Target:     FocusTargetRunsList,
+			Available:  w.runsFocusAvailable,
+			Activate:   w.activateRunsFocus,
+			Deactivate: w.deactivateRunsFocus,
 		},
 		{
-			Target:          FocusTargetMetricsGrid,
-			Available:       w.metricsGridFocusAvailable,
-			AvailableTarget: w.metricsGridFocusTargetAvailable,
-			Activate:        w.activateMetricsGridFocus,
-			Deactivate:      w.deactivateMetricsGridFocus,
+			Target:     FocusTargetMetricsGrid,
+			Available:  w.metricsGridFocusAvailable,
+			Activate:   w.activateMetricsGridFocus,
+			Deactivate: w.deactivateMetricsGridFocus,
 		},
 		{
-			Target:          FocusTargetSystemMetrics,
-			Available:       w.sysMetricsFocusAvailable,
-			AvailableTarget: w.sysMetricsFocusTargetAvailable,
-			Activate:        w.activateSysMetricsFocus,
-			Deactivate:      w.deactivateSysMetricsFocus,
+			Target:     FocusTargetSystemMetrics,
+			Available:  w.sysMetricsFocusAvailable,
+			Activate:   w.activateSysMetricsFocus,
+			Deactivate: w.deactivateSysMetricsFocus,
 		},
 		{
-			Target:          FocusTargetMedia,
-			Available:       w.mediaFocusAvailable,
-			AvailableTarget: w.mediaFocusTargetAvailable,
-			Activate:        w.activateMediaFocus,
-			Deactivate:      w.deactivateMediaFocus,
+			Target:     FocusTargetMedia,
+			Available:  w.mediaFocusAvailable,
+			Activate:   w.activateMediaFocus,
+			Deactivate: w.deactivateMediaFocus,
 		},
 		{
-			Target:          FocusTargetConsoleLogs,
-			Available:       w.logsFocusAvailable,
-			AvailableTarget: w.logsFocusTargetAvailable,
-			Activate:        w.activateLogsFocus,
-			Deactivate:      w.deactivateLogsFocus,
+			Target:     FocusTargetConsoleLogs,
+			Available:  w.logsFocusAvailable,
+			Activate:   w.activateLogsFocus,
+			Deactivate: w.deactivateLogsFocus,
 		},
 		{
-			Target:          FocusTargetOverview,
-			Available:       w.overviewFocusAvailable,
-			AvailableTarget: w.overviewFocusTargetAvailable,
-			Activate:        w.activateOverviewFocus,
-			Deactivate:      w.deactivateOverviewFocus,
+			Target:     FocusTargetOverview,
+			Available:  w.overviewFocusAvailable,
+			Activate:   w.activateOverviewFocus,
+			Deactivate: w.deactivateOverviewFocus,
 		},
 	})
 }
 
 // ---- Focus availability ----
+//
+// A region is available when its pane's target state is visible and it has
+// content to interact with. Empty panes are skipped by Tab navigation.
 
 func (w *Workspace) runsFocusAvailable() bool {
-	return w.runsAnimState.IsVisible() && len(w.runs.FilteredItems) > 0
-}
-
-func (w *Workspace) runsFocusTargetAvailable() bool {
 	return w.runsAnimState.TargetVisible() && len(w.runs.FilteredItems) > 0
 }
 
 func (w *Workspace) metricsGridFocusAvailable() bool {
-	return w.metricsGridAnimState.IsExpanded() && w.metricsGrid.ChartCount() > 0
-}
-
-func (w *Workspace) metricsGridFocusTargetAvailable() bool {
 	return w.metricsGridAnimState.TargetVisible() && w.metricsGrid.ChartCount() > 0
 }
 
 func (w *Workspace) sysMetricsFocusAvailable() bool {
-	if !w.systemMetricsPane.IsExpanded() {
-		return false
-	}
-	g := w.activeSystemMetricsGrid()
-	return g != nil && g.ChartCount() > 0
-}
-
-func (w *Workspace) sysMetricsFocusTargetAvailable() bool {
 	if !w.systemMetricsPane.animState.TargetVisible() {
 		return false
 	}
@@ -697,27 +678,14 @@ func (w *Workspace) sysMetricsFocusTargetAvailable() bool {
 }
 
 func (w *Workspace) mediaFocusAvailable() bool {
-	return w.mediaPane.IsExpanded() && w.mediaPane.HasData()
-}
-
-func (w *Workspace) mediaFocusTargetAvailable() bool {
 	return w.mediaPane.animState.TargetVisible() && w.mediaPane.HasData()
 }
 
 func (w *Workspace) logsFocusAvailable() bool {
-	return w.consoleLogsPane.IsExpanded()
-}
-
-func (w *Workspace) logsFocusTargetAvailable() bool {
-	return w.consoleLogsPane.animState.TargetVisible()
+	return w.consoleLogsPane.animState.TargetVisible() && w.consoleLogsPane.HasData()
 }
 
 func (w *Workspace) overviewFocusAvailable() bool {
-	firstSec, _ := w.runOverviewSidebar.focusableSectionBounds()
-	return w.runOverviewSidebar.animState.IsExpanded() && firstSec != -1
-}
-
-func (w *Workspace) overviewFocusTargetAvailable() bool {
 	firstSec, _ := w.runOverviewSidebar.focusableSectionBounds()
 	return w.runOverviewSidebar.animState.TargetVisible() && firstSec != -1
 }
@@ -778,7 +746,7 @@ func (w *Workspace) deactivateOverviewFocus() { w.runOverviewSidebar.deactivateA
 // Returns true if the navigation was handled (i.e. we're not at a boundary).
 func (w *Workspace) cycleOverviewSection(direction int) bool {
 	firstSec, lastSec := w.runOverviewSidebar.focusableSectionBounds()
-	if !w.runOverviewSidebar.animState.IsExpanded() || firstSec == -1 {
+	if !w.overviewFocusAvailable() {
 		return false
 	}
 

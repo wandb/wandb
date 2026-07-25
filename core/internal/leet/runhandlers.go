@@ -17,7 +17,7 @@ func (r *Run) handleRecordMsg(msg tea.Msg) tea.Cmd {
 	defer func() {
 		r.logger.Debug(fmt.Sprintf("perf: processRecordMsg(%T) took %s", msg, time.Since(start)))
 	}()
-	defer r.focusMgr.ResolveAfterAvailabilityChange()
+	defer r.resolveFocusAfterData()
 
 	switch msg := msg.(type) {
 	case RunMsg:
@@ -56,6 +56,9 @@ func (r *Run) handleRecordMsg(msg tea.Msg) tea.Cmd {
 	case ConsoleLogMsg:
 		r.logger.Debug("model: processing ConsoleLogMsg")
 		r.consoleLogs.ProcessRaw(msg.Text, msg.IsStderr, msg.Time)
+		// Keep the pane's data (and thus focus availability) current
+		// without waiting for the next render.
+		r.consoleLogsPane.SetConsoleLogs(r.consoleLogs.Items())
 
 	case FileCompleteMsg:
 		r.logger.Debug("model: processing FileCompleteMsg - file is complete!")
@@ -375,8 +378,7 @@ func (r *Run) endAnimating() {
 }
 
 // handleToggleLeftSidebar toggles the left overview sidebar and resolves
-// focus so a collapsing sidebar loses focus and an expanding sidebar
-// gains it when nothing else is focused.
+// focus so a collapsing sidebar loses focus.
 func (r *Run) handleToggleLeftSidebar(msg tea.KeyPressMsg) tea.Cmd {
 	if !r.beginAnimating() {
 		return nil
@@ -392,7 +394,7 @@ func (r *Run) handleToggleLeftSidebar(msg tea.KeyPressMsg) tea.Cmd {
 	r.rightSidebar.UpdateDimensions(r.width, leftWillBeVisible)
 	r.leftSidebar.Toggle()
 
-	r.focusMgr.ResolveAfterVisibilityChange()
+	r.focusMgr.Resolve()
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
@@ -414,7 +416,7 @@ func (r *Run) handleToggleRightSidebar(msg tea.KeyPressMsg) tea.Cmd {
 	r.rightSidebar.UpdateDimensions(r.width, r.leftSidebar.animState.TargetVisible())
 	r.leftSidebar.UpdateDimensions(r.width, rightWillBeVisible)
 	r.rightSidebar.Toggle()
-	r.focusMgr.ResolveAfterVisibilityChange()
+	r.focusMgr.Resolve()
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
@@ -533,7 +535,7 @@ func (r *Run) handleToggleMetricsGrid(msg tea.KeyPressMsg) tea.Cmd {
 	}
 
 	r.metricsGridAnimState.Toggle()
-	r.focusMgr.ResolveAfterVisibilityChange()
+	r.focusMgr.Resolve()
 
 	r.updateBottomPaneHeights(
 		r.mediaPane.animState.TargetVisible(), r.consoleLogsPane.animState.TargetVisible())
@@ -724,9 +726,7 @@ func (r *Run) handleToggleMediaPane(msg tea.KeyPressMsg) tea.Cmd {
 	r.mediaPane.Toggle()
 	r.updateBottomPaneHeights(mediaWillBeVisible, r.consoleLogsPane.animState.TargetVisible())
 
-	if !mediaWillBeVisible {
-		r.focusMgr.ResolveAfterVisibilityChange()
-	}
+	r.focusMgr.Resolve()
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
@@ -754,9 +754,8 @@ func (r *Run) mediaPaneAnimationCmd() tea.Cmd {
 	})
 }
 
-// handleToggleConsoleLogsPane toggles the console logs bottom bar and resolves
-// focus so a collapsing bar loses focus and an expanding bar gains it
-// when nothing else is focused.
+// handleToggleConsoleLogsPane toggles the console logs bottom bar and
+// resolves focus so a collapsing bar loses focus.
 func (r *Run) handleToggleConsoleLogsPane(msg tea.KeyPressMsg) tea.Cmd {
 	if !r.beginAnimating() {
 		return nil
@@ -770,7 +769,7 @@ func (r *Run) handleToggleConsoleLogsPane(msg tea.KeyPressMsg) tea.Cmd {
 
 	r.consoleLogsPane.Toggle()
 	r.updateBottomPaneHeights(r.mediaPane.animState.TargetVisible(), bottomWillBeVisible)
-	r.focusMgr.ResolveAfterVisibilityChange()
+	r.focusMgr.Resolve()
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
