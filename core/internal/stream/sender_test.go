@@ -19,6 +19,7 @@ import (
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runhandle"
+	"github.com/wandb/wandb/core/internal/runsyncstate"
 	"github.com/wandb/wandb/core/internal/runupserter"
 	"github.com/wandb/wandb/core/internal/runupsertertest"
 	"github.com/wandb/wandb/core/internal/runworktest"
@@ -204,6 +205,7 @@ func TestSendHistory_OfflineResumedSegmentRewritesSteps(t *testing.T) {
 			ClientID:           "test-client",
 			FeatureProvider:    featurechecker.New(nil, x.Logger),
 			Settings:           wbsettings.From(&spb.Settings{}),
+			SyncStateStore:     runsyncstate.Noop(),
 		},
 	)
 	require.NoError(t, err)
