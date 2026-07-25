@@ -1,13 +1,7 @@
-import json
-from datetime import datetime, timedelta
-from pathlib import Path
-from unittest import mock
-
 import pytest
 import wandb
 from wandb.errors import UsageError
 from wandb.sdk import wandb_login, wandb_setup
-from wandb.sdk.lib.credentials import _expires_at_fmt
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 
@@ -144,32 +138,25 @@ def test_login_invalid_key(monkeypatch: pytest.MonkeyPatch):
         wandb.login(key="X" * 40, verify=True)
 
 
-# TODO: Make this a system test that runs agains the local-testcontainer?
-@pytest.mark.skip(reason="Test has network calls")
-def test_login_with_token_file(tmp_path: Path):
-    token_file = str(tmp_path / "jwt.txt")
-    credentials_file = str(tmp_path / "credentials.json")
-    base_url = "https://api.wandb.ai"
+def test_login_verify_with_token_file(federated_identity):
+    """Regression test for gh-11722: federated identity in wandb.login().
 
-    with open(token_file, "w") as f:
-        f.write("eyaksdcmlasfm")
+    Verification goes through wandb-core, which exchanges the identity
+    token for an access token and authenticates with it as a Bearer token.
+    """
+    logged_in = wandb.login(verify=True)
 
-    expires_at = datetime.now() + timedelta(days=5)
-    data = {
-        "credentials": {
-            base_url: {
-                "access_token": "wb_at_ksdfmlaskfm",
-                "expires_at": expires_at.strftime(_expires_at_fmt),
-            }
-        }
-    }
-    with open(credentials_file, "w") as f:
-        json.dump(data, f)
+    assert logged_in is True
+    assert federated_identity.token_exchanges >= 1
+    assert federated_identity.graphql_auth_headers
+    assert all(
+        header == f"Bearer {federated_identity.access_token}"
+        for header in federated_identity.graphql_auth_headers
+    )
 
-    with mock.patch.dict(
-        "os.environ",
-        WANDB_IDENTITY_TOKEN_FILE=token_file,
-        WANDB_CREDENTIALS_FILE=credentials_file,
-    ):
-        wandb.login()
-        assert wandb.api.is_authenticated
+
+def test_login_verify_with_token_file_rejected(federated_identity):
+    federated_identity.valid = False
+
+    with pytest.raises(wandb.errors.AuthenticationError):
+        wandb.login(verify=True)
