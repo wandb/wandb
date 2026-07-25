@@ -355,7 +355,13 @@ func (r *Run) renderMainView() string {
 					renderMetricsEmptyState(w, layout.height, "No scalar metrics logged."))
 			} else {
 				dims := r.metricsGrid.CalculateChartDimensions(w, layout.height)
-				sections = append(sections, r.metricsGrid.View(dims))
+				// Pad the grid (header + rows*cellHeight lines, short of
+				// layout.height by the integer-division remainder) to its
+				// reserved height so the sections below sit exactly at the
+				// rows computeVerticalStackLayout reserves for them. Mouse
+				// hit-testing maps screen rows to sections via that layout.
+				sections = append(sections,
+					placeMainColumn(w, layout.height, r.metricsGrid.View(dims)))
 			}
 		}
 

@@ -1072,9 +1072,12 @@ func (w *Workspace) renderMetrics(layout Layout) string {
 		return renderMetricsEmptyState(contentWidth, contentHeight, "No scalar metrics logged.")
 	}
 
-	// When we have selected runs, render the metrics grid.
+	// When we have selected runs, render the metrics grid, padded to its
+	// reserved height so the sections below sit exactly at the rows
+	// computeVerticalStackLayout reserves for them (mouse hit-testing maps
+	// screen rows to sections via that layout).
 	dims := w.metricsGrid.CalculateChartDimensions(contentWidth, contentHeight)
-	return w.metricsGrid.View(dims)
+	return placeMainColumn(contentWidth, contentHeight, w.metricsGrid.View(dims))
 }
 
 // renderMetricsEmptyState renders a styled "Metrics" header with a hint message.
