@@ -23,7 +23,6 @@ type ResumeBranch struct {
 	ctx      context.Context
 	logger   *observability.CoreLogger
 	client   graphql.Client
-	resume   bool
 	settings *settings.Settings
 }
 
@@ -33,14 +32,12 @@ func NewResumeBranch(
 	ctx context.Context,
 	logger *observability.CoreLogger,
 	client graphql.Client,
-	resume bool,
 	resumeSettings *settings.Settings,
 ) *ResumeBranch {
 	return &ResumeBranch{
 		ctx:      ctx,
 		logger:   logger,
 		client:   client,
-		resume:   resume,
 		settings: resumeSettings,
 	}
 }
@@ -76,18 +73,16 @@ func (rb *ResumeBranch) UpdateForResume(
 	}
 
 	var data *gql.RunResumeStatusModelProjectBucketRun
-	if runExists(response) {
-		data = response.GetModel().GetBucket()
-	}
+	runExists := runExists(response)
 
 	// Starting a new run is valid when resuming is disabled, or when a
 	// lenient resume mode allows creating a missing run.
-	if data == nil && (!rb.resume || rb.allowMissingRun()) {
+	if !runExists && rb.allowMissingRun() {
 		return nil
 	}
 
 	// A strict resume requires the run to exist.
-	if data == nil {
+	if !runExists {
 		info := &spb.ErrorInfo{
 			Code: spb.ErrorInfo_USAGE,
 			Message: fmt.Sprintf(
@@ -103,9 +98,12 @@ func (rb *ResumeBranch) UpdateForResume(
 		return &BranchError{Err: err, Response: info}
 	}
 
+	// Run exists, so we can get the data
+	data = response.GetModel().GetBucket()
+
 	// if we have data and we are in a never resume mode we need to return an
 	// error because we are not allowed to resume
-	if data != nil && !rb.resume {
+	if !rb.allowResume() {
 		info := &spb.ErrorInfo{
 			Code: spb.ErrorInfo_USAGE,
 			Message: fmt.Sprintf(
@@ -123,25 +121,39 @@ func (rb *ResumeBranch) UpdateForResume(
 	}
 
 	// If the run exists and resuming is enabled, restore its metadata.
-	if data != nil {
-		err := processResponse(params, config, data, rb.logger)
+	err = processResponse(params, config, data, rb.logger)
 
-		if err != nil && !rb.allowMissingRun() {
-			info := &spb.ErrorInfo{
-				Code: spb.ErrorInfo_USAGE,
-				Message: fmt.Sprintf(
-					"The run (%s) failed to resume, and the `resume` argument is set to 'must'.",
-					params.RunID,
-				),
-			}
-			err = fmt.Errorf("could not resume run: %s", err)
-			return &BranchError{Err: err, Response: info}
+	if err != nil && rb.mustResume() {
+		info := &spb.ErrorInfo{
+			Code: spb.ErrorInfo_USAGE,
+			Message: fmt.Sprintf(
+				"The run (%s) failed to resume, and the `resume` argument is set to 'must'.",
+				params.RunID,
+			),
 		}
-
-		return err
+		err = fmt.Errorf("could not resume run: %s", err)
+		return &BranchError{Err: err, Response: info}
 	}
 
-	return nil
+	return err
+}
+
+func (rb *ResumeBranch) allowResume() bool {
+	if rb.settings == nil {
+		return true
+	}
+
+	mode := rb.settings.GetResume()
+	return mode == "allow" || mode == "auto" || mode == "must" || mode == ""
+}
+
+func (rb *ResumeBranch) mustResume() bool {
+	if rb.settings == nil {
+		return true
+	}
+
+	mode := rb.settings.GetResume()
+	return mode == "must"
 }
 
 func (rb *ResumeBranch) allowMissingRun() bool {
@@ -150,7 +162,7 @@ func (rb *ResumeBranch) allowMissingRun() bool {
 	}
 
 	mode := rb.settings.GetResume()
-	return mode == "allow" || mode == "auto" || mode == "never"
+	return mode == "allow" || mode == "auto" || mode == "never" || mode == ""
 }
 
 // runExists checks if the run exists based on the response we get from the server

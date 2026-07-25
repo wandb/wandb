@@ -49,7 +49,6 @@ func newResumeBranch(
 		ctx,
 		logger,
 		client,
-		mode != "never",
 		settings.From(&spb.Settings{Resume: wrapperspb.String(mode)}),
 	)
 }
@@ -61,11 +60,11 @@ func TestResumeIntentAndMissingRunPolicy(t *testing.T) {
 		mode    string
 		wantErr bool
 	}{
-		{name: "never", resume: false, mode: "never"},
-		{name: "allow", resume: true, mode: "allow"},
-		{name: "auto", resume: true, mode: "auto"},
-		{name: "must", resume: true, mode: "must", wantErr: true},
-		{name: "unset defaults strict", resume: true, wantErr: true},
+		{name: "never", mode: "never"},
+		{name: "allow", mode: "allow"},
+		{name: "auto", mode: "auto"},
+		{name: "must", mode: "must", wantErr: true},
+		{name: "unset defaults lenient", resume: true, wantErr: false},
 		{name: "unexpected defaults strict", resume: true, mode: "unexpected", wantErr: true},
 	}
 
@@ -85,7 +84,6 @@ func TestResumeIntentAndMissingRunPolicy(t *testing.T) {
 				context.Background(),
 				observability.NewNoOpLogger(),
 				mockGQL,
-				testCase.resume,
 				resumeSettings,
 			)
 			err := resumeState.UpdateForResume(&runbranch.RunParams{}, runconfig.New())
@@ -195,7 +193,13 @@ func TestNeverResumeNoneEmptyResponse(t *testing.T) {
 		"never")
 	err = resumeState.UpdateForResume(&runbranch.RunParams{}, runconfig.New())
 	assert.NotNil(t, err, "GetUpdates should return an error")
-	assert.IsType(t, &runbranch.BranchError{}, err, "GetUpdates should return a BranchError")
+	assert.IsType(
+		t,
+		&runbranch.BranchError{},
+		err,
+		"GetUpdates should return a BranchError; got %T",
+		err,
+	)
 	assert.NotNil(t, err.(*runbranch.BranchError).Response, "BranchError should have a response")
 }
 

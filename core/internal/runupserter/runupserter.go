@@ -214,14 +214,6 @@ func InitRun(
 			return nil, ToRunUpdateError(err)
 		}
 
-	default:
-		// A false resume field means this run must not already exist. This is
-		// also the default for records written before the field was added.
-		err := upserter.updateMetadataForResume(ctx, params.Settings)
-
-		if err != nil {
-			return nil, ToRunUpdateError(err)
-		}
 	}
 
 	startingStep, err := upserter.syncStateStore.GetOrInitStartingStep(
@@ -462,7 +454,6 @@ func (upserter *RunUpserter) updateMetadataForResume(
 		ctx,
 		upserter.logger,
 		upserter.graphqlClientOrNil,
-		upserter.params.Resume,
 		resumeSettings,
 	).UpdateForResume(
 		upserter.params,
