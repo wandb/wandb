@@ -273,7 +273,7 @@ All `_test.go` files in `core/internal/leet` (46 files, 10,531 LOC total). Each 
 | epochlinechart_test.go | 409 | leet-charts | pending |
 | filter_test.go | 29 | leet-tui | pending |
 | focusmanager_test.go | 44 | leet-tui | pending |
-| frenchfrieschart_test.go | 319 | leet-charts | pending |
+| frenchfrieschart_test.go | 319 | split: leet-charts + leet-tui (§5.2) | pending |
 | heartbeat_lifecycle_test.go | 85 | leet-data | pending |
 | heartbeat_test.go | 161 | leet-data | pending |
 | leveldbhistorysource_test.go | 411 | leet-data | pending |
@@ -335,9 +335,36 @@ Precedent: `media_test.go`'s four `TestParseHistory_*` cases are similarly defer
 `leet-data` `leveldb_history_source` unit (see the `PARITY: DEFERRED TESTS` comment in
 `crates/leet-data/src/media.rs`).
 
+### 5.2 Deferred cross-module cases from `frenchfrieschart_test.go`
+
+The seven `TestFrenchFriesChart_*` cases of `frenchfrieschart_test.go` are transliterated
+in `crates/leet-charts/src/french_fries_chart.rs`. The three `TestSystemMetricsGrid_*`
+cases in the same file (frenchfrieschart_test.go:149-245) construct a `SystemMetricsGrid`
+with `ConfigManager`/`NewFocus`/`NewFilter` (leet-tui types), so they cannot compile in
+`leet-charts`. They are deferred (see the `PARITY: DEFERRED TESTS` comment in
+`crates/leet-charts/src/french_fries_chart.rs`); the leet-tui `system_metrics_grid` unit
+MUST transliterate them 1:1 in addition to `systemmetricsgrid_test.go`'s own cases. The
+`frenchfrieschart_test.go` row above flips to `done` only when all ten cases exist and pass:
+
+| Go case (frenchfrieschart_test.go) | Pins | Target port unit |
+|---|---|---|
+| TestSystemMetricsGrid_CycleFocusedChartMode (:149) | y-key mode-cycle order linear→log→heatmap→linear on a heatmap-capable chart (CH-18) | leet-tui `system_metrics_grid` |
+| TestSystemMetricsGrid_GPUUtilizationUsesFrenchFriesChart (:188) | gpu.N.gpu metrics auto-create a french-fries-capable chart (CH-15/CH-17) | leet-tui `system_metrics_grid` |
+| TestSystemMetricsGrid_FrenchFriesUsesConfiguredPalette (:214) | ConfigManager `FrenchFriesColorScheme` plumbing reaches `colorForValue` (CH-15) | leet-tui `system_metrics_grid` |
+
 DIVERGENCE (signed off 2026-07-25, amends LOG-03): console-log timestamp keys
 render in UTC, not Go's local time (`time.Unix` → Local,
 leveldbhistorysource.go:409-410). std has no local-time API, the workspace
 denies unsafe_code, and no tz crate is in the dependency set. The harness pins
 the oracle to TZ=UTC (equivalent: Go under empty TZ renders UTC). Revisit when
 a tz crate (jiff preferred) is adopted workspace-wide — tracked for Phase 8.
+
+DIVERGENCE (signed off 2026-07-25, amends CH-14): system-metric chart X-axis
+ticks and inspection-legend timestamps render in UTC, not Go's local time
+(`time.Unix(...).Local()`, timeserieslinechart.go:460, 512) — the same
+rationale and harness contract as the LOG-03 divergence above; the harness
+pins the oracle to TZ=UTC (`harness/leet-harness/src/pty.rs`). Implemented in
+`crates/leet-charts/src/timeseries_line_chart.rs` (`time_unix_utc`, used by
+`format_x_axis_tick` and `format_inspection_label`; `french_fries_chart.rs`
+reuses the same helpers for its bottom time row and inspection labels).
+Revisit together with LOG-03 when a tz crate is adopted — tracked for Phase 8.

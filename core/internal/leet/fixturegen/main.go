@@ -52,10 +52,18 @@ func main() {
 		"instead of generating, print a per-record digest of the given "+
 			".wandb file (one \"REC <index> <case> <len> <crc32c>\" line per "+
 			"record, then \"OK <count>\" or \"ERROR corrupt|eof\") and exit")
+	chartdump := flag.Bool("chartdump", false,
+		"instead of generating, print ANSI-stripped rune grids of a fixed "+
+			"table of chart scenarios (the leet-charts canvas differential; "+
+			"see chartdump.go) and exit")
 	flag.Parse()
 
 	if *dump != "" {
 		os.Exit(dumpWandb(*dump))
+	}
+
+	if *chartdump {
+		os.Exit(runChartDump(os.Stdout))
 	}
 
 	if *out == "" {
