@@ -41,6 +41,18 @@ struct Args {
     #[arg(long)]
     null_test: bool,
 
+    /// Parity mode: run the app under test and diff its frames against the
+    /// frozen goldens in this directory (fixtures/expected), at each
+    /// scenario's declared tier.
+    #[arg(long, value_name = "GOLDEN_DIR")]
+    parity: Option<PathBuf>,
+
+    /// Arguments prepended before scenario-derived ones. Default "leet"
+    /// (the Go oracle is `wandb-core leet …`); pass an empty string for
+    /// the Rust binary (`wandb-leet …`).
+    #[arg(long, default_value = "leet")]
+    base_args: String,
+
     /// Only run scenarios whose name contains this substring.
     #[arg(long)]
     filter: Option<String>,
@@ -71,7 +83,11 @@ fn main() -> Result<()> {
 
     let app = AppSpec {
         program: args.oracle.clone(),
-        base_args: vec!["leet".to_string()],
+        base_args: if args.base_args.is_empty() {
+            vec![]
+        } else {
+            args.base_args.split_whitespace().map(str::to_string).collect()
+        },
     };
 
     let mut failures = 0usize;
@@ -124,6 +140,26 @@ fn main() -> Result<()> {
                 for q in &run1.persona_log {
                     println!("    query {} -> {:?}", q.query, q.reply);
                 }
+            }
+        } else if let Some(golden_root) = &args.parity {
+            let run = run_scenario(&app, &scenario, &args.fixtures)
+                .with_context(|| format!("{} parity run", scenario.name))?;
+            let mut scenario_clean = true;
+            for (name, grid) in &run.snapshots {
+                let golden_path = golden_root.join(&scenario.name).join(format!("{name}.frame"));
+                let golden = snapshot::load(&golden_path)
+                    .with_context(|| format!("golden for {}::{}", scenario.name, name))?;
+                let report = diff::diff_grids(&golden, grid, &scenario.masks);
+                if !report.clean_at(scenario.tier) {
+                    scenario_clean = false;
+                    println!("\n--- {}::{} DIVERGES from oracle (tier {}):", scenario.name, name, scenario.tier);
+                    print!("{}", diff::render_report(&golden, grid, &report, "oracle", "rust"));
+                }
+            }
+            if scenario_clean {
+                println!("PARITY OK ({} snaps)", run.snapshots.len());
+            } else {
+                failures += 1;
             }
         } else {
             let out_root = args
