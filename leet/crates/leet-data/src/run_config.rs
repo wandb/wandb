@@ -910,9 +910,7 @@ impl RunConfig {
         for (key, value) in &tree {
             match value {
                 Value::Object(x) => set_subtree(&mut rc.path_tree, &TreePath::path_of(key, &[]), x),
-                _ => rc
-                    .path_tree
-                    .set(TreePath::path_of(key, &[]), value.clone()),
+                _ => rc.path_tree.set(TreePath::path_of(key, &[]), value.clone()),
             }
         }
 

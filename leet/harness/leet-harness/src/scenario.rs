@@ -200,6 +200,12 @@ pub fn encode_key(name: &str) -> Result<Vec<u8>> {
         // send CSI 47;5u instead. Emulate that terminal class here; both
         // ultraviolet and crossterm parse CSI-u without negotiation.
         "ctrl+/" => b"\x1b[47;5u".to_vec(),
+        // The legacy byte a NON-negotiating (dumb) terminal sends for
+        // ctrl+/ (and for ctrl+_ and ctrl+shift+-): US, 0x1f. Decodes as
+        // "ctrl+_" in both implementations and must NOT clear the filter
+        // in either (verified against the Go oracle in a scripted PTY that
+        // answers no negotiation).
+        "ctrl+_" => b"\x1f".to_vec(),
         // ctrl+\ has a faithful legacy byte: FS (0x1c) decodes as "ctrl+\\"
         // in both implementations (this also exercises the Rust C0 remap).
         "ctrl+\\" => b"\x1c".to_vec(),
@@ -260,6 +266,10 @@ mod tests {
         assert_eq!(encode_key("enter").unwrap(), b"\r");
         assert_eq!(encode_key("shift+tab").unwrap(), b"\x1b[Z");
         assert_eq!(encode_key("alt+r").unwrap(), b"\x1br");
+        // ctrl+/ is the negotiated (kitty CSI-u) encoding; ctrl+_ is the
+        // legacy 0x1f byte a dumb terminal sends for the same chord.
+        assert_eq!(encode_key("ctrl+/").unwrap(), b"\x1b[47;5u");
+        assert_eq!(encode_key("ctrl+_").unwrap(), b"\x1f");
         assert!(encode_key("hyper+x").is_err());
     }
 

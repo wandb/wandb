@@ -393,15 +393,12 @@ impl Model {
     }
 
     /// Drains the media panes' coalesced prepare requests recorded by the
-    /// previous draw (Go's `mediaPanePrepareMsg` pump, run.go:226-230 /
-    /// workspace.go:221-224).
-    ///
-    /// DIVERGENCE(CONCURRENCY.md §2.5 C5): Go's cap-1 prepare channel wakes
-    /// the loop with a dedicated message right after the render; the port
-    /// records a flag during view and dispatches the prepare commands with
-    /// the NEXT update's batch. The flag is only ever set by the Kitty
-    /// renderer (never in test mode), and the prepared image could not be
-    /// blitted before the next event's draw either way.
+    /// draw that just completed (Go's `mediaPanePrepareMsg` pump,
+    /// run.go:226-230 / workspace.go:221-224). Called by the runtime right
+    /// after every draw ([`crate::runtime::App::after_draw`]) — Go's cap-1
+    /// prepare channel wakes the loop with a dedicated message right after
+    /// the render without waiting for further input, and a lone `k` (Kitty
+    /// toggle) must render the same way here.
     fn drain_after_draw(&mut self) -> Vec<Command> {
         let mut cmds = self.workspace.after_draw();
         if let Some(run) = self.run.as_mut() {
@@ -448,8 +445,7 @@ impl App for Model {
         // job (runtime.rs `deliver`).
         let msg = &event;
 
-        // See the method doc — Go's prepare pump delivery point.
-        let mut cmds = self.drain_after_draw();
+        let mut cmds: Vec<Command> = Vec::new();
 
         if let Event::Resize { width, height } = msg {
             self.width = *width;
@@ -525,6 +521,11 @@ impl App for Model {
     /// runtime.
     fn window_title(&self) -> &str {
         "wandb leet"
+    }
+
+    /// See [`Model::drain_after_draw`] — Go's prepare pump delivery point.
+    fn after_draw(&mut self) -> Vec<Command> {
+        self.drain_after_draw()
     }
 
     /// ShouldRestart reports whether the application should perform a full

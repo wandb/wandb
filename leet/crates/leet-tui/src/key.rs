@@ -174,9 +174,15 @@ impl KeyEvent {
     ///     plus xterm modifyOtherKeys mode 2), so kitty-capable terminals
     ///     send ctrl+/ as CSI 47;5u, which crossterm also parses without
     ///     negotiation into Char('/')+CONTROL and stringifies as "ctrl+/"
-    ///     here. Matching Go end-to-end therefore requires the runtime to
-    ///     request the same enhancement (tracked with the kitty QA item);
-    ///     this module is byte-for-byte faithful on both encodings.
+    ///     here. The runtime mirrors Go's negotiation with
+    ///     `PushKeyboardEnhancementFlags` (runtime.rs `setup_terminal`,
+    ///     `KEYBOARD_ENHANCEMENTS`) so kitty-capable terminals actually
+    ///     send that encoding; this module is byte-for-byte faithful on
+    ///     both encodings. Go's additional modifyOtherKeys mode 2 is NOT
+    ///     mirrored — crossterm cannot parse `CSI 27;<mod>;<code>~` (its
+    ///     reader drops, and worse, wedges on the sequence), so on
+    ///     mok-only terminals (bare xterm) "ctrl+/" stays inert in Rust
+    ///     where Go clears; ctrl+l covers those terminals.
     ///     PARITY: under the kitty protocol a genuine ctrl+4 (CSI 52;5u) is
     ///     indistinguishable from legacy 0x1C at this layer and gets
     ///     remapped to ctrl+'\\' where Go reports "ctrl+4"; accepted — kitty

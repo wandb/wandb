@@ -165,7 +165,9 @@ mod tests {
             }
             !crc
         }
-        let data: Vec<u8> = (0..1024u32).map(|i| (i.wrapping_mul(31) ^ 0x5a) as u8).collect();
+        let data: Vec<u8> = (0..1024u32)
+            .map(|i| (i.wrapping_mul(31) ^ 0x5a) as u8)
+            .collect();
         for len in [0, 1, 7, 8, 9, 15, 16, 17, 63, 64, 255, 1024] {
             assert_eq!(
                 crc_standard(&data[..len]),

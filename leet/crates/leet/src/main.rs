@@ -1089,7 +1089,10 @@ mod tests {
         // strconv.ParseBool forms.
         assert!(parse(&["--symon=1"]).symon);
         assert!(!parse(&["--symon=F"]).symon);
-        assert_eq!(try_parse(&["--symon=maybe"]).unwrap_err(), EXIT_CODE_ERROR_ARGS);
+        assert_eq!(
+            try_parse(&["--symon=maybe"]).unwrap_err(),
+            EXIT_CODE_ERROR_ARGS
+        );
 
         // A bool flag does not eat the next token: it becomes a positional.
         let fs = parse(&["--symon", "true"]);
@@ -1121,7 +1124,10 @@ mod tests {
 
         assert_eq!(try_parse(&["--nope"]).unwrap_err(), EXIT_CODE_ERROR_ARGS);
         assert_eq!(try_parse(&["-x"]).unwrap_err(), EXIT_CODE_ERROR_ARGS);
-        assert_eq!(try_parse(&["--run-file"]).unwrap_err(), EXIT_CODE_ERROR_ARGS);
+        assert_eq!(
+            try_parse(&["--run-file"]).unwrap_err(),
+            EXIT_CODE_ERROR_ARGS
+        );
         assert_eq!(try_parse(&["---x"]).unwrap_err(), EXIT_CODE_ERROR_ARGS);
         assert_eq!(try_parse(&["--=x"]).unwrap_err(), EXIT_CODE_ERROR_ARGS);
     }

@@ -98,7 +98,8 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicI32, AtomicI64, AtomicU64, Ordering};
 
-use image::{ExtendedColorType, ImageEncoder, codecs::png::PngEncoder};
+use image::codecs::png::{CompressionType, FilterType, PngEncoder};
+use image::{ExtendedColorType, ImageEncoder};
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span, Text};
 
@@ -1696,10 +1697,18 @@ fn base64_std(data: &[u8]) -> String {
 /// PNG-encodes a prepared image with straight-alpha pixel content matching
 /// Go's `png.Encode` of the same image.
 ///
-/// PARITY: the PNG *byte stream* differs from Go's encoder (filter and
-/// deflate choices); the decoded pixel content is identical — Go's encoder
-/// unpremultiplies `*image.RGBA` through `color.NRGBAModel`, mirrored
-/// here. The Phase-7 protocol test compares decoded pixels.
+/// PARITY: the PNG *byte stream* differs from Go's encoder (deflate
+/// implementation details); the decoded pixel content is identical — Go's
+/// encoder unpremultiplies `*image.RGBA` through `color.NRGBAModel`,
+/// mirrored here. The Phase-7 protocol test compares decoded pixels.
+/// The compression *class* must match though: Go's `png.Encode` uses
+/// default-level deflate with adaptive per-row filtering, while this
+/// crate's `PngEncoder::new` default is `CompressionType::Fast` — 4-7x
+/// larger payloads for the same pixels (measured on the 555x320 media
+/// fixture frames under a scripted kitty PTY: Go 12,913/20,716 bytes vs
+/// fast-mode 86,817/88,514), retransmitted on every Kitty prepare and
+/// paid again over ssh/leet-remote. `Default`+`Adaptive` restores Go's
+/// wire cost.
 fn png_encode_prepared(img: &PreparedImage) -> Option<Vec<u8>> {
     let (w, h) = (img.width(), img.height());
     if w == 0 || h == 0 {
@@ -1730,7 +1739,7 @@ fn png_encode_prepared(img: &PreparedImage) -> Option<Vec<u8>> {
         }
     };
     let mut buf = Vec::new();
-    PngEncoder::new(&mut buf)
+    PngEncoder::new_with_quality(&mut buf, CompressionType::Default, FilterType::Adaptive)
         .write_image(&pix, w as u32, h as u32, ExtendedColorType::Rgba8)
         .ok()?;
     Some(buf)

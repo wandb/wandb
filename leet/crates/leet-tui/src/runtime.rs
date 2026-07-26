@@ -38,7 +38,10 @@ use std::sync::{Arc, Condvar, Mutex, MutexGuard, Once, OnceLock, PoisonError};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use crossterm::event::{DisableMouseCapture, EnableMouseCapture, Event as CtEvent};
+use crossterm::event::{
+    DisableMouseCapture, EnableMouseCapture, Event as CtEvent, KeyboardEnhancementFlags,
+    PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
+};
 use crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, SetTitle, disable_raw_mode, enable_raw_mode,
 };
@@ -92,6 +95,17 @@ pub trait App {
     /// but it is constant per model, so the runtime applies it once in
     /// [`setup_terminal`].
     fn window_title(&self) -> &str;
+
+    /// Drains commands recorded during the draw that just completed — the
+    /// same-thread replacement for Go's cap-1 media prepare channel, whose
+    /// `waitForPrepare` pump wakes the event loop with `mediaPanePrepareMsg`
+    /// right after the render WITHOUT further input (mediapane.go:213-231,
+    /// CONCURRENCY.md §2.5 C5). The runtime calls this after every draw and
+    /// dispatches the result; deferring it to the next update would leave a
+    /// lone `k` (Kitty toggle) unrendered until another event arrived.
+    fn after_draw(&mut self) -> Vec<Command> {
+        Vec::new()
+    }
 
     /// `Model.ShouldRestart` (model.go:260): read by the caller's restart
     /// loop after [`run`] returns (§2.9).
@@ -985,7 +999,18 @@ pub fn find_run_msg(msg: SourceMsg) -> Option<hs::RunMsg> {
 // Terminal capability queries (runtime only — never in test mode)
 // ---------------------------------------------------------------------------
 
-const TERMINAL_QUERY_TIMEOUT: Duration = Duration::from_millis(500);
+/// PARITY: termenv's `OSCTimeout` (termenv_unix.go:18) — Go leet's
+/// `initTerminalBg` blocks startup on its OSC 11 status report for up to 5s
+/// of tty silence before rendering without it (measured: Go's first frame at
+/// t=5.07s under a scripted PTY that never answers any query; a real
+/// Ghostty answers within ~10ms and the DA1 fence ends the wait right
+/// there). The window also decides who captures replies that arrive late
+/// (slow ssh): within it they land in the round-trip buffer like Go's
+/// termenv reader; after it they would reach crossterm's input thread,
+/// whose ESC-fallback parser turns an OSC/APC reply into garbage key
+/// presses (alt+']' plus the payload chars — digits toggle panes). Matching
+/// Go's window makes the leak-free coverage identical to the oracle's.
+const TERMINAL_QUERY_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// kitty_capability.go:43 `kittyProbeID` — the image ID used for the Kitty
 /// support probe, far above any consumer-assigned ID.
@@ -1099,12 +1124,24 @@ pub(crate) fn detect_terminal_capabilities(timeout: Duration) -> TerminalCapabil
 /// Writes `query` to /dev/tty and reads the reply until the DA1 fence, the
 /// deadline, or EOF/error. `None` = the tty could not be opened/written.
 ///
-/// Single-threaded and deadline-bounded: the fd is `poll(2)`ed with the
-/// remaining time before every read, so nothing keeps reading the tty after
-/// this returns. (An earlier design parked a byte-reader thread on the fd
-/// past the timeout; a DA1 reply arriving late — slow ssh — then ate user
-/// keystrokes until it landed, and a terminal that never answered had one
-/// future byte stolen from the crossterm input thread that takes over next.)
+/// Single-threaded and deadline-bounded — but NOT by `poll(2)`: on macOS,
+/// poll on a /dev/tty fd fails immediately with POLLNVAL in `revents`
+/// (measured: revents=32 after 0ms under a scripted PTY), so its verdict is
+/// advisory at best and a blocking read behind it hung startup forever on a
+/// terminal that never answers the DA1 fence. The bound is carried by the
+/// O_NONBLOCK fd + the explicit deadline check at the top of the loop; the
+/// poll is kept for platforms where it works (it sleeps instead of the
+/// 10ms retry pacing). (An earlier design parked a byte-reader thread on
+/// the fd past the timeout; a DA1 reply arriving late — slow ssh — then ate
+/// user keystrokes until it landed, and a terminal that never answered had
+/// one future byte stolen from the crossterm input thread that takes over
+/// next.)
+///
+/// Bytes typed while the round-trip is pending are consumed into `buf` and
+/// dropped with it — Go loses them the same way (termenv's
+/// `readNextResponse` eats non-ESC bytes while hunting for its reply, and
+/// even restarts its 5s silence window on every byte; this deadline is
+/// absolute).
 #[cfg(unix)]
 fn terminal_round_trip(query: &[u8], timeout: Duration) -> Option<Vec<u8>> {
     use rustix::event::{PollFd, PollFlags, Timespec};
@@ -1114,6 +1151,15 @@ fn terminal_round_trip(query: &[u8], timeout: Duration) -> Option<Vec<u8>> {
         .write(true)
         .open("/dev/tty")
         .ok()?;
+    // Non-blocking reads: on macOS, poll(2) on /dev/tty can report
+    // readiness when no reply bytes exist, and the subsequent blocking
+    // read(2) then parks the main thread FOREVER on a terminal that never
+    // answers (observed empirically on Darwin 25 under a scripted PTY: a
+    // no-reply "dumb" terminal hung boot inside this read while Go booted
+    // fine). With O_NONBLOCK that read returns WouldBlock and the deadline
+    // loop below stays in charge. Best-effort: if the ioctl fails we keep
+    // the previous behavior.
+    let _ = rustix::io::ioctl_fionbio(&tty, true);
     tty.write_all(query).ok()?;
     tty.flush().ok()?;
 
@@ -1123,6 +1169,12 @@ fn terminal_round_trip(query: &[u8], timeout: Duration) -> Option<Vec<u8>> {
     // Stops on the DA1 fence, at the deadline, or on EOF/error.
     loop {
         let remaining = deadline.saturating_duration_since(Instant::now());
+        if remaining.is_zero() {
+            // Explicit deadline stop: poll(2) on macOS /dev/tty can keep
+            // reporting (spurious) readiness even with a zero timeout, so
+            // the Ok(0) arm below is not a reliable deadline check.
+            break;
+        }
         let Ok(wait) = Timespec::try_from(remaining) else {
             break;
         };
@@ -1133,15 +1185,21 @@ fn terminal_round_trip(query: &[u8], timeout: Duration) -> Option<Vec<u8>> {
             Err(rustix::io::Errno::INTR) => continue,
             Err(_) => break,
         }
-        // poll reported readable (or HUP/ERR): a bounded read cannot block.
         match tty.read(&mut chunk) {
-            Ok(0) | Err(_) => break,
+            Ok(0) => break, // EOF
             Ok(n) => {
                 buf.extend_from_slice(&chunk[..n]);
                 if contains_da1_reply(&buf) {
                     break;
                 }
             }
+            Err(e) if e.kind() == io::ErrorKind::WouldBlock => {
+                // Spurious poll readiness (see O_NONBLOCK note above):
+                // pace the retry so a misbehaving poll cannot spin hot.
+                thread::sleep(remaining.min(Duration::from_millis(10)));
+            }
+            Err(e) if e.kind() == io::ErrorKind::Interrupted => {}
+            Err(_) => break,
         }
     }
     Some(buf)
@@ -1328,6 +1386,27 @@ pub fn setup_terminal(window_title: &str) -> io::Result<Terminal<CrosstermBacken
             EnableMouseCapture,
             SetTitle(window_title),
             cursor::Hide,
+            // PARITY: Bubble Tea v2 always negotiates kitty keyboard flag 1
+            // (cursed_renderer.go enter(): `KittyKeyboard(1, 1)` — see
+            // keyboardEnhancementsFlags, "always enable basic key
+            // disambiguation"). Without this, kitty-capable terminals
+            // (Ghostty, kitty) send ctrl+/ as legacy 0x1F, which decodes as
+            // ctrl+_ in BOTH implementations, so the "ctrl+/" bindings never
+            // fire (verified against the oracle in a scripted-Ghostty PTY).
+            // With flag 1 the terminal sends CSI 47;5u, which crossterm
+            // parses into Char('/')+CONTROL. Pushed after entering the alt
+            // screen because the kitty spec keeps separate main/alt-screen
+            // flag stacks; legacy terminals ignore the sequence.
+            //
+            // NOTE: Go additionally sets xterm modifyOtherKeys mode 2
+            // (`CSI >4;2m`). We deliberately do NOT: crossterm cannot parse
+            // the resulting `CSI 27;<mod>;<code>~` sequences — worse, an
+            // unparseable sequence wedges its reader in a blocking read()
+            // until the next byte arrives, going deaf to resize events. On
+            // mok-only terminals (bare xterm) ctrl+/ therefore stays inert
+            // in Rust where Go clears; the documented ctrl+l fallback works
+            // everywhere.
+            PushKeyboardEnhancementFlags(KEYBOARD_ENHANCEMENTS),
         )?;
         Terminal::new(CrosstermBackend::new(stdout))
     };
@@ -1338,13 +1417,26 @@ pub fn setup_terminal(window_title: &str) -> io::Result<Terminal<CrosstermBacken
     setup().inspect_err(|_| restore_terminal())
 }
 
+/// The kitty keyboard flags every session negotiates, mirroring Bubble Tea
+/// v2's baseline (flags=1, key disambiguation only: no event types, no
+/// alternate keys — so terminals never send release events or shifted-key
+/// sub-params leet doesn't consume).
+pub(crate) const KEYBOARD_ENHANCEMENTS: KeyboardEnhancementFlags =
+    KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES;
+
 /// Best-effort restore, also invoked by the panic hook (§2.8): leave the
 /// alt screen, disable raw mode + mouse capture, show the cursor.
+///
+/// The keyboard-enhancement pop precedes `LeaveAlternateScreen` so it acts
+/// on the alt screen's flag stack (where the matching push happened);
+/// popping an empty stack is a no-op per the kitty spec, so the
+/// setup-failure path that runs this without a flushed push is harmless.
 pub fn restore_terminal() {
     let mut stdout = io::stdout();
     let _ = execute!(
         stdout,
         cursor::Show,
+        PopKeyboardEnhancementFlags,
         DisableMouseCapture,
         LeaveAlternateScreen,
     );
@@ -1580,6 +1672,13 @@ where
         if let Some(ack) = ack.as_mut() {
             ack.ack_view();
         }
+        // Go's prepare pump delivery point: the render recorded Kitty
+        // placements; run the prepare pass now (App::after_draw doc). The
+        // resulting render requests come back as KittyFrame events, waking
+        // recv() like Go's mediaPanePrepareMsg wakes tea's loop.
+        for command in app.after_draw() {
+            effects.dispatch(command);
+        }
     }
 
     // Go quit paths already ran their own cleanup (§1.6) and Cleanup is
@@ -1682,6 +1781,31 @@ mod tests {
             Ok(RuntimeEvent::App(event)) => event,
             other => panic!("expected App event for {what}, got {other:?}"),
         }
+    }
+
+    // -- Keyboard-enhancement negotiation -------------------------------------
+
+    /// Regression: every session must negotiate kitty key disambiguation
+    /// (flags=1), like Bubble Tea v2's renderer. Without the push, Ghostty/
+    /// kitty send ctrl+/ as legacy 0x1F = ctrl+_ and the "ctrl+/" bindings
+    /// (clear metrics filter) can never fire; with it they send CSI 47;5u.
+    /// Pins the exact bytes so a crossterm upgrade can't silently change
+    /// what we request, and that the pop is the matching stack operation.
+    #[test]
+    fn keyboard_enhancement_negotiation_bytes() {
+        use crossterm::Command as _;
+
+        assert_eq!(KEYBOARD_ENHANCEMENTS.bits(), 1, "must match Go's flags=1");
+
+        let mut push = String::new();
+        PushKeyboardEnhancementFlags(KEYBOARD_ENHANCEMENTS)
+            .write_ansi(&mut push)
+            .unwrap();
+        assert_eq!(push, "\x1b[>1u");
+
+        let mut pop = String::new();
+        PopKeyboardEnhancementFlags.write_ansi(&mut pop).unwrap();
+        assert_eq!(pop, "\x1b[<1u");
     }
 
     // -- Scheduler (§2.4) ----------------------------------------------------
