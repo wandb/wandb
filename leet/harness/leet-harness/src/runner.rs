@@ -49,7 +49,16 @@ pub fn run_scenario(app: &AppSpec, scenario: &Scenario, fixtures_root: &Path) ->
         if !dir.is_dir() {
             bail!("fixture dir not found: {}", dir.display());
         }
-        args.push(dir.to_string_lossy().to_string());
+        // The app renders the wandb-dir path it was given (status bar), so
+        // frames must not depend on where the repo is checked out: copy the
+        // fixture to a canonical path that is identical on every machine.
+        // Scenarios run sequentially; the path is unique per scenario.
+        let canon = PathBuf::from("/tmp/leet-parity").join(&scenario.name);
+        if canon.exists() {
+            std::fs::remove_dir_all(&canon).context("clear canonical fixture dir")?;
+        }
+        copy_dir_with_symlinks(&dir, &canon.join("wandb")).context("copy fixture to /tmp")?;
+        args.push(canon.join("wandb").to_string_lossy().to_string());
     }
 
     let background = match scenario.background {
@@ -113,6 +122,25 @@ pub fn run_scenario(app: &AppSpec, scenario: &Scenario, fixtures_root: &Path) ->
     };
     shutdown?;
     Ok(output)
+}
+
+/// Recursive copy preserving symlinks (fixtures contain `latest-run`).
+fn copy_dir_with_symlinks(src: &Path, dst: &Path) -> Result<()> {
+    std::fs::create_dir_all(dst)?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let ty = entry.file_type()?;
+        let to = dst.join(entry.file_name());
+        if ty.is_symlink() {
+            let target = std::fs::read_link(entry.path())?;
+            std::os::unix::fs::symlink(target, &to)?;
+        } else if ty.is_dir() {
+            copy_dir_with_symlinks(&entry.path(), &to)?;
+        } else {
+            std::fs::copy(entry.path(), &to)?;
+        }
+    }
+    Ok(())
 }
 
 fn drive(
