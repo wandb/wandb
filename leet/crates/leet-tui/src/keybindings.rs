@@ -822,6 +822,11 @@ mod tests {
             run_map.get("ctrl+\\"),
             Some(&RunAction::ClearSystemMetricsFilter)
         );
+        // "ctrl+/" only ever reaches the map via the kitty CSI-u encoding
+        // (see key.rs: legacy 0x1F stringifies as "ctrl+_", as in Go).
+        assert_eq!(run_map.get("ctrl+/"), Some(&RunAction::ClearMetricsFilter));
+        assert_eq!(run_map.get("ctrl+l"), Some(&RunAction::ClearMetricsFilter));
+        assert_eq!(run_map.get("ctrl+_"), None);
         assert_eq!(run_map.get("shift+tab"), Some(&RunAction::SidebarTabNav));
         // Documentation-only bindings are not dispatched.
         assert_eq!(run_map.get("h"), None);
@@ -843,6 +848,14 @@ mod tests {
         );
         assert_eq!(workspace_map.get("p"), Some(&WorkspaceAction::PinRunKey));
         assert_eq!(workspace_map.get("enter"), None);
+        assert_eq!(
+            workspace_map.get("ctrl+/"),
+            Some(&WorkspaceAction::ClearMetricsFilter)
+        );
+        assert_eq!(
+            workspace_map.get("ctrl+\\"),
+            Some(&WorkspaceAction::ClearSystemMetricsFilter)
+        );
 
         let symon_map = build_key_map(&symon_key_bindings());
         assert_eq!(symon_map.len(), 23);

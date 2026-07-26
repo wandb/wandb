@@ -45,6 +45,9 @@ leet-tui = { path = "crates/leet-tui" }
 # version exists in the tree (width skew vs the Go oracle is a known parity risk).
 ratatui = { version = "0.30", default-features = false, features = ["crossterm"] }
 crossterm = { version = "0.29", features = ["event-stream"] }
+# poll(2) for the startup terminal-capability round-trip (leet-tui runtime.rs).
+# crossterm already pins rustix on unix; this only adds the `event` feature.
+rustix = { version = "1", default-features = false, features = ["std", "event"] }
 unicode-width = "0.2"
 unicode-segmentation = "1.12"
 
@@ -78,8 +81,10 @@ undocumented_unsafe_blocks = "deny"
 
 # The shipped binary: small and stripped. Panic hooks still run under
 # panic="abort", so terminal restore-on-panic is unaffected.
+# opt-level=3: a 287MB transaction log loads ~2x slower at "z"/1 than Go;
+# speed on the ingest/render hot paths beats the ~size savings of "z".
 [profile.release]
-opt-level = "z"
+opt-level = 3
 lto = "fat"
 codegen-units = 1
 strip = true

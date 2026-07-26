@@ -229,6 +229,10 @@ pub enum TimerId {
     SymonSample,
     /// T3 — the 11 `tea.Tick(AnimationFrame, ..)` animation chains.
     Anim(AnimTarget),
+    /// The Kitty probe-timeout tick — `tea.Tick(kittyProbeTimeout, ..)`
+    /// batched with the probe write (kitty_capability.go:132-137). Fires
+    /// `Event::KittyProbeTick`.
+    KittyProbe,
 }
 
 /// Which model owns a heartbeat timer.
@@ -494,19 +498,22 @@ pub enum Command {
 
     /// Picture-model commands from the media pane (`MediaPaneCmd::Picture`):
     /// `tea.Raw` Kitty byte writes and deferred Kitty renders
-    /// (mediapane.go:1420, picture.rs).
-    // PHASE-7: `PictureCmd::Render` result routing lands with the Kitty
-    // protocol test; the glyph renderer (test mode) never issues renders.
+    /// (mediapane.go:1420, picture.rs). `Render` runs on an effect thread
+    /// and feeds the frame back as `Event::KittyFrame` (the glyph renderer
+    /// — always active in test mode — never issues renders).
     Picture(PictureCmd),
 
     /// `picture.RequestCellSize()` — the CSI 16 t query (mediapane.go:187).
-    /// Suppressed in test mode (mediapane.go:180).
-    // PHASE-7: reply decoding.
+    /// Suppressed in test mode (mediapane.go:180). The query bytes went to
+    /// the terminal during the runtime's startup round-trip; dispatch
+    /// replays the captured reply as `Event::CellSize` (see runtime.rs
+    /// `detect_terminal_capabilities`).
     RequestCellSize,
 
     /// `picture.QueryKittySupport()` — the Kitty `a=q` probe
-    /// (mediapane.go:188). Suppressed in test mode.
-    // PHASE-7: reply decoding.
+    /// (mediapane.go:188, kitty_capability.go:116-140). Suppressed in test
+    /// mode. Once per process; resolves through `Event::KittyGraphics` /
+    /// `Event::KittyProbeTick` (see runtime.rs).
     QueryKittySupport,
 
     /// `sampleNowCmd` (symon.go:516): run one sampling pass off-thread.

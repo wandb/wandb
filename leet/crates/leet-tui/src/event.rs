@@ -2,7 +2,11 @@
 //! [`Event`] enum (docs/CONCURRENCY.md §2.2): one variant per Go message
 //! type, same names, plus the Bubble Tea runtime messages leet consumes
 //! (`tea.KeyPressMsg`, `tea.Mouse*Msg`, `tea.WindowSizeMsg`,
-//! `tea.BackgroundColorMsg`) wrapping the [`crate::key`] types.
+//! `tea.BackgroundColorMsg`) wrapping the [`crate::key`] types, plus the
+//! picture-pipeline messages (`uv.CellSizeEvent`, `uv.KittyGraphicsEvent`,
+//! `picture.kittyProbeTickMsg`, `picture.KittyFrameMsg` — the
+//! `picture.IsPictureMsg` set minus `applyKittyGridMsg`, whose grid apply
+//! is synchronous in the port, see media_pane.rs `handle_picture_msg`).
 //!
 //! [`Event::ack_name`] returns Go's `%T` string for each variant. The
 //! differential harness steps scenarios by matching Update-ack lines against
@@ -20,6 +24,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::time::SystemTime;
 
+use leet_charts::styles::Rgb;
 use leet_data::media::MediaPoint;
 use leet_proto::wandb_internal::{ConfigRecord, EnvironmentRecord, SummaryRecord};
 
@@ -262,6 +267,18 @@ pub struct WorkspaceInitErrMsg {
     pub err: Option<EventError>,
 }
 
+/// The Kitty graphics response fields leet consumes (`uv.KittyGraphicsEvent`,
+/// ultraviolet event.go:373-379).
+///
+/// PARITY: Go carries the full `kitty.Options` + payload; leet's only
+/// consumer is `picture.recordKittyResponse`, which reads `Options.ID`
+/// (kitty_capability.go:197-204) — the response is reduced to that id
+/// before it enters the event queue (the `BackgroundColor` precedent).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct KittyGraphicsMsg {
+    pub id: i64,
+}
+
 /// The `tea.Msg` taxonomy: one variant per Go message type in messages.go
 /// (same names, `Msg` suffix dropped on the variant), plus the four Bubble
 /// Tea runtime messages leet consumes.
@@ -339,6 +356,21 @@ pub enum Event {
     /// media pane.
     WorkspaceMediaPaneAnimation,
 
+    /// `uv.CellSizeEvent` — the terminal's reply to the CSI 16 t cell-size
+    /// query (`CSI 6 ; height ; width t`), routed to the media panes
+    /// (mediapane.go:1262-1264). Width/Height are pixels.
+    CellSize { width: isize, height: isize },
+    /// `uv.KittyGraphicsEvent` — the terminal's response to the Kitty
+    /// `a=q` support probe ([`KittyGraphicsMsg`]).
+    KittyGraphics(KittyGraphicsMsg),
+    /// `picture.kittyProbeTickMsg` — the probe-timeout tick batched with
+    /// the probe write (kitty_capability.go:84-87).
+    KittyProbeTick,
+    /// `picture.KittyFrameMsg` — a deferred Kitty render's result, fed back
+    /// to the pane's picture models (picture/messages.go). Boxed: the frame
+    /// carries the APC payload + placeholder grid.
+    KittyFrame(Box<crate::picture::KittyFrameMsg>),
+
     /// `tea.KeyPressMsg`.
     Key(KeyEvent),
     /// `tea.MouseClickMsg` / `tea.MouseReleaseMsg` / `tea.MouseMotionMsg` /
@@ -347,10 +379,14 @@ pub enum Event {
     /// `tea.WindowSizeMsg` (Width/Height are Go `int`).
     Resize { width: isize, height: isize },
     /// `tea.BackgroundColorMsg`.
-    // PARITY: Go carries the full terminal background color and leet only
-    // calls IsDark() (model.go:157-159); the OSC 11 response is classified
-    // dark/light before it enters the event queue.
-    BackgroundColor { is_dark: bool },
+    // PARITY: Go carries the full terminal background color; the model calls
+    // IsDark() on it (model.go:157-159) and the runs-list zebra stripe
+    // re-reads the SAME OSC 11 answer through termenv's separate query
+    // (styles.go:55-84 `initTerminalBg`). The port performs ONE round-trip,
+    // so the event carries both the dark/light classification and the raw
+    // 8-bit RGB (`None` when the reply wasn't in termenv's accepted form —
+    // Go's `termBgDetected == false`, i.e. the zebra fallback).
+    BackgroundColor { is_dark: bool, rgb: Option<Rgb> },
 }
 
 impl Event {
@@ -392,6 +428,10 @@ impl Event {
             Event::WorkspaceMetricsGridAnimation => "leet.WorkspaceMetricsGridAnimationMsg",
             Event::MediaPaneAnimation => "leet.MediaPaneAnimationMsg",
             Event::WorkspaceMediaPaneAnimation => "leet.WorkspaceMediaPaneAnimationMsg",
+            Event::CellSize { .. } => "uv.CellSizeEvent",
+            Event::KittyGraphics(_) => "uv.KittyGraphicsEvent",
+            Event::KittyProbeTick => "picture.kittyProbeTickMsg",
+            Event::KittyFrame(_) => "picture.KittyFrameMsg",
             Event::Key(_) => "tea.KeyPressMsg",
             Event::Mouse(m) => match m.kind {
                 MouseKind::Click => "tea.MouseClickMsg",
@@ -469,6 +509,13 @@ mod tests {
             Event::WorkspaceMetricsGridAnimation,
             Event::MediaPaneAnimation,
             Event::WorkspaceMediaPaneAnimation,
+            Event::CellSize {
+                width: 10,
+                height: 20,
+            },
+            Event::KittyGraphics(KittyGraphicsMsg::default()),
+            Event::KittyProbeTick,
+            Event::KittyFrame(Box::default()),
             Event::Key(key_event()),
             Event::Mouse(mouse_event(MouseKind::Click)),
             Event::Mouse(mouse_event(MouseKind::Release)),
@@ -478,7 +525,10 @@ mod tests {
                 width: 120,
                 height: 40,
             },
-            Event::BackgroundColor { is_dark: true },
+            Event::BackgroundColor {
+                is_dark: true,
+                rgb: None,
+            },
         ]
     }
 
@@ -519,6 +569,10 @@ mod tests {
             "leet.WorkspaceMetricsGridAnimationMsg",
             "leet.MediaPaneAnimationMsg",
             "leet.WorkspaceMediaPaneAnimationMsg",
+            "uv.CellSizeEvent",
+            "uv.KittyGraphicsEvent",
+            "picture.kittyProbeTickMsg",
+            "picture.KittyFrameMsg",
             "tea.KeyPressMsg",
             "tea.MouseClickMsg",
             "tea.MouseReleaseMsg",
@@ -531,13 +585,15 @@ mod tests {
         assert_eq!(got, want);
     }
 
-    /// messages.go declares 31 message types; the enum adds the four tea
-    /// wrappers (Key/Mouse/Resize/BackgroundColor) — 35 variants total.
+    /// messages.go declares 31 message types; the enum adds the four
+    /// picture-pipeline messages (CellSize/KittyGraphics/KittyProbeTick/
+    /// KittyFrame) and the four tea wrappers (Key/Mouse/Resize/
+    /// BackgroundColor) — 39 variants total.
     #[test]
     fn one_variant_per_go_msg_type() {
         let discriminants: HashSet<_> =
             sample_events().iter().map(std::mem::discriminant).collect();
-        assert_eq!(discriminants.len(), 31 + 4);
+        assert_eq!(discriminants.len(), 31 + 4 + 4);
     }
 
     /// Events cross thread boundaries (producer threads → the event loop's

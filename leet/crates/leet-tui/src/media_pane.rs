@@ -27,14 +27,16 @@
 //! `Event` variant ("leet.mediaPanePrepareMsg") must be added to event.rs
 //! (flagged for that unit's owner; not added here).
 //!
-//! PHASE-5 wiring (app shell): [`CellSizeEvent`] is a placeholder for
+//! Picture-message wiring: [`MediaPane::handle_picture_msg`] is Go's
+//! `handlePictureMsg` forwarding loop (mediapane.go:208-210,
+//! mediapane.go:1256-1273) behind the `picture.IsPictureMsg` gate
+//! (run.go:219-222, workspace.go:215-217). [`CellSizeEvent`] mirrors
 //! ultraviolet's `uv.CellSizeEvent` (the CSI 16 t reply);
 //! [`MediaPaneCmd::RequestCellSize`] / [`MediaPaneCmd::QueryKittySupport`]
-//! stand in for `picture.RequestCellSize()` / `picture.QueryKittySupport()`
-//! (both suppressed in test mode); [`MediaPane::on_kitty_frame`] /
-//! [`MediaPane::on_apply_kitty_grid`] are the typed halves of Go's
-//! `handlePictureMsg` forwarding loop (mediapane.go:208-210,
-//! mediapane.go:1256-1273).
+//! map to `picture.RequestCellSize()` / `picture.QueryKittySupport()`
+//! (both suppressed in test mode; the runtime captures the replies at
+//! startup and replays them as events — see runtime.rs
+//! `detect_terminal_capabilities`).
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap};
@@ -53,6 +55,7 @@ use ratatui::text::{Line, Span, Text};
 
 use crate::animation::AnimatedValue;
 use crate::console_logs_pane::CONSOLE_LOGS_PANE_HEIGHT_RATIO;
+use crate::event::{Event, KittyGraphicsMsg};
 use crate::key::{KeyEvent, normalize_key};
 use crate::layout::{
     CENTER, GoStyle, LEFT, TOP, adaptive_to_color, block_width, join_horizontal, join_vertical,
@@ -163,9 +166,9 @@ pub(crate) fn media_tile_placeholder_style(dark: bool) -> GoStyle {
 /// (Go `gridConfig func() (rows, cols int)`).
 pub type GridConfig = Box<dyn Fn() -> (isize, isize)>;
 
-/// PHASE-5: placeholder for ultraviolet's `uv.CellSizeEvent` — the
-/// terminal's reply to the CSI 16 t cell-size query, decoded by the app
-/// shell and routed to [`MediaPane::handle_cell_size`].
+/// Ultraviolet's `uv.CellSizeEvent` — the terminal's reply to the CSI 16 t
+/// cell-size query, captured by the runtime and routed here as
+/// `Event::CellSize` → [`MediaPane::handle_picture_msg`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CellSizeEvent {
     pub width: isize,
@@ -179,10 +182,10 @@ pub enum MediaPaneCmd {
     /// A picture-model command: raw Kitty delete bytes or a deferred Kitty
     /// render (see [`PictureCmd`]).
     Picture(PictureCmd),
-    /// PHASE-5: `picture.RequestCellSize()` — the CSI 16 t query
-    /// (mediapane.go:187). Suppressed in test mode.
+    /// `picture.RequestCellSize()` — the CSI 16 t query (mediapane.go:187).
+    /// Suppressed in test mode.
     RequestCellSize,
-    /// PHASE-5: `picture.QueryKittySupport()` — the Kitty `a=q` probe
+    /// `picture.QueryKittySupport()` — the Kitty `a=q` probe
     /// (mediapane.go:188). Suppressed in test mode.
     QueryKittySupport,
 }
@@ -375,9 +378,49 @@ impl MediaPane {
         }
     }
 
+    /// Go `handlePictureMsg` (mediapane.go:208-210) behind the
+    /// `picture.IsPictureMsg` gate (run.go:219-222, workspace.go:215-217):
+    /// `None` = not a picture message, fall through to normal routing;
+    /// `Some(cmds)` = consumed (the caller returns, like Go).
+    pub fn handle_picture_msg(&mut self, msg: &Event) -> Option<Vec<MediaPaneCmd>> {
+        match msg {
+            Event::CellSize { width, height } => Some(self.handle_cell_size(CellSizeEvent {
+                width: *width,
+                height: *height,
+            })),
+            // The uv.KittyGraphicsEvent / kittyProbeTickMsg arms of
+            // picture.Model.Update (picture.go:474-480) mutate only the
+            // process-wide capability; the per-model forwarding is a no-op.
+            Event::KittyGraphics(g) => {
+                record_kitty_response(g);
+                Some(Vec::new())
+            }
+            Event::KittyProbeTick => {
+                record_kitty_timeout();
+                Some(Vec::new())
+            }
+            Event::KittyFrame(frame) => {
+                let mut cmds = Vec::new();
+                if let Some((apc, apply)) = self.on_kitty_frame(frame) {
+                    // PARITY: Go returns tea.Sequence(tea.Raw(apc),
+                    // applyKittyGridCmd) so the APC bytes hit the wire
+                    // before the placeholder grid renders. Here the Raw
+                    // command is dispatched (written) after Update returns
+                    // but before the next draw, so applying the grid
+                    // synchronously preserves the on-wire order without an
+                    // applyKittyGridMsg round-trip (see the event.rs module
+                    // doc).
+                    self.on_apply_kitty_grid(&apply);
+                    cmds.push(MediaPaneCmd::Picture(PictureCmd::Raw(apc)));
+                }
+                Some(cmds)
+            }
+            _ => None,
+        }
+    }
+
     /// The `uv.CellSizeEvent` arm of Go `handlePictureMsg` →
     /// `renderer.Update` (mediapane.go:208-210, :1256-1273).
-    // PHASE-5: routed by the app shell once the CSI 16 t reply is decoded.
     pub fn handle_cell_size(&mut self, ev: CellSizeEvent) -> Vec<MediaPaneCmd> {
         picture_cmds(self.renderer.handle_cell_size(ev))
     }
@@ -386,13 +429,11 @@ impl MediaPane {
     /// MUST write the returned APC bytes before feeding the grid message
     /// back through [`MediaPane::on_apply_kitty_grid`] (Go sequences them
     /// with `tea.Sequence`; see `picture::Model::on_kitty_frame`).
-    // PHASE-5: routed by the app shell from the effect runner.
     pub fn on_kitty_frame(&mut self, msg: &KittyFrameMsg) -> Option<(String, ApplyKittyGridMsg)> {
         self.renderer.on_kitty_frame(msg)
     }
 
     /// The `applyKittyGridMsg` arm of Go `handlePictureMsg`.
-    // PHASE-5: routed by the app shell.
     pub fn on_apply_kitty_grid(&mut self, msg: &ApplyKittyGridMsg) {
         self.renderer.on_apply_kitty_grid(msg);
     }
@@ -1900,6 +1941,32 @@ fn ensure_kitty_graphics_enabled() -> bool {
     true
 }
 
+/// picture/kitty_capability.go:190-204 `recordKittyResponse`: any response
+/// carrying the probe's image ID proves the terminal speaks the protocol —
+/// even an error response. A real response is authoritative and overrides
+/// the timeout's pessimistic Unsupported conclusion.
+fn record_kitty_response(msg: &KittyGraphicsMsg) {
+    if msg.id != crate::runtime::KITTY_PROBE_ID {
+        return;
+    }
+    // PARITY: Go covers Unknown→Supported and Unsupported→Supported with
+    // two CASes to avoid clobbering concurrent writers; on the port's
+    // single update thread an unconditional store of Supported is the same
+    // state machine (Supported over Supported is a no-op).
+    media_force_kitty_capability(KittyCapability::Supported);
+}
+
+/// picture/kitty_capability.go:206-211 `recordKittyTimeout`: marks the
+/// capability Unsupported iff the probe window elapsed while still Unknown.
+/// Idempotent; never overrides an earlier response or ForceKittyCapability.
+fn record_kitty_timeout() {
+    // PARITY: Go's CompareAndSwap(Unknown, Unsupported) — read +
+    // conditional store on the single update thread.
+    if media_kitty_supported() == KittyCapability::Unknown {
+        media_force_kitty_capability(KittyCapability::Unsupported);
+    }
+}
+
 /// Go reads/writes the picture package's process-wide capability directly
 /// (`picture.KittySupported` / `picture.ForceKittyCapability`,
 /// mediapane.go:1224-1231). These wrappers add a test-only override:
@@ -3041,6 +3108,81 @@ mod tests {
         assert!(view.contains("[ansi]"));
         assert!(!view.contains("[full-res]"));
         assert!(!view.contains("\u{1b}_G"));
+    }
+
+    // -- handle_picture_msg (Go handlePictureMsg + IsPictureMsg gate) -----
+
+    /// The uv.CellSizeEvent arm: remembered for pictures created later
+    /// (mediapane.go:1260-1264).
+    #[test]
+    fn handle_picture_msg_routes_cell_size_to_renderer() {
+        let (mut pane, _store) = test_media_pane();
+        let cmds = pane.handle_picture_msg(&Event::CellSize {
+            width: 9,
+            height: 18,
+        });
+        assert!(cmds.expect("picture msg consumed").is_empty());
+        assert_eq!(pane.renderer.cell_pixel_w, 9);
+        assert_eq!(pane.renderer.cell_pixel_h, 18);
+    }
+
+    /// recordKittyResponse / recordKittyTimeout state machine
+    /// (kitty_capability.go:190-211): a probe response resolves Supported,
+    /// the timeout resolves Unsupported only from Unknown, and a late
+    /// response overrides the timeout's pessimistic conclusion.
+    #[test]
+    fn handle_picture_msg_records_probe_response_and_timeout() {
+        // Guard: serializes against the other capability-seam tests.
+        let _env = set_kitty_graphics_env(false);
+        let (mut pane, _store) = test_media_pane();
+
+        // A response with a foreign image ID is not our probe.
+        test_kitty_cap::set(KittyCapability::Unknown);
+        pane.handle_picture_msg(&Event::KittyGraphics(KittyGraphicsMsg { id: 7 }))
+            .expect("picture msg consumed");
+        assert_eq!(media_kitty_supported(), KittyCapability::Unknown);
+
+        // The probe's ID resolves Supported — even before the tick.
+        pane.handle_picture_msg(&Event::KittyGraphics(KittyGraphicsMsg {
+            id: crate::runtime::KITTY_PROBE_ID,
+        }))
+        .expect("picture msg consumed");
+        assert_eq!(media_kitty_supported(), KittyCapability::Supported);
+
+        // A late tick never downgrades a resolved capability.
+        pane.handle_picture_msg(&Event::KittyProbeTick)
+            .expect("picture msg consumed");
+        assert_eq!(media_kitty_supported(), KittyCapability::Supported);
+
+        // From Unknown, the tick concludes Unsupported.
+        test_kitty_cap::set(KittyCapability::Unknown);
+        pane.handle_picture_msg(&Event::KittyProbeTick)
+            .expect("picture msg consumed");
+        assert_eq!(media_kitty_supported(), KittyCapability::Unsupported);
+
+        // ...and a late response is authoritative over that conclusion
+        // (kitty_capability.go:190-196).
+        pane.handle_picture_msg(&Event::KittyGraphics(KittyGraphicsMsg {
+            id: crate::runtime::KITTY_PROBE_ID,
+        }))
+        .expect("picture msg consumed");
+        assert_eq!(media_kitty_supported(), KittyCapability::Supported);
+    }
+
+    /// Non-picture events fall through (`picture.IsPictureMsg` == false);
+    /// a KittyFrame with no live pictures is consumed without commands
+    /// (every model ignores a foreign/stale frame, picture.go:438-440).
+    #[test]
+    fn handle_picture_msg_gates_like_is_picture_msg() {
+        let (mut pane, _store) = test_media_pane();
+        assert!(pane.handle_picture_msg(&Event::Heartbeat).is_none());
+        assert!(pane.handle_picture_msg(&Event::Key(key_k())).is_none());
+
+        let frame = crate::picture::KittyFrameMsg::default();
+        let cmds = pane
+            .handle_picture_msg(&Event::KittyFrame(Box::new(frame)))
+            .expect("picture msg consumed");
+        assert!(cmds.is_empty());
     }
 
     #[test]

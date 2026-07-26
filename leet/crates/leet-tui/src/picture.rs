@@ -2183,7 +2183,9 @@ static NEXT_MODEL_ID: AtomicU64 = AtomicU64::new(0);
 
 /// KittyFrameMsg carries the result of building a Kitty APC payload + grid
 /// for a specific generation of the Model (picture/messages.go:1-17).
-#[derive(Debug, Clone)]
+// PartialEq/Default: carried by `Event::KittyFrame` (event.rs), whose enum
+// derives PartialEq and whose tests need a zero-value sample.
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct KittyFrameMsg {
     model_id: u64,
     pub id: i64,

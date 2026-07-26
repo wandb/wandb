@@ -56,14 +56,18 @@ impl Crc32c {
     }
 }
 
-/// Reflected IEEE CRC-32 table (Go: `crc32.MakeTable(crc32.IEEE)`).
+/// Reflected IEEE CRC-32 tables (Go: `crc32.MakeTable(crc32.IEEE)` plus the
+/// slicing-by-8 extension tables Go builds internally).
 ///
 /// Hand-rolled because the `crc32c` crate is Castagnoli-only; matches Go's
-/// `hash/crc32` simple table algorithm bit-for-bit.
-const TABLE_CRC32_IEEE: [u32; 256] = make_crc32_table(0xedb8_8320);
+/// `hash/crc32` bit-for-bit. Go's IEEE path uses slicing-by-8
+/// (`hash/crc32.slicingUpdate`), which is ~8x faster than the simple
+/// byte-at-a-time table and is on the transaction-log read hot path
+/// (`record.rs` checksums every chunk); the same algorithm is used here.
+const TABLE_CRC32_IEEE: [[u32; 256]; 8] = make_crc32_slicing8_table(0xedb8_8320);
 
-const fn make_crc32_table(poly: u32) -> [u32; 256] {
-    let mut table = [0u32; 256];
+const fn make_crc32_slicing8_table(poly: u32) -> [[u32; 256]; 8] {
+    let mut table = [[0u32; 256]; 8];
     let mut i = 0;
     while i < 256 {
         let mut crc = i as u32;
@@ -76,17 +80,43 @@ const fn make_crc32_table(poly: u32) -> [u32; 256] {
             };
             j += 1;
         }
-        table[i] = crc;
+        table[0][i] = crc;
+        i += 1;
+    }
+    // Go: hash/crc32.slicingMakeTable — t[k][v] extends t[0] by k zero bytes.
+    let mut i = 0;
+    while i < 256 {
+        let mut crc = table[0][i];
+        let mut k = 1;
+        while k < 8 {
+            crc = table[0][(crc & 0xff) as usize] ^ (crc >> 8);
+            table[k][i] = crc;
+            k += 1;
+        }
         i += 1;
     }
     table
 }
 
-/// Equivalent of Go's `crc32.Update(crc, tableCRC32ieee, b)`.
+/// Equivalent of Go's `crc32.Update(crc, tableCRC32ieee, b)`
+/// (`hash/crc32.slicingUpdate` with the slicing-by-8 IEEE table).
 fn crc32_ieee_update(crc: u32, b: &[u8]) -> u32 {
     let mut crc = !crc;
-    for &byte in b {
-        crc = TABLE_CRC32_IEEE[((crc ^ byte as u32) & 0xff) as usize] ^ (crc >> 8);
+    let mut chunks = b.chunks_exact(8);
+    for chunk in &mut chunks {
+        crc ^= u32::from_le_bytes(chunk[..4].try_into().unwrap());
+        let hi = u32::from_le_bytes(chunk[4..8].try_into().unwrap());
+        crc = TABLE_CRC32_IEEE[7][(crc & 0xff) as usize]
+            ^ TABLE_CRC32_IEEE[6][((crc >> 8) & 0xff) as usize]
+            ^ TABLE_CRC32_IEEE[5][((crc >> 16) & 0xff) as usize]
+            ^ TABLE_CRC32_IEEE[4][((crc >> 24) & 0xff) as usize]
+            ^ TABLE_CRC32_IEEE[3][(hi & 0xff) as usize]
+            ^ TABLE_CRC32_IEEE[2][((hi >> 8) & 0xff) as usize]
+            ^ TABLE_CRC32_IEEE[1][((hi >> 16) & 0xff) as usize]
+            ^ TABLE_CRC32_IEEE[0][((hi >> 24) & 0xff) as usize];
+    }
+    for &byte in chunks.remainder() {
+        crc = TABLE_CRC32_IEEE[0][((crc ^ byte as u32) & 0xff) as usize] ^ (crc >> 8);
     }
     !crc
 }
@@ -122,6 +152,27 @@ mod tests {
         assert_eq!(crc_custom(b""), 0xa282_ead8);
         assert_eq!(crc_standard(b""), 0x0000_0000);
         assert_eq!(crc_custom(&[0u8]), 0x4925_8fd2);
+    }
+
+    // Port-added: the slicing-by-8 IEEE path must match the simple
+    // byte-at-a-time table for all lengths (chunk remainders 0..7).
+    #[test]
+    fn test_ieee_slicing_matches_bytewise() {
+        fn bytewise(crc: u32, b: &[u8]) -> u32 {
+            let mut crc = !crc;
+            for &byte in b {
+                crc = TABLE_CRC32_IEEE[0][((crc ^ byte as u32) & 0xff) as usize] ^ (crc >> 8);
+            }
+            !crc
+        }
+        let data: Vec<u8> = (0..1024u32).map(|i| (i.wrapping_mul(31) ^ 0x5a) as u8).collect();
+        for len in [0, 1, 7, 8, 9, 15, 16, 17, 63, 64, 255, 1024] {
+            assert_eq!(
+                crc_standard(&data[..len]),
+                bytewise(0, &data[..len]),
+                "len={len}"
+            );
+        }
     }
 
     #[test]

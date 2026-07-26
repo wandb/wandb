@@ -32,6 +32,7 @@ use std::collections::HashMap;
 use std::fs::OpenOptions;
 use std::io::{self, Read as _, Write};
 use std::panic::{self, AssertUnwindSafe};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, Once, OnceLock, PoisonError};
 use std::thread;
@@ -42,6 +43,7 @@ use crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, SetTitle, disable_raw_mode, enable_raw_mode,
 };
 use crossterm::{cursor, execute};
+use leet_charts::styles::Rgb;
 use leet_data::history_source::{
     self as hs, BOOT_LOAD_CHUNK_SIZE, BOOT_LOAD_MAX_TIME, HistorySource, LIVE_MONITOR_CHUNK_SIZE,
     LIVE_MONITOR_MAX_TIME, SourceMsg,
@@ -57,11 +59,11 @@ use crate::command::{
     Command, ReadKind, ReadRequest, SourceId, TimerId, execute_read, run_msg_to_event,
 };
 use crate::event::{
-    ErrorMsg, Event, EventError, EventErrorKind, HistorySourceHandle, InitMsg,
+    ErrorMsg, Event, EventError, EventErrorKind, HistorySourceHandle, InitMsg, KittyGraphicsMsg,
     WorkspaceFileChangedMsg, WorkspaceInitErrMsg, WorkspaceRunDirsMsg, WorkspaceRunInitMsg,
     WorkspaceRunOverviewPreloadedMsg,
 };
-use crate::picture::PictureCmd;
+use crate::picture::{KittyCapability, PictureCmd, force_kitty_capability, kitty_supported};
 
 // ---------------------------------------------------------------------------
 // App trait — model.go's tea.Model surface
@@ -429,9 +431,9 @@ pub struct EffectRunner {
     /// Stashed by [`Command::PollWandbDir`] for `DirPoll` fires (the Go
     /// tick callback captures `w.wandbDir`, workspacedirwatcher.go:101).
     wandb_dir: Option<String>,
-    /// The OSC 11 answer captured at startup; `None` in test mode or when
-    /// the terminal did not reply.
-    background_is_dark: Option<bool>,
+    /// The terminal replies captured by the startup round-trip
+    /// ([`detect_terminal_capabilities`]); all-empty in test mode.
+    caps: TerminalCapabilities,
     /// Set by [`Command::Quit`]; the loop exits after the current batch.
     quit: bool,
 }
@@ -444,7 +446,7 @@ impl EffectRunner {
             sources: Arc::new(Mutex::new(HashMap::new())),
             next_source_id: 1,
             wandb_dir: None,
-            background_is_dark: None,
+            caps: TerminalCapabilities::default(),
             quit: false,
         }
     }
@@ -453,8 +455,8 @@ impl EffectRunner {
         self.quit
     }
 
-    pub fn set_background_is_dark(&mut self, is_dark: Option<bool>) {
-        self.background_is_dark = is_dark;
+    pub(crate) fn set_terminal_capabilities(&mut self, caps: TerminalCapabilities) {
+        self.caps = caps;
     }
 
     /// Sends an event back through the main queue.
@@ -470,8 +472,11 @@ impl EffectRunner {
                 // round-trip once at startup (see detect_background_is_dark)
                 // and replays the answer. No terminal reply → no message,
                 // exactly like Go.
-                if let Some(is_dark) = self.background_is_dark {
-                    self.emit(Event::BackgroundColor { is_dark });
+                if let Some(is_dark) = self.caps.background_is_dark {
+                    self.emit(Event::BackgroundColor {
+                        is_dark,
+                        rgb: self.caps.background_rgb,
+                    });
                 }
             }
             Command::InitReader { run_path } => self.spawn_reader(run_path, ReaderInit::SingleRun),
@@ -567,18 +572,32 @@ impl EffectRunner {
                 let _ = out.write_all(seq.as_bytes());
                 let _ = out.flush();
             }
-            Command::Picture(PictureCmd::Render(_request)) => {
-                // PHASE-7: run KittyRenderRequest on an effect thread and
-                // route the KittyFrameMsg (the glyph renderer — always
-                // active in test mode — never issues renders).
-                tracing::debug!("PictureCmd::Render not yet routed (PHASE-7)");
+            Command::Picture(PictureCmd::Render(request)) => {
+                // renderCmd's deferred closure (picture.go:563-608) ran on
+                // a tea.Cmd goroutine; the effect thread is its §2.7
+                // equivalent. A None frame (prepareSource failure) sends
+                // nothing — the Go closure returns nil.
+                spawn_guarded("kitty-render", self.events.clone(), move |events| {
+                    if let Some(frame) = request.run() {
+                        let _ = events.send(RuntimeEvent::App(Event::KittyFrame(Box::new(frame))));
+                    }
+                });
             }
-            Command::RequestCellSize | Command::QueryKittySupport => {
-                // PHASE-7: CSI 16 t / Kitty a=q probes need reply decoding
-                // in the input path. Suppressed in test mode by the pane
-                // (mediapane.go:180), so nothing is lost yet.
-                tracing::debug!("terminal capability query not yet ported (PHASE-7)");
+            Command::RequestCellSize => {
+                // PARITY: picture.RequestCellSize() is `tea.Raw(CSI 16 t)`
+                // (picture.go:485-492) and ultraviolet decodes the async
+                // `CSI 6 ; h ; w t` reply into uv.CellSizeEvent. crossterm
+                // cannot surface that reply (its parser errors on the final
+                // 't' and drops the sequence), so the runtime wrote the
+                // query during the startup round-trip — before the input
+                // thread owned the tty — and replays the captured answer,
+                // the RequestBackgroundColor pattern. No reply → no
+                // message, exactly like a non-answering terminal in Go.
+                if let Some((width, height)) = self.caps.cell_size {
+                    self.emit(Event::CellSize { width, height });
+                }
             }
+            Command::QueryKittySupport => self.query_kitty_support(),
             Command::SampleSymonNow => {
                 // PHASE-6: symon sampler.
                 tracing::debug!("symon sampling not yet ported (PHASE-6)");
@@ -685,6 +704,94 @@ impl EffectRunner {
                 WorkspaceRunDirsMsg { run_keys, err },
             )));
         });
+    }
+
+    /// Port of `picture.QueryKittySupport` (kitty_capability.go:116-140).
+    ///
+    /// PARITY: Go's `kittyQueryOnce sync.Once` is process-wide — both media
+    /// panes batch the query from Init and only the first emission does
+    /// anything, and the guard survives the alt+r restart loop. The probe
+    /// bytes themselves went to the wire during the startup round-trip
+    /// ([`detect_terminal_capabilities`]), because crossterm's input parser
+    /// cannot surface the APC response (it would decode as garbage key
+    /// presses); this method replays the outcome through the same two
+    /// messages Go uses (`uv.KittyGraphicsEvent` / `kittyProbeTickMsg`).
+    fn query_kitty_support(&self) {
+        static KITTY_QUERY_ONCE: AtomicBool = AtomicBool::new(false);
+        if KITTY_QUERY_ONCE.swap(true, Ordering::SeqCst) {
+            return;
+        }
+        let plan = plan_kitty_query(
+            kitty_supported(),
+            self.caps.kitty_probe_sent,
+            self.caps.kitty_probe_responded,
+        );
+        self.run_kitty_query_plan(plan);
+    }
+
+    /// The effectful half of [`plan_kitty_query`] (split for testability —
+    /// only `ResolveUnsupported` touches the process-wide capability).
+    fn run_kitty_query_plan(&self, plan: KittyQueryPlan) {
+        match plan {
+            // Capability was already set (e.g. ForceKittyCapability before
+            // any Init ran): respect that and skip (kitty_capability.go:121).
+            KittyQueryPlan::Noop => {}
+            KittyQueryPlan::ResolveUnsupported => {
+                // Go: kittyCap.CompareAndSwap(Unknown, Unsupported)
+                // (kitty_capability.go:128). Dispatch runs on the sole
+                // update thread, so read + conditional store is that CAS.
+                if kitty_supported() == KittyCapability::Unknown {
+                    force_kitty_capability(KittyCapability::Unsupported);
+                }
+            }
+            KittyQueryPlan::Await { responded } => {
+                // Go batches tea.Raw(probe) + tea.Tick(kittyProbeTimeout)
+                // (kitty_capability.go:132-137). The probe is already on
+                // the wire; deliver the captured response (if any) and arm
+                // the timeout tick regardless — a response is authoritative
+                // and the late tick's recordKittyTimeout no-ops once the
+                // capability is Supported (kitty_capability.go:190-211).
+                if responded {
+                    self.emit(Event::KittyGraphics(KittyGraphicsMsg {
+                        id: KITTY_PROBE_ID,
+                    }));
+                }
+                let _ = self
+                    .timers
+                    .send(TimerCmd::Arm(TimerId::KittyProbe, KITTY_PROBE_TIMEOUT));
+            }
+        }
+    }
+}
+
+/// What executing [`Command::QueryKittySupport`] should do — the decision
+/// half of `picture.QueryKittySupport` (kitty_capability.go:116-140),
+/// separated from its process-global side effects for unit testing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum KittyQueryPlan {
+    /// Capability already resolved before the query ran.
+    Noop,
+    /// Env preflight was negative: resolve straight to Unsupported without
+    /// any messages (kitty_capability.go:126-130).
+    ResolveUnsupported,
+    /// The probe went to the wire: deliver the captured response (if any)
+    /// and arm the probe-timeout tick.
+    Await { responded: bool },
+}
+
+fn plan_kitty_query(
+    current: KittyCapability,
+    probe_sent: bool,
+    probe_responded: bool,
+) -> KittyQueryPlan {
+    if current != KittyCapability::Unknown {
+        return KittyQueryPlan::Noop;
+    }
+    if !probe_sent {
+        return KittyQueryPlan::ResolveUnsupported;
+    }
+    KittyQueryPlan::Await {
+        responded: probe_responded,
     }
 }
 
@@ -875,65 +982,175 @@ pub fn find_run_msg(msg: SourceMsg) -> Option<hs::RunMsg> {
 }
 
 // ---------------------------------------------------------------------------
-// Background color detection (runtime only — never in test mode)
+// Terminal capability queries (runtime only — never in test mode)
 // ---------------------------------------------------------------------------
 
-const BACKGROUND_QUERY_TIMEOUT: Duration = Duration::from_millis(500);
+const TERMINAL_QUERY_TIMEOUT: Duration = Duration::from_millis(500);
 
-/// PARITY: mirrors `tea.RequestBackgroundColor` — Bubble Tea emits OSC 11
-/// and its input loop decodes the reply into `tea.BackgroundColorMsg`. The
-/// port performs one round-trip at startup, before the crossterm input
-/// thread owns the tty (crossterm's parser would swallow the OSC reply).
-/// A DA1 (`CSI c`) fence follows the query: terminals that ignore OSC 11
-/// still answer DA1, bounding the read. No reply within the timeout → `None`
-/// → no BackgroundColor event, exactly like a non-answering terminal in Go.
-/// (If a terminal answers neither, the byte-reader thread stays parked on
-/// the tty until one more byte arrives — accepted, DA1 support is
-/// universal.)
+/// kitty_capability.go:43 `kittyProbeID` — the image ID used for the Kitty
+/// support probe, far above any consumer-assigned ID.
+pub(crate) const KITTY_PROBE_ID: i64 = 42069101;
+
+/// kitty_capability.go:49 `kittyProbeTimeout`.
+pub(crate) const KITTY_PROBE_TIMEOUT: Duration = Duration::from_millis(250);
+
+/// `ansi.WindowOp(16)` — the XTWINOPS cell-pixel-size query emitted by
+/// `picture.RequestCellSize()` (picture.go:490-492).
+const CELL_SIZE_QUERY: &[u8] = b"\x1b[16t";
+
+/// kitty_capability.go:177-183 `buildKittyQueryAPC`: a Kitty graphics query
+/// (`a=q`) — a tiny 1×1 transmit whose only purpose is to elicit a
+/// response. Kitty terminals reply `ESC _ G i=<id> ; OK ESC \`; non-Kitty
+/// terminals don't reply. "AAAA" is base64 of three zero bytes (one RGB
+/// pixel).
+fn build_kitty_query_apc(id: i64) -> String {
+    format!("\x1b_Ga=q,t=d,f=24,s=1,v=1,i={id};AAAA\x1b\\")
+}
+
+/// kitty_capability.go:147-175 `kittyEnvSignal`: the pre-flight gate — the
+/// probe is only sent when the environment indicates a Kitty-aware terminal,
+/// so non-Kitty terminals never see APC bytes they might print as garbage.
+fn kitty_env_signal() -> bool {
+    kitty_env_signal_from(|key| std::env::var(key).unwrap_or_default())
+}
+
+fn kitty_env_signal_from(getenv: impl Fn(&str) -> String) -> bool {
+    if !getenv("KITTY_WINDOW_ID").is_empty() || !getenv("KITTY_INSTALLATION_DIR").is_empty() {
+        return true;
+    }
+    if !getenv("GHOSTTY_RESOURCES_DIR").is_empty() {
+        return true;
+    }
+    if !getenv("WEZTERM_EXECUTABLE").is_empty() || !getenv("WEZTERM_PANE").is_empty() {
+        return true;
+    }
+    if matches!(getenv("TERM").as_str(), "xterm-kitty" | "xterm-ghostty") {
+        return true;
+    }
+    // PARITY: exact, case-SENSITIVE matches (kitty_capability.go:166-174),
+    // unlike mediapane.go's lowercased `terminalSignalsKittyGraphics`
+    // (media_pane.rs `terminal_signals_kitty_graphics`) — the two gates
+    // deliberately differ in Go too.
+    matches!(
+        getenv("TERM_PROGRAM").as_str(),
+        "ghostty" | "WezTerm" | "kitty" | "iTerm.app"
+    )
+}
+
+/// The replies captured by the startup terminal round-trip.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct TerminalCapabilities {
+    /// OSC 11 background classification; `None` = no reply.
+    pub(crate) background_is_dark: Option<bool>,
+    /// The same OSC 11 reply as 8-bit RGB for the runs-list zebra stripe
+    /// (Go reads it via termenv, styles.go `initTerminalBg`); `None` = no
+    /// reply or a form termenv rejects (see [`parse_osc11_rgb`]).
+    pub(crate) background_rgb: Option<Rgb>,
+    /// CSI 16 t reply: the terminal's cell (width, height) in pixels.
+    pub(crate) cell_size: Option<(isize, isize)>,
+    /// Whether the Kitty `a=q` probe went to the wire (env preflight
+    /// positive AND /dev/tty writable).
+    pub(crate) kitty_probe_sent: bool,
+    /// Whether the terminal answered the probe.
+    pub(crate) kitty_probe_responded: bool,
+}
+
+/// PARITY: mirrors the wire halves of `tea.RequestBackgroundColor`,
+/// `picture.RequestCellSize` and `picture.QueryKittySupport` — Bubble Tea/
+/// ultraviolet emit the queries and decode the async replies on the input
+/// path. The
+/// port performs ONE round-trip at startup, before the crossterm input
+/// thread owns the tty: crossterm-0.29 has no passthrough for these replies
+/// (the OSC 11 and `CSI 6;h;w t` replies error out of its parser and are
+/// dropped; the Kitty APC response would decode as garbage key presses via
+/// its ESC-prefix alt-key fallback). A DA1 (`CSI c`) fence follows the
+/// queries: terminals answer in order, so once DA1 arrives every earlier
+/// reply has too, bounding the read. No reply within the timeout → the
+/// corresponding capability stays empty, exactly like a non-answering
+/// terminal in Go.
 ///
-/// In test mode this is never called: there are NO terminal queries and the
+/// In test mode this is never called: there are NO terminal queries; the
 /// background is forced dark (light via `WANDB_LEET_TEST_BG=light`) through
-/// `leet_charts::styles::default_dark_background()` (testmode.go).
-pub(crate) fn detect_background_is_dark(timeout: Duration) -> Option<bool> {
+/// `leet_charts::styles::default_dark_background()` (testmode.go) and the
+/// media pane suppresses its capability queries (mediapane.go:180-184).
+pub(crate) fn detect_terminal_capabilities(timeout: Duration) -> TerminalCapabilities {
+    let probe = kitty_env_signal();
+    let mut query: Vec<u8> = b"\x1b]11;?\x07".to_vec();
+    query.extend_from_slice(CELL_SIZE_QUERY);
+    if probe {
+        query.extend_from_slice(build_kitty_query_apc(KITTY_PROBE_ID).as_bytes());
+    }
+    query.extend_from_slice(b"\x1b[c");
+
+    let Some(buf) = terminal_round_trip(&query, timeout) else {
+        // /dev/tty unavailable: nothing was written, so the probe was
+        // never sent either.
+        return TerminalCapabilities::default();
+    };
+    TerminalCapabilities {
+        background_is_dark: parse_osc11_is_dark(&buf),
+        background_rgb: parse_osc11_rgb(&buf),
+        cell_size: parse_cell_size_reply(&buf),
+        kitty_probe_sent: probe,
+        kitty_probe_responded: probe && contains_kitty_probe_response(&buf, KITTY_PROBE_ID),
+    }
+}
+
+/// Writes `query` to /dev/tty and reads the reply until the DA1 fence, the
+/// deadline, or EOF/error. `None` = the tty could not be opened/written.
+///
+/// Single-threaded and deadline-bounded: the fd is `poll(2)`ed with the
+/// remaining time before every read, so nothing keeps reading the tty after
+/// this returns. (An earlier design parked a byte-reader thread on the fd
+/// past the timeout; a DA1 reply arriving late — slow ssh — then ate user
+/// keystrokes until it landed, and a terminal that never answered had one
+/// future byte stolen from the crossterm input thread that takes over next.)
+#[cfg(unix)]
+fn terminal_round_trip(query: &[u8], timeout: Duration) -> Option<Vec<u8>> {
+    use rustix::event::{PollFd, PollFlags, Timespec};
+
     let mut tty = OpenOptions::new()
         .read(true)
         .write(true)
         .open("/dev/tty")
         .ok()?;
-    tty.write_all(b"\x1b]11;?\x07\x1b[c").ok()?;
+    tty.write_all(query).ok()?;
     tty.flush().ok()?;
-    let mut reader = tty.try_clone().ok()?;
-
-    let (tx, rx) = mpsc::channel::<u8>();
-    let spawned = thread::Builder::new()
-        .name("osc11-query".into())
-        .spawn(move || {
-            let mut seen: Vec<u8> = Vec::new();
-            let mut byte = [0u8; 1];
-            loop {
-                match reader.read(&mut byte) {
-                    Ok(0) | Err(_) => return,
-                    Ok(_) => {
-                        seen.push(byte[0]);
-                        if tx.send(byte[0]).is_err() || contains_da1_reply(&seen) {
-                            return;
-                        }
-                    }
-                }
-            }
-        });
-    spawned.ok()?;
 
     let deadline = Instant::now() + timeout;
     let mut buf: Vec<u8> = Vec::new();
-    // Stops on the DA1 fence, on timeout, or when the reader hangs up.
-    while let Ok(byte) = rx.recv_timeout(deadline.saturating_duration_since(Instant::now())) {
-        buf.push(byte);
-        if contains_da1_reply(&buf) {
+    let mut chunk = [0u8; 256];
+    // Stops on the DA1 fence, at the deadline, or on EOF/error.
+    loop {
+        let remaining = deadline.saturating_duration_since(Instant::now());
+        let Ok(wait) = Timespec::try_from(remaining) else {
             break;
+        };
+        let mut fds = [PollFd::new(&tty, PollFlags::IN)];
+        match rustix::event::poll(&mut fds, Some(&wait)) {
+            Ok(0) => break, // deadline reached
+            Ok(_) => {}
+            Err(rustix::io::Errno::INTR) => continue,
+            Err(_) => break,
+        }
+        // poll reported readable (or HUP/ERR): a bounded read cannot block.
+        match tty.read(&mut chunk) {
+            Ok(0) | Err(_) => break,
+            Ok(n) => {
+                buf.extend_from_slice(&chunk[..n]);
+                if contains_da1_reply(&buf) {
+                    break;
+                }
+            }
         }
     }
-    parse_osc11_is_dark(&buf)
+    Some(buf)
+}
+
+/// Non-Unix: there is no /dev/tty to query; every capability stays empty.
+#[cfg(not(unix))]
+fn terminal_round_trip(_query: &[u8], _timeout: Duration) -> Option<Vec<u8>> {
+    None
 }
 
 /// Whether `buf` contains a DA1 reply (`ESC [ ? <params> c`).
@@ -954,15 +1171,95 @@ fn contains_da1_reply(buf: &[u8]) -> bool {
     false
 }
 
-/// Extracts the OSC 11 reply (`ESC ] 11 ; <color> BEL|ST`) and classifies
-/// the color.
-fn parse_osc11_is_dark(buf: &[u8]) -> Option<bool> {
-    let s = String::from_utf8_lossy(buf);
+/// Extracts the OSC 11 reply's payload (`ESC ] 11 ; <color> BEL|ST`).
+fn osc11_payload(s: &str) -> Option<&str> {
     let start = s.find("\x1b]11;")? + 5;
     let rest = &s[start..];
     let end = rest.find(['\x07', '\x1b']).unwrap_or(rest.len());
-    let (r, g, b) = parse_x_color(rest[..end].trim())?;
+    Some(rest[..end].trim())
+}
+
+/// Extracts the OSC 11 reply and classifies the color.
+fn parse_osc11_is_dark(buf: &[u8]) -> Option<bool> {
+    let s = String::from_utf8_lossy(buf);
+    let (r, g, b) = parse_x_color(osc11_payload(&s)?)?;
     Some(is_dark_color(r, g, b))
+}
+
+/// The same OSC 11 reply as the 8-bit RGB the runs-list zebra stripe blends
+/// from (carried on `Event::BackgroundColor::rgb`).
+///
+/// PARITY: Go reads this through termenv's SEPARATE OSC 11 query
+/// (styles.go:55-84 `initTerminalBg`); termenv's `xTermColor` accepts ONLY
+/// the `rgb:RRRR/GGGG/BBBB` XParseColor form (exactly 4 hex digits per
+/// component) and keeps the high byte of each. Any other reply leaves Go's
+/// `termBgDetected` false → the #d0d0d0/#1c1c1c zebra fallback
+/// (`get_odd_run_style_color(None)`); `None` here does the same.
+fn parse_osc11_rgb(buf: &[u8]) -> Option<Rgb> {
+    let s = String::from_utf8_lossy(buf);
+    let spec = osc11_payload(&s)?;
+    let parts: Vec<&str> = spec.strip_prefix("rgb:")?.split('/').collect();
+    let [r, g, b] = parts.as_slice() else {
+        return None;
+    };
+    let byte = |p: &str| -> Option<u8> {
+        (p.len() == 4 && p.bytes().all(|c| c.is_ascii_hexdigit()))
+            .then(|| u8::from_str_radix(&p[..2], 16).ok())
+            .flatten()
+    };
+    Some(Rgb(byte(r)?, byte(g)?, byte(b)?))
+}
+
+/// Extracts the CSI 16 t reply — `ESC [ 6 ; height ; width t` (XTWINOPS;
+/// ultraviolet decodes it as `uv.CellSizeEvent{Width, Height}`,
+/// decoder.go:646-655) — returning (width, height) in pixels.
+fn parse_cell_size_reply(buf: &[u8]) -> Option<(isize, isize)> {
+    let s = String::from_utf8_lossy(buf);
+    let mut rest: &str = &s;
+    while let Some(start) = rest.find("\x1b[6;") {
+        let tail = &rest[start + 4..];
+        let end = tail
+            .find(|c: char| !c.is_ascii_digit() && c != ';')
+            .unwrap_or(tail.len());
+        if tail[end..].starts_with('t') {
+            let mut parts = tail[..end].split(';');
+            if let (Some(height), Some(width), None) = (parts.next(), parts.next(), parts.next())
+                && let (Ok(height), Ok(width)) = (height.parse::<isize>(), width.parse::<isize>())
+            {
+                return Some((width, height));
+            }
+        }
+        rest = &rest[start + 4..];
+    }
+    None
+}
+
+/// Whether `buf` contains a Kitty graphics APC response
+/// (`ESC _ G <opts> [; payload] ESC \`) whose `i=` option matches `id`.
+///
+/// PARITY: `recordKittyResponse` (kitty_capability.go:190-204) — any
+/// response carrying the probe's image ID proves the terminal speaks the
+/// protocol, even an error response; only a Kitty-aware terminal would have
+/// produced it. The options are the comma-separated `k=v` list ultraviolet
+/// feeds `kitty.Options.UnmarshalText` (decoder.go:1071-1077); only `i=`
+/// matters here.
+fn contains_kitty_probe_response(buf: &[u8], id: i64) -> bool {
+    let s = String::from_utf8_lossy(buf);
+    let mut rest: &str = &s;
+    while let Some(start) = rest.find("\x1b_G") {
+        let body = &rest[start + 3..];
+        let end = body.find("\x1b\\").unwrap_or(body.len());
+        let opts = body[..end].split(';').next().unwrap_or("");
+        for opt in opts.split(',') {
+            if let Some(v) = opt.strip_prefix("i=")
+                && v.parse::<i64>() == Ok(id)
+            {
+                return true;
+            }
+        }
+        rest = &rest[start + 3..];
+    }
+    false
 }
 
 /// XParseColor forms terminals actually reply with: `rgb:RRRR/GGGG/BBBB`
@@ -1200,11 +1497,11 @@ pub fn run(app: &mut dyn App) -> io::Result<()> {
     if !test_mode::enabled() {
         // Detected once per process: from the first session on, the
         // singleton input thread owns the tty and crossterm's parser would
-        // swallow any later OSC 11 reply, so re-querying on an alt+r
+        // swallow (or garble) any later reply, so re-querying on an alt+r
         // restart session could never succeed anyway.
-        static BACKGROUND_IS_DARK: OnceLock<Option<bool>> = OnceLock::new();
-        effects.set_background_is_dark(
-            *BACKGROUND_IS_DARK.get_or_init(|| detect_background_is_dark(BACKGROUND_QUERY_TIMEOUT)),
+        static TERMINAL_CAPS: OnceLock<TerminalCapabilities> = OnceLock::new();
+        effects.set_terminal_capabilities(
+            *TERMINAL_CAPS.get_or_init(|| detect_terminal_capabilities(TERMINAL_QUERY_TIMEOUT)),
         );
     }
     spawn_input_thread(events_tx.clone());
@@ -1312,6 +1609,9 @@ fn step(
             // updateSubComponents, so per-interval ack counts match the
             // two-manager oracle (see command.rs HeartbeatOwner).
             TimerId::Heartbeat(_) => deliver(app, effects, ack, Event::Heartbeat),
+            // The Go tea.Tick callback returns kittyProbeTickMsg
+            // (kitty_capability.go:134-136).
+            TimerId::KittyProbe => deliver(app, effects, ack, Event::KittyProbeTick),
             TimerId::DirPoll => effects.spawn_dir_scan(),
             TimerId::SymonSample => {
                 // PHASE-6: symon sampling pass.
@@ -1811,6 +2111,241 @@ mod tests {
         }
     }
 
+    // -- Terminal capability queries -------------------------------------------
+
+    /// The query bytes must match Go exactly: `ansi.WindowOp(16)`
+    /// (picture.go:490-492) and `buildKittyQueryAPC`
+    /// (kitty_capability.go:181-183).
+    #[test]
+    fn capability_query_bytes_match_go() {
+        assert_eq!(CELL_SIZE_QUERY, b"\x1b[16t");
+        assert_eq!(
+            build_kitty_query_apc(KITTY_PROBE_ID),
+            "\x1b_Ga=q,t=d,f=24,s=1,v=1,i=42069101;AAAA\x1b\\"
+        );
+        assert_eq!(KITTY_PROBE_TIMEOUT, Duration::from_millis(250));
+    }
+
+    /// Table from kitty_capability.go:147-175 `kittyEnvSignal` — note the
+    /// EXACT, case-sensitive TERM/TERM_PROGRAM matches (unlike mediapane.go's
+    /// lowercased heuristic).
+    #[test]
+    fn kitty_env_signal_recognized_signals() {
+        let signal = |key: &'static str, value: &'static str| {
+            kitty_env_signal_from(|k| {
+                if k == key {
+                    value.to_string()
+                } else {
+                    String::new()
+                }
+            })
+        };
+        assert!(signal("KITTY_WINDOW_ID", "1"));
+        assert!(signal("KITTY_INSTALLATION_DIR", "/apps/kitty"));
+        assert!(signal("GHOSTTY_RESOURCES_DIR", "/apps/ghostty"));
+        assert!(signal("WEZTERM_EXECUTABLE", "/bin/wezterm"));
+        assert!(signal("WEZTERM_PANE", "0"));
+        assert!(signal("TERM", "xterm-kitty"));
+        assert!(signal("TERM", "xterm-ghostty"));
+        assert!(signal("TERM_PROGRAM", "ghostty"));
+        assert!(signal("TERM_PROGRAM", "WezTerm"));
+        assert!(signal("TERM_PROGRAM", "kitty"));
+        assert!(signal("TERM_PROGRAM", "iTerm.app"));
+
+        // Not recognized by the probe gate.
+        assert!(!signal("TERM", "xterm-256color"));
+        assert!(!signal("TERM_PROGRAM", "Ghostty")); // case-sensitive
+        assert!(!signal("TERM_PROGRAM", "wezterm")); // case-sensitive
+        assert!(!signal("GHOSTTY_BIN_DIR", "/apps/ghostty")); // mediapane-only signal
+        assert!(!kitty_env_signal_from(|_| String::new()));
+    }
+
+    /// `CSI 6 ; height ; width t` → (width, height), matching ultraviolet's
+    /// decoder (decoder.go:646-655).
+    #[test]
+    fn cell_size_reply_parsing() {
+        assert_eq!(parse_cell_size_reply(b"\x1b[6;20;10t"), Some((10, 20)));
+        // Embedded among the other startup replies (OSC 11 + DA1 fence).
+        assert_eq!(
+            parse_cell_size_reply(b"\x1b]11;rgb:1e1e/1e1e/1e1e\x07\x1b[6;32;15t\x1b[?65;1;9c"),
+            Some((15, 32))
+        );
+        // Wrong window op (4 = pixel size, 8 = cells), wrong param counts,
+        // non-numeric params, missing final byte: no reply.
+        assert_eq!(parse_cell_size_reply(b"\x1b[4;200;100t"), None);
+        assert_eq!(parse_cell_size_reply(b"\x1b[6;20t"), None);
+        assert_eq!(parse_cell_size_reply(b"\x1b[6;20;10;5t"), None);
+        assert_eq!(parse_cell_size_reply(b"\x1b[6;a;10t"), None);
+        assert_eq!(parse_cell_size_reply(b"\x1b[6;20;10"), None);
+        assert_eq!(parse_cell_size_reply(b""), None);
+        // A lookalike prefixed by other digits must not match.
+        assert_eq!(parse_cell_size_reply(b"\x1b[16;20;10t"), None);
+        // First malformed candidate does not mask a later valid reply.
+        assert_eq!(
+            parse_cell_size_reply(b"\x1b[6;20\x1b[6;18;9t"),
+            Some((9, 18))
+        );
+    }
+
+    /// Any APC response carrying the probe's image ID counts — even an
+    /// error response (kitty_capability.go:190-204).
+    #[test]
+    fn kitty_probe_response_detection() {
+        // The canonical OK response.
+        assert!(contains_kitty_probe_response(
+            b"\x1b_Gi=42069101;OK\x1b\\",
+            KITTY_PROBE_ID
+        ));
+        // Error responses still prove protocol support.
+        assert!(contains_kitty_probe_response(
+            b"\x1b_Gi=42069101;EINVAL:bad image\x1b\\",
+            KITTY_PROBE_ID
+        ));
+        // Extra options around i=.
+        assert!(contains_kitty_probe_response(
+            b"\x1b_Gq=2,i=42069101,p=1;OK\x1b\\",
+            KITTY_PROBE_ID
+        ));
+        // Embedded among the other startup replies.
+        assert!(contains_kitty_probe_response(
+            b"\x1b]11;rgb:0/0/0\x07\x1b[6;20;10t\x1b_Gi=42069101;OK\x1b\\\x1b[?6c",
+            KITTY_PROBE_ID
+        ));
+        // A different image ID is not our probe.
+        assert!(!contains_kitty_probe_response(
+            b"\x1b_Gi=7;OK\x1b\\",
+            KITTY_PROBE_ID
+        ));
+        // An ID that merely contains ours as a prefix must not match.
+        assert!(!contains_kitty_probe_response(
+            b"\x1b_Gi=420691011;OK\x1b\\",
+            KITTY_PROBE_ID
+        ));
+        assert!(!contains_kitty_probe_response(b"\x1b[?6c", KITTY_PROBE_ID));
+        assert!(!contains_kitty_probe_response(b"", KITTY_PROBE_ID));
+    }
+
+    /// The decision half of picture.QueryKittySupport
+    /// (kitty_capability.go:116-140).
+    #[test]
+    fn plan_kitty_query_cases() {
+        // Already resolved (ForceKittyCapability before Init): skip.
+        assert_eq!(
+            plan_kitty_query(KittyCapability::Supported, true, true),
+            KittyQueryPlan::Noop
+        );
+        assert_eq!(
+            plan_kitty_query(KittyCapability::Unsupported, true, true),
+            KittyQueryPlan::Noop
+        );
+        // Env preflight negative: resolve Unsupported, nothing on the wire.
+        assert_eq!(
+            plan_kitty_query(KittyCapability::Unknown, false, false),
+            KittyQueryPlan::ResolveUnsupported
+        );
+        // Probe sent: deliver the captured outcome + the timeout tick.
+        assert_eq!(
+            plan_kitty_query(KittyCapability::Unknown, true, true),
+            KittyQueryPlan::Await { responded: true }
+        );
+        assert_eq!(
+            plan_kitty_query(KittyCapability::Unknown, true, false),
+            KittyQueryPlan::Await { responded: false }
+        );
+    }
+
+    /// RequestCellSize replays the captured reply as uv.CellSizeEvent (no
+    /// reply → no message, like a non-answering terminal in Go).
+    #[test]
+    fn request_cell_size_replays_captured_reply() {
+        let (events_tx, events_rx) = mpsc::channel();
+        let (timers_tx, _timers_rx) = mpsc::channel();
+        let mut effects = EffectRunner::new(events_tx, timers_tx);
+
+        effects.dispatch(Command::RequestCellSize);
+        assert!(
+            events_rx.recv_timeout(Duration::from_millis(100)).is_err(),
+            "no captured reply must produce no event"
+        );
+
+        effects.set_terminal_capabilities(TerminalCapabilities {
+            cell_size: Some((10, 20)),
+            ..TerminalCapabilities::default()
+        });
+        effects.dispatch(Command::RequestCellSize);
+        let event = recv_app_event(&events_rx, "CellSizeEvent");
+        assert_eq!(
+            event,
+            Event::CellSize {
+                width: 10,
+                height: 20
+            }
+        );
+        assert_eq!(event.ack_name(), "uv.CellSizeEvent");
+    }
+
+    /// The Await leg mirrors Go's tea.Batch(tea.Raw(probe), tea.Tick(250ms)):
+    /// the captured response (if any) is delivered as uv.KittyGraphicsEvent
+    /// and the probe-timeout tick is ALWAYS armed — a late tick no-ops in
+    /// recordKittyTimeout once the capability is Supported.
+    /// (The plan's global side-effect legs are covered by
+    /// plan_kitty_query_cases + media_pane's record_* tests; this test must
+    /// not touch the process-wide capability static.)
+    #[test]
+    fn kitty_query_await_emits_response_and_arms_timeout() {
+        let (events_tx, events_rx) = mpsc::channel();
+        let (timers_tx, timers_rx) = mpsc::channel();
+        let effects = EffectRunner::new(events_tx, timers_tx);
+
+        effects.run_kitty_query_plan(KittyQueryPlan::Await { responded: true });
+        let event = recv_app_event(&events_rx, "KittyGraphicsEvent");
+        assert_eq!(
+            event,
+            Event::KittyGraphics(crate::event::KittyGraphicsMsg { id: KITTY_PROBE_ID })
+        );
+        assert_eq!(event.ack_name(), "uv.KittyGraphicsEvent");
+        assert_eq!(
+            timers_rx.recv_timeout(Duration::from_secs(5)).unwrap(),
+            TimerCmd::Arm(TimerId::KittyProbe, KITTY_PROBE_TIMEOUT)
+        );
+
+        // No response: only the timeout tick.
+        effects.run_kitty_query_plan(KittyQueryPlan::Await { responded: false });
+        assert_eq!(
+            timers_rx.recv_timeout(Duration::from_secs(5)).unwrap(),
+            TimerCmd::Arm(TimerId::KittyProbe, KITTY_PROBE_TIMEOUT)
+        );
+        assert!(events_rx.recv_timeout(Duration::from_millis(100)).is_err());
+
+        // Noop does nothing at all.
+        effects.run_kitty_query_plan(KittyQueryPlan::Noop);
+        assert!(events_rx.recv_timeout(Duration::from_millis(100)).is_err());
+        assert!(timers_rx.try_recv().is_err());
+    }
+
+    /// The KittyProbe timer fire is translated to the message the Go
+    /// tea.Tick callback returns (kitty_capability.go:134-136).
+    #[test]
+    fn kitty_probe_tick_delivers_probe_tick_msg() {
+        let mut app = StubApp {
+            seen: Vec::new(),
+            cleaned_up: Arc::new(AtomicBool::new(false)),
+        };
+        let (events_tx, _events_rx) = mpsc::channel();
+        let timers = spawn_scheduler(events_tx.clone());
+        let mut effects = EffectRunner::new(events_tx, timers);
+        let mut ack = None;
+
+        step(
+            &mut app,
+            &mut effects,
+            &mut ack,
+            RuntimeEvent::Tick(TimerId::KittyProbe),
+        )
+        .unwrap();
+        assert_eq!(app.seen, vec!["picture.kittyProbeTickMsg"]);
+    }
+
     // -- Background color parsing ---------------------------------------------
 
     #[test]
@@ -1820,27 +2355,40 @@ mod tests {
         let reply = b"\x1b]11;rgb:1e1e/1e1e/1e1e\x07\x1b[?65;1;9c";
         assert!(contains_da1_reply(reply));
         assert_eq!(parse_osc11_is_dark(reply), Some(true));
+        assert_eq!(parse_osc11_rgb(reply), Some(Rgb(0x1e, 0x1e, 0x1e)));
 
         // Light background, ST-terminated.
         let reply = b"\x1b]11;rgb:ffff/ffff/ffff\x1b\\";
         assert_eq!(parse_osc11_is_dark(reply), Some(false));
+        assert_eq!(parse_osc11_rgb(reply), Some(Rgb(0xff, 0xff, 0xff)));
 
-        // 2-digit components scale by their own width.
+        // Non-duplicated 16-bit components: the high byte wins, like
+        // termenv's `"#" + s[0:2] + s[4:6] + s[8:10]`.
+        let reply = b"\x1b]11;rgb:1234/5678/9abc\x07";
+        assert_eq!(parse_osc11_rgb(reply), Some(Rgb(0x12, 0x56, 0x9a)));
+
+        // 2-digit components scale by their own width for the dark flag...
         let reply = b"\x1b]11;rgb:20/20/20\x07";
         assert_eq!(parse_osc11_is_dark(reply), Some(true));
+        // ...but termenv rejects them (its length check requires 4 hex
+        // digits per component), so Go's zebra keeps the fallback.
+        assert_eq!(parse_osc11_rgb(reply), None);
 
-        // #RRGGBB form.
+        // #RRGGBB form: same split — Bubble Tea decodes it, termenv doesn't.
         let reply = b"\x1b]11;#f0f0f0\x07";
         assert_eq!(parse_osc11_is_dark(reply), Some(false));
+        assert_eq!(parse_osc11_rgb(reply), None);
 
         // DA1-only reply (terminal ignored OSC 11): no answer.
         let reply = b"\x1b[?6c";
         assert!(contains_da1_reply(reply));
         assert_eq!(parse_osc11_is_dark(reply), None);
+        assert_eq!(parse_osc11_rgb(reply), None);
 
         // Garbage: no answer, no fence.
         assert!(!contains_da1_reply(b"hello"));
         assert_eq!(parse_osc11_is_dark(b"hello"), None);
+        assert_eq!(parse_osc11_rgb(b"hello"), None);
     }
 
     // -- run_loop end-to-end ---------------------------------------------------

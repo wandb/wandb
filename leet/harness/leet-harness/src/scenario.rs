@@ -165,8 +165,10 @@ impl Scenario {
     }
 }
 
-/// Encode a key name to the byte sequence a legacy (non-kitty-keyboard)
-/// terminal would send. Names mirror leet's keybindings.go vocabulary.
+/// Encode a key name to the byte sequence a terminal would send. Names mirror
+/// leet's keybindings.go vocabulary. Most keys use the legacy encoding;
+/// `ctrl+/` is the one binding that has no legacy representation (see below)
+/// and uses the kitty CSI-u encoding both decoders accept unconditionally.
 pub fn encode_key(name: &str) -> Result<Vec<u8>> {
     let bytes: Vec<u8> = match name {
         "enter" => b"\r".to_vec(),
@@ -187,7 +189,19 @@ pub fn encode_key(name: &str) -> Result<Vec<u8>> {
         "ctrl+f" => b"\x06".to_vec(),
         "ctrl+l" => b"\x0c".to_vec(),
         "ctrl+o" => b"\x0f".to_vec(),
-        "ctrl+/" => b"\x1f".to_vec(), // ctrl+/ arrives as US (0x1f)
+        // PARITY: there is no legacy byte for ctrl+/ — terminals send US
+        // (0x1f), which BOTH ultraviolet (key_table.go / decoder.go
+        // parseControl) and the Rust port decode as "ctrl+_", so the
+        // "ctrl+/" binding can never fire from legacy bytes (that's why
+        // keybindings keep the ctrl+l fallback). Go leet works in real
+        // terminals because Bubble Tea v2 always negotiates kitty key
+        // disambiguation (cursed_renderer.go keyboardEnhancementsFlags:
+        // "always enable basic key disambiguation"), making the terminal
+        // send CSI 47;5u instead. Emulate that terminal class here; both
+        // ultraviolet and crossterm parse CSI-u without negotiation.
+        "ctrl+/" => b"\x1b[47;5u".to_vec(),
+        // ctrl+\ has a faithful legacy byte: FS (0x1c) decodes as "ctrl+\\"
+        // in both implementations (this also exercises the Rust C0 remap).
         "ctrl+\\" => b"\x1c".to_vec(),
         _ => {
             if let Some(rest) = name.strip_prefix("alt+") {

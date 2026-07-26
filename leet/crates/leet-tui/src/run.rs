@@ -312,12 +312,15 @@ impl Run {
             }
         }
 
-        // PARITY: run.go:219-230 — `picture.IsPictureMsg` and
-        // `mediaPanePrepareMsg` routing.
-        // PHASE-7: picture messages (Kitty frames, cell size) are routed by
-        // the app shell once the terminal replies decode. The prepare-msg
-        // round-trip is replaced by the media pane's `prepare_requested`
-        // flag drained via [`Run::after_draw`] (CONCURRENCY.md §2.5 C5).
+        // PARITY: run.go:219-222 — `picture.IsPictureMsg(msg)` routes
+        // picture messages to the media pane and returns. The
+        // `mediaPanePrepareMsg` arm (run.go:226-230) is replaced by the
+        // media pane's `prepare_requested` flag drained via
+        // [`Run::after_draw`] (CONCURRENCY.md §2.5 C5).
+        if let Some(picture) = self.media_pane.handle_picture_msg(msg) {
+            cmds.extend(media_pane_commands(picture));
+            return cmds;
+        }
 
         // Route message to appropriate handler.
         match msg {

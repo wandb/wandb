@@ -156,7 +156,7 @@ impl RunSummary {
 
         self.summaries.for_each_leaf(|path, summary| {
             if let Some(json_summary) = summary.to_marshallable_value() {
-                json_tree.set(path, json_summary);
+                json_tree.set(path.clone(), json_summary);
             }
             true
         });
@@ -214,15 +214,21 @@ pub fn no_updates() -> Updates {
 pub fn from_proto(record: &SummaryRecord) -> Updates {
     let mut u = no_updates();
 
+    // Perf: single-label paths (the overwhelmingly common case) land at the
+    // tree root; pre-size it to avoid incremental rehashing.
+    u.update.reserve_root(record.update.len());
     for item in &record.update {
         let path = key_path(item);
-        u.update.set(&path, item.value_json.clone());
+        u.update.set(path, item.value_json.clone());
     }
 
     for item in &record.remove {
         let path = key_path(item);
-        u.remove.set(&path, ());
+        // PARITY: Go sets into `remove` and then removes from `update`; the
+        // two trees are independent, so the swapped order is equivalent and
+        // lets `path` move into the final set.
         u.update.remove(&path);
+        u.remove.set(path, ());
     }
 
     u

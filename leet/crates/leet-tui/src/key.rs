@@ -163,12 +163,25 @@ impl KeyEvent {
     ///     decoder.go `parseUtf8`); text is cleared under ctrl/alt, mirroring
     ///     the ESC-prefix alt path (decoder.go:263-266) and the C0 table.
     ///   - The C0 bytes 0x1C..0x1F arrive from crossterm as ctrl+'4'..'7' but
-    ///     ultraviolet reports ctrl+'\\', ']', '^', '_' (key_table.go) — the
-    ///     "ctrl+\\" binding depends on this remap.
-    ///     PARITY: under the kitty keyboard protocol a genuine ctrl+4 is
-    ///     indistinguishable from 0x1C at this layer; leet runs the legacy
-    ///     protocol (Go leet requests no keyboard enhancements), where the
-    ///     remap is exact.
+    ///     ultraviolet reports ctrl+'\\', ']', '^', '_' (key_table.go FS/GS/
+    ///     RS/US rows; decoder.go `parseControl` agrees) — the "ctrl+\\"
+    ///     binding depends on this remap on legacy terminals.
+    ///     PARITY: note 0x1F is ctrl+'_', NOT ctrl+'/'. No legacy byte maps
+    ///     to "ctrl+/" in either implementation, so that binding can only
+    ///     fire via an enhanced encoding. Go gets one automatically: Bubble
+    ///     Tea v2 always negotiates kitty key disambiguation (bubbletea
+    ///     cursed_renderer.go `keyboardEnhancementsFlags` starts at flags=1,
+    ///     plus xterm modifyOtherKeys mode 2), so kitty-capable terminals
+    ///     send ctrl+/ as CSI 47;5u, which crossterm also parses without
+    ///     negotiation into Char('/')+CONTROL and stringifies as "ctrl+/"
+    ///     here. Matching Go end-to-end therefore requires the runtime to
+    ///     request the same enhancement (tracked with the kitty QA item);
+    ///     this module is byte-for-byte faithful on both encodings.
+    ///     PARITY: under the kitty protocol a genuine ctrl+4 (CSI 52;5u) is
+    ///     indistinguishable from legacy 0x1C at this layer and gets
+    ///     remapped to ctrl+'\\' where Go reports "ctrl+4"; accepted — kitty
+    ///     terminals never send the raw C0 bytes for these combos, and
+    ///     ctrl+4..7 are unbound.
     pub fn from_crossterm(ev: CtKeyEvent) -> Option<KeyEvent> {
         if ev.kind == KeyEventKind::Release {
             return None;
@@ -385,10 +398,16 @@ mod tests {
             ("y", Char('y'), M::NONE, "y"),
             ("/", Char('/'), M::NONE, "/"),
             ("\\", Char('\\'), M::NONE, "\\"),
+            // The "ctrl+/" binding only ever fires via an enhanced encoding
+            // (kitty CSI 47;5u / modifyOtherKeys), which Go always
+            // negotiates; crossterm parses CSI-u into Char('/')+CONTROL.
             ("ctrl+/ (kitty CSI-u)", Char('/'), M::CONTROL, "ctrl+/"),
             ("ctrl+\\ (kitty CSI-u)", Char('\\'), M::CONTROL, "ctrl+\\"),
             // Legacy C0 bytes: what crossterm reports for 0x1C..0x1F must
-            // stringify like ultraviolet's key_table.go entries.
+            // stringify like ultraviolet's key_table.go FS/GS/RS/US entries.
+            // In particular legacy 0x1F is "ctrl+_", NOT "ctrl+/", matching
+            // Go (verified against the oracle: 0x1F does not clear the
+            // metrics filter there either — single-tiny-filter-clear-01).
             ("ctrl+\\ (legacy 0x1C)", Char('4'), M::CONTROL, "ctrl+\\"),
             ("ctrl+] (legacy 0x1D)", Char('5'), M::CONTROL, "ctrl+]"),
             ("ctrl+^ (legacy 0x1E)", Char('6'), M::CONTROL, "ctrl+^"),

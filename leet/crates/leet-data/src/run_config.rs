@@ -20,7 +20,7 @@
 // surfaces goes through RunOverview's fmt.Sprint port, so the on-screen
 // strings are identical; only the in-tree type differs (string vs float64).
 
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 
 use leet_proto::wandb_internal::{ConfigItem, ConfigRecord};
 use serde_json::{Map, Value};
@@ -100,9 +100,12 @@ impl TreePath {
 }
 
 /// Internal representation for a nested key-value pair.
-// PARITY: Go's treeData is an unordered map; a BTreeMap makes iteration
-// deterministic (Go callers either sort keys or do not depend on order).
-pub(crate) type TreeData<T> = BTreeMap<String, TreeNode<T>>;
+// PARITY: Go's treeData is an unordered map — a HashMap like Go (O(1) ops on
+// the summary-ingest hot path; a BTreeMap here measured ~55% slower on a
+// 287MB run's 5M summary items). Iteration order is unobservable: see the
+// [`PathTree::for_each_leaf`] note, and [`to_nested_maps`] feeds
+// `serde_json::Map`, which sorts its keys.
+pub(crate) type TreeData<T> = HashMap<String, TreeNode<T>>;
 
 /// A node is either a leaf value or a subtree.
 // PARITY: Go's treeNode is a struct where `Subtree == nil` means leaf (even
@@ -145,9 +148,28 @@ impl<T> PathTree<T> {
     ///
     /// If path refers to a non-leaf node, that node is replaced by a leaf
     /// and the subtree is discarded.
-    pub fn set(&mut self, path: &TreePath, value: T) {
-        let subtree = get_or_make_subtree(&mut self.tree, path.prefix());
-        subtree.insert(path.end().to_string(), TreeNode::Leaf(value));
+    // PARITY: Go's Set takes the TreePath by value; taking ownership here too
+    // lets the end label move into the map instead of being re-allocated
+    // (hot: runsummary FromProto over millions of items).
+    pub fn set(&mut self, mut path: TreePath, value: T) {
+        let end = path.labels.pop().expect("TreePath labels are non-empty");
+        let subtree = get_or_make_subtree(&mut self.tree, &path.labels);
+        // Perf: overwrite in place when the key exists (the common case on
+        // the summary-ingest hot path) instead of allocating a fresh key
+        // String for every insert.
+        match subtree.get_mut(&end) {
+            Some(node) => *node = TreeNode::Leaf(value),
+            None => {
+                subtree.insert(end, TreeNode::Leaf(value));
+            }
+        }
+    }
+
+    /// Reserves root-level capacity (perf-only helper, no Go counterpart):
+    /// runsummary's FromProto builds a fresh tree whose root holds one entry
+    /// per proto item, so growing it incrementally rehashes several times.
+    pub(crate) fn reserve_root(&mut self, additional: usize) {
+        self.tree.reserve(additional);
     }
 
     /// Remove deletes a node from the tree.
@@ -215,9 +237,18 @@ impl<T> PathTree<T> {
     ) -> &mut T {
         let subtree = get_or_make_subtree(&mut self.tree, path.prefix());
 
-        let needs_default = !matches!(subtree.get(path.end()), Some(node) if node.is_leaf());
-        if needs_default {
-            subtree.insert(path.end().to_string(), TreeNode::Leaf(make_default()));
+        // Perf: replace a non-leaf in place / insert only when missing, so
+        // the existing-leaf fast path allocates nothing (hot: runsummary's
+        // get_or_make_summary per applied item).
+        match subtree.get_mut(path.end()) {
+            Some(node) => {
+                if !node.is_leaf() {
+                    *node = TreeNode::Leaf(make_default());
+                }
+            }
+            None => {
+                subtree.insert(path.end().to_string(), TreeNode::Leaf(make_default()));
+            }
         }
 
         match subtree.get_mut(path.end()) {
@@ -230,11 +261,19 @@ impl<T> PathTree<T> {
     ///
     /// The callback returns true to continue and false to stop iteration
     /// early.
-    // PARITY: "The order is unspecified and non-deterministic" in Go; here
-    // it is sorted by key at each level (BTreeMap). No caller depends on
-    // the order.
+    // PARITY: "The order is unspecified and non-deterministic" in Go, and the
+    // same holds here (HashMap iteration order). No observable output depends
+    // on the order: Updates::apply's per-leaf effects target disjoint paths,
+    // and to_summary_tree/to_nested_maps produce keyed maps (serde_json::Map
+    // is sorted). Sorting per level was measured at ~30% of the summary
+    // ingest of a 287MB run, so the Go behavior is kept instead.
     pub fn for_each_leaf(&self, mut f: impl FnMut(&TreePath, &T) -> bool) {
-        for_each_leaf(&self.tree, &[], &mut f);
+        // Perf: one TreePath is reused as a push/pop stack across the walk
+        // (callbacks only borrow it), instead of allocating a fresh
+        // prefix-cloning path per node — this is on the summary-ingest hot
+        // path (runsummary Updates::apply over millions of items).
+        let mut path = TreePath { labels: Vec::new() };
+        for_each_leaf(&self.tree, &mut path, &mut f);
     }
 }
 
@@ -252,23 +291,20 @@ impl PathTree<Value> {
 
 fn for_each_leaf<T>(
     tree: &TreeData<T>,
-    prefix: &[String],
+    path: &mut TreePath,
     f: &mut impl FnMut(&TreePath, &T) -> bool,
 ) -> bool {
     for (key, node) in tree {
-        let path = TreePath::path_with_prefix(prefix, key);
+        path.labels.push(key.clone());
 
-        match node {
-            TreeNode::Leaf(value) => {
-                if !f(&path, value) {
-                    return false;
-                }
-            }
-            TreeNode::Subtree(subtree) => {
-                if !for_each_leaf(subtree, path.labels(), f) {
-                    return false;
-                }
-            }
+        let keep_going = match node {
+            TreeNode::Leaf(value) => f(path, value),
+            TreeNode::Subtree(subtree) => for_each_leaf(subtree, path, f),
+        };
+
+        path.labels.pop();
+        if !keep_going {
+            return false;
         }
     }
 
@@ -286,7 +322,7 @@ pub fn set_subtree(pt: &mut PathTree<Value>, path: &TreePath, subtree: &Map<Stri
     for (key, value) in subtree {
         match value {
             Value::Object(x) => set_subtree(pt, &path.with(key), x),
-            _ => pt.set(&path.with(key), value.clone()),
+            _ => pt.set(path.with(key), value.clone()),
         }
     }
 }
@@ -324,9 +360,13 @@ fn get_subtree_mut<'a, T>(
 fn get_or_make_subtree<'a, T>(tree: &'a mut TreeData<T>, path: &[String]) -> &'a mut TreeData<T> {
     let mut tree = tree;
     for key in path {
-        let node = tree
-            .entry(key.clone())
-            .or_insert_with(|| TreeNode::Subtree(TreeData::new()));
+        // Perf: probe before entry() — BTreeMap::entry demands an owned key,
+        // which would clone `key` even when it is already present (the common
+        // case on the summary-ingest hot path).
+        if !tree.contains_key(key) {
+            tree.insert(key.clone(), TreeNode::Subtree(TreeData::new()));
+        }
+        let node = tree.get_mut(key).expect("just checked/inserted");
         if node.is_leaf() {
             *node = TreeNode::Subtree(TreeData::new());
         }
@@ -872,7 +912,7 @@ impl RunConfig {
                 Value::Object(x) => set_subtree(&mut rc.path_tree, &TreePath::path_of(key, &[]), x),
                 _ => rc
                     .path_tree
-                    .set(&TreePath::path_of(key, &[]), value.clone()),
+                    .set(TreePath::path_of(key, &[]), value.clone()),
             }
         }
 
@@ -899,7 +939,7 @@ impl RunConfig {
 
             match value {
                 Value::Object(x) => set_subtree(&mut self.path_tree, &key_path(item), &x),
-                _ => self.path_tree.set(&key_path(item), value),
+                _ => self.path_tree.set(key_path(item), value),
             }
         }
 
@@ -1065,8 +1105,8 @@ mod tests {
     fn set_new_node() {
         let mut tree: PathTree<i64> = PathTree::new();
 
-        tree.set(&TreePath::path_of("a", &["b"]), 1);
-        tree.set(&TreePath::path_of("a", &["c", "d"]), 2);
+        tree.set(TreePath::path_of("a", &["b"]), 1);
+        tree.set(TreePath::path_of("a", &["c", "d"]), 2);
 
         assert_eq!(tree.get_leaf(&TreePath::path_of("a", &["b"])), Some(&1));
         assert_eq!(
@@ -1079,8 +1119,8 @@ mod tests {
     fn set_overwrite_leaf() {
         let mut tree: PathTree<i64> = PathTree::new();
 
-        tree.set(&TreePath::path_of("a", &[]), 1);
-        tree.set(&TreePath::path_of("a", &["b"]), 2);
+        tree.set(TreePath::path_of("a", &[]), 1);
+        tree.set(TreePath::path_of("a", &["b"]), 2);
 
         assert_eq!(tree.get_leaf(&TreePath::path_of("a", &[])), None);
         assert_eq!(tree.get_leaf(&TreePath::path_of("a", &["b"])), Some(&2));
@@ -1090,8 +1130,8 @@ mod tests {
     fn remove_leaf() {
         let mut tree: PathTree<i64> = PathTree::new();
 
-        tree.set(&TreePath::path_of("a", &["b"]), 1);
-        tree.set(&TreePath::path_of("a", &["c"]), 2);
+        tree.set(TreePath::path_of("a", &["b"]), 1);
+        tree.set(TreePath::path_of("a", &["c"]), 2);
         tree.remove(&TreePath::path_of("a", &["b"]));
 
         assert_eq!(tree.get_leaf(&TreePath::path_of("a", &["b"])), None);
@@ -1102,8 +1142,8 @@ mod tests {
     fn remove_node() {
         let mut tree: PathTree<i64> = PathTree::new();
 
-        tree.set(&TreePath::path_of("a", &["b", "c"]), 1);
-        tree.set(&TreePath::path_of("a", &["d"]), 2);
+        tree.set(TreePath::path_of("a", &["b", "c"]), 1);
+        tree.set(TreePath::path_of("a", &["d"]), 2);
         tree.remove(&TreePath::path_of("a", &["b"]));
 
         assert_eq!(tree.get_leaf(&TreePath::path_of("a", &["b", "c"])), None);
@@ -1114,7 +1154,7 @@ mod tests {
     fn remove_deletes_parent_maps() {
         let mut tree: PathTree<i64> = PathTree::new();
 
-        tree.set(&TreePath::path_of("a", &["b", "c"]), 1);
+        tree.set(TreePath::path_of("a", &["b", "c"]), 1);
         tree.remove(&TreePath::path_of("a", &["b", "c"]));
 
         // IsEmpty() just checks the length of the root map. If we don't
@@ -1126,7 +1166,7 @@ mod tests {
     fn get_leaf_under_leaf() {
         let mut tree: PathTree<i64> = PathTree::new();
 
-        tree.set(&TreePath::path_of("a", &[]), 1);
+        tree.set(TreePath::path_of("a", &[]), 1);
 
         assert_eq!(tree.get_leaf(&TreePath::path_of("a", &["b"])), None);
     }
@@ -1135,7 +1175,7 @@ mod tests {
     fn get_leaf_path_is_not_leaf() {
         let mut tree: PathTree<i64> = PathTree::new();
 
-        tree.set(&TreePath::path_of("a", &["b"]), 1);
+        tree.set(TreePath::path_of("a", &["b"]), 1);
 
         assert_eq!(tree.get_leaf(&TreePath::path_of("a", &[])), None);
     }
@@ -1144,7 +1184,7 @@ mod tests {
     fn get_or_make_leaf_path_is_not_leaf() {
         let mut tree: PathTree<i64> = PathTree::new();
 
-        tree.set(&TreePath::path_of("a", &["b"]), 1);
+        tree.set(TreePath::path_of("a", &["b"]), 1);
 
         let x = tree.get_or_make_leaf(&TreePath::path_of("a", &[]), || 2);
         assert_eq!(*x, 2);

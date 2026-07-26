@@ -196,6 +196,25 @@ and lowercases TERM_PROGRAM/TERM before matching); porting only one silently dro
 Kitty mode on terminals the other recognizes. `crates/leet-tui/src/picture.rs` ports
 only the capability state (`kitty_supported`/`force_kitty_capability`).
 
+DIVERGENCE (recorded 2026-07-26, Kitty runtime wiring; amends MED-03, mechanism only —
+observable behavior preserved): Go emits the CSI 16 t / OSC 11 / Kitty `a=q` queries
+as `tea.Raw` cmds and ultraviolet decodes the async replies on the input path.
+crossterm-0.29 cannot do that: the `CSI 6;h;w t` and OSC 11 replies error out of its
+parser and are dropped, and the APC response would decode as garbage key presses
+(ESC-prefix alt-key fallback). The runtime therefore performs ONE `/dev/tty`
+round-trip at startup — before the singleton input thread owns the tty — writing the
+byte-exact Go queries (env-preflighted probe included) behind a DA1 fence, and
+replays the captured replies when the media pane's Init commands are dispatched:
+`Event::CellSize` (ack `uv.CellSizeEvent`), `Event::KittyGraphics` (ack
+`uv.KittyGraphicsEvent`) plus the armed 250ms `Event::KittyProbeTick` (ack
+`picture.kittyProbeTickMsg`), which drive the ported recordKittyResponse/
+recordKittyTimeout state machine (media_pane.rs). `applyKittyGridMsg` has no Event
+variant: the grid is applied synchronously after queueing the `tea.Raw` APC write,
+which preserves Go's tea.Sequence on-wire order (write dispatches before the next
+draw). Cell size is captured once per process; a mid-session terminal font-size
+change is not re-detected (Go re-queries per media-pane Init). All of this is
+suppressed in test mode, so Tier-2 scenarios are unaffected.
+
 ### 2.7 Console logs (runconsolelogs.go, consolelogspane.go)
 
 | ID | Feature | Go source | Layer | Scenario | Status |

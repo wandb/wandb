@@ -223,6 +223,16 @@ pub struct Workspace {
     // commands (heartbeat.rs).
     pub(crate) heartbeat_mgr: HeartbeatManager,
 
+    /// The detected terminal background for the runs-list zebra stripe.
+    // PARITY: port of the `termBgR/G/B` + `termBgDetected` package globals
+    // (styles.go:47-53). Seeded with `initTerminalBg`'s test-mode arm
+    // (frozen values under the harness; `None` at runtime) and overwritten
+    // with the RGB carried on `Event::BackgroundColor` (model.rs) — Go
+    // instead re-queries the same OSC 11 answer via termenv on first render.
+    // `None` ⇒ Go's `termBgDetected == false` ⇒ the #d0d0d0/#1c1c1c
+    // fallback (`get_odd_run_style_color`).
+    pub(crate) terminal_bg: Option<Rgb>,
+
     pub(crate) width: isize,
     pub(crate) height: isize,
 }
@@ -355,6 +365,7 @@ impl Workspace {
             filter: Filter::new(),
             runs_filter_index: HashMap::new(),
             focus_mgr: FocusManager::default(),
+            terminal_bg: test_mode_terminal_bg(),
             width: 0,
             height: 0,
         };
@@ -411,13 +422,14 @@ impl Workspace {
     /// Port of Go `Workspace.Update` (workspace.go:214-284).
     //gocyclo:ignore
     pub fn update(&mut self, msg: &Event) -> Vec<Command> {
-        // PHASE-7: Go first routes `picture.IsPictureMsg(msg)` and
-        // `mediaPanePrepareMsg` to the media pane (workspace.go:215-224).
-        // Picture messages have no Event variants yet (media_pane.rs
-        // `on_kitty_frame`/`on_apply_kitty_grid` are routed by the app shell
-        // when the Kitty protocol lands); the prepare pump is replaced by
+        // PARITY: workspace.go:215-217 — `picture.IsPictureMsg(msg)` routes
+        // picture messages to the media pane and returns. The
+        // `mediaPanePrepareMsg` arm (workspace.go:219-224) is replaced by
         // the pane's `prepare_requested` flag, drained via
         // [`Workspace::drain_media_prepare`] after each draw.
+        if let Some(picture) = self.media_pane.handle_picture_msg(msg) {
+            return media_pane_commands(picture);
+        }
         match msg {
             Event::Resize { width, height } => {
                 self.handle_window_resize(*width, *height);
@@ -1524,6 +1536,14 @@ impl Workspace {
         }
     }
 
+    /// Records the terminal background delivered on `Event::BackgroundColor`
+    /// (model.rs) for the zebra stripe. Go's equivalent latch is
+    /// `initTerminalBg` caching termenv's OSC 11 query in the `termBg*`
+    /// package globals (styles.go:55-84).
+    pub(crate) fn set_terminal_bg(&mut self, rgb: Rgb) {
+        self.terminal_bg = Some(rgb);
+    }
+
     /// renderRunLines renders the visible slice with zebra background and
     /// selection.
     fn render_run_lines(&self, content_width: isize, dark: bool) -> Vec<Text<'static>> {
@@ -1543,7 +1563,10 @@ impl Workspace {
             // Determine row style.
             let mut style = even_run_style();
             if idx_on_page % 2 == 1 {
-                style = odd_run_style(test_mode_terminal_bg(), dark);
+                // PARITY: Go's oddRunStyle blends the REAL terminal
+                // background 5% toward gray (styles.go:97-109); the port's
+                // detected background arrives via `set_terminal_bg`.
+                style = odd_run_style(self.terminal_bg, dark);
             }
             if idx_on_page == selected_line {
                 if self.runs.active {

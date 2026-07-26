@@ -457,8 +457,16 @@ impl App for Model {
             self.help.set_size(*width as i64, *height as i64);
         }
 
-        if let Event::BackgroundColor { is_dark } = msg {
+        if let Event::BackgroundColor { is_dark, rgb } = msg {
             self.set_dark_background(*is_dark);
+            // PARITY: Go's runs-list zebra stripe re-queries the terminal
+            // via termenv on first render (styles.go `initTerminalBg`); the
+            // port forwards the same OSC 11 answer to the workspace. No RGB
+            // (a reply form termenv rejects) keeps the fallback, like Go's
+            // `termBgDetected == false`.
+            if let Some(rgb) = rgb {
+                self.workspace.set_terminal_bg(*rgb);
+            }
         }
 
         if let Some(mut help_cmds) = self.handle_help(msg) {
@@ -695,6 +703,8 @@ mod tests {
     //! model.go behaviors directly.
 
     use pretty_assertions::assert_eq;
+
+    use leet_charts::styles::{Rgb, get_odd_run_style_color};
 
     use super::*;
     use crate::command::{HeartbeatOwner, TimerId};
@@ -993,10 +1003,61 @@ mod tests {
     fn background_color_event_sets_dark_flag() {
         let (_dir, mut m) = test_model("/tmp/wandb");
         assert!(m.dark, "default is dark (styles.go:23)");
-        App::update(&mut m, Event::BackgroundColor { is_dark: false });
+        App::update(
+            &mut m,
+            Event::BackgroundColor {
+                is_dark: false,
+                rgb: None,
+            },
+        );
         assert!(!m.dark);
-        App::update(&mut m, Event::BackgroundColor { is_dark: true });
+        App::update(
+            &mut m,
+            Event::BackgroundColor {
+                is_dark: true,
+                rgb: None,
+            },
+        );
         assert!(m.dark);
+    }
+
+    /// The OSC 11 RGB carried on tea.BackgroundColorMsg reaches the
+    /// workspace zebra stripe: Go's `getOddRunStyleColor` blends the REAL
+    /// terminal background 5% toward gray 128 (styles.go:97-109) instead of
+    /// the fixed #d0d0d0/#1c1c1c fallback.
+    #[test]
+    fn background_color_event_updates_workspace_zebra() {
+        let (_dir, mut m) = test_model("/tmp/wandb");
+        // Not test mode, no reply yet: the zebra uses the fallback.
+        assert_eq!(m.workspace.terminal_bg, None);
+        assert_eq!(
+            get_odd_run_style_color(m.workspace.terminal_bg).dark,
+            Rgb(0x1c, 0x1c, 0x1c)
+        );
+
+        App::update(
+            &mut m,
+            Event::BackgroundColor {
+                is_dark: true,
+                rgb: Some(Rgb(0x28, 0x2c, 0x34)),
+            },
+        );
+        assert_eq!(m.workspace.terminal_bg, Some(Rgb(0x28, 0x2c, 0x34)));
+        // blendRGB(0x28,0x2c,0x34 → gray 128, alpha 0.05), truncated like Go.
+        let zebra = get_odd_run_style_color(m.workspace.terminal_bg);
+        assert_eq!(zebra.dark, Rgb(44, 48, 55));
+        assert_eq!(zebra.light, Rgb(44, 48, 55), "detected bg is uniform");
+
+        // A later reply without an RGB (termenv-rejected form) must not
+        // clear the detected value — Go's termBg globals are set once.
+        App::update(
+            &mut m,
+            Event::BackgroundColor {
+                is_dark: true,
+                rgb: None,
+            },
+        );
+        assert_eq!(m.workspace.terminal_bg, Some(Rgb(0x28, 0x2c, 0x34)));
     }
 
     #[test]

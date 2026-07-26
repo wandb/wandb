@@ -680,6 +680,7 @@ dependencies = [
  "leet-wire",
  "pretty_assertions",
  "ratatui",
+ "rustix",
  "serde_json",
  "tempfile",
  "tracing",
