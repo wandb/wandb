@@ -378,7 +378,9 @@ impl RightSidebar {
     ///
     /// PARITY: Go returns `tea.Tick(AnimationFrame, ..)` yielding
     /// `RightSidebarAnimationMsg{}`; see [`RightSidebar::update`].
-    fn animation_cmd(&self) -> Option<Event> {
+    // PARITY: pub(crate) — Go's runhandlers.go calls it directly
+    // (runhandlers.go:422, :699), package-private access.
+    pub(crate) fn animation_cmd(&self) -> Option<Event> {
         Some(Event::RightSidebarAnimation)
     }
 }

@@ -360,7 +360,8 @@ impl SystemMetricChart for FrenchFriesToggleChart {
 
     fn add_data_point(&mut self, series_name: &str, timestamp: i64, value: f64) {
         SystemMetricChart::add_data_point(&mut self.line, series_name, timestamp, value);
-        self.french_fries.add_data_point(series_name, timestamp, value);
+        self.french_fries
+            .add_data_point(series_name, timestamp, value);
         self.sync_view_window();
     }
 

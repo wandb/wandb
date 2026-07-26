@@ -393,7 +393,11 @@ fn go_sprint_float(v: f64) -> String {
 
     if digits.is_empty() {
         // PARITY: strconv renders ±0 as "0"/"-0" (never in exponent form).
-        return if neg { "-0".to_string() } else { "0".to_string() };
+        return if neg {
+            "-0".to_string()
+        } else {
+            "0".to_string()
+        };
     }
 
     let mut out = String::new();
@@ -660,7 +664,10 @@ mod tests {
             // zero (…93 / …23 / …93).
             (f64::from_bits(0x4315CC95660CC0ED), "1.5339791363072592e+15"),
             (f64::from_bits(0x43129879088FF039), "1.3085487957268622e+15"),
-            (f64::from_bits(0xC316FED6EBAF054D), "-1.6181621295516992e+15"),
+            (
+                f64::from_bits(0xC316FED6EBAF054D),
+                "-1.6181621295516992e+15",
+            ),
         ] {
             assert_eq!(go_sprint_float(v), want, "v={v}");
         }

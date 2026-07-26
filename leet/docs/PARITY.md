@@ -335,7 +335,7 @@ All `_test.go` files in `core/internal/leet` (46 files, 10,531 LOC total). Each 
 | systemmetricsgrid_test.go | 151 | leet-tui | done |
 | timeserieslinechart_test.go | 239 | leet-charts | pending |
 | timeserieslinechart_zoom_test.go | 198 | leet-charts | pending |
-| tui_test.go | 803 | leet (integration) | pending |
+| tui_test.go | 803 | SUPERSEDED-BY-HARNESS (§5.3) | done |
 | watchermanager_test.go | 53 | leet-data | pending |
 | workspace_keyhandling_test.go | 832 | leet-tui | pending |
 | workspace_runcolors_test.go | 107 | leet-tui | pending |
@@ -399,6 +399,29 @@ flipping heatmap mode off/on (a state-preserving raw bool toggle); and Go's
 `french_fries_chart_uses_provided_palette`), so the palette-plumbing case
 asserts through the rendered canvas that every heatmap cell resolves from the
 configured plasma palette and the value-0 series renders with `plasma[0]`.
+
+### 5.3 tui_test.go — SUPERSEDED-BY-HARNESS
+
+`tui_test.go`'s five cases are teatest integration tests (PORTING.md "What NOT to
+port": the teatest accumulation-loop workarounds are superseded by the differential
+harness). They drive the full Go program under a fake terminal and assert on rendered
+frames — exactly what the PTY differential scenarios do against BOTH implementations,
+with the oracle as the assertion instead of hand-maintained expectations. They are NOT
+transliterated (decided 2026-07-25 with the model.rs/main.rs unit); coverage maps to
+harness scenarios:
+
+| Go case (tui_test.go) | Superseding coverage |
+|---|---|
+| TestLoadingScreenAndQuit (:89) | pty/quit-01 (SH-09) + pty/run-bootload-01 (RUN-08) |
+| TestMetricsAndSystemMetrics_RenderAndSeriesCount (:110) | pty/run-layout-01 (RUN-01) + unit/canvas-multiseries-01 (CH-02) |
+| TestWorkspace_MultiRun_SelectPinDeselect_OverlaySeriesCount (:354) | pty/workspace-select-01 (WS-04) + pty/workspace-pin-01 (WS-05) |
+| TestConsoleLogsPanel_ToggleAppendAndNavigate (:471) | pty/workspace-panels-01 (WS-06) + console-log scenarios (LOG-*) |
+| TestWorkspace_SystemMetricsPaneAndConsoleLogs (:722) | pty/workspace-sysmetrics-01 (WS-15) |
+
+model.go itself has no Go unit-test file; the ported behaviors are pinned by new Rust
+tests in `crates/leet-tui/src/model.rs` (mode switching incl. the awaitingInput
+snapshot, restart flag, help routing, latest-run link resolution) and the CLI matrix in
+`crates/leet/src/main.rs`.
 
 DIVERGENCE (signed off 2026-07-25, amends LOG-03): console-log timestamp keys
 render in UTC, not Go's local time (`time.Unix` → Local,

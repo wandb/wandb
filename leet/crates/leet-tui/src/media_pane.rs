@@ -107,7 +107,10 @@ fn media_pane_style() -> GoStyle {
     GoStyle::new().padding(&[0, leet_charts::styles::CONTENT_PADDING])
 }
 
-fn media_pane_header_style(dark: bool) -> GoStyle {
+// PARITY: pub(crate) — workspace.go's renderMetricsEmptyState (hosted in
+// run.rs, see the note there) reads this style directly, Go package-private
+// access.
+pub(crate) fn media_pane_header_style(dark: bool) -> GoStyle {
     GoStyle::new()
         .foreground(adaptive_to_color(COLOR_SUBHEADING, dark))
         .bold(true)
@@ -151,7 +154,8 @@ fn media_tile_footer_style(dark: bool) -> GoStyle {
     GoStyle::new().foreground(adaptive_to_color(COLOR_SUBTLE, dark))
 }
 
-fn media_tile_placeholder_style(dark: bool) -> GoStyle {
+// PARITY: pub(crate) — see media_pane_header_style.
+pub(crate) fn media_tile_placeholder_style(dark: bool) -> GoStyle {
     GoStyle::new().foreground(adaptive_to_color(COLOR_SUBTLE, dark))
 }
 
@@ -203,7 +207,9 @@ pub struct MediaPane {
     /// store provides the media series and points rendered by this pane.
     // PARITY: Go shares the `*MediaStore` pointer between the workspace and
     // run views (run.go:167-170) → `Rc<RefCell<_>>` (CONCURRENCY.md S10).
-    store: Option<Rc<RefCell<MediaStore>>>,
+    // pub(crate): workspace.go reads `w.mediaPane.store` directly
+    // (syncCurrentRunContext, workspace.go:470), Go package-private access.
+    pub(crate) store: Option<Rc<RefCell<MediaStore>>>,
 
     /// active allows the pane to consume media navigation keys.
     active: bool,

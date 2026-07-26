@@ -86,7 +86,10 @@ fn main() -> Result<()> {
         base_args: if args.base_args.is_empty() {
             vec![]
         } else {
-            args.base_args.split_whitespace().map(str::to_string).collect()
+            args.base_args
+                .split_whitespace()
+                .map(str::to_string)
+                .collect()
         },
     };
 
@@ -146,14 +149,22 @@ fn main() -> Result<()> {
                 .with_context(|| format!("{} parity run", scenario.name))?;
             let mut scenario_clean = true;
             for (name, grid) in &run.snapshots {
-                let golden_path = golden_root.join(&scenario.name).join(format!("{name}.frame"));
+                let golden_path = golden_root
+                    .join(&scenario.name)
+                    .join(format!("{name}.frame"));
                 let golden = snapshot::load(&golden_path)
                     .with_context(|| format!("golden for {}::{}", scenario.name, name))?;
                 let report = diff::diff_grids(&golden, grid, &scenario.masks);
                 if !report.clean_at(scenario.tier) {
                     scenario_clean = false;
-                    println!("\n--- {}::{} DIVERGES from oracle (tier {}):", scenario.name, name, scenario.tier);
-                    print!("{}", diff::render_report(&golden, grid, &report, "oracle", "rust"));
+                    println!(
+                        "\n--- {}::{} DIVERGES from oracle (tier {}):",
+                        scenario.name, name, scenario.tier
+                    );
+                    print!(
+                        "{}",
+                        diff::render_report(&golden, grid, &report, "oracle", "rust")
+                    );
                 }
             }
             if scenario_clean {

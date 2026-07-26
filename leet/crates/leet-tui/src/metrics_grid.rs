@@ -766,7 +766,9 @@ impl MetricsGrid {
     // PARITY: unlike setFocusLocked, Go's setFocus does NOT unfocus the
     // previously focused chart and returns nothing. Both port with their Go
     // names; the lock the Go variant took internally is gone (S9).
-    fn set_focus(&self, row: isize, col: isize) {
+    // pub(crate): the run tests replace testhelpers.go
+    // `TestSetMainChartFocus` (testhelpers.go:92-94) with direct access.
+    pub(crate) fn set_focus(&self, row: isize, col: isize) {
         if row >= 0
             && col >= 0
             && (row as usize) < self.current_page.len()
@@ -900,7 +902,9 @@ impl MetricsGrid {
     }
 
     /// clearFocus clears focus only from main charts.
-    fn clear_focus(&self) {
+    // PARITY: pub(crate) — run.go/runhandlers.go call it directly
+    // (runhandlers.go:139/:184/:235/:258), Go package-private access.
+    pub(crate) fn clear_focus(&self) {
         if self.focus.borrow().focus_type == FocusType::MainChart {
             let (row, col) = {
                 let f = self.focus.borrow();

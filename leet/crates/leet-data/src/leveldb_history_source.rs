@@ -8,9 +8,9 @@ use leet_proto::wandb_internal::{self, output_raw_record, record};
 use leet_wire::live_store::{LiveStore, LiveStoreError};
 
 use crate::history_source::{
-    ChunkedBatchMsg, ConsoleLogMsg, FileCompleteMsg, HistoryMsg, HistorySource,
-    HistorySourceError, MetricData, RunMsg, SourceMsg, StatsMsg, SummaryMsg, SystemInfoMsg,
-    concatenate_history, concatenate_summary,
+    ChunkedBatchMsg, ConsoleLogMsg, FileCompleteMsg, HistoryMsg, HistorySource, HistorySourceError,
+    MetricData, RunMsg, SourceMsg, StatsMsg, SummaryMsg, SystemInfoMsg, concatenate_history,
+    concatenate_summary,
 };
 use crate::media::{MediaPoint, resolve_media_path};
 
@@ -214,10 +214,7 @@ impl HistorySource for LevelDBHistorySource {
 // PARITY: Go returns nil for a nil *spb.HistoryRecord; the reference cannot
 // be nil here (prost oneofs are by value). Returns None where Go returns a
 // nil tea.Msg.
-pub fn parse_history(
-    run_path: &str,
-    history: &wandb_internal::HistoryRecord,
-) -> Option<SourceMsg> {
+pub fn parse_history(run_path: &str, history: &wandb_internal::HistoryRecord) -> Option<SourceMsg> {
     let mut step: i64 = history.step.as_ref().map_or(0, |s| s.num);
     let mut values: HashMap<String, f64> = HashMap::with_capacity(history.item.len());
     let mut media_fields_by_key: HashMap<String, HashMap<String, String>> = HashMap::new();
@@ -1653,10 +1650,7 @@ mod tests {
             item: vec![
                 history_item(&["_step"], "3"),
                 history_item(&["samples", "_type"], "\"images/separated\""),
-                history_item(
-                    &["samples", "filenames"],
-                    r#"["media/images/s_3_0.png"]"#,
-                ),
+                history_item(&["samples", "filenames"], r#"["media/images/s_3_0.png"]"#),
                 history_item(&["samples", "format"], "\"png\""),
             ],
             ..Default::default()

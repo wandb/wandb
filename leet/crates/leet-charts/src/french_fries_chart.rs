@@ -515,8 +515,10 @@ impl FrenchFriesChart {
         let x = layout.plot_start_x + selected_bucket;
         let style = inspection_line_style(self.dark_background);
         for y in 0..layout.plot_height {
-            self.canvas
-                .set_cell(Point { x, y }, Cell::new_with_style(BOX_LIGHT_VERTICAL, style));
+            self.canvas.set_cell(
+                Point { x, y },
+                Cell::new_with_style(BOX_LIGHT_VERTICAL, style),
+            );
         }
     }
 
@@ -625,8 +627,10 @@ impl FrenchFriesChart {
                 if x < layout.plot_start_x || x >= self.width {
                     continue;
                 }
-                self.canvas
-                    .set_cell(Point { x, y }, Cell::new_with_style(r, CellStyle::default()));
+                self.canvas.set_cell(
+                    Point { x, y },
+                    Cell::new_with_style(r, CellStyle::default()),
+                );
             }
         }
     }

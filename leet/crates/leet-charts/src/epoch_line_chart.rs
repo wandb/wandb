@@ -1238,8 +1238,8 @@ impl EpochLineChart {
             return None;
         }
 
-        let target_x = self.model.view_min_x()
-            + (mouse_x as f64 / self.model.graph_width() as f64) * x_range;
+        let target_x =
+            self.model.view_min_x() + (mouse_x as f64 / self.model.graph_width() as f64) * x_range;
         let best_idx = nearest_index_for_x(&s.x, target_x);
         if best_idx < 0 {
             return None;
@@ -2074,7 +2074,10 @@ mod tests {
         c.draw();
 
         let lines = c.canvas.text_rows();
-        assert!(lines.len() >= 7, "expected chart to be at least 7 rows tall");
+        assert!(
+            lines.len() >= 7,
+            "expected chart to be at least 7 rows tall"
+        );
 
         let (axis_col, labeled) = labeled_rows(&lines);
         assert!(axis_col >= 0, "expected to find Y-axis column");
@@ -2446,7 +2449,10 @@ mod multiseries_tests {
         );
 
         let (x_min, x_max, y_min, y_max) = c.test_bounds();
-        assert!((x_min - 0.0).abs() <= 1e-9, "xMin should be min of all series");
+        assert!(
+            (x_min - 0.0).abs() <= 1e-9,
+            "xMin should be min of all series"
+        );
         assert!(
             (x_max - 20.0).abs() <= 1e-9,
             "xMax should be max of all series"
@@ -2828,7 +2834,10 @@ mod overlay_tests {
         let expect_px = ((5.0 - c.view_min_x()) / (c.view_max_x() - c.view_min_x())
             * c.graph_width() as f64)
             .round() as i64;
-        assert_eq!(px, expect_px, "hairline should pixel-snap to the exact sample X");
+        assert_eq!(
+            px, expect_px,
+            "hairline should pixel-snap to the exact sample X"
+        );
     }
 
     /// TestInspectAtDataX_NoData_NoActivate.
