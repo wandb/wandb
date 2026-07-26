@@ -7,6 +7,8 @@
 
 pub mod config;
 pub mod go_fmt;
+pub mod history_source;
+pub mod leveldb_history_source;
 pub mod media;
 pub mod remote;
 pub mod run_config;
@@ -17,3 +19,4 @@ pub mod run_summary;
 pub mod system_metrics;
 pub mod test_mode;
 pub mod units;
+pub mod width;

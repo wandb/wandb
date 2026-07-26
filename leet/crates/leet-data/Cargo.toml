@@ -10,8 +10,11 @@ publish.workspace = true
 
 [dependencies]
 leet-proto.workspace = true
+leet-wire.workspace = true
 prost.workspace = true
 regex.workspace = true
+unicode-segmentation.workspace = true
+unicode-width.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

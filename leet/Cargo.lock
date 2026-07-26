@@ -569,6 +569,7 @@ name = "leet-data"
 version = "0.1.0"
 dependencies = [
  "leet-proto",
+ "leet-wire",
  "pretty_assertions",
  "proptest",
  "prost",
