@@ -7,8 +7,38 @@
 //! themselves to structural snapshots — border extraction comes later if
 //! unicode-hostile fixtures need it.
 
-use crate::grid::{Cell, Grid};
+use crate::grid::{Cell, CellColor, Grid};
 use crate::scenario::Mask;
+
+/// Canonicalize a color for comparison: xterm-256 indices 16..=255 have
+/// fixed RGB values, so `Indexed(243)` and `Rgb(118,118,118)` are the SAME
+/// color in different SGR encodings (Go lipgloss emits indexed for colors
+/// declared as "243"; the Rust port emits truecolor). Indices 0..=15 are
+/// terminal-theme-dependent and stay symbolic.
+fn canonical_color(c: Option<CellColor>) -> Option<CellColor> {
+    match c {
+        Some(CellColor::Indexed(n)) if n >= 16 => {
+            let rgb = if n >= 232 {
+                let v = 8 + 10 * (n - 232);
+                (v, v, v)
+            } else {
+                const STEPS: [u8; 6] = [0, 95, 135, 175, 215, 255];
+                let i = n - 16;
+                (
+                    STEPS[(i / 36) as usize],
+                    STEPS[((i % 36) / 6) as usize],
+                    STEPS[(i % 6) as usize],
+                )
+            };
+            Some(CellColor::Rgb(rgb.0, rgb.1, rgb.2))
+        }
+        other => other,
+    }
+}
+
+fn colors_eq(a: Option<CellColor>, b: Option<CellColor>) -> bool {
+    canonical_color(a) == canonical_color(b)
+}
 
 #[derive(Debug, Clone)]
 pub struct CellDiff {
@@ -78,7 +108,9 @@ pub fn diff_grids(a: &Grid, b: &Grid, masks: &[Mask]) -> DiffReport {
             }
             // Style tier: skip blanks — padding style is normalized away
             // (lipgloss Join/Place padding is unstyled spaces; see docs).
-            if !ca.is_char_blank() && (ca.fg != cb.fg || ca.bg != cb.bg || ca.attrs != cb.attrs) {
+            if !ca.is_char_blank()
+                && (!colors_eq(ca.fg, cb.fg) || !colors_eq(ca.bg, cb.bg) || ca.attrs != cb.attrs)
+            {
                 report.style_diffs.push(CellDiff {
                     col,
                     row,

@@ -48,5 +48,6 @@
     {
       "snap": "back-to-workspace"
     }
-  ]
+  ],
+  "tier": 2
 }

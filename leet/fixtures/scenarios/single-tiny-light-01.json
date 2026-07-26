@@ -22,5 +22,6 @@
     {
       "snap": "boot-light"
     }
-  ]
+  ],
+  "tier": 2
 }

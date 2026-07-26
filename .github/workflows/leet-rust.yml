@@ -48,7 +48,6 @@ jobs:
   # snapshots (fixtures/expected/) — no Go toolchain needed on PRs.
   # Live-oracle runs (building Go leet at the pinned ref) go nightly.
   parity:
-    if: false # enabled at the end of Phase 0 once the null test is green
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -56,4 +55,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: leet
-      - run: cargo test -p leet-harness --profile parity
+      - run: cargo build -p wandb-leet --profile parity
+      - run: >
+          cargo run --quiet -p leet-harness --bin leet-record --
+          --oracle "$PWD/target/parity/wandb-leet" --base-args ""
+          --scenarios fixtures/scenarios --fixtures "$PWD/fixtures/wandb"
+          --parity "$PWD/fixtures/expected"

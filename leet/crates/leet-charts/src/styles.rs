@@ -711,19 +711,23 @@ pub fn run_overview_tag_foreground_color(bg: AdaptiveColor) -> AdaptiveColor {
 
 /// runOverviewTagTextColor returns white or dark text for a single
 /// background color, choosing whichever yields the higher WCAG contrast
-/// ratio.
-// PARITY: Go takes `any`, stringifies with fmt.Sprint, and re-parses via
-// parseHexColor, falling back to runOverviewTagLightText when the parse
-// fails. With a typed Rgb the parse cannot fail, so the fallback branch is
-// unreachable and not ported.
+/// ratio — that is the INTENT of the Go code, but not its behavior:
+///
+// PARITY (Go bug, reproduced): Go stringifies the background with
+// fmt.Sprint and re-parses via parseHexColor. Under lipgloss v1 colors
+// were strings and this worked; lipgloss v2's Color() returns a parsed
+// color.Color struct, so fmt.Sprint yields "{177 153 255 255}"-style
+// output, the Sscanf parse ALWAYS fails, and the function ALWAYS returns
+// runOverviewTagLightText (white). The WCAG branch below is dead code in
+// Go today — verified by the frame differential (oracle renders white on
+// every badge, e.g. #B199FF where contrast math would pick dark). Keep
+// calling the (ported, tested) contrast machinery the day Go fixes this;
+// until then, mirror the bug.
 pub fn run_overview_tag_text_color(bg: Rgb) -> Rgb {
     let Rgb(r, g, b) = bg;
 
-    let light_contrast = contrast_ratio_rgb(r, g, b, 0xff, 0xff, 0xff);
-    let dark_contrast = contrast_ratio_rgb(r, g, b, 0x17, 0x17, 0x17);
-    if dark_contrast >= light_contrast {
-        return COLOR_DARK;
-    }
+    let _light_contrast = contrast_ratio_rgb(r, g, b, 0xff, 0xff, 0xff);
+    let _dark_contrast = contrast_ratio_rgb(r, g, b, 0x17, 0x17, 0x17);
 
     RUN_OVERVIEW_TAG_LIGHT_TEXT
 }
@@ -1103,25 +1107,37 @@ mod tests {
         }
     }
 
-    /// Foreground decisions cross-checked against a Go probe of
-    /// runOverviewTagTextColor.
+    /// PARITY (Go bug, see run_overview_tag_text_color): under lipgloss v2
+    /// the Go function's hex re-parse always fails, so EVERY background
+    /// gets white text. Verified against the oracle frame differential
+    /// (workspace-multi tag badges, e.g. #B199FF renders white although
+    /// the dead WCAG branch would pick dark). An earlier version of this
+    /// test asserted a Go probe of the extracted contrast ALGORITHM — the
+    /// probe missed the fmt.Sprint type regression; the frames are truth.
     #[test]
-    fn tag_text_color_matches_go() {
-        let dark = COLOR_DARK;
+    fn tag_text_color_always_white_go_bug() {
         let light = RUN_OVERVIEW_TAG_LIGHT_TEXT;
-        let cases: &[(Rgb, Rgb)] = &[
-            (Rgb(0xFF, 0xCF, 0x4F), dark),
-            (Rgb(0x0D, 0x08, 0x87), light),
-            (Rgb(0xff, 0xff, 0xff), dark),
-            (Rgb(0x17, 0x17, 0x17), light),
-            (Rgb(0xB8, 0x4F, 0xD4), dark),
-            (Rgb(0xE2, 0x81, 0xFE), dark),
-            (Rgb(0x8A, 0x8D, 0x91), dark),
-            (Rgb(0x45, 0x4B, 0x54), light),
-        ];
-        for &(bg, want) in cases {
-            assert_eq!(run_overview_tag_text_color(bg), want, "{}", bg.to_hex());
+        for bg in [
+            Rgb(0xFF, 0xCF, 0x4F),
+            Rgb(0x0D, 0x08, 0x87),
+            Rgb(0xff, 0xff, 0xff),
+            Rgb(0x17, 0x17, 0x17),
+            Rgb(0xB8, 0x4F, 0xD4),
+            Rgb(0xB1, 0x99, 0xFF),
+            Rgb(0x45, 0x4B, 0x54),
+        ] {
+            assert_eq!(run_overview_tag_text_color(bg), light, "{}", bg.to_hex());
         }
+        // The (dead in Go) contrast math itself stays correct: dark text
+        // would win on a bright badge, white on a dark one.
+        assert!(
+            contrast_ratio_rgb(0xFF, 0xCF, 0x4F, 0x17, 0x17, 0x17)
+                > contrast_ratio_rgb(0xFF, 0xCF, 0x4F, 0xff, 0xff, 0xff)
+        );
+        assert!(
+            contrast_ratio_rgb(0x0D, 0x08, 0x87, 0xff, 0xff, 0xff)
+                > contrast_ratio_rgb(0x0D, 0x08, 0x87, 0x17, 0x17, 0x17)
+        );
     }
 
     #[test]
@@ -1140,11 +1156,11 @@ mod tests {
 
     #[test]
     fn tag_foreground_per_variant() {
-        // sunset-glow[0]: light #B84FD4 -> dark text, dark #E281FE -> dark text.
+        // PARITY (Go bug): both variants always resolve to white — see
+        // tag_text_color_always_white_go_bug.
         let fg = run_overview_tag_foreground_color(adaptive("#B84FD4", "#E281FE"));
-        assert_eq!(fg.light, COLOR_DARK);
-        assert_eq!(fg.dark, COLOR_DARK);
-        // wandb-vibe-20[1]: light #454B54 -> white, dark #565C66 -> white.
+        assert_eq!(fg.light, RUN_OVERVIEW_TAG_LIGHT_TEXT);
+        assert_eq!(fg.dark, RUN_OVERVIEW_TAG_LIGHT_TEXT);
         let fg = run_overview_tag_foreground_color(adaptive("#454B54", "#565C66"));
         assert_eq!(fg.light, RUN_OVERVIEW_TAG_LIGHT_TEXT);
         assert_eq!(fg.dark, RUN_OVERVIEW_TAG_LIGHT_TEXT);
