@@ -334,3 +334,10 @@ phases. They are deferred (see the `PARITY: DEFERRED TESTS` comment in
 Precedent: `media_test.go`'s four `TestParseHistory_*` cases are similarly deferred to the
 `leet-data` `leveldb_history_source` unit (see the `PARITY: DEFERRED TESTS` comment in
 `crates/leet-data/src/media.rs`).
+
+DIVERGENCE (signed off 2026-07-25, amends LOG-03): console-log timestamp keys
+render in UTC, not Go's local time (`time.Unix` → Local,
+leveldbhistorysource.go:409-410). std has no local-time API, the workspace
+denies unsafe_code, and no tz crate is in the dependency set. The harness pins
+the oracle to TZ=UTC (equivalent: Go under empty TZ renders UTC). Revisit when
+a tz crate (jiff preferred) is adopted workspace-wide — tracked for Phase 8.

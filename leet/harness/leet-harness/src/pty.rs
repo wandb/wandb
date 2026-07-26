@@ -61,6 +61,10 @@ impl PtyProcess {
         cmd.env("TERM", "xterm-256color");
         cmd.env("COLORTERM", "truecolor");
         cmd.env("CLICOLOR_FORCE", "1");
+        // Signed-off DIVERGENCE (PARITY.md, console timestamps): the Rust
+        // port renders timestamps in UTC (std has no tz API); pinning TZ
+        // makes the Go oracle render UTC too.
+        cmd.env("TZ", "UTC");
         for (k, v) in &spec.env {
             cmd.env(k, v);
         }
