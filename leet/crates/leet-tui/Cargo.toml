@@ -16,6 +16,7 @@ leet-wire.workspace = true
 crossterm.workspace = true
 ratatui.workspace = true
 serde_json.workspace = true
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 tracing.workspace = true
 
 [dev-dependencies]
