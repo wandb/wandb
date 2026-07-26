@@ -416,12 +416,7 @@ mod tests {
             ("backspace", Backspace, M::NONE, "backspace"),
             // Modifier stringification sanity
             ("ctrl+space (NUL)", Char(' '), M::CONTROL, "ctrl+space"),
-            (
-                "alt+N",
-                Char('N'),
-                M::ALT.union(M::SHIFT),
-                "alt+shift+n",
-            ),
+            ("alt+N", Char('N'), M::ALT.union(M::SHIFT), "alt+shift+n"),
             ("shift+up", Up, M::SHIFT, "shift+up"),
         ];
         for (name, code, mods, want) in cases {
@@ -492,7 +487,10 @@ mod tests {
         let bs = key(CtKeyCode::Backspace, KeyModifiers::NONE);
         assert_eq!(bs.code, KeyCode::Backspace);
         assert_eq!(bs.text, None);
-        assert_eq!(key(CtKeyCode::Enter, KeyModifiers::NONE).code, KeyCode::Enter);
+        assert_eq!(
+            key(CtKeyCode::Enter, KeyModifiers::NONE).code,
+            KeyCode::Enter
+        );
         assert_eq!(key(CtKeyCode::Esc, KeyModifiers::NONE).code, KeyCode::Esc);
         assert_eq!(key(CtKeyCode::Tab, KeyModifiers::NONE).code, KeyCode::Tab);
     }

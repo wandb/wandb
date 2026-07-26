@@ -255,8 +255,7 @@ pub fn run_key_bindings() -> Vec<BindingCategory<RunAction>> {
             bindings: vec![
                 KeyBinding {
                     keys: vec!["w/s/a/d", "↑/↓/←/→"],
-                    description:
-                        "Move within focused pane (chart focus on grids, item nav on lists)",
+                    description: "Move within focused pane (chart focus on grids, item nav on lists)",
                     handler: None,
                 },
                 KeyBinding {
@@ -351,26 +350,22 @@ pub fn run_key_bindings() -> Vec<BindingCategory<RunAction>> {
                 },
                 KeyBinding {
                     keys: nav_keys_for(NavIntent::Up).to_vec(),
-                    description:
-                        "Item up (list) / chart focus up (grid) / scrub -10 in media (arrow only)",
+                    description: "Item up (list) / chart focus up (grid) / scrub -10 in media (arrow only)",
                     handler: Some(RunAction::SidebarVerticalNav),
                 },
                 KeyBinding {
                     keys: nav_keys_for(NavIntent::Down).to_vec(),
-                    description:
-                        "Item down (list) / chart focus down (grid) / scrub +10 in media (arrow only)",
+                    description: "Item down (list) / chart focus down (grid) / scrub +10 in media (arrow only)",
                     handler: Some(RunAction::SidebarVerticalNav),
                 },
                 KeyBinding {
                     keys: nav_keys_for(NavIntent::Left).to_vec(),
-                    description:
-                        "Page prev (list) / chart focus left (grid) / scrub -1 in media (arrow only)",
+                    description: "Page prev (list) / chart focus left (grid) / scrub -1 in media (arrow only)",
                     handler: Some(RunAction::SidebarPageNav),
                 },
                 KeyBinding {
                     keys: nav_keys_for(NavIntent::Right).to_vec(),
-                    description:
-                        "Page next (list) / chart focus right (grid) / scrub +1 in media (arrow only)",
+                    description: "Page next (list) / chart focus right (grid) / scrub +1 in media (arrow only)",
                     handler: Some(RunAction::SidebarPageNav),
                 },
                 KeyBinding {
@@ -462,8 +457,7 @@ pub fn workspace_key_bindings() -> Vec<BindingCategory<WorkspaceAction>> {
             bindings: vec![
                 KeyBinding {
                     keys: vec!["w/s/a/d", "↑/↓/←/→"],
-                    description:
-                        "Move within focused pane (chart focus on grids, item nav on lists)",
+                    description: "Move within focused pane (chart focus on grids, item nav on lists)",
                     handler: None,
                 },
                 KeyBinding {
@@ -574,26 +568,22 @@ pub fn workspace_key_bindings() -> Vec<BindingCategory<WorkspaceAction>> {
                 },
                 KeyBinding {
                     keys: nav_keys_for(NavIntent::Up).to_vec(),
-                    description:
-                        "Item up (list) / chart focus up (grid) / scrub -10 in media (arrow only)",
+                    description: "Item up (list) / chart focus up (grid) / scrub -10 in media (arrow only)",
                     handler: Some(WorkspaceAction::RunsVerticalNav),
                 },
                 KeyBinding {
                     keys: nav_keys_for(NavIntent::Down).to_vec(),
-                    description:
-                        "Item down (list) / chart focus down (grid) / scrub +10 in media (arrow only)",
+                    description: "Item down (list) / chart focus down (grid) / scrub +10 in media (arrow only)",
                     handler: Some(WorkspaceAction::RunsVerticalNav),
                 },
                 KeyBinding {
                     keys: nav_keys_for(NavIntent::Left).to_vec(),
-                    description:
-                        "Page prev (list) / chart focus left (grid) / scrub -1 in media (arrow only)",
+                    description: "Page prev (list) / chart focus left (grid) / scrub -1 in media (arrow only)",
                     handler: Some(WorkspaceAction::RunsPageNav),
                 },
                 KeyBinding {
                     keys: nav_keys_for(NavIntent::Right).to_vec(),
-                    description:
-                        "Page next (list) / chart focus right (grid) / scrub +1 in media (arrow only)",
+                    description: "Page next (list) / chart focus right (grid) / scrub +1 in media (arrow only)",
                     handler: Some(WorkspaceAction::RunsPageNav),
                 },
                 KeyBinding {
@@ -813,13 +803,7 @@ mod tests {
         let symon = symon_key_bindings();
         assert_eq!(
             symon.iter().map(|c| c.name).collect::<Vec<_>>(),
-            vec![
-                "General",
-                "Navigation",
-                "Charts",
-                "Configuration",
-                "Mouse",
-            ]
+            vec!["General", "Navigation", "Charts", "Configuration", "Mouse",]
         );
         assert_eq!(binding_count(&symon), 17);
     }
@@ -834,7 +818,10 @@ mod tests {
         assert_eq!(run_map.len(), 34);
         assert_eq!(run_map.get("q"), Some(&RunAction::Quit));
         assert_eq!(run_map.get("ctrl+c"), Some(&RunAction::Quit));
-        assert_eq!(run_map.get("ctrl+\\"), Some(&RunAction::ClearSystemMetricsFilter));
+        assert_eq!(
+            run_map.get("ctrl+\\"),
+            Some(&RunAction::ClearSystemMetricsFilter)
+        );
         assert_eq!(run_map.get("shift+tab"), Some(&RunAction::SidebarTabNav));
         // Documentation-only bindings are not dispatched.
         assert_eq!(run_map.get("h"), None);
@@ -861,7 +848,11 @@ mod tests {
         assert_eq!(symon_map.len(), 23);
         // concatKeys: all eight grid-nav keys share one handler.
         for key in ["w", "up", "s", "down", "a", "left", "d", "right"] {
-            assert_eq!(symon_map.get(key), Some(&SymonAction::GridNav), "key {key:?}");
+            assert_eq!(
+                symon_map.get(key),
+                Some(&SymonAction::GridNav),
+                "key {key:?}"
+            );
         }
         // Symon binds the shifted config forms too.
         assert_eq!(symon_map.get("C"), Some(&SymonAction::ConfigSystemCols));

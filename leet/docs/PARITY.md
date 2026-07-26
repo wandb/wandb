@@ -164,6 +164,38 @@ Verification layers:
 | MED-09 | Tile selection: a/d/w/s 2D move, click hit-test; pgup/pgdn series pages | mediapane.go | pty | pty/media-select-01 | pending |
 | MED-10 | Status label: `Media: <key>` + step + caption(≤48) + sync/fullscreen markers | mediapane.go | pty | pty/media-status-01 | pending |
 
+DIVERGENCE (recorded 2026-07-25, picture.rs review; amends MED-02/MED-03/TERM-01):
+media image decoding is not bit-exact for two source classes. (1) JPEG: Go scales
+`*image.YCbCr` inline with integer BT.601 math (x/image/draw impl.go:5854+) while the
+Rust `image` crate converts YCbCr→RGB during decode with its own rounding. (2) Sources
+decoding to more than 8 bits per channel (e.g. 16-bit PNG → `*image.NRGBA64`/
+`*image.Gray16`): Go's kernel scaler dispatches them at full 16-bit precision via the
+`image.RGBA64Image` path (impl.go:5615-5617); the Rust port quantizes to RGBA8 first
+(`SourceImage::from_dynamic`, `crates/leet-tui/src/picture.rs`). Rendered half-block/
+Kitty pixels may differ by ±1 channel step for such inputs; 8-bit PNG/GIF sources are
+bit-exact.
+
+NOTE (FMA platform pin, 2026-07-25, amends MED-02): the imaging Box resize
+accumulators in `crates/leet-tui/src/picture.rs` (`resize_horizontal`/
+`resize_vertical`) use `f64::mul_add` to match Go (gc) on arm64, which fuses
+`acc += x*y` into FMADDD (differentially verified: 39/300 randomized Glyph frames show
+±1 channel diffs unfused, 0 fused; regression test
+`box_resize_accumulators_fuse_like_go_arm64`). Go on amd64 without GOAMD64>=v3 does
+not fuse; an amd64-hosted oracle would need the unfused form. Only reachable when Box
+weights are not exact binary fractions — the default 8×16 test-mode cell size never
+diverges, real terminal cell sizes (e.g. 10×20) do.
+
+Phase-5 NOTE (amends MED-03, do not drop): Kitty capability resolution needs THREE
+pieces wired in the app shell — the `QueryKittySupport` probe (env preflight → 1×1
+`a=q` APC + timeout tick, picture/kitty_capability.go:116-140), picture's
+`kittyEnvSignal` (kitty_capability.go:142-176), AND mediapane's
+`terminalSignalsKittyGraphics` (mediapane.go:1234-1252, consulted by
+`ensureKittyGraphicsEnabled` mediapane.go:1223-1231 only after honoring an affirmative
+probe result). The two env heuristics differ (only mediapane's checks GHOSTTY_BIN_DIR
+and lowercases TERM_PROGRAM/TERM before matching); porting only one silently drops
+Kitty mode on terminals the other recognizes. `crates/leet-tui/src/picture.rs` ports
+only the capability state (`kitty_supported`/`force_kitty_capability`).
+
 ### 2.7 Console logs (runconsolelogs.go, consolelogspane.go)
 
 | ID | Feature | Go source | Layer | Scenario | Status |
@@ -273,7 +305,7 @@ All `_test.go` files in `core/internal/leet` (46 files, 10,531 LOC total). Each 
 | epochlinechart_test.go | 409 | leet-charts | pending |
 | filter_test.go | 29 | leet-tui | pending |
 | focusmanager_test.go | 44 | leet-tui | pending |
-| frenchfrieschart_test.go | 319 | split: leet-charts + leet-tui (§5.2) | pending |
+| frenchfrieschart_test.go | 319 | split: leet-charts + leet-tui (§5.2) | done |
 | heartbeat_lifecycle_test.go | 85 | leet-data | pending |
 | heartbeat_test.go | 161 | leet-data | pending |
 | leveldbhistorysource_test.go | 411 | leet-data | pending |
@@ -299,8 +331,8 @@ All `_test.go` files in `core/internal/leet` (46 files, 10,531 LOC total). Each 
 | symon_keyhandling_test.go | 111 | leet-symon | pending |
 | symon_test.go | 55 | leet-symon | pending |
 | systemmetrics_test.go | 109 | leet-charts | pending |
-| systemmetricsfilter_test.go | 57 | leet-tui | pending |
-| systemmetricsgrid_test.go | 151 | leet-tui | pending |
+| systemmetricsfilter_test.go | 57 | leet-tui | done |
+| systemmetricsgrid_test.go | 151 | leet-tui | done |
 | timeserieslinechart_test.go | 239 | leet-charts | pending |
 | timeserieslinechart_zoom_test.go | 198 | leet-charts | pending |
 | tui_test.go | 803 | leet (integration) | pending |
@@ -351,6 +383,22 @@ MUST transliterate them 1:1 in addition to `systemmetricsgrid_test.go`'s own cas
 | TestSystemMetricsGrid_CycleFocusedChartMode (:149) | y-key mode-cycle order linear→log→heatmap→linear on a heatmap-capable chart (CH-18) | leet-tui `system_metrics_grid` |
 | TestSystemMetricsGrid_GPUUtilizationUsesFrenchFriesChart (:188) | gpu.N.gpu metrics auto-create a french-fries-capable chart (CH-15/CH-17) | leet-tui `system_metrics_grid` |
 | TestSystemMetricsGrid_FrenchFriesUsesConfiguredPalette (:214) | ConfigManager `FrenchFriesColorScheme` plumbing reaches `colorForValue` (CH-15) | leet-tui `system_metrics_grid` |
+
+DONE (2026-07-25): all three cases are transliterated in
+`crates/leet-tui/src/system_metrics_grid.rs` (tests
+`system_metrics_grid_cycle_focused_chart_mode`,
+`system_metrics_grid_gpu_utilization_uses_french_fries_chart`,
+`system_metrics_grid_french_fries_uses_configured_palette`) and pass; the
+`frenchfrieschart_test.go` row above is flipped to `done` (all ten cases exist
+and pass). Two test-only adaptations, each documented at the assertion site:
+Go's `TestChartAt(r, c).IsLogY()` reaches the toggle's inner line chart, whose
+`line` field is private cross-crate — in heatmap mode the test probes it by
+flipping heatmap mode off/on (a state-preserving raw bool toggle); and Go's
+`TestColorForValue(0)/(100)` probe is crate-private to leet-charts (its
+0→first / 100→last mapping is pinned there by
+`french_fries_chart_uses_provided_palette`), so the palette-plumbing case
+asserts through the rendered canvas that every heatmap cell resolves from the
+configured plasma palette and the value-0 series renders with `plasma[0]`.
 
 DIVERGENCE (signed off 2026-07-25, amends LOG-03): console-log timestamp keys
 render in UTC, not Go's local time (`time.Unix` → Local,

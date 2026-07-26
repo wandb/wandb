@@ -379,9 +379,7 @@ impl Event {
             Event::WorkspaceRunOverviewPreloaded(_) => "leet.WorkspaceRunOverviewPreloadedMsg",
             Event::WorkspaceInitErr(_) => "leet.WorkspaceInitErrMsg",
             Event::ConsoleLogsPaneAnimation => "leet.ConsoleLogsPaneAnimationMsg",
-            Event::WorkspaceConsoleLogsPaneAnimation => {
-                "leet.WorkspaceConsoleLogsPaneAnimationMsg"
-            }
+            Event::WorkspaceConsoleLogsPaneAnimation => "leet.WorkspaceConsoleLogsPaneAnimationMsg",
             Event::WorkspaceSystemMetricsPaneAnimation => {
                 "leet.WorkspaceSystemMetricsPaneAnimationMsg"
             }
@@ -532,10 +530,8 @@ mod tests {
     /// wrappers (Key/Mouse/Resize/BackgroundColor) — 35 variants total.
     #[test]
     fn one_variant_per_go_msg_type() {
-        let discriminants: HashSet<_> = sample_events()
-            .iter()
-            .map(std::mem::discriminant)
-            .collect();
+        let discriminants: HashSet<_> =
+            sample_events().iter().map(std::mem::discriminant).collect();
         assert_eq!(discriminants.len(), 31 + 4);
     }
 

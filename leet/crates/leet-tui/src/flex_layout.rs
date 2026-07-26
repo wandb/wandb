@@ -334,10 +334,8 @@ mod tests {
 
     #[test]
     fn no_visible_sections_returns_empty_layout() {
-        let layout = compute_vertical_stack_layout(
-            50,
-            &[spec(StackSectionId::Media, false, 10, false)],
-        );
+        let layout =
+            compute_vertical_stack_layout(50, &[spec(StackSectionId::Media, false, 10, false)]);
         assert_eq!(layout.total_height, 50);
         assert_eq!(layout.visible_count, 0);
         for section in layout.sections {
@@ -353,10 +351,8 @@ mod tests {
 
     #[test]
     fn negative_total_height_clamps_to_zero() {
-        let layout = compute_vertical_stack_layout(
-            -5,
-            &[spec(StackSectionId::Metrics, true, 0, true)],
-        );
+        let layout =
+            compute_vertical_stack_layout(-5, &[spec(StackSectionId::Metrics, true, 0, true)]);
         assert_eq!(layout.total_height, 0);
         assert_eq!(layout.height(StackSectionId::Metrics), 0);
     }
@@ -393,10 +389,8 @@ mod tests {
 
     #[test]
     fn single_visible_flex_section_takes_full_height_without_gaps() {
-        let layout = compute_vertical_stack_layout(
-            17,
-            &[spec(StackSectionId::Metrics, true, 3, true)],
-        );
+        let layout =
+            compute_vertical_stack_layout(17, &[spec(StackSectionId::Metrics, true, 3, true)]);
         assert_eq!(layout.visible_count, 1);
         assert_eq!(layout.y(StackSectionId::Metrics), 0);
         assert_eq!(layout.height(StackSectionId::Metrics), 17);

@@ -5,6 +5,7 @@
 //! see `leet/docs/PORTING.md` and `leet/docs/CONCURRENCY.md`.
 
 pub mod animation;
+pub mod command;
 pub mod console_logs_pane;
 pub mod event;
 pub mod filter;
@@ -21,12 +22,14 @@ pub mod model;
 pub mod nav;
 pub mod paged_list;
 pub mod panel_grid;
+pub mod picture;
 pub mod right_sidebar;
 pub mod run;
 pub mod run_console_logs;
 pub mod run_focus;
 pub mod run_handlers;
 pub mod run_overview_sidebar;
+pub mod runtime;
 pub mod run_overview_sidebar_filter;
 pub mod run_overview_sidebar_nav;
 pub mod system_metrics_grid;

@@ -170,7 +170,9 @@ pub fn compute_grid_dims(avail_w: isize, mut avail_h: isize, spec: GridSpec) -> 
     }
 
     // Inner chart sizes (respect minimums).
-    let inner_w = (cell_w_with_pad - CHART_BORDER_SIZE).max(spec.min_cell_w).max(0);
+    let inner_w = (cell_w_with_pad - CHART_BORDER_SIZE)
+        .max(spec.min_cell_w)
+        .max(0);
     let inner_h = (cell_h_with_pad - CHART_BORDER_SIZE - CHART_TITLE_HEIGHT)
         .max(spec.min_cell_h)
         .max(0);
