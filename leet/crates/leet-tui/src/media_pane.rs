@@ -718,7 +718,8 @@ impl MediaPane {
         self.nav
             .update_total_pages(keys.len() as isize, items_per_page);
 
-        let (mut start_idx, mut end_idx) = self.nav.page_bounds(keys.len() as isize, items_per_page);
+        let (mut start_idx, mut end_idx) =
+            self.nav.page_bounds(keys.len() as isize, items_per_page);
         if self.selected_index < start_idx || self.selected_index >= end_idx {
             set_nav_page(&mut self.nav, self.selected_index / items_per_page);
             (start_idx, end_idx) = self.nav.page_bounds(keys.len() as isize, items_per_page);
@@ -1189,11 +1190,22 @@ impl MediaPane {
         (xs, idx)
     }
 
-    fn render_grid(&mut self, width: isize, height: isize, hint: &str, dark: bool) -> Text<'static> {
+    fn render_grid(
+        &mut self,
+        width: isize,
+        height: isize,
+        hint: &str,
+        dark: bool,
+    ) -> Text<'static> {
         let keys = self.series_keys();
         if keys.is_empty() {
             self.set_rendered_media(&[]);
-            return render_media_placeholder(width, height, hint_or_default(hint, "No media."), dark);
+            return render_media_placeholder(
+                width,
+                height,
+                hint_or_default(hint, "No media."),
+                dark,
+            );
         }
 
         let (rows, cols, slot_w, slot_h) = self.effective_grid(width, height);
@@ -1282,7 +1294,8 @@ impl MediaPane {
         let title = self.render_title(key, inner_w, selected, dark);
 
         let image_view = if ok {
-            self.renderer.render(&point.file_path, inner_w, image_h, dark)
+            self.renderer
+                .render(&point.file_path, inner_w, image_h, dark)
         } else {
             render_media_placeholder(inner_w, image_h, "No image at X", dark)
         };
@@ -1419,7 +1432,11 @@ impl MediaPane {
         cols = cols.max(1);
         rows = rows.max(1);
         let slot_w = if width > 0 { (width / cols).max(1) } else { 1 };
-        let slot_h = if height > 0 { (height / rows).max(1) } else { 1 };
+        let slot_h = if height > 0 {
+            (height / rows).max(1)
+        } else {
+            1
+        };
         (rows, cols, slot_w, slot_h)
     }
 }
@@ -1799,7 +1816,13 @@ impl MediaImageRenderer {
         }
     }
 
-    fn render_glyph(&mut self, path: &str, width: isize, height: isize, dark: bool) -> Text<'static> {
+    fn render_glyph(
+        &mut self,
+        path: &str,
+        width: isize,
+        height: isize,
+        dark: bool,
+    ) -> Text<'static> {
         let (img, err_entry) = self.image(path);
         let Some(img) = img else {
             return render_media_placeholder(
@@ -2007,7 +2030,9 @@ fn load_media_image(path: &str) -> Result<Arc<SourceImage>, String> {
     let reader = image::ImageReader::new(std::io::BufReader::new(file))
         .with_guessed_format()
         .map_err(|err| format!("decode image: {err}"))?;
-    let img = reader.decode().map_err(|err| format!("decode image: {err}"))?;
+    let img = reader
+        .decode()
+        .map_err(|err| format!("decode image: {err}"))?;
     Ok(Arc::new(SourceImage::from_dynamic(&img)))
 }
 
@@ -2763,7 +2788,11 @@ mod tests {
                     if start > 0 {
                         nav.navigate(start);
                     }
-                    assert_eq!(nav.current_page(), start, "setup total={total} start={start}");
+                    assert_eq!(
+                        nav.current_page(),
+                        start,
+                        "setup total={total} start={start}"
+                    );
 
                     set_nav_page(&mut nav, page);
                     assert_eq!(
@@ -2794,7 +2823,11 @@ mod tests {
 
         // Pin the panel_grid quirk this path relies on.
         assert_eq!(nav.total_pages(), 0);
-        assert_eq!(nav.current_page(), 2, "UpdateTotalPages must not clamp when totalPages == 0");
+        assert_eq!(
+            nav.current_page(),
+            2,
+            "UpdateTotalPages must not clamp when totalPages == 0"
+        );
 
         set_nav_page(&mut nav, 0);
         assert_eq!(nav.current_page(), 0);

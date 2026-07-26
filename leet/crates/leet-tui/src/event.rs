@@ -71,14 +71,19 @@ impl fmt::Display for EventError {
     }
 }
 
-/// Placeholder for the initialized history reader carried by [`InitMsg`] and
+/// Handle to the initialized history reader carried by [`InitMsg`] and
 /// [`WorkspaceRunInitMsg`].
-// PHASE-5: Go hands the `HistorySource` interface value to the model
-// (messages.go:76-78, :110-114). In the Rust design the reader owns its file
-// on a dedicated thread and the model holds a request-queue handle instead
-// (CONCURRENCY.md §2.3); that handle type is defined with the app shell.
+///
+/// Go hands the `HistorySource` interface value to the model
+/// (messages.go:76-78, :110-114). In the Rust design the reader owns its
+/// file on a dedicated thread (CONCURRENCY.md §2.3); the model holds this
+/// opaque id and reads via `Command::Read*` — the runtime's effect runner
+/// maps the id to the reader thread's request queue (see
+/// [`crate::command::SourceId`]).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct HistorySourceHandle;
+pub struct HistorySourceHandle {
+    pub id: crate::command::SourceId,
+}
 
 /// Per-metric X/Y series carried by [`HistoryMsg`] (messages.go `MetricData`).
 #[derive(Debug, Clone, PartialEq, Default)]
