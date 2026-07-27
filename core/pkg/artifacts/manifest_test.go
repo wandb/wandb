@@ -258,6 +258,9 @@ func TestManifest_HashContentsWithMd5(t *testing.T) {
 				Digest:    "tenBrQcbPn/Hec+qXlI4GA==",
 				Size:      int64(5),
 				LocalPath: localPath1.Name(),
+				Extra: []*spb.ExtraItem{
+					{Key: digestAlgorithmExtraKey, ValueJson: `"XXH128"`},
+				},
 			},
 			{
 				Path:      "file2.txt",
@@ -270,6 +273,20 @@ func TestManifest_HashContentsWithMd5(t *testing.T) {
 				Digest:    "fVls5fyrr2IqIwC71+pumg==",
 				Size:      int64(2),
 				LocalPath: localPathInDir1.Name(),
+				Extra: []*spb.ExtraItem{
+					{Key: digestAlgorithmExtraKey, ValueJson: `"XXH128"`},
+				},
+			},
+			{
+				// Carried-over xxh128 file from new_draft scenario (already uploaded, no local path):
+				// must be left untouched so the mixed manifest is preserved.
+				Path:            "carried-over.txt",
+				Digest:          "digest-carried-over",
+				Size:            int64(5),
+				BirthArtifactId: "birthArtifactID1",
+				Extra: []*spb.ExtraItem{
+					{Key: digestAlgorithmExtraKey, ValueJson: `"XXH128"`},
+				},
 			},
 			{
 				Path:   "path4",
@@ -286,15 +303,17 @@ func TestManifest_HashContentsWithMd5(t *testing.T) {
 	err = manifest.HashContentsWithMd5()
 	assert.NoError(t, err)
 
-	// file1.txt should be rehashed with md5
+	// file1.txt should be rehashed with md5, and its xxh128 tag dropped.
 	assert.Equal(t, "XUFAKrxLKna5cZ2REBfFkg==", manifest.Contents["file1.txt"].Digest)
 	assert.Equal(t, localPath1.Name(), *manifest.Contents["file1.txt"].LocalPath)
+	assert.NotContains(t, manifest.Contents["file1.txt"].Extra, digestAlgorithmExtraKey)
 
-	// file2.txt digest should not change
+	// file2.txt digest should not change, and it stays untagged.
 	assert.Equal(t, "CY9rzUYh03PK3k6DJie09g==", manifest.Contents["file2.txt"].Digest)
 	assert.Equal(t, localPath2.Name(), *manifest.Contents["file2.txt"].LocalPath)
+	assert.NotContains(t, manifest.Contents["file2.txt"].Extra, digestAlgorithmExtraKey)
 
-	// different-subdir/file.txt should be rehashed with md5
+	// different-subdir/file.txt should be rehashed with md5, tag dropped.
 	assert.Equal(
 		t,
 		"SfaKXIST7CwL9ImCHCH8Ow==",
@@ -304,6 +323,20 @@ func TestManifest_HashContentsWithMd5(t *testing.T) {
 		t,
 		localPathInDir1.Name(),
 		*manifest.Contents["different-subdir/file.txt"].LocalPath,
+	)
+	assert.NotContains(
+		t,
+		manifest.Contents["different-subdir/file.txt"].Extra,
+		digestAlgorithmExtraKey,
+	)
+
+	// carried-over.txt has no local path, so it must be left untouched
+	assert.Equal(t, "digest-carried-over", manifest.Contents["carried-over.txt"].Digest)
+	assert.Nil(t, manifest.Contents["carried-over.txt"].LocalPath)
+	assert.Equal(
+		t,
+		"XXH128",
+		manifest.Contents["carried-over.txt"].Extra[digestAlgorithmExtraKey],
 	)
 
 	// path4 should not be rehashed

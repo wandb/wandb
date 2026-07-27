@@ -44,6 +44,10 @@ type ManifestEntry struct {
 	DownloadURL *string `json:"-"`
 }
 
+// This is used to track the digest algorithm used to hash an entry's file.
+// It mirrors the Python SDK's DIGEST_ALGORITHM_EXTRA_KEY.
+const digestAlgorithmExtraKey = "alg"
+
 // NewManifestFromProto is used by [ArtifactSaver] to decode manifest sent
 // from python process. If the manifest JSON is too big for proto, python
 // side will save it as a local file and read using [ManifestContentsFromFile].
@@ -235,6 +239,8 @@ func (m *Manifest) HashContentsWithMd5() error {
 			mu.Lock()
 			entry := m.Contents[item.path]
 			entry.Digest = md5Hash
+			// Drop any per-entry digest algorithm tag
+			delete(entry.Extra, digestAlgorithmExtraKey)
 			m.Contents[item.path] = entry
 			mu.Unlock()
 			return nil
