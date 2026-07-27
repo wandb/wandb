@@ -99,9 +99,6 @@ ANSI_STYLES = {
 ANSI_STYLES_REV = {v: k for k, v in ANSI_STYLES.items()}
 
 
-CSI = "\033["
-
-
 def _get_char(code):
     return "\033[" + str(code) + "m"
 

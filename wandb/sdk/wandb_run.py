@@ -138,7 +138,6 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger("wandb")
-EXIT_TIMEOUT = 60
 RE_LABEL = re.compile(r"[a-zA-Z0-9_-]+$")
 
 
@@ -2447,15 +2446,6 @@ class Run:
             sync_items_pending=sync_data.sync_items_pending,
             sync_time=sync_time,
         )
-
-    def _add_panel(
-        self, visualize_key: str, panel_type: str, panel_config: dict
-    ) -> None:
-        config = {
-            "panel_type": panel_type,
-            "panel_config": panel_config,
-        }
-        self._config_callback(val=config, key=("_wandb", "visualize", visualize_key))
 
     def _redirect(
         self,

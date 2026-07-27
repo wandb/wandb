@@ -21,9 +21,10 @@ func MakeSyncSettings(
 ) *settings.Settings {
 	syncSettings := proto.CloneOf(globalSettings)
 
-	// Syncing ignores offline mode and the finish_timeout.
+	// Syncing ignores offline mode, finish_timeout and init_timeout
 	syncSettings.XOffline = nil
 	syncSettings.FinishTimeout = nil
+	syncSettings.InitTimeout = nil
 
 	// This determines files_dir.
 	syncSettings.SyncDir = wrapperspb.String(filepath.Dir(wandbFile))

@@ -1,6 +1,5 @@
 __all__ = (
     "Api",
-    "requests",  # doc:exclude
     "ArtifactCollection",
     "ArtifactCollections",
     "ProjectArtifactCollections",

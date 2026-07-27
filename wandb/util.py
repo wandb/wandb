@@ -59,7 +59,6 @@ _not_importable: set[str] = set()
 LAUNCH_JOB_ARTIFACT_SLOT_NAME = "_wandb_job"
 
 MAX_LINE_BYTES = (10 << 20) - (100 << 10)  # imposed by back end
-IS_GIT = os.path.exists(os.path.join(os.path.dirname(__file__), "..", ".git"))
 
 # From https://docs.docker.com/engine/reference/commandline/tag/
 # "Name components may contain lowercase letters, digits and separators.
