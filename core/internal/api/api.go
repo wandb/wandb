@@ -142,8 +142,6 @@ func NewClient(opts ClientOptions) RetryableClient {
 	retryableHTTP.RetryWaitMax = opts.RetryWaitMax
 	retryableHTTP.HTTPClient.Timeout = opts.NonRetryTimeout
 	retryableHTTP.PrepareRetry = opts.PrepareRetry
-
-	// Set the retry policy with debug logging if possible.
 	retryableHTTP.CheckRetry = withRetryObservation(
 		opts.RetryPolicy,
 		opts.Logger,
