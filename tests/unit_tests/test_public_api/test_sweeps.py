@@ -1,0 +1,419 @@
+from __future__ import annotations
+
+import gc
+import json
+import random
+import re
+from typing import Any
+
+import pytest
+import requests
+import wandb
+from wandb.apis._generated import GET_SWEEP_GQL, GET_SWEEPS_GQL
+from wandb.apis.public.sweeps import Sweep, _StructuredLogLine, _SweepLogStream
+from wandb.proto import wandb_internal_pb2 as pb
+
+_TIMESTAMP_PREFIX_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)? ")
+_TIMESTAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}$")
+
+
+class _FakeServiceApi:
+    """Minimal ServiceApi stand-in exposing only `feature_enabled`."""
+
+    def __init__(self, *, structured_console_logs: bool = False) -> None:
+        self._structured_console_logs = structured_console_logs
+
+    def feature_enabled(self, feature: Any, *, timeout: float = 10) -> bool:
+        if feature == pb.STRUCTURED_CONSOLE_LOGS:
+            return self._structured_console_logs
+        return False
+
+
+def _make_sweep(
+    attrs: dict[str, Any], *, structured_console_logs: bool = False
+) -> Sweep:
+    """Construct a Sweep with attrs so that no network load() occurs."""
+    service_api = _FakeServiceApi(structured_console_logs=structured_console_logs)
+    return Sweep(service_api, "e", "p", "s", attrs=attrs)
+
+
+class _FakeInternalApi:
+    def __init__(self, *args, **kwargs):
+        pass
+
+    @property
+    def request_auth(self) -> tuple[str, str]:
+        return ("api", "fake-api-key")
+
+    @property
+    def request_headers(self) -> dict[str, str]:
+        return {"User-Agent": "test-agent"}
+
+    @property
+    def request_proxies(self) -> dict[str, str]:
+        return {}
+
+    def settings(self, key: str | None = None) -> Any:
+        assert key == "base_url"
+        return "https://api.test.example"
+
+
+@pytest.fixture
+def posted_calls(monkeypatch) -> list[dict[str, Any]]:
+    """Stub out InternalApi and request_with_retry, capturing POSTs."""
+    calls: list[dict[str, Any]] = []
+
+    def fake_request_with_retry(func, url, **kwargs):
+        # func is the bound session.post; capture headers at call time.
+        calls.append(
+            {
+                "url": url,
+                "json": kwargs.get("json"),
+                "kwargs": kwargs,
+                "headers": dict(func.__self__.headers),
+            }
+        )
+        return requests.Response()
+
+    monkeypatch.setattr(
+        "wandb.sdk.internal.internal_api.Api",
+        _FakeInternalApi,
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.internal.file_stream.request_with_retry",
+        fake_request_with_retry,
+    )
+    return calls
+
+
+def test_controller_run_name_in_get_sweep_query_only():
+    assert "controllerRunName" in GET_SWEEP_GQL
+    assert "controllerRunName" not in GET_SWEEPS_GQL
+
+
+def test_controller_run_name_property():
+    sweep = _make_sweep({"name": "s", "controllerRunName": "abc123"})
+    assert sweep.controller_run_name == "abc123"
+
+
+@pytest.mark.parametrize(
+    "attrs",
+    [
+        {"name": "s"},
+        {"name": "s", "controllerRunName": ""},
+    ],
+)
+def test_controller_run_name_property_missing_or_empty(attrs):
+    sweep = _make_sweep(attrs)
+    assert sweep.controller_run_name is None
+
+
+def _flush(sweep) -> None:
+    """Force the background sender to deliver everything queued so far."""
+    if sweep._log_stream is not None:
+        sweep._log_stream.finish()
+
+
+def _all_content(posted_calls) -> list[str]:
+    """Flatten output.log content across every captured POST."""
+    return [
+        line
+        for call in posted_calls
+        for line in call["json"]["files"]["output.log"]["content"]
+    ]
+
+
+def test_log_happy_path(posted_calls):
+    sweep = _make_sweep({"name": "s", "controllerRunName": "abc123"})
+
+    sweep.log("hello world")
+    _flush(sweep)
+
+    assert len(posted_calls) == 1
+    call = posted_calls[0]
+    assert call["url"] == "https://api.test.example/files/e/p/abc123/file_stream"
+
+    body = call["json"]
+    assert set(body.keys()) == {"files", "dropped"}
+    assert body["dropped"] == 0
+    assert set(body["files"].keys()) == {"output.log"}
+    assert body["files"]["output.log"]["offset"] == 0
+
+    content = body["files"]["output.log"]["content"]
+    assert len(content) == 1
+    assert content[0].endswith("\n")
+    assert _TIMESTAMP_PREFIX_RE.match(content[0])
+    assert content[0].rstrip("\n").endswith(" hello world")
+
+
+def test_log_stream_reused_across_calls(posted_calls):
+    sweep = _make_sweep({"name": "s", "controllerRunName": "abc123"})
+
+    sweep.log("one", add_timestamps=False)
+    stream_after_first = sweep._log_stream
+    sweep.log("two", add_timestamps=False)
+    _flush(sweep)
+
+    # The background sender is built lazily once and reused across calls.
+    assert stream_after_first is not None
+    assert sweep._log_stream is stream_after_first
+    # Both lines are delivered (batched into one or more posts).
+    assert _all_content(posted_calls) == ["one\n", "two\n"]
+
+
+def test_log_list_input_without_timestamps(posted_calls):
+    sweep = _make_sweep({"name": "s", "controllerRunName": "abc123"})
+
+    sweep.log(["line one", "line two"], add_timestamps=False)
+    _flush(sweep)
+
+    assert _all_content(posted_calls) == ["line one\n", "line two\n"]
+
+
+def test_log_splits_embedded_newlines(posted_calls):
+    sweep = _make_sweep({"name": "s", "controllerRunName": "abc123"})
+
+    sweep.log("a\nb", add_timestamps=False)
+    _flush(sweep)
+
+    assert _all_content(posted_calls) == ["a\n", "b\n"]
+
+
+def test_log_drops_trailing_newline_segment(posted_calls):
+    sweep = _make_sweep({"name": "s", "controllerRunName": "abc123"})
+
+    sweep.log("a\nb\n", add_timestamps=False)
+    _flush(sweep)
+
+    assert _all_content(posted_calls) == ["a\n", "b\n"]
+
+
+def test_log_timestamps_prefix_every_line(posted_calls):
+    sweep = _make_sweep({"name": "s", "controllerRunName": "abc123"})
+
+    sweep.log(["x", "y"], add_timestamps=True)
+    _flush(sweep)
+
+    content = _all_content(posted_calls)
+    assert len(content) == 2
+    for line in content:
+        assert _TIMESTAMP_PREFIX_RE.match(line)
+        assert line.endswith("\n")
+
+
+def test_structured_log_line_to_json():
+    # Assert the semantic contract (content/ts/level/label values) rather than
+    # an exact string, so the choice to include or omit empty fields is free to
+    # change without breaking the test.
+    record = json.loads(
+        _StructuredLogLine("hi", ts="2024-01-02T03:04:05.678901").to_json()
+    )
+    assert record["ts"] == "2024-01-02T03:04:05.678901"
+    assert record["content"] == "hi"
+    assert record.get("level", "") == ""
+    assert record.get("label", "") == ""
+
+    record = json.loads(
+        _StructuredLogLine(
+            "boom", ts="2024-01-02T03:04:05.678901", level="error", label="node-1"
+        ).to_json()
+    )
+    assert record["content"] == "boom"
+    assert record["ts"] == "2024-01-02T03:04:05.678901"
+    assert record["level"] == "error"
+    assert record["label"] == "node-1"
+
+
+def test_log_structured_format_when_server_supports_it(posted_calls):
+    sweep = _make_sweep(
+        {"name": "s", "controllerRunName": "abc123"},
+        structured_console_logs=True,
+    )
+
+    sweep.log("hello world")
+    _flush(sweep)
+
+    content = _all_content(posted_calls)
+    assert len(content) == 1
+    assert content[0].endswith("\n")
+    record = json.loads(content[0])
+    # Each line is a JSON object with the timestamp in a dedicated field
+    # rather than packed into the content text.
+    assert record["content"] == "hello world"
+    assert _TIMESTAMP_RE.match(record["ts"])
+    assert record.get("level", "") == ""
+    assert record.get("label", "") == ""
+
+
+def test_log_structured_without_timestamps_has_empty_ts(posted_calls):
+    sweep = _make_sweep(
+        {"name": "s", "controllerRunName": "abc123"},
+        structured_console_logs=True,
+    )
+
+    sweep.log("hello world", add_timestamps=False)
+    _flush(sweep)
+
+    content = _all_content(posted_calls)
+    assert [json.loads(line)["content"] for line in content] == ["hello world"]
+    # No timestamp requested: `ts` is empty (or omitted, depending on encoding).
+    assert json.loads(content[0]).get("ts", "") == ""
+
+
+def test_log_structured_escapes_special_characters(posted_calls):
+    sweep = _make_sweep(
+        {"name": "s", "controllerRunName": "abc123"},
+        structured_console_logs=True,
+    )
+
+    raw = 'has "quotes" and \t a tab'
+    sweep.log(raw, add_timestamps=False)
+    _flush(sweep)
+
+    content = _all_content(posted_calls)
+    # Exactly one line (JSON escaping keeps the record on a single line) and it
+    # round-trips back to the original text.
+    assert len(content) == 1
+    assert json.loads(content[0])["content"] == raw
+
+
+@pytest.mark.parametrize("lines", ["", [], [""]])
+def test_log_empty_input_delivers_nothing(posted_calls, lines):
+    sweep = _make_sweep({"name": "s", "controllerRunName": "abc123"})
+
+    sweep.log(lines)
+    _flush(sweep)
+
+    # Input that splits to no console lines results in no delivered content.
+    assert posted_calls == []
+
+
+def test_log_dict_input_raises_not_implemented(posted_calls):
+    sweep = _make_sweep({"name": "s", "controllerRunName": "abc123"})
+
+    with pytest.raises(NotImplementedError, match="history is not"):
+        sweep.log({"loss": 0.1, "acc": 0.9})
+
+    assert posted_calls == []
+
+
+def test_log_without_controller_run_raises_and_makes_no_http_call(posted_calls):
+    sweep = _make_sweep({"name": "s"})
+
+    with pytest.raises(wandb.Error, match="no controller run"):
+        sweep.log("hello")
+
+    assert posted_calls == []
+
+
+def test_log_stream_local_offset_advances_per_batch(posted_calls):
+    # Exercise _post directly to avoid depending on background-thread batching
+    # timing. The local offset advances by the number of lines each post, even
+    # though the backend reassigns real offsets.
+    stream = _SweepLogStream(
+        requests.Session(),
+        "https://api.test.example/files/e/p/abc123/file_stream",
+    )
+
+    stream._post_no_exception(["a\n", "b\n"])
+    stream._post_no_exception(["c\n"])
+
+    offsets = [call["json"]["files"]["output.log"]["offset"] for call in posted_calls]
+    assert offsets == [0, 2]
+    assert stream._offset == 3
+
+
+def test_log_stream_thread_crash_is_caught_not_propagated(monkeypatch):
+    # An unexpected error in the send loop must be swallowed (logged/Sentry),
+    # not propagated out of the daemon thread.
+    stream = _SweepLogStream(requests.Session(), "https://api.test.example/fs")
+
+    def boom() -> None:
+        raise RuntimeError("kaboom")
+
+    monkeypatch.setattr(stream, "_loop", boom)
+
+    # _run is the thread target; it must return normally despite _loop raising.
+    stream._run()
+
+
+def test_on_retry_backs_off_with_jitter():
+    stream = _SweepLogStream(requests.Session(), "https://api.test.example/fs")
+    stream._rng = random.Random(0)  # deterministic jitter
+
+    # Non-429 statuses never change the pacing interval.
+    before = stream._interval
+    stream._on_retry(500, "boom")
+    assert stream._interval == before
+
+    # A 429 backs off but lands within the jittered [interval, 2*interval) band
+    # rather than on an exact multiple, so concurrent senders decorrelate.
+    start = stream._interval
+    stream._on_retry(429, "")
+    assert start <= stream._interval < 2 * start
+    assert stream._interval != 2 * start  # jitter applied, not a bare doubling
+
+    # Repeated 429s keep growing but are always clamped to the max interval.
+    for _ in range(100):
+        stream._on_retry(429, "")
+    assert stream._interval <= _SweepLogStream._MAX_INTERVAL
+
+
+def test_log_stream_post_error_is_dropped_not_raised(monkeypatch):
+    # An unexpected error while delivering a batch must not kill the sender;
+    # the batch is counted as dropped.
+    stream = _SweepLogStream(requests.Session(), "https://api.test.example/fs")
+
+    def boom(_lines: list[str]) -> None:
+        raise RuntimeError("kaboom")
+
+    monkeypatch.setattr(stream, "_post_batch", boom)
+
+    stream._post_no_exception(["a\n", "b\n"])
+
+    assert stream._dropped == 2
+
+
+def test_log_stream_splits_oversized_batch(posted_calls, monkeypatch):
+    from wandb import util
+
+    # Force every line into its own sub-payload to exercise byte-based
+    # splitting deterministically without allocating megabytes.
+    monkeypatch.setattr(util, "MAX_LINE_BYTES", 1)
+    stream = _SweepLogStream(
+        requests.Session(),
+        "https://api.test.example/files/e/p/abc123/file_stream",
+    )
+
+    stream._post_no_exception(["a\n", "b\n", "c\n"])
+
+    posts = [call["json"]["files"]["output.log"] for call in posted_calls]
+    assert [p["offset"] for p in posts] == [0, 1, 2]
+    assert [p["content"] for p in posts] == [["a\n"], ["b\n"], ["c\n"]]
+    assert stream._offset == 3
+
+
+def test_log_delivery_failure_is_dropped_not_raised(monkeypatch):
+    original_error = requests.exceptions.ConnectionError("boom")
+
+    def failing_request_with_retry(func, url, **kwargs):
+        # request_with_retry returns (not raises) the exception on final failure.
+        return original_error
+
+    monkeypatch.setattr(
+        "wandb.sdk.internal.internal_api.Api",
+        _FakeInternalApi,
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.internal.file_stream.request_with_retry",
+        failing_request_with_retry,
+    )
+
+    sweep = _make_sweep({"name": "s", "controllerRunName": "abc123"})
+
+    # Delivery happens on the background thread, so a failure must not surface
+    # to the caller; the line is counted as dropped instead.
+    sweep.log("hello")
+    _flush(sweep)
+
+    assert sweep._log_stream._dropped == 1

@@ -21,6 +21,7 @@ The `wandb sync --clean` command now exits with code 1 and prints a hint to use 
 ## Added
 
 - Added support for gzip compression of filestream requests, reducing network traffic when logging metrics. It is currently opt-in and requires server support: set `x_file_stream_no_gzip=False` in `wandb.Settings` to enable it. Compression will become the default in a future release (@dmitryduev in https://github.com/wandb/wandb/pull/12262)
+- Method Api().sweep().log() appends log lines to the sweep using a batching filestream writer. Enables `with Api().sweep()` for cleanup (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/12261)
 
 ## Changed
 

@@ -216,6 +216,7 @@ query GetSweep($name: String!, $project: String, $entity: String) {
   project(name: $project, entityName: $entity) {
     sweep(sweepName: $name) {
       ...SweepFragment
+      controllerRunName
     }
   }
 }

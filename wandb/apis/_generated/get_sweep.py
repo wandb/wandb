@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from pydantic import Field
+
 from wandb._pydantic import GQLResult
 
 from .fragments import SweepFragment
@@ -13,7 +15,11 @@ class GetSweep(GQLResult):
 
 
 class GetSweepProject(GQLResult):
-    sweep: SweepFragment | None
+    sweep: GetSweepProjectSweep | None
+
+
+class GetSweepProjectSweep(SweepFragment):
+    controller_run_name: str = Field(alias="controllerRunName")
 
 
 GetSweep.model_rebuild()
