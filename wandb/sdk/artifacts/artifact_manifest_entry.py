@@ -169,8 +169,12 @@ class ArtifactManifestEntry(ArtifactsBase):
 
     def digest_algorithm(self) -> ArtifactDigestAlgorithm:
         """The digest algorithm used to hash this entry's file."""
-        raw = self.extra.get(DIGEST_ALGORITHM_EXTRA_KEY)
-        return _STR_TO_DIGEST_ALGORITHM.get(raw, ArtifactDigestAlgorithm.MANIFEST_MD5)
+        alg = self.extra.get(DIGEST_ALGORITHM_EXTRA_KEY)
+        if isinstance(alg, str):
+            return _STR_TO_DIGEST_ALGORITHM.get(
+                alg, ArtifactDigestAlgorithm.MANIFEST_MD5
+            )
+        return ArtifactDigestAlgorithm.MANIFEST_MD5
 
     def download(
         self,
