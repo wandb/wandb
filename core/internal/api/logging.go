@@ -40,6 +40,9 @@ func withRetryObservation(
 	policy retryablehttp.CheckRetry,
 	logger *slog.Logger,
 ) retryablehttp.CheckRetry {
+	if policy == nil {
+		panic("api: withRetryLogging: nil policy")
+	}
 	if logger == nil {
 		panic("api: withRetryLogging: nil logger")
 	}
