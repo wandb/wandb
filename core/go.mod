@@ -26,7 +26,7 @@ require (
 	github.com/hashicorp/golang-lru v1.0.2
 	github.com/mattn/go-runewidth v0.0.27
 	github.com/muesli/termenv v0.16.0
-	github.com/prometheus/client_golang v1.24.0
+	github.com/prometheus/client_golang v1.24.1
 	github.com/prometheus/common v0.70.1
 	github.com/prometheus/procfs v0.21.1
 	github.com/radovskyb/watcher v1.0.7
