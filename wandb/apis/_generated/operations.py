@@ -2,8 +2,11 @@
 # Source: tools/graphql_codegen/api/
 
 __all__ = [
+    "CREATE_CUSTOM_CHART_GQL",
+    "CREATE_DEFAULT_RESOURCE_CONFIG_GQL",
     "CREATE_INVITE_GQL",
     "CREATE_PROJECT_GQL",
+    "CREATE_RUN_QUEUE_GQL",
     "CREATE_SERVICE_ACCOUNT_GQL",
     "CREATE_TEAM_GQL",
     "CREATE_USER_FROM_ADMIN_GQL",
@@ -24,6 +27,18 @@ __all__ = [
     "IS_PROJECT_READ_ONLY_GQL",
     "SEARCH_USERS_GQL",
 ]
+
+CREATE_CUSTOM_CHART_GQL = """
+mutation CreateCustomChart($entity: String!, $name: String!, $displayName: String!, $type: String!, $access: String!, $spec: JSONString!) {
+  createCustomChart(
+    input: {entity: $entity, name: $name, displayName: $displayName, type: $type, access: $access, spec: $spec}
+  ) {
+    chart {
+      id
+    }
+  }
+}
+"""
 
 GET_PROJECTS_GQL = """
 query GetProjects($entity: String, $cursor: String, $perPage: Int = 50) {
@@ -167,6 +182,28 @@ IS_PROJECT_READ_ONLY_GQL = """
 query IsProjectReadOnly($entity: String!, $project: String!) {
   project(entityName: $entity, name: $project) {
     readOnly
+  }
+}
+"""
+
+CREATE_DEFAULT_RESOURCE_CONFIG_GQL = """
+mutation CreateDefaultResourceConfig($entityName: String!, $resource: String!, $config: JSONString!, $templateVariables: JSONString) {
+  createDefaultResourceConfig(
+    input: {entityName: $entityName, resource: $resource, config: $config, templateVariables: $templateVariables}
+  ) {
+    defaultResourceConfigID
+    success
+  }
+}
+"""
+
+CREATE_RUN_QUEUE_GQL = """
+mutation CreateRunQueue($entity: String!, $project: String!, $queueName: String!, $access: RunQueueAccessType!, $prioritizationMode: RunQueuePrioritizationMode, $defaultResourceConfigID: ID) {
+  createRunQueue(
+    input: {entityName: $entity, projectName: $project, queueName: $queueName, access: $access, prioritizationMode: $prioritizationMode, defaultResourceConfigID: $defaultResourceConfigID}
+  ) {
+    success
+    queueID
   }
 }
 """

@@ -2,3 +2,15 @@
 # Source: core/api/graphql/schemas/schema-latest.graphql
 
 from __future__ import annotations
+
+from enum import Enum
+
+
+class RunQueueAccessType(str, Enum):
+    PROJECT = "PROJECT"
+    USER = "USER"
+
+
+class RunQueuePrioritizationMode(str, Enum):
+    DISABLED = "DISABLED"
+    V0 = "V0"
