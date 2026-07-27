@@ -417,8 +417,6 @@ def test_run_retry(wandb_backend_spy):
     with wandb.init() as seed_run:
         seed_run.log(dict(acc=100, loss=0))
 
-    # Construct the Api before stubbing so that the one-shot stub is consumed
-    # by the Run query below, not by constructor-time credential verification.
     api = Api()
 
     gql = wandb_backend_spy.gql
@@ -1088,8 +1086,6 @@ def test_viewer(user: str, api: wandb.Api):
 
 
 def test_create_team_exists(wandb_backend_spy):
-    # Construct the Api before stubbing so that its constructor-time
-    # credential verification doesn't trip the catch-all stub.
     api = Api()
 
     gql = wandb_backend_spy.gql
