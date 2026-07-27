@@ -102,7 +102,10 @@ def test_loads_oidc_from_environment_variable(
 
     assert isinstance(result, AuthIdentityTokenFile)
     assert result.host.is_same_url("https://fake-url")
-    assert result.path == pathlib.Path("file.jwt")
+    # The path is absolutized so that the wandb-core service process,
+    # whose working directory may differ, reads the intended file.
+    assert result.path == pathlib.Path("file.jwt").absolute()
+    assert result.path.is_absolute()
     mock_wandb_log.assert_logged(
         "[test] Loaded credentials for https://fake-url from"
         + " WANDB_IDENTITY_TOKEN_FILE."

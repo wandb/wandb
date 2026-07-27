@@ -11,6 +11,8 @@ from wandb.proto import wandb_server_pb2 as spb
 from wandb.proto.wandb_api_pb2 import (
     ApiRequest,
     ApiResponse,
+    AuthenticateRequest,
+    AuthenticateResponse,
     FeaturesRequest,
     GraphQLRequest,
 )
@@ -167,6 +169,37 @@ class ServiceApi:
             timeout=self._timeout if timeout is None else timeout,
         )
         return parse(resp.graphql_response.data_json)
+
+    def authenticate(
+        self,
+        timeout: float | None = None,
+    ) -> AuthenticateResponse:
+        """Verify credentials with the W&B server and identify their account.
+
+        The credentials come from the settings this object was created with:
+        an API key, or an identity token file when using federated identity.
+        wandb-core authenticates to the W&B backend and asks it who the
+        credentials belong to.
+
+        Args:
+            timeout: Optional timeout in seconds for waiting on wandb-core.
+                On timeout, the request is cancelled on a best-effort basis.
+
+        Returns:
+            Information about the authenticated account (a user or a
+            service account), including the default entity and username.
+
+        Raises:
+            WandbApiFailedError: If the server rejects the credentials or the
+                request fails for any other reason, including timeouts while
+                waiting on wandb-core and transport errors.
+        """
+        req = ApiRequest(authenticate_request=AuthenticateRequest())
+        resp = self.send_api_request(
+            req,
+            timeout=self._timeout if timeout is None else timeout,
+        )
+        return resp.authenticate_response
 
     async def send_api_request_async(
         self,
