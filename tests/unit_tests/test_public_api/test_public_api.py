@@ -512,9 +512,7 @@ def test_artifact_from_id_uses_service_api(monkeypatch):
     artifact_instance_cache.pop(artifact_id, None)
     service_api = MagicMock()
     service_api.execute_graphql.return_value = {}
-    monkeypatch.setattr(
-        "wandb.sdk.artifacts.artifact.server_supports", MagicMock(return_value=True)
-    )
+    service_api.feature_enabled.return_value = True
     artifact = SimpleNamespace(
         artifact_sequence=SimpleNamespace(
             name="dataset",
@@ -537,7 +535,7 @@ def test_artifact_from_id_uses_service_api(monkeypatch):
         ARTIFACT_BY_ID_GQL,
         variables={"id": artifact_id},
         parse=ArtifactByID.model_validate_json,
-        omit_fields=None,
+        omit_fields=set(),
     )
     path, src_art, actual_service_api = from_attrs.call_args.args
     assert path.to_str() == "entity/project/dataset:v3"
