@@ -129,6 +129,18 @@ func (s *Settings) GetFinishTimeout() time.Duration {
 	return time.Duration(timeoutMs) * time.Millisecond
 }
 
+// The time the client waits for the response to a run initialization
+// request, after which it gives up.
+//
+// If not positive, there is no timeout.
+func (s *Settings) GetInitTimeout() time.Duration {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	timeoutMs := int64(s.Proto.InitTimeout.GetValue() * 1000)
+	return time.Duration(timeoutMs) * time.Millisecond
+}
+
 // The start time of the run in microseconds since the Unix epoch.
 func (s *Settings) GetStartTime() time.Time {
 	seconds := s.Proto.XStartTime.GetValue()
