@@ -959,6 +959,9 @@ def test_artifact_upload_with_fallback(api: Api):
     # check that the digest is correctly computed with xxh128
     assert artifact.digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH128
     assert artifact.digest == "fe0d6c1a25b6d98451da9b04ebf6d80c"
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert manifest_contents["file1.txt"]["extra"] == {"alg": "XXH128"}
+    assert manifest_contents["file1.txt"]["digest"] == "tenBrQcbPn/Hec+qXlI4GA=="
 
     with wandb.init(project=project) as run:
         run.log_artifact(artifact)
@@ -971,11 +974,14 @@ def test_artifact_upload_with_fallback(api: Api):
     assert len(manifest_contents) == 1
     manifest_entry = artifact.get_entry("file1.txt")
     assert manifest_entry.digest == "XUFAKrxLKna5cZ2REBfFkg=="
+    assert manifest_entry.extra == {}
 
     # also fetch the artifact from the API and check the digest
     fetched_artifact = api.artifact(f"{project}/test-artifact:latest")
     assert fetched_artifact.digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_MD5
     assert fetched_artifact.digest == "a00c2239f036fb656c1dcbf9a32d89b4"
+    manifest_entry = fetched_artifact.get_entry("file1.txt")
+    assert manifest_entry.extra == {}
 
 
 def test_artifact_upload_with_correct_digests(api: Api):
@@ -1000,6 +1006,7 @@ def test_artifact_upload_with_correct_digests(api: Api):
 
         entry = fetched.get_entry("file1.txt")
         assert entry.digest == "tenBrQcbPn/Hec+qXlI4GA=="
+        assert entry.extra == {"alg": "XXH128"}
 
         fetched.download()
         fetched.verify()
@@ -1016,9 +1023,62 @@ def test_artifact_upload_with_correct_digests(api: Api):
 
         entry = fetched.get_entry("file1.txt")
         assert entry.digest == "XUFAKrxLKna5cZ2REBfFkg=="
+        assert entry.extra == {}
 
         fetched.download()
         fetched.verify()
 
         draft = fetched.new_draft()
         assert draft.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_MD5
+
+
+def test_artifact_new_draft_mixed_digest_algorithms(api: Api):
+    """Test that a new draft of an artifact with mixed digest algorithms is correctly created."""
+    if not server_supports(api._service_api, pb.ARTIFACT_DIGEST_ALGORITHM):
+        return
+
+    artifact = Artifact("test-artifact", type="dataset")
+    assert artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128
+    Path("file1.txt").write_text("hello")
+    artifact.add_file("file1.txt")
+
+    with wandb.init(project="test") as run:
+        run.log_artifact(artifact)
+        artifact.wait()
+
+    fetched = api.artifact("test/test-artifact:latest")
+    assert fetched.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128
+    entry = fetched.get_entry("file1.txt")
+    assert entry.extra == {"alg": "XXH128"}
+
+    # mimic old SDK behavior by forcing MD5 for new drafts
+    draft = fetched.new_draft()
+    draft._digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_MD5
+    draft.manifest.digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_MD5
+
+    # check that we're hashing the manifest with MD5
+    assert draft.digest == "8800d706cf6a3d3d1ca11dc419b9f860"
+
+    # add a new file to the draft, check that it's hashed with MD5
+    Path("file2.txt").write_text("hi")
+    draft.add_file("file2.txt")
+    manifest_contents = draft.manifest.to_manifest_json()["contents"]
+    file2_entry = manifest_contents["file2.txt"]
+    assert file2_entry.get("extra") is None
+    assert file2_entry["digest"] == md5_string("hi")
+
+    with wandb.init(project="test") as run:
+        run.log_artifact(draft)
+        draft.wait()
+
+    fetched = api.artifact("test/test-artifact:latest")
+    assert fetched.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_MD5
+    assert fetched.digest == "2799203cb650433b7c69edef406fdc5b"
+
+    file1_entry = fetched.get_entry("file1.txt")
+    assert file1_entry.extra == {"alg": "XXH128"}
+    assert file1_entry.digest == xxh128_string("hello")
+    
+    file2_entry = fetched.get_entry("file2.txt")
+    assert file2_entry.extra == {}
+    assert file2_entry.digest == md5_string("hi")
