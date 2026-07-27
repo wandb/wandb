@@ -26,6 +26,7 @@ __all__ = [
     "GET_VIEWER_GQL",
     "IS_PROJECT_READ_ONLY_GQL",
     "SEARCH_USERS_GQL",
+    "UPSERT_RUN_QUEUE_GQL",
 ]
 
 CREATE_CUSTOM_CHART_GQL = """
@@ -204,6 +205,17 @@ mutation CreateRunQueue($entity: String!, $project: String!, $queueName: String!
   ) {
     success
     queueID
+  }
+}
+"""
+
+UPSERT_RUN_QUEUE_GQL = """
+mutation upsertRunQueue($entityName: String!, $projectName: String!, $queueName: String!, $resourceType: String!, $resourceConfig: JSONString!, $templateVariables: JSONString, $prioritizationMode: RunQueuePrioritizationMode, $externalLinks: JSONString, $clientMutationId: String) {
+  upsertRunQueue(
+    input: {entityName: $entityName, projectName: $projectName, queueName: $queueName, resourceType: $resourceType, resourceConfig: $resourceConfig, templateVariables: $templateVariables, prioritizationMode: $prioritizationMode, externalLinks: $externalLinks, clientMutationId: $clientMutationId}
+  ) {
+    success
+    configSchemaValidationErrors
   }
 }
 """

@@ -25,6 +25,7 @@ __all__ = [
     "GET_VIEWER_GQL",
     "IS_PROJECT_READ_ONLY_GQL",
     "SEARCH_USERS_GQL",
+    "UPSERT_RUN_QUEUE_GQL",
     "CreateCustomChart",
     "GetProjects",
     "GetProject",
@@ -32,6 +33,7 @@ __all__ = [
     "IsProjectReadOnly",
     "CreateDefaultResourceConfig",
     "CreateRunQueue",
+    "UpsertRunQueue",
     "GetSweeps",
     "GetSweep",
     "GetSweepLegacy",
@@ -133,5 +135,7 @@ from .operations import (
     GET_VIEWER_GQL,
     IS_PROJECT_READ_ONLY_GQL,
     SEARCH_USERS_GQL,
+    UPSERT_RUN_QUEUE_GQL,
 )
 from .search_users import SearchUsers
+from .upsert_run_queue import UpsertRunQueue

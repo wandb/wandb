@@ -34,6 +34,7 @@ from wandb.apis._generated import (
     CREATE_CUSTOM_CHART_GQL,
     CREATE_DEFAULT_RESOURCE_CONFIG_GQL,
     CREATE_RUN_QUEUE_GQL,
+    UPSERT_RUN_QUEUE_GQL,
     CreateCustomChart,
     CreateDefaultResourceConfig,
     CreateRunQueue,
@@ -614,13 +615,6 @@ class Api:
             )
 
         self.create_project(LAUNCH_DEFAULT_PROJECT, entity)
-        api = InternalApi(
-            default_settings={
-                "entity": entity,
-                "project": self.project(LAUNCH_DEFAULT_PROJECT),
-            },
-            retry_timedelta=RETRY_TIMEDELTA,
-        )
         # User provides external_links as a dict with name: url format
         # but backend stores it as a list of dicts with url and label keys.
         external_links = external_links or {}
@@ -633,15 +627,20 @@ class Api:
                 for key, value in external_links.items()
             ]
         }
-        upsert_run_queue_result = api.upsert_run_queue(
-            name,
-            entity,
-            resource_type,
-            {"resource_args": {resource_type: resource_config}},
-            template_variables=template_variables,
-            external_links=external_links,
-            prioritization_mode=prioritization_mode,
+        upsert_run_queue_result = self._service_api.execute_graphql(
+            UPSERT_RUN_QUEUE_GQL,
+            {
+                "entityName": entity,
+                "projectName": LAUNCH_DEFAULT_PROJECT,
+                "queueName": name,
+                "resourceType": resource_type,
+                "resourceConfig": resource_config,
+                "templateVariables": template_variables,
+                "externalLinks": external_links,
+                "prioritizationMode": prioritization_mode,
+            },
         )
+
         if not upsert_run_queue_result["success"]:
             raise wandb.Error("failed to create run queue")
         schema_errors = (

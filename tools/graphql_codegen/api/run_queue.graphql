@@ -39,3 +39,32 @@ mutation CreateRunQueue(
         queueID
     }
 }
+
+mutation upsertRunQueue(
+    $entityName: String!
+    $projectName: String!
+    $queueName: String!
+    $resourceType: String!
+    $resourceConfig: JSONString!
+    $templateVariables: JSONString
+    $prioritizationMode: RunQueuePrioritizationMode
+    $externalLinks: JSONString
+    $clientMutationId: String
+) {
+    upsertRunQueue(
+        input: {
+            entityName: $entityName
+            projectName: $projectName
+            queueName: $queueName
+            resourceType: $resourceType
+            resourceConfig: $resourceConfig
+            templateVariables: $templateVariables
+            prioritizationMode: $prioritizationMode
+            externalLinks: $externalLinks
+            clientMutationId: $clientMutationId
+        }
+    ) {
+        success
+        configSchemaValidationErrors
+    }
+}
