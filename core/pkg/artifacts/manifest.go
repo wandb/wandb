@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"sort"
 	"sync"
@@ -18,6 +19,10 @@ import (
 	"github.com/wandb/wandb/core/internal/nullify"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
+
+// maxSimultaneousHashes is the maximum number of concurrent
+// hash operations.
+const maxSimultaneousHashes = 128
 
 type Manifest struct {
 	Version             int32                    `json:"version"`
@@ -212,45 +217,31 @@ func (m *Manifest) GetManifestEntryFromArtifactFilePath(path string) (ManifestEn
 // HashContentsWithMd5 hashes the contents of the manifest with MD5.
 func (m *Manifest) HashContentsWithMd5() error {
 	var mu sync.Mutex
-	toHash := make([]struct {
-		path      string
-		localPath string
-	}, 0, len(m.Contents))
 
-	for path, entry := range m.Contents {
+	g, _ := errgroup.WithContext(context.Background())
+	g.SetLimit(maxSimultaneousHashes)
+	for path, entry := range maps.Clone(m.Contents) {
 		if entry.LocalPath == nil || entry.Ref != nil {
 			continue
 		}
-		toHash = append(toHash, struct {
-			path      string
-			localPath string
-		}{path: path, localPath: *entry.LocalPath})
-	}
-
-	// Hash files in parallel.
-	g, _ := errgroup.WithContext(context.Background())
-	for _, item := range toHash {
 		g.Go(func() error {
-			md5Hash, err := hashencode.ComputeFileB64MD5(item.localPath)
+			md5Hash, err := hashencode.ComputeFileB64MD5(*entry.LocalPath)
 			if err != nil {
 				return fmt.Errorf("ArtifactSaver.hashArtifactWithMd5: %w", err)
 			}
 
-			mu.Lock()
-			entry := m.Contents[item.path]
 			entry.Digest = md5Hash
-			// Drop any per-entry digest algorithm tag
+			// Drop any per-entry digest algorithm tag.
 			delete(entry.Extra, digestAlgorithmExtraKey)
-			m.Contents[item.path] = entry
+
+			mu.Lock()
+			m.Contents[path] = entry
 			mu.Unlock()
 			return nil
 		})
 	}
-	if err := g.Wait(); err != nil {
-		return err
-	}
 
-	return nil
+	return g.Wait()
 }
 
 func (m *Manifest) ArtifactDigest(digestAlgorithm gql.ArtifactDigestAlgorithm) (string, error) {
