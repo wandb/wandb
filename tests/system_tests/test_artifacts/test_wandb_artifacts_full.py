@@ -1078,7 +1078,7 @@ def test_artifact_new_draft_mixed_digest_algorithms(api: Api):
     file1_entry = fetched.get_entry("file1.txt")
     assert file1_entry.extra == {"alg": "XXH128"}
     assert file1_entry.digest == xxh128_string("hello")
-    
+
     file2_entry = fetched.get_entry("file2.txt")
     assert file2_entry.extra == {}
     assert file2_entry.digest == md5_string("hi")

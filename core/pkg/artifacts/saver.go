@@ -423,11 +423,14 @@ func (as *ArtifactSaver) uploadFiles(
 
 		// if the artifact is using xxh64 and the file is not a multipart upload, hash it with md5 for the integrity check
 		md5Digest := entry.Digest
-		if as.artifact.DigestAlgorithm == string(gql.ArtifactDigestAlgorithmManifestXxh128) &&
-			parts == nil {
-			md5Digest, err = hashencode.ComputeFileB64MD5(*entry.LocalPath)
-			if err != nil {
-				return err
+		if as.artifact.DigestAlgorithm == string(gql.ArtifactDigestAlgorithmManifestXxh128) {
+			if parts == nil {
+				md5Digest, err = hashencode.ComputeFileB64MD5(*entry.LocalPath)
+				if err != nil {
+					return err
+				}
+			} else {
+				md5Digest = ""
 			}
 		}
 		fileSpec := gql.CreateArtifactFileSpecInput{
