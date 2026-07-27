@@ -40,7 +40,6 @@ from wandb.apis._generated import (
     CreateRunQueue,
 )
 from wandb.apis.normalize import normalize_exceptions
-from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.apis.public.registries import Registries, Registry
 from wandb.apis.public.registries._utils import fetch_org_entity_from_organization
 from wandb.apis.public.service_api import ServiceApi
