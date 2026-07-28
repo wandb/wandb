@@ -1652,4 +1652,8 @@ enum ServerFeature {
 
   // Indicates that the server supports gzip-compressed filestream request bodies.
   FILESTREAM_GZIP = 34;
+
+  // Indicates that the server supports the enqueueSweepRun mutation, used by
+  // the local sweep scheduler to enqueue runs.
+  SWEEPS_LOCAL_SCHEDULER = 35;
 }
