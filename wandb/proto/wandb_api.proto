@@ -227,9 +227,6 @@ message StopRunRequest {
 message StopRunResponse {}
 
 // Create a custom chart preset.
-//
-// A successful request returns CreateCustomChartResponse with the ID of the
-// chart preset. Failures return ApiErrorResponse.
 message CreateCustomChartRequest {
   // The entity (user or team) that owns the chart.
   string entity = 1;

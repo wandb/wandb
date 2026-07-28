@@ -1403,9 +1403,6 @@ func (*StopRunResponse) Descriptor() ([]byte, []int) {
 }
 
 // Create a custom chart preset.
-//
-// A successful request returns CreateCustomChartResponse with the ID of the
-// chart preset. Failures return ApiErrorResponse.
 type CreateCustomChartRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The entity (user or team) that owns the chart.

@@ -26,7 +26,10 @@ func (h *RunQueueHandler) HandleRequest(
 ) *spb.ApiResponse {
 	switch operation := request.Operation.(type) {
 	case *spb.RunQueueOperationRequest_CreateDefaultResourceConfigRequest:
-		return h.HandleCreateDefaultResourceConfig(ctx, operation.CreateDefaultResourceConfigRequest)
+		return h.HandleCreateDefaultResourceConfig(
+			ctx,
+			operation.CreateDefaultResourceConfigRequest,
+		)
 	case *spb.RunQueueOperationRequest_CreateRunQueueRequest:
 		return h.HandleCreateRunQueue(ctx, operation.CreateRunQueueRequest)
 	case *spb.RunQueueOperationRequest_UpsertRunQueueRequest:
