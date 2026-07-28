@@ -1322,7 +1322,7 @@ def init(  # noqa: C901
             proceed. If `False` (default), the script can proceed without a login,
             switching to offline mode if the user is not logged in.
         reinit: Shorthand for the "reinit" setting. Determines the behavior of
-            `wandb.init()` when a run is active.
+            `wandb.init()` when a run is active. Options include:
         - `"default"`: Use "finish_previous" in notebooks and "return_previous"
             otherwise.
         - `"return_previous"`: Return the most recently created run
