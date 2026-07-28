@@ -1,6 +1,8 @@
 package api
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -11,17 +13,15 @@ import (
 
 // Do implements RetryableClient.Do.
 func (client *clientImpl) Do(req *retryablehttp.Request) (*http.Response, error) {
+	// Track retried errors to provide a better error message at the end.
+	req = req.WithContext(withRetryObserver(req.Context()))
+
 	resp, err := client.retryableHTTP.Do(req)
+	wboperation.Get(req.Context()).ClearError()
 
 	if err != nil {
-		// Keep the operation's error status: it identifies the error that
-		// was being retried, which is usually more specific than the final
-		// error. In particular, when the request is cancelled by a deadline
-		// during a retry backoff, `err` is a bare context error.
-		return nil, err
+		return nil, enhanceContextError(err, lastRetriedError(req.Context()))
 	}
-
-	wboperation.Get(req.Context()).ClearError()
 
 	// This is a bug that happens with retryablehttp sometimes.
 	if resp == nil {
@@ -30,4 +30,24 @@ func (client *clientImpl) Do(req *retryablehttp.Request) (*http.Response, error)
 
 	client.logFinalResponseOnError(req, resp)
 	return resp, nil
+}
+
+// enhanceContextError adds the message of the most recently retried error
+// to context cancellation and timeout errors.
+func enhanceContextError(finalErr error, lastRetriedErr string) error {
+	if lastRetriedErr == "" {
+		return finalErr
+	}
+
+	if !errors.Is(finalErr, context.Canceled) &&
+		!errors.Is(finalErr, context.DeadlineExceeded) {
+		return finalErr
+	}
+
+	// Use Join to preserve the fact that this is a cancellation or timeout,
+	// so that callers can check it.
+	return errors.Join(
+		finalErr,
+		fmt.Errorf("last status: %s", lastRetriedErr),
+	)
 }
