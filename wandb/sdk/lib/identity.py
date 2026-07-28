@@ -20,8 +20,7 @@ class Identity:
     """Who the W&B server says the session credentials belong to.
 
     This is what the server calls the "viewer": the account that the
-    credentials authenticate as, which is either a human user or a
-    service account.
+    credentials authenticate as.
     """
 
     default_entity: str
