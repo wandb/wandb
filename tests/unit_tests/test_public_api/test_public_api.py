@@ -8,7 +8,6 @@ import pytest
 import wandb
 from pytest_mock import MockerFixture
 from wandb import Api
-from wandb.apis import internal
 from wandb.apis._generated import ProjectFragment, UserFragment
 from wandb.errors import UsageError
 from wandb.proto import wandb_api_pb2 as apb
@@ -233,35 +232,36 @@ def test_artifact_download_logger():
             termlog.assert_not_called()
 
 
-def test_create_custom_chart():
-    _api = internal.Api()
-    _api.api.execute = MagicMock(
-        return_value={"createCustomChart": {"chart": {"id": "1"}}}
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
+def test_public_api_create_custom_chart_sends_typed_request():
+    api = Api()
+    api._service_api = MagicMock()
+    api._service_api.send_api_request.return_value = apb.ApiResponse(
+        create_custom_chart_response=apb.CreateCustomChartResponse(
+            chart_id="test-entity/chart"
+        )
     )
 
-    # Test with uppercase access (as would be passed from public API)
-    kwargs = {
-        "entity": "test-entity",
-        "name": "chart",
-        "display_name": "Chart",
-        "spec_type": "vega2",
-        "access": "PRIVATE",  # Uppercase as converted by public API
-        "spec": {},
-    }
+    chart_id = api.create_custom_chart(
+        entity="test-entity",
+        name="chart",
+        display_name="Chart",
+        spec_type="vega2",
+        access="private",
+        spec={"mark": "bar"},
+    )
 
-    resp = _api.create_custom_chart(**kwargs)
-    assert resp == {"chart": {"id": "1"}}
-    _api.api.execute.assert_called_once()
-    query, variables = _api.api.execute.call_args.args
-    assert "mutation CreateCustomChart" in query
-    assert variables == {
-        "entity": "test-entity",
-        "name": "chart",
-        "displayName": "Chart",
-        "type": "vega2",
-        "access": "PRIVATE",
-        "spec": json.dumps({}),
-    }
+    assert chart_id == "test-entity/chart"
+    api._service_api.send_api_request.assert_called_once()
+    request = api._service_api.send_api_request.call_args.args[0]
+    assert request.WhichOneof("request") == "create_custom_chart_request"
+    create_chart = request.create_custom_chart_request
+    assert create_chart.entity == "test-entity"
+    assert create_chart.name == "chart"
+    assert create_chart.display_name == "Chart"
+    assert create_chart.spec_type == "vega2"
+    assert create_chart.access == "PRIVATE"
+    assert create_chart.spec == json.dumps({"mark": "bar"})
 
 
 def test_initialize_api_authenticates(

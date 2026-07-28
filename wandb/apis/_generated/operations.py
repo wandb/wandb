@@ -2,7 +2,6 @@
 # Source: tools/graphql_codegen/api/
 
 __all__ = [
-    "CREATE_CUSTOM_CHART_GQL",
     "CREATE_DEFAULT_RESOURCE_CONFIG_GQL",
     "CREATE_INVITE_GQL",
     "CREATE_PROJECT_GQL",
@@ -28,18 +27,6 @@ __all__ = [
     "SEARCH_USERS_GQL",
     "UPSERT_RUN_QUEUE_GQL",
 ]
-
-CREATE_CUSTOM_CHART_GQL = """
-mutation CreateCustomChart($entity: String!, $name: String!, $displayName: String!, $type: String!, $access: String!, $spec: JSONString!) {
-  createCustomChart(
-    input: {entity: $entity, name: $name, displayName: $displayName, type: $type, access: $access, spec: $spec}
-  ) {
-    chart {
-      id
-    }
-  }
-}
-"""
 
 GET_PROJECTS_GQL = """
 query GetProjects($entity: String, $cursor: String, $perPage: Int = 50) {

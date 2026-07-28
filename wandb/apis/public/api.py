@@ -31,11 +31,9 @@ from wandb._iterutils import one
 from wandb._strutils import nameof
 from wandb.apis import public
 from wandb.apis._generated import (
-    CREATE_CUSTOM_CHART_GQL,
     CREATE_DEFAULT_RESOURCE_CONFIG_GQL,
     CREATE_RUN_QUEUE_GQL,
     UPSERT_RUN_QUEUE_GQL,
-    CreateCustomChart,
     CreateDefaultResourceConfig,
     CreateRunQueue,
     UpsertRunQueue,
@@ -50,6 +48,7 @@ from wandb.apis.public.utils import (
     parse_org_from_registry_path,
 )
 from wandb.errors import UsageError
+from wandb.proto import wandb_api_pb2 as apb
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk import wandb_login, wandb_setup
@@ -526,28 +525,19 @@ class Api:
         backend_access = access.upper()
         spec_json = spec if isinstance(spec, str) else json.dumps(spec)
 
-        result = self._service_api.execute_graphql(
-            CREATE_CUSTOM_CHART_GQL,
-            {
-                "entity": entity,
-                "name": name,
-                "displayName": display_name,
-                "type": spec_type,
-                "access": backend_access,
-                "spec": spec_json,
-            },
-            parse=CreateCustomChart.model_validate_json,
+        response = self._service_api.send_api_request(
+            apb.ApiRequest(
+                create_custom_chart_request=apb.CreateCustomChartRequest(
+                    entity=entity,
+                    name=name,
+                    display_name=display_name,
+                    spec_type=spec_type,
+                    access=backend_access,
+                    spec=spec_json,
+                )
+            )
         )
-
-        if result is None or result.create_custom_chart is None:
-            raise wandb.Error("failed to create custom chart")
-
-        if (
-            result.create_custom_chart is None
-            or result.create_custom_chart.chart.id is None
-        ):
-            return ""
-        return result.create_custom_chart.chart.id
+        return response.create_custom_chart_response.chart_id
 
     def upsert_run_queue(
         self,
