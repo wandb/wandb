@@ -173,6 +173,22 @@ def _project_id_from_gql_id(gql_id: str) -> int | None:
             raise ValueError(f"Invalid project ID: {gql_id!r}")
 
 
+def filter_for_registry(
+    registry: Registry,
+    *,
+    service_api: ServiceApi,
+    organization: str,
+) -> dict[str, Any]:
+    filt: dict[str, Any] = {"name": registry.full_name}
+    if project_encoded_id := registry.internal_id:
+        return filt | {
+            registry_id_filter_key(service_api, organization): _project_id_from_gql_id(
+                project_encoded_id
+            )
+        }
+    return filt
+
+
 @lru_cache(maxsize=10)
 def advanced_search_enabled(service_api: ServiceApi, organization: str) -> bool:
     """Whether the organization has ClickHouse-backed advanced registry search.
@@ -210,16 +226,12 @@ def advanced_search_enabled(service_api: ServiceApi, organization: str) -> bool:
     )
 
 
-def filter_for_registry(
-    registry: Registry,
-    *,
-    service_api: ServiceApi,
-    organization: str,
-) -> dict[str, Any]:
-    filt: dict[str, Any] = {"name": registry.full_name}
-    if project_encoded_id := registry.internal_id:
-        return filt | {"id": _project_id_from_gql_id(project_encoded_id)}
-    return filt
+@lru_cache(maxsize=10)
+def registry_id_filter_key(service_api: ServiceApi, organization: str) -> str:
+    """Return the registry project filter key for the organization's search backend."""
+    if advanced_search_enabled(service_api, organization):
+        return "project_id"
+    return "id"
 
 
 def registry_filter_for_collection(
@@ -232,5 +244,9 @@ def registry_filter_for_collection(
     if registry_name := collection.project:
         filt["name"] = registry_name
     if project_encoded_id := collection.project_internal_id:
-        return filt | {"id": _project_id_from_gql_id(project_encoded_id)}
+        return filt | {
+            registry_id_filter_key(service_api, organization): _project_id_from_gql_id(
+                project_encoded_id
+            )
+        }
     return filt
