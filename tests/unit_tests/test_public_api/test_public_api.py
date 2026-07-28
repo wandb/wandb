@@ -13,6 +13,7 @@ from wandb.errors import UsageError
 from wandb.proto import wandb_api_pb2 as apb
 from wandb.sdk import wandb_login
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
+from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 from wandb.sdk.lib import wbauth
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
@@ -233,7 +234,7 @@ def test_artifact_download_logger():
 
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
-def test_public_api_create_custom_chart_sends_typed_request():
+def test_public_api_create_custom_chart():
     api = Api()
     api._service_api = MagicMock()
     api._service_api.send_api_request.return_value = apb.ApiResponse(
@@ -262,6 +263,121 @@ def test_public_api_create_custom_chart_sends_typed_request():
     assert create_chart.spec_type == "vega2"
     assert create_chart.access == "PRIVATE"
     assert create_chart.spec == json.dumps({"mark": "bar"})
+
+
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
+def test_public_api_create_run_queue():
+    api = Api()
+    api._service_api = MagicMock()
+    api.create_project = MagicMock()
+    api._service_api.send_api_request.side_effect = [
+        apb.ApiResponse(
+            create_default_resource_config_response=apb.CreateDefaultResourceConfigResponse(
+                success=True,
+                default_resource_config_id="config-id",
+            )
+        ),
+        apb.ApiResponse(
+            create_run_queue_response=apb.CreateRunQueueResponse(
+                success=True,
+                queue_id="queue-id",
+            )
+        ),
+    ]
+
+    queue = api.create_run_queue(
+        name="queue",
+        type="kubernetes",
+        entity="test-entity",
+        prioritization_mode="V0",
+        config={"image": "example"},
+        template_variables={"image": {"type": "string"}},
+    )
+
+    assert queue.name == "queue"
+    api.create_project.assert_called_once_with(LAUNCH_DEFAULT_PROJECT, "test-entity")
+    requests = [
+        call.args[0] for call in api._service_api.send_api_request.call_args_list
+    ]
+    assert len(requests) == 2
+    assert requests[0].WhichOneof("request") == "run_queue_operation_request"
+    create_config_operation = requests[0].run_queue_operation_request
+    assert (
+        create_config_operation.WhichOneof("operation")
+        == "create_default_resource_config_request"
+    )
+    create_config = create_config_operation.create_default_resource_config_request
+    assert create_config.entity_name == "test-entity"
+    assert create_config.resource == "kubernetes"
+    assert json.loads(create_config.config) == {
+        "resource_args": {"kubernetes": {"image": "example"}}
+    }
+    assert json.loads(create_config.template_variables) == {"image": {"type": "string"}}
+
+    assert requests[1].WhichOneof("request") == "run_queue_operation_request"
+    create_queue_operation = requests[1].run_queue_operation_request
+    assert create_queue_operation.WhichOneof("operation") == "create_run_queue_request"
+    create_queue = create_queue_operation.create_run_queue_request
+    assert create_queue.entity == "test-entity"
+    assert create_queue.project == LAUNCH_DEFAULT_PROJECT
+    assert create_queue.queue_name == "queue"
+    assert create_queue.access == "PROJECT"
+    assert create_queue.prioritization_mode == "V0"
+    assert create_queue.default_resource_config_id == "config-id"
+    assert create_queue.HasField("prioritization_mode")
+    assert create_queue.HasField("default_resource_config_id")
+
+
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
+def test_public_api_upsert_run_queue(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    api = Api()
+    api._service_api = MagicMock()
+    api.create_project = MagicMock()
+    api._service_api.send_api_request.return_value = apb.ApiResponse(
+        upsert_run_queue_response=apb.UpsertRunQueueResponse(
+            success=True,
+            config_schema_validation_errors=["invalid image"],
+        )
+    )
+    termwarn = MagicMock()
+    monkeypatch.setattr(wandb, "termwarn", termwarn)
+
+    queue = api.upsert_run_queue(
+        name="queue",
+        resource_config={"image": "example"},
+        resource_type="kubernetes",
+        entity="test-entity",
+        template_variables={"image": {"type": "string"}},
+        external_links={"docs": "https://example.test"},
+        prioritization_mode="V0",
+    )
+
+    assert queue.name == "queue"
+    api.create_project.assert_called_once_with(LAUNCH_DEFAULT_PROJECT, "test-entity")
+    api._service_api.send_api_request.assert_called_once()
+    request = api._service_api.send_api_request.call_args.args[0]
+    assert request.WhichOneof("request") == "run_queue_operation_request"
+    upsert_queue_operation = request.run_queue_operation_request
+    assert upsert_queue_operation.WhichOneof("operation") == "upsert_run_queue_request"
+    upsert_queue = upsert_queue_operation.upsert_run_queue_request
+    assert upsert_queue.entity_name == "test-entity"
+    assert upsert_queue.project_name == LAUNCH_DEFAULT_PROJECT
+    assert upsert_queue.queue_name == "queue"
+    assert upsert_queue.resource_type == "kubernetes"
+    assert json.loads(upsert_queue.resource_config) == {
+        "resource_args": {"kubernetes": {"image": "example"}}
+    }
+    assert json.loads(upsert_queue.template_variables) == {"image": {"type": "string"}}
+    assert upsert_queue.prioritization_mode == "V0"
+    assert json.loads(upsert_queue.external_links) == {
+        "links": [{"label": "docs", "url": "https://example.test"}]
+    }
+    assert upsert_queue.HasField("template_variables")
+    assert upsert_queue.HasField("prioritization_mode")
+    assert upsert_queue.HasField("external_links")
+    termwarn.assert_called_once_with("resource config validation: invalid image")
 
 
 def test_initialize_api_authenticates(

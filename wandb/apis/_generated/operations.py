@@ -2,10 +2,8 @@
 # Source: tools/graphql_codegen/api/
 
 __all__ = [
-    "CREATE_DEFAULT_RESOURCE_CONFIG_GQL",
     "CREATE_INVITE_GQL",
     "CREATE_PROJECT_GQL",
-    "CREATE_RUN_QUEUE_GQL",
     "CREATE_SERVICE_ACCOUNT_GQL",
     "CREATE_TEAM_GQL",
     "CREATE_USER_FROM_ADMIN_GQL",
@@ -25,7 +23,6 @@ __all__ = [
     "GET_VIEWER_GQL",
     "IS_PROJECT_READ_ONLY_GQL",
     "SEARCH_USERS_GQL",
-    "UPSERT_RUN_QUEUE_GQL",
 ]
 
 GET_PROJECTS_GQL = """
@@ -170,39 +167,6 @@ IS_PROJECT_READ_ONLY_GQL = """
 query IsProjectReadOnly($entity: String!, $project: String!) {
   project(entityName: $entity, name: $project) {
     readOnly
-  }
-}
-"""
-
-CREATE_DEFAULT_RESOURCE_CONFIG_GQL = """
-mutation CreateDefaultResourceConfig($entityName: String!, $resource: String!, $config: JSONString!, $templateVariables: JSONString) {
-  createDefaultResourceConfig(
-    input: {entityName: $entityName, resource: $resource, config: $config, templateVariables: $templateVariables}
-  ) {
-    defaultResourceConfigID
-    success
-  }
-}
-"""
-
-CREATE_RUN_QUEUE_GQL = """
-mutation CreateRunQueue($entity: String!, $project: String!, $queueName: String!, $access: RunQueueAccessType!, $prioritizationMode: RunQueuePrioritizationMode, $defaultResourceConfigID: ID) {
-  createRunQueue(
-    input: {entityName: $entity, projectName: $project, queueName: $queueName, access: $access, prioritizationMode: $prioritizationMode, defaultResourceConfigID: $defaultResourceConfigID}
-  ) {
-    success
-    queueID
-  }
-}
-"""
-
-UPSERT_RUN_QUEUE_GQL = """
-mutation upsertRunQueue($entityName: String!, $projectName: String!, $queueName: String!, $resourceType: String!, $resourceConfig: JSONString!, $templateVariables: JSONString, $prioritizationMode: RunQueuePrioritizationMode, $externalLinks: JSONString, $clientMutationId: String) {
-  upsertRunQueue(
-    input: {entityName: $entityName, projectName: $projectName, queueName: $queueName, resourceType: $resourceType, resourceConfig: $resourceConfig, templateVariables: $templateVariables, prioritizationMode: $prioritizationMode, externalLinks: $externalLinks, clientMutationId: $clientMutationId}
-  ) {
-    success
-    configSchemaValidationErrors
   }
 }
 """

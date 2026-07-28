@@ -30,14 +30,6 @@ from wandb._analytics import tracked
 from wandb._iterutils import one
 from wandb._strutils import nameof
 from wandb.apis import public
-from wandb.apis._generated import (
-    CREATE_DEFAULT_RESOURCE_CONFIG_GQL,
-    CREATE_RUN_QUEUE_GQL,
-    UPSERT_RUN_QUEUE_GQL,
-    CreateDefaultResourceConfig,
-    CreateRunQueue,
-    UpsertRunQueue,
-)
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.registries import Registries, Registry
 from wandb.apis.public.registries._utils import fetch_org_entity_from_organization
@@ -415,36 +407,40 @@ class Api:
             json.dumps(template_variables) if template_variables else "{}"
         )
 
-        result = self._service_api.execute_graphql(
-            CREATE_DEFAULT_RESOURCE_CONFIG_GQL,
-            {
-                "entityName": entity,
-                "resource": type,
-                "config": config_json,
-                "templateVariables": template_variables_json,
-            },
-            parse=CreateDefaultResourceConfig.model_validate_json,
+        response = self._service_api.send_api_request(
+            apb.ApiRequest(
+                run_queue_operation_request=apb.RunQueueOperationRequest(
+                    create_default_resource_config_request=apb.CreateDefaultResourceConfigRequest(
+                        entity_name=entity,
+                        resource=type,
+                        config=config_json,
+                        template_variables=template_variables_json,
+                    )
+                )
+            )
         )
-        create_config_result = result.create_default_resource_config
-        if not create_config_result or not create_config_result.success:
+        create_config_result = response.create_default_resource_config_response
+        if not create_config_result.success:
             raise wandb.Error("failed to create default resource config")
         config_id = create_config_result.default_resource_config_id
 
         # 3. create run queue
-        result = self._service_api.execute_graphql(
-            CREATE_RUN_QUEUE_GQL,
-            {
-                "entity": entity,
-                "project": LAUNCH_DEFAULT_PROJECT,
-                "queueName": name,
-                "access": "PROJECT",
-                "prioritizationMode": prioritization_mode,
-                "defaultResourceConfigID": config_id,
-            },
-            parse=CreateRunQueue.model_validate_json,
+        response = self._service_api.send_api_request(
+            apb.ApiRequest(
+                run_queue_operation_request=apb.RunQueueOperationRequest(
+                    create_run_queue_request=apb.CreateRunQueueRequest(
+                        entity=entity,
+                        project=LAUNCH_DEFAULT_PROJECT,
+                        queue_name=name,
+                        access="PROJECT",
+                        default_resource_config_id=config_id,
+                        prioritization_mode=prioritization_mode,
+                    )
+                )
+            )
         )
-        create_queue_result = result.create_run_queue
-        if not create_queue_result or not create_queue_result.success:
+        create_queue_result = response.create_run_queue_response
+        if not create_queue_result.success:
             raise wandb.Error("failed to create run queue")
 
         return public.RunQueue(
@@ -618,29 +614,35 @@ class Api:
                 for key, value in external_links.items()
             ]
         }
-        result = self._service_api.execute_graphql(
-            UPSERT_RUN_QUEUE_GQL,
-            {
-                "entityName": entity,
-                "projectName": LAUNCH_DEFAULT_PROJECT,
-                "queueName": name,
-                "resourceType": resource_type,
-                "resourceConfig": json.dumps(
-                    {"resource_args": {resource_type: resource_config}}
-                ),
-                "templateVariables": (
-                    json.dumps(template_variables) if template_variables else None
-                ),
-                "externalLinks": json.dumps(external_links) if external_links else None,
-                "prioritizationMode": prioritization_mode,
-            },
-            parse=UpsertRunQueue.model_validate_json,
+        response = self._service_api.send_api_request(
+            apb.ApiRequest(
+                run_queue_operation_request=apb.RunQueueOperationRequest(
+                    upsert_run_queue_request=apb.UpsertRunQueueRequest(
+                        entity_name=entity,
+                        project_name=LAUNCH_DEFAULT_PROJECT,
+                        queue_name=name,
+                        resource_type=resource_type,
+                        resource_config=json.dumps(
+                            {"resource_args": {resource_type: resource_config}}
+                        ),
+                        external_links=(
+                            json.dumps(external_links) if external_links else None
+                        ),
+                        prioritization_mode=prioritization_mode,
+                        template_variables=(
+                            json.dumps(template_variables)
+                            if template_variables
+                            else None
+                        ),
+                    )
+                )
+            )
         )
-        upsert_run_queue_result = result.upsert_run_queue
+        upsert_run_queue_result = response.upsert_run_queue_response
 
-        if not upsert_run_queue_result or not upsert_run_queue_result.success:
+        if not upsert_run_queue_result.success:
             raise wandb.Error("failed to create run queue")
-        schema_errors = upsert_run_queue_result.config_schema_validation_errors or []
+        schema_errors = upsert_run_queue_result.config_schema_validation_errors
         for error in schema_errors:
             wandb.termwarn(f"resource config validation: {error}")
 
