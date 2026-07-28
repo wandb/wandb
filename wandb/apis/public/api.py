@@ -38,6 +38,7 @@ from wandb.apis._generated import (
     CreateCustomChart,
     CreateDefaultResourceConfig,
     CreateRunQueue,
+    UpsertRunQueue,
 )
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.registries import Registries, Registry
@@ -412,7 +413,7 @@ class Api:
         # 2. create default resource config, receive config id
         config_json = json.dumps({"resource_args": {type: config}})
         template_variables_json = (
-            json.dumps(template_variables) if template_variables else str({})
+            json.dumps(template_variables) if template_variables else "{}"
         )
 
         result = self._service_api.execute_graphql(
@@ -523,6 +524,7 @@ class Api:
         """
         # Convert user-facing lowercase access to backend uppercase
         backend_access = access.upper()
+        spec_json = spec if isinstance(spec, str) else json.dumps(spec)
 
         result = self._service_api.execute_graphql(
             CREATE_CUSTOM_CHART_GQL,
@@ -532,7 +534,7 @@ class Api:
                 "displayName": display_name,
                 "type": spec_type,
                 "access": backend_access,
-                "spec": spec,
+                "spec": spec_json,
             },
             parse=CreateCustomChart.model_validate_json,
         )
@@ -626,25 +628,29 @@ class Api:
                 for key, value in external_links.items()
             ]
         }
-        upsert_run_queue_result = self._service_api.execute_graphql(
+        result = self._service_api.execute_graphql(
             UPSERT_RUN_QUEUE_GQL,
             {
                 "entityName": entity,
                 "projectName": LAUNCH_DEFAULT_PROJECT,
                 "queueName": name,
                 "resourceType": resource_type,
-                "resourceConfig": resource_config,
-                "templateVariables": template_variables,
-                "externalLinks": external_links,
+                "resourceConfig": json.dumps(
+                    {"resource_args": {resource_type: resource_config}}
+                ),
+                "templateVariables": (
+                    json.dumps(template_variables) if template_variables else None
+                ),
+                "externalLinks": json.dumps(external_links) if external_links else None,
                 "prioritizationMode": prioritization_mode,
             },
+            parse=UpsertRunQueue.model_validate_json,
         )
+        upsert_run_queue_result = result.upsert_run_queue
 
-        if not upsert_run_queue_result["success"]:
+        if not upsert_run_queue_result or not upsert_run_queue_result.success:
             raise wandb.Error("failed to create run queue")
-        schema_errors = (
-            upsert_run_queue_result.get("configSchemaValidationErrors") or []
-        )
+        schema_errors = upsert_run_queue_result.config_schema_validation_errors or []
         for error in schema_errors:
             wandb.termwarn(f"resource config validation: {error}")
 
