@@ -21,6 +21,7 @@ The `wandb sync --clean` command now exits with code 1 and prints a hint to use 
 ## Added
 
 - Added support for gzip compression of filestream requests, reducing network traffic when logging metrics. It is currently opt-in and requires server support: set `x_file_stream_no_gzip=False` in `wandb.Settings` to enable it. Compression will become the default in a future release (@dmitryduev in https://github.com/wandb/wandb/pull/12262)
+- Added a `--term-timeout` flag to `wandb agent` (@nathancy-wandb in https://github.com/wandb/wandb/pull/12246)
 
 ## Changed
 
@@ -36,5 +37,5 @@ The `wandb sync --clean` command now exits with code 1 and prints a hint to use 
 
 ## Fixed
 
-- Registry search `registries(order=...).collections(order=...).versions()` now returns artifact versions in registry and/or collection order.  (@ibindlish in https://github.com/wandb/wandb/pull/12154)
+- Registry search `registries(order=...).collections(order=...).versions()` now returns artifact versions in registry and/or collection order. (@ibindlish in https://github.com/wandb/wandb/pull/12154)
 - macOS x86_64 wheels now contain x86_64 builds of the `wandb-xpu` binary and the Rust parquet library, which previously shipped as arm64 and could not run or be loaded on Intel Macs (@dmitryduev in https://github.com/wandb/wandb/pull/12267)
