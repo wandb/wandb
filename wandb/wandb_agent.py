@@ -417,19 +417,18 @@ class Agent:
                     # service process open for all the agent instances and inform_finish when
                     # the run should be marked complete.  This however could require
                     # inform_finish on every run created by this process.
-                    if hasattr(wandb, "teardown"):
-                        from wandb.apis import InternalApi
+                    from wandb.apis import InternalApi
 
-                        exit_code = 0
-                        if isinstance(poll_result, int):
-                            exit_code = poll_result
-                        elif isinstance(poll_result, bool):
-                            exit_code = -1
-                        wandb.teardown(exit_code)
-                        # The agent outlives user jobs, but teardown closes
-                        # the service-backed API resources used for the
-                        # subsequent heartbeats.
-                        self._api = InternalApi()
+                    exit_code = 0
+                    if isinstance(poll_result, int):
+                        exit_code = poll_result
+                    elif isinstance(poll_result, bool):
+                        exit_code = -1
+                    wandb.teardown(exit_code)
+                    # The agent outlives user jobs, but teardown closes
+                    # the service-backed API resources used for the
+                    # subsequent heartbeats.
+                    self._api = InternalApi()
 
                     del self._run_processes[run_id]
                     self._last_report_time = None

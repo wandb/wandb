@@ -186,8 +186,7 @@ def test_agent_process_kills_function_process_on_sigkill(monkeypatch):
 
 
 def test_agent_run_exits_without_further_heartbeat_on_shutdown_signal(monkeypatch):
-    """A single ShutdownSignal raised inside the loop must stop the heartbeat
-    and wait for active run processes (Tier 1)."""
+    """Check that single ShutdownSignal moves loop to tier 1."""
     api = mock.Mock()
     api.sweep.return_value = {"config": ""}
     api.register_agent.return_value = {"id": "agent-1"}
@@ -210,8 +209,7 @@ def test_agent_run_exits_without_further_heartbeat_on_shutdown_signal(monkeypatc
 
 
 def test_agent_run_second_shutdown_signal_escalates_to_terminate(monkeypatch):
-    """A second ShutdownSignal during Tier 1 wait() must escalate to Tier 2:
-    terminate() the run process, then wait() again."""
+    """Checks that a second ShutdownSignal moves loop to tier 2."""
     api = mock.Mock()
     api.sweep.return_value = {"config": ""}
     api.register_agent.return_value = {"id": "agent-1"}
@@ -239,9 +237,7 @@ def test_agent_run_second_shutdown_signal_escalates_to_terminate(monkeypatch):
 
 
 def test_agent_run_skips_tier2_when_runs_already_exited(monkeypatch):
-    """When Tier 1's wait() returns cleanly (child exited gracefully on the
-    forwarded signal), the finally block must skip Tier-2 messaging and
-    operations rather than misleadingly claim it is terminating runs."""
+    """Checks that tier 1 completing successfully skips tier 2."""
     api = mock.Mock()
     api.sweep.return_value = {"config": ""}
     api.register_agent.return_value = {"id": "agent-1"}
@@ -265,8 +261,7 @@ def test_agent_run_skips_tier2_when_runs_already_exited(monkeypatch):
 
 
 def test_agent_run_third_shutdown_signal_escalates_to_kill(monkeypatch):
-    """A third ShutdownSignal (interrupting Tier 2's wait()) must escalate to
-    Tier 3: kill() the run process."""
+    """Checks that a third shutdown signal moves loop to tier 3 (SIGKILL)."""
     api = mock.Mock()
     api.sweep.return_value = {"config": ""}
     api.register_agent.return_value = {"id": "agent-1"}
@@ -292,8 +287,7 @@ def test_agent_run_third_shutdown_signal_escalates_to_kill(monkeypatch):
 
 
 def test_agent_run_term_timeout_expiry_escalates_straight_to_kill(monkeypatch):
-    """Tests that when a child process runs past the term_timeout, Tier 1
-    raises a timeoutExpired and we escalate straight to Tier 3 SIGKILL."""
+    """Checks that subprocess running past term_timeout gets sent a SIGKILL."""
 
     api = mock.Mock()
     api.sweep.return_value = {"config": ""}

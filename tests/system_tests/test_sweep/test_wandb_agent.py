@@ -234,8 +234,7 @@ def test_agent_process_forwards_signals_end_to_end(tmp_path):
     platform.system() == "Windows", reason="POSIX signals required for this test"
 )
 def test_agent_term_timeout_escalates_to_sigkill(tmp_path):
-    """Checks that a child that ignores signals past `term_timeout` is
-    escalated straight to SIGKILL rather than re-sent a polite SIGTERM."""
+    """Checks that subprocess running past term_timeout gets sent a SIGKILL."""
 
     child_script = _write_ignore_signals_child_script(tmp_path)
     parent_script = _TERM_TIMEOUT_PARENT_SCRIPT
