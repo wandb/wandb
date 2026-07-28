@@ -18,8 +18,7 @@ func NewAuthHandler(graphqlClient graphql.Client) *AuthHandler {
 	return &AuthHandler{graphqlClient: graphqlClient}
 }
 
-// HandleAuthenticate verifies the API instance's credentials and identifies
-// the authenticated user.
+// HandleAuthenticate verifies the account credentials.
 //
 // The credentials come from the settings used to initialize the API
 // instance: an API key, or an identity token file when using federated

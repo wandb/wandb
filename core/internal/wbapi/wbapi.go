@@ -191,11 +191,7 @@ func (p *WandbAPI) HandleRequest(
 		return p.graphqlHandler.HandleRequest(ctx, req.GraphqlRequest)
 	case *spb.ApiRequest_ReadRunHistoryRequest:
 		return p.runHistoryApiHandler.HandleRequest(ctx, req.ReadRunHistoryRequest)
+	default:
+		return apiErrorResponse(fmt.Sprintf("unsupported API request type: %T", request.Request), 0)
 	}
-
-	// Unknown request types happen when a newer client attaches to an older
-	// wandb-core. Returning an error instead of nil (no response) saves the
-	// client from waiting for a response that will never come.
-	return apiErrorResponse(
-		fmt.Sprintf("unsupported API request type: %T", request.Request), 0)
 }
