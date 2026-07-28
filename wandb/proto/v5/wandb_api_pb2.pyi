@@ -30,7 +30,7 @@ class ServerApiInitResponse(_message.Message):
     def __init__(self, error_message: _Optional[str] = ..., api_id: _Optional[str] = ...) -> None: ...
 
 class ApiRequest(_message.Message):
-    __slots__ = ("api_id", "read_run_history_request", "features_request", "graphql_request", "download_file_request", "upload_file_request", "mark_run_files_uploaded_request", "stop_run_request", "create_custom_chart_request", "create_default_resource_config_request", "create_run_queue_request", "upsert_run_queue_request")
+    __slots__ = ("api_id", "read_run_history_request", "features_request", "graphql_request", "download_file_request", "upload_file_request", "mark_run_files_uploaded_request", "stop_run_request", "create_custom_chart_request", "run_queue_operation_request")
     API_ID_FIELD_NUMBER: _ClassVar[int]
     READ_RUN_HISTORY_REQUEST_FIELD_NUMBER: _ClassVar[int]
     FEATURES_REQUEST_FIELD_NUMBER: _ClassVar[int]
@@ -40,9 +40,7 @@ class ApiRequest(_message.Message):
     MARK_RUN_FILES_UPLOADED_REQUEST_FIELD_NUMBER: _ClassVar[int]
     STOP_RUN_REQUEST_FIELD_NUMBER: _ClassVar[int]
     CREATE_CUSTOM_CHART_REQUEST_FIELD_NUMBER: _ClassVar[int]
-    CREATE_DEFAULT_RESOURCE_CONFIG_REQUEST_FIELD_NUMBER: _ClassVar[int]
-    CREATE_RUN_QUEUE_REQUEST_FIELD_NUMBER: _ClassVar[int]
-    UPSERT_RUN_QUEUE_REQUEST_FIELD_NUMBER: _ClassVar[int]
+    RUN_QUEUE_OPERATION_REQUEST_FIELD_NUMBER: _ClassVar[int]
     api_id: str
     read_run_history_request: ReadRunHistoryRequest
     features_request: FeaturesRequest
@@ -52,10 +50,8 @@ class ApiRequest(_message.Message):
     mark_run_files_uploaded_request: MarkRunFilesUploadedRequest
     stop_run_request: StopRunRequest
     create_custom_chart_request: CreateCustomChartRequest
-    create_default_resource_config_request: CreateDefaultResourceConfigRequest
-    create_run_queue_request: CreateRunQueueRequest
-    upsert_run_queue_request: UpsertRunQueueRequest
-    def __init__(self, api_id: _Optional[str] = ..., read_run_history_request: _Optional[_Union[ReadRunHistoryRequest, _Mapping]] = ..., features_request: _Optional[_Union[FeaturesRequest, _Mapping]] = ..., graphql_request: _Optional[_Union[GraphQLRequest, _Mapping]] = ..., download_file_request: _Optional[_Union[DownloadFileRequest, _Mapping]] = ..., upload_file_request: _Optional[_Union[UploadFileRequest, _Mapping]] = ..., mark_run_files_uploaded_request: _Optional[_Union[MarkRunFilesUploadedRequest, _Mapping]] = ..., stop_run_request: _Optional[_Union[StopRunRequest, _Mapping]] = ..., create_custom_chart_request: _Optional[_Union[CreateCustomChartRequest, _Mapping]] = ..., create_default_resource_config_request: _Optional[_Union[CreateDefaultResourceConfigRequest, _Mapping]] = ..., create_run_queue_request: _Optional[_Union[CreateRunQueueRequest, _Mapping]] = ..., upsert_run_queue_request: _Optional[_Union[UpsertRunQueueRequest, _Mapping]] = ...) -> None: ...
+    run_queue_operation_request: RunQueueOperationRequest
+    def __init__(self, api_id: _Optional[str] = ..., read_run_history_request: _Optional[_Union[ReadRunHistoryRequest, _Mapping]] = ..., features_request: _Optional[_Union[FeaturesRequest, _Mapping]] = ..., graphql_request: _Optional[_Union[GraphQLRequest, _Mapping]] = ..., download_file_request: _Optional[_Union[DownloadFileRequest, _Mapping]] = ..., upload_file_request: _Optional[_Union[UploadFileRequest, _Mapping]] = ..., mark_run_files_uploaded_request: _Optional[_Union[MarkRunFilesUploadedRequest, _Mapping]] = ..., stop_run_request: _Optional[_Union[StopRunRequest, _Mapping]] = ..., create_custom_chart_request: _Optional[_Union[CreateCustomChartRequest, _Mapping]] = ..., run_queue_operation_request: _Optional[_Union[RunQueueOperationRequest, _Mapping]] = ...) -> None: ...
 
 class ApiResponse(_message.Message):
     __slots__ = ("read_run_history_response", "features_response", "graphql_response", "download_file_response", "upload_file_response", "mark_run_files_uploaded_response", "stop_run_response", "create_custom_chart_response", "create_default_resource_config_response", "create_run_queue_response", "upsert_run_queue_response", "api_error_response")
@@ -224,6 +220,16 @@ class CreateCustomChartResponse(_message.Message):
     CHART_ID_FIELD_NUMBER: _ClassVar[int]
     chart_id: str
     def __init__(self, chart_id: _Optional[str] = ...) -> None: ...
+
+class RunQueueOperationRequest(_message.Message):
+    __slots__ = ("create_default_resource_config_request", "create_run_queue_request", "upsert_run_queue_request")
+    CREATE_DEFAULT_RESOURCE_CONFIG_REQUEST_FIELD_NUMBER: _ClassVar[int]
+    CREATE_RUN_QUEUE_REQUEST_FIELD_NUMBER: _ClassVar[int]
+    UPSERT_RUN_QUEUE_REQUEST_FIELD_NUMBER: _ClassVar[int]
+    create_default_resource_config_request: CreateDefaultResourceConfigRequest
+    create_run_queue_request: CreateRunQueueRequest
+    upsert_run_queue_request: UpsertRunQueueRequest
+    def __init__(self, create_default_resource_config_request: _Optional[_Union[CreateDefaultResourceConfigRequest, _Mapping]] = ..., create_run_queue_request: _Optional[_Union[CreateRunQueueRequest, _Mapping]] = ..., upsert_run_queue_request: _Optional[_Union[UpsertRunQueueRequest, _Mapping]] = ...) -> None: ...
 
 class CreateDefaultResourceConfigRequest(_message.Message):
     __slots__ = ("entity_name", "resource", "config", "template_variables")

@@ -35,9 +35,7 @@ message ApiRequest {
     MarkRunFilesUploadedRequest mark_run_files_uploaded_request = 7;
     StopRunRequest stop_run_request = 8;
     CreateCustomChartRequest create_custom_chart_request = 9;
-    CreateDefaultResourceConfigRequest create_default_resource_config_request = 10;
-    CreateRunQueueRequest create_run_queue_request = 11;
-    UpsertRunQueueRequest upsert_run_queue_request = 12;
+    RunQueueOperationRequest run_queue_operation_request = 10;
   }
 }
 
@@ -255,6 +253,15 @@ message CreateCustomChartRequest {
 message CreateCustomChartResponse {
   // The ID of the created chart preset.
   string chart_id = 1;
+}
+
+// Perform an operation on a run queue.
+message RunQueueOperationRequest {
+  oneof operation {
+    CreateDefaultResourceConfigRequest create_default_resource_config_request = 1;
+    CreateRunQueueRequest create_run_queue_request = 2;
+    UpsertRunQueueRequest upsert_run_queue_request = 3;
+  }
 }
 
 // Create a default resource configuration for a run queue.
