@@ -419,7 +419,7 @@ class Api:
                 )
             )
         )
-        create_config_result = response.create_default_resource_config_response
+        create_config_result = response.run_queue_operation_response.create_default_resource_config_response
         if not create_config_result.success:
             raise wandb.Error("failed to create default resource config")
         config_id = create_config_result.default_resource_config_id
@@ -439,7 +439,9 @@ class Api:
                 )
             )
         )
-        create_queue_result = response.create_run_queue_response
+        create_queue_result = (
+            response.run_queue_operation_response.create_run_queue_response
+        )
         if not create_queue_result.success:
             raise wandb.Error("failed to create run queue")
 
@@ -638,7 +640,9 @@ class Api:
                 )
             )
         )
-        upsert_run_queue_result = response.upsert_run_queue_response
+        upsert_run_queue_result = (
+            response.run_queue_operation_response.upsert_run_queue_response
+        )
 
         if not upsert_run_queue_result.success:
             raise wandb.Error("failed to create run queue")

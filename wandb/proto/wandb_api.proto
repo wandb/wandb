@@ -49,9 +49,7 @@ message ApiResponse {
     MarkRunFilesUploadedResponse mark_run_files_uploaded_response = 7;
     StopRunResponse stop_run_response = 8;
     CreateCustomChartResponse create_custom_chart_response = 9;
-    CreateDefaultResourceConfigResponse create_default_resource_config_response = 10;
-    CreateRunQueueResponse create_run_queue_response = 11;
-    UpsertRunQueueResponse upsert_run_queue_response = 12;
+    RunQueueOperationResponse run_queue_operation_response = 10;
 
     ApiErrorResponse api_error_response = 2;
   }
@@ -258,6 +256,15 @@ message RunQueueOperationRequest {
     CreateDefaultResourceConfigRequest create_default_resource_config_request = 1;
     CreateRunQueueRequest create_run_queue_request = 2;
     UpsertRunQueueRequest upsert_run_queue_request = 3;
+  }
+}
+
+// Response from a run-queue operation.
+message RunQueueOperationResponse {
+  oneof operation {
+    CreateDefaultResourceConfigResponse create_default_resource_config_response = 1;
+    CreateRunQueueResponse create_run_queue_response = 2;
+    UpsertRunQueueResponse upsert_run_queue_response = 3;
   }
 }
 

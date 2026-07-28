@@ -62,10 +62,14 @@ func (h *RunQueueHandler) HandleCreateDefaultResourceConfig(
 	}
 
 	return &spb.ApiResponse{
-		Response: &spb.ApiResponse_CreateDefaultResourceConfigResponse{
-			CreateDefaultResourceConfigResponse: &spb.CreateDefaultResourceConfigResponse{
-				Success:                 payload.GetSuccess(),
-				DefaultResourceConfigId: payload.GetDefaultResourceConfigID(),
+		Response: &spb.ApiResponse_RunQueueOperationResponse{
+			RunQueueOperationResponse: &spb.RunQueueOperationResponse{
+				Operation: &spb.RunQueueOperationResponse_CreateDefaultResourceConfigResponse{
+					CreateDefaultResourceConfigResponse: &spb.CreateDefaultResourceConfigResponse{
+						Success:                 payload.GetSuccess(),
+						DefaultResourceConfigId: payload.GetDefaultResourceConfigID(),
+					},
+				},
 			},
 		},
 	}
@@ -111,10 +115,14 @@ func (h *RunQueueHandler) HandleCreateRunQueue(
 	}
 
 	return &spb.ApiResponse{
-		Response: &spb.ApiResponse_CreateRunQueueResponse{
-			CreateRunQueueResponse: &spb.CreateRunQueueResponse{
-				Success: success,
-				QueueId: queueID,
+		Response: &spb.ApiResponse_RunQueueOperationResponse{
+			RunQueueOperationResponse: &spb.RunQueueOperationResponse{
+				Operation: &spb.RunQueueOperationResponse_CreateRunQueueResponse{
+					CreateRunQueueResponse: &spb.CreateRunQueueResponse{
+						Success: success,
+						QueueId: queueID,
+					},
+				},
 			},
 		},
 	}
@@ -159,10 +167,14 @@ func (h *RunQueueHandler) HandleUpsertRunQueue(
 	}
 
 	return &spb.ApiResponse{
-		Response: &spb.ApiResponse_UpsertRunQueueResponse{
-			UpsertRunQueueResponse: &spb.UpsertRunQueueResponse{
-				Success:                      success,
-				ConfigSchemaValidationErrors: payload.GetConfigSchemaValidationErrors(),
+		Response: &spb.ApiResponse_RunQueueOperationResponse{
+			RunQueueOperationResponse: &spb.RunQueueOperationResponse{
+				Operation: &spb.RunQueueOperationResponse_UpsertRunQueueResponse{
+					UpsertRunQueueResponse: &spb.UpsertRunQueueResponse{
+						Success:                      success,
+						ConfigSchemaValidationErrors: payload.GetConfigSchemaValidationErrors(),
+					},
+				},
 			},
 		},
 	}

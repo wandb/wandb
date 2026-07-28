@@ -272,15 +272,19 @@ def test_public_api_create_run_queue():
     api.create_project = MagicMock()
     api._service_api.send_api_request.side_effect = [
         apb.ApiResponse(
-            create_default_resource_config_response=apb.CreateDefaultResourceConfigResponse(
-                success=True,
-                default_resource_config_id="config-id",
+            run_queue_operation_response=apb.RunQueueOperationResponse(
+                create_default_resource_config_response=apb.CreateDefaultResourceConfigResponse(
+                    success=True,
+                    default_resource_config_id="config-id",
+                )
             )
         ),
         apb.ApiResponse(
-            create_run_queue_response=apb.CreateRunQueueResponse(
-                success=True,
-                queue_id="queue-id",
+            run_queue_operation_response=apb.RunQueueOperationResponse(
+                create_run_queue_response=apb.CreateRunQueueResponse(
+                    success=True,
+                    queue_id="queue-id",
+                )
             )
         ),
     ]
@@ -336,9 +340,11 @@ def test_public_api_upsert_run_queue(
     api._service_api = MagicMock()
     api.create_project = MagicMock()
     api._service_api.send_api_request.return_value = apb.ApiResponse(
-        upsert_run_queue_response=apb.UpsertRunQueueResponse(
-            success=True,
-            config_schema_validation_errors=["invalid image"],
+        run_queue_operation_response=apb.RunQueueOperationResponse(
+            upsert_run_queue_response=apb.UpsertRunQueueResponse(
+                success=True,
+                config_schema_validation_errors=["invalid image"],
+            )
         )
     )
     termwarn = MagicMock()

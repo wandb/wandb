@@ -38,7 +38,9 @@ func TestCreateDefaultResourceConfigRunsMutation(t *testing.T) {
 		},
 	)
 
-	result := response.GetCreateDefaultResourceConfigResponse()
+	runQueueResponse := response.GetRunQueueOperationResponse()
+	require.NotNil(t, runQueueResponse)
+	result := runQueueResponse.GetCreateDefaultResourceConfigResponse()
 	require.NotNil(t, result)
 	assert.True(t, result.GetSuccess())
 	assert.Equal(t, "config-id", result.GetDefaultResourceConfigId())
@@ -95,7 +97,9 @@ func TestCreateRunQueueRunsMutation(t *testing.T) {
 		},
 	)
 
-	result := response.GetCreateRunQueueResponse()
+	runQueueResponse := response.GetRunQueueOperationResponse()
+	require.NotNil(t, runQueueResponse)
+	result := runQueueResponse.GetCreateRunQueueResponse()
 	require.NotNil(t, result)
 	assert.True(t, result.GetSuccess())
 	assert.Equal(t, "queue-id", result.GetQueueId())
@@ -159,7 +163,9 @@ func TestUpsertRunQueueRunsMutation(t *testing.T) {
 		},
 	)
 
-	result := response.GetUpsertRunQueueResponse()
+	runQueueResponse := response.GetRunQueueOperationResponse()
+	require.NotNil(t, runQueueResponse)
+	result := runQueueResponse.GetUpsertRunQueueResponse()
 	require.NotNil(t, result)
 	assert.True(t, result.GetSuccess())
 	assert.Equal(t, []string{"invalid image"}, result.GetConfigSchemaValidationErrors())
