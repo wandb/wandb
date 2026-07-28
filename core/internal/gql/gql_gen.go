@@ -735,6 +735,36 @@ func (v *CreateArtifactResponse) GetCreateArtifact() *CreateArtifactCreateArtifa
 	return v.CreateArtifact
 }
 
+// CreateCustomChartCreateCustomChartCreateCustomChartPayload includes the requested fields of the GraphQL type CreateCustomChartPayload.
+type CreateCustomChartCreateCustomChartCreateCustomChartPayload struct {
+	Chart CreateCustomChartCreateCustomChartCreateCustomChartPayloadChartCustomChart `json:"chart"`
+}
+
+// GetChart returns CreateCustomChartCreateCustomChartCreateCustomChartPayload.Chart, and is useful for accessing the field via an interface.
+func (v *CreateCustomChartCreateCustomChartCreateCustomChartPayload) GetChart() CreateCustomChartCreateCustomChartCreateCustomChartPayloadChartCustomChart {
+	return v.Chart
+}
+
+// CreateCustomChartCreateCustomChartCreateCustomChartPayloadChartCustomChart includes the requested fields of the GraphQL type CustomChart.
+type CreateCustomChartCreateCustomChartCreateCustomChartPayloadChartCustomChart struct {
+	Id string `json:"id"`
+}
+
+// GetId returns CreateCustomChartCreateCustomChartCreateCustomChartPayloadChartCustomChart.Id, and is useful for accessing the field via an interface.
+func (v *CreateCustomChartCreateCustomChartCreateCustomChartPayloadChartCustomChart) GetId() string {
+	return v.Id
+}
+
+// CreateCustomChartResponse is returned by CreateCustomChart on success.
+type CreateCustomChartResponse struct {
+	CreateCustomChart *CreateCustomChartCreateCustomChartCreateCustomChartPayload `json:"createCustomChart"`
+}
+
+// GetCreateCustomChart returns CreateCustomChartResponse.CreateCustomChart, and is useful for accessing the field via an interface.
+func (v *CreateCustomChartResponse) GetCreateCustomChart() *CreateCustomChartCreateCustomChartCreateCustomChartPayload {
+	return v.CreateCustomChart
+}
+
 // CreateRunFilesCreateRunFilesCreateRunFilesPayload includes the requested fields of the GraphQL type CreateRunFilesPayload.
 type CreateRunFilesCreateRunFilesCreateRunFilesPayload struct {
 	RunID         string                                                       `json:"runID"`
@@ -1862,6 +1892,34 @@ func (v *__CreateArtifactManifestInput) GetManifestType() ArtifactManifestType {
 // GetIncludeUpload returns __CreateArtifactManifestInput.IncludeUpload, and is useful for accessing the field via an interface.
 func (v *__CreateArtifactManifestInput) GetIncludeUpload() bool { return v.IncludeUpload }
 
+// __CreateCustomChartInput is used internally by genqlient
+type __CreateCustomChartInput struct {
+	Entity      string `json:"entity"`
+	ChartName   string `json:"chartName"`
+	DisplayName string `json:"displayName"`
+	ChartType   string `json:"chartType"`
+	Access      string `json:"access"`
+	Spec        string `json:"spec"`
+}
+
+// GetEntity returns __CreateCustomChartInput.Entity, and is useful for accessing the field via an interface.
+func (v *__CreateCustomChartInput) GetEntity() string { return v.Entity }
+
+// GetChartName returns __CreateCustomChartInput.ChartName, and is useful for accessing the field via an interface.
+func (v *__CreateCustomChartInput) GetChartName() string { return v.ChartName }
+
+// GetDisplayName returns __CreateCustomChartInput.DisplayName, and is useful for accessing the field via an interface.
+func (v *__CreateCustomChartInput) GetDisplayName() string { return v.DisplayName }
+
+// GetChartType returns __CreateCustomChartInput.ChartType, and is useful for accessing the field via an interface.
+func (v *__CreateCustomChartInput) GetChartType() string { return v.ChartType }
+
+// GetAccess returns __CreateCustomChartInput.Access, and is useful for accessing the field via an interface.
+func (v *__CreateCustomChartInput) GetAccess() string { return v.Access }
+
+// GetSpec returns __CreateCustomChartInput.Spec, and is useful for accessing the field via an interface.
+func (v *__CreateCustomChartInput) GetSpec() string { return v.Spec }
+
 // __CreateRunFilesInput is used internally by genqlient
 type __CreateRunFilesInput struct {
 	Entity  string   `json:"entity"`
@@ -2647,6 +2705,52 @@ func CreateArtifactManifest(
 	}
 
 	data_ = &CreateArtifactManifestResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The mutation executed by CreateCustomChart.
+const CreateCustomChart_Operation = `
+mutation CreateCustomChart ($entity: String!, $chartName: String!, $displayName: String!, $chartType: String!, $access: String!, $spec: JSONString!) {
+	createCustomChart(input: {entity:$entity,name:$chartName,displayName:$displayName,type:$chartType,access:$access,spec:$spec}) {
+		chart {
+			id
+		}
+	}
+}
+`
+
+func CreateCustomChart(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	chartName string,
+	displayName string,
+	chartType string,
+	access string,
+	spec string,
+) (data_ *CreateCustomChartResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "CreateCustomChart",
+		Query:  CreateCustomChart_Operation,
+		Variables: &__CreateCustomChartInput{
+			Entity:      entity,
+			ChartName:   chartName,
+			DisplayName: displayName,
+			ChartType:   chartType,
+			Access:      access,
+			Spec:        spec,
+		},
+	}
+
+	data_ = &CreateCustomChartResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
