@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import dataclasses
-import json
 import logging
 from typing import TYPE_CHECKING, Any
+
+from wandb.sdk.lib.json_util import loads
 
 if TYPE_CHECKING:
     from wandb.sdk.wandb_settings import Settings
@@ -87,7 +88,7 @@ class SessionIdentity:
         flags: dict[str, Any] = {}
         if response.flags_json:
             try:
-                flags = json.loads(response.flags_json)
+                flags = loads(response.flags_json)
             except ValueError:
                 _logger.warning("Ignoring invalid account flags from the server.")
 
