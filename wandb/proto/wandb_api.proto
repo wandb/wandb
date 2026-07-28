@@ -34,6 +34,7 @@ message ApiRequest {
     UploadFileRequest upload_file_request = 6;
     MarkRunFilesUploadedRequest mark_run_files_uploaded_request = 7;
     StopRunRequest stop_run_request = 8;
+    CreateCustomChartRequest create_custom_chart_request = 9;
   }
 }
 
@@ -46,6 +47,7 @@ message ApiResponse {
     UploadFileResponse upload_file_response = 6;
     MarkRunFilesUploadedResponse mark_run_files_uploaded_response = 7;
     StopRunResponse stop_run_response = 8;
+    CreateCustomChartResponse create_custom_chart_response = 9;
 
     ApiErrorResponse api_error_response = 2;
   }
@@ -219,6 +221,35 @@ message StopRunRequest {
 }
 
 message StopRunResponse {}
+
+// Create a custom chart preset.
+//
+// A successful request returns CreateCustomChartResponse with the ID of the
+// chart preset. Failures return ApiErrorResponse.
+message CreateCustomChartRequest {
+  // The entity (user or team) that owns the chart.
+  string entity = 1;
+
+  // The chart preset's unique name within the entity.
+  string name = 2;
+
+  // The human-readable name shown in the UI.
+  string display_name = 3;
+
+  // The chart specification type, such as "vega2".
+  string spec_type = 4;
+
+  // The backend access level, such as "PRIVATE" or "PUBLIC".
+  string access = 5;
+
+  // The JSON-encoded chart specification.
+  string spec = 6;
+}
+
+message CreateCustomChartResponse {
+  // The ID of the created chart preset.
+  string chart_id = 1;
+}
 
 // Start of Scan run history
 
