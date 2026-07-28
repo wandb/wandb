@@ -71,7 +71,12 @@ func withRetryObservation(
 
 			var bodyToLog string
 			if err == nil {
-				bodyToLog = string(bodyFirstKB)
+				gqlErrors := MaybeGQLErrorResponse(bodyFirstKB)
+				if gqlErrors != "" {
+					bodyToLog = gqlErrors
+				} else {
+					bodyToLog = string(bodyFirstKB)
+				}
 			} else {
 				bodyToLog = fmt.Sprintf("error reading body: %v", err)
 			}

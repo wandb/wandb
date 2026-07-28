@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/Khan/genqlient/graphql"
 
+	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/runbranch"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -45,21 +45,7 @@ func fromRunBranchError(runBranchError *runbranch.BranchError) *RunUpdateError {
 }
 
 func fromGQLError(gqlError *graphql.HTTPError) *RunUpdateError {
-	var userMessage string
-
-	switch {
-	case len(gqlError.Response.Errors) == 0:
-		userMessage = gqlError.Error()
-	case len(gqlError.Response.Errors) == 1:
-		userMessage = gqlError.Response.Errors[0].Message
-	default:
-		var messages []string
-		for _, err := range gqlError.Response.Errors {
-			messages = append(messages, err.Message)
-		}
-		joinedMessages := strings.Join(messages, "; ")
-		userMessage = fmt.Sprintf("[%s]", joinedMessages)
-	}
+	userMessage := api.FormatGQLErrors(gqlError.Response)
 
 	if userMessage == "" {
 		// An empty UserMessage is treated like "no error" by the client.
