@@ -35,6 +35,9 @@ message ApiRequest {
     MarkRunFilesUploadedRequest mark_run_files_uploaded_request = 7;
     StopRunRequest stop_run_request = 8;
     CreateCustomChartRequest create_custom_chart_request = 9;
+    CreateDefaultResourceConfigRequest create_default_resource_config_request = 10;
+    CreateRunQueueRequest create_run_queue_request = 11;
+    UpsertRunQueueRequest upsert_run_queue_request = 12;
   }
 }
 
@@ -48,6 +51,9 @@ message ApiResponse {
     MarkRunFilesUploadedResponse mark_run_files_uploaded_response = 7;
     StopRunResponse stop_run_response = 8;
     CreateCustomChartResponse create_custom_chart_response = 9;
+    CreateDefaultResourceConfigResponse create_default_resource_config_response = 10;
+    CreateRunQueueResponse create_run_queue_response = 11;
+    UpsertRunQueueResponse upsert_run_queue_response = 12;
 
     ApiErrorResponse api_error_response = 2;
   }
@@ -249,6 +255,52 @@ message CreateCustomChartRequest {
 message CreateCustomChartResponse {
   // The ID of the created chart preset.
   string chart_id = 1;
+}
+
+// Create a default resource configuration for a run queue.
+message CreateDefaultResourceConfigRequest {
+  string entity_name = 1;
+  string resource = 2;
+  string config = 3;
+  optional string template_variables = 4;
+}
+
+message CreateDefaultResourceConfigResponse {
+  bool success = 1;
+  string default_resource_config_id = 2;
+}
+
+// Create a run queue.
+message CreateRunQueueRequest {
+  string entity = 1;
+  string project = 2;
+  string queue_name = 3;
+  string access = 4;
+  optional string prioritization_mode = 5;
+  optional string default_resource_config_id = 6;
+}
+
+message CreateRunQueueResponse {
+  bool success = 1;
+  string queue_id = 2;
+}
+
+// Create or update a run queue and its default resource configuration.
+message UpsertRunQueueRequest {
+  string entity_name = 1;
+  string project_name = 2;
+  string queue_name = 3;
+  string resource_type = 4;
+  string resource_config = 5;
+  optional string template_variables = 6;
+  optional string prioritization_mode = 7;
+  optional string external_links = 8;
+  optional string client_mutation_id = 9;
+}
+
+message UpsertRunQueueResponse {
+  bool success = 1;
+  repeated string config_schema_validation_errors = 2;
 }
 
 // Start of Scan run history
