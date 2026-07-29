@@ -286,8 +286,10 @@ func (r *Run) layoutOverrides() LayoutOverrides {
 // layout overrides.
 func (r *Run) updateSidebarDimensions(leftVisible, rightVisible bool) {
 	o := r.layoutOverrides()
-	r.leftSidebar.UpdateDimensions(r.width, rightVisible, o.LeftSidebar)
-	r.rightSidebar.UpdateDimensions(r.width, leftVisible, o.RightSidebar)
+	left, right := fitSidebarFractions(
+		r.width, leftVisible, rightVisible, o.LeftSidebar, o.RightSidebar)
+	r.leftSidebar.UpdateDimensions(r.width, rightVisible, left)
+	r.rightSidebar.UpdateDimensions(r.width, leftVisible, right)
 }
 
 // isUIMsg returns true for messages that should flow to child view models.
@@ -717,11 +719,27 @@ func (r *Run) updateBottomPaneHeights(mediaVisible, logsVisible bool) {
 
 	o := r.layoutOverrides()
 	each := lowerTierH / lowerCount
+	heights := []int{
+		paneHeightFor(o.Media, r.height, each),
+		paneHeightFor(o.Logs, r.height, each),
+	}
+	budget := maxH
+	if metricsVisible {
+		budget = maxH - minFlexMetricsHeight
+	}
+	if !mediaVisible {
+		heights[0] = 0
+	}
+	if !logsVisible {
+		heights[1] = 0
+	}
+	fitStackHeights(heights,
+		[]int{mediaPaneMinHeight, ConsoleLogsPaneMinHeight}, budget)
 	if mediaVisible {
-		r.mediaPane.SetExpandedHeight(paneHeightFor(o.Media, r.height, each))
+		r.mediaPane.SetExpandedHeight(heights[0])
 	}
 	if logsVisible {
-		r.consoleLogsPane.SetExpandedHeight(paneHeightFor(o.Logs, r.height, each))
+		r.consoleLogsPane.SetExpandedHeight(heights[1])
 	}
 }
 

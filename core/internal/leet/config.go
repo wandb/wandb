@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -261,13 +262,13 @@ func (cm *ConfigManager) loadOrCreateConfig() error {
 		return err
 	}
 
-	if err := json.Unmarshal(data, &cm.config); err != nil {
-		return err
-	}
+	err = json.Unmarshal(data, &cm.config)
 
+	// Unmarshal decodes what it can before failing, and the caller keeps
+	// the partial config, so normalize even on error.
 	cm.normalizeConfig()
 
-	return nil
+	return err
 }
 
 // normalizeConfig ensures all config values are within valid ranges.
@@ -345,11 +346,15 @@ func (cm *ConfigManager) normalizeConfig() {
 }
 
 // normalizeLayoutOverrides clamps set (non-zero) fractions to a sane range.
+// NaN would defeat the clamp (min/max propagate it) and later poison every
+// config save (encoding/json rejects NaN), so it resets to the default.
 func normalizeLayoutOverrides(o *LayoutOverrides) {
 	for _, f := range []*float64{
 		&o.LeftSidebar, &o.RightSidebar, &o.System, &o.Media, &o.Logs,
 	} {
-		if *f != 0 {
+		if math.IsNaN(*f) {
+			*f = 0
+		} else if *f != 0 {
 			*f = min(max(*f, MinLayoutFrac), MaxLayoutFrac)
 		}
 	}
