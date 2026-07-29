@@ -19,7 +19,8 @@ type FocusRegionDef struct {
 
 	// Available reports whether the region is currently focusable: its pane
 	// is logically visible (target state, so an expanding pane counts and a
-	// collapsing one does not) and has content to interact with.
+	// collapsing one does not) and, for data panes, has content to interact
+	// with.
 	Available func() bool
 
 	Activate   func(direction int)
