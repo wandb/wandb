@@ -2070,7 +2070,11 @@ def launch_agent(
 
     wandb.termlog("Starting launch agent ✨")
     try:
-        _launch.create_and_run_agent(api, agent_config)
+        _launch.create_and_run_agent(
+            api,
+            agent_config,
+            telemetry_recorder=telemetry_recorder,
+        )
     except Exception as e:
         telemetry_recorder.exception(str(e), e)
         get_sentry().exception(e)

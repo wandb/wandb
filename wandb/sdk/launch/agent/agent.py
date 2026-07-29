@@ -201,21 +201,19 @@ class LaunchAgent:
         self,
         api: Api,
         config: dict[str, Any],
-        telemetry_recorder: TelemetryRecorder | None = None,
-    ):
+        telemetry_recorder: TelemetryRecorder,
+    ) -> None:
         """Initialize a launch agent.
 
         Arguments:
             api: Api object to use for making requests to the backend.
             config: Config dictionary for the agent.
+            telemetry_recorder: Recorder used to report agent errors.
         """
-        if telemetry_recorder is None:
-            telemetry_recorder = TelemetryRecorder()
-
         self._entity = config["entity"]
         self._project = LAUNCH_DEFAULT_PROJECT
         self._api = api
-        self._telemetry_recorder = api.api.telemetry_recorder
+        self._telemetry_recorder = telemetry_recorder
         self._base_url = self._api.settings().get("base_url")
         self._ticks = 0
         self._jobs: dict[int, JobAndRunStatusTracker] = {}
