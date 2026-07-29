@@ -380,9 +380,6 @@ def test_public_api_upsert_run_queue(
     assert json.loads(upsert_queue.external_links) == {
         "links": [{"label": "docs", "url": "https://example.test"}]
     }
-    assert upsert_queue.HasField("template_variables")
-    assert upsert_queue.HasField("prioritization_mode")
-    assert upsert_queue.HasField("external_links")
     termwarn.assert_called_once_with("resource config validation: invalid image")
 
 

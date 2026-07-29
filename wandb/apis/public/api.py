@@ -47,7 +47,7 @@ from wandb.sdk import wandb_login, wandb_setup
 from wandb.sdk.artifacts._gqlutils import resolve_org_entity_name
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
-from wandb.sdk.lib import runid, wbauth
+from wandb.sdk.lib import json_util, runid, wbauth
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
@@ -402,9 +402,9 @@ class Api:
         self.create_project(LAUNCH_DEFAULT_PROJECT, entity)
 
         # 2. create default resource config, receive config id
-        config_json = json.dumps({"resource_args": {type: config}})
+        config_json = json_util.dumps({"resource_args": {type: config}})
         template_variables_json = (
-            json.dumps(template_variables) if template_variables else "{}"
+            json_util.dumps(template_variables) if template_variables else "{}"
         )
 
         response = self._service_api.send_api_request(

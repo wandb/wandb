@@ -34,9 +34,9 @@ func (h *RunQueueHandler) HandleRequest(
 		return h.HandleCreateRunQueue(ctx, operation.CreateRunQueueRequest)
 	case *spb.RunQueueOperationRequest_UpsertRunQueueRequest:
 		return h.HandleUpsertRunQueue(ctx, operation.UpsertRunQueueRequest)
+	default:
+		return apiErrorResponse("unsupported operation", 0)
 	}
-
-	return nil
 }
 
 func (h *RunQueueHandler) HandleCreateDefaultResourceConfig(
