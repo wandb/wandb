@@ -136,9 +136,7 @@ def test_refresh_credentials(tmp_path: Path, oidc_server: _FakeOidcServer):
         assert creds["access_token"] == oidc_server.response["access_token"]
 
 
-def test_write_credentials_other_base_url(
-    tmp_path: Path, oidc_server: _FakeOidcServer
-):
+def test_write_credentials_other_base_url(tmp_path: Path, oidc_server: _FakeOidcServer):
     base_url = oidc_server.base_url
     other_base_url = "https://api.wandb.ai"
     token_file = tmp_path / "jwt.txt"

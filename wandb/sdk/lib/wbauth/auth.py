@@ -4,8 +4,6 @@ import abc
 import dataclasses
 import pathlib
 
-import requests
-import requests.auth
 from typing_extensions import final, override
 
 from wandb.errors import AuthenticationError
@@ -33,22 +31,6 @@ class Auth(abc.ABC):
     def host(self) -> HostUrl:
         """The W&B server for which the credentials are valid."""
         return self._host
-
-    @abc.abstractmethod
-    def as_requests_auth(self) -> requests.auth.AuthBase:
-        """Return a requests-compatible auth handler for this credential.
-
-        Returns a callable that implements the requests library's AuthBase
-        interface. This can be passed directly to requests.Session.auth for
-        automatic authentication on each request.
-
-        For token-based auth (e.g., identity tokens), the returned handler
-        will automatically refresh expired tokens on each request.
-
-        Returns:
-            A requests.auth.AuthBase instance that applies this credential
-            to HTTP requests.
-        """
 
     @final
     @override
@@ -88,29 +70,6 @@ class AuthApiKey(Auth):
     def api_key(self) -> str:
         """The API key."""
         return self._api_key
-
-    @override
-    def as_requests_auth(self) -> requests.auth.AuthBase:
-        """Return a requests auth handler using HTTP Basic Auth.
-
-        Returns:
-            An auth handler that sets the Authorization header with
-            Basic auth using "api" as the username and the API key
-            as the password.
-        """
-        return requests.auth.HTTPBasicAuth("api", self._api_key)
-
-
-class _IdentityTokenAuth(requests.auth.AuthBase):
-    """Requests auth handler for identity token (JWT) authentication."""
-
-    def __init__(self, auth: AuthIdentityTokenFile) -> None:
-        self._auth = auth
-
-    def __call__(self, r: requests.PreparedRequest) -> requests.PreparedRequest:
-        token = self._auth.fetch_access_token()
-        r.headers["Authorization"] = f"Bearer {token}"
-        return r
 
 
 @final
@@ -170,20 +129,6 @@ class AuthIdentityTokenFile(Auth):
         """
         base_url = str(self.host.url)
         return credentials.access_token(base_url, self.path, self.credentials_path)
-
-    @override
-    def as_requests_auth(self) -> requests.auth.AuthBase:
-        """Return a requests auth handler using Bearer token authentication.
-
-        The returned handler calls fetch_access_token() on each request,
-        ensuring that expired tokens are automatically refreshed.
-
-        Returns:
-            An auth handler that sets the Authorization header with
-            a Bearer token fetched (and refreshed as needed) from the
-            identity token file.
-        """
-        return _IdentityTokenAuth(self)
 
 
 @dataclasses.dataclass(frozen=True)
