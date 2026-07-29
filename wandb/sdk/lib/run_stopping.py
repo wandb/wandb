@@ -12,7 +12,6 @@ import contextlib
 import time
 from collections.abc import Callable
 
-from wandb.agents import pyagent
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.interface.interface import InterfaceBase
 from wandb.sdk.lib import asyncio_compat, asyncio_manager
@@ -101,6 +100,9 @@ class _RunStopCheckerImpl:
 
     async def _check_should_stop(self) -> bool:
         """Check whether the run should stop."""
+        # Imported here because pyagent pulls in wandb.apis.
+        from wandb.agents import pyagent
+
         # TODO: Remove the pyagent.is_running() check if safe to do so.
         # See WB-3606.
         if pyagent.is_running():
