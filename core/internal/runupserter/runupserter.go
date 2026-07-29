@@ -195,18 +195,23 @@ func InitRun(
 	// UpsertBucket request.
 	branchPoint := runRecord.BranchPoint
 
-	// A persisted resume=false intent behaves as "never" unless the caller
-	// explicitly requests allow or must through the current settings.
-	// This allows users to override during manual sync.
-	// Exclude forked and rewind cases so they continue to take priority.
+	// If resume sync state is false, users can override it by explicitly
+	// requesting `allow` or `must` through the current settings (e.g., manual
+	// sync). If the user explicitly requests `never`, we also enforce that
+	// the run does not exist on the server.
+	//
+	// Exclude forked and rewind cases (branchPoint != nil) so they continue
+	// to take priority.
 	resume := runParams.Resume
+	shouldUpdateMetadata := resume
 	if !resume && branchPoint == nil {
 		resumeSetting := params.Settings.GetResume()
 		resume = resumeSetting == "allow" || resumeSetting == "must"
+		shouldUpdateMetadata = resume || resumeSetting == "never"
 	}
 	runParams.Resume = resume
 	switch {
-	case resume:
+	case shouldUpdateMetadata:
 		err := upserter.updateMetadataForResume(ctx, params.Settings)
 
 		if err != nil {
