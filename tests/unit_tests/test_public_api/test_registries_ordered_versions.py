@@ -47,17 +47,13 @@ def _mock_advanced_search(service_api, *, enabled: bool) -> None:
     [(True, "project_id"), (False, "id")],
     ids=["advanced_search", "non_advanced_search"],
 )
-def test_filter_for_registry_pins_internal_id(
-    service_api, mocker, enabled, key
-):
+def test_filter_for_registry_pins_internal_id(service_api, mocker, enabled, key):
     _mock_advanced_search(service_api, enabled=enabled)
     registry = mocker.Mock(spec=Registry)
     registry.full_name = "wandb-registry-test"
     registry.internal_id = b64encode_ascii("ProjectInternalId:42")
 
-    assert filter_for_registry(
-        registry, service_api=service_api, organization=ORG
-    ) == {
+    assert filter_for_registry(registry, service_api=service_api, organization=ORG) == {
         "name": "wandb-registry-test",
         key: 42,
     }
@@ -92,9 +88,7 @@ def test_filter_for_registry_falls_back_to_name_without_internal_id(
     registry.full_name = "wandb-registry-order-test-reg-0"
     registry.internal_id = None
 
-    assert filter_for_registry(
-        registry, service_api=service_api, organization=ORG
-    ) == {
+    assert filter_for_registry(registry, service_api=service_api, organization=ORG) == {
         "name": "wandb-registry-order-test-reg-0",
     }
     service_api.execute_graphql.assert_not_called()
