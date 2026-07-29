@@ -264,6 +264,26 @@ def test_create_custom_chart():
     }
 
 
+def test_initialize_api_with_federated_identity(federated_identity):
+    """Regression test for gh-11722: federated identity in wandb.Api().
+
+    With WANDB_IDENTITY_TOKEN_FILE set and no API key configured, all
+    network traffic goes through wandb-core, which exchanges the identity
+    token for an access token and authenticates with it as a Bearer token.
+    """
+    api = Api()
+
+    assert api.api_key is None
+    assert api.default_entity == federated_identity.entity
+    assert api.viewer.username == federated_identity.username
+    assert federated_identity.token_exchanges >= 1
+    assert federated_identity.graphql_auth_headers
+    assert all(
+        header == f"Bearer {federated_identity.access_token}"
+        for header in federated_identity.graphql_auth_headers
+    )
+
+
 def test_initialize_api_authenticates(
     monkeypatch: pytest.MonkeyPatch,
 ):
