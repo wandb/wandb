@@ -39,3 +39,4 @@ The `wandb sync --clean` command now exits with code 1 and prints a hint to use 
 
 - Registry search `registries(order=...).collections(order=...).versions()` now returns artifact versions in registry and/or collection order. (@ibindlish in https://github.com/wandb/wandb/pull/12154)
 - macOS x86_64 wheels now contain x86_64 builds of the `wandb-xpu` binary and the Rust parquet library, which previously shipped as arm64 and could not run or be loaded on Intel Macs (@dmitryduev in https://github.com/wandb/wandb/pull/12267)
+- `wandb.login(verify=True)` and `wandb login --verify` now verify federated identity (identity token) credentials, which were previously not verified (@dmitryduev in https://github.com/wandb/wandb/pull/12294)

@@ -277,10 +277,13 @@ def test_initialize_api_authenticates(
     api = Api(overrides={"base_url": "https://test-url"})
 
     assert api.api_key == "1234" * 10
-    mock_verify_login.assert_called_once_with(
-        key="1234" * 10,
-        base_url="https://test-url",
-    )
+    mock_verify_login.assert_called_once()
+    (auth,) = mock_verify_login.call_args.args
+    assert isinstance(auth, wbauth.AuthApiKey)
+    assert auth.api_key == "1234" * 10
+    assert auth.host.url == "https://test-url"
+    # The Api's own service API handle is reused for verification.
+    assert mock_verify_login.call_args.kwargs["service_api"] is api._service_api
 
 
 def test_initialize_api_uses_explicit_key(
@@ -297,10 +300,13 @@ def test_initialize_api_uses_explicit_key(
     api = Api(api_key=key, overrides={"base_url": "https://test-url"})
 
     assert api.api_key == key
-    mock_verify_login.assert_called_once_with(
-        key=key,
-        base_url="https://test-url",
-    )
+    mock_verify_login.assert_called_once()
+    (auth,) = mock_verify_login.call_args.args
+    assert isinstance(auth, wbauth.AuthApiKey)
+    assert auth.api_key == key
+    assert auth.host.url == "https://test-url"
+    # The Api's own service API handle is reused for verification.
+    assert mock_verify_login.call_args.kwargs["service_api"] is api._service_api
 
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")

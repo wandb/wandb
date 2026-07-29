@@ -150,10 +150,6 @@ class Api:
 
         if isinstance(self._auth, wbauth.AuthApiKey):
             self.api_key = self._auth.api_key
-            wandb_login._verify_login(
-                key=self.api_key,
-                base_url=base_url,
-            )
         else:
             self.api_key = None
 
@@ -187,6 +183,10 @@ class Api:
             settings=settings,
             timeout=self._timeout,
         )
+
+        if isinstance(self._auth, wbauth.AuthApiKey):
+            wandb_login._verify_login(self._auth, service_api=self._service_api)
+
         self._sentry = wandb.analytics.sentry.Sentry(pid=os.getpid())
         self._configure_sentry()
 

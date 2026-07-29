@@ -460,8 +460,9 @@ def login(
     This updates global credentials for the session (affecting all wandb usage
     in the current Python process after this call) and possibly the .netrc file.
 
-    If the identity_token_file setting is set, like through the
-    WANDB_IDENTITY_TOKEN_FILE environment variable, then this is a no-op.
+    If an identity token file is configured, like through the
+    WANDB_IDENTITY_TOKEN_FILE environment variable, then it is used for the
+    session (federated identity) and no API key is read or saved.
 
     Otherwise, if an explicit API key is provided, it is used and written to
     the system .netrc file. If no key is provided, but the session is already
@@ -487,14 +488,16 @@ def login(
             prompt. This can be used as a failsafe if an interactive prompt
             is incorrectly shown in a non-interactive environment.
         verify: Verify the credentials with the W&B server and raise an
-            AuthenticationError on failure.
+            AuthenticationError on failure. This works for API keys as well
+            as identity tokens.
         referrer: The referrer to use in the URL login request for analytics.
 
     Returns:
         bool: If `key` is configured.
 
     Raises:
-        AuthenticationError: If `api_key` fails verification with the server.
+        AuthenticationError: If the credentials fail verification with
+            the server.
         UsageError: If `api_key` cannot be configured and no tty.
     """
     ...

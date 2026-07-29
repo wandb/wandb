@@ -8,6 +8,7 @@ import wandb
 from wandb.errors import UsageError
 from wandb.sdk import wandb_login, wandb_setup
 from wandb.sdk.lib.credentials import _expires_at_fmt
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 
 @pytest.fixture(autouse=True)
@@ -109,10 +110,33 @@ def test_login_sets_api_base_url():
     assert wandb_setup.singleton().settings.base_url == base_url
 
 
-def test_login_invalid_key(monkeypatch: pytest.MonkeyPatch):
+def test_login_verify_wraps_service_errors(monkeypatch: pytest.MonkeyPatch):
+    """Any verification failure surfaces as the documented AuthenticationError.
+
+    Failures to start or connect to the wandb-core service raise exception
+    types other than WandbApiFailedError.
+    """
+
+    def raise_service_error(self, *args, **kwargs):
+        raise ConnectionRefusedError("the service process is not running")
+
     monkeypatch.setattr(
-        "wandb.sdk.wandb_login.ServiceApi.execute_graphql",
-        lambda self, *_args, **_kwargs: {"viewer": None},
+        "wandb.sdk.wandb_login.ServiceApi.authenticate",
+        raise_service_error,
+    )
+    wandb.ensure_configured()
+
+    with pytest.raises(wandb.errors.AuthenticationError):
+        wandb.login(key="X" * 40, verify=True)
+
+
+def test_login_invalid_key(monkeypatch: pytest.MonkeyPatch):
+    def reject_credentials(self, *args, **kwargs):
+        raise WandbApiFailedError("invalid credentials")
+
+    monkeypatch.setattr(
+        "wandb.sdk.wandb_login.ServiceApi.authenticate",
+        reject_credentials,
     )
     wandb.ensure_configured()
 
