@@ -1,6 +1,8 @@
 package leet_test
 
 import (
+	"math"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -169,4 +171,32 @@ func TestConfig_SetFrenchFriesColorScheme_Persists(t *testing.T) {
 
 	cfg2 := leet.NewConfigManager(path, logger)
 	require.Equal(t, "cividis", cfg2.Snapshot().FrenchFriesColorScheme)
+}
+
+// Regression: a config file where one unrelated field fails to decode used to
+// skip normalization entirely, letting out-of-range override fractions
+// through unclamped.
+func TestConfig_PartialDecodeStillClampsOverrides(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	path := filepath.Join(t.TempDir(), "config.json")
+	require.NoError(t, os.WriteFile(path, []byte(
+		`{"run_layout":{"media":5.0},"color_scheme":123}`), 0o644))
+
+	cfg := leet.NewConfigManager(path, logger)
+	require.LessOrEqual(t, cfg.RunLayout().Media, leet.MaxLayoutFrac,
+		"fractions must be clamped even when another field fails to decode")
+}
+
+// NaN would defeat the clamp and poison every subsequent save (encoding/json
+// rejects NaN); it resets to the default instead.
+func TestConfig_SetRunLayoutRejectsNaN(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	path := filepath.Join(t.TempDir(), "config.json")
+	cfg := leet.NewConfigManager(path, logger)
+
+	require.NoError(t, cfg.SetRunLayout(leet.LayoutOverrides{Media: math.NaN()}))
+	require.Zero(t, cfg.RunLayout().Media)
+
+	// Later unrelated saves keep working.
+	require.NoError(t, cfg.SetLeftSidebarVisible(false))
 }

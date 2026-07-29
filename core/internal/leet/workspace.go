@@ -563,8 +563,10 @@ func (w *Workspace) layoutOverrides() LayoutOverrides {
 // overrides.
 func (w *Workspace) updateSidebarDimensions(leftVisible, rightVisible bool) {
 	o := w.layoutOverrides()
-	w.runsAnimState.SetExpanded(expandedSidebarWidth(w.width, rightVisible, o.LeftSidebar))
-	w.runOverviewSidebar.UpdateDimensions(w.width, leftVisible, o.RightSidebar)
+	left, right := fitSidebarFractions(
+		w.width, leftVisible, rightVisible, o.LeftSidebar, o.RightSidebar)
+	w.runsAnimState.SetExpanded(expandedSidebarWidth(w.width, rightVisible, left))
+	w.runOverviewSidebar.UpdateDimensions(w.width, leftVisible, right)
 }
 
 func (w *Workspace) updateBottomPaneHeights(sysVisible, mediaVisible, logsVisible bool) {
@@ -610,14 +612,35 @@ func (w *Workspace) updateBottomPaneHeights(sysVisible, mediaVisible, logsVisibl
 
 	o := w.layoutOverrides()
 	each := lowerTierH / lowerCount
+	heights := []int{
+		paneHeightFor(o.System, w.height, each),
+		paneHeightFor(o.Media, w.height, each),
+		paneHeightFor(o.Logs, w.height, each),
+	}
+	budget := maxH
+	if metricsVisible {
+		budget = maxH - minFlexMetricsHeight
+	}
+	if !sysVisible {
+		heights[0] = 0
+	}
+	if !mediaVisible {
+		heights[1] = 0
+	}
+	if !logsVisible {
+		heights[2] = 0
+	}
+	fitStackHeights(heights, []int{
+		systemMetricsPaneMinHeight, mediaPaneMinHeight, ConsoleLogsPaneMinHeight,
+	}, budget)
 	if sysVisible {
-		w.systemMetricsPane.SetExpandedHeight(paneHeightFor(o.System, w.height, each))
+		w.systemMetricsPane.SetExpandedHeight(heights[0])
 	}
 	if mediaVisible {
-		w.mediaPane.SetExpandedHeight(paneHeightFor(o.Media, w.height, each))
+		w.mediaPane.SetExpandedHeight(heights[1])
 	}
 	if logsVisible {
-		w.consoleLogsPane.SetExpandedHeight(paneHeightFor(o.Logs, w.height, each))
+		w.consoleLogsPane.SetExpandedHeight(heights[2])
 	}
 }
 
