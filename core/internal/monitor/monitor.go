@@ -179,7 +179,7 @@ func (sm *SystemMonitor) initializeResources(xpuResourceManager *XPUResourceMana
 		sm.resources = append(sm.resources, xpu)
 	} else if err != nil {
 		sm.logger.CaptureError(
-			"SystemMonitor",
+			"monitor",
 			fmt.Errorf("monitor: failed to initialize xpu resource: %v", err),
 		)
 	}
@@ -205,7 +205,7 @@ func (sm *SystemMonitor) initializeResources(xpuResourceManager *XPUResourceMana
 		sm.resources = append(sm.resources, cwm)
 	} else if err != nil {
 		sm.logger.CaptureError(
-			"SystemMonitor",
+			"monitor",
 			fmt.Errorf(
 				"monitor: failed to initialize CoreWeave metadata resource: %v",
 				err,
@@ -306,7 +306,7 @@ func (sm *SystemMonitor) probeResources() *spb.Record {
 			defer func() {
 				if err := recover(); err != nil {
 					sm.logger.CaptureError(
-						"SystemMonitor",
+						"monitor",
 						fmt.Errorf("monitor: panic probing resource: %v", err),
 					)
 				}
@@ -430,7 +430,7 @@ func (sm *SystemMonitor) monitorResource(resource Resource) {
 		if err := recover(); err != nil {
 			if resource != nil {
 				sm.logger.CaptureError(
-					"SystemMonitor",
+					"monitor",
 					fmt.Errorf("monitor: panic: %v", err),
 				)
 			}
@@ -454,7 +454,7 @@ func (sm *SystemMonitor) monitorResource(resource Resource) {
 			if err != nil {
 				if ShouldCaptureSamplingError(err) {
 					sm.logger.CaptureError(
-						"SystemMonitor",
+						"monitor",
 						fmt.Errorf("monitor: error sampling metrics: %v", err),
 					)
 				} else {

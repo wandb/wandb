@@ -170,7 +170,7 @@ func (w *Workspace) handleWorkspaceRunDirs(msg WorkspaceRunDirsMsg) tea.Cmd {
 
 	if msg.Err != nil {
 		w.logger.CaptureError(
-			"leet.Workspace",
+			"leet",
 			fmt.Errorf("workspace: wandb dir scan: %v", msg.Err),
 		)
 		return pollCmd
@@ -298,7 +298,7 @@ func (w *Workspace) handleWorkspaceRunOverviewPreloaded(
 		// "file not ready yet" or missing run records.
 		err := fmt.Errorf("workspace: preload run overview for %s: %v", msg.RunKey, msg.Err)
 		w.logger.CaptureError(
-			"leet.Workspace",
+			"leet",
 			err,
 		)
 	}

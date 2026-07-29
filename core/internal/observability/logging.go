@@ -132,6 +132,8 @@ func (cl *CoreLogger) With(
 }
 
 // CaptureError logs an error and records a corresponding telemetry event.
+//
+// errorOriginator must be the declared package name of the calling file.
 func (cl *CoreLogger) CaptureError(
 	errorOriginator string,
 	err error,
@@ -142,6 +144,8 @@ func (cl *CoreLogger) CaptureError(
 }
 
 // CaptureFatal logs a fatal error and records a corresponding telemetry event.
+//
+// errorOriginator must be the declared package name of the calling file.
 func (cl *CoreLogger) CaptureFatal(
 	errorOriginator string,
 	err error,
@@ -151,8 +155,10 @@ func (cl *CoreLogger) CaptureFatal(
 	cl.captureException(errorOriginator, err, args...)
 }
 
-// CaptureFatalAndPanic logs a fatal error, records a corresponding telemetry event,
-// and panics.
+// CaptureFatalAndPanic logs a fatal error, records a corresponding telemetry
+// event, and panics.
+//
+// errorOriginator must be the declared package name of the calling file.
 func (cl *CoreLogger) CaptureFatalAndPanic(
 	errorOriginator string,
 	err error,
@@ -254,6 +260,7 @@ func (cl *CoreLogger) captureMessage(
 // Reraise logs a panic, records a telemetry error event, and re-panics.
 //
 // It is meant to be used in a `defer` statement.
+// errorOriginator must be the declared package name of the calling file.
 func (cl *CoreLogger) Reraise(errorOriginator string, args ...any) {
 	panicErr := recover()
 	if panicErr == nil { // if NO error, return

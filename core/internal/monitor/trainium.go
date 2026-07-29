@@ -225,7 +225,7 @@ func (t *Trainium) Start() error {
 					rawStats := make(map[string]any)
 					if err := json.Unmarshal(scanner.Bytes(), &rawStats); err != nil {
 						t.logger.CaptureError(
-							"Trainium",
+							"monitor",
 							fmt.Errorf("trainium: failed to parse JSON: %v", err),
 						)
 						continue
@@ -338,7 +338,7 @@ func (t *Trainium) Sample() (*spb.StatsRecord, error) {
 		}
 		if err != nil {
 			t.logger.CaptureError(
-				"Trainium",
+				"monitor",
 				fmt.Errorf(
 					"trainium: failed to unmarshal host memory usage: %v",
 					err))
@@ -359,7 +359,7 @@ func (t *Trainium) Sample() (*spb.StatsRecord, error) {
 			}
 			if err != nil {
 				t.logger.CaptureError(
-					"Trainium",
+					"monitor",
 					fmt.Errorf("trainium: failed to unmarshal neuroncore memory usage: %v", err))
 			}
 		}
@@ -420,7 +420,7 @@ func (t *Trainium) flattenStats(sample TrainiumStats) map[string]any {
 			err := json.Unmarshal(jsonBytes, &subMap)
 			if err != nil {
 				t.logger.CaptureError(
-					"Trainium",
+					"monitor",
 					fmt.Errorf("trainium: failed to unmarshal submap: %v", err),
 				)
 				return
@@ -458,7 +458,7 @@ func (t *Trainium) Close() {
 		err := t.cmd.Process.Kill()
 		if err != nil {
 			t.logger.CaptureError(
-				"Trainium",
+				"monitor",
 				fmt.Errorf("trainium: failed to kill process: %v", err),
 			)
 		}
@@ -469,7 +469,7 @@ func (t *Trainium) Close() {
 func (t *Trainium) Probe(_ context.Context) *spb.EnvironmentRecord {
 	info := &spb.EnvironmentRecord{
 		Trainium: &spb.TrainiumInfo{
-			Name:   "Trainium",
+			Name:   "monitor",
 			Vendor: "AWS",
 		},
 	}

@@ -902,7 +902,7 @@ func (r *Run) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 	if !r.IsRemote() && r.runState == RunStateRunning && !r.watcherMgr.IsStarted() {
 		if err := r.watcherMgr.Start(r.runParams.RunFile); err != nil {
 			r.logger.CaptureError(
-				"leet.run",
+				"leet",
 				fmt.Errorf("model: error starting watcher: %v", err),
 			)
 		} else {

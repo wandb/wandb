@@ -278,7 +278,7 @@ func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 		// Read errors from per-run commands; the affected run simply stops
 		// streaming, so surface the error in the logs.
 		w.logger.CaptureError(
-			"leet.Workspace",
+			"leet",
 			fmt.Errorf("workspace: run read failed: %v", t.Err),
 		)
 	}

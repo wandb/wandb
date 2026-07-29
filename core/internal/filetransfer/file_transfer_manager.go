@@ -88,7 +88,7 @@ func (fm *fileTransferManager) AddTask(task Task) {
 
 		if err != nil {
 			fm.logger.CaptureError(
-				"FileTransferManager",
+				"filetransfer",
 				err,
 				"task",
 				task.String(),

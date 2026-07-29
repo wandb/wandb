@@ -276,8 +276,8 @@ func (r *TelemetryRecorder) Log(
 // "error.originator". The stack trace is captured at the point Error is called.
 //
 // errorOriginator is a caller-supplied hint about where the error originated.
-// The errorOriginator is recorded as a means of aggregating errors by related
-// sections of the code.
+// Callers pass the declared package name of the calling file, so
+// errorOriginator aggregates errors by package.
 func (r *TelemetryRecorder) Error(
 	ctx context.Context,
 	message string,
