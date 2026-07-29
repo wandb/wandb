@@ -284,3 +284,68 @@ func TestRun_RenderedSeparatorsAlignWithLayout(t *testing.T) {
 			"expected a separator at row %d, got %q", row, lines[row])
 	}
 }
+
+// Regression: when the metrics slot is shorter than the grid's minimum
+// render height, the grid used to render past its reservation (lipgloss
+// Place never crops), pushing every section below off its layout row and
+// the status bar off-screen.
+func TestRun_ShortMetricsSlotStaysAligned(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	_ = cfg.SetLeftSidebarVisible(false)
+	_ = cfg.SetRightSidebarVisible(false)
+	_ = cfg.SetMediaVisible(true)
+	_ = cfg.SetConsoleLogsVisible(true)
+
+	r := leet.NewRun(&leet.RunParams{RunFile: "testdata/fake.wandb"}, cfg, logger)
+	// A height where the reserved metrics slot is below the grid's minimum
+	// render height (header + one bordered chart cell).
+	r.Update(tea.WindowSizeMsg{Width: 120, Height: 20})
+	r.TestHandleRecordMsg(leet.RunMsg{ID: "abc123", Project: "test-project"})
+	r.TestHandleRecordMsg(leet.HistoryMsg{
+		Metrics: map[string]leet.MetricData{
+			"loss": {X: []float64{1, 2}, Y: []float64{0.5, 0.4}},
+		},
+	})
+
+	metrics, media, _ := r.TestStackHeights()
+	require.Positive(t, metrics)
+	lines := strings.Split(stripANSI(r.View().Content), "\n")
+	require.LessOrEqual(t, len(lines), 20,
+		"the rendered frame must never be taller than the terminal")
+
+	for _, row := range []int{metrics, metrics + 1 + media} {
+		require.Less(t, row, len(lines))
+		require.True(t, strings.HasPrefix(strings.TrimSpace(lines[row]), "———"),
+			"expected a separator at row %d, got %q", row, lines[row])
+	}
+}
+
+// Same invariant for the metrics empty state: its three-line hint must crop
+// to a shorter reservation instead of shifting the sections below.
+func TestRun_EmptyMetricsShortSlotStaysAligned(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	_ = cfg.SetLeftSidebarVisible(false)
+	_ = cfg.SetRightSidebarVisible(false)
+	_ = cfg.SetMediaVisible(true)
+	_ = cfg.SetConsoleLogsVisible(true)
+
+	r := leet.NewRun(&leet.RunParams{RunFile: "testdata/fake.wandb"}, cfg, logger)
+	// No scalar metrics logged: the empty-state hint renders into a slot
+	// shorter than its three lines.
+	r.Update(tea.WindowSizeMsg{Width: 120, Height: 17})
+	r.TestHandleRecordMsg(leet.RunMsg{ID: "abc123", Project: "test-project"})
+
+	metrics, media, _ := r.TestStackHeights()
+	require.Positive(t, metrics)
+	lines := strings.Split(stripANSI(r.View().Content), "\n")
+	require.LessOrEqual(t, len(lines), 17,
+		"the rendered frame must never be taller than the terminal")
+
+	for _, row := range []int{metrics, metrics + 1 + media} {
+		require.Less(t, row, len(lines))
+		require.True(t, strings.HasPrefix(strings.TrimSpace(lines[row]), "———"),
+			"expected a separator at row %d, got %q", row, lines[row])
+	}
+}

@@ -1089,7 +1089,9 @@ func renderMetricsEmptyState(width, height int, hint string) string {
 	header := mediaPaneHeaderStyle.Render("Metrics")
 	hintText := mediaTilePlaceholderStyle.Render(hint)
 	content := lipgloss.JoinVertical(lipgloss.Left, header, "", hintText)
-	content = lipgloss.Place(innerW, height, lipgloss.Left, lipgloss.Top, content)
+	// placeMainColumn rather than lipgloss.Place: the three-line hint must
+	// also crop to a shorter reservation, like every stack section.
+	content = placeMainColumn(innerW, height, content)
 	return lipgloss.NewStyle().Padding(0, ContentPadding).Render(content)
 }
 
