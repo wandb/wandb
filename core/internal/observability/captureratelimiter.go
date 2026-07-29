@@ -7,7 +7,7 @@ import (
 	lru "github.com/hashicorp/golang-lru"
 )
 
-// CaptureRateLimiter limits the rate at which messages are uploaded to Sentry.
+// CaptureRateLimiter limits the rate at which messages are captured.
 //
 // It maps message hashes to timestamps. The last capture time of every message
 // is tracked and capturing is skipped for messages seen too recently.

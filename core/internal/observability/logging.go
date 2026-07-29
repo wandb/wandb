@@ -203,6 +203,10 @@ func (cl *CoreLogger) captureException(
 	err error,
 	args ...any,
 ) {
+	if !cl.captureRateLimiter.AllowCapture(err.Error()) {
+		return
+	}
+
 	cl.telemetryRecorder.Error(
 		context.Background(),
 		err.Error(),
@@ -210,7 +214,7 @@ func (cl *CoreLogger) captureException(
 		errorOriginator,
 	)
 
-	if cl.sentryCtx == nil || !cl.captureRateLimiter.AllowCapture(err.Error()) {
+	if cl.sentryCtx == nil {
 		return
 	}
 
@@ -226,6 +230,10 @@ func (cl *CoreLogger) captureMessage(
 	severity otellogapi.Severity,
 	args ...any,
 ) {
+	if !cl.captureRateLimiter.AllowCapture(msg) {
+		return
+	}
+
 	cl.telemetryRecorder.Log(
 		context.Background(),
 		msg,
@@ -233,7 +241,7 @@ func (cl *CoreLogger) captureMessage(
 		severity,
 	)
 
-	if cl.sentryCtx == nil || !cl.captureRateLimiter.AllowCapture(msg) {
+	if cl.sentryCtx == nil {
 		return
 	}
 

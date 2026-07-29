@@ -339,11 +339,14 @@ type OpenTelemetryProxy struct {
 }
 
 // NewOpenTelemetryProxy returns an OpenTelemetryProxy for the given endpoint.
+//
+// When analytics is disabled, the wandbSettings are offline, or the api key is not set,
+// a nil pointer is returned, making calls to the proxy a no-op.
 func NewOpenTelemetryProxy(
 	ctx context.Context,
 	wandbSettings *settings.Settings,
 ) *OpenTelemetryProxy {
-	if disabled.Load() {
+	if disabled.Load() || wandbSettings.IsOffline() || wandbSettings.GetAPIKey() == "" {
 		return nil
 	}
 

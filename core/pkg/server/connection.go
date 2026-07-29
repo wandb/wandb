@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/url"
 	"sync"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 
@@ -681,7 +682,13 @@ func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest
 	go func() {
 		<-nc.connLifetimeCtx.Done()
 		if telemetryProxy != nil {
-			err := telemetryProxy.Shutdown(context.Background())
+			shutdownCtx, cancel := context.WithTimeout(
+				context.Background(),
+				2*time.Second,
+			)
+			defer cancel()
+
+			err := telemetryProxy.Shutdown(shutdownCtx)
 			if err != nil {
 				slog.Error(
 					"connection: failed to shut down telemetry proxy",
