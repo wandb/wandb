@@ -1,5 +1,8 @@
 import json
 import os
+import urllib.error
+import urllib.parse
+import urllib.request
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -107,8 +110,6 @@ def _create_access_token(base_url: str, token_file: Path) -> dict:
         OSError: If there is an issue reading the token file.
         AuthenticationError: If the server fails to provide an access token.
     """
-    import requests
-
     try:
         with open(token_file) as file:
             token = file.read().strip()
@@ -120,20 +121,25 @@ def _create_access_token(base_url: str, token_file: Path) -> dict:
         ) from e
 
     url = f"{base_url}/oidc/token"
-    data = {
-        "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
-        "assertion": token,
-    }
+    data = urllib.parse.urlencode(
+        {
+            "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+            "assertion": token,
+        }
+    ).encode()
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
 
-    response = requests.post(url, data=data, headers=headers)
-
-    if response.status_code != 200:
+    request = urllib.request.Request(url, data=data, headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(request) as response:
+            body = response.read().decode("utf-8")
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode("utf-8", errors="replace")
         raise AuthenticationError(
-            f"Failed to retrieve access token: {response.status_code}, {response.text}"
-        )
+            f"Failed to retrieve access token: {e.code}, {error_body}"
+        ) from e
 
-    resp_json = response.json()
+    resp_json = json.loads(body)
     expires_at = datetime.utcnow() + timedelta(seconds=float(resp_json["expires_in"]))
     resp_json["expires_at"] = expires_at.strftime(_expires_at_fmt)
     del resp_json["expires_in"]
