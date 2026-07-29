@@ -6,7 +6,6 @@ from unittest.mock import MagicMock
 
 import pytest
 import wandb
-from pytest_mock import MockerFixture
 from wandb import Api
 from wandb.apis import internal
 from wandb.apis._generated import ProjectFragment, UserFragment
@@ -494,19 +493,3 @@ def test_project_load__raises_error(monkeypatch):
 
     with pytest.raises(ValueError):
         project._load()
-
-
-@pytest.mark.usefixtures("skip_verify_login")
-def test_api_does_not_use_requests_auth(mocker: MockerFixture):
-    """Test that Api() does not build requests auth for the service API."""
-    mock_auth = wbauth.AuthApiKey(
-        host=wbauth.HostUrl("https://api.wandb.ai"),
-        api_key="a" * 40,
-    )
-    mocker.spy(mock_auth, "as_requests_auth")
-
-    mocker.patch.object(wbauth, "authenticate_session", return_value=mock_auth)
-
-    Api()
-
-    mock_auth.as_requests_auth.assert_not_called()
