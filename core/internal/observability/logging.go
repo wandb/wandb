@@ -57,9 +57,9 @@ type CoreLogger struct {
 }
 
 // NewCoreLogger returns a new logger that writes messages to the slog Logger
-// and uploads captured messages using a clone of the sentryHub.
+// and uploads captured messages to Sentry and Datadog.
 //
-// sentryHub can be set to nil to disable Sentry.
+// Sentry events are captured with a clone of the sentryHub.
 func NewCoreLogger(
 	logger *slog.Logger,
 	sentryCtx *SentryContext,
@@ -98,13 +98,13 @@ func (cl *CoreLogger) withArgs(args ...any) Tags {
 	return tags
 }
 
-// With returns a derived logger with additional slog attrs and Sentry tags.
+// With returns a derived logger with additional slog attrs and telemetry tags.
 //
 // The returned logger inherits the attrs and tags of this logger.
 //
 // The additional attrs are logged with every message and included as tags on
-// every Sentry event. The tags are only uploaded to Sentry, so they can
-// be more verbose.
+// every Sentry+OpenTelemetry event.
+// The tags are captured in Sentry and OpenTelemetry, so they can be more verbose.
 func (cl *CoreLogger) With(
 	attrs []any,
 	tags map[string]string,
@@ -131,7 +131,7 @@ func (cl *CoreLogger) With(
 	}
 }
 
-// CaptureError logs an error and sends it to Sentry.
+// CaptureError logs an error and records a corresponding telemetry event.
 func (cl *CoreLogger) CaptureError(
 	errorOriginator string,
 	err error,
@@ -151,7 +151,8 @@ func (cl *CoreLogger) CaptureFatal(
 	cl.captureException(errorOriginator, err, args...)
 }
 
-// CaptureFatalAndPanic logs a fatal error, sends it to Sentry and panics.
+// CaptureFatalAndPanic logs a fatal error, records a corresponding telemetry event,
+// and panics.
 func (cl *CoreLogger) CaptureFatalAndPanic(
 	errorOriginator string,
 	err error,
@@ -181,22 +182,22 @@ func (cl *CoreLogger) CaptureFatalAndPanic(
 	panic(err)
 }
 
-// CaptureWarn logs a warning and sends it to Sentry.
+// CaptureWarn logs a warning and records a corresponding telemetry event.
 func (cl *CoreLogger) CaptureWarn(msg string, args ...any) {
 	cl.Warn(msg, args...)
 	cl.captureMessage(msg, otellogapi.SeverityWarn, args...)
 }
 
-// CaptureInfo logs an info message and sends it to Sentry.
+// CaptureInfo logs an info message and records a corresponding telemetry event.
 func (cl *CoreLogger) CaptureInfo(msg string, args ...any) {
 	cl.Info(msg, args...)
 	cl.captureMessage(msg, otellogapi.SeverityInfo, args...)
 }
 
-// captureException uploads an error to Sentry if possible and allowed.
+// captureException captures a telemetry error event if possible and allowed.
 //
-// codeFunctionName is the fully-qualified name of the function the error is
-// attributed to, recorded as the telemetry "code.function.name" attribute.
+// errorOriginator is a telemetry tag that attributes where the
+// error was captured.
 func (cl *CoreLogger) captureException(
 	errorOriginator string,
 	err error,
@@ -219,7 +220,7 @@ func (cl *CoreLogger) captureException(
 	})
 }
 
-// captureException uploads a message to Sentry if possible and allowed.
+// captureMessage captures a telemetry event if possible and allowed.
 func (cl *CoreLogger) captureMessage(
 	msg string,
 	severity otellogapi.Severity,
@@ -228,7 +229,7 @@ func (cl *CoreLogger) captureMessage(
 	cl.telemetryRecorder.Log(
 		context.Background(),
 		msg,
-		argsToAttributes(args...),
+		NewTags(args...),
 		severity,
 	)
 
@@ -242,7 +243,7 @@ func (cl *CoreLogger) captureMessage(
 	})
 }
 
-// Reraise logs a panic, uploads it to Sentry, and re-panics.
+// Reraise logs a panic, records a telemetry error event, and re-panics.
 //
 // It is meant to be used in a `defer` statement.
 func (cl *CoreLogger) Reraise(errorOriginator string, args ...any) {
@@ -287,14 +288,4 @@ func NewNoOpLogger() *CoreLogger {
 		nil,
 		analytics.NewTelemetryRecorder(nil, analytics.NewTelemetryContext()),
 	)
-}
-
-func argsToAttributes(args ...any) map[string]string {
-	attributes := make(map[string]string)
-	for _, arg := range args {
-		if attr, ok := arg.(slog.Attr); ok {
-			attributes[attr.Key] = attr.Value.String()
-		}
-	}
-	return attributes
 }

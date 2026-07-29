@@ -131,6 +131,8 @@ func serviceMain() int {
 	var sentryDSN string
 	if !*disableAnalytics {
 		sentryDSN = observability.WandbCoreDSN
+	} else {
+		analytics.Disable()
 	}
 	err := sentry.Init(sentry.ClientOptions{
 		Dsn:              sentryDSN,
