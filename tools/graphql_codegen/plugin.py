@@ -12,12 +12,12 @@ from __future__ import annotations
 import ast
 import subprocess
 import sys
+from collections.abc import Iterable, Iterator, Mapping
 from contextlib import suppress
 from itertools import chain
 from pathlib import Path
 from shutil import rmtree
 from typing import Any, ClassVar
-from collections.abc import Iterable, Iterator, Mapping
 
 from ariadne_codegen import Plugin
 from ariadne_codegen.config import get_client_settings

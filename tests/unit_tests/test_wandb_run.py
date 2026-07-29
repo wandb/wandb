@@ -51,6 +51,7 @@ REFERENCE_ATTRIBUTES = set(
         "summary",
         "sweep_id",
         "sweep_url",
+        "sync_dir",
         "tags",
         "to_html",
         "unwatch",

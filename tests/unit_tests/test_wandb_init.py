@@ -65,8 +65,8 @@ def test_avoids_sync_dir_conflict(mocker):
     with wandb.init(mode="offline", id="sync-dir-test") as run3:
         pass
 
-    assert run2.settings.sync_dir == run1.settings.sync_dir + "-1"
-    assert run3.settings.sync_dir == run1.settings.sync_dir + "-2"
+    assert run2.sync_dir == run1.sync_dir + "-1"
+    assert run3.sync_dir == run1.sync_dir + "-2"
 
 
 def test_temp_dir_cleanup_on_exit(tmp_path, monkeypatch):

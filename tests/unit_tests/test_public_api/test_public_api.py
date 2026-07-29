@@ -264,6 +264,26 @@ def test_create_custom_chart():
     }
 
 
+def test_initialize_api_with_federated_identity(federated_identity):
+    """Regression test for gh-11722: federated identity in wandb.Api().
+
+    With WANDB_IDENTITY_TOKEN_FILE set and no API key configured, all
+    network traffic goes through wandb-core, which exchanges the identity
+    token for an access token and authenticates with it as a Bearer token.
+    """
+    api = Api()
+
+    assert api.api_key is None
+    assert api.default_entity == federated_identity.entity
+    assert api.viewer.username == federated_identity.username
+    assert federated_identity.token_exchanges >= 1
+    assert federated_identity.graphql_auth_headers
+    assert all(
+        header == f"Bearer {federated_identity.access_token}"
+        for header in federated_identity.graphql_auth_headers
+    )
+
+
 def test_initialize_api_authenticates(
     monkeypatch: pytest.MonkeyPatch,
 ):
@@ -277,10 +297,13 @@ def test_initialize_api_authenticates(
     api = Api(overrides={"base_url": "https://test-url"})
 
     assert api.api_key == "1234" * 10
-    mock_verify_login.assert_called_once_with(
-        key="1234" * 10,
-        base_url="https://test-url",
-    )
+    mock_verify_login.assert_called_once()
+    (auth,) = mock_verify_login.call_args.args
+    assert isinstance(auth, wbauth.AuthApiKey)
+    assert auth.api_key == "1234" * 10
+    assert auth.host.url == "https://test-url"
+    # The Api's own service API handle is reused for verification.
+    assert mock_verify_login.call_args.kwargs["service_api"] is api._service_api
 
 
 def test_initialize_api_uses_explicit_key(
@@ -297,10 +320,13 @@ def test_initialize_api_uses_explicit_key(
     api = Api(api_key=key, overrides={"base_url": "https://test-url"})
 
     assert api.api_key == key
-    mock_verify_login.assert_called_once_with(
-        key=key,
-        base_url="https://test-url",
-    )
+    mock_verify_login.assert_called_once()
+    (auth,) = mock_verify_login.call_args.args
+    assert isinstance(auth, wbauth.AuthApiKey)
+    assert auth.api_key == key
+    assert auth.host.url == "https://test-url"
+    # The Api's own service API handle is reused for verification.
+    assert mock_verify_login.call_args.kwargs["service_api"] is api._service_api
 
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
