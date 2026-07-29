@@ -1,6 +1,7 @@
 package runupserter
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -26,6 +27,10 @@ func ToRunUpdateError(err error) error {
 
 	if gqlError, ok := errors.AsType[*graphql.HTTPError](err); ok {
 		return fromGQLError(gqlError)
+	}
+
+	if errors.Is(err, context.DeadlineExceeded) {
+		return fromTimeout(err)
 	}
 
 	return err
@@ -67,6 +72,14 @@ func fromGQLError(gqlError *graphql.HTTPError) *RunUpdateError {
 	return &RunUpdateError{
 		Cause:       gqlError,
 		UserMessage: userMessage,
+		Code:        spb.ErrorInfo_COMMUNICATION,
+	}
+}
+
+func fromTimeout(err error) *RunUpdateError {
+	return &RunUpdateError{
+		Cause:       err,
+		UserMessage: fmt.Sprintf("Timed out initializing run: %s", err.Error()),
 		Code:        spb.ErrorInfo_COMMUNICATION,
 	}
 }

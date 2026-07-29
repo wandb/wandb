@@ -25,9 +25,10 @@ def test_init_timeout__prints_retry_err(wandb_backend_spy: WandbBackendSpy):
     )
 
     with pytest.raises(
+        CommError,
         match=re.escape("""\
-Error initializing run: context deadline exceeded
-last status: HTTP 500: {"errors": [{"message": "test test test"}]}""")
+Timed out initializing run: context deadline exceeded
+last status: HTTP 500: {"errors": [{"message": "test test test"}]}"""),
     ):
         # Give it just enough time to reach UpsertBucket and retry once.
         with wandb.init(settings=wandb.Settings(init_timeout=2)):
