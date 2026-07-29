@@ -758,8 +758,23 @@ class Run:
     @_log_to_run
     @_attach
     def dir(self) -> str:
-        """The directory where files associated with the run are saved."""
+        """The directory where a run's files are saved.
+
+        This refers to files saved with `run.save()`, including automatically
+        created files for certain data types passed to `run.log()`. For the
+        directory containing all of a run's data, see `run.sync_dir`.
+        """
         return self._settings.files_dir
+
+    @property
+    @_log_to_run
+    @_attach
+    def sync_dir(self) -> str:
+        """The directory containing all of a run's data.
+
+        This can be passed to `wandb sync` to upload or re-upload the run.
+        """
+        return self._settings.sync_dir
 
     @property
     @_log_to_run
@@ -3841,7 +3856,9 @@ class Run:
         self._printer.display(f"Tracking run with wandb version {wandb.__version__}")
 
     def _header_sync_info(self) -> None:
-        sync_location_msg = f"Run data is saved locally in {self._printer.files(self._settings.sync_dir)}"
+        sync_location_msg = (
+            f"Run data is saved locally in {self._printer.files(self.sync_dir)}"
+        )
 
         if self._settings._offline:
             offline_warning = (

@@ -524,7 +524,14 @@ func (nc *Connection) handleAuthenticateImpl(
 	)
 
 	data, err := gql.Viewer(ctx, graphqlClient)
-	if err != nil || data == nil || data.GetViewer() == nil || data.GetViewer().GetEntity() == nil {
+
+	// Field-level GraphQL errors (like a failing resolver for one of the
+	// requested fields) do not invalidate the credentials, so partial data
+	// is accepted as long as the viewer and its entity were resolved.
+	if data == nil || data.GetViewer() == nil || data.GetViewer().GetEntity() == nil {
+		if err != nil {
+			slog.Debug("handleAuthenticate: viewer query failed", "error", err)
+		}
 		return &spb.ServerAuthenticateResponse{
 			ErrorStatus: "Invalid credentials",
 		}

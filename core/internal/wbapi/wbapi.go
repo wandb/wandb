@@ -34,6 +34,7 @@ type WandbAPI struct {
 
 	settings *settings.Settings
 
+	authHandler          *AuthHandler
 	featuresHandler      *FeaturesHandler
 	fileTransferHandler  *FileTransferHandler
 	graphqlHandler       *GraphQLHandler
@@ -101,6 +102,7 @@ func New(
 		semaphore: make(chan struct{}, maxConcurrency),
 		settings:  s,
 
+		authHandler:          NewAuthHandler(graphqlClient),
 		featuresHandler:      NewFeaturesHandler(featureProvider),
 		fileTransferHandler:  NewFileTransferHandler(fileTransferManager),
 		graphqlHandler:       NewGraphQLHandler(graphqlClient),
@@ -177,6 +179,8 @@ func (p *WandbAPI) HandleRequest(
 	defer func() { <-p.semaphore }()
 
 	switch req := request.Request.(type) {
+	case *spb.ApiRequest_AuthenticateRequest:
+		return p.authHandler.HandleAuthenticate(ctx, req.AuthenticateRequest)
 	case *spb.ApiRequest_FeaturesRequest:
 		return p.featuresHandler.HandleRequest(ctx, req.FeaturesRequest)
 	case *spb.ApiRequest_DownloadFileRequest:
@@ -195,7 +199,7 @@ func (p *WandbAPI) HandleRequest(
 		return p.graphqlHandler.HandleRequest(ctx, req.GraphqlRequest)
 	case *spb.ApiRequest_ReadRunHistoryRequest:
 		return p.runHistoryApiHandler.HandleRequest(ctx, req.ReadRunHistoryRequest)
+	default:
+		return apiErrorResponse(fmt.Sprintf("unsupported API request type: %T", request.Request), 0)
 	}
-
-	return nil
 }

@@ -224,6 +224,7 @@ def agent(
     project: str | None = None,
     count: int | None = None,
     forward_signals: bool = False,
+    term_timeout: int | None = None,
 ) -> None:
     """<wandb_agent.py::agent>"""
     ...

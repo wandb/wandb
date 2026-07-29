@@ -523,9 +523,33 @@ jobs:
     if: ${{ inputs.mode != 'test-release' }}
     name: notify wandb/core of release
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: [pypi-publish]
 
     steps:
+      - name: Wait for release to become visible on PyPI
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          max_attempts=20
+          for attempt in $(seq 1 "${max_attempts}"); do
+            if curl --fail --silent --show-error \
+              --max-time 10 \
+              --output /dev/null \
+              "https://pypi.org/pypi/wandb/${VERSION}/json"; then
+              echo "wandb ${VERSION} is visible on PyPI"
+              exit 0
+            fi
+
+            if [[ "${attempt}" == "${max_attempts}" ]]; then
+              echo "wandb ${VERSION} was not visible on PyPI after ${max_attempts} attempts" >&2
+              exit 1
+            fi
+
+            echo "wandb ${VERSION} is not visible on PyPI yet; retrying in 15 seconds"
+            sleep 15
+          done
+
       - name: Create GitHub App Token
         id: app-token
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3

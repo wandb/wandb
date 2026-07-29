@@ -6,7 +6,6 @@ from unittest.mock import MagicMock
 
 import pytest
 import wandb
-from pytest_mock import MockerFixture
 from wandb import Api
 from wandb.apis._generated import ProjectFragment, UserFragment
 from wandb.errors import UsageError
@@ -383,6 +382,26 @@ def test_public_api_upsert_run_queue(
     termwarn.assert_called_once_with("resource config validation: invalid image")
 
 
+def test_initialize_api_with_federated_identity(federated_identity):
+    """Regression test for gh-11722: federated identity in wandb.Api().
+
+    With WANDB_IDENTITY_TOKEN_FILE set and no API key configured, all
+    network traffic goes through wandb-core, which exchanges the identity
+    token for an access token and authenticates with it as a Bearer token.
+    """
+    api = Api()
+
+    assert api.api_key is None
+    assert api.default_entity == federated_identity.entity
+    assert api.viewer.username == federated_identity.username
+    assert federated_identity.token_exchanges >= 1
+    assert federated_identity.graphql_auth_headers
+    assert all(
+        header == f"Bearer {federated_identity.access_token}"
+        for header in federated_identity.graphql_auth_headers
+    )
+
+
 def test_initialize_api_authenticates(
     monkeypatch: pytest.MonkeyPatch,
 ):
@@ -396,10 +415,13 @@ def test_initialize_api_authenticates(
     api = Api(overrides={"base_url": "https://test-url"})
 
     assert api.api_key == "1234" * 10
-    mock_verify_login.assert_called_once_with(
-        key="1234" * 10,
-        base_url="https://test-url",
-    )
+    mock_verify_login.assert_called_once()
+    (auth,) = mock_verify_login.call_args.args
+    assert isinstance(auth, wbauth.AuthApiKey)
+    assert auth.api_key == "1234" * 10
+    assert auth.host.url == "https://test-url"
+    # The Api's own service API handle is reused for verification.
+    assert mock_verify_login.call_args.kwargs["service_api"] is api._service_api
 
 
 def test_initialize_api_uses_explicit_key(
@@ -416,10 +438,13 @@ def test_initialize_api_uses_explicit_key(
     api = Api(api_key=key, overrides={"base_url": "https://test-url"})
 
     assert api.api_key == key
-    mock_verify_login.assert_called_once_with(
-        key=key,
-        base_url="https://test-url",
-    )
+    mock_verify_login.assert_called_once()
+    (auth,) = mock_verify_login.call_args.args
+    assert isinstance(auth, wbauth.AuthApiKey)
+    assert auth.api_key == key
+    assert auth.host.url == "https://test-url"
+    # The Api's own service API handle is reused for verification.
+    assert mock_verify_login.call_args.kwargs["service_api"] is api._service_api
 
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
@@ -587,19 +612,3 @@ def test_project_load__raises_error(monkeypatch):
 
     with pytest.raises(ValueError):
         project._load()
-
-
-@pytest.mark.usefixtures("skip_verify_login")
-def test_api_does_not_use_requests_auth(mocker: MockerFixture):
-    """Test that Api() does not build requests auth for the service API."""
-    mock_auth = wbauth.AuthApiKey(
-        host=wbauth.HostUrl("https://api.wandb.ai"),
-        api_key="a" * 40,
-    )
-    mocker.spy(mock_auth, "as_requests_auth")
-
-    mocker.patch.object(wbauth, "authenticate_session", return_value=mock_auth)
-
-    Api()
-
-    mock_auth.as_requests_auth.assert_not_called()

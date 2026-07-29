@@ -1782,10 +1782,12 @@ func (v *ViewerResponse) GetViewer() *ViewerViewerUser { return v.Viewer }
 
 // ViewerViewerUser includes the requested fields of the GraphQL type User.
 type ViewerViewerUser struct {
-	Id     string                                 `json:"id"`
-	Entity *string                                `json:"entity"`
-	Flags  *string                                `json:"flags"`
-	Teams  *ViewerViewerUserTeamsEntityConnection `json:"teams"`
+	Id       string                                 `json:"id"`
+	Entity   *string                                `json:"entity"`
+	Username *string                                `json:"username"`
+	Email    *string                                `json:"email"`
+	Flags    *string                                `json:"flags"`
+	Teams    *ViewerViewerUserTeamsEntityConnection `json:"teams"`
 }
 
 // GetId returns ViewerViewerUser.Id, and is useful for accessing the field via an interface.
@@ -1793,6 +1795,12 @@ func (v *ViewerViewerUser) GetId() string { return v.Id }
 
 // GetEntity returns ViewerViewerUser.Entity, and is useful for accessing the field via an interface.
 func (v *ViewerViewerUser) GetEntity() *string { return v.Entity }
+
+// GetUsername returns ViewerViewerUser.Username, and is useful for accessing the field via an interface.
+func (v *ViewerViewerUser) GetUsername() *string { return v.Username }
+
+// GetEmail returns ViewerViewerUser.Email, and is useful for accessing the field via an interface.
+func (v *ViewerViewerUser) GetEmail() *string { return v.Email }
 
 // GetFlags returns ViewerViewerUser.Flags, and is useful for accessing the field via an interface.
 func (v *ViewerViewerUser) GetFlags() *string { return v.Flags }
@@ -3990,6 +3998,8 @@ query Viewer {
 	viewer {
 		id
 		entity
+		username
+		email
 		flags
 		teams {
 			edges {

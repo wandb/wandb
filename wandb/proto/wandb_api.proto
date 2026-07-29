@@ -34,8 +34,9 @@ message ApiRequest {
     UploadFileRequest upload_file_request = 6;
     MarkRunFilesUploadedRequest mark_run_files_uploaded_request = 7;
     StopRunRequest stop_run_request = 8;
-    CreateCustomChartRequest create_custom_chart_request = 9;
-    RunQueueOperationRequest run_queue_operation_request = 10;
+    AuthenticateRequest authenticate_request = 9;
+    CreateCustomChartRequest create_custom_chart_request = 10;
+    RunQueueOperationRequest run_queue_operation_request = 11;
   }
 }
 
@@ -48,8 +49,9 @@ message ApiResponse {
     UploadFileResponse upload_file_response = 6;
     MarkRunFilesUploadedResponse mark_run_files_uploaded_response = 7;
     StopRunResponse stop_run_response = 8;
-    CreateCustomChartResponse create_custom_chart_response = 9;
-    RunQueueOperationResponse run_queue_operation_response = 10;
+    AuthenticateResponse authenticate_response = 9;
+    CreateCustomChartResponse create_custom_chart_response = 10;
+    RunQueueOperationResponse run_queue_operation_response = 11;
 
     ApiErrorResponse api_error_response = 2;
   }
@@ -208,6 +210,35 @@ message MarkRunFilesUploadedRequest {
 }
 
 message MarkRunFilesUploadedResponse {}
+
+// Verify the API instance's credentials and identify the authenticated user.
+//
+// The credentials come from the settings used to initialize the API
+// instance: an API key, or an identity token file when using federated
+// identity. wandb-core authenticates to the W&B backend the same way it
+// does for any other request and asks it who the credentials belong to.
+//
+// A successful request returns AuthenticateResponse with information about
+// the authenticated user. Rejected credentials, transport failures, and
+// non-successful HTTP status codes return ApiErrorResponse.
+message AuthenticateRequest {}
+
+message AuthenticateResponse {
+  // The user's default entity, used for runs when no entity is specified.
+  string default_entity = 1;
+
+  // The user's username.
+  string username = 2;
+
+  // The user's email address.
+  string email = 3;
+
+  // Names of the teams the user is a member of.
+  repeated string teams = 4;
+
+  // JSON-encoded user flags from the server, like "code_saving_enabled".
+  string flags_json = 5;
+}
 
 // Flag a run to stop on the W&B backend.
 //
