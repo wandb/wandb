@@ -40,7 +40,7 @@ from wandb.sdk.launch.sweeps import SweepNotFoundError
 from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.lib import filesystem, settings_file
-from wandb.sdk.lib.wbauth import read_netrc_auth
+from wandb.sdk.lib.wbauth import get_system_auth
 from wandb.sync import TFEVENT_SUBSTRING, SyncManager, get_runs
 
 from .beta import beta
@@ -1799,9 +1799,7 @@ def launch(
     get_sentry().configure_scope(process_context="launch_cli")
     singleton_settings = wandb_setup.singleton().settings
     otel_proxy = OtelProvider(
-        api_key=singleton_settings.api_key
-        or read_netrc_auth(host=singleton_settings.base_url)
-        or "",
+        auth_provider=lambda: get_system_auth(host=singleton_settings.base_url),
         endpoint=singleton_settings.base_url,
     )
     telemetry_recorder = TelemetryRecorder(root=otel_proxy)
@@ -2052,7 +2050,7 @@ def launch_agent(
 
     api = _get_cling_api()
     otel_proxy = OtelProvider(
-        api_key=api.api_key or read_netrc_auth(host=api.api_url) or "",
+        auth_provider=lambda: get_system_auth(host=api.api_url),
         endpoint=api.api_url,
     )
     telemetry_recorder = TelemetryRecorder(root=otel_proxy)
@@ -2203,7 +2201,7 @@ def scheduler(
         api = InternalApi(reset=True)
 
     otel_proxy = OtelProvider(
-        api_key=api.api_key or read_netrc_auth(host=api.api_url) or "",
+        auth_provider=lambda: get_system_auth(host=api.api_url),
         endpoint=api.api_url,
     )
     telemetry_recorder = TelemetryRecorder(root=otel_proxy)

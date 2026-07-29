@@ -17,6 +17,22 @@ _session_auth_lock = threading.Lock()
 _session_auth: Auth | None = None
 
 
+def get_system_auth(*, host: str | HostUrl) -> Auth | None:
+    """Returns the system credentials.
+
+    Returns None if no system credentials are configured.
+    """
+    if not isinstance(host, HostUrl):
+        host = HostUrl(host)
+
+    auth_with_source = _try_env_auth(host=host) or wbnetrc.read_netrc_auth_with_source(
+        host=host
+    )
+    if auth_with_source:
+        return auth_with_source.auth
+    return None
+
+
 def session_credentials(*, host: str | HostUrl) -> Auth | None:
     """Returns the configured session credentials.
 
@@ -46,8 +62,8 @@ def _locked_set_session_auth(
     global _session_auth
     _session_auth = auth
 
-    if isinstance(auth, AuthApiKey):
-        setup_otel(api_key=auth.api_key)
+    if auth:
+        setup_otel(auth_provider=lambda: auth)
 
     if update_settings:
         set_auth_settings(wandb_setup.singleton().settings, auth)

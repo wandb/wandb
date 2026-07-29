@@ -22,7 +22,6 @@ from wandb.env import error_reporting_enabled, is_debug
 from wandb.errors import WandbCoreNotAvailableError
 from wandb.sdk import wandb_setup
 from wandb.sdk.lib import wbauth
-from wandb.sdk.lib.wbauth.wbnetrc import read_netrc_auth
 from wandb.util import get_core_path
 
 
@@ -232,9 +231,7 @@ def launch(path: str | None, pprof: str) -> Never:
     get_sentry().configure_scope(process_context="leet")
     singleton_settings = wandb_setup.singleton().settings
     otel_proxy = OtelProvider(
-        api_key=singleton_settings.api_key
-        or read_netrc_auth(host=singleton_settings.base_url)
-        or "",
+        auth_provider=lambda: wbauth.get_system_auth(host=singleton_settings.base_url),
         endpoint=singleton_settings.base_url,
     )
     telemetry_recorder = TelemetryRecorder(root=otel_proxy)
@@ -269,9 +266,7 @@ def launch_config() -> Never:
     get_sentry().configure_scope(process_context="leet-config")
     singleton_settings = wandb_setup.singleton().settings
     otel_proxy = OtelProvider(
-        api_key=singleton_settings.api_key
-        or read_netrc_auth(host=singleton_settings.base_url)
-        or "",
+        auth_provider=lambda: wbauth.get_system_auth(host=singleton_settings.base_url),
         endpoint=singleton_settings.base_url,
     )
     telemetry_recorder = TelemetryRecorder(root=otel_proxy)
@@ -290,9 +285,7 @@ def launch_symon(pprof: str = "", interval: str = "") -> Never:
     get_sentry().configure_scope(process_context="leet-symon")
     singleton_settings = wandb_setup.singleton().settings
     otel_proxy = OtelProvider(
-        api_key=singleton_settings.api_key
-        or read_netrc_auth(host=singleton_settings.base_url)
-        or "",
+        auth_provider=lambda: wbauth.get_system_auth(host=singleton_settings.base_url),
         endpoint=singleton_settings.base_url,
     )
     telemetry_recorder = TelemetryRecorder(root=otel_proxy)

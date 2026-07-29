@@ -13,6 +13,7 @@ from wandb.analytics import OtelProvider, TelemetryRecorder, get_sentry
 from wandb.env import core_debug, dcgm_profiling_enabled, error_reporting_enabled
 from wandb.errors import WandbCoreNotAvailableError
 from wandb.sdk.lib.service import ipc_support
+from wandb.sdk.lib.wbauth import get_system_auth
 from wandb.util import get_core_path
 
 from . import service_port_file, service_token
@@ -70,7 +71,7 @@ def _start(
     idle_timeout: str | None,
 ) -> ServiceProcess:
     otel_proxy = OtelProvider(
-        api_key=settings.api_key or "",
+        auth_provider=lambda: get_system_auth(host=settings.base_url),
         endpoint=settings.base_url,
     )
     telemetry_recorder = TelemetryRecorder(root=otel_proxy)

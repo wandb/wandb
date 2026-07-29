@@ -21,10 +21,10 @@ from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import Resource
-from requests import auth as requests_auth
 from typing_extensions import Never
 
 from wandb import env
+from wandb.sdk.lib.wbauth import Auth
 
 _P = ParamSpec("_P")
 _R = TypeVar("_R")
@@ -339,12 +339,11 @@ class OtelProvider:
         self,
         *,
         endpoint: str | None = None,
-        api_key: str,
+        auth_provider: Callable[[], Auth | None] | None = None,
         pid: int | None = None,
     ) -> None:
         self._enabled = bool(env.error_reporting_enabled())
         self._pid = pid or os.getpid()
-        self._api_key = api_key
         self._session: requests.Session = requests.Session()
 
         # Counters should be created only once per name,
@@ -358,19 +357,26 @@ class OtelProvider:
         self._logger_provider: LoggerProvider | None = None
         self._booted = False
         self._shutdown = False
-        self._initialize_otel_resources(endpoint, api_key)
+        self._initialize_otel_resources(endpoint, auth_provider)
 
     def _initialize_otel_resources(
         self,
         endpoint: str | None,
-        api_key: str,
+        auth_provider: Callable[[], Auth | None] | None,
         export_interval_ms: int = _DEFAULT_EXPORT_INTERVAL_MS,
     ) -> bool:
         """Initialize the OTel providers.
 
         This should only be called once during OtelProvider initialization.
         """
-        if not self._enabled:
+        if not self._enabled or auth_provider is None:
+            return False
+
+        try:
+            auth = auth_provider()
+        except Exception:
+            return False
+        if auth is None:
             return False
 
         endpoint = _otel_endpoint(endpoint)
@@ -379,7 +385,7 @@ class OtelProvider:
         try:
             resource = Resource.create({"service.name": _OTEL_SERVICE_NAME})
 
-            _configure_session_auth(self._session, api_key)
+            _configure_session_auth(self._session, auth)
 
             _redirect_otlp_http_exporter_logs()
 
@@ -487,7 +493,7 @@ _singleton_lock = threading.Lock()
 
 def setup_otel(
     *,
-    api_key: str,
+    auth_provider: Callable[[], Auth | None] | None = None,
 ) -> OtelProvider | None:
     global _singleton
     pid = os.getpid()
@@ -495,11 +501,8 @@ def setup_otel(
         if _singleton is not None and _singleton._pid == pid:
             return _singleton
 
-        if not api_key:
-            return None
-
         _singleton = OtelProvider(
-            api_key=api_key,
+            auth_provider=auth_provider,
             pid=pid,
         )
         return _singleton
@@ -581,5 +584,8 @@ def _redirect_otlp_http_exporter_logs() -> None:
             exporter_logger.setLevel(logging.NOTSET)
 
 
-def _configure_session_auth(session: requests.Session, api_key: str | None) -> None:
-    session.auth = requests_auth.HTTPBasicAuth("api", api_key) if api_key else None
+def _configure_session_auth(
+    session: requests.Session,
+    auth: Auth,
+) -> None:
+    session.auth = auth.as_requests_auth()

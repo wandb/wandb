@@ -42,7 +42,7 @@ from wandb.sdk.lib import (
     telemetry,
 )
 from wandb.sdk.lib.proto_util import message_to_dict
-from wandb.sdk.lib.wbauth import read_netrc_auth
+from wandb.sdk.lib.wbauth import get_system_auth
 
 if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import (
@@ -272,7 +272,7 @@ class SendManager:
         self._exit_result = None
 
         self._otel_proxy = OtelProvider(
-            api_key=settings.api_key or read_netrc_auth(host=settings.base_url) or "",
+            auth_provider=lambda: get_system_auth(host=settings.base_url),
             endpoint=settings.base_url,
         )
         self._telemetry_recorder = TelemetryRecorder(root=self._otel_proxy)

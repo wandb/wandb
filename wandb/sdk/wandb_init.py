@@ -38,6 +38,7 @@ from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk.lib import ipython as wb_ipython
 from wandb.sdk.lib import noop_run, progress, runid, wb_logging
 from wandb.sdk.lib.paths import StrPath
+from wandb.sdk.lib.wbauth import get_system_auth
 from wandb.util import _is_artifact_representation
 
 from . import wandb_login, wandb_setup
@@ -1455,7 +1456,7 @@ def init(  # noqa: C901
 
     wl: wandb_setup._WandbSetup | None = None
     init_otel_proxy = OtelProvider(
-        api_key=init_settings.api_key or "",
+        auth_provider=lambda: get_system_auth(host=init_settings.base_url),
         endpoint=init_settings.base_url,
     )
     telemetry_recorder = TelemetryRecorder(root=init_otel_proxy)

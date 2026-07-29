@@ -188,7 +188,7 @@ class Api:
             wandb_login._verify_login(self._auth, service_api=self._service_api)
 
         self._sentry = wandb.analytics.sentry.Sentry(pid=os.getpid())
-        self._configure_analytics(api_key=self.api_key)
+        self._configure_analytics(auth=self._auth)
 
     def _load_auth(self, base_url: str) -> wbauth.Auth:
         """Load or prompt for authentication credentials."""
@@ -206,13 +206,13 @@ class Api:
 
         return auth
 
-    def _configure_analytics(self, api_key: str | None = None) -> None:
+    def _configure_analytics(self, auth: wbauth.Auth) -> None:
         if not env.error_reporting_enabled():
             return
 
         from wandb.analytics import setup_otel
 
-        setup_otel(api_key=api_key or "")
+        setup_otel(auth_provider=lambda: auth)
 
         try:
             viewer = self.viewer

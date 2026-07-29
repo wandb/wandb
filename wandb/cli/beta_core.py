@@ -18,7 +18,7 @@ from wandb.proto import wandb_server_pb2 as spb
 from wandb.sdk import wandb_setup
 from wandb.sdk.lib import asyncio_manager
 from wandb.sdk.lib.service import service_process, service_token
-from wandb.sdk.lib.wbauth import read_netrc_auth
+from wandb.sdk.lib.wbauth import get_system_auth
 from wandb.sdk.wandb_settings import Settings
 
 _logger = logging.getLogger(__name__)
@@ -66,9 +66,7 @@ def stop(*, exit_code: int = 0) -> None:
     get_sentry().configure_scope(process_context="beta-core-stop")
     singleton_settings = wandb_setup.singleton().settings
     otel_proxy = OtelProvider(
-        api_key=singleton_settings.api_key
-        or read_netrc_auth(host=singleton_settings.base_url)
-        or "",
+        auth_provider=lambda: get_system_auth(host=singleton_settings.base_url),
         endpoint=singleton_settings.base_url,
     )
     telemetry_recorder = TelemetryRecorder(root=otel_proxy)
