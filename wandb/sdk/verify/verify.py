@@ -7,6 +7,8 @@ import getpass
 import io
 import os
 import time
+import urllib.error
+import urllib.request
 from collections.abc import Callable
 from functools import partial
 from http import HTTPStatus
@@ -14,7 +16,6 @@ from pathlib import Path
 from typing import Any
 
 import click
-import requests
 
 import wandb
 from wandb.sdk.artifacts.artifact import Artifact
@@ -97,11 +98,19 @@ def check_secure_requests(url: str, test_url_string: str, failure_output: str) -
 def check_cors_configuration(url: str, origin: str) -> None:
     print("Checking CORs configuration of the bucket".ljust(72, "."), end="")  # noqa: T201
     fail_string = None
-    res_get = requests.options(
-        url, headers={"Origin": origin, "Access-Control-Request-Method": "GET"}
+    request = urllib.request.Request(
+        url,
+        headers={"Origin": origin, "Access-Control-Request-Method": "GET"},
+        method="OPTIONS",
     )
+    try:
+        with urllib.request.urlopen(request) as response:
+            allow_origin = response.headers.get("Access-Control-Allow-Origin")
+    except urllib.error.HTTPError as error:
+        # A rejected preflight response may still carry CORS headers.
+        allow_origin = error.headers.get("Access-Control-Allow-Origin")
 
-    if res_get.headers.get("Access-Control-Allow-Origin") is None:
+    if allow_origin is None:
         fail_string = (
             "Your object store does not have a valid CORs configuration, "
             f"you must allow GET and PUT to Origin: {origin}"

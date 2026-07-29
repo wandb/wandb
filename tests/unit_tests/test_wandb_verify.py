@@ -38,16 +38,26 @@ def test_check_secure_requests(capsys):
     assert "\u274c" in captured
 
 
-def test_check_cors_configuration(capsys, monkeypatch):
-    with unittest.mock.patch("requests.options") as mock_options:
-        options_result = unittest.mock.Mock()
-        options_result.headers.get.return_value = None
-        mock_options.return_value = options_result
+def test_check_cors_configuration(capsys):
+    options_result = unittest.mock.MagicMock()
+    options_result.__enter__.return_value = options_result
+    options_result.headers.get.return_value = None
 
-        wandb_verify.check_cors_configuration("", "")
+    with unittest.mock.patch(
+        "urllib.request.urlopen",
+        return_value=options_result,
+    ) as mock_urlopen:
+        wandb_verify.check_cors_configuration(
+            "https://storage.example.com/bucket",
+            "https://wandb.example.com",
+        )
 
         captured = capsys.readouterr().out
         assert "does not have a valid CORs configuration" in captured
+
+        request = mock_urlopen.call_args.args[0]
+        assert request.get_method() == "OPTIONS"
+        assert request.get_header("Origin") == "https://wandb.example.com"
 
 
 def test_check_large_post_uses_service_api(monkeypatch):
