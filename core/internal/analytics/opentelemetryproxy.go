@@ -340,19 +340,31 @@ type OpenTelemetryProxy struct {
 
 // NewOpenTelemetryProxy returns an OpenTelemetryProxy for the given endpoint.
 //
-// When analytics is disabled, the wandbSettings are offline, or the api key is not set,
-// a nil pointer is returned, making calls to the proxy a no-op.
+// When analytics is disabled, the wandbSettings are offline, or no credentials
+// are available, a nil pointer is returned, making calls to the proxy a no-op.
 func NewOpenTelemetryProxy(
 	ctx context.Context,
 	wandbSettings *settings.Settings,
 ) *OpenTelemetryProxy {
-	if disabled.Load() || wandbSettings.IsOffline() || wandbSettings.GetAPIKey() == "" {
+	if disabled.Load() || wandbSettings.IsOffline() {
+		return nil
+	}
+
+	httpClient, err := newOTLPHTTPClient(wandbSettings)
+	if err != nil {
+		slog.Debug(
+			"analytics: failed to configure telemetry authentication",
+			"error", err,
+		)
+		return nil
+	}
+	if httpClient == nil {
 		return nil
 	}
 
 	proxy := &OpenTelemetryProxy{
 		endpoint:   wandbSettings.GetBaseURL(),
-		httpClient: newOTLPHTTPClient(wandbSettings),
+		httpClient: httpClient,
 	}
 	if err := proxy.initializeOTelResources(ctx); err != nil {
 		return nil
@@ -360,7 +372,20 @@ func NewOpenTelemetryProxy(
 	return proxy
 }
 
-func newOTLPHTTPClient(wandbSettings *settings.Settings) *http.Client {
+func newOTLPHTTPClient(
+	wandbSettings *settings.Settings,
+) (*http.Client, error) {
+	credentialProvider, err := api.NewCredentialProvider(
+		wandbSettings,
+		slog.Default(),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := credentialProvider.(api.NoopCredentialProvider); ok {
+		return nil, nil
+	}
+
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = clients.ProxyFn(
 		wandbSettings.GetHTTPProxy(),
@@ -389,10 +414,10 @@ func newOTLPHTTPClient(wandbSettings *settings.Settings) *http.Client {
 		transport,
 		httplayers.Concat(
 			httplayers.ExtraHeaders(extraHeaders),
-			api.NewAPIKeyCredentialProvider(wandbSettings.GetAPIKey()),
+			credentialProvider,
 		),
 	)
-	return client
+	return client, nil
 }
 
 // initializeOTelResources initializes the OpenTelemetry meter and log providers.

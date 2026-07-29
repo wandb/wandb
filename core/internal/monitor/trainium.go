@@ -469,7 +469,7 @@ func (t *Trainium) Close() {
 func (t *Trainium) Probe(_ context.Context) *spb.EnvironmentRecord {
 	info := &spb.EnvironmentRecord{
 		Trainium: &spb.TrainiumInfo{
-			Name:   "monitor",
+			Name:   "Trainium",
 			Vendor: "AWS",
 		},
 	}
