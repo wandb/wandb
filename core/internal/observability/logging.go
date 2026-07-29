@@ -209,11 +209,21 @@ func (cl *CoreLogger) captureException(
 	err error,
 	args ...any,
 ) {
+	// Always record the error as a counter metric.
+	// Since it will allow us to still see all errors,
+	// without flooding our logs.
+	cl.telemetryRecorder.ErrorMetric(
+		context.Background(),
+		err.Error(),
+		err,
+		errorOriginator,
+	)
+
 	if !cl.captureRateLimiter.AllowCapture(err.Error()) {
 		return
 	}
 
-	cl.telemetryRecorder.Error(
+	cl.telemetryRecorder.ErrorLog(
 		context.Background(),
 		err.Error(),
 		err,

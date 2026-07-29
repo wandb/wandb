@@ -206,6 +206,22 @@ func (r *TelemetryRecorder) With(
 	}
 }
 
+// IncrementCounter increments a counter metric by 1
+// with the telemetry context's low-cardinality attributes
+func (r *TelemetryRecorder) IncrementCounter(
+	ctx context.Context,
+	name string,
+	lowCardinalityAttributes LowCardinalityAttributes,
+) {
+	if r == nil {
+		return
+	}
+
+	mergedLowCardinalityAttributes := r.telemetryContext.lowCardinalityAttributes
+	mergedLowCardinalityAttributes.merge(lowCardinalityAttributes)
+	r.root.incrementCounter(ctx, name, mergedLowCardinalityAttributes)
+}
+
 // IncrementCounterAndLogEvent increments a counter metric by 1
 // with the telemetry context's low-cardinality attributes
 //
@@ -222,9 +238,7 @@ func (r *TelemetryRecorder) IncrementCounterAndLogEvent(
 		return
 	}
 
-	mergedLowCardinalityAttributes := r.telemetryContext.lowCardinalityAttributes
-	mergedLowCardinalityAttributes.merge(lowCardinalityAttributes)
-	r.root.incrementCounter(ctx, name, mergedLowCardinalityAttributes)
+	r.IncrementCounter(ctx, name, lowCardinalityAttributes)
 
 	recordAttributes := make(map[string]string)
 	maps.Copy(recordAttributes, r.telemetryContext.highCardinalityAttributes)
@@ -264,21 +278,13 @@ func (r *TelemetryRecorder) Log(
 	r.root.log(ctx, message, logAttributes, severity)
 }
 
-// Error records an error as both a counter metric and an error log.
+// ErrorMetric records an error as a counter metric.
 //
 // The counter metric has the name "error" and contains
 // the low-cardinality attributes from the current telemetry context plus an
 // "error.type" attribute (the caller-supplied error type) so the
 // rate of each error type can be aggregated and graphed.
-//
-// The log record contains the attributes from the current telemetry context,
-// plus "error.type", "error.message", "error.stacktrace", and
-// "error.originator". The stack trace is captured at the point Error is called.
-//
-// errorOriginator is a caller-supplied hint about where the error originated.
-// Callers pass the declared package name of the calling file, so
-// errorOriginator aggregates errors by package.
-func (r *TelemetryRecorder) Error(
+func (r *TelemetryRecorder) ErrorMetric(
 	ctx context.Context,
 	message string,
 	err error,
@@ -288,25 +294,42 @@ func (r *TelemetryRecorder) Error(
 		return
 	}
 
+	r.IncrementCounter(
+		ctx,
+		"error",
+		LowCardinalityAttributes{
+			ErrorOriginator: errorOriginator,
+		},
+	)
+}
+
+// ErrorLog emits an OpenTelemetry log record with the specified severity level.
+//
+// The log record contains the attributes from the current telemetry context,
+// plus "error.type", "error.message", "error.stacktrace", and
+// "error.originator". The stack trace is captured at the point Error is called.
+func (r *TelemetryRecorder) ErrorLog(
+	ctx context.Context,
+	message string,
+	err error,
+	errorOriginator string,
+) {
+	if r == nil {
+		return
+	}
+
+	mergedLowCardinalityAttributes := r.telemetryContext.lowCardinalityAttributes
+	mergedLowCardinalityAttributes.merge(LowCardinalityAttributes{
+		ErrorOriginator: errorOriginator,
+	})
+
 	errorMessage := ""
 	if err != nil {
 		errorMessage = err.Error()
 	}
-
-	lowCardinalityAttributes := r.telemetryContext.lowCardinalityAttributes
-	lowCardinalityAttributes.merge(LowCardinalityAttributes{
-		ErrorOriginator: errorOriginator,
-	})
-
-	r.root.incrementCounter(
-		ctx,
-		"error",
-		lowCardinalityAttributes,
-	)
-
 	logAttributes := make(map[string]string)
 	maps.Copy(logAttributes, r.telemetryContext.highCardinalityAttributes)
-	maps.Copy(logAttributes, lowCardinalityAttributes.toMap())
+	maps.Copy(logAttributes, mergedLowCardinalityAttributes.toMap())
 	maps.Copy(logAttributes, map[string]string{
 		"error.message":    errorMessage,
 		"error.stacktrace": captureStacktrace(),

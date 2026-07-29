@@ -331,7 +331,7 @@ func TestTelemetryRecorder_SendsAPIKeyAuth(t *testing.T) {
 	}
 }
 
-func TestTelemetryRecorder_Error(t *testing.T) {
+func TestTelemetryRecorder_ErrorLog(t *testing.T) {
 	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
 	recorder := analytics.NewTelemetryRecorder(
 		proxy.OpenTelemetryProxy,
@@ -343,24 +343,13 @@ func TestTelemetryRecorder_Error(t *testing.T) {
 	)
 
 	const wantErrorOriginator = "TestTelemetryRecorder_Error"
-	recorder.Error(
+	recorder.ErrorLog(
 		t.Context(),
 		"error-message",
 		assert.AnError,
 		wantErrorOriginator,
 	)
 	require.NoError(t, proxy.Shutdown(context.Background()))
-
-	metric, ok := proxy.FindMetric("error")
-	require.True(t, ok, "expected an error metric")
-	assert.Equal(t, int64(1), metric.Value)
-	assert.Equal(
-		t,
-		wantErrorOriginator,
-		metric.Attributes["error.originator"],
-	)
-	assert.Equal(t, "custom-version", metric.Attributes["wandb_version"])
-	assert.NotContains(t, metric.Attributes, "request_id")
 
 	// verify log emitted
 	log, ok := proxy.FindLog("error-message")
@@ -373,6 +362,30 @@ func TestTelemetryRecorder_Error(t *testing.T) {
 	assert.NotEmpty(t, log.Attributes["error.stacktrace"])
 }
 
+func TestTelemetryRecorder_ErrorMetric(t *testing.T) {
+	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+
+	recorder.ErrorMetric(
+		t.Context(),
+		"error-message",
+		assert.AnError,
+		"TestTelemetryRecorder_ErrorMetric",
+	)
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	metric, ok := proxy.FindMetric("error")
+	require.True(t, ok, "expected an error metric")
+	assert.Equal(t, int64(1), metric.Value)
+	assert.Equal(
+		t,
+		"TestTelemetryRecorder_ErrorMetric",
+		metric.Attributes["error.originator"],
+	)
+}
 func TestOpenTelemetryProxy_Shutdown_CalledMultipleTimes(t *testing.T) {
 	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
 
