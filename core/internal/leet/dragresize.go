@@ -98,6 +98,10 @@ func (d *paneDragger) handleMouse(msg tea.MouseMsg, layout Layout, t dragTargets
 		}
 		drag, ok := boundaryAt(m.X, m.Y, t.width, layout, t.leftExpanded, t.rightExpanded)
 		if !ok || (drag.boundary == dragBoundarySeparator && t.mediaFullscreen) {
+			// A stale latch survives when the matching release never
+			// reached this view (help overlay, view switch); any new
+			// press that misses a boundary clears it.
+			d.drag = layoutDrag{}
 			return false
 		}
 		drag.overrides = d.saved()
@@ -115,6 +119,10 @@ func (d *paneDragger) handleMouse(msg tea.MouseMsg, layout Layout, t dragTargets
 		if !d.drag.active() {
 			return false
 		}
+		// Legacy X10 mouse encoding reports every release as MouseNone.
+		if m.Button != tea.MouseLeft && m.Button != tea.MouseNone {
+			return false
+		}
 		d.finish()
 		return true
 	}
@@ -129,17 +137,29 @@ func (d *paneDragger) apply(x, y int, layout Layout, t dragTargets) {
 	switch d.drag.boundary {
 	case dragBoundaryLeftSidebar:
 		maxW := t.width - layout.rightSidebarWidth - mainDragMinWidth
+		if maxW < sidebarDragMinWidth {
+			return // No legal width at this terminal size.
+		}
 		w := clamp(x+1, sidebarDragMinWidth, maxW)
 		o.LeftSidebar = float64(w) / float64(t.width)
 	case dragBoundaryRightSidebar:
 		maxW := t.width - layout.leftSidebarWidth - mainDragMinWidth
+		if maxW < sidebarDragMinWidth {
+			return // No legal width at this terminal size.
+		}
 		w := clamp(t.width-x, sidebarDragMinWidth, maxW)
 		o.RightSidebar = float64(w) / float64(t.width)
 	case dragBoundarySeparator:
+		if t.mediaFullscreen {
+			return // Fullscreen entered mid-drag hides the stack.
+		}
 		if !dragSeparator(o, layout, d.drag.section, y, t.height) {
 			return
 		}
 	}
+	// Live values obey the same bounds as the persisted config, so the
+	// layout cannot snap when the drag is released and re-derived.
+	normalizeLayoutOverrides(o)
 	d.drag.dirty = true
 	d.relayout()
 }
@@ -156,8 +176,10 @@ func (d *paneDragger) finish() {
 	}
 }
 
-// reset restores and persists the view's default pane proportions.
+// reset restores and persists the view's default pane proportions,
+// cancelling any in-flight drag so its release cannot overwrite the reset.
 func (d *paneDragger) reset() {
+	d.drag = layoutDrag{}
 	if err := d.persist(LayoutOverrides{}); err != nil {
 		d.logger.Error(fmt.Sprintf("leet: failed to save layout: %v", err))
 	}
