@@ -433,3 +433,41 @@ func TestOAuth2CredentialProvider_AccessToken(t *testing.T) {
 	require.NoError(t, json.Unmarshal(file, &data))
 	assert.Equal(t, token, data.Credentials[server.URL].AccessToken)
 }
+
+func TestNewOAuth2CredentialProvider_RereadsIdentityTokenFile(t *testing.T) {
+	// Access tokens expiring within 5 minutes are refreshed on each use,
+	// so every request below triggers a token exchange.
+	server := authServer("fake-token", time.Minute)
+	defer server.Close()
+
+	tokenFile := filepath.Join(t.TempDir(), "jwt.txt")
+	require.NoError(t, os.WriteFile(tokenFile, []byte("first-token"), 0o600))
+	credentialsFile := filepath.Join(t.TempDir(), "credentials.json")
+
+	settings := wbsettings.From(&spb.Settings{
+		BaseUrl:           &wrapperspb.StringValue{Value: server.URL},
+		IdentityTokenFile: &wrapperspb.StringValue{Value: tokenFile},
+		CredentialsFile:   &wrapperspb.StringValue{Value: credentialsFile},
+	})
+	credentialProvider, err := api.NewCredentialProvider(
+		settings,
+		observabilitytest.NewTestLogger(t).Logger,
+	)
+	require.NoError(t, err)
+
+	_, err = httplayerstest.MapRequest(t, credentialProvider, exampleGetRequest(t))
+	require.NoError(t, err)
+
+	// An external process re-mints the short-lived identity token to the
+	// same path, like during a run that outlives the token. The trailing
+	// newline is typical of token files written by `echo` or an editor.
+	require.NoError(t, os.WriteFile(tokenFile, []byte("second-token\n"), 0o600))
+
+	_, err = httplayerstest.MapRequest(t, credentialProvider, exampleGetRequest(t))
+	require.NoError(t, err)
+
+	exchanges := server.Requests()
+	require.Len(t, exchanges, 2)
+	assert.Contains(t, string(exchanges[0].Body), "assertion=first-token")
+	assert.Contains(t, string(exchanges[1].Body), "assertion=second-token")
+}
