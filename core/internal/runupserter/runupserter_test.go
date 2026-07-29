@@ -325,7 +325,7 @@ func TestResume_FalseIntentSettingsMatrixMissingRun(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := gqlmock.NewMockClient()
 			shouldStubResumeStatus := tt.resume != nil &&
-				(tt.resume.GetValue() == "must" || tt.resume.GetValue() == "allow")
+				(tt.resume.GetValue() == "must" || tt.resume.GetValue() == "allow" || tt.resume.GetValue() == "never")
 			if shouldStubResumeStatus {
 				mockClient.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{}`)
 			}
