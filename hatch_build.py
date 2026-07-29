@@ -116,6 +116,7 @@ class CustomBuildHook(BuildHookInterface):
         hatch_xpu.build_wandb_xpu(
             cargo_binary=self._get_and_require_cargo_binary(),
             output_path=output,
+            target_triple=self._target_platform().rust_target,
         )
 
         return [output.as_posix()]
@@ -137,8 +138,7 @@ class CustomBuildHook(BuildHookInterface):
         hatch_arrow_rs_wrapper.build_arrow_rs_wrapper(
             cargo_binary=self._get_and_require_cargo_binary(),
             output_path=output,
-            target_system=plat.goos,
-            target_arch=plat.goarch,
+            target_triple=plat.rust_target,
         )
 
         return [output.as_posix()]
@@ -202,41 +202,23 @@ class CustomBuildHook(BuildHookInterface):
         # _PYTHON_HOST_PLATFORM environment variable which is also a good way
         # of manually testing this function.
         plat = sysconfig.get_platform()
-        match = re.match(
-            r"(win|linux|macosx-.+)-(aarch64|arm64|x86_64|amd64)",
-            plat,
-        )
-        if match:
-            if match.group(1).startswith("macosx"):
-                goos = "darwin"
-            elif match.group(1) == "win":
-                goos = "windows"
-            else:
-                goos = match.group(1)
-
-            goarch = _to_goarch(match.group(2))
-
-            return TargetPlatform(
-                goos=goos,
-                goarch=goarch,
-            )
+        if target := _parse_target_platform(plat, is_musl=_is_musl_host()):
+            return target
 
         self.app.display_warning(
             f"Failed to parse sysconfig.get_platform() ({plat}); disabling"
             " cross-compilation.",
         )
 
-        os = platform.system().lower()
-        if os in ("windows", "darwin", "linux"):
-            goos = os
-        else:
-            goos = ""
+        system = platform.system().lower()
+        goos = system if system in ("windows", "darwin", "linux") else ""
 
         goarch = _to_goarch(platform.machine().lower())
 
         return TargetPlatform(
             goos=goos,
             goarch=goarch,
+            rust_target=_to_rust_target(goos, goarch, is_musl=_is_musl_host()),
         )
 
 
@@ -261,6 +243,72 @@ def _get_env_bool(name: str, default: bool) -> bool:
 class TargetPlatform:
     goos: str
     goarch: str
+    rust_target: str | None
+
+
+def _parse_target_platform(
+    platform_name: str,
+    *,
+    is_musl: bool,
+) -> TargetPlatform | None:
+    """Parse a Python platform name into Go and Rust compiler targets."""
+    platform_name = platform_name.lower()
+
+    if platform_name.startswith("macosx-"):
+        goos = "darwin"
+    elif platform_name.startswith("win-"):
+        goos = "windows"
+    elif platform_name.startswith(("linux-", "manylinux_", "musllinux_")):
+        goos = "linux"
+    else:
+        return None
+
+    goarch = _platform_goarch(platform_name)
+    if not goarch:
+        return None
+
+    # The platform name is authoritative about libc when it mentions one.
+    if platform_name.startswith("musllinux_"):
+        is_musl = True
+    elif platform_name.startswith("manylinux_"):
+        is_musl = False
+
+    return TargetPlatform(
+        goos=goos,
+        goarch=goarch,
+        rust_target=_to_rust_target(goos, goarch, is_musl=is_musl),
+    )
+
+
+def _to_rust_target(goos: str, goarch: str, *, is_musl: bool) -> str | None:
+    """Returns the Rust target triple, or None to build for the host."""
+    rust_arch = {
+        "amd64": "x86_64",
+        "arm64": "aarch64",
+    }.get(goarch)
+    if not rust_arch:
+        return None
+
+    if goos == "darwin":
+        return f"{rust_arch}-apple-darwin"
+    if goos == "windows":
+        return f"{rust_arch}-pc-windows-msvc"
+    if goos == "linux":
+        libc = "musl" if is_musl else "gnu"
+        return f"{rust_arch}-unknown-linux-{libc}"
+    return None
+
+
+def _platform_goarch(platform_name: str) -> str:
+    arch_match = re.search(
+        r"(?:-|_)(aarch64|arm64|x86_64|amd64)$",
+        platform_name,
+    )
+    return _to_goarch(arch_match.group(1)) if arch_match else ""
+
+
+def _is_musl_host() -> bool:
+    return any(pathlib.Path("/lib").glob("ld-musl-*.so.1"))
 
 
 def _to_goarch(arch: str) -> str:

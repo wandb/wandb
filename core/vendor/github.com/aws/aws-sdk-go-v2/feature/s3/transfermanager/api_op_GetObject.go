@@ -630,9 +630,17 @@ func (g *getter) get(ctx context.Context) (out *GetObjectOutput, err error) {
 	if g.options.GetObjectType == types.GetObjectParts {
 		// must know the part size before creating stream reader
 		out, err := g.options.S3.HeadObject(ctx, &s3.HeadObjectInput{
-			Bucket:     g.in.Bucket,
-			Key:        g.in.Key,
-			PartNumber: aws.Int32(1),
+			Bucket:               g.in.Bucket,
+			Key:                  g.in.Key,
+			PartNumber:           aws.Int32(1),
+			SSECustomerAlgorithm: g.in.SSECustomerAlgorithm,
+			SSECustomerKey:       g.in.SSECustomerKey,
+			SSECustomerKeyMD5:    g.in.SSECustomerKeyMD5,
+			ExpectedBucketOwner:  g.in.ExpectedBucketOwner,
+			RequestPayer:         s3types.RequestPayer(g.in.RequestPayer),
+			VersionId:            g.in.VersionID,
+			IfModifiedSince:      g.in.IfModifiedSince,
+			IfUnmodifiedSince:    g.in.IfUnmodifiedSince,
 		}, clientOptions...)
 		if err != nil {
 			return nil, err
@@ -652,8 +660,16 @@ func (g *getter) get(ctx context.Context) (out *GetObjectOutput, err error) {
 		r.partsCount = partsCount
 	} else {
 		out, err := g.options.S3.HeadObject(ctx, &s3.HeadObjectInput{
-			Bucket: g.in.Bucket,
-			Key:    g.in.Key,
+			Bucket:               g.in.Bucket,
+			Key:                  g.in.Key,
+			SSECustomerAlgorithm: g.in.SSECustomerAlgorithm,
+			SSECustomerKey:       g.in.SSECustomerKey,
+			SSECustomerKeyMD5:    g.in.SSECustomerKeyMD5,
+			ExpectedBucketOwner:  g.in.ExpectedBucketOwner,
+			RequestPayer:         s3types.RequestPayer(g.in.RequestPayer),
+			VersionId:            g.in.VersionID,
+			IfModifiedSince:      g.in.IfModifiedSince,
+			IfUnmodifiedSince:    g.in.IfUnmodifiedSince,
 		}, clientOptions...)
 		if err != nil {
 			return nil, err

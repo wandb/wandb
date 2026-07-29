@@ -297,10 +297,10 @@ type requestJSONBuilder struct {
 	ApproxSizeBytes, MaxSizeBytes int
 	HasMore                       bool
 
-	HistoryChunk      offsetAndContent
-	EventsChunk       offsetAndContent
-	SummaryChunk      offsetAndContent
-	ConsoleLinesChunk offsetAndContent
+	HistoryChunk      OffsetAndContent
+	EventsChunk       OffsetAndContent
+	SummaryChunk      OffsetAndContent
+	ConsoleLinesChunk OffsetAndContent
 
 	Uploaded   []string
 	Preempting bool
@@ -325,7 +325,7 @@ func (b *requestJSONBuilder) TryAddSize(n int) bool {
 // Build returns the JSON value to upload.
 func (x *requestJSONBuilder) Build() *FileStreamRequestJSON {
 	json := &FileStreamRequestJSON{}
-	json.Files = make(map[string]offsetAndContent)
+	json.Files = make(map[string]OffsetAndContent)
 
 	if len(x.HistoryChunk.Content) > 0 {
 		json.Files[HistoryFileName] = x.HistoryChunk

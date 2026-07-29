@@ -75,11 +75,12 @@ func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceM
 		Settings:           settings2,
 	}
 	fileStreamFactory := &filestream.FileStreamFactory{
-		BaseURL:    wbBaseURL,
-		Logger:     coreLogger,
-		Operations: wandbOperations,
-		Printer:    printer,
-		Settings:   settings2,
+		BaseURL:         wbBaseURL,
+		FeatureProvider: featureProvider,
+		Logger:          coreLogger,
+		Operations:      wandbOperations,
+		Printer:         printer,
+		Settings:        settings2,
 	}
 	fileTransferManager := NewFileTransferManager(wbBaseURL, fileTransferStats, coreLogger, settings2)
 	watcher := provideFileWatcher(coreLogger)

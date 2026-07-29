@@ -52,7 +52,7 @@ type RetryableClient interface {
 // clientImpl implements the RetryableClient interface.
 type clientImpl struct {
 	retryableHTTP RetryableClient // underlying HTTP client
-	logger        *slog.Logger
+	logger        *slog.Logger    // never nil
 }
 
 type ClientOptions struct {
@@ -128,6 +128,12 @@ func NewClient(opts ClientOptions) RetryableClient {
 	if opts.BaseURL == nil {
 		panic("api: nil BaseURL")
 	}
+	if opts.RetryPolicy == nil {
+		opts.RetryPolicy = retryablehttp.DefaultRetryPolicy
+	}
+	if opts.Logger == nil {
+		opts.Logger = slog.New(slog.DiscardHandler)
+	}
 
 	retryableHTTP := retryablehttp.NewClient()
 	retryableHTTP.Backoff = clients.ExponentialBackoffWithJitter
@@ -136,24 +142,16 @@ func NewClient(opts ClientOptions) RetryableClient {
 	retryableHTTP.RetryWaitMax = opts.RetryWaitMax
 	retryableHTTP.HTTPClient.Timeout = opts.NonRetryTimeout
 	retryableHTTP.PrepareRetry = opts.PrepareRetry
-
-	// Set the retry policy with debug logging if possible.
-	retryPolicy := opts.RetryPolicy
-	if retryPolicy == nil {
-		retryPolicy = retryablehttp.DefaultRetryPolicy
-	}
-	if opts.Logger != nil {
-		retryPolicy = withRetryLogging(retryPolicy, opts.Logger)
-	}
-	retryableHTTP.CheckRetry = retryPolicy
+	retryableHTTP.CheckRetry = withRetryObservation(
+		opts.RetryPolicy,
+		opts.Logger,
+	)
 
 	// Let the client log debug messages.
-	if opts.Logger != nil {
-		retryableHTTP.Logger = slog.NewLogLogger(
-			opts.Logger.Handler(),
-			slog.LevelDebug,
-		)
-	}
+	retryableHTTP.Logger = slog.NewLogLogger(
+		opts.Logger.Handler(),
+		slog.LevelDebug,
+	)
 
 	// Set the Proxy function on the HTTP client.
 	transport := &http.Transport{

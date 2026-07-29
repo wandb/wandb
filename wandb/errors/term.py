@@ -27,7 +27,6 @@ if TYPE_CHECKING:
     import wandb
 
 LOG_STRING = click.style("wandb", fg="blue", bold=True)
-LOG_STRING_NOCOLOR = "wandb"
 ERROR_STRING = click.style("ERROR", bg="red", fg="green")
 WARN_STRING = click.style("WARNING", fg="yellow")
 

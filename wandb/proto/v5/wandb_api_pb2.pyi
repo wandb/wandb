@@ -30,7 +30,7 @@ class ServerApiInitResponse(_message.Message):
     def __init__(self, error_message: _Optional[str] = ..., api_id: _Optional[str] = ...) -> None: ...
 
 class ApiRequest(_message.Message):
-    __slots__ = ("api_id", "read_run_history_request", "features_request", "graphql_request", "download_file_request", "upload_file_request", "mark_run_files_uploaded_request", "stop_run_request")
+    __slots__ = ("api_id", "read_run_history_request", "features_request", "graphql_request", "download_file_request", "upload_file_request", "mark_run_files_uploaded_request", "stop_run_request", "authenticate_request")
     API_ID_FIELD_NUMBER: _ClassVar[int]
     READ_RUN_HISTORY_REQUEST_FIELD_NUMBER: _ClassVar[int]
     FEATURES_REQUEST_FIELD_NUMBER: _ClassVar[int]
@@ -39,6 +39,7 @@ class ApiRequest(_message.Message):
     UPLOAD_FILE_REQUEST_FIELD_NUMBER: _ClassVar[int]
     MARK_RUN_FILES_UPLOADED_REQUEST_FIELD_NUMBER: _ClassVar[int]
     STOP_RUN_REQUEST_FIELD_NUMBER: _ClassVar[int]
+    AUTHENTICATE_REQUEST_FIELD_NUMBER: _ClassVar[int]
     api_id: str
     read_run_history_request: ReadRunHistoryRequest
     features_request: FeaturesRequest
@@ -47,10 +48,11 @@ class ApiRequest(_message.Message):
     upload_file_request: UploadFileRequest
     mark_run_files_uploaded_request: MarkRunFilesUploadedRequest
     stop_run_request: StopRunRequest
-    def __init__(self, api_id: _Optional[str] = ..., read_run_history_request: _Optional[_Union[ReadRunHistoryRequest, _Mapping]] = ..., features_request: _Optional[_Union[FeaturesRequest, _Mapping]] = ..., graphql_request: _Optional[_Union[GraphQLRequest, _Mapping]] = ..., download_file_request: _Optional[_Union[DownloadFileRequest, _Mapping]] = ..., upload_file_request: _Optional[_Union[UploadFileRequest, _Mapping]] = ..., mark_run_files_uploaded_request: _Optional[_Union[MarkRunFilesUploadedRequest, _Mapping]] = ..., stop_run_request: _Optional[_Union[StopRunRequest, _Mapping]] = ...) -> None: ...
+    authenticate_request: AuthenticateRequest
+    def __init__(self, api_id: _Optional[str] = ..., read_run_history_request: _Optional[_Union[ReadRunHistoryRequest, _Mapping]] = ..., features_request: _Optional[_Union[FeaturesRequest, _Mapping]] = ..., graphql_request: _Optional[_Union[GraphQLRequest, _Mapping]] = ..., download_file_request: _Optional[_Union[DownloadFileRequest, _Mapping]] = ..., upload_file_request: _Optional[_Union[UploadFileRequest, _Mapping]] = ..., mark_run_files_uploaded_request: _Optional[_Union[MarkRunFilesUploadedRequest, _Mapping]] = ..., stop_run_request: _Optional[_Union[StopRunRequest, _Mapping]] = ..., authenticate_request: _Optional[_Union[AuthenticateRequest, _Mapping]] = ...) -> None: ...
 
 class ApiResponse(_message.Message):
-    __slots__ = ("read_run_history_response", "features_response", "graphql_response", "download_file_response", "upload_file_response", "mark_run_files_uploaded_response", "stop_run_response", "api_error_response")
+    __slots__ = ("read_run_history_response", "features_response", "graphql_response", "download_file_response", "upload_file_response", "mark_run_files_uploaded_response", "stop_run_response", "authenticate_response", "api_error_response")
     READ_RUN_HISTORY_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     FEATURES_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     GRAPHQL_RESPONSE_FIELD_NUMBER: _ClassVar[int]
@@ -58,6 +60,7 @@ class ApiResponse(_message.Message):
     UPLOAD_FILE_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     MARK_RUN_FILES_UPLOADED_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     STOP_RUN_RESPONSE_FIELD_NUMBER: _ClassVar[int]
+    AUTHENTICATE_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     API_ERROR_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     read_run_history_response: ReadRunHistoryResponse
     features_response: FeaturesResponse
@@ -66,8 +69,9 @@ class ApiResponse(_message.Message):
     upload_file_response: UploadFileResponse
     mark_run_files_uploaded_response: MarkRunFilesUploadedResponse
     stop_run_response: StopRunResponse
+    authenticate_response: AuthenticateResponse
     api_error_response: ApiErrorResponse
-    def __init__(self, read_run_history_response: _Optional[_Union[ReadRunHistoryResponse, _Mapping]] = ..., features_response: _Optional[_Union[FeaturesResponse, _Mapping]] = ..., graphql_response: _Optional[_Union[GraphQLResponse, _Mapping]] = ..., download_file_response: _Optional[_Union[DownloadFileResponse, _Mapping]] = ..., upload_file_response: _Optional[_Union[UploadFileResponse, _Mapping]] = ..., mark_run_files_uploaded_response: _Optional[_Union[MarkRunFilesUploadedResponse, _Mapping]] = ..., stop_run_response: _Optional[_Union[StopRunResponse, _Mapping]] = ..., api_error_response: _Optional[_Union[ApiErrorResponse, _Mapping]] = ...) -> None: ...
+    def __init__(self, read_run_history_response: _Optional[_Union[ReadRunHistoryResponse, _Mapping]] = ..., features_response: _Optional[_Union[FeaturesResponse, _Mapping]] = ..., graphql_response: _Optional[_Union[GraphQLResponse, _Mapping]] = ..., download_file_response: _Optional[_Union[DownloadFileResponse, _Mapping]] = ..., upload_file_response: _Optional[_Union[UploadFileResponse, _Mapping]] = ..., mark_run_files_uploaded_response: _Optional[_Union[MarkRunFilesUploadedResponse, _Mapping]] = ..., stop_run_response: _Optional[_Union[StopRunResponse, _Mapping]] = ..., authenticate_response: _Optional[_Union[AuthenticateResponse, _Mapping]] = ..., api_error_response: _Optional[_Union[ApiErrorResponse, _Mapping]] = ...) -> None: ...
 
 class ApiErrorResponse(_message.Message):
     __slots__ = ("message", "error_type", "http_status")
@@ -176,6 +180,24 @@ class MarkRunFilesUploadedRequest(_message.Message):
 class MarkRunFilesUploadedResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
+
+class AuthenticateRequest(_message.Message):
+    __slots__ = ()
+    def __init__(self) -> None: ...
+
+class AuthenticateResponse(_message.Message):
+    __slots__ = ("default_entity", "username", "email", "teams", "flags_json")
+    DEFAULT_ENTITY_FIELD_NUMBER: _ClassVar[int]
+    USERNAME_FIELD_NUMBER: _ClassVar[int]
+    EMAIL_FIELD_NUMBER: _ClassVar[int]
+    TEAMS_FIELD_NUMBER: _ClassVar[int]
+    FLAGS_JSON_FIELD_NUMBER: _ClassVar[int]
+    default_entity: str
+    username: str
+    email: str
+    teams: _containers.RepeatedScalarFieldContainer[str]
+    flags_json: str
+    def __init__(self, default_entity: _Optional[str] = ..., username: _Optional[str] = ..., email: _Optional[str] = ..., teams: _Optional[_Iterable[str]] = ..., flags_json: _Optional[str] = ...) -> None: ...
 
 class StopRunRequest(_message.Message):
     __slots__ = ("storage_id",)

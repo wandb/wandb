@@ -133,8 +133,12 @@ class AuthIdentityTokenFile(Auth):
             credentials_file: Path to the credentials file for caching access tokens.
         """
         super().__init__(host=host)
-        self._identity_token_file = pathlib.Path(path)
-        self._credentials_path = pathlib.Path(credentials_file)
+
+        # Store absolute paths: the files may be read and written by the
+        # wandb-core service process, whose working directory can differ
+        # from this process's.
+        self._identity_token_file = pathlib.Path(path).absolute()
+        self._credentials_path = pathlib.Path(credentials_file).absolute()
 
     @property
     def path(self) -> pathlib.Path:
