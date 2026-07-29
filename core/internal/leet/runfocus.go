@@ -128,6 +128,9 @@ func (r *Run) deactivateSystemMetricsFocus() {
 }
 
 func (r *Run) deactivateMediaFocus() {
+	// Fullscreen follows focus: once focus leaves the pane, no key path
+	// could exit fullscreen and Esc would be captured forever.
+	r.mediaPane.ExitFullscreen()
 	r.mediaPane.SetActive(false)
 }
 
@@ -159,6 +162,9 @@ func (r *Run) HasPaneFocus() bool {
 // handleEscape clears pane focus. When nothing is focused, the parent model
 // handles Esc by exiting back to the workspace.
 func (r *Run) handleEscape(tea.KeyPressMsg) tea.Cmd {
+	// An explicit unfocus ends the initial-focus seeding era: later data
+	// must not move focus back.
+	r.focusSeeded = true
 	r.focusMgr.ClearAll()
 	return nil
 }
