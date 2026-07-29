@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import sys
 from typing import NoReturn
 
 import pytest
@@ -29,6 +30,18 @@ def test_exception():
         raise Exception("test")
 
     with pytest.raises(CommError, match="test"):
+        fn()
+
+
+def test_works_without_requests(monkeypatch):
+    """normalize_exceptions must not require the requests library."""
+    monkeypatch.delitem(sys.modules, "requests")
+
+    @normalize_exceptions
+    def fn():
+        raise ValueError("plain error")
+
+    with pytest.raises(CommError, match="plain error"):
         fn()
 
 
