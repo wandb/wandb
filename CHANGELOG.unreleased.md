@@ -22,6 +22,7 @@ The `wandb sync --clean` command now exits with code 1 and prints a hint to use 
 
 - Added support for gzip compression of filestream requests, reducing network traffic when logging metrics. It is currently opt-in and requires server support: set `x_file_stream_no_gzip=False` in `wandb.Settings` to enable it. Compression will become the default in a future release (@dmitryduev in https://github.com/wandb/wandb/pull/12262)
 - Added a `--term-timeout` flag to `wandb agent` (@nathancy-wandb in https://github.com/wandb/wandb/pull/12246)
+- Added `run.sync_dir` (@timoffex in https://github.com/wandb/wandb/pull/12319)
 
 ## Changed
 
