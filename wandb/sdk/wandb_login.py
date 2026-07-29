@@ -11,7 +11,6 @@ import click
 
 import wandb
 from wandb import env
-from wandb.apis.public.service_api import ServiceApi
 from wandb.errors import AuthenticationError, term
 from wandb.sdk import wandb_setup
 from wandb.sdk.lib import settings_file, wbauth
@@ -291,6 +290,8 @@ def _find_or_prompt_for_key(
 
 def _verify_login(key: str, base_url: str) -> None:
     from requests.exceptions import ConnectionError
+
+    from wandb.apis.public.service_api import ServiceApi
 
     settings = wandb_setup.singleton().settings.model_copy()
     settings.base_url = base_url
