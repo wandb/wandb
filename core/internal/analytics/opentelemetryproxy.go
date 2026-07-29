@@ -306,13 +306,16 @@ func (r *TelemetryRecorder) ErrorMetric(
 // ErrorLog emits an OpenTelemetry log record with the specified severity level.
 //
 // The log record contains the attributes from the current telemetry context,
-// plus "error.type", "error.message", "error.stacktrace", and
-// "error.originator". The stack trace is captured at the point Error is called.
+// plus "error.type", "error.message", "error.stacktrace", "error.originator",
+// and the caller-supplied attributes.
+//
+// The stack trace is captured at the point Error is called.
 func (r *TelemetryRecorder) ErrorLog(
 	ctx context.Context,
 	message string,
 	err error,
 	errorOriginator string,
+	attributes map[string]string,
 ) {
 	if r == nil {
 		return
@@ -330,6 +333,7 @@ func (r *TelemetryRecorder) ErrorLog(
 	logAttributes := make(map[string]string)
 	maps.Copy(logAttributes, r.telemetryContext.highCardinalityAttributes)
 	maps.Copy(logAttributes, mergedLowCardinalityAttributes.toMap())
+	maps.Copy(logAttributes, attributes)
 	maps.Copy(logAttributes, map[string]string{
 		"error.message":    errorMessage,
 		"error.stacktrace": captureStacktrace(),

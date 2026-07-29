@@ -228,6 +228,7 @@ func (cl *CoreLogger) captureException(
 		err.Error(),
 		err,
 		errorOriginator,
+		cl.withArgs(args...),
 	)
 
 	if cl.sentryCtx == nil {

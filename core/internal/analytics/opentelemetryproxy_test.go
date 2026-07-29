@@ -348,6 +348,7 @@ func TestTelemetryRecorder_ErrorLog(t *testing.T) {
 		"error-message",
 		assert.AnError,
 		wantErrorOriginator,
+		map[string]string{"custom-attribute": "test-attribute"},
 	)
 	require.NoError(t, proxy.Shutdown(context.Background()))
 
@@ -358,6 +359,7 @@ func TestTelemetryRecorder_ErrorLog(t *testing.T) {
 	assert.Equal(t, wantErrorOriginator, log.Attributes["error.originator"])
 	assert.Equal(t, "custom-version", log.Attributes["wandb_version"])
 	assert.Equal(t, "test-request", log.Attributes["request_id"])
+	assert.Equal(t, "test-attribute", log.Attributes["custom-attribute"])
 	assert.Equal(t, assert.AnError.Error(), log.Attributes["error.message"])
 	assert.NotEmpty(t, log.Attributes["error.stacktrace"])
 }
