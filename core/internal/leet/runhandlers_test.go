@@ -630,3 +630,122 @@ func TestRun_StackOverridesNeverOverflowFrame(t *testing.T) {
 			"overridden fixed panes must not squeeze the metrics section out (h=%d)", height)
 	}
 }
+
+// Regression: '0' pressed mid-drag used to be silently overwritten when the
+// release persisted the pre-reset drag values.
+func TestRun_ZeroKeyMidDragWins(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	_ = cfg.SetRightSidebarVisible(true)
+
+	r := leet.NewRun(&leet.RunParams{RunFile: "testdata/fake.wandb"}, cfg, logger)
+	r.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+
+	_, right0 := r.TestLayoutWidths()
+	borderX := 200 - right0
+	r.Update(tea.MouseClickMsg{X: borderX, Y: 5, Button: tea.MouseLeft})
+	r.Update(tea.MouseMotionMsg{X: borderX - 10, Y: 5, Button: tea.MouseLeft})
+	r.Update(tea.KeyPressMsg{Code: '0'})
+	r.Update(tea.MouseReleaseMsg{X: borderX - 10, Y: 5, Button: tea.MouseLeft})
+
+	require.Equal(t, leet.LayoutOverrides{}, cfg.RunLayout(),
+		"the reset must win over the in-flight drag")
+	_, right1 := r.TestLayoutWidths()
+	require.Equal(t, right0, right1, "the layout must return to the default")
+}
+
+// Regression: a release of a different button used to end (and persist) a
+// left-button drag mid-gesture.
+func TestRun_RightReleaseDoesNotEndLeftDrag(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	_ = cfg.SetRightSidebarVisible(true)
+
+	r := leet.NewRun(&leet.RunParams{RunFile: "testdata/fake.wandb"}, cfg, logger)
+	r.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+
+	_, right0 := r.TestLayoutWidths()
+	borderX := 200 - right0
+	r.Update(tea.MouseClickMsg{X: borderX, Y: 5, Button: tea.MouseLeft})
+	r.Update(tea.MouseMotionMsg{X: borderX - 10, Y: 5, Button: tea.MouseLeft})
+	r.Update(tea.MouseReleaseMsg{X: borderX - 10, Y: 5, Button: tea.MouseRight})
+	require.Zero(t, cfg.RunLayout().RightSidebar,
+		"a right-button release must not persist the drag")
+
+	// The drag is still live and the left release persists it once.
+	r.Update(tea.MouseMotionMsg{X: borderX - 20, Y: 5, Button: tea.MouseLeft})
+	r.Update(tea.MouseReleaseMsg{X: borderX - 20, Y: 5, Button: tea.MouseLeft})
+	require.InDelta(t, float64(right0+20)/200.0, cfg.RunLayout().RightSidebar, 1e-9)
+}
+
+// Regression: a drag whose release never reached the view (swallowed by the
+// help overlay or a view switch) stayed latched, and any later left-button
+// motion resized the pane and persisted garbage.
+func TestRun_MissedClickClearsStaleDragLatch(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	_ = cfg.SetRightSidebarVisible(true)
+
+	r := leet.NewRun(&leet.RunParams{RunFile: "testdata/fake.wandb"}, cfg, logger)
+	r.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+
+	_, right0 := r.TestLayoutWidths()
+	borderX := 200 - right0
+	// Latch a drag; the matching release is never delivered.
+	r.Update(tea.MouseClickMsg{X: borderX, Y: 5, Button: tea.MouseLeft})
+
+	// A later unrelated click-drag over the main content must not resize.
+	r.Update(tea.MouseClickMsg{X: 30, Y: 5, Button: tea.MouseLeft})
+	r.Update(tea.MouseMotionMsg{X: 60, Y: 5, Button: tea.MouseLeft})
+	r.Update(tea.MouseReleaseMsg{X: 60, Y: 5, Button: tea.MouseLeft})
+
+	_, right1 := r.TestLayoutWidths()
+	require.Equal(t, right0, right1, "a stale latch must not resurrect as a drag")
+	require.Equal(t, leet.LayoutOverrides{}, cfg.RunLayout())
+}
+
+// Regression: live drag values were unclamped while the persisted config was
+// clamped to [MinLayoutFrac, MaxLayoutFrac], so the pane snapped at the next
+// relayout after release. What you drag is what persists.
+func TestRun_DragExtremePersistsWhatYouSee(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	_ = cfg.SetLeftSidebarVisible(true)
+	_ = cfg.SetRightSidebarVisible(false)
+
+	r := leet.NewRun(&leet.RunParams{RunFile: "testdata/fake.wandb"}, cfg, logger)
+	r.Update(tea.WindowSizeMsg{Width: 300, Height: 60})
+
+	left0, _ := r.TestLayoutWidths()
+	r.Update(tea.MouseClickMsg{X: left0 - 1, Y: 5, Button: tea.MouseLeft})
+	r.Update(tea.MouseMotionMsg{X: 294, Y: 5, Button: tea.MouseLeft})
+	liveLeft, _ := r.TestLayoutWidths()
+
+	r.Update(tea.MouseReleaseMsg{X: 294, Y: 5, Button: tea.MouseLeft})
+	r.Update(tea.WindowSizeMsg{Width: 300, Height: 60})
+	persistedLeft, _ := r.TestLayoutWidths()
+
+	require.Equal(t, liveLeft, persistedLeft,
+		"the layout must not snap when the drag is released")
+	require.LessOrEqual(t, cfg.RunLayout().LeftSidebar, leet.MaxLayoutFrac)
+}
+
+// Terminals without SGR mouse support (legacy X10 encoding) report every
+// release as MouseNone; such a release must still end and persist the drag.
+func TestRun_LegacyMouseReleaseEndsDrag(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	_ = cfg.SetRightSidebarVisible(true)
+
+	r := leet.NewRun(&leet.RunParams{RunFile: "testdata/fake.wandb"}, cfg, logger)
+	r.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+
+	_, right0 := r.TestLayoutWidths()
+	borderX := 200 - right0
+	r.Update(tea.MouseClickMsg{X: borderX, Y: 5, Button: tea.MouseLeft})
+	r.Update(tea.MouseMotionMsg{X: borderX - 10, Y: 5, Button: tea.MouseLeft})
+	r.Update(tea.MouseReleaseMsg{X: borderX - 10, Y: 5, Button: tea.MouseNone})
+
+	require.InDelta(t, float64(right0+10)/200.0, cfg.RunLayout().RightSidebar, 1e-9,
+		"an X10-encoded release must persist the drag")
+}
