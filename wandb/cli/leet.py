@@ -222,8 +222,9 @@ def _run_core(
         result = subprocess.run(args, env=env, close_fds=True)
         sys.exit(result.returncode)
     except Exception as e:
-        telemetry_recorder.exception(f"using `wandb leet`. failed with {e}", e)
-        get_sentry().reraise(e)
+        # TODO: remove sentry once we no longer support/need it
+        get_sentry().exception(e)
+        telemetry_recorder.reraise(e)
 
 
 def launch(path: str | None, pprof: str) -> Never:

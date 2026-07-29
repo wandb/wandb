@@ -2281,9 +2281,9 @@ class Api:
                 _e = retry.TransientError(exc=e)
                 raise _e.with_traceback(sys.exc_info()[2])
             else:
-                # TODO: change to self._otel_proxy.reraise() once sentry is removed
-                self._telemetry_recorder.exception(str(e), e)
-                get_sentry().reraise(e)
+                # TODO: remove sentry once we no longer support/need it
+                get_sentry().exception(e)
+                self._telemetry_recorder.reraise(e)
         return response
 
     def upload_file(
@@ -2368,9 +2368,9 @@ class Api:
                 _e = retry.TransientError(exc=e)
                 raise _e.with_traceback(sys.exc_info()[2])
             else:
-                # TODO: change to self._otel_proxy.reraise() once sentry is removed
-                self._telemetry_recorder.exception(str(e), e)
-                get_sentry().reraise(e)
+                # TODO: remove sentry once we no longer support/need it
+                get_sentry().exception(e)
+                self._telemetry_recorder.reraise(e)
 
         return response
 

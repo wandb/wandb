@@ -1547,6 +1547,8 @@ def init(  # noqa: C901
     except Exception as e:
         if wl:
             wl._get_logger().exception("error in wandb.init()", exc_info=e)
-        telemetry_recorder.exception(str(e), e)
+        # TODO: remove sentry once we no longer support/need it
+        get_sentry().exception(e)
+        telemetry_recorder.reraise(e)
+    finally:
         init_otel_proxy.shutdown()
-        get_sentry().reraise(e)

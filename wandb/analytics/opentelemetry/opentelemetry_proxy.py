@@ -202,12 +202,16 @@ class TelemetryRecorder:
         self,
         root: OtelProvider | None = None,
         context: TelemetryContext | None = None,
-    ):
+    ) -> None:
         """Initialize a TelemetryRecorder.
 
         Args:
             root: The root OtelProvider to use.
                 If not provided, all telemetry calls will be no-ops.
+
+                The root OtelProvider contains the resources for sending telemetry
+                to the W&B backend. Telemetry recorders are not responsible for
+                handling the shutdown of the root OtelProvider.
             context: The TelemetryContext to use.
         """
         self._root = root

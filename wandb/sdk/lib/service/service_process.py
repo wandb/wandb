@@ -84,8 +84,9 @@ def _start(
             telemetry_recorder=telemetry_recorder,
         )
     except Exception as e:
-        telemetry_recorder.exception(str(e), e)
-        get_sentry().reraise(e)
+        # TODO: remove sentry once we no longer support/need it
+        get_sentry().exception(e)
+        telemetry_recorder.reraise(e)
     finally:
         otel_proxy.shutdown()
 
@@ -136,8 +137,9 @@ def _launch_server(
         try:
             core_path = get_core_path()
         except WandbCoreNotAvailableError as e:
-            telemetry_recorder.exception(str(e), e)
-            get_sentry().reraise(e)
+            # TODO: remove sentry once we no longer support/need it
+            get_sentry().exception(e)
+            telemetry_recorder.reraise(e)
 
         service_args.append(core_path)
 

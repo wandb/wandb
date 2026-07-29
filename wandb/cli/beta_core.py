@@ -106,9 +106,9 @@ def stop(*, exit_code: int = 0) -> None:
         ) from e
 
     except Exception as e:
-        # TODO: change to telemetry_recorder.reraise() once sentry is removed
-        telemetry_recorder.exception(str(e), e)
-        get_sentry().reraise(e)
+        # TODO: remove sentry once we no longer support/need it
+        get_sentry().exception(e)
+        telemetry_recorder.reraise(e)
 
     finally:
         asyncer.join()
