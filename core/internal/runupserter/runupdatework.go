@@ -155,8 +155,7 @@ func respondRunUpdate(
 // If the error is a RunUpdateError, it is used to enhance the message.
 // Otherwise, a generic error with an unknown code is returned.
 func runInitErrorResult(err error) *spb.RunUpdateResult {
-	var runUpdateError *RunUpdateError
-	if errors.As(err, &runUpdateError) {
+	if runUpdateError, ok := errors.AsType[*RunUpdateError](err); ok {
 		return runUpdateError.AsResult()
 	} else {
 		return &spb.RunUpdateResult{
