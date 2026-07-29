@@ -658,11 +658,15 @@ func (w *Workspace) buildWorkspaceFocusManager() *FocusManager {
 
 // ---- Focus availability ----
 //
-// A region is available when its pane's target state is visible and it has
-// content to interact with. Empty panes are skipped by Tab navigation.
+// A data pane is available when its target state is visible and it has
+// content to interact with; empty panes are skipped by Tab navigation.
+// The runs list is the one exception (see runsFocusAvailable).
 
+// The runs list is the workspace's home surface: it stays focusable while
+// visible even when empty, so focus survives the empty-list windows during
+// startup and no-match filters.
 func (w *Workspace) runsFocusAvailable() bool {
-	return w.runsAnimState.TargetVisible() && len(w.runs.FilteredItems) > 0
+	return w.runsAnimState.TargetVisible()
 }
 
 func (w *Workspace) metricsGridFocusAvailable() bool {

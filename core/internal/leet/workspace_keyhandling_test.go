@@ -856,3 +856,45 @@ func TestWorkspace_RunsFilter_TagsAndNotes(t *testing.T) {
 	require.Nil(t, w.Update(tea.KeyPressMsg{Code: tea.KeyEnter}))
 	require.Equal(t, []string{run2}, w.TestFilteredRunKeys())
 }
+
+// Regression: with no runs yet, toggling an unrelated pane used to clear the
+// seeded runs-list focus for good (the runs list was "unavailable" while
+// empty and nothing ever re-seeded it), leaving keyboard navigation dead
+// once runs appeared.
+func TestWorkspace_ToggleWithEmptyRunsListKeepsFocus(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+	require.Equal(t, int(leet.FocusTargetRunsList), w.TestCurrentFocusRegion(),
+		"runs list starts focused")
+
+	// Toggle the media pane while the runs list is still empty.
+	_ = w.Update(keyRune('3'))
+
+	require.Equal(t, int(leet.FocusTargetRunsList), w.TestCurrentFocusRegion(),
+		"toggling an unrelated pane must not clear runs-list focus")
+}
+
+// Regression: when an externally deleted run dir empties the focused data
+// pane, the run-key snapshot must clear focus from it — and availability
+// must be evaluated against the freshly synced pane state, not the dropped
+// run's leftovers (panes are normally re-pointed only during View).
+func TestWorkspace_DroppedRunClearsFocusFromEmptiedPane(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	_ = cfg.SetWorkspaceConsoleLogsVisible(true)
+
+	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{"run-a"}})
+	w.TestSeedConsoleLogs("run-a", "hello")
+	w.TestSetFocusTarget(int(leet.FocusTargetConsoleLogs))
+	require.Equal(t, int(leet.FocusTargetConsoleLogs), w.TestCurrentFocusRegion())
+
+	// The run's directory disappears; the pane it fed is now empty.
+	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: nil})
+	require.Equal(t, int(leet.FocusTargetNone), w.TestCurrentFocusRegion(),
+		"focus must not stay on a pane emptied by a dropped run")
+}
