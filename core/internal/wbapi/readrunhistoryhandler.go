@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/simplejsonext"
 
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runhistoryreader"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/ffi"
@@ -24,6 +25,7 @@ import (
 type RunHistoryAPIHandler struct {
 	graphqlClient graphql.Client
 	httpClient    *retryablehttp.Client
+	logger        *observability.CoreLogger
 
 	// mu protects scanHistoryReaders and downloadOperations from
 	// concurrent access by goroutines spawned in handleApi.
@@ -61,11 +63,13 @@ type RunHistoryAPIHandler struct {
 func NewRunHistoryAPIHandler(
 	graphqlClient graphql.Client,
 	httpClient *retryablehttp.Client,
+	logger *observability.CoreLogger,
 ) *RunHistoryAPIHandler {
 
 	return &RunHistoryAPIHandler{
 		graphqlClient:      graphqlClient,
 		httpClient:         httpClient,
+		logger:             logger,
 		currentRequestId:   atomic.Int32{},
 		scanHistoryReaders: make(map[int32]*runhistoryreader.HistoryReader),
 		downloadOperations: make(map[int32]*parquet.RunHistoryDownloadOperation),
@@ -105,6 +109,15 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryInit(
 	ctx context.Context,
 	request *spb.ScanRunHistoryInit,
 ) *spb.ApiResponse {
+	f.logger.RecordTelemetry(
+		"scan_run_history_init",
+		map[string]string{
+			"entity":  request.Entity,
+			"project": request.Project,
+			"runId":   request.RunId,
+		},
+	)
+
 	f.rustArrowOnce.Do(func() {
 		f.rustArrowWrapper, f.rustArrowInitializationErr = ffi.NewRustArrowWrapper()
 	})
