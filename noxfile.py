@@ -611,6 +611,7 @@ def mypy_report(session: nox.Session) -> None:
         "types-six",
         "types-tqdm",
         "-e .[eval-table]",
+        "-e .[optuna]",
     )
 
     path = "mypy-results"
