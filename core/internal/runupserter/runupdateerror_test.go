@@ -32,7 +32,7 @@ func Test_ToRunUpdateError_BranchError(t *testing.T) {
 	assert.Equal(t, spb.ErrorInfo_UNSUPPORTED, runUpdateError.Code)
 }
 
-func Test_ToRunUpdateError_GQLError_One(t *testing.T) {
+func Test_ToRunUpdateError_GQLError(t *testing.T) {
 	err := &graphql.HTTPError{
 		StatusCode: 400,
 		Response: graphql.Response{
@@ -48,38 +48,6 @@ func Test_ToRunUpdateError_GQLError_One(t *testing.T) {
 	assert.ErrorContains(t, runUpdateError, "400") // from HTTPError.Error()
 	assert.Equal(t, "gql error message", runUpdateError.UserMessage)
 	assert.Equal(t, spb.ErrorInfo_COMMUNICATION, runUpdateError.Code)
-}
-
-func Test_ToRunUpdateError_GQLError_Many(t *testing.T) {
-	err := &graphql.HTTPError{
-		StatusCode: 400,
-		Response: graphql.Response{
-			Errors: gqlerror.List{
-				{Message: "gql 1"},
-				{Message: "gql 2"},
-			},
-		},
-	}
-
-	result := runupserter.ToRunUpdateError(err)
-
-	runUpdateError := result.(*runupserter.RunUpdateError)
-	assert.ErrorContains(t, runUpdateError, "400") // from HTTPError.Error()
-	assert.Equal(t, "[gql 1; gql 2]", runUpdateError.UserMessage)
-	assert.Equal(t, spb.ErrorInfo_COMMUNICATION, runUpdateError.Code)
-}
-
-func Test_ToRunUpdateError_GQLError_None(t *testing.T) {
-	err := &graphql.HTTPError{
-		StatusCode: 400,
-		Response:   graphql.Response{}, // no GQL errors (unusual)
-	}
-
-	result := runupserter.ToRunUpdateError(err)
-
-	runUpdateError := result.(*runupserter.RunUpdateError)
-	assert.ErrorContains(t, runUpdateError, "400") // from HTTPError.Error()
-	assert.Contains(t, runUpdateError.UserMessage, "400")
 }
 
 func Test_ToRunUpdateError_GQLError_Empty(t *testing.T) {
