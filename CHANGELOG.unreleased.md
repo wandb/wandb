@@ -18,6 +18,8 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 - The automations API now supports team and organization scopes. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12197, https://github.com/wandb/wandb/pull/12194)
 - The automations API now supports creating and editing automations whose scope is a `Registry` object (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10867)
+- New `wandb sweep_scheduler` command to support driving a sweep by suggesting new runs locally. Designed to integrate with
+third party hyperparameter optimization frameworks. Replaces local controller functionality (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/12336)
 
 ### Changed
 

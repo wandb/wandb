@@ -12,8 +12,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import yaml
+from click.testing import CliRunner
 from wandb.apis.public import Sweep, SweepState
 from wandb.apis.public.service_api import ServiceApi
+from wandb.cli import cli
 from wandb.errors import CommError
 from wandb.proto.wandb_api_pb2 import ApiErrorResponse
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
@@ -46,10 +48,12 @@ SCHEDULER_GRID_SWEEP_CONFIG: dict[str, Any] = {
 }
 
 
-def make_scheduler_grid_sweep() -> Sweep:
+def make_scheduler_grid_sweep(config: dict[str, Any] | None = None) -> Sweep:
     """Return a grid `Sweep` backed by a no-op `ServiceApi`.
 
-    Passing `attrs` keeps the constructor from issuing a GraphQL load().
+    Passing `attrs` keeps the constructor from issuing a GraphQL load(). A
+    custom `config` overrides the default grid config, e.g. to drive
+    `Sweep.config["scheduler"]` variants without hand-rolling a mock.
     """
     service_api = MagicMock(spec=ServiceApi)
     sweep = Sweep(
@@ -60,7 +64,9 @@ def make_scheduler_grid_sweep() -> Sweep:
         attrs={
             "id": "test_sweep",
             "name": "test_sweep",
-            "config": yaml.dump(SCHEDULER_GRID_SWEEP_CONFIG),
+            "config": yaml.dump(
+                SCHEDULER_GRID_SWEEP_CONFIG if config is None else config
+            ),
         },
     )
     sweep.finish = MagicMock()  # type: ignore[attr-defined]
@@ -1164,3 +1170,158 @@ class TestInMemorySchedulerAcceptance(SchedulerAcceptanceTests):
         assert mock_api.runs.call_count == 3  # one active poll, two warm-start
         for call in mock_api.runs.call_args_list:
             assert call.kwargs["lazy"] is False
+
+
+@dataclass
+class CliSchedulerMocks:
+    """Collaborators `sweep_scheduler` talks to, patched for one test."""
+
+    public_api: MagicMock
+    scheduler: MagicMock
+    resume_sweep: MagicMock
+    login: MagicMock
+
+
+@contextlib.contextmanager
+def _cli_scheduler_context(
+    sweep: Sweep, *, authenticated: bool = True
+) -> Iterator[CliSchedulerMocks]:
+    public_api = MagicMock()
+    public_api.sweep.return_value = sweep
+    scheduler = MagicMock()
+
+    with (
+        patch.object(
+            cli,
+            "_get_cling_api",
+            return_value=MagicMock(is_authenticated=authenticated),
+        ),
+        patch.object(cli, "PublicApi", return_value=public_api),
+        patch.object(cli, "login") as login,
+        patch(
+            "wandb.sdk.sweeps.scheduler.wandb.resume_sweep",
+            return_value=scheduler,
+        ) as resume_sweep,
+    ):
+        yield CliSchedulerMocks(
+            public_api=public_api,
+            scheduler=scheduler,
+            resume_sweep=resume_sweep,
+            login=login,
+        )
+
+
+def test_sweep_scheduler_cli_resolves_full_sweep_path(runner: CliRunner) -> None:
+    sweep = make_scheduler_grid_sweep()
+    with _cli_scheduler_context(sweep) as mocks:
+        result = runner.invoke(cli.sweep_scheduler, ["entity/project/sweep-1"])
+
+    assert result.exit_code == 0, result.output
+    mocks.public_api.sweep.assert_called_once_with("entity/project/sweep-1")
+    mocks.resume_sweep.assert_called_once_with(
+        sweep, options=SchedulerOptions(poll_interval_s=5.0, batch_size=10)
+    )
+    mocks.scheduler.loop.assert_called_once()
+
+
+def test_sweep_scheduler_cli_builds_path_from_entity_and_project(
+    runner: CliRunner,
+) -> None:
+    sweep = make_scheduler_grid_sweep()
+    with _cli_scheduler_context(sweep) as mocks:
+        result = runner.invoke(
+            cli.sweep_scheduler,
+            ["--entity", "my-entity", "--project", "my-project", "sweep-1"],
+        )
+
+    assert result.exit_code == 0, result.output
+    mocks.public_api.sweep.assert_called_once_with("my-entity/my-project/sweep-1")
+
+
+def test_sweep_scheduler_cli_passes_batch_size_and_poll_interval(
+    runner: CliRunner,
+) -> None:
+    sweep = make_scheduler_grid_sweep()
+    with _cli_scheduler_context(sweep) as mocks:
+        result = runner.invoke(
+            cli.sweep_scheduler,
+            ["--batch-size", "7", "--poll-interval", "15.0", "entity/project/sweep-1"],
+        )
+
+    assert result.exit_code == 0, result.output
+    mocks.resume_sweep.assert_called_once_with(
+        sweep, options=SchedulerOptions(poll_interval_s=15.0, batch_size=7)
+    )
+
+
+def test_sweep_scheduler_cli_requires_engine_config(runner: CliRunner) -> None:
+    sweep = make_scheduler_grid_sweep(config={})
+    with _cli_scheduler_context(sweep) as mocks:
+        result = runner.invoke(cli.sweep_scheduler, ["entity/project/sweep-1"])
+
+    assert result.exit_code != 0
+    assert "requires a sweep created with" in result.output
+    mocks.resume_sweep.assert_not_called()
+
+
+def test_sweep_scheduler_cli_rejects_unsupported_engine(runner: CliRunner) -> None:
+    sweep = make_scheduler_grid_sweep(
+        config={**SCHEDULER_GRID_SWEEP_CONFIG, "scheduler": {"engine": "unknown"}}
+    )
+    with _cli_scheduler_context(sweep) as mocks:
+        result = runner.invoke(cli.sweep_scheduler, ["entity/project/sweep-1"])
+
+    assert result.exit_code != 0
+    assert "Unsupported engine: unknown" in result.output
+    mocks.resume_sweep.assert_not_called()
+
+
+def test_sweep_scheduler_cli_warns_when_optimizer_configured(
+    runner: CliRunner,
+) -> None:
+    sweep = make_scheduler_grid_sweep(
+        config={
+            **SCHEDULER_GRID_SWEEP_CONFIG,
+            "scheduler": {"engine": "wandb", "optimizer": "make_optimizer"},
+        }
+    )
+    with _cli_scheduler_context(sweep) as mocks, patch("wandb.termwarn") as termwarn:
+        result = runner.invoke(cli.sweep_scheduler, ["entity/project/sweep-1"])
+
+    assert result.exit_code == 0, result.output
+    assert any(
+        "optimizer config is not supported" in call.args[0]
+        for call in termwarn.call_args_list
+    )
+    mocks.scheduler.loop.assert_called_once()
+
+
+def test_sweep_scheduler_cli_warns_when_search_space_configured(
+    runner: CliRunner,
+) -> None:
+    sweep = make_scheduler_grid_sweep(
+        config={
+            **SCHEDULER_GRID_SWEEP_CONFIG,
+            "scheduler": {"engine": "wandb", "search_space": "unknown"},
+        }
+    )
+    with _cli_scheduler_context(sweep) as mocks, patch("wandb.termwarn") as termwarn:
+        result = runner.invoke(cli.sweep_scheduler, ["entity/project/sweep-1"])
+
+    assert result.exit_code == 0, result.output
+    assert any(
+        "search_space config is not supported" in call.args[0]
+        for call in termwarn.call_args_list
+    )
+    mocks.scheduler.loop.assert_called_once()
+
+
+def test_sweep_scheduler_cli_triggers_login_when_unauthenticated(
+    runner: CliRunner,
+) -> None:
+    sweep = make_scheduler_grid_sweep()
+    with _cli_scheduler_context(sweep, authenticated=False) as mocks:
+        result = runner.invoke(cli.sweep_scheduler, ["entity/project/sweep-1"])
+
+    assert result.exit_code == 0, result.output
+    mocks.login.assert_called_once_with(no_offline=True)
