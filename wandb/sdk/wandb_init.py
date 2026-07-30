@@ -30,7 +30,7 @@ import wandb
 import wandb.env
 from wandb import env, trigger
 from wandb.analytics import get_sentry
-from wandb.errors import CommError, Error, UsageError
+from wandb.errors import Error, UsageError
 from wandb.errors.links import url_registry
 from wandb.errors.util import ProtobufErrorHandler
 from wandb.integration import sagemaker, weave
@@ -939,33 +939,24 @@ class _WandbInit:
             f"communicating run to backend with {timeout} second timeout",
         )
 
-        run_init_handle = interface.deliver_run(run)
-
-        try:
-            with progress.progress_printer(
-                run_printer,
-                default_text="Waiting for wandb.init()...",
-            ) as progress_printer:
-                result = wait_with_progress(
-                    run_init_handle,
-                    timeout=timeout + _INIT_TIMEOUT_GRACE_SECONDS,
-                    display_progress=functools.partial(
-                        progress.loop_printing_operation_stats,
-                        progress_printer,
-                        interface,
-                    ),
-                )
-
-        except TimeoutError:
-            # The backend didn't respond with the underlying error before
-            # the grace period expired. This may either be an issue with
-            # the W&B server (a CommError) or a bug in the SDK (an Error).
-            # We cannot distinguish between the two causes here.
-            raise CommError(
-                f"Run initialization has timed out after {timeout} sec."
-                + " Please try increasing the timeout with the `init_timeout`"
-                + " setting: `wandb.init(settings=wandb.Settings(init_timeout=120))`."
-            ) from None
+        with progress.progress_printer(
+            run_printer,
+            default_text="Waiting for wandb.init()...",
+        ) as progress_printer:
+            result = wait_with_progress(
+                interface.deliver_run(run),
+                # We expect the service process to respect the init timeout
+                # setting and promptly return a `run_result.error` on timeout.
+                #
+                # If the grace period expires, we treat that like an SDK bug
+                # and don't give special treatment to the exception.
+                timeout=timeout + _INIT_TIMEOUT_GRACE_SECONDS,
+                display_progress=functools.partial(
+                    progress.loop_printing_operation_stats,
+                    progress_printer,
+                    interface,
+                ),
+            )
 
         assert result.run_result
 
