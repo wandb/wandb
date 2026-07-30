@@ -1,8 +1,6 @@
 package api
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"net/http"
 
@@ -20,7 +18,11 @@ func (client *clientImpl) Do(req *retryablehttp.Request) (*http.Response, error)
 	wboperation.Get(req.Context()).ClearError()
 
 	if err != nil {
-		return nil, enhanceContextError(err, lastRetriedError(req.Context()))
+		if lastStatus := lastRetriedError(req.Context()); lastStatus != "" {
+			return nil, &RetryError{Inner: err, LastStatus: lastStatus}
+		} else {
+			return nil, err
+		}
 	}
 
 	// This is a bug that happens with retryablehttp sometimes.
@@ -30,24 +32,4 @@ func (client *clientImpl) Do(req *retryablehttp.Request) (*http.Response, error)
 
 	client.logFinalResponseOnError(req, resp)
 	return resp, nil
-}
-
-// enhanceContextError adds the message of the most recently retried error
-// to context cancellation and timeout errors.
-func enhanceContextError(finalErr error, lastRetriedErr string) error {
-	if lastRetriedErr == "" {
-		return finalErr
-	}
-
-	if !errors.Is(finalErr, context.Canceled) &&
-		!errors.Is(finalErr, context.DeadlineExceeded) {
-		return finalErr
-	}
-
-	// Use Join to preserve the fact that this is a cancellation or timeout,
-	// so that callers can check it.
-	return errors.Join(
-		finalErr,
-		fmt.Errorf("last status: %s", lastRetriedErr),
-	)
 }

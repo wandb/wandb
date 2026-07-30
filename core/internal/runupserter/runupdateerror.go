@@ -63,9 +63,20 @@ func fromGQLError(gqlError *graphql.HTTPError) *RunUpdateError {
 }
 
 func fromTimeout(err error) *RunUpdateError {
+	const timeoutSettingHint = "" +
+		"Consider increasing the init_timeout setting:" +
+		"\n  wandb.init(settings=wandb.Settings(init_timeout=...))"
+
+	var userMessage string
+	if retryErr, ok := errors.AsType[*api.RetryError](err); ok {
+		userMessage = fmt.Sprintf("Timed out while retrying: %s", retryErr.LastStatus)
+	} else {
+		userMessage = fmt.Sprintf("Timed out initializing run: %s", err.Error())
+	}
+
 	return &RunUpdateError{
 		Cause:       err,
-		UserMessage: fmt.Sprintf("Timed out initializing run: %s", err.Error()),
+		UserMessage: fmt.Sprintf("%s\n%s", userMessage, timeoutSettingHint),
 		Code:        spb.ErrorInfo_COMMUNICATION,
 	}
 }
