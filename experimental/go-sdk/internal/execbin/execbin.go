@@ -37,8 +37,7 @@ func ForkExecCommand(command string, args []string) (*ForkExecCmd, error) {
 
 func waitcmd(waitFunc WaitFunc) error {
 	if err := waitFunc(); err != nil {
-		var exiterr *exec.ExitError
-		if errors.As(err, &exiterr) {
+		if exiterr, ok := errors.AsType[*exec.ExitError](err); ok {
 			if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
 				fmt.Printf("Exit Status: %+v\n", status.ExitStatus())
 				return err

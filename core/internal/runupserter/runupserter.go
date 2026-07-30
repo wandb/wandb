@@ -199,7 +199,7 @@ func InitRun(
 		err := upserter.updateMetadataForResume(ctx, params.Settings.GetResume())
 
 		if err != nil {
-			return nil, ToRunUpdateError(explainInitTimeout(err, operation))
+			return nil, ToRunUpdateError(err)
 		}
 
 	case branchPoint != nil && branchPoint.GetRun() == runRecord.RunId:
@@ -207,7 +207,7 @@ func InitRun(
 		err := upserter.updateMetadataForRewind(ctx, branchPoint)
 
 		if err != nil {
-			return nil, ToRunUpdateError(explainInitTimeout(err, operation))
+			return nil, ToRunUpdateError(err)
 		}
 
 	case branchPoint != nil && branchPoint.GetRun() != "":
@@ -243,7 +243,7 @@ func InitRun(
 	)
 
 	if err != nil {
-		return nil, ToRunUpdateError(explainInitTimeout(err, operation))
+		return nil, ToRunUpdateError(err)
 	}
 
 	// Fill some metadata based on the server response.

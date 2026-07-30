@@ -11,17 +11,19 @@ import (
 
 // Do implements RetryableClient.Do.
 func (client *clientImpl) Do(req *retryablehttp.Request) (*http.Response, error) {
+	// Track retried errors to provide a better error message at the end.
+	req = req.WithContext(withRetryObserver(req.Context()))
+
 	resp, err := client.retryableHTTP.Do(req)
+	wboperation.Get(req.Context()).ClearError()
 
 	if err != nil {
-		// Keep the operation's error status: it identifies the error that
-		// was being retried, which is usually more specific than the final
-		// error. In particular, when the request is cancelled by a deadline
-		// during a retry backoff, `err` is a bare context error.
-		return nil, err
+		if lastStatus := lastRetriedError(req.Context()); lastStatus != "" {
+			return nil, &RetryError{Inner: err, LastStatus: lastStatus}
+		} else {
+			return nil, err
+		}
 	}
-
-	wboperation.Get(req.Context()).ClearError()
 
 	// This is a bug that happens with retryablehttp sometimes.
 	if resp == nil {
