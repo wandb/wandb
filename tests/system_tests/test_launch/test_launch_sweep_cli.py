@@ -93,7 +93,7 @@ def test_launch_sweep_param_validation(user):
         ),
     ],
 )
-def test_launch_sweep_scheduler_resources(user, scheduler_args, msg):
+def test_launch_sweep_scheduler_resources(user, scheduler_args, msg, create_run_queue):
     # make proj and job
     settings = wandb.Settings(project="model-registry")
     run = wandb.init(settings=settings)
@@ -102,7 +102,8 @@ def test_launch_sweep_scheduler_resources(user, scheduler_args, msg):
     run.finish()
 
     internal_api = InternalApi()
-    internal_api.create_run_queue(
+    create_run_queue(
+        internal_api._service_api,
         entity=user,
         project="model-registry",
         queue_name="q",
@@ -138,21 +139,22 @@ def test_launch_sweep_scheduler_resources(user, scheduler_args, msg):
         "num-workers-str",
     ],
 )
-def test_launch_sweep_launch_uri(user, image_uri, launch_config):
+def test_launch_sweep_launch_uri(user, image_uri, launch_config, create_run_queue):
     queue = "test"
     api = InternalApi()
     public_api = Api()
     public_api.create_project(LAUNCH_DEFAULT_PROJECT, user)
 
     # make launch project queue
-    res = api.create_run_queue(
+    res = create_run_queue(
+        api._service_api,
         entity=user,
         project=LAUNCH_DEFAULT_PROJECT,
         queue_name=queue,
         access="USER",
     )
 
-    if res.get("success") is not True:
+    if not res.success:
         raise Exception("create queue" + str(res))
 
     sweep_config = {
@@ -183,13 +185,14 @@ def test_launch_sweep_launch_uri(user, image_uri, launch_config):
     assert "Scheduler added to launch queue (test)" in out.decode("utf-8")
 
 
-def test_launch_sweep_launch_resume(user):
+def test_launch_sweep_launch_resume(user, create_run_queue):
     api = InternalApi()
     public_api = Api()
     public_api.create_project(LAUNCH_DEFAULT_PROJECT, user)
 
     # make launch project queue
-    api.create_run_queue(
+    create_run_queue(
+        api._service_api,
         entity=user,
         project=LAUNCH_DEFAULT_PROJECT,
         queue_name="queue",
