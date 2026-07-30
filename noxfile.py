@@ -612,6 +612,7 @@ def mypy_report(session: nox.Session) -> None:
         "-e .[eval-table]",
         "-e .[sweeps]",
         "-e .[optuna]",
+        "-e .[ax]",
     )
 
     path = "mypy-results"
