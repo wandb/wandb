@@ -63,6 +63,7 @@ func withRetryObservation(
 
 		case err != nil:
 			logger.Info("api: retrying error", "error", err)
+			setLastRetriedError(ctx, err.Error())
 			wboperation.Get(ctx).MarkRetryingError(err)
 
 		case resp.StatusCode >= 400:
@@ -81,6 +82,11 @@ func withRetryObservation(
 				"url", resp.Request.URL.String(),
 				"body", bodyToLog,
 			)
+
+			setLastRetriedError(ctx,
+				fmt.Sprintf("HTTP %d: %s",
+					resp.StatusCode,
+					bodyToLog))
 
 			// TODO: Report the attempt number & time to next retry.
 			wboperation.Get(ctx).MarkRetryingHTTPError(

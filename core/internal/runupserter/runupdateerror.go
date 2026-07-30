@@ -9,7 +9,6 @@ import (
 	"github.com/Khan/genqlient/graphql"
 
 	"github.com/wandb/wandb/core/internal/runbranch"
-	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -28,6 +27,10 @@ func ToRunUpdateError(err error) error {
 
 	if gqlError, ok := errors.AsType[*graphql.HTTPError](err); ok {
 		return fromGQLError(gqlError)
+	}
+
+	if errors.Is(err, context.DeadlineExceeded) {
+		return fromTimeout(err)
 	}
 
 	return err
@@ -73,29 +76,10 @@ func fromGQLError(gqlError *graphql.HTTPError) *RunUpdateError {
 	}
 }
 
-// explainInitTimeout enhances errors caused by reaching the client's init
-// timeout during run initialization.
-//
-// If the error is the operation's context reaching its deadline, it is
-// converted to a RunUpdateError whose message includes the operation's
-// error status—usually the error that was being retried. Other errors,
-// including nil, are returned unchanged.
-func explainInitTimeout(
-	err error,
-	operation *wboperation.WandbOperation,
-) error {
-	if !errors.Is(err, context.DeadlineExceeded) {
-		return err
-	}
-
-	userMessage := "Timed out while creating the run."
-	if status := operation.ErrorStatus(); status != "" {
-		userMessage = fmt.Sprintf("%s Last status: %s.", userMessage, status)
-	}
-
+func fromTimeout(err error) *RunUpdateError {
 	return &RunUpdateError{
 		Cause:       err,
-		UserMessage: userMessage,
+		UserMessage: fmt.Sprintf("Timed out initializing run: %s", err.Error()),
 		Code:        spb.ErrorInfo_COMMUNICATION,
 	}
 }

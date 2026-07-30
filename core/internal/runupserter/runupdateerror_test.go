@@ -1,7 +1,9 @@
 package runupserter_test
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/Khan/genqlient/graphql"
@@ -93,4 +95,19 @@ func Test_ToRunUpdateError_GQLError_Empty(t *testing.T) {
 	runUpdateError := result.(*runupserter.RunUpdateError)
 	assert.ErrorContains(t, runUpdateError, "400") // from HTTPError.Error()
 	assert.Contains(t, runUpdateError.UserMessage, "<no message>")
+}
+
+func Test_ToRunUpdateError_Timeout(t *testing.T) {
+	err := fmt.Errorf("some extra info: %w", context.DeadlineExceeded)
+
+	result := runupserter.ToRunUpdateError(err)
+
+	runUpdateError := result.(*runupserter.RunUpdateError)
+	assert.Equal(t, spb.ErrorInfo_COMMUNICATION, runUpdateError.Code)
+	assert.Equal(t,
+		"Timed out initializing run: some extra info: context deadline exceeded",
+		runUpdateError.UserMessage)
+	assert.Equal(t,
+		"some extra info: context deadline exceeded",
+		runUpdateError.Error())
 }

@@ -184,7 +184,7 @@ func TestInitRun_UpsertError(t *testing.T) {
 	assert.Equal(t, "Everything is broken", runUpdateError.UserMessage)
 }
 
-func TestInitRun_InitTimeout_ReportsTimeout(t *testing.T) {
+func TestInitRun_InitTimeout(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		mockClient := gqlmock.NewMockClient()
 		params := testParams(t)
@@ -197,12 +197,7 @@ func TestInitRun_InitTimeout_ReportsTimeout(t *testing.T) {
 		upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{}), params)
 
 		assert.Nil(t, upserter)
-		var runUpdateError *runupserter.RunUpdateError
-		require.ErrorAs(t, err, &runUpdateError)
-		assert.Equal(t, spb.ErrorInfo_COMMUNICATION, runUpdateError.Code)
-		assert.Contains(t,
-			runUpdateError.UserMessage,
-			"Timed out while creating the run")
+		assert.ErrorContains(t, err, "context deadline exceeded")
 	})
 }
 
