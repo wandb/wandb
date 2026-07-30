@@ -281,6 +281,7 @@ googleapis-common-protos==1.75.0
     #   google-api-core
     #   grpc-google-iam-v1
     #   grpcio-status
+    #   opentelemetry-exporter-otlp-proto-http
 graphql-core==3.2.8
     # via
     #   -c requirements/constraints.txt
@@ -406,12 +407,15 @@ json5==0.15.0
     # via jupyterlab-server
 jsonpointer==3.1.1
     # via jsonschema
+jsonref==1.1.0
+    # via sweeps
 jsonschema==4.26.0
     # via
     #   jupyter-events
     #   jupyterlab-server
     #   litellm
     #   nbformat
+    #   sweeps
     #   wandb
 jsonschema-specifications==2025.9.1
     # via jsonschema
@@ -596,6 +600,7 @@ numpy==1.26.4
     #   shapely
     #   soundfile
     #   stable-baselines3
+    #   sweeps
     #   tensorboard
     #   tensorboardx
     #   torchmetrics
@@ -610,6 +615,26 @@ openai==2.46.0
     #   -r requirements/requirements_dev.txt
     #   dspy
     #   litellm
+opentelemetry-api==1.44.0
+    # via
+    #   opentelemetry-exporter-otlp-proto-http
+    #   opentelemetry-sdk
+    #   opentelemetry-semantic-conventions
+    #   wandb
+opentelemetry-exporter-otlp-proto-common==1.44.0
+    # via opentelemetry-exporter-otlp-proto-http
+opentelemetry-exporter-otlp-proto-http==1.44.0
+    # via wandb
+opentelemetry-proto==1.44.0
+    # via
+    #   opentelemetry-exporter-otlp-proto-common
+    #   opentelemetry-exporter-otlp-proto-http
+opentelemetry-sdk==1.44.0
+    # via
+    #   opentelemetry-exporter-otlp-proto-http
+    #   wandb
+opentelemetry-semantic-conventions==0.65b0
+    # via opentelemetry-sdk
 opt-einsum==3.4.0
     # via jax
 optuna==4.9.0
@@ -715,6 +740,7 @@ protobuf==6.33.6
     #   grpcio-status
     #   kfp
     #   kfp-pipeline-spec
+    #   opentelemetry-proto
     #   proto-plus
     #   tensorboard
     #   tensorboardx
@@ -750,6 +776,7 @@ pydantic==2.13.4
     #   google-genai
     #   litellm
     #   openai
+    #   sweeps
     #   wandb
 pydantic-core==2.46.4
     # via pydantic
@@ -831,6 +858,7 @@ pyyaml==6.0.3
     #   optuna
     #   pytorch-lightning
     #   responses
+    #   sweeps
     #   wandb
 pyzmq==27.1.0
     # via
@@ -864,6 +892,7 @@ requests==2.34.2
     #   moto
     #   moviepy
     #   msal
+    #   opentelemetry-exporter-otlp-proto-http
     #   requests-oauthlib
     #   requests-toolbelt
     #   responses
@@ -901,7 +930,9 @@ s3transfer==0.19.1
     #   awscli
     #   boto3
 scikit-learn==1.7.2
-    # via -r requirements/requirements_dev.txt
+    # via
+    #   -r requirements/requirements_dev.txt
+    #   sweeps
 scipy==1.15.3
     # via
     #   catboost
@@ -909,6 +940,7 @@ scipy==1.15.3
     #   jaxlib
     #   lightgbm
     #   scikit-learn
+    #   sweeps
     #   xgboost
 send2trash==2.1.0
     # via jupyter-server
@@ -950,6 +982,8 @@ stack-data==0.6.3
     # via ipython
 starlette==0.46.2
     # via fastapi
+sweeps==0.2.0
+    # via wandb
 sympy==1.14.0
     # via torch
 tabulate==0.10.0
@@ -1071,6 +1105,10 @@ typing-extensions==4.16.0
     #   mistune
     #   multidict
     #   openai
+    #   opentelemetry-api
+    #   opentelemetry-exporter-otlp-proto-http
+    #   opentelemetry-sdk
+    #   opentelemetry-semantic-conventions
     #   pydantic
     #   pydantic-core
     #   pyjwt
@@ -1106,7 +1144,9 @@ urllib3==2.7.0
 uvicorn==0.32.1
     # via -r requirements/requirements_test.txt
 .
-    # via -r requirements/requirements_dev.txt
+    # via
+    #   -r requirements/requirements_dev.txt
+    #   -r requirements/requirements_test.txt
 wcwidth==0.8.2
     # via
     #   prompt-toolkit
