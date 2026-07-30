@@ -97,11 +97,6 @@ def login(
     if host:
         host = host.rstrip("/")
 
-    _update_system_settings(
-        global_settings.read_system_settings(),
-        host=host,
-    )
-
     logged_in, _ = _login(
         key=key,
         relogin=relogin,
@@ -110,6 +105,11 @@ def login(
         timeout=timeout,
         verify=verify,
         referrer=referrer or "models",
+    )
+
+    _update_system_settings(
+        global_settings.read_system_settings(),
+        host=host,
     )
     return logged_in
 

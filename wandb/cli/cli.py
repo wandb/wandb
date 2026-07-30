@@ -3620,13 +3620,13 @@ def verify(host):
     # TODO: (kdg) Build this all into a WandbVerify object, and clean this up.
     os.environ["WANDB_SILENT"] = "true"
     os.environ["WANDB_PROJECT"] = "verify"
-    api = _get_cling_api()
+    settings = wandb_setup.singleton().settings
     reinit = False
     if host is None:
-        host = api.settings("base_url")
+        host = settings.base_url
         wandb.termlog(f"Default host selected: {host}")
     # if the given host does not match the default host, re-run init
-    elif host != api.settings("base_url"):
+    elif host != settings.base_url:
         reinit = True
 
     tmp_dir = tempfile.mkdtemp()
@@ -3636,8 +3636,7 @@ def verify(host):
     os.chdir(tmp_dir)
     os.environ["WANDB_BASE_URL"] = host
     wandb.login(host=host)
-    if reinit:
-        api = _get_cling_api(reset=True)
+    api = _get_cling_api(reset=reinit)
     if not wandb_verify.check_host(host):
         sys.exit(1)
     if not wandb_verify.check_logged_in(api, host):
@@ -3645,7 +3644,7 @@ def verify(host):
     url_success, url = wandb_verify.check_graphql_put(api, host)
     large_post_success = wandb_verify.check_large_post()
     wandb_verify.check_secure_requests(
-        api.settings("base_url"),
+        settings.base_url,
         "Checking requests to base url",
         "Connections are not made over https. SSL required for secure communications.",
     )
