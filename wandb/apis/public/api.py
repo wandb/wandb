@@ -31,7 +31,6 @@ from wandb._iterutils import one
 from wandb._strutils import nameof
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
-from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.apis.public.registries import Registries, Registry
 from wandb.apis.public.registries._utils import fetch_org_entity_from_organization
 from wandb.apis.public.service_api import ServiceApi
@@ -41,13 +40,14 @@ from wandb.apis.public.utils import (
     parse_org_from_registry_path,
 )
 from wandb.errors import UsageError
+from wandb.proto import wandb_api_pb2 as apb
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk import wandb_login, wandb_setup
 from wandb.sdk.artifacts._gqlutils import resolve_org_entity_name
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
-from wandb.sdk.lib import runid, wbauth
+from wandb.sdk.lib import json_util, runid, wbauth
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
@@ -401,33 +401,48 @@ class Api:
         # 1. create required default launch project in the entity
         self.create_project(LAUNCH_DEFAULT_PROJECT, entity)
 
-        api = InternalApi(
-            default_settings={
-                "entity": entity,
-                "project": self.project(LAUNCH_DEFAULT_PROJECT),
-            },
-            retry_timedelta=RETRY_TIMEDELTA,
+        # 2. create default resource config, receive config id
+        config_json = json_util.dumps({"resource_args": {type: config}})
+        template_variables_json = (
+            json_util.dumps(template_variables) if template_variables else "{}"
         )
 
-        # 2. create default resource config, receive config id
-        config_json = json.dumps({"resource_args": {type: config}})
-        create_config_result = api.create_default_resource_config(
-            entity, type, config_json, template_variables
+        response = self._service_api.send_api_request(
+            apb.ApiRequest(
+                run_queue_operation_request=apb.RunQueueOperationRequest(
+                    create_default_resource_config_request=apb.CreateDefaultResourceConfigRequest(
+                        entity_name=entity,
+                        resource=type,
+                        config=config_json,
+                        template_variables=template_variables_json,
+                    )
+                )
+            )
         )
-        if not create_config_result["success"]:
+        create_config_result = response.run_queue_operation_response.create_default_resource_config_response
+        if not create_config_result.success:
             raise wandb.Error("failed to create default resource config")
-        config_id = create_config_result["defaultResourceConfigID"]
+        config_id = create_config_result.default_resource_config_id
 
         # 3. create run queue
-        create_queue_result = api.create_run_queue(
-            entity,
-            LAUNCH_DEFAULT_PROJECT,
-            name,
-            "PROJECT",
-            prioritization_mode,
-            config_id,
+        response = self._service_api.send_api_request(
+            apb.ApiRequest(
+                run_queue_operation_request=apb.RunQueueOperationRequest(
+                    create_run_queue_request=apb.CreateRunQueueRequest(
+                        entity=entity,
+                        project=LAUNCH_DEFAULT_PROJECT,
+                        queue_name=name,
+                        access="PROJECT",
+                        default_resource_config_id=config_id,
+                        prioritization_mode=prioritization_mode,
+                    )
+                )
+            )
         )
-        if not create_queue_result["success"]:
+        create_queue_result = (
+            response.run_queue_operation_response.create_run_queue_response
+        )
+        if not create_queue_result.success:
             raise wandb.Error("failed to create run queue")
 
         return public.RunQueue(
@@ -506,19 +521,21 @@ class Api:
         """
         # Convert user-facing lowercase access to backend uppercase
         backend_access = access.upper()
+        spec_json = spec if isinstance(spec, str) else json.dumps(spec)
 
-        api = InternalApi(retry_timedelta=RETRY_TIMEDELTA)
-        result = api.create_custom_chart(
-            entity=entity,
-            name=name,
-            display_name=display_name,
-            spec_type=spec_type,
-            access=backend_access,
-            spec=spec,
+        response = self._service_api.send_api_request(
+            apb.ApiRequest(
+                create_custom_chart_request=apb.CreateCustomChartRequest(
+                    entity=entity,
+                    name=name,
+                    display_name=display_name,
+                    spec_type=spec_type,
+                    access=backend_access,
+                    spec=spec_json,
+                )
+            )
         )
-        if result is None or result.get("chart") is None:
-            raise wandb.Error("failed to create custom chart")
-        return result["chart"]["id"]
+        return response.create_custom_chart_response.chart_id
 
     def upsert_run_queue(
         self,
@@ -587,13 +604,6 @@ class Api:
             )
 
         self.create_project(LAUNCH_DEFAULT_PROJECT, entity)
-        api = InternalApi(
-            default_settings={
-                "entity": entity,
-                "project": self.project(LAUNCH_DEFAULT_PROJECT),
-            },
-            retry_timedelta=RETRY_TIMEDELTA,
-        )
         # User provides external_links as a dict with name: url format
         # but backend stores it as a list of dicts with url and label keys.
         external_links = external_links or {}
@@ -606,20 +616,37 @@ class Api:
                 for key, value in external_links.items()
             ]
         }
-        upsert_run_queue_result = api.upsert_run_queue(
-            name,
-            entity,
-            resource_type,
-            {"resource_args": {resource_type: resource_config}},
-            template_variables=template_variables,
-            external_links=external_links,
-            prioritization_mode=prioritization_mode,
+        response = self._service_api.send_api_request(
+            apb.ApiRequest(
+                run_queue_operation_request=apb.RunQueueOperationRequest(
+                    upsert_run_queue_request=apb.UpsertRunQueueRequest(
+                        entity_name=entity,
+                        project_name=LAUNCH_DEFAULT_PROJECT,
+                        queue_name=name,
+                        resource_type=resource_type,
+                        resource_config=json.dumps(
+                            {"resource_args": {resource_type: resource_config}}
+                        ),
+                        external_links=(
+                            json.dumps(external_links) if external_links else None
+                        ),
+                        prioritization_mode=prioritization_mode,
+                        template_variables=(
+                            json.dumps(template_variables)
+                            if template_variables
+                            else None
+                        ),
+                    )
+                )
+            )
         )
-        if not upsert_run_queue_result["success"]:
+        upsert_run_queue_result = (
+            response.run_queue_operation_response.upsert_run_queue_response
+        )
+
+        if not upsert_run_queue_result.success:
             raise wandb.Error("failed to create run queue")
-        schema_errors = (
-            upsert_run_queue_result.get("configSchemaValidationErrors") or []
-        )
+        schema_errors = upsert_run_queue_result.config_schema_validation_errors
         for error in schema_errors:
             wandb.termwarn(f"resource config validation: {error}")
 

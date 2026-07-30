@@ -38,8 +38,10 @@ type WandbAPI struct {
 	featuresHandler      *FeaturesHandler
 	fileTransferHandler  *FileTransferHandler
 	graphqlHandler       *GraphQLHandler
+	customChartHandler   *CustomChartHandler
 	runFilesHandler      *RunFilesHandler
 	runHandler           *RunHandler
+	runQueueHandler      *RunQueueHandler
 	runHistoryApiHandler *RunHistoryAPIHandler
 }
 
@@ -104,8 +106,10 @@ func New(
 		featuresHandler:      NewFeaturesHandler(featureProvider),
 		fileTransferHandler:  NewFileTransferHandler(fileTransferManager),
 		graphqlHandler:       NewGraphQLHandler(graphqlClient),
+		customChartHandler:   NewCustomChartHandler(graphqlClient),
 		runFilesHandler:      NewRunFilesHandler(graphqlClient),
 		runHandler:           NewRunHandler(graphqlClient),
+		runQueueHandler:      NewRunQueueHandler(graphqlClient),
 		runHistoryApiHandler: NewRunHistoryAPIHandler(graphqlClient, httpClient),
 	}, nil
 }
@@ -187,6 +191,10 @@ func (p *WandbAPI) HandleRequest(
 		return p.runFilesHandler.HandleMarkRunFilesUploaded(ctx, req.MarkRunFilesUploadedRequest)
 	case *spb.ApiRequest_StopRunRequest:
 		return p.runHandler.HandleStopRun(ctx, req.StopRunRequest)
+	case *spb.ApiRequest_CreateCustomChartRequest:
+		return p.customChartHandler.HandleCreateCustomChart(ctx, req.CreateCustomChartRequest)
+	case *spb.ApiRequest_RunQueueOperationRequest:
+		return p.runQueueHandler.HandleRequest(ctx, req.RunQueueOperationRequest)
 	case *spb.ApiRequest_GraphqlRequest:
 		return p.graphqlHandler.HandleRequest(ctx, req.GraphqlRequest)
 	case *spb.ApiRequest_ReadRunHistoryRequest:
