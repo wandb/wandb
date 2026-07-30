@@ -110,7 +110,12 @@ func newUploader(
 
 func (u *uploader) Process(record *spb.FilesRecord) {
 	if err := u.lockForOperation("Process"); err != nil {
-		u.logger.CaptureError(err, "record", record)
+		u.logger.CaptureError(
+			"runfiles",
+			err,
+			"record",
+			record,
+		)
 		return
 	}
 	defer u.stateMu.Unlock()
@@ -121,10 +126,9 @@ func (u *uploader) Process(record *spb.FilesRecord) {
 		maybeRunPath, err := paths.Relative(file.GetPath())
 		if err != nil {
 			u.logger.CaptureError(
-				fmt.Errorf(
-					"runfiles: file path is not relative: %v",
-					err,
-				))
+				"runfiles",
+				fmt.Errorf("runfiles: file path is not relative: %v", err),
+			)
 			continue
 		}
 		runPath := *maybeRunPath
@@ -151,11 +155,13 @@ func (u *uploader) Process(record *spb.FilesRecord) {
 				u.uploadBatcher.Add([]paths.RelativePath{runPath})
 			}); err != nil {
 				u.logger.CaptureError(
+					"runfiles",
 					fmt.Errorf(
 						"runfiles: error watching file: %v",
 						err,
 					),
-					"path", file.GetPath())
+					"path", file.GetPath(),
+				)
 			}
 
 		case spb.FilesItem_END:
@@ -182,7 +188,7 @@ func (u *uploader) UploadNow(
 	category filetransfer.RunFileKind,
 ) {
 	if err := u.lockForOperation("UploadNow"); err != nil {
-		u.logger.CaptureError(err, "path", string(path))
+		u.logger.CaptureError("runfiles", err, "path", string(path))
 		return
 	}
 	defer u.stateMu.Unlock()
@@ -196,7 +202,7 @@ func (u *uploader) UploadAtEnd(
 	category filetransfer.RunFileKind,
 ) {
 	if err := u.lockForOperation("UploadAtEnd"); err != nil {
-		u.logger.CaptureError(err, "path", string(path))
+		u.logger.CaptureError("runfiles", err, "path", string(path))
 		return
 	}
 	defer u.stateMu.Unlock()
@@ -207,7 +213,7 @@ func (u *uploader) UploadAtEnd(
 
 func (u *uploader) UploadRemaining() {
 	if err := u.lockForOperation("UploadRemaining"); err != nil {
-		u.logger.CaptureError(err)
+		u.logger.CaptureError("runfiles", err)
 		return
 	}
 	defer u.stateMu.Unlock()
@@ -298,7 +304,7 @@ func (u *uploader) upload(runPaths []paths.RelativePath) {
 
 	runUpserter, err := u.runHandle.Upserter()
 	if err != nil {
-		u.logger.CaptureError(fmt.Errorf("runfiles: %v", err))
+		u.logger.CaptureError("runfiles", fmt.Errorf("runfiles: %v", err))
 		return
 	}
 	runFullID := runUpserter.RunPath()
@@ -323,13 +329,16 @@ func (u *uploader) upload(runPaths []paths.RelativePath) {
 		)
 		if err != nil {
 			u.logger.CaptureError(
-				fmt.Errorf("runfiles: CreateRunFiles returned error: %v", err))
+				"runfiles",
+				fmt.Errorf("runfiles: CreateRunFiles returned error: %v", err),
+			)
 			u.uploadWG.Add(-len(runPaths))
 			return
 		}
 
 		if len(createRunFilesResponse.CreateRunFiles.Files) != len(runPaths) {
 			u.logger.CaptureError(
+				"runfiles",
 				errors.New(
 					"runfiles: CreateRunFiles returned"+
 						" unexpected number of files"),
@@ -352,11 +361,13 @@ func (u *uploader) upload(runPaths []paths.RelativePath) {
 			maybeRunPath, err := paths.Relative(filepath.FromSlash(f.Name))
 			if err != nil || !maybeRunPath.IsLocal() {
 				u.logger.CaptureError(
+					"runfiles",
 					fmt.Errorf(
 						"runfiles: CreateRunFiles returned unexpected file name: %v",
 						err,
 					),
-					"response", createRunFilesResponse)
+					"response", createRunFilesResponse,
+				)
 				u.uploadWG.Done()
 				continue
 			}
