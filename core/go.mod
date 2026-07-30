@@ -19,7 +19,7 @@ require (
 	github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20260727090823-41c9e6be3365
 	github.com/ebitengine/purego v0.10.2
 	github.com/getsentry/sentry-go v0.48.0
-	github.com/go-git/go-git/v5 v5.19.1
+	github.com/go-git/go-git/v5 v5.19.2
 	github.com/google/wire v0.7.0
 	github.com/googleapis/gax-go/v2 v2.23.0
 	github.com/hashicorp/go-retryablehttp v0.7.8
