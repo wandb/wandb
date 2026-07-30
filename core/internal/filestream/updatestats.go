@@ -28,6 +28,7 @@ func (u *StatsUpdate) Apply(ctx UpdateContext) error {
 		val, err := simplejsonext.UnmarshalString(item.ValueJson)
 		if err != nil {
 			ctx.Logger.CaptureError(
+				"filestream",
 				fmt.Errorf("filestream: failed to marshal StatsItem: %v", err),
 				"key", item.Key,
 			)
@@ -49,10 +50,12 @@ func (u *StatsUpdate) Apply(ctx UpdateContext) error {
 	case err != nil:
 		// This is a non-blocking failure, so we don't return an error.
 		ctx.Logger.CaptureError(
+			"filestream",
 			fmt.Errorf(
 				"filestream: failed to marshal system metrics: %v",
 				err,
-			))
+			),
+		)
 	case len(line) > int(maxLineBytes):
 		// This is a non-blocking failure as well.
 		ctx.Logger.CaptureWarn(

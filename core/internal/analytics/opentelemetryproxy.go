@@ -142,7 +142,8 @@ func (s *TelemetryContext) with(
 	low := s.lowCardinalityAttributes
 	low.merge(lowCardinalityAttributes)
 
-	high := maps.Clone(s.highCardinalityAttributes)
+	high := make(map[string]string, len(s.highCardinalityAttributes))
+	maps.Copy(high, s.highCardinalityAttributes)
 	maps.Copy(high, highCardinalityAttributes)
 
 	return TelemetryContext{
@@ -205,6 +206,22 @@ func (r *TelemetryRecorder) With(
 	}
 }
 
+// IncrementCounter increments a counter metric by 1
+// with the telemetry context's low-cardinality attributes
+func (r *TelemetryRecorder) IncrementCounter(
+	ctx context.Context,
+	name string,
+	lowCardinalityAttributes LowCardinalityAttributes,
+) {
+	if r == nil {
+		return
+	}
+
+	mergedLowCardinalityAttributes := r.telemetryContext.lowCardinalityAttributes
+	mergedLowCardinalityAttributes.merge(lowCardinalityAttributes)
+	r.root.incrementCounter(ctx, name, mergedLowCardinalityAttributes)
+}
+
 // IncrementCounterAndLogEvent increments a counter metric by 1
 // with the telemetry context's low-cardinality attributes
 //
@@ -221,9 +238,7 @@ func (r *TelemetryRecorder) IncrementCounterAndLogEvent(
 		return
 	}
 
-	mergedLowCardinalityAttributes := r.telemetryContext.lowCardinalityAttributes
-	mergedLowCardinalityAttributes.merge(lowCardinalityAttributes)
-	r.root.incrementCounter(ctx, name, mergedLowCardinalityAttributes)
+	r.IncrementCounter(ctx, name, lowCardinalityAttributes)
 
 	recordAttributes := make(map[string]string)
 	maps.Copy(recordAttributes, r.telemetryContext.highCardinalityAttributes)
@@ -263,19 +278,13 @@ func (r *TelemetryRecorder) Log(
 	r.root.log(ctx, message, logAttributes, severity)
 }
 
-// Error records an error as both a counter metric and an error log.
+// ErrorMetric records an error as a counter metric.
 //
 // The counter metric has the name "error" and contains
 // the low-cardinality attributes from the current telemetry context plus an
 // "error.type" attribute (the caller-supplied error type) so the
 // rate of each error type can be aggregated and graphed.
-//
-// The log record contains the attributes from the current telemetry context,
-// plus "error.type", "error.message", "error.stacktrace", and
-// "error.originator". The stack trace is captured at the point Error is called.
-//
-// errorOriginator is a caller-supplied hint about where the error originated.
-func (r *TelemetryRecorder) Error(
+func (r *TelemetryRecorder) ErrorMetric(
 	ctx context.Context,
 	message string,
 	err error,
@@ -285,25 +294,46 @@ func (r *TelemetryRecorder) Error(
 		return
 	}
 
+	r.IncrementCounter(
+		ctx,
+		"error",
+		LowCardinalityAttributes{
+			ErrorOriginator: errorOriginator,
+		},
+	)
+}
+
+// ErrorLog emits an OpenTelemetry log record with the specified severity level.
+//
+// The log record contains the attributes from the current telemetry context,
+// plus "error.type", "error.message", "error.stacktrace", "error.originator",
+// and the caller-supplied attributes.
+//
+// The stack trace is captured at the point Error is called.
+func (r *TelemetryRecorder) ErrorLog(
+	ctx context.Context,
+	message string,
+	err error,
+	errorOriginator string,
+	attributes map[string]string,
+) {
+	if r == nil {
+		return
+	}
+
+	mergedLowCardinalityAttributes := r.telemetryContext.lowCardinalityAttributes
+	mergedLowCardinalityAttributes.merge(LowCardinalityAttributes{
+		ErrorOriginator: errorOriginator,
+	})
+
 	errorMessage := ""
 	if err != nil {
 		errorMessage = err.Error()
 	}
-
-	lowCardinalityAttributes := r.telemetryContext.lowCardinalityAttributes
-	lowCardinalityAttributes.merge(LowCardinalityAttributes{
-		ErrorOriginator: errorOriginator,
-	})
-
-	r.root.incrementCounter(
-		ctx,
-		"error",
-		lowCardinalityAttributes,
-	)
-
 	logAttributes := make(map[string]string)
 	maps.Copy(logAttributes, r.telemetryContext.highCardinalityAttributes)
-	maps.Copy(logAttributes, lowCardinalityAttributes.toMap())
+	maps.Copy(logAttributes, mergedLowCardinalityAttributes.toMap())
+	maps.Copy(logAttributes, attributes)
 	maps.Copy(logAttributes, map[string]string{
 		"error.message":    errorMessage,
 		"error.stacktrace": captureStacktrace(),
@@ -337,15 +367,31 @@ type OpenTelemetryProxy struct {
 
 // NewOpenTelemetryProxy returns an OpenTelemetryProxy for the given endpoint.
 //
-// When analytics is disabled or no API key is available, a no-op proxy is
-// returned so no providers are created and nothing is recorded.
+// When analytics is disabled, the wandbSettings are offline, or no credentials
+// are available, a nil pointer is returned, making calls to the proxy a no-op.
 func NewOpenTelemetryProxy(
 	ctx context.Context,
 	wandbSettings *settings.Settings,
 ) *OpenTelemetryProxy {
+	if disabled.Load() || wandbSettings.IsOffline() {
+		return nil
+	}
+
+	httpClient, err := newOTLPHTTPClient(wandbSettings)
+	if err != nil {
+		slog.Debug(
+			"analytics: failed to configure telemetry authentication",
+			"error", err,
+		)
+		return nil
+	}
+	if httpClient == nil {
+		return nil
+	}
+
 	proxy := &OpenTelemetryProxy{
 		endpoint:   wandbSettings.GetBaseURL(),
-		httpClient: newOTLPHTTPClient(wandbSettings),
+		httpClient: httpClient,
 	}
 	if err := proxy.initializeOTelResources(ctx); err != nil {
 		return nil
@@ -353,7 +399,20 @@ func NewOpenTelemetryProxy(
 	return proxy
 }
 
-func newOTLPHTTPClient(wandbSettings *settings.Settings) *http.Client {
+func newOTLPHTTPClient(
+	wandbSettings *settings.Settings,
+) (*http.Client, error) {
+	credentialProvider, err := api.NewCredentialProvider(
+		wandbSettings,
+		slog.Default(),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := credentialProvider.(api.NoopCredentialProvider); ok {
+		return nil, nil
+	}
+
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = clients.ProxyFn(
 		wandbSettings.GetHTTPProxy(),
@@ -382,10 +441,10 @@ func newOTLPHTTPClient(wandbSettings *settings.Settings) *http.Client {
 		transport,
 		httplayers.Concat(
 			httplayers.ExtraHeaders(extraHeaders),
-			api.NewAPIKeyCredentialProvider(wandbSettings.GetAPIKey()),
+			credentialProvider,
 		),
 	)
-	return client
+	return client, nil
 }
 
 // initializeOTelResources initializes the OpenTelemetry meter and log providers.
