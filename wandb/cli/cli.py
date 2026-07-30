@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import getpass
+import importlib.util
 import json
 import logging
 import os
@@ -2231,6 +2232,94 @@ def scheduler(
 _SCHEDULER_MIN_POLL_INTERVAL_S = 5
 
 
+def _load_source_object(source: str, name: str) -> Any:
+    """Import the python file at `source` and return its `name` attribute.
+
+    Used to load a user-defined `search_space` or `optimizer` (trial
+    constructor) function referenced by name from a sweep's scheduler config.
+    """
+    module_name = f"wandb_sweep_source_{pathlib.Path(source).stem}"
+    spec = importlib.util.spec_from_file_location(module_name, source)
+    if spec is None or spec.loader is None:
+        raise ClickException(f"Could not import source file: {source}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    try:
+        return getattr(module, name)
+    except AttributeError:
+        raise ClickException(f"{source} has no attribute {name!r}") from None
+
+
+def _build_optuna_scheduler(
+    sweep,
+    config: dict,
+    scheduler_config: dict,
+    poll_interval: float,
+    batch_size: int,
+):
+    """Build the scheduler for a sweep whose `scheduler.engine` is `optuna`."""
+    # Importing the module lazily surfaces a helpful error when optuna isn't
+    # installed, and keeps the wandb path free of that dependency.
+    from wandb.sdk.sweeps.scheduler import optuna as optuna_scheduler
+
+    optimizer_name = scheduler_config.get("optimizer", "")
+    search_space_name = scheduler_config.get("search_space")
+    source = scheduler_config.get("source", "")
+
+    # Exactly one of search_space / optimizer: the declarative space is built
+    # from the loaded function when given, otherwise the loaded function is
+    # itself the define-by-run trial constructor.
+    search_space = None
+    distributions = None
+    if search_space_name is not None:
+        search_space = _load_source_object(source, search_space_name)
+    else:
+        distributions = optuna_scheduler.search_space_from_sweep_config(
+            config.get("parameters", {})
+        )
+    if optimizer_name:
+        study_fn = _load_source_object(source, optimizer_name)
+        study = study_fn()
+    else:
+        study = optuna_scheduler.create_study_from_sweep_config(config)
+
+    return optuna_scheduler.resume_sweep(
+        sweep,
+        options=optuna_scheduler.OptunaOptions(
+            study=study,
+            distributions=distributions,
+            search_space=search_space,
+            poll_interval_s=poll_interval,
+            batch_size=batch_size,
+        ),
+    )
+
+
+def _build_wandb_scheduler(
+    sweep,
+    scheduler_config: dict,
+    poll_interval: float,
+    batch_size: int,
+):
+    search_space = scheduler_config.get("search_space")
+    optimizer = scheduler_config.get("optimizer")
+    if optimizer is not None:
+        wandb.termwarn("optimizer config is not supported by the wandb engine.")
+    if search_space is not None:
+        wandb.termwarn("search_space config is not supported by the wandb engine.")
+
+    from wandb.sdk.sweeps.scheduler import wandb as wandb_scheduler
+    from wandb.sdk.sweeps.scheduler.scheduler import SchedulerOptions
+
+    return wandb_scheduler.resume_sweep(
+        sweep,
+        options=SchedulerOptions(
+            poll_interval_s=poll_interval,
+            batch_size=batch_size,
+        ),
+    )
+
+
 @cli.command(
     name="sweep-scheduler",
     context_settings=CONTEXT,
@@ -2296,22 +2385,15 @@ def sweep_scheduler(
             "'scheduler': {'engine': wandb} in its config."
         )
     if engine == "wandb":
-        search_space = scheduler_config.get("search_space")
-        optimizer = scheduler_config.get("optimizer")
-        if optimizer is not None:
-            wandb.termwarn("optimizer config is not supported by the wandb engine.")
-        if search_space is not None:
-            wandb.termwarn("search_space config is not supported by the wandb engine.")
-
-        from wandb.sdk.sweeps.scheduler import wandb as wandb_scheduler
-        from wandb.sdk.sweeps.scheduler.scheduler import SchedulerOptions
-
-        scheduler = wandb_scheduler.resume_sweep(
+        scheduler = _build_wandb_scheduler(
             sweep,
-            options=SchedulerOptions(
-                poll_interval_s=poll_interval,
-                batch_size=batch_size,
-            ),
+            scheduler_config,
+            poll_interval,
+            batch_size,
+        )
+    elif engine == "optuna":
+        scheduler = _build_optuna_scheduler(
+            sweep, config, scheduler_config, poll_interval, batch_size
         )
     else:
         raise ClickException(f"Unsupported engine: {engine}")

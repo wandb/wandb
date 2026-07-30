@@ -327,6 +327,156 @@ class TestWandbOptimizerAcceptance(OptimizerAcceptanceTests):
         return WandbOptimizer(sweep=sweep)
 
 
+def _make_sequential_sampler(optuna_module: Any) -> Any:
+    """A deterministic sampler cycling a categorical param's choices in order.
+
+    Real optuna samplers pick randomly (or per some search strategy), but the
+    shared acceptance tests -- written against `WandbOptimizer`'s
+    deterministic grid search -- assert an exact suggestion order.
+    """
+
+    class _SequentialSampler(optuna_module.samplers.BaseSampler):
+        def infer_relative_search_space(self, study: Any, trial: Any) -> dict:
+            return {}
+
+        def sample_relative(self, study: Any, trial: Any, search_space: dict) -> dict:
+            return {}
+
+        def sample_independent(
+            self, study: Any, trial: Any, param_name: str, param_distribution: Any
+        ) -> Any:
+            choices = list(param_distribution.choices)
+            seen = sum(
+                1
+                for t in study.get_trials(deepcopy=False)
+                if t.number != trial.number and param_name in t.params
+            )
+            return choices[seen % len(choices)]
+
+    return _SequentialSampler()
+
+
+class OptunaOptimizerAcceptanceTests(OptimizerAcceptanceTests):
+    """Shared setup for the Optuna optimizer flavors.
+
+    Overrides the hyperband pruning test: optuna's pruners judge a running
+    trial only against *completed*-trial history, unlike the `sweeps`
+    library's hyperband, which ranks concurrently running trials against each
+    other.
+    """
+
+    @pytest.fixture
+    def study(self) -> Any:
+        import optuna
+
+        optuna.logging.set_verbosity(optuna.logging.WARNING)
+        return optuna.create_study(
+            direction="minimize",
+            sampler=_make_sequential_sampler(optuna),
+            pruner=optuna.pruners.MedianPruner(n_startup_trials=0, n_warmup_steps=0),
+        )
+
+    def test_prune_run_hyperband_stops_worst_running_run(
+        self, optimizer: Optimizer
+    ) -> None:
+        suggestions = optimizer.ask_n_runs(3)
+        assert len(suggestions) == 3
+
+        optimizer.tell_run(
+            suggestions[0].run_id,
+            make_run(
+                suggestions[0],
+                state=RunState.FINISHED,
+                summary={"loss": 6.0},
+                history=[{"loss": 10.0}, {"loss": 6.0}, {"loss": 6.0}],
+            ),
+        )
+        worst_running = make_run(
+            suggestions[1],
+            state=RunState.RUNNING,
+            summary={"loss": 10.0},
+            history=[{"loss": 10.0}, {"loss": 10.0}],
+        )
+        better_running = make_run(
+            suggestions[2],
+            state=RunState.RUNNING,
+            summary={"loss": 5.0},
+            history=[{"loss": 10.0}, {"loss": 5.0}, {"loss": 5.0}],
+        )
+        optimizer.tell_run(suggestions[1].run_id, worst_running)
+        optimizer.tell_run(suggestions[2].run_id, better_running)
+
+        assert optimizer.prune_run(suggestions[1].run_id, worst_running)
+        assert not optimizer.prune_run(suggestions[2].run_id, better_running)
+
+
+class TestOptunaDeclarativeOptimizerAcceptance(OptunaOptimizerAcceptanceTests):
+    @pytest.fixture
+    def optimizer(self, study: Any, sweep: Sweep) -> Optimizer:
+        import optuna
+        from wandb.sdk.sweeps.scheduler.optuna import OptunaDeclarativeOptimizer
+
+        distributions = {
+            "param1": optuna.distributions.CategoricalDistribution([1, 2, 3])
+        }
+        return OptunaDeclarativeOptimizer(study, distributions, sweep)
+
+
+class TestOptunaImperativeOptimizerAcceptance(OptunaOptimizerAcceptanceTests):
+    @pytest.fixture
+    def optimizer(self, study: Any, sweep: Sweep) -> Optimizer:
+        from wandb.sdk.sweeps.scheduler.optuna import OptunaImperativeOptimizer
+
+        def trial_constructor(trial: Any) -> dict[str, Any]:
+            return {"param1": trial.suggest_categorical("param1", [1, 2, 3])}
+
+        return OptunaImperativeOptimizer(study, trial_constructor, sweep)
+
+
+class TestOptunaOptimizerTermination:
+    """`OptunaOptimizer.should_terminate_sweep` and its OptunaHub loading."""
+
+    @pytest.fixture
+    def sweep(self) -> Sweep:
+        return make_scheduler_grid_sweep()
+
+    @pytest.fixture
+    def study(self) -> Any:
+        import optuna
+
+        optuna.logging.set_verbosity(optuna.logging.WARNING)
+        return optuna.create_study(direction="minimize")
+
+    def _make_optimizer(self, study: Any, sweep: Sweep, terminator: Any = None) -> Any:
+        import optuna
+        from wandb.sdk.sweeps.scheduler.optuna import OptunaDeclarativeOptimizer
+
+        distributions = {"param1": optuna.distributions.IntDistribution(1, 3)}
+        return OptunaDeclarativeOptimizer(study, distributions, sweep, terminator)
+
+    def test_no_terminator_never_terminates(self, study: Any, sweep: Sweep) -> None:
+        optimizer = self._make_optimizer(study, sweep)
+        assert optimizer.should_terminate_sweep() is False
+
+    def test_delegates_to_the_configured_terminator(
+        self, study: Any, sweep: Sweep
+    ) -> None:
+        terminator = MagicMock(return_value=True)
+        optimizer = self._make_optimizer(study, sweep, terminator)
+
+        assert optimizer.should_terminate_sweep() is True
+        terminator.assert_called_once_with(study)
+
+    def test_a_falsy_terminator_does_not_terminate(
+        self, study: Any, sweep: Sweep
+    ) -> None:
+        terminator = MagicMock(return_value=False)
+        optimizer = self._make_optimizer(study, sweep, terminator)
+
+        assert optimizer.should_terminate_sweep() is False
+        terminator.assert_called_once_with(study)
+
+
 class LoopDriver:
     """Drive `Scheduler.loop()` from the loop's own progress.
 
