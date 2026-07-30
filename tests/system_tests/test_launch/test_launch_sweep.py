@@ -11,6 +11,7 @@ def test_sweeps_on_launch(
     use_local_wandb_backend,
     user,
     monkeypatch,
+    create_run_queue,
 ):
     _ = use_local_wandb_backend
     monkeypatch.setattr(
@@ -38,7 +39,13 @@ def test_sweeps_on_launch(
         pass
 
     api = wandb.sdk.internal.internal_api.Api()
-    api.create_run_queue(entity=user, project=proj, queue_name=queue, access="USER")
+    create_run_queue(
+        api._service_api,
+        entity=user,
+        project=proj,
+        queue_name=queue,
+        access="USER",
+    )
 
     sweep_config = {
         "job": "fake-job:v1",

@@ -24,7 +24,13 @@ from wandb.analytics import get_sentry
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import AuthenticationError, CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
-from wandb.proto.wandb_api_pb2 import ApiRequest, DownloadFileRequest, UploadFileRequest
+from wandb.proto.wandb_api_pb2 import (
+    ApiRequest,
+    CreateRunQueueRequest,
+    DownloadFileRequest,
+    RunQueueOperationRequest,
+    UploadFileRequest,
+)
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk import wandb_setup
 from wandb.sdk.internal import settings_static
@@ -1162,52 +1168,6 @@ class Api:
         return project_run_queues
 
     @normalize_exceptions
-    def create_run_queue(
-        self,
-        entity: str,
-        project: str,
-        queue_name: str,
-        access: str,
-        prioritization_mode: str | None = None,
-        config_id: str | None = None,
-    ) -> dict[str, Any] | None:
-        query = """
-        mutation createRunQueue(
-            $entity: String!,
-            $project: String!,
-            $queueName: String!,
-            $access: RunQueueAccessType!,
-            $prioritizationMode: RunQueuePrioritizationMode,
-            $defaultResourceConfigID: ID,
-        ) {
-            createRunQueue(
-                input: {
-                    entityName: $entity,
-                    projectName: $project,
-                    queueName: $queueName,
-                    access: $access,
-                    prioritizationMode: $prioritizationMode
-                    defaultResourceConfigID: $defaultResourceConfigID
-                }
-            ) {
-                success
-                queueID
-            }
-        }
-        """
-        variables = {
-            "entity": entity,
-            "project": project,
-            "queueName": queue_name,
-            "access": access,
-            "prioritizationMode": prioritization_mode,
-            "defaultResourceConfigID": config_id,
-        }
-
-        result: dict[str, Any] | None = self.execute(query, variables)["createRunQueue"]
-        return result
-
-    @normalize_exceptions
     def upsert_run_queue(
         self,
         queue_name: str,
@@ -1409,19 +1369,25 @@ class Api:
                 wandb.termlog(
                     f"No default queue existing for entity: {entity} in project: {project_queue}, creating one."
                 )
-                res = self.create_run_queue(
-                    launch_spec["entity"],
-                    project_queue,
-                    queue_name,
-                    access="PROJECT",
+                create_queue_response = self._service_api.send_api_request(
+                    ApiRequest(
+                        run_queue_operation_request=RunQueueOperationRequest(
+                            create_run_queue_request=CreateRunQueueRequest(
+                                entity=launch_spec["entity"],
+                                project=project_queue,
+                                queue_name=queue_name,
+                                access="PROJECT",
+                            )
+                        )
+                    )
                 )
-
-                if res is None or res.get("queueID") is None:
+                queue_result = create_queue_response.run_queue_operation_response.create_run_queue_response
+                if not queue_result.success or not queue_result.queue_id:
                     wandb.termerror(
                         f"Unable to create default queue for entity: {entity} on project: {project_queue}. Run could not be added to a queue"
                     )
                     return None
-                queue_id = res["queueID"]
+                queue_id = queue_result.queue_id
 
             else:
                 if project_queue == "model-registry":
@@ -1536,14 +1502,24 @@ class Api:
         project_queues = self.get_project_run_queues(entity, project)
         if not project_queues:
             # create default queue if it doesn't already exist
-            default = self.create_run_queue(
-                entity, project, "default", access="PROJECT"
+            response = self._service_api.send_api_request(
+                ApiRequest(
+                    run_queue_operation_request=RunQueueOperationRequest(
+                        create_run_queue_request=CreateRunQueueRequest(
+                            entity=entity,
+                            project=project,
+                            queue_name="default",
+                            access="PROJECT",
+                        )
+                    )
+                )
             )
-            if default is None or default.get("queueID") is None:
+            default = response.run_queue_operation_response.create_run_queue_response
+            if not default.success or not default.queue_id:
                 raise CommError(
                     f"Unable to create default queue for {entity}/{project}. No queues for agent to poll"
                 )
-            project_queues = [{"id": default["queueID"], "name": "default"}]
+            project_queues = [{"id": default.queue_id, "name": "default"}]
         polling_queue_ids = [
             q["id"] for q in project_queues if q["name"] in queues
         ]  # filter to poll specified queues

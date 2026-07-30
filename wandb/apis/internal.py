@@ -189,9 +189,6 @@ class Api:
     def create_launch_agent(self, *args, **kwargs):
         return self.api.create_launch_agent(*args, **kwargs)
 
-    def create_run_queue(self, *args, **kwargs):
-        return self.api.create_run_queue(*args, **kwargs)
-
     def upsert_run_queue(self, *args, **kwargs):
         return self.api.upsert_run_queue(*args, **kwargs)
 
