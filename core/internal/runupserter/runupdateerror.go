@@ -22,13 +22,11 @@ func ToRunUpdateError(err error) error {
 		return nil
 	}
 
-	var runBranchError *runbranch.BranchError
-	if errors.As(err, &runBranchError) {
+	if runBranchError, ok := errors.AsType[*runbranch.BranchError](err); ok {
 		return fromRunBranchError(runBranchError)
 	}
 
-	var gqlError *graphql.HTTPError
-	if errors.As(err, &gqlError) {
+	if gqlError, ok := errors.AsType[*graphql.HTTPError](err); ok {
 		return fromGQLError(gqlError)
 	}
 
