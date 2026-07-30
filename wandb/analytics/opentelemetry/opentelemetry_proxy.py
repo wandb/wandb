@@ -464,7 +464,7 @@ class OtelProvider:
             attributes=attributes,
         )
 
-    def shutdown(self, timeout_millis: float = 30_000) -> None:
+    def shutdown(self, timeout_millis: float = 2_000) -> None:
         """Flush pending records and shut down the OpenTelemetry providers.
 
         After shutdown this provider and every recorder derived from it become
