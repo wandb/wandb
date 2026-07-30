@@ -274,15 +274,15 @@ class OptunaOptimizer(Optimizer):
         sweep: Sweep,
         terminator: TerminatorCallback | None = None,
     ):
-        super().__init__(sweep)
         self.study = study
         # Live ask()'d trials kept by str(trial.number). The study only
         # stores frozen trials, which lack report()/should_prune(), so we
         # must hold the live ones to record intermediate values (and, next,
         # drive pruning).
         self.trials: dict[str, optuna.Trial] = {}
-        self._validate_matches_sweep()
         self._terminator = terminator
+
+        super().__init__(sweep)
 
     def should_terminate_sweep(self) -> bool:
         """Return True once the caller's `terminator` says the search is done.
@@ -292,7 +292,7 @@ class OptunaOptimizer(Optimizer):
         """
         return self._terminator is not None and self._terminator(self.study)
 
-    def _validate_matches_sweep(self) -> None:
+    def validate_sweep_objective(self) -> None:
         """Fail fast if the study and the sweep disagree on the objective.
 
         The study's optimization direction(s) must match the sweep metric
