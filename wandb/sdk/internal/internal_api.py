@@ -1162,58 +1162,6 @@ class Api:
         return project_run_queues
 
     @normalize_exceptions
-    def create_default_resource_config(
-        self,
-        entity: str,
-        resource: str,
-        config: str,
-        template_variables: dict[str, float | int | str] | None,
-    ) -> dict[str, Any] | None:
-        mutation_params = """
-            $entityName: String!,
-            $resource: String!,
-            $config: JSONString!,
-            $templateVariables: JSONString
-        """
-        mutation_inputs = """
-            entityName: $entityName,
-            resource: $resource,
-            config: $config,
-            templateVariables: $templateVariables
-        """
-
-        variables = {
-            "entityName": entity,
-            "resource": resource,
-            "config": config,
-        }
-
-        if template_variables is not None:
-            variables["templateVariables"] = json.dumps(template_variables)
-        else:
-            variables["templateVariables"] = "{}"
-
-        query = f"""
-        mutation createDefaultResourceConfig(
-            {mutation_params}
-        ) {{
-            createDefaultResourceConfig(
-            input: {{
-                {mutation_inputs}
-            }}
-            ) {{
-            defaultResourceConfigID
-            success
-            }}
-        }}
-        """
-
-        result: dict[str, Any] | None = self.execute(query, variables)[
-            "createDefaultResourceConfig"
-        ]
-        return result
-
-    @normalize_exceptions
     def create_run_queue(
         self,
         entity: str,
