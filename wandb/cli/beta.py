@@ -9,7 +9,7 @@ import pathlib
 
 import click
 
-from wandb.analytics import OtelProvider, TelemetryRecorder, get_sentry
+from wandb.analytics import TelemetryRecorder, get_otel, get_sentry
 from wandb.errors import WandbCoreNotAvailableError
 from wandb.sdk import wandb_setup
 from wandb.sdk.lib.wbauth import get_system_auth
@@ -26,11 +26,11 @@ def beta(ctx: click.Context) -> None:
     These commands may change or even completely break in any release of wandb.
     """
     singleton_settings = wandb_setup.singleton().settings
-    otel_proxy = OtelProvider(
+    otel_provider = get_otel(
+        base_url=singleton_settings.base_url,
         auth_provider=lambda: get_system_auth(host=singleton_settings.base_url),
-        endpoint=singleton_settings.base_url,
     )
-    telemetry_recorder = TelemetryRecorder(root=otel_proxy)
+    telemetry_recorder = TelemetryRecorder(root=otel_provider)
     get_sentry().configure_scope(process_context="wandb_beta")
 
     try:
@@ -45,7 +45,8 @@ def beta(ctx: click.Context) -> None:
             err=True,
         )
 
-    otel_proxy.shutdown()
+    if otel_provider is not None:
+        otel_provider.shutdown()
     if ctx.invoked_subcommand == "leet":
         click.secho(
             "LEET is now generally available as `wandb leet`;"

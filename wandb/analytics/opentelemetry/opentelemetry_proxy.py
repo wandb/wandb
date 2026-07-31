@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import atexit
 import contextlib
 import functools
 import logging
@@ -7,6 +8,7 @@ import os
 import platform
 import threading
 import traceback
+from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass, fields
 from typing import Concatenate, ParamSpec, TypeVar
@@ -487,43 +489,80 @@ class OtelProvider:
                 self._logger_provider.shutdown()
 
 
-_singleton: OtelProvider | None = None
-_singleton_lock = threading.Lock()
+_provider_cache_lock = threading.Lock()
+_provider_cache: dict[str, OtelProvider] = {}
+_provider_initialization_locks: defaultdict[str, threading.Lock] = defaultdict(
+    threading.Lock
+)
 
 
-def setup_otel(
+def _shutdown_otel_providers() -> None:
+    with _provider_cache_lock:
+        providers = list(_provider_cache.values())
+
+    for provider in providers:
+        provider.shutdown()
+
+
+atexit.register(_shutdown_otel_providers)
+
+
+def _setup_otel(
     *,
+    base_url: str | None = None,
     auth_provider: Callable[[], Auth | None] | None = None,
 ) -> OtelProvider | None:
-    global _singleton
     pid = os.getpid()
-    with _singleton_lock:
-        if _singleton is not None and _singleton._pid == pid:
-            return _singleton
 
-        _singleton = OtelProvider(
+    base_url = _otel_endpoint(base_url)
+    with _provider_cache_lock:
+        initialization_lock = _provider_initialization_locks[base_url]
+
+    # Only hold the initialization lock while setting up a provider,
+    # This allows multiple setups to occur for different endpoints at the same time.
+    with initialization_lock:
+        with _provider_cache_lock:
+            otel_provider = _provider_cache.get(base_url)
+            if otel_provider is not None and otel_provider._pid == pid:
+                return otel_provider
+
+        # If no OtelProvider has been found, and no auth provider is provided,
+        # return None, since we can't setup a provider without auth.
+        if auth_provider is None:
+            return None
+
+        otel_provider = OtelProvider(
+            endpoint=base_url,
             auth_provider=auth_provider,
             pid=pid,
         )
-        return _singleton
+        with _provider_cache_lock:
+            _provider_cache[base_url] = otel_provider
+        return otel_provider
 
 
-def get_otel() -> OtelProvider | None:
-    """Returns the global singleton `OtelProvider` instance.
+def get_otel(
+    base_url: str | None = None,
+    *,
+    auth_provider: Callable[[], Auth | None] | None = None,
+) -> OtelProvider | None:
+    """Return the `OtelProvider` cached for a server endpoint.
 
-    This should be called after `setup_otel` has been called.
-    If `setup_otel` has not been called, this will return a no-op provider.
+    If no provider has been set up and an auth provider is provided,
+    a new one OtelProvider will be created.
     """
-    global _singleton
     pid = os.getpid()
-    with _singleton_lock:
-        if _singleton is None or _singleton._pid != pid:
-            _logger.warning(
-                "OtelProvider not setup in this process,"
-                + " no telemetry will be recorded."
-            )
-            return None
-        return _singleton
+    base_url = _otel_endpoint(base_url)
+
+    with _provider_cache_lock:
+        otel_provider = _provider_cache.get(base_url)
+
+    if otel_provider is None or otel_provider._pid != pid:
+        otel_provider = _setup_otel(
+            base_url=base_url,
+            auth_provider=auth_provider,
+        )
+    return otel_provider
 
 
 def _exception_stacktrace(exc: Exception) -> str:
