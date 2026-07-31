@@ -6,7 +6,6 @@ import contextlib
 import io
 import threading
 
-import pytest
 import wandb
 from wandb.sdk.launch.sweeps import SweepNotFoundError
 
@@ -17,8 +16,6 @@ from .conftest import (
     heartbeat_run_command,
     sequence_heartbeat_responses,
 )
-
-pytestmark = pytest.mark.usefixtures("wandb_agent_env")
 
 
 def test_agent_basic(wandb_agent_env):
