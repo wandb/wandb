@@ -1633,6 +1633,20 @@ pub struct TbRecord {
     /// path can be used to save at the root of the run's files.
     #[prost(string, tag = "5")]
     pub save_path: ::prost::alloc::string::String,
+    /// Whether to skip filtering by timestamp.
+    ///
+    /// By default, only tfevents files newer than the run are parsed, based
+    /// on the Unix timestamp in the filename. If this field is set, then
+    /// timestamps are ignored.
+    #[prost(bool, tag = "6")]
+    pub ignore_timestamp: bool,
+    /// Whether to skip filtering by hostname.
+    ///
+    /// By default, only tfevents files with a hostname component exactly matching
+    /// the W&B hostname setting (which is the output of HOSTNAME(1)) are parsed.
+    /// If this field is set, then hostnames are ignored.
+    #[prost(bool, tag = "7")]
+    pub ignore_hostname: bool,
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct TbResult {}

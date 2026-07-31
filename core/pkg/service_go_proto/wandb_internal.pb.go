@@ -4620,9 +4620,21 @@ type TBRecord struct {
 	// The path is relative to the run's files directory. It must use the system
 	// file separator (backslash on Windows, forward slash elsewhere). The "."
 	// path can be used to save at the root of the run's files.
-	SavePath      string `protobuf:"bytes,5,opt,name=save_path,json=savePath,proto3" json:"save_path,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	SavePath string `protobuf:"bytes,5,opt,name=save_path,json=savePath,proto3" json:"save_path,omitempty"`
+	// Whether to skip filtering by timestamp.
+	//
+	// By default, only tfevents files newer than the run are parsed, based
+	// on the Unix timestamp in the filename. If this field is set, then
+	// timestamps are ignored.
+	IgnoreTimestamp bool `protobuf:"varint,6,opt,name=ignore_timestamp,json=ignoreTimestamp,proto3" json:"ignore_timestamp,omitempty"`
+	// Whether to skip filtering by hostname.
+	//
+	// By default, only tfevents files with a hostname component exactly matching
+	// the W&B hostname setting (which is the output of HOSTNAME(1)) are parsed.
+	// If this field is set, then hostnames are ignored.
+	IgnoreHostname bool `protobuf:"varint,7,opt,name=ignore_hostname,json=ignoreHostname,proto3" json:"ignore_hostname,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *TBRecord) Reset() {
@@ -4695,6 +4707,20 @@ func (x *TBRecord) GetSavePath() string {
 		return x.SavePath
 	}
 	return ""
+}
+
+func (x *TBRecord) GetIgnoreTimestamp() bool {
+	if x != nil {
+		return x.IgnoreTimestamp
+	}
+	return false
+}
+
+func (x *TBRecord) GetIgnoreHostname() bool {
+	if x != nil {
+		return x.IgnoreHostname
+	}
+	return false
 }
 
 type TBResult struct {
@@ -12144,14 +12170,16 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x14LinkArtifactResponse\x12#\n" +
 	"\rerror_message\x18\x01 \x01(\tR\ferrorMessage\x12(\n" +
 	"\rversion_index\x18\x02 \x01(\x05H\x00R\fversionIndex\x88\x01\x01B\x10\n" +
-	"\x0e_version_index\"\xd3\x01\n" +
+	"\x0e_version_index\"\xa7\x02\n" +
 	"\bTBRecord\x121\n" +
 	"\x05_info\x18\xc8\x01 \x01(\v2\x1b.wandb_internal._RecordInfoR\x04Info\x12\x17\n" +
 	"\alog_dir\x18\x01 \x01(\tR\x06logDir\x12\x19\n" +
 	"\broot_dir\x18\x03 \x01(\tR\arootDir\x12!\n" +
 	"\tnamespace\x18\x04 \x01(\tH\x00R\tnamespace\x88\x01\x01\x12\x12\n" +
 	"\x04save\x18\x02 \x01(\bR\x04save\x12\x1b\n" +
-	"\tsave_path\x18\x05 \x01(\tR\bsavePathB\f\n" +
+	"\tsave_path\x18\x05 \x01(\tR\bsavePath\x12)\n" +
+	"\x10ignore_timestamp\x18\x06 \x01(\bR\x0fignoreTimestamp\x12'\n" +
+	"\x0fignore_hostname\x18\a \x01(\bR\x0eignoreHostnameB\f\n" +
 	"\n" +
 	"_namespace\"\n" +
 	"\n" +
