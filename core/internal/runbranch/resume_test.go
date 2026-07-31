@@ -7,15 +7,12 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/stretchr/testify/assert"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runbranch"
 	"github.com/wandb/wandb/core/internal/runconfig"
-	"github.com/wandb/wandb/core/internal/settings"
-	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 type ResumeResponse struct {
@@ -43,29 +40,27 @@ func newResumeBranch(
 	ctx context.Context,
 	logger *observability.CoreLogger,
 	client graphql.Client,
-	mode string,
+	resumeSetting string,
 ) *runbranch.ResumeBranch {
 	return runbranch.NewResumeBranch(
 		ctx,
 		logger,
 		client,
-		settings.From(&spb.Settings{Resume: wrapperspb.String(mode)}),
+		resumeSetting,
 	)
 }
 
 func TestResumeIntentAndMissingRunPolicy(t *testing.T) {
 	testCases := []struct {
-		name    string
-		resume  bool
-		mode    string
-		wantErr bool
+		name          string
+		resumeSetting string
+		wantErr       bool
 	}{
-		{name: "never", mode: "never"},
-		{name: "allow", mode: "allow"},
-		{name: "auto", mode: "auto"},
-		{name: "must", mode: "must", wantErr: true},
-		{name: "unset defaults lenient", resume: true, wantErr: false},
-		{name: "unexpected defaults strict", resume: true, mode: "unexpected", wantErr: true},
+		{name: "never", resumeSetting: "never"},
+		{name: "allow", resumeSetting: "allow"},
+		{name: "auto", resumeSetting: "auto"},
+		{name: "must", resumeSetting: "must", wantErr: true},
+		{name: "unset defaults lenient", resumeSetting: "", wantErr: false},
 	}
 
 	for _, testCase := range testCases {
@@ -73,18 +68,16 @@ func TestResumeIntentAndMissingRunPolicy(t *testing.T) {
 			mockGQL := gqlmock.NewMockClient()
 			mockGQL.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{}`)
 
-			resumeSettings := settings.New()
-			if testCase.mode != "" {
-				resumeSettings = settings.From(&spb.Settings{
-					Resume: wrapperspb.String(testCase.mode),
-				})
+			resumeSetting := ""
+			if testCase.resumeSetting != "" {
+				resumeSetting = testCase.resumeSetting
 			}
 
 			resumeState := runbranch.NewResumeBranch(
 				context.Background(),
 				observability.NewNoOpLogger(),
 				mockGQL,
-				resumeSettings,
+				resumeSetting,
 			)
 			err := resumeState.UpdateForResume(&runbranch.RunParams{}, runconfig.New())
 

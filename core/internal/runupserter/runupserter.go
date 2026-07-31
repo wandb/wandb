@@ -212,7 +212,7 @@ func InitRun(
 	runParams.Resume = resume
 	switch {
 	case shouldUpdateMetadata:
-		err := upserter.updateMetadataForResume(ctx, params.Settings)
+		err := upserter.updateMetadataForResume(ctx, params.Settings.GetResume())
 
 		if err != nil {
 			return nil, ToRunUpdateError(err)
@@ -466,7 +466,7 @@ func (upserter *RunUpserter) signalDirty() {
 // that's being resumed.
 func (upserter *RunUpserter) updateMetadataForResume(
 	ctx context.Context,
-	resumeSettings *settings.Settings,
+	resumeSetting string,
 ) error {
 	if upserter.graphqlClientOrNil == nil {
 		// When offline, we cannot query the backend to reconcile resume state,
@@ -478,7 +478,7 @@ func (upserter *RunUpserter) updateMetadataForResume(
 		ctx,
 		upserter.logger,
 		upserter.graphqlClientOrNil,
-		resumeSettings,
+		resumeSetting,
 	).UpdateForResume(
 		upserter.params,
 		upserter.config,
