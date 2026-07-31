@@ -1584,17 +1584,20 @@ pub struct TbRecord {
     pub info: ::core::option::Option<RecordInfo>,
     /// A directory containing tfevents files to watch.
     ///
-    /// This may be an absolute or relative path.
+    /// This may be a filesystem path (in the native format, meaning backslashes
+    /// on Windows) or one of the supported cloud paths (S3, GCS, Azure). Relative
+    /// paths are allowed, but discouraged, since their interpretation depends on
+    /// the wandb-core working directory.
     #[prost(string, tag = "1")]
     pub log_dir: ::prost::alloc::string::String,
     /// An optional path to an ancestor of `log_dir` used for namespacing.
     ///
-    /// This may be an absolute or relative path.
+    /// The format is the same as `log_dir`.
     ///
-    /// If set, then each event from tfevents files under `log_dir` is
-    /// prefixed by the file's path relative to this directory. Additionally,
-    /// if `save` is true, then each file's upload path is also its path
-    /// relative to `root_dir`.
+    /// If `namespace` is not provided, then each event from tfevents files under
+    /// `log_dir` is prefixed by the file's path relative to this directory.
+    /// If `save_path` is not provided and `save` is true, then each file's upload
+    /// path is also its path relative to `root_dir`.
     ///
     /// For example, with `root_dir` set as "tb/logs" and `log_dir` as
     /// "tb/logs/train":
@@ -1605,12 +1608,31 @@ pub struct TbRecord {
     /// If this is unset, then it is inferred using unspecified rules.
     #[prost(string, tag = "3")]
     pub root_dir: ::prost::alloc::string::String,
+    /// A prefix to prepend to tfevents tags to create W&B metric keys.
+    ///
+    /// If present, it is used instead of guessing based on the `root_dir`.
+    /// It may be set to an empty string, in which case TB tags are used as W&B
+    /// keys without modification.
+    ///
+    /// The namespace is prepended with a forward slash as a separator,
+    /// so this field should not end with a forward slash.
+    #[prost(string, optional, tag = "4")]
+    pub namespace: ::core::option::Option<::prost::alloc::string::String>,
     /// Whether to save tfevents files with the run.
     ///
     /// When true, this uploads the tfevents files, enabling the "TensorBoard"
     /// tab in W&B.
     #[prost(bool, tag = "2")]
     pub save: bool,
+    /// Path where to save tfevents files, if `save` is true.
+    ///
+    /// If set, it is used instead of guessing based on the `root_dir`.
+    ///
+    /// The path is relative to the run's files directory. It must use the system
+    /// file separator (backslash on Windows, forward slash elsewhere). The "."
+    /// path can be used to save at the root of the run's files.
+    #[prost(string, tag = "5")]
+    pub save_path: ::prost::alloc::string::String,
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct TbResult {}
