@@ -28,7 +28,7 @@ def heartbeat_run_command(
     args: dict[str, dict[str, Any]],
     program: str = "train.py",
 ) -> dict[str, Any]:
-    """Build a heartbeat ``run`` command for sweep agent tests."""
+    """Build a heartbeat `run` command for sweep agent tests."""
     return {
         "type": "run",
         "run_id": run_id,
@@ -40,7 +40,7 @@ def heartbeat_run_command(
 def sequence_heartbeat_responses(
     *responses: list[dict[str, Any]] | BaseException,
 ) -> Callable[..., list[dict[str, Any]]]:
-    """Return an ``agent_heartbeat`` side effect that yields each response in order."""
+    """Return an `agent_heartbeat` side effect that yields each response in order."""
     pending = list(responses)
 
     def side_effect(agent_id, metrics, run_states):
@@ -96,8 +96,8 @@ class WandbAgentTestEnv:
     ) -> Iterator[None]:
         """Apply pyagent env isolation and mock API for an agent run.
 
-        ``_run_job`` recreates ``InternalApi()`` after ``wandb.teardown()``, so
-        ``agent_heartbeat`` is patched on the underlying ``Api`` class rather than
+        `_run_job` recreates `InternalApi()` after `wandb.teardown()`, so
+        `agent_heartbeat` is patched on the underlying `Api` class rather than
         only on the constructor return value.
         """
         self.monkeypatch.chdir(self.tmp_path)
