@@ -8,7 +8,6 @@ __all__ = (
     "TelemetryContext",
     "TelemetryRecorder",
     "get_otel",
-    "setup_otel",
 )
 
 from .opentelemetry_proxy import (
@@ -16,5 +15,4 @@ from .opentelemetry_proxy import (
     TelemetryContext,
     TelemetryRecorder,
     get_otel,
-    setup_otel,
 )
