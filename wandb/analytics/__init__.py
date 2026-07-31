@@ -1,10 +1,8 @@
 __all__ = (
     "get_sentry",
-    "get_otel",
-    "OtelProvider",
     "TelemetryContext",
     "TelemetryRecorder",
 )
 
-from .opentelemetry import OtelProvider, TelemetryContext, TelemetryRecorder, get_otel
+from .opentelemetry import TelemetryContext, TelemetryRecorder
 from .sentry import get_sentry

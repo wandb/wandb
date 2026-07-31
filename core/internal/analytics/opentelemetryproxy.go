@@ -36,7 +36,6 @@ import (
 const (
 	defaultExportIntervalMs = 500
 	defaultTimeout          = 1 * time.Second
-	serviceName             = "wandb-core"
 	metricsPath             = "/sdk/otel/v1/metrics"
 	logsPath                = "/sdk/otel/v1/logs"
 )
@@ -58,6 +57,10 @@ type LowCardinalityAttributes struct {
 	WandbVersion    string
 	OperatingSystem string
 	ErrorOriginator string
+
+	PythonVersion string
+	PythonRuntime string
+	ExceptionType string
 }
 
 // merge overwrites attrs with the non-empty fields of other.
@@ -66,22 +69,25 @@ func (attrs *LowCardinalityAttributes) merge(other LowCardinalityAttributes) {
 	attrs.WandbVersion = cmp.Or(other.WandbVersion, attrs.WandbVersion)
 	attrs.OperatingSystem = cmp.Or(other.OperatingSystem, attrs.OperatingSystem)
 	attrs.ErrorOriginator = cmp.Or(other.ErrorOriginator, attrs.ErrorOriginator)
+
+	attrs.PythonVersion = cmp.Or(other.PythonVersion, attrs.PythonVersion)
+	attrs.PythonRuntime = cmp.Or(other.PythonRuntime, attrs.PythonRuntime)
+	attrs.ExceptionType = cmp.Or(other.ExceptionType, attrs.ExceptionType)
 }
 
 func (attrs LowCardinalityAttributes) toMap() map[string]string {
-	out := make(map[string]string, 4)
-	if attrs.GoVersion != "" {
-		out["go_version"] = attrs.GoVersion
+	out := map[string]string{
+		"go_version":       attrs.GoVersion,
+		"operating_system": attrs.OperatingSystem,
+		"error.originator": attrs.ErrorOriginator,
+		"python_version":   attrs.PythonVersion,
+		"python_runtime":   attrs.PythonRuntime,
+		"exception_type":   attrs.ExceptionType,
+		"wandb_version":    attrs.WandbVersion,
 	}
-	if attrs.WandbVersion != "" {
-		out["wandb_version"] = attrs.WandbVersion
-	}
-	if attrs.OperatingSystem != "" {
-		out["operating_system"] = attrs.OperatingSystem
-	}
-	if attrs.ErrorOriginator != "" {
-		out["error.originator"] = attrs.ErrorOriginator
-	}
+	maps.DeleteFunc(out, func(_ string, value string) bool {
+		return value == ""
+	})
 	return out
 }
 
@@ -361,6 +367,10 @@ type OpenTelemetryProxy struct {
 	// to the OpenTelemetry proxy API.
 	httpClient *http.Client
 
+	// serviceName is the name of the service being monitored.
+	// This is used to identify the service in the OpenTelemetry backend.
+	serviceName string
+
 	// shutdown guards Shutdown so the providers are only shut down once.
 	shutdown atomic.Bool
 }
@@ -372,6 +382,7 @@ type OpenTelemetryProxy struct {
 func NewOpenTelemetryProxy(
 	ctx context.Context,
 	wandbSettings *settings.Settings,
+	serviceName string,
 ) *OpenTelemetryProxy {
 	if disabled.Load() || wandbSettings.IsOffline() {
 		return nil
@@ -390,8 +401,9 @@ func NewOpenTelemetryProxy(
 	}
 
 	proxy := &OpenTelemetryProxy{
-		endpoint:   wandbSettings.GetBaseURL(),
-		httpClient: httpClient,
+		endpoint:    wandbSettings.GetBaseURL(),
+		httpClient:  httpClient,
+		serviceName: serviceName,
 	}
 	if err := proxy.initializeOTelResources(ctx); err != nil {
 		return nil
@@ -448,14 +460,16 @@ func newOTLPHTTPClient(
 }
 
 // initializeOTelResources initializes the OpenTelemetry meter and log providers.
-func (o *OpenTelemetryProxy) initializeOTelResources(ctx context.Context) error {
+func (o *OpenTelemetryProxy) initializeOTelResources(
+	ctx context.Context,
+) error {
 	if o == nil {
 		return nil
 	}
 
 	res, err := resource.New(
 		ctx,
-		resource.WithAttributes(semconv.ServiceName(serviceName)),
+		resource.WithAttributes(semconv.ServiceName(o.serviceName)),
 	)
 	if err != nil {
 		return fmt.Errorf("create resource: %w", err)
@@ -583,7 +597,7 @@ func (o *OpenTelemetryProxy) incrementCounter(
 		return
 	}
 
-	meter := o.meterProvider.Meter(serviceName)
+	meter := o.meterProvider.Meter(o.serviceName)
 	counter, err := meter.Int64Counter(name)
 	if err != nil {
 		return
@@ -604,7 +618,7 @@ func (o *OpenTelemetryProxy) log(
 		return
 	}
 
-	logger := o.logProvider.Logger(serviceName)
+	logger := o.logProvider.Logger(o.serviceName)
 	var record otellogapi.Record
 	record.SetBody(attribute.StringValue(body))
 	record.SetSeverity(severity)

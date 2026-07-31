@@ -25,8 +25,9 @@ import wandb
 import wandb.errors
 import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent
-from wandb.analytics import OtelProvider, TelemetryRecorder, get_sentry
+from wandb.analytics import TelemetryRecorder, get_sentry
 from wandb.apis import InternalApi, PublicApi
+from wandb.apis.public.service_api import ServiceApi
 from wandb.cli import beta_sync
 from wandb.errors.links import url_registry
 from wandb.sdk import wandb_setup, wandb_sweep
@@ -40,7 +41,6 @@ from wandb.sdk.launch.sweeps import SweepNotFoundError
 from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.lib import filesystem, settings_file
-from wandb.sdk.lib.wbauth import get_system_auth
 from wandb.sync import TFEVENT_SUBSTRING, SyncManager, get_runs
 
 from .beta import beta
@@ -1797,12 +1797,8 @@ def launch(
 
     api = _get_cling_api()
     get_sentry().configure_scope(process_context="launch_cli")
-    singleton_settings = wandb_setup.singleton().settings
-    otel_proxy = OtelProvider(
-        auth_provider=lambda: get_system_auth(host=singleton_settings.base_url),
-        endpoint=singleton_settings.base_url,
-    )
-    telemetry_recorder = TelemetryRecorder(root=otel_proxy)
+    service_api = ServiceApi(settings=wandb_setup.singleton().settings)
+    telemetry_recorder = TelemetryRecorder(service_api=service_api)
 
     if run_async and queue is not None:
         raise LaunchError(
@@ -1935,13 +1931,11 @@ def launch(
         except LaunchError as e:
             logger.exception("An error occurred.")
             telemetry_recorder.exception(str(e), e)
-            otel_proxy.shutdown()
             get_sentry().exception(e)
             sys.exit(e)
         except ExecutionError as e:
             logger.exception("An error occurred.")
             telemetry_recorder.exception(str(e), e)
-            otel_proxy.shutdown()
             get_sentry().exception(e)
             sys.exit(e)
         except asyncio.CancelledError:
@@ -1971,7 +1965,6 @@ def launch(
 
         except Exception as e:
             telemetry_recorder.exception(str(e), e)
-            otel_proxy.shutdown()
             get_sentry().exception(e)
             raise
 
@@ -2049,11 +2042,8 @@ def launch_agent(
         _launch.set_launch_logfile(log_file)
 
     api = _get_cling_api()
-    otel_proxy = OtelProvider(
-        auth_provider=lambda: get_system_auth(host=api.api_url),
-        endpoint=api.api_url,
-    )
-    telemetry_recorder = TelemetryRecorder(root=otel_proxy)
+    service_api = ServiceApi(settings=wandb_setup.singleton().settings)
+    telemetry_recorder = TelemetryRecorder(service_api=service_api)
     get_sentry().configure_scope(process_context="launch_agent")
     agent_config, api = _launch.resolve_agent_config(
         entity, max_jobs, queues, config, verbose
@@ -2077,8 +2067,6 @@ def launch_agent(
         telemetry_recorder.exception(str(e), e)
         get_sentry().exception(e)
         raise
-    finally:
-        otel_proxy.shutdown()
 
 
 @cli.command(context_settings=CONTEXT)
@@ -2200,11 +2188,8 @@ def scheduler(
         ctx.invoke(login, no_offline=True)
         api = InternalApi(reset=True)
 
-    otel_proxy = OtelProvider(
-        auth_provider=lambda: get_system_auth(host=api.api_url),
-        endpoint=api.api_url,
-    )
-    telemetry_recorder = TelemetryRecorder(root=otel_proxy)
+    service_api = ServiceApi(settings=wandb_setup.singleton().settings)
+    telemetry_recorder = TelemetryRecorder(service_api=service_api)
     get_sentry().configure_scope(process_context="sweep_scheduler")
     wandb.termlog("Starting a Launch Scheduler 🚀")
     from wandb.sdk.launch.sweeps import load_scheduler

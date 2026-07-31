@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING, Any, TypeAlias
 
 from typing_extensions import Self
 
-from wandb.analytics import TelemetryRecorder, get_otel
+from wandb.analytics import TelemetryRecorder
 from wandb.proto import wandb_api_pb2 as pb
 
 if TYPE_CHECKING:
@@ -49,8 +49,7 @@ class HistoryScan(Iterator[_RowDict]):
         self.page_size = page_size
         self._service_api = service_api
 
-        otel_provider = get_otel(base_url=self._service_api.base_url)
-        telemetry_recorder = TelemetryRecorder(otel_provider)
+        telemetry_recorder = TelemetryRecorder(service_api=self._service_api)
         telemetry_recorder.increment_counter_and_log_event(
             name="scan_run_history_init",
         )

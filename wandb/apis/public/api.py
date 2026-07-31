@@ -29,7 +29,6 @@ from wandb import env
 from wandb._analytics import tracked
 from wandb._iterutils import one
 from wandb._strutils import nameof
-from wandb.analytics import get_otel
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.registries import Registries, Registry
@@ -210,8 +209,6 @@ class Api:
     def _configure_analytics(self, auth: wbauth.Auth) -> None:
         if not env.error_reporting_enabled():
             return
-
-        get_otel(base_url=auth.host.url, auth_provider=lambda: auth)
 
         try:
             viewer = self.viewer

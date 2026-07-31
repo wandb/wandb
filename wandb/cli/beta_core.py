@@ -13,12 +13,12 @@ import logging
 import click
 
 from wandb import env as wandb_env
-from wandb.analytics import OtelProvider, TelemetryRecorder, get_sentry
+from wandb.analytics import TelemetryRecorder, get_sentry
+from wandb.apis.public.service_api import ServiceApi
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.sdk import wandb_setup
 from wandb.sdk.lib import asyncio_manager
 from wandb.sdk.lib.service import service_process, service_token
-from wandb.sdk.lib.wbauth import get_system_auth
 from wandb.sdk.wandb_settings import Settings
 
 _logger = logging.getLogger(__name__)
@@ -64,12 +64,8 @@ def start(*, idle_timeout: str) -> None:
 def stop(*, exit_code: int = 0) -> None:
     """Stop a detached wandb-core service addressed by WANDB_SERVICE."""
     get_sentry().configure_scope(process_context="beta-core-stop")
-    singleton_settings = wandb_setup.singleton().settings
-    otel_proxy = OtelProvider(
-        auth_provider=lambda: get_system_auth(host=singleton_settings.base_url),
-        endpoint=singleton_settings.base_url,
-    )
-    telemetry_recorder = TelemetryRecorder(root=otel_proxy)
+    service_api = ServiceApi(settings=wandb_setup.singleton().settings)
+    telemetry_recorder = TelemetryRecorder(service_api=service_api)
 
     try:
         token = service_token.from_env()
@@ -111,7 +107,6 @@ def stop(*, exit_code: int = 0) -> None:
     finally:
         asyncer.join()
 
-    otel_proxy.shutdown()
     service_token.clear_service_in_env()
 
     click.secho("Sent shutdown request to wandb-core.", fg="green", err=True)

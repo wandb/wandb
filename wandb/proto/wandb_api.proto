@@ -3,6 +3,7 @@ syntax = "proto3";
 package wandb_internal;
 
 import "wandb/proto/wandb_internal.proto";
+import "wandb/proto/wandb_otel.proto";
 import "wandb/proto/wandb_settings.proto";
 
 option go_package = "core/pkg/service_go_proto";
@@ -37,6 +38,7 @@ message ApiRequest {
     AuthRequest auth_request = 9;
     CreateCustomChartRequest create_custom_chart_request = 10;
     RunQueueOperationRequest run_queue_operation_request = 11;
+    OpenTelemetryRequest open_telemetry_request = 12;
   }
 }
 
