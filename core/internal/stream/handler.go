@@ -735,14 +735,9 @@ func (h *Handler) handleExit(
 
 	// Flush any history data---any further history records must
 	// be configured to flush.
-	if h.settings.IsSharedMode() {
-		h.flushPartialHistory(false, 0, false)
-	} else {
-		h.flushPartialHistory(
-			true,
-			h.partialHistoryStep+1,
-			h.partialHistoryHasExplicitStep,
-		)
+	h.flushPartialHistory()
+	if !h.settings.IsSharedMode() {
+		h.partialHistoryStep++
 	}
 
 	if record.Control == nil {
@@ -982,7 +977,7 @@ func (h *Handler) handlePartialHistoryAsync(request *spb.PartialHistoryRequest) 
 	}
 
 	if request.GetAction() == nil || request.Action.GetFlush() {
-		h.flushPartialHistory(false, 0, false)
+		h.flushPartialHistory()
 	}
 }
 
@@ -1021,7 +1016,8 @@ func (h *Handler) handlePartialHistorySync(request *spb.PartialHistoryRequest) {
 
 		case step > h.partialHistoryStep:
 			// The step advanced, so the previous step's batch is complete.
-			h.flushPartialHistory(true, step, h.partialHistoryHasExplicitStep)
+			h.flushPartialHistory()
+			h.partialHistoryStep = step
 		}
 
 		h.partialHistoryHasExplicitStep = true
@@ -1046,30 +1042,17 @@ func (h *Handler) handlePartialHistorySync(request *spb.PartialHistoryRequest) {
 	}
 
 	if shouldFlush {
-		h.flushPartialHistory(
-			true,
-			h.partialHistoryStep+1,
-			h.partialHistoryHasExplicitStep,
-		)
+		h.flushPartialHistory()
+		h.partialHistoryStep++
 	}
 }
 
-// flushPartialHistory finalizes and resets the accumulated run history.
+// flushPartialHistory emits and resets the accumulated run history.
 //
-// If advanceStep is true, partialHistoryStep is updated to nextStep after
-// flushing. If emitExplicitStep is true, the emitted history record includes
-// HistoryRecord.Step for the current batch.
-func (h *Handler) flushPartialHistory(
-	advanceStep bool,
-	nextStep int64,
-	emitExplicitStep bool,
-) {
-	// Don't log anything if there are no metrics.
+// The caller is responsible for updating partialHistoryStep afterward
+// if appropriate.
+func (h *Handler) flushPartialHistory() {
 	if h.partialHistory == nil || h.partialHistory.IsEmpty() {
-		if advanceStep {
-			h.partialHistoryStep = nextStep
-		}
-
 		return
 	}
 
@@ -1093,20 +1076,20 @@ func (h *Handler) flushPartialHistory(
 
 	h.runHistorySampler.SampleNext(h.partialHistory)
 
+	// Explicit steps are only meaningful when we own step numbering.
+	emitExplicitStep := !h.settings.IsSharedMode() &&
+		h.partialHistoryHasExplicitStep
+	step := h.partialHistoryStep
+
 	// Update the summary if server-side derived summaries are disabled.
 	if !h.settings.IsEnableServerSideDerivedSummary() {
 		h.updateRunTiming()
-		h.updateSummary(emitExplicitStep, h.partialHistoryStep)
+		h.updateSummary(emitExplicitStep, step)
 	}
 
 	items, err := h.partialHistory.ToRecords()
-	currentStep := h.partialHistoryStep
-
 	h.partialHistory = runhistory.New()
 	h.partialHistoryHasExplicitStep = false
-	if advanceStep {
-		h.partialHistoryStep = nextStep
-	}
 
 	// Report errors, but continue anyway to drop as little data as possible.
 	if err != nil {
@@ -1117,13 +1100,13 @@ func (h *Handler) flushPartialHistory(
 		h.terminalPrinter.Warnf(
 			"There was an issue processing run metrics in step %d;"+
 				" some data may be missing.",
-			currentStep,
+			step,
 		)
 	}
 
 	historyRecord := &spb.HistoryRecord{Item: items}
-	if !h.settings.IsSharedMode() && emitExplicitStep {
-		historyRecord.Step = &spb.HistoryStep{Num: currentStep}
+	if emitExplicitStep {
+		historyRecord.Step = &spb.HistoryStep{Num: step}
 	}
 	h.fwdRecord(&spb.Record{
 		RecordType: &spb.Record_History{
