@@ -159,11 +159,15 @@ class WandBMagics(Magics):
         if cell is None:
             return
 
+        ipython = IPython.get_ipython()
+        if ipython is None:
+            return
+
         if not displayed:
             _current_cell_wandb_magic = _WandbCellMagicState(height=height)
 
         try:
-            IPython.get_ipython().run_cell(cell)
+            ipython.run_cell(cell)
         finally:
             _current_cell_wandb_magic = None
 
@@ -179,7 +183,8 @@ def notebook_metadata_from_jupyter_servers_and_kernel_id():
         from IPython import get_ipython
 
         ipython = get_ipython()
-        if ipython is not None:
+        # The kernel attribute only exists when running under ipykernel.
+        if ipython is not None and hasattr(ipython, "kernel"):
             notebook_path = ipython.kernel.shell.user_ns.get("__vsc_ipynb_file__")
             if notebook_path:
                 return {
@@ -428,7 +433,7 @@ class Notebook:
             )
             return
         # TODO: some tests didn't patch ipython properly?
-        if self.shell is None:
+        if self.shell is None or self.shell.history_manager is None:
             return
         cells = []
         hist = list(self.shell.history_manager.get_range(output=True))
