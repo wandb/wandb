@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import contextlib
 import io
+import json
 import multiprocessing
 import pathlib
 from unittest import mock
 
 import pytest
 import yaml
+from wandb import env, wandb_agent
 from wandb.sdk.launch.sweeps import SweepNotFoundError
 from wandb.wandb_agent import Agent
 
@@ -149,3 +151,26 @@ def test_cli_agent_sweep_not_found_waits_for_active_run(
     err = captured.getvalue()
     assert "Sweep was deleted or agent was not found" in err
     assert "Active runs will be allowed to finish before the agent exits" in err
+
+
+def test_agent_writes_args_json_file_under_wandb_dir(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    wandb_dir = tmp_path / "wandb-out"
+    monkeypatch.setenv(env.DIR, str(wandb_dir))
+    monkeypatch.setenv(env.SWEEP_ID, "test")
+
+    with mock.patch.object(wandb_agent, "AgentProcess") as agent_process:
+        agent = Agent(mock.Mock(), mock.Mock(), sweep_id="test")
+        agent._sweep_command = ["${args_json_file}"]
+        # If we don't support custom wandb_dirs, this will throw an error.
+        agent._command_run(
+            {
+                "run_id": "run",
+                "program": "train.py",
+                "args": {"param1": {"value": 1}},
+            }
+        )
+
+    args_json_path = wandb_dir / "wandb/sweep-test/config-run.json"
+    assert json.loads(args_json_path.read_text()) == {"param1": 1}
+    assert agent_process.call_args.kwargs["command"] == [str(args_json_path)]
