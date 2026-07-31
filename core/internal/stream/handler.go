@@ -997,39 +997,38 @@ func (h *Handler) handlePartialHistorySync(request *spb.PartialHistoryRequest) {
 		h.partialHistoryStep = h.runRecord.GetStartingStep()
 	}
 
-	if request.GetStep() != nil {
+	hasExplicitStep := request.GetStep() != nil
+
+	if hasExplicitStep {
 		step := request.Step.GetNum()
-		current := h.partialHistoryStep
-		if step > current {
-			h.flushPartialHistory(
-				true,
-				step,
-				h.partialHistoryHasExplicitStep,
-			)
-			h.partialHistoryHasExplicitStep = true
-		} else if step < current {
+
+		switch {
+		case step < h.partialHistoryStep:
 			h.logger.Warn(
 				"handler: ignoring partial history record",
 				"step", step,
-				"current", current,
+				"current", h.partialHistoryStep,
 			)
-
 			h.terminalPrinter.Warnf(
-				"Tried to log to step %d that is less than the current step %d."+
-					" Steps must be monotonically increasing, so this data"+
-					" will be ignored. See https://wandb.me/define-metric"+
-					" to log data out of order.",
-				step,
-				current,
+				"Tried to log to step %d that is less than the current"+
+					" step %d. Steps must be monotonically increasing, so"+
+					" this data will be ignored. See"+
+					" https://wandb.me/define-metric to log data out of"+
+					" order.",
+				step, h.partialHistoryStep,
 			)
 			return
+
+		case step > h.partialHistoryStep:
+			// The step advanced, so the previous step's batch is complete.
+			h.flushPartialHistory(true, step, h.partialHistoryHasExplicitStep)
 		}
+
 		h.partialHistoryHasExplicitStep = true
 	}
 
 	for _, item := range request.GetItem() {
-		err := h.partialHistory.SetFromRecord(item)
-		if err != nil {
+		if err := h.partialHistory.SetFromRecord(item); err != nil {
 			h.logger.CaptureError(
 				"stream",
 				fmt.Errorf("handler: failed to set history metric: %v", err),
@@ -1038,22 +1037,21 @@ func (h *Handler) handlePartialHistorySync(request *spb.PartialHistoryRequest) {
 		}
 	}
 
-	var shouldFlush bool
-	if request.GetAction() != nil {
-		shouldFlush = request.GetAction().GetFlush()
-	} else {
-		// Default to flushing if the step is not provided.
-		shouldFlush = request.GetStep() == nil
-	}
-	if !shouldFlush {
-		return
+	// Flush if explicitly requested; by default, flush unless an explicit
+	// step was given, in which case the batch stays open until the step
+	// advances.
+	shouldFlush := !hasExplicitStep
+	if action := request.GetAction(); action != nil {
+		shouldFlush = action.GetFlush()
 	}
 
-	h.flushPartialHistory(
-		true,
-		h.partialHistoryStep+1,
-		h.partialHistoryHasExplicitStep,
-	)
+	if shouldFlush {
+		h.flushPartialHistory(
+			true,
+			h.partialHistoryStep+1,
+			h.partialHistoryHasExplicitStep,
+		)
+	}
 }
 
 // flushPartialHistory finalizes and resets the accumulated run history.
