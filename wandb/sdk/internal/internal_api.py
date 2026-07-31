@@ -38,7 +38,7 @@ from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeatu
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
-from ..lib import retry, wbauth
+from ..lib import retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from .progress import Progress
 
@@ -266,8 +266,15 @@ class Api:
         api_key = api_key or self.default_settings.get("api_key")
         if api_key:
             auth = ("api", api_key)
-        elif (access_token := self.access_token) is not None:
-            self._extra_http_headers["Authorization"] = f"Bearer {access_token}"
+        elif token_file := self._environ.get(env.IDENTITY_TOKEN_FILE):
+            # Federated identity: wandb-core exchanges the identity token
+            # for an access token and authenticates its requests with it.
+            # Code that talks to the server directly gets the token from
+            # wandb-core through the access_token property.
+            if not Path(token_file).exists():
+                raise AuthenticationError(
+                    f"Identity token file not found: {token_file}"
+                )
         else:
             auth = ("api", self.api_key or "")
 
@@ -394,36 +401,6 @@ class Api:
             or parse_sm_secrets().get(env.API_KEY)
             or self.default_settings.get("api_key")
         )
-
-    @property
-    def access_token(self) -> str | None:
-        """Retrieves an access token for authentication.
-
-        This function attempts to exchange an identity token for a temporary
-        access token from the server, and save it to the credentials file.
-        It uses the path to the identity token as defined in the environment
-        variables. If the environment variable is not set, it returns None.
-
-        Returns:
-            str | None: The access token if available, otherwise None if
-            no identity token is supplied.
-        Raises:
-            AuthenticationError: If the path to the identity token is not found.
-        """
-        token_file_str = self._environ.get(env.IDENTITY_TOKEN_FILE)
-        if not token_file_str:
-            return None
-
-        token_file = Path(token_file_str)
-        if not token_file.exists():
-            raise AuthenticationError(f"Identity token file not found: {token_file}")
-
-        auth = wbauth.AuthIdentityTokenFile(
-            host=self.settings("base_url"),
-            path=str(token_file),
-            credentials_file=wandb_setup.singleton().settings.credentials_file,
-        )
-        return auth.fetch_access_token()
 
     @property
     def api_url(self) -> str:

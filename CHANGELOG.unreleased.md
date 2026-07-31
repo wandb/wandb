@@ -45,3 +45,4 @@ The `wandb sync --clean` command now exits with code 1 and prints a hint to use 
 - `wandb login` and `wandb verify` no longer update the system host settings when failing to login (@jacobromero in https://github.com/wandb/wandb/pull/12332)
 - `wandb verify` now reports a failed check instead of crashing when an operation still fails after retries (@dmitryduev in https://github.com/wandb/wandb/pull/12360)
 - Calling Sweeps agent with a custom `WANDB_DIR` will now respect it when dumping JSON output (@kelu-wandb in https://github.com/wandb/wandb/pull/12344)
+- Fixed `wandb.Api(overrides={"base_url": ...})` failing to authenticate with federated identity (identity token) credentials when the specified server was not the default one, such as a dedicated cloud deployment, unless `WANDB_BASE_URL` was also set (@dmitryduev in https://github.com/wandb/wandb/pull/12340)

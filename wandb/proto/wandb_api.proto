@@ -37,6 +37,7 @@ message ApiRequest {
     AuthenticateRequest authenticate_request = 9;
     CreateCustomChartRequest create_custom_chart_request = 10;
     RunQueueOperationRequest run_queue_operation_request = 11;
+    GetAccessTokenRequest get_access_token_request = 12;
   }
 }
 
@@ -52,6 +53,7 @@ message ApiResponse {
     AuthenticateResponse authenticate_response = 9;
     CreateCustomChartResponse create_custom_chart_response = 10;
     RunQueueOperationResponse run_queue_operation_response = 11;
+    GetAccessTokenResponse get_access_token_response = 12;
 
     ApiErrorResponse api_error_response = 2;
   }
@@ -238,6 +240,25 @@ message AuthenticateResponse {
 
   // JSON-encoded user flags from the server, like "code_saving_enabled".
   string flags_json = 5;
+}
+
+// Retrieve an access token for authenticating directly with the W&B server.
+//
+// This only applies when the API instance uses federated identity:
+// wandb-core exchanges the identity token configured in the instance's
+// settings for an access token, caching it in the credentials file and
+// refreshing it when it is at or near expiration. The token allows SDK
+// code that talks to the W&B server without going through wandb-core to
+// authenticate with a Bearer header.
+//
+// If the API instance does not use token-based credentials, a successful
+// response contains an empty access_token. A failed token exchange returns
+// ApiErrorResponse.
+message GetAccessTokenRequest {}
+
+message GetAccessTokenResponse {
+  // The access token, or empty when not using federated identity.
+  string access_token = 1;
 }
 
 // Flag a run to stop on the W&B backend.

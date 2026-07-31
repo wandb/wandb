@@ -772,24 +772,17 @@ def test_construct_use_artifact_query_without_used_as():
 
 
 class TestJWTAuth:
-    def test_jwt_auth_sets_bearer_header(
-        self, tmp_path: pathlib.Path, mocker: MockerFixture
-    ):
+    def test_jwt_auth_builds_no_authorization_header(self, tmp_path: pathlib.Path):
+        # wandb-core resolves federated identity credentials from the
+        # settings itself; Python does not build an Authorization header.
         token_file = tmp_path / "token.jwt"
         token_file.write_text("test.jwt.token")
-
-        mocker.patch(
-            "wandb.sdk.lib.wbauth.AuthIdentityTokenFile.fetch_access_token",
-            return_value="test_access_token_12345",
-        )
 
         environ = {"WANDB_IDENTITY_TOKEN_FILE": str(token_file)}
         api = internal.InternalApi(environ=environ)
 
-        assert "Authorization" in api._extra_http_headers
-        assert (
-            api._extra_http_headers["Authorization"] == "Bearer test_access_token_12345"
-        )
+        assert "Authorization" not in api._extra_http_headers
+        assert api.request_auth is None
 
     def test_api_key_takes_precedence_over_jwt(
         self, tmp_path: pathlib.Path, mocker: MockerFixture
@@ -798,7 +791,7 @@ class TestJWTAuth:
         token_file.write_text("test.jwt.token")
 
         fetch_mock = mocker.patch(
-            "wandb.sdk.lib.wbauth.AuthIdentityTokenFile.fetch_access_token",
+            "wandb.apis.public.service_api.ServiceApi.access_token",
             return_value="test_access_token",
         )
 
@@ -811,9 +804,16 @@ class TestJWTAuth:
         fetch_mock.assert_not_called()
         assert api.request_auth == ("api", "a" * 40)
 
-    def test_access_token_returns_none_without_token_file(self):
+    def test_access_token_none_without_identity_token(self, mocker: MockerFixture):
+        # Without federated identity, the token is None and no request is
+        # sent to wandb-core.
         api = internal.InternalApi(environ={})
-        assert api.access_token is None
+        send_mock = mocker.patch(
+            "wandb.apis.public.service_api.ServiceApi.send_api_request"
+        )
+
+        assert api._service_api.access_token() is None
+        send_mock.assert_not_called()
 
     def test_access_token_raises_for_missing_file(self, tmp_path: pathlib.Path):
         missing_file = tmp_path / "nonexistent.jwt"
@@ -821,3 +821,12 @@ class TestJWTAuth:
 
         with pytest.raises(wandb.errors.AuthenticationError, match="not found"):
             internal.InternalApi(environ=environ)
+
+    def test_access_token_via_wandb_core(self, federated_identity):
+        """End-to-end: the token exchange happens in wandb-core."""
+        api = internal.InternalApi()
+
+        access_token = api._service_api.access_token()
+
+        assert access_token == federated_identity.access_token
+        assert federated_identity.token_exchanges >= 1

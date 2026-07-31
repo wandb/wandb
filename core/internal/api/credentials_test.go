@@ -396,3 +396,40 @@ func TestNewOAuth2CredentialProvider_CreatesNewTokenForNewBaseURL(t *testing.T) 
 	assert.Equal(t, time.Now().UTC().Add(expiresIn).Round(time.Hour),
 		time.Time(data.Credentials[server.URL].ExpiresAt).Round(time.Hour))
 }
+
+func TestOAuth2CredentialProvider_AccessToken(t *testing.T) {
+	tokenFile := filepath.Join(t.TempDir(), "jwt.txt")
+	require.NoError(t, os.WriteFile(tokenFile, []byte("id-token"), 0o600))
+	credentialsFile := filepath.Join(t.TempDir(), "credentials.json")
+
+	token := "fake-token"
+	server := authServer(token, time.Hour)
+	defer server.Close()
+
+	settings := wbsettings.From(&spb.Settings{
+		BaseUrl:           &wrapperspb.StringValue{Value: server.URL},
+		IdentityTokenFile: &wrapperspb.StringValue{Value: tokenFile},
+		CredentialsFile:   &wrapperspb.StringValue{Value: credentialsFile},
+	})
+	credentialProvider, err := api.NewCredentialProvider(
+		settings,
+		observabilitytest.NewTestLogger(t).Logger,
+	)
+	require.NoError(t, err)
+
+	tokenProvider, ok := credentialProvider.(api.AccessTokenProvider)
+	require.True(t, ok, "the OAuth2 provider must expose access tokens")
+
+	accessToken, err := tokenProvider.AccessToken()
+
+	require.NoError(t, err)
+	assert.Equal(t, token, accessToken)
+
+	// The token is cached in the credentials file, like when it is used
+	// for wandb-core's own requests.
+	file, err := os.ReadFile(credentialsFile)
+	require.NoError(t, err)
+	var data api.CredentialsFile
+	require.NoError(t, json.Unmarshal(file, &data))
+	assert.Equal(t, token, data.Credentials[server.URL].AccessToken)
+}

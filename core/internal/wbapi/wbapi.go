@@ -102,7 +102,7 @@ func New(
 		semaphore: make(chan struct{}, maxConcurrency),
 		settings:  s,
 
-		authHandler:         NewAuthHandler(graphqlClient),
+		authHandler:         NewAuthHandler(graphqlClient, credentialProvider),
 		featuresHandler:     NewFeaturesHandler(featureProvider),
 		fileTransferHandler: NewFileTransferHandler(fileTransferManager),
 		graphqlHandler:      NewGraphQLHandler(graphqlClient),
@@ -185,6 +185,8 @@ func (p *WandbAPI) HandleRequest(
 	switch req := request.Request.(type) {
 	case *spb.ApiRequest_AuthenticateRequest:
 		return p.authHandler.HandleAuthenticate(ctx, req.AuthenticateRequest)
+	case *spb.ApiRequest_GetAccessTokenRequest:
+		return p.authHandler.HandleGetAccessToken(ctx, req.GetAccessTokenRequest)
 	case *spb.ApiRequest_FeaturesRequest:
 		return p.featuresHandler.HandleRequest(ctx, req.FeaturesRequest)
 	case *spb.ApiRequest_DownloadFileRequest:
