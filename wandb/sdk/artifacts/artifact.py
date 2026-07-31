@@ -1102,6 +1102,16 @@ class Artifact:
         """The digest algorithm used to compute the artifact's digest."""
         return self._digest_algorithm
 
+    def _digest_algorithm_is_xxh128(self) -> bool:
+        """Check if the artifact digest algorithm is xxh128."""
+        return self.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128
+
+    def _calculate_file_digest(self, file_path: StrPath) -> str:
+        """Calculate the digest of a file using the artifact digest algorithm."""
+        if self._digest_algorithm_is_xxh128():
+            return xxh128_file_b64(file_path)
+        return md5_file_b64(file_path)
+
     @property
     def size(self) -> int:
         """The total size of the artifact in bytes.
@@ -1547,9 +1557,7 @@ class Artifact:
 
         name = LogicalPath(name or os.path.basename(local_path))
 
-        use_xxh128 = self.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128
-
-        digest = xxh128_file_b64(local_path) if use_xxh128 else md5_file_b64(local_path)
+        digest = self._calculate_file_digest(local_path)
 
         if is_tmp:
             file_path, file_name = os.path.split(name)
@@ -1843,22 +1851,16 @@ class Artifact:
                 os.chmod(staging_path, stat.S_IRUSR)
                 upload_path = staging_path
 
-        use_xxh128 = self.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128
         # Tag only non-MD5 entries; untagged entries are interpreted as MD5.
         extra = (
             {DIGEST_ALGORITHM_EXTRA_KEY: DIGEST_ALGORITHM_TO_STR[self.digest_algorithm]}
-            if use_xxh128
+            if self._digest_algorithm_is_xxh128()
             else {}
         )
 
         entry = ArtifactManifestEntry(
             path=name,
-            digest=digest
-            or (
-                xxh128_file_b64(upload_path)
-                if use_xxh128
-                else md5_file_b64(upload_path)
-            ),
+            digest=digest or self._calculate_file_digest(upload_path),
             size=os.path.getsize(upload_path),
             local_path=upload_path,
             skip_cache=skip_cache,
