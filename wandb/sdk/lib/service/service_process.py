@@ -9,11 +9,10 @@ import subprocess
 import tempfile
 from typing import TYPE_CHECKING
 
-from wandb.analytics import OtelProvider, TelemetryRecorder, get_sentry
+from wandb.analytics import TelemetryRecorder, get_sentry
 from wandb.env import core_debug, dcgm_profiling_enabled, error_reporting_enabled
 from wandb.errors import WandbCoreNotAvailableError
 from wandb.sdk.lib.service import ipc_support
-from wandb.sdk.lib.wbauth import get_system_auth
 from wandb.util import get_core_path
 
 from . import service_port_file, service_token
@@ -70,11 +69,11 @@ def _start(
     detached: bool,
     idle_timeout: str | None,
 ) -> ServiceProcess:
-    otel_proxy = OtelProvider(
-        auth_provider=lambda: get_system_auth(host=settings.base_url),
-        endpoint=settings.base_url,
-    )
-    telemetry_recorder = TelemetryRecorder(root=otel_proxy)
+    # Imported here to avoid circular imports.
+    from wandb.apis.public.service_api import ServiceApi
+
+    service_api = ServiceApi(settings=settings)
+    telemetry_recorder = TelemetryRecorder(service_api=service_api)
     get_sentry().configure_scope(tags=dict(settings), process_context="service")
 
     try:
@@ -88,8 +87,6 @@ def _start(
         # TODO: remove sentry once we no longer support/need it
         get_sentry().exception(e)
         telemetry_recorder.reraise(e)
-    finally:
-        otel_proxy.shutdown()
 
 
 class ServiceProcess:

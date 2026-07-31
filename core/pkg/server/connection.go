@@ -678,7 +678,11 @@ func (nc *Connection) handleSyncStatus(
 func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest) {
 	s := settings.From(request.GetSettings())
 
-	telemetryProxy := analytics.NewOpenTelemetryProxy(context.Background(), s)
+	telemetryProxy := analytics.NewOpenTelemetryProxy(
+		context.Background(),
+		s,
+		"wandb-core",
+	)
 	go func() {
 		<-nc.connLifetimeCtx.Done()
 		if telemetryProxy != nil {
@@ -734,7 +738,15 @@ func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest
 }
 
 // handleApiCleanup cleans up a wandbAPI instance related to the provided id.
-func (nc *Connection) handleApiCleanup(id string, request *spb.ServerApiCleanupRequest) {
+func (nc *Connection) handleApiCleanup(
+	id string,
+	request *spb.ServerApiCleanupRequest,
+) {
+	wbapiInstance, err := nc.apiManager.GetWandbAPI(request.GetApiId())
+	if err == nil {
+		wbapiInstance.Shutdown(context.Background())
+	}
+
 	nc.apiManager.RemoveWandbAPI(request.GetApiId())
 }
 

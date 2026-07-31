@@ -17,7 +17,8 @@ from typing import Any
 import click
 from typing_extensions import Never
 
-from wandb.analytics import OtelProvider, TelemetryRecorder, get_sentry
+from wandb.analytics import TelemetryRecorder, get_sentry
+from wandb.apis.public.service_api import ServiceApi
 from wandb.env import error_reporting_enabled, is_debug
 from wandb.errors import WandbCoreNotAvailableError
 from wandb.sdk import wandb_setup
@@ -229,12 +230,8 @@ def _run_core(
 def launch(path: str | None, pprof: str) -> Never:
     """Launch the LEET TUI."""
     get_sentry().configure_scope(process_context="leet")
-    singleton_settings = wandb_setup.singleton().settings
-    otel_proxy = OtelProvider(
-        auth_provider=lambda: wbauth.get_system_auth(host=singleton_settings.base_url),
-        endpoint=singleton_settings.base_url,
-    )
-    telemetry_recorder = TelemetryRecorder(root=otel_proxy)
+    service_api = ServiceApi(settings=wandb_setup.singleton().settings)
+    telemetry_recorder = TelemetryRecorder(service_api=service_api)
 
     if path is not None and (path.startswith("https://") or path.startswith("http://")):
         config = _create_remote_launch_config(path)
@@ -255,40 +252,26 @@ def launch(path: str | None, pprof: str) -> Never:
         # Set api key so it is not visible in the process tree
         env["WANDB_API_KEY"] = config.api_key
 
-    try:
-        _run_core(telemetry_recorder, args, env)
-    finally:
-        otel_proxy.shutdown()
+    _run_core(telemetry_recorder, args, env)
 
 
 def launch_config() -> Never:
     """Launch the LEET configuration editor."""
     get_sentry().configure_scope(process_context="leet-config")
-    singleton_settings = wandb_setup.singleton().settings
-    otel_proxy = OtelProvider(
-        auth_provider=lambda: wbauth.get_system_auth(host=singleton_settings.base_url),
-        endpoint=singleton_settings.base_url,
-    )
-    telemetry_recorder = TelemetryRecorder(root=otel_proxy)
+    service_api = ServiceApi(settings=wandb_setup.singleton().settings)
+    telemetry_recorder = TelemetryRecorder(service_api=service_api)
 
     args = _base_args(telemetry_recorder)
     args.append("--config")
 
-    try:
-        _run_core(telemetry_recorder, args)
-    finally:
-        otel_proxy.shutdown()
+    _run_core(telemetry_recorder, args)
 
 
 def launch_symon(pprof: str = "", interval: str = "") -> Never:
     """Launch the standalone system monitor."""
     get_sentry().configure_scope(process_context="leet-symon")
-    singleton_settings = wandb_setup.singleton().settings
-    otel_proxy = OtelProvider(
-        auth_provider=lambda: wbauth.get_system_auth(host=singleton_settings.base_url),
-        endpoint=singleton_settings.base_url,
-    )
-    telemetry_recorder = TelemetryRecorder(root=otel_proxy)
+    service_api = ServiceApi(settings=wandb_setup.singleton().settings)
+    telemetry_recorder = TelemetryRecorder(service_api=service_api)
 
     args = _base_args(telemetry_recorder)
     args.append("--symon")
@@ -299,10 +282,7 @@ def launch_symon(pprof: str = "", interval: str = "") -> Never:
     if interval:
         args.extend(["--interval", interval])
 
-    try:
-        _run_core(telemetry_recorder, args)
-    finally:
-        otel_proxy.shutdown()
+    _run_core(telemetry_recorder, args)
 
 
 def _get_local_launch_args(config: LocalLaunchConfig) -> list[str]:

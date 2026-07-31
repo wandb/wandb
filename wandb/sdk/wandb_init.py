@@ -29,7 +29,8 @@ from typing_extensions import Any, Protocol
 import wandb
 import wandb.env
 from wandb import env, trigger
-from wandb.analytics import OtelProvider, TelemetryRecorder, get_sentry
+from wandb.analytics import TelemetryRecorder, get_sentry
+from wandb.apis.public.service_api import ServiceApi
 from wandb.errors import Error, UsageError
 from wandb.errors.links import url_registry
 from wandb.errors.util import ProtobufErrorHandler
@@ -38,7 +39,6 @@ from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk.lib import ipython as wb_ipython
 from wandb.sdk.lib import noop_run, progress, runid, wb_logging
 from wandb.sdk.lib.paths import StrPath
-from wandb.sdk.lib.wbauth import get_system_auth
 from wandb.util import _is_artifact_representation
 
 from . import wandb_login, wandb_setup
@@ -1455,11 +1455,8 @@ def init(  # noqa: C901
         init_telemetry.feature.set_init_config = True
 
     wl: wandb_setup._WandbSetup | None = None
-    init_otel_proxy = OtelProvider(
-        auth_provider=lambda: get_system_auth(host=init_settings.base_url),
-        endpoint=init_settings.base_url,
-    )
-    telemetry_recorder = TelemetryRecorder(root=init_otel_proxy)
+    service_api = ServiceApi(settings=init_settings)
+    telemetry_recorder = TelemetryRecorder(service_api=service_api)
 
     try:
         wl = wandb_setup.singleton()
@@ -1551,5 +1548,3 @@ def init(  # noqa: C901
         # TODO: remove sentry once we no longer support/need it
         get_sentry().exception(e)
         telemetry_recorder.reraise(e)
-    finally:
-        init_otel_proxy.shutdown()

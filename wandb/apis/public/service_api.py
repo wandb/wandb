@@ -260,6 +260,19 @@ class ServiceApi:
         request.api_id = session.api_id
         return await session.connection.api_request_async(request)
 
+    def api_publish(
+        self,
+        request: ApiRequest,
+    ) -> None:
+        """Publish an API request to the backend service without waiting for a response.
+
+        Args:
+            request: The Api request to publish.
+        """
+        session = self._get_api_session()
+        request.api_id = session.api_id
+        session.connection.api_publish(request)
+
     def feature_enabled(
         self,
         feature: pb.ServerFeature | str,
