@@ -743,7 +743,7 @@ class _WandbInit:
             dispose_handler()
             raise
 
-    def make_disabled_run(self, config: _ConfigParts) -> Run:
+    def make_disabled_run(self, settings: Settings, config: _ConfigParts) -> Run:
         """Returns a Run-like object where all methods are no-ops.
 
         This method is used when the `mode` setting is set to "disabled", such as
@@ -756,19 +756,20 @@ class _WandbInit:
         The returned Run object has all expected attributes and methods, but they
         are no-op versions that don't perform any actual logging or communication.
         """
-        run_id = runid.generate_id()
+        run_id = settings.run_id or runid.generate_id()
+        project = settings.project if settings.project != "uncategorized" else "dummy"
+        disabled_settings = settings.model_copy(
+            update={
+                "mode": "disabled",
+                "run_id": run_id,
+                "run_name": settings.run_name or f"dummy-{run_id}",
+                "project": project,
+                "entity": settings.entity or "dummy",
+                "root_dir": tempfile.gettempdir(),
+            }
+        )
         return noop_run.init_noop_run(
-            settings=Settings(
-                mode="disabled",
-                root_dir=tempfile.gettempdir(),
-                run_id=run_id,
-                run_tags=tuple(),
-                run_notes=None,
-                run_group=None,
-                run_name=f"dummy-{run_id}",
-                project="dummy",
-                entity="dummy",
-            ),
+            settings=disabled_settings,
             config={**config.base_no_artifacts, **config.sweep_no_artifacts},
         )
 
@@ -1505,7 +1506,7 @@ def init(  # noqa: C901
             )
 
             if run_settings._noop:
-                return wi.make_disabled_run(run_config)
+                return wi.make_disabled_run(run_settings, run_config)
 
             exit_stack.enter_context(wi.setup_run_log_directory(run_settings))
 
