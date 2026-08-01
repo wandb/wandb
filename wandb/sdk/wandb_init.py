@@ -626,8 +626,6 @@ class _WandbInit:
     def _jupyter_teardown(self) -> None:
         """Teardown hooks and display saving, called with wandb.finish."""
         assert self.notebook
-        ipython = self.notebook.shell
-
         if self.run:
             self.notebook.save_history(self.run)
 
@@ -636,6 +634,10 @@ class _WandbInit:
             res = self.run.log_code(root=None)
             self._logger.info("saved code and history: %s", res)
         self._logger.info("cleaning up jupyter logic")
+
+        ipython = self.notebook.shell
+        if ipython is None:
+            return
 
         ipython.events.unregister("pre_run_cell", self._pre_run_cell_hook)
         ipython.events.unregister("post_run_cell", self._post_run_cell_hook)
@@ -647,6 +649,8 @@ class _WandbInit:
         """Add hooks, and session history saving."""
         self.notebook = wandb.jupyter.Notebook(settings)
         ipython = self.notebook.shell
+        if ipython is None:
+            return
 
         # Monkey patch ipython publish to capture displayed outputs
         if not hasattr(ipython.display_pub, "_orig_publish"):

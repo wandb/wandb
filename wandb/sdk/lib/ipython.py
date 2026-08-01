@@ -32,24 +32,23 @@ def _get_python_type() -> PythonType:
         from IPython import get_ipython  # type: ignore
 
         # Calling get_ipython can cause an ImportError
-        if get_ipython() is None:
-            return "python"
+        ipython = get_ipython()
     except ImportError:
+        return "python"
+    if ipython is None:
         return "python"
 
     # jupyter-based environments (e.g. jupyter itself, colab, kaggle, etc) have a connection file
     ip_kernel_app_connection_file = (
-        (get_ipython().config.get("IPKernelApp", {}) or {})
-        .get("connection_file", "")
-        .lower()
+        (ipython.config.get("IPKernelApp", {}) or {}).get("connection_file", "").lower()
     ) or (
-        (get_ipython().config.get("ColabKernelApp", {}) or {})
+        (ipython.config.get("ColabKernelApp", {}) or {})
         .get("connection_file", "")
         .lower()
     )
 
     if (
-        ("terminal" in get_ipython().__module__)
+        ("terminal" in ipython.__module__)
         or ("jupyter" not in ip_kernel_app_connection_file)
         or ("spyder" in sys.modules)
     ):
@@ -81,7 +80,9 @@ def in_vscode_notebook() -> bool:
         return False
 
     ipython = get_ipython()
-    if not ipython:
+
+    # The kernel attribute only exists when running under ipykernel.
+    if not ipython or not hasattr(ipython, "kernel"):
         return False
 
     return ipython.kernel.shell.user_ns.get("__vsc_ipynb_file__") is not None
