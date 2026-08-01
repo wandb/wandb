@@ -174,8 +174,7 @@ def test_agent_writes_args_json_file_under_wandb_dir(
         )
 
     args_json_path = (
-        wandb_dir
-        / f"wandb/sweep-{wandb_agent_env.cli_sweep_id}/config-run.json"
+        wandb_dir / f"wandb/sweep-{wandb_agent_env.cli_sweep_id}/config-run.json"
     )
     assert json.loads(args_json_path.read_text()) == {"param1": 1}
     assert agent_process.call_args.kwargs["command"] == [str(args_json_path)]
