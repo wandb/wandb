@@ -153,14 +153,16 @@ def test_cli_agent_sweep_not_found_waits_for_active_run(
     assert "Active runs will be allowed to finish before the agent exits" in err
 
 
-def test_agent_writes_args_json_file_under_wandb_dir(monkeypatch, tmp_path):
-    monkeypatch.chdir(tmp_path)
-    wandb_dir = tmp_path / "wandb-out"
-    monkeypatch.setenv(env.DIR, str(wandb_dir))
-    monkeypatch.setenv(env.SWEEP_ID, "test")
+def test_agent_writes_args_json_file_under_wandb_dir(
+    wandb_agent_env: WandbAgentTestEnv,
+):
+    wandb_agent_env.patch_cli()
+    api = wandb_agent_env.mock_api(for_cli=True)
+    wandb_dir = wandb_agent_env.tmp_path / "wandb-out"
+    wandb_agent_env.monkeypatch.setenv(env.DIR, str(wandb_dir))
 
     with mock.patch.object(wandb_agent, "AgentProcess") as agent_process:
-        agent = Agent(mock.Mock(), mock.Mock(), sweep_id="test")
+        agent = wandb_agent_env.make_cli_agent(api)
         agent._sweep_command = ["${args_json_file}"]
         # If we don't support custom wandb_dirs, this will throw an error.
         agent._command_run(
@@ -171,6 +173,9 @@ def test_agent_writes_args_json_file_under_wandb_dir(monkeypatch, tmp_path):
             }
         )
 
-    args_json_path = wandb_dir / "wandb/sweep-test/config-run.json"
+    args_json_path = (
+        wandb_dir
+        / f"wandb/sweep-{wandb_agent_env.cli_sweep_id}/config-run.json"
+    )
     assert json.loads(args_json_path.read_text()) == {"param1": 1}
     assert agent_process.call_args.kwargs["command"] == [str(args_json_path)]
