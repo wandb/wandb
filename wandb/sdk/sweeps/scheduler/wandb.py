@@ -7,14 +7,14 @@ from typing import Any
 
 from wandb import util
 from wandb.apis.public import Sweep
-from wandb.sdk.launch.sweeps.scheduler import RunState
-from wandb.sdk.sweep_scheduler.optimizer import (
+from wandb.sdk.sweeps.run_state import RunState
+from wandb.sdk.sweeps.scheduler.optimizer import (
     ConfigValue,
     Optimizer,
     Run,
     RunConfig,
-    RunEnriched,
     RunSuggestion,
+    RunWithMetrics,
     is_terminal_state,
 )
 
@@ -52,7 +52,7 @@ class WandbOptimizer(Optimizer):
         self._run_counter += 1
         return run_id
 
-    def _record(self, run_id: str, data: RunEnriched) -> Any:
+    def _record(self, run_id: str, data: RunWithMetrics) -> Any:
         """Create and store a SweepRun for `run_id` from `data`."""
         sweep_run = sweeps.SweepRun(
             name=run_id,
@@ -64,7 +64,7 @@ class WandbOptimizer(Optimizer):
         self._runs[run_id] = sweep_run
         return sweep_run
 
-    def next_n_runs(self, n: int) -> Sequence[RunSuggestion]:
+    def ask_n_runs(self, n: int) -> Sequence[RunSuggestion]:
         """Ask the `sweeps` search for up to `n` new runs.
 
         Args:
@@ -95,7 +95,7 @@ class WandbOptimizer(Optimizer):
             )
         return suggestions
 
-    def tell_run(self, run_id: Any, data: RunEnriched) -> None:
+    def tell_run(self, run_id: Any, data: RunWithMetrics) -> None:
         """Record a run's latest outcome for the next search call to read.
 
         Args:
@@ -115,7 +115,7 @@ class WandbOptimizer(Optimizer):
         sweep_run.summary_metrics = data.summary_metrics or {}
         sweep_run.history = list(data.history_metrics)
 
-    def prune_run(self, run_id: Any, data: RunEnriched) -> bool:
+    def prune_run(self, run_id: Any, data: RunWithMetrics) -> bool:
         """Return True if hyperband says the run should stop early.
 
         Always False unless the sweep config has an `early_terminate` block.
@@ -136,7 +136,7 @@ class WandbOptimizer(Optimizer):
         """Sweeps library does not implement this, so we return False."""
         return False
 
-    def tell_existing_finished_run(self, data: RunEnriched) -> None:
+    def tell_existing_finished_run(self, data: RunWithMetrics) -> None:
         """Add a terminal run that predates this optimizer to its memory.
 
         The search then treats it as a completed sample. Non-terminal runs are
