@@ -1,118 +1,179 @@
-use fork::{fork, Fork};
-use sentry;
-use std::fs;
-use std::io;
-use std::process::{Child, Command};
-use std::{fmt, thread, time};
-use tempfile::NamedTempFile;
-use tracing;
+//! Launches the wandb-core service process and discovers its address.
 
+use std::path::{Path, PathBuf};
+use std::process::{Child, Command, Stdio};
+use std::time::{Duration, Instant};
+
+use crate::error::{Error, Result};
+
+/// How long to wait for wandb-core to write its port file.
+const SERVICE_WAIT: Duration = Duration::from_secs(30);
+
+/// How often to re-read the port file while waiting.
+const POLL_INTERVAL: Duration = Duration::from_millis(20);
+
+/// An address that wandb-core listens on.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Transport {
+    /// A Unix domain socket path.
+    #[cfg(unix)]
+    Unix(PathBuf),
+    /// A TCP port on localhost.
+    Tcp(u16),
+}
+
+/// A wandb-core process owned by this SDK.
 #[derive(Debug)]
-pub enum LauncherError {
-    Io(io::Error),
-    ForkFailed(String),
-    PortParseFailed,
-    Timeout,
+pub(crate) struct CoreProcess {
+    child: Child,
+    port_dir: PathBuf,
+    pub transport: Transport,
 }
 
-impl std::error::Error for LauncherError {}
+impl CoreProcess {
+    /// Starts wandb-core and waits for it to announce its address.
+    ///
+    /// The binary is taken from the `WANDB_CORE_PATH` environment variable
+    /// if set, otherwise `wandb-core` is looked up on `PATH`.
+    pub fn launch() -> Result<CoreProcess> {
+        let program = std::env::var("WANDB_CORE_PATH")
+            .ok()
+            .filter(|p| !p.is_empty())
+            .unwrap_or_else(|| "wandb-core".to_string());
 
-impl fmt::Display for LauncherError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            LauncherError::Io(err) => write!(f, "IO error: {}", err),
-            LauncherError::ForkFailed(msg) => write!(f, "Fork failed: {}", msg),
-            LauncherError::PortParseFailed => write!(f, "Failed to parse port number"),
-            LauncherError::Timeout => write!(f, "Timeout waiting for port"),
+        let pid = std::process::id();
+        let port_dir =
+            std::env::temp_dir().join(format!("wandb-rs-{}-{}", pid, crate::generate_id(8)));
+        std::fs::create_dir_all(&port_dir)?;
+        let port_file = port_dir.join(format!("port-{pid}.txt"));
+
+        let mut command = Command::new(&program);
+        command
+            .arg("--port-filename")
+            .arg(&port_file)
+            .arg("--pid")
+            .arg(pid.to_string())
+            .stdin(Stdio::null());
+        // The Rust std library has no Unix socket support on Windows.
+        if cfg!(windows) {
+            command.arg("--listen-on-localhost");
         }
-    }
-}
 
-impl From<io::Error> for LauncherError {
-    fn from(err: io::Error) -> Self {
-        LauncherError::Io(err)
-    }
-}
-
-pub struct Launcher {
-    pub command: String,
-    pub child_process: Option<Child>,
-}
-
-fn wait_for_port(port_filename: &str, timeout: time::Duration) -> Result<i32, LauncherError> {
-    let start_time = time::Instant::now();
-    let delay_time = time::Duration::from_millis(20);
-
-    while start_time.elapsed() < timeout {
-        thread::sleep(delay_time);
-        let contents = fs::read_to_string(port_filename)?;
-        let lines: Vec<_> = contents.lines().collect();
-
-        if lines.last().copied() == Some("EOF") {
-            for item in lines.iter() {
-                if let Some((param, val)) = item.split_once('=') {
-                    if param == "sock" {
-                        return val.parse().map_err(|_| LauncherError::PortParseFailed);
-                    }
-                }
-            }
-        }
-    }
-
-    Err(LauncherError::Timeout)
-}
-
-impl Launcher {
-    pub fn start(&mut self) -> Result<i32, LauncherError> {
-        let port_file = NamedTempFile::new()?;
-        let port_filename = port_file.path().to_str().ok_or_else(|| {
-            LauncherError::Io(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "Failed to get port filename",
-            ))
-        })?;
-
-        // WANDB_CORE_DEBUG env variable controls debug mode
-        let debug = std::env::var("WANDB_CORE_DEBUG").unwrap_or_default();
-
-        match fork() {
-            Ok(Fork::Parent(_child)) => wait_for_port(port_filename, time::Duration::from_secs(30)),
-            Ok(Fork::Child) => {
-                let mut command = Command::new(&self.command);
-                command.arg("--port-filename").arg(port_filename);
-
-                if debug == "1" || debug.eq_ignore_ascii_case("true") {
-                    command.arg("--debug");
-                }
-
-                let child = command
-                    .stdout(std::process::Stdio::inherit()) // Inherit stdout
-                    .stderr(std::process::Stdio::inherit()) // Inherit stderr
-                    .spawn()?; // Start the process
-
-                // Store the child process handle
-                self.child_process = Some(child);
-
-                std::process::exit(0);
-            }
+        let mut child = command
+            .spawn()
+            .map_err(|e| Error::Service(format!("failed to start {program}: {e}")))?;
+        match wait_for_port_file(&mut child, &port_file) {
+            Ok(transport) => Ok(CoreProcess {
+                child,
+                port_dir,
+                transport,
+            }),
             Err(e) => {
-                let error = LauncherError::ForkFailed(e.to_string());
-                sentry::capture_error(&error);
-                tracing::error!("Fork failed: {}", e);
-                Err(error)
+                let _ = child.kill();
+                let _ = child.wait();
+                let _ = std::fs::remove_dir_all(&port_dir);
+                Err(e)
             }
         }
     }
+
+    /// Waits for the process to exit, killing it after `timeout`.
+    pub fn join(&mut self, timeout: Duration) -> Result<()> {
+        let deadline = Instant::now() + timeout;
+        while Instant::now() < deadline {
+            if self.child.try_wait()?.is_some() {
+                return Ok(());
+            }
+            std::thread::sleep(POLL_INTERVAL);
+        }
+        tracing::warn!("wandb-core did not exit in {timeout:?}; killing it");
+        self.child.kill()?;
+        self.child.wait()?;
+        Ok(())
+    }
 }
 
-impl Drop for Launcher {
+impl Drop for CoreProcess {
     fn drop(&mut self) {
-        if let Some(child) = &mut self.child_process {
-            // Attempt to terminate the child process if it's still running
-            match child.kill() {
-                Ok(_) => tracing::info!("wandb-core process terminated."),
-                Err(e) => tracing::error!("Failed to terminate wandb-core process: {}", e),
+        // Kill the process if it is still running; the normal path is a
+        // teardown request followed by `join`.
+        if matches!(self.child.try_wait(), Ok(None)) {
+            let _ = self.child.kill();
+            let _ = self.child.wait();
+        }
+        let _ = std::fs::remove_dir_all(&self.port_dir);
+    }
+}
+
+/// Polls the port file until wandb-core finishes writing it.
+fn wait_for_port_file(child: &mut Child, port_file: &Path) -> Result<Transport> {
+    let deadline = Instant::now() + SERVICE_WAIT;
+    while Instant::now() < deadline {
+        if let Some(status) = child.try_wait()? {
+            return Err(Error::Service(format!(
+                "wandb-core exited before becoming ready: {status}"
+            )));
+        }
+        if let Ok(contents) = std::fs::read_to_string(port_file) {
+            if let Some(transport) = parse_port_file(&contents) {
+                return Ok(transport);
             }
         }
+        std::thread::sleep(POLL_INTERVAL);
+    }
+    Err(Error::Service(format!(
+        "timed out after {SERVICE_WAIT:?} waiting for wandb-core to start"
+    )))
+}
+
+/// Parses the port file written by wandb-core.
+///
+/// The file lists addresses as `unix=<path>` and `sock=<port>` lines and is
+/// complete once the last line is `EOF`. Returns `None` if the file is
+/// incomplete. Unix domain sockets are preferred where supported.
+fn parse_port_file(contents: &str) -> Option<Transport> {
+    let lines: Vec<&str> = contents.lines().collect();
+    if lines.last() != Some(&"EOF") {
+        return None;
+    }
+    let mut tcp = None;
+    for line in lines {
+        #[cfg(unix)]
+        if let Some(path) = line.strip_prefix("unix=") {
+            return Some(Transport::Unix(PathBuf::from(path)));
+        }
+        if let Some(port) = line.strip_prefix("sock=") {
+            tcp = port.parse().ok().map(Transport::Tcp);
+        }
+    }
+    tcp
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_port_file_incomplete() {
+        assert_eq!(parse_port_file(""), None);
+        assert_eq!(parse_port_file("unix=/tmp/sock\n"), None);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn parse_port_file_prefers_unix() {
+        assert_eq!(
+            parse_port_file("unix=/tmp/sock\nsock=8080\nEOF"),
+            Some(Transport::Unix(PathBuf::from("/tmp/sock")))
+        );
+    }
+
+    #[test]
+    fn parse_port_file_tcp_only() {
+        assert_eq!(
+            parse_port_file("sock=8080\nEOF"),
+            Some(Transport::Tcp(8080))
+        );
+        assert_eq!(parse_port_file("sock=notaport\nEOF"), None);
     }
 }

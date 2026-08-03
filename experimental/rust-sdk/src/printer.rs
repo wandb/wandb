@@ -81,11 +81,15 @@ pub mod styled_string {
 
     pub mod custom_chars {
         pub const SUCCESS_ICON: &str = "✓";
+        #[allow(dead_code)]
         pub const FAIL_ICON: &str = "✗";
         pub const ROCKET_ICON: &str = "🚀";
+        #[allow(dead_code)]
         pub const PREFIX_1_8: &str = "▏";
+        #[allow(dead_code)]
         pub const PREFIX_1_4: &str = "▎";
         pub const PREFIX_3_8: &str = "▍";
+        #[allow(dead_code)]
         pub const PREFIX_1_2: &str = "▌";
     }
 
@@ -222,7 +226,7 @@ pub fn print_header(name: &str, url: &str) {
     styled_string::add_prefix(&mut head);
     println!("{}", head);
 
-    let active_msg = format!("Creating run...");
+    let active_msg = "Creating run...".to_string();
     let pb = Printer::start_spinner(active_msg);
 
     // TODO: this is for the demo and should be implemented properly

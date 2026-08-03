@@ -1,34 +1,36 @@
 [package]
 name = "wandb"
-version = "0.18.7-alpha.1"
+version = "0.28.1-alpha.1"
 edition = "2021"
-description = "Weights & Biases Rust SDK"
+description = "Weights & Biases Rust SDK (experimental)"
 license = "MIT"
 repository = "https://github.com/wandb/wandb"
 authors = ["Dima Duev <dima@wandb.com>", "Katia Patkin <katia@wandb.com>"]
 readme = "README.md"
-
-
-[lib]
-path = "src/lib.rs"
+keywords = ["machine-learning", "experiment-tracking", "mlops", "wandb"]
+categories = ["development-tools", "science"]
 
 [dependencies]
-sentry = "0.36.0"
-tracing = "0.1.40"
-tracing-subscriber = "0.3.18"
-prost = "0.13"
-prost-types = "0.13"
-rand = "0.8.5"
-byteorder = "1.5.0"
-indicatif = "0.17.8"
-colored = "2.1.0"
-fork = "0.2"
-chrono = "0.4.38"
-tempfile = "3.10.1"
-serde = { version = "1.0", features = ["derive"] }
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+colored = "2.1"
+indicatif = "0.17"
+prost = "0.14"
+prost-types = "0.14"
+rand = "0.9"
 serde_json = "1.0"
+thiserror = "2.0"
+tracing = "0.1"
 
+# Used only by the `build_proto` tool; not part of the library.
+prost-build = { version = "0.14", optional = true }
+tempfile = { version = "3.10", optional = true }
 
-[build-dependencies]
-tempfile = "3.10.1"
-prost-build = "0.13"
+[features]
+# Enables the `build_proto` tool that regenerates src/wandb_internal.rs.
+# Requires protoc and the wandb proto sources (i.e. a checkout of this repo).
+proto-gen = ["dep:prost-build", "dep:tempfile"]
+
+[[bin]]
+name = "build_proto"
+path = "tools/build_proto.rs"
+required-features = ["proto-gen"]
