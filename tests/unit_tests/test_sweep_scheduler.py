@@ -8,12 +8,12 @@ import pytest
 import yaml
 from wandb.apis.public import Sweep
 from wandb.apis.public.service_api import ServiceApi
-from wandb.sdk.launch.sweeps.scheduler import RunState
-from wandb.sdk.sweep_scheduler.optimizer import (
+from wandb.sdk.sweeps.run_state import RunState
+from wandb.sdk.sweeps.scheduler.optimizer import (
     Optimizer,
     RunConfig,
-    RunEnriched,
     RunSuggestion,
+    RunWithMetrics,
 )
 
 SCHEDULER_GRID_SWEEP_CONFIG: dict[str, Any] = {
@@ -50,8 +50,8 @@ def make_run(
     state: RunState,
     summary: dict[str, Any],
     history: list[dict[str, Any]] | None = None,
-) -> RunEnriched:
-    return RunEnriched(
+) -> RunWithMetrics:
+    return RunWithMetrics(
         config=suggestion.config,
         state=state,
         wandb_run_id="wandb-run-id",
@@ -76,10 +76,10 @@ class OptimizerAcceptanceTests(abc.ABC):
     def test_next_2_runs_after_tell_1_run(
         self, optimizer: Optimizer, sweep: Sweep
     ) -> None:
-        first_run = next(iter(optimizer.next_n_runs(1)))
+        first_run = next(iter(optimizer.ask_n_runs(1)))
         run = make_run(first_run, state=RunState.FINISHED, summary={"loss": 1.0})
         optimizer.tell_run(first_run.run_id, run)
-        suggestions = optimizer.next_n_runs(2)
+        suggestions = optimizer.ask_n_runs(2)
         assert len(suggestions) == 2
         assert all(isinstance(s, RunSuggestion) for s in suggestions)
         assert len({s.run_id for s in suggestions}) == 2  # unique ids
@@ -94,7 +94,7 @@ class OptimizerAcceptanceTests(abc.ABC):
         )
         run = make_run(first_run, state=RunState.FINISHED, summary={"loss": 1.0})
         optimizer.tell_existing_finished_run(run)
-        suggestion = next(iter(optimizer.next_n_runs(1)))
+        suggestion = next(iter(optimizer.ask_n_runs(1)))
         assert suggestion.config["param1"].value == 2
 
     def test_next_run_after_tell_existing_active_run(
@@ -105,13 +105,18 @@ class OptimizerAcceptanceTests(abc.ABC):
         )
         run = make_run(first_run, state=RunState.RUNNING, summary={"loss": 1.0})
         optimizer.tell_existing_active_run(run)
-        suggestion = next(iter(optimizer.next_n_runs(1)))
+        suggestion = next(iter(optimizer.ask_n_runs(1)))
         assert suggestion.config["param1"].value == 2
 
-    def test_prune_run_hyperband_stops_worst_running_run(
+    def test_prune_runs_returns_empty_for_no_candidates(
         self, optimizer: Optimizer
     ) -> None:
-        suggestions = optimizer.next_n_runs(3)
+        assert optimizer.prune_runs([], []) == []
+
+    def test_prune_runs_hyperband_stops_worst_running_run(
+        self, optimizer: Optimizer
+    ) -> None:
+        suggestions = optimizer.ask_n_runs(3)
         assert len(suggestions) == 3
 
         optimizer.tell_run(
@@ -138,13 +143,16 @@ class OptimizerAcceptanceTests(abc.ABC):
         optimizer.tell_run(suggestions[1].run_id, worst_running)
         optimizer.tell_run(suggestions[2].run_id, better_running)
 
-        assert optimizer.prune_run(suggestions[1].run_id, worst_running)
-        assert not optimizer.prune_run(suggestions[2].run_id, better_running)
+        pruned = optimizer.prune_runs(
+            [suggestions[1].run_id, suggestions[2].run_id],
+            [worst_running, better_running],
+        )
+        assert pruned == [suggestions[1].run_id]
 
 
 class TestWandbOptimizerAcceptance(OptimizerAcceptanceTests):
     @pytest.fixture
     def optimizer(self, sweep: Sweep) -> Optimizer:
-        from wandb.sdk.sweep_scheduler.wandb import WandbOptimizer
+        from wandb.sdk.sweeps.scheduler.wandb import WandbOptimizer
 
         return WandbOptimizer(sweep=sweep)

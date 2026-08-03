@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from wandb.apis.public import Sweep
-from wandb.sdk.launch.sweeps.scheduler import RunState
+from wandb.sdk.sweeps.run_state import RunState
 
 
 @dataclass
@@ -70,7 +70,7 @@ class Run:
 
 
 @dataclass
-class RunEnriched(Run):
+class RunWithMetrics(Run):
     """A `Run` together with the metrics it has reported so far.
 
     `summary_metrics` is the run's latest summary; `history_metrics` is the
@@ -100,15 +100,15 @@ def is_terminal_state(state: RunState) -> bool:
 class Optimizer(ABC):
     """An external optimizer that supports an ask-tell interface.
 
-    Pure search strategy: it proposes runs and ingests their results, holding no
-    scheduling I/O. A `Scheduler` drives it.
+    A `Scheduler` asks for runs from the optimizer.
+    It then tells the run results back to the optimizer.
     """
 
     def __init__(self, sweep: Sweep):
         self._sweep = sweep
 
     @abstractmethod
-    def next_n_runs(self, n: int) -> Sequence[RunSuggestion]:
+    def ask_n_runs(self, n: int) -> Sequence[RunSuggestion]:
         """Propose up to `n` runs to start next.
 
         Fewer than `n` may come back when the search space is nearly exhausted
@@ -123,7 +123,7 @@ class Optimizer(ABC):
         ...
 
     @abstractmethod
-    def tell_run(self, run_id: Any, data: RunEnriched) -> None:
+    def tell_run(self, run_id: Any, data: RunWithMetrics) -> None:
         """Report the latest state and metrics of a run this optimizer proposed.
 
         Called on each poll while the run is in flight, and once more when it
@@ -135,11 +135,11 @@ class Optimizer(ABC):
         """
         ...
 
-    def tell_existing_finished_run(self, data: RunEnriched) -> None:
+    def tell_existing_finished_run(self, data: RunWithMetrics) -> None:
         """Report a *terminal* run that already existed in the sweep at startup.
 
         Unlike `tell_run`, there is no optimizer-side run id because the run was
-        not produced by this optimizer's `next_n_runs`. Override to warm-start
+        not produced by this optimizer's `ask_n_runs`. Override to warm-start
         from prior results; the default is a no-op.
         """
         return None
@@ -170,11 +170,30 @@ class Optimizer(ABC):
 
     @property
     def sweep_name(self) -> str:
+        """The name of the sweep this optimizer searches."""
         return self._sweep.name
 
-    def prune_run(self, run_id: Any, data: RunEnriched) -> bool:
-        """Return True if the run should be pruned."""
+    def prune_run(self, run_id: Any, data: RunWithMetrics) -> bool:
+        """Return True if the run should be pruned.
+
+        Convenience implementation for single-run callers.
+        Subclasses should override `prune_runs` instead.
+        """
         return False
+
+    def prune_runs(
+        self, _run_ids: Sequence[str], _runs: Sequence[RunWithMetrics]
+    ) -> Sequence[str]:
+        """Return the optimizer run ids that should be pruned.
+
+        Override this method to implement early stopping. The default
+        implementation calls prune_run for each run.
+        """
+        return [
+            run_id
+            for run_id, run in zip(_run_ids, _runs)
+            if self.prune_run(run_id, run)
+        ]
 
     def should_terminate_sweep(self) -> bool:
         """Return True if the sweep should be terminated."""

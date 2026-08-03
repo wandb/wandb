@@ -5,16 +5,18 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
+from typing_extensions import override
+
 from wandb import util
 from wandb.apis.public import Sweep
-from wandb.sdk.launch.sweeps.scheduler import RunState
-from wandb.sdk.sweep_scheduler.optimizer import (
+from wandb.sdk.sweeps.run_state import RunState
+from wandb.sdk.sweeps.scheduler.optimizer import (
     ConfigValue,
     Optimizer,
     Run,
     RunConfig,
-    RunEnriched,
     RunSuggestion,
+    RunWithMetrics,
     is_terminal_state,
 )
 
@@ -41,6 +43,7 @@ class WandbOptimizer(Optimizer):
     runs in memory.
     """
 
+    @override
     def __init__(self, sweep: Sweep):
         super().__init__(sweep)
         # key: run id, value: the SweepRun we hold for it
@@ -52,19 +55,33 @@ class WandbOptimizer(Optimizer):
         self._run_counter += 1
         return run_id
 
-    def _record(self, run_id: str, data: RunEnriched) -> Any:
-        """Create and store a SweepRun for `run_id` from `data`."""
+    def _to_sweep_run(self, run_id: str, data: RunWithMetrics) -> Any:
         sweep_run = sweeps.SweepRun(
             name=run_id,
             config=data.config.wire_dict(),
             state=_to_sweeps_state(data.state),
-            summary_metrics=data.summary_metrics or {},
-            history=list(data.history_metrics),
         )
+        sweep_run.summary_metrics = data.summary_metrics or {}
+        sweep_run.history = list(data.history_metrics)
+        return sweep_run
+
+    def _record(self, run_id: str, data: RunWithMetrics) -> Any:
+        """Create and store a SweepRun for `run_id` from `data`."""
+        sweep_run = self._to_sweep_run(run_id, data)
         self._runs[run_id] = sweep_run
         return sweep_run
 
-    def next_n_runs(self, n: int) -> Sequence[RunSuggestion]:
+    def _sweep_runs_for_stop_runs(
+        self, run_ids: Sequence[str], runs: Sequence[RunWithMetrics]
+    ) -> list[Any]:
+        """Merge in-memory runs with the scheduler's latest poll snapshot."""
+        sweep_runs_by_name = {run.name: run for run in self._runs.values()}
+        for run_id, data in zip(run_ids, runs, strict=True):
+            sweep_runs_by_name[run_id] = self._to_sweep_run(run_id, data)
+        return list(sweep_runs_by_name.values())
+
+    @override
+    def ask_n_runs(self, n: int) -> Sequence[RunSuggestion]:
         """Ask the `sweeps` search for up to `n` new runs.
 
         Args:
@@ -95,7 +112,8 @@ class WandbOptimizer(Optimizer):
             )
         return suggestions
 
-    def tell_run(self, run_id: Any, data: RunEnriched) -> None:
+    @override
+    def tell_run(self, run_id: Any, data: RunWithMetrics) -> None:
         """Record a run's latest outcome for the next search call to read.
 
         Args:
@@ -115,28 +133,37 @@ class WandbOptimizer(Optimizer):
         sweep_run.summary_metrics = data.summary_metrics or {}
         sweep_run.history = list(data.history_metrics)
 
-    def prune_run(self, run_id: Any, data: RunEnriched) -> bool:
-        """Return True if hyperband says the run should stop early.
+    @override
+    def prune_runs(
+        self, run_ids: Sequence[str], runs: Sequence[RunWithMetrics]
+    ) -> Sequence[str]:
+        """Return the runs hyperband says should stop early.
 
-        Always False unless the sweep config has an `early_terminate` block.
+        Returns nothing unless the sweep config has an `early_terminate` block.
 
         Args:
-            run_id: The run id this optimizer handed out.
-            data: The run's current state, summary metrics and history.
+            run_ids: Optimizer run ids to consider for pruning.
+            runs: The corresponding run metrics from the scheduler's latest poll.
         """
         if "early_terminate" not in self._sweep.config:
-            return False
+            return []
         try:
-            to_stop = sweeps.stop_runs(self._sweep.config, list(self._runs.values()))
+            to_stop = sweeps.stop_runs(
+                self._sweep.config,
+                self._sweep_runs_for_stop_runs(run_ids, runs),
+            )
         except Exception:
-            return False
-        return any(run.name == run_id for run in to_stop)
+            return []
+        to_stop_names = {run.name for run in to_stop}
+        return [run_id for run_id in run_ids if run_id in to_stop_names]
 
+    @override
     def should_terminate_sweep(self) -> bool:
         """Sweeps library does not implement this, so we return False."""
         return False
 
-    def tell_existing_finished_run(self, data: RunEnriched) -> None:
+    @override
+    def tell_existing_finished_run(self, data: RunWithMetrics) -> None:
         """Add a terminal run that predates this optimizer to its memory.
 
         The search then treats it as a completed sample. Non-terminal runs are
@@ -149,6 +176,7 @@ class WandbOptimizer(Optimizer):
             return
         self._record(self._new_run_id(), data)
 
+    @override
     def tell_existing_active_run(self, data: Run) -> Any:
         """Adopt an in-flight run that predates this optimizer.
 
