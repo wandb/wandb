@@ -17,7 +17,7 @@ func (r *Run) handleRecordMsg(msg tea.Msg) tea.Cmd {
 	defer func() {
 		r.logger.Debug(fmt.Sprintf("perf: processRecordMsg(%T) took %s", msg, time.Since(start)))
 	}()
-	defer r.focusMgr.ResolveAfterAvailabilityChange()
+	defer r.resolveFocusAfterData()
 
 	switch msg := msg.(type) {
 	case RunMsg:
@@ -56,6 +56,9 @@ func (r *Run) handleRecordMsg(msg tea.Msg) tea.Cmd {
 	case ConsoleLogMsg:
 		r.logger.Debug("model: processing ConsoleLogMsg")
 		r.consoleLogs.ProcessRaw(msg.Text, msg.IsStderr, msg.Time)
+		// Keep the pane's data (and thus focus availability) current
+		// without waiting for the next render.
+		r.consoleLogsPane.SetConsoleLogs(r.consoleLogs.Items())
 
 	case FileCompleteMsg:
 		r.logger.Debug("model: processing FileCompleteMsg - file is complete!")
@@ -110,6 +113,11 @@ func (r *Run) handleMouseMsg(msg tea.MouseMsg) tea.Cmd {
 
 	layout := r.computeViewports()
 
+	// Pane resizing wins over pane-local mouse handling.
+	if r.handleLayoutDrag(msg, layout) {
+		return nil
+	}
+
 	if r.isInLeftSidebar(msg, layout) {
 		return r.handleLeftSidebarMouse()
 	}
@@ -119,6 +127,79 @@ func (r *Run) handleMouseMsg(msg tea.MouseMsg) tea.Cmd {
 	}
 
 	return r.handleMainContentMouse(msg, layout)
+}
+
+// handleLayoutDrag processes mouse events for pane-boundary resizing.
+// It returns true when the event was consumed by an active or new drag.
+func (r *Run) handleLayoutDrag(msg tea.MouseMsg, layout Layout) bool {
+	switch m := msg.(type) {
+	case tea.MouseClickMsg:
+		if m.Button != tea.MouseLeft {
+			return false
+		}
+		drag, ok := boundaryAt(m.X, m.Y, r.width, layout,
+			r.leftSidebar.IsExpanded(), r.rightSidebar.animState.IsExpanded())
+		if !ok || (drag.boundary == dragBoundarySeparator && r.mediaPane.IsFullscreen()) {
+			return false
+		}
+		drag.overrides = r.config.RunLayout()
+		r.drag = drag
+		return true
+
+	case tea.MouseMotionMsg:
+		if !r.drag.active() || m.Button != tea.MouseLeft {
+			return false
+		}
+		r.applyLayoutDrag(m.X, m.Y, layout)
+		return true
+
+	case tea.MouseReleaseMsg:
+		if !r.drag.active() {
+			return false
+		}
+		r.finishLayoutDrag()
+		return true
+	}
+	return false
+}
+
+// applyLayoutDrag updates the pending overrides from the mouse position and
+// re-lays the view out from them.
+func (r *Run) applyLayoutDrag(x, y int, layout Layout) {
+	o := &r.drag.overrides
+	switch r.drag.boundary {
+	case dragBoundaryLeftSidebar:
+		o.LeftSidebar = float64(x+1) / float64(r.width)
+	case dragBoundaryRightSidebar:
+		o.RightSidebar = float64(r.width-x) / float64(r.width)
+	case dragBoundarySeparator:
+		if !dragSeparator(o, layout, r.drag.section, y, r.height) {
+			return
+		}
+	}
+	r.drag.dirty = true
+	r.applyLayoutConfig()
+}
+
+// handleResetLayout resets the view's pane proportions to the defaults.
+func (r *Run) handleResetLayout(tea.KeyPressMsg) tea.Cmd {
+	if err := r.config.SetRunLayout(LayoutOverrides{}); err != nil {
+		r.logger.Error(fmt.Sprintf("model: failed to save layout: %v", err))
+	}
+	r.applyLayoutConfig()
+	return nil
+}
+
+// finishLayoutDrag persists the dragged proportions and ends the drag.
+func (r *Run) finishLayoutDrag() {
+	drag := r.drag
+	r.drag = layoutDrag{}
+	if !drag.dirty {
+		return // Click without motion: nothing changed.
+	}
+	if err := r.config.SetRunLayout(drag.overrides); err != nil {
+		r.logger.Error(fmt.Sprintf("model: failed to save layout: %v", err))
+	}
 }
 
 // isInLeftSidebar checks if mouse position is in the left sidebar region.
@@ -375,8 +456,7 @@ func (r *Run) endAnimating() {
 }
 
 // handleToggleLeftSidebar toggles the left overview sidebar and resolves
-// focus so a collapsing sidebar loses focus and an expanding sidebar
-// gains it when nothing else is focused.
+// focus so a collapsing sidebar loses focus.
 func (r *Run) handleToggleLeftSidebar(msg tea.KeyPressMsg) tea.Cmd {
 	if !r.beginAnimating() {
 		return nil
@@ -388,11 +468,10 @@ func (r *Run) handleToggleLeftSidebar(msg tea.KeyPressMsg) tea.Cmd {
 		r.logger.Error(fmt.Sprintf("model: failed to save left sidebar state: %v", err))
 	}
 
-	r.leftSidebar.UpdateDimensions(r.width, r.rightSidebar.animState.TargetVisible())
-	r.rightSidebar.UpdateDimensions(r.width, leftWillBeVisible)
+	r.updateSidebarDimensions(leftWillBeVisible, r.rightSidebar.animState.TargetVisible())
 	r.leftSidebar.Toggle()
 
-	r.focusMgr.ResolveAfterVisibilityChange()
+	r.focusMgr.Resolve()
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
@@ -411,10 +490,9 @@ func (r *Run) handleToggleRightSidebar(msg tea.KeyPressMsg) tea.Cmd {
 		r.logger.Error(fmt.Sprintf("model: failed to save right sidebar state: %v", err))
 	}
 
-	r.rightSidebar.UpdateDimensions(r.width, r.leftSidebar.animState.TargetVisible())
-	r.leftSidebar.UpdateDimensions(r.width, rightWillBeVisible)
+	r.updateSidebarDimensions(r.leftSidebar.animState.TargetVisible(), rightWillBeVisible)
 	r.rightSidebar.Toggle()
-	r.focusMgr.ResolveAfterVisibilityChange()
+	r.focusMgr.Resolve()
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
@@ -533,7 +611,7 @@ func (r *Run) handleToggleMetricsGrid(msg tea.KeyPressMsg) tea.Cmd {
 	}
 
 	r.metricsGridAnimState.Toggle()
-	r.focusMgr.ResolveAfterVisibilityChange()
+	r.focusMgr.Resolve()
 
 	r.updateBottomPaneHeights(
 		r.mediaPane.animState.TargetVisible(), r.consoleLogsPane.animState.TargetVisible())
@@ -689,7 +767,8 @@ func (r *Run) handleSidebarAnimation(msg tea.Msg) []tea.Cmd {
 		}
 
 		r.endAnimating()
-		r.rightSidebar.UpdateDimensions(r.width, r.leftSidebar.animState.TargetVisible())
+		r.rightSidebar.UpdateDimensions(
+			r.width, r.leftSidebar.animState.TargetVisible(), r.layoutOverrides().RightSidebar)
 
 	case RightSidebarAnimationMsg:
 		layout := r.computeViewports()
@@ -700,7 +779,8 @@ func (r *Run) handleSidebarAnimation(msg tea.Msg) []tea.Cmd {
 		}
 
 		r.endAnimating()
-		r.leftSidebar.UpdateDimensions(r.width, r.rightSidebar.animState.TargetVisible())
+		r.leftSidebar.UpdateDimensions(
+			r.width, r.rightSidebar.animState.TargetVisible(), r.layoutOverrides().LeftSidebar)
 	}
 
 	return nil
@@ -723,10 +803,7 @@ func (r *Run) handleToggleMediaPane(msg tea.KeyPressMsg) tea.Cmd {
 
 	r.mediaPane.Toggle()
 	r.updateBottomPaneHeights(mediaWillBeVisible, r.consoleLogsPane.animState.TargetVisible())
-
-	if !mediaWillBeVisible {
-		r.focusMgr.ResolveAfterVisibilityChange()
-	}
+	r.focusMgr.Resolve()
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
@@ -754,9 +831,8 @@ func (r *Run) mediaPaneAnimationCmd() tea.Cmd {
 	})
 }
 
-// handleToggleConsoleLogsPane toggles the console logs bottom bar and resolves
-// focus so a collapsing bar loses focus and an expanding bar gains it
-// when nothing else is focused.
+// handleToggleConsoleLogsPane toggles the console logs bottom bar and
+// resolves focus so a collapsing bar loses focus.
 func (r *Run) handleToggleConsoleLogsPane(msg tea.KeyPressMsg) tea.Cmd {
 	if !r.beginAnimating() {
 		return nil
@@ -770,7 +846,7 @@ func (r *Run) handleToggleConsoleLogsPane(msg tea.KeyPressMsg) tea.Cmd {
 
 	r.consoleLogsPane.Toggle()
 	r.updateBottomPaneHeights(r.mediaPane.animState.TargetVisible(), bottomWillBeVisible)
-	r.focusMgr.ResolveAfterVisibilityChange()
+	r.focusMgr.Resolve()
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)

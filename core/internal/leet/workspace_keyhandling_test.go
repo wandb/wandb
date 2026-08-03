@@ -150,12 +150,15 @@ func newWorkspaceWithPanels(t *testing.T) *leet.Workspace {
 	// computed heights).
 	w.TestSeedRunOverview(runKey)
 
+	// Give the console logs pane content so it is focusable.
+	w.TestSeedConsoleLogs(runKey, "hello from the run")
+
 	return w
 }
 
 // ---- handleToggleConsoleLogsPane ----
 
-func TestWorkspace_ToggleConsoleLogsPane_FocusReturnsToRuns(t *testing.T) {
+func TestWorkspace_ToggleConsoleLogsPane_FocusClears(t *testing.T) {
 	w := newWorkspaceWithPanels(t)
 
 	// Focus logs via Tab until bottom bar is active.
@@ -164,13 +167,13 @@ func TestWorkspace_ToggleConsoleLogsPane_FocusReturnsToRuns(t *testing.T) {
 	}
 	require.Equal(t, testFocusLogs, w.TestCurrentFocusRegion())
 
-	// Collapse bottom bar — focus should return to runs (the next available).
+	// Collapse bottom bar — the focused pane disappeared, so focus clears
+	// rather than jumping to another pane.
 	_ = w.Update(keyRune('4'))
-	_ = w.Update(keyRune(']'))
 	require.False(t, w.TestConsoleLogsPaneActive(),
 		"bottom bar should not be active after collapse")
-	require.True(t, w.TestRunsActive(),
-		"runs list should be focused after collapsing logs")
+	require.Equal(t, int(leet.FocusTargetNone), w.TestCurrentFocusRegion(),
+		"focus should clear when the focused pane is closed")
 }
 
 func TestWorkspace_ToggleConsoleLogsPane_FocusStaysOnRuns(t *testing.T) {
@@ -184,6 +187,145 @@ func TestWorkspace_ToggleConsoleLogsPane_FocusStaysOnRuns(t *testing.T) {
 	_ = w.Update(keyRune('4'))
 	require.True(t, w.TestRunsActive(),
 		"runs focus should be preserved when collapsing bottom bar from runs")
+}
+
+// ---- Esc: home to runs, or clear focus when runs can't take it ----
+
+func TestWorkspace_EscReturnsFocusToRuns(t *testing.T) {
+	w := newWorkspaceWithPanels(t)
+
+	// Focus logs, then Esc home.
+	for w.TestCurrentFocusRegion() != testFocusLogs {
+		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	}
+	_ = w.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+
+	require.Equal(t, testFocusRuns, w.TestCurrentFocusRegion(),
+		"Esc should return focus to the runs list")
+	require.True(t, w.TestRunsActive())
+}
+
+func TestWorkspace_EscClearsFocusWhenRunsHidden(t *testing.T) {
+	w := newWorkspaceWithPanels(t)
+
+	// Focus logs, hide the runs sidebar, then Esc.
+	for w.TestCurrentFocusRegion() != testFocusLogs {
+		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	}
+	_ = w.Update(keyRune('['))
+	require.Equal(t, testFocusLogs, w.TestCurrentFocusRegion())
+
+	_ = w.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+
+	require.Equal(t, int(leet.FocusTargetNone), w.TestCurrentFocusRegion(),
+		"Esc should clear focus when the runs list cannot take it")
+}
+
+// ---- Empty panes are skipped by Tab ----
+
+func TestWorkspace_TabSkipsEmptyLogsPane(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+
+	runKey := "run-20260209_010101-abcdefg"
+	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{runKey}})
+	w.TestForceExpandRunsSidebar()
+	w.TestForceExpandConsoleLogsPane(10)
+
+	// The logs pane is open but empty: a full Tab cycle must never land on it.
+	for range 6 {
+		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+		require.NotEqual(t, testFocusLogs, w.TestCurrentFocusRegion(),
+			"an empty logs pane must not receive focus")
+	}
+}
+
+// ---- Mouse drag-resize of the runs sidebar ----
+
+func TestWorkspace_DragResizesRunsSidebarAndPersists(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+	w.TestForceExpandRunsSidebar()
+	w.TestForceExpandOverviewSidebar()
+
+	left0, _ := w.TestLayoutWidths()
+	require.Positive(t, left0)
+
+	// Press on the sidebar's border column, drag 10 columns right, release.
+	_ = w.Update(tea.MouseClickMsg{X: left0 - 1, Y: 5, Button: tea.MouseLeft})
+	_ = w.Update(tea.MouseMotionMsg{X: left0 + 9, Y: 5, Button: tea.MouseLeft})
+	_ = w.Update(tea.MouseReleaseMsg{X: left0 + 9, Y: 5, Button: tea.MouseLeft})
+
+	left1, _ := w.TestLayoutWidths()
+	require.Equal(t, left0+10, left1, "drag should widen the runs sidebar")
+	require.InDelta(t, float64(left0+10)/200.0, cfg.WorkspaceLayout().LeftSidebar, 1e-9,
+		"released drag should persist the width as a fraction of the terminal")
+
+	// "0" resets the proportions and the persisted overrides.
+	_ = w.Update(keyRune('0'))
+	require.Equal(t, leet.LayoutOverrides{}, cfg.WorkspaceLayout())
+	left2, _ := w.TestLayoutWidths()
+	require.Equal(t, left0, left2, "reset should restore the default width")
+}
+
+func TestWorkspace_DragSeparatorResizesBothFixedNeighbors(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	_ = cfg.SetWorkspaceSystemMetricsVisible(true)
+	_ = cfg.SetWorkspaceMediaVisible(true)
+	_ = cfg.SetWorkspaceConsoleLogsVisible(true)
+
+	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	// Tall terminal so all panes sit above their minimum heights.
+	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 100})
+
+	metrics0, system0, media0, logs0 := w.TestStackHeights()
+	require.Positive(t, system0)
+	require.Positive(t, media0)
+
+	// The separator above media sits between two fixed panes (system above,
+	// media below). Drag it up 2 rows: system shrinks, media grows, the flex
+	// metrics grid and logs stay put.
+	left0, _ := w.TestLayoutWidths()
+	x := left0 + 5
+	sepY := metrics0 + 1 + system0 + 1 - 1 // gap row above media
+	_ = w.Update(tea.MouseClickMsg{X: x, Y: sepY, Button: tea.MouseLeft})
+	_ = w.Update(tea.MouseMotionMsg{X: x, Y: sepY - 2, Button: tea.MouseLeft})
+	_ = w.Update(tea.MouseReleaseMsg{X: x, Y: sepY - 2, Button: tea.MouseLeft})
+
+	metrics1, system1, media1, logs1 := w.TestStackHeights()
+	require.Equal(t, system0-2, system1, "pane above the separator should shrink")
+	require.Equal(t, media0+2, media1, "pane below the separator should grow")
+	require.Equal(t, metrics0, metrics1, "flex metrics grid should be untouched")
+	require.Equal(t, logs0, logs1, "logs pane should be untouched")
+
+	// Both fractions persist on release.
+	o := cfg.WorkspaceLayout()
+	require.InDelta(t, float64(system1)/100.0, o.System, 1e-9)
+	require.InDelta(t, float64(media1)/100.0, o.Media, 1e-9)
+	require.Zero(t, o.Logs, "untouched panes must not gain overrides")
+}
+
+func TestWorkspace_ClickWithoutMotionDoesNotPersist(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+	w.TestForceExpandRunsSidebar()
+
+	left0, _ := w.TestLayoutWidths()
+	_ = w.Update(tea.MouseClickMsg{X: left0 - 1, Y: 5, Button: tea.MouseLeft})
+	_ = w.Update(tea.MouseReleaseMsg{X: left0 - 1, Y: 5, Button: tea.MouseLeft})
+
+	require.Equal(t, leet.LayoutOverrides{}, cfg.WorkspaceLayout(),
+		"a click without motion must not write an override")
 }
 
 // ---- Focus bug: collapsing overview with logs focused ----
@@ -435,8 +577,9 @@ func TestWorkspace_Enter_RequiresRunSelectorActive(t *testing.T) {
 	require.True(t, w.RunSelectorActive(),
 		"run selector should be active with runs focused and items present")
 
-	// Focus logs by expanding bottom bar and tabbing.
+	// Focus logs by expanding and populating the bottom bar, then tabbing.
 	w.TestForceExpandConsoleLogsPane(10)
+	w.TestSeedConsoleLogs(runKey, "hello")
 	for !w.TestConsoleLogsPaneActive() {
 		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	}

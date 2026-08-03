@@ -42,7 +42,8 @@ func RunKeyBindings() []BindingCategory[Run] {
 				},
 				{
 					Keys:        []string{"esc"},
-					Description: "Back to workspace (when not filtering/configuring)",
+					Description: "Unfocus pane, then back to workspace",
+					Handler:     (*Run).handleEscape,
 				},
 			},
 		},
@@ -73,6 +74,15 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Keys:        []string{"4"},
 					Description: "Toggle console logs panel",
 					Handler:     (*Run).handleToggleConsoleLogsPane,
+				},
+				{
+					Keys:        []string{"drag border/separator"},
+					Description: "Resize panes with the mouse",
+				},
+				{
+					Keys:        []string{"0"},
+					Description: "Reset pane sizes to defaults",
+					Handler:     (*Run).handleResetLayout,
 				},
 			},
 		},
@@ -271,6 +281,15 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Keys:        []string{"4"},
 					Description: "Toggle console logs panel",
 					Handler:     (*Workspace).handleToggleConsoleLogsPane,
+				},
+				{
+					Keys:        []string{"drag border/separator"},
+					Description: "Resize panes with the mouse",
+				},
+				{
+					Keys:        []string{"0"},
+					Description: "Reset pane sizes to defaults",
+					Handler:     (*Workspace).handleResetLayout,
 				},
 			},
 		},

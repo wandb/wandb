@@ -1,5 +1,7 @@
 package leet
 
+import tea "charm.land/bubbletea/v2"
+
 // buildRunFocusManager constructs the FocusManager for the single-run view.
 //
 // The region order follows the spatial layout so Tab flows naturally:
@@ -11,86 +13,63 @@ package leet
 func (r *Run) buildRunFocusManager() *FocusManager {
 	return NewFocusManager([]FocusRegionDef{
 		{
-			Target:          FocusTargetOverview,
-			Available:       r.overviewFocusAvailable,
-			AvailableTarget: r.overviewFocusTargetAvailable,
-			Activate:        r.activateOverviewFocus,
-			Deactivate:      r.deactivateOverviewFocus,
+			Target:     FocusTargetOverview,
+			Available:  r.overviewFocusAvailable,
+			Activate:   r.activateOverviewFocus,
+			Deactivate: r.deactivateOverviewFocus,
 		},
 		{
-			Target:          FocusTargetMetricsGrid,
-			Available:       r.metricsGridFocusAvailable,
-			AvailableTarget: r.metricsGridFocusTargetAvailable,
-			Activate:        r.activateMetricsGridFocus,
-			Deactivate:      r.deactivateMetricsGridFocus,
+			Target:     FocusTargetMetricsGrid,
+			Available:  r.metricsGridFocusAvailable,
+			Activate:   r.activateMetricsGridFocus,
+			Deactivate: r.deactivateMetricsGridFocus,
 		},
 		{
-			Target:          FocusTargetMedia,
-			Available:       r.mediaFocusAvailable,
-			AvailableTarget: r.mediaFocusTargetAvailable,
-			Activate:        r.activateMediaFocus,
-			Deactivate:      r.deactivateMediaFocus,
+			Target:     FocusTargetMedia,
+			Available:  r.mediaFocusAvailable,
+			Activate:   r.activateMediaFocus,
+			Deactivate: r.deactivateMediaFocus,
 		},
 		{
-			Target:          FocusTargetConsoleLogs,
-			Available:       r.logsFocusAvailable,
-			AvailableTarget: r.logsFocusTargetAvailable,
-			Activate:        r.activateLogsFocus,
-			Deactivate:      r.deactivateLogsFocus,
+			Target:     FocusTargetConsoleLogs,
+			Available:  r.logsFocusAvailable,
+			Activate:   r.activateLogsFocus,
+			Deactivate: r.deactivateLogsFocus,
 		},
 		{
-			Target:          FocusTargetSystemMetrics,
-			Available:       r.systemMetricsFocusAvailable,
-			AvailableTarget: r.systemMetricsFocusTargetAvailable,
-			Activate:        r.activateSystemMetricsFocus,
-			Deactivate:      r.deactivateSystemMetricsFocus,
+			Target:     FocusTargetSystemMetrics,
+			Available:  r.systemMetricsFocusAvailable,
+			Activate:   r.activateSystemMetricsFocus,
+			Deactivate: r.deactivateSystemMetricsFocus,
 		},
 	})
 }
 
 // ---- Availability ----
+//
+// A region is available when its pane's target state is visible and it has
+// content to interact with. Empty panes are skipped by Tab navigation.
 
 func (r *Run) overviewFocusAvailable() bool {
-	firstSec, _ := r.leftSidebar.focusableSectionBounds()
-	return r.leftSidebar.animState.IsExpanded() && firstSec != -1
-}
-
-func (r *Run) overviewFocusTargetAvailable() bool {
 	firstSec, _ := r.leftSidebar.focusableSectionBounds()
 	return r.leftSidebar.animState.TargetVisible() && firstSec != -1
 }
 
 func (r *Run) metricsGridFocusAvailable() bool {
-	return r.metricsGridAnimState.IsExpanded() && r.metricsGrid.ChartCount() > 0
-}
-
-func (r *Run) metricsGridFocusTargetAvailable() bool {
 	return r.metricsGridAnimState.TargetVisible() && r.metricsGrid.ChartCount() > 0
 }
 
 func (r *Run) systemMetricsFocusAvailable() bool {
-	return r.rightSidebar.IsVisible() && r.rightSidebar.metricsGrid.ChartCount() > 0
-}
-
-func (r *Run) systemMetricsFocusTargetAvailable() bool {
 	return r.rightSidebar.animState.TargetVisible() &&
 		r.rightSidebar.metricsGrid.ChartCount() > 0
 }
 
 func (r *Run) mediaFocusAvailable() bool {
-	return r.mediaPane.IsExpanded() && r.mediaPane.HasData()
-}
-
-func (r *Run) mediaFocusTargetAvailable() bool {
 	return r.mediaPane.animState.TargetVisible() && r.mediaPane.HasData()
 }
 
 func (r *Run) logsFocusAvailable() bool {
-	return r.consoleLogsPane.IsExpanded()
-}
-
-func (r *Run) logsFocusTargetAvailable() bool {
-	return r.consoleLogsPane.animState.TargetVisible()
+	return r.consoleLogsPane.animState.TargetVisible() && r.consoleLogsPane.HasData()
 }
 
 // ---- Activate ----
@@ -156,13 +135,41 @@ func (r *Run) deactivateLogsFocus() {
 	r.consoleLogsPane.SetActive(false)
 }
 
+// resolveFocusAfterData keeps focus consistent as data streams in.
+//
+// The first time any region becomes available, focus is seeded there so
+// keyboard navigation works immediately after load. From then on, incoming
+// data never moves focus; it is only cleared if the focused pane disappears.
+func (r *Run) resolveFocusAfterData() {
+	if r.focusSeeded {
+		r.focusMgr.Resolve()
+		return
+	}
+	if r.focusMgr.Current() == FocusTargetNone {
+		r.focusMgr.Tab(1)
+	}
+	r.focusSeeded = r.focusMgr.Current() != FocusTargetNone
+}
+
+// HasPaneFocus reports whether any pane currently holds focus.
+func (r *Run) HasPaneFocus() bool {
+	return r.focusMgr.Current() != FocusTargetNone
+}
+
+// handleEscape clears pane focus. When nothing is focused, the parent model
+// handles Esc by exiting back to the workspace.
+func (r *Run) handleEscape(tea.KeyPressMsg) tea.Cmd {
+	r.focusMgr.ClearAll()
+	return nil
+}
+
 // ---- Within-region cycling ----
 
 // cycleRunOverviewSection tries to move within overview sections.
 // Returns true if the navigation was handled (i.e. we're not at a boundary).
 func (r *Run) cycleRunOverviewSection(direction int) bool {
 	firstSec, lastSec := r.leftSidebar.focusableSectionBounds()
-	if !r.leftSidebar.animState.IsExpanded() || firstSec == -1 {
+	if !r.overviewFocusAvailable() {
 		return false
 	}
 
