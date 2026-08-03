@@ -1369,7 +1369,8 @@ def init(  # noqa: C901
         tensorboard: Deprecated. Use `sync_tensorboard` instead.
         sync_tensorboard: Enables automatic syncing of W&B logs from TensorBoard
             or TensorBoardX, saving relevant event files for viewing in
-            the W&B UI.
+            the W&B UI. Consider using `run.sync_tensorboard()` instead for more
+            predictable behavior.
         monitor_gym: Enables automatic logging of videos of the environment when
             using OpenAI Gym.
         settings: Specifies a dictionary or `wandb.Settings` object with advanced

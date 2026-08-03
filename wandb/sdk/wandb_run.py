@@ -3791,6 +3791,84 @@ class Run:
         if self._interface:
             self._interface.publish_preempting()
 
+    @_log_to_run
+    @_raise_if_finished
+    @_attach
+    def sync_tensorboard(
+        self,
+        path: str,
+        *,
+        save_to: StrPath | None,
+        namespace: str = "",
+        existing_files: bool = False,
+    ) -> None:
+        """Sync TensorBoard data in the given directory.
+
+        The run will process new tfevents files in the directory specified by
+        `path` and upload their data to W&B until `run.finish()` is called or
+        the script exits.
+
+        It is best to avoid using this together with `run.log()`, since the
+        tfevents data will produce additional steps at nondeterministic times.
+
+        Args:
+            path: Path to a TensorBoard logging directory containing tfevents
+                files. This can be a filesystem path, a cloud path for Amazon S3
+                (s3://bucket/some/file/name), GCS (gs://bucket/some/file/name)
+                or Microsoft Azure (az://account/bucket/some/file/name).
+            save_to: The path relative to the run's files directory where to
+                save tfevents files. Incompatible with tfevents files stored
+                in the cloud (S3, GCS, Azure). Setting this to None disables the
+                TensorBoard tab in the W&B UI. For example, setting this to
+                "tb/train" will save files in the tb/train/ folder in the run's
+                Files tab in the UI.
+            namespace: A prefix to add to all metric names. For example, you
+                may set this to "train" so that a metric logged as "epoch_loss"
+                in TensorBoard gets logged as "train/epoch_loss" in W&B.
+            existing_files: Whether to sync pre-existing tfevents files.
+                Normally, this only syncs data created after the run's start
+                time on the same machine (according to `HOSTNAME(1)`). Setting
+                this to true syncs all tfevents files.
+        """
+        assert self._interface
+
+        if not path.startswith(("s3://", "gs://", "az://")):
+            # In this case, it is a local filesystem path. If it is relative,
+            # we turn it into an absolute path because wandb-core may have
+            # a different working directory.
+            #
+            # We use str() to get the native representation (backslashes on
+            # Windows).
+            #
+            # We don't resolve the path, so that it can refer to a path that
+            # does not yet exist. Resolving with strict=False would allow this,
+            # but would result in inconsistent behavior for symlinks based on
+            # whether they existed at resolve time.
+            path = str(pathlib.Path(path).absolute())
+
+        match save_to:
+            case None:
+                save_path = ""
+            case "":
+                save_path = "."
+            case _:
+                save_to_path = pathlib.Path(save_to)
+                if save_to_path.is_absolute():
+                    raise UsageError(f"save_to must be relative, got {save_to}")
+                if ".." in pathlib.Path(os.path.normpath(save_to_path)).parts:
+                    raise UsageError(f"save_to cannot use .., got {save_to}")
+                save_path = str(save_to_path)  # convert to native format
+
+        self._interface.publish_tbdata(
+            path,
+            save=bool(save_path),
+            root_logdir=path,
+            namespace=namespace,
+            save_path=save_path,
+            ignore_timestamp=existing_files,
+            ignore_hostname=existing_files,
+        )
+
     @property
     @_log_to_run
     @_raise_if_finished

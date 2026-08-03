@@ -656,11 +656,26 @@ class InterfaceBase(abc.ABC):
     def _publish_artifact(self, proto_artifact: pb.ArtifactRecord) -> None:
         raise NotImplementedError
 
-    def publish_tbdata(self, log_dir: str, save: bool, root_logdir: str = "") -> None:
+    def publish_tbdata(
+        self,
+        log_dir: str,
+        save: bool,
+        root_logdir: str = "",
+        *,
+        namespace: str | None = None,
+        save_path: str = "",
+        ignore_timestamp: bool = False,
+        ignore_hostname: bool = False,
+    ) -> None:
         tbrecord = pb.TBRecord()
         tbrecord.log_dir = log_dir
-        tbrecord.save = save
         tbrecord.root_dir = root_logdir
+        if namespace is not None:
+            tbrecord.namespace = namespace
+        tbrecord.save = save
+        tbrecord.save_path = save_path
+        tbrecord.ignore_timestamp = ignore_timestamp
+        tbrecord.ignore_hostname = ignore_hostname
         self._publish_tbdata(tbrecord)
 
     @abc.abstractmethod

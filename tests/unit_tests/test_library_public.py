@@ -207,6 +207,7 @@ SYMBOLS_RUN = {
     "settings",
     "status",
     "write_logs",
+    "sync_tensorboard",
 }
 
 # symbols having to do with resuming, we should clean this up

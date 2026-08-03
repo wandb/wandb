@@ -90,6 +90,7 @@ class NoopRun(wandb_run.Run):
         "mark_preempting",
         "restore",
         "status",
+        "sync_tensorboard",
         "watch",
         "write_logs",
         "unwatch",

@@ -52,6 +52,7 @@ REFERENCE_ATTRIBUTES = set(
         "sweep_id",
         "sweep_url",
         "sync_dir",
+        "sync_tensorboard",
         "tags",
         "to_html",
         "unwatch",
