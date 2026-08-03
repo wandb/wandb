@@ -2067,6 +2067,22 @@ func (v *ViewerViewerUserTeamsEntityConnectionEdgesEntityEdgeNodeEntity) GetName
 	return v.Name
 }
 
+// XXHashDigestsEnabledEntity includes the requested fields of the GraphQL type Entity.
+type XXHashDigestsEnabledEntity struct {
+	XxhashDigestsEnabled bool `json:"xxhashDigestsEnabled"`
+}
+
+// GetXxhashDigestsEnabled returns XXHashDigestsEnabledEntity.XxhashDigestsEnabled, and is useful for accessing the field via an interface.
+func (v *XXHashDigestsEnabledEntity) GetXxhashDigestsEnabled() bool { return v.XxhashDigestsEnabled }
+
+// XXHashDigestsEnabledResponse is returned by XXHashDigestsEnabled on success.
+type XXHashDigestsEnabledResponse struct {
+	Entity *XXHashDigestsEnabledEntity `json:"entity"`
+}
+
+// GetEntity returns XXHashDigestsEnabledResponse.Entity, and is useful for accessing the field via an interface.
+func (v *XXHashDigestsEnabledResponse) GetEntity() *XXHashDigestsEnabledEntity { return v.Entity }
+
 // __ArtifactFileURLsByManifestEntriesInput is used internally by genqlient
 type __ArtifactFileURLsByManifestEntriesInput struct {
 	Id              string                       `json:"id"`
@@ -2748,6 +2764,14 @@ type __UseArtifactInput struct {
 
 // GetInput returns __UseArtifactInput.Input, and is useful for accessing the field via an interface.
 func (v *__UseArtifactInput) GetInput() UseArtifactInput { return v.Input }
+
+// __XXHashDigestsEnabledInput is used internally by genqlient
+type __XXHashDigestsEnabledInput struct {
+	EntityName string `json:"entityName"`
+}
+
+// GetEntityName returns __XXHashDigestsEnabledInput.EntityName, and is useful for accessing the field via an interface.
+func (v *__XXHashDigestsEnabledInput) GetEntityName() string { return v.EntityName }
 
 // The query executed by ArtifactFileURLs.
 const ArtifactFileURLs_Operation = `
@@ -4312,6 +4336,40 @@ func Viewer(
 	}
 
 	data_ = &ViewerResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by XXHashDigestsEnabled.
+const XXHashDigestsEnabled_Operation = `
+query XXHashDigestsEnabled ($entityName: String!) {
+	entity(name: $entityName) {
+		xxhashDigestsEnabled
+	}
+}
+`
+
+func XXHashDigestsEnabled(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entityName string,
+) (data_ *XXHashDigestsEnabledResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "XXHashDigestsEnabled",
+		Query:  XXHashDigestsEnabled_Operation,
+		Variables: &__XXHashDigestsEnabledInput{
+			EntityName: entityName,
+		},
+	}
+
+	data_ = &XXHashDigestsEnabledResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
