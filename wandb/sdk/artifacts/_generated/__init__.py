@@ -6,6 +6,7 @@ __all__ = [
     "ARTIFACT_BY_ID_GQL",
     "ARTIFACT_COLLECTION_ALIASES_GQL",
     "ARTIFACT_CREATED_BY_GQL",
+    "ARTIFACT_MEMBERSHIP_BY_ID_GQL",
     "ARTIFACT_MEMBERSHIP_BY_NAME_GQL",
     "ARTIFACT_MEMBERSHIP_FILES_GQL",
     "ARTIFACT_TYPE_ARTIFACT_COLLECTIONS_GQL",
@@ -68,6 +69,7 @@ __all__ = [
     "FetchLinkedArtifacts",
     "FetchArtifactManifest",
     "ArtifactByID",
+    "ArtifactMembershipByID",
     "ArtifactMembershipByName",
     "ArtifactUsedBy",
     "ArtifactCreatedBy",
@@ -149,6 +151,7 @@ from .add_artifact_collection_tags import AddArtifactCollectionTags
 from .artifact_by_id import ArtifactByID
 from .artifact_collection_aliases import ArtifactCollectionAliases
 from .artifact_created_by import ArtifactCreatedBy
+from .artifact_membership_by_id import ArtifactMembershipByID
 from .artifact_membership_by_name import ArtifactMembershipByName
 from .artifact_membership_files import ArtifactMembershipFiles
 from .artifact_type import ArtifactType
@@ -228,6 +231,7 @@ from .operations import (
     ARTIFACT_BY_ID_GQL,
     ARTIFACT_COLLECTION_ALIASES_GQL,
     ARTIFACT_CREATED_BY_GQL,
+    ARTIFACT_MEMBERSHIP_BY_ID_GQL,
     ARTIFACT_MEMBERSHIP_BY_NAME_GQL,
     ARTIFACT_MEMBERSHIP_FILES_GQL,
     ARTIFACT_TYPE_ARTIFACT_COLLECTIONS_GQL,

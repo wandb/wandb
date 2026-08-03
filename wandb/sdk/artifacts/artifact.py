@@ -260,16 +260,58 @@ class Artifact:
         return self._service_api
 
     @classmethod
-    def _from_id(cls, artifact_id: str, service_api: ServiceApi) -> Artifact | None:
+    def _from_id(cls, id_: str, service_api: ServiceApi) -> Artifact | None:
+        from ._generated import ARTIFACT_MEMBERSHIP_BY_ID_GQL, ArtifactMembershipByID
+        from ._validators import FullArtifactPath
+
+        if cached := artifact_instance_cache.get(id_):
+            return cached
+
+        # ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE is a proxy flag for the
+        # server version that added Artifact.artifactSequenceMembership.
+        if not service_api.feature_enabled(
+            pb.ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE
+        ):
+            return cls._from_id_legacy(id_, service_api)
+
+        result = service_api.execute_graphql(
+            ARTIFACT_MEMBERSHIP_BY_ID_GQL,
+            variables={"id": id_},
+            parse=ArtifactMembershipByID.model_validate_json,
+        )
+        if (artifact := result.artifact) is None:
+            return None  # FIXME: maintains prior behavior, but we should really raise here.
+
+        membership = artifact.artifact_membership
+        if not (
+            (collection := membership.artifact_collection)
+            and (project := collection.project)
+            and (version_index := membership.version_index) is not None
+        ):
+            raise ValueError(
+                "Missing collection/version in artifact membership response"
+            )
+
+        path = FullArtifactPath(
+            prefix=project.entity.name,
+            project=project.name,
+            name=f"{collection.name}:v{version_index}",
+        )
+        return cls._from_membership(membership, target=path, service_api=service_api)
+
+    @classmethod
+    def _from_id_legacy(cls, id_: str, service_api: ServiceApi) -> Artifact | None:
+        """Legacy implementation for fetching an artifact by ID.
+
+        Needed for compatibility with server versions <0.74.0, prior to adding
+        `Artifact.artifactSequenceMembership`. Remove after those servers reach EOL.
+        """
         from ._generated import ARTIFACT_BY_ID_GQL, ArtifactByID
         from ._validators import FullArtifactPath
 
-        if cached_artifact := artifact_instance_cache.get(artifact_id):
-            return cached_artifact
-
         result = service_api.execute_graphql(
             ARTIFACT_BY_ID_GQL,
-            variables={"id": artifact_id},
+            variables={"id": id_},
             parse=ArtifactByID.model_validate_json,
         )
         if (artifact := result.artifact) is None:
@@ -1232,25 +1274,55 @@ class Artifact:
         return self
 
     def _populate_after_save(self, artifact_id: str) -> None:
-        from ._generated import ARTIFACT_BY_ID_GQL, ArtifactByID
+        from ._generated import (
+            ARTIFACT_BY_ID_GQL,
+            ARTIFACT_MEMBERSHIP_BY_ID_GQL,
+            ArtifactByID,
+            ArtifactMembershipByID,
+        )
 
         if (client := self._service_api) is None:
             raise RuntimeError("Client not initialized for artifact queries")
 
-        result = client.execute_graphql(
-            ARTIFACT_BY_ID_GQL,
-            variables={"id": artifact_id},
-            parse=ArtifactByID.model_validate_json,
-        )
+        # ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE is a proxy flag for the
+        # server version that added Artifact.artifactSequenceMembership.
+        result: ArtifactByID | ArtifactMembershipByID
+        if not client.feature_enabled(pb.ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE):
+            # Legacy fallback implementation for older server versions (<0.74.0).
+            result = client.execute_graphql(
+                ARTIFACT_BY_ID_GQL,
+                variables={"id": artifact_id},
+                parse=ArtifactByID.model_validate_json,
+            )
 
-        if not (artifact := result.artifact):
-            raise ValueError(f"Unable to fetch artifact with id: {artifact_id!r}")
+            if not (artifact := result.artifact):
+                raise ValueError(f"Unable to fetch artifact with id: {artifact_id!r}")
 
-        # _populate_after_save is only called on source artifacts, not linked artifacts
-        # We have to manually set is_link because we aren't fetching the collection
-        # the artifact. That requires greater refactoring for commitArtifact to return
-        # the artifact collection type.
-        self._assign_attrs(artifact, is_link=False)
+            # _populate_after_save is only called on source (never linked) artifacts.
+            # We have to manually set is_link because we aren't fetching the collection
+            # the artifact. That requires greater refactoring for commitArtifact to return
+            # the artifact collection type.
+            self._assign_attrs(artifact, is_link=False)
+
+        else:
+            result = client.execute_graphql(
+                ARTIFACT_MEMBERSHIP_BY_ID_GQL,
+                variables={"id": artifact_id},
+                parse=ArtifactMembershipByID.model_validate_json,
+            )
+
+            if not (
+                (artifact_node := result.artifact)
+                and (membership := artifact_node.artifact_membership)
+                and (artifact := membership.artifact)
+            ):
+                raise ValueError(f"Unable to fetch artifact with id: {artifact_id!r}")
+
+            # _populate_after_save is only called on source (never linked) artifacts.
+            # We have to manually set is_link because we aren't fetching the collection
+            # the artifact. That requires greater refactoring for commitArtifact to return
+            # the artifact collection type.
+            self._assign_attrs(artifact, membership=membership, is_link=False)
 
     @normalize_exceptions
     def _update(self) -> None:
