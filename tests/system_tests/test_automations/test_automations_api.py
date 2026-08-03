@@ -18,6 +18,7 @@ from wandb.automations import (
     MetricChangeFilter,
     MetricThresholdFilter,
     MetricZScoreFilter,
+    NewAutomation,
     OnAddArtifactAlias,
     OnCreateArtifact,
     OnLinkArtifact,
@@ -39,6 +40,16 @@ from wandb.errors.errors import CommError
 @fixture
 def automation_name(make_name: Callable[[str], str]) -> str:
     return make_name(prefix="test-automation")
+
+
+@fixture
+def webhook_automation(project: Project, webhook: WebhookIntegration) -> NewAutomation:
+    """A simple valid automation for tests that don't vary the event, action, or scope."""
+    event = OnLinkArtifact(
+        scope=project,
+        filter=ArtifactEvent.alias.matches_regex("^my-artifact.*"),
+    )
+    return event >> SendWebhook.from_integration(webhook)
 
 
 @fixture
@@ -118,6 +129,9 @@ def test_fetch_slack_integrations(
     assert len(fetched_slack_integrations) == 0
 
 
+# Pin the action to a webhook so this exercises every event type and scope once
+# (a no-op action is covered separately below), instead of once per action type.
+@mark.parametrize("action_type", [ActionType.GENERIC_WEBHOOK], indirect=True)
 @mark.usefixtures(reset_automations.__name__)
 def test_create_automation(
     module_user: str,
@@ -144,18 +158,33 @@ def test_create_automation(
 
 
 @mark.usefixtures(reset_automations.__name__)
-def test_create_existing_automation_raises_by_default_if_existing(
+def test_create_automation_with_no_op_action(
     module_api: wandb.Api,
-    event,
-    action,
+    webhook_automation: NewAutomation,
     automation_name: str,
 ):
+    """The no-op action round-trips through the server, like the webhook action above."""
+    if not module_api._supports_automation(action=ActionType.NO_OP):
+        skip("Server does not support the no-op action")
+
     created = module_api.create_automation(
-        (event >> action),
-        name=automation_name,
+        (webhook_automation.event >> DoNothing()), name=automation_name
     )
+
+    refetched = module_api.automation(name=created.name)
+    assert isinstance(refetched.action, SavedNoOpAction)
+
+
+# Duplicate-name detection is independent of the event, action, and scope.
+@mark.usefixtures(reset_automations.__name__)
+def test_create_existing_automation_raises_by_default_if_existing(
+    module_api: wandb.Api,
+    webhook_automation: NewAutomation,
+    automation_name: str,
+):
+    created = module_api.create_automation(webhook_automation, name=automation_name)
     with raises(CommError):
-        module_api.create_automation((event >> action), name=created.name)
+        module_api.create_automation(webhook_automation, name=created.name)
 
     # Fetching the automation by name should return the original automation, unchanged.
     fetched = module_api.automation(name=created.name)
@@ -165,19 +194,15 @@ def test_create_existing_automation_raises_by_default_if_existing(
 @mark.usefixtures(reset_automations.__name__)
 def test_create_existing_automation_fetches_existing_if_requested(
     module_api: wandb.Api,
-    event,
-    action,
+    webhook_automation: NewAutomation,
     automation_name: str,
 ):
-    created = module_api.create_automation(
-        (event >> action),
-        name=automation_name,
-    )
+    created = module_api.create_automation(webhook_automation, name=automation_name)
 
     # Since we request the prior automation if it exists, any extra values
     # that would normally be set on the created object will be ignored.
     existing = module_api.create_automation(
-        (event >> action),
+        webhook_automation,
         name=created.name,
         description="ignored description",
         fetch_existing=True,
@@ -444,15 +469,11 @@ def test_create_automation_for_run_metric_zscore_event(
 def created_automation(
     module_api: wandb.Api,
     reset_automations,
-    event,
-    action,
+    webhook_automation: NewAutomation,
     automation_name: str,
 ) -> Automation:
-    """An already-created automation that we can use for testing."""
-    created = module_api.create_automation(
-        (event >> action),
-        name=automation_name,
-    )
+    """An already-created automation for tests of deletion, which is event/action/scope-independent."""
+    created = module_api.create_automation(webhook_automation, name=automation_name)
 
     fetched = module_api.automation(name=created.name)
 
