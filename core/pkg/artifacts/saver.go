@@ -245,18 +245,7 @@ func (as *ArtifactSaver) createArtifactWithCorrectDigestAlgorithm(
 
 	artifactAttrs, err := as.createArtifact(manifest)
 	if err != nil {
-		if !errors.Is(err, errors.ErrUnsupported) {
-			return nil, fmt.Errorf("ArtifactSaver.createArtifact: %w", err)
-		}
-		// Sequence requires MD5 — re-hash and retry.
-		err = as.hashArtifactWithMd5(manifest)
-		if err != nil {
-			return nil, fmt.Errorf("ArtifactSaver.hashArtifactWithMd5: %w", err)
-		}
-		artifactAttrs, err = as.createArtifact(manifest)
-		if err != nil {
-			return nil, fmt.Errorf("ArtifactSaver.createArtifact: %w", err)
-		}
+		return nil, fmt.Errorf("ArtifactSaver.createArtifact: %w", err)
 	}
 	return &artifactAttrs, nil
 }
