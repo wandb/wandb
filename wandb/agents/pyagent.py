@@ -17,9 +17,9 @@ from typing import Any
 
 import wandb
 from wandb.apis import InternalApi
-from wandb.sdk.launch.sweeps import SweepNotFoundError
 from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.lib import config_util
+from wandb.sdk.sweeps import SweepNotFoundError
 
 logger = logging.getLogger(__name__)
 

@@ -10,7 +10,7 @@ from unittest import mock
 import pytest
 import yaml
 from wandb import env, wandb_agent
-from wandb.sdk.launch.sweeps import SweepNotFoundError
+from wandb.sdk.sweeps import SweepNotFoundError
 from wandb.wandb_agent import Agent
 
 from .conftest import (

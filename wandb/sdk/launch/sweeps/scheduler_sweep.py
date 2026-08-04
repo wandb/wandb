@@ -7,8 +7,8 @@ from pprint import pformat as pf
 from typing import Any
 
 import wandb
-from wandb.sdk.launch.sweeps import SweepNotFoundError
 from wandb.sdk.launch.sweeps.scheduler import LOG_PREFIX, RunState, Scheduler, SweepRun
+from wandb.sdk.sweeps import SweepNotFoundError
 
 _logger = logging.getLogger(__name__)
 

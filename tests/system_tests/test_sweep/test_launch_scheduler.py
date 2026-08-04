@@ -7,7 +7,7 @@ import pytest
 import wandb
 from wandb.apis import internal, public
 from wandb.errors import CommError
-from wandb.sdk.launch.sweeps import SchedulerError, SweepNotFoundError, load_scheduler
+from wandb.sdk.launch.sweeps import SchedulerError, load_scheduler
 from wandb.sdk.launch.sweeps.scheduler import (
     RunState,
     Scheduler,
@@ -16,6 +16,7 @@ from wandb.sdk.launch.sweeps.scheduler import (
 )
 from wandb.sdk.launch.sweeps.scheduler_sweep import SweepScheduler
 from wandb.sdk.launch.sweeps.utils import construct_scheduler_args
+from wandb.sdk.sweeps import SweepNotFoundError
 
 from .test_wandb_sweep import SWEEP_CONFIG_RANDOM
 
