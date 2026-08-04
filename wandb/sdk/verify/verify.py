@@ -542,14 +542,12 @@ def check_sweeps(api: Api) -> bool:
 
 def retry_fn(fn: Callable) -> Any:
     ini_time = time.time()
-    res = None
     i = 0
-    while i < MIN_RETRYS or time.time() - ini_time < GET_RUN_MAX_TIME:
+    while True:
         i += 1
         try:
-            res = fn()
-            break
+            return fn()
         except Exception:
+            if i >= MIN_RETRYS and time.time() - ini_time >= GET_RUN_MAX_TIME:
+                raise
             time.sleep(1)
-            continue
-    return res
