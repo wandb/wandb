@@ -1,5 +1,6 @@
 import unittest.mock
 
+import pytest
 import wandb
 import wandb.sdk.verify.verify as wandb_verify
 from wandb.proto import wandb_api_pb2 as apb
@@ -134,5 +135,5 @@ def test_retry_fn_times_out():
 
     with unittest.mock.patch("time.sleep", side_effect=sleep):
         with unittest.mock.patch("time.time", side_effect=time):
-            result = wandb_verify.retry_fn(fn)
-            assert result is None
+            with pytest.raises(Exception, match="test"):
+                wandb_verify.retry_fn(fn)
