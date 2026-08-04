@@ -3,7 +3,9 @@ from __future__ import annotations
 import abc
 import contextlib
 import signal
+import threading
 from collections.abc import Iterator, Sequence
+from dataclasses import dataclass, field
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -26,7 +28,9 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
 from wandb.sdk.sweeps.scheduler.scheduler import (
     _MAX_CONSECUTIVE_ERRORS,
     Executor,
+    InMemoryScheduler,
     Scheduler,
+    SchedulerOptions,
     _LoopControl,
     _ShutdownMonitor,
 )
@@ -76,6 +80,65 @@ def make_run(
         wandb_run_id=wandb_run_id,
         summary_metrics=summary,
         history_metrics=history or [],
+    )
+
+
+@dataclass
+class RemoteRun:
+    """A sweep run as fetched from the W&B API.
+
+    Carries the fields `InMemoryScheduler` reads from `wandb.apis.public.Run`
+    when polling or warm-starting.
+    """
+
+    id: str
+    state: str
+    config: dict[str, Any]
+    summary_metrics: dict[str, Any] = field(default_factory=dict)
+    storage_id: str = ""
+    history_metrics: list[dict[str, Any]] = field(default_factory=list)
+    history_error: Exception | None = None
+
+    def __post_init__(self) -> None:
+        if not self.storage_id:
+            self.storage_id = self.id
+
+    def history(
+        self,
+        keys: list[str] | None = None,
+        samples: int | None = None,
+        pandas: bool = False,
+        **kwargs: Any,
+    ) -> list[dict[str, Any]]:
+        """Return sampled history rows, like `wandb.apis.public.Run.history`.
+
+        `history_error` stands in for that per-run query failing.
+        """
+        if self.history_error is not None:
+            raise self.history_error
+        return list(self.history_metrics)
+
+
+def make_remote_run(
+    run_id: str,
+    state: RunState | str,
+    config: dict[str, Any],
+    summary: dict[str, Any] | None = None,
+    *,
+    storage_id: str | None = None,
+    history: list[dict[str, Any]] | None = None,
+    history_error: Exception | None = None,
+) -> RemoteRun:
+    """Build a `RemoteRun` for tests or stubs of `Api.runs()` results."""
+    state_str = state.value if isinstance(state, RunState) else state
+    return RemoteRun(
+        id=run_id,
+        state=state_str,
+        config=config,
+        summary_metrics=summary or {},
+        storage_id=storage_id or "",
+        history_metrics=history or [],
+        history_error=history_error,
     )
 
 
@@ -370,6 +433,216 @@ class SchedulerAcceptanceTests(abc.ABC):
         assert "wandb-opt-0" in scheduler.in_flight_runs()
         optimizer.ask_n_runs_mock.assert_called_once_with(batch_size - 1)
 
+    def test_schedule_then_poll_one_finished(
+        self,
+        scheduler: Scheduler,
+        optimizer: MockOptimizer,
+        mock_api: MagicMock,
+        batch_size: int,
+    ) -> None:
+        with patch.object(scheduler, "sweep_state", return_value=SweepState.RUNNING):
+            scheduler._schedule_suggestions()
+        assert len(scheduler.in_flight_runs()) == batch_size
+
+        mock_api.runs.return_value = [
+            make_remote_run(
+                "wandb-opt-0",
+                RunState.FINISHED,
+                {"param1": 1},
+                {"loss": 1.0},
+            ),
+            make_remote_run(
+                "wandb-opt-1",
+                RunState.RUNNING,
+                {"param1": 2},
+                {"loss": 2.0},
+            ),
+        ]
+
+        scheduler._poll_active_runs()
+
+        tell_calls = {
+            call.args[0]: call.args[1]
+            for call in optimizer.tell_run_mock.call_args_list
+        }
+        assert tell_calls["opt-0"].state == RunState.FINISHED
+        assert tell_calls["opt-0"].wandb_run_id == "wandb-opt-0"
+        assert tell_calls["opt-0"].summary_metrics == {"loss": 1.0}
+        assert tell_calls["opt-1"].state == RunState.RUNNING
+        assert tell_calls["opt-1"].wandb_run_id == "wandb-opt-1"
+        assert tell_calls["opt-1"].summary_metrics == {"loss": 2.0}
+        assert len(scheduler.in_flight_runs()) == batch_size - 1
+        assert "wandb-opt-1" in scheduler.in_flight_runs()
+
+    def test_warm_start_adopts_existing_runs(
+        self,
+        scheduler: Scheduler,
+        optimizer: MockOptimizer,
+        mock_api: MagicMock,
+    ) -> None:
+        finished = make_remote_run(
+            "existing-finished",
+            RunState.FINISHED,
+            {"param1": 1},
+            {"loss": 0.5},
+        )
+        active = make_remote_run(
+            "existing-active",
+            RunState.RUNNING,
+            {"param1": 2},
+            {"loss": 1.0},
+        )
+
+        def runs_side_effect(
+            path: str,
+            filters: dict[str, Any],
+            per_page: int = 50,
+            lazy: bool = False,
+        ) -> list[RemoteRun]:
+            state_filter = filters.get("state")
+            if state_filter is not None:
+                states = state_filter["$in"]
+                if RunState.FINISHED.value in states:
+                    return [finished]
+                if RunState.RUNNING.value in states:
+                    return [active]
+            return []
+
+        mock_api.runs.side_effect = runs_side_effect
+
+        scheduler._warm_start()
+
+        optimizer.tell_existing_finished_run_mock.assert_called_once()
+        finished_arg = optimizer.tell_existing_finished_run_mock.call_args[0][0]
+        assert finished_arg.wandb_run_id == "existing-finished"
+        assert finished_arg.state == RunState.FINISHED
+
+        optimizer.tell_existing_active_run_mock.assert_called_once()
+        active_arg = optimizer.tell_existing_active_run_mock.call_args[0][0]
+        assert active_arg.wandb_run_id == "existing-active"
+        assert active_arg.state == RunState.RUNNING
+
+        assert len(scheduler.in_flight_runs()) == 1
+        assert "existing-active" in scheduler.in_flight_runs()
+
+    def test_warm_start_raises_when_api_runs_fails(
+        self,
+        scheduler: Scheduler,
+        optimizer: MockOptimizer,
+        mock_api: MagicMock,
+    ) -> None:
+        mock_api.runs.side_effect = RuntimeError("api unavailable")
+
+        with pytest.raises(RuntimeError, match="api unavailable"):
+            scheduler._warm_start()
+
+        optimizer.tell_existing_finished_run_mock.assert_not_called()
+        optimizer.tell_existing_active_run_mock.assert_not_called()
+        assert len(scheduler.in_flight_runs()) == 0
+
+    def test_poll_handles_deleted_runs(
+        self,
+        scheduler: Scheduler,
+        optimizer: MockOptimizer,
+        mock_api: MagicMock,
+    ) -> None:
+        scheduler.push_in_flight_run("run-0", "opt-0")
+        scheduler.push_in_flight_run("run-1", "opt-1")
+        scheduler.push_in_flight_run("run-2", "opt-2")
+        assert len(scheduler.in_flight_runs()) == 3
+
+        mock_api.runs.return_value = [
+            make_remote_run(
+                "run-2",
+                RunState.RUNNING,
+                {"param1": 3},
+                {"loss": 3.0},
+            ),
+        ]
+
+        scheduler._poll_active_runs()
+
+        assert optimizer.tell_run_mock.call_count == 3
+        deleted_calls = [
+            call
+            for call in optimizer.tell_run_mock.call_args_list
+            if call[0][1].state == RunState.FAILED
+        ]
+        assert len(deleted_calls) == 2
+        deleted_ids = {call[0][0] for call in deleted_calls}
+        assert deleted_ids == {"opt-0", "opt-1"}
+
+        assert len(scheduler.in_flight_runs()) == 1
+        assert "run-2" in scheduler.in_flight_runs()
+
+    def test_prune_active_runs(
+        self,
+        scheduler: Scheduler,
+        optimizer: MockOptimizer,
+        mock_internal_api: MagicMock,
+    ) -> None:
+        prune_suggestion = RunSuggestion(
+            config=RunConfig.from_values({"param1": 1}), run_id="opt-prune"
+        )
+        keep_suggestion = RunSuggestion(
+            config=RunConfig.from_values({"param1": 2}), run_id="opt-keep"
+        )
+        scheduler.push_in_flight_run("run-prune", "opt-prune")
+        scheduler.push_in_flight_run("run-keep", "opt-keep")
+
+        active = [
+            make_run(
+                prune_suggestion,
+                state=RunState.RUNNING,
+                summary={"loss": 10.0},
+                wandb_run_id="run-prune",
+                history=[{"loss": 10.0}, {"loss": 10.0}],
+            ),
+            make_run(
+                keep_suggestion,
+                state=RunState.RUNNING,
+                summary={"loss": 1.0},
+                wandb_run_id="run-keep",
+                history=[{"loss": 10.0}, {"loss": 1.0}],
+            ),
+        ]
+
+        optimizer.prune_runs_mock.return_value = ["opt-prune"]
+
+        if isinstance(scheduler, InMemoryScheduler):
+            scheduler._storage_ids["run-prune"] = "storage-prune"
+
+        scheduler._prune_active_runs(active)
+
+        optimizer.prune_runs_mock.assert_called_once_with(
+            ["opt-prune", "opt-keep"],
+            active,
+        )
+        assert "run-prune" not in scheduler.in_flight_runs()
+        assert "run-keep" in scheduler.in_flight_runs()
+
+    def test_loop_does_nothing_when_paused(
+        self,
+        scheduler: Scheduler,
+        optimizer: MockOptimizer,
+        executor: MagicMock,
+        mock_api: MagicMock,
+        mock_internal_api: MagicMock,
+    ) -> None:
+        # Stay paused for two full iterations, then let the sweep finish so the
+        # loop exits on its own.
+        driver = LoopDriver(scheduler, SweepState.PAUSED, max_iterations=2)
+        with driver.driving():
+            scheduler.loop()
+
+        assert driver.iterations == 2
+        assert len(scheduler.in_flight_runs()) == 0
+        executor.schedule.assert_not_called()
+        optimizer.ask_n_runs_mock.assert_not_called()
+        optimizer.tell_run_mock.assert_not_called()
+        assert mock_api.runs.call_count <= 2  # warm-start queries only
+        mock_internal_api.stop_run.assert_not_called()
+
     def test_loop_finishes_sweep_when_optimizer_is_exhausted(
         self,
         scheduler: Scheduler,
@@ -415,6 +688,64 @@ class SchedulerAcceptanceTests(abc.ABC):
         sweep.finish.assert_not_called()  # type: ignore[attr-defined]
         executor.schedule.assert_not_called()
         assert len(scheduler.in_flight_runs()) == 0
+    def test_loop_exits_when_cancelled_without_calling_optimizer(
+        self,
+        scheduler: Scheduler,
+        optimizer: MockOptimizer,
+        executor: MagicMock,
+        mock_api: MagicMock,
+    ) -> None:
+        optimizer_called = threading.Event()
+        optimizer_finished = threading.Event()
+        warm_start_runs_calls = 2
+
+        def blocking_next_n(n: int) -> list[RunSuggestion]:
+            optimizer_called.set()
+            optimizer_finished.wait(timeout=1.0)
+            return make_suggestions(n)
+
+        optimizer.ask_n_runs_mock.side_effect = blocking_next_n
+
+        def guarded_runs(*args: Any, **kwargs: Any) -> list[RemoteRun]:
+            if optimizer_called.is_set():
+                raise AssertionError(
+                    "scheduler fetched run state while optimizer was working"
+                )
+            return []
+
+        mock_api.runs.side_effect = guarded_runs
+
+        driver = LoopDriver(
+            scheduler, SweepState.RUNNING, exit_state=SweepState.CANCELED
+        )
+        loop_done = threading.Event()
+
+        def run_loop() -> None:
+            try:
+                with driver.driving():
+                    scheduler.loop()
+            finally:
+                loop_done.set()
+
+        loop_thread = threading.Thread(target=run_loop)
+        loop_thread.start()
+
+        # Cancel only once the optimizer is known to be working, so the loop has
+        # to notice the transition while blocked on `ask_n_runs` rather than at
+        # some particular state query.
+        assert optimizer_called.wait(timeout=2.0)
+        driver.state = SweepState.CANCELED
+
+        assert loop_done.wait(timeout=2.0)
+        loop_thread.join(timeout=2.0)
+
+        optimizer.ask_n_runs_mock.assert_called_once()
+        # The loop left without waiting for the blocked optimizer, so nothing it
+        # would eventually suggest was scheduled.
+        assert not optimizer_finished.is_set()
+        executor.schedule.assert_not_called()
+        assert len(scheduler.in_flight_runs()) == 0
+        assert mock_api.runs.call_count == warm_start_runs_calls
 
     def test_loop_exits_when_sweep_state_not_found(
         self,
@@ -670,3 +1001,163 @@ class SchedulerAcceptanceTests(abc.ABC):
 
         assert driver.iterations == 1
         assert call_order == ["poll", "prune", "reap", "schedule"]
+
+
+class TestInMemorySchedulerAcceptance(SchedulerAcceptanceTests):
+    @pytest.fixture
+    def mock_api(self) -> Iterator[MagicMock]:
+        api = MagicMock()
+        api.runs.return_value = []
+        with patch("wandb.sdk.sweeps.scheduler.scheduler.Api", return_value=api):
+            yield api
+
+    @pytest.fixture
+    def mock_internal_api(self) -> Iterator[MagicMock]:
+        internal_api = MagicMock()
+        internal_api.stop_run.return_value = True
+        with patch(
+            "wandb.sdk.sweeps.scheduler.scheduler.InternalApi",
+            return_value=internal_api,
+        ):
+            yield internal_api
+
+    @pytest.fixture
+    def scheduler(
+        self,
+        optimizer: Optimizer,
+        sweep: Sweep,
+        executor: MagicMock,
+        mock_api: MagicMock,
+        batch_size: int,
+    ) -> InMemoryScheduler:
+        return InMemoryScheduler(
+            optimizer=optimizer,
+            sweep=sweep,
+            options=SchedulerOptions(
+                poll_interval_s=0,
+                batch_size=batch_size,
+                executor=executor,
+            ),
+        )
+
+    def test_poll_skips_unreadable_run_and_keeps_the_rest(
+        self,
+        scheduler: InMemoryScheduler,
+        optimizer: MockOptimizer,
+        mock_api: MagicMock,
+    ) -> None:
+        """One run's metrics failing must not cost the whole poll."""
+        scheduler.push_in_flight_run("run-ok", "opt-ok")
+        scheduler.push_in_flight_run("run-bad", "opt-bad")
+        mock_api.runs.return_value = [
+            make_remote_run("run-ok", RunState.RUNNING, {"param1": 1}, {"loss": 1.0}),
+            make_remote_run(
+                "run-bad",
+                RunState.RUNNING,
+                {"param1": 2},
+                history_error=CommError("history query failed"),
+            ),
+        ]
+
+        scheduler._poll_active_runs()
+
+        told = {call.args[0] for call in optimizer.tell_run_mock.call_args_list}
+        assert told == {"opt-ok"}
+        # Still on the server, so it stays in flight instead of being failed.
+        assert "run-bad" in scheduler.in_flight_runs()
+        assert scheduler.unreadable_run_ids() == frozenset({"run-bad"})
+
+    def test_poll_reaps_deleted_run_but_not_unreadable_one(
+        self,
+        scheduler: InMemoryScheduler,
+        optimizer: MockOptimizer,
+        mock_api: MagicMock,
+    ) -> None:
+        """Absent from the server is failed; present but unreadable is not."""
+        scheduler.push_in_flight_run("run-deleted", "opt-deleted")
+        scheduler.push_in_flight_run("run-bad", "opt-bad")
+        mock_api.runs.return_value = [
+            make_remote_run(
+                "run-bad",
+                RunState.RUNNING,
+                {"param1": 2},
+                history_error=CommError("history query failed"),
+            ),
+        ]
+
+        scheduler._poll_active_runs()
+
+        failed = {
+            call.args[0]
+            for call in optimizer.tell_run_mock.call_args_list
+            if call.args[1].state == RunState.FAILED
+        }
+        assert failed == {"opt-deleted"}
+        assert "run-deleted" not in scheduler.in_flight_runs()
+        assert "run-bad" in scheduler.in_flight_runs()
+
+    def test_failed_poll_keeps_the_storage_ids_pruning_needs(
+        self,
+        scheduler: InMemoryScheduler,
+        mock_api: MagicMock,
+        mock_internal_api: MagicMock,
+    ) -> None:
+        """A failed poll must not strand in-flight runs with no way to stop them."""
+        scheduler.push_in_flight_run("run-0", "opt-0")
+        mock_api.runs.return_value = [
+            make_remote_run(
+                "run-0",
+                RunState.RUNNING,
+                {"param1": 1},
+                {"loss": 1.0},
+                storage_id="storage-0",
+            ),
+        ]
+        scheduler._poll_active_runs()
+
+        mock_api.runs.side_effect = api_error(503)
+        with pytest.raises(WandbApiFailedError):
+            scheduler._poll_active_runs()
+
+        # The last good poll's ids survive, so the run is still stoppable.
+        assert scheduler.stop_run("run-0")
+        mock_internal_api.stop_run.assert_called_once_with("storage-0")
+
+    def test_poll_forgets_storage_ids_when_nothing_is_in_flight(
+        self,
+        scheduler: InMemoryScheduler,
+        mock_api: MagicMock,
+    ) -> None:
+        scheduler.push_in_flight_run("run-0", "opt-0")
+        mock_api.runs.return_value = [
+            make_remote_run(
+                "run-0",
+                RunState.FINISHED,
+                {"param1": 1},
+                {"loss": 1.0},
+                storage_id="storage-0",
+            ),
+        ]
+        scheduler._poll_active_runs()
+        assert not scheduler.in_flight_runs()
+
+        scheduler.fetch_active_runs()
+
+        assert not scheduler.stop_run("run-0")
+        assert scheduler.unreadable_run_ids() == frozenset()
+
+    def test_every_run_query_prefetches_config_and_summary_metrics(
+        self,
+        scheduler: InMemoryScheduler,
+        mock_api: MagicMock,
+    ) -> None:
+        """Lazily loaded runs would cost a query per run on first access."""
+        scheduler.push_in_flight_run("run-0", "opt-0")
+        mock_api.runs.return_value = []
+
+        scheduler.fetch_active_runs()
+        scheduler._warm_start()
+
+        assert mock_api.runs.call_count == 3  # one active poll, two warm-start
+        for call in mock_api.runs.call_args_list:
+            assert call.kwargs["lazy"] is False
