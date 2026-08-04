@@ -54,7 +54,11 @@ class ArtifactCollectionData(ArtifactsBase):
     """The encoded GraphQL ID for this collection's project."""
 
     project_internal_id: GQLId | None = Field(default=None, frozen=True, repr=False)
-    """The internal numeric ID for this collection's backing project, if fetched."""
+    """The GraphQL `internalId` for this collection's backing project, if fetched.
+
+    This is a base64-encoded global ID. When decoded, it looks like
+    `Project:123` or `ProjectInternalId:123`.
+    """
 
     entity: str = Field(frozen=True)
     """The name of the entity that owns this collection's project."""

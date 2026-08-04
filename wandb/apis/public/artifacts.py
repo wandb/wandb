@@ -546,7 +546,11 @@ class ArtifactCollection:
 
     @property
     def project_internal_id(self) -> str | None:
-        """The internal numeric ID for this collection's backing project, if fetched."""
+        """The GraphQL `internalId` for this collection's backing project, if fetched.
+
+        This is a base64-encoded global ID. When decoded, it looks like
+        `Project:123` or `ProjectInternalId:123`.
+        """
         return self._current.project_internal_id
 
     @normalize_exceptions

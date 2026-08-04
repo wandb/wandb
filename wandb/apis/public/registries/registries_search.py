@@ -429,10 +429,7 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
         # Implement custom next since its possible to load empty pages because of auth
         self.index += 1
         while len(self.objects) <= self.index:
-            prev_len = len(self.objects)
             if not self._load_page():
-                raise StopIteration
-            if len(self.objects) == prev_len:
                 raise StopIteration
         return self.objects[self.index]
 

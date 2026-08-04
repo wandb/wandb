@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections.abc import Iterable
 
 import pytest
 from wandb._strutils import b64encode_ascii
+from wandb.apis.public.registries import _utils
 from wandb.apis.public.registries._utils import (
     _project_id_from_gql_id,
     advanced_search_enabled,
@@ -54,7 +56,6 @@ def test_filter_for_registry_pins_internal_id(service_api, mocker, enabled, key)
     registry.internal_id = b64encode_ascii("ProjectInternalId:42")
 
     assert filter_for_registry(registry, service_api=service_api, organization=ORG) == {
-        "name": "wandb-registry-test",
         key: 42,
     }
 
@@ -70,7 +71,6 @@ def test_registry_filter_for_collection_pins_internal_id(service_api, mocker):
     assert registry_filter_for_collection(
         collection, service_api=service_api, organization=ORG
     ) == {
-        "name": "wandb-registry-test",
         "project_id": 42,
     }
 
@@ -79,6 +79,59 @@ def test_project_id_from_gql_id_decodes_project_internal_id():
     gql_id = b64encode_ascii("ProjectInternalId:933111")
 
     assert _project_id_from_gql_id(gql_id) == 933111
+
+
+def test_project_id_from_gql_id_returns_none_for_invalid_id(caplog):
+    with caplog.at_level(logging.WARNING, logger=_utils.__name__):
+        assert _project_id_from_gql_id("not-a-valid-gql-id") is None
+
+    assert "Invalid project ID" in caplog.text
+
+
+def test_filter_for_registry_falls_back_to_name_for_invalid_internal_id(
+    service_api, mocker, caplog
+):
+    registry = mocker.Mock(spec=Registry)
+    registry.full_name = "wandb-registry-test"
+    registry.internal_id = "not-a-valid-gql-id"
+
+    with caplog.at_level(logging.WARNING, logger=_utils.__name__):
+        assert filter_for_registry(registry, service_api=service_api, organization=ORG) == {
+            "name": "wandb-registry-test",
+        }
+
+    assert "Invalid project ID" in caplog.text
+    service_api.execute_graphql.assert_not_called()
+
+
+def test_registry_filter_for_collection_falls_back_to_name_for_invalid_internal_id(
+    service_api, mocker, caplog
+):
+    from wandb.apis.public import ArtifactCollection
+
+    collection = mocker.Mock(spec=ArtifactCollection)
+    collection.project = "wandb-registry-test"
+    collection.project_internal_id = "not-a-valid-gql-id"
+
+    with caplog.at_level(logging.WARNING, logger=_utils.__name__):
+        assert registry_filter_for_collection(
+            collection, service_api=service_api, organization=ORG
+        ) == {
+            "name": "wandb-registry-test",
+        }
+
+    assert "Invalid project ID" in caplog.text
+
+
+def test_advanced_search_enabled_returns_false_on_graphql_error(service_api, caplog):
+    service_api.feature_enabled.return_value = True
+    service_api.execute_graphql.side_effect = RuntimeError("network down")
+
+    with caplog.at_level(logging.WARNING, logger=_utils.__name__):
+        assert advanced_search_enabled(service_api, ORG) is False
+
+    assert "Failed to fetch advanced registry features" in caplog.text
+    assert registry_id_filter_key(service_api, ORG) == "id"
 
 
 def test_filter_for_registry_falls_back_to_name_without_internal_id(

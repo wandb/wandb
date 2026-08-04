@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Collection
 from enum import Enum
 from functools import lru_cache, partial
@@ -7,6 +8,8 @@ from typing import TYPE_CHECKING, Any, TypeVar, overload
 
 from wandb._strutils import b64decode_ascii, ensureprefix
 from wandb.proto import wandb_internal_pb2 as pb
+
+_logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from wandb.apis.public import ArtifactCollection
@@ -170,7 +173,8 @@ def _project_id_from_gql_id(gql_id: str) -> int | None:
         case ["ProjectInternalId", idx] if idx.isdigit():
             return int(idx)
         case _:
-            raise ValueError(f"Invalid project ID: {gql_id!r}")
+            _logger.warning("Invalid project ID: %r", gql_id)
+            return None
 
 
 def filter_for_registry(
@@ -179,14 +183,11 @@ def filter_for_registry(
     service_api: ServiceApi,
     organization: str,
 ) -> dict[str, Any]:
-    filt: dict[str, Any] = {"name": registry.full_name}
-    if project_encoded_id := registry.internal_id:
-        return filt | {
-            registry_id_filter_key(service_api, organization): _project_id_from_gql_id(
-                project_encoded_id
-            )
-        }
-    return filt
+    if (project_encoded_id := registry.internal_id) and (
+        project_id := _project_id_from_gql_id(project_encoded_id)
+    ):
+        return {registry_id_filter_key(service_api, organization): project_id}
+    return {"name": registry.full_name}
 
 
 @lru_cache(maxsize=10)
@@ -211,22 +212,22 @@ def advanced_search_enabled(service_api: ServiceApi, organization: str) -> bool:
             variables={"organization": organization},
             parse=FetchAdvancedRegistryFeatures.model_validate_json,
         )
-    except Exception as e:
-        msg = (
-            f"Error fetching advanced registry features for organization: "
-            f"{organization!r}"
+    except Exception:
+        _logger.warning(
+            "Failed to fetch advanced registry features for organization: %r",
+            organization,
         )
-        raise ValueError(msg) from e
+        return False
 
     if not (org := result.organization):
-        raise ValueError(f"Organization {organization!r} not found.")
+        _logger.warning("Organization %r not found.", organization)
+        return False
     return bool(
         org.advanced_registry_features
         and org.advanced_registry_features.advanced_search
     )
 
 
-@lru_cache(maxsize=10)
 def registry_id_filter_key(service_api: ServiceApi, organization: str) -> str:
     """Return the registry project filter key for the organization's search backend."""
     if advanced_search_enabled(service_api, organization):
@@ -240,13 +241,8 @@ def registry_filter_for_collection(
     service_api: ServiceApi,
     organization: str,
 ) -> dict[str, Any]:
-    filt: dict[str, Any] = {}
-    if registry_name := collection.project:
-        filt["name"] = registry_name
-    if project_encoded_id := collection.project_internal_id:
-        return filt | {
-            registry_id_filter_key(service_api, organization): _project_id_from_gql_id(
-                project_encoded_id
-            )
-        }
-    return filt
+    if (project_encoded_id := collection.project_internal_id) and (
+        project_id := _project_id_from_gql_id(project_encoded_id)
+    ):
+        return {registry_id_filter_key(service_api, organization): project_id}
+    return {"name": collection.project}
