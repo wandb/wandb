@@ -12,7 +12,7 @@ looptime
 
 flask~=2.2
 fastapi~=0.115.3
-httpx~=0.27.0
+httpx~=0.28.0
 responses~=0.23.3
 uvicorn~=0.32.0
 
