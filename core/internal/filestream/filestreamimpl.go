@@ -12,6 +12,7 @@ import (
 
 	"github.com/hashicorp/go-retryablehttp"
 
+	"github.com/wandb/wandb/core/internal/randomid"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -135,7 +136,12 @@ func (fs *fileStream) send(
 	if err != nil {
 		return fmt.Errorf("filestream: json marshal error in send(): %v", err)
 	}
-	fs.logger.Debug("filestream: post request", "request", string(jsonData))
+	requestID := randomid.GenerateUniqueID(24)
+	fs.logger.Debug(
+		"filestream: post request",
+		"request_id", requestID,
+		"request", string(jsonData),
+	)
 
 	useGzip := fs.settings.IsFileStreamGzipEnabled() &&
 		fs.featureProvider.Enabled(
@@ -175,7 +181,7 @@ func (fs *fileStream) send(
 
 	shouldLogStartAndEnd := !data.IsHeartbeat()
 	if shouldLogStartAndEnd {
-		fs.logRequestSummary(data)
+		fs.logRequestSummary(data, requestID)
 	}
 
 	resp, err := fs.apiClient.Do(req)
@@ -183,9 +189,10 @@ func (fs *fileStream) send(
 	switch {
 	case err != nil:
 		return fmt.Errorf(
-			"filestream: error making HTTP request: %v. got response: %v",
+			"filestream: error making HTTP request: %v. got response: %v request_id=%s",
 			err,
 			resp,
+			requestID,
 		)
 	case resp.StatusCode < 200 || resp.StatusCode > 300:
 		// If we reach here, that means all retries were exhausted. This could
@@ -194,9 +201,10 @@ func (fs *fileStream) send(
 		_ = resp.Body.Close()
 
 		return fmt.Errorf(
-			"filestream: failed to upload: %v url=%v: %s",
+			"filestream: failed to upload: %v url=%v request_id=%s: %s",
 			resp.Status,
 			req.URL,
+			requestID,
 			string(body),
 		)
 
@@ -204,7 +212,11 @@ func (fs *fileStream) send(
 		if shouldLogStartAndEnd {
 			// Log after sending to record that the backend responded and should
 			// have the data in the request.
-			fs.logger.Info("filestream: request sent", "status", resp.Status)
+			fs.logger.Info(
+				"filestream: request sent",
+				"request_id", requestID,
+				"status", resp.Status,
+			)
 		}
 	}
 
@@ -213,6 +225,7 @@ func (fs *fileStream) send(
 			fs.logger.CaptureError(
 				"filestream",
 				fmt.Errorf("filestream: error closing response body: %v", err),
+				"request_id", requestID,
 			)
 		}
 	}(resp.Body)
@@ -223,10 +236,15 @@ func (fs *fileStream) send(
 		fs.logger.CaptureError(
 			"filestream",
 			fmt.Errorf("filestream: json decode error: %v", err),
+			"request_id", requestID,
 		)
 	}
 	feedbackChan <- res
-	fs.logger.Debug("filestream: post response", "response", res)
+	fs.logger.Debug(
+		"filestream: post response",
+		"request_id", requestID,
+		"response", res,
+	)
 	return nil
 }
 
@@ -267,11 +285,16 @@ func (fs *fileStream) trackUploadOperation(
 //
 // When metrics don't show up in the UI, this helps determine whether they were
 // even sent.
-func (fs *fileStream) logRequestSummary(data *FileStreamRequestJSON) {
-	// 11 = number of attribute pairs logged below
-	attrs := make([]any, 0, 11*2)
+func (fs *fileStream) logRequestSummary(
+	data *FileStreamRequestJSON,
+	requestID string,
+) {
+	// 12 = number of attribute pairs logged below
+	attrs := make([]any, 0, 12*2)
 
-	attrs = append(attrs, "total_files", len(data.Files))
+	attrs = append(attrs,
+		"request_id", requestID,
+		"total_files", len(data.Files))
 
 	if history, ok := data.Files[HistoryFileName]; ok {
 		attrs = append(attrs,

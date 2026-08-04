@@ -61,6 +61,7 @@ func NewFakeClient(baseURLString string) *FakeClient {
 // TestResponse is an easy-to-use [http.Response] for tests.
 type TestResponse struct {
 	StatusCode int
+	Body       string
 }
 
 // SetResponse configures the client's response to all requests.
@@ -75,7 +76,7 @@ func (c *FakeClient) SetResponse(resp *TestResponse, err error) {
 		c.response = &http.Response{}
 		c.response.StatusCode = resp.StatusCode
 		c.response.Status = fmt.Sprintf("%d TEST", resp.StatusCode)
-		c.response.Body = io.NopCloser(strings.NewReader(""))
+		c.response.Body = io.NopCloser(strings.NewReader(resp.Body))
 	}
 }
 
@@ -118,9 +119,13 @@ func (c *FakeClient) Do(req *retryablehttp.Request) (*http.Response, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	body, err := io.ReadAll(req.Body)
-	if err != nil {
-		panic(err)
+	var body []byte
+	if req.Body != nil {
+		var err error
+		body, err = io.ReadAll(req.Body)
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	c.requests = append(c.requests, RequestCopy{
