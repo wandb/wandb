@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 # Signals whose kernel default is "terminate" and that orchestrators use to
 # request graceful shutdown.
-_TERMINATING_SIGNALS = frozenset(
+TERMINATING_SIGNALS = frozenset(
     s
     for s in (
         getattr(signal, "SIGTERM", None),
@@ -186,7 +186,7 @@ class AgentProcess:
         original_handler = self._original_handlers.get(signum)
         if original_handler and callable(original_handler):
             original_handler(signum, frame)
-        elif signum in _TERMINATING_SIGNALS:
+        elif signum in TERMINATING_SIGNALS:
             raise ShutdownSignal(signum)
 
     def _start(self, finished_q, env, function, run_id, in_jupyter):
