@@ -35,9 +35,53 @@ func TestParseHistory_StepAndMetrics(t *testing.T) {
 		{NestedKey: []string{"loss"}, ValueJson: "0.5"},
 		{NestedKey: []string{"_runtime"}, ValueJson: "1.2"},
 	}}
-	msg := leet.ParseHistory("/some/run/path", h).(leet.HistoryMsg)
+	msg := leet.ParseHistory("/some/run/path", h, 2).(leet.HistoryMsg)
 	require.Equal(t, 2.0, msg.Metrics["loss"].X[0])
 	require.Equal(t, 0.5, msg.Metrics["loss"].Y[0])
+}
+
+func TestLevelDBHistorySource_AssignsAutoStepForDisplay(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "auto-step.wandb")
+
+	w, err := transactionlog.OpenWriter(path)
+	require.NoError(t, err)
+	err = w.Write(&spb.Record{RecordType: &spb.Record_Run{Run: &spb.RunRecord{
+		RunId: "run1",
+	}}})
+	require.NoError(t, err)
+	err = w.Write(&spb.Record{RecordType: &spb.Record_History{History: &spb.HistoryRecord{
+		Item: []*spb.HistoryItem{
+			{NestedKey: []string{"loss"}, ValueJson: "0.1"},
+		},
+	}}})
+	require.NoError(t, err)
+	err = w.Write(&spb.Record{RecordType: &spb.Record_History{History: &spb.HistoryRecord{
+		Item: []*spb.HistoryItem{
+			{NestedKey: []string{"loss"}, ValueJson: "0.2"},
+		},
+	}}})
+	require.NoError(t, err)
+	err = w.Write(&spb.Record{RecordType: &spb.Record_Exit{Exit: &spb.RunExitRecord{ExitCode: 0}}})
+	require.NoError(t, err)
+	require.NoError(t, w.Close())
+
+	s, err := leet.NewLevelDBHistorySource(path, observability.NewNoOpLogger())
+	require.NoError(t, err)
+
+	cmd := leet.ReadRecords(s, leet.BootLoadChunkSize, leet.BootLoadMaxTime)
+	msg := cmd()
+	batch, ok := msg.(leet.ChunkedBatchMsg)
+	require.True(t, ok)
+
+	var history leet.HistoryMsg
+	for _, batchMsg := range batch.Msgs {
+		if h, ok := batchMsg.(leet.HistoryMsg); ok {
+			history = h
+			break
+		}
+	}
+	require.Equal(t, []float64{0, 1}, history.Metrics["loss"].X)
+	require.Equal(t, []float64{0.1, 0.2}, history.Metrics["loss"].Y)
 }
 
 func TestReadAllRecordsChunked_HistoryThenExit(t *testing.T) {

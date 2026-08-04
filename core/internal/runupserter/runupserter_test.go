@@ -59,9 +59,10 @@ func TestInitRun_MakesCorrectRequest(t *testing.T) {
 	params.Settings = settings.From(&spb.Settings{
 		Program: wrapperspb.String("program"),
 	})
+	mockClient.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{}`)
 	runupsertertest.StubUpsertBucket(t, mockClient)
 
-	upserter, _ := runupserter.InitRun(
+	upserter, err := runupserter.InitRun(
 		runRecord(&spb.RunRecord{
 			// In order of UpsertBucket parameters.
 			StorageId:   "storage ID",
@@ -89,10 +90,11 @@ func TestInitRun_MakesCorrectRequest(t *testing.T) {
 		}),
 		params,
 	)
+	require.NoError(t, err)
 	defer upserter.Finish()
 
 	requests := mockClient.AllRequests()
-	assert.Len(t, requests, 1)
+	require.Len(t, requests, 1)
 	gqlmock.AssertVariables(
 		t,
 		requests[0],
@@ -129,6 +131,7 @@ func TestInitRun_ReadsResponse(t *testing.T) {
 	mockClient := gqlmock.NewMockClient()
 	params := testParams(t)
 	params.GraphqlClientOrNil = mockClient
+	mockClient.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{}`)
 	mockClient.StubMatchOnce(
 		gqlmock.WithOpName("UpsertBucket"),
 		`{
@@ -148,6 +151,7 @@ func TestInitRun_ReadsResponse(t *testing.T) {
 	)
 
 	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{}), params)
+	require.NoError(t, err)
 	defer upserter.Finish()
 
 	run := &spb.RunRecord{}
@@ -165,6 +169,7 @@ func TestInitRun_UpsertError(t *testing.T) {
 	mockClient := gqlmock.NewMockClient()
 	params := testParams(t)
 	params.GraphqlClientOrNil = mockClient
+	mockClient.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{}`)
 	mockClient.StubMatchWithError(
 		gqlmock.WithOpName("UpsertBucket"),
 		&graphql.HTTPError{
@@ -235,10 +240,8 @@ func TestInitRun_Offline(t *testing.T) {
 	params.GraphqlClientOrNil = nil
 
 	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{}), params)
-	defer upserter.Finish()
-
-	assert.Nil(t, err)
-	assert.NotNil(t, upserter)
+	require.NoError(t, err)
+	upserter.Finish()
 }
 
 func TestResume(t *testing.T) {
@@ -250,27 +253,176 @@ func TestResume(t *testing.T) {
 	params.GraphqlClientOrNil = mockClient
 	params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("allow")})
 
-	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{}), params)
+	upserter, err := runupserter.InitRun(
+		runRecord(&spb.RunRecord{ResumeMode: true}),
+		params,
+	)
+	require.NoError(t, err)
 	defer upserter.Finish()
 
-	assert.NoError(t, err)
 	assert.True(t, mockClient.AllStubsUsed())
 }
 
-func TestResume_Offline_Succeeds(t *testing.T) {
+func TestResume_FromRunRecord(t *testing.T) {
+	mockClient := gqlmock.NewMockClient()
+	mockClient.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{}`)
+	runupsertertest.StubUpsertBucket(t, mockClient)
+
+	params := testParams(t)
+	params.GraphqlClientOrNil = mockClient
+	params.Settings = settings.From(&spb.Settings{
+		Resume: wrapperspb.String("allow"),
+	})
+
+	upserter, err := runupserter.InitRun(
+		runRecord(&spb.RunRecord{ResumeMode: true}),
+		params,
+	)
+	require.NoError(t, err)
+	defer upserter.Finish()
+
+	assert.True(t, mockClient.AllStubsUsed())
+}
+
+func TestResume_FromRunRecordUsesSettingsPolicy(t *testing.T) {
+	mockClient := gqlmock.NewMockClient()
+	mockClient.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{}`)
+
+	params := testParams(t)
+	params.GraphqlClientOrNil = mockClient
+	params.Settings = settings.From(&spb.Settings{
+		Resume: wrapperspb.String("never"),
+	})
+
+	upserter, err := runupserter.InitRun(
+		runRecord(&spb.RunRecord{ResumeMode: true}),
+		params,
+	)
+
+	assert.Nil(t, upserter)
+	assert.Error(t, err)
+	assert.True(t, mockClient.AllStubsUsed())
+}
+
+// This verifies the correct error handling for missing run and ResumeMode=False.
+func TestResume_FalseIntentSettingsMatrixMissingRun(t *testing.T) {
+	tests := []struct {
+		name       string
+		resume     *wrapperspb.StringValue
+		wantError  bool
+		wantIntent bool
+	}{
+		{name: "allow", resume: wrapperspb.String("allow"), wantIntent: true},
+		{name: "must", resume: wrapperspb.String("must"), wantError: true, wantIntent: true},
+		{name: "never", resume: wrapperspb.String("never")},
+		{name: "unset"},
+		{name: "auto", resume: wrapperspb.String("auto")},
+		{name: "unexpected", resume: wrapperspb.String("unexpected")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockClient := gqlmock.NewMockClient()
+			shouldStubResumeStatus := tt.resume != nil &&
+				(tt.resume.GetValue() == "must" || tt.resume.GetValue() == "allow" || tt.resume.GetValue() == "never")
+			if shouldStubResumeStatus {
+				mockClient.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{}`)
+			}
+
+			params := testParams(t)
+			params.GraphqlClientOrNil = mockClient
+			if tt.resume != nil {
+				params.Settings = settings.From(&spb.Settings{Resume: tt.resume})
+			}
+			if !tt.wantError {
+				runupsertertest.StubUpsertBucket(t, mockClient)
+			}
+
+			upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{}), params)
+			if tt.wantError {
+				assert.Nil(t, upserter)
+				assert.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				defer upserter.Finish()
+				run := &spb.RunRecord{}
+				upserter.FillRunRecord(run)
+				assert.Equal(t, tt.wantIntent, run.ResumeMode, tt.name)
+			}
+			if shouldStubResumeStatus {
+				assert.True(t, mockClient.AllStubsUsed(), tt.name)
+			}
+		})
+	}
+}
+
+// This test proves that ResumeMode=False (equivalent to `resume=never`) can be
+// overridden by explicitly setting `resume=allow` or `resume=must` when there
+// is an existing run.
+func TestResume_FalseIntentAllowAndMustResumeExistingRun(t *testing.T) {
+	for _, mode := range []string{"allow", "must"} {
+		t.Run(mode, func(t *testing.T) {
+			mockClient := gqlmock.NewMockClient()
+			mockClient.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{
+				"model": {"bucket": {
+					"config": "{}",
+					"wandbConfig": "{\"t\": 1}",
+					"historyLineCount": 0,
+					"eventsLineCount": 0,
+					"logLineCount": 0,
+					"historyTail": "[]",
+					"eventsTail": "[]",
+					"summaryMetrics": "{}"
+				}}
+			}`)
+			runupsertertest.StubUpsertBucket(t, mockClient)
+
+			params := testParams(t)
+			params.GraphqlClientOrNil = mockClient
+			params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String(mode)})
+
+			upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{}), params)
+
+			require.NoError(t, err)
+			defer upserter.Finish()
+		})
+	}
+}
+
+func TestResume_Offline_SettingsOverrideMissingRunIntent(t *testing.T) {
 	params := testParams(t)
 	params.GraphqlClientOrNil = nil
 	params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("must")})
 
 	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{}), params)
+	require.NoError(t, err)
 	defer upserter.Finish()
 
-	assert.NoError(t, err)
+	run := &spb.RunRecord{}
+	upserter.FillRunRecord(run)
+	assert.True(t, run.ResumeMode)
+}
+
+func TestResume_Offline_PreservesRunRecordIntent(t *testing.T) {
+	params := testParams(t)
+	params.GraphqlClientOrNil = nil
+	params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("must")})
+
+	upserter, err := runupserter.InitRun(
+		runRecord(&spb.RunRecord{ResumeMode: true}),
+		params,
+	)
+	require.NoError(t, err)
+	defer upserter.Finish()
+
+	run := &spb.RunRecord{}
+	upserter.FillRunRecord(run)
+	assert.True(t, run.ResumeMode)
 }
 
 func TestResume_InitializesSyncStateStartingStep(t *testing.T) {
 	mockClient := gqlmock.NewMockClient()
-	runupsertertest.StubRunResumeStatusWithStep(t, mockClient, 5)
+	runupsertertest.StubRunResumeStatusWithStep(t, mockClient, 4)
 	runupsertertest.StubUpsertBucket(t, mockClient)
 
 	params := testParams(t)
@@ -341,11 +493,12 @@ func TestRewind_InitializesSyncStateStartingStep(t *testing.T) {
 		})
 
 	params := testParams(t)
+	params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("must")})
 
 	upserter, err := runupserter.InitRun(runInitRecord, params)
+	require.NoError(t, err)
 	defer upserter.Finish()
 
-	assert.NoError(t, err)
 	run := &spb.RunRecord{}
 	upserter.FillRunRecord(run)
 	assert.EqualValues(t, run.StartingStep, 124)
@@ -368,11 +521,12 @@ func TestFork_InitializesSyncStateStartingStep(t *testing.T) {
 	)
 
 	params := testParams(t)
+	params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("must")})
 
 	upserter, err := runupserter.InitRun(runInitRecord, params)
+	require.NoError(t, err)
 	defer upserter.Finish()
 
-	assert.NoError(t, err)
 	run := &spb.RunRecord{}
 	upserter.FillRunRecord(run)
 	assert.EqualValues(t, run.StartingStep, 11)
@@ -397,6 +551,7 @@ func setupUpdateTest(t *testing.T) variablesForUpdateTest {
 	params.GraphqlClientOrNil = mockClient
 
 	// There will be two upserts: the initial one, and a single update.
+	mockClient.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{}`)
 	runupsertertest.StubUpsertBucket(t, mockClient)
 	runupsertertest.StubUpsertBucket(t, mockClient)
 
@@ -432,7 +587,7 @@ func TestUpdate_Uploads(t *testing.T) {
 		vars.Upserter.Finish()
 
 		requests := vars.MockClient.AllRequests()
-		assert.Len(t, requests, 2)
+		require.Len(t, requests, 2)
 		gqlmock.AssertVariables(t,
 			requests[1],
 			gqlmock.GQLVar("name", gomock.Eq("test run ID")),
@@ -455,7 +610,7 @@ func TestUpdateConfig_Uploads(t *testing.T) {
 		vars.Upserter.Finish()
 
 		requests := vars.MockClient.AllRequests()
-		assert.Len(t, requests, 2)
+		require.Len(t, requests, 2)
 		gqlmock.AssertVariables(t,
 			requests[1],
 			gqlmock.GQLVar("config", gqlmock.JSONEq(fmt.Sprintf(`
@@ -479,7 +634,7 @@ func TestUpdateEnvironment_Uploads(t *testing.T) {
 		vars.Upserter.Finish()
 
 		requests := vars.MockClient.AllRequests()
-		assert.Len(t, requests, 2)
+		require.Len(t, requests, 2)
 		gqlmock.AssertVariables(t,
 			requests[1],
 			gqlmock.GQLVar("config", gqlmock.JSONEq(fmt.Sprintf(`
@@ -500,7 +655,7 @@ func TestUpdateTelemetry_Uploads(t *testing.T) {
 		vars.Upserter.Finish()
 
 		requests := vars.MockClient.AllRequests()
-		assert.Len(t, requests, 2)
+		require.Len(t, requests, 2)
 		gqlmock.AssertVariables(t,
 			requests[1],
 			gqlmock.GQLVar("config", gqlmock.JSONEq(fmt.Sprintf(`
@@ -526,7 +681,7 @@ func TestUpdateMetrics_Uploads(t *testing.T) {
 		vars.Upserter.Finish()
 
 		requests := vars.MockClient.AllRequests()
-		assert.Len(t, requests, 2)
+		require.Len(t, requests, 2)
 		gqlmock.AssertVariables(t,
 			requests[1],
 			gqlmock.GQLVar("config", gqlmock.JSONEq(fmt.Sprintf(`
