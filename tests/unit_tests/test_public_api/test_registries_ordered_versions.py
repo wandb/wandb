@@ -96,7 +96,9 @@ def test_filter_for_registry_falls_back_to_name_for_invalid_internal_id(
     registry.internal_id = "not-a-valid-gql-id"
 
     with caplog.at_level(logging.WARNING, logger=_utils.__name__):
-        assert filter_for_registry(registry, service_api=service_api, organization=ORG) == {
+        assert filter_for_registry(
+            registry, service_api=service_api, organization=ORG
+        ) == {
             "name": "wandb-registry-test",
         }
 
