@@ -10,6 +10,8 @@ from pytest import FixtureRequest, fixture, mark, raises
 from pytest_mock import MockerFixture
 from wandb import Artifact, env
 from wandb.errors import CommError
+from wandb.proto import wandb_internal_pb2 as pb
+from wandb.sdk.artifacts._gqlutils import server_supports
 from wandb.util import make_artifact_name_safe
 
 if TYPE_CHECKING:
@@ -253,12 +255,15 @@ def test_wandb_artifact_config_set_item(user: str, test_settings, api: Api):
     }
 
 
-def test_use_artifact(user, test_settings):
+def test_use_artifact(user, test_settings, api: Api):
     with wandb.init(settings=test_settings()) as run:
         artifact = Artifact("arti", type="dataset")
         run.use_artifact(artifact)
         artifact.wait()
-        assert artifact.digest == "64e7c61456b10382e2f3b571ac24b659"
+        if server_supports(api._service_api, pb.ARTIFACT_DIGEST_ALGORITHM):
+            assert artifact.digest == "f13c5dd8602ab5d18a0c87ce730a735e"
+        else:
+            assert artifact.digest == "64e7c61456b10382e2f3b571ac24b659"
 
 
 @mark.usefixtures("sample_data")
