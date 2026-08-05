@@ -13,6 +13,7 @@ from typing_extensions import Never, override
 from wandb._analytics import tracked
 from wandb.apis.paginator import Paginator, RelayPaginator, SizedRelayPaginator
 from wandb.errors import UnsupportedError
+from wandb.sdk.artifacts._gqlutils import omit_artifact_fields
 
 from ._utils import ensure_registry_prefix_on_names
 
@@ -405,7 +406,11 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
             "organization": organization,
         }
         super().__init__(
-            service_api, variables=variables, per_page=per_page, start=start
+            service_api,
+            variables=variables,
+            per_page=per_page,
+            start=start,
+            omit_fields=omit_artifact_fields(service_api),
         )
 
     @override

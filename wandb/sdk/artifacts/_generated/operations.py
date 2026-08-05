@@ -620,6 +620,7 @@ fragment ArtifactFragment on Artifact {
   state
   size
   digest
+  digestAlgorithm @include(if: true)
   commitHash
   fileCount
   createdAt
@@ -714,6 +715,7 @@ fragment ArtifactFragment on Artifact {
   state
   size
   digest
+  digestAlgorithm @include(if: true)
   commitHash
   fileCount
   createdAt
@@ -808,6 +810,7 @@ fragment ArtifactFragment on Artifact {
   state
   size
   digest
+  digestAlgorithm @include(if: true)
   commitHash
   fileCount
   createdAt
@@ -948,6 +951,7 @@ fragment ArtifactFragment on Artifact {
   state
   size
   digest
+  digestAlgorithm @include(if: true)
   commitHash
   fileCount
   createdAt
@@ -1026,6 +1030,7 @@ fragment ArtifactFragment on Artifact {
   state
   size
   digest
+  digestAlgorithm @include(if: true)
   commitHash
   fileCount
   createdAt
@@ -1206,6 +1211,7 @@ fragment ArtifactFragment on Artifact {
   state
   size
   digest
+  digestAlgorithm @include(if: true)
   commitHash
   fileCount
   createdAt
@@ -1295,6 +1301,7 @@ fragment ArtifactFragment on Artifact {
   state
   size
   digest
+  digestAlgorithm @include(if: true)
   commitHash
   fileCount
   createdAt
@@ -1450,6 +1457,7 @@ fragment ArtifactFragment on Artifact {
   state
   size
   digest
+  digestAlgorithm @include(if: true)
   commitHash
   fileCount
   createdAt
