@@ -1,3 +1,16 @@
+# v0.3.9 (2026-08-03)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v0.3.8 (2026-07-31.2)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+* **Dependency Update**: Upgrade to smithy-go v1.27.6 to fix various serde issues in HTTP binding services.
+
+# v0.3.7 (2026-07-29)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
 # v0.3.6 (2026-07-28)
 
 * **Bug Fix**: Fix flaky test from feature/s3/transfermanager upload retry
