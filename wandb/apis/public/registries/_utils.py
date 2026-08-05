@@ -167,7 +167,13 @@ def fetch_org_entity_from_organization(
 
 
 def _project_id_from_gql_id(gql_id: str) -> int | None:
-    match b64decode_ascii(gql_id).split(":"):
+    try:
+        decoded = b64decode_ascii(gql_id)
+    except (ValueError, UnicodeDecodeError):
+        _logger.warning("Invalid project ID: %r", gql_id)
+        return None
+
+    match decoded.split(":"):
         case ["Project", idx] if idx.isdigit():
             return int(idx)
         case ["ProjectInternalId", idx] if idx.isdigit():
