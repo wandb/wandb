@@ -549,6 +549,59 @@ func TestHistoryReader_GetHistorySteps_WithKeys(t *testing.T) {
 	}
 }
 
+func TestHistoryReader_AlwaysProjectsStepWithSelectedKeys(t *testing.T) {
+	ctx := t.Context()
+	t.Setenv("WANDB_CACHE_DIR", t.TempDir())
+
+	mockGQL := mockGraphQLWithParquetUrls([]string{"https://example.test/test.parquet"})
+
+	var projectedColumns []string
+	rustWrapper := ffi.RustArrowWrapperTester(
+		func(
+			_ *byte,
+			columnNames **byte,
+			numColumns int,
+			_ **byte,
+		) unsafe.Pointer {
+			for _, columnName := range unsafe.Slice(columnNames, numColumns) {
+				var length int
+				for *(*byte)(unsafe.Add(unsafe.Pointer(columnName), length)) != 0 {
+					length++
+				}
+				projectedColumns = append(
+					projectedColumns,
+					string(unsafe.Slice(columnName, length)),
+				)
+			}
+			return unsafe.Pointer(new(byte))
+		},
+		func(
+			_ unsafe.Pointer,
+			_ int64,
+			_ int64,
+			_ *ffi.StepScanResult,
+		) *byte {
+			return nil
+		},
+	)
+
+	reader, err := New(
+		ctx,
+		"test-entity",
+		"test-project",
+		"test-run-id",
+		mockGQL,
+		retryablehttp.NewClient(),
+		[]string{"flat_metric", "nested"},
+		true,
+		rustWrapper,
+	)
+	require.NoError(t, err)
+	t.Cleanup(reader.Release)
+
+	assert.Equal(t, []string{"flat_metric", "nested", "_step"}, projectedColumns)
+}
+
 func TestHistoryReader_GetHistorySteps_AllLiveData(t *testing.T) {
 	ctx := t.Context()
 	mockGQL := gqlmock.NewMockClient()

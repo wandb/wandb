@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"slices"
 
 	"github.com/wandb/simplejsonext"
 
@@ -91,7 +90,7 @@ func (h *HistoryReader) getLiveDataForSpecificKeys(
 	minStep int64,
 	maxStep int64,
 ) ([]parquet.KeyValueList, error) {
-	keys := append(slices.Clone(h.keys), parquet.StepKey)
+	keys := keysWithStep(h.keys)
 
 	spec := map[string]any{
 		"keys":    keys,

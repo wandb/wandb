@@ -1,5 +1,5 @@
-use arrow::array::{Int64Array, RecordBatch, StringArray};
-use arrow::datatypes::{DataType, Field, Schema};
+use arrow::array::{ArrayRef, Float64Array, Int64Array, RecordBatch, StringArray, StructArray};
+use arrow::datatypes::{DataType, Field, Fields, Schema};
 use arrow_rs_wrapper::*;
 use parquet::arrow::ArrowWriter;
 use parquet::file::properties::WriterProperties;
@@ -27,6 +27,7 @@ enum KvValue {
     Bool(bool),
     Binary(Vec<u8>),
     List(Vec<KvValue>),
+    Map(Vec<(String, KvValue)>),
 }
 
 /// Parse the binary KV wire format returned by reader_scan_step_range.
@@ -118,6 +119,19 @@ fn read_kv_value(data: &[u8], offset: &mut usize) -> KvValue {
                 values.push(read_kv_value(data, offset));
             }
             KvValue::List(values)
+        }
+        8 => {
+            let len = read_u32(data, offset) as usize;
+            let mut entries = Vec::with_capacity(len);
+            for _ in 0..len {
+                let key_len = read_u32(data, offset) as usize;
+                let key = std::str::from_utf8(&data[*offset..*offset + key_len])
+                    .unwrap()
+                    .to_string();
+                *offset += key_len;
+                entries.push((key, read_kv_value(data, offset)));
+            }
+            KvValue::Map(entries)
         }
         _ => panic!("Unknown tag: {}", tag),
     }
@@ -214,6 +228,48 @@ fn create_test_parquet_file(path: &str, num_rows: usize) -> std::io::Result<()> 
     writer
         .close()
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+
+    Ok(())
+}
+
+/// Creates the logical schema that Gorilla writes for selected-key scans.
+fn create_gorilla_compatible_parquet_file(path: &str) -> std::io::Result<()> {
+    let nested_fields = Fields::from(vec![
+        Arc::new(Field::new("score", DataType::Float64, true)),
+        Arc::new(Field::new("label", DataType::Utf8, true)),
+    ]);
+    let schema = Arc::new(Schema::new(vec![
+        Field::new(STEP_COLUMN_NAME, DataType::Int64, false),
+        Field::new("flat_metric", DataType::Float64, true),
+        Field::new("nested", DataType::Struct(nested_fields.clone()), true),
+        Field::new("unrelated", DataType::Utf8, true),
+    ]));
+
+    let nested = StructArray::new(
+        nested_fields,
+        vec![
+            Arc::new(Float64Array::from(vec![Some(1.5), None, Some(3.5)])) as ArrayRef,
+            Arc::new(StringArray::from(vec![Some("first"), Some("second"), None])) as ArrayRef,
+        ],
+        None,
+    );
+    let batch = RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(Int64Array::from(vec![7, 8, 9])),
+            Arc::new(Float64Array::from(vec![Some(10.0), None, Some(30.0)])),
+            Arc::new(nested),
+            Arc::new(StringArray::from(vec!["omit-a", "omit-b", "omit-c"])),
+        ],
+    )
+    .map_err(std::io::Error::other)?;
+
+    let file = File::create(path)?;
+    let props = WriterProperties::builder().build();
+    let mut writer =
+        ArrowWriter::try_new(file, schema, Some(props)).map_err(std::io::Error::other)?;
+    writer.write(&batch).map_err(std::io::Error::other)?;
+    writer.close().map_err(std::io::Error::other)?;
 
     Ok(())
 }
@@ -378,6 +434,77 @@ fn test_reader_scan_step_range_with_columns_subset() {
         })
         .collect();
     assert_eq!(int_values, vec![100, 110, 120, 130, 140, 150, 160, 170, 180, 190]);
+
+    unsafe {
+        free_buffer(result.vec_ptr as *mut Vec<u8>);
+        free_reader(reader_ptr);
+    }
+}
+
+#[test]
+fn test_reader_scan_selected_nested_root() {
+    let temp_dir = TempDir::new().unwrap();
+    let file_path = temp_dir.path().join("gorilla-compatible.parquet");
+    create_gorilla_compatible_parquet_file(file_path.to_str().unwrap()).unwrap();
+
+    let path_cstring = CString::new(file_path.to_str().unwrap()).unwrap();
+    let columns = [
+        CString::new(STEP_COLUMN_NAME).unwrap(),
+        CString::new("flat_metric").unwrap(),
+        CString::new("nested").unwrap(),
+    ];
+    let column_pointers: Vec<_> = columns.iter().map(|column| column.as_ptr()).collect();
+    let mut out_error: *mut libc::c_char = std::ptr::null_mut();
+    let reader_ptr = unsafe {
+        create_reader(
+            path_cstring.as_ptr(),
+            column_pointers.as_ptr(),
+            column_pointers.len(),
+            &mut out_error,
+        )
+    };
+    assert!(!reader_ptr.is_null());
+
+    let mut result = StepScanResult {
+        vec_ptr: 0,
+        data_ptr: 0,
+        data_len: 0,
+        num_rows_returned: 0,
+    };
+    let error = unsafe { reader_scan_step_range(reader_ptr, 7, 10, &mut result) };
+    assert!(error.is_null());
+
+    let rows = parse_result(&result);
+    assert_eq!(rows.len(), 3);
+    assert_eq!(rows[0].columns.len(), 3);
+    assert_eq!(rows[0].columns[0], ("_step".to_string(), KvValue::Int64(7)));
+    assert_eq!(
+        rows[0].columns[1],
+        ("flat_metric".to_string(), KvValue::Float64(10.0))
+    );
+    assert_eq!(
+        rows[0].columns[2],
+        (
+            "nested".to_string(),
+            KvValue::Map(vec![
+                ("score".to_string(), KvValue::Float64(1.5)),
+                ("label".to_string(), KvValue::String("first".to_string())),
+            ]),
+        )
+    );
+    assert_eq!(
+        rows[1].columns[2],
+        (
+            "nested".to_string(),
+            KvValue::Map(vec![
+                ("score".to_string(), KvValue::Null),
+                ("label".to_string(), KvValue::String("second".to_string())),
+            ]),
+        )
+    );
+    assert!(rows
+        .iter()
+        .all(|row| { row.columns.iter().all(|(name, _)| name != "unrelated") }));
 
     unsafe {
         free_buffer(result.vec_ptr as *mut Vec<u8>);

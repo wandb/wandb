@@ -1,17 +1,15 @@
-use std::ffi::{CStr, CString};
-use std::fs::File;
-use parquet::arrow::arrow_reader::{
-    ParquetRecordBatchReader,
-    ParquetRecordBatchReaderBuilder,
-};
-use parquet::arrow::ProjectionMask;
 use arrow::array::{Array, Int64Array, RecordBatch};
 use arrow::compute::cast;
-use arrow::datatypes::DataType;
+use arrow::datatypes::{DataType, Schema};
+use parquet::arrow::arrow_reader::{ParquetRecordBatchReader, ParquetRecordBatchReaderBuilder};
+use parquet::arrow::ProjectionMask;
+use parquet::schema::types::SchemaDescriptor;
+use std::ffi::{CStr, CString};
+use std::fs::File;
 
 mod httpfile;
 pub mod serialize;
-pub use httpfile::HttpFileReader;  // Export for testing
+pub use httpfile::HttpFileReader; // Export for testing
 
 const STEP_COLUMN_NAME: &str = "_step";
 
@@ -101,27 +99,11 @@ fn create_reader_internal(
         let builder = ParquetRecordBatchReaderBuilder::try_new(http_reader)
             .map_err(|e| format!("Failed to create parquet reader builder: {}", e))?;
 
-        // Log schema information
-        let schema = builder.schema();
-
-        // Build projection mask from column names
-        let projection = if let Some(names) = column_names {
-            // Find column indices by name
-            let mut indices = Vec::new();
-            for name in names {
-                if let Ok(idx) = schema.index_of(name) {
-                    indices.push(idx);
-                }
-            }
-
-            if indices.is_empty() {
-                return Err(format!("None of the requested columns were found in the schema"));
-            }
-
-            ProjectionMask::leaves(builder.parquet_schema(), indices.into_iter())
-        } else {
-            ProjectionMask::all()
-        };
+        let projection = projection_for_columns(
+            builder.schema().as_ref(),
+            builder.parquet_schema(),
+            column_names,
+        )?;
 
         builder
             .with_projection(projection)
@@ -135,23 +117,11 @@ fn create_reader_internal(
         let builder = ParquetRecordBatchReaderBuilder::try_new(file)
             .map_err(|e| format!("Failed to create parquet reader builder: {}", e))?;
 
-        let schema = builder.schema();
-
-        // Build projection mask from column names
-        let projection = if let Some(names) = column_names {
-            let mut indices = Vec::new();
-            for name in names {
-                if let Ok(idx) = schema.index_of(name) {
-                    indices.push(idx);
-                }
-            }
-            if indices.is_empty() {
-                return Err(format!("None of the requested columns were found in the schema"));
-            }
-            ProjectionMask::leaves(builder.parquet_schema(), indices.into_iter())
-        } else {
-            ProjectionMask::all()
-        };
+        let projection = projection_for_columns(
+            builder.schema().as_ref(),
+            builder.parquet_schema(),
+            column_names,
+        )?;
 
         builder
             .with_projection(projection)
@@ -171,6 +141,26 @@ fn create_reader_internal(
     };
 
     Ok(handle)
+}
+
+fn projection_for_columns(
+    arrow_schema: &Schema,
+    parquet_schema: &SchemaDescriptor,
+    column_names: Option<&[String]>,
+) -> Result<ProjectionMask, String> {
+    let Some(names) = column_names else {
+        return Ok(ProjectionMask::all());
+    };
+
+    let root_indices: Vec<_> = names
+        .iter()
+        .filter_map(|name| arrow_schema.index_of(name).ok())
+        .collect();
+    if root_indices.is_empty() {
+        return Err("None of the requested columns were found in the schema".to_string());
+    }
+
+    Ok(ProjectionMask::roots(parquet_schema, root_indices))
 }
 
 impl ReaderHandle {
