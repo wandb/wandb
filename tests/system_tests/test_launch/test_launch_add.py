@@ -97,6 +97,7 @@ def test_launch_add_delete_queued_run(
     use_local_wandb_backend,
     user,
     test_settings,
+    create_run_queue,
 ):
     _ = use_local_wandb_backend
 
@@ -109,7 +110,8 @@ def test_launch_add_delete_queued_run(
     api = InternalApi()
 
     with wandb.init(settings=settings):
-        api.create_run_queue(
+        create_run_queue(
+            api._service_api,
             entity=user,
             project=LAUNCH_DEFAULT_PROJECT,
             queue_name=queue,
@@ -205,6 +207,7 @@ def test_push_to_runqueue_exists(
     push_to_run_queue_spy,
     user,
     mocked_fetchable_git_repo,
+    create_run_queue,
 ):
     proj = "test_project2"
     queue = "existing-queue"
@@ -221,8 +224,12 @@ def test_push_to_runqueue_exists(
 
     with wandb.init(settings=wandb.Settings(project=LAUNCH_DEFAULT_PROJECT)):
         api = wandb.sdk.internal.internal_api.Api()
-        api.create_run_queue(
-            entity=user, project=LAUNCH_DEFAULT_PROJECT, queue_name=queue, access="USER"
+        create_run_queue(
+            api._service_api,
+            entity=user,
+            project=LAUNCH_DEFAULT_PROJECT,
+            queue_name=queue,
+            access="USER",
         )
 
         result = api.push_to_run_queue(queue, args, None, LAUNCH_DEFAULT_PROJECT)
@@ -269,6 +276,7 @@ def test_push_to_runqueue_old_server(
     monkeypatch,
     mocked_fetchable_git_repo,
     test_settings,
+    create_run_queue,
 ):
     _ = use_local_wandb_backend
     proj = "test_project0"
@@ -293,8 +301,12 @@ def test_push_to_runqueue_old_server(
     with wandb.init(settings=settings):
         api = wandb.sdk.internal.internal_api.Api()
 
-        api.create_run_queue(
-            entity=user, project=LAUNCH_DEFAULT_PROJECT, queue_name=queue, access="USER"
+        create_run_queue(
+            api._service_api,
+            entity=user,
+            project=LAUNCH_DEFAULT_PROJECT,
+            queue_name=queue,
+            access="USER",
         )
 
         result = api.push_to_run_queue(queue, args, None, LAUNCH_DEFAULT_PROJECT)
@@ -461,6 +473,7 @@ def test_display_updated_runspec(
     user,
     test_settings,
     monkeypatch,
+    create_run_queue,
 ):
     _ = use_local_wandb_backend
     queue = "default"
@@ -487,7 +500,8 @@ def test_display_updated_runspec(
     )
 
     with wandb.init(settings=settings):
-        api.create_run_queue(
+        create_run_queue(
+            api._service_api,
             entity=user,
             project=proj,
             queue_name=queue,

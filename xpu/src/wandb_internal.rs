@@ -253,7 +253,7 @@ pub struct Imports {
     #[prost(bool, tag = "107")]
     pub dspy: bool,
 }
-/// Next ID: 77
+/// Next ID: 80
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Feature {
     /// wandb.watch() called
@@ -474,6 +474,15 @@ pub struct Feature {
     /// User using WandbDSPyCallback
     #[prost(bool, tag = "73")]
     pub dspy_callback: bool,
+    /// User logged an EvalTable via run.log()
+    #[prost(bool, tag = "77")]
+    pub eval_table: bool,
+    /// User logged a regular (non-incremental) wandb.Table via run.log()
+    #[prost(bool, tag = "78")]
+    pub table: bool,
+    /// User logged an incremental wandb.Table via run.log()
+    #[prost(bool, tag = "79")]
+    pub incremental_table: bool,
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Env {
@@ -2965,6 +2974,11 @@ pub enum ServerFeature {
     QueryAutomationsOnEntity = 32,
     /// Indicates that the server supports Organization.triggers.
     AutomationsOnOrganization = 33,
+    /// Indicates that the server supports gzip-compressed filestream request bodies.
+    FilestreamGzip = 34,
+    /// Indicates that the server supports the enqueueSweepRun mutation, used by
+    /// the local sweep scheduler to enqueue runs.
+    SweepsLocalScheduler = 35,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -3031,6 +3045,8 @@ impl ServerFeature {
             Self::AutomationScopeEntity => "AUTOMATION_SCOPE_ENTITY",
             Self::QueryAutomationsOnEntity => "QUERY_AUTOMATIONS_ON_ENTITY",
             Self::AutomationsOnOrganization => "AUTOMATIONS_ON_ORGANIZATION",
+            Self::FilestreamGzip => "FILESTREAM_GZIP",
+            Self::SweepsLocalScheduler => "SWEEPS_LOCAL_SCHEDULER",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -3102,6 +3118,8 @@ impl ServerFeature {
             "AUTOMATION_SCOPE_ENTITY" => Some(Self::AutomationScopeEntity),
             "QUERY_AUTOMATIONS_ON_ENTITY" => Some(Self::QueryAutomationsOnEntity),
             "AUTOMATIONS_ON_ORGANIZATION" => Some(Self::AutomationsOnOrganization),
+            "FILESTREAM_GZIP" => Some(Self::FilestreamGzip),
+            "SWEEPS_LOCAL_SCHEDULER" => Some(Self::SweepsLocalScheduler),
             _ => None,
         }
     }
