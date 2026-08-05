@@ -275,7 +275,9 @@ def test_download_respects_skip_cache(tmp_path: Path, skip_download_cache: bool)
     artifact.wait()
 
     # Ensure the uploaded file is in the cache.
-    cache_pathstr, hit, _ = cache.check_md5_obj_path(entry.digest, entry.size)
+    cache_pathstr, hit, _ = cache.check_digest_obj_path(
+        entry.digest, entry.size, algorithm=artifact.digest_algorithm
+    )
     assert not hit
 
     # Manually write a file into the cache path to check that it's:
@@ -380,7 +382,9 @@ def test_mutable_uploads_with_cache_enabled(tmp_path: Path, temp_staging_dir: Pa
         run.log_artifact(artifact)
 
     # The file is cached
-    _, found, _ = cache.check_md5_obj_path(manifest_entry.digest, manifest_entry.size)
+    _, found, _ = cache.check_digest_obj_path(
+        manifest_entry.digest, manifest_entry.size, algorithm=artifact.digest_algorithm
+    )
     assert found
 
     # The staged files are deleted after caching
@@ -407,7 +411,9 @@ def test_mutable_uploads_with_cache_disabled(tmp_path: Path, temp_staging_dir: P
         run.log_artifact(artifact)
 
     # The file is not cached
-    _, found, _ = cache.check_md5_obj_path(manifest_entry.digest, manifest_entry.size)
+    _, found, _ = cache.check_digest_obj_path(
+        manifest_entry.digest, manifest_entry.size, algorithm=artifact.digest_algorithm
+    )
     assert not found
 
     # The staged files are deleted even if caching is disabled
@@ -432,7 +438,9 @@ def test_immutable_uploads_with_cache_enabled(tmp_path: Path, temp_staging_dir: 
         run.log_artifact(artifact)
 
     # The file is cached
-    _, found, _ = cache.check_md5_obj_path(manifest_entry.digest, manifest_entry.size)
+    _, found, _ = cache.check_digest_obj_path(
+        manifest_entry.digest, manifest_entry.size, algorithm=artifact.digest_algorithm
+    )
     assert found
 
 
@@ -453,7 +461,9 @@ def test_immutable_uploads_with_cache_disabled(tmp_path: Path, temp_staging_dir:
         run.log_artifact(artifact)
 
     # The file is cached
-    _, found, _ = cache.check_md5_obj_path(manifest_entry.digest, manifest_entry.size)
+    _, found, _ = cache.check_digest_obj_path(
+        manifest_entry.digest, manifest_entry.size, algorithm=artifact.digest_algorithm
+    )
     assert not found
 
 
@@ -727,6 +737,8 @@ def test_draft_inherits_digest_algorithm(api: Api):
     art = Artifact("test-artifact", "test-type")
     # Simulate a committed artifact with MD5 entries
     art._digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_MD5
+    art.manifest.digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_MD5
+
     with art.new_file("file.txt", "w") as f:
         f.write("hello")
 

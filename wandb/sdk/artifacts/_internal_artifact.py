@@ -5,6 +5,7 @@ from base64 import urlsafe_b64encode
 from typing import Any, Final
 from zlib import crc32
 
+from wandb.sdk.artifacts._generated.enums import ArtifactDigestAlgorithm
 from wandb.sdk.artifacts.artifact import Artifact
 
 PLACEHOLDER: Final[str] = "PLACEHOLDER"
@@ -46,9 +47,23 @@ class InternalArtifact(Artifact):
         metadata: dict[str, Any] | None = None,
         incremental: bool = False,
         use_as: str | None = None,
+        digest_algorithm: ArtifactDigestAlgorithm | None = None,
     ) -> None:
         sanitized_name = sanitize_artifact_name(name)
         super().__init__(
             sanitized_name, PLACEHOLDER, description, metadata, incremental, use_as
         )
         self._type = type
+
+        if self._type == "job":
+            # Match go-core JobBuilder / ArtifactBuilder, which always uses MD5.
+            digest_algorithm_override = ArtifactDigestAlgorithm.MANIFEST_MD5
+        elif digest_algorithm is not None:
+            digest_algorithm_override = digest_algorithm
+        else:
+            digest_algorithm_override = None
+
+        if digest_algorithm_override is not None:
+            self._digest_algorithm = digest_algorithm_override
+            if self.manifest is not None:
+                self.manifest.digest_algorithm = digest_algorithm_override

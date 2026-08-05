@@ -33,6 +33,7 @@ from wandb.proto.wandb_api_pb2 import (
 )
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk import wandb_setup
+from wandb.sdk.artifacts._generated.enums import ArtifactDigestAlgorithm
 from wandb.sdk.internal import settings_static
 from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
 from wandb.sdk.lib.hashutil import B64Digest, md5_file_b64
@@ -3173,6 +3174,7 @@ class Api:
                 $runName: String,
                 $description: String,
                 $digest: String!,
+                $digestAlgorithm: ArtifactDigestAlgorithm!,
                 $aliases: [ArtifactAliasInput!],
                 $metadata: JSONString,
                 $clientID: ID,
@@ -3189,7 +3191,7 @@ class Api:
                     runName: $runName,
                     description: $description,
                     digest: $digest,
-                    digestAlgorithm: MANIFEST_MD5,
+                    digestAlgorithm: $digestAlgorithm,
                     aliases: $aliases,
                     metadata: $metadata,
                     clientID: $clientID,
@@ -3236,6 +3238,7 @@ class Api:
         distributed_id: str | None = None,
         is_user_created: bool | None = False,
         history_step: int | None = None,
+        digest_algorithm: ArtifactDigestAlgorithm | None = None,
     ) -> tuple[dict, dict]:
         query_template = self._get_create_artifact_mutation(
             history_step,
@@ -3259,6 +3262,8 @@ class Api:
                 "clientID": client_id,
                 "sequenceClientID": sequence_client_id,
                 "digest": digest,
+                "digestAlgorithm": digest_algorithm
+                or ArtifactDigestAlgorithm.MANIFEST_MD5,
                 "description": description,
                 "aliases": list(aliases or []),
                 "tags": list(tags or []),

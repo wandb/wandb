@@ -65,8 +65,8 @@ class LocalFileHandler(StorageHandler):
 
         expected_digest = manifest_entry.digest
 
-        path, hit, cache_open = self._cache.check_md5_obj_path(
-            b64_md5=expected_digest, size=manifest_entry.size or 0
+        path, hit, cache_open = self._cache.check_digest_obj_path(
+            digest=expected_digest, size=manifest_entry.size or 0
         )
         if hit:
             return path
