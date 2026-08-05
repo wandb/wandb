@@ -80,33 +80,33 @@ def test_project_id_from_gql_id_decodes_project_internal_id():
     assert _project_id_from_gql_id(gql_id) == 933111
 
 
-def test_project_id_from_gql_id_returns_none_for_invalid_id(caplog):
-    with caplog.at_level(logging.WARNING, logger=_utils.__name__):
+def test_project_id_from_gql_id_returns_none_for_invalid_id(wandb_caplog):
+    with wandb_caplog.at_level(logging.WARNING, logger=_utils.__name__):
         assert _project_id_from_gql_id("not-a-valid-gql-id") is None
 
-    assert "Invalid project ID" in caplog.text
+    assert "Invalid project ID" in wandb_caplog.text
 
 
 def test_filter_for_registry_falls_back_to_name_for_invalid_internal_id(
-    service_api, mocker, caplog
+    service_api, mocker, wandb_caplog
 ):
     registry = mocker.Mock(spec=Registry)
     registry.full_name = "wandb-registry-test"
     registry.internal_id = "not-a-valid-gql-id"
 
-    with caplog.at_level(logging.WARNING, logger=_utils.__name__):
+    with wandb_caplog.at_level(logging.WARNING, logger=_utils.__name__):
         assert filter_for_registry(
             registry, service_api=service_api, organization=ORG
         ) == {
             "name": "wandb-registry-test",
         }
 
-    assert "Invalid project ID" in caplog.text
+    assert "Invalid project ID" in wandb_caplog.text
     service_api.execute_graphql.assert_not_called()
 
 
 def test_registry_filter_for_collection_falls_back_to_name_for_invalid_internal_id(
-    service_api, mocker, caplog
+    service_api, mocker, wandb_caplog
 ):
     from wandb.apis.public import ArtifactCollection
 
@@ -114,24 +114,26 @@ def test_registry_filter_for_collection_falls_back_to_name_for_invalid_internal_
     collection.project = "wandb-registry-test"
     collection.project_internal_id = "not-a-valid-gql-id"
 
-    with caplog.at_level(logging.WARNING, logger=_utils.__name__):
+    with wandb_caplog.at_level(logging.WARNING, logger=_utils.__name__):
         assert registry_filter_for_collection(
             collection, service_api=service_api, organization=ORG
         ) == {
             "name": "wandb-registry-test",
         }
 
-    assert "Invalid project ID" in caplog.text
+    assert "Invalid project ID" in wandb_caplog.text
 
 
-def test_advanced_search_enabled_returns_false_on_graphql_error(service_api, caplog):
+def test_advanced_search_enabled_returns_false_on_graphql_error(
+    service_api, wandb_caplog
+):
     service_api.feature_enabled.return_value = True
     service_api.execute_graphql.side_effect = RuntimeError("network down")
 
-    with caplog.at_level(logging.WARNING, logger=_utils.__name__):
+    with wandb_caplog.at_level(logging.WARNING, logger=_utils.__name__):
         assert advanced_search_enabled(service_api, ORG) is False
 
-    assert "Failed to fetch advanced registry features" in caplog.text
+    assert "Failed to fetch advanced registry features" in wandb_caplog.text
     assert registry_id_filter_key(service_api, ORG) == "id"
 
 
