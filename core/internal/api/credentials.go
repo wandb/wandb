@@ -129,6 +129,30 @@ func NewOAuth2CredentialProvider(
 	}, nil
 }
 
+// TokenExchangeError is a definitive rejection of an identity token
+// exchange by the server, like an invalid or expired identity token.
+//
+// Repeating the same exchange cannot succeed, so requests that depend on
+// it must fail immediately instead of being retried. It implements the
+// clients package's PermanentError interface without importing it.
+type TokenExchangeError struct {
+	// StatusCode is the HTTP status returned by the token endpoint.
+	StatusCode int
+
+	// Body is the token endpoint's response body, which typically
+	// contains the OAuth error code and error_description.
+	Body string
+}
+
+func (e *TokenExchangeError) Error() string {
+	return fmt.Sprintf(
+		"failed to retrieve access token: HTTP %d: %s",
+		e.StatusCode, e.Body)
+}
+
+// PermanentError returns true: retrying the exchange cannot succeed.
+func (e *TokenExchangeError) PermanentError() bool { return true }
+
 // readIdentityToken reads the identity token (a JWT) from the file.
 func readIdentityToken(path string) (string, error) {
 	identityToken, err := os.ReadFile(path)
@@ -277,7 +301,7 @@ func (c *oauth2CredentialProvider) loadCredentials() error {
 
 	token, err := c.fetchAccessToken()
 	if err != nil {
-		return fmt.Errorf("api: couldn't fetch access token: %v", err)
+		return fmt.Errorf("api: couldn't fetch access token: %w", err)
 	}
 	c.tokenInfo = token
 
@@ -365,7 +389,22 @@ func (c *oauth2CredentialProvider) fetchAccessToken() (accessTokenInfo, error) {
 		if err != nil {
 			return accessTokenInfo{}, err
 		}
-		return accessTokenInfo{}, fmt.Errorf("failed to retrieve access token: %s", string(body))
+
+		// A 4xx response is a definitive rejection (invalid or expired
+		// identity token, unknown user, bad audience) and repeating the
+		// same exchange cannot succeed. 429 and 5xx may be transient,
+		// so they stay retryable.
+		if resp.StatusCode >= 400 && resp.StatusCode < 500 &&
+			resp.StatusCode != http.StatusTooManyRequests {
+			return accessTokenInfo{}, &TokenExchangeError{
+				StatusCode: resp.StatusCode,
+				Body:       string(body),
+			}
+		}
+
+		return accessTokenInfo{}, fmt.Errorf(
+			"failed to retrieve access token: HTTP %d: %s",
+			resp.StatusCode, string(body))
 	}
 
 	var tokenResponse struct {
