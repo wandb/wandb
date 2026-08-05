@@ -45,6 +45,7 @@ from wandb.sync import TFEVENT_SUBSTRING, SyncManager, get_runs
 from .beta import beta
 from .clean import clean
 from .leet import leet
+from .sync_tensorboard import sync_tensorboard
 
 
 def _get_wandb_dir(root_dir: str | None = None) -> str:
@@ -3730,3 +3731,4 @@ def purge_cache(
 cli.add_command(beta)
 cli.add_command(leet)
 cli.add_command(clean)
+cli.add_command(sync_tensorboard)
