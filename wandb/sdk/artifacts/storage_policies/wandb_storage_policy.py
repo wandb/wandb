@@ -365,9 +365,7 @@ class WandbStoragePolicy(StoragePolicy):
         if entry.local_path is None:
             return
 
-        # Cache upon successful upload. The cache is keyed by the algorithm that
-        # produced the entry's digest, so use the entry's own algorithm here to
-        # stay consistent with the download path in `load_file`.
+        # Cache upon successful upload.
         _, hit, cache_open = self._cache.check_digest_obj_path(
             entry.digest,
             size=entry.size or 0,
