@@ -1,12 +1,9 @@
-# CreateArtifactFilesInput.digestAlgorithm and CreateArtifactFileSpecInput.digest added in server version: 0.58
 # @genqlient(for: "CreateArtifactFilesInput.digestAlgorithm", omitempty: true)
 # @genqlient(for: "CreateArtifactFileSpecInput.digest", omitempty: true)
 mutation CreateArtifactFiles(
   $input: CreateArtifactFilesInput!
 ) {
-  createArtifactFiles(
-    input: $input
-  ) {
+  createArtifactFiles(input: $input) {
     files {
       edges {
         node {

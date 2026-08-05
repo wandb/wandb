@@ -80,7 +80,7 @@ func ComputeSHA256(data []byte) []byte {
 	return hasher.Sum(nil)
 }
 
-// ComputeFileB64XXH128 computes the XXH3-128 hash of the file at the given path
+// ComputeFileB64XXH128 computes the XXH128 hash of the file at the given path
 // and returns the result as a base64 encoded string.
 //
 // Returns an error if the file cannot be opened or read.
@@ -100,7 +100,7 @@ func ComputeFileB64XXH128(path string) (string, error) {
 	return base64.StdEncoding.EncodeToString(hasher.Sum(nil)), nil
 }
 
-// ComputeB64XXH128 computes the XXH3-128 hash of the given data and returns it as a
+// ComputeB64XXH128 computes the XXH128 hash of the given data and returns it as a
 // base64 encoded string.
 func ComputeB64XXH128(data []byte) string {
 	hasher := xxh3.New128()

@@ -173,12 +173,14 @@ type uploadResult struct {
 
 type artifactSequence = gql.FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactSequence
 
+// getArtifactDigestAlgorithm returns the digest algorithm to use for the artifact
+// based on the existing sequence's digest algorithm and server support.
 func (as *ArtifactSaver) getArtifactDigestAlgorithm() (gql.ArtifactDigestAlgorithm, error) {
-	// if we are already using md5, return it
+	// If we are already using MD5, return it
 	if as.artifact.DigestAlgorithm != string(gql.ArtifactDigestAlgorithmManifestXxh128) {
 		return gql.ArtifactDigestAlgorithmManifestMd5, nil
 	}
-	// if the server doesn't support the different digest algorithms, default to md5
+	// If the server doesn't support the different digest algorithms, default to MD5
 	if !as.artifactDigestAlgorithmSupported {
 		return gql.ArtifactDigestAlgorithmManifestMd5, nil
 	}
@@ -191,13 +193,16 @@ func (as *ArtifactSaver) getArtifactDigestAlgorithm() (gql.ArtifactDigestAlgorit
 		as.artifact.Name,
 	)
 	if err != nil {
-		// New sequences don't exist yet; some servers return 404 instead of
-		// null data for a missing artifactCollection.
 		var httpError *graphql.HTTPError
+		// If the sequence does not exist yet and we get a 404, continue using XXH128
 		if errors.As(err, &httpError) && httpError.StatusCode == http.StatusNotFound {
 			return gql.ArtifactDigestAlgorithmManifestXxh128, nil
 		}
 		return "", err
+	}
+	artifactProject := response.GetProject()
+	if artifactProject == nil {
+		return gql.ArtifactDigestAlgorithmManifestXxh128, nil
 	}
 	artifactType := response.GetProject().GetArtifactType()
 	if artifactType == nil {
@@ -215,6 +220,8 @@ func (as *ArtifactSaver) getArtifactDigestAlgorithm() (gql.ArtifactDigestAlgorit
 	}
 }
 
+// hashArtifactWithMd5 rehashes the contents of the manifest with MD5, updates the
+// artifact's digest algorithm, and recalculates the artifact's digest.
 func (as *ArtifactSaver) hashArtifactWithMd5(manifest *Manifest) error {
 	err := manifest.HashContentsWithMd5()
 	if err != nil {
@@ -229,6 +236,8 @@ func (as *ArtifactSaver) hashArtifactWithMd5(manifest *Manifest) error {
 	return nil
 }
 
+// createArtifactWithCorrectDigestAlgorithm creates the artifact with the correct digest algorithm,
+// rehashing the manifest if necessary.
 func (as *ArtifactSaver) createArtifactWithCorrectDigestAlgorithm(
 	manifest *Manifest,
 ) (*gql.CreatedArtifactArtifact, error) {
@@ -548,11 +557,11 @@ func (as *ArtifactSaver) batchFileDataRetriever(
 		StorageLayout: gql.ArtifactStorageLayoutV2,
 	}
 	if as.artifactDigestAlgorithmSupported {
-		da := gql.ArtifactDigestAlgorithm(as.artifact.DigestAlgorithm)
-		if da == "" {
-			da = gql.ArtifactDigestAlgorithmManifestMd5
+		digestAlgorithm := gql.ArtifactDigestAlgorithm(as.artifact.DigestAlgorithm)
+		if digestAlgorithm == "" {
+			digestAlgorithm = gql.ArtifactDigestAlgorithmManifestMd5
 		}
-		input.DigestAlgorithm = &da
+		input.DigestAlgorithm = &digestAlgorithm
 	}
 	response, err := gql.CreateArtifactFiles(
 		as.ctx, as.graphqlClient, input,

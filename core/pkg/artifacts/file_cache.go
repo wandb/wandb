@@ -142,8 +142,6 @@ func (c *FileCache) AddFileAndCheckDigest(path, digest string) error {
 	return addFileAndCheckDigest(c, path, digest)
 }
 
-// AddFileAndCheckDigest hashes the file and verifies the digest. It does not
-// write any data to disk.
 func (c *HashOnlyCache) AddFileAndCheckDigest(path, digest string) error {
 	return addFileAndCheckDigest(c, path, digest)
 }
@@ -157,6 +155,17 @@ func addFileAndCheckDigest(c Cache, path, digest string) error {
 		return fmt.Errorf("file hash mismatch: expected %s, actual %s", digest, b64digest)
 	}
 	return nil
+}
+
+// checkFileExists is a helper function that checks if a file exists at the given path and
+// has the expected digest.
+func checkFileExists(digestAlgorithm, path, digest string) (error, bool) {
+	if digestAlgorithm == "MANIFEST_XXH128" {
+		b64xxh128, err := hashencode.ComputeFileB64XXH128(path)
+		return err, digest == b64xxh128
+	}
+	b64md5, err := hashencode.ComputeFileB64MD5(path)
+	return err, digest == b64md5
 }
 
 // RestoreTo tries to restore the file referenced in a manifest entry to the given destination.
@@ -176,18 +185,10 @@ func (c *FileCache) RestoreTo(entry ManifestEntry, dst string) bool {
 	if entry.Ref != nil {
 		cachePath = c.etagPath(*entry.Ref, entry.Digest)
 	} else {
-		if c.digestAlgorithm == "MANIFEST_XXH128" {
-			b64xxh128, err := hashencode.ComputeFileB64XXH128(dst)
-			if err == nil && b64xxh128 == entry.Digest {
-				return true
-			}
-		} else {
-			b64md5, err := hashencode.ComputeFileB64MD5(dst)
-			if err == nil && b64md5 == entry.Digest {
-				return true
-			}
+		err, exists := checkFileExists(c.digestAlgorithm, dst, entry.Digest)
+		if err == nil && exists {
+			return true
 		}
-		var err error
 		cachePath, err = c.digestPath(entry.Digest)
 		if err != nil {
 			return false
@@ -212,12 +213,8 @@ func (c *HashOnlyCache) RestoreTo(entry ManifestEntry, dst string) bool {
 	c.fileSemaphore <- struct{}{}
 	defer func() { <-c.fileSemaphore }()
 
-	if c.digestAlgorithm == "MANIFEST_XXH128" {
-		b64xxh128, err := hashencode.ComputeFileB64XXH128(dst)
-		return err == nil && b64xxh128 == entry.Digest
-	}
-	b64md5, err := hashencode.ComputeFileB64MD5(dst)
-	return err == nil && b64md5 == entry.Digest
+	err, exists := checkFileExists(c.digestAlgorithm, dst, entry.Digest)
+	return err == nil && exists
 }
 
 func (c *FileCache) digestPath(b64digest string) (string, error) {
