@@ -126,17 +126,21 @@ _CHUNKSIZE: int = 128 * _KB
 
 
 def _file_hasher(hasher: Hasher, *paths: StrPath) -> Hasher:
+    # Note: We use str paths (instead of pathlib.Path objs) for minor perf improvements.
     for path in sorted(map(str, paths)):
         with open(path, "rb") as f:
             try:
                 with mmap.mmap(f.fileno(), length=0, access=mmap.ACCESS_READ) as mview:
                     hasher.update(mview)
             except OSError:
+                # This occurs if the mmap-ed file is on a different/mounted filesystem,
+                # so we'll fall back on a less performant implementation.
                 while chunk := f.read(_CHUNKSIZE):
                     hasher.update(chunk)
                     chunk = f.read(_CHUNKSIZE)
             except ValueError:
-                # Empty file — mmap raises ValueError, safe to skip.
+                # This occurs when mmap-ing an empty file, which can be skipped.
+                # See: https://github.com/python/cpython/blob/986a4e1b6fcae7fe7a1d0a26aea446107dd58dd2/Modules/mmapmodule.c#L1589
                 pass
 
     return hasher
