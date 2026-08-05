@@ -550,56 +550,90 @@ func TestHistoryReader_GetHistorySteps_WithKeys(t *testing.T) {
 }
 
 func TestHistoryReader_AlwaysProjectsStepWithSelectedKeys(t *testing.T) {
-	ctx := t.Context()
-	t.Setenv("WANDB_CACHE_DIR", t.TempDir())
+	testCases := []struct {
+		name string
+		keys []string
+		want []string
+	}{
+		{
+			name: "adds step",
+			keys: []string{"flat_metric", "nested"},
+			want: []string{"flat_metric", "nested", "_step"},
+		},
+		{
+			name: "does not duplicate step",
+			keys: []string{"flat_metric", "_step"},
+			want: []string{"flat_metric", "_step"},
+		},
+		{
+			name: "keeps all fields mode",
+			keys: nil,
+			want: nil,
+		},
+	}
 
-	mockGQL := mockGraphQLWithParquetUrls([]string{"https://example.test/test.parquet"})
-
-	var projectedColumns []string
-	rustWrapper := ffi.RustArrowWrapperTester(
-		func(
-			_ *byte,
-			columnNames **byte,
-			numColumns int,
-			_ **byte,
-		) unsafe.Pointer {
-			for _, columnName := range unsafe.Slice(columnNames, numColumns) {
-				var length int
-				for *(*byte)(unsafe.Add(unsafe.Pointer(columnName), length)) != 0 {
-					length++
-				}
-				projectedColumns = append(
-					projectedColumns,
-					string(unsafe.Slice(columnName, length)),
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			ctx := t.Context()
+			cacheDir := t.TempDir()
+			t.Setenv("WANDB_CACHE_DIR", cacheDir)
+			if len(testCase.keys) == 0 {
+				cachePath := filepath.Join(
+					cacheDir,
+					"test-entity_test-project_test-run-id_0.runhistory.parquet",
 				)
+				require.NoError(t, os.WriteFile(cachePath, createDummyFileContent(), 0o600))
 			}
-			return unsafe.Pointer(new(byte))
-		},
-		func(
-			_ unsafe.Pointer,
-			_ int64,
-			_ int64,
-			_ *ffi.StepScanResult,
-		) *byte {
-			return nil
-		},
-	)
 
-	reader, err := New(
-		ctx,
-		"test-entity",
-		"test-project",
-		"test-run-id",
-		mockGQL,
-		retryablehttp.NewClient(),
-		[]string{"flat_metric", "nested"},
-		true,
-		rustWrapper,
-	)
-	require.NoError(t, err)
-	t.Cleanup(reader.Release)
+			mockGQL := mockGraphQLWithParquetUrls([]string{"https://example.test/test.parquet"})
 
-	assert.Equal(t, []string{"flat_metric", "nested", "_step"}, projectedColumns)
+			var projectedColumns []string
+			rustWrapper := ffi.RustArrowWrapperTester(
+				func(
+					_ *byte,
+					columnNames **byte,
+					numColumns int,
+					_ **byte,
+				) unsafe.Pointer {
+					for _, columnName := range unsafe.Slice(columnNames, numColumns) {
+						var length int
+						for *(*byte)(unsafe.Add(unsafe.Pointer(columnName), length)) != 0 {
+							length++
+						}
+						projectedColumns = append(
+							projectedColumns,
+							string(unsafe.Slice(columnName, length)),
+						)
+					}
+					return unsafe.Pointer(new(byte))
+				},
+				func(
+					_ unsafe.Pointer,
+					_ int64,
+					_ int64,
+					_ *ffi.StepScanResult,
+				) *byte {
+					return nil
+				},
+			)
+
+			reader, err := New(
+				ctx,
+				"test-entity",
+				"test-project",
+				"test-run-id",
+				mockGQL,
+				retryablehttp.NewClient(),
+				testCase.keys,
+				true,
+				rustWrapper,
+			)
+			require.NoError(t, err)
+			t.Cleanup(reader.Release)
+
+			assert.Equal(t, testCase.want, projectedColumns)
+		})
+	}
 }
 
 func TestHistoryReader_GetHistorySteps_AllLiveData(t *testing.T) {
