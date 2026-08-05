@@ -1,11 +1,15 @@
-use arrow::array::{Array, Int64Array, RecordBatch};
+use arrow::array::{
+    Array, Float32Array, Float64Array, Int16Array, Int32Array, Int64Array, Int8Array, RecordBatch,
+    UInt16Array, UInt32Array, UInt64Array, UInt8Array,
+};
 use arrow::compute::cast;
-use arrow::datatypes::{DataType, Schema};
+use arrow::datatypes::{DataType, Field, Schema};
 use parquet::arrow::arrow_reader::{ParquetRecordBatchReader, ParquetRecordBatchReaderBuilder};
 use parquet::arrow::ProjectionMask;
 use parquet::schema::types::SchemaDescriptor;
 use std::ffi::{CStr, CString};
 use std::fs::File;
+use std::sync::Arc;
 
 mod httpfile;
 pub mod serialize;
@@ -285,9 +289,14 @@ pub unsafe extern "C" fn reader_scan_step_range(
         };
         let step_column = batch.column(step_col_idx);
 
-        // Get step values as i64
-        let step_values: Vec<Option<i64>> = match step_values_as_i64(step_column, batch.num_rows()) {
+        // Validate and normalize step values once for filtering and serialization.
+        let step_values = match normalized_step_values(step_column) {
             Ok(v) => v,
+            Err(e) => return error_to_c_string(&e),
+        };
+        let normalized_batch = match replace_step_column(&batch, step_col_idx, step_values.clone())
+        {
+            Ok(batch) => batch,
             Err(e) => return error_to_c_string(&e),
         };
 
@@ -296,11 +305,12 @@ pub unsafe extern "C" fn reader_scan_step_range(
         let mut should_stop_early = false;
 
         // Set matching rows to true in the mask
-        for i in handle.current_batch_row_offset..batch.num_rows() {
-            let step_value = match step_values[i] {
-                Some(v) => v,
-                None => continue,
-            };
+        for (i, include) in filter_mask_vec
+            .iter_mut()
+            .enumerate()
+            .skip(handle.current_batch_row_offset)
+        {
+            let step_value = step_values.value(i);
 
             // Check if we've reached or exceeded the max step
             // This assumes that step values are monotonically increasing.
@@ -310,7 +320,7 @@ pub unsafe extern "C" fn reader_scan_step_range(
                 break;
             } else if step_value >= min_step {
                 // Mark this row as matching
-                filter_mask_vec[i] = true;
+                *include = true;
 
                 // Track the actual max step value we're returning
                 if let Some(current_max) = actual_max_step_returned {
@@ -327,12 +337,13 @@ pub unsafe extern "C" fn reader_scan_step_range(
         let filter_mask = arrow::array::BooleanArray::from(filter_mask_vec);
 
         // Apply the filter to get matching rows
-        let filtered_batch = match arrow::compute::filter_record_batch(&batch, &filter_mask) {
-            Ok(b) => b,
-            Err(e) => {
-                return error_to_c_string(&format!("Failed to filter batch: {}", e));
-            }
-        };
+        let filtered_batch =
+            match arrow::compute::filter_record_batch(&normalized_batch, &filter_mask) {
+                Ok(b) => b,
+                Err(e) => {
+                    return error_to_c_string(&format!("Failed to filter batch: {}", e));
+                }
+            };
 
         if filtered_batch.num_rows() > 0 {
             matching_rows.push(filtered_batch);
@@ -452,15 +463,138 @@ fn error_to_c_string(error: &str) -> *mut libc::c_char {
     }
 }
 
-fn step_values_as_i64(step_column: &dyn Array, num_rows: usize) -> Result<Vec<Option<i64>>, String> {
-    let casted = cast(step_column, &DataType::Int64)
-        .map_err(|e| format!("failed to cast '{}' column to Int64: {}", STEP_COLUMN_NAME, e))?;
-    let arr = casted
-        .as_any()
-        .downcast_ref::<Int64Array>()
-        .ok_or_else(|| format!("failed to read '{}' as Int64 after cast", STEP_COLUMN_NAME))?;
+fn normalized_step_values(step_column: &dyn Array) -> Result<Int64Array, String> {
+    let num_rows = step_column.len();
 
-    Ok((0..num_rows)
-        .map(|i| if arr.is_null(i) { None } else { Some(arr.value(i)) })
-        .collect())
+    macro_rules! signed_steps {
+        ($array_type:ty) => {{
+            let values = step_column
+                .as_any()
+                .downcast_ref::<$array_type>()
+                .ok_or_else(|| invalid_step_type(step_column.data_type()))?;
+            let mut steps = Vec::with_capacity(num_rows);
+            for row in 0..num_rows {
+                require_step_value(values, row)?;
+                let value = values.value(row) as i64;
+                if value < 0 {
+                    return Err(invalid_step(row, "negative"));
+                }
+                steps.push(value);
+            }
+            steps
+        }};
+    }
+
+    macro_rules! unsigned_steps {
+        ($array_type:ty) => {{
+            let values = step_column
+                .as_any()
+                .downcast_ref::<$array_type>()
+                .ok_or_else(|| invalid_step_type(step_column.data_type()))?;
+            let mut steps = Vec::with_capacity(num_rows);
+            for row in 0..num_rows {
+                require_step_value(values, row)?;
+                let value = i64::try_from(values.value(row))
+                    .map_err(|_| invalid_step(row, "outside the int64 range"))?;
+                steps.push(value);
+            }
+            steps
+        }};
+    }
+
+    let steps = match step_column.data_type() {
+        DataType::Int8 => signed_steps!(Int8Array),
+        DataType::Int16 => signed_steps!(Int16Array),
+        DataType::Int32 => signed_steps!(Int32Array),
+        DataType::Int64 => signed_steps!(Int64Array),
+        DataType::UInt8 => unsigned_steps!(UInt8Array),
+        DataType::UInt16 => unsigned_steps!(UInt16Array),
+        DataType::UInt32 => unsigned_steps!(UInt32Array),
+        DataType::UInt64 => unsigned_steps!(UInt64Array),
+        DataType::Float32 => {
+            let values = step_column
+                .as_any()
+                .downcast_ref::<Float32Array>()
+                .ok_or_else(|| invalid_step_type(step_column.data_type()))?;
+            let mut steps = Vec::with_capacity(num_rows);
+            for row in 0..num_rows {
+                require_step_value(values, row)?;
+                steps.push(normalize_float_step(values.value(row) as f64, row)?);
+            }
+            steps
+        }
+        DataType::Float64 => {
+            let values = step_column
+                .as_any()
+                .downcast_ref::<Float64Array>()
+                .ok_or_else(|| invalid_step_type(step_column.data_type()))?;
+            let mut steps = Vec::with_capacity(num_rows);
+            for row in 0..num_rows {
+                require_step_value(values, row)?;
+                steps.push(normalize_float_step(values.value(row), row)?);
+            }
+            steps
+        }
+        DataType::Dictionary(_, value_type) => {
+            let values = cast(step_column, value_type)
+                .map_err(|error| format!("failed to read '{STEP_COLUMN_NAME}': {error}"))?;
+            return normalized_step_values(values.as_ref());
+        }
+        data_type => return Err(invalid_step_type(data_type)),
+    };
+
+    Ok(Int64Array::from(steps))
+}
+
+fn require_step_value(values: &dyn Array, row: usize) -> Result<(), String> {
+    if values.is_null(row) {
+        return Err(invalid_step(row, "null"));
+    }
+    Ok(())
+}
+
+fn normalize_float_step(value: f64, row: usize) -> Result<i64, String> {
+    const I64_EXCLUSIVE_UPPER_BOUND: f64 = 9_223_372_036_854_775_808.0;
+
+    if !value.is_finite() {
+        return Err(invalid_step(row, "not finite"));
+    }
+    if value < 0.0 {
+        return Err(invalid_step(row, "negative"));
+    }
+    if value.fract() != 0.0 {
+        return Err(invalid_step(row, "fractional"));
+    }
+    if value >= I64_EXCLUSIVE_UPPER_BOUND {
+        return Err(invalid_step(row, "outside the int64 range"));
+    }
+
+    Ok(value as i64)
+}
+
+fn replace_step_column(
+    batch: &RecordBatch,
+    step_col_idx: usize,
+    step_values: Int64Array,
+) -> Result<RecordBatch, String> {
+    let source_schema = batch.schema();
+    let source_step_field = source_schema.field(step_col_idx);
+    let step_field = Field::new(STEP_COLUMN_NAME, DataType::Int64, false)
+        .with_metadata(source_step_field.metadata().clone());
+    let mut fields: Vec<_> = source_schema.fields().iter().cloned().collect();
+    fields[step_col_idx] = step_field.into();
+    let schema = Schema::new_with_metadata(fields, source_schema.metadata().clone());
+
+    let mut columns = batch.columns().to_vec();
+    columns[step_col_idx] = Arc::new(step_values);
+    RecordBatch::try_new(schema.into(), columns)
+        .map_err(|error| format!("failed to normalize '{STEP_COLUMN_NAME}': {error}"))
+}
+
+fn invalid_step(row: usize, reason: &str) -> String {
+    format!("invalid '{STEP_COLUMN_NAME}' at row {row}: {reason}")
+}
+
+fn invalid_step_type(data_type: &DataType) -> String {
+    format!("invalid '{STEP_COLUMN_NAME}' type: {data_type}")
 }

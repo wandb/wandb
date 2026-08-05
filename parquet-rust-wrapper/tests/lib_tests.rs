@@ -3,7 +3,7 @@ use arrow::datatypes::{DataType, Field, Fields, Schema};
 use arrow_rs_wrapper::*;
 use parquet::arrow::ArrowWriter;
 use parquet::file::properties::WriterProperties;
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 use std::fs::File;
 use std::sync::Arc;
 use tempfile::TempDir;
@@ -239,7 +239,7 @@ fn create_gorilla_compatible_parquet_file(path: &str) -> std::io::Result<()> {
         Arc::new(Field::new("label", DataType::Utf8, true)),
     ]);
     let schema = Arc::new(Schema::new(vec![
-        Field::new(STEP_COLUMN_NAME, DataType::Int64, false),
+        Field::new(STEP_COLUMN_NAME, DataType::Float64, true),
         Field::new("flat_metric", DataType::Float64, true),
         Field::new("nested", DataType::Struct(nested_fields.clone()), true),
         Field::new("unrelated", DataType::Utf8, true),
@@ -256,7 +256,7 @@ fn create_gorilla_compatible_parquet_file(path: &str) -> std::io::Result<()> {
     let batch = RecordBatch::try_new(
         schema.clone(),
         vec![
-            Arc::new(Int64Array::from(vec![7, 8, 9])),
+            Arc::new(Float64Array::from(vec![Some(7.0), Some(8.0), Some(9.0)])),
             Arc::new(Float64Array::from(vec![Some(10.0), None, Some(30.0)])),
             Arc::new(nested),
             Arc::new(StringArray::from(vec!["omit-a", "omit-b", "omit-c"])),
@@ -268,6 +268,23 @@ fn create_gorilla_compatible_parquet_file(path: &str) -> std::io::Result<()> {
     let props = WriterProperties::builder().build();
     let mut writer =
         ArrowWriter::try_new(file, schema, Some(props)).map_err(std::io::Error::other)?;
+    writer.write(&batch).map_err(std::io::Error::other)?;
+    writer.close().map_err(std::io::Error::other)?;
+
+    Ok(())
+}
+
+fn create_float_step_parquet_file(path: &str, steps: Vec<Option<f64>>) -> std::io::Result<()> {
+    let schema = Arc::new(Schema::new(vec![Field::new(
+        STEP_COLUMN_NAME,
+        DataType::Float64,
+        true,
+    )]));
+    let batch = RecordBatch::try_new(schema.clone(), vec![Arc::new(Float64Array::from(steps))])
+        .map_err(std::io::Error::other)?;
+
+    let file = File::create(path)?;
+    let mut writer = ArrowWriter::try_new(file, schema, None).map_err(std::io::Error::other)?;
     writer.write(&batch).map_err(std::io::Error::other)?;
     writer.close().map_err(std::io::Error::other)?;
 
@@ -471,11 +488,11 @@ fn test_reader_scan_selected_nested_root() {
         data_len: 0,
         num_rows_returned: 0,
     };
-    let error = unsafe { reader_scan_step_range(reader_ptr, 7, 10, &mut result) };
+    let error = unsafe { reader_scan_step_range(reader_ptr, 7, 9, &mut result) };
     assert!(error.is_null());
 
     let rows = parse_result(&result);
-    assert_eq!(rows.len(), 3);
+    assert_eq!(rows.len(), 2);
     assert_eq!(rows[0].columns.len(), 3);
     assert_eq!(rows[0].columns[0], ("_step".to_string(), KvValue::Int64(7)));
     assert_eq!(
@@ -509,6 +526,71 @@ fn test_reader_scan_selected_nested_root() {
     unsafe {
         free_buffer(result.vec_ptr as *mut Vec<u8>);
         free_reader(reader_ptr);
+    }
+}
+
+#[test]
+fn test_reader_scan_rejects_invalid_float_steps() {
+    let cases = [
+        ("null", vec![Some(1.0), None], "null"),
+        ("fractional", vec![Some(1.0), Some(1.5)], "fractional"),
+        ("negative", vec![Some(1.0), Some(-1.0)], "negative"),
+        (
+            "not-finite-nan",
+            vec![Some(1.0), Some(f64::NAN)],
+            "not finite",
+        ),
+        (
+            "not-finite-positive-infinity",
+            vec![Some(1.0), Some(f64::INFINITY)],
+            "not finite",
+        ),
+        (
+            "not-finite-negative-infinity",
+            vec![Some(1.0), Some(f64::NEG_INFINITY)],
+            "not finite",
+        ),
+        (
+            "out-of-range",
+            vec![Some(1.0), Some(9_223_372_036_854_775_808.0)],
+            "outside the int64 range",
+        ),
+    ];
+
+    for (name, steps, expected_reason) in cases {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join(format!("{name}.parquet"));
+        create_float_step_parquet_file(file_path.to_str().unwrap(), steps).unwrap();
+
+        let path = CString::new(file_path.to_str().unwrap()).unwrap();
+        let mut create_error: *mut libc::c_char = std::ptr::null_mut();
+        let reader =
+            unsafe { create_reader(path.as_ptr(), std::ptr::null(), 0, &mut create_error) };
+        assert!(create_error.is_null(), "{name}: reader creation failed");
+        assert!(!reader.is_null(), "{name}: reader creation failed");
+
+        let mut result = StepScanResult {
+            vec_ptr: 0,
+            data_ptr: 0,
+            data_len: 0,
+            num_rows_returned: 0,
+        };
+        let scan_error = unsafe { reader_scan_step_range(reader, 0, 10, &mut result) };
+        assert!(!scan_error.is_null(), "{name}: scan unexpectedly succeeded");
+        let message = unsafe { CStr::from_ptr(scan_error) }
+            .to_string_lossy()
+            .into_owned();
+        assert!(
+            message.contains(&format!(
+                "invalid '{STEP_COLUMN_NAME}' at row 1: {expected_reason}"
+            )),
+            "{name}: unexpected error: {message}"
+        );
+
+        unsafe {
+            free_string(scan_error as *mut libc::c_char);
+            free_reader(reader);
+        }
     }
 }
 
