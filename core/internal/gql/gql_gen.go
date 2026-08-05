@@ -3351,7 +3351,6 @@ mutation CreateArtifactFiles ($input: CreateArtifactFilesInput!) {
 }
 `
 
-// CreateArtifactFilesInput.digestAlgorithm and CreateArtifactFileSpecInput.digest added in server version: 0.58
 func CreateArtifactFiles(
 	ctx_ context.Context,
 	client_ graphql.Client,
