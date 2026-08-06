@@ -52,9 +52,8 @@ def test_add_scalars(wandb_backend_spy):
 
         summary = snapshot.summary(run_id=run.id)
         assert summary["value_one/value"] == pytest.approx(1.1)
-        assert summary["value_one/global_step"] == 9
         assert summary["value_two/value"] == pytest.approx(2.2)
-        assert summary["value_two/global_step"] == 9
+        assert summary["global_step"] == 9
 
         telemetry = snapshot.telemetry(run_id=run.id)
         assert 35 in telemetry["3"]  # tensorboard_sync

@@ -249,9 +249,7 @@ func TestConvertStepAndTimestamp(t *testing.T) {
 	)
 
 	assert.Equal(t,
-		[]mockEmitter_SetTFStep{
-			{pathtree.PathOf("train/global_step"), 123},
-		},
+		[]mockEmitter_SetTFStep{{pathtree.PathOf("global_step"), 123}},
 		emitter.SetTFStepCalls)
 	assert.Equal(t,
 		[]float64{0.345},
