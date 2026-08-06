@@ -651,6 +651,17 @@ def test_server_feature_checks(
         assert result == expected_result
 
 
+@pytest.mark.usefixtures("patch_apikey", "patch_prompt")
+def test_server_feature_checks_reuse_one_query(mock_service_api_with_enabled_features):
+    """Repeated feature checks reuse the features fetched by the first one."""
+    api = internal.InternalApi()
+
+    assert api._server_supports(ServerFeature.LARGE_FILENAMES) is True
+    assert api._server_supports(ServerFeature.ARTIFACT_TAGS) is False
+
+    assert mock_service_api_with_enabled_features.execute_graphql.call_count == 1
+
+
 def test_construct_use_artifact_query_with_every_field(mocker: MockerFixture):
     # Create mock internal API instance
     api = internal.InternalApi()

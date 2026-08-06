@@ -554,6 +554,9 @@ class Api:
         # NOTE: Avoid caching via `@cached_property`, due to undocumented
         # locking behavior before Python 3.12.
         # See: https://github.com/python/cpython/issues/87634
+        if self._server_features_cache is not None:
+            return self._server_features_cache
+
         query = SERVER_FEATURES_QUERY_GQL
         try:
             response = self.execute(query)
