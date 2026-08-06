@@ -66,3 +66,4 @@ The `wandb sync --clean` command now exits with code 1 and prints a hint to use 
 - Interrupting `run.finish()`, such as with Ctrl-C, now cleans up the run properly; afterwards the run could not be finished again and its log file stayed open (@dmitryduev in https://github.com/wandb/wandb/pull/12407)
 - Logging a list of images no longer reads every image file from disk a second time (@dmitryduev in https://github.com/wandb/wandb/pull/12408)
 - After a failed `wandb.init()` in a notebook, later runs in the same session again save your notebook code and pause between cells (@dmitryduev in https://github.com/wandb/wandb/pull/12409)
+- Exiting a program no longer prints an error when the process that uploads data has already stopped (@dmitryduev in https://github.com/wandb/wandb/pull/12410)
