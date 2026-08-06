@@ -447,7 +447,7 @@ def login(
     host: str | None = None,
     force: bool | None = None,
     timeout: int | None = None,
-    verify: bool = False,
+    verify: bool = True,
     referrer: str | None = None,
     anonymous: DoNotSet = UNSET,
 ) -> bool:
