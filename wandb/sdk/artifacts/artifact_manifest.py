@@ -10,6 +10,7 @@ from pydantic import Field
 from wandb.sdk.lib.hashutil import HexMD5
 
 from ._models.base_model import ArtifactsBase
+from ._validators import validate_artifact_path
 
 if TYPE_CHECKING:
     from .artifact_manifest_entry import ArtifactManifestEntry
@@ -55,6 +56,7 @@ class ArtifactManifest(ArtifactsBase, ABC):
         raise NotImplementedError
 
     def add_entry(self, entry: ArtifactManifestEntry, overwrite: bool = False) -> None:
+        entry.path = validate_artifact_path(entry.path)
         if (
             (not overwrite)
             and (old_entry := self.entries.get(entry.path))

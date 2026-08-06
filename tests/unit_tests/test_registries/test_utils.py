@@ -1,4 +1,6 @@
-import pytest
+from __future__ import annotations
+
+from pytest import mark, param, raises
 from wandb.apis.public.registries._utils import (
     ensure_registry_prefix_on_names,
     prepare_artifact_types_input,
@@ -6,8 +8,8 @@ from wandb.apis.public.registries._utils import (
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
 
 
-@pytest.mark.parametrize(
-    "artifact_types, expected_output",
+@mark.parametrize(
+    ("artifact_types", "expected_output"),
     [
         # Valid case
         (["my-valid-type_123"], [{"name": "my-valid-type_123"}]),
@@ -26,7 +28,7 @@ def test_format_gql_artifact_types_input_valid(artifact_types, expected_output):
     assert result == expected_output
 
 
-@pytest.mark.parametrize(
+@mark.parametrize(
     "artifact_types",
     [
         # Invalid characters
@@ -39,71 +41,66 @@ def test_format_gql_artifact_types_input_valid(artifact_types, expected_output):
 )
 def test_format_gql_artifact_types_input_error(artifact_types):
     """Test artifact type name validation raises errors for invalid inputs."""
-    with pytest.raises(ValueError):
+    with raises(ValueError):
         prepare_artifact_types_input(artifact_types=artifact_types)
 
 
-def test_simple_name_transform():
-    query = {"name": "model"}
-    expected = {"name": f"{REGISTRY_PREFIX}model"}
-    assert ensure_registry_prefix_on_names(query) == expected
-
-    query = {"name": f"{REGISTRY_PREFIX}model"}
-    expected = {"name": f"{REGISTRY_PREFIX}model"}
-    assert ensure_registry_prefix_on_names(query) == expected
-
-
-def test_list_handling():
-    query = {"$or": [{"name": "model1"}, {"tag": "prod"}]}
-    expected = {
-        "$or": [
-            {"name": f"{REGISTRY_PREFIX}model1"},
-            {"tag": "prod"},
-        ]
-    }
-    assert ensure_registry_prefix_on_names(query) == expected
-
-
-def test_regex_skip_transform():
-    query = {"name": {"$regex": "model.*"}}
-    assert ensure_registry_prefix_on_names(query) == query
-
-
-def test_mixed_types():
-    query = {"id": 1, "name": "model", "description": None}
-    expected = {
-        "id": 1,
-        "name": f"{REGISTRY_PREFIX}model",
-        "description": None,
-    }
-    assert ensure_registry_prefix_on_names(query) == expected
-
-
-@pytest.mark.parametrize(
-    "bad_filter",
-    ["string", {}, 123, None, True],
+@mark.parametrize(
+    ("raw", "expected"),
+    [
+        param(
+            {"name": "model"},
+            {"name": f"{REGISTRY_PREFIX}model"},
+            id="bare-name-is-prefixed",
+        ),
+        param(
+            {"name": f"{REGISTRY_PREFIX}model"},
+            {"name": f"{REGISTRY_PREFIX}model"},
+            id="prefixed-name-is-unchanged",
+        ),
+        param(
+            {"$or": [{"name": "model1"}, {"tag": "prod"}]},
+            {"$or": [{"name": f"{REGISTRY_PREFIX}model1"}, {"tag": "prod"}]},
+            id="nested-list",
+        ),
+        param(
+            {"name": {"$regex": "model.*"}},
+            {"name": {"$regex": "model.*"}},
+            id="regex-operand-is-unchanged",
+        ),
+        param(
+            {"id": 1, "name": "model", "description": None},
+            {"id": 1, "name": f"{REGISTRY_PREFIX}model", "description": None},
+            id="mixed-fields-and-types",
+        ),
+        param(
+            {
+                "name": {
+                    "$in": [
+                        "project1",
+                        f"{REGISTRY_PREFIX}project2",
+                        {"$regex": "project3"},
+                    ]
+                }
+            },
+            {
+                "name": {
+                    "$in": [
+                        f"{REGISTRY_PREFIX}project1",
+                        f"{REGISTRY_PREFIX}project2",
+                        {"$regex": "project3"},
+                    ]
+                }
+            },
+            id="nested-dict",
+        ),
+        # Non-dict and empty inputs are returned unchanged.
+        param("string", "string", id="non-dict-string"),
+        param({}, {}, id="empty-dict"),
+        param(123, 123, id="non-dict-int"),
+        param(None, None, id="None"),
+        param(True, True, id="non-dict-bool"),
+    ],
 )
-def test_empty_or_non_dict_input(bad_filter):
-    assert ensure_registry_prefix_on_names(bad_filter) == bad_filter
-
-
-def test_nested_structure():
-    query = {
-        "name": {
-            "$in": [
-                "project1",
-                f"{REGISTRY_PREFIX}project2",
-                {"$regex": "project3"},
-            ]
-        }
-    }
-    expected = {
-        "name": {
-            "$in": [
-                f"{REGISTRY_PREFIX}project1",
-                f"{REGISTRY_PREFIX}project2",
-                {"$regex": "project3"},
-            ]
-        }
-    }
-    assert ensure_registry_prefix_on_names(query) == expected
+def test_ensure_registry_prefix_on_names(raw, expected):
+    assert ensure_registry_prefix_on_names(raw) == expected

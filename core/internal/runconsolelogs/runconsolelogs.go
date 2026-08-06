@@ -89,8 +89,10 @@ type Params struct {
 	// It is used for testing.
 	GetNow func() time.Time
 
-	// Structured indicates whether to send the console output in structured format.
-	Structured bool
+	// Structured reports whether to send console output in structured format.
+	//
+	// It is a function so the underlying server feature check is evaluated lazily.
+	Structured func() bool
 
 	// Label is an optional prefix for the console output lines.
 	Label string
@@ -238,8 +240,10 @@ func (s *Sender) StreamLogs(record *spb.OutputRawRecord) {
 
 	default:
 		s.logger.CaptureError(
+			"runconsolelogs",
 			errors.New("runconsolelogs: invalid OutputRawRecord type"),
-			"type", record.OutputType,
+			"type",
+			record.OutputType,
 		)
 	}
 }

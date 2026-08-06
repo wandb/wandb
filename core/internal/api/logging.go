@@ -18,7 +18,7 @@ func (client *clientImpl) logFinalResponseOnError(
 	req *retryablehttp.Request,
 	resp *http.Response,
 ) {
-	if resp.StatusCode < 400 || client.logger == nil {
+	if resp.StatusCode < 400 {
 		return
 	}
 
@@ -32,11 +32,17 @@ func (client *clientImpl) logFinalResponseOnError(
 	)
 }
 
-// Wraps a RetryPolicy to log retries.
-func withRetryLogging(
+// withRetryObservation wraps a retry policy to log retries.
+//
+// The resulting CheckRetry function always invokes the given policy
+// and acts based on its outcome.
+func withRetryObservation(
 	policy retryablehttp.CheckRetry,
 	logger *slog.Logger,
 ) retryablehttp.CheckRetry {
+	if policy == nil {
+		panic("api: withRetryLogging: nil policy")
+	}
 	if logger == nil {
 		panic("api: withRetryLogging: nil logger")
 	}
@@ -47,42 +53,55 @@ func withRetryLogging(
 			err = newErr
 		}
 
-		if willRetry {
-			switch {
-			case resp == nil && err == nil:
-				logger.Error("api: retrying HTTP request, no error or response")
-
-			case err != nil:
-				logger.Info("api: retrying error", "error", err)
-				wboperation.Get(ctx).MarkRetryingError(err)
-
-			case resp.StatusCode >= 400:
-				bodyFirstKB, err := readResponseBodyUpToLimit(resp, 1024)
-
-				var bodyToLog string
-				if err == nil {
-					bodyToLog = string(bodyFirstKB)
-				} else {
-					bodyToLog = fmt.Sprintf("error reading body: %v", err)
-				}
-
-				logger.Info(
-					"api: retrying HTTP error",
-					"status", resp.StatusCode,
-					"url", resp.Request.URL.String(),
-					"body", bodyToLog,
-				)
-
-				// TODO: Report the attempt number & time to next retry.
-				wboperation.Get(ctx).MarkRetryingHTTPError(
-					resp.StatusCode,
-					resp.Status,
-					ErrorFromWBResponse(bodyFirstKB),
-				)
-			}
+		if !willRetry {
+			return false, err
 		}
 
-		return willRetry, err
+		switch {
+		case resp == nil && err == nil:
+			logger.Error("api: retrying HTTP request, no error or response")
+
+		case err != nil:
+			logger.Info("api: retrying error", "error", err)
+			setLastRetriedError(ctx, err.Error())
+			wboperation.Get(ctx).MarkRetryingError(err)
+
+		case resp.StatusCode >= 400:
+			bodyFirstKB, err := readResponseBodyUpToLimit(resp, 1024)
+
+			var bodyToLog string
+			if err == nil {
+				gqlErrors := MaybeGQLErrorResponse(bodyFirstKB)
+				if gqlErrors != "" {
+					bodyToLog = gqlErrors
+				} else {
+					bodyToLog = string(bodyFirstKB)
+				}
+			} else {
+				bodyToLog = fmt.Sprintf("error reading body: %v", err)
+			}
+
+			logger.Info(
+				"api: retrying HTTP error",
+				"status", resp.StatusCode,
+				"url", resp.Request.URL.String(),
+				"body", bodyToLog,
+			)
+
+			setLastRetriedError(ctx,
+				fmt.Sprintf("HTTP %d: %s",
+					resp.StatusCode,
+					bodyToLog))
+
+			// TODO: Report the attempt number & time to next retry.
+			wboperation.Get(ctx).MarkRetryingHTTPError(
+				resp.StatusCode,
+				resp.Status,
+				ErrorFromWBResponse(bodyFirstKB),
+			)
+		}
+
+		return true, err
 	}
 }
 

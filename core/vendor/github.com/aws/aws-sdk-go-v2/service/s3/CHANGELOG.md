@@ -1,3 +1,83 @@
+# v1.106.4 (2026-08-03)
+
+* **Bug Fix**: Expand S3 operations that check for an error inside an HTTP 200 response
+
+# v1.106.3 (2026-07-31.2)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+* **Dependency Update**: Upgrade to smithy-go v1.27.6 to fix various serde issues in HTTP binding services.
+
+# v1.106.2 (2026-07-29)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.106.1 (2026-07-28)
+
+* **Dependency Update**: Update to smithy-go v1.27.5.
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.106.0 (2026-07-21)
+
+* **Feature**: Add an option to clients to disable clock skew
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.105.2 (2026-07-16)
+
+* **Documentation**: Documentation update for removing the 30 day minimum restriction for transition to Standard-IA or OneZone-IA storage classes
+
+# v1.105.1 (2026-07-13)
+
+* No change notes available for this release.
+
+# v1.105.0 (2026-07-06)
+
+* **Feature**: Add request serialization snapshot tests.
+
+# v1.104.2 (2026-07-01)
+
+* **Bug Fix**: Bump smithy-go to 1.27.3, fix JSON encorder for document.Number, endpoint host label format validation and CBOR union serialization on new serde
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.104.1 (2026-06-29)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.104.0 (2026-06-16)
+
+* **Feature**: Added support for annotations. You can now attach up to 1000 annotations (up to 1 MB each) directly to objects and create, retrieve, list, and delete them using new annotation APIs. Also added support for configuring an annotation table in S3 Metadata.
+
+# v1.103.3 (2026-06-08)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.103.2 (2026-06-04)
+
+* **Dependency Update**: Update to smithy-go v1.27.1 to fix several union-related deserialization bugs in schema-serde-enabled services.
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.103.1 (2026-06-03)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.103.0 (2026-06-02)
+
+* **Feature**: Adding new BDD representation of endpoint ruleset
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.102.2 (2026-05-29)
+
+* **Dependency Update**: Update to smithy-go v1.26.0.
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.102.1 (2026-05-28)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.102.0 (2026-05-27)
+
+* **Feature**: Add SHA-512 support for s3 operations
+* **Dependency Update**: Updated to the latest SDK module versions
+
 # v1.101.0 (2026-05-06)
 
 * **Feature**: Validate outpost access point resource name

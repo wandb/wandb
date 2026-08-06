@@ -14,6 +14,8 @@ from urllib.parse import quote
 
 from typing_extensions import Never, ParamSpec
 
+from wandb import env
+
 _P = ParamSpec("_P")
 _T = TypeVar("_T")
 
@@ -64,10 +66,8 @@ def _guard(
 
 class Sentry:
     def __init__(self, *, pid: int) -> None:
-        from wandb import env as _env
-
         self._pid: int = pid
-        self._enabled: bool = bool(_env.error_reporting_enabled())
+        self._enabled: bool = bool(env.error_reporting_enabled())
         self._booted: bool = False
         self._boot_lock = threading.Lock()
         self._atexit_registered: bool = False
@@ -76,7 +76,7 @@ class Sentry:
         self._sdk: Any | None = None  # will hold the sentry_sdk module after boot
         self.scope: Any | None = None
 
-        self.dsn: str | None = os.environ.get(_env.SENTRY_DSN, SENTRY_DEFAULT_DSN)
+        self.dsn: str | None = os.environ.get(env.SENTRY_DSN, SENTRY_DEFAULT_DSN)
 
     @property
     def environment(self) -> str:
@@ -266,7 +266,10 @@ class Sentry:
             if tags.get(obj_url, None):
                 continue
             try:
-                app_url = wandb.util.app_url(tags["base_url"])  # type: ignore[index]
+                app_url = tags.get("app_url") or wandb.util.api_to_app_url(
+                    tags["base_url"]
+                )  # type: ignore[index]
+                app_url = app_url.rstrip("/")
                 entity, project = (quote(tags[k]) for k in ("entity", "project"))  # type: ignore[index]
                 self.scope.set_tag(
                     obj_url,
@@ -277,7 +280,7 @@ class Sentry:
 
         email = tags.get("email")
         if email:
-            self.scope.user = {"email": email}
+            self.scope.set_user({"email": email})
 
         self.start_session()
 

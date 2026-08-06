@@ -9,16 +9,14 @@ from contextlib import nullcontext
 from itertools import islice
 from pathlib import Path
 
-import requests
 import wandb
 from pytest import MonkeyPatch, fixture, mark, raises, skip
-from pytest_mock import MockerFixture
 from wandb import Api
 from wandb._strutils import nameof
 from wandb.errors import CommError, UnsupportedError
+from wandb.proto import wandb_api_pb2
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.artifacts._generated import (
-    ArtifactByName,
     ArtifactFragment,
     ArtifactMembershipByName,
     ArtifactMembershipFragment,
@@ -27,6 +25,7 @@ from wandb.sdk.artifacts._generated import (
 from wandb.sdk.artifacts._gqlutils import server_supports
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError
 from wandb.sdk.lib.paths import StrPath
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 
 @fixture
@@ -90,6 +89,32 @@ def test_artifact_versions_start(api: Api):
 
 
 @mark.usefixtures("sample_data")
+@mark.parametrize(
+    ("order", "expected_names"),
+    (
+        (
+            # ascending (implicit default)
+            "version_index",
+            ["mnist:v0", "mnist:v1"],
+        ),
+        (
+            # ascending
+            "+version_index",
+            ["mnist:v0", "mnist:v1"],
+        ),
+        (
+            # descending
+            "-version_index",
+            ["mnist:v1", "mnist:v0"],
+        ),
+    ),
+)
+def test_artifacts_order(api: Api, order: str, expected_names: list[str]):
+    names = [a.name for a in api.artifacts("dataset", "mnist", order=order)]
+    assert names == expected_names
+
+
+@mark.usefixtures("sample_data")
 def test_artifact_type(api: Api):
     atype = api.artifact_type("dataset")
     assert atype.name == "dataset"
@@ -108,7 +133,7 @@ def test_artifact_type_collections(api: Api):
         f.write("test")
     artifact.save()
     artifact.wait()
-    project_path = f"{artifact.entity}/{artifact.project}"
+    proj_path = f"{artifact.entity}/{artifact.project}"
 
     cols = atype.collections()
     assert len(cols) == 2
@@ -128,7 +153,7 @@ def test_artifact_type_collections(api: Api):
     remaining_names_via_api = [
         coll.name
         for coll in api.artifact_collections(
-            project_path,
+            proj_path,
             atype.name,
             per_page=1,
             start=saved_cursor,
@@ -138,23 +163,29 @@ def test_artifact_type_collections(api: Api):
     assert remaining_names_via_collection == remaining_names_via_api
     assert all_collection_names == [first_name, *remaining_names_via_api]
 
-    if server_supports(api.client, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING):
-        cols = atype.collections(filters={"name": "mnist"})
-        assert len(cols) == 1 and cols[0].name == "mnist"
-        cols = atype.collections(order="name")
-        assert len(cols) == 2
-        assert cols[0].name == "another-collection" and cols[1].name == "mnist"
+    if server_supports(api._service_api, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING):
+        filtered_collections = atype.collections(filters={"name": "mnist"})
+        assert len(filtered_collections) == 1
+        assert [c.name for c in filtered_collections] == ["mnist"]
+
+        ordered_collections = atype.collections(order="name")
+        assert len(ordered_collections) == 2
+        assert [c.name for c in ordered_collections] == ["another-collection", "mnist"]
+
+        # The same ordering is reachable through the top-level Api method.
+        api_collections = api.artifact_collections(proj_path, atype.name, order="name")
+        assert [c.name for c in api_collections] == ["another-collection", "mnist"]
     else:
-        with raises(
-            UnsupportedError,
-            match="Filtering and ordering of artifact collections is not supported on this wandb server version.",
-        ):
+        err_msg = "Filtering and ordering of artifact collections is not supported on this wandb server version."
+
+        with raises(UnsupportedError, match=err_msg):
             atype.collections(filters={"name": "mnist"})
-        with raises(
-            UnsupportedError,
-            match="Filtering and ordering of artifact collections is not supported on this wandb server version.",
-        ):
+
+        with raises(UnsupportedError, match=err_msg):
             atype.collections(order="name")
+
+        with raises(UnsupportedError, match=err_msg):
+            api.artifact_collections(proj_path, atype.name, order="name")
 
 
 @mark.usefixtures("sample_data")
@@ -176,7 +207,12 @@ def test_artifact_types_start(api: Api):
     project_path = f"{artifact.entity}/{artifact.project}"
     all_type_names = [atype.name for atype in api.artifact_types(project_path)]
 
-    types = ArtifactTypes(api.client, artifact.entity, artifact.project, per_page=1)
+    types = ArtifactTypes(
+        api._service_api,
+        artifact.entity,
+        artifact.project,
+        per_page=1,
+    )
     first_name = next(types).name
     saved_cursor = types.cursor
 
@@ -203,7 +239,7 @@ def test_project_collections(api: Api):
     project_name = artifact.project
     project = api.project(project_name)
 
-    if server_supports(api.client, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING):
+    if server_supports(api._service_api, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING):
         # fetching all collections in the project
         cols = project.collections()
         assert len(cols) == 2
@@ -264,7 +300,7 @@ def test_artifact_file(api: Api):
 @mark.usefixtures("sample_data")
 def test_artifact_files(api: Api):
     art = api.artifact("mnist:v0", type="dataset")
-    if server_supports(api.client, pb.TOTAL_COUNT_IN_FILE_CONNECTION):
+    if server_supports(api._service_api, pb.TOTAL_COUNT_IN_FILE_CONNECTION):
         assert (
             str(art.files())
             == f"<ArtifactFiles {art.entity}/uncategorized/mnist:v0 (1)>"
@@ -279,7 +315,7 @@ def test_artifact_files(api: Api):
 
 @mark.usefixtures("sample_data")
 def test_artifacts_files_filtered_length(api: Api):
-    if not server_supports(api.client, pb.TOTAL_COUNT_IN_FILE_CONNECTION):
+    if not server_supports(api._service_api, pb.TOTAL_COUNT_IN_FILE_CONNECTION):
         skip("Server doesn't support FileConnection.totalCount")
 
     # creating a new artifact with files
@@ -338,50 +374,38 @@ def test_artifact_collection_exists(api: Api):
     assert api.artifact_collection_exists("mnist-fake", "dataset") is False
 
 
-@mark.usefixtures("sample_data")
-def test_artifact_exists_raises_on_timeout(mocker: MockerFixture, api: Api):
-    # FIXME: We should really be mocking the GraphQL HTTP requests/responses, NOT the
-    # actual python methods, but this is complicated by the fact that we need to instantiate
-    # a new Api with a shorter timeout, and that Api makes immediate requests on _instantiation_.
-    #
-    # Mocking every single one of them makes test setup quite brittle and error prone.
-    # Moreover, the interaction between @normalize_exceptions and our home-grown retry
-    # logic isn't readily configurable, so this test can easily become flaky and/or timeout.
-    # The following will have to do for now.
-    mocker.patch.object(api, "_artifact", side_effect=requests.Timeout())
+def test_artifact_exists_raises_on_service_api_failure(mocker, api: Api):
+    error = WandbApiFailedError(
+        "context deadline exceeded",
+        wandb_api_pb2.ApiErrorResponse(
+            message="context deadline exceeded",
+            http_status=0,
+        ),
+    )
+    mocker.patch.object(api, "_artifact", side_effect=CommError(str(error), error))
 
     with raises(CommError) as exc_info:
         api.artifact_exists("mnist:v0")
-    assert isinstance(exc_info.value.exc, requests.Timeout)
-
-    with raises(CommError) as exc_info:
-        api.artifact_exists("mnist-fake:v0")
-    assert isinstance(exc_info.value.exc, requests.Timeout)
-
-    with raises(CommError):
-        api.artifact_exists("mnist-fake:v0")
-    assert isinstance(exc_info.value.exc, requests.Timeout)
+    assert exc_info.value.exc is error
 
 
-@mark.usefixtures("sample_data")
-def test_artifact_collection_exists_raises_on_timeout(mocker: MockerFixture, api: Api):
-    # FIXME: We should really be mocking the GraphQL HTTP requests/responses, NOT the
-    # actual python methods, but this is complicated by the fact that we need to instantiate
-    # a new Api with a shorter timeout, and that Api makes immediate requests on _instantiation_.
-    #
-    # Mocking every single one of them makes test setup quite brittle and error prone.
-    # Moreover, the interaction between @normalize_exceptions and our home-grown retry
-    # logic isn't readily configurable, so this test can easily become flaky and/or timeout.
-    # The following will have to do for now.
-    mocker.patch.object(api, "artifact_collection", side_effect=requests.Timeout())
+def test_artifact_collection_exists_raises_on_service_api_failure(mocker, api: Api):
+    error = WandbApiFailedError(
+        "context deadline exceeded",
+        wandb_api_pb2.ApiErrorResponse(
+            message="context deadline exceeded",
+            http_status=0,
+        ),
+    )
+    mocker.patch.object(
+        api,
+        "artifact_collection",
+        side_effect=CommError(str(error), error),
+    )
 
     with raises(CommError) as exc_info:
         api.artifact_collection_exists("mnist", "dataset")
-    assert isinstance(exc_info.value.exc, requests.Timeout)
-
-    with raises(CommError) as exc_info:
-        api.artifact_collection_exists("mnist-fake", "dataset")
-    assert isinstance(exc_info.value.exc, requests.Timeout)
+    assert exc_info.value.exc is error
 
 
 @mark.usefixtures("sample_data")
@@ -616,10 +640,6 @@ def test_fetch_registry_artifact(
 ):
     from tests.fixtures.wandb_backend_spy.gql_match import Constant, Matcher
 
-    server_supports_artifact_via_membership = server_supports(
-        api.client, pb.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP
-    )
-
     mocker.patch("wandb.sdk.artifacts.artifact.Artifact._from_attrs")
 
     # Stub the query for orgEntity name(s)
@@ -686,15 +706,7 @@ def test_fetch_registry_artifact(
 
     mock_empty_rsp_data = {"data": {"project": {}}}
 
-    mock_artifact_rsp_data = {
-        "data": {
-            "project": {
-                "artifact": mock_artifact_fragment_data,
-            }
-        }
-    }
-
-    mock_membership_rsp_data = {
+    mock_rsp = {
         "data": {
             "project": {
                 "artifact": mock_artifact_fragment_data,
@@ -703,14 +715,7 @@ def test_fetch_registry_artifact(
         }
     }
 
-    # Set up the mock response for the appropriate GQL operation
-    # Return equivalent payload for either membership or by-name fetches
-    if server_supports_artifact_via_membership:
-        op_name = nameof(ArtifactMembershipByName)
-        mock_rsp = mock_membership_rsp_data
-    else:
-        op_name = nameof(ArtifactByName)
-        mock_rsp = mock_artifact_rsp_data
+    op_name = nameof(ArtifactMembershipByName)
 
     # If we aren't simulating a successfully-fetched artifact, override the mock response with an empty one
     if not expected_artifact_fetched:

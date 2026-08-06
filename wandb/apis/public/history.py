@@ -11,32 +11,24 @@ Note:
 
 from __future__ import annotations
 
-import contextlib
 import json
-import weakref
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any, TypeAlias
 
 from typing_extensions import Self
 
-from wandb.apis.normalize import normalize_exceptions
 from wandb.proto import wandb_api_pb2 as pb
-from wandb.sdk.mailbox.mailbox import MailboxClosedError
 
 if TYPE_CHECKING:
     from . import runs
-    from .api import RetryingClient
     from .service_api import ServiceApi
 
 _RowDict: TypeAlias = dict[str, Any]
 """Type alias for a single history row as a dict."""
 
 
-class BetaHistoryScan(Iterator[_RowDict]):
-    """Iterator for scanning complete run history.
-
-    <!-- lazydoc-ignore-class: internal -->
-    """
+class HistoryScan(Iterator[_RowDict]):
+    """Iterator for scanning complete run history."""
 
     def __init__(
         self,
@@ -77,20 +69,14 @@ class BetaHistoryScan(Iterator[_RowDict]):
         )
 
         self.scan_offset = 0
+        self.page_offset = self.min_step
         self.rows: list[_RowDict] = []
         self.keys = keys
 
-        # Add cleanup hook to clean up resources in wandb-core
-        # when this scan object is deleted.
-        #
-        # Using weakref.finalize ensures that references to objects needed during cleanup
-        # are not garbage collected before being used.
-        # see: https://docs.python.org/3/library/weakref.html#comparing-finalizers-with-del-methods
-        weakref.finalize(
+        # Clean up resources when the object is GC'ed.
+        self._service_api.finalize(
             self,
-            self.cleanup,
-            self._service_api,
-            self._scan_request_id,
+            _scan_cleanup_request(self._scan_request_id),
         )
 
     @property
@@ -112,11 +98,11 @@ class BetaHistoryScan(Iterator[_RowDict]):
                 return row
             if self.page_offset >= self._stop_step:
                 raise StopIteration()
-            # Load the next page
+            # Load the next page. An empty page does not terminate the scan: a
+            # step range may have no rows while later steps do (e.g. a gap
+            # between exported parquet data and the live tail). Iteration ends
+            # only once page_offset reaches _stop_step (checked above).
             self._load_next()
-            # If no rows were returned, we've reached the end of the data
-            if len(self.rows) == 0:
-                raise StopIteration()
 
     def _load_next(self) -> None:
         from wandb.proto import wandb_api_pb2 as pb
@@ -148,218 +134,12 @@ class BetaHistoryScan(Iterator[_RowDict]):
             item.key: json.loads(item.value_json) for item in history_row.history_items
         }
 
-    @staticmethod
-    def cleanup(service_api: ServiceApi, request_id: int) -> None:
-        scan_run_history_cleanup = pb.ScanRunHistoryCleanup(
-            request_id=request_id,
-        )
-        scan_run_history_cleanup_request = pb.ReadRunHistoryRequest(
-            scan_run_history_cleanup=scan_run_history_cleanup
-        )
 
-        with contextlib.suppress(ConnectionResetError, MailboxClosedError):
-            service_api.send_api_request(
-                pb.ApiRequest(read_run_history_request=scan_run_history_cleanup_request)
-            )
+def _scan_cleanup_request(id: int) -> pb.ApiRequest:
+    """Returns a ScanRunHistoryCleanup request for the given ID."""
+    scan_cleanup_request = pb.ScanRunHistoryCleanup(request_id=id)
+    run_history_request = pb.ReadRunHistoryRequest(
+        scan_run_history_cleanup=scan_cleanup_request,
+    )
 
-
-class HistoryScan(Iterator[_RowDict]):
-    """Iterator for scanning complete run history.
-
-    <!-- lazydoc-ignore-class: internal -->
-    """
-
-    QUERY = """
-        query HistoryPage($entity: String!, $project: String!, $run: String!, $minStep: Int64!, $maxStep: Int64!, $pageSize: Int!) {
-            project(name: $project, entityName: $entity) {
-                run(name: $run) {
-                    history(minStep: $minStep, maxStep: $maxStep, samples: $pageSize)
-                }
-            }
-        }
-        """
-
-    def __init__(
-        self,
-        client: RetryingClient,
-        run: runs.Run,
-        min_step: int,
-        max_step: int,
-        page_size: int = 1_000,
-        *,
-        service_api: ServiceApi,
-    ):
-        """Initialize a HistoryScan instance.
-
-        Args:
-            client: Legacy GraphQL client retained for API compatibility;
-                history rows are fetched through `service_api`.
-            run: The run object whose history is to be scanned.
-            min_step: The minimum step to start scanning from.
-            max_step: The exclusive upper bound for scanned history rows.
-            page_size: Number of history rows to fetch per page.
-                Default page_size is 1000.
-            service_api: Interface to the wandb-core service that performs
-                W&B API calls for this scan.
-        """
-        self.client = client
-        self.run = run
-        self.page_size = page_size
-        self.min_step = min_step
-        self._stop_step = max_step
-        self.page_offset = min_step  # minStep for next page
-        self.scan_offset = 0  # index within current page of rows
-        self.rows: list[_RowDict] = []  # current page of rows
-        self._service_api = service_api
-
-    @property
-    def max_step(self) -> int:
-        """The highest step that can be yielded by this scan."""
-        return self._stop_step - 1
-
-    def __iter__(self) -> Self:
-        self.page_offset = self.min_step
-        self.scan_offset = 0
-        self.rows = []
-        return self
-
-    def __next__(self) -> _RowDict:
-        """Return the next row of history data with automatic pagination.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        while True:
-            if self.scan_offset < len(self.rows):
-                row = self.rows[self.scan_offset]
-                self.scan_offset += 1
-                return row
-            if self.page_offset >= self._stop_step:
-                raise StopIteration()
-            self._load_next()
-
-    next = __next__
-
-    @normalize_exceptions
-    def _load_next(self) -> None:
-        max_step = self.page_offset + self.page_size
-        if max_step > self._stop_step:
-            max_step = self._stop_step
-        variables = {
-            "entity": self.run.entity,
-            "project": self.run.project,
-            "run": self.run.id,
-            "minStep": int(self.page_offset),
-            "maxStep": int(max_step),
-            "pageSize": int(self.page_size),
-        }
-
-        res = self._service_api.execute_graphql(self.QUERY, variables)
-        res = res["project"]["run"]["history"]
-        self.rows = [json.loads(row) for row in res]
-        self.page_offset += self.page_size
-        self.scan_offset = 0
-
-
-class SampledHistoryScan(Iterator[_RowDict]):
-    """Iterator for sampling run history data.
-
-    <!-- lazydoc-ignore-class: internal -->
-    """
-
-    QUERY = """
-        query SampledHistoryPage($entity: String!, $project: String!, $run: String!, $spec: JSONString!) {
-            project(name: $project, entityName: $entity) {
-                run(name: $run) {
-                    sampledHistory(specs: [$spec])
-                }
-            }
-        }
-        """
-
-    def __init__(
-        self,
-        client: RetryingClient,
-        run: runs.Run,
-        keys: list[str],
-        min_step: int,
-        max_step: int,
-        page_size: int = 1_000,
-        *,
-        service_api: ServiceApi,
-    ):
-        """Initialize a SampledHistoryScan instance.
-
-        Args:
-            client: Legacy GraphQL client retained for API compatibility;
-                sampled history rows are fetched through `service_api`.
-            run: The run object whose history is to be sampled.
-            keys: List of keys to sample from the history.
-            min_step: The minimum step to start sampling from.
-            max_step: The exclusive upper bound for sampled history rows.
-            page_size: Number of sampled history rows to fetch per page.
-                Default page_size is 1000.
-            service_api: Interface to the wandb-core service that performs
-                W&B API calls for this scan.
-        """
-        self.client = client
-        self.run = run
-        self.keys = keys
-        self.page_size = page_size
-        self.min_step = min_step
-        self._stop_step = max_step
-        self.page_offset = min_step  # minStep for next page
-        self.scan_offset = 0  # index within current page of rows
-        self.rows: list[_RowDict] = []  # current page of rows
-        self._service_api = service_api
-
-    @property
-    def max_step(self) -> int:
-        """The highest step that can be yielded by this scan."""
-        return self._stop_step - 1
-
-    def __iter__(self) -> Self:
-        self.page_offset = self.min_step
-        self.scan_offset = 0
-        self.rows = []
-        return self
-
-    def __next__(self) -> _RowDict:
-        """Return the next row of sampled history data with automatic pagination.
-
-        <!-- lazydoc-ignore: internal -->
-        """
-        while True:
-            if self.scan_offset < len(self.rows):
-                row = self.rows[self.scan_offset]
-                self.scan_offset += 1
-                return row
-            if self.page_offset >= self._stop_step:
-                raise StopIteration()
-            self._load_next()
-
-    next = __next__
-
-    @normalize_exceptions
-    def _load_next(self) -> None:
-        max_step = self.page_offset + self.page_size
-        if max_step > self._stop_step:
-            max_step = self._stop_step
-        variables = {
-            "entity": self.run.entity,
-            "project": self.run.project,
-            "run": self.run.id,
-            "spec": json.dumps(
-                {
-                    "keys": self.keys,
-                    "minStep": int(self.page_offset),
-                    "maxStep": int(max_step),
-                    "samples": int(self.page_size),
-                }
-            ),
-        }
-
-        res = self._service_api.execute_graphql(self.QUERY, variables)
-        res = res["project"]["run"]["sampledHistory"]
-        self.rows = res[0]
-        self.page_offset += self.page_size
-        self.scan_offset = 0
+    return pb.ApiRequest(read_run_history_request=run_history_request)

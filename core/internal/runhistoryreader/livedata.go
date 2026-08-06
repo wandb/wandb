@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 
 	"github.com/wandb/simplejsonext"
 
@@ -19,7 +20,15 @@ func (h *HistoryReader) getLiveData(
 	maxStep int64,
 	selectAllKeys bool,
 ) ([]parquet.KeyValueList, error) {
-	requireLiveDataQuery := minStep >= h.minLiveStep || maxStep > h.minLiveStep
+	// A page must be served from the live endpoints when it extends past the
+	// boundary where exported parquet data ends. The fallback case covers runs
+	// whose history exists but the backend reported neither a live-step boundary
+	// nor any exported parquet files: the data is then only reachable live, so
+	// query it instead of silently returning no rows.
+	hasLiveRangeBoundary := h.minLiveStep != math.MaxInt64
+	hasExportedData := len(h.parquetReaders) > 0
+	requireLiveDataQuery := maxStep > h.minLiveStep ||
+		(!hasLiveRangeBoundary && !hasExportedData)
 	if !requireLiveDataQuery {
 		return []parquet.KeyValueList{}, nil
 	}
@@ -90,13 +99,16 @@ func (h *HistoryReader) getLiveDataForSpecificKeys(
 	minStep int64,
 	maxStep int64,
 ) ([]parquet.KeyValueList, error) {
-	keys := keysWithStep(h.keys)
-
 	spec := map[string]any{
-		"keys":    keys,
+		"keys":    h.keys,
 		"minStep": minStep,
-		"maxStep": maxStep,
 		"samples": maxStep - minStep,
+
+		// SampledHistory marks the max step as inclusive,
+		// This affects the sample window size, causing 1 data point to be dropped.
+		// To keep this inline with the HistoryPage query,
+		// we subtract 1 from the max step to make it exclusive.
+		"maxStep": maxStep - 1,
 	}
 	specJSON, err := simplejsonext.MarshalToString(spec)
 	if err != nil {

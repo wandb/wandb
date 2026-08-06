@@ -22,7 +22,7 @@ func pop(
 	return state.Pop(
 		request,
 		observabilitytest.NewTestLogger(t),
-		observability.NewPrinter(),
+		observability.NewPrinter(0),
 	)
 }
 
@@ -271,7 +271,7 @@ func TestState_Pop_SummaryLineTooLong(t *testing.T) {
 	}
 	request := &FileStreamRequest{}
 	logger, logs := observabilitytest.NewRecordingTestLogger(t)
-	printer := observability.NewPrinter()
+	printer := observability.NewPrinter(100)
 
 	json, hasMore := state.Pop(request, logger, printer)
 

@@ -47,9 +47,9 @@ class PatchAPI:
         resolver: ArgumentResponseResolver,
     ) -> None:
         """Patches the API to log wandb Media or metrics."""
-        # name of the LLM provider, e.g. "Cohere" or "OpenAI" or package name like "Transformers"
+        # name of the API provider or package, e.g. "transformers"
         self.name = name
-        # api library name, e.g. "cohere" or "openai" or "transformers"
+        # api library name, e.g. "transformers"
         self._api = None
         # dictionary of original methods
         self.original_methods: dict[str, Any] = {}

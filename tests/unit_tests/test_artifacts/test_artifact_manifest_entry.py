@@ -1,74 +1,105 @@
-import base64
-import os
-from logging import getLogger
-from pathlib import Path, PurePath
+from __future__ import annotations
 
+from pathlib import Path, PurePath
+from typing import Any
+
+from pytest import mark, param, raises
+from pytest_mock import MockerFixture
+from wandb.sdk.artifacts._validators import validate_fspath
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 
-logger = getLogger(__name__)
+
+@mark.parametrize(
+    ["kwargs", "expected_repr"],
+    [
+        param(
+            dict(
+                path="foo",
+                digest="",
+                ref="baz",
+                birth_artifact_id="qux",
+                size=123,
+                extra={"quux": "corge"},
+                local_path="grault",
+            ),
+            "ArtifactManifestEntry(path='foo', digest='', ref='baz', birth_artifact_id='qux', size=123, extra={'quux': 'corge'}, local_path='grault', skip_cache=False)",
+            id="full",
+        ),
+        param(
+            dict(path="foo", digest="bar", ref="", birth_artifact_id="", size=0),
+            "ArtifactManifestEntry(path='foo', digest='bar', ref='', birth_artifact_id='', size=0, skip_cache=False)",
+            id="blank",
+        ),
+        param(
+            dict(path="foo", digest="barr"),
+            "ArtifactManifestEntry(path='foo', digest='barr', skip_cache=False)",
+            id="short",
+        ),
+    ],
+)
+def test_manifest_entry_repr(kwargs: dict[str, Any], expected_repr: str):
+    entry = ArtifactManifestEntry(**kwargs)
+    assert repr(entry) == expected_repr
 
 
-def test_repr():
-    entry = ArtifactManifestEntry(
-        path="foo",
-        digest="",
-        ref="baz",
-        birth_artifact_id="qux",
-        size=123,
-        extra={"quux": "corge"},
-        local_path="grault",
-    )
-    assert eval(repr(entry)) == entry
-
-    blank_entry = ArtifactManifestEntry(
-        path="foo", digest="bar", ref="", birth_artifact_id="", size=0
-    )
-    assert (
-        repr(blank_entry) == "ArtifactManifestEntry"
-        "(path='foo', digest='bar', ref='', birth_artifact_id='', size=0, skip_cache=False)"
-    )
-    assert entry != blank_entry
-    assert entry != repr(entry)
-
-    short_entry = ArtifactManifestEntry(path="foo", digest="barr")
-    assert (
-        repr(short_entry)
-        == "ArtifactManifestEntry(path='foo', digest='barr', skip_cache=False)"
-    )
-    assert entry != short_entry
-
-
-def base64_decode(data):
-    padding_needed = 4 - (len(data) % 4)
-    if padding_needed:
-        data += "=" * padding_needed
-    return base64.b64decode(data)
-
-
-def test_manifest_download(monkeypatch):
+@mark.parametrize(
+    "cache_path",
+    [
+        param(Path("default_cache"), id="flat-relative-path"),
+        param(Path("nested/default_cache"), id="nested-relative-path"),
+    ],
+)
+def test_manifest_download(mocker: MockerFixture, tmp_path: Path, cache_path: Path):
     artifact = Artifact("mnist", type="dataset")
-    short_entry = ArtifactManifestEntry(path="foo", digest="barr")
-    assert (
-        repr(short_entry)
-        == "ArtifactManifestEntry(path='foo', digest='barr', skip_cache=False)"
-    )
-    short_entry._parent_artifact = artifact
+    entry = ArtifactManifestEntry(path="foo", digest="barr")
 
-    abspath_to_cur_dir = os.path.dirname(os.path.abspath(__file__))
-    default_cache = Path("default_cache")
+    # FIXME: Find a way to set up this test without setting private attributes directly
+    entry._parent_artifact = artifact
 
-    monkeypatch.setattr(
-        short_entry._parent_artifact.manifest.storage_policy,
-        "load_reference",
-        lambda x, y, **kwargs: default_cache,
+    mocker.patch.object(
+        artifact.manifest.storage_policy, "load_reference", return_value=cache_path
     )
-    monkeypatch.setattr(
-        short_entry._parent_artifact.manifest.storage_policy,
-        "load_file",
-        lambda x, y, **kwargs: default_cache,
+    mocker.patch.object(
+        artifact.manifest.storage_policy, "load_file", return_value=cache_path
     )
 
-    short_entry.path = default_cache
-    fpath = PurePath(short_entry.download(root=abspath_to_cur_dir, skip_cache=True))
-    assert fpath.parts[-3:] == ("unit_tests", "test_artifacts", "default_cache")
+    entry.path = cache_path
+    fpath = PurePath(entry.download(root=tmp_path, skip_cache=True))
+    assert Path(fpath) == tmp_path / cache_path
+
+
+@mark.parametrize(
+    "entry_path",
+    [
+        param("default_cache", id="flat-relative-path"),
+        param("nested/default_cache", id="nested-relative-path"),
+    ],
+)
+def test_validate_fspath_on_manifest_entry_path(tmp_path, entry_path):
+    entry = ArtifactManifestEntry(path=entry_path, digest="barr")
+
+    assert Path(validate_fspath(tmp_path, entry.path)) == tmp_path / entry_path
+
+
+@mark.parametrize(
+    "invalid_path",
+    [
+        "../outside.txt",  # Relative path via parent directory traversal.
+        "/outside.txt",  # Absolute path from the POSIX root.
+        "C:\\outside.txt",  # Absolute path from a Windows drive root.
+    ],
+)
+def test_manifest_download_rejects_invalid_path(mocker, tmp_path, invalid_path):
+    artifact = Artifact("mnist", type="dataset")
+    entry = ArtifactManifestEntry(path=invalid_path, digest="barr")
+
+    # FIXME: Find a way to set up this test without setting private attributes directly
+    entry._parent_artifact = artifact
+
+    load_file_spy = mocker.spy(artifact.manifest.storage_policy, "load_file")
+
+    with raises(ValueError, match="Invalid artifact path"):
+        entry.download(root=tmp_path, skip_cache=True)
+
+    load_file_spy.assert_not_called()

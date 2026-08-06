@@ -343,11 +343,19 @@ async fn create_listener(args: &Args) -> Result<ListenerType, Box<dyn std::error
                 std::fs::write(&args.portfile, token)?;
                 debug!("System metrics service listening on {}", path_str);
 
-                // Store path for cleanup
-                let cleanup_path = socket_path.clone();
+                // `UnixListener` does not unlink its socket file on drop;
+                // a Drop guard parked in a tokio task cleans it up when the
+                // runtime shuts down (or on SIGINT).
+                struct SocketCleanup(std::path::PathBuf);
+                impl Drop for SocketCleanup {
+                    fn drop(&mut self) {
+                        let _ = std::fs::remove_file(&self.0);
+                    }
+                }
+                let cleanup = SocketCleanup(socket_path.clone());
                 tokio::spawn(async move {
+                    let _cleanup = cleanup;
                     tokio::signal::ctrl_c().await.ok();
-                    let _ = std::fs::remove_file(&cleanup_path);
                 });
             } else {
                 return Err("Invalid UTF-8 sequence in socket path".into());

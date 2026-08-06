@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/simplejsonext"
 
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runhistoryreader"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/ffi"
@@ -24,6 +25,7 @@ import (
 type RunHistoryAPIHandler struct {
 	graphqlClient graphql.Client
 	httpClient    *retryablehttp.Client
+	logger        *observability.CoreLogger
 
 	// mu protects scanHistoryReaders and downloadOperations from
 	// concurrent access by goroutines spawned in handleApi.
@@ -61,11 +63,13 @@ type RunHistoryAPIHandler struct {
 func NewRunHistoryAPIHandler(
 	graphqlClient graphql.Client,
 	httpClient *retryablehttp.Client,
+	logger *observability.CoreLogger,
 ) *RunHistoryAPIHandler {
 
 	return &RunHistoryAPIHandler{
 		graphqlClient:      graphqlClient,
 		httpClient:         httpClient,
+		logger:             logger,
 		currentRequestId:   atomic.Int32{},
 		scanHistoryReaders: make(map[int32]*runhistoryreader.HistoryReader),
 		downloadOperations: make(map[int32]*parquet.RunHistoryDownloadOperation),
@@ -73,19 +77,20 @@ func NewRunHistoryAPIHandler(
 }
 
 func (f *RunHistoryAPIHandler) HandleRequest(
+	ctx context.Context,
 	request *spb.ReadRunHistoryRequest,
 ) *spb.ApiResponse {
 	switch request.Request.(type) {
 	case *spb.ReadRunHistoryRequest_ScanRunHistoryInit:
-		return f.handleScanRunHistoryInit(request.GetScanRunHistoryInit())
+		return f.handleScanRunHistoryInit(ctx, request.GetScanRunHistoryInit())
 	case *spb.ReadRunHistoryRequest_ScanRunHistory:
-		return f.handleScanRunHistoryRead(request.GetScanRunHistory())
+		return f.handleScanRunHistoryRead(ctx, request.GetScanRunHistory())
 	case *spb.ReadRunHistoryRequest_ScanRunHistoryCleanup:
 		return f.handleScanRunHistoryCleanup(request.GetScanRunHistoryCleanup())
 	case *spb.ReadRunHistoryRequest_DownloadRunHistoryInit:
-		return f.handleDownloadRunHistoryInit(request.GetDownloadRunHistoryInit())
+		return f.handleDownloadRunHistoryInit(ctx, request.GetDownloadRunHistoryInit())
 	case *spb.ReadRunHistoryRequest_DownloadRunHistory:
-		return f.handleDownloadRunHistory(request.GetDownloadRunHistory())
+		return f.handleDownloadRunHistory(ctx, request.GetDownloadRunHistory())
 	case *spb.ReadRunHistoryRequest_DownloadRunHistoryStatus:
 		return f.handleDownloadRunHistoryStatus(request.GetDownloadRunHistoryStatus())
 	}
@@ -101,8 +106,18 @@ func (f *RunHistoryAPIHandler) HandleRequest(
 // It returns an Id correlating subsequent scan requests
 // with the history reader.
 func (f *RunHistoryAPIHandler) handleScanRunHistoryInit(
+	ctx context.Context,
 	request *spb.ScanRunHistoryInit,
 ) *spb.ApiResponse {
+	f.logger.RecordTelemetry(
+		"scan_run_history_init",
+		map[string]string{
+			"entity":  request.Entity,
+			"project": request.Project,
+			"runId":   request.RunId,
+		},
+	)
+
 	f.rustArrowOnce.Do(func() {
 		f.rustArrowWrapper, f.rustArrowInitializationErr = ffi.NewRustArrowWrapper()
 	})
@@ -133,7 +148,7 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryInit(
 	requestKeys := request.GetKeys()
 
 	historyReader, err := runhistoryreader.New(
-		context.Background(),
+		ctx,
 		request.Entity,
 		request.Project,
 		request.RunId,
@@ -173,6 +188,7 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryInit(
 // handleScanRunHistoryRead handles a request to scan
 // over a portion of a run's history.
 func (f *RunHistoryAPIHandler) handleScanRunHistoryRead(
+	ctx context.Context,
 	request *spb.ScanRunHistory,
 ) *spb.ApiResponse {
 	requestId := request.GetRequestId()
@@ -196,7 +212,7 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryRead(
 
 	getHistoryStepsStart := time.Now()
 	historySteps, err := historyReader.GetHistorySteps(
-		context.Background(),
+		ctx,
 		minStep,
 		maxStep,
 	)
@@ -294,10 +310,11 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryCleanup(
 }
 
 func (f *RunHistoryAPIHandler) handleDownloadRunHistoryInit(
+	ctx context.Context,
 	request *spb.DownloadRunHistoryInit,
 ) *spb.ApiResponse {
 	signedUrls, liveData, err := parquet.GetSignedUrlsWithLiveSteps(
-		context.Background(),
+		ctx,
 		f.graphqlClient,
 		request.Entity,
 		request.Project,
@@ -336,7 +353,7 @@ func (f *RunHistoryAPIHandler) handleDownloadRunHistoryInit(
 		}
 	}
 	downloadOperation, err := parquet.NewRunHistoryDownloadOperation(
-		context.Background(),
+		ctx,
 		f.httpClient,
 		request.Entity,
 		request.Project,
@@ -376,13 +393,18 @@ func (f *RunHistoryAPIHandler) handleDownloadRunHistoryInit(
 
 // handleDownloadRunHistory handles a request to download a run's history.
 func (f *RunHistoryAPIHandler) handleDownloadRunHistory(
+	ctx context.Context,
 	request *spb.DownloadRunHistory,
 ) *spb.ApiResponse {
+	// Cleanup the download operation after the request is handled.
+	defer func() {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		delete(f.downloadOperations, request.GetRequestId())
+	}()
+
 	f.mu.Lock()
 	downloadOperation, ok := f.downloadOperations[request.GetRequestId()]
-	if ok {
-		delete(f.downloadOperations, request.GetRequestId())
-	}
 	f.mu.Unlock()
 
 	if !ok || downloadOperation == nil {
@@ -395,7 +417,7 @@ func (f *RunHistoryAPIHandler) handleDownloadRunHistory(
 		}
 	}
 
-	downloadedFiles, errors := downloadOperation.StartDownloads()
+	downloadedFiles, errors := downloadOperation.StartDownloads(ctx)
 	errorsMap := make(map[string]string, len(errors))
 	for file, err := range errors {
 		errorsMap[file] = err.Error()

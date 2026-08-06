@@ -86,7 +86,7 @@ func VariableValues(
 						rv = reflect.ValueOf(f)
 					}
 				}
-				if rv.Kind() == reflect.Ptr || rv.Kind() == reflect.Interface {
+				if rv.Kind() == reflect.Pointer || rv.Kind() == reflect.Interface {
 					rv = rv.Elem()
 				}
 
@@ -117,6 +117,14 @@ func (v *varValidator) validateVarType(
 		v.path = currentPath
 	}
 	defer resetPath()
+
+	if !val.IsValid() {
+		if typ.NonNull {
+			return val, gqlerror.ErrorPathf(v.path, "cannot be null")
+		}
+		return val, nil
+	}
+
 	if typ.Elem != nil {
 		if val.Kind() != reflect.Slice {
 			// GraphQL spec says that non-null values should be coerced to an array when possible.
@@ -129,7 +137,7 @@ func (v *varValidator) validateVarType(
 			resetPath()
 			v.path = append(v.path, ast.PathIndex(i))
 			field := val.Index(i)
-			if field.Kind() == reflect.Ptr || field.Kind() == reflect.Interface {
+			if field.Kind() == reflect.Pointer || field.Kind() == reflect.Interface {
 				if typ.Elem.NonNull && field.IsNil() {
 					return val, gqlerror.ErrorPathf(v.path, "cannot be null")
 				}
@@ -145,11 +153,6 @@ func (v *varValidator) validateVarType(
 	def := v.schema.Types[typ.NamedType]
 	if def == nil {
 		panic(fmt.Errorf("missing def for %s", typ.NamedType))
-	}
-
-	if !typ.NonNull && !val.IsValid() {
-		// If the type is not null and we got a invalid value namely null/nil, then it's valid
-		return val, nil
 	}
 
 	switch def.Kind {
@@ -245,7 +248,7 @@ func (v *varValidator) validateVarType(
 				continue
 			}
 
-			if field.Kind() == reflect.Ptr || field.Kind() == reflect.Interface {
+			if field.Kind() == reflect.Pointer || field.Kind() == reflect.Interface {
 				if fieldDef.Type.NonNull && field.IsNil() {
 					return val, gqlerror.ErrorPathf(v.path, "cannot be null")
 				}

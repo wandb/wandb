@@ -10,6 +10,7 @@ from wandb.sdk import wandb_setup
 from . import prompt, wbnetrc
 from .auth import Auth, AuthApiKey, AuthIdentityTokenFile, AuthWithSource
 from .host_url import HostUrl
+from .settings import set_auth_settings
 
 _session_auth_lock = threading.Lock()
 _session_auth: Auth | None = None
@@ -44,28 +45,8 @@ def _locked_set_session_auth(
     global _session_auth
     _session_auth = auth
 
-    if not update_settings:
-        return
-
-    settings = wandb_setup.singleton().settings
-
-    if auth is None:
-        settings.api_key = None
-        settings.identity_token_file = None
-
-    elif isinstance(auth, AuthApiKey):
-        settings.api_key = auth.api_key
-        settings.identity_token_file = None
-        settings.base_url = str(auth.host)
-
-    elif isinstance(auth, AuthIdentityTokenFile):
-        settings.api_key = None
-        settings.identity_token_file = str(auth.path)
-        settings.credentials_file = str(auth.credentials_path)
-        settings.base_url = str(auth.host)
-
-    else:
-        raise NotImplementedError(str(auth))
+    if update_settings:
+        set_auth_settings(wandb_setup.singleton().settings, auth)
 
 
 def unauthenticate_session(*, update_settings: bool = True) -> Auth | None:

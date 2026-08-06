@@ -18,36 +18,7 @@ fragment FileWithUrlFragment on File {
   directUrl
 }
 
-# Legacy query for older servers. Use GetArtifactMembershipFiles for newer servers.
-query GetArtifactFiles(
-  $entity: String!
-  $project: String!
-  $type: String!
-  $name: String!
-  $fileNames: [String!]
-  $cursor: String
-  $perPage: Int = 50
-) {
-  project(name: $project, entityName: $entity) {
-    artifactType(name: $type) {
-      artifact(name: $name) {
-        files(names: $fileNames, after: $cursor, first: $perPage) {
-          totalCount @include(if: true) # Workaround: ensures generated pydantic field defaults to `None`
-          pageInfo {
-            ...PageInfoFragment
-          }
-          edges {
-            node {
-              ...FileFragment
-            }
-          }
-        }
-      }
-    }
-  }
-}
-
-query GetArtifactMembershipFiles(
+query ArtifactMembershipFiles(
   $entity: String!
   $project: String!
   $collection: String!
@@ -69,22 +40,6 @@ query GetArtifactMembershipFiles(
               ...FileFragment
             }
           }
-        }
-      }
-    }
-  }
-}
-
-# Legacy query for older servers. Use GetArtifactMembershipFileUrls for newer servers.
-query GetArtifactFileUrls($id: ID!, $cursor: String, $perPage: Int) {
-  artifact(id: $id) {
-    files(after: $cursor, first: $perPage) {
-      pageInfo {
-        ...PageInfoFragment
-      }
-      edges {
-        node {
-          ...FileWithUrlFragment
         }
       }
     }

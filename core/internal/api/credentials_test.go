@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -135,6 +136,44 @@ func TestNewOAuth2CredentialProvider(t *testing.T) {
 	assert.Equal(t, token, data.Credentials[server.URL].AccessToken)
 	assert.Equal(t, time.Now().UTC().Add(expiresIn).Round(time.Hour),
 		time.Time(data.Credentials[server.URL].ExpiresAt).Round(time.Hour))
+}
+
+func TestNewOAuth2CredentialProvider_TrimsTokenWhitespace(t *testing.T) {
+	// Token files are often created with `echo` or an editor and end with
+	// a newline, which must not become part of the token exchange request.
+	tokenFile, err := os.CreateTemp(t.TempDir(), "jwt.txt")
+	require.NoError(t, err)
+	_, err = tokenFile.WriteString("id-token\n")
+	require.NoError(t, err)
+	require.NoError(t, tokenFile.Close())
+
+	credentialsFile := filepath.Join(t.TempDir(), "credentials.json")
+
+	server := authServer("fake-token", time.Hour)
+	defer server.Close()
+
+	settings := wbsettings.From(&spb.Settings{
+		BaseUrl:           &wrapperspb.StringValue{Value: server.URL},
+		IdentityTokenFile: &wrapperspb.StringValue{Value: tokenFile.Name()},
+		CredentialsFile:   &wrapperspb.StringValue{Value: credentialsFile},
+	})
+	credentialProvider, err := api.NewCredentialProvider(
+		settings,
+		observabilitytest.NewTestLogger(t).Logger,
+	)
+	require.NoError(t, err)
+
+	_, err = httplayerstest.MapRequest(t,
+		credentialProvider,
+		exampleGetRequest(t),
+	)
+	require.NoError(t, err)
+
+	exchanges := server.Requests()
+	require.Len(t, exchanges, 1)
+	assert.Equal(t,
+		"grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=id-token",
+		string(exchanges[0].Body))
 }
 
 func TestNewOAuth2CredentialProvider_RefreshesToken(t *testing.T) {

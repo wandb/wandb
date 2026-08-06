@@ -1,6 +1,7 @@
 package runsync_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -28,6 +29,18 @@ func TestToUserText_SyncErrorWithoutUserText(t *testing.T) {
 	userText := ToUserText(err)
 
 	assert.Equal(t, "Internal error: internal text", userText)
+}
+
+func TestToUserText_Cancelled(t *testing.T) {
+	userText := ToUserText(context.Canceled)
+
+	assert.Equal(t, "Cancelled.", userText)
+}
+
+func TestToUserText_Timeout(t *testing.T) {
+	userText := ToUserText(context.DeadlineExceeded)
+
+	assert.Equal(t, "Timed out.", userText)
 }
 
 func TestToUserText_UnknownError(t *testing.T) {

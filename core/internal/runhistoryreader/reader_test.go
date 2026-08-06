@@ -420,10 +420,7 @@ func TestHistoryReader_GetHistorySteps_WithoutKeys(t *testing.T) {
 func TestHistoryReader_GetHistorySteps_MultipleFiles(t *testing.T) {
 	ctx := t.Context()
 	tempDir := t.TempDir()
-
-	// Ensure we use a clean cache directory for this test
-	os.Setenv("WANDB_CACHE_DIR", tempDir)
-	defer os.Unsetenv("WANDB_CACHE_DIR")
+	t.Setenv("WANDB_CACHE_DIR", tempDir)
 
 	columns := []columnDef{
 		{name: "_step", colType: "int64"},
@@ -558,7 +555,7 @@ func TestHistoryReader_AlwaysProjectsStepWithSelectedKeys(t *testing.T) {
 		{
 			name: "adds step",
 			keys: []string{"flat_metric", "nested"},
-			want: []string{"flat_metric", "nested", "_step"},
+			want: []string{"_step", "flat_metric", "nested"},
 		},
 		{
 			name: "does not duplicate step",
@@ -747,6 +744,71 @@ func TestHistoryReader_GetHistorySteps_AllLiveData_WithKeys(t *testing.T) {
 		mockGQL,
 		retryablehttp.NewClient(),
 		[]string{"metric1"},
+		true,
+		createMockRustArrowWrapper(nil, nil, nil),
+	)
+	require.NoError(t, err)
+
+	results, err := reader.GetHistorySteps(ctx, 0, 10)
+
+	assert.NoError(t, err)
+	assert.Len(t, results, 2)
+	assert.ElementsMatch(t, results[0], parquet.KeyValueList{
+		{Key: "_step", Value: int64(0)},
+		{Key: "metric1", Value: 1.0},
+	})
+	assert.ElementsMatch(t, results[1], parquet.KeyValueList{
+		{Key: "_step", Value: int64(1)},
+		{Key: "metric1", Value: 2.0},
+	})
+}
+
+// When the backend reports no parquet files and no live-step markers, the
+// reader must still fall back to the live history endpoint rather than
+// returning nothing. This guards against scan_history() yielding 0 rows for
+// runs whose history exists but hasn't been exported to parquet.
+func TestHistoryReader_GetHistorySteps_NoParquetEmptyLiveData(t *testing.T) {
+	ctx := t.Context()
+	mockGQL := gqlmock.NewMockClient()
+
+	// No parquet files and an empty liveData list.
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("RunParquetHistory"),
+		`{
+			"project": {
+				"run": {
+					"parquetHistory": {
+						"parquetUrls": [],
+						"liveData": []
+					}
+				}
+			}
+		}`,
+	)
+
+	// The live history is still served by the history endpoint.
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("HistoryPage"),
+		`{
+			"project": {
+				"run": {
+					"history": [
+						"{\"_step\":0,\"metric1\":1.0}",
+						"{\"_step\":1,\"metric1\":2.0}"
+					]
+				}
+			}
+		}`,
+	)
+
+	reader, err := New(
+		ctx,
+		"test-entity",
+		"test-project",
+		"test-run-id",
+		mockGQL,
+		retryablehttp.NewClient(),
+		[]string{},
 		true,
 		createMockRustArrowWrapper(nil, nil, nil),
 	)

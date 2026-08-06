@@ -1,0 +1,159 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="820" viewBox="0 0 1280 820" role="img" aria-labelledby="title desc">
+  <title id="title">wandb-core stream pipeline</title>
+  <desc id="desc">A detailed illustration of how a ServerRequest reaches a core stream, passes through handler, transaction log, flow control, sender, and backend destinations.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#fbfcfb"/>
+      <stop offset="1" stop-color="#f2f1e7"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-20%" width="120%" height="150%">
+      <feDropShadow dx="0" dy="9" stdDeviation="9" flood-color="#17232d" flood-opacity="0.13"/>
+    </filter>
+    <marker id="arrowBlue" markerWidth="12" markerHeight="10" refX="10.5" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0.5,0.5 L11,5 L0.5,9.5 L3.5,5 Z" fill="#236fa7"/>
+    </marker>
+    <marker id="arrowGreen" markerWidth="12" markerHeight="10" refX="10.5" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0.5,0.5 L11,5 L0.5,9.5 L3.5,5 Z" fill="#238853"/>
+    </marker>
+    <marker id="arrowGold" markerWidth="12" markerHeight="10" refX="10.5" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0.5,0.5 L11,5 L0.5,9.5 L3.5,5 Z" fill="#b17400"/>
+    </marker>
+    <style>
+      .bg { fill: url(#bg); }
+      .title { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 31px; font-weight: 700; fill: #17232d; }
+      .subtitle { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 16px; font-weight: 400; fill: #52616b; }
+      .groupTitle { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 14px; font-weight: 700; fill: #35444e; }
+      .cardTitle { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 17px; font-weight: 700; fill: #17232d; }
+      .body { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 12.5px; font-weight: 400; fill: #465660; }
+      .code { font-family: Menlo, Consolas, monospace; font-size: 11.5px; font-weight: 500; fill: #5c6972; }
+      .tag { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 12px; font-weight: 700; fill: #fff; }
+      .card { fill: #fff; stroke: #cad6db; stroke-width: 1.4; filter: url(#shadow); }
+      .lane { fill: #fff; stroke: #d7e1e4; stroke-width: 1.2; opacity: 0.82; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1280" height="820"/>
+  <text x="64" y="64" class="title">wandb-core stream pipeline</text>
+  <text x="64" y="94" class="subtitle">A run stream splits quick local handling from durable replay and blocking send work.</text>
+
+  <g transform="translate(54 126)">
+    <rect class="lane" x="0" y="0" width="260" height="618" rx="22"/>
+    <text x="26" y="34" class="groupTitle">SERVER CONNECTION</text>
+  </g>
+  <g transform="translate(350 126)">
+    <rect class="lane" x="0" y="0" width="552" height="618" rx="22"/>
+    <text x="26" y="34" class="groupTitle">PER-RUN STREAM</text>
+  </g>
+  <g transform="translate(938 126)">
+    <rect class="lane" x="0" y="0" width="288" height="618" rx="22"/>
+    <text x="26" y="34" class="groupTitle">DESTINATIONS</text>
+  </g>
+
+  <g transform="translate(86 198)">
+    <rect class="card" x="0" y="0" width="198" height="96" rx="15"/>
+    <text x="20" y="31" class="cardTitle">socket frame</text>
+    <text x="20" y="58" class="body">magic W, byte length,</text>
+    <text x="20" y="76" class="body">ServerRequest protobuf</text>
+  </g>
+
+  <g transform="translate(86 346)">
+    <rect class="card" x="0" y="0" width="198" height="112" rx="15"/>
+    <text x="20" y="31" class="cardTitle">request router</text>
+    <text x="20" y="58" class="body">inform_init, record,</text>
+    <text x="20" y="76" class="body">sync, api_request,</text>
+    <text x="20" y="101" class="code">connection.go</text>
+  </g>
+
+  <g transform="translate(86 522)">
+    <rect class="card" x="0" y="0" width="198" height="102" rx="15"/>
+    <text x="20" y="31" class="cardTitle">outgoing responses</text>
+    <text x="20" y="58" class="body">mailbox replies, API</text>
+    <text x="20" y="76" class="body">responses, status acks</text>
+    <text x="20" y="95" class="code">outChan</text>
+  </g>
+
+  <g transform="translate(390 196)">
+    <rect class="card" x="0" y="0" width="202" height="118" rx="15"/>
+    <rect x="20" y="18" width="84" height="24" rx="12" fill="#276fa8"/>
+    <text x="37" y="35" class="tag">fast lane</text>
+    <text x="20" y="68" class="cardTitle">Handler</text>
+    <text x="20" y="94" class="body">partial history, exit,</text>
+    <text x="20" y="112" class="body">summary, light requests</text>
+  </g>
+
+  <g transform="translate(390 368)">
+    <rect class="card" x="0" y="0" width="202" height="126" rx="15"/>
+    <text x="20" y="31" class="cardTitle">RecordParser</text>
+    <text x="20" y="58" class="body">turns Records into</text>
+    <text x="20" y="76" class="body">typed Work; also used</text>
+    <text x="20" y="94" class="body">for disk re-reads</text>
+    <text x="20" y="119" class="code">recordparser.go</text>
+  </g>
+
+  <g transform="translate(636 238)">
+    <path d="M0 20C0 8 206 8 206 20v84c0 12-206 12-206 0z" fill="#fff8e7" stroke="#d7a03c" stroke-width="1.5" filter="url(#shadow)"/>
+    <path d="M0 20c0 12 206 12 206 0" fill="none" stroke="#d7a03c" stroke-width="1.5"/>
+    <text x="24" y="52" class="cardTitle">transaction log</text>
+    <text x="24" y="78" class="body">durable .wandb replay</text>
+    <text x="24" y="98" class="code">transactionlog</text>
+  </g>
+
+  <g transform="translate(636 410)">
+    <rect class="card" x="0" y="0" width="206" height="96" rx="15"/>
+    <text x="24" y="31" class="cardTitle">FlowControl</text>
+    <text x="24" y="58" class="body">in-memory buffer; re-reads</text>
+    <text x="24" y="76" class="body">from disk if sender lags</text>
+  </g>
+
+  <g transform="translate(636 566)">
+    <rect class="card" x="0" y="0" width="206" height="106" rx="15"/>
+    <rect x="24" y="18" width="104" height="24" rx="12" fill="#238853"/>
+    <text x="43" y="35" class="tag">blocking lane</text>
+    <text x="24" y="68" class="cardTitle">Sender</text>
+    <text x="24" y="94" class="body">network, files, artifacts, finish</text>
+  </g>
+
+  <g transform="translate(974 184)">
+    <rect class="card" x="0" y="0" width="210" height="86" rx="15"/>
+    <text x="22" y="31" class="cardTitle">GraphQL / API</text>
+    <text x="22" y="58" class="body">run upsert, Public API,</text>
+    <text x="22" y="76" class="body">artifact metadata</text>
+  </g>
+
+  <g transform="translate(974 310)">
+    <rect class="card" x="0" y="0" width="210" height="86" rx="15"/>
+    <text x="22" y="31" class="cardTitle">FileStream</text>
+    <text x="22" y="58" class="body">history, summary, output,</text>
+    <text x="22" y="76" class="body">events, telemetry</text>
+  </g>
+
+  <g transform="translate(974 436)">
+    <rect class="card" x="0" y="0" width="210" height="86" rx="15"/>
+    <text x="22" y="31" class="cardTitle">FileTransfer</text>
+    <text x="22" y="58" class="body">run files, media files,</text>
+    <text x="22" y="76" class="body">artifact blobs</text>
+  </g>
+
+  <g transform="translate(974 562)">
+    <rect class="card" x="0" y="0" width="210" height="92" rx="15"/>
+    <text x="22" y="31" class="cardTitle">System monitor</text>
+    <text x="22" y="58" class="body">process + XPU metrics;</text>
+    <text x="22" y="76" class="body">emits stats into the stream</text>
+  </g>
+
+  <path d="M185 294C185 315 185 325 185 346" stroke="#236fa7" stroke-width="2.25" stroke-linecap="round" fill="none" marker-end="url(#arrowBlue)"/>
+  <path d="M284 402C326 402 344 418 390 430" stroke="#236fa7" stroke-width="2.25" stroke-linecap="round" fill="none" marker-end="url(#arrowBlue)"/>
+  <path d="M490 368C490 348 490 338 490 314" stroke="#236fa7" stroke-width="2.25" stroke-linecap="round" fill="none" marker-end="url(#arrowBlue)"/>
+  <path d="M592 258C612 258 620 270 636 286" stroke="#b17400" stroke-width="2.25" stroke-linecap="round" fill="none" marker-end="url(#arrowGold)"/>
+  <path d="M739 342C739 372 739 386 739 410" stroke="#b17400" stroke-width="2.25" stroke-linecap="round" fill="none" marker-end="url(#arrowGold)"/>
+  <path d="M739 506C739 536 739 548 739 566" stroke="#238853" stroke-width="2.25" stroke-linecap="round" fill="none" marker-end="url(#arrowGreen)"/>
+  <path d="M842 618C910 606 930 232 974 226" stroke="#238853" stroke-width="2.25" stroke-linecap="round" fill="none" marker-end="url(#arrowGreen)"/>
+  <path d="M842 620C908 602 930 356 974 352" stroke="#238853" stroke-width="2.25" stroke-linecap="round" fill="none" marker-end="url(#arrowGreen)"/>
+  <path d="M842 622C908 610 930 482 974 478" stroke="#238853" stroke-width="2.25" stroke-linecap="round" fill="none" marker-end="url(#arrowGreen)"/>
+  <path d="M636 612C520 612 420 596 284 580" stroke="#236fa7" stroke-width="1.75" stroke-linecap="round" stroke-dasharray="6 5" fill="none" marker-end="url(#arrowBlue)"/>
+
+  <g transform="translate(84 758)">
+    <rect x="0" y="0" width="1094" height="38" rx="19" fill="#17232d" opacity="0.92"/>
+    <text x="26" y="24" class="tag">Rule of thumb: Handler answers quickly; Sender waits, retries, and uploads.</text>
+  </g>
+</svg>

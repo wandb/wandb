@@ -2,9 +2,12 @@ package server
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 	"testing/synctest"
 	"time"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/stream"
 )
@@ -101,4 +104,26 @@ func TestServer_IdleTimerStopsServerAfterTimeout(t *testing.T) {
 			)
 		}
 	})
+}
+
+func TestServe_ForceStopShutsDownServer(t *testing.T) {
+	tempRoot := t.TempDir()
+	t.Setenv("TMPDIR", tempRoot)
+
+	portFile := filepath.Join(tempRoot, "port.txt")
+	s := NewServer(ServerParams{
+		ParentPID: 0,
+		Detached:  true,
+	})
+
+	srvCh := make(chan error, 1)
+	go func() { srvCh <- s.Serve(portFile) }()
+	s.ForceStop()
+
+	select {
+	case err := <-srvCh:
+		require.ErrorIs(t, err, ErrForcedShutdown)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for Serve() to return")
+	}
 }

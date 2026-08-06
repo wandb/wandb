@@ -27,6 +27,12 @@ fragment ArtifactSequenceScopeFields on ArtifactSequence {
   id
   name
 }
+fragment EntityScopeFields on Entity {
+  __typename
+  id
+  name
+  entityType
+}
 
 # ------------------------------------------------------------------------------
 fragment FilterEventFields on FilterEventTriggeringCondition {
@@ -84,6 +90,7 @@ fragment TriggerFields on Trigger {
     ...ProjectScopeFields
     ...ArtifactPortfolioScopeFields
     ...ArtifactSequenceScopeFields
+    ...EntityScopeFields
   }
   event: triggeringCondition {
     ...FilterEventFields
@@ -110,12 +117,7 @@ fragment ProjectTriggersFields on Project {
   }
 }
 
-# For now, this query is used to fetch all triggers known to the user.
-# In the future, we should consider adding (a less awkward and more efficient)
-# top-level `triggers(...)` query.  The fact that triggers can only be searched under
-# an individual project or collection is a bit awkward, but has historically been
-# needed to support the UI alone.
-query GetAutomations($cursor: String, $perPage: Int) {
+query GetAutomationsLegacy($cursor: String, $perPage: Int) {
   scope: viewer {
     projects(after: $cursor, first: $perPage) {
       pageInfo {
@@ -129,7 +131,8 @@ query GetAutomations($cursor: String, $perPage: Int) {
     }
   }
 }
-query GetAutomationsByEntity($entity: String!, $cursor: String, $perPage: Int) {
+
+query GetEntityAutomationsLegacy($entity: String!, $cursor: String, $perPage: Int) {
   scope: entity(name: $entity) {
     projects(after: $cursor, first: $perPage) {
       pageInfo {
@@ -138,6 +141,36 @@ query GetAutomationsByEntity($entity: String!, $cursor: String, $perPage: Int) {
       edges {
         node {
           ...ProjectTriggersFields
+        }
+      }
+    }
+  }
+}
+
+query GetEntityAutomations($entity: String!, $cursor: String, $perPage: Int, $order: String, $filters: JSONString) {
+  scope: entity(name: $entity) {
+    triggers(after: $cursor, first: $perPage, order: $order, filters: $filters) {
+      pageInfo {
+        ...PageInfoFields
+      }
+      edges {
+        node {
+          ...TriggerFields
+        }
+      }
+    }
+  }
+}
+
+query GetOrgAutomations($org: String!, $cursor: String, $perPage: Int, $order: String, $filters: JSONString) {
+  scope: organization(name: $org) {
+    triggers(first: $perPage, after: $cursor, order: $order, filters: $filters) {
+      pageInfo {
+        ...PageInfoFields
+      }
+      edges {
+        node {
+          ...TriggerFields
         }
       }
     }

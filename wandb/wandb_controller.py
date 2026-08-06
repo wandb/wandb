@@ -344,7 +344,7 @@ class _WandbController:
         return self._sweep_config
 
     @property
-    def sweep_id(self) -> str:
+    def sweep_id(self) -> str | None:
         return self._sweep_id
 
     def _log(self) -> None:

@@ -61,6 +61,8 @@ func New(
 	useCache bool,
 	rustArrowWrapper *ffi.RustArrowWrapper,
 ) (*HistoryReader, error) {
+	keys = keysWithStep(keys)
+
 	historyReader := &HistoryReader{
 		entity:        entity,
 		graphqlClient: graphqlClient,
@@ -81,7 +83,7 @@ func New(
 		rustReader, err := ffi.CreateRustArrowReader(
 			rustArrowWrapper,
 			filePath,
-			keysWithStep(historyReader.keys),
+			historyReader.keys,
 		)
 		if err != nil {
 			return nil, err
@@ -100,7 +102,7 @@ func keysWithStep(keys []string) []string {
 
 	selected := slices.Clone(keys)
 	if !slices.Contains(selected, parquet.StepKey) {
-		selected = append(selected, parquet.StepKey)
+		selected = append([]string{parquet.StepKey}, selected...)
 	}
 
 	return selected

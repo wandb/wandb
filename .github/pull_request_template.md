@@ -21,5 +21,6 @@ Testing
 How was this PR tested?
 
 <!--
-Ensure PR title compliance with the [conventional commits standards](https://github.com/wandb/wandb/blob/main/CONTRIBUTING.md#conventional-commits)
+Ensure PR title compliance with the conventional commits standards:
+https://github.com/wandb/wandb/blob/main/CONTRIBUTING.md#conventional-commits
 -->

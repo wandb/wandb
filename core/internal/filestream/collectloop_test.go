@@ -16,7 +16,7 @@ func TestCollectLoop_BatchesWhileWaiting(t *testing.T) {
 	defer close(requests)
 	loop := CollectLoop{
 		Logger:            observability.NewNoOpLogger(),
-		Printer:           observability.NewPrinter(),
+		Printer:           observability.NewPrinter(0),
 		TransmitRateLimit: rate.NewLimiter(rate.Inf, 1),
 	}
 	state := &FileStreamState{MaxRequestSizeBytes: 99999}
@@ -44,7 +44,7 @@ func TestCollectLoop_SendsLastRequestImmediately(t *testing.T) {
 	// Use a rate limiter that never lets requests through.
 	loop := CollectLoop{
 		Logger:            observability.NewNoOpLogger(),
-		Printer:           observability.NewPrinter(),
+		Printer:           observability.NewPrinter(0),
 		TransmitRateLimit: &rate.Limiter{},
 	}
 	state := &FileStreamState{MaxRequestSizeBytes: 99999}
@@ -64,7 +64,7 @@ func TestCollectLoop_BlocksOnceAtMaxSize(t *testing.T) {
 	requests := make(chan *FileStreamRequest)
 	loop := CollectLoop{
 		Logger:            observability.NewNoOpLogger(),
-		Printer:           observability.NewPrinter(),
+		Printer:           observability.NewPrinter(0),
 		TransmitRateLimit: rate.NewLimiter(rate.Inf, 1),
 	}
 	state := &FileStreamState{MaxRequestSizeBytes: 5}

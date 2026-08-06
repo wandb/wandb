@@ -13,7 +13,9 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 
 	"github.com/wandb/wandb/core/internal/api"
+	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/featurechecker"
+	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -32,8 +34,14 @@ type WandbAPI struct {
 
 	settings *settings.Settings
 
+	authHandler          *AuthHandler
 	featuresHandler      *FeaturesHandler
+	fileTransferHandler  *FileTransferHandler
 	graphqlHandler       *GraphQLHandler
+	customChartHandler   *CustomChartHandler
+	runFilesHandler      *RunFilesHandler
+	runHandler           *RunHandler
+	runQueueHandler      *RunQueueHandler
 	runHistoryApiHandler *RunHistoryAPIHandler
 }
 
@@ -69,16 +77,87 @@ func New(
 	httpClient.HTTPClient.Timeout = s.GetFileTransferTimeout()
 	httpClient.Logger = logger
 
+	fileTransferClient := newFileTransferClient(
+		baseURL,
+		credentialProvider,
+		logger,
+		s,
+	)
+	fileTransferStats := filetransfer.NewFileTransferStats()
+	fileTransfers := filetransfer.NewFileTransfers(
+		fileTransferClient,
+		logger,
+		fileTransferStats,
+	)
+	fileTransferManager := filetransfer.NewFileTransferManager(
+		filetransfer.FileTransferManagerOptions{
+			Logger:            logger,
+			FileTransfers:     fileTransfers,
+			FileTransferStats: fileTransferStats,
+		},
+	)
 	featureProvider := featurechecker.New(graphqlClient, logger)
 
 	return &WandbAPI{
 		semaphore: make(chan struct{}, maxConcurrency),
 		settings:  s,
 
-		featuresHandler:      NewFeaturesHandler(featureProvider),
-		graphqlHandler:       NewGraphQLHandler(graphqlClient),
-		runHistoryApiHandler: NewRunHistoryAPIHandler(graphqlClient, httpClient),
+		authHandler:         NewAuthHandler(graphqlClient),
+		featuresHandler:     NewFeaturesHandler(featureProvider),
+		fileTransferHandler: NewFileTransferHandler(fileTransferManager),
+		graphqlHandler:      NewGraphQLHandler(graphqlClient),
+		customChartHandler:  NewCustomChartHandler(graphqlClient),
+		runFilesHandler:     NewRunFilesHandler(graphqlClient),
+		runHandler:          NewRunHandler(graphqlClient),
+		runQueueHandler:     NewRunQueueHandler(graphqlClient),
+		runHistoryApiHandler: NewRunHistoryAPIHandler(
+			graphqlClient,
+			httpClient,
+			logger,
+		),
 	}, nil
+}
+
+func newFileTransferClient(
+	baseURL *url.URL,
+	credentialProvider api.CredentialProvider,
+	logger *observability.CoreLogger,
+	s *settings.Settings,
+) api.RetryableClient {
+	httpOpts := api.ClientOptions{
+		BaseURL:     baseURL,
+		RetryPolicy: filetransfer.FileTransferRetryPolicy,
+		Logger:      logger.Logger,
+
+		RetryMax:        filetransfer.DefaultRetryMax,
+		RetryWaitMin:    filetransfer.DefaultRetryWaitMin,
+		RetryWaitMax:    filetransfer.DefaultRetryWaitMax,
+		NonRetryTimeout: filetransfer.DefaultNonRetryTimeout,
+
+		Proxy: clients.ProxyFn(
+			s.GetHTTPProxy(),
+			s.GetHTTPSProxy(),
+		),
+
+		InsecureDisableSSL: s.IsInsecureDisableSSL(),
+		ExtraHeaders:       s.GetExtraHTTPHeaders(),
+		CredentialProvider: credentialProvider,
+	}
+
+	if retryMax := s.GetFileTransferMaxRetries(); retryMax > 0 {
+		httpOpts.RetryMax = int(retryMax)
+	}
+	if retryWaitMin := s.GetFileTransferRetryWaitMin(); retryWaitMin > 0 {
+		httpOpts.RetryWaitMin = retryWaitMin
+	}
+	if retryWaitMax := s.GetFileTransferRetryWaitMax(); retryWaitMax > 0 {
+		httpOpts.RetryWaitMax = retryWaitMax
+	}
+	if timeout := s.GetFileTransferTimeout(); timeout > 0 {
+		httpOpts.NonRetryTimeout = timeout
+	}
+
+	return api.NewClient(httpOpts)
 }
 
 // HandleRequest handles an API request and returns an API response,
@@ -90,19 +169,41 @@ func (p *WandbAPI) HandleRequest(
 	id string,
 	request *spb.ApiRequest,
 ) *spb.ApiResponse {
-	// block until until we are able to process more requests
-	p.semaphore <- struct{}{}
+	if err := ctx.Err(); err != nil {
+		return apiErrorResponse(err.Error(), 0)
+	}
+
+	// Block until we are able to process more requests, unless the client is
+	// tearing down and the request context is cancelled first.
+	select {
+	case p.semaphore <- struct{}{}:
+	case <-ctx.Done():
+		return apiErrorResponse(ctx.Err().Error(), 0)
+	}
 	defer func() { <-p.semaphore }()
 
 	switch req := request.Request.(type) {
+	case *spb.ApiRequest_AuthenticateRequest:
+		return p.authHandler.HandleAuthenticate(ctx, req.AuthenticateRequest)
 	case *spb.ApiRequest_FeaturesRequest:
 		return p.featuresHandler.HandleRequest(ctx, req.FeaturesRequest)
+	case *spb.ApiRequest_DownloadFileRequest:
+		return p.fileTransferHandler.HandleDownloadFile(ctx, req.DownloadFileRequest)
+	case *spb.ApiRequest_UploadFileRequest:
+		return p.fileTransferHandler.HandleUploadFile(ctx, req.UploadFileRequest)
+	case *spb.ApiRequest_MarkRunFilesUploadedRequest:
+		return p.runFilesHandler.HandleMarkRunFilesUploaded(ctx, req.MarkRunFilesUploadedRequest)
+	case *spb.ApiRequest_StopRunRequest:
+		return p.runHandler.HandleStopRun(ctx, req.StopRunRequest)
+	case *spb.ApiRequest_CreateCustomChartRequest:
+		return p.customChartHandler.HandleCreateCustomChart(ctx, req.CreateCustomChartRequest)
+	case *spb.ApiRequest_RunQueueOperationRequest:
+		return p.runQueueHandler.HandleRequest(ctx, req.RunQueueOperationRequest)
 	case *spb.ApiRequest_GraphqlRequest:
 		return p.graphqlHandler.HandleRequest(ctx, req.GraphqlRequest)
 	case *spb.ApiRequest_ReadRunHistoryRequest:
-		// TODO: Propagate ctx here.
-		return p.runHistoryApiHandler.HandleRequest(req.ReadRunHistoryRequest)
+		return p.runHistoryApiHandler.HandleRequest(ctx, req.ReadRunHistoryRequest)
+	default:
+		return apiErrorResponse(fmt.Sprintf("unsupported API request type: %T", request.Request), 0)
 	}
-
-	return nil
 }

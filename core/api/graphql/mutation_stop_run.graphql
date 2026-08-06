@@ -1,0 +1,11 @@
+mutation StopRun(
+    $id: ID!,
+) {
+    stopRun(
+        input: {
+            id: $id,
+        }
+    ) {
+        success
+    }
+}

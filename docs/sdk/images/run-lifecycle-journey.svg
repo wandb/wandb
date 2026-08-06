@@ -1,0 +1,179 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800" viewBox="0 0 1280 800" role="img" aria-labelledby="title desc">
+  <title id="title">W&amp;B run lifecycle journey</title>
+  <desc id="desc">A timeline-style illustration of wandb.init, run.log, file and artifact work, finish, and offline sync across user code, Python SDK, wandb-core, and storage.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#fcfbf7"/>
+      <stop offset="1" stop-color="#eef6fb"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-20%" width="120%" height="150%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#1d2a33" flood-opacity="0.12"/>
+    </filter>
+    <marker id="arrow" markerWidth="12" markerHeight="10" refX="10.5" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0.5,0.5 L11,5 L0.5,9.5 L3.5,5 Z" fill="#296f9e"/>
+    </marker>
+    <marker id="arrowGold" markerWidth="12" markerHeight="10" refX="10.5" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0.5,0.5 L11,5 L0.5,9.5 L3.5,5 Z" fill="#aa7100"/>
+    </marker>
+    <marker id="arrowGreen" markerWidth="12" markerHeight="10" refX="10.5" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0.5,0.5 L11,5 L0.5,9.5 L3.5,5 Z" fill="#248a55"/>
+    </marker>
+    <style>
+      .bg { fill: url(#bg); }
+      .title { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 31px; font-weight: 700; fill: #15232d; }
+      .subtitle { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 16px; font-weight: 400; fill: #53616b; }
+      .lane { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 14px; font-weight: 700; fill: #2d3c46; }
+      .muted { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 12px; font-weight: 400; fill: #697985; }
+      .stepTitle { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 16px; font-weight: 700; fill: #17232d; }
+      .stepText { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 12.5px; font-weight: 400; fill: #44535e; }
+      .code { font-family: Menlo, Consolas, monospace; font-size: 12px; font-weight: 500; fill: #31414b; }
+      .smallCode { font-family: Menlo, Consolas, monospace; font-size: 11px; font-weight: 500; fill: #5e6c76; }
+      .pill { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 12px; font-weight: 700; fill: #ffffff; }
+      .card { fill: #ffffff; stroke: #cad7dc; stroke-width: 1.4; filter: url(#shadow); }
+      .dot { stroke: #ffffff; stroke-width: 4; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1280" height="800"/>
+  <text x="64" y="62" class="title">Run lifecycle: user story, core story</text>
+  <text x="64" y="91" class="subtitle">The user sees a Run object and quick log calls. Core continues setup, durability, uploads, files, artifacts, and finish sync.</text>
+
+  <g transform="translate(64 126)">
+    <rect x="0" y="0" width="1152" height="610" rx="24" fill="#ffffff" opacity="0.72" stroke="#d6e1e6"/>
+    <line x1="116" y1="122" x2="1088" y2="122" stroke="#c9dae2" stroke-width="2"/>
+    <line x1="116" y1="279" x2="1088" y2="279" stroke="#c9dae2" stroke-width="2"/>
+    <line x1="116" y1="438" x2="1088" y2="438" stroke="#c9dae2" stroke-width="2"/>
+    <text x="24" y="128" class="lane">User code</text>
+    <text x="24" y="285" class="lane">Python SDK</text>
+    <text x="24" y="444" class="lane">wandb-core</text>
+    <text x="24" y="566" class="lane">Backend / disk</text>
+  </g>
+
+  <g transform="translate(92 166)">
+    <rect x="0" y="0" width="258" height="72" rx="14" fill="#edf6ff" stroke="#b6d7f2"/>
+    <text x="18" y="29" class="code">with wandb.init(...) as run:</text>
+    <text x="38" y="53" class="code">run.log({"loss": ...})</text>
+  </g>
+
+  <g transform="translate(112 275)">
+    <rect class="card" x="0" y="0" width="164" height="104" rx="15"/>
+    <circle class="dot" cx="22" cy="22" r="14" fill="#2e7dbc"/>
+    <text x="48" y="28" class="stepTitle">1. init</text>
+    <text x="20" y="58" class="stepText">resolve settings,</text>
+    <text x="20" y="76" class="stepText">start/connect service,</text>
+    <text x="20" y="95" class="smallCode">inform_init</text>
+  </g>
+
+  <g transform="translate(314 275)">
+    <rect class="card" x="0" y="0" width="164" height="104" rx="15"/>
+    <circle class="dot" cx="22" cy="22" r="14" fill="#2e7dbc"/>
+    <text x="48" y="28" class="stepTitle">2. run</text>
+    <text x="20" y="58" class="stepText">construct Run, attach</text>
+    <text x="20" y="76" class="stepText">InterfaceSock, deliver</text>
+    <text x="20" y="95" class="smallCode">RunRecord</text>
+  </g>
+
+  <g transform="translate(516 275)">
+    <rect class="card" x="0" y="0" width="164" height="104" rx="15"/>
+    <circle class="dot" cx="22" cy="22" r="14" fill="#2e7dbc"/>
+    <text x="48" y="28" class="stepTitle">3. log</text>
+    <text x="20" y="58" class="stepText">validate dict, serialize</text>
+    <text x="20" y="76" class="stepText">values, publish partial</text>
+    <text x="20" y="95" class="smallCode">run.log()</text>
+  </g>
+
+  <g transform="translate(718 275)">
+    <rect class="card" x="0" y="0" width="164" height="104" rx="15"/>
+    <circle class="dot" cx="22" cy="22" r="14" fill="#2e7dbc"/>
+    <text x="48" y="28" class="stepTitle">4. assets</text>
+    <text x="20" y="58" class="stepText">materialize media,</text>
+    <text x="20" y="76" class="stepText">run files, artifacts</text>
+    <text x="20" y="95" class="smallCode">save / artifact</text>
+  </g>
+
+  <g transform="translate(920 275)">
+    <rect class="card" x="0" y="0" width="164" height="104" rx="15"/>
+    <circle class="dot" cx="22" cy="22" r="14" fill="#2e7dbc"/>
+    <text x="48" y="28" class="stepTitle">5. finish</text>
+    <text x="20" y="58" class="stepText">send exit, poll status,</text>
+    <text x="20" y="76" class="stepText">print final summary</text>
+    <text x="20" y="95" class="smallCode">RunExitRecord</text>
+  </g>
+
+  <path d="M276 327H314" stroke="#296f9e" stroke-width="2.25" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <path d="M478 327H516" stroke="#296f9e" stroke-width="2.25" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <path d="M680 327H718" stroke="#296f9e" stroke-width="2.25" stroke-linecap="round" marker-end="url(#arrow)"/>
+  <path d="M882 327H920" stroke="#296f9e" stroke-width="2.25" stroke-linecap="round" marker-end="url(#arrow)"/>
+
+  <g transform="translate(134 440)">
+    <rect class="card" x="0" y="0" width="164" height="102" rx="15"/>
+    <text x="20" y="31" class="stepTitle">stream setup</text>
+    <text x="20" y="58" class="stepText">StreamMux creates</text>
+    <text x="20" y="76" class="stepText">Handler + Sender</text>
+    <text x="20" y="96" class="smallCode">handleInformInit</text>
+  </g>
+
+  <g transform="translate(384 440)">
+    <rect class="card" x="0" y="0" width="172" height="102" rx="15"/>
+    <text x="20" y="31" class="stepTitle">run upsert</text>
+    <text x="20" y="58" class="stepText">create, resume, fork,</text>
+    <text x="20" y="76" class="stepText">or rewind remote run</text>
+    <text x="20" y="96" class="smallCode">runupserter</text>
+  </g>
+
+  <g transform="translate(626 440)">
+    <rect class="card" x="0" y="0" width="180" height="102" rx="15"/>
+    <text x="20" y="31" class="stepTitle">history + summary</text>
+    <text x="20" y="58" class="stepText">accumulate partials,</text>
+    <text x="20" y="76" class="stepText">flush committed step</text>
+    <text x="20" y="96" class="smallCode">handler.go</text>
+  </g>
+
+  <g transform="translate(868 440)">
+    <rect class="card" x="0" y="0" width="190" height="102" rx="15"/>
+    <text x="20" y="31" class="stepTitle">finish sync</text>
+    <text x="20" y="58" class="stepText">flush console, files,</text>
+    <text x="20" y="76" class="stepText">artifacts, summary</text>
+    <text x="20" y="96" class="smallCode">sender.go</text>
+  </g>
+
+  <path d="M216 379C216 405 216 416 216 440" stroke="#296f9e" stroke-width="2.25" stroke-linecap="round" fill="none" marker-end="url(#arrow)"/>
+  <path d="M396 379C423 408 445 414 470 440" stroke="#296f9e" stroke-width="2.25" stroke-linecap="round" fill="none" marker-end="url(#arrow)"/>
+  <path d="M598 379C651 408 684 414 716 440" stroke="#296f9e" stroke-width="2.25" stroke-linecap="round" fill="none" marker-end="url(#arrow)"/>
+  <path d="M1010 379C1002 405 990 417 970 440" stroke="#296f9e" stroke-width="2.25" stroke-linecap="round" fill="none" marker-end="url(#arrow)"/>
+
+  <g transform="translate(210 612)">
+    <path d="M0 18C0 7 176 7 176 18v56c0 11-176 11-176 0z" fill="#fff6df" stroke="#d8a448" stroke-width="1.5" filter="url(#shadow)"/>
+    <path d="M0 18c0 11 176 11 176 0" fill="none" stroke="#d8a448" stroke-width="1.5"/>
+    <text x="25" y="49" class="stepTitle">transaction log</text>
+    <text x="33" y="70" class="stepText">replay source</text>
+  </g>
+
+  <g transform="translate(476 612)">
+    <rect class="card" x="0" y="0" width="176" height="78" rx="15"/>
+    <text x="28" y="32" class="stepTitle">filestream</text>
+    <text x="28" y="56" class="stepText">history, summary, logs</text>
+  </g>
+
+  <g transform="translate(762 612)">
+    <rect class="card" x="0" y="0" width="176" height="78" rx="15"/>
+    <text x="28" y="32" class="stepTitle">file transfer</text>
+    <text x="28" y="56" class="stepText">run files, artifacts</text>
+  </g>
+
+  <g transform="translate(1002 612)">
+    <rect x="0" y="0" width="148" height="78" rx="15" fill="#eaf7ee" stroke="#a8d4b4" filter="url(#shadow)"/>
+    <text x="26" y="32" class="stepTitle">sync</text>
+    <text x="26" y="56" class="stepText">wandb beta sync</text>
+  </g>
+
+  <path d="M716 542C640 588 380 582 270 612" stroke="#aa7100" stroke-width="2.25" stroke-linecap="round" fill="none" marker-end="url(#arrowGold)"/>
+  <path d="M716 542C670 584 622 588 564 612" stroke="#aa7100" stroke-width="2.25" stroke-linecap="round" fill="none" marker-end="url(#arrowGold)"/>
+  <path d="M968 542C922 580 880 588 850 612" stroke="#aa7100" stroke-width="2.25" stroke-linecap="round" fill="none" marker-end="url(#arrowGold)"/>
+  <path d="M270 690C408 728 866 728 1076 690" stroke="#248a55" stroke-width="2.25" stroke-linecap="round" fill="none" marker-end="url(#arrowGreen)"/>
+
+  <g transform="translate(84 724)">
+    <rect x="0" y="0" width="1090" height="38" rx="19" fill="#17232d" opacity="0.92"/>
+    <text x="26" y="24" class="pill">Read left to right; debug by dropping from each Python card into its core owner.</text>
+  </g>
+</svg>

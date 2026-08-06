@@ -247,50 +247,43 @@ type Request struct {
 	Env         map[string]string `json:"env,omitempty"`
 }
 
-func sendDefaultPIIEnabled(client *Client) bool {
-	return client != nil && client.options.SendDefaultPII
-}
-
-func newRequest(r *http.Request, sendDefaultPII bool) *Request {
+func newRequest(r *http.Request, client *Client) *Request {
 	prot := protocol.SchemeHTTP
 	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
 		prot = protocol.SchemeHTTPS
 	}
 	url := fmt.Sprintf("%s://%s%s", prot, r.Host, r.URL.Path)
 
+	dc := client.GetDataCollection()
+
 	var cookies string
-	var env map[string]string
-	headers := map[string]string{}
-
-	if sendDefaultPII {
-		// We read only the first Cookie header because of the specification:
-		// https://tools.ietf.org/html/rfc6265#section-5.4
-		// When the user agent generates an HTTP request, the user agent MUST NOT
-		// attach more than one Cookie header field.
-		cookies = r.Header.Get("Cookie")
-
-		headers = make(map[string]string, len(r.Header))
-		for k, v := range r.Header {
-			headers[k] = strings.Join(v, ",")
+	headers := make(map[string]string, len(r.Header)+1)
+	if dc.CollectCookies() {
+		cookies = dc.FilterCookies(r.Header.Values("Cookie"))
+		if cookies != "" {
+			headers["Cookie"] = cookies
 		}
+	}
+	for k, v := range r.Header {
+		if strings.EqualFold(k, "Cookie") {
+			continue
+		}
+		headers[k] = strings.Join(v, ",")
+	}
+	headers["Host"] = r.Host
+	headers = dc.FilterRequestHeaders(headers)
 
+	var env map[string]string
+	if dc.UserInfo.Value {
 		if addr, port, err := net.SplitHostPort(r.RemoteAddr); err == nil {
 			env = map[string]string{"REMOTE_ADDR": addr, "REMOTE_PORT": port}
 		}
-	} else {
-		for k, v := range r.Header {
-			if !IsSensitiveHeader(k) {
-				headers[k] = strings.Join(v, ",")
-			}
-		}
 	}
-
-	headers["Host"] = r.Host
 
 	return &Request{
 		URL:         url,
 		Method:      r.Method,
-		QueryString: r.URL.RawQuery,
+		QueryString: dc.FilterQueryString(r.URL.RawQuery),
 		Cookies:     cookies,
 		Headers:     headers,
 		Env:         env,
@@ -302,7 +295,7 @@ func newRequest(r *http.Request, sendDefaultPII bool) *Request {
 // NewRequest avoids operations that depend on network access. In particular, it
 // does not read r.Body.
 func NewRequest(r *http.Request) *Request {
-	return newRequest(r, sendDefaultPIIEnabled(CurrentHub().Client()))
+	return newRequest(r, CurrentHub().Client())
 }
 
 // Mechanism is the mechanism by which an exception was generated and handled.
@@ -474,7 +467,6 @@ func (e *Event) ToEnvelopeItem() (item *protocol.EnvelopeItem, err error) {
 		return nil, fmt.Errorf("could not encode event as JSON, skipping delivery: %w", err)
 	}
 
-	// TODO: all event types should be abstracted to implement EnvelopeItemConvertible and convert themselves.
 	switch e.Type {
 	case transactionType:
 		item = protocol.NewTransactionItem(e.GetSpanCount(), eventBody)
@@ -498,14 +490,11 @@ func (e *Event) ToEnvelope(header *protocol.EnvelopeHeader) (*protocol.Envelope,
 		return nil, err
 	}
 
-	envelope := protocol.NewEnvelope(header)
-	envelope.AddItem(item)
-
+	envelope := protocol.NewEnvelope(header, item)
 	for _, attachment := range e.Attachments {
 		attachmentItem := protocol.NewAttachmentItem(attachment.Filename, attachment.ContentType, attachment.Payload)
 		envelope.AddItem(attachmentItem)
 	}
-
 	return envelope, nil
 }
 
@@ -784,21 +773,6 @@ func (l *Log) GetCategory() ratelimit.Category {
 	return ratelimit.CategoryLog
 }
 
-// GetEventID returns empty string (event ID set when batching).
-func (l *Log) GetEventID() string {
-	return ""
-}
-
-// GetSdkInfo returns nil (SDK info set when batching).
-func (l *Log) GetSdkInfo() *protocol.SdkInfo {
-	return nil
-}
-
-// GetDynamicSamplingContext returns nil (trace context set when batching).
-func (l *Log) GetDynamicSamplingContext() map[string]string {
-	return nil
-}
-
 type MetricType string
 
 const (
@@ -825,21 +799,6 @@ func (m *Metric) MakeSerializationSafe() {}
 // GetCategory returns the rate limit category for metrics.
 func (m *Metric) GetCategory() ratelimit.Category {
 	return ratelimit.CategoryTraceMetric
-}
-
-// GetEventID returns empty string (event ID set when batching).
-func (m *Metric) GetEventID() string {
-	return ""
-}
-
-// GetSdkInfo returns nil (SDK info set when batching).
-func (m *Metric) GetSdkInfo() *protocol.SdkInfo {
-	return nil
-}
-
-// GetDynamicSamplingContext returns nil (trace context set when batching).
-func (m *Metric) GetDynamicSamplingContext() map[string]string {
-	return nil
 }
 
 // MetricValue stores metric values with full precision.

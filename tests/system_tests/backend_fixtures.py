@@ -171,7 +171,10 @@ class BackendFixtureFactory:
 
     def make_user(self, name: str | None = None, admin: bool = False) -> str:
         """Create a new user and return their username."""
-        name = name or (f"user_{self.worker_id}-{random_string(length=40)}")
+        name = name or (
+            f"user_{self.worker_id}-"
+            f"{random_string(alphabet=digits + 'abcdef', length=40)}"
+        )
 
         self.send_cmds(
             UserCmd("up", username=name, admin=admin),
@@ -195,6 +198,25 @@ class BackendFixtureFactory:
             OrgCmd("down", orgName=name),
         )
         return name
+
+    def add_org_user(
+        self,
+        org: str,
+        *,
+        role: Literal["admin", "member", "viewer"],
+    ) -> str:
+        """Create a user and add them to an existing org with the given role."""
+        username = self.make_user()
+        self.send_cmds(
+            OrgCmd(
+                "add_members",
+                orgName=org,
+                fixtureData=OrgState(
+                    members=[OrgMemberState(username=username, role=role)]
+                ),
+            ),
+        )
+        return username
 
     def make_team(
         self,

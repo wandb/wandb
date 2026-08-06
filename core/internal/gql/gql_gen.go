@@ -735,6 +735,62 @@ func (v *CreateArtifactResponse) GetCreateArtifact() *CreateArtifactCreateArtifa
 	return v.CreateArtifact
 }
 
+// CreateCustomChartCreateCustomChartCreateCustomChartPayload includes the requested fields of the GraphQL type CreateCustomChartPayload.
+type CreateCustomChartCreateCustomChartCreateCustomChartPayload struct {
+	Chart CreateCustomChartCreateCustomChartCreateCustomChartPayloadChartCustomChart `json:"chart"`
+}
+
+// GetChart returns CreateCustomChartCreateCustomChartCreateCustomChartPayload.Chart, and is useful for accessing the field via an interface.
+func (v *CreateCustomChartCreateCustomChartCreateCustomChartPayload) GetChart() CreateCustomChartCreateCustomChartCreateCustomChartPayloadChartCustomChart {
+	return v.Chart
+}
+
+// CreateCustomChartCreateCustomChartCreateCustomChartPayloadChartCustomChart includes the requested fields of the GraphQL type CustomChart.
+type CreateCustomChartCreateCustomChartCreateCustomChartPayloadChartCustomChart struct {
+	Id string `json:"id"`
+}
+
+// GetId returns CreateCustomChartCreateCustomChartCreateCustomChartPayloadChartCustomChart.Id, and is useful for accessing the field via an interface.
+func (v *CreateCustomChartCreateCustomChartCreateCustomChartPayloadChartCustomChart) GetId() string {
+	return v.Id
+}
+
+// CreateCustomChartResponse is returned by CreateCustomChart on success.
+type CreateCustomChartResponse struct {
+	CreateCustomChart *CreateCustomChartCreateCustomChartCreateCustomChartPayload `json:"createCustomChart"`
+}
+
+// GetCreateCustomChart returns CreateCustomChartResponse.CreateCustomChart, and is useful for accessing the field via an interface.
+func (v *CreateCustomChartResponse) GetCreateCustomChart() *CreateCustomChartCreateCustomChartCreateCustomChartPayload {
+	return v.CreateCustomChart
+}
+
+// CreateDefaultResourceConfigCreateDefaultResourceConfigCreateDefaultResourceConfigPayload includes the requested fields of the GraphQL type CreateDefaultResourceConfigPayload.
+type CreateDefaultResourceConfigCreateDefaultResourceConfigCreateDefaultResourceConfigPayload struct {
+	DefaultResourceConfigID string `json:"defaultResourceConfigID"`
+	Success                 bool   `json:"success"`
+}
+
+// GetDefaultResourceConfigID returns CreateDefaultResourceConfigCreateDefaultResourceConfigCreateDefaultResourceConfigPayload.DefaultResourceConfigID, and is useful for accessing the field via an interface.
+func (v *CreateDefaultResourceConfigCreateDefaultResourceConfigCreateDefaultResourceConfigPayload) GetDefaultResourceConfigID() string {
+	return v.DefaultResourceConfigID
+}
+
+// GetSuccess returns CreateDefaultResourceConfigCreateDefaultResourceConfigCreateDefaultResourceConfigPayload.Success, and is useful for accessing the field via an interface.
+func (v *CreateDefaultResourceConfigCreateDefaultResourceConfigCreateDefaultResourceConfigPayload) GetSuccess() bool {
+	return v.Success
+}
+
+// CreateDefaultResourceConfigResponse is returned by CreateDefaultResourceConfig on success.
+type CreateDefaultResourceConfigResponse struct {
+	CreateDefaultResourceConfig *CreateDefaultResourceConfigCreateDefaultResourceConfigCreateDefaultResourceConfigPayload `json:"createDefaultResourceConfig"`
+}
+
+// GetCreateDefaultResourceConfig returns CreateDefaultResourceConfigResponse.CreateDefaultResourceConfig, and is useful for accessing the field via an interface.
+func (v *CreateDefaultResourceConfigResponse) GetCreateDefaultResourceConfig() *CreateDefaultResourceConfigCreateDefaultResourceConfigCreateDefaultResourceConfigPayload {
+	return v.CreateDefaultResourceConfig
+}
+
 // CreateRunFilesCreateRunFilesCreateRunFilesPayload includes the requested fields of the GraphQL type CreateRunFilesPayload.
 type CreateRunFilesCreateRunFilesCreateRunFilesPayload struct {
 	RunID         string                                                       `json:"runID"`
@@ -777,6 +833,28 @@ type CreateRunFilesResponse struct {
 // GetCreateRunFiles returns CreateRunFilesResponse.CreateRunFiles, and is useful for accessing the field via an interface.
 func (v *CreateRunFilesResponse) GetCreateRunFiles() *CreateRunFilesCreateRunFilesCreateRunFilesPayload {
 	return v.CreateRunFiles
+}
+
+// CreateRunQueueCreateRunQueueCreateRunQueuePayload includes the requested fields of the GraphQL type CreateRunQueuePayload.
+type CreateRunQueueCreateRunQueueCreateRunQueuePayload struct {
+	Success *bool   `json:"success"`
+	QueueID *string `json:"queueID"`
+}
+
+// GetSuccess returns CreateRunQueueCreateRunQueueCreateRunQueuePayload.Success, and is useful for accessing the field via an interface.
+func (v *CreateRunQueueCreateRunQueueCreateRunQueuePayload) GetSuccess() *bool { return v.Success }
+
+// GetQueueID returns CreateRunQueueCreateRunQueueCreateRunQueuePayload.QueueID, and is useful for accessing the field via an interface.
+func (v *CreateRunQueueCreateRunQueueCreateRunQueuePayload) GetQueueID() *string { return v.QueueID }
+
+// CreateRunQueueResponse is returned by CreateRunQueue on success.
+type CreateRunQueueResponse struct {
+	CreateRunQueue *CreateRunQueueCreateRunQueueCreateRunQueuePayload `json:"createRunQueue"`
+}
+
+// GetCreateRunQueue returns CreateRunQueueResponse.CreateRunQueue, and is useful for accessing the field via an interface.
+func (v *CreateRunQueueResponse) GetCreateRunQueue() *CreateRunQueueCreateRunQueueCreateRunQueuePayload {
+	return v.CreateRunQueue
 }
 
 // CreatedArtifact includes the GraphQL fields of CreateArtifactPayload requested by the fragment CreatedArtifact.
@@ -907,6 +985,26 @@ func (v *LinkArtifactResponse) GetLinkArtifact() *LinkArtifactLinkArtifactLinkAr
 	return v.LinkArtifact
 }
 
+// MarkRunFilesUploadedMarkRunFilesUploadedMarkRunFilesUploadedPayload includes the requested fields of the GraphQL type MarkRunFilesUploadedPayload.
+type MarkRunFilesUploadedMarkRunFilesUploadedMarkRunFilesUploadedPayload struct {
+	Success bool `json:"success"`
+}
+
+// GetSuccess returns MarkRunFilesUploadedMarkRunFilesUploadedMarkRunFilesUploadedPayload.Success, and is useful for accessing the field via an interface.
+func (v *MarkRunFilesUploadedMarkRunFilesUploadedMarkRunFilesUploadedPayload) GetSuccess() bool {
+	return v.Success
+}
+
+// MarkRunFilesUploadedResponse is returned by MarkRunFilesUploaded on success.
+type MarkRunFilesUploadedResponse struct {
+	MarkRunFilesUploaded *MarkRunFilesUploadedMarkRunFilesUploadedMarkRunFilesUploadedPayload `json:"markRunFilesUploaded"`
+}
+
+// GetMarkRunFilesUploaded returns MarkRunFilesUploadedResponse.MarkRunFilesUploaded, and is useful for accessing the field via an interface.
+func (v *MarkRunFilesUploadedResponse) GetMarkRunFilesUploaded() *MarkRunFilesUploadedMarkRunFilesUploadedMarkRunFilesUploadedPayload {
+	return v.MarkRunFilesUploaded
+}
+
 // NotifyScriptableRunAlertNotifyScriptableRunAlertNotifyScriptableRunAlertPayload includes the requested fields of the GraphQL type NotifyScriptableRunAlertPayload.
 type NotifyScriptableRunAlertNotifyScriptableRunAlertNotifyScriptableRunAlertPayload struct {
 	Success bool `json:"success"`
@@ -956,6 +1054,34 @@ type OrganizationCoreWeaveOrganizationIDResponse struct {
 func (v *OrganizationCoreWeaveOrganizationIDResponse) GetEntity() *OrganizationCoreWeaveOrganizationIDEntity {
 	return v.Entity
 }
+
+// QueryRunInfoProject includes the requested fields of the GraphQL type Project.
+type QueryRunInfoProject struct {
+	Run *QueryRunInfoProjectRun `json:"run"`
+}
+
+// GetRun returns QueryRunInfoProject.Run, and is useful for accessing the field via an interface.
+func (v *QueryRunInfoProject) GetRun() *QueryRunInfoProjectRun { return v.Run }
+
+// QueryRunInfoProjectRun includes the requested fields of the GraphQL type Run.
+type QueryRunInfoProjectRun struct {
+	DisplayName    *string `json:"displayName"`
+	SummaryMetrics *string `json:"summaryMetrics"`
+}
+
+// GetDisplayName returns QueryRunInfoProjectRun.DisplayName, and is useful for accessing the field via an interface.
+func (v *QueryRunInfoProjectRun) GetDisplayName() *string { return v.DisplayName }
+
+// GetSummaryMetrics returns QueryRunInfoProjectRun.SummaryMetrics, and is useful for accessing the field via an interface.
+func (v *QueryRunInfoProjectRun) GetSummaryMetrics() *string { return v.SummaryMetrics }
+
+// QueryRunInfoResponse is returned by QueryRunInfo on success.
+type QueryRunInfoResponse struct {
+	Project *QueryRunInfoProject `json:"project"`
+}
+
+// GetProject returns QueryRunInfoResponse.Project, and is useful for accessing the field via an interface.
+func (v *QueryRunInfoResponse) GetProject() *QueryRunInfoProject { return v.Project }
 
 // RewindRunResponse is returned by RewindRun on success.
 type RewindRunResponse struct {
@@ -1082,6 +1208,30 @@ type RunParquetHistoryResponse struct {
 
 // GetProject returns RunParquetHistoryResponse.Project, and is useful for accessing the field via an interface.
 func (v *RunParquetHistoryResponse) GetProject() *RunParquetHistoryProject { return v.Project }
+
+type RunQueueAccessType string
+
+const (
+	RunQueueAccessTypeProject RunQueueAccessType = "PROJECT"
+	RunQueueAccessTypeUser    RunQueueAccessType = "USER"
+)
+
+var AllRunQueueAccessType = []RunQueueAccessType{
+	RunQueueAccessTypeProject,
+	RunQueueAccessTypeUser,
+}
+
+type RunQueuePrioritizationMode string
+
+const (
+	RunQueuePrioritizationModeDisabled RunQueuePrioritizationMode = "DISABLED"
+	RunQueuePrioritizationModeV0       RunQueuePrioritizationMode = "V0"
+)
+
+var AllRunQueuePrioritizationMode = []RunQueuePrioritizationMode{
+	RunQueuePrioritizationModeDisabled,
+	RunQueuePrioritizationModeV0,
+}
 
 // RunResumeStatusModelProject includes the requested fields of the GraphQL type Project.
 type RunResumeStatusModelProject struct {
@@ -1303,6 +1453,22 @@ func (v *ServerInfoServerInfoLatestLocalVersionInfo) GetVersionOnThisInstanceStr
 	return v.VersionOnThisInstanceString
 }
 
+// StopRunResponse is returned by StopRun on success.
+type StopRunResponse struct {
+	StopRun *StopRunStopRunStopRunPayload `json:"stopRun"`
+}
+
+// GetStopRun returns StopRunResponse.StopRun, and is useful for accessing the field via an interface.
+func (v *StopRunResponse) GetStopRun() *StopRunStopRunStopRunPayload { return v.StopRun }
+
+// StopRunStopRunStopRunPayload includes the requested fields of the GraphQL type StopRunPayload.
+type StopRunStopRunStopRunPayload struct {
+	Success bool `json:"success"`
+}
+
+// GetSuccess returns StopRunStopRunStopRunPayload.Success, and is useful for accessing the field via an interface.
+func (v *StopRunStopRunStopRunPayload) GetSuccess() bool { return v.Success }
+
 type TagInput struct {
 	Attributes      *string `json:"attributes"`
 	TagCategoryName *string `json:"tagCategoryName"`
@@ -1519,6 +1685,30 @@ func (v *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRunProjectEntity) GetN
 	return v.Name
 }
 
+// UpsertRunQueueResponse is returned by UpsertRunQueue on success.
+type UpsertRunQueueResponse struct {
+	UpsertRunQueue *UpsertRunQueueUpsertRunQueueUpsertRunQueuePayload `json:"upsertRunQueue"`
+}
+
+// GetUpsertRunQueue returns UpsertRunQueueResponse.UpsertRunQueue, and is useful for accessing the field via an interface.
+func (v *UpsertRunQueueResponse) GetUpsertRunQueue() *UpsertRunQueueUpsertRunQueueUpsertRunQueuePayload {
+	return v.UpsertRunQueue
+}
+
+// UpsertRunQueueUpsertRunQueueUpsertRunQueuePayload includes the requested fields of the GraphQL type UpsertRunQueuePayload.
+type UpsertRunQueueUpsertRunQueueUpsertRunQueuePayload struct {
+	Success                      *bool    `json:"success"`
+	ConfigSchemaValidationErrors []string `json:"configSchemaValidationErrors"`
+}
+
+// GetSuccess returns UpsertRunQueueUpsertRunQueueUpsertRunQueuePayload.Success, and is useful for accessing the field via an interface.
+func (v *UpsertRunQueueUpsertRunQueueUpsertRunQueuePayload) GetSuccess() *bool { return v.Success }
+
+// GetConfigSchemaValidationErrors returns UpsertRunQueueUpsertRunQueueUpsertRunQueuePayload.ConfigSchemaValidationErrors, and is useful for accessing the field via an interface.
+func (v *UpsertRunQueueUpsertRunQueueUpsertRunQueuePayload) GetConfigSchemaValidationErrors() []string {
+	return v.ConfigSchemaValidationErrors
+}
+
 type UseArtifactInput struct {
 	ArtifactEntityName  *string `json:"artifactEntityName,omitempty"`
 	ArtifactID          string  `json:"artifactID"`
@@ -1592,10 +1782,12 @@ func (v *ViewerResponse) GetViewer() *ViewerViewerUser { return v.Viewer }
 
 // ViewerViewerUser includes the requested fields of the GraphQL type User.
 type ViewerViewerUser struct {
-	Id     string                                 `json:"id"`
-	Entity *string                                `json:"entity"`
-	Flags  *string                                `json:"flags"`
-	Teams  *ViewerViewerUserTeamsEntityConnection `json:"teams"`
+	Id       string                                 `json:"id"`
+	Entity   *string                                `json:"entity"`
+	Username *string                                `json:"username"`
+	Email    *string                                `json:"email"`
+	Flags    *string                                `json:"flags"`
+	Teams    *ViewerViewerUserTeamsEntityConnection `json:"teams"`
 }
 
 // GetId returns ViewerViewerUser.Id, and is useful for accessing the field via an interface.
@@ -1603,6 +1795,12 @@ func (v *ViewerViewerUser) GetId() string { return v.Id }
 
 // GetEntity returns ViewerViewerUser.Entity, and is useful for accessing the field via an interface.
 func (v *ViewerViewerUser) GetEntity() *string { return v.Entity }
+
+// GetUsername returns ViewerViewerUser.Username, and is useful for accessing the field via an interface.
+func (v *ViewerViewerUser) GetUsername() *string { return v.Username }
+
+// GetEmail returns ViewerViewerUser.Email, and is useful for accessing the field via an interface.
+func (v *ViewerViewerUser) GetEmail() *string { return v.Email }
 
 // GetFlags returns ViewerViewerUser.Flags, and is useful for accessing the field via an interface.
 func (v *ViewerViewerUser) GetFlags() *string { return v.Flags }
@@ -1798,6 +1996,56 @@ func (v *__CreateArtifactManifestInput) GetManifestType() ArtifactManifestType {
 // GetIncludeUpload returns __CreateArtifactManifestInput.IncludeUpload, and is useful for accessing the field via an interface.
 func (v *__CreateArtifactManifestInput) GetIncludeUpload() bool { return v.IncludeUpload }
 
+// __CreateCustomChartInput is used internally by genqlient
+type __CreateCustomChartInput struct {
+	Entity      string `json:"entity"`
+	ChartName   string `json:"chartName"`
+	DisplayName string `json:"displayName"`
+	ChartType   string `json:"chartType"`
+	Access      string `json:"access"`
+	Spec        string `json:"spec"`
+}
+
+// GetEntity returns __CreateCustomChartInput.Entity, and is useful for accessing the field via an interface.
+func (v *__CreateCustomChartInput) GetEntity() string { return v.Entity }
+
+// GetChartName returns __CreateCustomChartInput.ChartName, and is useful for accessing the field via an interface.
+func (v *__CreateCustomChartInput) GetChartName() string { return v.ChartName }
+
+// GetDisplayName returns __CreateCustomChartInput.DisplayName, and is useful for accessing the field via an interface.
+func (v *__CreateCustomChartInput) GetDisplayName() string { return v.DisplayName }
+
+// GetChartType returns __CreateCustomChartInput.ChartType, and is useful for accessing the field via an interface.
+func (v *__CreateCustomChartInput) GetChartType() string { return v.ChartType }
+
+// GetAccess returns __CreateCustomChartInput.Access, and is useful for accessing the field via an interface.
+func (v *__CreateCustomChartInput) GetAccess() string { return v.Access }
+
+// GetSpec returns __CreateCustomChartInput.Spec, and is useful for accessing the field via an interface.
+func (v *__CreateCustomChartInput) GetSpec() string { return v.Spec }
+
+// __CreateDefaultResourceConfigInput is used internally by genqlient
+type __CreateDefaultResourceConfigInput struct {
+	EntityName        string  `json:"entityName"`
+	Resource          string  `json:"resource"`
+	Config            string  `json:"config"`
+	TemplateVariables *string `json:"templateVariables"`
+}
+
+// GetEntityName returns __CreateDefaultResourceConfigInput.EntityName, and is useful for accessing the field via an interface.
+func (v *__CreateDefaultResourceConfigInput) GetEntityName() string { return v.EntityName }
+
+// GetResource returns __CreateDefaultResourceConfigInput.Resource, and is useful for accessing the field via an interface.
+func (v *__CreateDefaultResourceConfigInput) GetResource() string { return v.Resource }
+
+// GetConfig returns __CreateDefaultResourceConfigInput.Config, and is useful for accessing the field via an interface.
+func (v *__CreateDefaultResourceConfigInput) GetConfig() string { return v.Config }
+
+// GetTemplateVariables returns __CreateDefaultResourceConfigInput.TemplateVariables, and is useful for accessing the field via an interface.
+func (v *__CreateDefaultResourceConfigInput) GetTemplateVariables() *string {
+	return v.TemplateVariables
+}
+
 // __CreateRunFilesInput is used internally by genqlient
 type __CreateRunFilesInput struct {
 	Entity  string   `json:"entity"`
@@ -1817,6 +2065,38 @@ func (v *__CreateRunFilesInput) GetRun() string { return v.Run }
 
 // GetFiles returns __CreateRunFilesInput.Files, and is useful for accessing the field via an interface.
 func (v *__CreateRunFilesInput) GetFiles() []string { return v.Files }
+
+// __CreateRunQueueInput is used internally by genqlient
+type __CreateRunQueueInput struct {
+	Entity                  string                      `json:"entity"`
+	Project                 string                      `json:"project"`
+	QueueName               string                      `json:"queueName"`
+	Access                  RunQueueAccessType          `json:"access"`
+	PrioritizationMode      *RunQueuePrioritizationMode `json:"prioritizationMode"`
+	DefaultResourceConfigID *string                     `json:"defaultResourceConfigID"`
+}
+
+// GetEntity returns __CreateRunQueueInput.Entity, and is useful for accessing the field via an interface.
+func (v *__CreateRunQueueInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __CreateRunQueueInput.Project, and is useful for accessing the field via an interface.
+func (v *__CreateRunQueueInput) GetProject() string { return v.Project }
+
+// GetQueueName returns __CreateRunQueueInput.QueueName, and is useful for accessing the field via an interface.
+func (v *__CreateRunQueueInput) GetQueueName() string { return v.QueueName }
+
+// GetAccess returns __CreateRunQueueInput.Access, and is useful for accessing the field via an interface.
+func (v *__CreateRunQueueInput) GetAccess() RunQueueAccessType { return v.Access }
+
+// GetPrioritizationMode returns __CreateRunQueueInput.PrioritizationMode, and is useful for accessing the field via an interface.
+func (v *__CreateRunQueueInput) GetPrioritizationMode() *RunQueuePrioritizationMode {
+	return v.PrioritizationMode
+}
+
+// GetDefaultResourceConfigID returns __CreateRunQueueInput.DefaultResourceConfigID, and is useful for accessing the field via an interface.
+func (v *__CreateRunQueueInput) GetDefaultResourceConfigID() *string {
+	return v.DefaultResourceConfigID
+}
 
 // __FetchOrgEntityFromEntityInput is used internally by genqlient
 type __FetchOrgEntityFromEntityInput struct {
@@ -1882,6 +2162,26 @@ func (v *__LinkArtifactInput) GetClientId() *string { return v.ClientId }
 // GetArtifactId returns __LinkArtifactInput.ArtifactId, and is useful for accessing the field via an interface.
 func (v *__LinkArtifactInput) GetArtifactId() *string { return v.ArtifactId }
 
+// __MarkRunFilesUploadedInput is used internally by genqlient
+type __MarkRunFilesUploadedInput struct {
+	Entity  string   `json:"entity"`
+	Project string   `json:"project"`
+	Run     string   `json:"run"`
+	Files   []string `json:"files"`
+}
+
+// GetEntity returns __MarkRunFilesUploadedInput.Entity, and is useful for accessing the field via an interface.
+func (v *__MarkRunFilesUploadedInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __MarkRunFilesUploadedInput.Project, and is useful for accessing the field via an interface.
+func (v *__MarkRunFilesUploadedInput) GetProject() string { return v.Project }
+
+// GetRun returns __MarkRunFilesUploadedInput.Run, and is useful for accessing the field via an interface.
+func (v *__MarkRunFilesUploadedInput) GetRun() string { return v.Run }
+
+// GetFiles returns __MarkRunFilesUploadedInput.Files, and is useful for accessing the field via an interface.
+func (v *__MarkRunFilesUploadedInput) GetFiles() []string { return v.Files }
+
 // __NotifyScriptableRunAlertInput is used internally by genqlient
 type __NotifyScriptableRunAlertInput struct {
 	EntityName   string         `json:"entityName"`
@@ -1921,6 +2221,22 @@ type __OrganizationCoreWeaveOrganizationIDInput struct {
 
 // GetEntityName returns __OrganizationCoreWeaveOrganizationIDInput.EntityName, and is useful for accessing the field via an interface.
 func (v *__OrganizationCoreWeaveOrganizationIDInput) GetEntityName() string { return v.EntityName }
+
+// __QueryRunInfoInput is used internally by genqlient
+type __QueryRunInfoInput struct {
+	Entity  string `json:"entity"`
+	Project string `json:"project"`
+	Run     string `json:"run"`
+}
+
+// GetEntity returns __QueryRunInfoInput.Entity, and is useful for accessing the field via an interface.
+func (v *__QueryRunInfoInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __QueryRunInfoInput.Project, and is useful for accessing the field via an interface.
+func (v *__QueryRunInfoInput) GetProject() string { return v.Project }
+
+// GetRun returns __QueryRunInfoInput.Run, and is useful for accessing the field via an interface.
+func (v *__QueryRunInfoInput) GetRun() string { return v.Run }
 
 // __RewindRunInput is used internally by genqlient
 type __RewindRunInput struct {
@@ -2017,6 +2333,14 @@ func (v *__SampledHistoryPageInput) GetRun() string { return v.Run }
 
 // GetSpec returns __SampledHistoryPageInput.Spec, and is useful for accessing the field via an interface.
 func (v *__SampledHistoryPageInput) GetSpec() string { return v.Spec }
+
+// __StopRunInput is used internally by genqlient
+type __StopRunInput struct {
+	Id string `json:"id"`
+}
+
+// GetId returns __StopRunInput.Id, and is useful for accessing the field via an interface.
+func (v *__StopRunInput) GetId() string { return v.Id }
 
 // __UpdateArtifactInput is used internally by genqlient
 type __UpdateArtifactInput struct {
@@ -2129,6 +2453,48 @@ func (v *__UpsertBucketInput) GetTags() []string { return v.Tags }
 
 // GetSummaryMetrics returns __UpsertBucketInput.SummaryMetrics, and is useful for accessing the field via an interface.
 func (v *__UpsertBucketInput) GetSummaryMetrics() *string { return v.SummaryMetrics }
+
+// __UpsertRunQueueInput is used internally by genqlient
+type __UpsertRunQueueInput struct {
+	EntityName         string                      `json:"entityName"`
+	ProjectName        string                      `json:"projectName"`
+	QueueName          string                      `json:"queueName"`
+	ResourceType       string                      `json:"resourceType"`
+	ResourceConfig     string                      `json:"resourceConfig"`
+	TemplateVariables  *string                     `json:"templateVariables"`
+	PrioritizationMode *RunQueuePrioritizationMode `json:"prioritizationMode"`
+	ExternalLinks      *string                     `json:"externalLinks"`
+	ClientMutationId   *string                     `json:"clientMutationId"`
+}
+
+// GetEntityName returns __UpsertRunQueueInput.EntityName, and is useful for accessing the field via an interface.
+func (v *__UpsertRunQueueInput) GetEntityName() string { return v.EntityName }
+
+// GetProjectName returns __UpsertRunQueueInput.ProjectName, and is useful for accessing the field via an interface.
+func (v *__UpsertRunQueueInput) GetProjectName() string { return v.ProjectName }
+
+// GetQueueName returns __UpsertRunQueueInput.QueueName, and is useful for accessing the field via an interface.
+func (v *__UpsertRunQueueInput) GetQueueName() string { return v.QueueName }
+
+// GetResourceType returns __UpsertRunQueueInput.ResourceType, and is useful for accessing the field via an interface.
+func (v *__UpsertRunQueueInput) GetResourceType() string { return v.ResourceType }
+
+// GetResourceConfig returns __UpsertRunQueueInput.ResourceConfig, and is useful for accessing the field via an interface.
+func (v *__UpsertRunQueueInput) GetResourceConfig() string { return v.ResourceConfig }
+
+// GetTemplateVariables returns __UpsertRunQueueInput.TemplateVariables, and is useful for accessing the field via an interface.
+func (v *__UpsertRunQueueInput) GetTemplateVariables() *string { return v.TemplateVariables }
+
+// GetPrioritizationMode returns __UpsertRunQueueInput.PrioritizationMode, and is useful for accessing the field via an interface.
+func (v *__UpsertRunQueueInput) GetPrioritizationMode() *RunQueuePrioritizationMode {
+	return v.PrioritizationMode
+}
+
+// GetExternalLinks returns __UpsertRunQueueInput.ExternalLinks, and is useful for accessing the field via an interface.
+func (v *__UpsertRunQueueInput) GetExternalLinks() *string { return v.ExternalLinks }
+
+// GetClientMutationId returns __UpsertRunQueueInput.ClientMutationId, and is useful for accessing the field via an interface.
+func (v *__UpsertRunQueueInput) GetClientMutationId() *string { return v.ClientMutationId }
 
 // __UseArtifactInput is used internally by genqlient
 type __UseArtifactInput struct {
@@ -2550,6 +2916,93 @@ func CreateArtifactManifest(
 	return data_, err_
 }
 
+// The mutation executed by CreateCustomChart.
+const CreateCustomChart_Operation = `
+mutation CreateCustomChart ($entity: String!, $chartName: String!, $displayName: String!, $chartType: String!, $access: String!, $spec: JSONString!) {
+	createCustomChart(input: {entity:$entity,name:$chartName,displayName:$displayName,type:$chartType,access:$access,spec:$spec}) {
+		chart {
+			id
+		}
+	}
+}
+`
+
+func CreateCustomChart(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	chartName string,
+	displayName string,
+	chartType string,
+	access string,
+	spec string,
+) (data_ *CreateCustomChartResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "CreateCustomChart",
+		Query:  CreateCustomChart_Operation,
+		Variables: &__CreateCustomChartInput{
+			Entity:      entity,
+			ChartName:   chartName,
+			DisplayName: displayName,
+			ChartType:   chartType,
+			Access:      access,
+			Spec:        spec,
+		},
+	}
+
+	data_ = &CreateCustomChartResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The mutation executed by CreateDefaultResourceConfig.
+const CreateDefaultResourceConfig_Operation = `
+mutation CreateDefaultResourceConfig ($entityName: String!, $resource: String!, $config: JSONString!, $templateVariables: JSONString) {
+	createDefaultResourceConfig(input: {entityName:$entityName,resource:$resource,config:$config,templateVariables:$templateVariables}) {
+		defaultResourceConfigID
+		success
+	}
+}
+`
+
+func CreateDefaultResourceConfig(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entityName string,
+	resource string,
+	config string,
+	templateVariables *string,
+) (data_ *CreateDefaultResourceConfigResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "CreateDefaultResourceConfig",
+		Query:  CreateDefaultResourceConfig_Operation,
+		Variables: &__CreateDefaultResourceConfigInput{
+			EntityName:        entityName,
+			Resource:          resource,
+			Config:            config,
+			TemplateVariables: templateVariables,
+		},
+	}
+
+	data_ = &CreateDefaultResourceConfigResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
 // The mutation executed by CreateRunFiles.
 const CreateRunFiles_Operation = `
 mutation CreateRunFiles ($entity: String!, $project: String!, $run: String!, $files: [String!]!) {
@@ -2584,6 +3037,51 @@ func CreateRunFiles(
 	}
 
 	data_ = &CreateRunFilesResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The mutation executed by CreateRunQueue.
+const CreateRunQueue_Operation = `
+mutation CreateRunQueue ($entity: String!, $project: String!, $queueName: String!, $access: RunQueueAccessType!, $prioritizationMode: RunQueuePrioritizationMode, $defaultResourceConfigID: ID) {
+	createRunQueue(input: {entityName:$entity,projectName:$project,queueName:$queueName,access:$access,prioritizationMode:$prioritizationMode,defaultResourceConfigID:$defaultResourceConfigID}) {
+		success
+		queueID
+	}
+}
+`
+
+func CreateRunQueue(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+	queueName string,
+	access RunQueueAccessType,
+	prioritizationMode *RunQueuePrioritizationMode,
+	defaultResourceConfigID *string,
+) (data_ *CreateRunQueueResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "CreateRunQueue",
+		Query:  CreateRunQueue_Operation,
+		Variables: &__CreateRunQueueInput{
+			Entity:                  entity,
+			Project:                 project,
+			QueueName:               queueName,
+			Access:                  access,
+			PrioritizationMode:      prioritizationMode,
+			DefaultResourceConfigID: defaultResourceConfigID,
+		},
+	}
+
+	data_ = &CreateRunQueueResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
@@ -2724,6 +3222,46 @@ func LinkArtifact(
 	return data_, err_
 }
 
+// The mutation executed by MarkRunFilesUploaded.
+const MarkRunFilesUploaded_Operation = `
+mutation MarkRunFilesUploaded ($entity: String!, $project: String!, $run: String!, $files: [String!]!) {
+	markRunFilesUploaded(input: {entityName:$entity,projectName:$project,runName:$run,files:$files}) {
+		success
+	}
+}
+`
+
+func MarkRunFilesUploaded(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+	run string,
+	files []string,
+) (data_ *MarkRunFilesUploadedResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "MarkRunFilesUploaded",
+		Query:  MarkRunFilesUploaded_Operation,
+		Variables: &__MarkRunFilesUploadedInput{
+			Entity:  entity,
+			Project: project,
+			Run:     run,
+			Files:   files,
+		},
+	}
+
+	data_ = &MarkRunFilesUploadedResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
 // The mutation executed by NotifyScriptableRunAlert.
 const NotifyScriptableRunAlert_Operation = `
 mutation NotifyScriptableRunAlert ($entityName: String!, $projectName: String!, $runName: String!, $title: String!, $text: String!, $severity: AlertSeverity = INFO, $waitDuration: Duration) {
@@ -2795,6 +3333,47 @@ func OrganizationCoreWeaveOrganizationID(
 	}
 
 	data_ = &OrganizationCoreWeaveOrganizationIDResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by QueryRunInfo.
+const QueryRunInfo_Operation = `
+query QueryRunInfo ($entity: String!, $project: String!, $run: String!) {
+	project(name: $project, entityName: $entity) {
+		run(name: $run) {
+			displayName
+			summaryMetrics
+		}
+	}
+}
+`
+
+func QueryRunInfo(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+	run string,
+) (data_ *QueryRunInfoResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "QueryRunInfo",
+		Query:  QueryRunInfo_Operation,
+		Variables: &__QueryRunInfoInput{
+			Entity:  entity,
+			Project: project,
+			Run:     run,
+		},
+	}
+
+	data_ = &QueryRunInfoResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
@@ -3119,6 +3698,40 @@ func ServerInfo(
 	return data_, err_
 }
 
+// The mutation executed by StopRun.
+const StopRun_Operation = `
+mutation StopRun ($id: ID!) {
+	stopRun(input: {id:$id}) {
+		success
+	}
+}
+`
+
+func StopRun(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	id string,
+) (data_ *StopRunResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "StopRun",
+		Query:  StopRun_Operation,
+		Variables: &__StopRunInput{
+			Id: id,
+		},
+	}
+
+	data_ = &StopRunResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
 // The mutation executed by UpdateArtifact.
 const UpdateArtifact_Operation = `
 mutation UpdateArtifact ($artifactID: ID!, $metadata: JSONString) {
@@ -3291,6 +3904,57 @@ func UpsertBucket(
 	return data_, err_
 }
 
+// The mutation executed by UpsertRunQueue.
+const UpsertRunQueue_Operation = `
+mutation UpsertRunQueue ($entityName: String!, $projectName: String!, $queueName: String!, $resourceType: String!, $resourceConfig: JSONString!, $templateVariables: JSONString, $prioritizationMode: RunQueuePrioritizationMode, $externalLinks: JSONString, $clientMutationId: String) {
+	upsertRunQueue(input: {entityName:$entityName,projectName:$projectName,queueName:$queueName,resourceType:$resourceType,resourceConfig:$resourceConfig,templateVariables:$templateVariables,prioritizationMode:$prioritizationMode,externalLinks:$externalLinks,clientMutationId:$clientMutationId}) {
+		success
+		configSchemaValidationErrors
+	}
+}
+`
+
+func UpsertRunQueue(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entityName string,
+	projectName string,
+	queueName string,
+	resourceType string,
+	resourceConfig string,
+	templateVariables *string,
+	prioritizationMode *RunQueuePrioritizationMode,
+	externalLinks *string,
+	clientMutationId *string,
+) (data_ *UpsertRunQueueResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "UpsertRunQueue",
+		Query:  UpsertRunQueue_Operation,
+		Variables: &__UpsertRunQueueInput{
+			EntityName:         entityName,
+			ProjectName:        projectName,
+			QueueName:          queueName,
+			ResourceType:       resourceType,
+			ResourceConfig:     resourceConfig,
+			TemplateVariables:  templateVariables,
+			PrioritizationMode: prioritizationMode,
+			ExternalLinks:      externalLinks,
+			ClientMutationId:   clientMutationId,
+		},
+	}
+
+	data_ = &UpsertRunQueueResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
 // The mutation executed by UseArtifact.
 const UseArtifact_Operation = `
 mutation UseArtifact ($input: UseArtifactInput!) {
@@ -3334,6 +3998,8 @@ query Viewer {
 	viewer {
 		id
 		entity
+		username
+		email
 		flags
 		teams {
 			edges {

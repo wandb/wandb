@@ -103,7 +103,7 @@ func (h *HelpModel) entriesForMode() []HelpEntry {
 func tipsEntries() []HelpEntry {
 	return []HelpEntry{
 		{Key: "Tips", Description: ""},
-		{Key: "wandb beta leet config", Description: "Open the interactive config editor"},
+		{Key: "wandb leet config", Description: "Open the interactive config editor"},
 		{Key: "Runs filter", Description: "Bare terms search run key/name/id/project/tags/notes. " +
 			"Qualifiers: project:, name:, id:, tag:, note:, config:, cfg.<path>:, has:. " +
 			"Boolean: space/AND, OR or |, -/!/NOT."},
@@ -116,7 +116,7 @@ func tipsEntries() []HelpEntry {
 func symonTipsEntries() []HelpEntry {
 	return []HelpEntry{
 		{Key: "Tips", Description: ""},
-		{Key: "wandb beta leet config", Description: "Open the interactive config editor"},
+		{Key: "wandb leet config", Description: "Open the interactive config editor"},
 		{Key: "SYMON", Description: "Live system monitor"},
 		blankLine,
 	}

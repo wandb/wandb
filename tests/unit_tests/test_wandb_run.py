@@ -51,6 +51,7 @@ REFERENCE_ATTRIBUTES = set(
         "summary",
         "sweep_id",
         "sweep_url",
+        "sync_dir",
         "tags",
         "to_html",
         "unwatch",
@@ -64,23 +65,23 @@ REFERENCE_ATTRIBUTES = set(
 )
 
 
-def test_run_step_property(mock_run):
-    run = mock_run()
-    run.log(dict(this=1))
-    run.log(dict(this=2))
-    assert run.step == 2
+def test_run_step_property():
+    with wandb.init(mode="offline") as run:
+        run.log(dict(this=1))
+        run.log(dict(this=2))
+        assert run.step == 2
 
 
-def test_log_avoids_mutation(mock_run):
-    run = mock_run()
-    d = dict(this=1)
-    run.log(d)
-    assert d == dict(this=1)
+def test_log_avoids_mutation():
+    with wandb.init(mode="offline") as run:
+        d = dict(this=1)
+        run.log(d)
+        assert d == dict(this=1)
 
 
-def test_display(mock_run):
-    run = mock_run(settings=wandb.Settings(mode="offline"))
-    assert run.display() is False
+def test_display():
+    with wandb.init(mode="offline") as run:
+        assert run.display() is False
 
 
 @pytest.mark.parametrize(
@@ -155,6 +156,20 @@ def test_run_publish_history(mock_run, parse_records, record_q):
     assert len(history) == 2
     assert history[0]["this"] == "1"
     assert history[1]["that"] == "2"
+
+
+def test_run_publish_history_preserves_numpy_float_nan(
+    mock_run, parse_records, record_q
+):
+    run = mock_run()
+    run.log(dict(float16=np.float16("nan"), float32=np.float32("nan")))
+
+    parsed = parse_records(record_q)
+
+    history = parsed.history or parsed.partial_history
+    assert len(history) == 1
+    assert history[0]["float16"] == "NaN"
+    assert history[0]["float32"] == "NaN"
 
 
 @pytest.mark.skipif(

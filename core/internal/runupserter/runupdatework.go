@@ -11,6 +11,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runsyncstate"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/wboperation"
@@ -53,6 +54,7 @@ type RunUpdateWork struct {
 	FeatureProvider    *featurechecker.FeatureProvider
 	GraphqlClientOrNil graphql.Client
 	Logger             *observability.CoreLogger
+	SyncStateStore     runsyncstate.Store
 }
 
 // Accept implements WorkImpl.Accept.
@@ -98,6 +100,7 @@ func (w *RunUpdateWork) initRun(request *runwork.Request) {
 		FeatureProvider:    w.FeatureProvider,
 		GraphqlClientOrNil: w.GraphqlClientOrNil,
 		Logger:             w.Logger,
+		SyncStateStore:     w.SyncStateStore,
 	})
 
 	if err != nil {
@@ -113,9 +116,12 @@ func (w *RunUpdateWork) initRun(request *runwork.Request) {
 	err = w.RunHandle.Init(upserter)
 	if err != nil {
 		w.Logger.CaptureError(
+			"runupserter",
 			fmt.Errorf(
 				"runupserter: failed to set run after initializing: %v",
-				err))
+				err,
+			),
+		)
 
 		if w.Record.Control.GetMailboxSlot() != "" {
 			respondRunUpdate(request, runInitErrorResult(err))
@@ -152,8 +158,7 @@ func respondRunUpdate(
 // If the error is a RunUpdateError, it is used to enhance the message.
 // Otherwise, a generic error with an unknown code is returned.
 func runInitErrorResult(err error) *spb.RunUpdateResult {
-	var runUpdateError *RunUpdateError
-	if errors.As(err, &runUpdateError) {
+	if runUpdateError, ok := errors.AsType[*RunUpdateError](err); ok {
 		return runUpdateError.AsResult()
 	} else {
 		return &spb.RunUpdateResult{

@@ -9,6 +9,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -27,6 +28,8 @@ type RunSyncOperation struct {
 
 	logFile *DebugSyncLogFile
 	logger  *observability.CoreLogger
+
+	telemetryProxy *analytics.OpenTelemetryProxy
 }
 
 func (f *RunSyncOperationFactory) New(
@@ -36,16 +39,27 @@ func (f *RunSyncOperationFactory) New(
 	live bool,
 	globalSettings *spb.Settings,
 ) *RunSyncOperation {
+	wandbSettings := settings.From(globalSettings)
+	telemetryProxy := analytics.NewOpenTelemetryProxy(
+		context.Background(),
+		wandbSettings,
+	)
+	telemetryRecorder := analytics.NewTelemetryRecorder(
+		telemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+
 	op := &RunSyncOperation{
-		printer: observability.NewPrinter(),
+		printer:        observability.NewPrinter(printerBufferSize),
+		telemetryProxy: telemetryProxy,
 	}
 
-	logFile, err := OpenDebugSyncLogFile(settings.From(globalSettings))
+	logFile, err := OpenDebugSyncLogFile(wandbSettings)
 	if err != nil {
 		slog.Error("runsync: couldn't create log file", "error", err)
 	}
 	op.logFile = logFile
-	op.logger = NewSyncLogger(logFile, slog.LevelInfo)
+	op.logger = NewSyncLogger(logFile, slog.LevelInfo, telemetryRecorder)
 
 	for _, userPath := range paths {
 		var path string
@@ -76,7 +90,10 @@ func (op *RunSyncOperation) Do(
 	ctx context.Context,
 	parallelism int,
 ) *spb.ServerSyncResponse {
-	defer op.logFile.Close()
+	defer func() {
+		op.logFile.Close()
+		op.printer.Close()
+	}()
 
 	plan, err := op.initAndPlan(ctx)
 
@@ -106,6 +123,12 @@ func (op *RunSyncOperation) Do(
 	}
 
 	_ = group.Wait()
+
+	if op.telemetryProxy != nil {
+		if err := op.telemetryProxy.Shutdown(ctx); err != nil {
+			slog.Error("runsync: failed to shutdown telemetry proxy", "error", err)
+		}
+	}
 
 	return &spb.ServerSyncResponse{
 		Messages: op.popMessages(),

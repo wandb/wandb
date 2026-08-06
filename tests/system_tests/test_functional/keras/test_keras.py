@@ -1,8 +1,6 @@
 import pathlib
 import subprocess
 
-import pytest
-
 
 def test_eval_tables_builder(wandb_backend_spy):
     script_path = pathlib.Path(__file__).parent / "keras_eval_tables_builder.py"
@@ -68,24 +66,3 @@ def test_model_checkpoint(wandb_backend_spy):
 
         telemetry = snapshot.telemetry(run_id=run_id)
         assert 39 in telemetry["3"]  # feature=keras_wandb_model_checkpoint
-
-
-@pytest.mark.skip(reason="flaky")
-def test_deprecated_keras_callback(wandb_backend_spy):
-    script_path = pathlib.Path(__file__).parent / "keras_deprecated.py"
-    subprocess.check_call(["python", str(script_path)])
-
-    with wandb_backend_spy.freeze() as snapshot:
-        run_ids = snapshot.run_ids()
-        assert len(run_ids) == 1
-        run_id = run_ids.pop()
-
-        summary = snapshot.summary(run_id=run_id)
-        assert "accuracy" in summary
-        assert "val_loss" in summary
-        assert "best_val_loss" in summary
-        assert summary["epoch"] == 6
-        assert "best_epoch" in summary
-
-        telemetry = snapshot.telemetry(run_id=run_id)
-        assert 8 in telemetry["3"]  # feature=keras

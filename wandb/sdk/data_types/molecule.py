@@ -119,7 +119,7 @@ class Molecule(BatchableMedia):
             mmff_optimize_molecule_max_iterations: (int)
                 Number of iterations to use in rdkit.Chem.AllChem.MMFFOptimizeMolecule
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore -->
         """
         rdkit_chem = util.get_module(
             "rdkit.Chem",
@@ -186,7 +186,7 @@ class Molecule(BatchableMedia):
             mmff_optimize_molecule_max_iterations: Number of iterations to
                 use in rdkit.Chem.AllChem.MMFFOptimizeMolecule.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore -->
         """
         rdkit_chem = util.get_module(
             "rdkit.Chem",
@@ -207,14 +207,14 @@ class Molecule(BatchableMedia):
     def get_media_subdir(cls: type[Molecule]) -> str:
         """Get media subdirectory.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore -->
         """
         return os.path.join("media", "molecule")
 
     def to_json(self, run_or_artifact: LocalRun | Artifact) -> dict:
         """Returns the JSON representation expected by the backend.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = self._log_type
@@ -230,7 +230,7 @@ class Molecule(BatchableMedia):
     ) -> dict:
         """Convert a sequence of Molecule objects to a JSON representation.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore -->
         """
         seq = list(seq)
 

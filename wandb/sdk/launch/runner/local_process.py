@@ -68,8 +68,8 @@ class LocalProcessRunner(AbstractRunner):
         for env_key, env_value in env_vars.items():
             cmd += [f"{shlex.quote(env_key)}={shlex.quote(env_value)}"]
         if entry_point is not None:
-            cmd += entry_point.command
-        cmd += launch_project.override_args
+            cmd += [shlex.quote(str(arg)) for arg in entry_point.command]
+        cmd += [shlex.quote(str(arg)) for arg in launch_project.override_args]
 
         command_str = " ".join(cmd).strip()
         _msg = f"{LOG_PREFIX}Launching run as a local-process with command {sanitize_wandb_api_key(command_str)}"

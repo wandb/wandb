@@ -8,6 +8,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -54,7 +55,7 @@ func (r *Run) TestGetLeftSidebar() *RunOverviewSidebar {
 }
 
 // TestHandleRecordMsg processes a record message
-func (r *Run) TestHandleRecordMsg(msg tea.Msg) (*Run, tea.Cmd) {
+func (r *Run) TestHandleRecordMsg(msg tea.Msg) tea.Cmd {
 	return r.handleRecordMsg(msg)
 }
 
@@ -324,9 +325,14 @@ func TestNewWorkspaceRun(key string) *WorkspaceRun {
 
 func (r *WorkspaceRun) TestSetWatcherStarted(started bool) {
 	if r.watcher == nil {
-		r.watcher = &WatcherManager{}
+		r.watcher = NewWatcherManager(
+			make(chan tea.Msg, 1), observability.NewNoOpLogger())
 	}
 	r.watcher.started = started
+}
+
+func (r *WorkspaceRun) TestWatcherActive() bool {
+	return r.watcher != nil && r.watcher.started
 }
 
 func (w *Workspace) TestAttachRun(run *WorkspaceRun, selected bool) {

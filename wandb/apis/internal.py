@@ -61,10 +61,6 @@ class Api:
     def default_entity(self):
         return self.api.default_entity
 
-    def validate_api_key(self) -> bool:
-        """Returns whether the API key stored on initialization is valid."""
-        return self.api.validate_api_key()
-
     def file_current(self, *args):
         return self.api.file_current(*args)
 
@@ -192,12 +188,6 @@ class Api:
 
     def create_launch_agent(self, *args, **kwargs):
         return self.api.create_launch_agent(*args, **kwargs)
-
-    def create_default_resource_config(self, *args, **kwargs):
-        return self.api.create_default_resource_config(*args, **kwargs)
-
-    def create_run_queue(self, *args, **kwargs):
-        return self.api.create_run_queue(*args, **kwargs)
 
     def upsert_run_queue(self, *args, **kwargs):
         return self.api.upsert_run_queue(*args, **kwargs)

@@ -69,6 +69,81 @@ func TestParseHistory_ImageFile_NormalizesRelativePathWithinFilesDir(t *testing.
 	)
 }
 
+func TestParseHistory_ImagesSeparated(t *testing.T) {
+	runPath := filepath.Join("tmp", "offline-run-123", "run-123.wandb")
+
+	history := &spb.HistoryRecord{
+		Item: []*spb.HistoryItem{
+			{NestedKey: []string{"_step"}, ValueJson: "7"},
+			{NestedKey: []string{"attention_maps", "_type"}, ValueJson: `"images/separated"`},
+			{
+				NestedKey: []string{"attention_maps", "filenames"},
+				ValueJson: `["media/images/maps_7_0.png","media/images/maps_7_1.png"]`,
+			},
+			{NestedKey: []string{"attention_maps", "captions"}, ValueJson: `["head 0","head 1"]`},
+			{NestedKey: []string{"attention_maps", "format"}, ValueJson: `"png"`},
+			{NestedKey: []string{"attention_maps", "width"}, ValueJson: "64"},
+			{NestedKey: []string{"attention_maps", "height"}, ValueJson: "64"},
+			{NestedKey: []string{"attention_maps", "count"}, ValueJson: "2"},
+		},
+	}
+
+	msg, ok := leet.ParseHistory(runPath, history).(leet.HistoryMsg)
+	require.True(t, ok)
+	require.Len(t, msg.Media, 2)
+	require.Contains(t, msg.Media, "attention_maps[0]")
+	require.Contains(t, msg.Media, "attention_maps[1]")
+
+	point := msg.Media["attention_maps[1]"][0]
+	require.Equal(t, 7.0, point.X)
+	require.Equal(
+		t,
+		filepath.Join(filepath.Dir(runPath), "files", "media", "images", "maps_7_1.png"),
+		point.FilePath,
+	)
+	require.Equal(t, "media/images/maps_7_1.png", point.RelativePath)
+	require.Equal(t, "head 1", point.Caption)
+	require.Equal(t, "png", point.Format)
+	require.Equal(t, 64, point.Width)
+	require.Equal(t, 64, point.Height)
+
+	// Media metadata must not leak into scalar metrics.
+	require.NotContains(t, msg.Metrics, "attention_maps.count")
+}
+
+func TestParseHistory_ImagesSeparated_NoCaptions(t *testing.T) {
+	runPath := filepath.Join("tmp", "offline-run-123", "run-123.wandb")
+
+	history := &spb.HistoryRecord{
+		Item: []*spb.HistoryItem{
+			{NestedKey: []string{"_step"}, ValueJson: "3"},
+			{NestedKey: []string{"samples", "_type"}, ValueJson: `"images/separated"`},
+			{NestedKey: []string{"samples", "filenames"}, ValueJson: `["media/images/s_3_0.png"]`},
+			{NestedKey: []string{"samples", "format"}, ValueJson: `"png"`},
+		},
+	}
+
+	msg, ok := leet.ParseHistory(runPath, history).(leet.HistoryMsg)
+	require.True(t, ok)
+	require.Len(t, msg.Media, 1)
+	require.Contains(t, msg.Media, "samples[0]")
+	require.Empty(t, msg.Media["samples[0]"][0].Caption)
+}
+
+func TestMediaStoreSeriesKeys_NaturalOrder(t *testing.T) {
+	store := leet.NewMediaStore()
+	for _, key := range []string{"maps[10]", "maps[2]", "maps[0]", "loss", "zmap"} {
+		store.ProcessHistory(leet.HistoryMsg{
+			Media: map[string][]leet.MediaPoint{key: {{X: 1, FilePath: "/img.png"}}},
+		})
+	}
+	require.Equal(
+		t,
+		[]string{"loss", "maps[0]", "maps[2]", "maps[10]", "zmap"},
+		store.SeriesKeys(),
+	)
+}
+
 func TestMediaStoreResolveAt(t *testing.T) {
 	store := leet.NewMediaStore()
 

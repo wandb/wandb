@@ -12,8 +12,6 @@ import re
 import urllib
 from typing import TYPE_CHECKING, Any
 
-from wandb_gql import gql
-
 import wandb
 from wandb._strutils import nameof
 from wandb.apis import public
@@ -22,7 +20,6 @@ from wandb.apis.paginator import SizedPaginator
 from wandb.sdk.lib import ipython
 
 if TYPE_CHECKING:
-    from .api import RetryingClient
     from .projects import Project
     from .service_api import ServiceApi
 
@@ -31,7 +28,6 @@ class Reports(SizedPaginator["BetaReport"]):
     """Reports is a lazy iterator of `BetaReport` objects.
 
     Args:
-        client: Legacy GraphQL client retained for API compatibility.
         service_api: Interface to the wandb-core service that performs
             W&B API calls for this collection.
         project (`wandb.sdk.internal.Project`): The project to fetch reports from.
@@ -42,8 +38,7 @@ class Reports(SizedPaginator["BetaReport"]):
         per_page (int): Number of reports to fetch per page (default is 50).
     """
 
-    QUERY = gql(
-        """
+    QUERY = """
         query ProjectViews($project: String!, $entity: String!, $reportCursor: String,
             $reportLimit: Int!, $viewType: String = "runs", $viewName: String) {
             project(name: $project, entityName: $entity) {
@@ -75,17 +70,14 @@ class Reports(SizedPaginator["BetaReport"]):
             }
         }
         """
-    )
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         project: Project,
         name: str | None = None,
         entity: str | None = None,
         per_page: int = 50,
-        *,
-        service_api: ServiceApi,
     ):
         self.project = project
         self.name = name
@@ -95,13 +87,13 @@ class Reports(SizedPaginator["BetaReport"]):
             "entity": project.entity,
             "viewName": self.name,
         }
-        super().__init__(client, variables, per_page)
+        super().__init__(service_api, variables, per_page)
 
     @property
     def _length(self) -> int | None:
         """The number of reports in the project.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         # TODO: Add the count the backend
         if not self.last_response:
@@ -113,7 +105,7 @@ class Reports(SizedPaginator["BetaReport"]):
     def more(self) -> bool:
         """Returns whether there are more files to fetch.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if not self.last_response:
             return True
@@ -127,7 +119,7 @@ class Reports(SizedPaginator["BetaReport"]):
     def cursor(self) -> str | None:
         """Returns the cursor position for pagination of file results.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if not self.last_response:
             return None
@@ -163,11 +155,10 @@ class Reports(SizedPaginator["BetaReport"]):
 
         return [
             BetaReport(
-                self.client,
+                self._service_api,
                 r["node"],
                 entity=self.project.entity,
                 project=self.project.name,
-                service_api=self._service_api,
             )
             for r in edges
         ]
@@ -198,17 +189,14 @@ class BetaReport(Attrs):
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         attrs: dict,
         entity: str | None = None,
         project: str | None = None,
-        *,
-        service_api: ServiceApi,
     ):
-        self.client = client
+        self._service_api = service_api
         self.project = project
         self.entity = entity
-        self._service_api = service_api
         self.query_generator = public.QueryGenerator()
         super().__init__(dict(attrs))
 
@@ -248,18 +236,17 @@ class BetaReport(Attrs):
                 {"name": {"$in": run_set["selections"]["tree"]}}
             )
         return public.Runs(
-            self.client,
+            self._service_api,
             self.entity,
             self.project,
             filters=filters,
             order=order,
             per_page=per_page,
-            service_api=self._service_api,
         )
 
     @property
     def id(self) -> str:
-        return self._attrs.get("id")
+        return self._attrs["id"]
 
     @property
     def name(self) -> str | None:
@@ -288,14 +275,14 @@ class BetaReport(Attrs):
     @property
     def url(self) -> str | None:
         if (
-            not self.client
+            not self._service_api
             or not self.entity
             or not self.project
             or not self.display_name
             or not self.id
         ):
             return None
-        return self.client.app_url + "/".join(
+        return self._service_api.app_url + "/".join(
             [
                 self.entity,
                 self.project,
@@ -332,10 +319,7 @@ class BetaReport(Attrs):
 
 
 class PythonMongoishQueryGenerator:
-    """Converts Python-style query expressions to MongoDB-style queries for W&B reports.
-
-    <!-- lazydoc-ignore-class: internal -->
-    """
+    """Converts Python-style query expressions to MongoDB-style queries for W&B reports."""
 
     SPACER = "----------"
     DECIMAL_SPACER = ";;;"
@@ -448,7 +432,7 @@ class PythonMongoishQueryGenerator:
     def python_to_mongo(self, filterstr):
         """Convert Python expresion to MongoDB filter.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         try:
             tree = ast.parse(self._convert(filterstr), mode="eval")
@@ -470,7 +454,7 @@ class PythonMongoishQueryGenerator:
     def front_to_back(self, name):
         """Convert frontend metric names to backend field names.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         name, *rest = name.split(".")
         rest = "." + ".".join(rest) if rest else ""
@@ -487,7 +471,7 @@ class PythonMongoishQueryGenerator:
     def back_to_front(self, name):
         """Convert backend field names to frontend metric names.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if name in self.FRONTEND_NAME_MAPPING_REVERSED:
             return self.FRONTEND_NAME_MAPPING_REVERSED[name]
@@ -507,7 +491,7 @@ class PythonMongoishQueryGenerator:
     def pc_front_to_back(self, name):
         """Convert ParallelCoordinatesPlot to backend field names.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         name, *rest = name.split(".")
         rest = "." + ".".join(rest) if rest else ""
@@ -527,7 +511,7 @@ class PythonMongoishQueryGenerator:
     def pc_back_to_front(self, name):
         """Convert backend backend field names to ParallelCoordinatesPlot names.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if name is None:
             return None
@@ -548,10 +532,7 @@ class PythonMongoishQueryGenerator:
 
 
 class PanelMetricsHelper:
-    """Converts Python-style query expressions to MongoDB-style queries for W&B reports.
-
-    <!-- lazydoc-ignore-class: internal -->
-    """
+    """Converts Python-style query expressions to MongoDB-style queries for W&B reports."""
 
     FRONTEND_NAME_MAPPING = {
         "Step": "_step",
@@ -567,7 +548,7 @@ class PanelMetricsHelper:
     def front_to_back(self, name):
         """Convert frontend metric names to backend field names.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if name in self.FRONTEND_NAME_MAPPING:
             return self.FRONTEND_NAME_MAPPING[name]
@@ -576,7 +557,7 @@ class PanelMetricsHelper:
     def back_to_front(self, name):
         """Convert backend field names to frontend metric names.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if name in self.FRONTEND_NAME_MAPPING_REVERSED:
             return self.FRONTEND_NAME_MAPPING_REVERSED[name]
@@ -586,7 +567,7 @@ class PanelMetricsHelper:
     def special_front_to_back(self, name):
         """Convert frontend metric names to backend field names.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if name is None:
             return name
@@ -616,7 +597,7 @@ class PanelMetricsHelper:
     def special_back_to_front(self, name):
         """Convert backend field names to frontend metric names.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if name is not None:
             kind, rest = name.split(":", 1)

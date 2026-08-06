@@ -5,7 +5,7 @@ import logging
 import os
 from collections.abc import Sequence
 from decimal import Decimal
-from typing import TYPE_CHECKING, TypeAlias, cast
+from typing import TYPE_CHECKING, Any, TypeAlias, cast
 
 import wandb
 from wandb import util
@@ -68,7 +68,7 @@ def val_to_json(
     val: ValToJsonType,
     namespace: str | int | None = None,
     ignore_copy_err: bool | None = None,
-) -> Sequence | dict:
+) -> Any:
     # Converts a wandb datatype to its JSON representation.
     if namespace is None:
         raise ValueError(
@@ -80,11 +80,13 @@ def val_to_json(
     if isinstance(val, (int, float, str, bool)):
         # These are already JSON-serializable,
         # no need to do the expensive checks below.
-        return converted  # type: ignore[return-value]
+        return converted
 
     typename = util.get_full_typename(val)
 
     if util.is_pandas_data_frame(val):
+        if TYPE_CHECKING:
+            val = cast("pd.DataFrame", val)
         val = wandb.Table(dataframe=val)
 
     elif util.is_matplotlib_typename(typename) or util.is_plotly_typename(typename):
@@ -168,7 +170,7 @@ def val_to_json(
             val._last_logged_idx = len(val.data) - 1
         return res
 
-    return converted  # type: ignore
+    return converted
 
 
 def _log_table_artifact(val: Media, key: str, run: LocalRun) -> None:
@@ -208,7 +210,7 @@ def _log_table_artifact(val: Media, key: str, run: LocalRun) -> None:
 def _prune_max_seq(seq: Sequence[BatchableMedia]) -> Sequence[BatchableMedia]:
     # If media type has a max respect it
     items = seq
-    if hasattr(seq[0], "MAX_ITEMS") and seq[0].MAX_ITEMS < len(seq):
+    if hasattr(seq[0], "MAX_ITEMS") and seq[0].MAX_ITEMS < len(seq):  # ty: ignore[unsupported-operator]
         logging.warning(
             f"Only {seq[0].MAX_ITEMS} {seq[0].__class__.__name__} will be uploaded."
         )

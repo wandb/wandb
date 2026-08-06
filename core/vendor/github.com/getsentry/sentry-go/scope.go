@@ -1,7 +1,6 @@
 package sentry
 
 import (
-	"bytes"
 	"context"
 	"io"
 	"maps"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/getsentry/sentry-go/attribute"
 	"github.com/getsentry/sentry-go/internal/debuglog"
+	"github.com/getsentry/sentry-go/internal/httputils"
 	"github.com/getsentry/sentry-go/internal/ratelimit"
 	"github.com/getsentry/sentry-go/report"
 )
@@ -128,15 +128,15 @@ func (scope *Scope) SetRequest(r *http.Request) {
 	}
 
 	// Don't buffer request body if we know it is oversized.
-	if r.ContentLength > maxRequestBodyBytes {
+	if r.ContentLength > httputils.MaxBodyBytes {
 		return
 	}
 	// Don't buffer if there is no body.
 	if r.Body == nil || r.Body == http.NoBody {
 		return
 	}
-	buf := &limitedBuffer{Capacity: maxRequestBodyBytes}
-	r.Body = readCloser{
+	buf := httputils.NewLimitedBuffer(httputils.MaxBodyBytes)
+	r.Body = httputils.ReadCloser{
 		Reader: io.TeeReader(r.Body, buf),
 		Closer: r.Body,
 	}
@@ -152,59 +152,7 @@ func (scope *Scope) SetRequestBody(b []byte) {
 	scope.mu.Lock()
 	defer scope.mu.Unlock()
 
-	capacity := maxRequestBodyBytes
-	overflow := false
-	if len(b) > capacity {
-		overflow = true
-		b = b[:capacity]
-	}
-	scope.requestBody = &limitedBuffer{
-		Capacity: capacity,
-		Buffer:   *bytes.NewBuffer(b),
-		overflow: overflow,
-	}
-}
-
-// maxRequestBodyBytes is the default maximum request body size to send to
-// Sentry.
-const maxRequestBodyBytes = 10 * 1024
-
-// A limitedBuffer is like a bytes.Buffer, but limited to store at most Capacity
-// bytes. Any writes past the capacity are silently discarded, similar to
-// io.Discard.
-type limitedBuffer struct {
-	Capacity int
-
-	bytes.Buffer
-	overflow bool
-}
-
-// Write implements io.Writer.
-func (b *limitedBuffer) Write(p []byte) (n int, err error) {
-	// Silently ignore writes after overflow.
-	if b.overflow {
-		return len(p), nil
-	}
-	left := b.Capacity - b.Len()
-	if left < 0 {
-		left = 0
-	}
-	if len(p) > left {
-		b.overflow = true
-		p = p[:left]
-	}
-	return b.Buffer.Write(p)
-}
-
-// Overflow returns true if the limitedBuffer discarded bytes written to it.
-func (b *limitedBuffer) Overflow() bool {
-	return b.overflow
-}
-
-// readCloser combines an io.Reader and an io.Closer to implement io.ReadCloser.
-type readCloser struct {
-	io.Reader
-	io.Closer
+	scope.requestBody = httputils.NewLimitedBufferFromBytes(httputils.MaxBodyBytes, b)
 }
 
 // SetAttributes adds attributes to the current scope.
@@ -346,7 +294,7 @@ func (scope *Scope) Clone() *Scope {
 	clone.level = scope.level
 	clone.request = scope.request
 	clone.requestBody = scope.requestBody
-	clone.eventProcessors = scope.eventProcessors
+	clone.eventProcessors = scope.eventProcessors[:len(scope.eventProcessors):len(scope.eventProcessors)]
 	clone.propagationContext = scope.propagationContext
 	clone.span = scope.span
 	return clone
@@ -463,7 +411,7 @@ func (scope *Scope) ApplyToEvent(event *Event, hint *EventHint, client *Client) 
 	}
 
 	if event.Request == nil && scope.request != nil {
-		event.Request = newRequest(scope.request, sendDefaultPIIEnabled(client))
+		event.Request = newRequest(scope.request, client)
 		// NOTE: The SDK does not attempt to send partial request body data.
 		//
 		// The reason being that Sentry's ingest pipeline and UI are optimized
@@ -473,8 +421,9 @@ func (scope *Scope) ApplyToEvent(event *Event, hint *EventHint, client *Client) 
 		//
 		// Users can still send more data along their events if they want to,
 		// for example using Event.Contexts.
-		if scope.requestBody != nil && !scope.requestBody.Overflow() {
-			event.Request.Data = string(scope.requestBody.Bytes())
+		dc := client.GetDataCollection()
+		if scope.requestBody != nil && !scope.requestBody.Overflow() && dc.CollectHTTPBody(BodyIncomingRequest) {
+			event.Request.Data = dc.FilterHTTPBody(scope.requestBody.Bytes(), scope.request.Header.Get("Content-Type"))
 		}
 	}
 

@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -186,7 +187,8 @@ func TestManifest_WriteToFile(t *testing.T) {
 		},
 	}
 
-	filename, digest, size, err := manifest.WriteToFile()
+	dir := t.TempDir()
+	filename, digest, size, err := manifest.WriteToFile(dir)
 	defer func() {
 		_ = os.Remove(filename)
 	}()
@@ -194,6 +196,9 @@ func TestManifest_WriteToFile(t *testing.T) {
 	assert.NotEmpty(t, filename)
 	assert.NotEmpty(t, digest)
 	assert.NotZero(t, size)
+	// The manifest is written directly into dir (not a subdir), so the staging
+	// dir is left clean after the temp file is removed post-upload.
+	assert.Equal(t, dir, filepath.Dir(filename))
 }
 
 func TestManifest_GetManifestEntryFromArtifactFilePath(t *testing.T) {

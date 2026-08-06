@@ -37,10 +37,11 @@ T = TypeVar("T")
 class ActionType(LenientStrEnum):
     """The type of action triggered by an automation."""
 
-    QUEUE_JOB = "QUEUE_JOB"  # NOTE: Deprecated for creation
-    NOTIFICATION = "NOTIFICATION"
-    GENERIC_WEBHOOK = "GENERIC_WEBHOOK"
     NO_OP = "NO_OP"
+    QUEUE_JOB = "QUEUE_JOB"  # NOTE: Deprecated for creation
+    GENERIC_WEBHOOK = "GENERIC_WEBHOOK"
+    NOTIFICATION = "NOTIFICATION"
+    PUSH_NOTIFICATION = "PUSH_NOTIFICATION"
 
 
 # ------------------------------------------------------------------------------
@@ -146,14 +147,19 @@ class SendNotification(_BaseActionInput, NotificationActionInput):
     """The ID of the Slack integration that will be used to send the notification."""
 
     # Note: Validation aliases preserve continuity with the prior `wandb.alert()` API.
-    title: str = ""
+    title: Annotated[str, BeforeValidator(default_if_none)] = ""
     """The title of the sent notification."""
 
-    message: Annotated[str, Field(validation_alias="text")] = ""
+    message: Annotated[
+        str,
+        BeforeValidator(default_if_none),
+        Field(validation_alias="text"),
+    ] = ""
     """The message body of the sent notification."""
 
     severity: Annotated[
         AlertSeverity,
+        BeforeValidator(default_if_none),
         BeforeValidator(upper_if_str),  # Be helpful by ensuring uppercase strings
         Field(validation_alias="level"),
     ] = AlertSeverity.INFO

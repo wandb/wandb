@@ -1,7 +1,9 @@
 package leet
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"time"
 
@@ -89,8 +91,8 @@ func (w *Workspace) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 			return cmd
 		}
 	case FocusTargetMedia:
-		if w.mediaPane.HandleKey(msg) {
-			return nil
+		if handled, cmd := w.mediaPane.HandleKey(msg); handled {
+			return cmd
 		}
 	}
 
@@ -464,7 +466,7 @@ func (w *Workspace) readAllChunkCmd(run *WorkspaceRun) tea.Cmd {
 
 	return func() tea.Msg {
 		msg, err := reader.Read(BootLoadChunkSize, BootLoadMaxTime)
-		if err != nil {
+		if err != nil && !errors.Is(err, io.EOF) {
 			return ErrorMsg{Err: err}
 		}
 		if msg == nil {
@@ -491,7 +493,7 @@ func (w *Workspace) ReadAvailableCmd(run *WorkspaceRun) tea.Cmd {
 
 	return func() tea.Msg {
 		msg, err := reader.Read(LiveMonitorChunkSize, LiveMonitorMaxTime)
-		if err != nil {
+		if err != nil && !errors.Is(err, io.EOF) {
 			return ErrorMsg{Err: err}
 		}
 		if msg == nil {
@@ -540,8 +542,14 @@ func (w *Workspace) ensureLiveStreaming(run *WorkspaceRun) tea.Cmd {
 		run.watcher = NewWatcherManager(ch, w.logger)
 
 		if err := run.watcher.Start(run.wandbPath); err != nil {
-			w.logger.CaptureError(fmt.Errorf(
-				"workspace: failed to start watcher for %s: %v", run.Key, err))
+			w.logger.CaptureError(
+				"leet",
+				fmt.Errorf(
+					"workspace: failed to start watcher for %s: %v",
+					run.Key,
+					err,
+				),
+			)
 			run.watcher = nil
 		} else {
 			watcherCmd = w.waitForWatcher(run.Key)
@@ -599,10 +607,15 @@ func (w *Workspace) handleWorkspaceInitErr(msg WorkspaceInitErrMsg) tea.Cmd {
 	}
 
 	if msg.Err != nil && !os.IsNotExist(msg.Err) {
-		w.logger.CaptureError(fmt.Errorf(
-			"workspace: init reader for %s (%s): %v",
-			msg.RunKey, msg.RunPath, msg.Err,
-		))
+		w.logger.CaptureError(
+			"leet",
+			fmt.Errorf(
+				"workspace: init reader for %s (%s): %v",
+				msg.RunKey,
+				msg.RunPath,
+				msg.Err,
+			),
+		)
 	}
 	return nil
 }
@@ -770,19 +783,7 @@ func (w *Workspace) handleWorkspaceFileChanged(msg WorkspaceFileChangedMsg) tea.
 
 func (w *Workspace) handleQuit(msg tea.KeyPressMsg) tea.Cmd {
 	w.logger.Debug("workspace: quit requested")
-
-	if w.heartbeatMgr != nil {
-		w.heartbeatMgr.Stop()
-	}
-	for _, run := range w.runsByKey {
-		if run == nil {
-			continue
-		}
-		w.stopWatcher(run)
-		if run.Reader != nil {
-			run.Reader.Close()
-		}
-	}
+	w.Cleanup()
 
 	return tea.Quit
 }
@@ -1080,7 +1081,10 @@ func (w *Workspace) toggleRunSelected(runKey string) tea.Cmd {
 	wandbFile := runWandbFile(w.wandbDir, runKey)
 	if wandbFile == "" {
 		err := fmt.Errorf("workspace: unable to resolve .wandb file for run key %q", runKey)
-		w.logger.CaptureError(err)
+		w.logger.CaptureError(
+			"leet",
+			err,
+		)
 		return nil
 	}
 

@@ -13,10 +13,12 @@ import (
 func TestRunHandleRecordMsg_DoesNotArmHeartbeatBeforeWatcherStarts(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	run := leet.NewRun("dummy", cfg, logger)
+	run := leet.NewRun(&leet.RunParams{
+		RunFile: "dummy",
+	}, cfg, logger)
 
-	_, _ = run.TestHandleRecordMsg(leet.RunMsg{ID: "run-1", DisplayName: "test"})
-	_, _ = run.TestHandleRecordMsg(leet.HistoryMsg{
+	run.TestHandleRecordMsg(leet.RunMsg{ID: "run-1", DisplayName: "test"})
+	run.TestHandleRecordMsg(leet.HistoryMsg{
 		Metrics: map[string]leet.MetricData{
 			"loss": {X: []float64{1}, Y: []float64{0.5}},
 		},
@@ -28,11 +30,13 @@ func TestRunHandleRecordMsg_DoesNotArmHeartbeatBeforeWatcherStarts(t *testing.T)
 func TestRunHandleRecordMsg_ArmsHeartbeatAfterWatcherStarts(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	run := leet.NewRun("dummy", cfg, logger)
+	run := leet.NewRun(&leet.RunParams{
+		RunFile: "dummy",
+	}, cfg, logger)
 
-	_, _ = run.TestHandleRecordMsg(leet.RunMsg{ID: "run-1", DisplayName: "test"})
+	run.TestHandleRecordMsg(leet.RunMsg{ID: "run-1", DisplayName: "test"})
 	run.TestSetWatcherStarted(true)
-	_, _ = run.TestHandleRecordMsg(leet.HistoryMsg{
+	run.TestHandleRecordMsg(leet.HistoryMsg{
 		Metrics: map[string]leet.MetricData{
 			"loss": {X: []float64{1}, Y: []float64{0.5}},
 		},

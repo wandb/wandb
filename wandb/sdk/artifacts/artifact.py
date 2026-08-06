@@ -25,7 +25,6 @@ from typing import (  # noqa: UP035 (can't use `type` - shadows `Artifact.type`)
     IO,
     TYPE_CHECKING,
     Any,
-    Callable,
     Final,
     Literal,
     Type,
@@ -41,11 +40,8 @@ from wandb._pydantic import from_json
 from wandb._strutils import nameof
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public import ArtifactCollection, ArtifactFiles, Run
-from wandb.apis.public.service_api import ServiceApi
-from wandb.apis.public.utils import gql_compat
 from wandb.data_types import WBValue
 from wandb.errors import CommError
-from wandb.errors.errors import UnsupportedError
 from wandb.errors.term import termerror, termlog, termwarn
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
@@ -65,12 +61,16 @@ from wandb.util import (
     fsync_open,
     json_dumps_safer,
     uri_from_path,
-    vendor_setup,
 )
 
 from ._factories import make_storage_policy
 from ._gqlutils import org_info_from_entity, resolve_org_entity_name, server_supports
-from ._validators import ensure_logged, ensure_not_finalized
+from ._validators import (
+    ensure_logged,
+    ensure_not_finalized,
+    validate_artifact_path,
+    validate_fspath,
+)
 from .artifact_download_logger import ArtifactDownloadLogger
 from .artifact_instance_cache import (
     artifact_instance_cache,
@@ -92,16 +92,10 @@ from .storage_handlers.gcs_handler import _GCSIsADirectoryError
 from .storage_policies._factories import make_http_session
 from .storage_policies._multipart import should_multipart_download
 
-reset_path = vendor_setup()
-
-from wandb_gql import gql  # noqa: E402
-
-reset_path()
-
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-    from wandb.apis.public import RetryingClient
+    from wandb.apis.public.service_api import ServiceApi
 
     from ._generated import ArtifactFragment, ArtifactMembershipFragment
     from ._models.pagination import FileWithUrlConnection
@@ -182,7 +176,6 @@ class Artifact:
             termwarn("Using experimental arg `incremental`")
 
         # Internal.
-        self._client: RetryingClient | None = None
         self._service_api: ServiceApi | None = None
 
         self._tmp_dir: tempfile.TemporaryDirectory | None = None
@@ -249,8 +242,6 @@ class Artifact:
         self._history_step: int | None = None
         self._linked_artifacts: list[Artifact] = []
 
-        self._fetch_file_urls_decorated: Callable[..., Any] | None = None
-
         # Cache.
         artifact_instance_cache_by_client_id[self._client_id] = self
 
@@ -259,67 +250,55 @@ class Artifact:
 
     def _get_service_api(self) -> ServiceApi:
         if self._service_api is None:
+            from wandb.apis.public.service_api import ServiceApi
+
             settings = wandb_setup.singleton().settings.model_copy()
-            settings.entity = self._source_entity or self._entity or settings.entity
+            entity = self._source_entity or self._entity
+            if entity:
+                settings.entity = entity
             self._service_api = ServiceApi(settings=settings)
         return self._service_api
 
     @classmethod
-    def _from_id(
-        cls,
-        artifact_id: str,
-        client: RetryingClient,
-        *,
-        service_api: ServiceApi | None = None,
-    ) -> Artifact | None:
+    def _from_id(cls, artifact_id: str, service_api: ServiceApi) -> Artifact | None:
         from ._generated import ARTIFACT_BY_ID_GQL, ArtifactByID
         from ._validators import FullArtifactPath
 
         if cached_artifact := artifact_instance_cache.get(artifact_id):
             return cached_artifact
 
-        gql_op = gql(ARTIFACT_BY_ID_GQL)
-
-        data = client.execute(gql_op, variable_values={"id": artifact_id})
-        result = ArtifactByID.model_validate(data)
-
+        result = service_api.execute_graphql(
+            ARTIFACT_BY_ID_GQL,
+            variables={"id": artifact_id},
+            parse=ArtifactByID.model_validate_json,
+        )
         if (artifact := result.artifact) is None:
             return None
 
         src_collection = artifact.artifact_sequence
         src_project = src_collection.project
-
         entity_name = src_project.entity.name if src_project else ""
         project_name = src_project.name if src_project else ""
-
         name = f"{src_collection.name}:v{artifact.version_index}"
 
         path = FullArtifactPath(prefix=entity_name, project=project_name, name=name)
-        return cls._from_attrs(path, artifact, client, service_api=service_api)
+        return cls._from_attrs(path, artifact, service_api)
+
+    def _referenced_artifact_from_id(self, artifact_id: str) -> Artifact | None:
+        return type(self)._from_id(artifact_id, self._get_service_api())
 
     @classmethod
-    def _membership_from_name(
-        cls,
-        *,
-        path: FullArtifactPath,
-        client: RetryingClient,
-        service_api: ServiceApi | None = None,
-    ) -> Artifact:
+    def _from_name(cls, *, path: FullArtifactPath, service_api: ServiceApi) -> Artifact:
         from ._generated import (
             ARTIFACT_MEMBERSHIP_BY_NAME_GQL,
             ArtifactMembershipByName,
         )
 
-        if not server_supports(client, pb.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP):
-            raise UnsupportedError(
-                "Querying for the artifact collection membership is not supported "
-                "by this version of wandb server. Consider updating to the latest version."
-            )
-
-        gql_op = gql(ARTIFACT_MEMBERSHIP_BY_NAME_GQL)
-        gql_vars = {"entity": path.prefix, "project": path.project, "name": path.name}
-        data = client.execute(gql_op, variable_values=gql_vars)
-        result = ArtifactMembershipByName.model_validate(data)
+        result = service_api.execute_graphql(
+            ARTIFACT_MEMBERSHIP_BY_NAME_GQL,
+            {"entity": path.prefix, "project": path.project, "name": path.name},
+            parse=ArtifactMembershipByName.model_validate_json,
+        )
 
         if not (project := result.project):
             msg = f"project {path.project!r} not found under entity {path.prefix!r}"
@@ -330,59 +309,14 @@ class Artifact:
             msg = f"artifact membership {path.name!r} not found in {entity_project!r}"
             raise ValueError(msg)
 
-        return cls._from_membership(
-            membership,
-            target=path,
-            client=client,
-            service_api=service_api,
-        )
-
-    @classmethod
-    def _from_name(
-        cls,
-        *,
-        path: FullArtifactPath,
-        client: RetryingClient,
-        service_api: ServiceApi | None = None,
-        enable_tracking: bool = False,
-    ) -> Artifact:
-        from ._generated import ARTIFACT_BY_NAME_GQL, ArtifactByName
-
-        if server_supports(client, pb.PROJECT_ARTIFACT_COLLECTION_MEMBERSHIP):
-            return cls._membership_from_name(
-                path=path,
-                client=client,
-                service_api=service_api,
-            )
-
-        gql_vars = {
-            "entity": path.prefix,
-            "project": path.project,
-            "name": path.name,
-            "enableTracking": enable_tracking,
-        }
-        gql_op = gql(ARTIFACT_BY_NAME_GQL)
-        data = client.execute(gql_op, variable_values=gql_vars)
-        result = ArtifactByName.model_validate(data)
-
-        if not (project := result.project):
-            msg = f"project {path.project!r} not found in entity {path.prefix!r}"
-            raise ValueError(msg)
-
-        if not (artifact := project.artifact):
-            entity_project = f"{path.prefix}/{path.project}"
-            msg = f"artifact {path.name!r} not found in {entity_project!r}"
-            raise ValueError(msg)
-
-        return cls._from_attrs(path, artifact, client, service_api=service_api)
+        return cls._from_membership(membership, target=path, service_api=service_api)
 
     @classmethod
     def _from_membership(
         cls,
         membership: ArtifactMembershipFragment,
         target: FullArtifactPath,
-        client: RetryingClient,
-        service_api: ServiceApi | None = None,
+        service_api: ServiceApi,
     ) -> Artifact:
         from ._validators import is_artifact_registry_project
 
@@ -413,9 +347,8 @@ class Artifact:
         return cls._from_attrs(
             new_target,
             artifact,
-            client,
+            service_api,
             membership=membership,
-            service_api=service_api,
         )
 
     @classmethod
@@ -423,15 +356,13 @@ class Artifact:
         cls,
         path: FullArtifactPath,
         src_art: ArtifactFragment,
-        client: RetryingClient,
+        service_api: ServiceApi,
         *,
-        service_api: ServiceApi | None = None,
         # aliases/version_index are taken from the membership, if given
         membership: ArtifactMembershipFragment | None = None,
     ) -> Artifact:
         # Placeholder is required to skip validation.
         artifact = cls("placeholder", type="placeholder")
-        artifact._client = client
         artifact._service_api = service_api
         artifact._entity = path.prefix
         artifact._project = path.project
@@ -580,9 +511,8 @@ class Artifact:
         # This artifact's parent is the one we are making a draft from.
         artifact._base_id = self.id
 
-        # We can reuse the client, and copy over all the attributes that aren't
+        # We can reuse the service API, and copy over all the attributes that aren't
         # version-dependent and don't depend on having been logged.
-        artifact._client = self._client
         artifact._service_api = self._service_api
         artifact._description = self.description
         artifact._metadata = self.metadata
@@ -664,16 +594,15 @@ class Artifact:
         The collection that an artifact originates from is known as
         the source sequence.
         """
-        if (client := self._client) is None:
-            raise RuntimeError("Client not initialized")
+        if (service_api := self._service_api) is None:
+            raise RuntimeError("ServiceApi not initialized")
         base_name = self.name.split(":")[0]
         return ArtifactCollection(
-            client,
+            service_api,
             self.entity,
             self.project,
             base_name,
             self.type,
-            service_api=self._service_api,
         )
 
     @property
@@ -721,7 +650,7 @@ class Artifact:
 
         The source collection is the collection that the artifact was logged from.
         """
-        if (client := self._client) is None:
+        if (client := self._service_api) is None:
             raise RuntimeError("Client not initialized")
         base_name = self.source_name.split(":")[0]
         return ArtifactCollection(
@@ -730,7 +659,6 @@ class Artifact:
             self.source_project,
             base_name,
             self.type,
-            service_api=self._service_api,
         )
 
     @property
@@ -769,9 +697,6 @@ class Artifact:
         if not self.is_link:
             return self
         if self._source_artifact is None:
-            if (client := self._client) is None:
-                raise ValueError("Client is not initialized")
-
             try:
                 path = FullArtifactPath(
                     prefix=self.source_entity,
@@ -780,7 +705,6 @@ class Artifact:
                 )
                 self._source_artifact = self._from_name(
                     path=path,
-                    client=client,
                     service_api=self._get_service_api(),
                 )
             except Exception as e:
@@ -806,7 +730,7 @@ class Artifact:
         from ._validators import is_artifact_registry_project
 
         try:
-            base_url = self._client.app_url  # type: ignore[union-attr]
+            base_url = self._service_api.app_url  # type: ignore[union-attr]
         except AttributeError:
             return ""
 
@@ -850,7 +774,9 @@ class Artifact:
             return ""
 
         try:
-            org_name = org_info_from_entity(self._client, self.entity).organization.name  # type: ignore[union-attr]
+            org_name = org_info_from_entity(
+                self._service_api, self.entity
+            ).organization.name  # type: ignore[union-attr]
         except (AttributeError, ValueError):
             return ""
 
@@ -1046,7 +972,7 @@ class Artifact:
     def distributed_id(self) -> str | None:
         """The distributed ID of the artifact.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         return self._distributed_id
 
@@ -1058,7 +984,7 @@ class Artifact:
     def incremental(self) -> bool:
         """Boolean flag indicating if the artifact is an incremental artifact.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         return self._incremental
 
@@ -1091,14 +1017,15 @@ class Artifact:
         """Fetch, parse, and load the full ArtifactManifest."""
         from ._generated import FETCH_ARTIFACT_MANIFEST_GQL, FetchArtifactManifest
 
-        if (client := self._client) is None:
+        if (client := self._service_api) is None:
             raise RuntimeError("Client not initialized for artifact queries")
 
         # From the GraphQL API, get the (expiring) directUrl for downloading the manifest.
-        gql_op = gql(FETCH_ARTIFACT_MANIFEST_GQL)
-        gql_vars = {"id": self.id}
-        data = client.execute(gql_op, variable_values=gql_vars)
-        result = FetchArtifactManifest.model_validate(data)
+        result = client.execute_graphql(
+            FETCH_ARTIFACT_MANIFEST_GQL,
+            variables={"id": self.id},
+            parse=FetchArtifactManifest.model_validate_json,
+        )
 
         # Now fetch the actual manifest contents from the directUrl.
         if (artifact := result.artifact) and (manifest := artifact.current_manifest):
@@ -1273,10 +1200,10 @@ class Artifact:
     def _set_save_handle(
         self,
         save_handle: MailboxHandle[pb.Result],
-        client: RetryingClient,
+        service_api: ServiceApi,
     ) -> None:
         self._save_handle = save_handle
-        self._client = client
+        self._service_api = service_api
 
     def wait(self, timeout: int | None = None) -> Artifact:
         """If needed, wait for this artifact to finish logging.
@@ -1307,12 +1234,14 @@ class Artifact:
     def _populate_after_save(self, artifact_id: str) -> None:
         from ._generated import ARTIFACT_BY_ID_GQL, ArtifactByID
 
-        if (client := self._client) is None:
+        if (client := self._service_api) is None:
             raise RuntimeError("Client not initialized for artifact queries")
 
-        gql_op = gql(ARTIFACT_BY_ID_GQL)
-        data = client.execute(gql_op, variable_values={"id": artifact_id})
-        result = ArtifactByID.model_validate(data)
+        result = client.execute_graphql(
+            ARTIFACT_BY_ID_GQL,
+            variables={"id": artifact_id},
+            parse=ArtifactByID.model_validate_json,
+        )
 
         if not (artifact := result.artifact):
             raise ValueError(f"Unable to fetch artifact with id: {artifact_id!r}")
@@ -1329,7 +1258,7 @@ class Artifact:
         from ._generated import UPDATE_ARTIFACT_GQL, UpdateArtifact, UpdateArtifactInput
         from ._validators import FullArtifactPath, validate_tags
 
-        if (client := self._client) is None:
+        if (client := self._service_api) is None:
             raise RuntimeError("Client not initialized for artifact mutations")
 
         entity, project, collection = self.entity, self.project, self.name.split(":")[0]
@@ -1340,31 +1269,58 @@ class Artifact:
         self._delete_aliases(old_aliases - new_aliases, target=target)
         self._saved_aliases = copy(self.aliases)
 
-        old_tags, new_tags = set(self._saved_tags), set(self.tags)
+        skip_update_artifact = self.is_link and self._is_source_project_read_only()
+        if not skip_update_artifact:
+            old_tags, new_tags = set(self._saved_tags), set(self.tags)
 
-        gql_op = gql(UPDATE_ARTIFACT_GQL)
-        gql_input = UpdateArtifactInput(
-            artifact_id=self.id,
-            description=self.description,
-            metadata=json_dumps_safer(self.metadata),
-            ttl_duration_seconds=self._ttl_duration_seconds_to_gql(),
-            tags_to_add=[{"tagName": t} for t in validate_tags(new_tags - old_tags)],
-            tags_to_delete=[{"tagName": t} for t in validate_tags(old_tags - new_tags)],
+            gql_input = UpdateArtifactInput(
+                artifact_id=self.id,
+                description=self.description,
+                metadata=json_dumps_safer(self.metadata),
+                ttl_duration_seconds=self._ttl_duration_seconds_to_gql(),
+                tags_to_add=[
+                    {"tagName": t} for t in validate_tags(new_tags - old_tags)
+                ],
+                tags_to_delete=[
+                    {"tagName": t} for t in validate_tags(old_tags - new_tags)
+                ],
+            )
+            data = client.execute_graphql(
+                UPDATE_ARTIFACT_GQL,
+                variables={"input": gql_input.model_dump()},
+                parse=UpdateArtifact.model_validate_json,
+            )
+
+            if not ((result := data.result) and (artifact := result.artifact)):
+                raise ValueError("Unable to parse updateArtifact response")
+            self._assign_attrs(artifact)
+
+            self._ttl_changed = False  # Reset after updating artifact
+        else:
+            wandb.termwarn(
+                "Skipping non-alias updates due to insufficient permissions on the source artifact."
+            )
+
+    def _is_source_project_read_only(self) -> bool:
+        from ._gqlutils import is_project_read_only
+
+        if not (self.source_entity and self.source_project):
+            # This actually implies that the source project is invisible (no access).
+            return True
+
+        if (client := self._service_api) is None:
+            raise RuntimeError("Client not initialized for artifact mutations")
+
+        read_only = is_project_read_only(
+            client, self.source_entity, self.source_project
         )
-        gql_vars = {"input": gql_input.model_dump()}
-        data = client.execute(gql_op, variable_values=gql_vars)
-
-        result = UpdateArtifact.model_validate(data).result
-        if not (result and (artifact := result.artifact)):
-            raise ValueError("Unable to parse updateArtifact response")
-        self._assign_attrs(artifact)
-
-        self._ttl_changed = False  # Reset after updating artifact
+        # Treat invisible projects as read-only (no write access).
+        return read_only is None or read_only
 
     def _add_aliases(self, alias_names: set[str], target: FullArtifactPath) -> None:
         from ._generated import ADD_ALIASES_GQL, AddAliasesInput
 
-        if (client := self._client) is None:
+        if (client := self._service_api) is None:
             raise RuntimeError("Client not initialized for artifact mutations")
 
         # If there aren't any aliases to add, we can skip the GraphQL call.
@@ -1375,11 +1331,11 @@ class Artifact:
                 "artifactCollectionName": target.name,
             }
             alias_inputs = [{**target_props, "alias": name} for name in alias_names]
-            gql_op = gql(ADD_ALIASES_GQL)
+            gql_op = ADD_ALIASES_GQL
             gql_input = AddAliasesInput(artifact_id=self.id, aliases=alias_inputs)
             gql_vars = {"input": gql_input.model_dump()}
             try:
-                client.execute(gql_op, variable_values=gql_vars)
+                client.execute_graphql(gql_op, variables=gql_vars)
             except CommError as e:
                 msg = (
                     "You do not have permission to add"
@@ -1391,7 +1347,7 @@ class Artifact:
     def _delete_aliases(self, alias_names: set[str], target: FullArtifactPath) -> None:
         from ._generated import DELETE_ALIASES_GQL, DeleteAliasesInput
 
-        if (client := self._client) is None:
+        if (client := self._service_api) is None:
             raise RuntimeError("Client not initialized for artifact mutations")
 
         # If there aren't any aliases to delete, we can skip the GraphQL call.
@@ -1402,11 +1358,11 @@ class Artifact:
                 "artifactCollectionName": target.name,
             }
             alias_inputs = [{**target_props, "alias": name} for name in alias_names]
-            gql_op = gql(DELETE_ALIASES_GQL)
+            gql_op = DELETE_ALIASES_GQL
             gql_input = DeleteAliasesInput(artifact_id=self.id, aliases=alias_inputs)
             gql_vars = {"input": gql_input.model_dump()}
             try:
-                client.execute(gql_op, variable_values=gql_vars)
+                client.execute_graphql(gql_op, variables=gql_vars)
             except CommError as e:
                 msg = (
                     f"You do not have permission to delete"
@@ -1471,6 +1427,7 @@ class Artifact:
         """
         overwrite: bool = "x" not in mode
 
+        validate_artifact_path(name)
         if self._tmp_dir is None:
             self._tmp_dir = tempfile.TemporaryDirectory()
         path = os.path.join(self._tmp_dir.name, name.lstrip("/"))
@@ -1917,12 +1874,8 @@ class Artifact:
         # If the entry is a reference from another artifact, then get it directly from
         # that artifact.
         if referenced_id := entry._referenced_artifact_id():
-            assert self._client is not None
-            artifact = self._from_id(
-                referenced_id,
-                client=self._client,
-                service_api=self._get_service_api(),
-            )
+            assert self._service_api is not None
+            artifact = self._referenced_artifact_from_id(referenced_id)
             assert artifact is not None
             return artifact.get(uri_from_path(entry.ref))
 
@@ -2200,71 +2153,53 @@ class Artifact:
             )
         return FilePathStr(root)
 
-    def _build_fetch_file_urls_wrapper(self) -> Callable[..., Any]:
+    def _fetch_file_urls(
+        self, cursor: str | None, per_page: int = 5000
+    ) -> FileWithUrlConnection:
         import requests
 
+        # `requests` and the generated pydantic models are imported lazily (here and
+        # below) to keep them off the module-level import path, which is expensive.
         @retry.retriable(
             retry_timedelta=timedelta(minutes=3),
             retryable_exceptions=(requests.RequestException),
         )
-        def _impl(cursor: str | None, per_page: int = 5000) -> FileWithUrlConnection:
+        def _fetch() -> FileWithUrlConnection:
             from ._generated import (
-                GET_ARTIFACT_FILE_URLS_GQL,
                 GET_ARTIFACT_MEMBERSHIP_FILE_URLS_GQL,
-                GetArtifactFileUrls,
                 GetArtifactMembershipFileUrls,
             )
             from ._models.pagination import FileWithUrlConnection
 
-            if self._client is None:
+            if self._service_api is None:
                 raise RuntimeError("Client not initialized")
 
-            if server_supports(self._client, pb.ARTIFACT_COLLECTION_MEMBERSHIP_FILES):
-                query = gql(GET_ARTIFACT_MEMBERSHIP_FILE_URLS_GQL)
-                gql_vars = {
-                    "entity": self.entity,
-                    "project": self.project,
-                    "collection": self.name.split(":")[0],
-                    "alias": self.version,
-                    "cursor": cursor,
-                    "perPage": per_page,
-                }
-                data = self._client.execute(query, variable_values=gql_vars, timeout=60)
-                membership_result = GetArtifactMembershipFileUrls.model_validate(data)
+            query = GET_ARTIFACT_MEMBERSHIP_FILE_URLS_GQL
+            gql_vars = {
+                "entity": self.entity,
+                "project": self.project,
+                "collection": self.name.split(":")[0],
+                "alias": self.version,
+                "cursor": cursor,
+                "perPage": per_page,
+            }
+            membership_result = self._service_api.execute_graphql(
+                query,
+                variables=gql_vars,
+                timeout=60,
+                parse=GetArtifactMembershipFileUrls.model_validate_json,
+            )
 
-                if not (
-                    (project := membership_result.project)
-                    and (collection := project.artifact_collection)
-                    and (membership := collection.artifact_membership)
-                    and (files := membership.files)
-                ):
-                    raise ValueError(
-                        f"Unable to fetch files for artifact: {self.name!r}"
-                    )
-                return FileWithUrlConnection.model_validate(files)
-            else:
-                query = gql(GET_ARTIFACT_FILE_URLS_GQL)
-                gql_vars = {"id": self.id, "cursor": cursor, "perPage": per_page}
-                data = self._client.execute(query, variable_values=gql_vars, timeout=60)
-                file_result = GetArtifactFileUrls.model_validate(data)
+            if not (
+                (project := membership_result.project)
+                and (collection := project.artifact_collection)
+                and (membership := collection.artifact_membership)
+                and (membership_files := membership.files)
+            ):
+                raise ValueError(f"Unable to fetch files for artifact: {self.name!r}")
+            return FileWithUrlConnection.model_validate(membership_files)
 
-                if not (
-                    (artifact := file_result.artifact)
-                    and (artifact_files := artifact.files)
-                ):
-                    raise ValueError(
-                        f"Unable to fetch files for artifact: {self.name!r}"
-                    )
-                return FileWithUrlConnection.model_validate(artifact_files)
-
-        return _impl
-
-    def _fetch_file_urls(
-        self, cursor: str | None, per_page: int = 5000
-    ) -> FileWithUrlConnection:
-        if self._fetch_file_urls_decorated is None:
-            self._fetch_file_urls_decorated = self._build_fetch_file_urls_wrapper()
-        return self._fetch_file_urls_decorated(cursor, per_page)
+        return _fetch()
 
     @ensure_logged
     def checkout(self, root: str | None = None) -> str:
@@ -2327,7 +2262,7 @@ class Artifact:
         ref_count = 0
         for entry in self.manifest.entries.values():
             if entry.ref is None:
-                if md5_file_b64(os.path.join(root, entry.path)) != entry.digest:
+                if md5_file_b64(validate_fspath(root, entry.path)) != entry.digest:
                     raise ValueError(f"Digest mismatch for file: {entry.path}")
             else:
                 ref_count += 1
@@ -2382,9 +2317,9 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
         """
-        if (client := self._client) is None:
+        if (service_api := self._service_api) is None:
             raise RuntimeError("Client not initialized")
-        return ArtifactFiles(client, self, names, per_page, start=start)
+        return ArtifactFiles(service_api, self, names, per_page, start=start)
 
     def _default_root(self, include_version: bool = True) -> FilePathStr:
         name = self.source_name if include_version else self.source_name.split(":")[0]
@@ -2441,15 +2376,17 @@ class Artifact:
     def _delete(self, delete_aliases: bool = False) -> None:
         from ._generated import DELETE_ARTIFACT_GQL, DeleteArtifactInput
 
-        if self._client is None:
+        if self._service_api is None:
             raise RuntimeError("Client not initialized for artifact mutations")
 
-        gql_op = gql(DELETE_ARTIFACT_GQL)
+        gql_op = DELETE_ARTIFACT_GQL
         gql_input = DeleteArtifactInput(
             artifact_id=self.id,
             delete_aliases=delete_aliases,
         )
-        self._client.execute(gql_op, variable_values={"input": gql_input.model_dump()})
+        self._service_api.execute_graphql(
+            gql_op, variables={"input": gql_input.model_dump()}
+        )
 
     @normalize_exceptions
     def link(self, target_path: str, aliases: Iterable[str] | None = None) -> Artifact:
@@ -2490,7 +2427,7 @@ class Artifact:
             # Wait until the artifact is committed before trying to link it.
             self.wait()
 
-        if (client := self._client) is None:
+        if (service_api := self._service_api) is None:
             raise RuntimeError("Client not initialized for artifact mutations")
 
         # FIXME: Find a way to avoid using InternalApi here, due to the perf overhead
@@ -2506,7 +2443,9 @@ class Artifact:
             # In a Registry linking, the entity is used to fetch the organization of the
             # artifact, therefore the source artifact's entity is passed to the backend
             org = target.prefix or settings.get("organization") or None
-            target.prefix = resolve_org_entity_name(client, self.source_entity, org)
+            target.prefix = resolve_org_entity_name(
+                service_api, self.source_entity, org
+            )
         else:
             target = target.with_defaults(prefix=self.source_entity)
 
@@ -2531,23 +2470,24 @@ class Artifact:
         # avoiding the need to re-fetch the linked artifact at the end.
         omit_variables = omit_fields = None
         if not server_supports(
-            client, pb.ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE
+            service_api, pb.ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE
         ):
             omit_variables = {"includeAliases"}
             omit_fields = {"artifactMembership"}
 
-        gql_op = gql_compat(
-            LINK_ARTIFACT_GQL, omit_variables=omit_variables, omit_fields=omit_fields
+        data = service_api.execute_graphql(
+            LINK_ARTIFACT_GQL,
+            variables=gql_vars,
+            omit_variables=omit_variables,
+            omit_fields=omit_fields,
+            parse=LinkArtifact.model_validate_json,
         )
-        data = client.execute(gql_op, variable_values=gql_vars)
-        result = LinkArtifact.model_validate(data).result
 
         # Newer server versions can return artifactMembership directly in the response
-        if result and (membership := result.artifact_membership):
+        if (result := data.result) and (membership := result.artifact_membership):
             return self._from_membership(
                 membership,
                 target=target,
-                client=client,
                 service_api=self._get_service_api(),
             )
 
@@ -2579,17 +2519,17 @@ class Artifact:
     def _unlink(self) -> None:
         from ._generated import UNLINK_ARTIFACT_GQL, UnlinkArtifactInput
 
-        if self._client is None:
+        if self._service_api is None:
             raise RuntimeError("Client not initialized for artifact mutations")
 
-        mutation = gql(UNLINK_ARTIFACT_GQL)
+        mutation = UNLINK_ARTIFACT_GQL
         gql_input = UnlinkArtifactInput(
             artifact_id=self.id,
             artifact_portfolio_id=self.collection.id,
         )
         gql_vars = {"input": gql_input.model_dump()}
         try:
-            self._client.execute(mutation, variable_values=gql_vars)
+            self._service_api.execute_graphql(mutation, variables=gql_vars)
         except CommError as e:
             raise CommError(
                 f"You do not have permission to unlink the artifact {self.qualified_name!r}"
@@ -2607,13 +2547,14 @@ class Artifact:
         """
         from ._generated import ARTIFACT_USED_BY_GQL, ArtifactUsedBy
 
-        if (client := self._client) is None:
+        if (service_api := self._service_api) is None:
             raise RuntimeError("Client not initialized for artifact queries")
 
-        query = gql(ARTIFACT_USED_BY_GQL)
-        gql_vars = {"id": self.id}
-        data = client.execute(query, variable_values=gql_vars)
-        result = ArtifactUsedBy.model_validate(data)
+        result = service_api.execute_graphql(
+            ARTIFACT_USED_BY_GQL,
+            variables={"id": self.id},
+            parse=ArtifactUsedBy.model_validate_json,
+        )
 
         if (
             (artifact := result.artifact)
@@ -2624,11 +2565,10 @@ class Artifact:
             service_api = self._get_service_api()
             return [
                 Run(
-                    client,
+                    service_api,
                     proj.entity.name,
                     proj.name,
                     run.name,
-                    service_api=service_api,
                 )
                 for run in run_nodes
                 if (proj := run.project)
@@ -2645,31 +2585,33 @@ class Artifact:
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
         """
-        from ._generated import ARTIFACT_CREATED_BY_GQL, ArtifactCreatedBy
-        from ._generated.fragments import RunInfoFragment
+        from ._generated import (
+            ARTIFACT_CREATED_BY_GQL,
+            ArtifactCreatedBy,
+            RunInfoFragment,
+        )
 
-        if (client := self._client) is None:
+        if (service_api := self._service_api) is None:
             raise RuntimeError("Client not initialized for artifact queries")
 
-        gql_op = gql(ARTIFACT_CREATED_BY_GQL)
-        gql_vars = {"id": self.id}
-        data = client.execute(gql_op, variable_values=gql_vars)
-        result = ArtifactCreatedBy.model_validate(data)
+        result = service_api.execute_graphql(
+            ARTIFACT_CREATED_BY_GQL,
+            variables={"id": self.id},
+            parse=ArtifactCreatedBy.model_validate_json,
+        )
 
-        # `created_by` is a union of Run and User; only a Run has a project to
-        # construct a `Run` from.
         if (
             (artifact := result.artifact)
-            and isinstance(creator := artifact.created_by, RunInfoFragment)
+            and (creator := artifact.created_by)
+            and isinstance(creator, RunInfoFragment)
             and (name := creator.name)
             and (project := creator.project)
         ):
             return Run(
-                client,
+                self._get_service_api(),
                 project.entity.name,
                 project.name,
                 name,
-                service_api=self._get_service_api(),
             )
         return None
 
@@ -2684,17 +2626,18 @@ class Artifact:
 
     @staticmethod
     def _expected_type(
-        entity_name: str, project_name: str, name: str, client: RetryingClient
+        entity_name: str, project_name: str, name: str, service_api: ServiceApi
     ) -> str | None:
         """Returns the expected type for a given artifact name and project."""
         from ._generated import ARTIFACT_TYPE_GQL, ArtifactType
 
         name = name if (":" in name) else f"{name}:latest"
 
-        gql_op = gql(ARTIFACT_TYPE_GQL)
-        gql_vars = {"entity": entity_name, "project": project_name, "name": name}
-        data = client.execute(gql_op, variable_values=gql_vars)
-        result = ArtifactType.model_validate(data)
+        result = service_api.execute_graphql(
+            ARTIFACT_TYPE_GQL,
+            {"entity": entity_name, "project": project_name, "name": name},
+            parse=ArtifactType.model_validate_json,
+        )
         if (project := result.project) and (artifact := project.artifact):
             return artifact.artifact_type.name
         return None
@@ -2729,12 +2672,14 @@ class Artifact:
                 "Unable to find any artifact memberships for artifact without an ID"
             )
 
-        if (client := self._client) is None:
+        if (service_api := self._service_api) is None:
             raise ValueError("Client is not initialized")
 
-        gql_op = gql_compat(FETCH_LINKED_ARTIFACTS_GQL)
-        data = client.execute(gql_op, variable_values={"artifactID": self.id})
-        result = FetchLinkedArtifacts.model_validate(data)
+        result = service_api.execute_graphql(
+            FETCH_LINKED_ARTIFACTS_GQL,
+            variables={"artifactID": self.id},
+            parse=FetchLinkedArtifacts.model_validate_json,
+        )
 
         if not (
             (artifact := result.artifact)

@@ -16,9 +16,9 @@ from urllib.parse import quote as url_quote
 import wandb
 from wandb.proto import wandb_internal_pb2  # type: ignore
 from wandb.sdk.interface.interface_queue import InterfaceQueue
-from wandb.sdk.internal import context, datastore, handler, sender, tb_watcher
+from wandb.sdk.internal import datastore, handler, sender, tb_watcher
 from wandb.sdk.internal.settings_static import SettingsStatic
-from wandb.sdk.lib import filesystem
+from wandb.sdk.lib import filesystem, runid
 from wandb.util import check_and_warn_old
 
 WANDB_SUFFIX = ".wandb"
@@ -158,7 +158,7 @@ class SyncThread(threading.Thread):
             viewer, _ = send_manager._api.viewer_server_info()
             self._entity = viewer.get("entity")
         proto_run = wandb_internal_pb2.RunRecord()
-        proto_run.run_id = self._run_id or wandb.util.generate_id()
+        proto_run.run_id = self._run_id or runid.generate_id()
         proto_run.project = self._project or wandb.util.auto_project_name(None)
         proto_run.entity = self._entity
         proto_run.telemetry.feature.sync_tfevents = True
@@ -177,13 +177,11 @@ class SyncThread(threading.Thread):
         record_q = queue.Queue()
         sender_record_q = queue.Queue()
         new_interface = InterfaceQueue(record_q)
-        context_keeper = context.ContextKeeper()
         send_manager = sender.SendManager(
             settings=send_manager._settings,
             record_q=sender_record_q,
             result_q=queue.Queue(),
             interface=new_interface,
-            context_keeper=context_keeper,
         )
         record = send_manager._interface._make_record(run=proto_run)
         settings = wandb.Settings(
@@ -201,7 +199,6 @@ class SyncThread(threading.Thread):
             stopped=False,
             writer_q=sender_record_q,
             interface=new_interface,
-            context_keeper=context_keeper,
         )
 
         filesystem.mkdir_exists_ok(settings.files_dir)

@@ -51,13 +51,21 @@ def test_tb_callback(wandb_backend_spy):
         for tag in ["epoch_loss", "epoch_learning_rate"]:
             assert tag in summary
 
-        for tag in ["kernel/histogram", "bias/histogram"]:
+        for tag in [
+            "my_model/dense/kernel/histogram",
+            "my_model/dense/bias/histogram",
+        ]:
+            assert tag in summary
             assert summary[tag]["_type"] == "histogram"
 
             items_with_tag = list(step for step, item in history.items() if tag in item)
             assert len(items_with_tag) == 2
 
-        for tag in ["kernel/image", "bias/image"]:
+        for tag in [
+            "my_model/dense/kernel/image",
+            "my_model/dense/bias/image",
+        ]:
+            assert tag in summary
             assert summary[tag]["_type"] == "images/separated"
 
             items_with_tag = list(step for step, item in history.items() if tag in item)

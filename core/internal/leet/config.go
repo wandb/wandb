@@ -61,7 +61,7 @@ const (
 	DefaultWorkspaceMediaGridCols = 2
 
 	// Startup modes control what LEET does when launched without a specified run path
-	// (i.e. `wandb beta leet` with no PATH).
+	// (i.e. `wandb leet` with no PATH).
 	StartupModeWorkspaceLatest = "workspace_latest"  // Load workspace view and select latest run
 	StartupModeSingleRunLatest = "single_run_latest" // Load latest run in the single-run view
 	DefaultStartupMode         = StartupModeWorkspaceLatest

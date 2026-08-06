@@ -1,17 +1,18 @@
 from __future__ import annotations
 
-import contextlib
 import json
 import logging
-import uuid
-import weakref
-from collections.abc import Mapping
-from typing import Any, cast
+from collections.abc import Callable, Iterable, Mapping
+from dataclasses import dataclass
+from typing import Any, TypeVar, cast
 
 from wandb.proto import wandb_internal_pb2 as pb
+from wandb.proto import wandb_server_pb2 as spb
 from wandb.proto.wandb_api_pb2 import (
     ApiRequest,
     ApiResponse,
+    AuthenticateRequest,
+    AuthenticateResponse,
     FeaturesRequest,
     GraphQLRequest,
 )
@@ -25,11 +26,13 @@ from wandb.sdk.mailbox.mailbox_handle import MailboxHandle
 _logger = logging.getLogger(__name__)
 
 
-def _cleanup(connection: ServiceConnection | None, api_id: str) -> None:
-    """Clean up the api resources associated with the api id."""
-    if connection is not None:
-        with contextlib.suppress(Exception):
-            connection.api_cleanup_request(api_id)
+_T = TypeVar("_T")
+
+
+@dataclass(frozen=True)
+class _ServiceApiSession:
+    connection: ServiceConnection
+    api_id: str
 
 
 class ServiceApi:
@@ -38,28 +41,35 @@ class ServiceApi:
     def __init__(
         self,
         settings: wandb_settings.Settings,
+        timeout: float | None = None,
     ):
         self._settings = settings
-        self._service_connection: ServiceConnection | None = None
-        self._api_id = str(uuid.uuid4())
+        self._timeout = timeout
+        self._api_session: _ServiceApiSession | None = None
 
-    def _get_service_connection(self) -> ServiceConnection:
-        """Connects to the service and initializes resources for handling API requests."""
-        if self._service_connection is None:
-            self._service_connection = wandb_setup.singleton().ensure_service()
-            response = self._service_connection.api_init_request(
-                self._settings.to_proto(),
-            )
-            self._api_id = response.api_id
+    @property
+    def app_url(self) -> str:
+        return self._settings.app_url.rstrip("/") + "/"
 
-            weakref.finalize(
-                self,
-                _cleanup,
-                self._service_connection,
-                self._api_id,
-            )
+    def _get_api_session(self) -> _ServiceApiSession:
+        """Connect to the service and initialize resources for API requests."""
+        if self._api_session is not None:
+            return self._api_session
 
-        return self._service_connection
+        service_connection = wandb_setup.singleton().ensure_service()
+        response = service_connection.api_init_request(self._settings.to_proto())
+        session = _ServiceApiSession(
+            connection=service_connection,
+            api_id=response.api_id,
+        )
+        self._api_session = session
+
+        # Clean up service-side resources when this object is GC'ed.
+        cleanup_request = spb.ServerRequest()
+        cleanup_request.api_cleanup_request.api_id = response.api_id
+        service_connection.finalize(self, cleanup_request)
+
+        return session
 
     def send_api_request(
         self,
@@ -70,16 +80,45 @@ class ServiceApi:
 
         Creates the backend service connection if it has not been created yet.
         """
-        conn = self._get_service_connection()
-        request.api_id = self._api_id
-        return conn.api_request(request, timeout=timeout)
+        session = self._get_api_session()
+        request.api_id = session.api_id
+        return session.connection.api_request(request, timeout=timeout)
+
+    def finalize(
+        self,
+        obj: object,
+        cleanup: ApiRequest,
+    ) -> Callable[[], None]:
+        """Send a cleanup request when the object is garbage collected.
+
+        The request must not reference the object, or else it will never be
+        garbage collected. The request is not guaranteed to be sent before
+        the connection is closed, so any resource it would clean up must also be
+        cleaned up automatically by wandb-core when this API instance is
+        cleaned up.
+
+        Returns:
+            A callback that can be used to send the cleanup request immediately.
+        """
+        session = self._get_api_session()
+
+        cleanup.api_id = session.api_id
+        request = spb.ServerRequest(api_request=cleanup)
+
+        return session.connection.finalize(obj, request)
 
     def execute_graphql(
         self,
         query: str,
         variables: Mapping[str, Any] | None = None,
         timeout: float | None = None,
-    ) -> Any:
+        *,
+        parse: Callable[[str], _T] = json.loads,
+        omit_variables: Iterable[str] | None = None,
+        omit_fragments: Iterable[str] | None = None,
+        omit_fields: Iterable[str] | None = None,
+        rename_fields: Mapping[str, str] | None = None,
+    ) -> _T:
         """Execute a GraphQL operation through the wandb-core sidecar.
 
         The query is sent to wandb-core, which performs the network round-trip
@@ -92,6 +131,19 @@ class ServiceApi:
                 on the wire.
             timeout: Optional timeout in seconds for waiting on wandb-core.
                 On timeout, the request is cancelled on a best-effort basis.
+            parse: Callable used to deserialize the JSON response data.
+                Its must accept a (JSON) string as input. Its output will be
+                returned from this method. Defaults to `json.loads`.
+            omit_variables: Variable names ($var) to strip from the query
+                server-side before forwarding to the backend. Use this to
+                drop variables that the deployed server version does not
+                support, leaving the rest of the query intact.
+            omit_fragments: Fragment names to strip (both their definitions
+                and any spreads referring to them).
+            omit_fields: Field names to strip from selection sets. Aliased
+                occurrences are also removed.
+            rename_fields: Field renames applied to selection sets
+                (`{old_name: new_name}`). Aliases are preserved.
 
         Returns:
             The decoded `data` field of the GraphQL response.
@@ -102,14 +154,52 @@ class ServiceApi:
                 non-successful HTTP status codes, and GraphQL `errors`
                 returned by the server.
         """
-        request = ApiRequest(
+        req = ApiRequest(
             graphql_request=GraphQLRequest(
                 query=query,
                 variables_json=json.dumps(variables or {}),
+                omit_variables=omit_variables,
+                omit_fragments=omit_fragments,
+                omit_fields=omit_fields,
+                rename_fields=rename_fields,
             )
         )
-        response = self.send_api_request(request, timeout=timeout)
-        return json.loads(response.graphql_response.data_json)
+        resp = self.send_api_request(
+            req,
+            timeout=self._timeout if timeout is None else timeout,
+        )
+        return parse(resp.graphql_response.data_json)
+
+    def authenticate(
+        self,
+        timeout: float | None = None,
+    ) -> AuthenticateResponse:
+        """Verify credentials with the W&B server and identify their account.
+
+        The credentials come from the settings this object was created with:
+        an API key, or an identity token file when using federated identity.
+        wandb-core authenticates to the W&B backend and asks it who the
+        credentials belong to.
+
+        Args:
+            timeout: Optional timeout in seconds for waiting on wandb-core.
+                On timeout, the request is cancelled on a best-effort basis.
+
+        Returns:
+            Information about the authenticated account (a user or a
+            service account), including the default entity and username.
+
+        Raises:
+            WandbApiFailedError: If the server rejects the credentials or the
+                request fails for any other reason, including timeouts while
+                waiting on wandb-core and transport errors.
+        """
+        req = ApiRequest(authenticate_request=AuthenticateRequest())
+        resp = self.send_api_request(
+            req,
+            timeout=self._timeout if timeout is None else timeout,
+        )
+        return resp.authenticate_response
 
     async def send_api_request_async(
         self,
@@ -121,9 +211,9 @@ class ServiceApi:
             request: The Api request to send.
             timeout: The timeout for the request.
         """
-        conn = self._get_service_connection()
-        request.api_id = self._api_id
-        return await conn.api_request_async(request)
+        session = self._get_api_session()
+        request.api_id = session.api_id
+        return await session.connection.api_request_async(request)
 
     def feature_enabled(
         self,

@@ -678,6 +678,10 @@ class InterfaceBase(abc.ABC):
     def _publish_environment(self, environment: pb.EnvironmentRecord) -> None:
         raise NotImplementedError
 
+    @abc.abstractmethod
+    def deliver_history_step(self) -> MailboxHandle[pb.HistoryStepResponse]:
+        """Get the W&B step number of the next `log()` call."""
+
     def publish_partial_history(
         self,
         run: Run,

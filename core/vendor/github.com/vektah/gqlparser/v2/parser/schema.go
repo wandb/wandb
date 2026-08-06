@@ -329,22 +329,26 @@ func (p *parser) parseUnionTypeDefinition(description descriptionWithComment) *D
 	def.AfterDescriptionComment = comment
 	def.Name = p.parseName()
 	def.Directives = p.parseDirectives(true)
-	def.Types = p.parseUnionMemberTypes()
+	def.Types, def.TypePositions = p.parseUnionMemberTypes()
 	return &def
 }
 
-func (p *parser) parseUnionMemberTypes() []string {
-	var types []string
+// parseUnionMemberTypes parses a union's member type list. It returns the member
+// type names alongside their source positions; the two slices have equal length
+// (one position per name), so callers can report errors at a specific member.
+func (p *parser) parseUnionMemberTypes() (types []string, positions []*Position) {
 	if p.skip(lexer.Equals) {
 		// optional leading pipe
 		p.skip(lexer.Pipe)
 
+		positions = append(positions, p.peekPos())
 		types = append(types, p.parseName())
 		for p.skip(lexer.Pipe) && p.err == nil {
+			positions = append(positions, p.peekPos())
 			types = append(types, p.parseName())
 		}
 	}
-	return types
+	return types, positions
 }
 
 func (p *parser) parseEnumTypeDefinition(description descriptionWithComment) *Definition {
@@ -506,7 +510,7 @@ func (p *parser) parseUnionTypeExtension(comment *CommentGroup) *Definition {
 	def.Kind = Union
 	def.Name = p.parseName()
 	def.Directives = p.parseDirectives(true)
-	def.Types = p.parseUnionMemberTypes()
+	def.Types, def.TypePositions = p.parseUnionMemberTypes()
 
 	if len(def.Directives) == 0 && len(def.Types) == 0 {
 		p.unexpectedError()

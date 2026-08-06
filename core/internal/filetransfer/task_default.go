@@ -24,7 +24,7 @@ type DefaultTask struct {
 	Url string
 
 	// Headers to send on the upload
-	Headers []string
+	Headers http.Header
 
 	// Size is the number of bytes to upload
 	//
@@ -94,10 +94,28 @@ func (t *DefaultDownloadTask) String() string {
 func (t *DefaultDownloadTask) SetError(err error) { t.Err = err }
 
 func (t *DefaultUploadTask) RequiresAzureUpload() bool {
-	for _, header := range t.Headers {
-		if strings.Contains(header, "x-ms-blob-type") {
-			return true
+	return t.Headers.Get("x-ms-blob-type") != ""
+}
+
+// ParseHeaders converts a list of "Key: Value" header strings, as returned by
+// the W&B backend, into an http.Header.
+//
+// It returns the successfully parsed headers along with an error naming any
+// entries that lacked a colon separator and were skipped, so callers can log
+// the anomaly without aborting an otherwise-valid transfer.
+func ParseHeaders(headers []string) (http.Header, error) {
+	parsed := make(http.Header, len(headers))
+	var malformed []string
+	for _, header := range headers {
+		key, value, found := strings.Cut(header, ":")
+		if !found {
+			malformed = append(malformed, header)
+			continue
 		}
+		parsed.Add(key, strings.TrimSpace(value))
 	}
-	return false
+	if len(malformed) > 0 {
+		return parsed, fmt.Errorf("skipped malformed headers: %q", malformed)
+	}
+	return parsed, nil
 }

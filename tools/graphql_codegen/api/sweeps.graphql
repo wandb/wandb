@@ -36,10 +36,10 @@ fragment LegacySweepFragment on Sweep {
 
 # Paginated query for fetching sweeps in a project.
 # Note: totalSweeps is at the project level, not on the connection.
-query GetSweeps($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50) {
+query GetSweeps($project: String!, $entity: String!, $filters: JSONString!, $cursor: String, $perPage: Int = 50) {
   project(name: $project, entityName: $entity) {
     totalSweeps
-    sweeps(after: $cursor, first: $perPage) {
+    sweeps(after: $cursor, first: $perPage, filters: $filters) {
       pageInfo {
         ...PageInfoFragment
       }

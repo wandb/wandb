@@ -9,6 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/NimbleMarkets/ntcharts/v2/picture"
 
 	"github.com/wandb/wandb/core/internal/observability"
 )
@@ -204,12 +205,24 @@ func (w *Workspace) Init() tea.Cmd {
 	if w.heartbeatMgr != nil && w.liveChan != nil {
 		cmds = append(cmds, w.waitForLiveMsg)
 	}
+	cmds = append(cmds, w.mediaPane.Init())
 
 	return tea.Batch(cmds...)
 }
 
+//gocyclo:ignore
 func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
+	if picture.IsPictureMsg(msg) {
+		return w.mediaPane.handlePictureMsg(msg)
+	}
+
 	switch t := msg.(type) {
+	case mediaPanePrepareMsg:
+		if t.pane != w.mediaPane {
+			return nil
+		}
+		return w.mediaPane.handlePrepareMsg()
+
 	case tea.WindowSizeMsg:
 		w.handleWindowResize(t.Width, t.Height)
 
@@ -260,6 +273,14 @@ func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 
 	case HeartbeatMsg:
 		return w.handleHeartbeat()
+
+	case ErrorMsg:
+		// Read errors from per-run commands; the affected run simply stops
+		// streaming, so surface the error in the logs.
+		w.logger.CaptureError(
+			"leet",
+			fmt.Errorf("workspace: run read failed: %v", t.Err),
+		)
 	}
 
 	return nil
@@ -295,6 +316,8 @@ func (w *Workspace) View() tea.View {
 		if layout.mediaHeight > 0 {
 			sections = append(sections,
 				w.mediaPane.View(contentWidth, layout.mediaHeight, runLabel, mediaHint))
+		} else {
+			w.mediaPane.Park()
 		}
 
 		if layout.consoleLogsHeight > 0 {
@@ -327,6 +350,25 @@ func (w *Workspace) View() tea.View {
 			fullView,
 		),
 	)
+}
+
+// Cleanup stops the workspace's heartbeat, file watchers, and open readers.
+//
+// Safe to call multiple times, including after the program has exited
+// (e.g. before a full restart).
+func (w *Workspace) Cleanup() {
+	if w.heartbeatMgr != nil {
+		w.heartbeatMgr.Stop()
+	}
+	for _, run := range w.runsByKey {
+		if run == nil {
+			continue
+		}
+		w.stopWatcher(run)
+		if run.Reader != nil {
+			run.Reader.Close()
+		}
+	}
 }
 
 // IsFiltering reports whether any workspace-level filter UI is active.
@@ -859,6 +901,7 @@ func (w *Workspace) dropRun(runKey string) {
 		delete(w.consoleLogs, runKey)
 		delete(w.systemMetrics, runKey)
 		delete(w.media, runKey)
+		delete(w.mediaPaneStates, runKey)
 	}
 
 	w.syncLiveRunState()

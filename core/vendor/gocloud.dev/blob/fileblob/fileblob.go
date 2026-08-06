@@ -369,6 +369,13 @@ func (b *bucket) ErrorCode(err error) gcerrors.ErrorCode {
 // path returns the full path for a key
 func (b *bucket) path(key string) (string, error) {
 	path := filepath.Join(b.dir, escapeKey(key))
+	// Ensure that the key hasn't escaped the bucket root.
+	if !strings.HasPrefix(
+		filepath.Clean(path)+string(os.PathSeparator),
+		// Note: b.dir is already Cleaned via Abs in the constructor.
+		b.dir+string(os.PathSeparator)) {
+		return "", fmt.Errorf("fileblob: key %q escapes bucket root", key)
+	}
 	if strings.HasSuffix(path, attrsExt) {
 		return "", errAttrsExt
 	}
@@ -419,6 +426,14 @@ func (b *bucket) ListPaged(ctx context.Context, opts *driver.ListOptions) (*driv
 	root := b.dir
 	if i := strings.LastIndex(opts.Prefix, "/"); i > -1 {
 		root = filepath.Join(root, opts.Prefix[:i])
+	}
+
+	// Ensure that the Prefix hasn't escaped the bucket root.
+	if b.dir != string(os.PathSeparator) && !strings.HasPrefix(
+		filepath.Clean(root)+string(os.PathSeparator),
+		// Note: b.dir is already Cleaned via Abs in the constructor.
+		b.dir+string(os.PathSeparator)) {
+		return nil, fmt.Errorf("fileblob: key %q escapes bucket root", opts.Prefix)
 	}
 
 	// Do a full recursive scan of the root directory.
@@ -627,11 +642,13 @@ func (b *bucket) NewRangeReader(ctx context.Context, key string, offset, length 
 			*p = f
 			return true
 		}); err != nil {
+			f.Close()
 			return nil, err
 		}
 	}
 	if offset > 0 {
 		if _, err := f.Seek(offset, io.SeekStart); err != nil {
+			f.Close()
 			return nil, err
 		}
 	}

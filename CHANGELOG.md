@@ -11,6 +11,111 @@ Unreleased changes are in [CHANGELOG.unreleased.md](CHANGELOG.unreleased.md).
 
 <!-- tools/changelog.py: insert here -->
 
+## [0.28.1] - 2026-07-16
+
+### Notable Changes
+
+This version drops support for protobuf v4, and requires protobuf v5 or newer.
+This version drops compatibility with server versions older than 0.70.0.
+
+### Added
+
+- New filters parameter to `Api().project().sweeps()` matching the runs filter format (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/12059)
+- Added `Run.stop()` to the public API (`wandb.Api().run(...).stop()`) to programmatically request that an active run stop gracefully, like the "Stop run" button in the W&B App UI (@dmitryduev in https://github.com/wandb/wandb/pull/12161)
+- Added `wandb.Api().organization()` to fetch an `Organization` by name, or the current default organization for the user (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12196)
+
+### Changed
+
+- Remove temporary Unix socket files and directories on shutdown (@geoffhardy in https://github.com/wandb/wandb/pull/12058)
+- `wandb beta sync` now skips online runs by default like `wandb sync` (@timoffex in https://github.com/wandb/wandb/pull/12087)
+- `wandb sync` now routes to `wandb beta sync` for supported parameter sets (@timoffex in https://github.com/wandb/wandb/pull/12093)
+  - Restore original behavior with `--legacy`
+- Dropped support for protobuf v4 (@jacobromero in https://github.com/wandb/wandb/pull/12115)
+- `wandb.sandbox` now defaults serverless sandboxes to a 12-hour max lifetime (`max_lifetime_seconds=43200`); override per sandbox with `max_lifetime_seconds` or via `SandboxDefaults` (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/12136)
+- `wandb.Api().runs()` now raises a `RunNotFoundError` when unable to load data for a run, such as when a run is deleted prior to fully loading run data (@jacobromero in https://app.graphite.com/github/pr/wandb/wandb/12176)
+- `wandb.save` now has an option `glob=False` that disables glob expansion (`*`, `?`, `[...]`) for file paths; updated docs for improved explanation (@geoffhardy in https://github.com/wandb/wandb/pull/12192)
+
+### Removed
+
+- Removed legacy fallback implementations for downloading artifact files on older EOL W&B Server releases. The following will no longer work on EOL servers: `Artifact.files()` and `Artifact.download()` on any artifact, as well as `Artifact.get_entry()` / `Artifact.get_path()` file downloads on non-reference artifacts. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12109)
+  - To continue using these operations, upgrade your W&B Server to `v0.70.0` or newer.
+- Removed legacy fallback implementations for fetching an artifact by name on older EOL W&B Server releases. The following will no longer work on EOL servers: `wandb.Api().artifact(...)` and other methods that fetch artifact(s) by their path. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12112)
+  - To continue using these operations, upgrade your W&B Server to `v0.70.0` or newer.
+- Removed the `GitPython` dependency. Git metadata is collected by invoking the `git` executable directly; the `GIT_PYTHON_GIT_EXECUTABLE` environment variable is still honored for locating it (@dmitryduev in https://github.com/wandb/wandb/pull/11983)
+
+### Fixed
+
+- Saving a linked registry artifact (for example, when adding an alias) no longer fails when the caller lacks write access to the source project (@ibindlish in https://github.com/wandb/wandb/pull/12075)
+- `np.float16`/`np.float32` NaN values logged with `Run.log()` are now recorded as `NaN` instead of being silently dropped, matching `np.float64` and native `float` (@dmitryduev in https://github.com/wandb/wandb/pull/12116)
+- `Run.upload_file()` (via `wandb.Api().run(...)`) now registers the uploaded file with the run on self-hosted servers. Previously the file's bytes were uploaded but never committed, so the file did not appear on the run on deployments without object-store notifications (@dmitryduev in https://github.com/wandb/wandb/pull/12121)
+- Sweep agents will now allow the in-progress run to complete before exiting when the sweep is deleted or Api() returns 404 (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/11880)
+- Fixed some deadlocks introduced in 0.25.1 (@timoffex in https://github.com/wandb/wandb/pull/12114 and https://github.com/wandb/wandb/pull/12159)
+  - Reported when using PyTorch with Python < 3.14 (which uses the "fork" `multiprocessing` start method by default)
+  - May have also happened during GC when using some `wandb.Api` functionality
+
+## [0.28.0] - 2026-06-22
+
+### Notable Changes
+
+This version drops compatibility with server versions older than 0.65.0.
+
+### Added
+
+- High-resolution image rendering in terminals supporting the Kitty protocol with ANSI fallback in the W&B LEET TUI media pane (`wandb leet` command) (@dmitryduev in https://github.com/wandb/wandb/pull/11806)
+- Synced scrubbing in the W&B LEET media pane: press `l` to link scrubbing, then the scrub keys (`←/→/↑/↓/home/end`) move a shared cursor over the union step timeline and every image tile follows it (@dmitryduev in https://github.com/wandb/wandb/pull/12033)
+- Basic remote-run support in W&B LEET TUI (`wandb leet <run-url>` command) (@jacobromero in https://github.com/wandb/wandb/pull/11261)
+- The following paginated artifacts and registry API methods now accept an optional `order` string as a keyword argument: `Api.artifacts()`, `Api.artifact_collections()`, `Api.registries()`, `Api.registries().collections()`, `Registry.collections()` (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11990)
+
+### Changed
+
+- W&B LEET, the terminal UI for viewing W&B runs, is now generally available as `wandb leet`; `wandb beta leet` is kept as an alias (@dmitryduev in https://github.com/wandb/wandb/pull/12028)
+- `wandb.Api().runs()` no longer loads Sweeps for each run by default to improve query performance. Sweep data is loaded on first access of the `sweep` property (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/12019)
+- Lists of images logged under a single key are now displayed in the W&B LEET media pane, one tile per image (@dmitryduev in https://github.com/wandb/wandb/pull/12033)
+
+### Fixed
+
+- `File.download()` no longer fails after a hardcoded 5-second timeout; downloads go through wandb-core and respect the file transfer settings (@dmitryduev in https://github.com/wandb/wandb/pull/12039)
+- `wandb.Api().viewer` (and `Api().user()` / `Api().users()`) no longer fail with `WandbApiFailedError: relogin required` for some API keys, a regression in `0.27.1` (@dmitryduev in https://github.com/wandb/wandb/pull/12009)
+- When a `wandb.Image` carrying multiple `box` or `mask` layers with distinct `class_labels` is logged inside a `wandb.Table`, each layer's labels are now preserved in new `box_class_maps` / `mask_class_maps` fields in the `table.json`. Previously, there was only as single `class_map` that got incorrectly clobbered by each set of class labels. The next server release will contain a corresponding frontend fix that reads these per-layer fields. Legacy servers will retain the current behavior. (@kelu-wandb in https://github.com/wandb/wandb/pull/11901)
+- Artifact file operations now consistently require normalized relative paths (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11735)
+- Logging an artifact (whether via `WandbLogger` or `run.log_artifact`) now writes the manifest file to the artifact's staging directory instead of the OS temp dir (`$TMPDIR`), avoiding silent failures when `$TMPDIR` is missing or unwritable (@ibindlish in https://github.com/wandb/wandb/pull/11958)
+- Logging artifacts in shared mode works again, and in particular, `wandb.init(mode="shared")` with code-saving enabled no longer raises an error (@timoffex in https://github.com/wandb/wandb/pull/12017)
+- `git_root` setting is now preferred for creating the `diff.patch` file, the `root_dir` setting is now used as a fallback (@TomSiegl in https://github.com/wandb/wandb/pull/11967)
+- Apple system metrics (GPU, CPU, power, and temperature) are now collected on Apple M5 Macs (@dmitryduev in https://github.com/wandb/wandb/pull/12061)
+- file download progress is now shown when using `wandb.Api().run(...).download_history_exports` (@jacobromero in https://github.com/wandb/wandb/pull/12063)
+- `Run.scan_history()` no longer returns no rows for a run whose history exists but has not been exported to parquet (e.g. an active run; a regression in `0.27.1`) (@dmitryduev in https://github.com/wandb/wandb/issues/12073)
+
+## [0.27.2] - 2026-06-06
+
+### Fixed
+
+- `Run.scan_history()` no longer returns duplicate or missing steps when getting run history (@jacobromero in https://github.com/wandb/wandb/pull/12010)
+
+## [0.27.1] - 2026-06-04
+
+### Added
+
+- The automations API now supports artifact tag, collection tag, and artifact unlinking events (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11922)
+
+### Changed
+
+- `wandb.Api` GraphQL operations are routed through the wandb-core service instead of the legacy Python GraphQL client. Failures from these operations now raise `WandbApiFailedError` instead of `requests` HTTP exceptions, and customizations made by patching `requests` no longer affect these GraphQL calls (@dmitryduev in https://github.com/wandb/wandb/pull/11818)
+
+### Removed
+
+- Removed the unsupported `wandb.apis.importers` API (@dmitryduev in https://github.com/wandb/wandb/pull/11923)
+- Removed stale OpenAI, Cohere, and LangChain LLM integrations, including legacy autologging and tracing APIs (@dmitryduev in https://github.com/wandb/wandb/pull/11925)
+- Removed the deprecated Keras `WandbCallback` and the legacy `wandb.integration.yolov8` callback package (@dmitryduev in https://github.com/wandb/wandb/pull/11926)
+
+### Changed
+
+- `Run.scan_history()` now reads from exported parquet history when available, which can significantly improve throughput for runs with large history (@jacobromero in https://github.com/wandb/wandb/pull/11797)
+    - This was introduced under `beta_scan_history` in `v0.23.1`
+
+### Fixed
+
+- `wandb.sandbox` now rejects invalid argument values for placement, gpu, and egress
+
 ## [0.27.0] - 2026-05-14
 
 ### Notable Changes

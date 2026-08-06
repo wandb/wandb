@@ -8,7 +8,7 @@ import math
 import numbers
 import time
 from collections import defaultdict
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Sequence
 from queue import Queue
 from threading import Event
 from typing import TYPE_CHECKING, Any, cast
@@ -21,7 +21,6 @@ from wandb.proto.wandb_internal_pb2 import (
     Record,
     Result,
     RunRecord,
-    SampledHistoryItem,
     SummaryItem,
     SummaryRecord,
     SummaryRecordRequest,
@@ -29,7 +28,7 @@ from wandb.proto.wandb_internal_pb2 import (
 
 from ..interface.interface_queue import InterfaceQueue
 from ..lib import handler_util, proto_util
-from . import context, sample, tb_watcher
+from . import tb_watcher
 from .settings_static import SettingsStatic
 
 if TYPE_CHECKING:
@@ -68,7 +67,6 @@ def _dict_nested_set(target: dict[str, Any], key_list: Sequence[str], v: Any) ->
 
 class HandleManager:
     _consolidated_summary: SummaryDict
-    _sampled_history: dict[str, sample.UniformSampleAccumulator]
     _partial_history: dict[str, Any]
     _run_proto: RunRecord | None
     _settings: SettingsStatic
@@ -85,7 +83,6 @@ class HandleManager:
     _track_time: float | None
     _accumulate_time: float
     _run_start_time: float | None
-    _context_keeper: context.ContextKeeper
 
     def __init__(
         self,
@@ -95,7 +92,6 @@ class HandleManager:
         stopped: Event,
         writer_q: Queue[Record],
         interface: InterfaceQueue,
-        context_keeper: context.ContextKeeper,
     ) -> None:
         self._settings = settings
         self._record_q = record_q
@@ -103,7 +99,6 @@ class HandleManager:
         self._stopped = stopped
         self._writer_q = writer_q
         self._interface = interface
-        self._context_keeper = context_keeper
 
         self._tb_watcher = None
         self._step = 0
@@ -114,7 +109,6 @@ class HandleManager:
 
         # keep track of summary from key/val updates
         self._consolidated_summary = dict()
-        self._sampled_history = defaultdict(sample.UniformSampleAccumulator)
         self._run_proto = None
         self._partial_history = dict()
         self._metric_defines = defaultdict(MetricRecord)
@@ -129,7 +123,6 @@ class HandleManager:
         return self._record_q.qsize()
 
     def handle(self, record: Record) -> None:
-        self._context_keeper.add_from_record(record)
         record_type = record.WhichOneof("record_type")
         assert record_type
         handler_str = "handle_" + record_type
@@ -153,8 +146,6 @@ class HandleManager:
         self._writer_q.put(record)
 
     def _respond_result(self, result: Result) -> None:
-        context_id = context.context_id_from_result(result)
-        self._context_keeper.release(context_id)
         self._result_q.put(result)
 
     def debounce(self) -> None:
@@ -235,17 +226,6 @@ class HandleManager:
                 summary_record=summary_record
             )
             self._dispatch_record(request_record)
-
-    def _save_history(
-        self,
-        history: HistoryRecord,
-    ) -> None:
-        for item in history.item:
-            # TODO(jhr) save nested keys?
-            k = item.key
-            v = json.loads(item.value_json)
-            if isinstance(v, numbers.Real):
-                self._sampled_history[k].add(v)
 
     def _update_summary_metrics(
         self,
@@ -504,7 +484,6 @@ class HandleManager:
 
         self._history_update(record.history, history_dict)
         self._dispatch_record(record)
-        self._save_history(record.history)
         # update summary from history
         updated_keys = self._update_summary(history_dict)
         if updated_keys:
@@ -779,19 +758,6 @@ class HandleManager:
 
     def handle_request_sampled_history(self, record: Record) -> None:
         result = proto_util._result_from_record(record)
-        for key, sampled in self._sampled_history.items():
-            item = SampledHistoryItem()
-            item.key = key
-            values: Iterable[Any] = sampled.get()
-            if all(isinstance(i, numbers.Integral) for i in values):
-                try:
-                    item.values_int.extend(values)
-                except ValueError:
-                    # it is safe to ignore these as this is for display information
-                    pass
-            elif all(isinstance(i, numbers.Real) for i in values):
-                item.values_float.extend(values)
-            result.response.sampled_history_response.item.append(item)
         self._respond_result(result)
 
     def handle_request_keepalive(self, record: Record) -> None:
@@ -817,7 +783,6 @@ class HandleManager:
         logger.info("shutting down handler")
         if self._tb_watcher:
             self._tb_watcher.finish()
-        # self._context_keeper._debug_print_orphans()
 
     def __next__(self) -> Record:
         return self._record_q.get(block=True)

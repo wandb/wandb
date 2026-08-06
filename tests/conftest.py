@@ -4,6 +4,7 @@ import logging
 import os
 import pathlib
 import shutil
+import subprocess
 import sys
 import time
 import unittest.mock
@@ -17,7 +18,12 @@ from wandb.sdk import wandb_setup
 # Don't write to Sentry in wandb.
 os.environ["WANDB_ERROR_REPORTING"] = "false"
 
-import git
+# Hide the developer's global and system git config from tests that run git,
+# so their hooks (core.hooksPath, init.templateDir) and signing settings
+# (commit.gpgsign, tag.gpgSign) can't break or hang test repos.
+os.environ["GIT_CONFIG_GLOBAL"] = os.devnull
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
+
 import pytest
 import wandb
 import wandb.util
@@ -213,14 +219,22 @@ def runner(monkeypatch: pytest.MonkeyPatch):
 
 @pytest.fixture
 def git_repo(runner):
-    with runner.isolated_filesystem(), git.Repo.init(".") as repo:
+    with runner.isolated_filesystem():
+        subprocess.run(["git", "init", "."], check=True, stdout=subprocess.DEVNULL)
+        subprocess.run(["git", "config", "user.name", "test"], check=True)
+        subprocess.run(["git", "config", "user.email", "test@test.com"], check=True)
         filesystem.mkdir_exists_ok("wandb")
         # Because the forked process doesn't use my monkey patch above
         with open(os.path.join("wandb", "settings"), "w") as f:
             f.write("[default]\nproject: test")
         open("README", "wb").close()
-        repo.index.add(["README"])
-        repo.index.commit("Initial commit")
+        subprocess.run(["git", "add", "README"], check=True)
+        subprocess.run(
+            # Skip hooks and signing so the user's git config can't break tests.
+            ["git", "commit", "--no-verify", "--no-gpg-sign", "-m", "Initial commit"],
+            check=True,
+            stdout=subprocess.DEVNULL,
+        )
         yield GitRepo(lazy=False)
 
 

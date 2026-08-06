@@ -33,6 +33,7 @@ __all__ = (
     "Video",
     "Audio",
     "Table",
+    "EvalTable",  # doc:exclude
     "Html",
     "box3d",
     "Object3D",
@@ -70,6 +71,7 @@ from wandb.apis import InternalApi
 from wandb.apis import PublicApi as Api
 from wandb.data_types import (
     Audio,
+    EvalTable,
     Graph,
     Histogram,
     Html,
@@ -97,7 +99,7 @@ if TYPE_CHECKING:
     import wandb
     from wandb.plot import CustomChart
 
-__version__: str = "0.27.1.dev1"
+__version__: str = "0.28.2.dev1"
 
 run: Run | None
 config: wandb_config.Config
@@ -333,6 +335,16 @@ def init(
             switching to offline mode if the user is not logged in.
         reinit: Shorthand for the "reinit" setting. Determines the behavior of
             `wandb.init()` when a run is active.
+        - `"default"`: Use "finish_previous" in notebooks and "return_previous"
+            otherwise.
+        - `"return_previous"`: Return the most recently created run
+            that is not yet finished. This does not update `wandb.run`; see
+            the "create_new" option.
+        - `"finish_previous"`: Finish all active runs, then return a new run.
+        - `"create_new"`: Create a new run without modifying other active runs.
+            Does not update `wandb.run` and top-level functions like `wandb.log`.
+            Because of this, some older integrations that rely on the global run
+            will not work.
         resume: Controls the behavior when resuming a run with the specified `id`.
             Available options are:
         - `"allow"`: If a run with the specified `id` exists, it will resume
@@ -448,8 +460,9 @@ def login(
     This updates global credentials for the session (affecting all wandb usage
     in the current Python process after this call) and possibly the .netrc file.
 
-    If the identity_token_file setting is set, like through the
-    WANDB_IDENTITY_TOKEN_FILE environment variable, then this is a no-op.
+    If an identity token file is configured, like through the
+    WANDB_IDENTITY_TOKEN_FILE environment variable, then it is used for the
+    session (federated identity) and no API key is read or saved.
 
     Otherwise, if an explicit API key is provided, it is used and written to
     the system .netrc file. If no key is provided, but the session is already
@@ -475,14 +488,16 @@ def login(
             prompt. This can be used as a failsafe if an interactive prompt
             is incorrectly shown in a non-interactive environment.
         verify: Verify the credentials with the W&B server and raise an
-            AuthenticationError on failure.
+            AuthenticationError on failure. This works for API keys as well
+            as identity tokens.
         referrer: The referrer to use in the URL login request for analytics.
 
     Returns:
         bool: If `key` is configured.
 
     Raises:
-        AuthenticationError: If `api_key` fails verification with the server.
+        AuthenticationError: If the credentials fail verification with
+            the server.
         UsageError: If `api_key` cannot be configured and no tty.
     """
     ...
@@ -740,6 +755,7 @@ def save(
     glob_str: str | os.PathLike,
     base_path: str | os.PathLike | None = None,
     policy: PolicyName = "live",
+    glob: bool = True,
 ) -> bool | list[str]:
     """Sync one or more files to W&B.
 
@@ -748,6 +764,16 @@ def save(
     A Unix glob, such as "myfiles/*", is expanded at the time `save` is
     called regardless of the `policy`. In particular, new files are not
     picked up automatically.
+
+    `glob_str` is expanded using Python's `glob` module: see
+    https://docs.python.org/3/library/glob.html for the exact syntax and
+    behavior. Notably, the characters `*`, `?`, and `[]` are treated as
+    glob metacharacters, not literal characters, even if they appear in a
+    real filename (e.g. "myfile[1].txt"). If your file's name contains
+    any of these characters and you want to match it literally rather
+    than as a pattern, either escape it yourself with `glob.escape()`
+    before calling `save`, or pass `glob=False` to disable pattern
+    expansion entirely and treat `glob_str` as a literal path.
 
     A `base_path` may be provided to control the directory structure of
     uploaded files. It should be a prefix of `glob_str`, and the directory
@@ -766,6 +792,11 @@ def save(
         - live: upload the file as it changes, overwriting the previous version
         - now: upload the file once now
         - end: upload file when the run ends
+        glob: Whether to treat `glob_str` as a glob pattern. Defaults to
+            `True` for backward compatibility. Set to `False` to treat
+            `glob_str` as a literal path, e.g. when its name contains
+            glob metacharacters like `[`, `]`, `*`, or `?` that you don't
+            want interpreted as a pattern.
 
     Returns:
         Paths to the symlinks created for the matched files.
@@ -792,6 +823,10 @@ def save(
     run.save("files/*/saveme.txt")
     # => Saves each "saveme.txt" file in an appropriate subdirectory
     #    of "files/".
+
+    run.save("files/myfile[1].txt", glob=False)
+    # => Saves the literal file "files/myfile[1].txt" without
+    #    interpreting "[1]" as a glob character class.
 
     # Explicitly finish the run since a context manager is not used.
     run.finish()
@@ -864,6 +899,7 @@ def agent(
     project: str | None = None,
     count: int | None = None,
     forward_signals: bool = False,
+    term_timeout: int | None = None,
 ) -> None:
     """Start one or more sweep agents.
 

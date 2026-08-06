@@ -34,7 +34,7 @@ type ConfigEditorParams struct {
 // ConfigEditor is a standalone Bubble Tea model for interactively editing
 // LEET's persisted configuration.
 //
-// Launch it with `wandb beta leet config`. It reads the current config from
+// Launch it with `wandb leet config`. It reads the current config from
 // disk, presents every editable field in a navigable table, and writes changes
 // back atomically on save.
 //

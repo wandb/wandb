@@ -17,7 +17,7 @@ type Envelope struct {
 // EnvelopeHeader represents the header of a Sentry envelope.
 type EnvelopeHeader struct {
 	// EventID is the unique identifier for this event
-	EventID string `json:"event_id"`
+	EventID string `json:"event_id,omitempty"`
 
 	// SentAt is the timestamp when the event was sent from the SDK as string in RFC 3339 format.
 	// Used for clock drift correction of the event timestamp. The time zone must be UTC.
@@ -80,12 +80,16 @@ type EnvelopeItem struct {
 	Payload []byte              `json:"-"`
 }
 
-// NewEnvelope creates a new envelope with the given header.
-func NewEnvelope(header *EnvelopeHeader) *Envelope {
-	return &Envelope{
+// NewEnvelope creates a new envelope with the given header and items.
+func NewEnvelope(header *EnvelopeHeader, items ...*EnvelopeItem) *Envelope {
+	envelope := &Envelope{
 		Header: header,
-		Items:  make([]*EnvelopeItem, 0),
+		Items:  make([]*EnvelopeItem, 0, len(items)),
 	}
+	for _, item := range items {
+		envelope.AddItem(item)
+	}
+	return envelope
 }
 
 // AddItem adds an item to the envelope.

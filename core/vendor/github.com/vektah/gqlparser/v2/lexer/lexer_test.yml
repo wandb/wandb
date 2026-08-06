@@ -231,6 +231,12 @@ lex reports useful string errors:
       message: 'Invalid character within String: "\u0000".'
       locations: [{ line: 1, column: 19 }]
 
+  - name: control character codepoint reported in hex
+    input: "\"contains \u000e sub char\""
+    error:
+      message: 'Invalid character within String: "\u000e".'
+      locations: [{ line: 1, column: 11 }]
+
   - name: unterminated newline
     input: "\"multi\nline\""
     error:

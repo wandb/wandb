@@ -19,6 +19,7 @@ SYMBOLS_ROOT_DATATYPES = {
     "Video",
     "Audio",
     "Table",
+    "EvalTable",
     "Html",
     "box3d",
     "Object3D",
@@ -66,7 +67,6 @@ SYMBOLS_ROOT_OTHER = {
     "Error",
     "InternalApi",
     "PublicApi",
-    "START_TIME",
     "Settings",
     "UsageError",
     "absolute_import",
@@ -90,7 +90,6 @@ SYMBOLS_ROOT_OTHER = {
     "jupyter",
     "keras",
     "lightgbm",
-    "old",
     "patched",
     "plot",
     "plot_table",
@@ -230,6 +229,7 @@ SYMBOLS_RUN_OTHER = {
     "start_time",
     "path",
     "dir",
+    "sync_dir",
 }
 
 

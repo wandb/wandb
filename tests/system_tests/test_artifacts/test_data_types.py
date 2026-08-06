@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from collections.abc import Callable
 from typing import TYPE_CHECKING, TypeAlias
 
@@ -36,6 +37,27 @@ def filter_artifacts_by_type(run, *artifact_types):
         List of artifacts matching the specified type(s).
     """
     return [art for art in run.logged_artifacts() if art.type in artifact_types]
+
+
+def wait_for_artifacts_by_type(
+    api: Api,
+    run_path: str,
+    *artifact_types: str,
+    expected_count: int,
+    timeout_seconds: float = 10,
+):
+    deadline = time.monotonic() + timeout_seconds
+    artifacts = []
+
+    while time.monotonic() < deadline:
+        api.flush()
+        api_run = api.run(run_path)
+        artifacts = filter_artifacts_by_type(api_run, *artifact_types)
+        if len(artifacts) == expected_count:
+            break
+        time.sleep(0.5)
+
+    return artifacts
 
 
 @fixture
@@ -88,8 +110,12 @@ def test_log_dataframe(user: str, api: Api, test_settings: SettingsFactory):
         cv_results = pd.DataFrame(data={"test_col": [1, 2, 3], "test_col2": [4, 5, 6]})
         run.log({"results_df": cv_results})
 
-    api_run = api.run(f"uncategorized/{run.id}")
-    table_artifacts = filter_artifacts_by_type(api_run, "run_table")
+    table_artifacts = wait_for_artifacts_by_type(
+        api,
+        f"uncategorized/{run.id}",
+        "run_table",
+        expected_count=1,
+    )
     assert len(table_artifacts) == 1
 
 

@@ -138,7 +138,6 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger("wandb")
-EXIT_TIMEOUT = 60
 RE_LABEL = re.compile(r"[a-zA-Z0-9_-]+$")
 
 
@@ -542,7 +541,14 @@ class Run:
         )
         self.summary._set_update_callback(self._summary_update_callback)
 
-        self._step = 0
+        # A step-like value derived from counting `log()` calls that is used for
+        # namespacing filenames when logging media (for example, an image logged
+        # at step 5 will include "5" in its filename).
+        #
+        # It is incorrect in shared mode or for "attached" runs (run objects
+        # shared through multiprocessing).
+        self._local_step = 0
+
         self._starting_step = 0
         self._start_runtime = 0
         # TODO: eventually would be nice to make this configurable using self._settings._start_time
@@ -752,8 +758,23 @@ class Run:
     @_log_to_run
     @_attach
     def dir(self) -> str:
-        """The directory where files associated with the run are saved."""
+        """The directory where a run's files are saved.
+
+        This refers to files saved with `run.save()`, including automatically
+        created files for certain data types passed to `run.log()`. For the
+        directory containing all of a run's data, see `run.sync_dir`.
+        """
         return self._settings.files_dir
+
+    @property
+    @_log_to_run
+    @_attach
+    def sync_dir(self) -> str:
+        """The directory containing all of a run's data.
+
+        This can be passed to `wandb sync` to upload or re-upload the run.
+        """
+        return self._settings.sync_dir
 
     @property
     @_log_to_run
@@ -888,7 +909,7 @@ class Run:
     def starting_step(self) -> int:
         """The first step of the run.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         return self._starting_step
 
@@ -903,13 +924,20 @@ class Run:
     @_log_to_run
     @_attach
     def step(self) -> int:
-        """Current value of the step.
+        """The W&B step of the next `log()` call.
 
-        This counter is incremented by `wandb.Run.log()`.
-
-        <!-- lazydoc-ignore: internal -->
+        Raises an error in mode="shared" runs.
         """
-        return self._step
+        assert self._interface
+        handle = self._interface.deliver_history_step()
+
+        # The timeout can only happen under heavy load (or a bug), and generally
+        # this operation is expected to be very fast.
+        #
+        # Since step is a property, we can't accept a customizable timeout.
+        response = handle.wait_or(timeout=30)
+
+        return response.step
 
     @property
     @_log_to_run
@@ -963,7 +991,7 @@ class Run:
 
         Name of the W&B project associated with the run.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         deprecation.warn_and_record_deprecation(
             feature=Deprecated(run__project_name=True),
@@ -989,7 +1017,7 @@ class Run:
         URL of the W&B project associated with the run, if there is one.
         Offline runs do not have a project URL.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         deprecation.warn_and_record_deprecation(
             feature=Deprecated(run__get_project_url=True),
@@ -1125,7 +1153,7 @@ class Run:
         The URL of the sweep associated with the run, if there is one.
         Offline runs do not have a sweep URL.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         deprecation.warn_and_record_deprecation(
             feature=Deprecated(run__get_sweep_url=True),
@@ -1154,7 +1182,7 @@ class Run:
 
         URL of the W&B run, if there is one. Offline runs do not have a URL.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         deprecation.warn_and_record_deprecation(
             feature=Deprecated(run__get_url=True),
@@ -1301,7 +1329,7 @@ class Run:
         If the run is being displayed in a VSCode notebook,
         the string representation of the run is returned instead.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if ipython.in_vscode_notebook():
             import html
@@ -1526,7 +1554,7 @@ class Run:
         self._interface.publish_partial_history(
             self,
             data,
-            user_step=self._step,
+            user_step=self._local_step,
             step=step,
             flush=commit,
             publish_step=not_using_tensorboard,
@@ -1576,7 +1604,7 @@ class Run:
     def _set_run_obj(self, run_obj: RunRecord) -> None:  # noqa: C901
         if run_obj.starting_step:
             self._starting_step = run_obj.starting_step
-            self._step = run_obj.starting_step
+            self._local_step = run_obj.starting_step
 
         if run_obj.start_time:
             self._start_time = run_obj.start_time.ToMicroseconds() / 1e6
@@ -1712,11 +1740,11 @@ class Run:
                     "to log your step values.",
                     repeat=False,
                 )
-            if step > self._step:
-                self._step = step
+            if step > self._local_step:
+                self._local_step = step
 
         if (step is None and commit is None) or commit:
-            self._step += 1
+            self._local_step += 1
 
     @_log_to_run
     @_raise_if_finished
@@ -2018,6 +2046,7 @@ class Run:
         glob_str: str | os.PathLike,
         base_path: str | os.PathLike | None = None,
         policy: PolicyName = "live",
+        glob: bool = True,
     ) -> bool | list[str]:
         """Sync one or more files to W&B.
 
@@ -2026,6 +2055,16 @@ class Run:
         A Unix glob, such as "myfiles/*", is expanded at the time `save` is
         called regardless of the `policy`. In particular, new files are not
         picked up automatically.
+
+        `glob_str` is expanded using Python's `glob` module: see
+        https://docs.python.org/3/library/glob.html for the exact syntax and
+        behavior. Notably, the characters `*`, `?`, and `[]` are treated as
+        glob metacharacters, not literal characters, even if they appear in a
+        real filename (e.g. "myfile[1].txt"). If your file's name contains
+        any of these characters and you want to match it literally rather
+        than as a pattern, either escape it yourself with `glob.escape()`
+        before calling `save`, or pass `glob=False` to disable pattern
+        expansion entirely and treat `glob_str` as a literal path.
 
         A `base_path` may be provided to control the directory structure of
         uploaded files. It should be a prefix of `glob_str`, and the directory
@@ -2044,6 +2083,11 @@ class Run:
             - live: upload the file as it changes, overwriting the previous version
             - now: upload the file once now
             - end: upload file when the run ends
+            glob: Whether to treat `glob_str` as a glob pattern. Defaults to
+                `True` for backward compatibility. Set to `False` to treat
+                `glob_str` as a literal path, e.g. when its name contains
+                glob metacharacters like `[`, `]`, `*`, or `?` that you don't
+                want interpreted as a pattern.
 
         Returns:
             Paths to the symlinks created for the matched files.
@@ -2070,6 +2114,10 @@ class Run:
         run.save("files/*/saveme.txt")
         # => Saves each "saveme.txt" file in an appropriate subdirectory
         #    of "files/".
+
+        run.save("files/myfile[1].txt", glob=False)
+        # => Saves the literal file "files/myfile[1].txt" without
+        #    interpreting "[1]" as a glob character class.
 
         # Explicitly finish the run since a context manager is not used.
         run.finish()
@@ -2113,6 +2161,7 @@ class Run:
             resolved_glob_path,
             resolved_base_path,
             policy,
+            glob,
         )
 
     def _save(
@@ -2120,6 +2169,7 @@ class Run:
         glob_path: pathlib.PurePath,
         base_path: pathlib.PurePath,
         policy: PolicyName,
+        expand_glob: bool = True,
     ) -> list[str]:
         """Materialize matched files into the run's files/ dir for syncing.
 
@@ -2129,9 +2179,12 @@ class Run:
         3) Else copy and, if requested policy == "live", downgrade those files to "now".
 
         Args:
-            glob_path: Absolute path glob pattern for files to save.
+            glob_path: Absolute path, or glob pattern if `expand_glob`, for
+                files to save.
             base_path: Base path to determine relative directory structure.
             policy: Upload policy - "live", "now", or "end".
+            expand_glob: Whether to treat `glob_path` as a glob pattern
+                (using Python's `glob` module) or as a literal path.
 
         Returns:
             List of absolute paths to files in the wandb run directory.
@@ -2142,23 +2195,103 @@ class Run:
         validate_glob_path(glob_path, base_path)
 
         relative_glob = glob_path.relative_to(base_path)
-        relative_glob_str = GlobStr(str(relative_glob))
 
         with telemetry.context(run=self) as tel:
             tel.feature.save = True
 
         files_root = pathlib.Path(self._settings.files_dir)
-        preexisting = set(files_root.glob(relative_glob_str))
 
-        # Expand sources deterministically.
+        if expand_glob:
+            src_paths, preexisting = self._expand_glob(
+                base_path, relative_glob, files_root
+            )
+        else:
+            src_paths, preexisting = self._find_literal(
+                base_path, relative_glob, files_root
+            )
+
+        publish_entries, stats = self._materialize_saved_files(
+            src_paths, preexisting, base_path, files_root, policy
+        )
+
+        stats.emit_warnings()
+
+        files_dict: FilesDict = {"files": publish_entries}
+        if self._interface:
+            self._interface.publish_files(files_dict)
+
+        abs_targets = {files_root / pathlib.Path(g) for (g, _pol) in publish_entries}
+        return [str(p) for p in sorted(abs_targets)]
+
+    @staticmethod
+    def _expand_glob(
+        base_path: pathlib.PurePath,
+        relative_glob: pathlib.PurePath,
+        files_root: pathlib.Path,
+    ) -> tuple[list[pathlib.Path], set[pathlib.Path]]:
+        """Resolves glob-matched source paths.
+
+        Returns the matching source paths and pre-existing matches in files_root.
+        """
+        relative_glob_str = str(relative_glob)
+        preexisting = set(files_root.glob(relative_glob_str))
         src_paths = [
             pathlib.Path(p).absolute()
-            for p in sorted(glob.glob(GlobStr(str(base_path / relative_glob_str))))
+            for p in sorted(glob.glob(str(base_path / relative_glob)))
         ]
+        if not src_paths and os.path.lexists(base_path / relative_glob):
+            wandb.termwarn(
+                f"No files found at glob pattern {str(relative_glob)!r}, "
+                "but a file exists at that literal path. If you meant to "
+                "match it literally rather than as a glob pattern, call "
+                "save() with glob=False.",
+                repeat=False,
+            )
+        return src_paths, preexisting
 
+    @staticmethod
+    def _find_literal(
+        base_path: pathlib.PurePath,
+        relative_path: pathlib.PurePath,
+        files_root: pathlib.Path,
+    ) -> tuple[list[pathlib.Path], set[pathlib.Path]]:
+        """Resolves literal source paths matching relative_path.
+
+        Returns the matching source paths and pre-existing matches in files_root.
+        """
+        literal_dst = files_root / relative_path
+        preexisting = {literal_dst} if os.path.lexists(literal_dst) else set()
+
+        literal_src = base_path / relative_path
+        if os.path.lexists(literal_src):
+            src_paths = [pathlib.Path(literal_src).absolute()]
+        else:
+            src_paths = []
+            if glob.escape(str(relative_path)) != str(relative_path):
+                wandb.termwarn(
+                    f"No file found at literal path {str(literal_src)!r}, "
+                    "and it looks like it contains glob metacharacters "
+                    "('*', '?', or '[]'). If you meant to use a glob "
+                    "pattern, call save() with glob=True (the default).",
+                    repeat=False,
+                )
+        return src_paths, preexisting
+
+    def _materialize_saved_files(
+        self,
+        src_paths: list[pathlib.Path],
+        preexisting: set[pathlib.Path],
+        base_path: pathlib.PurePath,
+        files_root: pathlib.Path,
+        policy: PolicyName,
+    ) -> tuple[list[tuple[GlobStr, PolicyName]], LinkStats]:
+        """Link or copy each source into files_root.
+
+        Returns entries to publish and link statistics.
+        """
         stats = LinkStats()
-        publish_entries = []
-        created_targets = set()
+        publish_entries: list[tuple[GlobStr, PolicyName]] = []
+        created_targets: set[pathlib.Path] = set()
 
         for src in src_paths:
             # Preserve directory structure under base_path.
@@ -2191,14 +2324,7 @@ class Run:
                     (GlobStr(str(p.relative_to(files_root))), policy)
                 )
 
-        stats.emit_warnings()
-
-        files_dict: FilesDict = {"files": publish_entries}
-        if self._interface:
-            self._interface.publish_files(files_dict)
-
-        abs_targets = {files_root / pathlib.Path(g) for (g, _pol) in publish_entries}
-        return [str(p) for p in sorted(abs_targets)]
+        return publish_entries, stats
 
     @_log_to_run
     @_attach
@@ -2335,15 +2461,6 @@ class Run:
             sync_items_pending=sync_data.sync_items_pending,
             sync_time=sync_time,
         )
-
-    def _add_panel(
-        self, visualize_key: str, panel_type: str, panel_config: dict
-    ) -> None:
-        config = {
-            "panel_type": panel_type,
-            "panel_config": panel_config,
-        }
-        self._config_callback(val=config, key=("_wandb", "visualize", visualize_key))
 
     def _redirect(
         self,
@@ -3336,12 +3453,12 @@ class Run:
                     artifact,
                     aliases,
                     tags,
-                    self.step,
+                    self.step if not self._settings._shared else 0,
                     finalize=finalize,
                     is_user_created=is_user_created,
                     use_after_commit=use_after_commit,
                 )
-                artifact._set_save_handle(handle, self._public_api().client)
+                self._public_api()._set_artifact_save_handle(artifact, handle)
             else:
                 self._interface.publish_artifact(
                     self,
@@ -3382,9 +3499,7 @@ class Run:
 
     # TODO(jhr): annotate this
     def _assert_can_log_artifact(self, artifact) -> None:  # type: ignore
-        import requests
-
-        from wandb.sdk.artifacts.artifact import Artifact
+        from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
         if self._settings._offline:
             return
@@ -3392,11 +3507,13 @@ class Run:
             public_api = self._public_api()
             entity = public_api.settings["entity"]
             project = public_api.settings["project"]
-            expected_type = Artifact._expected_type(
-                entity, project, artifact.name, public_api.client
+            expected_type = public_api._expected_artifact_type(
+                entity=entity,
+                project=project,
+                name=artifact.name,
             )
-        except requests.exceptions.RequestException:
-            # Just return early if there is a network error. This is
+        except WandbApiFailedError:
+            # Just return early if the API request fails. This is
             # ok, as this function is intended to help catch an invalid
             # type early, but not a hard requirement for valid operation.
             return
@@ -3739,7 +3856,9 @@ class Run:
         self._printer.display(f"Tracking run with wandb version {wandb.__version__}")
 
     def _header_sync_info(self) -> None:
-        sync_location_msg = f"Run data is saved locally in {self._printer.files(self._settings.sync_dir)}"
+        sync_location_msg = (
+            f"Run data is saved locally in {self._printer.files(self.sync_dir)}"
+        )
 
         if self._settings._offline:
             offline_warning = (
@@ -3748,7 +3867,11 @@ class Run:
                 f"or set {self._printer.code('WANDB_MODE=online')} "
                 "to enable cloud syncing."
             )
-            self._printer.display([offline_warning, sync_location_msg])
+            leet_hint = (
+                "View this run in the terminal with "
+                f"{self._printer.code('`wandb leet`')}"
+            )
+            self._printer.display([offline_warning, sync_location_msg, leet_hint])
         else:
             messages = [sync_location_msg]
 

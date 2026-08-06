@@ -1,6 +1,9 @@
+from types import SimpleNamespace
+
 from wandb.apis.public.service_api import ServiceApi
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk import wandb_setup
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 from tests.fixtures.wandb_backend_spy import WandbBackendSpy
 
@@ -55,17 +58,29 @@ def test_feature_flags_by_string_name(wandb_backend_spy: WandbBackendSpy):
     assert enabled
 
 
-def test_feature_flags_timeout(wandb_backend_spy: WandbBackendSpy):
-    stub_server_features_query(
-        wandb_backend_spy,
-        enabled=[pb.ServerFeature.CLIENT_IDS],
-    )
+def test_feature_flags_timeout():
+    class FakeConnection:
+        def __init__(self):
+            self.request = None
+            self.timeout = None
+
+        def api_request(self, request, timeout=None):
+            self.request = request
+            self.timeout = timeout
+            raise WandbApiFailedError("timed out")
 
     # Should return False on timeout.
     api = ServiceApi(wandb_setup.singleton().settings)
+    fake_connection = FakeConnection()
+    api._api_session = SimpleNamespace(
+        connection=fake_connection,
+        api_id="test-api-id",
+    )
+
     enabled = api.feature_enabled(pb.ServerFeature.CLIENT_IDS, timeout=0)
 
     assert not enabled
+    assert fake_connection.timeout == 0
 
 
 def test_feature_flags_error(wandb_backend_spy: WandbBackendSpy):

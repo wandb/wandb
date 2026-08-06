@@ -11,9 +11,14 @@ from wandb.automations import (
     EventType,
     NewAutomation,
     OnAddArtifactAlias,
+    OnAddArtifactTag,
+    OnAddCollectionTag,
     OnCreateArtifact,
     OnLinkArtifact,
+    OnRemoveArtifactTag,
+    OnRemoveCollectionTag,
     OnRunMetric,
+    OnUnlinkArtifact,
     RunEvent,
 )
 from wandb.automations._utils import (
@@ -205,7 +210,12 @@ class TestPrepareToCreate:
         [
             EventType.CREATE_ARTIFACT,
             EventType.ADD_ARTIFACT_ALIAS,
+            EventType.ADD_ARTIFACT_TAG,
+            EventType.ADD_COLLECTION_TAG,
             EventType.LINK_ARTIFACT,
+            EventType.REMOVE_ARTIFACT_TAG,
+            EventType.REMOVE_COLLECTION_TAG,
+            EventType.UNLINK_ARTIFACT,
         ],
         indirect=True,
     )
@@ -263,24 +273,17 @@ class TestPrepareToCreate:
 class TestPrepareToUpdate:
     """Checks on the internal helper that prepares the GraphQL input for UpdateFilterTrigger mutations."""
 
-    MUTATION_EVENT_TYPES = [
-        EventType.ADD_ARTIFACT_ALIAS,
-        EventType.LINK_ARTIFACT,
-        EventType.CREATE_ARTIFACT,
-    ]
-
-    MUTATION_EVENT_TYPE_TO_CLASS = {
+    MUTATION_EVENT_CLASSES: dict[EventType, type[InputEvent]] = {
+        EventType.CREATE_ARTIFACT: OnCreateArtifact,
         EventType.ADD_ARTIFACT_ALIAS: OnAddArtifactAlias,
         EventType.LINK_ARTIFACT: OnLinkArtifact,
-        EventType.CREATE_ARTIFACT: OnCreateArtifact,
+        EventType.UNLINK_ARTIFACT: OnUnlinkArtifact,
+        EventType.ADD_ARTIFACT_TAG: OnAddArtifactTag,
+        EventType.REMOVE_ARTIFACT_TAG: OnRemoveArtifactTag,
+        EventType.ADD_COLLECTION_TAG: OnAddCollectionTag,
+        EventType.REMOVE_COLLECTION_TAG: OnRemoveCollectionTag,
     }
 
-    @mark.parametrize(
-        "mutation_event_type",
-        MUTATION_EVENT_TYPES,
-        indirect=True,
-        ids=lambda x: f"event={x.value}",
-    )
     def test_update_event_preserves_mutation_filter(
         self,
         saved_automation: Automation,
@@ -288,7 +291,7 @@ class TestPrepareToUpdate:
         artifact_collection,
     ):
         """Updating an automation with a new InputEvent must preserve the event filter."""
-        event_cls = self.MUTATION_EVENT_TYPE_TO_CLASS[mutation_event_type]
+        event_cls = self.MUTATION_EVENT_CLASSES[mutation_event_type]
         new_event = event_cls(
             scope=artifact_collection,
             filter=ArtifactEvent.alias == "prod",
@@ -300,12 +303,6 @@ class TestPrepareToUpdate:
         assert event_filter != {"$and": []}
         assert event_filter == {"$or": [{"$and": [{"alias": {"$eq": "prod"}}]}]}
 
-    @mark.parametrize(
-        "mutation_event_type",
-        MUTATION_EVENT_TYPES,
-        indirect=True,
-        ids=lambda x: f"event={x.value}",
-    )
     def test_update_without_event_preserves_existing_filter(
         self,
         saved_automation: Automation,
@@ -317,12 +314,6 @@ class TestPrepareToUpdate:
         assert event_filter != {"$and": []}
         assert event_filter == {"$or": [{"$and": [{"alias": {"$eq": "latest"}}]}]}
 
-    @mark.parametrize(
-        "mutation_event_type",
-        MUTATION_EVENT_TYPES,
-        indirect=True,
-        ids=lambda x: f"event={x.value}",
-    )
     def test_update_name_only_preserves_filter(
         self,
         saved_automation: Automation,
@@ -342,6 +333,14 @@ class TestPrepareToUpdate:
         EventType.RUN_METRIC_THRESHOLD: lambda scope: OnRunMetric(
             scope=scope,
             filter=RunEvent.metric("my-metric").avg(5).gt(0),
+        ),
+        EventType.RUN_METRIC_CHANGE: lambda scope: OnRunMetric(
+            scope=scope,
+            filter=RunEvent.metric("my-metric").avg(5).increases_by(diff=123.45),
+        ),
+        EventType.RUN_METRIC_ZSCORE: lambda scope: OnRunMetric(
+            scope=scope,
+            filter=RunEvent.metric("my-metric").zscore(5).gt(3),
         ),
         EventType.RUN_STATE: lambda scope: OnRunState(
             scope=scope,

@@ -98,7 +98,7 @@ class WandBUltralyticsCallback:
     Example:
         ```python
         from ultralytics.yolo.engine.model import YOLO
-        from wandb.yolov8 import add_wandb_callback
+        from wandb.integration.ultralytics import add_wandb_callback
 
         # initialize YOLO model
         model = YOLO("yolov8n.pt")
@@ -452,7 +452,7 @@ def add_wandb_callback(
     Example:
         ```python
         from ultralytics.yolo.engine.model import YOLO
-        from wandb.yolov8 import add_wandb_callback
+        from wandb.integration.ultralytics import add_wandb_callback
 
         # initialize YOLO model
         model = YOLO("yolov8n.pt")

@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -111,8 +112,11 @@ func NewOAuth2CredentialProvider(
 		baseURL:             baseURL,
 		credentialsFilePath: credentialsFilePath,
 		tokenMu:             &sync.RWMutex{},
-		identityToken:       string(identityToken),
-		logger:              logger,
+		// Strip surrounding whitespace, like the trailing newline written
+		// by `echo` and most editors, which would otherwise be sent as
+		// part of the token.
+		identityToken: strings.TrimSpace(string(identityToken)),
+		logger:        logger,
 	}, nil
 }
 
@@ -296,12 +300,12 @@ func (c *oauth2CredentialProvider) trySaveCredentialsToFile(credentials Credenti
 // an access token from the authorization server using the JWT Bearer flow defined
 // in OAuth RFC 7523. The access token is then returned with its expiration time.
 func (c *oauth2CredentialProvider) fetchAccessToken() (accessTokenInfo, error) {
-	url := fmt.Sprintf("%s/oidc/token", c.baseURL)
+	tokenURL := fmt.Sprintf("%s/oidc/token", c.baseURL)
 	data := fmt.Sprintf(
 		"grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=%s",
-		c.identityToken,
+		url.QueryEscape(c.identityToken),
 	)
-	req, err := http.NewRequest("POST", url, strings.NewReader(data))
+	req, err := http.NewRequest("POST", tokenURL, strings.NewReader(data))
 	if err != nil {
 		return accessTokenInfo{}, err
 	}

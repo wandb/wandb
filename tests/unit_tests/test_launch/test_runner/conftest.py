@@ -74,7 +74,7 @@ def clean_monitor():
     LaunchKubernetesMonitor._instance = None
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def clean_agent():
     LaunchAgent._instance = None
     yield

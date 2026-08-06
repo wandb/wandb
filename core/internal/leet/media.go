@@ -59,7 +59,7 @@ func (s *MediaStore) ProcessHistory(msg HistoryMsg) bool {
 
 		if _, ok := s.series[key]; !ok {
 			s.keys = append(s.keys, key)
-			sort.Strings(s.keys)
+			slices.SortFunc(s.keys, compareNatural)
 			changed = true
 		}
 
@@ -170,6 +170,41 @@ func (s *MediaStore) Empty() bool {
 	defer s.mu.RUnlock()
 	return len(s.keys) == 0
 }
+
+// compareNatural orders strings lexicographically, except that runs of ASCII
+// digits compare numerically, so "key[2]" sorts before "key[10]".
+func compareNatural(a, b string) int {
+	i, j := 0, 0
+	for i < len(a) && j < len(b) {
+		if isASCIIDigit(a[i]) && isASCIIDigit(b[j]) {
+			aEnd, bEnd := i, j
+			for aEnd < len(a) && isASCIIDigit(a[aEnd]) {
+				aEnd++
+			}
+			for bEnd < len(b) && isASCIIDigit(b[bEnd]) {
+				bEnd++
+			}
+			aNum := strings.TrimLeft(a[i:aEnd], "0")
+			bNum := strings.TrimLeft(b[j:bEnd], "0")
+			if c := len(aNum) - len(bNum); c != 0 {
+				return c
+			}
+			if c := strings.Compare(aNum, bNum); c != 0 {
+				return c
+			}
+			i, j = aEnd, bEnd
+			continue
+		}
+		if a[i] != b[j] {
+			return int(a[i]) - int(b[j])
+		}
+		i++
+		j++
+	}
+	return (len(a) - i) - (len(b) - j)
+}
+
+func isASCIIDigit(c byte) bool { return '0' <= c && c <= '9' }
 
 // resolveMediaPath resolves a media file path from a history record to the file
 // on disk for the given run.

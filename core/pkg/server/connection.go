@@ -10,9 +10,11 @@ import (
 	"net"
 	"net/url"
 	"sync"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 
+	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/gql"
@@ -119,7 +121,7 @@ func NewConnection(
 	return &Connection{
 		connLifetimeCtx:    connLifetimeCtx,
 		stopConnection:     stopConnection,
-		requestCanceller:   NewRequestCanceller(connLifetimeCtx),
+		requestCanceller:   NewRequestCanceller(connLifetimeCtx, slog.Default()),
 		stopServer:         stopServer,
 		streamMux:          params.StreamMux,
 		runSyncManager:     params.RunSyncManager,
@@ -524,7 +526,14 @@ func (nc *Connection) handleAuthenticateImpl(
 	)
 
 	data, err := gql.Viewer(ctx, graphqlClient)
-	if err != nil || data == nil || data.GetViewer() == nil || data.GetViewer().GetEntity() == nil {
+
+	// Field-level GraphQL errors (like a failing resolver for one of the
+	// requested fields) do not invalidate the credentials, so partial data
+	// is accepted as long as the viewer and its entity were resolved.
+	if data == nil || data.GetViewer() == nil || data.GetViewer().GetEntity() == nil {
+		if err != nil {
+			slog.Debug("handleAuthenticate: viewer query failed", "error", err)
+		}
 		return &spb.ServerAuthenticateResponse{
 			ErrorStatus: "Invalid credentials",
 		}
@@ -668,7 +677,36 @@ func (nc *Connection) handleSyncStatus(
 // handleApiInit sets up a new wandbAPI instance.
 func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest) {
 	s := settings.From(request.GetSettings())
-	logger := observability.NewCoreLogger(slog.Default(), nil)
+
+	telemetryProxy := analytics.NewOpenTelemetryProxy(context.Background(), s)
+	go func() {
+		<-nc.connLifetimeCtx.Done()
+		if telemetryProxy != nil {
+			shutdownCtx, cancel := context.WithTimeout(
+				context.Background(),
+				2*time.Second,
+			)
+			defer cancel()
+
+			err := telemetryProxy.Shutdown(shutdownCtx)
+			if err != nil {
+				slog.Error(
+					"connection: failed to shut down telemetry proxy",
+					"error",
+					err,
+				)
+			}
+		}
+	}()
+
+	logger := observability.NewCoreLogger(
+		slog.Default(),
+		nil,
+		analytics.NewTelemetryRecorder(
+			telemetryProxy,
+			analytics.NewTelemetryContext(),
+		),
+	)
 	wbapiInstance, err := wbapi.New(s, logger)
 	if err != nil {
 		nc.Respond(&spb.ServerResponse{

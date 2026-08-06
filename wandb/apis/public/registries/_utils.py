@@ -3,14 +3,15 @@ from __future__ import annotations
 from collections.abc import Collection
 from enum import Enum
 from functools import lru_cache, partial
-from typing import TYPE_CHECKING, Any
-
-from wandb_gql import gql
+from typing import TYPE_CHECKING, Any, TypeVar, overload
 
 from wandb._strutils import ensureprefix
 
 if TYPE_CHECKING:
-    from wandb.apis.public.api import RetryingClient
+    from wandb.apis.public.service_api import ServiceApi
+
+
+T = TypeVar("T")
 
 
 class Visibility(str, Enum):
@@ -30,10 +31,27 @@ class Visibility(str, Enum):
         try:
             return cls(value)
         except ValueError:
-            expected = ",".join(repr(e.value) for e in cls)
+            expected = ", ".join(repr(e.value) for e in cls)
             raise ValueError(
                 f"Invalid visibility {value!r} from backend. Expected one of: {expected}"
             ) from None
+
+    @classmethod
+    def from_project_access(cls, value: str | None) -> Visibility:
+        """Convert a GraphQL project ``access`` value to a Visibility enum.
+
+        Registry search may return legacy or non-registry access levels (e.g.
+        ``USER_READ``) for organization projects. Treat those as organization
+        visibility so registry listing can proceed.
+        """
+        if not value:
+            return cls.organization
+        try:
+            return cls(value)
+        except ValueError:
+            if value == "RESTRICTED":
+                return cls.restricted
+            return cls.organization
 
     @classmethod
     def from_python(cls, name: str) -> Visibility:
@@ -41,7 +59,7 @@ class Visibility(str, Enum):
         try:
             return cls(name)
         except ValueError:
-            expected = ",".join(repr(e.name) for e in cls)
+            expected = ", ".join(repr(e.name) for e in cls)
             raise ValueError(
                 f"Invalid visibility {name!r}. Expected one of: {expected}"
             ) from None
@@ -65,8 +83,22 @@ def prepare_artifact_types_input(
     return None
 
 
+@overload
+def ensure_registry_prefix_on_names(query: str, in_name: bool = ...) -> str: ...
+@overload
+def ensure_registry_prefix_on_names(
+    query: dict[str, Any], in_name: bool = ...
+) -> dict[str, Any]: ...
+@overload
+def ensure_registry_prefix_on_names(
+    query: list[T] | tuple[T], in_name: bool = ...
+) -> list[T]: ...
+@overload
+def ensure_registry_prefix_on_names(query: T, in_name: bool = ...) -> T: ...
+
+
 def ensure_registry_prefix_on_names(query: Any, in_name: bool = False) -> Any:
-    """Recursively the registry prefix to values under "name" keys, excluding regex ops.
+    """Recursively prepend the registry prefix under "name" keys, excluding regex ops.
 
     - in_name: True if we are under a "name" key (or propagating from one).
 
@@ -74,48 +106,50 @@ def ensure_registry_prefix_on_names(query: Any, in_name: bool = False) -> Any:
     """
     from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
 
-    if isinstance((txt := query), str):
-        return ensureprefix(txt, REGISTRY_PREFIX) if in_name else txt
-    if isinstance((dct := query), dict):
-        new_dict = {}
-        for key, obj in dct.items():
-            if key == "$regex":
-                # For regex operator, we skip transformation of its value.
-                new_dict[key] = obj
-            elif key == "name":
-                new_dict[key] = ensure_registry_prefix_on_names(obj, in_name=True)
-            else:
-                # For any other key, propagate flags as-is.
-                new_dict[key] = ensure_registry_prefix_on_names(obj, in_name=in_name)
-        return new_dict
-    if isinstance((seq := query), (list, tuple)):
-        return list(map(partial(ensure_registry_prefix_on_names, in_name=in_name), seq))
-    return query
+    match query:
+        case str() as txt:
+            return ensureprefix(txt, REGISTRY_PREFIX) if in_name else txt
+        case dict() as dct:
+            new_dict = {}
+            for k, v in dct.items():
+                if k == "$regex":
+                    # For regex operator, we skip transformation of its value.
+                    new_dict[k] = v
+                else:
+                    # Enforce prefix on "name" keys, otherwise propagate flags as-is.
+                    new_dict[k] = ensure_registry_prefix_on_names(
+                        v, in_name=(k == "name") or in_name
+                    )
+            return new_dict
+        case list() | tuple() as seq:
+            return list(
+                map(partial(ensure_registry_prefix_on_names, in_name=in_name), seq)
+            )
+        case _:
+            return query
 
 
 @lru_cache(maxsize=10)
 def fetch_org_entity_from_organization(
-    client: RetryingClient, organization: str
+    service_api: ServiceApi, organization: str
 ) -> str:
     """Fetch the org entity from the organization.
 
     Args:
-        client (Client): Graphql client.
+        service_api: The service API instance to use for querying W&B.
         organization (str): The organization to fetch the org entity for.
     """
-    from wandb.sdk.artifacts._generated import (
-        FETCH_ORG_ENTITY_FROM_ORGANIZATION_GQL,
-        FetchOrgEntityFromOrganization,
-    )
+    from wandb.sdk.artifacts._generated import FETCH_ORGANIZATION_GQL, FetchOrganization
 
-    gql_op = gql(FETCH_ORG_ENTITY_FROM_ORGANIZATION_GQL)
+    gql_op = FETCH_ORGANIZATION_GQL
+    gql_vars = {"org": organization}
     try:
-        data = client.execute(gql_op, variable_values={"organization": organization})
+        data = service_api.execute_graphql(gql_op, variables=gql_vars)
     except Exception as e:
         msg = f"Error fetching org entity for organization: {organization!r}"
         raise ValueError(msg) from e
 
-    result = FetchOrgEntityFromOrganization.model_validate(data)
+    result = FetchOrganization.model_validate(data)
     if (
         not (org := result.organization)
         or not (org_entity := org.org_entity)

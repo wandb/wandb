@@ -23,6 +23,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/internal/runenvironment"
 	"github.com/wandb/wandb/core/internal/runmetric"
+	"github.com/wandb/wandb/core/internal/runsyncstate"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/wboperation"
@@ -45,6 +46,7 @@ type RunUpserter struct {
 	operations         *wboperation.WandbOperations
 	graphqlClientOrNil graphql.Client
 	logger             *observability.CoreLogger
+	syncStateStore     runsyncstate.Store
 
 	// done is closed when Finish is called.
 	done chan struct{}
@@ -72,6 +74,7 @@ type RunUpserterParams struct {
 	FeatureProvider    *featurechecker.FeatureProvider
 	GraphqlClientOrNil graphql.Client
 	Logger             *observability.CoreLogger
+	SyncStateStore     runsyncstate.Store
 }
 
 func (params *RunUpserterParams) panicIfNotFilled() {
@@ -84,6 +87,8 @@ func (params *RunUpserterParams) panicIfNotFilled() {
 		panic("runupserter: FeatureProvider is nil")
 	case params.Logger == nil:
 		panic("runupserter: Logger is nil")
+	case params.SyncStateStore == nil:
+		panic("runupserter: SyncStateStore is nil")
 	}
 }
 
@@ -124,10 +129,33 @@ func InitRun(
 		environment.ToRunConfigData(),
 	)
 
+	// Initialize other run metadata.
+	runParams := runbranch.NewRunParams(runRecord, params.Settings)
+
+	operation := params.Operations.New(
+		fmt.Sprintf("setting up run %s", runParams.RunID))
+	defer operation.Finish()
+	ctx := operation.Context(params.BeforeRunEndCtx)
+
+	// Give up at the client's init timeout, so that the error being
+	// retried (if any) can be reported to the client while it is still
+	// listening: the client waits slightly longer than this timeout
+	// before giving up with a generic message.
+	//
+	// This must cover all requests made before the run is initialized,
+	// including the feature check below: any of them may be what's stuck
+	// retrying. The countdown starts when this record is processed, which
+	// is slightly after the client starts waiting.
+	if timeout := params.Settings.GetInitTimeout(); timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+
 	// Initialize the run metrics.
 	enableServerExpandedMetrics := params.Settings.IsEnableServerSideExpandGlobMetrics()
 	if enableServerExpandedMetrics && !params.FeatureProvider.Enabled(
-		params.BeforeRunEndCtx,
+		ctx,
 		spb.ServerFeature_EXPAND_DEFINED_METRIC_GLOBS,
 	) {
 		params.Logger.Warn(
@@ -138,9 +166,6 @@ func InitRun(
 	}
 	metrics := runmetric.NewRunConfigMetrics(enableServerExpandedMetrics)
 
-	// Initialize other run metadata.
-	runParams := runbranch.NewRunParams(runRecord, params.Settings)
-
 	upserter := &RunUpserter{
 		debounceDelay: params.DebounceDelay,
 
@@ -149,6 +174,7 @@ func InitRun(
 		operations:         params.Operations,
 		graphqlClientOrNil: params.GraphqlClientOrNil,
 		logger:             params.Logger,
+		syncStateStore:     params.SyncStateStore,
 
 		done:  make(chan struct{}),
 		dirty: make(chan struct{}, 1),
@@ -159,11 +185,6 @@ func InitRun(
 		metrics:     metrics,
 		environment: environment,
 	}
-
-	operation := upserter.operations.New(
-		fmt.Sprintf("setting up run %s", runParams.RunID))
-	defer operation.Finish()
-	ctx := operation.Context(upserter.beforeRunEndCtx)
 
 	// If resuming, rewinding or forking, we need to modify metadata
 	// in special ways before upserting the run.
@@ -197,6 +218,14 @@ func InitRun(
 			return nil, ToRunUpdateError(err)
 		}
 	}
+
+	startingStep, err := upserter.syncStateStore.GetOrInitStartingStep(
+		upserter.params.StartingStep,
+	)
+	if err != nil {
+		return nil, ToRunUpdateError(err)
+	}
+	upserter.params.StartingStep = startingStep
 
 	// If we're offline, skip upserting.
 	if upserter.graphqlClientOrNil == nil {
@@ -249,7 +278,9 @@ func (upserter *RunUpserter) UpdateConfig(config *spb.ConfigRecord) {
 	upserter.config.ApplyChangeRecord(config,
 		func(err error) {
 			upserter.logger.CaptureError(
-				fmt.Errorf("runupserter: error updating config: %v", err))
+				"runupserter",
+				fmt.Errorf("runupserter: error updating config: %v", err),
+			)
 		})
 
 	upserter.isConfigDirty = true
@@ -304,7 +335,9 @@ func (upserter *RunUpserter) UpdateMetrics(metric *spb.MetricRecord) {
 	err := upserter.metrics.ProcessRecord(metric)
 	if err != nil {
 		upserter.logger.CaptureError(
-			fmt.Errorf("runupserter: failed to process metric: %v", err))
+			"runupserter",
+			fmt.Errorf("runupserter: failed to process metric: %v", err),
+		)
 		return
 	}
 

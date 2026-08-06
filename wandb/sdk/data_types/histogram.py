@@ -97,7 +97,7 @@ class Histogram(WBValue):
     def to_json(self, run: LocalRun | Artifact | None = None) -> dict:
         """Returns the JSON representation expected by the backend.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         return {"_type": self._log_type, "values": self.histogram, "bins": self.bins}
 

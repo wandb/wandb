@@ -23,7 +23,10 @@ func newRunForHandlerTest(t *testing.T) *leet.Run {
 	_ = cfg.SetLeftSidebarVisible(true)
 	_ = cfg.SetRightSidebarVisible(true)
 
-	r := leet.NewRun("testdata/fake.wandb", cfg, logger)
+	runParams := &leet.RunParams{
+		RunFile: "testdata/fake.wandb",
+	}
+	r := leet.NewRun(runParams, cfg, logger)
 	r.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
 
 	// Force left sidebar expanded so section navigation is testable.
@@ -125,7 +128,9 @@ func TestRun_InitialFocus_PicksFirstAvailablePane(t *testing.T) {
 	_ = cfg.SetLeftSidebarVisible(false)
 	_ = cfg.SetConsoleLogsVisible(true)
 
-	r := leet.NewRun("testdata/fake.wandb", cfg, logger)
+	r := leet.NewRun(&leet.RunParams{
+		RunFile: "testdata/fake.wandb",
+	}, cfg, logger)
 	r.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
 
 	require.True(t, r.TestConsoleLogsPaneActive(),
@@ -139,7 +144,9 @@ func TestRun_OverviewUpdatesPreserveTabContext(t *testing.T) {
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	_ = cfg.SetLeftSidebarVisible(true)
 
-	r := leet.NewRun("testdata/fake.wandb", cfg, logger)
+	r := leet.NewRun(&leet.RunParams{
+		RunFile: "testdata/fake.wandb",
+	}, cfg, logger)
 	r.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
 
 	r.TestHandleRecordMsg(leet.RunMsg{

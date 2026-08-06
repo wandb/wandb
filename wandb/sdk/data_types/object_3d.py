@@ -5,7 +5,7 @@ import itertools
 import os
 import pathlib
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, ClassVar, Literal, TextIO, TypeAlias, TypedDict
+from typing import TYPE_CHECKING, ClassVar, Literal, TextIO, TypeAlias, TypedDict, cast
 
 import wandb
 from wandb import util
@@ -230,9 +230,12 @@ def box3d(
     corners = center + (0.5 * size * unit_corners) @ rot
 
     return {
-        # Ignore the type because mypy can't infer that the list has length 8:
+        # Cast because type checkers can't infer that the tuple has length 8:
         # https://github.com/python/mypy/issues/7509
-        "corners": tuple(tuple(pt) for pt in corners),  # type: ignore
+        "corners": cast(
+            "tuple[Point3D, Point3D, Point3D, Point3D, Point3D, Point3D, Point3D, Point3D]",
+            tuple(tuple(pt) for pt in corners),
+        ),
         "color": color,
         "label": label,
         "score": score,
@@ -391,7 +394,7 @@ class Object3D(BatchableMedia):
             file_type (str): Specifies the data format passed to `data_or_path`. Required when `data_or_path` is a
                 `TextIO` stream. This parameter is ignored if a file path is provided. The type is taken from the file extension.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore -->
         """
         # if file_type is not None and file_type not in cls.SUPPORTED_TYPES:
         #     raise ValueError(
@@ -416,7 +419,7 @@ class Object3D(BatchableMedia):
         [[x y z r g b], ...]  # nx6 where is rgb is color.
         ```
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore -->
         """
         if not util.is_numpy_array(data):
             raise ValueError("`data` must be a numpy array")
@@ -452,7 +455,7 @@ class Object3D(BatchableMedia):
                 visualization. Can be used to indicate directionality of bounding boxes. Defaults to None.
             point_cloud_type ("lidar/beta"): At this time, only the "lidar/beta" type is supported. Defaults to "lidar/beta".
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore -->
         """
         if point_cloud_type not in cls.SUPPORTED_POINT_CLOUD_TYPES:
             raise ValueError("Point cloud type not supported")
@@ -475,14 +478,14 @@ class Object3D(BatchableMedia):
     def get_media_subdir(cls: type[Object3D]) -> str:
         """Get media subdirectory.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore -->
         """
         return os.path.join("media", "object3D")
 
     def to_json(self, run_or_artifact: LocalRun | Artifact) -> dict:
         """Returns the JSON representation expected by the backend.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = Object3D._log_type
@@ -506,7 +509,7 @@ class Object3D(BatchableMedia):
     ) -> dict:
         """Convert a sequence of Audio objects to a JSON representation.
 
-        <!-- lazydoc-ignore-classmethod: internal -->
+        <!-- lazydoc-ignore -->
         """
         seq = list(seq)
 

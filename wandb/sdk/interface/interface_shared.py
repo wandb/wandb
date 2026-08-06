@@ -97,6 +97,12 @@ class InterfaceShared(InterfaceBase, abc.ABC):
         rec = self._make_record(tbrecord=tbrecord)
         self._publish(rec)
 
+    @override
+    def deliver_history_step(self) -> MailboxHandle[pb.HistoryStepResponse]:
+        rec = pb.Record()
+        rec.request.history_step.SetInParent()
+        return self._deliver(rec).map(lambda r: r.response.history_step_response)
+
     def _publish_partial_history(
         self, partial_history: pb.PartialHistoryRequest
     ) -> None:

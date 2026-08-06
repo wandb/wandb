@@ -10,23 +10,34 @@ from hypothesis import settings
 from pytest import FixtureRequest, fixture, skip
 from pytest_mock import MockerFixture
 from wandb._strutils import b64encode_ascii
-from wandb.apis.public import ArtifactCollection, Project
+from wandb.apis.public import ArtifactCollection, Organization, Project, Team
 from wandb.automations import (
     ActionType,
     ArtifactEvent,
     DoNothing,
     EventType,
     OnAddArtifactAlias,
+    OnAddArtifactTag,
+    OnAddCollectionTag,
     OnCreateArtifact,
     OnLinkArtifact,
+    OnRemoveArtifactTag,
+    OnRemoveCollectionTag,
     OnRunMetric,
+    OnUnlinkArtifact,
     RunEvent,
     ScopeType,
     SendNotification,
     SendWebhook,
 )
 from wandb.automations._utils import INVALID_INPUT_ACTIONS, INVALID_INPUT_EVENTS
-from wandb.automations.actions import InputAction, SavedAction, SavedNoOpAction
+from wandb.automations.actions import (
+    InputAction,
+    SavedAction,
+    SavedNoOpAction,
+    SavedNotificationAction,
+    SavedWebhookAction,
+)
 from wandb.automations.automations import Automation
 from wandb.automations.events import InputEvent, OnRunState, SavedEvent
 from wandb.sdk.artifacts._generated import ArtifactCollectionFragment
@@ -36,7 +47,7 @@ settings.register_profile("default", max_examples=100)
 settings.load_profile("default")
 
 
-ScopableWandbType: TypeAlias = ArtifactCollection | Project
+ScopableWandbType: TypeAlias = ArtifactCollection | Project | Team | Organization
 
 
 # ---------------------------------------------------------------------------
@@ -74,9 +85,9 @@ def automation_id() -> str:
 @fixture(scope="session")
 def mock_client(session_mocker: MockerFixture) -> Mock:
     """A mocked wandb client to prevent real API calls."""
-    from wandb.apis.public import RetryingClient
+    from wandb.apis.public.service_api import ServiceApi
 
-    return session_mocker.Mock(spec=RetryingClient)
+    return session_mocker.Mock(spec=ServiceApi)
 
 
 @fixture(scope="session")
@@ -89,27 +100,25 @@ def artifact_collection(mock_client: Mock) -> ArtifactCollection:
     For unit-testing purposes, this has been heavily mocked.
     Tests relying on real `wandb.Api` calls should live in system tests.
     """
-    collection_name = "test-collection"
-    project_name = "test-project"
-    entity_name = "test-entity"
-    collection_type = "dataset"
-    collection = ArtifactCollection(
-        client=mock_client,
-        entity=entity_name,
-        project=project_name,
-        name=collection_name,
-        type=collection_type,
+    name = "test-collection"
+    project = "test-project"
+    entity = "test-entity"
+    artifact_type = "dataset"
+    return ArtifactCollection(
+        service_api=mock_client,
+        entity=entity,
+        project=project,
+        name=name,
+        type=artifact_type,
         attrs=ArtifactCollectionFragment(
             typename__="ArtifactPortfolio",
             id=make_graphql_id(prefix="ArtifactCollection"),
-            name=collection_name,
+            name=name,
             project={
-                "name": project_name,
-                "entity": {
-                    "name": entity_name,
-                },
+                "name": project,
+                "entity": {"name": entity},
             },
-            type={"name": collection_type},
+            type={"name": artifact_type},
             description="This is a fake artifact collection.",
             aliases={"edges": []},
             createdAt="2021-01-01T00:00:00Z",
@@ -117,8 +126,6 @@ def artifact_collection(mock_client: Mock) -> ArtifactCollection:
             tags={"edges": []},
         ),
     )
-
-    return collection
 
 
 @fixture(scope="session")
@@ -131,19 +138,66 @@ def project(mock_client: Mock) -> Project:
     Tests relying on real `wandb.Api` calls should live in system tests.
     """
     return Project(
-        client=mock_client,
+        service_api=mock_client,
         entity="test-entity",
         project="test-project",
         attrs={
             "id": make_graphql_id(prefix="Project"),
         },
-        service_api=Mock(),
+    )
+
+
+@fixture(scope="session")
+def team(mock_client: Mock) -> Team:
+    """A simulated `Team` (team entity) that could be returned by `wandb.Api`.
+
+    Typically fetched via `Api.team()`.
+
+    For unit-testing purposes, this has been heavily mocked.
+    Tests relying on real `wandb.Api` calls should live in system tests.
+    """
+    name = "test-team-entity"
+    return Team(
+        service_api=mock_client,
+        name=name,
+        attrs={
+            "__typename": "Entity",
+            "id": make_graphql_id(prefix="Entity"),
+            "name": name,
+            "entityType": "team",
+        },
+    )
+
+
+@fixture(scope="session")
+def org(mock_client: Mock) -> Organization:
+    """A simulated `Organization` with a mock org entity.
+
+    Typically fetched via `Api.organization()`.
+
+    For unit-testing purposes, this has been heavily mocked.
+    Tests relying on real `wandb.Api` calls should live in system tests.
+    """
+    name = "test-org"
+    return Organization(
+        mock_client,
+        **{
+            "id": make_graphql_id(prefix="Organization"),
+            "name": name,
+            "orgEntity": {
+                "__typename": "Entity",
+                "id": make_graphql_id(prefix="Entity"),
+                "name": f"{name}-entity",
+                "entityType": "organization",
+            },
+        },
     )
 
 
 # Exclude deprecated scope/event/action types from those expected to be exposed for valid behavior
 def valid_scopes() -> list[ScopeType]:
-    return sorted(set(ScopeType))
+    # return sorted(set(ScopeType))  # TODO: restore once ENTITY scope is supported
+    return sorted(set(ScopeType) - {ScopeType.ENTITY})
 
 
 def valid_input_events() -> list[EventType]:
@@ -158,6 +212,7 @@ def valid_input_actions() -> list[ActionType]:
 @cache
 def invalid_events_and_scopes() -> set[tuple[EventType, ScopeType]]:
     return {
+        (EventType.CREATE_ARTIFACT, ScopeType.ENTITY),
         (EventType.CREATE_ARTIFACT, ScopeType.PROJECT),
         (EventType.RUN_METRIC_THRESHOLD, ScopeType.ARTIFACT_COLLECTION),
         (EventType.RUN_METRIC_CHANGE, ScopeType.ARTIFACT_COLLECTION),
@@ -197,6 +252,7 @@ def scope(request: FixtureRequest, scope_type: ScopeType) -> ScopableWandbType:
     scope2fixture: dict[ScopeType, str] = {
         ScopeType.ARTIFACT_COLLECTION: artifact_collection.__name__,
         ScopeType.PROJECT: project.__name__,
+        ScopeType.ENTITY: team.__name__,
     }
     return request.getfixturevalue(scope2fixture[scope_type])
 
@@ -222,11 +278,48 @@ def on_add_artifact_alias(scope: ScopableWandbType) -> OnAddArtifactAlias:
 
 
 @fixture
+def on_add_artifact_tag(scope: ScopableWandbType) -> OnAddArtifactTag:
+    return OnAddArtifactTag(
+        scope=scope,
+        filter=ArtifactEvent.tag.matches_regex("^prod-.*"),
+    )
+
+
+@fixture
+def on_remove_artifact_tag(scope: ScopableWandbType) -> OnRemoveArtifactTag:
+    return OnRemoveArtifactTag(
+        scope=scope,
+        filter=ArtifactEvent.tag.matches_regex("^prod-.*"),
+    )
+
+
+@fixture
+def on_add_collection_tag(scope: ScopableWandbType) -> OnAddCollectionTag:
+    return OnAddCollectionTag(
+        scope=scope,
+        filter=ArtifactEvent.tag.matches_regex("^prod-.*"),
+    )
+
+
+@fixture
+def on_remove_collection_tag(scope: ScopableWandbType) -> OnRemoveCollectionTag:
+    return OnRemoveCollectionTag(
+        scope=scope,
+        filter=ArtifactEvent.tag.matches_regex("^prod-.*"),
+    )
+
+
+@fixture
 def on_link_artifact(scope: ScopableWandbType) -> OnLinkArtifact:
     return OnLinkArtifact(
         scope=scope,
         filter=ArtifactEvent.alias.matches_regex("^prod-.*"),
     )
+
+
+@fixture
+def on_unlink_artifact(scope: ScopableWandbType) -> OnUnlinkArtifact:
+    return OnUnlinkArtifact(scope=scope)
 
 
 @fixture
@@ -247,7 +340,7 @@ def on_run_metric_change(scope: ScopableWandbType) -> OnRunMetric:
 
 @fixture
 def on_run_metric_zscore(scope: ScopableWandbType) -> OnRunMetric:
-    from wandb.automations._filters.run_metrics import ChangeDir, MetricZScoreFilter
+    from wandb.automations._run_metric_filters import ChangeDir, MetricZScoreFilter
 
     return OnRunMetric(
         scope=scope,
@@ -275,7 +368,12 @@ def input_event(request: FixtureRequest, event_type: EventType) -> InputEvent:
     event2fixture: dict[EventType, str] = {
         EventType.CREATE_ARTIFACT: on_create_artifact.__name__,
         EventType.ADD_ARTIFACT_ALIAS: on_add_artifact_alias.__name__,
+        EventType.ADD_ARTIFACT_TAG: on_add_artifact_tag.__name__,
+        EventType.REMOVE_ARTIFACT_TAG: on_remove_artifact_tag.__name__,
+        EventType.ADD_COLLECTION_TAG: on_add_collection_tag.__name__,
+        EventType.REMOVE_COLLECTION_TAG: on_remove_collection_tag.__name__,
         EventType.LINK_ARTIFACT: on_link_artifact.__name__,
+        EventType.UNLINK_ARTIFACT: on_unlink_artifact.__name__,
         EventType.RUN_METRIC_THRESHOLD: on_run_metric_threshold.__name__,
         EventType.RUN_METRIC_CHANGE: on_run_metric_change.__name__,
         EventType.RUN_METRIC_ZSCORE: on_run_metric_zscore.__name__,
@@ -286,8 +384,13 @@ def input_event(request: FixtureRequest, event_type: EventType) -> InputEvent:
 
 _MUTATION_EVENT_TYPES = (
     EventType.ADD_ARTIFACT_ALIAS,
+    EventType.ADD_ARTIFACT_TAG,
+    EventType.ADD_COLLECTION_TAG,
     EventType.LINK_ARTIFACT,
+    EventType.REMOVE_ARTIFACT_TAG,
+    EventType.REMOVE_COLLECTION_TAG,
     EventType.CREATE_ARTIFACT,
+    EventType.UNLINK_ARTIFACT,
 )
 
 
@@ -345,9 +448,25 @@ def input_action(request: FixtureRequest, action_type: ActionType) -> InputActio
     return request.getfixturevalue(action2fixture[action_type])
 
 
-@fixture
-def saved_action() -> SavedAction:
-    return SavedNoOpAction()
+@fixture(params=valid_input_actions())
+def saved_action(request: FixtureRequest) -> SavedAction:
+    match action_type := request.param:
+        case ActionType.NO_OP:
+            return SavedNoOpAction()
+        case ActionType.NOTIFICATION:
+            return SavedNotificationAction(
+                integration={"id": "PLACEHOLDER"},
+                title=None,
+                message=None,
+                severity=None,
+            )
+        case ActionType.GENERIC_WEBHOOK:
+            return SavedWebhookAction(
+                integration={"id": "PLACEHOLDER"},
+                request_payload=None,
+            )
+        case _:
+            raise ValueError(f"Unsupported saved action type: {action_type!r}")
 
 
 @fixture
@@ -389,12 +508,11 @@ def run_event_type(request: FixtureRequest) -> EventType:
 @fixture
 def run_event_filter_json(run_event_type: EventType) -> str:
     """A realistic JSON-serialized filter string for a run event type."""
-    if run_event_type is EventType.RUN_METRIC_THRESHOLD:
-        return json.dumps(
-            {
-                "run_filter": json.dumps(
-                    {"$and": [{"display_name": {"$contains": "my-run"}}]}
-                ),
+    run_filter = json.dumps({"$and": [{"display_name": {"$contains": "my-run"}}]})
+
+    match run_event_type:
+        case EventType.RUN_METRIC_THRESHOLD:
+            extra_filter = {
                 "run_metric_filter": {
                     "threshold_filter": {
                         "name": "my-metric",
@@ -403,20 +521,39 @@ def run_event_filter_json(run_event_type: EventType) -> str:
                         "cmp_op": "$gt",
                         "threshold": 0,
                     }
-                },
-                "metric_filter": None,
+                }
             }
-        )
-    if run_event_type is EventType.RUN_STATE:
-        return json.dumps(
-            {
-                "run_filter": json.dumps(
-                    {"$and": [{"display_name": {"$contains": "my-run"}}]}
-                ),
-                "run_state_filter": {"states": ["FAILED"]},
+        case EventType.RUN_METRIC_CHANGE:
+            extra_filter = {
+                "run_metric_filter": {
+                    "change_filter": {
+                        "name": "my-metric",
+                        "agg_op": "AVERAGE",
+                        "window_size": 5,
+                        "prior_window_size": 5,
+                        "change_dir": "ANY",
+                        "change_type": "RELATIVE",
+                        "change_amount": 123.45,
+                    }
+                }
             }
-        )
-    raise ValueError(f"Unsupported run event type: {run_event_type!r}")
+        case EventType.RUN_METRIC_ZSCORE:
+            extra_filter = {
+                "run_metric_filter": {
+                    "zscore_filter": {
+                        "name": "my-metric",
+                        "window_size": 5,
+                        "threshold": 3.0,
+                        "change_dir": "ANY",
+                    }
+                }
+            }
+        case EventType.RUN_STATE:
+            extra_filter = {"run_state_filter": {"states": ["FAILED"]}}
+        case _:
+            raise ValueError(f"Unsupported run event type: {run_event_type!r}")
+
+    return json.dumps({"run_filter": run_filter} | extra_filter)
 
 
 @fixture

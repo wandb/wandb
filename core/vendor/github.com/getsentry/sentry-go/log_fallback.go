@@ -64,7 +64,7 @@ func (n *noopLogEntry) Attributes(_ ...attribute.Builder) LogEntry {
 }
 
 func (n *noopLogEntry) Emit(args ...interface{}) {
-	debuglog.Printf("Log with level=[%v] is being dropped. Turn on logging via EnableLogs", n.level)
+	debuglog.Printf("Log with level=[%v] is being dropped. SDK not initialized or logs disabled", n.level)
 	if n.level == LogLevelFatal {
 		if n.shouldPanic {
 			panic(args)
@@ -76,7 +76,7 @@ func (n *noopLogEntry) Emit(args ...interface{}) {
 }
 
 func (n *noopLogEntry) Emitf(message string, args ...interface{}) {
-	debuglog.Printf("Log with level=[%v] is being dropped. Turn on logging via EnableLogs", n.level)
+	debuglog.Printf("Log with level=[%v] is being dropped. SDK not initialized or logs disabled", n.level)
 	if n.level == LogLevelFatal {
 		if n.shouldPanic {
 			panic(fmt.Sprintf(message, args...))
@@ -122,9 +122,9 @@ func (*noopLogger) LFatal() LogEntry {
 }
 
 func (*noopLogger) SetAttributes(...attribute.Builder) {
-	debuglog.Printf("No attributes attached. Turn on logging via EnableLogs")
+	debuglog.Printf("No attributes attached. SDK not initialized or logs disabled")
 }
 
 func (*noopLogger) Write(_ []byte) (n int, err error) {
-	return 0, fmt.Errorf("log with level=[%v] is being dropped. Turn on logging via EnableLogs", LogLevelInfo)
+	return 0, fmt.Errorf("log with level=[%v] is being dropped. SDK not initialized or logs disabled", LogLevelInfo)
 }

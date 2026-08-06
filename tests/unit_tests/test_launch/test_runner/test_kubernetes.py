@@ -3,7 +3,7 @@ import base64
 import json
 import platform
 import shlex
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 import wandb
@@ -33,6 +33,7 @@ from wandb.sdk.launch.runner.kubernetes_runner import (
     ensure_api_key_secret,
     maybe_create_imagepull_secret,
 )
+from wandb.sdk.launch.utils import K8S_RESTRICTED_SECURITY_CONTEXT
 
 from .conftest import MockDict
 
@@ -84,6 +85,90 @@ def test_add_entrypoint_args_overrides(manifest):
     assert manifest["spec"]["template"]["spec"]["containers"][1]["command"] == [
         "test_entry"
     ]
+
+
+@pytest.mark.asyncio
+async def test_kubernetes_runner_rejects_unsafe_resource_args(test_api):
+    manifest = {
+        "kind": "Job",
+        "spec": {
+            "template": {
+                "spec": {
+                    "restartPolicy": "Never",
+                    "hostPID": True,
+                }
+            }
+        },
+    }
+    project = MagicMock()
+    project.fill_macros.return_value = {"kubernetes": manifest}
+    runner = KubernetesRunner(
+        test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
+    )
+
+    with pytest.raises(
+        LaunchError,
+        match="Unsafe resource_args.kubernetes option 'hostPID'",
+    ):
+        await runner.run(project, "test-image")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "submitted_security_context",
+    [
+        None,  # submitter supplies nothing
+        {},  # submitter supplies an empty securityContext
+        {"runAsUser": 1234},  # submitter supplies a partial securityContext
+    ],
+)
+async def test_kubernetes_runner_injects_restricted_security_context(
+    test_api, submitted_security_context
+):
+    container = {"name": "main", "image": "test-image"}
+    # A submitter-supplied securityContext is refused by validation, but
+    # _inject_defaults must always set the restricted context regardless of what
+    # arrives, so we exercise it directly here.
+    if submitted_security_context is not None:
+        container["securityContext"] = submitted_security_context
+    resource_args = {
+        "spec": {"template": {"spec": {"containers": [container]}}},
+    }
+
+    project = MagicMock()
+    project.fill_macros.return_value = {"kubernetes": resource_args}
+    project.run_id = "test-run-id"
+    project.target_entity = "test-entity"
+    project.target_project = "test-project"
+    project.override_args = []
+    project.override_entrypoint = None
+    project.job_base_image = None
+    project.docker_image = "test-image"
+    project.get_job_entry_point.return_value = MagicMock(command=["echo", "hi"])
+    project.get_env_vars_dict.return_value = {}
+
+    runner = KubernetesRunner(
+        test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
+    )
+
+    async def _no_secret(*args, **kwargs):
+        return None
+
+    with patch(
+        "wandb.sdk.launch.runner.kubernetes_runner.maybe_create_imagepull_secret",
+        new=_no_secret,
+    ):
+        job, _ = await runner._inject_defaults(
+            resource_args,
+            project,
+            "test-image",
+            "wandb",
+            MagicMock(),
+        )
+
+    containers = job["spec"]["template"]["spec"]["containers"]
+    for cont in containers:
+        assert cont["securityContext"] == K8S_RESTRICTED_SECURITY_CONTEXT
 
 
 @pytest.fixture
@@ -459,6 +544,124 @@ async def test_launch_crd_works(
     )
     await asyncio.sleep(1)
     assert str(await submitted_run.get_status()) == "finished"
+
+
+@pytest.mark.asyncio
+async def test_launch_crd_injects_restricted_security_context(
+    monkeypatch,
+    mock_event_streams,
+    mock_batch_api,
+    mock_custom_api,
+    mock_kube_context_and_api_client,
+    mock_create_from_dict,
+    test_api,
+    volcano_spec,
+    clean_monitor,
+    clean_agent,
+):
+    """The custom-resource path must inject the restricted securityContext."""
+    monkeypatch.setattr(
+        "wandb.sdk.launch.runner.kubernetes_runner.maybe_create_imagepull_secret",
+        lambda *args, **kwargs: None,
+    )
+    mock_batch_api.jobs = {"test-job": MockDict(volcano_spec)}
+    project = LaunchProject(
+        docker_config={"docker_image": "test_image"},
+        target_entity="test_entity",
+        target_project="test_project",
+        resource_args={"kubernetes": volcano_spec},
+        launch_spec={},
+        overrides={},
+        resource="kubernetes",
+        api=test_api,
+        git_info={},
+        job="",
+        uri="https://wandb.ai/test_entity/test_project/runs/test_run",
+        run_id="test_run_id",
+        name="test_run",
+    )
+    runner = KubernetesRunner(
+        test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
+    )
+    await runner.run(project, MagicMock())
+
+    submitted_body = mock_custom_api.jobs["test-job"]
+    expected = K8S_RESTRICTED_SECURITY_CONTEXT
+    containers = submitted_body["tasks"][0]["template"]["spec"]["containers"]
+    assert containers, "expected the custom resource to expose a pod spec"
+    for cont in containers:
+        assert cont["securityContext"] == expected
+
+
+@pytest.mark.asyncio
+async def test_launch_cronjob_injects_restricted_security_context(
+    monkeypatch,
+    mock_event_streams,
+    mock_batch_api,
+    mock_kube_context_and_api_client,
+    mock_maybe_create_image_pullsecret,
+    mock_create_from_dict,
+    test_api,
+    clean_monitor,
+    clean_agent,
+):
+    """A batch/v1 CronJob's jobTemplate pod containers must get the context."""
+    cronjob = {
+        "apiVersion": "batch/v1",
+        "kind": "CronJob",
+        "metadata": {"name": "test-job"},
+        "spec": {
+            "schedule": "* * * * *",
+            "jobTemplate": {
+                "spec": {
+                    "template": {
+                        "spec": {
+                            "containers": [
+                                {"name": "main", "image": "test-image"},
+                            ],
+                            "initContainers": [
+                                {"name": "init", "image": "busybox"},
+                            ],
+                            "restartPolicy": "Never",
+                        }
+                    }
+                }
+            },
+        },
+    }
+    project = LaunchProject(
+        docker_config={"docker_image": "test_image"},
+        target_entity="test_entity",
+        target_project="test_project",
+        resource_args={"kubernetes": cronjob},
+        launch_spec={},
+        overrides={},
+        resource="kubernetes",
+        api=test_api,
+        git_info={},
+        job="",
+        uri="https://wandb.ai/test_entity/test_project/runs/test_run",
+        run_id="test_run_id",
+        name="test_run",
+    )
+    runner = KubernetesRunner(
+        test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
+    )
+    await runner.run(project, "test-image")
+
+    # The CronJob flows through the standard Job path (batch/v1) and is submitted
+    # via create_from_dict.
+    submitted_job = mock_create_from_dict.call_args_list[0][0][1]
+    expected = K8S_RESTRICTED_SECURITY_CONTEXT
+    pod_spec = submitted_job["spec"]["jobTemplate"]["spec"]["template"]["spec"]
+    containers = pod_spec["containers"]
+    assert containers, "expected the CronJob jobTemplate to expose containers"
+    for cont in containers:
+        assert cont["securityContext"] == expected
+    init_containers = pod_spec["initContainers"]
+    assert init_containers, "expected the CronJob jobTemplate to expose initContainers"
+    for cont in init_containers:
+        assert cont["securityContext"] == expected
 
 
 @pytest.mark.asyncio
@@ -1380,6 +1583,15 @@ async def test_launch_additional_services(
         .get("name")
         == expected_pod_name
     )
+    assert (
+        additional_service_call[0][1]
+        .get("spec")
+        .get("template")
+        .get("spec")
+        .get("containers")[0]
+        .get("securityContext")
+        == K8S_RESTRICTED_SECURITY_CONTEXT
+    )
 
     labels = additional_service_call[0][1].get("metadata").get("labels")
     assert "wandb.ai/label" in labels
@@ -1388,6 +1600,102 @@ async def test_launch_additional_services(
     assert (
         labels[WANDB_K8S_LABEL_AUXILIARY_RESOURCE] == expected_auxiliary_resource_label
     )
+
+
+@pytest.mark.asyncio
+async def test_launch_additional_services_rejects_unsafe_config(
+    mock_event_streams,
+    mock_batch_api,
+    mock_kube_context_and_api_client,
+    mock_maybe_create_image_pullsecret,
+    mock_create_from_dict,
+    test_api,
+    manifest,
+    clean_monitor,
+    clean_agent,
+):
+    unsafe_additional_service = {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {"name": "unsafe-pod"},
+        "spec": {
+            "hostPID": True,
+            "containers": [{"name": "unsafe", "image": "test_image"}],
+        },
+    }
+
+    project = LaunchProject(
+        docker_config={"docker_image": "test_image"},
+        target_entity="test_entity",
+        target_project="test_project",
+        resource_args={"kubernetes": manifest},
+        launch_spec={
+            "additional_services": [
+                {
+                    "config": unsafe_additional_service,
+                    "name": "unsafe_additional_service",
+                }
+            ]
+        },
+        overrides={},
+        resource="kubernetes",
+        api=test_api,
+        git_info={},
+        job="",
+        uri="https://wandb.ai/test_entity/test_project/runs/test_run_id",
+        run_id="test_run_id",
+        name="test_run",
+    )
+    runner = KubernetesRunner(
+        test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
+    )
+
+    with pytest.raises(
+        LaunchError,
+        match="Unsafe resource_args.kubernetes option 'hostPID'",
+    ):
+        await runner.run(project, "test_image")
+
+    mock_create_from_dict.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_launch_without_additional_services_still_creates_job(
+    mock_event_streams,
+    mock_batch_api,
+    mock_kube_context_and_api_client,
+    mock_maybe_create_image_pullsecret,
+    mock_create_from_dict,
+    test_api,
+    manifest,
+    clean_monitor,
+    clean_agent,
+):
+    project = LaunchProject(
+        docker_config={"docker_image": "test_image"},
+        target_entity="test_entity",
+        target_project="test_project",
+        resource_args={"kubernetes": manifest},
+        launch_spec={},
+        overrides={},
+        resource="kubernetes",
+        api=test_api,
+        git_info={},
+        job="",
+        uri="https://wandb.ai/test_entity/test_project/runs/test_run_id",
+        run_id="test_run_id",
+        name="test_run",
+    )
+    runner = KubernetesRunner(
+        test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
+    )
+
+    submitted_run = await runner.run(project, "test_image")
+
+    assert submitted_run.id == "test-job"
+    assert mock_create_from_dict.call_count == 1
+    submitted_manifest = mock_create_from_dict.call_args_list[0][0][1]
+    assert submitted_manifest.get("kind") == "Job"
 
 
 def _make_emptydir_manifest(

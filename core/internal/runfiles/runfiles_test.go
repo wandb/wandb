@@ -2,6 +2,7 @@ package runfiles_test
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -398,7 +399,7 @@ func TestUploader(t *testing.T) {
 			assert.Equal(t, "test-file1", task.Name)
 			assert.Equal(t, "URL1", task.Url)
 			assert.Equal(t,
-				[]string{"Header1:Value1", "Header2:Value2"},
+				http.Header{"Header1": {"Value1"}, "Header2": {"Value2"}},
 				task.Headers)
 
 			task, ok = uploadTasks[1].(*filetransfer.DefaultUploadTask)
@@ -409,7 +410,7 @@ func TestUploader(t *testing.T) {
 			assert.Equal(t, "subdir/test-file2", task.Name)
 			assert.Equal(t, "URL2", task.Url)
 			assert.Equal(t,
-				[]string{"Header1:Value1", "Header2:Value2"},
+				http.Header{"Header1": {"Value1"}, "Header2": {"Value2"}},
 				task.Headers)
 		})
 

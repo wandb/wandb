@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -292,7 +293,7 @@ func PartitionsWithContext(ctx context.Context, all bool) ([]PartitionStat, erro
 	}
 
 	// use mountinfo
-	ret, err = parseFieldsOnMountinfo(ctx, lines, all, filename)
+	ret, err = parseFieldsOnMountinfo(ctx, lines, all, fs, filename)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing mountinfo file %s: %w", filename, err)
 	}
@@ -304,6 +305,9 @@ func parseFieldsOnMounts(lines []string, all bool, fs []string) []PartitionStat 
 	ret := make([]PartitionStat, 0, len(lines))
 	for _, line := range lines {
 		fields := strings.Fields(line)
+		if len(fields) < 4 {
+			continue
+		}
 
 		d := PartitionStat{
 			Device:     fields[0],
@@ -323,7 +327,7 @@ func parseFieldsOnMounts(lines []string, all bool, fs []string) []PartitionStat 
 	return ret
 }
 
-func parseFieldsOnMountinfo(ctx context.Context, lines []string, all bool, filename string) ([]PartitionStat, error) {
+func parseFieldsOnMountinfo(ctx context.Context, lines []string, all bool, fs []string, filename string) ([]PartitionStat, error) {
 	ret := make([]PartitionStat, 0, len(lines))
 	seenDevIDs := make(map[string]string)
 
@@ -359,9 +363,18 @@ func parseFieldsOnMountinfo(ctx context.Context, lines []string, all bool, filen
 		}
 		fsType := fields[0]
 		mntSrc := fields[1]
+		superOpts := []string{}
+		if len(fields) >= 3 {
+			superOpts = strings.Split(fields[2], ",")
+		}
+		// Since Linux 2.6.16, read-only can be set independently on the
+		// mount point and the filesystem superblock. The mount is writable
+		// only when both option sets are read-write.
+		mountOpts = effectiveMountOpts(mountOpts, superOpts)
 		isBind := false
-		// Per fstab(5), the device can be any string for non-storage-backed filesystems.
-		if !all && !strings.HasPrefix(mntSrc, "/") {
+		// When !all, keep only real filesystems (non-"nodev" entries of
+		// /proc/filesystems plus zfs), as parseFieldsOnMounts() does.
+		if !all && !common.StringsHas(fs, fsType) {
 			continue
 		}
 		// Some virtual/non-storage filesystems do still have real sources (e.g. nsfs binds),
@@ -382,7 +395,16 @@ func parseFieldsOnMountinfo(ctx context.Context, lines []string, all bool, filen
 			// Same block device seen before - use the original device path.
 			device = firstDev
 		}
-		if strings.HasPrefix(mntSrc, "/") && rootDir != "/" {
+		// A btrfs subvolume mount has rootDir == its subvol= value and is not a
+		// bind; a bind of a subdirectory has a deeper rootDir than subvol=.
+		isSubvol := false
+		for _, o := range superOpts {
+			if v, ok := strings.CutPrefix(o, "subvol="); ok {
+				isSubvol = rootDir == v
+				break
+			}
+		}
+		if strings.HasPrefix(mntSrc, "/") && rootDir != "/" && !isSubvol {
 			isBind = true
 			mountOpts = append(mountOpts, "bind")
 		}
@@ -419,6 +441,40 @@ func parseFieldsOnMountinfo(ctx context.Context, lines []string, all bool, filen
 		ret = append(ret, d)
 	}
 	return ret, nil
+}
+
+func effectiveMountOpts(mountOpts, superOpts []string) []string {
+	mode := effectiveReadWriteMode(mountOpts, superOpts)
+	if mode == "" {
+		return mountOpts
+	}
+
+	updated := make([]string, 0, len(mountOpts)+1)
+	modeSet := false
+	for _, opt := range mountOpts {
+		if opt == "ro" || opt == "rw" {
+			if !modeSet {
+				updated = append(updated, mode)
+				modeSet = true
+			}
+			continue
+		}
+		updated = append(updated, opt)
+	}
+	if !modeSet {
+		updated = append([]string{mode}, updated...)
+	}
+	return updated
+}
+
+func effectiveReadWriteMode(mountOpts, superOpts []string) string {
+	if slices.Contains(mountOpts, "ro") || slices.Contains(superOpts, "ro") {
+		return "ro"
+	}
+	if slices.Contains(mountOpts, "rw") && slices.Contains(superOpts, "rw") {
+		return "rw"
+	}
+	return ""
 }
 
 // getFileSystems returns supported filesystems from /proc/filesystems

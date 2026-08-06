@@ -37,23 +37,20 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from typing_extensions import override
-from wandb_gql import gql
 
 from wandb._strutils import nameof
 from wandb.apis import public
 from wandb.apis.attrs import Attrs
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import RelayPaginator
-from wandb.apis.public.api import RetryingClient
+from wandb.apis.public.service_api import ServiceApi
 from wandb.apis.public.sweeps import Sweeps
 from wandb.sdk.lib import ipython
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 if TYPE_CHECKING:
-    from wandb_graphql.language.ast import Document
-
     from wandb._pydantic import Connection
     from wandb.apis._generated import ProjectFragment
-    from wandb.apis.public.service_api import ServiceApi
 
 
 class Projects(RelayPaginator["ProjectFragment", "Project"]):
@@ -62,7 +59,6 @@ class Projects(RelayPaginator["ProjectFragment", "Project"]):
     An iterable interface to access projects created and saved by the entity.
 
     Args:
-        client: Legacy GraphQL client retained for API compatibility.
         service_api: Interface to the wandb-core service that performs
             W&B API calls for this collection.
         entity (str): The entity name (username or team) to fetch projects for.
@@ -84,34 +80,30 @@ class Projects(RelayPaginator["ProjectFragment", "Project"]):
     ```
     """
 
-    QUERY: ClassVar[Document | None] = None
+    QUERY: ClassVar[str | None] = None
     last_response: Connection[ProjectFragment] | None
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         entity: str,
         per_page: int = 50,
-        *,
-        service_api: ServiceApi,
-    ) -> Projects:
+    ) -> None:
         """An iterable collection of `Project` objects.
 
         Args:
-            client: Legacy GraphQL client retained for API compatibility.
-            service_api: Interface to the wandb-core service that performs
-                W&B API calls for this collection.
+            service_api: The service API used to query W&B.
             entity: The entity which owns the projects.
             per_page: The number of projects to fetch per request to the API.
         """
         if self.QUERY is None:
             from wandb.apis._generated import GET_PROJECTS_GQL
 
-            type(self).QUERY = gql(GET_PROJECTS_GQL)
+            type(self).QUERY = GET_PROJECTS_GQL
 
         self.entity = entity
         self._service_api = service_api
-        super().__init__(client, variables={"entity": entity}, per_page=per_page)
+        super().__init__(service_api, variables={"entity": entity}, per_page=per_page)
 
     @override
     def _update_response(self) -> None:
@@ -119,8 +111,7 @@ class Projects(RelayPaginator["ProjectFragment", "Project"]):
         from wandb._pydantic import Connection
         from wandb.apis._generated import GetProjects, ProjectFragment
 
-        data = self.client.execute(self.QUERY, variable_values=self.variables)
-        result = GetProjects.model_validate(data)
+        result = self._execute_query(parse=GetProjects.model_validate_json)
         if not (conn := result.models):
             raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
         self.last_response = Connection[ProjectFragment].model_validate(conn)
@@ -131,18 +122,17 @@ class Projects(RelayPaginator["ProjectFragment", "Project"]):
 
         Note: This property is not available for projects.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         # For backwards compatibility, even though this isn't a SizedPaginator
         return None
 
     def _convert(self, node: ProjectFragment) -> Project:
         return Project(
-            self.client,
+            self._service_api,
             self.entity,
             node.name,
             node.model_dump(),
-            service_api=self._service_api,
         )
 
     def __repr__(self):
@@ -153,7 +143,6 @@ class Project(Attrs):
     """A project is a namespace for runs.
 
     Args:
-        client: Legacy GraphQL client retained for API compatibility.
         service_api: Interface to the wandb-core service that performs
             W&B API calls for this project.
         name (str): The name of the project.
@@ -162,42 +151,39 @@ class Project(Attrs):
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         entity: str,
         project: str,
         attrs: Mapping[str, Any],
-        *,
-        service_api: ServiceApi,
-    ) -> Project:
+    ) -> None:
         """A single project associated with an entity.
 
         Args:
-            client: Legacy GraphQL client retained for API compatibility.
-            service_api: Interface to the wandb-core service that performs
-                W&B API calls for this project.
+            service_api: The service API used to query W&B.
             entity: The entity which owns the project.
             project: The name of the project to query.
             attrs: The attributes of the project.
         """
         super().__init__(attrs)
         self._is_loaded = bool(attrs)
-        self.client = client
+        self._service_api = service_api
         self.name = project
         self.entity = entity
-        self._service_api = service_api
 
     def _load(self) -> None:
-        from requests import HTTPError
-
         from wandb.apis._generated import GET_PROJECT_GQL, GetProject
 
         gql_vars = {"name": self.name, "entity": self.entity}
         try:
-            data = self.client.execute(gql(GET_PROJECT_GQL), gql_vars)
-        except HTTPError as e:
+            data = self._service_api.execute_graphql(
+                GET_PROJECT_GQL,
+                variables=gql_vars,
+                parse=GetProject.model_validate_json,
+            )
+        except WandbApiFailedError as e:
             raise ValueError(f"Unable to fetch project ID: {gql_vars!r}") from e
 
-        project = GetProject.model_validate(data).project
+        project = data.project
         self._attrs = project.model_dump() if project else {}
         self._is_loaded = True
 
@@ -212,7 +198,7 @@ class Project(Attrs):
             self._load()
         if "user" not in self._attrs:
             raise ValueError(f"No user found for project {self.name}")
-        return public.User(self.client, self._attrs["user"])
+        return public.User(self._service_api, self._attrs["user"])
 
     @property
     def path(self) -> list[str]:
@@ -223,12 +209,12 @@ class Project(Attrs):
     @property
     def url(self) -> str:
         """Returns the URL of the project."""
-        return self.client.app_url + "/".join(self.path + ["workspace"])
+        return self._service_api.app_url + "/".join(self.path + ["workspace"])
 
     def to_html(self, height: int = 420, hidden: bool = False) -> str:
         """Generate HTML containing an iframe displaying this project.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         url = self.url + "?jupyter=true"
         style = f"border:none;width:100%;height:{height}px;"
@@ -247,9 +233,7 @@ class Project(Attrs):
     @normalize_exceptions
     def artifacts_types(self, per_page: int = 50) -> public.ArtifactTypes:
         """Returns all artifact types associated with this project."""
-        return public.ArtifactTypes(
-            self.client, self.entity, self.name, service_api=self._service_api
-        )
+        return public.ArtifactTypes(self._service_api, self.entity, self.name)
 
     @normalize_exceptions
     def collections(
@@ -269,31 +253,37 @@ class Project(Attrs):
                 Default is 50.
         """
         return public.ProjectArtifactCollections(
-            self.client,
+            self._service_api,
             self.entity,
             self.name,
             filters=filters,
             order=order,
             per_page=per_page,
-            service_api=self._service_api,
         )
 
     @normalize_exceptions
-    def sweeps(self, per_page: int = 50) -> Sweeps:
+    def sweeps(
+        self,
+        per_page: int = 50,
+        filters: dict[str, Any] | None = None,
+        order: str | None = None,
+    ) -> Sweeps:
         """Return a paginated collection of sweeps in this project.
 
         Args:
             per_page: The number of sweeps to fetch per request to the API.
+            filters: (dict) queries for specific sweeps using the runs filters,
+                See wandb/apis/public/api.py:runs for more details.
 
         Returns:
             A `Sweeps` object, which is an iterable collection of `Sweep` objects.
         """
         return Sweeps(
-            self.client,
+            self._service_api,
             self.entity,
             self.name,
             per_page=per_page,
-            service_api=self._service_api,
+            filters=filters,
         )
 
     @property

@@ -30,15 +30,6 @@ def local_wandb_backend() -> LocalWandbBackendAddress:
 
 
 @pytest.fixture(scope="session")
-def local_wandb_backend_importers() -> LocalWandbBackendAddress:
-    """Fixture that starts up or connects to a second local-testcontainer.
-
-    This is used by importer tests, to move data between two backends.
-    """
-    return connect_to_local_wandb_backend(name="wandb-local-testcontainer-importers")
-
-
-@pytest.fixture(scope="session")
 def use_local_wandb_backend(
     local_wandb_backend: LocalWandbBackendAddress,
 ) -> Generator[None, None, None]:
@@ -60,16 +51,6 @@ def backend_fixture_factory(
 ) -> Generator[BackendFixtureFactory, None, None]:
     _ = use_local_wandb_backend
     base_url = local_wandb_backend.fixture_service_url
-    with BackendFixtureFactory(base_url, worker_id=worker_id) as factory:
-        yield factory
-
-
-@pytest.fixture(scope="session")
-def backend_importers_fixture_factory(
-    worker_id: str,
-    local_wandb_backend_importers: LocalWandbBackendAddress,
-) -> Generator[BackendFixtureFactory, None, None]:
-    base_url = local_wandb_backend_importers.fixture_service_url
     with BackendFixtureFactory(base_url, worker_id=worker_id) as factory:
         yield factory
 
@@ -115,6 +96,7 @@ def user(
 
 @pytest.fixture(scope="module")
 def module_user(
+    request: pytest.FixtureRequest,
     backend_fixture_factory: BackendFixtureFactory,
 ) -> Generator[str]:
     """A new user shared by all tests in a module.
@@ -125,6 +107,10 @@ def module_user(
     test user's data does not affect correctness, and creating a user for
     each test is slow.
     """
+    if "user" in request.fixturenames:
+        message = "Cannot use `user` and `module_user` fixtures together."
+        raise AssertionError(message)
+
     with _user(backend_fixture_factory) as user:
         yield user
 

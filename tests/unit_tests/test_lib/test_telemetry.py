@@ -1,6 +1,20 @@
 """telemetry lib tests."""
 
+from wandb import env
+from wandb.analytics.opentelemetry.opentelemetry_proxy import (
+    OtelProvider,
+    TelemetryRecorder,
+)
 from wandb.sdk.lib import telemetry
+
+
+def test_disabled_otel_provider_records_as_noop(monkeypatch):
+    monkeypatch.setattr(env, "error_reporting_enabled", lambda: False)
+    provider = OtelProvider(api_key="")
+    recorder = TelemetryRecorder(root=provider)
+
+    recorder.increment_counter_and_log_event("test")
+    recorder.exception("test", RuntimeError("test"))
 
 
 def test_telemetry_parse():

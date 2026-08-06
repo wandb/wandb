@@ -69,6 +69,8 @@ type Model struct {
 	graphWidth  int          // width of graphing area - excludes X axis and labels
 	graphHeight int          // height of graphing area - excludes Y axis and labels
 
+	MaxInterpolationPoints int // maximum points to interpolate for lines/circles
+
 	zoneManager *zone.Manager // provides mouse functionality
 	zoneID      string
 }
@@ -540,7 +542,7 @@ func (m *Model) DrawRuneLineWithStyle(f1 canvas.Float64Point, f2 canvas.Float64P
 
 	// draw rune on all canvas coordinates between
 	// the two canvas points that approximates a line
-	points := graph.GetLinePoints(p1, p2)
+	points := graph.GetLinePointsWithLimit(p1, p2, m.MaxInterpolationPoints)
 	for _, p := range points {
 		if m.yStep > 0 {
 			p.X++
@@ -566,7 +568,7 @@ func (m *Model) DrawRuneCircleWithStyle(c canvas.Float64Point, f float64, r rune
 	center := canvas.NewPointFromFloat64Point(c) // round center to nearest integers
 	radius := int(math.Round(f))                 // round radius to nearest integer
 
-	points := graph.GetCirclePoints(center, radius)
+	points := graph.GetCirclePointsWithLimit(center, radius, m.MaxInterpolationPoints)
 	for _, v := range points {
 		np := canvas.NewFloat64PointFromPoint(v)
 		// auto adjust x and y ranges if enabled
@@ -618,7 +620,7 @@ func (m *Model) DrawLineWithStyle(f1 canvas.Float64Point, f2 canvas.Float64Point
 
 	// draw line runes on all canvas coordinates between
 	// the two canvas points that approximates a line
-	points := graph.GetLinePoints(p1, p2)
+	points := graph.GetLinePointsWithLimit(p1, p2, m.MaxInterpolationPoints)
 	if len(points) <= 0 {
 		return
 	}
@@ -650,7 +652,7 @@ func (m *Model) DrawBrailleLineWithStyle(f1 canvas.Float64Point, f2 canvas.Float
 	p2 := bGrid.GridPoint(f2)
 
 	// set all points in the braille grid between two points that approximates a line
-	points := graph.GetLinePoints(p1, p2)
+	points := graph.GetLinePointsWithLimit(p1, p2, m.MaxInterpolationPoints)
 	for _, p := range points {
 		bGrid.Set(p)
 	}
@@ -682,7 +684,7 @@ func (m *Model) DrawBrailleCircleWithStyle(c canvas.Float64Point, f float64, s l
 
 	// set braille grid points from computed circle points around center
 	bGrid := graph.NewBrailleGrid(m.graphWidth, m.graphHeight, m.minX, m.maxX, m.minY, m.maxY)
-	points := graph.GetCirclePoints(center, radius)
+	points := graph.GetCirclePointsWithLimit(center, radius, m.MaxInterpolationPoints)
 	for _, p := range points {
 		np := canvas.NewFloat64PointFromPoint(p)
 		if m.AutoAdjustRange(np) {

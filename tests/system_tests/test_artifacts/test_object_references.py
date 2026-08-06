@@ -1082,8 +1082,8 @@ def cleanup_temp_subdirs(tmp_path: Path) -> Callable[[], None]:
     return _cleanup
 
 
-@fixture(scope="session")
-def anon_storage_handlers():
+@fixture  # NOTE: Must be function-scoped to avoid leaking state into other tests that mock S3 via moto
+def anon_storage_handlers(monkeypatch: MonkeyPatch):
     from wandb.sdk.artifacts.storage_handlers.gcs_handler import GCSHandler
     from wandb.sdk.artifacts.storage_handlers.s3_handler import S3Handler
 
@@ -1102,9 +1102,5 @@ def anon_storage_handlers():
         self._client = google.cloud.storage.Client.create_anonymous_client()
         return self._client
 
-    # Use MonkeyPatch.context(), as this fixture can/should be session-scoped,
-    # while the `monkeypatch` fixture is strictly function-scoped.
-    with MonkeyPatch.context() as patcher:
-        patcher.setattr(S3Handler, "init_boto", init_boto)
-        patcher.setattr(GCSHandler, "init_gcs", init_gcs)
-        yield
+    monkeypatch.setattr(S3Handler, "init_boto", init_boto)
+    monkeypatch.setattr(GCSHandler, "init_gcs", init_gcs)

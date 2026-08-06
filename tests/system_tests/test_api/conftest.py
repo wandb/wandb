@@ -19,19 +19,53 @@ class ParquetFileHandler(http.server.SimpleHTTPRequestHandler):
 
     parquet_files: dict[str, bytes] = {}
 
-    def do_GET(self):
+    def _resolve_content(self) -> bytes | None:
         path = self.path.lstrip("/")
+        return self.parquet_files.get(path)
 
-        if path in self.parquet_files:
-            content = self.parquet_files[path]
+    def do_HEAD(self):
+        content = self._resolve_content()
+        if content is not None:
             self.send_response(200)
+            self.send_header("Content-Length", str(len(content)))
+            self.send_header("Accept-Ranges", "bytes")
             self.end_headers()
-            self.wfile.write(content)
         else:
+            self.send_response(404)
+            self.end_headers()
+
+    def do_GET(self):
+        content = self._resolve_content()
+        if content is None:
             self.send_response(404)
             self.send_header("Content-Type", "text/plain")
             self.end_headers()
             self.wfile.write(b"File not found")
+            return
+
+        range_header = self.headers.get("Range")
+        if range_header:
+            # Parse "bytes=START-END"
+            range_spec = range_header.replace("bytes=", "")
+            start_str, end_str = range_spec.split("-")
+            start = int(start_str)
+            end = int(end_str) + 1 if end_str else len(content)
+            end = min(end, len(content))
+
+            body = content[start:end]
+            self.send_response(206)
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header(
+                "Content-Range",
+                f"bytes {start}-{end - 1}/{len(content)}",
+            )
+            self.end_headers()
+            self.wfile.write(body)
+        else:
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(content)))
+            self.end_headers()
+            self.wfile.write(content)
 
 
 class ParquetHTTPServer:

@@ -175,6 +175,13 @@ class Image(BatchableMedia):
             converted to uint8 (with a warning if values fall outside [0, 255])
         * Data already in [0, 255] is converted to uint8 without modification
 
+        When you log an image to a run, W&B saves the file under a generated
+        name that includes a content hash, such as
+        `media/images/[key]_[step]_[hash].png`, instead of the original
+        filename. The final filename is not known until you log the image, so
+        to reference a logged image by URL (for example, in the HTML of a W&B
+        Report), log the image first and then use the generated path.
+
         Args:
             data_or_path: Accepts NumPy array/pytorch tensor of image data,
                 a PIL image object, or a path to an image file. If a NumPy
@@ -294,6 +301,15 @@ class Image(BatchableMedia):
         if grouping is not None:
             self._grouping = grouping
 
+        # Per-box and per-mask class labels are now also surfaced via the
+        # `box_class_maps` / `mask_class_maps`. The legacy class_map logic
+        # here is broken, as each box and mask clobbers the classes from
+        # the previous one, e.g. if box A has `1: foo`, and box B has
+        # `1: bar`, only `1: bar` will be retained, and it will be used
+        # for both boxes A and B.
+        #
+        # TODO: Deprecate this legacy path after the current server release
+        # (0.81) is deprecated.
         total_classes = {}
 
         if boxes:
@@ -447,7 +463,7 @@ class Image(BatchableMedia):
     def from_json(cls: type[Image], json_obj: dict, source_artifact: Artifact) -> Image:
         """Factory method to create an Audio object from a JSON object.
 
-        "<!-- lazydoc-ignore-classmethod: internal -->
+        "<!-- lazydoc-ignore -->
         """
         classes: Classes | None = None
         if json_obj.get("classes") is not None:
@@ -485,7 +501,7 @@ class Image(BatchableMedia):
     def get_media_subdir(cls: type[Image]) -> str:
         """Get media subdirectory.
 
-        "<!-- lazydoc-ignore-classmethod: internal -->
+        "<!-- lazydoc-ignore -->
         """
         return os.path.join("media", "images")
 
@@ -499,7 +515,7 @@ class Image(BatchableMedia):
     ) -> None:
         """Bind this object to a run.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         # For Images, we are going to avoid copying the image file to the run.
         # We should make this common functionality for all media types, but that
@@ -541,7 +557,7 @@ class Image(BatchableMedia):
     def to_json(self, run_or_artifact: wandb.Run | Artifact) -> dict:
         """Returns the JSON representation expected by the backend.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = Image._log_type
@@ -599,7 +615,7 @@ class Image(BatchableMedia):
     ) -> str:
         """Guess what type of image the np.array is representing.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         # TODO: do we want to support dimensions being at the beginning of the array?
         ndims = data.ndim
@@ -638,7 +654,7 @@ class Image(BatchableMedia):
     ) -> dict:
         """Convert a sequence of Image objects to a JSON representation.
 
-        "<!-- lazydoc-ignore-classmethod: internal -->
+        "<!-- lazydoc-ignore -->
         """
         if TYPE_CHECKING:
             seq = cast(Sequence["Image"], seq)
@@ -715,7 +731,7 @@ class Image(BatchableMedia):
     ) -> list[dict | None] | bool:
         """Collect all masks from a list of images.
 
-        "<!-- lazydoc-ignore-classmethod: internal -->
+        "<!-- lazydoc-ignore -->
         """
         all_mask_groups: list[dict | None] = []
         for image in images:
@@ -742,7 +758,7 @@ class Image(BatchableMedia):
     ) -> list[dict | None] | bool:
         """Collect all boxes from a list of images.
 
-        "<!-- lazydoc-ignore-classmethod: internal -->
+        "<!-- lazydoc-ignore -->
         """
         all_box_groups: list[dict | None] = []
         for image in images:
@@ -765,7 +781,7 @@ class Image(BatchableMedia):
     ) -> bool | Sequence[str | None]:
         """Get captions from a list of images.
 
-        "<!-- lazydoc-ignore-classmethod: internal -->
+        "<!-- lazydoc-ignore -->
         """
         return cls.captions(images)
 
@@ -799,7 +815,7 @@ class Image(BatchableMedia):
     def to_data_array(self) -> list[Any]:
         """Convert to data array.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         res = []
         if self.image is not None:
@@ -840,12 +856,16 @@ class _ImageFileType(_dtypes.Type):
         box_layers=None,
         box_score_keys=None,
         mask_layers=None,
+        box_class_maps=None,
+        mask_class_maps=None,
         class_map=None,
         **kwargs,
     ):
         box_layers = box_layers or {}
         box_score_keys = box_score_keys or []
         mask_layers = mask_layers or {}
+        box_class_maps = box_class_maps or {}
+        mask_class_maps = mask_class_maps or {}
         class_map = class_map or {}
 
         if isinstance(box_layers, _dtypes.ConstType):
@@ -873,6 +893,36 @@ class _ImageFileType(_dtypes.Type):
         else:
             box_score_keys = _dtypes.ConstType(set(box_score_keys))
 
+        if isinstance(box_class_maps, _dtypes.ConstType):
+            box_class_maps = box_class_maps._params["val"]
+        if not isinstance(box_class_maps, dict):
+            raise TypeError("box_class_maps must be a dict")
+        else:
+            box_class_maps = _dtypes.ConstType(
+                {
+                    str(box_key): {
+                        str(class_id): name
+                        for class_id, name in box_class_maps[box_key].items()
+                    }
+                    for box_key in box_class_maps
+                }
+            )
+
+        if isinstance(mask_class_maps, _dtypes.ConstType):
+            mask_class_maps = mask_class_maps._params["val"]
+        if not isinstance(mask_class_maps, dict):
+            raise TypeError("mask_class_maps must be a dict")
+        else:
+            mask_class_maps = _dtypes.ConstType(
+                {
+                    str(mask_key): {
+                        str(class_id): name
+                        for class_id, name in mask_class_maps[mask_key].items()
+                    }
+                    for mask_key in mask_class_maps
+                }
+            )
+
         if isinstance(class_map, _dtypes.ConstType):
             class_map = class_map._params["val"]
         if not isinstance(class_map, dict):
@@ -885,6 +935,8 @@ class _ImageFileType(_dtypes.Type):
                 "box_layers": box_layers,
                 "box_score_keys": box_score_keys,
                 "mask_layers": mask_layers,
+                "box_class_maps": box_class_maps,
+                "mask_class_maps": mask_class_maps,
                 "class_map": class_map,
             }
         )
@@ -895,11 +947,31 @@ class _ImageFileType(_dtypes.Type):
             box_score_keys_self = self.params["box_score_keys"].params["val"] or []
             mask_layers_self = self.params["mask_layers"].params["val"] or {}
             class_map_self = self.params["class_map"].params["val"] or {}
+            box_class_maps_self = (
+                self.params.get("box_class_maps").params["val"]
+                if "box_class_maps" in self.params
+                else {}
+            ) or {}
+            mask_class_maps_self = (
+                self.params.get("mask_class_maps").params["val"]
+                if "mask_class_maps" in self.params
+                else {}
+            ) or {}
 
             box_layers_other = wb_type.params["box_layers"].params["val"] or {}
             box_score_keys_other = wb_type.params["box_score_keys"].params["val"] or []
             mask_layers_other = wb_type.params["mask_layers"].params["val"] or {}
             class_map_other = wb_type.params["class_map"].params["val"] or {}
+            box_class_maps_other = (
+                wb_type.params.get("box_class_maps").params["val"]
+                if "box_class_maps" in wb_type.params
+                else {}
+            ) or {}
+            mask_class_maps_other = (
+                wb_type.params.get("mask_class_maps").params["val"]
+                if "mask_class_maps" in wb_type.params
+                else {}
+            ) or {}
 
             # Merge the class_ids from each set of box_layers
             box_layers = {
@@ -934,7 +1006,32 @@ class _ImageFileType(_dtypes.Type):
                 )
             }
 
-            return _ImageFileType(box_layers, box_score_keys, mask_layers, class_map)
+            def _merge_per_key_class_maps(self_map: dict, other_map: dict) -> dict:
+                # Union of keys; within a key, union of class IDs, preferring
+                # self's name on collision (mirrors `class_map` above).
+                merged: dict = {}
+                for key in self_map.keys() | other_map.keys():
+                    labels = {**other_map.get(key, {}), **self_map.get(key, {})}
+                    merged[str(key)] = {
+                        str(class_id): name for class_id, name in labels.items()
+                    }
+                return merged
+
+            box_class_maps = _merge_per_key_class_maps(
+                box_class_maps_self, box_class_maps_other
+            )
+            mask_class_maps = _merge_per_key_class_maps(
+                mask_class_maps_self, mask_class_maps_other
+            )
+
+            return _ImageFileType(
+                box_layers,
+                box_score_keys,
+                mask_layers,
+                box_class_maps,
+                mask_class_maps,
+                class_map,
+            )
 
         return _dtypes.InvalidType()
 
@@ -954,10 +1051,17 @@ class _ImageFileType(_dtypes.Type):
                     for box in val._val
                     for key in box.get("scores", {})
                 }
-
+                box_class_maps = {
+                    str(key): {
+                        str(class_id): name
+                        for class_id, name in py_obj._boxes[key]._class_labels.items()
+                    }
+                    for key in py_obj._boxes
+                }
             else:
                 box_layers = {}
                 box_score_keys = set()
+                box_class_maps = {}
 
             if hasattr(py_obj, "_masks") and py_obj._masks:
                 mask_layers = {
@@ -968,8 +1072,20 @@ class _ImageFileType(_dtypes.Type):
                     )
                     for key in py_obj._masks
                 }
+                mask_class_maps = {
+                    str(key): {
+                        str(class_id): name
+                        for class_id, name in py_obj._masks[key]
+                        ._val["class_labels"]
+                        .items()
+                    }
+                    for key in py_obj._masks
+                    if hasattr(py_obj._masks[key], "_val")
+                    and "class_labels" in py_obj._masks[key]._val
+                }
             else:
                 mask_layers = {}
+                mask_class_maps = {}
 
             if hasattr(py_obj, "_classes") and py_obj._classes:
                 class_set = {
@@ -978,7 +1094,14 @@ class _ImageFileType(_dtypes.Type):
             else:
                 class_set = {}
 
-            return cls(box_layers, box_score_keys, mask_layers, class_set)
+            return cls(
+                box_layers,
+                box_score_keys,
+                mask_layers,
+                box_class_maps,
+                mask_class_maps,
+                class_set,
+            )
 
 
 _dtypes.TypeRegistry.add(_ImageFileType)

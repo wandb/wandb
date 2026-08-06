@@ -33,15 +33,12 @@ pub struct TelemetryRecord {
     pub cli_version: ::prost::alloc::string::String,
     #[prost(string, tag = "6")]
     pub huggingface_version: ::prost::alloc::string::String,
-    /// string  framework = 7;
     #[prost(message, optional, tag = "8")]
     pub env: ::core::option::Option<Env>,
     #[prost(message, optional, tag = "9")]
     pub label: ::core::option::Option<Labels>,
     #[prost(message, optional, tag = "10")]
     pub deprecated: ::core::option::Option<Deprecated>,
-    #[prost(message, optional, tag = "11")]
-    pub issues: ::core::option::Option<Issues>,
     #[prost(string, tag = "12")]
     pub core_version: ::prost::alloc::string::String,
     #[prost(string, tag = "13")]
@@ -256,7 +253,7 @@ pub struct Imports {
     #[prost(bool, tag = "107")]
     pub dspy: bool,
 }
-/// Next ID: 76
+/// Next ID: 80
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Feature {
     /// wandb.watch() called
@@ -390,6 +387,9 @@ pub struct Feature {
     /// Run was synced with wandb sync
     #[prost(bool, tag = "42")]
     pub sync: bool,
+    /// Run was synced with wandb beta sync
+    #[prost(bool, tag = "76")]
+    pub sync2: bool,
     /// Flow control disabled by user
     #[prost(bool, tag = "43")]
     pub flow_control_disabled: bool,
@@ -402,9 +402,6 @@ pub struct Feature {
     /// Ultralytics YOLOv8 integration callbacks used
     #[prost(bool, tag = "47")]
     pub ultralytics_yolov8: bool,
-    /// Using Import API for MLFlow
-    #[prost(bool, tag = "48")]
-    pub importer_mlflow: bool,
     /// Using wandb sync for tfevent files
     #[prost(bool, tag = "49")]
     pub sync_tfevents: bool,
@@ -477,6 +474,15 @@ pub struct Feature {
     /// User using WandbDSPyCallback
     #[prost(bool, tag = "73")]
     pub dspy_callback: bool,
+    /// User logged an EvalTable via run.log()
+    #[prost(bool, tag = "77")]
+    pub eval_table: bool,
+    /// User logged a regular (non-incremental) wandb.Table via run.log()
+    #[prost(bool, tag = "78")]
+    pub table: bool,
+    /// User logged an incremental wandb.Table via run.log()
+    #[prost(bool, tag = "79")]
+    pub incremental_table: bool,
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Env {
@@ -525,9 +531,6 @@ pub struct Labels {
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Deprecated {
-    /// wandb.integration.keras.WandbCallback(data_type=...) called
-    #[prost(bool, tag = "1")]
-    pub keras_callback_data_type: bool,
     /// wandb.plots.\* called
     #[prost(bool, tag = "5")]
     pub plots: bool,
@@ -537,12 +540,6 @@ pub struct Deprecated {
     /// wandb.init(config_exclude_keys=...) called
     #[prost(bool, tag = "8")]
     pub init_config_exclude_keys: bool,
-    /// wandb.integration.keras.WandbCallback(save_model=True) called
-    #[prost(bool, tag = "9")]
-    pub keras_callback_save_model: bool,
-    /// wandb.integration.langchain.WandbTracer called
-    #[prost(bool, tag = "10")]
-    pub langchain_tracer: bool,
     /// wandb.sdk.artifacts.artifact.Artifact.get_path(...) called
     #[prost(bool, tag = "11")]
     pub artifact_get_path: bool,
@@ -561,9 +558,6 @@ pub struct Deprecated {
     /// wandb.sdk.lib.disabled.RunDisabled used
     #[prost(bool, tag = "16")]
     pub run_disabled: bool,
-    /// wandb.integration.keras.WandbCallback used
-    #[prost(bool, tag = "17")]
-    pub keras_callback: bool,
     /// wandb.run.define_metric() called with summary="best" and goal="maximize/minimize"
     #[prost(bool, tag = "18")]
     pub run_define_metric_best_goal: bool,
@@ -594,32 +588,20 @@ pub struct Deprecated {
     /// wandb.sdk.artifacts.artifact.Artifact(use_as=...) called
     #[prost(bool, tag = "27")]
     pub artifact_init_use_as: bool,
-    /// wandb.beta.workflows.log_model() called
-    #[prost(bool, tag = "28")]
-    pub beta_workflows_log_model: bool,
-    /// wandb.beta.workflows.use_model() called
-    #[prost(bool, tag = "29")]
-    pub beta_workflows_use_model: bool,
-    /// wandb.beta.workflows.link_model() called
-    #[prost(bool, tag = "30")]
-    pub beta_workflows_link_model: bool,
     /// wandb.integration.kfp.wandb_log used with kfp\<2.0.0
     #[prost(bool, tag = "31")]
     pub kfp_v1_wandb_log: bool,
 }
-#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct Issues {
-    /// validation warnings for settings
-    #[prost(bool, tag = "1")]
-    pub settings_validation_warnings: bool,
-    /// unexpected settings init args
-    #[prost(bool, tag = "2")]
-    pub settings_unexpected_args: bool,
-    /// settings preprocessing warnings
-    #[prost(bool, tag = "3")]
-    pub settings_preprocessing_warnings: bool,
-}
-/// Record: joined record for message passing and persistence
+/// A sequence of Records fully defines a run.
+///
+/// Records make up a run's transaction log, which can be replayed to reupload
+/// the run or upload it for the first time in offline mode.
+///
+/// Since Records are persistent, and a new `wandb` version can be used to
+/// sync an older transaction log, it is important to follow proper protobuf
+/// versioning practices: <https://protobuf.dev/best-practices/>
+///
+/// Next ID: 28
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Record {
     #[prost(int64, tag = "1")]
@@ -797,7 +779,22 @@ pub struct BranchPoint {
     #[prost(string, tag = "3")]
     pub metric: ::prost::alloc::string::String,
 }
-/// RunRecord: wandb/sdk/wandb_run/Run
+/// Information about a run.
+///
+/// When sent as a standalone record, this creates or updates a run.
+/// No other run-modifying records are allowed until the first run record
+/// is processed. Generally, only fields that correspond to values the client
+/// may know are present in this case; other fields are ignored.
+///
+/// Other fields may be included in a RunUpdateResult (like `storage_id`, which
+/// the backend returns when creating a new online run), and some fields may be
+/// updated (like `entity` and `project`, which are determined through a query
+/// if not given).
+///
+/// After creating a run, the values in RunUpdateResult must be propagated to
+/// the RunStartRequest. This is a legacy pattern that wandb-core uses to
+/// communicate with itself. The updated run record may be returned to another
+/// process that "attaches" to the run via the AttachResponse.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RunRecord {
     #[prost(string, tag = "1")]
@@ -1633,12 +1630,21 @@ pub struct AlertRecord {
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct AlertResult {}
-/// Request: all non persistent messages
+/// Runtime communication that's not part of a run's transaction log.
+///
+/// Unlike Records, Requests are not necessary to recreate a run and are not
+/// stored in its transaction log. They are generally used to either get
+/// information about a run (like whether it stopped, or if there are
+/// warnings) or to control the logging process (like to add to the current
+/// step with a PartialHistoryRequest, which produces artificial Records
+/// when a step is committed).
+///
+/// Next ID: 85
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Request {
     #[prost(
         oneof = "request::RequestType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 20, 21, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 81, 82, 83, 1000"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 84, 11, 12, 13, 14, 17, 20, 21, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 81, 82, 83, 1000"
     )]
     pub request_type: ::core::option::Option<request::RequestType>,
 }
@@ -1666,6 +1672,8 @@ pub mod request {
         SampledHistory(super::SampledHistoryRequest),
         #[prost(message, tag = "10")]
         PartialHistory(super::PartialHistoryRequest),
+        #[prost(message, tag = "84")]
+        HistoryStep(super::HistoryStepRequest),
         #[prost(message, tag = "11")]
         RunStart(super::RunStartRequest),
         #[prost(message, tag = "12")]
@@ -1723,11 +1731,13 @@ pub mod request {
     }
 }
 /// Response: all non persistent responses to Requests
+///
+/// Next ID: 75
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Response {
     #[prost(
         oneof = "response::ResponseType",
-        tags = "18, 19, 20, 24, 25, 26, 27, 28, 29, 30, 31, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 74, 1000"
+        tags = "18, 19, 20, 24, 25, 26, 27, 75, 28, 29, 30, 31, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 74, 1000"
     )]
     pub response_type: ::core::option::Option<response::ResponseType>,
 }
@@ -1749,6 +1759,8 @@ pub mod response {
         PollExitResponse(super::PollExitResponse),
         #[prost(message, tag = "27")]
         SampledHistoryResponse(super::SampledHistoryResponse),
+        #[prost(message, tag = "75")]
+        HistoryStepResponse(super::HistoryStepResponse),
         #[prost(message, tag = "28")]
         RunStartResponse(super::RunStartResponse),
         #[prost(message, tag = "29")]
@@ -1977,6 +1989,13 @@ pub struct HttpResponse {
 /// InternalMessagesRequest:
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct InternalMessagesRequest {
+    /// If true, block until there are messages or the run ends.
+    ///
+    /// The response is empty if and only if the run is over.
+    /// The request can be cancelled via the usual ServerCancelRequest
+    /// mechanism.
+    #[prost(bool, tag = "1")]
+    pub wait: bool,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RequestInfo>,
 }
@@ -2328,6 +2347,20 @@ pub struct PartialHistoryRequest {
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct PartialHistoryResponse {}
+/// Get the run's current W&B step number (the step of the next `log()` call).
+///
+/// Returns a ServerErrorResponse in shared mode.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct HistoryStepRequest {}
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct HistoryStepResponse {
+    /// The step of the next `log()` call.
+    ///
+    /// This is 0 before anything is logged, 1 after the first `log()` call,
+    /// and so on. Corresponds to the artificial `_step` metric.
+    #[prost(int64, tag = "1")]
+    pub step: i64,
+}
 /// SampledHistoryRequest:
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct SampledHistoryRequest {
@@ -2930,6 +2963,22 @@ pub enum ServerFeature {
     AutomationsOnUser = 27,
     /// Indicates that the server supports Trigger.lastExecutedAt.
     AutomationLastExecutedAt = 28,
+    /// Indicates that the server supports the markRunFilesUploaded mutation, used
+    /// to commit files uploaded outside a live run (e.g. Run.upload_file).
+    MarkRunFilesUploaded = 29,
+    /// Indicates that the server supports filtering sweeps when querying on a project.
+    SweepsQueryFiltering = 30,
+    /// Indicates that the server supports automation scope ENTITY.
+    AutomationScopeEntity = 31,
+    /// Indicates that the server supports Entity.triggers.
+    QueryAutomationsOnEntity = 32,
+    /// Indicates that the server supports Organization.triggers.
+    AutomationsOnOrganization = 33,
+    /// Indicates that the server supports gzip-compressed filestream request bodies.
+    FilestreamGzip = 34,
+    /// Indicates that the server supports the enqueueSweepRun mutation, used by
+    /// the local sweep scheduler to enqueue runs.
+    SweepsLocalScheduler = 35,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -2991,6 +3040,13 @@ impl ServerFeature {
             Self::AutomationEventUnlinkArtifact => "AUTOMATION_EVENT_UNLINK_ARTIFACT",
             Self::AutomationsOnUser => "AUTOMATIONS_ON_USER",
             Self::AutomationLastExecutedAt => "AUTOMATION_LAST_EXECUTED_AT",
+            Self::MarkRunFilesUploaded => "MARK_RUN_FILES_UPLOADED",
+            Self::SweepsQueryFiltering => "SWEEPS_QUERY_FILTERING",
+            Self::AutomationScopeEntity => "AUTOMATION_SCOPE_ENTITY",
+            Self::QueryAutomationsOnEntity => "QUERY_AUTOMATIONS_ON_ENTITY",
+            Self::AutomationsOnOrganization => "AUTOMATIONS_ON_ORGANIZATION",
+            Self::FilestreamGzip => "FILESTREAM_GZIP",
+            Self::SweepsLocalScheduler => "SWEEPS_LOCAL_SCHEDULER",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -3057,6 +3113,13 @@ impl ServerFeature {
             }
             "AUTOMATIONS_ON_USER" => Some(Self::AutomationsOnUser),
             "AUTOMATION_LAST_EXECUTED_AT" => Some(Self::AutomationLastExecutedAt),
+            "MARK_RUN_FILES_UPLOADED" => Some(Self::MarkRunFilesUploaded),
+            "SWEEPS_QUERY_FILTERING" => Some(Self::SweepsQueryFiltering),
+            "AUTOMATION_SCOPE_ENTITY" => Some(Self::AutomationScopeEntity),
+            "QUERY_AUTOMATIONS_ON_ENTITY" => Some(Self::QueryAutomationsOnEntity),
+            "AUTOMATIONS_ON_ORGANIZATION" => Some(Self::AutomationsOnOrganization),
+            "FILESTREAM_GZIP" => Some(Self::FilestreamGzip),
+            "SWEEPS_LOCAL_SCHEDULER" => Some(Self::SweepsLocalScheduler),
             _ => None,
         }
     }

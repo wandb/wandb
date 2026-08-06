@@ -1,6 +1,7 @@
 package leet
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -134,10 +135,10 @@ func (hs *LevelDBHistorySource) Read(
 	}
 
 	if len(histories) > 0 {
-		msgs = append(msgs, hs.concatenateHistory(histories))
+		msgs = append(msgs, concatenateHistory(histories, hs.runPath))
 	}
 	if len(summaries) > 0 {
-		msgs = append(msgs, hs.concatenateSummary(summaries))
+		msgs = append(msgs, concatenateSummary(summaries, hs.runPath))
 	}
 
 	if hs.exitSeen && !hs.fileCompleteEmitted {
@@ -154,54 +155,6 @@ func (hs *LevelDBHistorySource) Read(
 		HasMore:  hasMore,
 		Progress: scannedCount,
 	}, err
-}
-
-// concatenateHistory merges a slice of HistoryMsg into a single HistoryMsg.
-//
-// Assumes that the history messages are ordered.
-func (hs *LevelDBHistorySource) concatenateHistory(messages []HistoryMsg) HistoryMsg {
-	h := HistoryMsg{
-		RunPath: hs.runPath,
-		Metrics: make(map[string]MetricData),
-		Media:   make(map[string][]MediaPoint),
-	}
-
-	for _, msg := range messages {
-		for metricName, data := range msg.Metrics {
-			existing := h.Metrics[metricName]
-			existing.X = append(existing.X, data.X...)
-			existing.Y = append(existing.Y, data.Y...)
-			h.Metrics[metricName] = existing
-		}
-		for mediaKey, points := range msg.Media {
-			h.Media[mediaKey] = append(h.Media[mediaKey], points...)
-		}
-	}
-
-	if len(h.Metrics) == 0 {
-		h.Metrics = nil
-	}
-	if len(h.Media) == 0 {
-		h.Media = nil
-	}
-
-	return h
-}
-
-// ConcatenateHistory merges a slice of SummaryMsg into a single SummaryMsg.
-//
-// Assumes that the summary messages are ordered.
-func (hs *LevelDBHistorySource) concatenateSummary(messages []SummaryMsg) SummaryMsg {
-	s := SummaryMsg{
-		RunPath: hs.runPath,
-		Summary: make([]*spb.SummaryRecord, 0),
-	}
-
-	for _, msg := range messages {
-		s.Summary = append(s.Summary, msg.Summary...)
-	}
-
-	return s
 }
 
 // recordToMsg converts a record to the appropriate message type.
@@ -298,26 +251,7 @@ func ParseHistory(runPath string, history *spb.HistoryRecord) tea.Msg {
 		}
 	}
 
-	media := make(map[string][]MediaPoint)
-	for mediaKey, fields := range mediaFieldsByKey {
-		if fields["_type"] != "image-file" {
-			continue
-		}
-		relPath := fields["path"]
-		if relPath == "" {
-			continue
-		}
-		media[mediaKey] = append(media[mediaKey], MediaPoint{
-			X:            float64(step),
-			FilePath:     resolveMediaPath(runPath, relPath),
-			RelativePath: relPath,
-			Caption:      fields["caption"],
-			Format:       fields["format"],
-			Width:        parseHistoryInt(fields["width"]),
-			Height:       parseHistoryInt(fields["height"]),
-			SHA256:       fields["sha256"],
-		})
-	}
+	media := parseHistoryMedia(runPath, step, mediaFieldsByKey)
 
 	if len(metrics) == 0 && len(media) == 0 {
 		return nil
@@ -343,6 +277,68 @@ func trimJSONString(v string) string {
 	return v
 }
 
+// parseHistoryMedia builds media series from the per-key media fields of a
+// history record.
+func parseHistoryMedia(
+	runPath string,
+	step int,
+	mediaFieldsByKey map[string]map[string]string,
+) map[string][]MediaPoint {
+	media := make(map[string][]MediaPoint)
+	for mediaKey, fields := range mediaFieldsByKey {
+		switch fields["_type"] {
+		case "image-file":
+			relPath := fields["path"]
+			if relPath == "" {
+				continue
+			}
+			media[mediaKey] = append(media[mediaKey], MediaPoint{
+				X:            float64(step),
+				FilePath:     resolveMediaPath(runPath, relPath),
+				RelativePath: relPath,
+				Caption:      fields["caption"],
+				Format:       fields["format"],
+				Width:        parseHistoryInt(fields["width"]),
+				Height:       parseHistoryInt(fields["height"]),
+				SHA256:       fields["sha256"],
+			})
+		case "images/separated":
+			// A list of wandb.Image logged under one key: fan each image
+			// out into its own "key[i]" series so every image gets a tile.
+			captions := parseJSONStringArray(fields["captions"])
+			for i, relPath := range parseJSONStringArray(fields["filenames"]) {
+				if relPath == "" {
+					continue
+				}
+				point := MediaPoint{
+					X:            float64(step),
+					FilePath:     resolveMediaPath(runPath, relPath),
+					RelativePath: relPath,
+					Format:       fields["format"],
+					Width:        parseHistoryInt(fields["width"]),
+					Height:       parseHistoryInt(fields["height"]),
+				}
+				if i < len(captions) {
+					point.Caption = captions[i]
+				}
+				indexedKey := fmt.Sprintf("%s[%d]", mediaKey, i)
+				media[indexedKey] = append(media[indexedKey], point)
+			}
+		}
+	}
+	return media
+}
+
+// parseJSONStringArray decodes a JSON array of strings, returning nil on
+// malformed input.
+func parseJSONStringArray(v string) []string {
+	var out []string
+	if json.Unmarshal([]byte(v), &out) != nil {
+		return nil
+	}
+	return out
+}
+
 func parseHistoryInt(v string) int {
 	i, err := strconv.Atoi(v)
 	if err == nil {
@@ -358,7 +354,8 @@ func historyMediaField(item *spb.HistoryItem) (mediaKey, field string, ok bool) 
 	}
 	field = parts[len(parts)-1]
 	switch field {
-	case "_type", "path", "caption", "format", "width", "height", "sha256", "size":
+	case "_type", "path", "caption", "format", "width", "height", "sha256", "size",
+		"count", "filenames", "captions":
 	default:
 		return "", "", false
 	}

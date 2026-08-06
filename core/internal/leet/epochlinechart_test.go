@@ -37,6 +37,27 @@ func TestEpochLineChart_Range(t *testing.T) {
 	require.LessOrEqual(t, math.Abs(c.ViewMaxX()-30), 1e-9)
 }
 
+func TestEpochLineChart_NonFiniteValuesDoNotPoisonRange(t *testing.T) {
+	m := "loss"
+	c := leet.NewEpochLineChart(m)
+	c.Resize(100, 10)
+
+	// A diverged loss logs NaN/Inf mid-run; the Y range must stay finite
+	// and continue tracking the finite samples.
+	c.AddData(m, leet.MetricData{
+		X: []float64{0, 1, 2, 3},
+		Y: []float64{0.5, math.NaN(), math.Inf(1), 2.0},
+	})
+
+	require.True(t, c.ViewMinY() < 0.5 && !math.IsNaN(c.ViewMinY()))
+	require.True(t, c.ViewMaxY() > 2.0 && !math.IsInf(c.ViewMaxY(), 1))
+
+	// Later finite samples keep extending the range as usual.
+	c.AddData(m, leet.MetricData{X: []float64{4}, Y: []float64{3.0}})
+	require.Greater(t, c.ViewMaxY(), 3.0)
+	require.False(t, math.IsNaN(c.ViewMinY()))
+}
+
 func TestEpochLineChart_ZoomClampsAndAnchors(t *testing.T) {
 	m := "acc"
 	c := leet.NewEpochLineChart(m)

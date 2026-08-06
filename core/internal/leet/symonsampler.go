@@ -94,6 +94,18 @@ func (s *SymonSampler) Sample() StatsMsg {
 
 	for _, resource := range s.resources {
 		g.Go(func() error {
+			// Hardware sampling paths are known to panic (see SystemMonitor).
+			// A panic here would crash the whole TUI: bubbletea's panic
+			// recovery does not cover goroutines spawned by commands.
+			defer func() {
+				if r := recover(); r != nil {
+					s.logger.CaptureError(
+						"leet",
+						fmt.Errorf("symon: panic sampling resource: %v", r),
+					)
+				}
+			}()
+
 			record, err := resource.Sample()
 			if err != nil {
 				s.logSamplingError(err)
@@ -136,7 +148,10 @@ func (s *SymonSampler) Cleanup() {
 // depending on whether the monitor package considers them expected.
 func (s *SymonSampler) logSamplingError(err error) {
 	if monitor.ShouldCaptureSamplingError(err) {
-		s.logger.CaptureError(fmt.Errorf("symon: sampling error: %v", err))
+		s.logger.CaptureError(
+			"leet",
+			fmt.Errorf("symon: sampling error: %v", err),
+		)
 		return
 	}
 	s.logger.Debug(fmt.Sprintf("symon: benign sampling error: %v", err))

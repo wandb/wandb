@@ -215,3 +215,40 @@ func TestWorkspace_View_BothPanesVisibleSimultaneously(t *testing.T) {
 	require.Contains(t, view, runKey,
 		"run label should appear in view")
 }
+
+// closeTrackingHistorySource records whether Close was called.
+type closeTrackingHistorySource struct {
+	stubHistorySource
+	closed bool
+}
+
+func (s *closeTrackingHistorySource) Close() { s.closed = true }
+
+func TestWorkspace_Cleanup_ReleasesRunResources(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+
+	src := &closeTrackingHistorySource{}
+	run := &leet.WorkspaceRun{Key: "run-1", Reader: src}
+	run.TestSetWatcherStarted(true)
+	w.TestAttachRun(run, true)
+
+	// Arm the heartbeat via a live record, as during normal streaming.
+	w.TestHandleWorkspaceRecord(run, leet.RunMsg{ID: "run-1", DisplayName: "test"})
+	w.TestHandleWorkspaceRecord(run, leet.HistoryMsg{
+		Metrics: map[string]leet.MetricData{
+			"loss": {X: []float64{1}, Y: []float64{0.5}},
+		},
+	})
+	require.True(t, w.TestHeartbeatTimerArmed())
+
+	w.Cleanup()
+
+	require.False(t, w.TestHeartbeatTimerArmed(), "heartbeat should be stopped")
+	require.False(t, run.TestWatcherActive(), "watcher should be stopped")
+	require.True(t, src.closed, "reader should be closed")
+
+	// Cleanup is idempotent.
+	w.Cleanup()
+}

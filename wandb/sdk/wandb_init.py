@@ -24,24 +24,24 @@ import time
 from collections.abc import Generator, Iterable, Sequence
 from typing import TYPE_CHECKING, Literal
 
-from typing_extensions import Any, Protocol, Self
+from typing_extensions import Any, Protocol
 
 import wandb
 import wandb.env
 from wandb import env, trigger
 from wandb.analytics import get_sentry
-from wandb.errors import CommError, Error, UsageError
+from wandb.errors import Error, UsageError
 from wandb.errors.links import url_registry
 from wandb.errors.util import ProtobufErrorHandler
 from wandb.integration import sagemaker, weave
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk.lib import ipython as wb_ipython
-from wandb.sdk.lib import progress, runid, wb_logging
+from wandb.sdk.lib import noop_run, progress, runid, wb_logging
 from wandb.sdk.lib.paths import StrPath
 from wandb.util import _is_artifact_representation
 
 from . import wandb_login, wandb_setup
-from .lib import SummaryDisabled, filesystem, module, paths, printer, telemetry
+from .lib import filesystem, module, paths, printer, telemetry
 from .lib.deprecation import UNSET, DoNotSet, warn_and_record_deprecation
 from .mailbox import wait_with_progress
 from .wandb_helper import parse_config
@@ -54,6 +54,11 @@ if TYPE_CHECKING:
 # Used to avoid printing the same notice repeatedly
 # for multiple runs in the same process.
 _shared_service_notice_shown = False
+
+# Extra time to wait for the backend to report the error that caused
+# `wandb.init()` to exceed its timeout, before giving up on it and
+# raising a generic timeout error.
+_INIT_TIMEOUT_GRACE_SECONDS = 10.0
 
 
 def _huggingface_version() -> str | None:
@@ -129,7 +134,11 @@ class _PrinterCallback(Protocol):
 
 def _noop_printer_callback() -> _PrinterCallback:
     """A printer callback that does not print anything."""
-    return lambda _: None
+
+    def do_nothing(run_printer: printer.Printer) -> None:
+        pass
+
+    return do_nothing
 
 
 def _concat_printer_callbacks(
@@ -310,6 +319,8 @@ class _WandbInit:
         # if user explicitly set these to false in UI
         if save_code_pre_user_settings is False:
             settings.save_code = False
+
+        settings.infer_git_root()
 
         # TODO: remove this once we refactor the client. This is a temporary
         # fix to make sure that we use the same project name for wandb-core.
@@ -615,8 +626,6 @@ class _WandbInit:
     def _jupyter_teardown(self) -> None:
         """Teardown hooks and display saving, called with wandb.finish."""
         assert self.notebook
-        ipython = self.notebook.shell
-
         if self.run:
             self.notebook.save_history(self.run)
 
@@ -625,6 +634,10 @@ class _WandbInit:
             res = self.run.log_code(root=None)
             self._logger.info("saved code and history: %s", res)
         self._logger.info("cleaning up jupyter logic")
+
+        ipython = self.notebook.shell
+        if ipython is None:
+            return
 
         ipython.events.unregister("pre_run_cell", self._pre_run_cell_hook)
         ipython.events.unregister("post_run_cell", self._post_run_cell_hook)
@@ -636,6 +649,8 @@ class _WandbInit:
         """Add hooks, and session history saving."""
         self.notebook = wandb.jupyter.Notebook(settings)
         ipython = self.notebook.shell
+        if ipython is None:
+            return
 
         # Monkey patch ipython publish to capture displayed outputs
         if not hasattr(ipython.display_pub, "_orig_publish"):
@@ -728,7 +743,7 @@ class _WandbInit:
             dispose_handler()
             raise
 
-    def make_disabled_run(self, config: _ConfigParts) -> Run:
+    def make_disabled_run(self, settings: Settings, config: _ConfigParts) -> Run:
         """Returns a Run-like object where all methods are no-ops.
 
         This method is used when the `mode` setting is set to "disabled", such as
@@ -741,106 +756,22 @@ class _WandbInit:
         The returned Run object has all expected attributes and methods, but they
         are no-op versions that don't perform any actual logging or communication.
         """
-        run_id = runid.generate_id()
-        drun = Run(
-            settings=Settings(
-                mode="disabled",
-                root_dir=tempfile.gettempdir(),
-                run_id=run_id,
-                run_tags=tuple(),
-                run_notes=None,
-                run_group=None,
-                run_name=f"dummy-{run_id}",
-                project="dummy",
-                entity="dummy",
-            )
+        run_id = settings.run_id or runid.generate_id()
+        project = settings.project if settings.project != "uncategorized" else "dummy"
+        disabled_settings = settings.model_copy(
+            update={
+                "mode": "disabled",
+                "run_id": run_id,
+                "run_name": settings.run_name or f"dummy-{run_id}",
+                "project": project,
+                "entity": settings.entity or "dummy",
+                "root_dir": tempfile.gettempdir(),
+            }
         )
-        # config, summary, and metadata objects
-        drun._config = wandb.sdk.wandb_config.Config()
-        drun._config.update(config.sweep_no_artifacts)
-        drun._config.update(config.base_no_artifacts)
-        drun.summary = SummaryDisabled()  # type: ignore
-
-        # methods
-        drun.log = lambda data, *_, **__: drun.summary.update(data)  # type: ignore[method-assign]
-        drun.finish = lambda *_, **__: module.unset_globals()  # type: ignore[method-assign]
-        drun.join = drun.finish  # type: ignore[method-assign]
-        drun.define_metric = lambda *_, **__: wandb.sdk.wandb_metric.Metric("dummy")  # type: ignore[method-assign]
-        drun.save = lambda *_, **__: False  # type: ignore[method-assign]
-        for symbol in (
-            "alert",
-            "finish_artifact",
-            "get_project_url",
-            "get_sweep_url",
-            "get_url",
-            "link_artifact",
-            "link_model",
-            "use_artifact",
-            "log_code",
-            "log_model",
-            "use_model",
-            "mark_preempting",
-            "restore",
-            "status",
-            "watch",
-            "write_logs",
-            "unwatch",
-            "upsert_artifact",
-            "_finish",
-        ):
-            setattr(drun, symbol, lambda *_, **__: None)  # type: ignore
-
-        # set properties to None
-        for attr in ("url", "project_url", "sweep_url"):
-            setattr(type(drun), attr, property(lambda _: None))
-
-        class _ChainableNoOp:
-            """An object that allows chaining arbitrary attributes and method calls."""
-
-            def __getattr__(self, _: str) -> Self:
-                return self
-
-            def __call__(self, *_: Any, **__: Any) -> Self:
-                return self
-
-        class _ChainableNoOpField:
-            # This is used to chain arbitrary attributes and method calls.
-            # For example, `run.log_artifact().state` will work in disabled mode.
-            def __init__(self) -> None:
-                self._value = None
-
-            def __set__(self, instance: Any, value: Any) -> None:
-                self._value = value
-
-            def __get__(self, instance: Any, owner: type) -> Any:
-                return _ChainableNoOp() if (self._value is None) else self._value
-
-            def __call__(self, *args: Any, **kwargs: Any) -> _ChainableNoOp:
-                return _ChainableNoOp()
-
-        drun.log_artifact = _ChainableNoOpField()  # type: ignore
-        # attributes
-        drun._start_time = time.time()
-        drun._starting_step = 0
-        drun._step = 0
-        drun._attach_id = None
-        drun._interface = None
-
-        # set the disabled run as the global run
-        module.set_global(
-            run=drun,
-            config=drun.config,
-            log=drun.log,
-            summary=drun.summary,
-            save=drun.save,
-            use_artifact=drun.use_artifact,
-            log_artifact=drun.log_artifact,
-            define_metric=drun.define_metric,
-            alert=drun.alert,
-            watch=drun.watch,
-            unwatch=drun.unwatch,
+        return noop_run.init_noop_run(
+            settings=disabled_settings,
+            config={**config.base_no_artifacts, **config.sweep_no_artifacts},
         )
-        return drun
 
     def init(  # noqa: C901
         self,
@@ -1013,32 +944,24 @@ class _WandbInit:
             f"communicating run to backend with {timeout} second timeout",
         )
 
-        run_init_handle = interface.deliver_run(run)
-
-        try:
-            with progress.progress_printer(
-                run_printer,
-                default_text="Waiting for wandb.init()...",
-            ) as progress_printer:
-                result = wait_with_progress(
-                    run_init_handle,
-                    timeout=timeout,
-                    display_progress=functools.partial(
-                        progress.loop_printing_operation_stats,
-                        progress_printer,
-                        interface,
-                    ),
-                )
-
-        except TimeoutError:
-            # This may either be an issue with the W&B server (a CommError)
-            # or a bug in the SDK (an Error). We cannot distinguish between
-            # the two causes here.
-            raise CommError(
-                f"Run initialization has timed out after {timeout} sec."
-                + " Please try increasing the timeout with the `init_timeout`"
-                + " setting: `wandb.init(settings=wandb.Settings(init_timeout=120))`."
-            ) from None
+        with progress.progress_printer(
+            run_printer,
+            default_text="Waiting for wandb.init()...",
+        ) as progress_printer:
+            result = wait_with_progress(
+                interface.deliver_run(run),
+                # We expect the service process to respect the init timeout
+                # setting and promptly return a `run_result.error` on timeout.
+                #
+                # If the grace period expires, we treat that like an SDK bug
+                # and don't give special treatment to the exception.
+                timeout=timeout + _INIT_TIMEOUT_GRACE_SECONDS,
+                display_progress=functools.partial(
+                    progress.loop_printing_operation_stats,
+                    progress_printer,
+                    interface,
+                ),
+            )
 
         assert result.run_result
 
@@ -1396,6 +1319,16 @@ def init(  # noqa: C901
             switching to offline mode if the user is not logged in.
         reinit: Shorthand for the "reinit" setting. Determines the behavior of
             `wandb.init()` when a run is active.
+        - `"default"`: Use "finish_previous" in notebooks and "return_previous"
+            otherwise.
+        - `"return_previous"`: Return the most recently created run
+            that is not yet finished. This does not update `wandb.run`; see
+            the "create_new" option.
+        - `"finish_previous"`: Finish all active runs, then return a new run.
+        - `"create_new"`: Create a new run without modifying other active runs.
+            Does not update `wandb.run` and top-level functions like `wandb.log`.
+            Because of this, some older integrations that rely on the global run
+            will not work.
         resume: Controls the behavior when resuming a run with the specified `id`.
             Available options are:
         - `"allow"`: If a run with the specified `id` exists, it will resume
@@ -1573,7 +1506,7 @@ def init(  # noqa: C901
             )
 
             if run_settings._noop:
-                return wi.make_disabled_run(run_config)
+                return wi.make_disabled_run(run_settings, run_config)
 
             exit_stack.enter_context(wi.setup_run_log_directory(run_settings))
 
@@ -1595,8 +1528,8 @@ def init(  # noqa: C901
 
             run = wi.init(run_settings, run_config, run_printer)
 
-            # Set up automatic Weave integration if Weave is installed
-            weave.setup(run_settings.entity, run_settings.project)
+            # Set up automatic Weave integration if Weave is already imported
+            weave.init_weave_if_imported(run_settings.entity, run_settings.project)
 
             return run
 

@@ -43,7 +43,7 @@ func (b *ArtifactBuilder) initDefaultManifest() {
 }
 
 func (b *ArtifactBuilder) AddData(name string, data any) error {
-	filename, digest, size, err := WriteJSONToTempFileWithMetadata(data)
+	filename, digest, size, err := WriteJSONToTempFileWithMetadata(data, "")
 	if err != nil {
 		return err
 	}

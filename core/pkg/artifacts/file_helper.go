@@ -8,15 +8,21 @@ import (
 	"github.com/wandb/wandb/core/internal/hashencode"
 )
 
-// WriteJSONToTempFileWithMetadata writes the provided data as JSON to a temporary file.
+// WriteJSONToTempFileWithMetadata writes the provided data as JSON to a
+// uniquely named temporary file inside dir.
+//
+// dir is passed straight through to os.CreateTemp: an empty dir uses the OS
+// default temp directory, while a non-empty dir must already exist and be
+// writable (otherwise the call fails). Callers choose dir; this helper encodes
+// no policy about where temp files should live.
 //
 // Returns the path to the temporary file, the Base64-encoded MD5 digest of the JSON data,
 // the size of the file, and an error if something goes wrong during the process.
 func WriteJSONToTempFileWithMetadata(
 	data any,
+	dir string,
 ) (filename, digest string, size int64, err error) {
-	// Create a temporary file
-	f, err := os.CreateTemp("", "tmpfile-")
+	f, err := os.CreateTemp(dir, "tmpfile-")
 	if err != nil {
 		return "", "", 0, fmt.Errorf("unable to create temporary file: %w", err)
 	}

@@ -103,7 +103,7 @@ When we discontinue support for a Python version, we will increment the library�
 
 # Contribution guidelines
 
-Weights & Biases ❤️ open source, and we welcome contributions from the community! See the [Contribution guide](https://github.com/wandb/wandb/blob/main/CONTRIBUTING.md) for more information on the development workflow and the internals of the wandb library. For wandb bugs and feature requests, visit [GitHub Issues](https://github.com/wandb/wandb/issues) or contact support@wandb.com.
+Weights & Biases ❤️ open source, and we welcome contributions from the community! See the [Contribution Guide](./CONTRIBUTING.md) and the [docs/ directory](./docs) for more information on the development workflow and the internals of the wandb library. For wandb bugs and feature requests, visit [GitHub Issues](https://github.com/wandb/wandb/issues) or contact support@wandb.com.
 
 &nbsp;
 

@@ -1,11 +1,39 @@
 import json
 import os
+import re
+from pathlib import Path
 from unittest import mock
 
 import pytest
 import wandb
 from wandb.errors import AuthenticationError, CommError
 from wandb.sdk.lib import runid
+
+from tests.fixtures.wandb_backend_spy import WandbBackendSpy
+
+
+def test_init_timeout__prints_retry_err(wandb_backend_spy: WandbBackendSpy):
+    # Set up UpsertBucket to return HTTP 500, which is retryable.
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="UpsertBucket"),
+        gql.Constant(
+            # GQL-like error response.
+            content={"errors": [{"message": "test test test"}]},
+            status=500,
+        ),
+    )
+
+    with pytest.raises(
+        CommError,
+        match=re.escape("""\
+Timed out while retrying: HTTP 500: test test test
+Consider increasing the init_timeout setting:
+  wandb.init(settings=wandb.Settings(init_timeout=...))"""),
+    ):
+        # Give it just enough time to reach UpsertBucket and retry once.
+        with wandb.init(settings=wandb.Settings(init_timeout=2)):
+            pass
 
 
 def test_upsert_bucket_409(wandb_backend_spy):
@@ -151,6 +179,13 @@ def test_skip_transaction_log(user, skip_transaction_log):
     ) as run:
         pass
     assert os.path.exists(run._settings.sync_file) == (not skip_transaction_log)
+
+    syncstate_file = Path(f"{run._settings.sync_file}.syncstate")
+    if skip_transaction_log:
+        assert not syncstate_file.exists()
+    else:
+        assert syncstate_file.exists()
+        assert json.loads(syncstate_file.read_text())["starting_step"] == 0
 
 
 def test_skip_transaction_log_offline(user):

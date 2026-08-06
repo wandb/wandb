@@ -5,7 +5,7 @@ import pytest
 import torch
 import wandb
 from pytest_mock import MockerFixture
-from wandb.apis.public.api import RetryingClient
+from wandb.apis.public.service_api import ServiceApi
 from wandb.sdk.artifacts._generated import ArtifactFragment
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
@@ -163,7 +163,7 @@ def make_local_artifact_public(art: Artifact, mocker: MockerFixture):
     pub = ArtifactPatch._from_attrs(
         path,
         fragment,
-        client=mocker.Mock(spec=RetryingClient),
+        service_api=mocker.Mock(spec=ServiceApi),
     )
     pub._manifest = art._manifest
     return pub

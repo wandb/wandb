@@ -69,6 +69,13 @@ class RegistryData(ArtifactsBase):
 
         return f"{REGISTRY_PREFIX}{self.name}"
 
+    @field_validator("visibility", mode="before")
+    @classmethod
+    def _coerce_visibility(cls, v: Any) -> Visibility:
+        if isinstance(v, Visibility):
+            return v
+        return Visibility.from_project_access(v)
+
     @field_validator("artifact_types", mode="plain")
     def _validate_artifact_types(cls, v: Any) -> AddOnlyArtifactTypesList:
         """Coerce `artifact_types` to an AddOnlyArtifactTypesList."""
@@ -102,5 +109,5 @@ class RegistryData(ArtifactsBase):
             description=obj.description,
             allow_all_artifact_types=obj.allow_all_artifact_types,
             artifact_types=obj.artifact_types,
-            visibility=obj.access,
+            visibility=Visibility.from_project_access(obj.access),
         )

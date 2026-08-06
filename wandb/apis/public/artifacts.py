@@ -12,8 +12,8 @@ from copy import copy
 from functools import lru_cache
 from typing import TYPE_CHECKING, Any, ClassVar, List, Literal, TypeVar  # noqa: UP035
 
+from pydantic import PositiveInt
 from typing_extensions import override
-from wandb_gql import gql
 
 from wandb._iterutils import always_list
 from wandb._pydantic import Connection, ConnectionWithTotal, Edge
@@ -29,12 +29,8 @@ from wandb.sdk.artifacts._models import ArtifactCollectionData
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 
 from .files import File
-from .utils import gql_compat
 
 if TYPE_CHECKING:
-    from wandb_graphql.language.ast import Document
-
-    from wandb.apis.public.api import RetryingClient
     from wandb.apis.public.service_api import ServiceApi
     from wandb.sdk.artifacts._generated import (
         ArtifactAliasFragment,
@@ -72,17 +68,14 @@ def _run_artifacts_mode_to_gql() -> dict[Literal["logged", "used"], str]:
 
 
 class _ArtifactCollectionAliases(RelayPaginator["ArtifactAliasFragment", str]):
-    """An internal iterator of collection alias names.
+    """An internal iterator of collection alias names."""
 
-    <!-- lazydoc-ignore-init: internal -->
-    """
-
-    QUERY: ClassVar[Document | None] = None
+    QUERY: ClassVar[str | None] = None
     last_response: Connection[ArtifactAliasFragment] | None
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         collection_id: str,
         per_page: int = 1_000,
         start: str | None = None,
@@ -90,10 +83,12 @@ class _ArtifactCollectionAliases(RelayPaginator["ArtifactAliasFragment", str]):
         if self.QUERY is None:
             from wandb.sdk.artifacts._generated import ARTIFACT_COLLECTION_ALIASES_GQL
 
-            type(self).QUERY = gql(ARTIFACT_COLLECTION_ALIASES_GQL)
+            type(self).QUERY = ARTIFACT_COLLECTION_ALIASES_GQL
 
         variables = {"id": collection_id}
-        super().__init__(client, variables=variables, per_page=per_page, start=start)
+        super().__init__(
+            service_api, variables=variables, per_page=per_page, start=start
+        )
 
     def _update_response(self) -> None:
         from wandb.sdk.artifacts._generated import (
@@ -101,8 +96,9 @@ class _ArtifactCollectionAliases(RelayPaginator["ArtifactAliasFragment", str]):
             ArtifactCollectionAliases,
         )
 
-        data = self.client.execute(self.QUERY, variable_values=self.variables)
-        result = ArtifactCollectionAliases.model_validate(data)
+        result = self._execute_query(
+            parse=ArtifactCollectionAliases.model_validate_json
+        )
 
         # Extract the inner `*Connection` result for faster/easier access.
         if not ((coll := result.artifact_collection) and (conn := coll.aliases)):
@@ -120,29 +116,28 @@ class ArtifactTypes(RelayPaginator["ArtifactTypeFragment", "ArtifactType"]):
     <!-- lazydoc-ignore-init: internal -->
     """
 
-    QUERY: ClassVar[Document | None] = None
+    QUERY: ClassVar[str | None] = None
     last_response: ArtifactTypeConnection | None
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         entity: str,
         project: str,
-        per_page: int = 50,
+        per_page: PositiveInt = 50,
         start: str | None = None,
-        *,
-        service_api: ServiceApi | None = None,
     ):
         if self.QUERY is None:
             from wandb.sdk.artifacts._generated import PROJECT_ARTIFACT_TYPES_GQL
 
-            type(self).QUERY = gql(PROJECT_ARTIFACT_TYPES_GQL)
+            type(self).QUERY = PROJECT_ARTIFACT_TYPES_GQL
 
         self.entity = entity
         self.project = project
-        self._service_api = service_api
         variables = {"entity": entity, "project": project}
-        super().__init__(client, variables=variables, per_page=per_page, start=start)
+        super().__init__(
+            service_api, variables=variables, per_page=per_page, start=start
+        )
 
     @override
     def _update_response(self) -> None:
@@ -150,8 +145,7 @@ class ArtifactTypes(RelayPaginator["ArtifactTypeFragment", "ArtifactType"]):
         from wandb.sdk.artifacts._generated import ProjectArtifactTypes
         from wandb.sdk.artifacts._models.pagination import ArtifactTypeConnection
 
-        data = self.client.execute(self.QUERY, variable_values=self.variables)
-        result = ProjectArtifactTypes.model_validate(data)
+        result = self._execute_query(parse=ProjectArtifactTypes.model_validate_json)
 
         # Extract the inner `*Connection` result for faster/easier access.
         if not ((proj := result.project) and (conn := proj.artifact_types)):
@@ -161,12 +155,11 @@ class ArtifactTypes(RelayPaginator["ArtifactTypeFragment", "ArtifactType"]):
 
     def _convert(self, node: ArtifactTypeFragment) -> ArtifactType:
         return ArtifactType(
-            client=self.client,
+            service_api=self._service_api,
             entity=self.entity,
             project=self.project,
             type_name=node.name,
             attrs=node,
-            service_api=self._service_api,
         )
 
 
@@ -174,7 +167,6 @@ class ArtifactType:
     """An artifact object that satisfies query based on the specified type.
 
     Args:
-        client: Legacy GraphQL client retained for API compatibility.
         service_api: Interface to the wandb-core service that performs
             W&B API calls for this artifact type.
         entity: The entity (user or team) that owns the project.
@@ -191,21 +183,18 @@ class ArtifactType:
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         entity: str,
         project: str,
         type_name: str,
         attrs: ArtifactTypeFragment | None = None,
-        *,
-        service_api: ServiceApi | None = None,
     ):
         from wandb.sdk.artifacts._generated import ArtifactTypeFragment
 
-        self.client = client
+        self._service_api = service_api
         self.entity = entity
         self.project = project
         self.type = type_name
-        self._service_api = service_api
 
         # FIXME: Make this lazy, so we don't (re-)fetch the attributes until they are needed
         self._attrs = ArtifactTypeFragment.model_validate(attrs or self.load())
@@ -213,7 +202,7 @@ class ArtifactType:
     def load(self) -> ArtifactTypeFragment:
         """Load the artifact type attributes from W&B.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         from wandb.sdk.artifacts._generated import (
             PROJECT_ARTIFACT_TYPE_GQL,
@@ -221,11 +210,13 @@ class ArtifactType:
             ProjectArtifactType,
         )
 
-        gql_op = gql(PROJECT_ARTIFACT_TYPE_GQL)
-        gql_vars = {"entity": self.entity, "project": self.project, "type": self.type}
-        data = self.client.execute(gql_op, variable_values=gql_vars)
-        result = ProjectArtifactType.model_validate(data)
-        if not ((proj := result.project) and (artifact_type := proj.artifact_type)):
+        data = self._service_api.execute_graphql(
+            PROJECT_ARTIFACT_TYPE_GQL,
+            {"entity": self.entity, "project": self.project, "type": self.type},
+            parse=ProjectArtifactType.model_validate_json,
+        )
+
+        if not ((proj := data.project) and (artifact_type := proj.artifact_type)):
             raise ValueError(f"Could not find artifact type {self.type!r}")
         return ArtifactTypeFragment.model_validate(artifact_type)
 
@@ -252,8 +243,8 @@ class ArtifactType:
         Args:
             filters (dict): Optional mapping of filters to apply to the query.
             order (str): Optional string to specify the order of the results.
-                If you prepend order with a + order is ascending (default).
-                If you prepend order with a - order is descending.
+                If prefixed with '+', sorts ascending (default).
+                If prefixed with '-', sorts descending.
                 The default order is the collection ID in descending order.
             per_page (int): The number of artifact collections to fetch per page.
                 Default is 50.
@@ -261,7 +252,7 @@ class ArtifactType:
                 from a previous paginator's `.cursor` attribute.
         """
         return ArtifactCollections(
-            self.client,
+            self._service_api,
             entity=self.entity,
             project=self.project,
             filters=filters,
@@ -269,7 +260,6 @@ class ArtifactType:
             type_name=self.type,
             per_page=per_page,
             start=start,
-            service_api=self._service_api,
         )
 
     def collection(self, name: str) -> ArtifactCollection:
@@ -279,12 +269,11 @@ class ArtifactType:
             name (str): The name of the artifact collection to retrieve.
         """
         return ArtifactCollection(
-            self.client,
+            self._service_api,
             entity=self.entity,
             project=self.project,
             name=name,
             type=self.type,
-            service_api=self._service_api,
         )
 
     def __repr__(self) -> str:
@@ -297,7 +286,6 @@ class ArtifactCollections(
     """Artifact collections of a specific type in a project.
 
     Args:
-        client: Legacy GraphQL client retained for API compatibility.
         service_api: Interface to the wandb-core service that performs
             W&B API calls for this collection.
         entity: The entity (user or team) that owns the project.
@@ -305,38 +293,36 @@ class ArtifactCollections(
         type_name: The name of the artifact type for which to fetch collections.
         filters: Optional mapping of filters to apply to the query.
         order: Optional string to specify the order of the results.
-            If you prepend order with a + order is ascending (default).
-            If you prepend order with a - order is descending.
+            If prefixed with '+', sorts ascending (default).
+            If prefixed with '-', sorts descending.
         per_page: The number of artifact collections to fetch per page. Default is 50.
 
     <!-- lazydoc-ignore-init: internal -->
     """
 
-    QUERY: ClassVar[Document | None] = None
+    QUERY: ClassVar[str | None] = None
     last_response: ArtifactCollectionConnection | None
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         entity: str,
         project: str,
         type_name: str,
         filters: Mapping[str, Any] | None = None,
         order: str | None = None,
-        per_page: int = 50,
+        per_page: PositiveInt = 50,
         start: str | None = None,
-        *,
-        service_api: ServiceApi | None = None,
     ):
         if self.QUERY is None:
             from wandb.sdk.artifacts._generated import (
                 ARTIFACT_TYPE_ARTIFACT_COLLECTIONS_GQL,
             )
 
-            type(self).QUERY = gql(ARTIFACT_TYPE_ARTIFACT_COLLECTIONS_GQL)
+            type(self).QUERY = ARTIFACT_TYPE_ARTIFACT_COLLECTIONS_GQL
 
         if (order is not None or filters is not None) and not server_supports(
-            client, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING
+            service_api, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING
         ):
             raise UnsupportedError(
                 "Filtering and ordering of artifact collections is not supported on this wandb server version. "
@@ -348,7 +334,6 @@ class ArtifactCollections(
         self.type_name = type_name
         self.filters = filters
         self.order = order
-        self._service_api = service_api
         variables = {
             "entity": entity,
             "project": project,
@@ -356,7 +341,9 @@ class ArtifactCollections(
             "order": order,
             "filters": json.dumps(f) if (f := filters) else None,
         }
-        super().__init__(client, variables=variables, per_page=per_page, start=start)
+        super().__init__(
+            service_api, variables=variables, per_page=per_page, start=start
+        )
 
     @override
     def _update_response(self) -> None:
@@ -364,8 +351,9 @@ class ArtifactCollections(
         from wandb.sdk.artifacts._generated import ArtifactTypeArtifactCollections
         from wandb.sdk.artifacts._models.pagination import ArtifactCollectionConnection
 
-        data = self.client.execute(self.QUERY, variable_values=self.variables)
-        result = ArtifactTypeArtifactCollections.model_validate(data)
+        result = self._execute_query(
+            parse=ArtifactTypeArtifactCollections.model_validate_json
+        )
 
         # Extract the inner `*Connection` result for faster/easier access.
         if not (
@@ -381,13 +369,12 @@ class ArtifactCollections(
         if not node.project:
             return None
         return ArtifactCollection(
-            client=self.client,
+            service_api=self._service_api,
             entity=node.project.entity.name,
             project=node.project.name,
             name=node.name,
             type=node.type.name,
             attrs=node,
-            service_api=self._service_api,
         )
 
 
@@ -397,69 +384,50 @@ class ProjectArtifactCollections(
     """Artifact collections in a project.
 
     Args:
-        client: Legacy GraphQL client retained for API compatibility.
         service_api: Interface to the wandb-core service that performs
             W&B API calls for this collection.
         entity: The entity (user or team) that owns the project.
         project: The name of the project to query for artifact collections.
         filters: Optional mapping of filters to apply to the query.
         order: Optional string to specify the order of the results.
-            If you prepend order with a + order is ascending (default).
-            If you prepend order with a - order is descending.
+            If prefixed with '+', sorts ascending (default).
+            If prefixed with '-', sorts descending.
         per_page: The number of artifact collections to fetch per page. Default is 50.
 
     <!-- lazydoc-ignore-init: internal -->
     """
 
-    QUERY: ClassVar[Document | None] = None
+    QUERY: ClassVar[str | None] = None
     last_response: ArtifactCollectionConnection | None
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         entity: str,
         project: str,
         filters: Mapping[str, Any] | None = None,
         order: str | None = None,
-        per_page: int = 50,
+        per_page: PositiveInt = 50,
         start: str | None = None,
-        *,
-        service_api: ServiceApi | None = None,
     ):
-        if (order is not None or filters is not None) and not server_supports(
-            client, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING
-        ):
-            raise UnsupportedError(
-                "Filtering and ordering of artifact collections is not supported on this wandb server version. "
-                "Please upgrade your server version or contact support at support@wandb.com."
-            )
-
         if self.QUERY is None:
             from wandb.sdk.artifacts._generated import PROJECT_ARTIFACT_COLLECTIONS_GQL
 
-            omit_fields = (
-                None
-                if server_supports(client, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING)
-                else {"totalCount"}
-            )
+            type(self).QUERY = PROJECT_ARTIFACT_COLLECTIONS_GQL
 
-            omit_variables = (
-                None
-                if server_supports(client, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING)
-                else {"filters"}
-            )
-
-            type(self).QUERY = gql_compat(
-                PROJECT_ARTIFACT_COLLECTIONS_GQL,
-                omit_variables=omit_variables,
-                omit_fields=omit_fields,
+        supports_filtering = server_supports(
+            service_api, pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING
+        )
+        if (order is not None or filters is not None) and not supports_filtering:
+            raise UnsupportedError(
+                "Filtering and ordering of artifact collections is not supported on this wandb server version. "
+                "Please upgrade your server version or contact support at support@wandb.com."
             )
 
         self.entity = entity
         self.project = project
         self.filters = filters
         self.order = order
-        self._service_api = service_api
         variables = {
             "entity": entity,
             "project": project,
@@ -467,7 +435,14 @@ class ProjectArtifactCollections(
             "filters": json.dumps(f) if (f := filters) else None,
         }
 
-        super().__init__(client, variables=variables, per_page=per_page, start=start)
+        super().__init__(
+            service_api,
+            variables=variables,
+            per_page=per_page,
+            start=start,
+            omit_variables=None if supports_filtering else {"filters"},
+            omit_fields=None if supports_filtering else {"totalCount"},
+        )
 
     @override
     def _update_response(self) -> None:
@@ -477,26 +452,24 @@ class ProjectArtifactCollections(
             ProjectArtifactCollectionConnection,
         )
 
-        data = self.client.execute(self.QUERY, variable_values=self.variables)
-        result = ProjectArtifactCollections.model_validate(data)
-
+        result = self._execute_query(
+            parse=ProjectArtifactCollections.model_validate_json
+        )
         # Extract the inner `*Connection` result for faster/easier access.
         if not ((proj := result.project) and (conn := proj.artifact_collections)):
             raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
-
         self.last_response = ProjectArtifactCollectionConnection.model_validate(conn)
 
     def _convert(self, node: ArtifactCollectionFragment) -> ArtifactCollection | None:
         if not node.project:
             return None
         return ArtifactCollection(
-            client=self.client,
+            service_api=self._service_api,
             entity=node.project.entity.name,
             project=node.project.name,
             name=node.name,
             type=node.type.name,
             attrs=node,
-            service_api=self._service_api,
         )
 
 
@@ -504,7 +477,6 @@ class ArtifactCollection:
     """An artifact collection that represents a group of related artifacts.
 
     Args:
-        client: Legacy GraphQL client retained for API compatibility.
         service_api: Interface to the wandb-core service that performs
             W&B API calls for this collection.
         entity: The entity (user or team) that owns the project.
@@ -527,17 +499,14 @@ class ArtifactCollection:
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         entity: str,
         project: str,
         name: str,
         type: str,
         organization: str | None = None,
         attrs: ArtifactCollectionFragment | None = None,
-        *,
-        service_api: ServiceApi | None = None,
     ):
-        self.client = client
         self._service_api = service_api
 
         # FIXME: Make this lazy, so we don't (re-)fetch the attributes until they are needed
@@ -584,7 +553,7 @@ class ArtifactCollection:
                 from a previous paginator's `.cursor` attribute.
         """
         return Artifacts(
-            client=self.client,
+            service_api=self._service_api,
             entity=self.entity,
             project=self.project,
             # Use the saved name and type, as they're mutable attributes
@@ -593,20 +562,19 @@ class ArtifactCollection:
             type=self._saved.type,
             per_page=per_page,
             start=start,
-            service_api=self._service_api,
         )
 
     @property
     def aliases(self) -> list[str]:
         """The aliases for all artifact versions contained in this collection."""
-        if self._saved.aliases is None:
-            aliases = list(
-                _ArtifactCollectionAliases(self.client, collection_id=self.id)
+        if (aliases := self._saved.aliases) is None:
+            aliases = tuple(
+                _ArtifactCollectionAliases(self._service_api, collection_id=self.id)
             )
             self._saved = self._saved.model_copy(update={"aliases": aliases})
             self._current = self._current.model_copy(update={"aliases": aliases})
 
-        return list(self._saved.aliases)
+        return list(aliases)
 
     @property
     def created_at(self) -> str:
@@ -623,17 +591,18 @@ class ArtifactCollection:
     ) -> ArtifactCollectionFragment:
         """Fetch and return the validated artifact collection data from W&B.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         from wandb.sdk.artifacts._generated import (
             PROJECT_ARTIFACT_COLLECTION_GQL,
             ProjectArtifactCollection,
         )
 
-        gql_op = gql(PROJECT_ARTIFACT_COLLECTION_GQL)
-        gql_vars = {"entity": entity, "project": project, "type": type_, "name": name}
-        data = self.client.execute(gql_op, variable_values=gql_vars)
-        result = ProjectArtifactCollection.model_validate(data)
+        result = self._service_api.execute_graphql(
+            PROJECT_ARTIFACT_COLLECTION_GQL,
+            {"entity": entity, "project": project, "type": type_, "name": name},
+            parse=ProjectArtifactCollection.model_validate_json,
+        )
         if not (
             result.project
             and (proj := result.project)
@@ -673,12 +642,14 @@ class ArtifactCollection:
 
         termlog(f"Changing artifact collection type of {old_type!r} to {new_type!r}")
 
-        gql_op = gql(UPDATE_ARTIFACT_SEQUENCE_TYPE_GQL)
         gql_input = MoveArtifactSequenceInput(
             artifact_sequence_id=self.id,
             destination_artifact_type_name=new_type,
         )
-        self.client.execute(gql_op, variable_values={"input": gql_input.model_dump()})
+        self._service_api.execute_graphql(
+            UPDATE_ARTIFACT_SEQUENCE_TYPE_GQL,
+            variables={"input": gql_input.model_dump()},
+        )
         self._saved.type = new_type
         self._current.type = new_type
 
@@ -694,12 +665,12 @@ class ArtifactCollection:
             DELETE_ARTIFACT_SEQUENCE_GQL,
         )
 
-        gql_op = gql(
+        gql_op = (
             DELETE_ARTIFACT_SEQUENCE_GQL
             if self.is_sequence()
             else DELETE_ARTIFACT_PORTFOLIO_GQL
         )
-        self.client.execute(gql_op, variable_values={"id": self.id})
+        self._service_api.execute_graphql(gql_op, variables={"id": self.id})
 
     @property
     def description(self) -> str | None:
@@ -754,20 +725,22 @@ class ArtifactCollection:
         )
 
         if self.is_sequence():
-            gql_op = gql(UPDATE_ARTIFACT_SEQUENCE_GQL)
+            gql_op = UPDATE_ARTIFACT_SEQUENCE_GQL
             gql_input = UpdateArtifactSequenceInput(
                 artifact_sequence_id=self.id,
                 name=self.name,
                 description=self.description,
             )
         else:
-            gql_op = gql(UPDATE_ARTIFACT_PORTFOLIO_GQL)
+            gql_op = UPDATE_ARTIFACT_PORTFOLIO_GQL
             gql_input = UpdateArtifactPortfolioInput(
                 artifact_portfolio_id=self.id,
                 name=self.name,
                 description=self.description,
             )
-        self.client.execute(gql_op, variable_values={"input": gql_input.model_dump()})
+        self._service_api.execute_graphql(
+            gql_op, variables={"input": gql_input.model_dump()}
+        )
         self._saved.name = self._current.name
         self._saved.description = self._current.description
         self._saved.updated_at = self._current.updated_at
@@ -778,12 +751,14 @@ class ArtifactCollection:
             MoveArtifactSequenceInput,
         )
 
-        gql_op = gql(UPDATE_ARTIFACT_SEQUENCE_TYPE_GQL)
+        gql_op = UPDATE_ARTIFACT_SEQUENCE_TYPE_GQL
         gql_input = MoveArtifactSequenceInput(
             artifact_sequence_id=self.id,
             destination_artifact_type_name=self.type,
         )
-        self.client.execute(gql_op, variable_values={"input": gql_input.model_dump()})
+        self._service_api.execute_graphql(
+            gql_op, variables={"input": gql_input.model_dump()}
+        )
         self._saved.type = self._current.type
 
     def _add_tags(self, tag_names: Iterable[str]) -> None:
@@ -792,14 +767,16 @@ class ArtifactCollection:
             CreateArtifactCollectionTagAssignmentsInput,
         )
 
-        gql_op = gql(ADD_ARTIFACT_COLLECTION_TAGS_GQL)
+        gql_op = ADD_ARTIFACT_COLLECTION_TAGS_GQL
         gql_input = CreateArtifactCollectionTagAssignmentsInput(
             entity_name=self.entity,
             project_name=self.project,
             artifact_collection_name=self._saved.name,
             tags=[{"tagName": tag} for tag in tag_names],
         )
-        self.client.execute(gql_op, variable_values={"input": gql_input.model_dump()})
+        self._service_api.execute_graphql(
+            gql_op, variables={"input": gql_input.model_dump()}
+        )
 
     def _delete_tags(self, tag_names: Iterable[str]) -> None:
         from wandb.sdk.artifacts._generated import (
@@ -807,14 +784,16 @@ class ArtifactCollection:
             DeleteArtifactCollectionTagAssignmentsInput,
         )
 
-        gql_op = gql(DELETE_ARTIFACT_COLLECTION_TAGS_GQL)
+        gql_op = DELETE_ARTIFACT_COLLECTION_TAGS_GQL
         gql_input = DeleteArtifactCollectionTagAssignmentsInput(
             entity_name=self.entity,
             project_name=self.project,
             artifact_collection_name=self._saved.name,
             tags=[{"tagName": tag} for tag in tag_names],
         )
-        self.client.execute(gql_op, variable_values={"input": gql_input.model_dump()})
+        self._service_api.execute_graphql(
+            gql_op, variables={"input": gql_input.model_dump()}
+        )
 
     @normalize_exceptions
     def save(self) -> None:
@@ -868,7 +847,6 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
     Optionally pass in filters to narrow down the results based on specific criteria.
 
     Args:
-        client: Legacy GraphQL client retained for API compatibility.
         service_api: Interface to the wandb-core service that performs
             W&B API calls for these artifact versions.
         entity: The entity (user or team) that owns the project.
@@ -878,20 +856,22 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
             "dataset" or "model".
         filters: Optional mapping of filters to apply to the query.
         order: Optional string to specify the order of the results.
+            If prefixed with '+', sorts ascending (default).
+            If prefixed with '-', sorts descending.
         per_page: The number of artifact versions to fetch per page. Default is 50.
         tags: Optional string or list of strings to filter artifacts by tags.
 
     <!-- lazydoc-ignore-init: internal -->
     """
 
-    QUERY: Document  # Must be set per-instance
+    QUERY: ClassVar[str | None] = None
 
     # Loosely-annotated to avoid importing heavy types at module import time.
     last_response: _ArtifactConnectionGeneric | None
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         entity: str,
         project: str,
         collection_name: str,
@@ -901,12 +881,11 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
         per_page: int = 50,
         tags: str | list[str] | None = None,
         start: str | None = None,
-        *,
-        service_api: ServiceApi | None = None,
     ):
-        from wandb.sdk.artifacts._generated import PROJECT_ARTIFACTS_GQL
+        if self.QUERY is None:
+            from wandb.sdk.artifacts._generated import PROJECT_ARTIFACTS_GQL
 
-        self.QUERY = gql(PROJECT_ARTIFACTS_GQL)
+            self.__class__.QUERY = PROJECT_ARTIFACTS_GQL
 
         self.entity = entity
         self.collection_name = collection_name
@@ -915,7 +894,6 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
         self.filters = {"state": "COMMITTED"} if filters is None else filters
         self.tags = always_list(tags or [])
         self.order = order
-        self._service_api = service_api
         variables = {
             "entity": self.entity,
             "project": self.project,
@@ -924,14 +902,15 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
             "collection": self.collection_name,
             "filters": json.dumps(self.filters),
         }
-        super().__init__(client, variables=variables, per_page=per_page, start=start)
+        super().__init__(
+            service_api, variables=variables, per_page=per_page, start=start
+        )
 
     @override
     def _update_response(self) -> None:
         from wandb.sdk.artifacts._generated import ArtifactFragment, ProjectArtifacts
 
-        data = self.client.execute(self.QUERY, variable_values=self.variables)
-        result = ProjectArtifacts.model_validate(data)
+        result = self._execute_query(parse=ProjectArtifacts.model_validate_json)
 
         # Extract the inner `*Connection` result for faster/easier access.
         if not (
@@ -966,7 +945,6 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
                 name=f"{self.collection_name}:{edge.version}",
             ),
             src_art=edge.node,
-            client=self.client,
             service_api=self._service_api,
         )
 
@@ -974,7 +952,7 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
     def convert_objects(self) -> list[Artifact]:
         """Convert the raw response data into a list of wandb.Artifact objects.
 
-        <!-- lazydoc-ignore: internal -->
+        <!-- lazydoc-ignore -->
         """
         if (conn := self.last_response) is None:
             return []
@@ -989,36 +967,35 @@ class RunArtifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
     <!-- lazydoc-ignore-init: internal -->
     """
 
-    QUERY: Document  # Must be set per-instance
+    QUERY: str  # Must be set per-instance
     last_response: ConnectionWithTotal[ArtifactFragment] | None
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         run: Run,
         mode: Literal["logged", "used"] = "logged",
         per_page: int = 50,
         start: str | None = None,
-        *,
-        service_api: ServiceApi,
     ):
         try:
             query_str = _run_artifacts_mode_to_gql()[mode]
         except LookupError:
             raise ValueError("mode must be logged or used")
         else:
-            self.QUERY = gql(query_str)
+            self.QUERY = query_str
 
         self.run = run
-        self._service_api = service_api
         variables = {"entity": run.entity, "project": run.project, "run": run.id}
-        super().__init__(client, variables=variables, per_page=per_page, start=start)
+        super().__init__(
+            service_api, variables=variables, per_page=per_page, start=start
+        )
 
     @override
     def _update_response(self) -> None:
         from wandb.sdk.artifacts._models.pagination import RunArtifactConnection
 
-        data = self.client.execute(self.QUERY, variable_values=self.variables)
+        data = self._service_api.execute_graphql(self.QUERY, variables=self.variables)
 
         # Extract the inner `*Connection` result for faster/easier access.
         inner_data = data["project"]["run"]["artifacts"]
@@ -1037,7 +1014,6 @@ class RunArtifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
                 name=f"{node.artifact_sequence.name}:v{node.version_index}",
             ),
             src_art=node,
-            client=self.client,
             service_api=self._service_api,
         )
 
@@ -1048,72 +1024,54 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
     <!-- lazydoc-ignore-init: internal -->
     """
 
-    QUERY: Document  # Must be set per-instance
+    QUERY: ClassVar[str | None] = None
     last_response: ArtifactFileConnection | None
 
     def __init__(
         self,
-        client: RetryingClient,
+        service_api: ServiceApi,
         artifact: Artifact,
         names: Sequence[str] | None = None,
         per_page: int = 50,
         start: str | None = None,
     ):
-        from wandb.sdk.artifacts._generated import (
-            GET_ARTIFACT_FILES_GQL,
-            GET_ARTIFACT_MEMBERSHIP_FILES_GQL,
-        )
         from wandb.sdk.artifacts._gqlutils import server_supports
 
-        self.query_via_membership = server_supports(
-            client, pb.ARTIFACT_COLLECTION_MEMBERSHIP_FILES
-        )
+        if self.QUERY is None:
+            from wandb.sdk.artifacts._generated import ARTIFACT_MEMBERSHIP_FILES_GQL
+
+            type(self).QUERY = ARTIFACT_MEMBERSHIP_FILES_GQL
+
         self.artifact = artifact
 
-        if self.query_via_membership:
-            query_str = GET_ARTIFACT_MEMBERSHIP_FILES_GQL
-            variables = {
-                "entity": artifact.entity,
-                "project": artifact.project,
-                "collection": artifact.name.split(":")[0],
-                "alias": artifact.version,
-                "fileNames": names,
-            }
-        else:
-            query_str = GET_ARTIFACT_FILES_GQL
-            variables = {
-                "entity": artifact.source_entity,
-                "project": artifact.source_project,
-                "name": artifact.source_name,
-                "type": artifact.type,
-                "fileNames": names,
-            }
-
-        omit_fields = (
-            None
-            if server_supports(client, pb.TOTAL_COUNT_IN_FILE_CONNECTION)
-            else {"totalCount"}
+        variables = {
+            "entity": artifact.entity,
+            "project": artifact.project,
+            "collection": artifact.name.split(":")[0],
+            "alias": artifact.version,
+            "fileNames": names,
+        }
+        super().__init__(
+            service_api,
+            variables=variables,
+            per_page=per_page,
+            start=start,
+            omit_fields=(
+                None
+                if server_supports(service_api, pb.TOTAL_COUNT_IN_FILE_CONNECTION)
+                else {"totalCount"}
+            ),
         )
-        self.QUERY = gql_compat(query_str, omit_fields=omit_fields)
-        super().__init__(client, variables=variables, per_page=per_page, start=start)
 
     @override
     def _update_response(self) -> None:
-        from wandb.sdk.artifacts._generated import (
-            GetArtifactFiles,
-            GetArtifactMembershipFiles,
-        )
+        from wandb.sdk.artifacts._generated import ArtifactMembershipFiles
         from wandb.sdk.artifacts._models.pagination import ArtifactFileConnection
 
-        data = self.client.execute(self.QUERY, variable_values=self.variables)
+        result = self._execute_query(parse=ArtifactMembershipFiles.model_validate_json)
 
         # Extract the inner `*Connection` result for faster/easier access.
-        if self.query_via_membership:
-            result = GetArtifactMembershipFiles.model_validate(data)
-            conn = result.project.artifact_collection.artifact_membership.files
-        else:
-            result = GetArtifactFiles.model_validate(data)
-            conn = result.project.artifact_type.artifact.files
+        conn = result.project.artifact_collection.artifact_membership.files
 
         if conn is None:
             raise ValueError(f"Unable to parse {nameof(type(self))!r} response data")
@@ -1126,7 +1084,7 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
         return [self.artifact.entity, self.artifact.project, self.artifact.name]
 
     def _convert(self, node: FileFragment) -> File:
-        return File(self.client, attrs=node.model_dump(exclude_unset=True))
+        return File(self._service_api, attrs=node.model_dump(exclude_unset=True))
 
     def __repr__(self) -> str:
         path_str = "/".join(self.path)

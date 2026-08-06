@@ -7,15 +7,16 @@ from typing import Any
 from unittest import mock
 
 import pytest
-import requests
 import wandb
 import wandb.apis.public
 import wandb.util
 from wandb import Api
 from wandb.apis._generated import ProjectFragment, UserFragment
 from wandb.apis._generated.generate_api_key import GenerateApiKey
+from wandb.apis.public.summary import Summary
 from wandb.errors.errors import CommError
-from wandb.old.summary import Summary
+from wandb.sdk.artifacts._gqlutils import server_supports
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 
 @pytest.mark.parametrize(
@@ -252,12 +253,6 @@ def test_run_history_keys_bad_arg(stub_run_gql_once, mock_wandb_log):
     run.history(keys=[["acc"]], pandas=False)
     mock_wandb_log.assert_errored("keys argument must be a list of strings")
 
-    run.scan_history(keys="acc")
-    mock_wandb_log.assert_errored("keys must be specified in a list")
-
-    run.scan_history(keys=[["acc"]])
-    mock_wandb_log.assert_errored("keys argument must be a list of strings")
-
 
 def test_run_summary(wandb_backend_spy):
     seed_run = Api().create_run()
@@ -337,50 +332,44 @@ def test_run_delete(wandb_backend_spy):
 
 def test_run_update_state_success(wandb_backend_spy):
     """Test successful state transition to pending."""
+    api = Api()
+    if not server_supports(api._service_api, "UPDATE_RUN_STATE"):
+        pytest.skip("Server doesn't support updateRunState")
+
     gql = wandb_backend_spy.gql
     update_state_spy = gql.Capture()
 
     wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="UpdateRunState"),
-        gql.Constant(content={"data": {"updateRunState": {"success": True}}}),
-    )
-    wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="UpdateRunState"),
-        update_state_spy,
+        gql.Matcher(operation="UpdateRunState"), update_state_spy
     )
 
-    seed_run = Api().create_run()
-    run = Api().run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
-    run._attrs["state"] = "failed"
-    run._state = "failed"
+    seed_run = api.create_run()
+    run = api.run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
 
-    result = run.update_state("pending")
+    result = run.update_state("failed")
 
     assert result is True
-    assert run.state == "pending"
+    assert run.state == "failed"
     assert update_state_spy.total_calls == 1
-    assert update_state_spy.requests[0].variables["input"]["state"] == "pending"
+    assert update_state_spy.requests[0].variables["input"]["state"] == "failed"
     assert update_state_spy.requests[0].variables["input"]["id"] == run.storage_id
 
 
-def test_run_update_state_failure(wandb_backend_spy):
-    """Test that update_state returns False when server rejects transition."""
-    gql = wandb_backend_spy.gql
+@pytest.mark.usefixtures("user")
+def test_run_update_state_failure():
+    """Test that update_state raises when the server rejects the transition."""
+    api = Api()
+    if not server_supports(api._service_api, "UPDATE_RUN_STATE"):
+        pytest.skip("Server doesn't support updateRunState")
 
-    wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="UpdateRunState"),
-        gql.Constant(content={"data": {"updateRunState": {"success": False}}}),
-    )
+    seed_run = api.create_run()
+    run = api.run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
 
-    seed_run = Api().create_run()
-    run = Api().run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
-    run._attrs["state"] = "running"
-    run._state = "running"
+    assert run.update_state("failed") is True
+    assert run.state == "failed"
 
-    result = run.update_state("pending")
-
-    assert result is False
-    assert run.state == "running"
+    with pytest.raises(wandb.Error, match="invalid state transition"):
+        run.update_state("failed")
 
 
 def test_run_file_direct(
@@ -428,13 +417,15 @@ def test_run_retry(wandb_backend_spy):
     with wandb.init() as seed_run:
         seed_run.log(dict(acc=100, loss=0))
 
+    api = Api()
+
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
         gql.any(),
         gql.once(content={"errors": ["Server down"]}, status=500),
     )
 
-    run = Api().run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
+    run = api.run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
 
     assert run.summary_metrics["acc"] == 100
     assert run.summary_metrics["loss"] == 0
@@ -1095,14 +1086,16 @@ def test_viewer(user: str, api: wandb.Api):
 
 
 def test_create_team_exists(wandb_backend_spy):
+    api = Api()
+
     gql = wandb_backend_spy.gql
     wandb_backend_spy.stub_gql(
         gql.any(),
         gql.Constant(content={"error": "resource already exists"}, status=409),
     )
 
-    with pytest.raises(requests.exceptions.HTTPError):
-        Api().create_team("test")
+    with pytest.raises(WandbApiFailedError):
+        api.create_team("test")
 
 
 def fake_search_users_response(
@@ -1476,6 +1469,10 @@ def test_run_upload_file_with_directory_traversal(
     wandb_backend_spy.stub_gql(
         gql.Matcher(operation="RunFiles"),
         gql.Constant(content=runs_files_gql_body),
+    )
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="MarkRunFilesUploaded"),
+        gql.Constant(content={"data": {"markRunFilesUploaded": {"success": True}}}),
     )
     mock_push = mock.MagicMock()
     monkeypatch.setattr(wandb.sdk.internal.internal_api.Api, "push", mock_push)

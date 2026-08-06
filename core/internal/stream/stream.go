@@ -10,10 +10,12 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 
+	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pfxout"
 	"github.com/wandb/wandb/core/internal/runhandle"
+	"github.com/wandb/wandb/core/internal/runsyncstate"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
@@ -24,7 +26,14 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-const BufferSize = 32
+const (
+	BufferSize = 32
+
+	// printerBufferSize is the maximum number of messages (warnings, errors)
+	// to buffer before discarding new ones. The client is expected to read
+	// messages frequently, so this does not need to be large.
+	printerBufferSize = 128
+)
 
 // Stream processes incoming records for a single run.
 //
@@ -55,6 +64,9 @@ type Stream struct {
 
 	// loggerFile is the file (if any) to which the logger writes.
 	loggerFile *os.File
+
+	// otelProxy records open telemetry analytics for the run.
+	otelProxy *analytics.OpenTelemetryProxy
 
 	// wg is the WaitGroup for the stream
 	wg sync.WaitGroup
@@ -94,6 +106,7 @@ func NewStream(
 	handlerFactory *HandlerFactory,
 	loggerFile streamLoggerFile,
 	logger *observability.CoreLogger,
+	otelProxy *analytics.OpenTelemetryProxy,
 	operations *wboperation.WandbOperations,
 	recordParserFactory *RecordParserFactory,
 	senderFactory *SenderFactory,
@@ -109,7 +122,15 @@ func NewStream(
 		runWork,
 		/*fileReadDelay=*/ 5*time.Second,
 	)
-	recordParser := recordParserFactory.New(runWork.BeforeEndCtx(), tbHandler)
+	syncStateStore := runsyncstate.Noop()
+	if !s.IsSkipTransactionLog() {
+		syncStateStore = runsyncstate.File(s.GetTransactionLogPath())
+	}
+	recordParser := recordParserFactory.New(
+		runWork.BeforeEndCtx(),
+		tbHandler,
+		syncStateStore,
+	)
 
 	stream := &Stream{
 		runWork:            runWork,
@@ -119,6 +140,7 @@ func NewStream(
 		graphqlClientOrNil: graphqlClientOrNil,
 		logger:             logger,
 		loggerFile:         loggerFile,
+		otelProxy:          otelProxy,
 		settings:           s,
 		recordParser:       recordParser,
 		handler:            handlerFactory.New(runWork),
@@ -182,8 +204,13 @@ func (s *Stream) maybeSavingToTransactionLog(
 	if err != nil {
 		// Capture the error because if we can open for writing,
 		// why can't we open for reading?
-		s.logger.CaptureError(fmt.Errorf(
-			"stream: error opening transaction log for reading: %v", err))
+		s.logger.CaptureError(
+			"stream",
+			fmt.Errorf(
+				"stream: error opening transaction log for reading: %v",
+				err,
+			),
+		)
 		return work
 	}
 
@@ -234,6 +261,23 @@ func (s *Stream) Close() {
 	s.runWork.Close()
 	s.wg.Wait()
 	s.logger.Info("stream: all finished")
+
+	// All of the stream's goroutines have finished, so no more analytics
+	// will be recorded; flush what's pending.
+	shutdownCtx, cancel := context.WithTimeout(
+		context.Background(),
+		2*time.Second,
+	)
+	defer cancel()
+	if s.otelProxy != nil {
+		err := s.otelProxy.Shutdown(shutdownCtx)
+		if err != nil {
+			s.logger.Error(
+				"stream: failed to shut down analytics",
+				"error", err,
+			)
+		}
+	}
 
 	if s.loggerFile != nil {
 		// Sync the file instead of closing it, in case we keep writing to it.
@@ -295,7 +339,10 @@ func (s *Stream) printFooter() {
 			),
 		)
 	} else if runURL, err := s.runURL(); err != nil {
-		s.logger.CaptureError(fmt.Errorf("stream: runURL: %v", err))
+		s.logger.CaptureError(
+			"stream",
+			fmt.Errorf("stream: runURL: %v", err),
+		)
 	} else {
 		formatter.Println(
 			fmt.Sprintf(

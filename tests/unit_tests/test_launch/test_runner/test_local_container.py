@@ -151,6 +151,104 @@ def test_get_docker_command_quotes_user_controlled_args_for_shell():
     assert split_command[-2:] == [payload, payload]
 
 
+def test_local_container_rejects_unsafe_resource_args(mock_launch_project, test_api):
+    docker_args = {"privileged": True}
+    mock_launch_project.fill_macros.return_value = {"local-container": docker_args}
+    mock_launch_project.job_base_image = None
+    runner = LocalContainerRunner(
+        test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
+    )
+
+    with pytest.raises(
+        LaunchError,
+        match="Unsupported resource_args.local-container option 'privileged'",
+    ):
+        runner._populate_docker_args(mock_launch_project, "test-image")
+
+
+def test_local_container_rejects_value_smuggling(mock_launch_project, test_api):
+    docker_args = {"memory": {"x": "y"}}
+    mock_launch_project.fill_macros.return_value = {"local-container": docker_args}
+    mock_launch_project.job_base_image = None
+    runner = LocalContainerRunner(
+        test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
+    )
+
+    with pytest.raises(LaunchError, match="must be a single string or numeric value"):
+        runner._populate_docker_args(mock_launch_project, "test-image")
+
+
+def test_local_container_allows_safe_resource_args(mock_launch_project, test_api):
+    docker_args = {
+        "cpu": 2,
+        "env": ["FOO=bar"],
+        "memory": "2g",
+        "workdir": "/workspace",
+    }
+    mock_launch_project.fill_macros.return_value = {"local-container": docker_args}
+    mock_launch_project.job_base_image = None
+    runner = LocalContainerRunner(
+        test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
+    )
+
+    assert (
+        runner._populate_docker_args(mock_launch_project, "test-image") == docker_args
+    )
+
+
+def test_populate_docker_args_does_not_mutate_submitter_resource_args(
+    mock_launch_project, test_api
+):
+    docker_args = {"command": "echo hello world"}
+    mock_launch_project.fill_macros.return_value = {"local-container": docker_args}
+    mock_launch_project.job_base_image = "test-base-image"
+    mock_launch_project.resolved_working_dir = "/mnt/wandb"
+    test_api.settings = MagicMock(return_value="http://localhost:8080")
+    runner = LocalContainerRunner(
+        test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
+    )
+
+    first = runner._populate_docker_args(mock_launch_project, "test-image")
+    second = runner._populate_docker_args(mock_launch_project, "test-image")
+
+    network_arg = "net" if local_container.sys.platform == "win32" else "network"
+    mount_string = f"{mock_launch_project.project_dir}:{local_container.CODE_MOUNT_DIR}"
+    for populated_args in (first, second):
+        assert populated_args["command"] == "echo hello world"
+        assert populated_args[network_arg] == "host"
+        if local_container.sys.platform in ("linux", "linux2"):
+            assert populated_args["add-host"] == "host.docker.internal:host-gateway"
+        assert populated_args["volume"] == [mount_string]
+        assert populated_args["workdir"] == "/mnt/wandb"
+
+    assert first["volume"] is not second["volume"]
+    assert docker_args == {"command": "echo hello world"}
+    for injected_arg in ("network", "net", "add-host", "volume", "workdir"):
+        assert injected_arg not in docker_args
+
+
+def test_get_docker_command_serializes_allowed_values():
+    command = local_container.get_docker_command(
+        "test-image",
+        {},
+        docker_args={"cpu": 2, "memory": "2g", "env": ["FOO=bar", "BAZ=qux"]},
+    )
+    joined = " ".join(command)
+    assert "--cpu 2" in joined
+    assert "--memory 2g" in joined
+    # Each list item becomes its own `--env value`; no item is dropped or merged.
+    assert joined.count("--env") == 2
+    assert "--env FOO=bar" in joined
+    assert "--env BAZ=qux" in joined
+
+
+def test_get_docker_command_rejects_mapping_values():
+    with pytest.raises(LaunchError, match="mapping values are not supported"):
+        local_container.get_docker_command(
+            "test-image", {}, docker_args={"label": {"a": "b"}}
+        )
+
+
 @pytest.mark.asyncio
 @pytest.mark.skipif(os.name == "nt", reason="POSIX shell selection test")
 async def test_local_container_runner_uses_sh_when_bash_missing(

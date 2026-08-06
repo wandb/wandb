@@ -154,7 +154,7 @@ func (h *Handler) OutChan() <-chan runwork.Work {
 //
 //gocyclo:ignore
 func (h *Handler) Do(allWork <-chan runwork.Work) {
-	defer h.logger.Reraise()
+	defer h.logger.Reraise("stream")
 	h.logger.Info("handler: started")
 	for work := range allWork {
 		h.logger.Debug("handler: got work", "work", work)
@@ -237,10 +237,14 @@ func (h *Handler) handleRecord(record *spb.Record, request *runwork.Request) {
 		h.handleSummary(x.Summary)
 	case nil:
 		h.logger.CaptureFatalAndPanic(
-			errors.New("handler: handleRecord: record type is nil"))
+			"stream",
+			errors.New("handler: handleRecord: record type is nil"),
+		)
 	default:
 		h.logger.CaptureFatalAndPanic(
-			fmt.Errorf("handler: handleRecord: unknown record type %T", x))
+			"stream",
+			fmt.Errorf("handler: handleRecord: unknown record type %T", x),
+		)
 	}
 }
 
@@ -281,6 +285,8 @@ func (h *Handler) handleRequest(
 		h.handleRequestGetSummary(record, request)
 	case *spb.Request_NetworkStatus:
 		h.handleRequestNetworkStatus(record, request)
+	case *spb.Request_HistoryStep:
+		h.handleHistoryStepRequest(x.HistoryStep, request)
 	case *spb.Request_PartialHistory:
 		h.handleRequestPartialHistory(record, x.PartialHistory)
 	case *spb.Request_PollExit:
@@ -310,7 +316,7 @@ func (h *Handler) handleRequest(
 	case *spb.Request_GetSystemMetrics:
 		h.handleRequestGetSystemMetrics(record, request)
 	case *spb.Request_InternalMessages:
-		h.handleRequestInternalMessages(record, request)
+		h.handleRequestInternalMessages(x.InternalMessages, request)
 	case *spb.Request_SyncFinish:
 		h.handleRequestSyncFinish(record, request)
 	case *spb.Request_SenderRead:
@@ -323,10 +329,14 @@ func (h *Handler) handleRequest(
 		h.handleRequestProbeSystemInfo(record)
 	case nil:
 		h.logger.CaptureFatalAndPanic(
-			errors.New("handler: handleRequest: request type is nil"))
+			"stream",
+			errors.New("handler: handleRequest: request type is nil"),
+		)
 	default:
 		h.logger.CaptureFatalAndPanic(
-			fmt.Errorf("handler: handleRequest: unknown request type %T", x))
+			"stream",
+			fmt.Errorf("handler: handleRequest: unknown request type %T", x),
+		)
 	}
 }
 
@@ -368,14 +378,18 @@ func (h *Handler) handleMetric(record *spb.Record) {
 	metric := record.GetMetric()
 	if metric == nil {
 		h.logger.CaptureError(
-			errors.New("handler: bad record type for handleMetric"))
+			"stream",
+			errors.New("handler: bad record type for handleMetric"),
+		)
 		return
 	}
 
 	if err := h.metricHandler.ProcessRecord(metric); err != nil {
 		h.logger.CaptureError(
+			"stream",
 			fmt.Errorf("handler: cannot add metric: %v", err),
-			"metric", metric)
+			"metric", metric,
+		)
 		return
 	}
 
@@ -490,7 +504,9 @@ func (h *Handler) handleRequestRunStart(
 
 	if h.runRecord, ok = proto.Clone(run).(*spb.RunRecord); !ok {
 		h.logger.CaptureFatalAndPanic(
-			errors.New("handleRunStart: failed to clone run"))
+			"stream",
+			errors.New("handleRunStart: failed to clone run"),
+		)
 	}
 	h.fwdRecord(record, request)
 
@@ -616,7 +632,7 @@ func (h *Handler) handlePatchSave() {
 		return
 	}
 
-	git := gitops.New(h.settings.GetRootDir(), h.logger)
+	git := gitops.New(h.settings.GetGitRoot(), h.logger)
 	if !git.IsAvailable() {
 		return
 	}
@@ -741,7 +757,9 @@ func (h *Handler) handleRequestGetSummary(
 	// able to produce.
 	if err != nil {
 		h.logger.CaptureError(
-			fmt.Errorf("handler: error flattening run summary: %v", err))
+			"stream",
+			fmt.Errorf("handler: error flattening run summary: %v", err),
+		)
 	}
 
 	response.ResponseType = &spb.Response_GetSummaryResponse{
@@ -786,10 +804,28 @@ func (h *Handler) handleRequestGetSystemMetrics(
 }
 
 func (h *Handler) handleRequestInternalMessages(
-	record *spb.Record,
+	record *spb.InternalMessagesRequest,
 	request *runwork.Request,
 ) {
-	messages := h.terminalPrinter.Read()
+	if request == nil {
+		return
+	}
+
+	go h.popInternalMessages(record, request)
+}
+
+// popInternalMessages responds to the internal messages request,
+// possibly blocking until messages are available.
+func (h *Handler) popInternalMessages(
+	record *spb.InternalMessagesRequest,
+	request *runwork.Request,
+) {
+	var messages []observability.PrinterMessage
+	if record.Wait {
+		messages = h.terminalPrinter.ReadWait(request.Context())
+	} else {
+		messages = h.terminalPrinter.Read()
+	}
 
 	// TODO: Respect message severity in the InternalMessages request.
 	messageContents := make([]string, 0, len(messages))
@@ -833,7 +869,9 @@ func (h *Handler) handleRequestJobInput(
 func (h *Handler) handleSummary(summary *spb.SummaryRecord) {
 	if err := runsummary.FromProto(summary).Apply(h.runSummary); err != nil {
 		h.logger.CaptureError(
-			fmt.Errorf("handler: error processing summary: %v", err))
+			"stream",
+			fmt.Errorf("handler: error processing summary: %v", err),
+		)
 	}
 }
 
@@ -871,6 +909,31 @@ func (h *Handler) handleRequestNetworkStatus(
 	h.fwdRecord(record, request)
 }
 
+// handleHistoryStepRequest responds with the current W&B step.
+func (h *Handler) handleHistoryStepRequest(
+	_ *spb.HistoryStepRequest, // proves 'request' is a history step request
+	request *runwork.Request,
+) {
+	if h.settings.IsSharedMode() {
+		request.Respond(&spb.ServerResponse{
+			ServerResponseType: &spb.ServerResponse_ErrorResponse{
+				ErrorResponse: &spb.ServerErrorResponse{
+					Message: "Cannot read the W&B step in shared mode.",
+				},
+			},
+		})
+		return
+	}
+
+	h.respond(request, &spb.Response{
+		ResponseType: &spb.Response_HistoryStepResponse{
+			HistoryStepResponse: &spb.HistoryStepResponse{
+				Step: h.partialHistoryStep,
+			},
+		},
+	})
+}
+
 // handleRequestPartialHistory updates the run history, flushing data for
 // completed steps.
 func (h *Handler) handleRequestPartialHistory(
@@ -903,8 +966,10 @@ func (h *Handler) handlePartialHistoryAsync(request *spb.PartialHistoryRequest) 
 
 		if err != nil {
 			h.logger.CaptureError(
+				"stream",
 				fmt.Errorf("handler: failed to set history metric: %v", err),
-				"item", item)
+				"item", item,
+			)
 		}
 	}
 
@@ -952,8 +1017,10 @@ func (h *Handler) handlePartialHistorySync(request *spb.PartialHistoryRequest) {
 		err := h.partialHistory.SetFromRecord(item)
 		if err != nil {
 			h.logger.CaptureError(
+				"stream",
 				fmt.Errorf("handler: failed to set history metric: %v", err),
-				"item", item)
+				"item", item,
+			)
 		}
 	}
 
@@ -1030,7 +1097,9 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 	// Report errors, but continue anyway to drop as little data as possible.
 	if err != nil {
 		h.logger.CaptureError(
-			fmt.Errorf("handler: error flattening run history: %v", err))
+			"stream",
+			fmt.Errorf("handler: error flattening run history: %v", err),
+		)
 		h.terminalPrinter.Warnf(
 			"There was an issue processing run metrics in step %d;"+
 				" some data may be missing.",
@@ -1058,7 +1127,9 @@ func (h *Handler) updateSummary() {
 	// We continue despite errors to update as much of the summary as we can.
 	if err != nil {
 		h.logger.CaptureError(
-			fmt.Errorf("handler: error updating summary: %v", err))
+			"stream",
+			fmt.Errorf("handler: error updating summary: %v", err),
+		)
 	}
 
 	if len(updates) == 0 {

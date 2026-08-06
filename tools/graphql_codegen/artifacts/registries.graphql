@@ -5,6 +5,7 @@ query RegistryVersions(
   $artifactFilter: JSONString
   $cursor: String
   $perPage: Int
+  $order: String
   $includeAliases: Boolean = false
 ) {
   organization(name: $organization) {
@@ -16,6 +17,7 @@ query RegistryVersions(
         filters: $artifactFilter
         after: $cursor
         first: $perPage
+        order: $order
       ) {
         pageInfo {
           ...PageInfoFragment
@@ -37,6 +39,7 @@ query RegistryCollections(
   $collectionTypes: [ArtifactCollectionType!] = [PORTFOLIO]
   $cursor: String
   $perPage: Int
+  $order: String
 ) {
   organization(name: $organization) {
     orgEntity {
@@ -47,6 +50,7 @@ query RegistryCollections(
         collectionTypes: $collectionTypes
         after: $cursor
         first: $perPage
+        order: $order
       ) {
         totalCount
         pageInfo {
@@ -92,15 +96,10 @@ query FetchRegistry($name: String, $entity: String) {
   }
 }
 
-query FetchRegistries(
-  $organization: String!
-  $filters: JSONString
-  $cursor: String
-  $perPage: Int
-) {
+query FetchRegistries($organization: String!, $filters: JSONString, $cursor: String, $perPage: Int, $order: String) {
   organization(name: $organization) {
     orgEntity {
-      projects(filters: $filters, after: $cursor, first: $perPage) {
+      projects(filters: $filters, after: $cursor, first: $perPage, order: $order) {
         pageInfo {
           ...PageInfoFragment
         }
