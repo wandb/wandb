@@ -82,6 +82,42 @@ def test_counts_skipped_runs(wandb_dir: pathlib.Path, runner: CliRunner):
     ]
 
 
+@pytest.mark.usefixtures("now_20260805_3pm")
+def test_skips_runs_created_within_the_hour(
+    wandb_dir: pathlib.Path,
+    runner: CliRunner,
+):
+    wb = wandb_dir / "wandb"
+    online_run = wb / "run-20260805_143000-online"
+    offline_run = wb / "offline-run-20260805_143000-offline"
+    _mkrun(online_run)
+    _mkrun(offline_run, synced=True)
+
+    result = runner.invoke(clean.clean, ["--force"])
+
+    assert result.exit_code == 0
+    assert online_run.exists()
+    assert offline_run.exists()
+    assert result.output.splitlines() == [
+        "wandb: Skipping 2 run(s) created fewer than 24 hours ago.",
+        "wandb: Found no runs to clean up.",
+    ]
+
+
+@pytest.mark.usefixtures("now_20260805_3pm")
+def test_cleans_run_without_valid_timestamp(
+    wandb_dir: pathlib.Path,
+    runner: CliRunner,
+):
+    run = wandb_dir / "wandb" / "run-notatimestamp-abc"
+    _mkrun(run)
+
+    result = runner.invoke(clean.clean, ["--force"])
+
+    assert result.exit_code == 0
+    assert not run.exists()
+
+
 def test_finds_synced_runs(wandb_dir: pathlib.Path, runner: CliRunner):
     wb = wandb_dir / "wandb"
     _mkrun(wb / "offline-run-20260101_010101-1")
