@@ -6,6 +6,7 @@ import time
 
 import pytest
 import wandb
+import wandb.jupyter
 
 
 def test_no_root_dir_access__uses_temp_dir(tmp_path, monkeypatch):
@@ -117,3 +118,70 @@ def test_temp_dir_cleanup_on_exit(tmp_path, monkeypatch):
     assert len(new_items) == 0, (
         f"New items detected in temp directory after run.finish() and wandb.teardown(): {[f['path'] for f in new_items]}."
     )
+
+
+class _FakeIPythonEvents:
+    def __init__(self):
+        self.registered = []
+        self.register_count = 0
+
+    def register(self, name, func):
+        self.register_count += 1
+        self.registered.append((name, func))
+
+    def unregister(self, name, func):
+        self.registered.remove((name, func))
+
+
+class _FakeIPythonDisplayPublisher:
+    def publish(self, data, metadata=None, **kwargs):
+        pass
+
+
+class _FakeIPythonShell:
+    def __init__(self):
+        self.events = _FakeIPythonEvents()
+        self.display_pub = _FakeIPythonDisplayPublisher()
+        self.execution_count = 1
+        self.history_manager = None
+
+
+def test_failed_init_unpatches_ipython(monkeypatch):
+    shell = _FakeIPythonShell()
+    original_publish = shell.display_pub.publish
+
+    class FakeNotebook:
+        def __init__(self, settings):
+            self.settings = settings
+            self.shell = shell
+
+        def save_ipynb(self):
+            return True
+
+        def save_history(self, run):
+            pass
+
+        def save_display(self, execution_count, data):
+            pass
+
+    def failing_init(self, *args, **kwargs):
+        raise RuntimeError("init failed")
+
+    monkeypatch.setattr("wandb.sdk.lib.ipython.in_jupyter", lambda: True)
+    monkeypatch.setattr(wandb.jupyter, "notebook_metadata", lambda silent: {})
+    monkeypatch.setattr(wandb.jupyter, "Notebook", FakeNotebook)
+    monkeypatch.setattr(
+        "wandb.sdk.wandb_init._WandbInit.init",
+        failing_init,
+    )
+
+    for _ in range(2):
+        with pytest.raises(RuntimeError):
+            wandb.init(mode="offline")
+
+        assert not hasattr(shell.display_pub, "_orig_publish")
+        assert shell.display_pub.publish == original_publish
+        assert shell.events.registered == []
+
+    # Each attempt must be able to register its own hooks again.
+    assert shell.events.register_count == 4
