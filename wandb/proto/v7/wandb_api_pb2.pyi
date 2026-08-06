@@ -31,7 +31,7 @@ class ServerApiInitResponse(_message.Message):
     def __init__(self, error_message: _Optional[str] = ..., api_id: _Optional[str] = ...) -> None: ...
 
 class ApiRequest(_message.Message):
-    __slots__ = ("api_id", "read_run_history_request", "features_request", "graphql_request", "download_file_request", "upload_file_request", "mark_run_files_uploaded_request", "stop_run_request", "authenticate_request", "create_custom_chart_request", "run_queue_operation_request", "get_access_token_request")
+    __slots__ = ("api_id", "read_run_history_request", "features_request", "graphql_request", "download_file_request", "upload_file_request", "mark_run_files_uploaded_request", "stop_run_request", "auth_request", "create_custom_chart_request", "run_queue_operation_request")
     API_ID_FIELD_NUMBER: _ClassVar[int]
     READ_RUN_HISTORY_REQUEST_FIELD_NUMBER: _ClassVar[int]
     FEATURES_REQUEST_FIELD_NUMBER: _ClassVar[int]
@@ -40,10 +40,9 @@ class ApiRequest(_message.Message):
     UPLOAD_FILE_REQUEST_FIELD_NUMBER: _ClassVar[int]
     MARK_RUN_FILES_UPLOADED_REQUEST_FIELD_NUMBER: _ClassVar[int]
     STOP_RUN_REQUEST_FIELD_NUMBER: _ClassVar[int]
-    AUTHENTICATE_REQUEST_FIELD_NUMBER: _ClassVar[int]
+    AUTH_REQUEST_FIELD_NUMBER: _ClassVar[int]
     CREATE_CUSTOM_CHART_REQUEST_FIELD_NUMBER: _ClassVar[int]
     RUN_QUEUE_OPERATION_REQUEST_FIELD_NUMBER: _ClassVar[int]
-    GET_ACCESS_TOKEN_REQUEST_FIELD_NUMBER: _ClassVar[int]
     api_id: str
     read_run_history_request: ReadRunHistoryRequest
     features_request: FeaturesRequest
@@ -52,14 +51,13 @@ class ApiRequest(_message.Message):
     upload_file_request: UploadFileRequest
     mark_run_files_uploaded_request: MarkRunFilesUploadedRequest
     stop_run_request: StopRunRequest
-    authenticate_request: AuthenticateRequest
+    auth_request: AuthRequest
     create_custom_chart_request: CreateCustomChartRequest
     run_queue_operation_request: RunQueueOperationRequest
-    get_access_token_request: GetAccessTokenRequest
-    def __init__(self, api_id: _Optional[str] = ..., read_run_history_request: _Optional[_Union[ReadRunHistoryRequest, _Mapping]] = ..., features_request: _Optional[_Union[FeaturesRequest, _Mapping]] = ..., graphql_request: _Optional[_Union[GraphQLRequest, _Mapping]] = ..., download_file_request: _Optional[_Union[DownloadFileRequest, _Mapping]] = ..., upload_file_request: _Optional[_Union[UploadFileRequest, _Mapping]] = ..., mark_run_files_uploaded_request: _Optional[_Union[MarkRunFilesUploadedRequest, _Mapping]] = ..., stop_run_request: _Optional[_Union[StopRunRequest, _Mapping]] = ..., authenticate_request: _Optional[_Union[AuthenticateRequest, _Mapping]] = ..., create_custom_chart_request: _Optional[_Union[CreateCustomChartRequest, _Mapping]] = ..., run_queue_operation_request: _Optional[_Union[RunQueueOperationRequest, _Mapping]] = ..., get_access_token_request: _Optional[_Union[GetAccessTokenRequest, _Mapping]] = ...) -> None: ...
+    def __init__(self, api_id: _Optional[str] = ..., read_run_history_request: _Optional[_Union[ReadRunHistoryRequest, _Mapping]] = ..., features_request: _Optional[_Union[FeaturesRequest, _Mapping]] = ..., graphql_request: _Optional[_Union[GraphQLRequest, _Mapping]] = ..., download_file_request: _Optional[_Union[DownloadFileRequest, _Mapping]] = ..., upload_file_request: _Optional[_Union[UploadFileRequest, _Mapping]] = ..., mark_run_files_uploaded_request: _Optional[_Union[MarkRunFilesUploadedRequest, _Mapping]] = ..., stop_run_request: _Optional[_Union[StopRunRequest, _Mapping]] = ..., auth_request: _Optional[_Union[AuthRequest, _Mapping]] = ..., create_custom_chart_request: _Optional[_Union[CreateCustomChartRequest, _Mapping]] = ..., run_queue_operation_request: _Optional[_Union[RunQueueOperationRequest, _Mapping]] = ...) -> None: ...
 
 class ApiResponse(_message.Message):
-    __slots__ = ("read_run_history_response", "features_response", "graphql_response", "download_file_response", "upload_file_response", "mark_run_files_uploaded_response", "stop_run_response", "authenticate_response", "create_custom_chart_response", "run_queue_operation_response", "get_access_token_response", "api_error_response")
+    __slots__ = ("read_run_history_response", "features_response", "graphql_response", "download_file_response", "upload_file_response", "mark_run_files_uploaded_response", "stop_run_response", "auth_response", "create_custom_chart_response", "run_queue_operation_response", "api_error_response")
     READ_RUN_HISTORY_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     FEATURES_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     GRAPHQL_RESPONSE_FIELD_NUMBER: _ClassVar[int]
@@ -67,10 +65,9 @@ class ApiResponse(_message.Message):
     UPLOAD_FILE_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     MARK_RUN_FILES_UPLOADED_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     STOP_RUN_RESPONSE_FIELD_NUMBER: _ClassVar[int]
-    AUTHENTICATE_RESPONSE_FIELD_NUMBER: _ClassVar[int]
+    AUTH_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     CREATE_CUSTOM_CHART_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     RUN_QUEUE_OPERATION_RESPONSE_FIELD_NUMBER: _ClassVar[int]
-    GET_ACCESS_TOKEN_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     API_ERROR_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     read_run_history_response: ReadRunHistoryResponse
     features_response: FeaturesResponse
@@ -79,12 +76,11 @@ class ApiResponse(_message.Message):
     upload_file_response: UploadFileResponse
     mark_run_files_uploaded_response: MarkRunFilesUploadedResponse
     stop_run_response: StopRunResponse
-    authenticate_response: AuthenticateResponse
+    auth_response: AuthResponse
     create_custom_chart_response: CreateCustomChartResponse
     run_queue_operation_response: RunQueueOperationResponse
-    get_access_token_response: GetAccessTokenResponse
     api_error_response: ApiErrorResponse
-    def __init__(self, read_run_history_response: _Optional[_Union[ReadRunHistoryResponse, _Mapping]] = ..., features_response: _Optional[_Union[FeaturesResponse, _Mapping]] = ..., graphql_response: _Optional[_Union[GraphQLResponse, _Mapping]] = ..., download_file_response: _Optional[_Union[DownloadFileResponse, _Mapping]] = ..., upload_file_response: _Optional[_Union[UploadFileResponse, _Mapping]] = ..., mark_run_files_uploaded_response: _Optional[_Union[MarkRunFilesUploadedResponse, _Mapping]] = ..., stop_run_response: _Optional[_Union[StopRunResponse, _Mapping]] = ..., authenticate_response: _Optional[_Union[AuthenticateResponse, _Mapping]] = ..., create_custom_chart_response: _Optional[_Union[CreateCustomChartResponse, _Mapping]] = ..., run_queue_operation_response: _Optional[_Union[RunQueueOperationResponse, _Mapping]] = ..., get_access_token_response: _Optional[_Union[GetAccessTokenResponse, _Mapping]] = ..., api_error_response: _Optional[_Union[ApiErrorResponse, _Mapping]] = ...) -> None: ...
+    def __init__(self, read_run_history_response: _Optional[_Union[ReadRunHistoryResponse, _Mapping]] = ..., features_response: _Optional[_Union[FeaturesResponse, _Mapping]] = ..., graphql_response: _Optional[_Union[GraphQLResponse, _Mapping]] = ..., download_file_response: _Optional[_Union[DownloadFileResponse, _Mapping]] = ..., upload_file_response: _Optional[_Union[UploadFileResponse, _Mapping]] = ..., mark_run_files_uploaded_response: _Optional[_Union[MarkRunFilesUploadedResponse, _Mapping]] = ..., stop_run_response: _Optional[_Union[StopRunResponse, _Mapping]] = ..., auth_response: _Optional[_Union[AuthResponse, _Mapping]] = ..., create_custom_chart_response: _Optional[_Union[CreateCustomChartResponse, _Mapping]] = ..., run_queue_operation_response: _Optional[_Union[RunQueueOperationResponse, _Mapping]] = ..., api_error_response: _Optional[_Union[ApiErrorResponse, _Mapping]] = ...) -> None: ...
 
 class ApiErrorResponse(_message.Message):
     __slots__ = ("message", "error_type", "http_status")
@@ -193,6 +189,22 @@ class MarkRunFilesUploadedRequest(_message.Message):
 class MarkRunFilesUploadedResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
+
+class AuthRequest(_message.Message):
+    __slots__ = ("authenticate_request", "get_access_token_request")
+    AUTHENTICATE_REQUEST_FIELD_NUMBER: _ClassVar[int]
+    GET_ACCESS_TOKEN_REQUEST_FIELD_NUMBER: _ClassVar[int]
+    authenticate_request: AuthenticateRequest
+    get_access_token_request: GetAccessTokenRequest
+    def __init__(self, authenticate_request: _Optional[_Union[AuthenticateRequest, _Mapping]] = ..., get_access_token_request: _Optional[_Union[GetAccessTokenRequest, _Mapping]] = ...) -> None: ...
+
+class AuthResponse(_message.Message):
+    __slots__ = ("authenticate_response", "get_access_token_response")
+    AUTHENTICATE_RESPONSE_FIELD_NUMBER: _ClassVar[int]
+    GET_ACCESS_TOKEN_RESPONSE_FIELD_NUMBER: _ClassVar[int]
+    authenticate_response: AuthenticateResponse
+    get_access_token_response: GetAccessTokenResponse
+    def __init__(self, authenticate_response: _Optional[_Union[AuthenticateResponse, _Mapping]] = ..., get_access_token_response: _Optional[_Union[GetAccessTokenResponse, _Mapping]] = ...) -> None: ...
 
 class AuthenticateRequest(_message.Message):
     __slots__ = ()

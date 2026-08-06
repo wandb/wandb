@@ -33,12 +33,16 @@ func TestAuthenticateReturnsViewerInfo(t *testing.T) {
 	}
 	handler := wbapi.NewAuthHandler(client, api.NoopCredentialProvider{})
 
-	response := handler.HandleAuthenticate(
+	response := handler.HandleRequest(
 		context.Background(),
-		&spb.AuthenticateRequest{},
+		&spb.AuthRequest{
+			Request: &spb.AuthRequest_AuthenticateRequest{
+				AuthenticateRequest: &spb.AuthenticateRequest{},
+			},
+		},
 	)
 
-	authResponse := response.GetAuthenticateResponse()
+	authResponse := response.GetAuthResponse().GetAuthenticateResponse()
 	require.NotNil(t, authResponse)
 	require.True(t, client.called)
 	assert.Equal(t, "Viewer", client.gotReq.OpName)
@@ -62,12 +66,16 @@ func TestAuthenticateNullEntityIsAccepted(t *testing.T) {
 	}
 	handler := wbapi.NewAuthHandler(client, api.NoopCredentialProvider{})
 
-	response := handler.HandleAuthenticate(
+	response := handler.HandleRequest(
 		context.Background(),
-		&spb.AuthenticateRequest{},
+		&spb.AuthRequest{
+			Request: &spb.AuthRequest_AuthenticateRequest{
+				AuthenticateRequest: &spb.AuthenticateRequest{},
+			},
+		},
 	)
 
-	authResponse := response.GetAuthenticateResponse()
+	authResponse := response.GetAuthResponse().GetAuthenticateResponse()
 	require.NotNil(t, authResponse)
 	assert.Equal(t, "", authResponse.GetDefaultEntity())
 	assert.Equal(t, "myuser", authResponse.GetUsername())
@@ -87,12 +95,16 @@ func TestAuthenticatePartialDataIsAccepted(t *testing.T) {
 	}
 	handler := wbapi.NewAuthHandler(client, api.NoopCredentialProvider{})
 
-	response := handler.HandleAuthenticate(
+	response := handler.HandleRequest(
 		context.Background(),
-		&spb.AuthenticateRequest{},
+		&spb.AuthRequest{
+			Request: &spb.AuthRequest_AuthenticateRequest{
+				AuthenticateRequest: &spb.AuthenticateRequest{},
+			},
+		},
 	)
 
-	authResponse := response.GetAuthenticateResponse()
+	authResponse := response.GetAuthResponse().GetAuthenticateResponse()
 	require.NotNil(t, authResponse)
 	assert.Equal(t, "myentity", authResponse.GetDefaultEntity())
 }
@@ -103,9 +115,13 @@ func TestAuthenticateNullViewerIsError(t *testing.T) {
 	}
 	handler := wbapi.NewAuthHandler(client, api.NoopCredentialProvider{})
 
-	response := handler.HandleAuthenticate(
+	response := handler.HandleRequest(
 		context.Background(),
-		&spb.AuthenticateRequest{},
+		&spb.AuthRequest{
+			Request: &spb.AuthRequest_AuthenticateRequest{
+				AuthenticateRequest: &spb.AuthenticateRequest{},
+			},
+		},
 	)
 
 	apiError := response.GetApiErrorResponse()
@@ -117,9 +133,13 @@ func TestAuthenticateReturnsError(t *testing.T) {
 	client := &fakeGQLClient{err: errors.New("boom")}
 	handler := wbapi.NewAuthHandler(client, api.NoopCredentialProvider{})
 
-	response := handler.HandleAuthenticate(
+	response := handler.HandleRequest(
 		context.Background(),
-		&spb.AuthenticateRequest{},
+		&spb.AuthRequest{
+			Request: &spb.AuthRequest_AuthenticateRequest{
+				AuthenticateRequest: &spb.AuthenticateRequest{},
+			},
+		},
 	)
 
 	apiError := response.GetApiErrorResponse()
@@ -145,12 +165,16 @@ func TestGetAccessTokenReturnsToken(t *testing.T) {
 	provider := &fakeAccessTokenProvider{token: "test-access-token"}
 	handler := wbapi.NewAuthHandler(&fakeGQLClient{}, provider)
 
-	response := handler.HandleGetAccessToken(
+	response := handler.HandleRequest(
 		context.Background(),
-		&spb.GetAccessTokenRequest{},
+		&spb.AuthRequest{
+			Request: &spb.AuthRequest_GetAccessTokenRequest{
+				GetAccessTokenRequest: &spb.GetAccessTokenRequest{},
+			},
+		},
 	)
 
-	tokenResponse := response.GetGetAccessTokenResponse()
+	tokenResponse := response.GetAuthResponse().GetGetAccessTokenResponse()
 	require.NotNil(t, tokenResponse)
 	assert.Equal(t, "test-access-token", tokenResponse.GetAccessToken())
 }
@@ -162,12 +186,16 @@ func TestGetAccessTokenEmptyWithoutTokenCredentials(t *testing.T) {
 		api.NewAPIKeyCredentialProvider("test-api-key"),
 	)
 
-	response := handler.HandleGetAccessToken(
+	response := handler.HandleRequest(
 		context.Background(),
-		&spb.GetAccessTokenRequest{},
+		&spb.AuthRequest{
+			Request: &spb.AuthRequest_GetAccessTokenRequest{
+				GetAccessTokenRequest: &spb.GetAccessTokenRequest{},
+			},
+		},
 	)
 
-	tokenResponse := response.GetGetAccessTokenResponse()
+	tokenResponse := response.GetAuthResponse().GetGetAccessTokenResponse()
 	require.NotNil(t, tokenResponse)
 	assert.Empty(t, tokenResponse.GetAccessToken())
 }
@@ -176,9 +204,13 @@ func TestGetAccessTokenReturnsError(t *testing.T) {
 	provider := &fakeAccessTokenProvider{err: errors.New("exchange failed")}
 	handler := wbapi.NewAuthHandler(&fakeGQLClient{}, provider)
 
-	response := handler.HandleGetAccessToken(
+	response := handler.HandleRequest(
 		context.Background(),
-		&spb.GetAccessTokenRequest{},
+		&spb.AuthRequest{
+			Request: &spb.AuthRequest_GetAccessTokenRequest{
+				GetAccessTokenRequest: &spb.GetAccessTokenRequest{},
+			},
+		},
 	)
 
 	apiError := response.GetApiErrorResponse()

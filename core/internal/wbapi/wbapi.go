@@ -183,10 +183,8 @@ func (p *WandbAPI) HandleRequest(
 	defer func() { <-p.semaphore }()
 
 	switch req := request.Request.(type) {
-	case *spb.ApiRequest_AuthenticateRequest:
-		return p.authHandler.HandleAuthenticate(ctx, req.AuthenticateRequest)
-	case *spb.ApiRequest_GetAccessTokenRequest:
-		return p.authHandler.HandleGetAccessToken(ctx, req.GetAccessTokenRequest)
+	case *spb.ApiRequest_AuthRequest:
+		return p.authHandler.HandleRequest(ctx, req.AuthRequest)
 	case *spb.ApiRequest_FeaturesRequest:
 		return p.featuresHandler.HandleRequest(ctx, req.FeaturesRequest)
 	case *spb.ApiRequest_DownloadFileRequest:

@@ -13,6 +13,7 @@ from wandb.proto.wandb_api_pb2 import (
     ApiResponse,
     AuthenticateRequest,
     AuthenticateResponse,
+    AuthRequest,
     FeaturesRequest,
     GetAccessTokenRequest,
     GraphQLRequest,
@@ -195,12 +196,14 @@ class ServiceApi:
                 request fails for any other reason, including timeouts while
                 waiting on wandb-core and transport errors.
         """
-        req = ApiRequest(authenticate_request=AuthenticateRequest())
+        req = ApiRequest(
+            auth_request=AuthRequest(authenticate_request=AuthenticateRequest())
+        )
         resp = self.send_api_request(
             req,
             timeout=self._timeout if timeout is None else timeout,
         )
-        return resp.authenticate_response
+        return resp.auth_response.authenticate_response
 
     def access_token(
         self,
@@ -230,12 +233,14 @@ class ServiceApi:
         if not self._settings.identity_token_file:
             return None
 
-        req = ApiRequest(get_access_token_request=GetAccessTokenRequest())
+        req = ApiRequest(
+            auth_request=AuthRequest(get_access_token_request=GetAccessTokenRequest())
+        )
         resp = self.send_api_request(
             req,
             timeout=self._timeout if timeout is None else timeout,
         )
-        return resp.get_access_token_response.access_token or None
+        return resp.auth_response.get_access_token_response.access_token or None
 
     async def send_api_request_async(
         self,

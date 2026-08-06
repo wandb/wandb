@@ -34,10 +34,9 @@ message ApiRequest {
     UploadFileRequest upload_file_request = 6;
     MarkRunFilesUploadedRequest mark_run_files_uploaded_request = 7;
     StopRunRequest stop_run_request = 8;
-    AuthenticateRequest authenticate_request = 9;
+    AuthRequest auth_request = 9;
     CreateCustomChartRequest create_custom_chart_request = 10;
     RunQueueOperationRequest run_queue_operation_request = 11;
-    GetAccessTokenRequest get_access_token_request = 12;
   }
 }
 
@@ -50,10 +49,9 @@ message ApiResponse {
     UploadFileResponse upload_file_response = 6;
     MarkRunFilesUploadedResponse mark_run_files_uploaded_response = 7;
     StopRunResponse stop_run_response = 8;
-    AuthenticateResponse authenticate_response = 9;
+    AuthResponse auth_response = 9;
     CreateCustomChartResponse create_custom_chart_response = 10;
     RunQueueOperationResponse run_queue_operation_response = 11;
-    GetAccessTokenResponse get_access_token_response = 12;
 
     ApiErrorResponse api_error_response = 2;
   }
@@ -213,11 +211,28 @@ message MarkRunFilesUploadedRequest {
 
 message MarkRunFilesUploadedResponse {}
 
-// Verify the API instance's credentials and identify the authenticated user.
+// Requests related to the API instance's credentials.
 //
 // The credentials come from the settings used to initialize the API
 // instance: an API key, or an identity token file when using federated
-// identity. wandb-core authenticates to the W&B backend the same way it
+// identity.
+message AuthRequest {
+  oneof request {
+    AuthenticateRequest authenticate_request = 1;
+    GetAccessTokenRequest get_access_token_request = 2;
+  }
+}
+
+message AuthResponse {
+  oneof response {
+    AuthenticateResponse authenticate_response = 1;
+    GetAccessTokenResponse get_access_token_response = 2;
+  }
+}
+
+// Verify the API instance's credentials and identify the authenticated user.
+//
+// wandb-core authenticates to the W&B backend the same way it
 // does for any other request and asks it who the credentials belong to.
 //
 // A successful request returns AuthenticateResponse with information about

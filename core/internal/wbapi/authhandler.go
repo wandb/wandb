@@ -2,6 +2,7 @@ package wbapi
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/Khan/genqlient/graphql"
 
@@ -23,6 +24,22 @@ func NewAuthHandler(
 	return &AuthHandler{
 		graphqlClient:      graphqlClient,
 		credentialProvider: credentialProvider,
+	}
+}
+
+// HandleRequest routes an AuthRequest to the handler for its subrequest.
+func (h *AuthHandler) HandleRequest(
+	ctx context.Context,
+	request *spb.AuthRequest,
+) *spb.ApiResponse {
+	switch request.Request.(type) {
+	case *spb.AuthRequest_AuthenticateRequest:
+		return h.HandleAuthenticate(ctx, request.GetAuthenticateRequest())
+	case *spb.AuthRequest_GetAccessTokenRequest:
+		return h.HandleGetAccessToken(ctx, request.GetGetAccessTokenRequest())
+	default:
+		return apiErrorResponse(
+			fmt.Sprintf("unsupported auth request type: %T", request.Request), 0)
 	}
 }
 
@@ -80,8 +97,12 @@ func (h *AuthHandler) HandleAuthenticate(
 	}
 
 	return &spb.ApiResponse{
-		Response: &spb.ApiResponse_AuthenticateResponse{
-			AuthenticateResponse: response,
+		Response: &spb.ApiResponse_AuthResponse{
+			AuthResponse: &spb.AuthResponse{
+				Response: &spb.AuthResponse_AuthenticateResponse{
+					AuthenticateResponse: response,
+				},
+			},
 		},
 	}
 }
@@ -109,8 +130,12 @@ func (h *AuthHandler) HandleGetAccessToken(
 	}
 
 	return &spb.ApiResponse{
-		Response: &spb.ApiResponse_GetAccessTokenResponse{
-			GetAccessTokenResponse: response,
+		Response: &spb.ApiResponse_AuthResponse{
+			AuthResponse: &spb.AuthResponse{
+				Response: &spb.AuthResponse_GetAccessTokenResponse{
+					GetAccessTokenResponse: response,
+				},
+			},
 		},
 	}
 }
