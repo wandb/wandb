@@ -59,3 +59,4 @@ The `wandb sync --clean` command now exits with code 1 and prints a hint to use 
 - Creating many `wandb.Api()` objects in one program no longer leaks memory and background network requests for the lifetime of the program (@dmitryduev in https://github.com/wandb/wandb/pull/12399)
 - Your timeout and retry settings now apply when reading a run's history, which previously used neither (@dmitryduev in https://github.com/wandb/wandb/pull/12401)
 - Negative indexes and open-ended slices now return the right results when paging through API results such as `runs`, `files`, and `artifacts`, instead of raising `IndexError` or returning the wrong item (@dmitryduev in https://github.com/wandb/wandb/pull/12402)
+- Pointing a `wandb.Table` column at its own table now reports a clear error instead of failing with `RecursionError` when the table is logged (@dmitryduev in https://github.com/wandb/wandb/pull/12403)
