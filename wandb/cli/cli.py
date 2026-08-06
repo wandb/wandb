@@ -2537,13 +2537,15 @@ def docker_run(ctx, docker_run_args):
         wandb.termlog(
             "Couldn't detect image argument, running command without the WANDB_DOCKER env variable"
         )
+    env = dict(os.environ)
     if api.api_key:
-        args = ["-e", f"WANDB_API_KEY={api.api_key}"] + args
+        args = ["-e", "WANDB_API_KEY"] + args
+        env["WANDB_API_KEY"] = api.api_key
     else:
         wandb.termlog(
             "Not logged in, run `wandb login` from the host machine to enable result logging"
         )
-    subprocess.call(["docker", "run"] + args)
+    subprocess.call(["docker", "run"] + args, env=env)
 
 
 @cli.command(context_settings=RUN_CONTEXT)
@@ -2675,8 +2677,10 @@ def docker(
     if not no_dir:
         #  TODO: We should default to the working directory if defined
         command.extend(["-v", cwd + ":" + dir, "-w", dir])
+    env = dict(os.environ)
     if api.api_key:
-        command.extend(["-e", f"WANDB_API_KEY={api.api_key}"])
+        command.extend(["-e", "WANDB_API_KEY"])
+        env["WANDB_API_KEY"] = api.api_key
     else:
         wandb.termlog(
             "Couldn't find WANDB_API_KEY, run `wandb login` to enable streaming metrics"
@@ -2693,7 +2697,7 @@ def docker(
             command.extend(["-e", f"WANDB_COMMAND={cmd}"])
         command.extend(["-it", image, shell])
         wandb.termlog("Launching docker container \U0001f6a2")
-    subprocess.call(command)
+    subprocess.call(command, env=env)
 
 
 @cli.command(
