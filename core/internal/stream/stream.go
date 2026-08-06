@@ -35,6 +35,12 @@ const (
 	printerBufferSize = 128
 )
 
+// Transaction log constructors, overridden in tests.
+var (
+	openTransactionLogWriter = transactionlog.OpenWriter
+	openTransactionLogReader = transactionlog.OpenReader
+)
+
 // Stream processes incoming records for a single run.
 //
 // wandb consists of a service process (this code) to which one or more
@@ -190,14 +196,14 @@ func (s *Stream) maybeSavingToTransactionLog(
 		return work
 	}
 
-	w, err := transactionlog.OpenWriter(s.settings.GetTransactionLogPath())
+	w, err := openTransactionLogWriter(s.settings.GetTransactionLogPath())
 	if err != nil {
 		s.logger.Error(fmt.Sprintf(
 			"stream: error opening transaction log for writing: %v", err))
 		return work
 	}
 
-	r, err := transactionlog.OpenReader(
+	r, err := openTransactionLogReader(
 		s.settings.GetTransactionLogPath(),
 		s.logger,
 	)
@@ -211,6 +217,12 @@ func (s *Stream) maybeSavingToTransactionLog(
 				err,
 			),
 		)
+
+		if err := w.Close(); err != nil {
+			s.logger.Error(fmt.Sprintf(
+				"stream: error closing transaction log: %v", err))
+		}
+
 		return work
 	}
 
