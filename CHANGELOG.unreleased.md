@@ -54,3 +54,4 @@ The `wandb sync --clean` command now exits with code 1 and prints a hint to use 
 - The TensorBoard integration now produces fewer W&B steps by merging data for the same `global_step` into one W&B step when possible (@timoffex in https://github.com/wandb/wandb/pull/12414)
 - Reading a run's history now reports an error when the data cannot be read, instead of stopping the background process that uploads data for every active run in the program (@dmitryduev in https://github.com/wandb/wandb/pull/12394)
 - Downloading a large artifact file now reports the error when it cannot be written to disk, such as when the disk is full, instead of waiting forever (@dmitryduev in https://github.com/wandb/wandb/pull/12395)
+- Network problems are now reported for the whole run, rather than only for the first few seconds (@dmitryduev in https://github.com/wandb/wandb/pull/12396)

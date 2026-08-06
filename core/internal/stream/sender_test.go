@@ -3,6 +3,7 @@ package stream_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/stretchr/testify/assert"
@@ -38,6 +39,15 @@ type testFixtures struct {
 }
 
 func makeSender(t *testing.T, client graphql.Client) testFixtures {
+	t.Helper()
+	return makeSenderWithPeeker(t, client, nil)
+}
+
+func makeSenderWithPeeker(
+	t *testing.T,
+	client graphql.Client,
+	peeker *observability.Peeker,
+) testFixtures {
 	t.Helper()
 	runWork := runworktest.New()
 	logger := observabilitytest.NewTestLogger(t)
@@ -81,6 +91,7 @@ func makeSender(t *testing.T, client graphql.Client) testFixtures {
 		GraphqlClient:           client,
 		FeatureProvider:         featurechecker.New(nil, logger),
 		RunHandle:               runHandle,
+		Peeker:                  peeker,
 	}
 	return testFixtures{
 		Sender:    senderFactory.New(runWork),
@@ -246,6 +257,47 @@ func TestSendUseArtifact(t *testing.T) {
 		},
 	}
 	x.Sender.SendRecord(useArtifact, nil)
+}
+
+func TestSendRequestNetworkStatus(t *testing.T) {
+	testCases := []struct {
+		name   string
+		peeker *observability.Peeker
+	}{
+		{"peeker is not set", nil},
+		{"peeker has no buffered responses", &observability.Peeker{}},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			x := makeSenderWithPeeker(t, gqlmock.NewMockClient(), tc.peeker)
+			networkStatus := &spb.Record{
+				RecordType: &spb.Record_Request{
+					Request: &spb.Request{
+						RequestType: &spb.Request_NetworkStatus{
+							NetworkStatus: &spb.NetworkStatusRequest{},
+						},
+					},
+				},
+				Control: &spb.Control{
+					MailboxSlot: "junk",
+				},
+			}
+
+			request, outputs := runworktest.SimpleRequest(t, "test-id")
+			x.Sender.SendRecord(networkStatus, request)
+
+			select {
+			case response := <-outputs:
+				assert.NotNil(t,
+					response.GetResultCommunicate().
+						GetResponse().
+						GetNetworkStatusResponse())
+			case <-time.After(5 * time.Second):
+				t.Error("timed out waiting for a response")
+			}
+		})
+	}
 }
 
 var validFetchOrgEntityFromEntityResponse = `{

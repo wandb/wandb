@@ -468,23 +468,22 @@ func (s *Sender) sendRequestNetworkStatus(
 	_ *spb.NetworkStatusRequest,
 	request *runwork.Request,
 ) {
-	// in case of network peeker is not set, we don't need to do anything
-	if s.networkPeeker == nil {
-		return
+	// The client polls with one outstanding request at a time, so it must
+	// always get a response, even if there is nothing to report.
+	var responses []*spb.HttpResponse
+	if s.networkPeeker != nil {
+		responses = s.networkPeeker.Read()
 	}
 
-	// send the network status response if there is any
-	if response := s.networkPeeker.Read(); len(response) > 0 {
-		s.respond(request,
-			&spb.Response{
-				ResponseType: &spb.Response_NetworkStatusResponse{
-					NetworkStatusResponse: &spb.NetworkStatusResponse{
-						NetworkResponses: response,
-					},
+	s.respond(request,
+		&spb.Response{
+			ResponseType: &spb.Response_NetworkStatusResponse{
+				NetworkStatusResponse: &spb.NetworkStatusResponse{
+					NetworkResponses: responses,
 				},
 			},
-		)
-	}
+		},
+	)
 }
 
 func (s *Sender) sendJobFlush() {
