@@ -40,6 +40,7 @@ class AzureHandler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
+        dest_path: StrPath | None = None,
     ) -> URIStr | FilePathStr:
         assert manifest_entry.ref is not None
         if not local:
@@ -49,6 +50,7 @@ class AzureHandler(StorageHandler):
             URIStr(manifest_entry.ref),
             ETag(manifest_entry.digest),
             manifest_entry.size or 0,
+            override_path=dest_path,
         )
         if hit:
             return path

@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 from wandb.sdk.artifacts.storage_handler import StorageHandler, _BaseStorageHandler
-from wandb.sdk.lib.paths import FilePathStr, URIStr
+from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
 if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
@@ -38,10 +38,11 @@ class MultiHandler(_BaseStorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
+        dest_path: StrPath | None = None,
     ) -> URIStr | FilePathStr:
         assert manifest_entry.ref is not None
         handler = self._get_handler(manifest_entry.ref)
-        return handler.load_path(manifest_entry, local=local)
+        return handler.load_path(manifest_entry, local=local, dest_path=dest_path)
 
     def store_path(
         self,

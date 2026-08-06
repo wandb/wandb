@@ -77,6 +77,7 @@ class HTTPHandler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
+        dest_path: StrPath | None = None,
     ) -> URIStr | FilePathStr:
         if (ref_url := manifest_entry.ref) is None:
             raise ValueError("Missing URL on artifact manifest entry")
@@ -86,7 +87,10 @@ class HTTPHandler(StorageHandler):
         expected_digest = manifest_entry.digest
 
         path, hit, cache_open = self._cache.check_etag_obj_path(
-            url=ref_url, etag=expected_digest, size=manifest_entry.size or 0
+            url=ref_url,
+            etag=expected_digest,
+            size=manifest_entry.size or 0,
+            override_path=dest_path,
         )
         if hit:
             return path
