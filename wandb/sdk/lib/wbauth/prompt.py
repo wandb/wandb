@@ -28,7 +28,7 @@ def prompt_and_save_api_key(
     no_create: bool = False,
     referrer: str = "",
     input_timeout: float | None = None,
-    verify: bool = True,
+    verify: bool = False,
 ) -> str | None:
     """Prompt for an API key and save it to the .netrc file.
 
@@ -75,7 +75,7 @@ def _prompt_api_key(
     no_create: bool = False,
     referrer: str = "",
     input_timeout: float | None = None,
-    verify: bool = True,
+    verify: bool = False,
 ) -> str | None:
     """Prompt for an API key without saving it to .netrc.
 

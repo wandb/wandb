@@ -80,8 +80,6 @@ def check_api_key_validity(
         A string describing the problem if the API key is invalid,
         or None if it is valid.
     """
-    # Import here to avoid circular imports.
-    # from wandb.sdk.lib.service.service_connection
     from wandb import env
     from wandb.apis.public.service_api import ServiceApi
     from wandb.sdk import wandb_setup
@@ -118,8 +116,6 @@ def check_identity_token_validity(
         A string describing the problem if the identity token is invalid,
         or None if it is valid.
     """
-    # Import here to avoid circular imports.
-    # from wandb.sdk.lib.service.service_connection
     from wandb import env
     from wandb.apis.public.service_api import ServiceApi
     from wandb.sdk import wandb_setup
@@ -151,8 +147,6 @@ def check_service_api_auth_validity(service_api: ServiceApi) -> str | None:
         A string describing the problem if the authentication is invalid,
         or None if it is valid.
     """
-    # Import here to avoid circular imports.
-    # from wandb.sdk.lib.service.service_connection
     from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
     try:

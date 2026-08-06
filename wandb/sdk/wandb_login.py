@@ -142,7 +142,7 @@ def _login(
     host: str | None = None,
     force: bool | None = None,
     timeout: float | None = None,
-    verify: bool = True,
+    verify: bool = False,
     referrer: str = "models",
     update_api_key: bool = True,
     _silent: bool | None = None,

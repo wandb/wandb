@@ -92,12 +92,33 @@ def test_verifies_system_credentials(
     check_validity = MagicMock(return_value=None)
     monkeypatch.setattr(validation, "check_api_key_validity", check_validity)
 
-    result = authenticate_session(host="https://fake-url", source="test")
+    result = authenticate_session(
+        host="https://fake-url",
+        source="test",
+        verify=True,
+    )
 
     assert isinstance(result, AuthApiKey)
     check_validity.assert_called_once()
     assert check_validity.call_args.kwargs["api_key"] == "test" * 40
     assert check_validity.call_args.kwargs["host"].is_same_url("https://fake-url")
+
+
+def test_does_not_verify_system_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("WANDB_API_KEY", "test" * 40)
+    check_validity = MagicMock(return_value=None)
+    monkeypatch.setattr(validation, "check_api_key_validity", check_validity)
+
+    result = authenticate_session(
+        host="https://fake-url",
+        source="test",
+        verify=False,
+    )
+
+    assert isinstance(result, AuthApiKey)
+    check_validity.assert_not_called()
 
 
 def test_invalid_system_credentials_fail_verification(
@@ -111,7 +132,7 @@ def test_invalid_system_credentials_fail_verification(
     )
 
     with pytest.raises(AuthenticationError, match="Key is invalid."):
-        authenticate_session(host="https://fake-url", source="test")
+        authenticate_session(host="https://fake-url", source="test", verify=True)
 
 
 def test_invalid_env_api_key(monkeypatch: pytest.MonkeyPatch):

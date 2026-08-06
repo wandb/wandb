@@ -74,7 +74,7 @@ def authenticate_session(
     input_timeout: float | None = None,
     referrer: str = "models",
     relogin: bool = False,
-    verify: bool = True,
+    verify: bool = False,
 ) -> Auth | None:
     """Returns or configures the session credentials.
 
@@ -160,7 +160,7 @@ def _use_system_auth(
     *,
     host: HostUrl,
     source: str,
-    verify: bool = True,
+    verify: bool = False,
 ) -> Auth | None:
     """Load (or reload) session credentials from external sources.
 
@@ -171,6 +171,7 @@ def _use_system_auth(
         host: The W&B server URL.
         source: The source to include in the printed message,
             like "wandb.init()".
+        verify: If true, verifies the credentials against the W&B server.
 
     Raises:
         AuthenticationError: If a source of credentials is found but has an
@@ -242,7 +243,7 @@ def _use_prompted_auth(
     no_create: bool,
     referrer: str,
     input_timeout: float | None = None,
-    verify: bool = True,
+    verify: bool = False,
 ) -> Auth | None:
     """Prompt interactively to set session credentials.
 
