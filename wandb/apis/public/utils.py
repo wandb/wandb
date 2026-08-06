@@ -81,7 +81,6 @@ def fetch_org_from_settings_or_entity(
     Returns the org from the settings if available. If no org is passed in or set, the entity is used to fetch the org.
 
     Args:
-        organization (str | None): The organization to fetch the org for.
         settings (dict): The settings to fetch the org for.
         default_entity (str | None): The default entity to fetch the org for.
     """

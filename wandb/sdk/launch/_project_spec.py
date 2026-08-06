@@ -420,10 +420,6 @@ class LaunchProject:
     def fetch_and_validate_project(self) -> None:
         """Fetches a project into a local directory, adds the config values to the directory, and validates the first entrypoint for the project.
 
-        Arguments:
-            launch_project: LaunchProject to fetch and validate.
-            api: Instance of wandb.apis.internal Api
-
         Returns:
             A validated `LaunchProject` object.
 
@@ -479,9 +475,6 @@ class LaunchProject:
 
     def get_env_vars_dict(self, api: Api, max_env_length: int) -> dict[str, str]:
         """Generate environment variables for the project.
-
-        Arguments:
-        launch_project: LaunchProject to generate environment variables for.
 
         Returns:
             Dictionary of environment variables.
