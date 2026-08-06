@@ -405,7 +405,6 @@ class KubernetesRunner(AbstractRunner):
         Args:
             resource_args (Dict[str, Any]): The resource args to launch.
             launch_project (LaunchProject): The launch project.
-            builder (Optional[AbstractBuilder]): The builder.
             namespace (str): The namespace.
             core_api (CoreV1Api): The core api.
 
@@ -802,7 +801,6 @@ class KubernetesRunner(AbstractRunner):
 
         Args:
             launch_project: The launch project to execute.
-            builder: The builder to use to build the image.
 
         Returns:
             The run object if the run was successful, otherwise None.
