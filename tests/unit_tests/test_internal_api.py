@@ -27,7 +27,7 @@ from wandb.sdk.internal.internal_api import (
     _OrgNames,
 )
 from wandb.sdk.launch.sweeps import SweepNotFoundError
-from wandb.sdk.lib import retry
+from wandb.sdk.lib import retry, wbauth
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 from .test_retry import MockTime, mock_time  # noqa: F401
@@ -803,6 +803,28 @@ class TestJWTAuth:
 
         fetch_mock.assert_not_called()
         assert api.request_auth == ("api", "a" * 40)
+
+    def test_session_api_key_takes_precedence_over_jwt(
+        self, tmp_path: pathlib.Path, mocker: MockerFixture
+    ):
+        token_file = tmp_path / "token.jwt"
+        token_file.write_text("test.jwt.token")
+
+        fetch_mock = mocker.patch(
+            "wandb.apis.public.service_api.ServiceApi.access_token",
+            return_value="test_access_token",
+        )
+        wbauth.use_explicit_auth(
+            wbauth.AuthApiKey(host="https://api.wandb.ai", api_key="a" * 40),
+            source="test",
+        )
+
+        environ = {"WANDB_IDENTITY_TOKEN_FILE": str(token_file)}
+        api = internal.InternalApi(environ=environ)
+
+        fetch_mock.assert_not_called()
+        assert api.request_auth == ("api", "a" * 40)
+        assert api._service_api._settings.api_key == "a" * 40
 
     def test_access_token_none_without_identity_token(self, mocker: MockerFixture):
         # Without federated identity, the token is None and no request is
