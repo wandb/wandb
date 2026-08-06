@@ -113,28 +113,41 @@ func NewOAuth2CredentialProvider(
 	credentialsFilePath string,
 	logger *slog.Logger,
 ) (CredentialProvider, error) {
-	identityToken, err := os.ReadFile(identityTokenFilePath)
-	if err != nil {
-		return nil, fmt.Errorf("api: failed to read identity token file: %v", err)
+	// Fail fast on misconfiguration. The token itself is re-read from the
+	// file for each exchange: identity tokens are often short-lived and
+	// re-minted to the same path, so the value read here may not stay valid
+	// for the lifetime of the provider.
+	if _, err := readIdentityToken(identityTokenFilePath); err != nil {
+		return nil, err
 	}
 	return &oauth2CredentialProvider{
-		baseURL:             baseURL,
-		credentialsFilePath: credentialsFilePath,
-		tokenMu:             &sync.RWMutex{},
-		// Strip surrounding whitespace, like the trailing newline written
-		// by `echo` and most editors, which would otherwise be sent as
-		// part of the token.
-		identityToken: strings.TrimSpace(string(identityToken)),
-		logger:        logger,
+		baseURL:               baseURL,
+		identityTokenFilePath: identityTokenFilePath,
+		credentialsFilePath:   credentialsFilePath,
+		tokenMu:               &sync.RWMutex{},
+		logger:                logger,
 	}, nil
+}
+
+// readIdentityToken reads the identity token (a JWT) from the file.
+func readIdentityToken(path string) (string, error) {
+	identityToken, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("api: failed to read identity token file: %v", err)
+	}
+
+	// Strip surrounding whitespace, like the trailing newline written
+	// by `echo` and most editors, which would otherwise be sent as
+	// part of the token.
+	return strings.TrimSpace(string(identityToken)), nil
 }
 
 type oauth2CredentialProvider struct {
 	// The URL of the W&B API.
 	baseURL string
 
-	// The identity token supplied via the identity token file path.
-	identityToken string
+	// The path of the file supplying the identity token.
+	identityTokenFilePath string
 
 	// The access token and its metadata.
 	tokenInfo accessTokenInfo
@@ -320,10 +333,18 @@ func (c *oauth2CredentialProvider) trySaveCredentialsToFile(credentials Credenti
 // an access token from the authorization server using the JWT Bearer flow defined
 // in OAuth RFC 7523. The access token is then returned with its expiration time.
 func (c *oauth2CredentialProvider) fetchAccessToken() (accessTokenInfo, error) {
+	// Read the file for each exchange: short-lived identity tokens are
+	// re-minted to the same path, and an exchange must use the current
+	// file contents rather than the token present at startup.
+	identityToken, err := readIdentityToken(c.identityTokenFilePath)
+	if err != nil {
+		return accessTokenInfo{}, err
+	}
+
 	tokenURL := fmt.Sprintf("%s/oidc/token", c.baseURL)
 	data := fmt.Sprintf(
 		"grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=%s",
-		url.QueryEscape(c.identityToken),
+		url.QueryEscape(identityToken),
 	)
 	req, err := http.NewRequest("POST", tokenURL, strings.NewReader(data))
 	if err != nil {
