@@ -86,14 +86,10 @@ def check_api_key_validity(
     from wandb.apis.public.service_api import ServiceApi
     from wandb.sdk import wandb_setup
 
+    from .settings import set_auth_settings_for_api_key
+
     settings = wandb_setup.singleton().settings.model_copy()
-
-    if settings.mode == "offline":
-        return None
-
-    settings.base_url = str(host)
-    settings.api_key = api_key
-    settings.identity_token_file = None
+    set_auth_settings_for_api_key(settings, api_key, str(host))
     service_api = ServiceApi(
         settings=settings,
         timeout=env.get_http_timeout(10),
@@ -128,15 +124,15 @@ def check_identity_token_validity(
     from wandb.apis.public.service_api import ServiceApi
     from wandb.sdk import wandb_setup
 
+    from .settings import set_auth_settings_for_identity_token_file
+
     settings = wandb_setup.singleton().settings.model_copy()
-
-    if settings.mode == "offline":
-        return None
-
-    settings.base_url = str(host)
-    settings.identity_token_file = str(identity_token_file)
-    settings.credentials_file = str(credentials_file)
-    settings.api_key = None
+    set_auth_settings_for_identity_token_file(
+        settings,
+        str(identity_token_file),
+        str(credentials_file),
+        str(host),
+    )
     service_api = ServiceApi(
         settings=settings,
         timeout=env.get_http_timeout(10),
