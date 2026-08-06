@@ -49,6 +49,56 @@ func newTestRetryableHTTPClient(logger *observability.CoreLogger) *retryablehttp
 	return client
 }
 
+func TestCoreWeaveMetadataProbeDoesNotLogCredentials(t *testing.T) {
+	logger, logs := observabilitytest.NewDebugRecordingTestLogger(t)
+
+	mockGQLClient := gqlmock.NewMockClient()
+	mockGQLClient.StubMatchOnce(
+		gqlmock.WithOpName("OrganizationCoreWeaveOrganizationID"),
+		`{"entity":{"organization":{"coreWeaveOrganizationId":"cw1337"}}}`,
+	)
+
+	server := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte(coreWeaveSampleMetadataResponse))
+		},
+	))
+	defer server.Close()
+
+	s := settings.New()
+	s.UpdateStatsCoreWeaveMetadataBaseURL(server.URL)
+	s.UpdateStatsCoreWeaveMetadataEndpoint(testEndpointPath)
+
+	runHandle := runhandle.New()
+	require.NoError(t, runHandle.Init(runupsertertest.NewOfflineUpserter(t)))
+
+	cwm, err := monitor.NewCoreWeaveMetadata(monitor.CoreWeaveMetadataParams{
+		Client:        newTestRetryableHTTPClient(logger),
+		Logger:        logger,
+		GraphqlClient: mockGQLClient,
+		RunHandle:     runHandle,
+		Settings:      s,
+	})
+	require.NoError(t, err)
+
+	e := cwm.Probe(context.Background())
+
+	require.NotNil(t, e)
+	require.NotNil(t, e.Coreweave)
+	assert.Equal(t, "cks-wb", e.Coreweave.ClusterName)
+	assert.Equal(t, "b13ad0", e.Coreweave.OrgId)
+	assert.Equal(t, "us-east-04", e.Coreweave.Region)
+
+	for name, value := range map[string]string{
+		"join_token":     "6r2nt2.vbt9w6s72pzcwkh7",
+		"ca_cert_hash":   "7dae4dfc5b7e430ea2d7f87776d498ec00844c06f4eacb134ea9c1d06a072761",
+		"teleport_token": "a5b0f5d6645183e3b6fa3891ce66e0e8",
+	} {
+		assert.NotContains(t, logs.String(), value,
+			"the value of %q must not be logged", name)
+	}
+}
+
 func TestCoreWeaveMetadataProbe(t *testing.T) {
 	testCases := []struct {
 		name                string

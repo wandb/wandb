@@ -60,3 +60,4 @@ The `wandb sync --clean` command now exits with code 1 and prints a hint to use 
 ## Security
 
 - Debug logs no longer contain your API key (@dmitryduev in https://github.com/wandb/wandb/pull/12384)
+- Debug logs no longer contain CoreWeave cluster credentials (@dmitryduev in https://github.com/wandb/wandb/pull/12385)

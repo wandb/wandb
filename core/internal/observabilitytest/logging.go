@@ -45,6 +45,27 @@ func NewRecordingTestLogger(t *testing.T) (
 	), recordedLogs
 }
 
+// NewDebugRecordingTestLogger is like NewRecordingTestLogger but also
+// captures messages below the INFO level.
+func NewDebugRecordingTestLogger(t *testing.T) (
+	*observability.CoreLogger,
+	*bytes.Buffer,
+) {
+	t.Helper()
+
+	recordedLogs := &bytes.Buffer{}
+	writer := io.MultiWriter(t.Output(), recordedLogs)
+
+	return observability.NewCoreLogger(
+		slog.New(slog.NewJSONHandler(
+			writer,
+			&slog.HandlerOptions{Level: slog.LevelDebug},
+		)),
+		nil,
+		analytics.NewTelemetryRecorder(nil, analytics.NewTelemetryContext()),
+	), recordedLogs
+}
+
 // NewSentryTestLogger is like NewRecordingTestLogger but also returns a
 // mock Sentry transport for checking captured events.
 func NewSentryTestLogger(t *testing.T) (
