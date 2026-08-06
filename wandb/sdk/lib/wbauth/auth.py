@@ -31,6 +31,14 @@ class Auth(abc.ABC):
         """The W&B server for which the credentials are valid."""
         return self._host
 
+    @abc.abstractmethod
+    def verify(self) -> None:
+        """Verify the credentials against the W&B server.
+
+        Raises:
+            AuthenticationError: If the credentials are invalid.
+        """
+
     @final
     @override
     def __repr__(self) -> str:
@@ -70,6 +78,15 @@ class AuthApiKey(Auth):
         """The API key."""
         return self._api_key
 
+    @override
+    def verify(self) -> None:
+        """Verify the credentials against the W&B server."""
+        if problems := validation.check_api_key_validity(
+            api_key=self._api_key,
+            host=self.host,
+        ):
+            raise AuthenticationError(problems)
+
 
 @final
 class AuthIdentityTokenFile(Auth):
@@ -107,6 +124,16 @@ class AuthIdentityTokenFile(Auth):
     def credentials_path(self) -> pathlib.Path:
         """Path to the credentials file for caching access tokens."""
         return self._credentials_path
+
+    @override
+    def verify(self) -> None:
+        """Verify the credentials against the W&B server."""
+        if problems := validation.check_identity_token_validity(
+            host=self.host,
+            identity_token_file=self._identity_token_file,
+            credentials_file=self._credentials_path,
+        ):
+            raise AuthenticationError(problems)
 
 
 @dataclasses.dataclass(frozen=True)

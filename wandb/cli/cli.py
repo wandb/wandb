@@ -308,7 +308,7 @@ def projects(entity, display=True):
 )
 @click.option(
     "--verify/--no-verify",
-    default=False,
+    default=True,
     is_flag=True,
     help="""Verify the API key with W&B after storing it. If verification
     is successful, display the source of the credentials and the
@@ -344,9 +344,9 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
 
         $ wandb login WANDB_API_KEY_EXAMPLE
 
-    To log in and verify the API key is valid:
+    To log in and bypass verifying the API key:
 
-        $ wandb login --verify
+        $ wandb login --no-verify
 
     To log in to the W&B public cloud instead of a configured self-hosted instance:
 
