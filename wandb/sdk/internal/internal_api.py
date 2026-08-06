@@ -262,11 +262,19 @@ class Api:
             self._environ.get("WANDB__EXTRA_HTTP_HEADERS", "{}")
         )
 
+        from wandb.sdk.lib import wbauth
+
+        # An API key configured for this session, such as through
+        # wandb.login(), replaces the identity token file.
+        session_auth = wbauth.session_credentials(host=self.api_url)
+
         auth: tuple[str, str] | None = None
         api_key = api_key or self.default_settings.get("api_key")
         if api_key:
             auth = ("api", api_key)
-        elif token_file := self._environ.get(env.IDENTITY_TOKEN_FILE):
+        elif (
+            token_file := self._environ.get(env.IDENTITY_TOKEN_FILE)
+        ) and not isinstance(session_auth, wbauth.AuthApiKey):
             # Federated identity: wandb-core exchanges the identity token
             # for an access token and authenticates its requests with it.
             # Code that talks to the server directly gets the token from
