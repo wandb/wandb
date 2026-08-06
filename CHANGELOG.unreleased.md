@@ -59,6 +59,7 @@ The `wandb sync --clean` command now exits with code 1 and prints a hint to use 
 - The TensorBoard integration now produces fewer W&B steps by merging data for the same `global_step` into one W&B step when possible (@timoffex in https://github.com/wandb/wandb/pull/12414)
 - `wandb sync` no longer hangs on a run that set its name, tags, or notes after starting (@dmitryduev in https://github.com/wandb/wandb/pull/12380)
 - `wandb login` no longer removes or corrupts credentials belonging to other machines in your `.netrc` file (@dmitryduev in https://github.com/wandb/wandb/pull/12386)
+- Log messages captured from Python loggers no longer add blank lines to a run's logs (@dmitryduev in https://github.com/wandb/wandb/pull/12387)
 
 ## Security
 
