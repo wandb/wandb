@@ -63,3 +63,4 @@ The `wandb sync --clean` command now exits with code 1 and prints a hint to use 
 - Adding rows to a `wandb.Table` that links to another table is much faster; the time it took grew with the number of rows already added (@dmitryduev in https://github.com/wandb/wandb/pull/12404)
 - Uploading console output is much faster for runs that print many lines (@dmitryduev in https://github.com/wandb/wandb/pull/12405)
 - Logging images with segmentation masks or bounding boxes no longer re-sends the entire run configuration for every image, which could make the local run files many times larger than needed (@dmitryduev in https://github.com/wandb/wandb/pull/12406)
+- Interrupting `run.finish()`, such as with Ctrl-C, now cleans up the run properly; afterwards the run could not be finished again and its log file stayed open (@dmitryduev in https://github.com/wandb/wandb/pull/12407)

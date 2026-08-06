@@ -2412,21 +2412,27 @@ class Run:
         try:
             self._atexit_cleanup(exit_code=exit_code)
 
+        finally:
             # Run hooks that should happen after the last messages to the
             # internal service, like detaching the logger.
             for hook in self._teardown_hooks:
                 if hook.stage == TeardownStage.LATE:
-                    hook.call()
+                    try:
+                        hook.call()
+                    except Exception:
+                        logger.exception("Problem running teardown hook")
             self._teardown_hooks = []
 
             # Inform the service that we're done sending messages for this run.
             #
             # TODO: Why not do this in _atexit_cleanup()?
             if self._settings.run_id:
-                service = self._wl.assert_service()
-                service.inform_finish(run_id=self._settings.run_id)
+                try:
+                    service = self._wl.assert_service()
+                    service.inform_finish(run_id=self._settings.run_id)
+                except Exception:
+                    logger.exception("Problem informing service that run finished")
 
-        finally:
             if wandb.run is self:
                 module.unset_globals()
             get_sentry().end_session()
