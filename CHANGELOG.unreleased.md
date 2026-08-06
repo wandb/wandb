@@ -64,6 +64,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - `wandb leet config` now works on short terminal windows: the field list scrolls with the selection and Space toggles boolean settings (@dmitryduev in https://github.com/wandb/wandb/pull/12529)
 - `Run.scan_history(keys=...)` no longer fails for runs with nested values. (@mameikagou in https://github.com/wandb/wandb/pull/12542)
 - LEET media panels painted black bars around images in the ANSI view and flashed black when switching to the full-res view; the area around the image now shows the terminal background and mode switches no longer flash or move the image (@dmitryduev in https://github.com/wandb/wandb/pull/12569)
+- Your timeout and retry settings now apply when reading a run's history, which previously used neither (@dmitryduev in https://github.com/wandb/wandb/pull/12401)
 
 ### Security
 
