@@ -108,7 +108,7 @@ func New(
 		settings:  s,
 
 		authHandler:          NewAuthHandler(graphqlClient, credentialProvider),
-		featuresHandler:      NewFeaturesHandler(featureProvider),
+		featuresHandler:      NewFeaturesHandler(graphqlClient, featureProvider),
 		fileTransferHandler:  NewFileTransferHandler(fileTransferManager),
 		graphqlHandler:       NewGraphQLHandler(graphqlClient),
 		customChartHandler:   NewCustomChartHandler(graphqlClient),
@@ -193,6 +193,8 @@ func (p *WandbAPI) HandleRequest(
 		return p.authHandler.HandleRequest(ctx, req.AuthRequest)
 	case *spb.ApiRequest_FeaturesRequest:
 		return p.featuresHandler.HandleRequest(ctx, req.FeaturesRequest)
+	case *spb.ApiRequest_OrgFeaturesRequest:
+		return p.featuresHandler.HandleOrgRequest(ctx, req.OrgFeaturesRequest)
 	case *spb.ApiRequest_DownloadFileRequest:
 		return p.fileTransferHandler.HandleDownloadFile(ctx, req.DownloadFileRequest)
 	case *spb.ApiRequest_UploadFileRequest:

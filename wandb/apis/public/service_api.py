@@ -17,6 +17,7 @@ from wandb.proto.wandb_api_pb2 import (
     FeaturesRequest,
     GetAccessTokenRequest,
     GraphQLRequest,
+    OrgFeaturesRequest,
 )
 from wandb.sdk import wandb_settings, wandb_setup
 from wandb.sdk.lib.service.service_connection import (
@@ -277,6 +278,22 @@ class ServiceApi:
         session = self._get_api_session()
         request.api_id = session.api_id
         session.connection.api_publish(request)
+
+    def org_feature_flags(
+        self,
+        org: str,
+        *features: str,
+        timeout: float = 10,
+    ) -> dict[str, bool]:
+        """Return requested org feature flags and legacy ramps that exist."""
+        if not features:
+            return {}
+
+        req = ApiRequest(
+            org_features_request=OrgFeaturesRequest(org=org, features=features)
+        )
+        resp = self.send_api_request(req, timeout=timeout)
+        return dict(resp.org_features_response.features)
 
     def feature_enabled(
         self,

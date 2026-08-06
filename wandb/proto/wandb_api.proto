@@ -43,6 +43,7 @@ message ApiRequest {
     CreateCustomChartRequest create_custom_chart_request = 10;
     RunQueueOperationRequest run_queue_operation_request = 11;
     OpenTelemetryRequest open_telemetry_request = 12;
+    OrgFeaturesRequest org_features_request = 13;
   }
 }
 
@@ -58,6 +59,7 @@ message ApiResponse {
     AuthResponse auth_response = 9;
     CreateCustomChartResponse create_custom_chart_response = 10;
     RunQueueOperationResponse run_queue_operation_response = 11;
+    OrgFeaturesResponse org_features_response = 12;
 
     ApiErrorResponse api_error_response = 2;
   }
@@ -120,6 +122,21 @@ message FeaturesRequest {
 message FeaturesResponse {
   // Names of enabled boolean features.
   repeated ServerFeature enabled = 1;
+}
+
+message OrgFeaturesRequest {
+  // Organization whose features to check.
+  string org = 1;
+
+  // Names of organization features to check.
+  repeated string features = 2;
+}
+
+message OrgFeaturesResponse {
+  // Values of organization feature flags that exist.
+  //
+  // Requested flags that do not exist are omitted.
+  map<string, bool> features = 1;
 }
 
 // Execute a raw GraphQL document.
