@@ -107,7 +107,13 @@ def authenticate_session(
     if not relogin and (auth := session_credentials(host=host)):
         return auth
 
-    if not relogin and (auth := _use_system_auth(host=host, source=source)):
+    if not relogin and (
+        auth := _use_system_auth(
+            host=host,
+            source=source,
+            verify=verify,
+        )
+    ):
         return auth
 
     try:
