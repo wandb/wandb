@@ -58,6 +58,7 @@ The `wandb sync --clean` command now exits with code 1 and prints a hint to use 
 - Downloading an artifact with `skip_cache=True` no longer changes where later downloads in the same process are written (@dmitryduev in https://github.com/wandb/wandb/pull/12383)
 - `wandb login` no longer removes or corrupts credentials belonging to other machines in your `.netrc` file (@dmitryduev in https://github.com/wandb/wandb/pull/12386)
 - Log messages captured from Python loggers no longer add blank lines to a run's logs (@dmitryduev in https://github.com/wandb/wandb/pull/12387)
+- Fixed a crash that could happen when several runs sharing one service process finished at the same time (@dmitryduev in https://github.com/wandb/wandb/pull/12388)
 
 ## Security
 
