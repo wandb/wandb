@@ -91,17 +91,34 @@ def _prompt_api_key(
 
         if choice == _LOGIN_CHOICE_NEW:
             key = _create_new_account(host=host, referrer=referrer)
-            if problems := validation.check_api_key(key):
-                term.termerror(f"Invalid API key: {problems}")
-            else:
-                return key
+            if format_problems := validation.check_api_key(key):
+                term.termerror(f"Invalid API key: {format_problems}")
+                continue
+
+            if validation_problems := validation.check_api_key_validity(
+                host=host,
+                api_key=key,
+            ):
+                term.termerror(f"Invalid API key: {validation_problems}")
+                continue
+
+            return key
 
         elif choice == _LOGIN_CHOICE_EXISTS:
             key = _use_existing_account(host=host, referrer=referrer)
-            if problems := validation.check_api_key(key):
-                term.termerror(f"Invalid API key: {problems}")
-            else:
-                return key
+            if format_problems := validation.check_api_key(key):
+                term.termerror(f"Invalid API key: {format_problems}")
+                continue
+
+            if validation_problems := validation.check_api_key_validity(
+                host=host,
+                api_key=key,
+            ):
+                term.termerror(f"Invalid API key: {validation_problems}")
+                continue
+
+            return key
+
 
         elif choice == _LOGIN_CHOICE_OFFLINE:
             return None
