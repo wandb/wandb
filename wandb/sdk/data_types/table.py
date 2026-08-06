@@ -612,13 +612,20 @@ class Table(Media):
 
         # Special case to pre-emptively cast a column as a key.
         # Needed as String.assign(Key) is invalid
+        type_map = self._column_types.params["type_map"]
         for ndx, item in enumerate(data):
-            if isinstance(item, _TableLinkMixin):
-                self.cast(
-                    self.columns[ndx],
-                    _dtypes.TypeRegistry.type_of(item),
-                    optional=False,
-                )
+            if not isinstance(item, _TableLinkMixin):
+                continue
+
+            col_name = self.columns[ndx]
+            col_type = type_map.get(col_name)
+            item_type = _dtypes.TypeRegistry.type_of(item)
+            if isinstance(
+                col_type, (_PrimaryKeyType, _ForeignKeyType, _ForeignIndexType)
+            ) and not isinstance(col_type.assign_type(item_type), _dtypes.InvalidType):
+                continue
+
+            self.cast(col_name, item_type, optional=False)
 
         # Update the table's column types
         result_type = self._get_updated_result_type(data)

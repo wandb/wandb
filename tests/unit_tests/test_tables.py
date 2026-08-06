@@ -199,6 +199,45 @@ def test_fk_from_pk_local_draft():
     )
 
 
+def test_fk_add_data_casts_column_once(mocker):
+    table_a = wandb.Table(columns=["id", "col_1"], data=[["1", "a"], ["2", "b"]])
+    table_a.set_pk("id")
+
+    table = wandb.Table(columns=["fk", "col_2"])
+    cast = mocker.spy(wandb.Table, "cast")
+    for _ in range(10):
+        table.add_data(table_a.data[0][0], "c")
+
+    assert cast.call_count == 1
+    assert isinstance(
+        table._column_types.params["type_map"]["fk"],
+        _ForeignKeyType,
+    )
+    assert [row[0] for row in table.data] == ["1"] * 10
+    assert all(
+        [row[0]._table == table_a and row[0]._col_name == "id" for row in table.data]
+    )
+
+
+def test_fi_add_data_casts_column_once(mocker):
+    table_a = wandb.Table(columns=["b"], data=[["a"], ["b"]])
+
+    table = wandb.Table(columns=["fi", "c"])
+    cast = mocker.spy(wandb.Table, "cast")
+    for _ in range(5):
+        for ndx, _row in table_a.iterrows():
+            table.add_data(ndx, "x")
+
+    assert cast.call_count == 1
+    assert [row[0] for row in table.data] == [0, 1] * 5
+    assert all([row[0]._table == table_a for row in table.data])
+
+    # A link to a different table still updates the column type
+    table_b = wandb.Table(columns=["b"], data=[["c"]])
+    with pytest.raises(TypeError):
+        table.add_data(table_b.index_ref(0), "x")
+
+
 def test_self_referential_fi_cast():
     table = wandb.Table(columns=["ndx", "col_1"], data=[[0, "a"], [1, "b"]])
 
