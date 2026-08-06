@@ -10,6 +10,7 @@ from wandb.apis import PublicApi
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import StorageHandler
+from wandb.sdk.lib.filesystem import copy_or_overwrite_changed
 from wandb.sdk.lib.hashutil import b64_to_hex_id, hex_to_b64_id
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
@@ -45,6 +46,7 @@ class WBArtifactHandler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
+        dest_path: StrPath | None = None,
     ) -> URIStr | FilePathStr:
         """Load the file in the specified artifact given its corresponding entry.
 
@@ -52,6 +54,7 @@ class WBArtifactHandler(StorageHandler):
 
         Args:
             manifest_entry (ArtifactManifestEntry): The index entry to load
+            dest_path (StrPath): If given, the path to copy the downloaded file to
 
         Returns:
             (os.PathLike): A path to the file represented by `index_entry`
@@ -72,6 +75,10 @@ class WBArtifactHandler(StorageHandler):
         link_target_path: URIStr | FilePathStr
         if local:
             link_target_path = dep_artifact.get_entry(artifact_file_path).download()
+            if dest_path is not None:
+                link_target_path = FilePathStr(
+                    copy_or_overwrite_changed(link_target_path, dest_path)
+                )
         else:
             link_target_path = dep_artifact.get_entry(artifact_file_path).ref_target()
         return link_target_path

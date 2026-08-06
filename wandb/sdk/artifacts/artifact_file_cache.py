@@ -52,15 +52,13 @@ class ArtifactFileCache:
         # [1] https://stackoverflow.com/questions/10541760/can-i-set-the-umask-for-tempfile-namedtemporaryfile-in-python
         self._sys_umask = _get_sys_umask_threadsafe()
 
-        self._override_cache_path: StrPath | None = None
-
     def check_md5_obj_path(
-        self, b64_md5: B64MD5, size: int
+        self, b64_md5: B64MD5, size: int, override_path: StrPath | None = None
     ) -> tuple[FilePathStr, bool, Opener]:
         # Check if we're using vs skipping the cache
-        if self._override_cache_path is not None:
+        if override_path is not None:
             skip_cache = True
-            path = Path(self._override_cache_path)
+            path = Path(override_path)
         else:
             skip_cache = False
             hex_md5 = b64_to_hex_id(b64_md5)
@@ -74,11 +72,12 @@ class ArtifactFileCache:
         url: URIStr,
         etag: ETag,
         size: int,
+        override_path: StrPath | None = None,
     ) -> tuple[FilePathStr, bool, Opener]:
         # Check if we're using vs skipping the cache
-        if self._override_cache_path is not None:
+        if override_path is not None:
             skip_cache = True
-            path = Path(self._override_cache_path)
+            path = Path(override_path)
         else:
             skip_cache = False
             hexhash = hashlib.sha256(
