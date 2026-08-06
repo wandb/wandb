@@ -33,6 +33,7 @@ The `wandb sync --clean` command now exits with code 1 and prints a hint to use 
 - Response parsing is now faster for many `wandb.Api` operations, including artifact and registry queries (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12213)
 - `wandb.init()` now reports the error it was retrying (such as a network error) when it times out, instead of a generic timeout message. The `init_timeout` setting now also bounds the backend's retries during run initialization (@skhanna-cw in https://github.com/wandb/wandb/pull/12216)
 - `wandb.Api().create_run_queue()`, `wandb.Api().create_custom_chart()`, and `wandb.Api().upsert_run_queue()` now raise `WandbApiFailedError` when the operation fails on the backend. (@jacobromero in https://github.com/wandb/wandb/pull/12307)
+- `Api.{create,update}_automation()` now raise `UnsupportedError` instead of `CommError` when the server doesn't support the given automation (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12194)
 
 ## Removed
 
