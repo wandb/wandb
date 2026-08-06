@@ -2,9 +2,14 @@ package monitor
 
 import (
 	"context"
+	"time"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
+
+// xpuSampleTimeout bounds a single stats request to the wandb-xpu sidecar,
+// which can stop responding while blocked in a device query.
+const xpuSampleTimeout = 30 * time.Second
 
 // XPU monitors GPUs (Nvidia, AMD, Apple) and Google TPUs via the
 // wandb-xpu sidecar binary.
@@ -15,6 +20,9 @@ type XPU struct {
 	pid          int32
 	gpuDeviceIds []int32
 	client       spb.SystemMonitorServiceClient
+
+	// sampleTimeout is how long to wait for one Sample to complete.
+	sampleTimeout time.Duration
 }
 
 func NewXPU(
@@ -32,12 +40,16 @@ func NewXPU(
 		pid:             pid,
 		gpuDeviceIds:    gpuDeviceIds,
 		client:          client,
+		sampleTimeout:   xpuSampleTimeout,
 	}, nil
 }
 
 func (a *XPU) Sample() (*spb.StatsRecord, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), a.sampleTimeout)
+	defer cancel()
+
 	stats, err := a.client.GetStats(
-		context.Background(),
+		ctx,
 		&spb.GetStatsRequest{Pid: a.pid, GpuDeviceIds: a.gpuDeviceIds},
 	)
 	if err != nil {
