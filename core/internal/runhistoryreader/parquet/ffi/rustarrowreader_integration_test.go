@@ -2,7 +2,6 @@ package ffi
 
 import (
 	"cmp"
-	"context"
 	"encoding/base64"
 	"os"
 	"path/filepath"
@@ -71,11 +70,13 @@ QUdBQUFBQndBQUFBQUFBRURHQUFBQUFBQUJnQUlBQVlBQmdBQUFBQUFBZ0FBQUFBQUJRQUFBRjl6ZEdW
 LXJzIHZlcnNpb24gNTMuNC4xGVwcAAAcAAAcAAAcAAAcAAAAkgQAAFBBUjE=
 `
 
-func TestRustArrowReaderNormalizesGorillaFloatStepsBeforeGoSort(t *testing.T) {
-	libraryPath := os.Getenv("WANDB_TEST_RUST_ARROW_LIBRARY")
-	if libraryPath == "" {
-		t.Skip("set WANDB_TEST_RUST_ARROW_LIBRARY to run the Rust FFI integration test")
-	}
+const (
+	requireRustArrowLibraryEnv = "WANDB_TEST_REQUIRE_RUST_ARROW_LIBRARY"
+	rustArrowLibraryEnv        = "WANDB_TEST_RUST_ARROW_LIBRARY"
+)
+
+func TestRustArrowReaderProjectsNestedFieldsAndNormalizesSteps(t *testing.T) {
+	libraryPath := rustArrowLibraryPath(t)
 
 	wrapper, err := newRustArrowWrapper(libraryPath)
 	require.NoError(t, err)
@@ -94,13 +95,27 @@ func TestRustArrowReaderNormalizesGorillaFloatStepsBeforeGoSort(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(reader.Release)
 
-		partitionRows, err := reader.ScanStepRange(context.Background(), 0, 100)
+		partitionRows, err := reader.ScanStepRange(t.Context(), 0, 100)
 		require.NoError(t, err)
 		rows = append(rows, partitionRows...)
 	}
 
 	require.Equal(t, []int64{20, 21, 5, 6}, stepValues(rows))
 	for _, row := range rows {
+		require.Equal(
+			t,
+			[]string{parquet.StepKey, "flat_metric", "nested"},
+			rowKeys(row),
+		)
+
+		values := rowValues(row)
+		require.NotContains(t, values, "unrelated")
+		nested, ok := values["nested"].(map[string]any)
+		require.True(t, ok)
+		require.Len(t, nested, 2)
+		require.Contains(t, nested, "score")
+		require.Contains(t, nested, "label")
+
 		for _, pair := range row {
 			if pair.Key == parquet.StepKey {
 				require.IsType(t, int64(0), pair.Value)
@@ -112,6 +127,26 @@ func TestRustArrowReaderNormalizesGorillaFloatStepsBeforeGoSort(t *testing.T) {
 		return cmp.Compare(a.StepValue(), b.StepValue())
 	})
 	require.Equal(t, []int64{5, 6, 20, 21}, stepValues(rows))
+}
+
+func rustArrowLibraryPath(t *testing.T) string {
+	t.Helper()
+
+	libraryPath := os.Getenv(rustArrowLibraryEnv)
+	if libraryPath != "" {
+		return libraryPath
+	}
+
+	if os.Getenv(requireRustArrowLibraryEnv) == "1" {
+		t.Fatalf(
+			"%s=1 requires %s to name the Rust dynamic library",
+			requireRustArrowLibraryEnv,
+			rustArrowLibraryEnv,
+		)
+	}
+
+	t.Skipf("set %s to run the Rust FFI integration test", rustArrowLibraryEnv)
+	return ""
 }
 
 func writeParquetFixture(t *testing.T, name string, encoded string) string {
@@ -130,4 +165,20 @@ func stepValues(rows []parquet.KeyValueList) []int64 {
 		steps[i] = row.StepValue()
 	}
 	return steps
+}
+
+func rowKeys(row parquet.KeyValueList) []string {
+	keys := make([]string, len(row))
+	for i, pair := range row {
+		keys[i] = pair.Key
+	}
+	return keys
+}
+
+func rowValues(row parquet.KeyValueList) map[string]any {
+	values := make(map[string]any, len(row))
+	for _, pair := range row {
+		values[pair.Key] = pair.Value
+	}
+	return values
 }
