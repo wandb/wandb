@@ -65,3 +65,4 @@ The `wandb sync --clean` command now exits with code 1 and prints a hint to use 
 ## Security
 
 - Debug logs no longer contain CoreWeave cluster credentials (@dmitryduev in https://github.com/wandb/wandb/pull/12385)
+- `wandb docker` and `wandb docker-run` no longer pass your API key on the command line, where other users of the same machine could read it (@dmitryduev in https://github.com/wandb/wandb/pull/12443)
