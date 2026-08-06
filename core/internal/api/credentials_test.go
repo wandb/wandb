@@ -1,11 +1,15 @@
 package api_test
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -16,6 +20,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/apitest"
+	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/httplayerstest"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
@@ -62,8 +67,8 @@ func TestNewAPIKeyCredentialProvider_NoAPIKey(t *testing.T) {
 	assert.Equal(t, credentialProvider, api.NoopCredentialProvider{})
 }
 
-func authServer(token string, expiresIn time.Duration) *apitest.RecordingServer {
-	handler := func(w http.ResponseWriter, req *http.Request) {
+func authHandler(token string, expiresIn time.Duration) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
 		response := map[string]interface{}{
 			"access_token": token,
 			"expires_in":   expiresIn.Seconds(),
@@ -76,7 +81,11 @@ func authServer(token string, expiresIn time.Duration) *apitest.RecordingServer 
 			return
 		}
 	}
-	server := apitest.NewRecordingServer(apitest.WithHandlerFunc(handler))
+}
+
+func authServer(token string, expiresIn time.Duration) *apitest.RecordingServer {
+	server := apitest.NewRecordingServer(
+		apitest.WithHandlerFunc(authHandler(token, expiresIn)))
 	return server
 }
 
@@ -421,7 +430,7 @@ func TestOAuth2CredentialProvider_AccessToken(t *testing.T) {
 	tokenProvider, ok := credentialProvider.(api.AccessTokenProvider)
 	require.True(t, ok, "the OAuth2 provider must expose access tokens")
 
-	accessToken, err := tokenProvider.AccessToken()
+	accessToken, err := tokenProvider.AccessToken(t.Context())
 
 	require.NoError(t, err)
 	assert.Equal(t, token, accessToken)
@@ -528,7 +537,8 @@ func TestOAuth2CredentialProvider_RejectedExchangeIsPermanent(t *testing.T) {
 func TestOAuth2CredentialProvider_ExchangeServerErrorIsNotPermanent(t *testing.T) {
 	server := rejectingAuthServer(http.StatusBadGateway, "upstream error")
 	defer server.Close()
-	credentialProvider := oauth2ProviderForServer(t, server.URL)
+	credentialProvider := oauth2ProviderWithClient(t, server.URL,
+		exchangeClient(t, server.URL, tokenExchangeTestRetryMax, time.Minute))
 
 	_, err := httplayerstest.MapRequest(t,
 		credentialProvider, exampleGetRequest(t))
@@ -538,4 +548,251 @@ func TestOAuth2CredentialProvider_ExchangeServerErrorIsNotPermanent(t *testing.T
 	var exchangeErr *api.TokenExchangeError
 	assert.False(t, errors.As(err, &exchangeErr))
 	assert.Contains(t, err.Error(), "upstream error")
+}
+
+// stalledAuthServer is a token endpoint that accepts requests but never
+// answers them, like a server behind a silently dropped connection.
+func stalledAuthServer(t *testing.T) *httptest.Server {
+	release := make(chan struct{})
+
+	server := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, req *http.Request) {
+			select {
+			case <-release:
+			case <-req.Context().Done():
+			}
+		}))
+
+	// The server must stop waiting for its handlers before it is closed.
+	t.Cleanup(server.Close)
+	t.Cleanup(func() { close(release) })
+
+	return server
+}
+
+// tokenExchangeTestRetryMax mirrors the retry count the provider uses in
+// production, so tests exercise the same number of attempts.
+const tokenExchangeTestRetryMax = 3
+
+// exchangeClient builds the client used for the token exchange, with the
+// retry behavior the test needs.
+func exchangeClient(
+	t *testing.T,
+	serverURL string,
+	retryMax int,
+	nonRetryTimeout time.Duration,
+) api.RetryableClient {
+	baseURL, err := url.Parse(serverURL)
+	require.NoError(t, err)
+
+	return api.NewClient(api.ClientOptions{
+		BaseURL:            baseURL,
+		RetryMax:           retryMax,
+		RetryWaitMin:       time.Millisecond,
+		RetryWaitMax:       10 * time.Millisecond,
+		RetryPolicy:        clients.RetryMostFailures,
+		NonRetryTimeout:    nonRetryTimeout,
+		CredentialProvider: api.NoopCredentialProvider{},
+		Logger:             observabilitytest.NewTestLogger(t).Logger,
+	})
+}
+
+func oauth2ProviderWithClient(
+	t *testing.T,
+	serverURL string,
+	httpClient api.RetryableClient,
+) api.CredentialProvider {
+	tokenFile := filepath.Join(t.TempDir(), "jwt.txt")
+	require.NoError(t, os.WriteFile(tokenFile, []byte("id-token"), 0o600))
+	credentialsFile := filepath.Join(t.TempDir(), "credentials.json")
+
+	credentialProvider, err := api.NewOAuth2CredentialProvider(
+		serverURL,
+		tokenFile,
+		credentialsFile,
+		httpClient,
+		observabilitytest.NewTestLogger(t).Logger,
+	)
+	require.NoError(t, err)
+	return credentialProvider
+}
+
+func TestOAuth2CredentialProvider_StalledExchangeFails(t *testing.T) {
+	tests := []struct {
+		name          string
+		clientTimeout time.Duration
+		ctxTimeout    time.Duration
+	}{
+		{
+			name:          "client timeout",
+			clientTimeout: 50 * time.Millisecond,
+			ctxTimeout:    time.Minute,
+		},
+		{
+			name:          "caller context deadline",
+			clientTimeout: time.Minute,
+			ctxTimeout:    50 * time.Millisecond,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			server := stalledAuthServer(t)
+			credentialProvider := oauth2ProviderWithClient(t, server.URL,
+				exchangeClient(t, server.URL, 0, test.clientTimeout))
+			tokenProvider, ok := credentialProvider.(api.AccessTokenProvider)
+			require.True(t, ok)
+
+			ctx, cancel := context.WithTimeout(t.Context(), test.ctxTimeout)
+			defer cancel()
+
+			exchange := make(chan error, 1)
+			go func() {
+				_, err := tokenProvider.AccessToken(ctx)
+				exchange <- err
+			}()
+
+			select {
+			case err := <-exchange:
+				// An unanswered exchange must not block the requests that
+				// depend on the access token.
+				assert.Error(t, err)
+			case <-time.After(5 * time.Second):
+				t.Fatal("the token exchange never returned")
+			}
+		})
+	}
+}
+
+// countingAuthServer is a token endpoint that replies with the given statuses
+// in order, repeating the last one, and counts the requests it received.
+func countingAuthServer(
+	t *testing.T,
+	count *atomic.Int32,
+	statuses ...int,
+) *httptest.Server {
+	server := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, req *http.Request) {
+			n := int(count.Add(1)) - 1
+			status := statuses[min(n, len(statuses)-1)]
+
+			if status == http.StatusOK {
+				authHandler("fake-token", time.Hour)(w, req)
+				return
+			}
+
+			http.Error(w, "nope", status)
+		}))
+	t.Cleanup(server.Close)
+	return server
+}
+
+func TestOAuth2CredentialProvider_ExchangeRetries(t *testing.T) {
+	tests := []struct {
+		name          string
+		statuses      []int
+		wantRequests  int32
+		wantPermanent bool
+	}{
+		{
+			name:          "a rejected identity token is not retried",
+			statuses:      []int{http.StatusUnauthorized},
+			wantRequests:  1,
+			wantPermanent: true,
+		},
+		{
+			name:          "a forbidden exchange is not retried",
+			statuses:      []int{http.StatusForbidden},
+			wantRequests:  1,
+			wantPermanent: true,
+		},
+		{
+			name:         "a server error is retried until it succeeds",
+			statuses:     []int{http.StatusInternalServerError, http.StatusOK},
+			wantRequests: 2,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var requests atomic.Int32
+			server := countingAuthServer(t, &requests, test.statuses...)
+			credentialProvider := oauth2ProviderWithClient(t, server.URL,
+				exchangeClient(t, server.URL,
+					tokenExchangeTestRetryMax, time.Minute))
+			tokenProvider, ok := credentialProvider.(api.AccessTokenProvider)
+			require.True(t, ok)
+
+			token, err := tokenProvider.AccessToken(t.Context())
+
+			assert.Equal(t, test.wantRequests, requests.Load())
+			if !test.wantPermanent {
+				require.NoError(t, err)
+				assert.Equal(t, "fake-token", token)
+				return
+			}
+
+			require.Error(t, err)
+			var exchangeErr *api.TokenExchangeError
+			require.ErrorAs(t, err, &exchangeErr)
+			assert.True(t, exchangeErr.PermanentError())
+		})
+	}
+}
+
+// tlsAuthServer is a token endpoint served over HTTPS with a self-signed
+// certificate, like an on-prem deployment.
+func tlsAuthServer(t *testing.T, token string) *httptest.Server {
+	server := httptest.NewTLSServer(authHandler(token, time.Hour))
+	t.Cleanup(server.Close)
+	return server
+}
+
+func TestNewOAuth2CredentialProvider_InsecureDisableSSL(t *testing.T) {
+	tests := []struct {
+		name               string
+		insecureDisableSSL bool
+	}{
+		{name: "certificate is verified by default"},
+		{name: "verification is disabled by the setting", insecureDisableSSL: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			server := tlsAuthServer(t, "fake-token")
+
+			tokenFile := filepath.Join(t.TempDir(), "jwt.txt")
+			require.NoError(t,
+				os.WriteFile(tokenFile, []byte("id-token"), 0o600))
+
+			settings := wbsettings.From(&spb.Settings{
+				BaseUrl:           &wrapperspb.StringValue{Value: server.URL},
+				IdentityTokenFile: &wrapperspb.StringValue{Value: tokenFile},
+				CredentialsFile: &wrapperspb.StringValue{
+					Value: filepath.Join(t.TempDir(), "credentials.json"),
+				},
+				InsecureDisableSsl: &wrapperspb.BoolValue{
+					Value: test.insecureDisableSSL,
+				},
+			})
+			credentialProvider, err := api.NewCredentialProvider(
+				settings,
+				observabilitytest.NewTestLogger(t).Logger,
+			)
+			require.NoError(t, err)
+
+			reqs, err := httplayerstest.MapRequest(t,
+				credentialProvider, exampleGetRequest(t))
+
+			if !test.insecureDisableSSL {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "certificate")
+				return
+			}
+			require.NoError(t, err)
+			require.Len(t, reqs, 1)
+			assert.Equal(t,
+				"Bearer fake-token", reqs[0].Header.Get("Authorization"))
+		})
+	}
 }

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -13,8 +14,29 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hashicorp/go-retryablehttp"
+
+	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/httplayers"
 	"github.com/wandb/wandb/core/internal/settings"
+)
+
+const (
+	// tokenExchangeRetryMax is the number of retries for one identity token
+	// exchange.
+	//
+	// It is much smaller than DefaultRetryMax because the request that needs
+	// the access token is itself retried, and because the exchange holds the
+	// lock that every other request waits on.
+	tokenExchangeRetryMax = 3
+
+	// Waits between exchange attempts. These are shorter than the defaults
+	// for the same reason the retry count is lower.
+	tokenExchangeRetryWaitMin = time.Second
+	tokenExchangeRetryWaitMax = 5 * time.Second
+
+	// tokenExchangeTimeout bounds one exchange including its retries.
+	tokenExchangeTimeout = 60 * time.Second
 )
 
 // CredentialProvider adds credentials to HTTP requests.
@@ -26,7 +48,7 @@ type CredentialProvider httplayers.HTTPWrapper
 type AccessTokenProvider interface {
 	// AccessToken returns a valid access token, refreshing it if it is
 	// at or near expiration.
-	AccessToken() (string, error)
+	AccessToken(ctx context.Context) (string, error)
 }
 
 // NewCredentialProvider creates a new credential provider based on the SDK
@@ -37,10 +59,32 @@ func NewCredentialProvider(
 	logger *slog.Logger,
 ) (CredentialProvider, error) {
 	if s.GetIdentityTokenFile() != "" {
+		baseURL, err := url.Parse(s.GetBaseURL())
+		if err != nil {
+			return nil, fmt.Errorf("api: invalid base URL: %v", err)
+		}
+
+		// The exchange must not use a credential provider: supplying its
+		// credentials is what it is being used to make possible.
+		exchangeClient := NewClient(ClientOptions{
+			BaseURL:            baseURL,
+			RetryMax:           tokenExchangeRetryMax,
+			RetryWaitMin:       tokenExchangeRetryWaitMin,
+			RetryWaitMax:       tokenExchangeRetryWaitMax,
+			RetryPolicy:        clients.RetryMostFailures,
+			NonRetryTimeout:    DefaultNonRetryTimeout,
+			ExtraHeaders:       s.GetExtraHTTPHeaders(),
+			Proxy:              clients.ProxyFn(s.GetHTTPProxy(), s.GetHTTPSProxy()),
+			InsecureDisableSSL: s.IsInsecureDisableSSL(),
+			CredentialProvider: NoopCredentialProvider{},
+			Logger:             logger,
+		})
+
 		return NewOAuth2CredentialProvider(
 			s.GetBaseURL(),
 			s.GetIdentityTokenFile(),
 			s.GetCredentialsFile(),
+			exchangeClient,
 			logger,
 		)
 	}
@@ -107,10 +151,15 @@ func (c NoopCredentialProvider) WrapHTTP(
 // for an access token. It then attempts to save it to the credentials file along
 // with its expiration. The expiration is checked each time the access token is
 // used, and refreshed if it is at or near expiration.
+//
+// The exchange is made with httpClient, which bounds how long a request that
+// depends on the access token can wait for it, and which must not itself
+// supply credentials.
 func NewOAuth2CredentialProvider(
 	baseURL string,
 	identityTokenFilePath string,
 	credentialsFilePath string,
+	httpClient RetryableClient,
 	logger *slog.Logger,
 ) (CredentialProvider, error) {
 	// Fail fast on misconfiguration. The token itself is re-read from the
@@ -124,6 +173,7 @@ func NewOAuth2CredentialProvider(
 		baseURL:               baseURL,
 		identityTokenFilePath: identityTokenFilePath,
 		credentialsFilePath:   credentialsFilePath,
+		httpClient:            httpClient,
 		tokenMu:               &sync.RWMutex{},
 		logger:                logger,
 	}, nil
@@ -178,6 +228,9 @@ type oauth2CredentialProvider struct {
 
 	// The file path to the access token and its metadata.
 	credentialsFilePath string
+
+	// The client used to exchange the identity token for an access token.
+	httpClient RetryableClient
 
 	tokenMu *sync.RWMutex
 
@@ -245,7 +298,7 @@ func (c *oauth2CredentialProvider) WrapHTTP(
 // apply fetches a new access token if necessary and supplies it to the request
 // via the Authorization header as a Bearer token.
 func (c *oauth2CredentialProvider) apply(req *http.Request) error {
-	token, err := c.AccessToken()
+	token, err := c.AccessToken(req.Context())
 	if err != nil {
 		return err
 	}
@@ -257,9 +310,11 @@ func (c *oauth2CredentialProvider) apply(req *http.Request) error {
 var _ AccessTokenProvider = &oauth2CredentialProvider{}
 
 // AccessToken implements AccessTokenProvider.AccessToken.
-func (c *oauth2CredentialProvider) AccessToken() (string, error) {
+func (c *oauth2CredentialProvider) AccessToken(
+	ctx context.Context,
+) (string, error) {
 	if c.shouldRefreshToken() {
-		err := c.loadCredentials()
+		err := c.loadCredentials(ctx)
 		if err != nil {
 			return "", err
 		}
@@ -281,7 +336,7 @@ func (c *oauth2CredentialProvider) shouldRefreshToken() bool {
 // necessary, using a mutex to prevent concurrent refreshes. It first checks for
 // a non-expiring token in memory or the credentials file. If none is found, it
 // fetches a new token and saves it.
-func (c *oauth2CredentialProvider) loadCredentials() error {
+func (c *oauth2CredentialProvider) loadCredentials(ctx context.Context) error {
 	c.tokenMu.Lock()
 	defer c.tokenMu.Unlock()
 
@@ -299,7 +354,7 @@ func (c *oauth2CredentialProvider) loadCredentials() error {
 		}
 	}
 
-	token, err := c.fetchAccessToken()
+	token, err := c.fetchAccessToken(ctx)
 	if err != nil {
 		return fmt.Errorf("api: couldn't fetch access token: %w", err)
 	}
@@ -356,7 +411,9 @@ func (c *oauth2CredentialProvider) trySaveCredentialsToFile(credentials Credenti
 // Reads the identity token from a file and exchanges it for
 // an access token from the authorization server using the JWT Bearer flow defined
 // in OAuth RFC 7523. The access token is then returned with its expiration time.
-func (c *oauth2CredentialProvider) fetchAccessToken() (accessTokenInfo, error) {
+func (c *oauth2CredentialProvider) fetchAccessToken(
+	ctx context.Context,
+) (accessTokenInfo, error) {
 	// Read the file for each exchange: short-lived identity tokens are
 	// re-minted to the same path, and an exchange must use the current
 	// file contents rather than the token present at startup.
@@ -365,18 +422,22 @@ func (c *oauth2CredentialProvider) fetchAccessToken() (accessTokenInfo, error) {
 		return accessTokenInfo{}, err
 	}
 
+	ctx, cancel := context.WithTimeout(ctx, tokenExchangeTimeout)
+	defer cancel()
+
 	tokenURL := fmt.Sprintf("%s/oidc/token", c.baseURL)
 	data := fmt.Sprintf(
 		"grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=%s",
 		url.QueryEscape(identityToken),
 	)
-	req, err := http.NewRequest("POST", tokenURL, strings.NewReader(data))
+	req, err := retryablehttp.NewRequestWithContext(
+		ctx, http.MethodPost, tokenURL, strings.NewReader(data))
 	if err != nil {
 		return accessTokenInfo{}, err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return accessTokenInfo{}, err
 	}
