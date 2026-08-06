@@ -6,3 +6,15 @@ query ServerFeaturesQuery {
     }
   }
 }
+
+# Fetches org-level feature flags (as opposed to global serverFeature flags).
+query OrgFeatureFlags($org: String!) {
+  organization(name: $org) {
+    # Note: passing `rampIDType: OrgName` is deliberate, and `OrgId` is NOT
+    # equivalent: only `OrgName` also selects legacy ramps keyed by org name.
+    featureFlags(rampIDType: OrgName) {
+      rampKey
+      isEnabled
+    }
+  }
+}

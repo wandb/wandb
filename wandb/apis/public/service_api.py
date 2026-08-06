@@ -260,6 +260,18 @@ class ServiceApi:
         request.api_id = session.api_id
         return await session.connection.api_request_async(request)
 
+    def org_feature_flags(self, org: str) -> dict[str, bool]:
+        """Return org-level feature flags and legacy ramps, keyed by ramp name."""
+        from wandb.sdk.internal._generated import ORG_FEATURE_FLAGS_GQL, OrgFeatureFlags
+
+        result = self.execute_graphql(
+            ORG_FEATURE_FLAGS_GQL,
+            variables={"org": org},
+            parse=OrgFeatureFlags.model_validate_json,
+        )
+        flags = org_obj.feature_flags if (org_obj := result.organization) else []
+        return {f.ramp_key: f.is_enabled for f in flags if f is not None}
+
     def feature_enabled(
         self,
         feature: pb.ServerFeature | str,

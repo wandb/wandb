@@ -58,6 +58,18 @@ def test_feature_flags_by_string_name(wandb_backend_spy: WandbBackendSpy):
     assert enabled
 
 
+def test_org_feature_flags(api, user_in_orgs_factory):
+    org = user_in_orgs_factory().organization_names[0]
+
+    flags = api._service_api.org_feature_flags(org)
+
+    assert flags
+    assert all(
+        isinstance(key, str) and isinstance(enabled, bool)
+        for key, enabled in flags.items()
+    )
+
+
 def test_feature_flags_timeout():
     class FakeConnection:
         def __init__(self):
