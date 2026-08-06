@@ -348,6 +348,31 @@ def test_image_seq_to_json(
 
 
 @pytest.mark.usefixtures("patch_max_cli_version")
+def test_image_seq_to_json_does_not_reopen_files(
+    mock_run,
+    image,
+    monkeypatch,
+):
+    run = mock_run()
+    wb_images = [wandb.Image(image) for _ in range(3)]
+    for i, wb_image in enumerate(wb_images):
+        wb_image.bind_to_run(run, "test", 0, i)
+
+    opened_paths = []
+    original_open = Image.open
+
+    def counting_open(fp, *args, **kwargs):
+        opened_paths.append(fp)
+        return original_open(fp, *args, **kwargs)
+
+    monkeypatch.setattr(Image, "open", counting_open)
+    meta = wandb.Image.seq_to_json(wb_images, run, "test", 0)
+
+    assert opened_paths == []
+    assert (meta["width"], meta["height"]) == (28, 28)
+
+
+@pytest.mark.usefixtures("patch_max_cli_version")
 def test_max_images(mock_run):
     run = mock_run()
     large_image = np.random.randint(255, size=(10, 10))
