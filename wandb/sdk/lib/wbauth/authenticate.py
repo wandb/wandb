@@ -243,7 +243,7 @@ def _use_prompted_auth(
     no_create: bool,
     referrer: str,
     input_timeout: float | None = None,
-    verify: bool = False,
+    verify: bool = True,
 ) -> Auth | None:
     """Prompt interactively to set session credentials.
 

@@ -62,15 +62,13 @@ def check_api_key(key: str) -> str | None:
 
     return None
 
+
 def check_api_key_validity(
     *,
     host: HostUrl,
     api_key: str,
 ) -> str | None:
     """Verify that an API key is valid with the server.
-
-    If the settings are in offline mode,
-    the key is not validated and None is returned.
 
     Args:
         host: The host to verify the API key with.
@@ -103,9 +101,6 @@ def check_identity_token_validity(
     credentials_file: pathlib.Path,
 ) -> str | None:
     """Verify that an identity token is valid with the server.
-
-    If the settings are in offline mode,
-    the identity token is not validated and None is returned.
 
     Args:
         identity_token_file: The path to the identity token file to verify.

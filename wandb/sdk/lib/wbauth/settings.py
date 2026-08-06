@@ -42,6 +42,7 @@ def set_auth_settings(settings: Settings, auth: Auth | None) -> None:
     else:
         raise NotImplementedError(str(auth))
 
+
 def set_auth_settings_for_api_key(
     settings: Settings,
     api_key: str,

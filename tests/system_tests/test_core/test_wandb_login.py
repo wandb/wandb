@@ -3,7 +3,7 @@ from unittest import mock
 
 import pytest
 import wandb
-from wandb.sdk.lib.wbauth import validation, wbnetrc
+from wandb.sdk.lib.wbauth import wbnetrc
 
 
 def test_login_valid_key(user):

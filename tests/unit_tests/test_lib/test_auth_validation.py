@@ -1,8 +1,5 @@
-from unittest import mock
-
 import pytest
-import wandb
-from wandb.sdk.lib.wbauth import host_url, validation
+from wandb.sdk.lib.wbauth import validation
 
 
 @pytest.mark.parametrize(
