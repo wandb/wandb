@@ -1,9 +1,9 @@
-use arrow::array::{Int64Array, RecordBatch, StringArray};
-use arrow::datatypes::{DataType, Field, Schema};
+use arrow::array::{ArrayRef, Float64Array, Int64Array, RecordBatch, StringArray, StructArray};
+use arrow::datatypes::{DataType, Field, Fields, Schema};
 use arrow_rs_wrapper::*;
 use parquet::arrow::ArrowWriter;
 use parquet::file::properties::WriterProperties;
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 use std::fs::File;
 use std::sync::Arc;
 use tempfile::TempDir;
@@ -27,6 +27,7 @@ enum KvValue {
     Bool(bool),
     Binary(Vec<u8>),
     List(Vec<KvValue>),
+    Map(Vec<(String, KvValue)>),
 }
 
 /// Parse the binary KV wire format returned by reader_scan_step_range.
@@ -119,7 +120,20 @@ fn read_kv_value(data: &[u8], offset: &mut usize) -> KvValue {
             }
             KvValue::List(values)
         }
-        _ => panic!("Unknown tag: {}", tag),
+        8 => {
+            let len = read_u32(data, offset) as usize;
+            let mut entries = Vec::with_capacity(len);
+            for _ in 0..len {
+                let key_len = read_u32(data, offset) as usize;
+                let key = std::str::from_utf8(&data[*offset..*offset + key_len])
+                    .unwrap()
+                    .to_string();
+                *offset += key_len;
+                entries.push((key, read_kv_value(data, offset)));
+            }
+            KvValue::Map(entries)
+        }
+        _ => panic!("Unknown tag: {tag}"),
     }
 }
 
@@ -189,8 +203,8 @@ fn create_test_parquet_file(path: &str, num_rows: usize) -> std::io::Result<()> 
 
     let file = File::create(path)?;
     let props = WriterProperties::builder().build();
-    let mut writer = ArrowWriter::try_new(file, schema.clone(), Some(props))
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    let mut writer =
+        ArrowWriter::try_new(file, schema.clone(), Some(props)).map_err(std::io::Error::other)?;
 
     let step_values: Vec<i64> = (0..num_rows).map(|i| i as i64).collect();
     let int_values: Vec<i64> = (0..num_rows).map(|i| (i * 10) as i64).collect();
@@ -206,14 +220,69 @@ fn create_test_parquet_file(path: &str, num_rows: usize) -> std::io::Result<()> 
             Arc::new(StringArray::from(string_values)),
         ],
     )
-    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    .map_err(std::io::Error::other)?;
 
-    writer
-        .write(&batch)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
-    writer
-        .close()
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    writer.write(&batch).map_err(std::io::Error::other)?;
+    writer.close().map_err(std::io::Error::other)?;
+
+    Ok(())
+}
+
+/// Creates the logical schema that Gorilla writes for selected-key scans.
+fn create_gorilla_compatible_parquet_file(path: &str) -> std::io::Result<()> {
+    let nested_fields = Fields::from(vec![
+        Arc::new(Field::new("score", DataType::Float64, true)),
+        Arc::new(Field::new("label", DataType::Utf8, true)),
+    ]);
+    let schema = Arc::new(Schema::new(vec![
+        Field::new(STEP_COLUMN_NAME, DataType::Float64, true),
+        Field::new("flat_metric", DataType::Float64, true),
+        Field::new("nested", DataType::Struct(nested_fields.clone()), true),
+        Field::new("unrelated", DataType::Utf8, true),
+    ]));
+
+    let nested = StructArray::new(
+        nested_fields,
+        vec![
+            Arc::new(Float64Array::from(vec![Some(1.5), None, Some(3.5)])) as ArrayRef,
+            Arc::new(StringArray::from(vec![Some("first"), Some("second"), None])) as ArrayRef,
+        ],
+        None,
+    );
+    let batch = RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(Float64Array::from(vec![Some(7.0), Some(8.0), Some(9.0)])),
+            Arc::new(Float64Array::from(vec![Some(10.0), None, Some(30.0)])),
+            Arc::new(nested),
+            Arc::new(StringArray::from(vec!["omit-a", "omit-b", "omit-c"])),
+        ],
+    )
+    .map_err(std::io::Error::other)?;
+
+    let file = File::create(path)?;
+    let props = WriterProperties::builder().build();
+    let mut writer =
+        ArrowWriter::try_new(file, schema, Some(props)).map_err(std::io::Error::other)?;
+    writer.write(&batch).map_err(std::io::Error::other)?;
+    writer.close().map_err(std::io::Error::other)?;
+
+    Ok(())
+}
+
+fn create_float_step_parquet_file(path: &str, steps: Vec<Option<f64>>) -> std::io::Result<()> {
+    let schema = Arc::new(Schema::new(vec![Field::new(
+        STEP_COLUMN_NAME,
+        DataType::Float64,
+        true,
+    )]));
+    let batch = RecordBatch::try_new(schema.clone(), vec![Arc::new(Float64Array::from(steps))])
+        .map_err(std::io::Error::other)?;
+
+    let file = File::create(path)?;
+    let mut writer = ArrowWriter::try_new(file, schema, None).map_err(std::io::Error::other)?;
+    writer.write(&batch).map_err(std::io::Error::other)?;
+    writer.close().map_err(std::io::Error::other)?;
 
     Ok(())
 }
@@ -226,14 +295,8 @@ fn test_create_reader() {
 
     let path_cstring = CString::new(file_path.to_str().unwrap()).unwrap();
     let mut out_error: *mut libc::c_char = std::ptr::null_mut();
-    let reader_ptr = unsafe {
-        create_reader(
-            path_cstring.as_ptr(),
-            std::ptr::null(),
-            0,
-            &mut out_error,
-        )
-    };
+    let reader_ptr =
+        unsafe { create_reader(path_cstring.as_ptr(), std::ptr::null(), 0, &mut out_error) };
 
     assert!(!reader_ptr.is_null());
 
@@ -251,17 +314,11 @@ fn test_create_reader_with_columns() {
     let path_cstring = CString::new(file_path.to_str().unwrap()).unwrap();
     let col1 = CString::new(STEP_COLUMN_NAME).unwrap();
     let col2 = CString::new("value").unwrap();
-    let col_ptrs = vec![col1.as_ptr(), col2.as_ptr()];
+    let col_ptrs = [col1.as_ptr(), col2.as_ptr()];
 
     let mut out_error: *mut libc::c_char = std::ptr::null_mut();
-    let reader_ptr = unsafe {
-        create_reader(
-            path_cstring.as_ptr(),
-            col_ptrs.as_ptr(),
-            2,
-            &mut out_error,
-        )
-    };
+    let reader_ptr =
+        unsafe { create_reader(path_cstring.as_ptr(), col_ptrs.as_ptr(), 2, &mut out_error) };
 
     assert!(!reader_ptr.is_null());
 
@@ -278,14 +335,8 @@ fn test_reader_scan_step_range() {
 
     let path_cstring = CString::new(file_path.to_str().unwrap()).unwrap();
     let mut out_error: *mut libc::c_char = std::ptr::null_mut();
-    let reader_ptr = unsafe {
-        create_reader(
-            path_cstring.as_ptr(),
-            std::ptr::null(),
-            0,
-            &mut out_error,
-        )
-    };
+    let reader_ptr =
+        unsafe { create_reader(path_cstring.as_ptr(), std::ptr::null(), 0, &mut out_error) };
     assert!(!reader_ptr.is_null());
 
     let mut result = StepScanResult {
@@ -295,9 +346,7 @@ fn test_reader_scan_step_range() {
         num_rows_returned: 0,
     };
 
-    let error = unsafe {
-        reader_scan_step_range(reader_ptr, 10, 20, &mut result)
-    };
+    let error = unsafe { reader_scan_step_range(reader_ptr, 10, 20, &mut result) };
     assert!(error.is_null());
 
     assert_eq!(result.num_rows_returned, 10);
@@ -307,7 +356,10 @@ fn test_reader_scan_step_range() {
     let (step_values, int_values, string_values) = extract_all_columns(&parse_result(&result));
     assert_eq!(step_values.len(), 10);
     assert_eq!(step_values, vec![10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
-    assert_eq!(int_values, vec![100, 110, 120, 130, 140, 150, 160, 170, 180, 190]);
+    assert_eq!(
+        int_values,
+        vec![100, 110, 120, 130, 140, 150, 160, 170, 180, 190]
+    );
     assert_eq!(
         string_values,
         vec!["even", "odd", "even", "odd", "even", "odd", "even", "odd", "even", "odd"]
@@ -328,17 +380,11 @@ fn test_reader_scan_step_range_with_columns_subset() {
     let path_cstring = CString::new(file_path.to_str().unwrap()).unwrap();
     let col1 = CString::new(STEP_COLUMN_NAME).unwrap();
     let col2 = CString::new("value").unwrap();
-    let col_ptrs = vec![col1.as_ptr(), col2.as_ptr()];
+    let col_ptrs = [col1.as_ptr(), col2.as_ptr()];
 
     let mut out_error: *mut libc::c_char = std::ptr::null_mut();
-    let reader_ptr = unsafe {
-        create_reader(
-            path_cstring.as_ptr(),
-            col_ptrs.as_ptr(),
-            2,
-            &mut out_error,
-        )
-    };
+    let reader_ptr =
+        unsafe { create_reader(path_cstring.as_ptr(), col_ptrs.as_ptr(), 2, &mut out_error) };
     assert!(!reader_ptr.is_null());
 
     let mut result = StepScanResult {
@@ -348,9 +394,7 @@ fn test_reader_scan_step_range_with_columns_subset() {
         num_rows_returned: 0,
     };
 
-    let error = unsafe {
-        reader_scan_step_range(reader_ptr, 10, 20, &mut result)
-    };
+    let error = unsafe { reader_scan_step_range(reader_ptr, 10, 20, &mut result) };
     assert!(error.is_null());
 
     assert_eq!(result.num_rows_returned, 10);
@@ -377,11 +421,150 @@ fn test_reader_scan_step_range_with_columns_subset() {
             }
         })
         .collect();
-    assert_eq!(int_values, vec![100, 110, 120, 130, 140, 150, 160, 170, 180, 190]);
+    assert_eq!(
+        int_values,
+        vec![100, 110, 120, 130, 140, 150, 160, 170, 180, 190]
+    );
 
     unsafe {
         free_buffer(result.vec_ptr as *mut Vec<u8>);
         free_reader(reader_ptr);
+    }
+}
+
+#[test]
+fn test_reader_scan_selected_nested_root() {
+    let temp_dir = TempDir::new().unwrap();
+    let file_path = temp_dir.path().join("gorilla-compatible.parquet");
+    create_gorilla_compatible_parquet_file(file_path.to_str().unwrap()).unwrap();
+
+    let path_cstring = CString::new(file_path.to_str().unwrap()).unwrap();
+    let columns = [
+        CString::new(STEP_COLUMN_NAME).unwrap(),
+        CString::new("flat_metric").unwrap(),
+        CString::new("nested").unwrap(),
+    ];
+    let column_pointers: Vec<_> = columns.iter().map(|column| column.as_ptr()).collect();
+    let mut out_error: *mut libc::c_char = std::ptr::null_mut();
+    let reader_ptr = unsafe {
+        create_reader(
+            path_cstring.as_ptr(),
+            column_pointers.as_ptr(),
+            column_pointers.len(),
+            &mut out_error,
+        )
+    };
+    assert!(!reader_ptr.is_null());
+
+    let mut result = StepScanResult {
+        vec_ptr: 0,
+        data_ptr: 0,
+        data_len: 0,
+        num_rows_returned: 0,
+    };
+    let error = unsafe { reader_scan_step_range(reader_ptr, 7, 9, &mut result) };
+    assert!(error.is_null());
+
+    let rows = parse_result(&result);
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0].columns.len(), 3);
+    assert_eq!(rows[0].columns[0], ("_step".to_string(), KvValue::Int64(7)));
+    assert_eq!(
+        rows[0].columns[1],
+        ("flat_metric".to_string(), KvValue::Float64(10.0))
+    );
+    assert_eq!(
+        rows[0].columns[2],
+        (
+            "nested".to_string(),
+            KvValue::Map(vec![
+                ("score".to_string(), KvValue::Float64(1.5)),
+                ("label".to_string(), KvValue::String("first".to_string())),
+            ]),
+        )
+    );
+    assert_eq!(
+        rows[1].columns[2],
+        (
+            "nested".to_string(),
+            KvValue::Map(vec![
+                ("score".to_string(), KvValue::Null),
+                ("label".to_string(), KvValue::String("second".to_string())),
+            ]),
+        )
+    );
+    assert!(rows
+        .iter()
+        .all(|row| { row.columns.iter().all(|(name, _)| name != "unrelated") }));
+
+    unsafe {
+        free_buffer(result.vec_ptr as *mut Vec<u8>);
+        free_reader(reader_ptr);
+    }
+}
+
+#[test]
+fn test_reader_scan_rejects_invalid_float_steps() {
+    let cases = [
+        ("null", vec![Some(1.0), None], "null"),
+        ("fractional", vec![Some(1.0), Some(1.5)], "fractional"),
+        ("negative", vec![Some(1.0), Some(-1.0)], "negative"),
+        (
+            "not-finite-nan",
+            vec![Some(1.0), Some(f64::NAN)],
+            "not finite",
+        ),
+        (
+            "not-finite-positive-infinity",
+            vec![Some(1.0), Some(f64::INFINITY)],
+            "not finite",
+        ),
+        (
+            "not-finite-negative-infinity",
+            vec![Some(1.0), Some(f64::NEG_INFINITY)],
+            "not finite",
+        ),
+        (
+            "out-of-range",
+            vec![Some(1.0), Some(9_223_372_036_854_775_808.0)],
+            "outside the int64 range",
+        ),
+    ];
+
+    for (name, steps, expected_reason) in cases {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join(format!("{name}.parquet"));
+        create_float_step_parquet_file(file_path.to_str().unwrap(), steps).unwrap();
+
+        let path = CString::new(file_path.to_str().unwrap()).unwrap();
+        let mut create_error: *mut libc::c_char = std::ptr::null_mut();
+        let reader =
+            unsafe { create_reader(path.as_ptr(), std::ptr::null(), 0, &mut create_error) };
+        assert!(create_error.is_null(), "{name}: reader creation failed");
+        assert!(!reader.is_null(), "{name}: reader creation failed");
+
+        let mut result = StepScanResult {
+            vec_ptr: 0,
+            data_ptr: 0,
+            data_len: 0,
+            num_rows_returned: 0,
+        };
+        let scan_error = unsafe { reader_scan_step_range(reader, 0, 10, &mut result) };
+        assert!(!scan_error.is_null(), "{name}: scan unexpectedly succeeded");
+        let message = unsafe { CStr::from_ptr(scan_error) }
+            .to_string_lossy()
+            .into_owned();
+        assert!(
+            message.contains(&format!(
+                "invalid '{STEP_COLUMN_NAME}' at row 1: {expected_reason}"
+            )),
+            "{name}: unexpected error: {message}"
+        );
+
+        unsafe {
+            free_string(scan_error as *mut libc::c_char);
+            free_reader(reader);
+        }
     }
 }
 
@@ -393,12 +576,14 @@ fn test_reader_scan_step_range_sequential_calls() {
 
     let path_cstring = CString::new(file_path.to_str().unwrap()).unwrap();
     let mut out_error: *mut libc::c_char = std::ptr::null_mut();
-    let reader_ptr = unsafe {
-        create_reader(path_cstring.as_ptr(), std::ptr::null(), 0, &mut out_error)
-    };
+    let reader_ptr =
+        unsafe { create_reader(path_cstring.as_ptr(), std::ptr::null(), 0, &mut out_error) };
 
     let mut result1 = StepScanResult {
-        vec_ptr: 0, data_ptr: 0, data_len: 0, num_rows_returned: 0,
+        vec_ptr: 0,
+        data_ptr: 0,
+        data_len: 0,
+        num_rows_returned: 0,
     };
     let error1 = unsafe { reader_scan_step_range(reader_ptr, 0, 10, &mut result1) };
     assert!(error1.is_null());
@@ -408,7 +593,10 @@ fn test_reader_scan_step_range_sequential_calls() {
     assert_eq!(step_values_1, vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
     let mut result2 = StepScanResult {
-        vec_ptr: 0, data_ptr: 0, data_len: 0, num_rows_returned: 0,
+        vec_ptr: 0,
+        data_ptr: 0,
+        data_len: 0,
+        num_rows_returned: 0,
     };
     let error2 = unsafe { reader_scan_step_range(reader_ptr, 10, 20, &mut result2) };
     assert!(error2.is_null());
@@ -432,12 +620,14 @@ fn test_reader_scan_step_range_backwards() {
 
     let path_cstring = CString::new(file_path.to_str().unwrap()).unwrap();
     let mut out_error: *mut libc::c_char = std::ptr::null_mut();
-    let reader_ptr = unsafe {
-        create_reader(path_cstring.as_ptr(), std::ptr::null(), 0, &mut out_error)
-    };
+    let reader_ptr =
+        unsafe { create_reader(path_cstring.as_ptr(), std::ptr::null(), 0, &mut out_error) };
 
     let mut result1 = StepScanResult {
-        vec_ptr: 0, data_ptr: 0, data_len: 0, num_rows_returned: 0,
+        vec_ptr: 0,
+        data_ptr: 0,
+        data_len: 0,
+        num_rows_returned: 0,
     };
     let error1 = unsafe { reader_scan_step_range(reader_ptr, 50, 60, &mut result1) };
     assert!(error1.is_null());
@@ -446,7 +636,10 @@ fn test_reader_scan_step_range_backwards() {
     assert_eq!(step_values_1, vec![50, 51, 52, 53, 54, 55, 56, 57, 58, 59]);
 
     let mut result2 = StepScanResult {
-        vec_ptr: 0, data_ptr: 0, data_len: 0, num_rows_returned: 0,
+        vec_ptr: 0,
+        data_ptr: 0,
+        data_len: 0,
+        num_rows_returned: 0,
     };
     let error2 = unsafe { reader_scan_step_range(reader_ptr, 10, 20, &mut result2) };
     assert!(error2.is_null());
@@ -470,12 +663,14 @@ fn test_reader_scan_step_range_empty_result() {
 
     let path_cstring = CString::new(file_path.to_str().unwrap()).unwrap();
     let mut out_error: *mut libc::c_char = std::ptr::null_mut();
-    let reader_ptr = unsafe {
-        create_reader(path_cstring.as_ptr(), std::ptr::null(), 0, &mut out_error)
-    };
+    let reader_ptr =
+        unsafe { create_reader(path_cstring.as_ptr(), std::ptr::null(), 0, &mut out_error) };
 
     let mut result = StepScanResult {
-        vec_ptr: 0, data_ptr: 0, data_len: 0, num_rows_returned: 0,
+        vec_ptr: 0,
+        data_ptr: 0,
+        data_len: 0,
+        num_rows_returned: 0,
     };
 
     let error = unsafe { reader_scan_step_range(reader_ptr, 200, 300, &mut result) };
@@ -492,7 +687,10 @@ fn test_reader_scan_step_range_empty_result() {
 #[test]
 fn test_reader_scan_step_range_null_pointer() {
     let mut result = StepScanResult {
-        vec_ptr: 0, data_ptr: 0, data_len: 0, num_rows_returned: 0,
+        vec_ptr: 0,
+        data_ptr: 0,
+        data_len: 0,
+        num_rows_returned: 0,
     };
 
     let error = unsafe { reader_scan_step_range(std::ptr::null_mut(), 0, 10, &mut result) };
@@ -512,19 +710,20 @@ fn test_reader_scan_step_range_http() {
 
     let url_cstring = CString::new(url.clone()).unwrap();
     let mut out_error: *mut libc::c_char = std::ptr::null_mut();
-    let reader_ptr = unsafe {
-        create_reader(url_cstring.as_ptr(), std::ptr::null(), 0, &mut out_error)
-    };
+    let reader_ptr =
+        unsafe { create_reader(url_cstring.as_ptr(), std::ptr::null(), 0, &mut out_error) };
     if reader_ptr.is_null() {
         panic!(
-            "Failed to create reader for HTTP URL: {}. \
-             This may indicate an issue with HTTP range request handling.",
-            url
+            "Failed to create reader for HTTP URL: {url}. \
+             This may indicate an issue with HTTP range request handling."
         );
     }
 
     let mut result = StepScanResult {
-        vec_ptr: 0, data_ptr: 0, data_len: 0, num_rows_returned: 0,
+        vec_ptr: 0,
+        data_ptr: 0,
+        data_len: 0,
+        num_rows_returned: 0,
     };
 
     let error = unsafe { reader_scan_step_range(reader_ptr, 25, 35, &mut result) };
@@ -535,14 +734,20 @@ fn test_reader_scan_step_range_http() {
     let (step_values, int_values, string_values) = extract_all_columns(&parse_result(&result));
     assert_eq!(step_values.len(), 10);
     assert_eq!(step_values, vec![25, 26, 27, 28, 29, 30, 31, 32, 33, 34]);
-    assert_eq!(int_values, vec![250, 260, 270, 280, 290, 300, 310, 320, 330, 340]);
+    assert_eq!(
+        int_values,
+        vec![250, 260, 270, 280, 290, 300, 310, 320, 330, 340]
+    );
     assert_eq!(
         string_values,
         vec!["odd", "even", "odd", "even", "odd", "even", "odd", "even", "odd", "even"]
     );
 
     let mut result2 = StepScanResult {
-        vec_ptr: 0, data_ptr: 0, data_len: 0, num_rows_returned: 0,
+        vec_ptr: 0,
+        data_ptr: 0,
+        data_len: 0,
+        num_rows_returned: 0,
     };
     let error2 = unsafe { reader_scan_step_range(reader_ptr, 35, 45, &mut result2) };
     assert!(error2.is_null());
@@ -567,21 +772,20 @@ fn test_reader_scan_step_range_http_with_columns_subset() {
     let url_cstring = CString::new(url.clone()).unwrap();
     let col1 = CString::new(STEP_COLUMN_NAME).unwrap();
     let col2 = CString::new("value").unwrap();
-    let col_ptrs = vec![col1.as_ptr(), col2.as_ptr()];
+    let col_ptrs = [col1.as_ptr(), col2.as_ptr()];
 
     let mut out_error: *mut libc::c_char = std::ptr::null_mut();
-    let reader_ptr = unsafe {
-        create_reader(url_cstring.as_ptr(), col_ptrs.as_ptr(), 2, &mut out_error)
-    };
+    let reader_ptr =
+        unsafe { create_reader(url_cstring.as_ptr(), col_ptrs.as_ptr(), 2, &mut out_error) };
     if reader_ptr.is_null() {
-        panic!(
-            "Failed to create reader for HTTP URL with columns: {}.",
-            url
-        );
+        panic!("Failed to create reader for HTTP URL with columns: {url}.");
     }
 
     let mut result = StepScanResult {
-        vec_ptr: 0, data_ptr: 0, data_len: 0, num_rows_returned: 0,
+        vec_ptr: 0,
+        data_ptr: 0,
+        data_len: 0,
+        num_rows_returned: 0,
     };
     let error = unsafe { reader_scan_step_range(reader_ptr, 15, 25, &mut result) };
     assert!(error.is_null());
@@ -607,7 +811,10 @@ fn test_reader_scan_step_range_http_with_columns_subset() {
             }
         })
         .collect();
-    assert_eq!(int_values, vec![150, 160, 170, 180, 190, 200, 210, 220, 230, 240]);
+    assert_eq!(
+        int_values,
+        vec![150, 160, 170, 180, 190, 200, 210, 220, 230, 240]
+    );
 
     unsafe {
         free_buffer(result.vec_ptr as *mut Vec<u8>);
@@ -624,8 +831,8 @@ fn create_test_parquet_file_with_int64_step(path: &str, num_rows: usize) -> std:
 
     let file = File::create(path)?;
     let props = WriterProperties::builder().build();
-    let mut writer = ArrowWriter::try_new(file, schema.clone(), Some(props))
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    let mut writer =
+        ArrowWriter::try_new(file, schema.clone(), Some(props)).map_err(std::io::Error::other)?;
 
     let step_values: Vec<i64> = (0..num_rows).map(|i| i as i64).collect();
     let int_values: Vec<i64> = (0..num_rows).map(|i| (i * 10) as i64).collect();
@@ -641,14 +848,10 @@ fn create_test_parquet_file_with_int64_step(path: &str, num_rows: usize) -> std:
             Arc::new(StringArray::from(string_values)),
         ],
     )
-    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    .map_err(std::io::Error::other)?;
 
-    writer
-        .write(&batch)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
-    writer
-        .close()
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    writer.write(&batch).map_err(std::io::Error::other)?;
+    writer.close().map_err(std::io::Error::other)?;
 
     Ok(())
 }
@@ -661,13 +864,15 @@ fn test_reader_scan_with_int64_step_column() {
 
     let path_cstring = CString::new(file_path.to_str().unwrap()).unwrap();
     let mut out_error: *mut libc::c_char = std::ptr::null_mut();
-    let reader_ptr = unsafe {
-        create_reader(path_cstring.as_ptr(), std::ptr::null(), 0, &mut out_error)
-    };
+    let reader_ptr =
+        unsafe { create_reader(path_cstring.as_ptr(), std::ptr::null(), 0, &mut out_error) };
     assert!(!reader_ptr.is_null());
 
     let mut result = StepScanResult {
-        vec_ptr: 0, data_ptr: 0, data_len: 0, num_rows_returned: 0,
+        vec_ptr: 0,
+        data_ptr: 0,
+        data_len: 0,
+        num_rows_returned: 0,
     };
 
     let error = unsafe { reader_scan_step_range(reader_ptr, 10, 20, &mut result) };
@@ -679,7 +884,10 @@ fn test_reader_scan_with_int64_step_column() {
     let (step_values, int_values, string_values) = extract_all_columns(&parse_result(&result));
     assert_eq!(step_values.len(), 10);
     assert_eq!(step_values, vec![10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
-    assert_eq!(int_values, vec![100, 110, 120, 130, 140, 150, 160, 170, 180, 190]);
+    assert_eq!(
+        int_values,
+        vec![100, 110, 120, 130, 140, 150, 160, 170, 180, 190]
+    );
     assert_eq!(
         string_values,
         vec!["even", "odd", "even", "odd", "even", "odd", "even", "odd", "even", "odd"]

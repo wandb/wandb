@@ -155,14 +155,14 @@ fn test_http_file_reader_read_buffering() {
 
     // Read 10 bytes - should fetch buffer and cache it
     let mut buf1 = vec![0u8; 10];
-    reader.read(&mut buf1).unwrap();
+    reader.read_exact(&mut buf1).unwrap();
 
     let first_count = *counter.lock().unwrap();
     assert!(first_count > 0);
 
     // Read another 10 bytes - should use cached buffer
     let mut buf2 = vec![0u8; 10];
-    reader.read(&mut buf2).unwrap();
+    reader.read_exact(&mut buf2).unwrap();
 
     let second_count = *counter.lock().unwrap();
     // Should not make another request (or minimal additional requests)
@@ -189,7 +189,7 @@ fn test_http_file_reader_seek() {
 
     // Read from new position
     let mut buf = vec![0u8; 10];
-    reader.read(&mut buf).unwrap();
+    reader.read_exact(&mut buf).unwrap();
     assert_eq!(&buf, &content[50..60]);
 }
 
@@ -311,7 +311,7 @@ fn test_http_file_reader_shared_buffer() {
     // Reader1 reads and caches data
     let mut buf1 = vec![0u8; 50];
     let mut reader1_mut = reader1;
-    reader1_mut.read(&mut buf1).unwrap();
+    reader1_mut.read_exact(&mut buf1).unwrap();
 
     // Reader2 should be able to use the cached buffer
     let mut buf2 = vec![0u8; 10];

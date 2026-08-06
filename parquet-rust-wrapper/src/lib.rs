@@ -1,17 +1,19 @@
+use arrow::array::{
+    Array, Float32Array, Float64Array, Int16Array, Int32Array, Int64Array, Int8Array, RecordBatch,
+    UInt16Array, UInt32Array, UInt64Array, UInt8Array,
+};
+use arrow::compute::cast;
+use arrow::datatypes::{DataType, Field, Schema};
+use parquet::arrow::arrow_reader::{ParquetRecordBatchReader, ParquetRecordBatchReaderBuilder};
+use parquet::arrow::ProjectionMask;
+use parquet::schema::types::SchemaDescriptor;
 use std::ffi::{CStr, CString};
 use std::fs::File;
-use parquet::arrow::arrow_reader::{
-    ParquetRecordBatchReader,
-    ParquetRecordBatchReaderBuilder,
-};
-use parquet::arrow::ProjectionMask;
-use arrow::array::{Array, Int64Array, RecordBatch};
-use arrow::compute::cast;
-use arrow::datatypes::DataType;
+use std::sync::Arc;
 
 mod httpfile;
 pub mod serialize;
-pub use httpfile::HttpFileReader;  // Export for testing
+pub use httpfile::HttpFileReader; // Export for testing
 
 const STEP_COLUMN_NAME: &str = "_step";
 
@@ -20,11 +22,11 @@ pub struct ReaderHandle {
     reader: ParquetRecordBatchReader, // The arrow reader of the parquet file
 
     column_names: Option<Vec<String>>, // The column names to read from the parquet file
-    current_batch_row_offset: usize, // The row offset within the current batch
+    current_batch_row_offset: usize,   // The row offset within the current batch
     current_batch: Option<RecordBatch>, // The current record batch being read
-    file_path: String,            // The file path of the parquet file
-    last_step_returned: i64,      // Track the last step value we returned
-    reader_exhausted: bool,       // Track if reader reached end of file
+    file_path: String,                 // The file path of the parquet file
+    last_step_returned: i64,           // Track the last step value we returned
+    reader_exhausted: bool,            // Track if reader reached end of file
 }
 
 /// Create a new parquet reader with optional column selection
@@ -96,68 +98,40 @@ fn create_reader_internal(
     let reader = if is_url {
         // HTTP reader
         let http_reader = HttpFileReader::new(file_path.to_string())
-            .map_err(|e| format!("Failed to create HTTP reader: {}", e))?;
+            .map_err(|e| format!("Failed to create HTTP reader: {e}"))?;
 
         let builder = ParquetRecordBatchReaderBuilder::try_new(http_reader)
-            .map_err(|e| format!("Failed to create parquet reader builder: {}", e))?;
+            .map_err(|e| format!("Failed to create parquet reader builder: {e}"))?;
 
-        // Log schema information
-        let schema = builder.schema();
-
-        // Build projection mask from column names
-        let projection = if let Some(names) = column_names {
-            // Find column indices by name
-            let mut indices = Vec::new();
-            for name in names {
-                if let Ok(idx) = schema.index_of(name) {
-                    indices.push(idx);
-                }
-            }
-
-            if indices.is_empty() {
-                return Err(format!("None of the requested columns were found in the schema"));
-            }
-
-            ProjectionMask::leaves(builder.parquet_schema(), indices.into_iter())
-        } else {
-            ProjectionMask::all()
-        };
+        let projection = projection_for_columns(
+            builder.schema().as_ref(),
+            builder.parquet_schema(),
+            column_names,
+        )?;
 
         builder
             .with_projection(projection)
             .with_batch_size(65536)
             .build()
-            .map_err(|e| format!("Failed to build record batch reader: {}", e))?
+            .map_err(|e| format!("Failed to build record batch reader: {e}"))?
     } else {
         // Local file reader
-        let file = File::open(file_path).map_err(|e| format!("Failed to open file: {}", e))?;
+        let file = File::open(file_path).map_err(|e| format!("Failed to open file: {e}"))?;
 
         let builder = ParquetRecordBatchReaderBuilder::try_new(file)
-            .map_err(|e| format!("Failed to create parquet reader builder: {}", e))?;
+            .map_err(|e| format!("Failed to create parquet reader builder: {e}"))?;
 
-        let schema = builder.schema();
-
-        // Build projection mask from column names
-        let projection = if let Some(names) = column_names {
-            let mut indices = Vec::new();
-            for name in names {
-                if let Ok(idx) = schema.index_of(name) {
-                    indices.push(idx);
-                }
-            }
-            if indices.is_empty() {
-                return Err(format!("None of the requested columns were found in the schema"));
-            }
-            ProjectionMask::leaves(builder.parquet_schema(), indices.into_iter())
-        } else {
-            ProjectionMask::all()
-        };
+        let projection = projection_for_columns(
+            builder.schema().as_ref(),
+            builder.parquet_schema(),
+            column_names,
+        )?;
 
         builder
             .with_projection(projection)
             .with_batch_size(65536)
             .build()
-            .map_err(|e| format!("Failed to build record batch reader: {}", e))?
+            .map_err(|e| format!("Failed to build record batch reader: {e}"))?
     };
 
     let handle = ReaderHandle {
@@ -173,15 +147,32 @@ fn create_reader_internal(
     Ok(handle)
 }
 
+fn projection_for_columns(
+    arrow_schema: &Schema,
+    parquet_schema: &SchemaDescriptor,
+    column_names: Option<&[String]>,
+) -> Result<ProjectionMask, String> {
+    let Some(names) = column_names else {
+        return Ok(ProjectionMask::all());
+    };
+
+    let root_indices: Vec<_> = names
+        .iter()
+        .filter_map(|name| arrow_schema.index_of(name).ok())
+        .collect();
+    if root_indices.is_empty() {
+        return Err("None of the requested columns were found in the schema".to_string());
+    }
+
+    Ok(ProjectionMask::roots(parquet_schema, root_indices))
+}
+
 impl ReaderHandle {
     /// Recreate the reader from the stored file path
     /// This is necessary because ParquetRecordBatchReader is an iterator that gets exhausted
     fn recreate_reader(&mut self) -> Result<(), String> {
         // Recreate using stored column names for proper projection
-        let new_reader = create_reader_internal(
-            &self.file_path,
-            self.column_names.as_deref(),
-        )?;
+        let new_reader = create_reader_internal(&self.file_path, self.column_names.as_deref())?;
 
         self.reader = new_reader.reader;
         self.last_step_returned = -1;
@@ -197,10 +188,10 @@ impl ReaderHandle {
 /// This struct is passed by pointer from Go, and Rust fills it in.
 #[repr(C)]
 pub struct StepScanResult {
-    pub vec_ptr: usize,           // Pointer to Vec<u8> for cleanup
-    pub data_ptr: usize,          // Pointer to serialized buffer data
-    pub data_len: u64,            // Length of serialized buffer (in bytes)
-    pub num_rows_returned: u64,   // Total rows in result
+    pub vec_ptr: usize,         // Pointer to Vec<u8> for cleanup
+    pub data_ptr: usize,        // Pointer to serialized buffer data
+    pub data_len: u64,          // Length of serialized buffer (in bytes)
+    pub num_rows_returned: u64, // Total rows in result
 }
 
 /// Scan all records in a reader and return only those with step values between minStep and maxStep
@@ -213,7 +204,7 @@ pub struct StepScanResult {
 /// - min_step: Minimum step value (inclusive)
 /// - max_step: Maximum step value (exclusive)
 /// - out_result: resulting pointer to StepScanResult struct to fill.
-///     This must be created by the caller and cannot be null.
+///   This must be created by the caller and cannot be null.
 ///
 /// Returns a C string error message on failure (must be freed with free_string)
 ///
@@ -246,7 +237,7 @@ pub unsafe extern "C" fn reader_scan_step_range(
     let needs_recreation = min_step <= handle.last_step_returned || handle.reader_exhausted;
     if needs_recreation {
         if let Err(e) = handle.recreate_reader() {
-            return error_to_c_string(&format!("Failed to recreate reader: {}", e));
+            return error_to_c_string(&format!("Failed to recreate reader: {e}"));
         }
     }
 
@@ -272,7 +263,7 @@ pub unsafe extern "C" fn reader_scan_step_range(
                     batch
                 }
                 Some(Err(e)) => {
-                    return error_to_c_string(&format!("Failed to read batch: {}", e));
+                    return error_to_c_string(&format!("Failed to read batch: {e}"));
                 }
                 // Reached end of file
                 None => {
@@ -288,16 +279,20 @@ pub unsafe extern "C" fn reader_scan_step_range(
             Ok(idx) => idx,
             Err(_) => {
                 return error_to_c_string(&format!(
-                    "Step column '{}' not found in schema",
-                    STEP_COLUMN_NAME
+                    "Step column '{STEP_COLUMN_NAME}' not found in schema"
                 ));
             }
         };
         let step_column = batch.column(step_col_idx);
 
-        // Get step values as i64
-        let step_values: Vec<Option<i64>> = match step_values_as_i64(step_column, batch.num_rows()) {
+        // Validate and normalize step values once for filtering and serialization.
+        let step_values = match normalized_step_values(step_column) {
             Ok(v) => v,
+            Err(e) => return error_to_c_string(&e),
+        };
+        let normalized_batch = match replace_step_column(&batch, step_col_idx, step_values.clone())
+        {
+            Ok(batch) => batch,
             Err(e) => return error_to_c_string(&e),
         };
 
@@ -306,11 +301,12 @@ pub unsafe extern "C" fn reader_scan_step_range(
         let mut should_stop_early = false;
 
         // Set matching rows to true in the mask
-        for i in handle.current_batch_row_offset..batch.num_rows() {
-            let step_value = match step_values[i] {
-                Some(v) => v,
-                None => continue,
-            };
+        for (i, include) in filter_mask_vec
+            .iter_mut()
+            .enumerate()
+            .skip(handle.current_batch_row_offset)
+        {
+            let step_value = step_values.value(i);
 
             // Check if we've reached or exceeded the max step
             // This assumes that step values are monotonically increasing.
@@ -320,7 +316,7 @@ pub unsafe extern "C" fn reader_scan_step_range(
                 break;
             } else if step_value >= min_step {
                 // Mark this row as matching
-                filter_mask_vec[i] = true;
+                *include = true;
 
                 // Track the actual max step value we're returning
                 if let Some(current_max) = actual_max_step_returned {
@@ -337,12 +333,13 @@ pub unsafe extern "C" fn reader_scan_step_range(
         let filter_mask = arrow::array::BooleanArray::from(filter_mask_vec);
 
         // Apply the filter to get matching rows
-        let filtered_batch = match arrow::compute::filter_record_batch(&batch, &filter_mask) {
-            Ok(b) => b,
-            Err(e) => {
-                return error_to_c_string(&format!("Failed to filter batch: {}", e));
-            }
-        };
+        let filtered_batch =
+            match arrow::compute::filter_record_batch(&normalized_batch, &filter_mask) {
+                Ok(b) => b,
+                Err(e) => {
+                    return error_to_c_string(&format!("Failed to filter batch: {e}"));
+                }
+            };
 
         if filtered_batch.num_rows() > 0 {
             matching_rows.push(filtered_batch);
@@ -363,7 +360,7 @@ pub unsafe extern "C" fn reader_scan_step_range(
         }
         buffer = match serialize::serialize_batches_to_kv_binary(&matching_rows) {
             Ok(b) => b,
-            Err(e) => return error_to_c_string(&format!("Failed to serialize data: {}", e)),
+            Err(e) => return error_to_c_string(&format!("Failed to serialize data: {e}")),
         };
     }
 
@@ -419,7 +416,6 @@ pub unsafe extern "C" fn free_buffer(buffer_ptr: *mut Vec<u8>) {
     }
 }
 
-
 /// Free a string allocated by Rust
 ///
 /// # Safety
@@ -434,7 +430,6 @@ pub unsafe extern "C" fn free_string(s: *mut libc::c_char) {
         let _ = CString::from_raw(s);
     }
 }
-
 
 /// Free a reader handle
 ///
@@ -456,21 +451,144 @@ fn error_to_c_string(error: &str) -> *mut libc::c_char {
     match CString::new(error_json) {
         Ok(cstring) => cstring.into_raw(),
         Err(e) => {
-            eprintln!("Failed to create error CString: {}", e);
+            eprintln!("Failed to create error CString: {e}");
             std::ptr::null_mut()
         }
     }
 }
 
-fn step_values_as_i64(step_column: &dyn Array, num_rows: usize) -> Result<Vec<Option<i64>>, String> {
-    let casted = cast(step_column, &DataType::Int64)
-        .map_err(|e| format!("failed to cast '{}' column to Int64: {}", STEP_COLUMN_NAME, e))?;
-    let arr = casted
-        .as_any()
-        .downcast_ref::<Int64Array>()
-        .ok_or_else(|| format!("failed to read '{}' as Int64 after cast", STEP_COLUMN_NAME))?;
+fn normalized_step_values(step_column: &dyn Array) -> Result<Int64Array, String> {
+    let num_rows = step_column.len();
 
-    Ok((0..num_rows)
-        .map(|i| if arr.is_null(i) { None } else { Some(arr.value(i)) })
-        .collect())
+    macro_rules! signed_steps {
+        ($array_type:ty) => {{
+            let values = step_column
+                .as_any()
+                .downcast_ref::<$array_type>()
+                .ok_or_else(|| invalid_step_type(step_column.data_type()))?;
+            let mut steps = Vec::with_capacity(num_rows);
+            for row in 0..num_rows {
+                require_step_value(values, row)?;
+                let value = values.value(row) as i64;
+                if value < 0 {
+                    return Err(invalid_step(row, "negative"));
+                }
+                steps.push(value);
+            }
+            steps
+        }};
+    }
+
+    macro_rules! unsigned_steps {
+        ($array_type:ty) => {{
+            let values = step_column
+                .as_any()
+                .downcast_ref::<$array_type>()
+                .ok_or_else(|| invalid_step_type(step_column.data_type()))?;
+            let mut steps = Vec::with_capacity(num_rows);
+            for row in 0..num_rows {
+                require_step_value(values, row)?;
+                let value = i64::try_from(values.value(row))
+                    .map_err(|_| invalid_step(row, "outside the int64 range"))?;
+                steps.push(value);
+            }
+            steps
+        }};
+    }
+
+    let steps = match step_column.data_type() {
+        DataType::Int8 => signed_steps!(Int8Array),
+        DataType::Int16 => signed_steps!(Int16Array),
+        DataType::Int32 => signed_steps!(Int32Array),
+        DataType::Int64 => signed_steps!(Int64Array),
+        DataType::UInt8 => unsigned_steps!(UInt8Array),
+        DataType::UInt16 => unsigned_steps!(UInt16Array),
+        DataType::UInt32 => unsigned_steps!(UInt32Array),
+        DataType::UInt64 => unsigned_steps!(UInt64Array),
+        DataType::Float32 => {
+            let values = step_column
+                .as_any()
+                .downcast_ref::<Float32Array>()
+                .ok_or_else(|| invalid_step_type(step_column.data_type()))?;
+            let mut steps = Vec::with_capacity(num_rows);
+            for row in 0..num_rows {
+                require_step_value(values, row)?;
+                steps.push(normalize_float_step(values.value(row) as f64, row)?);
+            }
+            steps
+        }
+        DataType::Float64 => {
+            let values = step_column
+                .as_any()
+                .downcast_ref::<Float64Array>()
+                .ok_or_else(|| invalid_step_type(step_column.data_type()))?;
+            let mut steps = Vec::with_capacity(num_rows);
+            for row in 0..num_rows {
+                require_step_value(values, row)?;
+                steps.push(normalize_float_step(values.value(row), row)?);
+            }
+            steps
+        }
+        DataType::Dictionary(_, value_type) => {
+            let values = cast(step_column, value_type)
+                .map_err(|error| format!("failed to read '{STEP_COLUMN_NAME}': {error}"))?;
+            return normalized_step_values(values.as_ref());
+        }
+        data_type => return Err(invalid_step_type(data_type)),
+    };
+
+    Ok(Int64Array::from(steps))
+}
+
+fn require_step_value(values: &dyn Array, row: usize) -> Result<(), String> {
+    if values.is_null(row) {
+        return Err(invalid_step(row, "null"));
+    }
+    Ok(())
+}
+
+fn normalize_float_step(value: f64, row: usize) -> Result<i64, String> {
+    const I64_EXCLUSIVE_UPPER_BOUND: f64 = 9_223_372_036_854_775_808.0;
+
+    if !value.is_finite() {
+        return Err(invalid_step(row, "not finite"));
+    }
+    if value < 0.0 {
+        return Err(invalid_step(row, "negative"));
+    }
+    if value.fract() != 0.0 {
+        return Err(invalid_step(row, "fractional"));
+    }
+    if value >= I64_EXCLUSIVE_UPPER_BOUND {
+        return Err(invalid_step(row, "outside the int64 range"));
+    }
+
+    Ok(value as i64)
+}
+
+fn replace_step_column(
+    batch: &RecordBatch,
+    step_col_idx: usize,
+    step_values: Int64Array,
+) -> Result<RecordBatch, String> {
+    let source_schema = batch.schema();
+    let source_step_field = source_schema.field(step_col_idx);
+    let step_field = Field::new(STEP_COLUMN_NAME, DataType::Int64, false)
+        .with_metadata(source_step_field.metadata().clone());
+    let mut fields: Vec<_> = source_schema.fields().iter().cloned().collect();
+    fields[step_col_idx] = step_field.into();
+    let schema = Schema::new_with_metadata(fields, source_schema.metadata().clone());
+
+    let mut columns = batch.columns().to_vec();
+    columns[step_col_idx] = Arc::new(step_values);
+    RecordBatch::try_new(schema.into(), columns)
+        .map_err(|error| format!("failed to normalize '{STEP_COLUMN_NAME}': {error}"))
+}
+
+fn invalid_step(row: usize, reason: &str) -> String {
+    format!("invalid '{STEP_COLUMN_NAME}' at row {row}: {reason}")
+}
+
+fn invalid_step_type(data_type: &DataType) -> String {
+    format!("invalid '{STEP_COLUMN_NAME}' type: {data_type}")
 }
