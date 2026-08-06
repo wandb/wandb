@@ -43,8 +43,12 @@ pub fn start_http_server(file_path: &str) -> (String, Arc<Mutex<usize>>) {
                 *counter.lock().unwrap() += 1;
 
                 // Set read/write timeouts
-                stream.set_read_timeout(Some(std::time::Duration::from_secs(5))).ok();
-                stream.set_write_timeout(Some(std::time::Duration::from_secs(5))).ok();
+                stream
+                    .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+                    .ok();
+                stream
+                    .set_write_timeout(Some(std::time::Duration::from_secs(5)))
+                    .ok();
 
                 // Read request with size limit
                 let mut buffer = Vec::new();
@@ -73,12 +77,11 @@ pub fn start_http_server(file_path: &str) -> (String, Arc<Mutex<usize>>) {
                 if request.starts_with("HEAD") {
                     let response = format!(
                         "HTTP/1.1 200 OK\r\n\
-                         Content-Length: {}\r\n\
+                         Content-Length: {size}\r\n\
                          Content-Type: application/octet-stream\r\n\
                          Accept-Ranges: bytes\r\n\
                          Connection: close\r\n\
-                         \r\n",
-                        size
+                         \r\n"
                     );
                     let _ = stream.write_all(response.as_bytes());
                     let _ = stream.flush();
@@ -86,7 +89,10 @@ pub fn start_http_server(file_path: &str) -> (String, Arc<Mutex<usize>>) {
                 }
 
                 // Handle Range request (case-insensitive)
-                if let Some(range_line) = request.lines().find(|l| l.to_lowercase().starts_with("range:")) {
+                if let Some(range_line) = request
+                    .lines()
+                    .find(|l| l.to_lowercase().starts_with("range:"))
+                {
                     if let Some(range_str) = range_line.split(':').nth(1) {
                         let range_str = range_str.trim();
                         if let Some(bytes_part) = range_str.strip_prefix("bytes=") {
@@ -129,12 +135,11 @@ pub fn start_http_server(file_path: &str) -> (String, Arc<Mutex<usize>>) {
                 // Default: return full file
                 let response = format!(
                     "HTTP/1.1 200 OK\r\n\
-                     Content-Length: {}\r\n\
+                     Content-Length: {size}\r\n\
                      Content-Type: application/octet-stream\r\n\
                      Accept-Ranges: bytes\r\n\
                      Connection: close\r\n\
-                     \r\n",
-                    size
+                     \r\n"
                 );
                 let _ = stream.write_all(response.as_bytes());
                 let _ = stream.write_all(&contents);
@@ -174,8 +179,12 @@ pub fn start_http_server_no_range_support(file_path: &str) -> String {
                     Err(_) => return,
                 };
 
-                stream.set_read_timeout(Some(std::time::Duration::from_secs(5))).ok();
-                stream.set_write_timeout(Some(std::time::Duration::from_secs(5))).ok();
+                stream
+                    .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+                    .ok();
+                stream
+                    .set_write_timeout(Some(std::time::Duration::from_secs(5)))
+                    .ok();
 
                 let mut buffer = Vec::new();
                 let mut temp = [0u8; 1024];
@@ -200,11 +209,10 @@ pub fn start_http_server_no_range_support(file_path: &str) -> String {
                 if request.starts_with("HEAD") {
                     let response = format!(
                         "HTTP/1.1 200 OK\r\n\
-                         Content-Length: {}\r\n\
+                         Content-Length: {size}\r\n\
                          Content-Type: application/octet-stream\r\n\
                          Connection: close\r\n\
-                         \r\n",
-                        size
+                         \r\n"
                     );
                     let _ = stream.write_all(response.as_bytes());
                     let _ = stream.flush();
@@ -213,11 +221,10 @@ pub fn start_http_server_no_range_support(file_path: &str) -> String {
 
                 let response = format!(
                     "HTTP/1.1 200 OK\r\n\
-                     Content-Length: {}\r\n\
+                     Content-Length: {size}\r\n\
                      Content-Type: application/octet-stream\r\n\
                      Connection: close\r\n\
-                     \r\n",
-                    size
+                     \r\n"
                 );
                 let _ = stream.write_all(response.as_bytes());
                 let _ = stream.write_all(&contents);

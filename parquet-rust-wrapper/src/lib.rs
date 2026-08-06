@@ -22,11 +22,11 @@ pub struct ReaderHandle {
     reader: ParquetRecordBatchReader, // The arrow reader of the parquet file
 
     column_names: Option<Vec<String>>, // The column names to read from the parquet file
-    current_batch_row_offset: usize, // The row offset within the current batch
+    current_batch_row_offset: usize,   // The row offset within the current batch
     current_batch: Option<RecordBatch>, // The current record batch being read
-    file_path: String,            // The file path of the parquet file
-    last_step_returned: i64,      // Track the last step value we returned
-    reader_exhausted: bool,       // Track if reader reached end of file
+    file_path: String,                 // The file path of the parquet file
+    last_step_returned: i64,           // Track the last step value we returned
+    reader_exhausted: bool,            // Track if reader reached end of file
 }
 
 /// Create a new parquet reader with optional column selection
@@ -98,10 +98,10 @@ fn create_reader_internal(
     let reader = if is_url {
         // HTTP reader
         let http_reader = HttpFileReader::new(file_path.to_string())
-            .map_err(|e| format!("Failed to create HTTP reader: {}", e))?;
+            .map_err(|e| format!("Failed to create HTTP reader: {e}"))?;
 
         let builder = ParquetRecordBatchReaderBuilder::try_new(http_reader)
-            .map_err(|e| format!("Failed to create parquet reader builder: {}", e))?;
+            .map_err(|e| format!("Failed to create parquet reader builder: {e}"))?;
 
         let projection = projection_for_columns(
             builder.schema().as_ref(),
@@ -113,13 +113,13 @@ fn create_reader_internal(
             .with_projection(projection)
             .with_batch_size(65536)
             .build()
-            .map_err(|e| format!("Failed to build record batch reader: {}", e))?
+            .map_err(|e| format!("Failed to build record batch reader: {e}"))?
     } else {
         // Local file reader
-        let file = File::open(file_path).map_err(|e| format!("Failed to open file: {}", e))?;
+        let file = File::open(file_path).map_err(|e| format!("Failed to open file: {e}"))?;
 
         let builder = ParquetRecordBatchReaderBuilder::try_new(file)
-            .map_err(|e| format!("Failed to create parquet reader builder: {}", e))?;
+            .map_err(|e| format!("Failed to create parquet reader builder: {e}"))?;
 
         let projection = projection_for_columns(
             builder.schema().as_ref(),
@@ -131,7 +131,7 @@ fn create_reader_internal(
             .with_projection(projection)
             .with_batch_size(65536)
             .build()
-            .map_err(|e| format!("Failed to build record batch reader: {}", e))?
+            .map_err(|e| format!("Failed to build record batch reader: {e}"))?
     };
 
     let handle = ReaderHandle {
@@ -172,10 +172,7 @@ impl ReaderHandle {
     /// This is necessary because ParquetRecordBatchReader is an iterator that gets exhausted
     fn recreate_reader(&mut self) -> Result<(), String> {
         // Recreate using stored column names for proper projection
-        let new_reader = create_reader_internal(
-            &self.file_path,
-            self.column_names.as_deref(),
-        )?;
+        let new_reader = create_reader_internal(&self.file_path, self.column_names.as_deref())?;
 
         self.reader = new_reader.reader;
         self.last_step_returned = -1;
@@ -191,10 +188,10 @@ impl ReaderHandle {
 /// This struct is passed by pointer from Go, and Rust fills it in.
 #[repr(C)]
 pub struct StepScanResult {
-    pub vec_ptr: usize,           // Pointer to Vec<u8> for cleanup
-    pub data_ptr: usize,          // Pointer to serialized buffer data
-    pub data_len: u64,            // Length of serialized buffer (in bytes)
-    pub num_rows_returned: u64,   // Total rows in result
+    pub vec_ptr: usize,         // Pointer to Vec<u8> for cleanup
+    pub data_ptr: usize,        // Pointer to serialized buffer data
+    pub data_len: u64,          // Length of serialized buffer (in bytes)
+    pub num_rows_returned: u64, // Total rows in result
 }
 
 /// Scan all records in a reader and return only those with step values between minStep and maxStep
@@ -207,7 +204,7 @@ pub struct StepScanResult {
 /// - min_step: Minimum step value (inclusive)
 /// - max_step: Maximum step value (exclusive)
 /// - out_result: resulting pointer to StepScanResult struct to fill.
-///     This must be created by the caller and cannot be null.
+///   This must be created by the caller and cannot be null.
 ///
 /// Returns a C string error message on failure (must be freed with free_string)
 ///
@@ -240,7 +237,7 @@ pub unsafe extern "C" fn reader_scan_step_range(
     let needs_recreation = min_step <= handle.last_step_returned || handle.reader_exhausted;
     if needs_recreation {
         if let Err(e) = handle.recreate_reader() {
-            return error_to_c_string(&format!("Failed to recreate reader: {}", e));
+            return error_to_c_string(&format!("Failed to recreate reader: {e}"));
         }
     }
 
@@ -266,7 +263,7 @@ pub unsafe extern "C" fn reader_scan_step_range(
                     batch
                 }
                 Some(Err(e)) => {
-                    return error_to_c_string(&format!("Failed to read batch: {}", e));
+                    return error_to_c_string(&format!("Failed to read batch: {e}"));
                 }
                 // Reached end of file
                 None => {
@@ -282,8 +279,7 @@ pub unsafe extern "C" fn reader_scan_step_range(
             Ok(idx) => idx,
             Err(_) => {
                 return error_to_c_string(&format!(
-                    "Step column '{}' not found in schema",
-                    STEP_COLUMN_NAME
+                    "Step column '{STEP_COLUMN_NAME}' not found in schema"
                 ));
             }
         };
@@ -341,7 +337,7 @@ pub unsafe extern "C" fn reader_scan_step_range(
             match arrow::compute::filter_record_batch(&normalized_batch, &filter_mask) {
                 Ok(b) => b,
                 Err(e) => {
-                    return error_to_c_string(&format!("Failed to filter batch: {}", e));
+                    return error_to_c_string(&format!("Failed to filter batch: {e}"));
                 }
             };
 
@@ -364,7 +360,7 @@ pub unsafe extern "C" fn reader_scan_step_range(
         }
         buffer = match serialize::serialize_batches_to_kv_binary(&matching_rows) {
             Ok(b) => b,
-            Err(e) => return error_to_c_string(&format!("Failed to serialize data: {}", e)),
+            Err(e) => return error_to_c_string(&format!("Failed to serialize data: {e}")),
         };
     }
 
@@ -420,7 +416,6 @@ pub unsafe extern "C" fn free_buffer(buffer_ptr: *mut Vec<u8>) {
     }
 }
 
-
 /// Free a string allocated by Rust
 ///
 /// # Safety
@@ -435,7 +430,6 @@ pub unsafe extern "C" fn free_string(s: *mut libc::c_char) {
         let _ = CString::from_raw(s);
     }
 }
-
 
 /// Free a reader handle
 ///
@@ -457,7 +451,7 @@ fn error_to_c_string(error: &str) -> *mut libc::c_char {
     match CString::new(error_json) {
         Ok(cstring) => cstring.into_raw(),
         Err(e) => {
-            eprintln!("Failed to create error CString: {}", e);
+            eprintln!("Failed to create error CString: {e}");
             std::ptr::null_mut()
         }
     }
