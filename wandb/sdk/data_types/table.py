@@ -1268,7 +1268,7 @@ class PartitionedTable(Media):
     def iterrows(self):
         """Iterate over rows as (ndx, row).
 
-        Args:
+        Yields:
             index (int): The index of the row.
             row (List[any]): The data of the row.
         """
