@@ -52,3 +52,4 @@ The `wandb sync --clean` command now exits with code 1 and prints a hint to use 
 - `wandb login` validates api keys prior to saving to the `.netrc` file (@jacobromero in https://github.com/wandb/wandb/pull/12347)
 - The `global_step` metric created when syncing TensorBoard files is no longer prefixed, like `train/global_step`, so that it is easier to compare training and validation metrics (@timoffex in https://github.com/wandb/wandb/pull/12372)
 - The TensorBoard integration now produces fewer W&B steps by merging data for the same `global_step` into one W&B step when possible (@timoffex in https://github.com/wandb/wandb/pull/12414)
+- Reading a run's history now reports an error when the data cannot be read, instead of stopping the background process that uploads data for every active run in the program (@dmitryduev in https://github.com/wandb/wandb/pull/12394)

@@ -1,9 +1,9 @@
-use arrow::array::{Int64Array, RecordBatch, StringArray};
+use arrow::array::{Int64Array, LargeStringArray, RecordBatch, StringArray};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow_rs_wrapper::*;
 use parquet::arrow::ArrowWriter;
 use parquet::file::properties::WriterProperties;
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 use std::fs::File;
 use std::sync::Arc;
 use tempfile::TempDir;
@@ -687,6 +687,76 @@ fn test_reader_scan_with_int64_step_column() {
 
     unsafe {
         free_buffer(result.vec_ptr as *mut Vec<u8>);
+        free_reader(reader_ptr);
+    }
+}
+
+/// Helper function to create a test parquet file whose value column uses the
+/// 64-bit offset string type, which the serializer does not handle.
+fn create_test_parquet_file_with_large_utf8(path: &str, num_rows: usize) -> std::io::Result<()> {
+    let schema = Arc::new(Schema::new(vec![
+        Field::new(STEP_COLUMN_NAME, DataType::Int64, false),
+        Field::new("name", DataType::LargeUtf8, false),
+    ]));
+
+    let file = File::create(path)?;
+    let props = WriterProperties::builder().build();
+    let mut writer = ArrowWriter::try_new(file, schema.clone(), Some(props))
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+
+    let step_values: Vec<i64> = (0..num_rows).map(|i| i as i64).collect();
+    let string_values: Vec<&str> = (0..num_rows)
+        .map(|i| if i % 2 == 0 { "even" } else { "odd" })
+        .collect();
+
+    let batch = RecordBatch::try_new(
+        schema,
+        vec![
+            Arc::new(Int64Array::from(step_values)),
+            Arc::new(LargeStringArray::from(string_values)),
+        ],
+    )
+    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+
+    writer
+        .write(&batch)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    writer
+        .close()
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+
+    Ok(())
+}
+
+#[test]
+fn test_reader_scan_step_range_returns_panic_as_error() {
+    let temp_dir = TempDir::new().unwrap();
+    let file_path = temp_dir.path().join("test_large_utf8.parquet");
+    create_test_parquet_file_with_large_utf8(file_path.to_str().unwrap(), 100).unwrap();
+
+    let path_cstring = CString::new(file_path.to_str().unwrap()).unwrap();
+    let mut out_error: *mut libc::c_char = std::ptr::null_mut();
+    let reader_ptr = unsafe {
+        create_reader(path_cstring.as_ptr(), std::ptr::null(), 0, &mut out_error)
+    };
+    assert!(!reader_ptr.is_null());
+
+    let mut result = StepScanResult {
+        vec_ptr: 0, data_ptr: 0, data_len: 0, num_rows_returned: 0,
+    };
+
+    let error = unsafe { reader_scan_step_range(reader_ptr, 10, 20, &mut result) };
+    assert!(!error.is_null());
+
+    let error_message = unsafe { CStr::from_ptr(error) }.to_str().unwrap();
+    assert!(
+        error_message.contains("panic"),
+        "unexpected error: {}",
+        error_message
+    );
+
+    unsafe {
+        free_string(error as *mut libc::c_char);
         free_reader(reader_ptr);
     }
 }
