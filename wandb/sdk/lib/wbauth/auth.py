@@ -7,7 +7,6 @@ import pathlib
 from typing_extensions import final, override
 
 from wandb.errors import AuthenticationError
-from wandb.sdk.lib import credentials
 
 from . import validation
 from .host_url import HostUrl
@@ -108,27 +107,6 @@ class AuthIdentityTokenFile(Auth):
     def credentials_path(self) -> pathlib.Path:
         """Path to the credentials file for caching access tokens."""
         return self._credentials_path
-
-    def fetch_access_token(self) -> str:
-        """Fetch an access token for authenticating with the W&B server.
-
-        Retrieves a valid access token from the credentials file. If no token
-        exists or the existing token has expired, exchanges the identity token
-        (JWT) from the configured token file for a new access token from the
-        server and caches it in the credentials file.
-
-        Returns:
-            A valid access token string that can be used for Bearer authentication
-            with the W&B API.
-
-        Raises:
-            FileNotFoundError: If the identity token file does not exist.
-            OSError: If there is an error reading the identity token file.
-            AuthenticationError: If the server rejects the identity token or
-                fails to provide an access token.
-        """
-        base_url = str(self.host.url)
-        return credentials.access_token(base_url, self.path, self.credentials_path)
 
 
 @dataclasses.dataclass(frozen=True)

@@ -20,6 +20,15 @@ import (
 // CredentialProvider adds credentials to HTTP requests.
 type CredentialProvider httplayers.HTTPWrapper
 
+// AccessTokenProvider is implemented by credential providers whose
+// credentials take the form of an access token that other processes
+// may need for authenticating with the W&B server directly.
+type AccessTokenProvider interface {
+	// AccessToken returns a valid access token, refreshing it if it is
+	// at or near expiration.
+	AccessToken() (string, error)
+}
+
 // NewCredentialProvider creates a new credential provider based on the SDK
 // settings. Settings for JWT authentication are prioritized above API key
 // authentication.
@@ -199,18 +208,29 @@ func (c *oauth2CredentialProvider) WrapHTTP(
 // apply fetches a new access token if necessary and supplies it to the request
 // via the Authorization header as a Bearer token.
 func (c *oauth2CredentialProvider) apply(req *http.Request) error {
+	token, err := c.AccessToken()
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
+	return nil
+}
+
+var _ AccessTokenProvider = &oauth2CredentialProvider{}
+
+// AccessToken implements AccessTokenProvider.AccessToken.
+func (c *oauth2CredentialProvider) AccessToken() (string, error) {
 	if c.shouldRefreshToken() {
 		err := c.loadCredentials()
 		if err != nil {
-			return err
+			return "", err
 		}
 	}
 
-	req.Header.Set(
-		"Authorization",
-		"Bearer "+c.tokenInfo.AccessToken,
-	)
-	return nil
+	c.tokenMu.RLock()
+	defer c.tokenMu.RUnlock()
+	return c.tokenInfo.AccessToken, nil
 }
 
 func (c *oauth2CredentialProvider) shouldRefreshToken() bool {
