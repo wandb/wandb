@@ -684,9 +684,11 @@ func (upserter *RunUpserter) lockedUpdateFromUpsert(
 	upserter.params.SweepID = nullify.ZeroIfNil(bucket.GetSweepName())
 
 	if lineCount := nullify.ZeroIfNil(bucket.GetHistoryLineCount()); lineCount > 0 {
-		upserter.params.FileStreamOffset = filestream.FileStreamOffsetMap{
-			filestream.HistoryChunk: lineCount,
+		if upserter.params.FileStreamOffset == nil {
+			upserter.params.FileStreamOffset = make(filestream.FileStreamOffsetMap)
 		}
+
+		upserter.params.FileStreamOffset[filestream.HistoryChunk] = lineCount
 	}
 
 	if project := bucket.GetProject(); project == nil {
