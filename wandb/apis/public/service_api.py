@@ -53,6 +53,10 @@ class ServiceApi:
     def app_url(self) -> str:
         return self._settings.app_url.rstrip("/") + "/"
 
+    @property
+    def base_url(self) -> str:
+        return self._settings.base_url
+
     def _get_api_session(self) -> _ServiceApiSession:
         """Connect to the service and initialize resources for API requests."""
         if self._api_session is not None:
