@@ -91,6 +91,12 @@ func (op *RunSyncOperation) Do(
 	parallelism int,
 ) *spb.ServerSyncResponse {
 	defer func() {
+		if op.telemetryProxy != nil {
+			if err := op.telemetryProxy.Shutdown(ctx); err != nil {
+				slog.Error("runsync: failed to shutdown telemetry proxy", "error", err)
+			}
+		}
+
 		op.logFile.Close()
 		op.printer.Close()
 	}()
@@ -123,12 +129,6 @@ func (op *RunSyncOperation) Do(
 	}
 
 	_ = group.Wait()
-
-	if op.telemetryProxy != nil {
-		if err := op.telemetryProxy.Shutdown(ctx); err != nil {
-			slog.Error("runsync: failed to shutdown telemetry proxy", "error", err)
-		}
-	}
 
 	return &spb.ServerSyncResponse{
 		Messages: op.popMessages(),
