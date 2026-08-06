@@ -1699,7 +1699,7 @@ class Run:
         if data_type not in self._config["_wandb"]:
             self._config["_wandb"][data_type] = {}
 
-        if data_type in self._config["_wandb"][data_type]:
+        if key in self._config["_wandb"][data_type]:
             old_value = self._config["_wandb"][data_type][key]
         else:
             old_value = None
