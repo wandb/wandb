@@ -45,6 +45,10 @@ MULTI_DEFAULT_PART_SIZE = 100 * MiB
 # Chunk size for reading http response and writing to disk.
 RSP_CHUNK_SIZE = 1 * MiB
 
+# How long a download thread waits for room on the chunk queue before it
+# rechecks whether the download was cancelled.
+QUEUE_PUT_TIMEOUT = 0.5
+
 
 @final
 class _ChunkSentinel:
@@ -177,15 +181,24 @@ def _download_chunk_with_refresh(
             return True
         return False
 
+    def queue_chunk(content: ChunkContent) -> bool:
+        """Hand a chunk to the writer, returning False if the download was cancelled."""
+        while not ctx.cancel.is_set():
+            try:
+                ctx.q.put(content, timeout=QUEUE_PUT_TIMEOUT)
+            except Full:
+                continue
+            return True
+        return False
+
     def attempt_download() -> None:
         with ctx.session.get(url=ctx.get_url(), headers=headers, stream=True) as rsp:
             rsp.raise_for_status()
 
             offset = start
             for chunk in rsp.iter_content(chunk_size=RSP_CHUNK_SIZE):
-                if ctx.cancel.is_set():
+                if not queue_chunk(ChunkContent(offset=offset, data=chunk)):
                     return
-                ctx.q.put(ChunkContent(offset=offset, data=chunk))
                 offset += len(chunk)
 
     # Use common retry logic with exponential backoff

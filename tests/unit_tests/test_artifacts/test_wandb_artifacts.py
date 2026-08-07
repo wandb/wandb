@@ -3,6 +3,8 @@ from __future__ import annotations
 import functools
 import queue
 import shutil
+import threading
+import time
 import unittest.mock as mock
 from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
@@ -738,3 +740,86 @@ def test_artifact_multipart_download_writer_not_on_shared_executor():
         future.result(timeout=5)
     except TimeoutError:
         fail("multipart_download deadlocked: writer likely sharing the chunk executor")
+
+
+class OneSlotChunkQueue(queue.Queue):
+    """Chunk queue with a single slot that tracks producers waiting on it."""
+
+    def __init__(self) -> None:
+        super().__init__(maxsize=1)
+        self._producers = 0
+        self._producers_lock = threading.Lock()
+
+    def put(self, item, block=True, timeout=None):
+        with self._producers_lock:
+            self._producers += 1
+        try:
+            super().put(item, block, timeout)
+        finally:
+            with self._producers_lock:
+                self._producers -= 1
+
+    @property
+    def producers(self) -> int:
+        with self._producers_lock:
+            return self._producers
+
+    def has_waiting_producer(self) -> bool:
+        return self.full() and (self.producers > 0)
+
+    def release_producers(self) -> None:
+        """Make room until no producer is left waiting, so their threads finish."""
+        while self.producers:
+            try:
+                self.get_nowait()
+            except queue.Empty:
+                pass
+            time.sleep(0.01)
+
+
+@responses.activate()
+def test_artifact_multipart_download_disk_error_with_full_queue(
+    monkeypatch: MonkeyPatch,
+):
+    # If the writer dies while the queue is full, the chunk downloaders that are
+    # handing off chunks must notice and stop, so the write error is raised
+    # instead of the download blocking forever.
+    responses.get("https://s3.com/file", body=b"test", status=200)
+
+    chunk_queue = OneSlotChunkQueue()
+    monkeypatch.setattr(
+        "wandb.sdk.artifacts.storage_policies._multipart.Queue",
+        lambda maxsize: chunk_queue,
+    )
+
+    def write_once_queue_is_full(data):
+        deadline = time.monotonic() + 10
+        while not chunk_queue.has_waiting_producer():
+            assert time.monotonic() < deadline, "no downloader waited on the queue"
+            time.sleep(0.01)
+        raise OSError("No space left on device")
+
+    opener = mock.mock_open()
+    opener.return_value.write.side_effect = write_once_queue_is_full
+
+    def run_download():
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            multipart_download(
+                executor,
+                requests.Session(),
+                500 * 1024 * 1024,  # 500MB should have 5 parts
+                opener,
+                initial_url="https://s3.com/file",
+                fetch_fn=lambda: "https://s3.com/file",
+            )
+
+    future = ThreadPoolExecutor(max_workers=1).submit(run_download)
+    try:
+        # Add a timeout to the future to avoid hanging the test.
+        error = future.exception(timeout=15)
+    except TimeoutError:
+        fail("multipart_download hung: chunk downloaders stuck on a full queue")
+    finally:
+        chunk_queue.release_producers()
+
+    assert isinstance(error, OSError)
