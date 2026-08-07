@@ -43,6 +43,24 @@ pub unsafe extern "C" fn create_reader(
     num_columns: usize,
     out_error: *mut *mut libc::c_char,
 ) -> *mut ReaderHandle {
+    let result =
+        catch_panic(|| create_reader_impl(file_path_or_url, column_names, num_columns, out_error));
+
+    match result {
+        Ok(handle_ptr) => handle_ptr,
+        Err(e) => {
+            *out_error = error_to_c_string(&e);
+            std::ptr::null_mut()
+        }
+    }
+}
+
+unsafe fn create_reader_impl(
+    file_path_or_url: *const libc::c_char,
+    column_names: *const *const libc::c_char,
+    num_columns: usize,
+    out_error: *mut *mut libc::c_char,
+) -> *mut ReaderHandle {
     // Convert the file path from C string to Rust string
     let file_path_cstr = unsafe { CStr::from_ptr(file_path_or_url) };
     let file_path_str = match file_path_cstr.to_str() {
@@ -225,6 +243,21 @@ pub struct StepScanResult {
 /// - Returns a buffer that must be freed by caller using free_buffer
 #[no_mangle]
 pub unsafe extern "C" fn reader_scan_step_range(
+    reader_ptr: *mut ReaderHandle,
+    min_step: i64,
+    max_step: i64,
+    out_result: *mut StepScanResult,
+) -> *const libc::c_char {
+    let result =
+        catch_panic(|| reader_scan_step_range_impl(reader_ptr, min_step, max_step, out_result));
+
+    match result {
+        Ok(error) => error,
+        Err(e) => error_to_c_string(&e),
+    }
+}
+
+unsafe fn reader_scan_step_range_impl(
     reader_ptr: *mut ReaderHandle,
     min_step: i64,
     max_step: i64,
@@ -449,6 +482,24 @@ pub unsafe extern "C" fn free_reader(reader_ptr: *mut ReaderHandle) {
     if !reader_ptr.is_null() {
         let _ = Box::from_raw(reader_ptr);
     }
+}
+
+/// Runs `f` and turns a panic raised inside it into an error message.
+///
+/// Unwinding out of an `extern "C"` function aborts the process, which would
+/// take down every run sharing the service, so each entry point must contain
+/// its own panics.
+fn catch_panic<T>(f: impl FnOnce() -> T) -> Result<T, String> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).map_err(|payload| {
+        let message = if let Some(s) = payload.downcast_ref::<&str>() {
+            (*s).to_string()
+        } else if let Some(s) = payload.downcast_ref::<String>() {
+            s.clone()
+        } else {
+            "unknown panic".to_string()
+        };
+        format!("panic: {}", message)
+    })
 }
 
 fn error_to_c_string(error: &str) -> *mut libc::c_char {
