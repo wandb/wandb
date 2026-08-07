@@ -12,7 +12,7 @@ import time
 import traceback
 from dataclasses import dataclass
 from multiprocessing import Event
-from typing import Any
+from typing import Any, Callable
 
 import wandb
 from wandb.analytics import TelemetryRecorder, get_sentry
@@ -493,7 +493,7 @@ class LaunchAgent:
             self._internal_logger.info(
                 f"Finish thread id {thread_id} had no exception and no run"
             )
-            self._telemetry_recorder.exception(
+            await self._record_telemetry_exception(
                 "launch agent called finish thread id on thread without run or exception",
                 Exception(),
             )
@@ -622,7 +622,7 @@ class LaunchAgent:
                             wandb.termerror(
                                 f"{LOG_PREFIX}Error running job: {traceback.format_exc()}"
                             )
-                            self._telemetry_recorder.exception(str(e), e)
+                            await self._record_telemetry_exception(str(e), e)
                             get_sentry().exception(e)
 
                             # always the first phase, because we only enter phase 2 within the thread
@@ -682,17 +682,17 @@ class LaunchAgent:
                 f"{LOG_PREFIX}agent {self._name} encountered an issue while starting Docker, see above output for details."
             )
             exception = e
-            self._telemetry_recorder.exception(str(e), e)
+            await self._record_telemetry_exception(str(e), e)
             get_sentry().exception(e)
         except LaunchError as e:
             wandb.termerror(f"{LOG_PREFIX}Error running job: {e}")
             exception = e
-            self._telemetry_recorder.exception(str(e), e)
+            await self._record_telemetry_exception(str(e), e)
             get_sentry().exception(e)
         except Exception as e:
             wandb.termerror(f"{LOG_PREFIX}Error running job: {traceback.format_exc()}")
             exception = e
-            self._telemetry_recorder.exception(str(e), e)
+            await self._record_telemetry_exception(str(e), e)
             get_sentry().exception(e)
         finally:
             await self.finish_thread_id(rqi_id, exception)
@@ -935,7 +935,7 @@ class LaunchAgent:
             _logger.info(f"Job ID: {run.id}")
             _logger.info(traceback.format_exc())
             _logger.info("---")
-            self._telemetry_recorder.exception(str(e), e)
+            await self._record_telemetry_exception(str(e), e)
             get_sentry().exception(e)
         return known_error
 
@@ -956,3 +956,14 @@ class LaunchAgent:
         # queue entity currently always matches the agent
         project.queue_entity = self._entity
         project.run_queue_item_id = job["runQueueItemId"]
+
+    async def _record_telemetry_exception(
+        self,
+        message: str,
+        exception: Exception,
+    ) -> None:
+        await asyncio.to_thread(
+            self._telemetry_recorder.exception,
+            message,
+            exception,
+        )
