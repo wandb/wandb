@@ -16,22 +16,6 @@ _session_auth_lock = threading.Lock()
 _session_auth: Auth | None = None
 
 
-def get_system_auth(*, host: str | HostUrl) -> Auth | None:
-    """Returns the system credentials.
-
-    Returns None if no system credentials are configured.
-    """
-    if not isinstance(host, HostUrl):
-        host = HostUrl(host)
-
-    auth_with_source = _try_env_auth(host=host) or wbnetrc.read_netrc_auth_with_source(
-        host=host
-    )
-    if auth_with_source:
-        return auth_with_source.auth
-    return None
-
-
 def session_credentials(*, host: str | HostUrl) -> Auth | None:
     """Returns the configured session credentials.
 
