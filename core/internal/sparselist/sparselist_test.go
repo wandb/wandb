@@ -4,6 +4,7 @@ import (
 	"maps"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -61,6 +62,83 @@ func TestSparseListRuns(t *testing.T) {
 			{Start: 3, Items: []string{"three", "four"}},
 		},
 		list.ToRuns())
+}
+
+func TestSparseListFirstRun(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		items    map[int]string
+		expected map[int]string
+	}{
+		{
+			name:     "empty list",
+			items:    map[int]string{},
+			expected: map[int]string{},
+		},
+		{
+			name:     "single item",
+			items:    map[int]string{7: "a"},
+			expected: map[int]string{7: "a"},
+		},
+		{
+			name:     "run followed by gap",
+			items:    map[int]string{-1: "a", 0: "b", 2: "c", 3: "d"},
+			expected: map[int]string{-1: "a", 0: "b"},
+		},
+		{
+			name:     "run ending at last index",
+			items:    map[int]string{3: "a", 4: "b", 5: "c"},
+			expected: map[int]string{3: "a", 4: "b", 5: "c"},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			list := &sparselist.SparseList[string]{}
+			for idx, item := range test.items {
+				list.Put(idx, item)
+			}
+
+			assert.Equal(t, test.expected, maps.Collect(list.FirstRun()))
+		})
+	}
+}
+
+func TestSparseListFirstRunDeleteWhileIterating(t *testing.T) {
+	list := &sparselist.SparseList[string]{}
+	list.Put(0, "zero")
+	list.Put(1, "one")
+	list.Put(2, "two")
+	list.Put(4, "four")
+
+	var popped []string
+	for idx, value := range list.FirstRun() {
+		popped = append(popped, value)
+		list.Delete(idx)
+	}
+
+	assert.Equal(t, []string{"zero", "one", "two"}, popped)
+	assert.Equal(t, map[int]string{4: "four"}, list.ToMap())
+}
+
+func TestSparseListFirstRunDeleteWholeList(t *testing.T) {
+	const count = 20_000
+
+	list := &sparselist.SparseList[int]{}
+	for idx := range count {
+		list.Put(idx, idx)
+	}
+
+	start := time.Now()
+	popped := 0
+	for idx := range list.FirstRun() {
+		popped++
+		list.Delete(idx)
+	}
+	elapsed := time.Since(start)
+
+	assert.Equal(t, count, popped)
+	assert.Zero(t, list.Len())
+	assert.Less(t, elapsed, 2*time.Second,
+		"popping %d values one at a time took %v", count, elapsed)
 }
 
 func TestSparseListEmpty(t *testing.T) {

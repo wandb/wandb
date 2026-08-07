@@ -61,3 +61,4 @@ The `wandb sync --clean` command now exits with code 1 and prints a hint to use 
 - Negative indexes and open-ended slices now return the right results when paging through API results such as `runs`, `files`, and `artifacts`, instead of raising `IndexError` or returning the wrong item (@dmitryduev in https://github.com/wandb/wandb/pull/12402)
 - Pointing a `wandb.Table` column at its own table now reports a clear error instead of failing with `RecursionError` when the table is logged (@dmitryduev in https://github.com/wandb/wandb/pull/12403)
 - Adding rows to a `wandb.Table` that links to another table is much faster; the time it took grew with the number of rows already added (@dmitryduev in https://github.com/wandb/wandb/pull/12404)
+- Uploading console output is much faster for runs that print many lines (@dmitryduev in https://github.com/wandb/wandb/pull/12405)
