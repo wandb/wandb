@@ -162,6 +162,17 @@ func (nc *Connection) ManageConnectionData() {
 
 	wg.Wait()
 
+	// Flush telemetry buffered by API instances that were not explicitly
+	// cleaned up, such as when the client process exits abruptly. This
+	// runs after all request handlers have finished so that no telemetry
+	// is recorded after the flush.
+	shutdownCtx, cancel := context.WithTimeout(
+		context.Background(),
+		2*time.Second,
+	)
+	defer cancel()
+	nc.apiManager.Shutdown(shutdownCtx)
+
 	slog.Info("connection: ManageConnectionData: connection closed", "id", nc.id)
 }
 
@@ -794,8 +805,6 @@ func (nc *Connection) handleApi(
 // Any blocked reads or writes will return an error.
 func (nc *Connection) Close() {
 	slog.Info("connection: closing", "id", nc.id)
-
-	nc.apiManager.Shutdown()
 
 	if err := nc.conn.Close(); err != nil {
 		slog.Error("connection: error closing", "error", err, "id", nc.id)
