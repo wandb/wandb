@@ -3118,7 +3118,6 @@ class Run:
             The linked artifact.
 
         Examples:
-
         The following example demonstrates how to link an artifact link an
         artifact version during an active run to a collection in the
         W&B Registry. Replace string variables with your own values:
@@ -3129,17 +3128,16 @@ class Run:
         entity = "team_entity"
         project = "project_name"
 
-        artifact_name = "artifact_name"     # The name of the artifact
-        artifact_type = "artifact_type"     # The artifact's type
-        local_path = "path/to/local/file"   # Local filepath to artifact
+        artifact_name = "artifact_name"  # The name of the artifact
+        artifact_type = "artifact_type"  # The artifact's type
+        local_path = "path/to/local/file"  # Local filepath to artifact
 
-        registry_name = "registry_name"     # The name of the registry
-        collection_name = "collection_name"     # The name of the collection
+        registry_name = "registry_name"  # The name of the registry
+        collection_name = "collection_name"  # The name of the collection
         target_path = f"wandb-registry-{registry_name}/{collection_name}"
 
         # Initialize a run
         with wandb.init(entity=entity, project=project) as run:
-
             # Create an artifact object
             artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
 
