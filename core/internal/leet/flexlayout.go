@@ -1,6 +1,10 @@
 package leet
 
-import "charm.land/lipgloss/v2"
+import (
+	"strings"
+
+	"charm.land/lipgloss/v2"
+)
 
 // stackSectionID identifies a vertically stacked pane in the main content area.
 type stackSectionID int
@@ -129,9 +133,17 @@ func filterNonEmptySections(sections []string) []string {
 	return filtered
 }
 
+// placeMainColumn pads or crops content to exactly width x height. Mouse
+// hit-testing maps screen rows to sections via computeVerticalStackLayout,
+// so rendered content must never spill past its reserved rows —
+// lipgloss.Place pads short content but never crops tall content (e.g. the
+// metrics grid's minimum chart height in a short section).
 func placeMainColumn(width, height int, content string) string {
 	if width <= 0 || height <= 0 {
 		return ""
+	}
+	if lines := strings.Split(content, "\n"); len(lines) > height {
+		content = strings.Join(lines[:height], "\n")
 	}
 	return lipgloss.Place(width, height, lipgloss.Left, lipgloss.Top, content)
 }
