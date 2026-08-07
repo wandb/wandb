@@ -753,7 +753,7 @@ func TestOAuth2CredentialProvider_CanceledContext(t *testing.T) {
 	assert.Empty(t, server.Requests())
 }
 
-func TestOAuth2CredentialProvider_ExchangeDetachedFromOperation(t *testing.T) {
+func TestOAuth2CredentialProvider_ExchangeIsItsOwnSubtask(t *testing.T) {
 	server := sequencedAuthServer(http.StatusInternalServerError, http.StatusOK)
 	defer server.Close()
 	credentialProvider := oauth2ProviderWithRetries(t, server.URL,
@@ -761,15 +761,18 @@ func TestOAuth2CredentialProvider_ExchangeDetachedFromOperation(t *testing.T) {
 	tokenProvider, ok := credentialProvider.(api.AccessTokenProvider)
 	require.True(t, ok)
 
-	op := wboperation.NewOperations().New("uploading data")
+	ops := wboperation.NewOperations()
+	op := ops.New("uploading data")
 	op.MarkRetryingHTTPError(500, "500 Internal Server Error", "")
 
 	_, err := tokenProvider.AccessToken(op.Context(t.Context()))
 
-	// The exchange's own retries and completion must not touch the status
-	// of the operation whose request needed the token.
+	// The exchange reports its retries on a subtask that is finished with
+	// the exchange, leaving the status of the operation whose request
+	// needed the token untouched.
 	require.NoError(t, err)
 	assert.Equal(t, "retrying HTTP 500 Internal Server Error", op.ErrorStatus())
+	assert.Empty(t, ops.ToProto().Operations[0].Subtasks)
 }
 
 // tlsAuthServer is a token endpoint served over HTTPS with a self-signed
