@@ -9,6 +9,7 @@ import tensorboard.plugins.pr_curve.summary as pr_curve_plugins_summary
 import tensorboard.summary.v1 as tensorboard_summary_v1
 import tensorflow as tf
 import wandb
+from tests.fixtures.wandb_backend_spy import WandbBackendSpy
 
 PR_CURVE_SPEC = {
     "panel_type": "Vega2",
@@ -261,3 +262,23 @@ def test_tb_sync_with_explicit_step_and_log(
 
         telemetry = snapshot.telemetry(run_id=run.id)
         assert 35 in telemetry["3"]  # sync_tensorboard
+
+
+def test_combines_steps(wandb_backend_spy: WandbBackendSpy):
+    with wandb.init(sync_tensorboard=True) as run:
+        with tf.summary.create_file_writer("test/logs").as_default():
+            tf.summary.scalar("epoch_loss", 0.7, step=0)
+            tf.summary.scalar("epoch_learning_rate", 0.015, step=0)
+            tf.summary.scalar("epoch_loss", 0.5, step=1)
+            tf.summary.scalar("epoch_learning_rate", 0.014, step=1)
+
+    with wandb_backend_spy.freeze() as snapshot:
+        history = snapshot.history(run_id=run.id)
+
+        assert len(history) == 2
+        assert 0 in history
+        assert 1 in history
+        assert history[0]["epoch_loss"] == pytest.approx(0.7)
+        assert history[0]["epoch_learning_rate"] == pytest.approx(0.015)
+        assert history[1]["epoch_loss"] == pytest.approx(0.5)
+        assert history[1]["epoch_learning_rate"] == pytest.approx(0.014)
