@@ -17,7 +17,7 @@ from typing import Any
 import click
 from typing_extensions import Never
 
-from wandb.analytics import TelemetryRecorder, get_sentry, get_telemetry_recorder
+from wandb.analytics import get_sentry
 from wandb.env import error_reporting_enabled, is_debug
 from wandb.errors import WandbCoreNotAvailableError
 from wandb.sdk import wandb_setup
@@ -191,12 +191,11 @@ def _resolve_path(path: str | None) -> LaunchConfig:
     _fatal(f"Path does not exist: {resolved}")
 
 
-def _base_args(telemetry_recorder: TelemetryRecorder) -> list[str]:
+def _base_args() -> list[str]:
     """Build the common base arguments for wandb-core leet commands."""
     try:
         core_path = get_core_path()
     except WandbCoreNotAvailableError as e:
-        telemetry_recorder.exception(f"using `wandb leet`. failed with {e}", e)
         get_sentry().exception(f"using `wandb leet`. failed with {e}")
         _fatal(str(e))
 
@@ -212,7 +211,6 @@ def _base_args(telemetry_recorder: TelemetryRecorder) -> list[str]:
 
 
 def _run_core(
-    telemetry_recorder: TelemetryRecorder,
     args: list[str],
     env: dict[str, str] | None = None,
 ) -> Never:
@@ -222,21 +220,19 @@ def _run_core(
         sys.exit(result.returncode)
     except Exception as e:
         # TODO: remove sentry once we no longer support/need it
-        get_sentry().exception(e)
-        telemetry_recorder.reraise(e)
+        get_sentry().reraise(e)
 
 
 def launch(path: str | None, pprof: str) -> Never:
     """Launch the LEET TUI."""
     get_sentry().configure_scope(process_context="leet")
-    telemetry_recorder = get_telemetry_recorder(wandb_setup.singleton().settings)
 
     if path is not None and (path.startswith("https://") or path.startswith("http://")):
         config = _create_remote_launch_config(path)
     else:
         config = _resolve_path(path)
 
-    args = _base_args(telemetry_recorder)
+    args = _base_args()
     env = os.environ.copy()
 
     if pprof:
@@ -250,26 +246,24 @@ def launch(path: str | None, pprof: str) -> Never:
         # Set api key so it is not visible in the process tree
         env["WANDB_API_KEY"] = config.api_key
 
-    _run_core(telemetry_recorder, args, env)
+    _run_core(args, env)
 
 
 def launch_config() -> Never:
     """Launch the LEET configuration editor."""
     get_sentry().configure_scope(process_context="leet-config")
-    telemetry_recorder = get_telemetry_recorder(wandb_setup.singleton().settings)
 
-    args = _base_args(telemetry_recorder)
+    args = _base_args()
     args.append("--config")
 
-    _run_core(telemetry_recorder, args)
+    _run_core(args)
 
 
 def launch_symon(pprof: str = "", interval: str = "") -> Never:
     """Launch the standalone system monitor."""
     get_sentry().configure_scope(process_context="leet-symon")
-    telemetry_recorder = get_telemetry_recorder(wandb_setup.singleton().settings)
 
-    args = _base_args(telemetry_recorder)
+    args = _base_args()
     args.append("--symon")
 
     if pprof:
@@ -278,7 +272,7 @@ def launch_symon(pprof: str = "", interval: str = "") -> Never:
     if interval:
         args.extend(["--interval", interval])
 
-    _run_core(telemetry_recorder, args)
+    _run_core(args)
 
 
 def _get_local_launch_args(config: LocalLaunchConfig) -> list[str]:
