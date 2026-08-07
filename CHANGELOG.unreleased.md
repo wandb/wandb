@@ -56,3 +56,4 @@ The `wandb sync --clean` command now exits with code 1 and prints a hint to use 
 - Downloading a large artifact file now reports the error when it cannot be written to disk, such as when the disk is full, instead of waiting forever (@dmitryduev in https://github.com/wandb/wandb/pull/12395)
 - Network problems are now reported for the whole run, rather than only for the first few seconds (@dmitryduev in https://github.com/wandb/wandb/pull/12396)
 - `run.finish()` no longer waits forever when system metrics collection stops responding (@dmitryduev in https://github.com/wandb/wandb/pull/12397)
+- Creating many `wandb.Api()` objects in one program no longer leaks memory and background network requests for the lifetime of the program (@dmitryduev in https://github.com/wandb/wandb/pull/12399)

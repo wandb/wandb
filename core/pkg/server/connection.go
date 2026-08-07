@@ -7,8 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net"
 	"net/url"
+	"slices"
 	"sync"
 	"time"
 
@@ -34,6 +36,10 @@ import (
 const (
 	messageSize    = 1024 * 1024            // 1MB message size
 	maxMessageSize = 2 * 1024 * 1024 * 1024 // 2GB max message size
+
+	// telemetryShutdownTimeout limits the final telemetry flush, which
+	// performs an HTTP request.
+	telemetryShutdownTimeout = 2 * time.Second
 )
 
 type ConnectionParams struct {
@@ -109,6 +115,15 @@ type Connection struct {
 
 	// apiManager processes API requests.
 	apiManager *wbapi.WandbAPIManager
+
+	// apiTelemetryMu guards apiTelemetryProxies.
+	apiTelemetryMu sync.Mutex
+
+	// apiTelemetryProxies maps API instance IDs to their telemetry proxies.
+	//
+	// Each proxy runs background goroutines and holds an HTTP client until
+	// it is shut down.
+	apiTelemetryProxies map[string]*analytics.OpenTelemetryProxy
 }
 
 func NewConnection(
@@ -134,6 +149,8 @@ func NewConnection(
 		loggerPath:         params.LoggerPath,
 		logLevel:           params.LogLevel,
 		apiManager:         wbapi.NewManager(),
+
+		apiTelemetryProxies: make(map[string]*analytics.OpenTelemetryProxy),
 	}
 }
 
@@ -161,6 +178,11 @@ func (nc *Connection) ManageConnectionData() {
 	nc.Close()
 
 	wg.Wait()
+
+	// Shut down telemetry for API instances the client never cleaned up.
+	for _, proxy := range nc.popAllAPITelemetryProxies() {
+		shutdownTelemetryProxyInBackground(proxy)
+	}
 
 	slog.Info("connection: ManageConnectionData: connection closed", "id", nc.id)
 }
@@ -679,25 +701,6 @@ func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest
 	s := settings.From(request.GetSettings())
 
 	telemetryProxy := analytics.NewOpenTelemetryProxy(context.Background(), s)
-	go func() {
-		<-nc.connLifetimeCtx.Done()
-		if telemetryProxy != nil {
-			shutdownCtx, cancel := context.WithTimeout(
-				context.Background(),
-				2*time.Second,
-			)
-			defer cancel()
-
-			err := telemetryProxy.Shutdown(shutdownCtx)
-			if err != nil {
-				slog.Error(
-					"connection: failed to shut down telemetry proxy",
-					"error",
-					err,
-				)
-			}
-		}
-	}()
 
 	logger := observability.NewCoreLogger(
 		slog.Default(),
@@ -709,6 +712,8 @@ func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest
 	)
 	wbapiInstance, err := wbapi.New(s, logger)
 	if err != nil {
+		shutdownTelemetryProxyInBackground(telemetryProxy)
+
 		nc.Respond(&spb.ServerResponse{
 			RequestId: id,
 			ServerResponseType: &spb.ServerResponse_ErrorResponse{
@@ -722,6 +727,7 @@ func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest
 	}
 
 	wbApiId := nc.apiManager.AddWandbAPI(wbapiInstance)
+	nc.addAPITelemetryProxy(wbApiId, telemetryProxy)
 
 	nc.Respond(&spb.ServerResponse{
 		RequestId: id,
@@ -736,6 +742,67 @@ func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest
 // handleApiCleanup cleans up a wandbAPI instance related to the provided id.
 func (nc *Connection) handleApiCleanup(id string, request *spb.ServerApiCleanupRequest) {
 	nc.apiManager.RemoveWandbAPI(request.GetApiId())
+
+	proxy := nc.popAPITelemetryProxy(request.GetApiId())
+	shutdownTelemetryProxyInBackground(proxy)
+}
+
+// addAPITelemetryProxy associates a telemetry proxy with an API instance.
+func (nc *Connection) addAPITelemetryProxy(
+	apiID string,
+	proxy *analytics.OpenTelemetryProxy,
+) {
+	nc.apiTelemetryMu.Lock()
+	defer nc.apiTelemetryMu.Unlock()
+
+	nc.apiTelemetryProxies[apiID] = proxy
+}
+
+// popAPITelemetryProxy forgets and returns the telemetry proxy for an API
+// instance, or nil if there is none.
+func (nc *Connection) popAPITelemetryProxy(
+	apiID string,
+) *analytics.OpenTelemetryProxy {
+	nc.apiTelemetryMu.Lock()
+	defer nc.apiTelemetryMu.Unlock()
+
+	proxy := nc.apiTelemetryProxies[apiID]
+	delete(nc.apiTelemetryProxies, apiID)
+	return proxy
+}
+
+// popAllAPITelemetryProxies forgets and returns all remaining telemetry
+// proxies.
+func (nc *Connection) popAllAPITelemetryProxies() []*analytics.OpenTelemetryProxy {
+	nc.apiTelemetryMu.Lock()
+	defer nc.apiTelemetryMu.Unlock()
+
+	proxies := slices.Collect(maps.Values(nc.apiTelemetryProxies))
+	clear(nc.apiTelemetryProxies)
+	return proxies
+}
+
+// shutdownTelemetryProxyInBackground flushes and shuts down a telemetry proxy
+// without blocking the caller, which runs on the request dispatch path.
+func shutdownTelemetryProxyInBackground(proxy *analytics.OpenTelemetryProxy) {
+	if proxy == nil {
+		return
+	}
+
+	go func() {
+		ctx, cancel := context.WithTimeout(
+			context.Background(),
+			telemetryShutdownTimeout,
+		)
+		defer cancel()
+
+		if err := proxy.Shutdown(ctx); err != nil {
+			slog.Error(
+				"connection: failed to shut down telemetry proxy",
+				"error", err,
+			)
+		}
+	}()
 }
 
 func (nc *Connection) handleApi(
