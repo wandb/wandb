@@ -51,7 +51,7 @@ from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.lib import retry, telemetry
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 from wandb.sdk.lib.filesystem import check_exists, system_preferred_path
-from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
+from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64, sha256_file_b64
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 from wandb.sdk.lib.runid import generate_fast_id, generate_id
 from wandb.sdk.mailbox import MailboxHandle
@@ -1490,6 +1490,7 @@ class Artifact:
 
         name = LogicalPath(name or os.path.basename(local_path))
         digest = md5_file_b64(local_path)
+        sha256_digest = sha256_file_b64(local_path)
 
         if is_tmp:
             file_path, file_name = os.path.split(name)
@@ -1501,6 +1502,7 @@ class Artifact:
             name,
             local_path,
             digest=digest,
+            extra={"sha256": sha256_digest},
             skip_cache=skip_cache,
             policy=policy,
             overwrite=overwrite,
@@ -1765,6 +1767,7 @@ class Artifact:
         name: StrPath,
         path: StrPath,
         digest: B64MD5 | None = None,
+        extra: dict[str, Any] | None = None,
         skip_cache: bool | None = False,
         policy: Literal["mutable", "immutable"] | None = "mutable",
         overwrite: bool = False,
@@ -1787,6 +1790,9 @@ class Artifact:
             path=name,
             digest=digest or md5_file_b64(upload_path),
             size=os.path.getsize(upload_path),
+            extra=extra
+            if extra is not None
+            else {"sha256": sha256_file_b64(upload_path)},
             local_path=upload_path,
             skip_cache=skip_cache,
         )
@@ -2262,7 +2268,9 @@ class Artifact:
         ref_count = 0
         for entry in self.manifest.entries.values():
             if entry.ref is None:
-                if md5_file_b64(validate_fspath(root, entry.path)) != entry.digest:
+                if not entry._local_file_digest_matches(
+                    validate_fspath(root, entry.path)
+                ):
                     raise ValueError(f"Digest mismatch for file: {entry.path}")
             else:
                 ref_count += 1

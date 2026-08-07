@@ -20,7 +20,7 @@ from wandb.sdk.artifacts.storage_handlers.local_file_handler import LocalFileHan
 from wandb.sdk.artifacts.storage_handlers.s3_handler import S3Handler
 from wandb.sdk.artifacts.storage_handlers.wb_artifact_handler import WBArtifactHandler
 from wandb.sdk.artifacts.storage_policy import StoragePolicy
-from wandb.sdk.lib.hashutil import ETag, md5_string
+from wandb.sdk.lib.hashutil import ETag, md5_file_b64, md5_string, sha256_file_b64
 
 example_digest = md5_string("example")
 
@@ -339,6 +339,40 @@ def test_local_file_handler_load_path_uses_cache(artifact_file_cache, tmp_path):
         local=True,
     )
     assert local_path == path
+
+
+def test_local_file_handler_rejects_sha256_mismatched_cache(
+    artifact_file_cache,
+    tmp_path,
+):
+    source = tmp_path / "source.txt"
+    source.write_text("expected")
+    poisoned = tmp_path / "poisoned.txt"
+    poisoned.write_text("poisoned")
+    uri = source.as_uri()
+    digest = md5_file_b64(source)
+
+    path, _, opener = artifact_file_cache.check_md5_obj_path(
+        b64_md5=digest,
+        size=source.stat().st_size,
+    )
+    with opener() as f:
+        f.write(poisoned.read_text())
+
+    handler = LocalFileHandler()
+
+    local_path = handler.load_path(
+        ArtifactManifestEntry(
+            path="foo/bar",
+            ref=uri,
+            digest=digest,
+            size=source.stat().st_size,
+            extra={"sha256": sha256_file_b64(source)},
+        ),
+        local=True,
+    )
+    assert local_path == path
+    assert Path(local_path).read_text() == source.read_text()
 
 
 def test_s3_storage_handler_load_path_uses_cache(artifact_file_cache):

@@ -73,6 +73,11 @@ def test_md5_file_b64_no_files():
     assert b64hash == hashutil.md5_file_b64()
 
 
+def test_sha256_file_b64_no_files():
+    b64hash = base64.b64encode(hashlib.sha256(b"").digest()).decode("ascii")
+    assert b64hash == hashutil.sha256_file_b64()
+
+
 def test_md5_file_hex_single_file(bin_data):
     fpath = Path("binfile")
     fpath.write_bytes(bin_data)
@@ -95,6 +100,22 @@ def test_md5_file_hashes_on_three_files(bin_data, txt_data, bin_data2):
     # Intentionally provide the paths out of order (check sorting).
     assert expected_b64_hash == hashutil.md5_file_b64(fpath_c, fpath_a, fpath_b)
     assert expected_hex_hash == hashutil.md5_file_hex(fpath_c, fpath_a, fpath_b)
+
+
+def test_sha256_file_hashes_on_three_files(bin_data, txt_data, bin_data2):
+    fpath_a = Path("a.bin")
+    fpath_b = Path("b.txt")
+    fpath_c = Path("c.bin")
+
+    fpath_a.write_bytes(bin_data)
+    fpath_b.write_text(txt_data, encoding="utf-8")
+    fpath_c.write_bytes(bin_data2)
+
+    data = bin_data + fpath_b.read_bytes() + bin_data2
+    expected_b64_hash = base64.b64encode(hashlib.sha256(data).digest()).decode("ascii")
+
+    # Intentionally provide the paths out of order (check sorting).
+    assert expected_b64_hash == hashutil.sha256_file_b64(fpath_c, fpath_a, fpath_b)
 
 
 @pytest.mark.skipif(
