@@ -55,11 +55,7 @@ def test_tb_callback(wandb_backend_spy: WandbBackendSpy):
         assert train_step_count == 10
         assert validation_step_count == 10
 
-        # TODO: Don't namespace global_step from TensorBoard.
-        #   Namespacing the global_step is probably wrong, as it makes
-        #   comparison inconvenient.
-        assert summary["train/global_step"] == 9
-        assert summary["validation/global_step"] == 9
+        assert summary["global_step"] == 9
 
         for tag in [
             "train/epoch_loss",
