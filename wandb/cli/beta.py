@@ -9,9 +9,8 @@ import pathlib
 
 import click
 
-from wandb.analytics import get_sentry, get_telemetry_recorder
+from wandb.analytics import get_sentry
 from wandb.errors import WandbCoreNotAvailableError
-from wandb.sdk import wandb_setup
 from wandb.util import get_core_path
 
 from .leet import leet
@@ -24,7 +23,6 @@ def beta(ctx: click.Context) -> None:
 
     These commands may change or even completely break in any release of wandb.
     """
-    telemetry_recorder = get_telemetry_recorder(wandb_setup.singleton().settings)
     get_sentry().configure_scope(process_context="wandb_beta")
 
     try:
@@ -32,7 +30,6 @@ def beta(ctx: click.Context) -> None:
     except WandbCoreNotAvailableError as e:
         error_message = f"using `wandb beta`. failed with {e}"
         get_sentry().exception(error_message)
-        telemetry_recorder.exception(error_message, e)
         click.secho(
             (e),
             fg="red",

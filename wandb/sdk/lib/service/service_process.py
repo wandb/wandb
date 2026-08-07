@@ -70,10 +70,6 @@ def _start(
     idle_timeout: str | None,
 ) -> ServiceProcess:
     # Imported here to avoid circular imports.
-    from wandb.apis.public.service_api import ServiceApi
-
-    service_api = ServiceApi(settings=settings)
-    telemetry_recorder = TelemetryRecorder(service_api=service_api)
     get_sentry().configure_scope(tags=dict(settings), process_context="service")
 
     try:
@@ -81,12 +77,10 @@ def _start(
             settings,
             detached=detached,
             idle_timeout=idle_timeout,
-            telemetry_recorder=telemetry_recorder,
         )
     except Exception as e:
         # TODO: remove sentry once we no longer support/need it
-        get_sentry().exception(e)
-        telemetry_recorder.reraise(e)
+        get_sentry().reraise(e)
 
 
 class ServiceProcess:
@@ -116,7 +110,6 @@ def _launch_server(
     *,
     detached: bool,
     idle_timeout: str | None,
-    telemetry_recorder: TelemetryRecorder,
 ) -> ServiceProcess:
     """Launch server and set ports."""
     if platform.system() == "Windows":
@@ -137,7 +130,6 @@ def _launch_server(
         except WandbCoreNotAvailableError as e:
             # TODO: remove sentry once we no longer support/need it
             get_sentry().exception(e)
-            telemetry_recorder.reraise(e)
 
         service_args.append(core_path)
 

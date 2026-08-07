@@ -42,7 +42,6 @@ class UploadJob:
         """
         self._stats = stats
         self._api = api
-        self._telemetry_recorder = api.telemetry_recorder
         self._file_stream = file_stream
         self.silent = silent
         self.save_name = save_name
@@ -75,7 +74,6 @@ class UploadJob:
             except Exception as e:
                 self._stats.update_failed_file(self.save_path)
                 logger.exception("Failed to upload file: %s", self.save_path)
-                self._telemetry_recorder.exception(str(e), e)
                 get_sentry().exception(e)
                 message = str(e)
                 # TODO: this is usually XML, but could be JSON
@@ -136,7 +134,6 @@ class UploadJob:
             except Exception as e:
                 self._stats.update_failed_file(self.save_name)
                 logger.exception("Failed to upload file: %s", self.save_path)
-                self._telemetry_recorder.exception(str(e), e)
                 get_sentry().exception(e)
                 if not self.silent:
                     wandb.termerror(
