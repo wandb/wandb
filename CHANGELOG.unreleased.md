@@ -52,3 +52,4 @@ The `wandb sync --clean` command now exits with code 1 and prints a hint to use 
 - `wandb login` validates api keys prior to saving to the `.netrc` file (@jacobromero in https://github.com/wandb/wandb/pull/12347)
 - The `global_step` metric created when syncing TensorBoard files is no longer prefixed, like `train/global_step`, so that it is easier to compare training and validation metrics (@timoffex in https://github.com/wandb/wandb/pull/12372)
 - The TensorBoard integration now produces fewer W&B steps by merging data for the same `global_step` into one W&B step when possible (@timoffex in https://github.com/wandb/wandb/pull/12414)
+- An API key configured for the session, such as through `wandb.login(key=...)`, is now used for authentication even when the `WANDB_IDENTITY_TOKEN_FILE` environment variable is set. Previously, the identity token file took precedence (@dmitryduev in https://github.com/wandb/wandb/pull/12376)

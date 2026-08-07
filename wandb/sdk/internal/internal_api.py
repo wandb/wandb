@@ -369,6 +369,10 @@ class Api:
         settings = wandb_setup.singleton().settings.model_copy()
         settings.base_url = self.settings("base_url")
         settings.api_key = self._request_auth[1] if self._request_auth else ""
+        if settings.api_key:
+            # wandb-core prefers an identity token file over an API key,
+            # so clear any token file inherited from the global settings.
+            settings.identity_token_file = None
         settings.x_extra_http_headers = dict(self._request_headers)
         settings.x_graphql_timeout_seconds = self.HTTP_TIMEOUT
 

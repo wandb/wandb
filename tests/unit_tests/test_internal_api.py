@@ -22,6 +22,7 @@ from wandb.apis import internal
 from wandb.errors import CommError
 from wandb.proto import wandb_api_pb2 as apb
 from wandb.proto.wandb_internal_pb2 import ServerFeature
+from wandb.sdk import wandb_setup
 from wandb.sdk.internal.internal_api import (
     _match_org_with_fetched_org_entities,
     _OrgNames,
@@ -818,6 +819,9 @@ class TestJWTAuth:
             wbauth.AuthApiKey(host="https://api.wandb.ai", api_key="a" * 40),
             source="test",
         )
+        # Simulate global settings that read the environment variable after
+        # login, as in a forked process.
+        wandb_setup.singleton().settings.identity_token_file = str(token_file)
 
         environ = {"WANDB_IDENTITY_TOKEN_FILE": str(token_file)}
         api = internal.InternalApi(environ=environ)
@@ -825,6 +829,7 @@ class TestJWTAuth:
         fetch_mock.assert_not_called()
         assert api.request_auth == ("api", "a" * 40)
         assert api._service_api._settings.api_key == "a" * 40
+        assert api._service_api._settings.identity_token_file is None
 
     def test_access_token_none_without_identity_token(self, mocker: MockerFixture):
         # Without federated identity, the token is None and no request is
