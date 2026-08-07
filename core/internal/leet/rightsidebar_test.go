@@ -13,7 +13,7 @@ import (
 
 func expandRightSidebar(t *testing.T, rs *leet.RightSidebar, termWidth int, leftVisible bool) {
 	t.Helper()
-	rs.UpdateDimensions(termWidth, leftVisible)
+	rs.UpdateDimensions(termWidth, leftVisible, 0)
 	rs.Toggle()
 	time.Sleep(leet.AnimationDuration + 20*time.Millisecond)
 	rs.Update(leet.RightSidebarAnimationMsg{})
@@ -110,7 +110,7 @@ func TestRightSidebar_Update_ReturnsAnimationCmdWhileAnimating(t *testing.T) {
 	rs := leet.NewRightSidebar(cfg, &leet.Focus{}, logger)
 
 	// Start expansion; immediately update -> should get a continuation command.
-	rs.UpdateDimensions(120, false)
+	rs.UpdateDimensions(120, false, 0)
 	rs.Toggle()
 	_, cmd := rs.Update(leet.RightSidebarAnimationMsg{})
 	require.NotNil(t, cmd, "expected a continuation command while animating")

@@ -553,11 +553,20 @@ func (w *Workspace) computeViewports() Layout {
 	}
 }
 
+// layoutOverrides returns the view's saved pane proportions.
+func (w *Workspace) layoutOverrides() LayoutOverrides {
+	return w.config.WorkspaceLayout()
+}
+
 // updateSidebarDimensions tells both sidebars to recalculate their expanded
-// widths given the post-toggle visibility of each side.
+// widths given the post-toggle visibility of each side and the layout
+// overrides.
 func (w *Workspace) updateSidebarDimensions(leftVisible, rightVisible bool) {
-	w.runsAnimState.SetExpanded(expandedSidebarWidth(w.width, rightVisible))
-	w.runOverviewSidebar.UpdateDimensions(w.width, leftVisible)
+	o := w.layoutOverrides()
+	left, right := fitSidebarFractions(
+		w.width, leftVisible, rightVisible, o.LeftSidebar, o.RightSidebar)
+	w.runsAnimState.SetExpanded(expandedSidebarWidth(w.width, rightVisible, left))
+	w.runOverviewSidebar.UpdateDimensions(w.width, leftVisible, right)
 }
 
 func (w *Workspace) updateBottomPaneHeights(sysVisible, mediaVisible, logsVisible bool) {
@@ -601,15 +610,37 @@ func (w *Workspace) updateBottomPaneHeights(sysVisible, mediaVisible, logsVisibl
 		lowerTierH = maxH
 	}
 
+	o := w.layoutOverrides()
 	each := lowerTierH / lowerCount
+	heights := []int{
+		paneHeightFor(o.System, w.height, each),
+		paneHeightFor(o.Media, w.height, each),
+		paneHeightFor(o.Logs, w.height, each),
+	}
+	budget := maxH
+	if metricsVisible {
+		budget = maxH - minFlexMetricsHeight
+	}
+	if !sysVisible {
+		heights[0] = 0
+	}
+	if !mediaVisible {
+		heights[1] = 0
+	}
+	if !logsVisible {
+		heights[2] = 0
+	}
+	fitStackHeights(heights, []int{
+		systemMetricsPaneMinHeight, mediaPaneMinHeight, ConsoleLogsPaneMinHeight,
+	}, budget)
 	if sysVisible {
-		w.systemMetricsPane.SetExpandedHeight(each)
+		w.systemMetricsPane.SetExpandedHeight(heights[0])
 	}
 	if mediaVisible {
-		w.mediaPane.SetExpandedHeight(each)
+		w.mediaPane.SetExpandedHeight(heights[1])
 	}
 	if logsVisible {
-		w.consoleLogsPane.SetExpandedHeight(each)
+		w.consoleLogsPane.SetExpandedHeight(heights[2])
 	}
 }
 
@@ -772,6 +803,12 @@ func (w *Workspace) cycleOverviewSection(direction int) bool {
 // handleWindowResize handles window resize messages.
 func (w *Workspace) handleWindowResize(width, height int) {
 	w.SetSize(width, height)
+	w.applyLayoutConfig()
+}
+
+// applyLayoutConfig re-derives all pane extents from the terminal size and
+// any saved layout overrides.
+func (w *Workspace) applyLayoutConfig() {
 	w.updateSidebarDimensions(
 		w.runsAnimState.TargetVisible(),
 		w.runOverviewSidebar.animState.TargetVisible(),

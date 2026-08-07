@@ -101,7 +101,7 @@ func TestSidebar_ConfirmSummaryFilterSelectsSummary(t *testing.T) {
 
 func expandSidebar(t *testing.T, s *leet.RunOverviewSidebar, termWidth int, rightVisible bool) {
 	t.Helper()
-	s.UpdateDimensions(termWidth, rightVisible)
+	s.UpdateDimensions(termWidth, rightVisible, 0)
 	s.Toggle()
 	time.Sleep(leet.AnimationDuration + 20*time.Millisecond)
 	// Drive animation to completion.
