@@ -795,6 +795,8 @@ func (nc *Connection) handleApi(
 func (nc *Connection) Close() {
 	slog.Info("connection: closing", "id", nc.id)
 
+	nc.apiManager.Shutdown()
+
 	if err := nc.conn.Close(); err != nil {
 		slog.Error("connection: error closing", "error", err, "id", nc.id)
 	} else {

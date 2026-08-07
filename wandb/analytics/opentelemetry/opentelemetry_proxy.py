@@ -19,6 +19,7 @@ from wandb.proto.wandb_otel_pb2 import (
     OpenTelemetryLogRequest,
     OpenTelemetryRequest,
 )
+from wandb.sdk import wandb_setup
 
 if TYPE_CHECKING:
     from wandb.apis.public.service_api import ServiceApi
@@ -154,6 +155,9 @@ class TelemetryRecorder:
     Recorders form a hierarchy: `with_context` derives a child recorder with
     additional attributes. Child recorders share their parent's service API,
     so telemetry is published through the same wandb-core API instance.
+
+    All recording methods are no-ops unless a wandb-core service connection
+    already exists.
     """
 
     _context: TelemetryContext
@@ -262,8 +266,16 @@ class TelemetryRecorder:
         )
 
     def _publish(self, request: ApiRequest) -> None:
-        """Publish telemetry without allowing service errors to affect callers."""
+        """Publish telemetry without allowing service errors to affect callers.
+
+        Does nothing unless a wandb-core service connection already exists,
+        as to avoid deadlocks when an error occurs during service startup.
+        """
         if not self._service_api:
+            return
+
+        singleton = wandb_setup.singleton_if_created()
+        if not singleton or not singleton.service_connected:
             return
 
         # ServiceClient can re-raise the original socket exception, so its
