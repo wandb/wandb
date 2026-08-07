@@ -536,7 +536,7 @@ class Table(Media):
                 "Primary keys, foreign keys, and foreign indexes cannot be optional."
             )
 
-        if (is_fk or is_fk) and id(wbtype.params["table"]) == id(self):
+        if (is_fk or is_fi) and id(wbtype.params["table"]) == id(self):
             raise AssertionError("Cannot set a foreign table reference to same table.")
 
         if is_pk:

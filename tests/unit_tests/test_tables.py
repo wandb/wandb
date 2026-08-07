@@ -4,7 +4,11 @@ import json
 import numpy as np
 import pytest
 import wandb
-from wandb.sdk.data_types.table import _ForeignKeyType, _PrimaryKeyType
+from wandb.sdk.data_types.table import (
+    _ForeignIndexType,
+    _ForeignKeyType,
+    _PrimaryKeyType,
+)
 
 
 def test_basic_ndx():
@@ -193,6 +197,20 @@ def test_fk_from_pk_local_draft():
             for row in table.data
         ]
     )
+
+
+def test_self_referential_fi_cast():
+    table = wandb.Table(columns=["ndx", "col_1"], data=[[0, "a"], [1, "b"]])
+
+    with pytest.raises(
+        AssertionError, match="Cannot set a foreign table reference to same table."
+    ):
+        table.cast("ndx", _ForeignIndexType(table))
+
+    with pytest.raises(
+        AssertionError, match="Cannot set a foreign table reference to same table."
+    ):
+        table.add_data(table.index_ref(0), "c")
 
 
 def test_loading_from_json_with_mixed_types():
