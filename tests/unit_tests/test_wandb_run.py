@@ -142,6 +142,23 @@ def test_run_publish_config(mock_run, parse_records, record_q):
     assert config[1]["t2"] == "2"
 
 
+def test_add_singleton_publishes_config_only_on_change(
+    mock_run, parse_records, record_q
+):
+    run = mock_run()
+    key = "img_wandb_delimeter_mask"
+
+    run._add_singleton("mask/class_labels", key, {1: "car"})
+    run._add_singleton("mask/class_labels", key, {1: "car"})
+    run._add_singleton("mask/class_labels", key, {1: "car"})
+
+    assert len(parse_records(record_q).config) == 1
+
+    run._add_singleton("mask/class_labels", key, {1: "truck"})
+
+    assert len(parse_records(record_q).config) == 1
+
+
 def test_run_publish_history(mock_run, parse_records, record_q):
     run = mock_run()
     run.log(dict(this=1))
