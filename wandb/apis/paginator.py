@@ -111,9 +111,21 @@ class Paginator(Iterator[_WandbT], ABC):
     def __getitem__(self, index: slice) -> list[_WandbT]: ...
 
     def __getitem__(self, index: int | slice) -> _WandbT | list[_WandbT]:
+        # A `stop` of None means the index is relative to the total number of
+        # objects, so every remaining page has to be fetched before indexing.
+        if isinstance(index, slice):
+            start, stop, step = index.start, index.stop, index.step
+            if (
+                (start is not None and start < 0)
+                or (stop is not None and stop < 0)
+                or (step is not None and step <= 0)
+            ):
+                stop = None
+        else:
+            stop = index if (index >= 0) else None
+
         loaded = True
-        stop = index.stop if isinstance(index, slice) else index
-        while loaded and stop > len(self.objects) - 1:
+        while loaded and (stop is None or stop > len(self.objects) - 1):
             loaded = self._load_page()
         return self.objects[index]
 
