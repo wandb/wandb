@@ -1,16 +1,18 @@
 from __future__ import annotations
 
 import contextlib
+import functools
 import hashlib
 import os
 import platform
 import threading
 import traceback
+from collections.abc import Callable
 from dataclasses import dataclass, fields
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Concatenate
 
 from opentelemetry._logs import SeverityNumber
-from typing_extensions import Never
+from typing_extensions import Never, ParamSpec
 
 from wandb import env
 from wandb.proto.wandb_api_pb2 import ApiRequest
@@ -153,6 +155,33 @@ class TelemetryContext:
         )
 
 
+_P = ParamSpec("_P")
+
+
+def guard(
+    method: Callable[Concatenate[TelemetryRecorder, _P], None],
+) -> Callable[Concatenate[TelemetryRecorder, _P], None]:
+    """Wrap a telemetry method so it can never raise an exception into its caller.
+
+    Telemetry is best-effort, so wrapping a method in this decorator
+    ensures that it can never raise an exception into its caller.
+    """
+
+    @functools.wraps(method)
+    def wrapper(
+        self: TelemetryRecorder,
+        *args: _P.args,
+        **kwargs: _P.kwargs,
+    ) -> None:
+        with contextlib.suppress(Exception):
+            if not self._can_publish():
+                return
+
+            method(self, *args, **kwargs)
+
+    return wrapper
+
+
 class TelemetryRecorder:
     """Records OpenTelemetry events (metrics and logs).
 
@@ -202,6 +231,7 @@ class TelemetryRecorder:
             ),
         )
 
+    @guard
     def increment_counter(
         self,
         name: str,
@@ -228,7 +258,8 @@ class TelemetryRecorder:
                 exception_type=merged_attributes.exception_type,
             ),
         )
-        self._publish(
+
+        self._service_api.api_publish(
             ApiRequest(
                 open_telemetry_request=OpenTelemetryRequest(
                     open_telemetry_counter_request=otel_metric_request,
@@ -236,6 +267,7 @@ class TelemetryRecorder:
             ),
         )
 
+    @guard
     def log(
         self,
         message: str,
@@ -261,7 +293,7 @@ class TelemetryRecorder:
             severity=severity.value,
         )
 
-        self._publish(
+        self._service_api.api_publish(
             ApiRequest(
                 open_telemetry_request=OpenTelemetryRequest(
                     open_telemetry_log_request=otel_log_request,
@@ -269,36 +301,29 @@ class TelemetryRecorder:
             ),
         )
 
-    def _publish(self, request: ApiRequest) -> None:
-        """Publish telemetry without allowing service errors to affect callers.
+    def _can_publish(self) -> bool:
+        """Returns whether telemetry can be published.
 
-        Does nothing unless a wandb-core service connection already exists,
-        as to avoid deadlocks when an error occurs during service startup.
+        Returns False when error reporting is disabled, no service API was
+        provided, or when no wandb-core service connection exists.
         """
-        if not self._service_api:
-            return
+        if self._service_api is None:
+            return False
 
         singleton = wandb_setup.singleton_if_created()
-        if not singleton or not singleton.service_connected:
-            return
+        return not (singleton is None or not singleton.service_connected)
 
-        # ServiceClient can re-raise the original socket exception, so its
-        # exception type is not stable. Telemetry must never fail its caller.
-        with contextlib.suppress(Exception):
-            self._service_api.api_publish(request)
-
+    @guard
     def increment_counter_and_log_event(
         self,
         name: str,
         attributes: dict[str, str] | None = None,
     ) -> None:
         """Increment a counter metric by 1 and log an event with the given name."""
-        if not self._service_api:
-            return
-
         self.increment_counter(name, self._context.low_cardinality_attributes)
         self.log(name, attributes=attributes, severity=SeverityNumber.INFO)
 
+    @guard
     def exception(
         self,
         message: str,
@@ -319,9 +344,6 @@ class TelemetryRecorder:
             message: The body for the log record.
             exc: The exception the occurred.
         """
-        if not self._service_api:
-            return
-
         self.increment_counter(
             "exception",
             low_cardinality_attributes=LowCardinalityAttributes(
@@ -340,8 +362,9 @@ class TelemetryRecorder:
 
     def reraise(self, exc: Exception) -> Never:
         """Log the exception to telemetry, then re-raise it."""
-        with contextlib.suppress(Exception):
-            self.exception(str(exc), exc)
+        # `exception` is guarded by `_never_raises`, so recording telemetry
+        # here can never mask or replace the exception we re-raise.
+        self.exception(str(exc), exc)
         raise exc
 
 
