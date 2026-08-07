@@ -831,6 +831,22 @@ class TestJWTAuth:
         assert api._service_api._settings.api_key == "a" * 40
         assert api._service_api._settings.identity_token_file is None
 
+    def test_session_identity_token_file_uses_jwt(self, tmp_path: pathlib.Path):
+        token_file = tmp_path / "token.jwt"
+        token_file.write_text("test.jwt.token")
+        wbauth.use_explicit_auth(
+            wbauth.AuthIdentityTokenFile(
+                host="https://api.wandb.ai",
+                path=str(token_file),
+                credentials_file=str(tmp_path / "credentials.json"),
+            ),
+            source="test",
+        )
+
+        api = internal.InternalApi(environ={})
+
+        assert api.request_auth is None
+
     def test_access_token_none_without_identity_token(self, mocker: MockerFixture):
         # Without federated identity, the token is None and no request is
         # sent to wandb-core.

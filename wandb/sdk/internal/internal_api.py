@@ -38,7 +38,7 @@ from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeatu
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
-from ..lib import retry
+from ..lib import retry, wbauth
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from .progress import Progress
 
@@ -262,23 +262,25 @@ class Api:
             self._environ.get("WANDB__EXTRA_HTTP_HEADERS", "{}")
         )
 
-        from wandb.sdk.lib import wbauth
-
-        # An API key configured for this session, such as through
-        # wandb.login(), replaces the identity token file.
-        session_auth = wbauth.session_credentials(host=self.api_url)
-
         auth: tuple[str, str] | None = None
         api_key = api_key or self.default_settings.get("api_key")
+        session_auth = wbauth.session_credentials(host=self.api_url)
         if api_key:
+            # Credentials provided explicitly for this instance.
             auth = ("api", api_key)
-        elif (
-            token_file := self._environ.get(env.IDENTITY_TOKEN_FILE)
-        ) and not isinstance(session_auth, wbauth.AuthApiKey):
+        elif isinstance(session_auth, wbauth.AuthApiKey):
+            # Credentials configured for the session, such as through
+            # wandb.login().
+            auth = ("api", session_auth.api_key)
+        elif isinstance(session_auth, wbauth.AuthIdentityTokenFile):
             # Federated identity: wandb-core exchanges the identity token
             # for an access token and authenticates its requests with it.
             # Code that talks to the server directly gets the token from
             # wandb-core through the access_token property.
+            pass
+        elif token_file := self._environ.get(env.IDENTITY_TOKEN_FILE):
+            # Federated identity configured in the environment, before
+            # session credentials are established.
             if not Path(token_file).exists():
                 raise AuthenticationError(
                     f"Identity token file not found: {token_file}"
@@ -399,8 +401,6 @@ class Api:
 
     @property
     def api_key(self) -> str | None:
-        from wandb.sdk.lib import wbauth
-
         if (  #
             (auth := wbauth.session_credentials(host=self.api_url))
             and isinstance(auth, wbauth.AuthApiKey)
