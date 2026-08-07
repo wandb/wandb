@@ -42,6 +42,11 @@ class _LegacyAutomationsPaginator(
         omit_fields: Iterable[str] | None = None,
         rename_fields: Mapping[str, str] | None = None,
     ):
+        if omit_fragments is None:
+            from wandb.automations._utils import omit_automation_fragments
+
+            omit_fragments = omit_automation_fragments(service_api)
+
         self._name = name
         super().__init__(
             service_api,
@@ -149,7 +154,6 @@ class LegacyAutomations(_LegacyAutomationsPaginator):
         name: str | None = None,
         per_page: int = 50,
         start: str | None = None,
-        omit_fragments: Iterable[str] | None = None,
     ):
         if self.QUERY is None:
             from wandb.automations._generated import GET_AUTOMATIONS_LEGACY_GQL
@@ -162,7 +166,6 @@ class LegacyAutomations(_LegacyAutomationsPaginator):
             name=name,
             per_page=per_page,
             start=start,
-            omit_fragments=omit_fragments,
         )
 
     @classmethod
@@ -184,7 +187,6 @@ class LegacyEntityAutomations(_LegacyAutomationsPaginator):
         name: str | None = None,
         per_page: int = 50,
         start: str | None = None,
-        omit_fragments: Iterable[str] | None = None,
     ):
         if self.QUERY is None:
             from wandb.automations._generated import GET_ENTITY_AUTOMATIONS_LEGACY_GQL
@@ -197,7 +199,6 @@ class LegacyEntityAutomations(_LegacyAutomationsPaginator):
             name=name,
             per_page=per_page,
             start=start,
-            omit_fragments=omit_fragments,
         )
 
     @classmethod

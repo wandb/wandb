@@ -31,9 +31,10 @@ from wandb.automations import (
 )
 from wandb.automations._run_metric_filters import ChangeDir
 from wandb.automations._run_state_filters import ReportedRunState, StateFilter
+from wandb.automations._utils import event_enabled
 from wandb.automations.actions import InputAction, SavedNoOpAction, SavedWebhookAction
 from wandb.automations.events import InputEvent, RunMetricFilter, RunStateFilter
-from wandb.errors.errors import CommError
+from wandb.errors.errors import CommError, UnsupportedError
 
 
 @fixture
@@ -232,12 +233,8 @@ def test_create_automation_for_run_metric_threshold_event(
         payload={"test": {"key": "value"}},
     )
 
-    server_supports_event = module_api._supports_automation(
-        event=event.event_type,
-    )
-
-    if not server_supports_event:
-        with raises(CommError):
+    if not event_enabled(module_api._service_api, event.event_type):
+        with raises(UnsupportedError):
             module_api.create_automation(
                 (event >> action),
                 name=automation_name,
@@ -298,12 +295,8 @@ def test_create_automation_for_run_metric_change_event(
     )
     action = SendWebhook.from_integration(webhook)
 
-    server_supports_event = module_api._supports_automation(
-        event=event.event_type,
-    )
-
-    if not server_supports_event:
-        with raises(CommError):
+    if not event_enabled(module_api._service_api, event.event_type):
+        with raises(UnsupportedError):
             module_api.create_automation(
                 (event >> action),
                 name=automation_name,
@@ -349,12 +342,8 @@ def test_create_automation_for_run_state_event(
     )
     action = SendWebhook.from_integration(webhook)
 
-    server_supports_event = module_api._supports_automation(
-        event=event.event_type,
-    )
-
-    if not server_supports_event:
-        with raises(CommError):
+    if not event_enabled(module_api._service_api, event.event_type):
+        with raises(UnsupportedError):
             module_api.create_automation(
                 (event >> action),
                 name=automation_name,
@@ -415,10 +404,8 @@ def test_create_automation_for_run_metric_zscore_event(
     )
     action = SendWebhook.from_integration(webhook)
 
-    server_supports_event = module_api._supports_automation(event=event.event_type)
-
-    if not server_supports_event:
-        with raises(CommError):
+    if not event_enabled(module_api._service_api, event.event_type):
+        with raises(UnsupportedError):
             module_api.create_automation(
                 (event >> action),
                 name=automation_name,
@@ -817,7 +804,7 @@ class TestUpdateAutomation:
         project: Project,
     ):
         """Updating an automation with a new run event must preserve its filter."""
-        if not module_api._supports_automation(event=event_type):
+        if not event_enabled(module_api._service_api, event_type):
             skip(f"Server does not support event type {event_type.value!r}")
 
         # Run events only work with a project scope, and an update keeps the
