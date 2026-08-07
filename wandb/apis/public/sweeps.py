@@ -44,6 +44,7 @@ from wandb.apis.paginator import SizedPaginator
 from wandb.errors import Error, UnsupportedError
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.lib import ipython
+from wandb.sdk.sweeps import SweepNotFoundError
 
 # Minimum W&B server release that supports filtering sweeps via the `filters`
 # argument on the `sweeps` field.
@@ -330,7 +331,7 @@ class Sweep(Attrs):
                     self.id,
                 )
             ):
-                raise ValueError(f"Could not find sweep {self!r}")
+                raise SweepNotFoundError(f"Could not find sweep {self!r}")
             self._attrs = sweep._attrs
             self.runs = sweep.runs
 

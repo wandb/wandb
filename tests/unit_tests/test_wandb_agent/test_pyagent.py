@@ -7,7 +7,7 @@ import io
 import threading
 
 import wandb
-from wandb.sdk.launch.sweeps import SweepNotFoundError
+from wandb.sdk.sweeps import SweepNotFoundError
 
 from .conftest import (
     DEFAULT_ENTITY,

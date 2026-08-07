@@ -2,15 +2,13 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
+from wandb.sdk.sweeps import SweepNotFoundError
+
 log = logging.getLogger(__name__)
 
 
 class SchedulerError(Exception):
     """Raised when a known error occurs with wandb sweep scheduler."""
-
-
-class SweepNotFoundError(Exception):
-    """Raised when a sweep is not found, typically because it was deleted."""
 
 
 def _import_sweep_scheduler() -> Any:
