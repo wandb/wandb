@@ -20,10 +20,10 @@ import (
 
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/apitest"
-	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/httplayerstest"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -493,13 +493,19 @@ func rejectingAuthServer(statusCode int, body string) *apitest.RecordingServer {
 	return apitest.NewRecordingServer(apitest.WithHandlerFunc(handler))
 }
 
+// writeTokenFile writes an identity token file, returning its path and a
+// path for the provider's credentials file.
+func writeTokenFile(t *testing.T) (tokenFile, credentialsFile string) {
+	tokenFile = filepath.Join(t.TempDir(), "jwt.txt")
+	require.NoError(t, os.WriteFile(tokenFile, []byte("id-token"), 0o600))
+	return tokenFile, filepath.Join(t.TempDir(), "credentials.json")
+}
+
 func oauth2ProviderForServer(
 	t *testing.T,
 	serverURL string,
 ) api.CredentialProvider {
-	tokenFile := filepath.Join(t.TempDir(), "jwt.txt")
-	require.NoError(t, os.WriteFile(tokenFile, []byte("id-token"), 0o600))
-	credentialsFile := filepath.Join(t.TempDir(), "credentials.json")
+	tokenFile, credentialsFile := writeTokenFile(t)
 
 	settings := wbsettings.From(&spb.Settings{
 		BaseUrl:           &wrapperspb.StringValue{Value: serverURL},
@@ -537,8 +543,8 @@ func TestOAuth2CredentialProvider_RejectedExchangeIsPermanent(t *testing.T) {
 func TestOAuth2CredentialProvider_ExchangeServerErrorIsNotPermanent(t *testing.T) {
 	server := rejectingAuthServer(http.StatusBadGateway, "upstream error")
 	defer server.Close()
-	credentialProvider := oauth2ProviderWithClient(t, server.URL,
-		exchangeClient(t, server.URL, tokenExchangeTestRetryMax, time.Minute))
+	credentialProvider := oauth2ProviderWithRetries(t, server.URL,
+		api.TokenExchangeRetryMax, time.Minute)
 
 	_, err := httplayerstest.MapRequest(t,
 		credentialProvider, exampleGetRequest(t))
@@ -570,48 +576,38 @@ func stalledAuthServer(t *testing.T) *httptest.Server {
 	return server
 }
 
-// tokenExchangeTestRetryMax mirrors the retry count the provider uses in
-// production, so tests exercise the same number of attempts.
-const tokenExchangeTestRetryMax = 3
-
-// exchangeClient builds the client used for the token exchange, with the
-// retry behavior the test needs.
-func exchangeClient(
+// oauth2ProviderWithRetries builds an OAuth2 credential provider whose
+// exchange client uses the production retry policy with the retry count
+// and per-attempt timeout the test needs, and with waits short enough for
+// retries to be exercised quickly.
+func oauth2ProviderWithRetries(
 	t *testing.T,
 	serverURL string,
 	retryMax int,
 	nonRetryTimeout time.Duration,
-) api.RetryableClient {
+) api.CredentialProvider {
 	baseURL, err := url.Parse(serverURL)
 	require.NoError(t, err)
+	logger := observabilitytest.NewTestLogger(t).Logger
 
-	return api.NewClient(api.ClientOptions{
+	exchangeClient := api.NewClient(api.ClientOptions{
 		BaseURL:            baseURL,
 		RetryMax:           retryMax,
 		RetryWaitMin:       time.Millisecond,
 		RetryWaitMax:       10 * time.Millisecond,
-		RetryPolicy:        clients.RetryMostFailures,
+		RetryPolicy:        api.TokenExchangeRetryPolicy,
 		NonRetryTimeout:    nonRetryTimeout,
 		CredentialProvider: api.NoopCredentialProvider{},
-		Logger:             observabilitytest.NewTestLogger(t).Logger,
+		Logger:             logger,
 	})
-}
 
-func oauth2ProviderWithClient(
-	t *testing.T,
-	serverURL string,
-	httpClient api.RetryableClient,
-) api.CredentialProvider {
-	tokenFile := filepath.Join(t.TempDir(), "jwt.txt")
-	require.NoError(t, os.WriteFile(tokenFile, []byte("id-token"), 0o600))
-	credentialsFile := filepath.Join(t.TempDir(), "credentials.json")
-
+	tokenFile, credentialsFile := writeTokenFile(t)
 	credentialProvider, err := api.NewOAuth2CredentialProvider(
 		serverURL,
 		tokenFile,
 		credentialsFile,
-		httpClient,
-		observabilitytest.NewTestLogger(t).Logger,
+		exchangeClient,
+		logger,
 	)
 	require.NoError(t, err)
 	return credentialProvider
@@ -638,8 +634,8 @@ func TestOAuth2CredentialProvider_StalledExchangeFails(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			server := stalledAuthServer(t)
-			credentialProvider := oauth2ProviderWithClient(t, server.URL,
-				exchangeClient(t, server.URL, 0, test.clientTimeout))
+			credentialProvider := oauth2ProviderWithRetries(
+				t, server.URL, 0, test.clientTimeout)
 			tokenProvider, ok := credentialProvider.(api.AccessTokenProvider)
 			require.True(t, ok)
 
@@ -664,34 +660,28 @@ func TestOAuth2CredentialProvider_StalledExchangeFails(t *testing.T) {
 	}
 }
 
-// countingAuthServer is a token endpoint that replies with the given statuses
-// in order, repeating the last one, and counts the requests it received.
-func countingAuthServer(
-	t *testing.T,
-	count *atomic.Int32,
-	statuses ...int,
-) *httptest.Server {
-	server := httptest.NewServer(http.HandlerFunc(
-		func(w http.ResponseWriter, req *http.Request) {
-			n := int(count.Add(1)) - 1
-			status := statuses[min(n, len(statuses)-1)]
+// sequencedAuthServer is a token endpoint that replies with the given
+// statuses in order, repeating the last one.
+func sequencedAuthServer(statuses ...int) *apitest.RecordingServer {
+	var requests atomic.Int32
+	handler := func(w http.ResponseWriter, req *http.Request) {
+		status := statuses[min(int(requests.Add(1))-1, len(statuses)-1)]
 
-			if status == http.StatusOK {
-				authHandler("fake-token", time.Hour)(w, req)
-				return
-			}
+		if status == http.StatusOK {
+			authHandler("fake-token", time.Hour)(w, req)
+			return
+		}
 
-			http.Error(w, "nope", status)
-		}))
-	t.Cleanup(server.Close)
-	return server
+		http.Error(w, "nope", status)
+	}
+	return apitest.NewRecordingServer(apitest.WithHandlerFunc(handler))
 }
 
 func TestOAuth2CredentialProvider_ExchangeRetries(t *testing.T) {
 	tests := []struct {
 		name          string
 		statuses      []int
-		wantRequests  int32
+		wantRequests  int
 		wantPermanent bool
 	}{
 		{
@@ -707,6 +697,12 @@ func TestOAuth2CredentialProvider_ExchangeRetries(t *testing.T) {
 			wantPermanent: true,
 		},
 		{
+			name:          "an unrecognized client error is not retried",
+			statuses:      []int{http.StatusMethodNotAllowed},
+			wantRequests:  1,
+			wantPermanent: true,
+		},
+		{
 			name:         "a server error is retried until it succeeds",
 			statuses:     []int{http.StatusInternalServerError, http.StatusOK},
 			wantRequests: 2,
@@ -715,17 +711,16 @@ func TestOAuth2CredentialProvider_ExchangeRetries(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			var requests atomic.Int32
-			server := countingAuthServer(t, &requests, test.statuses...)
-			credentialProvider := oauth2ProviderWithClient(t, server.URL,
-				exchangeClient(t, server.URL,
-					tokenExchangeTestRetryMax, time.Minute))
+			server := sequencedAuthServer(test.statuses...)
+			defer server.Close()
+			credentialProvider := oauth2ProviderWithRetries(t, server.URL,
+				api.TokenExchangeRetryMax, time.Minute)
 			tokenProvider, ok := credentialProvider.(api.AccessTokenProvider)
 			require.True(t, ok)
 
 			token, err := tokenProvider.AccessToken(t.Context())
 
-			assert.Equal(t, test.wantRequests, requests.Load())
+			assert.Len(t, server.Requests(), test.wantRequests)
 			if !test.wantPermanent {
 				require.NoError(t, err)
 				assert.Equal(t, "fake-token", token)
@@ -738,6 +733,43 @@ func TestOAuth2CredentialProvider_ExchangeRetries(t *testing.T) {
 			assert.True(t, exchangeErr.PermanentError())
 		})
 	}
+}
+
+func TestOAuth2CredentialProvider_CanceledContext(t *testing.T) {
+	server := authServer("fake-token", time.Hour)
+	defer server.Close()
+	credentialProvider := oauth2ProviderForServer(t, server.URL)
+	tokenProvider, ok := credentialProvider.(api.AccessTokenProvider)
+	require.True(t, ok)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	_, err := tokenProvider.AccessToken(ctx)
+
+	// A caller whose context expired, like while waiting for another
+	// caller's failed exchange, must not start an exchange of its own.
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Empty(t, server.Requests())
+}
+
+func TestOAuth2CredentialProvider_ExchangeDetachedFromOperation(t *testing.T) {
+	server := sequencedAuthServer(http.StatusInternalServerError, http.StatusOK)
+	defer server.Close()
+	credentialProvider := oauth2ProviderWithRetries(t, server.URL,
+		api.TokenExchangeRetryMax, time.Minute)
+	tokenProvider, ok := credentialProvider.(api.AccessTokenProvider)
+	require.True(t, ok)
+
+	op := wboperation.NewOperations().New("uploading data")
+	op.MarkRetryingHTTPError(500, "500 Internal Server Error", "")
+
+	_, err := tokenProvider.AccessToken(op.Context(t.Context()))
+
+	// The exchange's own retries and completion must not touch the status
+	// of the operation whose request needed the token.
+	require.NoError(t, err)
+	assert.Equal(t, "retrying HTTP 500 Internal Server Error", op.ErrorStatus())
 }
 
 // tlsAuthServer is a token endpoint served over HTTPS with a self-signed
@@ -761,16 +793,11 @@ func TestNewOAuth2CredentialProvider_InsecureDisableSSL(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			server := tlsAuthServer(t, "fake-token")
 
-			tokenFile := filepath.Join(t.TempDir(), "jwt.txt")
-			require.NoError(t,
-				os.WriteFile(tokenFile, []byte("id-token"), 0o600))
-
+			tokenFile, credentialsFile := writeTokenFile(t)
 			settings := wbsettings.From(&spb.Settings{
 				BaseUrl:           &wrapperspb.StringValue{Value: server.URL},
 				IdentityTokenFile: &wrapperspb.StringValue{Value: tokenFile},
-				CredentialsFile: &wrapperspb.StringValue{
-					Value: filepath.Join(t.TempDir(), "credentials.json"),
-				},
+				CredentialsFile:   &wrapperspb.StringValue{Value: credentialsFile},
 				InsecureDisableSsl: &wrapperspb.BoolValue{
 					Value: test.insecureDisableSSL,
 				},

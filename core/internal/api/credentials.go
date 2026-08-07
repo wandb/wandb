@@ -19,6 +19,7 @@ import (
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/httplayers"
 	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/wboperation"
 )
 
 const (
@@ -35,7 +36,16 @@ const (
 	tokenExchangeRetryWaitMin = time.Second
 	tokenExchangeRetryWaitMax = 5 * time.Second
 
-	// tokenExchangeTimeout bounds one exchange including its retries.
+	// tokenExchangeAttemptTimeout bounds each exchange attempt.
+	//
+	// It is shorter than DefaultNonRetryTimeout so that the full retry
+	// schedule fits within tokenExchangeTimeout.
+	tokenExchangeAttemptTimeout = 10 * time.Second
+
+	// tokenExchangeTimeout bounds one exchange including its retries when
+	// the caller's context has no sooner deadline, like an access token
+	// request from another process. Requests to the W&B server carry their
+	// own per-attempt deadline, which bounds the exchange instead.
 	tokenExchangeTimeout = 60 * time.Second
 )
 
@@ -71,8 +81,8 @@ func NewCredentialProvider(
 			RetryMax:           tokenExchangeRetryMax,
 			RetryWaitMin:       tokenExchangeRetryWaitMin,
 			RetryWaitMax:       tokenExchangeRetryWaitMax,
-			RetryPolicy:        clients.RetryMostFailures,
-			NonRetryTimeout:    DefaultNonRetryTimeout,
+			RetryPolicy:        tokenExchangeRetryPolicy,
+			NonRetryTimeout:    tokenExchangeAttemptTimeout,
 			ExtraHeaders:       s.GetExtraHTTPHeaders(),
 			Proxy:              clients.ProxyFn(s.GetHTTPProxy(), s.GetHTTPSProxy()),
 			InsecureDisableSSL: s.IsInsecureDisableSSL(),
@@ -202,6 +212,33 @@ func (e *TokenExchangeError) Error() string {
 
 // PermanentError returns true: retrying the exchange cannot succeed.
 func (e *TokenExchangeError) PermanentError() bool { return true }
+
+// isExchangeRejection reports whether the token endpoint's status is a
+// definitive rejection of the exchange, like an invalid or expired
+// identity token, unknown user or bad audience. 429 and 5xx responses
+// may be transient, so they are not rejections.
+func isExchangeRejection(statusCode int) bool {
+	return statusCode >= 400 && statusCode < 500 &&
+		statusCode != http.StatusTooManyRequests
+}
+
+// tokenExchangeRetryPolicy retries the same failures as RetryMostFailures,
+// except that no definitive rejection of the exchange is retried.
+//
+// RetryMostFailures retries 4xx statuses it does not recognize; for the
+// token exchange, that would discard the server's response and hide the
+// rejection from the requests waiting on the exchange.
+func tokenExchangeRetryPolicy(
+	ctx context.Context,
+	resp *http.Response,
+	err error,
+) (bool, error) {
+	if err == nil && isExchangeRejection(resp.StatusCode) {
+		return false, nil
+	}
+
+	return clients.RetryMostFailures(ctx, resp, err)
+}
 
 // readIdentityToken reads the identity token (a JWT) from the file.
 func readIdentityToken(path string) (string, error) {
@@ -345,6 +382,13 @@ func (c *oauth2CredentialProvider) loadCredentials(ctx context.Context) error {
 		return nil
 	}
 
+	// The wait for the lock is not bounded by the context, whose deadline
+	// may have passed, like when the previous holder spent it on a failed
+	// exchange. Don't start an exchange that cannot succeed.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	credsFile, ok := c.tryLoadCredentialsFromFile()
 	if ok {
 		accessToken, ok := credsFile.Credentials[c.baseURL]
@@ -422,7 +466,10 @@ func (c *oauth2CredentialProvider) fetchAccessToken(
 		return accessTokenInfo{}, err
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, tokenExchangeTimeout)
+	// Detach the exchange from the operation in the context, if any: its
+	// retries would otherwise be reported as the outer request's status.
+	ctx, cancel := context.WithTimeout(
+		wboperation.Detach(ctx), tokenExchangeTimeout)
 	defer cancel()
 
 	tokenURL := fmt.Sprintf("%s/oidc/token", c.baseURL)
@@ -431,7 +478,7 @@ func (c *oauth2CredentialProvider) fetchAccessToken(
 		url.QueryEscape(identityToken),
 	)
 	req, err := retryablehttp.NewRequestWithContext(
-		ctx, http.MethodPost, tokenURL, strings.NewReader(data))
+		ctx, http.MethodPost, tokenURL, []byte(data))
 	if err != nil {
 		return accessTokenInfo{}, err
 	}
@@ -451,12 +498,9 @@ func (c *oauth2CredentialProvider) fetchAccessToken(
 			return accessTokenInfo{}, err
 		}
 
-		// A 4xx response is a definitive rejection (invalid or expired
-		// identity token, unknown user, bad audience) and repeating the
-		// same exchange cannot succeed. 429 and 5xx may be transient,
-		// so they stay retryable.
-		if resp.StatusCode >= 400 && resp.StatusCode < 500 &&
-			resp.StatusCode != http.StatusTooManyRequests {
+		// Repeating a rejected exchange cannot succeed, so the requests
+		// that depend on it must fail immediately instead of retrying.
+		if isExchangeRejection(resp.StatusCode) {
 			return accessTokenInfo{}, &TokenExchangeError{
 				StatusCode: resp.StatusCode,
 				Body:       string(body),
