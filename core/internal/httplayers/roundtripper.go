@@ -1,6 +1,9 @@
 package httplayers
 
-import "net/http"
+import (
+	"net/http"
+	"net/url"
+)
 
 // WrapRoundTripper applies an HTTPWrapper to a RoundTripper.
 //
@@ -25,5 +28,18 @@ type wrappedRoundTripper struct {
 func (rt wrappedRoundTripper) RoundTrip(
 	req *http.Request,
 ) (*http.Response, error) {
-	return rt.fn(req)
+	resp, err := rt.fn(req)
+
+	// Unwrap url.Error, since http.Client.Do() will wrap this in a url.Error.
+	//
+	// HTTPDoFunc is meant to act like http.Client.Do(), so it's documented
+	// to return url.Error, but we're using it as a RoundTripper here, which
+	// isn't expected to return url.Error. Without unwrapping, errors look like:
+	//
+	// 	Post "https://api.wandb.ai/graphql": POST "https://api.wandb.ai/graphql": ...
+	if urlErr, ok := err.(*url.Error); ok {
+		err = urlErr.Err
+	}
+
+	return resp, err
 }
