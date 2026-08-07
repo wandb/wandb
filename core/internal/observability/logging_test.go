@@ -158,11 +158,11 @@ func TestLoggerHierarchy(t *testing.T) {
 
 	logRecords := observabilitytest.ExtractLogs(t, logs)
 	require.Len(t, logRecords, 2)
-	assert.Equal(t, map[string]string{
+	assert.Equal(t, map[string]any{
 		"level": "INFO",
 		"msg":   "base message",
 	}, logRecords[0])
-	assert.Equal(t, map[string]string{
+	assert.Equal(t, map[string]any{
 		"level": "INFO",
 		"msg":   "child message",
 		// slog only includes the attrs passed to With().
