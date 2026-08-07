@@ -10,8 +10,6 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/hashicorp/go-retryablehttp"
-
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/featurechecker"
@@ -70,13 +68,6 @@ func New(
 		s.GetExtraHTTPHeaders(),
 	)
 
-	httpClient := retryablehttp.NewClient()
-	httpClient.RetryMax = int(s.GetFileTransferMaxRetries())
-	httpClient.RetryWaitMin = s.GetFileTransferRetryWaitMin()
-	httpClient.RetryWaitMax = s.GetFileTransferRetryWaitMax()
-	httpClient.HTTPClient.Timeout = s.GetFileTransferTimeout()
-	httpClient.Logger = logger
-
 	fileTransferClient := newFileTransferClient(
 		baseURL,
 		credentialProvider,
@@ -112,7 +103,7 @@ func New(
 		runQueueHandler:     NewRunQueueHandler(graphqlClient),
 		runHistoryApiHandler: NewRunHistoryAPIHandler(
 			graphqlClient,
-			httpClient,
+			fileTransferClient,
 			logger,
 		),
 	}, nil
