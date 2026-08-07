@@ -74,6 +74,7 @@ def authenticate_session(
     input_timeout: float | None = None,
     referrer: str = "models",
     relogin: bool = False,
+    verify: bool = False,
 ) -> Auth | None:
     """Returns or configures the session credentials.
 
@@ -93,6 +94,7 @@ def authenticate_session(
             the process if we incorrectly identify it as interactive.
         referrer: Referrer parameter to add to printed URLs for analytics.
         relogin: If true, forces an interactive prompt.
+        verify: If true, verifies the credentials against the W&B server.
 
     Raises:
         TimeoutError: If an interactive prompt is shown and input_timeout expires.
@@ -105,7 +107,13 @@ def authenticate_session(
     if not relogin and (auth := session_credentials(host=host)):
         return auth
 
-    if not relogin and (auth := _use_system_auth(host=host, source=source)):
+    if not relogin and (
+        auth := _use_system_auth(
+            host=host,
+            source=source,
+            verify=verify,
+        )
+    ):
         return auth
 
     try:
@@ -115,6 +123,7 @@ def authenticate_session(
             no_create=no_create,
             referrer=referrer,
             input_timeout=input_timeout,
+            verify=verify,
         )
     except term.NotATerminalError:
         raise UsageError(
@@ -147,7 +156,12 @@ def use_explicit_auth(auth: Auth, *, source: str) -> None:
         _locked_set_session_auth(auth)
 
 
-def _use_system_auth(*, host: HostUrl, source: str) -> Auth | None:
+def _use_system_auth(
+    *,
+    host: HostUrl,
+    source: str,
+    verify: bool = False,
+) -> Auth | None:
     """Load (or reload) session credentials from external sources.
 
     Loads credentials from environment variables or the .netrc file.
@@ -157,6 +171,7 @@ def _use_system_auth(*, host: HostUrl, source: str) -> Auth | None:
         host: The W&B server URL.
         source: The source to include in the printed message,
             like "wandb.init()".
+        verify: If true, verifies the credentials against the W&B server.
 
     Raises:
         AuthenticationError: If a source of credentials is found but has an
@@ -169,6 +184,9 @@ def _use_system_auth(*, host: HostUrl, source: str) -> Auth | None:
         _try_env_auth(host=host)  #
         or wbnetrc.read_netrc_auth_with_source(host=host)
     )
+
+    if verify and auth:
+        auth.auth.verify()
 
     with _session_auth_lock:
         if auth:
@@ -225,6 +243,7 @@ def _use_prompted_auth(
     no_create: bool,
     referrer: str,
     input_timeout: float | None = None,
+    verify: bool = True,
 ) -> Auth | None:
     """Prompt interactively to set session credentials.
 
@@ -236,6 +255,7 @@ def _use_prompted_auth(
         no_create: If true, do not show an option to create a new account.
         referrer: Referrer parameter to include in printed URLs for analytics.
         input_timeout: How long to wait for user input before timing out.
+        verify: If true, verifies the credentials against the W&B server.
 
     Raises:
         NotATerminalError: If interactive prompting is not possible.
@@ -247,6 +267,7 @@ def _use_prompted_auth(
         no_create=no_create,
         referrer=referrer,
         input_timeout=input_timeout,
+        verify=verify,
     )
 
     with _session_auth_lock:

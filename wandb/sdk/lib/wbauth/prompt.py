@@ -28,6 +28,7 @@ def prompt_and_save_api_key(
     no_create: bool = False,
     referrer: str = "",
     input_timeout: float | None = None,
+    verify: bool = True,
 ) -> str | None:
     """Prompt for an API key and save it to the .netrc file.
 
@@ -38,6 +39,7 @@ def prompt_and_save_api_key(
         referrer: A referrer string to tack on as a query parameter to
             the printed URL for analytics.
         input_timeout: How long to wait for user input before timing out.
+        verify: If true, verifies the credentials against the W&B server.
 
     Returns:
         Either the resulting API key or None if the user selected offline mode.
@@ -55,6 +57,7 @@ def prompt_and_save_api_key(
         no_create=no_create,
         referrer=referrer,
         input_timeout=input_timeout,
+        verify=verify,
     )
 
     if not api_key:
@@ -72,6 +75,7 @@ def _prompt_api_key(
     no_create: bool = False,
     referrer: str = "",
     input_timeout: float | None = None,
+    verify: bool = True,
 ) -> str | None:
     """Prompt for an API key without saving it to .netrc.
 
@@ -91,17 +95,37 @@ def _prompt_api_key(
 
         if choice == _LOGIN_CHOICE_NEW:
             key = _create_new_account(host=host, referrer=referrer)
-            if problems := validation.check_api_key(key):
-                term.termerror(f"Invalid API key: {problems}")
-            else:
-                return key
+            if format_problems := validation.check_api_key(key):
+                term.termerror(f"Invalid API key: {format_problems}")
+                continue
+
+            if verify and (
+                validation_problems := validation.check_api_key_validity(
+                    host=host,
+                    api_key=key,
+                )
+            ):
+                term.termerror(f"Invalid API key: {validation_problems}")
+                continue
+
+            return key
 
         elif choice == _LOGIN_CHOICE_EXISTS:
             key = _use_existing_account(host=host, referrer=referrer)
-            if problems := validation.check_api_key(key):
-                term.termerror(f"Invalid API key: {problems}")
-            else:
-                return key
+            if format_problems := validation.check_api_key(key):
+                term.termerror(f"Invalid API key: {format_problems}")
+                continue
+
+            if verify and (
+                validation_problems := validation.check_api_key_validity(
+                    host=host,
+                    api_key=key,
+                )
+            ):
+                term.termerror(f"Invalid API key: {validation_problems}")
+                continue
+
+            return key
 
         elif choice == _LOGIN_CHOICE_OFFLINE:
             return None

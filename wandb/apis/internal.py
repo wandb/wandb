@@ -47,7 +47,10 @@ class Api:
 
     @property
     def is_authenticated(self):
-        return self.api.access_token is not None or self.api.api_key is not None
+        return (
+            self.api.api_key is not None
+            or self.api._service_api.access_token() is not None
+        )
 
     @property
     def api_url(self):

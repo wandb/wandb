@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -395,4 +396,146 @@ func TestNewOAuth2CredentialProvider_CreatesNewTokenForNewBaseURL(t *testing.T) 
 	assert.Equal(t, token, data.Credentials[server.URL].AccessToken)
 	assert.Equal(t, time.Now().UTC().Add(expiresIn).Round(time.Hour),
 		time.Time(data.Credentials[server.URL].ExpiresAt).Round(time.Hour))
+}
+
+func TestOAuth2CredentialProvider_AccessToken(t *testing.T) {
+	tokenFile := filepath.Join(t.TempDir(), "jwt.txt")
+	require.NoError(t, os.WriteFile(tokenFile, []byte("id-token"), 0o600))
+	credentialsFile := filepath.Join(t.TempDir(), "credentials.json")
+
+	token := "fake-token"
+	server := authServer(token, time.Hour)
+	defer server.Close()
+
+	settings := wbsettings.From(&spb.Settings{
+		BaseUrl:           &wrapperspb.StringValue{Value: server.URL},
+		IdentityTokenFile: &wrapperspb.StringValue{Value: tokenFile},
+		CredentialsFile:   &wrapperspb.StringValue{Value: credentialsFile},
+	})
+	credentialProvider, err := api.NewCredentialProvider(
+		settings,
+		observabilitytest.NewTestLogger(t).Logger,
+	)
+	require.NoError(t, err)
+
+	tokenProvider, ok := credentialProvider.(api.AccessTokenProvider)
+	require.True(t, ok, "the OAuth2 provider must expose access tokens")
+
+	accessToken, err := tokenProvider.AccessToken()
+
+	require.NoError(t, err)
+	assert.Equal(t, token, accessToken)
+
+	// The token is cached in the credentials file, like when it is used
+	// for wandb-core's own requests.
+	file, err := os.ReadFile(credentialsFile)
+	require.NoError(t, err)
+	var data api.CredentialsFile
+	require.NoError(t, json.Unmarshal(file, &data))
+	assert.Equal(t, token, data.Credentials[server.URL].AccessToken)
+}
+
+func TestNewOAuth2CredentialProvider_RereadsIdentityTokenFile(t *testing.T) {
+	// Access tokens expiring within 5 minutes are refreshed on each use,
+	// so every request below triggers a token exchange.
+	server := authServer("fake-token", time.Minute)
+	defer server.Close()
+
+	tokenFile := filepath.Join(t.TempDir(), "jwt.txt")
+	require.NoError(t, os.WriteFile(tokenFile, []byte("first-token"), 0o600))
+	credentialsFile := filepath.Join(t.TempDir(), "credentials.json")
+
+	settings := wbsettings.From(&spb.Settings{
+		BaseUrl:           &wrapperspb.StringValue{Value: server.URL},
+		IdentityTokenFile: &wrapperspb.StringValue{Value: tokenFile},
+		CredentialsFile:   &wrapperspb.StringValue{Value: credentialsFile},
+	})
+	credentialProvider, err := api.NewCredentialProvider(
+		settings,
+		observabilitytest.NewTestLogger(t).Logger,
+	)
+	require.NoError(t, err)
+
+	_, err = httplayerstest.MapRequest(t, credentialProvider, exampleGetRequest(t))
+	require.NoError(t, err)
+
+	// An external process re-mints the short-lived identity token to the
+	// same path, like during a run that outlives the token. The trailing
+	// newline is typical of token files written by `echo` or an editor.
+	require.NoError(t, os.WriteFile(tokenFile, []byte("second-token\n"), 0o600))
+
+	_, err = httplayerstest.MapRequest(t, credentialProvider, exampleGetRequest(t))
+	require.NoError(t, err)
+
+	exchanges := server.Requests()
+	require.Len(t, exchanges, 2)
+	assert.Contains(t, string(exchanges[0].Body), "assertion=first-token")
+	assert.Contains(t, string(exchanges[1].Body), "assertion=second-token")
+}
+
+// rejectingAuthServer is a token endpoint that always responds with the
+// given status code and body.
+func rejectingAuthServer(statusCode int, body string) *apitest.RecordingServer {
+	handler := func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(statusCode)
+		_, _ = w.Write([]byte(body))
+	}
+	return apitest.NewRecordingServer(apitest.WithHandlerFunc(handler))
+}
+
+func oauth2ProviderForServer(
+	t *testing.T,
+	serverURL string,
+) api.CredentialProvider {
+	tokenFile := filepath.Join(t.TempDir(), "jwt.txt")
+	require.NoError(t, os.WriteFile(tokenFile, []byte("id-token"), 0o600))
+	credentialsFile := filepath.Join(t.TempDir(), "credentials.json")
+
+	settings := wbsettings.From(&spb.Settings{
+		BaseUrl:           &wrapperspb.StringValue{Value: serverURL},
+		IdentityTokenFile: &wrapperspb.StringValue{Value: tokenFile},
+		CredentialsFile:   &wrapperspb.StringValue{Value: credentialsFile},
+	})
+	credentialProvider, err := api.NewCredentialProvider(
+		settings,
+		observabilitytest.NewTestLogger(t).Logger,
+	)
+	require.NoError(t, err)
+	return credentialProvider
+}
+
+func TestOAuth2CredentialProvider_RejectedExchangeIsPermanent(t *testing.T) {
+	server := rejectingAuthServer(
+		http.StatusUnauthorized,
+		`{"error":"invalid_grant"}`,
+	)
+	defer server.Close()
+	credentialProvider := oauth2ProviderForServer(t, server.URL)
+
+	_, err := httplayerstest.MapRequest(t,
+		credentialProvider, exampleGetRequest(t))
+
+	// A 4xx response means the same exchange can never succeed, so the
+	// error must be marked permanent for retry policies to fail fast.
+	var exchangeErr *api.TokenExchangeError
+	require.ErrorAs(t, err, &exchangeErr)
+	assert.Equal(t, http.StatusUnauthorized, exchangeErr.StatusCode)
+	assert.True(t, exchangeErr.PermanentError())
+	assert.Contains(t, err.Error(), "invalid_grant")
+}
+
+func TestOAuth2CredentialProvider_ExchangeServerErrorIsNotPermanent(t *testing.T) {
+	server := rejectingAuthServer(http.StatusBadGateway, "upstream error")
+	defer server.Close()
+	credentialProvider := oauth2ProviderForServer(t, server.URL)
+
+	_, err := httplayerstest.MapRequest(t,
+		credentialProvider, exampleGetRequest(t))
+
+	// 5xx responses may be transient, so the error stays retryable.
+	require.Error(t, err)
+	var exchangeErr *api.TokenExchangeError
+	assert.False(t, errors.As(err, &exchangeErr))
+	assert.Contains(t, err.Error(), "upstream error")
 }
