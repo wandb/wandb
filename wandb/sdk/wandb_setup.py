@@ -370,7 +370,10 @@ class _WandbSetup:
         else:
             internal_exit_code = None
 
-        self._asyncer.join()
+        try:
+            self._asyncer.join()
+        except asyncio_manager.ForkedError:
+            self._logger.info("Not joining the asyncio thread in a forked process.")
 
         if internal_exit_code not in (None, 0):
             sys.exit(internal_exit_code)

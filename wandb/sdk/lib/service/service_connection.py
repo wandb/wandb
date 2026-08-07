@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import atexit
+import logging
 import pathlib
 from collections.abc import Callable
 
@@ -17,6 +18,8 @@ from wandb.sdk.mailbox.mailbox_handle import MailboxHandle
 from . import service_process, service_token
 from .service_client import ServiceClient
 from .service_finalizer import ServiceFinalizer
+
+_logger = logging.getLogger(__name__)
 
 
 class WandbAttachFailedError(Exception):
@@ -355,11 +358,12 @@ class ServiceConnection:
         the service process, send a teardown message and wait for it to shut
         down.
 
-        This may only be called once.
+        This may only be called once. It does not raise if the service process
+        cannot be reached.
 
         Returns:
             The exit code of the service process, or None if the process was
-            not owned by this connection.
+            not owned by this connection or could not be shut down.
         """
         if self._torn_down:
             raise AssertionError("Already torn down.")
@@ -385,6 +389,13 @@ class ServiceConnection:
             await self._client.close()
 
         self._finalizer.close()
-        self._asyncer.run(publish_teardown_and_close)
+
+        try:
+            self._asyncer.run(publish_teardown_and_close)
+        except Exception:
+            # The process may already be gone, or we may be in a fork that
+            # doesn't own it, in which case it must be left running.
+            _logger.exception("Failed to shut down the service process.")
+            return None
 
         return self._proc.join()
