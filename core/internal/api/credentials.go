@@ -23,13 +23,15 @@ import (
 )
 
 const (
-	// tokenExchangeRetryMax is the number of retries for one identity token
+	// TokenExchangeRetryMax is the number of retries for one identity token
 	// exchange.
 	//
 	// It is much smaller than DefaultRetryMax because the request that needs
 	// the access token is itself retried, and because the exchange holds the
 	// lock that every other request waits on.
-	tokenExchangeRetryMax = 3
+	//
+	// It is exported for tests, which build their own exchange clients.
+	TokenExchangeRetryMax = 3
 
 	// Waits between exchange attempts. These are shorter than the defaults
 	// for the same reason the retry count is lower.
@@ -78,10 +80,10 @@ func NewCredentialProvider(
 		// credentials is what it is being used to make possible.
 		exchangeClient := NewClient(ClientOptions{
 			BaseURL:            baseURL,
-			RetryMax:           tokenExchangeRetryMax,
+			RetryMax:           TokenExchangeRetryMax,
 			RetryWaitMin:       tokenExchangeRetryWaitMin,
 			RetryWaitMax:       tokenExchangeRetryWaitMax,
-			RetryPolicy:        tokenExchangeRetryPolicy,
+			RetryPolicy:        TokenExchangeRetryPolicy,
 			NonRetryTimeout:    tokenExchangeAttemptTimeout,
 			ExtraHeaders:       s.GetExtraHTTPHeaders(),
 			Proxy:              clients.ProxyFn(s.GetHTTPProxy(), s.GetHTTPSProxy()),
@@ -222,13 +224,15 @@ func isExchangeRejection(statusCode int) bool {
 		statusCode != http.StatusTooManyRequests
 }
 
-// tokenExchangeRetryPolicy retries the same failures as RetryMostFailures,
+// TokenExchangeRetryPolicy retries the same failures as RetryMostFailures,
 // except that no definitive rejection of the exchange is retried.
 //
 // RetryMostFailures retries 4xx statuses it does not recognize; for the
 // token exchange, that would discard the server's response and hide the
 // rejection from the requests waiting on the exchange.
-func tokenExchangeRetryPolicy(
+//
+// It is exported for tests, which build their own exchange clients.
+func TokenExchangeRetryPolicy(
 	ctx context.Context,
 	resp *http.Response,
 	err error,
