@@ -218,9 +218,6 @@ class Api:
     ) -> None:
         import requests
 
-        if telemetry_recorder is None:
-            telemetry_recorder = TelemetryRecorder()
-
         self._environ = environ
 
         default_overrides: dict[str, Any] = (
@@ -281,8 +278,6 @@ class Api:
                 )
         else:
             auth = ("api", self.api_key or "")
-
-        self._telemetry_recorder = telemetry_recorder
 
         proxies = self.settings("_proxies") or json.loads(
             self._environ.get("WANDB__PROXIES", "{}")
