@@ -1,6 +1,7 @@
 package wbapi
 
 import (
+	"context"
 	"fmt"
 	"sync"
 )
@@ -69,5 +70,18 @@ func (mgr *WandbAPIManager) RemoveWandbAPI(id string) *WandbAPI {
 	} else {
 		delete(mgr.apis, id)
 		return wandbAPI
+	}
+}
+
+// Shutdown cleans up all WandbAPI instances.
+//
+// It is safe to call this method multiple times,
+// multiple shutdown calls are no-ops.
+func (mgr *WandbAPIManager) Shutdown() {
+	mgr.mu.Lock()
+	defer mgr.mu.Unlock()
+
+	for _, wandbAPI := range mgr.apis {
+		wandbAPI.Shutdown(context.Background())
 	}
 }
