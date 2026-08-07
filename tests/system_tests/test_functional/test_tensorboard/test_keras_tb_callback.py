@@ -86,5 +86,3 @@ def test_tb_callback(wandb_backend_spy: WandbBackendSpy):
 
         telemetry = snapshot.telemetry(run_id=run.id)
         assert 35 in telemetry["3"]  # tensorboard_sync
-
-    wandb.tensorboard.unpatch()

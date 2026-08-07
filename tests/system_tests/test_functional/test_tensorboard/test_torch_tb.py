@@ -31,8 +31,6 @@ def test_add_scalar(wandb_backend_spy):
         telemetry = snapshot.telemetry(run_id=run.id)
         assert 35 in telemetry["3"]  # tensorboard_sync
 
-    wandb.tensorboard.unpatch()
-
 
 def test_add_scalars(wandb_backend_spy):
     """Test adding multiple scalars to TensorBoard and syncing it to W&B."""
@@ -57,8 +55,6 @@ def test_add_scalars(wandb_backend_spy):
 
         telemetry = snapshot.telemetry(run_id=run.id)
         assert 35 in telemetry["3"]  # tensorboard_sync
-
-    wandb.tensorboard.unpatch()
 
 
 def test_add_image(wandb_backend_spy):
@@ -85,8 +81,6 @@ def test_add_image(wandb_backend_spy):
         telemetry = snapshot.telemetry(run_id=run.id)
         assert 35 in telemetry["3"]  # tensorboard_sync
 
-    wandb.tensorboard.unpatch()
-
 
 def test_add_gif(wandb_backend_spy):
     with wandb.init(sync_tensorboard=True) as run, SummaryWriter() as writer:
@@ -108,8 +102,6 @@ def test_add_gif(wandb_backend_spy):
         assert summary["example"]["width"] == 1
         assert summary["example"]["height"] == 1
         assert summary["example"]["format"] == "gif"
-
-    wandb.tensorboard.unpatch()
 
 
 def test_add_images(wandb_backend_spy):
@@ -137,8 +129,6 @@ def test_add_images(wandb_backend_spy):
         telemetry = snapshot.telemetry(run_id=run.id)
         assert 35 in telemetry["3"]  # tensorboard_sync
 
-    wandb.tensorboard.unpatch()
-
 
 def test_add_histogram(wandb_backend_spy):
     """Test adding a histogram to TensorBoard and syncing it to W&B."""
@@ -161,8 +151,6 @@ def test_add_histogram(wandb_backend_spy):
         telemetry = snapshot.telemetry(run_id=run.id)
         assert 35 in telemetry["3"]  # tensorboard_sync
 
-    wandb.tensorboard.unpatch()
-
 
 @pytest.mark.skip(reason="old style TensorBoard not implemented")
 def test_add_pr_curve(wandb_backend_spy):
@@ -182,8 +170,6 @@ def test_add_pr_curve(wandb_backend_spy):
         telemetry = snapshot.telemetry(run_id=run.id)
         assert 35 in telemetry["3"]  # tensorboard_sync
 
-    wandb.tensorboard.unpatch()
-
 
 def test_add_pr_curve_wandb_core(wandb_backend_spy):
     """Test adding a precision-recall curve to TensorBoard and syncing it to W&B."""
@@ -201,5 +187,3 @@ def test_add_pr_curve_wandb_core(wandb_backend_spy):
 
         telemetry = snapshot.telemetry(run_id=run.id)
         assert 35 in telemetry["3"]  # tensorboard_sync
-
-    wandb.tensorboard.unpatch()
