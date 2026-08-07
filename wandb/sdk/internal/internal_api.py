@@ -300,6 +300,9 @@ class Api:
         }
         self._request_proxies = dict(proxies or {})
         self._service_api = self._new_service_api()
+        self._telemetry_recorder = telemetry_recorder or TelemetryRecorder(
+            service_api=self._service_api,
+        )
 
         self.retry_callback = retry_callback
         self._current_run_id: str | None = None
