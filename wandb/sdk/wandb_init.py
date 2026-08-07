@@ -629,10 +629,10 @@ class _WandbInit:
         if self.run:
             self.notebook.save_history(self.run)
 
-        if self.notebook.save_ipynb():
-            assert self.run is not None
-            res = self.run.log_code(root=None)
-            self._logger.info("saved code and history: %s", res)
+            if self.notebook.save_ipynb():
+                res = self.run.log_code(root=None)
+                self._logger.info("saved code and history: %s", res)
+
         self._logger.info("cleaning up jupyter logic")
 
         ipython = self.notebook.shell
@@ -1181,6 +1181,21 @@ def try_create_root_dir(settings: Settings) -> None:
     os.makedirs(settings.root_dir, exist_ok=True)
 
 
+def _teardown_failed_init(wi: _WandbInit | None) -> None:
+    """Undo the changes made by an unsuccessful `wandb.init()`.
+
+    Cleanup errors are logged and dropped so that they cannot hide the error
+    that caused `wandb.init()` to fail.
+    """
+    if wi is None:
+        return
+
+    try:
+        wi.teardown()
+    except Exception as e:
+        wi._logger.exception("error tearing down wandb.init()", exc_info=e)
+
+
 def init(  # noqa: C901
     entity: str | None = None,
     project: str | None = None,
@@ -1454,6 +1469,7 @@ def init(  # noqa: C901
         init_telemetry.feature.set_init_config = True
 
     wl: wandb_setup._WandbSetup | None = None
+    wi: _WandbInit | None = None
 
     try:
         wl = wandb_setup.singleton()
@@ -1537,10 +1553,12 @@ def init(  # noqa: C901
         if wl:
             wl._get_logger().warning("interrupted", exc_info=e)
 
+        _teardown_failed_init(wi)
         raise
 
     except Exception as e:
         if wl:
             wl._get_logger().exception("error in wandb.init()", exc_info=e)
 
+        _teardown_failed_init(wi)
         get_sentry().reraise(e)
