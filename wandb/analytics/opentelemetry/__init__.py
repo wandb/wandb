@@ -6,6 +6,11 @@ Provides a protobuf-free OTLP/JSON telemetry proxy and its custom exporters.
 __all__ = (
     "TelemetryContext",
     "TelemetryRecorder",
+    "get_telemetry_recorder",
 )
 
-from .opentelemetry_proxy import TelemetryContext, TelemetryRecorder
+from .opentelemetry_proxy import (
+    TelemetryContext,
+    TelemetryRecorder,
+    get_telemetry_recorder,
+)

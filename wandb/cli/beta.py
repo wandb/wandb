@@ -9,8 +9,7 @@ import pathlib
 
 import click
 
-from wandb.analytics import TelemetryRecorder, get_sentry
-from wandb.apis.public.service_api import ServiceApi
+from wandb.analytics import get_sentry, get_telemetry_recorder
 from wandb.errors import WandbCoreNotAvailableError
 from wandb.sdk import wandb_setup
 from wandb.util import get_core_path
@@ -25,8 +24,7 @@ def beta(ctx: click.Context) -> None:
 
     These commands may change or even completely break in any release of wandb.
     """
-    service_api = ServiceApi(settings=wandb_setup.singleton().settings)
-    telemetry_recorder = TelemetryRecorder(service_api=service_api)
+    telemetry_recorder = get_telemetry_recorder(wandb_setup.singleton().settings)
     get_sentry().configure_scope(process_context="wandb_beta")
 
     try:

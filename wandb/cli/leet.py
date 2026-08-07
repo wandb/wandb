@@ -17,8 +17,7 @@ from typing import Any
 import click
 from typing_extensions import Never
 
-from wandb.analytics import TelemetryRecorder, get_sentry
-from wandb.apis.public.service_api import ServiceApi
+from wandb.analytics import TelemetryRecorder, get_sentry, get_telemetry_recorder
 from wandb.env import error_reporting_enabled, is_debug
 from wandb.errors import WandbCoreNotAvailableError
 from wandb.sdk import wandb_setup
@@ -230,8 +229,7 @@ def _run_core(
 def launch(path: str | None, pprof: str) -> Never:
     """Launch the LEET TUI."""
     get_sentry().configure_scope(process_context="leet")
-    service_api = ServiceApi(settings=wandb_setup.singleton().settings)
-    telemetry_recorder = TelemetryRecorder(service_api=service_api)
+    telemetry_recorder = get_telemetry_recorder(wandb_setup.singleton().settings)
 
     if path is not None and (path.startswith("https://") or path.startswith("http://")):
         config = _create_remote_launch_config(path)
@@ -258,8 +256,7 @@ def launch(path: str | None, pprof: str) -> Never:
 def launch_config() -> Never:
     """Launch the LEET configuration editor."""
     get_sentry().configure_scope(process_context="leet-config")
-    service_api = ServiceApi(settings=wandb_setup.singleton().settings)
-    telemetry_recorder = TelemetryRecorder(service_api=service_api)
+    telemetry_recorder = get_telemetry_recorder(wandb_setup.singleton().settings)
 
     args = _base_args(telemetry_recorder)
     args.append("--config")
@@ -270,8 +267,7 @@ def launch_config() -> Never:
 def launch_symon(pprof: str = "", interval: str = "") -> Never:
     """Launch the standalone system monitor."""
     get_sentry().configure_scope(process_context="leet-symon")
-    service_api = ServiceApi(settings=wandb_setup.singleton().settings)
-    telemetry_recorder = TelemetryRecorder(service_api=service_api)
+    telemetry_recorder = get_telemetry_recorder(wandb_setup.singleton().settings)
 
     args = _base_args(telemetry_recorder)
     args.append("--symon")

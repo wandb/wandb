@@ -3,11 +3,14 @@
 from unittest.mock import MagicMock
 
 from wandb import env
+from wandb.analytics.opentelemetry import opentelemetry_proxy
 from wandb.analytics.opentelemetry.opentelemetry_proxy import (
     LowCardinalityAttributes,
     TelemetryRecorder,
+    get_telemetry_recorder,
 )
 from wandb.sdk import wandb_setup
+from wandb.sdk.wandb_settings import Settings
 
 
 def _pretend_service_connected(monkeypatch):
@@ -80,3 +83,26 @@ def test_telemetry_publishes_with_service_connection(monkeypatch):
     recorder.log("test log")
 
     assert service_api.api_publish.call_count == 2
+
+
+def test_get_telemetry_recorder_shares_per_deployment_and_credentials(monkeypatch):
+    user_1 = get_telemetry_recorder(
+        Settings(base_url="https://host-a.test", api_key="user-1-key")
+    )
+    user_1_again = get_telemetry_recorder(
+        Settings(base_url="https://host-a.test", api_key="user-1-key")
+    )
+    user_2 = get_telemetry_recorder(
+        Settings(base_url="https://host-a.test", api_key="user-2-key")
+    )
+    user_3 = get_telemetry_recorder(
+        Settings(base_url="https://host-a.test", identity_token_file="user-3-token")
+    )
+    other_host = get_telemetry_recorder(
+        Settings(base_url="https://host-b.test", api_key="user-1-key")
+    )
+
+    assert user_1 is user_1_again
+    assert user_1 is not user_2
+    assert user_1 is not user_3
+    assert user_1 is not other_host
