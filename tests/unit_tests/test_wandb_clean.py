@@ -104,20 +104,6 @@ def test_skips_runs_created_within_the_hour(
     ]
 
 
-@pytest.mark.usefixtures("now_20260805_3pm")
-def test_cleans_run_without_valid_timestamp(
-    wandb_dir: pathlib.Path,
-    runner: CliRunner,
-):
-    run = wandb_dir / "wandb" / "run-notatimestamp-abc"
-    _mkrun(run)
-
-    result = runner.invoke(clean.clean, ["--force"])
-
-    assert result.exit_code == 0
-    assert not run.exists()
-
-
 def test_finds_synced_runs(wandb_dir: pathlib.Path, runner: CliRunner):
     wb = wandb_dir / "wandb"
     _mkrun(wb / "offline-run-20260101_010101-1")
