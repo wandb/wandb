@@ -73,15 +73,18 @@ func (mgr *WandbAPIManager) RemoveWandbAPI(id string) *WandbAPI {
 	}
 }
 
-// Shutdown cleans up all WandbAPI instances.
+// Shutdown cleans up and forgets all registered WandbAPI instances.
 //
-// It is safe to call this method multiple times,
-// multiple shutdown calls are no-ops.
-func (mgr *WandbAPIManager) Shutdown() {
+// API instances are removed as they are shut down, so repeat calls are no-ops.
+func (mgr *WandbAPIManager) Shutdown(ctx context.Context) {
 	mgr.mu.Lock()
 	defer mgr.mu.Unlock()
 
+	var wg sync.WaitGroup
 	for _, wandbAPI := range mgr.apis {
-		wandbAPI.Shutdown(context.Background())
+		wg.Go(func() { wandbAPI.Shutdown(ctx) })
 	}
+	wg.Wait()
+
+	clear(mgr.apis)
 }
