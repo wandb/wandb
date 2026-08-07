@@ -81,6 +81,10 @@ type Run struct {
 	focusMgr *FocusManager
 	focus    *Focus
 
+	// focusSeeded is set once initial focus lands on the first pane that
+	// receives data. After that, focus only ever changes on user action.
+	focusSeeded bool
+
 	// UI components.
 	metricsGridAnimState *AnimatedValue
 	metricsGrid          *MetricsGrid
@@ -262,7 +266,7 @@ func (r *Run) handleWindowResize(msg tea.WindowSizeMsg) {
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
-	r.focusMgr.ResolveAfterAvailabilityChange()
+	r.focusMgr.Resolve()
 }
 
 // isUIMsg returns true for messages that should flow to child view models.

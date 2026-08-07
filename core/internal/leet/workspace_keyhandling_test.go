@@ -150,12 +150,15 @@ func newWorkspaceWithPanels(t *testing.T) *leet.Workspace {
 	// computed heights).
 	w.TestSeedRunOverview(runKey)
 
+	// Give the console logs pane content so it is focusable.
+	w.TestSeedConsoleLogs(runKey, "hello from the run")
+
 	return w
 }
 
 // ---- handleToggleConsoleLogsPane ----
 
-func TestWorkspace_ToggleConsoleLogsPane_FocusReturnsToRuns(t *testing.T) {
+func TestWorkspace_ToggleConsoleLogsPane_FocusClears(t *testing.T) {
 	w := newWorkspaceWithPanels(t)
 
 	// Focus logs via Tab until bottom bar is active.
@@ -164,13 +167,13 @@ func TestWorkspace_ToggleConsoleLogsPane_FocusReturnsToRuns(t *testing.T) {
 	}
 	require.Equal(t, testFocusLogs, w.TestCurrentFocusRegion())
 
-	// Collapse bottom bar — focus should return to runs (the next available).
+	// Collapse bottom bar — the focused pane disappeared, so focus clears
+	// rather than jumping to another pane.
 	_ = w.Update(keyRune('4'))
-	_ = w.Update(keyRune(']'))
 	require.False(t, w.TestConsoleLogsPaneActive(),
 		"bottom bar should not be active after collapse")
-	require.True(t, w.TestRunsActive(),
-		"runs list should be focused after collapsing logs")
+	require.Equal(t, int(leet.FocusTargetNone), w.TestCurrentFocusRegion(),
+		"focus should clear when the focused pane is closed")
 }
 
 func TestWorkspace_ToggleConsoleLogsPane_FocusStaysOnRuns(t *testing.T) {
@@ -184,6 +187,28 @@ func TestWorkspace_ToggleConsoleLogsPane_FocusStaysOnRuns(t *testing.T) {
 	_ = w.Update(keyRune('4'))
 	require.True(t, w.TestRunsActive(),
 		"runs focus should be preserved when collapsing bottom bar from runs")
+}
+
+// ---- Empty panes are skipped by Tab ----
+
+func TestWorkspace_TabSkipsEmptyLogsPane(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+
+	runKey := "run-20260209_010101-abcdefg"
+	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{runKey}})
+	w.TestForceExpandRunsSidebar()
+	w.TestForceExpandConsoleLogsPane(10)
+
+	// The logs pane is open but empty: a full Tab cycle must never land on it.
+	for range 6 {
+		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+		require.NotEqual(t, testFocusLogs, w.TestCurrentFocusRegion(),
+			"an empty logs pane must not receive focus")
+	}
 }
 
 // ---- Focus bug: collapsing overview with logs focused ----
@@ -435,8 +460,9 @@ func TestWorkspace_Enter_RequiresRunSelectorActive(t *testing.T) {
 	require.True(t, w.RunSelectorActive(),
 		"run selector should be active with runs focused and items present")
 
-	// Focus logs by expanding bottom bar and tabbing.
+	// Focus logs by expanding and populating the bottom bar, then tabbing.
 	w.TestForceExpandConsoleLogsPane(10)
+	w.TestSeedConsoleLogs(runKey, "hello")
 	for !w.TestConsoleLogsPaneActive() {
 		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	}
@@ -829,4 +855,46 @@ func TestWorkspace_RunsFilter_TagsAndNotes(t *testing.T) {
 	typeWorkspaceFilter(t, w, "ablation")
 	require.Nil(t, w.Update(tea.KeyPressMsg{Code: tea.KeyEnter}))
 	require.Equal(t, []string{run2}, w.TestFilteredRunKeys())
+}
+
+// Regression: with no runs yet, toggling an unrelated pane used to clear the
+// seeded runs-list focus for good (the runs list was "unavailable" while
+// empty and nothing ever re-seeded it), leaving keyboard navigation dead
+// once runs appeared.
+func TestWorkspace_ToggleWithEmptyRunsListKeepsFocus(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+	require.Equal(t, int(leet.FocusTargetRunsList), w.TestCurrentFocusRegion(),
+		"runs list starts focused")
+
+	// Toggle the media pane while the runs list is still empty.
+	_ = w.Update(keyRune('3'))
+
+	require.Equal(t, int(leet.FocusTargetRunsList), w.TestCurrentFocusRegion(),
+		"toggling an unrelated pane must not clear runs-list focus")
+}
+
+// Regression: when an externally deleted run dir empties the focused data
+// pane, the run-key snapshot must clear focus from it — and availability
+// must be evaluated against the freshly synced pane state, not the dropped
+// run's leftovers (panes are normally re-pointed only during View).
+func TestWorkspace_DroppedRunClearsFocusFromEmptiedPane(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	_ = cfg.SetWorkspaceConsoleLogsVisible(true)
+
+	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{"run-a"}})
+	w.TestSeedConsoleLogs("run-a", "hello")
+	w.TestSetFocusTarget(int(leet.FocusTargetConsoleLogs))
+	require.Equal(t, int(leet.FocusTargetConsoleLogs), w.TestCurrentFocusRegion())
+
+	// The run's directory disappears; the pane it fed is now empty.
+	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: nil})
+	require.Equal(t, int(leet.FocusTargetNone), w.TestCurrentFocusRegion(),
+		"focus must not stay on a pane emptied by a dropped run")
 }

@@ -552,6 +552,20 @@ func (w *Workspace) TestConsoleLogs() map[string]*RunConsoleLogs {
 	return w.consoleLogs
 }
 
+// TestSeedConsoleLogs populates console logs for a run and syncs the pane so
+// the console logs region becomes focusable.
+func (w *Workspace) TestSeedConsoleLogs(runKey string, lines ...string) {
+	cl := w.consoleLogs[runKey]
+	if cl == nil {
+		cl = NewRunConsoleLogs()
+		w.consoleLogs[runKey] = cl
+	}
+	for _, line := range lines {
+		cl.ProcessRaw(line, false, time.Now())
+	}
+	w.consoleLogsPane.SetConsoleLogs(cl.Items())
+}
+
 // TestRunOverviewSidebarHasActiveSection reports whether the overview sidebar
 // has an active section.
 func (w *Workspace) TestRunOverviewSidebarHasActiveSection() bool {
