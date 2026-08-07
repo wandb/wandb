@@ -673,11 +673,17 @@ class Image(BatchableMedia):
                 )
 
         num_images_to_log = len(seq)
-        width, height = seq[0].image.size  # type: ignore
+
+        def image_dimensions(image: Image) -> tuple[int, int]:
+            if image._width is not None and image._height is not None:
+                return image._width, image._height
+            return image.image.size  # type: ignore
+
+        width, height = image_dimensions(seq[0])
         format = jsons[0]["format"]
 
         def size_equals_image(image: Image) -> bool:
-            img_width, img_height = image.image.size  # type: ignore
+            img_width, img_height = image_dimensions(image)
             return img_width == width and img_height == height
 
         sizes_match = all(size_equals_image(img) for img in seq)
