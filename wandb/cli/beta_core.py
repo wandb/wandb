@@ -13,8 +13,7 @@ import logging
 import click
 
 from wandb import env as wandb_env
-from wandb.analytics import TelemetryRecorder, get_sentry
-from wandb.apis.public.service_api import ServiceApi
+from wandb.analytics import get_sentry, get_telemetry_recorder
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.sdk import wandb_setup
 from wandb.sdk.lib import asyncio_manager
@@ -64,8 +63,7 @@ def start(*, idle_timeout: str) -> None:
 def stop(*, exit_code: int = 0) -> None:
     """Stop a detached wandb-core service addressed by WANDB_SERVICE."""
     get_sentry().configure_scope(process_context="beta-core-stop")
-    service_api = ServiceApi(settings=wandb_setup.singleton().settings)
-    telemetry_recorder = TelemetryRecorder(service_api=service_api)
+    telemetry_recorder = get_telemetry_recorder(wandb_setup.singleton().settings)
 
     try:
         token = service_token.from_env()

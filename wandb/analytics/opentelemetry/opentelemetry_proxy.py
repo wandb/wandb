@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
+import os
 import platform
+import threading
 import traceback
 from dataclasses import dataclass, fields
 from typing import TYPE_CHECKING
@@ -23,6 +26,7 @@ from wandb.sdk import wandb_setup
 
 if TYPE_CHECKING:
     from wandb.apis.public.service_api import ServiceApi
+    from wandb.sdk.wandb_settings import Settings
 
 
 @dataclass(frozen=True)
@@ -339,6 +343,47 @@ class TelemetryRecorder:
         with contextlib.suppress(Exception):
             self.exception(str(exc), exc)
         raise exc
+
+
+_recorder_pool_lock = threading.Lock()
+_recorder_pool: dict[tuple[int, str], TelemetryRecorder] = {}
+
+
+def get_telemetry_recorder(settings: Settings) -> TelemetryRecorder:
+    """Returns a shared TelemetryRecorder based on the provided settings.
+
+    Recorders are shared per base URL and credentials (API key or identity
+    token file). Reducing the cost of creating new TelemetryRecorders when
+    recording telemetry across various points in the code.
+    """
+    from wandb.apis.public.service_api import ServiceApi
+
+    key = (os.getpid(), _pool_key(settings))
+
+    with _recorder_pool_lock:
+        recorder = _recorder_pool.get(key)
+        if recorder is None:
+            recorder = TelemetryRecorder(
+                service_api=ServiceApi(settings=settings),
+            )
+            _recorder_pool[key] = recorder
+
+        return recorder
+
+
+def _pool_key(settings: Settings) -> str:
+    """Hash of the settings fields that identify a deployment and account.
+
+    The credentials are hashed to avoid leaking them from the pool's keys.
+    """
+    identity = "\n".join(
+        (
+            settings.base_url,
+            settings.api_key or "",
+            settings.identity_token_file or "",
+        )
+    )
+    return hashlib.sha256(identity.encode()).hexdigest()
 
 
 def _exception_stacktrace(exc: Exception) -> str:

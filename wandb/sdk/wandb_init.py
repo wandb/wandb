@@ -29,8 +29,7 @@ from typing_extensions import Any, Protocol
 import wandb
 import wandb.env
 from wandb import env, trigger
-from wandb.analytics import TelemetryRecorder, get_sentry
-from wandb.apis.public.service_api import ServiceApi
+from wandb.analytics import get_sentry, get_telemetry_recorder
 from wandb.errors import Error, UsageError
 from wandb.errors.links import url_registry
 from wandb.errors.util import ProtobufErrorHandler
@@ -1455,8 +1454,7 @@ def init(  # noqa: C901
         init_telemetry.feature.set_init_config = True
 
     wl: wandb_setup._WandbSetup | None = None
-    service_api = ServiceApi(settings=init_settings)
-    telemetry_recorder = TelemetryRecorder(service_api=service_api)
+    telemetry_recorder = get_telemetry_recorder(init_settings)
 
     try:
         wl = wandb_setup.singleton()
