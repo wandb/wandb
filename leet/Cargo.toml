@@ -1,0 +1,100 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/leet-proto",
+    "crates/leet-wire",
+    "crates/leet-data",
+    "crates/leet-charts",
+    "crates/leet-symon",
+    "crates/leet-remote",
+    "crates/leet-tui",
+    "crates/leet",
+    "harness/leet-harness",
+    "xtask",
+]
+# Inner-loop members: `cargo check`/`cargo test` without heavy deps
+# (tonic/arrow/reqwest in leet-symon/leet-remote, PTY machinery in the harness).
+default-members = [
+    "crates/leet-proto",
+    "crates/leet-wire",
+    "crates/leet-data",
+    "crates/leet-charts",
+    "crates/leet-tui",
+    "crates/leet",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.92"
+license = "MIT"
+repository = "https://github.com/wandb/wandb"
+authors = ["Weights & Biases <support@wandb.com>"]
+publish = false
+
+[workspace.dependencies]
+leet-proto = { path = "crates/leet-proto" }
+leet-wire = { path = "crates/leet-wire" }
+leet-data = { path = "crates/leet-data" }
+leet-charts = { path = "crates/leet-charts" }
+leet-symon = { path = "crates/leet-symon" }
+leet-remote = { path = "crates/leet-remote" }
+leet-tui = { path = "crates/leet-tui" }
+
+# TUI stack. unicode-width/segmentation are pinned workspace-wide so exactly one
+# version exists in the tree (width skew vs the Go oracle is a known parity risk).
+ratatui = { version = "0.30", default-features = false, features = ["crossterm"] }
+crossterm = { version = "0.29", features = ["event-stream"] }
+# poll(2) for the startup terminal-capability round-trip (leet-tui runtime.rs).
+# crossterm already pins rustix on unix; this only adds the `event` feature.
+rustix = { version = "1", default-features = false, features = ["std", "event"] }
+unicode-width = "0.2"
+unicode-segmentation = "1.12"
+
+# Wire format / protos (versions match experimental/rust-sdk and parquet-rust-wrapper).
+prost = "0.13"
+prost-types = "0.13"
+crc32c = "0.6"
+
+# Shared utilities.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+regex = "1"
+thiserror = "2"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+clap = { version = "4", features = ["derive"] }
+
+# Dev / test.
+proptest = "1"
+insta = "1"
+pretty_assertions = "1"
+tempfile = "3"
+libtest-mimic = "0.8"
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+undocumented_unsafe_blocks = "deny"
+
+# The shipped binary: small and stripped. Panic hooks still run under
+# panic="abort", so terminal restore-on-panic is unaffected.
+# opt-level=3: a 287MB transaction log loads ~2x slower at "z"/1 than Go;
+# speed on the ingest/render hot paths beats the ~size savings of "z".
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = true
+panic = "abort"
+
+# Fast-ish parity runs without full release cost.
+[profile.parity]
+inherits = "release"
+opt-level = 1
+lto = false
+codegen-units = 16
+strip = false
+panic = "unwind"

@@ -1,0 +1,29 @@
+[package]
+name = "leet-data"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+leet-proto.workspace = true
+leet-wire.workspace = true
+prost.workspace = true
+regex.workspace = true
+unicode-segmentation.workspace = true
+unicode-width.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+pretty_assertions.workspace = true
+proptest.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,27 @@
+{
+  "name": "single-tiny-light-01",
+  "fixture": "single-tiny",
+  "background": "light",
+  "size": {
+    "cols": 120,
+    "rows": 40
+  },
+  "steps": [
+    {
+      "await_update": {
+        "type": "WorkspaceChunkedBatchMsg",
+        "count": 1,
+        "timeout_ms": 20000
+      }
+    },
+    {
+      "quiesce": {
+        "quiet_ms": 300
+      }
+    },
+    {
+      "snap": "boot-light"
+    }
+  ],
+  "tier": 2
+}

@@ -1,0 +1,63 @@
+name: leet-rust
+
+on:
+  push:
+    branches: [main]
+    paths: ["leet/**", ".github/workflows/leet-rust.yml"]
+  pull_request:
+    paths: ["leet/**", ".github/workflows/leet-rust.yml"]
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: leet
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: leet
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: leet
+      # Default members only: heavy leaves (remote, symon transports) and the
+      # PTY harness build in their dedicated jobs.
+      - run: cargo test
+
+  # Frozen-oracle parity: diffs the Rust app against committed oracle
+  # snapshots (fixtures/expected/) — no Go toolchain needed on PRs.
+  # Live-oracle runs (building Go leet at the pinned ref) go nightly.
+  parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: leet
+      - run: cargo build -p wandb-leet --profile parity
+      - run: >
+          cargo run --quiet -p leet-harness --bin leet-record --
+          --oracle "$PWD/target/parity/wandb-leet" --base-args ""
+          --scenarios fixtures/scenarios --fixtures "$PWD/fixtures/wandb"
+          --parity "$PWD/fixtures/expected"

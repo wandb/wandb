@@ -1,0 +1,82 @@
+#leet-frame v1 cols=120 rows=40 cursor=8,39,hidden
+
+
+  ██     ██  █████  ███    ██ ██████  ██████     ██      ███████ ███████ ████████
+  ██     ██ ██   ██ ████   ██ ██   ██ ██   ██    ██      ██      ██         ██
+  ██  █  ██ ███████ ██ ██  ██ ██   ██ ██████     ██      █████   █████      ██
+  ██ ███ ██ ██   ██ ██  ██ ██ ██   ██ ██   ██    ██      ██      ██         ██
+   ███ ███  ██   ██ ██   ████ ██████  ██████     ███████ ███████ ███████    ██
+
+
+  ── W&B LEET: Lightweight Experiment Exploration Tool ──
+  version                 0.28.2.dev1
+  view                    workspace
+
+  General
+  h, ?                    Toggle this help screen
+  q, ctrl+c               Quit
+  alt+r                   Restart LEET
+  esc                     Focus runs list
+  enter                   View selected run (when not filtering/configuring)
+
+  Panels
+  1                       Toggle metrics grid
+  [                       Toggle runs sidebar
+  2                       Toggle system metrics panel
+  ]                       Toggle run overview sidebar
+  3                       Toggle media pane
+  4                       Toggle console logs panel
+
+  Navigation (focused pane)
+  w/s/a/d, ↑/↓/←/→        Move within focused pane (chart focus on grids, item nav on lists)
+  N, pgup                 Previous page / previous series page in media
+  n, pgdown               Next page / next series page in media
+  home                    Jump to first item / first page / scrub to start
+  end                     Jump to last item / last page / scrub to end
+
+  Runs
+  f                       Filter runs by name / metadata
+  ctrl+f                  Clear runs filter
+
+  Charts
+#styles
+[[120,"d","d",0]]
+[[2,"d","d",0],[79,"#fcbc32","d",1],[39,"d","d",0]]
+[[2,"d","d",0],[79,"#fcbc32","d",1],[39,"d","d",0]]
+[[2,"d","d",0],[79,"#fcbc32","d",1],[39,"d","d",0]]
+[[2,"d","d",0],[79,"#fcbc32","d",1],[39,"d","d",0]]
+[[2,"d","d",0],[79,"#fcbc32","d",1],[39,"d","d",0]]
+[[2,"d","d",0],[79,"#fcbc32","d",1],[39,"d","d",0]]
+[[2,"d","d",0],[79,"#fcbc32","d",1],[39,"d","d",0]]
+[[120,"d","d",0]]
+[[2,"d","d",0],[55,"#fcbc32","d",1],[63,"d","d",0]]
+[[2,"d","d",0],[7,"#eeeeee","d",1],[17,"d","d",0],[11,"#8a8a8a","d",0],[83,"d","d",0]]
+[[2,"d","d",0],[4,"#eeeeee","d",1],[20,"d","d",0],[9,"#8a8a8a","d",0],[85,"d","d",0]]
+[[120,"d","d",0]]
+[[2,"d","d",0],[7,"#fcbc32","d",1],[111,"d","d",0]]
+[[2,"d","d",0],[4,"#eeeeee","d",1],[20,"d","d",0],[23,"#8a8a8a","d",0],[71,"d","d",0]]
+[[2,"d","d",0],[9,"#eeeeee","d",1],[15,"d","d",0],[4,"#8a8a8a","d",0],[90,"d","d",0]]
+[[2,"d","d",0],[5,"#eeeeee","d",1],[19,"d","d",0],[12,"#8a8a8a","d",0],[82,"d","d",0]]
+[[2,"d","d",0],[3,"#eeeeee","d",1],[21,"d","d",0],[15,"#8a8a8a","d",0],[79,"d","d",0]]
+[[2,"d","d",0],[5,"#eeeeee","d",1],[19,"d","d",0],[50,"#8a8a8a","d",0],[44,"d","d",0]]
+[[120,"d","d",0]]
+[[2,"d","d",0],[6,"#fcbc32","d",1],[112,"d","d",0]]
+[[2,"d","d",0],[1,"#eeeeee","d",1],[23,"d","d",0],[19,"#8a8a8a","d",0],[75,"d","d",0]]
+[[2,"d","d",0],[1,"#eeeeee","d",1],[23,"d","d",0],[19,"#8a8a8a","d",0],[75,"d","d",0]]
+[[2,"d","d",0],[1,"#eeeeee","d",1],[23,"d","d",0],[27,"#8a8a8a","d",0],[67,"d","d",0]]
+[[2,"d","d",0],[1,"#eeeeee","d",1],[23,"d","d",0],[27,"#8a8a8a","d",0],[67,"d","d",0]]
+[[2,"d","d",0],[1,"#eeeeee","d",1],[23,"d","d",0],[17,"#8a8a8a","d",0],[77,"d","d",0]]
+[[2,"d","d",0],[1,"#eeeeee","d",1],[23,"d","d",0],[25,"#8a8a8a","d",0],[69,"d","d",0]]
+[[120,"d","d",0]]
+[[2,"d","d",0],[25,"#fcbc32","d",1],[93,"d","d",0]]
+[[2,"d","d",0],[16,"#eeeeee","d",1],[8,"d","d",0],[66,"#8a8a8a","d",0],[28,"d","d",0]]
+[[2,"d","d",0],[7,"#eeeeee","d",1],[17,"d","d",0],[45,"#8a8a8a","d",0],[49,"d","d",0]]
+[[2,"d","d",0],[9,"#eeeeee","d",1],[15,"d","d",0],[37,"#8a8a8a","d",0],[57,"d","d",0]]
+[[2,"d","d",0],[4,"#eeeeee","d",1],[20,"d","d",0],[48,"#8a8a8a","d",0],[46,"d","d",0]]
+[[2,"d","d",0],[3,"#eeeeee","d",1],[21,"d","d",0],[44,"#8a8a8a","d",0],[50,"d","d",0]]
+[[120,"d","d",0]]
+[[2,"d","d",0],[4,"#fcbc32","d",1],[114,"d","d",0]]
+[[2,"d","d",0],[1,"#eeeeee","d",1],[23,"d","d",0],[30,"#8a8a8a","d",0],[64,"d","d",0]]
+[[2,"d","d",0],[6,"#eeeeee","d",1],[18,"d","d",0],[17,"#8a8a8a","d",0],[77,"d","d",0]]
+[[120,"d","d",0]]
+[[2,"d","d",0],[6,"#fcbc32","d",1],[112,"d","d",0]]
