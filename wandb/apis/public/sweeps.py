@@ -445,6 +445,12 @@ class Sweep(Attrs):
         """
         return self._attrs.get("displayName") or self.config.get("name") or self.id
 
+    @property
+    def state(self) -> SweepState:
+        """The state of the sweep."""
+        self.load(force=True)  # reading a changing property
+        return SweepState(self._attrs.get("state"))
+
     @classmethod
     def get(
         cls,

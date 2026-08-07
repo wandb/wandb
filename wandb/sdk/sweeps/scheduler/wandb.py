@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import Any
 
-from wandb import util
+from wandb import Api, util
 from wandb.apis.public import Sweep
 from wandb.sdk.sweeps.run_state import RunState
 from wandb.sdk.sweeps.scheduler.optimizer import (
-    ConfigValue,
     Optimizer,
     Run,
     RunConfig,
@@ -17,6 +16,13 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
     RunWithMetrics,
     is_terminal_state,
 )
+from wandb.sdk.sweeps.scheduler.scheduler import (
+    Executor,
+    InMemoryScheduler,
+    Scheduler,
+    SchedulerOptions,
+)
+from wandb.sdk.wandb_sweep import sweep as wandb_sweep
 
 sweeps = util.get_module(
     "sweeps",
@@ -81,12 +87,13 @@ class WandbOptimizer(Optimizer):
             # Record it (state defaults to pending) so the next search call and
             # tell_run can find it.
             self._runs[run_id] = sweep_run
-            # sweep_run.config is already the wire form RunConfig expects.
+            # `sweeps` hands back the wire form ({param: {"value": v}}); unwrap
+            # it into the flat mapping `RunConfig.from_values` takes.
             suggestions.append(
                 RunSuggestion(
-                    config=RunConfig(
+                    config=RunConfig.from_values(
                         {
-                            name: ConfigValue(**param)
+                            name: param["value"]
                             for name, param in sweep_run.config.items()
                         }
                     ),
@@ -105,7 +112,6 @@ class WandbOptimizer(Optimizer):
         Raises:
             ValueError: If `run_id` was never proposed by this optimizer.
         """
-        # "Save to memory" = update the SweepRun the search reads next time.
         # Keep the config we suggested — `data.config` may be empty (e.g. a
         # reaped run) — only the outcome (state, metrics, history) is new here.
         sweep_run = self._runs.get(run_id)
@@ -168,3 +174,57 @@ class WandbOptimizer(Optimizer):
             state=_to_sweeps_state(data.state),
         )
         return run_id
+
+
+# ---------------------------------------------------------------------------
+# Public entry points.
+#
+# These free functions are the supported way to build a scheduler; callers
+# should not instantiate `WandbOptimizer` directly. Each returns a scheduler
+# whose `.loop()` drives the sweep.
+# ---------------------------------------------------------------------------
+
+
+def create_sweep_from_config(
+    config: dict[str, Any],
+    entity: str,
+    project: str,
+    *,
+    options: SchedulerOptions | None = None,
+) -> Scheduler:
+    """Create a W&B sweep from `config` and attach a wandb scheduler."""
+    if (
+        "scheduler" not in config
+        or "engine" not in config["scheduler"]
+        or config["scheduler"]["engine"] != "wandb"
+    ):
+        raise ValueError(
+            "config must have a 'scheduler' key with 'engine' subkey set to 'wandb'"
+        )
+    sweep_id = wandb_sweep(config, entity=entity, project=project)
+    sweep = Api().sweep(f"{entity}/{project}/{sweep_id}")
+    optimizer = WandbOptimizer(sweep)
+    return InMemoryScheduler(
+        optimizer,
+        sweep,
+        options,
+    )
+
+
+def resume_sweep(
+    sweep: Sweep | str,
+    *,
+    options: SchedulerOptions | None = None,
+) -> Scheduler:
+    """Attach a reference scheduler to a sweep that already exists.
+
+    `sweep` may be a `Sweep` or an `"entity/project/sweep_id"` path string; its
+    search `method`/`parameters` are read off the sweep itself.
+    """
+    resolved: Sweep = Api().sweep(sweep) if isinstance(sweep, str) else sweep
+    optimizer = WandbOptimizer(resolved)
+    return InMemoryScheduler(
+        optimizer,
+        resolved,
+        options,
+    )
