@@ -56,16 +56,6 @@ func TestContext_WithOperation(t *testing.T) {
 	assert.Equal(t, op, wboperation.Get(ctx))
 }
 
-func TestContext_Detach(t *testing.T) {
-	ops := wboperation.NewOperations()
-
-	op := ops.New("op")
-	ctx := op.Context(context.Background())
-
-	assert.Nil(t, wboperation.Get(wboperation.Detach(ctx)))
-	assert.Equal(t, op, wboperation.Get(ctx))
-}
-
 func TestFinishOldest(t *testing.T) {
 	ops := wboperation.NewOperations()
 

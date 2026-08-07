@@ -47,14 +47,6 @@ func Get(ctx context.Context) *WandbOperation {
 	return nil
 }
 
-// Detach returns a context with no associated operation.
-//
-// Requests made with the returned context do not affect the status of
-// the operation in the original context.
-func Detach(ctx context.Context) context.Context {
-	return context.WithValue(ctx, operationContextKey, (*WandbOperation)(nil))
-}
-
 // WandbOperations tracks the status and progress of ongoing operations
 // in the wandb internal process.
 //

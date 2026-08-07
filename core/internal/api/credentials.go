@@ -470,10 +470,13 @@ func (c *oauth2CredentialProvider) fetchAccessToken(
 		return accessTokenInfo{}, err
 	}
 
-	// Detach the exchange from the operation in the context, if any: its
-	// retries would otherwise be reported as the outer request's status.
-	ctx, cancel := context.WithTimeout(
-		wboperation.Detach(ctx), tokenExchangeTimeout)
+	// The exchange reports its retries on its own subtask, not as the
+	// outer request's status: it serves every request waiting on the
+	// token, not just the one whose context this is.
+	op := wboperation.Get(ctx).Subtask("retrieving credentials")
+	defer op.Finish()
+
+	ctx, cancel := context.WithTimeout(op.Context(ctx), tokenExchangeTimeout)
 	defer cancel()
 
 	tokenURL := fmt.Sprintf("%s/oidc/token", c.baseURL)
