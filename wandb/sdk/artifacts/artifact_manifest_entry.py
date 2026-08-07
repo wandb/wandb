@@ -22,7 +22,7 @@ from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 from wandb.sdk.lib.filesystem import copy_or_overwrite_changed
 from wandb.sdk.lib.hashutil import (
-    B64MD5,
+    B64Digest,
     ETag,
     b64_to_hex_id,
     hex_to_b64_id,
@@ -93,7 +93,7 @@ class ArtifactManifestEntry(ArtifactsBase):
 
     path: LogicalPath
 
-    digest: Union[B64MD5, ETag, URIStr, FilePathStr]
+    digest: Union[B64Digest, ETag, URIStr, FilePathStr]
     ref: Union[URIStr, FilePathStr, None] = None
     birth_artifact_id: Annotated[Optional[str], Field(alias="birthArtifactID")] = None
     size: Optional[NonNegativeInt] = None
