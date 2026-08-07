@@ -270,6 +270,26 @@ func (tb *TBHandler) convertToRunHistory(
 ) {
 	converter := TFEventConverter{Namespace: namespace}
 
+	// Combine events with the same step into the same W&B step.
+	//
+	// The purpose of this is mainly aesthetic, as it makes graphs against
+	// the W&B step a bit nicer. It may also have a positive effect on the
+	// storage usage of a run by producing a more dense history.
+	//
+	// When doing this, we assume that consecutive events with the same step
+	// number do not have overlapping data, or else the latest value is taken.
+	// We similarly assume that the "wall time" is roughly the same for such
+	// events.
+	//
+	// Since different events in the same file can use the step to represent
+	// different quantities, this will sometimes merge unrelated events
+	// into the same W&B step. For example, Keras logs "epoch_loss" and
+	// "evaluation_loss_vs_iterations" during a validation run, which use
+	// the epoch and the iteration as the event step respectively. In this
+	// case, we assume such events don't have overlapping tags.
+	var emitter *tfEmitter
+	var emitterStep int64
+
 	for event := range events {
 		tb.logger.Debug(
 			"tensorboard: processed event",
@@ -277,8 +297,19 @@ func (tb *TBHandler) convertToRunHistory(
 			"namespace", namespace,
 		)
 
-		emitter := NewTFEmitter(tb.settings)
+		if emitter == nil {
+			emitter = NewTFEmitter(tb.settings)
+			emitterStep = event.Step
+		} else if emitterStep != event.Step {
+			emitter.Emit(tb.extraWork)
+			emitter = NewTFEmitter(tb.settings)
+			emitterStep = event.Step
+		}
+
 		converter.ConvertNext(emitter, event, tb.logger)
+	}
+
+	if emitter != nil {
 		emitter.Emit(tb.extraWork)
 	}
 }
