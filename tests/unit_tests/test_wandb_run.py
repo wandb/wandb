@@ -253,6 +253,35 @@ def test_run_pub_history(mock_run, record_q, parse_records):
     assert history[1]["that"] == "2"
 
 
+def test_finish_tears_down_when_cleanup_fails(mock_run, mocker):
+    run = mock_run()
+    # "unsafe" allows mocking assert_service(), whose name looks like an
+    # assertion method to MagicMock.
+    library = mocker.MagicMock(unsafe=True)
+    run._set_library(library)
+    hook = mocker.Mock()
+    run._set_teardown_hooks(
+        [
+            wandb_run.TeardownHook(
+                call=hook,
+                stage=wandb_run.TeardownStage.LATE,
+            )
+        ]
+    )
+    mocker.patch.object(run, "_atexit_cleanup", side_effect=Exception("boom"))
+
+    with pytest.raises(Exception, match="boom"):
+        run.finish()
+
+    hook.assert_called_once_with()
+    assert run._teardown_hooks == []
+    library.assert_service().inform_finish.assert_called_once_with(run_id=run.id)
+
+    run.finish()
+
+    hook.assert_called_once_with()
+
+
 def test_use_artifact_offline(mock_run):
     run = mock_run(settings=wandb.Settings(mode="offline"))
     with pytest.raises(Exception) as e_info:
