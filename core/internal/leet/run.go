@@ -85,6 +85,9 @@ type Run struct {
 	// receives data. After that, focus only ever changes on user action.
 	focusSeeded bool
 
+	// drag owns in-progress pane-boundary resizing (mouse drag).
+	drag paneDragger
+
 	// UI components.
 	metricsGridAnimState *AnimatedValue
 	metricsGrid          *MetricsGrid
@@ -164,6 +167,12 @@ func NewRun(
 		logger:               logger,
 	}
 	run.focusMgr = run.buildRunFocusManager()
+	run.drag = paneDragger{
+		saved:    cfg.RunLayout,
+		persist:  cfg.SetRunLayout,
+		relayout: run.applyLayoutConfig,
+		logger:   logger,
+	}
 	return run
 }
 
@@ -276,9 +285,10 @@ func (r *Run) applyLayoutConfig() {
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
 }
 
-// layoutOverrides returns the view's saved pane proportions.
+// layoutOverrides returns the live pane proportions: the in-progress drag's
+// pending values, or the persisted config.
 func (r *Run) layoutOverrides() LayoutOverrides {
-	return r.config.RunLayout()
+	return r.drag.overrides()
 }
 
 // updateSidebarDimensions re-derives both sidebars' expanded widths from the
