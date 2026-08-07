@@ -90,14 +90,19 @@ func (tb *TBHandler) Handle(record *spb.TBRecord) error {
 
 	tb.rootDirGuesser.AddLogDirectory(logDir)
 
+	fileFilter := TFEventsFileFilter{}
+	if !record.IgnoreTimestamp {
+		fileFilter.StartTimeSec = tb.settings.GetStartTime().Unix()
+	}
+	if !record.IgnoreHostname {
+		fileFilter.Hostname = tb.settings.GetHostname()
+	}
+
 	stream := NewTFEventStream(
 		tb.extraWork.BeforeEndCtx(),
 		logDir,
 		tb.fileReadDelay,
-		TFEventsFileFilter{
-			StartTimeSec: tb.settings.GetStartTime().Unix(),
-			Hostname:     tb.settings.GetHostname(),
-		},
+		fileFilter,
 		tb.logger,
 	)
 

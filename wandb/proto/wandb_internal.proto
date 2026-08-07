@@ -638,6 +638,20 @@ message TBRecord {
   // file separator (backslash on Windows, forward slash elsewhere). The "."
   // path can be used to save at the root of the run's files.
   string save_path = 5;
+
+  // Whether to skip filtering by timestamp.
+  //
+  // By default, only tfevents files newer than the run are parsed, based
+  // on the Unix timestamp in the filename. If this field is set, then
+  // timestamps are ignored.
+  bool ignore_timestamp = 6;
+
+  // Whether to skip filtering by hostname.
+  //
+  // By default, only tfevents files with a hostname component exactly matching
+  // the W&B hostname setting (which is the output of HOSTNAME(1)) are parsed.
+  // If this field is set, then hostnames are ignored.
+  bool ignore_hostname = 7;
 }
 
 message TBResult {}
