@@ -200,6 +200,44 @@ def test_resume_output_log(wandb_backend_spy):
         assert len(log_files) == 2
 
 
+def test_resume_does_not_overwrite_console_output(wandb_backend_spy):
+    """A resumed run appends to the uploaded console output.
+
+    Regression test for https://github.com/wandb/wandb/pull/12379: the
+    response to a resumed run's first upsert used to reset the filestream
+    offsets recovered from the resume status, making the run re-upload
+    console output (and system metrics) starting at offset 0 and overwrite
+    what the previous session had uploaded.
+    """
+    settings = wandb.Settings(console="wrap")
+
+    with wandb.init(project="console", settings=settings) as run:
+        run_id = run.id
+        print("hello from the first session")
+        run.log({"x": 1})
+
+    with wandb_backend_spy.freeze() as snapshot:
+        output_before = snapshot.output(run_id=run_id)
+    assert len(output_before) > 0
+
+    with wandb.init(
+        id=run_id,
+        resume="must",
+        project="console",
+        settings=settings,
+    ) as run:
+        print("hello from the resumed session")
+
+    with wandb_backend_spy.freeze() as snapshot:
+        output_after = snapshot.output(run_id=run_id)
+
+    assert any(
+        "hello from the resumed session" in line for line in output_after.values()
+    )
+    for offset, line in output_before.items():
+        assert output_after[offset] == line
+
+
 def test_resume_config_preserves_image_mask(user, wandb_backend_spy):
     img_array = np.zeros((2, 2, 3), dtype=np.uint8)
     mask_array = np.zeros((1, 1), dtype=np.uint8)
