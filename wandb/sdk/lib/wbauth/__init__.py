@@ -4,7 +4,6 @@ __all__ = (
     "AuthIdentityTokenFile",
     "HostUrl",
     "session_credentials",
-    "get_system_auth",
     "authenticate_session",
     "unauthenticate_session",
     "use_explicit_auth",
@@ -19,7 +18,6 @@ __all__ = (
 from .auth import Auth, AuthApiKey, AuthIdentityTokenFile
 from .authenticate import (
     authenticate_session,
-    get_system_auth,
     session_credentials,
     unauthenticate_session,
     use_explicit_auth,

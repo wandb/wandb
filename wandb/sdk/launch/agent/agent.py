@@ -12,7 +12,7 @@ import time
 import traceback
 from dataclasses import dataclass
 from multiprocessing import Event
-from typing import Any, Callable
+from typing import Any
 
 import wandb
 from wandb.analytics import TelemetryRecorder, get_sentry
