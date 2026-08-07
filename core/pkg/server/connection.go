@@ -361,7 +361,7 @@ func (nc *Connection) handleIncomingRequests() {
 		case *spb.ServerRequest_ApiInitRequest:
 			nc.handleApiInit(msg.RequestId, x.ApiInitRequest)
 		case *spb.ServerRequest_ApiCleanupRequest:
-			nc.handleApiCleanup(msg.RequestId, x.ApiCleanupRequest)
+			nc.handleApiCleanup(wg, x.ApiCleanupRequest)
 		case *spb.ServerRequest_ApiRequest:
 			nc.handleApi(wg, msg.RequestId, x.ApiRequest)
 		case nil:
@@ -750,15 +750,19 @@ func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest
 
 // handleApiCleanup cleans up a wandbAPI instance related to the provided id.
 func (nc *Connection) handleApiCleanup(
-	id string,
+	wg *sync.WaitGroup,
 	request *spb.ServerApiCleanupRequest,
 ) {
-	wbapiInstance, err := nc.apiManager.GetWandbAPI(request.GetApiId())
-	if err == nil {
-		wbapiInstance.Shutdown(context.Background())
+	wbapiInstance := nc.apiManager.RemoveWandbAPI(request.GetApiId())
+	if wbapiInstance == nil {
+		return
 	}
 
-	nc.apiManager.RemoveWandbAPI(request.GetApiId())
+	wg.Go(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		wbapiInstance.Shutdown(ctx)
+	})
 }
 
 func (nc *Connection) handleApi(
