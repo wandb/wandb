@@ -37,6 +37,7 @@ The `wandb sync --clean` command now exits with code 1 and prints a hint to use 
 ## Removed
 
 - Releases no longer include 32-bit Windows (`win32`) wheels; use 64-bit Python on Windows (@dmitryduev in https://github.com/wandb/wandb/pull/12267)
+- Removed `wandb.tensorboard.log()` (@timoffex in https://github.com/wandb/wandb/pull/12423)
 
 ## Fixed
 
