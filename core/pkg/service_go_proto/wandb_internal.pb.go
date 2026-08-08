@@ -4588,16 +4588,19 @@ type TBRecord struct {
 	XInfo *XRecordInfo           `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
 	// A directory containing tfevents files to watch.
 	//
-	// This may be an absolute or relative path.
+	// This may be a filesystem path (in the native format, meaning backslashes
+	// on Windows) or one of the supported cloud paths (S3, GCS, Azure). Relative
+	// paths are allowed, but discouraged, since their interpretation depends on
+	// the wandb-core working directory.
 	LogDir string `protobuf:"bytes,1,opt,name=log_dir,json=logDir,proto3" json:"log_dir,omitempty"`
 	// An optional path to an ancestor of `log_dir` used for namespacing.
 	//
-	// This may be an absolute or relative path.
+	// The format is the same as `log_dir`.
 	//
-	// If set, then each event from tfevents files under `log_dir` is
-	// prefixed by the file's path relative to this directory. Additionally,
-	// if `save` is true, then each file's upload path is also its path
-	// relative to `root_dir`.
+	// If `namespace` is not provided, then each event from tfevents files under
+	// `log_dir` is prefixed by the file's path relative to this directory.
+	// If `save_path` is not provided and `save` is true, then each file's upload
+	// path is also its path relative to `root_dir`.
 	//
 	// For example, with `root_dir` set as "tb/logs" and `log_dir` as
 	// "tb/logs/train":
@@ -4607,13 +4610,42 @@ type TBRecord struct {
 	//
 	// If this is unset, then it is inferred using unspecified rules.
 	RootDir string `protobuf:"bytes,3,opt,name=root_dir,json=rootDir,proto3" json:"root_dir,omitempty"`
+	// A prefix to prepend to tfevents tags to create W&B metric keys.
+	//
+	// If present, it is used instead of guessing based on the `root_dir`.
+	// It may be set to an empty string, in which case TB tags are used as W&B
+	// keys without modification.
+	//
+	// The namespace is prepended with a forward slash as a separator,
+	// so this field should not end with a forward slash.
+	Namespace *string `protobuf:"bytes,4,opt,name=namespace,proto3,oneof" json:"namespace,omitempty"`
 	// Whether to save tfevents files with the run.
 	//
 	// When true, this uploads the tfevents files, enabling the "TensorBoard"
 	// tab in W&B.
-	Save          bool `protobuf:"varint,2,opt,name=save,proto3" json:"save,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Save bool `protobuf:"varint,2,opt,name=save,proto3" json:"save,omitempty"`
+	// Path where to save tfevents files, if `save` is true.
+	//
+	// If set, it is used instead of guessing based on the `root_dir`.
+	//
+	// The path is relative to the run's files directory. It must use the system
+	// file separator (backslash on Windows, forward slash elsewhere). The "."
+	// path can be used to save at the root of the run's files.
+	SavePath string `protobuf:"bytes,5,opt,name=save_path,json=savePath,proto3" json:"save_path,omitempty"`
+	// Whether to skip filtering by timestamp.
+	//
+	// By default, only tfevents files newer than the run are parsed, based
+	// on the Unix timestamp in the filename. If this field is set, then
+	// timestamps are ignored.
+	IgnoreTimestamp bool `protobuf:"varint,6,opt,name=ignore_timestamp,json=ignoreTimestamp,proto3" json:"ignore_timestamp,omitempty"`
+	// Whether to skip filtering by hostname.
+	//
+	// By default, only tfevents files with a hostname component exactly matching
+	// the W&B hostname setting (which is the output of HOSTNAME(1)) are parsed.
+	// If this field is set, then hostnames are ignored.
+	IgnoreHostname bool `protobuf:"varint,7,opt,name=ignore_hostname,json=ignoreHostname,proto3" json:"ignore_hostname,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *TBRecord) Reset() {
@@ -4667,9 +4699,37 @@ func (x *TBRecord) GetRootDir() string {
 	return ""
 }
 
+func (x *TBRecord) GetNamespace() string {
+	if x != nil && x.Namespace != nil {
+		return *x.Namespace
+	}
+	return ""
+}
+
 func (x *TBRecord) GetSave() bool {
 	if x != nil {
 		return x.Save
+	}
+	return false
+}
+
+func (x *TBRecord) GetSavePath() string {
+	if x != nil {
+		return x.SavePath
+	}
+	return ""
+}
+
+func (x *TBRecord) GetIgnoreTimestamp() bool {
+	if x != nil {
+		return x.IgnoreTimestamp
+	}
+	return false
+}
+
+func (x *TBRecord) GetIgnoreHostname() bool {
+	if x != nil {
+		return x.IgnoreHostname
 	}
 	return false
 }
@@ -12123,12 +12183,18 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x14LinkArtifactResponse\x12#\n" +
 	"\rerror_message\x18\x01 \x01(\tR\ferrorMessage\x12(\n" +
 	"\rversion_index\x18\x02 \x01(\x05H\x00R\fversionIndex\x88\x01\x01B\x10\n" +
-	"\x0e_version_index\"\x85\x01\n" +
+	"\x0e_version_index\"\xa7\x02\n" +
 	"\bTBRecord\x121\n" +
 	"\x05_info\x18\xc8\x01 \x01(\v2\x1b.wandb_internal._RecordInfoR\x04Info\x12\x17\n" +
 	"\alog_dir\x18\x01 \x01(\tR\x06logDir\x12\x19\n" +
-	"\broot_dir\x18\x03 \x01(\tR\arootDir\x12\x12\n" +
-	"\x04save\x18\x02 \x01(\bR\x04save\"\n" +
+	"\broot_dir\x18\x03 \x01(\tR\arootDir\x12!\n" +
+	"\tnamespace\x18\x04 \x01(\tH\x00R\tnamespace\x88\x01\x01\x12\x12\n" +
+	"\x04save\x18\x02 \x01(\bR\x04save\x12\x1b\n" +
+	"\tsave_path\x18\x05 \x01(\tR\bsavePath\x12)\n" +
+	"\x10ignore_timestamp\x18\x06 \x01(\bR\x0fignoreTimestamp\x12'\n" +
+	"\x0fignore_hostname\x18\a \x01(\bR\x0eignoreHostnameB\f\n" +
+	"\n" +
+	"_namespace\"\n" +
 	"\n" +
 	"\bTBResult\"\xa5\x01\n" +
 	"\vAlertRecord\x12\x14\n" +
@@ -13178,6 +13244,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 		(*Result_Response)(nil),
 	}
 	file_wandb_proto_wandb_internal_proto_msgTypes[51].OneofWrappers = []any{}
+	file_wandb_proto_wandb_internal_proto_msgTypes[52].OneofWrappers = []any{}
 	file_wandb_proto_wandb_internal_proto_msgTypes[56].OneofWrappers = []any{
 		(*Request_StopStatus)(nil),
 		(*Request_NetworkStatus)(nil),

@@ -13,7 +13,6 @@ import pytest
 import wandb
 from wandb import Settings
 from wandb.errors import UsageError
-from wandb.sdk.lib.credentials import DEFAULT_WANDB_CREDENTIALS_FILE
 from wandb.sdk.lib.run_moment import RunMoment
 
 from tests.fixtures.mock_wandb_log import MockWandbLog
@@ -204,7 +203,9 @@ def test_token_file_env():
 
 def test_credentials_file_env():
     s = Settings()
-    assert s.credentials_file == str(DEFAULT_WANDB_CREDENTIALS_FILE)
+    assert s.credentials_file == os.path.expanduser(
+        os.path.join("~", ".config", "wandb", "credentials.json")
+    )
 
     s = Settings()
     s.update_from_env_vars({"WANDB_CREDENTIALS_FILE": "/tmp/credentials.json"})

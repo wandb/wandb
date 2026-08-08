@@ -2,20 +2,45 @@ package wbapi
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/Khan/genqlient/graphql"
 
+	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/gql"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// AuthHandler responds to AuthenticateRequests.
+// AuthHandler responds to authentication-related API requests.
 type AuthHandler struct {
-	graphqlClient graphql.Client
+	graphqlClient      graphql.Client
+	credentialProvider api.CredentialProvider
 }
 
-func NewAuthHandler(graphqlClient graphql.Client) *AuthHandler {
-	return &AuthHandler{graphqlClient: graphqlClient}
+func NewAuthHandler(
+	graphqlClient graphql.Client,
+	credentialProvider api.CredentialProvider,
+) *AuthHandler {
+	return &AuthHandler{
+		graphqlClient:      graphqlClient,
+		credentialProvider: credentialProvider,
+	}
+}
+
+// HandleRequest routes an AuthRequest to the handler for its subrequest.
+func (h *AuthHandler) HandleRequest(
+	ctx context.Context,
+	request *spb.AuthRequest,
+) *spb.ApiResponse {
+	switch request.Request.(type) {
+	case *spb.AuthRequest_AuthenticateRequest:
+		return h.HandleAuthenticate(ctx, request.GetAuthenticateRequest())
+	case *spb.AuthRequest_GetAccessTokenRequest:
+		return h.HandleGetAccessToken(ctx, request.GetGetAccessTokenRequest())
+	default:
+		return apiErrorResponse(
+			fmt.Sprintf("unsupported auth request type: %T", request.Request), 0)
+	}
 }
 
 // HandleAuthenticate verifies the account credentials.
@@ -72,8 +97,45 @@ func (h *AuthHandler) HandleAuthenticate(
 	}
 
 	return &spb.ApiResponse{
-		Response: &spb.ApiResponse_AuthenticateResponse{
-			AuthenticateResponse: response,
+		Response: &spb.ApiResponse_AuthResponse{
+			AuthResponse: &spb.AuthResponse{
+				Response: &spb.AuthResponse_AuthenticateResponse{
+					AuthenticateResponse: response,
+				},
+			},
+		},
+	}
+}
+
+// HandleGetAccessToken returns the access token for the API instance's
+// credentials.
+//
+// A token exists only when using federated identity, in which case the
+// credential provider exchanges the configured identity token for an
+// access token, caching it in the credentials file and refreshing it when
+// it is at or near expiration. For other credential types, the response
+// contains an empty access token.
+func (h *AuthHandler) HandleGetAccessToken(
+	_ context.Context,
+	_ *spb.GetAccessTokenRequest,
+) *spb.ApiResponse {
+	response := &spb.GetAccessTokenResponse{}
+
+	if provider, ok := h.credentialProvider.(api.AccessTokenProvider); ok {
+		token, err := provider.AccessToken()
+		if err != nil {
+			return apiErrorResponse(err.Error(), 0)
+		}
+		response.AccessToken = token
+	}
+
+	return &spb.ApiResponse{
+		Response: &spb.ApiResponse_AuthResponse{
+			AuthResponse: &spb.AuthResponse{
+				Response: &spb.AuthResponse_GetAccessTokenResponse{
+					GetAccessTokenResponse: response,
+				},
+			},
 		},
 	}
 }

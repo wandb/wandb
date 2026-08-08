@@ -200,7 +200,9 @@ func (s *FileStreamState) popSummary(
 		if err != nil {
 			// A partial success is possible, so we log and continue.
 			logger.CaptureError(
-				fmt.Errorf("filestream: error applying summary updates: %v", err))
+				"filestream",
+				fmt.Errorf("filestream: error applying summary updates: %v", err),
+			)
 		}
 
 		summaryJSON, err := s.RunSummary.Serialize()
@@ -208,7 +210,9 @@ func (s *FileStreamState) popSummary(
 			// On error, we don't modify UnsentSummary so that we still upload
 			// a previous successfully-serialized value.
 			logger.CaptureError(
-				fmt.Errorf("filestream: failed to serialize summary: %v", err))
+				"filestream",
+				fmt.Errorf("filestream: failed to serialize summary: %v", err),
+			)
 		} else {
 			s.UnsentSummary = string(summaryJSON)
 			s.LastRunSummarySize = len(summaryJSON)

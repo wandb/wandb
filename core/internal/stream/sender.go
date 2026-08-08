@@ -230,7 +230,7 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 
 // Do processes all work on the input channel.
 func (s *Sender) Do(allWork <-chan runwork.Work) {
-	defer s.logger.Reraise()
+	defer s.logger.Reraise("stream")
 	s.logger.Info("sender: started")
 
 	hangDetectionInChan := make(chan runwork.Work, 32)
@@ -360,14 +360,21 @@ func (s *Sender) sendRecord(record *spb.Record, request *runwork.Request) {
 		s.sendArtifact(record, x.Artifact)
 	case nil:
 		s.logger.CaptureFatalAndPanic(
+			"stream",
 			fmt.Errorf(
 				"sender: sendRecord: nil RecordType, number %d",
-				record.GetNum()))
+				record.GetNum(),
+			),
+		)
 	default:
 		s.logger.CaptureFatalAndPanic(
+			"stream",
 			fmt.Errorf(
 				"sender: sendRecord: unexpected type %T, number %d",
-				x, record.GetNum()))
+				x,
+				record.GetNum(),
+			),
+		)
 	}
 }
 
@@ -400,10 +407,14 @@ func (s *Sender) sendRequest(
 		s.sendRequestJobInput(x.JobInput)
 	case nil:
 		s.logger.CaptureFatalAndPanic(
-			errors.New("sender: sendRequest: nil RequestType"))
+			"stream",
+			errors.New("sender: sendRequest: nil RequestType"),
+		)
 	default:
 		s.logger.CaptureFatalAndPanic(
-			fmt.Errorf("sender: sendRequest: unexpected type %T", x))
+			"stream",
+			fmt.Errorf("sender: sendRequest: unexpected type %T", x),
+		)
 	}
 }
 
@@ -442,7 +453,9 @@ func (s *Sender) sendRequestRunStart(_ *spb.RunStartRequest) {
 	upserter, err := s.runHandle.Upserter()
 	if err != nil {
 		s.logger.CaptureError(
-			fmt.Errorf("sender: sendRequestRunStart: %v", err))
+			"stream",
+			fmt.Errorf("sender: sendRequestRunStart: %v", err),
+		)
 		return
 	}
 
@@ -490,7 +503,10 @@ func (s *Sender) sendJobFlush() {
 
 	upserter, err := s.runHandle.Upserter()
 	if err != nil {
-		s.logger.CaptureError(fmt.Errorf("sender: sendJobFlush: %v", err))
+		s.logger.CaptureError(
+			"stream",
+			fmt.Errorf("sender: sendJobFlush: %v", err),
+		)
 		return
 	}
 
@@ -524,7 +540,9 @@ func (s *Sender) sendJobFlush() {
 	)
 	if result.Err != nil {
 		s.logger.CaptureError(
-			fmt.Errorf("sender: failed to save job artifact: %v", result.Err))
+			"stream",
+			fmt.Errorf("sender: failed to save job artifact: %v", result.Err),
+		)
 	}
 }
 
@@ -538,7 +556,7 @@ func (s *Sender) startFinishRun(
 	exitRequest *runwork.Request,
 ) {
 	go func() {
-		defer s.logger.Reraise()
+		defer s.logger.Reraise("stream")
 		s.finishRunSync(exitRecord, exitRequest)
 	}()
 }
@@ -671,7 +689,10 @@ func (s *Sender) respondExit(
 func (s *Sender) sendTelemetry(_ *spb.Record, telemetry *spb.TelemetryRecord) {
 	upserter, err := s.runHandle.Upserter()
 	if err != nil {
-		s.logger.CaptureError(fmt.Errorf("sender: sendTelemetry: %v", err))
+		s.logger.CaptureError(
+			"stream",
+			fmt.Errorf("sender: sendTelemetry: %v", err),
+		)
 		return
 	}
 
@@ -681,7 +702,10 @@ func (s *Sender) sendTelemetry(_ *spb.Record, telemetry *spb.TelemetryRecord) {
 func (s *Sender) sendEnvironment(environment *spb.EnvironmentRecord) {
 	upserter, err := s.runHandle.Upserter()
 	if err != nil {
-		s.logger.CaptureError(fmt.Errorf("sender: sendMetadata: %v", err))
+		s.logger.CaptureError(
+			"stream",
+			fmt.Errorf("sender: sendMetadata: %v", err),
+		)
 		return
 	}
 
@@ -703,14 +727,22 @@ func (s *Sender) uploadMetadataFile() {
 
 	upserter, err := s.runHandle.Upserter()
 	if err != nil {
-		s.logger.CaptureError(fmt.Errorf("sender: uploadMetadataFile: %v", err))
+		s.logger.CaptureError(
+			"stream",
+			fmt.Errorf("sender: uploadMetadataFile: %v", err),
+		)
 		return
 	}
 
 	environment, err := upserter.EnvironmentJSON()
 	if err != nil {
 		s.logger.CaptureError(
-			fmt.Errorf("sender: failed to serialize run environment info: %v", err))
+			"stream",
+			fmt.Errorf(
+				"sender: failed to serialize run environment info: %v",
+				err,
+			),
+		)
 		return
 	}
 
@@ -720,7 +752,13 @@ func (s *Sender) uploadMetadataFile() {
 		filetransfer.RunFileKindWandb,
 	); err != nil {
 		s.logger.CaptureError(
-			fmt.Errorf("sender: failed to upload run's %s file: %v", MetaFileName, err))
+			"stream",
+			fmt.Errorf(
+				"sender: failed to upload run's %s file: %v",
+				MetaFileName,
+				err,
+			),
+		)
 	}
 }
 
@@ -825,7 +863,9 @@ func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {
 	updates := runsummary.FromProto(summary)
 	if err := updates.Apply(s.runSummary); err != nil {
 		s.logger.CaptureError(
-			fmt.Errorf("sender: error updating summary: %v", err))
+			"stream",
+			fmt.Errorf("sender: error updating summary: %v", err),
+		)
 	}
 
 	if s.fileStream != nil {
@@ -845,7 +885,9 @@ func (s *Sender) uploadSummaryFile() {
 	summary, err := s.runSummary.Serialize()
 	if err != nil {
 		s.logger.CaptureError(
-			fmt.Errorf("sender: failed to serialize run summary: %v", err))
+			"stream",
+			fmt.Errorf("sender: failed to serialize run summary: %v", err),
+		)
 		return
 	}
 
@@ -855,7 +897,9 @@ func (s *Sender) uploadSummaryFile() {
 		filetransfer.RunFileKindWandb,
 	); err != nil {
 		s.logger.CaptureError(
-			fmt.Errorf("sender: failed to upload run summary: %v", err))
+			"stream",
+			fmt.Errorf("sender: failed to upload run summary: %v", err),
+		)
 	}
 }
 
@@ -870,14 +914,19 @@ func (s *Sender) uploadConfigFile() {
 
 	upserter, err := s.runHandle.Upserter()
 	if err != nil {
-		s.logger.CaptureError(fmt.Errorf("sender: uploadConfigFile: %v", err))
+		s.logger.CaptureError(
+			"stream",
+			fmt.Errorf("sender: uploadConfigFile: %v", err),
+		)
 		return
 	}
 
 	config, err := upserter.ConfigYAML()
 	if err != nil {
 		s.logger.CaptureError(
-			fmt.Errorf("sender: failed to serialize run config: %v", err))
+			"stream",
+			fmt.Errorf("sender: failed to serialize run config: %v", err),
+		)
 		return
 	}
 
@@ -887,7 +936,9 @@ func (s *Sender) uploadConfigFile() {
 		filetransfer.RunFileKindWandb,
 	); err != nil {
 		s.logger.CaptureError(
-			fmt.Errorf("sender: failed to upload run config: %v", err))
+			"stream",
+			fmt.Errorf("sender: failed to upload run config: %v", err),
+		)
 	}
 }
 
@@ -929,7 +980,10 @@ func (s *Sender) scheduleFileUpload(
 func (s *Sender) sendConfig(_ *spb.Record, configRecord *spb.ConfigRecord) {
 	upserter, err := s.runHandle.Upserter()
 	if err != nil {
-		s.logger.CaptureError(fmt.Errorf("sender: sendConfig: %v", err))
+		s.logger.CaptureError(
+			"stream",
+			fmt.Errorf("sender: sendConfig: %v", err),
+		)
 		return
 	}
 
@@ -949,7 +1003,10 @@ func (s *Sender) sendSystemMetrics(record *spb.StatsRecord) {
 
 	upserter, err := s.runHandle.Upserter()
 	if err != nil {
-		s.logger.CaptureError(fmt.Errorf("sender: sendSystemMetrics: %v", err))
+		s.logger.CaptureError(
+			"stream",
+			fmt.Errorf("sender: sendSystemMetrics: %v", err),
+		)
 		return
 	}
 
@@ -960,7 +1017,9 @@ func (s *Sender) sendSystemMetrics(record *spb.StatsRecord) {
 	startTime := upserter.StartTime()
 	if startTime.IsZero() {
 		s.logger.CaptureError(
-			errors.New("sender: sendSystemMetrics: start time not set"))
+			"stream",
+			errors.New("sender: sendSystemMetrics: start time not set"),
+		)
 		return
 	}
 
@@ -1004,7 +1063,10 @@ func (s *Sender) sendAlert(_ *spb.Record, alert *spb.AlertRecord) {
 
 	upserter, err := s.runHandle.Upserter()
 	if err != nil {
-		s.logger.CaptureFatalAndPanic(fmt.Errorf("sender: sendAlert: %v", err))
+		s.logger.CaptureFatalAndPanic(
+			"stream",
+			fmt.Errorf("sender: sendAlert: %v", err),
+		)
 		return
 	}
 	runPath := upserter.RunPath()
@@ -1025,10 +1087,12 @@ func (s *Sender) sendAlert(_ *spb.Record, alert *spb.AlertRecord) {
 	)
 	if err != nil {
 		s.logger.CaptureError(
+			"stream",
 			fmt.Errorf(
 				"sender: sendAlert: failed to notify scriptable run alert: %v",
 				err,
-			))
+			),
+		)
 	} else {
 		s.logger.Info("sender: sendAlert: notified scriptable run alert", "data", data)
 	}
@@ -1043,7 +1107,9 @@ func (s *Sender) sendExit(
 ) {
 	if s.receivedExit {
 		s.logger.CaptureError(
-			errors.New("sender: received exit more than once, ignoring"))
+			"stream",
+			errors.New("sender: received exit more than once, ignoring"),
+		)
 		request.WillNotRespond()
 		return
 	}
@@ -1057,7 +1123,10 @@ func (s *Sender) sendExit(
 func (s *Sender) sendMetric(_ *spb.Record, metrics *spb.MetricRecord) {
 	upserter, err := s.runHandle.Upserter()
 	if err != nil {
-		s.logger.CaptureError(fmt.Errorf("sender: sendMetric: %v", err))
+		s.logger.CaptureError(
+			"stream",
+			fmt.Errorf("sender: sendMetric: %v", err),
+		)
 		return
 	}
 
@@ -1096,8 +1165,10 @@ func (s *Sender) sendArtifact(_ *spb.Record, msg *spb.ArtifactRecord) {
 		op.Finish()
 		if result.Err != nil {
 			s.logger.CaptureError(
+				"stream",
 				fmt.Errorf("sender: failed to log artifact: %v", result.Err),
-				"artifactID", result.ArtifactID)
+				"artifactID", result.ArtifactID,
+			)
 		}
 	}()
 }
@@ -1131,6 +1202,7 @@ func (s *Sender) sendRequestLogArtifact(
 			response.ErrorMessage = result.Err.Error()
 			// TODO: it will send error to sentry, do we want it?
 			s.logger.CaptureError(
+				"stream",
 				fmt.Errorf("sender: failed to log artifact: %v", result.Err),
 				"artifactID", result.ArtifactID,
 			)
@@ -1180,7 +1252,9 @@ func (s *Sender) sendRequestDownloadArtifact(
 	).Download(); err != nil {
 		// Online mode handling: error during download
 		s.logger.CaptureError(
-			fmt.Errorf("sender: failed to download artifact: %v", err))
+			"stream",
+			fmt.Errorf("sender: failed to download artifact: %v", err),
+		)
 		response.ErrorMessage = err.Error()
 	}
 
@@ -1213,5 +1287,8 @@ func (s *Sender) sendRequestJobInput(request *spb.JobInputRequest) {
 // logCalledAfterExit logs an error for a method wrongly called after an Exit
 // record has been received.
 func (s *Sender) logCalledAfterExit(method string) {
-	s.logger.CaptureError(fmt.Errorf("sender: %s called after exit", method))
+	s.logger.CaptureError(
+		"stream",
+		fmt.Errorf("sender: %s called after exit", method),
+	)
 }

@@ -758,16 +758,24 @@ class LinkArtifactResponse(_message.Message):
     def __init__(self, error_message: _Optional[str] = ..., version_index: _Optional[int] = ...) -> None: ...
 
 class TBRecord(_message.Message):
-    __slots__ = ("_info", "log_dir", "root_dir", "save")
+    __slots__ = ("_info", "log_dir", "root_dir", "namespace", "save", "save_path", "ignore_timestamp", "ignore_hostname")
     _INFO_FIELD_NUMBER: _ClassVar[int]
     LOG_DIR_FIELD_NUMBER: _ClassVar[int]
     ROOT_DIR_FIELD_NUMBER: _ClassVar[int]
+    NAMESPACE_FIELD_NUMBER: _ClassVar[int]
     SAVE_FIELD_NUMBER: _ClassVar[int]
+    SAVE_PATH_FIELD_NUMBER: _ClassVar[int]
+    IGNORE_TIMESTAMP_FIELD_NUMBER: _ClassVar[int]
+    IGNORE_HOSTNAME_FIELD_NUMBER: _ClassVar[int]
     _info: _wandb_base_pb2._RecordInfo
     log_dir: str
     root_dir: str
+    namespace: str
     save: bool
-    def __init__(self, _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ..., log_dir: _Optional[str] = ..., root_dir: _Optional[str] = ..., save: bool = ...) -> None: ...
+    save_path: str
+    ignore_timestamp: bool
+    ignore_hostname: bool
+    def __init__(self, _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ..., log_dir: _Optional[str] = ..., root_dir: _Optional[str] = ..., namespace: _Optional[str] = ..., save: bool = ..., save_path: _Optional[str] = ..., ignore_timestamp: bool = ..., ignore_hostname: bool = ...) -> None: ...
 
 class TBResult(_message.Message):
     __slots__ = ()

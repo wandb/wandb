@@ -20,6 +20,15 @@ import (
 // CredentialProvider adds credentials to HTTP requests.
 type CredentialProvider httplayers.HTTPWrapper
 
+// AccessTokenProvider is implemented by credential providers whose
+// credentials take the form of an access token that other processes
+// may need for authenticating with the W&B server directly.
+type AccessTokenProvider interface {
+	// AccessToken returns a valid access token, refreshing it if it is
+	// at or near expiration.
+	AccessToken() (string, error)
+}
+
 // NewCredentialProvider creates a new credential provider based on the SDK
 // settings. Settings for JWT authentication are prioritized above API key
 // authentication.
@@ -104,28 +113,65 @@ func NewOAuth2CredentialProvider(
 	credentialsFilePath string,
 	logger *slog.Logger,
 ) (CredentialProvider, error) {
-	identityToken, err := os.ReadFile(identityTokenFilePath)
-	if err != nil {
-		return nil, fmt.Errorf("api: failed to read identity token file: %v", err)
+	// Fail fast on misconfiguration. The token itself is re-read from the
+	// file for each exchange: identity tokens are often short-lived and
+	// re-minted to the same path, so the value read here may not stay valid
+	// for the lifetime of the provider.
+	if _, err := readIdentityToken(identityTokenFilePath); err != nil {
+		return nil, err
 	}
 	return &oauth2CredentialProvider{
-		baseURL:             baseURL,
-		credentialsFilePath: credentialsFilePath,
-		tokenMu:             &sync.RWMutex{},
-		// Strip surrounding whitespace, like the trailing newline written
-		// by `echo` and most editors, which would otherwise be sent as
-		// part of the token.
-		identityToken: strings.TrimSpace(string(identityToken)),
-		logger:        logger,
+		baseURL:               baseURL,
+		identityTokenFilePath: identityTokenFilePath,
+		credentialsFilePath:   credentialsFilePath,
+		tokenMu:               &sync.RWMutex{},
+		logger:                logger,
 	}, nil
+}
+
+// TokenExchangeError is a definitive rejection of an identity token
+// exchange by the server, like an invalid or expired identity token.
+//
+// Repeating the same exchange cannot succeed, so requests that depend on
+// it must fail immediately instead of being retried. It implements the
+// clients package's PermanentError interface without importing it.
+type TokenExchangeError struct {
+	// StatusCode is the HTTP status returned by the token endpoint.
+	StatusCode int
+
+	// Body is the token endpoint's response body, which typically
+	// contains the OAuth error code and error_description.
+	Body string
+}
+
+func (e *TokenExchangeError) Error() string {
+	return fmt.Sprintf(
+		"failed to retrieve access token: HTTP %d: %s",
+		e.StatusCode, e.Body)
+}
+
+// PermanentError returns true: retrying the exchange cannot succeed.
+func (e *TokenExchangeError) PermanentError() bool { return true }
+
+// readIdentityToken reads the identity token (a JWT) from the file.
+func readIdentityToken(path string) (string, error) {
+	identityToken, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("api: failed to read identity token file: %v", err)
+	}
+
+	// Strip surrounding whitespace, like the trailing newline written
+	// by `echo` and most editors, which would otherwise be sent as
+	// part of the token.
+	return strings.TrimSpace(string(identityToken)), nil
 }
 
 type oauth2CredentialProvider struct {
 	// The URL of the W&B API.
 	baseURL string
 
-	// The identity token supplied via the identity token file path.
-	identityToken string
+	// The path of the file supplying the identity token.
+	identityTokenFilePath string
 
 	// The access token and its metadata.
 	tokenInfo accessTokenInfo
@@ -199,18 +245,29 @@ func (c *oauth2CredentialProvider) WrapHTTP(
 // apply fetches a new access token if necessary and supplies it to the request
 // via the Authorization header as a Bearer token.
 func (c *oauth2CredentialProvider) apply(req *http.Request) error {
+	token, err := c.AccessToken()
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+token)
+	return nil
+}
+
+var _ AccessTokenProvider = &oauth2CredentialProvider{}
+
+// AccessToken implements AccessTokenProvider.AccessToken.
+func (c *oauth2CredentialProvider) AccessToken() (string, error) {
 	if c.shouldRefreshToken() {
 		err := c.loadCredentials()
 		if err != nil {
-			return err
+			return "", err
 		}
 	}
 
-	req.Header.Set(
-		"Authorization",
-		"Bearer "+c.tokenInfo.AccessToken,
-	)
-	return nil
+	c.tokenMu.RLock()
+	defer c.tokenMu.RUnlock()
+	return c.tokenInfo.AccessToken, nil
 }
 
 func (c *oauth2CredentialProvider) shouldRefreshToken() bool {
@@ -244,7 +301,7 @@ func (c *oauth2CredentialProvider) loadCredentials() error {
 
 	token, err := c.fetchAccessToken()
 	if err != nil {
-		return fmt.Errorf("api: couldn't fetch access token: %v", err)
+		return fmt.Errorf("api: couldn't fetch access token: %w", err)
 	}
 	c.tokenInfo = token
 
@@ -300,10 +357,18 @@ func (c *oauth2CredentialProvider) trySaveCredentialsToFile(credentials Credenti
 // an access token from the authorization server using the JWT Bearer flow defined
 // in OAuth RFC 7523. The access token is then returned with its expiration time.
 func (c *oauth2CredentialProvider) fetchAccessToken() (accessTokenInfo, error) {
+	// Read the file for each exchange: short-lived identity tokens are
+	// re-minted to the same path, and an exchange must use the current
+	// file contents rather than the token present at startup.
+	identityToken, err := readIdentityToken(c.identityTokenFilePath)
+	if err != nil {
+		return accessTokenInfo{}, err
+	}
+
 	tokenURL := fmt.Sprintf("%s/oidc/token", c.baseURL)
 	data := fmt.Sprintf(
 		"grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=%s",
-		url.QueryEscape(c.identityToken),
+		url.QueryEscape(identityToken),
 	)
 	req, err := http.NewRequest("POST", tokenURL, strings.NewReader(data))
 	if err != nil {
@@ -324,7 +389,22 @@ func (c *oauth2CredentialProvider) fetchAccessToken() (accessTokenInfo, error) {
 		if err != nil {
 			return accessTokenInfo{}, err
 		}
-		return accessTokenInfo{}, fmt.Errorf("failed to retrieve access token: %s", string(body))
+
+		// A 4xx response is a definitive rejection (invalid or expired
+		// identity token, unknown user, bad audience) and repeating the
+		// same exchange cannot succeed. 429 and 5xx may be transient,
+		// so they stay retryable.
+		if resp.StatusCode >= 400 && resp.StatusCode < 500 &&
+			resp.StatusCode != http.StatusTooManyRequests {
+			return accessTokenInfo{}, &TokenExchangeError{
+				StatusCode: resp.StatusCode,
+				Body:       string(body),
+			}
+		}
+
+		return accessTokenInfo{}, fmt.Errorf(
+			"failed to retrieve access token: HTTP %d: %s",
+			resp.StatusCode, string(body))
 	}
 
 	var tokenResponse struct {

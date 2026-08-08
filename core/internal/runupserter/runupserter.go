@@ -215,7 +215,7 @@ func InitRun(
 		err := upserter.updateMetadataForResume(ctx, params.Settings.GetResume())
 
 		if err != nil {
-			return nil, ToRunUpdateError(explainInitTimeout(err, operation))
+			return nil, ToRunUpdateError(err)
 		}
 
 	case branchPoint != nil && branchPoint.GetRun() == runRecord.RunId:
@@ -223,7 +223,7 @@ func InitRun(
 		err := upserter.updateMetadataForRewind(ctx, branchPoint)
 
 		if err != nil {
-			return nil, ToRunUpdateError(explainInitTimeout(err, operation))
+			return nil, ToRunUpdateError(err)
 		}
 
 	case branchPoint != nil && branchPoint.GetRun() != "":
@@ -260,7 +260,7 @@ func InitRun(
 	)
 
 	if err != nil {
-		return nil, ToRunUpdateError(explainInitTimeout(err, operation))
+		return nil, ToRunUpdateError(err)
 	}
 
 	// Fill some metadata based on the server response.
@@ -295,7 +295,9 @@ func (upserter *RunUpserter) UpdateConfig(config *spb.ConfigRecord) {
 	upserter.config.ApplyChangeRecord(config,
 		func(err error) {
 			upserter.logger.CaptureError(
-				fmt.Errorf("runupserter: error updating config: %v", err))
+				"runupserter",
+				fmt.Errorf("runupserter: error updating config: %v", err),
+			)
 		})
 
 	upserter.isConfigDirty = true
@@ -350,7 +352,9 @@ func (upserter *RunUpserter) UpdateMetrics(metric *spb.MetricRecord) {
 	err := upserter.metrics.ProcessRecord(metric)
 	if err != nil {
 		upserter.logger.CaptureError(
-			fmt.Errorf("runupserter: failed to process metric: %v", err))
+			"runupserter",
+			fmt.Errorf("runupserter: failed to process metric: %v", err),
+		)
 		return
 	}
 
@@ -695,9 +699,10 @@ func (upserter *RunUpserter) lockedUpdateFromUpsert(
 	upserter.params.SweepID = nullify.ZeroIfNil(bucket.GetSweepName())
 
 	if lineCount := nullify.ZeroIfNil(bucket.GetHistoryLineCount()); lineCount > 0 {
-		upserter.params.FileStreamOffset = filestream.FileStreamOffsetMap{
-			filestream.HistoryChunk: lineCount,
+		if upserter.params.FileStreamOffset == nil {
+			upserter.params.FileStreamOffset = make(filestream.FileStreamOffsetMap)
 		}
+		upserter.params.FileStreamOffset[filestream.HistoryChunk] = lineCount
 	}
 
 	if project := bucket.GetProject(); project == nil {

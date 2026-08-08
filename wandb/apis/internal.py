@@ -47,7 +47,10 @@ class Api:
 
     @property
     def is_authenticated(self):
-        return self.api.access_token is not None or self.api.api_key is not None
+        return (
+            self.api.api_key is not None
+            or self.api._service_api.access_token() is not None
+        )
 
     @property
     def api_url(self):
@@ -188,12 +191,6 @@ class Api:
 
     def create_launch_agent(self, *args, **kwargs):
         return self.api.create_launch_agent(*args, **kwargs)
-
-    def create_default_resource_config(self, *args, **kwargs):
-        return self.api.create_default_resource_config(*args, **kwargs)
-
-    def create_run_queue(self, *args, **kwargs):
-        return self.api.create_run_queue(*args, **kwargs)
 
     def upsert_run_queue(self, *args, **kwargs):
         return self.api.upsert_run_queue(*args, **kwargs)

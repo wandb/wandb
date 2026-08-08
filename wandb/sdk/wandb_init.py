@@ -30,7 +30,7 @@ import wandb
 import wandb.env
 from wandb import env, trigger
 from wandb.analytics import get_sentry
-from wandb.errors import CommError, Error, UsageError
+from wandb.errors import Error, UsageError
 from wandb.errors.links import url_registry
 from wandb.errors.util import ProtobufErrorHandler
 from wandb.integration import sagemaker, weave
@@ -626,8 +626,6 @@ class _WandbInit:
     def _jupyter_teardown(self) -> None:
         """Teardown hooks and display saving, called with wandb.finish."""
         assert self.notebook
-        ipython = self.notebook.shell
-
         if self.run:
             self.notebook.save_history(self.run)
 
@@ -636,6 +634,10 @@ class _WandbInit:
             res = self.run.log_code(root=None)
             self._logger.info("saved code and history: %s", res)
         self._logger.info("cleaning up jupyter logic")
+
+        ipython = self.notebook.shell
+        if ipython is None:
+            return
 
         ipython.events.unregister("pre_run_cell", self._pre_run_cell_hook)
         ipython.events.unregister("post_run_cell", self._post_run_cell_hook)
@@ -647,6 +649,8 @@ class _WandbInit:
         """Add hooks, and session history saving."""
         self.notebook = wandb.jupyter.Notebook(settings)
         ipython = self.notebook.shell
+        if ipython is None:
+            return
 
         # Monkey patch ipython publish to capture displayed outputs
         if not hasattr(ipython.display_pub, "_orig_publish"):
@@ -739,7 +743,7 @@ class _WandbInit:
             dispose_handler()
             raise
 
-    def make_disabled_run(self, config: _ConfigParts) -> Run:
+    def make_disabled_run(self, settings: Settings, config: _ConfigParts) -> Run:
         """Returns a Run-like object where all methods are no-ops.
 
         This method is used when the `mode` setting is set to "disabled", such as
@@ -752,19 +756,20 @@ class _WandbInit:
         The returned Run object has all expected attributes and methods, but they
         are no-op versions that don't perform any actual logging or communication.
         """
-        run_id = runid.generate_id()
+        run_id = settings.run_id or runid.generate_id()
+        project = settings.project if settings.project != "uncategorized" else "dummy"
+        disabled_settings = settings.model_copy(
+            update={
+                "mode": "disabled",
+                "run_id": run_id,
+                "run_name": settings.run_name or f"dummy-{run_id}",
+                "project": project,
+                "entity": settings.entity or "dummy",
+                "root_dir": tempfile.gettempdir(),
+            }
+        )
         return noop_run.init_noop_run(
-            settings=Settings(
-                mode="disabled",
-                root_dir=tempfile.gettempdir(),
-                run_id=run_id,
-                run_tags=tuple(),
-                run_notes=None,
-                run_group=None,
-                run_name=f"dummy-{run_id}",
-                project="dummy",
-                entity="dummy",
-            ),
+            settings=disabled_settings,
             config={**config.base_no_artifacts, **config.sweep_no_artifacts},
         )
 
@@ -934,33 +939,24 @@ class _WandbInit:
             f"communicating run to backend with {timeout} second timeout",
         )
 
-        run_init_handle = interface.deliver_run(run)
-
-        try:
-            with progress.progress_printer(
-                run_printer,
-                default_text="Waiting for wandb.init()...",
-            ) as progress_printer:
-                result = wait_with_progress(
-                    run_init_handle,
-                    timeout=timeout + _INIT_TIMEOUT_GRACE_SECONDS,
-                    display_progress=functools.partial(
-                        progress.loop_printing_operation_stats,
-                        progress_printer,
-                        interface,
-                    ),
-                )
-
-        except TimeoutError:
-            # The backend didn't respond with the underlying error before
-            # the grace period expired. This may either be an issue with
-            # the W&B server (a CommError) or a bug in the SDK (an Error).
-            # We cannot distinguish between the two causes here.
-            raise CommError(
-                f"Run initialization has timed out after {timeout} sec."
-                + " Please try increasing the timeout with the `init_timeout`"
-                + " setting: `wandb.init(settings=wandb.Settings(init_timeout=120))`."
-            ) from None
+        with progress.progress_printer(
+            run_printer,
+            default_text="Waiting for wandb.init()...",
+        ) as progress_printer:
+            result = wait_with_progress(
+                interface.deliver_run(run),
+                # We expect the service process to respect the init timeout
+                # setting and promptly return a `run_result.error` on timeout.
+                #
+                # If the grace period expires, we treat that like an SDK bug
+                # and don't give special treatment to the exception.
+                timeout=timeout + _INIT_TIMEOUT_GRACE_SECONDS,
+                display_progress=functools.partial(
+                    progress.loop_printing_operation_stats,
+                    progress_printer,
+                    interface,
+                ),
+            )
 
         assert result.run_result
 
@@ -1504,7 +1500,7 @@ def init(  # noqa: C901
             )
 
             if run_settings._noop:
-                return wi.make_disabled_run(run_config)
+                return wi.make_disabled_run(run_settings, run_config)
 
             exit_stack.enter_context(wi.setup_run_log_directory(run_settings))
 

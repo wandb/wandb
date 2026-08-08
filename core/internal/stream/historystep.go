@@ -131,7 +131,8 @@ func (t *HistoryStepTracker) materializeSummaryStep(
 	}}})
 	if err := updates.Apply(t.runSummary); err != nil {
 		t.logger.CaptureError(
-			fmt.Errorf("sender: error updating summary step: %v", err))
+			"stream",
+			fmt.Errorf("stream: error updating summary step: %v", err))
 		return nil
 	}
 

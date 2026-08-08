@@ -36,6 +36,7 @@ type RunReader struct {
 	updates     *RunSyncUpdates // modifications to make to records
 	live        bool            // "live" mode retries EOFs
 
+	seenRun  bool // whether we've processed a run record yet
 	seenExit bool // whether we've processed an exit record yet
 
 	logger       *observability.CoreLogger
@@ -159,7 +160,12 @@ func (r *RunReader) ProcessTransactionLog(ctx context.Context) (err error) {
 				return err
 			}
 
-		case record.GetRun() != nil:
+		// Only the first Run record initializes the run and gets a response.
+		// Later Run records, such as from changing the run's name, tags or
+		// notes, are updates and are handled like most other records.
+		case record.GetRun() != nil && !r.seenRun:
+			r.seenRun = true
+
 			// Fail early if initializing the run (UpsertBucket) fails.
 			err := r.waitForRunRecord(ctx, record)
 			if err != nil {

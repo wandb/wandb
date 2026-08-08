@@ -82,6 +82,8 @@ type TFEventsFileFilter struct {
 	// tfevents filenames include a start time. We use this to determine
 	// whether a file was generated as part of the current run or in a
 	// previous run.
+	//
+	// If zero, timestamp filtering is skipped.
 	StartTimeSec int64
 
 	// Hostname is the exact hostname to expect.
@@ -89,6 +91,8 @@ type TFEventsFileFilter struct {
 	// tfevents filenames include the Hostname (output of HOSTNAME(1)) of the
 	// machine that wrote them. This is an important filter in case tfevents
 	// files are located in a shared directory.
+	//
+	// If empty, hostname filtering is skipped.
 	Hostname string
 }
 
@@ -126,12 +130,13 @@ func (f TFEventsFileFilter) Matches(name string) bool {
 	// be files with the correct <time> and <hostname> that aren't related to
 	// this run. It's also not clear whether <hostname> ever needs to be escaped.
 	// And of course this could break with a future version of TB.
-	re, err := regexp.Compile(
-		fmt.Sprintf(
-			`tfevents\.(\d+)\.%v`,
-			regexp.QuoteMeta(f.Hostname),
-		),
-	)
+	rawRe := `tfevents\.(\d+)`
+	if f.Hostname != "" {
+		rawRe += `\.`
+		rawRe += regexp.QuoteMeta(f.Hostname)
+	}
+
+	re, err := regexp.Compile(rawRe)
 	if err != nil {
 		panic(err)
 	}
@@ -146,5 +151,5 @@ func (f TFEventsFileFilter) Matches(name string) bool {
 		return false
 	}
 
-	return tfeventsTime >= f.StartTimeSec
+	return f.StartTimeSec == 0 || tfeventsTime >= f.StartTimeSec
 }

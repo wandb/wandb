@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -126,4 +127,43 @@ func TestCheckRetry(t *testing.T) {
 	retry, err = clients.CheckRetry(ctx, resp, nil)
 	assert.False(t, retry)
 	assert.NoError(t, err)
+}
+
+// fakePermanentError implements the PermanentError interface.
+type fakePermanentError struct{}
+
+func (fakePermanentError) Error() string        { return "definitively rejected" }
+func (fakePermanentError) PermanentError() bool { return true }
+
+func TestCheckRetry_PermanentErrorIsNotRetried(t *testing.T) {
+	// Transport errors reach retry policies wrapped in a *url.Error,
+	// like when a credential layer fails before sending the request.
+	err := &url.Error{
+		Op:  "POST",
+		URL: "http://example.com/graphql",
+		Err: fmt.Errorf("couldn't fetch access token: %w", fakePermanentError{}),
+	}
+
+	shouldRetry, retErr := clients.CheckRetry(context.Background(), nil, err)
+
+	assert.False(t, shouldRetry)
+	assert.ErrorAs(t, retErr, &fakePermanentError{})
+}
+
+func TestRetryMostFailures_PermanentErrorIsNotRetried(t *testing.T) {
+	err := fmt.Errorf("request failed: %w", fakePermanentError{})
+
+	shouldRetry, retErr := clients.RetryMostFailures(
+		context.Background(), nil, err)
+
+	assert.False(t, shouldRetry)
+	assert.ErrorAs(t, retErr, &fakePermanentError{})
+}
+
+func TestCheckRetry_GenericErrorIsRetried(t *testing.T) {
+	err := fmt.Errorf("connection reset by peer")
+
+	shouldRetry, _ := clients.CheckRetry(context.Background(), nil, err)
+
+	assert.True(t, shouldRetry)
 }

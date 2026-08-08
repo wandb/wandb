@@ -332,6 +332,12 @@ class FileStreamApi:
             self._client.post = functools.partial(self._client.post, timeout=timeout)  # type: ignore[method-assign]
         self._client.auth = api.request_auth
         self._client.headers.update(api.request_headers)
+        if api.request_auth is None and (
+            access_token := api._service_api.access_token()
+        ):
+            # Federated identity: authenticate with the access token from
+            # wandb-core as a Bearer token.
+            self._client.headers["Authorization"] = f"Bearer {access_token}"
         self._client.proxies.update(api.request_proxies)
         self._file_policies: dict[str, DefaultFilePolicy] = {}
         self._dropped_chunks: int = 0
