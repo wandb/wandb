@@ -119,7 +119,7 @@ def test_format_gql_artifact_types_input_error(artifact_types):
         param(True, True, id="non-dict-bool"),
     ],
 )
-def test_prepare_registry_filter(raw, expected):
+def test_prepare_registry_filter(service_api: MagicMock, raw, expected):
     assert prepare_registry_filter(raw) == expected
 
 
@@ -133,6 +133,74 @@ def test_registry_filter_is_prepared_and_serialized(service_api: MagicMock):
     assert json.loads(paginator.variables["filters"]) == {
         "name": f"{REGISTRY_PREFIX}model"
     }
+
+
+@mark.parametrize(
+    ("raw", "expected"),
+    [
+        param(
+            {"name": "model"},
+            {"name": f"{REGISTRY_PREFIX}model"},
+            id="bare-name-is-prefixed",
+        ),
+        param(
+            {"name": f"{REGISTRY_PREFIX}model"},
+            {"name": f"{REGISTRY_PREFIX}model"},
+            id="prefixed-name-is-unchanged",
+        ),
+        param(
+            {"$or": [{"name": "model1"}, {"description": "prod"}]},
+            {"$or": [{"name": f"{REGISTRY_PREFIX}model1"}, {"description": "prod"}]},
+            id="nested-list",
+        ),
+        param(
+            {"name": {"$regex": "model.*"}},
+            {"name": {"$regex": "model.*"}},
+            id="regex-operand-is-unchanged",
+        ),
+        param(
+            {
+                "updated_at": {"$gte": "2021-01-01T00:00:00Z"},
+                "name": "model",
+                "description": None,
+            },
+            {
+                "updated_at": {"$gte": "2021-01-01T00:00:00Z"},
+                "name": f"{REGISTRY_PREFIX}model",
+                "description": None,
+            },
+            id="mixed-fields-and-types",
+        ),
+        param(
+            {
+                "name": {
+                    "$in": [
+                        "project1",
+                        f"{REGISTRY_PREFIX}project2",
+                        {"$regex": "project3"},
+                    ]
+                }
+            },
+            {
+                "name": {
+                    "$in": [
+                        f"{REGISTRY_PREFIX}project1",
+                        f"{REGISTRY_PREFIX}project2",
+                        {"$regex": "project3"},
+                    ]
+                }
+            },
+            id="nested-dict",
+        ),
+        # Non-dict and empty inputs are returned unchanged.
+        param({}, {}, id="empty-dict"),
+        param(None, None, id="None"),
+    ],
+)
+def test_prepare_registry_filter_on_paginator(service_api: MagicMock, raw, expected):
+    """Check that the filter is correctly prepared on instantiating a Registries paginator."""
+    paginator = Registries(service_api=service_api, organization="org", filter=raw)
+    assert paginator.filter == expected
 
 
 @mark.parametrize("cls", [Registries, Collections])

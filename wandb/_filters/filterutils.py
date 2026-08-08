@@ -8,10 +8,14 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from functools import singledispatch
-from typing import cast
+from itertools import chain
+from typing import Any, cast
+
+from typing_extensions import assert_never
 
 from .expressions import FilterExpr, MongoLikeFilter
 from .operators import (
+    And,
     BaseVariadicLogicalOp,
     Eq,
     Exists,
@@ -27,6 +31,53 @@ from .operators import (
     Op,
     Or,
 )
+
+
+def parse_filter(raw: dict[str, Any]) -> MongoLikeFilter:
+    """Parse a raw MongoDB-style filter dict into a typed MongoDB filter expression."""
+    match raw:
+        case dict() if len(raw) < 1:
+            return raw
+        case dict() if len(raw) > 1:
+            # Multiple root predicates imply "$and".
+            return And(exprs=(parse_filter({k: v}) for k, v in raw.items()))
+
+        # Below this, we're guaranteed a length-1 dict, so we can drop length guards.
+        case {"$and": exprs}:
+            return And(exprs=map(parse_filter, exprs))
+        case {"$or": exprs}:
+            return Or(exprs=map(parse_filter, exprs))
+        case {"$nor": exprs}:
+            return Nor(exprs=map(parse_filter, exprs))
+        case {"$not": expr}:
+            return Not(expr=parse_filter(expr))
+
+        case dict():
+            ((key, obj),) = raw.items()
+
+            if key.startswith("$"):
+                return raw  # Unknown operator dict
+            if isinstance(obj, dict):
+                return FilterExpr.model_validate(raw)
+
+            # Implicit $eq, e.g. {"field": "value"} -> {"field": {"$eq": "value"}}
+            return FilterExpr(field=key, op=Eq(val=obj))
+        case _:
+            assert_never(raw)
+
+
+def iter_fields(expr: MongoLikeFilter) -> Iterator[str]:
+    """Iterate over the field names referenced in a MongoDB filter.
+
+    Unknown operators are left untouched because their operands may not be filters.
+    """
+    match expr:
+        case FilterExpr(field=field):
+            yield field
+        case BaseVariadicLogicalOp(exprs=exprs):
+            yield from chain.from_iterable(map(iter_fields, exprs))
+        case Not(expr=expr):
+            yield from iter_fields(expr)
 
 
 @singledispatch
