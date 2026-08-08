@@ -14,7 +14,11 @@ from wandb._analytics import tracked
 from wandb.apis.paginator import Paginator, RelayPaginator, SizedRelayPaginator
 from wandb.errors import UnsupportedError
 
-from ._utils import ensure_registry_prefix_on_names
+from ._utils import (
+    ensure_registry_prefix_on_names,
+    filter_for_registry,
+    registry_filter_for_collection,
+)
 
 if TYPE_CHECKING:
     from wandb.apis.public import ArtifactCollection
@@ -136,7 +140,11 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
                     Collections(
                         service_api=self._service_api,
                         organization=self.organization,
-                        registry_filter={"name": reg.full_name},
+                        registry_filter=filter_for_registry(
+                            reg,
+                            service_api=self._service_api,
+                            organization=self.organization,
+                        ),
                         collection_filter=filter,
                         order=order,
                         per_page=per_page,
@@ -184,7 +192,11 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
                 Versions(
                     service_api=self._service_api,
                     organization=self.organization,
-                    registry_filter={"name": reg.full_name},
+                    registry_filter=filter_for_registry(
+                        reg,
+                        service_api=self._service_api,
+                        organization=self.organization,
+                    ),
                     artifact_filter=filter,
                     per_page=per_page,
                 )
@@ -316,8 +328,12 @@ class Collections(
                     organization=self.organization,
                     artifact_filter=filter,
                     per_page=per_page,
-                    registry_filter={"name": coll.project},
-                    collection_filter={"name": coll.name},
+                    registry_filter=registry_filter_for_collection(
+                        coll,
+                        service_api=self._service_api,
+                        organization=self.organization,
+                    ),
+                    collection_filter={"name": coll.name} if coll.name else {},
                 )
                 for coll in self
             )
@@ -528,8 +544,12 @@ class _OrderedCollections(_ChainedPaginators["ArtifactCollection"]):
             Versions(
                 service_api=self._service_api,
                 organization=self.organization,
-                registry_filter={"name": col.project},
-                collection_filter={"name": col.name},
+                registry_filter=registry_filter_for_collection(
+                    col,
+                    service_api=self._service_api,
+                    organization=self.organization,
+                ),
+                collection_filter={"name": col.name} if col.name else {},
                 artifact_filter=filter,
                 per_page=per_page,
             )

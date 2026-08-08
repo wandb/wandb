@@ -1,13 +1,19 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Collection
 from enum import Enum
 from functools import lru_cache, partial
 from typing import TYPE_CHECKING, Any, TypeVar, overload
 
-from wandb._strutils import ensureprefix
+from wandb._strutils import b64decode_ascii, ensureprefix
+from wandb.proto import wandb_internal_pb2 as pb
+
+_logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
+    from wandb.apis.public import ArtifactCollection
+    from wandb.apis.public.registries.registry import Registry
     from wandb.apis.public.service_api import ServiceApi
 
 
@@ -158,3 +164,91 @@ def fetch_org_entity_from_organization(
         raise ValueError(f"Organization entity for {organization!r} not found.")
 
     return org_name
+
+
+def _project_id_from_gql_id(gql_id: str) -> int | None:
+    try:
+        decoded = b64decode_ascii(gql_id)
+    except (ValueError, UnicodeDecodeError):
+        _logger.warning("Invalid project ID: %r", gql_id)
+        return None
+
+    match decoded.split(":"):
+        case ["Project", idx] if idx.isdigit():
+            return int(idx)
+        case ["ProjectInternalId", idx] if idx.isdigit():
+            return int(idx)
+        case _:
+            _logger.warning("Invalid project ID: %r", gql_id)
+            return None
+
+
+def filter_for_registry(
+    registry: Registry,
+    *,
+    service_api: ServiceApi,
+    organization: str,
+) -> dict[str, Any]:
+    if (project_encoded_id := registry.internal_id) and (
+        project_id := _project_id_from_gql_id(project_encoded_id)
+    ):
+        return {registry_id_filter_key(service_api, organization): project_id}
+    return {"name": registry.full_name}
+
+
+@lru_cache(maxsize=10)
+def advanced_search_enabled(service_api: ServiceApi, organization: str) -> bool:
+    """Whether the organization has ClickHouse-backed advanced registry search.
+
+    The ``advancedRegistryFeatures`` GQL field was added in server 0.78.x alongside
+    ``ARTIFACT_COLLECTIONS_FILTERING_SORTING``. We use that feature flag as a proxy
+    to avoid querying an endpoint that does not exist on older servers.
+    """
+    if not service_api.feature_enabled(pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING):
+        return False
+
+    from wandb.sdk.artifacts._generated import (
+        FETCH_ADVANCED_REGISTRY_FEATURES_GQL,
+        FetchAdvancedRegistryFeatures,
+    )
+
+    try:
+        result = service_api.execute_graphql(
+            FETCH_ADVANCED_REGISTRY_FEATURES_GQL,
+            variables={"organization": organization},
+            parse=FetchAdvancedRegistryFeatures.model_validate_json,
+        )
+    except Exception:
+        _logger.warning(
+            "Failed to fetch advanced registry features for organization: %r",
+            organization,
+        )
+        return False
+
+    if not (org := result.organization):
+        _logger.warning("Organization %r not found.", organization)
+        return False
+    return bool(
+        org.advanced_registry_features
+        and org.advanced_registry_features.advanced_search
+    )
+
+
+def registry_id_filter_key(service_api: ServiceApi, organization: str) -> str:
+    """Return the registry project filter key for the organization's search backend."""
+    if advanced_search_enabled(service_api, organization):
+        return "project_id"
+    return "id"
+
+
+def registry_filter_for_collection(
+    collection: ArtifactCollection,
+    *,
+    service_api: ServiceApi,
+    organization: str,
+) -> dict[str, Any]:
+    if (project_encoded_id := collection.project_internal_id) and (
+        project_id := _project_id_from_gql_id(project_encoded_id)
+    ):
+        return {registry_id_filter_key(service_api, organization): project_id}
+    return {"name": collection.project}

@@ -77,6 +77,15 @@ class Registry:
         return self._current.id
 
     @property
+    def internal_id(self) -> str | None:
+        """The GraphQL `internalId` for this registry's backing project, if fetched.
+
+        This is a base64-encoded global ID. When decoded, it looks like
+        `Project:123` or `ProjectInternalId:123`.
+        """
+        return self._current.internal_id
+
+    @property
     def full_name(self) -> str:
         """Full name of the registry including the `wandb-registry-` prefix."""
         return self._current.full_name

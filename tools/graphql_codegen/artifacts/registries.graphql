@@ -116,6 +116,7 @@ query FetchRegistries($organization: String!, $filters: JSONString, $cursor: Str
 fragment RegistryFragment on Project {
   __typename
   id
+  internalId
   name
   entity {
     name

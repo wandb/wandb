@@ -12,7 +12,7 @@ from pathlib import Path
 import wandb
 from pytest import MonkeyPatch, fixture, mark, raises, skip
 from wandb import Api
-from wandb._strutils import nameof
+from wandb._strutils import b64encode_ascii, nameof
 from wandb.errors import CommError, UnsupportedError
 from wandb.proto import wandb_api_pb2
 from wandb.proto import wandb_internal_pb2 as pb
@@ -26,6 +26,11 @@ from wandb.sdk.artifacts._gqlutils import server_supports
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError
 from wandb.sdk.lib.paths import StrPath
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
+
+
+@fixture
+def project_gql_id() -> str:
+    return b64encode_ascii("Project:1")
 
 
 @fixture
@@ -633,6 +638,7 @@ def test_fetch_registry_artifact(
     wandb_backend_spy,
     api,
     mocker,
+    project_gql_id,
     artifact_path,
     resolve_org_entity_name,
     is_registry_project,
@@ -668,6 +674,7 @@ def test_fetch_registry_artifact(
         artifact_sequence={
             "name": "test-collection",
             "project": {
+                "id": project_gql_id,
                 "name": "orig-project",
                 "entity": {"name": "test-team"},
             },
@@ -696,6 +703,7 @@ def test_fetch_registry_artifact(
             "__typename": "ArtifactPortfolio",
             "name": "test-collection",
             "project": {
+                "id": project_gql_id,
                 "name": "wandb-registry-model",  # NOTE: relevant
                 "entity": {"name": "org-entity-name"},  # NOTE: relevant
             },

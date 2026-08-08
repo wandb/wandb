@@ -539,6 +539,20 @@ class ArtifactCollection:
         """The project that contains the artifact collection."""
         return self._current.project
 
+    @property
+    def project_id(self) -> str:
+        """The encoded GraphQL ID for this collection's project."""
+        return self._current.project_id
+
+    @property
+    def project_internal_id(self) -> str | None:
+        """The GraphQL `internalId` for this collection's backing project, if fetched.
+
+        This is a base64-encoded global ID. When decoded, it looks like
+        `Project:123` or `ProjectInternalId:123`.
+        """
+        return self._current.project_internal_id
+
     @normalize_exceptions
     def artifacts(
         self,

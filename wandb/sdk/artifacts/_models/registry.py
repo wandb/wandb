@@ -26,6 +26,13 @@ class RegistryData(ArtifactsBase):
     id: GQLId = Field(frozen=True)
     """The unique, encoded ID for this registry."""
 
+    internal_id: GQLId | None = Field(default=None, frozen=True, repr=False)
+    """The GraphQL `internalId` for this registry's backing project, if fetched.
+
+    This is a base64-encoded global ID. When decoded, it looks like
+    `Project:123` or `ProjectInternalId:123`.
+    """
+
     created_at: str = Field(frozen=True)
     """When this registry was created."""
 
@@ -101,6 +108,7 @@ class RegistryData(ArtifactsBase):
 
         return cls(
             id=obj.id,
+            internal_id=obj.internal_id,
             created_at=obj.created_at,
             updated_at=obj.updated_at,
             organization=obj.entity.organization.name,

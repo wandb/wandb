@@ -53,3 +53,4 @@ The `wandb sync --clean` command now exits with code 1 and prints a hint to use 
 - The `global_step` metric created when syncing TensorBoard files is no longer prefixed, like `train/global_step`, so that it is easier to compare training and validation metrics (@timoffex in https://github.com/wandb/wandb/pull/12372)
 - The TensorBoard integration now produces fewer W&B steps by merging data for the same `global_step` into one W&B step when possible (@timoffex in https://github.com/wandb/wandb/pull/12414)
 - `wandb sync` no longer hangs on a run that set its name, tags, or notes after starting (@dmitryduev in https://github.com/wandb/wandb/pull/12380)
+- Ordered registry search now scopes per-registry collection and version queries with the registry's internal project id (`project_id` on servers with advanced registry search, `id` otherwise; decoded from GraphQL `internalId`), in addition to registry name (@ibindlish in https://github.com/wandb/wandb/pull/12188)
