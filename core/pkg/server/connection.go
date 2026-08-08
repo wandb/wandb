@@ -508,7 +508,6 @@ func (nc *Connection) handleAuthenticateImpl(
 	credentialProvider := api.NewAPIKeyCredentialProvider(msg.ApiKey)
 
 	apiClient := api.NewClient(api.ClientOptions{
-		BaseURL:     baseURL,
 		RetryPolicy: clients.CheckRetry,
 
 		RetryMax:        api.DefaultRetryMax,
@@ -516,8 +515,9 @@ func (nc *Connection) handleAuthenticateImpl(
 		RetryWaitMax:    api.DefaultRetryWaitMax,
 		NonRetryTimeout: api.DefaultNonRetryTimeout,
 
-		CredentialProvider: credentialProvider,
-		Logger:             logger.Logger,
+		Logger: logger.Logger,
+
+		PreRetryLayers: credentialProvider,
 	})
 
 	graphqlClient := graphql.NewClient(

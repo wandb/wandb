@@ -16,7 +16,6 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -375,19 +374,13 @@ func TestHistoryReader_GetHistorySteps_WithoutKeys(t *testing.T) {
 		map[uintptr][]map[string]any{1: data},
 	)
 
-	serverURL, err := url.Parse(server.URL)
-	require.NoError(t, err)
-
 	reader, err := New(
 		ctx,
 		"test-entity",
 		"test-project",
 		"test-run-id",
 		mockGQL,
-		api.NewClient(api.ClientOptions{
-			BaseURL:            serverURL,
-			CredentialProvider: api.NoopCredentialProvider{},
-		}),
+		api.NewClient(api.ClientOptions{}),
 		[]string{},
 		true,
 		rustArrowWrapper,
