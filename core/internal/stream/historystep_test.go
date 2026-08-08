@@ -1,12 +1,14 @@
 package stream_test
 
 import (
+	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
@@ -21,7 +23,18 @@ type historyStepFixtures struct {
 
 func makeHistoryStepTracker(t *testing.T, shared bool) historyStepFixtures {
 	t.Helper()
-	logger := observabilitytest.NewTestLogger(t)
+	return makeHistoryStepTrackerWithLogger(
+		t, observabilitytest.NewTestLogger(t), shared)
+}
+
+// makeHistoryStepTrackerWithLogger is like makeHistoryStepTracker, but uses
+// the given logger so that tests can assert on what the tracker logged.
+func makeHistoryStepTrackerWithLogger(
+	t *testing.T,
+	logger *observability.CoreLogger,
+	shared bool,
+) historyStepFixtures {
+	t.Helper()
 	settings := wbsettings.From(&spb.Settings{
 		RunId:   &wrapperspb.StringValue{Value: "run1"},
 		XShared: &wrapperspb.BoolValue{Value: shared},
@@ -237,4 +250,29 @@ func TestHistoryStepTracker_RebasedStepMaterializesSummaryStep(t *testing.T) {
 	}, 2)
 
 	assert.Equal(t, "2", summaryStepValue(t, x.RunSummary))
+}
+
+func TestHistoryStepTracker_OldFormatRowIsUnchangedAndSilent(t *testing.T) {
+	logger, logs, sentryTransport := observabilitytest.NewSentryTestLogger(t)
+	x := makeHistoryStepTrackerWithLogger(t, logger, false /*shared*/)
+
+	// Clients before offline resume wrote the step twice into every non-shared
+	// history record: as HistoryRecord.Step and as a "_step" item. Replaying
+	// such a row must leave it exactly as it was.
+	history := &spb.HistoryRecord{
+		Step: &spb.HistoryStep{Num: 0},
+		Item: []*spb.HistoryItem{
+			{NestedKey: []string{"loss"}, ValueJson: "0.5"},
+			{NestedKey: []string{"_step"}, ValueJson: "0"},
+		},
+	}
+	x.Tracker.Process(history, 0)
+
+	assert.Equal(t, "0", historyStepValue(history))
+	assert.Equal(t, "0", summaryStepValue(t, x.RunSummary))
+
+	// Reading a log written by an older client must not produce a diagnostic
+	// that the older client would not have produced for the same log.
+	assert.Empty(t, sentryTransport.Events())
+	observabilitytest.AssertNoLogsAtOrAbove(t, logs, slog.LevelWarn)
 }
