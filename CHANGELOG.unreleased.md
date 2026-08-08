@@ -60,6 +60,7 @@ The `wandb sync --clean` command now exits with code 1 and prints a hint to use 
 - Log messages captured from Python loggers no longer add blank lines to a run's logs (@dmitryduev in https://github.com/wandb/wandb/pull/12387)
 - Fixed a crash that could happen when several runs sharing one service process finished at the same time (@dmitryduev in https://github.com/wandb/wandb/pull/12388)
 - `del run.summary[key]` now removes metrics that were logged as nested values, which it previously ignored (@dmitryduev in https://github.com/wandb/wandb/pull/12389)
+- `wandb sync` now syncs the remaining runs when one run's data cannot be read, instead of stopping without syncing anything (@dmitryduev in https://github.com/wandb/wandb/pull/12391)
 
 ## Security
 
