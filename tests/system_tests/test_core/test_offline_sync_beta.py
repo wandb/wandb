@@ -366,6 +366,10 @@ def test_resyncs_resumed_offline_run_keep_same_steps(
         history = snapshot.history(run_id=run1.id)
         first_sync_steps = resumed_segment_steps(history)
 
+    # The resumed segment must come after the first segment's step 0,
+    # not overwrite it.
+    assert first_sync_steps == {1}
+
     # Re-sync the same files, bypassing the .synced marker.
     runner.invoke(cli.beta, f"sync --no-skip-synced {run1_dir} {run2_dir}")
 
