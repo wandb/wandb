@@ -236,6 +236,12 @@ func InitRun(
 
 	}
 
+	// If we're offline, skip upserting and leave the sync state to `wandb
+	// sync`, which is the first to know the real starting step.
+	if upserter.graphqlClientOrNil == nil {
+		return upserter, nil
+	}
+
 	startingStep, err := upserter.syncStateStore.GetOrInitStartingStep(
 		upserter.params.StartingStep,
 	)
@@ -243,11 +249,6 @@ func InitRun(
 		return nil, ToRunUpdateError(err)
 	}
 	upserter.params.StartingStep = startingStep
-
-	// If we're offline, skip upserting.
-	if upserter.graphqlClientOrNil == nil {
-		return upserter, nil
-	}
 
 	upserter.mu.Lock()
 	defer upserter.mu.Unlock()

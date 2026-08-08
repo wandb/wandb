@@ -517,8 +517,47 @@ func TestResume_KeepsEventsAndOutputFileStreamOffsets(t *testing.T) {
 		upserter.FileStreamOffsets())
 }
 
+func TestOfflineResume_DoesNotInitializeSyncStateStartingStep(t *testing.T) {
+	// An offline run cannot reconcile resume state with the backend, so it
+	// must not save a starting step: `wandb sync` computes the real one and
+	// would otherwise reuse the offline placeholder and re-upload the
+	// segment starting at step 0.
+	offlineParams := testParams(t)
+	offlineParams.Settings = settings.From(&spb.Settings{
+		Resume:   wrapperspb.String("must"),
+		XOffline: wrapperspb.Bool(true),
+	})
+
+	offline, err := runupserter.InitRun(
+		runRecord(&spb.RunRecord{RunId: "run"}), offlineParams)
+	require.NoError(t, err)
+	offline.Finish()
+
+	// Simulate `wandb sync` on the same run directory.
+	mockClient := gqlmock.NewMockClient()
+	runupsertertest.StubRunResumeStatusWithStep(t, mockClient, 4)
+	runupsertertest.StubUpsertBucket(t, mockClient)
+	syncParams := testParams(t)
+	syncParams.SyncStateStore = offlineParams.SyncStateStore
+	syncParams.GraphqlClientOrNil = mockClient
+	syncParams.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("must")})
+
+	upserter, err := runupserter.InitRun(
+		runRecord(&spb.RunRecord{RunId: "run"}), syncParams)
+	require.NoError(t, err)
+	defer upserter.Finish()
+
+	run := &spb.RunRecord{}
+	upserter.FillRunRecord(run)
+	assert.EqualValues(t, 5, run.StartingStep)
+}
+
 func TestNewRun_InitializesSyncStateStartingStep(t *testing.T) {
+	mockClient := gqlmock.NewMockClient()
+	runupsertertest.StubUpsertBucket(t, mockClient)
+
 	params := testParams(t)
+	params.GraphqlClientOrNil = mockClient
 
 	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{RunId: "run"}), params)
 	require.NoError(t, err)
@@ -533,7 +572,6 @@ func TestNewRun_InitializesSyncStateStartingStep(t *testing.T) {
 }
 
 func TestRewind_InitializesSyncStateStartingStep(t *testing.T) {
-	// NOTE: Rewinding works offline.
 	runInitRecord := runRecord(
 		&spb.RunRecord{
 			RunId: "run to rewind",
@@ -544,7 +582,19 @@ func TestRewind_InitializesSyncStateStartingStep(t *testing.T) {
 			},
 		})
 
+	mockClient := gqlmock.NewMockClient()
+	mockClient.StubMatchOnce(gqlmock.WithOpName("RewindRun"), `{
+		"rewindRun": {
+			"rewoundRun": {
+				"id": "storage ID",
+				"name": "run to rewind"
+			}
+		}
+	}`)
+	runupsertertest.StubUpsertBucket(t, mockClient)
+
 	params := testParams(t)
+	params.GraphqlClientOrNil = mockClient
 	params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("must")})
 	upserter, err := runupserter.InitRun(runInitRecord, params)
 	require.NoError(t, err)
@@ -559,7 +609,6 @@ func TestRewind_InitializesSyncStateStartingStep(t *testing.T) {
 }
 
 func TestFork_InitializesSyncStateStartingStep(t *testing.T) {
-	// NOTE: Forking works offline.
 	runInitRecord := runRecord(
 		&spb.RunRecord{
 			RunId: "run",
@@ -571,7 +620,11 @@ func TestFork_InitializesSyncStateStartingStep(t *testing.T) {
 		},
 	)
 
+	mockClient := gqlmock.NewMockClient()
+	runupsertertest.StubUpsertBucket(t, mockClient)
+
 	params := testParams(t)
+	params.GraphqlClientOrNil = mockClient
 	params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("must")})
 
 	upserter, err := runupserter.InitRun(runInitRecord, params)
