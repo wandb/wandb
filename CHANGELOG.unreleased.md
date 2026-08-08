@@ -57,6 +57,7 @@ The `wandb sync --clean` command now exits with code 1 and prints a hint to use 
 - Downloading an artifact file with `skip_cache=True` now replaces a different file of the same size at the destination instead of keeping it (@dmitryduev in https://github.com/wandb/wandb/pull/12382)
 - Downloading an artifact with `skip_cache=True` no longer changes where later downloads in the same process are written (@dmitryduev in https://github.com/wandb/wandb/pull/12383)
 - `wandb login` no longer removes or corrupts credentials belonging to other machines in your `.netrc` file (@dmitryduev in https://github.com/wandb/wandb/pull/12386)
+- Log messages captured from Python loggers no longer add blank lines to a run's logs (@dmitryduev in https://github.com/wandb/wandb/pull/12387)
 
 ## Security
 
