@@ -1,4 +1,5 @@
 from wandb.proto import wandb_internal_pb2 as _wandb_internal_pb2
+from wandb.proto import wandb_otel_pb2 as _wandb_otel_pb2
 from wandb.proto import wandb_settings_pb2 as _wandb_settings_pb2
 from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
@@ -30,7 +31,7 @@ class ServerApiInitResponse(_message.Message):
     def __init__(self, error_message: _Optional[str] = ..., api_id: _Optional[str] = ...) -> None: ...
 
 class ApiRequest(_message.Message):
-    __slots__ = ("api_id", "read_run_history_request", "features_request", "graphql_request", "download_file_request", "upload_file_request", "mark_run_files_uploaded_request", "stop_run_request", "auth_request", "create_custom_chart_request", "run_queue_operation_request")
+    __slots__ = ("api_id", "read_run_history_request", "features_request", "graphql_request", "download_file_request", "upload_file_request", "mark_run_files_uploaded_request", "stop_run_request", "auth_request", "create_custom_chart_request", "run_queue_operation_request", "open_telemetry_request")
     API_ID_FIELD_NUMBER: _ClassVar[int]
     READ_RUN_HISTORY_REQUEST_FIELD_NUMBER: _ClassVar[int]
     FEATURES_REQUEST_FIELD_NUMBER: _ClassVar[int]
@@ -42,6 +43,7 @@ class ApiRequest(_message.Message):
     AUTH_REQUEST_FIELD_NUMBER: _ClassVar[int]
     CREATE_CUSTOM_CHART_REQUEST_FIELD_NUMBER: _ClassVar[int]
     RUN_QUEUE_OPERATION_REQUEST_FIELD_NUMBER: _ClassVar[int]
+    OPEN_TELEMETRY_REQUEST_FIELD_NUMBER: _ClassVar[int]
     api_id: str
     read_run_history_request: ReadRunHistoryRequest
     features_request: FeaturesRequest
@@ -53,7 +55,8 @@ class ApiRequest(_message.Message):
     auth_request: AuthRequest
     create_custom_chart_request: CreateCustomChartRequest
     run_queue_operation_request: RunQueueOperationRequest
-    def __init__(self, api_id: _Optional[str] = ..., read_run_history_request: _Optional[_Union[ReadRunHistoryRequest, _Mapping]] = ..., features_request: _Optional[_Union[FeaturesRequest, _Mapping]] = ..., graphql_request: _Optional[_Union[GraphQLRequest, _Mapping]] = ..., download_file_request: _Optional[_Union[DownloadFileRequest, _Mapping]] = ..., upload_file_request: _Optional[_Union[UploadFileRequest, _Mapping]] = ..., mark_run_files_uploaded_request: _Optional[_Union[MarkRunFilesUploadedRequest, _Mapping]] = ..., stop_run_request: _Optional[_Union[StopRunRequest, _Mapping]] = ..., auth_request: _Optional[_Union[AuthRequest, _Mapping]] = ..., create_custom_chart_request: _Optional[_Union[CreateCustomChartRequest, _Mapping]] = ..., run_queue_operation_request: _Optional[_Union[RunQueueOperationRequest, _Mapping]] = ...) -> None: ...
+    open_telemetry_request: _wandb_otel_pb2.OpenTelemetryRequest
+    def __init__(self, api_id: _Optional[str] = ..., read_run_history_request: _Optional[_Union[ReadRunHistoryRequest, _Mapping]] = ..., features_request: _Optional[_Union[FeaturesRequest, _Mapping]] = ..., graphql_request: _Optional[_Union[GraphQLRequest, _Mapping]] = ..., download_file_request: _Optional[_Union[DownloadFileRequest, _Mapping]] = ..., upload_file_request: _Optional[_Union[UploadFileRequest, _Mapping]] = ..., mark_run_files_uploaded_request: _Optional[_Union[MarkRunFilesUploadedRequest, _Mapping]] = ..., stop_run_request: _Optional[_Union[StopRunRequest, _Mapping]] = ..., auth_request: _Optional[_Union[AuthRequest, _Mapping]] = ..., create_custom_chart_request: _Optional[_Union[CreateCustomChartRequest, _Mapping]] = ..., run_queue_operation_request: _Optional[_Union[RunQueueOperationRequest, _Mapping]] = ..., open_telemetry_request: _Optional[_Union[_wandb_otel_pb2.OpenTelemetryRequest, _Mapping]] = ...) -> None: ...
 
 class ApiResponse(_message.Message):
     __slots__ = ("read_run_history_response", "features_response", "graphql_response", "download_file_response", "upload_file_response", "mark_run_files_uploaded_response", "stop_run_response", "auth_response", "create_custom_chart_response", "run_queue_operation_response", "api_error_response")

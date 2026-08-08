@@ -184,6 +184,7 @@ type ApiRequest struct {
 	//	*ApiRequest_AuthRequest
 	//	*ApiRequest_CreateCustomChartRequest
 	//	*ApiRequest_RunQueueOperationRequest
+	//	*ApiRequest_OpenTelemetryRequest
 	Request       isApiRequest_Request `protobuf_oneof:"request"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -323,6 +324,15 @@ func (x *ApiRequest) GetRunQueueOperationRequest() *RunQueueOperationRequest {
 	return nil
 }
 
+func (x *ApiRequest) GetOpenTelemetryRequest() *OpenTelemetryRequest {
+	if x != nil {
+		if x, ok := x.Request.(*ApiRequest_OpenTelemetryRequest); ok {
+			return x.OpenTelemetryRequest
+		}
+	}
+	return nil
+}
+
 type isApiRequest_Request interface {
 	isApiRequest_Request()
 }
@@ -367,6 +377,10 @@ type ApiRequest_RunQueueOperationRequest struct {
 	RunQueueOperationRequest *RunQueueOperationRequest `protobuf:"bytes,11,opt,name=run_queue_operation_request,json=runQueueOperationRequest,proto3,oneof"`
 }
 
+type ApiRequest_OpenTelemetryRequest struct {
+	OpenTelemetryRequest *OpenTelemetryRequest `protobuf:"bytes,12,opt,name=open_telemetry_request,json=openTelemetryRequest,proto3,oneof"`
+}
+
 func (*ApiRequest_ReadRunHistoryRequest) isApiRequest_Request() {}
 
 func (*ApiRequest_FeaturesRequest) isApiRequest_Request() {}
@@ -386,6 +400,8 @@ func (*ApiRequest_AuthRequest) isApiRequest_Request() {}
 func (*ApiRequest_CreateCustomChartRequest) isApiRequest_Request() {}
 
 func (*ApiRequest_RunQueueOperationRequest) isApiRequest_Request() {}
+
+func (*ApiRequest_OpenTelemetryRequest) isApiRequest_Request() {}
 
 type ApiResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -3620,12 +3636,12 @@ var File_wandb_proto_wandb_api_proto protoreflect.FileDescriptor
 
 const file_wandb_proto_wandb_api_proto_rawDesc = "" +
 	"\n" +
-	"\x1bwandb/proto/wandb_api.proto\x12\x0ewandb_internal\x1a wandb/proto/wandb_internal.proto\x1a wandb/proto/wandb_settings.proto\"L\n" +
+	"\x1bwandb/proto/wandb_api.proto\x12\x0ewandb_internal\x1a wandb/proto/wandb_internal.proto\x1a\x1cwandb/proto/wandb_otel.proto\x1a wandb/proto/wandb_settings.proto\"L\n" +
 	"\x14ServerApiInitRequest\x124\n" +
 	"\bsettings\x18\x01 \x01(\v2\x18.wandb_internal.SettingsR\bsettings\"S\n" +
 	"\x15ServerApiInitResponse\x12#\n" +
 	"\rerror_message\x18\x01 \x01(\tR\ferrorMessage\x12\x15\n" +
-	"\x06api_id\x18\x02 \x01(\tR\x05apiId\"\xb2\a\n" +
+	"\x06api_id\x18\x02 \x01(\tR\x05apiId\"\x90\b\n" +
 	"\n" +
 	"ApiRequest\x12\x15\n" +
 	"\x06api_id\x18\x01 \x01(\tR\x05apiId\x12`\n" +
@@ -3639,7 +3655,8 @@ const file_wandb_proto_wandb_api_proto_rawDesc = "" +
 	"\fauth_request\x18\t \x01(\v2\x1b.wandb_internal.AuthRequestH\x00R\vauthRequest\x12i\n" +
 	"\x1bcreate_custom_chart_request\x18\n" +
 	" \x01(\v2(.wandb_internal.CreateCustomChartRequestH\x00R\x18createCustomChartRequest\x12i\n" +
-	"\x1brun_queue_operation_request\x18\v \x01(\v2(.wandb_internal.RunQueueOperationRequestH\x00R\x18runQueueOperationRequestB\t\n" +
+	"\x1brun_queue_operation_request\x18\v \x01(\v2(.wandb_internal.RunQueueOperationRequestH\x00R\x18runQueueOperationRequest\x12\\\n" +
+	"\x16open_telemetry_request\x18\f \x01(\v2$.wandb_internal.OpenTelemetryRequestH\x00R\x14openTelemetryRequestB\t\n" +
 	"\arequest\"\x8d\b\n" +
 	"\vApiResponse\x12c\n" +
 	"\x19read_run_history_response\x18\x01 \x01(\v2&.wandb_internal.ReadRunHistoryResponseH\x00R\x16readRunHistoryResponse\x12O\n" +
@@ -3931,8 +3948,9 @@ var file_wandb_proto_wandb_api_proto_goTypes = []any{
 	nil,                                         // 53: wandb_internal.UploadFileRequest.HeadersEntry
 	nil,                                         // 54: wandb_internal.DownloadRunHistoryResponse.ErrorsEntry
 	(*Settings)(nil),                            // 55: wandb_internal.Settings
-	(ServerFeature)(0),                          // 56: wandb_internal.ServerFeature
-	(*OperationStats)(nil),                      // 57: wandb_internal.OperationStats
+	(*OpenTelemetryRequest)(nil),                // 56: wandb_internal.OpenTelemetryRequest
+	(ServerFeature)(0),                          // 57: wandb_internal.ServerFeature
+	(*OperationStats)(nil),                      // 58: wandb_internal.OperationStats
 }
 var file_wandb_proto_wandb_api_proto_depIdxs = []int32{
 	55, // 0: wandb_internal.ServerApiInitRequest.settings:type_name -> wandb_internal.Settings
@@ -3946,53 +3964,54 @@ var file_wandb_proto_wandb_api_proto_depIdxs = []int32{
 	17, // 8: wandb_internal.ApiRequest.auth_request:type_name -> wandb_internal.AuthRequest
 	25, // 9: wandb_internal.ApiRequest.create_custom_chart_request:type_name -> wandb_internal.CreateCustomChartRequest
 	27, // 10: wandb_internal.ApiRequest.run_queue_operation_request:type_name -> wandb_internal.RunQueueOperationRequest
-	36, // 11: wandb_internal.ApiResponse.read_run_history_response:type_name -> wandb_internal.ReadRunHistoryResponse
-	8,  // 12: wandb_internal.ApiResponse.features_response:type_name -> wandb_internal.FeaturesResponse
-	10, // 13: wandb_internal.ApiResponse.graphql_response:type_name -> wandb_internal.GraphQLResponse
-	12, // 14: wandb_internal.ApiResponse.download_file_response:type_name -> wandb_internal.DownloadFileResponse
-	14, // 15: wandb_internal.ApiResponse.upload_file_response:type_name -> wandb_internal.UploadFileResponse
-	16, // 16: wandb_internal.ApiResponse.mark_run_files_uploaded_response:type_name -> wandb_internal.MarkRunFilesUploadedResponse
-	24, // 17: wandb_internal.ApiResponse.stop_run_response:type_name -> wandb_internal.StopRunResponse
-	18, // 18: wandb_internal.ApiResponse.auth_response:type_name -> wandb_internal.AuthResponse
-	26, // 19: wandb_internal.ApiResponse.create_custom_chart_response:type_name -> wandb_internal.CreateCustomChartResponse
-	28, // 20: wandb_internal.ApiResponse.run_queue_operation_response:type_name -> wandb_internal.RunQueueOperationResponse
-	5,  // 21: wandb_internal.ApiResponse.api_error_response:type_name -> wandb_internal.ApiErrorResponse
-	0,  // 22: wandb_internal.ApiErrorResponse.error_type:type_name -> wandb_internal.ErrorType
-	56, // 23: wandb_internal.FeaturesRequest.features:type_name -> wandb_internal.ServerFeature
-	56, // 24: wandb_internal.FeaturesResponse.enabled:type_name -> wandb_internal.ServerFeature
-	52, // 25: wandb_internal.GraphQLRequest.rename_fields:type_name -> wandb_internal.GraphQLRequest.RenameFieldsEntry
-	53, // 26: wandb_internal.UploadFileRequest.headers:type_name -> wandb_internal.UploadFileRequest.HeadersEntry
-	19, // 27: wandb_internal.AuthRequest.authenticate_request:type_name -> wandb_internal.AuthenticateRequest
-	21, // 28: wandb_internal.AuthRequest.get_access_token_request:type_name -> wandb_internal.GetAccessTokenRequest
-	20, // 29: wandb_internal.AuthResponse.authenticate_response:type_name -> wandb_internal.AuthenticateResponse
-	22, // 30: wandb_internal.AuthResponse.get_access_token_response:type_name -> wandb_internal.GetAccessTokenResponse
-	29, // 31: wandb_internal.RunQueueOperationRequest.create_default_resource_config_request:type_name -> wandb_internal.CreateDefaultResourceConfigRequest
-	31, // 32: wandb_internal.RunQueueOperationRequest.create_run_queue_request:type_name -> wandb_internal.CreateRunQueueRequest
-	33, // 33: wandb_internal.RunQueueOperationRequest.upsert_run_queue_request:type_name -> wandb_internal.UpsertRunQueueRequest
-	30, // 34: wandb_internal.RunQueueOperationResponse.create_default_resource_config_response:type_name -> wandb_internal.CreateDefaultResourceConfigResponse
-	32, // 35: wandb_internal.RunQueueOperationResponse.create_run_queue_response:type_name -> wandb_internal.CreateRunQueueResponse
-	34, // 36: wandb_internal.RunQueueOperationResponse.upsert_run_queue_response:type_name -> wandb_internal.UpsertRunQueueResponse
-	37, // 37: wandb_internal.ReadRunHistoryRequest.scan_run_history_init:type_name -> wandb_internal.ScanRunHistoryInit
-	39, // 38: wandb_internal.ReadRunHistoryRequest.scan_run_history:type_name -> wandb_internal.ScanRunHistory
-	43, // 39: wandb_internal.ReadRunHistoryRequest.scan_run_history_cleanup:type_name -> wandb_internal.ScanRunHistoryCleanup
-	45, // 40: wandb_internal.ReadRunHistoryRequest.download_run_history_init:type_name -> wandb_internal.DownloadRunHistoryInit
-	47, // 41: wandb_internal.ReadRunHistoryRequest.download_run_history:type_name -> wandb_internal.DownloadRunHistory
-	50, // 42: wandb_internal.ReadRunHistoryRequest.download_run_history_status:type_name -> wandb_internal.DownloadRunHistoryStatus
-	38, // 43: wandb_internal.ReadRunHistoryResponse.scan_run_history_init:type_name -> wandb_internal.ScanRunHistoryInitResponse
-	40, // 44: wandb_internal.ReadRunHistoryResponse.run_history:type_name -> wandb_internal.RunHistoryResponse
-	44, // 45: wandb_internal.ReadRunHistoryResponse.scan_run_history_cleanup:type_name -> wandb_internal.ScanRunHistoryCleanupResponse
-	46, // 46: wandb_internal.ReadRunHistoryResponse.download_run_history_init:type_name -> wandb_internal.DownloadRunHistoryInitResponse
-	48, // 47: wandb_internal.ReadRunHistoryResponse.download_run_history:type_name -> wandb_internal.DownloadRunHistoryResponse
-	51, // 48: wandb_internal.ReadRunHistoryResponse.download_run_history_status:type_name -> wandb_internal.DownloadRunHistoryStatusResponse
-	41, // 49: wandb_internal.RunHistoryResponse.history_rows:type_name -> wandb_internal.HistoryRow
-	42, // 50: wandb_internal.HistoryRow.history_items:type_name -> wandb_internal.ParquetHistoryItem
-	54, // 51: wandb_internal.DownloadRunHistoryResponse.errors:type_name -> wandb_internal.DownloadRunHistoryResponse.ErrorsEntry
-	57, // 52: wandb_internal.DownloadRunHistoryStatusResponse.operation_stats:type_name -> wandb_internal.OperationStats
-	53, // [53:53] is the sub-list for method output_type
-	53, // [53:53] is the sub-list for method input_type
-	53, // [53:53] is the sub-list for extension type_name
-	53, // [53:53] is the sub-list for extension extendee
-	0,  // [0:53] is the sub-list for field type_name
+	56, // 11: wandb_internal.ApiRequest.open_telemetry_request:type_name -> wandb_internal.OpenTelemetryRequest
+	36, // 12: wandb_internal.ApiResponse.read_run_history_response:type_name -> wandb_internal.ReadRunHistoryResponse
+	8,  // 13: wandb_internal.ApiResponse.features_response:type_name -> wandb_internal.FeaturesResponse
+	10, // 14: wandb_internal.ApiResponse.graphql_response:type_name -> wandb_internal.GraphQLResponse
+	12, // 15: wandb_internal.ApiResponse.download_file_response:type_name -> wandb_internal.DownloadFileResponse
+	14, // 16: wandb_internal.ApiResponse.upload_file_response:type_name -> wandb_internal.UploadFileResponse
+	16, // 17: wandb_internal.ApiResponse.mark_run_files_uploaded_response:type_name -> wandb_internal.MarkRunFilesUploadedResponse
+	24, // 18: wandb_internal.ApiResponse.stop_run_response:type_name -> wandb_internal.StopRunResponse
+	18, // 19: wandb_internal.ApiResponse.auth_response:type_name -> wandb_internal.AuthResponse
+	26, // 20: wandb_internal.ApiResponse.create_custom_chart_response:type_name -> wandb_internal.CreateCustomChartResponse
+	28, // 21: wandb_internal.ApiResponse.run_queue_operation_response:type_name -> wandb_internal.RunQueueOperationResponse
+	5,  // 22: wandb_internal.ApiResponse.api_error_response:type_name -> wandb_internal.ApiErrorResponse
+	0,  // 23: wandb_internal.ApiErrorResponse.error_type:type_name -> wandb_internal.ErrorType
+	57, // 24: wandb_internal.FeaturesRequest.features:type_name -> wandb_internal.ServerFeature
+	57, // 25: wandb_internal.FeaturesResponse.enabled:type_name -> wandb_internal.ServerFeature
+	52, // 26: wandb_internal.GraphQLRequest.rename_fields:type_name -> wandb_internal.GraphQLRequest.RenameFieldsEntry
+	53, // 27: wandb_internal.UploadFileRequest.headers:type_name -> wandb_internal.UploadFileRequest.HeadersEntry
+	19, // 28: wandb_internal.AuthRequest.authenticate_request:type_name -> wandb_internal.AuthenticateRequest
+	21, // 29: wandb_internal.AuthRequest.get_access_token_request:type_name -> wandb_internal.GetAccessTokenRequest
+	20, // 30: wandb_internal.AuthResponse.authenticate_response:type_name -> wandb_internal.AuthenticateResponse
+	22, // 31: wandb_internal.AuthResponse.get_access_token_response:type_name -> wandb_internal.GetAccessTokenResponse
+	29, // 32: wandb_internal.RunQueueOperationRequest.create_default_resource_config_request:type_name -> wandb_internal.CreateDefaultResourceConfigRequest
+	31, // 33: wandb_internal.RunQueueOperationRequest.create_run_queue_request:type_name -> wandb_internal.CreateRunQueueRequest
+	33, // 34: wandb_internal.RunQueueOperationRequest.upsert_run_queue_request:type_name -> wandb_internal.UpsertRunQueueRequest
+	30, // 35: wandb_internal.RunQueueOperationResponse.create_default_resource_config_response:type_name -> wandb_internal.CreateDefaultResourceConfigResponse
+	32, // 36: wandb_internal.RunQueueOperationResponse.create_run_queue_response:type_name -> wandb_internal.CreateRunQueueResponse
+	34, // 37: wandb_internal.RunQueueOperationResponse.upsert_run_queue_response:type_name -> wandb_internal.UpsertRunQueueResponse
+	37, // 38: wandb_internal.ReadRunHistoryRequest.scan_run_history_init:type_name -> wandb_internal.ScanRunHistoryInit
+	39, // 39: wandb_internal.ReadRunHistoryRequest.scan_run_history:type_name -> wandb_internal.ScanRunHistory
+	43, // 40: wandb_internal.ReadRunHistoryRequest.scan_run_history_cleanup:type_name -> wandb_internal.ScanRunHistoryCleanup
+	45, // 41: wandb_internal.ReadRunHistoryRequest.download_run_history_init:type_name -> wandb_internal.DownloadRunHistoryInit
+	47, // 42: wandb_internal.ReadRunHistoryRequest.download_run_history:type_name -> wandb_internal.DownloadRunHistory
+	50, // 43: wandb_internal.ReadRunHistoryRequest.download_run_history_status:type_name -> wandb_internal.DownloadRunHistoryStatus
+	38, // 44: wandb_internal.ReadRunHistoryResponse.scan_run_history_init:type_name -> wandb_internal.ScanRunHistoryInitResponse
+	40, // 45: wandb_internal.ReadRunHistoryResponse.run_history:type_name -> wandb_internal.RunHistoryResponse
+	44, // 46: wandb_internal.ReadRunHistoryResponse.scan_run_history_cleanup:type_name -> wandb_internal.ScanRunHistoryCleanupResponse
+	46, // 47: wandb_internal.ReadRunHistoryResponse.download_run_history_init:type_name -> wandb_internal.DownloadRunHistoryInitResponse
+	48, // 48: wandb_internal.ReadRunHistoryResponse.download_run_history:type_name -> wandb_internal.DownloadRunHistoryResponse
+	51, // 49: wandb_internal.ReadRunHistoryResponse.download_run_history_status:type_name -> wandb_internal.DownloadRunHistoryStatusResponse
+	41, // 50: wandb_internal.RunHistoryResponse.history_rows:type_name -> wandb_internal.HistoryRow
+	42, // 51: wandb_internal.HistoryRow.history_items:type_name -> wandb_internal.ParquetHistoryItem
+	54, // 52: wandb_internal.DownloadRunHistoryResponse.errors:type_name -> wandb_internal.DownloadRunHistoryResponse.ErrorsEntry
+	58, // 53: wandb_internal.DownloadRunHistoryStatusResponse.operation_stats:type_name -> wandb_internal.OperationStats
+	54, // [54:54] is the sub-list for method output_type
+	54, // [54:54] is the sub-list for method input_type
+	54, // [54:54] is the sub-list for extension type_name
+	54, // [54:54] is the sub-list for extension extendee
+	0,  // [0:54] is the sub-list for field type_name
 }
 
 func init() { file_wandb_proto_wandb_api_proto_init() }
@@ -4001,6 +4020,7 @@ func file_wandb_proto_wandb_api_proto_init() {
 		return
 	}
 	file_wandb_proto_wandb_internal_proto_init()
+	file_wandb_proto_wandb_otel_proto_init()
 	file_wandb_proto_wandb_settings_proto_init()
 	file_wandb_proto_wandb_api_proto_msgTypes[2].OneofWrappers = []any{
 		(*ApiRequest_ReadRunHistoryRequest)(nil),
@@ -4013,6 +4033,7 @@ func file_wandb_proto_wandb_api_proto_init() {
 		(*ApiRequest_AuthRequest)(nil),
 		(*ApiRequest_CreateCustomChartRequest)(nil),
 		(*ApiRequest_RunQueueOperationRequest)(nil),
+		(*ApiRequest_OpenTelemetryRequest)(nil),
 	}
 	file_wandb_proto_wandb_api_proto_msgTypes[3].OneofWrappers = []any{
 		(*ApiResponse_ReadRunHistoryResponse)(nil),

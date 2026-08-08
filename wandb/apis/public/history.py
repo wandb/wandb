@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any, TypeAlias
 
 from typing_extensions import Self
 
+from wandb.analytics import TelemetryRecorder
 from wandb.proto import wandb_api_pb2 as pb
 
 if TYPE_CHECKING:
@@ -47,6 +48,11 @@ class HistoryScan(Iterator[_RowDict]):
         self.keys = keys
         self.page_size = page_size
         self._service_api = service_api
+
+        telemetry_recorder = TelemetryRecorder(service_api=self._service_api)
+        telemetry_recorder.increment_counter_and_log_event(
+            name="scan_run_history_init",
+        )
 
         # Tell wandb-core to initialize resources to scan the run's history.
         scan_run_history_init = pb.ScanRunHistoryInit(

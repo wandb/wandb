@@ -25,7 +25,7 @@ import wandb
 import wandb.errors
 import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent
-from wandb.analytics import get_sentry
+from wandb.analytics import get_sentry, get_telemetry_recorder
 from wandb.apis import InternalApi, PublicApi
 from wandb.cli import beta_sync
 from wandb.errors.links import url_registry
@@ -1796,6 +1796,7 @@ def launch(
 
     api = _get_cling_api()
     get_sentry().configure_scope(process_context="launch_cli")
+    telemetry_recorder = get_telemetry_recorder(wandb_setup.singleton().settings)
 
     if run_async and queue is not None:
         raise LaunchError(
@@ -1927,10 +1928,12 @@ def launch(
                 sys.exit(1)
         except LaunchError as e:
             logger.exception("An error occurred.")
+            telemetry_recorder.exception(str(e), e)
             get_sentry().exception(e)
             sys.exit(e)
         except ExecutionError as e:
             logger.exception("An error occurred.")
+            telemetry_recorder.exception(str(e), e)
             get_sentry().exception(e)
             sys.exit(e)
         except asyncio.CancelledError:
@@ -1959,6 +1962,7 @@ def launch(
             )
 
         except Exception as e:
+            telemetry_recorder.exception(str(e), e)
             get_sentry().exception(e)
             raise
 
@@ -2036,6 +2040,7 @@ def launch_agent(
         _launch.set_launch_logfile(log_file)
 
     api = _get_cling_api()
+    telemetry_recorder = get_telemetry_recorder(wandb_setup.singleton().settings)
     get_sentry().configure_scope(process_context="launch_agent")
     agent_config, api = _launch.resolve_agent_config(
         entity, max_jobs, queues, config, verbose
@@ -2050,8 +2055,13 @@ def launch_agent(
 
     wandb.termlog("Starting launch agent ✨")
     try:
-        _launch.create_and_run_agent(api, agent_config)
+        _launch.create_and_run_agent(
+            api,
+            agent_config,
+            telemetry_recorder=telemetry_recorder,
+        )
     except Exception as e:
+        telemetry_recorder.exception(str(e), e)
         get_sentry().exception(e)
         raise
 
@@ -2175,6 +2185,7 @@ def scheduler(
         ctx.invoke(login, no_offline=True)
         api = InternalApi(reset=True)
 
+    telemetry_recorder = get_telemetry_recorder(wandb_setup.singleton().settings)
     get_sentry().configure_scope(process_context="sweep_scheduler")
     wandb.termlog("Starting a Launch Scheduler 🚀")
     from wandb.sdk.launch.sweeps import load_scheduler
@@ -2199,6 +2210,7 @@ def scheduler(
         )
         _scheduler.start()
     except Exception as e:
+        telemetry_recorder.exception(str(e), e)
         get_sentry().exception(e)
         raise
 

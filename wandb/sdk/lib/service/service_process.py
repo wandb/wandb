@@ -69,6 +69,7 @@ def _start(
     detached: bool,
     idle_timeout: str | None,
 ) -> ServiceProcess:
+    # Imported here to avoid circular imports.
     get_sentry().configure_scope(tags=dict(settings), process_context="service")
 
     try:
@@ -78,6 +79,7 @@ def _start(
             idle_timeout=idle_timeout,
         )
     except Exception as e:
+        # TODO: remove sentry once we no longer support/need it
         get_sentry().reraise(e)
 
 
@@ -126,7 +128,8 @@ def _launch_server(
         try:
             core_path = get_core_path()
         except WandbCoreNotAvailableError as e:
-            get_sentry().reraise(e)
+            # TODO: remove sentry once we no longer support/need it
+            get_sentry().exception(e)
 
         service_args.append(core_path)
 

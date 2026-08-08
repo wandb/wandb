@@ -403,6 +403,11 @@ class _WandbSetup:
 
         return self._connection
 
+    @property
+    def service_connected(self) -> bool:
+        """Whether a connection to the service process already exists."""
+        return self._connection is not None
+
 
 _singleton: _WandbSetup | None = None
 """The W&B library singleton, or None if not yet set up.
@@ -421,6 +426,19 @@ def singleton() -> _WandbSetup:
     until teardown(). This does not start the service process.
     """
     return _setup(start_service=False, load_settings=False)
+
+
+def singleton_if_created() -> _WandbSetup | None:
+    """The W&B singleton if it exists for the current process, else None.
+
+    Unlike singleton(), this never creates the singleton. It also does not
+    acquire any locks, so it is safe to call from code that may run while
+    the setup locks are held, such as error handlers.
+    """
+    if _singleton and _singleton._pid == os.getpid():
+        return _singleton
+
+    return None
 
 
 @wb_logging.log_to_all_runs()
