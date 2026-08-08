@@ -264,10 +264,27 @@ class Api:
 
         auth: tuple[str, str] | None = None
         api_key = api_key or self.default_settings.get("api_key")
+        session_auth = wbauth.session_credentials(host=self.api_url)
         if api_key:
+            # Credentials provided explicitly for this instance.
             auth = ("api", api_key)
-        elif (access_token := self.access_token) is not None:
-            self._extra_http_headers["Authorization"] = f"Bearer {access_token}"
+        elif isinstance(session_auth, wbauth.AuthApiKey):
+            # Credentials configured for the session, such as through
+            # wandb.login().
+            auth = ("api", session_auth.api_key)
+        elif isinstance(session_auth, wbauth.AuthIdentityTokenFile):
+            # Federated identity: wandb-core exchanges the identity token
+            # for an access token and authenticates its requests with it.
+            # Code that talks to the server directly gets the token from
+            # wandb-core through the access_token property.
+            pass
+        elif token_file := self._environ.get(env.IDENTITY_TOKEN_FILE):
+            # Federated identity configured in the environment, before
+            # session credentials are established.
+            if not Path(token_file).exists():
+                raise AuthenticationError(
+                    f"Identity token file not found: {token_file}"
+                )
         else:
             auth = ("api", self.api_key or "")
 
@@ -354,6 +371,10 @@ class Api:
         settings = wandb_setup.singleton().settings.model_copy()
         settings.base_url = self.settings("base_url")
         settings.api_key = self._request_auth[1] if self._request_auth else ""
+        if settings.api_key:
+            # wandb-core prefers an identity token file over an API key,
+            # so clear any token file inherited from the global settings.
+            settings.identity_token_file = None
         settings.x_extra_http_headers = dict(self._request_headers)
         settings.x_graphql_timeout_seconds = self.HTTP_TIMEOUT
 
@@ -380,8 +401,6 @@ class Api:
 
     @property
     def api_key(self) -> str | None:
-        from wandb.sdk.lib import wbauth
-
         if (  #
             (auth := wbauth.session_credentials(host=self.api_url))
             and isinstance(auth, wbauth.AuthApiKey)
@@ -394,36 +413,6 @@ class Api:
             or parse_sm_secrets().get(env.API_KEY)
             or self.default_settings.get("api_key")
         )
-
-    @property
-    def access_token(self) -> str | None:
-        """Retrieves an access token for authentication.
-
-        This function attempts to exchange an identity token for a temporary
-        access token from the server, and save it to the credentials file.
-        It uses the path to the identity token as defined in the environment
-        variables. If the environment variable is not set, it returns None.
-
-        Returns:
-            str | None: The access token if available, otherwise None if
-            no identity token is supplied.
-        Raises:
-            AuthenticationError: If the path to the identity token is not found.
-        """
-        token_file_str = self._environ.get(env.IDENTITY_TOKEN_FILE)
-        if not token_file_str:
-            return None
-
-        token_file = Path(token_file_str)
-        if not token_file.exists():
-            raise AuthenticationError(f"Identity token file not found: {token_file}")
-
-        auth = wbauth.AuthIdentityTokenFile(
-            host=self.settings("base_url"),
-            path=str(token_file),
-            credentials_file=wandb_setup.singleton().settings.credentials_file,
-        )
-        return auth.fetch_access_token()
 
     @property
     def api_url(self) -> str:

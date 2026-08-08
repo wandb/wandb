@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Iterable
+from typing import TYPE_CHECKING
 
 import pytest
 from wandb._strutils import b64encode_ascii
@@ -17,6 +18,11 @@ from wandb.apis.public.registries._utils import (
 from wandb.apis.public.registries.registries_search import Collections, Registries
 from wandb.apis.public.registries.registry import Registry
 from wandb.errors import UnsupportedError
+
+if TYPE_CHECKING:
+    from unittest.mock import MagicMock
+
+    from pytest_mock import MockerFixture
 
 ORG = "test-org"
 REGISTRY_FILTER = {"name": "wandb-registry-test"}
@@ -151,7 +157,7 @@ def test_filter_for_registry_falls_back_to_name_without_internal_id(
 
 
 @pytest.fixture
-def service_api(mocker):
+def service_api(mocker: MockerFixture) -> MagicMock:
     from wandb.apis.public.service_api import ServiceApi
 
     mock = mocker.Mock(spec=ServiceApi)

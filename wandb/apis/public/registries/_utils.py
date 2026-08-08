@@ -3,10 +3,10 @@ from __future__ import annotations
 import logging
 from collections.abc import Collection
 from enum import Enum
-from functools import lru_cache, partial
+from functools import lru_cache
 from typing import TYPE_CHECKING, Any, TypeVar, overload
 
-from wandb._strutils import b64decode_ascii, ensureprefix
+from wandb._strutils import b64decode_ascii, ensureprefix, repr_join
 from wandb.proto import wandb_internal_pb2 as pb
 
 _logger = logging.getLogger(__name__)
@@ -37,10 +37,8 @@ class Visibility(str, Enum):
         try:
             return cls(value)
         except ValueError:
-            expected = ", ".join(repr(e.value) for e in cls)
-            raise ValueError(
-                f"Invalid visibility {value!r} from backend. Expected one of: {expected}"
-            ) from None
+            msg = f"Invalid visibility {value!r} from backend. Expected one of: {repr_join(e.value for e in cls)}"
+            raise ValueError(msg) from None
 
     @classmethod
     def from_project_access(cls, value: str | None) -> Visibility:
@@ -65,10 +63,8 @@ class Visibility(str, Enum):
         try:
             return cls(name)
         except ValueError:
-            expected = ", ".join(repr(e.name) for e in cls)
-            raise ValueError(
-                f"Invalid visibility {name!r}. Expected one of: {expected}"
-            ) from None
+            msg = f"Invalid visibility {name!r}. Expected one of: {repr_join(e.name for e in cls)}"
+            raise ValueError(msg) from None
 
 
 def prepare_artifact_types_input(
@@ -90,47 +86,31 @@ def prepare_artifact_types_input(
 
 
 @overload
-def ensure_registry_prefix_on_names(query: str, in_name: bool = ...) -> str: ...
+def prepare_registry_filter(query: str, path=...) -> str: ...
 @overload
-def ensure_registry_prefix_on_names(
-    query: dict[str, Any], in_name: bool = ...
-) -> dict[str, Any]: ...
+def prepare_registry_filter(query: dict[str, Any], path=...) -> dict[str, Any]: ...
 @overload
-def ensure_registry_prefix_on_names(
-    query: list[T] | tuple[T], in_name: bool = ...
-) -> list[T]: ...
+def prepare_registry_filter(query: list[T] | tuple[T], path=...) -> list[T]: ...
 @overload
-def ensure_registry_prefix_on_names(query: T, in_name: bool = ...) -> T: ...
+def prepare_registry_filter(query: T, path=...) -> T: ...
 
 
-def ensure_registry_prefix_on_names(query: Any, in_name: bool = False) -> Any:
-    """Recursively prepend the registry prefix under "name" keys, excluding regex ops.
+def prepare_registry_filter(query: Any, path: tuple[int | str, ...] = ()) -> Any:
+    """Normalize a registry filter as a JSON-serializable GraphQL input.
 
-    - in_name: True if we are under a "name" key (or propagating from one).
+    Recursively prepend the registry prefix under "name" keys, excluding regex ops.
 
     EX: {"name": "model"} -> {"name": "wandb-registry-model"}
     """
     from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
 
     match query:
-        case str() as txt:
-            return ensureprefix(txt, REGISTRY_PREFIX) if in_name else txt
+        case str() as txt if "name" in path and "$regex" not in path:
+            return ensureprefix(txt, REGISTRY_PREFIX)
         case dict() as dct:
-            new_dict = {}
-            for k, v in dct.items():
-                if k == "$regex":
-                    # For regex operator, we skip transformation of its value.
-                    new_dict[k] = v
-                else:
-                    # Enforce prefix on "name" keys, otherwise propagate flags as-is.
-                    new_dict[k] = ensure_registry_prefix_on_names(
-                        v, in_name=(k == "name") or in_name
-                    )
-            return new_dict
+            return {k: prepare_registry_filter(v, (*path, k)) for k, v in dct.items()}
         case list() | tuple() as seq:
-            return list(
-                map(partial(ensure_registry_prefix_on_names, in_name=in_name), seq)
-            )
+            return [prepare_registry_filter(v, (*path, i)) for i, v in enumerate(seq)]
         case _:
             return query
 

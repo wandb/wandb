@@ -2,6 +2,7 @@ package clients
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/hashicorp/go-retryablehttp"
@@ -10,6 +11,21 @@ import (
 type ContextKey string
 
 const CtxRetryPolicyKey ContextKey = "retryFunc"
+
+// PermanentError is implemented by errors that no amount of retrying can
+// resolve, like a credential exchange the server definitively rejected.
+type PermanentError interface {
+	error
+
+	// PermanentError returns true if retrying the request cannot succeed.
+	PermanentError() bool
+}
+
+// isPermanent returns true if the error chain contains a PermanentError.
+func isPermanent(err error) bool {
+	var perm PermanentError
+	return errors.As(err, &perm) && perm.PermanentError()
+}
 
 // RetryMostFailures is a retry policy that retries most client (4xx) errors,
 // server (5xx) errors, and connection problems.
@@ -23,15 +39,22 @@ func RetryMostFailures(
 		return false, ctx.Err()
 	}
 
-	// Use retryablehttp's defaults for errors.
-	//
-	// Most errors are retryable, but a few are not. Unfortunately, the only
-	// way to detect them is to match on the error string. We let retryablehttp
-	// do this for us.
-	//
-	// Retryable errors are often connection issues. Non-retryable errors
-	// include invalid usage, TLS verification problems, and too many redirects.
 	if err != nil {
+		// Errors marked permanent cannot be resolved by retrying, like a
+		// failed credential exchange with a definitive server response.
+		if isPermanent(err) {
+			return false, err
+		}
+
+		// Use retryablehttp's defaults for other errors.
+		//
+		// Most errors are retryable, but a few are not. Unfortunately, the
+		// only way to detect them is to match on the error string. We let
+		// retryablehttp do this for us.
+		//
+		// Retryable errors are often connection issues. Non-retryable errors
+		// include invalid usage, TLS verification problems, and too many
+		// redirects.
 		return retryablehttp.DefaultRetryPolicy(ctx, resp, err)
 	}
 
@@ -83,6 +106,12 @@ func UpsertBucketRetryPolicy(ctx context.Context, resp *http.Response, err error
 
 func CheckRetry(ctx context.Context, resp *http.Response, err error) (bool, error) {
 	if err != nil || ctx.Err() != nil {
+		// Errors marked permanent cannot be resolved by retrying, like a
+		// failed credential exchange with a definitive server response.
+		if isPermanent(err) {
+			return false, err
+		}
+
 		return retryablehttp.DefaultRetryPolicy(ctx, resp, err)
 	}
 

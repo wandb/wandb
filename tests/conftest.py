@@ -188,13 +188,13 @@ def patch_apikey(dummy_api_key: str, monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture
 def skip_verify_login(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Patch `wandb.Api` to not verify the API key."""
-    from wandb.apis.public import api
+    """Skip credential verification so tests don't contact the W&B server."""
+    from wandb.apis.public.service_api import AuthenticateResponse, ServiceApi
 
     monkeypatch.setattr(
-        api.wandb_login,
-        "_verify_login",
-        unittest.mock.MagicMock(),
+        ServiceApi,
+        "authenticate",
+        unittest.mock.MagicMock(return_value=AuthenticateResponse()),
     )
 
 

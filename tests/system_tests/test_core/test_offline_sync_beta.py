@@ -187,6 +187,7 @@ def test_syncs_run(
         run.log({"test_sync": 321})
         run.save(test_file, base_path=test_file.parent)
         run.summary["test_sync_summary"] = "test summary"
+        run.notes = "test note"
 
     result = runner.invoke(cli.beta, f"sync {run.sync_dir}")
 

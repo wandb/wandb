@@ -13,7 +13,9 @@ from wandb.proto.wandb_api_pb2 import (
     ApiResponse,
     AuthenticateRequest,
     AuthenticateResponse,
+    AuthRequest,
     FeaturesRequest,
+    GetAccessTokenRequest,
     GraphQLRequest,
 )
 from wandb.sdk import wandb_settings, wandb_setup
@@ -50,6 +52,10 @@ class ServiceApi:
     @property
     def app_url(self) -> str:
         return self._settings.app_url.rstrip("/") + "/"
+
+    @property
+    def base_url(self) -> str:
+        return self._settings.base_url
 
     def _get_api_session(self) -> _ServiceApiSession:
         """Connect to the service and initialize resources for API requests."""
@@ -194,12 +200,51 @@ class ServiceApi:
                 request fails for any other reason, including timeouts while
                 waiting on wandb-core and transport errors.
         """
-        req = ApiRequest(authenticate_request=AuthenticateRequest())
+        req = ApiRequest(
+            auth_request=AuthRequest(authenticate_request=AuthenticateRequest())
+        )
         resp = self.send_api_request(
             req,
             timeout=self._timeout if timeout is None else timeout,
         )
-        return resp.authenticate_response
+        return resp.auth_response.authenticate_response
+
+    def access_token(
+        self,
+        timeout: float | None = None,
+    ) -> str | None:
+        """Fetch the access token for the session credentials, if any.
+
+        A token exists only when using federated identity, in which case
+        wandb-core exchanges the identity token configured in the settings
+        for an access token, caching it in the credentials file and
+        refreshing it when it is at or near expiration.
+
+        Args:
+            timeout: Optional timeout in seconds for waiting on wandb-core.
+                On timeout, the request is cancelled on a best-effort basis.
+
+        Returns:
+            The access token, or None when the settings do not use
+            token-based credentials. When not using federated identity,
+            this returns None without a service round-trip.
+
+        Raises:
+            WandbApiFailedError: If the token exchange fails or the request
+                fails for any other reason, including timeouts while waiting
+                on wandb-core and transport errors.
+        """
+        if not self._settings.identity_token_file:
+            return None
+
+        req = ApiRequest(
+            auth_request=AuthRequest(get_access_token_request=GetAccessTokenRequest())
+        )
+        resp = self.send_api_request(
+            req,
+            timeout=self._timeout if timeout is None else timeout,
+        )
+        return resp.auth_response.get_access_token_response.access_token or None
 
     async def send_api_request_async(
         self,

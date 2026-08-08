@@ -32,7 +32,7 @@ from wandb.errors import UsageError
 from wandb.proto import wandb_settings_pb2
 from wandb.sdk.lib import deprecation, settings_file, urls
 
-from .lib import credentials, filesystem, ipython
+from .lib import filesystem, ipython
 from .lib.run_moment import RunMoment
 
 
@@ -239,7 +239,9 @@ class Settings(BaseModel, validate_assignment=True):
     """
 
     credentials_file: str = Field(
-        default_factory=lambda: str(credentials.DEFAULT_WANDB_CREDENTIALS_FILE)
+        default_factory=lambda: _path_convert(
+            "~", ".config", "wandb", "credentials.json"
+        )
     )
     """Path to file for writing temporary access tokens."""
 

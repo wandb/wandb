@@ -1,5 +1,6 @@
 import pathlib
 import textwrap
+from unittest.mock import MagicMock
 
 import pytest
 from wandb.errors import AuthenticationError
@@ -9,9 +10,12 @@ from wandb.sdk.lib.wbauth import (
     authenticate_session,
     session_credentials,
     use_explicit_auth,
+    validation,
 )
 
 from tests.fixtures.mock_wandb_log import MockWandbLog
+
+pytestmark = pytest.mark.usefixtures("skip_verify_login")
 
 
 def test_auth_repr_no_secrets():
@@ -79,6 +83,56 @@ def test_loads_api_key_from_environment_variable(
     mock_wandb_log.assert_logged(
         "[test] Loaded credentials for https://fake-url from WANDB_API_KEY."
     )
+
+
+def test_verifies_system_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("WANDB_API_KEY", "test" * 40)
+    check_validity = MagicMock(return_value=None)
+    monkeypatch.setattr(validation, "check_api_key_validity", check_validity)
+
+    result = authenticate_session(
+        host="https://fake-url",
+        source="test",
+        verify=True,
+    )
+
+    assert isinstance(result, AuthApiKey)
+    check_validity.assert_called_once()
+    assert check_validity.call_args.kwargs["api_key"] == "test" * 40
+    assert check_validity.call_args.kwargs["host"].is_same_url("https://fake-url")
+
+
+def test_does_not_verify_system_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("WANDB_API_KEY", "test" * 40)
+    check_validity = MagicMock(return_value=None)
+    monkeypatch.setattr(validation, "check_api_key_validity", check_validity)
+
+    result = authenticate_session(
+        host="https://fake-url",
+        source="test",
+        verify=False,
+    )
+
+    assert isinstance(result, AuthApiKey)
+    check_validity.assert_not_called()
+
+
+def test_invalid_system_credentials_fail_verification(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("WANDB_API_KEY", "test" * 40)
+    monkeypatch.setattr(
+        validation,
+        "check_api_key_validity",
+        MagicMock(return_value="Key is invalid."),
+    )
+
+    with pytest.raises(AuthenticationError, match="Key is invalid."):
+        authenticate_session(host="https://fake-url", source="test", verify=True)
 
 
 def test_invalid_env_api_key(monkeypatch: pytest.MonkeyPatch):
