@@ -243,18 +243,12 @@ func (nc *Connection) processIncomingData() {
 	for scanner.Scan() {
 		msg := &spb.ServerRequest{}
 		if err := proto.Unmarshal(scanner.Bytes(), msg); err != nil {
-			dataLen := len(scanner.Bytes())
-			dataTrunc := scanner.Bytes()
-			if len(dataTrunc) > 1<<10 {
-				dataTrunc = dataTrunc[:1<<10]
-			}
-
+			// Client messages may contain credentials and must not be logged.
 			slog.Error(
 				"connection: unmarshalling error, breaking connection",
 				"error", err,
 				"id", nc.id,
-				"token_len", dataLen,
-				"token_1kb", dataTrunc,
+				"token_len", len(scanner.Bytes()),
 			)
 
 			// Stop the server because a client is misbehaving, and it is no
@@ -322,7 +316,12 @@ func (nc *Connection) handleIncomingRequests() {
 	defer wg.Wait()
 
 	for msg := range nc.inChan {
-		slog.Debug("handleIncomingRequests: processing message", "msg", msg, "id", nc.id)
+		// Requests may contain credentials and must not be logged.
+		slog.Debug("handleIncomingRequests: processing message",
+			"type", fmt.Sprintf("%T", msg.ServerRequestType),
+			"requestId", msg.RequestId,
+			"id", nc.id,
+		)
 
 		switch x := msg.ServerRequestType.(type) {
 		case *spb.ServerRequest_Cancel:
@@ -362,7 +361,7 @@ func (nc *Connection) handleIncomingRequests() {
 		default:
 			slog.Error(
 				"handleIncomingRequests: unknown ServerRequestType",
-				"type", x,
+				"type", fmt.Sprintf("%T", x),
 				"id", nc.id,
 			)
 			return
