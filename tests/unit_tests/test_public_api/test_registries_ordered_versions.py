@@ -1,17 +1,23 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from typing import TYPE_CHECKING
 
 import pytest
 from wandb.apis.public.registries.registries_search import Collections, Registries
 from wandb.errors import UnsupportedError
+
+if TYPE_CHECKING:
+    from unittest.mock import MagicMock
+
+    from pytest_mock import MockerFixture
 
 ORG = "test-org"
 REGISTRY_FILTER = {"name": "wandb-registry-test"}
 
 
 @pytest.fixture
-def service_api(mocker):
+def service_api(mocker: MockerFixture) -> MagicMock:
     from wandb.apis.public.service_api import ServiceApi
 
     return mocker.Mock(spec=ServiceApi)
