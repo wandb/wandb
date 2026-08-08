@@ -9,6 +9,7 @@ import (
 	"github.com/Khan/genqlient/graphql"
 
 	"github.com/wandb/wandb/core/internal/clients"
+	"github.com/wandb/wandb/core/internal/httplayers"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
 )
@@ -39,21 +40,20 @@ func NewGQLClient(
 	maps.Copy(graphqlHeaders, extraHeaders)
 
 	opts := ClientOptions{
-		BaseURL:         baseURL,
-		RetryPolicy:     clients.CheckRetry,
-		RetryMax:        DefaultRetryMax,
-		RetryWaitMin:    DefaultRetryWaitMin,
-		RetryWaitMax:    DefaultRetryWaitMax,
-		NonRetryTimeout: DefaultNonRetryTimeout,
-		ExtraHeaders:    graphqlHeaders,
-		NetworkPeeker:   peeker,
-
+		RetryPolicy:        clients.CheckRetry,
+		RetryMax:           DefaultRetryMax,
+		RetryWaitMin:       DefaultRetryWaitMin,
+		RetryWaitMax:       DefaultRetryWaitMax,
+		NonRetryTimeout:    DefaultNonRetryTimeout,
 		Proxy:              s.GetProxyFn(),
 		ProxyConnectHeader: s.GetProxyConnectHeader(),
-
 		InsecureDisableSSL: s.IsInsecureDisableSSL(),
-		CredentialProvider: credentialProvider,
 		Logger:             logger,
+		PreRetryLayers: httplayers.Concat(
+			NetworkPeeker(peeker),
+			httplayers.ExtraHeaders(graphqlHeaders),
+			httplayers.LimitTo(baseURL, credentialProvider),
+		),
 	}
 	if retryMax := s.GetGraphQLMaxRetries(); retryMax > 0 {
 		opts.RetryMax = int(retryMax)
