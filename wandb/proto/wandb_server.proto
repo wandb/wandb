@@ -10,25 +10,6 @@ import "wandb/proto/wandb_sync.proto";
 
 option go_package = "core/pkg/service_go_proto";
 
-// Authentication messages.
-//
-// These messages are used to authenticate the client with the W&B server.
-// The client sends a ServerAuthenticateRequest message to wandb-core, which
-// verifies the API key on the server specified by the base_url field and
-// returns a ServerAuthenticateResponse message with the default entity and
-// error status.
-message ServerAuthenticateRequest {
-  string api_key = 1;
-  string base_url = 2;
-  _RecordInfo _info = 200;
-}
-
-message ServerAuthenticateResponse {
-  string default_entity = 1;
-  string error_status = 2;
-  _RecordInfo _info = 200;
-}
-
 message ServerShutdownRequest {
   _RecordInfo _info = 200;
 }
@@ -110,7 +91,7 @@ message ServerErrorResponse {
  */
 
 message ServerRequest {
-  reserved 8;
+  reserved 8, 9;
 
   // An ID for the request, if a response is expected.
   //
@@ -131,7 +112,6 @@ message ServerRequest {
     ServerInformAttachRequest inform_attach = 5;
     ServerInformDetachRequest inform_detach = 6;
     ServerInformTeardownRequest inform_teardown = 7;
-    ServerAuthenticateRequest authenticate = 9;
 
     ServerInitSyncRequest init_sync = 11;
     ServerSyncRequest sync = 12;
@@ -144,7 +124,7 @@ message ServerRequest {
 }
 
 message ServerResponse {
-  reserved 8;
+  reserved 8, 9;
 
   // The ID of the request this is a response to.
   //
@@ -159,7 +139,6 @@ message ServerResponse {
     ServerInformAttachResponse inform_attach_response = 5;
     ServerInformDetachResponse inform_detach_response = 6;
     ServerInformTeardownResponse inform_teardown_response = 7;
-    ServerAuthenticateResponse authenticate_response = 9;
 
     ServerInitSyncResponse init_sync_response = 11;
     ServerSyncResponse sync_response = 12;

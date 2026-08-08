@@ -21,133 +21,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Authentication messages.
-//
-// These messages are used to authenticate the client with the W&B server.
-// The client sends a ServerAuthenticateRequest message to wandb-core, which
-// verifies the API key on the server specified by the base_url field and
-// returns a ServerAuthenticateResponse message with the default entity and
-// error status.
-type ServerAuthenticateRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ApiKey        string                 `protobuf:"bytes,1,opt,name=api_key,json=apiKey,proto3" json:"api_key,omitempty"`
-	BaseUrl       string                 `protobuf:"bytes,2,opt,name=base_url,json=baseUrl,proto3" json:"base_url,omitempty"`
-	XInfo         *XRecordInfo           `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ServerAuthenticateRequest) Reset() {
-	*x = ServerAuthenticateRequest{}
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[0]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ServerAuthenticateRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ServerAuthenticateRequest) ProtoMessage() {}
-
-func (x *ServerAuthenticateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[0]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ServerAuthenticateRequest.ProtoReflect.Descriptor instead.
-func (*ServerAuthenticateRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{0}
-}
-
-func (x *ServerAuthenticateRequest) GetApiKey() string {
-	if x != nil {
-		return x.ApiKey
-	}
-	return ""
-}
-
-func (x *ServerAuthenticateRequest) GetBaseUrl() string {
-	if x != nil {
-		return x.BaseUrl
-	}
-	return ""
-}
-
-func (x *ServerAuthenticateRequest) GetXInfo() *XRecordInfo {
-	if x != nil {
-		return x.XInfo
-	}
-	return nil
-}
-
-type ServerAuthenticateResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	DefaultEntity string                 `protobuf:"bytes,1,opt,name=default_entity,json=defaultEntity,proto3" json:"default_entity,omitempty"`
-	ErrorStatus   string                 `protobuf:"bytes,2,opt,name=error_status,json=errorStatus,proto3" json:"error_status,omitempty"`
-	XInfo         *XRecordInfo           `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ServerAuthenticateResponse) Reset() {
-	*x = ServerAuthenticateResponse{}
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[1]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ServerAuthenticateResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ServerAuthenticateResponse) ProtoMessage() {}
-
-func (x *ServerAuthenticateResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[1]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ServerAuthenticateResponse.ProtoReflect.Descriptor instead.
-func (*ServerAuthenticateResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *ServerAuthenticateResponse) GetDefaultEntity() string {
-	if x != nil {
-		return x.DefaultEntity
-	}
-	return ""
-}
-
-func (x *ServerAuthenticateResponse) GetErrorStatus() string {
-	if x != nil {
-		return x.ErrorStatus
-	}
-	return ""
-}
-
-func (x *ServerAuthenticateResponse) GetXInfo() *XRecordInfo {
-	if x != nil {
-		return x.XInfo
-	}
-	return nil
-}
-
 type ServerShutdownRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	XInfo         *XRecordInfo           `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
@@ -157,7 +30,7 @@ type ServerShutdownRequest struct {
 
 func (x *ServerShutdownRequest) Reset() {
 	*x = ServerShutdownRequest{}
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[2]
+	mi := &file_wandb_proto_wandb_server_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -169,7 +42,7 @@ func (x *ServerShutdownRequest) String() string {
 func (*ServerShutdownRequest) ProtoMessage() {}
 
 func (x *ServerShutdownRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[2]
+	mi := &file_wandb_proto_wandb_server_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -182,7 +55,7 @@ func (x *ServerShutdownRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerShutdownRequest.ProtoReflect.Descriptor instead.
 func (*ServerShutdownRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{2}
+	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *ServerShutdownRequest) GetXInfo() *XRecordInfo {
@@ -200,7 +73,7 @@ type ServerShutdownResponse struct {
 
 func (x *ServerShutdownResponse) Reset() {
 	*x = ServerShutdownResponse{}
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[3]
+	mi := &file_wandb_proto_wandb_server_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -212,7 +85,7 @@ func (x *ServerShutdownResponse) String() string {
 func (*ServerShutdownResponse) ProtoMessage() {}
 
 func (x *ServerShutdownResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[3]
+	mi := &file_wandb_proto_wandb_server_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -225,7 +98,7 @@ func (x *ServerShutdownResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerShutdownResponse.ProtoReflect.Descriptor instead.
 func (*ServerShutdownResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{3}
+	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{1}
 }
 
 type ServerStatusRequest struct {
@@ -237,7 +110,7 @@ type ServerStatusRequest struct {
 
 func (x *ServerStatusRequest) Reset() {
 	*x = ServerStatusRequest{}
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[4]
+	mi := &file_wandb_proto_wandb_server_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -249,7 +122,7 @@ func (x *ServerStatusRequest) String() string {
 func (*ServerStatusRequest) ProtoMessage() {}
 
 func (x *ServerStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[4]
+	mi := &file_wandb_proto_wandb_server_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -262,7 +135,7 @@ func (x *ServerStatusRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerStatusRequest.ProtoReflect.Descriptor instead.
 func (*ServerStatusRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{4}
+	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *ServerStatusRequest) GetXInfo() *XRecordInfo {
@@ -280,7 +153,7 @@ type ServerStatusResponse struct {
 
 func (x *ServerStatusResponse) Reset() {
 	*x = ServerStatusResponse{}
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[5]
+	mi := &file_wandb_proto_wandb_server_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -292,7 +165,7 @@ func (x *ServerStatusResponse) String() string {
 func (*ServerStatusResponse) ProtoMessage() {}
 
 func (x *ServerStatusResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[5]
+	mi := &file_wandb_proto_wandb_server_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -305,7 +178,7 @@ func (x *ServerStatusResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerStatusResponse.ProtoReflect.Descriptor instead.
 func (*ServerStatusResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{5}
+	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{3}
 }
 
 // Declare a run.
@@ -323,7 +196,7 @@ type ServerInformInitRequest struct {
 
 func (x *ServerInformInitRequest) Reset() {
 	*x = ServerInformInitRequest{}
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[6]
+	mi := &file_wandb_proto_wandb_server_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -335,7 +208,7 @@ func (x *ServerInformInitRequest) String() string {
 func (*ServerInformInitRequest) ProtoMessage() {}
 
 func (x *ServerInformInitRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[6]
+	mi := &file_wandb_proto_wandb_server_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -348,7 +221,7 @@ func (x *ServerInformInitRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerInformInitRequest.ProtoReflect.Descriptor instead.
 func (*ServerInformInitRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{6}
+	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ServerInformInitRequest) GetSettings() *Settings {
@@ -373,7 +246,7 @@ type ServerInformInitResponse struct {
 
 func (x *ServerInformInitResponse) Reset() {
 	*x = ServerInformInitResponse{}
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[7]
+	mi := &file_wandb_proto_wandb_server_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -385,7 +258,7 @@ func (x *ServerInformInitResponse) String() string {
 func (*ServerInformInitResponse) ProtoMessage() {}
 
 func (x *ServerInformInitResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[7]
+	mi := &file_wandb_proto_wandb_server_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -398,7 +271,7 @@ func (x *ServerInformInitResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerInformInitResponse.ProtoReflect.Descriptor instead.
 func (*ServerInformInitResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{7}
+	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{5}
 }
 
 // Indicate that no more requests will be sent for a run.
@@ -414,7 +287,7 @@ type ServerInformFinishRequest struct {
 
 func (x *ServerInformFinishRequest) Reset() {
 	*x = ServerInformFinishRequest{}
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[8]
+	mi := &file_wandb_proto_wandb_server_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -426,7 +299,7 @@ func (x *ServerInformFinishRequest) String() string {
 func (*ServerInformFinishRequest) ProtoMessage() {}
 
 func (x *ServerInformFinishRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[8]
+	mi := &file_wandb_proto_wandb_server_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -439,7 +312,7 @@ func (x *ServerInformFinishRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerInformFinishRequest.ProtoReflect.Descriptor instead.
 func (*ServerInformFinishRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{8}
+	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ServerInformFinishRequest) GetXInfo() *XRecordInfo {
@@ -457,7 +330,7 @@ type ServerInformFinishResponse struct {
 
 func (x *ServerInformFinishResponse) Reset() {
 	*x = ServerInformFinishResponse{}
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[9]
+	mi := &file_wandb_proto_wandb_server_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -469,7 +342,7 @@ func (x *ServerInformFinishResponse) String() string {
 func (*ServerInformFinishResponse) ProtoMessage() {}
 
 func (x *ServerInformFinishResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[9]
+	mi := &file_wandb_proto_wandb_server_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -482,7 +355,7 @@ func (x *ServerInformFinishResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerInformFinishResponse.ProtoReflect.Descriptor instead.
 func (*ServerInformFinishResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{9}
+	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{7}
 }
 
 type ServerInformAttachRequest struct {
@@ -494,7 +367,7 @@ type ServerInformAttachRequest struct {
 
 func (x *ServerInformAttachRequest) Reset() {
 	*x = ServerInformAttachRequest{}
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[10]
+	mi := &file_wandb_proto_wandb_server_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -506,7 +379,7 @@ func (x *ServerInformAttachRequest) String() string {
 func (*ServerInformAttachRequest) ProtoMessage() {}
 
 func (x *ServerInformAttachRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[10]
+	mi := &file_wandb_proto_wandb_server_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -519,7 +392,7 @@ func (x *ServerInformAttachRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerInformAttachRequest.ProtoReflect.Descriptor instead.
 func (*ServerInformAttachRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{10}
+	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ServerInformAttachRequest) GetXInfo() *XRecordInfo {
@@ -539,7 +412,7 @@ type ServerInformAttachResponse struct {
 
 func (x *ServerInformAttachResponse) Reset() {
 	*x = ServerInformAttachResponse{}
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[11]
+	mi := &file_wandb_proto_wandb_server_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -551,7 +424,7 @@ func (x *ServerInformAttachResponse) String() string {
 func (*ServerInformAttachResponse) ProtoMessage() {}
 
 func (x *ServerInformAttachResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[11]
+	mi := &file_wandb_proto_wandb_server_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -564,7 +437,7 @@ func (x *ServerInformAttachResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerInformAttachResponse.ProtoReflect.Descriptor instead.
 func (*ServerInformAttachResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{11}
+	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ServerInformAttachResponse) GetSettings() *Settings {
@@ -590,7 +463,7 @@ type ServerInformDetachRequest struct {
 
 func (x *ServerInformDetachRequest) Reset() {
 	*x = ServerInformDetachRequest{}
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[12]
+	mi := &file_wandb_proto_wandb_server_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -602,7 +475,7 @@ func (x *ServerInformDetachRequest) String() string {
 func (*ServerInformDetachRequest) ProtoMessage() {}
 
 func (x *ServerInformDetachRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[12]
+	mi := &file_wandb_proto_wandb_server_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -615,7 +488,7 @@ func (x *ServerInformDetachRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerInformDetachRequest.ProtoReflect.Descriptor instead.
 func (*ServerInformDetachRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{12}
+	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ServerInformDetachRequest) GetXInfo() *XRecordInfo {
@@ -633,7 +506,7 @@ type ServerInformDetachResponse struct {
 
 func (x *ServerInformDetachResponse) Reset() {
 	*x = ServerInformDetachResponse{}
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[13]
+	mi := &file_wandb_proto_wandb_server_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -645,7 +518,7 @@ func (x *ServerInformDetachResponse) String() string {
 func (*ServerInformDetachResponse) ProtoMessage() {}
 
 func (x *ServerInformDetachResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[13]
+	mi := &file_wandb_proto_wandb_server_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -658,7 +531,7 @@ func (x *ServerInformDetachResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerInformDetachResponse.ProtoReflect.Descriptor instead.
 func (*ServerInformDetachResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{13}
+	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{11}
 }
 
 type ServerInformTeardownRequest struct {
@@ -671,7 +544,7 @@ type ServerInformTeardownRequest struct {
 
 func (x *ServerInformTeardownRequest) Reset() {
 	*x = ServerInformTeardownRequest{}
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[14]
+	mi := &file_wandb_proto_wandb_server_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -683,7 +556,7 @@ func (x *ServerInformTeardownRequest) String() string {
 func (*ServerInformTeardownRequest) ProtoMessage() {}
 
 func (x *ServerInformTeardownRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[14]
+	mi := &file_wandb_proto_wandb_server_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -696,7 +569,7 @@ func (x *ServerInformTeardownRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerInformTeardownRequest.ProtoReflect.Descriptor instead.
 func (*ServerInformTeardownRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{14}
+	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ServerInformTeardownRequest) GetExitCode() int32 {
@@ -721,7 +594,7 @@ type ServerInformTeardownResponse struct {
 
 func (x *ServerInformTeardownResponse) Reset() {
 	*x = ServerInformTeardownResponse{}
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[15]
+	mi := &file_wandb_proto_wandb_server_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -733,7 +606,7 @@ func (x *ServerInformTeardownResponse) String() string {
 func (*ServerInformTeardownResponse) ProtoMessage() {}
 
 func (x *ServerInformTeardownResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[15]
+	mi := &file_wandb_proto_wandb_server_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -746,7 +619,7 @@ func (x *ServerInformTeardownResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerInformTeardownResponse.ProtoReflect.Descriptor instead.
 func (*ServerInformTeardownResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{15}
+	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{13}
 }
 
 // Cancels a previously sent ServerRequest.
@@ -763,7 +636,7 @@ type ServerCancelRequest struct {
 
 func (x *ServerCancelRequest) Reset() {
 	*x = ServerCancelRequest{}
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[16]
+	mi := &file_wandb_proto_wandb_server_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -775,7 +648,7 @@ func (x *ServerCancelRequest) String() string {
 func (*ServerCancelRequest) ProtoMessage() {}
 
 func (x *ServerCancelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[16]
+	mi := &file_wandb_proto_wandb_server_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -788,7 +661,7 @@ func (x *ServerCancelRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerCancelRequest.ProtoReflect.Descriptor instead.
 func (*ServerCancelRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{16}
+	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ServerCancelRequest) GetRequestId() string {
@@ -814,7 +687,7 @@ type ServerErrorResponse struct {
 
 func (x *ServerErrorResponse) Reset() {
 	*x = ServerErrorResponse{}
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[17]
+	mi := &file_wandb_proto_wandb_server_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -826,7 +699,7 @@ func (x *ServerErrorResponse) String() string {
 func (*ServerErrorResponse) ProtoMessage() {}
 
 func (x *ServerErrorResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[17]
+	mi := &file_wandb_proto_wandb_server_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -839,7 +712,7 @@ func (x *ServerErrorResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerErrorResponse.ProtoReflect.Descriptor instead.
 func (*ServerErrorResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{17}
+	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *ServerErrorResponse) GetMessage() string {
@@ -869,7 +742,6 @@ type ServerRequest struct {
 	//	*ServerRequest_InformAttach
 	//	*ServerRequest_InformDetach
 	//	*ServerRequest_InformTeardown
-	//	*ServerRequest_Authenticate
 	//	*ServerRequest_InitSync
 	//	*ServerRequest_Sync
 	//	*ServerRequest_SyncStatus
@@ -883,7 +755,7 @@ type ServerRequest struct {
 
 func (x *ServerRequest) Reset() {
 	*x = ServerRequest{}
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[18]
+	mi := &file_wandb_proto_wandb_server_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -895,7 +767,7 @@ func (x *ServerRequest) String() string {
 func (*ServerRequest) ProtoMessage() {}
 
 func (x *ServerRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[18]
+	mi := &file_wandb_proto_wandb_server_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -908,7 +780,7 @@ func (x *ServerRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerRequest.ProtoReflect.Descriptor instead.
 func (*ServerRequest) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{18}
+	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ServerRequest) GetRequestId() string {
@@ -992,15 +864,6 @@ func (x *ServerRequest) GetInformTeardown() *ServerInformTeardownRequest {
 	if x != nil {
 		if x, ok := x.ServerRequestType.(*ServerRequest_InformTeardown); ok {
 			return x.InformTeardown
-		}
-	}
-	return nil
-}
-
-func (x *ServerRequest) GetAuthenticate() *ServerAuthenticateRequest {
-	if x != nil {
-		if x, ok := x.ServerRequestType.(*ServerRequest_Authenticate); ok {
-			return x.Authenticate
 		}
 	}
 	return nil
@@ -1096,10 +959,6 @@ type ServerRequest_InformTeardown struct {
 	InformTeardown *ServerInformTeardownRequest `protobuf:"bytes,7,opt,name=inform_teardown,json=informTeardown,proto3,oneof"`
 }
 
-type ServerRequest_Authenticate struct {
-	Authenticate *ServerAuthenticateRequest `protobuf:"bytes,9,opt,name=authenticate,proto3,oneof"`
-}
-
 type ServerRequest_InitSync struct {
 	InitSync *ServerInitSyncRequest `protobuf:"bytes,11,opt,name=init_sync,json=initSync,proto3,oneof"`
 }
@@ -1140,8 +999,6 @@ func (*ServerRequest_InformDetach) isServerRequest_ServerRequestType() {}
 
 func (*ServerRequest_InformTeardown) isServerRequest_ServerRequestType() {}
 
-func (*ServerRequest_Authenticate) isServerRequest_ServerRequestType() {}
-
 func (*ServerRequest_InitSync) isServerRequest_ServerRequestType() {}
 
 func (*ServerRequest_Sync) isServerRequest_ServerRequestType() {}
@@ -1169,7 +1026,6 @@ type ServerResponse struct {
 	//	*ServerResponse_InformAttachResponse
 	//	*ServerResponse_InformDetachResponse
 	//	*ServerResponse_InformTeardownResponse
-	//	*ServerResponse_AuthenticateResponse
 	//	*ServerResponse_InitSyncResponse
 	//	*ServerResponse_SyncResponse
 	//	*ServerResponse_SyncStatusResponse
@@ -1183,7 +1039,7 @@ type ServerResponse struct {
 
 func (x *ServerResponse) Reset() {
 	*x = ServerResponse{}
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[19]
+	mi := &file_wandb_proto_wandb_server_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1195,7 +1051,7 @@ func (x *ServerResponse) String() string {
 func (*ServerResponse) ProtoMessage() {}
 
 func (x *ServerResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_server_proto_msgTypes[19]
+	mi := &file_wandb_proto_wandb_server_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1208,7 +1064,7 @@ func (x *ServerResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerResponse.ProtoReflect.Descriptor instead.
 func (*ServerResponse) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{19}
+	return file_wandb_proto_wandb_server_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ServerResponse) GetRequestId() string {
@@ -1274,15 +1130,6 @@ func (x *ServerResponse) GetInformTeardownResponse() *ServerInformTeardownRespon
 	if x != nil {
 		if x, ok := x.ServerResponseType.(*ServerResponse_InformTeardownResponse); ok {
 			return x.InformTeardownResponse
-		}
-	}
-	return nil
-}
-
-func (x *ServerResponse) GetAuthenticateResponse() *ServerAuthenticateResponse {
-	if x != nil {
-		if x, ok := x.ServerResponseType.(*ServerResponse_AuthenticateResponse); ok {
-			return x.AuthenticateResponse
 		}
 	}
 	return nil
@@ -1370,10 +1217,6 @@ type ServerResponse_InformTeardownResponse struct {
 	InformTeardownResponse *ServerInformTeardownResponse `protobuf:"bytes,7,opt,name=inform_teardown_response,json=informTeardownResponse,proto3,oneof"`
 }
 
-type ServerResponse_AuthenticateResponse struct {
-	AuthenticateResponse *ServerAuthenticateResponse `protobuf:"bytes,9,opt,name=authenticate_response,json=authenticateResponse,proto3,oneof"`
-}
-
 type ServerResponse_InitSyncResponse struct {
 	InitSyncResponse *ServerInitSyncResponse `protobuf:"bytes,11,opt,name=init_sync_response,json=initSyncResponse,proto3,oneof"`
 }
@@ -1410,8 +1253,6 @@ func (*ServerResponse_InformDetachResponse) isServerResponse_ServerResponseType(
 
 func (*ServerResponse_InformTeardownResponse) isServerResponse_ServerResponseType() {}
 
-func (*ServerResponse_AuthenticateResponse) isServerResponse_ServerResponseType() {}
-
 func (*ServerResponse_InitSyncResponse) isServerResponse_ServerResponseType() {}
 
 func (*ServerResponse_SyncResponse) isServerResponse_ServerResponseType() {}
@@ -1428,15 +1269,7 @@ var File_wandb_proto_wandb_server_proto protoreflect.FileDescriptor
 
 const file_wandb_proto_wandb_server_proto_rawDesc = "" +
 	"\n" +
-	"\x1ewandb/proto/wandb_server.proto\x12\x0ewandb_internal\x1a\x1bwandb/proto/wandb_api.proto\x1a\x1cwandb/proto/wandb_base.proto\x1a wandb/proto/wandb_internal.proto\x1a wandb/proto/wandb_settings.proto\x1a\x1cwandb/proto/wandb_sync.proto\"\x82\x01\n" +
-	"\x19ServerAuthenticateRequest\x12\x17\n" +
-	"\aapi_key\x18\x01 \x01(\tR\x06apiKey\x12\x19\n" +
-	"\bbase_url\x18\x02 \x01(\tR\abaseUrl\x121\n" +
-	"\x05_info\x18\xc8\x01 \x01(\v2\x1b.wandb_internal._RecordInfoR\x04Info\"\x99\x01\n" +
-	"\x1aServerAuthenticateResponse\x12%\n" +
-	"\x0edefault_entity\x18\x01 \x01(\tR\rdefaultEntity\x12!\n" +
-	"\ferror_status\x18\x02 \x01(\tR\verrorStatus\x121\n" +
-	"\x05_info\x18\xc8\x01 \x01(\v2\x1b.wandb_internal._RecordInfoR\x04Info\"J\n" +
+	"\x1ewandb/proto/wandb_server.proto\x12\x0ewandb_internal\x1a\x1bwandb/proto/wandb_api.proto\x1a\x1cwandb/proto/wandb_base.proto\x1a wandb/proto/wandb_internal.proto\x1a wandb/proto/wandb_settings.proto\x1a\x1cwandb/proto/wandb_sync.proto\"J\n" +
 	"\x15ServerShutdownRequest\x121\n" +
 	"\x05_info\x18\xc8\x01 \x01(\v2\x1b.wandb_internal._RecordInfoR\x04Info\"\x18\n" +
 	"\x16ServerShutdownResponse\"H\n" +
@@ -1466,7 +1299,7 @@ const file_wandb_proto_wandb_server_proto_rawDesc = "" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tR\trequestId\"/\n" +
 	"\x13ServerErrorResponse\x12\x18\n" +
-	"\amessage\x18\x01 \x01(\tR\amessage\"\xb6\t\n" +
+	"\amessage\x18\x01 \x01(\tR\amessage\"\xeb\b\n" +
 	"\rServerRequest\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\n" +
@@ -1479,8 +1312,7 @@ const file_wandb_proto_wandb_server_proto_rawDesc = "" +
 	"\rinform_finish\x18\x04 \x01(\v2).wandb_internal.ServerInformFinishRequestH\x00R\finformFinish\x12P\n" +
 	"\rinform_attach\x18\x05 \x01(\v2).wandb_internal.ServerInformAttachRequestH\x00R\finformAttach\x12P\n" +
 	"\rinform_detach\x18\x06 \x01(\v2).wandb_internal.ServerInformDetachRequestH\x00R\finformDetach\x12V\n" +
-	"\x0finform_teardown\x18\a \x01(\v2+.wandb_internal.ServerInformTeardownRequestH\x00R\x0einformTeardown\x12O\n" +
-	"\fauthenticate\x18\t \x01(\v2).wandb_internal.ServerAuthenticateRequestH\x00R\fauthenticate\x12D\n" +
+	"\x0finform_teardown\x18\a \x01(\v2+.wandb_internal.ServerInformTeardownRequestH\x00R\x0einformTeardown\x12D\n" +
 	"\tinit_sync\x18\v \x01(\v2%.wandb_internal.ServerInitSyncRequestH\x00R\binitSync\x127\n" +
 	"\x04sync\x18\f \x01(\v2!.wandb_internal.ServerSyncRequestH\x00R\x04sync\x12J\n" +
 	"\vsync_status\x18\r \x01(\v2'.wandb_internal.ServerSyncStatusRequestH\x00R\n" +
@@ -1489,7 +1321,8 @@ const file_wandb_proto_wandb_server_proto_rawDesc = "" +
 	"\x13api_cleanup_request\x18\x11 \x01(\v2'.wandb_internal.ServerApiCleanupRequestH\x00R\x11apiCleanupRequest\x12=\n" +
 	"\vapi_request\x18\x0f \x01(\v2\x1a.wandb_internal.ApiRequestH\x00R\n" +
 	"apiRequestB\x15\n" +
-	"\x13server_request_typeJ\x04\b\b\x10\t\"\xd4\t\n" +
+	"\x13server_request_typeJ\x04\b\b\x10\tJ\x04\b\t\x10\n" +
+	"\"\xf7\b\n" +
 	"\x0eServerResponse\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\n" +
@@ -1499,15 +1332,15 @@ const file_wandb_proto_wandb_server_proto_rawDesc = "" +
 	"\x16inform_finish_response\x18\x04 \x01(\v2*.wandb_internal.ServerInformFinishResponseH\x00R\x14informFinishResponse\x12b\n" +
 	"\x16inform_attach_response\x18\x05 \x01(\v2*.wandb_internal.ServerInformAttachResponseH\x00R\x14informAttachResponse\x12b\n" +
 	"\x16inform_detach_response\x18\x06 \x01(\v2*.wandb_internal.ServerInformDetachResponseH\x00R\x14informDetachResponse\x12h\n" +
-	"\x18inform_teardown_response\x18\a \x01(\v2,.wandb_internal.ServerInformTeardownResponseH\x00R\x16informTeardownResponse\x12a\n" +
-	"\x15authenticate_response\x18\t \x01(\v2*.wandb_internal.ServerAuthenticateResponseH\x00R\x14authenticateResponse\x12V\n" +
+	"\x18inform_teardown_response\x18\a \x01(\v2,.wandb_internal.ServerInformTeardownResponseH\x00R\x16informTeardownResponse\x12V\n" +
 	"\x12init_sync_response\x18\v \x01(\v2&.wandb_internal.ServerInitSyncResponseH\x00R\x10initSyncResponse\x12I\n" +
 	"\rsync_response\x18\f \x01(\v2\".wandb_internal.ServerSyncResponseH\x00R\fsyncResponse\x12\\\n" +
 	"\x14sync_status_response\x18\r \x01(\v2(.wandb_internal.ServerSyncStatusResponseH\x00R\x12syncStatusResponse\x12S\n" +
 	"\x11api_init_response\x18\x0e \x01(\v2%.wandb_internal.ServerApiInitResponseH\x00R\x0fapiInitResponse\x12@\n" +
 	"\fapi_response\x18\x10 \x01(\v2\x1b.wandb_internal.ApiResponseH\x00R\vapiResponse\x12M\n" +
 	"\x0eerror_response\x18\xc8\x01 \x01(\v2#.wandb_internal.ServerErrorResponseH\x00R\rerrorResponseB\x16\n" +
-	"\x14server_response_typeJ\x04\b\b\x10\tB\x1bZ\x19core/pkg/service_go_protob\x06proto3"
+	"\x14server_response_typeJ\x04\b\b\x10\tJ\x04\b\t\x10\n" +
+	"B\x1bZ\x19core/pkg/service_go_protob\x06proto3"
 
 var (
 	file_wandb_proto_wandb_server_proto_rawDescOnce sync.Once
@@ -1521,90 +1354,84 @@ func file_wandb_proto_wandb_server_proto_rawDescGZIP() []byte {
 	return file_wandb_proto_wandb_server_proto_rawDescData
 }
 
-var file_wandb_proto_wandb_server_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_wandb_proto_wandb_server_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_wandb_proto_wandb_server_proto_goTypes = []any{
-	(*ServerAuthenticateRequest)(nil),    // 0: wandb_internal.ServerAuthenticateRequest
-	(*ServerAuthenticateResponse)(nil),   // 1: wandb_internal.ServerAuthenticateResponse
-	(*ServerShutdownRequest)(nil),        // 2: wandb_internal.ServerShutdownRequest
-	(*ServerShutdownResponse)(nil),       // 3: wandb_internal.ServerShutdownResponse
-	(*ServerStatusRequest)(nil),          // 4: wandb_internal.ServerStatusRequest
-	(*ServerStatusResponse)(nil),         // 5: wandb_internal.ServerStatusResponse
-	(*ServerInformInitRequest)(nil),      // 6: wandb_internal.ServerInformInitRequest
-	(*ServerInformInitResponse)(nil),     // 7: wandb_internal.ServerInformInitResponse
-	(*ServerInformFinishRequest)(nil),    // 8: wandb_internal.ServerInformFinishRequest
-	(*ServerInformFinishResponse)(nil),   // 9: wandb_internal.ServerInformFinishResponse
-	(*ServerInformAttachRequest)(nil),    // 10: wandb_internal.ServerInformAttachRequest
-	(*ServerInformAttachResponse)(nil),   // 11: wandb_internal.ServerInformAttachResponse
-	(*ServerInformDetachRequest)(nil),    // 12: wandb_internal.ServerInformDetachRequest
-	(*ServerInformDetachResponse)(nil),   // 13: wandb_internal.ServerInformDetachResponse
-	(*ServerInformTeardownRequest)(nil),  // 14: wandb_internal.ServerInformTeardownRequest
-	(*ServerInformTeardownResponse)(nil), // 15: wandb_internal.ServerInformTeardownResponse
-	(*ServerCancelRequest)(nil),          // 16: wandb_internal.ServerCancelRequest
-	(*ServerErrorResponse)(nil),          // 17: wandb_internal.ServerErrorResponse
-	(*ServerRequest)(nil),                // 18: wandb_internal.ServerRequest
-	(*ServerResponse)(nil),               // 19: wandb_internal.ServerResponse
-	(*XRecordInfo)(nil),                  // 20: wandb_internal._RecordInfo
-	(*Settings)(nil),                     // 21: wandb_internal.Settings
-	(*Record)(nil),                       // 22: wandb_internal.Record
-	(*ServerInitSyncRequest)(nil),        // 23: wandb_internal.ServerInitSyncRequest
-	(*ServerSyncRequest)(nil),            // 24: wandb_internal.ServerSyncRequest
-	(*ServerSyncStatusRequest)(nil),      // 25: wandb_internal.ServerSyncStatusRequest
-	(*ServerApiInitRequest)(nil),         // 26: wandb_internal.ServerApiInitRequest
-	(*ServerApiCleanupRequest)(nil),      // 27: wandb_internal.ServerApiCleanupRequest
-	(*ApiRequest)(nil),                   // 28: wandb_internal.ApiRequest
-	(*Result)(nil),                       // 29: wandb_internal.Result
-	(*ServerInitSyncResponse)(nil),       // 30: wandb_internal.ServerInitSyncResponse
-	(*ServerSyncResponse)(nil),           // 31: wandb_internal.ServerSyncResponse
-	(*ServerSyncStatusResponse)(nil),     // 32: wandb_internal.ServerSyncStatusResponse
-	(*ServerApiInitResponse)(nil),        // 33: wandb_internal.ServerApiInitResponse
-	(*ApiResponse)(nil),                  // 34: wandb_internal.ApiResponse
+	(*ServerShutdownRequest)(nil),        // 0: wandb_internal.ServerShutdownRequest
+	(*ServerShutdownResponse)(nil),       // 1: wandb_internal.ServerShutdownResponse
+	(*ServerStatusRequest)(nil),          // 2: wandb_internal.ServerStatusRequest
+	(*ServerStatusResponse)(nil),         // 3: wandb_internal.ServerStatusResponse
+	(*ServerInformInitRequest)(nil),      // 4: wandb_internal.ServerInformInitRequest
+	(*ServerInformInitResponse)(nil),     // 5: wandb_internal.ServerInformInitResponse
+	(*ServerInformFinishRequest)(nil),    // 6: wandb_internal.ServerInformFinishRequest
+	(*ServerInformFinishResponse)(nil),   // 7: wandb_internal.ServerInformFinishResponse
+	(*ServerInformAttachRequest)(nil),    // 8: wandb_internal.ServerInformAttachRequest
+	(*ServerInformAttachResponse)(nil),   // 9: wandb_internal.ServerInformAttachResponse
+	(*ServerInformDetachRequest)(nil),    // 10: wandb_internal.ServerInformDetachRequest
+	(*ServerInformDetachResponse)(nil),   // 11: wandb_internal.ServerInformDetachResponse
+	(*ServerInformTeardownRequest)(nil),  // 12: wandb_internal.ServerInformTeardownRequest
+	(*ServerInformTeardownResponse)(nil), // 13: wandb_internal.ServerInformTeardownResponse
+	(*ServerCancelRequest)(nil),          // 14: wandb_internal.ServerCancelRequest
+	(*ServerErrorResponse)(nil),          // 15: wandb_internal.ServerErrorResponse
+	(*ServerRequest)(nil),                // 16: wandb_internal.ServerRequest
+	(*ServerResponse)(nil),               // 17: wandb_internal.ServerResponse
+	(*XRecordInfo)(nil),                  // 18: wandb_internal._RecordInfo
+	(*Settings)(nil),                     // 19: wandb_internal.Settings
+	(*Record)(nil),                       // 20: wandb_internal.Record
+	(*ServerInitSyncRequest)(nil),        // 21: wandb_internal.ServerInitSyncRequest
+	(*ServerSyncRequest)(nil),            // 22: wandb_internal.ServerSyncRequest
+	(*ServerSyncStatusRequest)(nil),      // 23: wandb_internal.ServerSyncStatusRequest
+	(*ServerApiInitRequest)(nil),         // 24: wandb_internal.ServerApiInitRequest
+	(*ServerApiCleanupRequest)(nil),      // 25: wandb_internal.ServerApiCleanupRequest
+	(*ApiRequest)(nil),                   // 26: wandb_internal.ApiRequest
+	(*Result)(nil),                       // 27: wandb_internal.Result
+	(*ServerInitSyncResponse)(nil),       // 28: wandb_internal.ServerInitSyncResponse
+	(*ServerSyncResponse)(nil),           // 29: wandb_internal.ServerSyncResponse
+	(*ServerSyncStatusResponse)(nil),     // 30: wandb_internal.ServerSyncStatusResponse
+	(*ServerApiInitResponse)(nil),        // 31: wandb_internal.ServerApiInitResponse
+	(*ApiResponse)(nil),                  // 32: wandb_internal.ApiResponse
 }
 var file_wandb_proto_wandb_server_proto_depIdxs = []int32{
-	20, // 0: wandb_internal.ServerAuthenticateRequest._info:type_name -> wandb_internal._RecordInfo
-	20, // 1: wandb_internal.ServerAuthenticateResponse._info:type_name -> wandb_internal._RecordInfo
-	20, // 2: wandb_internal.ServerShutdownRequest._info:type_name -> wandb_internal._RecordInfo
-	20, // 3: wandb_internal.ServerStatusRequest._info:type_name -> wandb_internal._RecordInfo
-	21, // 4: wandb_internal.ServerInformInitRequest.settings:type_name -> wandb_internal.Settings
-	20, // 5: wandb_internal.ServerInformInitRequest._info:type_name -> wandb_internal._RecordInfo
-	20, // 6: wandb_internal.ServerInformFinishRequest._info:type_name -> wandb_internal._RecordInfo
-	20, // 7: wandb_internal.ServerInformAttachRequest._info:type_name -> wandb_internal._RecordInfo
-	21, // 8: wandb_internal.ServerInformAttachResponse.settings:type_name -> wandb_internal.Settings
-	20, // 9: wandb_internal.ServerInformAttachResponse._info:type_name -> wandb_internal._RecordInfo
-	20, // 10: wandb_internal.ServerInformDetachRequest._info:type_name -> wandb_internal._RecordInfo
-	20, // 11: wandb_internal.ServerInformTeardownRequest._info:type_name -> wandb_internal._RecordInfo
-	16, // 12: wandb_internal.ServerRequest.cancel:type_name -> wandb_internal.ServerCancelRequest
-	22, // 13: wandb_internal.ServerRequest.record_publish:type_name -> wandb_internal.Record
-	22, // 14: wandb_internal.ServerRequest.record_communicate:type_name -> wandb_internal.Record
-	6,  // 15: wandb_internal.ServerRequest.inform_init:type_name -> wandb_internal.ServerInformInitRequest
-	8,  // 16: wandb_internal.ServerRequest.inform_finish:type_name -> wandb_internal.ServerInformFinishRequest
-	10, // 17: wandb_internal.ServerRequest.inform_attach:type_name -> wandb_internal.ServerInformAttachRequest
-	12, // 18: wandb_internal.ServerRequest.inform_detach:type_name -> wandb_internal.ServerInformDetachRequest
-	14, // 19: wandb_internal.ServerRequest.inform_teardown:type_name -> wandb_internal.ServerInformTeardownRequest
-	0,  // 20: wandb_internal.ServerRequest.authenticate:type_name -> wandb_internal.ServerAuthenticateRequest
-	23, // 21: wandb_internal.ServerRequest.init_sync:type_name -> wandb_internal.ServerInitSyncRequest
-	24, // 22: wandb_internal.ServerRequest.sync:type_name -> wandb_internal.ServerSyncRequest
-	25, // 23: wandb_internal.ServerRequest.sync_status:type_name -> wandb_internal.ServerSyncStatusRequest
-	26, // 24: wandb_internal.ServerRequest.api_init_request:type_name -> wandb_internal.ServerApiInitRequest
-	27, // 25: wandb_internal.ServerRequest.api_cleanup_request:type_name -> wandb_internal.ServerApiCleanupRequest
-	28, // 26: wandb_internal.ServerRequest.api_request:type_name -> wandb_internal.ApiRequest
-	29, // 27: wandb_internal.ServerResponse.result_communicate:type_name -> wandb_internal.Result
-	7,  // 28: wandb_internal.ServerResponse.inform_init_response:type_name -> wandb_internal.ServerInformInitResponse
-	9,  // 29: wandb_internal.ServerResponse.inform_finish_response:type_name -> wandb_internal.ServerInformFinishResponse
-	11, // 30: wandb_internal.ServerResponse.inform_attach_response:type_name -> wandb_internal.ServerInformAttachResponse
-	13, // 31: wandb_internal.ServerResponse.inform_detach_response:type_name -> wandb_internal.ServerInformDetachResponse
-	15, // 32: wandb_internal.ServerResponse.inform_teardown_response:type_name -> wandb_internal.ServerInformTeardownResponse
-	1,  // 33: wandb_internal.ServerResponse.authenticate_response:type_name -> wandb_internal.ServerAuthenticateResponse
-	30, // 34: wandb_internal.ServerResponse.init_sync_response:type_name -> wandb_internal.ServerInitSyncResponse
-	31, // 35: wandb_internal.ServerResponse.sync_response:type_name -> wandb_internal.ServerSyncResponse
-	32, // 36: wandb_internal.ServerResponse.sync_status_response:type_name -> wandb_internal.ServerSyncStatusResponse
-	33, // 37: wandb_internal.ServerResponse.api_init_response:type_name -> wandb_internal.ServerApiInitResponse
-	34, // 38: wandb_internal.ServerResponse.api_response:type_name -> wandb_internal.ApiResponse
-	17, // 39: wandb_internal.ServerResponse.error_response:type_name -> wandb_internal.ServerErrorResponse
-	40, // [40:40] is the sub-list for method output_type
-	40, // [40:40] is the sub-list for method input_type
-	40, // [40:40] is the sub-list for extension type_name
-	40, // [40:40] is the sub-list for extension extendee
-	0,  // [0:40] is the sub-list for field type_name
+	18, // 0: wandb_internal.ServerShutdownRequest._info:type_name -> wandb_internal._RecordInfo
+	18, // 1: wandb_internal.ServerStatusRequest._info:type_name -> wandb_internal._RecordInfo
+	19, // 2: wandb_internal.ServerInformInitRequest.settings:type_name -> wandb_internal.Settings
+	18, // 3: wandb_internal.ServerInformInitRequest._info:type_name -> wandb_internal._RecordInfo
+	18, // 4: wandb_internal.ServerInformFinishRequest._info:type_name -> wandb_internal._RecordInfo
+	18, // 5: wandb_internal.ServerInformAttachRequest._info:type_name -> wandb_internal._RecordInfo
+	19, // 6: wandb_internal.ServerInformAttachResponse.settings:type_name -> wandb_internal.Settings
+	18, // 7: wandb_internal.ServerInformAttachResponse._info:type_name -> wandb_internal._RecordInfo
+	18, // 8: wandb_internal.ServerInformDetachRequest._info:type_name -> wandb_internal._RecordInfo
+	18, // 9: wandb_internal.ServerInformTeardownRequest._info:type_name -> wandb_internal._RecordInfo
+	14, // 10: wandb_internal.ServerRequest.cancel:type_name -> wandb_internal.ServerCancelRequest
+	20, // 11: wandb_internal.ServerRequest.record_publish:type_name -> wandb_internal.Record
+	20, // 12: wandb_internal.ServerRequest.record_communicate:type_name -> wandb_internal.Record
+	4,  // 13: wandb_internal.ServerRequest.inform_init:type_name -> wandb_internal.ServerInformInitRequest
+	6,  // 14: wandb_internal.ServerRequest.inform_finish:type_name -> wandb_internal.ServerInformFinishRequest
+	8,  // 15: wandb_internal.ServerRequest.inform_attach:type_name -> wandb_internal.ServerInformAttachRequest
+	10, // 16: wandb_internal.ServerRequest.inform_detach:type_name -> wandb_internal.ServerInformDetachRequest
+	12, // 17: wandb_internal.ServerRequest.inform_teardown:type_name -> wandb_internal.ServerInformTeardownRequest
+	21, // 18: wandb_internal.ServerRequest.init_sync:type_name -> wandb_internal.ServerInitSyncRequest
+	22, // 19: wandb_internal.ServerRequest.sync:type_name -> wandb_internal.ServerSyncRequest
+	23, // 20: wandb_internal.ServerRequest.sync_status:type_name -> wandb_internal.ServerSyncStatusRequest
+	24, // 21: wandb_internal.ServerRequest.api_init_request:type_name -> wandb_internal.ServerApiInitRequest
+	25, // 22: wandb_internal.ServerRequest.api_cleanup_request:type_name -> wandb_internal.ServerApiCleanupRequest
+	26, // 23: wandb_internal.ServerRequest.api_request:type_name -> wandb_internal.ApiRequest
+	27, // 24: wandb_internal.ServerResponse.result_communicate:type_name -> wandb_internal.Result
+	5,  // 25: wandb_internal.ServerResponse.inform_init_response:type_name -> wandb_internal.ServerInformInitResponse
+	7,  // 26: wandb_internal.ServerResponse.inform_finish_response:type_name -> wandb_internal.ServerInformFinishResponse
+	9,  // 27: wandb_internal.ServerResponse.inform_attach_response:type_name -> wandb_internal.ServerInformAttachResponse
+	11, // 28: wandb_internal.ServerResponse.inform_detach_response:type_name -> wandb_internal.ServerInformDetachResponse
+	13, // 29: wandb_internal.ServerResponse.inform_teardown_response:type_name -> wandb_internal.ServerInformTeardownResponse
+	28, // 30: wandb_internal.ServerResponse.init_sync_response:type_name -> wandb_internal.ServerInitSyncResponse
+	29, // 31: wandb_internal.ServerResponse.sync_response:type_name -> wandb_internal.ServerSyncResponse
+	30, // 32: wandb_internal.ServerResponse.sync_status_response:type_name -> wandb_internal.ServerSyncStatusResponse
+	31, // 33: wandb_internal.ServerResponse.api_init_response:type_name -> wandb_internal.ServerApiInitResponse
+	32, // 34: wandb_internal.ServerResponse.api_response:type_name -> wandb_internal.ApiResponse
+	15, // 35: wandb_internal.ServerResponse.error_response:type_name -> wandb_internal.ServerErrorResponse
+	36, // [36:36] is the sub-list for method output_type
+	36, // [36:36] is the sub-list for method input_type
+	36, // [36:36] is the sub-list for extension type_name
+	36, // [36:36] is the sub-list for extension extendee
+	0,  // [0:36] is the sub-list for field type_name
 }
 
 func init() { file_wandb_proto_wandb_server_proto_init() }
@@ -1617,7 +1444,7 @@ func file_wandb_proto_wandb_server_proto_init() {
 	file_wandb_proto_wandb_internal_proto_init()
 	file_wandb_proto_wandb_settings_proto_init()
 	file_wandb_proto_wandb_sync_proto_init()
-	file_wandb_proto_wandb_server_proto_msgTypes[18].OneofWrappers = []any{
+	file_wandb_proto_wandb_server_proto_msgTypes[16].OneofWrappers = []any{
 		(*ServerRequest_Cancel)(nil),
 		(*ServerRequest_RecordPublish)(nil),
 		(*ServerRequest_RecordCommunicate)(nil),
@@ -1626,7 +1453,6 @@ func file_wandb_proto_wandb_server_proto_init() {
 		(*ServerRequest_InformAttach)(nil),
 		(*ServerRequest_InformDetach)(nil),
 		(*ServerRequest_InformTeardown)(nil),
-		(*ServerRequest_Authenticate)(nil),
 		(*ServerRequest_InitSync)(nil),
 		(*ServerRequest_Sync)(nil),
 		(*ServerRequest_SyncStatus)(nil),
@@ -1634,14 +1460,13 @@ func file_wandb_proto_wandb_server_proto_init() {
 		(*ServerRequest_ApiCleanupRequest)(nil),
 		(*ServerRequest_ApiRequest)(nil),
 	}
-	file_wandb_proto_wandb_server_proto_msgTypes[19].OneofWrappers = []any{
+	file_wandb_proto_wandb_server_proto_msgTypes[17].OneofWrappers = []any{
 		(*ServerResponse_ResultCommunicate)(nil),
 		(*ServerResponse_InformInitResponse)(nil),
 		(*ServerResponse_InformFinishResponse)(nil),
 		(*ServerResponse_InformAttachResponse)(nil),
 		(*ServerResponse_InformDetachResponse)(nil),
 		(*ServerResponse_InformTeardownResponse)(nil),
-		(*ServerResponse_AuthenticateResponse)(nil),
 		(*ServerResponse_InitSyncResponse)(nil),
 		(*ServerResponse_SyncResponse)(nil),
 		(*ServerResponse_SyncStatusResponse)(nil),
@@ -1655,7 +1480,7 @@ func file_wandb_proto_wandb_server_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_wandb_proto_wandb_server_proto_rawDesc), len(file_wandb_proto_wandb_server_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   20,
+			NumMessages:   18,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

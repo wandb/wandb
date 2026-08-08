@@ -5,19 +5,12 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net"
-	"net/url"
 	"sync"
 	"time"
 
-	"github.com/Khan/genqlient/graphql"
-
 	"github.com/wandb/wandb/core/internal/analytics"
-	"github.com/wandb/wandb/core/internal/api"
-	"github.com/wandb/wandb/core/internal/clients"
-	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runsync"
@@ -327,8 +320,6 @@ func (nc *Connection) handleIncomingRequests() {
 		switch x := msg.ServerRequestType.(type) {
 		case *spb.ServerRequest_Cancel:
 			nc.handleCancel(x.Cancel)
-		case *spb.ServerRequest_Authenticate:
-			nc.handleAuthenticate(msg.RequestId, x.Authenticate)
 		case *spb.ServerRequest_InformInit:
 			nc.handleInformInit(msg.RequestId, x.InformInit)
 		case *spb.ServerRequest_InformAttach:
@@ -459,88 +450,6 @@ func (nc *Connection) handleInformAttach(
 			},
 		}
 		nc.Respond(resp)
-	}
-}
-
-// handleAuthenticate processes client authentication messages.
-//
-// It validates client credentials and responds with the default entity
-// associated with the provided API key. This lightweight authentication
-// method avoids the overhead of starting a new stream while still
-// leveraging wandb-core's features.
-//
-// An alternative approach would be implementing a GraphQL Viewer query
-// on the client side for each supported language.
-//
-// Note: This function will be deprecated once the Public API workflow
-// in wandb-core is implemented.
-func (nc *Connection) handleAuthenticate(
-	id string,
-	msg *spb.ServerAuthenticateRequest,
-) {
-	slog.Debug("handleAuthenticate: received", "id", nc.id)
-
-	ctx, cancel := nc.requestCanceller.Context(id)
-	defer cancel()
-
-	response := nc.handleAuthenticateImpl(ctx, msg)
-	response.XInfo = msg.XInfo
-
-	nc.Respond(&spb.ServerResponse{
-		ServerResponseType: &spb.ServerResponse_AuthenticateResponse{
-			AuthenticateResponse: response,
-		},
-	})
-}
-
-func (nc *Connection) handleAuthenticateImpl(
-	ctx context.Context,
-	msg *spb.ServerAuthenticateRequest,
-) *spb.ServerAuthenticateResponse {
-	baseURL, err := url.Parse(msg.BaseUrl)
-	if err != nil {
-		return &spb.ServerAuthenticateResponse{
-			ErrorStatus: fmt.Sprintf("Invalid URL: %v", err),
-		}
-	}
-
-	logger := observability.NewNoOpLogger() // TODO: use a real logger
-	credentialProvider := api.NewAPIKeyCredentialProvider(msg.ApiKey)
-
-	apiClient := api.NewClient(api.ClientOptions{
-		BaseURL:     baseURL,
-		RetryPolicy: clients.CheckRetry,
-
-		RetryMax:        api.DefaultRetryMax,
-		RetryWaitMin:    api.DefaultRetryWaitMin,
-		RetryWaitMax:    api.DefaultRetryWaitMax,
-		NonRetryTimeout: api.DefaultNonRetryTimeout,
-
-		CredentialProvider: credentialProvider,
-		Logger:             logger.Logger,
-	})
-
-	graphqlClient := graphql.NewClient(
-		baseURL.JoinPath("graphql").String(),
-		api.AsStandardClient(apiClient),
-	)
-
-	data, err := gql.Viewer(ctx, graphqlClient)
-
-	// Field-level GraphQL errors (like a failing resolver for one of the
-	// requested fields) do not invalidate the credentials, so partial data
-	// is accepted as long as the viewer and its entity were resolved.
-	if data == nil || data.GetViewer() == nil || data.GetViewer().GetEntity() == nil {
-		if err != nil {
-			slog.Debug("handleAuthenticate: viewer query failed", "error", err)
-		}
-		return &spb.ServerAuthenticateResponse{
-			ErrorStatus: "Invalid credentials",
-		}
-	}
-
-	return &spb.ServerAuthenticateResponse{
-		DefaultEntity: *data.GetViewer().GetEntity(),
 	}
 }
 
