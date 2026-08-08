@@ -23,7 +23,7 @@ def login(
     host: str | None = None,
     force: bool | None = None,
     timeout: int | None = None,
-    verify: bool = False,
+    verify: bool = True,
     referrer: str | None = None,
     anonymous: DoNotSet = UNSET,
 ) -> bool:
@@ -189,6 +189,7 @@ def _login(
             settings=settings,
             update_api_key=update_api_key,
             silent=_silent,
+            verify=verify,
         )
     else:
         auth = _find_or_prompt_for_key(
@@ -198,10 +199,8 @@ def _login(
             relogin=relogin,
             referrer=referrer,
             input_timeout=timeout,
+            verify=verify,
         )
-
-    if verify and auth:
-        _verify_login(auth)
 
     wandb_setup.singleton().update_user_settings()
     if not _silent:
@@ -222,6 +221,7 @@ def _use_explicit_key(
     host: wbauth.HostUrl,
     update_api_key: bool,
     silent: bool,
+    verify: bool,
 ) -> wbauth.Auth:
     """Log in with an explicit key.
 
@@ -236,6 +236,10 @@ def _use_explicit_key(
         )
 
     auth = wbauth.AuthApiKey(host=host, api_key=key)
+
+    if verify:
+        auth.verify()
+
     wbauth.use_explicit_auth(auth, source="wandb.login()")
 
     if update_api_key:
@@ -258,6 +262,7 @@ def _find_or_prompt_for_key(
     relogin: bool,
     referrer: str,
     input_timeout: float | None,
+    verify: bool,
 ) -> wbauth.Auth | None:
     """Log in without an explicit key.
 
@@ -275,6 +280,7 @@ def _find_or_prompt_for_key(
             referrer=referrer,
             input_timeout=input_timeout,
             relogin=relogin,
+            verify=verify,
         )
 
     except TimeoutError:

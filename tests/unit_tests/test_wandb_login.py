@@ -1,3 +1,5 @@
+from unittest.mock import MagicMock
+
 import pytest
 import wandb
 from wandb.errors import UsageError
@@ -64,6 +66,7 @@ def test_login_timeout_env_invalid(emulated_terminal, monkeypatch):
         wandb.login()
 
 
+@pytest.mark.usefixtures("skip_verify_login")
 def test_relogin_timeout(emulated_terminal, dummy_api_key):
     assert wandb.login(relogin=True, key=dummy_api_key)
     terminal_state1 = emulated_terminal.read_stderr()
@@ -75,6 +78,7 @@ def test_relogin_timeout(emulated_terminal, dummy_api_key):
     assert terminal_state1 == terminal_state2
 
 
+@pytest.mark.usefixtures("skip_verify_login")
 def test_login_key(emulated_terminal):
     wandb.login(key="A" * 40)
 
@@ -136,6 +140,40 @@ def test_login_invalid_key(monkeypatch: pytest.MonkeyPatch):
 
     with pytest.raises(wandb.errors.AuthenticationError):
         wandb.login(key="X" * 40, verify=True)
+
+
+def test_login_explicit_invalid_key_does_not_update_netrc(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """An explicit key rejected by the server must not be saved to .netrc."""
+    monkeypatch.setattr(
+        "wandb.apis.public.service_api.ServiceApi.authenticate",
+        MagicMock(side_effect=WandbApiFailedError("invalid credentials")),
+    )
+    write_netrc = MagicMock()
+    monkeypatch.setattr("wandb.sdk.lib.wbauth.write_netrc_auth", write_netrc)
+
+    with pytest.raises(wandb.errors.AuthenticationError):
+        wandb.login(key="X" * 40, verify=True)
+
+    write_netrc.assert_not_called()
+
+
+def test_login_explicit_valid_key_updates_netrc(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """An explicit key accepted by the server is saved to .netrc."""
+    monkeypatch.setattr(
+        "wandb.apis.public.service_api.ServiceApi.authenticate",
+        MagicMock(),
+    )
+    write_netrc = MagicMock()
+    monkeypatch.setattr("wandb.sdk.lib.wbauth.write_netrc_auth", write_netrc)
+
+    wandb.login(key="X" * 40, verify=True)
+
+    write_netrc.assert_called_once()
+    assert write_netrc.call_args.kwargs["api_key"] == "X" * 40
 
 
 def test_login_verify_with_token_file(federated_identity):

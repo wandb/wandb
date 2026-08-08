@@ -606,13 +606,13 @@ func (o *OpenTelemetryProxy) log(
 
 	logger := o.logProvider.Logger(serviceName)
 	var record otellogapi.Record
-	record.SetBody(otellogapi.StringValue(body))
+	record.SetBody(attribute.StringValue(body))
 	record.SetSeverity(severity)
 
 	if len(attributes) > 0 {
-		kvs := make([]otellogapi.KeyValue, 0, len(attributes))
+		kvs := make([]attribute.KeyValue, 0, len(attributes))
 		for k, v := range attributes {
-			kvs = append(kvs, otellogapi.String(k, v))
+			kvs = append(kvs, attribute.String(k, v))
 		}
 		record.AddAttributes(kvs...)
 	}

@@ -17,6 +17,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 ## Notable Changes
 
 The `wandb sync --clean` command now exits with code 1 and prints a hint to use `wandb clean`, which is the replacement.
+`wandb login` now verifies credentials by default. This can be disabled with `wandb login --no-verify` or programmatically with `wandb.login(verify=False)`.
 
 ## Added
 
@@ -45,4 +46,11 @@ The `wandb sync --clean` command now exits with code 1 and prints a hint to use 
 - `wandb login` and `wandb verify` no longer update the system host settings when failing to login (@jacobromero in https://github.com/wandb/wandb/pull/12332)
 - `wandb verify` now reports a failed check instead of crashing when an operation still fails after retries (@dmitryduev in https://github.com/wandb/wandb/pull/12360)
 - Calling Sweeps agent with a custom `WANDB_DIR` will now respect it when dumping JSON output (@kelu-wandb in https://github.com/wandb/wandb/pull/12344)
+- Fixed `wandb.Api(overrides={"base_url": ...})` failing to authenticate with federated identity (identity token) credentials when the specified server was not the default one, such as a dedicated cloud deployment, unless `WANDB_BASE_URL` was also set (@dmitryduev in https://github.com/wandb/wandb/pull/12340)
+- When using federated identity, the identity token file is now re-read for each access token exchange instead of once at startup, so short-lived identity tokens re-minted to the same path keep working for runs that outlive them (@dmitryduev in https://github.com/wandb/wandb/pull/12341)
+- When using federated identity, requests now fail immediately with the server's error message when the server rejects the identity token exchange, such as for an invalid or expired identity token. Previously, the rejected exchange was retried until requests timed out with a generic error (@dmitryduev in https://github.com/wandb/wandb/pull/12366)
+- `wandb login` validates api keys prior to saving to the `.netrc` file (@jacobromero in https://github.com/wandb/wandb/pull/12347)
+- The `global_step` metric created when syncing TensorBoard files is no longer prefixed, like `train/global_step`, so that it is easier to compare training and validation metrics (@timoffex in https://github.com/wandb/wandb/pull/12372)
+- The TensorBoard integration now produces fewer W&B steps by merging data for the same `global_step` into one W&B step when possible (@timoffex in https://github.com/wandb/wandb/pull/12414)
+- `wandb sync` no longer hangs on a run that set its name, tags, or notes after starting (@dmitryduev in https://github.com/wandb/wandb/pull/12380)
 - Ordered registry search now scopes per-registry collection and version queries with the registry's internal project id (`project_id` on servers with advanced registry search, `id` otherwise; decoded from GraphQL `internalId`), in addition to registry name (@ibindlish in https://github.com/wandb/wandb/pull/12188)

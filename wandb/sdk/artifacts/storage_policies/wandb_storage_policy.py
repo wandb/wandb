@@ -179,7 +179,7 @@ class WandbStoragePolicy(StoragePolicy):
             headers: dict[str, str] = {}
 
             # For auth, prefer using (in order): auth header, cookies, HTTP Basic Auth
-            if token := self._api.access_token:
+            if token := self._api._service_api.access_token():
                 headers = {"Authorization": f"Bearer {token}"}
             else:
                 auth = ("api", self._api.api_key or "")
