@@ -13,9 +13,9 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 
 	"github.com/wandb/wandb/core/internal/api"
-	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/httplayers"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -125,7 +125,6 @@ func newFileTransferClient(
 	s *settings.Settings,
 ) api.RetryableClient {
 	httpOpts := api.ClientOptions{
-		BaseURL:     baseURL,
 		RetryPolicy: filetransfer.FileTransferRetryPolicy,
 		Logger:      logger.Logger,
 
@@ -134,14 +133,15 @@ func newFileTransferClient(
 		RetryWaitMax:    filetransfer.DefaultRetryWaitMax,
 		NonRetryTimeout: filetransfer.DefaultNonRetryTimeout,
 
-		Proxy: clients.ProxyFn(
-			s.GetHTTPProxy(),
-			s.GetHTTPSProxy(),
-		),
+		Proxy:              s.GetProxyFn(),
+		ProxyConnectHeader: s.GetProxyConnectHeader(),
 
 		InsecureDisableSSL: s.IsInsecureDisableSSL(),
-		ExtraHeaders:       s.GetExtraHTTPHeaders(),
-		CredentialProvider: credentialProvider,
+
+		PreRetryLayers: httplayers.Concat(
+			httplayers.ExtraHeaders(s.GetExtraHTTPHeaders()),
+			httplayers.LimitTo(baseURL, credentialProvider),
+		),
 	}
 
 	if retryMax := s.GetFileTransferMaxRetries(); retryMax > 0 {

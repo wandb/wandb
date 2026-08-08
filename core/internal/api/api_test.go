@@ -12,27 +12,21 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/apitest"
+	"github.com/wandb/wandb/core/internal/httplayers"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
-	wbsettings "github.com/wandb/wandb/core/internal/settings"
-	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 func TestDo(t *testing.T) {
 	server := apitest.NewRecordingServer()
 	defer server.Close()
 
-	settings := wbsettings.From(&spb.Settings{
-		BaseUrl: &wrapperspb.StringValue{Value: server.URL + "/wandb"},
-		ApiKey:  &wrapperspb.StringValue{Value: "test_api_key"},
-	})
-	client := newClient(t, settings, api.ClientOptions{
-		ExtraHeaders: map[string]string{
-			"ClientHeader": "xyz",
-		},
+	client := api.NewClient(api.ClientOptions{
+		PreRetryLayers: httplayers.ExtraHeaders(http.Header{
+			"ClientHeader": []string{"xyz"},
+		}),
 	})
 
 	testRequest, err := retryablehttp.NewRequest(
@@ -58,146 +52,6 @@ func TestDo(t *testing.T) {
 	assert.Equal(t, "two", req.Header.Get("Header2"))
 	assert.Equal(t, "xyz", req.Header.Get("ClientHeader"))
 	assert.Equal(t, "wandb-core", req.Header.Get("User-Agent"))
-	assert.Equal(t, "Basic YXBpOnRlc3RfYXBpX2tleQ==",
-		req.Header.Get("Authorization"))
-}
-
-func TestDo_ToWandb_SetsAuth(t *testing.T) {
-	server := apitest.NewRecordingServer()
-	settings := wbsettings.From(&spb.Settings{
-		BaseUrl: &wrapperspb.StringValue{Value: server.URL + "/wandb"},
-		ApiKey:  &wrapperspb.StringValue{Value: "test_api_key"},
-	})
-
-	{
-		defer server.Close()
-		req, _ := retryablehttp.NewRequest(
-			http.MethodGet,
-			server.URL+"/wandb/xyz",
-			bytes.NewBufferString("test body"),
-		)
-
-		_, err := newClient(t, settings, api.ClientOptions{}).
-			Do(req)
-
-		assert.NoError(t, err)
-	}
-
-	assert.Len(t, server.Requests(), 1)
-	assert.NotEmpty(t, server.Requests()[0].Header.Get("Authorization"))
-}
-
-func TestDo_NotToWandb_NoAuth(t *testing.T) {
-	server := apitest.NewRecordingServer()
-	settings := wbsettings.From(&spb.Settings{
-		BaseUrl: &wrapperspb.StringValue{Value: server.URL + "/wandb"},
-		ApiKey:  &wrapperspb.StringValue{Value: "test_api_key"},
-	})
-
-	{
-		defer server.Close()
-		req, _ := retryablehttp.NewRequest(
-			http.MethodGet,
-			server.URL+"/notwandb/xyz",
-			bytes.NewBufferString("test body"),
-		)
-
-		_, err := newClient(t, settings, api.ClientOptions{}).
-			Do(req)
-
-		assert.NoError(t, err)
-	}
-
-	assert.Len(t, server.Requests(), 1)
-	assert.Empty(t, server.Requests()[0].Header.Get("Authorization"))
-}
-
-func TestDo_ExtraHeaders(t *testing.T) {
-	testCases := []struct {
-		name           string
-		path           string
-		extraHeaders   map[string]string
-		requestHeaders map[string]string
-		wantHeaders    map[string]string
-	}{
-		{
-			name: "ToWandb",
-			path: "/wandb/xyz",
-			extraHeaders: map[string]string{
-				"X-EXTRA-HEADER": "xyz",
-			},
-			wantHeaders: map[string]string{
-				"Authorization":  "Basic YXBpOnRlc3RfYXBpX2tleQ==",
-				"X-EXTRA-HEADER": "xyz",
-				"User-Agent":     "wandb-core",
-			},
-		},
-		{
-			name: "NotToWandb",
-			path: "/notwandb/xyz",
-			extraHeaders: map[string]string{
-				"X-EXTRA-HEADER": "xyz",
-			},
-			wantHeaders: map[string]string{
-				"Authorization":  "", // not set
-				"X-EXTRA-HEADER": "xyz",
-				"User-Agent":     "wandb-core",
-			},
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			server := apitest.NewRecordingServer()
-			defer server.Close()
-
-			settings := wbsettings.From(&spb.Settings{
-				BaseUrl: &wrapperspb.StringValue{Value: server.URL + "/wandb"},
-				ApiKey:  &wrapperspb.StringValue{Value: "test_api_key"},
-			})
-			client := newClient(t, settings, api.ClientOptions{
-				ExtraHeaders: tc.extraHeaders,
-			})
-
-			req, err := retryablehttp.NewRequest(
-				http.MethodGet,
-				server.URL+tc.path,
-				bytes.NewBufferString("test body"),
-			)
-			require.NoError(t, err)
-			for key, value := range tc.requestHeaders {
-				req.Header.Set(key, value)
-			}
-
-			_, err = client.Do(req)
-			require.NoError(t, err)
-
-			require.Len(t, server.Requests(), 1)
-			recorded := server.Requests()[0]
-			for key, value := range tc.wantHeaders {
-				assert.Equalf(t, value, recorded.Header.Get(key), "header %s", key)
-			}
-		})
-	}
-}
-
-func newClient(
-	t *testing.T,
-	settings *wbsettings.Settings,
-	opts api.ClientOptions,
-) api.RetryableClient {
-	baseURL, err := url.Parse(settings.GetBaseURL())
-	require.NoError(t, err)
-	opts.BaseURL = baseURL
-
-	credentialProvider, err := api.NewCredentialProvider(
-		settings,
-		observabilitytest.NewTestLogger(t).Logger,
-	)
-	require.NoError(t, err)
-	opts.CredentialProvider = credentialProvider
-
-	return api.NewClient(opts)
 }
 
 func TestNewClientWithProxy(t *testing.T) {
@@ -212,30 +66,19 @@ func TestNewClientWithProxy(t *testing.T) {
 
 	proxyParsedURL, _ := url.Parse(testServer.URL)
 
-	settings := wbsettings.From(&spb.Settings{
-		ApiKey: &wrapperspb.StringValue{Value: "test_api_key"},
-	})
-	credentialProvider, err := api.NewCredentialProvider(
-		settings,
-		observabilitytest.NewTestLogger(t).Logger,
-	)
-	require.NoError(t, err)
-
 	clientOptions := api.ClientOptions{
-		BaseURL:         &url.URL{Scheme: "http", Host: "api.example.com"},
 		RetryMax:        5,
 		RetryWaitMin:    1 * time.Second,
 		RetryWaitMax:    5 * time.Second,
 		NonRetryTimeout: api.DefaultNonRetryTimeout,
-		ExtraHeaders: map[string]string{
-			"Proxy-Authorization": "Basic dXNlcjpwYXNz",
+		ProxyConnectHeader: http.Header{
+			"Proxy-Authorization": []string{"Basic dXNlcjpwYXNz"},
 		},
 		Proxy: func(req *http.Request) (*url.URL, error) {
 			return proxyParsedURL, nil
 		},
 
-		CredentialProvider: credentialProvider,
-		Logger:             observabilitytest.NewTestLogger(t).Logger,
+		Logger: observabilitytest.NewTestLogger(t).Logger,
 	}
 
 	client := api.NewClient(clientOptions)
@@ -275,13 +118,9 @@ func TestNewClientWithRetry(t *testing.T) {
 	)
 
 	serverURL := server.URL + "/wandb"
-	settings := wbsettings.From(&spb.Settings{
-		BaseUrl: &wrapperspb.StringValue{Value: serverURL},
-		ApiKey:  &wrapperspb.StringValue{Value: "test_api_key"},
-	})
 
 	retryCallCount := 0
-	client := newClient(t, settings, api.ClientOptions{
+	client := api.NewClient(api.ClientOptions{
 		RetryPolicy: func(ctx context.Context, resp *http.Response, err error) (bool, error) {
 			if resp.StatusCode == http.StatusInternalServerError {
 				return true, nil

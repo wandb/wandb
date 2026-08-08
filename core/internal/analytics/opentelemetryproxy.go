@@ -27,7 +27,6 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 
 	"github.com/wandb/wandb/core/internal/api"
-	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/httplayers"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
@@ -414,20 +413,15 @@ func newOTLPHTTPClient(
 	}
 
 	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.Proxy = clients.ProxyFn(
-		wandbSettings.GetHTTPProxy(),
-		wandbSettings.GetHTTPSProxy(),
-	)
+	transport.Proxy = wandbSettings.GetProxyFn()
 	if wandbSettings.IsInsecureDisableSSL() {
 		transport.TLSClientConfig = &tls.Config{
 			InsecureSkipVerify: true,
 		}
 	}
 
-	extraHeaders := make(http.Header, len(wandbSettings.GetExtraHTTPHeaders()))
-	for key, value := range wandbSettings.GetExtraHTTPHeaders() {
-		extraHeaders.Set(key, value)
-	}
+	extraHeaders := http.Header{}
+	maps.Copy(extraHeaders, wandbSettings.GetExtraHTTPHeaders())
 	if header := extraHeaders.Get("Proxy-Authorization"); header != "" {
 		transport.ProxyConnectHeader = http.Header{
 			"Proxy-Authorization": []string{header},
