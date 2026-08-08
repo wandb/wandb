@@ -59,6 +59,7 @@ The `wandb sync --clean` command now exits with code 1 and prints a hint to use 
 - `wandb login` no longer removes or corrupts credentials belonging to other machines in your `.netrc` file (@dmitryduev in https://github.com/wandb/wandb/pull/12386)
 - Log messages captured from Python loggers no longer add blank lines to a run's logs (@dmitryduev in https://github.com/wandb/wandb/pull/12387)
 - Fixed a crash that could happen when several runs sharing one service process finished at the same time (@dmitryduev in https://github.com/wandb/wandb/pull/12388)
+- `del run.summary[key]` now removes metrics that were logged as nested values, which it previously ignored (@dmitryduev in https://github.com/wandb/wandb/pull/12389)
 
 ## Security
 
