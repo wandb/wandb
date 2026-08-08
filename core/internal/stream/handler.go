@@ -87,6 +87,10 @@ type Handler struct {
 	// when not running in shared mode.
 	partialHistoryStep int64
 
+	// partialHistoryHasExplicitStep is true when the current partial-history
+	// batch was opened by a user-provided PartialHistoryRequest.Step.
+	partialHistoryHasExplicitStep bool
+
 	// pollExitLogRateLimit limits log messages when handling PollExit requests
 	pollExitLogRateLimit *rate.Limiter
 
@@ -731,10 +735,9 @@ func (h *Handler) handleExit(
 
 	// Flush any history data---any further history records must
 	// be configured to flush.
-	if h.settings.IsSharedMode() {
-		h.flushPartialHistory(false, 0)
-	} else {
-		h.flushPartialHistory(true, h.partialHistoryStep+1)
+	h.flushPartialHistory()
+	if !h.settings.IsSharedMode() {
+		h.partialHistoryStep++
 	}
 
 	if record.Control == nil {
@@ -974,7 +977,7 @@ func (h *Handler) handlePartialHistoryAsync(request *spb.PartialHistoryRequest) 
 	}
 
 	if request.GetAction() == nil || request.Action.GetFlush() {
-		h.flushPartialHistory(false, 0)
+		h.flushPartialHistory()
 	}
 }
 
@@ -989,33 +992,39 @@ func (h *Handler) handlePartialHistorySync(request *spb.PartialHistoryRequest) {
 		h.partialHistoryStep = h.runRecord.GetStartingStep()
 	}
 
-	if request.GetStep() != nil {
+	hasExplicitStep := request.GetStep() != nil
+
+	if hasExplicitStep {
 		step := request.Step.GetNum()
-		current := h.partialHistoryStep
-		if step > current {
-			h.flushPartialHistory(true, step)
-		} else if step < current {
+
+		switch {
+		case step < h.partialHistoryStep:
 			h.logger.Warn(
 				"handler: ignoring partial history record",
 				"step", step,
-				"current", current,
+				"current", h.partialHistoryStep,
 			)
-
 			h.terminalPrinter.Warnf(
-				"Tried to log to step %d that is less than the current step %d."+
-					" Steps must be monotonically increasing, so this data"+
-					" will be ignored. See https://wandb.me/define-metric"+
-					" to log data out of order.",
-				step,
-				current,
+				"Tried to log to step %d that is less than the current"+
+					" step %d. Steps must be monotonically increasing, so"+
+					" this data will be ignored. See"+
+					" https://wandb.me/define-metric to log data out of"+
+					" order.",
+				step, h.partialHistoryStep,
 			)
 			return
+
+		case step > h.partialHistoryStep:
+			// The step advanced, so the previous step's batch is complete.
+			h.flushPartialHistory()
+			h.partialHistoryStep = step
 		}
+
+		h.partialHistoryHasExplicitStep = true
 	}
 
 	for _, item := range request.GetItem() {
-		err := h.partialHistory.SetFromRecord(item)
-		if err != nil {
+		if err := h.partialHistory.SetFromRecord(item); err != nil {
 			h.logger.CaptureError(
 				"stream",
 				fmt.Errorf("handler: failed to set history metric: %v", err),
@@ -1024,32 +1033,26 @@ func (h *Handler) handlePartialHistorySync(request *spb.PartialHistoryRequest) {
 		}
 	}
 
-	var shouldFlush bool
-	if request.GetAction() != nil {
-		shouldFlush = request.GetAction().GetFlush()
-	} else {
-		// Default to flushing if the step is not provided.
-		shouldFlush = request.GetStep() == nil
-	}
-	if !shouldFlush {
-		return
+	// Flush if explicitly requested; by default, flush unless an explicit
+	// step was given, in which case the batch stays open until the step
+	// advances.
+	shouldFlush := !hasExplicitStep
+	if action := request.GetAction(); action != nil {
+		shouldFlush = action.GetFlush()
 	}
 
-	h.flushPartialHistory(true, h.partialHistoryStep+1)
+	if shouldFlush {
+		h.flushPartialHistory()
+		h.partialHistoryStep++
+	}
 }
 
-// flushPartialHistory finalizes and resets the accumulated run history.
+// flushPartialHistory emits and resets the accumulated run history.
 //
-// If useStep is true, then the emitted history record has an explicit
-// step, and partialHistoryStep is updated to nextStep. Otherwise,
-// nextStep is ignored.
-func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
-	// Don't log anything if there are no metrics.
+// The caller is responsible for updating partialHistoryStep afterward
+// if appropriate.
+func (h *Handler) flushPartialHistory() {
 	if h.partialHistory == nil || h.partialHistory.IsEmpty() {
-		if useStep {
-			h.partialHistoryStep = nextStep
-		}
-
 		return
 	}
 
@@ -1057,13 +1060,6 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 		pathtree.PathOf("_runtime"),
 		h.runTimer.Elapsed().Seconds(),
 	)
-
-	if !h.settings.IsSharedMode() && useStep {
-		h.partialHistory.SetInt(
-			pathtree.PathOf("_step"),
-			h.partialHistoryStep,
-		)
-	}
 
 	newMetricDefs := h.metricHandler.UpdateMetrics(h.partialHistory)
 	for _, newMetric := range newMetricDefs {
@@ -1080,19 +1076,20 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 
 	h.runHistorySampler.SampleNext(h.partialHistory)
 
+	// Explicit steps are only meaningful when we own step numbering.
+	emitExplicitStep := !h.settings.IsSharedMode() &&
+		h.partialHistoryHasExplicitStep
+	step := h.partialHistoryStep
+
 	// Update the summary if server-side derived summaries are disabled.
 	if !h.settings.IsEnableServerSideDerivedSummary() {
 		h.updateRunTiming()
-		h.updateSummary()
+		h.updateSummary(emitExplicitStep, step)
 	}
 
 	items, err := h.partialHistory.ToRecords()
-	currentStep := h.partialHistoryStep
-
 	h.partialHistory = runhistory.New()
-	if useStep {
-		h.partialHistoryStep = nextStep
-	}
+	h.partialHistoryHasExplicitStep = false
 
 	// Report errors, but continue anyway to drop as little data as possible.
 	if err != nil {
@@ -1103,13 +1100,13 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 		h.terminalPrinter.Warnf(
 			"There was an issue processing run metrics in step %d;"+
 				" some data may be missing.",
-			currentStep,
+			step,
 		)
 	}
 
 	historyRecord := &spb.HistoryRecord{Item: items}
-	if useStep {
-		historyRecord.Step = &spb.HistoryStep{Num: currentStep}
+	if emitExplicitStep {
+		historyRecord.Step = &spb.HistoryStep{Num: step}
 	}
 	h.fwdRecord(&spb.Record{
 		RecordType: &spb.Record_History{
@@ -1118,10 +1115,10 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 	}, nil)
 }
 
-// updateSummary updates the summary based on the current history step.
-//
-// This emits a summary record that is written to the transaction log.
-func (h *Handler) updateSummary() {
+// updateSummary updates the local summary and forwards updates to the
+// transaction log. If emitExplicitStep is true, the _step entry is included,
+// otherwise it is omitted.
+func (h *Handler) updateSummary(emitExplicitStep bool, currentStep int64) {
 	updates, err := h.runSummary.UpdateSummaries(h.partialHistory)
 
 	// We continue despite errors to update as much of the summary as we can.
@@ -1132,12 +1129,11 @@ func (h *Handler) updateSummary() {
 		)
 	}
 
+	updates = filterOrEmitSummaryStepUpdates(updates, emitExplicitStep, currentStep)
 	if len(updates) == 0 {
 		return
 	}
 
-	// We must forward these changes to the Sender which uses them to build
-	// its own summary.
 	h.fwdRecord(&spb.Record{
 		RecordType: &spb.Record_Summary{
 			Summary: &spb.SummaryRecord{
@@ -1145,6 +1141,41 @@ func (h *Handler) updateSummary() {
 			},
 		},
 	}, nil)
+}
+
+// filterOrEmitSummaryStepUpdates filters out _step entries if emitExplicitStep is false,
+// otherwise it emits the _step entry in updates, if available. If the _step entry is not
+// available, it emits the currentStep as the _step entry.
+func filterOrEmitSummaryStepUpdates(
+	updates []*spb.SummaryItem,
+	emitExplicitStep bool,
+	currentStep int64,
+) []*spb.SummaryItem {
+	if len(updates) == 0 && !emitExplicitStep {
+		return nil
+	}
+
+	filtered := make([]*spb.SummaryItem, 0, len(updates)+1)
+	hasStep := false
+	for _, item := range updates {
+		if isStepItem(item) {
+			hasStep = true
+			if emitExplicitStep {
+				filtered = append(filtered, item)
+			}
+			continue
+		}
+		filtered = append(filtered, item)
+	}
+
+	if emitExplicitStep && !hasStep {
+		filtered = append(filtered, &spb.SummaryItem{
+			Key:       "_step",
+			ValueJson: strconv.FormatInt(currentStep, 10),
+		})
+	}
+
+	return filtered
 }
 
 // samples history items and updates the history record with the sampled values

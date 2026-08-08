@@ -110,6 +110,9 @@ type Sender struct {
 	// runSummary is the full summary for the run
 	runSummary *runsummary.RunSummary
 
+	// historySteps assigns monotonic _step values and materializes summary _step.
+	historySteps *HistoryStepTracker
+
 	// receivedExit is true once the Sender receives an Exit record.
 	receivedExit bool
 
@@ -211,6 +214,12 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 		runSummary:        runsummary.New(),
 		consoleLogsSender: runconsolelogs.New(consoleLogsSenderParams),
 	}
+
+	s.historySteps = NewHistoryStepTracker(HistoryStepTrackerParams{
+		Logger:     s.logger,
+		Settings:   s.settings,
+		RunSummary: s.runSummary,
+	})
 
 	if !s.settings.IsOffline() && !s.settings.IsJobCreationDisabled() {
 		s.jobBuilder = launch.NewJobBuilder(s.settings, s.logger, false)
@@ -806,18 +815,43 @@ func (s *Sender) sendUseArtifact(record *spb.Record) {
 }
 
 // sendHistory sends a history record to the file stream,
-// which will then send it to the server
+// which will then send it to the server.
+//
+// If the history record does not contain a _step value, this method will
+// auto-assign one. It also materializes the _step metric for the summary.
 func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 	if s.receivedExit {
 		s.logCalledAfterExit("sendHistory")
 		return
 	}
+	summaryUpdates := s.historySteps.Process(record, s.startingStep())
 
 	if s.fileStream == nil {
 		return
 	}
 
 	s.fileStream.StreamUpdate(&fs.HistoryUpdate{Record: record})
+	if summaryUpdates != nil {
+		s.fileStream.StreamUpdate(&fs.SummaryUpdate{Updates: summaryUpdates})
+	}
+}
+
+// startingStep returns the run's StartingStep, or 0 if the upserter is not ready.
+func (s *Sender) startingStep() int64 {
+	upserter, err := s.runHandle.Upserter()
+	if err != nil {
+		return 0
+	}
+	run := &spb.RunRecord{}
+	upserter.FillRunRecord(run)
+	return run.GetStartingStep()
+}
+
+// SummaryForTest returns the sender's derived run summary as records.
+//
+// This is for testing purposes only.
+func (s *Sender) SummaryForTest() ([]*spb.SummaryItem, error) {
+	return s.runSummary.ToRecords()
 }
 
 func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {

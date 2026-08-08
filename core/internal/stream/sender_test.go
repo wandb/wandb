@@ -31,10 +31,7 @@ const validLinkArtifactResponse = `{
 }`
 
 type testFixtures struct {
-	Sender    *stream.Sender
-	RunHandle *runhandle.RunHandle
-	Settings  *wbsettings.Settings
-	Logger    *observability.CoreLogger
+	Sender *stream.Sender
 }
 
 func makeSender(t *testing.T, client graphql.Client) testFixtures {
@@ -67,7 +64,6 @@ func makeSender(t *testing.T, client graphql.Client) testFixtures {
 		Logger:       logger,
 		Settings:     settings,
 	}
-	runHandle := runhandle.New()
 
 	senderFactory := stream.SenderFactory{
 		BaseURL:                 baseURL,
@@ -80,13 +76,10 @@ func makeSender(t *testing.T, client graphql.Client) testFixtures {
 		Mailbox:                 mailbox.New(),
 		GraphqlClient:           client,
 		FeatureProvider:         featurechecker.New(nil, logger),
-		RunHandle:               runHandle,
+		RunHandle:               runhandle.New(),
 	}
 	return testFixtures{
-		Sender:    senderFactory.New(runWork),
-		RunHandle: runHandle,
-		Settings:  settings,
-		Logger:    logger,
+		Sender: senderFactory.New(runWork),
 	}
 }
 
