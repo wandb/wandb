@@ -55,4 +55,4 @@ The `wandb sync --clean` command now exits with code 1 and prints a hint to use 
 - The TensorBoard integration now produces fewer W&B steps by merging data for the same `global_step` into one W&B step when possible (@timoffex in https://github.com/wandb/wandb/pull/12414)
 - `wandb sync` no longer hangs on a run that set its name, tags, or notes after starting (@dmitryduev in https://github.com/wandb/wandb/pull/12380)
 - Downloading an artifact file with `skip_cache=True` now replaces a different file of the same size at the destination instead of keeping it (@dmitryduev in https://github.com/wandb/wandb/pull/12382)
-
+- Downloading an artifact with `skip_cache=True` no longer changes where later downloads in the same process are written (@dmitryduev in https://github.com/wandb/wandb/pull/12383)

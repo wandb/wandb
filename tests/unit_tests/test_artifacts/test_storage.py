@@ -11,7 +11,10 @@ from pydantic import ValidationError
 from pyfakefs.fake_filesystem import FakeFilesystem
 from pytest import mark, raises
 from wandb.sdk.artifacts.artifact import Artifact
-from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
+from wandb.sdk.artifacts.artifact_file_cache import (
+    ArtifactFileCache,
+    get_artifact_file_cache,
+)
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.artifacts.storage_handler import StorageHandler, _BaseStorageHandler
@@ -84,9 +87,8 @@ def test_opener_works_across_filesystem_boundaries(
     assert excinfo.value.args[0] == errno.EXDEV
 
     # Now simulate skipping the cache
-    artifact_file_cache._override_cache_path = dest_path
     override_path, _, override_opener = artifact_file_cache.check_md5_obj_path(
-        example_digest, 7
+        example_digest, 7, override_path=dest_path
     )
 
     with override_opener() as f:
@@ -119,8 +121,9 @@ def test_check_md5_obj_path(artifact_file_cache):
 def test_check_md5_obj_path_override(artifact_file_cache):
     md5 = md5_string("hi")
     override_path = os.path.join(artifact_file_cache._cache_dir, "override.cache")
-    artifact_file_cache._override_cache_path = override_path
-    path, exists, _ = artifact_file_cache.check_md5_obj_path(md5, 2)
+    path, exists, _ = artifact_file_cache.check_md5_obj_path(
+        md5, 2, override_path=override_path
+    )
     assert path == override_path
     assert exists is False
 
@@ -129,9 +132,21 @@ def test_check_md5_obj_path_override_is_never_a_hit(artifact_file_cache, tmp_pat
     dest_path = tmp_path / "dest.txt"
     dest_path.write_text("EXAMPLE")  # Same size as "example", different contents.
 
-    artifact_file_cache._override_cache_path = dest_path
-    _, exists, _ = artifact_file_cache.check_md5_obj_path(example_digest, 7)
+    _, exists, _ = artifact_file_cache.check_md5_obj_path(
+        example_digest, 7, override_path=dest_path
+    )
     assert exists is False
+
+
+def test_check_md5_obj_path_override_does_not_persist(artifact_file_cache):
+    md5 = md5_string("hi")
+    override_path = os.path.join(artifact_file_cache._cache_dir, "override.cache")
+    artifact_file_cache.check_md5_obj_path(md5, 2, override_path=override_path)
+
+    # A later, unrelated lookup on the same (process-wide) cache must be unaffected.
+    assert get_artifact_file_cache() is artifact_file_cache
+    path, _, _ = get_artifact_file_cache().check_md5_obj_path(md5, 2)
+    assert path != override_path
 
 
 def test_check_etag_obj_path_points_to_opener_dst(artifact_file_cache):
@@ -149,8 +164,9 @@ def test_check_etag_obj_path_points_to_opener_dst(artifact_file_cache):
 
 def test_check_etag_obj_path_override(artifact_file_cache):
     override_path = os.path.join(artifact_file_cache._cache_dir, "override.cache")
-    artifact_file_cache._override_cache_path = override_path
-    path, exists, _ = artifact_file_cache.check_etag_obj_path("http://my/url", "abc", 2)
+    path, exists, _ = artifact_file_cache.check_etag_obj_path(
+        "http://my/url", "abc", 2, override_path=override_path
+    )
     assert path == override_path
     assert exists is False
 
@@ -160,8 +176,9 @@ def test_check_etag_obj_path_override_is_never_a_hit(artifact_file_cache, tmp_pa
     dest_path = tmp_path / "dest.txt"
     dest_path.write_text(size * "b")
 
-    artifact_file_cache._override_cache_path = dest_path
-    _, exists, _ = artifact_file_cache.check_etag_obj_path("http://my/url", "abc", size)
+    _, exists, _ = artifact_file_cache.check_etag_obj_path(
+        "http://my/url", "abc", size, override_path=dest_path
+    )
     assert exists is False
 
 

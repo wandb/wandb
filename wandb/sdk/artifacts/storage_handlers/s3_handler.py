@@ -89,6 +89,7 @@ class S3Handler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
+        dest_path: StrPath | None = None,
     ) -> URIStr | FilePathStr:
         if not local:
             assert manifest_entry.ref is not None
@@ -100,6 +101,7 @@ class S3Handler(StorageHandler):
             URIStr(manifest_entry.ref),
             ETag(manifest_entry.digest),
             manifest_entry.size or 0,
+            override_path=dest_path,
         )
         if hit:
             return path
