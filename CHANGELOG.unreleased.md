@@ -33,6 +33,7 @@ The `wandb sync --clean` command now exits with code 1 and prints a hint to use 
 - Response parsing is now faster for many `wandb.Api` operations, including artifact and registry queries (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12213)
 - `wandb.init()` now reports the error it was retrying (such as a network error) when it times out, instead of a generic timeout message. The `init_timeout` setting now also bounds the backend's retries during run initialization (@skhanna-cw in https://github.com/wandb/wandb/pull/12216)
 - `wandb.Api().create_run_queue()`, `wandb.Api().create_custom_chart()`, and `wandb.Api().upsert_run_queue()` now raise `WandbApiFailedError` when the operation fails on the backend. (@jacobromero in https://github.com/wandb/wandb/pull/12307)
+- Paginated artifact and registry query methods (`Api.artifacts()`, `Api.artifact_collections()`, `Api.registries()`, `Registries.collections()`, `Registries.versions()`, `Collections.versions()`, `Registry.collections()`, `Registry.versions()`, `Project.collections()`) now perform client-side validation of pagination arguments before attempting to fetch any results (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12101)
 
 ## Removed
 
@@ -52,3 +53,4 @@ The `wandb sync --clean` command now exits with code 1 and prints a hint to use 
 - `wandb login` validates api keys prior to saving to the `.netrc` file (@jacobromero in https://github.com/wandb/wandb/pull/12347)
 - The `global_step` metric created when syncing TensorBoard files is no longer prefixed, like `train/global_step`, so that it is easier to compare training and validation metrics (@timoffex in https://github.com/wandb/wandb/pull/12372)
 - The TensorBoard integration now produces fewer W&B steps by merging data for the same `global_step` into one W&B step when possible (@timoffex in https://github.com/wandb/wandb/pull/12414)
+- `wandb sync` no longer hangs on a run that set its name, tags, or notes after starting (@dmitryduev in https://github.com/wandb/wandb/pull/12380)

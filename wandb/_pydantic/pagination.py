@@ -5,15 +5,74 @@ For formal specs and definitions, see https://relay.dev/graphql/connections.htm.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-from typing import Generic, Literal, TypeVar
+import re
+from collections.abc import Collection, Iterator
+from dataclasses import dataclass
+from typing import Annotated, Any, Final, Generic, Literal, TypeAlias, TypeVar
 
-from pydantic import NonNegativeInt
+from pydantic import GetCoreSchemaHandler, NonNegativeInt, PlainSerializer
+from pydantic.alias_generators import to_camel
+from pydantic_core import CoreSchema
+from pydantic_core.core_schema import no_info_after_validator_function
 
-from .base import GQLResult
+from wandb._strutils import repr_join
+
+from .base import GQLInput, GQLResult
+from .utils import to_json
 
 NodeT = TypeVar("NodeT")
 """A generic type variable for a GraphQL relay node."""
+
+
+ORDER_REGEX: Final[re.Pattern[str]] = re.compile(
+    r"""
+    \A              # Absolute start of string, multiline not allowed
+    ([+-])?         # Optional leading sign
+    ([a-zA-Z_]\w*)  # Field name (must start with a non-numeric character)
+    \Z              # Absolute end of string, multiline not allowed
+    """,
+    flags=re.VERBOSE | re.ASCII,
+)
+
+
+FilterDict: TypeAlias = Annotated[dict[str, Any], PlainSerializer(to_json)]
+"""A paginator filter mapping serialized as JSON for GraphQL variables."""
+
+
+@dataclass(frozen=True, slots=True)
+class OrderValidator:
+    """Pydantic metadata that validates and normalizes an `order` argument."""
+
+    valid: Collection[str] | None = None
+    """The allowed field names. If None, all fields are allowed."""
+
+    def __post_init__(self) -> None:
+        if valid := self.valid:
+            object.__setattr__(self, "valid", frozenset(valid))
+
+    def __get_pydantic_core_schema__(
+        self, source_type: Any, handler: GetCoreSchemaHandler
+    ) -> CoreSchema:
+        return no_info_after_validator_function(self.validate, handler(source_type))
+
+    def validate(self, order: str) -> str:
+        # Parse the components of the order string
+        if (m := ORDER_REGEX.match(order)) is None:
+            raise ValueError(f"Invalid order string: {order!r}")
+
+        sign, name = m.groups()
+
+        # Check if the field name (without the sign) is allowed
+        if (valid := self.valid) and (name not in valid):
+            msg = f"Invalid order field {name!r}, must be one of: {repr_join(sorted(valid))}"
+            raise ValueError(msg)
+
+        # Default to ascending order
+        return f"{sign or '+'}{name}"
+
+
+class PaginatorVars(GQLInput, alias_generator=to_camel):
+    pass
 
 
 class PageInfo(GQLResult):
