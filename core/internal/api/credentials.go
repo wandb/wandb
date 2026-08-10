@@ -237,7 +237,7 @@ func TokenExchangeRetryPolicy(
 	resp *http.Response,
 	err error,
 ) (bool, error) {
-	if err == nil && isExchangeRejection(resp.StatusCode) {
+	if resp != nil && isExchangeRejection(resp.StatusCode) {
 		return false, nil
 	}
 
