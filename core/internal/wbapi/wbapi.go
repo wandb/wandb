@@ -13,7 +13,6 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 
 	"github.com/wandb/wandb/core/internal/api"
-	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/observability"
@@ -140,10 +139,8 @@ func newFileTransferClient(
 		RetryWaitMax:    filetransfer.DefaultRetryWaitMax,
 		NonRetryTimeout: filetransfer.DefaultNonRetryTimeout,
 
-		Proxy: clients.ProxyFn(
-			s.GetHTTPProxy(),
-			s.GetHTTPSProxy(),
-		),
+		Proxy:              s.GetProxyFn(),
+		ProxyConnectHeader: s.GetProxyConnectHeader(),
 
 		InsecureDisableSSL: s.IsInsecureDisableSSL(),
 		ExtraHeaders:       s.GetExtraHTTPHeaders(),
