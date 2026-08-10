@@ -1407,7 +1407,11 @@ class Artifact:
     @contextlib.contextmanager
     @ensure_not_finalized
     def new_file(
-        self, name: str, mode: str = "x", encoding: str | None = None
+        self,
+        name: str,
+        mode: str = "x",
+        encoding: str | None = None,
+        policy: Literal["mutable", "immutable"] | None = "mutable",
     ) -> Generator[IO]:
         """Open a new temporary file and add it to the artifact.
 
@@ -1445,7 +1449,9 @@ class Artifact:
             )
             raise
 
-        self.add_file(path, name=name, skip_cache=True, overwrite=overwrite)
+        self.add_file(
+            path, name=name, policy=policy, skip_cache=True, overwrite=overwrite
+        )
 
     @ensure_not_finalized
     def add_file(

@@ -24,3 +24,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - `Api.{create,update}_automation()` now raise `UnsupportedError` instead of `CommError` when the server doesn't support the given automation (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12194)
 - The message format used to communicate between internal processes has slightly changed. If you use `wandb beta core`, restart the service after upgrading `wandb`, as some operations may fail if the SDK and service versions differ. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12374)
 - `wandb.sandbox` now allows GPU resource requests for sandboxes instead of rejecting `resources.gpu` client-side (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/12455)
+
+### Fixed
+
+- `Artifact.new_file` now works for artifacts uploaded with `wandb sync`. (@amusipatla-wandb in https://github.com/wandb/wandb/pull/12437)
