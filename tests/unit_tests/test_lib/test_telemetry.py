@@ -41,7 +41,7 @@ def test_disabled_telemetry_does_not_publish(monkeypatch):
     recorder = TelemetryRecorder(service_api=service_api)
 
     recorder.increment_counter_and_log_event("test")
-    recorder.exception("test", RuntimeError("test"))
+    recorder.exception(Exception("test"))
 
     service_api.api_publish.assert_not_called()
 
@@ -55,7 +55,7 @@ def test_telemetry_without_service_api_does_not_publish():
     recorder.increment_counter("test_counter", LowCardinalityAttributes())
     recorder.log("test log")
     recorder.increment_counter_and_log_event("test event")
-    recorder.exception("test exception", RuntimeError("test"))
+    recorder.exception(Exception("test exception"))
 
 
 def test_errors_do_not_propagate_from_telemetry(monkeypatch):
@@ -102,7 +102,7 @@ def test_telemetry_does_not_publish_without_service_connection(monkeypatch):
     recorder.increment_counter("test_counter", LowCardinalityAttributes())
     recorder.log("test log")
     recorder.increment_counter_and_log_event("test event")
-    recorder.exception("test exception", RuntimeError("test"))
+    recorder.exception(Exception("test exception"))
 
     service_api.api_publish.assert_not_called()
 

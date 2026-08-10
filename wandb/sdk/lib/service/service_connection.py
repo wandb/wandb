@@ -265,7 +265,7 @@ class ServiceConnection:
         """Publish an ApiRequest without waiting for a response."""
         request = spb.ServerRequest()
         request.api_request.CopyFrom(api_request)
-        self._asyncer.run_soon(lambda: self._client.publish(request))
+        self._asyncer.run(lambda: self._client.publish(request))
 
     def inform_init(
         self,

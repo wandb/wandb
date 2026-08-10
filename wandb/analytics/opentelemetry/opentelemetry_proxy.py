@@ -311,6 +311,13 @@ class TelemetryRecorder:
             return False
 
         singleton = wandb_setup.singleton_if_created()
+
+        # TODO: Make opentelemetry work without needing wandb-core
+        # to already be started.
+        #
+        # Right now we are blind to any errors or telemetry from the SDK
+        # that are produced prior to wandb-core starting, including errors
+        # that occur while trying to start wandb-core.
         return not (singleton is None or not singleton.service_connected)
 
     @guard
@@ -326,10 +333,13 @@ class TelemetryRecorder:
     @guard
     def exception(
         self,
-        message: str,
         exc: Exception,
+        message: str | None = None,
     ) -> None:
         """Record an exception as both a counter metric and an error log.
+
+        If a message is not provided,
+        the exception's string representation is used.
 
         The counter metric has the name "exception" and contains
         the low-cardinality attributes from the current context plus an
@@ -350,8 +360,9 @@ class TelemetryRecorder:
                 exception_type=type(exc).__name__,
             ),
         )
+
         self.log(
-            message,
+            message or str(exc),
             severity=SeverityNumber.ERROR,
             attributes={
                 "exception.type": type(exc).__name__,
@@ -362,9 +373,10 @@ class TelemetryRecorder:
 
     def reraise(self, exc: Exception) -> Never:
         """Log the exception to telemetry, then re-raise it."""
-        # `exception` is guarded by `_never_raises`, so recording telemetry
-        # here can never mask or replace the exception we re-raise.
-        self.exception(str(exc), exc)
+        # `exception` is guarded by `guard` decorator,
+        # so recording telemetry here can never mask
+        # or replace the exception we re-raise.
+        self.exception(exc)
         raise exc
 
 

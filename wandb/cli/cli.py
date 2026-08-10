@@ -1928,12 +1928,12 @@ def launch(
                 sys.exit(1)
         except LaunchError as e:
             logger.exception("An error occurred.")
-            telemetry_recorder.exception(str(e), e)
+            telemetry_recorder.exception(e)
             get_sentry().exception(e)
             sys.exit(e)
         except ExecutionError as e:
             logger.exception("An error occurred.")
-            telemetry_recorder.exception(str(e), e)
+            telemetry_recorder.exception(e)
             get_sentry().exception(e)
             sys.exit(e)
         except asyncio.CancelledError:
@@ -1962,7 +1962,7 @@ def launch(
             )
 
         except Exception as e:
-            telemetry_recorder.exception(str(e), e)
+            telemetry_recorder.exception(e)
             get_sentry().exception(e)
             raise
 
@@ -2061,7 +2061,7 @@ def launch_agent(
             telemetry_recorder=telemetry_recorder,
         )
     except Exception as e:
-        telemetry_recorder.exception(str(e), e)
+        telemetry_recorder.exception(e)
         get_sentry().exception(e)
         raise
 
@@ -2210,7 +2210,7 @@ def scheduler(
         )
         _scheduler.start()
     except Exception as e:
-        telemetry_recorder.exception(str(e), e)
+        telemetry_recorder.exception(e)
         get_sentry().exception(e)
         raise
 
