@@ -179,7 +179,8 @@ def _select_runs_to_clean(
             term.termwarn(f"Not a directory: {online_run}")
             continue
 
-        if (age := _run_age_hours(now, online_run.name)) and age < min_hours:
+        age = _run_age_hours(now, online_run.name)
+        if age is not None and age < min_hours:
             result.skipped_too_new += 1
             continue
 
@@ -195,7 +196,8 @@ def _select_runs_to_clean(
             result.skipped_unsynced += 1
             continue
 
-        if (age := _run_age_hours(now, offline_run.name)) and age < min_hours:
+        age = _run_age_hours(now, offline_run.name)
+        if age is not None and age < min_hours:
             result.skipped_too_new += 1
             continue
 
