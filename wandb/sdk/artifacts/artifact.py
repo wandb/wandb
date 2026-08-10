@@ -1445,9 +1445,7 @@ class Artifact:
             )
             raise
 
-        self.add_file(
-            path, name=name, policy="immutable", skip_cache=True, overwrite=overwrite
-        )
+        self.add_file(path, name=name, skip_cache=True, overwrite=overwrite)
 
     @ensure_not_finalized
     def add_file(
