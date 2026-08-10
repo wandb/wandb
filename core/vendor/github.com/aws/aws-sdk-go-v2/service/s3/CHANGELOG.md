@@ -1,3 +1,11 @@
+# v1.107.0 (2026-08-06)
+
+* **Feature**: AWS Backup now lets you create read-only access points for Amazon S3 recovery points, enabling you to access backup data using S3 APIs without initiating a restore.
+
+# v1.106.5 (2026-08-05)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
 # v1.106.4 (2026-08-03)
 
 * **Bug Fix**: Expand S3 operations that check for an error inside an HTTP 200 response
