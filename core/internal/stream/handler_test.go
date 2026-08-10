@@ -812,7 +812,6 @@ func TestHandleHistory(t *testing.T) {
 		// 				"key1":     "1",
 		// 				"key2":     "2",
 		// 				"_runtime": "63393490800.000000",
-		// 				"_step":    "0",
 		// 			},
 		// 			step: 0,
 		// 		},
