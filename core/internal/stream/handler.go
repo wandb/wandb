@@ -87,9 +87,9 @@ type Handler struct {
 	// when not running in shared mode.
 	partialHistoryStep int64
 
-	// partialHistoryHasExplicitStep is true when the current partial-history
+	// partialHistoryStepIsExplicit is true when the current partial-history
 	// batch was opened by a user-provided PartialHistoryRequest.Step.
-	partialHistoryHasExplicitStep bool
+	partialHistoryStepIsExplicit bool
 
 	// pollExitLogRateLimit limits log messages when handling PollExit requests
 	pollExitLogRateLimit *rate.Limiter
@@ -1020,7 +1020,7 @@ func (h *Handler) handlePartialHistorySync(request *spb.PartialHistoryRequest) {
 			h.partialHistoryStep = step
 		}
 
-		h.partialHistoryHasExplicitStep = true
+		h.partialHistoryStepIsExplicit = true
 	}
 
 	for _, item := range request.GetItem() {
@@ -1077,19 +1077,19 @@ func (h *Handler) flushPartialHistory() {
 	h.runHistorySampler.SampleNext(h.partialHistory)
 
 	// Explicit steps are only meaningful when we own step numbering.
-	emitExplicitStep := !h.settings.IsSharedMode() &&
-		h.partialHistoryHasExplicitStep
+	stepIsExplicit := !h.settings.IsSharedMode() &&
+		h.partialHistoryStepIsExplicit
 	step := h.partialHistoryStep
 
 	// Update the summary if server-side derived summaries are disabled.
 	if !h.settings.IsEnableServerSideDerivedSummary() {
 		h.updateRunTiming()
-		h.updateSummary(emitExplicitStep, step)
+		h.updateSummary()
 	}
 
 	items, err := h.partialHistory.ToRecords()
 	h.partialHistory = runhistory.New()
-	h.partialHistoryHasExplicitStep = false
+	h.partialHistoryStepIsExplicit = false
 
 	// Report errors, but continue anyway to drop as little data as possible.
 	if err != nil {
@@ -1104,8 +1104,9 @@ func (h *Handler) flushPartialHistory() {
 		)
 	}
 
+	// Only set the step when the user explicitly set it.
 	historyRecord := &spb.HistoryRecord{Item: items}
-	if emitExplicitStep {
+	if stepIsExplicit {
 		historyRecord.Step = &spb.HistoryStep{Num: step}
 	}
 	h.fwdRecord(&spb.Record{
@@ -1115,10 +1116,9 @@ func (h *Handler) flushPartialHistory() {
 	}, nil)
 }
 
-// updateSummary updates the local summary and forwards updates to the
-// transaction log. If emitExplicitStep is true, the _step entry is included,
-// otherwise it is omitted.
-func (h *Handler) updateSummary(emitExplicitStep bool, currentStep int64) {
+// updateSummary updates the local summary based on the current partial history
+// and forwards it to the Sender.
+func (h *Handler) updateSummary() {
 	updates, err := h.runSummary.UpdateSummaries(h.partialHistory)
 
 	// We continue despite errors to update as much of the summary as we can.
@@ -1129,7 +1129,6 @@ func (h *Handler) updateSummary(emitExplicitStep bool, currentStep int64) {
 		)
 	}
 
-	updates = filterOrEmitSummaryStepUpdates(updates, emitExplicitStep, currentStep)
 	if len(updates) == 0 {
 		return
 	}
@@ -1141,41 +1140,6 @@ func (h *Handler) updateSummary(emitExplicitStep bool, currentStep int64) {
 			},
 		},
 	}, nil)
-}
-
-// filterOrEmitSummaryStepUpdates filters out _step entries if emitExplicitStep is false,
-// otherwise it emits the _step entry in updates, if available. If the _step entry is not
-// available, it emits the currentStep as the _step entry.
-func filterOrEmitSummaryStepUpdates(
-	updates []*spb.SummaryItem,
-	emitExplicitStep bool,
-	currentStep int64,
-) []*spb.SummaryItem {
-	if len(updates) == 0 && !emitExplicitStep {
-		return nil
-	}
-
-	filtered := make([]*spb.SummaryItem, 0, len(updates)+1)
-	hasStep := false
-	for _, item := range updates {
-		if isStepItem(item) {
-			hasStep = true
-			if emitExplicitStep {
-				filtered = append(filtered, item)
-			}
-			continue
-		}
-		filtered = append(filtered, item)
-	}
-
-	if emitExplicitStep && !hasStep {
-		filtered = append(filtered, &spb.SummaryItem{
-			Key:       "_step",
-			ValueJson: strconv.FormatInt(currentStep, 10),
-		})
-	}
-
-	return filtered
 }
 
 // samples history items and updates the history record with the sampled values

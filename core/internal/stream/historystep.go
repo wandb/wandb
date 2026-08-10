@@ -139,6 +139,39 @@ func (t *HistoryStepTracker) materializeSummaryStep(
 	return updates
 }
 
+// StripSummaryStep removes _step from an inbound summary record if necessary.
+//
+// Summary _step should only be set by the HistoryStepTracker. If it was set
+// in a transaction log by an older wandb version, it is overwritten here.
+// In shared mode or server-side summary derivation is enabled, the summary _step
+// is not stripped.
+func (t *HistoryStepTracker) StripSummaryStep(
+	summary *spb.SummaryRecord,
+) *spb.SummaryRecord {
+	// Only strip a _step we would go on to replace.
+	if t.settings.IsSharedMode() || t.settings.IsEnableServerSideDerivedSummary() {
+		return summary
+	}
+
+	updates := summary.GetUpdate()
+	kept := make([]*spb.SummaryItem, 0, len(updates))
+	for _, item := range updates {
+		if !isStepItem(item) {
+			kept = append(kept, item)
+		}
+	}
+
+	if len(kept) == len(updates) {
+		return summary
+	}
+
+	// Shallow copy: the caller's record is also headed for the Writer.
+	return &spb.SummaryRecord{
+		Update: kept,
+		Remove: summary.GetRemove(),
+	}
+}
+
 func (t *HistoryStepTracker) initializeAutoStep(startingStep int64) {
 	if t.autoStepInitialized {
 		return

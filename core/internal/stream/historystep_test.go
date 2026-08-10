@@ -19,12 +19,19 @@ type historyStepFixtures struct {
 	RunSummary *runsummary.RunSummary
 }
 
-func makeHistoryStepTracker(t *testing.T, shared bool) historyStepFixtures {
+func makeHistoryStepTracker(
+	t *testing.T,
+	shared bool,
+	serverSideDerivedSummary bool,
+) historyStepFixtures {
 	t.Helper()
 	logger := observabilitytest.NewTestLogger(t)
 	settings := wbsettings.From(&spb.Settings{
 		RunId:   &wrapperspb.StringValue{Value: "run1"},
 		XShared: &wrapperspb.BoolValue{Value: shared},
+		XServerSideDerivedSummary: &wrapperspb.BoolValue{
+			Value: serverSideDerivedSummary,
+		},
 	})
 	runSummary := runsummary.New()
 	return historyStepFixtures{
@@ -60,7 +67,7 @@ func summaryStepValue(t *testing.T, rs *runsummary.RunSummary) string {
 }
 
 func TestHistoryStepTracker_AssignsMissingStep(t *testing.T) {
-	x := makeHistoryStepTracker(t, false /*shared*/)
+	x := makeHistoryStepTracker(t, false /*shared*/, false /*serverSideDerivedSummary*/)
 
 	history := &spb.HistoryRecord{
 		Item: []*spb.HistoryItem{{
@@ -79,7 +86,7 @@ func TestHistoryStepTracker_AssignsMissingStep(t *testing.T) {
 }
 
 func TestHistoryStepTracker_PreservesExistingStep(t *testing.T) {
-	x := makeHistoryStepTracker(t, false /*shared*/)
+	x := makeHistoryStepTracker(t, false /*shared*/, false /*serverSideDerivedSummary*/)
 
 	history := &spb.HistoryRecord{
 		Item: []*spb.HistoryItem{
@@ -97,7 +104,7 @@ func TestHistoryStepTracker_PreservesExistingStep(t *testing.T) {
 }
 
 func TestHistoryStepTracker_RewritesStepBelowStartingStep(t *testing.T) {
-	x := makeHistoryStepTracker(t, false /*shared*/)
+	x := makeHistoryStepTracker(t, false /*shared*/, false /*serverSideDerivedSummary*/)
 
 	history := &spb.HistoryRecord{
 		Item: []*spb.HistoryItem{
@@ -112,7 +119,7 @@ func TestHistoryStepTracker_RewritesStepBelowStartingStep(t *testing.T) {
 }
 
 func TestHistoryStepTracker_OfflineResumedSegmentRewritesSteps(t *testing.T) {
-	x := makeHistoryStepTracker(t, false /*shared*/)
+	x := makeHistoryStepTracker(t, false /*shared*/, false /*serverSideDerivedSummary*/)
 
 	for _, tc := range []struct {
 		localStep string
@@ -134,7 +141,7 @@ func TestHistoryStepTracker_OfflineResumedSegmentRewritesSteps(t *testing.T) {
 }
 
 func TestHistoryStepTracker_MaterializesRecordStep(t *testing.T) {
-	x := makeHistoryStepTracker(t, false /*shared*/)
+	x := makeHistoryStepTracker(t, false /*shared*/, false /*serverSideDerivedSummary*/)
 
 	history := &spb.HistoryRecord{
 		Item: []*spb.HistoryItem{{
@@ -153,7 +160,7 @@ func TestHistoryStepTracker_MaterializesRecordStep(t *testing.T) {
 }
 
 func TestHistoryStepTracker_DerivesSummaryStep(t *testing.T) {
-	x := makeHistoryStepTracker(t, false /*shared*/)
+	x := makeHistoryStepTracker(t, false /*shared*/, false /*serverSideDerivedSummary*/)
 
 	history := &spb.HistoryRecord{
 		Item: []*spb.HistoryItem{{
@@ -168,7 +175,7 @@ func TestHistoryStepTracker_DerivesSummaryStep(t *testing.T) {
 }
 
 func TestHistoryStepTracker_SharedModeSkipsSummaryStep(t *testing.T) {
-	x := makeHistoryStepTracker(t, true /*shared*/)
+	x := makeHistoryStepTracker(t, true /*shared*/, false /*serverSideDerivedSummary*/)
 
 	history := &spb.HistoryRecord{
 		Item: []*spb.HistoryItem{{
@@ -187,7 +194,7 @@ func TestHistoryStepTracker_SharedModeSkipsSummaryStep(t *testing.T) {
 }
 
 func TestHistoryStepTracker_PreservesForwardedAggregation(t *testing.T) {
-	x := makeHistoryStepTracker(t, false /*shared*/)
+	x := makeHistoryStepTracker(t, false /*shared*/, false /*serverSideDerivedSummary*/)
 
 	// Simulate the handler forwarding a define_metric("acc", summary="max")
 	// aggregation of 0.9.
@@ -224,7 +231,7 @@ func TestHistoryStepTracker_PreservesForwardedAggregation(t *testing.T) {
 }
 
 func TestHistoryStepTracker_RebasedStepMaterializesSummaryStep(t *testing.T) {
-	x := makeHistoryStepTracker(t, false /*shared*/)
+	x := makeHistoryStepTracker(t, false /*shared*/, false /*serverSideDerivedSummary*/)
 
 	// An offline-resumed row logged with a local step of 0 is rebased forward
 	// to the run's starting step; the summary _step must track the rebased
@@ -237,4 +244,60 @@ func TestHistoryStepTracker_RebasedStepMaterializesSummaryStep(t *testing.T) {
 	}, 2)
 
 	assert.Equal(t, "2", summaryStepValue(t, x.RunSummary))
+}
+
+func TestStripSummaryStep_RemovesStep(t *testing.T) {
+	x := makeHistoryStepTracker(t, false /*shared*/, false /*serverSideDerivedSummary*/)
+
+	removals := []*spb.SummaryItem{{Key: "stale"}}
+	summary := &spb.SummaryRecord{
+		Update: []*spb.SummaryItem{
+			{Key: "loss", ValueJson: "1.23"},
+			{Key: "_step", ValueJson: "999"},
+			{NestedKey: []string{"_step"}, ValueJson: "999"},
+			{NestedKey: []string{"_wandb", "runtime"}, ValueJson: "5"},
+		},
+		Remove: removals,
+	}
+
+	stripped := x.Tracker.StripSummaryStep(summary)
+
+	assert.Equal(t, []*spb.SummaryItem{
+		{Key: "loss", ValueJson: "1.23"},
+		{NestedKey: []string{"_wandb", "runtime"}, ValueJson: "5"},
+	}, stripped.GetUpdate())
+	assert.Equal(t, removals, stripped.GetRemove(),
+		"removals must pass through untouched")
+	assert.Len(t, summary.GetUpdate(), 4,
+		"the caller's record must not be mutated")
+}
+
+func TestStripSummaryStep_KeepsRecordWithoutStep(t *testing.T) {
+	x := makeHistoryStepTracker(t, false /*shared*/, false /*serverSideDerivedSummary*/)
+
+	summary := &spb.SummaryRecord{
+		Update: []*spb.SummaryItem{{Key: "loss", ValueJson: "1.23"}},
+	}
+
+	assert.Same(t, summary, x.Tracker.StripSummaryStep(summary))
+}
+
+func TestStripSummaryStep_SharedModeKeepsStep(t *testing.T) {
+	x := makeHistoryStepTracker(t, true /*shared*/, false /*serverSideDerivedSummary*/)
+
+	summary := &spb.SummaryRecord{
+		Update: []*spb.SummaryItem{{Key: "_step", ValueJson: "999"}},
+	}
+
+	assert.Same(t, summary, x.Tracker.StripSummaryStep(summary))
+}
+
+func TestStripSummaryStep_ServerSideDerivedSummaryKeepsStep(t *testing.T) {
+	x := makeHistoryStepTracker(t, false /*shared*/, true /*serverSideDerivedSummary*/)
+
+	summary := &spb.SummaryRecord{
+		Update: []*spb.SummaryItem{{Key: "_step", ValueJson: "999"}},
+	}
+
+	assert.Same(t, summary, x.Tracker.StripSummaryStep(summary))
 }
