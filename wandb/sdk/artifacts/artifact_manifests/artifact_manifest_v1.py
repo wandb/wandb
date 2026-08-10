@@ -5,18 +5,19 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from operator import itemgetter
 from typing import Annotated, Any, ClassVar, Dict, Literal, final
 
 from pydantic import Field
 
-from wandb.sdk.lib.hashutil import HexDigest, _md5, _xxh128
+from wandb.sdk.lib.hashutil import HexDigest, _md5, _xxh128, md5_file_b64
 
 from .._factories import make_storage_policy
 from .._generated import ArtifactDigestAlgorithm
 from .._models.manifest import ArtifactManifestV1Data
 from ..artifact_manifest import ArtifactManifest
-from ..artifact_manifest_entry import ArtifactManifestEntry
+from ..artifact_manifest_entry import DIGEST_ALGORITHM_EXTRA_KEY, ArtifactManifestEntry
 from ..storage_policy import StoragePolicy
 
 
@@ -86,3 +87,20 @@ class ArtifactManifestV1(ArtifactManifest):
 
     def size(self) -> int:
         return sum(entry.size for entry in self.entries.values() if entry.size)
+
+    def hash_contents_with_md5(self) -> None:
+        """Re-hash all of the entries with MD5."""
+
+        def _rehash(item: ArtifactManifestEntry) -> None:
+            if (
+                not item.local_path
+                or item.digest_algorithm() != ArtifactDigestAlgorithm.MANIFEST_XXH128
+            ):
+                return
+            item.digest = md5_file_b64(item.local_path)
+            del item.extra[DIGEST_ALGORITHM_EXTRA_KEY]
+
+        with ThreadPoolExecutor(max_workers=16) as executor:
+            futures = [executor.submit(_rehash, item) for item in self.entries.values()]
+            for future in as_completed(futures):
+                future.result()

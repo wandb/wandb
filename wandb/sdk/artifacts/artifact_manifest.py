@@ -63,6 +63,10 @@ class ArtifactManifest(ArtifactsBase, ABC):
     def size(self) -> int:
         raise NotImplementedError
 
+    @abstractmethod
+    def hash_contents_with_md5(self) -> None:
+        raise NotImplementedError
+
     def add_entry(self, entry: ArtifactManifestEntry, overwrite: bool = False) -> None:
         entry.path = validate_artifact_path(entry.path)
         if (
