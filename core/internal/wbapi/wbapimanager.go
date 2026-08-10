@@ -3,6 +3,7 @@ package wbapi
 import (
 	"context"
 	"fmt"
+	"maps"
 	"sync"
 )
 
@@ -73,18 +74,17 @@ func (mgr *WandbAPIManager) RemoveWandbAPI(id string) *WandbAPI {
 	}
 }
 
-// Shutdown cleans up and forgets all registered WandbAPI instances.
-//
-// API instances are removed as they are shut down, so repeat calls are no-ops.
+// Shutdown cleans up and removes all registered WandbAPI instances.
 func (mgr *WandbAPIManager) Shutdown(ctx context.Context) {
 	mgr.mu.Lock()
-	defer mgr.mu.Unlock()
+	apis := make(map[string]*WandbAPI)
+	maps.Copy(apis, mgr.apis)
+	clear(mgr.apis)
+	mgr.mu.Unlock()
 
 	var wg sync.WaitGroup
-	for _, wandbAPI := range mgr.apis {
+	for _, wandbAPI := range apis {
 		wg.Go(func() { wandbAPI.Shutdown(ctx) })
 	}
 	wg.Wait()
-
-	clear(mgr.apis)
 }

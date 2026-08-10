@@ -418,10 +418,6 @@ class Api:
     def default_entity(self) -> str:
         return self.viewer().get("entity")  # type: ignore
 
-    @property
-    def telemetry_recorder(self) -> TelemetryRecorder:
-        return self._telemetry_recorder
-
     @overload
     def settings(self, key: None = None) -> dict[str, Any]: ...
 

@@ -357,7 +357,7 @@ def test_max_scheduler_setup_fail(mocker, num_schedulers, clean_agent):
         LaunchAgent(
             api=mocker.api,
             config=mock_config,
-            telemetry_recorder=MagicMock(),
+            telemetry_recorder=TelemetryRecorder(),
         )
 
 
@@ -386,7 +386,7 @@ async def test_thread_finish_no_fail(mocker, clean_agent):
     agent = LaunchAgent(
         api=mocker.api,
         config=mock_config,
-        telemetry_recorder=MagicMock(),
+        telemetry_recorder=TelemetryRecorder(),
     )
     mock_saver = MagicMock()
     job = JobAndRunStatusTracker("run_queue_item_id", "test-queue", mock_saver)
@@ -413,7 +413,7 @@ async def test_thread_finish_sweep_fail(mocker, clean_agent):
     agent = LaunchAgent(
         api=mocker.api,
         config=mock_config,
-        telemetry_recorder=MagicMock(),
+        telemetry_recorder=TelemetryRecorder(),
     )
     mock_saver = MagicMock()
     job = JobAndRunStatusTracker("run_queue_item_id", "test-queue", mock_saver)
@@ -446,7 +446,7 @@ async def test_thread_finish_run_fail(mocker, clean_agent):
     agent = LaunchAgent(
         api=mocker.api,
         config=mock_config,
-        telemetry_recorder=MagicMock(),
+        telemetry_recorder=TelemetryRecorder(),
     )
     mock_saver = MagicMock()
     job = JobAndRunStatusTracker("run_queue_item_id", "test-queue", mock_saver)
@@ -480,7 +480,7 @@ async def test_thread_finish_run_fail_start(mocker, clean_agent):
     agent = LaunchAgent(
         api=mocker.api,
         config=mock_config,
-        telemetry_recorder=MagicMock(),
+        telemetry_recorder=TelemetryRecorder(),
     )
     mock_saver = MagicMock()
     job = JobAndRunStatusTracker("run_queue_item_id", "test-queue", mock_saver)
@@ -515,7 +515,7 @@ async def test_thread_finish_run_fail_different_entity(mocker, clean_agent):
     agent = LaunchAgent(
         api=mocker.api,
         config=mock_config,
-        telemetry_recorder=MagicMock(),
+        telemetry_recorder=TelemetryRecorder(),
     )
     mock_saver = MagicMock()
     job = JobAndRunStatusTracker("run_queue_item_id", "test-queue", mock_saver)

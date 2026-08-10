@@ -188,7 +188,7 @@ class Api:
             wandb_login._verify_login(self._auth, service_api=self._service_api)
 
         self._sentry = wandb.analytics.sentry.Sentry(pid=os.getpid())
-        self._configure_analytics(auth=self._auth)
+        self._configure_analytics()
 
     def _load_auth(self, base_url: str) -> wbauth.Auth:
         """Load or prompt for authentication credentials."""
@@ -206,7 +206,7 @@ class Api:
 
         return auth
 
-    def _configure_analytics(self, auth: wbauth.Auth) -> None:
+    def _configure_analytics(self) -> None:
         if not env.error_reporting_enabled():
             return
 
