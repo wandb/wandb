@@ -441,7 +441,7 @@ func newOTLPHTTPClient(
 	client.Transport = httplayers.WrapRoundTripper(
 		transport,
 		httplayers.Concat(
-			httplayers.ExtraHeaders(extraHeaders),
+			httplayers.DefaultHeaders(extraHeaders),
 			credentialProvider,
 		),
 	)

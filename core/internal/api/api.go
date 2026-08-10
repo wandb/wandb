@@ -170,7 +170,7 @@ func newRoundTripper(opts ClientOptions) http.RoundTripper {
 
 	return httplayers.WrapRoundTripper(transport, httplayers.Concat(
 		// Add the User-Agent header only if it's not set by a preceding layer.
-		httplayers.ExtraHeaders(userAgentHeader),
+		httplayers.DefaultHeaders(userAgentHeader),
 		opts.PreRetryLayers,
 	))
 }

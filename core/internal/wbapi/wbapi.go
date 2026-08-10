@@ -145,7 +145,7 @@ func newFileTransferClient(
 		InsecureDisableSSL: s.IsInsecureDisableSSL(),
 
 		PreRetryLayers: httplayers.Concat(
-			httplayers.ExtraHeaders(s.GetExtraHTTPHeaders()),
+			httplayers.DefaultHeaders(s.GetExtraHTTPHeaders()),
 			httplayers.LimitTo(baseURL, credentialProvider),
 		),
 	}

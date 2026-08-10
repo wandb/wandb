@@ -140,7 +140,7 @@ func NewFileStream(
 
 		PreRetryLayers: httplayers.Concat(
 			api.NetworkPeeker(peeker),
-			httplayers.ExtraHeaders(fileStreamHeaders),
+			httplayers.DefaultHeaders(fileStreamHeaders),
 			httplayers.LimitTo(baseURL, httplayers.Concat(
 				credentialProvider,
 				api.ResponseBasedRateLimiter(),
@@ -199,7 +199,7 @@ func NewFileTransferManager(
 
 		InsecureDisableSSL: s.IsInsecureDisableSSL(),
 
-		PreRetryLayers: httplayers.ExtraHeaders(s.GetExtraHTTPHeaders()),
+		PreRetryLayers: httplayers.DefaultHeaders(s.GetExtraHTTPHeaders()),
 	}
 
 	if retryMax := s.GetFileTransferMaxRetries(); retryMax > 0 {

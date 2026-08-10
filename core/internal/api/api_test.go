@@ -21,7 +21,7 @@ func TestDo(t *testing.T) {
 	defer server.Close()
 
 	client := api.NewClient(api.ClientOptions{
-		PreRetryLayers: httplayers.ExtraHeaders(http.Header{
+		PreRetryLayers: httplayers.DefaultHeaders(http.Header{
 			"ClientHeader": []string{"xyz"},
 		}),
 	})
