@@ -860,7 +860,7 @@ func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {
 		return
 	}
 
-	updates := runsummary.FromProto(summary)
+	updates := runsummary.FromProto(s.historySteps.StripSummaryStep(summary))
 	if err := updates.Apply(s.runSummary); err != nil {
 		s.logger.CaptureError(
 			"stream",
