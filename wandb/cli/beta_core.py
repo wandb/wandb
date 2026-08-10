@@ -97,7 +97,7 @@ def stop(*, exit_code: int = 0) -> None:
 
     except Exception as e:
         # TODO: remove sentry once we no longer support/need it
-        get_sentry().exception(e)
+        get_sentry().reraise(e)
 
     finally:
         asyncer.join()

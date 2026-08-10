@@ -129,7 +129,7 @@ def _launch_server(
             core_path = get_core_path()
         except WandbCoreNotAvailableError as e:
             # TODO: remove sentry once we no longer support/need it
-            get_sentry().exception(e)
+            get_sentry().reraise(e)
 
         service_args.append(core_path)
 
