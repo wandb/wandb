@@ -830,6 +830,8 @@ def sync(
         )
     if skip_console:
         wandb.termwarn("--skip-console is deprecated and will be removed.")
+    if sync_tensorboard:
+        wandb.termwarn("--sync-tensorboard is deprecated and will be removed.")
 
     # Fail if any beta options are provided in legacy mode.
     bad_options: list[str] = []
