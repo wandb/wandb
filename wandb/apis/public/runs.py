@@ -1278,8 +1278,11 @@ class Run(Attrs):
         """Returns an iterable collection of all history records for a run.
 
         Args:
-            keys: list of metrics to read from the run's history.
-                if no keys are provided then all metrics will be returned.
+            keys: List of metrics to read from the run's history. The scan only
+                returns rows that contain all of the requested keys. If the keys
+                were logged at different steps, use separate calls for each key
+                or omit this argument. If no keys are provided, all metrics are
+                returned.
             page_size: the number of history records to read at a time.
             min_step: The minimum step to start reading history from (inclusive).
             max_step: The maximum step to read history up to (exclusive).
