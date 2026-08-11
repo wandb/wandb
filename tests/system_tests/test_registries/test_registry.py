@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Generator
 from itertools import islice, product
 from unittest.mock import patch
@@ -9,6 +10,7 @@ from pytest import fixture, mark, param, raises
 from wandb import Api, Artifact
 from wandb._strutils import b64decode_ascii
 from wandb.apis.public.registries.registry import Registry
+from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX, remove_registry_prefix
 
 
@@ -407,6 +409,65 @@ def test_fetch_registries(team: str, org: str, org_entity: str, api: Api):
     descending = [r.name for r in api.registries(organization=org, order="-name")]
     assert ascending == expected_asc_names
     assert descending == expected_desc_names
+
+
+def test_advanced_feature_response_selects_version_filter_fields(
+    api: Api,
+    wandb_backend_spy,
+):
+    gql = wandb_backend_spy.gql
+    features = [
+        pb.ARTIFACT_REGISTRY_SEARCH,
+        pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING,
+    ]
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="ServerFeaturesQuery"),
+        gql.Constant(
+            content={
+                "data": {
+                    "serverInfo": {
+                        "features": [
+                            {
+                                "name": pb.ServerFeature.Name(feature),
+                                "isEnabled": True,
+                            }
+                            for feature in features
+                        ]
+                    }
+                }
+            }
+        ),
+    )
+    advanced_features = gql.once(
+        content={
+            "data": {
+                "organization": {"advancedRegistryFeatures": {"advancedSearch": True}}
+            }
+        }
+    )
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(
+            operation="FetchAdvancedRegistryFeatures",
+            variables={"organization": "advanced-org"},
+        ),
+        advanced_features,
+    )
+    versions = (
+        api.registries(organization="advanced-org", filter={"id": "registry-id"})
+        .collections(filter={"collection_id": "collection-id"})
+        .versions(filter={"created_at": "2026-08-10"})
+    )
+
+    assert json.loads(versions.variables["registryFilter"]) == {
+        "project_id": "registry-id"
+    }
+    assert json.loads(versions.variables["collectionFilter"]) == {
+        "artifact_collection_id": "collection-id"
+    }
+    assert json.loads(versions.variables["artifactFilter"]) == {
+        "artifact_created_at": "2026-08-10"
+    }
+    assert advanced_features.total_calls == 1
 
 
 @fixture

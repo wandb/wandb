@@ -16,6 +16,9 @@ from wandb.apis.paginator import Paginator, RelayPaginator, SizedRelayPaginator
 from wandb.errors import UnsupportedError
 
 from ._utils import (
+    ADVANCED_SEARCH_CTX_KEY,
+    VERSIONS_FILTER_FIELDS,
+    advanced_search_enabled,
     filter_for_registry,
     prepare_registry_filter,
     registry_filter_for_collection,
@@ -38,19 +41,30 @@ if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
 
 
-# Type annotations for `filter` arguments.
+# Type annotations for `filter` arguments that always use the basic policy.
+_BASIC_REGISTRY_FILTER_ALIASES = VERSIONS_FILTER_FIELDS.for_filter(
+    "registry_filter", advanced=False
+)
+_BASIC_COLLECTION_FILTER_ALIASES = VERSIONS_FILTER_FIELDS.for_filter(
+    "collection_filter", advanced=False
+)
+
 _RegistryFilter: TypeAlias = Annotated[
     FilterDict,
-    FilterValidator(valid=("name", "description", "created_at", "updated_at")),
+    FilterValidator(valid=_BASIC_REGISTRY_FILTER_ALIASES),
     AfterValidator(prepare_registry_filter),
 ]
 _CollectionFilter: TypeAlias = Annotated[
     FilterDict,
-    FilterValidator(valid=("name", "tag", "description", "created_at", "updated_at")),
+    FilterValidator(valid=_BASIC_COLLECTION_FILTER_ALIASES),
 ]
 _VersionFilter: TypeAlias = Annotated[
     FilterDict,
-    FilterValidator(valid=("tag", "alias", "created_at", "updated_at", "metadata")),
+    FilterValidator(resolve=VERSIONS_FILTER_FIELDS.resolve),
+]
+_VersionRegistryFilter: TypeAlias = Annotated[
+    _VersionFilter,
+    AfterValidator(prepare_registry_filter),
 ]
 
 # Type annotations for `order` arguments.
@@ -102,8 +116,8 @@ class _VersionsVars(PaginatorVars):
 
     organization: str
 
-    registry_filter: _RegistryFilter | None = None
-    collection_filter: _CollectionFilter | None = None
+    registry_filter: _VersionRegistryFilter | None = None
+    collection_filter: _VersionFilter | None = None
     artifact_filter: _VersionFilter | None = None
     per_page: PositiveInt = 100
 
@@ -242,7 +256,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
     @tracked
     def versions(
         self,
-        filter: _VersionFilter | None = None,
+        filter: FilterDict | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ) -> VersionsIterator:
@@ -381,7 +395,7 @@ class Collections(
     @tracked
     def versions(
         self,
-        filter: _VersionFilter | None = None,
+        filter: FilterDict | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ) -> VersionsIterator:
@@ -480,9 +494,9 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
         self,
         service_api: ServiceApi,
         organization: str,
-        registry_filter: _RegistryFilter | None = None,
-        collection_filter: _CollectionFilter | None = None,
-        artifact_filter: _VersionFilter | None = None,
+        registry_filter: FilterDict | None = None,
+        collection_filter: FilterDict | None = None,
+        artifact_filter: FilterDict | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ):
@@ -491,12 +505,19 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
 
             type(self).QUERY = REGISTRY_VERSIONS_GQL
 
-        args = _VersionsVars(
-            organization=organization,
-            registry_filter=registry_filter,
-            collection_filter=collection_filter,
-            artifact_filter=artifact_filter,
-            per_page=per_page,
+        args = _VersionsVars.model_validate(
+            {
+                "organization": organization,
+                "registry_filter": registry_filter,
+                "collection_filter": collection_filter,
+                "artifact_filter": artifact_filter,
+                "per_page": per_page,
+            },
+            context={
+                ADVANCED_SEARCH_CTX_KEY: advanced_search_enabled(
+                    service_api, organization
+                )
+            },
         )
 
         self.organization = args.organization
