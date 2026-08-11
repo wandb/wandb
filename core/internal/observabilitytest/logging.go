@@ -34,20 +34,22 @@ func NewRecordingTestLogger(t *testing.T) (
 	*bytes.Buffer,
 ) {
 	t.Helper()
-
-	recordedLogs := &bytes.Buffer{}
-	writer := io.MultiWriter(t.Output(), recordedLogs)
-
-	return observability.NewCoreLogger(
-		slog.New(slog.NewJSONHandler(writer, &slog.HandlerOptions{})),
-		nil,
-		analytics.NewTelemetryRecorder(nil, analytics.NewTelemetryContext()),
-	), recordedLogs
+	return newRecordingTestLogger(t, slog.LevelInfo)
 }
 
 // NewDebugRecordingTestLogger is like NewRecordingTestLogger but also
 // captures messages below the INFO level.
 func NewDebugRecordingTestLogger(t *testing.T) (
+	*observability.CoreLogger,
+	*bytes.Buffer,
+) {
+	t.Helper()
+	return newRecordingTestLogger(t, slog.LevelDebug)
+}
+
+// newRecordingTestLogger returns a logger that records messages at or
+// above the given level into the returned buffer.
+func newRecordingTestLogger(t *testing.T, level slog.Level) (
 	*observability.CoreLogger,
 	*bytes.Buffer,
 ) {
@@ -59,7 +61,7 @@ func NewDebugRecordingTestLogger(t *testing.T) (
 	return observability.NewCoreLogger(
 		slog.New(slog.NewJSONHandler(
 			writer,
-			&slog.HandlerOptions{Level: slog.LevelDebug},
+			&slog.HandlerOptions{Level: level},
 		)),
 		nil,
 		analytics.NewTelemetryRecorder(nil, analytics.NewTelemetryContext()),
