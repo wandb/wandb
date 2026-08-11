@@ -111,14 +111,15 @@ class Optimizer(ABC):
         self._sweep = sweep
 
     @abstractmethod
-    def ask_n_runs(self, n: int) -> Sequence[RunSuggestion]:
+    def ask_n_runs(self, n: int) -> Sequence[RunSuggestion] | None:
         """Propose up to `n` runs to start next.
 
-        Fewer than `n` may come back when the search space is nearly exhausted
-        or the strategy needs results before proposing more. Returning nothing
-        at all means the search space is exhausted: a scheduler takes it as the
-        end of the sweep and finishes it, so a strategy that is only waiting on
-        results must propose at least one run.
+        Fewer than `n` may come back when the search space is nearly
+        exhausted. Returning an empty sequence means the search space is
+        exhausted: a scheduler takes it as the end of the sweep and finishes
+        it. Returning None declines to propose for now (e.g. the strategy
+        needs results from in-flight runs first); the scheduler asks again
+        on a later poll.
 
         Args:
             n: The maximum number of runs to propose.
@@ -185,12 +186,12 @@ class Optimizer(ABC):
     def prune_run(self, run_id: Any, data: RunWithMetrics) -> bool:
         """Return True if the run should be pruned.
 
-        Override to stop single runs early; the default prunes nothing.
+        Override to stop single runs early, the default prunes nothing.
         The default `prune_runs` calls this for each polled run.
 
         Args:
-            run_id: The `RunSuggestion.run_id` this optimizer handed out.
-            data: The run's current state, summary metrics and history.
+            run_id: The `RunSuggestion.run_id` the optimizer handed out.
+            data: The run's current state, summary and history metrics.
         """
         return False
 
@@ -200,7 +201,7 @@ class Optimizer(ABC):
         """Return the optimizer run ids that should be pruned.
 
         Override to decide early stopping across runs as a batch; the
-        default delegates to `prune_run` for each run.
+        default delegates calls to `prune_run` for each run.
 
         Args:
             run_ids: Optimizer run ids to consider for pruning.

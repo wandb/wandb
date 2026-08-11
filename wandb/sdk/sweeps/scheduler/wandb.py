@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from typing_extensions import override
 
@@ -20,11 +20,14 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
     is_terminal_state,
 )
 
-sweeps = util.get_module(
-    "sweeps",
-    required="wandb[sweeps] is required to use the wandb sweep scheduler. "
-    "Please run `pip install wandb[sweeps]`.",
-)
+if TYPE_CHECKING:
+    import sweeps
+else:
+    sweeps = util.get_module(
+        "sweeps",
+        required="wandb[sweeps] is required to use the wandb sweep scheduler. "
+        "Please run `pip install wandb[sweeps]`.",
+    )
 
 
 def _to_sweeps_state(state: RunState) -> Any:
@@ -47,7 +50,7 @@ class WandbOptimizer(Optimizer):
     def __init__(self, sweep: Sweep):
         super().__init__(sweep)
         # key: run id, value: the SweepRun we hold for it
-        self._runs: dict[str, Any] = {}
+        self._runs: dict[str, sweeps.SweepRun] = {}
         self._run_counter = 0
 
     def _new_run_id(self) -> str:
