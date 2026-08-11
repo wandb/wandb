@@ -10,6 +10,8 @@ __all__ = (
     "DownloadHistoryResult",
     "RunArtifacts",
     "Automations",  # doc:exclude
+    "ConsoleLogLine",
+    "ConsoleLogs",
     "File",
     "Files",
     "HistoryScan",  # doc:exclude
@@ -56,6 +58,7 @@ from wandb.apis.public.artifacts import (
     RunArtifacts,
 )
 from wandb.apis.public.automations import Automations
+from wandb.apis.public.console_logs import ConsoleLogLine, ConsoleLogs
 from wandb.apis.public.files import FILE_FRAGMENT, File, Files
 from wandb.apis.public.history import HistoryScan
 from wandb.apis.public.integrations import (

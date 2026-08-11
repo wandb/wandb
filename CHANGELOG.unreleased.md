@@ -22,6 +22,7 @@ The `wandb sync --clean` command now exits with code 1 and prints a hint to use 
 ## Added
 
 - Added support for gzip compression of filestream requests, reducing network traffic when logging metrics. It is currently opt-in and requires server support: set `x_file_stream_no_gzip=False` in `wandb.Settings` to enable it. Compression will become the default in a future release (@dmitryduev in https://github.com/wandb/wandb/pull/12262)
+- Added `run.console_logs()` to the public API for reading the console output that W&B captured for a run, the same log shown in the Logs tab of the run page. It reads the whole log from the beginning, or only the last N lines with `run.console_logs(last=N)`, and works for finished runs as well as runs that are still going. Reading from the beginning requires W&B Server 0.77 or newer; reading the last N lines works on all supported server versions (@dmitryduev in https://github.com/wandb/wandb/pull/XXXXX)
 - Added a `--term-timeout` flag to `wandb agent` (@nathancy-wandb in https://github.com/wandb/wandb/pull/12246)
 - Added `run.sync_dir` (@timoffex in https://github.com/wandb/wandb/pull/12319)
 
