@@ -3118,7 +3118,6 @@ class Run:
             The linked artifact.
 
         Examples:
-
         ```python
         import wandb
 
