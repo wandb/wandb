@@ -413,6 +413,12 @@ def get_telemetry_recorder(settings: Settings) -> TelemetryRecorder:
         return recorder
 
 
+def clear_telemetry_recorder_pool() -> None:
+    """Clear the telemetry recorder pool."""
+    with _recorder_pool_lock:
+        _recorder_pool.clear()
+
+
 def _pool_key(settings: Settings) -> str:
     """Hash of the settings fields that identify a deployment and account.
 

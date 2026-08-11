@@ -600,6 +600,7 @@ def teardown(exit_code: int | None = None) -> None:
     """
     global _singleton
 
+    from wandb.analytics.opentelemetry import clear_telemetry_recorder_pool
     from wandb.sdk.lib import wbauth
 
     with _singleton_lock:
@@ -610,3 +611,5 @@ def teardown(exit_code: int | None = None) -> None:
         orig_singleton._teardown(exit_code=exit_code)
 
     wbauth.unauthenticate_session(update_settings=False)
+
+    clear_telemetry_recorder_pool()
