@@ -222,7 +222,23 @@ def create_sweep_from_config(
     *,
     options: SchedulerOptions | None = None,
 ) -> Scheduler:
-    """Create a W&B sweep from `config` and attach a wandb scheduler."""
+    """Create a W&B sweep from `config` and attach a wandb scheduler.
+
+    Args:
+        config: The sweep config; `scheduler.engine` must be `"wandb"`.
+        entity: The entity to create the sweep under.
+        project: The project to create the sweep under.
+        options: How the scheduler drives the sweep; see `SchedulerOptions`.
+
+    Returns:
+        A scheduler whose `loop()` drives the new sweep.
+
+    Raises:
+        ValueError: If `config` does not select the wandb engine, or if
+            `entity` or `project` is empty.
+    """
+    if not entity or not project:
+        raise ValueError("entity and project must be non-empty")
     if (
         "scheduler" not in config
         or "engine" not in config["scheduler"]
@@ -248,9 +264,19 @@ def resume_sweep(
 ) -> Scheduler:
     """Attach a reference scheduler to a sweep that already exists.
 
-    `sweep` may be a `Sweep` or an `"entity/project/sweep_id"` path string; its
-    search `method`/`parameters` are read off the sweep itself.
+    Args:
+        sweep: The sweep whose search `method`/`parameters` to drive, as a
+            `Sweep` or an `"entity/project/sweep_id"` path string.
+        options: How the scheduler drives the sweep; see `SchedulerOptions`.
+
+    Returns:
+        A scheduler whose `loop()` drives the sweep.
+
+    Raises:
+        ValueError: If `sweep` is an empty string.
     """
+    if isinstance(sweep, str) and not sweep:
+        raise ValueError("sweep path must be non-empty")
     resolved: Sweep = Api().sweep(sweep) if isinstance(sweep, str) else sweep
     optimizer = WandbOptimizer(resolved)
     return InMemoryScheduler(

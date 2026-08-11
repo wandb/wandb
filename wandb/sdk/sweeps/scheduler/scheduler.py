@@ -61,6 +61,13 @@ _MAX_CONSECUTIVE_ERRORS = 10
 
 _WARM_START_PAGE_SIZE = 200
 
+# Runs per page when polling the sweep's in-flight runs.
+_RUNS_PAGE_SIZE = 50
+
+# Sampled history points fetched per run each poll; this is the history the
+# optimizer's early-stopping decisions see.
+_HISTORY_SAMPLES = 20
+
 
 class _LoopControl(enum.Enum):
     CONTINUE = enum.auto()
@@ -739,14 +746,17 @@ class InMemoryScheduler(Scheduler):
         # Runs the last fetch saw on the server but could not build.
         self._unreadable_run_ids: frozenset[str] = frozenset()
 
+    @override
     def in_flight_runs(self) -> Mapping[str, Any]:
         """The in-memory {wandb_run_id: optimizer_run_id} map."""
         return self._in_flight
 
+    @override
     def pop_in_flight_run(self, wandb_run_id: str) -> Any:
         """Remove `wandb_run_id` from the map; return its optimizer id."""
         return self._in_flight.pop(wandb_run_id, None)
 
+    @override
     def push_in_flight_run(self, wandb_run_id: str, optimizer_run_id: Any) -> None:
         """Add a run to the in-flight set.
 
@@ -757,6 +767,7 @@ class InMemoryScheduler(Scheduler):
             raise ValueError(f"Run {wandb_run_id} is already in flight")
         self._in_flight[wandb_run_id] = optimizer_run_id
 
+    @override
     def fetch_existing_finished_runs(self) -> Iterable[RunWithMetrics]:
         """Query the sweep's terminal runs, with their summary metrics."""
         runs = self._sweep_runs(
@@ -773,6 +784,7 @@ class InMemoryScheduler(Scheduler):
             ),
         )
 
+    @override
     def fetch_existing_unfinished_runs(self) -> Iterable[Run]:
         """Query the sweep's RUNNING/PENDING runs, without metrics."""
         runs = self._sweep_runs(
@@ -787,6 +799,7 @@ class InMemoryScheduler(Scheduler):
             ),
         )
 
+    @override
     def fetch_active_runs(self) -> Iterable[RunWithMetrics]:
         """Re-query tracked in-flight runs with fresh state and metrics."""
         if not self._in_flight:
@@ -835,7 +848,9 @@ class InMemoryScheduler(Scheduler):
                 wandb_run_id=run.id,
                 summary_metrics=run.summary_metrics,
                 history_metrics=run.history(
-                    keys=[self._optimizer.metric_key()], samples=20, pandas=False
+                    keys=[self._optimizer.metric_key()],
+                    samples=_HISTORY_SAMPLES,
+                    pandas=False,
                 ),
             )
             storage_ids[run.id] = run.storage_id
@@ -848,10 +863,12 @@ class InMemoryScheduler(Scheduler):
         """W&B run ids the last poll saw but could not build."""
         return self._unreadable_run_ids
 
+    @override
     def sweep_state(self) -> SweepState:
         """The sweep's state, re-read from the server."""
         return self._sweep.state
 
+    @override
     def stop_run(self, wandb_run_id: str) -> bool:
         """Ask the server to stop the run; True if it was accepted."""
         storage_id = self._storage_ids.get(wandb_run_id)
@@ -862,7 +879,9 @@ class InMemoryScheduler(Scheduler):
             self._storage_ids.pop(wandb_run_id)
         return res
 
-    def _sweep_runs(self, filters: dict[str, Any], per_page: int = 50) -> Iterable[Any]:
+    def _sweep_runs(
+        self, filters: dict[str, Any], per_page: int = _RUNS_PAGE_SIZE
+    ) -> Iterable[Any]:
         """Query the sweep's runs, with config and summary metrics prefetched.
 
         `lazy=False` fetches the full run fragment per page,

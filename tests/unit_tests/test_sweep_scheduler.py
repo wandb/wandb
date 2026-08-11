@@ -5,6 +5,7 @@ import contextlib
 import signal
 import threading
 from collections.abc import Iterator, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -688,6 +689,7 @@ class SchedulerAcceptanceTests(abc.ABC):
         sweep.finish.assert_not_called()  # type: ignore[attr-defined]
         executor.schedule.assert_not_called()
         assert len(scheduler.in_flight_runs()) == 0
+
     def test_loop_exits_when_cancelled_without_calling_optimizer(
         self,
         scheduler: Scheduler,
@@ -696,12 +698,15 @@ class SchedulerAcceptanceTests(abc.ABC):
         mock_api: MagicMock,
     ) -> None:
         optimizer_called = threading.Event()
-        optimizer_finished = threading.Event()
+        release_optimizer = threading.Event()
         warm_start_runs_calls = 2
 
         def blocking_next_n(n: int) -> list[RunSuggestion]:
             optimizer_called.set()
-            optimizer_finished.wait(timeout=1.0)
+            # Block until the test releases it, so the loop must exit while
+            # the optimizer is still working. The pytest timeout is the
+            # backstop if the loop never exits.
+            release_optimizer.wait()
             return make_suggestions(n)
 
         optimizer.ask_n_runs_mock.side_effect = blocking_next_n
@@ -718,31 +723,29 @@ class SchedulerAcceptanceTests(abc.ABC):
         driver = LoopDriver(
             scheduler, SweepState.RUNNING, exit_state=SweepState.CANCELED
         )
-        loop_done = threading.Event()
 
         def run_loop() -> None:
-            try:
-                with driver.driving():
-                    scheduler.loop()
-            finally:
-                loop_done.set()
+            with driver.driving():
+                scheduler.loop()
 
-        loop_thread = threading.Thread(target=run_loop)
-        loop_thread.start()
-
-        # Cancel only once the optimizer is known to be working, so the loop has
-        # to notice the transition while blocked on `ask_n_runs` rather than at
-        # some particular state query.
-        assert optimizer_called.wait(timeout=2.0)
-        driver.state = SweepState.CANCELED
-
-        assert loop_done.wait(timeout=2.0)
-        loop_thread.join(timeout=2.0)
+        try:
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(run_loop)
+                # Cancel only once the optimizer is known to be working, so the
+                # loop has to notice the transition while blocked on
+                # `ask_n_runs` rather than at some particular state query.
+                optimizer_called.wait()
+                driver.state = SweepState.CANCELED
+                # Re-raises anything the loop raised, including guarded_runs's
+                # AssertionError.
+                future.result()
+        finally:
+            # Unblock the optimizer's fetch thread before asserting.
+            release_optimizer.set()
 
         optimizer.ask_n_runs_mock.assert_called_once()
-        # The loop left without waiting for the blocked optimizer, so nothing it
-        # would eventually suggest was scheduled.
-        assert not optimizer_finished.is_set()
+        # The loop left without waiting for the blocked optimizer, so nothing
+        # it would eventually suggest was scheduled.
         executor.schedule.assert_not_called()
         assert len(scheduler.in_flight_runs()) == 0
         assert mock_api.runs.call_count == warm_start_runs_calls
