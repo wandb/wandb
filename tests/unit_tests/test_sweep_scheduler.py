@@ -1219,7 +1219,7 @@ def test_sweep_scheduler_cli_resolves_full_sweep_path(runner: CliRunner) -> None
     assert result.exit_code == 0, result.output
     mocks.public_api.sweep.assert_called_once_with("entity/project/sweep-1")
     mocks.resume_sweep.assert_called_once_with(
-        sweep, options=SchedulerOptions(poll_interval_s=5.0, batch_size=10)
+        sweep, options=SchedulerOptions(poll_interval_s=10.0, batch_size=10)
     )
     mocks.scheduler.loop.assert_called_once()
 

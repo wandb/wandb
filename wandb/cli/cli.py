@@ -2226,11 +2226,15 @@ def scheduler(
         raise
 
 
+# The scheduler's own poll loop already backs off, but polling more often
+# than this just burns API quota without fresher run data.
+_SCHEDULER_MIN_POLL_INTERVAL_S = 5
+
+
 @cli.command(
     name="sweep-scheduler",
     context_settings=CONTEXT,
-    help="Run a local scheduler that drives a sweep with an external optimizer "
-    "(Experimental).",
+    help="Run a local scheduler that suggests a sweep's runs (Experimental).",
 )
 @click.option("--entity", "-e", default=None, help="Entity that owns the sweep.")
 @click.option("--project", "-p", default=None, help="Project that owns the sweep.")
@@ -2258,7 +2262,7 @@ def sweep_scheduler(
     """Drive an existing sweep from a local, in-process scheduler.
 
     Create the sweep first with `wandb sweep sweep.yaml`; its config must set
-    `scheduler: {engine: <wandb|optuna|ax>}` so the server leaves the search to
+    `scheduler: {engine: wandb}` so the server leaves the search to
     this scheduler. The scheduler proposes runs, enqueues them, and polls their
     results to drive the optimizer.
     """
@@ -2267,8 +2271,10 @@ def sweep_scheduler(
         wandb.termlog("Login to W&B to use the sweep scheduler feature")
         click.get_current_context().invoke(login, no_offline=True)
 
-    if poll_interval < 5:
-        wandb.termerror("poll_interval must be at least 5 seconds")
+    if poll_interval < _SCHEDULER_MIN_POLL_INTERVAL_S:
+        wandb.termerror(
+            f"--poll-interval must be at least {_SCHEDULER_MIN_POLL_INTERVAL_S} seconds"
+        )
         sys.exit(1)
     # Resolve the sweep the user already created with `wandb sweep`.
     if "/" in sweep_id:
@@ -2287,17 +2293,15 @@ def sweep_scheduler(
     if not engine:
         raise ClickException(
             "The sweep scheduler requires a sweep created with "
-            "'scheduler': {'engine': <wandb|optuna|ax>} in its config."
+            "'scheduler': {'engine': wandb} in its config."
         )
     if engine == "wandb":
         search_space = scheduler_config.get("search_space")
         optimizer = scheduler_config.get("optimizer")
         if optimizer is not None:
-            wandb.termwarn("optimizer config is not supported by the sweep scheduler.")
+            wandb.termwarn("optimizer config is not supported by the wandb engine.")
         if search_space is not None:
-            wandb.termwarn(
-                "search_space config is not supported by the sweep scheduler."
-            )
+            wandb.termwarn("search_space config is not supported by the wandb engine.")
 
         from wandb.sdk.sweeps.scheduler import wandb as wandb_scheduler
         from wandb.sdk.sweeps.scheduler.scheduler import SchedulerOptions
