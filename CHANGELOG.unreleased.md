@@ -62,6 +62,7 @@ The `wandb sync --clean` command now exits with code 1 and prints a hint to use 
 - Log messages captured from Python loggers no longer add blank lines to a run's logs (@dmitryduev in https://github.com/wandb/wandb/pull/12387)
 - `del run.summary[key]` now removes metrics that were logged as nested values, which it previously ignored (@dmitryduev in https://github.com/wandb/wandb/pull/12389)
 - `artifact.download(skip_cache=True)` no longer silently keeps a pre-existing file that has the right size but the wrong contents, such as a file from an older version of the artifact. Previously, the wrong file was also remembered as correct, so re-downloading did not replace it either (@dmitryduev in https://github.com/wandb/wandb/pull/12445)
+- Downloading an artifact with `skip_cache=True` no longer changes where later downloads in the same process are written (@dmitryduev in https://github.com/wandb/wandb/pull/12446)
 
 ## Security
 

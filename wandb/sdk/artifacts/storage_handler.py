@@ -5,7 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Final
 
-from wandb.sdk.lib.paths import FilePathStr, URIStr
+from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
 if TYPE_CHECKING:
     from urllib.parse import ParseResult
@@ -22,12 +22,14 @@ class _BaseStorageHandler(ABC):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
+        dest_path: StrPath | None = None,
     ) -> URIStr | FilePathStr:
         """Load a file or directory given the corresponding index entry.
 
         Args:
             manifest_entry: The index entry to load
             local: Whether to load the file locally or not
+            dest_path: If given, the path to load the file into, skipping the cache
 
         Returns:
             A path to the file represented by `index_entry`

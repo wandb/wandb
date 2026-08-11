@@ -30,6 +30,7 @@ from wandb.sdk.artifacts.storage_policies._multipart import (
     should_multipart_download,
 )
 from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import WandbStoragePolicy
+from wandb.sdk.lib.hashutil import md5_string
 
 if TYPE_CHECKING:
     from typing import Protocol
@@ -485,6 +486,33 @@ def test_cache_write_failure_is_ignored(
 
     captured = capsys.readouterr()
     assert "Failed to cache" in captured.err
+
+
+@responses.activate()
+def test_skip_cache_download_does_not_affect_later_downloads(
+    artifact_file_cache: ArtifactFileCache, tmp_path: Path
+):
+    responses.get("https://wandb.test/first", body=b"first")
+    responses.get("https://wandb.test/second", body=b"second")
+
+    artifact = Artifact("test-artifact", type="dataset")
+
+    first = ArtifactManifestEntry(path="first", digest=md5_string("first"), size=5)
+    first._download_url = "https://wandb.test/first"
+    second = ArtifactManifestEntry(path="second", digest=md5_string("second"), size=6)
+    second._download_url = "https://wandb.test/second"
+
+    dest_path = tmp_path / "downloads" / "first"
+    skipped_path = WandbStoragePolicy().load_file(
+        artifact, first, dest_path=str(dest_path)
+    )
+    assert Path(skipped_path) == dest_path
+
+    # The next download uses the same process-wide cache and must be unaffected.
+    cached_path = Path(WandbStoragePolicy().load_file(artifact, second))
+    assert cached_path.is_relative_to(artifact_file_cache._obj_dir)
+    assert cached_path.read_text() == "second"
+    assert dest_path.read_text() == "first"
 
 
 def test_artifact_manifest_length():

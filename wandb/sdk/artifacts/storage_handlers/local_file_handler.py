@@ -54,6 +54,7 @@ class LocalFileHandler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
+        dest_path: StrPath | None = None,
     ) -> URIStr | FilePathStr:
         if (ref_uri := manifest_entry.ref) is None:
             raise ValueError(f"Cannot add path with no ref: {manifest_entry.path}")
@@ -66,7 +67,9 @@ class LocalFileHandler(StorageHandler):
         expected_digest = manifest_entry.digest
 
         path, hit, cache_open = self._cache.check_md5_obj_path(
-            b64_md5=expected_digest, size=manifest_entry.size or 0
+            b64_md5=expected_digest,
+            size=manifest_entry.size or 0,
+            override_path=dest_path,
         )
         if hit:
             return path

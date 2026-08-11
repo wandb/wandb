@@ -87,6 +87,7 @@ class GCSHandler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
+        dest_path: StrPath | None = None,
     ) -> URIStr | FilePathStr:
         if (ref_uri := manifest_entry.ref) is None:
             raise ValueError("Missing reference path/URI on artifact manifest entry")
@@ -97,7 +98,10 @@ class GCSHandler(StorageHandler):
         expected_size = manifest_entry.size
 
         path, hit, cache_open = self._cache.check_etag_obj_path(
-            url=ref_uri, etag=expected_digest, size=expected_size or 0
+            url=ref_uri,
+            etag=expected_digest,
+            size=expected_size or 0,
+            override_path=dest_path,
         )
         if hit:
             return path
