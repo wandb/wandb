@@ -58,12 +58,12 @@ class ServiceApi:
         return self._settings.base_url
 
     @property
-    def settings(self) -> wandb_settings.Settings:
-        return self._settings
+    def initialized(self) -> bool:
+        """Returns whether the lazy connection to wandb-core has been made.
 
-    @property
-    def is_connected(self) -> bool:
-        """Returns whether the service API is connected to a wandb-core service."""
+        It does not indicate the the connection is healthy, only that a connection
+        has been cached.
+        """
         return self._api_session is not None
 
     def _get_api_session(self) -> _ServiceApiSession:

@@ -71,8 +71,11 @@ func (ErrorType) EnumDescriptor() ([]byte, []int) {
 //
 // ServerApiCleanupRequest should be used once the instance is no longer needed.
 type ServerApiInitRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Settings      *Settings              `protobuf:"bytes,1,opt,name=settings,proto3" json:"settings,omitempty"`
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Settings *Settings              `protobuf:"bytes,1,opt,name=settings,proto3" json:"settings,omitempty"`
+	// The name of the service requesting the API instance.
+	// This is used to identify the service in the OpenTelemetry backend.
+	ServiceName   string `protobuf:"bytes,2,opt,name=service_name,json=serviceName,proto3" json:"service_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -112,6 +115,13 @@ func (x *ServerApiInitRequest) GetSettings() *Settings {
 		return x.Settings
 	}
 	return nil
+}
+
+func (x *ServerApiInitRequest) GetServiceName() string {
+	if x != nil {
+		return x.ServiceName
+	}
+	return ""
 }
 
 type ServerApiInitResponse struct {
@@ -3636,9 +3646,10 @@ var File_wandb_proto_wandb_api_proto protoreflect.FileDescriptor
 
 const file_wandb_proto_wandb_api_proto_rawDesc = "" +
 	"\n" +
-	"\x1bwandb/proto/wandb_api.proto\x12\x0ewandb_internal\x1a wandb/proto/wandb_internal.proto\x1a\x1cwandb/proto/wandb_otel.proto\x1a wandb/proto/wandb_settings.proto\"L\n" +
+	"\x1bwandb/proto/wandb_api.proto\x12\x0ewandb_internal\x1a wandb/proto/wandb_internal.proto\x1a\x1cwandb/proto/wandb_otel.proto\x1a wandb/proto/wandb_settings.proto\"o\n" +
 	"\x14ServerApiInitRequest\x124\n" +
-	"\bsettings\x18\x01 \x01(\v2\x18.wandb_internal.SettingsR\bsettings\"S\n" +
+	"\bsettings\x18\x01 \x01(\v2\x18.wandb_internal.SettingsR\bsettings\x12!\n" +
+	"\fservice_name\x18\x02 \x01(\tR\vserviceName\"S\n" +
 	"\x15ServerApiInitResponse\x12#\n" +
 	"\rerror_message\x18\x01 \x01(\tR\ferrorMessage\x12\x15\n" +
 	"\x06api_id\x18\x02 \x01(\tR\x05apiId\"\x90\b\n" +

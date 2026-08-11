@@ -16,11 +16,11 @@ type OpenTelemetryHandler struct {
 	telemetryRecorder *analytics.TelemetryRecorder
 }
 
-func NewOpenTelemetryHandler(s *settings.Settings) *OpenTelemetryHandler {
+func NewOpenTelemetryHandler(s *settings.Settings, serviceName string) *OpenTelemetryHandler {
 	otelProvider := analytics.NewOpenTelemetryProxy(
 		context.Background(),
 		s,
-		"wandb", /* events through here are sent from python */
+		serviceName,
 	)
 	telemetryRecorder := analytics.NewTelemetryRecorder(
 		otelProvider,

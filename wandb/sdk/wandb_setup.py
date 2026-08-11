@@ -403,11 +403,6 @@ class _WandbSetup:
 
         return self._connection
 
-    @property
-    def service_connected(self) -> bool:
-        """Whether a connection to the service process already exists."""
-        return self._connection is not None
-
 
 _singleton: _WandbSetup | None = None
 """The W&B library singleton, or None if not yet set up.

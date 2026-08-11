@@ -28,7 +28,7 @@ def test_telemetry_parse():
 
 def test_disabled_telemetry_does_not_publish(monkeypatch):
     monkeypatch.setattr(env, "error_reporting_enabled", lambda: False)
-    service_api = MagicMock(is_connected=True)
+    service_api = MagicMock(initialized=True)
     recorder = TelemetryRecorder(service_api=service_api)
 
     recorder.increment_counter_and_log_event("test")
@@ -96,7 +96,7 @@ def test_reraise_raises_original_on_telemetry_fail(monkeypatch):
 
 def test_telemetry_does_not_publish_without_service_connection(monkeypatch):
     monkeypatch.setattr(env, "error_reporting_enabled", lambda: True)
-    service_api = MagicMock(is_connected=False)
+    service_api = MagicMock(initialized=False)
     recorder = TelemetryRecorder(service_api=service_api)
 
     recorder.increment_counter("test_counter", LowCardinalityAttributes())

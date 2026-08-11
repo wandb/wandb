@@ -17,10 +17,12 @@ UNKNOWN_ERROR: ErrorType
 INCOMPLETE_RUN_HISTORY_ERROR: ErrorType
 
 class ServerApiInitRequest(_message.Message):
-    __slots__ = ("settings",)
+    __slots__ = ("settings", "service_name")
     SETTINGS_FIELD_NUMBER: _ClassVar[int]
+    SERVICE_NAME_FIELD_NUMBER: _ClassVar[int]
     settings: _wandb_settings_pb2.Settings
-    def __init__(self, settings: _Optional[_Union[_wandb_settings_pb2.Settings, _Mapping]] = ...) -> None: ...
+    service_name: str
+    def __init__(self, settings: _Optional[_Union[_wandb_settings_pb2.Settings, _Mapping]] = ..., service_name: _Optional[str] = ...) -> None: ...
 
 class ServerApiInitResponse(_message.Message):
     __slots__ = ("error_message", "api_id")

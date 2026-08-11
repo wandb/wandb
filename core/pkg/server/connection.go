@@ -722,7 +722,7 @@ func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest
 			analytics.NewTelemetryContext(),
 		),
 	)
-	wbapiInstance, err := wbapi.New(s, logger)
+	wbapiInstance, err := wbapi.New(s, request.GetServiceName(), logger)
 	if err != nil {
 		nc.Respond(&spb.ServerResponse{
 			RequestId: id,

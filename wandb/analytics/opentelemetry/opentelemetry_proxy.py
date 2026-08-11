@@ -156,10 +156,10 @@ _P = ParamSpec("_P")
 def guard(
     method: Callable[Concatenate[TelemetryRecorder, _P], None],
 ) -> Callable[Concatenate[TelemetryRecorder, _P], None]:
-    """Wrap a telemetry method so it can never raise an exception.
+    """Wrap a telemetry method so only runs when wandb-core is initialized.
 
-    Telemetry is best-effort, so wrapping a method in this decorator
-    ensures that it can never raise an exception into its caller.
+    Additionally it suppresses any exceptions raised by the wrapped method.
+    To ensure telemetry is best-effort, and does not interfere with user code.
     """
 
     @functools.wraps(method)
@@ -169,7 +169,7 @@ def guard(
         **kwargs: _P.kwargs,
     ) -> None:
         with contextlib.suppress(Exception):
-            if self._service_api is None or not self._service_api.is_connected:
+            if self._service_api is None or not self._service_api.initialized:
                 return
 
             method(self, *args, **kwargs)

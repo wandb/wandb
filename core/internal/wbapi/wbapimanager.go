@@ -77,8 +77,7 @@ func (mgr *WandbAPIManager) RemoveWandbAPI(id string) *WandbAPI {
 // Shutdown cleans up and removes all registered WandbAPI instances.
 func (mgr *WandbAPIManager) Shutdown(ctx context.Context) {
 	mgr.mu.Lock()
-	apis := make(map[string]*WandbAPI)
-	maps.Copy(apis, mgr.apis)
+	apis := maps.Clone(mgr.apis)
 	clear(mgr.apis)
 	mgr.mu.Unlock()
 

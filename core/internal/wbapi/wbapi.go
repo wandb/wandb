@@ -51,6 +51,7 @@ type WandbAPI struct {
 // New returns a new WandbAPI.
 func New(
 	s *settings.Settings,
+	serviceName string,
 	logger *observability.CoreLogger,
 ) (*WandbAPI, error) {
 	baseURL, err := url.Parse(s.GetBaseURL())
@@ -111,7 +112,7 @@ func New(
 		fileTransferHandler:  NewFileTransferHandler(fileTransferManager),
 		graphqlHandler:       NewGraphQLHandler(graphqlClient),
 		customChartHandler:   NewCustomChartHandler(graphqlClient),
-		opentelemetryHandler: NewOpenTelemetryHandler(s),
+		opentelemetryHandler: NewOpenTelemetryHandler(s, serviceName),
 		runFilesHandler:      NewRunFilesHandler(graphqlClient),
 		runHandler:           NewRunHandler(graphqlClient),
 		runQueueHandler:      NewRunQueueHandler(graphqlClient),
@@ -220,6 +221,10 @@ func (p *WandbAPI) HandleRequest(
 // It should be called once when the API is no longer needed.
 func (p *WandbAPI) Shutdown(ctx context.Context) {
 	if err := p.opentelemetryHandler.Shutdown(ctx); err != nil {
-		p.logger.Error("error shutting down OpenTelemetry handler", "error", err)
+		p.logger.Error(
+			"wbapi: error shutting down OpenTelemetry handler",
+			"error",
+			err,
+		)
 	}
 }

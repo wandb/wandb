@@ -13,6 +13,10 @@ option go_package = "core/pkg/service_go_proto";
 // ServerApiCleanupRequest should be used once the instance is no longer needed.
 message ServerApiInitRequest {
   Settings settings = 1;
+
+  // The name of the service requesting the API instance.
+  // This is used to identify the service in the OpenTelemetry backend.
+  string service_name = 2;
 }
 
 message ServerApiInitResponse {
