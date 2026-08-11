@@ -5,16 +5,13 @@ from collections.abc import Collection
 from dataclasses import dataclass
 from enum import Enum
 from functools import lru_cache
-from operator import attrgetter
-from typing import TYPE_CHECKING, Annotated, Any, Final, TypeVar, overload
+from typing import TYPE_CHECKING, Any, TypeVar, overload
 
-from pydantic import BeforeValidator, ValidationInfo
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 from typing_extensions import Self
 
 from wandb._filters import transform_fields
 from wandb._filters.operators import KEY_TO_OP
-from wandb._iterutils import always_list
 from wandb._strutils import b64decode_ascii, ensureprefix, repr_join
 from wandb.proto import wandb_internal_pb2 as pb
 
@@ -28,121 +25,151 @@ logger = logging.getLogger(__name__)
 
 T = TypeVar("T")
 
-ADVANCED_SEARCH_CTX_KEY: Final[str] = "advanced_search_enabled"
-"""Pydantic validation context key signaling that advanced search is enabled."""
+
+@pydantic_dataclass(frozen=True, slots=True)
+class _FieldNames:
+    name: str  #: The canonical name of the field.
+    aliases: tuple[str, ...] = ()  #: Accepted aliases for the field.
+
+
+class SearchMode(str, Enum):
+    BASIC = "basic"
+    ADVANCED = "advanced"
 
 
 @pydantic_dataclass(frozen=True, slots=True)
 class SearchField:
     """Canonical and accepted filter field names for basic and advanced search.
 
-    Each tuple contains the canonical name first, followed by accepted aliases.
-    ``None`` means the field is unsupported in that mode.
+    In each sequence, the CANONICAL name comes first. Remaining names, if any,
+    are acceptable aliases.
+
+    A `None` value means the field is unsupported in that search mode.
     """
 
-    basic: Annotated[tuple[str, ...], BeforeValidator(always_list)] | None = None
-    advanced: Annotated[tuple[str, ...], BeforeValidator(always_list)] | None = None
+    basic: _FieldNames | None
+    advanced: _FieldNames | None
 
     def __post_init__(self) -> None:
         if not (self.basic or self.advanced):
             raise ValueError("A filter field must support at least one search mode.")
 
     @classmethod
-    def basic_only(cls, canonical: str, *aliases: str) -> Self:
-        """Defines a field supported in basic search only."""
-        return cls(basic=(canonical, *aliases), advanced=None)
-
-    @classmethod
-    def advanced_only(cls, canonical: str, *aliases: str) -> Self:
-        """Defines a field supported in advanced search only."""
-        return cls(basic=None, advanced=(canonical, *aliases))
-
-    @classmethod
-    def shared(cls, canonical: str, *aliases: str) -> Self:
-        """Defines a field supported in both search modes with the same canonical name."""
-        return cls(basic=(canonical, *aliases), advanced=(canonical, *aliases))
+    def from_shared(cls, name: str, *aliases: str) -> Self:
+        """Defines a filter field for either search mode with the same allowed aliases."""
+        return cls(
+            basic=_FieldNames(name, aliases=aliases),
+            advanced=_FieldNames(name, aliases=aliases),
+        )
 
 
 @dataclass(frozen=True, slots=True)
-class VersionsFilterFields:
-    """Filter-field aliases for each Versions filter argument."""
+class SearchFields:
+    """Filter-field aliases for one registry search surface."""
 
-    registry_fields: tuple[SearchField, ...]
-    collection_fields: tuple[SearchField, ...]
-    artifact_fields: tuple[SearchField, ...]
+    fields: tuple[SearchField, ...]
 
-    def resolve_aliases(self, info: ValidationInfo) -> dict[str, str]:
-        """Resolve aliases for the model field and search mode being validated."""
-        context = info.context if isinstance(info.context, dict) else {}
-        return self.aliases_for(
-            info.field_name,
-            advanced=bool(context.get(ADVANCED_SEARCH_CTX_KEY)),
-        )
-
-    def aliases_for(self, name: str, *, advanced: bool = False) -> dict[str, str]:
-        """Map accepted aliases to canonical names for one filter and mode."""
-        match name:
-            case "registry_filter":
-                fields = self.registry_fields
-            case "collection_filter":
-                fields = self.collection_fields
-            case "artifact_filter":
-                fields = self.artifact_fields
+    def aliases(self, mode: SearchMode) -> dict[str, str]:
+        """Returns a map of (accepted alias) -> (canonical name) for one search mode."""
+        match SearchMode(mode):
+            case SearchMode.BASIC:
+                names_by_field = (f.basic for f in self.fields)
+            case SearchMode.ADVANCED:
+                names_by_field = (f.advanced for f in self.fields)
             case _:
-                raise ValueError(f"Unknown Versions filter argument: {name!r}.")
+                raise ValueError(f"Invalid search mode: {mode!r}")
 
-        aliases_per_field = map(attrgetter("advanced" if advanced else "basic"), fields)
         return {
-            alias: aliases[0]
-            for aliases in aliases_per_field
-            if aliases
-            for alias in aliases
+            alias: names.name
+            for names in names_by_field
+            if names
+            for alias in (names.name, *names.aliases)
         }
 
 
-VERSIONS_FILTER_FIELDS = VersionsFilterFields(
-    registry_fields=(
-        SearchField.shared("name"),
+REGISTRIES_FILTER_FIELDS = SearchFields(
+    fields=(
         SearchField(
-            basic=("id",),
-            advanced=("project_id", "id"),
+            basic=_FieldNames("id"),
+            advanced=_FieldNames("project_id", aliases=["id"]),
         ),
-        SearchField.shared("entity_id"),
-        SearchField.basic_only("description"),
-        SearchField.basic_only("created_at"),
-        SearchField.basic_only("updated_at"),
-    ),
-    collection_fields=(
-        SearchField.shared("name", "collection_name", "artifact_collection_name"),
+        SearchField.from_shared("name"),
+        SearchField.from_shared("entity_id"),
+        # Only supported in "basic" search
         SearchField(
-            basic=("id", "collection_id", "artifact_collection_id"),
-            advanced=("artifact_collection_id", "id", "collection_id"),
+            basic=_FieldNames("description"),
+            advanced=None,
         ),
-        SearchField.shared("tag", "tags"),
-        SearchField.basic_only("description"),
-        SearchField.basic_only("created_at"),
-        SearchField.basic_only("updated_at"),
-    ),
-    artifact_fields=(
         SearchField(
-            basic=("id",),
-            advanced=("artifact_id", "id"),
+            basic=_FieldNames("created_at"),
+            advanced=None,
         ),
-        SearchField.shared("version", "version_index"),
-        SearchField.shared("tag", "tags"),
-        SearchField.shared("alias", "aliases"),
-        SearchField.shared("metadata", "artifact_metadata"),
         SearchField(
-            basic=("created_at",),
-            advanced=("artifact_created_at", "created_at"),
+            basic=_FieldNames("updated_at"),
+            advanced=None,
         ),
-        SearchField.basic_only("updated_at"),
-        SearchField.advanced_only("acm_created_at"),
-        SearchField.advanced_only("acm_updated_at"),
-        SearchField.advanced_only("artifact_size"),
-        SearchField.advanced_only("artifact_file_count"),
-    ),
+    )
 )
+"""Defines allowed field names in registry filters.
+
+Note: "advanced" fields are only relevant when passing a filter to a Versions paginator.
+"""
+
+COLLECTIONS_FILTER_FIELDS = SearchFields(
+    fields=(
+        SearchField.from_shared("artifact_collection_id", "collection_id", "id"),
+        SearchField.from_shared("name", "collection_name", "artifact_collection_name"),
+        SearchField.from_shared("tag", "tags"),
+        # Only supported in "basic" search
+        SearchField(
+            basic=_FieldNames("description"),
+            advanced=None,
+        ),
+        SearchField(
+            basic=_FieldNames("created_at"),
+            advanced=None,
+        ),
+        SearchField(
+            basic=_FieldNames("updated_at"),
+            advanced=None,
+        ),
+    )
+)
+"""Defines allowed field names in artifact collection filters.
+
+Note: "advanced" fields are only relevant when passing a filter to a Versions paginator.
+"""
+
+VERSIONS_FILTER_FIELDS = SearchFields(
+    fields=(
+        SearchField(
+            basic=_FieldNames("id"),
+            advanced=_FieldNames("artifact_id", aliases=["id"]),
+        ),
+        SearchField.from_shared("version", "version_index"),
+        SearchField.from_shared("tag", "tags"),
+        SearchField.from_shared("alias", "aliases"),
+        SearchField.from_shared("metadata", "artifact_metadata"),
+        SearchField(
+            basic=_FieldNames("created_at"),
+            advanced=_FieldNames("artifact_created_at", aliases=["created_at"]),
+        ),
+        # Only supported in "basic" search
+        SearchField(
+            basic=_FieldNames("updated_at"),
+            advanced=None,
+        ),
+        # Only supported in "advanced" search
+        SearchField(
+            basic=None,
+            advanced=_FieldNames("artifact_size"),
+        ),
+    )
+)
+"""Defines allowed field names in artifact version filters.
+
+Note: "advanced" fields are only relevant when passing the filter to a Versions paginator.
+"""
 
 
 class Visibility(str, Enum):

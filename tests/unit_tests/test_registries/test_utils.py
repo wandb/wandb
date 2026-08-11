@@ -189,13 +189,26 @@ def test_basic_paginators_normalize_filters_without_feature_lookup(
         collection_filter={"collection_id": 2, "tags": "prod"},
     )
 
-    expected_registries = {"name": f"{REGISTRY_PREFIX}model", "id": 1}
-    expected_registry = {"name": f"{REGISTRY_PREFIX}model"}
-    expected_collection = {"id": 2, "tag": "prod"}
+    expected_registries_filters = {
+        "filters": {"name": f"{REGISTRY_PREFIX}model", "id": 1},
+    }
+    expected_collections_filters = {
+        "registryFilter": {"name": f"{REGISTRY_PREFIX}model"},
+        "collectionFilter": {"artifact_collection_id": 2, "tag": "prod"},
+    }
 
-    assert json.loads(registries.variables["filters"]) == expected_registries
-    assert json.loads(collections.variables["registryFilter"]) == expected_registry
-    assert json.loads(collections.variables["collectionFilter"]) == expected_collection
+    assert (
+        json.loads(registries.variables["filters"])
+        == expected_registries_filters["filters"]
+    )
+    assert (
+        json.loads(collections.variables["registryFilter"])
+        == expected_collections_filters["registryFilter"]
+    )
+    assert (
+        json.loads(collections.variables["collectionFilter"])
+        == expected_collections_filters["collectionFilter"]
+    )
     service_api.feature_enabled.assert_not_called()
     service_api.execute_graphql.assert_not_called()
 
@@ -212,13 +225,15 @@ def test_versions_uses_basic_filter_fields(service_api: MagicMock):
         },
     )
 
-    expected_registry = {"name": f"{REGISTRY_PREFIX}model", "id": 1}
-    expected_collection = {"id": 2, "tag": "prod"}
-    expected_artifact = {"metadata.owner": "alice", "version": 3}
+    gql_vars = versions.variables
 
-    assert json.loads(versions.variables["registryFilter"]) == expected_registry
-    assert json.loads(versions.variables["collectionFilter"]) == expected_collection
-    assert json.loads(versions.variables["artifactFilter"]) == expected_artifact
+    expected_registry_filter = {"name": f"{REGISTRY_PREFIX}model", "id": 1}
+    expected_collection_filter = {"artifact_collection_id": 2, "tag": "prod"}
+    expected_artifact_filter = {"metadata.owner": "alice", "version": 3}
+
+    assert json.loads(gql_vars["registryFilter"]) == expected_registry_filter
+    assert json.loads(gql_vars["collectionFilter"]) == expected_collection_filter
+    assert json.loads(gql_vars["artifactFilter"]) == expected_artifact_filter
     service_api.feature_enabled.assert_called_once()
 
 

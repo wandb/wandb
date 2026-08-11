@@ -26,7 +26,7 @@ ALIASED_FILTER_ADAPTER = TypeAdapter(
 COLLISION_FILTER_ADAPTER = TypeAdapter(
     Annotated[
         FilterDict,
-        FilterValidator(valid=FIELD_ALIASES | {"field": "$or"}),
+        FilterValidator(valid=FIELD_ALIASES | {"tags": "tag"}),
     ]
 )
 
@@ -81,12 +81,14 @@ def test_valid_filter_unchanged(filters: dict[str, Any]):
             {
                 "$and": [
                     {"artifact_metadata.owner": "alice"},
+                    {"metadata.promoted": True},
                     {"$not": {"artifact_metadata.team": "ml"}},
                 ]
             },
             {
                 "$and": [
                     {"metadata.owner": "alice"},
+                    {"metadata.promoted": True},
                     {"$not": {"metadata.team": "ml"}},
                 ]
             },
@@ -143,17 +145,27 @@ def test_filter_validator_maps_aliases(raw: dict[str, Any], expected: dict[str, 
             id="nested-dotted-fields",
         ),
         param(
-            {"$or": [{"tag": "prod"}], "field": 1},
-            id="operator-first",
+            {
+                "$or": [
+                    {"tag": "prod", "tags": "OOPS"},  # Collision happens here
+                    {"metadata": "irrelevant"},
+                ]
+            },
+            id="nested-collision-canonical-first",
         ),
         param(
-            {"field": 1, "$or": [{"tag": "prod"}]},
-            id="mapped-field-first",
+            {
+                "$or": [
+                    {"metadata": "irrelevant"},
+                    {"tags": "OOPS", "tag": "prod"},  # Collision happens here
+                ]
+            },
+            id="nested-collision-alias-first",
         ),
     ],
 )
-def test_filter_validator_rejects_mapping_collisions(raw: dict[str, Any]):
-    with raises(ValidationError, match="mapping collision"):
+def test_filter_validator_rejects_runtime_collisions(raw: dict[str, Any]):
+    with raises(ValidationError, match=r"(?i)duplicate fields"):
         COLLISION_FILTER_ADAPTER.validate_python(raw)
 
 

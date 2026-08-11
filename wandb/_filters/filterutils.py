@@ -6,8 +6,10 @@ don't expose as instance methods on filter types for now.
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Callable, Iterator
 from functools import singledispatch
+from operator import itemgetter
 from typing import Any, cast
 
 from typing_extensions import assert_never
@@ -39,23 +41,34 @@ def transform_fields(
     aliases: dict[str, str] | None = None,
     operand_transforms: dict[str, Callable[[Any], Any]] | None = None,
 ) -> dict[str, Any]:
-    """Return a copy of ``raw`` with ordinary filter fields transformed.
+    """Return a copy of `raw` with ordinary filter fields transformed.
 
-    If supplied, ``aliases`` maps accepted field roots to their canonical names.
-    ``operand_transforms`` maps exact field names to transformations of their opaque
-    operands. Recognized logical operators are traversed; unknown operators and
-    ordinary field operands are otherwise left untouched.
+    Args:
+        raw: The filter dict to transform.
+        aliases: Maps accepted top-level field names to their canonical names.
+        operand_transforms: Maps exact field names to callable transformations
+            on their inner operands.
+
+    Returns:
+        A copy of `raw` with ordinary filter fields transformed.
+
+    Raises:
+        ValueError: If `aliases` maps multiple aliases to the same canonical name.
     """
-    items = tuple(
+    new_items = tuple(
         _transform_item(*kv, aliases=aliases, operand_transforms=operand_transforms)
         for kv in raw.items()
     )
-    result = dict(items)
+    result = dict(new_items)
 
     # Alias definitions are intentionally many-to-one. A collision is invalid
     # only when one filter object uses multiple aliases for the same field.
-    if len(result) != len(items):
-        raise ValueError("Filter field mapping collision.")
+    if len(result) != len(new_items):
+        new_keys = map(itemgetter(0), new_items)
+        dup_keys = {key for key, count in Counter(new_keys).items() if count > 1}
+
+        msg = f"Duplicate fields in normalized filter: {repr_join(sorted(dup_keys))}"
+        raise ValueError(msg)
 
     return result
 
@@ -94,19 +107,17 @@ def _transform_item(
             return key, val
 
         case (str(field), _):
-            root, dot, suffix = field.partition(".")
+            root, sep, suffix = field.partition(".")
             if aliases and not aliases.get(root):
                 msg = f"Invalid filter field {root!r}, must be one of: {repr_join(sorted(aliases))}"
                 raise ValueError(msg)
 
-            new_root = aliases[root] if aliases else root
-            new_val = (
-                func(val) if (func := (operand_transforms or {}).get(field)) else val
-            )
-            return f"{new_root}{dot}{suffix}", new_val
+            new_root = (aliases or {}).get(root) or root
+            new_val = fn(val) if (fn := (operand_transforms or {}).get(field)) else val
+            return f"{new_root}{sep}{suffix}", new_val
 
         case _:
-            assert_never(val)
+            assert_never((key, val))
 
 
 @singledispatch

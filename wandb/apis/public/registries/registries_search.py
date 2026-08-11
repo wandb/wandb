@@ -16,8 +16,10 @@ from wandb.apis.paginator import Paginator, RelayPaginator, SizedRelayPaginator
 from wandb.errors import UnsupportedError
 
 from ._utils import (
-    ADVANCED_SEARCH_CTX_KEY,
+    COLLECTIONS_FILTER_FIELDS,
+    REGISTRIES_FILTER_FIELDS,
     VERSIONS_FILTER_FIELDS,
+    SearchMode,
     advanced_search_enabled,
     filter_for_registry,
     prepare_registry_filter,
@@ -41,27 +43,34 @@ if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
 
 
-# Type annotations for `filter` arguments that always use Basic search fields.
+# Type annotations for Basic search filters.
 _RegistryFilter: TypeAlias = Annotated[
     FilterDict,
-    FilterValidator(
-        valid=VERSIONS_FILTER_FIELDS.aliases_for("registry_filter", advanced=False)
-    ),
+    FilterValidator(valid=REGISTRIES_FILTER_FIELDS.aliases(mode=SearchMode.BASIC)),
     AfterValidator(prepare_registry_filter),
 ]
 _CollectionFilter: TypeAlias = Annotated[
     FilterDict,
-    FilterValidator(
-        valid=VERSIONS_FILTER_FIELDS.aliases_for("collection_filter", advanced=False)
-    ),
+    FilterValidator(valid=COLLECTIONS_FILTER_FIELDS.aliases(mode=SearchMode.BASIC)),
 ]
-_VersionFilter: TypeAlias = Annotated[
+_BasicArtifactFilter: TypeAlias = Annotated[
     FilterDict,
-    FilterValidator(alias_resolver=VERSIONS_FILTER_FIELDS.resolve_aliases),
+    FilterValidator(valid=VERSIONS_FILTER_FIELDS.aliases(mode=SearchMode.BASIC)),
 ]
-_VersionRegistryFilter: TypeAlias = Annotated[
-    _VersionFilter,
+
+# Type annotations for advanced-search filters passed to `Versions`.
+_AdvancedRegistryFilter: TypeAlias = Annotated[
+    FilterDict,
+    FilterValidator(valid=REGISTRIES_FILTER_FIELDS.aliases(mode=SearchMode.ADVANCED)),
     AfterValidator(prepare_registry_filter),
+]
+_AdvancedCollectionFilter: TypeAlias = Annotated[
+    FilterDict,
+    FilterValidator(valid=COLLECTIONS_FILTER_FIELDS.aliases(mode=SearchMode.ADVANCED)),
+]
+_AdvancedArtifactFilter: TypeAlias = Annotated[
+    FilterDict,
+    FilterValidator(valid=VERSIONS_FILTER_FIELDS.aliases(mode=SearchMode.ADVANCED)),
 ]
 
 # Type annotations for `order` arguments.
@@ -108,15 +117,28 @@ class _CollectionsVars(PaginatorVars):
     per_page: PositiveInt = 100
 
 
-class _VersionsVars(PaginatorVars):
-    """Validated GraphQL variables for a `Versions` paginator."""
+class _VersionsVarsBase(PaginatorVars):
+    """Validated GraphQL variables shared by `Versions` search modes."""
 
     organization: str
 
-    registry_filter: _VersionRegistryFilter | None = None
-    collection_filter: _VersionFilter | None = None
-    artifact_filter: _VersionFilter | None = None
     per_page: PositiveInt = 100
+
+
+class _BasicVersionsVars(_VersionsVarsBase):
+    """Validated GraphQL variables for Basic `Versions` search."""
+
+    registry_filter: _RegistryFilter | None = None
+    collection_filter: _CollectionFilter | None = None
+    artifact_filter: _BasicArtifactFilter | None = None
+
+
+class _AdvancedVersionsVars(_VersionsVarsBase):
+    """Validated GraphQL variables for Advanced `Versions` search."""
+
+    registry_filter: _AdvancedRegistryFilter | None = None
+    collection_filter: _AdvancedCollectionFilter | None = None
+    artifact_filter: _AdvancedArtifactFilter | None = None
 
 
 class VersionsIterator(Protocol):
@@ -502,19 +524,17 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
 
             type(self).QUERY = REGISTRY_VERSIONS_GQL
 
-        args = _VersionsVars.model_validate(
-            {
-                "organization": organization,
-                "registry_filter": registry_filter,
-                "collection_filter": collection_filter,
-                "artifact_filter": artifact_filter,
-                "per_page": per_page,
-            },
-            context={
-                ADVANCED_SEARCH_CTX_KEY: advanced_search_enabled(
-                    service_api, organization
-                )
-            },
+        vars_type = (
+            _AdvancedVersionsVars
+            if advanced_search_enabled(service_api, organization)
+            else _BasicVersionsVars
+        )
+        args = vars_type(
+            organization=organization,
+            registry_filter=registry_filter,
+            collection_filter=collection_filter,
+            artifact_filter=artifact_filter,
+            per_page=per_page,
         )
 
         self.organization = args.organization
