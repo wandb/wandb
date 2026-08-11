@@ -25,6 +25,7 @@ from ._members import (
 from ._utils import (
     Visibility,
     fetch_org_entity_from_organization,
+    filter_for_registry,
     prepare_artifact_types_input,
 )
 from .registries_search import Collections, Versions
@@ -223,7 +224,9 @@ class Registry:
         return Collections(
             service_api=self._service_api,
             organization=self.organization,
-            registry_filter={"name": self.full_name},
+            registry_filter=filter_for_registry(
+                self, service_api=self._service_api, organization=self.organization
+            ),
             collection_filter=filter,
             order=order,
             per_page=per_page,
@@ -249,7 +252,9 @@ class Registry:
         return Versions(
             service_api=self._service_api,
             organization=self.organization,
-            registry_filter={"name": self.full_name},
+            registry_filter=filter_for_registry(
+                self, service_api=self._service_api, organization=self.organization
+            ),
             collection_filter=None,
             artifact_filter=filter,
             per_page=per_page,
