@@ -194,30 +194,9 @@ func InitRun(
 	// must use the updated config returned by the backend on the first
 	// UpsertBucket request.
 	branchPoint := runRecord.BranchPoint
+	resumeSetting := params.Settings.GetResume()
 
-	// If resume sync state is false, users can override it by explicitly
-	// requesting `allow` or `must` through the current settings (e.g., manual
-	// sync). If the user explicitly requests `never`, we also enforce that
-	// the run does not exist on the server.
-	//
-	// Exclude forked and rewind cases (branchPoint != nil) so they continue
-	// to take priority.
-	resume := runParams.Resume
-	shouldUpdateMetadata := resume
-	if !resume && branchPoint == nil {
-		resumeSetting := params.Settings.GetResume()
-		resume = resumeSetting == "allow" || resumeSetting == "must"
-		shouldUpdateMetadata = resume || resumeSetting == "never"
-	}
-	runParams.Resume = resume
 	switch {
-	case shouldUpdateMetadata:
-		err := upserter.updateMetadataForResume(ctx, params.Settings.GetResume())
-
-		if err != nil {
-			return nil, ToRunUpdateError(err)
-		}
-
 	case branchPoint != nil && branchPoint.GetRun() == runRecord.RunId:
 		// Branching a run from an earlier point in its history is rewinding.
 		err := upserter.updateMetadataForRewind(ctx, branchPoint)
@@ -234,10 +213,24 @@ func InitRun(
 			return nil, ToRunUpdateError(err)
 		}
 
+	default:
+		// Resume an existing run if the transaction log has resume mode set or
+		// if the current settings explicitly requests a resume.
+		runParams.Resume = runParams.Resume ||
+			resumeSetting == "allow" ||
+			resumeSetting == "must"
+
+		// Reconcile resume state with the backend, or if resume="never",
+		// enforce that the run does not exist yet.
+		if runParams.Resume || resumeSetting == "never" {
+			if err := upserter.updateMetadataForResume(ctx, resumeSetting); err != nil {
+				return nil, ToRunUpdateError(err)
+			}
+		}
 	}
 
-	// If we're offline, skip upserting and leave the sync state to `wandb
-	// sync`, which is the first to know the real starting step.
+	// If we're offline, skip upserting and leave the sync state to
+	// when we actually sync.
 	if upserter.graphqlClientOrNil == nil {
 		return upserter, nil
 	}
