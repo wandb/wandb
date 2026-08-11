@@ -393,6 +393,29 @@ class SchedulerAcceptanceTests(abc.ABC):
         executor.schedule.assert_not_called()
         assert len(scheduler.in_flight_runs()) == 0
 
+    def test_loop_keeps_polling_when_optimizer_declines_to_propose(
+        self,
+        scheduler: Scheduler,
+        optimizer: MockOptimizer,
+        sweep: Sweep,
+        executor: MagicMock,
+        batch_size: int,
+    ) -> None:
+        # None declines this round (e.g. the strategy is waiting on results);
+        # the loop must keep polling instead of finishing the sweep.
+        optimizer.ask_n_runs_mock.side_effect = lambda n: None
+
+        driver = LoopDriver(scheduler, SweepState.RUNNING, max_iterations=2)
+        with driver.driving():
+            scheduler.loop()
+
+        # Only the driver's state transition ends the loop.
+        assert driver.iterations == 2
+        assert optimizer.ask_n_runs_mock.call_count == 2
+        sweep.finish.assert_not_called()  # type: ignore[attr-defined]
+        executor.schedule.assert_not_called()
+        assert len(scheduler.in_flight_runs()) == 0
+
     def test_loop_exits_when_sweep_state_not_found(
         self,
         scheduler: Scheduler,

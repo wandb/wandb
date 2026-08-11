@@ -624,7 +624,8 @@ class Scheduler(ABC):
             return _LoopControl.CONTINUE
         suggestions = self._next_suggestions(n_to_enqueue)
         if suggestions is None:
-            # search was interrupted
+            # The search was interrupted or the optimizer declined to
+            # propose this round; try again next poll.
             return _LoopControl.CONTINUE
         if len(suggestions) == 0:
             # search space is exhausted
@@ -642,18 +643,20 @@ class Scheduler(ABC):
     def _next_suggestions(self, n: int) -> Sequence[RunSuggestion] | None:
         """Ask the optimizer for up to `n` runs, polling sweep state.
 
-        An optimizer that proposes nothing has exhausted its search space (grid
-        search, for one, stops proposing once every point has been handed out),
-        so there is nothing left to schedule and the sweep is finished here.
+        An optimizer that proposes an empty sequence has exhausted its search
+        space (grid search, for one, stops proposing once every point has
+        been handed out), so there is nothing left to schedule and the sweep
+        is finished here. An optimizer that returns None declines to propose
+        for now; it is asked again on a later poll.
 
         Returns:
             The runs to enqueue; an empty sequence once the search space is
-            exhausted and the sweep has been finished; or None when the sweep
-            leaves RUNNING/PENDING/PAUSED (or a shutdown is requested) before
-            the optimizer responds, so the loop can exit without enqueueing
-            new runs.
+            exhausted and the sweep has been finished; or None to enqueue
+            nothing this round -- because the optimizer declined to propose,
+            or because the sweep left RUNNING/PENDING/PAUSED (or a shutdown
+            was requested) before the optimizer responded.
         """
-        suggestions: list[RunSuggestion] | None = None
+        suggestions: Sequence[RunSuggestion] | None = None
         error: BaseException | None = None
         done = threading.Event()
 
@@ -662,7 +665,7 @@ class Scheduler(ABC):
             # A swallowed exception here would leave `done` unset and the
             # loop below polling forever, so capture it for re-raising.
             try:
-                suggestions = list(self._optimizer.ask_n_runs(n))
+                suggestions = self._optimizer.ask_n_runs(n)
             except BaseException as e:
                 error = e
             finally:
@@ -680,6 +683,10 @@ class Scheduler(ABC):
                 return None
         if error is not None:
             raise error
+        if suggestions is None:
+            # The optimizer declined to propose this round (e.g. waiting on
+            # in-flight results).
+            return None
         if not suggestions:
             termlog(
                 f"Optimizer for sweep {self._sweep.name} has no runs left to "
@@ -687,7 +694,7 @@ class Scheduler(ABC):
             )
             self._sweep.finish()
             return []
-        return suggestions
+        return list(suggestions)
 
     def _build_runs(
         self, runs: Iterable[Any], builder: Callable[[Any], _RunT]
