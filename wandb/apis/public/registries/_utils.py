@@ -5,131 +5,142 @@ from collections.abc import Collection
 from dataclasses import dataclass
 from enum import Enum
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, Final, TypeVar, overload
+from operator import attrgetter
+from typing import TYPE_CHECKING, Annotated, Any, Final, TypeVar, overload
 
-from pydantic import ValidationInfo
+from pydantic import BeforeValidator, ValidationInfo
 from pydantic.dataclasses import dataclass as pydantic_dataclass
+from typing_extensions import Self
 
-from wandb._filters import FilterFieldTransformer
+from wandb._filters import transform_fields
 from wandb._filters.operators import KEY_TO_OP
+from wandb._iterutils import always_list
 from wandb._strutils import b64decode_ascii, ensureprefix, repr_join
 from wandb.proto import wandb_internal_pb2 as pb
-
-_logger = logging.getLogger(__name__)
-
-ADVANCED_SEARCH_CTX_KEY: Final[str] = "advanced_search_enabled"
 
 if TYPE_CHECKING:
     from wandb.apis.public import ArtifactCollection
     from wandb.apis.public.registries.registry import Registry
     from wandb.apis.public.service_api import ServiceApi
 
+logger = logging.getLogger(__name__)
+
 
 T = TypeVar("T")
 
+ADVANCED_SEARCH_CTX_KEY: Final[str] = "advanced_search_enabled"
+"""Pydantic validation context key signaling that advanced search is enabled."""
+
 
 @pydantic_dataclass(frozen=True, slots=True)
-class FilterFieldAlias:
+class SearchField:
     """Canonical and accepted filter field names for basic and advanced search.
 
     Each tuple contains the canonical name first, followed by accepted aliases.
     ``None`` means the field is unsupported in that mode.
     """
 
-    basic: tuple[str, ...] | None = None
-    advanced: tuple[str, ...] | None = None
+    basic: Annotated[tuple[str, ...], BeforeValidator(always_list)] | None = None
+    advanced: Annotated[tuple[str, ...], BeforeValidator(always_list)] | None = None
 
     def __post_init__(self) -> None:
         if not (self.basic or self.advanced):
             raise ValueError("A filter field must support at least one search mode.")
 
+    @classmethod
+    def basic_only(cls, canonical: str, *aliases: str) -> Self:
+        """Defines a field supported in basic search only."""
+        return cls(basic=(canonical, *aliases), advanced=None)
+
+    @classmethod
+    def advanced_only(cls, canonical: str, *aliases: str) -> Self:
+        """Defines a field supported in advanced search only."""
+        return cls(basic=None, advanced=(canonical, *aliases))
+
+    @classmethod
+    def shared(cls, canonical: str, *aliases: str) -> Self:
+        """Defines a field supported in both search modes with the same canonical name."""
+        return cls(basic=(canonical, *aliases), advanced=(canonical, *aliases))
+
 
 @dataclass(frozen=True, slots=True)
 class VersionsFilterFields:
-    """Field-name policies for each Versions filter argument."""
+    """Filter-field aliases for each Versions filter argument."""
 
-    registry_filter: tuple[FilterFieldAlias, ...]
-    collection_filter: tuple[FilterFieldAlias, ...]
-    artifact_filter: tuple[FilterFieldAlias, ...]
+    registry_fields: tuple[SearchField, ...]
+    collection_fields: tuple[SearchField, ...]
+    artifact_fields: tuple[SearchField, ...]
 
-    def resolve(self, info: ValidationInfo) -> dict[str, str]:
+    def resolve_aliases(self, info: ValidationInfo) -> dict[str, str]:
         """Resolve aliases for the model field and search mode being validated."""
-        if (name := info.field_name) is None:
-            raise ValueError("A Versions filter policy requires a model field name.")
-
         context = info.context if isinstance(info.context, dict) else {}
-        return self.for_filter(
-            name,
+        return self.aliases_for(
+            info.field_name,
             advanced=bool(context.get(ADVANCED_SEARCH_CTX_KEY)),
         )
 
-    def for_filter(self, name: str, *, advanced: bool) -> dict[str, str]:
-        """Return the field-name policy for a Versions filter argument."""
+    def aliases_for(self, name: str, *, advanced: bool = False) -> dict[str, str]:
+        """Map accepted aliases to canonical names for one filter and mode."""
         match name:
             case "registry_filter":
-                fields = self.registry_filter
+                fields = self.registry_fields
             case "collection_filter":
-                fields = self.collection_filter
+                fields = self.collection_fields
             case "artifact_filter":
-                fields = self.artifact_filter
+                fields = self.artifact_fields
             case _:
                 raise ValueError(f"Unknown Versions filter argument: {name!r}.")
 
-        aliases_by_field = (
-            field.advanced if advanced else field.basic for field in fields
-        )
+        aliases_per_field = map(attrgetter("advanced" if advanced else "basic"), fields)
         return {
             alias: aliases[0]
-            for aliases in aliases_by_field
+            for aliases in aliases_per_field
             if aliases
             for alias in aliases
         }
 
 
 VERSIONS_FILTER_FIELDS = VersionsFilterFields(
-    registry_filter=(
-        FilterFieldAlias(basic=("name",), advanced=("name",)),
-        FilterFieldAlias(basic=("id",), advanced=("project_id", "id")),
-        FilterFieldAlias(basic=("entity_id",), advanced=("entity_id",)),
-        FilterFieldAlias(basic=("description",)),
-        FilterFieldAlias(basic=("created_at",)),
-        FilterFieldAlias(basic=("updated_at",)),
-    ),
-    collection_filter=(
-        FilterFieldAlias(
-            basic=("name", "collection_name", "artifact_collection_name"),
-            advanced=("name", "collection_name", "artifact_collection_name"),
+    registry_fields=(
+        SearchField.shared("name"),
+        SearchField(
+            basic=("id",),
+            advanced=("project_id", "id"),
         ),
-        FilterFieldAlias(
+        SearchField.shared("entity_id"),
+        SearchField.basic_only("description"),
+        SearchField.basic_only("created_at"),
+        SearchField.basic_only("updated_at"),
+    ),
+    collection_fields=(
+        SearchField.shared("name", "collection_name", "artifact_collection_name"),
+        SearchField(
             basic=("id", "collection_id", "artifact_collection_id"),
             advanced=("artifact_collection_id", "id", "collection_id"),
         ),
-        FilterFieldAlias(basic=("tag", "tags"), advanced=("tag", "tags")),
-        FilterFieldAlias(basic=("description",)),
-        FilterFieldAlias(basic=("created_at",)),
-        FilterFieldAlias(basic=("updated_at",)),
+        SearchField.shared("tag", "tags"),
+        SearchField.basic_only("description"),
+        SearchField.basic_only("created_at"),
+        SearchField.basic_only("updated_at"),
     ),
-    artifact_filter=(
-        FilterFieldAlias(basic=("id",), advanced=("artifact_id", "id")),
-        FilterFieldAlias(
-            basic=("version", "version_index"),
-            advanced=("version", "version_index"),
+    artifact_fields=(
+        SearchField(
+            basic=("id",),
+            advanced=("artifact_id", "id"),
         ),
-        FilterFieldAlias(basic=("tag", "tags"), advanced=("tag", "tags")),
-        FilterFieldAlias(basic=("alias", "aliases"), advanced=("alias", "aliases")),
-        FilterFieldAlias(
-            basic=("metadata", "artifact_metadata"),
-            advanced=("metadata", "artifact_metadata"),
-        ),
-        FilterFieldAlias(
+        SearchField.shared("version", "version_index"),
+        SearchField.shared("tag", "tags"),
+        SearchField.shared("alias", "aliases"),
+        SearchField.shared("metadata", "artifact_metadata"),
+        SearchField(
             basic=("created_at",),
             advanced=("artifact_created_at", "created_at"),
         ),
-        FilterFieldAlias(basic=("updated_at",)),
-        FilterFieldAlias(advanced=("acm_created_at",)),
-        FilterFieldAlias(advanced=("acm_updated_at",)),
-        FilterFieldAlias(advanced=("artifact_size",)),
-        FilterFieldAlias(advanced=("artifact_file_count",)),
+        SearchField.basic_only("updated_at"),
+        SearchField.advanced_only("acm_created_at"),
+        SearchField.advanced_only("acm_updated_at"),
+        SearchField.advanced_only("artifact_size"),
+        SearchField.advanced_only("artifact_file_count"),
     ),
 )
 
@@ -199,6 +210,29 @@ def prepare_artifact_types_input(
     return None
 
 
+def prefix_registry_name(operand: Any) -> Any:
+    """Prefix strings in a registry-name operand, except regexes and unknown ops."""
+    from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
+
+    match operand:
+        case str(txt):
+            return ensureprefix(txt, REGISTRY_PREFIX)
+        case dict(dct):
+            return {
+                k: (
+                    v
+                    if isinstance(k, str)
+                    and (k == "$regex" or (k.startswith("$") and k not in KEY_TO_OP))
+                    else prefix_registry_name(v)
+                )
+                for k, v in dct.items()
+            }
+        case list(seq) | tuple(seq):
+            return [prefix_registry_name(value) for value in seq]
+        case _:
+            return operand
+
+
 @overload
 def prepare_registry_filter(query: str) -> str: ...
 @overload
@@ -207,28 +241,6 @@ def prepare_registry_filter(query: dict[str, Any]) -> dict[str, Any]: ...
 def prepare_registry_filter(query: list[T] | tuple[T, ...]) -> list[T]: ...
 @overload
 def prepare_registry_filter(query: T) -> T: ...
-
-
-def prefix_registry_name(operand: Any) -> Any:
-    """Prefix strings in a registry-name operand, except regexes and unknown ops."""
-    from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
-
-    match operand:
-        case str() as txt:
-            return ensureprefix(txt, REGISTRY_PREFIX)
-        case dict() as dct:
-            return {
-                key: (
-                    value
-                    if key == "$regex" or (key.startswith("$") and key not in KEY_TO_OP)
-                    else prefix_registry_name(value)
-                )
-                for key, value in dct.items()
-            }
-        case list() | tuple() as seq:
-            return [prefix_registry_name(value) for value in seq]
-        case _:
-            return operand
 
 
 def prepare_registry_filter(query: Any) -> Any:
@@ -241,12 +253,10 @@ def prepare_registry_filter(query: Any) -> Any:
     """
     match query:
         case dict():
-            return FilterFieldTransformer(
-                lambda field, operand: (
-                    field,
-                    prefix_registry_name(operand) if field == "name" else operand,
-                )
-            ).transform(query)
+            return transform_fields(
+                query,
+                operand_transforms={"name": prefix_registry_name},
+            )
         case list() | tuple():
             return [prepare_registry_filter(value) for value in query]
         case _:
@@ -288,7 +298,7 @@ def _project_id_from_gql_id(gql_id: str) -> int | None:
     try:
         decoded = b64decode_ascii(gql_id)
     except (ValueError, UnicodeDecodeError):
-        _logger.warning("Invalid project ID: %r", gql_id)
+        logger.warning("Invalid project ID: %r", gql_id)
         return None
 
     match decoded.split(":"):
@@ -297,7 +307,7 @@ def _project_id_from_gql_id(gql_id: str) -> int | None:
         case ["ProjectInternalId", idx] if idx.isdigit():
             return int(idx)
         case _:
-            _logger.warning("Invalid project ID: %r", gql_id)
+            logger.warning("Invalid project ID: %r", gql_id)
             return None
 
 
@@ -337,14 +347,14 @@ def advanced_search_enabled(service_api: ServiceApi, organization: str) -> bool:
             parse=FetchAdvancedRegistryFeatures.model_validate_json,
         )
     except Exception:
-        _logger.warning(
+        logger.warning(
             "Failed to fetch advanced registry features for organization: %r",
             organization,
         )
         return False
 
     if not (org := result.organization):
-        _logger.warning("Organization %r not found.", organization)
+        logger.warning("Organization %r not found.", organization)
         return False
     return bool(
         (features := org.advanced_registry_features) and features.advanced_search

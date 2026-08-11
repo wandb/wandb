@@ -16,6 +16,7 @@ from wandb.apis.public.registries.registries_search import (
     Registries,
     Versions,
 )
+from wandb.sdk.artifacts._generated import FetchAdvancedRegistryFeatures
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
 
 if TYPE_CHECKING:
@@ -29,15 +30,18 @@ if TYPE_CHECKING:
 def service_api(mocker: MockerFixture) -> MagicMock:
     from wandb.apis.public.service_api import ServiceApi
 
-    return mocker.Mock(spec=ServiceApi)
+    mock = mocker.Mock(spec=ServiceApi)
+    mock.feature_enabled.return_value = False
+    return mock
 
 
 @fixture
-def advanced_search_policy(mocker: MockerFixture) -> MagicMock:
-    return mocker.patch(
-        "wandb.apis.public.registries.registries_search.advanced_search_enabled",
-        autospec=True,
-        return_value=False,
+def enable_advanced_search(service_api: MagicMock) -> None:
+    service_api.feature_enabled.return_value = True
+    service_api.execute_graphql.return_value = (
+        FetchAdvancedRegistryFeatures.model_validate(
+            {"organization": {"advancedRegistryFeatures": {"advancedSearch": True}}}
+        )
     )
 
 
@@ -102,16 +106,16 @@ def test_format_gql_artifact_types_input_error(artifact_types):
             id="regex-operand-is-unchanged",
         ),
         param(
-            {"$future": {"name": "opaque"}, "name": "visible"},
+            {"$unknownOp": {"name": "opaque"}, "name": "visible"},
             {
-                "$future": {"name": "opaque"},
+                "$unknownOp": {"name": "opaque"},
                 "name": f"{REGISTRY_PREFIX}visible",
             },
             id="unknown-operator-operand-is-unchanged",
         ),
         param(
-            {"name": {"$future": {"name": "opaque"}}},
-            {"name": {"$future": {"name": "opaque"}}},
+            {"name": {"$unknownOp": {"name": "opaque"}}},
+            {"name": {"$unknownOp": {"name": "opaque"}}},
             id="unknown-name-operator-operand-is-unchanged",
         ),
         param(
@@ -185,25 +189,18 @@ def test_basic_paginators_normalize_filters_without_feature_lookup(
         collection_filter={"collection_id": 2, "tags": "prod"},
     )
 
-    assert json.loads(registries.variables["filters"]) == {
-        "name": f"{REGISTRY_PREFIX}model",
-        "id": 1,
-    }
-    assert json.loads(collections.variables["registryFilter"]) == {
-        "name": f"{REGISTRY_PREFIX}model"
-    }
-    assert json.loads(collections.variables["collectionFilter"]) == {
-        "id": 2,
-        "tag": "prod",
-    }
+    expected_registries = {"name": f"{REGISTRY_PREFIX}model", "id": 1}
+    expected_registry = {"name": f"{REGISTRY_PREFIX}model"}
+    expected_collection = {"id": 2, "tag": "prod"}
+
+    assert json.loads(registries.variables["filters"]) == expected_registries
+    assert json.loads(collections.variables["registryFilter"]) == expected_registry
+    assert json.loads(collections.variables["collectionFilter"]) == expected_collection
     service_api.feature_enabled.assert_not_called()
     service_api.execute_graphql.assert_not_called()
 
 
-def test_versions_uses_basic_filter_fields(
-    service_api: MagicMock,
-    advanced_search_policy: MagicMock,
-):
+def test_versions_uses_basic_filter_fields(service_api: MagicMock):
     versions = Versions(
         service_api,
         organization="org",
@@ -215,35 +212,28 @@ def test_versions_uses_basic_filter_fields(
         },
     )
 
-    assert json.loads(versions.variables["registryFilter"]) == {
-        "name": f"{REGISTRY_PREFIX}model",
-        "id": 1,
-    }
-    assert json.loads(versions.variables["collectionFilter"]) == {
-        "id": 2,
-        "tag": "prod",
-    }
-    assert json.loads(versions.variables["artifactFilter"]) == {
-        "metadata.owner": "alice",
-        "version": 3,
-    }
-    advanced_search_policy.assert_called_once_with(service_api, "org")
+    expected_registry = {"name": f"{REGISTRY_PREFIX}model", "id": 1}
+    expected_collection = {"id": 2, "tag": "prod"}
+    expected_artifact = {"metadata.owner": "alice", "version": 3}
+
+    assert json.loads(versions.variables["registryFilter"]) == expected_registry
+    assert json.loads(versions.variables["collectionFilter"]) == expected_collection
+    assert json.loads(versions.variables["artifactFilter"]) == expected_artifact
+    service_api.feature_enabled.assert_called_once()
 
 
-@mark.parametrize(
-    ("advanced", "field"),
-    [
-        param(False, "project_id", id="advanced-field-in-basic-mode"),
-        param(True, "description", id="basic-field-in-advanced-mode"),
-    ],
-)
-def test_versions_rejects_fields_unsupported_by_search_mode(
+def test_versions_rejects_advanced_field_in_basic_mode(service_api: MagicMock):
+    field = "project_id"
+
+    with raises(ValueError, match=rf"Invalid filter field.*{field}"):
+        Versions(service_api, organization="org", registry_filter={field: 1})
+
+
+def test_versions_rejects_basic_field_in_advanced_mode(
     service_api: MagicMock,
-    advanced_search_policy: MagicMock,
-    advanced: bool,
-    field: str,
+    enable_advanced_search: None,
 ):
-    advanced_search_policy.return_value = advanced
+    field = "description"
 
     with raises(ValueError, match=rf"Invalid filter field.*{field}"):
         Versions(service_api, organization="org", registry_filter={field: 1})
@@ -251,7 +241,6 @@ def test_versions_rejects_fields_unsupported_by_search_mode(
 
 def test_paginators_reject_unknown_filter_fields(
     service_api: MagicMock,
-    advanced_search_policy: MagicMock,
 ):
     bad_filter = {"not_a_valid_field": 1}
 

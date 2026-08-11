@@ -1,5 +1,5 @@
 from .expressions import FIELD_REGEX, FilterableField, FilterExpr, MongoLikeFilter
-from .filterutils import FilterFieldTransformer, simplify_expr
+from .filterutils import simplify_expr, transform_fields
 from .operators import (
     All,
     And,
@@ -47,7 +47,7 @@ __all__ = [
     "FilterableField",
     "FilterExpr",
     "MongoLikeFilter",
-    "FilterFieldTransformer",
+    "transform_fields",
     "simplify_expr",
     "FIELD_REGEX",
 ]

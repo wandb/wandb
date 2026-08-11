@@ -41,26 +41,23 @@ if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
 
 
-# Type annotations for `filter` arguments that always use the basic policy.
-_BASIC_REGISTRY_FILTER_ALIASES = VERSIONS_FILTER_FIELDS.for_filter(
-    "registry_filter", advanced=False
-)
-_BASIC_COLLECTION_FILTER_ALIASES = VERSIONS_FILTER_FIELDS.for_filter(
-    "collection_filter", advanced=False
-)
-
+# Type annotations for `filter` arguments that always use Basic search fields.
 _RegistryFilter: TypeAlias = Annotated[
     FilterDict,
-    FilterValidator(valid=_BASIC_REGISTRY_FILTER_ALIASES),
+    FilterValidator(
+        valid=VERSIONS_FILTER_FIELDS.aliases_for("registry_filter", advanced=False)
+    ),
     AfterValidator(prepare_registry_filter),
 ]
 _CollectionFilter: TypeAlias = Annotated[
     FilterDict,
-    FilterValidator(valid=_BASIC_COLLECTION_FILTER_ALIASES),
+    FilterValidator(
+        valid=VERSIONS_FILTER_FIELDS.aliases_for("collection_filter", advanced=False)
+    ),
 ]
 _VersionFilter: TypeAlias = Annotated[
     FilterDict,
-    FilterValidator(resolve=VERSIONS_FILTER_FIELDS.resolve),
+    FilterValidator(alias_resolver=VERSIONS_FILTER_FIELDS.resolve_aliases),
 ]
 _VersionRegistryFilter: TypeAlias = Annotated[
     _VersionFilter,

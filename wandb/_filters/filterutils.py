@@ -1,23 +1,21 @@
 """Helpers for parsing and transforming MongoDB expressions.
 
 If a function is defined here, it's an internal helper that we deliberately
-don't expose as instnace methods on filter types for now.
+don't expose as instance methods on filter types for now.
 """
 
 from __future__ import annotations
 
-from collections import Counter
 from collections.abc import Callable, Iterator
-from dataclasses import dataclass
 from functools import singledispatch
-from itertools import chain
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any, cast
 
 from typing_extensions import assert_never
 
+from wandb._strutils import repr_join
+
 from .expressions import FilterExpr, MongoLikeFilter
 from .operators import (
-    And,
     BaseVariadicLogicalOp,
     Eq,
     Exists,
@@ -30,120 +28,85 @@ from .operators import (
     Nor,
     Not,
     NotIn,
+    Op,
     Or,
 )
 
-if TYPE_CHECKING:
-    from .operators import LogicalChild
 
+def transform_fields(
+    raw: dict[str, Any],
+    *,
+    aliases: dict[str, str] | None = None,
+    operand_transforms: dict[str, Callable[[Any], Any]] | None = None,
+) -> dict[str, Any]:
+    """Return a copy of ``raw`` with ordinary filter fields transformed.
 
-def parse_filter(raw: dict[str, Any]) -> MongoLikeFilter:
-    """Parse a raw MongoDB-style filter dict into a typed MongoDB filter expression."""
-    match raw:
-        case dict() if len(raw) < 1:
-            return raw
-        case dict() if len(raw) > 1:  # Multiple root predicates imply "$and".
-            return And(exprs=(parse_filter({k: v}) for k, v in raw.items()))
-
-        # Below this, we're guaranteed a length-1 dict, so we can drop length guards.
-        case {"$and": exprs}:
-            return And(exprs=map(parse_filter, exprs))
-        case {"$or": exprs}:
-            return Or(exprs=map(parse_filter, exprs))
-        case {"$nor": exprs}:
-            return Nor(exprs=map(parse_filter, exprs))
-        case {"$not": expr}:
-            return Not(expr=parse_filter(expr))
-
-        case dict():
-            ((key, val),) = raw.items()
-
-            if key.startswith("$"):
-                return raw  # Unknown operator dict
-            if isinstance(val, dict):
-                return FilterExpr.model_validate(raw)
-
-            # Implicit $eq, e.g. {"field": "value"} -> {"field": {"$eq": "value"}}
-            return FilterExpr(field=key, op=Eq(val=val))
-        case _:
-            assert_never(raw)
-
-
-@dataclass(frozen=True, slots=True)
-class FilterFieldTransformer:
-    """Transform ordinary fields in a raw MongoDB-style filter.
-
-    ``visit`` receives each ordinary field and its opaque operand. The filter
-    grammar controls traversal: recognized logical operators are visited, while
-    unknown operators and field operands are not inspected.
+    If supplied, ``aliases`` maps accepted field roots to their canonical names.
+    ``operand_transforms`` maps exact field names to transformations of their opaque
+    operands. Recognized logical operators are traversed; unknown operators and
+    ordinary field operands are otherwise left untouched.
     """
+    items = tuple(
+        _transform_item(*kv, aliases=aliases, operand_transforms=operand_transforms)
+        for kv in raw.items()
+    )
+    result = dict(items)
 
-    visit: Callable[[str, Any], tuple[str, Any]] | None = None
+    # Alias definitions are intentionally many-to-one. A collision is invalid
+    # only when one filter object uses multiple aliases for the same field.
+    if len(result) != len(items):
+        raise ValueError("Filter field mapping collision.")
 
-    def transform(self, raw: dict[str, Any]) -> dict[str, Any]:
-        """Return a transformed copy of ``raw``."""
-        items = tuple(self._remap_item(key, value) for key, value in raw.items())
-        result = dict(items)
+    return result
 
-        # Alias definitions are intentionally many-to-one. A collision is invalid
-        # only when one filter object uses multiple aliases for the same field.
-        if len(result) != len(items):
-            collision = next(
-                key
-                for key, count in Counter(key for key, _ in items).items()
-                if count > 1
-            )
-            raise ValueError(
-                f"Filter field mapping collision: multiple fields map to {collision!r}."
-            )
 
-        return result
-
-    def _remap_item(self, key: str, value: Any) -> tuple[str, Any]:
-        """Remap one filter item, recursively handling logical operands."""
-        match key, value:
-            case (("$and" | "$or" | "$nor") as operator, list(operands)):
-                if not all(
-                    isinstance(operand, dict) and operand for operand in operands
-                ):
-                    raise ValueError(
-                        f"{operator} must contain only non-empty filter dictionaries."
-                    )
-                return key, [self.transform(operand) for operand in operands]
-
-            case (("$and" | "$or" | "$nor") as operator, _):
-                raise ValueError(
-                    f"{operator} must contain a list of filter dictionaries."
+def _transform_item(
+    key: str,
+    val: Any,
+    *,
+    aliases: dict[str, str] | None,
+    operand_transforms: dict[str, Callable[[Any], Any]] | None,
+) -> tuple[str, Any]:
+    """Transform one filter item, recursively handling logical operands."""
+    match key, val:
+        case (("$and" | "$or" | "$nor") as op, list(operands)):
+            if not all(isinstance(obj, dict) for obj in operands):
+                raise ValueError(f"{op} must contain only filter dictionaries.")
+            return key, [
+                transform_fields(
+                    obj, aliases=aliases, operand_transforms=operand_transforms
                 )
+                for obj in operands
+            ]
 
-            case ("$not", dict(operand)) if operand:
-                return key, self.transform(operand)
+        case (("$and" | "$or" | "$nor") as op, _):
+            raise ValueError(f"{op} must contain a list of filter dictionaries.")
 
-            case ("$not", _):
-                raise ValueError("$not must contain a non-empty filter dictionary.")
+        case ("$not", dict(operand)):
+            return key, transform_fields(
+                operand, aliases=aliases, operand_transforms=operand_transforms
+            )
 
-            case (str(operator), _) if operator.startswith("$"):
-                return key, value
+        case ("$not", _):
+            raise ValueError("$not must contain a filter dictionary.")
 
-            case (str(field), _):
-                return self.visit(field, value) if self.visit else (field, value)
+        case (str(op), _) if op.startswith("$"):
+            return key, val
 
-            case _:
-                raise ValueError("Filter field names must be strings.")
+        case (str(field), _):
+            root, dot, suffix = field.partition(".")
+            if aliases and not aliases.get(root):
+                msg = f"Invalid filter field {root!r}, must be one of: {repr_join(sorted(aliases))}"
+                raise ValueError(msg)
 
+            new_root = aliases[root] if aliases else root
+            new_val = (
+                func(val) if (func := (operand_transforms or {}).get(field)) else val
+            )
+            return f"{new_root}{dot}{suffix}", new_val
 
-def iter_fields(expr: MongoLikeFilter) -> Iterator[str]:
-    """Iterate over the field names referenced in a MongoDB filter.
-
-    Unknown operators are left untouched because their operands may not be filters.
-    """
-    match expr:
-        case FilterExpr(field=field):
-            yield field
-        case And(exprs=exprs) | Or(exprs=exprs) | Nor(exprs=exprs):
-            yield from chain.from_iterable(map(iter_fields, exprs))
-        case Not(expr=expr):
-            yield from iter_fields(expr)
+        case _:
+            assert_never(val)
 
 
 @singledispatch
@@ -207,7 +170,7 @@ def _(op: Not) -> MongoLikeFilter:
 def flatten_inner(
     op: BaseVariadicLogicalOp,
     parent_cls: type[BaseVariadicLogicalOp],
-) -> Iterator[LogicalChild]:
+) -> Iterator[FilterExpr | Op]:
     """Iterates over an `And/Or/Nor` operator's flattened inner expressions."""
     for x in op.exprs:
         yield from (flatten_inner(x, parent_cls) if isinstance(x, parent_cls) else (x,))

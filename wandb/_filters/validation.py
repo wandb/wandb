@@ -10,9 +10,9 @@ from pydantic import GetCoreSchemaHandler, ValidationInfo
 from pydantic_core import CoreSchema
 from pydantic_core.core_schema import with_info_after_validator_function
 
-from wandb._strutils import repr_join
+from .filterutils import transform_fields
 
-from .filterutils import FilterFieldTransformer
+AliasResolver = Callable[[ValidationInfo], dict[str, str]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -22,26 +22,23 @@ class FilterValidator:
     valid: Collection[str] | None = None
     """Allowed names, or aliases mapped to canonical serialized names."""
 
-    resolve: Callable[[ValidationInfo], dict[str, str]] | None = field(
-        default=None,
-        kw_only=True,
-        repr=False,
-    )
-    """Resolve an alias policy from Pydantic validation context."""
+    alias_resolver: AliasResolver | None = None
+    """Resolve accepted-to-canonical aliases from Pydantic validation context."""
 
-    _aliases: tuple[tuple[str, str], ...] = field(
-        init=False,
-        default=(),
-        repr=False,
-    )
+    aliases: tuple[tuple[str, str], ...] = field(init=False, default=())
+    """Immutable accepted-to-canonical aliases derived from ``valid``."""
 
     def __post_init__(self) -> None:
-        if self.valid is not None and self.resolve is not None:
-            raise ValueError("Specify either valid or resolve, not both.")
+        if self.valid and self.alias_resolver:
+            raise ValueError("Specify either valid or alias_resolver, not both.")
 
         # Empty collections are treated as None (no restrictions on valid names)
         if isinstance(valid := self.valid, dict):
-            object.__setattr__(self, "_aliases", tuple(sorted(valid.items())))
+            aliases = tuple(sorted(valid.items()))
+        else:
+            aliases = tuple((name, name) for name in sorted(valid or ()))
+        object.__setattr__(self, "aliases", aliases)
+
         valid = frozenset(valid) if valid else None
         object.__setattr__(self, "valid", valid)
 
@@ -51,21 +48,7 @@ class FilterValidator:
         return with_info_after_validator_function(self.validate, handler(source_type))
 
     def validate(self, raw: dict[str, Any], info: ValidationInfo) -> dict[str, Any]:
-        allowed: Collection[str] | None
-        if self.resolve is not None:
-            aliases = self.resolve(info)
-            allowed = frozenset(aliases) if aliases else None
-        else:
-            aliases = dict(self._aliases)
-            allowed = self.valid
-
-        def validate_and_map(field: str, operand: Any) -> tuple[str, Any]:
-            root, separator, suffix = field.partition(".")
-            if allowed and root not in allowed:
-                msg = f"Invalid filter field {root!r}, must be one of: {repr_join(sorted(allowed))}"
-                raise ValueError(msg)
-
-            mapped_root = aliases.get(root, root)
-            return f"{mapped_root}{separator}{suffix}", operand
-
-        return FilterFieldTransformer(validate_and_map).transform(raw)
+        aliases = (
+            resolve(info) if (resolve := self.alias_resolver) else dict(self.aliases)
+        )
+        return transform_fields(raw, aliases=aliases or None)

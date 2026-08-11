@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from abc import ABC
 from collections.abc import Iterable
-from typing import TYPE_CHECKING, Any, TypeAlias, TypeVar, final
+from typing import TYPE_CHECKING, Any, TypeAlias, TypeVar, final, get_args
 
 from pydantic import ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr
 from typing_extensions import Self, override
@@ -16,7 +16,9 @@ if TYPE_CHECKING:
     from .expressions import FilterExpr
 
 # for type annotations
-Scalar = StrictStr | StrictInt | StrictFloat | StrictBool | None
+Scalar = StrictStr | StrictInt | StrictFloat | StrictBool
+# for runtime type checks
+ScalarTypes: tuple[type, ...] = tuple(t.__origin__ for t in get_args(Scalar))
 
 # See: https://rich.readthedocs.io/en/stable/pretty.html#rich-repr-protocol
 RichReprResult: TypeAlias = Iterable[
@@ -84,7 +86,7 @@ class BaseOp(GQLBase, SupportsBitwiseLogicalOps, ABC):
 
 # Base type for logical operators that take a variable number of expressions.
 class BaseVariadicLogicalOp(BaseOp, ABC):
-    exprs: TupleOf[LogicalChild]
+    exprs: TupleOf[FilterExpr | Op]
 
     @classmethod
     def wrap(cls, expr: Any) -> Self:
@@ -98,12 +100,12 @@ class BaseVariadicLogicalOp(BaseOp, ABC):
 # https://www.mongodb.com/docs/manual/reference/operator/query/not/
 @final
 class And(BaseVariadicLogicalOp):
-    exprs: TupleOf[LogicalChild] = Field(default=(), alias="$and")
+    exprs: TupleOf[FilterExpr | Op] = Field(default=(), alias="$and")
 
 
 @final
 class Or(BaseVariadicLogicalOp):
-    exprs: TupleOf[LogicalChild] = Field(default=(), alias="$or")
+    exprs: TupleOf[FilterExpr | Op] = Field(default=(), alias="$or")
 
     @override
     def __invert__(self) -> Nor:
@@ -113,7 +115,7 @@ class Or(BaseVariadicLogicalOp):
 
 @final
 class Nor(BaseVariadicLogicalOp):
-    exprs: TupleOf[LogicalChild] = Field(default=(), alias="$nor")
+    exprs: TupleOf[FilterExpr | Op] = Field(default=(), alias="$nor")
 
     @override
     def __invert__(self) -> Or:
@@ -123,10 +125,10 @@ class Nor(BaseVariadicLogicalOp):
 
 @final
 class Not(BaseOp):
-    expr: LogicalChild = Field(alias="$not")
+    expr: FilterExpr | Op = Field(alias="$not")
 
     @override
-    def __invert__(self) -> LogicalChild:
+    def __invert__(self) -> FilterExpr | Op:
         """Implements `~Not(a) -> a`."""
         return self.expr
 
@@ -284,6 +286,7 @@ KEY_TO_OP: dict[str, type[BaseOp]] = {
 }
 
 
+# Known, implemented MongoDB operators for type annotations.
 Op = (
     And
     | Or
@@ -303,7 +306,3 @@ Op = (
     | Size
     | All
 )
-"""Type hint for known, implemented MongoDB operator types."""
-
-LogicalChild: TypeAlias = "FilterExpr | Op"
-"""Type hint for valid operands of logical operators."""

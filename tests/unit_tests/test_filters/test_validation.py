@@ -3,7 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Annotated, Any
 
-from pydantic import BaseModel, TypeAdapter, ValidationError
+from pydantic import TypeAdapter, ValidationError
 from pytest import mark, param, raises
 from wandb._filters import FilterValidator
 from wandb._pydantic import FilterDict
@@ -19,9 +19,16 @@ FIELD_ALIASES = {
     "artifact_metadata": "metadata",
 }
 
-
-class ExampleVars(BaseModel):
-    filters: Annotated[FilterDict, FilterValidator(VALID_FIELDS)]
+FILTER_ADAPTER = TypeAdapter(Annotated[FilterDict, FilterValidator(VALID_FIELDS)])
+ALIASED_FILTER_ADAPTER = TypeAdapter(
+    Annotated[FilterDict, FilterValidator(valid=FIELD_ALIASES)]
+)
+COLLISION_FILTER_ADAPTER = TypeAdapter(
+    Annotated[
+        FilterDict,
+        FilterValidator(valid=FIELD_ALIASES | {"field": "$or"}),
+    ]
+)
 
 
 @mark.parametrize(
@@ -37,15 +44,22 @@ class ExampleVars(BaseModel):
         param({"$or": [{"tag": "x"}, {"created_at": 1}]}, id="or"),
         param({"$nor": [{"tag": "x"}, {"created_at": 1}]}, id="nor"),
         param({"$not": {"tag": "x"}}, id="not"),
-        param({"tag": {"$future": {INVALID_FIELD: 1}}}, id="opaque-field-op"),
+        param({"$and": []}, id="empty-and"),
+        param({"$or": []}, id="empty-or"),
+        param({"$or": [{}]}, id="empty-logical-child"),
+        param({"$not": {}}, id="empty-not"),
         param(
-            {"$future": {INVALID_FIELD: 1}, "tag": "prod"},
+            {"tag": {"$unknownOp": {INVALID_FIELD: 1}}},
+            id="opaque-field-op",
+        ),
+        param(
+            {"$unknownOp": {INVALID_FIELD: 1}, "tag": "prod"},
             id="opaque-root-op",
         ),
         param(
             {
                 "$and": [
-                    {"$future": {INVALID_FIELD: 1}},
+                    {"$unknownOp": {INVALID_FIELD: 1}},
                     {"$or": [{"created_at": 1}, {"updated_at": 2}]},
                 ]
             },
@@ -56,56 +70,61 @@ class ExampleVars(BaseModel):
 def test_valid_filter_unchanged(filters: dict[str, Any]):
     original = deepcopy(filters)
 
-    assert ExampleVars(filters=filters).filters == original
+    assert FILTER_ADAPTER.validate_python(filters) == original
     assert filters == original
 
 
-def test_filter_validator_maps_aliases_in_annotated_field():
-    adapter = TypeAdapter(Annotated[FilterDict, FilterValidator(valid=FIELD_ALIASES)])
-    raw = {
-        "$and": [
-            {"artifact_metadata.owner": "alice"},
+@mark.parametrize(
+    ("raw", "expected"),
+    [
+        param(
             {
-                "$or": [
-                    {"tag": "prod"},
+                "$and": [
+                    {"artifact_metadata.owner": "alice"},
                     {"$not": {"artifact_metadata.team": "ml"}},
                 ]
             },
-            {"$nor": [{"created_at": 1}]},
-        ]
-    }
-
-    assert adapter.validate_python(raw) == {
-        "$and": [
-            {"metadata.owner": "alice"},
             {
-                "$or": [
-                    {"tag": "prod"},
+                "$and": [
+                    {"metadata.owner": "alice"},
                     {"$not": {"metadata.team": "ml"}},
                 ]
             },
-            {"$nor": [{"created_at": 1}]},
-        ]
-    }
+            id="logical-fields",
+        ),
+        param(
+            {
+                "artifact_metadata": [
+                    {"artifact_metadata.owner": "data, not a filter field"}
+                ]
+            },
+            {"metadata": [{"artifact_metadata.owner": "data, not a filter field"}]},
+            id="opaque-field-operand",
+        ),
+        param(
+            {
+                "$unknownOp": {
+                    INVALID_FIELD: 1,
+                    "artifact_metadata.owner": "also opaque",
+                },
+                "artifact_metadata.owner": "alice",
+            },
+            {
+                "$unknownOp": {
+                    INVALID_FIELD: 1,
+                    "artifact_metadata.owner": "also opaque",
+                },
+                "metadata.owner": "alice",
+            },
+            id="opaque-unknown-operator-operand",
+        ),
+    ],
+)
+def test_filter_validator_maps_aliases(raw: dict[str, Any], expected: dict[str, Any]):
+    original = deepcopy(raw)
 
-
-def test_filter_validator_leaves_operands_opaque_when_mapping_fields():
-    adapter = TypeAdapter(Annotated[FilterDict, FilterValidator(valid=FIELD_ALIASES)])
-    field_operand = [{"artifact_metadata.owner": "data, not a filter field"}]
-    unknown_operator_operand = {
-        INVALID_FIELD: 1,
-        "artifact_metadata.owner": "also opaque",
-    }
-
-    assert adapter.validate_python(
-        {
-            "artifact_metadata": field_operand,
-            "$future": unknown_operator_operand,
-        }
-    ) == {
-        "metadata": field_operand,
-        "$future": unknown_operator_operand,
-    }
+    assert ALIASED_FILTER_ADAPTER.validate_python(raw) == expected
+    assert raw == original
 
 
 @mark.parametrize(
@@ -134,11 +153,8 @@ def test_filter_validator_leaves_operands_opaque_when_mapping_fields():
     ],
 )
 def test_filter_validator_rejects_mapping_collisions(raw: dict[str, Any]):
-    aliases = {**FIELD_ALIASES, "field": "$or"}
-    adapter = TypeAdapter(Annotated[FilterDict, FilterValidator(valid=aliases)])
-
     with raises(ValidationError, match="mapping collision"):
-        adapter.validate_python(raw)
+        COLLISION_FILTER_ADAPTER.validate_python(raw)
 
 
 @mark.parametrize(
@@ -160,17 +176,17 @@ def test_filter_validator_rejects_mapping_collisions(raw: dict[str, Any]):
 )
 def test_invalid_filter_field_raises(filters: dict[str, Any]):
     with raises(ValidationError, match="Invalid filter field"):
-        ExampleVars(filters=filters)
+        FILTER_ADAPTER.validate_python(filters)
 
 
 @mark.parametrize(
     "filters",
     [
         param({"$and": {"tag": "x"}}, id="variadic-op-requires-list"),
-        param({"$or": [{}]}, id="logical-child-requires-nonempty-dict"),
-        param({"$not": {}}, id="not-requires-nonempty-dict"),
+        param({"$or": [1]}, id="logical-child-requires-dict"),
+        param({"$not": []}, id="not-requires-dict"),
     ],
 )
 def test_malformed_logical_operator_raises(filters: dict[str, Any]):
     with raises(ValidationError, match=r"must contain|must be"):
-        ExampleVars(filters=filters)
+        FILTER_ADAPTER.validate_python(filters)
