@@ -245,35 +245,36 @@ func TestInitRun_Offline(t *testing.T) {
 	upserter.Finish()
 }
 
-func TestResume(t *testing.T) {
+func setupResumeTest(
+	t *testing.T,
+	resume string,
+) (*gqlmock.MockClient, runupserter.RunUpserterParams) {
+	t.Helper()
 	mockClient := gqlmock.NewMockClient()
-	mockClient.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{}`)
-	runupsertertest.StubUpsertBucket(t, mockClient)
-
 	params := testParams(t)
 	params.GraphqlClientOrNil = mockClient
-	params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("allow")})
-
-	upserter, err := runupserter.InitRun(
-		runRecord(&spb.RunRecord{ResumeMode: true}),
-		params,
-	)
-	require.NoError(t, err)
-	defer upserter.Finish()
-
-	assert.True(t, mockClient.AllStubsUsed())
+	if resume != "" {
+		params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String(resume)})
+	}
+	return mockClient, params
 }
 
-func TestResume_FromRunRecord(t *testing.T) {
-	mockClient := gqlmock.NewMockClient()
+func assertResumeInitErrorContains(
+	t *testing.T,
+	upserter *runupserter.RunUpserter,
+	err error,
+	wantContains string,
+) {
+	t.Helper()
+	assert.Nil(t, upserter)
+	runUpdateError := err.(*runupserter.RunUpdateError)
+	assert.Contains(t, runUpdateError.UserMessage, wantContains)
+}
+
+func TestResume_ResumeModeTrue_Allow(t *testing.T) {
+	mockClient, params := setupResumeTest(t, "allow")
 	mockClient.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{}`)
 	runupsertertest.StubUpsertBucket(t, mockClient)
-
-	params := testParams(t)
-	params.GraphqlClientOrNil = mockClient
-	params.Settings = settings.From(&spb.Settings{
-		Resume: wrapperspb.String("allow"),
-	})
 
 	upserter, err := runupserter.InitRun(
 		runRecord(&spb.RunRecord{ResumeMode: true}),
@@ -281,113 +282,170 @@ func TestResume_FromRunRecord(t *testing.T) {
 	)
 	require.NoError(t, err)
 	defer upserter.Finish()
-
 	assert.True(t, mockClient.AllStubsUsed())
 }
 
 func TestResume_FromRunRecordUsesSettingsPolicy(t *testing.T) {
-	mockClient := gqlmock.NewMockClient()
-	mockClient.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{}`)
-
-	params := testParams(t)
-	params.GraphqlClientOrNil = mockClient
-	params.Settings = settings.From(&spb.Settings{
-		Resume: wrapperspb.String("never"),
-	})
+	mockClient, params := setupResumeTest(t, "never")
+	runupsertertest.StubRunResumeStatusExistingRun(t, mockClient)
 
 	upserter, err := runupserter.InitRun(
-		runRecord(&spb.RunRecord{ResumeMode: true}),
+		runRecord(&spb.RunRecord{RunId: "run", ResumeMode: true}),
 		params,
 	)
+	assertResumeInitErrorContains(
+		t,
+		upserter,
+		err,
+		"does not allow resuming an existing run",
+	)
+	assert.True(t, mockClient.AllStubsUsed())
+}
 
-	assert.Nil(t, upserter)
-	assert.Error(t, err)
+func TestResume_FromRunRecordReconcilesWithEmptyResumeSetting(t *testing.T) {
+	// `wandb beta sync` does not pass a resume setting; reconciliation relies
+	// on ResumeMode recorded in the transaction log at wandb.init() time.
+	mockClient, params := setupResumeTest(t, "")
+	runupsertertest.StubRunResumeStatusWithStep(t, mockClient, 4)
+	runupsertertest.StubUpsertBucket(t, mockClient)
+
+	upserter, err := runupserter.InitRun(
+		runRecord(&spb.RunRecord{RunId: "run", ResumeMode: true}),
+		params,
+	)
+	require.NoError(t, err)
+	defer upserter.Finish()
+
+	run := &spb.RunRecord{}
+	upserter.FillRunRecord(run)
+	assert.EqualValues(t, 5, run.StartingStep)
+	assert.True(t, mockClient.AllStubsUsed())
+}
+
+func TestResume_NeverRejectsExistingRun(t *testing.T) {
+	mockClient, params := setupResumeTest(t, "never")
+	runupsertertest.StubRunResumeStatusExistingRun(t, mockClient)
+
+	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{RunId: "run"}), params)
+	assertResumeInitErrorContains(
+		t,
+		upserter,
+		err,
+		"does not allow resuming an existing run",
+	)
 	assert.True(t, mockClient.AllStubsUsed())
 }
 
 // This verifies the correct error handling for missing run and ResumeMode=False.
-func TestResume_FalseIntentSettingsMatrixMissingRun(t *testing.T) {
-	tests := []struct {
-		name       string
-		resume     *wrapperspb.StringValue
-		wantError  bool
-		wantIntent bool
-	}{
-		{name: "allow", resume: wrapperspb.String("allow"), wantIntent: true},
-		{name: "must", resume: wrapperspb.String("must"), wantError: true, wantIntent: true},
-		{name: "never", resume: wrapperspb.String("never")},
-		{name: "unset"},
-		{name: "auto", resume: wrapperspb.String("auto")},
-		{name: "unexpected", resume: wrapperspb.String("unexpected")},
-	}
+func TestResume_FalseIntentAllowMissingRun(t *testing.T) {
+	mockClient, params := setupResumeTest(t, "allow")
+	mockClient.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{}`)
+	runupsertertest.StubUpsertBucket(t, mockClient)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockClient := gqlmock.NewMockClient()
-			shouldStubResumeStatus := tt.resume != nil &&
-				(tt.resume.GetValue() == "must" || tt.resume.GetValue() == "allow" || tt.resume.GetValue() == "never")
-			if shouldStubResumeStatus {
-				mockClient.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{}`)
-			}
+	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{}), params)
+	require.NoError(t, err)
+	defer upserter.Finish()
 
-			params := testParams(t)
-			params.GraphqlClientOrNil = mockClient
-			if tt.resume != nil {
-				params.Settings = settings.From(&spb.Settings{Resume: tt.resume})
-			}
-			if !tt.wantError {
-				runupsertertest.StubUpsertBucket(t, mockClient)
-			}
+	run := &spb.RunRecord{}
+	upserter.FillRunRecord(run)
+	assert.True(t, run.ResumeMode)
+	assert.True(t, mockClient.AllStubsUsed())
+}
 
-			upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{}), params)
-			if tt.wantError {
-				assert.Nil(t, upserter)
-				assert.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				defer upserter.Finish()
-				run := &spb.RunRecord{}
-				upserter.FillRunRecord(run)
-				assert.Equal(t, tt.wantIntent, run.ResumeMode, tt.name)
-			}
-			if shouldStubResumeStatus {
-				assert.True(t, mockClient.AllStubsUsed(), tt.name)
-			}
-		})
-	}
+func TestResume_FalseIntentMustMissingRun(t *testing.T) {
+	mockClient, params := setupResumeTest(t, "must")
+	mockClient.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{}`)
+
+	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{}), params)
+	assertResumeInitErrorContains(
+		t,
+		upserter,
+		err,
+		"requires an existing run to resume",
+	)
+	assert.True(t, mockClient.AllStubsUsed())
+}
+
+func TestResume_FalseIntentNeverMissingRun(t *testing.T) {
+	mockClient, params := setupResumeTest(t, "never")
+	mockClient.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{}`)
+	runupsertertest.StubUpsertBucket(t, mockClient)
+
+	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{}), params)
+	require.NoError(t, err)
+	defer upserter.Finish()
+
+	run := &spb.RunRecord{}
+	upserter.FillRunRecord(run)
+	assert.False(t, run.ResumeMode)
+	assert.True(t, mockClient.AllStubsUsed())
+}
+
+func TestResume_FalseIntentUnsetMissingRun(t *testing.T) {
+	mockClient, params := setupResumeTest(t, "")
+	runupsertertest.StubUpsertBucket(t, mockClient)
+
+	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{}), params)
+	require.NoError(t, err)
+	defer upserter.Finish()
+
+	run := &spb.RunRecord{}
+	upserter.FillRunRecord(run)
+	assert.False(t, run.ResumeMode)
+	assert.True(t, mockClient.AllStubsUsed())
+}
+
+func TestResume_FalseIntentAutoMissingRun(t *testing.T) {
+	mockClient, params := setupResumeTest(t, "auto")
+	runupsertertest.StubUpsertBucket(t, mockClient)
+
+	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{}), params)
+	require.NoError(t, err)
+	defer upserter.Finish()
+
+	run := &spb.RunRecord{}
+	upserter.FillRunRecord(run)
+	assert.False(t, run.ResumeMode)
+	assert.True(t, mockClient.AllStubsUsed())
+}
+
+func TestResume_FalseIntentUnexpectedMissingRun(t *testing.T) {
+	mockClient, params := setupResumeTest(t, "unexpected")
+	runupsertertest.StubUpsertBucket(t, mockClient)
+
+	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{}), params)
+	require.NoError(t, err)
+	defer upserter.Finish()
+
+	run := &spb.RunRecord{}
+	upserter.FillRunRecord(run)
+	assert.False(t, run.ResumeMode)
+	assert.True(t, mockClient.AllStubsUsed())
 }
 
 // This test proves that ResumeMode=False (equivalent to `resume=never`) can be
 // overridden by explicitly setting `resume=allow` or `resume=must` when there
 // is an existing run.
-func TestResume_FalseIntentAllowAndMustResumeExistingRun(t *testing.T) {
-	for _, mode := range []string{"allow", "must"} {
-		t.Run(mode, func(t *testing.T) {
-			mockClient := gqlmock.NewMockClient()
-			mockClient.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{
-				"model": {"bucket": {
-					"config": "{}",
-					"wandbConfig": "{\"t\": 1}",
-					"historyLineCount": 0,
-					"eventsLineCount": 0,
-					"logLineCount": 0,
-					"historyTail": "[]",
-					"eventsTail": "[]",
-					"summaryMetrics": "{}"
-				}}
-			}`)
-			runupsertertest.StubUpsertBucket(t, mockClient)
+func TestResume_FalseIntentAllowExistingRun(t *testing.T) {
+	mockClient, params := setupResumeTest(t, "allow")
+	runupsertertest.StubRunResumeStatusExistingRun(t, mockClient)
+	runupsertertest.StubUpsertBucket(t, mockClient)
 
-			params := testParams(t)
-			params.GraphqlClientOrNil = mockClient
-			params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String(mode)})
+	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{RunId: "run"}), params)
+	require.NoError(t, err)
+	defer upserter.Finish()
+	assert.True(t, mockClient.AllStubsUsed())
+}
 
-			upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{}), params)
+func TestResume_FalseIntentMustExistingRun(t *testing.T) {
+	mockClient, params := setupResumeTest(t, "must")
+	runupsertertest.StubRunResumeStatusExistingRun(t, mockClient)
+	runupsertertest.StubUpsertBucket(t, mockClient)
 
-			require.NoError(t, err)
-			defer upserter.Finish()
-		})
-	}
+	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{RunId: "run"}), params)
+	require.NoError(t, err)
+	defer upserter.Finish()
+	assert.True(t, mockClient.AllStubsUsed())
 }
 
 func TestResume_Offline_SettingsOverrideMissingRunIntent(t *testing.T) {
