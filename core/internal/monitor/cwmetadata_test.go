@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -49,6 +50,26 @@ func newTestRetryableHTTPClient(logger *observability.CoreLogger) *retryablehttp
 	return client
 }
 
+// sampleMetadataValue returns the value of a key in
+// coreWeaveSampleMetadataResponse, failing the test if it is absent so
+// that assertions about the value cannot pass trivially.
+func sampleMetadataValue(t *testing.T, key string) string {
+	t.Helper()
+
+	for line := range strings.Lines(coreWeaveSampleMetadataResponse) {
+		k, v, ok := strings.Cut(line, ":")
+		if ok && k == key {
+			value := strings.TrimSpace(v)
+			require.NotEmpty(t, value,
+				"%q has no value in coreWeaveSampleMetadataResponse", key)
+			return value
+		}
+	}
+
+	t.Fatalf("%q is not in coreWeaveSampleMetadataResponse", key)
+	return ""
+}
+
 func TestCoreWeaveMetadataProbeDoesNotLogCredentials(t *testing.T) {
 	logger, logs := observabilitytest.NewDebugRecordingTestLogger(t)
 
@@ -89,13 +110,14 @@ func TestCoreWeaveMetadataProbeDoesNotLogCredentials(t *testing.T) {
 	assert.Equal(t, "b13ad0", e.Coreweave.OrgId)
 	assert.Equal(t, "us-east-04", e.Coreweave.Region)
 
-	for name, value := range map[string]string{
-		"join_token":     "6r2nt2.vbt9w6s72pzcwkh7",
-		"ca_cert_hash":   "7dae4dfc5b7e430ea2d7f87776d498ec00844c06f4eacb134ea9c1d06a072761",
-		"teleport_token": "a5b0f5d6645183e3b6fa3891ce66e0e8",
-	} {
+	// The metadata must have been logged for the assertions below to be
+	// meaningful: credentials cannot appear in a log that was never written.
+	assert.Contains(t, logs.String(), "cwmetadata: successfully parsed metadata")
+
+	for _, key := range []string{"join_token", "ca_cert_hash", "teleport_token"} {
+		value := sampleMetadataValue(t, key)
 		assert.NotContains(t, logs.String(), value,
-			"the value of %q must not be logged", name)
+			"the value of %q must not be logged", key)
 	}
 }
 
