@@ -57,6 +57,10 @@ class ServiceApi:
     def base_url(self) -> str:
         return self._settings.base_url
 
+    @property
+    def settings(self) -> wandb_settings.Settings:
+        return self._settings
+
     def _get_api_session(
         self,
         connection: ServiceConnection | None = None,

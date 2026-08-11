@@ -426,7 +426,7 @@ def _pool_key(settings: Settings) -> str:
     """
     identity = "\n".join(
         (
-            settings.base_url,
+            settings.base_url or "",
             settings.api_key or "",
             settings.identity_token_file or "",
         )
