@@ -17,11 +17,13 @@ from typing import Any
 import click
 from typing_extensions import Never
 
+from wandb import env as wandb_env
 from wandb.analytics import get_sentry
 from wandb.env import error_reporting_enabled, is_debug
 from wandb.errors import WandbCoreNotAvailableError
 from wandb.sdk import wandb_setup
 from wandb.sdk.lib import wbauth
+from wandb.sdk.lib.wbauth import wbnetrc
 from wandb.util import get_core_path
 
 
@@ -115,8 +117,19 @@ def config() -> None:
     launch_config()
 
 
+@dataclasses.dataclass(frozen=True)
+class TelemetryConfig:
+    """Configuration for telemetry."""
+
+    endpoint: str | None = None
+    api_key: str | None = None
+
+
+@dataclasses.dataclass(frozen=True)
 class LaunchConfig:
     """Configuration for launching LEET."""
+
+    telemetry: TelemetryConfig
 
 
 @dataclasses.dataclass(frozen=True)
@@ -166,9 +179,18 @@ def _resolve_path(path: str | None) -> LaunchConfig:
         - Run directory: Parent as wandb_dir, found .wandb as run_file
         - Other directory: Treat as wandb_dir (workspace mode)
     """
+    singleton = wandb_setup.singleton()
+    base_url = singleton.settings.base_url
+    api_key = wbnetrc.read_netrc_auth(host=base_url)
+
+    telemetry = TelemetryConfig(
+        endpoint=base_url,
+        api_key=api_key,
+    )
+
     if not path:
-        wandb_dir = wandb_setup.singleton().settings.wandb_dir
-        return LocalLaunchConfig(wandb_dir=str(wandb_dir))
+        wandb_dir = singleton.settings.wandb_dir
+        return LocalLaunchConfig(wandb_dir=str(wandb_dir), telemetry=telemetry)
 
     resolved = pathlib.Path(path).resolve()
 
@@ -176,7 +198,11 @@ def _resolve_path(path: str | None) -> LaunchConfig:
         if resolved.suffix == ".wandb":
             run_dir = resolved.parent
             wandb_dir = run_dir.parent
-            return LocalLaunchConfig(wandb_dir=str(wandb_dir), run_file=str(resolved))
+            return LocalLaunchConfig(
+                wandb_dir=str(wandb_dir),
+                run_file=str(resolved),
+                telemetry=telemetry,
+            )
         else:
             _fatal(f"Not a .wandb file: {resolved}")
 
@@ -184,9 +210,13 @@ def _resolve_path(path: str | None) -> LaunchConfig:
         wandb_file = _find_wandb_file_in_dir(resolved)
         if wandb_file:
             wandb_dir = resolved.parent
-            return LocalLaunchConfig(wandb_dir=str(wandb_dir), run_file=str(wandb_file))
+            return LocalLaunchConfig(
+                wandb_dir=str(wandb_dir),
+                run_file=str(wandb_file),
+                telemetry=telemetry,
+            )
         else:
-            return LocalLaunchConfig(wandb_dir=str(resolved))
+            return LocalLaunchConfig(wandb_dir=str(resolved), telemetry=telemetry)
 
     _fatal(f"Path does not exist: {resolved}")
 
@@ -235,6 +265,19 @@ def launch(path: str | None, pprof: str) -> Never:
     if pprof:
         args.extend(["--pprof", pprof])
 
+    if (
+        wandb_env.error_reporting_enabled()
+        and config.telemetry.endpoint
+        and config.telemetry.api_key
+    ):
+        args.extend(
+            [
+                "--telemetry-endpoint",
+                config.telemetry.endpoint,
+            ]
+        )
+        env["WANDB_API_KEY"] = config.telemetry.api_key
+
     if isinstance(config, LocalLaunchConfig):
         args.extend(_get_local_launch_args(config))
     elif isinstance(config, RemoteLaunchConfig):
@@ -278,6 +321,7 @@ def _get_local_launch_args(config: LocalLaunchConfig) -> list[str]:
     if config.run_file:
         args.extend(["--run-file", config.run_file])
     args.append(config.wandb_dir)
+
     return args
 
 
@@ -299,7 +343,16 @@ def _create_remote_launch_config(path: str) -> RemoteLaunchConfig:
     if not isinstance(auth, wbauth.AuthApiKey):
         _fatal("LEET remote runs require API key authentication.")
 
-    return RemoteLaunchConfig(remote_url=remote_url, api_key=auth.api_key)
+    telemetry = TelemetryConfig(
+        endpoint=base_url,
+        api_key=auth.api_key,
+    )
+
+    return RemoteLaunchConfig(
+        remote_url=remote_url,
+        api_key=auth.api_key,
+        telemetry=telemetry,
+    )
 
 
 def _parse_remote_url(path: str) -> tuple[str, str]:
