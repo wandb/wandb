@@ -86,7 +86,7 @@ from wandb.apis.public.runhistory.downloads import (
     DownloadHistoryResult,
     IncompleteRunHistoryError,
 )
-from wandb.apis.public.runs import RUN_FRAGMENT, AgentRuns, Run, Runs
+from wandb.apis.public.runs import RUN_FRAGMENT, AgentRuns, Run, RunNotFoundError, Runs
 from wandb.apis.public.sweeps import Sweep, SweepState
 from wandb.apis.public.teams import Member, Team
 from wandb.apis.public.users import User

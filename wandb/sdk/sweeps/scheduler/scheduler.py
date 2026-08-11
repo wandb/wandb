@@ -12,6 +12,8 @@ from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, TypeVar
 
+from typing_extensions import override
+
 from wandb import termerror, termlog, termwarn
 from wandb.apis.public import Sweep, SweepState
 from wandb.sdk.sweeps.run_state import RunState
@@ -75,8 +77,9 @@ class Executor(ABC):
     def reap(self, run_ids: Iterable[str]) -> set[str]:
         """Return the `run_ids` whose backend jobs are no longer alive.
 
-        Catches jobs that died before `wandb.init` ran (rejected,
-        preempted, crashed at startup) and left their W&B run stuck PENDING.
+        Override to catch jobs that died before `wandb.init` ran (rejected,
+        preempted, crashed at startup) and left their W&B run stuck PENDING;
+        the default reports none.
         """
         return set()
 
@@ -90,6 +93,7 @@ class WBAgentExecutor(Executor):
     def __init__(self, sweep: Sweep):
         self._sweep = sweep
 
+    @override
     def schedule(self, suggestion: RunSuggestion) -> str:
         """Enqueue the run in the sweep's queue; return its W&B run id."""
         return self._sweep.enqueue_run(suggestion.config.wire_dict())
@@ -218,8 +222,9 @@ class _ShutdownMonitor:
 class SchedulerOptions:
     """How a scheduler drives a sweep, independent of the search strategy.
 
-    `executor` is the backend that schedules runs; the default is the W&B run
-    queue.
+    `poll_interval_s` is how long the loop waits between polls, `batch_size`
+    is how many runs to keep in flight, and `executor` is the backend that
+    schedules runs; the default is the W&B run queue.
     """
 
     poll_interval_s: float = 5.0
@@ -291,7 +296,11 @@ class Scheduler(ABC):
 
     @abstractmethod
     def sweep_state(self) -> SweepState:
-        """The sweep's current state; the loop runs while RUNNING/PENDING."""
+        """The sweep's current state.
+
+        The loop keeps polling while it is active: RUNNING, PENDING or
+        PAUSED.
+        """
         ...
 
     def unreadable_run_ids(self) -> frozenset[str]:
@@ -319,7 +328,7 @@ class Scheduler(ABC):
         (ctrl-c) let the current loop iteration finish before exiting.
 
         Intermittent W&B API failures don't end the sweep: the loop keeps
-        polling, just further apart, until they clear or
+        polling, just further apart, until they clear or more than
         `_MAX_CONSECUTIVE_ERRORS` polls have failed in a row. Failures that
         won't resolve on their own end the loop immediately. See
         `failure_policy.classify`.
@@ -359,9 +368,12 @@ class Scheduler(ABC):
         # past the handling above.
         state = self._last_sweep_state
         if state is None:
-            termlog(f"Sweep {self._sweep.name} has exited")
+            termlog(f"Scheduler for sweep {self._sweep.name} exited.")
         else:
-            termlog(f"Sweep {self._sweep.name} has exited with state {state}")
+            termlog(
+                f"Scheduler for sweep {self._sweep.name} exited; "
+                f"sweep state is {state.value}."
+            )
 
     def _refresh_sweep_state(self) -> SweepState:
         """Read the sweep's state and cache it for the current iteration."""
@@ -442,7 +454,8 @@ class Scheduler(ABC):
         self._prune_active_runs(active)
         if self._optimizer.should_terminate_sweep():
             termlog(
-                f"Sweep {self._sweep.name} should be terminated;exiting scheduler loop."
+                f"Sweep {self._sweep.name} should be terminated; "
+                f"exiting scheduler loop."
             )
             self._sweep.finish()
             return _LoopControl.TERMINATE
@@ -490,8 +503,8 @@ class Scheduler(ABC):
                 and data.state == RunState.FINISHED
             ):
                 termwarn(
-                    f"Run {wandb_run_id} in sweep {self._sweep.name} "
-                    f"has no metric value"
+                    f"Run {wandb_run_id} in sweep {self._sweep.name} finished "
+                    f"without the sweep metric; marking it failed."
                 )
                 data.state = RunState.FAILED
 
@@ -641,12 +654,19 @@ class Scheduler(ABC):
             new runs.
         """
         suggestions: list[RunSuggestion] | None = None
+        error: BaseException | None = None
         done = threading.Event()
 
         def fetch() -> None:
-            nonlocal suggestions
-            suggestions = list(self._optimizer.ask_n_runs(n))
-            done.set()
+            nonlocal suggestions, error
+            # A swallowed exception here would leave `done` unset and the
+            # loop below polling forever, so capture it for re-raising.
+            try:
+                suggestions = list(self._optimizer.ask_n_runs(n))
+            except BaseException as e:
+                error = e
+            finally:
+                done.set()
 
         thread = threading.Thread(target=fetch, daemon=True)
         thread.start()
@@ -658,6 +678,8 @@ class Scheduler(ABC):
                 return None
             if self._refresh_sweep_state() not in _ACTIVE_SWEEP_STATES:
                 return None
+        if error is not None:
+            raise error
         if not suggestions:
             termlog(
                 f"Optimizer for sweep {self._sweep.name} has no runs left to "

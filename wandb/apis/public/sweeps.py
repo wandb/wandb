@@ -305,7 +305,7 @@ class Sweep(Attrs):
         id (str): Sweep ID
         project (str): The name of the project the sweep belongs to
         config (dict): Dictionary containing the sweep configuration
-        state (SweepState): The state of the sweep.
+        state (str): The state of the sweep, as reported by the server.
         expected_run_count (int): The number of expected runs for the sweep
     """
 
