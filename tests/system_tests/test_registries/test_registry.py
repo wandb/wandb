@@ -441,9 +441,7 @@ def test_advanced_feature_response_selects_version_filter_fields(
     advanced_features = gql.once(
         content={
             "data": {
-                "organization": {
-                    "advancedRegistryFeatures": {"advancedSearch": True}
-                }
+                "organization": {"advancedRegistryFeatures": {"advancedSearch": True}}
             }
         }
     )

@@ -61,9 +61,7 @@ def test_valid_filter_unchanged(filters: dict[str, Any]):
 
 
 def test_filter_validator_maps_aliases_in_annotated_field():
-    adapter = TypeAdapter(
-        Annotated[FilterDict, FilterValidator(valid=FIELD_ALIASES)]
-    )
+    adapter = TypeAdapter(Annotated[FilterDict, FilterValidator(valid=FIELD_ALIASES)])
     raw = {
         "$and": [
             {"artifact_metadata.owner": "alice"},
