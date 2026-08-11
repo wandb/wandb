@@ -2,7 +2,9 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from wandb.sdk.sweeps import SweepNotFoundError
+# SweepNotFoundError was moved from this file to sdk.sweeps.
+# Ensure backward-compatible re-export for legacy path.
+from wandb.sdk.sweeps import SweepNotFoundError as SweepNotFoundError
 
 log = logging.getLogger(__name__)
 
