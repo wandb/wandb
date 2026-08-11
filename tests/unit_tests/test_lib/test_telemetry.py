@@ -18,6 +18,7 @@ from wandb.sdk.wandb_settings import Settings
 def _pretend_service_connected(monkeypatch):
     """Make the telemetry publish path see an existing service connection."""
     fake_setup = MagicMock(service_connected=True)
+    fake_setup.assert_service = MagicMock(return_value=MagicMock())
     monkeypatch.setattr(wandb_setup, "singleton_if_created", lambda: fake_setup)
 
 
@@ -49,7 +50,7 @@ def test_disabled_telemetry_does_not_publish(monkeypatch):
 def test_telemetry_without_service_api_does_not_publish():
     recorder = TelemetryRecorder()
 
-    assert recorder._can_publish() is False
+    assert recorder._resolve_connection() is None
 
     # even if we cannot publish, calling the methods should still be safe
     recorder.increment_counter("test_counter", LowCardinalityAttributes())

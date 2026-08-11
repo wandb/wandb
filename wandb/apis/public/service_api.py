@@ -57,12 +57,25 @@ class ServiceApi:
     def base_url(self) -> str:
         return self._settings.base_url
 
-    def _get_api_session(self) -> _ServiceApiSession:
-        """Connect to the service and initialize resources for API requests."""
+    def _get_api_session(
+        self,
+        connection: ServiceConnection | None = None,
+    ) -> _ServiceApiSession:
+        """Connect to the service and initialize resources for API requests.
+
+        Args:
+            connection: An existing service connection to use for API requests.
+                If not provided, the request is sent on the global singleton.
+
+                If provided, the request is sent on the provided connection
+                rather than resolving one through the global singleton.
+                Allowing callers to fail without starting
+                a new wandb-core process.
+        """
         if self._api_session is not None:
             return self._api_session
 
-        service_connection = wandb_setup.singleton().ensure_service()
+        service_connection = connection or wandb_setup.singleton().ensure_service()
         response = service_connection.api_init_request(self._settings.to_proto())
         session = _ServiceApiSession(
             connection=service_connection,
@@ -263,13 +276,20 @@ class ServiceApi:
     def api_publish(
         self,
         request: ApiRequest,
+        connection: ServiceConnection | None = None,
     ) -> None:
         """Publish an API request to the backend service without waiting for a response.
 
         Args:
             request: The Api request to publish.
+            connection: An existing service connection to publish through.
+                If not provided, the request is sent on the global singleton.
+
+                If provided, the request is sent on this connection rather
+                than resolving one through the global singleton. Allowings
+                callers to fail without starting a new wandb-core process.
         """
-        session = self._get_api_session()
+        session = self._get_api_session(connection)
         request.api_id = session.api_id
         session.connection.api_publish(request)
 

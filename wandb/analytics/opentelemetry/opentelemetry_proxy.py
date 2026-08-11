@@ -28,6 +28,7 @@ from wandb.sdk import wandb_setup
 
 if TYPE_CHECKING:
     from wandb.apis.public.service_api import ServiceApi
+    from wandb.sdk.lib.service.service_connection import ServiceConnection
     from wandb.sdk.wandb_settings import Settings
 
 
@@ -174,9 +175,6 @@ def guard(
         **kwargs: _P.kwargs,
     ) -> None:
         with contextlib.suppress(Exception):
-            if not self._can_publish():
-                return
-
             method(self, *args, **kwargs)
 
     return wrapper
@@ -243,7 +241,9 @@ class TelemetryRecorder:
         from the current context plus the low-cardinality attributes
         passed when this method is called.
         """
-        if not self._service_api:
+        service_api = self._service_api
+        connection = self._resolve_connection()
+        if service_api is None or connection is None:
             return
 
         merged_attributes = low_cardinality_attributes.merge(
@@ -259,12 +259,13 @@ class TelemetryRecorder:
             ),
         )
 
-        self._service_api.api_publish(
+        service_api.api_publish(
             ApiRequest(
                 open_telemetry_request=OpenTelemetryRequest(
                     open_telemetry_counter_request=otel_metric_request,
                 ),
             ),
+            connection=connection,
         )
 
     @guard
@@ -279,7 +280,9 @@ class TelemetryRecorder:
         The log record contains the attributes from the current context,
         in addition to the attributes passed when this method is called.
         """
-        if not self._service_api:
+        service_api = self._service_api
+        connection = self._resolve_connection()
+        if service_api is None or connection is None:
             return
 
         merged_attributes = {
@@ -293,32 +296,36 @@ class TelemetryRecorder:
             severity=severity.value,
         )
 
-        self._service_api.api_publish(
+        service_api.api_publish(
             ApiRequest(
                 open_telemetry_request=OpenTelemetryRequest(
                     open_telemetry_log_request=otel_log_request,
                 ),
             ),
+            connection=connection,
         )
 
-    def _can_publish(self) -> bool:
-        """Returns whether telemetry can be published.
+    def _resolve_connection(self) -> ServiceConnection | None:
+        """Returns the existing service connection to publish telemetry through.
 
-        Returns False when error reporting is disabled, no service API was
-        provided, or when no wandb-core service connection exists.
+        Returns None when error reporting is disabled or no service API was
+        provided. It also returns None, rather than starting up wandb-core,
+        when wandb-core has not been started or its connection is no longer
+        active.
+
+        TODO: Make opentelemetry work without needing wandb-core to already be
+        started. Right now we are blind to any errors or telemetry from the SDK
+        that are produced prior to wandb-core starting, including errors that
+        occur while trying to start wandb-core.
         """
         if self._service_api is None:
-            return False
+            return None
 
         singleton = wandb_setup.singleton_if_created()
+        if singleton is None or not singleton.service_connected:
+            return None
 
-        # TODO: Make opentelemetry work without needing wandb-core
-        # to already be started.
-        #
-        # Right now we are blind to any errors or telemetry from the SDK
-        # that are produced prior to wandb-core starting, including errors
-        # that occur while trying to start wandb-core.
-        return not (singleton is None or not singleton.service_connected)
+        return singleton.assert_service()
 
     @guard
     def increment_counter_and_log_event(
