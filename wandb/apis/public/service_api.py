@@ -67,17 +67,7 @@ class ServiceApi:
         return self._api_session is not None
 
     def _get_api_session(self) -> _ServiceApiSession:
-        """Connect to the service and initialize resources for API requests.
-
-        Args:
-            connection: An existing service connection to use for API requests.
-                If not provided, the request is sent on the global singleton.
-
-                If provided, the request is sent on the provided connection
-                rather than resolving one through the global singleton.
-                Allowing callers to fail without starting
-                a new wandb-core process.
-        """
+        """Connect to the service and initialize resources for API requests."""
         if self._api_session is not None:
             return self._api_session
 
@@ -283,17 +273,7 @@ class ServiceApi:
         self,
         request: ApiRequest,
     ) -> None:
-        """Publish an API request to the backend service without waiting for a response.
-
-        Args:
-            request: The Api request to publish.
-            connection: An existing service connection to publish through.
-                If not provided, the request is sent on the global singleton.
-
-                If provided, the request is sent on this connection rather
-                than resolving one through the global singleton. Allowings
-                callers to fail without starting a new wandb-core process.
-        """
+        """Publish an API request to the backend service, without awaiting a reply."""
         session = self._get_api_session()
         request.api_id = session.api_id
         session.connection.api_publish(request)

@@ -24,12 +24,10 @@ def beta(ctx: click.Context) -> None:
     These commands may change or even completely break in any release of wandb.
     """
     get_sentry().configure_scope(process_context="wandb_beta")
-
     try:
         get_core_path()
     except WandbCoreNotAvailableError as e:
-        error_message = f"using `wandb beta`. failed with {e}"
-        get_sentry().exception(error_message)
+        get_sentry().exception(f"using `wandb beta`. failed with {e}")
         click.secho(
             (e),
             fg="red",

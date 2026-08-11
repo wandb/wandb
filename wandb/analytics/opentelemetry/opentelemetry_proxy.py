@@ -156,7 +156,7 @@ _P = ParamSpec("_P")
 def guard(
     method: Callable[Concatenate[TelemetryRecorder, _P], None],
 ) -> Callable[Concatenate[TelemetryRecorder, _P], None]:
-    """Wrap a telemetry method so it can never raise an exception into its caller.
+    """Wrap a telemetry method so it can never raise an exception.
 
     Telemetry is best-effort, so wrapping a method in this decorator
     ensures that it can never raise an exception into its caller.

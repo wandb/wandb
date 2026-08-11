@@ -69,7 +69,6 @@ def _start(
     detached: bool,
     idle_timeout: str | None,
 ) -> ServiceProcess:
-    # Imported here to avoid circular imports.
     get_sentry().configure_scope(tags=dict(settings), process_context="service")
 
     try:

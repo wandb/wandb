@@ -210,10 +210,7 @@ def _base_args() -> list[str]:
     return args
 
 
-def _run_core(
-    args: list[str],
-    env: dict[str, str] | None = None,
-) -> Never:
+def _run_core(args: list[str], env: dict[str, str] | None = None) -> Never:
     """Run wandb-core with the given arguments and exit with its return code."""
     try:
         result = subprocess.run(args, env=env, close_fds=True)
