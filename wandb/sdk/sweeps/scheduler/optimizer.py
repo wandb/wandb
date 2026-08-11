@@ -100,8 +100,11 @@ def is_terminal_state(state: RunState) -> bool:
 class Optimizer(ABC):
     """An external optimizer that supports an ask-tell interface.
 
-    A `Scheduler` asks for runs from the optimizer.
-    It then tells the run results back to the optimizer.
+    A scheduler asks the optimizer for runs to start, then tells the run
+    results back to the optimizer as they progress.
+
+    Subclasses may read the protected `_sweep` attribute, the `Sweep`
+    being optimized.
     """
 
     def __init__(self, sweep: Sweep):
@@ -147,7 +150,13 @@ class Optimizer(ABC):
     def tell_existing_active_run(self, data: Run) -> Any:
         """Adopt an *in-flight* (RUNNING/PENDING) run that existed at startup.
 
-        `data` has no metrics; the next poll reports them via `tell_run`.
+        Args:
+            data: The existing run's config and state, without metrics.
+
+        Returns:
+            The optimizer-side run id to track the run by, in which case
+            later polls report its metrics via `tell_run`, or None to
+            leave the run untracked. The default adopts nothing.
         """
         return None
 
@@ -176,22 +185,30 @@ class Optimizer(ABC):
     def prune_run(self, run_id: Any, data: RunWithMetrics) -> bool:
         """Return True if the run should be pruned.
 
-        Convenience implementation for single-run callers.
-        Subclasses should override `prune_runs` instead.
+        Override to stop single runs early; the default prunes nothing.
+        The default `prune_runs` calls this for each polled run.
+
+        Args:
+            run_id: The `RunSuggestion.run_id` this optimizer handed out.
+            data: The run's current state, summary metrics and history.
         """
         return False
 
     def prune_runs(
-        self, _run_ids: Sequence[str], _runs: Sequence[RunWithMetrics]
+        self, run_ids: Sequence[str], runs: Sequence[RunWithMetrics]
     ) -> Sequence[str]:
         """Return the optimizer run ids that should be pruned.
 
-        Override this method to implement early stopping. The default
-        implementation calls prune_run for each run.
+        Override to decide early stopping across runs as a batch; the
+        default delegates to `prune_run` for each run.
+
+        Args:
+            run_ids: Optimizer run ids to consider for pruning.
+            runs: The corresponding runs' latest state and metrics.
         """
         return [
             run_id
-            for run_id, run in zip(_run_ids, _runs)
+            for run_id, run in zip(run_ids, runs, strict=True)
             if self.prune_run(run_id, run)
         ]
 

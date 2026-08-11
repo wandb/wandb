@@ -19,8 +19,9 @@ class RunState(Enum):
     KILLED = "killed", "dead"
     FINISHED = "finished", "dead"
     PREEMPTED = "preempted", "dead"
-    # unknown when api.get_run_state fails or returns unexpected state
-    # assumed alive, unless we get unknown 2x then move to failed (dead)
+    # unknown when api.get_run_state fails or returns an unexpected state.
+    # Classified alive; the launch scheduler moves a run to FAILED (dead)
+    # itself after two consecutive unknown polls.
     UNKNOWN = "unknown", "alive"
 
     def __new__(cls: Any, *args: list, **kwds: Any) -> RunState:
@@ -29,7 +30,8 @@ class RunState(Enum):
         obj._value_ = args[0]
         return obj
 
-    def __init__(self, _: str, life: str = "unknown") -> None:
+    def __init__(self, value: str, life: str = "unknown") -> None:
+        """Store the life classification; `value` is consumed by `__new__`."""
         self._life = life
 
     @property
