@@ -57,3 +57,4 @@ The `wandb sync --clean` command now exits with code 1 and prints a hint to use 
 - Network problems are now reported for the whole run, rather than only for the first few seconds (@dmitryduev in https://github.com/wandb/wandb/pull/12396)
 - `run.finish()` no longer waits forever when system metrics collection stops responding (@dmitryduev in https://github.com/wandb/wandb/pull/12397)
 - Creating many `wandb.Api()` objects in one program no longer leaks memory and background network requests for the lifetime of the program (@dmitryduev in https://github.com/wandb/wandb/pull/12399)
+- Your timeout and retry settings now apply when reading a run's history, which previously used neither (@dmitryduev in https://github.com/wandb/wandb/pull/12401)

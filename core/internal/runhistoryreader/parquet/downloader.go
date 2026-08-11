@@ -128,7 +128,7 @@ func extractStepValuesFromLiveData(liveData []any) ([]int64, error) {
 func GetFileSize(
 	ctx context.Context,
 	fileUrl string,
-	httpClient *retryablehttp.Client,
+	httpClient api.RetryableClient,
 ) (int64, error) {
 	req, err := retryablehttp.NewRequestWithContext(
 		ctx,
@@ -167,7 +167,7 @@ type RunHistoryDownloadOperation struct {
 	downloadDir string
 
 	// httpClient is the HTTP client to use for the download.
-	httpClient *retryablehttp.Client
+	httpClient api.RetryableClient
 
 	// signedUrls is the list of signed URLs for the files to download.
 	signedUrls []string
@@ -184,7 +184,7 @@ type RunHistoryDownloadOperation struct {
 
 func NewRunHistoryDownloadOperation(
 	ctx context.Context,
-	httpClient *retryablehttp.Client,
+	httpClient api.RetryableClient,
 	entity string,
 	project string,
 	runId string,
