@@ -5,7 +5,7 @@ from typing import Annotated, Any
 
 from pydantic import BaseModel, TypeAdapter, ValidationError
 from pytest import mark, param, raises
-from wandb._filters import FilterFieldMapper, FilterValidator
+from wandb._filters import FilterValidator
 from wandb._pydantic import FilterDict
 
 VALID_FIELDS = ("tag", "created_at", "updated_at", "metadata")
@@ -89,15 +89,15 @@ def test_filter_validator_maps_aliases_in_annotated_field():
     }
 
 
-def test_filter_field_mapper_leaves_operands_opaque():
-    mapper = FilterFieldMapper(FIELD_ALIASES)
+def test_filter_validator_leaves_operands_opaque_when_mapping_fields():
+    adapter = TypeAdapter(Annotated[FilterDict, FilterValidator(valid=FIELD_ALIASES)])
     field_operand = [{"artifact_metadata.owner": "data, not a filter field"}]
     unknown_operator_operand = {
         INVALID_FIELD: 1,
         "artifact_metadata.owner": "also opaque",
     }
 
-    assert mapper(
+    assert adapter.validate_python(
         {
             "artifact_metadata": field_operand,
             "$future": unknown_operator_operand,
@@ -133,11 +133,12 @@ def test_filter_field_mapper_leaves_operands_opaque():
         ),
     ],
 )
-def test_filter_field_mapper_rejects_collisions(raw: dict[str, Any]):
+def test_filter_validator_rejects_mapping_collisions(raw: dict[str, Any]):
     aliases = {**FIELD_ALIASES, "field": "$or"}
+    adapter = TypeAdapter(Annotated[FilterDict, FilterValidator(valid=aliases)])
 
-    with raises(ValueError, match="mapping collision"):
-        FilterFieldMapper(aliases)(raw)
+    with raises(ValidationError, match="mapping collision"):
+        adapter.validate_python(raw)
 
 
 @mark.parametrize(

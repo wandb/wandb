@@ -6,8 +6,9 @@ don't expose as instnace methods on filter types for now.
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Callable, Iterator
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import singledispatch
 from itertools import chain
 from typing import TYPE_CHECKING, Any, cast
@@ -68,7 +69,7 @@ def parse_filter(raw: dict[str, Any]) -> MongoLikeFilter:
             assert_never(raw)
 
 
-@dataclass(slots=True)
+@dataclass(frozen=True, slots=True)
 class FilterFieldTransformer:
     """Transform ordinary fields in a raw MongoDB-style filter.
 
@@ -78,81 +79,57 @@ class FilterFieldTransformer:
     """
 
     visit: Callable[[str, Any], tuple[str, Any]] | None = None
-    field_roots: set[str] = field(init=False, default_factory=set)
 
     def transform(self, raw: dict[str, Any]) -> dict[str, Any]:
         """Return a transformed copy of ``raw``."""
-        self.field_roots.clear()
-        return self._transform(raw)
+        items = tuple(self._remap_item(key, value) for key, value in raw.items())
+        result = dict(items)
 
-    def _transform(self, raw: dict[str, Any]) -> dict[str, Any]:
-        """Transform recursively without resetting accumulated field roots."""
-        result: dict[str, Any] = {}
-
-        for key, value in raw.items():
-            mapped_key, mapped_value = self._remap_item(key, value)
-
-            if mapped_key in result:
-                raise ValueError(
-                    f"Filter field mapping collision: {key!r} maps to existing "
-                    f"field {mapped_key!r}."
-                )
-            result[mapped_key] = mapped_value
+        # Alias definitions are intentionally many-to-one. A collision is invalid
+        # only when one filter object uses multiple aliases for the same field.
+        if len(result) != len(items):
+            collision = next(
+                key
+                for key, count in Counter(key for key, _ in items).items()
+                if count > 1
+            )
+            raise ValueError(
+                f"Filter field mapping collision: multiple fields map to {collision!r}."
+            )
 
         return result
 
     def _remap_item(self, key: str, value: Any) -> tuple[str, Any]:
         """Remap one filter item, recursively handling logical operands."""
         match key, value:
-            case (("$and" | "$or" | "$nor") as operator, list() as operands):
-                mapped_operands: list[dict[str, Any]] = []
-                for operand in operands:
-                    match operand:
-                        case dict() as child if child:
-                            mapped_operands.append(self._transform(child))
-                        case _:
-                            raise ValueError(
-                                f"{operator} must contain only non-empty filter "
-                                "dictionaries."
-                            )
-                return key, mapped_operands
+            case (("$and" | "$or" | "$nor") as operator, list(operands)):
+                if not all(
+                    isinstance(operand, dict) and operand for operand in operands
+                ):
+                    raise ValueError(
+                        f"{operator} must contain only non-empty filter dictionaries."
+                    )
+                return key, [self.transform(operand) for operand in operands]
 
             case (("$and" | "$or" | "$nor") as operator, _):
                 raise ValueError(
                     f"{operator} must contain a list of filter dictionaries."
                 )
 
-            case ("$not", dict() as operand) if operand:
-                return key, self._transform(operand)
+            case ("$not", dict(operand)) if operand:
+                return key, self.transform(operand)
 
             case ("$not", _):
                 raise ValueError("$not must contain a non-empty filter dictionary.")
 
-            case (str() as operator, _) if operator.startswith("$"):
+            case (str(operator), _) if operator.startswith("$"):
                 return key, value
 
-            case (str() as field, _):
-                self.field_roots.add(field.partition(".")[0])
+            case (str(field), _):
                 return self.visit(field, value) if self.visit else (field, value)
 
             case _:
                 raise ValueError("Filter field names must be strings.")
-
-
-@dataclass(slots=True)
-class FilterFieldMapper:
-    """Map accepted field aliases to canonical field names."""
-
-    alias_to_field: dict[str, str]
-
-    def __call__(self, raw: dict[str, Any]) -> dict[str, Any]:
-        """Return a transformed copy of ``raw``."""
-        return FilterFieldTransformer(self._map_field).transform(raw)
-
-    def _map_field(self, field: str, operand: Any) -> tuple[str, Any]:
-        root, separator, suffix = field.partition(".")
-        mapped_root = self.alias_to_field.get(root, root)
-        return f"{mapped_root}{separator}{suffix}", operand
 
 
 def iter_fields(expr: MongoLikeFilter) -> Iterator[str]:

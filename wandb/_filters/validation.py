@@ -12,7 +12,7 @@ from pydantic_core.core_schema import with_info_after_validator_function
 
 from wandb._strutils import repr_join
 
-from .filterutils import FilterFieldMapper, FilterFieldTransformer
+from .filterutils import FilterFieldTransformer
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,11 +59,13 @@ class FilterValidator:
             aliases = dict(self._aliases)
             allowed = self.valid
 
-        transformer = FilterFieldTransformer()
-        transformer.transform(raw)
+        def validate_and_map(field: str, operand: Any) -> tuple[str, Any]:
+            root, separator, suffix = field.partition(".")
+            if allowed and root not in allowed:
+                msg = f"Invalid filter field {root!r}, must be one of: {repr_join(sorted(allowed))}"
+                raise ValueError(msg)
 
-        if allowed and (invalid := transformer.field_roots.difference(allowed)):
-            msg = f"Invalid filter field(s) {repr_join(sorted(invalid))}, must be one of: {repr_join(sorted(allowed))}"
-            raise ValueError(msg)
+            mapped_root = aliases.get(root, root)
+            return f"{mapped_root}{separator}{suffix}", operand
 
-        return FilterFieldMapper(aliases)(raw) if aliases else raw
+        return FilterFieldTransformer(validate_and_map).transform(raw)
