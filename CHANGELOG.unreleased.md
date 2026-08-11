@@ -35,6 +35,10 @@ The `wandb sync --clean` command now exits with code 1 and prints a hint to use 
 - `wandb.Api().create_run_queue()`, `wandb.Api().create_custom_chart()`, and `wandb.Api().upsert_run_queue()` now raise `WandbApiFailedError` when the operation fails on the backend. (@jacobromero in https://github.com/wandb/wandb/pull/12307)
 - Paginated artifact and registry query methods (`Api.artifacts()`, `Api.artifact_collections()`, `Api.registries()`, `Registries.collections()`, `Registries.versions()`, `Collections.versions()`, `Registry.collections()`, `Registry.versions()`, `Project.collections()`) now perform client-side validation of pagination arguments before attempting to fetch any results (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12101)
 
+## Deprecated
+
+- `wandb sync --sync-tensorboard` is deprecated and will be removed in a later release (@timoffex in https://github.com/wandb/wandb/pull/12419)
+
 ## Removed
 
 - Releases no longer include 32-bit Windows (`win32`) wheels; use 64-bit Python on Windows (@dmitryduev in https://github.com/wandb/wandb/pull/12267)
