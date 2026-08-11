@@ -376,7 +376,7 @@ class OptunaOptimizerAcceptanceTests(OptimizerAcceptanceTests):
             pruner=optuna.pruners.MedianPruner(n_startup_trials=0, n_warmup_steps=0),
         )
 
-    def test_prune_run_hyperband_stops_worst_running_run(
+    def test_prune_runs_hyperband_stops_worst_running_run(
         self, optimizer: Optimizer
     ) -> None:
         suggestions = optimizer.ask_n_runs(3)
@@ -406,8 +406,11 @@ class OptunaOptimizerAcceptanceTests(OptimizerAcceptanceTests):
         optimizer.tell_run(suggestions[1].run_id, worst_running)
         optimizer.tell_run(suggestions[2].run_id, better_running)
 
-        assert optimizer.prune_run(suggestions[1].run_id, worst_running)
-        assert not optimizer.prune_run(suggestions[2].run_id, better_running)
+        pruned = optimizer.prune_runs(
+            [suggestions[1].run_id, suggestions[2].run_id],
+            [worst_running, better_running],
+        )
+        assert pruned == [suggestions[1].run_id]
 
 
 class TestOptunaDeclarativeOptimizerAcceptance(OptunaOptimizerAcceptanceTests):

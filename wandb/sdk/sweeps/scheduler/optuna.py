@@ -173,8 +173,9 @@ def sweep_parameter_to_distribution(
     Inverse of `distribution_to_sweep_parameter`. The mapping, by the spec's
     `distribution` name, is:
 
-    - `categorical` / `constant`, or a bare `value`/`values` spec with no
-      `distribution` key -> `CategoricalDistribution`
+    - `categorical` / `constant`; any spec with `value` (the constant
+      shorthand); or a bare `values` spec with no `distribution` key
+      -> `CategoricalDistribution`
     - `int_uniform` -> `IntDistribution(min, max)`
     - `uniform` -> `FloatDistribution(min, max)`
     - `log_uniform_values` -> `FloatDistribution(min, max, log=True)`
@@ -390,14 +391,24 @@ class OptunaOptimizer(Optimizer):
                 )
 
     def trial_state(self, state: RunState) -> optuna.trial.TrialState:
-        """Map a sweep `RunState` onto the optuna `TrialState` it stands for."""
-        if state in (RunState.RUNNING, RunState.PENDING):
+        """Map a sweep `RunState` onto the optuna `TrialState` it stands for.
+
+        Raises:
+            ValueError: If a new `RunState` member has no mapping here.
+        """
+        if state.is_alive:
+            # RUNNING/PENDING/PREEMPTING/UNKNOWN: still producing results.
             return optuna.trial.TrialState.RUNNING
         if state == RunState.FINISHED:
             return optuna.trial.TrialState.COMPLETE
-        if state in (RunState.FAILED, RunState.CRASHED, RunState.KILLED):
+        if state in (
+            RunState.FAILED,
+            RunState.CRASHED,
+            RunState.KILLED,
+            RunState.PREEMPTED,
+        ):
             return optuna.trial.TrialState.FAIL
-        raise ValueError(f"Unknown trial state: {state}")
+        raise ValueError(f"Unhandled run state: {state}")
 
     @override
     def tell_run(self, run_id: Any, data: RunWithMetrics) -> None:
@@ -436,13 +447,15 @@ class OptunaOptimizer(Optimizer):
         also handles the imperative conditional branch) return a trial fixed to
         them. The trial is left RUNNING — not told — so the loop reports its
         intermediate values for pruning and finalizes it via tell_run when the
-        run completes. Returns the trial number to track the run by.
+        run completes.
+
+        Returns:
+            The trial number to track the run by, or None if the study
+            produced no trial for the enqueued params.
         """
         self.study.enqueue_trial(data.config.flat_dict())
-        suggestions = list(self.ask_n_runs(1))
-        if not suggestions:
-            return None
-        return suggestions[0].run_id
+        runs = self.ask_n_runs(1)
+        return runs[0].run_id if runs else None
 
 
 class OptunaDeclarativeOptimizer(OptunaOptimizer):
@@ -641,7 +654,13 @@ def resume_sweep(
     `options.study` is required, and exactly one of `options.distributions`
     (define-and-run) or `options.search_space` (define-by-run) chooses how
     the study samples.
+
+    Raises:
+        ValueError: If `options.study` is missing or `sweep` is an empty
+            string.
     """
+    if isinstance(sweep, str) and not sweep:
+        raise ValueError("sweep path must be non-empty")
     resolved_sweep: Sweep = Api().sweep(sweep) if isinstance(sweep, str) else sweep
     options = options or OptunaOptions()
     if options.study is None:
@@ -664,10 +683,25 @@ def create_sweep(
 ) -> Scheduler:
     """Create a sweep from the study's search space, then attach a scheduler.
 
-    `options.study` is required. Pass exactly one of `options.distributions`
-    (define-and-run) or `options.search_space` (define-by-run); the latter's
-    search space is discovered by running it once to build the sweep.
+    Args:
+        entity: The entity to create the sweep under.
+        project: The project to create the sweep under.
+        metric_name: The metric runs must log; it becomes the sweep's
+            objective metric.
+        program_path: The training program recorded in the sweep config.
+        options: `options.study` is required. Pass exactly one of
+            `options.distributions` (define-and-run) or
+            `options.search_space` (define-by-run); the latter's parameter
+            space is discovered by running it once to build the sweep.
+
+    Raises:
+        ValueError: If `options.study` is missing, the parameter space is
+            given as neither or both of `options.distributions` and
+            `options.search_space`, or `entity`, `project` or
+            `metric_name` is empty.
     """
+    if not entity or not project or not metric_name:
+        raise ValueError("entity, project and metric_name must be non-empty")
     options = options or OptunaOptions()
     if options.study is None:
         raise ValueError("`options.study` is required")
@@ -697,7 +731,19 @@ def create_sweep_from_config(
     `options.distributions`/`options.search_space`. When `options.study` is
     `None`, a study is built from `config["metric"]` or `config["metrics"]`, so
     the caller only needs a sweep config.
+
+    Args:
+        config: The sweep config to create the sweep (and study) from.
+        entity: The entity to create the sweep under.
+        project: The project to create the sweep under.
+        options: Optional study/terminator overrides; the parameter-space
+            options are ignored as described above.
+
+    Raises:
+        ValueError: If `entity` or `project` is empty.
     """
+    if not entity or not project:
+        raise ValueError("entity and project must be non-empty")
     distributions = search_space_from_sweep_config(config.get("parameters", {}))
     options = options or OptunaOptions()
     study = options.study

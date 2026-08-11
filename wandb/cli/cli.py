@@ -2235,9 +2235,15 @@ _SCHEDULER_MIN_POLL_INTERVAL_S = 5
 def _load_source_object(source: str, name: str) -> Any:
     """Import the python file at `source` and return its `name` attribute.
 
-    Used to load a user-defined `search_space` or `optimizer` (trial
-    constructor) function referenced by name from a sweep's scheduler config.
+    Used to load a user-defined `search_space` (define-by-run trial
+    constructor) or `optimizer` (study factory) referenced by name from a
+    sweep's scheduler config.
     """
+    if not source:
+        raise ClickException(
+            f"scheduler.source must name the python file that defines "
+            f"{name!r}, but is missing or empty."
+        )
     module_name = f"wandb_sweep_source_{pathlib.Path(source).stem}"
     spec = importlib.util.spec_from_file_location(module_name, source)
     if spec is None or spec.loader is None:
@@ -2266,9 +2272,11 @@ def _build_optuna_scheduler(
     search_space_name = scheduler_config.get("search_space")
     source = scheduler_config.get("source", "")
 
-    # Exactly one of search_space / optimizer: the declarative space is built
-    # from the loaded function when given, otherwise the loaded function is
-    # itself the define-by-run trial constructor.
+    # `search_space` picks how the parameter space is defined: when given,
+    # the loaded function is the define-by-run trial constructor; otherwise
+    # a declarative parameter space is derived from the sweep's
+    # `parameters`. Independently, `optimizer` names a study factory to
+    # call instead of building the study from the config.
     search_space = None
     distributions = None
     if search_space_name is not None:
@@ -2351,7 +2359,7 @@ def sweep_scheduler(
     """Drive an existing sweep from a local, in-process scheduler.
 
     Create the sweep first with `wandb sweep sweep.yaml`; its config must set
-    `scheduler: {engine: wandb}` so the server leaves the search to
+    `scheduler: {engine: <wandb|optuna>}` so the server leaves the search to
     this scheduler. The scheduler proposes runs, enqueues them, and polls their
     results to drive the optimizer.
     """
@@ -2382,7 +2390,7 @@ def sweep_scheduler(
     if not engine:
         raise ClickException(
             "The sweep scheduler requires a sweep created with "
-            "'scheduler': {'engine': wandb} in its config."
+            "'scheduler': {'engine': <wandb|optuna>} in its config."
         )
     if engine == "wandb":
         scheduler = _build_wandb_scheduler(
