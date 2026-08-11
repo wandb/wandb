@@ -20,6 +20,7 @@ __all__ = [
     "DELETE_ARTIFACT_SEQUENCE_GQL",
     "DELETE_REGISTRY_GQL",
     "DELETE_REGISTRY_MEMBERS_GQL",
+    "FETCH_ADVANCED_REGISTRY_FEATURES_GQL",
     "FETCH_ARTIFACT_MANIFEST_GQL",
     "FETCH_LINKED_ARTIFACTS_GQL",
     "FETCH_ORGANIZATION_GQL",
@@ -1392,6 +1393,16 @@ query FetchOrganization($org: String!) {
       id
       name
       entityType
+    }
+  }
+}
+"""
+
+FETCH_ADVANCED_REGISTRY_FEATURES_GQL = """
+query FetchAdvancedRegistryFeatures($organization: String!) {
+  organization(name: $organization) {
+    advancedRegistryFeatures {
+      advancedSearch
     }
   }
 }

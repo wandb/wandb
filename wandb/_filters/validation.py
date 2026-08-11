@@ -2,43 +2,68 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Callable, Collection
+from dataclasses import dataclass, field
 from typing import Any
 
-from pydantic import GetCoreSchemaHandler
+from pydantic import GetCoreSchemaHandler, ValidationInfo
 from pydantic_core import CoreSchema
-from pydantic_core.core_schema import no_info_after_validator_function
+from pydantic_core.core_schema import with_info_after_validator_function
 
 from wandb._strutils import repr_join
 
-from .filterutils import iter_fields, parse_filter
+from .filterutils import FilterFieldMapper, FilterFieldTransformer
 
 
 @dataclass(frozen=True, slots=True)
 class FilterValidator:
-    """Pydantic metadata that validates a MongoDB-style filter dict."""
+    """Pydantic metadata that validates and normalizes filter field names."""
 
-    valid: frozenset[str] | None = None
-    """The allowed field names. If None, all fields are allowed."""
+    valid: Collection[str] | None = None
+    """Allowed names, or aliases mapped to canonical serialized names."""
+
+    resolve: Callable[[ValidationInfo], dict[str, str]] | None = field(
+        default=None,
+        kw_only=True,
+        repr=False,
+    )
+    """Resolve an alias policy from Pydantic validation context."""
+
+    _aliases: tuple[tuple[str, str], ...] = field(
+        init=False,
+        default=(),
+        repr=False,
+    )
 
     def __post_init__(self) -> None:
+        if self.valid is not None and self.resolve is not None:
+            raise ValueError("Specify either valid or resolve, not both.")
+
         # Empty collections are treated as None (no restrictions on valid names)
-        valid = frozenset(valid) if (valid := self.valid) else None
+        if isinstance(valid := self.valid, dict):
+            object.__setattr__(self, "_aliases", tuple(sorted(valid.items())))
+        valid = frozenset(valid) if valid else None
         object.__setattr__(self, "valid", valid)
 
     def __get_pydantic_core_schema__(
         self, source_type: Any, handler: GetCoreSchemaHandler
     ) -> CoreSchema:
-        return no_info_after_validator_function(self.validate, handler(source_type))
+        return with_info_after_validator_function(self.validate, handler(source_type))
 
-    def validate(self, raw: dict[str, Any]) -> dict[str, Any]:
-        parsed = parse_filter(raw)
+    def validate(self, raw: dict[str, Any], info: ValidationInfo) -> dict[str, Any]:
+        allowed: Collection[str] | None
+        if self.resolve is not None:
+            aliases = self.resolve(info)
+            allowed = frozenset(aliases) if aliases else None
+        else:
+            aliases = dict(self._aliases)
+            allowed = self.valid
 
-        if valid := self.valid:
-            # Check only root keys for dotted paths, e.g. "metadata.foo" -> "metadata"
-            names = set(s.split(".")[0] for s in iter_fields(parsed))
-            if invalid := names.difference(valid):
-                msg = f"Invalid filter field(s) {repr_join(sorted(invalid))}, must be one of: {repr_join(sorted(valid))}"
-                raise ValueError(msg)
+        transformer = FilterFieldTransformer()
+        transformer.transform(raw)
 
-        return raw  # Preserve the original dict so long as it's valid
+        if allowed and (invalid := transformer.field_roots.difference(allowed)):
+            msg = f"Invalid filter field(s) {repr_join(sorted(invalid))}, must be one of: {repr_join(sorted(allowed))}"
+            raise ValueError(msg)
+
+        return FilterFieldMapper(aliases)(raw) if aliases else raw

@@ -1,17 +1,135 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Collection
+from dataclasses import dataclass
 from enum import Enum
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Final, TypeVar, overload
 
+from pydantic import ValidationInfo
+from pydantic.dataclasses import dataclass as pydantic_dataclass
+
+from wandb._filters import FilterFieldTransformer
+from wandb._filters.operators import KEY_TO_OP
 from wandb._strutils import ensureprefix, repr_join
+from wandb.proto import wandb_internal_pb2 as pb
+
+_logger = logging.getLogger(__name__)
+
+ADVANCED_SEARCH_CTX_KEY: Final[str] = "advanced_search_enabled"
 
 if TYPE_CHECKING:
     from wandb.apis.public.service_api import ServiceApi
 
 
 T = TypeVar("T")
+
+
+@pydantic_dataclass(frozen=True, slots=True)
+class FilterFieldAlias:
+    """Canonical and accepted filter field names for basic and advanced search.
+
+    Each tuple contains the canonical name first, followed by accepted aliases.
+    ``None`` means the field is unsupported in that mode.
+    """
+
+    basic: tuple[str, ...] | None = None
+    advanced: tuple[str, ...] | None = None
+
+    def __post_init__(self) -> None:
+        if not (self.basic or self.advanced):
+            raise ValueError("A filter field must support at least one search mode.")
+
+
+@dataclass(frozen=True, slots=True)
+class VersionsFilterFields:
+    """Field-name policies for each Versions filter argument."""
+
+    registry_filter: tuple[FilterFieldAlias, ...]
+    collection_filter: tuple[FilterFieldAlias, ...]
+    artifact_filter: tuple[FilterFieldAlias, ...]
+
+    def resolve(self, info: ValidationInfo) -> dict[str, str]:
+        """Resolve aliases for the model field and search mode being validated."""
+        if (name := info.field_name) is None:
+            raise ValueError("A Versions filter policy requires a model field name.")
+
+        context = info.context if isinstance(info.context, dict) else {}
+        return self.for_filter(
+            name,
+            advanced=bool(context.get(ADVANCED_SEARCH_CTX_KEY)),
+        )
+
+    def for_filter(self, name: str, *, advanced: bool) -> dict[str, str]:
+        """Return the field-name policy for a Versions filter argument."""
+        match name:
+            case "registry_filter":
+                fields = self.registry_filter
+            case "collection_filter":
+                fields = self.collection_filter
+            case "artifact_filter":
+                fields = self.artifact_filter
+            case _:
+                raise ValueError(f"Unknown Versions filter argument: {name!r}.")
+
+        aliases_by_field = (
+            field.advanced if advanced else field.basic for field in fields
+        )
+        return {
+            alias: aliases[0]
+            for aliases in aliases_by_field
+            if aliases
+            for alias in aliases
+        }
+
+
+VERSIONS_FILTER_FIELDS = VersionsFilterFields(
+    registry_filter=(
+        FilterFieldAlias(basic=("name",), advanced=("name",)),
+        FilterFieldAlias(basic=("id",), advanced=("project_id", "id")),
+        FilterFieldAlias(basic=("entity_id",), advanced=("entity_id",)),
+        FilterFieldAlias(basic=("description",)),
+        FilterFieldAlias(basic=("created_at",)),
+        FilterFieldAlias(basic=("updated_at",)),
+    ),
+    collection_filter=(
+        FilterFieldAlias(
+            basic=("name", "collection_name", "artifact_collection_name"),
+            advanced=("name", "collection_name", "artifact_collection_name"),
+        ),
+        FilterFieldAlias(
+            basic=("id", "collection_id", "artifact_collection_id"),
+            advanced=("artifact_collection_id", "id", "collection_id"),
+        ),
+        FilterFieldAlias(basic=("tag", "tags"), advanced=("tag", "tags")),
+        FilterFieldAlias(basic=("description",)),
+        FilterFieldAlias(basic=("created_at",)),
+        FilterFieldAlias(basic=("updated_at",)),
+    ),
+    artifact_filter=(
+        FilterFieldAlias(basic=("id",), advanced=("artifact_id", "id")),
+        FilterFieldAlias(
+            basic=("version", "version_index"),
+            advanced=("version", "version_index"),
+        ),
+        FilterFieldAlias(basic=("tag", "tags"), advanced=("tag", "tags")),
+        FilterFieldAlias(basic=("alias", "aliases"), advanced=("alias", "aliases")),
+        FilterFieldAlias(
+            basic=("metadata", "artifact_metadata"),
+            advanced=("metadata", "artifact_metadata"),
+        ),
+        FilterFieldAlias(
+            basic=("created_at",),
+            advanced=("artifact_created_at", "created_at"),
+        ),
+        FilterFieldAlias(basic=("updated_at",)),
+        FilterFieldAlias(advanced=("acm_created_at",)),
+        FilterFieldAlias(advanced=("acm_updated_at",)),
+        FilterFieldAlias(advanced=("artifact_size",)),
+        FilterFieldAlias(advanced=("artifact_file_count",)),
+    ),
+)
 
 
 class Visibility(str, Enum):
@@ -80,31 +198,55 @@ def prepare_artifact_types_input(
 
 
 @overload
-def prepare_registry_filter(query: str, path=...) -> str: ...
+def prepare_registry_filter(query: str) -> str: ...
 @overload
-def prepare_registry_filter(query: dict[str, Any], path=...) -> dict[str, Any]: ...
+def prepare_registry_filter(query: dict[str, Any]) -> dict[str, Any]: ...
 @overload
-def prepare_registry_filter(query: list[T] | tuple[T], path=...) -> list[T]: ...
+def prepare_registry_filter(query: list[T] | tuple[T, ...]) -> list[T]: ...
 @overload
-def prepare_registry_filter(query: T, path=...) -> T: ...
+def prepare_registry_filter(query: T) -> T: ...
 
 
-def prepare_registry_filter(query: Any, path: tuple[int | str, ...] = ()) -> Any:
+def prefix_registry_name(operand: Any) -> Any:
+    """Prefix strings in a registry-name operand, except regexes and unknown ops."""
+    from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
+
+    match operand:
+        case str() as txt:
+            return ensureprefix(txt, REGISTRY_PREFIX)
+        case dict() as dct:
+            return {
+                key: (
+                    value
+                    if key == "$regex" or (key.startswith("$") and key not in KEY_TO_OP)
+                    else prefix_registry_name(value)
+                )
+                for key, value in dct.items()
+            }
+        case list() | tuple() as seq:
+            return [prefix_registry_name(value) for value in seq]
+        case _:
+            return operand
+
+
+def prepare_registry_filter(query: Any) -> Any:
     """Normalize a registry filter as a JSON-serializable GraphQL input.
 
-    Recursively prepend the registry prefix under "name" keys, excluding regex ops.
+    Prepend the registry prefix to ``name`` operands, excluding regex operands
+    and opaque unknown-operator subtrees.
 
     EX: {"name": "model"} -> {"name": "wandb-registry-model"}
     """
-    from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
-
     match query:
-        case str() as txt if "name" in path and "$regex" not in path:
-            return ensureprefix(txt, REGISTRY_PREFIX)
-        case dict() as dct:
-            return {k: prepare_registry_filter(v, (*path, k)) for k, v in dct.items()}
-        case list() | tuple() as seq:
-            return [prepare_registry_filter(v, (*path, i)) for i, v in enumerate(seq)]
+        case dict():
+            return FilterFieldTransformer(
+                lambda field, operand: (
+                    field,
+                    prefix_registry_name(operand) if field == "name" else operand,
+                )
+            ).transform(query)
+        case list() | tuple():
+            return [prepare_registry_filter(value) for value in query]
         case _:
             return query
 
@@ -138,3 +280,36 @@ def fetch_org_entity_from_organization(
         raise ValueError(f"Organization entity for {organization!r} not found.")
 
     return org_name
+
+
+@lru_cache(maxsize=10)
+def advanced_search_enabled(service_api: ServiceApi, organization: str) -> bool:
+    """Whether an organization has advanced registry search enabled."""
+    try:
+        if not service_api.feature_enabled(pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING):
+            return False
+
+        from wandb.sdk.artifacts._generated import (
+            FETCH_ADVANCED_REGISTRY_FEATURES_GQL,
+            FetchAdvancedRegistryFeatures,
+        )
+
+        result = service_api.execute_graphql(
+            FETCH_ADVANCED_REGISTRY_FEATURES_GQL,
+            variables={"organization": organization},
+            parse=FetchAdvancedRegistryFeatures.model_validate_json,
+        )
+    except Exception:
+        _logger.warning(
+            "Failed to fetch advanced registry features for organization: %r",
+            organization,
+        )
+        return False
+
+    if not (org := result.organization):
+        _logger.warning("Organization %r not found.", organization)
+        return False
+
+    return bool(
+        (features := org.advanced_registry_features) and features.advanced_search
+    )

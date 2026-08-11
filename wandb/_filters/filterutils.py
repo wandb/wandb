@@ -6,7 +6,8 @@ don't expose as instnace methods on filter types for now.
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from dataclasses import dataclass, field
 from functools import singledispatch
 from itertools import chain
 from typing import TYPE_CHECKING, Any, cast
@@ -65,6 +66,93 @@ def parse_filter(raw: dict[str, Any]) -> MongoLikeFilter:
             return FilterExpr(field=key, op=Eq(val=val))
         case _:
             assert_never(raw)
+
+
+@dataclass(slots=True)
+class FilterFieldTransformer:
+    """Transform ordinary fields in a raw MongoDB-style filter.
+
+    ``visit`` receives each ordinary field and its opaque operand. The filter
+    grammar controls traversal: recognized logical operators are visited, while
+    unknown operators and field operands are not inspected.
+    """
+
+    visit: Callable[[str, Any], tuple[str, Any]] | None = None
+    field_roots: set[str] = field(init=False, default_factory=set)
+
+    def transform(self, raw: dict[str, Any]) -> dict[str, Any]:
+        """Return a transformed copy of ``raw``."""
+        self.field_roots.clear()
+        return self._transform(raw)
+
+    def _transform(self, raw: dict[str, Any]) -> dict[str, Any]:
+        """Transform recursively without resetting accumulated field roots."""
+        result: dict[str, Any] = {}
+
+        for key, value in raw.items():
+            mapped_key, mapped_value = self._remap_item(key, value)
+
+            if mapped_key in result:
+                raise ValueError(
+                    f"Filter field mapping collision: {key!r} maps to existing "
+                    f"field {mapped_key!r}."
+                )
+            result[mapped_key] = mapped_value
+
+        return result
+
+    def _remap_item(self, key: str, value: Any) -> tuple[str, Any]:
+        """Remap one filter item, recursively handling logical operands."""
+        match key, value:
+            case (("$and" | "$or" | "$nor") as operator, list() as operands):
+                mapped_operands: list[dict[str, Any]] = []
+                for operand in operands:
+                    match operand:
+                        case dict() as child if child:
+                            mapped_operands.append(self._transform(child))
+                        case _:
+                            raise ValueError(
+                                f"{operator} must contain only non-empty filter "
+                                "dictionaries."
+                            )
+                return key, mapped_operands
+
+            case (("$and" | "$or" | "$nor") as operator, _):
+                raise ValueError(
+                    f"{operator} must contain a list of filter dictionaries."
+                )
+
+            case ("$not", dict() as operand) if operand:
+                return key, self._transform(operand)
+
+            case ("$not", _):
+                raise ValueError("$not must contain a non-empty filter dictionary.")
+
+            case (str() as operator, _) if operator.startswith("$"):
+                return key, value
+
+            case (str() as field, _):
+                self.field_roots.add(field.partition(".")[0])
+                return self.visit(field, value) if self.visit else (field, value)
+
+            case _:
+                raise ValueError("Filter field names must be strings.")
+
+
+@dataclass(slots=True)
+class FilterFieldMapper:
+    """Map accepted field aliases to canonical field names."""
+
+    alias_to_field: dict[str, str]
+
+    def __call__(self, raw: dict[str, Any]) -> dict[str, Any]:
+        """Return a transformed copy of ``raw``."""
+        return FilterFieldTransformer(self._map_field).transform(raw)
+
+    def _map_field(self, field: str, operand: Any) -> tuple[str, Any]:
+        root, separator, suffix = field.partition(".")
+        mapped_root = self.alias_to_field.get(root, root)
+        return f"{mapped_root}{separator}{suffix}", operand
 
 
 def iter_fields(expr: MongoLikeFilter) -> Iterator[str]:
