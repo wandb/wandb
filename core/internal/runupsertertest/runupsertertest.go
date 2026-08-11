@@ -89,6 +89,24 @@ func StubUpsertBucket(t *testing.T, mockGQL *gqlmock.MockClient) {
 	}`)
 }
 
+// StubRunResumeStatusExistingRun stubs RunResumeStatus to return an initialized
+// run with no history rows.
+func StubRunResumeStatusExistingRun(t *testing.T, mock *gqlmock.MockClient) {
+	t.Helper()
+	mock.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{
+		"model": {"bucket": {
+			"config": "{}",
+			"wandbConfig": "{\"t\": 1}",
+			"historyLineCount": 0,
+			"eventsLineCount": 0,
+			"logLineCount": 0,
+			"historyTail": "[]",
+			"eventsTail": "[]",
+			"summaryMetrics": "{}"
+		}}
+	}`)
+}
+
 func StubRunResumeStatusWithStep(t *testing.T, mock *gqlmock.MockClient, step int64) {
 	mock.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), fmt.Sprintf(`{
 		"model": {
