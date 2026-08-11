@@ -2,10 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import functools
-import hashlib
-import os
 import platform
-import threading
 import traceback
 from collections.abc import Callable
 from dataclasses import dataclass, fields
@@ -24,12 +21,9 @@ from wandb.proto.wandb_otel_pb2 import (
     OpenTelemetryLogRequest,
     OpenTelemetryRequest,
 )
-from wandb.sdk import wandb_setup
 
 if TYPE_CHECKING:
     from wandb.apis.public.service_api import ServiceApi
-    from wandb.sdk.lib.service.service_connection import ServiceConnection
-    from wandb.sdk.wandb_settings import Settings
 
 
 @dataclass(frozen=True)
@@ -175,6 +169,9 @@ def guard(
         **kwargs: _P.kwargs,
     ) -> None:
         with contextlib.suppress(Exception):
+            if self._service_api is None or not self._service_api.is_connected:
+                return
+
             method(self, *args, **kwargs)
 
     return wrapper
@@ -241,10 +238,7 @@ class TelemetryRecorder:
         from the current context plus the low-cardinality attributes
         passed when this method is called.
         """
-        service_api = self._service_api
-        connection = self._resolve_connection()
-        if service_api is None or connection is None:
-            return
+        assert self._service_api is not None
 
         merged_attributes = low_cardinality_attributes.merge(
             self._context.low_cardinality_attributes
@@ -259,13 +253,12 @@ class TelemetryRecorder:
             ),
         )
 
-        service_api.api_publish(
+        self._service_api.api_publish(
             ApiRequest(
                 open_telemetry_request=OpenTelemetryRequest(
                     open_telemetry_counter_request=otel_metric_request,
                 ),
             ),
-            connection=connection,
         )
 
     @guard
@@ -280,10 +273,7 @@ class TelemetryRecorder:
         The log record contains the attributes from the current context,
         in addition to the attributes passed when this method is called.
         """
-        service_api = self._service_api
-        connection = self._resolve_connection()
-        if service_api is None or connection is None:
-            return
+        assert self._service_api is not None
 
         merged_attributes = {
             **self._context.low_cardinality_attributes.as_dict(),
@@ -296,36 +286,13 @@ class TelemetryRecorder:
             severity=severity.value,
         )
 
-        service_api.api_publish(
+        self._service_api.api_publish(
             ApiRequest(
                 open_telemetry_request=OpenTelemetryRequest(
                     open_telemetry_log_request=otel_log_request,
                 ),
             ),
-            connection=connection,
         )
-
-    def _resolve_connection(self) -> ServiceConnection | None:
-        """Returns the existing service connection to publish telemetry through.
-
-        Returns None when error reporting is disabled or no service API was
-        provided. It also returns None, rather than starting up wandb-core,
-        when wandb-core has not been started or its connection is no longer
-        active.
-
-        TODO: Make opentelemetry work without needing wandb-core to already be
-        started. Right now we are blind to any errors or telemetry from the SDK
-        that are produced prior to wandb-core starting, including errors that
-        occur while trying to start wandb-core.
-        """
-        if self._service_api is None:
-            return None
-
-        singleton = wandb_setup.singleton_if_created()
-        if singleton is None or not singleton.service_connected:
-            return None
-
-        return singleton.assert_service()
 
     @guard
     def increment_counter_and_log_event(
@@ -385,53 +352,6 @@ class TelemetryRecorder:
         # or replace the exception we re-raise.
         self.exception(exc)
         raise exc
-
-
-_recorder_pool_lock = threading.Lock()
-_recorder_pool: dict[tuple[int, str], TelemetryRecorder] = {}
-
-
-def get_telemetry_recorder(settings: Settings) -> TelemetryRecorder:
-    """Returns a shared TelemetryRecorder based on the provided settings.
-
-    Recorders are shared per base URL and credentials (API key or identity
-    token file). Reducing the cost of creating new TelemetryRecorders when
-    recording telemetry across various points in the code.
-    """
-    from wandb.apis.public.service_api import ServiceApi
-
-    key = (os.getpid(), _pool_key(settings))
-
-    with _recorder_pool_lock:
-        recorder = _recorder_pool.get(key)
-        if recorder is None:
-            recorder = TelemetryRecorder(
-                service_api=ServiceApi(settings=settings),
-            )
-            _recorder_pool[key] = recorder
-
-        return recorder
-
-
-def clear_telemetry_recorder_pool() -> None:
-    """Clear the telemetry recorder pool."""
-    with _recorder_pool_lock:
-        _recorder_pool.clear()
-
-
-def _pool_key(settings: Settings) -> str:
-    """Hash of the settings fields that identify a deployment and account.
-
-    The credentials are hashed to avoid leaking them from the pool's keys.
-    """
-    identity = "\n".join(
-        (
-            settings.base_url or "",
-            settings.api_key or "",
-            settings.identity_token_file or "",
-        )
-    )
-    return hashlib.sha256(identity.encode()).hexdigest()
 
 
 def _exception_stacktrace(exc: Exception) -> str:

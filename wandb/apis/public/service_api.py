@@ -61,10 +61,12 @@ class ServiceApi:
     def settings(self) -> wandb_settings.Settings:
         return self._settings
 
-    def _get_api_session(
-        self,
-        connection: ServiceConnection | None = None,
-    ) -> _ServiceApiSession:
+    @property
+    def is_connected(self) -> bool:
+        """Returns whether the service API is connected to a wandb-core service."""
+        return self._api_session is not None
+
+    def _get_api_session(self) -> _ServiceApiSession:
         """Connect to the service and initialize resources for API requests.
 
         Args:
@@ -79,7 +81,7 @@ class ServiceApi:
         if self._api_session is not None:
             return self._api_session
 
-        service_connection = connection or wandb_setup.singleton().ensure_service()
+        service_connection = wandb_setup.singleton().ensure_service()
         response = service_connection.api_init_request(self._settings.to_proto())
         session = _ServiceApiSession(
             connection=service_connection,
@@ -280,7 +282,6 @@ class ServiceApi:
     def api_publish(
         self,
         request: ApiRequest,
-        connection: ServiceConnection | None = None,
     ) -> None:
         """Publish an API request to the backend service without waiting for a response.
 
@@ -293,7 +294,7 @@ class ServiceApi:
                 than resolving one through the global singleton. Allowings
                 callers to fail without starting a new wandb-core process.
         """
-        session = self._get_api_session(connection)
+        session = self._get_api_session()
         request.api_id = session.api_id
         session.connection.api_publish(request)
 

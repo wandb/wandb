@@ -29,7 +29,8 @@ from typing_extensions import Any, Protocol
 import wandb
 import wandb.env
 from wandb import env, trigger
-from wandb.analytics import TelemetryRecorder, get_sentry, get_telemetry_recorder
+from wandb.analytics import TelemetryRecorder, get_sentry
+from wandb.apis.public.service_api import ServiceApi
 from wandb.errors import Error, UsageError
 from wandb.errors.links import url_registry
 from wandb.errors.util import ProtobufErrorHandler
@@ -1469,7 +1470,8 @@ def init(  # noqa: C901
 
         # Create a telemetry recorder once we know the user's credentials
         # Anything after this point will actually record telemetry.
-        telemetry_recorder = get_telemetry_recorder(run_settings)
+        service_api = ServiceApi(run_settings)
+        telemetry_recorder = TelemetryRecorder(service_api=service_api)
 
         if isinstance(run_settings.reinit, bool):
             wi.deprecated_features_used.append(

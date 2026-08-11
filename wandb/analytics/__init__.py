@@ -1,9 +1,8 @@
 __all__ = (
     "get_sentry",
-    "get_telemetry_recorder",
     "TelemetryContext",
     "TelemetryRecorder",
 )
 
-from .opentelemetry import TelemetryContext, TelemetryRecorder, get_telemetry_recorder
+from .opentelemetry import TelemetryContext, TelemetryRecorder
 from .sentry import get_sentry

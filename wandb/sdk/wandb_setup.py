@@ -428,19 +428,6 @@ def singleton() -> _WandbSetup:
     return _setup(start_service=False, load_settings=False)
 
 
-def singleton_if_created() -> _WandbSetup | None:
-    """The W&B singleton if it exists for the current process, else None.
-
-    Unlike singleton(), this never creates the singleton. It also does not
-    acquire any locks, so it is safe to call from code that may run while
-    the setup locks are held, such as error handlers.
-    """
-    if _singleton and _singleton._pid == os.getpid():
-        return _singleton
-
-    return None
-
-
 @wb_logging.log_to_all_runs()
 def _setup(
     settings: Settings | None = None,
@@ -600,7 +587,6 @@ def teardown(exit_code: int | None = None) -> None:
     """
     global _singleton
 
-    from wandb.analytics.opentelemetry import clear_telemetry_recorder_pool
     from wandb.sdk.lib import wbauth
 
     with _singleton_lock:
@@ -611,5 +597,3 @@ def teardown(exit_code: int | None = None) -> None:
         orig_singleton._teardown(exit_code=exit_code)
 
     wbauth.unauthenticate_session(update_settings=False)
-
-    clear_telemetry_recorder_pool()

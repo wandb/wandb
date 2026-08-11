@@ -25,8 +25,9 @@ import wandb
 import wandb.errors
 import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent
-from wandb.analytics import get_sentry, get_telemetry_recorder
+from wandb.analytics import TelemetryRecorder, get_sentry
 from wandb.apis import InternalApi, PublicApi
+from wandb.apis.public.service_api import ServiceApi
 from wandb.cli import beta_sync
 from wandb.errors.links import url_registry
 from wandb.sdk import wandb_setup, wandb_sweep
@@ -1796,7 +1797,8 @@ def launch(
 
     api = _get_cling_api()
     get_sentry().configure_scope(process_context="launch_cli")
-    telemetry_recorder = get_telemetry_recorder(wandb_setup.singleton().settings)
+    service_api = ServiceApi(wandb_setup.singleton().settings)
+    telemetry_recorder = TelemetryRecorder(service_api=service_api)
 
     if run_async and queue is not None:
         raise LaunchError(
@@ -2040,7 +2042,8 @@ def launch_agent(
         _launch.set_launch_logfile(log_file)
 
     api = _get_cling_api()
-    telemetry_recorder = get_telemetry_recorder(wandb_setup.singleton().settings)
+    service_api = ServiceApi(wandb_setup.singleton().settings)
+    telemetry_recorder = TelemetryRecorder(service_api=service_api)
     get_sentry().configure_scope(process_context="launch_agent")
     agent_config, api = _launch.resolve_agent_config(
         entity, max_jobs, queues, config, verbose
@@ -2185,7 +2188,8 @@ def scheduler(
         ctx.invoke(login, no_offline=True)
         api = InternalApi(reset=True)
 
-    telemetry_recorder = get_telemetry_recorder(wandb_setup.singleton().settings)
+    service_api = ServiceApi(wandb_setup.singleton().settings)
+    telemetry_recorder = TelemetryRecorder(service_api=service_api)
     get_sentry().configure_scope(process_context="sweep_scheduler")
     wandb.termlog("Starting a Launch Scheduler 🚀")
     from wandb.sdk.launch.sweeps import load_scheduler
