@@ -434,16 +434,28 @@ class AxOptimizer(Optimizer):
             )
 
     @override
-    def ask_n_runs(self, n: int) -> Sequence[RunSuggestion]:
-        """Ask Ax for up to `n` trials and return them as suggestions."""
+    def ask_n_runs(self, n: int) -> Sequence[RunSuggestion] | None:
+        """Ask Ax for up to `n` trials and return them as suggestions.
+
+        Returns None when Ax declines to generate this round (its strategy
+        needs results from in-flight trials, or a parallelism cap is hit);
+        the scheduler asks again on a later poll. Returns an empty sequence
+        when Ax reports the optimization complete, finishing the sweep.
+        Any other Ax failure propagates.
+        """
+        from ax.exceptions.core import DataRequiredError, OptimizationComplete
+        from ax.exceptions.generation_strategy import MaxParallelismReachedException
+
         try:
             trials = self.client.get_next_trials(max_trials=n)
-        except Exception:
-            # Ax may decline to generate more until in-flight trials complete
-            # (e.g. its generation strategy needs data, or a parallelism cap
-            # is hit). Per the ask_n_runs contract an empty proposal ends the
-            # sweep; there is no "waiting on results" signal yet.
-            # TODO(kmikowicz): distinguish transient declines from exhaustion.
+        except (DataRequiredError, MaxParallelismReachedException):
+            # Transient: Ax wants results from in-flight trials before
+            # generating more. Decline rather than propose an empty batch,
+            # which would end the sweep as exhausted.
+            return None
+        except OptimizationComplete:
+            # The search is done: the space is exhausted, a stopping
+            # strategy fired, or the generation strategy completed.
             return []
         return [
             RunSuggestion(

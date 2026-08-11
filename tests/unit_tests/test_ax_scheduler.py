@@ -126,6 +126,53 @@ class TestResumeSweep:
         assert result._optimizer._terminator is terminator
 
 
+class TestAskNRuns:
+    """How `ask_n_runs` maps Ax's generation failures onto the contract."""
+
+    def test_declines_with_none_when_ax_needs_more_data(
+        self, client: Client, sweep: Sweep
+    ) -> None:
+        from ax.exceptions.core import DataRequiredError
+
+        optimizer = AxOptimizer(client, sweep)
+        with patch.object(
+            client, "get_next_trials", side_effect=DataRequiredError("need data")
+        ):
+            assert optimizer.ask_n_runs(2) is None
+
+    def test_declines_with_none_when_parallelism_cap_is_hit(
+        self, client: Client, sweep: Sweep
+    ) -> None:
+        from ax.exceptions.generation_strategy import MaxParallelismReachedException
+
+        optimizer = AxOptimizer(client, sweep)
+        with patch.object(
+            client,
+            "get_next_trials",
+            side_effect=MaxParallelismReachedException(num_running=2),
+        ):
+            assert optimizer.ask_n_runs(2) is None
+
+    def test_finishes_with_empty_when_optimization_complete(
+        self, client: Client, sweep: Sweep
+    ) -> None:
+        from ax.exceptions.core import OptimizationComplete
+
+        optimizer = AxOptimizer(client, sweep)
+        with patch.object(
+            client, "get_next_trials", side_effect=OptimizationComplete("done")
+        ):
+            assert optimizer.ask_n_runs(2) == []
+
+    def test_propagates_unexpected_errors(self, client: Client, sweep: Sweep) -> None:
+        optimizer = AxOptimizer(client, sweep)
+        with (
+            patch.object(client, "get_next_trials", side_effect=RuntimeError("boom")),
+            pytest.raises(RuntimeError, match="boom"),
+        ):
+            optimizer.ask_n_runs(2)
+
+
 class TestCreateSweep:
     def test_builds_sweep_and_delegates(self, client: Client, sweep: Sweep) -> None:
         api = MagicMock()
