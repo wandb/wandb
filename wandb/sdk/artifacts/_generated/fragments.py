@@ -20,7 +20,7 @@ class ArtifactAliasFragment(GQLResult):
 
 class ProjectInfoFragment(GQLResult):
     id: GQLId
-    internal_id: GQLId | None = Field(default=None, alias="internalId")
+    internal_id: GQLId = Field(alias="internalId")
     name: str
     entity: ProjectInfoFragmentEntity
 
@@ -43,7 +43,7 @@ class ArtifactCollectionFragment(GQLResult):
     created_at: str = Field(alias="createdAt")
     updated_at: str | None = Field(alias="updatedAt")
     project: ProjectInfoFragment | None
-    type: ArtifactCollectionFragmentType
+    type_: ArtifactCollectionFragmentType = Field(alias="type")
     tags: ArtifactCollectionFragmentTags
 
 
@@ -187,7 +187,7 @@ class RegistryCollectionFragment(GQLResult):
     created_at: str = Field(alias="createdAt")
     updated_at: str | None = Field(alias="updatedAt")
     project: ProjectInfoFragment | None
-    type: RegistryCollectionFragmentType
+    type_: RegistryCollectionFragmentType = Field(alias="type")
     tags: RegistryCollectionFragmentTags
 
 
@@ -206,7 +206,7 @@ class RegistryCollectionFragmentTagsEdges(GQLResult):
 class RegistryFragment(GQLResult):
     typename__: Typename[Literal["Project"]] = "Project"
     id: GQLId
-    internal_id: GQLId | None = Field(default=None, alias="internalId")
+    internal_id: GQLId = Field(alias="internalId")
     name: str
     entity: RegistryFragmentEntity
     description: str | None
