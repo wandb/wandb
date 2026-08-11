@@ -63,8 +63,8 @@ def parameter_to_sweep_parameter(parameter: Any) -> dict[str, Any]:
     """Convert an Ax (core) parameter into a W&B sweep parameter spec.
 
     `parameter` is one of the experiment's live parameters (e.g. an
-    `ax.core.parameter.RangeParameter`), as read from
-    `client._experiment.search_space.parameters`. The returned dict is the value
+    `ax.core.parameter.RangeParameter`), as read from the search space of
+    the client's configured experiment. The returned dict is the value
     for one entry under a sweep config's `parameters` block (e.g.
     `{"distribution": "uniform", "min": 0, "max": 1}`).
 
@@ -274,7 +274,7 @@ def sweep_parameters_to_search_space(
     """Convert a sweep config's `parameters` block into an Ax search space.
 
     Returns the list of `RangeParameterConfig` / `ChoiceParameterConfig` objects
-    that Ax's `Client` accepts, e.g.::
+    that Ax's `Client` accepts, e.g.:
 
         client.configure_experiment(
             parameters=sweep_parameters_to_search_space(config["parameters"]),
@@ -294,8 +294,16 @@ def sweep_config_to_objective(config: dict[str, Any]) -> str:
 
 
 def sweep_objective_to_objective(objective: dict[str, Any]) -> str:
-    """Render a sweep metric as an Ax objective, negated to maximize."""
-    return f"{'' if objective['goal'] == 'maximize' else '-'}{objective['name']}"
+    """Render a sweep metric as an Ax objective, negated to maximize.
+
+    Raises:
+        ValueError: If the metric has no name.
+    """
+    if "name" not in objective:
+        raise ValueError(
+            "Sweep config has no metric name; cannot build the Ax objective."
+        )
+    return f"{'' if objective.get('goal') == 'maximize' else '-'}{objective['name']}"
 
 
 def _experiment(client: ax.Client) -> Any:
@@ -432,10 +440,10 @@ class AxOptimizer(Optimizer):
             trials = self.client.get_next_trials(max_trials=n)
         except Exception:
             # Ax may decline to generate more until in-flight trials complete
-            # (e.g. its generation strategy needs data, or a parallelism cap is
-            # hit). Propose nothing this round; the scheduler retries next poll
-            # as runs finish. run_id is str(trial_index) so tell_run can
-            # address the trial.
+            # (e.g. its generation strategy needs data, or a parallelism cap
+            # is hit). Per the ask_n_runs contract an empty proposal ends the
+            # sweep; there is no "waiting on results" signal yet.
+            # TODO(kmikowicz): distinguish transient declines from exhaustion.
             return []
         return [
             RunSuggestion(
@@ -453,7 +461,8 @@ class AxOptimizer(Optimizer):
         # data (via progression) so `prune_run`'s should_stop_trial_early has
         # something to judge; the trial itself is only finalized once terminal.
         trial_index = int(run_id)
-        if data.state in (RunState.RUNNING, RunState.PENDING):
+        if data.state.is_alive:
+            # RUNNING/PENDING/PREEMPTING/UNKNOWN: still producing results.
             self._attach_latest_progression(trial_index, data)
             return
         if data.state == RunState.FINISHED:
@@ -466,7 +475,7 @@ class AxOptimizer(Optimizer):
             self.client.complete_trial(
                 trial_index=trial_index, raw_data={self.metric_key(): value}
             )
-        else:  # FAILED / CRASHED / KILLED
+        else:  # FAILED / CRASHED / KILLED / PREEMPTED
             self.client.mark_trial_failed(trial_index=trial_index)
 
     def _attach_latest_progression(
@@ -587,7 +596,13 @@ def resume_sweep(
     `sweep` may be a `Sweep` or an "entity/project/sweep_id" path string.
     `options.client` is required: the Ax experiment it owns supplies the
     search space and objective, which the sweep is validated to agree with.
+
+    Raises:
+        ValueError: If `options.client` is missing or `sweep` is an empty
+            string.
     """
+    if isinstance(sweep, str) and not sweep:
+        raise ValueError("sweep path must be non-empty")
     resolved_sweep: Sweep = Api().sweep(sweep) if isinstance(sweep, str) else sweep
     options = options or AxOptions()
     if options.client is None:
@@ -612,7 +627,20 @@ def create_sweep(
     `options.client` is required. The metric name and goal are taken from the
     experiment's objective, so -- unlike the optuna entry point -- no
     `metric_name` is needed.
+
+    Args:
+        entity: The entity to create the sweep under.
+        project: The project to create the sweep under.
+        program_path: The training program recorded in the sweep config.
+        options: `options.client` is required; its configured experiment
+            supplies the parameter space and objective.
+
+    Raises:
+        ValueError: If `options.client` is missing or `entity` or `project`
+            is empty.
     """
+    if not entity or not project:
+        raise ValueError("entity and project must be non-empty")
     options = options or AxOptions()
     if options.client is None:
         raise ValueError("`options.client` is required")
@@ -629,11 +657,23 @@ def create_sweep_from_config(
 ) -> Scheduler:
     """Create the client, the sweep and a scheduler from a sweep config alone.
 
-    The search space and objective are derived from `config["parameters"]`
-    and `config["metric"]`. When `options.client` is `None`, a client is built
-    from the config via `create_default_client`, so the caller only needs a
-    sweep config.
+    When `options.client` is `None`, a client is built from the config via
+    `create_default_client`, deriving the parameter space and objective from
+    `config["parameters"]` and `config["metric"]`; a supplied client is used
+    as-is, with the experiment it already owns.
+
+    Args:
+        config: The sweep config to create the sweep (and default client)
+            from.
+        entity: The entity to create the sweep under.
+        project: The project to create the sweep under.
+        options: Optional client/terminator overrides.
+
+    Raises:
+        ValueError: If `entity` or `project` is empty.
     """
+    if not entity or not project:
+        raise ValueError("entity and project must be non-empty")
     options = options or AxOptions()
     client = options.client
     if client is None:

@@ -58,6 +58,7 @@ class WandbOptimizer(Optimizer):
         self._runs: dict[str, sweeps.SweepRun] = {}
         self._run_counter = 0
 
+    @override
     def validate_sweep_objective(self) -> None:
         """No-op: the sweep config is the only objective this optimizer reads.
 

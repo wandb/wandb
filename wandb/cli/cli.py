@@ -2392,7 +2392,7 @@ def sweep_scheduler(
     """Drive an existing sweep from a local, in-process scheduler.
 
     Create the sweep first with `wandb sweep sweep.yaml`; its config must set
-    `scheduler: {engine: <wandb|optuna>}` so the server leaves the search to
+    `scheduler: {engine: <wandb|optuna|ax>}` so the server leaves the search to
     this scheduler. The scheduler proposes runs, enqueues them, and polls their
     results to drive the optimizer.
     """
@@ -2423,7 +2423,7 @@ def sweep_scheduler(
     if not engine:
         raise ClickException(
             "The sweep scheduler requires a sweep created with "
-            "'scheduler': {'engine': <wandb|optuna>} in its config."
+            "'scheduler': {'engine': <wandb|optuna|ax>} in its config."
         )
     if engine == "wandb":
         scheduler = _build_wandb_scheduler(

@@ -15,6 +15,7 @@ from wandb.apis.public import Sweep
 from wandb.sdk.sweeps.scheduler.ax import (
     AxOptimizer,
     AxOptions,
+    _experiment,
     create_default_client,
     create_sweep,
     create_sweep_from_config,
@@ -196,7 +197,7 @@ class TestCreateDefaultClient:
 
         client = create_default_client(config)
 
-        experiment = client._experiment
+        experiment = _experiment(client)
         assert set(experiment.search_space.parameters) == {"x"}
         metric_names = experiment.optimization_config.objective.metric_names
         assert list(metric_names) == ["loss"]
@@ -210,7 +211,7 @@ class TestCreateDefaultClient:
 
         client = create_default_client(config)
 
-        assert client._experiment.optimization_config.objective.minimize is False
+        assert _experiment(client).optimization_config.objective.minimize is False
 
 
 class TestCreateSweepFromConfig:
@@ -271,7 +272,7 @@ class TestCreateSweepFromConfig:
                 maximize_config, "test_entity", "test_project"
             )
 
-        objective = result._optimizer.client._experiment.optimization_config.objective
+        objective = _experiment(result._optimizer.client).optimization_config.objective
         assert objective.minimize is False
 
     def test_uses_given_scheduler_options(self, client: Client, sweep: Sweep) -> None:

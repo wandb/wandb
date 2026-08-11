@@ -326,6 +326,7 @@ class OptunaOptimizer(Optimizer):
         """
         return self._terminator is not None and self._terminator(self.study)
 
+    @override
     def validate_sweep_objective(self) -> None:
         """Fail fast if the study and the sweep disagree on the objective.
 

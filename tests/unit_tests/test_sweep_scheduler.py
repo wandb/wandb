@@ -531,14 +531,14 @@ class TestAxOptimizerAcceptance(OptimizerAcceptanceTests):
         )
         return AxOptimizer(client, sweep)
 
-    def test_prune_run_hyperband_stops_worst_running_run(
+    def test_prune_runs_hyperband_stops_worst_running_run(
         self, optimizer: Optimizer
     ) -> None:
         """`AxOptimizer.prune_run` is a thin wrapper around the `Client`'s own
         early-stopping strategy; which running trials it actually flags is
         Ax's statistical judgment call, not this glue code's, so this checks
         the wrapper's wiring -- that a stop flag from the client finalizes the
-        trial via `mark_trial_early_stopped` and returns True.
+        trial via `mark_trial_early_stopped` and prunes exactly that run.
         """
         suggestions = optimizer.ask_n_runs(2)
         stop_me = make_run(
@@ -561,9 +561,12 @@ class TestAxOptimizerAcceptance(OptimizerAcceptanceTests):
             ),
             patch.object(client, "mark_trial_early_stopped") as mark_stopped,
         ):
-            assert optimizer.prune_run(suggestions[0].run_id, stop_me)
+            pruned = optimizer.prune_runs(
+                [suggestions[0].run_id, suggestions[1].run_id],
+                [stop_me, keep_me],
+            )
+            assert pruned == [suggestions[0].run_id]
             mark_stopped.assert_called_once_with(trial_index=int(suggestions[0].run_id))
-            assert not optimizer.prune_run(suggestions[1].run_id, keep_me)
 
 
 @requires_ax
@@ -1674,7 +1677,7 @@ def test_sweep_scheduler_cli_ax_engine_builds_default_client(
     mocks.create_default_client.assert_called_once_with(sweep_config)
     mocks.resume_sweep.assert_called_once_with(
         sweep,
-        options=AxOptions(client=mocks.client, poll_interval_s=5.0, batch_size=10),
+        options=AxOptions(client=mocks.client, poll_interval_s=10.0, batch_size=10),
     )
     mocks.scheduler.loop.assert_called_once()
 
@@ -1711,7 +1714,7 @@ def test_sweep_scheduler_cli_ax_engine_loads_custom_optimizer_factory(
     mocks.create_default_client.assert_not_called()
     mocks.resume_sweep.assert_called_once_with(
         sweep,
-        options=AxOptions(client=client, poll_interval_s=5.0, batch_size=10),
+        options=AxOptions(client=client, poll_interval_s=10.0, batch_size=10),
     )
     mocks.scheduler.loop.assert_called_once()
 
@@ -1727,11 +1730,11 @@ def test_sweep_scheduler_cli_ax_engine_forwards_poll_interval_and_batch_size(
     with _cli_ax_scheduler_context(sweep) as mocks:
         result = runner.invoke(
             cli.sweep_scheduler,
-            ["--batch-size", "7", "--poll-interval", "2.5", "entity/project/sweep-1"],
+            ["--batch-size", "7", "--poll-interval", "15", "entity/project/sweep-1"],
         )
 
     assert result.exit_code == 0, result.output
     mocks.resume_sweep.assert_called_once_with(
         sweep,
-        options=AxOptions(client=mocks.client, poll_interval_s=2.5, batch_size=7),
+        options=AxOptions(client=mocks.client, poll_interval_s=15.0, batch_size=7),
     )
