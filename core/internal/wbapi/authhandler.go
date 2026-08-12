@@ -116,13 +116,13 @@ func (h *AuthHandler) HandleAuthenticate(
 // it is at or near expiration. For other credential types, the response
 // contains an empty access token.
 func (h *AuthHandler) HandleGetAccessToken(
-	_ context.Context,
+	ctx context.Context,
 	_ *spb.GetAccessTokenRequest,
 ) *spb.ApiResponse {
 	response := &spb.GetAccessTokenResponse{}
 
 	if provider, ok := h.credentialProvider.(api.AccessTokenProvider); ok {
-		token, err := provider.AccessToken()
+		token, err := provider.AccessToken(ctx)
 		if err != nil {
 			return apiErrorResponse(err.Error(), 0)
 		}

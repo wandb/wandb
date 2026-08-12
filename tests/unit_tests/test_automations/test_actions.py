@@ -32,8 +32,8 @@ def test_public_action_type_enum_is_subset_of_generated():
 
 @given(
     integration_id=gql_ids(prefix="Integration"),
-    title=printable_text,
-    message=printable_text,
+    title=printable_text(),
+    message=printable_text(),
     severity=sampled_from(VALID_ALERT_SEVERITY_ARG_VALUES),
 )
 def test_notification_input_action_accepts_legacy_alert_args(

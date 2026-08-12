@@ -24,13 +24,16 @@ func (rs *RunSummary) Set(path pathtree.TreePath, value any) {
 }
 
 // Remove deletes the summary for a metric.
+//
+// If the path refers to a metric logged as a nested value, the summaries
+// of all metrics under it are deleted as well.
 func (rs *RunSummary) Remove(path pathtree.TreePath) {
-	summary, ok := rs.summaries.GetLeaf(path)
-	if !ok {
+	if summary, ok := rs.summaries.GetLeaf(path); ok {
+		summary.Clear()
 		return
 	}
 
-	summary.Clear()
+	rs.summaries.Remove(path)
 }
 
 // UpdateSummaries updates metric summaries based on their new values

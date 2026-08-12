@@ -37,3 +37,13 @@ def pydantic_isinstance(
         return any(cls.__pydantic_validator__.isinstance_python(v) for cls in classinfo)
     cls = classinfo
     return cls.__pydantic_validator__.isinstance_python(v)
+
+
+def default_if_none(v: Any) -> Any:
+    """A "before"-mode field validator that coerces `None` to the field default.
+
+    See: https://docs.pydantic.dev/2.11/api/pydantic_core/#pydantic_core.PydanticUseDefault
+    """
+    if v is None:
+        raise pydantic_core.PydanticUseDefault
+    return v
