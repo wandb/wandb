@@ -10,8 +10,9 @@ from collections import Counter
 from collections.abc import Callable, Iterator
 from functools import singledispatch
 from operator import itemgetter
-from typing import Any, cast
+from typing import Any, TypeGuard, cast
 
+from pydantic import JsonValue
 from typing_extensions import assert_never
 
 from wandb._strutils import repr_join
@@ -35,8 +36,14 @@ from .operators import (
 )
 
 
+def _is_filter_dict_list(
+    values: list[JsonValue],
+) -> TypeGuard[list[dict[str, JsonValue]]]:
+    return all(isinstance(value, dict) for value in values)
+
+
 def transform_fields(
-    raw: dict[str, Any],
+    raw: dict[str, JsonValue],
     *,
     aliases: dict[str, str] | None = None,
     operand_transforms: dict[str, Callable[[Any], Any]] | None = None,
@@ -75,7 +82,7 @@ def transform_fields(
 
 def _transform_item(
     key: str,
-    val: Any,
+    val: JsonValue,
     *,
     aliases: dict[str, str] | None,
     operand_transforms: dict[str, Callable[[Any], Any]] | None,
@@ -83,7 +90,7 @@ def _transform_item(
     """Transform one filter item, recursively handling logical operands."""
     match key, val:
         case (("$and" | "$or" | "$nor") as op, list(operands)):
-            if not all(isinstance(obj, dict) for obj in operands):
+            if not _is_filter_dict_list(operands):
                 raise ValueError(f"{op} must contain only filter dictionaries.")
             return key, [
                 transform_fields(

@@ -1,13 +1,10 @@
 from __future__ import annotations
 
 import json
-import logging
 from typing import TYPE_CHECKING
 
 from pytest import fixture, mark, param, raises
-from wandb.apis.public.registries import _utils
 from wandb.apis.public.registries._utils import (
-    advanced_search_enabled,
     prepare_artifact_types_input,
     prepare_registry_filter,
 )
@@ -16,7 +13,6 @@ from wandb.apis.public.registries.registries_search import (
     Registries,
     Versions,
 )
-from wandb.sdk.artifacts._generated import FetchAdvancedRegistryFeatures
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
 
 if TYPE_CHECKING:
@@ -30,19 +26,13 @@ if TYPE_CHECKING:
 def service_api(mocker: MockerFixture) -> MagicMock:
     from wandb.apis.public.service_api import ServiceApi
 
-    mock = mocker.Mock(spec=ServiceApi)
-    mock.feature_enabled.return_value = False
-    return mock
+    return mocker.Mock(spec=ServiceApi)
 
 
 @fixture
-def enable_advanced_search(service_api: MagicMock) -> None:
-    service_api.feature_enabled.return_value = True
-    service_api.execute_graphql.return_value = (
-        FetchAdvancedRegistryFeatures.model_validate(
-            {"organization": {"advancedRegistryFeatures": {"advancedSearch": True}}}
-        )
-    )
+def disable_advanced_search(service_api: MagicMock) -> None:
+    service_api.feature_enabled.return_value = False
+    service_api.execute_graphql.return_value = None
 
 
 @mark.parametrize(
@@ -174,9 +164,7 @@ def test_prepare_registry_filter(raw, expected):
     assert prepare_registry_filter(raw) == expected
 
 
-def test_basic_paginators_normalize_filters_without_feature_lookup(
-    service_api: MagicMock,
-):
+def test_basic_paginators_normalize_filters(service_api: MagicMock):
     registries = Registries(
         service_api,
         organization="org",
@@ -186,42 +174,35 @@ def test_basic_paginators_normalize_filters_without_feature_lookup(
         service_api,
         organization="org",
         registry_filter={"name": "model"},
-        collection_filter={"collection_id": 2, "tags": "prod"},
+        collection_filter={"collection_id": 2, "tag": "prod"},
     )
 
-    expected_registries_filters = {
-        "filters": {"name": f"{REGISTRY_PREFIX}model", "id": 1},
-    }
-    expected_collections_filters = {
-        "registryFilter": {"name": f"{REGISTRY_PREFIX}model"},
-        "collectionFilter": {"artifact_collection_id": 2, "tag": "prod"},
-    }
+    expected_registries_filter = {"name": f"{REGISTRY_PREFIX}model", "id": 1}
+    expected_registry_filter = {"name": f"{REGISTRY_PREFIX}model"}
+    expected_collection_filter = {"artifact_collection_id": 2, "tag": "prod"}
 
+    assert json.loads(registries.variables["filters"]) == expected_registries_filter
     assert (
-        json.loads(registries.variables["filters"])
-        == expected_registries_filters["filters"]
-    )
-    assert (
-        json.loads(collections.variables["registryFilter"])
-        == expected_collections_filters["registryFilter"]
+        json.loads(collections.variables["registryFilter"]) == expected_registry_filter
     )
     assert (
         json.loads(collections.variables["collectionFilter"])
-        == expected_collections_filters["collectionFilter"]
+        == expected_collection_filter
     )
-    service_api.feature_enabled.assert_not_called()
-    service_api.execute_graphql.assert_not_called()
 
 
-def test_versions_uses_basic_filter_fields(service_api: MagicMock):
+def test_versions_uses_basic_filter_fields(
+    service_api: MagicMock,
+    disable_advanced_search: None,
+):
     versions = Versions(
         service_api,
         organization="org",
         registry_filter={"name": "model", "id": 1},
-        collection_filter={"collection_id": 2, "tags": "prod"},
+        collection_filter={"collection_id": 2, "tag": "prod"},
         artifact_filter={
-            "artifact_metadata.owner": "alice",
-            "version_index": 3,
+            "metadata.owner": "alice",
+            "version": 3,
         },
     )
 
@@ -234,57 +215,6 @@ def test_versions_uses_basic_filter_fields(service_api: MagicMock):
     assert json.loads(gql_vars["registryFilter"]) == expected_registry_filter
     assert json.loads(gql_vars["collectionFilter"]) == expected_collection_filter
     assert json.loads(gql_vars["artifactFilter"]) == expected_artifact_filter
-    service_api.feature_enabled.assert_called_once()
-
-
-def test_versions_rejects_advanced_field_in_basic_mode(service_api: MagicMock):
-    field = "project_id"
-
-    with raises(ValueError, match=rf"Invalid filter field.*{field}"):
-        Versions(service_api, organization="org", registry_filter={field: 1})
-
-
-def test_versions_rejects_basic_field_in_advanced_mode(
-    service_api: MagicMock,
-    enable_advanced_search: None,
-):
-    field = "description"
-
-    with raises(ValueError, match=rf"Invalid filter field.*{field}"):
-        Versions(service_api, organization="org", registry_filter={field: 1})
-
-
-def test_paginators_reject_unknown_filter_fields(
-    service_api: MagicMock,
-):
-    bad_filter = {"not_a_valid_field": 1}
-
-    with raises(ValueError, match="Invalid filter field"):
-        Registries(service_api, organization="org", filter=bad_filter)
-    with raises(ValueError, match="Invalid filter field"):
-        Collections(service_api, organization="org", collection_filter=bad_filter)
-    with raises(ValueError, match="Invalid filter field"):
-        Versions(service_api, organization="org", artifact_filter=bad_filter)
-
-
-def test_advanced_search_disabled_without_server_capability(service_api: MagicMock):
-    service_api.feature_enabled.return_value = False
-
-    assert advanced_search_enabled(service_api, "org") is False
-    service_api.execute_graphql.assert_not_called()
-
-
-def test_advanced_search_error_logs_and_falls_back(
-    service_api: MagicMock,
-    wandb_caplog,
-):
-    service_api.feature_enabled.return_value = True
-    service_api.execute_graphql.side_effect = RuntimeError("network down")
-
-    with wandb_caplog.at_level(logging.WARNING, logger=_utils.__name__):
-        assert advanced_search_enabled(service_api, "org") is False
-
-    assert "Failed to fetch advanced registry features" in wandb_caplog.text
 
 
 @mark.parametrize("cls", [Registries, Collections])

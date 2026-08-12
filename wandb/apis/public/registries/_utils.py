@@ -114,8 +114,16 @@ Note: "advanced" fields are only relevant when passing a filter to a Versions pa
 COLLECTIONS_FILTER_FIELDS = SearchFields(
     fields=(
         SearchField.from_shared("artifact_collection_id", "collection_id", "id"),
-        SearchField.from_shared("name", "collection_name", "artifact_collection_name"),
-        SearchField.from_shared("tag", "tags"),
+        SearchField(
+            basic=_FieldNames("name"),
+            advanced=_FieldNames(
+                "name", aliases=("collection_name", "artifact_collection_name")
+            ),
+        ),
+        SearchField(
+            basic=_FieldNames("tag"),
+            advanced=_FieldNames("tag", aliases=("tags",)),
+        ),
         # Only supported in "basic" search
         SearchField(
             basic=_FieldNames("description"),
@@ -142,10 +150,22 @@ VERSIONS_FILTER_FIELDS = SearchFields(
             basic=_FieldNames("id"),
             advanced=_FieldNames("artifact_id", aliases=["id"]),
         ),
-        SearchField.from_shared("version", "version_index"),
-        SearchField.from_shared("tag", "tags"),
-        SearchField.from_shared("alias", "aliases"),
-        SearchField.from_shared("metadata", "artifact_metadata"),
+        SearchField(
+            basic=_FieldNames("version"),
+            advanced=_FieldNames("version", aliases=("version_index",)),
+        ),
+        SearchField(
+            basic=_FieldNames("tag"),
+            advanced=_FieldNames("tag", aliases=("tags",)),
+        ),
+        SearchField(
+            basic=_FieldNames("alias"),
+            advanced=_FieldNames("alias", aliases=("aliases",)),
+        ),
+        SearchField(
+            basic=_FieldNames("metadata"),
+            advanced=_FieldNames("metadata", aliases=("artifact_metadata",)),
+        ),
         SearchField(
             basic=_FieldNames("created_at"),
             advanced=_FieldNames("artifact_created_at", aliases=["created_at"]),

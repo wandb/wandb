@@ -22,7 +22,7 @@ FIELD_ALIASES = {
 
 FILTER_ADAPTER = TypeAdapter(Annotated[FilterDict, FilterValidator(VALID_FIELDS)])
 ALIASED_FILTER_ADAPTER = TypeAdapter(
-    Annotated[FilterDict, FilterValidator(valid=FIELD_ALIASES)]
+    Annotated[FilterDict, FilterValidator(FIELD_ALIASES)]
 )
 
 

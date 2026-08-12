@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable, Generator
 from itertools import islice, product
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import wandb
@@ -12,6 +13,10 @@ from wandb._strutils import b64decode_ascii
 from wandb.apis.public.registries.registry import Registry
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX, remove_registry_prefix
+
+if TYPE_CHECKING:
+    from tests.fixtures.wandb_backend_spy import WandbBackendSpy
+    from tests.fixtures.wandb_backend_spy.gql_match import Responder
 
 
 @fixture
@@ -412,13 +417,13 @@ def test_fetch_registries(team: str, org: str, org_entity: str, api: Api):
 
 
 @fixture
-def advanced_features_spy(wandb_backend_spy):
+def advanced_features_spy(wandb_backend_spy: WandbBackendSpy) -> Responder:
     """Report advanced registry search support and capture the org lookup."""
     gql = wandb_backend_spy.gql
-    features = [
-        pb.ARTIFACT_REGISTRY_SEARCH,
-        pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING,
-    ]
+    features = (
+        pb.ServerFeature.Name(pb.ARTIFACT_REGISTRY_SEARCH),
+        pb.ServerFeature.Name(pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING),
+    )
     wandb_backend_spy.stub_gql(
         gql.Matcher(operation="ServerFeaturesQuery"),
         gql.Constant(
@@ -426,11 +431,7 @@ def advanced_features_spy(wandb_backend_spy):
                 "data": {
                     "serverInfo": {
                         "features": [
-                            {
-                                "name": pb.ServerFeature.Name(feature),
-                                "isEnabled": True,
-                            }
-                            for feature in features
+                            {"name": feature, "isEnabled": True} for feature in features
                         ]
                     }
                 }
@@ -455,7 +456,7 @@ def advanced_features_spy(wandb_backend_spy):
 
 
 def test_advanced_feature_response_selects_version_filter_fields(
-    advanced_features_spy,
+    advanced_features_spy: Responder,
     api: Api,
 ):
     versions = (
