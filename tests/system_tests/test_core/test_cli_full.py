@@ -141,6 +141,11 @@ def test_sync_wandb_run(runner, wandb_backend_spy, user, copy_asset):
     # this a problem for a real backend that we use now
     # (as we used to use a mock backend)
     # todo: create a new test asset that will contain an artifact
+    #
+    # This fixture's .wandb file has zero history records, so this test
+    # asserts nothing about how history steps are read. For that, see the
+    # transaction-log compatibility corpus under tests/assets/compat_logs/
+    # (compat_log fixture in tests/conftest.py).
     with (
         runner.isolated_filesystem(),
         mock.patch(
