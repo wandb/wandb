@@ -60,7 +60,9 @@ The `wandb sync --clean` command now exits with code 1 and prints a hint to use 
 - `wandb sync` no longer hangs on a run that set its name, tags, or notes after starting (@dmitryduev in https://github.com/wandb/wandb/pull/12380)
 - `wandb login` no longer removes or corrupts credentials belonging to other machines in your `.netrc` file (@dmitryduev in https://github.com/wandb/wandb/pull/12386)
 - Log messages captured from Python loggers no longer add blank lines to a run's logs (@dmitryduev in https://github.com/wandb/wandb/pull/12387)
+- `del run.summary[key]` now removes metrics that were logged as nested values, which it previously ignored (@dmitryduev in https://github.com/wandb/wandb/pull/12389)
 
 ## Security
 
 - Debug logs no longer contain CoreWeave cluster credentials (@dmitryduev in https://github.com/wandb/wandb/pull/12385)
+- `wandb docker` and `wandb docker-run` no longer pass your API key on the command line, where other users of the same machine could read it (@dmitryduev in https://github.com/wandb/wandb/pull/12443)
