@@ -11,12 +11,14 @@ import pytest
 import yaml
 from wandb import env, wandb_agent
 from wandb.sdk.launch.sweeps import SweepNotFoundError
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 from wandb.wandb_agent import Agent
 
 from .conftest import (
     WandbAgentTestEnv,
     heartbeat_run_command,
     sequence_heartbeat_responses,
+    sweep_not_running_api_error,
 )
 
 
@@ -49,6 +51,27 @@ def test_cli_agent_sweep_not_found_no_running_raises(
 
     with pytest.raises(SweepNotFoundError):
         agent.run()
+
+
+def test_cli_agent_fails_fast_on_terminal_sweep_state(
+    wandb_agent_env: WandbAgentTestEnv,
+):
+    """A 400 from register_agent (terminal sweep) propagates without retrying (CLI agent)."""
+    wandb_agent_env.patch_cli()
+    api = wandb_agent_env.mock_api(for_cli=True)
+    api.register_agent.side_effect = sweep_not_running_api_error(
+        wandb_agent_env.cli_sweep_id
+    )
+
+    agent = wandb_agent_env.make_cli_agent(api, count=1)
+
+    with pytest.raises(WandbApiFailedError, match="is not running"):
+        agent.run()
+
+    # Fail fast: registration is attempted exactly once, and the agent never
+    # reaches the heartbeat loop.
+    assert api.register_agent.call_count == 1
+    api.agent_heartbeat.assert_not_called()
 
 
 def test_agent_config_whitespace_cli_agent(wandb_agent_env):

@@ -6,8 +6,10 @@ import contextlib
 import io
 import threading
 
+import pytest
 import wandb
 from wandb.sdk.launch.sweeps import SweepNotFoundError
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 from .conftest import (
     DEFAULT_ENTITY,
@@ -15,6 +17,7 @@ from .conftest import (
     DEFAULT_SWEEP_ID,
     heartbeat_run_command,
     sequence_heartbeat_responses,
+    sweep_not_running_api_error,
 )
 
 
@@ -141,6 +144,23 @@ def test_agent_exception(wandb_agent_env):
     assert current_pattern == len(patterns), (
         f"Not found in stderr: '{patterns[current_pattern]}'"
     )
+
+
+def test_agent_fails_fast_on_terminal_sweep_state(wandb_agent_env):
+    """A 400 from register_agent (terminal sweep) propagates without retrying."""
+    api = wandb_agent_env.mock_api()
+    api.register_agent.side_effect = sweep_not_running_api_error()
+
+    with (
+        wandb_agent_env.patch_pyagent(api),
+        pytest.raises(WandbApiFailedError, match="is not running"),
+    ):
+        wandb_agent_env.make_pyagent(function=lambda: None, count=1).run()
+
+    # Fail fast: registration is attempted exactly once, and the agent never
+    # reaches the heartbeat loop.
+    assert api.register_agent.call_count == 1
+    api.agent_heartbeat.assert_not_called()
 
 
 def test_agent_sweep_deleted(wandb_agent_env):

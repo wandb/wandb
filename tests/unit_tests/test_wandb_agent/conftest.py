@@ -14,6 +14,8 @@ from unittest import mock
 import pytest
 import wandb
 import wandb.agents.pyagent as pyagent
+from wandb.proto import wandb_api_pb2
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 from wandb.wandb_agent import Agent as CliAgent
 
 DEFAULT_AGENT_ID = "test-agent"
@@ -52,6 +54,17 @@ def sequence_heartbeat_responses(
         return response
 
     return side_effect
+
+
+def sweep_not_running_api_error(
+    sweep_id: str = DEFAULT_SWEEP_ID,
+) -> WandbApiFailedError:
+    """Build the 400 error `createAgent` returns for a terminal-state sweep."""
+    message = f"Sweep {sweep_id} is not running"
+    return WandbApiFailedError(
+        message,
+        response=wandb_api_pb2.ApiErrorResponse(message=message, http_status=400),
+    )
 
 
 @dataclasses.dataclass
