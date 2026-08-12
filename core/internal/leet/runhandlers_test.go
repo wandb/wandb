@@ -216,10 +216,17 @@ func TestRun_DataAfterEscDoesNotRestealFocus(t *testing.T) {
 		"incoming data must not re-steal focus after Esc")
 }
 
-func TestModel_EscExitsRunViewOnlyWhenUnfocused(t *testing.T) {
+// newModelInRunMode builds the top-level model in run mode at 200x60, with
+// config tweaks applied before construction.
+func newModelInRunMode(
+	t *testing.T, tweak func(*leet.ConfigManager),
+) (*leet.Model, tea.Model) {
+	t.Helper()
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-
+	if tweak != nil {
+		tweak(cfg)
+	}
 	m := leet.NewModel(leet.ModelParams{
 		RunParams: &leet.RunParams{RunFile: "testdata/fake.wandb"},
 		Config:    cfg,
@@ -227,10 +234,13 @@ func TestModel_EscExitsRunViewOnlyWhenUnfocused(t *testing.T) {
 	})
 	var tm tea.Model = m
 	tm, _ = tm.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
-
-	// Seed overview data so focus lands on a pane.
 	require.True(t, m.TestInRunMode())
-	m.TestRunModel().TestHandleRecordMsg(leet.RunMsg{
+	return m, tm
+}
+
+// seedOverview gives the run overview config data so a pane takes focus.
+func seedOverview(r *leet.Run) {
+	r.TestHandleRecordMsg(leet.RunMsg{
 		ID:      "abc123",
 		Project: "test-project",
 		Config: &spb.ConfigRecord{
@@ -239,6 +249,11 @@ func TestModel_EscExitsRunViewOnlyWhenUnfocused(t *testing.T) {
 			},
 		},
 	})
+}
+
+func TestModel_EscExitsRunViewOnlyWhenUnfocused(t *testing.T) {
+	m, tm := newModelInRunMode(t, nil)
+	seedOverview(m.TestRunModel())
 	require.True(t, m.TestRunModel().HasPaneFocus())
 
 	// First Esc unfocuses the pane but stays in the run view.
@@ -414,18 +429,9 @@ func TestRun_StackSectionsAlignWithReservedRows(t *testing.T) {
 // further press was captured by the fullscreen guard with no way out.
 // Fullscreen now follows focus.
 func TestModel_TabWhileMediaFullscreenExitsFullscreen(t *testing.T) {
-	logger := observability.NewNoOpLogger()
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	_ = cfg.SetMediaVisible(true)
-
-	m := leet.NewModel(leet.ModelParams{
-		RunParams: &leet.RunParams{RunFile: "testdata/fake.wandb"},
-		Config:    cfg,
-		Logger:    logger,
+	m, tm := newModelInRunMode(t, func(c *leet.ConfigManager) {
+		_ = c.SetMediaVisible(true)
 	})
-	var tm tea.Model = m
-	tm, _ = tm.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
-	require.True(t, m.TestInRunMode())
 
 	// Metrics + media data: focus seeds on the metrics grid, media is the
 	// next available region.
@@ -460,24 +466,10 @@ func TestModel_TabWhileMediaFullscreenExitsFullscreen(t *testing.T) {
 // missed it while the model exit was suppressed by the focus snapshot, so the
 // press did nothing.
 func TestModel_ModifiedEscStillPeelsFocus(t *testing.T) {
-	logger := observability.NewNoOpLogger()
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	_ = cfg.SetLeftSidebarVisible(true)
-
-	m := leet.NewModel(leet.ModelParams{
-		RunParams: &leet.RunParams{RunFile: "testdata/fake.wandb"},
-		Config:    cfg,
-		Logger:    logger,
+	m, tm := newModelInRunMode(t, func(c *leet.ConfigManager) {
+		_ = c.SetLeftSidebarVisible(true)
 	})
-	var tm tea.Model = m
-	tm, _ = tm.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
-	require.True(t, m.TestInRunMode())
-	m.TestRunModel().TestHandleRecordMsg(leet.RunMsg{
-		ID: "abc123", Project: "test-project",
-		Config: &spb.ConfigRecord{Update: []*spb.ConfigItem{
-			{NestedKey: []string{"lr"}, ValueJson: "0.01"},
-		}},
-	})
+	seedOverview(m.TestRunModel())
 	require.True(t, m.TestRunModel().HasPaneFocus())
 
 	_, _ = tm.Update(tea.KeyPressMsg{Code: tea.KeyEsc, Mod: tea.ModAlt})
@@ -490,12 +482,9 @@ func TestModel_ModifiedEscStillPeelsFocus(t *testing.T) {
 // Regression: an explicit Esc-unfocus before the one-time focus seed fired
 // used to be overridden by the next incoming record re-seeding focus.
 func TestRun_EscBeforeSeedStopsDataFromStealingFocus(t *testing.T) {
-	logger := observability.NewNoOpLogger()
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	_ = cfg.SetMediaVisible(true)
-
-	r := leet.NewRun(&leet.RunParams{RunFile: "testdata/fake.wandb"}, cfg, logger)
-	r.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+	r, _ := newTestRun(t, 200, 60, func(c *leet.ConfigManager) {
+		_ = c.SetMediaVisible(true)
+	})
 
 	// Media data arrives via the shared store, not a record, so the seed has
 	// not fired yet; the user tabs in and explicitly unfocuses.
