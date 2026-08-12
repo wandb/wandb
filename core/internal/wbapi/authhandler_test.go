@@ -157,7 +157,9 @@ type fakeAccessTokenProvider struct {
 	err   error
 }
 
-func (p *fakeAccessTokenProvider) AccessToken() (string, error) {
+func (p *fakeAccessTokenProvider) AccessToken(
+	_ context.Context,
+) (string, error) {
 	return p.token, p.err
 }
 
