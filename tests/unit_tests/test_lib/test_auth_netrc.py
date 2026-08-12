@@ -1,3 +1,4 @@
+import netrc
 import pathlib
 import textwrap
 
@@ -91,6 +92,99 @@ def test_write(fake_netrc_path: pathlib.Path):
               login user-2
               password pass-2
             machine test-host:123
+              login user
+              password new-pass
+        """)
+
+
+def test_write_keeps_machine_with_matching_prefix(fake_netrc_path: pathlib.Path):
+    fake_netrc_path.write_text(
+        textwrap.dedent("""\
+            machine test-host.corp.internal
+              login user-1
+              password pass-1
+            machine test-host
+              login user
+              password pass
+        """)
+    )
+
+    wbnetrc.write_netrc_auth(host="https://test-host/", api_key="new-pass")
+
+    assert fake_netrc_path.read_text() == textwrap.dedent("""\
+            machine test-host.corp.internal
+              login user-1
+              password pass-1
+            machine test-host
+              login user
+              password new-pass
+        """)
+
+
+def test_write_keeps_single_line_entries(fake_netrc_path: pathlib.Path):
+    fake_netrc_path.write_text(
+        textwrap.dedent("""\
+            machine test-host login user password pass
+            machine other-host login user-2 password pass-2
+        """)
+    )
+
+    wbnetrc.write_netrc_auth(host="https://test-host/", api_key="new-pass")
+
+    assert fake_netrc_path.read_text() == textwrap.dedent("""\
+            machine other-host login user-2 password pass-2
+            machine test-host
+              login user
+              password new-pass
+        """)
+
+
+def test_write_entry_with_account_field(fake_netrc_path: pathlib.Path):
+    fake_netrc_path.write_text(
+        textwrap.dedent("""\
+            machine test-host
+              login user
+              account test-account
+              password pass
+            machine other-host
+              login user-2
+              password pass-2
+        """)
+    )
+
+    wbnetrc.write_netrc_auth(host="https://test-host/", api_key="new-pass")
+
+    assert fake_netrc_path.read_text() == textwrap.dedent("""\
+            machine other-host
+              login user-2
+              password pass-2
+            machine test-host
+              login user
+              password new-pass
+        """)
+    assert netrc.netrc(fake_netrc_path).hosts.keys() == {"other-host", "test-host"}
+
+
+def test_write_keeps_default_entry(fake_netrc_path: pathlib.Path):
+    fake_netrc_path.write_text(
+        textwrap.dedent("""\
+            machine test-host
+              login user
+              account test-account
+              password pass
+            default
+              login user-2
+              password pass-2
+        """)
+    )
+
+    wbnetrc.write_netrc_auth(host="https://test-host/", api_key="new-pass")
+
+    assert fake_netrc_path.read_text() == textwrap.dedent("""\
+            default
+              login user-2
+              password pass-2
+            machine test-host
               login user
               password new-pass
         """)

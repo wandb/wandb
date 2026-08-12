@@ -345,6 +345,8 @@ func verify(public PublicKey, message, signature, ctx []byte, preHash bool) bool
 // The opts.HashFunc() must return zero, this can be achieved by passing
 // crypto.Hash(0) as the value for opts.
 // Use a SignerOptions struct to pass a context string for signing.
+//
+// Uses the default RFC 8032 cofactor-clearing verification.
 func VerifyAny(public PublicKey, message, signature []byte, opts crypto.SignerOpts) bool {
 	var ctx string
 	var scheme SchemeID
@@ -367,6 +369,8 @@ func VerifyAny(public PublicKey, message, signature []byte, opts crypto.SignerOp
 // signature, or when the public key cannot be decoded.
 // This function supports the signature variant defined in RFC-8032: Ed448,
 // also known as the pure version of EdDSA.
+//
+// Uses the default RFC 8032 cofactor-clearing verification.
 func Verify(public PublicKey, message, signature []byte, ctx string) bool {
 	return verify(public, message, signature, []byte(ctx), false)
 }
@@ -377,6 +381,8 @@ func Verify(public PublicKey, message, signature []byte, ctx string) bool {
 // meaning it internally hashes the message using SHAKE-256.
 // Context could be passed to this function, which length should be no more than
 // 255. It can be empty.
+//
+// Uses the default RFC 8032 cofactor-clearing verification.
 func VerifyPh(public PublicKey, message, signature []byte, ctx string) bool {
 	return verify(public, message, signature, []byte(ctx), true)
 }
