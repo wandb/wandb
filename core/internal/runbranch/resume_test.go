@@ -3,6 +3,7 @@ package runbranch_test
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"testing"
 
 	"github.com/Khan/genqlient/graphql"
@@ -11,6 +12,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/runbranch"
 	"github.com/wandb/wandb/core/internal/runconfig"
 )
@@ -459,54 +461,122 @@ func TestMustResumeStartingStepReconciliation(t *testing.T) {
 		summary          string
 		historyLineCount int
 		wantStartingStep int64
+
+		// mergeBaseStartingStep is what commit 4f92599d0 would have computed
+		// for the same response: summary._step, overwritten by history._step
+		// if present, plus 1 if historyLineCount > 0 -- not a max() over all
+		// three signals. It is logged, not asserted, so that changing this
+		// table requires saying which side moved.
+		mergeBaseStartingStep int64
+
+		// wantStaleSummaryWarning is true when historyLineCount exceeds the
+		// reported step + 1, which logs a diagnostic the merge base never
+		// produced.
+		wantStaleSummaryWarning bool
 	}{
 		{
 			// Steps logged sparsely (0, 5, 10): three rows, but the next
 			// step is 11, not 3. The history tail _step must win over the
 			// line count.
-			name:             "SparseStepsUseHistoryTailStep",
-			history:          `["{\"_step\":10,\"loss\":0.1}"]`,
-			summary:          `{"loss": 0.1, "_step": 10}`,
-			historyLineCount: 3,
-			wantStartingStep: 11,
+			name:                  "SparseStepsUseHistoryTailStep",
+			history:               `["{\"_step\":10,\"loss\":0.1}"]`,
+			summary:               `{"loss": 0.1, "_step": 10}`,
+			historyLineCount:      3,
+			wantStartingStep:      11,
+			mergeBaseStartingStep: 11,
 		},
 		{
 			// Same sparse run, but the summary _step is stale. The history
 			// tail is still authoritative.
-			name:             "SparseStepsStaleSummary",
-			history:          `["{\"_step\":10,\"loss\":0.1}"]`,
-			summary:          `{"loss": 0.5, "_step": 0}`,
-			historyLineCount: 3,
-			wantStartingStep: 11,
+			name:                  "SparseStepsStaleSummary",
+			history:               `["{\"_step\":10,\"loss\":0.1}"]`,
+			summary:               `{"loss": 0.5, "_step": 0}`,
+			historyLineCount:      3,
+			wantStartingStep:      11,
+			mergeBaseStartingStep: 11,
 		},
 		{
 			// The history tail has no _step but the summary does; the
 			// summary is used.
-			name:             "SparseStepsSummaryOnly",
-			history:          `["{\"loss\":0.1}"]`,
-			summary:          `{"loss": 0.1, "_step": 10}`,
-			historyLineCount: 3,
-			wantStartingStep: 11,
+			name:                  "SparseStepsSummaryOnly",
+			history:               `["{\"loss\":0.1}"]`,
+			summary:               `{"loss": 0.1, "_step": 10}`,
+			historyLineCount:      3,
+			wantStartingStep:      11,
+			mergeBaseStartingStep: 11,
 		},
 		{
 			// No _step reported anywhere: the line count is the only
 			// signal left and is used as a lower bound.
-			name:             "NoStepSignalFallsBackToLineCount",
-			history:          `["{\"loss\":0.1}"]`,
-			summary:          `{"loss": 0.1}`,
-			historyLineCount: 3,
-			wantStartingStep: 3,
+			//
+			// BEHAVIOR CHANGE vs 4f92599d0: the merge base only ever added 1
+			// to the line count (never used it as a bound), so it landed on
+			// 1 here; this branch uses lineCount-1 as a floor and lands on 3.
+			name:                  "NoStepSignalFallsBackToLineCount",
+			history:               `["{\"loss\":0.1}"]`,
+			summary:               `{"loss": 0.1}`,
+			historyLineCount:      3,
+			wantStartingStep:      3,
+			mergeBaseStartingStep: 1,
 		},
 		{
 			// The line count exceeds lastStep+1: both step signals are
 			// stale. N rows imply the run reached at least step N-1, so
 			// the line count is the better estimate and wins the max;
 			// the disagreement is logged.
-			name:             "LineCountAboveStaleStepsUsesLineCount",
-			history:          `["{\"_step\":4,\"loss\":0.1}"]`,
-			summary:          `{"loss": 0.1, "_step": 4}`,
-			historyLineCount: 10,
-			wantStartingStep: 10,
+			//
+			// BEHAVIOR CHANGE vs 4f92599d0: the merge base never considered
+			// the line count once a step was reported, so it landed on 5;
+			// this branch takes the max and lands on 10.
+			name:                    "LineCountAboveStaleStepsUsesLineCount",
+			history:                 `["{\"_step\":4,\"loss\":0.1}"]`,
+			summary:                 `{"loss": 0.1, "_step": 4}`,
+			historyLineCount:        10,
+			wantStartingStep:        10,
+			mergeBaseStartingStep:   5,
+			wantStaleSummaryWarning: true,
+		},
+		{
+			// A resumed run with no history rows yet: the reported step
+			// must not be advanced past what was actually logged.
+			name:                  "NoRowsKeepsReportedStep",
+			history:               `["{\"_step\":5,\"loss\":0.1}"]`,
+			summary:               `{"loss": 0.1, "_step": 5}`,
+			historyLineCount:      0,
+			wantStartingStep:      6,
+			mergeBaseStartingStep: 5,
+		},
+		{
+			// No step signal and no rows: the line count of 10 is used
+			// directly as a bound, unlike the merge base which required a
+			// step to already be present before considering the line count
+			// at all.
+			name:                  "LineCountOnlyWithNoStepSignal",
+			history:               `["{\"loss\":0.1}"]`,
+			summary:               `{"loss": 0.1}`,
+			historyLineCount:      10,
+			wantStartingStep:      10,
+			mergeBaseStartingStep: 1,
+		},
+		{
+			// A brand new resumed run: no steps, no rows. Both algorithms
+			// agree the run hasn't logged anything yet.
+			name:                  "NoStepNoRowsStartsAtZero",
+			history:               `["{\"loss\":0.1}"]`,
+			summary:               `{"loss": 0.1}`,
+			historyLineCount:      0,
+			wantStartingStep:      0,
+			mergeBaseStartingStep: 0,
+		},
+		{
+			// A single row logged at step 0: the row count and the reported
+			// step agree, so both algorithms agree too.
+			name:                  "SingleRowAtStepZero",
+			history:               `["{\"_step\":0,\"loss\":0.1}"]`,
+			summary:               `{"loss": 0.1, "_step": 0}`,
+			historyLineCount:      1,
+			wantStartingStep:      1,
+			mergeBaseStartingStep: 1,
 		},
 	}
 	for _, tc := range testCases {
@@ -539,9 +609,10 @@ func TestMustResumeStartingStepReconciliation(t *testing.T) {
 				gqlmock.WithOpName("RunResumeStatus"),
 				string(jsonData),
 			)
+			logger, logs := observabilitytest.NewRecordingTestLogger(t)
 			resumeState := newResumeBranch(
 				context.Background(),
-				observability.NewNoOpLogger(),
+				logger,
 				mockGQL,
 				"must")
 
@@ -550,6 +621,18 @@ func TestMustResumeStartingStepReconciliation(t *testing.T) {
 			assert.Nil(t, err)
 			assert.Equal(t, tc.wantStartingStep, params.StartingStep)
 			assert.True(t, params.Resumed)
+
+			if tc.wantStartingStep != tc.mergeBaseStartingStep {
+				t.Logf("BEHAVIOR CHANGE vs 4f92599d0: %d -> %d",
+					tc.mergeBaseStartingStep, tc.wantStartingStep)
+			}
+
+			if tc.wantStaleSummaryWarning {
+				assert.NotEmpty(t,
+					observabilitytest.ExtractLogsAtOrAbove(t, logs, slog.LevelWarn))
+			} else {
+				observabilitytest.AssertNoLogsAtOrAbove(t, logs, slog.LevelWarn)
+			}
 		})
 	}
 }
