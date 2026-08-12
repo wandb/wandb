@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar
 
-from cwsandbox import NetworkOptions, RemoteFunction, ResourceOptions, SandboxDefaults
+from cwsandbox import NetworkOptions, RemoteFunction, SandboxDefaults
 from cwsandbox import Sandbox as _BaseSandbox
 from cwsandbox import Session as _BaseSession
 
@@ -34,32 +34,6 @@ def _reject_placement_override_kwargs(kwargs: Mapping[str, Any]) -> None:
         raise _placement_override_error(blocked)
 
 
-def _resources_include_gpu(
-    resources: ResourceOptions | Mapping[str, Any] | None,
-) -> bool:
-    if resources is None:
-        return False
-
-    if isinstance(resources, Mapping):
-        gpu = resources.get("gpu")
-        return gpu is not None and gpu != {}
-
-    if isinstance(resources, ResourceOptions):
-        return resources.gpu is not None
-
-    return False
-
-
-def _reject_gpu_resources(
-    resources: ResourceOptions | Mapping[str, Any] | None,
-) -> None:
-    if _resources_include_gpu(resources):
-        raise UsageError(
-            "W&B Serverless currently supports only CPU and memory resources. "
-            "Remove resources.gpu."
-        )
-
-
 def _reject_unsupported_egress_mode(
     network: NetworkOptions | Mapping[str, Any] | None,
 ) -> None:
@@ -83,7 +57,6 @@ def _reject_unsupported_egress_mode(
 
 def _reject_invalid_kwargs(kwargs: Mapping[str, Any]) -> None:
     _reject_placement_override_kwargs(kwargs)
-    _reject_gpu_resources(kwargs.get("resources"))
     _reject_unsupported_egress_mode(kwargs.get("network"))
 
 
@@ -138,13 +111,6 @@ def _reject_invalid_defaults(
 
     if blocked:
         raise _placement_override_error(blocked)
-
-    resources = (
-        defaults.get("resources")
-        if isinstance(defaults, Mapping)
-        else getattr(defaults, "resources", None)
-    )
-    _reject_gpu_resources(resources)
 
     network = (
         defaults.get("network")
