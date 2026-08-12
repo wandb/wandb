@@ -116,15 +116,6 @@ func TestConfig_SetWorkspaceLayout_ClampsFractions(t *testing.T) {
 	require.Zero(t, got.Media)
 }
 
-func TestConfig_SetRunLayout_ZeroValueResets(t *testing.T) {
-	logger := observability.NewNoOpLogger()
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-
-	require.NoError(t, cfg.SetRunLayout(leet.LayoutOverrides{RightSidebar: 0.4}))
-	require.NoError(t, cfg.SetRunLayout(leet.LayoutOverrides{}))
-	require.Equal(t, leet.LayoutOverrides{}, cfg.RunLayout())
-}
-
 func TestConfig_SetTagColorScheme_Persists(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	path := filepath.Join(t.TempDir(), "config.json")

@@ -514,15 +514,13 @@ func TestRun_EscBeforeSeedStopsDataFromStealingFocus(t *testing.T) {
 // used to overflow the terminal vertically, pushing the status bar off-screen
 // and desyncing mouse hit-testing from the rendered rows.
 func TestRun_StackOverridesNeverOverflowFrame(t *testing.T) {
-	logger := observability.NewNoOpLogger()
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	_ = cfg.SetMediaVisible(true)
-	_ = cfg.SetConsoleLogsVisible(true)
-	_ = cfg.SetLeftSidebarVisible(false)
-	_ = cfg.SetRightSidebarVisible(false)
-	require.NoError(t, cfg.SetRunLayout(leet.LayoutOverrides{Media: 0.5, Logs: 0.5}))
-
-	r := leet.NewRun(&leet.RunParams{RunFile: "testdata/fake.wandb"}, cfg, logger)
+	r, _ := newTestRun(t, 120, 50, func(c *leet.ConfigManager) {
+		_ = c.SetMediaVisible(true)
+		_ = c.SetConsoleLogsVisible(true)
+		_ = c.SetLeftSidebarVisible(false)
+		_ = c.SetRightSidebarVisible(false)
+		require.NoError(t, c.SetRunLayout(leet.LayoutOverrides{Media: 0.5, Logs: 0.5}))
+	})
 	r.TestHandleRecordMsg(leet.RunMsg{ID: "abc123", Project: "test-project"})
 	r.TestHandleRecordMsg(leet.HistoryMsg{
 		Metrics: map[string]leet.MetricData{
