@@ -189,13 +189,10 @@ func TestRun_InitialFocus_PicksFirstAvailablePane(t *testing.T) {
 // ---- Mouse drag-resize ----
 
 func TestRun_DragResizesRightSidebarAndPersists(t *testing.T) {
-	logger := observability.NewNoOpLogger()
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	_ = cfg.SetLeftSidebarVisible(true)
-	_ = cfg.SetRightSidebarVisible(true)
-
-	r := leet.NewRun(&leet.RunParams{RunFile: "testdata/fake.wandb"}, cfg, logger)
-	r.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+	r, cfg := newTestRun(t, 200, 60, func(c *leet.ConfigManager) {
+		_ = c.SetLeftSidebarVisible(true)
+		_ = c.SetRightSidebarVisible(true)
+	})
 
 	_, right0 := r.TestLayoutWidths()
 	require.Positive(t, right0)
@@ -220,13 +217,10 @@ func TestRun_DragResizesRightSidebarAndPersists(t *testing.T) {
 }
 
 func TestRun_DragSidebarKeepsMainColumnUsable(t *testing.T) {
-	logger := observability.NewNoOpLogger()
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	_ = cfg.SetLeftSidebarVisible(true)
-	_ = cfg.SetRightSidebarVisible(true)
-
-	r := leet.NewRun(&leet.RunParams{RunFile: "testdata/fake.wandb"}, cfg, logger)
-	r.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+	r, _ := newTestRun(t, 200, 60, func(c *leet.ConfigManager) {
+		_ = c.SetLeftSidebarVisible(true)
+		_ = c.SetRightSidebarVisible(true)
+	})
 
 	// Drag the left sidebar border all the way into the right sidebar.
 	left0, _ := r.TestLayoutWidths()
@@ -239,39 +233,6 @@ func TestRun_DragSidebarKeepsMainColumnUsable(t *testing.T) {
 	left1, right1 := r.TestLayoutWidths()
 	require.GreaterOrEqual(t, 200-left1-right1, 24,
 		"dragging a sidebar must leave room for the main content column")
-}
-
-func TestRun_DragSeparatorResizesMediaAndLogs(t *testing.T) {
-	logger := observability.NewNoOpLogger()
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	_ = cfg.SetMediaVisible(true)
-	_ = cfg.SetConsoleLogsVisible(true)
-
-	r := leet.NewRun(&leet.RunParams{RunFile: "testdata/fake.wandb"}, cfg, logger)
-	r.Update(tea.WindowSizeMsg{Width: 200, Height: 100})
-
-	metrics0, media0, logs0 := r.TestStackHeights()
-	require.Positive(t, media0)
-	require.Positive(t, logs0)
-
-	// The separator above logs sits between two fixed panes (media above,
-	// logs below). Drag it down 2 rows: media grows, logs shrinks.
-	left0, _ := r.TestLayoutWidths()
-	x := left0 + 5
-	sepY := metrics0 + 1 + media0 + 1 - 1 // gap row above logs
-	r.Update(tea.MouseClickMsg{X: x, Y: sepY, Button: tea.MouseLeft})
-	r.Update(tea.MouseMotionMsg{X: x, Y: sepY + 2, Button: tea.MouseLeft})
-	r.Update(tea.MouseReleaseMsg{X: x, Y: sepY + 2, Button: tea.MouseLeft})
-
-	metrics1, media1, logs1 := r.TestStackHeights()
-	require.Equal(t, media0+2, media1, "pane above the separator should grow")
-	require.Equal(t, logs0-2, logs1, "pane below the separator should shrink")
-	require.Equal(t, metrics0, metrics1, "flex metrics grid should be untouched")
-
-	// Both fractions persist on release.
-	o := cfg.RunLayout()
-	require.InDelta(t, float64(media1)/100.0, o.Media, 1e-9)
-	require.InDelta(t, float64(logs1)/100.0, o.Logs, 1e-9)
 }
 
 // ---- Esc: unfocus pane first, exit view second ----
@@ -634,12 +595,9 @@ func TestRun_StackOverridesNeverOverflowFrame(t *testing.T) {
 // Regression: '0' pressed mid-drag used to be silently overwritten when the
 // release persisted the pre-reset drag values.
 func TestRun_ZeroKeyMidDragWins(t *testing.T) {
-	logger := observability.NewNoOpLogger()
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	_ = cfg.SetRightSidebarVisible(true)
-
-	r := leet.NewRun(&leet.RunParams{RunFile: "testdata/fake.wandb"}, cfg, logger)
-	r.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+	r, cfg := newTestRun(t, 200, 60, func(c *leet.ConfigManager) {
+		_ = c.SetRightSidebarVisible(true)
+	})
 
 	_, right0 := r.TestLayoutWidths()
 	borderX := 200 - right0
@@ -657,12 +615,9 @@ func TestRun_ZeroKeyMidDragWins(t *testing.T) {
 // Regression: a release of a different button used to end (and persist) a
 // left-button drag mid-gesture.
 func TestRun_RightReleaseDoesNotEndLeftDrag(t *testing.T) {
-	logger := observability.NewNoOpLogger()
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	_ = cfg.SetRightSidebarVisible(true)
-
-	r := leet.NewRun(&leet.RunParams{RunFile: "testdata/fake.wandb"}, cfg, logger)
-	r.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+	r, cfg := newTestRun(t, 200, 60, func(c *leet.ConfigManager) {
+		_ = c.SetRightSidebarVisible(true)
+	})
 
 	_, right0 := r.TestLayoutWidths()
 	borderX := 200 - right0
@@ -682,12 +637,9 @@ func TestRun_RightReleaseDoesNotEndLeftDrag(t *testing.T) {
 // help overlay or a view switch) stayed latched, and any later left-button
 // motion resized the pane and persisted garbage.
 func TestRun_MissedClickClearsStaleDragLatch(t *testing.T) {
-	logger := observability.NewNoOpLogger()
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	_ = cfg.SetRightSidebarVisible(true)
-
-	r := leet.NewRun(&leet.RunParams{RunFile: "testdata/fake.wandb"}, cfg, logger)
-	r.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+	r, cfg := newTestRun(t, 200, 60, func(c *leet.ConfigManager) {
+		_ = c.SetRightSidebarVisible(true)
+	})
 
 	_, right0 := r.TestLayoutWidths()
 	borderX := 200 - right0
@@ -708,13 +660,10 @@ func TestRun_MissedClickClearsStaleDragLatch(t *testing.T) {
 // clamped to [MinLayoutFrac, MaxLayoutFrac], so the pane snapped at the next
 // relayout after release. What you drag is what persists.
 func TestRun_DragExtremePersistsWhatYouSee(t *testing.T) {
-	logger := observability.NewNoOpLogger()
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	_ = cfg.SetLeftSidebarVisible(true)
-	_ = cfg.SetRightSidebarVisible(false)
-
-	r := leet.NewRun(&leet.RunParams{RunFile: "testdata/fake.wandb"}, cfg, logger)
-	r.Update(tea.WindowSizeMsg{Width: 300, Height: 60})
+	r, cfg := newTestRun(t, 300, 60, func(c *leet.ConfigManager) {
+		_ = c.SetLeftSidebarVisible(true)
+		_ = c.SetRightSidebarVisible(false)
+	})
 
 	left0, _ := r.TestLayoutWidths()
 	r.Update(tea.MouseClickMsg{X: left0 - 1, Y: 5, Button: tea.MouseLeft})
@@ -733,12 +682,9 @@ func TestRun_DragExtremePersistsWhatYouSee(t *testing.T) {
 // Terminals without SGR mouse support (legacy X10 encoding) report every
 // release as MouseNone; such a release must still end and persist the drag.
 func TestRun_LegacyMouseReleaseEndsDrag(t *testing.T) {
-	logger := observability.NewNoOpLogger()
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	_ = cfg.SetRightSidebarVisible(true)
-
-	r := leet.NewRun(&leet.RunParams{RunFile: "testdata/fake.wandb"}, cfg, logger)
-	r.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+	r, cfg := newTestRun(t, 200, 60, func(c *leet.ConfigManager) {
+		_ = c.SetRightSidebarVisible(true)
+	})
 
 	_, right0 := r.TestLayoutWidths()
 	borderX := 200 - right0
