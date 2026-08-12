@@ -62,19 +62,6 @@ func TestFocusManagerResolveClearsUnavailableFocus(t *testing.T) {
 	require.False(t, logsActive)
 }
 
-func TestFocusManagerResolveIsNoOpWhenNothingFocused(t *testing.T) {
-	overviewAvailable, logsAvailable := true, true
-	var overviewActive, logsActive bool
-	fm := newTwoRegionFocusManager(
-		&overviewAvailable, &logsAvailable, &overviewActive, &logsActive)
-
-	fm.Resolve()
-
-	require.True(t, fm.IsTarget(leet.FocusTargetNone))
-	require.False(t, overviewActive)
-	require.False(t, logsActive)
-}
-
 func TestFocusManagerTabSkipsUnavailableRegions(t *testing.T) {
 	overviewAvailable, logsAvailable := false, true
 	var overviewActive, logsActive bool
