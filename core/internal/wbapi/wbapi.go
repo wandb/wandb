@@ -32,13 +32,16 @@ type WandbAPI struct {
 	// semaphore is a buffered channel limiting concurrent request handling
 	semaphore chan struct{}
 
+	logger *observability.CoreLogger
+
 	settings *settings.Settings
 
 	authHandler          *AuthHandler
+	customChartHandler   *CustomChartHandler
 	featuresHandler      *FeaturesHandler
 	fileTransferHandler  *FileTransferHandler
 	graphqlHandler       *GraphQLHandler
-	customChartHandler   *CustomChartHandler
+	opentelemetryHandler *OpenTelemetryHandler
 	runFilesHandler      *RunFilesHandler
 	runHandler           *RunHandler
 	runQueueHandler      *RunQueueHandler
@@ -48,6 +51,7 @@ type WandbAPI struct {
 // New returns a new WandbAPI.
 func New(
 	s *settings.Settings,
+	serviceName string,
 	logger *observability.CoreLogger,
 ) (*WandbAPI, error) {
 	baseURL, err := url.Parse(s.GetBaseURL())
@@ -100,16 +104,18 @@ func New(
 
 	return &WandbAPI{
 		semaphore: make(chan struct{}, maxConcurrency),
+		logger:    logger,
 		settings:  s,
 
-		authHandler:         NewAuthHandler(graphqlClient, credentialProvider),
-		featuresHandler:     NewFeaturesHandler(featureProvider),
-		fileTransferHandler: NewFileTransferHandler(fileTransferManager),
-		graphqlHandler:      NewGraphQLHandler(graphqlClient),
-		customChartHandler:  NewCustomChartHandler(graphqlClient),
-		runFilesHandler:     NewRunFilesHandler(graphqlClient),
-		runHandler:          NewRunHandler(graphqlClient),
-		runQueueHandler:     NewRunQueueHandler(graphqlClient),
+		authHandler:          NewAuthHandler(graphqlClient, credentialProvider),
+		featuresHandler:      NewFeaturesHandler(featureProvider),
+		fileTransferHandler:  NewFileTransferHandler(fileTransferManager),
+		graphqlHandler:       NewGraphQLHandler(graphqlClient),
+		customChartHandler:   NewCustomChartHandler(graphqlClient),
+		opentelemetryHandler: NewOpenTelemetryHandler(s, serviceName),
+		runFilesHandler:      NewRunFilesHandler(graphqlClient),
+		runHandler:           NewRunHandler(graphqlClient),
+		runQueueHandler:      NewRunQueueHandler(graphqlClient),
 		runHistoryApiHandler: NewRunHistoryAPIHandler(
 			graphqlClient,
 			httpClient,
@@ -203,7 +209,22 @@ func (p *WandbAPI) HandleRequest(
 		return p.graphqlHandler.HandleRequest(ctx, req.GraphqlRequest)
 	case *spb.ApiRequest_ReadRunHistoryRequest:
 		return p.runHistoryApiHandler.HandleRequest(ctx, req.ReadRunHistoryRequest)
+	case *spb.ApiRequest_OpenTelemetryRequest:
+		return p.opentelemetryHandler.HandleRequest(ctx, req.OpenTelemetryRequest)
 	default:
 		return apiErrorResponse(fmt.Sprintf("unsupported API request type: %T", request.Request), 0)
+	}
+}
+
+// Shutdown shuts down any resources held by the WandbAPI.
+//
+// It should be called once when the API is no longer needed.
+func (p *WandbAPI) Shutdown(ctx context.Context) {
+	if err := p.opentelemetryHandler.Shutdown(ctx); err != nil {
+		p.logger.Error(
+			"wbapi: error shutting down OpenTelemetry handler",
+			"error",
+			err,
+		)
 	}
 }

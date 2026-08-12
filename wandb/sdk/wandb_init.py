@@ -29,7 +29,8 @@ from typing_extensions import Any, Protocol
 import wandb
 import wandb.env
 from wandb import env, trigger
-from wandb.analytics import get_sentry
+from wandb.analytics import TelemetryRecorder, get_sentry
+from wandb.apis.public.service_api import ServiceApi
 from wandb.errors import Error, UsageError
 from wandb.errors.links import url_registry
 from wandb.errors.util import ProtobufErrorHandler
@@ -1455,6 +1456,10 @@ def init(  # noqa: C901
 
     wl: wandb_setup._WandbSetup | None = None
 
+    # Create a noop telemetry recorder while we do not know the user's credentials
+    # once that is resolve we can create a proper telemetry recorder.
+    telemetry_recorder = TelemetryRecorder()
+
     try:
         wl = wandb_setup.singleton()
 
@@ -1462,6 +1467,11 @@ def init(  # noqa: C901
 
         wi.maybe_login(init_settings)
         run_settings, show_warnings = wi.make_run_settings(init_settings)
+
+        # Create a telemetry recorder once we know the user's credentials
+        # Anything after this point will actually record telemetry.
+        service_api = ServiceApi(run_settings)
+        telemetry_recorder = TelemetryRecorder(service_api=service_api)
 
         if isinstance(run_settings.reinit, bool):
             wi.deprecated_features_used.append(
@@ -1542,5 +1552,6 @@ def init(  # noqa: C901
     except Exception as e:
         if wl:
             wl._get_logger().exception("error in wandb.init()", exc_info=e)
-
-        get_sentry().reraise(e)
+        # TODO: remove sentry once we no longer support/need it
+        get_sentry().exception(e)
+        telemetry_recorder.reraise(e)

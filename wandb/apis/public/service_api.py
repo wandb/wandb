@@ -57,6 +57,15 @@ class ServiceApi:
     def base_url(self) -> str:
         return self._settings.base_url
 
+    @property
+    def initialized(self) -> bool:
+        """Returns whether the lazy connection to wandb-core has been made.
+
+        It does not indicate the the connection is healthy, only that a connection
+        has been cached.
+        """
+        return self._api_session is not None
+
     def _get_api_session(self) -> _ServiceApiSession:
         """Connect to the service and initialize resources for API requests."""
         if self._api_session is not None:
@@ -259,6 +268,15 @@ class ServiceApi:
         session = self._get_api_session()
         request.api_id = session.api_id
         return await session.connection.api_request_async(request)
+
+    def api_publish(
+        self,
+        request: ApiRequest,
+    ) -> None:
+        """Publish an API request to the backend service, without awaiting a reply."""
+        session = self._get_api_session()
+        request.api_id = session.api_id
+        session.connection.api_publish(request)
 
     def feature_enabled(
         self,

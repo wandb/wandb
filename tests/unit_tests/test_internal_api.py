@@ -87,6 +87,9 @@ def test_get_run_state_invalid_kwargs():
 
 def test_execute_propagates_service_api_errors(mocker: MockerFixture):
     service_api = mocker.Mock()
+    service_api.settings.base_url = "https://api.wandb.ai"
+    service_api.settings.api_key = "test-api-key"
+    service_api.settings.identity_token_file = None
     error_response = apb.ApiErrorResponse(message="server unavailable")
     service_api.execute_graphql.side_effect = WandbApiFailedError(
         error_response.message,
@@ -549,6 +552,9 @@ ENABLED_FEATURE_RESPONSE = {
 @pytest.fixture
 def mock_service_api(mocker: MockerFixture):
     mock = mocker.Mock()
+    mock.settings.base_url = "https://api.wandb.ai"
+    mock.settings.api_key = "test-api-key"
+    mock.settings.identity_token_file = None
     mocker.patch(
         "wandb.sdk.internal.internal_api.Api._new_service_api",
         return_value=mock,
