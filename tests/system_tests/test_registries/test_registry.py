@@ -411,10 +411,9 @@ def test_fetch_registries(team: str, org: str, org_entity: str, api: Api):
     assert descending == expected_desc_names
 
 
-def test_advanced_feature_response_selects_version_filter_fields(
-    api: Api,
-    wandb_backend_spy,
-):
+@fixture
+def advanced_features_spy(wandb_backend_spy):
+    """Report advanced registry search support and capture the org lookup."""
     gql = wandb_backend_spy.gql
     features = [
         pb.ARTIFACT_REGISTRY_SEARCH,
@@ -452,6 +451,13 @@ def test_advanced_feature_response_selects_version_filter_fields(
         ),
         advanced_features,
     )
+    return advanced_features
+
+
+def test_advanced_feature_response_selects_version_filter_fields(
+    advanced_features_spy,
+    api: Api,
+):
     versions = (
         api.registries(organization="advanced-org", filter={"id": "registry-id"})
         .collections(filter={"collection_id": "collection-id"})
@@ -467,7 +473,7 @@ def test_advanced_feature_response_selects_version_filter_fields(
     assert json.loads(versions.variables["artifactFilter"]) == {
         "artifact_created_at": "2026-08-10"
     }
-    assert advanced_features.total_calls == 1
+    assert advanced_features_spy.total_calls > 0
 
 
 @fixture

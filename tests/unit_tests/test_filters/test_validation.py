@@ -13,6 +13,7 @@ INVALID_FIELD = "bogus"
 
 FIELD_ALIASES = {
     "tag": "tag",
+    "tags": "tag",
     "created_at": "created_at",
     "updated_at": "updated_at",
     "metadata": "metadata",
@@ -22,12 +23,6 @@ FIELD_ALIASES = {
 FILTER_ADAPTER = TypeAdapter(Annotated[FilterDict, FilterValidator(VALID_FIELDS)])
 ALIASED_FILTER_ADAPTER = TypeAdapter(
     Annotated[FilterDict, FilterValidator(valid=FIELD_ALIASES)]
-)
-COLLISION_FILTER_ADAPTER = TypeAdapter(
-    Annotated[
-        FilterDict,
-        FilterValidator(valid=FIELD_ALIASES | {"tags": "tag"}),
-    ]
 )
 
 
@@ -166,7 +161,7 @@ def test_filter_validator_maps_aliases(raw: dict[str, Any], expected: dict[str, 
 )
 def test_filter_validator_rejects_runtime_collisions(raw: dict[str, Any]):
     with raises(ValidationError, match=r"(?i)duplicate fields"):
-        COLLISION_FILTER_ADAPTER.validate_python(raw)
+        ALIASED_FILTER_ADAPTER.validate_python(raw)
 
 
 @mark.parametrize(
