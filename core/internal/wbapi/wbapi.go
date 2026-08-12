@@ -108,7 +108,7 @@ func New(
 		settings:  s,
 
 		authHandler:          NewAuthHandler(graphqlClient, credentialProvider),
-		featuresHandler:      NewFeaturesHandler(graphqlClient, featureProvider),
+		featuresHandler:      NewFeaturesHandler(featureProvider),
 		fileTransferHandler:  NewFileTransferHandler(fileTransferManager),
 		graphqlHandler:       NewGraphQLHandler(graphqlClient),
 		customChartHandler:   NewCustomChartHandler(graphqlClient),

@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/featurechecker"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/wbapi"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -46,7 +47,7 @@ func TestFeaturesHandlerReturnsRequestedOrganizationFeatures(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			client := &fakeGQLClient{respMap: test.respMap}
-			handler := newTestFeaturesHandler(client)
+			handler := newTestFeaturesHandler(t, client)
 
 			response := handler.HandleRequest(
 				context.Background(),
@@ -81,7 +82,7 @@ func TestFeaturesHandlerReturnsRequestedOrganizationFeatures(t *testing.T) {
 
 func TestFeaturesHandlerRequiresOrgForOrgFeatures(t *testing.T) {
 	client := &fakeGQLClient{}
-	handler := newTestFeaturesHandler(client)
+	handler := newTestFeaturesHandler(t, client)
 
 	response := handler.HandleRequest(
 		context.Background(),
@@ -100,7 +101,7 @@ func TestFeaturesHandlerRequiresOrgForOrgFeatures(t *testing.T) {
 
 func TestFeaturesHandlerWithNoOrgFeaturesSkipsQuery(t *testing.T) {
 	client := &fakeGQLClient{}
-	handler := newTestFeaturesHandler(client)
+	handler := newTestFeaturesHandler(t, client)
 
 	response := handler.HandleRequest(
 		context.Background(),
@@ -118,7 +119,7 @@ func TestFeaturesHandlerWithNoOrgFeaturesSkipsQuery(t *testing.T) {
 
 func TestFeaturesHandlerReturnsOrganizationFeatureQueryError(t *testing.T) {
 	client := &fakeGQLClient{err: assert.AnError}
-	handler := newTestFeaturesHandler(client)
+	handler := newTestFeaturesHandler(t, client)
 
 	response := handler.HandleRequest(
 		context.Background(),
@@ -138,9 +139,7 @@ func TestFeaturesHandlerReturnsOrganizationFeatureQueryError(t *testing.T) {
 }
 
 func TestFeaturesHandlerStillReturnsServerFeatures(t *testing.T) {
-	client := &fakeGQLClient{}
 	handler := wbapi.NewFeaturesHandler(
-		client,
 		featurechecker.NewPreloaded(map[spb.ServerFeature]bool{
 			spb.ServerFeature_CLIENT_IDS: true,
 		}),
@@ -165,12 +164,15 @@ func TestFeaturesHandlerStillReturnsServerFeatures(t *testing.T) {
 		[]spb.ServerFeature{spb.ServerFeature_CLIENT_IDS},
 		response.GetFeaturesResponse().GetServer().GetEnabled(),
 	)
-	assert.False(t, client.called)
 }
 
-func newTestFeaturesHandler(client *fakeGQLClient) *wbapi.FeaturesHandler {
+func newTestFeaturesHandler(
+	t *testing.T,
+	client *fakeGQLClient,
+) *wbapi.FeaturesHandler {
+	t.Helper()
+
 	return wbapi.NewFeaturesHandler(
-		client,
-		featurechecker.NewPreloaded(nil),
+		featurechecker.New(client, observabilitytest.NewTestLogger(t)),
 	)
 }
