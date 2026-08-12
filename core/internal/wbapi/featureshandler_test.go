@@ -48,19 +48,23 @@ func TestFeaturesHandlerReturnsRequestedOrganizationFeatures(t *testing.T) {
 			client := &fakeGQLClient{respMap: test.respMap}
 			handler := newTestFeaturesHandler(client)
 
-			response := handler.HandleOrgRequest(
+			response := handler.HandleRequest(
 				context.Background(),
-				&spb.OrgFeaturesRequest{
-					Org: "test-org",
-					Features: []string{
-						"enabled-feat",
-						"disabled-feat",
-						"missing-feat",
+				&spb.FeaturesRequest{
+					Request: &spb.FeaturesRequest_Org{
+						Org: &spb.OrgFeaturesRequest{
+							Org: "test-org",
+							Features: []string{
+								"enabled-feat",
+								"disabled-feat",
+								"missing-feat",
+							},
+						},
 					},
 				},
 			)
 
-			featuresResponse := response.GetOrgFeaturesResponse()
+			featuresResponse := response.GetFeaturesResponse().GetOrg()
 			require.NotNil(t, featuresResponse)
 			assert.Equal(t, test.want, featuresResponse.GetFeatures())
 			require.True(t, client.called)
@@ -79,9 +83,13 @@ func TestFeaturesHandlerRequiresOrgForOrgFeatures(t *testing.T) {
 	client := &fakeGQLClient{}
 	handler := newTestFeaturesHandler(client)
 
-	response := handler.HandleOrgRequest(
+	response := handler.HandleRequest(
 		context.Background(),
-		&spb.OrgFeaturesRequest{Features: []string{"feature"}},
+		&spb.FeaturesRequest{
+			Request: &spb.FeaturesRequest_Org{
+				Org: &spb.OrgFeaturesRequest{Features: []string{"feature"}},
+			},
+		},
 	)
 
 	apiError := response.GetApiErrorResponse()
@@ -94,13 +102,17 @@ func TestFeaturesHandlerWithNoOrgFeaturesSkipsQuery(t *testing.T) {
 	client := &fakeGQLClient{}
 	handler := newTestFeaturesHandler(client)
 
-	response := handler.HandleOrgRequest(
+	response := handler.HandleRequest(
 		context.Background(),
-		&spb.OrgFeaturesRequest{Org: "test-org"},
+		&spb.FeaturesRequest{
+			Request: &spb.FeaturesRequest_Org{
+				Org: &spb.OrgFeaturesRequest{Org: "test-org"},
+			},
+		},
 	)
 
-	require.NotNil(t, response.GetOrgFeaturesResponse())
-	assert.Empty(t, response.GetOrgFeaturesResponse().GetFeatures())
+	require.NotNil(t, response.GetFeaturesResponse().GetOrg())
+	assert.Empty(t, response.GetFeaturesResponse().GetOrg().GetFeatures())
 	assert.False(t, client.called)
 }
 
@@ -108,11 +120,15 @@ func TestFeaturesHandlerReturnsOrganizationFeatureQueryError(t *testing.T) {
 	client := &fakeGQLClient{err: assert.AnError}
 	handler := newTestFeaturesHandler(client)
 
-	response := handler.HandleOrgRequest(
+	response := handler.HandleRequest(
 		context.Background(),
-		&spb.OrgFeaturesRequest{
-			Org:      "test-org",
-			Features: []string{"feature"},
+		&spb.FeaturesRequest{
+			Request: &spb.FeaturesRequest_Org{
+				Org: &spb.OrgFeaturesRequest{
+					Org:      "test-org",
+					Features: []string{"feature"},
+				},
+			},
 		},
 	)
 
@@ -133,8 +149,12 @@ func TestFeaturesHandlerStillReturnsServerFeatures(t *testing.T) {
 	response := handler.HandleRequest(
 		context.Background(),
 		&spb.FeaturesRequest{
-			Features: []spb.ServerFeature{
-				spb.ServerFeature_CLIENT_IDS,
+			Request: &spb.FeaturesRequest_Server{
+				Server: &spb.ServerFeaturesRequest{
+					Features: []spb.ServerFeature{
+						spb.ServerFeature_CLIENT_IDS,
+					},
+				},
 			},
 		},
 	)
@@ -143,7 +163,7 @@ func TestFeaturesHandlerStillReturnsServerFeatures(t *testing.T) {
 	assert.Equal(
 		t,
 		[]spb.ServerFeature{spb.ServerFeature_CLIENT_IDS},
-		response.GetFeaturesResponse().GetEnabled(),
+		response.GetFeaturesResponse().GetServer().GetEnabled(),
 	)
 	assert.False(t, client.called)
 }

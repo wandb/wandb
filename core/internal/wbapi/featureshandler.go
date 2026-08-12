@@ -33,7 +33,22 @@ func (h *FeaturesHandler) HandleRequest(
 	ctx context.Context,
 	request *spb.FeaturesRequest,
 ) *spb.ApiResponse {
-	response := &spb.FeaturesResponse{}
+	switch request := request.GetRequest().(type) {
+	case *spb.FeaturesRequest_Server:
+		return h.handleServerRequest(ctx, request.Server)
+	case *spb.FeaturesRequest_Org:
+		return h.handleOrgRequest(ctx, request.Org)
+	default:
+		return apiErrorResponse("unsupported features request", 0)
+	}
+}
+
+// handleServerRequest returns the requested enabled server features.
+func (h *FeaturesHandler) handleServerRequest(
+	ctx context.Context,
+	request *spb.ServerFeaturesRequest,
+) *spb.ApiResponse {
+	response := &spb.ServerFeaturesResponse{}
 
 	for _, feature := range request.Features {
 		if h.featureProvider.Enabled(ctx, feature) {
@@ -43,13 +58,15 @@ func (h *FeaturesHandler) HandleRequest(
 
 	return &spb.ApiResponse{
 		Response: &spb.ApiResponse_FeaturesResponse{
-			FeaturesResponse: response,
+			FeaturesResponse: &spb.FeaturesResponse{
+				Response: &spb.FeaturesResponse_Server{Server: response},
+			},
 		},
 	}
 }
 
-// HandleOrgRequest returns requested organization feature flags that exist.
-func (h *FeaturesHandler) HandleOrgRequest(
+// handleOrgRequest returns requested organization feature flags that exist.
+func (h *FeaturesHandler) handleOrgRequest(
 	ctx context.Context,
 	request *spb.OrgFeaturesRequest,
 ) *spb.ApiResponse {
@@ -59,8 +76,10 @@ func (h *FeaturesHandler) HandleOrgRequest(
 
 	if len(request.GetFeatures()) == 0 {
 		return &spb.ApiResponse{
-			Response: &spb.ApiResponse_OrgFeaturesResponse{
-				OrgFeaturesResponse: response,
+			Response: &spb.ApiResponse_FeaturesResponse{
+				FeaturesResponse: &spb.FeaturesResponse{
+					Response: &spb.FeaturesResponse_Org{Org: response},
+				},
 			},
 		}
 	}
@@ -95,8 +114,10 @@ func (h *FeaturesHandler) HandleOrgRequest(
 	}
 
 	return &spb.ApiResponse{
-		Response: &spb.ApiResponse_OrgFeaturesResponse{
-			OrgFeaturesResponse: response,
+		Response: &spb.ApiResponse_FeaturesResponse{
+			FeaturesResponse: &spb.FeaturesResponse{
+				Response: &spb.FeaturesResponse_Org{Org: response},
+			},
 		},
 	}
 }

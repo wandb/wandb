@@ -43,7 +43,6 @@ message ApiRequest {
     CreateCustomChartRequest create_custom_chart_request = 10;
     RunQueueOperationRequest run_queue_operation_request = 11;
     OpenTelemetryRequest open_telemetry_request = 12;
-    OrgFeaturesRequest org_features_request = 13;
   }
 }
 
@@ -59,7 +58,6 @@ message ApiResponse {
     AuthResponse auth_response = 9;
     CreateCustomChartResponse create_custom_chart_response = 10;
     RunQueueOperationResponse run_queue_operation_response = 11;
-    OrgFeaturesResponse org_features_response = 12;
 
     ApiErrorResponse api_error_response = 2;
   }
@@ -108,6 +106,20 @@ message ServerApiCleanupRequest {
 // Features may be specific to the API instance, for example if they depend
 // on the entity. Keep this in mind if caching the response.
 message FeaturesRequest {
+  oneof request {
+    ServerFeaturesRequest server = 1;
+    OrgFeaturesRequest org = 2;
+  }
+}
+
+message FeaturesResponse {
+  oneof response {
+    ServerFeaturesResponse server = 1;
+    OrgFeaturesResponse org = 2;
+  }
+}
+
+message ServerFeaturesRequest {
   // Names of features to check.
   //
   // Features not in this list are not included in the response
@@ -119,7 +131,7 @@ message FeaturesRequest {
   repeated ServerFeature features = 1;
 }
 
-message FeaturesResponse {
+message ServerFeaturesResponse {
   // Names of enabled boolean features.
   repeated ServerFeature enabled = 1;
 }

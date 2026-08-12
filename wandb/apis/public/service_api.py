@@ -18,6 +18,7 @@ from wandb.proto.wandb_api_pb2 import (
     GetAccessTokenRequest,
     GraphQLRequest,
     OrgFeaturesRequest,
+    ServerFeaturesRequest,
 )
 from wandb.sdk import wandb_settings, wandb_setup
 from wandb.sdk.lib.service.service_connection import (
@@ -290,10 +291,12 @@ class ServiceApi:
             return {}
 
         req = ApiRequest(
-            org_features_request=OrgFeaturesRequest(org=org, features=features)
+            features_request=FeaturesRequest(
+                org=OrgFeaturesRequest(org=org, features=features)
+            )
         )
         resp = self.send_api_request(req, timeout=timeout)
-        return dict(resp.org_features_response.features)
+        return dict(resp.features_response.org.features)
 
     def feature_enabled(
         self,
@@ -324,7 +327,11 @@ class ServiceApi:
                 # SERVER_FEATURE_UNSPECIFIED is always disabled.
                 return False
 
-        req = ApiRequest(features_request=FeaturesRequest(features=[feature]))
+        req = ApiRequest(
+            features_request=FeaturesRequest(
+                server=ServerFeaturesRequest(features=[feature])
+            )
+        )
 
         try:
             resp = self.send_api_request(req, timeout=timeout)
@@ -333,4 +340,4 @@ class ServiceApi:
             _logger.exception("Failed to load feature %s", feature)
             return False
 
-        return feature in resp.features_response.enabled
+        return feature in resp.features_response.server.enabled
