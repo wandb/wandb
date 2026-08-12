@@ -43,7 +43,7 @@ class ArtifactCollectionFragment(GQLResult):
     created_at: str = Field(alias="createdAt")
     updated_at: str | None = Field(alias="updatedAt")
     project: ProjectInfoFragment | None
-    type_: ArtifactCollectionFragmentType = Field(alias="type")
+    type: ArtifactCollectionFragmentType
     tags: ArtifactCollectionFragmentTags
 
 
@@ -187,7 +187,7 @@ class RegistryCollectionFragment(GQLResult):
     created_at: str = Field(alias="createdAt")
     updated_at: str | None = Field(alias="updatedAt")
     project: ProjectInfoFragment | None
-    type_: RegistryCollectionFragmentType = Field(alias="type")
+    type: RegistryCollectionFragmentType
     tags: RegistryCollectionFragmentTags
 
 
