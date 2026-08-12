@@ -30,7 +30,7 @@ from wandb.automations import (
     SendNotification,
     SendWebhook,
 )
-from wandb.automations._utils import INVALID_INPUT_ACTIONS, INVALID_INPUT_EVENTS
+from wandb.automations._inputs import INVALID_INPUT_ACTIONS, INVALID_INPUT_EVENTS
 from wandb.automations.actions import (
     InputAction,
     SavedAction,

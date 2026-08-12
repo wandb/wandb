@@ -21,7 +21,7 @@ from wandb.automations import (
     OnUnlinkArtifact,
     RunEvent,
 )
-from wandb.automations._utils import (
+from wandb.automations._inputs import (
     INVALID_INPUT_ACTIONS,
     INVALID_INPUT_EVENTS,
     prepare_to_create,
