@@ -116,6 +116,7 @@ def artifact_collection(mock_client: Mock) -> ArtifactCollection:
             name=name,
             project={
                 "id": make_graphql_id(prefix="Project"),
+                "internalId": make_graphql_id(prefix="ProjectInternalId"),
                 "name": project,
                 "entity": {"name": entity},
             },

@@ -118,6 +118,7 @@ def make_local_artifact_public(art: Artifact, mocker: MockerFixture):
     from wandb.sdk.artifacts._validators import FullArtifactPath
 
     project_gql_id = b64encode_ascii("Project:1")
+    project_internal_gql_id = b64encode_ascii("ProjectInternalId:1")
     path = FullArtifactPath(
         prefix="FAKE_ENTITY",
         project="FAKE_PROJECT",
@@ -135,6 +136,7 @@ def make_local_artifact_public(art: Artifact, mocker: MockerFixture):
                     "name": path.name,
                     "project": {
                         "id": project_gql_id,
+                        "internalId": project_internal_gql_id,
                         "name": path.project,
                         "entity": {"name": path.prefix},
                     },
@@ -145,6 +147,7 @@ def make_local_artifact_public(art: Artifact, mocker: MockerFixture):
             "name": "FAKE_SEQUENCE_NAME",
             "project": {
                 "id": project_gql_id,
+                "internalId": project_internal_gql_id,
                 "name": path.project,
                 "entity": {"name": path.prefix},
             },

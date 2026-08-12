@@ -21,7 +21,14 @@ def project_gql_id() -> str:
 
 
 @fixture
-def mock_artifact_fragment_data(project_gql_id: str) -> dict[str, Any]:
+def project_internal_gql_id() -> str:
+    return b64encode_ascii("ProjectInternalId:1")
+
+
+@fixture
+def mock_artifact_fragment_data(
+    project_gql_id: str, project_internal_gql_id: str
+) -> dict[str, Any]:
     fragment = ArtifactFragment(
         name="test-collection",  # NOTE: relevant
         version_index=0,  # NOTE: relevant
@@ -30,6 +37,7 @@ def mock_artifact_fragment_data(project_gql_id: str) -> dict[str, Any]:
             "name": "test-collection",
             "project": {
                 "id": project_gql_id,
+                "internalId": project_internal_gql_id,
                 "name": "orig-project",
                 "entity": {"name": "test-team"},
             },
@@ -56,6 +64,7 @@ def mock_artifact_fragment_data(project_gql_id: str) -> dict[str, Any]:
 def mock_membership_fragment_data(
     mock_artifact_fragment_data: dict[str, Any],
     project_gql_id: str,
+    project_internal_gql_id: str,
 ) -> dict[str, Any]:
     fragment = ArtifactMembershipFragment(
         id="PLACEHOLDER",
@@ -65,6 +74,7 @@ def mock_membership_fragment_data(
             "name": "test-collection",  # NOTE: relevant
             "project": {
                 "id": project_gql_id,
+                "internalId": project_internal_gql_id,
                 "name": "wandb-registry-model",  # NOTE: relevant
                 "entity": {"name": "org-entity-name"},  # NOTE: relevant
             },

@@ -34,6 +34,11 @@ def project_gql_id() -> str:
 
 
 @fixture
+def project_internal_gql_id() -> str:
+    return b64encode_ascii("ProjectInternalId:1")
+
+
+@fixture
 def sample_data(user: str) -> None:
     """Generate some sample artifacts for tests in this module."""
     # NOTE: Requesting the `user` fixture is important as it sets auth
@@ -639,6 +644,7 @@ def test_fetch_registry_artifact(
     api,
     mocker,
     project_gql_id,
+    project_internal_gql_id,
     artifact_path,
     resolve_org_entity_name,
     is_registry_project,
@@ -675,6 +681,7 @@ def test_fetch_registry_artifact(
             "name": "test-collection",
             "project": {
                 "id": project_gql_id,
+                "internalId": project_internal_gql_id,
                 "name": "orig-project",
                 "entity": {"name": "test-team"},
             },
@@ -704,6 +711,7 @@ def test_fetch_registry_artifact(
             "name": "test-collection",
             "project": {
                 "id": project_gql_id,
+                "internalId": project_internal_gql_id,
                 "name": "wandb-registry-model",  # NOTE: relevant
                 "entity": {"name": "org-entity-name"},  # NOTE: relevant
             },
