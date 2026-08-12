@@ -19,7 +19,6 @@ from ._utils import (
     COLLECTIONS_FILTER_FIELDS,
     REGISTRIES_FILTER_FIELDS,
     VERSIONS_FILTER_FIELDS,
-    SearchMode,
     advanced_search_enabled,
     filter_for_registry,
     prepare_registry_filter,
@@ -46,31 +45,31 @@ if TYPE_CHECKING:
 # Type annotations for Basic search filters.
 _RegistryFilter: TypeAlias = Annotated[
     FilterDict,
-    FilterValidator(valid=REGISTRIES_FILTER_FIELDS.aliases(mode=SearchMode.BASIC)),
+    FilterValidator(valid=REGISTRIES_FILTER_FIELDS.basic_aliases()),
     AfterValidator(prepare_registry_filter),
 ]
 _CollectionFilter: TypeAlias = Annotated[
     FilterDict,
-    FilterValidator(valid=COLLECTIONS_FILTER_FIELDS.aliases(mode=SearchMode.BASIC)),
+    FilterValidator(valid=COLLECTIONS_FILTER_FIELDS.basic_aliases()),
 ]
 _BasicArtifactFilter: TypeAlias = Annotated[
     FilterDict,
-    FilterValidator(valid=VERSIONS_FILTER_FIELDS.aliases(mode=SearchMode.BASIC)),
+    FilterValidator(valid=VERSIONS_FILTER_FIELDS.basic_aliases()),
 ]
 
 # Type annotations for advanced-search filters passed to `Versions`.
 _AdvancedRegistryFilter: TypeAlias = Annotated[
     FilterDict,
-    FilterValidator(valid=REGISTRIES_FILTER_FIELDS.aliases(mode=SearchMode.ADVANCED)),
+    FilterValidator(valid=REGISTRIES_FILTER_FIELDS.advanced_aliases()),
     AfterValidator(prepare_registry_filter),
 ]
 _AdvancedCollectionFilter: TypeAlias = Annotated[
     FilterDict,
-    FilterValidator(valid=COLLECTIONS_FILTER_FIELDS.aliases(mode=SearchMode.ADVANCED)),
+    FilterValidator(valid=COLLECTIONS_FILTER_FIELDS.advanced_aliases()),
 ]
 _AdvancedArtifactFilter: TypeAlias = Annotated[
     FilterDict,
-    FilterValidator(valid=VERSIONS_FILTER_FIELDS.aliases(mode=SearchMode.ADVANCED)),
+    FilterValidator(valid=VERSIONS_FILTER_FIELDS.advanced_aliases()),
 ]
 
 # Type annotations for `order` arguments.
@@ -250,11 +249,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
                     Collections(
                         service_api=self._service_api,
                         organization=self.organization,
-                        registry_filter=filter_for_registry(
-                            reg,
-                            service_api=self._service_api,
-                            organization=self.organization,
-                        ),
+                        registry_filter=filter_for_registry(reg),
                         collection_filter=filter,
                         order=order,
                         per_page=per_page,
@@ -302,11 +297,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
                 Versions(
                     service_api=self._service_api,
                     organization=self.organization,
-                    registry_filter=filter_for_registry(
-                        reg,
-                        service_api=self._service_api,
-                        organization=self.organization,
-                    ),
+                    registry_filter=filter_for_registry(reg),
                     artifact_filter=filter,
                     per_page=per_page,
                 )
@@ -443,11 +434,7 @@ class Collections(
                     organization=self.organization,
                     artifact_filter=filter,
                     per_page=per_page,
-                    registry_filter=registry_filter_for_collection(
-                        coll,
-                        service_api=self._service_api,
-                        organization=self.organization,
-                    ),
+                    registry_filter=registry_filter_for_collection(coll),
                     collection_filter={"name": coll.name} if coll.name else {},
                 )
                 for coll in self
@@ -669,11 +656,7 @@ class _OrderedCollections(_ChainedPaginators["ArtifactCollection"]):
             Versions(
                 service_api=self._service_api,
                 organization=self.organization,
-                registry_filter=registry_filter_for_collection(
-                    col,
-                    service_api=self._service_api,
-                    organization=self.organization,
-                ),
+                registry_filter=registry_filter_for_collection(col),
                 collection_filter={"name": col.name} if col.name else {},
                 artifact_filter=filter,
                 per_page=per_page,

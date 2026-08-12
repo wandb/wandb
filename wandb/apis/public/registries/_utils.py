@@ -28,13 +28,8 @@ T = TypeVar("T")
 
 @pydantic_dataclass(frozen=True, slots=True)
 class _FieldNames:
-    name: str  #: The canonical name of the field.
+    canonical: str  #: The canonical name of the field.
     aliases: tuple[str, ...] = ()  #: Accepted aliases for the field.
-
-
-class SearchMode(str, Enum):
-    BASIC = "basic"
-    ADVANCED = "advanced"
 
 
 @pydantic_dataclass(frozen=True, slots=True)
@@ -69,21 +64,22 @@ class SearchFields:
 
     fields: tuple[SearchField, ...]
 
-    def aliases(self, mode: SearchMode) -> dict[str, str]:
-        """Returns a map of (accepted alias) -> (canonical name) for one search mode."""
-        match SearchMode(mode):
-            case SearchMode.BASIC:
-                names_by_field = (f.basic for f in self.fields)
-            case SearchMode.ADVANCED:
-                names_by_field = (f.advanced for f in self.fields)
-            case _:
-                raise ValueError(f"Invalid search mode: {mode!r}")
-
+    def advanced_aliases(self) -> dict[str, str]:
+        # Be sure to include the canonical name in the map
         return {
-            alias: names.name
-            for names in names_by_field
-            if names
-            for alias in (names.name, *names.aliases)
+            alias: names.canonical
+            for field in self.fields
+            if (names := field.advanced)
+            for alias in (names.canonical, *names.aliases)
+        }
+
+    def basic_aliases(self) -> dict[str, str]:
+        # Be sure to include the canonical name in the map
+        return {
+            alias: names.canonical
+            for field in self.fields
+            if (names := field.basic)
+            for alias in (names.canonical, *names.aliases)
         }
 
 
@@ -338,16 +334,11 @@ def _project_id_from_gql_id(gql_id: str) -> int | None:
             return None
 
 
-def filter_for_registry(
-    registry: Registry,
-    *,
-    service_api: ServiceApi,
-    organization: str,
-) -> dict[str, Any]:
+def filter_for_registry(registry: Registry) -> dict[str, Any]:
     if (project_encoded_id := registry.internal_id) and (
         project_id := _project_id_from_gql_id(project_encoded_id)
     ):
-        return {registry_id_filter_key(service_api, organization): project_id}
+        return {"id": project_id}
     return {"name": registry.full_name}
 
 
@@ -388,21 +379,9 @@ def advanced_search_enabled(service_api: ServiceApi, organization: str) -> bool:
     )
 
 
-def registry_id_filter_key(service_api: ServiceApi, organization: str) -> str:
-    """Return the registry project filter key for the organization's search backend."""
-    if advanced_search_enabled(service_api, organization):
-        return "project_id"
-    return "id"
-
-
-def registry_filter_for_collection(
-    collection: ArtifactCollection,
-    *,
-    service_api: ServiceApi,
-    organization: str,
-) -> dict[str, Any]:
+def registry_filter_for_collection(collection: ArtifactCollection) -> dict[str, Any]:
     if (project_encoded_id := collection.project_internal_id) and (
         project_id := _project_id_from_gql_id(project_encoded_id)
     ):
-        return {registry_id_filter_key(service_api, organization): project_id}
+        return {"id": project_id}
     return {"name": collection.project}

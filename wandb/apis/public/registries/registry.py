@@ -224,9 +224,7 @@ class Registry:
         return Collections(
             service_api=self._service_api,
             organization=self.organization,
-            registry_filter=filter_for_registry(
-                self, service_api=self._service_api, organization=self.organization
-            ),
+            registry_filter=filter_for_registry(self),
             collection_filter=filter,
             order=order,
             per_page=per_page,
@@ -252,9 +250,7 @@ class Registry:
         return Versions(
             service_api=self._service_api,
             organization=self.organization,
-            registry_filter=filter_for_registry(
-                self, service_api=self._service_api, organization=self.organization
-            ),
+            registry_filter=filter_for_registry(self),
             collection_filter=None,
             artifact_filter=filter,
             per_page=per_page,
