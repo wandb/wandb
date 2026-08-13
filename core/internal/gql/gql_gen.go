@@ -1025,6 +1025,38 @@ func (v *NotifyScriptableRunAlertResponse) GetNotifyScriptableRunAlert() *Notify
 	return v.NotifyScriptableRunAlert
 }
 
+// OrgFeatureFlagsOrganization includes the requested fields of the GraphQL type Organization.
+type OrgFeatureFlagsOrganization struct {
+	FeatureFlags []*OrgFeatureFlagsOrganizationFeatureFlagsFeatureFlag `json:"featureFlags"`
+}
+
+// GetFeatureFlags returns OrgFeatureFlagsOrganization.FeatureFlags, and is useful for accessing the field via an interface.
+func (v *OrgFeatureFlagsOrganization) GetFeatureFlags() []*OrgFeatureFlagsOrganizationFeatureFlagsFeatureFlag {
+	return v.FeatureFlags
+}
+
+// OrgFeatureFlagsOrganizationFeatureFlagsFeatureFlag includes the requested fields of the GraphQL type FeatureFlag.
+type OrgFeatureFlagsOrganizationFeatureFlagsFeatureFlag struct {
+	RampKey   string `json:"rampKey"`
+	IsEnabled bool   `json:"isEnabled"`
+}
+
+// GetRampKey returns OrgFeatureFlagsOrganizationFeatureFlagsFeatureFlag.RampKey, and is useful for accessing the field via an interface.
+func (v *OrgFeatureFlagsOrganizationFeatureFlagsFeatureFlag) GetRampKey() string { return v.RampKey }
+
+// GetIsEnabled returns OrgFeatureFlagsOrganizationFeatureFlagsFeatureFlag.IsEnabled, and is useful for accessing the field via an interface.
+func (v *OrgFeatureFlagsOrganizationFeatureFlagsFeatureFlag) GetIsEnabled() bool { return v.IsEnabled }
+
+// OrgFeatureFlagsResponse is returned by OrgFeatureFlags on success.
+type OrgFeatureFlagsResponse struct {
+	Organization *OrgFeatureFlagsOrganization `json:"organization"`
+}
+
+// GetOrganization returns OrgFeatureFlagsResponse.Organization, and is useful for accessing the field via an interface.
+func (v *OrgFeatureFlagsResponse) GetOrganization() *OrgFeatureFlagsOrganization {
+	return v.Organization
+}
+
 // OrganizationCoreWeaveOrganizationIDEntity includes the requested fields of the GraphQL type Entity.
 type OrganizationCoreWeaveOrganizationIDEntity struct {
 	Organization *OrganizationCoreWeaveOrganizationIDEntityOrganization `json:"organization"`
@@ -2404,6 +2436,14 @@ func (v *__NotifyScriptableRunAlertInput) GetSeverity() *AlertSeverity { return 
 // GetWaitDuration returns __NotifyScriptableRunAlertInput.WaitDuration, and is useful for accessing the field via an interface.
 func (v *__NotifyScriptableRunAlertInput) GetWaitDuration() *int64 { return v.WaitDuration }
 
+// __OrgFeatureFlagsInput is used internally by genqlient
+type __OrgFeatureFlagsInput struct {
+	Org string `json:"org"`
+}
+
+// GetOrg returns __OrgFeatureFlagsInput.Org, and is useful for accessing the field via an interface.
+func (v *__OrgFeatureFlagsInput) GetOrg() string { return v.Org }
+
 // __OrganizationCoreWeaveOrganizationIDInput is used internally by genqlient
 type __OrganizationCoreWeaveOrganizationIDInput struct {
 	EntityName string `json:"entityName"`
@@ -3531,6 +3571,44 @@ func NotifyScriptableRunAlert(
 	}
 
 	data_ = &NotifyScriptableRunAlertResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by OrgFeatureFlags.
+const OrgFeatureFlags_Operation = `
+query OrgFeatureFlags ($org: String!) {
+	organization(name: $org) {
+		featureFlags(rampIDType: OrgName) {
+			rampKey
+			isEnabled
+		}
+	}
+}
+`
+
+// Fetches organization-level feature flags and legacy ramps.
+func OrgFeatureFlags(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	org string,
+) (data_ *OrgFeatureFlagsResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "OrgFeatureFlags",
+		Query:  OrgFeatureFlags_Operation,
+		Variables: &__OrgFeatureFlagsInput{
+			Org: org,
+		},
+	}
+
+	data_ = &OrgFeatureFlagsResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(

@@ -30,7 +30,7 @@ from wandb.automations import (
     SendNotification,
     SendWebhook,
 )
-from wandb.automations._utils import INVALID_INPUT_ACTIONS, INVALID_INPUT_EVENTS
+from wandb.automations._inputs import INVALID_INPUT_ACTIONS, INVALID_INPUT_EVENTS
 from wandb.automations.actions import (
     InputAction,
     SavedAction,
@@ -115,6 +115,8 @@ def artifact_collection(mock_client: Mock) -> ArtifactCollection:
             id=make_graphql_id(prefix="ArtifactCollection"),
             name=name,
             project={
+                "id": make_graphql_id(prefix="Project"),
+                "internalId": make_graphql_id(prefix="ProjectInternalId"),
                 "name": project,
                 "entity": {"name": entity},
             },

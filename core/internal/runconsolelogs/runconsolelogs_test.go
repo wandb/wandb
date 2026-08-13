@@ -85,6 +85,64 @@ func TestFileStreamUpdatesDisabled(t *testing.T) {
 	assert.Empty(t, request.ConsoleLines.ToRuns())
 }
 
+func TestStreamLoggerOutput(t *testing.T) {
+	outputFile, _ := paths.Relative("output.log")
+
+	for _, test := range []struct {
+		name      string
+		line      string
+		wantLines []string
+	}{
+		{
+			name:      "trailing newline",
+			line:      "line1\n",
+			wantLines: []string{"line1"},
+		},
+		{
+			name:      "embedded newlines",
+			line:      "line1\nline2\n",
+			wantLines: []string{"line1", "line2"},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			filesDir := t.TempDir()
+			fileStream := filestreamtest.NewFakeFileStream()
+
+			sender := New(Params{
+				FilesDir:      filesDir,
+				EnableCapture: true,
+				Logger:        observabilitytest.NewTestLogger(t),
+				RunfilesUploaderOrNil: runfilestest.WithTestDefaults(t,
+					runfilestest.Params{},
+				),
+				FileStreamOrNil: fileStream,
+				GetNow: func() time.Time {
+					return time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+				},
+			})
+
+			sender.StreamLoggerOutput(&spb.OutputLoggerRecord{Line: test.line})
+			sender.Finish()
+
+			contents, err := os.ReadFile(filepath.Join(filesDir, string(*outputFile)))
+			require.NoError(t, err)
+
+			wantContents := &strings.Builder{}
+			wantConsoleLines := []string{}
+			for _, line := range test.wantLines {
+				wantContents.WriteString(line + "\n")
+				wantConsoleLines = append(wantConsoleLines,
+					"2024-01-01T00:00:00.000000 "+line)
+			}
+
+			assert.Equal(t, wantContents.String(), string(contents))
+			assert.Equal(t,
+				[]sparselist.Run[string]{{Start: 0, Items: wantConsoleLines}},
+				fileStream.GetRequest(settings.New()).ConsoleLines.ToRuns())
+		})
+	}
+}
+
 func TestSender_Multipart_WritesChunkAndUploadsOnFinish(t *testing.T) {
 	dir := t.TempDir()
 	uploader := NewFakeUploader()

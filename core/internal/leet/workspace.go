@@ -1072,9 +1072,12 @@ func (w *Workspace) renderMetrics(layout Layout) string {
 		return renderMetricsEmptyState(contentWidth, contentHeight, "No scalar metrics logged.")
 	}
 
-	// When we have selected runs, render the metrics grid.
+	// When we have selected runs, render the metrics grid, padded to its
+	// reserved height so the sections below sit exactly at the rows
+	// computeVerticalStackLayout reserves for them (mouse hit-testing maps
+	// screen rows to sections via that layout).
 	dims := w.metricsGrid.CalculateChartDimensions(contentWidth, contentHeight)
-	return w.metricsGrid.View(dims)
+	return placeMainColumn(contentWidth, contentHeight, w.metricsGrid.View(dims))
 }
 
 // renderMetricsEmptyState renders a styled "Metrics" header with a hint message.
@@ -1086,7 +1089,9 @@ func renderMetricsEmptyState(width, height int, hint string) string {
 	header := mediaPaneHeaderStyle.Render("Metrics")
 	hintText := mediaTilePlaceholderStyle.Render(hint)
 	content := lipgloss.JoinVertical(lipgloss.Left, header, "", hintText)
-	content = lipgloss.Place(innerW, height, lipgloss.Left, lipgloss.Top, content)
+	// placeMainColumn rather than lipgloss.Place: the three-line hint must
+	// also crop to a shorter reservation, like every stack section.
+	content = placeMainColumn(innerW, height, content)
 	return lipgloss.NewStyle().Padding(0, ContentPadding).Render(content)
 }
 

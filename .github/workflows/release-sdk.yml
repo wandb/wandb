@@ -111,7 +111,7 @@ jobs:
           ref: release-${{ github.event.inputs.version }}
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@4726cd35bb13f7bde50cf2761f2499ac7b3aa32c # v4.1.1
+        uses: pypa/cibuildwheel@1828c10ab37f080699c7b81cea34097c684a7074 # v4.2
         with:
           package-dir: .
           output-dir: dist
@@ -194,7 +194,7 @@ jobs:
       # All platforms: create wheels
       ##################################################
       - name: Build wheels
-        uses: pypa/cibuildwheel@4726cd35bb13f7bde50cf2761f2499ac7b3aa32c # v4.1.1
+        uses: pypa/cibuildwheel@1828c10ab37f080699c7b81cea34097c684a7074 # v4.2
         with:
           package-dir: .
           output-dir: dist
@@ -364,8 +364,11 @@ jobs:
             python-arch: x64
           - os: macos-14
             python-arch: arm64
-          # x86_64 CPython under Rosetta, exercising the macosx x86_64 wheel.
-          - os: macos-14
+          # Native Intel runner, exercising the macosx x86_64 wheel. The
+          # darwin-x64 CPython builds from actions/python-versions target
+          # macOS 15 and link Homebrew's /usr/local gettext, so they no
+          # longer run under Rosetta on the arm64 macos-14 image.
+          - os: macos-15-intel
             python-arch: x64
 
     steps:

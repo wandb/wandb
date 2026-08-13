@@ -20,6 +20,7 @@ __all__ = [
     "DELETE_ARTIFACT_SEQUENCE_GQL",
     "DELETE_REGISTRY_GQL",
     "DELETE_REGISTRY_MEMBERS_GQL",
+    "FETCH_ADVANCED_REGISTRY_FEATURES_GQL",
     "FETCH_ARTIFACT_MANIFEST_GQL",
     "FETCH_LINKED_ARTIFACTS_GQL",
     "FETCH_ORGANIZATION_GQL",
@@ -105,6 +106,8 @@ fragment ArtifactCollectionFragment on ArtifactCollection {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
+  internalId
   name
   entity {
     name
@@ -151,6 +154,8 @@ fragment ArtifactCollectionFragment on ArtifactCollection {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
+  internalId
   name
   entity {
     name
@@ -197,6 +202,8 @@ fragment ArtifactCollectionFragment on ArtifactCollection {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
+  internalId
   name
   entity {
     name
@@ -288,6 +295,8 @@ fragment PageInfoFragment on PageInfo {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
+  internalId
   name
   entity {
     name
@@ -353,6 +362,8 @@ fragment PageInfoFragment on PageInfo {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
+  internalId
   name
   entity {
     name
@@ -401,6 +412,8 @@ fragment ArtifactCollectionFragment on ArtifactCollection {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
+  internalId
   name
   entity {
     name
@@ -647,6 +660,8 @@ fragment PageInfoFragment on PageInfo {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
+  internalId
   name
   entity {
     name
@@ -741,6 +756,8 @@ fragment PageInfoFragment on PageInfo {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
+  internalId
   name
   entity {
     name
@@ -835,6 +852,8 @@ fragment PageInfoFragment on PageInfo {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
+  internalId
   name
   entity {
     name
@@ -891,6 +910,8 @@ fragment CollectionInfoFragment on ArtifactCollection {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
+  internalId
   name
   entity {
     name
@@ -969,6 +990,8 @@ fragment CollectionInfoFragment on ArtifactCollection {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
+  internalId
   name
   entity {
     name
@@ -1062,6 +1085,8 @@ fragment CollectionInfoFragment on ArtifactCollection {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
+  internalId
   name
   entity {
     name
@@ -1097,6 +1122,8 @@ query ArtifactUsedBy($id: ID!) {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
+  internalId
   name
   entity {
     name
@@ -1126,6 +1153,8 @@ query ArtifactCreatedBy($id: ID!) {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
+  internalId
   name
   entity {
     name
@@ -1227,6 +1256,8 @@ fragment CollectionInfoFragment on ArtifactCollection {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
+  internalId
   name
   entity {
     name
@@ -1331,6 +1362,8 @@ fragment CollectionInfoFragment on ArtifactCollection {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
+  internalId
   name
   entity {
     name
@@ -1392,6 +1425,16 @@ query FetchOrganization($org: String!) {
       id
       name
       entityType
+    }
+  }
+}
+"""
+
+FETCH_ADVANCED_REGISTRY_FEATURES_GQL = """
+query FetchAdvancedRegistryFeatures($organization: String!) {
+  organization(name: $organization) {
+    advancedRegistryFeatures {
+      advancedSearch
     }
   }
 }
@@ -1492,6 +1535,8 @@ fragment PageInfoFragment on PageInfo {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
+  internalId
   name
   entity {
     name
@@ -1548,6 +1593,8 @@ fragment PageInfoFragment on PageInfo {
 }
 
 fragment ProjectInfoFragment on Project {
+  id
+  internalId
   name
   entity {
     name
@@ -1595,6 +1642,7 @@ query FetchRegistry($name: String, $entity: String) {
 fragment RegistryFragment on Project {
   __typename
   id
+  internalId
   name
   entity {
     name
@@ -1644,6 +1692,7 @@ fragment PageInfoFragment on PageInfo {
 fragment RegistryFragment on Project {
   __typename
   id
+  internalId
   name
   entity {
     name
@@ -1679,6 +1728,7 @@ mutation RenameRegistry($input: RenameProjectInput!) {
 fragment RegistryFragment on Project {
   __typename
   id
+  internalId
   name
   entity {
     name
@@ -1714,6 +1764,7 @@ mutation UpsertRegistry($input: UpsertModelInput!) {
 fragment RegistryFragment on Project {
   __typename
   id
+  internalId
   name
   entity {
     name

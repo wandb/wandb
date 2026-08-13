@@ -41,11 +41,11 @@ func TestTelemetryRecorder_RecordsDefaultAttributes(t *testing.T) {
 	}
 }
 
-func TestTelemetryRecorder_With_LowCardinalityAttributes(t *testing.T) {
+func TestTelemetryRecorder_With_OnlyProvidedLowCardinalityAttributes(t *testing.T) {
 	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
 	recorder := analytics.NewTelemetryRecorder(
 		proxy.OpenTelemetryProxy,
-		analytics.NewTelemetryContext(),
+		analytics.TelemetryContext{},
 	)
 
 	derived := recorder.With(
@@ -62,11 +62,19 @@ func TestTelemetryRecorder_With_LowCardinalityAttributes(t *testing.T) {
 
 	log, ok := proxy.FindLog("low_card_event")
 	require.True(t, ok, "expected a log for the event")
-	assert.Equal(t, "MyFunction", log.Attributes["error.originator"])
+	assert.Equal(
+		t,
+		map[string]string{"error.originator": "MyFunction"},
+		log.Attributes,
+	)
 
 	metric, ok := proxy.FindMetric("low_card_event")
 	require.True(t, ok, "expected a metric for the event")
-	assert.Equal(t, "MyFunction", metric.Attributes["error.originator"])
+	assert.Equal(
+		t,
+		map[string]string{"error.originator": "MyFunction"},
+		metric.Attributes,
+	)
 }
 
 func TestTelemetryRecorder_With_InheritsAndIgnoresEmptyFields(

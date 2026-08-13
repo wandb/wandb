@@ -75,6 +75,12 @@ func (r *Run) TestStopHeartbeat() {
 	}
 }
 
+// TestStackHeights returns the run view's central stack pane heights.
+func (r *Run) TestStackHeights() (metrics, media, logs int) {
+	l := r.computeViewports()
+	return l.height, l.mediaHeight, l.consoleLogsHeight
+}
+
 func (s *Symon) TestGrid() *SystemMetricsGrid {
 	return s.grid
 }
@@ -556,6 +562,15 @@ func (w *Workspace) TestRunOverviewSidebarHasActiveSection() bool {
 func (s *RunOverviewSidebar) TestFocusableSectionBounds() (first, last int) {
 	return s.focusableSectionBounds()
 }
+
+// Sidebar navigation helpers for focused unit tests. In production these
+// moves are driven by the owning view's key bindings and FocusManager.
+
+func (s *RunOverviewSidebar) TestNavigateSection(direction int) { s.navigateSection(direction) }
+func (s *RunOverviewSidebar) TestNavigateUp()                   { s.navigateUp() }
+func (s *RunOverviewSidebar) TestNavigateDown()                 { s.navigateDown() }
+func (s *RunOverviewSidebar) TestNavigatePageUp()               { s.navigatePageUp() }
+func (s *RunOverviewSidebar) TestNavigatePageDown()             { s.navigatePageDown() }
 
 // TestSeedRunOverview populates the workspace's overview data for the given
 // run key with sample config, summary, and environment items, then syncs the

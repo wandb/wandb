@@ -52,31 +52,6 @@ While we forbid new/edited automations from assigning these action types,
 they're defined so that we can still parse existing automations that may use them.
 """
 
-ALWAYS_SUPPORTED_SCOPES: Final[Collection[ScopeType]] = frozenset(
-    {
-        ScopeType.ARTIFACT_COLLECTION,
-        ScopeType.PROJECT,
-    }
-)
-"""Scope types that should be supported by all current, non-EOL server versions."""
-
-ALWAYS_SUPPORTED_EVENTS: Final[Collection[EventType]] = frozenset(
-    {
-        EventType.CREATE_ARTIFACT,
-        EventType.LINK_ARTIFACT,
-        EventType.ADD_ARTIFACT_ALIAS,
-    }
-)
-"""Event types that should be supported by all current, non-EOL server versions."""
-
-ALWAYS_SUPPORTED_ACTIONS: Final[Collection[ActionType]] = frozenset(
-    {
-        ActionType.NOTIFICATION,
-        ActionType.GENERIC_WEBHOOK,
-    }
-)
-"""Action types that should be supported by all current, non-EOL server versions."""
-
 
 class HasId(Protocol):
     id: str
@@ -84,9 +59,6 @@ class HasId(Protocol):
 
 def extract_id(obj: HasId | str) -> str:
     return obj if isinstance(obj, str) else obj.id
-
-
-# ---------------------------------------------------------------------------
 
 
 class ActionSpecInput(TriggeredActionConfig):

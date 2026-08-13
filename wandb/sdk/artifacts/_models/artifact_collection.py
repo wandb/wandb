@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING, Any
 from pydantic import Field, field_validator
 from typing_extensions import Self
 
+from wandb._pydantic import GQLId
+
 from .base_model import ArtifactsBase
 
 if TYPE_CHECKING:
@@ -47,6 +49,16 @@ class ArtifactCollectionData(ArtifactsBase):
 
     project: str = Field(frozen=True)
     """The name of this collection's project."""
+
+    project_id: str = Field(frozen=True, repr=False)
+    """The encoded GraphQL ID for this collection's project."""
+
+    project_internal_id: GQLId | None = Field(default=None, frozen=True, repr=False)
+    """The GraphQL `internalId` for this collection's backing project, if fetched.
+
+    This is a base64-encoded global ID. When decoded, it looks like
+    `Project:123` or `ProjectInternalId:123`.
+    """
 
     entity: str = Field(frozen=True)
     """The name of the entity that owns this collection's project."""
@@ -106,6 +118,8 @@ class ArtifactCollectionData(ArtifactsBase):
             created_at=obj.created_at,
             updated_at=obj.updated_at,
             project=obj.project.name,
+            project_id=obj.project.id,
+            project_internal_id=obj.project.internal_id,
             entity=obj.project.entity.name,
             tags=[e.node.name for e in obj.tags.edges if e.node],
             aliases=None,

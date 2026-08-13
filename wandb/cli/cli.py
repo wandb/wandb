@@ -25,8 +25,9 @@ import wandb
 import wandb.errors
 import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent
-from wandb.analytics import get_sentry
+from wandb.analytics import TelemetryRecorder, get_sentry
 from wandb.apis import InternalApi, PublicApi
+from wandb.apis.public.service_api import ServiceApi
 from wandb.cli import beta_sync
 from wandb.errors.links import url_registry
 from wandb.sdk import wandb_setup, wandb_sweep
@@ -1798,6 +1799,8 @@ def launch(
 
     api = _get_cling_api()
     get_sentry().configure_scope(process_context="launch_cli")
+    service_api = ServiceApi(wandb_setup.singleton().settings)
+    telemetry_recorder = TelemetryRecorder(service_api=service_api)
 
     if run_async and queue is not None:
         raise LaunchError(
@@ -1929,10 +1932,12 @@ def launch(
                 sys.exit(1)
         except LaunchError as e:
             logger.exception("An error occurred.")
+            telemetry_recorder.exception(e)
             get_sentry().exception(e)
             sys.exit(e)
         except ExecutionError as e:
             logger.exception("An error occurred.")
+            telemetry_recorder.exception(e)
             get_sentry().exception(e)
             sys.exit(e)
         except asyncio.CancelledError:
@@ -1961,6 +1966,7 @@ def launch(
             )
 
         except Exception as e:
+            telemetry_recorder.exception(e)
             get_sentry().exception(e)
             raise
 
@@ -2038,6 +2044,8 @@ def launch_agent(
         _launch.set_launch_logfile(log_file)
 
     api = _get_cling_api()
+    service_api = ServiceApi(wandb_setup.singleton().settings)
+    telemetry_recorder = TelemetryRecorder(service_api=service_api)
     get_sentry().configure_scope(process_context="launch_agent")
     agent_config, api = _launch.resolve_agent_config(
         entity, max_jobs, queues, config, verbose
@@ -2052,8 +2060,13 @@ def launch_agent(
 
     wandb.termlog("Starting launch agent ✨")
     try:
-        _launch.create_and_run_agent(api, agent_config)
+        _launch.create_and_run_agent(
+            api,
+            agent_config,
+            telemetry_recorder=telemetry_recorder,
+        )
     except Exception as e:
+        telemetry_recorder.exception(e)
         get_sentry().exception(e)
         raise
 
@@ -2177,6 +2190,8 @@ def scheduler(
         ctx.invoke(login, no_offline=True)
         api = InternalApi(reset=True)
 
+    service_api = ServiceApi(wandb_setup.singleton().settings)
+    telemetry_recorder = TelemetryRecorder(service_api=service_api)
     get_sentry().configure_scope(process_context="sweep_scheduler")
     wandb.termlog("Starting a Launch Scheduler 🚀")
     from wandb.sdk.launch.sweeps import load_scheduler
@@ -2201,6 +2216,7 @@ def scheduler(
         )
         _scheduler.start()
     except Exception as e:
+        telemetry_recorder.exception(e)
         get_sentry().exception(e)
         raise
 
@@ -2539,13 +2555,15 @@ def docker_run(ctx, docker_run_args):
         wandb.termlog(
             "Couldn't detect image argument, running command without the WANDB_DOCKER env variable"
         )
+    env = dict(os.environ)
     if api.api_key:
-        args = ["-e", f"WANDB_API_KEY={api.api_key}"] + args
+        args = ["-e", "WANDB_API_KEY"] + args
+        env["WANDB_API_KEY"] = api.api_key
     else:
         wandb.termlog(
             "Not logged in, run `wandb login` from the host machine to enable result logging"
         )
-    subprocess.call(["docker", "run"] + args)
+    subprocess.call(["docker", "run"] + args, env=env)
 
 
 @cli.command(context_settings=RUN_CONTEXT)
@@ -2677,8 +2695,10 @@ def docker(
     if not no_dir:
         #  TODO: We should default to the working directory if defined
         command.extend(["-v", cwd + ":" + dir, "-w", dir])
+    env = dict(os.environ)
     if api.api_key:
-        command.extend(["-e", f"WANDB_API_KEY={api.api_key}"])
+        command.extend(["-e", "WANDB_API_KEY"])
+        env["WANDB_API_KEY"] = api.api_key
     else:
         wandb.termlog(
             "Couldn't find WANDB_API_KEY, run `wandb login` to enable streaming metrics"
@@ -2695,7 +2715,7 @@ def docker(
             command.extend(["-e", f"WANDB_COMMAND={cmd}"])
         command.extend(["-it", image, shell])
         wandb.termlog("Launching docker container \U0001f6a2")
-    subprocess.call(command)
+    subprocess.call(command, env=env)
 
 
 @cli.command(

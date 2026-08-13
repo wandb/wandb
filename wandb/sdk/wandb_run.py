@@ -3117,6 +3117,31 @@ class Run:
         Returns:
             The linked artifact.
 
+        Examples:
+        ```python
+        import wandb
+
+        entity = "team_entity"
+        project = "project_name"
+
+        artifact_name = "artifact_name"
+        artifact_type = "artifact_type"
+        local_path = "path/to/local/file"
+
+        registry_name = "registry_name"
+        collection_name = "collection_name"
+        target_path = f"wandb-registry-{registry_name}/{collection_name}"
+
+        with wandb.init(entity=entity, project=project) as run:
+            # Create an artifact object
+            artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
+
+            # Add the file to the artifact object.
+            artifact.add_file(local_path=local_path)
+
+            # Link the artifact to the collection
+            run.link_artifact(artifact=artifact, target_path=target_path)
+        ```
         """
         from .artifacts._validators import ArtifactPath
 

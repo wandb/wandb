@@ -19,6 +19,7 @@ __all__ = [
     "DELETE_ARTIFACT_SEQUENCE_GQL",
     "DELETE_REGISTRY_GQL",
     "DELETE_REGISTRY_MEMBERS_GQL",
+    "FETCH_ADVANCED_REGISTRY_FEATURES_GQL",
     "FETCH_ARTIFACT_MANIFEST_GQL",
     "FETCH_LINKED_ARTIFACTS_GQL",
     "FETCH_ORGANIZATION_GQL",
@@ -80,6 +81,7 @@ __all__ = [
     "UnlinkArtifact",
     "FetchOrgInfoFromEntity",
     "FetchOrganization",
+    "FetchAdvancedRegistryFeatures",
     "RegistryVersions",
     "RegistryCollections",
     "FetchRegistry",
@@ -163,6 +165,7 @@ from .delete_artifact_sequence import DeleteArtifactSequence
 from .delete_registry import DeleteRegistry
 from .delete_registry_members import DeleteRegistryMembers
 from .enums import ArtifactCollectionState, ArtifactCollectionType, ArtifactState
+from .fetch_advanced_registry_features import FetchAdvancedRegistryFeatures
 from .fetch_artifact_manifest import FetchArtifactManifest
 from .fetch_linked_artifacts import FetchLinkedArtifacts
 from .fetch_org_info_from_entity import FetchOrgInfoFromEntity
@@ -241,6 +244,7 @@ from .operations import (
     DELETE_ARTIFACT_SEQUENCE_GQL,
     DELETE_REGISTRY_GQL,
     DELETE_REGISTRY_MEMBERS_GQL,
+    FETCH_ADVANCED_REGISTRY_FEATURES_GQL,
     FETCH_ARTIFACT_MANIFEST_GQL,
     FETCH_LINKED_ARTIFACTS_GQL,
     FETCH_ORG_INFO_FROM_ENTITY_GQL,

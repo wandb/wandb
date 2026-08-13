@@ -3,6 +3,7 @@ syntax = "proto3";
 package wandb_internal;
 
 import "wandb/proto/wandb_internal.proto";
+import "wandb/proto/wandb_otel.proto";
 import "wandb/proto/wandb_settings.proto";
 
 option go_package = "core/pkg/service_go_proto";
@@ -12,6 +13,10 @@ option go_package = "core/pkg/service_go_proto";
 // ServerApiCleanupRequest should be used once the instance is no longer needed.
 message ServerApiInitRequest {
   Settings settings = 1;
+
+  // The name of the service requesting the API instance.
+  // This is used to identify the service in the OpenTelemetry backend.
+  string service_name = 2;
 }
 
 message ServerApiInitResponse {
@@ -37,7 +42,8 @@ message ApiRequest {
     AuthRequest auth_request = 9;
     CreateCustomChartRequest create_custom_chart_request = 10;
     RunQueueOperationRequest run_queue_operation_request = 11;
-    ReadRunConsoleLogsRequest read_run_console_logs_request = 12;
+    OpenTelemetryRequest open_telemetry_request = 12;
+    ReadRunConsoleLogsRequest read_run_console_logs_request = 13;
   }
 }
 
@@ -102,6 +108,20 @@ message ServerApiCleanupRequest {
 // Features may be specific to the API instance, for example if they depend
 // on the entity. Keep this in mind if caching the response.
 message FeaturesRequest {
+  oneof request {
+    ServerFeaturesRequest server = 1;
+    OrgFeaturesRequest org = 2;
+  }
+}
+
+message FeaturesResponse {
+  oneof response {
+    ServerFeaturesResponse server = 1;
+    OrgFeaturesResponse org = 2;
+  }
+}
+
+message ServerFeaturesRequest {
   // Names of features to check.
   //
   // Features not in this list are not included in the response
@@ -113,9 +133,24 @@ message FeaturesRequest {
   repeated ServerFeature features = 1;
 }
 
-message FeaturesResponse {
+message ServerFeaturesResponse {
   // Names of enabled boolean features.
   repeated ServerFeature enabled = 1;
+}
+
+message OrgFeaturesRequest {
+  // Organization whose features to check.
+  string org = 1;
+
+  // Names of organization features to check.
+  repeated string features = 2;
+}
+
+message OrgFeaturesResponse {
+  // Values of organization feature flags that exist.
+  //
+  // Requested flags that do not exist are omitted.
+  map<string, bool> features = 1;
 }
 
 // Execute a raw GraphQL document.
