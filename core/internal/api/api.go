@@ -4,7 +4,6 @@ package api
 import (
 	"crypto/tls"
 	"log/slog"
-	"maps"
 	"net/http"
 	"net/url"
 	"time"
@@ -57,9 +56,6 @@ type clientImpl struct {
 }
 
 type ClientOptions struct {
-	// BaseURL is the URL for the W&B server.
-	BaseURL *url.URL
-
 	// Maximum number of retries to make for retryable requests.
 	RetryMax int
 
@@ -81,19 +77,6 @@ type ClientOptions struct {
 	// before considering it as failed. It does not include retries: each retry
 	// starts a new timeout.
 	NonRetryTimeout time.Duration
-
-	// Additional headers to set on every request.
-	//
-	// This applies to every outgoing request from this client regardless
-	// of the request URL.
-	//
-	// Request headers take precedence.
-	ExtraHeaders http.Header
-
-	// Allows the client to peek at the network traffic, can perform any action
-	// on the request and response. Need to make sure that the response body is
-	// available to read by later stages.
-	NetworkPeeker Peeker
 
 	// Function that returns a proxy URL to use for a given http.Request.
 	//
@@ -121,21 +104,23 @@ type ClientOptions struct {
 	// or in environments where the backend is trusted.
 	InsecureDisableSSL bool
 
-	// Adds credentials to http requests.
-	CredentialProvider CredentialProvider
-
 	// Function that gets called before the retry operation and prepares the
 	// request for retry
 	PrepareRetry func(*http.Request) error
 
 	Logger *slog.Logger
+
+	// PreRetryLayers specifies additional functionality to the HTTP client
+	// that runs on every retry.
+	PreRetryLayers httplayers.HTTPWrapper
 }
 
-// NewClient returns a new [RetryableClient] for making HTTP requests.
+// NewClient creates a new [RetryableClient].
+//
+// The client logs retries, is wboperation-aware, returns an enhanced RetryError
+// with additional info when a retry is cancelled or times out, and sets
+// the User-Agent header to "wandb-core".
 func NewClient(opts ClientOptions) RetryableClient {
-	if opts.BaseURL == nil {
-		panic("api: nil BaseURL")
-	}
 	if opts.RetryPolicy == nil {
 		opts.RetryPolicy = retryablehttp.DefaultRetryPolicy
 	}
@@ -144,6 +129,7 @@ func NewClient(opts ClientOptions) RetryableClient {
 	}
 
 	retryableHTTP := retryablehttp.NewClient()
+	retryableHTTP.HTTPClient.Transport = newRoundTripper(opts)
 	retryableHTTP.Backoff = clients.ExponentialBackoffWithJitter
 	retryableHTTP.RetryMax = opts.RetryMax
 	retryableHTTP.RetryWaitMin = opts.RetryWaitMin
@@ -161,6 +147,13 @@ func NewClient(opts ClientOptions) RetryableClient {
 		slog.LevelDebug,
 	)
 
+	return &clientImpl{
+		retryableHTTP: retryableHTTP,
+		logger:        opts.Logger,
+	}
+}
+
+func newRoundTripper(opts ClientOptions) http.RoundTripper {
 	transport := &http.Transport{
 		Proxy:              opts.Proxy,
 		ProxyConnectHeader: opts.ProxyConnectHeader,
@@ -172,25 +165,12 @@ func NewClient(opts ClientOptions) RetryableClient {
 		}
 	}
 
-	extraHeaders := make(http.Header, len(opts.ExtraHeaders)+1)
-	extraHeaders.Set("User-Agent", "wandb-core")
-	maps.Copy(extraHeaders, opts.ExtraHeaders)
+	userAgentHeader := make(http.Header, 1)
+	userAgentHeader.Set("User-Agent", "wandb-core")
 
-	wandbOnlyLayers := httplayers.LimitTo(opts.BaseURL, httplayers.Concat(
-		opts.CredentialProvider,
-		ResponseBasedRateLimiter(),
+	return httplayers.WrapRoundTripper(transport, httplayers.Concat(
+		// Add the User-Agent header only if it's not set by a preceding layer.
+		httplayers.ExtraHeaders(userAgentHeader),
+		opts.PreRetryLayers,
 	))
-
-	retryableHTTP.HTTPClient.Transport =
-		httplayers.WrapRoundTripper(transport,
-			httplayers.Concat(
-				NetworkPeeker(opts.NetworkPeeker),
-				httplayers.ExtraHeaders(extraHeaders),
-				wandbOnlyLayers,
-			))
-
-	return &clientImpl{
-		retryableHTTP: retryableHTTP,
-		logger:        opts.Logger,
-	}
 }

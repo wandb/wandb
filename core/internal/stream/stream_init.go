@@ -15,6 +15,7 @@ import (
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/httplayers"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -127,21 +128,24 @@ func NewFileStream(
 	}
 
 	opts := api.ClientOptions{
-		BaseURL:         baseURL,
-		RetryPolicy:     clients.RetryMostFailures,
-		RetryMax:        filestream.DefaultRetryMax,
-		RetryWaitMin:    filestream.DefaultRetryWaitMin,
-		RetryWaitMax:    filestream.DefaultRetryWaitMax,
-		NonRetryTimeout: filestream.DefaultNonRetryTimeout,
-		ExtraHeaders:    fileStreamHeaders,
-		NetworkPeeker:   peeker,
-
+		RetryPolicy:        clients.RetryMostFailures,
+		RetryMax:           filestream.DefaultRetryMax,
+		RetryWaitMin:       filestream.DefaultRetryWaitMin,
+		RetryWaitMax:       filestream.DefaultRetryWaitMax,
+		NonRetryTimeout:    filestream.DefaultNonRetryTimeout,
 		Proxy:              s.GetProxyFn(),
 		ProxyConnectHeader: s.GetProxyConnectHeader(),
-
 		InsecureDisableSSL: s.IsInsecureDisableSSL(),
-		CredentialProvider: credentialProvider,
 		Logger:             logger.Logger,
+
+		PreRetryLayers: httplayers.Concat(
+			api.NetworkPeeker(peeker),
+			httplayers.ExtraHeaders(fileStreamHeaders),
+			httplayers.LimitTo(baseURL, httplayers.Concat(
+				credentialProvider,
+				api.ResponseBasedRateLimiter(),
+			)),
+		),
 	}
 	if retryMax := s.GetFileStreamMaxRetries(); retryMax > 0 {
 		opts.RetryMax = int(retryMax)
@@ -182,7 +186,6 @@ func NewFileTransferManager(
 	}
 
 	httpOpts := api.ClientOptions{
-		BaseURL:     baseURL,
 		RetryPolicy: filetransfer.FileTransferRetryPolicy,
 		Logger:      logger.Logger,
 
@@ -196,9 +199,7 @@ func NewFileTransferManager(
 
 		InsecureDisableSSL: s.IsInsecureDisableSSL(),
 
-		ExtraHeaders: s.GetExtraHTTPHeaders(),
-
-		CredentialProvider: api.NoopCredentialProvider{},
+		PreRetryLayers: httplayers.ExtraHeaders(s.GetExtraHTTPHeaders()),
 	}
 
 	if retryMax := s.GetFileTransferMaxRetries(); retryMax > 0 {
