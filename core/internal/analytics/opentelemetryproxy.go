@@ -395,6 +395,11 @@ func NewOpenTelemetryProxy(
 		return nil
 	}
 
+	if !checkServerSupportsOpenTelemetryProxy(ctx, wandbSettings) {
+		slog.Debug("analytics: server does not support OpenTelemetry proxy, disabling telemetry")
+		return nil
+	}
+
 	httpClient, err := newOTLPHTTPClient(wandbSettings)
 	if err != nil {
 		slog.Debug(
@@ -686,4 +691,42 @@ func toOTelAttrs(attrs map[string]string) otelmetric.MeasurementOption {
 		kvs = append(kvs, attribute.String(k, v))
 	}
 	return otelmetric.WithAttributes(kvs...)
+}
+
+// checkServerSupportsOpenTelemetryProxy probes the W&B OpenTelemetry proxy
+// endpoint to determine whether the server exposes it.
+func checkServerSupportsOpenTelemetryProxy(
+	ctx context.Context,
+	wandbSettings *settings.Settings,
+) bool {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = wandbSettings.GetProxyFn()
+	transport.ProxyConnectHeader = wandbSettings.GetProxyConnectHeader()
+	if wandbSettings.IsInsecureDisableSSL() {
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	}
+	httpClient := &http.Client{Timeout: defaultTimeout, Transport: transport}
+
+	url := wandbSettings.GetBaseURL() + metricsPath
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		url,
+		http.NoBody,
+	)
+	if err != nil {
+		return false
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	// Depending on the server configuration, it may respond with a
+	// 404 Not Found or a 405 Method Not Allowed when it does not support
+	// the proxy API.
+	return resp.StatusCode != http.StatusMethodNotAllowed &&
+		resp.StatusCode != http.StatusNotFound
 }
