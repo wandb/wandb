@@ -90,6 +90,15 @@ func (t *HistoryStepTracker) ensureHistoryStep(
 	if record.GetStep() != nil {
 		t.initializeAutoStep(startingStep)
 		step := record.GetStep().GetNum()
+		if step < t.nextAutoStep {
+			t.logger.CaptureWarn(
+				"sender: history _step behind running step, renumbering to keep steps monotonic",
+				"provided_step", step,
+				"assigned_step", t.nextAutoStep,
+			)
+			record.Step.Num = t.nextAutoStep
+			step = t.nextAutoStep
+		}
 		record.Item = append(record.Item, &spb.HistoryItem{
 			NestedKey: []string{"_step"},
 			ValueJson: strconv.FormatInt(step, 10),
