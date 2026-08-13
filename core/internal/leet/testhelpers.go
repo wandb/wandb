@@ -75,6 +75,12 @@ func (r *Run) TestStopHeartbeat() {
 	}
 }
 
+// TestStackHeights returns the run view's central stack pane heights.
+func (r *Run) TestStackHeights() (metrics, media, logs int) {
+	l := r.computeViewports()
+	return l.height, l.mediaHeight, l.consoleLogsHeight
+}
+
 func (s *Symon) TestGrid() *SystemMetricsGrid {
 	return s.grid
 }

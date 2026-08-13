@@ -2,6 +2,7 @@ package leet_test
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -60,6 +61,22 @@ func newRunForHandlerTest(t *testing.T) *leet.Run {
 	_ = sidebar.View(50)
 
 	return r
+}
+
+// newTestRun builds an unseeded Run at the given terminal size, with config
+// tweaks applied before construction.
+func newTestRun(
+	t *testing.T, width, height int, tweak func(*leet.ConfigManager),
+) (*leet.Run, *leet.ConfigManager) {
+	t.Helper()
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	if tweak != nil {
+		tweak(cfg)
+	}
+	r := leet.NewRun(&leet.RunParams{RunFile: "testdata/fake.wandb"}, cfg, logger)
+	r.Update(tea.WindowSizeMsg{Width: width, Height: height})
+	return r, cfg
 }
 
 // ---- handleSidebarTabNav ----
@@ -248,4 +265,51 @@ func mustSelectedItem(t *testing.T, sidebar *leet.RunOverviewSidebar) string {
 	key, _ := sidebar.SelectedItem()
 	require.NotEmpty(t, key)
 	return key
+}
+
+// TestRun_StackSectionsAlignWithReservedRows pins the invariant that mouse
+// hit-testing depends on: the separator rows drawn on screen sit exactly at
+// the rows computeVerticalStackLayout reserves for them, and the frame never
+// grows taller than the terminal. The metrics section must pad a short
+// render (integer-division remainder) and crop a tall one (grid minimum or
+// empty-state hint taller than the slot — lipgloss.Place never crops).
+func TestRun_StackSectionsAlignWithReservedRows(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		height     int
+		hasMetrics bool
+	}{
+		{"grid height leaves a division remainder", 52, true},
+		{"grid minimum is taller than its slot", 20, true},
+		{"empty-state hint is taller than its slot", 17, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r, _ := newTestRun(t, 120, tc.height, func(c *leet.ConfigManager) {
+				_ = c.SetLeftSidebarVisible(false)
+				_ = c.SetRightSidebarVisible(false)
+				_ = c.SetMediaVisible(true)
+				_ = c.SetConsoleLogsVisible(true)
+			})
+			r.TestHandleRecordMsg(leet.RunMsg{ID: "abc123", Project: "test-project"})
+			if tc.hasMetrics {
+				r.TestHandleRecordMsg(leet.HistoryMsg{
+					Metrics: map[string]leet.MetricData{
+						"loss": {X: []float64{1, 2}, Y: []float64{0.5, 0.4}},
+					},
+				})
+			}
+
+			metrics, media, _ := r.TestStackHeights()
+			require.Positive(t, metrics)
+			lines := strings.Split(stripANSI(r.View().Content), "\n")
+			require.LessOrEqual(t, len(lines), tc.height,
+				"the rendered frame must never be taller than the terminal")
+
+			for _, row := range []int{metrics, metrics + 1 + media} {
+				require.Less(t, row, len(lines))
+				require.True(t, strings.HasPrefix(strings.TrimSpace(lines[row]), "———"),
+					"expected a separator at row %d, got %q", row, lines[row])
+			}
+		})
+	}
 }
