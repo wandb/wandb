@@ -106,6 +106,20 @@ message ServerApiCleanupRequest {
 // Features may be specific to the API instance, for example if they depend
 // on the entity. Keep this in mind if caching the response.
 message FeaturesRequest {
+  oneof request {
+    ServerFeaturesRequest server = 1;
+    OrgFeaturesRequest org = 2;
+  }
+}
+
+message FeaturesResponse {
+  oneof response {
+    ServerFeaturesResponse server = 1;
+    OrgFeaturesResponse org = 2;
+  }
+}
+
+message ServerFeaturesRequest {
   // Names of features to check.
   //
   // Features not in this list are not included in the response
@@ -117,9 +131,24 @@ message FeaturesRequest {
   repeated ServerFeature features = 1;
 }
 
-message FeaturesResponse {
+message ServerFeaturesResponse {
   // Names of enabled boolean features.
   repeated ServerFeature enabled = 1;
+}
+
+message OrgFeaturesRequest {
+  // Organization whose features to check.
+  string org = 1;
+
+  // Names of organization features to check.
+  repeated string features = 2;
+}
+
+message OrgFeaturesResponse {
+  // Values of organization feature flags that exist.
+  //
+  // Requested flags that do not exist are omitted.
+  map<string, bool> features = 1;
 }
 
 // Execute a raw GraphQL document.

@@ -30,7 +30,6 @@ parser.add_argument("--output-labels", default="map_run_cli_labels.csv")
 parser.add_argument(
     "--output-deprecated-features", default="map_run_cli_deprecated.csv"
 )
-parser.add_argument("--output-issues", default="map_run_cli_issues.csv")
 args = parser.parse_args()
 
 
@@ -66,9 +65,6 @@ def main():
 
     deprecated_records = list(tpb.Deprecated.DESCRIPTOR.fields)
     write_csv(record="deprecated_feature", fields=deprecated_records)
-
-    issue_records = list(tpb.Issues.DESCRIPTOR.fields)
-    write_csv(record="issue", fields=issue_records)
 
 
 if __name__ == "__main__":

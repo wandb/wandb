@@ -27,7 +27,6 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 
 	"github.com/wandb/wandb/core/internal/api"
-	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/httplayers"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
@@ -426,25 +425,15 @@ func newOTLPHTTPClient(
 	}
 
 	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.Proxy = clients.ProxyFn(
-		wandbSettings.GetHTTPProxy(),
-		wandbSettings.GetHTTPSProxy(),
-	)
+	transport.Proxy = wandbSettings.GetProxyFn()
+	transport.ProxyConnectHeader = wandbSettings.GetProxyConnectHeader()
 	if wandbSettings.IsInsecureDisableSSL() {
 		transport.TLSClientConfig = &tls.Config{
 			InsecureSkipVerify: true,
 		}
 	}
 
-	extraHeaders := make(http.Header, len(wandbSettings.GetExtraHTTPHeaders()))
-	for key, value := range wandbSettings.GetExtraHTTPHeaders() {
-		extraHeaders.Set(key, value)
-	}
-	if header := extraHeaders.Get("Proxy-Authorization"); header != "" {
-		transport.ProxyConnectHeader = http.Header{
-			"Proxy-Authorization": []string{header},
-		}
-	}
+	extraHeaders := wandbSettings.GetExtraHTTPHeaders()
 
 	client := &http.Client{
 		Timeout: defaultTimeout,
@@ -452,7 +441,7 @@ func newOTLPHTTPClient(
 	client.Transport = httplayers.WrapRoundTripper(
 		transport,
 		httplayers.Concat(
-			httplayers.ExtraHeaders(extraHeaders),
+			httplayers.DefaultHeaders(extraHeaders),
 			credentialProvider,
 		),
 	)

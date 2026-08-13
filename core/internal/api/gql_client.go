@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"net/http"
 
 	"github.com/Khan/genqlient/graphql"
 
 	"github.com/wandb/wandb/core/internal/clients"
+	"github.com/wandb/wandb/core/internal/httplayers"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
 )
@@ -19,7 +21,7 @@ func NewGQLClient(
 	logger *slog.Logger,
 	peeker Peeker,
 	s *settings.Settings,
-	extraHeaders map[string]string,
+	extraHeaders http.Header,
 ) graphql.Client {
 	// TODO: This is used for the service account feature to associate the run
 	// with the specified user. Note that we are using environment variables
@@ -32,28 +34,26 @@ func NewGQLClient(
 	// We should consider using the settings object here. But we need to make
 	// sure that the username setting is populated correctly. Leaving this as is
 	// for now just to avoid breakage in the service account feature.
-	graphqlHeaders := map[string]string{
-		"X-WANDB-USERNAME":   s.GetUserName(),
-		"X-WANDB-USER-EMAIL": s.GetEmail(),
-	}
+	graphqlHeaders := make(http.Header, len(extraHeaders)+2)
+	graphqlHeaders.Set("X-WANDB-USERNAME", s.GetUserName())
+	graphqlHeaders.Set("X-WANDB-USER-EMAIL", s.GetEmail())
 	maps.Copy(graphqlHeaders, extraHeaders)
 
 	opts := ClientOptions{
-		BaseURL:         baseURL,
-		RetryPolicy:     clients.CheckRetry,
-		RetryMax:        DefaultRetryMax,
-		RetryWaitMin:    DefaultRetryWaitMin,
-		RetryWaitMax:    DefaultRetryWaitMax,
-		NonRetryTimeout: DefaultNonRetryTimeout,
-		ExtraHeaders:    graphqlHeaders,
-		NetworkPeeker:   peeker,
-		Proxy: clients.ProxyFn(
-			s.GetHTTPProxy(),
-			s.GetHTTPSProxy(),
-		),
+		RetryPolicy:        clients.CheckRetry,
+		RetryMax:           DefaultRetryMax,
+		RetryWaitMin:       DefaultRetryWaitMin,
+		RetryWaitMax:       DefaultRetryWaitMax,
+		NonRetryTimeout:    DefaultNonRetryTimeout,
+		Proxy:              s.GetProxyFn(),
+		ProxyConnectHeader: s.GetProxyConnectHeader(),
 		InsecureDisableSSL: s.IsInsecureDisableSSL(),
-		CredentialProvider: credentialProvider,
 		Logger:             logger,
+		PreRetryLayers: httplayers.Concat(
+			NetworkPeeker(peeker),
+			httplayers.DefaultHeaders(graphqlHeaders),
+			httplayers.LimitTo(baseURL, credentialProvider),
+		),
 	}
 	if retryMax := s.GetGraphQLMaxRetries(); retryMax > 0 {
 		opts.RetryMax = int(retryMax)
