@@ -68,17 +68,15 @@ def test_sandbox_wrapper_rejects_default_placement_overrides(field: str) -> None
 
 
 @pytest.mark.parametrize("resources", _GPU_RESOURCE_VALUES)
-def test_sandbox_wrapper_rejects_gpu_resources(resources) -> None:
-    with pytest.raises(UsageError, match="CPU and memory resources"):
-        wandb_sandbox.Sandbox(resources=resources)
+def test_sandbox_wrapper_allows_gpu_resources(resources) -> None:
+    wandb_sandbox.Sandbox(resources=resources)
 
 
 @pytest.mark.parametrize("resources", _GPU_RESOURCE_VALUES)
-def test_sandbox_wrapper_rejects_default_gpu_resources(resources) -> None:
+def test_sandbox_wrapper_allows_default_gpu_resources(resources) -> None:
     defaults = cwsandbox.SandboxDefaults(resources=resources)
 
-    with pytest.raises(UsageError, match="CPU and memory resources"):
-        wandb_sandbox.Sandbox(defaults=defaults)
+    wandb_sandbox.Sandbox(defaults=defaults)
 
 
 @pytest.mark.parametrize("network", _UNSUPPORTED_EGRESS_NETWORK_VALUES)
@@ -123,17 +121,15 @@ def test_sandbox_session_rejects_positional_default_placement_overrides(
 
 
 @pytest.mark.parametrize("resources", _GPU_RESOURCE_VALUES)
-def test_sandbox_session_rejects_gpu_resources(resources) -> None:
+def test_sandbox_session_allows_gpu_resources(resources) -> None:
     session = wandb_sandbox.Session()
 
-    with pytest.raises(UsageError, match="CPU and memory resources"):
-        session.sandbox(resources=resources)
+    session.sandbox(resources=resources)
 
 
 @pytest.mark.parametrize("resources", _GPU_RESOURCE_VALUES)
-def test_sandbox_session_rejects_default_gpu_resources(resources) -> None:
-    with pytest.raises(UsageError, match="CPU and memory resources"):
-        wandb_sandbox.Session(defaults={"resources": resources})
+def test_sandbox_session_allows_default_gpu_resources(resources) -> None:
+    wandb_sandbox.Session(defaults={"resources": resources})
 
 
 @pytest.mark.parametrize("network", _UNSUPPORTED_EGRESS_NETWORK_VALUES)
@@ -159,11 +155,10 @@ def test_sandbox_session_function_rejects_placement_overrides(field: str) -> Non
 
 
 @pytest.mark.parametrize("resources", _GPU_RESOURCE_VALUES)
-def test_sandbox_session_function_rejects_gpu_resources(resources) -> None:
+def test_sandbox_session_function_allows_gpu_resources(resources) -> None:
     session = wandb_sandbox.Session()
 
-    with pytest.raises(UsageError, match="CPU and memory resources"):
-        session.function(resources=resources)
+    session.function(resources=resources)
 
 
 @pytest.mark.parametrize("network", _UNSUPPORTED_EGRESS_NETWORK_VALUES)
