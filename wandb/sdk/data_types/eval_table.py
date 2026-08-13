@@ -118,7 +118,7 @@ def _normalize_value(
     return _normalize_non_media_value(val)
 
 
-def _weave_supports_trace_scores(evaluation_logger_cls: Any) -> bool:
+def _weave_supports_trace_scores_param(evaluation_logger_cls: Any) -> bool:
     """Whether the installed weave's EvaluationLogger accepts `trace_scores`.
 
     Added in weave 0.53.4, but detected rather than pinned through
@@ -444,7 +444,7 @@ class EvalTable(Table):
         )
 
         kwargs: dict[str, Any] = {}
-        if _weave_supports_trace_scores(EvaluationLogger):
+        if _weave_supports_trace_scores_param(EvaluationLogger):
             kwargs["trace_scores"] = self._trace_scores
 
         return EvaluationLogger._create_with_meta(

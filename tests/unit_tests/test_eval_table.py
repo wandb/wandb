@@ -1073,12 +1073,12 @@ def _fake_logger_cls(*, supports_trace_scores: bool, calls: list):
     return OldEvaluationLogger
 
 
-def test_weave_supports_trace_scores_detects_signature():
+def test_weave_supports_trace_scores_param_detects_signature():
     calls: list = []
-    assert eval_table_module._weave_supports_trace_scores(
+    assert eval_table_module._weave_supports_trace_scores_param(
         _fake_logger_cls(supports_trace_scores=True, calls=calls)
     )
-    assert not eval_table_module._weave_supports_trace_scores(
+    assert not eval_table_module._weave_supports_trace_scores_param(
         _fake_logger_cls(supports_trace_scores=False, calls=calls)
     )
 
