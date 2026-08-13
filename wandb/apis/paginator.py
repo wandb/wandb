@@ -132,10 +132,7 @@ class Paginator(Iterator[_WandbT], ABC):
 class SizedPaginator(Paginator[_WandbT], Sized, ABC):
     """A Paginator for objects with a known total count."""
 
-    # The response payload type is subclass-specific: raw GraphQL
-    # responses are dicts, while paginators backed by typed requests
-    # narrow this to their response type.
-    last_response: Any | None = None
+    last_response: dict[str, Any] | None = None
 
     @property
     def length(self) -> int | None:

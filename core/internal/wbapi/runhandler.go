@@ -165,12 +165,12 @@ func (h *RunHandler) readRunConsoleLogPage(
 	}
 	// The connection is null for a run that never wrote console output.
 	if conn := run.GetLogLines(); conn != nil {
-		response.HasNextPage = conn.PageInfo.HasNextPage
+		response.EndCursor = derefOrZero(conn.PageInfo.GetEndCursor())
+		response.HasNextPage = conn.PageInfo.GetHasNextPage()
 		for i := range conn.Edges {
 			edge := &conn.Edges[i]
 			response.Lines = append(
 				response.Lines, consoleLogLineFromNode(&edge.Node))
-			response.EndCursor = edge.Cursor
 		}
 	}
 	return readRunConsoleLogsResponse(response)

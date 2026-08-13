@@ -56,21 +56,25 @@ func consoleLogsRespMap(
 	logLineCount int,
 	edges []map[string]any,
 	hasNextPage bool,
+	endCursor string,
 ) map[string]any {
 	return map[string]any{
 		"project": map[string]any{
 			"run": map[string]any{
 				"logLineCount": logLineCount,
 				"logLines": map[string]any{
-					"edges":    edges,
-					"pageInfo": map[string]any{"hasNextPage": hasNextPage},
+					"edges": edges,
+					"pageInfo": map[string]any{
+						"endCursor":   endCursor,
+						"hasNextPage": hasNextPage,
+					},
 				},
 			},
 		},
 	}
 }
 
-func consoleLogEdge(number int, line, cursor string) map[string]any {
+func consoleLogEdge(number int, line string) map[string]any {
 	return map[string]any{
 		"node": map[string]any{
 			"number":    number,
@@ -79,7 +83,6 @@ func consoleLogEdge(number int, line, cursor string) map[string]any {
 			"label":     "",
 			"line":      line,
 		},
-		"cursor": cursor,
 	}
 }
 
@@ -96,9 +99,9 @@ func requestVariables(t *testing.T, client *fakeGQLClient) map[string]any {
 func TestReadRunConsoleLogsTail(t *testing.T) {
 	client := &fakeGQLClient{
 		respMap: consoleLogsRespMap(1512, []map[string]any{
-			consoleLogEdge(1510, "second to last", "c1510"),
-			consoleLogEdge(1511, "last", "c1511"),
-		}, false),
+			consoleLogEdge(1510, "second to last"),
+			consoleLogEdge(1511, "last"),
+		}, false, ""),
 	}
 	handler := wbapi.NewRunHandler(client)
 
@@ -155,9 +158,9 @@ func TestReadRunConsoleLogsNullProject(t *testing.T) {
 func TestReadRunConsoleLogsForwardPage(t *testing.T) {
 	client := &fakeGQLClient{
 		respMap: consoleLogsRespMap(3, []map[string]any{
-			consoleLogEdge(0, "l0", "c0"),
-			consoleLogEdge(1, "l1", "c1"),
-		}, true),
+			consoleLogEdge(0, "l0"),
+			consoleLogEdge(1, "l1"),
+		}, true, "c1"),
 	}
 	handler := wbapi.NewRunHandler(client)
 
@@ -196,8 +199,7 @@ func TestReadRunConsoleLogsFieldsMapped(t *testing.T) {
 				"label":     "rank-1",
 				"line":      "boom",
 			},
-			"cursor": "c7",
-		}}, false),
+		}}, false, "c7"),
 	}
 	handler := wbapi.NewRunHandler(client)
 

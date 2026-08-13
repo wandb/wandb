@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from unittest import mock
 
 import pytest
@@ -92,30 +92,13 @@ def test_line_exposes_all_fields():
     assert line.timestamp == datetime(2026, 1, 1, tzinfo=timezone.utc)
 
 
-def test_len_is_total_line_count():
+def test_console_logs_is_not_sized():
     service_api = mock.MagicMock()
     run = _run(service_api)
-    service_api.send_api_request.return_value = _response(
-        [_line(0, "x")], end_cursor="c0", total_lines=42
-    )
 
-    assert len(run.console_logs()) == 42
-
-
-def test_tail_len_is_tail_size_not_run_total():
-    service_api = mock.MagicMock()
-    run = _run(service_api)
-    service_api.send_api_request.return_value = _response(
-        [_line(1510, "a"), _line(1511, "b")],
-        end_cursor="c1511",
-        total_lines=1512,
-    )
-
-    tail = run.console_logs(last=2)
-
-    # A tail reports the fetched lines (2), not the log's total (1512).
-    assert len(tail) == 2
-    assert [line.number for line in tail] == [1510, 1511]
+    with pytest.raises(TypeError):
+        len(run.console_logs())
+    service_api.send_api_request.assert_not_called()
 
 
 def test_forward_pagination_advances_cursor():
@@ -153,10 +136,9 @@ def test_empty_log():
     service_api.send_api_request.return_value = _response([])
 
     assert list(run.console_logs()) == []
-    assert len(run.console_logs()) == 0
 
 
-def test_tail_larger_than_log_reports_fetched_lines():
+def test_tail_larger_than_log_yields_only_fetched_lines():
     service_api = mock.MagicMock()
     run = _run(service_api)
     service_api.send_api_request.return_value = _response(
@@ -165,10 +147,9 @@ def test_tail_larger_than_log_reports_fetched_lines():
 
     tail = run.console_logs(last=10)
 
-    # The log has fewer lines than requested: len() must report what
-    # iteration returns, not the requested tail size.
-    assert len(tail) == 3
-    assert len(list(tail)) == 3
+    # The log has fewer lines than requested, so iteration yields only
+    # the available lines.
+    assert [line.number for line in tail] == [0, 1, 2]
     service_api.send_api_request.assert_called_once()
 
 
@@ -231,8 +212,6 @@ def test_request_failure_surfaces_when_iterating():
 
     with pytest.raises(WandbApiFailedError, match="not found"):
         list(logs)
-    with pytest.raises(WandbApiFailedError, match="not found"):
-        len(run.console_logs())
 
 
 @pytest.mark.parametrize("kwargs", [{"last": 0}, {"last": -5}, {"per_page": 0}])
@@ -264,7 +243,7 @@ def test_invalid_arguments_raise_before_querying(kwargs):
         ),
         (
             "2026-01-02T03:04:05+02:00",
-            datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone(timedelta(hours=2))),
+            datetime(2026, 1, 2, 1, 4, 5, tzinfo=timezone.utc),
         ),
         # The backend records UTC timestamps without a zone designator.
         (

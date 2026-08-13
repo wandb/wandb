@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from wandb.apis.paginator import SizedPaginator
+from wandb.apis.paginator import Paginator
 from wandb.proto import wandb_api_pb2 as apb
 
 if TYPE_CHECKING:
@@ -63,12 +63,10 @@ class ConsoleLogLine:
     content: str
 
 
-class ConsoleLogs(SizedPaginator[ConsoleLogLine]):
+class ConsoleLogs(Paginator[ConsoleLogLine]):
     """A lazy iterator over a run's console log lines, oldest first.
 
-    Fetched from the W&B backend page by page. `len()` reports the total
-    number of lines in the log, or the number of fetched lines when
-    reading a tail (`last=N`).
+    Fetched from the W&B backend page by page.
     """
 
     last_response: apb.ReadRunConsoleLogsResponse | None
@@ -167,22 +165,6 @@ class ConsoleLogs(SizedPaginator[ConsoleLogLine]):
         if self._total is None:
             self._total = self.last_response.total_lines
 
-    @property
-    def _length(self) -> int | None:
-        """Returns the number of log lines this iterator yields.
-
-        Reading from the beginning reports the total number of lines in
-        the run's console log; a tail (`last=N`) reports the number of
-        fetched lines, matching what iteration returns.
-
-        <!-- lazydoc-ignore -->
-        """
-        if self.last_response is None:
-            return None
-        if self._tail is not None:
-            return len(self.last_response.lines)
-        return self._total
-
     def convert_objects(self) -> list[ConsoleLogLine]:
         """Converts the last fetched response into `ConsoleLogLine`s.
 
@@ -225,4 +207,4 @@ def _parse_timestamp(value: str) -> datetime | None:
     # The backend records timestamps in UTC but omits the zone designator.
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed
+    return parsed.astimezone(timezone.utc)

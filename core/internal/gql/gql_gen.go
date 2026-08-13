@@ -1211,18 +1211,12 @@ func (v *RunConsoleLogPageProjectRunLogLinesLogLineConnection) GetPageInfo() Run
 
 // RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdge includes the requested fields of the GraphQL type LogLineEdge.
 type RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdge struct {
-	Node   RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine `json:"node"`
-	Cursor string                                                                          `json:"cursor"`
+	Node RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine `json:"node"`
 }
 
 // GetNode returns RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdge.Node, and is useful for accessing the field via an interface.
 func (v *RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdge) GetNode() RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine {
 	return v.Node
-}
-
-// GetCursor returns RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdge.Cursor, and is useful for accessing the field via an interface.
-func (v *RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdge) GetCursor() string {
-	return v.Cursor
 }
 
 // RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine includes the requested fields of the GraphQL type LogLine.
@@ -1261,7 +1255,13 @@ func (v *RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNod
 
 // RunConsoleLogPageProjectRunLogLinesLogLineConnectionPageInfo includes the requested fields of the GraphQL type PageInfo.
 type RunConsoleLogPageProjectRunLogLinesLogLineConnectionPageInfo struct {
-	HasNextPage bool `json:"hasNextPage"`
+	EndCursor   *string `json:"endCursor"`
+	HasNextPage bool    `json:"hasNextPage"`
+}
+
+// GetEndCursor returns RunConsoleLogPageProjectRunLogLinesLogLineConnectionPageInfo.EndCursor, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogPageProjectRunLogLinesLogLineConnectionPageInfo) GetEndCursor() *string {
+	return v.EndCursor
 }
 
 // GetHasNextPage returns RunConsoleLogPageProjectRunLogLinesLogLineConnectionPageInfo.HasNextPage, and is useful for accessing the field via an interface.
@@ -1311,18 +1311,12 @@ func (v *RunConsoleLogTailProjectRunLogLinesLogLineConnection) GetEdges() []RunC
 
 // RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdge includes the requested fields of the GraphQL type LogLineEdge.
 type RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdge struct {
-	Node   RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine `json:"node"`
-	Cursor string                                                                          `json:"cursor"`
+	Node RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine `json:"node"`
 }
 
 // GetNode returns RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdge.Node, and is useful for accessing the field via an interface.
 func (v *RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdge) GetNode() RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine {
 	return v.Node
-}
-
-// GetCursor returns RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdge.Cursor, and is useful for accessing the field via an interface.
-func (v *RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdge) GetCursor() string {
-	return v.Cursor
 }
 
 // RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine includes the requested fields of the GraphQL type LogLine.
@@ -3698,9 +3692,9 @@ query RunConsoleLogPage ($entity: String!, $project: String!, $runName: String!,
 						label
 						line
 					}
-					cursor
 				}
 				pageInfo {
+					endCursor
 					hasNextPage
 				}
 			}
@@ -3763,7 +3757,6 @@ query RunConsoleLogTail ($entity: String!, $project: String!, $runName: String!,
 						label
 						line
 					}
-					cursor
 				}
 			}
 		}

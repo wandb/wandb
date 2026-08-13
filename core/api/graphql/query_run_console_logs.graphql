@@ -22,7 +22,6 @@ query RunConsoleLogTail(
                         label
                         line
                     }
-                    cursor
                 }
             }
         }
@@ -58,9 +57,9 @@ query RunConsoleLogPage(
                         label
                         line
                     }
-                    cursor
                 }
                 pageInfo {
+                    endCursor
                     hasNextPage
                 }
             }
