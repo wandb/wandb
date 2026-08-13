@@ -30,8 +30,8 @@ func TestDo(t *testing.T) {
 		ApiKey:  &wrapperspb.StringValue{Value: "test_api_key"},
 	})
 	client := newClient(t, settings, api.ClientOptions{
-		ExtraHeaders: map[string]string{
-			"ClientHeader": "xyz",
+		ExtraHeaders: http.Header{
+			"ClientHeader": []string{"xyz"},
 		},
 	})
 
@@ -116,15 +116,15 @@ func TestDo_ExtraHeaders(t *testing.T) {
 	testCases := []struct {
 		name           string
 		path           string
-		extraHeaders   map[string]string
+		extraHeaders   http.Header
 		requestHeaders map[string]string
 		wantHeaders    map[string]string
 	}{
 		{
 			name: "ToWandb",
 			path: "/wandb/xyz",
-			extraHeaders: map[string]string{
-				"X-EXTRA-HEADER": "xyz",
+			extraHeaders: http.Header{
+				"X-EXTRA-HEADER": []string{"xyz"},
 			},
 			wantHeaders: map[string]string{
 				"Authorization":  "Basic YXBpOnRlc3RfYXBpX2tleQ==",
@@ -135,8 +135,8 @@ func TestDo_ExtraHeaders(t *testing.T) {
 		{
 			name: "NotToWandb",
 			path: "/notwandb/xyz",
-			extraHeaders: map[string]string{
-				"X-EXTRA-HEADER": "xyz",
+			extraHeaders: http.Header{
+				"X-EXTRA-HEADER": []string{"xyz"},
 			},
 			wantHeaders: map[string]string{
 				"Authorization":  "", // not set
@@ -227,11 +227,14 @@ func TestNewClientWithProxy(t *testing.T) {
 		RetryWaitMin:    1 * time.Second,
 		RetryWaitMax:    5 * time.Second,
 		NonRetryTimeout: api.DefaultNonRetryTimeout,
-		ExtraHeaders: map[string]string{
-			"Proxy-Authorization": "Basic dXNlcjpwYXNz",
+		ExtraHeaders: http.Header{
+			"Proxy-Authorization": []string{"Basic dXNlcjpwYXNz"},
 		},
 		Proxy: func(req *http.Request) (*url.URL, error) {
 			return proxyParsedURL, nil
+		},
+		ProxyConnectHeader: http.Header{
+			"Proxy-Authorization": []string{"Basic dXNlcjpwYXNz"},
 		},
 
 		CredentialProvider: credentialProvider,

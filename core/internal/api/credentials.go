@@ -79,14 +79,17 @@ func NewCredentialProvider(
 		// The exchange must not use a credential provider: supplying its
 		// credentials is what it is being used to make possible.
 		exchangeClient := NewClient(ClientOptions{
-			BaseURL:            baseURL,
-			RetryMax:           TokenExchangeRetryMax,
-			RetryWaitMin:       tokenExchangeRetryWaitMin,
-			RetryWaitMax:       tokenExchangeRetryWaitMax,
-			RetryPolicy:        TokenExchangeRetryPolicy,
-			NonRetryTimeout:    tokenExchangeAttemptTimeout,
-			ExtraHeaders:       s.GetExtraHTTPHeaders(),
-			Proxy:              clients.ProxyFn(s.GetHTTPProxy(), s.GetHTTPSProxy()),
+			BaseURL:         baseURL,
+			RetryMax:        TokenExchangeRetryMax,
+			RetryWaitMin:    tokenExchangeRetryWaitMin,
+			RetryWaitMax:    tokenExchangeRetryWaitMax,
+			RetryPolicy:     TokenExchangeRetryPolicy,
+			NonRetryTimeout: tokenExchangeAttemptTimeout,
+			ExtraHeaders:    s.GetExtraHTTPHeaders(),
+
+			Proxy:              s.GetProxyFn(),
+			ProxyConnectHeader: s.GetProxyConnectHeader(),
+
 			InsecureDisableSSL: s.IsInsecureDisableSSL(),
 			CredentialProvider: NoopCredentialProvider{},
 			Logger:             logger,

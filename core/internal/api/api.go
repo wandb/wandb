@@ -4,6 +4,7 @@ package api
 import (
 	"crypto/tls"
 	"log/slog"
+	"maps"
 	"net/http"
 	"net/url"
 	"time"
@@ -87,7 +88,7 @@ type ClientOptions struct {
 	// of the request URL.
 	//
 	// Request headers take precedence.
-	ExtraHeaders map[string]string
+	ExtraHeaders http.Header
 
 	// Allows the client to peek at the network traffic, can perform any action
 	// on the request and response. Need to make sure that the response body is
@@ -106,6 +107,13 @@ type ClientOptions struct {
 	//
 	// If Proxy is nil or returns a nil *URL, no proxy will be used.
 	Proxy func(*http.Request) (*url.URL, error)
+
+	// ProxyConnectHeader configures headers sent to proxies during CONNECT
+	// requests.
+	//
+	// This is often set to a Proxy-Authorization header, which is used to
+	// authenticate with a proxy (separately from the target server).
+	ProxyConnectHeader http.Header
 
 	// Whether to disable SSL certificate verification.
 	//
@@ -153,19 +161,9 @@ func NewClient(opts ClientOptions) RetryableClient {
 		slog.LevelDebug,
 	)
 
-	// Set the Proxy function on the HTTP client.
 	transport := &http.Transport{
-		Proxy: opts.Proxy,
-	}
-	// Set the "Proxy-Authorization" header for the CONNECT requests
-	// to the proxy server if the header is present in the extra headers.
-	//
-	// It is necessary if the proxy server uses TLS for the connection
-	// and requires authentication using a scheme other than "Basic".
-	if header := opts.ExtraHeaders["Proxy-Authorization"]; header != "" {
-		transport.ProxyConnectHeader = http.Header{
-			"Proxy-Authorization": []string{header},
-		}
+		Proxy:              opts.Proxy,
+		ProxyConnectHeader: opts.ProxyConnectHeader,
 	}
 
 	if opts.InsecureDisableSSL {
@@ -176,9 +174,7 @@ func NewClient(opts ClientOptions) RetryableClient {
 
 	extraHeaders := make(http.Header, len(opts.ExtraHeaders)+1)
 	extraHeaders.Set("User-Agent", "wandb-core")
-	for header, value := range opts.ExtraHeaders {
-		extraHeaders.Set(header, value)
-	}
+	maps.Copy(extraHeaders, opts.ExtraHeaders)
 
 	wandbOnlyLayers := httplayers.LimitTo(opts.BaseURL, httplayers.Concat(
 		opts.CredentialProvider,

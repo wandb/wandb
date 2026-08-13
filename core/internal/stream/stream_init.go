@@ -5,6 +5,7 @@ package stream
 import (
 	"fmt"
 	"maps"
+	"net/http"
 	"net/url"
 
 	"github.com/Khan/genqlient/graphql"
@@ -74,20 +75,20 @@ func NewGraphQLClient(
 		return nil
 	}
 
-	extraHeaders := make(map[string]string)
+	extraHeaders := http.Header{}
 	maps.Copy(extraHeaders, s.GetExtraHTTPHeaders())
 
 	// This header is used to indicate to the backend that the run is in shared
 	// mode to prevent a race condition when two UpsertRun requests are made
 	// simultaneously for the same run ID in shared mode.
 	if s.IsSharedMode() {
-		extraHeaders["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
-		extraHeaders["X-WANDB-CLIENT-ID"] = string(clientID)
+		extraHeaders.Set("X-WANDB-USE-ASYNC-FILESTREAM", "true")
+		extraHeaders.Set("X-WANDB-CLIENT-ID", string(clientID))
 	}
 	// When enabled, this header instructs the backend to compute the derived summary
 	// using history updates, instead of relying on the SDK to calculate and send it.
 	if s.IsEnableServerSideDerivedSummary() {
-		extraHeaders["X-WANDB-SERVER-SIDE-DERIVED-SUMMARY"] = "true"
+		extraHeaders.Set("X-WANDB-SERVER-SIDE-DERIVED-SUMMARY", "true")
 	}
 
 	return api.NewGQLClient(
@@ -115,14 +116,14 @@ func NewFileStream(
 		return nil
 	}
 
-	fileStreamHeaders := map[string]string{}
+	fileStreamHeaders := http.Header{}
 	maps.Copy(fileStreamHeaders, s.GetExtraHTTPHeaders())
 	if s.IsSharedMode() {
-		fileStreamHeaders["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
-		fileStreamHeaders["X-WANDB-ASYNC-CLIENT-ID"] = string(clientID)
+		fileStreamHeaders.Set("X-WANDB-USE-ASYNC-FILESTREAM", "true")
+		fileStreamHeaders.Set("X-WANDB-ASYNC-CLIENT-ID", string(clientID))
 	}
 	if s.IsEnableServerSideDerivedSummary() {
-		fileStreamHeaders["X-WANDB-SERVER-SIDE-DERIVED-SUMMARY"] = "true"
+		fileStreamHeaders.Set("X-WANDB-SERVER-SIDE-DERIVED-SUMMARY", "true")
 	}
 
 	opts := api.ClientOptions{
@@ -134,10 +135,10 @@ func NewFileStream(
 		NonRetryTimeout: filestream.DefaultNonRetryTimeout,
 		ExtraHeaders:    fileStreamHeaders,
 		NetworkPeeker:   peeker,
-		Proxy: clients.ProxyFn(
-			s.GetHTTPProxy(),
-			s.GetHTTPSProxy(),
-		),
+
+		Proxy:              s.GetProxyFn(),
+		ProxyConnectHeader: s.GetProxyConnectHeader(),
+
 		InsecureDisableSSL: s.IsInsecureDisableSSL(),
 		CredentialProvider: credentialProvider,
 		Logger:             logger.Logger,
@@ -190,10 +191,8 @@ func NewFileTransferManager(
 		RetryWaitMax:    filetransfer.DefaultRetryWaitMax,
 		NonRetryTimeout: filetransfer.DefaultNonRetryTimeout,
 
-		Proxy: clients.ProxyFn(
-			s.GetHTTPProxy(),
-			s.GetHTTPSProxy(),
-		),
+		Proxy:              s.GetProxyFn(),
+		ProxyConnectHeader: s.GetProxyConnectHeader(),
 
 		InsecureDisableSSL: s.IsInsecureDisableSSL(),
 
