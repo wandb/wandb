@@ -159,6 +159,41 @@ func TestHistoryStepTracker_MaterializesRecordStep(t *testing.T) {
 	}, history.Item)
 }
 
+func TestHistoryStepTracker_RewritesRecordStepBelowStartingStep(t *testing.T) {
+	x := makeHistoryStepTracker(t, false /*shared*/, false /*serverSideDerivedSummary*/)
+
+	history := &spb.HistoryRecord{
+		Item: []*spb.HistoryItem{{
+			NestedKey: []string{"loss"},
+			ValueJson: "1.23",
+		}},
+		Step: &spb.HistoryStep{Num: 0},
+	}
+
+	x.Tracker.Process(history, 2)
+
+	assert.Equal(t, int64(2), history.GetStep().GetNum())
+	assert.Equal(t, []*spb.HistoryItem{
+		{NestedKey: []string{"loss"}, ValueJson: "1.23"},
+		{NestedKey: []string{"_step"}, ValueJson: "2"},
+	}, history.Item)
+}
+
+func TestHistoryStepTracker_RewritesRecordStepBelowRunningStep(t *testing.T) {
+	x := makeHistoryStepTracker(t, false /*shared*/, false /*serverSideDerivedSummary*/)
+
+	first := &spb.HistoryRecord{Step: &spb.HistoryStep{Num: 5}}
+	x.Tracker.Process(first, 0)
+
+	history := &spb.HistoryRecord{Step: &spb.HistoryStep{Num: 1}}
+	x.Tracker.Process(history, 0)
+
+	assert.Equal(t, int64(6), history.GetStep().GetNum())
+	assert.Equal(t, []*spb.HistoryItem{
+		{NestedKey: []string{"_step"}, ValueJson: "6"},
+	}, history.Item)
+}
+
 func TestHistoryStepTracker_DerivesSummaryStep(t *testing.T) {
 	x := makeHistoryStepTracker(t, false /*shared*/, false /*serverSideDerivedSummary*/)
 
