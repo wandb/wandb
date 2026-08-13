@@ -75,32 +75,11 @@ func (s *RunOverviewSidebar) Toggle() {
 	s.animState.Toggle()
 }
 
-// Update handles animation and input updates for the sidebar.
+// Update advances the sidebar's expand/collapse animation.
+//
+// Key input never reaches this method: all sidebar navigation flows through
+// the owning view's FocusManager and key bindings.
 func (s *RunOverviewSidebar) Update(msg tea.Msg) (*RunOverviewSidebar, tea.Cmd) {
-	// Handle key input only when expanded.
-	// TODO: hook up with keybindings.
-	if s.animState.IsExpanded() {
-		if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
-			switch keyMsg.Code {
-			case tea.KeyUp:
-				s.navigateUp()
-			case tea.KeyDown:
-				s.navigateDown()
-			case tea.KeyTab:
-				if keyMsg.Mod == tea.ModShift {
-					s.navigateSection(-1)
-				} else {
-					s.navigateSection(1)
-				}
-			case tea.KeyLeft:
-				s.navigatePageUp()
-			case tea.KeyRight:
-				s.navigatePageDown()
-			}
-		}
-	}
-
-	// Handle animation.
 	if s.animState.IsAnimating() {
 		if complete := s.animState.Update(time.Now()); !complete {
 			cmd := s.animationCmd()
