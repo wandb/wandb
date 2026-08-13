@@ -37,7 +37,7 @@ class ArtifactManifestV1(ArtifactManifest):
     def from_manifest_json(
         cls,
         manifest_json: dict[str, Any],
-        digest_algorithm: ArtifactDigestAlgorithm | None = None,
+        digest_algorithm: ArtifactDigestAlgorithm = ArtifactDigestAlgorithm.MANIFEST_MD5,
     ) -> ArtifactManifestV1:
         data = ArtifactManifestV1Data(**manifest_json)
 
