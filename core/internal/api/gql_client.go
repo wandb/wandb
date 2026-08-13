@@ -51,7 +51,7 @@ func NewGQLClient(
 		Logger:             logger,
 		PreRetryLayers: httplayers.Concat(
 			NetworkPeeker(peeker),
-			httplayers.ExtraHeaders(graphqlHeaders),
+			httplayers.DefaultHeaders(graphqlHeaders),
 			httplayers.LimitTo(baseURL, credentialProvider),
 		),
 	}

@@ -86,7 +86,7 @@ func NewCredentialProvider(
 			InsecureDisableSSL: s.IsInsecureDisableSSL(),
 			Logger:             logger,
 
-			PreRetryLayers: httplayers.ExtraHeaders(s.GetExtraHTTPHeaders()),
+			PreRetryLayers: httplayers.DefaultHeaders(s.GetExtraHTTPHeaders()),
 		})
 
 		return NewOAuth2CredentialProvider(

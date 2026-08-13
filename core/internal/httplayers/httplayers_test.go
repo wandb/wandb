@@ -25,12 +25,12 @@ func TestConcat(t *testing.T) {
 
 	wrapper := httplayers.Concat(
 		nil, // test that nils are safely ignored
-		httplayers.ExtraHeaders(http.Header{
+		httplayers.DefaultHeaders(http.Header{
 			http.CanonicalHeaderKey("x-test1"): []string{"inner1"},
 			http.CanonicalHeaderKey("x-test2"): []string{"inner2"},
 		}),
 		nil,
-		httplayers.ExtraHeaders(http.Header{
+		httplayers.DefaultHeaders(http.Header{
 			http.CanonicalHeaderKey("x-test2"): []string{"outer2"},
 			http.CanonicalHeaderKey("x-test3"): []string{"outer3"},
 		}),
