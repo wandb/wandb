@@ -1102,13 +1102,9 @@ class Artifact:
         """The digest algorithm used to compute the artifact's digest."""
         return self._digest_algorithm
 
-    def _digest_algorithm_is_xxh128(self) -> bool:
-        """Check if the artifact digest algorithm is xxh128."""
-        return self.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128
-
     def _calculate_file_digest(self, file_path: StrPath) -> str:
         """Calculate the digest of a file using the artifact digest algorithm."""
-        if self._digest_algorithm_is_xxh128():
+        if self.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
             return xxh128_file_b64(file_path)
         return md5_file_b64(file_path)
 
@@ -1854,7 +1850,7 @@ class Artifact:
         # Tag only non-MD5 entries; untagged entries are interpreted as MD5.
         extra = (
             {DIGEST_ALGORITHM_EXTRA_KEY: DIGEST_ALGORITHM_TO_STR[self.digest_algorithm]}
-            if self._digest_algorithm_is_xxh128()
+            if self.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128
             else {}
         )
 
@@ -2341,12 +2337,8 @@ class Artifact:
             if entry.ref is None:
                 if entry_digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
                     file_digest = xxh128_file_b64(validate_fspath(root, entry.path))
-                elif entry_digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_MD5:
-                    file_digest = md5_file_b64(validate_fspath(root, entry.path))
                 else:
-                    raise ValueError(
-                        f"Invalid digest algorithm: {entry_digest_algorithm}"
-                    )
+                    file_digest = md5_file_b64(validate_fspath(root, entry.path))
                 if file_digest != entry.digest:
                     raise ValueError(f"Digest mismatch for file: {entry.path}")
             else:

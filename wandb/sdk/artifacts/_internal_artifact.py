@@ -47,7 +47,7 @@ class InternalArtifact(Artifact):
         metadata: dict[str, Any] | None = None,
         incremental: bool = False,
         use_as: str | None = None,
-        digest_algorithm: ArtifactDigestAlgorithm | None = None,
+        digest_algorithm: ArtifactDigestAlgorithm = ArtifactDigestAlgorithm.MANIFEST_MD5,
     ) -> None:
         sanitized_name = sanitize_artifact_name(name)
         super().__init__(
@@ -57,13 +57,8 @@ class InternalArtifact(Artifact):
 
         if self._type == "job":
             # Match go-core JobBuilder / ArtifactBuilder, which always uses MD5.
-            digest_algorithm_override = ArtifactDigestAlgorithm.MANIFEST_MD5
-        elif digest_algorithm is not None:
-            digest_algorithm_override = digest_algorithm
-        else:
-            digest_algorithm_override = None
+            digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_MD5
 
-        if digest_algorithm_override is not None:
-            self._digest_algorithm = digest_algorithm_override
-            if self.manifest is not None:
-                self.manifest.digest_algorithm = digest_algorithm_override
+        self._digest_algorithm = digest_algorithm
+        if self.manifest is not None:
+            self.manifest.digest_algorithm = digest_algorithm

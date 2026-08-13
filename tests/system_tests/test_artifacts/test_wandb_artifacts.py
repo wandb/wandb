@@ -1693,7 +1693,9 @@ def test_cache_cleanup_allows_upload(user, artifact):
         artifact.wait()
 
     manifest_entry = artifact.manifest.entries["test-file"]
-    _, found, _ = cache.check_md5_obj_path(manifest_entry.digest, 2**20)
+    _, found, _ = cache.check_digest_obj_path(
+        manifest_entry.digest, 2**20, algorithm=artifact.digest_algorithm
+    )
 
     # Now the file should be in the cache.
     # Even though this works in production, the test often fails. I don't know why :(.

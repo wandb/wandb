@@ -38,7 +38,7 @@ class ArtifactManifest(ArtifactsBase, ABC):
     def from_manifest_json(
         cls,
         manifest_json: dict[str, Any],
-        digest_algorithm: ArtifactDigestAlgorithm | None = None,
+        digest_algorithm: ArtifactDigestAlgorithm = ArtifactDigestAlgorithm.MANIFEST_MD5,
     ) -> ArtifactManifest:
         if (version := manifest_json.get("version")) is None:
             raise ValueError("Invalid manifest format. Must contain version field.")
