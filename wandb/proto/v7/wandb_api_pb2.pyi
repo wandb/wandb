@@ -104,16 +104,53 @@ class ServerApiCleanupRequest(_message.Message):
     def __init__(self, api_id: _Optional[str] = ...) -> None: ...
 
 class FeaturesRequest(_message.Message):
+    __slots__ = ("server", "org")
+    SERVER_FIELD_NUMBER: _ClassVar[int]
+    ORG_FIELD_NUMBER: _ClassVar[int]
+    server: ServerFeaturesRequest
+    org: OrgFeaturesRequest
+    def __init__(self, server: _Optional[_Union[ServerFeaturesRequest, _Mapping]] = ..., org: _Optional[_Union[OrgFeaturesRequest, _Mapping]] = ...) -> None: ...
+
+class FeaturesResponse(_message.Message):
+    __slots__ = ("server", "org")
+    SERVER_FIELD_NUMBER: _ClassVar[int]
+    ORG_FIELD_NUMBER: _ClassVar[int]
+    server: ServerFeaturesResponse
+    org: OrgFeaturesResponse
+    def __init__(self, server: _Optional[_Union[ServerFeaturesResponse, _Mapping]] = ..., org: _Optional[_Union[OrgFeaturesResponse, _Mapping]] = ...) -> None: ...
+
+class ServerFeaturesRequest(_message.Message):
     __slots__ = ("features",)
     FEATURES_FIELD_NUMBER: _ClassVar[int]
     features: _containers.RepeatedScalarFieldContainer[_wandb_internal_pb2.ServerFeature]
     def __init__(self, features: _Optional[_Iterable[_Union[_wandb_internal_pb2.ServerFeature, str]]] = ...) -> None: ...
 
-class FeaturesResponse(_message.Message):
+class ServerFeaturesResponse(_message.Message):
     __slots__ = ("enabled",)
     ENABLED_FIELD_NUMBER: _ClassVar[int]
     enabled: _containers.RepeatedScalarFieldContainer[_wandb_internal_pb2.ServerFeature]
     def __init__(self, enabled: _Optional[_Iterable[_Union[_wandb_internal_pb2.ServerFeature, str]]] = ...) -> None: ...
+
+class OrgFeaturesRequest(_message.Message):
+    __slots__ = ("org", "features")
+    ORG_FIELD_NUMBER: _ClassVar[int]
+    FEATURES_FIELD_NUMBER: _ClassVar[int]
+    org: str
+    features: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, org: _Optional[str] = ..., features: _Optional[_Iterable[str]] = ...) -> None: ...
+
+class OrgFeaturesResponse(_message.Message):
+    __slots__ = ("features",)
+    class FeaturesEntry(_message.Message):
+        __slots__ = ("key", "value")
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: bool
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[bool] = ...) -> None: ...
+    FEATURES_FIELD_NUMBER: _ClassVar[int]
+    features: _containers.ScalarMap[str, bool]
+    def __init__(self, features: _Optional[_Mapping[str, bool]] = ...) -> None: ...
 
 class GraphQLRequest(_message.Message):
     __slots__ = ("query", "variables_json", "omit_variables", "omit_fragments", "omit_fields", "rename_fields")

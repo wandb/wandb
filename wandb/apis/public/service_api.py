@@ -17,6 +17,8 @@ from wandb.proto.wandb_api_pb2 import (
     FeaturesRequest,
     GetAccessTokenRequest,
     GraphQLRequest,
+    OrgFeaturesRequest,
+    ServerFeaturesRequest,
 )
 from wandb.sdk import wandb_settings, wandb_setup
 from wandb.sdk.lib.service.service_connection import (
@@ -278,6 +280,24 @@ class ServiceApi:
         request.api_id = session.api_id
         session.connection.api_publish(request)
 
+    def org_feature_flags(
+        self,
+        org: str,
+        *features: str,
+        timeout: float = 10,
+    ) -> dict[str, bool]:
+        """Return requested org feature flags and legacy ramps that exist."""
+        if not features:
+            return {}
+
+        req = ApiRequest(
+            features_request=FeaturesRequest(
+                org=OrgFeaturesRequest(org=org, features=features)
+            )
+        )
+        resp = self.send_api_request(req, timeout=timeout)
+        return dict(resp.features_response.org.features)
+
     def feature_enabled(
         self,
         feature: pb.ServerFeature | str,
@@ -307,7 +327,11 @@ class ServiceApi:
                 # SERVER_FEATURE_UNSPECIFIED is always disabled.
                 return False
 
-        req = ApiRequest(features_request=FeaturesRequest(features=[feature]))
+        req = ApiRequest(
+            features_request=FeaturesRequest(
+                server=ServerFeaturesRequest(features=[feature])
+            )
+        )
 
         try:
             resp = self.send_api_request(req, timeout=timeout)
@@ -316,4 +340,4 @@ class ServiceApi:
             _logger.exception("Failed to load feature %s", feature)
             return False
 
-        return feature in resp.features_response.enabled
+        return feature in resp.features_response.server.enabled
