@@ -1129,6 +1129,9 @@ class SendManager:
 
         if history.HasField("step"):
             step = history.step.num
+            self._initialize_auto_step()
+            if step < self._next_auto_step:
+                step = self._next_auto_step
             history_dict["_step"] = step
             self._advance_auto_step_past(step)
             return
