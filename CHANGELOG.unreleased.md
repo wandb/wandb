@@ -14,6 +14,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
+### Added
+
+- LEET line charts now show a dotted grid by default. Choose horizontal guides or turn the grid off with `chart_grid` in `wandb leet config`. (@dmitryduev in https://github.com/wandb/wandb/pull/12463)
+
 ### Changed
 
 - `Api.{create,update}_automation()` now raise `UnsupportedError` instead of `CommError` when the server doesn't support the given automation (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12194)
