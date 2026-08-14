@@ -209,10 +209,15 @@ func (s *RunOverviewSidebar) Sync() {
 	}
 }
 
-// UpdateDimensions updates the sidebar dimensions based on terminal width
-// and the visibility of the sidebar on the opposite side.
-func (s *RunOverviewSidebar) UpdateDimensions(terminalWidth int, oppositeSidebarVisible bool) {
-	s.animState.SetExpanded(expandedSidebarWidth(terminalWidth, oppositeSidebarVisible))
+// UpdateDimensions updates the sidebar dimensions based on terminal width,
+// the visibility of the sidebar on the opposite side, and an optional
+// user-dragged width fraction (0 = default).
+func (s *RunOverviewSidebar) UpdateDimensions(
+	terminalWidth int,
+	oppositeSidebarVisible bool,
+	widthFrac float64,
+) {
+	s.animState.SetExpanded(expandedSidebarWidth(terminalWidth, oppositeSidebarVisible, widthFrac))
 }
 
 // Width returns the current width of the sidebar.

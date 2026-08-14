@@ -509,3 +509,36 @@ func TestRun_EscBeforeSeedStopsDataFromStealingFocus(t *testing.T) {
 	require.False(t, r.HasPaneFocus(),
 		"data after an explicit unfocus must not re-seed focus")
 }
+
+// Regression: individually legal pane-height overrides (media 0.5 + logs 0.5)
+// used to overflow the terminal vertically, pushing the status bar off-screen
+// and desyncing mouse hit-testing from the rendered rows.
+func TestRun_StackOverridesNeverOverflowFrame(t *testing.T) {
+	r, _ := newTestRun(t, 120, 50, func(c *leet.ConfigManager) {
+		_ = c.SetMediaVisible(true)
+		_ = c.SetConsoleLogsVisible(true)
+		_ = c.SetLeftSidebarVisible(false)
+		_ = c.SetRightSidebarVisible(false)
+		require.NoError(t, c.SetRunLayout(leet.LayoutOverrides{Media: 0.5, Logs: 0.5}))
+	})
+	r.TestHandleRecordMsg(leet.RunMsg{ID: "abc123", Project: "test-project"})
+	r.TestHandleRecordMsg(leet.HistoryMsg{
+		Metrics: map[string]leet.MetricData{
+			"loss": {X: []float64{1, 2}, Y: []float64{0.5, 0.4}},
+		},
+	})
+
+	// The short terminal exercises the interplay with the panes' own
+	// minimum heights, which re-inflate a naive proportional fit.
+	for _, height := range []int{50, 24} {
+		r.Update(tea.WindowSizeMsg{Width: 120, Height: height})
+
+		lines := strings.Split(r.View().Content, "\n")
+		require.LessOrEqual(t, len(lines), height,
+			"the rendered frame must never be taller than the terminal (h=%d)", height)
+
+		metrics, _, _ := r.TestStackHeights()
+		require.GreaterOrEqual(t, metrics, 5, // minFlexMetricsHeight
+			"overridden fixed panes must not squeeze the metrics section out (h=%d)", height)
+	}
+}
