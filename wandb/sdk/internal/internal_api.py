@@ -3235,7 +3235,7 @@ class Api:
         distributed_id: str | None = None,
         is_user_created: bool | None = False,
         history_step: int | None = None,
-        digest_algorithm: ArtifactDigestAlgorithm | None = None,
+        digest_algorithm: ArtifactDigestAlgorithm = ArtifactDigestAlgorithm.MANIFEST_MD5,
     ) -> tuple[dict, dict]:
         query_template = self._get_create_artifact_mutation(
             history_step,
@@ -3259,8 +3259,7 @@ class Api:
                 "clientID": client_id,
                 "sequenceClientID": sequence_client_id,
                 "digest": digest,
-                "digestAlgorithm": digest_algorithm
-                or ArtifactDigestAlgorithm.MANIFEST_MD5,
+                "digestAlgorithm": digest_algorithm,
                 "description": description,
                 "aliases": list(aliases or []),
                 "tags": list(tags or []),
