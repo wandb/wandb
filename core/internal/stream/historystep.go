@@ -55,11 +55,9 @@ func (t *HistoryStepTracker) Process(
 
 // ensureHistoryStep adds _step to history rows that do not already have it.
 //
-// Existing _step values are preserved unless they fall behind the tracker's
-// running step counter, which would break the monotonic ordering the
-// filestream requires. In this case the value is clamped to the running step
-// counter, the original user-provided step is dropped, and a warning is
-// logged.
+// Existing _step values are preserved unless they fall behind the running step
+// counter, breaking the monotonic ordering. In this case the user-provided step
+// is replaced with the running step counter, and a warning is logged.
 func (t *HistoryStepTracker) ensureHistoryStep(
 	record *spb.HistoryRecord,
 	startingStep int64,
@@ -203,8 +201,6 @@ type stepKeyed interface {
 	GetNestedKey() []string
 }
 
-// isStepItem reports whether item is the reserved "_step" key, whether it is
-// written as a flat key or a single-element nested key.
 func isStepItem(item stepKeyed) bool {
 	if item.GetKey() == "_step" {
 		return true
