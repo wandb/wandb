@@ -14,6 +14,7 @@ import (
 	"github.com/zeebo/xxh3"
 
 	"github.com/wandb/wandb/core/internal/fileutil"
+	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/hashencode"
 )
 
@@ -29,19 +30,19 @@ type Cache interface {
 	AddFileAndCheckDigest(path string, digest string) error
 	RestoreTo(entry ManifestEntry, dst string) bool
 	Write(src io.Reader) (string, error)
-	WithDigestAlgorithm(algorithm string) Cache
+	WithDigestAlgorithm(algorithm gql.ArtifactDigestAlgorithm) Cache
 }
 
 type FileCache struct {
 	root            string
 	fileSemaphore   chan struct{}
-	digestAlgorithm string
+	digestAlgorithm gql.ArtifactDigestAlgorithm
 }
 
 // HashOnlyCache never writes data but still computes and compares hashes.
 type HashOnlyCache struct {
 	fileSemaphore   chan struct{}
-	digestAlgorithm string
+	digestAlgorithm gql.ArtifactDigestAlgorithm
 }
 
 func NewFileCache(cacheDir string) Cache {
@@ -60,7 +61,7 @@ func NewHashOnlyCache() Cache {
 // WithDigestAlgorithm returns a new cache that uses the given algorithm for
 // hashing and cache-path lookups. The returned cache shares the same root
 // directory and concurrency semaphore as the original.
-func (c *FileCache) WithDigestAlgorithm(algorithm string) Cache {
+func (c *FileCache) WithDigestAlgorithm(algorithm gql.ArtifactDigestAlgorithm) Cache {
 	return &FileCache{
 		root:            c.root,
 		fileSemaphore:   c.fileSemaphore,
@@ -68,7 +69,10 @@ func (c *FileCache) WithDigestAlgorithm(algorithm string) Cache {
 	}
 }
 
-func (c *HashOnlyCache) WithDigestAlgorithm(algorithm string) Cache {
+// WithDigestAlgorithm returns a new cache that uses the given algorithm for
+// hashing and cache-path lookups. The returned cache shares the same root
+// directory and concurrency semaphore as the original.
+func (c *HashOnlyCache) WithDigestAlgorithm(algorithm gql.ArtifactDigestAlgorithm) Cache {
 	return &HashOnlyCache{
 		fileSemaphore:   c.fileSemaphore,
 		digestAlgorithm: algorithm,
@@ -157,15 +161,15 @@ func addFileAndCheckDigest(c Cache, path, digest string) error {
 	return nil
 }
 
-// checkFileExists is a helper function that checks if a file exists at the given path and
+// fileMatchesDigest is a helper function that checks if a file exists at the given path and
 // has the expected digest.
-func checkFileExists(digestAlgorithm, path, digest string) (error, bool) {
-	if digestAlgorithm == "MANIFEST_XXH128" {
+func fileMatchesDigest(digestAlgorithm gql.ArtifactDigestAlgorithm, path, digest string) (bool, error) {
+	if digestAlgorithm == gql.ArtifactDigestAlgorithmManifestXxh128 {
 		b64xxh128, err := hashencode.ComputeFileB64XXH128(path)
-		return err, digest == b64xxh128
+		return digest == b64xxh128, err
 	}
 	b64md5, err := hashencode.ComputeFileB64MD5(path)
-	return err, digest == b64md5
+	return digest == b64md5, err
 }
 
 // RestoreTo tries to restore the file referenced in a manifest entry to the given destination.
@@ -185,7 +189,7 @@ func (c *FileCache) RestoreTo(entry ManifestEntry, dst string) bool {
 	if entry.Ref != nil {
 		cachePath = c.etagPath(*entry.Ref, entry.Digest)
 	} else {
-		err, exists := checkFileExists(c.digestAlgorithm, dst, entry.Digest)
+		exists, err := fileMatchesDigest(c.digestAlgorithm, dst, entry.Digest)
 		if err == nil && exists {
 			return true
 		}
@@ -213,7 +217,7 @@ func (c *HashOnlyCache) RestoreTo(entry ManifestEntry, dst string) bool {
 	c.fileSemaphore <- struct{}{}
 	defer func() { <-c.fileSemaphore }()
 
-	err, exists := checkFileExists(c.digestAlgorithm, dst, entry.Digest)
+	exists, err := fileMatchesDigest(c.digestAlgorithm, dst, entry.Digest)
 	return err == nil && exists
 }
 
@@ -223,7 +227,7 @@ func (c *FileCache) digestPath(b64digest string) (string, error) {
 		return "", err
 	}
 	subdir := "md5"
-	if c.digestAlgorithm == "MANIFEST_XXH128" {
+	if c.digestAlgorithm == gql.ArtifactDigestAlgorithmManifestXxh128 {
 		subdir = "xxh128"
 	}
 	return filepath.Join(c.root, "obj", subdir, hexHash[:2], hexHash[2:]), nil
@@ -276,15 +280,15 @@ func (c *FileCache) Write(src io.Reader) (string, error) {
 	return b64digest, nil
 }
 
-// Write computes and returns the B64MD5 cache key. It doesn't write any data.
+// Write computes and returns the B64 digest cache key. It doesn't write any data.
 func (c *HashOnlyCache) Write(src io.Reader) (string, error) {
 	return copyWithHash(src, io.Discard, c.digestAlgorithm)
 }
 
-func copyWithHash(src io.Reader, dst io.Writer, digestAlgorithm string) (string, error) {
+func copyWithHash(src io.Reader, dst io.Writer, digestAlgorithm gql.ArtifactDigestAlgorithm) (string, error) {
 	var hasher hash.Hash
 	switch digestAlgorithm {
-	case "MANIFEST_XXH128":
+	case gql.ArtifactDigestAlgorithmManifestXxh128:
 		hasher = xxh3.New128()
 	default:
 		hasher = md5.New()

@@ -215,10 +215,10 @@ func (m *Manifest) GetManifestEntryFromArtifactFilePath(path string) (ManifestEn
 }
 
 // HashContentsWithMd5 hashes the contents of the manifest with MD5.
-func (m *Manifest) HashContentsWithMd5() error {
+func (m *Manifest) HashContentsWithMd5(context context.Context) error {
 	var mu sync.Mutex
 
-	g, _ := errgroup.WithContext(context.Background())
+	g, _ := errgroup.WithContext(context)
 	g.SetLimit(maxSimultaneousHashes)
 	for path, entry := range maps.Clone(m.Contents) {
 		if entry.LocalPath == nil || entry.Ref != nil {
@@ -244,11 +244,9 @@ func (m *Manifest) HashContentsWithMd5() error {
 	return g.Wait()
 }
 
+// ArtifactDigest calculates the digest of an artifact based on the manifest and using the specified digest algorithm
+// This mimics the calculation done in the Python SDK's Artifact Manifest class.
 func (m *Manifest) ArtifactDigest(digestAlgorithm gql.ArtifactDigestAlgorithm) (string, error) {
-	if digestAlgorithm != gql.ArtifactDigestAlgorithmManifestMd5 {
-		return "", fmt.Errorf("unsupported digest algorithm: %s", digestAlgorithm)
-	}
-
 	sortedPaths := make([]string, 0, len(m.Contents))
 	for path := range m.Contents {
 		sortedPaths = append(sortedPaths, path)
@@ -262,5 +260,10 @@ func (m *Manifest) ArtifactDigest(digestAlgorithm gql.ArtifactDigestAlgorithm) (
 		entry := m.Contents[path]
 		data = append(data, []byte(path+":"+entry.Digest+"\n")...)
 	}
+
+	if digestAlgorithm == gql.ArtifactDigestAlgorithmManifestXxh128 {
+		return hashencode.ComputeHexXXH128(data), nil
+	}
+
 	return hashencode.ComputeHexMD5(data), nil
 }

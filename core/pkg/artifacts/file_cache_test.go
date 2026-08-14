@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/hashencode"
 )
 
@@ -55,7 +56,7 @@ func TestFileCache_Write(t *testing.T) {
 func TestFileCache_Write_XXH128(t *testing.T) {
 	cache, cleanup := setupTestEnvironment(t)
 	defer cleanup()
-	cache = cache.WithDigestAlgorithm("MANIFEST_XXH128").(*FileCache)
+	cache = cache.WithDigestAlgorithm(gql.ArtifactDigestAlgorithmManifestXxh128).(*FileCache)
 
 	// Assuming Write works correctly for setup
 	data := []byte("test data")
@@ -82,7 +83,7 @@ func TestHashOnlyCache_Write(t *testing.T) {
 
 func TestHashOnlyCache_Write_XXH128(t *testing.T) {
 	cache := NewHashOnlyCache()
-	cache = cache.WithDigestAlgorithm("MANIFEST_XXH128").(*HashOnlyCache)
+	cache = cache.WithDigestAlgorithm(gql.ArtifactDigestAlgorithmManifestXxh128).(*HashOnlyCache)
 	data := []byte("test data")
 	expectedXXH128, err := cache.Write(bytes.NewReader(data))
 	require.NoError(t, err)
@@ -114,7 +115,7 @@ func TestFileCache_AddFile(t *testing.T) {
 func TestFileCache_AddFile_XXH128(t *testing.T) {
 	cache, cleanup := setupTestEnvironment(t)
 	defer cleanup()
-	cache = cache.WithDigestAlgorithm("MANIFEST_XXH128").(*FileCache)
+	cache = cache.WithDigestAlgorithm(gql.ArtifactDigestAlgorithmManifestXxh128).(*FileCache)
 
 	srcFile, err := os.CreateTemp("", "source")
 	require.NoError(t, err)
@@ -142,7 +143,7 @@ func TestHashOnlyCache_AddFile(t *testing.T) {
 
 func TestHashOnlyCache_AddFile_XXH128(t *testing.T) {
 	cache := NewHashOnlyCache()
-	cache = cache.WithDigestAlgorithm("MANIFEST_XXH128")
+	cache = cache.WithDigestAlgorithm(gql.ArtifactDigestAlgorithmManifestXxh128)
 	_, err := cache.AddFile("test")
 	require.ErrorContains(t, err, "no such file")
 }
@@ -170,7 +171,7 @@ func TestFileCache_AddFileAndCheckDigest(t *testing.T) {
 func TestFileCache_AddFileAndCheckDigest_XXH128(t *testing.T) {
 	cache, cleanup := setupTestEnvironment(t)
 	defer cleanup()
-	cache = cache.WithDigestAlgorithm("MANIFEST_XXH128").(*FileCache)
+	cache = cache.WithDigestAlgorithm(gql.ArtifactDigestAlgorithmManifestXxh128).(*FileCache)
 
 	srcFile, err := os.CreateTemp("", "source")
 	require.NoError(t, err)
@@ -215,7 +216,7 @@ func TestHashOnlyCache_AddFileAndCheckDigest(t *testing.T) {
 
 func TestHashOnlyCache_AddFileAndCheckDigest_XXH128(t *testing.T) {
 	cache := NewHashOnlyCache()
-	cache = cache.WithDigestAlgorithm("MANIFEST_XXH128").(*HashOnlyCache)
+	cache = cache.WithDigestAlgorithm(gql.ArtifactDigestAlgorithmManifestXxh128).(*HashOnlyCache)
 
 	err := cache.AddFileAndCheckDigest("test", "")
 	require.ErrorContains(t, err, "no such file")
@@ -243,19 +244,19 @@ func TestFileCache_WithDigestAlgorithm(t *testing.T) {
 	cache, cleanup := setupTestEnvironment(t)
 	defer cleanup()
 
-	xxhCache := cache.WithDigestAlgorithm("MANIFEST_XXH128").(*FileCache)
-	assert.Equal(t, "MANIFEST_XXH128", xxhCache.digestAlgorithm)
+	xxhCache := cache.WithDigestAlgorithm(gql.ArtifactDigestAlgorithmManifestXxh128).(*FileCache)
+	assert.Equal(t, gql.ArtifactDigestAlgorithmManifestXxh128, xxhCache.digestAlgorithm)
 	assert.Equal(t, cache.root, xxhCache.root)
 	assert.Equal(t, cache.fileSemaphore, xxhCache.fileSemaphore)
 
-	md5Cache := cache.WithDigestAlgorithm("MANIFEST_MD5").(*FileCache)
-	assert.Equal(t, "MANIFEST_MD5", md5Cache.digestAlgorithm)
+	md5Cache := cache.WithDigestAlgorithm(gql.ArtifactDigestAlgorithmManifestMd5).(*FileCache)
+	assert.Equal(t, gql.ArtifactDigestAlgorithmManifestMd5, md5Cache.digestAlgorithm)
 }
 
 func TestHashOnlyCache_WithDigestAlgorithm(t *testing.T) {
 	cache := NewHashOnlyCache()
-	xxhCache := cache.WithDigestAlgorithm("MANIFEST_XXH128").(*HashOnlyCache)
-	assert.Equal(t, "MANIFEST_XXH128", xxhCache.digestAlgorithm)
+	xxhCache := cache.WithDigestAlgorithm(gql.ArtifactDigestAlgorithmManifestXxh128).(*HashOnlyCache)
+	assert.Equal(t, gql.ArtifactDigestAlgorithmManifestXxh128, xxhCache.digestAlgorithm)
 }
 
 func TestFileCache_Link(t *testing.T) {
@@ -329,7 +330,7 @@ func TestFileCache_RestoreTo(t *testing.T) {
 func TestFileCache_RestoreTo_XXH128(t *testing.T) {
 	cache, cleanup := setupTestEnvironment(t)
 	defer cleanup()
-	cache = cache.WithDigestAlgorithm("MANIFEST_XXH128").(*FileCache)
+	cache = cache.WithDigestAlgorithm(gql.ArtifactDigestAlgorithmManifestXxh128).(*FileCache)
 	// Write some data to the cache
 	data := []byte("restore data")
 	cacheKey, err := cache.Write(bytes.NewReader(data))
@@ -363,7 +364,7 @@ func TestFileCache_RestoreTo_XXH128(t *testing.T) {
 
 	// Our HashOnlyCache should also return true, this is important.
 	noOpCache := NewHashOnlyCache()
-	noOpCache = noOpCache.WithDigestAlgorithm("MANIFEST_XXH128").(*HashOnlyCache)
+	noOpCache = noOpCache.WithDigestAlgorithm(gql.ArtifactDigestAlgorithmManifestXxh128).(*HashOnlyCache)
 	assert.True(t, noOpCache.RestoreTo(manifestEntry, localPath))
 
 	// Delete the restored file
