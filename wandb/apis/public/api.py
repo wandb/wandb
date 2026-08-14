@@ -2379,9 +2379,9 @@ class Api:
                 **kwargs,
             )
         elif entity:
-            # Older servers lack `Entity.triggers`, so fall back to the legacy paginator
-            # that walks the entity's projects.
-            # Entity-scoped automations are a newer feature and don't exist on such servers.
+            # TODO: Remove this project-walking fallback once the minimum supported
+            # server version is v0.83.0 or newer. That release added `Entity.triggers`
+            # (wandb/core#43336).
             return LegacyEntityAutomations(
                 self._service_api,
                 entity=entity,
