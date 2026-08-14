@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated
 
+from pydantic import TypeAdapter
 from pytest import fixture, mark, param, raises
+from wandb._filters import FilterValidator
+from wandb._pydantic import FilterDict
 from wandb.apis.public.registries._utils import (
+    prefix_registry_name,
     prepare_artifact_types_input,
-    prepare_registry_filter,
 )
 from wandb.apis.public.registries.registries_search import (
     Collections,
@@ -20,6 +23,14 @@ if TYPE_CHECKING:
 
     from pytest_mock import MockerFixture
     from wandb.apis.paginator import RelayPaginator
+
+
+REGISTRY_FILTER_ADAPTER = TypeAdapter(
+    Annotated[
+        FilterDict,
+        FilterValidator(transforms={"name": prefix_registry_name}),
+    ]
+)
 
 
 @fixture
@@ -152,16 +163,11 @@ def test_format_gql_artifact_types_input_error(artifact_types):
             {"name": {"one": {"two": [{"three": f"{REGISTRY_PREFIX}model"}]}}},
             id="deeply-nested-name-operand",
         ),
-        # Non-dict and empty inputs are returned unchanged.
-        param("string", "string", id="non-dict-string"),
         param({}, {}, id="empty-dict"),
-        param(123, 123, id="non-dict-int"),
-        param(None, None, id="None"),
-        param(True, True, id="non-dict-bool"),
     ],
 )
-def test_prepare_registry_filter(raw, expected):
-    assert prepare_registry_filter(raw) == expected
+def test_registry_filter_normalization(raw, expected):
+    assert REGISTRY_FILTER_ADAPTER.validate_python(raw) == expected
 
 
 def test_basic_paginators_normalize_filters(service_api: MagicMock):

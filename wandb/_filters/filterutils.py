@@ -6,20 +6,16 @@ don't expose as instance methods on filter types for now.
 
 from __future__ import annotations
 
-from collections import Counter
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from functools import singledispatch
-from operator import itemgetter
-from typing import Any, TypeGuard, cast
+from itertools import chain
 
 from pydantic import JsonValue
-from typing_extensions import assert_never
-
-from wandb._strutils import repr_join
 
 from .expressions import FilterExpr, MongoLikeFilter
 from .operators import (
-    BaseVariadicLogicalOp,
+    KEY_TO_OP,
+    And,
     Eq,
     Exists,
     Gt,
@@ -31,100 +27,41 @@ from .operators import (
     Nor,
     Not,
     NotIn,
-    Op,
     Or,
 )
 
 
-def _is_filter_dict_list(
-    values: list[JsonValue],
-) -> TypeGuard[list[dict[str, JsonValue]]]:
-    return all(isinstance(value, dict) for value in values)
+def parse_filter(raw: dict[str, JsonValue]) -> MongoLikeFilter:
+    """Parse a raw MongoDB-style filter, leaving unknown operators opaque."""
+    match list(raw.items()):
+        case []:
+            return raw
+        case [(k, _)] if op_cls := KEY_TO_OP.get(k):
+            return op_cls.model_validate(raw)
+        case [(k, _)] if k.startswith("$"):
+            # This looks like an unrecognized operator, so leave it opaque.
+            return raw
+        case [(k, dict())]:
+            return FilterExpr.model_validate(raw)
+        case [(k, v)]:
+            # An ordinary non-dict operand implies an equality expression.
+            return FilterExpr.model_validate({k: {"$eq": v}})
+        case items:  # Multiple root predicates imply "$and".
+            return And.model_validate({"$and": [{k: v} for k, v in items]})
 
 
-def transform_fields(
-    raw: dict[str, JsonValue],
-    *,
-    aliases: dict[str, str] | None = None,
-    operand_transforms: dict[str, Callable[[Any], Any]] | None = None,
-) -> dict[str, Any]:
-    """Return a copy of `raw` with ordinary filter fields transformed.
+def iter_fields(expr: MongoLikeFilter) -> Iterator[str]:
+    """Iterate over the field names referenced in a MongoDB filter.
 
-    Args:
-        raw: The filter dict to transform.
-        aliases: Maps accepted top-level field names to their canonical names.
-        operand_transforms: Maps exact field names to callable transformations
-            on their inner operands.
-
-    Returns:
-        A copy of `raw` with ordinary filter fields transformed.
-
-    Raises:
-        ValueError: If `aliases` maps multiple aliases to the same canonical name.
+    Unknown operators are left untouched because their operands may not be filters.
     """
-    new_items = tuple(
-        _transform_item(*kv, aliases=aliases, operand_transforms=operand_transforms)
-        for kv in raw.items()
-    )
-    result = dict(new_items)
-
-    # Alias definitions are intentionally many-to-one. A collision is invalid
-    # only when one filter object uses multiple aliases for the same field.
-    if len(result) != len(new_items):
-        new_keys = map(itemgetter(0), new_items)
-        dup_keys = {key for key, count in Counter(new_keys).items() if count > 1}
-
-        msg = f"Duplicate fields in normalized filter: {repr_join(sorted(dup_keys))}"
-        raise ValueError(msg)
-
-    return result
-
-
-def _transform_item(
-    key: str,
-    val: JsonValue,
-    *,
-    aliases: dict[str, str] | None,
-    operand_transforms: dict[str, Callable[[Any], Any]] | None,
-) -> tuple[str, Any]:
-    """Transform one filter item, recursively handling logical operands."""
-    match key, val:
-        case (("$and" | "$or" | "$nor") as op, list(operands)):
-            if not _is_filter_dict_list(operands):
-                raise ValueError(f"{op} must contain only filter dictionaries.")
-            return key, [
-                transform_fields(
-                    obj, aliases=aliases, operand_transforms=operand_transforms
-                )
-                for obj in operands
-            ]
-
-        case (("$and" | "$or" | "$nor") as op, _):
-            raise ValueError(f"{op} must contain a list of filter dictionaries.")
-
-        case ("$not", dict(operand)):
-            return key, transform_fields(
-                operand, aliases=aliases, operand_transforms=operand_transforms
-            )
-
-        case ("$not", _):
-            raise ValueError("$not must contain a filter dictionary.")
-
-        case (str(op), _) if op.startswith("$"):
-            return key, val
-
-        case (str(field), _):
-            root, sep, suffix = field.partition(".")
-            if aliases and not aliases.get(root):
-                msg = f"Invalid filter field {root!r}, must be one of: {repr_join(sorted(aliases))}"
-                raise ValueError(msg)
-
-            new_root = (aliases or {}).get(root) or root
-            new_val = fn(val) if (fn := (operand_transforms or {}).get(field)) else val
-            return f"{new_root}{sep}{suffix}", new_val
-
-        case _:
-            assert_never((key, val))
+    match expr:
+        case FilterExpr(field=field):
+            yield field
+        case And(exprs=exprs) | Or(exprs=exprs) | Nor(exprs=exprs):
+            yield from chain.from_iterable(map(iter_fields, exprs))
+        case Not(expr=expr):
+            yield from iter_fields(expr)
 
 
 @singledispatch
@@ -133,36 +70,35 @@ def simplify_expr(expr: MongoLikeFilter) -> MongoLikeFilter:
     return expr  # default implementation is a no-op
 
 
-# singledispatch on the abstract parent dispatches to all And/Or/Nor subclasses
-@simplify_expr.register
-def _(op: BaseVariadicLogicalOp) -> MongoLikeFilter:  # type: ignore[misc]
+@simplify_expr.register(And)
+@simplify_expr.register(Or)
+@simplify_expr.register(Nor)
+def _(op: And | Or | Nor) -> MongoLikeFilter:
     """Simplify an `And/Or/Nor` operator by removing and unnesting redundant expressions.
 
-    This will flatten the operator's inner expressions and simplify them recursively,
-    e.g.:
+    This will flatten the inner expressions and simplify recursively:
     - `And(op1, And(op2, ...)) -> And(op1, op2, ...)`
     - `Or(op1, Or(op2, ...)) -> Or(op1, op2, ...)`
 
-    Note that unnested empty operators are preserved, e.g.
+    Unnested empty operators are preserved:
     - `And() -> And()`
     - `Or() -> Or()`
 
-    However, nested empty operators are flattened, e.g.:
+    Nested empty operators are flattened:
     - `And(And(), And()) -> And()`
     - `Or(Or(), Or()) -> Or()`
 
-    Single inner expressions are unnested, e.g.:
+    Single inner expressions are unnested:
     - `And(a) -> a`
     - `Or(a) -> a`
     """
     cls = type(op)
     # Flatten and simplify the operator's inner expressions.
-    if len(exprs := [simplify_expr(x) for x in flatten_inner(op, cls)]) == 1:
-        return exprs[0]  # Unnest single inner expressions.
-    # cls is always one of And/Or/Nor — concrete subclasses of BaseVariadicLogicalOp
-    # that *are* in the MongoLikeFilter union, but type checkers can't see this
-    # through the abstract `type(op)` capture.
-    return cast(MongoLikeFilter, cls(exprs=exprs))
+    match exprs := [simplify_expr(x) for x in flatten_inner(op, cls)]:
+        case [only_child]:  # Unnest single inner expressions.
+            return only_child
+        case _:
+            return cls(exprs=exprs)
 
 
 @simplify_expr.register
@@ -186,9 +122,9 @@ def _(op: Not) -> MongoLikeFilter:
 
 
 def flatten_inner(
-    op: BaseVariadicLogicalOp,
-    parent_cls: type[BaseVariadicLogicalOp],
-) -> Iterator[FilterExpr | Op]:
+    op: And | Or | Nor,
+    parent_cls: type[And | Or | Nor],
+) -> Iterator[MongoLikeFilter]:
     """Iterates over an `And/Or/Nor` operator's flattened inner expressions."""
     for x in op.exprs:
-        yield from (flatten_inner(x, parent_cls) if isinstance(x, parent_cls) else (x,))
+        yield from (flatten_inner(x, parent_cls) if type(x) is parent_cls else (x,))

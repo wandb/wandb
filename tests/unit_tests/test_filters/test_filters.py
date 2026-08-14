@@ -33,6 +33,7 @@ from ._strategies import (
     comparison_operands,
     contains_dicts,
     eq_dicts,
+    equality_operands,
     exists_dicts,
     filter_dicts,
     ge_dicts,
@@ -115,14 +116,14 @@ def test_lte_from_validated_op(op: Lte):
     assert Lte.model_validate_json(op.model_dump_json()) == op
 
 
-@given(op=builds(Eq, val=comparison_operands()))
+@given(op=builds(Eq, val=equality_operands()))
 def test_eq_from_validated_op(op: Eq):
     assert op.model_dump().keys() == {"$eq"}
     assert Eq.model_validate(op.model_dump()) == op
     assert Eq.model_validate_json(op.model_dump_json()) == op
 
 
-@given(op=builds(Ne, val=comparison_operands()))
+@given(op=builds(Ne, val=equality_operands()))
 def test_ne_from_validated_op(op: Ne):
     assert op.model_dump().keys() == {"$ne"}
     assert Ne.model_validate(op.model_dump()) == op

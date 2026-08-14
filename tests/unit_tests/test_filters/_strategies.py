@@ -70,6 +70,14 @@ def comparison_operands(draw: DrawFn) -> bool | int | float | str:
 
 
 @composite
+def equality_operands(
+    draw: DrawFn,
+) -> bool | int | float | str | list[bool | int | float | str]:
+    """Valid scalar or array operands for equality filters."""
+    return draw(comparison_operands() | lists(comparison_operands()))
+
+
+@composite
 def logical_operands(draw: DrawFn) -> dict[str, Any]:
     """Valid dicts that can be used as the "inner" operand(s) for logical operators."""
     return draw(filter_dicts() | op_dicts())
@@ -86,8 +94,8 @@ gt_dicts = fixed_dictionaries({"$gt": comparison_operands()})
 lt_dicts = fixed_dictionaries({"$lt": comparison_operands()})
 ge_dicts = fixed_dictionaries({"$gte": comparison_operands()})
 le_dicts = fixed_dictionaries({"$lte": comparison_operands()})
-eq_dicts = fixed_dictionaries({"$eq": comparison_operands()})
-ne_dicts = fixed_dictionaries({"$ne": comparison_operands()})
+eq_dicts = fixed_dictionaries({"$eq": equality_operands()})
+ne_dicts = fixed_dictionaries({"$ne": equality_operands()})
 nin_dicts = fixed_dictionaries({"$nin": lists(comparison_operands())})
 in_dicts = fixed_dictionaries({"$in": lists(comparison_operands())})
 

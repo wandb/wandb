@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import wandb
 from pytest import fixture, mark, param, raises
-from wandb import Api, Artifact
+from wandb import Api, Artifact, CommError
 from wandb._strutils import b64decode_ascii
 from wandb.apis.public.registries.registry import Registry
 from wandb.proto import wandb_internal_pb2 as pb
@@ -16,7 +16,6 @@ from wandb.sdk.artifacts._validators import REGISTRY_PREFIX, remove_registry_pre
 
 if TYPE_CHECKING:
     from tests.fixtures.wandb_backend_spy import WandbBackendSpy
-    from tests.fixtures.wandb_backend_spy.gql_match import Responder
 
 
 @fixture
@@ -222,24 +221,18 @@ def test_infer_organization_from_create_load(default_organization, api: Api):
 @mark.usefixtures("skip_if_server_does_not_support_create_registry")
 def test_input_invalid_organizations(default_organization, api: Api):
     """Tests that invalid organization inputs raise errors."""
-    bad_org_name = f"{default_organization}_wrong_organization"
+    invalid = f"{default_organization}_wrong_organization"
 
     registry_name = "test"
-    with raises(
-        ValueError,
-        match=f"Organization entity for {bad_org_name!r} not found.",
-    ):
+    with raises(CommError, match=rf"(?i)organization.*{invalid!r}.*not found"):
         api.create_registry(
             name=registry_name,
             visibility="organization",
-            organization=bad_org_name,
+            organization=invalid,
         )
 
-    with raises(
-        ValueError,
-        match=f"Organization entity for {bad_org_name!r} not found.",
-    ):
-        api.registry(registry_name, f"{default_organization}_wrong_organization")
+    with raises(CommError, match=rf"(?i)organization.*{invalid!r}.*not found"):
+        api.registry(registry_name, organization=invalid)
 
 
 @mark.usefixtures("skip_if_server_does_not_support_create_registry")
@@ -417,8 +410,8 @@ def test_fetch_registries(team: str, org: str, org_entity: str, api: Api):
 
 
 @fixture
-def advanced_features_spy(wandb_backend_spy: WandbBackendSpy) -> Responder:
-    """Report advanced registry search support and capture the org lookup."""
+def enable_advanced_search(wandb_backend_spy: WandbBackendSpy) -> None:
+    """Simulate feature flags that signal advanced registry search features are enabled."""
     gql = wandb_backend_spy.gql
     features = (
         pb.ServerFeature.Name(pb.ARTIFACT_REGISTRY_SEARCH),
@@ -430,35 +423,32 @@ def advanced_features_spy(wandb_backend_spy: WandbBackendSpy) -> Responder:
             content={
                 "data": {
                     "serverInfo": {
-                        "features": [
-                            {"name": feature, "isEnabled": True} for feature in features
-                        ]
+                        "features": [{"name": f, "isEnabled": True} for f in features]
                     }
                 }
             }
         ),
     )
-    advanced_features = gql.once(
-        content={
-            "data": {
-                "organization": {"advancedRegistryFeatures": {"advancedSearch": True}}
-            }
-        }
-    )
+
     wandb_backend_spy.stub_gql(
         gql.Matcher(
             operation="FetchAdvancedRegistryFeatures",
             variables={"organization": "advanced-org"},
         ),
-        advanced_features,
+        gql.Constant(
+            content={
+                "data": {
+                    "organization": {
+                        "advancedRegistryFeatures": {"advancedSearch": True}
+                    }
+                }
+            }
+        ),
     )
-    return advanced_features
 
 
-def test_advanced_feature_response_selects_version_filter_fields(
-    advanced_features_spy: Responder,
-    api: Api,
-):
+@mark.usefixtures(enable_advanced_search.__name__)
+def test_advanced_feature_response_selects_version_filter_fields(api: Api):
     versions = (
         api.registries(organization="advanced-org", filter={"id": "registry-id"})
         .collections(filter={"collection_id": "collection-id"})
@@ -474,7 +464,6 @@ def test_advanced_feature_response_selects_version_filter_fields(
     assert json.loads(versions.variables["artifactFilter"]) == {
         "artifact_created_at": "2026-08-10"
     }
-    assert advanced_features_spy.total_calls > 0
 
 
 @fixture

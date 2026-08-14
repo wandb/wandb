@@ -1,191 +1,141 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Collection
-from dataclasses import dataclass
+from collections.abc import Collection, Iterable
+from contextlib import suppress
 from enum import Enum
 from functools import lru_cache
-from typing import TYPE_CHECKING, Any, TypeVar, overload
+from typing import TYPE_CHECKING, Any
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
-from typing_extensions import Self
+from typing_extensions import assert_never
 
-from wandb._filters import transform_fields
 from wandb._filters.operators import KEY_TO_OP
+from wandb._iterutils import merge_dicts
 from wandb._strutils import b64decode_ascii, ensureprefix, repr_join
 from wandb.proto import wandb_internal_pb2 as pb
 
 if TYPE_CHECKING:
-    from wandb.apis.public import ArtifactCollection
-    from wandb.apis.public.registries.registry import Registry
+    from wandb.apis.public import ArtifactCollection, Registry
     from wandb.apis.public.service_api import ServiceApi
 
 logger = logging.getLogger(__name__)
 
 
-T = TypeVar("T")
-
-
 @pydantic_dataclass(frozen=True, slots=True)
-class _FieldNames:
-    canonical: str  #: The canonical name of the field.
+class SearchField:
+    name: str  #: The canonical name of the field.
     aliases: tuple[str, ...] = ()  #: Accepted aliases for the field.
 
 
-@pydantic_dataclass(frozen=True, slots=True)
-class SearchField:
-    """Canonical and accepted filter field names for basic and advanced search.
-
-    In each sequence, the CANONICAL name comes first. Remaining names, if any,
-    are acceptable aliases.
-
-    A `None` value means the field is unsupported in that search mode.
-    """
-
-    basic: _FieldNames | None
-    advanced: _FieldNames | None
-
-    def __post_init__(self) -> None:
-        if not (self.basic or self.advanced):
-            raise ValueError("A filter field must support at least one search mode.")
-
-    @classmethod
-    def from_shared(cls, name: str, *aliases: str) -> Self:
-        """Defines a filter field for either search mode with the same allowed aliases."""
-        return cls(
-            basic=_FieldNames(name, aliases=aliases),
-            advanced=_FieldNames(name, aliases=aliases),
-        )
-
-
-@dataclass(frozen=True, slots=True)
-class SearchFields:
-    """Filter-field aliases for one registry search surface."""
-
-    fields: tuple[SearchField, ...]
-
-    def advanced_aliases(self) -> dict[str, str]:
-        # Be sure to include the canonical name in the map
-        return {
-            alias: names.canonical
-            for field in self.fields
-            if (names := field.advanced)
-            for alias in (names.canonical, *names.aliases)
-        }
-
-    def basic_aliases(self) -> dict[str, str]:
-        # Be sure to include the canonical name in the map
-        return {
-            alias: names.canonical
-            for field in self.fields
-            if (names := field.basic)
-            for alias in (names.canonical, *names.aliases)
-        }
-
-
-REGISTRIES_FILTER_FIELDS = SearchFields(
-    fields=(
-        SearchField(
-            basic=_FieldNames("id"),
-            advanced=_FieldNames("project_id", aliases=["id"]),
-        ),
-        SearchField.from_shared("name"),
-        SearchField.from_shared("entity_id"),
-        # Only supported in "basic" search
-        SearchField(
-            basic=_FieldNames("description"),
-            advanced=None,
-        ),
-        SearchField(
-            basic=_FieldNames("created_at"),
-            advanced=None,
-        ),
-        SearchField(
-            basic=_FieldNames("updated_at"),
-            advanced=None,
-        ),
+def merge_alias_maps(fields: Iterable[SearchField]) -> dict[str, str]:
+    """Returns a combined map of all accepted field aliases -> canonical name."""
+    # Don't forget to allow the canonical name itself
+    return merge_dicts(
+        {alias: f.name for alias in (f.name, *f.aliases)} for f in fields
     )
-)
-"""Defines allowed field names in registry filters.
 
-Note: "advanced" fields are only relevant when passing a filter to a Versions paginator.
+
+# ------------------------------------------------------------------------------
+
+
+BASIC_REGISTRIES_FILTER_FIELDS = (
+    SearchField("id"),
+    SearchField("name"),
+    SearchField("entity_id"),
+    SearchField("description"),  # Only supported in "basic" search
+    SearchField("created_at"),  # Only supported in "basic" search
+    SearchField("updated_at"),  # Only supported in "basic" search
+)
+"""Defines allowed Registries filter fields for "basic" search.
+
+This is relevant for REGISTRY filters passed to:
+- Registries(...) ALWAYS, as advanced search applies to versions queries.
+- Versions(...) ONLY in "basic" search mode.
 """
 
-COLLECTIONS_FILTER_FIELDS = SearchFields(
-    fields=(
-        SearchField.from_shared("artifact_collection_id", "collection_id", "id"),
-        SearchField(
-            basic=_FieldNames("name"),
-            advanced=_FieldNames(
-                "name", aliases=("collection_name", "artifact_collection_name")
-            ),
-        ),
-        SearchField(
-            basic=_FieldNames("tag"),
-            advanced=_FieldNames("tag", aliases=("tags",)),
-        ),
-        # Only supported in "basic" search
-        SearchField(
-            basic=_FieldNames("description"),
-            advanced=None,
-        ),
-        SearchField(
-            basic=_FieldNames("created_at"),
-            advanced=None,
-        ),
-        SearchField(
-            basic=_FieldNames("updated_at"),
-            advanced=None,
-        ),
-    )
+ADVANCED_REGISTRIES_FILTER_FIELDS = (
+    SearchField("project_id", aliases=["id"]),
+    SearchField("name"),
+    SearchField("entity_id"),
 )
-"""Defines allowed field names in artifact collection filters.
+"""Defines allowed Registries filter fields for "advanced" search.
 
-Note: "advanced" fields are only relevant when passing a filter to a Versions paginator.
+This is relevant for REGISTRY filters passed to:
+- Versions(...) ONLY in "advanced" search mode
 """
 
-VERSIONS_FILTER_FIELDS = SearchFields(
-    fields=(
-        SearchField(
-            basic=_FieldNames("id"),
-            advanced=_FieldNames("artifact_id", aliases=["id"]),
-        ),
-        SearchField(
-            basic=_FieldNames("version"),
-            advanced=_FieldNames("version", aliases=("version_index",)),
-        ),
-        SearchField(
-            basic=_FieldNames("tag"),
-            advanced=_FieldNames("tag", aliases=("tags",)),
-        ),
-        SearchField(
-            basic=_FieldNames("alias"),
-            advanced=_FieldNames("alias", aliases=("aliases",)),
-        ),
-        SearchField(
-            basic=_FieldNames("metadata"),
-            advanced=_FieldNames("metadata", aliases=("artifact_metadata",)),
-        ),
-        SearchField(
-            basic=_FieldNames("created_at"),
-            advanced=_FieldNames("artifact_created_at", aliases=["created_at"]),
-        ),
-        # Only supported in "basic" search
-        SearchField(
-            basic=_FieldNames("updated_at"),
-            advanced=None,
-        ),
-        # Only supported in "advanced" search
-        SearchField(
-            basic=None,
-            advanced=_FieldNames("artifact_size"),
-        ),
-    )
-)
-"""Defines allowed field names in artifact version filters.
+# ------------------------------------------------------------------------------
 
-Note: "advanced" fields are only relevant when passing the filter to a Versions paginator.
+BASIC_COLLECTIONS_FILTER_FIELDS = (
+    SearchField("artifact_collection_id", aliases=["collection_id", "id"]),
+    SearchField("name"),
+    SearchField("tag"),
+    SearchField("description"),  # Only supported in "basic" search
+    SearchField("created_at"),  # Only supported in "basic" search
+    SearchField("updated_at"),  # Only supported in "basic" search
+)
+"""Defines allowed Collections filter fields for "basic" search.
+
+This is relevant for COLLECTION filters passed to:
+- Collections(...) ALWAYS, as advanced search applies to versions queries.
+- Versions(...) ONLY in "basic" search mode
 """
+
+ADVANCED_COLLECTIONS_FILTER_FIELDS = (
+    SearchField("artifact_collection_id", aliases=["collection_id", "id"]),
+    SearchField("name", aliases=["collection_name", "artifact_collection_name"]),
+    SearchField("tag", aliases=["tags"]),
+)
+"""Defines allowed Collections filter fields for "advanced" search.
+
+This is relevant for COLLECTION filters passed to:
+- Versions(...) ONLY in "advanced" search mode
+"""
+
+# ------------------------------------------------------------------------------
+
+BASIC_VERSIONS_FILTER_FIELDS = (
+    SearchField("id"),
+    SearchField("version"),
+    SearchField("tag"),
+    SearchField("alias"),
+    SearchField("metadata"),
+    SearchField("created_at"),
+    SearchField("updated_at"),  # Only supported in "basic" search
+)
+"""Defines allowed Versions filter fields for "basic" search.
+
+This is relevant for VERSION filters passed to:
+- Versions(...) ONLY in "basic" search mode
+"""
+
+ADVANCED_VERSIONS_FILTER_FIELDS = (
+    SearchField("artifact_id", aliases=["id"]),
+    SearchField("version", aliases=["version_index"]),
+    SearchField("tag", aliases=["tags"]),
+    SearchField("alias", aliases=["aliases"]),
+    SearchField("metadata", aliases=["artifact_metadata"]),
+    SearchField("artifact_created_at", aliases=["created_at"]),
+    SearchField("artifact_size"),  # Only supported in "advanced" search
+)
+"""Defines allowed Versions filter fields for "advanced" search.
+
+This is relevant for VERSION filters passed to:
+- Versions(...) ONLY in "advanced" search mode
+"""
+
+# ------------------------------------------------------------------------------
+
+BASIC_REGISTRIES_FILTER_ALIASES = merge_alias_maps(BASIC_REGISTRIES_FILTER_FIELDS)
+BASIC_COLLECTIONS_FILTER_ALIASES = merge_alias_maps(BASIC_COLLECTIONS_FILTER_FIELDS)
+BASIC_VERSIONS_FILTER_ALIASES = merge_alias_maps(BASIC_VERSIONS_FILTER_FIELDS)
+
+ADVANCED_REGISTRIES_FILTER_ALIASES = merge_alias_maps(ADVANCED_REGISTRIES_FILTER_FIELDS)
+ADVANCED_COLLECTIONS_FILTER_ALIASES = merge_alias_maps(
+    ADVANCED_COLLECTIONS_FILTER_FIELDS
+)
+ADVANCED_VERSIONS_FILTER_ALIASES = merge_alias_maps(ADVANCED_VERSIONS_FILTER_FIELDS)
 
 
 class Visibility(str, Enum):
@@ -276,90 +226,38 @@ def prefix_registry_name(operand: Any) -> Any:
             return operand
 
 
-@overload
-def prepare_registry_filter(query: str) -> str: ...
-@overload
-def prepare_registry_filter(query: dict[str, Any]) -> dict[str, Any]: ...
-@overload
-def prepare_registry_filter(query: list[T] | tuple[T, ...]) -> list[T]: ...
-@overload
-def prepare_registry_filter(query: T) -> T: ...
+def decode_project_id(gql_id: str) -> int | None:
+    """Returns the int project ID from a base64-encoded GraphQL ID, or None if invalid."""
+    with suppress(ValueError, UnicodeDecodeError):
+        match b64decode_ascii(gql_id).split(":"):
+            case ["ProjectInternalId" | "Project", idx] if idx.isdigit():
+                return int(idx)
+            case _:
+                pass
+
+    logger.warning(f"Invalid project ID: {gql_id!r}")
+    return None
 
 
-def prepare_registry_filter(query: Any) -> Any:
-    """Normalize a registry filter as a JSON-serializable GraphQL input.
+def registry_filter_for(obj: Registry | ArtifactCollection) -> dict[str, Any]:
+    """Returns a filter for Registry objects derived from a registry-related object."""
+    from wandb.apis.public import ArtifactCollection, Registry
 
-    Prepend the registry prefix to ``name`` operands, excluding regex operands
-    and opaque unknown-operator subtrees.
+    match obj:
+        case Registry(internal_id=str(b64_id)) if int_id := decode_project_id(b64_id):
+            return {"id": int_id}
+        case Registry(full_name=name):
+            return {"name": name}
 
-    EX: {"name": "model"} -> {"name": "wandb-registry-model"}
-    """
-    match query:
-        case dict():
-            return transform_fields(
-                query,
-                operand_transforms={"name": prefix_registry_name},
-            )
-        case list() | tuple():
-            return [prepare_registry_filter(value) for value in query]
+        case ArtifactCollection(project_internal_id=str(b64_id)) if (
+            int_id := decode_project_id(b64_id)
+        ):
+            return {"id": int_id}
+        case ArtifactCollection(project=name):
+            return {"name": name}
+
         case _:
-            return query
-
-
-@lru_cache(maxsize=10)
-def fetch_org_entity_from_organization(
-    service_api: ServiceApi, organization: str
-) -> str:
-    """Fetch the org entity from the organization.
-
-    Args:
-        service_api: The service API instance to use for querying W&B.
-        organization (str): The organization to fetch the org entity for.
-    """
-    from wandb.sdk.artifacts._generated import FETCH_ORGANIZATION_GQL, FetchOrganization
-
-    gql_op = FETCH_ORGANIZATION_GQL
-    gql_vars = {"org": organization}
-    try:
-        data = service_api.execute_graphql(gql_op, variables=gql_vars)
-    except Exception as e:
-        msg = f"Error fetching org entity for organization: {organization!r}"
-        raise ValueError(msg) from e
-
-    result = FetchOrganization.model_validate(data)
-    if (
-        not (org := result.organization)
-        or not (org_entity := org.org_entity)
-        or not (org_name := org_entity.name)
-    ):
-        raise ValueError(f"Organization entity for {organization!r} not found.")
-
-    return org_name
-
-
-def _project_id_from_gql_id(gql_id: str) -> int | None:
-    try:
-        decoded = b64decode_ascii(gql_id)
-    except (ValueError, UnicodeDecodeError):
-        logger.warning("Invalid project ID: %r", gql_id)
-        return None
-
-    match decoded.split(":"):
-        case ["Project", idx] if idx.isdigit():
-            return int(idx)
-        case ["ProjectInternalId", idx] if idx.isdigit():
-            return int(idx)
-        case _:
-            logger.warning("Invalid project ID: %r", gql_id)
-            return None
-
-
-def filter_for_registry(registry: Registry) -> dict[str, Any]:
-    if (project_encoded_id := registry.internal_id) and (
-        project_id := _project_id_from_gql_id(project_encoded_id)
-    ):
-        return {"id": project_id}
-    return {"name": registry.full_name}
+            assert_never(obj)
 
 
 @lru_cache(maxsize=10)
@@ -394,14 +292,4 @@ def advanced_search_enabled(service_api: ServiceApi, organization: str) -> bool:
     if not (org := result.organization):
         logger.warning("Organization %r not found.", organization)
         return False
-    return bool(
-        (features := org.advanced_registry_features) and features.advanced_search
-    )
-
-
-def registry_filter_for_collection(collection: ArtifactCollection) -> dict[str, Any]:
-    if (project_encoded_id := collection.project_internal_id) and (
-        project_id := _project_id_from_gql_id(project_encoded_id)
-    ):
-        return {"id": project_id}
-    return {"name": collection.project}
+    return bool((feats := org.advanced_registry_features) and feats.advanced_search)

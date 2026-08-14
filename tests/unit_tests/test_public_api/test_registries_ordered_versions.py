@@ -8,10 +8,9 @@ from pytest import fixture, raises
 from wandb._strutils import b64encode_ascii
 from wandb.apis.public.registries import _utils
 from wandb.apis.public.registries._utils import (
-    _project_id_from_gql_id,
     advanced_search_enabled,
-    filter_for_registry,
-    registry_filter_for_collection,
+    decode_project_id,
+    registry_filter_for,
 )
 from wandb.apis.public.registries.registries_search import Collections, Registries
 from wandb.apis.public.registries.registry import Registry
@@ -27,56 +26,51 @@ ORG = "test-org"
 REGISTRY_FILTER = {"name": "wandb-registry-test"}
 
 
-def test_filter_for_registry_uses_id(mocker: MockerFixture):
+def test_registry_filter_uses_internal_id(mocker: MockerFixture):
     registry = mocker.Mock(spec=Registry)
     registry.full_name = "wandb-registry-test"
     registry.internal_id = b64encode_ascii("ProjectInternalId:42")
 
-    assert filter_for_registry(registry) == {"id": 42}
+    assert registry_filter_for(registry) == {"id": 42}
 
 
-def test_registry_filter_for_collection_uses_id(mocker: MockerFixture):
+def test_registry_filter_uses_internal_id_from_collection(mocker: MockerFixture):
     from wandb.apis.public import ArtifactCollection
 
     collection = mocker.Mock(spec=ArtifactCollection)
     collection.project = "wandb-registry-test"
     collection.project_internal_id = b64encode_ascii("ProjectInternalId:42")
 
-    assert registry_filter_for_collection(collection) == {"id": 42}
+    assert registry_filter_for(collection) == {"id": 42}
 
 
-def test_project_id_from_gql_id_decodes_project_internal_id():
+def test_decode_project_id_on_valid_internal_id():
     gql_id = b64encode_ascii("ProjectInternalId:933111")
 
-    assert _project_id_from_gql_id(gql_id) == 933111
+    assert decode_project_id(gql_id) == 933111
 
 
-def test_project_id_from_gql_id_returns_none_for_invalid_id(
-    wandb_caplog: LogCaptureFixture,
-):
+def test_decode_project_id_on_invalid_internal_id(wandb_caplog: LogCaptureFixture):
     with wandb_caplog.at_level(logging.WARNING, logger=_utils.__name__):
-        assert _project_id_from_gql_id("not-a-valid-gql-id") is None
+        assert decode_project_id("not-a-valid-gql-id") is None
 
     assert "Invalid project ID" in wandb_caplog.text
 
 
 def test_filter_for_registry_falls_back_to_name_for_invalid_internal_id(
-    mocker: MockerFixture,
-    wandb_caplog: LogCaptureFixture,
+    mocker: MockerFixture, wandb_caplog: LogCaptureFixture
 ):
     registry = mocker.Mock(spec=Registry)
     registry.full_name = "wandb-registry-test"
     registry.internal_id = "not-a-valid-gql-id"
 
     with wandb_caplog.at_level(logging.WARNING, logger=_utils.__name__):
-        assert filter_for_registry(registry) == {
-            "name": "wandb-registry-test",
-        }
+        assert registry_filter_for(registry) == {"name": "wandb-registry-test"}
 
     assert "Invalid project ID" in wandb_caplog.text
 
 
-def test_registry_filter_for_collection_falls_back_to_name_for_invalid_internal_id(
+def test_registry_filter_falls_back_to_project_name_for_invalid_internal_id(
     mocker: MockerFixture,
     wandb_caplog: LogCaptureFixture,
 ):
@@ -87,9 +81,7 @@ def test_registry_filter_for_collection_falls_back_to_name_for_invalid_internal_
     collection.project_internal_id = "not-a-valid-gql-id"
 
     with wandb_caplog.at_level(logging.WARNING, logger=_utils.__name__):
-        assert registry_filter_for_collection(collection) == {
-            "name": "wandb-registry-test",
-        }
+        assert registry_filter_for(collection) == {"name": "wandb-registry-test"}
 
     assert "Invalid project ID" in wandb_caplog.text
 
@@ -107,16 +99,14 @@ def test_advanced_search_enabled_returns_false_on_graphql_error(
     assert "Failed to fetch advanced registry features" in wandb_caplog.text
 
 
-def test_filter_for_registry_falls_back_to_name_without_internal_id(
+def test_registry_filter_falls_back_to_name_without_internal_id(
     mocker: MockerFixture,
 ):
     registry = mocker.Mock(spec=Registry)
     registry.full_name = "wandb-registry-order-test-reg-0"
     registry.internal_id = None
 
-    assert filter_for_registry(registry) == {
-        "name": "wandb-registry-order-test-reg-0",
-    }
+    assert registry_filter_for(registry) == {"name": "wandb-registry-order-test-reg-0"}
 
 
 @fixture
