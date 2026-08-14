@@ -1158,7 +1158,6 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
         per_page: int = 50,
         start: str | None = None,
     ):
-        from wandb.sdk.artifacts._gqlutils import server_supports
 
         if self.QUERY is None:
             from wandb.sdk.artifacts._generated import ARTIFACT_MEMBERSHIP_FILES_GQL
