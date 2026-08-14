@@ -814,8 +814,8 @@ func (s *Sender) sendUseArtifact(record *spb.Record) {
 	s.jobBuilder.HandleUseArtifactRecord(record)
 }
 
-// sendHistory sends a history record to the file stream,
-// which will then send it to the server.
+// sendHistory sends a history record to the file stream, which will then send
+// it to the server.
 //
 // If the history record does not contain a _step value, this method will
 // auto-assign one. It also materializes the _step metric for the summary.

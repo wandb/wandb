@@ -287,8 +287,9 @@ func processResponse(
 	// The number of history rows in the file stream.
 	historyRowCount := int64(params.FileStreamOffset[filestream.HistoryChunk])
 
-	// If the history row count the summary and history tail step, then they
-	// must be stale, so use the history row count - 1 as a lower bound.
+	// If the the summary and history tail step are less than the history row
+	// count, then they must be stale, so use the history row count - 1 as a
+	// lower bound.
 	// Note that this may still not be accurate if the run was logged at
 	// sparse steps, so we warn the user.
 	if lastStep >= 0 && historyRowCount > lastStep+1 {
