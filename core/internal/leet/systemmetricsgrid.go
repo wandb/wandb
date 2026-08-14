@@ -158,6 +158,7 @@ func (g *SystemMetricsGrid) createMetricChart(def *MetricDef) systemMetricChart 
 		ColorProvider: g.anchoredSeriesColorProvider(baseIdx),
 		Now:           now,
 	})
+	lineChart.SetChartGrid(g.config.ChartGrid())
 	lineChart.SetTailWindow(g.config.SystemTailWindow())
 
 	if !def.Percentage {

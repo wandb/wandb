@@ -55,6 +55,11 @@ const (
 
 	DefaultHeartbeatInterval = 15 // seconds
 
+	ChartGridOff        = "off"
+	ChartGridDots       = "dots"
+	ChartGridHorizontal = "horizontal"
+	DefaultChartGrid    = ChartGridDots
+
 	DefaultMediaGridRows          = 1
 	DefaultMediaGridCols          = 2
 	DefaultWorkspaceMediaGridRows = 1
@@ -73,6 +78,9 @@ type Config struct {
 	//  - workspace_latest: open workspace and auto-select the latest run
 	//  - single_run_latest: open the latest run directly in single-run view
 	StartupMode string `json:"startup_mode" leet:"label=Startup mode,desc=Initial view when launched without a run path.,options=startupModes"`
+
+	// ChartGrid controls the background guides drawn behind line charts.
+	ChartGrid string `json:"chart_grid" leet:"label=Chart grid,desc=Background guides for metrics and system charts.,options=chartGrids"`
 
 	// MetricsGrid is the dimensions for the metrics chart grid in single-run mode.
 	MetricsGrid GridConfig `json:"metrics_grid" leet:"desc=main metrics grid"`
@@ -195,6 +203,7 @@ func NewConfigManager(path string, logger *observability.CoreLogger) *ConfigMana
 				Cols: DefaultSymonGridCols,
 			},
 			StartupMode:                   DefaultStartupMode,
+			ChartGrid:                     DefaultChartGrid,
 			ColorScheme:                   DefaultColorScheme,
 			PerPlotColorScheme:            DefaultPerPlotColorScheme,
 			TagColorScheme:                DefaultTagColorScheme,
@@ -317,6 +326,14 @@ func (cm *ConfigManager) normalizeConfig() {
 		cm.config.StartupMode != StartupModeSingleRunLatest {
 		cm.config.StartupMode = DefaultStartupMode
 	}
+
+	if !isChartGrid(cm.config.ChartGrid) {
+		cm.config.ChartGrid = DefaultChartGrid
+	}
+}
+
+func isChartGrid(grid string) bool {
+	return grid == ChartGridOff || grid == ChartGridDots || grid == ChartGridHorizontal
 }
 
 func clamp(val, minimum, maximum int) int {
@@ -593,6 +610,25 @@ func (cm *ConfigManager) SetStartupMode(mode string) error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 	cm.config.StartupMode = mode
+	return cm.save()
+}
+
+// ChartGrid returns the background guide style for line charts.
+func (cm *ConfigManager) ChartGrid() string {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.ChartGrid
+}
+
+// SetChartGrid sets the background guide style for line charts.
+func (cm *ConfigManager) SetChartGrid(grid string) error {
+	if !isChartGrid(grid) {
+		return fmt.Errorf("invalid chart grid: %q", grid)
+	}
+
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.ChartGrid = grid
 	return cm.save()
 }
 

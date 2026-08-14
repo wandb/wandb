@@ -136,6 +136,8 @@ func parseEnumProvider(s string) enumProvider {
 		return enumProviderColorModes
 	case "startupModes":
 		return enumProviderStartupModes
+	case "chartGrids":
+		return enumProviderChartGrids
 	default:
 		return enumProviderUndefined
 	}

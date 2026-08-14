@@ -207,6 +207,7 @@ func (mg *MetricsGrid) ProcessHistory(msg HistoryMsg) bool {
 		chart, exists := mg.byTitle[name]
 		if !exists {
 			chart = NewEpochLineChart(name)
+			chart.SetChartGrid(mg.config.ChartGrid())
 			chart.SetPalette(mg.palette)
 			mg.all = append(mg.all, chart)
 			mg.byTitle[name] = chart

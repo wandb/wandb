@@ -58,6 +58,40 @@ func TestEpochLineChart_NonFiniteValuesDoNotPoisonRange(t *testing.T) {
 	require.False(t, math.IsNaN(c.ViewMinY()))
 }
 
+func TestEpochLineChart_ChartGridStyles(t *testing.T) {
+	tests := []struct {
+		name       string
+		grid       string
+		wantRune   string
+		absentRune string
+	}{
+		{name: "off", grid: leet.ChartGridOff, absentRune: "·┈"},
+		{name: "dots", grid: leet.ChartGridDots, wantRune: "·", absentRune: "┈"},
+		{name: "horizontal", grid: leet.ChartGridHorizontal, wantRune: "┈", absentRune: "·"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			chart := leet.NewEpochLineChart("loss")
+			chart.Resize(48, 10)
+			chart.SetChartGrid(tt.grid)
+			chart.AddData("loss", leet.MetricData{
+				X: []float64{0, 1, 2, 3},
+				Y: []float64{0.2, 0.4, 0.6, 0.8},
+			})
+			chart.Draw()
+
+			view := stripANSI(chart.View())
+			if tt.wantRune != "" {
+				require.Contains(t, view, tt.wantRune)
+			}
+			for _, r := range tt.absentRune {
+				require.NotContains(t, view, string(r))
+			}
+		})
+	}
+}
+
 func TestEpochLineChart_ZoomClampsAndAnchors(t *testing.T) {
 	m := "acc"
 	c := leet.NewEpochLineChart(m)

@@ -130,3 +130,17 @@ func TestConfig_SetFrenchFriesColorScheme_Persists(t *testing.T) {
 	cfg2 := leet.NewConfigManager(path, logger)
 	require.Equal(t, "cividis", cfg2.Snapshot().FrenchFriesColorScheme)
 }
+
+func TestConfig_SetChartGrid_Persists(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	path := filepath.Join(t.TempDir(), "config.json")
+	cfg := leet.NewConfigManager(path, logger)
+
+	require.Equal(t, leet.DefaultChartGrid, cfg.ChartGrid())
+	require.NoError(t, cfg.SetChartGrid(leet.ChartGridHorizontal))
+	require.Equal(t, leet.ChartGridHorizontal, cfg.ChartGrid())
+	require.Error(t, cfg.SetChartGrid("diagonal"))
+
+	cfg2 := leet.NewConfigManager(path, logger)
+	require.Equal(t, leet.ChartGridHorizontal, cfg2.ChartGrid())
+}

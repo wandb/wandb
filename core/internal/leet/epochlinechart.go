@@ -208,6 +208,9 @@ type EpochLineChart struct {
 	// yTickFormatter formats raw, unscaled Y values for axis labels.
 	yTickFormatter func(float64) string
 
+	// chartGrid controls the background guides rendered behind the series.
+	chartGrid string
+
 	// inspection holds crosshair overlay state for data inspection mode.
 	inspection ChartInspection
 
@@ -222,13 +225,14 @@ func NewEpochLineChart(title string) *EpochLineChart {
 			linechart.WithXYSteps(4, 5), // The default number of ticks when drawing axis values.
 			linechart.WithAutoXRange(),
 		),
-		data:    make(map[string]*Series),
-		title:   title,
-		palette: GraphColors(DefaultColorScheme),
-		xMin:    math.Inf(1),
-		xMax:    math.Inf(-1),
-		yMin:    math.Inf(1),
-		yMax:    math.Inf(-1),
+		data:      make(map[string]*Series),
+		title:     title,
+		palette:   GraphColors(DefaultColorScheme),
+		xMin:      math.Inf(1),
+		xMax:      math.Inf(-1),
+		yMin:      math.Inf(1),
+		yMax:      math.Inf(-1),
+		chartGrid: DefaultChartGrid,
 	}
 	chart.AxisStyle = axisStyle
 	chart.LabelStyle = labelStyle
@@ -593,6 +597,7 @@ func (c *EpochLineChart) Draw() {
 	if c.YStep() > 0 {
 		startX = c.Origin().X + 1
 	}
+	c.drawChartGrid(startX)
 
 	for _, key := range c.order {
 		c.drawSeries(c.data[key], startX)
@@ -600,6 +605,41 @@ func (c *EpochLineChart) Draw() {
 
 	c.drawInspectionOverlay(startX)
 	c.dirty = false
+}
+
+// drawChartGrid renders the configured background guides inside the plot area.
+// Series are drawn afterward, so data always wins when cells overlap.
+func (c *EpochLineChart) drawChartGrid(startX int) {
+	const (
+		dotXSpacing = 4
+		dotYSpacing = 2
+	)
+
+	graphWidth := c.GraphWidth()
+	graphHeight := c.GraphHeight()
+	if graphWidth <= 0 || graphHeight <= 0 {
+		return
+	}
+
+	switch c.chartGrid {
+	case ChartGridDots:
+		cell := canvas.NewCellWithStyle('·', chartGridStyle)
+		for y := 0; y < graphHeight; y += dotYSpacing {
+			for x := startX + dotXSpacing/2; x < startX+graphWidth; x += dotXSpacing {
+				c.Canvas.SetCell(canvas.Point{X: x, Y: y}, cell)
+			}
+		}
+
+	case ChartGridHorizontal:
+		guideCount := min(3, graphHeight-1)
+		cell := canvas.NewCellWithStyle('┈', chartGridStyle)
+		for guide := 1; guide <= guideCount; guide++ {
+			y := guide * graphHeight / (guideCount + 1)
+			for x := startX; x < startX+graphWidth; x++ {
+				c.Canvas.SetCell(canvas.Point{X: x, Y: y}, cell)
+			}
+		}
+	}
 }
 
 // drawYLabels draws Y-axis tick labels at positions i = 0, yStep, 2*yStep, ...
@@ -1030,6 +1070,18 @@ func (c *EpochLineChart) SetGraphStyle(s *lipgloss.Style) {
 	if top := c.topSeries(); top != nil {
 		top.style.Store(*s)
 	}
+}
+
+// SetChartGrid sets the background guide style.
+func (c *EpochLineChart) SetChartGrid(grid string) {
+	if !isChartGrid(grid) {
+		grid = DefaultChartGrid
+	}
+	if c.chartGrid == grid {
+		return
+	}
+	c.chartGrid = grid
+	c.dirty = true
 }
 
 // SetSeriesStyle sets the style for the named series, if present.
