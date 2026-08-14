@@ -16,16 +16,12 @@ _GPU_RESOURCE_VALUES = (
     {"gpu": 1},
     {"requests": {"cpu": "1"}, "gpu": {"count": 1}},
 )
-_UNSUPPORTED_EGRESS_NETWORK_VALUES = (
-    cwsandbox.NetworkOptions(egress_mode="private"),
-    {"egress_mode": "private"},
-)
 _SUPPORTED_NETWORK_VALUES = (
-    cwsandbox.NetworkOptions(egress_mode="internet"),
-    cwsandbox.NetworkOptions(egress_mode="none"),
-    cwsandbox.NetworkOptions(ingress_mode="public", exposed_ports=(8080,)),
-    {"egress_mode": "internet"},
-    {"egress_mode": "none"},
+    cwsandbox.NetworkOptions(deny_egress=False),
+    cwsandbox.NetworkOptions(deny_egress=True),
+    cwsandbox.NetworkOptions(deny_ingress=True),
+    {"deny_egress": False},
+    {"deny_egress": True},
 )
 
 
@@ -61,10 +57,8 @@ def test_sandbox_wrapper_rejects_placement_overrides(field: str) -> None:
 
 @pytest.mark.parametrize("field", _PLACEMENT_OVERRIDE_FIELDS)
 def test_sandbox_wrapper_rejects_default_placement_overrides(field: str) -> None:
-    defaults = cwsandbox.SandboxDefaults(**{field: ("placement-1",)})
-
     with pytest.raises(UsageError, match=f"selects the runner and profile.*{field}"):
-        wandb_sandbox.Sandbox(defaults=defaults)
+        wandb_sandbox.Sandbox(defaults={field: ("placement-1",)})
 
 
 @pytest.mark.parametrize("resources", _GPU_RESOURCE_VALUES)
@@ -79,23 +73,14 @@ def test_sandbox_wrapper_allows_default_gpu_resources(resources) -> None:
     wandb_sandbox.Sandbox(defaults=defaults)
 
 
-@pytest.mark.parametrize("network", _UNSUPPORTED_EGRESS_NETWORK_VALUES)
-def test_sandbox_wrapper_rejects_unsupported_egress_modes(network) -> None:
-    with pytest.raises(UsageError, match="egress modes.*private"):
-        wandb_sandbox.Sandbox(network=network)
-
-
-@pytest.mark.parametrize("network", _UNSUPPORTED_EGRESS_NETWORK_VALUES)
-def test_sandbox_wrapper_rejects_default_unsupported_egress_modes(network) -> None:
-    defaults = cwsandbox.SandboxDefaults(network=network)
-
-    with pytest.raises(UsageError, match="egress modes.*private"):
-        wandb_sandbox.Sandbox(defaults=defaults)
-
-
 @pytest.mark.parametrize("network", _SUPPORTED_NETWORK_VALUES)
 def test_sandbox_wrapper_allows_supported_network_options(network) -> None:
     wandb_sandbox.Sandbox(network=network)
+
+
+@pytest.mark.parametrize("network", _SUPPORTED_NETWORK_VALUES)
+def test_sandbox_wrapper_allows_default_supported_network_options(network) -> None:
+    wandb_sandbox.Sandbox(defaults={"network": network})
 
 
 @pytest.mark.parametrize("field", _PLACEMENT_OVERRIDE_FIELDS)
@@ -132,18 +117,16 @@ def test_sandbox_session_allows_default_gpu_resources(resources) -> None:
     wandb_sandbox.Session(defaults={"resources": resources})
 
 
-@pytest.mark.parametrize("network", _UNSUPPORTED_EGRESS_NETWORK_VALUES)
-def test_sandbox_session_rejects_unsupported_egress_modes(network) -> None:
+@pytest.mark.parametrize("network", _SUPPORTED_NETWORK_VALUES)
+def test_sandbox_session_allows_supported_network_options(network) -> None:
     session = wandb_sandbox.Session()
 
-    with pytest.raises(UsageError, match="egress modes.*private"):
-        session.sandbox(network=network)
+    session.sandbox(network=network)
 
 
-@pytest.mark.parametrize("network", _UNSUPPORTED_EGRESS_NETWORK_VALUES)
-def test_sandbox_session_rejects_default_unsupported_egress_modes(network) -> None:
-    with pytest.raises(UsageError, match="egress modes.*private"):
-        wandb_sandbox.Session(defaults={"network": network})
+@pytest.mark.parametrize("network", _SUPPORTED_NETWORK_VALUES)
+def test_sandbox_session_allows_default_supported_network_options(network) -> None:
+    wandb_sandbox.Session(defaults={"network": network})
 
 
 @pytest.mark.parametrize("field", _PLACEMENT_OVERRIDE_FIELDS)
@@ -161,12 +144,11 @@ def test_sandbox_session_function_allows_gpu_resources(resources) -> None:
     session.function(resources=resources)
 
 
-@pytest.mark.parametrize("network", _UNSUPPORTED_EGRESS_NETWORK_VALUES)
-def test_sandbox_session_function_rejects_unsupported_egress_modes(network) -> None:
+@pytest.mark.parametrize("network", _SUPPORTED_NETWORK_VALUES)
+def test_sandbox_session_function_allows_supported_network_options(network) -> None:
     session = wandb_sandbox.Session()
 
-    with pytest.raises(UsageError, match="egress modes.*private"):
-        session.function(network=network)
+    session.function(network=network)
 
 
 def test_sandbox_session_forwards_kwargs(
