@@ -127,6 +127,8 @@ def test_fetch_slack_integrations(
 def test_create_automation(
     module_api: wandb.Api,
     team: Team,
+    scope,
+    scope_type: ScopeType,
     event,
     action,
     automation_name: str,
@@ -137,11 +139,20 @@ def test_create_automation(
 
     assert created.name == automation_name
 
-    fetched_a = module_api.automation(entity=team.name, name=created.name)
-    fetched_b = module_api.automation(name=created.name)
+    # The saved scope should identify the object the automation was scoped to.
+    assert created.scope.scope_type is scope_type
+    assert created.scope.id == scope.id
+    assert created.scope.name == scope.name
 
+    # We should be able to fetch the automation by name (optionally filtering by entity)
+    fetched_a = module_api.automation(entity=team.name, name=created.name)
     assert fetched_a == created
-    assert fetched_b == created
+
+    if scope_type is not ScopeType.ENTITY:
+        # Fetching without an entity walks the viewer's projects, which can't
+        # see entity-scoped automations.
+        fetched_b = module_api.automation(name=created.name)
+        assert fetched_b == created
 
 
 @mark.usefixtures(reset_automations.__name__)
