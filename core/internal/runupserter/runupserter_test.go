@@ -285,7 +285,7 @@ func TestResume_ResumeModeTrue_Allow(t *testing.T) {
 	assert.True(t, mockClient.AllStubsUsed())
 }
 
-func TestResume_FromRunRecordUsesSettingsPolicy(t *testing.T) {
+func TestResume_ResumeModeTrueSettingNever_RejectsExistingRun(t *testing.T) {
 	mockClient, params := setupResumeTest(t, "never")
 	runupsertertest.StubRunResumeStatusExistingRun(t, mockClient)
 
@@ -302,7 +302,7 @@ func TestResume_FromRunRecordUsesSettingsPolicy(t *testing.T) {
 	assert.True(t, mockClient.AllStubsUsed())
 }
 
-func TestResume_FromRunRecordReconcilesWithEmptyResumeSetting(t *testing.T) {
+func TestResume_ResumeModeTrueSettingEmpty_ReconcilesServerStartingStep(t *testing.T) {
 	// `wandb beta sync` does not pass a resume setting; reconciliation relies
 	// on ResumeMode recorded in the transaction log at wandb.init() time.
 	mockClient, params := setupResumeTest(t, "")
@@ -322,7 +322,7 @@ func TestResume_FromRunRecordReconcilesWithEmptyResumeSetting(t *testing.T) {
 	assert.True(t, mockClient.AllStubsUsed())
 }
 
-func TestResume_NeverRejectsExistingRun(t *testing.T) {
+func TestResume_ResumeSettingNeverNoResumeMode_RejectsExistingRun(t *testing.T) {
 	mockClient, params := setupResumeTest(t, "never")
 	runupsertertest.StubRunResumeStatusExistingRun(t, mockClient)
 
@@ -337,7 +337,7 @@ func TestResume_NeverRejectsExistingRun(t *testing.T) {
 }
 
 // This verifies the correct error handling for missing run and ResumeMode=False.
-func TestResume_FalseIntentAllowMissingRun(t *testing.T) {
+func TestResume_ResumeModeFalseSettingAllow_AllowsMissingRun(t *testing.T) {
 	mockClient, params := setupResumeTest(t, "allow")
 	mockClient.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{}`)
 	runupsertertest.StubUpsertBucket(t, mockClient)
@@ -352,7 +352,7 @@ func TestResume_FalseIntentAllowMissingRun(t *testing.T) {
 	assert.True(t, mockClient.AllStubsUsed())
 }
 
-func TestResume_FalseIntentMustMissingRun(t *testing.T) {
+func TestResume_ResumeModeFalseSettingMust_RejectsMissingRun(t *testing.T) {
 	mockClient, params := setupResumeTest(t, "must")
 	mockClient.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{}`)
 
@@ -366,7 +366,7 @@ func TestResume_FalseIntentMustMissingRun(t *testing.T) {
 	assert.True(t, mockClient.AllStubsUsed())
 }
 
-func TestResume_FalseIntentNeverMissingRun(t *testing.T) {
+func TestResume_ResumeModeFalseSettingNever_AllowsMissingRun(t *testing.T) {
 	mockClient, params := setupResumeTest(t, "never")
 	mockClient.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{}`)
 	runupsertertest.StubUpsertBucket(t, mockClient)
@@ -381,7 +381,7 @@ func TestResume_FalseIntentNeverMissingRun(t *testing.T) {
 	assert.True(t, mockClient.AllStubsUsed())
 }
 
-func TestResume_FalseIntentUnsetMissingRun(t *testing.T) {
+func TestResume_ResumeModeFalseSettingUnset_AllowsMissingRun(t *testing.T) {
 	mockClient, params := setupResumeTest(t, "")
 	runupsertertest.StubUpsertBucket(t, mockClient)
 
@@ -395,7 +395,7 @@ func TestResume_FalseIntentUnsetMissingRun(t *testing.T) {
 	assert.True(t, mockClient.AllStubsUsed())
 }
 
-func TestResume_FalseIntentAutoMissingRun(t *testing.T) {
+func TestResume_ResumeModeFalseSettingAuto_AllowsMissingRun(t *testing.T) {
 	mockClient, params := setupResumeTest(t, "auto")
 	runupsertertest.StubUpsertBucket(t, mockClient)
 
@@ -409,7 +409,7 @@ func TestResume_FalseIntentAutoMissingRun(t *testing.T) {
 	assert.True(t, mockClient.AllStubsUsed())
 }
 
-func TestResume_FalseIntentUnexpectedMissingRun(t *testing.T) {
+func TestResume_ResumeModeFalseSettingUnexpected_AllowsMissingRun(t *testing.T) {
 	mockClient, params := setupResumeTest(t, "unexpected")
 	runupsertertest.StubUpsertBucket(t, mockClient)
 
@@ -426,7 +426,7 @@ func TestResume_FalseIntentUnexpectedMissingRun(t *testing.T) {
 // This test proves that ResumeMode=False (equivalent to `resume=never`) can be
 // overridden by explicitly setting `resume=allow` or `resume=must` when there
 // is an existing run.
-func TestResume_FalseIntentAllowExistingRun(t *testing.T) {
+func TestResume_ResumeModeFalseSettingAllow_AllowsExistingRun(t *testing.T) {
 	mockClient, params := setupResumeTest(t, "allow")
 	runupsertertest.StubRunResumeStatusExistingRun(t, mockClient)
 	runupsertertest.StubUpsertBucket(t, mockClient)
@@ -437,7 +437,7 @@ func TestResume_FalseIntentAllowExistingRun(t *testing.T) {
 	assert.True(t, mockClient.AllStubsUsed())
 }
 
-func TestResume_FalseIntentMustExistingRun(t *testing.T) {
+func TestResume_ResumeModeFalseSettingMust_AllowsExistingRun(t *testing.T) {
 	mockClient, params := setupResumeTest(t, "must")
 	runupsertertest.StubRunResumeStatusExistingRun(t, mockClient)
 	runupsertertest.StubUpsertBucket(t, mockClient)
