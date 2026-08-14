@@ -937,6 +937,23 @@ def test_artifact_multipart_download_refresh_presigned_url(
     )
 
 
+def test_draft_inherits_digest_algorithm(api: Api):
+    art = Artifact("test-artifact", "test-type")
+    # Simulate a committed artifact with MD5 entries
+    art._digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_MD5
+    with art.new_file("file.txt", "w") as f:
+        f.write("hello")
+
+    project = "test"
+    with wandb.init(project=project) as run:
+        run.log_artifact(art, aliases=["a"])
+        run.link_artifact(art, f"{project}/my-sample-portfolio")
+
+    parent = api.artifact(f"{project}/my-sample-portfolio:latest")
+    draft = parent.new_draft()
+    assert draft.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_MD5
+
+
 def test_artifact_upload_with_fallback(api: Api):
     # upload an artifact with MD5 digest algorithm
     project = "test"

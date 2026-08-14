@@ -163,7 +163,10 @@ func addFileAndCheckDigest(c Cache, path, digest string) error {
 
 // fileMatchesDigest is a helper function that checks if a file exists at the given path and
 // has the expected digest.
-func fileMatchesDigest(digestAlgorithm gql.ArtifactDigestAlgorithm, path, digest string) (bool, error) {
+func fileMatchesDigest(
+	digestAlgorithm gql.ArtifactDigestAlgorithm,
+	path, digest string,
+) (bool, error) {
 	if digestAlgorithm == gql.ArtifactDigestAlgorithmManifestXxh128 {
 		b64xxh128, err := hashencode.ComputeFileB64XXH128(path)
 		return digest == b64xxh128, err
@@ -285,7 +288,11 @@ func (c *HashOnlyCache) Write(src io.Reader) (string, error) {
 	return copyWithHash(src, io.Discard, c.digestAlgorithm)
 }
 
-func copyWithHash(src io.Reader, dst io.Writer, digestAlgorithm gql.ArtifactDigestAlgorithm) (string, error) {
+func copyWithHash(
+	src io.Reader,
+	dst io.Writer,
+	digestAlgorithm gql.ArtifactDigestAlgorithm,
+) (string, error) {
 	var hasher hash.Hash
 	switch digestAlgorithm {
 	case gql.ArtifactDigestAlgorithmManifestXxh128:

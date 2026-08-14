@@ -85,7 +85,6 @@ func TestComputeReaderHexMD5(t *testing.T) {
 	assert.Equal(t, "2eafcaa8ba7a355a6f0e240471291609", partMD5)
 }
 
-
 func TestComputeFileB64XXH128(t *testing.T) {
 	testFile, err := os.CreateTemp("", "")
 	assert.NoError(t, err)

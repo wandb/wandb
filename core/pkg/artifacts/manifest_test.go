@@ -224,7 +224,7 @@ func TestManifest_GetManifestEntryFromArtifactFilePath(t *testing.T) {
 }
 
 func TestManifest_HashContentsWithMd5_Xxh128_Entry_Is_Updated(t *testing.T) {
-	context := context.Background()
+	ctx := context.Background()
 
 	localPath1, err := os.CreateTemp("", "file1.txt")
 	assert.NoError(t, err)
@@ -253,7 +253,7 @@ func TestManifest_HashContentsWithMd5_Xxh128_Entry_Is_Updated(t *testing.T) {
 	manifest, err := NewManifestFromProto(proto)
 	assert.NoError(t, err)
 
-	err = manifest.HashContentsWithMd5(context)
+	err = manifest.HashContentsWithMd5(ctx)
 	assert.NoError(t, err)
 
 	// file1.txt should be rehashed with md5, and its xxh128 tag dropped.
@@ -263,7 +263,7 @@ func TestManifest_HashContentsWithMd5_Xxh128_Entry_Is_Updated(t *testing.T) {
 }
 
 func TestManifest_HashContentsWithMd5_Md5_And_Ref_Entries_Are_Not_Updated(t *testing.T) {
-	context := context.Background()
+	ctx := context.Background()
 
 	localPath2, err := os.CreateTemp("", "file2.txt")
 	assert.NoError(t, err)
@@ -295,7 +295,7 @@ func TestManifest_HashContentsWithMd5_Md5_And_Ref_Entries_Are_Not_Updated(t *tes
 	manifest, err := NewManifestFromProto(proto)
 	assert.NoError(t, err)
 
-	err = manifest.HashContentsWithMd5(context)
+	err = manifest.HashContentsWithMd5(ctx)
 	assert.NoError(t, err)
 
 	// file2.txt digest should not change, and it stays untagged.
@@ -310,7 +310,7 @@ func TestManifest_HashContentsWithMd5_Md5_And_Ref_Entries_Are_Not_Updated(t *tes
 }
 
 func TestManifest_HashContentsWithMd5_Xxh128_Subdir_Entry_Is_Updated(t *testing.T) {
-	context := context.Background()
+	ctx := context.Background()
 
 	subdir := t.TempDir()
 	localPathInDir1, err := os.CreateTemp(subdir, "file.txt")
@@ -340,7 +340,7 @@ func TestManifest_HashContentsWithMd5_Xxh128_Subdir_Entry_Is_Updated(t *testing.
 	manifest, err := NewManifestFromProto(proto)
 	assert.NoError(t, err)
 
-	err = manifest.HashContentsWithMd5(context)
+	err = manifest.HashContentsWithMd5(ctx)
 	assert.NoError(t, err)
 
 	// different-subdir/file.txt should be rehashed with md5, tag dropped.
@@ -362,7 +362,7 @@ func TestManifest_HashContentsWithMd5_Xxh128_Subdir_Entry_Is_Updated(t *testing.
 }
 
 func TestManifest_HashContentsWithMd5_Xxh128_Carried_Over_Entry_Is_Not_Updated(t *testing.T) {
-	context := context.Background()
+	ctx := context.Background()
 
 	proto := &spb.ArtifactManifest{
 		Version:       1,
@@ -385,7 +385,7 @@ func TestManifest_HashContentsWithMd5_Xxh128_Carried_Over_Entry_Is_Not_Updated(t
 	manifest, err := NewManifestFromProto(proto)
 	assert.NoError(t, err)
 
-	err = manifest.HashContentsWithMd5(context)
+	err = manifest.HashContentsWithMd5(ctx)
 	assert.NoError(t, err)
 
 	// carried-over.txt has no local path, so it must be left untouched
