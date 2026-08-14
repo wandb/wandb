@@ -172,7 +172,7 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 			spb.ServerFeature_USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION,
 		)
 	})
-	artifactDigestAlgorithmSupported := sync.OnceValue(func() bool {
+	serverProvidesArtifactDigestAlgorithm := sync.OnceValue(func() bool {
 		return f.FeatureProvider.Enabled(
 			featureCtx,
 			spb.ServerFeature_ARTIFACT_DIGEST_ALGORITHM,
@@ -208,7 +208,7 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 			f.GraphqlClient,
 			f.FileTransferManager,
 			useArtifactProjectEntityInfo,
-			artifactDigestAlgorithmSupported,
+			serverProvidesArtifactDigestAlgorithm,
 		),
 		networkPeeker:     f.Peeker,
 		printer:           f.Printer,

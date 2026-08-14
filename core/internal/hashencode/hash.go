@@ -89,9 +89,7 @@ func ComputeFileB64XXH128(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer func() {
-		_ = f.Close()
-	}()
+	defer f.Close()
 
 	hasher := xxh3.New128()
 	if _, err = io.Copy(hasher, f); err != nil {
@@ -107,4 +105,11 @@ func ComputeB64XXH128(data []byte) string {
 	// hasher.Write can't fail; the returned values are just to implement io.Writer
 	_, _ = hasher.Write(data)
 	return base64.StdEncoding.EncodeToString(hasher.Sum(nil))
+}
+
+// ComputeHexXXH128 returns the XXH128 hash of data as a hexadecimal string.
+func ComputeHexXXH128(data []byte) string {
+	hasher := xxh3.New128()
+	_, _ = hasher.Write(data)
+	return hex.EncodeToString(hasher.Sum(nil))
 }
