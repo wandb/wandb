@@ -40,7 +40,7 @@ def test_legacy_sync_ignores_offline_resume(
     result = runner.invoke(cli.sync, [run.settings.sync_dir, "--legacy"])
 
     assert result.exit_code == 0
-    assert ("Ignoring offline resume intent" in result.output) is expect_warning
+    assert ("Ignoring `resume` setting" in result.output) is expect_warning
 
     # The run still syncs; the resume intent is dropped, not fatal.
     with wandb_backend_spy.freeze() as snapshot:
