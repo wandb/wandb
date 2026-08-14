@@ -186,6 +186,11 @@ message RunRecord {
   // Information about the source if this is a fork or rewind of another run.
   BranchPoint branch_point = 23;
 
+  // Whether this run is expected to resume an existing run when syncing.
+  //
+  // This is input intent, unlike `resumed`, which is a backend result.
+  bool resume_mode = 24;
+
   _RecordInfo _info = 200;
 }
 

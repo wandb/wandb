@@ -6,6 +6,7 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
@@ -31,10 +32,7 @@ const validLinkArtifactResponse = `{
 }`
 
 type testFixtures struct {
-	Sender    *stream.Sender
-	RunHandle *runhandle.RunHandle
-	Settings  *wbsettings.Settings
-	Logger    *observability.CoreLogger
+	Sender *stream.Sender
 }
 
 func makeSender(t *testing.T, client graphql.Client) testFixtures {
@@ -67,7 +65,6 @@ func makeSender(t *testing.T, client graphql.Client) testFixtures {
 		Logger:       logger,
 		Settings:     settings,
 	}
-	runHandle := runhandle.New()
 
 	senderFactory := stream.SenderFactory{
 		BaseURL:                 baseURL,
@@ -80,14 +77,49 @@ func makeSender(t *testing.T, client graphql.Client) testFixtures {
 		Mailbox:                 mailbox.New(),
 		GraphqlClient:           client,
 		FeatureProvider:         featurechecker.New(nil, logger),
-		RunHandle:               runHandle,
+		RunHandle:               runhandle.New(),
 	}
 	return testFixtures{
-		Sender:    senderFactory.New(runWork),
-		RunHandle: runHandle,
-		Settings:  settings,
-		Logger:    logger,
+		Sender: senderFactory.New(runWork),
 	}
+}
+
+// A summary _step from any source other than the Sender's own step tracker
+// must not win.
+func TestSendSummaryOverridesStaleStep(t *testing.T) {
+	x := makeSender(t, gqlmock.NewMockClient())
+
+	x.Sender.SendRecord(&spb.Record{
+		RecordType: &spb.Record_History{
+			History: &spb.HistoryRecord{
+				Item: []*spb.HistoryItem{
+					{NestedKey: []string{"loss"}, ValueJson: "1.23"},
+				},
+			},
+		},
+	}, nil)
+	x.Sender.SendRecord(&spb.Record{
+		RecordType: &spb.Record_Summary{
+			Summary: &spb.SummaryRecord{
+				Update: []*spb.SummaryItem{
+					{Key: "loss", ValueJson: "1.23"},
+					{Key: "_step", ValueJson: "999"},
+				},
+			},
+		},
+	}, nil)
+
+	summary, err := x.Sender.SummaryForTest()
+	require.NoError(t, err)
+
+	values := map[string]string{}
+	for _, item := range summary {
+		values[item.GetKey()] = item.GetValueJson()
+	}
+	assert.Equal(t, "0", values["_step"],
+		"the tracker's step must survive a stale summary update")
+	assert.Equal(t, "1.23", values["loss"],
+		"non-step keys must still be applied")
 }
 
 // Verify that arguments are properly passed through to graphql

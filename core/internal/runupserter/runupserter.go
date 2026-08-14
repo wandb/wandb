@@ -194,14 +194,9 @@ func InitRun(
 	// must use the updated config returned by the backend on the first
 	// UpsertBucket request.
 	branchPoint := runRecord.BranchPoint
+	resumeSetting := params.Settings.GetResume()
+
 	switch {
-	case params.Settings.GetResume() != "":
-		err := upserter.updateMetadataForResume(ctx, params.Settings.GetResume())
-
-		if err != nil {
-			return nil, ToRunUpdateError(err)
-		}
-
 	case branchPoint != nil && branchPoint.GetRun() == runRecord.RunId:
 		// Branching a run from an earlier point in its history is rewinding.
 		err := upserter.updateMetadataForRewind(ctx, branchPoint)
@@ -217,6 +212,27 @@ func InitRun(
 		if err != nil {
 			return nil, ToRunUpdateError(err)
 		}
+
+	default:
+		// Resume an existing run if the transaction log has resume mode set or
+		// if the current settings explicitly requests a resume.
+		runParams.Resume = runParams.Resume ||
+			resumeSetting == "allow" ||
+			resumeSetting == "must"
+
+		// Reconcile resume state with the backend, or if resume="never",
+		// enforce that the run does not exist yet.
+		if runParams.Resume || resumeSetting == "never" {
+			if err := upserter.updateMetadataForResume(ctx, resumeSetting); err != nil {
+				return nil, ToRunUpdateError(err)
+			}
+		}
+	}
+
+	// If we're offline, skip upserting and leave the sync state to
+	// when we actually sync.
+	if upserter.graphqlClientOrNil == nil {
+		return upserter, nil
 	}
 
 	startingStep, err := upserter.syncStateStore.GetOrInitStartingStep(
@@ -226,11 +242,6 @@ func InitRun(
 		return nil, ToRunUpdateError(err)
 	}
 	upserter.params.StartingStep = startingStep
-
-	// If we're offline, skip upserting.
-	if upserter.graphqlClientOrNil == nil {
-		return upserter, nil
-	}
 
 	upserter.mu.Lock()
 	defer upserter.mu.Unlock()
@@ -452,16 +463,14 @@ func (upserter *RunUpserter) updateMetadataForResume(
 	resumeSetting string,
 ) error {
 	if upserter.graphqlClientOrNil == nil {
-		// Ignore the resume mode when offline.
-		//
-		// A warning is printed by the client during wandb.init().
-		//
-		// resume="auto" is always OK and is handled by the client.
+		// When offline, we cannot query the backend to reconcile resume state,
+		// so resume reconciliation is deferred to `wandb sync`.
 		return nil
 	}
 
 	return runbranch.NewResumeBranch(
 		ctx,
+		upserter.logger,
 		upserter.graphqlClientOrNil,
 		resumeSetting,
 	).UpdateForResume(
