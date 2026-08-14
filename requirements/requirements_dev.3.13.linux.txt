@@ -163,7 +163,7 @@ cuda-pathfinder==1.5.6
     # via cuda-bindings
 cuda-toolkit==13.0.2
     # via torch
-cwsandbox==0.26.0
+cwsandbox==1.0.0
     # via -r requirements/requirements_dev.txt
 cycler==0.12.1
     # via matplotlib
