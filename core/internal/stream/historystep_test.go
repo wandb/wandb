@@ -353,7 +353,12 @@ func TestStripSummaryStep_ServerSideDerivedSummaryKeepsStep(t *testing.T) {
 
 func TestHistoryStepTracker_OldFormatRowIsUnchangedAndSilent(t *testing.T) {
 	logger, logs, sentryTransport := observabilitytest.NewSentryTestLogger(t)
-	x := makeHistoryStepTrackerWithLogger(t, logger, false /*shared*/, false /*serverSideDerivedSummary*/)
+	x := makeHistoryStepTrackerWithLogger(
+		t,
+		logger,
+		false, /*shared*/
+		false, /*serverSideDerivedSummary*/
+	)
 
 	// Clients before offline resume wrote the step twice into every non-shared
 	// history record: as HistoryRecord.Step and as a "_step" item. Replaying
