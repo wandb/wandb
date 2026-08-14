@@ -215,10 +215,10 @@ func (m *Manifest) GetManifestEntryFromArtifactFilePath(path string) (ManifestEn
 }
 
 // HashContentsWithMd5 hashes the contents of the manifest with MD5.
-func (m *Manifest) HashContentsWithMd5(context context.Context) error {
+func (m *Manifest) HashContentsWithMd5(ctx context.Context) error {
 	var mu sync.Mutex
 
-	g, _ := errgroup.WithContext(context)
+	g, _ := errgroup.WithContext(ctx)
 	g.SetLimit(maxSimultaneousHashes)
 	for path, entry := range maps.Clone(m.Contents) {
 		if entry.LocalPath == nil || entry.Ref != nil {

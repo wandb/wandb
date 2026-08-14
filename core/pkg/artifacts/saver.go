@@ -40,12 +40,12 @@ const (
 
 // ArtifactSaveManager manages artifact uploads.
 type ArtifactSaveManager struct {
-	logger                           *observability.CoreLogger
-	printer                          *observability.Printer
-	graphqlClient                    graphql.Client
-	fileTransferManager              filetransfer.FileTransferManager
-	fileCache                        Cache
-	useArtifactProjectEntityInfo     func() bool
+	logger                                *observability.CoreLogger
+	printer                               *observability.Printer
+	graphqlClient                         graphql.Client
+	fileTransferManager                   filetransfer.FileTransferManager
+	fileCache                             Cache
+	useArtifactProjectEntityInfo          func() bool
 	serverProvidesArtifactDigestAlgorithm func() bool
 
 	// uploadsByName ensures that uploads for the same artifact name happen
@@ -65,12 +65,12 @@ func NewArtifactSaveManager(
 	workerPool.SetLimit(maxSimultaneousUploads)
 
 	return &ArtifactSaveManager{
-		logger:                           logger,
-		printer:                          printer,
-		graphqlClient:                    graphqlClient,
-		fileTransferManager:              fileTransferManager,
-		fileCache:                        NewFileCache(UserCacheDir()),
-		useArtifactProjectEntityInfo:     useArtifactProjectEntityInfo,
+		logger:                                logger,
+		printer:                               printer,
+		graphqlClient:                         graphqlClient,
+		fileTransferManager:                   fileTransferManager,
+		fileCache:                             NewFileCache(UserCacheDir()),
+		useArtifactProjectEntityInfo:          useArtifactProjectEntityInfo,
 		serverProvidesArtifactDigestAlgorithm: serverProvidesArtifactDigestAlgorithm,
 		uploadsByName: namedgoroutines.New(
 			uploadBufferPerArtifactName,
@@ -108,19 +108,19 @@ func (as *ArtifactSaveManager) Save(
 	as.uploadsByName.Go(
 		artifact.Name,
 		&ArtifactSaver{
-			ctx:                              ctx,
-			logger:                           as.logger,
-			printer:                          as.printer,
-			graphqlClient:                    as.graphqlClient,
-			fileTransferManager:              as.fileTransferManager,
-			fileCache:                        as.fileCache,
-			artifact:                         artifact,
-			historyStep:                      historyStep,
-			stagingDir:                       stagingDir,
-			maxActiveBatches:                 5,
-			resultChan:                       resultChan,
+			ctx:                 ctx,
+			logger:              as.logger,
+			printer:             as.printer,
+			graphqlClient:       as.graphqlClient,
+			fileTransferManager: as.fileTransferManager,
+			fileCache:           as.fileCache,
+			artifact:            artifact,
+			historyStep:         historyStep,
+			stagingDir:          stagingDir,
+			maxActiveBatches:    5,
+			resultChan:          resultChan,
 			// these are functions so that we can resolve server flags lazily
-			useArtifactProjectEntityInfo:     as.useArtifactProjectEntityInfo(),
+			useArtifactProjectEntityInfo:          as.useArtifactProjectEntityInfo(),
 			serverProvidesArtifactDigestAlgorithm: as.serverProvidesArtifactDigestAlgorithm(),
 		},
 	)
@@ -140,14 +140,14 @@ type ArtifactSaver struct {
 	resultChan          chan<- ArtifactSaveResult
 
 	// Input.
-	artifact                         *spb.ArtifactRecord
-	historyStep                      int64
-	stagingDir                       string
-	maxActiveBatches                 int
-	numTotal                         int
-	numDone                          int
-	startTime                        time.Time
-	useArtifactProjectEntityInfo     bool
+	artifact                              *spb.ArtifactRecord
+	historyStep                           int64
+	stagingDir                            string
+	maxActiveBatches                      int
+	numTotal                              int
+	numDone                               int
+	startTime                             time.Time
+	useArtifactProjectEntityInfo          bool
 	serverProvidesArtifactDigestAlgorithm bool
 }
 
@@ -173,7 +173,6 @@ type uploadResult struct {
 }
 
 type artifactSequence = gql.FetchArtifactDigestAlgorithmProjectArtifactTypeArtifactCollectionArtifactSequence
-
 
 // digestAlgorithm returns the digest algorithm saved on the ArtifactRecord as a gql.ArtifactDigestAlgorithm.
 func (as *ArtifactSaver) digestAlgorithm() gql.ArtifactDigestAlgorithm {
@@ -252,12 +251,18 @@ func (as *ArtifactSaver) createArtifact(manifest *Manifest) (
 ) {
 	sequenceDigestAlgorithm, err := as.getArtifactDigestAlgorithm()
 	if err != nil {
-		return gql.CreatedArtifactArtifact{}, fmt.Errorf("ArtifactSaver.getArtifactDigestAlgorithm: %w", err)
+		return gql.CreatedArtifactArtifact{}, fmt.Errorf(
+			"ArtifactSaver.getArtifactDigestAlgorithm: %w",
+			err,
+		)
 	}
 	if sequenceDigestAlgorithm == gql.ArtifactDigestAlgorithmManifestMd5 {
 		err = as.hashArtifactWithMd5(manifest)
 		if err != nil {
-			return gql.CreatedArtifactArtifact{}, fmt.Errorf("ArtifactSaver.hashArtifactWithMd5: %w", err)
+			return gql.CreatedArtifactArtifact{}, fmt.Errorf(
+				"ArtifactSaver.hashArtifactWithMd5: %w",
+				err,
+			)
 		}
 	}
 
