@@ -328,6 +328,41 @@ func TestWorkspace_ClickWithoutMotionDoesNotPersist(t *testing.T) {
 		"a click without motion must not write an override")
 }
 
+// Regression (#12289 review): after dragging the overview sidebar until the
+// main column hits its minimum width, the border must stay grabbable — and
+// a one-column near-miss must latch too, since terminals quantize mouse
+// coordinates to cells and a one-column target is luck-based.
+func TestWorkspace_MaxedSidebarStaysDraggable(t *testing.T) {
+	const width = 170
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	_ = w.Update(tea.WindowSizeMsg{Width: width, Height: 60})
+	w.TestForceExpandRunsSidebar()
+	w.TestForceExpandOverviewSidebar()
+
+	// Drag the overview border all the way left: it stops where the main
+	// column hits its minimum width (24 cols).
+	_, right0 := w.TestLayoutWidths()
+	_ = w.Update(tea.MouseClickMsg{X: width - right0, Y: 20, Button: tea.MouseLeft})
+	_ = w.Update(tea.MouseMotionMsg{X: 0, Y: 20, Button: tea.MouseLeft})
+	_ = w.Update(tea.MouseReleaseMsg{X: 0, Y: 20, Button: tea.MouseLeft})
+
+	left1, right1 := w.TestLayoutWidths()
+	require.Equal(t, width-left1-24, right1,
+		"the sidebar should stop where the main column hits its minimum")
+
+	// Re-grab one column off the border (a typical near-miss) and shrink.
+	borderX := width - right1
+	_ = w.Update(tea.MouseClickMsg{X: borderX + 1, Y: 20, Button: tea.MouseLeft})
+	_ = w.Update(tea.MouseMotionMsg{X: borderX + 10, Y: 20, Button: tea.MouseLeft})
+	_ = w.Update(tea.MouseReleaseMsg{X: borderX + 10, Y: 20, Button: tea.MouseLeft})
+
+	_, right2 := w.TestLayoutWidths()
+	require.Equal(t, right1-10, right2, "a maxed sidebar must stay draggable")
+}
+
 // ---- Focus bug: collapsing overview with logs focused ----
 
 func TestWorkspace_CollapseOverview_FocusStaysOnLogs(t *testing.T) {

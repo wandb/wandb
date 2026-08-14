@@ -215,8 +215,21 @@ func stackGeometry(layout Layout) []stackGeom {
 	return visible
 }
 
+// sidebarGrabTolerance widens each sidebar border's mouse target to the
+// adjacent column on either side. Terminals report cell-quantized mouse
+// coordinates, so a one-column target makes grabbing the border a matter
+// of sub-cell luck.
+const sidebarGrabTolerance = 1
+
+// nearColumn reports whether x is within sidebarGrabTolerance of col.
+func nearColumn(x, col int) bool {
+	d := x - col
+	return -sidebarGrabTolerance <= d && d <= sidebarGrabTolerance
+}
+
 // boundaryAt hit-tests a mouse position against the draggable boundaries:
-// the sidebars' border columns and the separator rows of the central stack.
+// the sidebars' border columns (with one column of tolerance either side)
+// and the separator rows of the central stack.
 //
 // Sidebar borders are only draggable when the sidebar is stably expanded so
 // a drag never fights an animation.
@@ -230,11 +243,11 @@ func boundaryAt(
 	}
 
 	if layout.leftSidebarWidth > 0 && leftExpanded &&
-		x == layout.leftSidebarWidth-1 {
+		nearColumn(x, layout.leftSidebarWidth-1) {
 		return layoutDrag{boundary: dragBoundaryLeftSidebar}, true
 	}
 	if layout.rightSidebarWidth > 0 && rightExpanded &&
-		x == width-layout.rightSidebarWidth {
+		nearColumn(x, width-layout.rightSidebarWidth) {
 		return layoutDrag{boundary: dragBoundaryRightSidebar}, true
 	}
 

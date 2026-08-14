@@ -32,20 +32,26 @@ func TestBoundaryAtSidebarBorders(t *testing.T) {
 	layout := testRunLayout()
 	const width = 200
 
-	// Left sidebar border column is the sidebar's last column.
-	drag, ok := boundaryAt(39, 5, width, layout, true, true)
-	require.True(t, ok)
-	require.Equal(t, dragBoundaryLeftSidebar, drag.boundary)
+	// The left sidebar's border is its last column; the border column and
+	// one column either side latch (mouse coordinates are cell-quantized,
+	// so a one-column target is luck-based).
+	for _, x := range []int{38, 39, 40} {
+		drag, ok := boundaryAt(x, 5, width, layout, true, true)
+		require.True(t, ok, "x=%d", x)
+		require.Equal(t, dragBoundaryLeftSidebar, drag.boundary)
+	}
 
-	// Right sidebar border column is its first column.
-	drag, ok = boundaryAt(width-60, 5, width, layout, true, true)
-	require.True(t, ok)
-	require.Equal(t, dragBoundaryRightSidebar, drag.boundary)
+	// The right sidebar's border is its first column, same tolerance.
+	for _, x := range []int{width - 61, width - 60, width - 59} {
+		drag, ok := boundaryAt(x, 5, width, layout, true, true)
+		require.True(t, ok, "x=%d", x)
+		require.Equal(t, dragBoundaryRightSidebar, drag.boundary)
+	}
 
-	// One column off is a miss.
-	_, ok = boundaryAt(38, 5, width, layout, true, true)
+	// Two columns off is a miss.
+	_, ok := boundaryAt(37, 5, width, layout, true, true)
 	require.False(t, ok)
-	_, ok = boundaryAt(width-59, 5, width, layout, true, true)
+	_, ok = boundaryAt(width-58, 5, width, layout, true, true)
 	require.False(t, ok)
 
 	// A collapsed/animating sidebar is not draggable.
