@@ -347,7 +347,7 @@ func (w *Workspace) handleToggleRunsSidebar(msg tea.KeyPressMsg) tea.Cmd {
 
 	w.updateSidebarDimensions(leftWillBeVisible, rightIsVisible)
 	w.runsAnimState.Toggle()
-	w.focusMgr.ResolveAfterVisibilityChange()
+	w.focusMgr.Resolve()
 	w.recalculateLayout()
 
 	return w.runsAnimationCmd()
@@ -363,7 +363,7 @@ func (w *Workspace) handleToggleOverviewSidebar(msg tea.KeyPressMsg) tea.Cmd {
 
 	w.updateSidebarDimensions(leftIsVisible, rightWillBeVisible)
 	w.runOverviewSidebar.Toggle()
-	w.focusMgr.ResolveAfterVisibilityChange()
+	w.focusMgr.Resolve()
 	w.recalculateLayout()
 
 	return w.runOverviewAnimationCmd()
@@ -392,9 +392,7 @@ func (w *Workspace) handleToggleMediaPane(msg tea.KeyPressMsg) tea.Cmd {
 	}
 
 	w.mediaPane.Toggle()
-	if !mediaWillBeVisible {
-		w.focusMgr.ResolveAfterVisibilityChange()
-	}
+	w.focusMgr.Resolve()
 	w.recalculateLayout()
 	return w.mediaPaneAnimationCmd()
 }
@@ -412,7 +410,7 @@ func (w *Workspace) handleToggleConsoleLogsPane(msg tea.KeyPressMsg) tea.Cmd {
 		bottomWillBeVisible,
 	)
 	w.consoleLogsPane.Toggle()
-	w.focusMgr.ResolveAfterVisibilityChange()
+	w.focusMgr.Resolve()
 	w.recalculateLayout()
 
 	return w.consoleLogsPaneAnimationCmd()
@@ -429,7 +427,7 @@ func (w *Workspace) handleToggleSystemMetricsPane(tea.KeyPressMsg) tea.Cmd {
 
 	w.updateBottomPaneHeights(sysWillBeVisible, mediaVisible, logsVisible)
 	w.systemMetricsPane.Toggle()
-	w.focusMgr.ResolveAfterVisibilityChange()
+	w.focusMgr.Resolve()
 	w.recalculateLayout()
 	return w.systemMetricsPaneAnimationCmd()
 }
@@ -949,7 +947,7 @@ func (w *Workspace) handleToggleMetricsGrid(msg tea.KeyPressMsg) tea.Cmd {
 	}
 
 	w.metricsGridAnimState.Toggle()
-	w.focusMgr.ResolveAfterVisibilityChange()
+	w.focusMgr.Resolve()
 
 	w.updateBottomPaneHeights(
 		w.systemMetricsPane.animState.TargetVisible(),

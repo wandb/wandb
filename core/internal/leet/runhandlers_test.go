@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -79,11 +80,17 @@ func newTestRun(
 	return r, cfg
 }
 
+// seedConsoleLog gives the console logs pane content so it is focusable.
+func seedConsoleLog(r *leet.Run) {
+	r.TestHandleRecordMsg(leet.ConsoleLogMsg{Text: "hello", Time: time.Now()})
+}
+
 // ---- handleSidebarTabNav ----
 
 func TestRun_SidebarTabNav_BothPanelsVisible_CyclesOverviewThenLogs(t *testing.T) {
 	r := newRunForHandlerTest(t)
 	r.TestForceExpandConsoleLogsPane(10)
+	seedConsoleLog(r)
 
 	// Initial state: overview section 0 should be active.
 	sidebar := r.TestGetLeftSidebar()
@@ -116,12 +123,32 @@ func TestRun_SidebarTabNav_BothPanelsVisible_CyclesOverviewThenLogs(t *testing.T
 func TestRun_SidebarTabNav_OnlyLogsVisible(t *testing.T) {
 	r := newRunForHandlerTest(t)
 	r.TestForceExpandConsoleLogsPane(10)
+	seedConsoleLog(r)
 	r.TestForceCollapseLeftSidebar()
 
 	// With overview collapsed, Tab should activate logs.
 	r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
 	require.True(t, r.TestConsoleLogsPaneActive(),
 		"Tab with collapsed overview should still reach logs")
+}
+
+func TestRun_SidebarTabNav_SkipsEmptyLogsPane(t *testing.T) {
+	r := newRunForHandlerTest(t)
+	r.TestForceExpandConsoleLogsPane(10)
+
+	// The logs pane is open but has no content: Tab must skip it and
+	// keep cycling overview sections.
+	sidebar := r.TestGetLeftSidebar()
+	_, lastSec := sidebar.TestFocusableSectionBounds()
+	for r.TestLeftSidebarActiveSectionIdx() < lastSec {
+		r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	}
+	r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+
+	require.False(t, r.TestConsoleLogsPaneActive(),
+		"an empty logs pane must not receive focus")
+	require.True(t, r.TestLeftSidebarHasActiveSection(),
+		"focus should wrap back to the overview")
 }
 
 func TestRun_SidebarTabNav_OnlyOverviewVisible(t *testing.T) {
@@ -149,6 +176,9 @@ func TestRun_InitialFocus_PicksFirstAvailablePane(t *testing.T) {
 		RunFile: "testdata/fake.wandb",
 	}, cfg, logger)
 	r.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+
+	// Focus is seeded once the first pane gains content.
+	seedConsoleLog(r)
 
 	require.True(t, r.TestConsoleLogsPaneActive(),
 		"the first available pane should receive focus on load")
