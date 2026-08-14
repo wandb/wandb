@@ -741,7 +741,12 @@ func (w *Workspace) deactivateSysMetricsFocus() {
 		w.systemMetricsFocus.Reset()
 	}
 }
-func (w *Workspace) deactivateMediaFocus()    { w.mediaPane.SetActive(false) }
+func (w *Workspace) deactivateMediaFocus() {
+	// Fullscreen follows focus: once focus leaves the pane, no key path
+	// could exit fullscreen and Esc would be captured forever.
+	w.mediaPane.ExitFullscreen()
+	w.mediaPane.SetActive(false)
+}
 func (w *Workspace) deactivateLogsFocus()     { w.consoleLogsPane.SetActive(false) }
 func (w *Workspace) deactivateOverviewFocus() { w.runOverviewSidebar.deactivateAllSections() }
 

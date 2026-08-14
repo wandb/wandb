@@ -186,6 +186,86 @@ func TestRun_InitialFocus_PicksFirstAvailablePane(t *testing.T) {
 		"collapsed overview should not appear focused")
 }
 
+// ---- Esc: unfocus pane first, exit view second ----
+
+func TestRun_EscUnfocusesPane(t *testing.T) {
+	r := newRunForHandlerTest(t)
+	require.True(t, r.HasPaneFocus(), "seeded run should start with pane focus")
+
+	r.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+
+	require.False(t, r.HasPaneFocus(), "Esc should clear pane focus")
+	require.False(t, r.TestLeftSidebarHasActiveSection(),
+		"overview sections should be deactivated after Esc")
+}
+
+func TestRun_DataAfterEscDoesNotRestealFocus(t *testing.T) {
+	r := newRunForHandlerTest(t)
+	r.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	require.False(t, r.HasPaneFocus())
+
+	// More data arriving must not move focus once the user unfocused.
+	r.TestHandleRecordMsg(leet.SummaryMsg{
+		Summary: []*spb.SummaryRecord{{
+			Update: []*spb.SummaryItem{
+				{NestedKey: []string{"acc"}, ValueJson: "0.9"},
+			},
+		}},
+	})
+	require.False(t, r.HasPaneFocus(),
+		"incoming data must not re-steal focus after Esc")
+}
+
+// newModelInRunMode builds the top-level model in run mode at 200x60, with
+// config tweaks applied before construction.
+func newModelInRunMode(
+	t *testing.T, tweak func(*leet.ConfigManager),
+) (*leet.Model, tea.Model) {
+	t.Helper()
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	if tweak != nil {
+		tweak(cfg)
+	}
+	m := leet.NewModel(leet.ModelParams{
+		RunParams: &leet.RunParams{RunFile: "testdata/fake.wandb"},
+		Config:    cfg,
+		Logger:    logger,
+	})
+	var tm tea.Model = m
+	tm, _ = tm.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+	require.True(t, m.TestInRunMode())
+	return m, tm
+}
+
+// seedOverview gives the run overview config data so a pane takes focus.
+func seedOverview(r *leet.Run) {
+	r.TestHandleRecordMsg(leet.RunMsg{
+		ID:      "abc123",
+		Project: "test-project",
+		Config: &spb.ConfigRecord{
+			Update: []*spb.ConfigItem{
+				{NestedKey: []string{"lr"}, ValueJson: "0.01"},
+			},
+		},
+	})
+}
+
+func TestModel_EscExitsRunViewOnlyWhenUnfocused(t *testing.T) {
+	m, tm := newModelInRunMode(t, nil)
+	seedOverview(m.TestRunModel())
+	require.True(t, m.TestRunModel().HasPaneFocus())
+
+	// First Esc unfocuses the pane but stays in the run view.
+	tm, _ = tm.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	require.True(t, m.TestInRunMode(), "Esc with a focused pane must not exit the view")
+	require.False(t, m.TestRunModel().HasPaneFocus())
+
+	// Second Esc exits to the workspace.
+	_, _ = tm.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	require.False(t, m.TestInRunMode(), "Esc with no pane focus should exit to workspace")
+}
+
 func TestRun_OverviewUpdatesPreserveTabContext(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
@@ -342,4 +422,90 @@ func TestRun_StackSectionsAlignWithReservedRows(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Regression: Tab while the media pane was fullscreen used to move focus away
+// with fullscreen left on; Esc then cleared the invisible focus once and every
+// further press was captured by the fullscreen guard with no way out.
+// Fullscreen now follows focus.
+func TestModel_TabWhileMediaFullscreenExitsFullscreen(t *testing.T) {
+	m, tm := newModelInRunMode(t, func(c *leet.ConfigManager) {
+		_ = c.SetMediaVisible(true)
+	})
+
+	// Metrics + media data: focus seeds on the metrics grid, media is the
+	// next available region.
+	r := m.TestRunModel()
+	r.TestHandleRecordMsg(leet.RunMsg{ID: "abc123", Project: "test-project"})
+	r.TestHandleRecordMsg(leet.HistoryMsg{
+		Metrics: map[string]leet.MetricData{
+			"loss": {X: []float64{1, 2}, Y: []float64{0.5, 0.4}},
+		},
+		Media: map[string][]leet.MediaPoint{
+			"media/img": {{X: 1, FilePath: "a.png", Format: "png"}},
+		},
+	})
+	require.True(t, r.HasPaneFocus())
+
+	// Tab to the media pane, enter fullscreen, then Tab away.
+	tm, _ = tm.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	tm, _ = tm.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.True(t, r.MediaFullscreen())
+	tm, _ = tm.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	require.False(t, r.MediaFullscreen(), "fullscreen must follow focus")
+
+	// Esc still peels one layer at a time: focus, then the view.
+	tm, _ = tm.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	require.True(t, m.TestInRunMode())
+	require.False(t, r.HasPaneFocus())
+	_, _ = tm.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	require.False(t, m.TestInRunMode())
+}
+
+// Regression: a fast Esc-Esc mash reaches the app as one alt+esc; the keyMap
+// missed it while the model exit was suppressed by the focus snapshot, so the
+// press did nothing.
+func TestModel_ModifiedEscStillPeelsFocus(t *testing.T) {
+	m, tm := newModelInRunMode(t, func(c *leet.ConfigManager) {
+		_ = c.SetLeftSidebarVisible(true)
+	})
+	seedOverview(m.TestRunModel())
+	require.True(t, m.TestRunModel().HasPaneFocus())
+
+	_, _ = tm.Update(tea.KeyPressMsg{Code: tea.KeyEsc, Mod: tea.ModAlt})
+	require.False(t, m.TestRunModel().HasPaneFocus(),
+		"a modified Esc must still unfocus the pane")
+	require.True(t, m.TestInRunMode(),
+		"a modified Esc must not also exit the view")
+}
+
+// Regression: an explicit Esc-unfocus before the one-time focus seed fired
+// used to be overridden by the next incoming record re-seeding focus.
+func TestRun_EscBeforeSeedStopsDataFromStealingFocus(t *testing.T) {
+	r, _ := newTestRun(t, 200, 60, func(c *leet.ConfigManager) {
+		_ = c.SetMediaVisible(true)
+	})
+
+	// Media data arrives via the shared store, not a record, so the seed has
+	// not fired yet; the user tabs in and explicitly unfocuses.
+	store := leet.NewMediaStore()
+	store.ProcessHistory(leet.HistoryMsg{
+		Media: map[string][]leet.MediaPoint{
+			"media/img": {{X: 1, FilePath: "a.png", Format: "png"}},
+		},
+	})
+	r.SetMediaStore(store)
+	r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	require.True(t, r.HasPaneFocus())
+	r.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	require.False(t, r.HasPaneFocus())
+
+	// The first processed record must not move focus back.
+	r.TestHandleRecordMsg(leet.HistoryMsg{
+		Metrics: map[string]leet.MetricData{
+			"loss": {X: []float64{1, 2}, Y: []float64{0.5, 0.4}},
+		},
+	})
+	require.False(t, r.HasPaneFocus(),
+		"data after an explicit unfocus must not re-seed focus")
 }

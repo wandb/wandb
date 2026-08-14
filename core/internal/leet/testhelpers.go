@@ -81,6 +81,12 @@ func (r *Run) TestStackHeights() (metrics, media, logs int) {
 	return l.height, l.mediaHeight, l.consoleLogsHeight
 }
 
+// TestInRunMode reports whether the model shows the single-run view.
+func (m *Model) TestInRunMode() bool { return m.mode == viewModeRun }
+
+// TestRunModel returns the single-run sub-model (nil in workspace mode).
+func (m *Model) TestRunModel() *Run { return m.run }
+
 func (s *Symon) TestGrid() *SystemMetricsGrid {
 	return s.grid
 }

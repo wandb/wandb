@@ -1,5 +1,7 @@
 package leet
 
+import tea "charm.land/bubbletea/v2"
+
 // buildRunFocusManager constructs the FocusManager for the single-run view.
 //
 // The region order follows the spatial layout so Tab flows naturally:
@@ -126,6 +128,9 @@ func (r *Run) deactivateSystemMetricsFocus() {
 }
 
 func (r *Run) deactivateMediaFocus() {
+	// Fullscreen follows focus: once focus leaves the pane, no key path
+	// could exit fullscreen and Esc would be captured forever.
+	r.mediaPane.ExitFullscreen()
 	r.mediaPane.SetActive(false)
 }
 
@@ -147,6 +152,21 @@ func (r *Run) resolveFocusAfterData() {
 		r.focusMgr.Tab(1)
 	}
 	r.focusSeeded = r.focusMgr.Current() != FocusTargetNone
+}
+
+// HasPaneFocus reports whether any pane currently holds focus.
+func (r *Run) HasPaneFocus() bool {
+	return r.focusMgr.Current() != FocusTargetNone
+}
+
+// handleEscape clears pane focus. When nothing is focused, the parent model
+// handles Esc by exiting back to the workspace.
+func (r *Run) handleEscape(tea.KeyPressMsg) tea.Cmd {
+	// An explicit unfocus ends the initial-focus seeding era: later data
+	// must not move focus back.
+	r.focusSeeded = true
+	r.focusMgr.ClearAll()
+	return nil
 }
 
 // ---- Within-region cycling ----

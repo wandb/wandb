@@ -189,6 +189,38 @@ func TestWorkspace_ToggleConsoleLogsPane_FocusStaysOnRuns(t *testing.T) {
 		"runs focus should be preserved when collapsing bottom bar from runs")
 }
 
+// ---- Esc: home to runs, or clear focus when runs can't take it ----
+
+func TestWorkspace_EscReturnsFocusToRuns(t *testing.T) {
+	w := newWorkspaceWithPanels(t)
+
+	// Focus logs, then Esc home.
+	for w.TestCurrentFocusRegion() != testFocusLogs {
+		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	}
+	_ = w.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+
+	require.Equal(t, testFocusRuns, w.TestCurrentFocusRegion(),
+		"Esc should return focus to the runs list")
+	require.True(t, w.TestRunsActive())
+}
+
+func TestWorkspace_EscClearsFocusWhenRunsHidden(t *testing.T) {
+	w := newWorkspaceWithPanels(t)
+
+	// Focus logs, hide the runs sidebar, then Esc.
+	for w.TestCurrentFocusRegion() != testFocusLogs {
+		_ = w.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	}
+	_ = w.Update(keyRune('['))
+	require.Equal(t, testFocusLogs, w.TestCurrentFocusRegion())
+
+	_ = w.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+
+	require.Equal(t, int(leet.FocusTargetNone), w.TestCurrentFocusRegion(),
+		"Esc should clear focus when the runs list cannot take it")
+}
+
 // ---- Empty panes are skipped by Tab ----
 
 func TestWorkspace_TabSkipsEmptyLogsPane(t *testing.T) {

@@ -42,7 +42,8 @@ func RunKeyBindings() []BindingCategory[Run] {
 				},
 				{
 					Keys:        []string{"esc"},
-					Description: "Back to workspace (when not filtering/configuring)",
+					Description: "Unfocus pane, then back to workspace",
+					Handler:     (*Run).handleEscape,
 				},
 			},
 		},
@@ -548,8 +549,13 @@ func buildKeyMap[T any](
 // Bubble Tea has historically reported space as " " in some situations; we want a
 // help-friendly, explicit key name.
 func normalizeKey(key string) string {
-	if key == " " {
+	switch key {
+	case " ":
 		return "space"
+	case "alt+esc", "shift+esc", "ctrl+esc":
+		// The terminal decoder coalesces a fast Esc-Esc mash into a single
+		// alt+esc; any modified Esc still means Esc.
+		return "esc"
 	}
 	return key
 }
