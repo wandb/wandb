@@ -15,6 +15,7 @@ type systemMetricChart interface {
 	GraphStartX() int
 	GraphStartY() int
 	HandleZoom(direction string, mouseX int)
+	SetChartGrid(grid string)
 	ToggleYScale() bool
 	IsLogY() bool
 	SupportsHeatmap() bool

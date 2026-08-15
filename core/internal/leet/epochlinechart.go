@@ -631,10 +631,17 @@ func (c *EpochLineChart) drawChartGrid(startX int) {
 		}
 
 	case ChartGridHorizontal:
-		guideCount := min(3, graphHeight-1)
-		cell := canvas.NewCellWithStyle('┈', chartGridStyle)
-		for guide := 1; guide <= guideCount; guide++ {
-			y := guide * graphHeight / (guideCount + 1)
+		// Guides sit on the Y tick rows placed by drawYLabels, so each line
+		// corresponds to a labeled value in both linear and log mode. The top
+		// row is skipped: a guide hugging the chart's upper edge reads as a
+		// border rather than a reference line.
+		yStep := c.YStep()
+		if yStep <= 0 {
+			return
+		}
+		cell := canvas.NewCellWithStyle(boxLightHorizontal, chartGridStyle)
+		for i := yStep; i < graphHeight; i += yStep {
+			y := c.Origin().Y - i
 			for x := startX; x < startX+graphWidth; x++ {
 				c.Canvas.SetCell(canvas.Point{X: x, Y: y}, cell)
 			}

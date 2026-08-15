@@ -59,37 +59,52 @@ func TestEpochLineChart_NonFiniteValuesDoNotPoisonRange(t *testing.T) {
 }
 
 func TestEpochLineChart_ChartGridStyles(t *testing.T) {
-	tests := []struct {
-		name       string
-		grid       string
-		wantRune   string
-		absentRune string
-	}{
-		{name: "off", grid: leet.ChartGridOff, absentRune: "·┈"},
-		{name: "dots", grid: leet.ChartGridDots, wantRune: "·", absentRune: "┈"},
-		{name: "horizontal", grid: leet.ChartGridHorizontal, wantRune: "┈", absentRune: "·"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			chart := leet.NewEpochLineChart("loss")
-			chart.Resize(48, 10)
-			chart.SetChartGrid(tt.grid)
-			chart.AddData("loss", leet.MetricData{
-				X: []float64{0, 1, 2, 3},
-				Y: []float64{0.2, 0.4, 0.6, 0.8},
-			})
-			chart.Draw()
-
-			view := stripANSI(chart.View())
-			if tt.wantRune != "" {
-				require.Contains(t, view, tt.wantRune)
-			}
-			for _, r := range tt.absentRune {
-				require.NotContains(t, view, string(r))
-			}
+	// renderPlotRows returns the plot-area rows of a 48x10 chart, excluding
+	// the X axis row, which always contains '─'.
+	renderPlotRows := func(grid string) (*leet.EpochLineChart, []string) {
+		chart := leet.NewEpochLineChart("loss")
+		chart.Resize(48, 10)
+		chart.SetChartGrid(grid)
+		chart.AddData("loss", leet.MetricData{
+			X: []float64{0, 1, 2, 3},
+			Y: []float64{0.2, 0.4, 0.6, 0.8},
 		})
+		chart.Draw()
+
+		lines := strings.Split(stripANSI(chart.View()), "\n")
+		return chart, lines[:chart.GraphHeight()]
 	}
+
+	t.Run("off", func(t *testing.T) {
+		_, rows := renderPlotRows(leet.ChartGridOff)
+		for _, row := range rows {
+			require.NotContains(t, row, "·")
+			require.NotContains(t, row, "─")
+		}
+	})
+
+	t.Run("dots", func(t *testing.T) {
+		_, rows := renderPlotRows(leet.ChartGridDots)
+		require.Contains(t, strings.Join(rows, "\n"), "·")
+		for _, row := range rows {
+			require.NotContains(t, row, "─")
+		}
+	})
+
+	t.Run("horizontal", func(t *testing.T) {
+		chart, rows := renderPlotRows(leet.ChartGridHorizontal)
+
+		// Guides sit exactly on the Y tick rows and nowhere else.
+		for y, row := range rows {
+			i := chart.Origin().Y - y
+			if i%chart.YStep() == 0 && i < chart.GraphHeight() {
+				require.Contains(t, row, "─", "expected a guide on tick row %d", y)
+			} else {
+				require.NotContains(t, row, "─", "unexpected guide on row %d", y)
+			}
+			require.NotContains(t, row, "·")
+		}
+	})
 }
 
 func TestEpochLineChart_ZoomClampsAndAnchors(t *testing.T) {

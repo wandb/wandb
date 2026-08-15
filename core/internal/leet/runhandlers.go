@@ -498,6 +498,18 @@ func (r *Run) handleCycleFocusedChartMode(tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
+func (r *Run) handleCycleChartGrid(tea.KeyPressMsg) tea.Cmd {
+	grid := nextChartGrid(r.config.ChartGrid())
+	if err := r.config.SetChartGrid(grid); err != nil {
+		r.logger.Error(fmt.Sprintf("runhandlers: failed to save chart grid: %v", err))
+	}
+	r.metricsGrid.SetChartGrid(grid)
+	if r.rightSidebar != nil && r.rightSidebar.metricsGrid != nil {
+		r.rightSidebar.metricsGrid.SetChartGrid(grid)
+	}
+	return nil
+}
+
 func (r *Run) handleEnterMetricsFilter(msg tea.KeyPressMsg) tea.Cmd {
 	r.metricsGrid.EnterFilterMode()
 	return nil

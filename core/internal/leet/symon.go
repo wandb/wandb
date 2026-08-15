@@ -277,6 +277,15 @@ func (s *Symon) handleToggleFocusedChartLogY(msg tea.KeyPressMsg) tea.Cmd {
 	return s.handleCycleFocusedChartMode(msg)
 }
 
+func (s *Symon) handleCycleChartGrid(tea.KeyPressMsg) tea.Cmd {
+	grid := nextChartGrid(s.config.ChartGrid())
+	if err := s.config.SetChartGrid(grid); err != nil {
+		s.logger.Error(fmt.Sprintf("symon: failed to save chart grid: %v", err))
+	}
+	s.grid.SetChartGrid(grid)
+	return nil
+}
+
 func (s *Symon) handleEnterSystemMetricsFilter(tea.KeyPressMsg) tea.Cmd {
 	s.grid.EnterFilterMode()
 	s.grid.ApplyFilter()

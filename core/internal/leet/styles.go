@@ -175,6 +175,9 @@ const (
 	// BoxLightVertical is U+2502 and is "taller" than verticalLine.
 	boxLightVertical rune = '\u2502' // │
 
+	// boxLightHorizontal is U+2500, the horizontal counterpart of boxLightVertical.
+	boxLightHorizontal rune = '\u2500' // ─
+
 	// unicodeEmDash is the em dash.
 	unicodeEmDash rune = '\u2014'
 

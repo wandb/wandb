@@ -104,6 +104,9 @@ func (r *Run) TestClearMainChartFocus() {
 	r.metricsGrid.clearFocus()
 }
 
+// TestMetricsGrid exposes the run's main metrics grid for testing.
+func (r *Run) TestMetricsGrid() *MetricsGrid { return r.metricsGrid }
+
 // TestForceExpand forces the sidebar to expanded state without animation
 func (s *RunOverviewSidebar) TestForceExpand() {
 	s.animState.current = s.animState.expanded
@@ -286,6 +289,11 @@ func (c *EpochLineChart) TestInspectionMouseX() (int, bool) {
 // TestBounds exposes the chart's current bounds for testing.
 func (c *EpochLineChart) TestBounds() (xMin, xMax, yMin, yMax float64) {
 	return c.xMin, c.xMax, c.yMin, c.yMax
+}
+
+// TestChartGrid exposes the chart's background guide style for testing.
+func (c *EpochLineChart) TestChartGrid() string {
+	return c.chartGrid
 }
 
 // TestIsLogY reports whether the chart is using logarithmic Y scaling.

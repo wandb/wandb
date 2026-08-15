@@ -16,7 +16,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Added
 
-- LEET line charts now show a dotted grid by default. Choose horizontal guides or turn the grid off with `chart_grid` in `wandb leet config`. (@dmitryduev in https://github.com/wandb/wandb/pull/12463)
+- LEET line charts now show a dotted grid by default. Press `g` to cycle between the dotted grid, horizontal guides aligned with axis ticks, and no grid; the choice is saved and can also be set with `chart_grid` in `wandb leet config`. (@dmitryduev in https://github.com/wandb/wandb/pull/12463)
 
 ### Changed
 

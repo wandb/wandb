@@ -479,6 +479,13 @@ func (g *SystemMetricsGrid) focusedChart() systemMetricChart {
 	return g.currentPage[g.focus.Row][g.focus.Col]
 }
 
+// SetChartGrid applies the background guide style to all charts.
+func (g *SystemMetricsGrid) SetChartGrid(grid string) {
+	for _, chart := range g.ordered {
+		chart.SetChartGrid(grid)
+	}
+}
+
 func (g *SystemMetricsGrid) toggleFocusedChartLogY() bool {
 	chart := g.focusedChart()
 	if chart == nil || !chart.ToggleYScale() {

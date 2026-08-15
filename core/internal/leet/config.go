@@ -336,6 +336,19 @@ func isChartGrid(grid string) bool {
 	return grid == ChartGridOff || grid == ChartGridDots || grid == ChartGridHorizontal
 }
 
+// nextChartGrid returns the chart grid style following the given one,
+// cycling dots -> horizontal -> off.
+func nextChartGrid(grid string) string {
+	switch grid {
+	case ChartGridDots:
+		return ChartGridHorizontal
+	case ChartGridHorizontal:
+		return ChartGridOff
+	default:
+		return ChartGridDots
+	}
+}
+
 func clamp(val, minimum, maximum int) int {
 	if val < minimum {
 		return minimum
