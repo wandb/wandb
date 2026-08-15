@@ -11,7 +11,7 @@ Usage:
 import argparse
 import csv
 import io
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from pathlib import Path
 
 from google.protobuf import descriptor_pb2
@@ -19,16 +19,6 @@ from google.protobuf.descriptor import Descriptor, FieldDescriptor
 from wandb.proto import wandb_telemetry_pb2 as tpb
 
 DEFAULT_DIR = Path("analytics/dbt/seeds")
-
-
-def _reserved_ranges(descriptor: Descriptor) -> list[tuple[int, int]]:
-    proto = descriptor_pb2.DescriptorProto()
-    descriptor.CopyToProto(proto)
-    return [(r.start, r.end) for r in proto.reserved_range]
-
-
-def _is_reserved(number: int, ranges: Sequence[tuple[int, int]]) -> bool:
-    return any(start <= number < end for start, end in ranges)
 
 
 def _telemetry_dtype(field: FieldDescriptor) -> str:
@@ -58,64 +48,30 @@ def append_csv(
     dtype: Callable[[FieldDescriptor], str] | None = None,
 ) -> None:
     """Append new protobuf fields without changing existing analytics mappings."""
-    required_columns = [record, "key"] + (["dtype"] if dtype else [])
-    fieldnames = required_columns
-    existing_rows: list[dict[str, str]] = []
-    text = ""
+    text = path.read_text() if path.exists() else ""
+    reader = csv.DictReader(io.StringIO(text))
+    fieldnames = reader.fieldnames or [record, "key", *(["dtype"] if dtype else [])]
+    existing_keys = {int(row["key"]) for row in reader}
 
-    if path.exists():
-        text = path.read_text()
-        reader = csv.DictReader(io.StringIO(text))
-        if reader.fieldnames is None:
-            raise ValueError(f"{path} has no header")
-        missing_columns = set(required_columns) - set(reader.fieldnames)
-        if missing_columns:
-            missing = ", ".join(sorted(missing_columns))
-            raise ValueError(f"{path} is missing required column(s): {missing}")
-        fieldnames = list(reader.fieldnames)
-        existing_rows = list(reader)
-
-    fields_by_number = {field.number: field for field in descriptor.fields}
-    reserved_ranges = _reserved_ranges(descriptor)
-    existing_numbers: set[int] = set()
-    existing_names: set[str] = set()
-
-    for line_number, row in enumerate(existing_rows, start=2):
-        try:
-            number = int(row["key"])
-        except (TypeError, ValueError) as error:
-            raise ValueError(f"{path}:{line_number} has an invalid key") from error
-
-        name = row[record]
-        if number in existing_numbers:
-            raise ValueError(f"{path}:{line_number} repeats key {number}")
-        if name in existing_names:
-            raise ValueError(f"{path}:{line_number} repeats {record} {name!r}")
-
-        existing_numbers.add(number)
-        existing_names.add(name)
-        field = fields_by_number.get(number)
-        if field is not None and field.name != name:
-            raise ValueError(
-                f"{path}:{line_number} maps key {number} to {name!r}, "
-                f"but the proto maps it to {field.name!r}"
-            )
-        if field is None and not _is_reserved(number, reserved_ranges):
-            raise ValueError(
-                f"{path}:{line_number} maps removed key {number}; "
-                f"reserve it in {descriptor.full_name} before removing the field"
-            )
+    proto = descriptor_pb2.DescriptorProto()
+    descriptor.CopyToProto(proto)
+    active_keys = {field.number for field in descriptor.fields}
+    removed_keys = [
+        key
+        for key in sorted(existing_keys - active_keys)
+        if not any(r.start <= key < r.end for r in proto.reserved_range)
+    ]
+    if removed_keys:
+        raise ValueError(
+            f"{path} maps removed keys {removed_keys}; "
+            f"reserve them in {descriptor.full_name} before removing fields"
+        )
 
     new_rows: list[dict[str, str | int]] = []
     for field in descriptor.fields:
         # skip private fields and fields the file already maps
-        if field.name.startswith("_") or field.number in existing_numbers:
+        if field.name.startswith("_") or field.number in existing_keys:
             continue
-        if field.name in existing_names:
-            raise ValueError(
-                f"{path} already maps {record} {field.name!r} to a different key"
-            )
-
         row: dict[str, str | int] = {record: field.name, "key": field.number}
         if dtype:
             row["dtype"] = dtype(field)
@@ -141,34 +97,23 @@ def main() -> None:
         type=Path,
         default=DEFAULT_DIR if DEFAULT_DIR.exists() else Path(),
     )
-    parser.add_argument(
-        "--output-telemetry-record-types",
-        default="map_run_cli_telemetry_record_types.csv",
-    )
-    parser.add_argument("--output-imports", default="map_run_cli_imports.csv")
-    parser.add_argument("--output-features", default="map_run_cli_features.csv")
-    parser.add_argument("--output-environments", default="map_run_cli_environments.csv")
-    parser.add_argument("--output-labels", default="map_run_cli_labels.csv")
-    parser.add_argument(
-        "--output-deprecated-features", default="map_run_cli_deprecated.csv"
-    )
     args = parser.parse_args()
 
     outputs = [
         (
             "telemetry_record_type",
             tpb.TelemetryRecord.DESCRIPTOR,
-            args.output_telemetry_record_types,
+            "map_run_cli_telemetry_record_types.csv",
             _telemetry_dtype,
         ),
-        ("import", tpb.Imports.DESCRIPTOR, args.output_imports, None),
-        ("feature", tpb.Feature.DESCRIPTOR, args.output_features, None),
-        ("environment", tpb.Env.DESCRIPTOR, args.output_environments, None),
-        ("label", tpb.Labels.DESCRIPTOR, args.output_labels, None),
+        ("import", tpb.Imports.DESCRIPTOR, "map_run_cli_imports.csv", None),
+        ("feature", tpb.Feature.DESCRIPTOR, "map_run_cli_features.csv", None),
+        ("environment", tpb.Env.DESCRIPTOR, "map_run_cli_environments.csv", None),
+        ("label", tpb.Labels.DESCRIPTOR, "map_run_cli_labels.csv", None),
         (
             "deprecated_feature",
             tpb.Deprecated.DESCRIPTOR,
-            args.output_deprecated_features,
+            "map_run_cli_deprecated.csv",
             None,
         ),
     ]
