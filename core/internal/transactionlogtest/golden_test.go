@@ -68,24 +68,24 @@ var goldenCorpus = []goldenCorpusCase{
 		Name: "old_auto_steps",
 		Records: []string{
 			`run { run_id: "old_auto_steps" }`,
+			`summary { update { nested_key: "_step" value_json: "0" } }`,
 			`history {
 				step { num: 0 }
 				item { nested_key: "x" value_json: "0" }
 				item { nested_key: "_step" value_json: "0" }
 			}`,
-			`summary { update { nested_key: "_step" value_json: "0" } }`,
+			`summary { update { nested_key: "_step" value_json: "1" } }`,
 			`history {
 				step { num: 1 }
 				item { nested_key: "x" value_json: "1" }
 				item { nested_key: "_step" value_json: "1" }
 			}`,
-			`summary { update { nested_key: "_step" value_json: "1" } }`,
+			`summary { update { nested_key: "_step" value_json: "2" } }`,
 			`history {
 				step { num: 2 }
 				item { nested_key: "x" value_json: "2" }
 				item { nested_key: "_step" value_json: "2" }
 			}`,
-			`summary { update { nested_key: "_step" value_json: "2" } }`,
 			`exit { exit_code: 0 }`,
 		},
 	},
@@ -96,24 +96,24 @@ var goldenCorpus = []goldenCorpusCase{
 		Name: "old_auto_steps_flat_keys",
 		Records: []string{
 			`run { run_id: "old_auto_steps_flat_keys" }`,
+			`summary { update { key: "_step" value_json: "0" } }`,
 			`history {
 				step { num: 0 }
 				item { key: "x" value_json: "0" }
 				item { key: "_step" value_json: "0" }
 			}`,
-			`summary { update { key: "_step" value_json: "0" } }`,
+			`summary { update { key: "_step" value_json: "1" } }`,
 			`history {
 				step { num: 1 }
 				item { key: "x" value_json: "1" }
 				item { key: "_step" value_json: "1" }
 			}`,
-			`summary { update { key: "_step" value_json: "1" } }`,
+			`summary { update { key: "_step" value_json: "2" } }`,
 			`history {
 				step { num: 2 }
 				item { key: "x" value_json: "2" }
 				item { key: "_step" value_json: "2" }
 			}`,
-			`summary { update { key: "_step" value_json: "2" } }`,
 			`exit { exit_code: 0 }`,
 		},
 	},
@@ -123,24 +123,24 @@ var goldenCorpus = []goldenCorpusCase{
 		Name: "old_explicit_steps",
 		Records: []string{
 			`run { run_id: "old_explicit_steps" }`,
+			`summary { update { nested_key: "_step" value_json: "0" } }`,
 			`history {
 				step { num: 0 }
 				item { nested_key: "x" value_json: "0" }
 				item { nested_key: "_step" value_json: "0" }
 			}`,
-			`summary { update { nested_key: "_step" value_json: "0" } }`,
+			`summary { update { nested_key: "_step" value_json: "5" } }`,
 			`history {
 				step { num: 5 }
 				item { nested_key: "x" value_json: "1" }
 				item { nested_key: "_step" value_json: "5" }
 			}`,
-			`summary { update { nested_key: "_step" value_json: "5" } }`,
+			`summary { update { nested_key: "_step" value_json: "10" } }`,
 			`history {
 				step { num: 10 }
 				item { nested_key: "x" value_json: "2" }
 				item { nested_key: "_step" value_json: "10" }
 			}`,
-			`summary { update { nested_key: "_step" value_json: "10" } }`,
 			`exit { exit_code: 0 }`,
 		},
 	},
@@ -173,24 +173,24 @@ var goldenCorpus = []goldenCorpusCase{
 		Name: "old_resumed_run",
 		Records: []string{
 			`run { run_id: "old_resumed_run" starting_step: 5 resumed: true }`,
+			`summary { update { nested_key: "_step" value_json: "5" } }`,
 			`history {
 				step { num: 5 }
 				item { nested_key: "x" value_json: "0" }
 				item { nested_key: "_step" value_json: "5" }
 			}`,
-			`summary { update { nested_key: "_step" value_json: "5" } }`,
+			`summary { update { nested_key: "_step" value_json: "6" } }`,
 			`history {
 				step { num: 6 }
 				item { nested_key: "x" value_json: "1" }
 				item { nested_key: "_step" value_json: "6" }
 			}`,
-			`summary { update { nested_key: "_step" value_json: "6" } }`,
+			`summary { update { nested_key: "_step" value_json: "7" } }`,
 			`history {
 				step { num: 7 }
 				item { nested_key: "x" value_json: "2" }
 				item { nested_key: "_step" value_json: "7" }
 			}`,
-			`summary { update { nested_key: "_step" value_json: "7" } }`,
 			`exit { exit_code: 0 }`,
 		},
 	},
@@ -230,12 +230,12 @@ var goldenCorpus = []goldenCorpusCase{
 		Name: "new_explicit_steps",
 		Records: []string{
 			`run { run_id: "new_explicit_steps" }`,
-			`history { step { num: 0 } item { nested_key: "x" value_json: "0" } }`,
 			`summary { update { nested_key: "_step" value_json: "0" } }`,
-			`history { step { num: 5 } item { nested_key: "x" value_json: "1" } }`,
+			`history { step { num: 0 } item { nested_key: "x" value_json: "0" } }`,
 			`summary { update { nested_key: "_step" value_json: "5" } }`,
-			`history { step { num: 10 } item { nested_key: "x" value_json: "2" } }`,
+			`history { step { num: 5 } item { nested_key: "x" value_json: "1" } }`,
 			`summary { update { nested_key: "_step" value_json: "10" } }`,
+			`history { step { num: 10 } item { nested_key: "x" value_json: "2" } }`,
 			`exit { exit_code: 0 }`,
 		},
 	},
@@ -314,6 +314,41 @@ func TestGoldenLogs_UpToDate(t *testing.T) {
 				c.Name)
 		}
 	}
+
+	corpusNames := make(map[string]struct{}, len(goldenCorpus))
+	for _, c := range goldenCorpus {
+		corpusNames[c.Name] = struct{}{}
+	}
+	err := filepath.WalkDir(goldenLogDir(), func(path string, d fs.DirEntry, err error) error {
+		require.NoError(t, err)
+		if d.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(path, ".wandb") {
+			return nil
+		}
+
+		rel, err := filepath.Rel(goldenLogDir(), path)
+		require.NoError(t, err)
+		if strings.HasPrefix(rel, "provenance"+string(filepath.Separator)) {
+			return nil
+		}
+
+		dir := filepath.Dir(rel)
+		if !strings.HasPrefix(dir, "offline-run-") {
+			t.Errorf("unexpected .wandb file outside offline-run-*: %s", rel)
+			return nil
+		}
+		name := strings.TrimPrefix(dir, "offline-run-")
+		if _, ok := corpusNames[name]; !ok {
+			t.Errorf(
+				"%s: committed fixture has no goldenCorpus entry; add one or"+
+					" delete the orphaned file",
+				rel)
+		}
+		return nil
+	})
+	require.NoError(t, err)
 }
 
 // TestGoldenLogs_SizeBudget keeps tests/assets/compat_logs from becoming a
