@@ -5,8 +5,7 @@ from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
-from collections.abc import Iterable as _Iterable, Mapping as _Mapping
-from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
+from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Mapping, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
@@ -151,7 +150,7 @@ class OrgFeaturesResponse(_message.Message):
         VALUE_FIELD_NUMBER: _ClassVar[int]
         key: str
         value: bool
-        def __init__(self, key: _Optional[str] = ..., value: _Optional[bool] = ...) -> None: ...
+        def __init__(self, key: _Optional[str] = ..., value: bool = ...) -> None: ...
     FEATURES_FIELD_NUMBER: _ClassVar[int]
     features: _containers.ScalarMap[str, bool]
     def __init__(self, features: _Optional[_Mapping[str, bool]] = ...) -> None: ...
@@ -316,7 +315,7 @@ class ReadRunConsoleLogsResponse(_message.Message):
     end_cursor: str
     has_next_page: bool
     total_lines: int
-    def __init__(self, lines: _Optional[_Iterable[_Union[RunConsoleLogLine, _Mapping]]] = ..., end_cursor: _Optional[str] = ..., has_next_page: _Optional[bool] = ..., total_lines: _Optional[int] = ...) -> None: ...
+    def __init__(self, lines: _Optional[_Iterable[_Union[RunConsoleLogLine, _Mapping]]] = ..., end_cursor: _Optional[str] = ..., has_next_page: bool = ..., total_lines: _Optional[int] = ...) -> None: ...
 
 class RunConsoleLogLine(_message.Message):
     __slots__ = ("number", "timestamp", "level", "label", "content")
@@ -392,7 +391,7 @@ class CreateDefaultResourceConfigResponse(_message.Message):
     DEFAULT_RESOURCE_CONFIG_ID_FIELD_NUMBER: _ClassVar[int]
     success: bool
     default_resource_config_id: str
-    def __init__(self, success: _Optional[bool] = ..., default_resource_config_id: _Optional[str] = ...) -> None: ...
+    def __init__(self, success: bool = ..., default_resource_config_id: _Optional[str] = ...) -> None: ...
 
 class CreateRunQueueRequest(_message.Message):
     __slots__ = ("entity", "project", "queue_name", "access", "prioritization_mode", "default_resource_config_id")
@@ -416,7 +415,7 @@ class CreateRunQueueResponse(_message.Message):
     QUEUE_ID_FIELD_NUMBER: _ClassVar[int]
     success: bool
     queue_id: str
-    def __init__(self, success: _Optional[bool] = ..., queue_id: _Optional[str] = ...) -> None: ...
+    def __init__(self, success: bool = ..., queue_id: _Optional[str] = ...) -> None: ...
 
 class UpsertRunQueueRequest(_message.Message):
     __slots__ = ("entity_name", "project_name", "queue_name", "resource_type", "resource_config", "template_variables", "prioritization_mode", "external_links", "client_mutation_id")
@@ -446,7 +445,7 @@ class UpsertRunQueueResponse(_message.Message):
     CONFIG_SCHEMA_VALIDATION_ERRORS_FIELD_NUMBER: _ClassVar[int]
     success: bool
     config_schema_validation_errors: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, success: _Optional[bool] = ..., config_schema_validation_errors: _Optional[_Iterable[str]] = ...) -> None: ...
+    def __init__(self, success: bool = ..., config_schema_validation_errors: _Optional[_Iterable[str]] = ...) -> None: ...
 
 class ReadRunHistoryRequest(_message.Message):
     __slots__ = ("scan_run_history_init", "scan_run_history", "scan_run_history_cleanup", "download_run_history_init", "download_run_history", "download_run_history_status")
@@ -492,7 +491,7 @@ class ScanRunHistoryInit(_message.Message):
     run_id: str
     keys: _containers.RepeatedScalarFieldContainer[str]
     use_cache: bool
-    def __init__(self, entity: _Optional[str] = ..., project: _Optional[str] = ..., run_id: _Optional[str] = ..., keys: _Optional[_Iterable[str]] = ..., use_cache: _Optional[bool] = ...) -> None: ...
+    def __init__(self, entity: _Optional[str] = ..., project: _Optional[str] = ..., run_id: _Optional[str] = ..., keys: _Optional[_Iterable[str]] = ..., use_cache: bool = ...) -> None: ...
 
 class ScanRunHistoryInitResponse(_message.Message):
     __slots__ = ("request_id",)
@@ -552,7 +551,7 @@ class DownloadRunHistoryInit(_message.Message):
     run_id: str
     download_dir: str
     require_complete_history: bool
-    def __init__(self, entity: _Optional[str] = ..., project: _Optional[str] = ..., run_id: _Optional[str] = ..., download_dir: _Optional[str] = ..., require_complete_history: _Optional[bool] = ...) -> None: ...
+    def __init__(self, entity: _Optional[str] = ..., project: _Optional[str] = ..., run_id: _Optional[str] = ..., download_dir: _Optional[str] = ..., require_complete_history: bool = ...) -> None: ...
 
 class DownloadRunHistoryInitResponse(_message.Message):
     __slots__ = ("request_id", "contains_live_data")
@@ -560,7 +559,7 @@ class DownloadRunHistoryInitResponse(_message.Message):
     CONTAINS_LIVE_DATA_FIELD_NUMBER: _ClassVar[int]
     request_id: int
     contains_live_data: bool
-    def __init__(self, request_id: _Optional[int] = ..., contains_live_data: _Optional[bool] = ...) -> None: ...
+    def __init__(self, request_id: _Optional[int] = ..., contains_live_data: bool = ...) -> None: ...
 
 class DownloadRunHistory(_message.Message):
     __slots__ = ("request_id",)

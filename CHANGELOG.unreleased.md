@@ -27,6 +27,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - The message format used to communicate between internal processes has slightly changed. If you use `wandb beta core`, restart the service after upgrading `wandb`, as some operations may fail if the SDK and service versions differ. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12374)
 - `wandb.sandbox` now allows GPU resource requests for sandboxes instead of rejecting `resources.gpu` client-side (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/12455)
 - Registry search methods (`Api.registries()`, `.collections()`, `.versions()`) now validate filter field names, rejecting unsupported field names. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12182)
+- Shared-mode runs persist `shared_mode` on the transaction log's `RunRecord` at init time. `wandb beta sync` reads it so shared history uploads omit the step axis instead of inventing `_step` values. Pre-existing shared logs without the flag still get invented `_step` on sync. (@geoffhardy https://github.com/wandb/wandb/pull/????)
 
 ### Removed
 
