@@ -36,14 +36,21 @@ type testFixtures struct {
 }
 
 func makeSender(t *testing.T, client graphql.Client) testFixtures {
-	t.Helper()
-	runWork := runworktest.New()
-	logger := observabilitytest.NewTestLogger(t)
-	settings := wbsettings.From(&spb.Settings{
+	return makeSenderWithSettings(t, client, wbsettings.From(&spb.Settings{
 		RunId:   &wrapperspb.StringValue{Value: "run1"},
 		Console: &wrapperspb.StringValue{Value: "off"},
 		ApiKey:  &wrapperspb.StringValue{Value: "test-api-key"},
-	})
+	}))
+}
+
+func makeSenderWithSettings(
+	t *testing.T,
+	client graphql.Client,
+	settings *wbsettings.Settings,
+) testFixtures {
+	t.Helper()
+	runWork := runworktest.New()
+	logger := observabilitytest.NewTestLogger(t)
 	baseURL := stream.BaseURLFromSettings(logger, settings)
 	credentialProvider := stream.CredentialsFromSettings(logger, settings)
 	fileStreamFactory := &filestream.FileStreamFactory{
