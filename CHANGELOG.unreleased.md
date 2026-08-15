@@ -28,6 +28,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - `wandb.sandbox` now allows GPU resource requests for sandboxes instead of rejecting `resources.gpu` client-side (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/12455)
 - Registry search methods (`Api.registries()`, `.collections()`, `.versions()`) now validate filter field names, rejecting unsupported field names. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12182)
 - `wandb.init()` now honors `mode="offline"` and `resume="..."` instead of logging a warning and ignoring the `resume` option. The requested mode is reconciled against the backend when the run is later synced with `wandb beta sync`. (@geoffhardy in https://github.com/wandb/wandb/pull/12110)
+- New `.wandb` transaction logs are written with format version 1, reflecting the history-step on-disk change in wandb PR #12110. Current wandb readers accept both version 0 (legacy) and version 1 files; older wandb releases reject version 1 files. Sync version-1 offline runs with an upgraded `wandb beta sync`. (@geoffhardy)
 - Shared-mode runs persist `shared_mode` on the transaction log's `RunRecord` at init time. `wandb beta sync` reads it so shared history uploads omit the step axis instead of inventing `_step` values. Pre-existing shared logs without the flag still get invented `_step` on sync. (@geoffhardy https://github.com/wandb/wandb/pull/????)
 
 ### Fixed
