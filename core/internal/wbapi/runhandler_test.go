@@ -79,7 +79,7 @@ func consoleLogEdge(number int, line string) map[string]any {
 		"node": map[string]any{
 			"number":    number,
 			"timestamp": "2026-01-01T00:00:00Z",
-			"level":     "info",
+			"level":     "",
 			"label":     "",
 			"line":      line,
 		},
@@ -97,11 +97,14 @@ func requestVariables(t *testing.T, client *fakeGQLClient) map[string]any {
 }
 
 func TestReadRunConsoleLogsTail(t *testing.T) {
+	// The pageInfo values simulate the legacy backwards-offset cursors a
+	// tail response carries; the tail query does not select pageInfo, so
+	// they must never surface in the response.
 	client := &fakeGQLClient{
 		respMap: consoleLogsRespMap(1512, []map[string]any{
 			consoleLogEdge(1510, "second to last"),
 			consoleLogEdge(1511, "last"),
-		}, false, ""),
+		}, true, "legacy-cursor"),
 	}
 	handler := wbapi.NewRunHandler(client)
 
@@ -187,6 +190,123 @@ func TestReadRunConsoleLogsForwardPage(t *testing.T) {
 	assert.Equal(t, "c1", logs.GetEndCursor())
 	assert.True(t, logs.GetHasNextPage())
 	assert.Equal(t, int64(3), logs.GetTotalLines())
+}
+
+func TestReadRunConsoleLogsBudgetCutPageHasNextPage(t *testing.T) {
+	// The backend can cut a page short on a per-request size budget and
+	// report hasNextPage=false in the middle of the log. Line numbers are
+	// absolute, so the handler must still report a next page whenever the
+	// page's last line is not the log's last line.
+	client := &fakeGQLClient{
+		respMap: consoleLogsRespMap(4, []map[string]any{
+			consoleLogEdge(0, "l0"),
+			consoleLogEdge(1, "l1"),
+		}, false, "c1"),
+	}
+	handler := wbapi.NewRunHandler(client)
+
+	response := handler.HandleReadRunConsoleLogs(
+		context.Background(),
+		&spb.ReadRunConsoleLogsRequest{
+			Entity:  "e",
+			Project: "p",
+			RunId:   "r",
+			First:   proto.Int32(1000),
+		},
+	)
+
+	logs := response.GetReadRunConsoleLogsResponse()
+	require.NotNil(t, logs)
+	assert.True(t, logs.GetHasNextPage())
+	assert.Equal(t, "c1", logs.GetEndCursor())
+}
+
+func TestReadRunConsoleLogsFinalPageHasNoNextPage(t *testing.T) {
+	// The last returned line is the log's last line, so there is no next
+	// page even though the backend's flag is trusted only via line math.
+	client := &fakeGQLClient{
+		respMap: consoleLogsRespMap(3, []map[string]any{
+			consoleLogEdge(2, "l2"),
+		}, false, "c2"),
+	}
+	handler := wbapi.NewRunHandler(client)
+
+	response := handler.HandleReadRunConsoleLogs(
+		context.Background(),
+		&spb.ReadRunConsoleLogsRequest{
+			Entity:  "e",
+			Project: "p",
+			RunId:   "r",
+			First:   proto.Int32(1000),
+			After:   proto.String("c1"),
+		},
+	)
+
+	logs := response.GetReadRunConsoleLogsResponse()
+	require.NotNil(t, logs)
+	assert.False(t, logs.GetHasNextPage())
+}
+
+func TestReadRunConsoleLogsNoCursorMeansNoNextPage(t *testing.T) {
+	// A page without a resume cursor cannot be continued: reporting a next
+	// page would send clients back to the start of the log.
+	client := &fakeGQLClient{
+		respMap: consoleLogsRespMap(4, []map[string]any{
+			consoleLogEdge(0, "l0"),
+		}, true, ""),
+	}
+	handler := wbapi.NewRunHandler(client)
+
+	response := handler.HandleReadRunConsoleLogs(
+		context.Background(),
+		&spb.ReadRunConsoleLogsRequest{
+			Entity:  "e",
+			Project: "p",
+			RunId:   "r",
+			First:   proto.Int32(1000),
+		},
+	)
+
+	logs := response.GetReadRunConsoleLogsResponse()
+	require.NotNil(t, logs)
+	assert.False(t, logs.GetHasNextPage())
+}
+
+func TestReadRunConsoleLogsNullLineCountTrustsBackendFlag(t *testing.T) {
+	// logLineCount is nullable; without it the line-number math is
+	// disabled and only the backend's hasNextPage flag is used.
+	client := &fakeGQLClient{
+		respMap: map[string]any{
+			"project": map[string]any{
+				"run": map[string]any{
+					"logLineCount": nil,
+					"logLines": map[string]any{
+						"edges": []map[string]any{consoleLogEdge(0, "l0")},
+						"pageInfo": map[string]any{
+							"endCursor":   "c0",
+							"hasNextPage": false,
+						},
+					},
+				},
+			},
+		},
+	}
+	handler := wbapi.NewRunHandler(client)
+
+	response := handler.HandleReadRunConsoleLogs(
+		context.Background(),
+		&spb.ReadRunConsoleLogsRequest{
+			Entity:  "e",
+			Project: "p",
+			RunId:   "r",
+			First:   proto.Int32(1000),
+		},
+	)
+
+	logs := response.GetReadRunConsoleLogsResponse()
+	require.NotNil(t, logs)
+	assert.False(t, logs.GetHasNextPage())
+	assert.Equal(t, int64(0), logs.GetTotalLines())
 }
 
 func TestReadRunConsoleLogsFieldsMapped(t *testing.T) {

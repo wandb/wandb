@@ -1173,7 +1173,7 @@ class Run(Attrs):
 
     def console_logs(
         self,
-        per_page: int = 1000,
+        per_page: int | None = None,
         last: int | None = None,
     ) -> public.ConsoleLogs:
         """Return the run's captured console output.
@@ -1185,13 +1185,14 @@ class Run(Attrs):
         alike.
 
         Args:
-            per_page (int): Number of lines to fetch per request when
-                reading the log from the beginning.
+            per_page (int, optional): Number of lines to fetch per request
+                when reading the log from the beginning. Defaults to 1000.
+                Mutually exclusive with `last`.
             last (int, optional): If set, fetch only the last N lines of
                 the log in a single request — useful for checking on a
-                live run or diagnosing a crash. The backend returns at
-                most 10,000 lines per request, so a larger tail comes
-                back truncated to the newest 10,000 lines.
+                live run or diagnosing a crash. The backend caps how many
+                lines one request returns (10,000 as of this writing), so
+                a larger tail comes back truncated to the newest lines.
 
         Returns:
             A `ConsoleLogs` object: an iterator over `ConsoleLogLine`
@@ -1199,13 +1200,13 @@ class Run(Attrs):
             `timestamp`, `level`, `label`, and `content`.
 
         Raises:
-            ValueError: If `per_page` or `last` is not positive.
-            WandbApiFailedError: When iterating, if a request fails.
-                Reading the log from the beginning requires W&B server
-                0.77 or newer; on older servers, read the last N lines
-                instead, or download the run's console log file
-                (`output.log`, or `output_<label>.log` for each writer
-                of a shared-mode run) via `run.files()`.
+            ValueError: If `per_page` or `last` is invalid, or both are
+                given.
+            CommError: When iterating, if a request fails. Reading the
+                log from the beginning requires W&B server 0.77 or
+                newer; on older servers, read the last N lines instead,
+                or download the run's console log files via
+                `run.files()`.
 
         Example:
         ```python

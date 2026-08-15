@@ -169,37 +169,45 @@ def test_short_page_with_next_page_continues():
     assert service_api.send_api_request.call_count == 2
 
 
-def test_truncated_page_without_next_page_continues_until_total():
-    # Some backends cut a page short on a per-request size budget and
-    # report has_next_page=False in the middle of the log. The paginator
-    # must keep reading from the cursor until it has seen the log's total
-    # or a page comes back empty.
+def test_no_next_page_ends_iteration():
+    # wandb-core owns detecting pages the backend cut short: the client
+    # trusts has_next_page and must not keep requesting past it.
     service_api = mock.MagicMock()
     run = _run(service_api)
-    service_api.send_api_request.side_effect = [
-        _response(
-            [_line(0, "l0"), _line(1, "l1")],
-            end_cursor="c1",
-            has_next_page=False,
-            total_lines=4,
-        ),
-        _response(
-            [_line(2, "l2"), _line(3, "l3")],
-            end_cursor="c3",
-            has_next_page=False,
-            total_lines=4,
-        ),
-    ]
+    service_api.send_api_request.return_value = _response(
+        [_line(0, "l0"), _line(1, "l1")],
+        end_cursor="c1",
+        has_next_page=False,
+        total_lines=4,
+    )
 
-    numbers = [line.number for line in run.console_logs(per_page=1000)]
+    numbers = [line.number for line in run.console_logs()]
 
-    assert numbers == [0, 1, 2, 3]
-    assert service_api.send_api_request.call_count == 2
-    second_request = service_api.send_api_request.call_args_list[1].args[0]
-    assert second_request.read_run_console_logs_request.after == "c1"
+    assert numbers == [0, 1]
+    service_api.send_api_request.assert_called_once()
+
+
+def test_next_page_without_cursor_stops_instead_of_restarting():
+    # A next page without a cursor to resume from cannot be fetched;
+    # requesting without `after` would re-read the log from the start and
+    # yield duplicate lines forever.
+    service_api = mock.MagicMock()
+    run = _run(service_api)
+    service_api.send_api_request.return_value = _response(
+        [_line(0, "l0"), _line(1, "l1")],
+        end_cursor="",
+        has_next_page=True,
+        total_lines=4,
+    )
+
+    numbers = [line.number for line in run.console_logs()]
+
+    assert numbers == [0, 1]
+    service_api.send_api_request.assert_called_once()
 
 
 def test_request_failure_surfaces_when_iterating():
+    from wandb.errors import CommError
     from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
     service_api = mock.MagicMock()
@@ -210,11 +218,32 @@ def test_request_failure_surfaces_when_iterating():
 
     logs = run.console_logs()
 
-    with pytest.raises(WandbApiFailedError, match="not found"):
+    with pytest.raises(CommError, match="not found"):
         list(logs)
 
 
-@pytest.mark.parametrize("kwargs", [{"last": 0}, {"last": -5}, {"per_page": 0}])
+def test_per_page_and_last_are_mutually_exclusive():
+    service_api = mock.MagicMock()
+    run = _run(service_api)
+
+    with pytest.raises(ValueError, match="not both"):
+        run.console_logs(per_page=500, last=10)
+
+    service_api.send_api_request.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"last": 0},
+        {"last": -5},
+        {"per_page": 0},
+        # Values that do not fit the request's 32-bit integer fields must
+        # fail up front, not with a cryptic protobuf error mid-iteration.
+        {"last": 2**31},
+        {"per_page": 2**31},
+    ],
+)
 def test_invalid_arguments_raise_before_querying(kwargs):
     service_api = mock.MagicMock()
     run = _run(service_api)
@@ -240,6 +269,17 @@ def test_invalid_arguments_raise_before_querying(kwargs):
         (
             "2026-01-02T03:04:05.678901234Z",
             datetime(2026, 1, 2, 3, 4, 5, 678901, tzinfo=timezone.utc),
+        ),
+        # Short fractions (e.g. from Go's RFC3339Nano, which strips
+        # trailing zeros); fromisoformat accepts only 3- or 6-digit
+        # fractions before Python 3.11.
+        (
+            "2026-01-02T03:04:05.12Z",
+            datetime(2026, 1, 2, 3, 4, 5, 120000, tzinfo=timezone.utc),
+        ),
+        (
+            "2026-01-02T03:04:05.1234Z",
+            datetime(2026, 1, 2, 3, 4, 5, 123400, tzinfo=timezone.utc),
         ),
         (
             "2026-01-02T03:04:05+02:00",

@@ -14,9 +14,9 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
-## Added
+### Added
 
-- Added `run.console_logs()` to the public API for reading the console output that W&B captured for a run, the same log shown in the Logs tab of the run page. It reads the whole log from the beginning, or only the last N lines with `run.console_logs(last=N)`, and works for finished runs as well as runs that are still going. Reading from the beginning requires W&B Server 0.77 or newer; reading the last N lines works on all supported server versions (@dmitryduev in https://github.com/wandb/wandb/pull/12442)
+- Added `run.console_logs()` to the public API for reading the console output that W&B captured for a run — the whole log, or only the last N lines with `run.console_logs(last=N)`, for finished and still-running runs alike. Reading from the beginning requires W&B Server 0.77 or newer (@dmitryduev in https://github.com/wandb/wandb/pull/12442)
 
 ### Changed
 

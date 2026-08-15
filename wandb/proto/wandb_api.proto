@@ -355,9 +355,13 @@ message ReadRunConsoleLogsRequest {
   // returned lines to detect the end of the log.
   optional int32 first = 4;
 
-  // An opaque cursor: return lines after the line it refers to.
+  // A cursor: return lines after the line it refers to.
   //
-  // Use the `end_cursor` of a previous response to read the next page.
+  // A cursor is a bookmark string minted by the server; sending it back
+  // resumes reading right after the last line of a previous page. It is
+  // opaque: meaningful only to the server, with no format the client may
+  // inspect or construct. Use the `end_cursor` of a previous response to
+  // read the next page.
   optional string after = 5;
 
   // If set, return only the last N lines of the log.
@@ -372,15 +376,19 @@ message ReadRunConsoleLogsResponse {
   // The returned lines, in ascending line order.
   repeated RunConsoleLogLine lines = 1;
 
-  // An opaque cursor referring to the last returned line. Only set for
-  // a forward-pagination (`first`/`after`) request with a non-empty
-  // result; a tail (`last`) response leaves it empty because its cursors
-  // cannot seed forward pagination.
+  // A cursor referring to the last returned line; pass it as `after` to
+  // read the next page. Only set for a forward-pagination
+  // (`first`/`after`) request with a non-empty result; a tail (`last`)
+  // response leaves it empty because its cursors cannot seed forward
+  // pagination.
   string end_cursor = 2;
 
   // Whether the log has more lines after this page.
   //
-  // Always false for a tail (`last`) request.
+  // Trustworthy even when the backend cuts a page short on a
+  // per-request size budget: wandb-core rederives it from absolute line
+  // numbers. Never true without an `end_cursor` to resume from. Always
+  // false for a tail (`last`) request.
   bool has_next_page = 3;
 
   // Total number of lines in the run's console log, regardless of how
@@ -397,7 +405,7 @@ message RunConsoleLogLine {
   string timestamp = 2;
 
   // The severity of the line: "error" for lines written to stderr,
-  // empty or "info" otherwise.
+  // empty otherwise.
   string level = 3;
 
   // A label identifying the process that wrote the line when several

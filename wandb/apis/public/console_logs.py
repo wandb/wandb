@@ -29,11 +29,16 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from wandb.apis.paginator import Paginator
+from wandb.errors import CommError
 from wandb.proto import wandb_api_pb2 as apb
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 if TYPE_CHECKING:
     from wandb.apis.public.runs import Run
     from wandb.apis.public.service_api import ServiceApi
+
+_DEFAULT_PER_PAGE = 1000
+_MAX_INT32 = 2**31 - 1
 
 
 @dataclass(frozen=True)
@@ -48,7 +53,7 @@ class ConsoleLogLine:
             record a time for the line or sent one in an unexpected
             format.
         level (str): The severity of the line: `"error"` for lines written
-            to stderr, `""` or `"info"` otherwise.
+            to stderr, empty otherwise.
         label (str): A label identifying the process that wrote the line
             when several processes write to the same run, as set by the
             `x_label` setting in shared mode. Empty for single-writer
@@ -66,7 +71,10 @@ class ConsoleLogLine:
 class ConsoleLogs(Paginator[ConsoleLogLine]):
     """A lazy iterator over a run's console log lines, oldest first.
 
-    Fetched from the W&B backend page by page.
+    Fetched from the W&B backend page by page. Fetched lines are kept in
+    memory, so iterating a second time replays the same lines instead of
+    refetching; create a new instance to re-read a log that may have
+    grown.
     """
 
     last_response: apb.ReadRunConsoleLogsResponse | None
@@ -75,7 +83,7 @@ class ConsoleLogs(Paginator[ConsoleLogLine]):
         self,
         service_api: ServiceApi,
         run: Run,
-        per_page: int = 1000,
+        per_page: int | None = None,
         last: int | None = None,
     ):
         """Initialize a lazy iterator over a run's console log lines.
@@ -83,24 +91,30 @@ class ConsoleLogs(Paginator[ConsoleLogLine]):
         Args:
             service_api: The service API instance used to query W&B.
             run: The run whose console log is read.
-            per_page (int): Number of lines to fetch per request when
-                reading the log from the beginning.
+            per_page (int, optional): Number of lines to fetch per request
+                when reading the log from the beginning. Defaults to 1000.
+                Mutually exclusive with `last`.
             last (int, optional): If set, fetch only the last N lines of
                 the log in a single request instead of reading from the
-                beginning. The backend returns at most 10,000 lines per
-                request, so a larger tail comes back truncated to the
-                newest 10,000 lines.
+                beginning. The backend caps how many lines one request
+                returns (10,000 as of this writing), so a larger tail
+                comes back truncated to the newest lines.
         """
-        if last is not None and last <= 0:
-            raise ValueError(f"last must be positive, got {last}")
-        if per_page <= 0:
-            raise ValueError(f"per_page must be positive, got {per_page}")
+        if last is not None and per_page is not None:
+            raise ValueError("pass either 'per_page' or 'last', not both")
+        for name, value in (("per_page", per_page), ("last", last)):
+            if value is not None and not 0 < value <= _MAX_INT32:
+                raise ValueError(
+                    f"'{name}' must be a positive 32-bit integer, got {value}"
+                )
 
         self.run = run
         self._tail = last
-        self._lines_fetched = 0
-        self._total: int | None = None
-        super().__init__(service_api, variables={}, per_page=per_page)
+        super().__init__(
+            service_api,
+            variables={},
+            per_page=_DEFAULT_PER_PAGE if per_page is None else per_page,
+        )
 
     @property
     def more(self) -> bool:
@@ -113,21 +127,19 @@ class ConsoleLogs(Paginator[ConsoleLogLine]):
         # A tail is a single request: fetch once, then stop.
         if self._tail is not None:
             return False
-        if self.last_response.has_next_page:
-            return True
-        # Defend against a backend page cut short by a server-side
-        # per-request size budget, which can report has_next_page=False
-        # in the middle of the log: keep reading while pages come back
-        # non-empty and fewer lines than the log's total have been seen.
-        return (
-            len(self.last_response.lines) > 0
-            and self._total is not None
-            and self._lines_fetched < self._total
-        )
+        # Requiring a cursor guards against restarting from the start of
+        # the log if a server ever claims a next page without saying
+        # where it begins.
+        return self.last_response.has_next_page and bool(self.last_response.end_cursor)
 
     @property
     def cursor(self) -> str | None:
-        """Returns an opaque cursor marking where the last page ended.
+        """Returns the cursor at which the last fetched page ended.
+
+        A cursor is a bookmark string minted by the server: sending it
+        back resumes reading right after the last line of the previous
+        page. It is opaque — meaningful only to the server, with no
+        format the client may inspect or construct.
 
         <!-- lazydoc-ignore -->
         """
@@ -158,12 +170,13 @@ class ConsoleLogs(Paginator[ConsoleLogLine]):
             if (after := self.cursor) is not None:
                 request.after = after
 
-        response = self._service_api.send_api_request(
-            apb.ApiRequest(read_run_console_logs_request=request)
-        )
+        try:
+            response = self._service_api.send_api_request(
+                apb.ApiRequest(read_run_console_logs_request=request)
+            )
+        except WandbApiFailedError as e:
+            raise CommError(str(e), e) from e
         self.last_response = response.read_run_console_logs_response
-        if self._total is None:
-            self._total = self.last_response.total_lines
 
     def convert_objects(self) -> list[ConsoleLogLine]:
         """Converts the last fetched response into `ConsoleLogLine`s.
@@ -172,7 +185,6 @@ class ConsoleLogs(Paginator[ConsoleLogLine]):
         """
         if self.last_response is None:
             return []
-        self._lines_fetched += len(self.last_response.lines)
         return [
             ConsoleLogLine(
                 number=line.number,
@@ -193,13 +205,14 @@ def _parse_timestamp(value: str) -> datetime | None:
     if not value:
         return None
     # datetime.fromisoformat is strict before Python 3.11: normalize the
-    # trailing "Z" and trim fractional seconds beyond microseconds.
+    # trailing "Z" and force exactly six fractional-second digits.
     value = value.replace("Z", "+00:00").replace("z", "+00:00")
     if (dot := value.find(".")) != -1:
         end = dot + 1
         while end < len(value) and value[end].isdigit():
             end += 1
-        value = value[: min(end, dot + 7)] + value[end:]
+        fraction = value[dot + 1 : end][:6].ljust(6, "0")
+        value = f"{value[:dot]}.{fraction}{value[end:]}"
     try:
         parsed = datetime.fromisoformat(value)
     except ValueError:

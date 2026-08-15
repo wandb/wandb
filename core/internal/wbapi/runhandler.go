@@ -8,6 +8,7 @@ import (
 	"github.com/Khan/genqlient/graphql"
 
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/nullify"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -98,7 +99,7 @@ func (h *RunHandler) readRunConsoleLogTail(
 	run := project.GetRun()
 
 	response := &spb.ReadRunConsoleLogsResponse{
-		TotalLines: int64(derefOrZero(run.GetLogLineCount())),
+		TotalLines: int64(nullify.ZeroIfNil(run.GetLogLineCount())),
 	}
 	// The connection is null for a run that never wrote console output.
 	//
@@ -108,7 +109,8 @@ func (h *RunHandler) readRunConsoleLogTail(
 	if conn := run.GetLogLines(); conn != nil {
 		for i := range conn.Edges {
 			response.Lines = append(
-				response.Lines, consoleLogLineFromNode(&conn.Edges[i].Node))
+				response.Lines,
+				consoleLogLineFromNode(&conn.Edges[i].Node.LogLineFields))
 		}
 	}
 	return readRunConsoleLogsResponse(response)
@@ -143,9 +145,7 @@ func (h *RunHandler) readRunConsoleLogPage(
 			message = fmt.Sprintf(
 				"reading a run's console log from the beginning requires"+
 					" W&B server 0.77 or newer; request the last N lines"+
-					" of the log instead, or download the run's console"+
-					" log file: output.log, or output_<label>.log for"+
-					" shared-mode writers (%s)",
+					" of the log instead (%s)",
 				message,
 			)
 		}
@@ -161,47 +161,58 @@ func (h *RunHandler) readRunConsoleLogPage(
 	run := project.GetRun()
 
 	response := &spb.ReadRunConsoleLogsResponse{
-		TotalLines: int64(derefOrZero(run.GetLogLineCount())),
+		TotalLines: int64(nullify.ZeroIfNil(run.GetLogLineCount())),
 	}
 	// The connection is null for a run that never wrote console output.
 	if conn := run.GetLogLines(); conn != nil {
-		response.EndCursor = derefOrZero(conn.PageInfo.GetEndCursor())
-		response.HasNextPage = conn.PageInfo.GetHasNextPage()
+		response.EndCursor = nullify.ZeroIfNil(conn.PageInfo.GetEndCursor())
 		for i := range conn.Edges {
-			edge := &conn.Edges[i]
 			response.Lines = append(
-				response.Lines, consoleLogLineFromNode(&edge.Node))
+				response.Lines,
+				consoleLogLineFromNode(&conn.Edges[i].Node.LogLineFields))
 		}
+		response.HasNextPage = pageHasNextLines(conn, response.TotalLines)
 	}
 	return readRunConsoleLogsResponse(response)
 }
 
-// logLineNode is implemented by the generated node types of the
-// RunConsoleLogTail and RunConsoleLogPage queries.
-type logLineNode interface {
-	GetNumber() *int
-	GetTimestamp() *string
-	GetLevel() *string
-	GetLabel() *string
-	GetLine() *string
+// pageHasNextLines reports whether the log has lines after this page.
+//
+// The backend can cut a page short on a per-request size budget and
+// report hasNextPage=false in the middle of the log. Line numbers are
+// absolute positions, so more lines exist whenever the page's last line
+// is not the log's last line; this makes has_next_page trustworthy for
+// every client of the proto API without any client-side bookkeeping.
+// When the log's line count is unavailable (0), only the backend's flag
+// is used.
+func pageHasNextLines(
+	conn *gql.RunConsoleLogPageProjectRunLogLinesLogLineConnection,
+	totalLines int64,
+) bool {
+	// A page without a resume cursor cannot be continued; report it as
+	// final so clients stop instead of re-reading the log from the
+	// beginning.
+	if nullify.ZeroIfNil(conn.PageInfo.GetEndCursor()) == "" {
+		return false
+	}
+	if conn.PageInfo.GetHasNextPage() {
+		return true
+	}
+	if len(conn.Edges) == 0 {
+		return false
+	}
+	lastNumber := nullify.ZeroIfNil(conn.Edges[len(conn.Edges)-1].Node.GetNumber())
+	return int64(lastNumber)+1 < totalLines
 }
 
-func consoleLogLineFromNode(node logLineNode) *spb.RunConsoleLogLine {
+func consoleLogLineFromNode(node *gql.LogLineFields) *spb.RunConsoleLogLine {
 	return &spb.RunConsoleLogLine{
-		Number:    int64(derefOrZero(node.GetNumber())),
-		Timestamp: derefOrZero(node.GetTimestamp()),
-		Level:     derefOrZero(node.GetLevel()),
-		Label:     derefOrZero(node.GetLabel()),
-		Content:   derefOrZero(node.GetLine()),
+		Number:    int64(nullify.ZeroIfNil(node.GetNumber())),
+		Timestamp: nullify.ZeroIfNil(node.GetTimestamp()),
+		Level:     nullify.ZeroIfNil(node.GetLevel()),
+		Label:     nullify.ZeroIfNil(node.GetLabel()),
+		Content:   nullify.ZeroIfNil(node.GetLine()),
 	}
-}
-
-func derefOrZero[T any](ptr *T) T {
-	if ptr == nil {
-		var zero T
-		return zero
-	}
-	return *ptr
 }
 
 func runNotFoundMessage(request *spb.ReadRunConsoleLogsRequest) string {

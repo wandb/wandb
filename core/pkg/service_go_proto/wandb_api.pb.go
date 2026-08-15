@@ -2136,9 +2136,13 @@ type ReadRunConsoleLogsRequest struct {
 	// than requested; use `has_next_page` rather than the number of
 	// returned lines to detect the end of the log.
 	First *int32 `protobuf:"varint,4,opt,name=first,proto3,oneof" json:"first,omitempty"`
-	// An opaque cursor: return lines after the line it refers to.
+	// A cursor: return lines after the line it refers to.
 	//
-	// Use the `end_cursor` of a previous response to read the next page.
+	// A cursor is a bookmark string minted by the server; sending it back
+	// resumes reading right after the last line of a previous page. It is
+	// opaque: meaningful only to the server, with no format the client may
+	// inspect or construct. Use the `end_cursor` of a previous response to
+	// read the next page.
 	After *string `protobuf:"bytes,5,opt,name=after,proto3,oneof" json:"after,omitempty"`
 	// If set, return only the last N lines of the log.
 	//
@@ -2226,14 +2230,18 @@ type ReadRunConsoleLogsResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The returned lines, in ascending line order.
 	Lines []*RunConsoleLogLine `protobuf:"bytes,1,rep,name=lines,proto3" json:"lines,omitempty"`
-	// An opaque cursor referring to the last returned line. Only set for
-	// a forward-pagination (`first`/`after`) request with a non-empty
-	// result; a tail (`last`) response leaves it empty because its cursors
-	// cannot seed forward pagination.
+	// A cursor referring to the last returned line; pass it as `after` to
+	// read the next page. Only set for a forward-pagination
+	// (`first`/`after`) request with a non-empty result; a tail (`last`)
+	// response leaves it empty because its cursors cannot seed forward
+	// pagination.
 	EndCursor string `protobuf:"bytes,2,opt,name=end_cursor,json=endCursor,proto3" json:"end_cursor,omitempty"`
 	// Whether the log has more lines after this page.
 	//
-	// Always false for a tail (`last`) request.
+	// Trustworthy even when the backend cuts a page short on a
+	// per-request size budget: wandb-core rederives it from absolute line
+	// numbers. Never true without an `end_cursor` to resume from. Always
+	// false for a tail (`last`) request.
 	HasNextPage bool `protobuf:"varint,3,opt,name=has_next_page,json=hasNextPage,proto3" json:"has_next_page,omitempty"`
 	// Total number of lines in the run's console log, regardless of how
 	// many this page returned.
@@ -2308,7 +2316,7 @@ type RunConsoleLogLine struct {
 	// The time the line was captured, as an ISO 8601 / RFC 3339 string.
 	Timestamp string `protobuf:"bytes,2,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
 	// The severity of the line: "error" for lines written to stderr,
-	// empty or "info" otherwise.
+	// empty otherwise.
 	Level string `protobuf:"bytes,3,opt,name=level,proto3" json:"level,omitempty"`
 	// A label identifying the process that wrote the line when several
 	// processes write to the same run (as set by the `x_label` setting in
