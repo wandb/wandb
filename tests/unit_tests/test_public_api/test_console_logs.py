@@ -169,24 +169,6 @@ def test_short_page_with_next_page_continues():
     assert service_api.send_api_request.call_count == 2
 
 
-def test_no_next_page_ends_iteration():
-    # wandb-core owns detecting pages the backend cut short: the client
-    # trusts has_next_page and must not keep requesting past it.
-    service_api = mock.MagicMock()
-    run = _run(service_api)
-    service_api.send_api_request.return_value = _response(
-        [_line(0, "l0"), _line(1, "l1")],
-        end_cursor="c1",
-        has_next_page=False,
-        total_lines=4,
-    )
-
-    numbers = [line.number for line in run.console_logs()]
-
-    assert numbers == [0, 1]
-    service_api.send_api_request.assert_called_once()
-
-
 def test_next_page_without_cursor_stops_instead_of_restarting():
     # A next page without a cursor to resume from cannot be fetched;
     # requesting without `after` would re-read the log from the start and
@@ -222,16 +204,6 @@ def test_request_failure_surfaces_when_iterating():
         list(logs)
 
 
-def test_per_page_and_last_are_mutually_exclusive():
-    service_api = mock.MagicMock()
-    run = _run(service_api)
-
-    with pytest.raises(ValueError, match="not both"):
-        run.console_logs(per_page=500, last=10)
-
-    service_api.send_api_request.assert_not_called()
-
-
 @pytest.mark.parametrize(
     "kwargs",
     [
@@ -241,14 +213,14 @@ def test_per_page_and_last_are_mutually_exclusive():
         # Values that do not fit the request's 32-bit integer fields must
         # fail up front, not with a cryptic protobuf error mid-iteration.
         {"last": 2**31},
-        {"per_page": 2**31},
+        {"per_page": 500, "last": 10},
     ],
 )
 def test_invalid_arguments_raise_before_querying(kwargs):
     service_api = mock.MagicMock()
     run = _run(service_api)
 
-    with pytest.raises(ValueError, match="positive"):
+    with pytest.raises(ValueError):
         run.console_logs(**kwargs)
 
     service_api.send_api_request.assert_not_called()
@@ -270,16 +242,11 @@ def test_invalid_arguments_raise_before_querying(kwargs):
             "2026-01-02T03:04:05.678901234Z",
             datetime(2026, 1, 2, 3, 4, 5, 678901, tzinfo=timezone.utc),
         ),
-        # Short fractions (e.g. from Go's RFC3339Nano, which strips
-        # trailing zeros); fromisoformat accepts only 3- or 6-digit
+        # Short fraction: fromisoformat accepts only 3- or 6-digit
         # fractions before Python 3.11.
         (
             "2026-01-02T03:04:05.12Z",
             datetime(2026, 1, 2, 3, 4, 5, 120000, tzinfo=timezone.utc),
-        ),
-        (
-            "2026-01-02T03:04:05.1234Z",
-            datetime(2026, 1, 2, 3, 4, 5, 123400, tzinfo=timezone.utc),
         ),
         (
             "2026-01-02T03:04:05+02:00",

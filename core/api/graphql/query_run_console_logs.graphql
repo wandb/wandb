@@ -1,12 +1,3 @@
-# The fields of one line of a run's console log.
-fragment LogLineFields on LogLine {
-    number
-    timestamp
-    level
-    label
-    line
-}
-
 # Reads the last N lines of a run's console log.
 #
 # This intentionally omits the useImprovedPagination argument: a plain
@@ -25,7 +16,11 @@ query RunConsoleLogTail(
             logLines(last: $last) {
                 edges {
                     node {
-                        ...LogLineFields
+                        number
+                        timestamp
+                        level
+                        label
+                        line
                     }
                 }
             }
@@ -56,7 +51,11 @@ query RunConsoleLogPage(
             ) {
                 edges {
                     node {
-                        ...LogLineFields
+                        number
+                        timestamp
+                        level
+                        label
+                        line
                     }
                 }
                 pageInfo {

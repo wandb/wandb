@@ -2138,10 +2138,8 @@ type ReadRunConsoleLogsRequest struct {
 	First *int32 `protobuf:"varint,4,opt,name=first,proto3,oneof" json:"first,omitempty"`
 	// A cursor: return lines after the line it refers to.
 	//
-	// A cursor is a bookmark string minted by the server; sending it back
-	// resumes reading right after the last line of a previous page. It is
-	// opaque: meaningful only to the server, with no format the client may
-	// inspect or construct. Use the `end_cursor` of a previous response to
+	// Cursors are bookmark strings minted by the server and opaque to the
+	// client; echo the `end_cursor` of a previous response back here to
 	// read the next page.
 	After *string `protobuf:"bytes,5,opt,name=after,proto3,oneof" json:"after,omitempty"`
 	// If set, return only the last N lines of the log.
@@ -2238,10 +2236,9 @@ type ReadRunConsoleLogsResponse struct {
 	EndCursor string `protobuf:"bytes,2,opt,name=end_cursor,json=endCursor,proto3" json:"end_cursor,omitempty"`
 	// Whether the log has more lines after this page.
 	//
-	// Trustworthy even when the backend cuts a page short on a
-	// per-request size budget: wandb-core rederives it from absolute line
-	// numbers. Never true without an `end_cursor` to resume from. Always
-	// false for a tail (`last`) request.
+	// Reliable even when the backend cuts a page short: wandb-core
+	// rederives it from line numbers. Never true without an `end_cursor`.
+	// Always false for a tail (`last`) request.
 	HasNextPage bool `protobuf:"varint,3,opt,name=has_next_page,json=hasNextPage,proto3" json:"has_next_page,omitempty"`
 	// Total number of lines in the run's console log, regardless of how
 	// many this page returned.

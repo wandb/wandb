@@ -357,10 +357,8 @@ message ReadRunConsoleLogsRequest {
 
   // A cursor: return lines after the line it refers to.
   //
-  // A cursor is a bookmark string minted by the server; sending it back
-  // resumes reading right after the last line of a previous page. It is
-  // opaque: meaningful only to the server, with no format the client may
-  // inspect or construct. Use the `end_cursor` of a previous response to
+  // Cursors are bookmark strings minted by the server and opaque to the
+  // client; echo the `end_cursor` of a previous response back here to
   // read the next page.
   optional string after = 5;
 
@@ -385,10 +383,9 @@ message ReadRunConsoleLogsResponse {
 
   // Whether the log has more lines after this page.
   //
-  // Trustworthy even when the backend cuts a page short on a
-  // per-request size budget: wandb-core rederives it from absolute line
-  // numbers. Never true without an `end_cursor` to resume from. Always
-  // false for a tail (`last`) request.
+  // Reliable even when the backend cuts a page short: wandb-core
+  // rederives it from line numbers. Never true without an `end_cursor`.
+  // Always false for a tail (`last`) request.
   bool has_next_page = 3;
 
   // Total number of lines in the run's console log, regardless of how

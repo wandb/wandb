@@ -109,8 +109,7 @@ func (h *RunHandler) readRunConsoleLogTail(
 	if conn := run.GetLogLines(); conn != nil {
 		for i := range conn.Edges {
 			response.Lines = append(
-				response.Lines,
-				consoleLogLineFromNode(&conn.Edges[i].Node.LogLineFields))
+				response.Lines, consoleLogLineFromNode(&conn.Edges[i].Node))
 		}
 	}
 	return readRunConsoleLogsResponse(response)
@@ -168,8 +167,7 @@ func (h *RunHandler) readRunConsoleLogPage(
 		response.EndCursor = nullify.ZeroIfNil(conn.PageInfo.GetEndCursor())
 		for i := range conn.Edges {
 			response.Lines = append(
-				response.Lines,
-				consoleLogLineFromNode(&conn.Edges[i].Node.LogLineFields))
+				response.Lines, consoleLogLineFromNode(&conn.Edges[i].Node))
 		}
 		response.HasNextPage = pageHasNextLines(conn, response.TotalLines)
 	}
@@ -205,7 +203,17 @@ func pageHasNextLines(
 	return int64(lastNumber)+1 < totalLines
 }
 
-func consoleLogLineFromNode(node *gql.LogLineFields) *spb.RunConsoleLogLine {
+// logLineNode is implemented by the generated node types of the
+// RunConsoleLogTail and RunConsoleLogPage queries.
+type logLineNode interface {
+	GetNumber() *int
+	GetTimestamp() *string
+	GetLevel() *string
+	GetLabel() *string
+	GetLine() *string
+}
+
+func consoleLogLineFromNode(node logLineNode) *spb.RunConsoleLogLine {
 	return &spb.RunConsoleLogLine{
 		Number:    int64(nullify.ZeroIfNil(node.GetNumber())),
 		Timestamp: nullify.ZeroIfNil(node.GetTimestamp()),

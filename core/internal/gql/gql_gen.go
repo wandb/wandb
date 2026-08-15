@@ -985,30 +985,6 @@ func (v *LinkArtifactResponse) GetLinkArtifact() *LinkArtifactLinkArtifactLinkAr
 	return v.LinkArtifact
 }
 
-// The fields of one line of a run's console log.
-type LogLineFields struct {
-	Number    *int    `json:"number"`
-	Timestamp *string `json:"timestamp"`
-	Level     *string `json:"level"`
-	Label     *string `json:"label"`
-	Line      *string `json:"line"`
-}
-
-// GetNumber returns LogLineFields.Number, and is useful for accessing the field via an interface.
-func (v *LogLineFields) GetNumber() *int { return v.Number }
-
-// GetTimestamp returns LogLineFields.Timestamp, and is useful for accessing the field via an interface.
-func (v *LogLineFields) GetTimestamp() *string { return v.Timestamp }
-
-// GetLevel returns LogLineFields.Level, and is useful for accessing the field via an interface.
-func (v *LogLineFields) GetLevel() *string { return v.Level }
-
-// GetLabel returns LogLineFields.Label, and is useful for accessing the field via an interface.
-func (v *LogLineFields) GetLabel() *string { return v.Label }
-
-// GetLine returns LogLineFields.Line, and is useful for accessing the field via an interface.
-func (v *LogLineFields) GetLine() *string { return v.Line }
-
 // MarkRunFilesUploadedMarkRunFilesUploadedMarkRunFilesUploadedPayload includes the requested fields of the GraphQL type MarkRunFilesUploadedPayload.
 type MarkRunFilesUploadedMarkRunFilesUploadedMarkRunFilesUploadedPayload struct {
 	Success bool `json:"success"`
@@ -1277,88 +1253,36 @@ func (v *RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdge) G
 
 // RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine includes the requested fields of the GraphQL type LogLine.
 type RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine struct {
-	LogLineFields `json:"-"`
+	Number    *int    `json:"number"`
+	Timestamp *string `json:"timestamp"`
+	Level     *string `json:"level"`
+	Label     *string `json:"label"`
+	Line      *string `json:"line"`
 }
 
 // GetNumber returns RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine.Number, and is useful for accessing the field via an interface.
 func (v *RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine) GetNumber() *int {
-	return v.LogLineFields.Number
+	return v.Number
 }
 
 // GetTimestamp returns RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine.Timestamp, and is useful for accessing the field via an interface.
 func (v *RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine) GetTimestamp() *string {
-	return v.LogLineFields.Timestamp
+	return v.Timestamp
 }
 
 // GetLevel returns RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine.Level, and is useful for accessing the field via an interface.
 func (v *RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine) GetLevel() *string {
-	return v.LogLineFields.Level
+	return v.Level
 }
 
 // GetLabel returns RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine.Label, and is useful for accessing the field via an interface.
 func (v *RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine) GetLabel() *string {
-	return v.LogLineFields.Label
+	return v.Label
 }
 
 // GetLine returns RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine.Line, and is useful for accessing the field via an interface.
 func (v *RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine) GetLine() *string {
-	return v.LogLineFields.Line
-}
-
-func (v *RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine) UnmarshalJSON(b []byte) error {
-
-	if string(b) == "null" {
-		return nil
-	}
-
-	var firstPass struct {
-		*RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine
-		graphql.NoUnmarshalJSON
-	}
-	firstPass.RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine = v
-
-	err := json.Unmarshal(b, &firstPass)
-	if err != nil {
-		return err
-	}
-
-	err = json.Unmarshal(
-		b, &v.LogLineFields)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-type __premarshalRunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine struct {
-	Number *int `json:"number"`
-
-	Timestamp *string `json:"timestamp"`
-
-	Level *string `json:"level"`
-
-	Label *string `json:"label"`
-
-	Line *string `json:"line"`
-}
-
-func (v *RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine) MarshalJSON() ([]byte, error) {
-	premarshaled, err := v.__premarshalJSON()
-	if err != nil {
-		return nil, err
-	}
-	return json.Marshal(premarshaled)
-}
-
-func (v *RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine) __premarshalJSON() (*__premarshalRunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine, error) {
-	var retval __premarshalRunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine
-
-	retval.Number = v.LogLineFields.Number
-	retval.Timestamp = v.LogLineFields.Timestamp
-	retval.Level = v.LogLineFields.Level
-	retval.Label = v.LogLineFields.Label
-	retval.Line = v.LogLineFields.Line
-	return &retval, nil
+	return v.Line
 }
 
 // RunConsoleLogPageProjectRunLogLinesLogLineConnectionPageInfo includes the requested fields of the GraphQL type PageInfo.
@@ -1429,88 +1353,36 @@ func (v *RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdge) G
 
 // RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine includes the requested fields of the GraphQL type LogLine.
 type RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine struct {
-	LogLineFields `json:"-"`
+	Number    *int    `json:"number"`
+	Timestamp *string `json:"timestamp"`
+	Level     *string `json:"level"`
+	Label     *string `json:"label"`
+	Line      *string `json:"line"`
 }
 
 // GetNumber returns RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine.Number, and is useful for accessing the field via an interface.
 func (v *RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine) GetNumber() *int {
-	return v.LogLineFields.Number
+	return v.Number
 }
 
 // GetTimestamp returns RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine.Timestamp, and is useful for accessing the field via an interface.
 func (v *RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine) GetTimestamp() *string {
-	return v.LogLineFields.Timestamp
+	return v.Timestamp
 }
 
 // GetLevel returns RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine.Level, and is useful for accessing the field via an interface.
 func (v *RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine) GetLevel() *string {
-	return v.LogLineFields.Level
+	return v.Level
 }
 
 // GetLabel returns RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine.Label, and is useful for accessing the field via an interface.
 func (v *RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine) GetLabel() *string {
-	return v.LogLineFields.Label
+	return v.Label
 }
 
 // GetLine returns RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine.Line, and is useful for accessing the field via an interface.
 func (v *RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine) GetLine() *string {
-	return v.LogLineFields.Line
-}
-
-func (v *RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine) UnmarshalJSON(b []byte) error {
-
-	if string(b) == "null" {
-		return nil
-	}
-
-	var firstPass struct {
-		*RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine
-		graphql.NoUnmarshalJSON
-	}
-	firstPass.RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine = v
-
-	err := json.Unmarshal(b, &firstPass)
-	if err != nil {
-		return err
-	}
-
-	err = json.Unmarshal(
-		b, &v.LogLineFields)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-type __premarshalRunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine struct {
-	Number *int `json:"number"`
-
-	Timestamp *string `json:"timestamp"`
-
-	Level *string `json:"level"`
-
-	Label *string `json:"label"`
-
-	Line *string `json:"line"`
-}
-
-func (v *RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine) MarshalJSON() ([]byte, error) {
-	premarshaled, err := v.__premarshalJSON()
-	if err != nil {
-		return nil, err
-	}
-	return json.Marshal(premarshaled)
-}
-
-func (v *RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine) __premarshalJSON() (*__premarshalRunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine, error) {
-	var retval __premarshalRunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine
-
-	retval.Number = v.LogLineFields.Number
-	retval.Timestamp = v.LogLineFields.Timestamp
-	retval.Level = v.LogLineFields.Level
-	retval.Label = v.LogLineFields.Label
-	retval.Line = v.LogLineFields.Line
-	return &retval, nil
+	return v.Line
 }
 
 // RunConsoleLogTailResponse is returned by RunConsoleLogTail on success.
@@ -3892,7 +3764,11 @@ query RunConsoleLogPage ($entity: String!, $project: String!, $runName: String!,
 			logLines(first: $first, after: $after, useImprovedPagination: true) {
 				edges {
 					node {
-						... LogLineFields
+						number
+						timestamp
+						level
+						label
+						line
 					}
 				}
 				pageInfo {
@@ -3902,13 +3778,6 @@ query RunConsoleLogPage ($entity: String!, $project: String!, $runName: String!,
 			}
 		}
 	}
-}
-fragment LogLineFields on LogLine {
-	number
-	timestamp
-	level
-	label
-	line
 }
 `
 
@@ -3960,19 +3829,16 @@ query RunConsoleLogTail ($entity: String!, $project: String!, $runName: String!,
 			logLines(last: $last) {
 				edges {
 					node {
-						... LogLineFields
+						number
+						timestamp
+						level
+						label
+						line
 					}
 				}
 			}
 		}
 	}
-}
-fragment LogLineFields on LogLine {
-	number
-	timestamp
-	level
-	label
-	line
 }
 `
 
