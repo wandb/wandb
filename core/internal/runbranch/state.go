@@ -94,6 +94,10 @@ type RunParams struct {
 	// reconciliation to sync time.
 	Resume bool
 
+	// SharedMode is whether the run was created in shared mode. It is
+	// persisted on the RunRecord so sync can suppress step assignment.
+	SharedMode bool
+
 	Resumed bool
 	Forked  bool
 
@@ -163,6 +167,7 @@ func (r *RunParams) SetOnProto(record *spb.RunRecord) {
 	}
 
 	record.Resume = r.Resume
+	record.SharedMode = r.SharedMode
 
 	record.Resumed = r.Resumed
 	record.Forked = r.Forked
@@ -241,6 +246,9 @@ func (r *RunParams) Update(
 
 	if record.Resume {
 		r.Resume = true
+	}
+	if record.SharedMode {
+		r.SharedMode = true
 	}
 
 	if record.Resumed {

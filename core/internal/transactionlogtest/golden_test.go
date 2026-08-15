@@ -244,7 +244,7 @@ var goldenCorpus = []goldenCorpusCase{
 		// Same as "old_shared_mode"; the new format does not change anything.
 		Name: "new_shared_mode",
 		Records: []string{
-			`run { run_id: "new_shared_mode" }
+			`run { run_id: "new_shared_mode" shared_mode: true }
 				control { mailbox_slot: "a7sv4pj9ek2f" }`,
 			`history { item { nested_key: "x" value_json: "0" } }`,
 			`history { item { nested_key: "x" value_json: "1" } }`,

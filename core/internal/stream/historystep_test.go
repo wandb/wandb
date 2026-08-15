@@ -138,7 +138,7 @@ func TestHistoryStepTracker_RenumberUnparseableExplicitStep(t *testing.T) {
 				ValueJson: value,
 			}},
 		}
-		x.Tracker.Process(history, 0)
+		x.Tracker.ApplyHistoryStep(history)
 
 		assert.Equal(t, strconv.Itoa(i), historyStepValue(history), "row %d", i)
 		stepItems := 0

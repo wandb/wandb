@@ -12,6 +12,7 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/simplejsonext"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/featurechecker"
@@ -228,6 +229,8 @@ func InitRun(
 			}
 		}
 	}
+
+	applySharedMode(runParams, runRecord, params.Settings)
 
 	// If we're offline, skip upserting and leave the sync state to
 	// when we actually sync.
@@ -706,5 +709,16 @@ func (upserter *RunUpserter) lockedUpdateFromUpsert(
 
 		upserter.params.Entity = entity.GetName()
 		upserter.params.Project = project.GetName()
+	}
+}
+
+func applySharedMode(
+	runParams *runbranch.RunParams,
+	runRecord *spb.RunRecord,
+	settings *settings.Settings,
+) {
+	if runParams.SharedMode || runRecord.GetSharedMode() || settings.IsSharedMode() {
+		runParams.SharedMode = true
+		settings.Proto.XShared = wrapperspb.Bool(true)
 	}
 }
