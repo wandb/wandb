@@ -55,6 +55,18 @@ which matter for step-compatibility testing. A synthesized corpus is
 byte-reproducible (`TestGoldenLogs_UpToDate` proves it in CI), an order of
 magnitude smaller, and every field in it is there because a test needs it.
 
+Deliberate simplifications (not drift): history rows omit `_runtime` and
+other system keys; summary records carry only `_step` (or a single metric
+for `old_no_history`), not the full logged-metric snapshot a real run would
+have. Real flushes also write the Summary record before its History record;
+the synthesized fixtures match that order. Header version byte 0 pins the
+pre-PR history encoding (`old_*` cases); version 1 pins the post-PR encoding
+(`new_*` cases). Current readers accept both; older wandb releases reject
+version 1 files and should sync them with an upgraded `wandb beta sync`.
+Shared-mode runs persist `shared_mode: true` on the transaction log's
+`RunRecord`; `wandb beta sync` reads it so shared history uploads omit the
+step axis.
+
 The tradeoff is that it only encodes *this repo's belief* about what an old
 or pre-Go-core `.wandb` file actually looks like. `provenance/` exists to
 check that belief against reality; see
