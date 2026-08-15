@@ -19,7 +19,7 @@ type Writer struct {
 	file   *os.File
 }
 
-// OpenWriter opens a .wandb file for writing.
+// OpenWriter opens a .wandb file for writing with [wandbStoreVersion].
 //
 // The file must not already exist. It is created with permissions 0o666
 // (meaning read and write permissions for user, group and others).
@@ -32,6 +32,13 @@ type Writer struct {
 // Wraps errors from the os.OpenFile() call so that they can be checked
 // with errors.Is().
 func OpenWriter(path string) (*Writer, error) {
+	return OpenWriterWithVersion(path, wandbStoreVersion)
+}
+
+// OpenWriterWithVersion opens a .wandb file for writing with an explicit
+// header version byte. Tests and the compatibility corpus use this to pin
+// older on-disk eras without changing what new runs write.
+func OpenWriterWithVersion(path string, version byte) (*Writer, error) {
 	// O_EXCL returns an error if the file already exists.
 	//
 	// Note that os.Create() silently truncates an existing file,
@@ -42,7 +49,7 @@ func OpenWriter(path string) (*Writer, error) {
 		return nil, fmt.Errorf("transactionlog: error creating file: %w", err)
 	}
 
-	writer := leveldb.NewWriterExt(f, leveldb.CRCAlgoIEEE, wandbStoreVersion)
+	writer := leveldb.NewWriterExt(f, leveldb.CRCAlgoIEEE, version)
 
 	// Flush immediately to write the file's header.
 	if err := writer.Flush(); err != nil {
