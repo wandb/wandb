@@ -18,7 +18,7 @@ def test_append_csv_preserves_reserved_rows_and_metadata(tmp_path):
         path,
         record="telemetry_record_type",
         descriptor=tpb.TelemetryRecord.DESCRIPTOR,
-        metadata_factory=telemetry_tool._telemetry_record_metadata,
+        dtype=telemetry_tool._telemetry_dtype,
     )
 
     assert path.read_text().startswith(original)
@@ -76,7 +76,7 @@ def test_append_csv_requires_analytics_metadata(tmp_path):
             path,
             record="telemetry_record_type",
             descriptor=tpb.TelemetryRecord.DESCRIPTOR,
-            metadata_factory=telemetry_tool._telemetry_record_metadata,
+            dtype=telemetry_tool._telemetry_dtype,
         )
 
     assert path.read_text() == contents
@@ -89,7 +89,7 @@ def test_append_csv_creates_telemetry_map_with_dtypes(tmp_path):
         path,
         record="telemetry_record_type",
         descriptor=tpb.TelemetryRecord.DESCRIPTOR,
-        metadata_factory=telemetry_tool._telemetry_record_metadata,
+        dtype=telemetry_tool._telemetry_dtype,
     )
 
     with path.open(newline="") as csv_file:

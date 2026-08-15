@@ -10,7 +10,8 @@ Usage:
 
 import argparse
 import csv
-from collections.abc import Callable, Mapping, Sequence
+import io
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from google.protobuf import descriptor_pb2
@@ -18,43 +19,35 @@ from google.protobuf.descriptor import Descriptor, FieldDescriptor
 from wandb.proto import wandb_telemetry_pb2 as tpb
 
 DEFAULT_DIR = Path("analytics/dbt/seeds")
-MetadataFactory = Callable[[FieldDescriptor], Mapping[str, str]]
 
 
 def _reserved_ranges(descriptor: Descriptor) -> list[tuple[int, int]]:
-    file_descriptor = descriptor_pb2.FileDescriptorProto.FromString(
-        descriptor.file.serialized_pb
-    )
-    relative_name = descriptor.full_name.removeprefix(
-        f"{file_descriptor.package}."
-    ).split(".")
-    messages = file_descriptor.message_type
-
-    for name in relative_name:
-        message = next(message for message in messages if message.name == name)
-        messages = message.nested_type
-
-    return [(reserved.start, reserved.end) for reserved in message.reserved_range]
+    proto = descriptor_pb2.DescriptorProto()
+    descriptor.CopyToProto(proto)
+    return [(r.start, r.end) for r in proto.reserved_range]
 
 
 def _is_reserved(number: int, ranges: Sequence[tuple[int, int]]) -> bool:
     return any(start <= number < end for start, end in ranges)
 
 
-def _telemetry_record_metadata(field: FieldDescriptor) -> Mapping[str, str]:
+def _telemetry_dtype(field: FieldDescriptor) -> str:
+    """Return the dtype the analytics model expects for a root telemetry field."""
     if field.is_repeated:
-        return {"dtype": "array"}
+        return "array"
 
     if field.message_type is None:
-        return {"dtype": "string"}
+        return "string"
 
+    # Messages of bool flags (Imports, Feature, Env, Deprecated) are stored
+    # as arrays of the flags that are set; other messages are stored as JSON.
     nested_fields = field.message_type.fields
     if nested_fields and all(
         nested.type == FieldDescriptor.TYPE_BOOL for nested in nested_fields
     ):
-        return {"dtype": "array"}
+        return "array"
 
-    return {"dtype": "json"}
+    return "json"
 
 
 def append_csv(
@@ -62,33 +55,27 @@ def append_csv(
     *,
     record: str,
     descriptor: Descriptor,
-    metadata_factory: MetadataFactory | None = None,
+    dtype: Callable[[FieldDescriptor], str] | None = None,
 ) -> None:
     """Append new protobuf fields without changing existing analytics mappings."""
-    metadata_fields = (
-        list(metadata_factory(descriptor.fields[0])) if metadata_factory else []
-    )
-    expected_fieldnames = [record, "key", *metadata_fields]
+    required_columns = [record, "key"] + (["dtype"] if dtype else [])
+    fieldnames = required_columns
     existing_rows: list[dict[str, str]] = []
+    text = ""
 
     if path.exists():
-        with path.open(newline="") as csv_file:
-            reader = csv.DictReader(csv_file)
-            if reader.fieldnames is None:
-                raise ValueError(f"{path} has no header")
-            missing_columns = set(expected_fieldnames) - set(reader.fieldnames)
-            if missing_columns:
-                missing = ", ".join(sorted(missing_columns))
-                raise ValueError(f"{path} is missing required column(s): {missing}")
-            fieldnames = reader.fieldnames
-            existing_rows = list(reader)
-    else:
-        fieldnames = expected_fieldnames
+        text = path.read_text()
+        reader = csv.DictReader(io.StringIO(text))
+        if reader.fieldnames is None:
+            raise ValueError(f"{path} has no header")
+        missing_columns = set(required_columns) - set(reader.fieldnames)
+        if missing_columns:
+            missing = ", ".join(sorted(missing_columns))
+            raise ValueError(f"{path} is missing required column(s): {missing}")
+        fieldnames = list(reader.fieldnames)
+        existing_rows = list(reader)
 
     fields_by_number = {field.number: field for field in descriptor.fields}
-    public_fields = [
-        field for field in descriptor.fields if not field.name.startswith("_")
-    ]
     reserved_ranges = _reserved_ranges(descriptor)
     existing_numbers: set[int] = set()
     existing_names: set[str] = set()
@@ -120,8 +107,9 @@ def append_csv(
             )
 
     new_rows: list[dict[str, str | int]] = []
-    for field in public_fields:
-        if field.number in existing_numbers:
+    for field in descriptor.fields:
+        # skip private fields and fields the file already maps
+        if field.name.startswith("_") or field.number in existing_numbers:
             continue
         if field.name in existing_names:
             raise ValueError(
@@ -129,34 +117,29 @@ def append_csv(
             )
 
         row: dict[str, str | int] = {record: field.name, "key": field.number}
-        if metadata_factory:
-            row.update(metadata_factory(field))
+        if dtype:
+            row["dtype"] = dtype(field)
         new_rows.append(row)
 
-    if not new_rows and path.exists():
+    if not new_rows and text:
         return
 
     print("Writing:", path)
-    mode = "a" if path.exists() else "w"
-    needs_newline = False
-    if mode == "a" and path.stat().st_size:
-        with path.open("rb") as csv_file:
-            csv_file.seek(-1, 2)
-            needs_newline = csv_file.read(1) != b"\n"
-
-    with path.open(mode, newline="") as csv_file:
-        if needs_newline:
+    with path.open("a", newline="") as csv_file:
+        if text and not text.endswith("\n"):
             csv_file.write("\n")
         writer = csv.DictWriter(csv_file, fieldnames=fieldnames, lineterminator="\n")
-        if mode == "w":
+        if not text:
             writer.writeheader()
         writer.writerows(new_rows)
 
 
-def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser()
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--output-dir", default=DEFAULT_DIR if DEFAULT_DIR.exists() else Path()
+        "--output-dir",
+        type=Path,
+        default=DEFAULT_DIR if DEFAULT_DIR.exists() else Path(),
     )
     parser.add_argument(
         "--output-telemetry-record-types",
@@ -169,18 +152,14 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--output-deprecated-features", default="map_run_cli_deprecated.csv"
     )
-    return parser
+    args = parser.parse_args()
 
-
-def main(argv: Sequence[str] | None = None) -> None:
-    args = _parser().parse_args(argv)
-    output_dir = Path(args.output_dir)
     outputs = [
         (
             "telemetry_record_type",
             tpb.TelemetryRecord.DESCRIPTOR,
             args.output_telemetry_record_types,
-            _telemetry_record_metadata,
+            _telemetry_dtype,
         ),
         ("import", tpb.Imports.DESCRIPTOR, args.output_imports, None),
         ("feature", tpb.Feature.DESCRIPTOR, args.output_features, None),
@@ -194,12 +173,12 @@ def main(argv: Sequence[str] | None = None) -> None:
         ),
     ]
 
-    for record, descriptor, filename, metadata_factory in outputs:
+    for record, descriptor, filename, dtype in outputs:
         append_csv(
-            output_dir / filename,
+            args.output_dir / filename,
             record=record,
             descriptor=descriptor,
-            metadata_factory=metadata_factory,
+            dtype=dtype,
         )
 
 
