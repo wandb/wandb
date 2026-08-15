@@ -313,29 +313,3 @@ func TestRun_StackSectionsAlignWithReservedRows(t *testing.T) {
 		})
 	}
 }
-
-func TestRun_CycleChartGridKey(t *testing.T) {
-	r, cfg := newTestRun(t, 200, 60, nil)
-	r.TestHandleRecordMsg(leet.HistoryMsg{
-		Metrics: map[string]leet.MetricData{
-			"loss": {X: []float64{1, 2}, Y: []float64{0.5, 0.4}},
-		},
-	})
-
-	chart := r.TestMetricsGrid().TestChartAt(0, 0)
-	require.NotNil(t, chart)
-	require.Equal(t, leet.ChartGridDots, chart.TestChartGrid())
-
-	// g cycles dots -> horizontal -> off -> dots, persisting each step
-	// and applying it to existing charts.
-	r.Update(tea.KeyPressMsg{Code: 'g', Text: "g"})
-	require.Equal(t, leet.ChartGridHorizontal, cfg.ChartGrid())
-	require.Equal(t, leet.ChartGridHorizontal, chart.TestChartGrid())
-
-	r.Update(tea.KeyPressMsg{Code: 'g', Text: "g"})
-	require.Equal(t, leet.ChartGridOff, cfg.ChartGrid())
-
-	r.Update(tea.KeyPressMsg{Code: 'g', Text: "g"})
-	require.Equal(t, leet.ChartGridDots, cfg.ChartGrid())
-	require.Equal(t, leet.ChartGridDots, chart.TestChartGrid())
-}

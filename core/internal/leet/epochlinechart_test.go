@@ -59,9 +59,10 @@ func TestEpochLineChart_NonFiniteValuesDoNotPoisonRange(t *testing.T) {
 }
 
 func TestEpochLineChart_ChartGridStyles(t *testing.T) {
-	// renderPlotRows returns the plot-area rows of a 48x10 chart, excluding
-	// the X axis row, which always contains '─'.
-	renderPlotRows := func(grid string) (*leet.EpochLineChart, []string) {
+	// plotRows renders a 48x10 chart and returns its 8 plot-area rows,
+	// excluding the X axis row, which always contains '─'. The single Y
+	// tick row of this chart is at index 3.
+	plotRows := func(grid string) []string {
 		chart := leet.NewEpochLineChart("loss")
 		chart.Resize(48, 10)
 		chart.SetChartGrid(grid)
@@ -70,41 +71,29 @@ func TestEpochLineChart_ChartGridStyles(t *testing.T) {
 			Y: []float64{0.2, 0.4, 0.6, 0.8},
 		})
 		chart.Draw()
-
-		lines := strings.Split(stripANSI(chart.View()), "\n")
-		return chart, lines[:chart.GraphHeight()]
+		return strings.Split(stripANSI(chart.View()), "\n")[:chart.GraphHeight()]
 	}
 
-	t.Run("off", func(t *testing.T) {
-		_, rows := renderPlotRows(leet.ChartGridOff)
-		for _, row := range rows {
-			require.NotContains(t, row, "·")
-			require.NotContains(t, row, "─")
-		}
-	})
+	for y, row := range plotRows(leet.ChartGridOff) {
+		require.NotContains(t, row, "·", "off: row %d", y)
+		require.NotContains(t, row, "─", "off: row %d", y)
+	}
 
-	t.Run("dots", func(t *testing.T) {
-		_, rows := renderPlotRows(leet.ChartGridDots)
-		require.Contains(t, strings.Join(rows, "\n"), "·")
-		for _, row := range rows {
-			require.NotContains(t, row, "─")
-		}
-	})
+	dotRows := plotRows(leet.ChartGridDots)
+	require.Contains(t, strings.Join(dotRows, "\n"), "·")
+	for y, row := range dotRows {
+		require.NotContains(t, row, "─", "dots: row %d", y)
+	}
 
-	t.Run("horizontal", func(t *testing.T) {
-		chart, rows := renderPlotRows(leet.ChartGridHorizontal)
-
-		// Guides sit exactly on the Y tick rows and nowhere else.
-		for y, row := range rows {
-			i := chart.Origin().Y - y
-			if i%chart.YStep() == 0 && i < chart.GraphHeight() {
-				require.Contains(t, row, "─", "expected a guide on tick row %d", y)
-			} else {
-				require.NotContains(t, row, "─", "unexpected guide on row %d", y)
-			}
-			require.NotContains(t, row, "·")
+	// Horizontal guides sit on the Y tick rows and nowhere else.
+	for y, row := range plotRows(leet.ChartGridHorizontal) {
+		require.NotContains(t, row, "·", "horizontal: row %d", y)
+		if y == 3 {
+			require.Contains(t, row, "─", "horizontal: tick row")
+		} else {
+			require.NotContains(t, row, "─", "horizontal: row %d", y)
 		}
-	})
+	}
 }
 
 func TestEpochLineChart_ZoomClampsAndAnchors(t *testing.T) {

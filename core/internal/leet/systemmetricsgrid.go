@@ -479,11 +479,19 @@ func (g *SystemMetricsGrid) focusedChart() systemMetricChart {
 	return g.currentPage[g.focus.Row][g.focus.Col]
 }
 
-// SetChartGrid applies the background guide style to all charts.
+// SetChartGrid applies the background guide style to all charts and
+// redraws the visible ones. Grids apply to line charts only: the French
+// Fries heatmap fills the plot area, leaving no background to show through.
 func (g *SystemMetricsGrid) SetChartGrid(grid string) {
 	for _, chart := range g.ordered {
-		chart.SetChartGrid(grid)
+		switch c := chart.(type) {
+		case *TimeSeriesLineChart:
+			c.SetChartGrid(grid)
+		case *frenchFriesToggleChart:
+			c.line.SetChartGrid(grid)
+		}
 	}
+	g.drawVisible()
 }
 
 func (g *SystemMetricsGrid) toggleFocusedChartLogY() bool {

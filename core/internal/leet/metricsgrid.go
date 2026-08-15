@@ -129,13 +129,16 @@ func (mg *MetricsGrid) SetSeriesColorProvider(
 	mg.seriesColorForKey = provider
 }
 
-// SetChartGrid applies the background guide style to all charts.
+// SetChartGrid applies the background guide style to all charts and
+// redraws the visible ones.
 func (mg *MetricsGrid) SetChartGrid(grid string) {
 	mg.mu.Lock()
-	defer mg.mu.Unlock()
 	for _, chart := range mg.all {
 		chart.SetChartGrid(grid)
 	}
+	mg.mu.Unlock()
+
+	mg.drawVisible()
 }
 
 // ChartCount returns the total number of metrics charts.

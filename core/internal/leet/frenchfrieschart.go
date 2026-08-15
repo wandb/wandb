@@ -207,10 +207,6 @@ func (c *FrenchFriesChart) GraphStartY() int {
 
 func (c *FrenchFriesChart) HandleZoom(string, int) {}
 
-// SetChartGrid is a no-op: the heatmap's colored cells fill the plot area,
-// leaving no background for guides to show through.
-func (c *FrenchFriesChart) SetChartGrid(string) {}
-
 func (c *FrenchFriesChart) ToggleYScale() bool { return false }
 func (c *FrenchFriesChart) IsLogY() bool       { return false }
 

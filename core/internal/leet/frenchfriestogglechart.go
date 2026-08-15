@@ -92,12 +92,6 @@ func (c *frenchFriesToggleChart) HandleZoom(direction string, mouseX int) {
 	c.activeChart().DrawIfNeeded()
 }
 
-// SetChartGrid applies the background guide style to the line chart.
-// The French Fries heatmap fills the plot area, so it has no grid.
-func (c *frenchFriesToggleChart) SetChartGrid(grid string) {
-	c.line.SetChartGrid(grid)
-}
-
 func (c *frenchFriesToggleChart) ToggleYScale() bool {
 	if c.heatmapMode {
 		return false
