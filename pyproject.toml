@@ -104,7 +104,7 @@ launch = [
 models = ["cloudpickle"]
 workspaces = ["wandb-workspaces"]
 # cwsandbox requires Python >=3.11, so this extra is unavailable on 3.10.
-sandbox = ["cwsandbox[cli]>=0.20.0; python_version >= '3.11'"]
+sandbox = ["cwsandbox[cli]>=1.0.0; python_version >= '3.11'"]
 eval-table = [ # wandb.EvalTable support (private testing only)
     "weave>=0.52.41",
 ]

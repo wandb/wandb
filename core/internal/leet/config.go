@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,6 +40,9 @@ const (
 
 	// Chart grid size constraints.
 	MinGridSize, MaxGridSize = 1, 9
+
+	// Layout override fractions are clamped to this range when set.
+	MinLayoutFrac, MaxLayoutFrac = 0.05, 0.9
 
 	ColorModePerPlot   = "per_plot"   // Each chart gets next color
 	ColorModePerSeries = "per_series" // All charts use base color, multi-series differentiate
@@ -99,6 +103,11 @@ type Config struct {
 	// SymonGrid is the dimensions for the standalone system monitor chart grid.
 	SymonGrid GridConfig `json:"symon_grid" leet:"desc=standalone system metrics grid"`
 
+	// Mouse-dragged pane proportions per view. Managed by drag-resize and
+	// the "0" reset key, not the config editor.
+	RunLayout       LayoutOverrides `json:"run_layout,omitzero"       leet:"-"`
+	WorkspaceLayout LayoutOverrides `json:"workspace_layout,omitzero" leet:"-"`
+
 	// ColorScheme is the color scheme to display the main metrics.
 	ColorScheme string `json:"color_scheme" leet:"desc=Palette for main run metrics charts (and run list colors).,options=colorSchemes"`
 
@@ -155,6 +164,20 @@ type Config struct {
 type GridConfig struct {
 	Rows int `json:"rows" leet:"min=1,max=9"`
 	Cols int `json:"cols" leet:"min=1,max=9"`
+}
+
+// LayoutOverrides stores user-adjusted pane proportions for one view,
+// set by dragging pane boundaries with the mouse.
+//
+// Each value is a fraction of the terminal width (sidebars) or height
+// (stacked panes). Zero means "use the built-in default". The JSON schema
+// matches leet-rs so both implementations can share wandb-leet.json.
+type LayoutOverrides struct {
+	LeftSidebar  float64 `json:"left_sidebar,omitempty"`
+	RightSidebar float64 `json:"right_sidebar,omitempty"`
+	System       float64 `json:"system,omitempty"`
+	Media        float64 `json:"media,omitempty"`
+	Logs         float64 `json:"logs,omitempty"`
 }
 
 // ConfigManager manages application configuration with thread-safe access
@@ -248,13 +271,13 @@ func (cm *ConfigManager) loadOrCreateConfig() error {
 		return err
 	}
 
-	if err := json.Unmarshal(data, &cm.config); err != nil {
-		return err
-	}
+	err = json.Unmarshal(data, &cm.config)
 
+	// Unmarshal decodes what it can before failing, and the caller keeps
+	// the partial config, so normalize even on error.
 	cm.normalizeConfig()
 
-	return nil
+	return err
 }
 
 // normalizeConfig ensures all config values are within valid ranges.
@@ -330,6 +353,9 @@ func (cm *ConfigManager) normalizeConfig() {
 	if !isChartGrid(cm.config.ChartGrid) {
 		cm.config.ChartGrid = DefaultChartGrid
 	}
+
+	normalizeLayoutOverrides(&cm.config.RunLayout)
+	normalizeLayoutOverrides(&cm.config.WorkspaceLayout)
 }
 
 func isChartGrid(grid string) bool {
@@ -346,6 +372,21 @@ func nextChartGrid(grid string) string {
 		return ChartGridOff
 	default:
 		return ChartGridDots
+	}
+}
+
+// normalizeLayoutOverrides clamps set (non-zero) fractions to a sane range.
+// NaN would defeat the clamp (min/max propagate it) and later poison every
+// config save (encoding/json rejects NaN), so it resets to the default.
+func normalizeLayoutOverrides(o *LayoutOverrides) {
+	for _, f := range []*float64{
+		&o.LeftSidebar, &o.RightSidebar, &o.System, &o.Media, &o.Logs,
+	} {
+		if math.IsNaN(*f) {
+			*f = 0
+		} else if *f != 0 {
+			*f = min(max(*f, MinLayoutFrac), MaxLayoutFrac)
+		}
 	}
 }
 
@@ -588,6 +629,38 @@ func (cm *ConfigManager) SetSymonCols(cols int) error {
 	cm.mu.Lock()
 	defer cm.mu.Unlock()
 	cm.config.SymonGrid.Cols = cols
+	return cm.save()
+}
+
+// RunLayout returns the single-run view's layout overrides.
+func (cm *ConfigManager) RunLayout() LayoutOverrides {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.RunLayout
+}
+
+// SetRunLayout sets and persists the single-run view's layout overrides.
+func (cm *ConfigManager) SetRunLayout(o LayoutOverrides) error {
+	normalizeLayoutOverrides(&o)
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.RunLayout = o
+	return cm.save()
+}
+
+// WorkspaceLayout returns the workspace view's layout overrides.
+func (cm *ConfigManager) WorkspaceLayout() LayoutOverrides {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.WorkspaceLayout
+}
+
+// SetWorkspaceLayout sets and persists the workspace view's layout overrides.
+func (cm *ConfigManager) SetWorkspaceLayout(o LayoutOverrides) error {
+	normalizeLayoutOverrides(&o)
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	cm.config.WorkspaceLayout = o
 	return cm.save()
 }
 

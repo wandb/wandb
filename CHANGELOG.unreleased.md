@@ -16,6 +16,8 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Added
 
+- The automations API now supports team and organization scopes. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12197, https://github.com/wandb/wandb/pull/12194)
+- The automations API now supports creating and editing automations whose scope is a `Registry` object (@tonyyli-wandb in https://github.com/wandb/wandb/pull/10867)
 - LEET line charts now show a dotted grid by default. Press `g` to cycle between the dotted grid, horizontal guides aligned with axis ticks, and no grid; the choice is saved and can also be set with `chart_grid` in `wandb leet config`. (@dmitryduev in https://github.com/wandb/wandb/pull/12463)
 
 ### Changed
