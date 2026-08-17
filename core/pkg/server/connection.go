@@ -692,7 +692,7 @@ func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest
 	telemetryProxy := analytics.NewOpenTelemetryProxy(
 		context.Background(),
 		s,
-		"wandb-core",
+		"sdk-wandb-core",
 	)
 	go func() {
 		<-nc.connLifetimeCtx.Done()
