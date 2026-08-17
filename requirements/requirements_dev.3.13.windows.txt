@@ -164,7 +164,7 @@ cryptography==46.0.7
     #   msal
     #   pyjwt
     #   pyopenssl
-cwsandbox==0.26.0
+cwsandbox==1.0.0
     # via -r requirements/requirements_dev.txt
 cycler==0.12.1
     # via matplotlib

@@ -10,7 +10,7 @@ import wandb
 from pytest import FixtureRequest, fixture, skip
 from wandb import Artifact
 from wandb._filters import FilterExpr
-from wandb.apis.public import ArtifactCollection, Organization, Project, Team
+from wandb.apis.public import ArtifactCollection, Organization, Project, Registry, Team
 from wandb.automations import (
     ActionType,
     ArtifactEvent,
@@ -38,6 +38,7 @@ from wandb.automations._generated import (
 )
 from wandb.automations._inputs import INVALID_INPUT_ACTIONS, INVALID_INPUT_EVENTS
 from wandb.automations.events import InputEvent
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 if TYPE_CHECKING:
     from tests.system_tests.backend_fixtures import (
@@ -45,7 +46,9 @@ if TYPE_CHECKING:
         TeamAndOrgNames,
     )
 
-ScopableWandbType: TypeAlias = ArtifactCollection | Project | Team | Organization
+ScopableWandbType: TypeAlias = (
+    ArtifactCollection | Project | Registry | Team | Organization
+)
 
 
 def random_string(chars: str = ascii_lowercase + digits, n: int = 12) -> str:
@@ -104,6 +107,32 @@ def org(
 
 
 @fixture(scope="module")
+def entity_scope_enabled(
+    team_and_org: TeamAndOrgNames,
+    make_module_api: Callable[[], wandb.Api],
+) -> bool:
+    """Whether entity-scoped automations are enabled for the test org.
+
+    Two independent checks gate this feature, and both must pass:
+
+    - The `AUTOMATION_SCOPE_ENTITY` ServerFeature says whether the *server*
+      version supports entity scopes at all.
+    - The `automation_entity_scope` flag in `organization.featureFlags` (this
+      check) says whether the feature is switched on for a specific *org*.
+      If the flag is absent, it's off.
+    """
+    try:
+        flags = make_module_api()._service_api.org_feature_flags(
+            team_and_org.org,
+            "automation_entity_scope",
+        )
+    except WandbApiFailedError:
+        # On older servers that don't expose this query, the feature is off.
+        return False
+    return flags.get("automation_entity_scope") or False
+
+
+@fixture(scope="module")
 def project(
     team: Team,
     make_module_api: Callable[[], wandb.Api],
@@ -118,6 +147,20 @@ def project(
     # This fixture is module-scoped; load attrs before per-test teardown invalidates the API.
     _ = project.id
     return project
+
+
+@fixture
+def registry(
+    team_and_org: TeamAndOrgNames,
+    module_api: wandb.Api,
+    make_name: Callable[[str], str],
+) -> Registry:
+    """A registry in the same organization as the other automation scopes."""
+    return module_api.create_registry(
+        name=make_name("test-registry"),
+        visibility="organization",
+        organization=team_and_org.org,
+    )
 
 
 @fixture(scope="module")
@@ -158,14 +201,16 @@ def make_webhook_integration(
         gql_input = CreateGenericWebhookIntegrationInput(
             name=name, entity_name=entity, url_endpoint=url
         )
-        gql_op = CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL
-        gql_vars = {"input": gql_input.model_dump()}
-        api = make_module_api()
-        data = api._service_api.execute_graphql(gql_op, variables=gql_vars)
-
-        result = CreateGenericWebhookIntegration(**data)
-        integration = result.create_generic_webhook_integration.integration
-        return WebhookIntegration.model_validate(integration)
+        result = (
+            make_module_api()
+            ._service_api.execute_graphql(
+                CREATE_GENERIC_WEBHOOK_INTEGRATION_GQL,
+                variables={"input": gql_input.model_dump()},
+                parse=CreateGenericWebhookIntegration.model_validate_json,
+            )
+            .result
+        )
+        return WebhookIntegration.model_validate(result.integration)
 
     return _make_webhook
 
@@ -189,8 +234,7 @@ def webhook(
 # ---------------------------------------------------------------------------
 # Exclude deprecated events/actions that will not be exposed in the API for programmatic creation
 def valid_input_scopes() -> list[ScopeType]:
-    # return sorted(ScopeType)  # TODO: restore once ENTITY scope is supported
-    return sorted(set(ScopeType) - {ScopeType.ENTITY})
+    return sorted(ScopeType)
 
 
 def valid_input_events() -> list[EventType]:
@@ -211,6 +255,7 @@ def valid_input_actions() -> list[ActionType]:
 @lru_cache
 def invalid_events_and_scopes() -> set[tuple[EventType, ScopeType]]:
     return {
+        (EventType.CREATE_ARTIFACT, ScopeType.ENTITY),
         (EventType.CREATE_ARTIFACT, ScopeType.PROJECT),
         (EventType.RUN_METRIC_THRESHOLD, ScopeType.ARTIFACT_COLLECTION),
         (EventType.RUN_METRIC_CHANGE, ScopeType.ARTIFACT_COLLECTION),
@@ -248,6 +293,12 @@ def scope_type(request: FixtureRequest, module_api: wandb.Api) -> ScopeType:
     """A fixture that parametrizes over all valid scope types."""
     if not scope_enabled(module_api._service_api, scope_type := request.param):
         skip(f"Server does not support scope type: {scope_type!r}")
+
+    # ENTITY scope is additionally gated per-organization on the backend.
+    if scope_type is ScopeType.ENTITY and not request.getfixturevalue(
+        entity_scope_enabled.__name__
+    ):
+        skip("Entity-scoped automations are not enabled for the test organization")
 
     return scope_type
 

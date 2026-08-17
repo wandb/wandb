@@ -75,11 +75,35 @@ func (r *Run) TestStopHeartbeat() {
 	}
 }
 
+// TestLayoutWidths returns the run view's current sidebar widths.
+func (r *Run) TestLayoutWidths() (left, right int) {
+	l := r.computeViewports()
+	return l.leftSidebarWidth, l.rightSidebarWidth
+}
+
+// TestLayoutWidths returns the workspace's current sidebar widths.
+func (w *Workspace) TestLayoutWidths() (left, right int) {
+	l := w.computeViewports()
+	return l.leftSidebarWidth, l.rightSidebarWidth
+}
+
 // TestStackHeights returns the run view's central stack pane heights.
 func (r *Run) TestStackHeights() (metrics, media, logs int) {
 	l := r.computeViewports()
 	return l.height, l.mediaHeight, l.consoleLogsHeight
 }
+
+// TestStackHeights returns the workspace's central stack pane heights.
+func (w *Workspace) TestStackHeights() (metrics, system, media, logs int) {
+	l := w.computeViewports()
+	return l.height, l.systemMetricsHeight, l.mediaHeight, l.consoleLogsHeight
+}
+
+// TestInRunMode reports whether the model shows the single-run view.
+func (m *Model) TestInRunMode() bool { return m.mode == viewModeRun }
+
+// TestRunModel returns the single-run sub-model (nil in workspace mode).
+func (m *Model) TestRunModel() *Run { return m.run }
 
 func (s *Symon) TestGrid() *SystemMetricsGrid {
 	return s.grid
@@ -550,6 +574,20 @@ func (w *Workspace) TestForceExpandRunsSidebar() {
 // TestConsoleLogs returns the console logs map for assertion.
 func (w *Workspace) TestConsoleLogs() map[string]*RunConsoleLogs {
 	return w.consoleLogs
+}
+
+// TestSeedConsoleLogs populates console logs for a run and syncs the pane so
+// the console logs region becomes focusable.
+func (w *Workspace) TestSeedConsoleLogs(runKey string, lines ...string) {
+	cl := w.consoleLogs[runKey]
+	if cl == nil {
+		cl = NewRunConsoleLogs()
+		w.consoleLogs[runKey] = cl
+	}
+	for _, line := range lines {
+		cl.ProcessRaw(line, false, time.Now())
+	}
+	w.consoleLogsPane.SetConsoleLogs(cl.Items())
 }
 
 // TestRunOverviewSidebarHasActiveSection reports whether the overview sidebar

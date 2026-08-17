@@ -81,6 +81,13 @@ type Run struct {
 	focusMgr *FocusManager
 	focus    *Focus
 
+	// focusSeeded is set once initial focus lands on the first pane that
+	// receives data. After that, focus only ever changes on user action.
+	focusSeeded bool
+
+	// drag owns in-progress pane-boundary resizing (mouse drag).
+	drag paneDragger
+
 	// UI components.
 	metricsGridAnimState *AnimatedValue
 	metricsGrid          *MetricsGrid
@@ -160,6 +167,12 @@ func NewRun(
 		logger:               logger,
 	}
 	run.focusMgr = run.buildRunFocusManager()
+	run.drag = paneDragger{
+		saved:    cfg.RunLayout,
+		persist:  cfg.SetRunLayout,
+		relayout: run.applyLayoutConfig,
+		logger:   logger,
+	}
 	return run
 }
 
@@ -254,15 +267,39 @@ func (r *Run) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // handleWindowResize handles window resize messages.
 func (r *Run) handleWindowResize(msg tea.WindowSizeMsg) {
 	r.width, r.height = msg.Width, msg.Height
+	r.applyLayoutConfig()
+	r.focusMgr.Resolve()
+}
 
-	r.leftSidebar.UpdateDimensions(msg.Width, r.rightSidebar.animState.TargetVisible())
-	r.rightSidebar.UpdateDimensions(msg.Width, r.leftSidebar.animState.TargetVisible())
+// applyLayoutConfig re-derives all pane extents from the terminal size and
+// any saved layout overrides.
+func (r *Run) applyLayoutConfig() {
+	r.updateSidebarDimensions(
+		r.leftSidebar.animState.TargetVisible(),
+		r.rightSidebar.animState.TargetVisible(),
+	)
 	r.updateBottomPaneHeights(
 		r.mediaPane.animState.TargetVisible(), r.consoleLogsPane.animState.TargetVisible())
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
-	r.focusMgr.ResolveAfterAvailabilityChange()
+}
+
+// layoutOverrides returns the live pane proportions: the in-progress drag's
+// pending values, or the persisted config.
+func (r *Run) layoutOverrides() LayoutOverrides {
+	return r.drag.overrides()
+}
+
+// updateSidebarDimensions re-derives both sidebars' expanded widths from the
+// terminal width, the given post-toggle visibility of each side, and the
+// layout overrides.
+func (r *Run) updateSidebarDimensions(leftVisible, rightVisible bool) {
+	o := r.layoutOverrides()
+	left, right := fitSidebarFractions(
+		r.width, leftVisible, rightVisible, o.LeftSidebar, o.RightSidebar)
+	r.leftSidebar.UpdateDimensions(r.width, rightVisible, left)
+	r.rightSidebar.UpdateDimensions(r.width, leftVisible, right)
 }
 
 // isUIMsg returns true for messages that should flow to child view models.
@@ -690,12 +727,29 @@ func (r *Run) updateBottomPaneHeights(mediaVisible, logsVisible bool) {
 		lowerTierH = maxH
 	}
 
+	o := r.layoutOverrides()
 	each := lowerTierH / lowerCount
+	heights := []int{
+		paneHeightFor(o.Media, r.height, each),
+		paneHeightFor(o.Logs, r.height, each),
+	}
+	budget := maxH
+	if metricsVisible {
+		budget = maxH - minFlexMetricsHeight
+	}
+	if !mediaVisible {
+		heights[0] = 0
+	}
+	if !logsVisible {
+		heights[1] = 0
+	}
+	fitStackHeights(heights,
+		[]int{mediaPaneMinHeight, ConsoleLogsPaneMinHeight}, budget)
 	if mediaVisible {
-		r.mediaPane.SetExpandedHeight(each)
+		r.mediaPane.SetExpandedHeight(heights[0])
 	}
 	if logsVisible {
-		r.consoleLogsPane.SetExpandedHeight(each)
+		r.consoleLogsPane.SetExpandedHeight(heights[1])
 	}
 }
 

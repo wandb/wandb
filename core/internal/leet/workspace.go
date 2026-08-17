@@ -29,6 +29,9 @@ type Workspace struct {
 	// focusMgr is the single source of truth for UI focus state.
 	focusMgr *FocusManager
 
+	// drag owns in-progress pane-boundary resizing (mouse drag).
+	drag paneDragger
+
 	// Configuration and key bindings.
 	config *ConfigManager
 	keyMap map[string]func(*Workspace, tea.KeyPressMsg) tea.Cmd
@@ -178,6 +181,12 @@ func NewWorkspace(
 		runsFilterIndex:     make(map[string]WorkspaceRunFilterData),
 	}
 	w.focusMgr = w.buildWorkspaceFocusManager()
+	w.drag = paneDragger{
+		saved:    cfg.WorkspaceLayout,
+		persist:  cfg.SetWorkspaceLayout,
+		relayout: w.applyLayoutConfig,
+		logger:   logger,
+	}
 	// The runs list starts focused by default.
 	w.focusMgr.SetTarget(FocusTargetRunsList, 1)
 	return w
@@ -553,11 +562,21 @@ func (w *Workspace) computeViewports() Layout {
 	}
 }
 
+// layoutOverrides returns the live pane proportions: the in-progress drag's
+// pending values, or the persisted config.
+func (w *Workspace) layoutOverrides() LayoutOverrides {
+	return w.drag.overrides()
+}
+
 // updateSidebarDimensions tells both sidebars to recalculate their expanded
-// widths given the post-toggle visibility of each side.
+// widths given the post-toggle visibility of each side and the layout
+// overrides.
 func (w *Workspace) updateSidebarDimensions(leftVisible, rightVisible bool) {
-	w.runsAnimState.SetExpanded(expandedSidebarWidth(w.width, rightVisible))
-	w.runOverviewSidebar.UpdateDimensions(w.width, leftVisible)
+	o := w.layoutOverrides()
+	left, right := fitSidebarFractions(
+		w.width, leftVisible, rightVisible, o.LeftSidebar, o.RightSidebar)
+	w.runsAnimState.SetExpanded(expandedSidebarWidth(w.width, rightVisible, left))
+	w.runOverviewSidebar.UpdateDimensions(w.width, leftVisible, right)
 }
 
 func (w *Workspace) updateBottomPaneHeights(sysVisible, mediaVisible, logsVisible bool) {
@@ -601,15 +620,37 @@ func (w *Workspace) updateBottomPaneHeights(sysVisible, mediaVisible, logsVisibl
 		lowerTierH = maxH
 	}
 
+	o := w.layoutOverrides()
 	each := lowerTierH / lowerCount
+	heights := []int{
+		paneHeightFor(o.System, w.height, each),
+		paneHeightFor(o.Media, w.height, each),
+		paneHeightFor(o.Logs, w.height, each),
+	}
+	budget := maxH
+	if metricsVisible {
+		budget = maxH - minFlexMetricsHeight
+	}
+	if !sysVisible {
+		heights[0] = 0
+	}
+	if !mediaVisible {
+		heights[1] = 0
+	}
+	if !logsVisible {
+		heights[2] = 0
+	}
+	fitStackHeights(heights, []int{
+		systemMetricsPaneMinHeight, mediaPaneMinHeight, ConsoleLogsPaneMinHeight,
+	}, budget)
 	if sysVisible {
-		w.systemMetricsPane.SetExpandedHeight(each)
+		w.systemMetricsPane.SetExpandedHeight(heights[0])
 	}
 	if mediaVisible {
-		w.mediaPane.SetExpandedHeight(each)
+		w.mediaPane.SetExpandedHeight(heights[1])
 	}
 	if logsVisible {
-		w.consoleLogsPane.SetExpandedHeight(each)
+		w.consoleLogsPane.SetExpandedHeight(heights[2])
 	}
 }
 
@@ -618,77 +659,62 @@ func (w *Workspace) updateBottomPaneHeights(sysVisible, mediaVisible, logsVisibl
 func (w *Workspace) buildWorkspaceFocusManager() *FocusManager {
 	return NewFocusManager([]FocusRegionDef{
 		{
-			Target:          FocusTargetRunsList,
-			Available:       w.runsFocusAvailable,
-			AvailableTarget: w.runsFocusTargetAvailable,
-			Activate:        w.activateRunsFocus,
-			Deactivate:      w.deactivateRunsFocus,
+			Target:     FocusTargetRunsList,
+			Available:  w.runsFocusAvailable,
+			Activate:   w.activateRunsFocus,
+			Deactivate: w.deactivateRunsFocus,
 		},
 		{
-			Target:          FocusTargetMetricsGrid,
-			Available:       w.metricsGridFocusAvailable,
-			AvailableTarget: w.metricsGridFocusTargetAvailable,
-			Activate:        w.activateMetricsGridFocus,
-			Deactivate:      w.deactivateMetricsGridFocus,
+			Target:     FocusTargetMetricsGrid,
+			Available:  w.metricsGridFocusAvailable,
+			Activate:   w.activateMetricsGridFocus,
+			Deactivate: w.deactivateMetricsGridFocus,
 		},
 		{
-			Target:          FocusTargetSystemMetrics,
-			Available:       w.sysMetricsFocusAvailable,
-			AvailableTarget: w.sysMetricsFocusTargetAvailable,
-			Activate:        w.activateSysMetricsFocus,
-			Deactivate:      w.deactivateSysMetricsFocus,
+			Target:     FocusTargetSystemMetrics,
+			Available:  w.sysMetricsFocusAvailable,
+			Activate:   w.activateSysMetricsFocus,
+			Deactivate: w.deactivateSysMetricsFocus,
 		},
 		{
-			Target:          FocusTargetMedia,
-			Available:       w.mediaFocusAvailable,
-			AvailableTarget: w.mediaFocusTargetAvailable,
-			Activate:        w.activateMediaFocus,
-			Deactivate:      w.deactivateMediaFocus,
+			Target:     FocusTargetMedia,
+			Available:  w.mediaFocusAvailable,
+			Activate:   w.activateMediaFocus,
+			Deactivate: w.deactivateMediaFocus,
 		},
 		{
-			Target:          FocusTargetConsoleLogs,
-			Available:       w.logsFocusAvailable,
-			AvailableTarget: w.logsFocusTargetAvailable,
-			Activate:        w.activateLogsFocus,
-			Deactivate:      w.deactivateLogsFocus,
+			Target:     FocusTargetConsoleLogs,
+			Available:  w.logsFocusAvailable,
+			Activate:   w.activateLogsFocus,
+			Deactivate: w.deactivateLogsFocus,
 		},
 		{
-			Target:          FocusTargetOverview,
-			Available:       w.overviewFocusAvailable,
-			AvailableTarget: w.overviewFocusTargetAvailable,
-			Activate:        w.activateOverviewFocus,
-			Deactivate:      w.deactivateOverviewFocus,
+			Target:     FocusTargetOverview,
+			Available:  w.overviewFocusAvailable,
+			Activate:   w.activateOverviewFocus,
+			Deactivate: w.deactivateOverviewFocus,
 		},
 	})
 }
 
 // ---- Focus availability ----
+//
+// A data pane is available when its target state is visible and it has
+// content to interact with; empty panes are skipped by Tab navigation.
+// The runs list is the one exception (see runsFocusAvailable).
 
+// The runs list is the workspace's home surface: it stays focusable while
+// visible even when empty, so focus survives the empty-list windows during
+// startup and no-match filters.
 func (w *Workspace) runsFocusAvailable() bool {
-	return w.runsAnimState.IsVisible() && len(w.runs.FilteredItems) > 0
-}
-
-func (w *Workspace) runsFocusTargetAvailable() bool {
-	return w.runsAnimState.TargetVisible() && len(w.runs.FilteredItems) > 0
+	return w.runsAnimState.TargetVisible()
 }
 
 func (w *Workspace) metricsGridFocusAvailable() bool {
-	return w.metricsGridAnimState.IsExpanded() && w.metricsGrid.ChartCount() > 0
-}
-
-func (w *Workspace) metricsGridFocusTargetAvailable() bool {
 	return w.metricsGridAnimState.TargetVisible() && w.metricsGrid.ChartCount() > 0
 }
 
 func (w *Workspace) sysMetricsFocusAvailable() bool {
-	if !w.systemMetricsPane.IsExpanded() {
-		return false
-	}
-	g := w.activeSystemMetricsGrid()
-	return g != nil && g.ChartCount() > 0
-}
-
-func (w *Workspace) sysMetricsFocusTargetAvailable() bool {
 	if !w.systemMetricsPane.animState.TargetVisible() {
 		return false
 	}
@@ -697,27 +723,14 @@ func (w *Workspace) sysMetricsFocusTargetAvailable() bool {
 }
 
 func (w *Workspace) mediaFocusAvailable() bool {
-	return w.mediaPane.IsExpanded() && w.mediaPane.HasData()
-}
-
-func (w *Workspace) mediaFocusTargetAvailable() bool {
 	return w.mediaPane.animState.TargetVisible() && w.mediaPane.HasData()
 }
 
 func (w *Workspace) logsFocusAvailable() bool {
-	return w.consoleLogsPane.IsExpanded()
-}
-
-func (w *Workspace) logsFocusTargetAvailable() bool {
-	return w.consoleLogsPane.animState.TargetVisible()
+	return w.consoleLogsPane.animState.TargetVisible() && w.consoleLogsPane.HasData()
 }
 
 func (w *Workspace) overviewFocusAvailable() bool {
-	firstSec, _ := w.runOverviewSidebar.focusableSectionBounds()
-	return w.runOverviewSidebar.animState.IsExpanded() && firstSec != -1
-}
-
-func (w *Workspace) overviewFocusTargetAvailable() bool {
 	firstSec, _ := w.runOverviewSidebar.focusableSectionBounds()
 	return w.runOverviewSidebar.animState.TargetVisible() && firstSec != -1
 }
@@ -769,7 +782,12 @@ func (w *Workspace) deactivateSysMetricsFocus() {
 		w.systemMetricsFocus.Reset()
 	}
 }
-func (w *Workspace) deactivateMediaFocus()    { w.mediaPane.SetActive(false) }
+func (w *Workspace) deactivateMediaFocus() {
+	// Fullscreen follows focus: once focus leaves the pane, no key path
+	// could exit fullscreen and Esc would be captured forever.
+	w.mediaPane.ExitFullscreen()
+	w.mediaPane.SetActive(false)
+}
 func (w *Workspace) deactivateLogsFocus()     { w.consoleLogsPane.SetActive(false) }
 func (w *Workspace) deactivateOverviewFocus() { w.runOverviewSidebar.deactivateAllSections() }
 
@@ -778,7 +796,7 @@ func (w *Workspace) deactivateOverviewFocus() { w.runOverviewSidebar.deactivateA
 // Returns true if the navigation was handled (i.e. we're not at a boundary).
 func (w *Workspace) cycleOverviewSection(direction int) bool {
 	firstSec, lastSec := w.runOverviewSidebar.focusableSectionBounds()
-	if !w.runOverviewSidebar.animState.IsExpanded() || firstSec == -1 {
+	if !w.overviewFocusAvailable() {
 		return false
 	}
 
@@ -795,6 +813,12 @@ func (w *Workspace) cycleOverviewSection(direction int) bool {
 // handleWindowResize handles window resize messages.
 func (w *Workspace) handleWindowResize(width, height int) {
 	w.SetSize(width, height)
+	w.applyLayoutConfig()
+}
+
+// applyLayoutConfig re-derives all pane extents from the terminal size and
+// any saved layout overrides.
+func (w *Workspace) applyLayoutConfig() {
 	w.updateSidebarDimensions(
 		w.runsAnimState.TargetVisible(),
 		w.runOverviewSidebar.animState.TargetVisible(),

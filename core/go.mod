@@ -1,6 +1,6 @@
 module github.com/wandb/wandb/core
 
-go 1.26.5
+go 1.26.6
 
 require (
 	charm.land/bubbles/v2 v2.1.1
@@ -15,8 +15,8 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.43.5
 	github.com/aws/aws-sdk-go-v2/config v1.32.36
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.107.1
-	github.com/charmbracelet/ultraviolet v0.0.0-20260811164956-006e29f97886
-	github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20260811151704-00c6608f106b
+	github.com/charmbracelet/ultraviolet v0.0.0-20260812204455-68fa937c71be
+	github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20260813141921-f091cedeaf78
 	github.com/ebitengine/purego v0.10.2
 	github.com/getsentry/sentry-go v0.48.0
 	github.com/go-git/go-git/v5 v5.19.2
@@ -59,7 +59,7 @@ require (
 require (
 	cel.dev/expr v0.25.2 // indirect
 	cloud.google.com/go v0.123.0 // indirect
-	cloud.google.com/go/auth v0.23.0 // indirect
+	cloud.google.com/go/auth v0.23.1 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	cloud.google.com/go/iam v1.13.0 // indirect
@@ -100,7 +100,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
 	github.com/charmbracelet/x/ansi v0.11.8 // indirect
-	github.com/charmbracelet/x/exp/golden v0.0.0-20260811151704-00c6608f106b // indirect
+	github.com/charmbracelet/x/exp/golden v0.0.0-20260813141921-f091cedeaf78 // indirect
 	github.com/charmbracelet/x/term v0.2.2 // indirect
 	github.com/charmbracelet/x/termios v0.1.1 // indirect
 	github.com/charmbracelet/x/windows v0.2.2 // indirect
@@ -169,12 +169,12 @@ require (
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	golang.org/x/crypto v0.55.0 // indirect
 	golang.org/x/image v0.45.0 // indirect
-	golang.org/x/mod v0.39.0 // indirect
-	golang.org/x/net v0.57.0 // indirect
+	golang.org/x/mod v0.40.0 // indirect
+	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
-	golang.org/x/tools v0.48.0 // indirect
+	golang.org/x/tools v0.49.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	google.golang.org/genproto v0.0.0-20260810153831-ec0a7760b754 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260810153831-ec0a7760b754 // indirect
