@@ -207,7 +207,7 @@ func captureTelemetryLog(
 		BaseUrl: wrapperspb.String(server.URL),
 		ApiKey:  wrapperspb.String("test-api-key"),
 	})
-	proxy := analytics.NewOpenTelemetryProxy(t.Context(), settings, "wandb-core")
+	proxy := analytics.NewOpenTelemetryProxy(t.Context(), settings, "sdk-wandb-core")
 	require.NotNil(t, proxy)
 	recorder := analytics.NewTelemetryRecorder(
 		proxy,
