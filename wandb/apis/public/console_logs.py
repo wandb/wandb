@@ -28,17 +28,13 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
+from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import Paginator
-from wandb.errors import CommError
 from wandb.proto import wandb_api_pb2 as apb
-from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 if TYPE_CHECKING:
     from wandb.apis.public.runs import Run
     from wandb.apis.public.service_api import ServiceApi
-
-_DEFAULT_PER_PAGE = 1000
-_MAX_INT32 = 2**31 - 1
 
 
 @dataclass(frozen=True)
@@ -46,19 +42,19 @@ class ConsoleLogLine:
     """A single line of a run's captured console output.
 
     Attributes:
-        number (int): Position of the line in the run's console log,
+        number: Position of the line in the run's console log,
             starting at 0.
-        timestamp (datetime): The time the line was captured, as a
+        timestamp: The time the line was captured, as a
             timezone-aware UTC datetime. None if the backend did not
             record a time for the line or sent one in an unexpected
             format.
-        level (str): The severity of the line: `"error"` for lines written
+        level: The severity of the line: `"error"` for lines written
             to stderr, empty otherwise.
-        label (str): A label identifying the process that wrote the line
+        label: A label identifying the process that wrote the line
             when several processes write to the same run, as set by the
             `x_label` setting in shared mode. Empty for single-writer
             runs.
-        content (str): The text of the line.
+        content: The text of the line.
     """
 
     number: int
@@ -83,7 +79,7 @@ class ConsoleLogs(Paginator[ConsoleLogLine]):
         self,
         service_api: ServiceApi,
         run: Run,
-        per_page: int | None = None,
+        per_page: int = 1000,
         last: int | None = None,
     ):
         """Initialize a lazy iterator over a run's console log lines.
@@ -91,30 +87,21 @@ class ConsoleLogs(Paginator[ConsoleLogLine]):
         Args:
             service_api: The service API instance used to query W&B.
             run: The run whose console log is read.
-            per_page (int, optional): Number of lines to fetch per request
-                when reading the log from the beginning. Defaults to 1000.
-                Mutually exclusive with `last`.
-            last (int, optional): If set, fetch only the last N lines of
-                the log in a single request instead of reading from the
-                beginning. The backend caps how many lines one request
-                returns (10,000 as of this writing), so a larger tail
-                comes back truncated to the newest lines.
+            per_page: Number of lines to fetch per request when reading
+                the log from the beginning. Ignored when `last` is given.
+            last: If set, fetch only the last N lines of the log in a
+                single request instead of reading from the beginning.
+                The backend caps how many lines one request returns, so
+                a larger tail comes back truncated to the newest lines.
         """
-        if last is not None and per_page is not None:
-            raise ValueError("pass either 'per_page' or 'last', not both")
-        for name, value in (("per_page", per_page), ("last", last)):
-            if value is not None and not 0 < value <= _MAX_INT32:
-                raise ValueError(
-                    f"'{name}' must be a positive 32-bit integer, got {value}"
-                )
+        if last is not None and last <= 0:
+            raise ValueError(f"last must be positive, got {last}")
+        if per_page <= 0:
+            raise ValueError(f"per_page must be positive, got {per_page}")
 
         self.run = run
         self._tail = last
-        super().__init__(
-            service_api,
-            variables={},
-            per_page=_DEFAULT_PER_PAGE if per_page is None else per_page,
-        )
+        super().__init__(service_api, variables={}, per_page=per_page)
 
     @property
     def more(self) -> bool:
@@ -156,6 +143,7 @@ class ConsoleLogs(Paginator[ConsoleLogLine]):
         <!-- lazydoc-ignore -->
         """
 
+    @normalize_exceptions
     def _update_response(self) -> None:
         """Fetches and stores the next page of console log lines."""
         request = apb.ReadRunConsoleLogsRequest(
@@ -170,12 +158,9 @@ class ConsoleLogs(Paginator[ConsoleLogLine]):
             if (after := self.cursor) is not None:
                 request.after = after
 
-        try:
-            response = self._service_api.send_api_request(
-                apb.ApiRequest(read_run_console_logs_request=request)
-            )
-        except WandbApiFailedError as e:
-            raise CommError(str(e), e) from e
+        response = self._service_api.send_api_request(
+            apb.ApiRequest(read_run_console_logs_request=request)
+        )
         self.last_response = response.read_run_console_logs_response
 
     def convert_objects(self) -> list[ConsoleLogLine]:
