@@ -1025,7 +1025,8 @@ def _parse_sync_replace_tags(replace_tags: str) -> dict[str, str] | None:
 @click.option(
     "--update",
     default=None,
-    help="Update an existing sweep configuration. Pass the sweep ID.",
+    help="""Update the configuration of a sweep while it is still
+    pending, before any run has started. Pass the sweep ID.""",
 )
 @click.option(
     "--stop",
@@ -1105,9 +1106,7 @@ def sweep(
 
         $ wandb sweep -p foobar -e team-awesome sweep_config.yaml
 
-    To update sweep abcd1234 with a new configuration from sweep_config.yaml.
-    This is useful for changing the parameters or search strategy of an
-    active sweep:
+    To update sweep abcd1234 with a new configuration from sweep_config.yaml:
 
         $ wandb sweep --update abcd1234 sweep_config.yaml
 
