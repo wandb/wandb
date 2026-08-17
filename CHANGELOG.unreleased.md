@@ -27,4 +27,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Fixed
 
-- `Artifact.new_file` now works for artifacts uploaded with `wandb sync`. (@amusipatla-wandb in https://github.com/wandb/wandb/pull/12437)
+- `Artifact.new_file` now works for artifacts uploaded with `wandb sync` (@amusipatla-wandb in https://github.com/wandb/wandb/pull/12437)
