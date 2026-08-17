@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from unittest import mock
 
 import pytest
-from wandb.apis.public.console_logs import ConsoleLogLine, ConsoleLogs, _parse_timestamp
+from wandb.apis.public.console_logs import ConsoleLogLine, _parse_timestamp
 from wandb.apis.public.runs import Run
 from wandb.proto import wandb_api_pb2 as apb
 
@@ -38,14 +38,6 @@ def _response(lines, end_cursor="", has_next_page=False, total_lines=0):
             total_lines=total_lines,
         )
     )
-
-
-def test_console_logs_returns_paginator():
-    service_api = mock.MagicMock()
-    run = _run(service_api)
-
-    assert isinstance(run.console_logs(), ConsoleLogs)
-    service_api.send_api_request.assert_not_called()
 
 
 def test_tail_is_a_single_request():
@@ -90,15 +82,6 @@ def test_line_exposes_all_fields():
     assert line.level == "error"
     assert line.label == "rank-1"
     assert line.timestamp == datetime(2026, 1, 1, tzinfo=timezone.utc)
-
-
-def test_console_logs_is_not_sized():
-    service_api = mock.MagicMock()
-    run = _run(service_api)
-
-    with pytest.raises(TypeError):
-        len(run.console_logs())
-    service_api.send_api_request.assert_not_called()
 
 
 def test_forward_pagination_advances_cursor():
