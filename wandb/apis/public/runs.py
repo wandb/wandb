@@ -1200,12 +1200,9 @@ class Run(Attrs):
             `timestamp`, `level`, `label`, and `content`.
 
         Raises:
-            ValueError: If `per_page` or `last` is not positive.
             CommError: When iterating, if a request fails. Reading the
                 log from the beginning requires W&B server 0.77 or
-                newer; on older servers, read the last N lines instead,
-                or download the run's console log files via
-                `run.files()`.
+                newer; on older servers, read the last N lines instead.
 
         Example:
         ```python

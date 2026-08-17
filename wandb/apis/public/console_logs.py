@@ -94,11 +94,6 @@ class ConsoleLogs(Paginator[ConsoleLogLine]):
                 The backend caps how many lines one request returns, so
                 a larger tail comes back truncated to the newest lines.
         """
-        if last is not None and last <= 0:
-            raise ValueError(f"last must be positive, got {last}")
-        if per_page <= 0:
-            raise ValueError(f"per_page must be positive, got {per_page}")
-
         self.run = run
         self._tail = last
         super().__init__(service_api, variables={}, per_page=per_page)
