@@ -125,8 +125,8 @@ func RunKeyBindings() []BindingCategory[Run] {
 				},
 				{
 					Keys:        []string{"g"},
-					Description: "Cycle chart grid (dots / horizontal / off)",
-					Handler:     (*Run).handleCycleChartGrid,
+					Description: "Cycle chart guides (off / dots / horizontal)",
+					Handler:     (*Run).handleCycleChartGuides,
 				},
 				{
 					Keys:        []string{"/"},
@@ -352,8 +352,8 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 				},
 				{
 					Keys:        []string{"g"},
-					Description: "Cycle chart grid (dots / horizontal / off)",
-					Handler:     (*Workspace).handleCycleChartGrid,
+					Description: "Cycle chart guides (off / dots / horizontal)",
+					Handler:     (*Workspace).handleCycleChartGuides,
 				},
 				{
 					Keys:        []string{"/"},
@@ -525,8 +525,8 @@ func SymonKeyBindings() []BindingCategory[Symon] {
 				},
 				{
 					Keys:        []string{"g"},
-					Description: "Cycle chart grid (dots / horizontal / off)",
-					Handler:     (*Symon).handleCycleChartGrid,
+					Description: "Cycle chart guides (off / dots / horizontal)",
+					Handler:     (*Symon).handleCycleChartGuides,
 				},
 				{
 					Keys:        []string{"\\"},

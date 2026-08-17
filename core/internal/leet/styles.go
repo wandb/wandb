@@ -229,7 +229,7 @@ var (
 
 	// Color for chart guides. Keep it quieter than axes and labels so the
 	// background adds structure without competing with the data.
-	colorChartGrid = AdaptiveColor{
+	colorChartGuides = AdaptiveColor{
 		Light: lipgloss.Color("#c5c5c5"),
 		Dark:  lipgloss.Color("#383838"),
 	}
@@ -550,7 +550,7 @@ var (
 
 	axisStyle = lipgloss.NewStyle().Foreground(colorSubtle)
 
-	chartGridStyle = lipgloss.NewStyle().Foreground(colorChartGrid)
+	chartGuidesStyle = lipgloss.NewStyle().Foreground(colorChartGuides)
 
 	labelStyle = lipgloss.NewStyle().Foreground(colorText)
 

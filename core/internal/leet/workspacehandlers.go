@@ -902,14 +902,14 @@ func (w *Workspace) handleCycleFocusedChartMode(tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
-func (w *Workspace) handleCycleChartGrid(tea.KeyPressMsg) tea.Cmd {
-	grid := nextChartGrid(w.config.ChartGrid())
-	if err := w.config.SetChartGrid(grid); err != nil {
-		w.logger.Error(fmt.Sprintf("workspace: failed to save chart grid: %v", err))
+func (w *Workspace) handleCycleChartGuides(tea.KeyPressMsg) tea.Cmd {
+	guides := nextChartGuides(w.config.ChartGuides())
+	if err := w.config.SetChartGuides(guides); err != nil {
+		w.logger.Error(fmt.Sprintf("workspace: failed to save chart guides: %v", err))
 	}
-	w.metricsGrid.SetChartGrid(grid)
+	w.metricsGrid.SetChartGuides(guides)
 	for _, g := range w.systemMetrics {
-		g.SetChartGrid(grid)
+		g.SetChartGuides(guides)
 	}
 	return nil
 }

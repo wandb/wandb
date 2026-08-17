@@ -129,12 +129,12 @@ func (mg *MetricsGrid) SetSeriesColorProvider(
 	mg.seriesColorForKey = provider
 }
 
-// SetChartGrid applies the background guide style to all charts and
+// SetChartGuides applies the background guide style to all charts and
 // redraws the visible ones.
-func (mg *MetricsGrid) SetChartGrid(grid string) {
+func (mg *MetricsGrid) SetChartGuides(guides string) {
 	mg.mu.Lock()
 	for _, chart := range mg.all {
-		chart.SetChartGrid(grid)
+		chart.SetChartGuides(guides)
 	}
 	mg.mu.Unlock()
 
@@ -219,7 +219,7 @@ func (mg *MetricsGrid) ProcessHistory(msg HistoryMsg) bool {
 		chart, exists := mg.byTitle[name]
 		if !exists {
 			chart = NewEpochLineChart(name)
-			chart.SetChartGrid(mg.config.ChartGrid())
+			chart.SetChartGuides(mg.config.ChartGuides())
 			chart.SetPalette(mg.palette)
 			mg.all = append(mg.all, chart)
 			mg.byTitle[name] = chart
@@ -373,7 +373,7 @@ func (mg *MetricsGrid) UpdateDimensions(contentWidth, contentHeight int) {
 	mg.drawVisible()
 }
 
-// View creates the chart grid view.
+// View creates the chart guides view.
 func (mg *MetricsGrid) View(dims GridDims) string {
 	size := mg.effectiveGridSize()
 
@@ -619,7 +619,7 @@ func (mg *MetricsGrid) restoreFocus(previousTitle string) {
 	}
 }
 
-// HandleClick handles clicks in the main chart grid.
+// HandleClick handles clicks in the main chart guides.
 func (mg *MetricsGrid) HandleClick(row, col int) {
 	// Unfocus if clicking the already-focused chart.
 	if mg.focus.Type == FocusMainChart &&

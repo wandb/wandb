@@ -164,18 +164,18 @@ func TestConfig_SetFrenchFriesColorScheme_Persists(t *testing.T) {
 	require.Equal(t, "cividis", cfg2.Snapshot().FrenchFriesColorScheme)
 }
 
-func TestConfig_SetChartGrid_Persists(t *testing.T) {
+func TestConfig_SetChartGuides_Persists(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	path := filepath.Join(t.TempDir(), "config.json")
 	cfg := leet.NewConfigManager(path, logger)
 
-	require.Equal(t, leet.DefaultChartGrid, cfg.ChartGrid())
-	require.NoError(t, cfg.SetChartGrid(leet.ChartGridHorizontal))
-	require.Equal(t, leet.ChartGridHorizontal, cfg.ChartGrid())
-	require.Error(t, cfg.SetChartGrid("diagonal"))
+	require.Equal(t, leet.DefaultChartGuides, cfg.ChartGuides())
+	require.NoError(t, cfg.SetChartGuides(leet.ChartGuidesHorizontal))
+	require.Equal(t, leet.ChartGuidesHorizontal, cfg.ChartGuides())
+	require.Error(t, cfg.SetChartGuides("diagonal"))
 
 	cfg2 := leet.NewConfigManager(path, logger)
-	require.Equal(t, leet.ChartGridHorizontal, cfg2.ChartGrid())
+	require.Equal(t, leet.ChartGuidesHorizontal, cfg2.ChartGuides())
 }
 
 // Regression: a config file where one unrelated field fails to decode used to

@@ -520,14 +520,14 @@ func (r *Run) handleCycleFocusedChartMode(tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
-func (r *Run) handleCycleChartGrid(tea.KeyPressMsg) tea.Cmd {
-	grid := nextChartGrid(r.config.ChartGrid())
-	if err := r.config.SetChartGrid(grid); err != nil {
-		r.logger.Error(fmt.Sprintf("runhandlers: failed to save chart grid: %v", err))
+func (r *Run) handleCycleChartGuides(tea.KeyPressMsg) tea.Cmd {
+	guides := nextChartGuides(r.config.ChartGuides())
+	if err := r.config.SetChartGuides(guides); err != nil {
+		r.logger.Error(fmt.Sprintf("runhandlers: failed to save chart guides: %v", err))
 	}
-	r.metricsGrid.SetChartGrid(grid)
+	r.metricsGrid.SetChartGuides(guides)
 	if r.rightSidebar != nil && r.rightSidebar.metricsGrid != nil {
-		r.rightSidebar.metricsGrid.SetChartGrid(grid)
+		r.rightSidebar.metricsGrid.SetChartGuides(guides)
 	}
 	return nil
 }
