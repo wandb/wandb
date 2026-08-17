@@ -1825,8 +1825,8 @@ class Run:
         ```
 
         It is possible to use multiple `wandb.Run.log()` invocations to log to
-        the same step with the `step` and `commit` parameters.
-        The following are all equivalent:
+        the same step with the `step` and `commit` parameters, but this is
+        deprecated. The following are all equivalent:
 
         ```python
         with wandb.init() as run:
@@ -1840,7 +1840,7 @@ class Run:
             run.log({"train-loss": 0.4}, commit=False)
             run.log({"accuracy": 0.9})
 
-            # Explicit step:
+            # Explicit step (deprecated):
             run.log({"train-loss": 0.5}, step=current_step)
             run.log({"accuracy": 0.8}, step=current_step)
             current_step += 1
@@ -1854,8 +1854,8 @@ class Run:
                 any of the `wandb.data_types`; lists, tuples and NumPy arrays
                 of serializable Python objects; other `dict`s of this
                 structure.
-            step: The step number to log. If `None`, then an implicit
-                auto-incrementing step is used. See the notes in
+            step: Deprecated. The step number to log. If `None`, then an
+                implicit auto-incrementing step is used. See the notes in
                 the description.
             commit: If true, finalize and upload the step. If false, then
                 accumulate data for the step. See the notes in the description.
@@ -1999,6 +1999,15 @@ class Run:
 
         """
         if step is not None:
+            wandb.termwarn(
+                "Passing step= to run.log() is deprecated. Consider logging"
+                + " a separate metric and making it a chart X axis, if needed."
+                + " If you are using this to accumulate a W&B step from"
+                + " multiple log() calls, build up the accumulated dict instead"
+                + " and pass it in a single log() call.",
+                repeat=False,
+            )
+
             with telemetry.context(run=self) as tel:
                 tel.feature.set_step_log = True
 

@@ -135,3 +135,8 @@ When preparing a release that can include breaking changes, consider applying ch
   - Owner: @timoffex
   - Deprecated after 0.28.0 (https://github.com/wandb/wandb/pull/12098)
   - Can do a few releases after 0.28.1 or 0.29.0 (whichever comes first)
+
+- Remove `step=` argument from `run.log()`:
+  - Owner: @timoffex
+  - Deprecated after 0.28.2 (https://github.com/wandb/wandb/pull/12491)
+  - Usage is high, so watch telemetry to decide when to remove

@@ -577,8 +577,8 @@ def log(
     ```
 
     It is possible to use multiple `wandb.Run.log()` invocations to log to
-    the same step with the `step` and `commit` parameters.
-    The following are all equivalent:
+    the same step with the `step` and `commit` parameters, but this is
+    deprecated. The following are all equivalent:
 
     ```python
     with wandb.init() as run:
@@ -592,7 +592,7 @@ def log(
         run.log({"train-loss": 0.4}, commit=False)
         run.log({"accuracy": 0.9})
 
-        # Explicit step:
+        # Explicit step (deprecated):
         run.log({"train-loss": 0.5}, step=current_step)
         run.log({"accuracy": 0.8}, step=current_step)
         current_step += 1
@@ -606,8 +606,8 @@ def log(
             any of the `wandb.data_types`; lists, tuples and NumPy arrays
             of serializable Python objects; other `dict`s of this
             structure.
-        step: The step number to log. If `None`, then an implicit
-            auto-incrementing step is used. See the notes in
+        step: Deprecated. The step number to log. If `None`, then an
+            implicit auto-incrementing step is used. See the notes in
             the description.
         commit: If true, finalize and upload the step. If false, then
             accumulate data for the step. See the notes in the description.
