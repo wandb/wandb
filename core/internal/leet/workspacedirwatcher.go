@@ -380,6 +380,12 @@ func (w *Workspace) applyRunKeys(runKeys []string) {
 		w.restoreRunCursor(prevCursorKey)
 	}
 	w.syncRunsPage()
+
+	// Dropped runs may have emptied the focused pane. Availability reads
+	// the panes' own state, which is normally re-pointed at the cursor run
+	// during View — sync first so Resolve sees the post-drop state.
+	w.syncCurrentRunContext()
+	w.focusMgr.Resolve()
 }
 
 func (w *Workspace) setRunItems(runKeys []string) {

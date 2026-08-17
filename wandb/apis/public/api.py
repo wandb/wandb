@@ -2363,32 +2363,34 @@ class Api:
         automations = api.automations(entity="my-team")
         ```
         """
-        from wandb.apis.public.automations import Automations
-        from wandb.automations._generated import (
-            GET_AUTOMATIONS_LEGACY_GQL,
-            GET_ENTITY_AUTOMATIONS_LEGACY_GQL,
+        from wandb.apis.public.automations import (
+            Automations,
+            EntityAutomations,
+            LegacyEntityAutomations,
         )
 
-        # For now, we need to use different queries depending on whether entity is given
-        variables = {"entity": entity}
-        if entity is None:
-            gql_str = GET_AUTOMATIONS_LEGACY_GQL  # Automations for viewer
-        else:
-            gql_str = GET_ENTITY_AUTOMATIONS_LEGACY_GQL  # Automations for entity
+        kwargs = dict(per_page=per_page, start=start)
 
-        # If needed, rewrite the GraphQL field selection set to omit unsupported fields/fragments/types
-        iterator = Automations(
-            self._service_api,
-            variables=variables,
-            per_page=per_page,
-            start=start,
-            _query=gql_str,
-        )
+        if entity and self._service_api.feature_enabled(pb.QUERY_AUTOMATIONS_ON_ENTITY):
+            return EntityAutomations(
+                self._service_api,
+                entity=entity,
+                filter={"name": name} if name else None,
+                **kwargs,
+            )
+        elif entity:
+            # TODO: Remove this project-walking fallback once the minimum supported
+            # server version is v0.83.0 or newer. That release added `Entity.triggers`
+            # (wandb/core#43336).
+            return LegacyEntityAutomations(
+                self._service_api,
+                entity=entity,
+                name=name,
+                **kwargs,
+            )
 
-        # FIXME: this is crude, move this client-side filtering logic into backend
-        if name is not None:
-            return filter(lambda x: x.name == name, iterator)
-        return iterator
+        # Legacy implementation: walk the viewer's projects for visible automations
+        return Automations(self._service_api, name=name, **kwargs)
 
     @normalize_exceptions
     @tracked
