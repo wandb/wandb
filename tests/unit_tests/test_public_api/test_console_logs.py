@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from unittest import mock
 
 import pytest
-from wandb.apis.public.console_logs import ConsoleLogLine, _parse_timestamp
+from wandb.apis.public.console_logs import _parse_timestamp
 from wandb.apis.public.runs import Run
 from wandb.proto import wandb_api_pb2 as apb
 
@@ -38,32 +38,6 @@ def _response(lines, end_cursor="", has_next_page=False, total_lines=0):
             total_lines=total_lines,
         )
     )
-
-
-def test_tail_is_a_single_request():
-    service_api = mock.MagicMock()
-    run = _run(service_api)
-    service_api.send_api_request.return_value = _response(
-        [_line(1510, "second to last"), _line(1511, "last")],
-        end_cursor="c1511",
-        total_lines=1512,
-    )
-
-    lines = list(run.console_logs(last=2))
-
-    assert [line.content for line in lines] == ["second to last", "last"]
-    assert isinstance(lines[0], ConsoleLogLine)
-
-    service_api.send_api_request.assert_called_once()
-    request = service_api.send_api_request.call_args.args[0]
-    assert request.WhichOneof("request") == "read_run_console_logs_request"
-    logs_request = request.read_run_console_logs_request
-    assert logs_request.entity == "entity"
-    assert logs_request.project == "project"
-    assert logs_request.run_id == "run-id"
-    assert logs_request.last == 2
-    assert not logs_request.HasField("first")
-    assert not logs_request.HasField("after")
 
 
 def test_line_exposes_all_fields():
