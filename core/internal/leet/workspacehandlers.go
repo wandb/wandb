@@ -902,6 +902,18 @@ func (w *Workspace) handleCycleFocusedChartMode(tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
+func (w *Workspace) handleCycleChartGuides(tea.KeyPressMsg) tea.Cmd {
+	guides := nextChartGuides(w.config.ChartGuides())
+	if err := w.config.SetChartGuides(guides); err != nil {
+		w.logger.Error(fmt.Sprintf("workspace: failed to save chart guides: %v", err))
+	}
+	w.metricsGrid.SetChartGuides(guides)
+	for _, g := range w.systemMetrics {
+		g.SetChartGuides(guides)
+	}
+	return nil
+}
+
 func (w *Workspace) handleEnterMetricsFilter(msg tea.KeyPressMsg) tea.Cmd {
 	w.metricsGrid.EnterFilterMode()
 	return nil

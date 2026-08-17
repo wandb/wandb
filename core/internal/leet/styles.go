@@ -175,6 +175,9 @@ const (
 	// BoxLightVertical is U+2502 and is "taller" than verticalLine.
 	boxLightVertical rune = '\u2502' // │
 
+	// boxLightHorizontal is U+2500, the horizontal counterpart of boxLightVertical.
+	boxLightHorizontal rune = '\u2500' // ─
+
 	// unicodeEmDash is the em dash.
 	unicodeEmDash rune = '\u2014'
 
@@ -222,6 +225,13 @@ var (
 	colorSubtle = AdaptiveColor{
 		Light: lipgloss.Color("#585858"), // ANSI color 240
 		Dark:  lipgloss.Color("#585858"),
+	}
+
+	// Color for chart guides. Keep it quieter than axes and labels so the
+	// background adds structure without competing with the data.
+	colorChartGuides = AdaptiveColor{
+		Light: lipgloss.Color("#c5c5c5"),
+		Dark:  lipgloss.Color("#383838"),
 	}
 
 	// Color for layout elements, like borders and separator lines.
@@ -539,6 +549,8 @@ var (
 	focusedBorderStyle = borderStyle.BorderForeground(colorLayoutHighlight)
 
 	axisStyle = lipgloss.NewStyle().Foreground(colorSubtle)
+
+	chartGuidesStyle = lipgloss.NewStyle().Foreground(colorChartGuides)
 
 	labelStyle = lipgloss.NewStyle().Foreground(colorText)
 
