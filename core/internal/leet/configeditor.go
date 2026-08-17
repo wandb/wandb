@@ -186,6 +186,7 @@ const (
 	enumProviderColorSchemes              // color palette names
 	enumProviderColorModes                // per_series | per_plot
 	enumProviderStartupModes              // workspace_latest | single_run_latest
+	enumProviderChartGuides               // off | dots | horizontal
 )
 
 // options returns the allowed values for this provider.
@@ -200,6 +201,8 @@ func (p enumProvider) options() []string {
 		return []string{ColorModePerSeries, ColorModePerPlot}
 	case enumProviderStartupModes:
 		return []string{StartupModeWorkspaceLatest, StartupModeSingleRunLatest}
+	case enumProviderChartGuides:
+		return []string{ChartGuidesOff, ChartGuidesDots, ChartGuidesHorizontal}
 	default:
 		return nil
 	}

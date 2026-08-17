@@ -520,6 +520,18 @@ func (r *Run) handleCycleFocusedChartMode(tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
+func (r *Run) handleCycleChartGuides(tea.KeyPressMsg) tea.Cmd {
+	guides := nextChartGuides(r.config.ChartGuides())
+	if err := r.config.SetChartGuides(guides); err != nil {
+		r.logger.Error(fmt.Sprintf("runhandlers: failed to save chart guides: %v", err))
+	}
+	r.metricsGrid.SetChartGuides(guides)
+	if r.rightSidebar != nil && r.rightSidebar.metricsGrid != nil {
+		r.rightSidebar.metricsGrid.SetChartGuides(guides)
+	}
+	return nil
+}
+
 func (r *Run) handleEnterMetricsFilter(msg tea.KeyPressMsg) tea.Cmd {
 	r.metricsGrid.EnterFilterMode()
 	return nil

@@ -52,6 +52,27 @@ func TestConfigEditor_EnumChange_SaveAndPersists(t *testing.T) {
 	require.Equal(t, leet.StartupModeSingleRunLatest, cfg2.Snapshot().StartupMode)
 }
 
+func TestConfigEditor_ChartGuidesChange_SaveAndPersists(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	path := filepath.Join(t.TempDir(), "config.json")
+	cfg := leet.NewConfigManager(path, logger)
+
+	var m tea.Model = leet.NewConfigEditor(leet.ConfigEditorParams{Config: cfg, Logger: logger})
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	m = selectField(t, m, "chart_guides")
+
+	// The default is off; Right twice selects horizontal.
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 's', Text: "s"})
+	require.NotNil(t, cmd)
+	_, ok := cmd().(tea.QuitMsg)
+	require.True(t, ok)
+
+	cfg2 := leet.NewConfigManager(path, logger)
+	require.Equal(t, leet.ChartGuidesHorizontal, cfg2.ChartGuides())
+}
+
 func TestConfigEditor_QuitConfirmation_RespectsCtrlCAndClearsOnOtherKeys(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
