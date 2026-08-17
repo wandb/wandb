@@ -243,6 +243,126 @@ func TestWorkspace_TabSkipsEmptyLogsPane(t *testing.T) {
 	}
 }
 
+// ---- Mouse drag-resize of the runs sidebar ----
+
+func TestWorkspace_DragResizesRunsSidebarAndPersists(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+	w.TestForceExpandRunsSidebar()
+	w.TestForceExpandOverviewSidebar()
+
+	left0, _ := w.TestLayoutWidths()
+	require.Positive(t, left0)
+
+	// Press on the sidebar's border column, drag 10 columns right, release.
+	_ = w.Update(tea.MouseClickMsg{X: left0 - 1, Y: 5, Button: tea.MouseLeft})
+	_ = w.Update(tea.MouseMotionMsg{X: left0 + 9, Y: 5, Button: tea.MouseLeft})
+	_ = w.Update(tea.MouseReleaseMsg{X: left0 + 9, Y: 5, Button: tea.MouseLeft})
+
+	left1, _ := w.TestLayoutWidths()
+	require.Equal(t, left0+10, left1, "drag should widen the runs sidebar")
+	require.InDelta(t, float64(left0+10)/200.0, cfg.WorkspaceLayout().LeftSidebar, 1e-9,
+		"released drag should persist the width as a fraction of the terminal")
+
+	// "0" resets the proportions and the persisted overrides.
+	_ = w.Update(keyRune('0'))
+	require.Equal(t, leet.LayoutOverrides{}, cfg.WorkspaceLayout())
+	left2, _ := w.TestLayoutWidths()
+	require.Equal(t, left0, left2, "reset should restore the default width")
+}
+
+func TestWorkspace_DragSeparatorResizesBothFixedNeighbors(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	_ = cfg.SetWorkspaceSystemMetricsVisible(true)
+	_ = cfg.SetWorkspaceMediaVisible(true)
+	_ = cfg.SetWorkspaceConsoleLogsVisible(true)
+
+	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	// Tall terminal so all panes sit above their minimum heights.
+	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 100})
+
+	metrics0, system0, media0, logs0 := w.TestStackHeights()
+	require.Positive(t, system0)
+	require.Positive(t, media0)
+
+	// The separator above media sits between two fixed panes (system above,
+	// media below). Drag it up 2 rows: system shrinks, media grows, the flex
+	// metrics grid and logs stay put.
+	left0, _ := w.TestLayoutWidths()
+	x := left0 + 5
+	sepY := metrics0 + 1 + system0 + 1 - 1 // gap row above media
+	_ = w.Update(tea.MouseClickMsg{X: x, Y: sepY, Button: tea.MouseLeft})
+	_ = w.Update(tea.MouseMotionMsg{X: x, Y: sepY - 2, Button: tea.MouseLeft})
+	_ = w.Update(tea.MouseReleaseMsg{X: x, Y: sepY - 2, Button: tea.MouseLeft})
+
+	metrics1, system1, media1, logs1 := w.TestStackHeights()
+	require.Equal(t, system0-2, system1, "pane above the separator should shrink")
+	require.Equal(t, media0+2, media1, "pane below the separator should grow")
+	require.Equal(t, metrics0, metrics1, "flex metrics grid should be untouched")
+	require.Equal(t, logs0, logs1, "logs pane should be untouched")
+
+	// Both fractions persist on release.
+	o := cfg.WorkspaceLayout()
+	require.InDelta(t, float64(system1)/100.0, o.System, 1e-9)
+	require.InDelta(t, float64(media1)/100.0, o.Media, 1e-9)
+	require.Zero(t, o.Logs, "untouched panes must not gain overrides")
+}
+
+func TestWorkspace_ClickWithoutMotionDoesNotPersist(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+	w.TestForceExpandRunsSidebar()
+
+	left0, _ := w.TestLayoutWidths()
+	_ = w.Update(tea.MouseClickMsg{X: left0 - 1, Y: 5, Button: tea.MouseLeft})
+	_ = w.Update(tea.MouseReleaseMsg{X: left0 - 1, Y: 5, Button: tea.MouseLeft})
+
+	require.Equal(t, leet.LayoutOverrides{}, cfg.WorkspaceLayout(),
+		"a click without motion must not write an override")
+}
+
+// Regression (#12289 review): after dragging the overview sidebar until the
+// main column hits its minimum width, the border must stay grabbable — and
+// a one-column near-miss must latch too, since terminals quantize mouse
+// coordinates to cells and a one-column target is luck-based.
+func TestWorkspace_MaxedSidebarStaysDraggable(t *testing.T) {
+	const width = 170
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	_ = w.Update(tea.WindowSizeMsg{Width: width, Height: 60})
+	w.TestForceExpandRunsSidebar()
+	w.TestForceExpandOverviewSidebar()
+
+	// Drag the overview border all the way left: it stops where the main
+	// column hits its minimum width (24 cols).
+	_, right0 := w.TestLayoutWidths()
+	_ = w.Update(tea.MouseClickMsg{X: width - right0, Y: 20, Button: tea.MouseLeft})
+	_ = w.Update(tea.MouseMotionMsg{X: 0, Y: 20, Button: tea.MouseLeft})
+	_ = w.Update(tea.MouseReleaseMsg{X: 0, Y: 20, Button: tea.MouseLeft})
+
+	left1, right1 := w.TestLayoutWidths()
+	require.Equal(t, width-left1-24, right1,
+		"the sidebar should stop where the main column hits its minimum")
+
+	// Re-grab one column off the border (a typical near-miss) and shrink.
+	borderX := width - right1
+	_ = w.Update(tea.MouseClickMsg{X: borderX + 1, Y: 20, Button: tea.MouseLeft})
+	_ = w.Update(tea.MouseMotionMsg{X: borderX + 10, Y: 20, Button: tea.MouseLeft})
+	_ = w.Update(tea.MouseReleaseMsg{X: borderX + 10, Y: 20, Button: tea.MouseLeft})
+
+	_, right2 := w.TestLayoutWidths()
+	require.Equal(t, right1-10, right2, "a maxed sidebar must stay draggable")
+}
+
 // ---- Focus bug: collapsing overview with logs focused ----
 
 func TestWorkspace_CollapseOverview_FocusStaysOnLogs(t *testing.T) {
