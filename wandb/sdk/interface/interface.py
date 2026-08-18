@@ -361,6 +361,7 @@ class InterfaceBase(abc.ABC):
         proto_artifact.client_id = artifact._client_id
         proto_artifact.sequence_client_id = artifact._sequence_client_id
         proto_artifact.digest = artifact.digest
+        proto_artifact.digest_algorithm = artifact.digest_algorithm
         if artifact.distributed_id:
             proto_artifact.distributed_id = artifact.distributed_id
         if artifact.description:
