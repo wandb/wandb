@@ -16,6 +16,7 @@ from wandb.apis.public.registries.registries_search import (
     Registries,
     Versions,
 )
+from wandb.errors import UnsupportedError
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX
 
 if TYPE_CHECKING:
@@ -44,6 +45,14 @@ def service_api(mocker: MockerFixture) -> MagicMock:
 def disable_advanced_search(service_api: MagicMock) -> None:
     service_api.feature_enabled.return_value = False
     service_api.execute_graphql.return_value = None
+
+
+@fixture
+def enable_advanced_search(mocker: MockerFixture) -> None:
+    mocker.patch(
+        "wandb.apis.public.registries.registries_search.advanced_search_enabled",
+        return_value=True,
+    )
 
 
 @mark.parametrize(
@@ -221,6 +230,70 @@ def test_versions_uses_basic_filter_fields(
     assert json.loads(gql_vars["registryFilter"]) == expected_registry_filter
     assert json.loads(gql_vars["collectionFilter"]) == expected_collection_filter
     assert json.loads(gql_vars["artifactFilter"]) == expected_artifact_filter
+
+
+def test_versions_rejects_order_for_basic_search(
+    service_api: MagicMock,
+    disable_advanced_search: None,
+):
+    with raises(
+        UnsupportedError,
+        match="Ordering registry versions is not supported for this organization",
+    ):
+        Versions(service_api, organization="org", order="created_at")
+
+
+@mark.parametrize(
+    ("arg", "expected"),
+    [
+        ("created_at", "+artifact_created_at"),
+        ("-created_at", "-artifact_created_at"),
+        ("-artifact_created_at", "-artifact_created_at"),
+        ("linked_at", "+acm_created_at"),
+        ("-acm_created_at", "-acm_created_at"),
+        ("artifact_size", "+artifact_size"),
+        ("version_index", "+version"),
+        (None, None),
+    ],
+)
+def test_versions_uses_advanced_order_fields(
+    service_api: MagicMock,
+    enable_advanced_search: None,
+    arg: str | None,
+    expected: str | None,
+):
+    versions = Versions(service_api, organization="org", order=arg)
+    assert versions.variables.get("order") == expected
+
+
+@mark.parametrize(
+    ("advanced", "order"),
+    [
+        param(False, "linked_at", id="basic-rejects-advanced-alias"),
+        param(False, "artifact_size", id="basic-rejects-advanced-only-field"),
+        param(True, "updated_at", id="advanced-rejects-basic-only-field"),
+        param(True, "unsupported_field", id="advanced-rejects-unknown-field"),
+    ],
+)
+def test_versions_rejects_invalid_order_for_search_mode(
+    service_api: MagicMock,
+    mocker: MockerFixture,
+    advanced: bool,
+    order: str,
+):
+    mocker.patch(
+        "wandb.apis.public.registries.registries_search.advanced_search_enabled",
+        return_value=advanced,
+    )
+    if not advanced:
+        with raises(
+            UnsupportedError,
+            match="Ordering registry versions is not supported for this organization",
+        ):
+            Versions(service_api, organization="org", order=order)
+    else:
+        with raises(ValueError, match="Invalid order field"):
+            Versions(service_api, organization="org", order=order)
 
 
 @mark.parametrize("cls", [Registries, Collections])

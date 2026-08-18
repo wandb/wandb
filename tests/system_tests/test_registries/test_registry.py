@@ -10,7 +10,9 @@ import wandb
 from pytest import fixture, mark, param, raises
 from wandb import Api, Artifact, CommError
 from wandb._strutils import b64decode_ascii
+from wandb.apis.public.registries._utils import advanced_search_enabled
 from wandb.apis.public.registries.registry import Registry
+from wandb.errors import UnsupportedError
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX, remove_registry_prefix
 
@@ -466,6 +468,13 @@ def test_advanced_feature_response_selects_version_filter_fields(api: Api):
     }
 
 
+@mark.usefixtures(enable_advanced_search.__name__)
+def test_advanced_feature_response_selects_version_order_field(api: Api):
+    versions = api.registries(organization="advanced-org").versions(order="created_at")
+
+    assert versions.variables["order"] == "+artifact_created_at"
+
+
 @fixture
 def source_artifacts(team: str):
     """Test source artifacts with distinct names."""
@@ -830,6 +839,13 @@ def test_registries_versions(
 
     assert remaining_names_via_search == remaining_names_via_registry
     assert all_version_names == [first_page_name, *remaining_names_via_search]
+
+    if not advanced_search_enabled(api, org):
+        with raises(
+            UnsupportedError,
+            match="Ordering registry versions is not supported for this organization.",
+        ):
+            registries.versions(order="version")
 
     versions = sorted(registries.versions(), key=lambda v: v.name)
     assert len(versions) == len(source_artifacts)

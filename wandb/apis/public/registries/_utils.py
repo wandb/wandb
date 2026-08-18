@@ -118,6 +118,9 @@ ADVANCED_VERSIONS_FILTER_FIELDS = (
     SearchField("metadata", aliases=["artifact_metadata"]),
     SearchField("artifact_created_at", aliases=["created_at"]),
     SearchField("artifact_size"),  # Only supported in "advanced" search
+    SearchField(
+        "acm_created_at", aliases=["linked_at"]
+    ),  # Only supported in "advanced" search
 )
 """Defines allowed Versions filter fields for "advanced" search.
 
