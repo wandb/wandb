@@ -52,6 +52,10 @@ type Run struct {
 	// Terminal dimensions.
 	width, height int
 
+	// cow animates on the logo/loading screen; shared with the workspace
+	// via the top-level model. Nil in tests that construct the run directly.
+	cow *SphericalCow
+
 	// runParams contains the information about the run.
 	runParams *RunParams
 
@@ -414,7 +418,7 @@ func (r *Run) renderMainView() string {
 
 		sections = filterNonEmptySections(sections)
 		if len(sections) == 0 {
-			centralColumn = renderLogoArt(w, layout.totalContentAreaHeight)
+			centralColumn = renderLogoArt(r.cow, w, layout.totalContentAreaHeight)
 		} else {
 			centralColumn = joinWithSeparators(sections, w)
 		}
@@ -498,7 +502,7 @@ func (r *Run) syncLiveRunning() {
 
 // renderLoadingScreen shows the wandb leet ASCII art centered on screen.
 func (r *Run) renderLoadingScreen() string {
-	centeredLogo := renderLogoArt(r.width, r.height-StatusBarHeight)
+	centeredLogo := renderLogoArt(r.cow, r.width, r.height-StatusBarHeight)
 
 	statusBar := r.renderStatusBar()
 	return lipgloss.JoinVertical(lipgloss.Left, centeredLogo, statusBar)
