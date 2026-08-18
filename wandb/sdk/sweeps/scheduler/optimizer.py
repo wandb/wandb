@@ -55,6 +55,15 @@ class RunSuggestion:
     config: RunConfig
     run_id: str
 
+    def __post_init__(self) -> None:
+        # Optimizers built on third-party frameworks naturally produce the
+        # flat `{param: value}` mapping; accept that and normalize it to a
+        # `RunConfig` here so every suggestion the executor sees serializes
+        # the same way (`config.wire_dict()`), regardless of which optimizer
+        # built it.
+        if not isinstance(self.config, RunConfig):
+            self.config = RunConfig.from_values(self.config)
+
 
 @dataclass
 class Run:

@@ -1306,6 +1306,11 @@ def sweep(
 
     styled_path = click.style(f"wandb agent {sweep_path}", fg="yellow")
     wandb.termlog(f"Run sweep agent with: {styled_path}")
+    if config is not None and config.get("scheduler") is not None:
+        styled_scheduler = click.style(
+            f"wandb sweep-scheduler {sweep_path}", fg="yellow"
+        )
+        wandb.termlog(f"Run scheduler with {styled_scheduler}")
     if controller:
         wandb.termlog("Starting wandb controller...")
         from wandb import controller as wandb_controller
@@ -2219,6 +2224,102 @@ def scheduler(
         telemetry_recorder.exception(e)
         get_sentry().exception(e)
         raise
+
+
+# The scheduler's own poll loop already backs off, but polling more often
+# than this just burns API quota without fresher run data.
+_SCHEDULER_MIN_POLL_INTERVAL_S = 5
+
+
+@cli.command(
+    name="sweep-scheduler",
+    context_settings=CONTEXT,
+    help="Run a local scheduler that suggests a sweep's runs (Experimental).",
+)
+@click.option("--entity", "-e", default=None, help="Entity that owns the sweep.")
+@click.option("--project", "-p", default=None, help="Project that owns the sweep.")
+@click.option(
+    "--batch-size",
+    default=10,
+    type=int,
+    help="Number of runs to keep in flight at once.",
+)
+@click.option(
+    "--poll-interval",
+    default=10.0,
+    type=float,
+    help="Seconds to wait between polls of the sweep's runs.",
+)
+@click.argument("sweep_id")
+@display_error
+def sweep_scheduler(
+    entity,
+    project,
+    batch_size,
+    poll_interval,
+    sweep_id,
+):
+    """Drive an existing sweep from a local, in-process scheduler.
+
+    Create the sweep first with `wandb sweep sweep.yaml`; its config must set
+    `scheduler: {engine: wandb}` so the server leaves the search to
+    this scheduler. The scheduler proposes runs, enqueues them, and polls their
+    results to drive the optimizer.
+    """
+    api = _get_cling_api()
+    if not api.is_authenticated:
+        wandb.termlog("Login to W&B to use the sweep scheduler feature")
+        click.get_current_context().invoke(login, no_offline=True)
+
+    if poll_interval < _SCHEDULER_MIN_POLL_INTERVAL_S:
+        wandb.termerror(
+            f"--poll-interval must be at least {_SCHEDULER_MIN_POLL_INTERVAL_S} seconds"
+        )
+        sys.exit(1)
+    # Resolve the sweep the user already created with `wandb sweep`.
+    if "/" in sweep_id:
+        sweep_path = sweep_id
+    elif entity and project:
+        sweep_path = f"{entity}/{project}/{sweep_id}"
+    else:
+        sweep_path = sweep_id
+    sweep = PublicApi().sweep(sweep_path)
+
+    # The local scheduler only drives sweeps that opted out of server-side
+    # search, which the `scheduler.engine` block records.
+    config = sweep.config or {}
+    scheduler_config = config.get("scheduler") or {}
+    engine = scheduler_config.get("engine")
+    if not engine:
+        raise ClickException(
+            "The sweep scheduler requires a sweep created with "
+            "'scheduler': {'engine': wandb} in its config."
+        )
+    if engine == "wandb":
+        search_space = scheduler_config.get("search_space")
+        optimizer = scheduler_config.get("optimizer")
+        if optimizer is not None:
+            wandb.termwarn("optimizer config is not supported by the wandb engine.")
+        if search_space is not None:
+            wandb.termwarn("search_space config is not supported by the wandb engine.")
+
+        from wandb.sdk.sweeps.scheduler import wandb as wandb_scheduler
+        from wandb.sdk.sweeps.scheduler.scheduler import SchedulerOptions
+
+        scheduler = wandb_scheduler.resume_sweep(
+            sweep,
+            options=SchedulerOptions(
+                poll_interval_s=poll_interval,
+                batch_size=batch_size,
+            ),
+        )
+    else:
+        raise ClickException(f"Unsupported engine: {engine}")
+
+    wandb.termlog(
+        f"Starting sweep scheduler for {sweep.name} with the {engine} engine 🧹"
+    )
+    scheduler.loop()
 
 
 @cli.group(help="Commands for managing and viewing W&B jobs.")
