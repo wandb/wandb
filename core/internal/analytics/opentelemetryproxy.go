@@ -33,10 +33,18 @@ import (
 )
 
 const (
-	defaultExportIntervalMs = 500
-	defaultTimeout          = 1 * time.Second
-	metricsPath             = "/sdk/otel/v1/metrics"
-	logsPath                = "/sdk/otel/v1/logs"
+	// defaultExportInterval is the interval at which metrics and logs are sent to the backend.
+	defaultExportInterval = 60 * time.Second
+
+	// defaultExportTimeout is the total time allowed for an export to complete.
+	// It includes the time to collect and send metric/log records.
+	defaultExportTimeout = 5 * time.Second
+
+	// httpClientTimeout is the timeout for HTTP requests to the backend.
+	httpClientTimeout = 10 * time.Second
+
+	metricsPath = "/sdk/otel/v1/metrics"
+	logsPath    = "/sdk/otel/v1/logs"
 )
 
 // ConfigureOTelErrorHandler routes OpenTelemetry SDK errors to the core logger.
@@ -436,7 +444,7 @@ func newOTLPHTTPClient(
 	extraHeaders := wandbSettings.GetExtraHTTPHeaders()
 
 	client := &http.Client{
-		Timeout: defaultTimeout,
+		Timeout: httpClientTimeout,
 	}
 	client.Transport = httplayers.WrapRoundTripper(
 		transport,
@@ -508,7 +516,8 @@ func (o *OpenTelemetryProxy) setupMetrics(
 		metric.WithResource(res),
 		metric.WithReader(
 			metric.NewPeriodicReader(exporter,
-				metric.WithInterval(defaultExportIntervalMs*time.Millisecond),
+				metric.WithInterval(defaultExportInterval),
+				metric.WithTimeout(defaultExportTimeout),
 			),
 		),
 	), nil
@@ -534,7 +543,12 @@ func (o *OpenTelemetryProxy) setupLogs(
 
 	return otellog.NewLoggerProvider(
 		otellog.WithResource(res),
-		otellog.WithProcessor(otellog.NewBatchProcessor(exporter)),
+		otellog.WithProcessor(
+			otellog.NewBatchProcessor(exporter,
+				otellog.WithExportInterval(defaultExportInterval),
+				otellog.WithExportTimeout(defaultExportTimeout),
+			),
+		),
 	), nil
 }
 

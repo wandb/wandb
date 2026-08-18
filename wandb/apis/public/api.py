@@ -1282,7 +1282,7 @@ class Api:
         return self._runs[key]
 
     @normalize_exceptions
-    def run(self, path=""):
+    def run(self, path: str = "") -> public.Run:
         """Return a single run by parsing path in the form `entity/project/run_id`.
 
         Args:

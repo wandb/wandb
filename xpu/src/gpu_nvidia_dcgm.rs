@@ -88,7 +88,7 @@ const DCGM_FI_PROF_NVLINK_RX_BYTES: u16 = 1012;
 
 /// DCGM Group IDs.
 /// Represents all GPUs discovered on the node.
-const DCGM_GROUP_ALL_GPUS: u32 = 0x7fffffff;
+const DCGM_GROUP_ALL_GPUS: DcgmGpuGrpT = 0x7fffffff;
 
 // --- Type Aliases for FFI Clarity ---
 
@@ -96,10 +96,10 @@ const DCGM_GROUP_ALL_GPUS: u32 = 0x7fffffff;
 type DcgmReturnT = i32;
 /// Alias for the `dcgmHandle_t` C type (`void*`). Represents the connection handle to DCGM.
 type DcgmHandleT = *mut c_void;
-/// Alias for the `dcgmGpuGrp_t` C type (typically `unsigned int`). Represents a DCGM GPU group ID.
-type DcgmGpuGrpT = u32;
-/// Alias for the `dcgmFieldGrp_t` C type (typically `unsigned int`). Represents a DCGM field group ID.
-type DcgmFieldGrpT = u32;
+/// Alias for the `dcgmGpuGrp_t` C type (`uintptr_t`). Represents a DCGM GPU group ID.
+type DcgmGpuGrpT = usize;
+/// Alias for the `dcgmFieldGrp_t` C type (`uintptr_t`). Represents a DCGM field group ID.
+type DcgmFieldGrpT = usize;
 /// Alias for the `dcgmFieldEntityGroup_t` C type (typically `unsigned int`). Represents the entity type (GPU, VGPU, etc.).
 type DcgmFieldEntityGroupT = u32;
 /// Alias for the `dcgmFieldEid_t` C type (typically `unsigned int`). Represents the entity ID within its group.
@@ -1133,8 +1133,8 @@ extern "C" fn field_value_callback(
 /// collecting metrics).
 struct DcgmWorker {
     dcgm: Box<dyn DcgmLibrary>,
-    group_id: u32,
-    field_group_id: u32,
+    group_id: DcgmGpuGrpT,
+    field_group_id: DcgmGpuGrpT,
     receiver: mpsc::Receiver<DcgmCommand>,
 }
 
@@ -1145,8 +1145,8 @@ impl DcgmWorker {
     /// Takes ownership of the [`DcgmLib`] instance and the MPSC receiver.
     fn new(
         dcgm: Box<dyn DcgmLibrary>,
-        group_id: u32,
-        field_group_id: u32,
+        group_id: DcgmGpuGrpT,
+        field_group_id: DcgmGpuGrpT,
         receiver: mpsc::Receiver<DcgmCommand>,
     ) -> Self {
         DcgmWorker {

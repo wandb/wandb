@@ -124,6 +124,11 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Handler:     (*Run).handleCycleFocusedChartMode,
 				},
 				{
+					Keys:        []string{"g"},
+					Description: "Cycle chart guides (off / dots / horizontal)",
+					Handler:     (*Run).handleCycleChartGuides,
+				},
+				{
 					Keys:        []string{"/"},
 					Description: "Filter metrics by pattern",
 					Handler:     (*Run).handleEnterMetricsFilter,
@@ -346,6 +351,11 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Handler:     (*Workspace).handleCycleFocusedChartMode,
 				},
 				{
+					Keys:        []string{"g"},
+					Description: "Cycle chart guides (off / dots / horizontal)",
+					Handler:     (*Workspace).handleCycleChartGuides,
+				},
+				{
 					Keys:        []string{"/"},
 					Description: "Filter metrics by pattern",
 					Handler:     (*Workspace).handleEnterMetricsFilter,
@@ -512,6 +522,11 @@ func SymonKeyBindings() []BindingCategory[Symon] {
 					Keys:        []string{"y"},
 					Description: "Toggle log Y on focused chart",
 					Handler:     (*Symon).handleToggleFocusedChartLogY,
+				},
+				{
+					Keys:        []string{"g"},
+					Description: "Cycle chart guides (off / dots / horizontal)",
+					Handler:     (*Symon).handleCycleChartGuides,
 				},
 				{
 					Keys:        []string{"\\"},
