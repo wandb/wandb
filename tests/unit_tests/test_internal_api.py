@@ -27,9 +27,9 @@ from wandb.sdk.internal.internal_api import (
     _match_org_with_fetched_org_entities,
     _OrgNames,
 )
-from wandb.sdk.launch.sweeps import SweepNotFoundError
 from wandb.sdk.lib import retry, wbauth
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
+from wandb.sdk.sweeps import SweepNotFoundError
 
 from .test_retry import MockTime, mock_time  # noqa: F401
 

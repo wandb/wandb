@@ -2449,7 +2449,7 @@ class Api:
             SweepNotFoundError: If the server returns a 404, indicating the
                 sweep was likely deleted.
         """
-        from wandb.sdk.launch.sweeps import SweepNotFoundError
+        from wandb.sdk.sweeps import SweepNotFoundError
 
         mutation = """
         mutation Heartbeat(
