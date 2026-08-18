@@ -2303,6 +2303,39 @@ def _build_optuna_scheduler(
     )
 
 
+def _build_ax_scheduler(
+    sweep,
+    config: dict,
+    scheduler_config: dict,
+    poll_interval: float,
+    batch_size: int,
+):
+    """Build the scheduler for a sweep whose `scheduler.engine` is `ax`."""
+    # Importing the module lazily surfaces a helpful error when Ax isn't
+    # installed, and keeps the wandb path free of that dependency.
+    from wandb.sdk.sweeps.scheduler import ax as ax_scheduler
+
+    optimizer_name = scheduler_config.get("optimizer", "")
+    source = scheduler_config.get("source", "")
+
+    if scheduler_config.get("search_space") is not None:
+        wandb.termwarn("search_space config is not supported by the Ax engine.")
+    if optimizer_name:
+        client_fn = _load_source_object(source, optimizer_name)
+        client = client_fn()
+    else:
+        client = ax_scheduler.create_default_client(config)
+
+    return ax_scheduler.resume_sweep(
+        sweep,
+        options=ax_scheduler.AxOptions(
+            client=client,
+            poll_interval_s=poll_interval,
+            batch_size=batch_size,
+        ),
+    )
+
+
 def _build_wandb_scheduler(
     sweep,
     scheduler_config: dict,
@@ -2359,7 +2392,7 @@ def sweep_scheduler(
     """Drive an existing sweep from a local, in-process scheduler.
 
     Create the sweep first with `wandb sweep sweep.yaml`; its config must set
-    `scheduler: {engine: <wandb|optuna>}` so the server leaves the search to
+    `scheduler: {engine: <wandb|optuna|ax>}` so the server leaves the search to
     this scheduler. The scheduler proposes runs, enqueues them, and polls their
     results to drive the optimizer.
     """
@@ -2390,7 +2423,7 @@ def sweep_scheduler(
     if not engine:
         raise ClickException(
             "The sweep scheduler requires a sweep created with "
-            "'scheduler': {'engine': <wandb|optuna>} in its config."
+            "'scheduler': {'engine': <wandb|optuna|ax>} in its config."
         )
     if engine == "wandb":
         scheduler = _build_wandb_scheduler(
@@ -2401,6 +2434,10 @@ def sweep_scheduler(
         )
     elif engine == "optuna":
         scheduler = _build_optuna_scheduler(
+            sweep, config, scheduler_config, poll_interval, batch_size
+        )
+    elif engine == "ax":
+        scheduler = _build_ax_scheduler(
             sweep, config, scheduler_config, poll_interval, batch_size
         )
     else:

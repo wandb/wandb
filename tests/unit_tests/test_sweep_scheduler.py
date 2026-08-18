@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import abc
 import contextlib
+import importlib.util
 import signal
 import threading
 from collections.abc import Iterator, Sequence
@@ -36,6 +37,13 @@ from wandb.sdk.sweeps.scheduler.scheduler import (
     SchedulerOptions,
     _LoopControl,
     _ShutdownMonitor,
+)
+
+# ax-platform requires Python >= 3.11 (see requirements_dev.txt), so it's
+# absent on 3.10 CI runs; skip the tests that depend on it there.
+HAS_AX = importlib.util.find_spec("ax") is not None
+requires_ax = pytest.mark.skipif(
+    not HAS_AX, reason="ax-platform requires Python >= 3.11"
 )
 
 SCHEDULER_GRID_SWEEP_CONFIG: dict[str, Any] = {
@@ -207,6 +215,9 @@ class MockOptimizer(Optimizer):
         )
         self.prune_runs_mock = MagicMock(return_value=[])
         self.should_terminate_sweep_mock = MagicMock(return_value=False)
+
+    def validate_sweep_objective(self) -> None:
+        return None
 
     def ask_n_runs(self, n: int) -> Sequence[RunSuggestion]:
         return self.ask_n_runs_mock(n)
@@ -437,7 +448,7 @@ class TestOptunaImperativeOptimizerAcceptance(OptunaOptimizerAcceptanceTests):
 
 
 class TestOptunaOptimizerTermination:
-    """`OptunaOptimizer.should_terminate_sweep` and its OptunaHub loading."""
+    """`OptunaOptimizer.should_terminate_sweep` and its caller-supplied callback."""
 
     @pytest.fixture
     def sweep(self) -> Sweep:
@@ -478,6 +489,126 @@ class TestOptunaOptimizerTermination:
 
         assert optimizer.should_terminate_sweep() is False
         terminator.assert_called_once_with(study)
+
+
+def _sequential_ax_generation_strategy(param_name: str, values: list[Any]) -> Any:
+    """A deterministic generation strategy cycling a choice param's values.
+
+    Ax's real generation strategies pick via Sobol/BoTorch, which the shared
+    acceptance tests -- written against `WandbOptimizer`'s deterministic grid
+    search -- don't assume.
+    """
+    from ax.generation_strategy.external_generation_node import ExternalGenerationNode
+    from ax.generation_strategy.generation_strategy import GenerationStrategy
+
+    class _SequentialNode(ExternalGenerationNode):
+        def __init__(self) -> None:
+            super().__init__(name="Sequential", should_deduplicate=False)
+            self._next_index = 0
+
+        def update_generator_state(self, experiment: Any, data: Any) -> None:
+            self._next_index = len(experiment.trials)
+
+        def get_next_candidate(self, pending_parameters: list[Any]) -> dict[str, Any]:
+            value = values[self._next_index % len(values)]
+            self._next_index += 1
+            return {param_name: value}
+
+    return GenerationStrategy(name="Sequential", nodes=[_SequentialNode()])
+
+
+@requires_ax
+class TestAxOptimizerAcceptance(OptimizerAcceptanceTests):
+    """Ax has a single optimizer flavor -- no define-by-run counterpart."""
+
+    @pytest.fixture
+    def optimizer(self, sweep: Sweep) -> Optimizer:
+        from wandb.sdk.sweeps.scheduler.ax import AxOptimizer, create_default_client
+
+        client = create_default_client(SCHEDULER_GRID_SWEEP_CONFIG)
+        client.set_generation_strategy(
+            _sequential_ax_generation_strategy("param1", [1, 2, 3])
+        )
+        return AxOptimizer(client, sweep)
+
+    def test_prune_runs_hyperband_stops_worst_running_run(
+        self, optimizer: Optimizer
+    ) -> None:
+        """`AxOptimizer.prune_run` is a thin wrapper around the `Client`'s own
+        early-stopping strategy; which running trials it actually flags is
+        Ax's statistical judgment call, not this glue code's, so this checks
+        the wrapper's wiring -- that a stop flag from the client finalizes the
+        trial via `mark_trial_early_stopped` and prunes exactly that run.
+        """
+        suggestions = optimizer.ask_n_runs(2)
+        stop_me = make_run(
+            suggestions[0], state=RunState.RUNNING, summary={"loss": 10.0}
+        )
+        keep_me = make_run(
+            suggestions[1], state=RunState.RUNNING, summary={"loss": 1.0}
+        )
+        optimizer.tell_run(suggestions[0].run_id, stop_me)
+        optimizer.tell_run(suggestions[1].run_id, keep_me)
+
+        client = optimizer.client
+        with (
+            patch.object(
+                client,
+                "should_stop_trial_early",
+                side_effect=lambda trial_index: (
+                    trial_index == int(suggestions[0].run_id)
+                ),
+            ),
+            patch.object(client, "mark_trial_early_stopped") as mark_stopped,
+        ):
+            pruned = optimizer.prune_runs(
+                [suggestions[0].run_id, suggestions[1].run_id],
+                [stop_me, keep_me],
+            )
+            assert pruned == [suggestions[0].run_id]
+            mark_stopped.assert_called_once_with(trial_index=int(suggestions[0].run_id))
+
+
+@requires_ax
+class TestAxOptimizerTermination:
+    """`AxOptimizer.should_terminate_sweep` and its caller-supplied callback."""
+
+    @pytest.fixture
+    def sweep(self) -> Sweep:
+        return make_scheduler_grid_sweep()
+
+    @pytest.fixture
+    def client(self) -> Any:
+        from wandb.sdk.sweeps.scheduler.ax import create_default_client
+
+        return create_default_client(SCHEDULER_GRID_SWEEP_CONFIG)
+
+    def _make_optimizer(self, client: Any, sweep: Sweep, terminator: Any = None) -> Any:
+        from wandb.sdk.sweeps.scheduler.ax import AxOptimizer
+
+        return AxOptimizer(client, sweep, terminator)
+
+    def test_no_terminator_never_terminates(self, client: Any, sweep: Sweep) -> None:
+        optimizer = self._make_optimizer(client, sweep)
+        assert optimizer.should_terminate_sweep() is False
+
+    def test_delegates_to_the_configured_terminator(
+        self, client: Any, sweep: Sweep
+    ) -> None:
+        terminator = MagicMock(return_value=True)
+        optimizer = self._make_optimizer(client, sweep, terminator)
+
+        assert optimizer.should_terminate_sweep() is True
+        terminator.assert_called_once_with(client)
+
+    def test_a_falsy_terminator_does_not_terminate(
+        self, client: Any, sweep: Sweep
+    ) -> None:
+        terminator = MagicMock(return_value=False)
+        optimizer = self._make_optimizer(client, sweep, terminator)
+
+        assert optimizer.should_terminate_sweep() is False
+        terminator.assert_called_once_with(client)
 
 
 class LoopDriver:
@@ -1478,3 +1609,132 @@ def test_sweep_scheduler_cli_triggers_login_when_unauthenticated(
 
     assert result.exit_code == 0, result.output
     mocks.login.assert_called_once_with(no_offline=True)
+
+
+@dataclass
+class CliAxSchedulerMocks:
+    """Collaborators `sweep_scheduler` talks to for the `ax` engine.
+
+    Patched for one test.
+    """
+
+    public_api: MagicMock
+    scheduler: MagicMock
+    resume_sweep: MagicMock
+    create_default_client: MagicMock
+    client: MagicMock
+    login: MagicMock
+
+
+@contextlib.contextmanager
+def _cli_ax_scheduler_context(
+    sweep: Sweep, *, authenticated: bool = True
+) -> Iterator[CliAxSchedulerMocks]:
+    public_api = MagicMock()
+    public_api.sweep.return_value = sweep
+    scheduler = MagicMock()
+    client = MagicMock()
+
+    with (
+        patch.object(
+            cli,
+            "_get_cling_api",
+            return_value=MagicMock(is_authenticated=authenticated),
+        ),
+        patch.object(cli, "PublicApi", return_value=public_api),
+        patch.object(cli, "login") as login,
+        patch(
+            "wandb.sdk.sweeps.scheduler.ax.resume_sweep",
+            return_value=scheduler,
+        ) as resume_sweep,
+        patch(
+            "wandb.sdk.sweeps.scheduler.ax.create_default_client",
+            return_value=client,
+        ) as create_default_client,
+    ):
+        yield CliAxSchedulerMocks(
+            public_api=public_api,
+            scheduler=scheduler,
+            resume_sweep=resume_sweep,
+            create_default_client=create_default_client,
+            client=client,
+            login=login,
+        )
+
+
+@requires_ax
+def test_sweep_scheduler_cli_ax_engine_builds_default_client(
+    runner: CliRunner,
+) -> None:
+    from wandb.sdk.sweeps.scheduler.ax import AxOptions
+
+    sweep_config = {**SCHEDULER_GRID_SWEEP_CONFIG, "scheduler": {"engine": "ax"}}
+    sweep = make_scheduler_grid_sweep(config=sweep_config)
+    with _cli_ax_scheduler_context(sweep) as mocks:
+        result = runner.invoke(cli.sweep_scheduler, ["entity/project/sweep-1"])
+
+    assert result.exit_code == 0, result.output
+    mocks.create_default_client.assert_called_once_with(sweep_config)
+    mocks.resume_sweep.assert_called_once_with(
+        sweep,
+        options=AxOptions(client=mocks.client, poll_interval_s=10.0, batch_size=10),
+    )
+    mocks.scheduler.loop.assert_called_once()
+
+
+@requires_ax
+def test_sweep_scheduler_cli_ax_engine_loads_custom_optimizer_factory(
+    runner: CliRunner,
+) -> None:
+    from wandb.sdk.sweeps.scheduler.ax import AxOptions
+
+    sweep_config = {
+        **SCHEDULER_GRID_SWEEP_CONFIG,
+        "scheduler": {
+            "engine": "ax",
+            "optimizer": "make_client",
+            "source": "sweep_source.py",
+        },
+    }
+    sweep = make_scheduler_grid_sweep(config=sweep_config)
+    client = MagicMock()
+    client_fn = MagicMock(return_value=client)
+
+    with (
+        _cli_ax_scheduler_context(sweep) as mocks,
+        patch.object(
+            cli, "_load_source_object", return_value=client_fn
+        ) as load_source_object,
+    ):
+        result = runner.invoke(cli.sweep_scheduler, ["entity/project/sweep-1"])
+
+    assert result.exit_code == 0, result.output
+    load_source_object.assert_called_once_with("sweep_source.py", "make_client")
+    client_fn.assert_called_once_with()
+    mocks.create_default_client.assert_not_called()
+    mocks.resume_sweep.assert_called_once_with(
+        sweep,
+        options=AxOptions(client=client, poll_interval_s=10.0, batch_size=10),
+    )
+    mocks.scheduler.loop.assert_called_once()
+
+
+@requires_ax
+def test_sweep_scheduler_cli_ax_engine_forwards_poll_interval_and_batch_size(
+    runner: CliRunner,
+) -> None:
+    from wandb.sdk.sweeps.scheduler.ax import AxOptions
+
+    sweep_config = {**SCHEDULER_GRID_SWEEP_CONFIG, "scheduler": {"engine": "ax"}}
+    sweep = make_scheduler_grid_sweep(config=sweep_config)
+    with _cli_ax_scheduler_context(sweep) as mocks:
+        result = runner.invoke(
+            cli.sweep_scheduler,
+            ["--batch-size", "7", "--poll-interval", "15", "entity/project/sweep-1"],
+        )
+
+    assert result.exit_code == 0, result.output
+    mocks.resume_sweep.assert_called_once_with(
+        sweep,
+        options=AxOptions(client=mocks.client, poll_interval_s=15.0, batch_size=7),
+    )

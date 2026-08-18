@@ -118,6 +118,15 @@ class Optimizer(ABC):
 
     def __init__(self, sweep: Sweep):
         self._sweep = sweep
+        self.validate_sweep_objective()
+
+    @abstractmethod
+    def validate_sweep_objective(self) -> None:
+        """Raise if the optimizer's objective disagrees with the sweep's.
+
+        Called from `__init__`, so a mismatch surfaces before the sweep runs.
+        """
+        ...
 
     @abstractmethod
     def ask_n_runs(self, n: int) -> Sequence[RunSuggestion] | None:

@@ -58,6 +58,15 @@ class WandbOptimizer(Optimizer):
         self._runs: dict[str, sweeps.SweepRun] = {}
         self._run_counter = 0
 
+    @override
+    def validate_sweep_objective(self) -> None:
+        """No-op: the sweep config is the only objective this optimizer reads.
+
+        Unlike the optuna and Ax optimizers there is no external study or
+        experiment that could disagree with it.
+        """
+        return None
+
     def _new_run_id(self) -> str:
         run_id = f"{self._sweep.id}-{self._run_counter}"
         self._run_counter += 1
