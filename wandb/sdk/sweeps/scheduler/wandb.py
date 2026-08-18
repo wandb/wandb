@@ -151,7 +151,7 @@ class WandbOptimizer(Optimizer):
 
         Args:
             run_ids: Optimizer run ids to consider for pruning.
-            runs: Corresponding run metrics from the scheduler's latest poll.
+            runs: Corresponding run metrics from the latest poll.
         """
         if "early_terminate" not in self._sweep.config:
             return []

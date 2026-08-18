@@ -76,6 +76,7 @@ media = [
     "rdkit",
 ]
 sweeps = ["sweeps>=0.2.0"]
+optuna = ["optuna>=4.0.0"]
 launch = [
     "wandb[aws]",
     "awscli",
