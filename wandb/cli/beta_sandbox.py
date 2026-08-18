@@ -82,7 +82,7 @@ def sandbox() -> None:
 @click.option(
     "--all",
     "-a",
-    "include_stopped",
+    "show_terminated",
     is_flag=True,
     default=False,
     help="Include stopped sandboxes in results.",
@@ -100,7 +100,7 @@ def sandbox() -> None:
 )
 def list_sandboxes(
     status: str | None,
-    include_stopped: bool,
+    show_terminated: bool,
     tags: tuple[str, ...],
     output_format: str,
 ) -> None:
@@ -121,7 +121,7 @@ def list_sandboxes(
     sandboxes = Sandbox.list(
         tags=list(tags) if tags else None,
         status=status,
-        include_stopped=include_stopped,
+        show_terminated=show_terminated,
     ).result()
 
     if output_format == "json":
