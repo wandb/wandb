@@ -31,6 +31,11 @@ LOG_STRING = click.style("wandb", fg="blue", bold=True)
 ERROR_STRING = click.style("ERROR", bg="red", fg="green")
 WARN_STRING = click.style("WARNING", fg="yellow")
 
+# Some error statuses during wandb.init()/run.finish() just barely don't fit on
+# one line and are difficult to shorten. Let them wrap across 2 lines to make it
+# more likely that important info is visible.
+_DYNAMIC_TEXT_WRAP_MAX_LINES = 2
+
 _silent: bool = False
 """If true, _logger is used instead of printing to stderr."""
 
@@ -389,23 +394,18 @@ class DynamicBlock:
         self._lines_to_print: list[str] = []
         self._num_lines_printed = 0
 
-    def set_text(self, text: str, prefix: bool = True) -> None:
+    def set_text(self, text: str) -> None:
         r"""Replace the text in this block.
 
         Args:
             text: The text to put in the block, with lines separated
                 by \n characters. A single \n at the end is ignored; to include
                 a blank line at the end, the text must end with \n\n.
-            prefix: Whether to include the "wandb:" prefix.
         """
         with _dynamic_text_lock:
-            self._lines_to_print = text.splitlines()
-
-            if prefix:
-                self._lines_to_print = [
-                    f"{LOG_STRING}: {line}" for line in self._lines_to_print
-                ]
-
+            self._lines_to_print = [
+                f"{LOG_STRING}: {line}" for line in text.splitlines()
+            ]
             _l_rerender_dynamic_blocks()
 
     def _l_clear(self) -> None:
@@ -434,26 +434,31 @@ class DynamicBlock:
 
         The lock must be held.
         """
-        if self._lines_to_print:
-            # Wrap and trim lines before printing. This is crucial because the
-            # \x1b[Am (cursor up) sequence used when clearing the text moves up
-            # by one visual line, and the terminal may be wrapping long lines
-            # onto multiple visual lines.
-            #
-            # There is no ANSI escape sequence that moves the cursor up by one
-            # "physical" line instead. Note that the user may resize their
-            # terminal.
-            term_width = _shutil_get_terminal_width()
-            click.echo(
-                "\n".join(
-                    wrapped
-                    for line in self._lines_to_print
-                    for wrapped in wrap_ansi(line, width=term_width, max_lines=1)
-                ),
-                file=sys.stderr,
-            )
+        if not self._lines_to_print:
+            return
 
-        self._num_lines_printed += len(self._lines_to_print)
+        # Wrap and trim lines before printing. This is crucial because the
+        # \x1b[Am (cursor up) sequence used when clearing the text moves up
+        # by one visual line, and the terminal may be wrapping long lines
+        # onto multiple visual lines.
+        #
+        # There is no ANSI escape sequence that moves the cursor up by one
+        # "physical" line instead. Note that the user may resize their
+        # terminal.
+        term_width = _shutil_get_terminal_width()
+
+        printed_lines = [
+            wrapped
+            for line in self._lines_to_print
+            for wrapped in wrap_ansi(
+                line,
+                width=term_width,
+                max_lines=_DYNAMIC_TEXT_WRAP_MAX_LINES,
+            )
+        ]
+
+        click.echo("\n".join(printed_lines), file=sys.stderr)
+        self._num_lines_printed += len(printed_lines)
 
 
 def _shutil_get_terminal_width() -> int:

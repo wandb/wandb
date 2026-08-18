@@ -98,18 +98,24 @@ def test_static_and_dynamic_text(emulated_terminal):
         ]
 
 
-def test_truncates_dynamic_text(emulated_terminal, monkeypatch):
+def test_wraps_and_truncates_dynamic_text(emulated_terminal, monkeypatch):
     # Pretend the terminal is very narrow.
-    columns = len("wandb: this should fit")
-    monkeypatch.setattr(term, "_shutil_get_terminal_width", lambda: columns)
+    monkeypatch.setattr(term, "_shutil_get_terminal_width", lambda: 16)
     with term.dynamic_text() as text:
         assert text
         emulated_terminal.reset_capsys()
 
-        text.set_text("this should fit")
-        assert emulated_terminal.read_stderr() == ["wandb: this should fit"]
-        text.set_text("but not this line")
-        assert emulated_terminal.read_stderr() == ["wandb: but not this..."]
+        text.set_text("this line fits these rows")
+        assert emulated_terminal.read_stderr() == [
+            "wandb: this line",
+            " fits these rows",
+        ]
+
+        text.set_text("this line fits these rows?")
+        assert emulated_terminal.read_stderr() == [
+            "wandb: this line",
+            " fits these r...",
+        ]
 
 
 @pytest.fixture
