@@ -32,6 +32,7 @@ from __future__ import annotations
 import json
 import urllib
 from collections.abc import Mapping
+from enum import Enum
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from typing_extensions import override
@@ -55,6 +56,32 @@ if TYPE_CHECKING:
     from wandb.apis.public.api import Api
     from wandb.apis.public.runs import AgentRuns
     from wandb.apis.public.service_api import ServiceApi
+
+
+class SweepState(str, Enum):
+    """The state of a sweep as a `str` enum."""
+
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    PAUSED = "PAUSED"
+    FINISHED = "FINISHED"
+    CANCELED = "CANCELED"
+    FAILED = "FAILED"
+    CRASHED = "CRASHED"
+    UNKNOWN = "UNKNOWN"
+
+    @classmethod
+    def _missing_(cls, value: object) -> SweepState:
+        """Resolve values case-insensitively, falling back to `UNKNOWN`."""
+        if isinstance(value, str):
+            normalized = value.strip().upper()
+            for member in cls:
+                if member.value == normalized:
+                    return member
+            # The backend spells this with two L's in some places.
+            if normalized == "CANCELLED":
+                return cls.CANCELED
+        return cls.UNKNOWN
 
 
 class Sweeps(SizedPaginator["Sweep"]):
@@ -278,8 +305,7 @@ class Sweep(Attrs):
         id (str): Sweep ID
         project (str): The name of the project the sweep belongs to
         config (dict): Dictionary containing the sweep configuration
-        state (str): The state of the sweep. Can be "Finished", "Failed",
-            "Crashed", or "Running".
+        state (str): The state of the sweep, as reported by the server.
         expected_run_count (int): The number of expected runs for the sweep
     """
 
@@ -316,6 +342,12 @@ class Sweep(Attrs):
     def config(self):
         """The sweep configuration used for the sweep."""
         return util.load_yaml(self._attrs["config"])
+
+    def finish(self) -> None:
+        """Mark the sweep finished on the server so no new runs are started."""
+        from wandb.apis.internal import InternalApi
+
+        InternalApi().stop_sweep(self.id, entity=self.entity, project=self.project)
 
     def load(self, force: bool = False):
         """Fetch and update sweep data logged to the run from GraphQL database.
