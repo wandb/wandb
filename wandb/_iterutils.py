@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Hashable, Iterable
+from collections.abc import Hashable, Iterable, Mapping
 from typing import TYPE_CHECKING, Any, TypeVar, overload
 
 if TYPE_CHECKING:
@@ -28,6 +28,11 @@ def unique_list(iterable: Iterable[HashableT]) -> list[HashableT]:
     """Return a deduplicated list of items from the given iterable, preserving order."""
     # Trick for O(1) uniqueness check that maintains order
     return list(dict.fromkeys(iterable))
+
+
+def merge_dicts(dicts: Iterable[Mapping[HashableT, T]]) -> dict[HashableT, T]:
+    """Merge mappings in iteration order, with later values taking precedence."""
+    return {k: v for d in dicts for k, v in d.items()}
 
 
 def one(
