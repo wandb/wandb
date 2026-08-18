@@ -43,6 +43,7 @@ message ApiRequest {
     CreateCustomChartRequest create_custom_chart_request = 10;
     RunQueueOperationRequest run_queue_operation_request = 11;
     OpenTelemetryRequest open_telemetry_request = 12;
+    ReadRunConsoleLogsRequest read_run_console_logs_request = 13;
   }
 }
 
@@ -58,6 +59,7 @@ message ApiResponse {
     AuthResponse auth_response = 9;
     CreateCustomChartResponse create_custom_chart_response = 10;
     RunQueueOperationResponse run_queue_operation_response = 11;
+    ReadRunConsoleLogsResponse read_run_console_logs_response = 12;
 
     ApiErrorResponse api_error_response = 2;
   }
@@ -325,6 +327,92 @@ message StopRunRequest {
 }
 
 message StopRunResponse {}
+
+// Read a page of a run's captured console output.
+//
+// The W&B backend records the console output of a run while it is
+// running. This request reads it back, either from the start of the log
+// in ascending line order (`first`/`after`) or as a tail of the most
+// recent lines (`last`).
+//
+// A successful request returns ReadRunConsoleLogsResponse; failures
+// return ApiErrorResponse.
+message ReadRunConsoleLogsRequest {
+  // The entity that owns the run.
+  string entity = 1;
+
+  // The project that the run belongs to.
+  string project = 2;
+
+  // The ID of the run.
+  string run_id = 3;
+
+  // Maximum number of lines to return, in ascending line order from the
+  // start of the log or from the `after` cursor.
+  //
+  // Mutually exclusive with `last`. The backend may return fewer lines
+  // than requested; use `has_next_page` rather than the number of
+  // returned lines to detect the end of the log.
+  optional int32 first = 4;
+
+  // A cursor: return lines after the line it refers to.
+  //
+  // Cursors are bookmark strings minted by the server and opaque to the
+  // client; echo the `end_cursor` of a previous response back here to
+  // read the next page.
+  optional string after = 5;
+
+  // If set, return only the last N lines of the log.
+  //
+  // Mutually exclusive with `first` and `after`. The backend caps the
+  // number of lines returned in one page, so a very large tail may come
+  // back truncated to the cap (10,000 lines as of server 0.68).
+  optional int32 last = 6;
+}
+
+message ReadRunConsoleLogsResponse {
+  // The returned lines, in ascending line order.
+  repeated RunConsoleLogLine lines = 1;
+
+  // A cursor referring to the last returned line; pass it as `after` to
+  // read the next page. Only set for a forward-pagination
+  // (`first`/`after`) request with a non-empty result; a tail (`last`)
+  // response leaves it empty because its cursors cannot seed forward
+  // pagination.
+  string end_cursor = 2;
+
+  // Whether the log has more lines after this page.
+  //
+  // Reliable even when the backend cuts a page short: wandb-core
+  // rederives it from line numbers. Never true without an `end_cursor`.
+  // Always false for a tail (`last`) request.
+  bool has_next_page = 3;
+
+  // Total number of lines in the run's console log, regardless of how
+  // many this page returned.
+  int64 total_lines = 4;
+}
+
+// A single line of a run's captured console output.
+message RunConsoleLogLine {
+  // Position of the line in the run's console log, starting at 0.
+  int64 number = 1;
+
+  // The time the line was captured, as an ISO 8601 / RFC 3339 string.
+  string timestamp = 2;
+
+  // The severity of the line: "error" for lines written to stderr,
+  // empty otherwise.
+  string level = 3;
+
+  // A label identifying the process that wrote the line when several
+  // processes write to the same run (as set by the `x_label` setting in
+  // shared mode). Empty for single-writer runs.
+  string label = 4;
+
+  // The text of the line.
+  string content = 5;
+}
 
 // Create a custom chart preset.
 message CreateCustomChartRequest {
