@@ -137,7 +137,6 @@ def _file_hasher(hasher: Hasher, *paths: StrPath) -> Hasher:
                 # so we'll fall back on a less performant implementation.
                 while chunk := f.read(_CHUNKSIZE):
                     hasher.update(chunk)
-                    chunk = f.read(_CHUNKSIZE)
             except ValueError:
                 # This occurs when mmap-ing an empty file, which can be skipped.
                 # See: https://github.com/python/cpython/blob/986a4e1b6fcae7fe7a1d0a26aea446107dd58dd2/Modules/mmapmodule.c#L1589
