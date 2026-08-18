@@ -99,10 +99,10 @@ class FilterableField:
     def gte(self, value: Scalar, /) -> FilterExpr:
         return FilterExpr(field=self._name, op=Gte(val=value))
 
-    def ne(self, value: Scalar, /) -> FilterExpr:
+    def ne(self, value: Scalar | Iterable[Scalar], /) -> FilterExpr:
         return FilterExpr(field=self._name, op=Ne(val=value))
 
-    def eq(self, value: Scalar, /) -> FilterExpr:
+    def eq(self, value: Scalar | Iterable[Scalar], /) -> FilterExpr:
         return FilterExpr(field=self._name, op=Eq(val=value))
 
     def in_(self, values: Iterable[Scalar], /) -> FilterExpr:

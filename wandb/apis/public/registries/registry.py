@@ -22,12 +22,7 @@ from ._members import (
     UserMember,
     parse_member_ids,
 )
-from ._utils import (
-    Visibility,
-    fetch_org_entity_from_organization,
-    filter_for_registry,
-    prepare_artifact_types_input,
-)
+from ._utils import Visibility, prepare_artifact_types_input, registry_filter_for
 from .registries_search import Collections, Versions
 
 if TYPE_CHECKING:
@@ -224,9 +219,7 @@ class Registry:
         return Collections(
             service_api=self._service_api,
             organization=self.organization,
-            registry_filter=filter_for_registry(
-                self, service_api=self._service_api, organization=self.organization
-            ),
+            registry_filter=registry_filter_for(self),
             collection_filter=filter,
             order=order,
             per_page=per_page,
@@ -252,9 +245,7 @@ class Registry:
         return Versions(
             service_api=self._service_api,
             organization=self.organization,
-            registry_filter=filter_for_registry(
-                self, service_api=self._service_api, organization=self.organization
-            ),
+            registry_filter=registry_filter_for(self),
             collection_filter=None,
             artifact_filter=filter,
             per_page=per_page,
@@ -306,9 +297,7 @@ class Registry:
             f"Failed to create registry {name!r} in organization {organization!r}."
         )
 
-        # TODO: Avoid reaching into Api internals once registry creation has a
-        # dedicated wandb-core API request.
-        org_entity = fetch_org_entity_from_organization(api._service_api, organization)
+        org_entity = api.organization(organization).org_entity.name
         gql_input = UpsertModelInput(
             description=description,
             entity_name=org_entity,

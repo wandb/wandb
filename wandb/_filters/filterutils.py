@@ -1,18 +1,21 @@
 """Helpers for parsing and transforming MongoDB expressions.
 
 If a function is defined here, it's an internal helper that we deliberately
-don't expose as instnace methods on filter types for now.
+don't expose as instance methods on filter types for now.
 """
 
 from __future__ import annotations
 
 from collections.abc import Iterator
 from functools import singledispatch
-from typing import cast
+from itertools import chain
+
+from pydantic import JsonValue
 
 from .expressions import FilterExpr, MongoLikeFilter
 from .operators import (
-    BaseVariadicLogicalOp,
+    KEY_TO_OP,
+    And,
     Eq,
     Exists,
     Gt,
@@ -24,9 +27,41 @@ from .operators import (
     Nor,
     Not,
     NotIn,
-    Op,
     Or,
 )
+
+
+def parse_filter(raw: dict[str, JsonValue]) -> MongoLikeFilter:
+    """Parse a raw MongoDB-style filter, leaving unknown operators opaque."""
+    match list(raw.items()):
+        case []:
+            return raw
+        case [(k, _)] if op_cls := KEY_TO_OP.get(k):
+            return op_cls.model_validate(raw)
+        case [(k, _)] if k.startswith("$"):
+            # This looks like an unrecognized operator, so leave it opaque.
+            return raw
+        case [(k, dict())]:
+            return FilterExpr.model_validate(raw)
+        case [(k, v)]:
+            # An ordinary non-dict operand implies an equality expression.
+            return FilterExpr.model_validate({k: {"$eq": v}})
+        case items:  # Multiple root predicates imply "$and".
+            return And.model_validate({"$and": [{k: v} for k, v in items]})
+
+
+def iter_fields(expr: MongoLikeFilter) -> Iterator[str]:
+    """Iterate over the field names referenced in a MongoDB filter.
+
+    Unknown operators are left untouched because their operands may not be filters.
+    """
+    match expr:
+        case FilterExpr(field=field):
+            yield field
+        case And(exprs=exprs) | Or(exprs=exprs) | Nor(exprs=exprs):
+            yield from chain.from_iterable(map(iter_fields, exprs))
+        case Not(expr=expr):
+            yield from iter_fields(expr)
 
 
 @singledispatch
@@ -35,36 +70,35 @@ def simplify_expr(expr: MongoLikeFilter) -> MongoLikeFilter:
     return expr  # default implementation is a no-op
 
 
-# singledispatch on the abstract parent dispatches to all And/Or/Nor subclasses
-@simplify_expr.register
-def _(op: BaseVariadicLogicalOp) -> MongoLikeFilter:  # type: ignore[misc]
+@simplify_expr.register(And)
+@simplify_expr.register(Or)
+@simplify_expr.register(Nor)
+def _(op: And | Or | Nor) -> MongoLikeFilter:
     """Simplify an `And/Or/Nor` operator by removing and unnesting redundant expressions.
 
-    This will flatten the operator's inner expressions and simplify them recursively,
-    e.g.:
+    This will flatten the inner expressions and simplify recursively:
     - `And(op1, And(op2, ...)) -> And(op1, op2, ...)`
     - `Or(op1, Or(op2, ...)) -> Or(op1, op2, ...)`
 
-    Note that unnested empty operators are preserved, e.g.
+    Unnested empty operators are preserved:
     - `And() -> And()`
     - `Or() -> Or()`
 
-    However, nested empty operators are flattened, e.g.:
+    Nested empty operators are flattened:
     - `And(And(), And()) -> And()`
     - `Or(Or(), Or()) -> Or()`
 
-    Single inner expressions are unnested, e.g.:
+    Single inner expressions are unnested:
     - `And(a) -> a`
     - `Or(a) -> a`
     """
     cls = type(op)
     # Flatten and simplify the operator's inner expressions.
-    if len(exprs := [simplify_expr(x) for x in flatten_inner(op, cls)]) == 1:
-        return exprs[0]  # Unnest single inner expressions.
-    # cls is always one of And/Or/Nor — concrete subclasses of BaseVariadicLogicalOp
-    # that *are* in the MongoLikeFilter union, but type checkers can't see this
-    # through the abstract `type(op)` capture.
-    return cast(MongoLikeFilter, cls(exprs=exprs))
+    match exprs := [simplify_expr(x) for x in flatten_inner(op, cls)]:
+        case [only_child]:  # Unnest single inner expressions.
+            return only_child
+        case _:
+            return cls(exprs=exprs)
 
 
 @simplify_expr.register
@@ -88,9 +122,9 @@ def _(op: Not) -> MongoLikeFilter:
 
 
 def flatten_inner(
-    op: BaseVariadicLogicalOp,
-    parent_cls: type[BaseVariadicLogicalOp],
-) -> Iterator[FilterExpr | Op]:
+    op: And | Or | Nor,
+    parent_cls: type[And | Or | Nor],
+) -> Iterator[MongoLikeFilter]:
     """Iterates over an `And/Or/Nor` operator's flattened inner expressions."""
     for x in op.exprs:
-        yield from (flatten_inner(x, parent_cls) if isinstance(x, parent_cls) else (x,))
+        yield from (flatten_inner(x, parent_cls) if type(x) is parent_cls else (x,))

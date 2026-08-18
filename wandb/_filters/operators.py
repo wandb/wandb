@@ -4,21 +4,27 @@ from __future__ import annotations
 
 from abc import ABC
 from collections.abc import Iterable
-from typing import TYPE_CHECKING, Any, TypeAlias, TypeVar, final, get_args
+from typing import TYPE_CHECKING, Annotated, Any, TypeAlias, TypeVar, final
 
-from pydantic import ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr
+from pydantic import (
+    AfterValidator,
+    ConfigDict,
+    Field,
+    StrictBool,
+    StrictFloat,
+    StrictInt,
+    StrictStr,
+)
 from typing_extensions import Self, override
 
 from wandb._pydantic import GQLBase
-from wandb._strutils import nameof
+from wandb._strutils import nameof, repr_join
 
 if TYPE_CHECKING:
     from .expressions import FilterExpr
 
 # for type annotations
 Scalar = StrictStr | StrictInt | StrictFloat | StrictBool
-# for runtime type checks
-ScalarTypes: tuple[type, ...] = tuple(t.__origin__ for t in get_args(Scalar))
 
 # See: https://rich.readthedocs.io/en/stable/pretty.html#rich-repr-protocol
 RichReprResult: TypeAlias = Iterable[
@@ -53,7 +59,7 @@ class SupportsBitwiseLogicalOps:
     # Subclasses widen the return to their operator-specific inverse
     # (e.g. `Lt -> Gte`); the parent type must cover all those cases so
     # the overrides don't trip Liskov return-type checks.
-    def __invert__(self) -> Op | FilterExpr:
+    def __invert__(self) -> LogicalChild:
         """Implements default `~` behavior: `~a -> Not(a)`."""
         return Not(expr=self)
 
@@ -73,7 +79,7 @@ class BaseOp(GQLBase, SupportsBitwiseLogicalOps, ABC):
         Note that BaseModels implement `__iter__()`:
           https://docs.pydantic.dev/latest/concepts/serialization/#iterating-over-models
         """
-        return f"{nameof(type(self))}({', '.join(repr(v) for _, v in self)})"
+        return f"{nameof(type(self))}({repr_join(v for _, v in self)})"
 
     def __rich_repr__(self) -> RichReprResult:
         """Returns the operator's rich repr, if pretty-printing via `rich`.
@@ -85,8 +91,8 @@ class BaseOp(GQLBase, SupportsBitwiseLogicalOps, ABC):
 
 
 # Base type for logical operators that take a variable number of expressions.
-class BaseVariadicLogicalOp(BaseOp, ABC):
-    exprs: TupleOf[FilterExpr | Op]
+class VariadicLogicalOp(BaseOp, ABC):
+    exprs: TupleOf[LogicalChild]
 
     @classmethod
     def wrap(cls, expr: Any) -> Self:
@@ -99,13 +105,13 @@ class BaseVariadicLogicalOp(BaseOp, ABC):
 # https://www.mongodb.com/docs/manual/reference/operator/query/nor/
 # https://www.mongodb.com/docs/manual/reference/operator/query/not/
 @final
-class And(BaseVariadicLogicalOp):
-    exprs: TupleOf[FilterExpr | Op] = Field(default=(), alias="$and")
+class And(VariadicLogicalOp):
+    exprs: TupleOf[LogicalChild] = Field(default=(), alias="$and")
 
 
 @final
-class Or(BaseVariadicLogicalOp):
-    exprs: TupleOf[FilterExpr | Op] = Field(default=(), alias="$or")
+class Or(VariadicLogicalOp):
+    exprs: TupleOf[LogicalChild] = Field(default=(), alias="$or")
 
     @override
     def __invert__(self) -> Nor:
@@ -114,8 +120,8 @@ class Or(BaseVariadicLogicalOp):
 
 
 @final
-class Nor(BaseVariadicLogicalOp):
-    exprs: TupleOf[FilterExpr | Op] = Field(default=(), alias="$nor")
+class Nor(VariadicLogicalOp):
+    exprs: TupleOf[LogicalChild] = Field(default=(), alias="$nor")
 
     @override
     def __invert__(self) -> Or:
@@ -125,10 +131,10 @@ class Nor(BaseVariadicLogicalOp):
 
 @final
 class Not(BaseOp):
-    expr: FilterExpr | Op = Field(alias="$not")
+    expr: LogicalChild = Field(alias="$not")
 
     @override
-    def __invert__(self) -> FilterExpr | Op:
+    def __invert__(self) -> LogicalChild:
         """Implements `~Not(a) -> a`."""
         return self.expr
 
@@ -184,7 +190,7 @@ class Gte(BaseOp):
 
 @final
 class Eq(BaseOp):
-    val: Scalar = Field(alias="$eq")
+    val: Scalar | TupleOf[Scalar] = Field(alias="$eq")
 
     @override
     def __invert__(self) -> Ne:
@@ -194,7 +200,7 @@ class Eq(BaseOp):
 
 @final
 class Ne(BaseOp):
-    val: Scalar = Field(alias="$ne")
+    val: Scalar | TupleOf[Scalar] = Field(alias="$ne")
 
     @override
     def __invert__(self) -> Eq:
@@ -226,7 +232,7 @@ class NotIn(BaseOp):
 # https://www.mongodb.com/docs/manual/reference/operator/query/exists/
 @final
 class Exists(BaseOp):
-    val: bool = Field(alias="$exists")
+    val: StrictBool = Field(alias="$exists")
 
     @override
     def __invert__(self) -> Exists:
@@ -265,27 +271,6 @@ class Size(BaseOp):
 # ------------------------------------------------------------------------------
 # Convenience helpers, constants, and utils for supported MongoDB operators
 # ------------------------------------------------------------------------------
-KEY_TO_OP: dict[str, type[BaseOp]] = {
-    "$and": And,
-    "$or": Or,
-    "$nor": Nor,
-    "$not": Not,
-    "$lt": Lt,
-    "$gt": Gt,
-    "$lte": Lte,
-    "$gte": Gte,
-    "$eq": Eq,
-    "$ne": Ne,
-    "$in": In,
-    "$nin": NotIn,
-    "$exists": Exists,
-    "$regex": Regex,
-    "$contains": Contains,
-    "$size": Size,
-    "$all": All,
-}
-
-
 # Known, implemented MongoDB operators for type annotations.
 Op = (
     And
@@ -306,3 +291,39 @@ Op = (
     | Size
     | All
 )
+
+KEY_TO_OP: dict[str, type[Op]] = {
+    "$and": And,
+    "$or": Or,
+    "$nor": Nor,
+    "$not": Not,
+    "$lt": Lt,
+    "$gt": Gt,
+    "$lte": Lte,
+    "$gte": Gte,
+    "$eq": Eq,
+    "$ne": Ne,
+    "$in": In,
+    "$nin": NotIn,
+    "$exists": Exists,
+    "$regex": Regex,
+    "$contains": Contains,
+    "$size": Size,
+    "$all": All,
+}
+
+
+def parse_logical_child(value: Any) -> Any:
+    """Parse a dict after Pydantic validates the logical-child union."""
+    if isinstance(value, dict):
+        from .filterutils import parse_filter
+
+        return parse_filter(value)
+    return value
+
+
+LogicalChild: TypeAlias = Annotated[
+    "FilterExpr | Op | dict[str, Any]",
+    AfterValidator(parse_logical_child),
+]
+"""Recognized and opaque operands of logical operators."""
