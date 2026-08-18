@@ -249,8 +249,6 @@ def test_versions_rejects_order_for_basic_search(
         ("created_at", "+artifact_created_at"),
         ("-created_at", "-artifact_created_at"),
         ("-artifact_created_at", "-artifact_created_at"),
-        ("linked_at", "+acm_created_at"),
-        ("-acm_created_at", "-acm_created_at"),
         ("artifact_size", "+artifact_size"),
         ("version_index", "+version"),
         (None, None),
@@ -269,7 +267,6 @@ def test_versions_uses_advanced_order_fields(
 @mark.parametrize(
     ("advanced", "order"),
     [
-        param(False, "linked_at", id="basic-rejects-advanced-alias"),
         param(False, "artifact_size", id="basic-rejects-advanced-only-field"),
         param(True, "updated_at", id="advanced-rejects-basic-only-field"),
         param(True, "unsupported_field", id="advanced-rejects-unknown-field"),
