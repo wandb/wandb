@@ -15,7 +15,8 @@ from typing import Any, TypeVar
 from typing_extensions import override
 
 from wandb import termerror, termlog, termwarn
-from wandb.apis.public import Sweep, SweepState
+from wandb.apis.internal import InternalApi
+from wandb.apis.public import Api, Sweep, SweepState
 from wandb.sdk.sweeps.run_state import RunState
 from wandb.sdk.sweeps.scheduler.failure_policy import Disposition, classify
 from wandb.sdk.sweeps.scheduler.optimizer import (
@@ -31,6 +32,8 @@ from wandb.wandb_agent import TERMINATING_SIGNALS, ShutdownSignal
 _RunT = TypeVar("_RunT", bound=Run)
 _T = TypeVar("_T")
 
+# Run states that can be adopted and kept driving at warm-start.
+_ADOPTABLE_STATES = [RunState.RUNNING.value, RunState.PENDING.value]
 # Terminal states, derived from `is_terminal_state` so the two stay in sync.
 _TERMINAL_STATES = [s.value for s in RunState if is_terminal_state(s)]
 
@@ -55,6 +58,15 @@ _MAX_SLOWDOWN_S = 60.0
 # Consecutive failed polls to absorb before giving up on the sweep. Rate
 # limiting doesn't count toward this.
 _MAX_CONSECUTIVE_ERRORS = 10
+
+_WARM_START_PAGE_SIZE = 200
+
+# Runs per page when polling the sweep's in-flight runs.
+_RUNS_PAGE_SIZE = 50
+
+# Sampled history points fetched per run each poll; this is the history the
+# optimizer's early-stopping decisions see.
+_HISTORY_SAMPLES = 20
 
 
 class _LoopControl(enum.Enum):
@@ -713,3 +725,171 @@ class Scheduler(ABC):
                 )
                 continue
             yield built
+
+
+class InMemoryScheduler(Scheduler):
+    """Track in-flight runs in memory and observe them by polling `Api.runs`."""
+
+    def __init__(
+        self,
+        optimizer: Optimizer,
+        sweep: Sweep,
+        options: SchedulerOptions | None = None,
+    ):
+        super().__init__(optimizer, sweep, options)
+        self._api = Api()
+        # Key: wandb run id, Value: optimizer run id
+        self._in_flight: dict[str, Any] = {}
+        # wandb run id -> storage id, captured on fetch so stop_run can target
+        # it.
+        self._storage_ids: dict[str, str] = {}
+        # Runs the last fetch saw on the server but could not build.
+        self._unreadable_run_ids: frozenset[str] = frozenset()
+
+    @override
+    def in_flight_runs(self) -> Mapping[str, Any]:
+        """The in-memory {wandb_run_id: optimizer_run_id} map."""
+        return self._in_flight
+
+    @override
+    def pop_in_flight_run(self, wandb_run_id: str) -> Any:
+        """Remove `wandb_run_id` from the map; return its optimizer id."""
+        return self._in_flight.pop(wandb_run_id, None)
+
+    @override
+    def push_in_flight_run(self, wandb_run_id: str, optimizer_run_id: Any) -> None:
+        """Add a run to the in-flight set.
+
+        Raises:
+            ValueError: If `wandb_run_id` is already in flight.
+        """
+        if wandb_run_id in self._in_flight:
+            raise ValueError(f"Run {wandb_run_id} is already in flight")
+        self._in_flight[wandb_run_id] = optimizer_run_id
+
+    @override
+    def fetch_existing_finished_runs(self) -> Iterable[RunWithMetrics]:
+        """Query the sweep's terminal runs, with their summary metrics."""
+        runs = self._sweep_runs(
+            {"state": {"$in": _TERMINAL_STATES}}, per_page=_WARM_START_PAGE_SIZE
+        )
+        return self._build_runs(
+            runs,
+            lambda run: RunWithMetrics(
+                config=RunConfig.from_values(run.config),
+                state=RunState(run.state),
+                wandb_run_id=run.id,
+                summary_metrics=run.summary_metrics,
+                history_metrics=[],
+            ),
+        )
+
+    @override
+    def fetch_existing_unfinished_runs(self) -> Iterable[Run]:
+        """Query the sweep's RUNNING/PENDING runs, without metrics."""
+        runs = self._sweep_runs(
+            {"state": {"$in": _ADOPTABLE_STATES}}, per_page=_WARM_START_PAGE_SIZE
+        )
+        return self._build_runs(
+            runs,
+            lambda run: Run(
+                config=RunConfig.from_values(run.config),
+                state=RunState(run.state),
+                wandb_run_id=run.id,
+            ),
+        )
+
+    @override
+    def fetch_active_runs(self) -> Iterable[RunWithMetrics]:
+        """Re-query tracked in-flight runs with fresh state and metrics."""
+        if not self._in_flight:
+            self._storage_ids = {}
+            self._unreadable_run_ids = frozenset()
+            return []
+        # `Api.runs` caches results by (path, filters); with a stable in-flight
+        # set the filter is identical every poll, so without flushing we'd get
+        # back the same cached Run objects with stale state/history forever
+        self._api.flush()
+        runs = self._sweep_runs({"name": {"$in": list(self._in_flight)}})
+        # Each run's config, summary and history cost their own queries, so
+        # build through `_build_runs`: one unreadable run is skipped with a
+        # warning rather than aborting the whole poll.
+        seen: set[str] = set()
+        storage_ids: dict[str, str] = {}
+        builder = self._active_run_builder(seen, storage_ids)
+        active = list(self._build_runs(runs, builder))
+        # Swap in only once the query succeeded: clearing up front would
+        # leave a failed page fetch with a half-built map, and `stop_run` would
+        # silently refuse to prune the rest.
+        self._storage_ids = storage_ids
+        self._unreadable_run_ids = frozenset(seen - storage_ids.keys())
+        return active
+
+    def _active_run_builder(
+        self,
+        seen: set[str],
+        storage_ids: dict[str, str],
+    ) -> Callable[[Any], RunWithMetrics]:
+        """Build a `RunWithMetrics`, recording what the poll saw as it goes.
+
+        Args:
+            seen: Collects the id of every run the server returned, whether or
+                not it could be built.
+            storage_ids: Collects {run id: storage id} for the runs that built,
+                for `stop_run` to target.
+        """
+
+        def build(run: Any) -> RunWithMetrics:
+            # Before building: a run that fails to read is still on the server.
+            seen.add(run.id)
+            data = RunWithMetrics(
+                config=RunConfig.from_values(run.config),
+                state=RunState(run.state),
+                wandb_run_id=run.id,
+                summary_metrics=run.summary_metrics,
+                history_metrics=run.history(
+                    keys=[self._optimizer.metric_key()],
+                    samples=_HISTORY_SAMPLES,
+                    pandas=False,
+                ),
+            )
+            storage_ids[run.id] = run.storage_id
+            return data
+
+        return build
+
+    @override
+    def unreadable_run_ids(self) -> frozenset[str]:
+        """W&B run ids the last poll saw but could not build."""
+        return self._unreadable_run_ids
+
+    @override
+    def sweep_state(self) -> SweepState:
+        """The sweep's state, re-read from the server."""
+        return self._sweep.state
+
+    @override
+    def stop_run(self, wandb_run_id: str) -> bool:
+        """Ask the server to stop the run; True if it was accepted."""
+        storage_id = self._storage_ids.get(wandb_run_id)
+        if storage_id is None:
+            return False
+        res = bool(InternalApi().stop_run(storage_id))
+        if res:
+            self._storage_ids.pop(wandb_run_id)
+        return res
+
+    def _sweep_runs(
+        self, filters: dict[str, Any], per_page: int = _RUNS_PAGE_SIZE
+    ) -> Iterable[Any]:
+        """Query the sweep's runs, with config and summary metrics prefetched.
+
+        `lazy=False` fetches the full run fragment per page,
+        so reading `config` or `summary_metrics` off a result is free.
+        """
+        return self._api.runs(
+            path=f"{self._sweep.entity}/{self._sweep.project}",
+            filters={"sweep": self._sweep.id, **filters},
+            per_page=per_page,
+            lazy=False,
+        )

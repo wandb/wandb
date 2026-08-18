@@ -305,7 +305,8 @@ class Sweep(Attrs):
         id (str): Sweep ID
         project (str): The name of the project the sweep belongs to
         config (dict): Dictionary containing the sweep configuration
-        state (str): The state of the sweep, as reported by the server.
+        state (SweepState): The state of the sweep, re-fetched from the
+            server on each access.
         expected_run_count (int): The number of expected runs for the sweep
     """
 
@@ -444,6 +445,18 @@ class Sweep(Attrs):
         3. Sweep ID
         """
         return self._attrs.get("displayName") or self.config.get("name") or self.id
+
+    @property
+    def state(self) -> SweepState:
+        """The sweep's current state, re-fetched from the server.
+
+        Each access issues a query so the value tracks a running sweep.
+
+        Raises:
+            SweepNotFoundError: If the sweep no longer exists.
+        """
+        self.load(force=True)
+        return SweepState(self._attrs.get("state"))
 
     @classmethod
     def get(
