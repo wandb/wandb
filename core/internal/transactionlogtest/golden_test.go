@@ -48,6 +48,13 @@ type goldenCorpusCase struct {
 // carry none of the three because steps are assigned downstream by
 // HistoryStepTracker in the Sender.
 //
+// Run and Exit records carry `control.mailbox_slot` because `wandb.init()`
+// and `run.finish()` wait for responses: the client's Mailbox assigns a
+// random 12-character address to each record before sending it, and the
+// Writer persists the record verbatim. `wandb beta sync` relies on the
+// persisted slot to know that a replayed Run record expects a response.
+// The values here are arbitrary but shaped like real addresses.
+//
 // If you must edit this table, regenerate the fixtures with:
 //
 //	go test ./internal/transactionlogtest -update-golden-logs
@@ -58,7 +65,8 @@ var goldenCorpus = []goldenCorpusCase{
 		// Old log with auto-assigned steps, using nested-key "_step"
 		Name: "old_auto_steps",
 		Records: []string{
-			`run { run_id: "old_auto_steps" }`,
+			`run { run_id: "old_auto_steps" }
+				control { mailbox_slot: "8kq2xw7vn3ma" }`,
 			`summary { update { nested_key: "_step" value_json: "0" } }`,
 			`history {
 				step { num: 0 }
@@ -77,7 +85,8 @@ var goldenCorpus = []goldenCorpusCase{
 				item { nested_key: "x" value_json: "2" }
 				item { nested_key: "_step" value_json: "2" }
 			}`,
-			`exit { exit_code: 0 }`,
+			`exit { exit_code: 0 }
+				control { mailbox_slot: "w4no8bh2ge5d" }`,
 		},
 	},
 	{
@@ -85,7 +94,8 @@ var goldenCorpus = []goldenCorpusCase{
 		// (pre-Go-core Python sender)
 		Name: "old_auto_steps_flat_keys",
 		Records: []string{
-			`run { run_id: "old_auto_steps_flat_keys" }`,
+			`run { run_id: "old_auto_steps_flat_keys" }
+				control { mailbox_slot: "d4jp9re6t1cu" }`,
 			`summary { update { key: "_step" value_json: "0" } }`,
 			`history {
 				step { num: 0 }
@@ -104,14 +114,16 @@ var goldenCorpus = []goldenCorpusCase{
 				item { key: "x" value_json: "2" }
 				item { key: "_step" value_json: "2" }
 			}`,
-			`exit { exit_code: 0 }`,
+			`exit { exit_code: 0 }
+				control { mailbox_slot: "k9es3xr7pf1j" }`,
 		},
 	},
 	{
 		// Old log with user-supplied explicit steps.
 		Name: "old_explicit_steps",
 		Records: []string{
-			`run { run_id: "old_explicit_steps" }`,
+			`run { run_id: "old_explicit_steps" }
+				control { mailbox_slot: "v7hm3sy5qb0e" }`,
 			`summary { update { nested_key: "_step" value_json: "0" } }`,
 			`history {
 				step { num: 0 }
@@ -130,17 +142,20 @@ var goldenCorpus = []goldenCorpusCase{
 				item { nested_key: "x" value_json: "2" }
 				item { nested_key: "_step" value_json: "10" }
 			}`,
-			`exit { exit_code: 0 }`,
+			`exit { exit_code: 0 }
+				control { mailbox_slot: "u2cy6tm9zi4v" }`,
 		},
 	},
 	{
 		// A shared-mode run has no step data in either version.
 		Name: "old_shared_mode",
 		Records: []string{
-			`run { run_id: "old_shared_mode" }`,
+			`run { run_id: "old_shared_mode" }
+				control { mailbox_slot: "2nw8fk4zj6xs" }`,
 			`history { item { nested_key: "x" value_json: "0" } }`,
 			`history { item { nested_key: "x" value_json: "1" } }`,
-			`exit { exit_code: 0 }`,
+			`exit { exit_code: 0 }
+				control { mailbox_slot: "h5ql1wd8rn3b" }`,
 		},
 	},
 	{
@@ -148,9 +163,11 @@ var goldenCorpus = []goldenCorpusCase{
 		// about steps.
 		Name: "old_no_history",
 		Records: []string{
-			`run { run_id: "old_no_history" }`,
+			`run { run_id: "old_no_history" }
+				control { mailbox_slot: "p5tc1ag8ml9r" }`,
 			`summary { update { nested_key: "score" value_json: "1.0" } }`,
-			`exit { exit_code: 0 }`,
+			`exit { exit_code: 0 }
+				control { mailbox_slot: "f3gp7yc2sl9m" }`,
 		},
 	},
 	{
@@ -158,7 +175,8 @@ var goldenCorpus = []goldenCorpusCase{
 		// must not be renumbered or warned about.
 		Name: "old_resumed_run",
 		Records: []string{
-			`run { run_id: "old_resumed_run" starting_step: 5 resumed: true }`,
+			`run { run_id: "old_resumed_run" starting_step: 5 resumed: true }
+				control { mailbox_slot: "6ybq0ud3hw2k" }`,
 			`summary { update { nested_key: "_step" value_json: "5" } }`,
 			`history {
 				step { num: 5 }
@@ -177,7 +195,8 @@ var goldenCorpus = []goldenCorpusCase{
 				item { nested_key: "x" value_json: "2" }
 				item { nested_key: "_step" value_json: "7" }
 			}`,
-			`exit { exit_code: 0 }`,
+			`exit { exit_code: 0 }
+				control { mailbox_slot: "b8nv4ke1zt6w" }`,
 		},
 	},
 	{
@@ -185,26 +204,30 @@ var goldenCorpus = []goldenCorpusCase{
 		// value is passed through without type validation, so it can contain any JSON value.
 		Name: "old_bad_step_types",
 		Records: []string{
-			`run { run_id: "old_bad_step_types" }`,
+			`run { run_id: "old_bad_step_types" }
+				control { mailbox_slot: "j1zx5vc7os4n" }`,
 			`history { item { nested_key: "_step" value_json: "\"5\"" } }`,
 			`history { item { nested_key: "_step" value_json: "5.5" } }`,
 			`history { item { nested_key: "_step" value_json: "null" } }`,
 			`history { item { nested_key: "_step" value_json: "true" } }`,
 			`history { item { nested_key: "_step" value_json: "{\"a\":1}" } }`,
 			`history { item { nested_key: "_step" value_json: "[1]" } }`,
-			`exit { exit_code: 0 }`,
+			`exit { exit_code: 0 }
+				control { mailbox_slot: "c6xr9mj3pu7k" }`,
 		},
 	},
 	{
 		// Same as "old_auto_steps", but in the new format without step data.
 		Name: "new_auto_steps",
 		Records: []string{
-			`run { run_id: "new_auto_steps" }`,
+			`run { run_id: "new_auto_steps" }
+				control { mailbox_slot: "e9rk6mf2ua8w" }`,
 			`history { item { nested_key: "x" value_json: "0" } }`,
 			`history { item { nested_key: "x" value_json: "1" } }`,
 			`history { item { nested_key: "x" value_json: "2" } }`,
 			`summary { update { nested_key: "x" value_json: "2" } }`,
-			`exit { exit_code: 0 }`,
+			`exit { exit_code: 0 }
+				control { mailbox_slot: "l2ht5qf8wb4n" }`,
 		},
 	},
 	{
@@ -212,35 +235,41 @@ var goldenCorpus = []goldenCorpusCase{
 		// still write record.Step and summary._step, but no _step item.
 		Name: "new_explicit_steps",
 		Records: []string{
-			`run { run_id: "new_explicit_steps" }`,
+			`run { run_id: "new_explicit_steps" }
+				control { mailbox_slot: "t3gd8bn1yq5h" }`,
 			`summary { update { nested_key: "_step" value_json: "0" } }`,
 			`history { step { num: 0 } item { nested_key: "x" value_json: "0" } }`,
 			`summary { update { nested_key: "_step" value_json: "5" } }`,
 			`history { step { num: 5 } item { nested_key: "x" value_json: "1" } }`,
 			`summary { update { nested_key: "_step" value_json: "10" } }`,
 			`history { step { num: 10 } item { nested_key: "x" value_json: "2" } }`,
-			`exit { exit_code: 0 }`,
+			`exit { exit_code: 0 }
+				control { mailbox_slot: "q1zd6vy4hc8p" }`,
 		},
 	},
 	{
 		// Same as "old_shared_mode"; the new format does not change anything.
 		Name: "new_shared_mode",
 		Records: []string{
-			`run { run_id: "new_shared_mode" }`,
+			`run { run_id: "new_shared_mode" }
+				control { mailbox_slot: "a7sv4pj9ek2f" }`,
 			`history { item { nested_key: "x" value_json: "0" } }`,
 			`history { item { nested_key: "x" value_json: "1" } }`,
-			`exit { exit_code: 0 }`,
+			`exit { exit_code: 0 }
+				control { mailbox_slot: "r7jw2nb5td9x" }`,
 		},
 	},
 	{
 		// A new-format log recorded with resume mode set.
 		Name: "new_resume_mode",
 		Records: []string{
-			`run { run_id: "new_resume_mode" resume_mode: true }`,
+			`run { run_id: "new_resume_mode" resume_mode: true }
+				control { mailbox_slot: "m0uh7lt4rc6z" }`,
 			`history { item { nested_key: "x" value_json: "0" } }`,
 			`history { item { nested_key: "x" value_json: "1" } }`,
 			`history { item { nested_key: "x" value_json: "2" } }`,
-			`exit { exit_code: 0 }`,
+			`exit { exit_code: 0 }
+				control { mailbox_slot: "s3km8pe1uf6y" }`,
 		},
 	},
 }
