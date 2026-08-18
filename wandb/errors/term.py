@@ -14,7 +14,6 @@ from __future__ import annotations
 import contextlib
 import logging
 import os
-import re
 import shutil
 import sys
 import threading
@@ -22,6 +21,8 @@ from collections.abc import Generator
 from typing import TYPE_CHECKING, Protocol
 
 import click
+
+from wandb.errors.ansi import wrap_ansi
 
 if TYPE_CHECKING:
     import wandb
@@ -434,10 +435,10 @@ class DynamicBlock:
         The lock must be held.
         """
         if self._lines_to_print:
-            # Trim lines before printing. This is crucial because the \x1b[Am
-            # (cursor up) sequence used when clearing the text moves up by one
-            # visual line, and the terminal may be wrapping long lines onto
-            # multiple visual lines.
+            # Wrap and trim lines before printing. This is crucial because the
+            # \x1b[Am (cursor up) sequence used when clearing the text moves up
+            # by one visual line, and the terminal may be wrapping long lines
+            # onto multiple visual lines.
             #
             # There is no ANSI escape sequence that moves the cursor up by one
             # "physical" line instead. Note that the user may resize their
@@ -445,8 +446,9 @@ class DynamicBlock:
             term_width = _shutil_get_terminal_width()
             click.echo(
                 "\n".join(
-                    _ansi_shorten(line, term_width)  #
+                    wrapped
                     for line in self._lines_to_print
+                    for wrapped in wrap_ansi(line, width=term_width, max_lines=1)
                 ),
                 file=sys.stderr,
             )
@@ -461,38 +463,6 @@ def _shutil_get_terminal_width() -> int:
     """
     columns, _ = shutil.get_terminal_size()
     return columns
-
-
-_ANSI_RE = re.compile("\x1b\\[(K|.*?m)")
-
-
-def _ansi_shorten(text: str, width: int) -> str:
-    """Shorten text potentially containing ANSI sequences to fit a width."""
-    first_ansi = _ANSI_RE.search(text)
-
-    if not first_ansi:
-        return _raw_shorten(text, width)
-
-    if first_ansi.start() > width - 3:
-        return _raw_shorten(text[: first_ansi.start()], width)
-
-    return text[: first_ansi.end()] + _ansi_shorten(
-        text[first_ansi.end() :],
-        # Key part: the ANSI sequence doesn't reduce the remaining width.
-        width - first_ansi.start(),
-    )
-
-
-def _raw_shorten(text: str, width: int) -> str:
-    """Shorten text to fit a width, replacing the end with "...".
-
-    Unlike textwrap.shorten(), this does not drop whitespace or do anything
-    smart.
-    """
-    if len(text) <= width:
-        return text
-
-    return text[: width - 3] + "..."
 
 
 def _log(
