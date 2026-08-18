@@ -1539,6 +1539,7 @@ class Run(Attrs):
             project_name=self.project,
             aliases=aliases,
             tags=tags,
+            digest_algorithm=artifact.digest_algorithm,
         )
         return artifact
 
