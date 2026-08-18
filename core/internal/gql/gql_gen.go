@@ -37,11 +37,13 @@ func (v *ArtifactAliasInput) GetArtifactCollectionName() string { return v.Artif
 type ArtifactDigestAlgorithm string
 
 const (
-	ArtifactDigestAlgorithmManifestMd5 ArtifactDigestAlgorithm = "MANIFEST_MD5"
+	ArtifactDigestAlgorithmManifestMd5    ArtifactDigestAlgorithm = "MANIFEST_MD5"
+	ArtifactDigestAlgorithmManifestXxh128 ArtifactDigestAlgorithm = "MANIFEST_XXH128"
 )
 
 var AllArtifactDigestAlgorithm = []ArtifactDigestAlgorithm{
 	ArtifactDigestAlgorithmManifestMd5,
+	ArtifactDigestAlgorithmManifestXxh128,
 }
 
 // ArtifactFileURLsArtifact includes the requested fields of the GraphQL type Artifact.
@@ -438,6 +440,7 @@ func (v *CreateArtifactCreateArtifactCreateArtifactPayload) __premarshalJSON() (
 type CreateArtifactFileSpecInput struct {
 	ArtifactID         string             `json:"artifactID"`
 	ArtifactManifestID *string            `json:"artifactManifestID"`
+	Digest             *string            `json:"digest"`
 	Md5                string             `json:"md5"`
 	Mimetype           *string            `json:"mimetype"`
 	Name               string             `json:"name"`
@@ -449,6 +452,9 @@ func (v *CreateArtifactFileSpecInput) GetArtifactID() string { return v.Artifact
 
 // GetArtifactManifestID returns CreateArtifactFileSpecInput.ArtifactManifestID, and is useful for accessing the field via an interface.
 func (v *CreateArtifactFileSpecInput) GetArtifactManifestID() *string { return v.ArtifactManifestID }
+
+// GetDigest returns CreateArtifactFileSpecInput.Digest, and is useful for accessing the field via an interface.
+func (v *CreateArtifactFileSpecInput) GetDigest() *string { return v.Digest }
 
 // GetMd5 returns CreateArtifactFileSpecInput.Md5, and is useful for accessing the field via an interface.
 func (v *CreateArtifactFileSpecInput) GetMd5() string { return v.Md5 }
