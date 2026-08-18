@@ -34,7 +34,7 @@ require (
 	github.com/rogpeppe/go-internal v1.16.0
 	github.com/shirou/gopsutil/v4 v4.26.7
 	github.com/spf13/afero v1.15.0
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.0
 	github.com/vektah/gqlparser/v2 v2.5.36
 	github.com/wandb/simplejsonext v0.0.0-20260707165459-87e0408255a5
 	go.opentelemetry.io/otel v1.45.0
@@ -109,7 +109,6 @@ require (
 	github.com/cloudflare/circl v1.6.5 // indirect
 	github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2 // indirect
 	github.com/cyphar/filepath-securejoin v0.7.0 // indirect
-	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/disintegration/imaging v1.6.2 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/envoyproxy/go-control-plane/envoy v1.37.0 // indirect
