@@ -67,8 +67,10 @@ func (t *HistoryStepTracker) ApplyHistoryStep(
 			if step < t.nextAutoStep {
 				t.logger.CaptureWarn(
 					"historystep: history _step behind running step, renumbering to keep steps monotonic",
-					"provided_step", step,
-					"assigned_step", t.nextAutoStep,
+					"provided_step",
+					step,
+					"assigned_step",
+					t.nextAutoStep,
 				)
 				item.ValueJson = strconv.FormatInt(t.nextAutoStep, 10)
 				step = t.nextAutoStep
@@ -84,8 +86,10 @@ func (t *HistoryStepTracker) ApplyHistoryStep(
 		if step < t.nextAutoStep {
 			t.logger.CaptureWarn(
 				"historystep: history _step behind running step, renumbering to keep steps monotonic",
-				"provided_step", step,
-				"assigned_step", t.nextAutoStep,
+				"provided_step",
+				step,
+				"assigned_step",
+				t.nextAutoStep,
 			)
 			record.Step.Num = t.nextAutoStep
 			step = t.nextAutoStep
