@@ -16,6 +16,7 @@ import platform
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import venv
 from dataclasses import dataclass
@@ -87,7 +88,13 @@ def assert_not_overwriting(paths: OutputPaths, force: bool) -> None:
         )
         if path.exists()
     ]
-    if not conflicts or force:
+    if not conflicts:
+        return
+
+    if force:
+        lines = ["Warning: --force will overwrite these captured fixture files:"]
+        lines.extend(f"  - {path}" for path in conflicts)
+        print("\n".join(lines), file=sys.stderr)
         return
 
     lines = [

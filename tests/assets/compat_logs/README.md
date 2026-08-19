@@ -59,4 +59,5 @@ Script outputs to `captured/offline-run-<fixture-name>/`:
 - `generate-<fixture-name>.py` (exact Python used)
 - `metadata-<fixture-name>.json` (inputs and environment details)
 
-The script refuses to overwrite existing files unless `--force` is provided, and prints a loud warning when it would overwrite.
+The script refuses to overwrite existing files unless `--force` is provided.
+With `--force`, it prints a warning before replacing files.
