@@ -22,6 +22,7 @@ import yaml
 from click.exceptions import ClickException
 
 import wandb
+from wandb.analytics.opentelemetry.opentelemetry_proxy import OpenTelemetryProxy
 import wandb.errors
 import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent
@@ -1798,8 +1799,9 @@ def launch(
 
     api = _get_cling_api()
     get_sentry().configure_scope(process_context="launch_cli")
-    service_api = ServiceApi(wandb_setup.singleton().settings)
-    telemetry_recorder = TelemetryRecorder(service_api=service_api)
+    settings = wandb_setup.singleton().settings.model_copy()
+    open_telemetry_proxy = OpenTelemetryProxy(settings=settings)
+    telemetry_recorder = TelemetryRecorder(open_telemetry_proxy=open_telemetry_proxy)
 
     if run_async and queue is not None:
         raise LaunchError(
@@ -2043,8 +2045,9 @@ def launch_agent(
         _launch.set_launch_logfile(log_file)
 
     api = _get_cling_api()
-    service_api = ServiceApi(wandb_setup.singleton().settings)
-    telemetry_recorder = TelemetryRecorder(service_api=service_api)
+    settings = wandb_setup.singleton().settings.model_copy()
+    open_telemetry_proxy = OpenTelemetryProxy(settings=settings)
+    telemetry_recorder = TelemetryRecorder(open_telemetry_proxy=open_telemetry_proxy)
     get_sentry().configure_scope(process_context="launch_agent")
     agent_config, api = _launch.resolve_agent_config(
         entity, max_jobs, queues, config, verbose
@@ -2189,8 +2192,9 @@ def scheduler(
         ctx.invoke(login, no_offline=True)
         api = InternalApi(reset=True)
 
-    service_api = ServiceApi(wandb_setup.singleton().settings)
-    telemetry_recorder = TelemetryRecorder(service_api=service_api)
+    settings = wandb_setup.singleton().settings.model_copy()
+    open_telemetry_proxy = OpenTelemetryProxy(settings=settings)
+    telemetry_recorder = TelemetryRecorder(open_telemetry_proxy=open_telemetry_proxy)
     get_sentry().configure_scope(process_context="sweep_scheduler")
     wandb.termlog("Starting a Launch Scheduler 🚀")
     from wandb.sdk.launch.sweeps import load_scheduler

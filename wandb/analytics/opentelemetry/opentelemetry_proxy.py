@@ -3,27 +3,54 @@ from __future__ import annotations
 import contextlib
 import functools
 import platform
+import threading
 import traceback
 from collections.abc import Callable
 from dataclasses import dataclass, fields
 from typing import TYPE_CHECKING, Concatenate
 
+import requests
 from opentelemetry._logs import SeverityNumber
+from opentelemetry.metrics import Counter
+from opentelemetry.sdk.metrics.export import AggregationTemporality
 from typing_extensions import Never, ParamSpec
 
-from wandb import env
-from wandb.proto.wandb_api_pb2 import ApiRequest
-from wandb.proto.wandb_otel_pb2 import (
-    LowCardinalityAttributes as LowCardinalityAttributesProto,
-)
-from wandb.proto.wandb_otel_pb2 import (
-    OpenTelemetryCounterRequest,
-    OpenTelemetryLogRequest,
-    OpenTelemetryRequest,
-)
+from wandb.sdk.wandb_settings import Settings
 
 if TYPE_CHECKING:
-    from wandb.apis.public.service_api import ServiceApi
+    from opentelemetry.sdk._logs import LoggerProvider
+    from opentelemetry.sdk.metrics import MeterProvider
+    from opentelemetry.sdk.resources import Resource
+
+# defaultExportInterval mirror: how often batched metrics/logs are flushed to
+# the backend proxy.
+_DEFAULT_EXPORT_INTERVAL_MILLIS = 60_000
+
+# defaultExportTimeout mirror: total time allowed for a single export to
+# collect and send its records.
+_DEFAULT_EXPORT_TIMEOUT_MILLIS = 5_000
+
+# httpClientTimeout mirror: per-request timeout for HTTP calls to the backend.
+_HTTP_CLIENT_TIMEOUT_SECONDS = 10
+
+# Backend OpenTelemetry proxy ingestion paths, appended to the base URL.
+_METRICS_PATH = "/sdk/otel/v1/metrics"
+_LOGS_PATH = "/sdk/otel/v1/logs"
+
+_DEFAULT_SERVICE_NAME = "sdk-wandb"
+
+# _disabled gates OpenTelemetryProxy for the whole process. Once set, no new
+# proxy is created and telemetry becomes a no-op.
+_disabled = threading.Event()
+
+
+def disable() -> None:
+    """Turn analytics off for the whole process.
+
+    Once called, `OpenTelemetryProxy.from_settings` returns `None`, so no
+    further telemetry is recorded.
+    """
+    _disabled.set()
 
 
 @dataclass(frozen=True)
@@ -169,7 +196,7 @@ def guard(
         **kwargs: _P.kwargs,
     ) -> None:
         with contextlib.suppress(Exception):
-            if self._service_api is None or not self._service_api.initialized:
+            if self._open_telemetry_proxy is None:
                 return
 
             method(self, *args, **kwargs)
@@ -192,7 +219,7 @@ class TelemetryRecorder:
 
     def __init__(
         self,
-        service_api: ServiceApi | None = None,
+        open_telemetry_proxy: OpenTelemetryProxy | None = None,
         context: TelemetryContext | None = None,
     ) -> None:
         """Initialize a TelemetryRecorder.
@@ -202,7 +229,7 @@ class TelemetryRecorder:
                 When omitted, telemetry calls are no-ops.
             context: The attributes to add to each emitted record.
         """
-        self._service_api = service_api if env.error_reporting_enabled() else None
+        self._open_telemetry_proxy = open_telemetry_proxy
         self._context = context or TelemetryContext()
 
     def with_context(
@@ -219,7 +246,7 @@ class TelemetryRecorder:
         recorder or its siblings.
         """
         return TelemetryRecorder(
-            self._service_api,
+            self._open_telemetry_proxy,
             self._context.with_attributes(
                 low_cardinality_attributes or LowCardinalityAttributes(),
                 high_cardinality_attributes or {},
@@ -238,27 +265,14 @@ class TelemetryRecorder:
         from the current context plus the low-cardinality attributes
         passed when this method is called.
         """
-        assert self._service_api is not None
+        assert self._open_telemetry_proxy is not None
 
         merged_attributes = low_cardinality_attributes.merge(
             self._context.low_cardinality_attributes
         )
-        otel_metric_request = OpenTelemetryCounterRequest(
-            name=name,
-            low_cardinality_attributes=LowCardinalityAttributesProto(
-                python_runtime=merged_attributes.python_runtime,
-                wandb_version=merged_attributes.wandb_version,
-                python_version=merged_attributes.python_version,
-                exception_type=merged_attributes.exception_type,
-            ),
-        )
-
-        self._service_api.api_publish(
-            ApiRequest(
-                open_telemetry_request=OpenTelemetryRequest(
-                    open_telemetry_counter_request=otel_metric_request,
-                ),
-            ),
+        self._open_telemetry_proxy.increment_counter(
+            name,
+            merged_attributes.as_dict(),
         )
 
     @guard
@@ -273,25 +287,17 @@ class TelemetryRecorder:
         The log record contains the attributes from the current context,
         in addition to the attributes passed when this method is called.
         """
-        assert self._service_api is not None
+        assert self._open_telemetry_proxy is not None
 
         merged_attributes = {
             **self._context.low_cardinality_attributes.as_dict(),
             **self._context.high_cardinality_attributes,
             **(attributes or {}),
         }
-        otel_log_request = OpenTelemetryLogRequest(
-            message=message,
-            attributes=merged_attributes,
-            severity=severity.value,
-        )
-
-        self._service_api.api_publish(
-            ApiRequest(
-                open_telemetry_request=OpenTelemetryRequest(
-                    open_telemetry_log_request=otel_log_request,
-                ),
-            ),
+        self._open_telemetry_proxy.log(
+            message,
+            merged_attributes,
+            severity,
         )
 
     @guard
@@ -352,6 +358,165 @@ class TelemetryRecorder:
         # or replace the exception we re-raise.
         self.exception(exc)
         raise exc
+
+
+class OpenTelemetryProxy:
+    """Exports OpenTelemetry metrics and logs to the W&B backend proxy API.
+
+    The proxy owns the OpenTelemetry SDK meter and log providers along with
+    their OTLP/HTTP exporters, and should be shut down when telemetry is no longer needed.
+
+    This class should not be used directly.
+    Instead, use the `TelemetryRecorder` class to record all telemetry.
+    """
+
+    def __init__(
+        self,
+        *,
+        settings: Settings,
+    ) -> None:
+        """Initialize the proxy and its OpenTelemetry providers.
+
+        Args:
+            settings: The settings to use to configure the proxy.
+        """
+        from opentelemetry.sdk.resources import SERVICE_NAME, Resource
+
+        if _disabled.is_set() or settings._offline:
+            return None
+
+        session = requests.Session()
+
+        resource = Resource.create({SERVICE_NAME: _DEFAULT_SERVICE_NAME})
+        self._meter_provider = self._build_meter_provider(
+            resource=resource,
+            endpoint=settings.base_url,
+            session=session,
+        )
+        self._logger_provider = self._build_logger_provider(
+            resource=resource,
+            endpoint=settings.base_url,
+            session=session,
+        )
+
+        # Counters are cached by name so the same instrument is reused across
+        # calls, avoiding duplicate-instrument warnings from the SDK.
+        self._counters: dict[str, Counter] = {}
+        self._counters_lock = threading.Lock()
+
+        # shutdown guards Shutdown so the providers are only shut down once.
+        self._shutdown = False
+        self._shutdown_lock = threading.Lock()
+
+    def _build_meter_provider(
+        self,
+        *,
+        resource: Resource,
+        endpoint: str,
+        session: requests.Session,
+    ) -> MeterProvider:
+        """Build a meter provider that exports metrics via OTLP/HTTP."""
+        from opentelemetry.exporter.otlp.proto.http.metric_exporter import (
+            OTLPMetricExporter,
+        )
+        from opentelemetry.sdk.metrics import Counter as SdkCounter
+        from opentelemetry.sdk.metrics import MeterProvider
+        from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+
+        exporter = OTLPMetricExporter(
+            endpoint=endpoint.rstrip("/") + _METRICS_PATH,
+            session=session,
+            timeout=_HTTP_CLIENT_TIMEOUT_SECONDS,
+            preferred_temporality={SdkCounter: AggregationTemporality.DELTA},
+        )
+        reader = PeriodicExportingMetricReader(
+            exporter,
+            export_interval_millis=_DEFAULT_EXPORT_INTERVAL_MILLIS,
+            export_timeout_millis=_DEFAULT_EXPORT_TIMEOUT_MILLIS,
+        )
+        return MeterProvider(resource=resource, metric_readers=[reader])
+
+    def _build_logger_provider(
+        self,
+        *,
+        resource: Resource,
+        endpoint: str,
+        session: requests.Session,
+    ) -> LoggerProvider:
+        """Build a logger provider that exports logs via OTLP/HTTP."""
+        from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
+        from opentelemetry.sdk._logs import LoggerProvider
+        from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+
+        exporter = OTLPLogExporter(
+            endpoint=endpoint.rstrip("/") + _LOGS_PATH,
+            session=session,
+            timeout=_HTTP_CLIENT_TIMEOUT_SECONDS,
+        )
+        provider = LoggerProvider(resource=resource)
+        provider.add_log_record_processor(
+            BatchLogRecordProcessor(
+                exporter,
+                schedule_delay_millis=_DEFAULT_EXPORT_INTERVAL_MILLIS,
+                export_timeout_millis=_DEFAULT_EXPORT_TIMEOUT_MILLIS,
+            )
+        )
+        return provider
+
+    def increment_counter(
+        self,
+        name: str,
+        attributes: dict[str, str] | None = None,
+    ) -> None:
+        """Increment the counter metric `name` by 1 with the given attributes."""
+        if self._shutdown:
+            return
+
+        counter = self._counter(name)
+        counter.add(1, attributes or {})
+
+    def _counter(self, name: str) -> Counter:
+        with self._counters_lock:
+            counter = self._counters.get(name)
+            if counter is None:
+                meter = self._meter_provider.get_meter(_DEFAULT_SERVICE_NAME)
+                counter = meter.create_counter(name)
+                self._counters[name] = counter
+            return counter
+
+    def log(
+        self,
+        body: str,
+        attributes: dict[str, str] | None = None,
+        severity: SeverityNumber = SeverityNumber.INFO,
+    ) -> None:
+        """Emit a log record with the given body, attributes, and severity."""
+        if self._shutdown:
+            return
+
+        logger = self._logger_provider.get_logger(_DEFAULT_SERVICE_NAME)
+        logger.emit(
+            body=body,
+            severity_number=severity,
+            severity_text=severity.name,
+            attributes=attributes or {},
+        )
+
+    def shutdown(self, timeout_millis: float = 30_000) -> None:
+        """Flush pending records and shut down the providers.
+
+        After this returns, the proxy becomes a no-op. Additional calls are
+        ignored. Should be called once when telemetry is no longer needed.
+        """
+        with self._shutdown_lock:
+            if self._shutdown:
+                return
+            self._shutdown = True
+
+        with contextlib.suppress(Exception):
+            self._meter_provider.shutdown(timeout_millis=timeout_millis)
+        with contextlib.suppress(Exception):
+            self._logger_provider.shutdown()
 
 
 def _exception_stacktrace(exc: Exception) -> str:
