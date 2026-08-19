@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"path/filepath"
 	"slices"
+	"sync"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -29,7 +30,8 @@ type RunSyncOperation struct {
 	logFile *DebugSyncLogFile
 	logger  *observability.CoreLogger
 
-	telemetryProxy *analytics.OpenTelemetryProxy
+	telemetryProxy  *analytics.OpenTelemetryProxy
+	featureProvider analytics.ServerFeatureProvider
 }
 
 func (f *RunSyncOperationFactory) New(
@@ -78,6 +80,9 @@ func (f *RunSyncOperationFactory) New(
 			MakeSyncSettings(globalSettings, userPath),
 			op.logger.With([]any{"sync_path", userPath}, nil),
 		)
+		if op.featureProvider == nil {
+			op.featureProvider = factory.SenderFactory.FeatureProvider
+		}
 
 		op.syncers = append(op.syncers,
 			factory.New(path, ToDisplayPath(userPath, cwd), updates, live))
@@ -91,9 +96,35 @@ func (op *RunSyncOperation) Do(
 	ctx context.Context,
 	parallelism int,
 ) *spb.ServerSyncResponse {
+	activationCtx, cancelActivation := context.WithCancel(ctx)
+	var activationWG sync.WaitGroup
+	activationWG.Add(1)
+	go func() {
+		defer activationWG.Done()
+		op.telemetryProxy.EnableIfSupported(
+			activationCtx,
+			op.featureProvider,
+		)
+	}()
+
 	defer func() {
+		cancelActivation()
+		activationWG.Wait()
 		op.logFile.Close()
 		op.printer.Close()
+		if op.telemetryProxy != nil {
+			shutdownCtx, cancelShutdown := context.WithTimeout(
+				context.Background(),
+				2*time.Second,
+			)
+			defer cancelShutdown()
+			if err := op.telemetryProxy.Shutdown(shutdownCtx); err != nil {
+				slog.Error(
+					"runsync: failed to shutdown telemetry proxy",
+					"error", err,
+				)
+			}
+		}
 	}()
 
 	plan, err := op.initAndPlan(ctx)
@@ -124,12 +155,6 @@ func (op *RunSyncOperation) Do(
 	}
 
 	_ = group.Wait()
-
-	if op.telemetryProxy != nil {
-		if err := op.telemetryProxy.Shutdown(ctx); err != nil {
-			slog.Error("runsync: failed to shutdown telemetry proxy", "error", err)
-		}
-	}
 
 	return &spb.ServerSyncResponse{
 		Messages: op.popMessages(),

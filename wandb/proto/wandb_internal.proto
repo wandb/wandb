@@ -1692,4 +1692,7 @@ enum ServerFeature {
   // Indicates that the server supports the enqueueSweepRun mutation, used by
   // the local sweep scheduler to enqueue runs.
   SWEEPS_LOCAL_SCHEDULER = 35;
+
+  // Indicates that the deployment exposes the SDK OpenTelemetry proxy routes.
+  SDK_TELEMETRY_PROXY = 36;
 }

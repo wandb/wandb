@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"runtime"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/wandb/wandb/core/internal/httplayers"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 const (
@@ -42,9 +44,18 @@ const (
 
 	// httpClientTimeout is the timeout for HTTP requests to the backend.
 	httpClientTimeout = 10 * time.Second
+	// featureCheckTimeout bounds the best-effort server capability lookup.
+	featureCheckTimeout = 5 * time.Second
 
 	metricsPath = "/sdk/otel/v1/metrics"
 	logsPath    = "/sdk/otel/v1/logs"
+)
+
+const (
+	proxyStateUnresolved uint32 = iota
+	proxyStateChecking
+	proxyStateEnabled
+	proxyStateDisabled
 )
 
 // ConfigureOTelErrorHandler routes OpenTelemetry SDK errors to the core logger.
@@ -378,16 +389,130 @@ type OpenTelemetryProxy struct {
 	// This is used to identify the service in the OpenTelemetry backend.
 	serviceName string
 
+	// state tracks whether the server supports the SDK telemetry proxy.
+	state atomic.Uint32
+	// lifecycleMu coordinates initialization with shutdown.
+	lifecycleMu sync.Mutex
+
 	// shutdown guards Shutdown so the providers are only shut down once.
 	shutdown atomic.Bool
+}
+
+type telemetryProxyTransport struct {
+	next  http.RoundTripper
+	state *atomic.Uint32
+}
+
+func (t *telemetryProxyTransport) RoundTrip(
+	request *http.Request,
+) (*http.Response, error) {
+	if t.state.Load() != proxyStateEnabled {
+		if request.Body != nil {
+			_ = request.Body.Close()
+		}
+		return &http.Response{
+			Status:        "200 OK",
+			StatusCode:    http.StatusOK,
+			Header:        make(http.Header),
+			Body:          http.NoBody,
+			ContentLength: 0,
+			Request:       request,
+		}, nil
+	}
+
+	response, err := t.next.RoundTrip(request)
+	if err == nil && response != nil &&
+		(response.StatusCode == http.StatusNotFound ||
+			response.StatusCode == http.StatusMethodNotAllowed) {
+		t.state.Store(proxyStateDisabled)
+	}
+	return response, err
+}
+
+// ServerFeatureProvider reports capabilities advertised by the W&B backend.
+type ServerFeatureProvider interface {
+	Enabled(context.Context, spb.ServerFeature) bool
+}
+
+// EnableIfSupported enables this proxy if the backend advertises the SDK
+// telemetry proxy capability. Missing capabilities and lookup failures leave
+// the proxy disabled.
+func (o *OpenTelemetryProxy) EnableIfSupported(
+	ctx context.Context,
+	featureProvider ServerFeatureProvider,
+) {
+	EnableProxiesIfSupported(ctx, featureProvider, o)
+}
+
+// EnableProxiesIfSupported enables each unresolved proxy if the backend
+// advertises the SDK telemetry proxy capability. The capability is resolved
+// once and shared by all proxies, preventing duplicate network lookups.
+// Missing capabilities and lookup failures leave every proxy disabled.
+func EnableProxiesIfSupported(
+	ctx context.Context,
+	featureProvider ServerFeatureProvider,
+	proxies ...*OpenTelemetryProxy,
+) {
+	checking := make([]*OpenTelemetryProxy, 0, len(proxies))
+	for _, proxy := range proxies {
+		if proxy != nil && proxy.state.CompareAndSwap(
+			proxyStateUnresolved,
+			proxyStateChecking,
+		) {
+			checking = append(checking, proxy)
+		}
+	}
+	if len(checking) == 0 {
+		return
+	}
+
+	supported := false
+	if featureProvider != nil {
+		checkCtx, cancel := context.WithTimeout(ctx, featureCheckTimeout)
+		supported = featureProvider.Enabled(
+			checkCtx,
+			spb.ServerFeature_SDK_TELEMETRY_PROXY,
+		)
+		cancel()
+	}
+
+	for _, proxy := range checking {
+		proxy.finishEnable(ctx, supported)
+	}
+}
+
+func (o *OpenTelemetryProxy) finishEnable(ctx context.Context, supported bool) {
+	if !supported {
+		o.state.Store(proxyStateDisabled)
+		return
+	}
+
+	o.lifecycleMu.Lock()
+	defer o.lifecycleMu.Unlock()
+	if o.shutdown.Load() || ctx.Err() != nil {
+		o.state.Store(proxyStateDisabled)
+		return
+	}
+
+	if err := o.initializeOTelResources(ctx); err != nil {
+		slog.Debug(
+			"analytics: failed to initialize OpenTelemetry proxy",
+			"error", err,
+		)
+		o.state.Store(proxyStateDisabled)
+		return
+	}
+	o.state.Store(proxyStateEnabled)
 }
 
 // NewOpenTelemetryProxy returns an OpenTelemetryProxy for the given endpoint.
 //
 // When analytics is disabled, the wandbSettings are offline, or no credentials
 // are available, a nil pointer is returned, making calls to the proxy a no-op.
+// Otherwise, the proxy remains inert until EnableIfSupported confirms that the
+// deployment exposes the SDK telemetry routes.
 func NewOpenTelemetryProxy(
-	ctx context.Context,
+	_ context.Context,
 	wandbSettings *settings.Settings,
 	serviceName string,
 ) *OpenTelemetryProxy {
@@ -412,8 +537,9 @@ func NewOpenTelemetryProxy(
 		httpClient:  httpClient,
 		serviceName: serviceName,
 	}
-	if err := proxy.initializeOTelResources(ctx); err != nil {
-		return nil
+	proxy.httpClient.Transport = &telemetryProxyTransport{
+		next:  proxy.httpClient.Transport,
+		state: &proxy.state,
 	}
 	return proxy
 }
@@ -581,13 +707,21 @@ func shutdownTelemetryProviders(
 // It should be called once when telemetry is no longer needed.
 // Additional calls to Shutdown are no-ops.
 func (o *OpenTelemetryProxy) Shutdown(ctx context.Context) error {
-	if o == nil || !o.shutdown.CompareAndSwap(false, true) {
+	if o == nil {
+		return nil
+	}
+
+	o.lifecycleMu.Lock()
+	defer o.lifecycleMu.Unlock()
+	if !o.shutdown.CompareAndSwap(false, true) {
 		return nil
 	}
 
 	meterProvider := o.meterProvider
 	logProvider := o.logProvider
-	return shutdownTelemetryProviders(ctx, meterProvider, logProvider)
+	err := shutdownTelemetryProviders(ctx, meterProvider, logProvider)
+	o.state.Store(proxyStateDisabled)
+	return err
 }
 
 // incrementCounter increments a counter metric by 1.
@@ -596,7 +730,7 @@ func (o *OpenTelemetryProxy) incrementCounter(
 	name string,
 	lowCardinalityAttributes LowCardinalityAttributes,
 ) {
-	if o == nil {
+	if o == nil || o.state.Load() != proxyStateEnabled || o.shutdown.Load() {
 		return
 	}
 
@@ -617,7 +751,7 @@ func (o *OpenTelemetryProxy) log(
 	attributes map[string]string,
 	severity otellogapi.Severity,
 ) {
-	if o == nil {
+	if o == nil || o.state.Load() != proxyStateEnabled || o.shutdown.Load() {
 		return
 	}
 

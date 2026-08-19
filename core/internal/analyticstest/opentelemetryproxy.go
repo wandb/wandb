@@ -58,6 +58,15 @@ type OpenTelemetryProxyTest struct {
 	requests []Request
 }
 
+type supportedFeatureProvider struct{}
+
+func (supportedFeatureProvider) Enabled(
+	_ context.Context,
+	feature spb.ServerFeature,
+) bool {
+	return feature == spb.ServerFeature_SDK_TELEMETRY_PROXY
+}
+
 // Requests returns a snapshot of received HTTP requests.
 func (s *OpenTelemetryProxyTest) Requests() []Request {
 	s.mu.Lock()
@@ -94,6 +103,22 @@ func (s *OpenTelemetryProxyTest) FindMetric(name string) (Metric, bool) {
 //
 // Call Shutdown before asserting exports to flush the proxy's batch processors.
 func NewOpenTelemetryProxyTest(
+	t *testing.T,
+) *OpenTelemetryProxyTest {
+	testProxy := newOpenTelemetryProxyTest(t)
+	testProxy.EnableIfSupported(t.Context(), supportedFeatureProvider{})
+	return testProxy
+}
+
+// NewUnenabledOpenTelemetryProxyTest creates an OpenTelemetry proxy without
+// confirming that its backend supports SDK telemetry.
+func NewUnenabledOpenTelemetryProxyTest(
+	t *testing.T,
+) *OpenTelemetryProxyTest {
+	return newOpenTelemetryProxyTest(t)
+}
+
+func newOpenTelemetryProxyTest(
 	t *testing.T,
 ) *OpenTelemetryProxyTest {
 	t.Helper()
