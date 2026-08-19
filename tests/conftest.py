@@ -94,7 +94,7 @@ def copy_asset(
 def compat_log(assets_path) -> Callable[[str], Path]:
     """Returns the path to a committed transaction-log compatibility fixture.
 
-    These live under tests/assets/compat_logs and pin the on-disk shape of
+    These live under tests/assets/compat_logs/synthesized and pin the on-disk shape of
     .wandb files across the format change in wandb PR #12110; see
     tests/assets/compat_logs/README.md. The Go-side source of truth is the
     goldenCorpus table in core/internal/transactionlogtest/golden_test.go.
@@ -106,7 +106,9 @@ def compat_log(assets_path) -> Callable[[str], Path]:
     """
 
     def compat_log_fn(name: str) -> Path:
-        return assets_path(f"compat_logs/offline-run-{name}/run-{name}.wandb")
+        return assets_path(
+            f"compat_logs/synthesized/offline-run-{name}/run-{name}.wandb"
+        )
 
     return compat_log_fn
 

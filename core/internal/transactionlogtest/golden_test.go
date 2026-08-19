@@ -19,12 +19,12 @@ import (
 var updateGoldenLogs = flag.Bool(
 	"update-golden-logs",
 	false,
-	"regenerate tests/assets/compat_logs from goldenCorpus instead of"+
+	"regenerate tests/assets/compat_logs/synthesized from goldenCorpus instead of"+
 		" checking that it's up to date",
 )
 
 // goldenCorpusCase is defines an entry in the set of synthetic fixtures under
-// tests/assets/compat_logs.
+// tests/assets/compat_logs/synthesized.
 type goldenCorpusCase struct {
 	// Name is the fixture name and the run ID used in its records.
 	Name string
@@ -34,7 +34,7 @@ type goldenCorpusCase struct {
 }
 
 // goldenCorpus is the source of truth for the set of synthetic fixtures under
-// tests/assets/compat_logs.
+// tests/assets/compat_logs/synthesized.
 //
 // Each entry represents a .wandb transaction log written by a specific SDK
 // version. Assume by default that the fixture is correct. Do not edit these
@@ -292,7 +292,7 @@ func TestGoldenLogs_UpToDate(t *testing.T) {
 				goldenLogPath(generatedDir, c.Name),
 				dst)
 		}
-		t.Skip("regenerated tests/assets/compat_logs;" +
+		t.Skip("regenerated tests/assets/compat_logs/synthesized;" +
 			" re-run without -update-golden-logs to verify")
 	}
 
@@ -325,7 +325,8 @@ func TestGoldenLogs_UpToDate(t *testing.T) {
 	for _, c := range goldenCorpus {
 		corpusNames[c.Name] = struct{}{}
 	}
-	err := filepath.WalkDir(goldenLogDir(), func(path string, d fs.DirEntry, err error) error {
+	compatLogsRoot := filepath.Dir(goldenLogDir())
+	err := filepath.WalkDir(compatLogsRoot, func(path string, d fs.DirEntry, err error) error {
 		require.NoError(t, err)
 		if d.IsDir() {
 			return nil
@@ -334,18 +335,23 @@ func TestGoldenLogs_UpToDate(t *testing.T) {
 			return nil
 		}
 
-		rel, err := filepath.Rel(goldenLogDir(), path)
+		rel, err := filepath.Rel(compatLogsRoot, path)
 		require.NoError(t, err)
-		if strings.HasPrefix(rel, "provenance"+string(filepath.Separator)) {
+		if strings.HasPrefix(rel, "captured"+string(filepath.Separator)) {
 			return nil
 		}
 
 		dir := filepath.Dir(rel)
-		if !strings.HasPrefix(dir, "offline-run-") {
+		if !strings.HasPrefix(dir, "synthesized"+string(filepath.Separator)) {
+			t.Errorf("unexpected .wandb file outside synthesized/offline-run-*: %s", rel)
+			return nil
+		}
+		synthesizedDir := strings.TrimPrefix(dir, "synthesized"+string(filepath.Separator))
+		if !strings.HasPrefix(synthesizedDir, "offline-run-") {
 			t.Errorf("unexpected .wandb file outside offline-run-*: %s", rel)
 			return nil
 		}
-		name := strings.TrimPrefix(dir, "offline-run-")
+		name := strings.TrimPrefix(synthesizedDir, "offline-run-")
 		if _, ok := corpusNames[name]; !ok {
 			t.Errorf(
 				"%s: committed fixture has no goldenCorpus entry; add one or"+

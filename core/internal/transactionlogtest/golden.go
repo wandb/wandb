@@ -15,15 +15,17 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// goldenLogDir returns the absolute path to tests/assets/compat_logs.
+// goldenLogDir returns the absolute path to the synthesized fixtures under
+// tests/assets/compat_logs.
 func goldenLogDir() string {
-	// Use current file's location to find tests/assets/compat_logs.
+	// Use current file's location to find tests/assets/compat_logs/synthesized.
 	_, thisFile, _, ok := runtime.Caller(0)
 	if !ok {
 		panic("transactionlogtest: could not determine source file path")
 	}
 	return filepath.Join(
-		filepath.Dir(thisFile), "..", "..", "..", "tests", "assets", "compat_logs")
+		filepath.Dir(thisFile),
+		"..", "..", "..", "tests", "assets", "compat_logs", "synthesized")
 }
 
 // goldenLogPath returns the path to a golden fixture named `name` under `rootDir`.
@@ -32,7 +34,7 @@ func goldenLogPath(rootDir string, name string) string {
 }
 
 // GoldenLogPath returns the path to a committed golden .wandb fixture under
-// tests/assets/compat_logs.
+// tests/assets/compat_logs/synthesized.
 func GoldenLogPath(t *testing.T, name string) string {
 	t.Helper()
 
