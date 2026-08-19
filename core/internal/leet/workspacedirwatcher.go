@@ -189,10 +189,7 @@ func (w *Workspace) handleWorkspaceRunDirs(msg WorkspaceRunDirsMsg) tea.Cmd {
 	w.enqueueMissingRunOverviews(msg.RunKeys)
 
 	startCmd := w.startRunOverviewPreloadsCmd()
-	if startCmd == nil {
-		return pollCmd
-	}
-	return tea.Batch(pollCmd, startCmd, selectLatestCmd)
+	return batchCmds(pollCmd, startCmd, selectLatestCmd)
 }
 
 // enqueueMissingRunOverviews queues runs that don't yet have overview state and
@@ -282,18 +279,24 @@ func (w *Workspace) handleWorkspaceRunOverviewPreloaded(
 ) tea.Cmd {
 	w.overviewPreloader.MarkDone(msg.RunKey)
 
-	if msg.Err == nil && msg.Run != nil && msg.Run.ID != "" {
+	_, streaming := w.runsByKey[msg.RunKey]
+
+	switch {
+	case msg.Err == nil && msg.Run != nil && msg.Run.ID != "" && streaming:
+		// A selected run streams its own records; don't let a stale preload
+		// snapshot overwrite the live overview (e.g., reset its state).
+
+	case msg.Err == nil && msg.Run != nil && msg.Run.ID != "":
 		ro := w.getOrCreateRunOverview(msg.RunKey)
-		if msg.Run != nil {
-			ro.ProcessRunMsg(*msg.Run)
-			w.indexRunFilterData(msg.RunKey, *msg.Run)
-		}
+		ro.ProcessRunMsg(*msg.Run)
+		w.indexRunFilterData(msg.RunKey, *msg.Run)
 		if w.filter.Query() != "" {
 			w.applyRunFilter()
 		}
 		// We don't know the final state of this run after a pre-load.
 		ro.SetRunState(RunStateUnknown)
-	} else if msg.Err != nil && !errors.Is(msg.Err, errRunRecordNotFound) && !os.IsNotExist(msg.Err) {
+
+	case msg.Err != nil && !errors.Is(msg.Err, errRunRecordNotFound) && !os.IsNotExist(msg.Err):
 		// Best-effort logging for unexpected failures; avoid spamming for
 		// "file not ready yet" or missing run records.
 		err := fmt.Errorf("workspace: preload run overview for %s: %v", msg.RunKey, msg.Err)
