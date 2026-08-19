@@ -19,6 +19,7 @@ from ._utils import (
     ADVANCED_COLLECTIONS_FILTER_ALIASES,
     ADVANCED_REGISTRIES_FILTER_ALIASES,
     ADVANCED_VERSIONS_FILTER_ALIASES,
+    ADVANCED_VERSIONS_ORDER_ALIASES,
     BASIC_COLLECTIONS_FILTER_ALIASES,
     BASIC_REGISTRIES_FILTER_ALIASES,
     BASIC_VERSIONS_FILTER_ALIASES,
@@ -93,7 +94,7 @@ _CollectionOrder: TypeAlias = Annotated[
 ]
 _VersionOrder: TypeAlias = Annotated[
     str,
-    OrderValidator(valid=ADVANCED_VERSIONS_FILTER_ALIASES),
+    OrderValidator(valid=ADVANCED_VERSIONS_ORDER_ALIASES),
 ]
 
 
@@ -305,7 +306,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
         if (registry_order := self.order) and start:
             msg = (
                 f"{start=} is not supported when querying versions from registries "
-                f"fetched with {registry_order=}. Remove either 'order' from the registries "
+                f"fetched with order={registry_order!r}. Remove either 'order' from the registries "
                 "query or 'start' from the versions query."
             )
             raise ValueError(msg)
@@ -446,7 +447,7 @@ class Collections(
         if (collection_order := self.order) and start:
             msg = (
                 f"{start=} is not supported when querying versions from collections "
-                f"fetched with {collection_order=}. Remove either 'order' from the collections "
+                f"fetched with order={collection_order!r}. Remove either 'order' from the collections "
                 "query or 'start' from the versions query."
             )
             raise ValueError(msg)

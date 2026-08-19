@@ -845,7 +845,7 @@ def test_registries_versions(
             UnsupportedError,
             match="Ordering registry versions is not supported for this organization.",
         ):
-            registries.versions(order="version")
+            registries.versions(order="created_at")
 
     versions = sorted(registries.versions(), key=lambda v: v.name)
     assert len(versions) == len(source_artifacts)
