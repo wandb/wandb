@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -18,6 +19,11 @@ func (r *Run) handleRecordMsg(msg tea.Msg) tea.Cmd {
 		r.logger.Debug(fmt.Sprintf("perf: processRecordMsg(%T) took %s", msg, time.Since(start)))
 	}()
 	defer r.resolveFocusAfterData()
+
+	// Anything the reader produced counts as proof of life for the crash
+	// check. Terminal messages (FileComplete, Error) also land here, but
+	// they leave RunStateRunning, after which lastUpdateAt is irrelevant.
+	r.lastUpdateAt = time.Now()
 
 	switch msg := msg.(type) {
 	case RunMsg:
@@ -952,6 +958,12 @@ func (r *Run) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 			)
 		} else {
 			r.logger.Info("model: watcher started successfully")
+			// Seed the staleness clock from the file so a run that died
+			// before LEET started is caught on the first heartbeat rather
+			// than a full RunCrashTimeout later.
+			if info, err := os.Stat(r.runParams.RunFile); err == nil {
+				r.lastUpdateAt = info.ModTime()
+			}
 			r.heartbeatMgr.Start(r.isRunning)
 			cmds = append(cmds, r.watcherMgr.WaitForMsg)
 		}
@@ -980,6 +992,12 @@ func (r *Run) handleHeartbeat() []tea.Cmd {
 		r.heartbeatMgr.Stop()
 		return nil
 	}
+	if r.presumedCrashed() {
+		r.markPresumedCrashed()
+		// Keep listening: if the writer comes back, handleFileChange
+		// revives the run.
+		return []tea.Cmd{r.watcherMgr.WaitForMsg}
+	}
 	r.heartbeatMgr.Reset(r.isRunning)
 	return []tea.Cmd{
 		r.ReadLiveBatchCmd(r.historySource),
@@ -987,8 +1005,30 @@ func (r *Run) handleHeartbeat() []tea.Cmd {
 	}
 }
 
+// presumedCrashed reports whether a live run's transaction log has been
+// silent long enough to presume the writer is gone.
+func (r *Run) presumedCrashed() bool {
+	return !r.lastUpdateAt.IsZero() && time.Since(r.lastUpdateAt) > RunCrashTimeout
+}
+
+// markPresumedCrashed mirrors the server's stale-runs sweep: a running run
+// that stopped writing without an exit record is moved to the crashed state.
+func (r *Run) markPresumedCrashed() {
+	r.logger.Info(fmt.Sprintf(
+		"model: no transaction log updates in %v, presuming the run crashed",
+		time.Since(r.lastUpdateAt).Round(time.Second)))
+	r.setRunState(RunStateCrashed)
+	r.heartbeatMgr.Stop()
+}
+
 // handleFileChange coalesces change notifications into a read.
 func (r *Run) handleFileChange() []tea.Cmd {
+	if r.runState == RunStateCrashed {
+		// The writer came back: revive the presumed-crashed run.
+		r.logger.Info("model: transaction log updated, reviving crashed run")
+		r.lastUpdateAt = time.Now()
+		r.setRunState(RunStateRunning)
+	}
 	if r.runState != RunStateRunning {
 		return nil
 	}
