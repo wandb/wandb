@@ -553,6 +553,7 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
             if order is not None:
                 raise UnsupportedError(
                     "Ordering registry versions is not supported for this organization."
+                    "If you have any questions, please contact support at support@wandb.com."
                 )
             args = _BasicVersionsVars(**shared_args)
 
