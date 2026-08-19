@@ -217,6 +217,7 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 
 	s.stepTracker = (&HistoryStepTrackerFactory{
 		Logger:     s.logger,
+		Printer:    s.printer,
 		Settings:   s.settings,
 		RunSummary: s.runSummary,
 		RunHandle:  s.runHandle,
@@ -404,6 +405,8 @@ func (s *Sender) sendRequest(
 		// TODO: implement this
 	case *spb.Request_StopStatus:
 		s.sendRequestStopStatus(request)
+	case *spb.Request_HistoryStep:
+		s.sendRequestHistoryStep(request)
 	case *spb.Request_JobInput:
 		s.sendRequestJobInput(x.JobInput)
 	case nil:
@@ -825,7 +828,10 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 		return
 	}
 
-	summaryUpdates := s.stepTracker.ApplyHistoryStep(record)
+	summaryUpdates, ok := s.stepTracker.ApplyHistoryStep(record)
+	if !ok {
+		return
+	}
 	if s.fileStream == nil {
 		return
 	}
@@ -1164,6 +1170,16 @@ func (s *Sender) sendArtifact(_ *spb.Record, msg *spb.ArtifactRecord) {
 			)
 		}
 	}()
+}
+
+func (s *Sender) sendRequestHistoryStep(request *runwork.Request) {
+	s.respond(request, &spb.Response{
+		ResponseType: &spb.Response_HistoryStepResponse{
+			HistoryStepResponse: &spb.HistoryStepResponse{
+				Step: s.stepTracker.NextStep(),
+			},
+		},
+	})
 }
 
 func (s *Sender) sendRequestLogArtifact(
