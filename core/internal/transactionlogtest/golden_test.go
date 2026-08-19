@@ -263,7 +263,7 @@ var goldenCorpus = []goldenCorpusCase{
 		// A new-format log recorded with resume mode set.
 		Name: "new_resume_mode",
 		Records: []string{
-			`run { run_id: "new_resume_mode" resume_mode: true }
+			`run { run_id: "new_resume_mode" resume: true }
 				control { mailbox_slot: "m0uh7lt4rc6z" }`,
 			`history { item { nested_key: "x" value_json: "0" } }`,
 			`history { item { nested_key: "x" value_json: "1" } }`,
