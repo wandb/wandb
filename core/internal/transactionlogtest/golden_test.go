@@ -48,13 +48,6 @@ type goldenCorpusCase struct {
 // carry none of the three because steps are assigned downstream by
 // HistoryStepTracker in the Sender.
 //
-// Run and Exit records carry `control.mailbox_slot` because `wandb.init()`
-// and `run.finish()` wait for responses: the client's Mailbox assigns a
-// random 12-character address to each record before sending it, and the
-// Writer persists the record verbatim. `wandb beta sync` relies on the
-// persisted slot to know that a replayed Run record expects a response.
-// The values here are arbitrary but shaped like real addresses.
-//
 // If you must edit this table, regenerate the fixtures with:
 //
 //	go test ./internal/transactionlogtest -update-golden-logs
