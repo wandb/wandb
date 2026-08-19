@@ -83,14 +83,9 @@ type Handler struct {
 	// partialHistory is a set of run metrics accumulated for the current step.
 	partialHistory *runhistory.RunHistory
 
-	// partialHistoryStep tracks the history step when it was explicitly
-	// set by the user. It may be modified from the user-provided step because
-	// it must be monotonically increasing.
-	partialHistoryStep int64
-
-	// partialHistoryStepIsExplicit is true when the current partial-history
-	// batch was opened by a user-provided PartialHistoryRequest.Step.
-	partialHistoryStepIsExplicit bool
+	// partialHistoryUserStep is the user-provided step for the current batch.
+	// When nil, the sender's HistoryStepTracker assigns the step.
+	partialHistoryUserStep *int64
 
 	// pollExitLogRateLimit limits log messages when handling PollExit requests
 	pollExitLogRateLimit *rate.Limiter
@@ -291,7 +286,7 @@ func (h *Handler) handleRequest(
 	case *spb.Request_NetworkStatus:
 		h.handleRequestNetworkStatus(record, request)
 	case *spb.Request_HistoryStep:
-		h.handleHistoryStepRequest(x.HistoryStep, request)
+		h.handleHistoryStepRequest(record, x.HistoryStep, request)
 	case *spb.Request_PartialHistory:
 		h.handleRequestPartialHistory(record, x.PartialHistory)
 	case *spb.Request_PollExit:
@@ -737,9 +732,6 @@ func (h *Handler) handleExit(
 	// Flush any history data---any further history records must
 	// be configured to flush.
 	h.flushPartialHistory()
-	if !h.settings.IsSharedMode() {
-		h.partialHistoryStep++
-	}
 
 	if record.Control == nil {
 		record.Control = &spb.Control{}
@@ -915,6 +907,7 @@ func (h *Handler) handleRequestNetworkStatus(
 
 // handleHistoryStepRequest responds with the current W&B step.
 func (h *Handler) handleHistoryStepRequest(
+	record *spb.Record,
 	_ *spb.HistoryStepRequest, // proves 'request' is a history step request
 	request *runwork.Request,
 ) {
@@ -929,13 +922,18 @@ func (h *Handler) handleHistoryStepRequest(
 		return
 	}
 
-	h.respond(request, &spb.Response{
-		ResponseType: &spb.Response_HistoryStepResponse{
-			HistoryStepResponse: &spb.HistoryStepResponse{
-				Step: h.partialHistoryStep,
+	if h.partialHistoryUserStep != nil {
+		h.respond(request, &spb.Response{
+			ResponseType: &spb.Response_HistoryStepResponse{
+				HistoryStepResponse: &spb.HistoryStepResponse{
+					Step: *h.partialHistoryUserStep,
+				},
 			},
-		},
-	})
+		})
+		return
+	}
+
+	h.fwdRecord(record, request)
 }
 
 // handleRequestPartialHistory updates the run history, flushing data for
@@ -990,38 +988,16 @@ func (h *Handler) handlePartialHistoryAsync(request *spb.PartialHistoryRequest) 
 func (h *Handler) handlePartialHistorySync(request *spb.PartialHistoryRequest) {
 	if h.partialHistory == nil {
 		h.partialHistory = runhistory.New()
-		h.partialHistoryStep = h.runRecord.GetStartingStep()
 	}
 
 	hasExplicitStep := request.GetStep() != nil
 
 	if hasExplicitStep {
 		step := request.Step.GetNum()
-
-		switch {
-		case step < h.partialHistoryStep:
-			h.logger.Warn(
-				"handler: ignoring partial history record",
-				"step", step,
-				"current", h.partialHistoryStep,
-			)
-			h.terminalPrinter.Warnf(
-				"Tried to log to step %d that is less than the current"+
-					" step %d. Steps must be monotonically increasing, so"+
-					" this data will be ignored. See"+
-					" https://wandb.me/define-metric to log data out of"+
-					" order.",
-				step, h.partialHistoryStep,
-			)
-			return
-
-		case step > h.partialHistoryStep:
-			// The step advanced, so the previous step's batch is complete.
+		if h.partialHistoryUserStep == nil || step != *h.partialHistoryUserStep {
 			h.flushPartialHistory()
-			h.partialHistoryStep = step
+			h.partialHistoryUserStep = &step
 		}
-
-		h.partialHistoryStepIsExplicit = true
 	}
 
 	for _, item := range request.GetItem() {
@@ -1043,14 +1019,10 @@ func (h *Handler) handlePartialHistorySync(request *spb.PartialHistoryRequest) {
 
 	if shouldFlush {
 		h.flushPartialHistory()
-		h.partialHistoryStep++
 	}
 }
 
 // flushPartialHistory emits and resets the accumulated run history.
-//
-// The caller is responsible for updating partialHistoryStep afterward
-// if appropriate.
 func (h *Handler) flushPartialHistory() {
 	if h.partialHistory == nil || h.partialHistory.IsEmpty() {
 		return
@@ -1076,10 +1048,11 @@ func (h *Handler) flushPartialHistory() {
 
 	h.runHistorySampler.SampleNext(h.partialHistory)
 
-	// Explicit steps are only meaningful when we own step numbering.
-	stepIsExplicit := !h.settings.IsSharedMode() &&
-		h.partialHistoryStepIsExplicit
-	step := h.partialHistoryStep
+	userStep := h.partialHistoryUserStep
+	step := int64(0)
+	if userStep != nil {
+		step = *userStep
+	}
 
 	// Update the summary if server-side derived summaries are disabled.
 	if !h.settings.IsEnableServerSideDerivedSummary() {
@@ -1089,7 +1062,7 @@ func (h *Handler) flushPartialHistory() {
 
 	items, err := h.partialHistory.ToRecords()
 	h.partialHistory = runhistory.New()
-	h.partialHistoryStepIsExplicit = false
+	h.partialHistoryUserStep = nil
 
 	// Report errors, but continue anyway to drop as little data as possible.
 	if err != nil {
@@ -1104,9 +1077,9 @@ func (h *Handler) flushPartialHistory() {
 		)
 	}
 
-	// Only set the step when the user explicitly set it.
+	// Forward the user-provided step so the sender preserves it.
 	historyRecord := &spb.HistoryRecord{Item: items}
-	if stepIsExplicit {
+	if userStep != nil {
 		historyRecord.Step = &spb.HistoryStep{Num: step}
 	}
 	h.fwdRecord(&spb.Record{
