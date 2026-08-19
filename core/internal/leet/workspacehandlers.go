@@ -487,7 +487,7 @@ func (w *Workspace) readAllChunkCmd(run *WorkspaceRun) tea.Cmd {
 	return func() tea.Msg {
 		msg, err := reader.Read(BootLoadChunkSize, BootLoadMaxTime)
 		if err != nil && !errors.Is(err, io.EOF) {
-			return ErrorMsg{Err: err}
+			return WorkspaceRunReadErrMsg{RunKey: runKey, Err: err}
 		}
 		if msg == nil {
 			return nil
@@ -514,7 +514,7 @@ func (w *Workspace) ReadAvailableCmd(run *WorkspaceRun) tea.Cmd {
 	return func() tea.Msg {
 		msg, err := reader.Read(LiveMonitorChunkSize, LiveMonitorMaxTime)
 		if err != nil && !errors.Is(err, io.EOF) {
-			return ErrorMsg{Err: err}
+			return WorkspaceRunReadErrMsg{RunKey: runKey, Err: err}
 		}
 		if msg == nil {
 			return nil
@@ -777,6 +777,32 @@ func (w *Workspace) handleHeartbeat() tea.Cmd {
 		cmds = append(cmds, w.ReadAvailableCmd(run))
 	}
 	return tea.Batch(cmds...)
+}
+
+// handleRunReadErr handles a failed transaction-log read for a run.
+//
+// Mirrors the single-run view's ErrorMsg path: the run can no longer
+// stream, so mark it failed instead of leaving it silently frozen in
+// whatever state it was in.
+func (w *Workspace) handleRunReadErr(msg WorkspaceRunReadErrMsg) tea.Cmd {
+	w.logger.CaptureError(
+		"leet",
+		fmt.Errorf("workspace: run %s read failed: %v", msg.RunKey, msg.Err),
+	)
+
+	run := w.runsByKey[msg.RunKey]
+	if run == nil {
+		return nil
+	}
+
+	run.state = RunStateFailed
+	w.getOrCreateRunOverview(run.Key).SetRunState(run.state)
+	w.stopWatcher(run)
+	w.syncLiveRunState()
+	if !w.anyRunRunning() {
+		w.heartbeatMgr.Stop()
+	}
+	return nil
 }
 
 // handleWorkspaceFileChanged reacts to a filesystem change for a given run.

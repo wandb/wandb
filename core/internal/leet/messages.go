@@ -125,6 +125,13 @@ type WorkspaceBatchedRecordsMsg struct {
 	Batch  BatchedRecordsMsg
 }
 
+// WorkspaceRunReadErrMsg reports a failed read of a workspace run's
+// transaction log.
+type WorkspaceRunReadErrMsg struct {
+	RunKey string
+	Err    error
+}
+
 // WorkspaceFileChangedMsg is emitted when a watched workspace run's .wandb
 // file changes on disk.
 //
