@@ -155,7 +155,10 @@ func (h *HelpModel) SetSize(width, height int) {
 	h.width = width
 	h.height = height - StatusBarHeight
 	h.viewport.SetWidth(width)
-	h.viewport.SetHeight(h.height)
+	// Leave room for helpContentStyle's margins: without this the rendered
+	// help view exceeds h.height and the status bar below it is pushed off
+	// screen (bubbletea v2's altscreen renderer clips the bottom).
+	h.viewport.SetHeight(max(h.height-helpContentStyle.GetVerticalFrameSize(), 0))
 
 	if h.active {
 		h.viewport.SetContent(h.generateHelpContent())
