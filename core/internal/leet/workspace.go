@@ -47,6 +47,9 @@ type Workspace struct {
 	// hasLiveRuns caches whether any selected run is in RunStateRunning.
 	hasLiveRuns atomic.Bool
 
+	// pulseTicking reports whether the live-indicator redraw loop is armed.
+	pulseTicking bool
+
 	// Run overview for each run keyed by run path.
 	runOverview        map[string]*RunOverview
 	runOverviewSidebar *RunOverviewSidebar
@@ -289,6 +292,9 @@ func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 
 	case HeartbeatMsg:
 		return w.handleHeartbeat()
+
+	case WorkspaceLivePulseMsg:
+		return w.handleLivePulse()
 
 	case ErrorMsg:
 		// Errors without a run key; per-run read errors arrive as
@@ -1151,19 +1157,44 @@ func renderLogoArt(width, height int) string {
 }
 
 func (w *Workspace) renderStatusBar() string {
+	// The indicator shows the state of the run under the cursor. It is
+	// styled separately from the bar so its color codes don't reset the
+	// bar's own styling mid-line.
+	indicator := renderStateIndicator(w.cursorRunState())
+	barWidth := max(w.width-lipgloss.Width(indicator), 0)
+
 	statusText := w.buildStatusText()
 	helpText := w.buildHelpText()
 
-	innerWidth := max(w.width-2*StatusBarPadding, 0)
+	innerWidth := max(barWidth-2*StatusBarPadding, 0)
 	spaceForHelp := max(innerWidth-lipgloss.Width(statusText), 0)
 	rightAligned := lipgloss.PlaceHorizontal(spaceForHelp, lipgloss.Right, helpText)
 
 	fullStatus := statusText + rightAligned
 
-	return statusBarStyle.
-		Width(w.width).
-		MaxWidth(w.width).
+	return indicator + statusBarStyle.
+		Width(barWidth).
+		MaxWidth(barWidth).
 		Render(fullStatus)
+}
+
+// cursorRunState returns the known state of the run under the cursor.
+//
+// Only streaming (selected) runs have live state. For others, fall back to
+// the preloaded overview, never trusting a stale Running claim from a run
+// that is no longer streaming.
+func (w *Workspace) cursorRunState() RunState {
+	cur, ok := w.runs.CurrentItem()
+	if !ok {
+		return RunStateUnknown
+	}
+	if run := w.runsByKey[cur.Key]; run != nil {
+		return run.state
+	}
+	if ro := w.runOverview[cur.Key]; ro != nil && ro.State() != RunStateRunning {
+		return ro.State()
+	}
+	return RunStateUnknown
 }
 
 func (w *Workspace) buildStatusText() string {

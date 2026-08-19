@@ -34,6 +34,7 @@ func (r *Run) handleRecordMsg(msg tea.Msg) tea.Cmd {
 		r.runState = RunStateRunning
 		r.syncLiveRunning()
 		r.isLoading = false
+		return r.ensureLivePulseCmd()
 
 	case HistoryMsg:
 		r.logger.Debug("model: processing HistoryMsg")
@@ -1036,7 +1037,34 @@ func (r *Run) handleFileChange() []tea.Cmd {
 	return []tea.Cmd{
 		r.ReadLiveBatchCmd(r.historySource),
 		r.watcherMgr.WaitForMsg,
+		r.ensureLivePulseCmd(),
 	}
+}
+
+// livePulseCmd schedules the next live-indicator frame.
+func (r *Run) livePulseCmd() tea.Cmd {
+	return tea.Tick(LivePulseFrame, func(time.Time) tea.Msg {
+		return RunLivePulseMsg{}
+	})
+}
+
+// ensureLivePulseCmd starts the live-indicator redraw loop for a live run.
+// Returns nil if the loop is already ticking or the run is not live.
+func (r *Run) ensureLivePulseCmd() tea.Cmd {
+	if r.pulseTicking || r.runState != RunStateRunning {
+		return nil
+	}
+	r.pulseTicking = true
+	return r.livePulseCmd()
+}
+
+// handleLivePulse keeps the live indicator animating while the run is live.
+func (r *Run) handleLivePulse() []tea.Cmd {
+	if r.runState != RunStateRunning {
+		r.pulseTicking = false
+		return nil
+	}
+	return []tea.Cmd{r.livePulseCmd()}
 }
 
 // handleSidebarTabNav cycles focus between overview sections and the

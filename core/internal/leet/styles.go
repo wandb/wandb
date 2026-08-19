@@ -268,6 +268,20 @@ var (
 		Dark:  lipgloss.Color("#FCBC32"),
 		Light: lipgloss.Color("#FCBC32"),
 	}
+
+	// Color for live (running) runs: the breathing liveness dot and the
+	// "Running" state text.
+	colorRunning = AdaptiveColor{
+		Light: lipgloss.Color("#00875D"),
+		Dark:  lipgloss.Color("#3DD68C"),
+	}
+
+	// Color for runs that ended badly: crashed/failed state text and the
+	// crashed liveness dot.
+	colorCrashed = AdaptiveColor{
+		Light: lipgloss.Color("#B02D37"),
+		Dark:  lipgloss.Color("#FF5F66"),
+	}
 )
 
 // ASCII art for the loading screen and the help page.
