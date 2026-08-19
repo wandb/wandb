@@ -83,6 +83,19 @@ func blendRGB(r, g, b, tr, tg, tb uint8, alpha float64) color.Color {
 	))
 }
 
+// terminalBackgroundRGB returns the terminal's background color, falling
+// back to a typical dark/light background when detection failed.
+func terminalBackgroundRGB() (r, g, b uint8) {
+	initTerminalBg()
+	if termBgDetected {
+		return termBgR, termBgG, termBgB
+	}
+	if IsDarkBackground() {
+		return 0x1c, 0x1c, 0x1c
+	}
+	return 0xff, 0xff, 0xff
+}
+
 // getOddRunStyleColor returns a color 5% darker than the terminal background.
 func getOddRunStyleColor() color.Color {
 	initTerminalBg()
