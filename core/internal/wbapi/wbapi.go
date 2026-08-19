@@ -201,6 +201,8 @@ func (p *WandbAPI) HandleRequest(
 		return p.runFilesHandler.HandleMarkRunFilesUploaded(ctx, req.MarkRunFilesUploadedRequest)
 	case *spb.ApiRequest_StopRunRequest:
 		return p.runHandler.HandleStopRun(ctx, req.StopRunRequest)
+	case *spb.ApiRequest_ReadRunConsoleLogsRequest:
+		return p.runHandler.HandleReadRunConsoleLogs(ctx, req.ReadRunConsoleLogsRequest)
 	case *spb.ApiRequest_CreateCustomChartRequest:
 		return p.customChartHandler.HandleCreateCustomChart(ctx, req.CreateCustomChartRequest)
 	case *spb.ApiRequest_RunQueueOperationRequest:

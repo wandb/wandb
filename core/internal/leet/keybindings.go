@@ -75,6 +75,15 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Description: "Toggle console logs panel",
 					Handler:     (*Run).handleToggleConsoleLogsPane,
 				},
+				{
+					Keys:        []string{"drag border/separator"},
+					Description: "Resize panes with the mouse",
+				},
+				{
+					Keys:        []string{"0"},
+					Description: "Reset pane sizes to defaults",
+					Handler:     (*Run).handleResetLayout,
+				},
 			},
 		},
 		{
@@ -113,6 +122,11 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Keys:        []string{"y"},
 					Description: "Cycle focused chart mode (log Y / heatmap)",
 					Handler:     (*Run).handleCycleFocusedChartMode,
+				},
+				{
+					Keys:        []string{"g"},
+					Description: "Cycle chart guides (off / dots / horizontal)",
+					Handler:     (*Run).handleCycleChartGuides,
 				},
 				{
 					Keys:        []string{"/"},
@@ -273,6 +287,15 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Description: "Toggle console logs panel",
 					Handler:     (*Workspace).handleToggleConsoleLogsPane,
 				},
+				{
+					Keys:        []string{"drag border/separator"},
+					Description: "Resize panes with the mouse",
+				},
+				{
+					Keys:        []string{"0"},
+					Description: "Reset pane sizes to defaults",
+					Handler:     (*Workspace).handleResetLayout,
+				},
 			},
 		},
 		{
@@ -326,6 +349,11 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Keys:        []string{"y"},
 					Description: "Cycle focused chart mode (log Y / heatmap)",
 					Handler:     (*Workspace).handleCycleFocusedChartMode,
+				},
+				{
+					Keys:        []string{"g"},
+					Description: "Cycle chart guides (off / dots / horizontal)",
+					Handler:     (*Workspace).handleCycleChartGuides,
 				},
 				{
 					Keys:        []string{"/"},
@@ -494,6 +522,11 @@ func SymonKeyBindings() []BindingCategory[Symon] {
 					Keys:        []string{"y"},
 					Description: "Toggle log Y on focused chart",
 					Handler:     (*Symon).handleToggleFocusedChartLogY,
+				},
+				{
+					Keys:        []string{"g"},
+					Description: "Cycle chart guides (off / dots / horizontal)",
+					Handler:     (*Symon).handleCycleChartGuides,
 				},
 				{
 					Keys:        []string{"\\"},

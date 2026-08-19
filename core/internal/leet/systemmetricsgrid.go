@@ -158,6 +158,7 @@ func (g *SystemMetricsGrid) createMetricChart(def *MetricDef) systemMetricChart 
 		ColorProvider: g.anchoredSeriesColorProvider(baseIdx),
 		Now:           now,
 	})
+	lineChart.SetChartGuides(g.config.ChartGuides())
 	lineChart.SetTailWindow(g.config.SystemTailWindow())
 
 	if !def.Percentage {
@@ -476,6 +477,21 @@ func (g *SystemMetricsGrid) focusedChart() systemMetricChart {
 		return nil
 	}
 	return g.currentPage[g.focus.Row][g.focus.Col]
+}
+
+// SetChartGuides applies the background guide style to all charts and
+// redraws the visible ones. Grids apply to line charts only: the French
+// Fries heatmap fills the plot area, leaving no background to show through.
+func (g *SystemMetricsGrid) SetChartGuides(guides string) {
+	for _, chart := range g.ordered {
+		switch c := chart.(type) {
+		case *TimeSeriesLineChart:
+			c.SetChartGuides(guides)
+		case *frenchFriesToggleChart:
+			c.line.SetChartGuides(guides)
+		}
+	}
+	g.drawVisible()
 }
 
 func (g *SystemMetricsGrid) toggleFocusedChartLogY() bool {

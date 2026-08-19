@@ -1203,6 +1203,196 @@ func (v *RewindRunRewindRunRewindRunPayloadRewoundRunProjectEntity) GetId() stri
 // GetName returns RewindRunRewindRunRewindRunPayloadRewoundRunProjectEntity.Name, and is useful for accessing the field via an interface.
 func (v *RewindRunRewindRunRewindRunPayloadRewoundRunProjectEntity) GetName() string { return v.Name }
 
+// RunConsoleLogPageProject includes the requested fields of the GraphQL type Project.
+type RunConsoleLogPageProject struct {
+	Run *RunConsoleLogPageProjectRun `json:"run"`
+}
+
+// GetRun returns RunConsoleLogPageProject.Run, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogPageProject) GetRun() *RunConsoleLogPageProjectRun { return v.Run }
+
+// RunConsoleLogPageProjectRun includes the requested fields of the GraphQL type Run.
+type RunConsoleLogPageProjectRun struct {
+	LogLineCount *int                                                  `json:"logLineCount"`
+	LogLines     *RunConsoleLogPageProjectRunLogLinesLogLineConnection `json:"logLines"`
+}
+
+// GetLogLineCount returns RunConsoleLogPageProjectRun.LogLineCount, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogPageProjectRun) GetLogLineCount() *int { return v.LogLineCount }
+
+// GetLogLines returns RunConsoleLogPageProjectRun.LogLines, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogPageProjectRun) GetLogLines() *RunConsoleLogPageProjectRunLogLinesLogLineConnection {
+	return v.LogLines
+}
+
+// RunConsoleLogPageProjectRunLogLinesLogLineConnection includes the requested fields of the GraphQL type LogLineConnection.
+type RunConsoleLogPageProjectRunLogLinesLogLineConnection struct {
+	Edges    []RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdge `json:"edges"`
+	PageInfo RunConsoleLogPageProjectRunLogLinesLogLineConnectionPageInfo           `json:"pageInfo"`
+}
+
+// GetEdges returns RunConsoleLogPageProjectRunLogLinesLogLineConnection.Edges, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogPageProjectRunLogLinesLogLineConnection) GetEdges() []RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdge {
+	return v.Edges
+}
+
+// GetPageInfo returns RunConsoleLogPageProjectRunLogLinesLogLineConnection.PageInfo, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogPageProjectRunLogLinesLogLineConnection) GetPageInfo() RunConsoleLogPageProjectRunLogLinesLogLineConnectionPageInfo {
+	return v.PageInfo
+}
+
+// RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdge includes the requested fields of the GraphQL type LogLineEdge.
+type RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdge struct {
+	Node RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine `json:"node"`
+}
+
+// GetNode returns RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdge.Node, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdge) GetNode() RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine {
+	return v.Node
+}
+
+// RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine includes the requested fields of the GraphQL type LogLine.
+type RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine struct {
+	Number    *int    `json:"number"`
+	Timestamp *string `json:"timestamp"`
+	Level     *string `json:"level"`
+	Label     *string `json:"label"`
+	Line      *string `json:"line"`
+}
+
+// GetNumber returns RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine.Number, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine) GetNumber() *int {
+	return v.Number
+}
+
+// GetTimestamp returns RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine.Timestamp, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine) GetTimestamp() *string {
+	return v.Timestamp
+}
+
+// GetLevel returns RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine.Level, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine) GetLevel() *string {
+	return v.Level
+}
+
+// GetLabel returns RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine.Label, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine) GetLabel() *string {
+	return v.Label
+}
+
+// GetLine returns RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine.Line, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine) GetLine() *string {
+	return v.Line
+}
+
+// RunConsoleLogPageProjectRunLogLinesLogLineConnectionPageInfo includes the requested fields of the GraphQL type PageInfo.
+type RunConsoleLogPageProjectRunLogLinesLogLineConnectionPageInfo struct {
+	EndCursor   *string `json:"endCursor"`
+	HasNextPage bool    `json:"hasNextPage"`
+}
+
+// GetEndCursor returns RunConsoleLogPageProjectRunLogLinesLogLineConnectionPageInfo.EndCursor, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogPageProjectRunLogLinesLogLineConnectionPageInfo) GetEndCursor() *string {
+	return v.EndCursor
+}
+
+// GetHasNextPage returns RunConsoleLogPageProjectRunLogLinesLogLineConnectionPageInfo.HasNextPage, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogPageProjectRunLogLinesLogLineConnectionPageInfo) GetHasNextPage() bool {
+	return v.HasNextPage
+}
+
+// RunConsoleLogPageResponse is returned by RunConsoleLogPage on success.
+type RunConsoleLogPageResponse struct {
+	Project *RunConsoleLogPageProject `json:"project"`
+}
+
+// GetProject returns RunConsoleLogPageResponse.Project, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogPageResponse) GetProject() *RunConsoleLogPageProject { return v.Project }
+
+// RunConsoleLogTailProject includes the requested fields of the GraphQL type Project.
+type RunConsoleLogTailProject struct {
+	Run *RunConsoleLogTailProjectRun `json:"run"`
+}
+
+// GetRun returns RunConsoleLogTailProject.Run, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogTailProject) GetRun() *RunConsoleLogTailProjectRun { return v.Run }
+
+// RunConsoleLogTailProjectRun includes the requested fields of the GraphQL type Run.
+type RunConsoleLogTailProjectRun struct {
+	LogLineCount *int                                                  `json:"logLineCount"`
+	LogLines     *RunConsoleLogTailProjectRunLogLinesLogLineConnection `json:"logLines"`
+}
+
+// GetLogLineCount returns RunConsoleLogTailProjectRun.LogLineCount, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogTailProjectRun) GetLogLineCount() *int { return v.LogLineCount }
+
+// GetLogLines returns RunConsoleLogTailProjectRun.LogLines, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogTailProjectRun) GetLogLines() *RunConsoleLogTailProjectRunLogLinesLogLineConnection {
+	return v.LogLines
+}
+
+// RunConsoleLogTailProjectRunLogLinesLogLineConnection includes the requested fields of the GraphQL type LogLineConnection.
+type RunConsoleLogTailProjectRunLogLinesLogLineConnection struct {
+	Edges []RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdge `json:"edges"`
+}
+
+// GetEdges returns RunConsoleLogTailProjectRunLogLinesLogLineConnection.Edges, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogTailProjectRunLogLinesLogLineConnection) GetEdges() []RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdge {
+	return v.Edges
+}
+
+// RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdge includes the requested fields of the GraphQL type LogLineEdge.
+type RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdge struct {
+	Node RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine `json:"node"`
+}
+
+// GetNode returns RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdge.Node, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdge) GetNode() RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine {
+	return v.Node
+}
+
+// RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine includes the requested fields of the GraphQL type LogLine.
+type RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine struct {
+	Number    *int    `json:"number"`
+	Timestamp *string `json:"timestamp"`
+	Level     *string `json:"level"`
+	Label     *string `json:"label"`
+	Line      *string `json:"line"`
+}
+
+// GetNumber returns RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine.Number, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine) GetNumber() *int {
+	return v.Number
+}
+
+// GetTimestamp returns RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine.Timestamp, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine) GetTimestamp() *string {
+	return v.Timestamp
+}
+
+// GetLevel returns RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine.Level, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine) GetLevel() *string {
+	return v.Level
+}
+
+// GetLabel returns RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine.Label, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine) GetLabel() *string {
+	return v.Label
+}
+
+// GetLine returns RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine.Line, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdgeNodeLogLine) GetLine() *string {
+	return v.Line
+}
+
+// RunConsoleLogTailResponse is returned by RunConsoleLogTail on success.
+type RunConsoleLogTailResponse struct {
+	Project *RunConsoleLogTailProject `json:"project"`
+}
+
+// GetProject returns RunConsoleLogTailResponse.Project, and is useful for accessing the field via an interface.
+func (v *RunConsoleLogTailResponse) GetProject() *RunConsoleLogTailProject { return v.Project }
+
 // RunParquetHistoryProject includes the requested fields of the GraphQL type Project.
 type RunParquetHistoryProject struct {
 	Run *RunParquetHistoryProjectRun `json:"run"`
@@ -2301,6 +2491,50 @@ func (v *__RewindRunInput) GetMetricName() string { return v.MetricName }
 
 // GetMetricValue returns __RewindRunInput.MetricValue, and is useful for accessing the field via an interface.
 func (v *__RewindRunInput) GetMetricValue() float64 { return v.MetricValue }
+
+// __RunConsoleLogPageInput is used internally by genqlient
+type __RunConsoleLogPageInput struct {
+	Entity  string  `json:"entity"`
+	Project string  `json:"project"`
+	RunName string  `json:"runName"`
+	First   *int    `json:"first"`
+	After   *string `json:"after"`
+}
+
+// GetEntity returns __RunConsoleLogPageInput.Entity, and is useful for accessing the field via an interface.
+func (v *__RunConsoleLogPageInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __RunConsoleLogPageInput.Project, and is useful for accessing the field via an interface.
+func (v *__RunConsoleLogPageInput) GetProject() string { return v.Project }
+
+// GetRunName returns __RunConsoleLogPageInput.RunName, and is useful for accessing the field via an interface.
+func (v *__RunConsoleLogPageInput) GetRunName() string { return v.RunName }
+
+// GetFirst returns __RunConsoleLogPageInput.First, and is useful for accessing the field via an interface.
+func (v *__RunConsoleLogPageInput) GetFirst() *int { return v.First }
+
+// GetAfter returns __RunConsoleLogPageInput.After, and is useful for accessing the field via an interface.
+func (v *__RunConsoleLogPageInput) GetAfter() *string { return v.After }
+
+// __RunConsoleLogTailInput is used internally by genqlient
+type __RunConsoleLogTailInput struct {
+	Entity  string `json:"entity"`
+	Project string `json:"project"`
+	RunName string `json:"runName"`
+	Last    int    `json:"last"`
+}
+
+// GetEntity returns __RunConsoleLogTailInput.Entity, and is useful for accessing the field via an interface.
+func (v *__RunConsoleLogTailInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __RunConsoleLogTailInput.Project, and is useful for accessing the field via an interface.
+func (v *__RunConsoleLogTailInput) GetProject() string { return v.Project }
+
+// GetRunName returns __RunConsoleLogTailInput.RunName, and is useful for accessing the field via an interface.
+func (v *__RunConsoleLogTailInput) GetRunName() string { return v.RunName }
+
+// GetLast returns __RunConsoleLogTailInput.Last, and is useful for accessing the field via an interface.
+func (v *__RunConsoleLogTailInput) GetLast() int { return v.Last }
 
 // __RunParquetHistoryInput is used internally by genqlient
 type __RunParquetHistoryInput struct {
@@ -3510,6 +3744,130 @@ func RewindRun(
 	}
 
 	data_ = &RewindRunResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by RunConsoleLogPage.
+const RunConsoleLogPage_Operation = `
+query RunConsoleLogPage ($entity: String!, $project: String!, $runName: String!, $first: Int, $after: String) {
+	project(name: $project, entityName: $entity) {
+		run(name: $runName) {
+			logLineCount
+			logLines(first: $first, after: $after, useImprovedPagination: true) {
+				edges {
+					node {
+						number
+						timestamp
+						level
+						label
+						line
+					}
+				}
+				pageInfo {
+					endCursor
+					hasNextPage
+				}
+			}
+		}
+	}
+}
+`
+
+// Reads one page of a run's console log in ascending line order.
+//
+// useImprovedPagination is required for spec-compliant forward pagination:
+// without it, the legacy resolver ignores `first` and repurposes `after` as
+// a backwards offset from the end of the log. The argument exists on server
+// 0.77+; older servers reject this document during validation.
+func RunConsoleLogPage(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+	runName string,
+	first *int,
+	after *string,
+) (data_ *RunConsoleLogPageResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "RunConsoleLogPage",
+		Query:  RunConsoleLogPage_Operation,
+		Variables: &__RunConsoleLogPageInput{
+			Entity:  entity,
+			Project: project,
+			RunName: runName,
+			First:   first,
+			After:   after,
+		},
+	}
+
+	data_ = &RunConsoleLogPageResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by RunConsoleLogTail.
+const RunConsoleLogTail_Operation = `
+query RunConsoleLogTail ($entity: String!, $project: String!, $runName: String!, $last: Int!) {
+	project(name: $project, entityName: $entity) {
+		run(name: $runName) {
+			logLineCount
+			logLines(last: $last) {
+				edges {
+					node {
+						number
+						timestamp
+						level
+						label
+						line
+					}
+				}
+			}
+		}
+	}
+}
+`
+
+// Reads the last N lines of a run's console log.
+//
+// This intentionally omits the useImprovedPagination argument: a plain
+// `logLines(last: N)` returns the same lines — the tail, in ascending line
+// order — from both the legacy resolver and the improved one (server 0.77+),
+// so a tail works against every supported server version.
+func RunConsoleLogTail(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+	runName string,
+	last int,
+) (data_ *RunConsoleLogTailResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "RunConsoleLogTail",
+		Query:  RunConsoleLogTail_Operation,
+		Variables: &__RunConsoleLogTailInput{
+			Entity:  entity,
+			Project: project,
+			RunName: runName,
+			Last:    last,
+		},
+	}
+
+	data_ = &RunConsoleLogTailResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(

@@ -113,6 +113,11 @@ func (r *Run) handleMouseMsg(msg tea.MouseMsg) tea.Cmd {
 
 	layout := r.computeViewports()
 
+	// Pane resizing wins over pane-local mouse handling.
+	if r.drag.handleMouse(msg, layout, r.dragTargets()) {
+		return nil
+	}
+
 	if r.isInLeftSidebar(msg, layout) {
 		return r.handleLeftSidebarMouse()
 	}
@@ -122,6 +127,23 @@ func (r *Run) handleMouseMsg(msg tea.MouseMsg) tea.Cmd {
 	}
 
 	return r.handleMainContentMouse(msg, layout)
+}
+
+// dragTargets reports which layout boundaries a mouse event may grab.
+func (r *Run) dragTargets() dragTargets {
+	return dragTargets{
+		width:           r.width,
+		height:          r.height,
+		leftExpanded:    r.leftSidebar.IsExpanded(),
+		rightExpanded:   r.rightSidebar.animState.IsExpanded(),
+		mediaFullscreen: r.mediaPane.IsFullscreen(),
+	}
+}
+
+// handleResetLayout resets the view's pane proportions to the defaults.
+func (r *Run) handleResetLayout(tea.KeyPressMsg) tea.Cmd {
+	r.drag.reset()
+	return nil
 }
 
 // isInLeftSidebar checks if mouse position is in the left sidebar region.
@@ -494,6 +516,18 @@ func (r *Run) handleCycleFocusedChartMode(tea.KeyPressMsg) tea.Cmd {
 		if r.rightSidebar != nil && r.rightSidebar.metricsGrid != nil {
 			r.rightSidebar.metricsGrid.cycleFocusedChartMode()
 		}
+	}
+	return nil
+}
+
+func (r *Run) handleCycleChartGuides(tea.KeyPressMsg) tea.Cmd {
+	guides := nextChartGuides(r.config.ChartGuides())
+	if err := r.config.SetChartGuides(guides); err != nil {
+		r.logger.Error(fmt.Sprintf("runhandlers: failed to save chart guides: %v", err))
+	}
+	r.metricsGrid.SetChartGuides(guides)
+	if r.rightSidebar != nil && r.rightSidebar.metricsGrid != nil {
+		r.rightSidebar.metricsGrid.SetChartGuides(guides)
 	}
 	return nil
 }
