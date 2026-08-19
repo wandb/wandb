@@ -5,24 +5,27 @@ import (
 	"strconv"
 
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// HistoryStepTrackerParams are the dependencies for a HistoryStepTracker.
-type HistoryStepTrackerParams struct {
+// HistoryStepTrackerFactory constructs a HistoryStepTracker.
+type HistoryStepTrackerFactory struct {
 	Logger     *observability.CoreLogger
 	Settings   *settings.Settings
 	RunSummary *runsummary.RunSummary
+	RunHandle  *runhandle.RunHandle
 }
 
 // HistoryStepTracker assigns monotonic _step values to history rows and
-// materializes the summary _step metric.
+// updates the summary _step metric.
 type HistoryStepTracker struct {
 	logger     *observability.CoreLogger
 	settings   *settings.Settings
 	runSummary *runsummary.RunSummary
+	runHandle  *runhandle.RunHandle
 
 	// nextAutoStep is the next _step value to assign to history rows that don't
 	// already contain one.
@@ -30,67 +33,57 @@ type HistoryStepTracker struct {
 	autoStepInitialized bool
 }
 
-// NewHistoryStepTracker returns a tracker that owns history step assignment.
-func NewHistoryStepTracker(p HistoryStepTrackerParams) *HistoryStepTracker {
+// New returns a tracker that owns history step assignment.
+func (f *HistoryStepTrackerFactory) New() *HistoryStepTracker {
 	return &HistoryStepTracker{
-		logger:     p.Logger,
-		settings:   p.Settings,
-		runSummary: p.RunSummary,
+		logger:     f.Logger,
+		settings:   f.Settings,
+		runSummary: f.RunSummary,
+		runHandle:  f.RunHandle,
 	}
 }
 
-// Process ensures the history row has a monotonic _step, updates the run
-// summary _step when appropriate, and returns summary updates for the
-// filestream (nil when nothing should be streamed).
-//
-// startingStep seeds the auto-step counter on the first call (typically from
-// RunRecord.StartingStep). Later calls ignore the value.
-func (t *HistoryStepTracker) Process(
+// SeedStartingStep sets the auto-step counter. Tests use this in place of a
+// RunHandle.
+func (t *HistoryStepTracker) SeedStartingStep(step int64) {
+	t.nextAutoStep = step
+	t.autoStepInitialized = true
+}
+
+// ApplyHistoryStep writes a monotonic _step onto record, updates run summary
+// _step when the tracker owns it, and returns summary updates to stream
+// (nil if none).
+func (t *HistoryStepTracker) ApplyHistoryStep(
 	record *spb.HistoryRecord,
-	startingStep int64,
 ) *runsummary.Updates {
-	t.ensureHistoryStep(record, startingStep)
-	return t.materializeSummaryStep(record)
-}
-
-// ensureHistoryStep adds _step to history rows that do not already have it.
-//
-// Existing _step values are preserved unless they fall behind the running step
-// counter, breaking the monotonic ordering. In this case the user-provided step
-// is replaced with the running step counter, and a warning is logged.
-func (t *HistoryStepTracker) ensureHistoryStep(
-	record *spb.HistoryRecord,
-	startingStep int64,
-) {
-	if record == nil {
-		return
-	}
 	if t.settings.IsSharedMode() {
-		return
+		return nil
 	}
 
-	if step, ok := t.explicitHistoryStepItem(record); ok {
-		t.initializeAutoStep(startingStep)
-		if step < t.nextAutoStep {
-			t.logger.CaptureWarn(
-				"sender: history _step behind running step, renumbering to keep steps monotonic",
-				"provided_step", step,
-				"assigned_step", t.nextAutoStep,
-			)
-			setExplicitHistoryStep(record, t.nextAutoStep)
-			step = t.nextAutoStep
+	t.initializeAutoStep()
+
+	if item := explicitHistoryStepItem(record); item != nil {
+		if step, ok := t.parseHistoryStep(item); ok {
+			if step < t.nextAutoStep {
+				t.logger.CaptureWarn(
+					"historystep: history _step behind running step, renumbering to keep steps monotonic",
+					"provided_step", step,
+					"assigned_step", t.nextAutoStep,
+				)
+				item.ValueJson = strconv.FormatInt(t.nextAutoStep, 10)
+				step = t.nextAutoStep
+			}
+			record.Step = &spb.HistoryStep{Num: step}
+			t.advanceAutoStepPast(step)
+			return t.updateSummaryStep(step)
 		}
-		record.Step = &spb.HistoryStep{Num: step}
-		t.advanceAutoStepPast(step)
-		return
 	}
 
 	if record.GetStep() != nil {
-		t.initializeAutoStep(startingStep)
 		step := record.GetStep().GetNum()
 		if step < t.nextAutoStep {
 			t.logger.CaptureWarn(
-				"sender: history _step behind running step, renumbering to keep steps monotonic",
+				"historystep: history _step behind running step, renumbering to keep steps monotonic",
 				"provided_step", step,
 				"assigned_step", t.nextAutoStep,
 			)
@@ -102,10 +95,8 @@ func (t *HistoryStepTracker) ensureHistoryStep(
 			ValueJson: strconv.FormatInt(step, 10),
 		})
 		t.advanceAutoStepPast(step)
-		return
+		return t.updateSummaryStep(step)
 	}
-
-	t.initializeAutoStep(startingStep)
 
 	step := t.nextAutoStep
 	record.Step = &spb.HistoryStep{Num: step}
@@ -114,74 +105,40 @@ func (t *HistoryStepTracker) ensureHistoryStep(
 		ValueJson: strconv.FormatInt(step, 10),
 	})
 	t.nextAutoStep++
+	return t.updateSummaryStep(step)
 }
 
-// materializeSummaryStep updates the run summary _step metric, if the tracker
-// is not in shared mode and server-side summary derivation is not enabled.
-// It returns the updates to stream, or nil when nothing should be streamed.
-func (t *HistoryStepTracker) materializeSummaryStep(
-	record *spb.HistoryRecord,
-) *runsummary.Updates {
-	if record == nil {
-		return nil
-	}
-	if t.settings.IsSharedMode() || t.settings.IsEnableServerSideDerivedSummary() {
-		return nil
-	}
-	if record.GetStep() == nil {
+func (t *HistoryStepTracker) updateSummaryStep(step int64) *runsummary.Updates {
+	if t.settings.IsEnableServerSideDerivedSummary() {
 		return nil
 	}
 
 	updates := runsummary.FromProto(&spb.SummaryRecord{Update: []*spb.SummaryItem{{
 		Key:       "_step",
-		ValueJson: strconv.FormatInt(record.GetStep().GetNum(), 10),
+		ValueJson: strconv.FormatInt(step, 10),
 	}}})
 	if err := updates.Apply(t.runSummary); err != nil {
 		t.logger.CaptureError(
 			"stream",
-			fmt.Errorf("stream: error updating summary step: %v", err))
+			fmt.Errorf("historystep: error updating summary step: %v", err))
 		return nil
 	}
 
 	return updates
 }
 
-// StripSummaryStep removes _step from an inbound summary record if necessary.
-//
-// Summary _step should only be set by the HistoryStepTracker. If it was set
-// in a transaction log by an older wandb version, it is overwritten here.
-// In shared mode or server-side summary derivation is enabled, the summary _step
-// is not stripped.
-func (t *HistoryStepTracker) StripSummaryStep(
-	summary *spb.SummaryRecord,
-) *spb.SummaryRecord {
-	// Only strip a _step we would go on to replace.
-	if t.settings.IsSharedMode() || t.settings.IsEnableServerSideDerivedSummary() {
-		return summary
-	}
-
-	updates := summary.GetUpdate()
-	kept := make([]*spb.SummaryItem, 0, len(updates))
-	for _, item := range updates {
-		if !isStepItem(item) {
-			kept = append(kept, item)
-		}
-	}
-
-	if len(kept) == len(updates) {
-		return summary
-	}
-
-	// Shallow copy: the caller's record is also headed for the Writer.
-	return &spb.SummaryRecord{
-		Update: kept,
-		Remove: summary.GetRemove(),
-	}
-}
-
-func (t *HistoryStepTracker) initializeAutoStep(startingStep int64) {
+func (t *HistoryStepTracker) initializeAutoStep() {
 	if t.autoStepInitialized {
 		return
+	}
+
+	startingStep := int64(0)
+	if t.runHandle != nil {
+		if upserter, err := t.runHandle.Upserter(); err == nil {
+			run := &spb.RunRecord{}
+			upserter.FillRunRecord(run)
+			startingStep = run.GetStartingStep()
+		}
 	}
 
 	t.nextAutoStep = startingStep
@@ -194,14 +151,7 @@ func (t *HistoryStepTracker) advanceAutoStepPast(step int64) {
 	}
 }
 
-// stepKeyed is satisfied by both *spb.HistoryItem and *spb.SummaryItem, which
-// each expose a flat key plus an optional nested-key path.
-type stepKeyed interface {
-	GetKey() string
-	GetNestedKey() []string
-}
-
-func isStepItem(item stepKeyed) bool {
+func isStepItem(item *spb.HistoryItem) bool {
 	if item.GetKey() == "_step" {
 		return true
 	}
@@ -209,39 +159,25 @@ func isStepItem(item stepKeyed) bool {
 	return len(nestedKey) == 1 && nestedKey[0] == "_step"
 }
 
-func (t *HistoryStepTracker) explicitHistoryStepItem(
-	record *spb.HistoryRecord,
-) (int64, bool) {
-	for _, item := range record.GetItem() {
-		if !isStepItem(item) {
-			continue
-		}
-
-		step, err := strconv.ParseInt(item.GetValueJson(), 10, 64)
-		if err != nil {
-			t.logger.CaptureWarn(
-				"sender: ignoring unparseable history _step value",
-				"value", item.GetValueJson(),
-			)
-			return 0, false
-		}
-		return step, true
-	}
-
-	return 0, false
-}
-
-func setExplicitHistoryStep(record *spb.HistoryRecord, step int64) {
-	stepStr := strconv.FormatInt(step, 10)
+func explicitHistoryStepItem(record *spb.HistoryRecord) *spb.HistoryItem {
 	for _, item := range record.GetItem() {
 		if isStepItem(item) {
-			item.ValueJson = stepStr
-			return
+			return item
 		}
 	}
+	return nil
+}
 
-	record.Item = append(record.Item, &spb.HistoryItem{
-		NestedKey: []string{"_step"},
-		ValueJson: stepStr,
-	})
+func (t *HistoryStepTracker) parseHistoryStep(
+	item *spb.HistoryItem,
+) (int64, bool) {
+	step, err := strconv.ParseInt(item.GetValueJson(), 10, 64)
+	if err != nil {
+		t.logger.CaptureWarn(
+			"historystep: ignoring unparseable history _step value",
+			"value", item.GetValueJson(),
+		)
+		return 0, false
+	}
+	return step, true
 }

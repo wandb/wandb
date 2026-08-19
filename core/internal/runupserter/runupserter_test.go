@@ -277,7 +277,7 @@ func TestResume_ResumeModeTrue_Allow(t *testing.T) {
 	runupsertertest.StubUpsertBucket(t, mockClient)
 
 	upserter, err := runupserter.InitRun(
-		runRecord(&spb.RunRecord{ResumeMode: true}),
+		runRecord(&spb.RunRecord{Resume: true}),
 		params,
 	)
 	require.NoError(t, err)
@@ -290,7 +290,7 @@ func TestResume_ResumeModeTrueSettingNever_RejectsExistingRun(t *testing.T) {
 	runupsertertest.StubRunResumeStatusExistingRun(t, mockClient)
 
 	upserter, err := runupserter.InitRun(
-		runRecord(&spb.RunRecord{RunId: "run", ResumeMode: true}),
+		runRecord(&spb.RunRecord{RunId: "run", Resume: true}),
 		params,
 	)
 	assertResumeInitErrorContains(
@@ -304,13 +304,13 @@ func TestResume_ResumeModeTrueSettingNever_RejectsExistingRun(t *testing.T) {
 
 func TestResume_ResumeModeTrueSettingEmpty_ReconcilesServerStartingStep(t *testing.T) {
 	// `wandb beta sync` does not pass a resume setting; reconciliation relies
-	// on ResumeMode recorded in the transaction log at wandb.init() time.
+	// on Resume recorded in the transaction log at wandb.init() time.
 	mockClient, params := setupResumeTest(t, "")
 	runupsertertest.StubRunResumeStatusWithStep(t, mockClient, 4)
 	runupsertertest.StubUpsertBucket(t, mockClient)
 
 	upserter, err := runupserter.InitRun(
-		runRecord(&spb.RunRecord{RunId: "run", ResumeMode: true}),
+		runRecord(&spb.RunRecord{RunId: "run", Resume: true}),
 		params,
 	)
 	require.NoError(t, err)
@@ -336,7 +336,7 @@ func TestResume_ResumeSettingNeverNoResumeMode_RejectsExistingRun(t *testing.T) 
 	assert.True(t, mockClient.AllStubsUsed())
 }
 
-// This verifies the correct error handling for missing run and ResumeMode=False.
+// This verifies the correct error handling for missing run and Resume=False.
 func TestResume_ResumeModeFalseSettingAllow_AllowsMissingRun(t *testing.T) {
 	mockClient, params := setupResumeTest(t, "allow")
 	mockClient.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{}`)
@@ -348,7 +348,7 @@ func TestResume_ResumeModeFalseSettingAllow_AllowsMissingRun(t *testing.T) {
 
 	run := &spb.RunRecord{}
 	upserter.FillRunRecord(run)
-	assert.True(t, run.ResumeMode)
+	assert.True(t, run.Resume)
 	assert.True(t, mockClient.AllStubsUsed())
 }
 
@@ -377,7 +377,7 @@ func TestResume_ResumeModeFalseSettingNever_AllowsMissingRun(t *testing.T) {
 
 	run := &spb.RunRecord{}
 	upserter.FillRunRecord(run)
-	assert.False(t, run.ResumeMode)
+	assert.False(t, run.Resume)
 	assert.True(t, mockClient.AllStubsUsed())
 }
 
@@ -391,7 +391,7 @@ func TestResume_ResumeModeFalseSettingUnset_AllowsMissingRun(t *testing.T) {
 
 	run := &spb.RunRecord{}
 	upserter.FillRunRecord(run)
-	assert.False(t, run.ResumeMode)
+	assert.False(t, run.Resume)
 	assert.True(t, mockClient.AllStubsUsed())
 }
 
@@ -405,7 +405,7 @@ func TestResume_ResumeModeFalseSettingAuto_AllowsMissingRun(t *testing.T) {
 
 	run := &spb.RunRecord{}
 	upserter.FillRunRecord(run)
-	assert.False(t, run.ResumeMode)
+	assert.False(t, run.Resume)
 	assert.True(t, mockClient.AllStubsUsed())
 }
 
@@ -419,11 +419,11 @@ func TestResume_ResumeModeFalseSettingUnexpected_AllowsMissingRun(t *testing.T) 
 
 	run := &spb.RunRecord{}
 	upserter.FillRunRecord(run)
-	assert.False(t, run.ResumeMode)
+	assert.False(t, run.Resume)
 	assert.True(t, mockClient.AllStubsUsed())
 }
 
-// This test proves that ResumeMode=False (equivalent to `resume=never`) can be
+// This test proves that Resume=False (equivalent to `resume=never`) can be
 // overridden by explicitly setting `resume=allow` or `resume=must` when there
 // is an existing run.
 func TestResume_ResumeModeFalseSettingAllow_AllowsExistingRun(t *testing.T) {
@@ -459,7 +459,7 @@ func TestResume_Offline_SettingsOverrideMissingRunIntent(t *testing.T) {
 
 	run := &spb.RunRecord{}
 	upserter.FillRunRecord(run)
-	assert.True(t, run.ResumeMode)
+	assert.True(t, run.Resume)
 }
 
 func TestResume_Offline_PreservesRunRecordIntent(t *testing.T) {
@@ -468,7 +468,7 @@ func TestResume_Offline_PreservesRunRecordIntent(t *testing.T) {
 	params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("must")})
 
 	upserter, err := runupserter.InitRun(
-		runRecord(&spb.RunRecord{ResumeMode: true}),
+		runRecord(&spb.RunRecord{Resume: true}),
 		params,
 	)
 	require.NoError(t, err)
@@ -476,7 +476,7 @@ func TestResume_Offline_PreservesRunRecordIntent(t *testing.T) {
 
 	run := &spb.RunRecord{}
 	upserter.FillRunRecord(run)
-	assert.True(t, run.ResumeMode)
+	assert.True(t, run.Resume)
 }
 
 func TestResume_InitializesSyncStateStartingStep(t *testing.T) {

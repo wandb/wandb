@@ -83,8 +83,9 @@ type Handler struct {
 	// partialHistory is a set of run metrics accumulated for the current step.
 	partialHistory *runhistory.RunHistory
 
-	// partialHistoryStep is the next history "step" to emit
-	// when not running in shared mode.
+	// partialHistoryStep tracks the history step when it was explicitly
+	// set by the user. It may be modified from the user-provided step because
+	// it must be monotonically increasing.
 	partialHistoryStep int64
 
 	// partialHistoryStepIsExplicit is true when the current partial-history
@@ -1033,12 +1034,11 @@ func (h *Handler) handlePartialHistorySync(request *spb.PartialHistoryRequest) {
 		}
 	}
 
-	// Flush if explicitly requested; by default, flush unless an explicit
-	// step was given, in which case the batch stays open until the step
-	// advances.
-	shouldFlush := !hasExplicitStep
+	var shouldFlush bool
 	if action := request.GetAction(); action != nil {
 		shouldFlush = action.GetFlush()
+	} else {
+		shouldFlush = !hasExplicitStep
 	}
 
 	if shouldFlush {

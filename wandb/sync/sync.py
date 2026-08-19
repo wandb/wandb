@@ -87,7 +87,7 @@ class SyncThread(threading.Thread):
                 print("Record:", record_type)  # noqa: T201
             return pb, exit_pb, True
         if record_type == "run":
-            if pb.run.resume_mode:
+            if pb.run.resume:
                 wandb.termwarn(
                     "Ignoring `resume` setting in run log because legacy sync does not "
                     "support resuming offline runs. Use `wandb beta sync`."

@@ -110,8 +110,8 @@ type Sender struct {
 	// runSummary is the full summary for the run
 	runSummary *runsummary.RunSummary
 
-	// historySteps assigns monotonic _step values and materializes summary _step.
-	historySteps *HistoryStepTracker
+	// stepTracker assigns monotonic _step values and updates summary _step.
+	stepTracker *HistoryStepTracker
 
 	// receivedExit is true once the Sender receives an Exit record.
 	receivedExit bool
@@ -215,11 +215,12 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 		consoleLogsSender: runconsolelogs.New(consoleLogsSenderParams),
 	}
 
-	s.historySteps = NewHistoryStepTracker(HistoryStepTrackerParams{
+	s.stepTracker = (&HistoryStepTrackerFactory{
 		Logger:     s.logger,
 		Settings:   s.settings,
 		RunSummary: s.runSummary,
-	})
+		RunHandle:  s.runHandle,
+	}).New()
 
 	if !s.settings.IsOffline() && !s.settings.IsJobCreationDisabled() {
 		s.jobBuilder = launch.NewJobBuilder(s.settings, s.logger, false)
@@ -814,18 +815,17 @@ func (s *Sender) sendUseArtifact(record *spb.Record) {
 	s.jobBuilder.HandleUseArtifactRecord(record)
 }
 
-// sendHistory sends a history record to the file stream, which will then send
-// it to the server.
+// sendHistory queues a history record for uploading to the server.
 //
 // If the history record does not contain a _step value, this method will
-// auto-assign one. It also materializes the _step metric for the summary.
+// auto-assign one. It will also update the run summary's _step value.
 func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 	if s.receivedExit {
 		s.logCalledAfterExit("sendHistory")
 		return
 	}
-	summaryUpdates := s.historySteps.Process(record, s.startingStep())
 
+	summaryUpdates := s.stepTracker.ApplyHistoryStep(record)
 	if s.fileStream == nil {
 		return
 	}
@@ -834,17 +834,6 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 	if summaryUpdates != nil {
 		s.fileStream.StreamUpdate(&fs.SummaryUpdate{Updates: summaryUpdates})
 	}
-}
-
-// startingStep returns the run's StartingStep, or 0 if the upserter is not ready.
-func (s *Sender) startingStep() int64 {
-	upserter, err := s.runHandle.Upserter()
-	if err != nil {
-		return 0
-	}
-	run := &spb.RunRecord{}
-	upserter.FillRunRecord(run)
-	return run.GetStartingStep()
 }
 
 // SummaryForTest returns the sender's derived run summary as records.
@@ -860,7 +849,8 @@ func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {
 		return
 	}
 
-	updates := runsummary.FromProto(s.historySteps.StripSummaryStep(summary))
+	updates := runsummary.FromProto(summary)
+	updates.IgnoreStep()
 	if err := updates.Apply(s.runSummary); err != nil {
 		s.logger.CaptureError(
 			"stream",

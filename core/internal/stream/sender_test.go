@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/featurechecker"
@@ -35,15 +36,21 @@ type testFixtures struct {
 	Sender *stream.Sender
 }
 
-func makeSender(t *testing.T, client graphql.Client) testFixtures {
+var defaultSettings = &spb.Settings{
+	RunId:   &wrapperspb.StringValue{Value: "run1"},
+	Console: &wrapperspb.StringValue{Value: "off"},
+	ApiKey:  &wrapperspb.StringValue{Value: "test-api-key"},
+}
+
+func makeSender(t *testing.T, client graphql.Client, extraSettings *spb.Settings) testFixtures {
 	t.Helper()
+	protoSettings := proto.Clone(defaultSettings).(*spb.Settings)
+	if extraSettings != nil {
+		proto.Merge(protoSettings, extraSettings)
+	}
 	runWork := runworktest.New()
 	logger := observabilitytest.NewTestLogger(t)
-	settings := wbsettings.From(&spb.Settings{
-		RunId:   &wrapperspb.StringValue{Value: "run1"},
-		Console: &wrapperspb.StringValue{Value: "off"},
-		ApiKey:  &wrapperspb.StringValue{Value: "test-api-key"},
-	})
+	settings := wbsettings.From(protoSettings)
 	baseURL := stream.BaseURLFromSettings(logger, settings)
 	credentialProvider := stream.CredentialsFromSettings(logger, settings)
 	fileStreamFactory := &filestream.FileStreamFactory{
@@ -87,7 +94,7 @@ func makeSender(t *testing.T, client graphql.Client) testFixtures {
 // A summary _step from any source other than the Sender's own step tracker
 // must not win.
 func TestSendSummaryOverridesStaleStep(t *testing.T) {
-	x := makeSender(t, gqlmock.NewMockClient())
+	x := makeSender(t, gqlmock.NewMockClient(), nil)
 
 	x.Sender.SendRecord(&spb.Record{
 		RecordType: &spb.Record_History{
@@ -122,10 +129,67 @@ func TestSendSummaryOverridesStaleStep(t *testing.T) {
 		"non-step keys must still be applied")
 }
 
+func TestSendSummaryDropsInboundStepInSharedMode(t *testing.T) {
+	x := makeSender(t, gqlmock.NewMockClient(), &spb.Settings{
+		XShared: &wrapperspb.BoolValue{Value: true},
+	})
+
+	x.Sender.SendRecord(&spb.Record{
+		RecordType: &spb.Record_Summary{
+			Summary: &spb.SummaryRecord{
+				Update: []*spb.SummaryItem{
+					{Key: "loss", ValueJson: "1.23"},
+					{Key: "_step", ValueJson: "999"},
+				},
+			},
+		},
+	}, nil)
+
+	summary, err := x.Sender.SummaryForTest()
+	require.NoError(t, err)
+
+	values := map[string]string{}
+	for _, item := range summary {
+		values[item.GetKey()] = item.GetValueJson()
+	}
+	_, hasStep := values["_step"]
+	assert.False(t, hasStep, "shared mode must not publish inbound _step")
+	assert.Equal(t, "1.23", values["loss"])
+}
+
+func TestSendSummaryDropsInboundStepWithServerSideDerivedSummary(t *testing.T) {
+	x := makeSender(t, gqlmock.NewMockClient(), &spb.Settings{
+		XServerSideDerivedSummary: &wrapperspb.BoolValue{Value: true},
+	})
+
+	x.Sender.SendRecord(&spb.Record{
+		RecordType: &spb.Record_Summary{
+			Summary: &spb.SummaryRecord{
+				Update: []*spb.SummaryItem{
+					{Key: "loss", ValueJson: "1.23"},
+					{Key: "_step", ValueJson: "999"},
+				},
+			},
+		},
+	}, nil)
+
+	summary, err := x.Sender.SummaryForTest()
+	require.NoError(t, err)
+
+	values := map[string]string{}
+	for _, item := range summary {
+		values[item.GetKey()] = item.GetValueJson()
+	}
+	_, hasStep := values["_step"]
+	assert.False(t, hasStep,
+		"server-side derived summary must not publish inbound _step")
+	assert.Equal(t, "1.23", values["loss"])
+}
+
 // Verify that arguments are properly passed through to graphql
 func TestSendLinkArtifact(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
-	x := makeSender(t, mockGQL)
+	x := makeSender(t, mockGQL, nil)
 
 	// 1. When both clientId and serverId are sent, serverId is used
 	linkArtifact := &spb.Record{
@@ -238,7 +302,7 @@ func TestSendLinkArtifact(t *testing.T) {
 
 func TestSendUseArtifact(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
-	x := makeSender(t, mockGQL)
+	x := makeSender(t, mockGQL, nil)
 
 	useArtifact := &spb.Record{
 		RecordType: &spb.Record_UseArtifact{
