@@ -844,11 +844,10 @@ pub struct RunRecord {
     /// Information about the source if this is a fork or rewind of another run.
     #[prost(message, optional, tag = "23")]
     pub branch_point: ::core::option::Option<BranchPoint>,
-    /// Whether this run is expected to resume an existing run when syncing.
-    ///
-    /// This is input intent, unlike `resumed`, which is a backend result.
+    /// Whether syncing should resume an existing run.
+    /// Unlike `resumed`, this records input intent.
     #[prost(bool, tag = "24")]
-    pub resume_mode: bool,
+    pub resume: bool,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }

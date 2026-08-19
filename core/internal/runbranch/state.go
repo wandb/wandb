@@ -162,7 +162,7 @@ func (r *RunParams) SetOnProto(record *spb.RunRecord) {
 		})
 	}
 
-	record.ResumeMode = r.Resume
+	record.Resume = r.Resume
 
 	record.Resumed = r.Resumed
 	record.Forked = r.Forked
@@ -239,7 +239,7 @@ func (r *RunParams) Update(
 
 	// NOTE: Summary is ignored; see comment on the field.
 
-	if record.ResumeMode {
+	if record.Resume {
 		r.Resume = true
 	}
 
