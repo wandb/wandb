@@ -61,6 +61,20 @@ func (a *AnimatedValue) Toggle() {
 
 	a.startValue = a.current
 	a.startTime = now
+
+	if testModeEnabled() {
+		a.snapToTargetLocked()
+	}
+}
+
+// snapToTargetLocked completes the animation immediately so that no
+// animation ticks are scheduled (IsAnimating reports false).
+//
+// The caller must hold a.mu.
+func (a *AnimatedValue) snapToTargetLocked() {
+	a.current = a.target
+	a.startValue = a.target
+	a.startTime = time.Time{}
 }
 
 // Update advances the animation given a wall-clock time and returns
@@ -137,6 +151,10 @@ func (a *AnimatedValue) SetExpanded(size int) {
 		return
 	}
 	a.startTime = now
+
+	if testModeEnabled() {
+		a.snapToTargetLocked()
+	}
 }
 
 // Value returns the current animated value.

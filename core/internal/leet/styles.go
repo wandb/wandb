@@ -55,6 +55,17 @@ var (
 // initTerminalBg queries the terminal for its background color (once).
 func initTerminalBg() {
 	termBgOnce.Do(func() {
+		if testModeEnabled() {
+			// Frozen values under the test harness: no terminal query, and
+			// the Rust port uses the same constants (see leet/docs/PARITY.md).
+			if testForcedLightBackground() {
+				termBgR, termBgG, termBgB = 0xfa, 0xfa, 0xfa
+			} else {
+				termBgR, termBgG, termBgB = 0x1e, 0x1e, 0x1e
+			}
+			termBgDetected = true
+			return
+		}
 		output := termenv.NewOutput(os.Stdout)
 		bg := output.BackgroundColor()
 		if bg == nil {
