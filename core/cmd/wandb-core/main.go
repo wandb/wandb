@@ -243,10 +243,16 @@ func leetMain(args []string) int {
 	flushSentry := configureLeetSentry(opts.disableAnalytics, leetSentryMessage(&opts))
 	defer flushSentry()
 
-	telemetryProxy := configureLeetTelemetry(opts.disableAnalytics, opts.telemetryEndpoint)
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	defer telemetryProxy.Shutdown(shutdownCtx)
+	telemetryProxy := configureLeetTelemetry(
+		opts.disableAnalytics,
+		opts.telemetryEndpoint,
+		os.Getenv("WANDB_API_KEY"),
+	)
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_ = telemetryProxy.Shutdown(shutdownCtx)
+	}()
 
 	logger, closeLogger, err := newLeetLogger(opts.logLevel, telemetryProxy)
 	if err != nil {
@@ -445,7 +451,14 @@ func configureLeetSentry(disableAnalytics bool, message string) func() {
 	return func() { sentry.Flush(2 * time.Second) }
 }
 
-func configureLeetTelemetry(disableAnalytics bool, endpoint string) *analytics.OpenTelemetryProxy {
+// configureLeetTelemetry builds the OpenTelemetryProxy used to record LEET
+// usage telemetry. It returns nil (a no-op proxy) if disableAnalytics is
+// set, the endpoint or apiKey is empty, or the backend is offline.
+func configureLeetTelemetry(
+	disableAnalytics bool,
+	endpoint string,
+	apiKey string,
+) *analytics.OpenTelemetryProxy {
 	if disableAnalytics {
 		analytics.Disable()
 	}
@@ -453,7 +466,7 @@ func configureLeetTelemetry(disableAnalytics bool, endpoint string) *analytics.O
 	analytics.ConfigureOTelErrorHandler()
 	s := settings.From(&spb.Settings{
 		BaseUrl: wrapperspb.String(endpoint),
-		ApiKey:  wrapperspb.String(os.Getenv("WANDB_API_KEY")),
+		ApiKey:  wrapperspb.String(apiKey),
 	})
 
 	return analytics.NewOpenTelemetryProxy(

@@ -21,7 +21,7 @@ from wandb import env as wandb_env
 from wandb.analytics import get_sentry
 from wandb.env import error_reporting_enabled, is_debug
 from wandb.errors import WandbCoreNotAvailableError
-from wandb.sdk import wandb_setup
+from wandb.sdk import wandb_settings, wandb_setup
 from wandb.sdk.lib import wbauth
 from wandb.sdk.lib.wbauth import wbnetrc
 from wandb.util import get_core_path
@@ -170,6 +170,16 @@ def _find_wandb_file_in_dir(dir_path: pathlib.Path) -> pathlib.Path | None:
     return None
 
 
+def _build_telemetry_config(settings: wandb_settings.Settings) -> TelemetryConfig:
+    """Build a TelemetryConfig from the given settings."""
+    base_url = settings.base_url
+    api_key = wbnetrc.read_netrc_auth(host=base_url)
+    return TelemetryConfig(
+        endpoint=base_url,
+        api_key=api_key,
+    )
+
+
 def _resolve_path(path: str | None) -> LaunchConfig:
     """Resolve the given path into a LaunchConfig.
 
@@ -180,13 +190,7 @@ def _resolve_path(path: str | None) -> LaunchConfig:
         - Other directory: Treat as wandb_dir (workspace mode)
     """
     singleton = wandb_setup.singleton()
-    base_url = singleton.settings.base_url
-    api_key = wbnetrc.read_netrc_auth(host=base_url)
-
-    telemetry = TelemetryConfig(
-        endpoint=base_url,
-        api_key=api_key,
-    )
+    telemetry = _build_telemetry_config(singleton.settings)
 
     if not path:
         wandb_dir = singleton.settings.wandb_dir
@@ -240,6 +244,19 @@ def _base_args() -> list[str]:
     return args
 
 
+def _apply_telemetry_args(
+    args: list[str],
+    env: dict[str, str],
+    config: TelemetryConfig,
+) -> None:
+    """Apply the telemetry arguments to the given arguments and environment."""
+    if not (wandb_env.error_reporting_enabled() and config.endpoint and config.api_key):
+        return
+
+    args.extend(["--telemetry-endpoint", config.endpoint])
+    env["WANDB_API_KEY"] = config.api_key
+
+
 def _run_core(args: list[str], env: dict[str, str] | None = None) -> Never:
     """Run wandb-core with the given arguments and exit with its return code."""
     try:
@@ -265,18 +282,7 @@ def launch(path: str | None, pprof: str) -> Never:
     if pprof:
         args.extend(["--pprof", pprof])
 
-    if (
-        wandb_env.error_reporting_enabled()
-        and config.telemetry.endpoint
-        and config.telemetry.api_key
-    ):
-        args.extend(
-            [
-                "--telemetry-endpoint",
-                config.telemetry.endpoint,
-            ]
-        )
-        env["WANDB_API_KEY"] = config.telemetry.api_key
+    _apply_telemetry_args(args, env, config.telemetry)
 
     if isinstance(config, LocalLaunchConfig):
         args.extend(_get_local_launch_args(config))
@@ -296,7 +302,11 @@ def launch_config() -> Never:
     args = _base_args()
     args.append("--config")
 
-    _run_core(args)
+    env = os.environ.copy()
+    telemetry = _build_telemetry_config(wandb_setup.singleton().settings)
+    _apply_telemetry_args(args, env, telemetry)
+
+    _run_core(args, env)
 
 
 def launch_symon(pprof: str = "", interval: str = "") -> Never:
@@ -305,6 +315,7 @@ def launch_symon(pprof: str = "", interval: str = "") -> Never:
 
     args = _base_args()
     args.append("--symon")
+    env = os.environ.copy()
 
     if pprof:
         args.extend(["--pprof", pprof])
@@ -312,7 +323,10 @@ def launch_symon(pprof: str = "", interval: str = "") -> Never:
     if interval:
         args.extend(["--interval", interval])
 
-    _run_core(args)
+    telemetry = _build_telemetry_config(wandb_setup.singleton().settings)
+    _apply_telemetry_args(args, env, telemetry)
+
+    _run_core(args, env)
 
 
 def _get_local_launch_args(config: LocalLaunchConfig) -> list[str]:
