@@ -886,3 +886,39 @@ def test_mixed_manifest_round_trip_preserves_per_entry_algorithm():
         restored.entries["md5.txt"].digest_algorithm()
         is ArtifactDigestAlgorithm.MANIFEST_MD5
     )
+
+
+def test_hash_contents_with_md5_correctly_rehashes_xxh128_entries():
+    f = Path("file.txt")
+    f.write_text("hello")
+
+    f2 = Path("file2.txt")
+    f2.write_text("hi")
+
+    artifact = Artifact("test", type="dataset")
+    artifact.add_file(str(f))
+    artifact.add_file(str(f2))
+    assert (
+        artifact.manifest.entries["file.txt"].digest_algorithm()
+        is ArtifactDigestAlgorithm.MANIFEST_XXH128
+    )
+    assert artifact.manifest.entries["file.txt"].digest == xxh128_string("hello")
+    assert (
+        artifact.manifest.entries["file2.txt"].digest_algorithm()
+        is ArtifactDigestAlgorithm.MANIFEST_XXH128
+    )
+    assert artifact.manifest.entries["file2.txt"].digest == xxh128_string("hi")
+
+    artifact.manifest.hash_contents_with_md5()
+    assert artifact.manifest.entries["file.txt"].digest == md5_string("hello")
+    assert artifact.manifest.entries["file.txt"].extra == {}
+    assert (
+        artifact.manifest.entries["file.txt"].digest_algorithm()
+        is ArtifactDigestAlgorithm.MANIFEST_MD5
+    )
+    assert artifact.manifest.entries["file2.txt"].digest == md5_string("hi")
+    assert artifact.manifest.entries["file2.txt"].extra == {}
+    assert (
+        artifact.manifest.entries["file2.txt"].digest_algorithm()
+        is ArtifactDigestAlgorithm.MANIFEST_MD5
+    )
