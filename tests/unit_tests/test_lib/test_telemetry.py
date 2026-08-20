@@ -100,3 +100,35 @@ def test_reraise_raises_original_on_telemetry_fail(monkeypatch):
         recorder.reraise(original)
 
     assert exc_info.value is original
+
+
+def test_proxy_noop_after_disable(monkeypatch):
+    disabled = threading.Event()
+    monkeypatch.setattr(opentelemetry_proxy, "_disabled", disabled)
+    meter_provider = MagicMock()
+    logger_provider = MagicMock()
+    monkeypatch.setattr(
+        OpenTelemetryProxy,
+        "_build_meter_provider",
+        lambda self, **kwargs: meter_provider,
+    )
+    monkeypatch.setattr(
+        OpenTelemetryProxy,
+        "_build_logger_provider",
+        lambda self, **kwargs: logger_provider,
+    )
+
+    proxy = OpenTelemetryProxy(settings=Settings())
+    proxy.increment_counter("test_counter")
+    proxy.log("test log")
+    meter_provider.get_meter.assert_called()
+    logger_provider.get_logger.assert_called()
+
+    disabled.set()
+
+    meter_provider.reset_mock()
+    logger_provider.reset_mock()
+    proxy.increment_counter("test_counter")
+    proxy.log("test log")
+    meter_provider.get_meter.assert_not_called()
+    logger_provider.get_logger.assert_not_called()

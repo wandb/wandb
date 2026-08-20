@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import atexit
 import contextlib
 import functools
+import os
 import platform
 import threading
 import traceback
@@ -16,6 +18,7 @@ from opentelemetry.sdk.metrics.export import AggregationTemporality
 from typing_extensions import Never, ParamSpec
 
 from wandb import env
+from wandb.sdk import wandb_setup
 from wandb.sdk.wandb_settings import Settings
 
 if TYPE_CHECKING:
@@ -48,8 +51,8 @@ _disabled = threading.Event()
 def disable() -> None:
     """Turn analytics off for the whole process.
 
-    Once called, `OpenTelemetryProxy.from_settings` returns `None`, so no
-    further telemetry is recorded.
+    Once called, `get_open_telemetry_proxy` returns `None` and existing
+    proxies' `increment_counter` and `log` methods become no-ops.
     """
     _disabled.set()
 
@@ -383,6 +386,7 @@ class OpenTelemetryProxy:
         self,
         *,
         settings: Settings,
+        pid: int | None = None,
     ) -> None:
         """Initialize the proxy and its OpenTelemetry providers.
 
@@ -391,8 +395,9 @@ class OpenTelemetryProxy:
         """
         from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 
-        session = requests.Session()
+        self._pid = pid or os.getpid()
 
+        session = requests.Session()
         resource = Resource.create({SERVICE_NAME: _DEFAULT_SERVICE_NAME})
         self._meter_provider = self._build_meter_provider(
             resource=resource,
@@ -475,7 +480,7 @@ class OpenTelemetryProxy:
         attributes: dict[str, str] | None = None,
     ) -> None:
         """Increment the counter metric `name` by 1 with the given attributes."""
-        if self._shutdown:
+        if self._shutdown or _disabled.is_set():
             return
 
         counter = self._counter(name)
@@ -497,7 +502,7 @@ class OpenTelemetryProxy:
         severity: SeverityNumber = SeverityNumber.INFO,
     ) -> None:
         """Emit a log record with the given body, attributes, and severity."""
-        if self._shutdown:
+        if self._shutdown or _disabled.is_set():
             return
 
         logger = self._logger_provider.get_logger(_DEFAULT_SERVICE_NAME)
@@ -519,11 +524,62 @@ class OpenTelemetryProxy:
                 return
             self._shutdown = True
 
-        with contextlib.suppress(Exception):
-            self._meter_provider.shutdown(timeout_millis=timeout_millis)
-        with contextlib.suppress(Exception):
-            self._logger_provider.shutdown()
+        if self._meter_provider is not None:
+            with contextlib.suppress(Exception):
+                self._meter_provider.shutdown(timeout_millis=timeout_millis)
+        if self._logger_provider is not None:
+            with contextlib.suppress(Exception):
+                self._logger_provider.shutdown()
 
 
 def _exception_stacktrace(exc: Exception) -> str:
     return "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+
+
+_singleton_telemetry_proxy: OpenTelemetryProxy | None = None
+_singleton_telemetry_recorder: TelemetryRecorder | None = None
+_singleton_lock = threading.Lock()
+
+
+def _shutdown_singleton_open_telemetry_proxy() -> None:
+    """Flush and shut down the process-wide OpenTelemetry proxy on interpreter exit."""
+    proxy = _singleton_telemetry_proxy
+    if proxy is None:
+        return
+    with contextlib.suppress(Exception):
+        proxy.shutdown()
+
+
+def get_telemetry_recorder() -> TelemetryRecorder:
+    """Return the process-wide TelemetryRecorder wrapping the singleton proxy.
+
+    The same instance is reused until the proxy is replaced (for example after
+    fork) or `disable()` is called. After disable, a no-op recorder is cached.
+    """
+    global _singleton_telemetry_recorder
+
+    telemetry_proxy = get_open_telemetry_proxy()
+    with _singleton_lock:
+        recorder = _singleton_telemetry_recorder
+        if recorder is None or recorder._open_telemetry_proxy is not telemetry_proxy:
+            recorder = TelemetryRecorder(telemetry_proxy)
+            _singleton_telemetry_recorder = recorder
+        return recorder
+
+
+def get_open_telemetry_proxy() -> OpenTelemetryProxy | None:
+    """Return the singleton OpenTelemetryProxy instance."""
+    global _singleton_telemetry_proxy
+
+    if _disabled.is_set():
+        return None
+
+    pid = os.getpid()
+
+    with _singleton_lock:
+        if _singleton_telemetry_proxy is None or _singleton_telemetry_proxy._pid != pid:
+            settings = wandb_setup.singleton().settings
+            _singleton_telemetry_proxy = OpenTelemetryProxy(settings=settings, pid=pid)
+            atexit.register(_shutdown_singleton_open_telemetry_proxy)
+
+    return _singleton_telemetry_proxy

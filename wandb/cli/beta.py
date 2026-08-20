@@ -9,7 +9,7 @@ import pathlib
 
 import click
 
-from wandb.analytics import get_sentry
+from wandb.analytics import get_sentry, get_telemetry_recorder
 from wandb.errors import WandbCoreNotAvailableError
 from wandb.util import get_core_path
 
@@ -28,6 +28,7 @@ def beta(ctx: click.Context) -> None:
         get_core_path()
     except WandbCoreNotAvailableError as e:
         get_sentry().exception(f"using `wandb beta`. failed with {e}")
+        get_telemetry_recorder().exception(e)
         click.secho(
             (e),
             fg="red",
