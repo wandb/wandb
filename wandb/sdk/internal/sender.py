@@ -22,7 +22,6 @@ import wandb
 from wandb import util
 from wandb.analytics import TelemetryRecorder, get_sentry
 from wandb.analytics.opentelemetry.opentelemetry_proxy import OpenTelemetryProxy
-from wandb.apis.public.service_api import ServiceApi
 from wandb.errors import CommError, UsageError
 from wandb.errors.util import ProtobufErrorHandler
 from wandb.filesync.dir_watcher import DirWatcher

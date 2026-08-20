@@ -22,13 +22,12 @@ import yaml
 from click.exceptions import ClickException
 
 import wandb
-from wandb.analytics.opentelemetry.opentelemetry_proxy import OpenTelemetryProxy
 import wandb.errors
 import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent
 from wandb.analytics import TelemetryRecorder, get_sentry
+from wandb.analytics.opentelemetry.opentelemetry_proxy import OpenTelemetryProxy
 from wandb.apis import InternalApi, PublicApi
-from wandb.apis.public.service_api import ServiceApi
 from wandb.cli import beta_sync
 from wandb.errors.links import url_registry
 from wandb.sdk import wandb_setup, wandb_sweep

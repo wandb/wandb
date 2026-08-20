@@ -27,11 +27,10 @@ from typing import TYPE_CHECKING, Literal
 from typing_extensions import Any, Protocol
 
 import wandb
-from wandb.analytics.opentelemetry.opentelemetry_proxy import OpenTelemetryProxy
 import wandb.env
 from wandb import env, trigger
 from wandb.analytics import TelemetryRecorder, get_sentry
-from wandb.apis.public.service_api import ServiceApi
+from wandb.analytics.opentelemetry.opentelemetry_proxy import OpenTelemetryProxy
 from wandb.errors import Error, UsageError
 from wandb.errors.links import url_registry
 from wandb.errors.util import ProtobufErrorHandler
