@@ -269,18 +269,23 @@ var (
 		Light: lipgloss.Color("#FCBC32"),
 	}
 
-	// Color for live (running) runs: the breathing liveness dot and the
+	// Color for live (running) runs: the state indicator dot and the
 	// "Running" state text.
+	//
+	// These state colors sit on exact xterm-256 cube entries: on
+	// non-truecolor terminals (e.g. tmux without RGB overrides) the
+	// downsampler maps off-cube dark reds to gray, turning the indicator
+	// black.
 	colorRunning = AdaptiveColor{
-		Light: lipgloss.Color("#00875D"),
+		Light: lipgloss.Color("#00875F"), // xterm 29
 		Dark:  lipgloss.Color("#3DD68C"),
 	}
 
 	// Color for runs that ended badly: crashed/failed state text and the
-	// crashed liveness dot.
+	// crashed state indicator dot.
 	colorCrashed = AdaptiveColor{
-		Light: lipgloss.Color("#B02D37"),
-		Dark:  lipgloss.Color("#FF5F66"),
+		Light: lipgloss.Color("#AF0000"), // xterm 124
+		Dark:  lipgloss.Color("#FF5F5F"), // xterm 203
 	}
 )
 
