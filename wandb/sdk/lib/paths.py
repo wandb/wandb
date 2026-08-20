@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import platform
 from functools import wraps
-from pathlib import PurePath, PurePosixPath
+from pathlib import PurePath, PurePosixPath, PureWindowsPath
 from typing import Any, TypeAlias, Union
 
 # Path _inputs_ should generally accept any kind of path. This is named the same and
@@ -13,6 +13,30 @@ StrPath: TypeAlias = Union[str, "os.PathLike[str]"]
 
 FilePathStr: TypeAlias = str  #: A native path to a file on a local filesystem.
 URIStr: TypeAlias = str
+
+
+def validate_path(path: StrPath, error_prefix: str | None = None) -> LogicalPath:
+    """Validate and canonicalize an relative path for artifact and run files before download.
+
+    Among other things, this forbids absolute paths or relative paths with traversal.
+    """
+    logical_path = LogicalPath(path)
+    posix_path = logical_path.to_path()
+    windows_path = PureWindowsPath(path)
+
+    if (
+        logical_path == "."
+        or posix_path.anchor
+        or (".." in posix_path.parts)
+        or windows_path.anchor
+        or (".." in windows_path.parts)
+    ):
+        if error_prefix is not None:
+            raise ValueError(f"{error_prefix}: {path!r}")
+        else:
+            raise ValueError(f"Invalid artifact/run file path: {path!r}")
+
+    return logical_path
 
 
 class LogicalPath(str):

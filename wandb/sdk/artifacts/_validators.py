@@ -8,7 +8,6 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from functools import singledispatch, wraps
-from pathlib import PureWindowsPath
 from typing import TYPE_CHECKING, Any, Concatenate, Literal, Optional, TypeVar
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
@@ -17,7 +16,7 @@ from typing_extensions import ParamSpec, Self
 from wandb._iterutils import always_list, unique_list
 from wandb._pydantic import from_json
 from wandb._strutils import nameof, repr_join
-from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath
+from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, validate_path
 from wandb.util import json_friendly_val
 
 from .exceptions import ArtifactFinalizedError, ArtifactNotLoggedError
@@ -71,20 +70,7 @@ def validate_artifact_path(path: StrPath) -> LogicalPath:
 
     Among other things, this forbids absolute paths or relative paths with traversal.
     """
-    logical_path = LogicalPath(path)
-    posix_path = logical_path.to_path()
-    windows_path = PureWindowsPath(path)
-
-    if (
-        logical_path == "."
-        or posix_path.anchor
-        or (".." in posix_path.parts)
-        or windows_path.anchor
-        or (".." in windows_path.parts)
-    ):
-        raise ValueError(f"Invalid artifact path: {path!r}")
-
-    return logical_path
+    return validate_path(path=path, error_prefix="Invalid artifact path")
 
 
 def validate_fspath(root: StrPath, relpath: StrPath) -> FilePathStr:

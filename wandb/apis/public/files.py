@@ -46,6 +46,7 @@ from wandb.apis.paginator import SizedPaginator
 from wandb.apis.public import utils
 from wandb.apis.public.runs import Run
 from wandb.proto.wandb_api_pb2 import ApiRequest, DownloadFileRequest
+from wandb.sdk.lib.paths import validate_path
 from wandb.util import POW_2_BYTES, to_human_size
 
 if TYPE_CHECKING:
@@ -337,7 +338,8 @@ class File(Attrs):
             `ValueError` if file already exists, `replace=False` and
             `exist_ok=False`.
         """
-        path = os.path.join(root, self.name)
+        name = validate_path(self.name)
+        path = os.path.join(root, name)
         if os.path.exists(path) and not replace:
             if exist_ok:
                 return open(path)
