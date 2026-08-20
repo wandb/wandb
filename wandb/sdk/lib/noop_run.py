@@ -1,15 +1,19 @@
 """Implementation for WANDB_MODE=disabled."""
 
+from __future__ import annotations
+
 import time
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from typing_extensions import Self, override
 
 import wandb
 from wandb.sdk import wandb_config, wandb_metric, wandb_run, wandb_settings
-from wandb.sdk.artifacts import artifact
 from wandb.sdk.lib import module
 from wandb.sdk.lib.disabled import SummaryDisabled
+
+if TYPE_CHECKING:
+    from wandb.sdk.artifacts import artifact
 
 
 def init_noop_run(
@@ -139,4 +143,4 @@ class NoopRun(wandb_run.Run):
     def log_artifact(self, *args, **kwargs) -> artifact.Artifact:
         # Cast to object first to tell the type-checker this is intentional.
         noop = cast(object, _Noop())
-        return cast(artifact.Artifact, noop)
+        return cast("artifact.Artifact", noop)
