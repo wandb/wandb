@@ -66,7 +66,7 @@ def launch_add(
             Expected format of `{"VAR_NAME": VAR_VALUE}`
         project: Target project to send launched run to
         entity: Target entity to send launched run to
-        queue: the name of the queue to enqueue the run to
+        queue_name: the name of the queue to enqueue the run to
         priority: the priority level of the job, where 1 is the highest priority
         resource: Execution backend for the run: W&B provides built-in support for "local-container" backend
         entry_point: Entry point to run within the project. Defaults to using the entry point used

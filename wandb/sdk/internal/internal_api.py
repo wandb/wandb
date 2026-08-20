@@ -441,7 +441,6 @@ class Api:
 
         Args:
             key (str, optional): If provided only this setting is returned
-            section (str, optional): If provided this section of the setting file is
             used, defaults to "default"
 
         Returns:

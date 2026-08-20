@@ -261,7 +261,6 @@ class ServiceApi:
 
         Args:
             request: The Api request to send.
-            timeout: The timeout for the request.
         """
         session = self._get_api_session()
         request.api_id = session.api_id

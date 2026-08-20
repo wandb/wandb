@@ -41,7 +41,7 @@ class ElasticContainerRegistry(AbstractRegistry):
             uri: The uri of the repository.
             account_id: The AWS account id.
             region: The AWS region of the container registry.
-            repository: The name of the repository.
+            repo_name: The name of the repository.
 
         Raises:
             LaunchError: If there is an error initializing the Elastic Container Registry helper.

@@ -32,7 +32,7 @@ class Bokeh(Media):
     """Wandb class for Bokeh plots.
 
     Args:
-        val: Bokeh plot
+        data_or_path: Bokeh plot
     """
 
     _log_type = "bokeh-file"
