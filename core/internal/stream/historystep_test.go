@@ -1,6 +1,7 @@
 package stream_test
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -117,6 +118,38 @@ func TestHistoryStepTracker_RewritesStepBelowStartingStep(t *testing.T) {
 	x.Tracker.ApplyHistoryStep(history)
 
 	assert.Equal(t, "2", history.Item[1].ValueJson)
+}
+
+func TestHistoryStepTracker_RenumberUnparseableExplicitStep(t *testing.T) {
+	x := makeHistoryStepTracker(t, false /*shared*/, false /*serverSideDerivedSummary*/)
+
+	badValues := []string{
+		`"5"`,
+		"5.5",
+		"null",
+		"true",
+		`{"a":1}`,
+		"[1]",
+	}
+	for i, value := range badValues {
+		history := &spb.HistoryRecord{
+			Item: []*spb.HistoryItem{{
+				NestedKey: []string{"_step"},
+				ValueJson: value,
+			}},
+		}
+		x.Tracker.Process(history, 0)
+
+		assert.Equal(t, strconv.Itoa(i), historyStepValue(history), "row %d", i)
+		stepItems := 0
+		for _, item := range history.Item {
+			if item.GetKey() == "_step" ||
+				(len(item.GetNestedKey()) == 1 && item.GetNestedKey()[0] == "_step") {
+				stepItems++
+			}
+		}
+		assert.Equal(t, 1, stepItems, "row %d must have exactly one _step item", i)
+	}
 }
 
 func TestHistoryStepTracker_OfflineResumedSegmentRewritesSteps(t *testing.T) {
