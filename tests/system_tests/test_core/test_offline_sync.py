@@ -77,52 +77,6 @@ def test_legacy_sync_preserves_explicit_step(wandb_backend_spy, runner):
         assert history[0]["loss"] == 0.1
 
 
-def _stub_run_resume_status(
-    wandb_backend_spy,
-    *,
-    entity: str,
-    run_id: str,
-    history_line_count: int,
-    last_step: int,
-    last_loss: float,
-) -> None:
-    gql = wandb_backend_spy.gql
-    wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="RunResumeStatus"),
-        gql.once(
-            content={
-                "data": {
-                    "model": {
-                        "entity": {"name": entity},
-                        "bucket": {
-                            "name": run_id,
-                            "config": "{}",
-                            "historyLineCount": history_line_count,
-                            "eventsLineCount": 0,
-                            "logLineCount": 0,
-                            "eventsTail": "[]",
-                            "historyTail": json.dumps(
-                                [
-                                    json.dumps(
-                                        {
-                                            "_step": last_step,
-                                            "_runtime": 0,
-                                            "loss": last_loss,
-                                        }
-                                    )
-                                ]
-                            ),
-                            "summaryMetrics": "{}",
-                            "wandbConfig": '{"t": 1}',
-                        },
-                    },
-                }
-            },
-            status=200,
-        ),
-    )
-
-
 def test_legacy_sync_append_renumbers_step_from_server_cursor(
     wandb_backend_spy,
     runner,
