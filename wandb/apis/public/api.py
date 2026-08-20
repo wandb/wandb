@@ -1953,7 +1953,7 @@ class Api:
         per_page: int = 100,
         start: str | None = None,
     ) -> Registries:
-        """Returns an iterable of `Registry` objects.
+        """Returns a lazy iterator of `Registry` objects.
 
         Use the iterator to search and filter registries, collections,
         or artifact versions across your organization's registry. Results are
@@ -1979,7 +1979,7 @@ class Api:
                 from a previous paginator's `.cursor` attribute.
 
         Returns:
-            An iterable of `Registry` objects. The returned object supports
+            A lazy iterator of `Registry` objects. The returned object supports
             Python's iterator protocol and fetches results lazily as you
             iterate. See https://docs.python.org/3/library/itertools.html.
 

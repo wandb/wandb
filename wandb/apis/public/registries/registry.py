@@ -222,7 +222,7 @@ class Registry:
                 from a previous paginator's `.cursor` attribute.
 
         Returns:
-            An iterable of `ArtifactCollection` objects. The returned object
+            A lazy iterator of `ArtifactCollection` objects. The returned object
             supports Python's iterator protocol and fetches results lazily as you
             iterate—for example, use :func:`itertools.islice` to request only the
             first *n* items without fetching the rest. See
@@ -257,7 +257,7 @@ class Registry:
                 from a previous paginator's `.cursor` attribute.
 
         Returns:
-            An iterable of `Artifact` objects. The returned object supports
+            A lazy iterator of `Artifact` objects. The returned object supports
             Python's iterator protocol and fetches results lazily as you
             iterate—for example, use :func:`itertools.islice` to request only the
             first *n* items without fetching the rest. See

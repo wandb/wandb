@@ -196,7 +196,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
                 Not supported when ``registries()`` was called with ``order=``.
 
         Returns:
-            An iterable of `ArtifactCollection` objects. The returned object
+            A lazy iterator of `ArtifactCollection` objects. The returned object
             supports Python's iterator protocol and fetches results lazily as you
             iterate—for example, use :func:`itertools.islice` to request only the
             first *n* items without fetching the rest. See
@@ -256,7 +256,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
                 Not supported when ``registries()`` was called with ``order=``.
 
         Returns:
-            An iterable of `Artifact` objects. The returned object supports
+            A lazy iterator of `Artifact` objects. The returned object supports
             Python's iterator protocol and fetches results lazily as you
             iterate—for example, use :func:`itertools.islice` to request only the
             first *n* items without fetching the rest. See
@@ -402,7 +402,7 @@ class Collections(
                 Not supported when ``collections()`` was called with ``order=``.
 
         Returns:
-            An iterable of `Artifact` objects. The returned object supports
+            A lazy iterator of `Artifact` objects. The returned object supports
             Python's iterator protocol and fetches results lazily as you
             iterate—for example, use :func:`itertools.islice` to request only the
             first *n* items without fetching the rest. See
