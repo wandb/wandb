@@ -215,6 +215,13 @@ class Registry:
                 Usually there is no reason to change this.
             start: Pagination cursor for resuming a past query, captured
                 from a previous paginator's `.cursor` attribute.
+
+        Returns:
+            A lazy iterator of `ArtifactCollection` objects. The returned object
+            supports Python's iterator protocol and fetches results lazily as you
+            iterate—for example, use :func:`itertools.islice` to request only the
+            first *n* items without fetching the rest. See
+            https://docs.python.org/3/library/itertools.html.
         """
         return Collections(
             service_api=self._service_api,
@@ -241,6 +248,13 @@ class Registry:
                 Usually there is no reason to change this.
             start: Pagination cursor for resuming a past query, captured
                 from a previous paginator's `.cursor` attribute.
+
+        Returns:
+            A lazy iterator of `Artifact` objects. The returned object supports
+            Python's iterator protocol and fetches results lazily as you
+            iterate—for example, use :func:`itertools.islice` to request only the
+            first *n* items without fetching the rest. See
+            https://docs.python.org/3/library/itertools.html.
         """
         return Versions(
             service_api=self._service_api,
