@@ -90,6 +90,29 @@ def copy_asset(
     yield copy_asset_fn
 
 
+@pytest.fixture
+def compat_log(assets_path) -> Callable[[str], Path]:
+    """Returns the path to a committed transaction-log compatibility fixture.
+
+    These live under tests/assets/compat_logs/synthesized and pin the on-disk shape of
+    .wandb files across the format change in wandb PR #12110; see
+    tests/assets/compat_logs/README.md. The Go-side source of truth is the
+    goldenCorpus table in core/internal/transactionlogtest/golden_test.go.
+
+    `name` is both the case name and the fixture's run ID (e.g.
+    "old_auto_steps"). Anything that syncs the returned file should copy it
+    into a tmp_path first: syncing writes .synced/.syncstate sidecars next
+    to it, which would mutate the committed fixture in place.
+    """
+
+    def compat_log_fn(name: str) -> Path:
+        return assets_path(
+            f"compat_logs/synthesized/offline-run-{name}/run-{name}.wandb"
+        )
+
+    return compat_log_fn
+
+
 # --------------------------------
 # Misc Fixtures
 # --------------------------------
