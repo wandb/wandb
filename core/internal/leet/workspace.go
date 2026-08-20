@@ -107,6 +107,10 @@ type WorkspaceRun struct {
 	wandbPath string
 	watcher   *WatcherManager
 	state     RunState
+
+	// lastUpdateAt tracks when the transaction log last produced a record.
+	// A live run that stays silent past RunCrashTimeout is presumed crashed.
+	lastUpdateAt time.Time
 }
 
 func NewWorkspace(

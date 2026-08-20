@@ -572,6 +572,12 @@ func (w *Workspace) ensureLiveStreaming(run *WorkspaceRun) tea.Cmd {
 			)
 			run.watcher = nil
 		} else {
+			// Seed the staleness clock from the file so a run that died
+			// before LEET started is caught on the first heartbeat rather
+			// than a full RunCrashTimeout later.
+			if info, err := os.Stat(run.wandbPath); err == nil {
+				run.lastUpdateAt = info.ModTime()
+			}
 			watcherCmd = w.waitForWatcher(run.Key)
 		}
 	}
@@ -708,6 +714,11 @@ func (w *Workspace) handleWorkspaceBatchedRecords(msg WorkspaceBatchedRecordsMsg
 
 // handleWorkspaceRecord updates per‑run and metrics state for an individual record.
 func (w *Workspace) handleWorkspaceRecord(run *WorkspaceRun, msg tea.Msg) {
+	// Every message here is derived from a transaction-log record —
+	// proof of life for the crash check. (FileComplete leaves
+	// RunStateRunning, after which lastUpdateAt is irrelevant.)
+	run.lastUpdateAt = time.Now()
+
 	switch m := msg.(type) {
 	case RunMsg:
 		w.getOrCreateRunOverview(run.Key).ProcessRunMsg(m)
@@ -756,6 +767,16 @@ func (w *Workspace) handleWorkspaceRecord(run *WorkspaceRun, msg tea.Msg) {
 
 // handleHeartbeat is invoked when the workspace heartbeat timer fires.
 func (w *Workspace) handleHeartbeat() tea.Cmd {
+	// Presume-crashed sweep: live runs whose transaction logs went silent.
+	for key, run := range w.runsByKey {
+		if run == nil || run.state != RunStateRunning || !w.selectedRuns[key] {
+			continue
+		}
+		if !run.lastUpdateAt.IsZero() && time.Since(run.lastUpdateAt) > RunCrashTimeout {
+			w.markRunPresumedCrashed(run)
+		}
+	}
+
 	if !w.anyRunRunning() {
 		w.heartbeatMgr.Stop()
 		return w.waitForLiveMsg
@@ -800,11 +821,34 @@ func (w *Workspace) handleRunReadErr(msg WorkspaceRunReadErrMsg) tea.Cmd {
 	return nil
 }
 
+// markRunPresumedCrashed mirrors the server's stale-runs sweep for a local
+// run: no transaction-log writes for RunCrashTimeout and no exit record
+// means the writer is presumed gone. The watcher stays armed so the run is
+// revived if writes resume.
+func (w *Workspace) markRunPresumedCrashed(run *WorkspaceRun) {
+	w.logger.Info(fmt.Sprintf(
+		"workspace: no transaction log updates for %s in %v, presuming the run crashed",
+		run.Key, time.Since(run.lastUpdateAt).Round(time.Second)))
+	run.state = RunStateCrashed
+	w.getOrCreateRunOverview(run.Key).SetRunState(run.state)
+	w.syncLiveRunState()
+}
+
 // handleWorkspaceFileChanged reacts to a filesystem change for a given run.
 func (w *Workspace) handleWorkspaceFileChanged(msg WorkspaceFileChangedMsg) tea.Cmd {
 	run := w.runsByKey[msg.RunKey]
 	if run == nil {
 		return nil
+	}
+
+	if run.state == RunStateCrashed {
+		// The writer came back: revive the presumed-crashed run.
+		w.logger.Info(fmt.Sprintf(
+			"workspace: transaction log updated, reviving crashed run %s", run.Key))
+		run.lastUpdateAt = time.Now()
+		run.state = RunStateRunning
+		w.getOrCreateRunOverview(run.Key).SetRunState(run.state)
+		w.syncLiveRunState()
 	}
 
 	// Re‑arm watcher for the next change if we're still watching this run.

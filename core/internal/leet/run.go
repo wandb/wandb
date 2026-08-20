@@ -69,6 +69,10 @@ type Run struct {
 	// Written on the main goroutine; read from the HeartbeatManager timer goroutine.
 	liveRunning atomic.Bool
 
+	// lastUpdateAt tracks when the transaction log last produced a record.
+	// A live run that stays silent past RunCrashTimeout is presumed crashed.
+	lastUpdateAt time.Time
+
 	// Data reader.
 	historySource HistorySource
 	initCancel    context.CancelFunc
