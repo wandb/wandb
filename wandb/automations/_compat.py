@@ -1,18 +1,26 @@
 from __future__ import annotations
 
 from collections.abc import Collection
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Annotated, Final
+
+from pydantic import Field
 
 from wandb._strutils import nameof
 
 from ._generated import (
+    AriaActionFields,
     EntityScopeFields,
     GenericWebhookActionFields,
     NoOpActionFields,
     NotificationActionFields,
     QueueJobActionFields,
 )
-from .actions import ActionType
+from ._generated.fragments import (
+    ProjectTriggersFields,
+    TriggerFields,
+    TriggerFieldsActionPushNotificationTriggeredAction,
+)
+from .actions import ActionType, SavedUnknownAction
 from .events import EventType
 from .scopes import ScopeType
 
@@ -44,6 +52,7 @@ UNGATED_ACTIONS: Final[Collection[ActionType]] = frozenset(
         ActionType.NOTIFICATION,
         ActionType.GENERIC_WEBHOOK,
         ActionType.NO_OP,  # Added in 0.67.0
+        ActionType.ARIA,  # No GraphQL @serverFeature; org-gated on the server
     }
 )
 """Action types that should be supported by all current, non-EOL server versions."""
@@ -91,6 +100,7 @@ ACTION_FRAGMENT_NAMES: Final[dict[ActionType, str]] = {
     ActionType.QUEUE_JOB: nameof(QueueJobActionFields),
     ActionType.NOTIFICATION: nameof(NotificationActionFields),
     ActionType.GENERIC_WEBHOOK: nameof(GenericWebhookActionFields),
+    ActionType.ARIA: nameof(AriaActionFields),
 }
 
 
@@ -131,3 +141,114 @@ def omit_automation_fragments(service_api: ServiceApi) -> set[str]:
         and (name := ACTION_FRAGMENT_NAMES.get(action))
     )
     return omit_scope_fragments | omit_action_fragments
+
+
+class _LenientTriggerFields(TriggerFields):
+    """`TriggerFields` that keep listing working when the server adds action types."""
+
+    action: Annotated[
+        AriaActionFields
+        | GenericWebhookActionFields
+        | NoOpActionFields
+        | NotificationActionFields
+        | TriggerFieldsActionPushNotificationTriggeredAction
+        | QueueJobActionFields
+        | SavedUnknownAction,
+        Field(union_mode="left_to_right"),
+    ]
+
+
+_UNKNOWN_ACTION_SUPPORT_INSTALLED = False
+
+
+def _install_unknown_action_support() -> None:
+    """Parse unknown `triggeredAction` union members instead of failing the whole list.
+
+    Generated `TriggerFields.action` is a closed tagged union. A new GraphQL action
+    type (ARIA on older SDKs, or the next type after this release) then fails
+    `model_validate` for every automation on that page. Swap in a lenient subclass
+    that falls back to `SavedUnknownAction`.
+    """
+    global _UNKNOWN_ACTION_SUPPORT_INSTALLED
+    if _UNKNOWN_ACTION_SUPPORT_INSTALLED:
+        return
+
+    from wandb.automations._generated.create_automation import (
+        CreateAutomation,
+        CreateAutomationResult,
+    )
+    from wandb.automations._generated.get_automations_legacy import (
+        GetAutomationsLegacy,
+        GetAutomationsLegacyScope,
+        GetAutomationsLegacyScopeProjects,
+        GetAutomationsLegacyScopeProjectsEdges,
+    )
+    from wandb.automations._generated.get_entity_automations import (
+        GetEntityAutomations,
+        GetEntityAutomationsScope,
+        GetEntityAutomationsScopeTriggers,
+        GetEntityAutomationsScopeTriggersEdges,
+    )
+    from wandb.automations._generated.get_entity_automations_legacy import (
+        GetEntityAutomationsLegacy,
+        GetEntityAutomationsLegacyScope,
+        GetEntityAutomationsLegacyScopeProjects,
+        GetEntityAutomationsLegacyScopeProjectsEdges,
+    )
+    from wandb.automations._generated.get_org_automations import (
+        GetOrgAutomations,
+        GetOrgAutomationsScope,
+        GetOrgAutomationsScopeTriggers,
+        GetOrgAutomationsScopeTriggersEdges,
+    )
+    from wandb.automations._generated.update_automation import (
+        UpdateAutomation,
+        UpdateAutomationResult,
+    )
+
+    GetEntityAutomationsScopeTriggersEdges.model_fields[
+        "node"
+    ].annotation = _LenientTriggerFields
+    GetOrgAutomationsScopeTriggersEdges.model_fields[
+        "node"
+    ].annotation = _LenientTriggerFields
+    CreateAutomationResult.model_fields["trigger"].annotation = (
+        _LenientTriggerFields | None
+    )
+    UpdateAutomationResult.model_fields["trigger"].annotation = (
+        _LenientTriggerFields | None
+    )
+    ProjectTriggersFields.model_fields["triggers"].annotation = list[
+        _LenientTriggerFields
+    ]
+
+    for cls in (
+        _LenientTriggerFields,
+        ProjectTriggersFields,
+        GetEntityAutomationsScopeTriggersEdges,
+        GetEntityAutomationsScopeTriggers,
+        GetEntityAutomationsScope,
+        GetEntityAutomations,
+        GetOrgAutomationsScopeTriggersEdges,
+        GetOrgAutomationsScopeTriggers,
+        GetOrgAutomationsScope,
+        GetOrgAutomations,
+        GetEntityAutomationsLegacyScopeProjectsEdges,
+        GetEntityAutomationsLegacyScopeProjects,
+        GetEntityAutomationsLegacyScope,
+        GetEntityAutomationsLegacy,
+        GetAutomationsLegacyScopeProjectsEdges,
+        GetAutomationsLegacyScopeProjects,
+        GetAutomationsLegacyScope,
+        GetAutomationsLegacy,
+        CreateAutomationResult,
+        CreateAutomation,
+        UpdateAutomationResult,
+        UpdateAutomation,
+    ):
+        cls.model_rebuild(force=True)
+
+    _UNKNOWN_ACTION_SUPPORT_INSTALLED = True
+
+
+_install_unknown_action_support()

@@ -12,6 +12,8 @@ from wandb._strutils import nameof
 
 from ._generated import (
     AlertSeverity,
+    AriaActionFields,
+    ARIAActionInput,
     GenericWebhookActionFields,
     GenericWebhookActionInput,
     NoOpActionFields,
@@ -40,6 +42,7 @@ class ActionType(LenientStrEnum):
     QUEUE_JOB = "QUEUE_JOB"  # NOTE: Deprecated for creation
     GENERIC_WEBHOOK = "GENERIC_WEBHOOK"
     NOTIFICATION = "NOTIFICATION"
+    ARIA = "ARIA"
     PUSH_NOTIFICATION = "PUSH_NOTIFICATION"
 
 
@@ -117,17 +120,45 @@ class SavedNoOpAction(NoOpActionFields, frozen=False):
     """
 
 
+class SavedAriaAction(AriaActionFields, frozen=False):
+    action_type: Literal[ActionType.ARIA] = ActionType.ARIA
+
+    prompt: str
+    """The prompt ARIA receives when this automation is triggered."""
+
+
+class SavedUnknownAction(GQLBase, extra="allow", frozen=False):
+    """An action type this SDK version does not model.
+
+    Returned when listing automations if the server includes a triggered-action
+    GraphQL type that this wandb version has no fragment for. Other automations
+    in the same response still parse. Creating or updating this action requires
+    a newer wandb version.
+    """
+
+    typename__: Annotated[str, Field(alias="__typename")] = "UnknownTriggeredAction"
+    """The GraphQL `__typename` of the unrecognized action."""
+
+
 # for type annotations
 SavedAction = Annotated[
     SavedLaunchJobAction
     | SavedNotificationAction
     | SavedWebhookAction
-    | SavedNoOpAction,
+    | SavedNoOpAction
+    | SavedAriaAction
+    | SavedUnknownAction,
     BeforeValidator(parse_saved_action),
-    Field(discriminator="typename__"),
 ]
 # for runtime type checks
-SavedActionTypes: tuple[type, ...] = get_args(SavedAction.__origin__)  # type: ignore[attr-defined]
+SavedActionTypes: tuple[type, ...] = (
+    SavedLaunchJobAction,
+    SavedNotificationAction,
+    SavedWebhookAction,
+    SavedNoOpAction,
+    SavedAriaAction,
+    SavedUnknownAction,
+)
 
 
 # ------------------------------------------------------------------------------
@@ -216,9 +247,18 @@ class DoNothing(_BaseActionInput, NoOpTriggeredActionInput, frozen=True):
     """
 
 
+class SendPromptToAria(_BaseActionInput, ARIAActionInput):
+    """Defines an automation action that sends a prompt to ARIA."""
+
+    action_type: Literal[ActionType.ARIA] = ActionType.ARIA
+
+    prompt: str
+    """The prompt ARIA receives when this automation is triggered."""
+
+
 # for type annotations
 InputAction = Annotated[
-    SendNotification | SendWebhook | DoNothing,
+    SendNotification | SendWebhook | DoNothing | SendPromptToAria,
     BeforeValidator(parse_input_action),
     Field(discriminator="action_type"),
 ]

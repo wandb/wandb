@@ -1,4 +1,11 @@
-from .actions import ActionType, DoNothing, SendNotification, SendWebhook
+from . import _compat as _compat  # lenient listing of unknown actions
+from .actions import (
+    ActionType,
+    DoNothing,
+    SendNotification,
+    SendPromptToAria,
+    SendWebhook,
+)
 from .automations import Automation, NewAutomation
 from .events import (
     ArtifactEvent,
@@ -61,6 +68,7 @@ __all__ = [
     "ActionType",  # doc:exclude
     "SendNotification",
     "SendWebhook",
+    "SendPromptToAria",
     "DoNothing",
     # Automations
     "Automation",

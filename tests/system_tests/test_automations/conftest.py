@@ -244,8 +244,9 @@ def valid_input_events() -> list[EventType]:
 def valid_input_actions() -> list[ActionType]:
     # Slack integrations are not configured for these system tests, so
     # notification actions are only exercised by tests that request them
-    # explicitly.
-    unsupported_test_actions = {ActionType.NOTIFICATION}
+    # explicitly. ARIA actions are org-gated on the server and are not
+    # set up for these tests.
+    unsupported_test_actions = {ActionType.NOTIFICATION, ActionType.ARIA}
     return sorted(
         set(ActionType) - set(INVALID_INPUT_ACTIONS) - unsupported_test_actions
     )
@@ -458,6 +459,11 @@ def send_notification():
 
 
 @fixture
+def send_prompt_to_aria():
+    skip("ARIA automations are org-gated and not set up for these system tests")
+
+
+@fixture
 def send_webhook(webhook: WebhookIntegration) -> SendWebhook:
     return SendWebhook(
         integration_id=webhook.id,
@@ -477,5 +483,6 @@ def action(request: FixtureRequest, action_type: ActionType):
         ActionType.NOTIFICATION: send_notification.__name__,
         ActionType.GENERIC_WEBHOOK: send_webhook.__name__,
         ActionType.NO_OP: do_nothing.__name__,
+        ActionType.ARIA: send_prompt_to_aria.__name__,
     }
     return request.getfixturevalue(action2fixture[action_type])

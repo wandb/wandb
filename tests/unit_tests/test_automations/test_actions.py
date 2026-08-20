@@ -2,8 +2,19 @@ import json
 
 from hypothesis import given
 from hypothesis.strategies import dictionaries, sampled_from, text
-from wandb.automations import ActionType, SendNotification, SendWebhook
-from wandb.automations._generated import AlertSeverity, TriggeredActionType
+from wandb.automations import (
+    ActionType,
+    SendNotification,
+    SendPromptToAria,
+    SendWebhook,
+)
+from wandb.automations._generated import (
+    AlertSeverity,
+    GetEntityAutomations,
+    TriggeredActionType,
+)
+from wandb.automations.actions import SavedAriaAction, SavedUnknownAction
+from wandb.automations.automations import Automation
 from wandb.sdk.wandb_alerts import AlertLevel
 
 from tests.unit_tests.test_filters._strategies import printable_text
@@ -87,3 +98,75 @@ def test_webhook_input_action_accepts_deserialized_payload(integration_id, paylo
 
     assert isinstance(serialized_payload, str)
     assert json.loads(serialized_payload) == payload
+
+
+def _trigger_node(action: dict) -> dict:
+    return {
+        "__typename": "Trigger",
+        "id": "VHJpZ2dlcjoX",
+        "createdAt": "2024-01-01T00:00:00Z",
+        "updatedAt": None,
+        "name": "test-automation",
+        "description": None,
+        "enabled": True,
+        "scope": {
+            "__typename": "Project",
+            "id": "UHJvamVjdDox",
+            "name": "my-project",
+            "isRegistry": False,
+        },
+        "event": {
+            "__typename": "FilterEventTriggeringCondition",
+            "eventType": "CREATE_ARTIFACT",
+            "filter": json.dumps({"filter": {"$or": [{"$and": []}]}}),
+        },
+        "action": action,
+    }
+
+
+def test_aria_action_parses_when_listing():
+    node = _trigger_node({"__typename": "ARIATriggeredAction", "prompt": "Investigate"})
+    automation = Automation.model_validate(node)
+    assert isinstance(automation.action, SavedAriaAction)
+    assert automation.action.prompt == "Investigate"
+    assert automation.action.action_type is ActionType.ARIA
+
+
+def test_unknown_action_does_not_fail_listing_the_page():
+    """A new triggered-action GraphQL type must not fail the whole automations page."""
+    payload = {
+        "scope": {
+            "triggers": {
+                "pageInfo": {"endCursor": None, "hasNextPage": False},
+                "edges": [
+                    {
+                        "node": _trigger_node(
+                            {
+                                "__typename": "ARIATriggeredAction",
+                                "prompt": "Investigate",
+                            }
+                        )
+                    },
+                    {
+                        "node": _trigger_node(
+                            {"__typename": "FutureTriggeredAction", "extra": "keep me"}
+                        )
+                    },
+                ],
+            }
+        }
+    }
+    parsed = GetEntityAutomations.model_validate(payload)
+    nodes = [edge.node for edge in parsed.scope.triggers.edges]
+    automations = [Automation.model_validate(node) for node in nodes]
+
+    assert isinstance(automations[0].action, SavedAriaAction)
+    assert isinstance(automations[1].action, SavedUnknownAction)
+    assert automations[1].action.typename__ == "FutureTriggeredAction"
+    assert automations[1].action.extra == "keep me"
+
+
+def test_send_prompt_to_aria_is_public():
+    action = SendPromptToAria(prompt="Summarize this run")
+    assert action.action_type is ActionType.ARIA
+    assert action.prompt == "Summarize this run"
