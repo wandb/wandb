@@ -1,207 +1,484 @@
-use crate::run::generate_id;
-use crate::wandb_internal;
-use byteorder::{LittleEndian, WriteBytesExt};
+//! Connection to wandb-core: message framing and request-response matching.
+//!
+//! Every message in both directions is framed as a 5-byte header — the magic
+//! byte `'W'` and a little-endian u32 payload length — followed by a
+//! protobuf-encoded [`pb::ServerRequest`] or [`pb::ServerResponse`].
+//!
+//! Requests that expect a response carry a unique `request_id`; a background
+//! reader thread matches incoming responses to waiting callers by that ID.
+
+use std::collections::HashMap;
+use std::io::{self, BufReader, Read, Write};
+use std::net::TcpStream;
+#[cfg(unix)]
+use std::os::unix::net::UnixStream;
+use std::sync::mpsc;
+use std::sync::{Arc, Mutex};
+use std::thread::JoinHandle;
+use std::time::Duration;
+
 use prost::Message;
-use std::{
-    collections::HashMap,
-    io::{BufWriter, Write},
-    net::TcpStream,
-    // sync::mpsc::{channel, Receiver, RecvError, Sender},
-    sync::mpsc::{channel, Sender},
-    sync::{Arc, Mutex},
-};
-use tracing;
 
-#[repr(C)]
-struct Header {
-    magic: u8,
-    data_length: u32,
-}
+use crate::error::{Error, Result};
+use crate::launcher::Transport;
+use crate::wandb_internal as pb;
 
+const FRAME_MAGIC: u8 = b'W';
+const FRAME_HEADER_LEN: usize = 5;
+
+/// Requests waiting for a response, keyed by request ID.
+///
+/// `None` after the connection has closed, so that no request can start
+/// waiting for a response that will never arrive.
+type Pending = Arc<Mutex<Option<HashMap<String, mpsc::Sender<pb::ServerResponse>>>>>;
+
+/// A connection to a wandb-core service.
+///
+/// Cheap operations happen on the caller's thread; a single background
+/// thread reads responses and delivers them to waiting requests.
 #[derive(Debug)]
-pub struct Interface {
-    pub conn: Connection,
-    // hashmap string -> channel
-    pub handles: Arc<Mutex<HashMap<String, Sender<wandb_internal::Result>>>>,
-}
-
-impl Interface {
-    pub fn new(conn: Connection) -> Self {
-        let handles = Arc::new(Mutex::new(HashMap::new()));
-        let interface = Interface {
-            handles: handles.clone(),
-            conn: conn.clone(),
-        };
-
-        std::thread::spawn(move || conn.recv(&handles));
-
-        interface
-    }
-}
-
-#[derive(Debug)]
-pub struct Connection {
-    pub stream: TcpStream,
+pub(crate) struct Connection {
+    writer: Mutex<Socket>,
+    control: Socket,
+    pending: Pending,
+    reader: Option<JoinHandle<()>>,
 }
 
 impl Connection {
-    pub fn new(stream: TcpStream) -> Self {
-        let conn = Connection { stream };
+    /// Connects to wandb-core at the given address.
+    pub fn connect(transport: &Transport) -> Result<Connection> {
+        let socket = Socket::connect(transport)?;
+        let pending: Pending = Arc::new(Mutex::new(Some(HashMap::new())));
 
-        conn
+        let reader_socket = socket.try_clone()?;
+        let writer_socket = socket.try_clone()?;
+        let reader_pending = Arc::clone(&pending);
+        let reader = std::thread::Builder::new()
+            .name("wandb-reader".to_string())
+            .spawn(move || read_responses(reader_socket, reader_pending))?;
+
+        Ok(Connection {
+            writer: Mutex::new(writer_socket),
+            control: socket,
+            pending,
+            reader: Some(reader),
+        })
     }
 
-    pub fn clone(&self) -> Self {
-        let stream = self.stream.try_clone().unwrap();
-        Connection { stream }
-    }
-
-    pub fn send_and_recv_message(
-        &mut self,
-        message: &mut wandb_internal::Record,
-        handles: &mut Arc<Mutex<HashMap<String, Sender<wandb_internal::Result>>>>,
-    ) -> wandb_internal::Result {
-        // TODO: generate unique id for this message
-        let uuid = generate_id(16);
-        // message.server_request_type.RecordCommunicate.control.mailbox_slot = uuid.clone();
-        // update the message with the uuid
-        // let
-        if let Some(ref mut control) = message.control {
-            control.mailbox_slot = uuid.clone();
-            control.req_resp = true;
-        } else {
-            message.control = Some(wandb_internal::Control {
-                mailbox_slot: uuid.clone(),
-                req_resp: true,
-                ..Default::default()
-            });
-        }
-
-        let message = wandb_internal::ServerRequest {
-            server_request_type: Some(
-                wandb_internal::server_request::ServerRequestType::RecordCommunicate(
-                    message.clone(),
-                ),
-            ),
-        };
-
-        let (sender, receiver) = channel();
-        tracing::debug!(">>> Inserting sender {:?} for uuid {}", sender, uuid);
-        handles.lock().unwrap().insert(uuid, sender);
-        tracing::debug!(">>> Handles: {:?}", handles);
-        self.send_message(&message).unwrap();
-        tracing::debug!(">>> Waiting for result...");
-        // TODO: this should be recv_timeout(timeout)
-        return receiver.recv().unwrap();
-        // return receiver
-        //     .recv_timeout(std::time::Duration::from_secs(10))
-        //     .unwrap();
-    }
-
-    pub fn send_message(&self, message: &wandb_internal::ServerRequest) -> Result<(), ()> {
-        // marshal the protobuf message
-        let mut buf = Vec::new();
-        message.encode(&mut buf).unwrap();
-
-        tracing::debug!(
-            "Sending message {:?} to run {}",
-            message,
-            self.stream.peer_addr().unwrap()
-        );
-        let mut writer = BufWriter::with_capacity(16384, &self.stream);
-
-        let header = Header {
-            magic: b'W',
-            data_length: buf.len() as u32,
-        };
-
-        // Write the header to the writer
-        writer.write_u8(header.magic).unwrap();
-        writer
-            .write_u32::<LittleEndian>(header.data_length)
-            .unwrap();
-
-        // Write the protobuf to the writer
-        writer.write_all(&buf).unwrap();
-        writer.flush().unwrap();
+    /// Sends a request without waiting for a response.
+    pub fn notify(&self, request: pb::ServerRequest) -> Result<()> {
+        let frame = encode_frame(&request);
+        let mut writer = self.writer.lock().expect("wandb writer lock poisoned");
+        writer.write_all(&frame)?;
         Ok(())
     }
 
-    pub fn recv_message(&self) -> Vec<u8> {
-        // Read the magic byte
-        let mut magic_byte = [0; 1];
-        let bytes_read = std::io::Read::read(&mut &self.stream, &mut magic_byte).unwrap();
-        tracing::debug!("Read {} bytes", bytes_read);
-        tracing::debug!("Magic byte: {:?}", magic_byte);
+    /// Sends a request and waits for the matching response.
+    ///
+    /// `key` is the ID the response will carry: `request_id` for most
+    /// requests, or the echoed `_info.stream_id` for authenticate requests,
+    /// which are the one kind that wandb-core answers without a
+    /// `request_id`.
+    pub fn request(
+        &self,
+        key: &str,
+        request: pb::ServerRequest,
+        timeout: Duration,
+    ) -> Result<pb::ServerResponse> {
+        let (sender, receiver) = mpsc::channel();
+        match self
+            .pending
+            .lock()
+            .expect("wandb pending lock poisoned")
+            .as_mut()
+        {
+            Some(pending) => pending.insert(key.to_string(), sender),
+            None => return Err(Error::ConnectionClosed),
+        };
 
-        if magic_byte != [b'W'] {
-            // this errot means that the connection was closed
-            tracing::debug!("Magic number is not 'W': {}", magic_byte[0]);
-            tracing::debug!("Connection closed");
-            return vec![];
+        if let Err(e) = self.notify(request) {
+            self.forget(key);
+            return Err(e);
         }
 
-        let mut body_length_bytes = [0; 4];
-        std::io::Read::read(&mut &self.stream, &mut body_length_bytes).unwrap();
-        let body_length = u32::from_le_bytes(body_length_bytes);
-        tracing::debug!("Body length: {}", body_length);
-
-        // Read the body
-        let mut body = vec![0; body_length as usize];
-        std::io::Read::read(&mut &self.stream, &mut body).unwrap();
-        tracing::debug!("Body: {:?}", body);
-
-        body
+        match receiver.recv_timeout(timeout) {
+            Ok(response) => match response.server_response_type {
+                Some(pb::server_response::ServerResponseType::ErrorResponse(e)) => {
+                    Err(Error::Server(e.message))
+                }
+                _ => Ok(response),
+            },
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                self.forget(key);
+                // Tell wandb-core the response is no longer needed.
+                let _ = self.notify(pb::ServerRequest {
+                    server_request_type: Some(pb::server_request::ServerRequestType::Cancel(
+                        pb::ServerCancelRequest {
+                            request_id: key.to_string(),
+                        },
+                    )),
+                    ..Default::default()
+                });
+                Err(Error::Timeout(timeout))
+            }
+            Err(mpsc::RecvTimeoutError::Disconnected) => Err(Error::ConnectionClosed),
+        }
     }
 
-    pub fn recv(&self, handles: &Arc<Mutex<HashMap<String, Sender<wandb_internal::Result>>>>) {
-        tracing::debug!(
-            "Receiving messages from run {}",
-            self.stream.peer_addr().unwrap()
-        );
-        loop {
-            tracing::debug!("Waiting for message...");
-            let msg = self.recv_message();
-            if msg.len() == 0 {
-                tracing::debug!("Connection closed");
+    /// Closes the connection and waits for the reader thread to exit.
+    pub fn close(&mut self) {
+        let _ = self.control.shutdown();
+        if let Some(reader) = self.reader.take() {
+            let _ = reader.join();
+        }
+    }
+
+    fn forget(&self, key: &str) {
+        if let Some(pending) = self
+            .pending
+            .lock()
+            .expect("wandb pending lock poisoned")
+            .as_mut()
+        {
+            pending.remove(key);
+        }
+    }
+}
+
+impl Drop for Connection {
+    fn drop(&mut self) {
+        self.close();
+    }
+}
+
+/// Reads responses until the connection closes, delivering each to the
+/// request waiting for it.
+fn read_responses(socket: Socket, pending: Pending) {
+    let mut reader = BufReader::new(socket);
+    loop {
+        let body = match read_frame(&mut reader) {
+            Ok(Some(body)) => body,
+            Ok(None) => break,
+            Err(e) => {
+                tracing::debug!("wandb-core connection error: {e}");
                 break;
             }
-            let proto_message = wandb_internal::ServerResponse::decode(msg.as_slice()).unwrap();
-            tracing::debug!("Received message: {:?}", proto_message);
-            tracing::debug!("Handles: {:?}", handles);
+        };
+        let response = match pb::ServerResponse::decode(body.as_slice()) {
+            Ok(response) => response,
+            Err(e) => {
+                tracing::warn!("failed to decode wandb-core response: {e}");
+                break;
+            }
+        };
+        let key = response_key(&response);
+        let sender = pending
+            .lock()
+            .expect("wandb pending lock poisoned")
+            .as_mut()
+            .and_then(|pending| pending.remove(&key));
+        match sender {
+            // The receiver may have already timed out; that's fine.
+            Some(sender) => drop(sender.send(response)),
+            None => tracing::debug!("dropping unsolicited response with id {key:?}"),
+        }
+    }
+    // Mark the connection closed and wake up all waiting requests by
+    // dropping their senders. Requests arriving later fail immediately.
+    *pending.lock().expect("wandb pending lock poisoned") = None;
+}
 
-            match proto_message.server_response_type {
-                Some(wandb_internal::server_response::ServerResponseType::ResultCommunicate(
-                    result,
-                )) => {
-                    // Handle ResultCommunicate variant here
-                    // You can access fields of Result if needed
-                    tracing::debug!(">>>> Received ResultCommunicate: {:?}", result);
+/// Returns the ID identifying the request a response answers.
+fn response_key(response: &pb::ServerResponse) -> String {
+    if !response.request_id.is_empty() {
+        return response.request_id.clone();
+    }
+    // Authenticate responses carry no request_id; wandb-core echoes the
+    // request's `_info`, in which we send the request ID as the stream ID.
+    if let Some(pb::server_response::ServerResponseType::AuthenticateResponse(auth)) =
+        &response.server_response_type
+    {
+        return auth.info.clone().unwrap_or_default().stream_id;
+    }
+    String::new()
+}
 
-                    if let Some(control) = &result.control {
-                        let mailbox_slot = &control.mailbox_slot;
-                        tracing::debug!("Mailbox slot: {}", mailbox_slot);
-                        tracing::debug!("Handles: {:?}", handles);
-                        if let Some(sender) = handles.lock().unwrap().get(mailbox_slot) {
-                            tracing::debug!("Sending result to sender {:?}", sender);
-                            // TODO: use the result type of the result_communicate
-                            // let cloned_result = result.clone();
-                            sender.send(result).expect("Failed to send result")
-                        } else {
-                            tracing::warn!("Failed to send result to sender");
-                        }
-                    } else {
-                        tracing::warn!("Received ResultCommunicate without control");
+/// Encodes a request as a length-prefixed frame.
+fn encode_frame(request: &pb::ServerRequest) -> Vec<u8> {
+    let body_len = request.encoded_len();
+    let mut frame = Vec::with_capacity(FRAME_HEADER_LEN + body_len);
+    frame.push(FRAME_MAGIC);
+    frame.extend_from_slice(&(body_len as u32).to_le_bytes());
+    request
+        .encode(&mut frame)
+        .expect("Vec<u8> writes cannot fail");
+    frame
+}
+
+/// Reads one frame, returning `None` on a clean end of stream.
+fn read_frame(reader: &mut impl Read) -> io::Result<Option<Vec<u8>>> {
+    let mut header = [0u8; FRAME_HEADER_LEN];
+    match reader.read_exact(&mut header) {
+        Ok(()) => {}
+        Err(e) if e.kind() == io::ErrorKind::UnexpectedEof => return Ok(None),
+        Err(e) => return Err(e),
+    }
+    if header[0] != FRAME_MAGIC {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("invalid magic byte in frame header: {:#x}", header[0]),
+        ));
+    }
+    let body_len = u32::from_le_bytes(header[1..].try_into().unwrap());
+    let mut body = vec![0u8; body_len as usize];
+    reader.read_exact(&mut body)?;
+    Ok(Some(body))
+}
+
+/// A stream socket connected to wandb-core.
+#[derive(Debug)]
+enum Socket {
+    #[cfg(unix)]
+    Unix(UnixStream),
+    Tcp(TcpStream),
+}
+
+impl Socket {
+    fn connect(transport: &Transport) -> io::Result<Socket> {
+        match transport {
+            #[cfg(unix)]
+            Transport::Unix(path) => UnixStream::connect(path).map(Socket::Unix),
+            Transport::Tcp(port) => TcpStream::connect(("127.0.0.1", *port)).map(Socket::Tcp),
+        }
+    }
+
+    fn try_clone(&self) -> io::Result<Socket> {
+        match self {
+            #[cfg(unix)]
+            Socket::Unix(s) => s.try_clone().map(Socket::Unix),
+            Socket::Tcp(s) => s.try_clone().map(Socket::Tcp),
+        }
+    }
+
+    fn shutdown(&self) -> io::Result<()> {
+        match self {
+            #[cfg(unix)]
+            Socket::Unix(s) => s.shutdown(std::net::Shutdown::Both),
+            Socket::Tcp(s) => s.shutdown(std::net::Shutdown::Both),
+        }
+    }
+}
+
+impl Read for Socket {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        match self {
+            #[cfg(unix)]
+            Socket::Unix(s) => s.read(buf),
+            Socket::Tcp(s) => s.read(buf),
+        }
+    }
+}
+
+impl Write for Socket {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        match self {
+            #[cfg(unix)]
+            Socket::Unix(s) => s.write(buf),
+            Socket::Tcp(s) => s.write(buf),
+        }
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        match self {
+            #[cfg(unix)]
+            Socket::Unix(s) => s.flush(),
+            Socket::Tcp(s) => s.flush(),
+        }
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use std::os::unix::net::UnixListener;
+
+    use super::*;
+
+    /// A minimal fake wandb-core: replies to inform_init and authenticate,
+    /// stays silent on everything else.
+    fn fake_core() -> (tempfile_path::TempSocket, Transport) {
+        let socket = tempfile_path::TempSocket::new();
+        let listener = UnixListener::bind(&socket.path).unwrap();
+        let transport = Transport::Unix(socket.path.clone());
+        std::thread::spawn(move || {
+            let (stream, _) = listener.accept().unwrap();
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let mut writer = stream;
+            while let Ok(Some(body)) = read_frame(&mut reader) {
+                let request = pb::ServerRequest::decode(body.as_slice()).unwrap();
+                use pb::server_request::ServerRequestType;
+                use pb::server_response::ServerResponseType;
+                let response_type = match request.server_request_type {
+                    Some(ServerRequestType::InformInit(_)) => Some(
+                        ServerResponseType::InformInitResponse(pb::ServerInformInitResponse {}),
+                    ),
+                    Some(ServerRequestType::Authenticate(auth)) => {
+                        // wandb-core echoes _info but not request_id here.
+                        let mut response = pb::ServerResponse {
+                            server_response_type: Some(ServerResponseType::AuthenticateResponse(
+                                pb::ServerAuthenticateResponse {
+                                    default_entity: "fake-entity".to_string(),
+                                    error_status: String::new(),
+                                    info: auth.info,
+                                },
+                            )),
+                            ..Default::default()
+                        };
+                        let frame = encode_response(&mut response, "");
+                        writer.write_all(&frame).unwrap();
+                        continue;
                     }
-                }
-                Some(_) => {
-                    tracing::warn!("Received message with unknown type");
-                }
-                _ => {
-                    tracing::warn!("Received message without type")
+                    _ => None, // never respond
+                };
+                if let Some(response_type) = response_type {
+                    let mut response = pb::ServerResponse {
+                        server_response_type: Some(response_type),
+                        ..Default::default()
+                    };
+                    let frame = encode_response(&mut response, &request.request_id);
+                    writer.write_all(&frame).unwrap();
                 }
             }
-            // let handle_id
+        });
+        (socket, transport)
+    }
+
+    fn encode_response(response: &mut pb::ServerResponse, request_id: &str) -> Vec<u8> {
+        response.request_id = request_id.to_string();
+        let mut frame = vec![FRAME_MAGIC];
+        frame.extend_from_slice(&(response.encoded_len() as u32).to_le_bytes());
+        response.encode(&mut frame).unwrap();
+        frame
+    }
+
+    fn inform_init_request(request_id: &str) -> pb::ServerRequest {
+        pb::ServerRequest {
+            request_id: request_id.to_string(),
+            server_request_type: Some(pb::server_request::ServerRequestType::InformInit(
+                pb::ServerInformInitRequest::default(),
+            )),
+        }
+    }
+
+    #[test]
+    fn request_matches_response_by_id() {
+        let (_socket, transport) = fake_core();
+        let conn = Connection::connect(&transport).unwrap();
+        let response = conn
+            .request(
+                "req-1",
+                inform_init_request("req-1"),
+                Duration::from_secs(5),
+            )
+            .unwrap();
+        assert_eq!(response.request_id, "req-1");
+    }
+
+    #[test]
+    fn authenticate_matches_response_by_stream_id() {
+        let (_socket, transport) = fake_core();
+        let conn = Connection::connect(&transport).unwrap();
+        let request = pb::ServerRequest {
+            server_request_type: Some(pb::server_request::ServerRequestType::Authenticate(
+                pb::ServerAuthenticateRequest {
+                    api_key: "key".to_string(),
+                    base_url: "http://localhost".to_string(),
+                    info: Some(pb::RecordInfo {
+                        stream_id: "auth-1".to_string(),
+                        ..Default::default()
+                    }),
+                },
+            )),
+            ..Default::default()
+        };
+        let response = conn
+            .request("auth-1", request, Duration::from_secs(5))
+            .unwrap();
+        match response.server_response_type {
+            Some(pb::server_response::ServerResponseType::AuthenticateResponse(auth)) => {
+                assert_eq!(auth.default_entity, "fake-entity");
+            }
+            other => panic!("unexpected response: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn request_times_out_when_unanswered() {
+        let (_socket, transport) = fake_core();
+        let conn = Connection::connect(&transport).unwrap();
+        let request = pb::ServerRequest {
+            request_id: "req-1".to_string(),
+            server_request_type: Some(pb::server_request::ServerRequestType::InformFinish(
+                pb::ServerInformFinishRequest::default(),
+            )),
+        };
+        let result = conn.request("req-1", request, Duration::from_millis(50));
+        assert!(matches!(result, Err(Error::Timeout(_))));
+    }
+
+    #[test]
+    fn pending_requests_fail_when_connection_closes() {
+        let (_socket, transport) = fake_core();
+        let mut conn = Connection::connect(&transport).unwrap();
+        let closer = std::thread::spawn({
+            let control = conn.control.try_clone().unwrap();
+            move || {
+                std::thread::sleep(Duration::from_millis(50));
+                control.shutdown().unwrap();
+            }
+        });
+        let request = pb::ServerRequest {
+            request_id: "req-1".to_string(),
+            server_request_type: Some(pb::server_request::ServerRequestType::InformFinish(
+                pb::ServerInformFinishRequest::default(),
+            )),
+        };
+        let result = conn.request("req-1", request, Duration::from_secs(30));
+        assert!(matches!(result, Err(Error::ConnectionClosed)));
+        closer.join().unwrap();
+        conn.close();
+
+        // Requests after the connection closed fail fast, not by timeout.
+        let request = pb::ServerRequest {
+            request_id: "req-2".to_string(),
+            server_request_type: Some(pb::server_request::ServerRequestType::InformFinish(
+                pb::ServerInformFinishRequest::default(),
+            )),
+        };
+        let result = conn.request("req-2", request, Duration::from_secs(30));
+        assert!(matches!(result, Err(Error::ConnectionClosed)));
+    }
+
+    /// A socket path in the temp dir, removed on drop.
+    mod tempfile_path {
+        use std::path::PathBuf;
+
+        pub struct TempSocket {
+            pub path: PathBuf,
+        }
+
+        impl TempSocket {
+            pub fn new() -> TempSocket {
+                TempSocket {
+                    path: std::env::temp_dir()
+                        .join(format!("wandb-test-{}.sock", crate::generate_id(8))),
+                }
+            }
+        }
+
+        impl Drop for TempSocket {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_file(&self.path);
+            }
         }
     }
 }
