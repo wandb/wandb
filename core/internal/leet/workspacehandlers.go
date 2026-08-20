@@ -742,12 +742,7 @@ func (w *Workspace) handleWorkspaceRecord(run *WorkspaceRun, msg tea.Msg) {
 		w.getOrCreateConsoleLogs(run.Key).ProcessRaw(m.Text, m.IsStderr, m.Time)
 
 	case FileCompleteMsg:
-		switch m.ExitCode {
-		case 0:
-			run.state = RunStateFinished
-		default:
-			run.state = RunStateFailed
-		}
+		run.state = runStateForExitCode(m.ExitCode)
 		w.getOrCreateRunOverview(run.Key).SetRunState(run.state)
 		w.syncLiveRunState()
 

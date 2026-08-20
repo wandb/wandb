@@ -62,15 +62,7 @@ func (r *Run) handleRecordMsg(msg tea.Msg) tea.Cmd {
 
 	case FileCompleteMsg:
 		r.logger.Debug("model: processing FileCompleteMsg - file is complete!")
-		switch msg.ExitCode {
-		case 0:
-			r.runState = RunStateFinished
-		default:
-			r.runState = RunStateFailed
-		}
-		r.syncLiveRunning()
-		r.runOverview.SetRunState(r.runState)
-		r.leftSidebar.Sync()
+		r.setRunState(runStateForExitCode(msg.ExitCode))
 
 		r.logger.Debug("model: stopping heartbeats and finishing watcher")
 		r.heartbeatMgr.Stop()
@@ -83,15 +75,35 @@ func (r *Run) handleRecordMsg(msg tea.Msg) tea.Cmd {
 		if msg.Err != nil {
 			r.lastError = msg.Err.Error()
 		}
-		r.runState = RunStateFailed
-		r.syncLiveRunning()
-		r.runOverview.SetRunState(r.runState)
+		r.setRunState(RunStateFailed)
 		r.logger.Debug("model: stopping heartbeats and finishing watcher due to error")
 		r.heartbeatMgr.Stop()
 		r.watcherMgr.Finish()
 	}
 
 	return nil
+}
+
+// runStateForExitCode maps an exit record's code to a run state, following
+// the server's convention (254 is a client-reported crash).
+func runStateForExitCode(exitCode int32) RunState {
+	switch exitCode {
+	case 0:
+		return RunStateFinished
+	case 254:
+		return RunStateCrashed
+	default:
+		return RunStateFailed
+	}
+}
+
+// setRunState updates the run state everywhere it is mirrored: the atomic
+// liveness flag, the overview data model, and the sidebar.
+func (r *Run) setRunState(state RunState) {
+	r.runState = state
+	r.syncLiveRunning()
+	r.runOverview.SetRunState(state)
+	r.leftSidebar.Sync()
 }
 
 // handleHistoryMsg processes new history data.
