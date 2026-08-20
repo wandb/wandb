@@ -21,7 +21,6 @@ import click
 import wandb
 from wandb import env, util
 from wandb.analytics import TelemetryRecorder, get_sentry, get_telemetry_recorder
-from wandb.analytics.opentelemetry.opentelemetry_proxy import OpenTelemetryProxy
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import AuthenticationError, CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
