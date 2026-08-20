@@ -94,7 +94,7 @@ class ArtifactManifestV1(ArtifactManifest):
         def _rehash(item: ArtifactManifestEntry) -> None:
             if (
                 not item.local_path
-                or item.digest_algorithm() != ArtifactDigestAlgorithm.MANIFEST_XXH128
+                or item.digest_algorithm() is ArtifactDigestAlgorithm.MANIFEST_MD5
             ):
                 return
             item.digest = md5_file_b64(item.local_path)
