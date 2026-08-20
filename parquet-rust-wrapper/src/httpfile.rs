@@ -32,20 +32,17 @@ impl HttpFileReader {
                 .tcp_keepalive(std::time::Duration::from_secs(60))
                 .tcp_nodelay(true)
                 .build()
-                .map_err(|e| IoError::new(ErrorKind::Other, e))?,
+                .map_err(IoError::other)?,
         );
 
         // Get file size with HEAD request
-        let response = client
-            .head(&url)
-            .send()
-            .map_err(|e| IoError::new(ErrorKind::Other, e))?;
+        let response = client.head(&url).send().map_err(IoError::other)?;
 
         if !response.status().is_success() {
-            return Err(IoError::new(
-                ErrorKind::Other,
-                format!("Failed to get file size: status {}", response.status()),
-            ));
+            return Err(IoError::other(format!(
+                "Failed to get file size: status {}",
+                response.status()
+            )));
         }
 
         let file_size = response
@@ -53,7 +50,7 @@ impl HttpFileReader {
             .get(reqwest::header::CONTENT_LENGTH)
             .and_then(|v| v.to_str().ok())
             .and_then(|s| s.parse::<i64>().ok())
-            .ok_or_else(|| IoError::new(ErrorKind::Other, "Missing Content-Length header"))?;
+            .ok_or_else(|| IoError::other("Missing Content-Length header"))?;
 
         Ok(HttpFileReader {
             client,
@@ -102,27 +99,21 @@ impl HttpFileReader {
             .get(self.url.as_ref())
             .header(reqwest::header::RANGE, range_header)
             .send()
-            .map_err(|e| IoError::new(ErrorKind::Other, e))?;
+            .map_err(IoError::other)?;
 
         let status = response.status();
         if status == reqwest::StatusCode::OK {
             if start != 0 {
-                return Err(IoError::new(
-                    ErrorKind::Other,
-                    format!("server ignored range request for offset {}", start),
-                ));
+                return Err(IoError::other(format!(
+                    "server ignored range request for offset {start}"
+                )));
             }
         } else if status != reqwest::StatusCode::PARTIAL_CONTENT {
-            return Err(IoError::new(
-                ErrorKind::Other,
-                format!("HTTP error: {}", status),
-            ));
+            return Err(IoError::other(format!("HTTP error: {status}")));
         }
 
         // Read response body directly
-        let bytes = response
-            .bytes()
-            .map_err(|e| IoError::new(ErrorKind::Other, e))?;
+        let bytes = response.bytes().map_err(IoError::other)?;
 
         let bytes_read = std::cmp::min(bytes.len(), buf.len());
         buf[..bytes_read].copy_from_slice(&bytes[..bytes_read]);
@@ -204,7 +195,7 @@ impl Seek for HttpFileReader {
         if new_position < 0 {
             return Err(IoError::new(
                 ErrorKind::InvalidInput,
-                format!("seek before start: {} < 0", new_position),
+                format!("seek before start: {new_position} < 0"),
             ));
         }
 

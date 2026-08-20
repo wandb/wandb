@@ -85,7 +85,10 @@ func NewRustArrowWrapper() (*RustArrowWrapper, error) {
 	if err != nil {
 		return nil, err
 	}
+	return newRustArrowWrapper(libPath)
+}
 
+func newRustArrowWrapper(libPath string) (*RustArrowWrapper, error) {
 	rustLib, err := openLibrary(libPath)
 	if err != nil {
 		return nil, err

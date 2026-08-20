@@ -1,15 +1,6 @@
 use arrow::array::{
-    Array,
-    BinaryArray,
-    BooleanArray,
-    Float64Array,
-    Int64Array,
-    ListArray,
-    MapArray,
-    RecordBatch,
-    StringArray,
-    StructArray,
-    UInt64Array,
+    Array, BinaryArray, BooleanArray, Float64Array, Int64Array, ListArray, MapArray, RecordBatch,
+    StringArray, StructArray, UInt64Array,
 };
 use arrow::buffer::OffsetBuffer;
 use arrow::datatypes::{DataType, Field, Fields, Schema};
@@ -18,10 +9,7 @@ use std::sync::Arc;
 
 /// Serializes a single-column, single-row batch and returns the raw bytes
 /// with offset positioned at the start of the row data (after the header).
-fn serialize_single_column(
-    field: Field,
-    column: Arc<dyn arrow::array::Array>,
-) -> (Vec<u8>, usize) {
+fn serialize_single_column(field: Field, column: Arc<dyn arrow::array::Array>) -> (Vec<u8>, usize) {
     let schema = Arc::new(Schema::new(vec![field]));
     let batch = RecordBatch::try_new(schema, vec![column]).unwrap();
     let buf = serialize_batches_to_kv_binary(&[batch]).unwrap();
@@ -56,12 +44,18 @@ fn test_serialize_int64() {
     // Row 0
     assert_eq!(buf[off], TYPE_INT64);
     off += 1;
-    assert_eq!(i64::from_le_bytes(buf[off..off + 8].try_into().unwrap()), 42);
+    assert_eq!(
+        i64::from_le_bytes(buf[off..off + 8].try_into().unwrap()),
+        42
+    );
     off += 8;
     // Row 1
     assert_eq!(buf[off], TYPE_INT64);
     off += 1;
-    assert_eq!(i64::from_le_bytes(buf[off..off + 8].try_into().unwrap()), -7);
+    assert_eq!(
+        i64::from_le_bytes(buf[off..off + 8].try_into().unwrap()),
+        -7
+    );
     off += 8;
     assert_eq!(off, buf.len());
 }
@@ -74,7 +68,10 @@ fn test_serialize_uint64() {
     );
     assert_eq!(buf[off], TYPE_UINT64);
     off += 1;
-    assert_eq!(u64::from_le_bytes(buf[off..off + 8].try_into().unwrap()), u64::MAX);
+    assert_eq!(
+        u64::from_le_bytes(buf[off..off + 8].try_into().unwrap()),
+        u64::MAX
+    );
     off += 8;
     assert_eq!(off, buf.len());
 }
@@ -83,12 +80,12 @@ fn test_serialize_uint64() {
 fn test_serialize_float64() {
     let (buf, mut off) = serialize_single_column(
         Field::new("v", DataType::Float64, false),
-        Arc::new(Float64Array::from(vec![3.14, -0.001])),
+        Arc::new(Float64Array::from(vec![std::f64::consts::PI, -0.001])),
     );
     assert_eq!(buf[off], TYPE_FLOAT64);
     off += 1;
     let v0 = f64::from_le_bytes(buf[off..off + 8].try_into().unwrap());
-    assert!((v0 - 3.14).abs() < 1e-10);
+    assert!((v0 - std::f64::consts::PI).abs() < 1e-10);
     off += 8;
     assert_eq!(buf[off], TYPE_FLOAT64);
     off += 1;
@@ -173,7 +170,11 @@ fn test_serialize_list() {
     );
 
     let (buf, mut off) = serialize_single_column(
-        Field::new("v", DataType::List(Arc::new(Field::new("item", DataType::Int64, false))), false),
+        Field::new(
+            "v",
+            DataType::List(Arc::new(Field::new("item", DataType::Int64, false))),
+            false,
+        ),
         Arc::new(list),
     );
 
@@ -185,7 +186,10 @@ fn test_serialize_list() {
     for expected in [1i64, 2] {
         assert_eq!(buf[off], TYPE_INT64);
         off += 1;
-        assert_eq!(i64::from_le_bytes(buf[off..off + 8].try_into().unwrap()), expected);
+        assert_eq!(
+            i64::from_le_bytes(buf[off..off + 8].try_into().unwrap()),
+            expected
+        );
         off += 8;
     }
 
@@ -197,7 +201,10 @@ fn test_serialize_list() {
     for expected in [3i64, 4, 5] {
         assert_eq!(buf[off], TYPE_INT64);
         off += 1;
-        assert_eq!(i64::from_le_bytes(buf[off..off + 8].try_into().unwrap()), expected);
+        assert_eq!(
+            i64::from_le_bytes(buf[off..off + 8].try_into().unwrap()),
+            expected
+        );
         off += 8;
     }
 
@@ -239,7 +246,10 @@ fn test_serialize_struct_as_map() {
     off += key_len;
     assert_eq!(buf[off], TYPE_INT64);
     off += 1;
-    assert_eq!(i64::from_le_bytes(buf[off..off + 8].try_into().unwrap()), 10);
+    assert_eq!(
+        i64::from_le_bytes(buf[off..off + 8].try_into().unwrap()),
+        10
+    );
     off += 8;
 
     // Entry "y" -> string("hi")
@@ -259,10 +269,8 @@ fn test_serialize_struct_as_map() {
 fn test_serialize_nullable_int64() {
     let arr = Int64Array::from(vec![Some(1), None, Some(3)]);
 
-    let (buf, mut off) = serialize_single_column(
-        Field::new("v", DataType::Int64, true),
-        Arc::new(arr),
-    );
+    let (buf, mut off) =
+        serialize_single_column(Field::new("v", DataType::Int64, true), Arc::new(arr));
 
     // Row 0: int64(1)
     assert_eq!(buf[off], TYPE_INT64);
@@ -300,22 +308,18 @@ fn test_serialize_map_with_non_string_keys_returns_error() {
     );
 
     let offsets = OffsetBuffer::new(vec![0i32, 2].into());
-    let map_field = Field::new("entries", DataType::Struct(entries_struct.fields().clone()), false);
-    let map_arr = MapArray::new(
-        Arc::new(map_field),
-        offsets,
-        entries_struct,
-        None,
+    let map_field = Field::new(
+        "entries",
+        DataType::Struct(entries_struct.fields().clone()),
         false,
     );
+    let map_arr = MapArray::new(Arc::new(map_field), offsets, entries_struct, None, false);
 
-    let schema = Arc::new(Schema::new(vec![
-        Field::new(
-            "v",
-            map_arr.data_type().clone(),
-            false,
-        ),
-    ]));
+    let schema = Arc::new(Schema::new(vec![Field::new(
+        "v",
+        map_arr.data_type().clone(),
+        false,
+    )]));
     let batch = RecordBatch::try_new(schema, vec![Arc::new(map_arr)]).unwrap();
     let result = serialize_batches_to_kv_binary(&[batch]);
 

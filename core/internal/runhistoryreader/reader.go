@@ -61,9 +61,7 @@ func New(
 	useCache bool,
 	rustArrowWrapper *ffi.RustArrowWrapper,
 ) (*HistoryReader, error) {
-	if len(keys) > 0 && !slices.Contains(keys, "_step") {
-		keys = append([]string{"_step"}, keys...)
-	}
+	keys = keysWithStep(keys)
 
 	historyReader := &HistoryReader{
 		entity:        entity,
@@ -93,6 +91,21 @@ func New(
 		historyReader.parquetReaders = append(historyReader.parquetReaders, rustReader)
 	}
 	return historyReader, nil
+}
+
+// keysWithStep returns selected history keys and the required scan key.
+// An empty selection still requests all columns.
+func keysWithStep(keys []string) []string {
+	if len(keys) == 0 {
+		return nil
+	}
+
+	selected := slices.Clone(keys)
+	if !slices.Contains(selected, parquet.StepKey) {
+		selected = append([]string{parquet.StepKey}, selected...)
+	}
+
+	return selected
 }
 
 func (h *HistoryReader) GetEntity() string {

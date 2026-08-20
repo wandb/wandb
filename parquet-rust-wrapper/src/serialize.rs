@@ -1,23 +1,9 @@
 use std::io;
 
 use arrow::array::{
-    Array,
-    AsArray,
-    BooleanArray,
-    Float32Array,
-    Float64Array,
-    Int8Array,
-    Int16Array,
-    Int32Array,
-    Int64Array,
-    ListArray,
-    MapArray,
-    RecordBatch,
-    StructArray,
-    UInt8Array,
-    UInt16Array,
-    UInt32Array,
-    UInt64Array,
+    Array, AsArray, BooleanArray, Float32Array, Float64Array, Int16Array, Int32Array, Int64Array,
+    Int8Array, ListArray, MapArray, RecordBatch, StructArray, UInt16Array, UInt32Array,
+    UInt64Array, UInt8Array,
 };
 use arrow::compute::cast;
 use arrow::datatypes::DataType;
@@ -92,47 +78,83 @@ fn write_value(buf: &mut Vec<u8>, arr: &dyn Array, idx: usize) -> Result<(), io:
         }
         DataType::Int16 => {
             buf.push(TYPE_INT64);
-            let v = arr.as_any().downcast_ref::<Int16Array>().unwrap().value(idx) as i64;
+            let v = arr
+                .as_any()
+                .downcast_ref::<Int16Array>()
+                .unwrap()
+                .value(idx) as i64;
             buf.extend_from_slice(&v.to_le_bytes());
         }
         DataType::Int32 => {
             buf.push(TYPE_INT64);
-            let v = arr.as_any().downcast_ref::<Int32Array>().unwrap().value(idx) as i64;
+            let v = arr
+                .as_any()
+                .downcast_ref::<Int32Array>()
+                .unwrap()
+                .value(idx) as i64;
             buf.extend_from_slice(&v.to_le_bytes());
         }
         DataType::Int64 => {
             buf.push(TYPE_INT64);
-            let v = arr.as_any().downcast_ref::<Int64Array>().unwrap().value(idx);
+            let v = arr
+                .as_any()
+                .downcast_ref::<Int64Array>()
+                .unwrap()
+                .value(idx);
             buf.extend_from_slice(&v.to_le_bytes());
         }
         DataType::UInt8 => {
             buf.push(TYPE_INT64);
-            let v = arr.as_any().downcast_ref::<UInt8Array>().unwrap().value(idx) as i64;
+            let v = arr
+                .as_any()
+                .downcast_ref::<UInt8Array>()
+                .unwrap()
+                .value(idx) as i64;
             buf.extend_from_slice(&v.to_le_bytes());
         }
         DataType::UInt16 => {
             buf.push(TYPE_INT64);
-            let v = arr.as_any().downcast_ref::<UInt16Array>().unwrap().value(idx) as i64;
+            let v = arr
+                .as_any()
+                .downcast_ref::<UInt16Array>()
+                .unwrap()
+                .value(idx) as i64;
             buf.extend_from_slice(&v.to_le_bytes());
         }
         DataType::UInt32 => {
             buf.push(TYPE_INT64);
-            let v = arr.as_any().downcast_ref::<UInt32Array>().unwrap().value(idx) as i64;
+            let v = arr
+                .as_any()
+                .downcast_ref::<UInt32Array>()
+                .unwrap()
+                .value(idx) as i64;
             buf.extend_from_slice(&v.to_le_bytes());
         }
         DataType::UInt64 => {
             buf.push(TYPE_UINT64);
-            let v = arr.as_any().downcast_ref::<UInt64Array>().unwrap().value(idx);
+            let v = arr
+                .as_any()
+                .downcast_ref::<UInt64Array>()
+                .unwrap()
+                .value(idx);
             buf.extend_from_slice(&v.to_le_bytes());
         }
         DataType::Float32 => {
             buf.push(TYPE_FLOAT64);
-            let v = arr.as_any().downcast_ref::<Float32Array>().unwrap().value(idx) as f64;
+            let v = arr
+                .as_any()
+                .downcast_ref::<Float32Array>()
+                .unwrap()
+                .value(idx) as f64;
             buf.extend_from_slice(&v.to_le_bytes());
         }
         DataType::Float64 => {
             buf.push(TYPE_FLOAT64);
-            let v = arr.as_any().downcast_ref::<Float64Array>().unwrap().value(idx);
+            let v = arr
+                .as_any()
+                .downcast_ref::<Float64Array>()
+                .unwrap()
+                .value(idx);
             buf.extend_from_slice(&v.to_le_bytes());
         }
         DataType::Utf8 | DataType::LargeUtf8 => {
@@ -149,7 +171,11 @@ fn write_value(buf: &mut Vec<u8>, arr: &dyn Array, idx: usize) -> Result<(), io:
         }
         DataType::Boolean => {
             buf.push(TYPE_BOOL);
-            let v = arr.as_any().downcast_ref::<BooleanArray>().unwrap().value(idx);
+            let v = arr
+                .as_any()
+                .downcast_ref::<BooleanArray>()
+                .unwrap()
+                .value(idx);
             buf.push(if v { 1 } else { 0 });
         }
         DataType::List(_) => {
