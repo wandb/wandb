@@ -107,6 +107,10 @@ type WorkspaceRun struct {
 	wandbPath string
 	watcher   *WatcherManager
 	state     RunState
+
+	// lastUpdateAt tracks when the transaction log last produced a record.
+	// A live run that stays silent past RunCrashTimeout is presumed crashed.
+	lastUpdateAt time.Time
 }
 
 func NewWorkspace(
@@ -280,15 +284,18 @@ func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 	case WorkspaceFileChangedMsg:
 		return w.handleWorkspaceFileChanged(t)
 
+	case WorkspaceRunReadErrMsg:
+		return w.handleRunReadErr(t)
+
 	case HeartbeatMsg:
 		return w.handleHeartbeat()
 
 	case ErrorMsg:
-		// Read errors from per-run commands; the affected run simply stops
-		// streaming, so surface the error in the logs.
+		// Errors without a run key; per-run read errors arrive as
+		// WorkspaceRunReadErrMsg and are handled above.
 		w.logger.CaptureError(
 			"leet",
-			fmt.Errorf("workspace: run read failed: %v", t.Err),
+			fmt.Errorf("workspace: %v", t.Err),
 		)
 	}
 

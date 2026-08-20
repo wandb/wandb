@@ -1407,7 +1407,11 @@ class Artifact:
     @contextlib.contextmanager
     @ensure_not_finalized
     def new_file(
-        self, name: str, mode: str = "x", encoding: str | None = None
+        self,
+        name: str,
+        mode: str = "x",
+        encoding: str | None = None,
+        policy: Literal["mutable", "immutable"] = "mutable",
     ) -> Generator[IO]:
         """Open a new temporary file and add it to the artifact.
 
@@ -1415,6 +1419,11 @@ class Artifact:
             name: The name of the new file to add to the artifact.
             mode: The file access mode to use to open the new file.
             encoding: The encoding used to open the new file.
+            policy: By default, set to "mutable". If set to "mutable",
+                create a temporary copy of the file to prevent corruption
+                during upload. If set to "immutable", disable
+                protection and rely on the user not to delete or change the
+                file.
 
         Returns:
             A new file object that can be written to. Upon closing, the file
@@ -1446,7 +1455,7 @@ class Artifact:
             raise
 
         self.add_file(
-            path, name=name, policy="immutable", skip_cache=True, overwrite=overwrite
+            path, name=name, policy=policy, skip_cache=True, overwrite=overwrite
         )
 
     @ensure_not_finalized

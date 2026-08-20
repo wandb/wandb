@@ -1035,15 +1035,18 @@ type Feature struct {
 	SetRunTags          bool                   `protobuf:"varint,18,opt,name=set_run_tags,json=setRunTags,proto3" json:"set_run_tags,omitempty"`                            // user sets run name via wandb.run.tags = ...
 	SetConfigItem       bool                   `protobuf:"varint,19,opt,name=set_config_item,json=setConfigItem,proto3" json:"set_config_item,omitempty"`                   // users set key in run config via run.config.key
 	// or run.config["key"]
-	Launch                   bool `protobuf:"varint,20,opt,name=launch,proto3" json:"launch,omitempty"`                                                                         // run is created through wandb launch
-	TorchProfilerTrace       bool `protobuf:"varint,21,opt,name=torch_profiler_trace,json=torchProfilerTrace,proto3" json:"torch_profiler_trace,omitempty"`                     // wandb.profiler.torch_trace_handler() called
-	Sb3                      bool `protobuf:"varint,22,opt,name=sb3,proto3" json:"sb3,omitempty"`                                                                               // Using stable_baselines3 integration
-	InitReturnRun            bool `protobuf:"varint,24,opt,name=init_return_run,json=initReturnRun,proto3" json:"init_return_run,omitempty"`                                    // wandb.init() called in the same process returning previous run
-	LightgbmWandbCallback    bool `protobuf:"varint,25,opt,name=lightgbm_wandb_callback,json=lightgbmWandbCallback,proto3" json:"lightgbm_wandb_callback,omitempty"`            // lightgbm callback used
-	LightgbmLogSummary       bool `protobuf:"varint,26,opt,name=lightgbm_log_summary,json=lightgbmLogSummary,proto3" json:"lightgbm_log_summary,omitempty"`                     // lightgbm log summary used
-	CatboostWandbCallback    bool `protobuf:"varint,27,opt,name=catboost_wandb_callback,json=catboostWandbCallback,proto3" json:"catboost_wandb_callback,omitempty"`            // catboost callback used
-	CatboostLogSummary       bool `protobuf:"varint,28,opt,name=catboost_log_summary,json=catboostLogSummary,proto3" json:"catboost_log_summary,omitempty"`                     // catboost log summary used
-	TensorboardLog           bool `protobuf:"varint,29,opt,name=tensorboard_log,json=tensorboardLog,proto3" json:"tensorboard_log,omitempty"`                                   // wandb.tensorflow.log or wandb.tensorboard.log used
+	Launch                bool `protobuf:"varint,20,opt,name=launch,proto3" json:"launch,omitempty"`                                                              // run is created through wandb launch
+	TorchProfilerTrace    bool `protobuf:"varint,21,opt,name=torch_profiler_trace,json=torchProfilerTrace,proto3" json:"torch_profiler_trace,omitempty"`          // wandb.profiler.torch_trace_handler() called
+	Sb3                   bool `protobuf:"varint,22,opt,name=sb3,proto3" json:"sb3,omitempty"`                                                                    // Using stable_baselines3 integration
+	InitReturnRun         bool `protobuf:"varint,24,opt,name=init_return_run,json=initReturnRun,proto3" json:"init_return_run,omitempty"`                         // wandb.init() called in the same process returning previous run
+	LightgbmWandbCallback bool `protobuf:"varint,25,opt,name=lightgbm_wandb_callback,json=lightgbmWandbCallback,proto3" json:"lightgbm_wandb_callback,omitempty"` // lightgbm callback used
+	LightgbmLogSummary    bool `protobuf:"varint,26,opt,name=lightgbm_log_summary,json=lightgbmLogSummary,proto3" json:"lightgbm_log_summary,omitempty"`          // lightgbm log summary used
+	CatboostWandbCallback bool `protobuf:"varint,27,opt,name=catboost_wandb_callback,json=catboostWandbCallback,proto3" json:"catboost_wandb_callback,omitempty"` // catboost callback used
+	CatboostLogSummary    bool `protobuf:"varint,28,opt,name=catboost_log_summary,json=catboostLogSummary,proto3" json:"catboost_log_summary,omitempty"`          // catboost log summary used
+	// wandb.tensorflow.log or wandb.tensorboard.log used, in an old SDK.
+	//
+	// These functions have been removed.
+	TensorboardLog           bool `protobuf:"varint,29,opt,name=tensorboard_log,json=tensorboardLog,proto3" json:"tensorboard_log,omitempty"`
 	EstimatorHook            bool `protobuf:"varint,30,opt,name=estimator_hook,json=estimatorHook,proto3" json:"estimator_hook,omitempty"`                                      // wandb.tensorflow.WandbHook used
 	XgboostWandbCallback     bool `protobuf:"varint,31,opt,name=xgboost_wandb_callback,json=xgboostWandbCallback,proto3" json:"xgboost_wandb_callback,omitempty"`               // xgboost callback used
 	XgboostOldWandbCallback  bool `protobuf:"varint,32,opt,name=xgboost_old_wandb_callback,json=xgboostOldWandbCallback,proto3" json:"xgboost_old_wandb_callback,omitempty"`    // xgboost old callback used (to be depreciated)
