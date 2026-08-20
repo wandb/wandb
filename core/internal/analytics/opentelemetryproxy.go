@@ -705,7 +705,7 @@ func checkServerSupportsOpenTelemetryProxy(
 	if wandbSettings.IsInsecureDisableSSL() {
 		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
-	httpClient := &http.Client{Timeout: defaultTimeout, Transport: transport}
+	httpClient := &http.Client{Timeout: httpClientTimeout, Transport: transport}
 
 	url := wandbSettings.GetBaseURL() + metricsPath
 	req, err := http.NewRequestWithContext(
