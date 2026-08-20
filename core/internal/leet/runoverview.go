@@ -62,7 +62,7 @@ func (ro *RunOverview) StateString() string {
 	case RunStateFailed:
 		return "Failed"
 	case RunStateCrashed:
-		return "Error"
+		return "Crashed"
 	default:
 		return "Unknown"
 	}
