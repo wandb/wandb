@@ -392,6 +392,45 @@ func (r *Reader) VerifyWandbHeader(expectedVersion byte) error {
 	return nil
 }
 
+// VerifyWandbHeaderRange checks for a W&B header whose version byte falls
+// within [minVersion, maxVersion], inclusive.
+func (r *Reader) VerifyWandbHeaderRange(minVersion, maxVersion byte) error {
+	if r.blockOffset != 0 {
+		return errors.New("leveldb/record: reader not in first block")
+	}
+
+	if r.n == 0 {
+		if r.err = r.readBlock(); r.err != nil {
+			return r.err
+		}
+	}
+
+	if r.n < wandbHeaderLength {
+		return io.ErrUnexpectedEOF
+	}
+
+	identBytes, magicBytes, version := r.buf[0:4], r.buf[4:6], r.buf[6]
+
+	if string(identBytes) != wandbHeaderIdent {
+		return fmt.Errorf(
+			"leveldb/record: invalid W&B identifier: %X (%q)",
+			identBytes, identBytes)
+	}
+
+	magic := uint16(magicBytes[0]) + uint16(magicBytes[1])<<8
+	if magic != wandbHeaderMagic {
+		return fmt.Errorf("leveldb/record: invalid W&B magic: %X", magic)
+	}
+
+	if version < minVersion || version > maxVersion {
+		return fmt.Errorf(
+			"leveldb/record: unsupported W&B version %d (supported %d..%d)",
+			version, minVersion, maxVersion)
+	}
+
+	return nil
+}
+
 // NextOffset returns the offset from which Next() will start to read.
 //
 // This offset can be passed to SeekRecord to return to the same record in the

@@ -358,11 +358,20 @@ func TestGoldenLogs_UpToDate(t *testing.T) {
 
 // writeGoldenCase writes a case's records to a .wandb file at path,
 // creating parent directories as needed.
+//
+// "old_" cases are written with header version 0; "new_" cases with version
+// 1. Both use today's leveldb framing otherwise — provenance/ fixtures (when
+// added) are the guard against silent framing drift for pre-Go-core logs.
 func writeGoldenCase(t *testing.T, path string, c goldenCorpusCase) {
 	t.Helper()
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o777))
 
-	w, err := transactionlog.OpenWriter(path)
+	version := byte(1)
+	if strings.HasPrefix(c.Name, "old_") {
+		version = 0
+	}
+
+	w, err := transactionlog.OpenWriterWithVersion(path, version)
 	require.NoError(t, err)
 
 	for _, txtpb := range c.Records {

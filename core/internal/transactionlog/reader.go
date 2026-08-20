@@ -153,7 +153,10 @@ func (r *Reader) verifyWBHeaderBeforeFirstRead() error {
 		return nil
 	}
 
-	if err := r.reader.VerifyWandbHeader(wandbStoreVersion); err != nil {
+	if err := r.reader.VerifyWandbHeaderRange(
+		minSupportedWandbStoreVersion,
+		wandbStoreVersion,
+	); err != nil {
 		return fmt.Errorf("transactionlog: bad header: %w", err)
 	}
 
