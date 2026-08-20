@@ -848,6 +848,10 @@ pub struct RunRecord {
     /// Unlike `resumed`, this records input intent.
     #[prost(bool, tag = "24")]
     pub resume: bool,
+    /// Whether this run was created in shared mode. Sync reads this so history
+    /// uploads omit the step axis instead of inventing \_step values.
+    #[prost(bool, tag = "25")]
+    pub shared_mode: bool,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }
