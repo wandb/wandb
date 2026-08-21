@@ -1,6 +1,8 @@
 // liveindicator.go
 //
-// Run state indicators. The status bar's leftmost cell shows the state of
+// Run state indicators. A live run's mark in the workspace runs list
+// breathes — its color fades to the terminal background ("not filled") and
+// back to the run color. The status bar's leftmost cell shows the state of
 // the current run: an empty circle until the state is known, then a filled
 // dot in the state color, blinking while the run is live.
 package leet
@@ -36,6 +38,15 @@ func livePulseAlpha(now time.Time) float64 {
 	period := livePulsePeriod.Milliseconds()
 	phase := float64(now.UnixMilli()%period) / float64(period)
 	return 0.5 - 0.5*math.Cos(2*math.Pi*phase)
+}
+
+// runMarkPulseColor returns the color of a live run's list mark at now:
+// the run color breathing all the way down to the terminal background and
+// back, so the mark empties out and refills once per cycle.
+func runMarkPulseColor(runColor AdaptiveColor, now time.Time) color.Color {
+	r, g, b := rgb8(runColor)
+	tr, tg, tb := terminalBackgroundRGB()
+	return blendRGB(r, g, b, tr, tg, tb, livePulseAlpha(now))
 }
 
 // The status bar's background (colorLayoutHighlight) is light in both color
