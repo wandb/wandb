@@ -1120,7 +1120,7 @@ class Artifact:
     def linked_at(self) -> str | None:
         """The time when this artifact was linked to its current collection.
 
-        Only valid for linked artifacts.
+        Only valid for linked artifacts, returns `None` otherwise.
         """
         return self._linked_at
 
