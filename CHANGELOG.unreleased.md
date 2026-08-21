@@ -34,6 +34,8 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Fixed
 
+- Fixed `scan_history(keys=...)` so it can read history containing nested media
+  or histogram columns.
 - `Artifact.new_file` now works for artifacts uploaded with `wandb sync` (@amusipatla-wandb in https://github.com/wandb/wandb/pull/12437)
 - At certain pane widths, such as while dragging a sidebar edge, LEET drew metric charts wider than the space available, pushing the right sidebar off screen (@dmitryduev in https://github.com/wandb/wandb/pull/12513)
 
