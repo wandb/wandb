@@ -1,5 +1,7 @@
 package leet
 
+import "math"
+
 // frenchFriesToggleChart keeps the existing time-series line chart as the
 // source of truth for time-window behavior while optionally rendering the same
 // metric as a heatmap-style French Fries chart.
@@ -87,6 +89,16 @@ func (c *frenchFriesToggleChart) GraphStartY() int {
 }
 
 func (c *frenchFriesToggleChart) HandleZoom(direction string, mouseX int) {
+	if c.heatmapMode {
+		// mouseX is in heatmap plot coordinates, but the zoom runs on the
+		// line chart, whose plot area has a different origin and width. Map
+		// by fractional position so the zoom anchors on the same timestamp.
+		ffW := c.frenchFries.GraphWidth()
+		lineW := c.line.GraphWidth()
+		if ffW > 0 && lineW > 0 {
+			mouseX = int(math.Round(float64(mouseX) / float64(ffW) * float64(lineW)))
+		}
+	}
 	c.line.HandleZoom(direction, mouseX)
 	c.syncViewWindow()
 	c.activeChart().DrawIfNeeded()
