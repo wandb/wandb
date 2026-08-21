@@ -1,4 +1,4 @@
-use arrow::array::{Int64Array, RecordBatch, StringArray};
+use arrow::array::{Array, ArrayRef, Int64Array, RecordBatch, StringArray, StructArray};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow_rs_wrapper::*;
 use parquet::arrow::ArrowWriter;
@@ -218,6 +218,65 @@ fn create_test_parquet_file(path: &str, num_rows: usize) -> std::io::Result<()> 
     Ok(())
 }
 
+/// Helper function to create a test parquet file with a nested histogram column.
+fn create_nested_histogram_parquet_file(path: &str) -> std::io::Result<()> {
+    let histogram = StructArray::from(vec![
+        (
+            Arc::new(Field::new("_type", DataType::Utf8, false)),
+            Arc::new(StringArray::from(vec!["histogram"])) as ArrayRef,
+        ),
+        (
+            Arc::new(Field::new(
+                "bins",
+                DataType::List(Arc::new(Field::new("item", DataType::Float64, true))),
+                false,
+            )),
+            Arc::new(arrow::array::ListArray::from_iter_primitive::<
+                arrow::datatypes::Float64Type,
+                _,
+                _,
+            >(vec![Some(vec![Some(0.0), Some(1.0)])])) as ArrayRef,
+        ),
+        (
+            Arc::new(Field::new(
+                "values",
+                DataType::List(Arc::new(Field::new("item", DataType::Float64, true))),
+                false,
+            )),
+            Arc::new(arrow::array::ListArray::from_iter_primitive::<
+                arrow::datatypes::Float64Type,
+                _,
+                _,
+            >(vec![Some(vec![Some(2.0), Some(3.0)])])) as ArrayRef,
+        ),
+    ]);
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("histogram", histogram.data_type().clone(), false),
+        Field::new(STEP_COLUMN_NAME, DataType::Int64, false),
+        Field::new("loss", DataType::Float64, false),
+    ]));
+    let batch = RecordBatch::try_new(
+        schema.clone(),
+        vec![
+            Arc::new(histogram),
+            Arc::new(Int64Array::from(vec![7])),
+            Arc::new(arrow::array::Float64Array::from(vec![0.5])),
+        ],
+    )
+    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+
+    let file = File::create(path)?;
+    let mut writer = ArrowWriter::try_new(file, schema, None)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    writer
+        .write(&batch)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    writer
+        .close()
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    Ok(())
+}
+
 #[test]
 fn test_create_reader() {
     let temp_dir = TempDir::new().unwrap();
@@ -266,6 +325,55 @@ fn test_create_reader_with_columns() {
     assert!(!reader_ptr.is_null());
 
     unsafe {
+        free_reader(reader_ptr);
+    }
+}
+
+#[test]
+fn test_reader_scan_step_range_with_nested_columns() {
+    let temp_dir = TempDir::new().unwrap();
+    let file_path = temp_dir.path().join("nested.parquet");
+    create_nested_histogram_parquet_file(file_path.to_str().unwrap()).unwrap();
+
+    let path_cstring = CString::new(file_path.to_str().unwrap()).unwrap();
+    let col1 = CString::new(STEP_COLUMN_NAME).unwrap();
+    let col2 = CString::new("loss").unwrap();
+    let col_ptrs = vec![col1.as_ptr(), col2.as_ptr()];
+    let mut out_error: *mut libc::c_char = std::ptr::null_mut();
+    let reader_ptr = unsafe {
+        create_reader(
+            path_cstring.as_ptr(),
+            col_ptrs.as_ptr(),
+            col_ptrs.len(),
+            &mut out_error,
+        )
+    };
+    assert!(!reader_ptr.is_null());
+
+    let mut result = StepScanResult {
+        vec_ptr: 0,
+        data_ptr: 0,
+        data_len: 0,
+        num_rows_returned: 0,
+    };
+    let error = unsafe { reader_scan_step_range(reader_ptr, 0, 10, &mut result) };
+    assert!(error.is_null());
+    assert_eq!(result.num_rows_returned, 1);
+
+    let rows = parse_result(&result);
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].columns.len(), 2);
+    assert_eq!(
+        rows[0].columns[0],
+        (STEP_COLUMN_NAME.to_string(), KvValue::Int64(7))
+    );
+    assert_eq!(
+        rows[0].columns[1],
+        ("loss".to_string(), KvValue::Float64(0.5))
+    );
+
+    unsafe {
+        free_buffer(result.vec_ptr as *mut Vec<u8>);
         free_reader(reader_ptr);
     }
 }
