@@ -376,11 +376,15 @@ class OpenTelemetryProxy:
     """
 
     @classmethod
-    def from_settings(cls, settings: Settings) -> OpenTelemetryProxy | None:
+    def from_settings(
+        cls,
+        settings: Settings,
+        pid: int | None = None,
+    ) -> OpenTelemetryProxy | None:
         """Create a proxy from settings, or None if telemetry is disabled."""
         if _disabled.is_set() or settings._offline:
             return None
-        return cls(settings=settings)
+        return cls(settings=settings, pid=pid)
 
     def __init__(
         self,
@@ -579,7 +583,11 @@ def get_open_telemetry_proxy() -> OpenTelemetryProxy | None:
     with _singleton_lock:
         if _singleton_telemetry_proxy is None or _singleton_telemetry_proxy._pid != pid:
             settings = wandb_setup.singleton().settings
-            _singleton_telemetry_proxy = OpenTelemetryProxy(settings=settings, pid=pid)
-            atexit.register(_shutdown_singleton_open_telemetry_proxy)
+            _singleton_telemetry_proxy = OpenTelemetryProxy.from_settings(
+                settings=settings,
+                pid=pid,
+            )
+            if _singleton_telemetry_proxy is not None:
+                atexit.register(_shutdown_singleton_open_telemetry_proxy)
 
     return _singleton_telemetry_proxy
