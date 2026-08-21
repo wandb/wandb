@@ -392,7 +392,8 @@ func (w *Workspace) applyRunKeys(runKeys []string) {
 }
 
 func (w *Workspace) setRunItems(runKeys []string) {
-	items := w.runs.Items[:0]
+	// FilteredItems aliases Items when no filter is applied.
+	items := make([]KeyValuePair, 0, len(runKeys))
 	for _, key := range runKeys {
 		items = append(items, KeyValuePair{Key: key})
 	}
