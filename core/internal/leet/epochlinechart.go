@@ -712,23 +712,50 @@ func (c *EpochLineChart) drawSeries(s *Series, startX int) {
 		0, float64(c.GraphHeight()),
 	)
 
+	c.rasterizeSeries(bGrid, s, lb, ub)
+
+	patterns := bGrid.BraillePatterns()
+	style := s.style.Load().(lipgloss.Style)
+
+	drawBraillePatternsOccluded(&c.Canvas, canvas.Point{X: startX, Y: 0}, patterns, &style)
+}
+
+// rasterizeSeries plots the series window [lb, ub) onto the braille grid.
+//
+// Consecutive samples that land in the same braille column collapse into one
+// vertical span, and column transitions are connected sample-to-sample with
+// Bresenham. This sets the same dots as drawing a line segment for every
+// adjacent sample pair, but does O(visible pixels) drawing work instead of
+// O(points), which matters for runs with 100k+ steps per chart.
+func (c *EpochLineChart) rasterizeSeries(
+	bGrid *graph.BrailleGrid,
+	s *Series,
+	lb, ub int,
+) {
 	xScale := float64(c.GraphWidth()) / (c.ViewMaxX() - c.ViewMinX())
 	yScale := float64(c.GraphHeight()) / (c.ViewMaxY() - c.ViewMinY())
 
-	segments := make([][]canvas.Float64Point, 0, 1)
-	current := make([]canvas.Float64Point, 0, ub-lb)
-	flush := func() {
-		if len(current) == 0 {
+	var (
+		inSegment      bool
+		prev           canvas.Point
+		colX           int
+		colMin, colMax int
+	)
+	flushColumn := func() {
+		if !inSegment {
 			return
 		}
-		segments = append(segments, current)
-		current = make([]canvas.Float64Point, 0, ub-lb)
+		for y := colMin; y <= colMax; y++ {
+			bGrid.Set(canvas.Point{X: colX, Y: y})
+		}
 	}
 
 	for i := lb; i < ub; i++ {
 		yValue, ok := c.scaleYValue(s.Y[i])
 		if !ok {
-			flush()
+			// Non-finite sample (NaN/Inf): render as a gap in the line.
+			flushColumn()
+			inSegment = false
 			continue
 		}
 
@@ -736,30 +763,27 @@ func (c *EpochLineChart) drawSeries(s *Series, startX int) {
 		y := (yValue - c.ViewMinY()) * yScale
 
 		if x < 0 || x > float64(c.GraphWidth()) || y < 0 || y > float64(c.GraphHeight()) {
-			flush()
+			flushColumn()
+			inSegment = false
 			continue
 		}
 
-		current = append(current, canvas.Float64Point{X: x, Y: y})
-	}
-	flush()
-
-	for _, points := range segments {
-		if len(points) == 1 {
-			bGrid.Set(bGrid.GridPoint(points[0]))
-			continue
+		gp := bGrid.GridPoint(canvas.Float64Point{X: x, Y: y})
+		switch {
+		case !inSegment:
+			colX, colMin, colMax = gp.X, gp.Y, gp.Y
+			inSegment = true
+		case gp.X == colX:
+			colMin = min(colMin, gp.Y)
+			colMax = max(colMax, gp.Y)
+		default:
+			flushColumn()
+			drawLine(bGrid, prev, gp)
+			colX, colMin, colMax = gp.X, gp.Y, gp.Y
 		}
-		for i := range len(points) - 1 {
-			gp1 := bGrid.GridPoint(points[i])
-			gp2 := bGrid.GridPoint(points[i+1])
-			drawLine(bGrid, gp1, gp2)
-		}
+		prev = gp
 	}
-
-	patterns := bGrid.BraillePatterns()
-	style := s.style.Load().(lipgloss.Style)
-
-	drawBraillePatternsOccluded(&c.Canvas, canvas.Point{X: startX, Y: 0}, patterns, &style)
+	flushColumn()
 }
 
 // drawBraillePatternsOccluded draws braille runes with opaque compositing.
