@@ -15,6 +15,7 @@ from opentelemetry.metrics import Counter
 from opentelemetry.sdk.metrics.export import AggregationTemporality
 from typing_extensions import Never, ParamSpec
 
+from wandb import env
 from wandb.sdk.wandb_settings import Settings
 
 if TYPE_CHECKING:
@@ -196,7 +197,7 @@ def guard(
         **kwargs: _P.kwargs,
     ) -> None:
         with contextlib.suppress(Exception):
-            if self._open_telemetry_proxy is None:
+            if not self._enabled or self._open_telemetry_proxy is None:
                 return
 
             method(self, *args, **kwargs)
@@ -229,6 +230,7 @@ class TelemetryRecorder:
                 When omitted, telemetry calls are no-ops.
             context: The attributes to add to each emitted record.
         """
+        self._enabled = bool(env.error_reporting_enabled())
         self._open_telemetry_proxy = open_telemetry_proxy
         self._context = context or TelemetryContext()
 
@@ -370,6 +372,13 @@ class OpenTelemetryProxy:
     Instead, use the `TelemetryRecorder` class to record all telemetry.
     """
 
+    @classmethod
+    def from_settings(cls, settings: Settings) -> OpenTelemetryProxy | None:
+        """Create a proxy from settings, or None if telemetry is disabled."""
+        if _disabled.is_set() or settings._offline:
+            return None
+        return cls(settings=settings)
+
     def __init__(
         self,
         *,
@@ -381,9 +390,6 @@ class OpenTelemetryProxy:
             settings: The settings to use to configure the proxy.
         """
         from opentelemetry.sdk.resources import SERVICE_NAME, Resource
-
-        if _disabled.is_set() or settings._offline:
-            return None
 
         session = requests.Session()
 
