@@ -60,6 +60,11 @@ func (w *Workspace) handleMediaMouse(msg tea.MouseMsg, layout Layout) tea.Cmd {
 }
 
 func (w *Workspace) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
+	// Quit must work even while a filter input owns the keyboard.
+	if msg.String() == "ctrl+c" {
+		return w.handleQuit(msg)
+	}
+
 	// Filter mode takes priority.
 	if w.filter.IsActive() {
 		w.handleRunFilterKey(msg)
