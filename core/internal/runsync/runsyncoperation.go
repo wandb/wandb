@@ -43,7 +43,7 @@ func (f *RunSyncOperationFactory) New(
 	telemetryProxy := analytics.NewOpenTelemetryProxy(
 		context.Background(),
 		wandbSettings,
-		"wandb-core",
+		analytics.ServiceName,
 	)
 	telemetryRecorder := analytics.NewTelemetryRecorder(
 		telemetryProxy,

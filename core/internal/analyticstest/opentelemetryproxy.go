@@ -107,7 +107,7 @@ func NewOpenTelemetryProxyTest(
 		BaseUrl: wrapperspb.String(testProxy.server.URL),
 		ApiKey:  wrapperspb.String("test-api-key"),
 	})
-	proxy := analytics.NewOpenTelemetryProxy(t.Context(), settings, "wandb-core")
+	proxy := analytics.NewOpenTelemetryProxy(t.Context(), settings, analytics.ServiceName)
 	require.NotNil(t, proxy)
 	t.Cleanup(func() {
 		require.NoError(t, proxy.Shutdown(context.Background()))
