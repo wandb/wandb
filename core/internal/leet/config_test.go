@@ -4,6 +4,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -204,4 +205,27 @@ func TestConfig_SetRunLayoutRejectsNaN(t *testing.T) {
 
 	// Later unrelated saves keep working.
 	require.NoError(t, cfg.SetLeftSidebarVisible(false))
+}
+
+func TestConfig_PreservesUnknownKeysAcrossSaves(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	path := filepath.Join(t.TempDir(), "config.json")
+
+	// A config written by a newer build, with a key this build's Config
+	// struct does not have.
+	require.NoError(t, os.WriteFile(path, []byte(
+		`{"color_scheme": "sunset", "future_setting": {"answer": 42}}`,
+	), 0o644))
+
+	cfg := leet.NewConfigManager(path, logger)
+	require.NoError(t, cfg.SetLeftSidebarVisible(false))
+
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"future_setting"`)
+	require.Contains(t, string(data), `"answer": 42`)
+
+	// Known keys are written from the struct, not duplicated from the
+	// original file.
+	require.Equal(t, 1, strings.Count(string(data), `"color_scheme"`))
 }

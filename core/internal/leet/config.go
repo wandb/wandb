@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -186,9 +188,15 @@ type LayoutOverrides struct {
 // All setter methods automatically save changes to disk.
 // Getters use read locks for concurrent access.
 type ConfigManager struct {
-	mu                sync.RWMutex
-	path              string
-	config            Config
+	mu     sync.RWMutex
+	path   string
+	config Config
+
+	// unknown holds config-file keys this build doesn't recognize,
+	// captured at load and written back on save, so settings from newer
+	// builds survive round-trips through older ones.
+	unknown map[string]json.RawMessage
+
 	pendingGridConfig gridConfigTarget
 	logger            *observability.CoreLogger
 }
@@ -272,12 +280,32 @@ func (cm *ConfigManager) loadOrCreateConfig() error {
 	}
 
 	err = json.Unmarshal(data, &cm.config)
+	cm.unknown = unknownConfigKeys(data)
 
 	// Unmarshal decodes what it can before failing, and the caller keeps
 	// the partial config, so normalize even on error.
 	cm.normalizeConfig()
 
 	return err
+}
+
+// unknownConfigKeys returns the top-level keys in data that do not map to
+// any Config field, or nil if there are none.
+func unknownConfigKeys(data []byte) map[string]json.RawMessage {
+	var raw map[string]json.RawMessage
+	if json.Unmarshal(data, &raw) != nil {
+		return nil
+	}
+
+	for field := range reflect.TypeFor[Config]().Fields() {
+		name, _, _ := strings.Cut(field.Tag.Get("json"), ",")
+		delete(raw, name)
+	}
+
+	if len(raw) == 0 {
+		return nil
+	}
+	return raw
 }
 
 // normalizeConfig ensures all config values are within valid ranges.
@@ -404,7 +432,7 @@ func clamp(val, minimum, maximum int) int {
 //
 // Must be called while holding the lock.
 func (cm *ConfigManager) save() error {
-	data, err := json.MarshalIndent(cm.config, "", "  ")
+	data, err := cm.marshalConfig()
 	if err != nil {
 		return err
 	}
@@ -421,6 +449,25 @@ func (cm *ConfigManager) save() error {
 	}
 
 	return nil
+}
+
+// marshalConfig encodes the config for disk, re-attaching any keys this
+// build doesn't recognize (see ConfigManager.unknown).
+func (cm *ConfigManager) marshalConfig() ([]byte, error) {
+	if len(cm.unknown) == 0 {
+		return json.MarshalIndent(cm.config, "", "  ")
+	}
+
+	data, err := json.Marshal(cm.config)
+	if err != nil {
+		return nil, err
+	}
+	merged := make(map[string]json.RawMessage)
+	if err := json.Unmarshal(data, &merged); err != nil {
+		return nil, err
+	}
+	maps.Copy(merged, cm.unknown)
+	return json.MarshalIndent(merged, "", "  ")
 }
 
 // MetricsGrid returns the metrics grid configuration.
