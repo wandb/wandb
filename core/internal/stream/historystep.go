@@ -29,12 +29,8 @@ type HistoryStepTracker struct {
 
 	// nextAutoStep is the next _step value to assign to history rows that don't
 	// already contain one.
-	nextAutoStep int64
-	initialized  bool
-
-	// syncMayReassignSteps is true when sync may reassign history steps from
-	// the transaction log.
-	syncMayReassignSteps bool
+	nextAutoStep        int64
+	autoStepInitialized bool
 }
 
 // New returns a tracker that owns history step assignment.
@@ -51,34 +47,16 @@ func (f *HistoryStepTrackerFactory) New() *HistoryStepTracker {
 // RunHandle.
 func (t *HistoryStepTracker) SeedStartingStep(step int64) {
 	t.nextAutoStep = step
-	t.initialized = true
-}
-
-// SeedSyncMayReassignSteps grants step reassignment permission. Tests use this
-// in place of a RunHandle. If init is short-circuited, also call
-// SeedStartingStep when the starting step matters.
-func (t *HistoryStepTracker) SeedSyncMayReassignSteps() {
-	t.syncMayReassignSteps = true
-	t.initialized = true
-}
-
-// MayReassignSteps reports whether sync may reassign history steps.
-func (t *HistoryStepTracker) MayReassignSteps() bool {
-	if t.settings.IsSharedMode() {
-		return false
-	}
-
-	t.initializeAutoStep()
-	return t.syncMayReassignSteps
+	t.autoStepInitialized = true
 }
 
 // ApplyHistoryStep writes a monotonic _step onto record, updates run summary
-// _step when sync may reassign steps, and returns summary updates to stream
+// _step when the tracker owns it, and returns summary updates to stream
 // (nil if none).
 func (t *HistoryStepTracker) ApplyHistoryStep(
 	record *spb.HistoryRecord,
 ) *runsummary.Updates {
-	if !t.MayReassignSteps() {
+	if t.settings.IsSharedMode() {
 		return nil
 	}
 
@@ -154,7 +132,7 @@ func (t *HistoryStepTracker) updateSummaryStep(step int64) *runsummary.Updates {
 }
 
 func (t *HistoryStepTracker) initializeAutoStep() {
-	if t.initialized {
+	if t.autoStepInitialized {
 		return
 	}
 
@@ -164,12 +142,11 @@ func (t *HistoryStepTracker) initializeAutoStep() {
 			run := &spb.RunRecord{}
 			upserter.FillRunRecord(run)
 			startingStep = run.GetStartingStep()
-			t.syncMayReassignSteps = run.GetSyncMayReassignSteps()
 		}
 	}
 
 	t.nextAutoStep = startingStep
-	t.initialized = true
+	t.autoStepInitialized = true
 }
 
 func (t *HistoryStepTracker) advanceAutoStepPast(step int64) {

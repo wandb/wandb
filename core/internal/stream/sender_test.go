@@ -20,8 +20,6 @@ import (
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runhandle"
-	"github.com/wandb/wandb/core/internal/runupserter"
-	"github.com/wandb/wandb/core/internal/runupsertertest"
 	"github.com/wandb/wandb/core/internal/runworktest"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
@@ -44,12 +42,7 @@ var defaultSettings = &spb.Settings{
 	ApiKey:  &wrapperspb.StringValue{Value: "test-api-key"},
 }
 
-func makeSender(
-	t *testing.T,
-	client graphql.Client,
-	extraSettings *spb.Settings,
-	withReassignFlag bool,
-) testFixtures {
+func makeSender(t *testing.T, client graphql.Client, extraSettings *spb.Settings) testFixtures {
 	t.Helper()
 	protoSettings := proto.Clone(defaultSettings).(*spb.Settings)
 	if extraSettings != nil {
@@ -80,18 +73,6 @@ func makeSender(
 		Settings:     settings,
 	}
 
-	runHandle := runhandle.New()
-	if withReassignFlag {
-		upserter := runupsertertest.NewTestUpserter(
-			t,
-			"test-entity",
-			"test-project",
-			"run1",
-			runupserter.RunUpserterParams{Settings: settings},
-		)
-		require.NoError(t, runHandle.Init(upserter))
-	}
-
 	senderFactory := stream.SenderFactory{
 		BaseURL:                 baseURL,
 		CredentialProvider:      credentialProvider,
@@ -103,17 +84,17 @@ func makeSender(
 		Mailbox:                 mailbox.New(),
 		GraphqlClient:           client,
 		FeatureProvider:         featurechecker.New(nil, logger),
-		RunHandle:               runHandle,
+		RunHandle:               runhandle.New(),
 	}
 	return testFixtures{
 		Sender: senderFactory.New(runWork),
 	}
 }
 
-// When sync_may_reassign_steps is set, summary _step from the log must not
-// override the tracker's step.
-func TestSendSummaryIgnoresInboundStepWithReassignFlag(t *testing.T) {
-	x := makeSender(t, gqlmock.NewMockClient(), nil, true /*withReassignFlag*/)
+// A summary _step from any source other than the Sender's own step tracker
+// must not win.
+func TestSendSummaryOverridesStaleStep(t *testing.T) {
+	x := makeSender(t, gqlmock.NewMockClient(), nil)
 
 	x.Sender.SendRecord(&spb.Record{
 		RecordType: &spb.Record_History{
@@ -148,10 +129,10 @@ func TestSendSummaryIgnoresInboundStepWithReassignFlag(t *testing.T) {
 		"non-step keys must still be applied")
 }
 
-func TestSendSummaryAppliesInboundStepInSharedMode(t *testing.T) {
+func TestSendSummaryDropsInboundStepInSharedMode(t *testing.T) {
 	x := makeSender(t, gqlmock.NewMockClient(), &spb.Settings{
 		XShared: &wrapperspb.BoolValue{Value: true},
-	}, false /*withReassignFlag*/)
+	})
 
 	x.Sender.SendRecord(&spb.Record{
 		RecordType: &spb.Record_Summary{
@@ -172,61 +153,14 @@ func TestSendSummaryAppliesInboundStepInSharedMode(t *testing.T) {
 		values[item.GetKey()] = item.GetValueJson()
 	}
 	_, hasStep := values["_step"]
-	assert.True(t, hasStep, "shared mode never sets sync_may_reassign_steps")
-	assert.Equal(t, "999", values["_step"])
+	assert.False(t, hasStep, "shared mode must not publish inbound _step")
 	assert.Equal(t, "1.23", values["loss"])
 }
 
-func TestSendSummaryAppliesInboundStepWithoutReassignFlag(t *testing.T) {
-	x := makeSender(t, gqlmock.NewMockClient(), nil, false /*withReassignFlag*/)
-
-	x.Sender.SendRecord(&spb.Record{
-		RecordType: &spb.Record_Summary{
-			Summary: &spb.SummaryRecord{
-				Update: []*spb.SummaryItem{
-					{Key: "loss", ValueJson: "1.23"},
-					{Key: "_step", ValueJson: "7"},
-				},
-			},
-		},
-	}, nil)
-
-	summary, err := x.Sender.SummaryForTest()
-	require.NoError(t, err)
-
-	values := map[string]string{}
-	for _, item := range summary {
-		values[item.GetKey()] = item.GetValueJson()
-	}
-	assert.Equal(t, "7", values["_step"],
-		"summary _step must pass through when sync_may_reassign_steps is unset")
-	assert.Equal(t, "1.23", values["loss"])
-}
-
-func TestSendHistoryPreservesLoggedStepsWithoutReassignFlag(t *testing.T) {
-	x := makeSender(t, gqlmock.NewMockClient(), nil, false /*withReassignFlag*/)
-
-	history := &spb.HistoryRecord{
-		Item: []*spb.HistoryItem{
-			{NestedKey: []string{"loss"}, ValueJson: "1.23"},
-			{NestedKey: []string{"_step"}, ValueJson: "7"},
-		},
-		Step: &spb.HistoryStep{Num: 7},
-	}
-	x.Sender.SendRecord(&spb.Record{
-		RecordType: &spb.Record_History{History: history},
-	}, nil)
-
-	assert.Equal(t, "7", history.Item[1].ValueJson)
-	assert.Equal(t, int64(7), history.GetStep().GetNum())
-}
-
-func TestSendSummaryAppliesInboundStepWithServerSideDerivedSummaryWithoutReassignFlag(
-	t *testing.T,
-) {
+func TestSendSummaryDropsInboundStepWithServerSideDerivedSummary(t *testing.T) {
 	x := makeSender(t, gqlmock.NewMockClient(), &spb.Settings{
 		XServerSideDerivedSummary: &wrapperspb.BoolValue{Value: true},
-	}, false /*withReassignFlag*/)
+	})
 
 	x.Sender.SendRecord(&spb.Record{
 		RecordType: &spb.Record_Summary{
@@ -247,16 +181,15 @@ func TestSendSummaryAppliesInboundStepWithServerSideDerivedSummaryWithoutReassig
 		values[item.GetKey()] = item.GetValueJson()
 	}
 	_, hasStep := values["_step"]
-	assert.True(t, hasStep,
-		"server-side derived summary does not grant sync step reassignment")
-	assert.Equal(t, "999", values["_step"])
+	assert.False(t, hasStep,
+		"server-side derived summary must not publish inbound _step")
 	assert.Equal(t, "1.23", values["loss"])
 }
 
 // Verify that arguments are properly passed through to graphql
 func TestSendLinkArtifact(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
-	x := makeSender(t, mockGQL, nil, false /*withReassignFlag*/)
+	x := makeSender(t, mockGQL, nil)
 
 	// 1. When both clientId and serverId are sent, serverId is used
 	linkArtifact := &spb.Record{
@@ -369,7 +302,7 @@ func TestSendLinkArtifact(t *testing.T) {
 
 func TestSendUseArtifact(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
-	x := makeSender(t, mockGQL, nil, false /*withReassignFlag*/)
+	x := makeSender(t, mockGQL, nil)
 
 	useArtifact := &spb.Record{
 		RecordType: &spb.Record_UseArtifact{
