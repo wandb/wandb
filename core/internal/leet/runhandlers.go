@@ -950,12 +950,7 @@ func (r *Run) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 	// Boot load complete -> begin live mode once. The WaitForMsg pump is
 	// started alongside the watcher so it only runs while the watcher and
 	// heartbeat can produce messages; WatcherManager.Finish unblocks it.
-	//
-	// A run that is still Unknown hasn't flushed its Run record to disk
-	// yet (the writer buffers the transaction log in blocks), so watch it
-	// like a live run and let the records stream in as they land.
-	stateAllowsLive := r.runState == RunStateRunning || r.runState == RunStateUnknown
-	if !r.IsRemote() && stateAllowsLive && !r.watcherMgr.IsStarted() {
+	if !r.IsRemote() && r.runState.mayBeLive() && !r.watcherMgr.IsStarted() {
 		if err := r.watcherMgr.Start(r.runParams.RunFile); err != nil {
 			r.logger.CaptureError(
 				"leet",
@@ -1034,9 +1029,7 @@ func (r *Run) handleFileChange() []tea.Cmd {
 		r.lastUpdateAt = time.Now()
 		r.setRunState(RunStateRunning)
 	}
-	// Unknown-state runs are watched too: their Run record hasn't been
-	// flushed yet and this change may be it.
-	if r.runState != RunStateRunning && r.runState != RunStateUnknown {
+	if !r.runState.mayBeLive() {
 		return nil
 	}
 	r.heartbeatMgr.Reset(r.isRunning)
