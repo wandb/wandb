@@ -214,6 +214,60 @@ func TestConsoleLogsPane_Down_CyclesAndWraps(t *testing.T) {
 	require.Contains(t, out, "[3-5 of 5]", "reaching last entry should re-enable auto-scroll")
 }
 
+func TestConsoleLogsPane_AutoScrollShowsNewestWideRuneLine(t *testing.T) {
+	clp := leet.NewConsoleLogsPane(leet.NewAnimatedValue(false, leet.ConsoleLogsPaneMinHeight))
+	expandConsoleLogsPane(t, clp, 6) // header + padding + 4 content lines
+
+	// Width 7 leaves a 4-column value area. The CJK line greedy-wraps
+	// to 4 rows ("a漢a" "漢a" "漢a" "漢"): a naive width/4 estimate
+	// says 3 and makes autoscroll truncate the newest rows.
+	clp.SetConsoleLogs([]leet.KeyValuePair{
+		{Key: "10:11:12", Value: "log"},
+		{Key: "10:11:13", Value: "a漢a漢a漢a漢"},
+	})
+
+	out := stripANSI(clp.View(7, "", ""))
+	require.Contains(t, out, "[2-2 of 2]", "newest entry alone fills the viewport")
+	require.NotContains(t, out, "...", "newest entry must not be truncated")
+}
+
+func TestConsoleLogsPane_AppendOnlyUpdateTracksTail(t *testing.T) {
+	clp := leet.NewConsoleLogsPane(leet.NewAnimatedValue(false, leet.ConsoleLogsPaneMinHeight))
+	expandConsoleLogsPane(t, clp, 5) // header + padding + 3 content lines
+
+	// Simulate the log store: the same backing slice grows in place.
+	logs := make([]leet.KeyValuePair, 0, 16)
+	logs = append(logs, makeLogs(4)...)
+	clp.SetConsoleLogs(logs)
+	out := stripANSI(clp.View(80, "", ""))
+	require.Contains(t, out, "[2-4 of 4]")
+
+	logs = append(logs,
+		leet.KeyValuePair{Key: "t05", Value: "log 05"},
+		leet.KeyValuePair{Key: "t06", Value: "log 06"})
+	clp.SetConsoleLogs(logs)
+	out = stripANSI(clp.View(80, "", ""))
+	require.Contains(t, out, "[4-6 of 6]", "auto-scroll should track appended lines")
+}
+
+func TestConsoleLogsPane_AppendOnlyUpdateKeepsFrozenView(t *testing.T) {
+	clp := leet.NewConsoleLogsPane(leet.NewAnimatedValue(false, leet.ConsoleLogsPaneMinHeight))
+	expandConsoleLogsPane(t, clp, 5) // header + padding + 3 content lines
+
+	logs := make([]leet.KeyValuePair, 0, 16)
+	logs = append(logs, makeLogs(10)...)
+	clp.SetConsoleLogs(logs)
+	out := stripANSI(clp.View(80, "", ""))
+	require.Contains(t, out, "[8-10 of 10]")
+
+	clp.Up() // freeze auto-scroll
+
+	logs = append(logs, leet.KeyValuePair{Key: "t11", Value: "log 11"})
+	clp.SetConsoleLogs(logs)
+	out = stripANSI(clp.View(80, "", ""))
+	require.Contains(t, out, "[8-10 of 11]", "frozen view must not jump on append")
+}
+
 func TestConsoleLogsPane_Down_EmptyLogs(t *testing.T) {
 	clp := leet.NewConsoleLogsPane(leet.NewAnimatedValue(false, leet.ConsoleLogsPaneMinHeight))
 	expandConsoleLogsPane(t, clp, 5)

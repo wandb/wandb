@@ -129,6 +129,19 @@ func (c *ConsoleLogsPane) UpdateExpandedHeight(maxTerminalHeight int) {
 // SetConsoleLogs replaces the displayed log entries and adjusts the
 // viewport. If auto-scroll is enabled, the view snaps to the tail.
 func (c *ConsoleLogsPane) SetConsoleLogs(items []KeyValuePair) {
+	// The log store grows its items slice in place and re-shares it on
+	// every console message and render. When the update is append-only
+	// (same backing array, possibly longer) the viewport math for the
+	// existing rows is unchanged, so skip the wrapped-line recompute;
+	// View re-derives the viewport from cursor/autoScroll each render.
+	if len(c.logs) > 0 && len(items) >= len(c.logs) && &items[0] == &c.logs[0] {
+		c.logs = items
+		if c.autoScroll {
+			c.cursor = len(c.logs) - 1
+		}
+		return
+	}
+
 	c.logs = items
 
 	if len(c.logs) == 0 {
@@ -541,21 +554,46 @@ func WithEllipsis(line string, maxWidth int) string {
 
 // wrappedLineCount counts how many screen lines text occupies when
 // soft-wrapped at maxWidth. Embedded newlines are respected.
+//
+// This must agree exactly with [WrapText]: the greedy wrapper yields
+// more chunks than ceil(width/maxWidth) when wide runes straddle chunk
+// boundaries, and a mismatch makes the viewport math hide rows.
 func wrappedLineCount(text string, maxWidth int) int {
 	if maxWidth <= 0 {
 		return 1
 	}
-	parts := strings.Split(text, "\n")
 	total := 0
-	for _, p := range parts {
-		w := runewidth.StringWidth(p)
-		if w == 0 {
-			total++
-			continue
-		}
-		total += (w + maxWidth - 1) / maxWidth
+	for part := range strings.SplitSeq(text, "\n") {
+		total += wrappedSegmentCount(part, maxWidth)
 	}
 	return max(total, 1)
+}
+
+// wrappedSegmentCount counts the chunks [wrapSingleLine] produces for a
+// single line, using the same greedy walk without building the strings.
+func wrappedSegmentCount(s string, maxWidth int) int {
+	lines := 0
+	w := 0
+	chunkRunes := 0
+
+	for _, r := range s {
+		rw := runewidth.RuneWidth(r)
+		if w+rw > maxWidth && chunkRunes > 0 {
+			lines++
+			w, chunkRunes = 0, 0
+		}
+		w += rw
+		chunkRunes++
+		if w >= maxWidth {
+			lines++
+			w, chunkRunes = 0, 0
+		}
+	}
+	if chunkRunes > 0 {
+		lines++
+	}
+
+	return max(lines, 1)
 }
 
 // WrapText soft-wraps text into multiple lines at maxWidth, preserving
