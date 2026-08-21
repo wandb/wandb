@@ -69,6 +69,7 @@ from ._validators import (
     ensure_logged,
     ensure_not_finalized,
     validate_artifact_path,
+    validate_artifact_root_name,
     validate_fspath,
 )
 from .artifact_download_logger import ArtifactDownloadLogger
@@ -2294,7 +2295,9 @@ class Artifact:
             ValueError: If the artifact contains more than one file.
         """
         if root is None:
-            root = os.path.join(".", "artifacts", self.name)
+            root = os.path.join(
+                ".", "artifacts", validate_artifact_root_name(self.name)
+            )
 
         if len(self.manifest.entries) > 1:
             raise ValueError(
@@ -2332,7 +2335,7 @@ class Artifact:
 
     def _default_root(self, include_version: bool = True) -> FilePathStr:
         name = self.source_name if include_version else self.source_name.split(":")[0]
-        root = os.path.join(env.get_artifact_dir(), name)
+        root = os.path.join(env.get_artifact_dir(), validate_artifact_root_name(name))
         # In case we're on a system where the artifact dir has a name corresponding to
         # an unexpected filesystem, we'll check for alternate roots. If one exists we'll
         # use that, otherwise we'll fall back to the system-preferred path.

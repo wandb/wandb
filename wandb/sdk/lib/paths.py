@@ -15,8 +15,8 @@ FilePathStr: TypeAlias = str  #: A native path to a file on a local filesystem.
 URIStr: TypeAlias = str
 
 
-def validate_path(path: StrPath, error_prefix: str | None = None) -> LogicalPath:
-    """Validate and canonicalize an relative path for artifact and run files before download.
+def validate_relpath(path: StrPath) -> LogicalPath:
+    """Validate and canonicalize a relative path for artifact or run files.
 
     Among other things, this forbids absolute paths or relative paths with traversal.
     """
@@ -31,12 +31,14 @@ def validate_path(path: StrPath, error_prefix: str | None = None) -> LogicalPath
         or windows_path.anchor
         or (".." in windows_path.parts)
     ):
-        if error_prefix is not None:
-            raise ValueError(f"{error_prefix}: {path!r}")
-        else:
-            raise ValueError(f"Invalid artifact/run file path: {path!r}")
+        raise ValueError(f"Invalid path: {path!r}")
 
     return logical_path
+
+
+def validate_fspath(root: StrPath, relpath: StrPath) -> FilePathStr:
+    """Validate a native filesystem path under `root`."""
+    return os.path.join(os.fspath(root), validate_relpath(relpath))
 
 
 class LogicalPath(str):
