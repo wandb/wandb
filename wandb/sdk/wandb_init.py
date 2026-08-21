@@ -29,7 +29,7 @@ from typing_extensions import Any, Protocol
 import wandb
 import wandb.env
 from wandb import env, trigger
-from wandb.analytics import TelemetryRecorder, get_sentry
+from wandb.analytics import TelemetryRecorder, get_sentry, get_telemetry_recorder
 from wandb.analytics.opentelemetry.opentelemetry_proxy import OpenTelemetryProxy
 from wandb.errors import Error, UsageError
 from wandb.errors.links import url_registry
@@ -1456,10 +1456,9 @@ def init(  # noqa: C901
 
     wl: wandb_setup._WandbSetup | None = None
 
-    # Create a noop telemetry recorder while we do not know the user's credentials
-    # once that is resolve we can create a proper telemetry recorder.
-    open_telemetry_proxy = OpenTelemetryProxy.from_settings(settings=init_settings)
-    telemetry_recorder = TelemetryRecorder(open_telemetry_proxy=open_telemetry_proxy)
+    # Create a temporary telemetry recorder while do not know run specific settings,
+    # such as the url to send telemetry to.
+    telemetry_recorder = get_telemetry_recorder()
 
     try:
         wl = wandb_setup.singleton()
@@ -1469,8 +1468,8 @@ def init(  # noqa: C901
         wi.maybe_login(init_settings)
         run_settings, show_warnings = wi.make_run_settings(init_settings)
 
-        # Create a telemetry recorder once we know the user's credentials
-        # Anything after this point will actually record telemetry.
+        # Create a telemetry recorder once we know run specific settings,
+        # such as the url to send telemetry to.
         telemetry_recorder = TelemetryRecorder(
             open_telemetry_proxy=OpenTelemetryProxy.from_settings(settings=run_settings)
         )

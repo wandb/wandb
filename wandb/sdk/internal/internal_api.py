@@ -20,8 +20,7 @@ import click
 
 import wandb
 from wandb import env, util
-from wandb.analytics import TelemetryRecorder, get_sentry
-from wandb.analytics.opentelemetry.opentelemetry_proxy import OpenTelemetryProxy
+from wandb.analytics import TelemetryRecorder, get_sentry, get_telemetry_recorder
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import AuthenticationError, CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
@@ -306,11 +305,7 @@ class Api:
         }
         self._request_proxies = dict(proxies or {})
         self._service_api = self._new_service_api()
-        self._telemetry_recorder = telemetry_recorder or TelemetryRecorder(
-            open_telemetry_proxy=OpenTelemetryProxy.from_settings(
-                settings=wandb_setup.singleton().settings.model_copy(),
-            ),
-        )
+        self._telemetry_recorder = telemetry_recorder or get_telemetry_recorder()
 
         self.retry_callback = retry_callback
         self._current_run_id: str | None = None
