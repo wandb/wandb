@@ -544,14 +544,16 @@ func (w *Workspace) waitForLiveMsg() tea.Msg {
 	return <-w.liveChan
 }
 
-// ensureLiveStreaming wires up watcher + heartbeat for a selected, running run.
+// ensureLiveStreaming wires up watcher + heartbeat for a selected run that
+// may still be live (see RunState.mayBeLive).
 //
-// It is a no-op if the run is nil, not live, or its reader is not initialized.
-// When a watcher is started it also returns a command that waits for the first
-// change notification so that subsequent updates are driven primarily by
-// filesystem events, with the heartbeat as a safety net.
+// It is a no-op if the run is nil, already in a terminal state, or its
+// reader is not initialized. When a watcher is started it also returns a
+// command that waits for the first change notification so that subsequent
+// updates are driven primarily by filesystem events, with the heartbeat as
+// a safety net.
 func (w *Workspace) ensureLiveStreaming(run *WorkspaceRun) tea.Cmd {
-	if run == nil || run.Reader == nil || run.state != RunStateRunning {
+	if run == nil || run.Reader == nil || !run.state.mayBeLive() {
 		return nil
 	}
 
