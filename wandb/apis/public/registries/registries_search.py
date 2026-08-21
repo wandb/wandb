@@ -176,7 +176,7 @@ class CollectionsIterator(Protocol):
     def versions(
         self,
         filter: dict[str, Any] | None = ...,
-        order: str | None = ...,
+        order: _VersionOrder | None = ...,
         per_page: PositiveInt = ...,
         start: str | None = ...,
     ) -> VersionsIterator: ...
@@ -286,7 +286,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
     def versions(
         self,
         filter: FilterDict | None = None,
-        order: str | None = None,
+        order: _VersionOrder | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ) -> VersionsIterator:
@@ -295,6 +295,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
         Args:
             filter: Optional mapping of filters to apply to the artifact versions query.
             order: Optional string to specify the order of the results.
+                Order can be `created_at` or `artifact_size`.
                 If prefixed with '+', sorts ascending (default).
                 If prefixed with '-', sorts descending.
             per_page: The number of results to fetch per page.
@@ -427,7 +428,7 @@ class Collections(
     def versions(
         self,
         filter: FilterDict | None = None,
-        order: str | None = None,
+        order: _VersionOrder | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ) -> VersionsIterator:
@@ -436,6 +437,7 @@ class Collections(
         Args:
             filter: Optional mapping of filters to apply to the artifact versions query.
             order: Optional string to specify the order of the results.
+                Order can be `created_at` or `artifact_size`.
                 If prefixed with '+', sorts ascending (default).
                 If prefixed with '-', sorts descending.
             per_page: The number of results to fetch per page.
@@ -530,7 +532,7 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
         registry_filter: FilterDict | None = None,
         collection_filter: FilterDict | None = None,
         artifact_filter: FilterDict | None = None,
-        order: str | None = None,
+        order: _VersionOrder | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ):
@@ -553,7 +555,7 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
             if order is not None:
                 raise UnsupportedError(
                     "Ordering registry versions is not supported for this organization."
-                    "If you have any questions, please contact support at support@wandb.com."
+                    + " If you have any questions, please contact support at support@wandb.com."
                 )
             args = _BasicVersionsVars(**shared_args)
 
@@ -674,7 +676,7 @@ class _OrderedCollections(_ChainedPaginators["ArtifactCollection"]):
     def versions(
         self,
         filter: dict[str, Any] | None = None,
-        order: str | None = None,
+        order: _VersionOrder | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ) -> VersionsIterator:

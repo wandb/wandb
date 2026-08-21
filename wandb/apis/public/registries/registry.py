@@ -30,6 +30,8 @@ if TYPE_CHECKING:
     from wandb.apis.public.service_api import ServiceApi
     from wandb.sdk.artifacts._generated import RegistryFragment
 
+    from .registries_search import _VersionOrder
+
 
 class Registry:
     """A single registry in the Registry."""
@@ -230,7 +232,7 @@ class Registry:
     def versions(
         self,
         filter: dict[str, Any] | None = None,
-        order: str | None = None,
+        order: _VersionOrder | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ) -> Versions:
@@ -239,6 +241,7 @@ class Registry:
         Args:
             filter: Optional mapping of filters to apply to the artifact versions query.
             order: Optional string to specify the order of the results.
+                Order can be `created_at` or `artifact_size`.
                 If prefixed with '+', sorts ascending (default).
                 If prefixed with '-', sorts descending.
             per_page: The number of results to fetch per page.

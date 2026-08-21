@@ -840,7 +840,7 @@ def test_registries_versions(
     assert remaining_names_via_search == remaining_names_via_registry
     assert all_version_names == [first_page_name, *remaining_names_via_search]
 
-    if not advanced_search_enabled(api, org):
+    if not advanced_search_enabled(api._service_api, org):
         with raises(
             UnsupportedError,
             match="Ordering registry versions is not supported for this organization.",
