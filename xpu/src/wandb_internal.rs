@@ -844,6 +844,15 @@ pub struct RunRecord {
     /// Information about the source if this is a fork or rewind of another run.
     #[prost(message, optional, tag = "23")]
     pub branch_point: ::core::option::Option<BranchPoint>,
+    /// Whether syncing should resume an existing run.
+    /// Unlike `resumed`, this records input intent.
+    #[prost(bool, tag = "24")]
+    pub resume: bool,
+    /// If true, the sender may reassign history steps at upload time. The handler
+    /// writes steps into the log without resume reconciliation. Old logs omit this
+    /// field; the sender must preserve logged steps.
+    #[prost(bool, tag = "25")]
+    pub sync_may_reassign_steps: bool,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }

@@ -50,6 +50,9 @@ func TestRecreatesProto(t *testing.T) {
 		// Summary is set to an empty value on the result (rather than unset).
 		Summary: &spb.SummaryRecord{},
 
+		Resume:               true,
+		SyncMayReassignSteps: true,
+
 		Resumed: true,
 		Forked:  true,
 

@@ -1118,9 +1118,8 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 	}, nil)
 }
 
-// updateSummary updates the summary based on the current history step.
-//
-// This emits a summary record that is written to the transaction log.
+// updateSummary updates the local summary based on the current partial history
+// and forwards it to the Sender.
 func (h *Handler) updateSummary() {
 	updates, err := h.runSummary.UpdateSummaries(h.partialHistory)
 
@@ -1136,8 +1135,6 @@ func (h *Handler) updateSummary() {
 		return
 	}
 
-	// We must forward these changes to the Sender which uses them to build
-	// its own summary.
 	h.fwdRecord(&spb.Record{
 		RecordType: &spb.Record_Summary{
 			Summary: &spb.SummaryRecord{

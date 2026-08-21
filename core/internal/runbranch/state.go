@@ -86,6 +86,19 @@ type RunParams struct {
 	// TODO: Untangle Summary logic and remove this field.
 	Summary map[string]any
 
+	// Resume is whether the run is expected to resume an existing run.
+	//
+	// This is distinct from Resumed: Resume is what the user asked for,
+	// while Resumed reflects whether the backend actually resumed the run.
+	// It is persisted on the RunRecord so that offline runs can defer resume
+	// reconciliation to sync time.
+	Resume bool
+
+	// SyncMayReassignSteps is true when sync may reassign history steps at
+	// upload time. The handler writes steps into the log without resume
+	// reconciliation. Old logs omit this field.
+	SyncMayReassignSteps bool
+
 	Resumed bool
 	Forked  bool
 
@@ -154,6 +167,10 @@ func (r *RunParams) SetOnProto(record *spb.RunRecord) {
 		})
 	}
 
+	record.Resume = r.Resume
+
+	record.SyncMayReassignSteps = r.SyncMayReassignSteps
+
 	record.Resumed = r.Resumed
 	record.Forked = r.Forked
 
@@ -164,6 +181,8 @@ func (r *RunParams) SetOnProto(record *spb.RunRecord) {
 //
 // The record may be partially filled, in which case only non-empty fields are
 // used.
+//
+//nolint:gocyclo // this updates most fields in a mechanical way; splitting would make it harder to read
 func (r *RunParams) Update(
 	record *spb.RunRecord,
 	runSettings *settings.Settings,
@@ -226,6 +245,14 @@ func (r *RunParams) Update(
 	}
 
 	// NOTE: Summary is ignored; see comment on the field.
+
+	if record.Resume {
+		r.Resume = true
+	}
+
+	if record.SyncMayReassignSteps {
+		r.SyncMayReassignSteps = true
+	}
 
 	if record.Resumed {
 		r.Resumed = true

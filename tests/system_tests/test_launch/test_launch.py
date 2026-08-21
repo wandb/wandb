@@ -81,7 +81,7 @@ def test_launch_multi_run(runner, user):
         with wandb.init() as run1:
             pass
 
-        with wandb.init() as run2:
+        with wandb.init(resume="auto") as run2:
             pass
 
         assert run1.id == "test"
