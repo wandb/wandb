@@ -252,3 +252,35 @@ func TestWorkspace_Cleanup_ReleasesRunResources(t *testing.T) {
 	// Cleanup is idempotent.
 	w.Cleanup()
 }
+
+// A selected run whose state is still Unknown after the initial drain (its
+// Run record hasn't been flushed to disk yet) must keep being watched, or
+// it would never stream.
+func TestWorkspaceBoot_WatchesUnknownStateRun(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	workspace := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	defer workspace.Cleanup()
+
+	wandbFile := filepath.Join(t.TempDir(), "run-abc.wandb")
+	require.NoError(t, os.WriteFile(wandbFile, nil, 0o644))
+
+	workspace.TestAttachRun(leet.TestNewWorkspaceRun("run-1"), true)
+	workspace.Update(leet.WorkspaceRunInitMsg{
+		RunKey:  "run-1",
+		RunPath: wandbFile,
+		Reader:  &stubHistorySource{msg: leet.ChunkedBatchMsg{}},
+	})
+
+	// Initial drain ends with no records: the run's state is Unknown.
+	workspace.Update(leet.WorkspaceChunkedBatchMsg{
+		RunKey: "run-1",
+		Batch:  leet.ChunkedBatchMsg{HasMore: false},
+	})
+
+	run := workspace.TestRunByKey("run-1")
+	require.NotNil(t, run)
+	require.Equal(t, leet.RunStateUnknown, run.TestState())
+	require.True(t, run.TestWatcherActive(),
+		"unknown-state run must stay watched so it streams once data lands")
+}

@@ -950,7 +950,7 @@ func (r *Run) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 	// Boot load complete -> begin live mode once. The WaitForMsg pump is
 	// started alongside the watcher so it only runs while the watcher and
 	// heartbeat can produce messages; WatcherManager.Finish unblocks it.
-	if !r.IsRemote() && r.runState == RunStateRunning && !r.watcherMgr.IsStarted() {
+	if !r.IsRemote() && r.runState.mayBeLive() && !r.watcherMgr.IsStarted() {
 		if err := r.watcherMgr.Start(r.runParams.RunFile); err != nil {
 			r.logger.CaptureError(
 				"leet",
@@ -1029,7 +1029,7 @@ func (r *Run) handleFileChange() []tea.Cmd {
 		r.lastUpdateAt = time.Now()
 		r.setRunState(RunStateRunning)
 	}
-	if r.runState != RunStateRunning {
+	if !r.runState.mayBeLive() {
 		return nil
 	}
 	r.heartbeatMgr.Reset(r.isRunning)

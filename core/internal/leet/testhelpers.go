@@ -737,3 +737,8 @@ func (w *Workspace) TestFilteredRunKeys() []string {
 	}
 	return keys
 }
+
+// TestRunByKey returns the workspace's streaming state for a run key.
+func (w *Workspace) TestRunByKey(key string) *WorkspaceRun {
+	return w.runsByKey[key]
+}
