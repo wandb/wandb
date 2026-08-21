@@ -59,6 +59,8 @@ const (
 
 	DefaultHeartbeatInterval = 15 // seconds
 
+	DefaultConsoleScrollbackLines = 100_000
+
 	ChartGuidesOff        = "off"
 	ChartGuidesDots       = "dots"
 	ChartGuidesHorizontal = "horizontal"
@@ -145,6 +147,9 @@ type Config struct {
 	// Heartbeats are used to trigger .wandb file read attempts if no file watcher
 	// events have been seen for a long time for a live file.
 	HeartbeatInterval int `json:"heartbeat_interval_seconds" leet:"label=Heartbeat interval (sec),desc=Polling heartbeat for live runs.,min=1"`
+
+	// Console log lines kept per run; the oldest are dropped past this.
+	ConsoleScrollbackLines int `json:"console_scrollback_lines" leet:"label=Console scrollback (lines),desc=Console log lines kept per run before the oldest are dropped.,min=1"`
 
 	// Single-run view sidebar visibility states.
 	LeftSidebarVisible  bool `json:"left_sidebar_visible"  leet:"desc=Show left sidebar in single run view by default."`
@@ -263,6 +268,7 @@ func NewConfigManager(path string, logger *observability.CoreLogger) *ConfigMana
 			SystemColorMode:               DefaultSystemColorMode,
 			SystemTailWindowMinutes:       DefaultSystemTailWindowMins,
 			HeartbeatInterval:             DefaultHeartbeatInterval,
+			ConsoleScrollbackLines:        DefaultConsoleScrollbackLines,
 			LeftSidebarVisible:            true,
 			RightSidebarVisible:           true,
 			MetricsGridVisible:            true,
@@ -366,6 +372,10 @@ func (cm *ConfigManager) normalizeConfig() {
 
 	if cm.config.HeartbeatInterval <= 0 {
 		cm.config.HeartbeatInterval = DefaultHeartbeatInterval
+	}
+
+	if cm.config.ConsoleScrollbackLines <= 0 {
+		cm.config.ConsoleScrollbackLines = DefaultConsoleScrollbackLines
 	}
 
 	if cm.config.SystemTailWindowMinutes <= 0 {
@@ -801,6 +811,14 @@ func (cm *ConfigManager) SetHeartbeatInterval(seconds int) error {
 		return fmt.Errorf("heartbeat interval must be a positive integer")
 	}
 	return cm.set(func(c *Config) { c.HeartbeatInterval = seconds })
+}
+
+// ConsoleScrollbackLines returns how many console log lines to keep per run.
+func (cm *ConfigManager) ConsoleScrollbackLines() int {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+
+	return cm.config.ConsoleScrollbackLines
 }
 
 // LeftSidebarVisible returns whether the left sidebar should be visible.

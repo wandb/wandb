@@ -963,7 +963,7 @@ func (w *Workspace) getOrCreateConsoleLogs(runKey string) *RunConsoleLogs {
 	if cl != nil {
 		return cl
 	}
-	cl = NewRunConsoleLogs()
+	cl = NewRunConsoleLogs(w.config.ConsoleScrollbackLines())
 	w.consoleLogs[runKey] = cl
 	return cl
 }

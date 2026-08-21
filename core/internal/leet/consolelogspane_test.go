@@ -214,6 +214,23 @@ func TestConsoleLogsPane_Down_CyclesAndWraps(t *testing.T) {
 	require.Contains(t, out, "[3-5 of 5]", "reaching last entry should re-enable auto-scroll")
 }
 
+func TestConsoleLogsPane_AutoScrollShowsNewestWideRuneLine(t *testing.T) {
+	clp := leet.NewConsoleLogsPane(leet.NewAnimatedValue(false, leet.ConsoleLogsPaneMinHeight))
+	expandConsoleLogsPane(t, clp, 6) // header + padding + 4 content lines
+
+	// Width 7 leaves a 4-column value area. The CJK line greedy-wraps
+	// to 4 rows ("a漢a" "漢a" "漢a" "漢"): a naive width/4 estimate
+	// says 3 and makes autoscroll truncate the newest rows.
+	clp.SetConsoleLogs([]leet.KeyValuePair{
+		{Key: "10:11:12", Value: "log"},
+		{Key: "10:11:13", Value: "a漢a漢a漢a漢"},
+	})
+
+	out := stripANSI(clp.View(7, "", ""))
+	require.Contains(t, out, "[2-2 of 2]", "newest entry alone fills the viewport")
+	require.NotContains(t, out, "...", "newest entry must not be truncated")
+}
+
 func TestConsoleLogsPane_Down_EmptyLogs(t *testing.T) {
 	clp := leet.NewConsoleLogsPane(leet.NewAnimatedValue(false, leet.ConsoleLogsPaneMinHeight))
 	expandConsoleLogsPane(t, clp, 5)

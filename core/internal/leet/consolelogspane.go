@@ -545,17 +545,38 @@ func wrappedLineCount(text string, maxWidth int) int {
 	if maxWidth <= 0 {
 		return 1
 	}
-	parts := strings.Split(text, "\n")
 	total := 0
-	for _, p := range parts {
-		w := runewidth.StringWidth(p)
-		if w == 0 {
-			total++
-			continue
-		}
-		total += (w + maxWidth - 1) / maxWidth
+	for part := range strings.SplitSeq(text, "\n") {
+		total += wrappedSegmentCount(part, maxWidth)
 	}
 	return max(total, 1)
+}
+
+// wrappedSegmentCount counts the chunks [wrapSingleLine] produces for a
+// single line, using the same greedy walk without building the strings.
+func wrappedSegmentCount(s string, maxWidth int) int {
+	lines := 0
+	w := 0
+	chunkRunes := 0
+
+	for _, r := range s {
+		rw := runewidth.RuneWidth(r)
+		if w+rw > maxWidth && chunkRunes > 0 {
+			lines++
+			w, chunkRunes = 0, 0
+		}
+		w += rw
+		chunkRunes++
+		if w >= maxWidth {
+			lines++
+			w, chunkRunes = 0, 0
+		}
+	}
+	if chunkRunes > 0 {
+		lines++
+	}
+
+	return max(lines, 1)
 }
 
 // WrapText soft-wraps text into multiple lines at maxWidth, preserving

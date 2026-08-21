@@ -596,7 +596,7 @@ func (w *Workspace) TestConsoleLogs() map[string]*RunConsoleLogs {
 func (w *Workspace) TestSeedConsoleLogs(runKey string, lines ...string) {
 	cl := w.consoleLogs[runKey]
 	if cl == nil {
-		cl = NewRunConsoleLogs()
+		cl = NewRunConsoleLogs(DefaultConsoleScrollbackLines)
 		w.consoleLogs[runKey] = cl
 	}
 	for _, line := range lines {

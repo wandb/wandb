@@ -165,7 +165,7 @@ func NewRun(
 		runOverview:          ro,
 		leftSidebar:          NewRunOverviewSidebar(cfg, runOverviewAnimState, ro, SidebarSideLeft),
 		rightSidebar:         NewRightSidebar(cfg, focus, logger),
-		consoleLogs:          NewRunConsoleLogs(),
+		consoleLogs:          NewRunConsoleLogs(cfg.ConsoleScrollbackLines()),
 		consoleLogsPane:      NewConsoleLogsPane(consoleLogsPaneAnimState),
 		mediaStore:           mediaStore,
 		mediaPane:            NewMediaPane(mediaPaneAnimState, cfg.MediaGrid),
