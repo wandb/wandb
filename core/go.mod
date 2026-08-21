@@ -26,7 +26,6 @@ require (
 	github.com/hashicorp/go-retryablehttp v0.7.8
 	github.com/hashicorp/golang-lru v1.0.2
 	github.com/mattn/go-runewidth v0.0.28
-	github.com/muesli/termenv v0.16.0
 	github.com/prometheus/client_golang v1.24.1
 	github.com/prometheus/common v0.70.1
 	github.com/prometheus/procfs v0.21.1
@@ -92,7 +91,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.38.7 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.45.7 // indirect
 	github.com/aws/smithy-go v1.27.8 // indirect
-	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/aymanbagabas/go-udiff v0.4.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.10.0 // indirect
