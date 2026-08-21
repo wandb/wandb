@@ -451,9 +451,10 @@ func (s *RunOverviewSidebar) buildSectionLines(contentWidth int) []string {
 		if sectionContent != "" {
 			lines = append(lines, sectionContent)
 
-			// Add spacing between sections if there's a next section.
+			// Separate adjacent sections with the same rule the central
+			// column draws between its stacked panes.
 			if s.hasNextVisibleSection(i) {
-				lines = append(lines, "")
+				lines = append(lines, renderHorizontalSeparator(contentWidth))
 			}
 		}
 	}
