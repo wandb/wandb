@@ -23,6 +23,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Changed
 
+- The run overview sections in LEET (Environment, Config, Summary) now share the sidebar height proportionally and use all of the available space; previously they stopped growing at fixed sizes, leaving the bottom of tall terminals empty (@dmitryduev in https://github.com/wandb/wandb/pull/12523)
 - `Api.{create,update}_automation()` now raise `UnsupportedError` instead of `CommError` when the server doesn't support the given automation (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12194)
 - The message format used to communicate between internal processes has slightly changed. If you use `wandb beta core`, restart the service after upgrading `wandb`, as some operations may fail if the SDK and service versions differ. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12374)
 - `wandb.sandbox` now allows GPU resource requests for sandboxes instead of rejecting `resources.gpu` client-side (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/12455)
