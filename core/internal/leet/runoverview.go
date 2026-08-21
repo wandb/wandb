@@ -53,7 +53,14 @@ type RunOverview struct {
 	runEnvironment *runenvironment.RunEnvironment
 	runSummary     *runsummary.RunSummary
 	runState       RunState
+
+	// gen increments on every mutation so views can skip re-deriving
+	// their item lists (an O(config+summary) flatten) when nothing changed.
+	gen uint64
 }
+
+// generation identifies the current mutation state of the overview data.
+func (ro *RunOverview) generation() uint64 { return ro.gen }
 
 func NewRunOverview() *RunOverview {
 	return &RunOverview{
@@ -80,6 +87,7 @@ func (ro *RunOverview) StateString() string {
 
 // ProcessRunMsg processes a run message and updates internal state.
 func (ro *RunOverview) ProcessRunMsg(msg RunMsg) {
+	ro.gen++
 	ro.runID = msg.ID
 	ro.displayName = msg.DisplayName
 	ro.project = msg.Project
@@ -94,6 +102,7 @@ func (ro *RunOverview) ProcessRunMsg(msg RunMsg) {
 
 // ProcessSystemInfoMsg processes system/environment information.
 func (ro *RunOverview) ProcessSystemInfoMsg(record *spb.EnvironmentRecord) {
+	ro.gen++
 	if ro.runEnvironment == nil && record != nil {
 		ro.runEnvironment = runenvironment.New(record.GetWriterId())
 	}
@@ -104,14 +113,15 @@ func (ro *RunOverview) ProcessSystemInfoMsg(record *spb.EnvironmentRecord) {
 
 // ProcessSummaryMsg processes summary data.
 func (ro *RunOverview) ProcessSummaryMsg(summary []*spb.SummaryRecord) {
+	ro.gen++
 	for _, s := range summary {
 		_ = runsummary.FromProto(s).Apply(ro.runSummary)
 	}
-
 }
 
 // SetRunState sets the run state.
 func (ro *RunOverview) SetRunState(state RunState) {
+	ro.gen++
 	ro.runState = state
 }
 
