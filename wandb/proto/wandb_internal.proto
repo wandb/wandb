@@ -186,9 +186,9 @@ message RunRecord {
   // Information about the source if this is a fork or rewind of another run.
   BranchPoint branch_point = 23;
 
-  // Whether this run was created in shared mode. Sync reads this so history
-  // uploads omit the step axis instead of inventing _step values.
-  bool shared_mode = 24;
+  // Whether this run was created in shared mode. Sync rejects logs with this
+  // flag set because re-syncing can duplicate metrics.
+  bool shared = 24;
 
   _RecordInfo _info = 200;
 }

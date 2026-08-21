@@ -43,6 +43,8 @@ type RunReader struct {
 	operations   *wboperation.WandbOperations
 	recordParser stream.RecordParser
 	runWork      runwork.RunWork
+
+	allowSharedSync bool
 }
 
 func (f *RunReaderFactory) New(
@@ -50,6 +52,7 @@ func (f *RunReaderFactory) New(
 	displayPath DisplayPath,
 	updates *RunSyncUpdates,
 	live bool,
+	allowSharedSync bool,
 	recordParser stream.RecordParser,
 	runWork runwork.RunWork,
 ) *RunReader {
@@ -59,10 +62,11 @@ func (f *RunReaderFactory) New(
 		updates:     updates,
 		live:        live,
 
-		logger:       f.Logger,
-		operations:   f.Operations,
-		recordParser: recordParser,
-		runWork:      runWork,
+		logger:          f.Logger,
+		operations:      f.Operations,
+		recordParser:    recordParser,
+		runWork:         runWork,
+		allowSharedSync: allowSharedSync,
 	}
 }
 
@@ -94,6 +98,10 @@ func (r *RunReader) ExtractRunInfo(ctx context.Context) (*RunInfo, error) {
 		}
 
 		if run := record.GetRun(); run != nil {
+			if err := rejectSharedSync(run, r.allowSharedSync); err != nil {
+				return nil, err
+			}
+
 			return &RunInfo{
 				Entity:    run.Entity,
 				Project:   run.Project,
@@ -165,6 +173,10 @@ func (r *RunReader) ProcessTransactionLog(ctx context.Context) (err error) {
 		// notes, are updates and are handled like most other records.
 		case record.GetRun() != nil && !r.seenRun:
 			r.seenRun = true
+
+			if err := rejectSharedSync(record.GetRun(), r.allowSharedSync); err != nil {
+				return err
+			}
 
 			// Fail early if initializing the run (UpsertBucket) fails.
 			err := r.waitForRunRecord(ctx, record)

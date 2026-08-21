@@ -31,8 +31,13 @@ type testFixtures struct {
 }
 
 // setup creates a RunReader and test objects.
-func setup(t *testing.T) testFixtures {
+func setup(t *testing.T, allowSharedSync ...bool) testFixtures {
 	t.Helper()
+
+	allow := false
+	if len(allowSharedSync) > 0 {
+		allow = allowSharedSync[0]
+	}
 
 	transactionLog := filepath.Join(t.TempDir(), "test-run.wandb")
 
@@ -51,6 +56,7 @@ func setup(t *testing.T) testFixtures {
 			runsync.ToDisplayPath(transactionLog, ""),
 			nil,
 			false,
+			allow,
 			mockRecordParser,
 			fakeRunWork,
 		),
@@ -398,4 +404,48 @@ func Test_CorruptFileError(t *testing.T) {
 	err = x.RunReader.ProcessTransactionLog(context.Background())
 
 	assert.ErrorContains(t, err, "error getting next record")
+}
+
+func sharedRunRecord() *spb.Record {
+	return &spb.Record{RecordType: &spb.Record_Run{
+		Run: &spb.RunRecord{
+			RunId:  "shared-run",
+			Shared: true,
+		},
+	}}
+}
+
+func Test_Extract_RejectsSharedRun(t *testing.T) {
+	x := setup(t)
+	wandbFileWithRecords(t, x.TransactionLog, sharedRunRecord())
+
+	runInfo, err := x.RunReader.ExtractRunInfo(context.Background())
+
+	assert.Nil(t, runInfo)
+	var syncErr *runsync.SyncError
+	require.ErrorAs(t, err, &syncErr)
+	assert.Equal(t, runsync.SharedSyncRejectedUserText(), syncErr.UserText)
+}
+
+func Test_Extract_AllowsSharedRunWithOverride(t *testing.T) {
+	x := setup(t, true)
+	wandbFileWithRecords(t, x.TransactionLog, sharedRunRecord())
+
+	runInfo, err := x.RunReader.ExtractRunInfo(context.Background())
+	require.NoError(t, err)
+
+	assert.Equal(t, "shared-run", runInfo.RunID)
+}
+
+func Test_ProcessTransactionLog_RejectsSharedRun(t *testing.T) {
+	x := setup(t)
+	wandbFileWithRecords(t, x.TransactionLog, sharedRunRecord())
+	x.FakeRunWork.QueueResponse(&spb.ServerResponse{})
+	x.MockRecordParser.EXPECT().Parse(isExitRecord(1)).Return(&testWork{})
+
+	err := x.RunReader.ProcessTransactionLog(context.Background())
+
+	var syncErr *runsync.SyncError
+	require.ErrorAs(t, err, &syncErr)
+	assert.Equal(t, runsync.SharedSyncRejectedUserText(), syncErr.UserText)
 }

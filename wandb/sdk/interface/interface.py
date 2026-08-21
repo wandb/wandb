@@ -164,7 +164,7 @@ class InterfaceBase(abc.ABC):
         if run._settings.host:
             proto_run.host = run._settings.host
         if run._settings._shared:
-            proto_run.shared_mode = True
+            proto_run.shared = True
         if run._settings.resumed:
             proto_run.resumed = run._settings.resumed
         if run._settings.fork_from:

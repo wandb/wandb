@@ -34,6 +34,7 @@ def sync(
     skip_confirmation: bool,
     skip_synced: bool,
     skip_online: bool,
+    include_shared: bool,
     verbose: bool,
     parallelism: int,
 ) -> None:
@@ -56,6 +57,7 @@ def sync(
         skip_synced: If true, skips files that have already been synced
             as indicated by a .wandb.synced marker file in the same directory.
         skip_online: If true, skips online runs (determined by folder name).
+        include_shared: If true, sync runs flagged as shared mode in the log.
         verbose: Verbose mode for printing more info.
         parallelism: Max number of runs to sync at a time.
     """
@@ -104,6 +106,11 @@ def sync(
         term.termlog("Not authenticated.")
         return
 
+    if include_shared:
+        wandb.termwarn(
+            "Syncing shared-mode runs can duplicate metrics that already exist on the server."
+        )
+
     service = singleton.ensure_service()
     printer = new_printer()
     singleton.asyncer.run(
@@ -117,6 +124,7 @@ def sync(
             run_id=run_id,
             job_type=job_type,
             tag_replacements=tag_replacements,
+            include_shared=include_shared,
             settings=singleton.settings,
             printer=printer,
             parallelism=parallelism,
@@ -154,6 +162,7 @@ async def _do_sync(
     run_id: str,
     job_type: str,
     tag_replacements: dict[str, str],
+    include_shared: bool,
     settings: wandb.Settings,
     printer: Printer,
     parallelism: int,
@@ -172,6 +181,7 @@ async def _do_sync(
         run_id=run_id,
         job_type=job_type,
         tag_replacements=tag_replacements,
+        allow_shared_sync=include_shared,
     )
     init_result = await init_handle.wait_async(timeout=5)
 

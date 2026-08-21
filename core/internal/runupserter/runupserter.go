@@ -708,8 +708,8 @@ func applySharedMode(
 	runRecord *spb.RunRecord,
 	settings *settings.Settings,
 ) {
-	if runParams.SharedMode || runRecord.GetSharedMode() || settings.IsSharedMode() {
-		runParams.SharedMode = true
+	if runParams.Shared || runRecord.GetShared() || settings.IsSharedMode() {
+		runParams.Shared = true
 		settings.Proto.XShared = wrapperspb.Bool(true)
 	}
 }

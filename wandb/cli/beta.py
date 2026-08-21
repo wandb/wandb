@@ -106,6 +106,12 @@ beta.add_command(leet)
     help="Skip online runs.",
 )
 @click.option(
+    "--include-shared/--no-include-shared",
+    is_flag=True,
+    default=False,
+    help="Sync runs flagged as shared mode. This can duplicate metrics.",
+)
+@click.option(
     "--dry-run",
     is_flag=True,
     default=False,
@@ -146,6 +152,7 @@ def sync(
     replace_tags: str,
     skip_synced: bool,
     skip_online: bool,
+    include_shared: bool,
     dry_run: bool,
     skip_confirmation: bool,
     verbose: bool,
@@ -185,6 +192,7 @@ def sync(
         skip_confirmation=skip_confirmation,
         skip_synced=skip_synced,
         skip_online=skip_online,
+        include_shared=include_shared,
         verbose=verbose,
         parallelism=n,
     )

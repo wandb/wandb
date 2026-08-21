@@ -62,6 +62,7 @@ func (f *RunSyncerFactory) New(
 	displayPath DisplayPath,
 	updates *RunSyncUpdates,
 	live bool,
+	allowSharedSync bool,
 ) *RunSyncer {
 	// A small buffer helps smooth out filesystem hiccups if they happen
 	// and we're processing data fast enough. This is otherwise unnecessary.
@@ -84,6 +85,7 @@ func (f *RunSyncerFactory) New(
 		displayPath,
 		updates,
 		live,
+		allowSharedSync,
 		recordParser,
 		runWork,
 	)

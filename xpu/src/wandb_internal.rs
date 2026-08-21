@@ -844,10 +844,10 @@ pub struct RunRecord {
     /// Information about the source if this is a fork or rewind of another run.
     #[prost(message, optional, tag = "23")]
     pub branch_point: ::core::option::Option<BranchPoint>,
-    /// Whether this run was created in shared mode. Sync reads this so history
-    /// uploads omit the step axis instead of inventing \_step values.
+    /// Whether this run was created in shared mode. Sync rejects logs with this
+    /// flag set because re-syncing can duplicate metrics.
     #[prost(bool, tag = "24")]
-    pub shared_mode: bool,
+    pub shared: bool,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }

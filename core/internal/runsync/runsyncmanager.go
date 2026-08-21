@@ -41,6 +41,7 @@ func (m *RunSyncManager) InitSync(
 		request.Cwd,
 		UpdatesFromRequest(request),
 		request.Live,
+		request.GetAllowSharedSync(),
 		request.Settings,
 	)
 

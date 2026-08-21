@@ -86,9 +86,9 @@ type RunParams struct {
 	// TODO: Untangle Summary logic and remove this field.
 	Summary map[string]any
 
-	// SharedMode is whether the run was created in shared mode. It is
-	// persisted on the RunRecord so sync can suppress step assignment.
-	SharedMode bool
+	// Shared is whether the run was created in shared mode. It is
+	// persisted on the RunRecord so sync can reject re-uploads.
+	Shared bool
 
 	Resumed bool
 	Forked  bool
@@ -158,7 +158,7 @@ func (r *RunParams) SetOnProto(record *spb.RunRecord) {
 		})
 	}
 
-	record.SharedMode = r.SharedMode
+	record.Shared = r.Shared
 
 	record.Resumed = r.Resumed
 	record.Forked = r.Forked
@@ -233,8 +233,8 @@ func (r *RunParams) Update(
 
 	// NOTE: Summary is ignored; see comment on the field.
 
-	if record.SharedMode {
-		r.SharedMode = true
+	if record.Shared {
+		r.Shared = true
 	}
 
 	if record.Resumed {
