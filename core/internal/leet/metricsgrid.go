@@ -576,7 +576,7 @@ func (mg *MetricsGrid) drawVisible() {
 	// ProcessHistory's AddData calls on the same chart internals.
 	for ch := range currentCharts {
 		ch.Resize(dims.CellW, dims.CellH)
-		ch.Draw()
+		ch.DrawIfNeeded()
 	}
 }
 

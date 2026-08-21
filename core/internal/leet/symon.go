@@ -141,8 +141,8 @@ func (s *Symon) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return s, cmd
 
 	case StatsMsg:
-		// ProcessStats handles pagination and redraw when the chart set changes.
 		s.grid.ProcessStats(msg)
+		s.grid.drawVisible()
 		cmd := s.sampleLaterCmd()
 		return s, cmd
 
