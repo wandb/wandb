@@ -295,7 +295,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
         Args:
             filter: Optional mapping of filters to apply to the artifact versions query.
             order: Optional string to specify the order of the results.
-                Order can be `created_at` or `artifact_size`.
+                Order can be `created_at`, `artifact_size`, or `linked_at`.
                 If prefixed with '+', sorts ascending (default).
                 If prefixed with '-', sorts descending.
             per_page: The number of results to fetch per page.
@@ -437,7 +437,7 @@ class Collections(
         Args:
             filter: Optional mapping of filters to apply to the artifact versions query.
             order: Optional string to specify the order of the results.
-                Order can be `created_at` or `artifact_size`.
+                Order can be `created_at`, `artifact_size`, or `linked_at`.
                 If prefixed with '+', sorts ascending (default).
                 If prefixed with '-', sorts descending.
             per_page: The number of results to fetch per page.

@@ -128,6 +128,7 @@ This is relevant for VERSION filters passed to:
 ADVANCED_VERSIONS_ORDER_FIELDS = (
     SearchField("artifact_created_at", aliases=["created_at"]),
     SearchField("artifact_size"),
+    SearchField("acm_created_at", aliases=["linked_at"]),
 )
 """Defines allowed Versions order fields for "advanced" search.
 

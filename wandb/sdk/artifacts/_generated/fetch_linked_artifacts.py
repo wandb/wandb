@@ -30,6 +30,7 @@ class FetchLinkedArtifactsArtifactArtifactMembershipsEdges(GQLResult):
 
 class FetchLinkedArtifactsArtifactArtifactMembershipsEdgesNode(GQLResult):
     version_index: int | None = Field(alias="versionIndex")
+    created_at: str = Field(alias="createdAt")
     aliases: list[ArtifactAliasFragment]
     artifact_collection: CollectionInfoFragment | None = Field(
         alias="artifactCollection"
