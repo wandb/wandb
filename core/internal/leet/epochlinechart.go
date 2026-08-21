@@ -217,6 +217,12 @@ type EpochLineChart struct {
 	// inspectionLabelFormatter customizes legend labels for inspection mode.
 	// When nil, a default numeric formatter is used.
 	inspectionLabelFormatter func(seriesKey string, x, y float64) string
+
+	// cachedView memoizes the stringified canvas until the next Draw or
+	// Resize, or until the style epoch changes.
+	cachedView      string
+	cachedViewOK    bool
+	cachedViewEpoch uint64
 }
 
 func NewEpochLineChart(title string) *EpochLineChart {
@@ -574,8 +580,19 @@ func (c *EpochLineChart) HandleZoom(direction string, mouseX int) {
 	c.dirty = true
 }
 
+// View returns the rendered canvas, cached between draws.
+func (c *EpochLineChart) View() string {
+	if epoch := StyleEpoch(); !c.cachedViewOK || c.cachedViewEpoch != epoch {
+		c.cachedView = c.Model.View()
+		c.cachedViewOK = true
+		c.cachedViewEpoch = epoch
+	}
+	return c.cachedView
+}
+
 // Draw renders all series using Braille patterns.
 func (c *EpochLineChart) Draw() {
+	c.cachedViewOK = false
 	c.Clear()
 
 	// Draw axes and X labels via ntcharts, but suppress its Y labels and
@@ -1018,6 +1035,7 @@ func (c *EpochLineChart) Resize(width, height int) {
 	c.Model.Resize(width, height)
 	c.updateRanges()
 	c.dirty = true
+	c.cachedViewOK = false
 }
 
 // Park minimizes canvas memory for off-screen charts.
