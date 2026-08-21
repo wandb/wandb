@@ -336,6 +336,15 @@ func (m *Model) handleHelp(msg tea.Msg) (bool, tea.Cmd) {
 
 	// When help is visible, it owns key/mouse events.
 	if m.help.IsActive() {
+		if km, ok := msg.(tea.KeyPressMsg); ok {
+			switch km.String() {
+			case "q", "ctrl+c":
+				// Quit from help must release watchers, heartbeats, and
+				// readers just like quitting from the views themselves.
+				m.Cleanup()
+				return true, tea.Quit
+			}
+		}
 		switch msg.(type) {
 		case tea.KeyPressMsg, tea.MouseMsg:
 			updated, cmd := m.help.Update(msg)
