@@ -58,9 +58,10 @@ func NewTestUpserter(
 
 	record := &spb.Record{RecordType: &spb.Record_Run{
 		Run: &spb.RunRecord{
-			Entity:  "test-entity",
-			Project: "test-project",
-			RunId:   "test-run",
+			Entity:               "test-entity",
+			Project:              "test-project",
+			RunId:                "test-run",
+			SyncMayReassignSteps: true,
 		},
 	}}
 

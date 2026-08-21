@@ -138,9 +138,8 @@ func makeOutput(record *spb.Record) data {
 			items[strings.Join(item.NestedKey, ".")] = item.ValueJson
 		}
 		return data{
-			items:   items,
-			step:    history.GetStep().GetNum(),
-			stepNil: history.GetStep() == nil,
+			items: items,
+			step:  history.Step.Num,
 		}
 	default:
 		return data{}
@@ -486,13 +485,13 @@ func TestHandlePartialHistory(t *testing.T) {
 						"key1": "1",
 						"key2": "2",
 					},
-					stepNil: true,
+					step: 0,
 				},
 				{
 					items: map[string]string{
 						"key2": "3",
 					},
-					stepNil: true,
+					step: 1,
 				},
 			},
 		},
@@ -526,14 +525,14 @@ func TestHandlePartialHistory(t *testing.T) {
 						"key1": "1",
 						"key2": "2",
 					},
-					stepNil: true,
+					step: 0,
 				},
 				{
 					items: map[string]string{
 						"key1": "2",
 						"key2": "3",
 					},
-					stepNil: true,
+					step: 1,
 				},
 			},
 		},
@@ -560,13 +559,13 @@ func TestHandlePartialHistory(t *testing.T) {
 					items: map[string]string{
 						"key1": "1",
 					},
-					stepNil: true,
+					step: 0,
 				},
 				{
 					items: map[string]string{
 						"key1": "2",
 					},
-					stepNil: true,
+					step: 1,
 				},
 			},
 		},
@@ -626,7 +625,7 @@ func TestHandlePartialHistory(t *testing.T) {
 					items: map[string]string{
 						"key1": "2",
 					},
-					stepNil: true,
+					step: 2,
 				},
 			},
 		},
@@ -680,13 +679,13 @@ func TestHandlePartialHistory(t *testing.T) {
 					items: map[string]string{
 						"key1": "1",
 					},
-					stepNil: true,
+					step: 0,
 				},
 				{
 					items: map[string]string{
 						"key1": "2",
 					},
-					stepNil: true,
+					step: 1,
 				},
 			},
 		},
@@ -713,7 +712,7 @@ func TestHandlePartialHistory(t *testing.T) {
 					items: map[string]string{
 						"key1": "2",
 					},
-					stepNil: true,
+					step: 0,
 				},
 			},
 		},
@@ -739,10 +738,7 @@ func TestHandlePartialHistory(t *testing.T) {
 			for i, d := range tc.expected {
 				record := (<-handler.OutChan()).WorkImpl.(runwork.WorkRecord).Record
 				actual := makeOutput(record)
-				assert.Equal(t, d.stepNil, actual.stepNil, "wrong stepNil in record %d", i)
-				if !d.stepNil {
-					assert.Equal(t, d.step, actual.step, "wrong step in record %d", i)
-				}
+				assert.Equal(t, d.step, actual.step, "wrong step in record %d", i)
 				for k, v := range d.items {
 					assert.Equal(t, v, actual.items[k], "key=%s", k)
 				}
@@ -781,6 +777,7 @@ func TestHandleHistory(t *testing.T) {
 					items: map[string]string{
 						"key1":     "1",
 						"key2":     "2",
+						"_step":    "0",
 						"_runtime": "0.000000",
 					},
 					step: 0,
@@ -788,6 +785,7 @@ func TestHandleHistory(t *testing.T) {
 				{
 					items: map[string]string{
 						"key2":     "3",
+						"_step":    "1",
 						"_runtime": "0.000000",
 					},
 					step: 1,
@@ -812,6 +810,7 @@ func TestHandleHistory(t *testing.T) {
 		// 				"key1":     "1",
 		// 				"key2":     "2",
 		// 				"_runtime": "63393490800.000000",
+		// 				"_step":    "0",
 		// 			},
 		// 			step: 0,
 		// 		},

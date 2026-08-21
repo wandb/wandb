@@ -94,6 +94,11 @@ type RunParams struct {
 	// reconciliation to sync time.
 	Resume bool
 
+	// SyncMayReassignSteps is true when sync may reassign history steps at
+	// upload time. The handler writes steps into the log without resume
+	// reconciliation. Old logs omit this field.
+	SyncMayReassignSteps bool
+
 	Resumed bool
 	Forked  bool
 
@@ -163,6 +168,8 @@ func (r *RunParams) SetOnProto(record *spb.RunRecord) {
 	}
 
 	record.Resume = r.Resume
+
+	record.SyncMayReassignSteps = r.SyncMayReassignSteps
 
 	record.Resumed = r.Resumed
 	record.Forked = r.Forked
@@ -241,6 +248,10 @@ func (r *RunParams) Update(
 
 	if record.Resume {
 		r.Resume = true
+	}
+
+	if record.SyncMayReassignSteps {
+		r.SyncMayReassignSteps = true
 	}
 
 	if record.Resumed {
