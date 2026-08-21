@@ -112,6 +112,7 @@ func (s *Symon) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if bgMsg, ok := msg.(tea.BackgroundColorMsg); ok {
 		SetDarkBackground(bgMsg.IsDark())
+		SetTerminalBackground(bgMsg)
 	}
 
 	if handled, cmd := s.handleHelp(msg); handled {

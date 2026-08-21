@@ -468,11 +468,27 @@ func (mg *MetricsGrid) renderGridCell(row, col int, dims GridDims) string {
 	if row < len(mg.currentPage) && col < len(mg.currentPage[row]) &&
 		mg.currentPage[row][col] != nil {
 		chart := mg.currentPage[row][col]
-		chartView := chart.View()
+
+		focused := mg.focus.Type == FocusMainChart &&
+			row == mg.focus.Row && col == mg.focus.Col
+
+		// The boxed cell only depends on the canvas content, dimensions,
+		// focus, log-scale suffix, and global style epoch; reuse the last
+		// render when none of them changed (the common per-frame case).
+		key := gridCellKey{
+			w:       dims.CellWWithPadding,
+			h:       dims.CellHWithPadding,
+			focused: focused,
+			logY:    chart.IsLogY(),
+			epoch:   StyleEpoch(),
+			gen:     chart.canvasGen,
+		}
+		if chart.cellCache.valid && chart.cellCache.key == key {
+			return chart.cellCache.view
+		}
 
 		boxStyle := borderStyle
-		if mg.focus.Type == FocusMainChart &&
-			row == mg.focus.Row && col == mg.focus.Col {
+		if focused {
 			boxStyle = focusedBorderStyle
 		}
 
@@ -488,18 +504,20 @@ func (mg *MetricsGrid) renderGridCell(row, col int, dims GridDims) string {
 		boxContent := lipgloss.JoinVertical(
 			lipgloss.Left,
 			titleText,
-			chartView,
+			chart.View(),
 		)
 
 		box := boxStyle.Render(boxContent)
 
-		return lipgloss.Place(
+		cell := lipgloss.Place(
 			dims.CellWWithPadding,
 			dims.CellHWithPadding,
 			lipgloss.Left,
 			lipgloss.Top,
 			box,
 		)
+		chart.cellCache = gridCellCache{key: key, view: cell, valid: true}
+		return cell
 	}
 
 	return lipgloss.NewStyle().
