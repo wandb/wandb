@@ -194,6 +194,7 @@ func NewWorkspace(
 		relayout: w.applyLayoutConfig,
 		logger:   logger,
 	}
+	w.runOverviewSidebar.overridesSource = w.layoutOverrides
 	// The runs list starts focused by default.
 	w.focusMgr.SetTarget(FocusTargetRunsList, 1)
 	return w

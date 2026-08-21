@@ -1,10 +1,78 @@
 package leet
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
+
+// testOverviewSidebar returns an expanded run overview sidebar with items
+// in every section (2 environment, 1 config, 1 summary).
+func testOverviewSidebar(t *testing.T, side SidebarSide, width int) *RunOverviewSidebar {
+	t.Helper()
+
+	cfg := NewConfigManager(filepath.Join(t.TempDir(), "config.json"), nil)
+	ro := NewRunOverview()
+	sb := NewRunOverviewSidebar(cfg, NewAnimatedValue(true, width), ro, side)
+
+	ro.ProcessRunMsg(RunMsg{
+		Config: &spb.ConfigRecord{
+			Update: []*spb.ConfigItem{
+				{NestedKey: []string{"trainer", "epochs"}, ValueJson: "10"},
+			},
+		},
+	})
+	ro.ProcessSummaryMsg([]*spb.SummaryRecord{
+		{Update: []*spb.SummaryItem{{NestedKey: []string{"acc"}, ValueJson: "0.9"}}},
+	})
+	ro.ProcessSystemInfoMsg(&spb.EnvironmentRecord{WriterId: "writer-1", Os: "linux"})
+	sb.Sync()
+
+	return sb
+}
+
+func TestSectionWeights_DraggedFractions(t *testing.T) {
+	sb := testOverviewSidebar(t, SidebarSideLeft, 40)
+
+	// Without overrides, the built-in weights apply (normalized to sum 1).
+	w := sb.sectionWeights([]int{3, 6, 4})
+	require.InDelta(t, 1.0/4.5, w[0], 1e-9)
+	require.InDelta(t, 1.5/4.5, w[1], 1e-9)
+	require.InDelta(t, 2.0/4.5, w[2], 1e-9)
+
+	// A dragged share is used as-is; the rest of the area divides among the
+	// unset sections by the built-in weights (environment:summary = 1:2).
+	sb.overridesSource = func() LayoutOverrides {
+		return LayoutOverrides{OverviewConfig: 0.5}
+	}
+	w = sb.sectionWeights([]int{3, 6, 4})
+	require.InDelta(t, 0.5/3, w[0], 1e-9)
+	require.InDelta(t, 0.5, w[1], 1e-9)
+	require.InDelta(t, 1.0/3, w[2], 1e-9)
+
+	// Hidden sections get no weight and no share of the leftover.
+	w = sb.sectionWeights([]int{0, 6, 4})
+	require.Zero(t, w[0])
+	require.InDelta(t, 0.5, w[1], 1e-9)
+	require.InDelta(t, 0.5, w[2], 1e-9)
+}
+
+// A drag persists shares as fractions of the section area; feeding them back
+// through the allocator must reproduce the dragged heights exactly, so the
+// separator tracks the mouse 1:1.
+func TestFlexSectionHeights_HonorsDraggedFractions(t *testing.T) {
+	sb := testOverviewSidebar(t, SidebarSideLeft, 40)
+	sb.overridesSource = func() LayoutOverrides {
+		return LayoutOverrides{OverviewEnv: 0.2, OverviewConfig: 0.3}
+	}
+
+	needs := []int{10, 20, 30}
+	got := flexSectionHeights(20, sb.sectionWeights(needs), needs)
+	require.Equal(t, []int{4, 6, 10}, got)
+}
 
 func TestFlexSectionHeights(t *testing.T) {
 	equal := []float64{1, 1, 1}
