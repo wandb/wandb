@@ -119,13 +119,14 @@ func (c *TimeSeriesLineChart) AddDataPoint(seriesName string, timestamp int64, v
 	c.applyRanges()
 }
 
-// Park minimizes canvas memory for off-screen charts.
-func (c *TimeSeriesLineChart) Park() {
-	c.EpochLineChart.Park()
-}
-
 // Resize updates the underlying chart size and reapplies the current view policy.
 func (c *TimeSeriesLineChart) Resize(width, height int) {
+	if c.Width() == width && c.Height() == height {
+		// Grid views resize charts on every frame; applyRanges marks the
+		// chart dirty, so an unguarded pass-through would force a full
+		// redraw of every visible system chart per frame.
+		return
+	}
 	c.EpochLineChart.Resize(width, height)
 	c.applyRanges()
 }

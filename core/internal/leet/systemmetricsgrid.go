@@ -201,6 +201,9 @@ func (g *SystemMetricsGrid) ProcessStats(msg StatsMsg) {
 	if chartSetChanged {
 		g.refreshChartSet()
 	}
+	// Repainting dirty charts is the hosting view's job, once per batch:
+	// grid.Resize no-ops on unchanged sizes, so draws no longer piggyback
+	// on the per-frame resize.
 }
 
 // addDataPoint adds a sample and reports whether the chart set changed.
@@ -559,23 +562,16 @@ func (g *SystemMetricsGrid) cycleFocusedChartMode() bool {
 // Resize updates viewport dimensions and resizes/redraws visible charts.
 func (g *SystemMetricsGrid) Resize(width, height int) {
 	if width <= 0 || height <= 0 {
-		g.logger.Debug(fmt.Sprintf(
-			"systemmetricsgrid: Resize: invalid dimensions %dx%d, skipping", width, height))
+		return
+	}
+	if g.width == width && g.height == height {
+		// Hosting views resize on every frame; data-driven repaints happen
+		// in ProcessStats/AddDataPoint, so an unchanged size is a no-op.
 		return
 	}
 
 	g.width = width
 	g.height = height
-
-	dims := g.calculateChartDimensions()
-	if dims.CellW <= 0 || dims.CellH <= 0 ||
-		dims.CellW < MinMetricChartWidth ||
-		dims.CellH < MinMetricChartHeight {
-		g.logger.Debug(fmt.Sprintf(
-			"systemmetricsgrid: Resize: calculated dimensions %dx%d invalid, skipping",
-			dims.CellW, dims.CellH))
-		return
-	}
 
 	size := g.effectiveGridSize()
 	g.nav.UpdateTotalPages(len(g.filtered), ItemsPerPage(size))
