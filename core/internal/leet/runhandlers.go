@@ -118,9 +118,12 @@ func (r *Run) handleHistoryMsg(msg HistoryMsg) {
 	defer timeit(r.logger, "Model.handleHistoryMsg")()
 
 	shouldDraw := r.metricsGrid.ProcessHistory(msg)
-	if r.mediaStore.ProcessHistory(msg) {
-		r.mediaPane.SetStore(r.mediaStore)
-	}
+	// Sync the pane even when this ProcessHistory call reports no change:
+	// with a store shared with the workspace, the workspace's reader may have
+	// ingested the same points first, and the pane still needs to advance its
+	// auto-follow cursors. The sync is generation-gated, so it's cheap.
+	r.mediaStore.ProcessHistory(msg)
+	r.mediaPane.SetStore(r.mediaStore)
 	if shouldDraw && !r.suppressDraw {
 		r.metricsGrid.drawVisible()
 	}

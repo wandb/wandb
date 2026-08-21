@@ -34,6 +34,17 @@ type MediaStore struct {
 	series  map[string][]MediaPoint
 	keys    []string
 	xValues []float64
+
+	// gen increments whenever the store changes, so consumers can cache
+	// derived views (key lists, X-value snapshots) between changes.
+	gen uint64
+}
+
+// Generation identifies the store's current mutation state.
+func (s *MediaStore) Generation() uint64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.gen
 }
 
 func NewMediaStore() *MediaStore {
@@ -75,6 +86,9 @@ func (s *MediaStore) ProcessHistory(msg HistoryMsg) bool {
 		s.series[key] = series
 	}
 
+	if changed {
+		s.gen++
+	}
 	return changed
 }
 
