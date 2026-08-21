@@ -597,6 +597,7 @@ def mypy_report(session: nox.Session) -> None:
         "platformdirs",
         "pydantic",
         "pycobertura",
+        ".[sandbox]",
         "types-jsonschema",
         "types-openpyxl",
         "types-Pillow",
@@ -609,7 +610,7 @@ def mypy_report(session: nox.Session) -> None:
         "types-six",
         "types-tqdm",
         "-e .[eval-table]",
-        ".[sandbox]",
+        "-e .[sweeps]",
     )
 
     path = "mypy-results"

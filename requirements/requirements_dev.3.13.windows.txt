@@ -291,6 +291,7 @@ googleapis-common-protos==1.75.0
     #   google-api-core
     #   grpc-google-iam-v1
     #   grpcio-status
+    #   opentelemetry-exporter-otlp-proto-http
 graphql-core==3.2.8
     # via
     #   -c requirements/constraints.txt
@@ -646,6 +647,26 @@ openai==2.46.0
     #   -r requirements/requirements_dev.txt
     #   dspy
     #   litellm
+opentelemetry-api==1.44.0
+    # via
+    #   opentelemetry-exporter-otlp-proto-http
+    #   opentelemetry-sdk
+    #   opentelemetry-semantic-conventions
+    #   wandb
+opentelemetry-exporter-otlp-proto-common==1.44.0
+    # via opentelemetry-exporter-otlp-proto-http
+opentelemetry-exporter-otlp-proto-http==1.44.0
+    # via wandb
+opentelemetry-proto==1.44.0
+    # via
+    #   opentelemetry-exporter-otlp-proto-common
+    #   opentelemetry-exporter-otlp-proto-http
+opentelemetry-sdk==1.44.0
+    # via
+    #   opentelemetry-exporter-otlp-proto-http
+    #   wandb
+opentelemetry-semantic-conventions==0.65b0
+    # via opentelemetry-sdk
 opt-einsum==3.4.0
     # via
     #   jax
@@ -755,6 +776,7 @@ protobuf==6.33.6
     #   grpcio-status
     #   kfp
     #   kfp-pipeline-spec
+    #   opentelemetry-proto
     #   proto-plus
     #   tensorboard
     #   tensorboardx
@@ -912,6 +934,7 @@ requests==2.34.2
     #   moto
     #   moviepy
     #   msal
+    #   opentelemetry-exporter-otlp-proto-http
     #   requests-oauthlib
     #   requests-toolbelt
     #   responses
@@ -1118,6 +1141,10 @@ typing-extensions==4.16.0
     #   lightning
     #   lightning-utilities
     #   openai
+    #   opentelemetry-api
+    #   opentelemetry-exporter-otlp-proto-http
+    #   opentelemetry-sdk
+    #   opentelemetry-semantic-conventions
     #   optree
     #   pydantic
     #   pydantic-core
@@ -1152,7 +1179,9 @@ urllib3==2.7.0
 uvicorn==0.32.1
     # via -r requirements/requirements_test.txt
 .
-    # via -r requirements/requirements_dev.txt
+    # via
+    #   -r requirements/requirements_dev.txt
+    #   -r requirements/requirements_test.txt
 wcwidth==0.8.2
     # via
     #   prompt-toolkit

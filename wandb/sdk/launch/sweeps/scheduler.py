@@ -34,6 +34,10 @@ from wandb.sdk.launch.utils import (
 )
 from wandb.sdk.lib.runid import generate_id
 
+# RunState was moved from this file to sdk.sweeps.
+# Ensure backward-compatible re-export for legacy path.
+from wandb.sdk.sweeps import RunState as RunState
+
 if TYPE_CHECKING:
     import wandb.apis.public as public
     from wandb.apis.internal import Api
@@ -55,32 +59,6 @@ class SchedulerState(Enum):
     FAILED = 5
     STOPPED = 6
     CANCELLED = 7
-
-
-class RunState(Enum):
-    RUNNING = "running", "alive"
-    PENDING = "pending", "alive"
-    PREEMPTING = "preempting", "alive"
-    CRASHED = "crashed", "dead"
-    FAILED = "failed", "dead"
-    KILLED = "killed", "dead"
-    FINISHED = "finished", "dead"
-    PREEMPTED = "preempted", "dead"
-    # unknown when api.get_run_state fails or returns unexpected state
-    # assumed alive, unless we get unknown 2x then move to failed (dead)
-    UNKNOWN = "unknown", "alive"
-
-    def __new__(cls: Any, *args: list, **kwds: Any) -> RunState:
-        obj: RunState = object.__new__(cls)
-        obj._value_ = args[0]
-        return obj
-
-    def __init__(self, _: str, life: str = "unknown") -> None:
-        self._life = life
-
-    @property
-    def is_alive(self) -> bool:
-        return self._life == "alive"
 
 
 @dataclass
