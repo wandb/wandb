@@ -42,3 +42,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 - LEET can now open large runs from the W&B server; history downloads that took longer than 10 seconds used to fail every time (@dmitryduev in https://github.com/wandb/wandb/pull/12531)
 - Ctrl+C now quits LEET even while typing in a filter, and quitting from the help screen releases file watchers and readers cleanly (@dmitryduev in https://github.com/wandb/wandb/pull/12532)
 - The system-metrics filter in the LEET workspace applied only to the highlighted run, showing stale results after switching runs (@dmitryduev in https://github.com/wandb/wandb/pull/12533)
+- LEET no longer leaks memory when moving between runs with logged images, and scrubbing through images does not re-read them from disk on every step (@dmitryduev in https://github.com/wandb/wandb/pull/12540)

@@ -396,6 +396,9 @@ func (r *Run) cleanup() {
 	if r.historySource != nil {
 		r.historySource.Close()
 	}
+	if r.mediaPane != nil {
+		r.mediaPane.Close()
+	}
 }
 
 func (r *Run) handleQuit(msg tea.KeyPressMsg) tea.Cmd {
