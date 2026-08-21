@@ -146,10 +146,12 @@ func InitializeParquetHistorySource(
 			s,
 		)
 		httpClient := api.NewClient(api.ClientOptions{
-			RetryMax:        3,
-			RetryWaitMin:    1 * time.Second,
-			RetryWaitMax:    10 * time.Second,
-			NonRetryTimeout: 10 * time.Second,
+			RetryMax:     3,
+			RetryWaitMin: 1 * time.Second,
+			RetryWaitMax: 10 * time.Second,
+			// Becomes http.Client.Timeout, which also bounds reading the
+			// response body; parquet exports can take minutes to download.
+			NonRetryTimeout: 10 * time.Minute,
 			Logger:          logger.Logger,
 			PreRetryLayers:  httplayers.LimitTo(baseURL, credentialProvider),
 		})
