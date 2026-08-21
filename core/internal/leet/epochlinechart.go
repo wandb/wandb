@@ -1145,7 +1145,14 @@ func TruncateTitle(title string, maxWidth int) string {
 func (c *EpochLineChart) SetGraphStyle(s *lipgloss.Style) {
 	if top := c.topSeries(); top != nil {
 		top.style.Store(*s)
+		c.dirty = true
 	}
+}
+
+// HasSeries reports whether the chart has a series with the given key.
+func (c *EpochLineChart) HasSeries(key string) bool {
+	_, ok := c.data[key]
+	return ok
 }
 
 // SetChartGuides sets the background guide style.

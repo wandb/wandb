@@ -686,6 +686,9 @@ func (w *Workspace) handleWorkspaceChunkedBatch(msg WorkspaceChunkedBatchMsg) te
 		w.handleWorkspaceRecord(run, sub)
 	}
 	w.metricsGrid.drawVisible()
+	if g := w.systemMetrics[msg.RunKey]; g != nil {
+		g.drawVisible()
+	}
 
 	if msg.Batch.HasMore {
 		return w.readAllChunkCmd(run)
@@ -706,6 +709,9 @@ func (w *Workspace) handleWorkspaceBatchedRecords(msg WorkspaceBatchedRecordsMsg
 		w.handleWorkspaceRecord(run, sub)
 	}
 	w.metricsGrid.drawVisible()
+	if g := w.systemMetrics[msg.RunKey]; g != nil {
+		g.drawVisible()
+	}
 
 	// Continue draining while the run is still live.
 	if run.state == RunStateRunning {
