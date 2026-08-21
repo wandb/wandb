@@ -161,7 +161,24 @@ func TestHistoryStepTracker_AppliesRecordStep(t *testing.T) {
 	}, history.Item)
 }
 
-func TestHistoryStepTracker_RewritesRecordStepBelowStartingStep(t *testing.T) {
+func TestHistoryStepTracker_NextStep(t *testing.T) {
+	x := makeHistoryStepTracker(t, false /*shared*/, false /*serverSideDerivedSummary*/)
+	x.Tracker.SeedStartingStep(2)
+
+	assert.Equal(t, int64(2), x.Tracker.NextStep())
+
+	_, ok := x.Tracker.ApplyHistoryStep(&spb.HistoryRecord{
+		Item: []*spb.HistoryItem{{
+			NestedKey: []string{"loss"},
+			ValueJson: "1.0",
+		}},
+	})
+	require.True(t, ok)
+
+	assert.Equal(t, int64(3), x.Tracker.NextStep())
+}
+
+func TestHistoryStepTracker_DropsUserProvidedStepBelowStartingStep(t *testing.T) {
 	x := makeHistoryStepTracker(t, false /*shared*/, false /*serverSideDerivedSummary*/)
 	x.Tracker.SeedStartingStep(2)
 
@@ -173,28 +190,29 @@ func TestHistoryStepTracker_RewritesRecordStepBelowStartingStep(t *testing.T) {
 		Step: &spb.HistoryStep{Num: 0},
 	}
 
-	x.Tracker.ApplyHistoryStep(history)
+	_, ok := x.Tracker.ApplyHistoryStep(history)
 
-	assert.Equal(t, int64(2), history.GetStep().GetNum())
-	assert.Equal(t, []*spb.HistoryItem{
-		{NestedKey: []string{"loss"}, ValueJson: "1.23"},
-		{NestedKey: []string{"_step"}, ValueJson: "2"},
-	}, history.Item)
+	assert.False(t, ok)
+	assert.Equal(t, []*spb.HistoryItem{{
+		NestedKey: []string{"loss"},
+		ValueJson: "1.23",
+	}}, history.Item)
+	assert.Equal(t, int64(0), history.GetStep().GetNum())
 }
 
-func TestHistoryStepTracker_RewritesRecordStepBelowRunningStep(t *testing.T) {
+func TestHistoryStepTracker_DropsUserProvidedStepBelowRunningStep(t *testing.T) {
 	x := makeHistoryStepTracker(t, false /*shared*/, false /*serverSideDerivedSummary*/)
 
 	first := &spb.HistoryRecord{Step: &spb.HistoryStep{Num: 5}}
-	x.Tracker.ApplyHistoryStep(first)
+	_, ok := x.Tracker.ApplyHistoryStep(first)
+	require.True(t, ok)
 
 	history := &spb.HistoryRecord{Step: &spb.HistoryStep{Num: 1}}
-	x.Tracker.ApplyHistoryStep(history)
+	_, ok = x.Tracker.ApplyHistoryStep(history)
 
-	assert.Equal(t, int64(6), history.GetStep().GetNum())
-	assert.Equal(t, []*spb.HistoryItem{
-		{NestedKey: []string{"_step"}, ValueJson: "6"},
-	}, history.Item)
+	assert.False(t, ok)
+	assert.Equal(t, int64(1), history.GetStep().GetNum())
+	assert.Empty(t, history.Item)
 }
 
 func TestHistoryStepTracker_DerivesSummaryStep(t *testing.T) {
