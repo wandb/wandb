@@ -917,6 +917,8 @@ func (r *Run) handleRecordsBatch(subMsgs []tea.Msg, suppressRedraw bool) []tea.C
 	if !r.suppressDraw {
 		r.metricsGrid.drawVisible()
 	}
+	// System charts collect dirty flags during the batch; repaint them once.
+	r.rightSidebar.metricsGrid.drawVisible()
 
 	return cmds
 }

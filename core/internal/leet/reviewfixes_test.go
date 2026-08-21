@@ -5,11 +5,32 @@ package leet
 import (
 	"path/filepath"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/wandb/wandb/core/internal/observability"
 )
+
+// A same-size resize must not mark system charts dirty; the hosting views
+// resize on every frame.
+func TestTimeSeriesLineChartSameSizeResizeStaysClean(t *testing.T) {
+	c := NewTimeSeriesLineChart(&TimeSeriesLineChartParams{
+		Width:  40,
+		Height: 10,
+		Def:    &MetricDef{Name: "CPU (%)", Unit: UnitPercent, MaxY: 100},
+		Now:    time.Now(),
+	})
+	c.AddDataPoint("cpu", time.Now().Unix(), 42)
+	c.DrawIfNeeded()
+	if c.dirty {
+		t.Fatal("chart dirty after draw")
+	}
+	c.Resize(40, 10)
+	if c.dirty {
+		t.Fatal("same-size resize marked chart dirty")
+	}
+}
 
 // The shared system-metrics filter must be reapplied to a run's grid when the
 // highlighted run changes; each grid caches its own filtered chart set.

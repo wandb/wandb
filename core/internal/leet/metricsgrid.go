@@ -229,8 +229,12 @@ func (mg *MetricsGrid) ProcessHistory(msg HistoryMsg) bool {
 				mg.logger.Debug(fmt.Sprintf("metricsgrid: created %d charts", len(mg.all)))
 			}
 		}
+		// Provider colors are stable per series key (a removed run's series
+		// is removed from the chart, and re-adding recreates it), so the
+		// style only needs to be applied when the series first appears.
+		newSeries := seriesStyle != nil && !chart.HasSeries(msg.RunPath)
 		chart.AddData(msg.RunPath, data)
-		if seriesStyle != nil {
+		if newSeries {
 			chart.SetSeriesStyle(msg.RunPath, seriesStyle)
 		}
 	}
@@ -592,9 +596,11 @@ func (mg *MetricsGrid) drawVisible() {
 
 	// Resize and draw visible charts under lock to serialize with
 	// ProcessHistory's AddData calls on the same chart internals.
+	// Only dirty charts re-rasterize: AddData, Resize, zoom, inspection,
+	// and style changes all set the dirty flag.
 	for ch := range currentCharts {
 		ch.Resize(dims.CellW, dims.CellH)
-		ch.Draw()
+		ch.DrawIfNeeded()
 	}
 }
 
