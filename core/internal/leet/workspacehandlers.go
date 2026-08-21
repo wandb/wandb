@@ -589,7 +589,7 @@ func (w *Workspace) ensureLiveStreaming(run *WorkspaceRun) tea.Cmd {
 		w.heartbeatMgr.Start(w.hasLiveRuns.Load)
 	}
 
-	return watcherCmd
+	return batchCmds(watcherCmd, w.ensureLivePulseCmd())
 }
 
 // waitForWatcher blocks until the watcher for the given run emits a change
@@ -704,7 +704,7 @@ func (w *Workspace) handleWorkspaceBatchedRecords(msg WorkspaceBatchedRecordsMsg
 
 	// Continue draining while the run is still live.
 	if run.state == RunStateRunning {
-		return w.ReadAvailableCmd(run)
+		return batchCmds(w.ReadAvailableCmd(run), w.ensureLivePulseCmd())
 	}
 
 	if !w.anyRunRunning() {
@@ -865,7 +865,34 @@ func (w *Workspace) handleWorkspaceFileChanged(msg WorkspaceFileChangedMsg) tea.
 		w.heartbeatMgr.Reset(w.hasLiveRuns.Load)
 	}
 
-	return batchCmds(w.ReadAvailableCmd(run), watcherCmd)
+	return batchCmds(w.ReadAvailableCmd(run), watcherCmd, w.ensureLivePulseCmd())
+}
+
+// livePulseCmd schedules the next live-indicator frame.
+func (w *Workspace) livePulseCmd() tea.Cmd {
+	return tea.Tick(LivePulseFrame, func(time.Time) tea.Msg {
+		return WorkspaceLivePulseMsg{}
+	})
+}
+
+// ensureLivePulseCmd starts the live-indicator redraw loop when a selected
+// run is live. Returns nil if the loop is already ticking or nothing is live.
+func (w *Workspace) ensureLivePulseCmd() tea.Cmd {
+	if w.pulseTicking || !w.anyRunRunning() {
+		return nil
+	}
+	w.pulseTicking = true
+	return w.livePulseCmd()
+}
+
+// handleLivePulse keeps the live indicators animating while any selected
+// run is live.
+func (w *Workspace) handleLivePulse() tea.Cmd {
+	if !w.anyRunRunning() {
+		w.pulseTicking = false
+		return nil
+	}
+	return w.livePulseCmd()
 }
 
 func (w *Workspace) handleQuit(msg tea.KeyPressMsg) tea.Cmd {
