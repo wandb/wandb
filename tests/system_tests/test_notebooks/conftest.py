@@ -1,7 +1,6 @@
 import io
 import os
 import pathlib
-import re
 import shutil
 import sys
 from contextlib import contextmanager
@@ -17,6 +16,7 @@ import wandb.util
 from nbclient import NotebookClient
 from nbclient.client import CellExecutionError
 from typing_extensions import Any, Generator, override
+from wandb.errors.ansi import strip_ansi
 from wandb.sdk.lib import ipython
 
 _NOTEBOOK_LOCKFILE = os.path.join(
@@ -85,7 +85,7 @@ class WandbNotebookClient(NotebookClient):
                     # Strip ANSI sequences in non-TTY environments,
                     # particularly in CI.
                     raise CellExecutionError(
-                        _strip_ansi(e.traceback),
+                        strip_ansi(e.traceback),
                         e.ename,
                         e.evalue,
                     ) from None
@@ -220,11 +220,3 @@ def notebook(user, run_id, assets_path):
             yield client
 
     return notebook_loader
-
-
-_ANSI_RE = re.compile(r"\033\[[;?0-9]*[a-zA-Z]")
-
-
-def _strip_ansi(value: str) -> str:
-    """Remove ANSI escape sequences from the string."""
-    return _ANSI_RE.sub("", value)
