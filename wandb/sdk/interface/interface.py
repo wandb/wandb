@@ -164,7 +164,6 @@ class InterfaceBase(abc.ABC):
         if run._settings.host:
             proto_run.host = run._settings.host
         proto_run.resume = run._settings.resume in ("allow", "must", "auto")
-        proto_run.sync_may_reassign_steps = not run._settings._shared
         if run._settings.resumed:
             proto_run.resumed = run._settings.resumed
         if run._settings.fork_from:
