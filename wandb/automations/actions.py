@@ -127,38 +127,18 @@ class SavedAriaAction(AriaActionFields, frozen=False):
     """The prompt ARIA receives when this automation is triggered."""
 
 
-class SavedUnknownAction(GQLBase, extra="allow", frozen=False):
-    """An action type this SDK version does not model.
-
-    Returned when listing automations if the server includes a triggered-action
-    GraphQL type that this wandb version has no fragment for. Other automations
-    in the same response still parse. Creating or updating this action requires
-    a newer wandb version.
-    """
-
-    typename__: Annotated[str, Field(alias="__typename")] = "UnknownTriggeredAction"
-    """The GraphQL `__typename` of the unrecognized action."""
-
-
 # for type annotations
 SavedAction = Annotated[
     SavedLaunchJobAction
     | SavedNotificationAction
     | SavedWebhookAction
     | SavedNoOpAction
-    | SavedAriaAction
-    | SavedUnknownAction,
+    | SavedAriaAction,
     BeforeValidator(parse_saved_action),
+    Field(discriminator="typename__"),
 ]
 # for runtime type checks
-SavedActionTypes: tuple[type, ...] = (
-    SavedLaunchJobAction,
-    SavedNotificationAction,
-    SavedWebhookAction,
-    SavedNoOpAction,
-    SavedAriaAction,
-    SavedUnknownAction,
-)
+SavedActionTypes: tuple[type, ...] = get_args(SavedAction.__origin__)  # type: ignore[attr-defined]
 
 
 # ------------------------------------------------------------------------------

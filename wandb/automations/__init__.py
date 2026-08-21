@@ -1,4 +1,3 @@
-from . import _compat as _compat  # lenient listing of unknown actions
 from .actions import (
     ActionType,
     DoNothing,

@@ -113,10 +113,8 @@ def parse_saved_action(v: Any) -> Any:
     from .actions import (
         DoNothing,
         SavedAriaAction,
-        SavedLaunchJobAction,
         SavedNoOpAction,
         SavedNotificationAction,
-        SavedUnknownAction,
         SavedWebhookAction,
         SendNotification,
         SendPromptToAria,
@@ -132,34 +130,6 @@ def parse_saved_action(v: Any) -> Any:
             return SavedNoOpAction(**v.model_dump())
         case SendPromptToAria():
             return SavedAriaAction(**v.model_dump())
-        case (
-            SavedLaunchJobAction()
-            | SavedNotificationAction()
-            | SavedWebhookAction()
-            | SavedNoOpAction()
-            | SavedAriaAction()
-            | SavedUnknownAction()
-        ):
-            return v
-        case dict() as data:
-            t = data.get("__typename") or data.get("typename__")
-            match t:
-                case "QueueJobTriggeredAction":
-                    return SavedLaunchJobAction.model_validate(data)
-                case "NotificationTriggeredAction":
-                    return SavedNotificationAction.model_validate(data)
-                case "GenericWebhookTriggeredAction":
-                    return SavedWebhookAction.model_validate(data)
-                case "NoOpTriggeredAction":
-                    return SavedNoOpAction.model_validate(data)
-                case "ARIATriggeredAction":
-                    return SavedAriaAction.model_validate(data)
-                case _:
-                    return SavedUnknownAction.model_validate(data)
-        case _ if (t := getattr(v, "typename__", None)):
-            dumped = v.model_dump()
-            dumped.setdefault("__typename", t)
-            return parse_saved_action(dumped)
         case _:
             return v
 
@@ -171,7 +141,6 @@ def parse_input_action(v: Any) -> Any:
         SavedAriaAction,
         SavedNoOpAction,
         SavedNotificationAction,
-        SavedUnknownAction,
         SavedWebhookAction,
         SendNotification,
         SendPromptToAria,
@@ -187,11 +156,6 @@ def parse_input_action(v: Any) -> Any:
             return DoNothing(**v.model_dump())
         case SavedAriaAction():
             return SendPromptToAria(**v.model_dump())
-        case SavedUnknownAction(typename__=typename):
-            raise ValueError(
-                f"Cannot assign unrecognized action type {typename!r}. "
-                "Upgrade wandb to a version that supports this automation action."
-            )
         case _:
             return v
 
