@@ -12,13 +12,59 @@ const (
 	sectionMinHeight = 2
 )
 
-// sectionWeights returns each section's desired share of the section area.
-func (s *RunOverviewSidebar) sectionWeights() []float64 {
-	return []float64{
+// sectionWeights returns each section's desired share of the section area:
+// the user-dragged fractions where set, with the remaining share divided
+// among the unset visible sections by the built-in weights.
+func (s *RunOverviewSidebar) sectionWeights(needs []int) []float64 {
+	defaults := []float64{
 		sectionWeightEnvironment,
 		sectionWeightConfig,
 		sectionWeightSummary,
 	}
+
+	var o LayoutOverrides
+	if s.overridesSource != nil {
+		o = s.overridesSource()
+	}
+	fracs := o.overviewFractions()
+
+	var explicitSum, defaultSum float64
+	for i, need := range needs {
+		if need <= 0 {
+			continue
+		}
+		if fracs[i] > 0 {
+			explicitSum += fracs[i]
+		} else {
+			defaultSum += defaults[i]
+		}
+	}
+
+	weights := make([]float64, len(needs))
+	leftover := max(1-explicitSum, 0)
+	for i, need := range needs {
+		if need <= 0 {
+			continue
+		}
+		if fracs[i] > 0 {
+			weights[i] = fracs[i]
+		} else if defaultSum > 0 {
+			weights[i] = leftover * defaults[i] / defaultSum
+		}
+	}
+	return weights
+}
+
+// sectionNeeds returns the rows each section can usefully fill (title +
+// items), 0 for empty sections.
+func (s *RunOverviewSidebar) sectionNeeds() []int {
+	needs := make([]int, len(s.sections))
+	for i := range s.sections {
+		if itemCount := len(s.sections[i].FilteredItems); itemCount > 0 {
+			needs[i] = itemCount + 1 // Title line.
+		}
+	}
+	return needs
 }
 
 // updateSectionHeights divides the sidebar rows below the header among the
@@ -28,14 +74,8 @@ func (s *RunOverviewSidebar) updateSectionHeights() {
 		return
 	}
 
-	needs := make([]int, len(s.sections))
-	for i := range s.sections {
-		if itemCount := len(s.sections[i].FilteredItems); itemCount > 0 {
-			needs[i] = itemCount + 1 // Title line.
-		}
-	}
-
-	heights := flexSectionHeights(s.sectionsArea(needs), s.sectionWeights(), needs)
+	needs := s.sectionNeeds()
+	heights := flexSectionHeights(s.sectionsArea(needs), s.sectionWeights(needs), needs)
 	for i := range s.sections {
 		s.sections[i].Height = heights[i]
 	}

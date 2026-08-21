@@ -39,6 +39,17 @@ type RunOverviewSidebar struct {
 	// Placement and dimensions.
 	side   SidebarSide
 	height int
+
+	// overridesSource returns the owning view's live layout overrides:
+	// an in-progress drag's pending values, or the persisted config.
+	// Nil means no overrides (built-in section weights).
+	overridesSource func() LayoutOverrides
+}
+
+// overviewSeparator locates one rendered separator rule between sections.
+type overviewSeparator struct {
+	row          int // Screen row of the rule.
+	above, below int // Section indices either side of it.
 }
 
 func NewRunOverviewSidebar(
@@ -452,6 +463,73 @@ func (s *RunOverviewSidebar) buildSectionLines(contentWidth int) []string {
 	return lines
 }
 
+// hasNextVisibleSection returns true if there's another visible section after idx.
+func (s *RunOverviewSidebar) hasNextVisibleSection(idx int) bool {
+	for j := idx + 1; j < len(s.sections); j++ {
+		if s.sections[j].Height > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// sectionSeparators locates the separator rules between visible sections as
+// buildSectionLines lays them out. The sidebar is drawn from the top row of
+// its side of the screen, so these are screen rows.
+func (s *RunOverviewSidebar) sectionSeparators() []overviewSeparator {
+	var seps []overviewSeparator
+
+	row := s.headerLineCount()
+	prev := -1
+	for i := range s.sections {
+		if s.sections[i].Height == 0 || len(s.sections[i].FilteredItems) == 0 {
+			continue
+		}
+		if prev >= 0 {
+			seps = append(seps, overviewSeparator{row: row, above: prev, below: i})
+			row++
+		}
+		row += s.renderedSectionLines(i)
+		prev = i
+	}
+	return seps
+}
+
+// renderedSectionLines returns the rows section i occupies on screen: a
+// title line plus the items on its current page (mirrors renderSectionItems).
+func (s *RunOverviewSidebar) renderedSectionLines(i int) int {
+	sec := &s.sections[i]
+	return 1 + sec.itemsOnPage(sec.CurrentPage())
+}
+
+// separatorDragAt returns the latch-time geometry for a drag starting on
+// the separator rule at screen row y, if there is one.
+func (s *RunOverviewSidebar) separatorDragAt(y int) (overviewSectionDrag, bool) {
+	for _, sep := range s.sectionSeparators() {
+		if sep.row != y {
+			continue
+		}
+
+		needs := s.sectionNeeds()
+		area := s.sectionsArea(needs)
+		if area <= 0 {
+			break
+		}
+
+		return overviewSectionDrag{
+			above:     sep.above,
+			below:     sep.below,
+			baseY:     y,
+			aboveH:    s.sections[sep.above].Height,
+			belowH:    s.sections[sep.below].Height,
+			aboveNeed: needs[sep.above],
+			belowNeed: needs[sep.below],
+			area:      area,
+		}, true
+	}
+	return overviewSectionDrag{}, false
+}
+
 // renderSection renders a single section, always exactly Height rows so
 // the layout matches the allocation and stays put while paging.
 func (s *RunOverviewSidebar) renderSection(idx, width int) string {
@@ -578,16 +656,6 @@ func (s *RunOverviewSidebar) renderItem(
 		return renderedKey + gap + renderedValue
 	}
 	return renderedKey + gap + valueStyle.MaxWidth(maxValueWidth).Render(value)
-}
-
-// hasNextVisibleSection returns true if there's another visible section after idx.
-func (s *RunOverviewSidebar) hasNextVisibleSection(idx int) bool {
-	for j := idx + 1; j < len(s.sections); j++ {
-		if s.sections[j].Height > 0 {
-			return true
-		}
-	}
-	return false
 }
 
 // activateSelection ensures that exactly one section is marked active (if possible).

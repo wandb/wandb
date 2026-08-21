@@ -27,21 +27,34 @@ const (
 	dragBoundaryLeftSidebar
 	dragBoundaryRightSidebar
 	dragBoundarySeparator
+	dragBoundaryOverviewSection
 )
 
 // layoutDrag tracks an in-progress boundary drag.
 //
 // overrides accumulates the view's pending layout fractions as the mouse
 // moves (a separator drag between two fixed panes updates two of them) and
-// is persisted once on mouse release. section is set for separator drags.
+// is persisted once on mouse release. section is set for stack separator
+// drags; overview for run overview section drags.
 type layoutDrag struct {
 	boundary  dragBoundary
 	section   stackSectionID
+	overview  overviewSectionDrag
 	overrides LayoutOverrides
 	dirty     bool
 }
 
-func (d layoutDrag) active() bool { return d.boundary != dragBoundaryNone }
+// overviewSectionDrag pins the geometry of a run overview section drag at
+// latch time; mouse motion is applied relative to it.
+type overviewSectionDrag struct {
+	above, below         int // Section indices either side of the rule.
+	baseY                int // Rule's screen row at latch.
+	aboveH, belowH       int // Allocated section heights at latch.
+	aboveNeed, belowNeed int // Content caps (title + items) at latch.
+	area                 int // Rows available to sections at latch.
+}
+
+func (d *layoutDrag) active() bool { return d.boundary != dragBoundaryNone }
 
 // setSection records a stacked pane's height fraction.
 func (o *LayoutOverrides) setSection(id stackSectionID, frac float64) {
@@ -63,6 +76,10 @@ type dragTargets struct {
 	width, height               int
 	leftExpanded, rightExpanded bool
 	mediaFullscreen             bool
+
+	// overview is the view's run overview sidebar when it is stably
+	// expanded; the rules between its sections are then draggable.
+	overview *RunOverviewSidebar
 }
 
 // paneDragger owns mouse-drag pane resizing for one view.
@@ -96,7 +113,7 @@ func (d *paneDragger) handleMouse(msg tea.MouseMsg, layout Layout, t dragTargets
 		if m.Button != tea.MouseLeft {
 			return false
 		}
-		drag, ok := boundaryAt(m.X, m.Y, t.width, layout, t.leftExpanded, t.rightExpanded)
+		drag, ok := boundaryAt(m.X, m.Y, layout, t)
 		if !ok || (drag.boundary == dragBoundarySeparator && t.mediaFullscreen) {
 			// A stale latch survives when the matching release never
 			// reached this view (help overlay, view switch); any new
@@ -154,6 +171,10 @@ func (d *paneDragger) apply(x, y int, layout Layout, t dragTargets) {
 			return // Fullscreen entered mid-drag hides the stack.
 		}
 		if !dragSeparator(o, layout, d.drag.section, y, t.height) {
+			return
+		}
+	case dragBoundaryOverviewSection:
+		if !dragOverviewSection(o, d.drag.overview, y) {
 			return
 		}
 	}
@@ -228,31 +249,34 @@ func nearColumn(x, col int) bool {
 }
 
 // boundaryAt hit-tests a mouse position against the draggable boundaries:
-// the sidebars' border columns (with one column of tolerance either side)
-// and the separator rows of the central stack.
+// the sidebars' border columns (with one column of tolerance either side),
+// the separator rules between run overview sections, and the separator rows
+// of the central stack.
 //
 // Sidebar borders are only draggable when the sidebar is stably expanded so
 // a drag never fights an animation.
-func boundaryAt(
-	x, y, width int,
-	layout Layout,
-	leftExpanded, rightExpanded bool,
-) (layoutDrag, bool) {
+func boundaryAt(x, y int, layout Layout, t dragTargets) (layoutDrag, bool) {
 	if y >= layout.totalContentAreaHeight {
 		return layoutDrag{}, false
 	}
 
-	if layout.leftSidebarWidth > 0 && leftExpanded &&
+	if layout.leftSidebarWidth > 0 && t.leftExpanded &&
 		nearColumn(x, layout.leftSidebarWidth-1) {
 		return layoutDrag{boundary: dragBoundaryLeftSidebar}, true
 	}
-	if layout.rightSidebarWidth > 0 && rightExpanded &&
-		nearColumn(x, width-layout.rightSidebarWidth) {
+	if layout.rightSidebarWidth > 0 && t.rightExpanded &&
+		nearColumn(x, t.width-layout.rightSidebarWidth) {
 		return layoutDrag{boundary: dragBoundaryRightSidebar}, true
 	}
 
+	if t.overview != nil {
+		if drag, ok := overviewBoundaryAt(x, y, layout, t); ok {
+			return drag, true
+		}
+	}
+
 	// Separator rows span the central column only.
-	if x < layout.leftSidebarWidth || x >= width-layout.rightSidebarWidth {
+	if x < layout.leftSidebarWidth || x >= t.width-layout.rightSidebarWidth {
 		return layoutDrag{}, false
 	}
 	sections := stackGeometry(layout)
@@ -265,6 +289,49 @@ func boundaryAt(
 		}
 	}
 	return layoutDrag{}, false
+}
+
+// overviewBoundaryAt hit-tests a mouse position against the separator rules
+// between the run overview sidebar's sections. The sidebar is drawn from
+// the top row of its side of the screen, so its cached rule rows are screen
+// rows.
+func overviewBoundaryAt(x, y int, layout Layout, t dragTargets) (layoutDrag, bool) {
+	switch t.overview.side {
+	case SidebarSideLeft:
+		if x >= layout.leftSidebarWidth {
+			return layoutDrag{}, false
+		}
+	case SidebarSideRight:
+		if x < t.width-layout.rightSidebarWidth {
+			return layoutDrag{}, false
+		}
+	default:
+		return layoutDrag{}, false
+	}
+
+	ov, ok := t.overview.separatorDragAt(y)
+	if !ok {
+		return layoutDrag{}, false
+	}
+	return layoutDrag{boundary: dragBoundaryOverviewSection, overview: ov}, true
+}
+
+// dragOverviewSection records in o the section shares for dragging a run
+// overview separator rule to row y: the two neighbors trade rows within the
+// total they held at latch, each keeping at least the minimum height and at
+// most the rows its items can fill. It reports whether o was updated.
+func dragOverviewSection(o *LayoutOverrides, ov overviewSectionDrag, y int) bool {
+	total := ov.aboveH + ov.belowH
+	lo := max(sectionMinHeight, total-ov.belowNeed)
+	hi := min(ov.aboveNeed, total-sectionMinHeight)
+	if lo > hi {
+		return false
+	}
+
+	aboveH := clamp(ov.aboveH+y-ov.baseY, lo, hi)
+	o.setOverviewFraction(ov.above, float64(aboveH)/float64(ov.area))
+	o.setOverviewFraction(ov.below, float64(total-aboveH)/float64(ov.area))
+	return true
 }
 
 // dragSeparator records in o the pane fractions for dragging the separator

@@ -107,13 +107,16 @@ func TestConfig_SetWorkspaceLayout_ClampsFractions(t *testing.T) {
 	require.NoError(t, cfg.SetWorkspaceLayout(leet.LayoutOverrides{
 		LeftSidebar: 0.001, // below the minimum
 		Logs:        1.5,   // above the maximum
+		OverviewEnv: 2.0,   // overview section shares clamp the same way
 	}))
 
 	got := cfg.WorkspaceLayout()
 	require.Equal(t, leet.MinLayoutFrac, got.LeftSidebar)
 	require.Equal(t, leet.MaxLayoutFrac, got.Logs)
+	require.Equal(t, leet.MaxLayoutFrac, got.OverviewEnv)
 	// Unset fractions stay zero ("use default") rather than being clamped.
 	require.Zero(t, got.Media)
+	require.Zero(t, got.OverviewSummary)
 }
 
 func TestConfig_SetTagColorScheme_Persists(t *testing.T) {
