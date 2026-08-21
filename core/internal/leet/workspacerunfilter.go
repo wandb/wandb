@@ -27,9 +27,10 @@ func (w *Workspace) handleEnterRunsFilter(msg tea.KeyPressMsg) tea.Cmd {
 		cmd = w.handleToggleRunsSidebar(msg)
 	}
 
-	w.runs.Active = true
-	w.consoleLogsPane.SetActive(false)
-	w.runOverviewSidebar.deactivateAllSections()
+	// Route focus through the FocusManager: it clears chart focus and keeps
+	// key dispatch (Space/Enter on the runs list) consistent with the
+	// visually focused pane after the filter commits.
+	w.focusMgr.SetTarget(FocusTargetRunsList, 1)
 	w.filter.Activate()
 	w.applyRunFilter()
 

@@ -81,6 +81,11 @@ type Workspace struct {
 	systemMetricsFocus  *Focus
 	systemMetricsFilter *Filter
 
+	// currentSystemGrid is the per-run grid the shared filter was last
+	// applied to. Grids cache their filtered chart set, so switching the
+	// highlighted run must reapply the shared filter to the new grid.
+	currentSystemGrid *SystemMetricsGrid
+
 	// Run console logs keyed by run path.
 	consoleLogs     map[string]*RunConsoleLogs
 	consoleLogsPane *ConsoleLogsPane
@@ -472,6 +477,11 @@ func (w *Workspace) syncCurrentRunContext() (
 		currentRunKey = cur.Key
 		runLabel = cur.Key
 		systemGrid = w.systemMetrics[cur.Key]
+	}
+
+	if systemGrid != w.currentSystemGrid {
+		w.currentSystemGrid = systemGrid
+		systemGrid.ApplyFilter() // nil-safe; refreshes this grid's filtered set
 	}
 
 	currentStore := w.media[currentRunKey]

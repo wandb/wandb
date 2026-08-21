@@ -392,7 +392,10 @@ func (w *Workspace) applyRunKeys(runKeys []string) {
 }
 
 func (w *Workspace) setRunItems(runKeys []string) {
-	items := w.runs.Items[:0]
+	// Build a fresh slice: FilteredItems aliases Items when no filter is
+	// applied, so rewriting in place would corrupt the filtered view that
+	// applyRunFilter reads for cursor preservation.
+	items := make([]KeyValuePair, 0, len(runKeys))
 	for _, key := range runKeys {
 		items = append(items, KeyValuePair{Key: key})
 	}
