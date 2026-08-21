@@ -18,6 +18,10 @@ const (
 	// maxConsoleLineLength is the maximum rune length per assembled line.
 	maxConsoleLineLength = 4096
 
+	// maxConsoleLines caps the retained scrollback; the oldest lines
+	// are evicted once the cap is exceeded.
+	maxConsoleLines = 10_000
+
 	// consoleTimestampFormat is the display format for timestamps.
 	//
 	// Adapted from the structured format used by the filestreamWriter
@@ -58,6 +62,18 @@ type RunConsoleLogs struct {
 	// It is updated incrementally so View does not need to reformat every line on
 	// every render.
 	items []KeyValuePair
+
+	// evicted counts lines discarded from the front of the scrollback.
+	// Line indices handed out by appendLine are absolute (they keep
+	// counting past eviction), so callbacks subtract evicted to index
+	// into lines/items.
+	evicted int
+
+	// stdoutFilter and stderrFilter strip unsupported escape sequences
+	// before terminal emulation. Per-stream because a sequence may be
+	// split across raw records.
+	stdoutFilter ansiFilter
+	stderrFilter ansiFilter
 }
 
 // NewRunConsoleLogs creates an empty console log store with terminal
@@ -87,9 +103,9 @@ func (cl *RunConsoleLogs) ProcessRaw(text string, isStderr bool, ts time.Time) {
 	cl.currentTimestamp = ts
 
 	if isStderr {
-		cl.stderrTerm.Write(text)
+		cl.stderrTerm.Write(cl.stderrFilter.strip(text))
 	} else {
-		cl.stdoutTerm.Write(text)
+		cl.stdoutTerm.Write(cl.stdoutFilter.strip(text))
 	}
 }
 
@@ -115,9 +131,8 @@ func (cl *RunConsoleLogs) Items() []KeyValuePair {
 }
 
 // appendLine is called by the line supplier when a new terminal line is
-// created. Returns the index for future PutChar callbacks.
+// created. Returns the absolute index for future PutChar callbacks.
 func (cl *RunConsoleLogs) appendLine(isStderr bool) int {
-	idx := len(cl.lines)
 	cl.lines = append(cl.lines, ConsoleLogLine{
 		Timestamp: cl.currentTimestamp,
 		IsStderr:  isStderr,
@@ -125,12 +140,24 @@ func (cl *RunConsoleLogs) appendLine(isStderr bool) int {
 	cl.items = append(cl.items, KeyValuePair{
 		Key: cl.currentTimestamp.Format(consoleTimestampFormat),
 	})
-	return idx
+
+	if len(cl.lines) > maxConsoleLines {
+		n := len(cl.lines) - maxConsoleLines
+		// Re-slicing (rather than shifting) keeps eviction O(1); the
+		// dead prefix is reclaimed when append next reallocates.
+		cl.lines = cl.lines[n:]
+		cl.items = cl.items[n:]
+		cl.evicted += n
+	}
+
+	return cl.evicted + len(cl.lines) - 1
 }
 
 // onLineChanged is called when the terminal emulator modifies a
-// character on an existing line via PutChar.
+// character on an existing line via PutChar. idx is the absolute
+// index returned by appendLine; evicted lines are silently dropped.
 func (cl *RunConsoleLogs) onLineChanged(idx int, content []rune) {
+	idx -= cl.evicted
 	if idx < 0 || idx >= len(cl.lines) {
 		return
 	}
@@ -171,4 +198,107 @@ func (l *consoleLine) PutChar(c rune, offset int) {
 	if l.content.PutChar(c, offset) {
 		l.owner.onLineChanged(l.index, l.content.Content)
 	}
+}
+
+// ---- ANSI filtering ----
+
+// ansiFilterState tracks progress through an escape sequence. It is
+// kept across strip calls because a sequence may be split between
+// raw output records.
+type ansiFilterState int
+
+const (
+	ansiGround ansiFilterState = iota
+	ansiEsc                    // seen ESC
+	ansiCSI                    // seen ESC [
+	ansiOSC                    // seen ESC ]
+	ansiOSCEsc                 // seen ESC inside an OSC string
+)
+
+// ansiFilter drops escape sequences that the terminal emulator does not
+// interpret (SGR colors, erase-line, OSC, ...) so they neither appear as
+// literal characters nor skew the pane's display-width math. The plain
+// cursor movements the emulator understands (ESC[A, ESC[B) pass through.
+type ansiFilter struct {
+	state ansiFilterState
+
+	// csiParams reports whether the current CSI sequence has parameter
+	// or intermediate bytes, making it something other than a plain
+	// ESC[A / ESC[B.
+	csiParams bool
+}
+
+func (f *ansiFilter) strip(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+
+	for _, r := range s {
+		switch f.state {
+		case ansiGround:
+			if r == '\x1b' {
+				f.state = ansiEsc
+			} else {
+				b.WriteRune(r)
+			}
+
+		case ansiEsc:
+			switch r {
+			case '[':
+				f.state = ansiCSI
+				f.csiParams = false
+			case ']':
+				f.state = ansiOSC
+			default:
+				// Two-character escape sequence: drop it, but keep
+				// line structure if it was malformed.
+				f.state = ansiGround
+				if r == '\n' || r == '\r' {
+					b.WriteRune(r)
+				}
+			}
+
+		case ansiCSI:
+			switch {
+			case r >= 0x40 && r <= 0x7e:
+				// Final byte: keep only the cursor movements the
+				// emulator understands.
+				if !f.csiParams && (r == 'A' || r == 'B') {
+					b.WriteString("\x1b[")
+					b.WriteRune(r)
+				}
+				f.state = ansiGround
+			case r == '\x1b':
+				// Restarted escape: abandon the malformed one.
+				f.state = ansiEsc
+			case r == '\n' || r == '\r':
+				// Malformed sequence: keep the line structure.
+				b.WriteRune(r)
+				f.state = ansiGround
+			default:
+				f.csiParams = true
+			}
+
+		case ansiOSC:
+			switch r {
+			case '\a':
+				f.state = ansiGround
+			case '\x1b':
+				f.state = ansiOSCEsc
+			case '\n', '\r':
+				// OSC strings cannot contain raw newlines; treat as
+				// aborted so a missing terminator can't eat output.
+				b.WriteRune(r)
+				f.state = ansiGround
+			}
+
+		case ansiOSCEsc:
+			if r == '\\' {
+				f.state = ansiGround
+			} else {
+				f.state = ansiOSC
+			}
+		}
+	}
+
+	return b.String()
 }
