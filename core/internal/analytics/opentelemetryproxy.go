@@ -26,7 +26,6 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 
-	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/httplayers"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
@@ -426,17 +425,6 @@ func NewOpenTelemetryProxy(
 func newOTLPHTTPClient(
 	wandbSettings *settings.Settings,
 ) (*http.Client, error) {
-	credentialProvider, err := api.NewCredentialProvider(
-		wandbSettings,
-		slog.Default(),
-	)
-	if err != nil {
-		return nil, err
-	}
-	if _, ok := credentialProvider.(api.NoopCredentialProvider); ok {
-		return nil, nil
-	}
-
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = wandbSettings.GetProxyFn()
 	transport.ProxyConnectHeader = wandbSettings.GetProxyConnectHeader()
@@ -455,7 +443,6 @@ func newOTLPHTTPClient(
 		transport,
 		httplayers.Concat(
 			httplayers.DefaultHeaders(extraHeaders),
-			credentialProvider,
 		),
 	)
 	return client, nil
