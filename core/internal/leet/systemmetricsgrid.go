@@ -29,6 +29,11 @@ type SystemMetricsGrid struct {
 	filtered    []systemMetricChart          // charts matching current filter
 	currentPage [][]systemMetricChart        // current page view
 
+	// classified caches per-metric-name classification: stats records repeat
+	// the same few dozen names thousands of times, and MatchMetricDef scans
+	// ~115 regexes per lookup.
+	classified map[string]metricClassification
+
 	// Filter state.
 	filter *Filter
 
@@ -59,6 +64,7 @@ func NewSystemMetricsGrid(
 		byBaseKey:  make(map[string]systemMetricChart),
 		ordered:    make([]systemMetricChart, 0),
 		filtered:   make([]systemMetricChart, 0),
+		classified: make(map[string]metricClassification),
 		filter:     filter,
 		focus:      focusState,
 		width:      width,
@@ -206,28 +212,35 @@ func (g *SystemMetricsGrid) ProcessStats(msg StatsMsg) {
 	// on the per-frame resize.
 }
 
+// metricClassification is a cached MatchMetricDef/ExtractBaseKey/
+// ExtractSeriesName lookup for one metric name.
+type metricClassification struct {
+	def        *MetricDef // nil for unrecognized metrics
+	baseKey    string
+	seriesName string
+}
+
 // addDataPoint adds a sample and reports whether the chart set changed.
 func (g *SystemMetricsGrid) addDataPoint(
 	metricName string,
 	timestamp int64,
 	value float64,
 ) bool {
-	g.logger.Debug(fmt.Sprintf(
-		"SystemMetricsGrid.AddDataPoint: metric=%s, timestamp=%d, value=%f",
-		metricName, timestamp, value))
-
-	def := MatchMetricDef(metricName)
-	if def == nil {
-		g.logger.Debug(fmt.Sprintf(
-			"SystemMetricsGrid.AddDataPoint: no definition for metric=%s", metricName))
+	cls, ok := g.classified[metricName]
+	if !ok {
+		cls.def = MatchMetricDef(metricName)
+		if cls.def != nil {
+			cls.baseKey = ExtractBaseKey(metricName)
+			cls.seriesName = ExtractSeriesName(metricName)
+		}
+		g.classified[metricName] = cls
+	}
+	if cls.def == nil {
 		return false
 	}
 
-	baseKey := ExtractBaseKey(metricName)
-	seriesName := ExtractSeriesName(metricName)
-
-	chart, created := g.getOrCreateChart(baseKey, def)
-	chart.AddDataPoint(seriesName, timestamp, value)
+	chart, created := g.getOrCreateChart(cls.baseKey, cls.def)
+	chart.AddDataPoint(cls.seriesName, timestamp, value)
 	return created
 }
 
