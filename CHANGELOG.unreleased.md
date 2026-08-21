@@ -38,3 +38,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 - At certain pane widths, such as while dragging a sidebar edge, LEET drew metric charts wider than the space available, pushing the right sidebar off screen (@dmitryduev in https://github.com/wandb/wandb/pull/12513)
 - Colored console output in LEET wrapped too early and could garble lines; ANSI escapes are now handled correctly, and console scrollback no longer grows without bound (@dmitryduev in https://github.com/wandb/wandb/pull/12528)
 - `wandb leet config` now works on short terminal windows: the field list scrolls with the selection and Space toggles boolean settings (@dmitryduev in https://github.com/wandb/wandb/pull/12529)
+- LEET can now open large runs from the W&B server; history downloads that took longer than 10 seconds used to fail every time (@dmitryduev in https://github.com/wandb/wandb/pull/12531)

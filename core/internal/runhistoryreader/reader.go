@@ -88,6 +88,8 @@ func New(
 			historyReader.keys,
 		)
 		if err != nil {
+			// Free the readers created before the failure.
+			historyReader.Release()
 			return nil, err
 		}
 		historyReader.parquetReaders = append(historyReader.parquetReaders, rustReader)
