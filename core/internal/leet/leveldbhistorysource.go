@@ -90,8 +90,8 @@ func (hs *LevelDBHistorySource) Read(
 	}
 
 	var msgs []tea.Msg
-	var histories []HistoryMsg
 	var summaries []SummaryMsg
+	var history historyAccumulator
 	scannedCount := 0
 	startTime := time.Now()
 	var err error
@@ -122,10 +122,16 @@ func (hs *LevelDBHistorySource) Read(
 			break
 		}
 
+		// History records are by far the most common; accumulate them
+		// directly into per-metric series for the whole chunk instead of
+		// allocating a message per record.
+		if h, ok := record.RecordType.(*spb.Record_History); ok {
+			history.addRecord(hs.runPath, h.History)
+			continue
+		}
+
 		if msg := hs.recordToMsg(record); msg != nil {
 			switch m := msg.(type) {
-			case HistoryMsg:
-				histories = append(histories, m)
 			case SummaryMsg:
 				summaries = append(summaries, m)
 			default:
@@ -134,8 +140,8 @@ func (hs *LevelDBHistorySource) Read(
 		}
 	}
 
-	if len(histories) > 0 {
-		msgs = append(msgs, concatenateHistory(histories, hs.runPath))
+	if msg, ok := history.toMsg(hs.runPath); ok {
+		msgs = append(msgs, msg)
 	}
 	if len(summaries) > 0 {
 		msgs = append(msgs, concatenateSummary(summaries, hs.runPath))
@@ -170,8 +176,6 @@ func (hs *LevelDBHistorySource) recordToMsg(record *spb.Record) tea.Msg {
 			Tags:        slices.Clone(rec.Run.GetTags()),
 			Config:      rec.Run.GetConfig(),
 		}
-	case *spb.Record_History:
-		return ParseHistory(hs.runPath, rec.History)
 	case *spb.Record_Stats:
 		return ParseStats(hs.runPath, rec.Stats)
 	case *spb.Record_Summary:
@@ -195,15 +199,34 @@ func (hs *LevelDBHistorySource) Close() {
 	}
 }
 
-// ParseHistory extracts metrics and media from a history record.
-func ParseHistory(runPath string, history *spb.HistoryRecord) tea.Msg {
+// historyAccumulator merges history records into per-metric series.
+//
+// The boot loader feeds it up to a full chunk of records, so it appends
+// samples directly into growing slices instead of allocating a message per
+// record. The scratch map is reused across records to keep per-record
+// allocations at zero once warm.
+type historyAccumulator struct {
+	metrics map[string]*MetricData
+	media   map[string][]MediaPoint
+
+	// scratch holds one record's samples until the record's final step is
+	// known (a "_step" item may appear after metric items).
+	scratch map[string]float64
+}
+
+// addRecord folds one history record into the accumulator.
+func (acc *historyAccumulator) addRecord(runPath string, history *spb.HistoryRecord) {
 	if history == nil {
-		return nil
+		return
 	}
 
 	step := int(history.GetStep().GetNum())
-	values := make(map[string]float64, len(history.GetItem()))
-	mediaFieldsByKey := make(map[string]map[string]string)
+	if acc.scratch == nil {
+		acc.scratch = make(map[string]float64)
+	} else {
+		clear(acc.scratch)
+	}
+	var mediaFieldsByKey map[string]map[string]string
 
 	for _, item := range history.GetItem() {
 		if item == nil {
@@ -214,6 +237,9 @@ func ParseHistory(runPath string, history *spb.HistoryRecord) tea.Msg {
 			fields := mediaFieldsByKey[mediaKey]
 			if fields == nil {
 				fields = make(map[string]string)
+				if mediaFieldsByKey == nil {
+					mediaFieldsByKey = make(map[string]map[string]string)
+				}
 				mediaFieldsByKey[mediaKey] = fields
 			}
 			fields[field] = trimJSONString(item.ValueJson)
@@ -239,30 +265,59 @@ func ParseHistory(runPath string, history *spb.HistoryRecord) tea.Msg {
 			continue
 		}
 		if val, err := strconv.ParseFloat(v, 64); err == nil {
-			values[key] = val
+			acc.scratch[key] = val
 		}
 	}
 
-	metrics := make(map[string]MetricData, len(values))
-	if len(values) > 0 {
-		x := []float64{float64(step)}
-		for k, y := range values {
-			metrics[k] = MetricData{X: x, Y: []float64{y}}
+	if len(acc.scratch) > 0 && acc.metrics == nil {
+		acc.metrics = make(map[string]*MetricData)
+	}
+	x := float64(step)
+	for k, y := range acc.scratch {
+		md := acc.metrics[k]
+		if md == nil {
+			md = &MetricData{}
+			acc.metrics[k] = md
 		}
+		md.X = append(md.X, x)
+		md.Y = append(md.Y, y)
 	}
 
-	media := parseHistoryMedia(runPath, step, mediaFieldsByKey)
+	for key, points := range parseHistoryMedia(runPath, step, mediaFieldsByKey) {
+		if acc.media == nil {
+			acc.media = make(map[string][]MediaPoint)
+		}
+		acc.media[key] = append(acc.media[key], points...)
+	}
+}
 
-	if len(metrics) == 0 && len(media) == 0 {
-		return nil
+// toMsg returns the accumulated batch as a HistoryMsg.
+// ok is false when no metrics or media were accumulated.
+func (acc *historyAccumulator) toMsg(runPath string) (HistoryMsg, bool) {
+	if len(acc.metrics) == 0 && len(acc.media) == 0 {
+		return HistoryMsg{}, false
 	}
 
 	msg := HistoryMsg{RunPath: runPath}
-	if len(metrics) > 0 {
-		msg.Metrics = metrics
+	if len(acc.metrics) > 0 {
+		msg.Metrics = make(map[string]MetricData, len(acc.metrics))
+		for k, md := range acc.metrics {
+			msg.Metrics[k] = *md
+		}
 	}
-	if len(media) > 0 {
-		msg.Media = media
+	if len(acc.media) > 0 {
+		msg.Media = acc.media
+	}
+	return msg, true
+}
+
+// ParseHistory extracts metrics and media from a history record.
+func ParseHistory(runPath string, history *spb.HistoryRecord) tea.Msg {
+	var acc historyAccumulator
+	acc.addRecord(runPath, history)
+	msg, ok := acc.toMsg(runPath)
+	if !ok {
+		return nil
 	}
 	return msg
 }
@@ -284,6 +339,9 @@ func parseHistoryMedia(
 	step int,
 	mediaFieldsByKey map[string]map[string]string,
 ) map[string][]MediaPoint {
+	if len(mediaFieldsByKey) == 0 {
+		return nil
+	}
 	media := make(map[string][]MediaPoint)
 	for mediaKey, fields := range mediaFieldsByKey {
 		switch fields["_type"] {
