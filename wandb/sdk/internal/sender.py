@@ -1148,7 +1148,7 @@ class SendManager:
     def send_history(self, record: Record) -> None:
         history = record.history
         history_dict = proto_util.dict_from_proto_list(history.item)
-        if self._settings.x_sync:
+        if self._run and self._run.sync_may_reassign_steps:
             self._ensure_history_step(history, history_dict)
         self._save_history(history_dict)
 
