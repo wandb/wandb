@@ -1,3 +1,9 @@
+# v1.107.3 (2026-08-20)
+
+* **Bug Fix**: Expand S3 operations that check for an error inside an HTTP 200 response (wave 2/4)
+* **Bug Fix**: Forward the original response body's `Closer` in S3 200-error handling instead of wrapping it in `io.NopCloser`, to avoid issues with TCP connection reuse (observed on CompleteMultipartUpload).
+* **Dependency Update**: Updated to the latest SDK module versions
+
 # v1.107.2 (2026-08-14)
 
 * **Bug Fix**: Forward the original response body's `Closer` in S3 200-error handling instead of wrapping it in `io.NopCloser`, to avoid issues with TCP connection reuse (observed on CompleteMultipartUpload).
