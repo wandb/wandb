@@ -254,10 +254,6 @@ func (rs *RightSidebar) IsFiltering() bool {
 
 // ProcessStatsMsg processes a stats message and updates the metrics.
 func (rs *RightSidebar) ProcessStatsMsg(msg StatsMsg) {
-	rs.logger.Debug(fmt.Sprintf(
-		"rightsidebar: ProcessStatsMsg: processing %d metrics (state=%v, width=%d)",
-		len(msg.Metrics), rs.animState, rs.animState.Value()))
-
 	rs.metricsGrid.ProcessStats(msg)
 }
 
