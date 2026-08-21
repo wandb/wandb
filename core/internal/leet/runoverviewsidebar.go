@@ -44,6 +44,11 @@ type RunOverviewSidebar struct {
 	// Placement and dimensions.
 	side   SidebarSide
 	height int
+
+	// headerHeight is the rendered line count of the fixed header area
+	// (top-level title + metadata block), cached by View for the height
+	// allocator so the header is not rendered twice per frame.
+	headerHeight int
 }
 
 func NewRunOverviewSidebar(
@@ -52,18 +57,22 @@ func NewRunOverviewSidebar(
 	runOverview *RunOverview,
 	side SidebarSide,
 ) *RunOverviewSidebar {
-	es := PagedList{Title: "Environment", Active: true}
-	es.SetItemsPerPage(10)
-	cs := PagedList{Title: "Config"}
-	cs.SetItemsPerPage(15)
-	ss := PagedList{Title: "Summary"}
-	ss.SetItemsPerPage(20)
+	sections := []PagedList{
+		{Title: "Environment", Active: true},
+		{Title: "Config"},
+		{Title: "Summary"},
+	}
+	for i := range sections {
+		// Provisional page size for navigation that happens before the
+		// first render computes the real section heights.
+		sections[i].SetItemsPerPage(10)
+	}
 
 	return &RunOverviewSidebar{
 		config:        config,
 		animState:     animState,
 		runOverview:   runOverview,
-		sections:      []PagedList{es, cs, ss},
+		sections:      sections,
 		activeSection: 0,
 		filter:        NewFilter(),
 		side:          side,
@@ -135,6 +144,7 @@ func (s *RunOverviewSidebar) View(height int) tea.View {
 
 	if s.runOverview != nil {
 		headerLines := s.buildHeaderLines(contentWidth)
+		s.headerHeight = 1 + len(headerLines)
 		s.updateSectionHeights()
 		sectionLines := s.buildSectionLines(contentWidth)
 
@@ -296,15 +306,10 @@ func truncateValue(value string, maxWidth int) string {
 	return value + "..."
 }
 
-// headerLineCount returns the number of lines occupied by the fixed header area,
-// including the top-level section title.
+// headerLineCount returns the number of lines occupied by the fixed header
+// area, including the top-level section title, as cached by the last render.
 func (s *RunOverviewSidebar) headerLineCount() int {
-	if s.runOverview == nil {
-		return 1
-	}
-
-	contentWidth := s.sidebarContentWidth(s.animState.Value())
-	return max(minSidebarHeaderLines, 1+len(s.buildHeaderLines(contentWidth)))
+	return max(minSidebarHeaderLines, s.headerHeight)
 }
 
 // buildHeaderLines builds the width-aware header metadata section.
