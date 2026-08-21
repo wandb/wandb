@@ -139,6 +139,20 @@ type MediaPane struct {
 	renderKeys []mediaRenderKey
 	// prepareCh wakes the Bubble Tea command that prepares visible Kitty images.
 	prepareCh chan struct{}
+
+	// snap caches store-derived views (keys, per-series and union X values)
+	// for one store generation. The pane reads these on every frame; without
+	// the cache each read clones entire series from the store.
+	snap mediaSnapshot
+}
+
+// mediaSnapshot holds cached views of a MediaStore at one generation.
+type mediaSnapshot struct {
+	store   *MediaStore
+	gen     uint64
+	keys    []string
+	seriesX map[string][]float64
+	unionX  []float64
 }
 
 func NewMediaPane(animState *AnimatedValue, gridConfig func() (rows, cols int)) *MediaPane {
@@ -185,10 +199,6 @@ func (p *MediaPane) Init() tea.Cmd {
 }
 
 func (p *MediaPane) SetStore(store *MediaStore) {
-	if p.store == store {
-		p.syncState()
-		return
-	}
 	p.store = store
 	p.syncState()
 }
@@ -349,11 +359,29 @@ func (p *MediaPane) syncState() {
 	}
 }
 
-func (p *MediaPane) seriesKeys() []string {
+// refreshSnapshot brings the cached store views up to date. It is cheap when
+// the store hasn't changed since the last call (the per-frame case).
+func (p *MediaPane) refreshSnapshot() {
 	if p.store == nil {
-		return nil
+		p.snap = mediaSnapshot{}
+		return
 	}
-	return p.store.SeriesKeys()
+	gen := p.store.Generation()
+	if p.snap.store == p.store && p.snap.gen == gen {
+		return
+	}
+	p.snap = mediaSnapshot{
+		store:   p.store,
+		gen:     gen,
+		keys:    p.store.SeriesKeys(),
+		seriesX: make(map[string][]float64),
+		unionX:  p.store.XValues(),
+	}
+}
+
+func (p *MediaPane) seriesKeys() []string {
+	p.refreshSnapshot()
+	return p.snap.keys
 }
 
 func (p *MediaPane) paginationGrid() (rows, cols int) {
@@ -371,7 +399,13 @@ func (p *MediaPane) seriesXValues(key string) []float64 {
 	if p.store == nil {
 		return nil
 	}
-	return p.store.SeriesXValues(key)
+	p.refreshSnapshot()
+	if xs, ok := p.snap.seriesX[key]; ok {
+		return xs
+	}
+	xs := p.store.SeriesXValues(key)
+	p.snap.seriesX[key] = xs
+	return xs
 }
 
 func (p *MediaPane) currentXForSeries(key string) (float64, bool) {
@@ -672,7 +706,8 @@ func (p *MediaPane) unionXValues() []float64 {
 	if p.store == nil {
 		return nil
 	}
-	return p.store.XValues()
+	p.refreshSnapshot()
+	return p.snap.unionX
 }
 
 // linkedX returns the shared cursor's X value on the union timeline.

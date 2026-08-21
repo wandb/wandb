@@ -44,6 +44,12 @@ type RunOverviewSidebar struct {
 	// Placement and dimensions.
 	side   SidebarSide
 	height int
+
+	// syncedOverview/syncedGen identify the overview state the sections were
+	// last built from, letting Sync skip the O(config+summary) re-derivation
+	// when called with unchanged data (the workspace syncs every frame).
+	syncedOverview *RunOverview
+	syncedGen      uint64
 }
 
 func NewRunOverviewSidebar(
@@ -173,10 +179,16 @@ func (s *RunOverviewSidebar) SetRunOverview(ro *RunOverview) {
 // Sync synchronizes section view with the s.runOverview.
 //
 // It pulls data from the model and updates UI sections.
+// A no-op when the overview data hasn't changed since the last sync.
 func (s *RunOverviewSidebar) Sync() {
 	if s.runOverview == nil {
 		return
 	}
+	if s.syncedOverview == s.runOverview && s.syncedGen == s.runOverview.generation() {
+		return
+	}
+	s.syncedOverview = s.runOverview
+	s.syncedGen = s.runOverview.generation()
 
 	hadActiveSection := s.hasActiveSection()
 	var selectedKey string

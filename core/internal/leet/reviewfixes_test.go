@@ -10,7 +10,35 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/wandb/wandb/core/internal/observability"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
+
+func summaryRecordsForTest(key, valueJSON string) []*spb.SummaryRecord {
+	return []*spb.SummaryRecord{{
+		Update: []*spb.SummaryItem{{NestedKey: []string{key}, ValueJson: valueJSON}},
+	}}
+}
+
+// Sync must observe overview mutations made after a previous Sync
+// (the sidebar skips syncs while the data generation is unchanged).
+func TestRunOverviewSidebarSyncSeesNewData(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := NewConfigManager(filepath.Join(t.TempDir(), "cfg.json"), logger)
+
+	ro := NewRunOverview()
+	sb := NewRunOverviewSidebar(cfg, NewAnimatedValue(true, SidebarMinWidth), ro, SidebarSideLeft)
+
+	ro.ProcessRunMsg(RunMsg{ID: "id-1", Project: "p"})
+	sb.Sync()
+	sb.Sync() // exercise the skip path
+
+	ro.ProcessSummaryMsg(summaryRecordsForTest("loss", "0.5"))
+	sb.Sync()
+
+	if len(sb.sections[2].Items) == 0 {
+		t.Fatal("summary section empty after post-sync mutation")
+	}
+}
 
 // A same-size resize must not mark system charts dirty; the hosting views
 // resize on every frame.
