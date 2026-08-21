@@ -1506,8 +1506,15 @@ func (w *Workspace) renderRunLines(contentWidth int) []string {
 			mark = PinnedRunMark
 		}
 
+		// A live run's mark breathes: its color fades all the way to the
+		// terminal background ("not filled") and back to the run color.
+		prefixStyle := lipgloss.NewStyle().Foreground(runColor)
+		if run := w.runsByKey[runKey]; run != nil && run.state == RunStateRunning {
+			prefixStyle = prefixStyle.Foreground(runMarkPulseColor(runColor, time.Now()))
+		}
+
 		// Render prefix without background.
-		prefix := lipgloss.NewStyle().Foreground(runColor).Render(mark + " ")
+		prefix := prefixStyle.Render(mark + " ")
 		prefixWidth := lipgloss.Width(prefix)
 
 		// Apply subtle muting to unselected/unpinned runs
