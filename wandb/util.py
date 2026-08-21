@@ -673,6 +673,10 @@ def json_friendly_val(val: Any) -> Any:
         )
         return converted
     val, _ = json_friendly(val)
+    # A single-element NumPy array is unwrapped to a NumPy scalar above.
+    # Normalize that scalar before the non-builtin fallback stringifies it.
+    if np and isinstance(val, np.generic):
+        val, _ = json_friendly(val)
     if isinstance(val, Sequence) and not isinstance(val, str):
         converted = []
         for value in val:
