@@ -74,6 +74,11 @@ fragment NoOpActionFields on NoOpTriggeredAction {
   noOp # GraphQL doesn't support empty objects, so this should be an ignored placeholder field
 }
 
+fragment AriaActionFields on ARIATriggeredAction {
+  __typename
+  prompt
+}
+
 # ------------------------------------------------------------------------------
 fragment TriggerFields on Trigger {
   __typename
@@ -96,10 +101,12 @@ fragment TriggerFields on Trigger {
     ...FilterEventFields
   }
   action: triggeredAction {
+    __typename
     ...QueueJobActionFields
     ...NotificationActionFields
     ...GenericWebhookActionFields
     ...NoOpActionFields
+    ...AriaActionFields
   }
 }
 

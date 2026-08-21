@@ -3017,6 +3017,8 @@ pub enum ServerFeature {
     /// Indicates that the server supports the enqueueSweepRun mutation, used by
     /// the local sweep scheduler to enqueue runs.
     SweepsLocalScheduler = 35,
+    /// Indicates that the server supports automation action ARIA.
+    AutomationActionAria = 36,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -3085,6 +3087,7 @@ impl ServerFeature {
             Self::AutomationsOnOrganization => "AUTOMATIONS_ON_ORGANIZATION",
             Self::FilestreamGzip => "FILESTREAM_GZIP",
             Self::SweepsLocalScheduler => "SWEEPS_LOCAL_SCHEDULER",
+            Self::AutomationActionAria => "AUTOMATION_ACTION_ARIA",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -3158,6 +3161,7 @@ impl ServerFeature {
             "AUTOMATIONS_ON_ORGANIZATION" => Some(Self::AutomationsOnOrganization),
             "FILESTREAM_GZIP" => Some(Self::FilestreamGzip),
             "SWEEPS_LOCAL_SCHEDULER" => Some(Self::SweepsLocalScheduler),
+            "AUTOMATION_ACTION_ARIA" => Some(Self::AutomationActionAria),
             _ => None,
         }
     }

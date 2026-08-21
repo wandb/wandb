@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Annotated, Any, TypeVar
+from types import UnionType
+from typing import Annotated, Any, TypeVar, Union, get_args, get_origin
 
 from pydantic import BeforeValidator, Json, PlainSerializer
 
@@ -9,6 +10,42 @@ from wandb._filters import And, MongoLikeFilter, Or, simplify_expr
 from wandb._pydantic import to_json
 
 T = TypeVar("T")
+
+
+def payload_typename(v: Any) -> str | None:
+    """Return a GraphQL `__typename` from a dict or parsed model, if present."""
+    if isinstance(v, dict):
+        t = v.get("__typename", v.get("typename__"))
+        return t if isinstance(t, str) else None
+    t = getattr(v, "typename__", None)
+    return t if isinstance(t, str) else None
+
+
+def payload_event_type(v: Any) -> str | None:
+    """Return a saved automation `eventType` from a dict or parsed model, if present."""
+    if isinstance(v, dict):
+        t = v.get("eventType", v.get("event_type"))
+    else:
+        t = getattr(v, "event_type", None)
+    if isinstance(t, Enum):
+        return str(t.value)
+    return t if isinstance(t, str) else None
+
+
+def annotated_union_types(hint: Any) -> tuple[type, ...]:
+    """Unwrap `Annotated[A | B | ..., ...]` into the inner model classes."""
+    args = get_args(hint)
+    if not args:
+        return ()
+    origin = get_origin(args[0])
+    members = get_args(args[0]) if origin in {Union, UnionType} else (args[0],)
+    types: list[type] = []
+    for member in members:
+        inner = member
+        while get_origin(inner) is Annotated:
+            inner = get_args(inner)[0]
+        types.append(inner)
+    return tuple(types)
 
 
 def ensure_json(v: Any) -> Any:
@@ -112,10 +149,12 @@ def parse_saved_action(v: Any) -> Any:
     """If necessary (and possible), convert the object to a saved action."""
     from .actions import (
         DoNothing,
+        SavedAriaAction,
         SavedNoOpAction,
         SavedNotificationAction,
         SavedWebhookAction,
         SendNotification,
+        SendPromptToAria,
         SendWebhook,
     )
 
@@ -126,6 +165,8 @@ def parse_saved_action(v: Any) -> Any:
             return SavedWebhookAction(integration={"id": id_}, **v.model_dump())
         case DoNothing():
             return SavedNoOpAction(**v.model_dump())
+        case SendPromptToAria():
+            return SavedAriaAction(**v.model_dump())
         case _:
             return v
 
@@ -134,10 +175,12 @@ def parse_input_action(v: Any) -> Any:
     """If necessary (and possible), convert the object to an input action."""
     from .actions import (
         DoNothing,
+        SavedAriaAction,
         SavedNoOpAction,
         SavedNotificationAction,
         SavedWebhookAction,
         SendNotification,
+        SendPromptToAria,
         SendWebhook,
     )
 
@@ -148,6 +191,8 @@ def parse_input_action(v: Any) -> Any:
             return SendWebhook(integration_id=integration.id, **v.model_dump())
         case SavedNoOpAction():
             return DoNothing(**v.model_dump())
+        case SavedAriaAction():
+            return SendPromptToAria(**v.model_dump())
         case _:
             return v
 

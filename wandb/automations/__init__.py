@@ -1,4 +1,11 @@
-from .actions import ActionType, DoNothing, SendNotification, SendWebhook
+from .actions import (
+    ActionType,
+    DoNothing,
+    SavedUnknownAction,
+    SendNotification,
+    SendPromptToAria,
+    SendWebhook,
+)
 from .automations import Automation, NewAutomation
 from .events import (
     ArtifactEvent,
@@ -18,6 +25,7 @@ from .events import (
     OnUnlinkArtifact,
     RunEvent,
     RunStateFilter,
+    SavedUnknownEvent,
 )
 from .integrations import Integration, SlackIntegration, WebhookIntegration
 from .scopes import (
@@ -61,7 +69,10 @@ __all__ = [
     "ActionType",  # doc:exclude
     "SendNotification",
     "SendWebhook",
+    "SendPromptToAria",
     "DoNothing",
+    "SavedUnknownAction",
+    "SavedUnknownEvent",
     # Automations
     "Automation",
     "NewAutomation",

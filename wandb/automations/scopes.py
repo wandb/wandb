@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BeforeValidator, Discriminator, Field
+from pydantic import BeforeValidator, Discriminator, Field, Tag
 
 from wandb._pydantic import GQLBase
 
@@ -14,7 +14,7 @@ from ._generated import (
     EntityScopeFields,
     ProjectScopeFields,
 )
-from ._validators import LenientStrEnum, parse_scope
+from ._validators import LenientStrEnum, parse_scope, payload_typename
 
 
 # NOTE: Re-defined publicly with a more readable name for easier access
@@ -100,12 +100,42 @@ EntityScope = Annotated[
 """Type hint for a scope defined by a team or org Entity."""
 
 
+class SavedUnknownScope(GQLBase, extra="allow"):
+    """A saved automation scope whose GraphQL type this SDK version does not model."""
+
+    typename__: Annotated[str, Field(alias="__typename")] = "UnknownScope"
+
+
 AutomationScope = Annotated[
     ArtifactCollectionScope | _RegistryOrProjectScope | EntityScope,
     BeforeValidator(parse_scope),
     Discriminator("typename__"),
 ]
 """Type hint for any allowed scope for an automation."""
+
+_KNOWN_SCOPE_TYPENAMES = frozenset(
+    {
+        "ArtifactSequence",
+        "ArtifactPortfolio",
+        "Project",
+        "Entity",
+    }
+)
+_UNKNOWN_SCOPE_TAG = "unknown"
+
+
+def _saved_scope_discriminator(v: Any) -> str:
+    t = payload_typename(v)
+    if t is None or t in _KNOWN_SCOPE_TYPENAMES:
+        return "known"
+    return _UNKNOWN_SCOPE_TAG
+
+
+SavedTriggerScope = Annotated[
+    Annotated[AutomationScope, Tag("known")]
+    | Annotated[SavedUnknownScope, Tag(_UNKNOWN_SCOPE_TAG)],
+    Discriminator(_saved_scope_discriminator),
+]
 
 # for runtime type checks
 AutomationScopeTypes = AutomationScope.__origin__  # type: ignore[attr-defined]
