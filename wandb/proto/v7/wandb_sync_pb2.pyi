@@ -4,8 +4,7 @@ from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
-from collections.abc import Iterable as _Iterable, Mapping as _Mapping
-from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
+from typing import ClassVar as _ClassVar, Iterable as _Iterable, Mapping as _Mapping, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
@@ -36,7 +35,7 @@ class ServerInitSyncRequest(_message.Message):
     new_run_id: str
     new_job_type: str
     tag_replacements: _containers.ScalarMap[str, str]
-    def __init__(self, path: _Optional[_Iterable[str]] = ..., cwd: _Optional[str] = ..., live: _Optional[bool] = ..., settings: _Optional[_Union[_wandb_settings_pb2.Settings, _Mapping]] = ..., new_entity: _Optional[str] = ..., new_project: _Optional[str] = ..., new_run_id: _Optional[str] = ..., new_job_type: _Optional[str] = ..., tag_replacements: _Optional[_Mapping[str, str]] = ...) -> None: ...
+    def __init__(self, path: _Optional[_Iterable[str]] = ..., cwd: _Optional[str] = ..., live: bool = ..., settings: _Optional[_Union[_wandb_settings_pb2.Settings, _Mapping]] = ..., new_entity: _Optional[str] = ..., new_project: _Optional[str] = ..., new_run_id: _Optional[str] = ..., new_job_type: _Optional[str] = ..., tag_replacements: _Optional[_Mapping[str, str]] = ...) -> None: ...
 
 class ServerInitSyncResponse(_message.Message):
     __slots__ = ("id",)
