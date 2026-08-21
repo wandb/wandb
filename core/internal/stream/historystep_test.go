@@ -19,27 +19,29 @@ type historyStepFixtures struct {
 	RunSummary *runsummary.RunSummary
 }
 
-func makeHistoryStepTracker(
-	t *testing.T,
-	shared bool,
-	serverSideDerivedSummary bool,
-) historyStepFixtures {
+type trackerConfig struct {
+	shared           bool
+	withReassignFlag bool
+}
+
+func makeHistoryStepTracker(t *testing.T, cfg trackerConfig) historyStepFixtures {
 	t.Helper()
 	logger := observabilitytest.NewTestLogger(t)
 	settings := wbsettings.From(&spb.Settings{
 		RunId:   &wrapperspb.StringValue{Value: "run1"},
-		XShared: &wrapperspb.BoolValue{Value: shared},
-		XServerSideDerivedSummary: &wrapperspb.BoolValue{
-			Value: serverSideDerivedSummary,
-		},
+		XShared: &wrapperspb.BoolValue{Value: cfg.shared},
 	})
 	runSummary := runsummary.New()
+	tracker := (&stream.HistoryStepTrackerFactory{
+		Logger:     logger,
+		Settings:   settings,
+		RunSummary: runSummary,
+	}).New()
+	if cfg.withReassignFlag {
+		tracker.SeedSyncMayReassignSteps()
+	}
 	return historyStepFixtures{
-		Tracker: (&stream.HistoryStepTrackerFactory{
-			Logger:     logger,
-			Settings:   settings,
-			RunSummary: runSummary,
-		}).New(),
+		Tracker:    tracker,
 		RunSummary: runSummary,
 	}
 }
@@ -67,7 +69,7 @@ func summaryStepValue(t *testing.T, rs *runsummary.RunSummary) string {
 }
 
 func TestHistoryStepTracker_AssignsMissingStep(t *testing.T) {
-	x := makeHistoryStepTracker(t, false /*shared*/, false /*serverSideDerivedSummary*/)
+	x := makeHistoryStepTracker(t, trackerConfig{withReassignFlag: true})
 
 	history := &spb.HistoryRecord{
 		Item: []*spb.HistoryItem{{
@@ -86,7 +88,7 @@ func TestHistoryStepTracker_AssignsMissingStep(t *testing.T) {
 }
 
 func TestHistoryStepTracker_PreservesExistingStep(t *testing.T) {
-	x := makeHistoryStepTracker(t, false /*shared*/, false /*serverSideDerivedSummary*/)
+	x := makeHistoryStepTracker(t, trackerConfig{withReassignFlag: true})
 
 	history := &spb.HistoryRecord{
 		Item: []*spb.HistoryItem{
@@ -104,7 +106,7 @@ func TestHistoryStepTracker_PreservesExistingStep(t *testing.T) {
 }
 
 func TestHistoryStepTracker_RewritesStepBelowStartingStep(t *testing.T) {
-	x := makeHistoryStepTracker(t, false /*shared*/, false /*serverSideDerivedSummary*/)
+	x := makeHistoryStepTracker(t, trackerConfig{withReassignFlag: true})
 	x.Tracker.SeedStartingStep(2)
 
 	history := &spb.HistoryRecord{
@@ -120,7 +122,7 @@ func TestHistoryStepTracker_RewritesStepBelowStartingStep(t *testing.T) {
 }
 
 func TestHistoryStepTracker_OfflineResumedSegmentRewritesSteps(t *testing.T) {
-	x := makeHistoryStepTracker(t, false /*shared*/, false /*serverSideDerivedSummary*/)
+	x := makeHistoryStepTracker(t, trackerConfig{withReassignFlag: true})
 	x.Tracker.SeedStartingStep(2)
 
 	for _, tc := range []struct {
@@ -143,7 +145,7 @@ func TestHistoryStepTracker_OfflineResumedSegmentRewritesSteps(t *testing.T) {
 }
 
 func TestHistoryStepTracker_AppliesRecordStep(t *testing.T) {
-	x := makeHistoryStepTracker(t, false /*shared*/, false /*serverSideDerivedSummary*/)
+	x := makeHistoryStepTracker(t, trackerConfig{withReassignFlag: true})
 
 	history := &spb.HistoryRecord{
 		Item: []*spb.HistoryItem{{
@@ -162,7 +164,7 @@ func TestHistoryStepTracker_AppliesRecordStep(t *testing.T) {
 }
 
 func TestHistoryStepTracker_RewritesRecordStepBelowStartingStep(t *testing.T) {
-	x := makeHistoryStepTracker(t, false /*shared*/, false /*serverSideDerivedSummary*/)
+	x := makeHistoryStepTracker(t, trackerConfig{withReassignFlag: true})
 	x.Tracker.SeedStartingStep(2)
 
 	history := &spb.HistoryRecord{
@@ -183,7 +185,7 @@ func TestHistoryStepTracker_RewritesRecordStepBelowStartingStep(t *testing.T) {
 }
 
 func TestHistoryStepTracker_RewritesRecordStepBelowRunningStep(t *testing.T) {
-	x := makeHistoryStepTracker(t, false /*shared*/, false /*serverSideDerivedSummary*/)
+	x := makeHistoryStepTracker(t, trackerConfig{withReassignFlag: true})
 
 	first := &spb.HistoryRecord{Step: &spb.HistoryStep{Num: 5}}
 	x.Tracker.ApplyHistoryStep(first)
@@ -198,7 +200,7 @@ func TestHistoryStepTracker_RewritesRecordStepBelowRunningStep(t *testing.T) {
 }
 
 func TestHistoryStepTracker_DerivesSummaryStep(t *testing.T) {
-	x := makeHistoryStepTracker(t, false /*shared*/, false /*serverSideDerivedSummary*/)
+	x := makeHistoryStepTracker(t, trackerConfig{withReassignFlag: true})
 
 	history := &spb.HistoryRecord{
 		Item: []*spb.HistoryItem{{
@@ -213,7 +215,7 @@ func TestHistoryStepTracker_DerivesSummaryStep(t *testing.T) {
 }
 
 func TestHistoryStepTracker_SharedModeSkipsSummaryStep(t *testing.T) {
-	x := makeHistoryStepTracker(t, true /*shared*/, false /*serverSideDerivedSummary*/)
+	x := makeHistoryStepTracker(t, trackerConfig{shared: true})
 
 	history := &spb.HistoryRecord{
 		Item: []*spb.HistoryItem{{
@@ -232,7 +234,7 @@ func TestHistoryStepTracker_SharedModeSkipsSummaryStep(t *testing.T) {
 }
 
 func TestHistoryStepTracker_PreservesForwardedAggregation(t *testing.T) {
-	x := makeHistoryStepTracker(t, false /*shared*/, false /*serverSideDerivedSummary*/)
+	x := makeHistoryStepTracker(t, trackerConfig{withReassignFlag: true})
 
 	// Simulate the handler forwarding a define_metric("acc", summary="max")
 	// aggregation of 0.9.
@@ -269,7 +271,7 @@ func TestHistoryStepTracker_PreservesForwardedAggregation(t *testing.T) {
 }
 
 func TestHistoryStepTracker_RebasedStepUpdatesSummaryStep(t *testing.T) {
-	x := makeHistoryStepTracker(t, false /*shared*/, false /*serverSideDerivedSummary*/)
+	x := makeHistoryStepTracker(t, trackerConfig{withReassignFlag: true})
 	x.Tracker.SeedStartingStep(2)
 
 	// An offline-resumed row logged with a local step of 0 is rebased forward
@@ -283,4 +285,26 @@ func TestHistoryStepTracker_RebasedStepUpdatesSummaryStep(t *testing.T) {
 	})
 
 	assert.Equal(t, "2", summaryStepValue(t, x.RunSummary))
+}
+
+// When sync_may_reassign_steps is unset, the tracker must not rewrite history
+// rows or summary _step.
+func TestHistoryStepTracker_PreservesLoggedStepsWithoutReassignFlag(t *testing.T) {
+	x := makeHistoryStepTracker(t, trackerConfig{})
+
+	history := &spb.HistoryRecord{
+		Item: []*spb.HistoryItem{
+			{NestedKey: []string{"loss"}, ValueJson: "1.23"},
+			{NestedKey: []string{"_step"}, ValueJson: "7"},
+		},
+		Step: &spb.HistoryStep{Num: 7},
+	}
+
+	updates := x.Tracker.ApplyHistoryStep(history)
+
+	assert.Nil(t, updates)
+	assert.Equal(t, "7", historyStepValue(history))
+	assert.Equal(t, int64(7), history.GetStep().GetNum())
+	assert.Empty(t, summaryStepValue(t, x.RunSummary))
+	assert.False(t, x.Tracker.MayReassignSteps())
 }
