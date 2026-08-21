@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal, get_args
+from typing import Annotated, Any, Literal
 
-from pydantic import BeforeValidator, Field
+from pydantic import BeforeValidator, Discriminator, Field, Tag
 from typing_extensions import Self, TypeVar
 
 from wandb._pydantic import GQLBase, GQLId, default_if_none
@@ -25,8 +25,9 @@ from ._generated import (
 from ._validators import (
     JsonEncoded,
     LenientStrEnum,
+    annotated_union_types,
     parse_input_action,
-    parse_saved_action,
+    payload_typename,
     upper_if_str,
 )
 from .integrations import SlackIntegration, WebhookIntegration
@@ -127,18 +128,43 @@ class SavedAriaAction(AriaActionFields, frozen=False):
     """The prompt ARIA receives when this automation is triggered."""
 
 
+class SavedUnknownAction(GQLBase, extra="allow", frozen=False):
+    """A saved action whose GraphQL type this SDK version does not model."""
+
+    typename__: Annotated[str, Field(alias="__typename")] = "UnknownTriggeredAction"
+
+
+_SAVED_ACTION_TYPENAMES = frozenset(
+    {
+        "QueueJobTriggeredAction",
+        "NotificationTriggeredAction",
+        "GenericWebhookTriggeredAction",
+        "NoOpTriggeredAction",
+        "ARIATriggeredAction",
+    }
+)
+_UNKNOWN_ACTION_TAG = "UnknownTriggeredAction"
+
+
+def _saved_action_discriminator(v: Any) -> str:
+    t = payload_typename(v)
+    if t in _SAVED_ACTION_TYPENAMES:
+        return t
+    return _UNKNOWN_ACTION_TAG
+
+
 # for type annotations
 SavedAction = Annotated[
-    SavedLaunchJobAction
-    | SavedNotificationAction
-    | SavedWebhookAction
-    | SavedNoOpAction
-    | SavedAriaAction,
-    BeforeValidator(parse_saved_action),
-    Field(discriminator="typename__"),
+    Annotated[SavedLaunchJobAction, Tag("QueueJobTriggeredAction")]
+    | Annotated[SavedNotificationAction, Tag("NotificationTriggeredAction")]
+    | Annotated[SavedWebhookAction, Tag("GenericWebhookTriggeredAction")]
+    | Annotated[SavedNoOpAction, Tag("NoOpTriggeredAction")]
+    | Annotated[SavedAriaAction, Tag("ARIATriggeredAction")]
+    | Annotated[SavedUnknownAction, Tag(_UNKNOWN_ACTION_TAG)],
+    Discriminator(_saved_action_discriminator),
 ]
 # for runtime type checks
-SavedActionTypes: tuple[type, ...] = get_args(SavedAction.__origin__)  # type: ignore[attr-defined]
+SavedActionTypes: tuple[type, ...] = annotated_union_types(SavedAction)
 
 
 # ------------------------------------------------------------------------------
@@ -243,7 +269,7 @@ InputAction = Annotated[
     Field(discriminator="action_type"),
 ]
 # for runtime type checks
-InputActionTypes: tuple[type, ...] = get_args(InputAction.__origin__)  # type: ignore[attr-defined]
+InputActionTypes: tuple[type, ...] = annotated_union_types(InputAction)
 
 __all__ = [
     "ActionType",

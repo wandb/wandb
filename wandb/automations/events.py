@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Annotated, Any, Literal, get_args
 
-from pydantic import AfterValidator, BeforeValidator, Discriminator, Field
+from pydantic import AfterValidator, BeforeValidator, Discriminator, Field, Tag
 
 from wandb._filters import And, FilterableField, MongoLikeFilter
 from wandb._pydantic import GQLBase, model_validator, pydantic_isinstance
@@ -23,6 +23,7 @@ from ._validators import (
     LenientStrEnum,
     ensure_json,
     parse_scope,
+    payload_event_type,
     wrap_mutation_event_filter,
     wrap_run_filter,
 )
@@ -197,6 +198,34 @@ class SavedEvent(FilterEventFields):  # from: FilterEventTriggeringCondition
         _WrappedSavedEventFilter | RunMetricFilter | RunStateFilter
     ]
     """The condition(s) under which this event triggers an automation."""
+
+
+class SavedUnknownEvent(GQLBase, extra="allow"):
+    """A saved triggering event whose type this SDK version does not model."""
+
+    typename__: Annotated[str, Field(alias="__typename")] = (
+        "FilterEventTriggeringCondition"
+    )
+    event_type: Annotated[str, Field(alias="eventType")]
+    filter: Any = None
+
+
+_SAVED_EVENT_TYPES = frozenset(e.value for e in EventType)
+_UNKNOWN_EVENT_TAG = "UNKNOWN_EVENT"
+
+
+def _saved_event_discriminator(v: Any) -> str:
+    event_type = payload_event_type(v)
+    if event_type is None or event_type in _SAVED_EVENT_TYPES:
+        return "known"
+    return _UNKNOWN_EVENT_TAG
+
+
+SavedTriggerEvent = Annotated[
+    Annotated[SavedEvent, Tag("known")]
+    | Annotated[SavedUnknownEvent, Tag(_UNKNOWN_EVENT_TAG)],
+    Discriminator(_saved_event_discriminator),
+]
 
 
 # ------------------------------------------------------------------------------

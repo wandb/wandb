@@ -13,8 +13,9 @@ from wandb.automations._generated import (
     AlertSeverity,
     TriggeredActionType,
 )
-from wandb.automations.actions import SavedAriaAction
-from wandb.automations.automations import Automation
+from wandb.automations.actions import SavedAriaAction, SavedNoOpAction, SavedUnknownAction
+from wandb.automations.automations import Automation, EntityAutomationsPage
+from wandb.automations.events import SavedUnknownEvent
 from wandb.sdk.wandb_alerts import AlertLevel
 
 from tests.unit_tests.test_filters._strategies import printable_text
@@ -136,6 +137,64 @@ def test_aria_action_parses_when_listing(trigger_node):
     assert isinstance(automation.action, SavedAriaAction)
     assert automation.action.prompt == "Investigate"
     assert automation.action.action_type is ActionType.ARIA
+
+
+def test_unknown_action_does_not_fail_listing_the_page(trigger_node):
+    page = {
+        "scope": {
+            "triggers": {
+                "pageInfo": {"endCursor": None, "hasNextPage": False},
+                "edges": [
+                    {
+                        "node": trigger_node(
+                            {
+                                "__typename": "ARIATriggeredAction",
+                                "prompt": "Investigate",
+                            }
+                        )
+                    },
+                    {
+                        "node": trigger_node(
+                            {
+                                "__typename": "FutureTriggeredAction",
+                                "extra": "keep me",
+                            }
+                        )
+                    },
+                ],
+            }
+        }
+    }
+    parsed = EntityAutomationsPage.model_validate(page)
+    automations = [edge.node for edge in parsed.scope.triggers.edges]
+
+    assert isinstance(automations[0].action, SavedAriaAction)
+    assert isinstance(automations[1].action, SavedUnknownAction)
+    assert automations[1].action.typename__ == "FutureTriggeredAction"
+    assert automations[1].action.extra == "keep me"
+
+
+def test_unknown_scope_does_not_fail_listing(trigger_node):
+    from wandb.automations.scopes import SavedUnknownScope
+
+    node = trigger_node({"__typename": "NoOpTriggeredAction", "noOp": True})
+    node["scope"] = {"__typename": "FutureScope", "id": "x", "name": "y"}
+    automation = Automation.model_validate(node)
+    assert isinstance(automation.scope, SavedUnknownScope)
+    assert automation.scope.typename__ == "FutureScope"
+
+
+def test_unknown_event_does_not_fail_listing_the_page(trigger_node):
+    node = trigger_node({"__typename": "NoOpTriggeredAction", "noOp": True})
+    node["event"] = {
+        "__typename": "FilterEventTriggeringCondition",
+        "eventType": "WEAVE_METRIC_THRESHOLD",
+        "filter": json.dumps({"filter": {"$or": [{"$and": []}]}}),
+    }
+    automation = Automation.model_validate(node)
+    assert isinstance(automation.event, SavedUnknownEvent)
+    assert automation.event.event_type == "WEAVE_METRIC_THRESHOLD"
+    assert isinstance(automation.action, SavedNoOpAction)
 
 
 def test_send_prompt_to_aria_is_public():
