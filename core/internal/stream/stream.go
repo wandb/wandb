@@ -21,6 +21,7 @@ import (
 	"github.com/wandb/wandb/core/internal/sharedmode"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/transactionlog"
+	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/wboperation"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -115,6 +116,7 @@ func NewStream(
 	tbHandlerFactory *tensorboard.TBHandlerFactory,
 	writerFactory *WriterFactory,
 ) *Stream {
+	logger.Info("stream: starting", "core version", version.Version)
 	symlinkDebugCore(s, string(debugCorePath))
 
 	runWork := runwork.New(BufferSize, logger)
@@ -161,18 +163,30 @@ func (s *Stream) GetSettings() *settings.Settings {
 
 // Start begins processing the stream's input records and producing outputs.
 func (s *Stream) Start() {
+	// Capability discovery is best-effort telemetry work. Keep it off the
+	// connection request loop and tie it to the run's lifetime.
 	s.wg.Add(1)
 	go func() {
+		defer s.wg.Done()
+		s.otelProxy.EnableIfSupported(
+			s.runWork.BeforeEndCtx(),
+			s.featureProvider,
+		)
+		s.logger.CaptureInfo("wandb-core")
+	}()
+
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
 		s.handler.Do(s.runWork.Chan())
-		s.wg.Done()
 	}()
 
 	maybeSavedWork := s.maybeSavingToTransactionLog(s.handler.OutChan())
 
 	s.wg.Add(1)
 	go func() {
+		defer s.wg.Done()
 		s.sender.Do(maybeSavedWork)
-		s.wg.Done()
 	}()
 
 	s.logger.Info("stream: started")

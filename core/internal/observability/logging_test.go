@@ -17,6 +17,7 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/analytics"
+	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
@@ -209,6 +210,12 @@ func captureTelemetryLog(
 	})
 	proxy := analytics.NewOpenTelemetryProxy(t.Context(), settings, "wandb-core")
 	require.NotNil(t, proxy)
+	proxy.EnableIfSupported(
+		t.Context(),
+		featurechecker.NewPreloaded(map[spb.ServerFeature]bool{
+			spb.ServerFeature_SDK_TELEMETRY_PROXY: true,
+		}),
+	)
 	recorder := analytics.NewTelemetryRecorder(
 		proxy,
 		analytics.NewTelemetryContext(),

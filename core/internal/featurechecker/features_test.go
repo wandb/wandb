@@ -27,6 +27,10 @@ func stubServerFeaturesQuery(mockGQL *gqlmock.MockClient) {
 					{
 						"name": "ARTIFACT_TAGS",
 						"isEnabled": false
+					},
+					{
+						"name": "SDK_TELEMETRY_PROXY",
+						"isEnabled": true
 					}
 				]
 			}
@@ -48,10 +52,13 @@ func TestEnabled(t *testing.T) {
 		t.Context(), spb.ServerFeature_ARTIFACT_TAGS)
 	largeFilenames := featureProvider.Enabled(
 		t.Context(), spb.ServerFeature_LARGE_FILENAMES)
+	sdkTelemetryProxy := featureProvider.Enabled(
+		t.Context(), spb.ServerFeature_SDK_TELEMETRY_PROXY)
 
 	assert.True(t, clientIDs)       // explicitly enabled
 	assert.False(t, artifactTags)   // explicitly disabled
 	assert.False(t, largeFilenames) // not in response
+	assert.True(t, sdkTelemetryProxy)
 }
 
 func TestCancellation(t *testing.T) {

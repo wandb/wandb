@@ -13,7 +13,6 @@ import (
 	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/internal/version"
 )
 
 // streamLoggerFile is a file that backs a Stream's logger.
@@ -115,8 +114,6 @@ func streamLogger(
 		telemetryRecorder,
 	).With(nil, sentryOnlyTags)
 
-	logger.CaptureInfo("wandb-core")
-	logger.Info("stream: starting", "core version", version.Version)
 	return logger
 }
 

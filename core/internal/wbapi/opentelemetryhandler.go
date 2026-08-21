@@ -16,7 +16,10 @@ type OpenTelemetryHandler struct {
 	telemetryRecorder *analytics.TelemetryRecorder
 }
 
-func NewOpenTelemetryHandler(s *settings.Settings, serviceName string) *OpenTelemetryHandler {
+func NewOpenTelemetryHandler(
+	s *settings.Settings,
+	serviceName string,
+) *OpenTelemetryHandler {
 	otelProvider := analytics.NewOpenTelemetryProxy(
 		context.Background(),
 		s,
