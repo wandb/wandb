@@ -94,6 +94,12 @@ type ChunkedBatchMsg struct {
 // HeartbeatMsg is sent periodically for live runs to ensure we don't miss data.
 type HeartbeatMsg struct{}
 
+// RunLivePulseMsg drives the single-run view's breathing live indicator.
+type RunLivePulseMsg struct{}
+
+// WorkspaceLivePulseMsg drives the workspace's breathing live indicators.
+type WorkspaceLivePulseMsg struct{}
+
 // LeftSidebarAnimationMsg is sent during left sidebar animations.
 type LeftSidebarAnimationMsg struct{}
 
