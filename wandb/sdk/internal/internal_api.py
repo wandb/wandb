@@ -308,7 +308,7 @@ class Api:
         self._request_proxies = dict(proxies or {})
         self._service_api = self._new_service_api()
         self._telemetry_recorder = telemetry_recorder or TelemetryRecorder(
-            open_telemetry_proxy=OpenTelemetryProxy(
+            open_telemetry_proxy=OpenTelemetryProxy.from_settings(
                 settings=wandb_setup.singleton().settings.model_copy(),
             ),
         )

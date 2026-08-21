@@ -271,7 +271,7 @@ class SendManager:
         self._record_exit = None
         self._exit_result = None
 
-        open_telemetry_proxy = OpenTelemetryProxy(settings=settings)
+        open_telemetry_proxy = OpenTelemetryProxy.from_settings(settings=settings)
         self._telemetry_recorder = TelemetryRecorder(
             open_telemetry_proxy=open_telemetry_proxy
         )

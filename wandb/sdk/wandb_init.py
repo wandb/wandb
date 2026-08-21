@@ -1458,7 +1458,7 @@ def init(  # noqa: C901
 
     # Create a noop telemetry recorder while we do not know the user's credentials
     # once that is resolve we can create a proper telemetry recorder.
-    open_telemetry_proxy = OpenTelemetryProxy(settings=init_settings)
+    open_telemetry_proxy = OpenTelemetryProxy.from_settings(settings=init_settings)
     telemetry_recorder = TelemetryRecorder(open_telemetry_proxy=open_telemetry_proxy)
 
     try:
@@ -1472,7 +1472,7 @@ def init(  # noqa: C901
         # Create a telemetry recorder once we know the user's credentials
         # Anything after this point will actually record telemetry.
         telemetry_recorder = TelemetryRecorder(
-            open_telemetry_proxy=OpenTelemetryProxy(settings=run_settings)
+            open_telemetry_proxy=OpenTelemetryProxy.from_settings(settings=run_settings)
         )
 
         if isinstance(run_settings.reinit, bool):

@@ -1799,7 +1799,7 @@ def launch(
     api = _get_cling_api()
     get_sentry().configure_scope(process_context="launch_cli")
     settings = wandb_setup.singleton().settings.model_copy()
-    open_telemetry_proxy = OpenTelemetryProxy(settings=settings)
+    open_telemetry_proxy = OpenTelemetryProxy.from_settings(settings=settings)
     telemetry_recorder = TelemetryRecorder(open_telemetry_proxy=open_telemetry_proxy)
 
     if run_async and queue is not None:
@@ -2045,7 +2045,7 @@ def launch_agent(
 
     api = _get_cling_api()
     settings = wandb_setup.singleton().settings.model_copy()
-    open_telemetry_proxy = OpenTelemetryProxy(settings=settings)
+    open_telemetry_proxy = OpenTelemetryProxy.from_settings(settings=settings)
     telemetry_recorder = TelemetryRecorder(open_telemetry_proxy=open_telemetry_proxy)
     get_sentry().configure_scope(process_context="launch_agent")
     agent_config, api = _launch.resolve_agent_config(
@@ -2192,7 +2192,7 @@ def scheduler(
         api = InternalApi(reset=True)
 
     settings = wandb_setup.singleton().settings.model_copy()
-    open_telemetry_proxy = OpenTelemetryProxy(settings=settings)
+    open_telemetry_proxy = OpenTelemetryProxy.from_settings(settings=settings)
     telemetry_recorder = TelemetryRecorder(open_telemetry_proxy=open_telemetry_proxy)
     get_sentry().configure_scope(process_context="sweep_scheduler")
     wandb.termlog("Starting a Launch Scheduler 🚀")

@@ -1,5 +1,6 @@
 """telemetry lib tests."""
 
+import threading
 from unittest.mock import MagicMock
 
 import pytest
@@ -7,9 +8,12 @@ from wandb import env
 from wandb.analytics.opentelemetry import opentelemetry_proxy
 from wandb.analytics.opentelemetry.opentelemetry_proxy import (
     LowCardinalityAttributes,
+    OpenTelemetryProxy,
     TelemetryRecorder,
+    disable,
 )
 from wandb.sdk.lib import telemetry
+from wandb.sdk.wandb_settings import Settings
 
 
 def test_telemetry_parse():
@@ -26,7 +30,7 @@ def test_telemetry_parse():
     assert pf(["@wandbcode{j=i-p,"]) == dict(j="i_p")
 
 
-def test_disabled_telemetry_does_not_publish(monkeypatch):
+def test_no_error_reporting_telemetry_does_not_publish(monkeypatch):
     monkeypatch.setattr(env, "error_reporting_enabled", lambda: False)
     open_telemetry_proxy = MagicMock()
     recorder = TelemetryRecorder(open_telemetry_proxy=open_telemetry_proxy)
@@ -38,27 +42,32 @@ def test_disabled_telemetry_does_not_publish(monkeypatch):
     open_telemetry_proxy.log.assert_not_called()
 
 
-def test_telemetry_without_service_api_does_not_publish(monkeypatch):
-    counter_request = MagicMock()
-    log_request = MagicMock()
-    api_request = MagicMock()
-    monkeypatch.setattr(
-        opentelemetry_proxy, "OpenTelemetryCounterRequest", counter_request
-    )
-    monkeypatch.setattr(opentelemetry_proxy, "OpenTelemetryLogRequest", log_request)
-    monkeypatch.setattr(opentelemetry_proxy, "ApiRequest", api_request)
+def test_disabled_telemetry_does_not_publish(monkeypatch):
+    monkeypatch.setattr(env, "error_reporting_enabled", lambda: True)
+    monkeypatch.setattr(opentelemetry_proxy, "_disabled", threading.Event())
 
-    recorder = TelemetryRecorder()
+    disable()
 
-    # even if we cannot publish, calling the methods should still be safe
+    open_telemetry_proxy = OpenTelemetryProxy.from_settings(settings=Settings())
+    assert open_telemetry_proxy is None
+
+    recorder = TelemetryRecorder(open_telemetry_proxy=open_telemetry_proxy)
+
+    recorder.increment_counter_and_log_event("test")
+    recorder.exception(Exception("test"))
+
+
+def test_telemetry_without_proxy_does_not_publish():
+    open_telemetry_proxy = MagicMock()
+    recorder = TelemetryRecorder(open_telemetry_proxy=None)
+
     recorder.increment_counter("test_counter", LowCardinalityAttributes())
     recorder.log("test log")
     recorder.increment_counter_and_log_event("test event")
     recorder.exception(Exception("test exception"))
 
-    counter_request.assert_not_called()
-    log_request.assert_not_called()
-    api_request.assert_not_called()
+    open_telemetry_proxy.increment_counter.assert_not_called()
+    open_telemetry_proxy.log.assert_not_called()
 
 
 def test_errors_do_not_propagate_from_telemetry(monkeypatch):
