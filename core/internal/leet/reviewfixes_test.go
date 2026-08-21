@@ -19,47 +19,6 @@ func summaryRecordsForTest(key, valueJSON string) []*spb.SummaryRecord {
 	}}
 }
 
-// Sync must observe overview mutations made after a previous Sync
-// (the sidebar skips syncs while the data generation is unchanged).
-func TestRunOverviewSidebarSyncSeesNewData(t *testing.T) {
-	logger := observability.NewNoOpLogger()
-	cfg := NewConfigManager(filepath.Join(t.TempDir(), "cfg.json"), logger)
-
-	ro := NewRunOverview()
-	sb := NewRunOverviewSidebar(cfg, NewAnimatedValue(true, SidebarMinWidth), ro, SidebarSideLeft)
-
-	ro.ProcessRunMsg(RunMsg{ID: "id-1", Project: "p"})
-	sb.Sync()
-	sb.Sync() // exercise the skip path
-
-	ro.ProcessSummaryMsg(summaryRecordsForTest("loss", "0.5"))
-	sb.Sync()
-
-	if len(sb.sections[2].Items) == 0 {
-		t.Fatal("summary section empty after post-sync mutation")
-	}
-}
-
-// A same-size resize must not mark system charts dirty; the hosting views
-// resize on every frame.
-func TestTimeSeriesLineChartSameSizeResizeStaysClean(t *testing.T) {
-	c := NewTimeSeriesLineChart(&TimeSeriesLineChartParams{
-		Width:  40,
-		Height: 10,
-		Def:    &MetricDef{Name: "CPU (%)", Unit: UnitPercent, MaxY: 100},
-		Now:    time.Now(),
-	})
-	c.AddDataPoint("cpu", time.Now().Unix(), 42)
-	c.DrawIfNeeded()
-	if c.dirty {
-		t.Fatal("chart dirty after draw")
-	}
-	c.Resize(40, 10)
-	if c.dirty {
-		t.Fatal("same-size resize marked chart dirty")
-	}
-}
-
 // The shared system-metrics filter must be reapplied to a run's grid when the
 // highlighted run changes; each grid caches its own filtered chart set.
 func TestWorkspaceSystemFilterReappliedOnRunSwitch(t *testing.T) {
@@ -119,5 +78,66 @@ func TestCtrlCQuitsDuringFilterInput(t *testing.T) {
 	r.metricsGrid.EnterFilterMode()
 	if cmd := r.handleKeyPressMsg(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}); cmd == nil {
 		t.Fatal("run: ctrl+c in filter mode returned no command")
+	}
+}
+
+// Sync must observe overview mutations made after a previous Sync
+// (the sidebar skips syncs while the data generation is unchanged).
+func TestRunOverviewSidebarSyncSeesNewData(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := NewConfigManager(filepath.Join(t.TempDir(), "cfg.json"), logger)
+
+	ro := NewRunOverview()
+	sb := NewRunOverviewSidebar(cfg, NewAnimatedValue(true, SidebarMinWidth), ro, SidebarSideLeft)
+
+	ro.ProcessRunMsg(RunMsg{ID: "id-1", Project: "p"})
+	sb.Sync()
+	sb.Sync() // exercise the skip path
+
+	ro.ProcessSummaryMsg(summaryRecordsForTest("loss", "0.5"))
+	sb.Sync()
+
+	if len(sb.sections[2].Items) == 0 {
+		t.Fatal("summary section empty after post-sync mutation")
+	}
+}
+
+// A same-size resize must not mark system charts dirty; the hosting views
+// resize on every frame.
+func TestTimeSeriesLineChartSameSizeResizeStaysClean(t *testing.T) {
+	c := NewTimeSeriesLineChart(&TimeSeriesLineChartParams{
+		Width:  40,
+		Height: 10,
+		Def:    &MetricDef{Name: "CPU (%)", Unit: UnitPercent, MaxY: 100},
+		Now:    time.Now(),
+	})
+	c.AddDataPoint("cpu", time.Now().Unix(), 42)
+	c.DrawIfNeeded()
+	if c.dirty {
+		t.Fatal("chart dirty after draw")
+	}
+	c.Resize(40, 10)
+	if c.dirty {
+		t.Fatal("same-size resize marked chart dirty")
+	}
+}
+
+// Close must unblock the prepare command and be idempotent.
+func TestMediaPaneCloseUnblocksPrepare(t *testing.T) {
+	p := NewMediaPane(NewAnimatedValue(true, mediaPaneMinHeight), func() (int, int) { return 1, 1 })
+
+	done := make(chan tea.Msg, 1)
+	go func() { done <- p.waitForPrepare()() }()
+
+	p.Close()
+	p.Close() // idempotent
+
+	select {
+	case msg := <-done:
+		if msg != nil {
+			t.Fatalf("expected nil msg from closed prepare wait, got %T", msg)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("waitForPrepare still blocked after Close")
 	}
 }

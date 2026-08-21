@@ -1,6 +1,7 @@
 package leet
 
 import (
+	"cmp"
 	"fmt"
 	"image"
 	_ "image/gif"
@@ -139,6 +140,9 @@ type MediaPane struct {
 	renderKeys []mediaRenderKey
 	// prepareCh wakes the Bubble Tea command that prepares visible Kitty images.
 	prepareCh chan struct{}
+	// closed marks the pane shut down: the prepare channel is closed and no
+	// further prepare requests may be sent.
+	closed bool
 
 	// snap caches store-derived views (keys, per-series and union X values)
 	// for one store generation. The pane reads these on every frame; without
@@ -216,19 +220,35 @@ func (p *MediaPane) handlePictureMsg(msg tea.Msg) tea.Cmd {
 
 func (p *MediaPane) waitForPrepare() tea.Cmd {
 	return func() tea.Msg {
-		<-p.prepareCh
+		if _, ok := <-p.prepareCh; !ok {
+			return nil
+		}
 		return mediaPanePrepareMsg{pane: p}
 	}
 }
 
 func (p *MediaPane) requestRenderedMediaPrepare() {
-	if p.renderer.Mode() != picture.PictureKitty {
+	if p.closed || p.renderer.Mode() != picture.PictureKitty {
 		return
 	}
 	select {
 	case p.prepareCh <- struct{}{}:
 	default:
 	}
+}
+
+// Close releases the pane's background prepare command and cached images.
+//
+// Without it, every pane's Init leaves a goroutine blocked on prepareCh
+// forever, pinning the renderer's decoded images. Safe to call multiple
+// times; must be called from the update goroutine.
+func (p *MediaPane) Close() {
+	if p.closed {
+		return
+	}
+	p.closed = true
+	close(p.prepareCh)
+	p.renderer.releaseAll()
 }
 
 func (p *MediaPane) handlePrepareMsg() tea.Cmd {
@@ -1206,7 +1226,16 @@ type mediaImageRenderer struct {
 	errors     map[string]mediaRenderError
 	rendered   map[mediaRenderKey]string
 	pictures   map[mediaRenderKey]*mediaPicture
+
+	// lastUsed tracks decode recency so Park can keep a small LRU of
+	// off-screen images. Without it, scrubbing re-decodes the previous
+	// image from disk on every step, stalling the UI on large files.
+	lastUsed map[string]uint64
+	useTick  uint64
 }
+
+// mediaDecodedCacheSize bounds how many off-screen decoded images Park keeps.
+const mediaDecodedCacheSize = 16
 
 func newMediaImageRenderer() *mediaImageRenderer {
 	return &mediaImageRenderer{
@@ -1214,6 +1243,7 @@ func newMediaImageRenderer() *mediaImageRenderer {
 		errors:   make(map[string]mediaRenderError),
 		rendered: make(map[mediaRenderKey]string),
 		pictures: make(map[mediaRenderKey]*mediaPicture),
+		lastUsed: make(map[string]uint64),
 	}
 }
 
@@ -1359,9 +1389,25 @@ func (r *mediaImageRenderer) Park(keys []mediaRenderKey) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	for path := range r.decoded {
-		if _, ok := visiblePaths[path]; !ok {
-			delete(r.decoded, path)
+	// Keep the most recently used off-screen decodes so scrubbing back and
+	// forth doesn't hit the disk on every step.
+	if excess := len(r.decoded) - len(visiblePaths) - mediaDecodedCacheSize; excess > 0 {
+		type usedPath struct {
+			path string
+			tick uint64
+		}
+		offscreen := make([]usedPath, 0, len(r.decoded))
+		for path := range r.decoded {
+			if _, ok := visiblePaths[path]; !ok {
+				offscreen = append(offscreen, usedPath{path, r.lastUsed[path]})
+			}
+		}
+		slices.SortFunc(offscreen, func(a, b usedPath) int {
+			return cmp.Compare(a.tick, b.tick) // oldest first
+		})
+		for _, p := range offscreen[:excess] {
+			delete(r.decoded, p.path)
+			delete(r.lastUsed, p.path)
 		}
 	}
 	for path := range r.errors {
@@ -1408,10 +1454,13 @@ func (r *mediaImageRenderer) Render(path string, width, height int) string {
 }
 
 func (r *mediaImageRenderer) image(path string) (image.Image, mediaRenderError) {
-	r.mu.RLock()
+	r.mu.Lock()
 	img := r.decoded[path]
 	errEntry, hasErr := r.errors[path]
-	r.mu.RUnlock()
+	if img != nil {
+		r.touchLocked(path)
+	}
+	r.mu.Unlock()
 
 	if img != nil {
 		return img, mediaRenderError{}
@@ -1429,8 +1478,26 @@ func (r *mediaImageRenderer) image(path string) (image.Image, mediaRenderError) 
 		return nil, errEntry
 	}
 	r.decoded[path] = loaded
+	r.touchLocked(path)
 	delete(r.errors, path)
 	return loaded, mediaRenderError{}
+}
+
+// touchLocked records that path was just used. Caller must hold r.mu.
+func (r *mediaImageRenderer) touchLocked(path string) {
+	r.useTick++
+	r.lastUsed[path] = r.useTick
+}
+
+// releaseAll drops every cached decode and render, including the LRU kept by
+// Park. Used when the owning pane shuts down.
+func (r *mediaImageRenderer) releaseAll() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	clear(r.decoded)
+	clear(r.errors)
+	clear(r.rendered)
+	clear(r.lastUsed)
 }
 
 func (r *mediaImageRenderer) renderGlyph(path string, width, height int) string {
