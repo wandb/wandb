@@ -317,6 +317,8 @@ func (h *Handler) handleRequest(
 		// TODO: implement this
 	case *spb.Request_JobInput:
 		h.handleRequestJobInput(record, request)
+	case *spb.Request_RunLog:
+		h.fwdRecord(record, request)
 	case *spb.Request_Operations:
 		h.handleRequestOperations(record, request)
 	case *spb.Request_ProbeSystemInfo:

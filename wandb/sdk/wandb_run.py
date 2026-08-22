@@ -1341,7 +1341,7 @@ class Run:
 
         Args:
             keys: Config key names to pin, matching keys set via
-                ``run.config``. These are exact key strings (dots and
+                `run.config`. These are exact key strings (dots and
                 slashes are treated literally, not as path separators).
                 Order is preserved and determines display order.
         """
