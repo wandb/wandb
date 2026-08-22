@@ -31,3 +31,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Added `wandb sweep-scheduler`, which runs a sweep's search locally while wandb-core drives the runs, so you can plug in your own optimizer (@kmikowicz in https://github.com/wandb/wandb/pull/12560)
 - `wandb sweep-scheduler` can search a sweep with Optuna, including its pruners and any stopping rule you supply (@kmikowicz in https://github.com/wandb/wandb/pull/12561)
 - `wandb sweep-scheduler` can search a sweep with Ax, including its early stopping and any stopping rule you supply. Requires Python 3.11 or newer (@kmikowicz in https://github.com/wandb/wandb/pull/12562)
+- `wandb sweep-scheduler` now logs to the sweep, and logs are visible in the UI under "Logs". (@kmikowicz in https://github.com/wandb/wandb/pull/12563)

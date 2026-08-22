@@ -2868,8 +2868,10 @@ func (*OutputRawResult) Descriptor() ([]byte, []int) {
 
 // OutputLoggerRecord: log output from run.write_logs for the Logs tab.
 type OutputLoggerRecord struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Line          string                 `protobuf:"bytes,1,opt,name=line,proto3" json:"line,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Line  string                 `protobuf:"bytes,1,opt,name=line,proto3" json:"line,omitempty"`
+	// A label for the lines, in place of the run's x_label setting.
+	Label         string `protobuf:"bytes,2,opt,name=label,proto3" json:"label,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2907,6 +2909,13 @@ func (*OutputLoggerRecord) Descriptor() ([]byte, []int) {
 func (x *OutputLoggerRecord) GetLine() string {
 	if x != nil {
 		return x.Line
+	}
+	return ""
+}
+
+func (x *OutputLoggerRecord) GetLabel() string {
+	if x != nil {
+		return x.Label
 	}
 	return ""
 }
@@ -12044,9 +12053,10 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x06STDERR\x10\x00\x12\n" +
 	"\n" +
 	"\x06STDOUT\x10\x01\"\x11\n" +
-	"\x0fOutputRawResult\"(\n" +
+	"\x0fOutputRawResult\">\n" +
 	"\x12OutputLoggerRecord\x12\x12\n" +
-	"\x04line\x18\x01 \x01(\tR\x04line\"\x9a\x04\n" +
+	"\x04line\x18\x01 \x01(\tR\x04line\x12\x14\n" +
+	"\x05label\x18\x02 \x01(\tR\x05label\"\x9a\x04\n" +
 	"\fMetricRecord\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1b\n" +
 	"\tglob_name\x18\x02 \x01(\tR\bglobName\x12\x1f\n" +

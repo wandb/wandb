@@ -55,6 +55,15 @@ type Sender struct {
 	// logs from different machines in a mode="shared" run.
 	streamLabel string
 
+	// completeLinesOnly indicates whether to hold back a line's text
+	// until its terminating newline arrives; see Params.
+	completeLinesOnly bool
+
+	// stdoutTail and stderrTail hold text after each stream's last
+	// newline while completeLinesOnly is set.
+	stdoutTail string
+	stderrTail string
+
 	// fsWriter pushes updates to the FileStream.
 	fsWriter *filestreamWriter
 
@@ -96,6 +105,16 @@ type Params struct {
 
 	// Label is an optional prefix for the console output lines.
 	Label string
+
+	// CompleteLinesOnly indicates whether to process captured console
+	// output only as complete lines.
+	//
+	// Text after a line's last newline is held back until the rest of
+	// the line arrives, so a backend that appends console updates
+	// instead of overwriting them by offset never records a partial
+	// line twice. Output that rewrites a line in place is flushed once
+	// the held text grows past one terminal line.
+	CompleteLinesOnly bool
 
 	// Multipart indicates whether to capture multipart and potentially chunked logs.
 	//
@@ -184,6 +203,7 @@ func New(params Params) *Sender {
 		runfilesUploaderOrNil: params.RunfilesUploaderOrNil,
 		captureEnabled:        params.EnableCapture,
 		streamLabel:           params.Label,
+		completeLinesOnly:     params.CompleteLinesOnly,
 		fsWriter:              fsWriter,
 		fileWriter:            fileWriter,
 		isMultipart:           params.Multipart,
@@ -196,6 +216,15 @@ func New(params Params) *Sender {
 // It must run before the filestream is closed.
 func (s *Sender) Finish() {
 	s.mu.Lock()
+	// Lines still waiting for a newline would otherwise be lost.
+	if s.stdoutTail != "" {
+		s.stdoutTerm.Write(s.stdoutTail)
+		s.stdoutTail = ""
+	}
+	if s.stderrTail != "" {
+		s.stderrTerm.Write(s.stderrTail)
+		s.stderrTail = ""
+	}
 	s.isFinished = true
 	s.mu.Unlock()
 
@@ -218,10 +247,15 @@ func (s *Sender) StreamLoggerOutput(record *spb.OutputLoggerRecord) {
 		return
 	}
 
+	label := s.streamLabel
+	if record.Label != "" {
+		label = record.Label
+	}
+
 	// Lines in the model must not contain '\n'.
 	for line := range strings.SplitSeq(strings.TrimSuffix(record.Line, "\n"), "\n") {
 		// We can discard the line reference because we never change the line.
-		_ = s.model.NextLine("", s.streamLabel, line)
+		_ = s.model.NextLine("", label, line)
 	}
 }
 
@@ -236,10 +270,10 @@ func (s *Sender) StreamLogs(record *spb.OutputRawRecord) {
 
 	switch record.OutputType {
 	case spb.OutputRawRecord_STDOUT:
-		s.stdoutTerm.Write(record.Line)
+		s.writeToTerm(s.stdoutTerm, &s.stdoutTail, record.Line)
 
 	case spb.OutputRawRecord_STDERR:
-		s.stderrTerm.Write(record.Line)
+		s.writeToTerm(s.stderrTerm, &s.stderrTail, record.Line)
 
 	default:
 		s.logger.CaptureError(
@@ -249,4 +283,38 @@ func (s *Sender) StreamLogs(record *spb.OutputRawRecord) {
 			record.OutputType,
 		)
 	}
+}
+
+// writeToTerm forwards captured console text to a terminal.
+//
+// With completeLinesOnly set, text after the input's last newline waits
+// in tail for the rest of its line, so a line is never processed in two
+// pieces; see Params.CompleteLinesOnly. A tail past one terminal line
+// flushes anyway, bounding the buffer when output rewrites a line in
+// place instead of ending it.
+//
+// Callers must hold s.mu.
+func (s *Sender) writeToTerm(
+	term *terminalemulator.Terminal,
+	tail *string,
+	input string,
+) {
+	if !s.completeLinesOnly {
+		term.Write(input)
+		return
+	}
+
+	buffered := *tail + input
+	complete := ""
+	if cut := strings.LastIndexByte(buffered, '\n'); cut >= 0 {
+		complete, buffered = buffered[:cut+1], buffered[cut+1:]
+	}
+	if len(buffered) >= maxTerminalLineLength {
+		complete, buffered = complete+buffered, ""
+	}
+
+	if complete != "" {
+		term.Write(complete)
+	}
+	*tail = buffered
 }

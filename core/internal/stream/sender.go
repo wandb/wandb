@@ -206,6 +206,7 @@ func (f *SenderFactory) NewWithFileStream(
 		ChunkMaxBytes:         f.Settings.GetConsoleChunkMaxBytes(),
 		ChunkMaxSeconds:       f.Settings.GetConsoleChunkMaxSeconds(),
 		Structured:            structuredConsoleLogs,
+		CompleteLinesOnly:     f.Settings.IsConsoleCompleteLines(),
 	}
 
 	s := &Sender{

@@ -438,10 +438,12 @@ class OutputRawResult(_message.Message):
     def __init__(self) -> None: ...
 
 class OutputLoggerRecord(_message.Message):
-    __slots__ = ("line",)
+    __slots__ = ("line", "label")
     LINE_FIELD_NUMBER: _ClassVar[int]
+    LABEL_FIELD_NUMBER: _ClassVar[int]
     line: str
-    def __init__(self, line: _Optional[str] = ...) -> None: ...
+    label: str
+    def __init__(self, line: _Optional[str] = ..., label: _Optional[str] = ...) -> None: ...
 
 class MetricRecord(_message.Message):
     __slots__ = ("name", "glob_name", "step_metric", "step_metric_index", "options", "summary", "goal", "_control", "expanded_from_glob", "_info")

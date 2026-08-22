@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filestreamtest"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/paths"
@@ -143,6 +144,40 @@ func TestStreamLoggerOutput(t *testing.T) {
 	}
 }
 
+func TestStreamLoggerOutputLabelOverridesStreamLabel(t *testing.T) {
+	fileStream := filestreamtest.NewFakeFileStream()
+
+	sender := New(Params{
+		FilesDir:      t.TempDir(),
+		EnableCapture: true,
+		Label:         "stream-label",
+		Logger:        observabilitytest.NewTestLogger(t),
+		RunfilesUploaderOrNil: runfilestest.WithTestDefaults(t,
+			runfilestest.Params{},
+		),
+		FileStreamOrNil: fileStream,
+		GetNow: func() time.Time {
+			return time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+		},
+	})
+
+	sender.StreamLoggerOutput(&spb.OutputLoggerRecord{Line: "mine\n"})
+	sender.StreamLoggerOutput(&spb.OutputLoggerRecord{
+		Line:  "theirs\n",
+		Label: "record-label",
+	})
+	sender.Finish()
+
+	assert.Equal(t,
+		[]sparselist.Run[string]{
+			{Start: 0, Items: []string{
+				"2024-01-01T00:00:00.000000 [stream-label] mine",
+				"2024-01-01T00:00:00.000000 [record-label] theirs",
+			}},
+		},
+		fileStream.GetRequest(settings.New()).ConsoleLines.ToRuns())
+}
+
 func TestSender_Multipart_WritesChunkAndUploadsOnFinish(t *testing.T) {
 	dir := t.TempDir()
 	uploader := NewFakeUploader()
@@ -195,4 +230,82 @@ func TestSender_LabelChangesOutputFileName_SingleFile(t *testing.T) {
 
 	_, err := os.Stat(want)
 	require.NoError(t, err, "expected labeled output file to exist")
+}
+
+// newCompleteLinesSender builds a Sender in complete-lines-only mode.
+func newCompleteLinesSender(
+	t *testing.T,
+	fileStream *filestreamtest.FakeFileStream,
+) *Sender {
+	t.Helper()
+	return New(Params{
+		FilesDir:          t.TempDir(),
+		EnableCapture:     true,
+		CompleteLinesOnly: true,
+		Logger:            observabilitytest.NewTestLogger(t),
+		RunfilesUploaderOrNil: runfilestest.WithTestDefaults(t,
+			runfilestest.Params{},
+		),
+		FileStreamOrNil: fileStream,
+		GetNow: func() time.Time {
+			return time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+		},
+	})
+}
+
+// allConsoleLines returns every console line in every filestream update,
+// including superseded versions of a line that GetRequest would merge.
+func allConsoleLines(fs *filestreamtest.FakeFileStream) []string {
+	var lines []string
+	for _, update := range fs.GetUpdates() {
+		logs, ok := update.(*filestream.LogsUpdate)
+		if !ok {
+			continue
+		}
+		for _, run := range logs.Lines.ToRuns() {
+			lines = append(lines, run.Items...)
+		}
+	}
+	return lines
+}
+
+func TestCompleteLinesOnlyHoldsBackPartialLines(t *testing.T) {
+	fileStream := filestreamtest.NewFakeFileStream()
+	sender := newCompleteLinesSender(t, fileStream)
+
+	sender.StreamLogs(&spb.OutputRawRecord{Line: "first\n"})
+	// Drain the debouncer so the next write starts a fresh batch.
+	require.Eventually(t, func() bool {
+		return len(allConsoleLines(fileStream)) > 0
+	}, 5*time.Second, 5*time.Millisecond)
+
+	sender.StreamLogs(&spb.OutputRawRecord{Line: "second, but"})
+	// Give the debouncer every chance to flush the fragment; only the
+	// completed line below may reach the filestream.
+	time.Sleep(50 * time.Millisecond)
+	sender.StreamLogs(&spb.OutputRawRecord{Line: " whole\n"})
+	sender.Finish()
+
+	for _, line := range allConsoleLines(fileStream) {
+		if strings.Contains(line, "second") {
+			assert.Equal(t,
+				"ERROR 2024-01-01T00:00:00.000000 second, but whole", line)
+		}
+	}
+}
+
+func TestCompleteLinesOnlyFlushesTailOnFinish(t *testing.T) {
+	fileStream := filestreamtest.NewFakeFileStream()
+	sender := newCompleteLinesSender(t, fileStream)
+
+	sender.StreamLogs(&spb.OutputRawRecord{Line: "no newline"})
+	sender.Finish()
+
+	assert.Equal(t,
+		[]sparselist.Run[string]{
+			{Start: 0, Items: []string{
+				"ERROR 2024-01-01T00:00:00.000000 no newline",
+			}},
+		},
+		fileStream.GetRequest(settings.New()).ConsoleLines.ToRuns())
 }

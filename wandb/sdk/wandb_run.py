@@ -1341,7 +1341,7 @@ class Run:
 
         Args:
             keys: Config key names to pin, matching keys set via
-                ``run.config``. These are exact key strings (dots and
+                `run.config`. These are exact key strings (dots and
                 slashes are treated literally, not as path separators).
                 Order is preserved and determines display order.
         """
@@ -1931,7 +1931,7 @@ class Run:
 
     @_log_to_run
     @_attach
-    def write_logs(self, text: str) -> None:
+    def write_logs(self, text: str, label: str | None = None) -> None:
         """Write text to the run's Logs tab.
 
         Use `write_logs` to directly write text to the Logs tab instead of
@@ -1943,6 +1943,9 @@ class Run:
 
         Args:
             text: The text to write. A trailing newline is added if not present.
+            label: A writer label shown alongside the lines, in place of the
+                run's `x_label` setting. Use it to attribute lines to a
+                source other than the process writing them.
         """
         if self._is_finished or not self._interface:
             return
@@ -1954,7 +1957,7 @@ class Run:
         #
         # write_logs() is called by LoggerHandler, which could be attached
         # to the root logger, which may get logs in an asyncio context.
-        self._interface.publish_output_logger(text, nowait=True)
+        self._interface.publish_output_logger(text, label=label or "", nowait=True)
 
     @_log_to_run
     @_raise_if_finished
