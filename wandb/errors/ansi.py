@@ -9,11 +9,6 @@ _MULTI_ANSI_RE = re.compile("(\x1b\\[(K|.*?m))+")
 """Regexp that greedily matches one or more SGR ANSI sequences."""
 
 
-def strip_ansi(text: str) -> str:
-    """Remove ANSI escape sequences from the string."""
-    return _MULTI_ANSI_RE.sub("", text)
-
-
 def wrap_ansi(text: str, *, width: int, max_lines: int) -> Generator[str]:
     """Wrap the ANSI-containing text to fit into the given width.
 

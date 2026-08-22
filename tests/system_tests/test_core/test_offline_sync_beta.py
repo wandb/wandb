@@ -12,7 +12,6 @@ import wandb
 from click.testing import CliRunner
 from typing_extensions import Any, TypeVar
 from wandb.cli import beta_sync, cli
-from wandb.errors import ansi
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.proto import wandb_sync_pb2
 from wandb.sdk import wandb_setup
@@ -241,8 +240,7 @@ def test_sync_defaults_to_wandb_dir(tmp_path: pathlib.Path, runner: CliRunner):
 
     result = runner.invoke(cli.beta, "sync", input="n")
 
-    lines = [ansi.strip_ansi(line) for line in result.output.splitlines()]
-    assert lines == [
+    assert result.output.splitlines() == [
         "wandb: Syncing 5 run(s):",
         f"wandb:   {paths[0]}",
         f"wandb:   {paths[1]}",

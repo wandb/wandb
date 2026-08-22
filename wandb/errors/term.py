@@ -323,6 +323,10 @@ def terminput(
         KeyboardInterrupt: If the user pressed Ctrl+C during the prompt.
     """
     prefixed_prompt = f"{LOG_STRING}: {prompt}"
+    if not _sys_stderr_isatty() or _is_term_dumb():
+        # no applying ANSI style if not a terminal; `click` handles this for us
+        # in some cases, but not for `prompt()`
+        prefixed_prompt = click.unstyle(prefixed_prompt)
     return _terminput(prefixed_prompt, timeout=timeout, hide=hide)
 
 
