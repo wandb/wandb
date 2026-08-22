@@ -45,6 +45,10 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Description: "Unfocus pane, then back to workspace",
 					Handler:     (*Run).handleEscape,
 				},
+				{
+					Keys:        []string{"i"},
+					Description: "Inspect the raw records in the run's .wandb file",
+				},
 			},
 		},
 		{
