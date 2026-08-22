@@ -40,6 +40,7 @@ def test_leet_help_shows_group_help(runner, core_unavailable, help_flag):
     assert "Launch the LEET TUI" in result.output
     assert "Launch the standalone system monitor" in result.output
     assert "Edit LEET configuration" in result.output
+    assert "Browse the raw records" in result.output
     assert "wandb-core not found" not in result.output
 
 
@@ -88,6 +89,41 @@ def test_leet_resolves_run_directory(runner, core_calls, tmp_path: pathlib.Path)
             str((tmp_path / "wandb").resolve()),
         ]
     ]
+
+
+def test_leet_inspect_resolves_run_directory(
+    runner, core_calls, tmp_path: pathlib.Path
+):
+    run_dir = tmp_path / "wandb" / "run-20250101_000000-abc123"
+    run_dir.mkdir(parents=True)
+    run_file = run_dir / "run-abc123.wandb"
+    run_file.touch()
+
+    result = runner.invoke(cli.cli, ["leet", "inspect", str(run_dir)])
+
+    assert result.exit_code == 0
+    assert core_calls == [
+        [
+            "wandb-core",
+            "leet",
+            "--inspect",
+            "--run-file",
+            str(run_file.resolve()),
+            str((tmp_path / "wandb").resolve()),
+        ]
+    ]
+
+
+def test_leet_inspect_wandb_dir_uses_latest_run(
+    runner, core_calls, tmp_path: pathlib.Path
+):
+    wandb_dir = tmp_path / "wandb"
+    wandb_dir.mkdir()
+
+    result = runner.invoke(cli.cli, ["leet", "inspect", str(wandb_dir)])
+
+    assert result.exit_code == 0
+    assert core_calls == [["wandb-core", "leet", "--inspect", str(wandb_dir.resolve())]]
 
 
 def test_beta_leet_is_an_alias(runner, core_calls, tmp_path: pathlib.Path):
