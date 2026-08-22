@@ -258,6 +258,7 @@ type leetOptions struct {
 	editConfig       bool
 	symonMode        bool
 	symonInterval    time.Duration
+	inspect          bool
 	wandbDir         string
 
 	// remoteURL is the W&B URL of the run to open
@@ -316,6 +317,13 @@ func bindLeetFlags(fs *flag.FlagSet, opts *leetOptions) {
 	)
 	fs.BoolVar(&opts.editConfig, "config", false, "Open config editor.")
 	fs.BoolVar(&opts.symonMode, "symon", false, "Launch standalone system metrics mode.")
+	fs.BoolVar(
+		&opts.inspect,
+		"inspect",
+		false,
+		"Open the record inspector for the run's .wandb transaction log."+
+			" Prints records as text when stdout is not a terminal.",
+	)
 	fs.DurationVar(
 		&opts.symonInterval,
 		"interval",
@@ -339,6 +347,7 @@ Usage:
   wandb-core leet [flags] <wandb-directory>
   wandb-core leet --run-file <wandb-file> <wandb-directory>
   wandb-core leet --remote-url <wandb-run-url>
+  wandb-core leet --inspect [--run-file <wandb-file>] [<wandb-directory>]
   wandb-core leet --config
   wandb-core leet --symon [flags]
 
@@ -381,7 +390,13 @@ func validateLeetOptions(fs *flag.FlagSet, opts *leetOptions) error {
 		fmt.Fprintln(os.Stderr, "Error: --symon does not take a wandb directory")
 		fs.Usage()
 		return fmt.Errorf("unexpected wandb directory %q in symon mode", fs.Arg(0))
-	case !opts.editConfig && !opts.symonMode && opts.wandbDir == "" && opts.remoteRun == nil:
+	case opts.inspect && (opts.remoteRun != nil || opts.symonMode || opts.editConfig):
+		fmt.Fprintln(os.Stderr,
+			"Error: --inspect cannot be used with --remote-url, --symon or --config")
+		fs.Usage()
+		return fmt.Errorf("--inspect combined with an incompatible mode")
+	case !opts.editConfig && !opts.symonMode && opts.wandbDir == "" &&
+		opts.remoteRun == nil && !(opts.inspect && opts.runFile != ""):
 		fmt.Fprintln(os.Stderr, "Error: wandb directory path or --remote-url required")
 		fs.Usage()
 		return fmt.Errorf("wandb directory path or --remote-url required")
@@ -432,6 +447,8 @@ func leetSentryMessage(opts *leetOptions) string {
 		return "wandb-leet-config"
 	case opts.symonMode:
 		return "wandb-symon"
+	case opts.inspect:
+		return "wandb-leet-inspect"
 	default:
 		return "wandb-leet"
 	}
@@ -473,7 +490,51 @@ func runLeetCommand(opts *leetOptions, logger *observability.CoreLogger) int {
 	if opts.symonMode {
 		return runSymon(opts, logger)
 	}
+	if opts.inspect {
+		return runLeetInspector(opts, logger)
+	}
 	return runLeetWorkspace(opts, logger)
+}
+
+// runLeetInspector runs the transaction log record inspector. When stdout
+// is not a terminal, it prints the records as prototext instead.
+func runLeetInspector(opts *leetOptions, logger *observability.CoreLogger) int {
+	runFile, err := leet.ResolveRunFile(opts.runFile, opts.wandbDir)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error:", err)
+		return exitCodeErrorArgs
+	}
+
+	if !stdoutIsTerminal() {
+		if err := leet.DumpRecords(runFile, os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, "Error:", err)
+			return exitCodeErrorInternal
+		}
+		return exitCodeSuccess
+	}
+
+	m := leet.NewInspector(leet.InspectorParams{
+		RunFile: runFile,
+		Logger:  logger,
+	})
+	program := tea.NewProgram(m)
+
+	_, err = program.Run()
+	m.Cleanup()
+	if err != nil {
+		logger.CaptureError(
+			"main",
+			fmt.Errorf("wandb-leet-inspect: %v", err),
+		)
+		return exitCodeErrorInternal
+	}
+	return exitCodeSuccess
+}
+
+// stdoutIsTerminal reports whether stdout is attached to a terminal.
+func stdoutIsTerminal() bool {
+	info, err := os.Stdout.Stat()
+	return err == nil && info.Mode()&os.ModeCharDevice != 0
 }
 
 func runLeetConfigEditor(logger *observability.CoreLogger) int {

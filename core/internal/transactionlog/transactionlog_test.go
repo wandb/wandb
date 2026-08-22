@@ -184,6 +184,37 @@ func Test_ResetLastRead(t *testing.T) {
 	}
 }
 
+func Test_NextRecordOffset_SeekRoundTrip(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "run.wandb")
+
+	writer, err := transactionlog.OpenWriter(path)
+	require.NoError(t, err)
+	require.NoError(t, writer.Write(&spb.Record{Num: 13}))
+	require.NoError(t, writer.Write(&spb.Record{Num: 14}))
+	require.NoError(t, writer.Write(&spb.Record{Num: 15}))
+	require.NoError(t, writer.Close())
+
+	reader, err := transactionlog.OpenReader(path, observabilitytest.NewTestLogger(t))
+	require.NoError(t, err)
+	defer reader.Close()
+
+	// Capture each record's offset before reading it.
+	offsets := make([]int64, 3)
+	for i := range offsets {
+		offsets[i] = reader.NextRecordOffset()
+		_, err := reader.Read()
+		require.NoError(t, err)
+	}
+
+	// Seeking to a captured offset re-reads the same record.
+	for _, i := range []int{2, 0, 1} {
+		require.NoError(t, reader.SeekRecord(offsets[i]))
+		record, err := reader.Read()
+		require.NoError(t, err)
+		assert.EqualValues(t, 13+i, record.GetNum())
+	}
+}
+
 func Test_EOF(t *testing.T) {
 	// Test that EOF and ErrUnexpectedEOF errors are correctly wrapped.
 
