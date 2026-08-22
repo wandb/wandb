@@ -125,6 +125,17 @@ func (ins *Inspector) Init() tea.Cmd {
 	)
 }
 
+// IsFiltering reports whether the filter input is capturing keystrokes.
+func (ins *Inspector) IsFiltering() bool {
+	return ins.filter.IsActive()
+}
+
+// CapturesEscape reports whether the next Esc is consumed internally
+// (to unfocus the detail pane) rather than exiting the inspector.
+func (ins *Inspector) CapturesEscape() bool {
+	return ins.detailFocused
+}
+
 // Cleanup closes the store's readers.
 //
 // Safe to call multiple times. Called after the program exits.

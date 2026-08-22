@@ -771,6 +771,15 @@ func (r *Run) IsRemote() bool {
 	return r.runParams != nil && r.runParams.Remote != nil
 }
 
+// RunFile returns the path of the run's local .wandb transaction log,
+// or "" for remote runs.
+func (r *Run) RunFile() string {
+	if r.runParams == nil {
+		return ""
+	}
+	return r.runParams.RunFile
+}
+
 // Layout represents the computed layout dimensions for the main UI.
 type Layout struct {
 	leftSidebarWidth       int
