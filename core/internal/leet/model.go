@@ -20,6 +20,7 @@ const (
 	viewModeWorkspace
 	viewModeRun
 	viewModeSymon
+	viewModeInspect
 )
 
 // latestRunLinkName is the conventional symlink name that wandb creates to
@@ -457,6 +458,23 @@ func runWandbFile(wandbDir, runDir string) string {
 		return ""
 	}
 	return filepath.Join(wandbDir, runDir, "run-"+runID+".wandb")
+}
+
+// ResolveRunFile returns the .wandb file to open: the explicit runFile
+// when non-empty, otherwise the latest run in wandbDir.
+func ResolveRunFile(runFile, wandbDir string) (string, error) {
+	if runFile != "" {
+		return runFile, nil
+	}
+
+	latest, err := wandbFileFromLatestRunLink(wandbDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to find the latest run in %q: %w", wandbDir, err)
+	}
+	if latest == "" {
+		return "", fmt.Errorf("no latest run found in %q", wandbDir)
+	}
+	return latest, nil
 }
 
 func wandbFileFromLatestRunLink(wandbDir string) (string, error) {
