@@ -2018,8 +2018,8 @@ def _load_source_object(source: str, name: str) -> Any:
     """Import the python file at `source` and return its `name` attribute.
 
     Used to load a user-defined `search_space` (define-by-run trial
-    constructor) or `optimizer` (study and optional terminator factory)
-    referenced by name from a sweep's scheduler config.
+    constructor) or `optimizer` (engine object and optional terminator
+    factory) referenced by name from a sweep's scheduler config.
     """
     if not source:
         raise ClickException(
@@ -2109,6 +2109,32 @@ def _build_optuna_scheduler_optimizer(sweep, scheduler_config: dict):
     )
 
 
+def _build_ax_scheduler_optimizer(sweep, scheduler_config: dict):
+    """Build the optimizer for a sweep whose `scheduler.engine` is `ax`.
+
+    `scheduler.optimizer` names a zero-argument function in
+    `scheduler.source`. The function may return either an Ax `Client` or a
+    `(Client, terminator)` tuple. The optional terminator is called with the
+    client after each generation; returning `True` finishes the sweep.
+    """
+    # Importing the module lazily surfaces a helpful error when Ax isn't
+    # installed, and keeps the wandb path free of that dependency.
+    from wandb.sdk.sweeps.scheduler import ax as ax_scheduler
+
+    optimizer_name = scheduler_config.get("optimizer", "")
+    source = scheduler_config.get("source", "")
+
+    if scheduler_config.get("search_space") is not None:
+        wandb.termwarn("search_space config is not supported by the Ax engine.")
+    terminator = None
+    if optimizer_name:
+        client, terminator = _load_optimizer_config(source, optimizer_name)
+    else:
+        client = ax_scheduler.create_default_client(sweep.config)
+
+    return ax_scheduler.AxOptimizer(client, sweep, terminator)
+
+
 def _build_wandb_scheduler_optimizer(sweep, scheduler_config: dict):
     """Build the optimizer for a sweep whose `scheduler.engine` is `wandb`."""
     search_space = scheduler_config.get("search_space")
@@ -2156,8 +2182,8 @@ def sweep_scheduler(
     """Drive an existing sweep with a locally chosen search strategy.
 
     Create the sweep first with `wandb sweep sweep.yaml`; its config must
-    set `scheduler: {engine: wandb}` (or `optuna`) so the server leaves the
-    search to this scheduler. wandb-core runs the scheduling loop; this
+    set `scheduler: {engine: wandb}` (or `optuna`/`ax`) so the server leaves
+    the search to this scheduler. wandb-core runs the scheduling loop; this
     process hosts the optimizer that proposes runs and learns from their
     results.
 
@@ -2166,6 +2192,9 @@ def sweep_scheduler(
     function must return either an Optuna `Study` or a `(Study, terminator)`
     tuple. A terminator receives the study after each generation and ends the
     sweep by returning `True`.
+
+    The Ax form is equivalent: its function returns either an Ax `Client` or
+    a `(Client, terminator)` tuple.
     """
     api = _get_cling_api()
     if not api.is_authenticated:
@@ -2208,6 +2237,8 @@ def sweep_scheduler(
             return _build_wandb_scheduler_optimizer(sweep, scheduler_config)
         if engine == "optuna":
             return _build_optuna_scheduler_optimizer(sweep, scheduler_config)
+        if engine == "ax":
+            return _build_ax_scheduler_optimizer(sweep, scheduler_config)
         raise ClickException(f"Unsupported engine: {engine}")
 
     wandb.termlog(f"Starting sweep scheduler for {sweep_id} 🧹")

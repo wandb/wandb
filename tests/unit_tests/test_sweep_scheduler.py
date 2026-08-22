@@ -9,6 +9,7 @@ tests/system_tests/test_sweep/test_sweep_scheduler_e2e.py.
 from __future__ import annotations
 
 import abc
+import importlib.util
 from typing import Any
 
 import pytest
@@ -20,6 +21,11 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
     RunWithMetrics,
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
+
+HAS_AX = importlib.util.find_spec("ax") is not None
+requires_ax = pytest.mark.skipif(
+    not HAS_AX, reason="ax-platform requires Python >= 3.11"
+)
 
 SCHEDULER_GRID_SWEEP_CONFIG: dict[str, Any] = {
     "name": "test-sweep-grid-hyperband",
@@ -607,3 +613,92 @@ class TestOptunaOptimizerTermination(TerminatorContractTests):
             study, distributions, make_scheduler_grid_sweep(), terminator
         )
         return optimizer, study
+
+
+def _sequential_ax_generation_strategy(param_name: str, values: list[Any]) -> Any:
+    """A deterministic generation strategy cycling a choice param's values.
+
+    Ax's real generation strategies pick via Sobol/BoTorch, which the shared
+    acceptance tests -- written against `WandbOptimizer`'s deterministic grid
+    search -- don't assume.
+    """
+    from ax.generation_strategy.external_generation_node import ExternalGenerationNode
+    from ax.generation_strategy.generation_strategy import GenerationStrategy
+
+    class _SequentialNode(ExternalGenerationNode):
+        def __init__(self) -> None:
+            super().__init__(name="Sequential", should_deduplicate=False)
+            self._next_index = 0
+
+        def update_generator_state(self, experiment: Any, data: Any) -> None:
+            self._next_index = len(experiment.trials)
+
+        def get_next_candidate(self, pending_parameters: list[Any]) -> dict[str, Any]:
+            value = values[self._next_index % len(values)]
+            self._next_index += 1
+            return {param_name: value}
+
+    return GenerationStrategy(name="Sequential", nodes=[_SequentialNode()])
+
+
+@requires_ax
+class TestAxOptimizerAcceptance(OptimizerAcceptanceTests):
+    """Ax has a single optimizer flavor -- no define-by-run counterpart."""
+
+    @pytest.fixture
+    def optimizer(self, sweep: SweepInfo) -> Optimizer:
+        from wandb.sdk.sweeps.scheduler.ax import AxOptimizer, create_default_client
+
+        client = create_default_client(SCHEDULER_GRID_SWEEP_CONFIG)
+        client.set_generation_strategy(
+            _sequential_ax_generation_strategy("param1", [1, 2, 3])
+        )
+        return AxOptimizer(client, sweep)
+
+    def test_prune_runs_hyperband_stops_worst_running_run(
+        self, optimizer: Optimizer
+    ) -> None:
+        """`AxOptimizer.prune_run` is a thin wrapper around the `Client`'s own
+        early-stopping strategy; which running trials it actually flags is
+        Ax's statistical judgment call, not this glue code's, so this checks
+        the wrapper's wiring -- that a stop flag from the client finalizes the
+        trial via `mark_trial_early_stopped` and prunes exactly that run.
+        """
+        from unittest.mock import patch
+
+        suggestions = optimizer.ask_n_runs(2)
+        stop_me = make_run(
+            suggestions[0], state=RunState.RUNNING, summary={"loss": 10.0}
+        )
+        keep_me = make_run(
+            suggestions[1], state=RunState.RUNNING, summary={"loss": 1.0}
+        )
+        optimizer.tell_run(suggestions[0].run_id, stop_me)
+        optimizer.tell_run(suggestions[1].run_id, keep_me)
+
+        client = optimizer.client
+        with (
+            patch.object(
+                client,
+                "should_stop_trial_early",
+                side_effect=lambda trial_index: (
+                    trial_index == int(suggestions[0].run_id)
+                ),
+            ),
+            patch.object(client, "mark_trial_early_stopped") as mark_stopped,
+        ):
+            pruned = optimizer.prune_runs(
+                [suggestions[0].run_id, suggestions[1].run_id],
+                [stop_me, keep_me],
+            )
+            assert pruned == [suggestions[0].run_id]
+            mark_stopped.assert_called_once_with(trial_index=int(suggestions[0].run_id))
+
+
+@requires_ax
+class TestAxOptimizerTermination(TerminatorContractTests):
+    def make_optimizer(self, terminator: Any = None) -> tuple[Optimizer, Any]:
+        from wandb.sdk.sweeps.scheduler.ax import AxOptimizer, create_default_client
+
+        client = create_default_client(SCHEDULER_GRID_SWEEP_CONFIG)
+        return AxOptimizer(client, make_scheduler_grid_sweep(), terminator), client
