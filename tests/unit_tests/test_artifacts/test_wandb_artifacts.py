@@ -30,6 +30,7 @@ from wandb.sdk.artifacts.storage_policies._multipart import (
     should_multipart_download,
 )
 from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import WandbStoragePolicy
+from wandb.sdk.lib.hashutil import md5_file_b64, sha256_file_b64
 
 if TYPE_CHECKING:
     from typing import Protocol
@@ -520,6 +521,17 @@ def test_add_file_rejects_invalid_artifact_path(tmp_path, invalid_name):
         artifact.add_file(str(local_file), name=invalid_name)
 
 
+def test_add_file_records_sha256_digest(tmp_path):
+    artifact = Artifact("test-artifact", "test-type")
+    local_file = tmp_path / "test.txt"
+    local_file.write_text("hello")
+
+    entry = artifact.add_file(str(local_file))
+
+    assert entry.digest == md5_file_b64(local_file)
+    assert entry.extra["sha256"] == sha256_file_b64(local_file)
+
+
 @mark.parametrize("invalid_name", ["../test.txt", "/test.txt", r"C:\test.txt"])
 def test_new_file_rejects_invalid_artifact_path(invalid_name):
     artifact = Artifact("test-artifact", "test-type")
@@ -557,6 +569,25 @@ def test_verify_rejects_invalid_artifact_path(tmp_path):
     artifact.manifest.entries[bad_entry.path] = bad_entry
 
     with raises(ValueError, match="Invalid artifact path"):
+        artifact.verify(root=str(tmp_path))
+
+
+def test_verify_uses_sha256_when_available(tmp_path):
+    artifact = Artifact("test-artifact", "test-type")
+    artifact._state = ArtifactState.COMMITTED
+    local_file = tmp_path / "test.txt"
+    local_file.write_text("expected")
+    artifact.manifest.add_entry(
+        ArtifactManifestEntry(
+            path=local_file.name,
+            digest=md5_file_b64(local_file),
+            extra={"sha256": sha256_file_b64(local_file)},
+        )
+    )
+
+    local_file.write_text("different")
+
+    with raises(ValueError, match="Digest mismatch"):
         artifact.verify(root=str(tmp_path))
 
 

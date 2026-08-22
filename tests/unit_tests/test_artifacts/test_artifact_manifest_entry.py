@@ -8,6 +8,10 @@ from pytest_mock import MockerFixture
 from wandb.sdk.artifacts._validators import validate_fspath
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
+from wandb.sdk.artifacts.artifact_manifests.artifact_manifest_v1 import (
+    ArtifactManifestV1,
+)
+from wandb.sdk.lib.hashutil import sha256_file_b64
 
 
 @mark.parametrize(
@@ -67,6 +71,56 @@ def test_manifest_download(mocker: MockerFixture, tmp_path: Path, cache_path: Pa
     entry.path = cache_path
     fpath = PurePath(entry.download(root=tmp_path, skip_cache=True))
     assert Path(fpath) == tmp_path / cache_path
+
+
+def test_manifest_download_rejects_sha256_mismatch(
+    mocker: MockerFixture,
+    tmp_path: Path,
+):
+    expected_path = tmp_path / "expected.bin"
+    artifact_path = tmp_path / "artifact.bin"
+    cache_path = tmp_path / "cache.bin"
+    expected_path.write_text("expected")
+    artifact_path.write_text("substituted")
+    cache_path.write_text("substituted")
+
+    artifact = Artifact("mnist", type="dataset")
+    entry = ArtifactManifestEntry(
+        path=artifact_path.name,
+        digest="legacy-digest",
+        extra={"sha256": sha256_file_b64(expected_path)},
+    )
+    entry._parent_artifact = artifact
+
+    mocker.patch.object(
+        artifact.manifest.storage_policy,
+        "load_file",
+        return_value=cache_path,
+    )
+
+    with raises(ValueError, match="Digest mismatch"):
+        entry.download(root=tmp_path)
+
+
+def test_manifest_digest_includes_sha256_when_available(tmp_path: Path):
+    first_manifest = ArtifactManifestV1()
+    first_manifest.add_entry(
+        ArtifactManifestEntry(
+            path="artifact.bin",
+            digest="legacy-digest",
+            extra={"sha256": "first-sha256"},
+        )
+    )
+    second_manifest = ArtifactManifestV1()
+    second_manifest.add_entry(
+        ArtifactManifestEntry(
+            path="artifact.bin",
+            digest="legacy-digest",
+            extra={"sha256": "second-sha256"},
+        )
+    )
+
+    assert first_manifest.digest() != second_manifest.digest()
 
 
 @mark.parametrize(
