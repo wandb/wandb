@@ -193,3 +193,6 @@ type MediaPaneAnimationMsg struct{}
 
 // WorkspaceMediaPaneAnimationMsg drives animation for the workspace media pane.
 type WorkspaceMediaPaneAnimationMsg struct{}
+
+// CowAnimationMsg drives the spherical cow animation on the logo screen.
+type CowAnimationMsg struct{}

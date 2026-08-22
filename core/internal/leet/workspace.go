@@ -39,6 +39,10 @@ type Workspace struct {
 	// Runs sidebar animation state.
 	runsAnimState *AnimatedValue
 
+	// cow animates on the logo screen; shared with the run view via the
+	// top-level model. Nil in tests that construct the workspace directly.
+	cow *SphericalCow
+
 	// runs is the run selector.
 	runs         PagedList
 	selectedRuns map[string]bool // runDirName -> selected
@@ -349,7 +353,7 @@ func (w *Workspace) View() tea.View {
 
 		sections = filterNonEmptySections(sections)
 		if len(sections) == 0 {
-			centralColumn = renderLogoArt(contentWidth, layout.totalContentAreaHeight)
+			centralColumn = renderLogoArt(w.cow, contentWidth, layout.totalContentAreaHeight)
 		} else {
 			centralColumn = joinWithSeparators(sections, contentWidth)
 		}
@@ -1132,8 +1136,9 @@ func renderMetricsEmptyState(width, height int, hint string) string {
 	return lipgloss.NewStyle().Padding(0, ContentPadding).Render(content)
 }
 
-// renderLogoArt renders the wandb/leet ASCII art centered in the given area.
-func renderLogoArt(width, height int) string {
+// renderLogoArt renders the wandb/leet ASCII art in the given area, with
+// the spherical cow animating around it when there is room for both.
+func renderLogoArt(cow *SphericalCow, width, height int) string {
 	if width <= 0 || height <= 0 {
 		return ""
 	}
@@ -1147,13 +1152,36 @@ func renderLogoArt(width, height int) string {
 		artStyle.Render(leetArt),
 	)
 
-	return lipgloss.Place(
-		width,
-		height,
-		lipgloss.Center,
-		lipgloss.Center,
-		logoContent,
+	centered := func() string {
+		return lipgloss.Place(
+			width,
+			height,
+			lipgloss.Center,
+			lipgloss.Center,
+			logoContent,
+		)
+	}
+	if cow == nil {
+		return centered()
+	}
+
+	logoX, logoY, showCow := cow.Layout(
+		time.Now(),
+		width, height,
+		lipgloss.Width(logoContent), lipgloss.Height(logoContent),
 	)
+	if !showCow {
+		return centered()
+	}
+
+	canvas := lipgloss.NewCanvas(width, height)
+	canvas.Compose(lipgloss.NewCompositor(
+		lipgloss.NewLayer(logoContent).X(logoX).Y(logoY),
+	))
+	cow.Blit(canvas)
+	// Canvas.Render trims trailing blanks; re-pad so callers always get
+	// a width×height block.
+	return lipgloss.Place(width, height, lipgloss.Left, lipgloss.Top, canvas.Render())
 }
 
 func (w *Workspace) renderStatusBar() string {
