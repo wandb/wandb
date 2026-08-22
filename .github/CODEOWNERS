@@ -94,6 +94,7 @@
 /tests/unit_tests/test_sweep_scheduler.py              @wandb/sweeps-launch-team @wandb/sdk-team
 /tests/unit_tests/test_sweep_scheduler_ipc.py          @wandb/sweeps-launch-team @wandb/sdk-team
 /tests/unit_tests/test_optuna_scheduler.py             @wandb/sweeps-launch-team @wandb/sdk-team
+/tests/unit_tests/test_ax_scheduler.py                 @wandb/sweeps-launch-team @wandb/sdk-team
 /core/internal/sweeps/                                 @wandb/sweeps-launch-team @wandb/sdk-team
 /core/api/graphql/query_sweep.graphql                  @wandb/sweeps-launch-team @wandb/sdk-team
 /core/api/graphql/mutation_enqueue_sweep_run.graphql   @wandb/sweeps-launch-team @wandb/sdk-team
