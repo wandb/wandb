@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import getpass
+import importlib.util
 import json
 import logging
 import os
@@ -2013,6 +2014,101 @@ def scheduler(
 _SCHEDULER_MIN_POLL_INTERVAL_S = 5
 
 
+def _load_source_object(source: str, name: str) -> Any:
+    """Import the python file at `source` and return its `name` attribute.
+
+    Used to load a user-defined `search_space` (define-by-run trial
+    constructor) or `optimizer` (study and optional terminator factory)
+    referenced by name from a sweep's scheduler config.
+    """
+    if not source:
+        raise ClickException(
+            f"scheduler.source must name the python file that defines "
+            f"{name!r}, but is missing or empty."
+        )
+    module_name = f"wandb_sweep_source_{pathlib.Path(source).stem}"
+    spec = importlib.util.spec_from_file_location(module_name, source)
+    if spec is None or spec.loader is None:
+        raise ClickException(f"Could not import source file: {source}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    try:
+        return getattr(module, name)
+    except AttributeError:
+        raise ClickException(f"{source} has no attribute {name!r}") from None
+
+
+def _load_optimizer_config(source: str, name: str) -> tuple[Any, Any | None]:
+    """Run a configured optimizer factory and normalize its return value.
+
+    The factory may return either the engine's native optimizer object or an
+    `(optimizer, terminator)` tuple. A terminator, when present, must be
+    callable.
+    """
+    configured = _load_source_object(source, name)()
+    if not isinstance(configured, tuple):
+        return configured, None
+    if len(configured) != 2:
+        raise ClickException(
+            f"scheduler.optimizer {name!r} must return an optimizer object "
+            "or an (optimizer, terminator) tuple."
+        )
+    optimizer, terminator = configured
+    if terminator is not None and not callable(terminator):
+        raise ClickException(
+            f"The terminator returned by scheduler.optimizer "
+            f"{name!r} must be callable or None."
+        )
+    return optimizer, terminator
+
+
+def _build_optuna_scheduler_optimizer(sweep, scheduler_config: dict):
+    """Build the optimizer for a sweep whose `scheduler.engine` is `optuna`.
+
+    `scheduler.optimizer` names a zero-argument function in
+    `scheduler.source`. The function may return either an Optuna `Study` or
+    a `(Study, terminator)` tuple. The optional terminator is called with the
+    study after each generation; returning `True` finishes the sweep.
+    """
+    # Importing the module lazily surfaces a helpful error when optuna isn't
+    # installed, and keeps the wandb path free of that dependency.
+    from wandb.sdk.sweeps.scheduler import optuna as optuna_scheduler
+
+    optimizer_name = scheduler_config.get("optimizer", "")
+    search_space_name = scheduler_config.get("search_space")
+    source = scheduler_config.get("source", "")
+
+    # `search_space` picks how the parameter space is defined: when given,
+    # the loaded function is the define-by-run trial constructor; otherwise
+    # a declarative parameter space is derived from the sweep's
+    # `parameters`. Independently, `optimizer` names a study factory to
+    # call instead of building the study from the config.
+    search_space = None
+    distributions = None
+    if search_space_name is not None:
+        search_space = _load_source_object(source, search_space_name)
+    else:
+        distributions = optuna_scheduler.search_space_from_sweep_config(
+            sweep.config.get("parameters", {})
+        )
+    terminator = None
+    if optimizer_name:
+        study, terminator = _load_optimizer_config(source, optimizer_name)
+    else:
+        study = optuna_scheduler.create_study_from_sweep_config(sweep.config)
+
+    return optuna_scheduler.make_optimizer(
+        study,
+        sweep,
+        optuna_scheduler.OptunaOptions(
+            study=study,
+            distributions=distributions,
+            search_space=search_space,
+            terminator=terminator,
+        ),
+    )
+
+
 def _build_wandb_scheduler_optimizer(sweep, scheduler_config: dict):
     """Build the optimizer for a sweep whose `scheduler.engine` is `wandb`."""
     search_space = scheduler_config.get("search_space")
@@ -2059,10 +2155,17 @@ def sweep_scheduler(
 ):
     """Drive an existing sweep with a locally chosen search strategy.
 
-    Create the sweep first with `wandb sweep sweep.yaml`; its config must set
-    `scheduler: {engine: <wandb>}` so the server leaves the search to this
-    scheduler. wandb-core runs the scheduling loop; this process hosts the
-    optimizer that proposes runs and learns from their results.
+    Create the sweep first with `wandb sweep sweep.yaml`; its config must
+    set `scheduler: {engine: wandb}` (or `optuna`) so the server leaves the
+    search to this scheduler. wandb-core runs the scheduling loop; this
+    process hosts the optimizer that proposes runs and learns from their
+    results.
+
+    For Optuna, `scheduler.source` names a Python file and
+    `scheduler.optimizer` names a zero-argument function in that file. The
+    function must return either an Optuna `Study` or a `(Study, terminator)`
+    tuple. A terminator receives the study after each generation and ends the
+    sweep by returning `True`.
     """
     api = _get_cling_api()
     if not api.is_authenticated:
@@ -2103,6 +2206,8 @@ def sweep_scheduler(
         engine = scheduler_config.get("engine")
         if engine == "wandb":
             return _build_wandb_scheduler_optimizer(sweep, scheduler_config)
+        if engine == "optuna":
+            return _build_optuna_scheduler_optimizer(sweep, scheduler_config)
         raise ClickException(f"Unsupported engine: {engine}")
 
     wandb.termlog(f"Starting sweep scheduler for {sweep_id} 🧹")

@@ -30,14 +30,18 @@ SCHEDULER_GRID_SWEEP_CONFIG: dict[str, Any] = {
 }
 
 
-def make_scheduler_grid_sweep() -> SweepInfo:
-    """Return the `SweepInfo` of a grid sweep with hyperband early termination."""
+def make_scheduler_grid_sweep(config: dict[str, Any] | None = None) -> SweepInfo:
+    """Return the `SweepInfo` of a grid sweep with hyperband early termination.
+
+    Args:
+        config: An override for the sweep's config.
+    """
     return SweepInfo(
         id="test_sweep",
         name="test_sweep",
         entity="test_entity",
         project="test_project",
-        config=SCHEDULER_GRID_SWEEP_CONFIG,
+        config=SCHEDULER_GRID_SWEEP_CONFIG if config is None else config,
     )
 
 
@@ -483,3 +487,112 @@ class TestSchedulerHostOffMainThread:
             ).result()
 
         assert handler is None
+
+
+def _make_sequential_sampler(optuna_module: Any) -> Any:
+    """A deterministic sampler cycling a categorical param's choices in order.
+
+    Real optuna samplers pick randomly (or per some search strategy), but the
+    shared acceptance tests -- written against `WandbOptimizer`'s
+    deterministic grid search -- assert an exact suggestion order.
+    """
+
+    class _SequentialSampler(optuna_module.samplers.BaseSampler):
+        def infer_relative_search_space(self, study: Any, trial: Any) -> dict:
+            return {}
+
+        def sample_relative(self, study: Any, trial: Any, search_space: dict) -> dict:
+            return {}
+
+        def sample_independent(
+            self, study: Any, trial: Any, param_name: str, param_distribution: Any
+        ) -> Any:
+            choices = list(param_distribution.choices)
+            seen = sum(
+                1
+                for t in study.get_trials(deepcopy=False)
+                if t.number != trial.number and param_name in t.params
+            )
+            return choices[seen % len(choices)]
+
+    return _SequentialSampler()
+
+
+class OptunaOptimizerAcceptanceTests(OptimizerAcceptanceTests):
+    """Shared setup for the Optuna optimizer flavors."""
+
+    # optuna's MedianPruner judges a running trial against the completed
+    # trials' median (6.0 here) rather than ranking running trials
+    # against each other, so the kept run's loss must sit below it.
+    better_running_loss = 5.0
+
+    @pytest.fixture
+    def study(self) -> Any:
+        import optuna
+
+        optuna.logging.set_verbosity(optuna.logging.WARNING)
+        return optuna.create_study(
+            direction="minimize",
+            sampler=_make_sequential_sampler(optuna),
+            pruner=optuna.pruners.MedianPruner(n_startup_trials=0, n_warmup_steps=0),
+        )
+
+
+class TestOptunaDeclarativeOptimizerAcceptance(OptunaOptimizerAcceptanceTests):
+    @pytest.fixture
+    def optimizer(self, study: Any, sweep: SweepInfo) -> Optimizer:
+        import optuna
+        from wandb.sdk.sweeps.scheduler.optuna import OptunaDeclarativeOptimizer
+
+        distributions = {
+            "param1": optuna.distributions.CategoricalDistribution([1, 2, 3])
+        }
+        return OptunaDeclarativeOptimizer(study, distributions, sweep)
+
+
+class TestOptunaImperativeOptimizerAcceptance(OptunaOptimizerAcceptanceTests):
+    @pytest.fixture
+    def optimizer(self, study: Any, sweep: SweepInfo) -> Optimizer:
+        from wandb.sdk.sweeps.scheduler.optuna import OptunaImperativeOptimizer
+
+        def trial_constructor(trial: Any) -> dict[str, Any]:
+            return {"param1": trial.suggest_categorical("param1", [1, 2, 3])}
+
+        return OptunaImperativeOptimizer(study, trial_constructor, sweep)
+
+
+class TerminatorContractTests(abc.ABC):
+    """`should_terminate_sweep` must delegate to the caller's terminator."""
+
+    @abc.abstractmethod
+    def make_optimizer(self, terminator: Any = None) -> tuple[Optimizer, Any]:
+        """Return an optimizer built with `terminator` and the callback's arg."""
+        ...
+
+    def test_no_terminator_never_terminates(self) -> None:
+        optimizer, _ = self.make_optimizer()
+        assert optimizer.should_terminate_sweep() is False
+
+    @pytest.mark.parametrize("verdict", [True, False])
+    def test_delegates_to_the_configured_terminator(self, verdict: bool) -> None:
+        from unittest.mock import MagicMock
+
+        terminator = MagicMock(return_value=verdict)
+        optimizer, callback_arg = self.make_optimizer(terminator)
+
+        assert optimizer.should_terminate_sweep() is verdict
+        terminator.assert_called_once_with(callback_arg)
+
+
+class TestOptunaOptimizerTermination(TerminatorContractTests):
+    def make_optimizer(self, terminator: Any = None) -> tuple[Optimizer, Any]:
+        import optuna
+        from wandb.sdk.sweeps.scheduler.optuna import OptunaDeclarativeOptimizer
+
+        optuna.logging.set_verbosity(optuna.logging.WARNING)
+        study = optuna.create_study(direction="minimize")
+        distributions = {"param1": optuna.distributions.IntDistribution(1, 3)}
+        optimizer = OptunaDeclarativeOptimizer(
+            study, distributions, make_scheduler_grid_sweep(), terminator
+        )
+        return optimizer, study
