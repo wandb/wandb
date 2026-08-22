@@ -6,6 +6,7 @@ from wandb.sdk.artifacts._validators import (
     RESERVED_ARTIFACT_TYPE_PREFIX,
     ArtifactPath,
     validate_artifact_path,
+    validate_artifact_root_name,
     validate_artifact_type,
     validate_project_name,
 )
@@ -111,6 +112,48 @@ def test_validate_artifact_path_valid(path: StrPath, expected: str):
 def test_validate_artifact_path_invalid(path):
     with raises(ValueError, match="Invalid artifact path"):
         validate_artifact_path(path)
+
+
+@mark.parametrize(
+    "name",
+    [
+        "mnist",
+        "mnist:v0",
+        "model:latest",
+        "name:v0:extra",
+        # A single-character collection name followed by ":" looks like a
+        # Windows drive path but is a legal artifact name.
+        "a",
+        "a:v0",
+        "1:v0",
+        "..notevil",
+    ],
+)
+def test_validate_artifact_root_name_valid(name: str):
+    assert validate_artifact_root_name(name) == name
+
+
+@mark.parametrize(
+    "name",
+    [
+        "",
+        "..",
+        "../../evil:v0",
+        "nested/../evil:v0",
+        "/abs:v0",
+        "//server/share:v0",
+        r"\evil:v0",
+        r"C:\evil",
+        # Traversal hidden after the single-character collection prefix.
+        "a:../evil",
+        "a:v0/../../evil",
+        r"a:C:\evil",
+        r"a:\evil",
+    ],
+)
+def test_validate_artifact_root_name_invalid(name: str):
+    with raises(ValueError, match="Invalid artifact name"):
+        validate_artifact_root_name(name)
 
 
 @mark.parametrize(
