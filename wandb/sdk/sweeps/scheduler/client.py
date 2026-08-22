@@ -2,13 +2,16 @@
 
 The client initializes a scheduler session in wandb-core, builds the
 optimizer from the sweep facts core returns, and exchanges tasks until the
-scheduler is done. Signals are handled here: only this process receives
-ctrl-c (wandb-core runs in its own session), so the first one is
-translated into a graceful stop request and the second one force-quits.
+scheduler is done.
+
+Signals are handled here: only this process receives ctrl-c (wandb-core
+runs in its own session), so the first one is translated into a graceful
+stop request and the second one force-quits.
 """
 
 from __future__ import annotations
 
+import logging
 import signal
 from collections.abc import Callable
 from typing import Any
@@ -26,6 +29,7 @@ from wandb.sdk.sweeps.scheduler.ipc import (
     forget_discards,
 )
 from wandb.sdk.sweeps.scheduler.optimizer import Optimizer
+from wandb.sdk.sweeps.scheduler.run_logger import ControllerRunLogger
 from wandb.sdk.sweeps.sweep_info import SweepInfo
 
 # Init is one wandb-core round trip to the W&B backend, registering the
@@ -107,15 +111,114 @@ def run_scheduler(
         project=project,
         config=yaml.safe_load(init_response.sweep_config) or {},
     )
+
+    controller_run = _open_controller_run(
+        entity=entity,
+        project=project,
+        run_name=init_response.controller_run_name,
+    )
+    try:
+        with ControllerRunLogger(controller_run) as run_logger:
+            return _execute_task_loop(
+                singleton,
+                service,
+                init_response.session_id,
+                sweep,
+                make_optimizer,
+                run_logger,
+            )
+    finally:
+        # Finished after the logger closes, so the session's last lines
+        # still reach the run.
+        controller_run.finish()
+
+
+def _open_controller_run(
+    *,
+    entity: str,
+    project: str,
+    run_name: str,
+) -> wandb.Run:
+    """Attach the sweep's controller run to collect this process's logs.
+
+    Args:
+        entity: The entity that owns the sweep.
+        project: The project the sweep belongs to.
+        run_name: The controller run's name.
+
+    Returns:
+        The attached run, to finish after the session.
+
+    Raises:
+        wandb.Error: If the run could not be attached.
+    """
+    try:
+        return wandb.init(
+            entity=entity,
+            project=project,
+            id=run_name,
+            settings=wandb.Settings(
+                # Console capture revises a line as
+                # it is printed, so it would record partial lines.
+                # ControllerRunLogger sends whole lines instead.
+                console="off",
+                silent=True,
+                # The controller run outlives any one scheduler session,
+                # so finishing it must not mark it complete.
+                x_update_finish_state=False,
+                # The run collects the sweep's scheduling history, not
+                # facts about whichever machine hosts the scheduler, and
+                # the server owns the rest of its metadata.
+                x_disable_stats=True,
+                x_disable_meta=True,
+                x_disable_machine_info=True,
+                x_save_requirements=False,
+                x_label="sweep-scheduler",
+            ),
+        )
+    except Exception as e:
+        term.termerror(f"Sweep scheduler for {run_name} failed to log: {e}")
+        raise wandb.Error(f"The sweep's controller run is unavailable: {e}") from e
+
+
+def _execute_task_loop(
+    singleton: Any,
+    service: Any,
+    scheduler_id: str,
+    sweep: SweepInfo,
+    make_optimizer: OptimizerFactory,
+    run_logger: ControllerRunLogger,
+) -> sspb.SweepSchedulerServerDoneTask:
+    """Run the optimizer task exchange for one scheduler session.
+
+    Args:
+        singleton: The process's wandb setup singleton.
+        service: The service connection to wandb-core.
+        scheduler_id: The scheduler's id from the init response.
+        sweep: The sweep being optimized.
+        make_optimizer: Builds the optimizer from the sweep's facts.
+        run_logger: Collects the sweep's logs for the controller run.
+
+    Returns:
+        The scheduler's Done task, describing why it stopped.
+
+    Raises:
+        wandb.Error: If the scheduler stopped because of a failure.
+    """
     optimizer = make_optimizer(sweep)
-    exchange = SchedulerTaskExchange(service, init_response.session_id, optimizer)
+    optimizer.attach_run_logger(run_logger)
+    exchange = SchedulerTaskExchange(service, scheduler_id, optimizer)
 
     previous_handler = _install_sigint_handler(
-        singleton.asyncer, service, init_response.session_id
+        singleton.asyncer,
+        service,
+        scheduler_id,
     )
+    restore_loggers = _capture_optimizer_loggers(optimizer, run_logger)
     try:
         done = singleton.asyncer.run(exchange.run)
     finally:
+        restore_loggers()
         if previous_handler is not None:
             signal.signal(signal.SIGINT, previous_handler)
 
@@ -127,6 +230,99 @@ def run_scheduler(
 
     term.termlog(f"Sweep scheduler for {sweep.name} exited: {message}.")
     return done
+
+
+def _framework_label(optimizer: Optimizer) -> str:
+    """The console label for the optimizer library's own log lines.
+
+    Derived from the first captured logger's root name, which is the
+    library's import name -- the name a user knows it by.
+    """
+    loggers = optimizer.captured_loggers()
+    if not loggers:
+        return ""
+    return loggers[0].split(".")[0]
+
+
+class _TermForwarder(logging.Handler):
+    """Forwards a library logger's records to the terminal and the run."""
+
+    def __init__(
+        self,
+        level: int,
+        run_logger: ControllerRunLogger,
+        label: str,
+    ) -> None:
+        super().__init__(level=level)
+        self._run_logger = run_logger
+        self._label = label
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            self._run_logger.log(
+                f"{record.name}: {record.getMessage()}",
+                label=self._label,
+                level=record.levelno,
+            )
+        except Exception:
+            self.handleError(record)
+
+
+def _capture_optimizer_loggers(
+    optimizer: Optimizer,
+    run_logger: ControllerRunLogger,
+) -> Callable[[], None]:
+    """Surface the optimizer library's internal logging to the user.
+
+    Optimizer libraries attach their own stream handlers, bound to the
+    process's original stderr, which console capture cannot always see.
+    For the session those handlers are swapped for a forwarder that
+    echoes through term and appends to the controller run.
+
+    Args:
+        optimizer: The optimizer whose `captured_loggers` to hook.
+        run_logger: Collects the sweep's logs for the controller run.
+
+    Returns:
+        A function undoing the swap.
+    """
+    forwarder = _TermForwarder(
+        level=logging.INFO,
+        run_logger=run_logger,
+        label=_framework_label(optimizer),
+    )
+
+    hooked: list[logging.Logger] = []
+    removed: list[tuple[logging.Logger, logging.Handler]] = []
+    releveled: list[tuple[logging.Logger, int]] = []
+    for name in optimizer.captured_loggers():
+        logger = logging.getLogger(name)
+        for handler in list(logger.handlers):
+            # Exact type: subclasses like FileHandler write elsewhere
+            # and would not double the terminal output.
+            if type(handler) is logging.StreamHandler:
+                logger.removeHandler(handler)
+                removed.append((logger, handler))
+        logger.addHandler(forwarder)
+        hooked.append(logger)
+
+        # The forwarder only sees records the logger lets through. A
+        # library that leaves its logger above INFO (or unset, inheriting
+        # the root's WARNING) would drop the progress lines this capture
+        # exists for, so pin the level for the session.
+        if logger.getEffectiveLevel() > logging.INFO:
+            releveled.append((logger, logger.level))
+            logger.setLevel(logging.INFO)
+
+    def restore() -> None:
+        for logger in hooked:
+            logger.removeHandler(forwarder)
+        for logger, handler in removed:
+            logger.addHandler(handler)
+        for logger, level in releveled:
+            logger.setLevel(level)
+
+    return restore
 
 
 def _install_sigint_handler(

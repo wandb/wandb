@@ -8,9 +8,11 @@ end-to-end, see tests/system_tests/test_sweep/test_sweep_scheduler_e2e.py.
 from __future__ import annotations
 
 import asyncio
+import io
 import json
+import logging
 from collections.abc import Sequence
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock
 
 import pytest
 from wandb.proto import wandb_sweep_scheduler_pb2 as sspb
@@ -24,6 +26,23 @@ from wandb.sdk.sweeps.scheduler.ipc import (
     forget_discards,
 )
 from wandb.sdk.sweeps.scheduler.optimizer import Optimizer, RunConfig, RunSuggestion
+from wandb.sdk.sweeps.scheduler.run_logger import ControllerRunLogger
+from wandb.sdk.sweeps.scheduler.wandb import WandbOptimizer
+
+from tests.unit_tests.test_sweep_scheduler import (
+    SCHEDULER_GRID_SWEEP_CONFIG,
+    make_scheduler_grid_sweep,
+)
+
+
+class FakeRunLogger:
+    """A ControllerRunLogger that records lines instead of sending them."""
+
+    def __init__(self) -> None:
+        self.lines: list[tuple[str, str, int]] = []
+
+    def log(self, message: str, *, label: str = "", level: int = logging.INFO) -> None:
+        self.lines.append((message, label, level))
 
 
 def make_optimizer() -> Mock:
@@ -202,7 +221,9 @@ def test_generation_orders_tell_prune_terminate_ask():
 
     run_exchange(service, optimizer)
 
-    kinds = [c[0] for c in optimizer.mock_calls]
+    # "log" calls (status lines around the ask) are incidental here; see
+    # test_ask_logs_generation_count_and_elapsed for those.
+    kinds = [c[0] for c in optimizer.mock_calls if c[0] != "log"]
     assert kinds == [
         "tell_run",
         "prune_runs",
@@ -370,3 +391,115 @@ def test_describe_done_marks_errors():
     assert not clean
     assert "finished" in message
     assert "42 runs" in message
+
+
+def test_ask_logs_the_generation_count_and_elapsed_under_the_engine():
+    # A real WandbOptimizer, not a mock: the assertions below are on the
+    # real `log`/`engine` behavior every Optimizer inherits, which a
+    # mocked optimizer would not exercise.
+    optimizer = WandbOptimizer(
+        make_scheduler_grid_sweep(
+            config={**SCHEDULER_GRID_SWEEP_CONFIG, "scheduler": {"engine": "optuna"}}
+        )
+    )
+    run_logger = FakeRunLogger()
+    optimizer.attach_run_logger(run_logger)
+    service = make_service(
+        [
+            generation_task(1, ask_up_to=2),
+            done_task(2),
+        ]
+    )
+
+    run_exchange(service, optimizer)
+
+    # The lines are attributed to the engine, not to the scheduler.
+    assert ("optuna optimizer is generating 2 new runs", "optuna") in [
+        (message, label) for message, label, _ in run_logger.lines
+    ]
+    assert any(
+        message.startswith("optuna optimizer generated 2 runs in")
+        for message, _, _ in run_logger.lines
+    )
+
+
+def test_discarded_suggestion_warns_instead_of_enqueued(capsys):
+    optimizer = make_optimizer()
+    optimizer.ask_n_runs.return_value = [
+        RunSuggestion(config=RunConfig.from_values({"param1": 1}), run_id="opt-1")
+    ]
+    service = make_service(
+        [
+            generation_task(1, ask_up_to=1),
+            generation_task(2, discarded=["opt-1"]),
+            done_task(3),
+        ]
+    )
+
+    run_exchange(service, optimizer)
+
+    err = capsys.readouterr().err
+    assert 'Could not schedule the run with config {"param1": 1}.' in err
+
+
+def test_capture_optimizer_loggers_swaps_stream_handlers(capsys):
+    """The library's own stderr handler yields to the term forwarder."""
+    from wandb.sdk.sweeps.scheduler import client
+
+    optimizer = make_optimizer()
+    optimizer.captured_loggers = (  # type: ignore[method-assign]
+        lambda: ("fake-optimizer-lib",)
+    )
+
+    library_logger = logging.getLogger("fake-optimizer-lib")
+    library_handler = logging.StreamHandler(io.StringIO())
+    library_logger.addHandler(library_handler)
+    library_logger.setLevel(logging.INFO)
+    library_logger.propagate = False
+    try:
+        restore = client._capture_optimizer_loggers(
+            optimizer,
+            ControllerRunLogger(MagicMock()),
+        )
+        try:
+            assert library_handler not in library_logger.handlers
+            library_logger.warning("model stalled")
+        finally:
+            restore()
+
+        assert library_handler in library_logger.handlers
+        assert not any(
+            isinstance(handler, client._TermForwarder)
+            for handler in library_logger.handlers
+        )
+    finally:
+        library_logger.removeHandler(library_handler)
+
+    assert "fake-optimizer-lib: model stalled" in capsys.readouterr().err
+
+
+def test_captured_records_reach_the_run_under_the_library_label():
+    """Library records reach the sweep's logs labeled by the library."""
+    from wandb.sdk.sweeps.scheduler import client
+
+    optimizer = MagicMock()
+    optimizer.captured_loggers.return_value = ("fake-lib.study",)
+    run_logger = FakeRunLogger()
+
+    library_logger = logging.getLogger("fake-lib.study")
+    library_logger.propagate = False
+    restore = client._capture_optimizer_loggers(optimizer, run_logger)
+    try:
+        library_logger.info("trial finished")
+        library_logger.warning("model stalled")
+    finally:
+        restore()
+        library_logger.propagate = True
+
+    # The label is the library's import name, from its root logger.
+    assert ("fake-lib.study: trial finished", "fake-lib", logging.INFO) in (
+        run_logger.lines
+    )
+    assert ("fake-lib.study: model stalled", "fake-lib", logging.WARNING) in (
+        run_logger.lines
+    )

@@ -618,3 +618,53 @@ class TestAxOptimizerTermination(TerminatorContractTests):
 
         client = create_default_client(SCHEDULER_GRID_SWEEP_CONFIG)
         return AxOptimizer(client, make_scheduler_grid_sweep(), terminator), client
+
+
+class TestControllerRunLogs:
+    """Tests for attaching the sweep's controller run for log capture."""
+
+    def test_attaches_the_named_run(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        import wandb
+        from wandb.sdk.sweeps.scheduler import client
+
+        attached = MagicMock()
+        init = MagicMock(return_value=attached)
+        monkeypatch.setattr(wandb, "init", init)
+
+        run = client._open_controller_run(
+            entity="e", project="p", run_name="controller-1"
+        )
+
+        assert run is attached
+        kwargs = init.call_args.kwargs
+        assert kwargs["entity"] == "e"
+        assert kwargs["project"] == "p"
+        assert kwargs["id"] == "controller-1"
+        # The controller run outlives the session: finishing it must not
+        # mark it complete.
+        assert kwargs["settings"].x_update_finish_state is False
+        # The run's lines are appended by the server, so console
+        # capture, which revises a line in place, must stay off.
+        assert kwargs["settings"].console == "off"
+        # The server owns the run's metadata; the attach must not
+        # overwrite it with this machine's.
+        assert kwargs["settings"].x_disable_machine_info is True
+        assert kwargs["settings"].x_save_requirements is False
+        # The attachment's sync banners are internal noise.
+        assert kwargs["settings"].silent is True
+
+    def test_attach_failure_fails_the_sweep(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        import wandb
+        from wandb.sdk.sweeps.scheduler import client
+
+        init = MagicMock(side_effect=Exception("run was deleted"))
+        monkeypatch.setattr(wandb, "init", init)
+
+        with pytest.raises(wandb.Error, match="controller run is unavailable"):
+            client._open_controller_run(
+                entity="e", project="p", run_name="controller-1"
+            )

@@ -689,7 +689,7 @@ message AlertResult {}
 // step with a PartialHistoryRequest, which produces artificial Records
 // when a step is committed).
 //
-// Next ID: 85
+// Next ID: 86
 message Request {
   reserved 18, 22, 75, 76, 79, 80;
 
@@ -730,6 +730,7 @@ message Request {
     JobInputRequest job_input = 77;
     LinkArtifactRequest link_artifact = 78;
     SyncFinishRequest sync_finish = 81;
+    RunLogRequest run_log = 85;
 
     // Requests information about tasks the service is performing.
     OperationStatsRequest operations = 82;
@@ -1167,6 +1168,43 @@ message PartialHistoryRequest {
 }
 
 message PartialHistoryResponse {}
+
+/*
+ * RunLogRequest: one finished line of a run's logs.
+ *
+ * Unlike console output, the line is complete when it is sent and is
+ * never revised, so it is uploaded once and appended to the run's log.
+ * This suits a run whose log lines are numbered by the server, such as
+ * a sweep's controller run: there, an update revising an earlier line
+ * is stored as a new line rather than replacing it. Such a run must
+ * not also capture console output, whose lines are numbered by the
+ * client and revised in place.
+ *
+ * This is a request rather than a record because the lines describe a
+ * session watching the run, not the run itself: replaying them from a
+ * transaction log would append them a second time.
+ */
+message RunLogRequest {
+  enum Level {
+    INFO = 0;
+    ERROR = 1;
+  }
+
+  // The line's text, without a trailing newline.
+  string line = 1;
+
+  // Identifies the writer of the line, displayed alongside it.
+  //
+  // Unlike the run's x_label setting, which names one writer for a
+  // whole run, this distinguishes lines a single writer relays on
+  // behalf of several sources.
+  string label = 2;
+
+  // The line's severity.
+  Level level = 3;
+
+  _RequestInfo _info = 200;
+}
 
 // Get the run's current W&B step number (the step of the next `log()` call).
 //
