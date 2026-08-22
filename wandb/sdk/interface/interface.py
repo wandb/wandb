@@ -809,9 +809,10 @@ class InterfaceBase(abc.ABC):
         self,
         line: str,
         *,
+        label: str = "",
         nowait: bool = False,
     ) -> None:
-        o = pb.OutputLoggerRecord(line=line)
+        o = pb.OutputLoggerRecord(line=line, label=label)
         self._publish_output_logger(o, nowait=nowait)
 
     @abc.abstractmethod

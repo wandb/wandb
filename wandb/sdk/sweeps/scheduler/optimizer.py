@@ -3,10 +3,14 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
+from wandb.errors import term
 from wandb.sdk.sweeps.run_state import RunState
 from wandb.sdk.sweeps.sweep_info import SweepInfo
+
+if TYPE_CHECKING:
+    import wandb
 
 
 @dataclass
@@ -106,7 +110,56 @@ class Optimizer(ABC):
 
     def __init__(self, sweep: SweepInfo):
         self._sweep = sweep
+        self._controller_run: wandb.Run | None = None
         self.validate_sweep_objective()
+
+    def attach_controller_run(self, run: wandb.Run | None) -> None:
+        """Send this optimizer's `log()` lines to the sweep's controller run.
+
+        Called by the scheduler session. Lines are attributed to this
+        optimizer's engine instead of captured as scheduler output.
+
+        Args:
+            run: The attached controller run, or None when the sweep
+                has none or the attach failed.
+        """
+        self._controller_run = run
+
+    def log(self, message: str) -> None:
+        """Log a line to the terminal, attributed to this optimizer's engine.
+
+        Inside a `run_scheduler` session that attached the sweep's
+        controller run, the line is written to that run under this
+        optimizer's engine name rather than captured as scheduler
+        output.
+
+        Args:
+            message: The line to log.
+        """
+        if self._controller_run is None:
+            term.termlog(message)
+            return
+
+        from wandb.sdk.lib import console_capture
+
+        with console_capture.uncaptured():
+            term.termlog(message)
+        try:
+            self._controller_run.write_logs(message, label=self.engine)
+        except Exception:
+            # A failed write costs this line on the run, never the sweep.
+            pass
+
+    def captured_loggers(self) -> Sequence[str]:
+        """Names of Python loggers the scheduler surfaces to the user.
+
+        During a `run_scheduler` session, records these loggers emit are
+        printed to the terminal in place of the libraries' own stream
+        output, and stream to the sweep's controller run when one is
+        attached. Override to expose an optimizer library's internal
+        logging; the default captures nothing.
+        """
+        return ()
 
     @abstractmethod
     def validate_sweep_objective(self) -> None:
@@ -217,6 +270,17 @@ class Optimizer(ABC):
     def sweep_name(self) -> str:
         """The name of the sweep this optimizer searches."""
         return self._sweep.name
+
+    @property
+    def engine(self) -> str:
+        """The search engine named in the sweep's scheduler config.
+
+        Returns:
+            The `scheduler.engine` value, or `wandb` when the sweep
+            does not name one.
+        """
+        scheduler = self._sweep.config.get("scheduler") or {}
+        return str(scheduler.get("engine") or "wandb")
 
     def prune_run(self, run_id: Any, data: RunWithMetrics) -> bool:
         """Return True if the run should be pruned.

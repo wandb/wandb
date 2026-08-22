@@ -8,7 +8,9 @@ end-to-end, see tests/system_tests/test_sweep/test_sweep_scheduler_e2e.py.
 from __future__ import annotations
 
 import asyncio
+import io
 import json
+import logging
 from collections.abc import Sequence
 from unittest.mock import Mock
 
@@ -24,6 +26,12 @@ from wandb.sdk.sweeps.scheduler.ipc import (
     forget_discards,
 )
 from wandb.sdk.sweeps.scheduler.optimizer import Optimizer, RunConfig, RunSuggestion
+from wandb.sdk.sweeps.scheduler.wandb import WandbOptimizer
+
+from tests.unit_tests.test_sweep_scheduler import (
+    SCHEDULER_GRID_SWEEP_CONFIG,
+    make_scheduler_grid_sweep,
+)
 
 
 def make_optimizer() -> Mock:
@@ -202,7 +210,9 @@ def test_generation_orders_tell_prune_terminate_ask():
 
     run_exchange(service, optimizer)
 
-    kinds = [c[0] for c in optimizer.mock_calls]
+    # "log" calls (status lines around the ask) are incidental here; see
+    # test_ask_logs_generation_count_and_elapsed for those.
+    kinds = [c[0] for c in optimizer.mock_calls if c[0] != "log"]
     assert kinds == [
         "tell_run",
         "prune_runs",
@@ -390,3 +400,149 @@ def test_describe_done_marks_errors():
     assert not clean
     assert "exhausted" in message
     assert "42 runs" in message
+
+
+def test_ask_logs_generation_count_and_elapsed(capsys, monkeypatch):
+    # A real WandbOptimizer, not a mock: the assertions below are on the
+    # real `log`/`engine` behavior every Optimizer inherits, which a
+    # mocked optimizer would not exercise.
+    optimizer = WandbOptimizer(
+        make_scheduler_grid_sweep(
+            config={**SCHEDULER_GRID_SWEEP_CONFIG, "scheduler": {"engine": "optuna"}}
+        )
+    )
+    times = iter([10.0, 12.34])
+    monkeypatch.setattr(
+        "wandb.sdk.sweeps.scheduler.ipc.time.perf_counter",
+        lambda: next(times),
+    )
+    service = make_service(
+        [
+            generation_task(1, ask_up_to=2),
+            done_task(2),
+        ]
+    )
+
+    run_exchange(service, optimizer)
+
+    err = capsys.readouterr().err
+    assert "optuna optimizer is generating 2 new runs" in err
+    assert "optuna optimizer generated 2 runs in 2.34s" in err
+
+
+def test_ask_logs_are_labeled_with_the_engine(capsys, monkeypatch):
+    from unittest.mock import MagicMock
+
+    optimizer = WandbOptimizer(
+        make_scheduler_grid_sweep(
+            config={**SCHEDULER_GRID_SWEEP_CONFIG, "scheduler": {"engine": "optuna"}}
+        )
+    )
+    controller_run = MagicMock()
+    optimizer.attach_controller_run(controller_run)
+    times = iter([10.0, 10.5])
+    monkeypatch.setattr(
+        "wandb.sdk.sweeps.scheduler.ipc.time.perf_counter",
+        lambda: next(times),
+    )
+    service = make_service(
+        [
+            generation_task(1, ask_up_to=1),
+            done_task(2),
+        ]
+    )
+
+    run_exchange(service, optimizer)
+
+    # The terminal still shows the lines; the run copy is attributed
+    # to the engine instead of captured as scheduler output.
+    err = capsys.readouterr().err
+    assert "optuna optimizer is generating 1 new runs" in err
+    controller_run.write_logs.assert_any_call(
+        "optuna optimizer is generating 1 new runs", label="optuna"
+    )
+    controller_run.write_logs.assert_any_call(
+        "optuna optimizer generated 1 runs in 0.50s", label="optuna"
+    )
+
+
+def test_discarded_suggestion_warns_instead_of_enqueued(capsys):
+    optimizer = make_optimizer()
+    optimizer.ask_n_runs.return_value = [
+        RunSuggestion(config=RunConfig.from_values({"param1": 1}), run_id="opt-1")
+    ]
+    service = make_service(
+        [
+            generation_task(1, ask_up_to=1),
+            generation_task(2, discarded=["opt-1"]),
+            done_task(3),
+        ]
+    )
+
+    run_exchange(service, optimizer)
+
+    err = capsys.readouterr().err
+    assert 'Could not schedule the run with config {"param1": 1}.' in err
+
+
+def test_capture_optimizer_loggers_swaps_stream_handlers(capsys):
+    """The library's own stderr handler yields to the term forwarder."""
+    from wandb.sdk.sweeps.scheduler import client
+
+    optimizer = make_optimizer()
+    optimizer.captured_loggers = (  # type: ignore[method-assign]
+        lambda: ("fake-optimizer-lib",)
+    )
+
+    library_logger = logging.getLogger("fake-optimizer-lib")
+    library_handler = logging.StreamHandler(io.StringIO())
+    library_logger.addHandler(library_handler)
+    library_logger.setLevel(logging.INFO)
+    library_logger.propagate = False
+    try:
+        restore = client._capture_optimizer_loggers(optimizer, None)
+        try:
+            assert library_handler not in library_logger.handlers
+            library_logger.warning("model stalled")
+        finally:
+            restore()
+
+        assert library_handler in library_logger.handlers
+        assert not any(
+            isinstance(handler, client._TermForwarder)
+            for handler in library_logger.handlers
+        )
+    finally:
+        library_logger.removeHandler(library_handler)
+
+    assert "fake-optimizer-lib: model stalled" in capsys.readouterr().err
+
+
+def test_captured_records_reach_the_run_under_the_library_label():
+    """Library records go to the controller run labeled by the library."""
+    from unittest.mock import MagicMock
+
+    from wandb.sdk.sweeps.scheduler import client
+
+    optimizer = MagicMock()
+    optimizer.captured_loggers.return_value = ("fake-lib.study",)
+    controller_run = MagicMock()
+
+    library_logger = logging.getLogger("fake-lib.study")
+    library_logger.propagate = False
+    restore = client._capture_optimizer_loggers(optimizer, controller_run)
+    try:
+        library_logger.info("trial finished")
+        library_logger.warning("model stalled")
+    finally:
+        restore()
+        library_logger.propagate = True
+
+    # The label is the library's import name, from its root logger.
+    controller_run.write_logs.assert_any_call(
+        "fake-lib.study: trial finished", label="fake-lib"
+    )
+    # The run copy spells out the severity itself.
+    controller_run.write_logs.assert_any_call(
+        "WARNING fake-lib.study: model stalled", label="fake-lib"
+    )

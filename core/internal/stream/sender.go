@@ -190,6 +190,7 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 		ChunkMaxBytes:         f.Settings.GetConsoleChunkMaxBytes(),
 		ChunkMaxSeconds:       f.Settings.GetConsoleChunkMaxSeconds(),
 		Structured:            structuredConsoleLogs,
+		CompleteLinesOnly:     f.Settings.IsConsoleCompleteLines(),
 	}
 
 	s := &Sender{

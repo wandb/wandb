@@ -702,3 +702,64 @@ class TestAxOptimizerTermination(TerminatorContractTests):
 
         client = create_default_client(SCHEDULER_GRID_SWEEP_CONFIG)
         return AxOptimizer(client, make_scheduler_grid_sweep(), terminator), client
+
+
+class TestControllerRunLogs:
+    """Tests for attaching the sweep's controller run for log capture."""
+
+    def test_without_a_controller_run_does_not_attach(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        import wandb
+        from wandb.sdk.sweeps.scheduler import client
+
+        init = MagicMock()
+        monkeypatch.setattr(wandb, "init", init)
+
+        run = client._open_controller_run(entity="e", project="p", run_name="")
+
+        assert run is None
+        init.assert_not_called()
+
+    def test_attaches_the_named_run(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        import wandb
+        from wandb.sdk.sweeps.scheduler import client
+
+        attached = MagicMock()
+        init = MagicMock(return_value=attached)
+        monkeypatch.setattr(wandb, "init", init)
+
+        run = client._open_controller_run(
+            entity="e", project="p", run_name="controller-1"
+        )
+
+        assert run is attached
+        kwargs = init.call_args.kwargs
+        assert kwargs["entity"] == "e"
+        assert kwargs["project"] == "p"
+        assert kwargs["id"] == "controller-1"
+        # The controller run outlives the session: finishing it must not
+        # mark it complete.
+        assert kwargs["settings"].x_update_finish_state is False
+        # The sweep's log store appends console updates, so only whole
+        # lines may be streamed.
+        assert kwargs["settings"].x_console_complete_lines is True
+        # The attachment's sync banners are internal noise.
+        assert kwargs["settings"].silent is True
+
+    def test_attach_failure_costs_logs_not_the_sweep(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        import wandb
+        from wandb.sdk.sweeps.scheduler import client
+
+        init = MagicMock(side_effect=Exception("run was deleted"))
+        monkeypatch.setattr(wandb, "init", init)
+
+        run = client._open_controller_run(
+            entity="e", project="p", run_name="controller-1"
+        )
+
+        assert run is None
