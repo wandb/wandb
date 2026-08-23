@@ -40,11 +40,13 @@ const (
 
 // ArtifactSaveManager manages artifact uploads.
 type ArtifactSaveManager struct {
-	logger                                *observability.CoreLogger
-	printer                               *observability.Printer
-	graphqlClient                         graphql.Client
-	fileTransferManager                   filetransfer.FileTransferManager
-	fileCache                             Cache
+	logger              *observability.CoreLogger
+	printer             *observability.Printer
+	graphqlClient       graphql.Client
+	fileTransferManager filetransfer.FileTransferManager
+	fileCache           Cache
+
+	// server flag checks are functions so that we can resolve them lazily
 	useArtifactProjectEntityInfo          func() bool
 	serverProvidesArtifactDigestAlgorithm func() bool
 
@@ -176,10 +178,10 @@ type artifactSequence = gql.FetchArtifactDigestAlgorithmProjectArtifactTypeArtif
 
 // digestAlgorithm returns the digest algorithm saved on the ArtifactRecord as a gql.ArtifactDigestAlgorithm.
 func (as *ArtifactSaver) digestAlgorithm() gql.ArtifactDigestAlgorithm {
-	if as.artifact.DigestAlgorithm != string(gql.ArtifactDigestAlgorithmManifestXxh128) {
-		return gql.ArtifactDigestAlgorithmManifestMd5
+	if as.artifact.DigestAlgorithm == string(gql.ArtifactDigestAlgorithmManifestXxh128) {
+		return gql.ArtifactDigestAlgorithmManifestXxh128
 	}
-	return gql.ArtifactDigestAlgorithmManifestXxh128
+	return gql.ArtifactDigestAlgorithmManifestMd5
 }
 
 // getArtifactDigestAlgorithm returns the digest algorithm to use for the artifact
