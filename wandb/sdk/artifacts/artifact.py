@@ -92,6 +92,7 @@ from .artifact_manifest_entry import (
     DIGEST_ALGORITHM_EXTRA_KEY,
     DIGEST_ALGORITHM_TO_STR,
     ArtifactManifestEntry,
+    _STR_TO_DIGEST_ALGORITHM,
 )
 from .artifact_manifests.artifact_manifest_v1 import ArtifactManifestV1
 from .artifact_state import ArtifactState
@@ -154,6 +155,7 @@ class Artifact:
             than 100 total keys.
         incremental: Use `Artifact.new_draft()` method instead to modify an
             existing artifact.
+        digest_algorithm: The digest algorithm to use for the artifact. Defaults to XXH128.
         use_as: Deprecated.
 
     Returns:
@@ -172,6 +174,7 @@ class Artifact:
         incremental: bool = False,
         use_as: str | None = None,
         storage_region: str | None = None,
+        digest_algorithm: Literal["MD5", "XXH128"] = "XXH128",
     ) -> None:
         from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 
@@ -244,8 +247,9 @@ class Artifact:
         # populated locally, it should take priority when determining these values.
         self._size: NonNegativeInt | None = None
         self._digest: str | None = None
-        self._digest_algorithm: ArtifactDigestAlgorithm = (
-            ArtifactDigestAlgorithm.MANIFEST_XXH128
+
+        self._digest_algorithm = _STR_TO_DIGEST_ALGORITHM.get(
+            digest_algorithm, ArtifactDigestAlgorithm.MANIFEST_XXH128
         )
 
         self._manifest: ArtifactManifest | None = ArtifactManifestV1(

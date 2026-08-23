@@ -7,6 +7,7 @@ from zlib import crc32
 
 from wandb.sdk.artifacts._generated.enums import ArtifactDigestAlgorithm
 from wandb.sdk.artifacts.artifact import Artifact
+from wandb.sdk.artifacts.artifact_manifest_entry import DIGEST_ALGORITHM_TO_STR
 
 PLACEHOLDER: Final[str] = "PLACEHOLDER"
 
@@ -50,15 +51,21 @@ class InternalArtifact(Artifact):
         digest_algorithm: ArtifactDigestAlgorithm = ArtifactDigestAlgorithm.MANIFEST_XXH128,
     ) -> None:
         sanitized_name = sanitize_artifact_name(name)
+
+        digest_algorithm_str = DIGEST_ALGORITHM_TO_STR.get(digest_algorithm, "MD5")
+
+        if type == "job":
+            # Match go-core JobBuilder / ArtifactBuilder, which always uses MD5.
+            digest_algorithm_str = "MD5"
+
         super().__init__(
-            sanitized_name, PLACEHOLDER, description, metadata, incremental, use_as
+            sanitized_name,
+            PLACEHOLDER,
+            description,
+            metadata,
+            incremental,
+            use_as,
+            digest_algorithm=digest_algorithm_str,
         )
         self._type = type
 
-        if self._type == "job":
-            # Match go-core JobBuilder / ArtifactBuilder, which always uses MD5.
-            digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_MD5
-
-        self._digest_algorithm = digest_algorithm
-        if self.manifest is not None:
-            self.manifest.digest_algorithm = digest_algorithm
