@@ -195,6 +195,17 @@ func (as *ArtifactSaver) getArtifactDigestAlgorithm() (gql.ArtifactDigestAlgorit
 	if !as.serverProvidesArtifactDigestAlgorithm {
 		return gql.ArtifactDigestAlgorithmManifestMd5, nil
 	}
+
+	// check if the xxhash digests are enabled for the entity
+	enabledResponse, err := gql.XXHashDigestsEnabled(as.ctx, as.graphqlClient, as.artifact.Entity)
+	if err != nil {
+		return "", fmt.Errorf("ArtifactSaver.XXHashDigestsEnabled: %w", err)
+	}
+	enabledResponseEntity := enabledResponse.GetEntity()
+	if enabledResponseEntity == nil || !enabledResponseEntity.GetXxhashDigestsEnabled() {
+		return gql.ArtifactDigestAlgorithmManifestMd5, nil
+	}
+
 	response, err := gql.FetchArtifactDigestAlgorithm(
 		as.ctx,
 		as.graphqlClient,
