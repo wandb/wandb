@@ -48,7 +48,7 @@ class ArtifactManifestV1(ArtifactManifest):
             manifest_version=data.version,
             entries=data.contents,
             storage_policy=policy,
-            digest_algorithm=digest_algorithm or ArtifactDigestAlgorithm.MANIFEST_MD5,
+            digest_algorithm=digest_algorithm,
         )
 
     def to_manifest_json(self) -> dict:
