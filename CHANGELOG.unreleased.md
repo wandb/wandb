@@ -23,6 +23,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Drag the separator lines between LEET's run overview sections to resize them with the mouse. The proportions are saved per view; press `0` to reset them along with the other pane sizes (@dmitryduev in https://github.com/wandb/wandb/pull/12525)
 - Registry API version queries (`Api.registries().versions()`, `Api.registries().collections().versions()`, `Registry.versions()`, `Registry.collections().versions()`) now accept an optional `order` string as a keyword argument for organizations with advanced search. The API supports ordering versions by `created_at`, `artifact_size`, and `linked_at` (@amusipatla-wandb in https://github.com/wandb/wandb/pull/12489)
 - Added `Artifact.linked_at` which returns when the version was linked to the relevant portfolio. This is valid only for linked versions, and for source artifacts returns `None` (@amusipatla-wandb in https://github.com/wandb/wandb/pull/12490)
+- Artifacts can now use XXH128 as the digest algorithm by with `wandb.Artifact(..., digest_algorithm="XXH128")`. If the artifact's existing sequence is using MD5, this artifact will also be uploaded with MD5. On older SDK versions, calling `artifact.verify()` on this artifact will always fail. (@amusipatla-wandb in https://github.com/wandb/wandb/pull/12564)
 
 ### Changed
 
