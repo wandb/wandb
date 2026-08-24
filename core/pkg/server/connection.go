@@ -694,25 +694,6 @@ func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest
 		s,
 		"wandb-core",
 	)
-	go func() {
-		<-nc.connLifetimeCtx.Done()
-		if telemetryProxy != nil {
-			shutdownCtx, cancel := context.WithTimeout(
-				context.Background(),
-				2*time.Second,
-			)
-			defer cancel()
-
-			err := telemetryProxy.Shutdown(shutdownCtx)
-			if err != nil {
-				slog.Error(
-					"connection: failed to shut down telemetry proxy",
-					"error",
-					err,
-				)
-			}
-		}
-	}()
 
 	logger := observability.NewCoreLogger(
 		slog.Default(),
@@ -722,7 +703,12 @@ func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest
 			analytics.NewTelemetryContext(),
 		),
 	)
-	wbapiInstance, err := wbapi.New(s, request.GetServiceName(), logger)
+	wbapiInstance, err := wbapi.New(
+		s,
+		request.GetServiceName(),
+		logger,
+		telemetryProxy,
+	)
 	if err != nil {
 		nc.Respond(&spb.ServerResponse{
 			RequestId: id,

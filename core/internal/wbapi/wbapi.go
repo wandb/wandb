@@ -9,9 +9,11 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"sync"
 
 	"github.com/hashicorp/go-retryablehttp"
 
+	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filetransfer"
@@ -36,16 +38,19 @@ type WandbAPI struct {
 
 	settings *settings.Settings
 
-	authHandler          *AuthHandler
-	customChartHandler   *CustomChartHandler
-	featuresHandler      *FeaturesHandler
-	fileTransferHandler  *FileTransferHandler
-	graphqlHandler       *GraphQLHandler
-	opentelemetryHandler *OpenTelemetryHandler
-	runFilesHandler      *RunFilesHandler
-	runHandler           *RunHandler
-	runQueueHandler      *RunQueueHandler
-	runHistoryApiHandler *RunHistoryAPIHandler
+	authHandler               *AuthHandler
+	customChartHandler        *CustomChartHandler
+	featuresHandler           *FeaturesHandler
+	fileTransferHandler       *FileTransferHandler
+	graphqlHandler            *GraphQLHandler
+	opentelemetryHandler      *OpenTelemetryHandler
+	connectionTelemetryProxy  *analytics.OpenTelemetryProxy
+	telemetryActivationCancel context.CancelFunc
+	telemetryActivationWG     sync.WaitGroup
+	runFilesHandler           *RunFilesHandler
+	runHandler                *RunHandler
+	runQueueHandler           *RunQueueHandler
+	runHistoryApiHandler      *RunHistoryAPIHandler
 }
 
 // New returns a new WandbAPI.
@@ -53,6 +58,7 @@ func New(
 	s *settings.Settings,
 	serviceName string,
 	logger *observability.CoreLogger,
+	connectionTelemetryProxy *analytics.OpenTelemetryProxy,
 ) (*WandbAPI, error) {
 	baseURL, err := url.Parse(s.GetBaseURL())
 	if err != nil {
@@ -102,26 +108,45 @@ func New(
 	)
 	featureProvider := featurechecker.New(graphqlClient, logger)
 
-	return &WandbAPI{
+	wandbAPI := &WandbAPI{
 		semaphore: make(chan struct{}, maxConcurrency),
 		logger:    logger,
 		settings:  s,
 
-		authHandler:          NewAuthHandler(graphqlClient, credentialProvider),
-		featuresHandler:      NewFeaturesHandler(featureProvider),
-		fileTransferHandler:  NewFileTransferHandler(fileTransferManager),
-		graphqlHandler:       NewGraphQLHandler(graphqlClient),
-		customChartHandler:   NewCustomChartHandler(graphqlClient),
-		opentelemetryHandler: NewOpenTelemetryHandler(s, serviceName),
-		runFilesHandler:      NewRunFilesHandler(graphqlClient),
-		runHandler:           NewRunHandler(graphqlClient),
-		runQueueHandler:      NewRunQueueHandler(graphqlClient),
+		authHandler:         NewAuthHandler(graphqlClient, credentialProvider),
+		featuresHandler:     NewFeaturesHandler(featureProvider),
+		fileTransferHandler: NewFileTransferHandler(fileTransferManager),
+		graphqlHandler:      NewGraphQLHandler(graphqlClient),
+		customChartHandler:  NewCustomChartHandler(graphqlClient),
+		opentelemetryHandler: NewOpenTelemetryHandler(
+			s,
+			serviceName,
+		),
+		connectionTelemetryProxy: connectionTelemetryProxy,
+		runFilesHandler:          NewRunFilesHandler(graphqlClient),
+		runHandler:               NewRunHandler(graphqlClient),
+		runQueueHandler:          NewRunQueueHandler(graphqlClient),
 		runHistoryApiHandler: NewRunHistoryAPIHandler(
 			graphqlClient,
 			httpClient,
 			logger,
 		),
-	}, nil
+	}
+
+	activationCtx, cancelActivation := context.WithCancel(context.Background())
+	wandbAPI.telemetryActivationCancel = cancelActivation
+	wandbAPI.telemetryActivationWG.Add(1)
+	go func() {
+		defer wandbAPI.telemetryActivationWG.Done()
+		analytics.EnableProxiesIfSupported(
+			activationCtx,
+			featureProvider,
+			wandbAPI.connectionTelemetryProxy,
+			wandbAPI.opentelemetryHandler.otelProvider,
+		)
+	}()
+
+	return wandbAPI, nil
 }
 
 func newFileTransferClient(
@@ -222,11 +247,42 @@ func (p *WandbAPI) HandleRequest(
 //
 // It should be called once when the API is no longer needed.
 func (p *WandbAPI) Shutdown(ctx context.Context) {
-	if err := p.opentelemetryHandler.Shutdown(ctx); err != nil {
+	if p.telemetryActivationCancel != nil {
+		p.telemetryActivationCancel()
+	}
+	p.telemetryActivationWG.Wait()
+
+	var shutdownWG sync.WaitGroup
+	var handlerErr error
+	var connectionErr error
+	if p.opentelemetryHandler != nil {
+		shutdownWG.Add(1)
+		go func() {
+			defer shutdownWG.Done()
+			handlerErr = p.opentelemetryHandler.Shutdown(ctx)
+		}()
+	}
+	if p.connectionTelemetryProxy != nil {
+		shutdownWG.Add(1)
+		go func() {
+			defer shutdownWG.Done()
+			connectionErr = p.connectionTelemetryProxy.Shutdown(ctx)
+		}()
+	}
+	shutdownWG.Wait()
+
+	if handlerErr != nil {
 		p.logger.Error(
 			"wbapi: error shutting down OpenTelemetry handler",
 			"error",
-			err,
+			handlerErr,
+		)
+	}
+	if connectionErr != nil {
+		p.logger.Error(
+			"wbapi: error shutting down connection OpenTelemetry proxy",
+			"error",
+			connectionErr,
 		)
 	}
 }

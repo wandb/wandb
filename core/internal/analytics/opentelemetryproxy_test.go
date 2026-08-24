@@ -12,7 +12,17 @@ import (
 	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/analyticstest"
 	"github.com/wandb/wandb/core/internal/version"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
+
+type serverFeatureProviderFunc func(context.Context, spb.ServerFeature) bool
+
+func (f serverFeatureProviderFunc) Enabled(
+	ctx context.Context,
+	feature spb.ServerFeature,
+) bool {
+	return f(ctx, feature)
+}
 
 func TestTelemetryRecorder_RecordsDefaultAttributes(t *testing.T) {
 	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
@@ -409,6 +419,43 @@ func TestOpenTelemetryProxy_Shutdown_CalledMultipleTimes(t *testing.T) {
 
 	// A second shutdown should not error.
 	require.NoError(t, proxy.Shutdown(context.Background()))
+}
+
+func TestOpenTelemetryProxy_FailsClosedUntilServerSupportConfirmed(t *testing.T) {
+	proxy := analyticstest.NewUnenabledOpenTelemetryProxyTest(t)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+
+	recorder.IncrementCounterAndLogEvent(
+		t.Context(),
+		"before_support_confirmed",
+		nil,
+		analytics.LowCardinalityAttributes{},
+	)
+	proxy.EnableIfSupported(
+		t.Context(),
+		serverFeatureProviderFunc(
+			func(context.Context, spb.ServerFeature) bool { return true },
+		),
+	)
+	recorder.IncrementCounterAndLogEvent(
+		t.Context(),
+		"after_support_confirmed",
+		nil,
+		analytics.LowCardinalityAttributes{},
+	)
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	_, hasBeforeLog := proxy.FindLog("before_support_confirmed")
+	_, hasBeforeMetric := proxy.FindMetric("before_support_confirmed")
+	_, hasAfterLog := proxy.FindLog("after_support_confirmed")
+	_, hasAfterMetric := proxy.FindMetric("after_support_confirmed")
+	assert.False(t, hasBeforeLog, "pre-enable log must not be buffered")
+	assert.False(t, hasBeforeMetric, "pre-enable metric must not be buffered")
+	assert.True(t, hasAfterLog)
+	assert.True(t, hasAfterMetric)
 }
 
 func TestTelemetryRecorder_RecordAfterShutdown_IsNoop(t *testing.T) {
