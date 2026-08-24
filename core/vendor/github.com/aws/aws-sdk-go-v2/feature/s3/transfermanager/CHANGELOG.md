@@ -1,3 +1,11 @@
+# v0.3.15 (2026-08-20)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v0.3.14 (2026-08-18)
+
+* **Bug Fix**: Close each file transferred during directory upload/download to avoid leaking file handles
+
 # v0.3.13 (2026-08-14)
 
 * **Dependency Update**: Update to smithy-go v1.27.8.
