@@ -633,7 +633,7 @@ def init(ctx, project, entity, reset, mode):
     "--include-shared/--no-include-shared",
     is_flag=True,
     default=False,
-    help="Sync runs flagged as shared mode. This can duplicate metrics.",
+    help="Override shared mode rejection (will duplicate metrics on server).",
 )
 @click.option(
     "--mark-synced/--no-mark-synced",
@@ -735,6 +735,10 @@ def sync(
     path is given, search for a ./wandb directory, then a wandb/
     subdirectory.
 
+    Sync rejects transaction logs created in shared mode by default because
+    they will cause duplicate metrics on the server. Use `--include-shared` to
+    override this behavior and upload shared-mode logs.
+
     Run without arguments to print a summary of synced and unsynced
     runs without uploading anything.
 
@@ -775,6 +779,7 @@ def sync(
         $ wandb clean --help
 
     for more info.
+
     """
     # Use `wandb beta sync` if possible.
     if (

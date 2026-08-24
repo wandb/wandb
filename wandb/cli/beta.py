@@ -109,7 +109,7 @@ beta.add_command(leet)
     "--include-shared/--no-include-shared",
     is_flag=True,
     default=False,
-    help="Sync runs flagged as shared mode. This can duplicate metrics.",
+    help="Override shared mode rejection (will duplicate metrics on server).",
 )
 @click.option(
     "--dry-run",
@@ -165,6 +165,10 @@ def sync(
 
     PATHS can include .wandb files, run directories containing .wandb files,
     and "wandb" directories containing run directories.
+
+    Sync rejects transaction logs created in shared mode by default because
+    they will cause duplicate metrics on the server. Use `--include-shared` to
+    override this behavior and upload shared-mode logs.
 
     For example, to sync all runs in the current .wandb directory:
 

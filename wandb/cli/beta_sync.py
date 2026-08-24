@@ -57,7 +57,8 @@ def sync(
         skip_synced: If true, skips files that have already been synced
             as indicated by a .wandb.synced marker file in the same directory.
         skip_online: If true, skips online runs (determined by folder name).
-        include_shared: If true, sync runs flagged as shared mode in the log.
+        include_shared: If true, sync logs created in shared mode; default sync
+            rejects them because they cause duplicate metrics on the server.
         verbose: Verbose mode for printing more info.
         parallelism: Max number of runs to sync at a time.
     """
