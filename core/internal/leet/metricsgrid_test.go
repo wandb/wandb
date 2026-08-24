@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"charm.land/lipgloss/v2"
 	"github.com/stretchr/testify/require"
 
 	leet "github.com/wandb/wandb/core/internal/leet"
@@ -38,6 +39,29 @@ func TestCalculateChartDimensions_RespectsMinimums(t *testing.T) {
 	d := grid.CalculateChartDimensions(10, 5) // small on purpose
 	require.GreaterOrEqual(t, d.CellW, leet.MinChartWidth)
 	require.GreaterOrEqual(t, d.CellH, leet.MinChartHeight)
+}
+
+// The rendered grid must never be wider than the pane. Regression test for
+// the column count (raw pane width) disagreeing with the cell widths (pane
+// width minus content padding) in a narrow window around each column-count
+// transition, which overflowed the pane during sidebar drags.
+func TestMetricsGrid_View_FitsPaneWidth(t *testing.T) {
+	h := 30
+	grid := newMetricsGrid(t, 3, 2, 200, h, nil)
+
+	metrics := make(map[string]leet.MetricData, 6)
+	for _, name := range []string{"a", "b", "c", "d", "e", "f"} {
+		metrics[name] = leet.MetricData{X: []float64{1}, Y: []float64{1}}
+	}
+	grid.ProcessHistory(leet.HistoryMsg{Metrics: metrics})
+
+	// 24 is the narrowest the main column can be dragged to.
+	for w := 24; w <= 120; w++ {
+		grid.UpdateDimensions(w, h)
+		dims := grid.CalculateChartDimensions(w, h)
+		require.LessOrEqual(t, lipgloss.Width(grid.View(dims)), w,
+			"grid overflows a %d-wide pane", w)
+	}
 }
 
 func TestMetricsGrid_Render_EmptyGridShowsSectionHeader(t *testing.T) {

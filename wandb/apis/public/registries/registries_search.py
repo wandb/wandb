@@ -249,6 +249,13 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
             start: Pagination cursor for resuming a past query, captured
                 from a previous paginator's `.cursor` attribute.
                 Not supported when ``registries()`` was called with ``order=``.
+
+        Returns:
+            A lazy iterator of `ArtifactCollection` objects. The returned object
+            supports Python's iterator protocol and fetches results lazily as you
+            iterate—for example, use :func:`itertools.islice` to request only the
+            first *n* items without fetching the rest. See
+            https://docs.python.org/3/library/itertools.html.
         """
         if (registry_order := self.order) is not None and start is not None:
             raise ValueError(
@@ -303,6 +310,13 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
             start: Pagination cursor for resuming a past query, captured
                 from a previous paginator's `.cursor` attribute.
                 Not supported when ``registries()`` was called with ``order=``.
+
+        Returns:
+            A lazy iterator of `Artifact` objects. The returned object supports
+            Python's iterator protocol and fetches results lazily as you
+            iterate—for example, use :func:`itertools.islice` to request only the
+            first *n* items without fetching the rest. See
+            https://docs.python.org/3/library/itertools.html.
         """
         if (registry_order := self.order) and start:
             msg = (
@@ -445,6 +459,13 @@ class Collections(
             start: Pagination cursor for resuming a past query, captured
                 from a previous paginator's `.cursor` attribute.
                 Not supported when ``collections()`` was called with ``order=``.
+
+        Returns:
+            A lazy iterator of `Artifact` objects. The returned object supports
+            Python's iterator protocol and fetches results lazily as you
+            iterate—for example, use :func:`itertools.islice` to request only the
+            first *n* items without fetching the rest. See
+            https://docs.python.org/3/library/itertools.html.
         """
         if (collection_order := self.order) and start:
             msg = (

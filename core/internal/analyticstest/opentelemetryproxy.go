@@ -44,6 +44,7 @@ type Request struct {
 	Authorization string
 	Headers       http.Header
 	URLHost       string
+	ContentLength int64
 }
 
 // OpenTelemetryProxyTest is an OpenTelemetry proxy and test OTLP collector.
@@ -196,6 +197,7 @@ func (s *OpenTelemetryProxyTest) addRequest(request *http.Request) {
 		Authorization: request.Header.Get("Authorization"),
 		Headers:       request.Header.Clone(),
 		URLHost:       request.URL.Host,
+		ContentLength: request.ContentLength,
 	})
 }
 
