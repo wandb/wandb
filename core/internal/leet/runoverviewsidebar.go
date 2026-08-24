@@ -52,18 +52,22 @@ func NewRunOverviewSidebar(
 	runOverview *RunOverview,
 	side SidebarSide,
 ) *RunOverviewSidebar {
-	es := PagedList{Title: "Environment", Active: true}
-	es.SetItemsPerPage(10)
-	cs := PagedList{Title: "Config"}
-	cs.SetItemsPerPage(15)
-	ss := PagedList{Title: "Summary"}
-	ss.SetItemsPerPage(20)
+	sections := []PagedList{
+		{Title: "Environment", Active: true},
+		{Title: "Config"},
+		{Title: "Summary"},
+	}
+	for i := range sections {
+		// Provisional page size for navigation that happens before the
+		// first render computes the real section heights.
+		sections[i].SetItemsPerPage(10)
+	}
 
 	return &RunOverviewSidebar{
 		config:        config,
 		animState:     animState,
 		runOverview:   runOverview,
-		sections:      []PagedList{es, cs, ss},
+		sections:      sections,
 		activeSection: 0,
 		filter:        NewFilter(),
 		side:          side,
@@ -296,15 +300,11 @@ func truncateValue(value string, maxWidth int) string {
 	return value + "..."
 }
 
-// headerLineCount returns the number of lines occupied by the fixed header area,
-// including the top-level section title.
+// headerLineCount returns the number of lines the header area (the
+// top-level title plus the metadata block) renders at the current width.
 func (s *RunOverviewSidebar) headerLineCount() int {
-	if s.runOverview == nil {
-		return 1
-	}
-
 	contentWidth := s.sidebarContentWidth(s.animState.Value())
-	return max(minSidebarHeaderLines, 1+len(s.buildHeaderLines(contentWidth)))
+	return 1 + len(s.buildHeaderLines(contentWidth))
 }
 
 // buildHeaderLines builds the width-aware header metadata section.
