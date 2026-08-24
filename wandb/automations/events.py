@@ -24,6 +24,7 @@ from ._validators import (
     ensure_json,
     parse_scope,
     payload_event_type,
+    payload_typename,
     wrap_mutation_event_filter,
     wrap_run_filter,
 )
@@ -206,15 +207,20 @@ class SavedUnknownEvent(GQLBase, extra="allow"):
     typename__: Annotated[str, Field(alias="__typename")] = (
         "FilterEventTriggeringCondition"
     )
-    event_type: Annotated[str, Field(alias="eventType")]
+    event_type: Annotated[str | None, Field(alias="eventType")] = None
     filter: Any = None
 
 
 _SAVED_EVENT_TYPES = frozenset(e.value for e in EventType)
+_SAVED_EVENT_TYPENAMES = frozenset({"FilterEventTriggeringCondition"})
 _UNKNOWN_EVENT_TAG = "UNKNOWN_EVENT"
 
 
 def _saved_event_discriminator(v: Any) -> str:
+    typename = payload_typename(v)
+    if typename is not None and typename not in _SAVED_EVENT_TYPENAMES:
+        return _UNKNOWN_EVENT_TAG
+
     event_type = payload_event_type(v)
     if event_type is None or event_type in _SAVED_EVENT_TYPES:
         return "known"

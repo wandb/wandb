@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal
 
-from pydantic import BeforeValidator, Discriminator, Field, Tag
+from pydantic import AfterValidator, BeforeValidator, Discriminator, Field, Tag
 from typing_extensions import Self, TypeVar
 
 from wandb._pydantic import GQLBase, GQLId, default_if_none
@@ -132,6 +132,7 @@ class SavedUnknownAction(GQLBase, extra="allow", frozen=False):
     """A saved action whose GraphQL type this SDK version does not model."""
 
     typename__: Annotated[str, Field(alias="__typename")] = "UnknownTriggeredAction"
+    action_type: None = None
 
 
 _SAVED_ACTION_TYPENAMES = frozenset(
@@ -253,12 +254,25 @@ class DoNothing(_BaseActionInput, NoOpTriggeredActionInput, frozen=True):
     """
 
 
+_MAX_ARIA_PROMPT_BYTES = 4000
+
+
+def _validate_aria_prompt(value: str) -> str:
+    """Normalize and validate an ARIA prompt as the server does."""
+    prompt = value.strip()
+    if not prompt:
+        raise ValueError("ARIA prompt cannot be empty")
+    if len(prompt.encode("utf-8")) > _MAX_ARIA_PROMPT_BYTES:
+        raise ValueError(f"ARIA prompt exceeds {_MAX_ARIA_PROMPT_BYTES} bytes")
+    return prompt
+
+
 class SendPromptToAria(_BaseActionInput, ARIAActionInput):
     """Defines an automation action that sends a prompt to ARIA."""
 
     action_type: Literal[ActionType.ARIA] = ActionType.ARIA
 
-    prompt: str
+    prompt: Annotated[str, AfterValidator(_validate_aria_prompt)]
     """The prompt ARIA receives when this automation is triggered."""
 
 

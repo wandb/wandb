@@ -125,12 +125,14 @@ fragment TriggerFields on Trigger {
   description
   enabled
   scope {
+    __typename
     ...ProjectScopeFields
     ...ArtifactPortfolioScopeFields
     ...ArtifactSequenceScopeFields
     ...EntityScopeFields
   }
   event: triggeringCondition {
+    __typename
     ...FilterEventFields
   }
   action: triggeredAction {
@@ -263,12 +265,14 @@ fragment TriggerFields on Trigger {
   description
   enabled
   scope {
+    __typename
     ...ProjectScopeFields
     ...ArtifactPortfolioScopeFields
     ...ArtifactSequenceScopeFields
     ...EntityScopeFields
   }
   event: triggeringCondition {
+    __typename
     ...FilterEventFields
   }
   action: triggeredAction {
@@ -394,12 +398,14 @@ fragment TriggerFields on Trigger {
   description
   enabled
   scope {
+    __typename
     ...ProjectScopeFields
     ...ArtifactPortfolioScopeFields
     ...ArtifactSequenceScopeFields
     ...EntityScopeFields
   }
   event: triggeringCondition {
+    __typename
     ...FilterEventFields
   }
   action: triggeredAction {
@@ -525,12 +531,14 @@ fragment TriggerFields on Trigger {
   description
   enabled
   scope {
+    __typename
     ...ProjectScopeFields
     ...ArtifactPortfolioScopeFields
     ...ArtifactSequenceScopeFields
     ...EntityScopeFields
   }
   event: triggeringCondition {
+    __typename
     ...FilterEventFields
   }
   action: triggeredAction {
@@ -644,12 +652,14 @@ fragment TriggerFields on Trigger {
   description
   enabled
   scope {
+    __typename
     ...ProjectScopeFields
     ...ArtifactPortfolioScopeFields
     ...ArtifactSequenceScopeFields
     ...EntityScopeFields
   }
   event: triggeringCondition {
+    __typename
     ...FilterEventFields
   }
   action: triggeredAction {
@@ -763,12 +773,14 @@ fragment TriggerFields on Trigger {
   description
   enabled
   scope {
+    __typename
     ...ProjectScopeFields
     ...ArtifactPortfolioScopeFields
     ...ArtifactSequenceScopeFields
     ...EntityScopeFields
   }
   event: triggeringCondition {
+    __typename
     ...FilterEventFields
   }
   action: triggeredAction {

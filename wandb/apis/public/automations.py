@@ -57,12 +57,12 @@ class _LegacyAutomationsPaginator(RelayPaginator["ProjectAutomations", "Automati
         try:
             res = self._execute_query(parse=LegacyAutomationsPage.model_validate_json)
             conn = res.scope.projects  # type: ignore[union-attr]
-            if conn is None:
-                raise LookupError("missing projects connection")
         except (LookupError, AttributeError, ValidationError) as e:
             raise ValueError("Unexpected response data") from e
-        else:
-            self.last_response = conn
+
+        if conn is None:
+            raise ValueError("Unexpected response data: missing projects connection")
+        self.last_response = conn
 
     @override
     def _convert(self, node: ProjectAutomations) -> Iterator[Automation]:

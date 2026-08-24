@@ -72,8 +72,8 @@ class RegistryScope(_BaseScope, ProjectScopeFields):
 
 _RegistryOrProjectScope = Annotated[
     RegistryScope | ProjectScope,
-    BeforeValidator(parse_scope),
     Discriminator("is_registry"),
+    BeforeValidator(parse_scope),
 ]
 """Type hint for a scope defined by a registry or project."""
 

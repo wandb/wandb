@@ -115,6 +115,13 @@ def parse_scope(v: Any) -> Any:
         _BaseScope,
     )
 
+    # Listing responses are parsed directly into `Automation`, unlike mutation
+    # responses which pass through the generated `TriggerFields` model first.
+    # Normalize raw Project payloads into the generated fragment so the existing
+    # project-vs-registry detection below runs for both paths.
+    if isinstance(v, dict) and payload_typename(v) == "Project":
+        v = ProjectScopeFields.model_validate(v)
+
     match v:
         # Already parsed as an automation scope
         case _BaseScope():
