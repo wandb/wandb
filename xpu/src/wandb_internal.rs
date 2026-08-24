@@ -345,7 +345,9 @@ pub struct Feature {
     /// catboost log summary used
     #[prost(bool, tag = "28")]
     pub catboost_log_summary: bool,
-    /// wandb.tensorflow.log or wandb.tensorboard.log used
+    /// wandb.tensorflow.log or wandb.tensorboard.log used, in an old SDK.
+    ///
+    /// These functions have been removed.
     #[prost(bool, tag = "29")]
     pub tensorboard_log: bool,
     /// wandb.tensorflow.WandbHook used

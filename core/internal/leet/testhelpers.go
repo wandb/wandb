@@ -75,6 +75,11 @@ func (r *Run) TestStopHeartbeat() {
 	}
 }
 
+// TestSetLastUpdateAt overrides the run's staleness clock.
+func (r *Run) TestSetLastUpdateAt(t time.Time) {
+	r.lastUpdateAt = t
+}
+
 // TestLayoutWidths returns the run view's current sidebar widths.
 func (r *Run) TestLayoutWidths() (left, right int) {
 	l := r.computeViewports()
@@ -363,6 +368,16 @@ func (r *WorkspaceRun) TestSetWatcherStarted(started bool) {
 
 func (r *WorkspaceRun) TestWatcherActive() bool {
 	return r.watcher != nil && r.watcher.started
+}
+
+// TestSetLastUpdateAt overrides the workspace run's staleness clock.
+func (r *WorkspaceRun) TestSetLastUpdateAt(t time.Time) {
+	r.lastUpdateAt = t
+}
+
+// TestState returns the workspace run's state.
+func (r *WorkspaceRun) TestState() RunState {
+	return r.state
 }
 
 func (w *Workspace) TestAttachRun(run *WorkspaceRun, selected bool) {
@@ -721,4 +736,9 @@ func (w *Workspace) TestFilteredRunKeys() []string {
 		keys[i] = item.Key
 	}
 	return keys
+}
+
+// TestRunByKey returns the workspace's streaming state for a run key.
+func (w *Workspace) TestRunByKey(key string) *WorkspaceRun {
+	return w.runsByKey[key]
 }

@@ -51,40 +51,41 @@ def wrap_ansi(text: str, *, width: int, max_lines: int) -> Generator[str]:
 
     cursor = _AnsiCursor(text)
 
-    for line_idx in range(max_lines):
+    # For all lines but the last, just grab up to `width` characters.
+    for _ in range(max_lines - 1):
+        line_start = cursor.index
+        cursor.forward(width)
+        yield text[line_start : cursor.index]
+
         if cursor.index >= len(text):
             return
 
-        line_start = cursor.index
+    # Shorten the remaining text with an ellipsis on the last line, if needed.
+    yield _shorten_remaining(cursor, text, width=width)
 
-        # If we're not on the last line, just grab up to `width` characters.
-        if line_idx < max_lines - 1:
-            cursor.forward(width)
-            yield text[line_start : cursor.index]
-            continue
 
-        # On the last line, first save the truncation position for an ellipsis.
-        ellipsis_len = min(3, width)
-        cursor.forward(width - ellipsis_len)
+def _shorten_remaining(cursor: _AnsiCursor, text: str, *, width: int) -> str:
+    """Returns the rest of the text from the cursor position, truncated."""
+    line_start = cursor.index
+    ellipsis_len = min(3, width)
 
-        ellipsis_index = cursor.index
-        ansi_after_ellipsis = cursor.remaining_ansi_runs()
+    # First save the truncation position for an ellipsis.
+    cursor.forward(width - ellipsis_len)
+    ellipsis_index = cursor.index
+    ansi_after_ellipsis = cursor.remaining_ansi_runs()
+    cursor.forward(ellipsis_len)
 
-        cursor.forward(ellipsis_len)
+    # If the remaining text fits on this final line, return it.
+    if cursor.index == len(text):
+        return text[line_start:]
 
-        # If the remaining text fits on this final line, return it.
-        if cursor.index == len(text):
-            yield text[line_start:]
-            return
+    # Otherwise, truncate and add an ellipsis.
+    line_parts: list[str] = []
+    line_parts.append(text[line_start:ellipsis_index])
+    line_parts.append("." * ellipsis_len)
+    line_parts.extend(text[start:end] for start, end in ansi_after_ellipsis)
 
-        # Otherwise, truncate and add an ellipsis.
-        line_parts: list[str] = []
-        line_parts.append(text[line_start:ellipsis_index])
-        line_parts.append("." * ellipsis_len)
-        line_parts.extend(text[start:end] for start, end in ansi_after_ellipsis)
-
-        yield "".join(line_parts)
-        return
+    return "".join(line_parts)
 
 
 class _AnsiCursor:

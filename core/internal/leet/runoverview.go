@@ -24,6 +24,16 @@ const (
 	RunStateCrashed
 )
 
+// mayBeLive reports whether the run could still be producing data.
+//
+// True while the run is known to be running, and also while its state is
+// unknown: a freshly started run's Run record may not have been flushed to
+// the transaction log yet, so an Unknown run must be watched like a live
+// one or it would never stream.
+func (s RunState) mayBeLive() bool {
+	return s == RunStateRunning || s == RunStateUnknown
+}
+
 // KeyValuePair represents a single key-value item to display.
 type KeyValuePair struct {
 	Key, Value string
@@ -62,7 +72,7 @@ func (ro *RunOverview) StateString() string {
 	case RunStateFailed:
 		return "Failed"
 	case RunStateCrashed:
-		return "Error"
+		return "Crashed"
 	default:
 		return "Unknown"
 	}

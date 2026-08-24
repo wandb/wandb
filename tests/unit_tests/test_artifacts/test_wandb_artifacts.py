@@ -424,6 +424,7 @@ def test_invalid_artifact_name(invalid_name):
         "file_count",  # Probably doesn't need to be restricted, but is today.
         "created_at",
         "updated_at",
+        "linked_at",
     ],
 )
 def test_unlogged_artifact_property_errors(property):

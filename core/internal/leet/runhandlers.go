@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -19,6 +20,11 @@ func (r *Run) handleRecordMsg(msg tea.Msg) tea.Cmd {
 	}()
 	defer r.resolveFocusAfterData()
 
+	// Anything the reader produced counts as proof of life for the crash
+	// check. Terminal messages (FileComplete, Error) also land here, but
+	// they leave RunStateRunning, after which lastUpdateAt is irrelevant.
+	r.lastUpdateAt = time.Now()
+
 	switch msg := msg.(type) {
 	case RunMsg:
 		r.logger.Debug("model: processing RunMsg")
@@ -28,6 +34,7 @@ func (r *Run) handleRecordMsg(msg tea.Msg) tea.Cmd {
 		r.runState = RunStateRunning
 		r.syncLiveRunning()
 		r.isLoading = false
+		return r.ensureLivePulseCmd()
 
 	case HistoryMsg:
 		r.logger.Debug("model: processing HistoryMsg")
@@ -62,15 +69,7 @@ func (r *Run) handleRecordMsg(msg tea.Msg) tea.Cmd {
 
 	case FileCompleteMsg:
 		r.logger.Debug("model: processing FileCompleteMsg - file is complete!")
-		switch msg.ExitCode {
-		case 0:
-			r.runState = RunStateFinished
-		default:
-			r.runState = RunStateFailed
-		}
-		r.syncLiveRunning()
-		r.runOverview.SetRunState(r.runState)
-		r.leftSidebar.Sync()
+		r.setRunState(runStateForExitCode(msg.ExitCode))
 
 		r.logger.Debug("model: stopping heartbeats and finishing watcher")
 		r.heartbeatMgr.Stop()
@@ -83,15 +82,35 @@ func (r *Run) handleRecordMsg(msg tea.Msg) tea.Cmd {
 		if msg.Err != nil {
 			r.lastError = msg.Err.Error()
 		}
-		r.runState = RunStateFailed
-		r.syncLiveRunning()
-		r.runOverview.SetRunState(r.runState)
+		r.setRunState(RunStateFailed)
 		r.logger.Debug("model: stopping heartbeats and finishing watcher due to error")
 		r.heartbeatMgr.Stop()
 		r.watcherMgr.Finish()
 	}
 
 	return nil
+}
+
+// runStateForExitCode maps an exit record's code to a run state, following
+// the server's convention (254 is a client-reported crash).
+func runStateForExitCode(exitCode int32) RunState {
+	switch exitCode {
+	case 0:
+		return RunStateFinished
+	case 254:
+		return RunStateCrashed
+	default:
+		return RunStateFailed
+	}
+}
+
+// setRunState updates the run state everywhere it is mirrored: the atomic
+// liveness flag, the overview data model, and the sidebar.
+func (r *Run) setRunState(state RunState) {
+	r.runState = state
+	r.syncLiveRunning()
+	r.runOverview.SetRunState(state)
+	r.leftSidebar.Sync()
 }
 
 // handleHistoryMsg processes new history data.
@@ -932,7 +951,7 @@ func (r *Run) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 	// Boot load complete -> begin live mode once. The WaitForMsg pump is
 	// started alongside the watcher so it only runs while the watcher and
 	// heartbeat can produce messages; WatcherManager.Finish unblocks it.
-	if !r.IsRemote() && r.runState == RunStateRunning && !r.watcherMgr.IsStarted() {
+	if !r.IsRemote() && r.runState.mayBeLive() && !r.watcherMgr.IsStarted() {
 		if err := r.watcherMgr.Start(r.runParams.RunFile); err != nil {
 			r.logger.CaptureError(
 				"leet",
@@ -940,6 +959,12 @@ func (r *Run) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 			)
 		} else {
 			r.logger.Info("model: watcher started successfully")
+			// Seed the staleness clock from the file so a run that died
+			// before LEET started is caught on the first heartbeat rather
+			// than a full RunCrashTimeout later.
+			if info, err := os.Stat(r.runParams.RunFile); err == nil {
+				r.lastUpdateAt = info.ModTime()
+			}
 			r.heartbeatMgr.Start(r.isRunning)
 			cmds = append(cmds, r.watcherMgr.WaitForMsg)
 		}
@@ -968,6 +993,12 @@ func (r *Run) handleHeartbeat() []tea.Cmd {
 		r.heartbeatMgr.Stop()
 		return nil
 	}
+	if r.presumedCrashed() {
+		r.markPresumedCrashed()
+		// Keep listening: if the writer comes back, handleFileChange
+		// revives the run.
+		return []tea.Cmd{r.watcherMgr.WaitForMsg}
+	}
 	r.heartbeatMgr.Reset(r.isRunning)
 	return []tea.Cmd{
 		r.ReadLiveBatchCmd(r.historySource),
@@ -975,16 +1006,65 @@ func (r *Run) handleHeartbeat() []tea.Cmd {
 	}
 }
 
+// presumedCrashed reports whether a live run's transaction log has been
+// silent long enough to presume the writer is gone.
+func (r *Run) presumedCrashed() bool {
+	return !r.lastUpdateAt.IsZero() && time.Since(r.lastUpdateAt) > RunCrashTimeout
+}
+
+// markPresumedCrashed mirrors the server's stale-runs sweep: a running run
+// that stopped writing without an exit record is moved to the crashed state.
+func (r *Run) markPresumedCrashed() {
+	r.logger.Info(fmt.Sprintf(
+		"model: no transaction log updates in %v, presuming the run crashed",
+		time.Since(r.lastUpdateAt).Round(time.Second)))
+	r.setRunState(RunStateCrashed)
+	r.heartbeatMgr.Stop()
+}
+
 // handleFileChange coalesces change notifications into a read.
 func (r *Run) handleFileChange() []tea.Cmd {
-	if r.runState != RunStateRunning {
+	if r.runState == RunStateCrashed {
+		// The writer came back: revive the presumed-crashed run.
+		r.logger.Info("model: transaction log updated, reviving crashed run")
+		r.lastUpdateAt = time.Now()
+		r.setRunState(RunStateRunning)
+	}
+	if !r.runState.mayBeLive() {
 		return nil
 	}
 	r.heartbeatMgr.Reset(r.isRunning)
 	return []tea.Cmd{
 		r.ReadLiveBatchCmd(r.historySource),
 		r.watcherMgr.WaitForMsg,
+		r.ensureLivePulseCmd(),
 	}
+}
+
+// livePulseCmd schedules the next live-indicator frame.
+func (r *Run) livePulseCmd() tea.Cmd {
+	return tea.Tick(LivePulseFrame, func(time.Time) tea.Msg {
+		return RunLivePulseMsg{}
+	})
+}
+
+// ensureLivePulseCmd starts the live-indicator redraw loop for a live run.
+// Returns nil if the loop is already ticking or the run is not live.
+func (r *Run) ensureLivePulseCmd() tea.Cmd {
+	if r.pulseTicking || r.runState != RunStateRunning {
+		return nil
+	}
+	r.pulseTicking = true
+	return r.livePulseCmd()
+}
+
+// handleLivePulse keeps the live indicator animating while the run is live.
+func (r *Run) handleLivePulse() []tea.Cmd {
+	if r.runState != RunStateRunning {
+		r.pulseTicking = false
+		return nil
+	}
+	return []tea.Cmd{r.livePulseCmd()}
 }
 
 // handleSidebarTabNav cycles focus between overview sections and the

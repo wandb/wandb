@@ -316,10 +316,7 @@ func (s *RunOverviewSidebar) buildHeaderLines(contentWidth int) []string {
 	lines := make([]string, 0, 8)
 
 	if s.runOverview.State() != RunStateUnknown {
-		lines = slices.Concat(
-			lines,
-			s.renderWrappedHeaderValue("State: ", s.runOverview.StateString(), contentWidth),
-		)
+		lines = append(lines, s.renderStateHeaderLine())
 	}
 
 	lines = slices.Concat(
@@ -336,6 +333,22 @@ func (s *RunOverviewSidebar) buildHeaderLines(contentWidth int) []string {
 	}
 
 	return lines
+}
+
+// renderStateHeaderLine renders the "State:" field with state-aware coloring:
+// green while the run is live, red when it crashed or failed.
+func (s *RunOverviewSidebar) renderStateHeaderLine() string {
+	prefixText := runOverviewSidebarKeyStyle.Render("State: ")
+	valueStyle := runOverviewSidebarValueStyle
+
+	switch s.runOverview.State() {
+	case RunStateRunning:
+		valueStyle = valueStyle.Foreground(colorRunning)
+	case RunStateCrashed, RunStateFailed:
+		valueStyle = valueStyle.Foreground(colorCrashed)
+	}
+
+	return prefixText + valueStyle.Render(s.runOverview.StateString())
 }
 
 // renderWrappedHeaderValue renders a single metadata field, wrapping the value

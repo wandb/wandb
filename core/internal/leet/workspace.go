@@ -47,6 +47,9 @@ type Workspace struct {
 	// hasLiveRuns caches whether any selected run is in RunStateRunning.
 	hasLiveRuns atomic.Bool
 
+	// pulseTicking reports whether the live-indicator redraw loop is armed.
+	pulseTicking bool
+
 	// Run overview for each run keyed by run path.
 	runOverview        map[string]*RunOverview
 	runOverviewSidebar *RunOverviewSidebar
@@ -107,6 +110,10 @@ type WorkspaceRun struct {
 	wandbPath string
 	watcher   *WatcherManager
 	state     RunState
+
+	// lastUpdateAt tracks when the transaction log last produced a record.
+	// A live run that stays silent past RunCrashTimeout is presumed crashed.
+	lastUpdateAt time.Time
 }
 
 func NewWorkspace(
@@ -280,15 +287,21 @@ func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 	case WorkspaceFileChangedMsg:
 		return w.handleWorkspaceFileChanged(t)
 
+	case WorkspaceRunReadErrMsg:
+		return w.handleRunReadErr(t)
+
 	case HeartbeatMsg:
 		return w.handleHeartbeat()
 
+	case WorkspaceLivePulseMsg:
+		return w.handleLivePulse()
+
 	case ErrorMsg:
-		// Read errors from per-run commands; the affected run simply stops
-		// streaming, so surface the error in the logs.
+		// Errors without a run key; per-run read errors arrive as
+		// WorkspaceRunReadErrMsg and are handled above.
 		w.logger.CaptureError(
 			"leet",
-			fmt.Errorf("workspace: run read failed: %v", t.Err),
+			fmt.Errorf("workspace: %v", t.Err),
 		)
 	}
 
@@ -1139,19 +1152,44 @@ func renderLogoArt(width, height int) string {
 }
 
 func (w *Workspace) renderStatusBar() string {
+	// The indicator shows the state of the run under the cursor. It is
+	// styled separately from the bar so its color codes don't reset the
+	// bar's own styling mid-line.
+	indicator := renderStateIndicator(w.cursorRunState())
+	barWidth := max(w.width-lipgloss.Width(indicator), 0)
+
 	statusText := w.buildStatusText()
 	helpText := w.buildHelpText()
 
-	innerWidth := max(w.width-2*StatusBarPadding, 0)
+	innerWidth := max(barWidth-2*StatusBarPadding, 0)
 	spaceForHelp := max(innerWidth-lipgloss.Width(statusText), 0)
 	rightAligned := lipgloss.PlaceHorizontal(spaceForHelp, lipgloss.Right, helpText)
 
 	fullStatus := statusText + rightAligned
 
-	return statusBarStyle.
-		Width(w.width).
-		MaxWidth(w.width).
+	return indicator + statusBarStyle.
+		Width(barWidth).
+		MaxWidth(barWidth).
 		Render(fullStatus)
+}
+
+// cursorRunState returns the known state of the run under the cursor.
+//
+// Only streaming (selected) runs have live state. For others, fall back to
+// the preloaded overview, never trusting a stale Running claim from a run
+// that is no longer streaming.
+func (w *Workspace) cursorRunState() RunState {
+	cur, ok := w.runs.CurrentItem()
+	if !ok {
+		return RunStateUnknown
+	}
+	if run := w.runsByKey[cur.Key]; run != nil {
+		return run.state
+	}
+	if ro := w.runOverview[cur.Key]; ro != nil && ro.State() != RunStateRunning {
+		return ro.State()
+	}
+	return RunStateUnknown
 }
 
 func (w *Workspace) buildStatusText() string {
@@ -1463,8 +1501,15 @@ func (w *Workspace) renderRunLines(contentWidth int) []string {
 			mark = PinnedRunMark
 		}
 
+		// A live run's mark breathes: its color fades all the way to the
+		// terminal background ("not filled") and back to the run color.
+		prefixStyle := lipgloss.NewStyle().Foreground(runColor)
+		if run := w.runsByKey[runKey]; run != nil && run.state == RunStateRunning {
+			prefixStyle = prefixStyle.Foreground(runMarkPulseColor(runColor, time.Now()))
+		}
+
 		// Render prefix without background.
-		prefix := lipgloss.NewStyle().Foreground(runColor).Render(mark + " ")
+		prefix := prefixStyle.Render(mark + " ")
 		prefixWidth := lipgloss.Width(prefix)
 
 		// Apply subtle muting to unselected/unpinned runs
