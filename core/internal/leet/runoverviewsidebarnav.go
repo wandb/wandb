@@ -1,11 +1,12 @@
 package leet
 
 const (
-	// Relative weights that set each section's share of the sidebar's
-	// vertical space when the sections want more rows than fit.
-	sectionWeightEnvironment = 1.0
-	sectionWeightConfig      = 1.5
-	sectionWeightSummary     = 2.0
+	// Each section's default share of the sidebar's vertical space when
+	// the sections want more rows than fit. The shares sum to 1, so a
+	// value reads directly as that section's slice of the area.
+	sectionWeightEnvironment = 0.20
+	sectionWeightConfig      = 0.35
+	sectionWeightSummary     = 0.45
 
 	// Minimum section height when visible (title + 1 item).
 	sectionMinHeight = 2
