@@ -19,7 +19,7 @@ import responses
 import wandb
 import wandb.sdk.internal.sender
 from moto import mock_aws
-from pytest import MonkeyPatch, fixture, mark, param, raises
+from pytest import FixtureRequest, MonkeyPatch, fixture, mark, param, raises
 from wandb import Api, Artifact
 from wandb.data_types import ImageMask, PartitionedTable
 from wandb.errors.errors import CommError
@@ -70,8 +70,11 @@ def s3_bucket(s3: BaseClient) -> str:
 
 
 @fixture
-def artifact() -> Artifact:
-    return Artifact(type="dataset", name="data-artifact")
+def artifact(request: FixtureRequest) -> Artifact:
+    digest_algorithm = getattr(request, "param", "MD5")
+    return Artifact(
+        type="dataset", name="data-artifact", digest_algorithm=digest_algorithm
+    )
 
 
 def test_unsized_manifest_entry_real_file():
@@ -88,17 +91,12 @@ def test_unsized_manifest_entry():
     assert "No such file" in str(e.value)
 
 
-@mark.parametrize(
-    "digest_algorithm",
-    ArtifactDigestAlgorithm,
-)
-def test_add_one_file(digest_algorithm, artifact):
-    artifact._digest_algorithm = digest_algorithm
-    artifact.manifest.digest_algorithm = digest_algorithm
+@mark.parametrize("artifact", ["MD5", "XXH128"], indirect=True)
+def test_add_one_file(artifact):
     Path("file1.txt").write_text("hello")
     artifact.add_file("file1.txt")
 
-    if digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
+    if artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
         assert artifact.digest == "fe0d6c1a25b6d98451da9b04ebf6d80c"
         manifest_contents = artifact.manifest.to_manifest_json()["contents"]
         assert manifest_contents == {
@@ -116,17 +114,12 @@ def test_add_one_file(digest_algorithm, artifact):
         }
 
 
-@mark.parametrize(
-    "digest_algorithm",
-    ArtifactDigestAlgorithm,
-)
-def test_add_named_file(digest_algorithm, artifact):
-    artifact._digest_algorithm = digest_algorithm
-    artifact.manifest.digest_algorithm = digest_algorithm
+@mark.parametrize("artifact", ["MD5", "XXH128"], indirect=True)
+def test_add_named_file(artifact):
     Path("file1.txt").write_text("hello")
     artifact.add_file("file1.txt", name="great-file.txt")
 
-    if digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
+    if artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
         assert artifact.digest == "5128bda8426a0e35a91082780b668e43"
         manifest_contents = artifact.manifest.to_manifest_json()["contents"]
         assert manifest_contents == {
@@ -144,17 +137,12 @@ def test_add_named_file(digest_algorithm, artifact):
         }
 
 
-@mark.parametrize(
-    "digest_algorithm",
-    ArtifactDigestAlgorithm,
-)
-def test_add_new_file(digest_algorithm, artifact):
-    artifact._digest_algorithm = digest_algorithm
-    artifact.manifest.digest_algorithm = digest_algorithm
+@mark.parametrize("artifact", ["MD5", "XXH128"], indirect=True)
+def test_add_new_file(artifact):
     with artifact.new_file("file1.txt") as f:
         f.write("hello")
 
-    if digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
+    if artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
         assert artifact.digest == "fe0d6c1a25b6d98451da9b04ebf6d80c"
         manifest_contents = artifact.manifest.to_manifest_json()["contents"]
         assert manifest_contents == {
@@ -199,18 +187,13 @@ def test_add_file_again_after_edit(overwrite, artifact):
         artifact.add_file(str(filepath), overwrite=overwrite)
 
 
-@mark.parametrize(
-    "digest_algorithm",
-    ArtifactDigestAlgorithm,
-)
-def test_add_dir(digest_algorithm, artifact):
-    artifact._digest_algorithm = digest_algorithm
-    artifact.manifest.digest_algorithm = digest_algorithm
+@mark.parametrize("artifact", ["MD5", "XXH128"], indirect=True)
+def test_add_dir(artifact):
     Path("file1.txt").write_text("hello")
 
     artifact.add_dir(".")
 
-    if digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
+    if artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
         assert artifact.digest == "fe0d6c1a25b6d98451da9b04ebf6d80c"
         manifest_contents = artifact.manifest.to_manifest_json()["contents"]
         assert manifest_contents == {
@@ -228,17 +211,12 @@ def test_add_dir(digest_algorithm, artifact):
         }
 
 
-@mark.parametrize(
-    "digest_algorithm",
-    ArtifactDigestAlgorithm,
-)
-def test_add_named_dir(digest_algorithm, artifact):
-    artifact._digest_algorithm = digest_algorithm
-    artifact.manifest.digest_algorithm = digest_algorithm
+@mark.parametrize("artifact", ["MD5", "XXH128"], indirect=True)
+def test_add_named_dir(artifact):
     Path("file1.txt").write_text("hello")
     artifact.add_dir(".", name="subdir")
 
-    if digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
+    if artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
         assert artifact.digest == "90433061a33aed87ab6c0ff48c7f983c"
         manifest_contents = artifact.manifest.to_manifest_json()["contents"]
         assert manifest_contents == {
@@ -324,7 +302,7 @@ def test_add_reference_local_file(tmp_path, artifact):
     e = artifact.add_reference(uri)[0]
     assert e.ref_target() == uri
 
-    assert artifact.digest == "db139340fb6c96baea7b5a9764d55b2c"
+    assert artifact.digest == "a00c2239f036fb656c1dcbf9a32d89b4"
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
     assert manifest_contents == {
         "file1.txt": {
@@ -478,7 +456,7 @@ def test_add_reference_local_dir(artifact):
     here = Path.cwd()
     artifact.add_reference(f"file://{here}")
 
-    assert artifact.digest == "1c5e32d843db9099cff8f3d5885a3aed"
+    assert artifact.digest == "72414374bfd4b0f60a116e7267845f71"
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
     assert manifest_contents == {
         "file1.txt": {
@@ -568,7 +546,7 @@ def test_add_reference_local_dir_with_name(artifact):
     here = Path.cwd()
     artifact.add_reference(f"file://{here!s}", name="top")
 
-    assert artifact.digest == "4ed6e3db722bf0d8422ec3cfc5cf2ea1"
+    assert artifact.digest == "f718baf2d4c910dc6ccd0d9c586fa00f"
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
     assert manifest_contents == {
         "top/file1.txt": {
@@ -620,7 +598,7 @@ def test_add_http_reference_path(artifact):
 
     artifact.add_reference("http://example.com/file1.txt")
 
-    assert artifact.digest == "e73d6d2294e0e6a526c56c5a24cfc890"
+    assert artifact.digest == "48237ccc050a88af9dcd869dd5a7e9f4"
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
     assert manifest_contents == {
         "file1.txt": {
@@ -639,7 +617,7 @@ def test_add_reference_named_local_file(tmp_path, artifact):
 
     artifact.add_reference(uri, name="great-file.txt")
 
-    assert artifact.digest == "5222f22abda0a6ff806ca38783edb453"
+    assert artifact.digest == "585b9ada17797e37c9cbab391e69b8c5"
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
     assert manifest_contents == {
         "great-file.txt": {
@@ -653,7 +631,7 @@ def test_add_reference_named_local_file(tmp_path, artifact):
 def test_add_reference_unknown_handler(artifact):
     artifact.add_reference("ref://example.com/somefile.txt", name="ref")
 
-    assert artifact.digest == "4f25da86e90d1b13f582fb81190cfa3c"
+    assert artifact.digest == "410ade94865e89ebe1f593f4379ac228"
 
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
     assert manifest_contents == {
@@ -802,20 +780,15 @@ def test_add_obj_wbimage_no_classes(im_path: str, artifact: Artifact):
         artifact.add(wb_image, "my-image")
 
 
-@mark.parametrize(
-    "digest_algorithm",
-    ArtifactDigestAlgorithm,
-)
-def test_add_obj_wbimage(digest_algorithm, im_path: str, artifact: Artifact):
-    artifact._digest_algorithm = digest_algorithm
-    artifact.manifest.digest_algorithm = digest_algorithm
+@mark.parametrize("artifact", ["MD5", "XXH128"], indirect=True)
+def test_add_obj_wbimage(artifact, im_path: str):
     wb_image = wandb.Image(
         im_path,
         classes=[{"id": 0, "name": "person"}],
     )
     artifact.add(wb_image, "my-image")
 
-    if digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
+    if artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
         assert artifact.digest == "c9a97125b7449fb9a7f7890940b7cde2"
         manifest_contents = artifact.manifest.to_manifest_json()["contents"]
         assert manifest_contents == {
@@ -855,15 +828,10 @@ def test_add_obj_wbimage(digest_algorithm, im_path: str, artifact: Artifact):
 
 
 @mark.parametrize("overwrite", [True, False])
-@mark.parametrize(
-    "digest_algorithm",
-    ArtifactDigestAlgorithm,
-)
+@mark.parametrize("artifact", ["MD5", "XXH128"], indirect=True)
 def test_add_obj_wbimage_again_after_edit(
-    tmp_path, assets_path, copy_asset, overwrite, artifact, digest_algorithm
+    tmp_path, assets_path, copy_asset, overwrite, artifact
 ):
-    artifact._digest_algorithm = digest_algorithm
-    artifact.manifest.digest_algorithm = digest_algorithm
     orig_path1 = assets_path("test.png")
     orig_path2 = assets_path("2x2.png")
     assert filecmp.cmp(orig_path1, orig_path2) is False  # Consistency check
@@ -882,7 +850,7 @@ def test_add_obj_wbimage_again_after_edit(
     manifest_contents1 = artifact.manifest.to_manifest_json()["contents"]
     digest1 = artifact.digest
 
-    if digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
+    if artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
         assert digest1 == "1f1ca302bcc7aa196c5b4562daa88c82"
     else:
         assert digest1 == "2a7a8a7f29c929fe05b57983a2944fca"
@@ -906,13 +874,8 @@ def test_add_obj_wbimage_again_after_edit(
     assert manifest_contents1.keys() == manifest_contents2.keys()
 
 
-@mark.parametrize(
-    "digest_algorithm",
-    ArtifactDigestAlgorithm,
-)
-def test_add_obj_using_brackets(digest_algorithm, im_path: str, artifact: Artifact):
-    artifact._digest_algorithm = digest_algorithm
-    artifact.manifest.digest_algorithm = digest_algorithm
+@mark.parametrize("artifact", ["MD5", "XXH128"], indirect=True)
+def test_add_obj_using_brackets(artifact, im_path: str):
     wb_image = wandb.Image(
         im_path,
         classes=[{"id": 0, "name": "person"}],
@@ -920,7 +883,7 @@ def test_add_obj_using_brackets(digest_algorithm, im_path: str, artifact: Artifa
     artifact["my-image"] = wb_image
 
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    if digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
+    if artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
         assert artifact.digest == "c9a97125b7449fb9a7f7890940b7cde2"
         assert manifest_contents == {
             "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
@@ -1017,21 +980,14 @@ def test_deduplicate_wbimagemask_from_array(artifact, add_duplicate):
         assert len(artifact.manifest.entries) == 4
 
 
-@mark.parametrize(
-    "digest_algorithm",
-    ArtifactDigestAlgorithm,
-)
-def test_add_obj_wbimage_classes_obj(
-    digest_algorithm, im_path: str, artifact: Artifact
-):
-    artifact._digest_algorithm = digest_algorithm
-    artifact.manifest.digest_algorithm = digest_algorithm
+@mark.parametrize("artifact", ["MD5", "XXH128"], indirect=True)
+def test_add_obj_wbimage_classes_obj(artifact, im_path: str):
     classes = wandb.Classes([{"id": 0, "name": "person"}])
     wb_image = wandb.Image(im_path, classes=classes)
     artifact.add(wb_image, "my-image")
 
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    if digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
+    if artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
         assert manifest_contents == {
             "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
                 "digest": "+xqgbLA2igrfKWtbRYuOPw==",
@@ -1066,22 +1022,15 @@ def test_add_obj_wbimage_classes_obj(
         }
 
 
-@mark.parametrize(
-    "digest_algorithm",
-    ArtifactDigestAlgorithm,
-)
-def test_add_obj_wbimage_classes_obj_already_added(
-    digest_algorithm, im_path: str, artifact: Artifact
-):
-    artifact._digest_algorithm = digest_algorithm
-    artifact.manifest.digest_algorithm = digest_algorithm
+@mark.parametrize("artifact", ["MD5", "XXH128"], indirect=True)
+def test_add_obj_wbimage_classes_obj_already_added(artifact, im_path: str):
     classes = wandb.Classes([{"id": 0, "name": "person"}])
     artifact.add(classes, "my-classes")
     wb_image = wandb.Image(im_path, classes=classes)
     artifact.add(wb_image, "my-image")
 
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    if digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
+    if artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
         assert manifest_contents == {
             "my-classes.classes.json": {
                 "digest": "+xqgbLA2igrfKWtbRYuOPw==",
@@ -1125,21 +1074,14 @@ def test_add_obj_wbimage_classes_obj_already_added(
         }
 
 
-@mark.parametrize(
-    "digest_algorithm",
-    ArtifactDigestAlgorithm,
-)
-def test_add_obj_wbimage_image_already_added(
-    digest_algorithm, im_path: str, artifact: Artifact
-):
-    artifact._digest_algorithm = digest_algorithm
-    artifact.manifest.digest_algorithm = digest_algorithm
+@mark.parametrize("artifact", ["MD5", "XXH128"], indirect=True)
+def test_add_obj_wbimage_image_already_added(artifact, im_path: str):
     artifact.add_file(im_path)
     wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
     artifact.add(wb_image, "my-image")
 
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    if digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
+    if artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
         assert manifest_contents == {
             "2x2.png": {
                 "digest": "A+ER///ySqfqzroxc022rA==",
@@ -1171,13 +1113,8 @@ def test_add_obj_wbimage_image_already_added(
         }
 
 
-@mark.parametrize(
-    "digest_algorithm",
-    ArtifactDigestAlgorithm,
-)
-def test_add_obj_wbtable_images(digest_algorithm, im_path: str, artifact: Artifact):
-    artifact._digest_algorithm = digest_algorithm
-    artifact.manifest.digest_algorithm = digest_algorithm
+@mark.parametrize("artifact", ["MD5", "XXH128"], indirect=True)
+def test_add_obj_wbtable_images(artifact, im_path: str):
     wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
     wb_table = wandb.Table(["examples"])
     wb_table.add_data(wb_image)
@@ -1185,7 +1122,7 @@ def test_add_obj_wbtable_images(digest_algorithm, im_path: str, artifact: Artifa
     artifact.add(wb_table, "my-table")
 
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    if digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
+    if artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
         assert manifest_contents == {
             "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
                 "digest": "+xqgbLA2igrfKWtbRYuOPw==",
@@ -1217,13 +1154,8 @@ def test_add_obj_wbtable_images(digest_algorithm, im_path: str, artifact: Artifa
         }
 
 
-@mark.parametrize(
-    "digest_algorithm",
-    ArtifactDigestAlgorithm,
-)
-def test_add_obj_wbtable_images_duplicate_name(digest_algorithm, assets_path, artifact):
-    artifact._digest_algorithm = digest_algorithm
-    artifact.manifest.digest_algorithm = digest_algorithm
+@mark.parametrize("artifact", ["MD5", "XXH128"], indirect=True)
+def test_add_obj_wbtable_images_duplicate_name(artifact, assets_path):
     img_1 = str(assets_path("2x2.png"))
     img_2 = str(assets_path("test2.png"))
 
@@ -1240,7 +1172,7 @@ def test_add_obj_wbtable_images_duplicate_name(digest_algorithm, assets_path, ar
     artifact.add(wb_table, "my-table")
 
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    if digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
+    if artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
         assert manifest_contents == {
             "media/images/641e917f31888a48f546/img.png": {
                 "digest": "A+ER///ySqfqzroxc022rA==",
@@ -1272,20 +1204,15 @@ def test_add_obj_wbtable_images_duplicate_name(digest_algorithm, assets_path, ar
         }
 
 
-@mark.parametrize(
-    "digest_algorithm",
-    ArtifactDigestAlgorithm,
-)
-def test_add_partition_folder(digest_algorithm, artifact):
-    artifact._digest_algorithm = digest_algorithm
-    artifact.manifest.digest_algorithm = digest_algorithm
+@mark.parametrize("artifact", ["MD5", "XXH128"], indirect=True)
+def test_add_partition_folder(artifact):
     table_name = "dataset"
     table_parts_dir = "dataset_parts"
 
     partition_table = PartitionedTable(parts_path=table_parts_dir)
     artifact.add(partition_table, table_name)
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    if digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
+    if artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
         assert artifact.digest == "297c4e4629f16a087c500de7e66d6d9b"
         assert manifest_contents == {
             "dataset.partitioned-table.json": {

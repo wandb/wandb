@@ -89,10 +89,10 @@ from .artifact_instance_cache import (
 )
 from .artifact_manifest import ArtifactManifest
 from .artifact_manifest_entry import (
+    _STR_TO_DIGEST_ALGORITHM,
     DIGEST_ALGORITHM_EXTRA_KEY,
     DIGEST_ALGORITHM_TO_STR,
     ArtifactManifestEntry,
-    _STR_TO_DIGEST_ALGORITHM,
 )
 from .artifact_manifests.artifact_manifest_v1 import ArtifactManifestV1
 from .artifact_state import ArtifactState
@@ -155,7 +155,11 @@ class Artifact:
             than 100 total keys.
         incremental: Use `Artifact.new_draft()` method instead to modify an
             existing artifact.
-        digest_algorithm: The digest algorithm to use for the artifact. Defaults to XXH128.
+        digest_algorithm: The digest algorithm to use for the artifact. Defaults to MD5.
+            If set to XXH128, the artifact will be hashed using the XXH128 algorithm
+            unless it is part of a sequence that is already using MD5. Calls to
+            `artifact.verify()` on SDK versions before 0.28.3 will always fail on
+            XXH128 artifacts.
         use_as: Deprecated.
 
     Returns:
@@ -174,7 +178,7 @@ class Artifact:
         incremental: bool = False,
         use_as: str | None = None,
         storage_region: str | None = None,
-        digest_algorithm: Literal["MD5", "XXH128"] = "XXH128",
+        digest_algorithm: Literal["MD5", "XXH128"] = "MD5",
     ) -> None:
         from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 
@@ -249,7 +253,7 @@ class Artifact:
         self._digest: str | None = None
 
         self._digest_algorithm = _STR_TO_DIGEST_ALGORITHM.get(
-            digest_algorithm, ArtifactDigestAlgorithm.MANIFEST_XXH128
+            digest_algorithm, ArtifactDigestAlgorithm.MANIFEST_MD5
         )
 
         self._manifest: ArtifactManifest | None = ArtifactManifestV1(

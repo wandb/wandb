@@ -48,7 +48,7 @@ class InternalArtifact(Artifact):
         metadata: dict[str, Any] | None = None,
         incremental: bool = False,
         use_as: str | None = None,
-        digest_algorithm: ArtifactDigestAlgorithm = ArtifactDigestAlgorithm.MANIFEST_XXH128,
+        digest_algorithm: ArtifactDigestAlgorithm = ArtifactDigestAlgorithm.MANIFEST_MD5,
     ) -> None:
         sanitized_name = sanitize_artifact_name(name)
 
@@ -68,4 +68,3 @@ class InternalArtifact(Artifact):
             digest_algorithm=digest_algorithm_str,
         )
         self._type = type
-

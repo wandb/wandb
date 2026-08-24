@@ -255,12 +255,16 @@ def test_wandb_artifact_config_set_item(user: str, test_settings, api: Api):
     }
 
 
-def test_use_artifact(user, test_settings, api: Api):
+@mark.parametrize("digest_algorithm", ["MD5", "XXH128"])
+def test_use_artifact(user, test_settings, api: Api, digest_algorithm: str):
     with wandb.init(settings=test_settings()) as run:
-        artifact = Artifact("arti", type="dataset")
+        artifact = Artifact("arti", type="dataset", digest_algorithm=digest_algorithm)
         run.use_artifact(artifact)
         artifact.wait()
-        if server_supports(api._service_api, pb.ARTIFACT_DIGEST_ALGORITHM):
+        if (
+            server_supports(api._service_api, pb.ARTIFACT_DIGEST_ALGORITHM)
+            and digest_algorithm == "XXH128"
+        ):
             assert artifact.digest == "f13c5dd8602ab5d18a0c87ce730a735e"
         else:
             assert artifact.digest == "64e7c61456b10382e2f3b571ac24b659"
