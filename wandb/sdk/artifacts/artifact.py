@@ -238,6 +238,7 @@ class Artifact:
         self._file_count: int | None = None
         self._created_at: str | None = None
         self._updated_at: str | None = None
+        self._linked_at: str | None = None
         self._final: bool = False
         self._history_step: int | None = None
         self._linked_artifacts: list[Artifact] = []
@@ -484,6 +485,8 @@ class Artifact:
         self._file_count = src_art.file_count
         self._created_at = src_art.created_at
         self._updated_at = src_art.updated_at
+        if membership is not None and self.is_link:
+            self._linked_at = membership.created_at
         self._history_step = src_art.history_step
 
     @ensure_logged
@@ -1111,6 +1114,15 @@ class Artifact:
         """The time when the artifact was last updated."""
         assert self._created_at is not None
         return self._updated_at or self._created_at
+
+    @property
+    @ensure_logged
+    def linked_at(self) -> str | None:
+        """The time when this artifact was linked to its current collection.
+
+        Only valid for linked artifacts, returns `None` otherwise.
+        """
+        return self._linked_at
 
     @property
     @ensure_logged
@@ -2721,6 +2733,7 @@ class Artifact:
                 name=f"{col.name}:{version}",
                 version=version,
                 aliases=aliases,
+                linked_at=node.created_at,
             )
             link = self._create_linked_artifact_using_source_artifact(link_fields)
             linked_artifacts.append(link)
@@ -2740,6 +2753,7 @@ class Artifact:
         linked_artifact._project = link_fields.project_name
         linked_artifact._is_link = link_fields.is_link
         linked_artifact._linked_artifacts = link_fields.linked_artifacts
+        linked_artifact._linked_at = link_fields.linked_at
         return linked_artifact
 
 

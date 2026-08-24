@@ -253,6 +253,8 @@ def test_versions_rejects_order_for_basic_search(
         ("created_at", "+artifact_created_at"),
         ("-created_at", "-artifact_created_at"),
         ("-artifact_created_at", "-artifact_created_at"),
+        ("linked_at", "+acm_created_at"),
+        ("-acm_created_at", "-acm_created_at"),
         ("artifact_size", "+artifact_size"),
         (None, None),
     ],
