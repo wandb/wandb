@@ -218,47 +218,20 @@ fn create_test_parquet_file(path: &str, num_rows: usize) -> std::io::Result<()> 
     Ok(())
 }
 
-/// Helper function to create a test parquet file with a nested histogram column.
-fn create_nested_histogram_parquet_file(path: &str) -> std::io::Result<()> {
-    let histogram = StructArray::from(vec![
-        (
-            Arc::new(Field::new("_type", DataType::Utf8, false)),
-            Arc::new(StringArray::from(vec!["histogram"])) as ArrayRef,
-        ),
-        (
-            Arc::new(Field::new(
-                "bins",
-                DataType::List(Arc::new(Field::new("item", DataType::Float64, true))),
-                false,
-            )),
-            Arc::new(arrow::array::ListArray::from_iter_primitive::<
-                arrow::datatypes::Float64Type,
-                _,
-                _,
-            >(vec![Some(vec![Some(0.0), Some(1.0)])])) as ArrayRef,
-        ),
-        (
-            Arc::new(Field::new(
-                "values",
-                DataType::List(Arc::new(Field::new("item", DataType::Float64, true))),
-                false,
-            )),
-            Arc::new(arrow::array::ListArray::from_iter_primitive::<
-                arrow::datatypes::Float64Type,
-                _,
-                _,
-            >(vec![Some(vec![Some(2.0), Some(3.0)])])) as ArrayRef,
-        ),
-    ]);
+fn create_nested_column_parquet_file(path: &str) -> std::io::Result<()> {
+    let nested = StructArray::from(vec![(
+        Arc::new(Field::new("_type", DataType::Utf8, false)),
+        Arc::new(StringArray::from(vec!["histogram"])) as ArrayRef,
+    )]);
     let schema = Arc::new(Schema::new(vec![
-        Field::new("histogram", histogram.data_type().clone(), false),
+        Field::new("nested", nested.data_type().clone(), false),
         Field::new(STEP_COLUMN_NAME, DataType::Int64, false),
         Field::new("loss", DataType::Float64, false),
     ]));
     let batch = RecordBatch::try_new(
         schema.clone(),
         vec![
-            Arc::new(histogram),
+            Arc::new(nested),
             Arc::new(Int64Array::from(vec![7])),
             Arc::new(arrow::array::Float64Array::from(vec![0.5])),
         ],
@@ -333,7 +306,7 @@ fn test_create_reader_with_columns() {
 fn test_reader_scan_step_range_with_nested_columns() {
     let temp_dir = TempDir::new().unwrap();
     let file_path = temp_dir.path().join("nested.parquet");
-    create_nested_histogram_parquet_file(file_path.to_str().unwrap()).unwrap();
+    create_nested_column_parquet_file(file_path.to_str().unwrap()).unwrap();
 
     let path_cstring = CString::new(file_path.to_str().unwrap()).unwrap();
     let col1 = CString::new(STEP_COLUMN_NAME).unwrap();
