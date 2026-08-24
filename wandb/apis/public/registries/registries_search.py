@@ -19,6 +19,7 @@ from ._utils import (
     ADVANCED_COLLECTIONS_FILTER_ALIASES,
     ADVANCED_REGISTRIES_FILTER_ALIASES,
     ADVANCED_VERSIONS_FILTER_ALIASES,
+    ADVANCED_VERSIONS_ORDER_ALIASES,
     BASIC_COLLECTIONS_FILTER_ALIASES,
     BASIC_REGISTRIES_FILTER_ALIASES,
     BASIC_VERSIONS_FILTER_ALIASES,
@@ -91,6 +92,10 @@ _CollectionOrder: TypeAlias = Annotated[
     str,
     OrderValidator(valid=("name", "created_at", "updated_at")),
 ]
+_VersionOrder: TypeAlias = Annotated[
+    str,
+    OrderValidator(valid=ADVANCED_VERSIONS_ORDER_ALIASES),
+]
 
 
 # Note on the validated args classes below:
@@ -146,6 +151,7 @@ class _AdvancedVersionsVars(PaginatorVars):
     registry_filter: _AdvancedRegistryFilter | None = None
     collection_filter: _AdvancedCollectionFilter | None = None
     artifact_filter: _AdvancedVersionFilter | None = None
+    order: _VersionOrder | None = None
 
 
 class VersionsIterator(Protocol):
@@ -170,6 +176,7 @@ class CollectionsIterator(Protocol):
     def versions(
         self,
         filter: dict[str, Any] | None = ...,
+        order: _VersionOrder | None = ...,
         per_page: PositiveInt = ...,
         start: str | None = ...,
     ) -> VersionsIterator: ...
@@ -286,6 +293,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
     def versions(
         self,
         filter: FilterDict | None = None,
+        order: _VersionOrder | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ) -> VersionsIterator:
@@ -293,6 +301,10 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
 
         Args:
             filter: Optional mapping of filters to apply to the artifact versions query.
+            order: Optional string to specify the order of the results.
+                Order can be `created_at`, `artifact_size`, or `linked_at`.
+                If prefixed with '+', sorts ascending (default).
+                If prefixed with '-', sorts descending.
             per_page: The number of results to fetch per page.
                 Usually there is no reason to change this.
             start: Pagination cursor for resuming a past query, captured
@@ -306,21 +318,22 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
             first *n* items without fetching the rest. See
             https://docs.python.org/3/library/itertools.html.
         """
-        if (order := self.order) and start:
+        if (registry_order := self.order) and start:
             msg = (
                 f"{start=} is not supported when querying versions from registries "
-                f"fetched with {order=}. Remove either 'order' from the registries "
+                f"fetched with order={registry_order!r}. Remove either 'order' from the registries "
                 "query or 'start' from the versions query."
             )
             raise ValueError(msg)
 
-        if order and not start:
+        if registry_order and not start:
             return _ChainedPaginators(
                 Versions(
                     service_api=self._service_api,
                     organization=self.organization,
                     registry_filter=registry_filter_for(reg),
                     artifact_filter=filter,
+                    order=order,
                     per_page=per_page,
                 )
                 for reg in self
@@ -332,6 +345,7 @@ class Registries(RelayPaginator["RegistryFragment", "Registry"]):
             registry_filter=self.filter,
             collection_filter=None,
             artifact_filter=filter,
+            order=order,
             per_page=per_page,
             start=start,
         )
@@ -428,6 +442,7 @@ class Collections(
     def versions(
         self,
         filter: FilterDict | None = None,
+        order: _VersionOrder | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ) -> VersionsIterator:
@@ -435,6 +450,10 @@ class Collections(
 
         Args:
             filter: Optional mapping of filters to apply to the artifact versions query.
+            order: Optional string to specify the order of the results.
+                Order can be `created_at`, `artifact_size`, or `linked_at`.
+                If prefixed with '+', sorts ascending (default).
+                If prefixed with '-', sorts descending.
             per_page: The number of results to fetch per page.
                 Usually there is no reason to change this.
             start: Pagination cursor for resuming a past query, captured
@@ -448,15 +467,15 @@ class Collections(
             first *n* items without fetching the rest. See
             https://docs.python.org/3/library/itertools.html.
         """
-        if (order := self.order) and start:
+        if (collection_order := self.order) and start:
             msg = (
                 f"{start=} is not supported when querying versions from collections "
-                f"fetched with {order=}. Remove either 'order' from the collections "
+                f"fetched with order={collection_order!r}. Remove either 'order' from the collections "
                 "query or 'start' from the versions query."
             )
             raise ValueError(msg)
 
-        if order and not start:
+        if collection_order and not start:
             return _ChainedPaginators(
                 Versions(
                     service_api=self._service_api,
@@ -465,6 +484,7 @@ class Collections(
                     per_page=per_page,
                     registry_filter=registry_filter_for(coll),
                     collection_filter={"name": coll.name} if coll.name else {},
+                    order=order,
                 )
                 for coll in self
             )
@@ -475,6 +495,7 @@ class Collections(
             registry_filter=self.registry_filter,
             collection_filter=self.collection_filter,
             artifact_filter=filter,
+            order=order,
             per_page=per_page,
             start=start,
         )
@@ -532,6 +553,7 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
         registry_filter: FilterDict | None = None,
         collection_filter: FilterDict | None = None,
         artifact_filter: FilterDict | None = None,
+        order: _VersionOrder | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ):
@@ -540,18 +562,23 @@ class Versions(RelayPaginator["ArtifactMembershipFragment", "Artifact"]):
 
             type(self).QUERY = REGISTRY_VERSIONS_GQL
 
-        args_cls = (
-            _AdvancedVersionsVars
-            if advanced_search_enabled(service_api, organization)
-            else _BasicVersionsVars
-        )
-        args = args_cls(
+        shared_args = dict(
             organization=organization,
             registry_filter=registry_filter,
             collection_filter=collection_filter,
             artifact_filter=artifact_filter,
             per_page=per_page,
         )
+        if advanced_search_enabled(service_api, organization):
+            args = _AdvancedVersionsVars(**shared_args, order=order)
+            self.order = args.order
+        else:
+            if order is not None:
+                raise UnsupportedError(
+                    "Ordering registry versions is not supported for this organization."
+                    + " If you have any questions, please contact support at support@wandb.com."
+                )
+            args = _BasicVersionsVars(**shared_args)
 
         self.organization = args.organization
         self.registry_filter = args.registry_filter
@@ -670,6 +697,7 @@ class _OrderedCollections(_ChainedPaginators["ArtifactCollection"]):
     def versions(
         self,
         filter: dict[str, Any] | None = None,
+        order: _VersionOrder | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ) -> VersionsIterator:
@@ -688,6 +716,7 @@ class _OrderedCollections(_ChainedPaginators["ArtifactCollection"]):
                 registry_filter=registry_filter_for(col),
                 collection_filter={"name": col.name} if col.name else {},
                 artifact_filter=filter,
+                order=order,
                 per_page=per_page,
             )
             for col in self
