@@ -811,6 +811,28 @@ var (
 	selectedRunInactiveStyle = lipgloss.NewStyle().Background(colorSelectedRunInactiveStyle)
 )
 
+// Delete-run confirmation modal styles.
+var (
+	// Color for destructive actions and their warnings.
+	colorDanger = AdaptiveColor{
+		Light: lipgloss.Color("#E85565"),
+		Dark:  lipgloss.Color("#FF7A88"),
+	}
+
+	deleteRunModalBorderStyle = lipgloss.NewStyle().
+					Border(lipgloss.RoundedBorder()).
+					BorderForeground(colorDanger).
+					Padding(1, 2)
+
+	deleteRunModalTitleStyle = lipgloss.NewStyle().Bold(true).Foreground(colorDanger)
+
+	deleteRunModalRunStyle = lipgloss.NewStyle().Bold(true).Foreground(colorItemValue)
+
+	deleteRunModalInputStyle = lipgloss.NewStyle().Foreground(colorSubheading)
+
+	deleteRunModalDangerStyle = lipgloss.NewStyle().Foreground(colorDanger)
+)
+
 // Symon mode styles.
 var (
 	symonContainerStyle = lipgloss.NewStyle().

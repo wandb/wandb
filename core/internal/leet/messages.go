@@ -152,6 +152,13 @@ type WorkspaceRunOverviewPreloadedMsg struct {
 	Err    error
 }
 
+// WorkspaceRunDeletedMsg is emitted after an attempt to delete a run
+// directory from disk.
+type WorkspaceRunDeletedMsg struct {
+	RunKey string
+	Err    error
+}
+
 // WorkspaceInitErrMsg is emitted when a workspace run reader failed to initialize.
 // This keeps errors keyed to the specific run so the workspace can recover cleanly.
 type WorkspaceInitErrMsg struct {

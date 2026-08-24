@@ -722,3 +722,14 @@ func (w *Workspace) TestFilteredRunKeys() []string {
 	}
 	return keys
 }
+
+// TestDeleteModalBlocked reports whether the delete-run modal refuses to
+// delete because the run is live.
+func (w *Workspace) TestDeleteModalBlocked() bool {
+	return w.deleteModal.blocked
+}
+
+// TestDeleteModalError returns the delete-run modal's error text.
+func (w *Workspace) TestDeleteModalError() string {
+	return w.deleteModal.errText
+}

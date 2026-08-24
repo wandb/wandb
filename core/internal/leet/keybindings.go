@@ -340,6 +340,11 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Description: "Clear runs filter",
 					Handler:     (*Workspace).handleClearRunsFilter,
 				},
+				{
+					Keys:        []string{"backspace", "delete"},
+					Description: "Delete run from disk (runs list focused; asks to confirm)",
+					Handler:     (*Workspace).handleDeleteRunKey,
+				},
 			},
 		},
 		{

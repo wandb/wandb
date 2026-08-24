@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -60,6 +61,11 @@ func (w *Workspace) handleMediaMouse(msg tea.MouseMsg, layout Layout) tea.Cmd {
 }
 
 func (w *Workspace) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
+	// The delete-run confirmation modal owns all key input while open.
+	if w.deleteModal.Active() {
+		return w.handleDeleteModalKey(msg)
+	}
+
 	// Filter mode takes priority.
 	if w.filter.IsActive() {
 		w.handleRunFilterKey(msg)
@@ -104,6 +110,11 @@ func (w *Workspace) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 }
 
 func (w *Workspace) handleMouse(msg tea.MouseMsg) tea.Cmd {
+	// Ignore mouse interaction while the delete-run modal is open.
+	if w.deleteModal.Active() {
+		return nil
+	}
+
 	mouse := msg.Mouse()
 	layout := w.computeViewports()
 
@@ -1183,6 +1194,78 @@ func (w *Workspace) handlePinRunKey(msg tea.KeyPressMsg) tea.Cmd {
 	}
 
 	w.togglePin(runKey)
+	return nil
+}
+
+// ---- Run Deletion ----
+
+// handleDeleteRunKey opens the delete-run confirmation modal for the
+// highlighted run.
+func (w *Workspace) handleDeleteRunKey(tea.KeyPressMsg) tea.Cmd {
+	if !w.runSelectorActive() {
+		return nil
+	}
+	cur, ok := w.runs.CurrentItem()
+	if !ok {
+		return nil
+	}
+
+	run := w.runsByKey[cur.Key]
+	live := run != nil && run.state == RunStateRunning
+	w.deleteModal.Open(cur.Key, live)
+	return nil
+}
+
+// handleDeleteModalKey routes keys to the delete-run modal and starts the
+// deletion once the user confirms.
+func (w *Workspace) handleDeleteModalKey(msg tea.KeyPressMsg) tea.Cmd {
+	if !w.deleteModal.HandleKey(msg) {
+		return nil
+	}
+
+	runKey := w.deleteModal.RunKey()
+	if runKey == "" {
+		// Defensive: never let an empty key resolve to the wandb dir itself.
+		w.deleteModal.Close()
+		return nil
+	}
+
+	// Release the run's reader and watcher before removing files: open
+	// handles would block deletion on some platforms.
+	w.dropRun(runKey)
+	return w.deleteRunCmd(runKey)
+}
+
+// deleteRunCmd removes the run's directory from disk asynchronously.
+func (w *Workspace) deleteRunCmd(runKey string) tea.Cmd {
+	dir := filepath.Join(w.wandbDir, runKey)
+	return func() tea.Msg {
+		return WorkspaceRunDeletedMsg{RunKey: runKey, Err: os.RemoveAll(dir)}
+	}
+}
+
+// handleWorkspaceRunDeleted finalizes a run deletion attempt.
+func (w *Workspace) handleWorkspaceRunDeleted(msg WorkspaceRunDeletedMsg) tea.Cmd {
+	if msg.Err != nil {
+		w.logger.CaptureError(
+			"leet",
+			fmt.Errorf("workspace: delete run %s: %v", msg.RunKey, msg.Err),
+		)
+		w.deleteModal.Fail(msg.Err)
+		return nil
+	}
+
+	w.deleteModal.Close()
+
+	// Drop the run from the list immediately instead of waiting for the
+	// next directory poll.
+	remaining := make([]string, 0, len(w.runs.Items))
+	for _, item := range w.runs.Items {
+		if item.Key != msg.RunKey {
+			remaining = append(remaining, item.Key)
+		}
+	}
+	w.applyRunKeys(remaining)
 	return nil
 }
 

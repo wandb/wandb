@@ -60,6 +60,9 @@ type Workspace struct {
 
 	// TODO: mark live runs upon selection.
 
+	// deleteModal is the delete-run confirmation dialog.
+	deleteModal DeleteRunModal
+
 	// filter drives the runs sidebar search box.
 	filter *Filter
 	// runsFilterIndex caches searchable per-run metadata (name, project, config)
@@ -268,6 +271,9 @@ func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 	case WorkspaceRunDirsMsg:
 		return w.handleWorkspaceRunDirs(t)
 
+	case WorkspaceRunDeletedMsg:
+		return w.handleWorkspaceRunDeleted(t)
+
 	case WorkspaceRunOverviewPreloadedMsg:
 		return w.handleWorkspaceRunOverviewPreloaded(t)
 
@@ -352,13 +358,15 @@ func (w *Workspace) View() tea.View {
 	statusBar := w.renderStatusBar()
 
 	fullView := lipgloss.JoinVertical(lipgloss.Left, mainView, statusBar)
-	return tea.NewView(
-		lipgloss.Place(
-			w.width, w.height,
-			lipgloss.Left, lipgloss.Top,
-			fullView,
-		),
+	view := lipgloss.Place(
+		w.width, w.height,
+		lipgloss.Left, lipgloss.Top,
+		fullView,
 	)
+	if w.deleteModal.Active() {
+		view = overlayCentered(view, w.deleteModal.View(w.width), w.width, w.height)
+	}
+	return tea.NewView(view)
 }
 
 // Cleanup stops the workspace's heartbeat, file watchers, and open readers.
@@ -391,6 +399,11 @@ func (w *Workspace) IsFiltering() bool {
 		return true
 	}
 	return false
+}
+
+// IsConfirmingDelete reports whether the delete-run confirmation modal is open.
+func (w *Workspace) IsConfirmingDelete() bool {
+	return w.deleteModal.Active()
 }
 
 // SelectedRunWandbFile returns the full path to the .wandb file for the selected run.
@@ -1335,8 +1348,9 @@ func (w *Workspace) activeFocusStatus() []string {
 
 // buildHelpText builds the help text for the status bar.
 func (w *Workspace) buildHelpText() string {
-	// Hide help hint while any workspace-level filter / grid config is active.
-	if w.IsFiltering() || w.config.IsAwaitingGridConfig() {
+	// Hide help hint while any workspace-level filter / grid config / modal
+	// is capturing input.
+	if w.IsFiltering() || w.config.IsAwaitingGridConfig() || w.deleteModal.Active() {
 		return ""
 	}
 	return "h: help"
