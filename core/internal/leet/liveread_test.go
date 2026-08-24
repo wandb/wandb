@@ -115,12 +115,12 @@ func TestWorkspace_ReadAvailableCmd_DropsEmptyChunk(t *testing.T) {
 }
 
 func TestParseHistory_UsesHistoryStepFallback(t *testing.T) {
-	msg := leet.ParseHistory("dummy", &spb.HistoryRecord{
+	h := &spb.HistoryRecord{
 		Step: &spb.HistoryStep{Num: 7},
 		Item: []*spb.HistoryItem{
 			{NestedKey: []string{"loss"}, ValueJson: "0.5"},
 		},
-	}).(leet.HistoryMsg)
-
+	}
+	msg := leet.ParseHistory("/some/run/path", h, 7).(leet.HistoryMsg)
 	require.Equal(t, 7.0, msg.Metrics["loss"].X[0])
 }

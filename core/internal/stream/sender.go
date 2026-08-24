@@ -850,10 +850,10 @@ func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {
 	}
 
 	updates := runsummary.FromProto(summary)
-	if s.stepTracker.MayReassignSteps() {
-		// Drop _step from summary records when sync may reassign steps.
-		updates.IgnoreStep()
-	}
+	// Always drop any _step value from the summary record, because it's
+	// either auto-assigned by the sender or it's not relevant (i.e. in shared
+	// mode or server-derived summary).
+	updates.IgnoreStep()
 	if err := updates.Apply(s.runSummary); err != nil {
 		s.logger.CaptureError(
 			"stream",
