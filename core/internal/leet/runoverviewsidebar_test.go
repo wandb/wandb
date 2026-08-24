@@ -139,9 +139,9 @@ func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {
 
 	s.Sync()
 
-	// Small height -> single-item pages for the squeezed sections.
+	// Small height -> the squeezed Config section paginates.
 	view := stripANSI(s.View(15).Content)
-	require.Contains(t, view, "Config [1-1 of 5]")
+	require.Contains(t, view, "Config [1-3 of 5]")
 	require.Contains(t, view, "Summary [2 items]")
 	require.Contains(t, view, "Environment")
 
@@ -235,7 +235,7 @@ func TestSidebar_SectionsReflowAsDataChanges(t *testing.T) {
 	s.Sync()
 	view = stripANSI(s.View(30).Content)
 	require.Contains(t, view, "Config [5 items]")
-	require.Contains(t, view, "Summary [1-12 of 43]")
+	require.Contains(t, view, "Summary [1-15 of 43]")
 
 	// Three config values are deleted: the freed rows flow to Summary.
 	ro.ProcessRunMsg(leet.RunMsg{
@@ -250,7 +250,7 @@ func TestSidebar_SectionsReflowAsDataChanges(t *testing.T) {
 	s.Sync()
 	view = stripANSI(s.View(30).Content)
 	require.Contains(t, view, "Config [2 items]")
-	require.Contains(t, view, "Summary [1-15 of 43]")
+	require.Contains(t, view, "Summary [1-18 of 43]")
 }
 
 func TestSidebar_Navigation_SectionPageUpDown(t *testing.T) {

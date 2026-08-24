@@ -18,11 +18,6 @@ const (
 	SidebarSideRight
 )
 
-// minSidebarHeaderLines preserves the existing baseline layout when only the
-// original metadata fields are present, while still allowing the header to grow
-// for wrapped tags and notes.
-const minSidebarHeaderLines = 6
-
 // RunOverviewSidebar stores and displays run metadata.
 //
 // It handles presentation concerns: sections, filtering, navigation, layout, and rendering.
@@ -456,7 +451,8 @@ func (s *RunOverviewSidebar) buildSectionLines(contentWidth int) []string {
 	return lines
 }
 
-// renderSection renders a single section.
+// renderSection renders a single section, always exactly Height rows so
+// the layout matches the allocation and stays put while paging.
 func (s *RunOverviewSidebar) renderSection(idx, width int) string {
 	section := &s.sections[idx]
 
@@ -467,17 +463,23 @@ func (s *RunOverviewSidebar) renderSection(idx, width int) string {
 	var lines []string
 
 	// Render section header.
-	lines = append(lines, s.renderSectionHeader(section))
+	lines = append(lines, s.renderSectionHeader(section, width))
 
 	// Render section items.
 	itemLines := s.renderSectionItems(section, width)
 	lines = append(lines, itemLines...)
 
+	// A partial last page still occupies the section's allocated rows.
+	for len(lines) < section.Height {
+		lines = append(lines, "")
+	}
+
 	return lipgloss.JoinVertical(lipgloss.Top, lines...)
 }
 
-// renderSectionHeader renders the section title with pagination info.
-func (s *RunOverviewSidebar) renderSectionHeader(section *PagedList) string {
+// renderSectionHeader renders the section title with pagination info,
+// truncated to a single row (the section heights budget one row for it).
+func (s *RunOverviewSidebar) renderSectionHeader(section *PagedList, width int) string {
 	titleStyle := runOverviewSidebarSectionStyle
 	if section.Active {
 		titleStyle = runOverviewSidebarSectionHeaderStyle
@@ -492,7 +494,8 @@ func (s *RunOverviewSidebar) renderSectionHeader(section *PagedList) string {
 	titleText := section.Title
 	infoText := s.buildSectionInfo(section, totalItems, filteredItems, startIdx, endIdx)
 
-	return titleStyle.Render(titleText) + navInfoStyle.Render(infoText)
+	header := titleStyle.Render(titleText) + navInfoStyle.Render(infoText)
+	return lipgloss.NewStyle().MaxWidth(width).Render(header)
 }
 
 // buildSectionInfo builds the pagination/count info string for a section.

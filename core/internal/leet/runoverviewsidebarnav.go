@@ -44,7 +44,6 @@ func (s *RunOverviewSidebar) updateSectionHeights() {
 
 // sectionsArea returns the rows available to sections: the sidebar height
 // minus the header block and one spacing row between adjacent sections.
-// The header reservation never drops below minSidebarHeaderLines.
 func (s *RunOverviewSidebar) sectionsArea(needs []int) int {
 	visible := 0
 	for _, need := range needs {
@@ -52,8 +51,7 @@ func (s *RunOverviewSidebar) sectionsArea(needs []int) int {
 			visible++
 		}
 	}
-	header := max(minSidebarHeaderLines, s.headerLineCount())
-	return s.height - header - max(visible-1, 0)
+	return s.height - s.headerLineCount() - max(visible-1, 0)
 }
 
 // flexSectionHeights divides area rows among sections proportionally to
@@ -120,8 +118,8 @@ func proportionalShares(active []int, weights []float64, remaining int) []float6
 	return shares
 }
 
-// settleSections assigns their final height to the active sections decide
-// selects and returns the still-active rest.
+// settleSections assigns a final height to each active section that decide
+// settles and returns the still-active rest.
 func settleSections(
 	active []int,
 	heights []int,
