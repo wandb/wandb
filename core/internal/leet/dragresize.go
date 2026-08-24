@@ -35,26 +35,17 @@ const (
 // overrides accumulates the view's pending layout fractions as the mouse
 // moves (a separator drag between two fixed panes updates two of them) and
 // is persisted once on mouse release. section is set for stack separator
-// drags; overview for run overview section drags.
+// drags; overview names the latched rule's neighbor sections for run
+// overview section drags.
 type layoutDrag struct {
 	boundary  dragBoundary
 	section   stackSectionID
-	overview  overviewSectionDrag
+	overview  overviewSeparator
 	overrides LayoutOverrides
 	dirty     bool
 }
 
-// overviewSectionDrag pins the geometry of a run overview section drag at
-// latch time; mouse motion is applied relative to it.
-type overviewSectionDrag struct {
-	above, below         int // Section indices either side of the rule.
-	baseY                int // Rule's screen row at latch.
-	aboveH, belowH       int // Allocated section heights at latch.
-	aboveNeed, belowNeed int // Content caps (title + items) at latch.
-	area                 int // Rows available to sections at latch.
-}
-
-func (d *layoutDrag) active() bool { return d.boundary != dragBoundaryNone }
+func (d layoutDrag) active() bool { return d.boundary != dragBoundaryNone }
 
 // setSection records a stacked pane's height fraction.
 func (o *LayoutOverrides) setSection(id stackSectionID, frac float64) {
@@ -174,7 +165,7 @@ func (d *paneDragger) apply(x, y int, layout Layout, t dragTargets) {
 			return
 		}
 	case dragBoundaryOverviewSection:
-		if !dragOverviewSection(o, d.drag.overview, y) {
+		if t.overview == nil || !dragOverviewSection(o, t.overview, d.drag.overview, y) {
 			return
 		}
 	}
@@ -182,6 +173,11 @@ func (d *paneDragger) apply(x, y int, layout Layout, t dragTargets) {
 	// layout cannot snap when the drag is released and re-derived.
 	normalizeLayoutOverrides(o)
 	d.drag.dirty = true
+	if d.drag.boundary == dragBoundaryOverviewSection {
+		// Only the sidebar consumes the overview shares, and it re-reads
+		// them on its next render; skip the full pane relayout.
+		return
+	}
 	d.relayout()
 }
 
@@ -292,9 +288,8 @@ func boundaryAt(x, y int, layout Layout, t dragTargets) (layoutDrag, bool) {
 }
 
 // overviewBoundaryAt hit-tests a mouse position against the separator rules
-// between the run overview sidebar's sections. The sidebar is drawn from
-// the top row of its side of the screen, so its cached rule rows are screen
-// rows.
+// between the run overview sidebar's sections, as recorded by the sidebar's
+// last render.
 func overviewBoundaryAt(x, y int, layout Layout, t dragTargets) (layoutDrag, bool) {
 	switch t.overview.side {
 	case SidebarSideLeft:
@@ -309,28 +304,62 @@ func overviewBoundaryAt(x, y int, layout Layout, t dragTargets) (layoutDrag, boo
 		return layoutDrag{}, false
 	}
 
-	ov, ok := t.overview.separatorDragAt(y)
-	if !ok {
-		return layoutDrag{}, false
+	for _, sep := range t.overview.separators {
+		if sep.row == y {
+			return layoutDrag{boundary: dragBoundaryOverviewSection, overview: sep}, true
+		}
 	}
-	return layoutDrag{boundary: dragBoundaryOverviewSection, overview: ov}, true
+	return layoutDrag{}, false
 }
 
-// dragOverviewSection records in o the section shares for dragging a run
-// overview separator rule to row y: the two neighbors trade rows within the
-// total they held at latch, each keeping at least the minimum height and at
-// most the rows its items can fill. It reports whether o was updated.
-func dragOverviewSection(o *LayoutOverrides, ov overviewSectionDrag, y int) bool {
-	total := ov.aboveH + ov.belowH
-	lo := max(sectionMinHeight, total-ov.belowNeed)
-	hi := min(ov.aboveNeed, total-sectionMinHeight)
-	if lo > hi {
+// dragOverviewSection records in o the section shares for dragging the run
+// overview rule between latched's neighbor sections to row y. Like
+// dragSeparator, it re-reads the live geometry on every motion event, so a
+// mid-drag data update cannot leave the drag working against stale rows.
+//
+// The two neighbors trade rows within the total they currently hold, each
+// keeping at least the minimum height and at most the rows its items can
+// fill. Every visible section's share is recorded so the allocator
+// reproduces exactly these heights. It reports whether o was updated.
+func dragOverviewSection(
+	o *LayoutOverrides,
+	s *RunOverviewSidebar,
+	latched overviewSeparator,
+	y int,
+) bool {
+	row := -1
+	for _, sep := range s.separators {
+		if sep.above == latched.above && sep.below == latched.below {
+			row = sep.row
+			break
+		}
+	}
+	if row < 0 {
+		return false // A neighbor emptied mid-drag; nothing to trade.
+	}
+
+	needs := s.sectionNeeds()
+	area := s.sectionsArea(needs)
+	if area <= 0 {
 		return false
 	}
 
-	aboveH := clamp(ov.aboveH+y-ov.baseY, lo, hi)
-	o.setOverviewFraction(ov.above, float64(aboveH)/float64(ov.area))
-	o.setOverviewFraction(ov.below, float64(total-aboveH)/float64(ov.area))
+	aboveH := s.sections[latched.above].Height
+	total := aboveH + s.sections[latched.below].Height
+	lo := max(sectionMinHeight, total-needs[latched.below])
+	hi := min(needs[latched.above], total-sectionMinHeight)
+	if lo > hi {
+		return false
+	}
+	aboveH = clamp(aboveH+y-row, lo, hi)
+
+	for i := range s.sections {
+		if h := s.sections[i].Height; h > 0 {
+			o.setOverviewFraction(i, float64(h)/float64(area))
+		}
+	}
+	o.setOverviewFraction(latched.above, float64(aboveH)/float64(area))
+	o.setOverviewFraction(latched.below, float64(total-aboveH)/float64(area))
 	return true
 }
 

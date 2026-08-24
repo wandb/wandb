@@ -1,10 +1,13 @@
 package leet
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // testRunLayout mirrors a single-run view: metrics (flex) on top, media and
@@ -105,13 +108,13 @@ func TestBoundaryAtOverviewSeparators(t *testing.T) {
 	layout := testRunLayout()
 	targets := testDragTargets()
 
-	sb := testOverviewSidebar(t, SidebarSideLeft, layout.leftSidebarWidth)
+	_, sb := testOverviewSidebar(t, SidebarSideLeft, layout.leftSidebarWidth)
 	view := sb.View(layout.totalContentAreaHeight)
-	seps := sb.sectionSeparators()
+	seps := sb.separators
 	require.Len(t, seps, 2)
 	targets.overview = sb
 
-	// The derived separator rows match the rendered rule rows.
+	// The recorded separator rows match the rendered rule rows.
 	var ruleRows []int
 	for row, line := range strings.Split(view.Content, "\n") {
 		if strings.Contains(line, "————") {
@@ -125,9 +128,7 @@ func TestBoundaryAtOverviewSeparators(t *testing.T) {
 		drag, ok := boundaryAt(5, sep.row, layout, targets)
 		require.True(t, ok, "row=%d", sep.row)
 		require.Equal(t, dragBoundaryOverviewSection, drag.boundary)
-		require.Equal(t, sep.above, drag.overview.above)
-		require.Equal(t, sep.below, drag.overview.below)
-		require.Equal(t, sep.row, drag.overview.baseY)
+		require.Equal(t, sep, drag.overview)
 	}
 
 	// One row off is a miss.
@@ -138,6 +139,13 @@ func TestBoundaryAtOverviewSeparators(t *testing.T) {
 	drag, ok := boundaryAt(100, seps[0].row, layout, targets)
 	require.True(t, !ok || drag.boundary != dragBoundaryOverviewSection)
 
+	// A sidebar rendered without data offers no rules to grab.
+	sb.SetRunOverview(nil)
+	sb.View(layout.totalContentAreaHeight)
+	require.Empty(t, sb.separators)
+	_, ok = boundaryAt(5, seps[0].row, layout, targets)
+	require.False(t, ok)
+
 	// No latch without the sidebar (collapsed or animating).
 	targets.overview = nil
 	_, ok = boundaryAt(5, seps[0].row, layout, targets)
@@ -145,46 +153,54 @@ func TestBoundaryAtOverviewSeparators(t *testing.T) {
 }
 
 func TestDragOverviewSectionTradesRows(t *testing.T) {
-	ov := overviewSectionDrag{
-		above: 0, below: 1,
-		baseY:  10,
-		aboveH: 5, belowH: 7,
-		aboveNeed: 20, belowNeed: 20,
-		area: 30,
+	ro, sb := testOverviewSidebar(t, SidebarSideLeft, 40)
+	for i := range 20 {
+		ro.ProcessSummaryMsg([]*spb.SummaryRecord{{
+			Update: []*spb.SummaryItem{{
+				NestedKey: []string{"m", fmt.Sprintf("k%d", i)},
+				ValueJson: "1",
+			}},
+		}})
 	}
+	ro.ProcessRunMsg(RunMsg{Config: &spb.ConfigRecord{
+		Update: configItems(20),
+	}})
+	sb.Sync()
+	sb.View(30)
+	require.Len(t, sb.separators, 2)
 
-	// Dragging down by 3 rows grows the section above and shrinks the one
-	// below; both shares are fractions of the section area.
+	// Dragging the Config/Summary rule down 3 rows lands it exactly on the
+	// mouse row once the pending shares flow back through the allocator.
+	sep := sb.separators[1]
+	before := sb.sections[sep.above].Height
 	var o LayoutOverrides
-	require.True(t, dragOverviewSection(&o, ov, 13))
-	require.InDelta(t, 8.0/30, o.OverviewEnv, 1e-9)
-	require.InDelta(t, 4.0/30, o.OverviewConfig, 1e-9)
+	require.True(t, dragOverviewSection(&o, sb, sep, sep.row+3))
+	sb.overridesSource = func() LayoutOverrides { return o }
+	sb.View(30)
+	require.Equal(t, sep.row+3, sb.separators[1].row)
+	require.Equal(t, before+3, sb.sections[sep.above].Height)
 
-	// Dragging far up stops at the minimum height for the section above.
-	o = LayoutOverrides{}
-	require.True(t, dragOverviewSection(&o, ov, 0))
-	require.InDelta(t, 2.0/30, o.OverviewEnv, 1e-9)
-	require.InDelta(t, 10.0/30, o.OverviewConfig, 1e-9)
+	// Dragging far up floors the section above at its minimum.
+	require.True(t, dragOverviewSection(&o, sb, sep, 0))
+	sb.View(30)
+	require.Equal(t, sectionMinHeight, sb.sections[sep.above].Height)
 
-	// Dragging far down stops where the section above meets its need.
-	o = LayoutOverrides{}
-	ov.aboveNeed = 6
-	require.True(t, dragOverviewSection(&o, ov, 25))
-	require.InDelta(t, 6.0/30, o.OverviewEnv, 1e-9)
-	require.InDelta(t, 6.0/30, o.OverviewConfig, 1e-9)
+	// Dragging far down floors the section below at its minimum.
+	require.True(t, dragOverviewSection(&o, sb, sep, 100))
+	sb.View(30)
+	require.Equal(t, sectionMinHeight, sb.sections[sep.below].Height)
+}
 
-	// No legal position: nothing recorded.
-	o = LayoutOverrides{}
-	ov = overviewSectionDrag{
-		above: 0, below: 1,
-		baseY:  10,
-		aboveH: 2, belowH: 3,
-		aboveNeed: 2, belowNeed: 2,
-		area: 30,
+// configItems returns n distinct config update items.
+func configItems(n int) []*spb.ConfigItem {
+	items := make([]*spb.ConfigItem, 0, n)
+	for i := range n {
+		items = append(items, &spb.ConfigItem{
+			NestedKey: []string{"c", fmt.Sprintf("k%d", i)},
+			ValueJson: "1",
+		})
 	}
-	require.False(t, dragOverviewSection(&o, ov, 11))
-	require.Zero(t, o.OverviewEnv)
-	require.Zero(t, o.OverviewConfig)
+	return items
 }
 
 // frac converts a pane extent to its terminal-dimension fraction.

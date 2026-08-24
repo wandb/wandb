@@ -3,7 +3,8 @@ package leet
 const (
 	// Each section's default share of the sidebar's vertical space when
 	// the sections want more rows than fit. The shares sum to 1, so a
-	// value reads directly as that section's slice of the area.
+	// value reads directly as that section's slice of the area, in the
+	// same unit as the dragged overview_* fractions.
 	sectionWeightEnvironment = 0.20
 	sectionWeightConfig      = 0.35
 	sectionWeightSummary     = 0.45
@@ -12,9 +13,11 @@ const (
 	sectionMinHeight = 2
 )
 
-// sectionWeights returns each section's desired share of the section area:
-// the user-dragged fractions where set, with the remaining share divided
-// among the unset visible sections by the built-in weights.
+// sectionWeights returns each visible section's share of the section area:
+// the user-dragged fraction where set, otherwise the built-in default.
+// proportionalShares normalizes the weights, so dragged sections keep their
+// exact shares while all of them are set and every section degrades
+// proportionally when the data changes underneath.
 func (s *RunOverviewSidebar) sectionWeights(needs []int) []float64 {
 	defaults := []float64{
 		sectionWeightEnvironment,
@@ -28,28 +31,15 @@ func (s *RunOverviewSidebar) sectionWeights(needs []int) []float64 {
 	}
 	fracs := o.overviewFractions()
 
-	var explicitSum, defaultSum float64
-	for i, need := range needs {
-		if need <= 0 {
-			continue
-		}
-		if fracs[i] > 0 {
-			explicitSum += fracs[i]
-		} else {
-			defaultSum += defaults[i]
-		}
-	}
-
 	weights := make([]float64, len(needs))
-	leftover := max(1-explicitSum, 0)
 	for i, need := range needs {
 		if need <= 0 {
 			continue
 		}
 		if fracs[i] > 0 {
 			weights[i] = fracs[i]
-		} else if defaultSum > 0 {
-			weights[i] = leftover * defaults[i] / defaultSum
+		} else {
+			weights[i] = defaults[i]
 		}
 	}
 	return weights

@@ -44,6 +44,10 @@ type RunOverviewSidebar struct {
 	// an in-progress drag's pending values, or the persisted config.
 	// Nil means no overrides (built-in section weights).
 	overridesSource func() LayoutOverrides
+
+	// separators are the rules between sections as drawn by the last
+	// render; mouse drags hit-test against them.
+	separators []overviewSeparator
 }
 
 // overviewSeparator locates one rendered separator rule between sections.
@@ -133,6 +137,10 @@ func (s *RunOverviewSidebar) headerStyle() lipgloss.Style {
 
 // View renders the sidebar.
 func (s *RunOverviewSidebar) View(height int) tea.View {
+	// This render's rules are the drag targets; a sidebar that renders
+	// nothing must offer nothing to grab.
+	s.separators = s.separators[:0]
+
 	width := s.animState.Value()
 	if height <= 0 || width <= SidebarOverhead {
 		return tea.NewView("")
@@ -146,7 +154,7 @@ func (s *RunOverviewSidebar) View(height int) tea.View {
 	if s.runOverview != nil {
 		headerLines := s.buildHeaderLines(contentWidth)
 		s.updateSectionHeights()
-		sectionLines := s.buildSectionLines(contentWidth)
+		sectionLines := s.buildSectionLines(contentWidth, 1+len(headerLines))
 
 		lines = slices.Concat(lines, headerLines, sectionLines)
 	} else {
@@ -439,95 +447,39 @@ func (s *RunOverviewSidebar) renderTagHeaderValue(
 	return lines
 }
 
-// buildSectionLines builds all section content lines.
-func (s *RunOverviewSidebar) buildSectionLines(contentWidth int) []string {
+// buildSectionLines builds all section content lines, recording the screen
+// row of each separator rule it draws between adjacent sections. firstRow
+// is the screen row of the first section line (the sidebar is drawn from
+// the top row of its side of the screen, below its title and header).
+func (s *RunOverviewSidebar) buildSectionLines(contentWidth, firstRow int) []string {
 	var lines []string
 
+	row := firstRow
+	prev := -1
 	for i := range s.sections {
 		if s.sections[i].Height == 0 {
 			continue
 		}
 
 		sectionContent := s.renderSection(i, contentWidth)
-		if sectionContent != "" {
-			lines = append(lines, sectionContent)
-
-			// Separate adjacent sections with the same rule the central
-			// column draws between its stacked panes.
-			if s.hasNextVisibleSection(i) {
-				lines = append(lines, renderHorizontalSeparator(contentWidth))
-			}
+		if sectionContent == "" {
+			continue
 		}
+
+		// Separate adjacent sections with the same rule the central
+		// column draws between its stacked panes.
+		if prev >= 0 {
+			lines = append(lines, renderHorizontalSeparator(contentWidth))
+			s.separators = append(s.separators,
+				overviewSeparator{row: row, above: prev, below: i})
+			row++
+		}
+		lines = append(lines, sectionContent)
+		row += lipgloss.Height(sectionContent)
+		prev = i
 	}
 
 	return lines
-}
-
-// hasNextVisibleSection returns true if there's another visible section after idx.
-func (s *RunOverviewSidebar) hasNextVisibleSection(idx int) bool {
-	for j := idx + 1; j < len(s.sections); j++ {
-		if s.sections[j].Height > 0 {
-			return true
-		}
-	}
-	return false
-}
-
-// sectionSeparators locates the separator rules between visible sections as
-// buildSectionLines lays them out. The sidebar is drawn from the top row of
-// its side of the screen, so these are screen rows.
-func (s *RunOverviewSidebar) sectionSeparators() []overviewSeparator {
-	var seps []overviewSeparator
-
-	row := s.headerLineCount()
-	prev := -1
-	for i := range s.sections {
-		if s.sections[i].Height == 0 || len(s.sections[i].FilteredItems) == 0 {
-			continue
-		}
-		if prev >= 0 {
-			seps = append(seps, overviewSeparator{row: row, above: prev, below: i})
-			row++
-		}
-		row += s.renderedSectionLines(i)
-		prev = i
-	}
-	return seps
-}
-
-// renderedSectionLines returns the rows section i occupies on screen: a
-// title line plus the items on its current page (mirrors renderSectionItems).
-func (s *RunOverviewSidebar) renderedSectionLines(i int) int {
-	sec := &s.sections[i]
-	return 1 + sec.itemsOnPage(sec.CurrentPage())
-}
-
-// separatorDragAt returns the latch-time geometry for a drag starting on
-// the separator rule at screen row y, if there is one.
-func (s *RunOverviewSidebar) separatorDragAt(y int) (overviewSectionDrag, bool) {
-	for _, sep := range s.sectionSeparators() {
-		if sep.row != y {
-			continue
-		}
-
-		needs := s.sectionNeeds()
-		area := s.sectionsArea(needs)
-		if area <= 0 {
-			break
-		}
-
-		return overviewSectionDrag{
-			above:     sep.above,
-			below:     sep.below,
-			baseY:     y,
-			aboveH:    s.sections[sep.above].Height,
-			belowH:    s.sections[sep.below].Height,
-			aboveNeed: needs[sep.above],
-			belowNeed: needs[sep.below],
-			area:      area,
-		}, true
-	}
-	return overviewSectionDrag{}, false
 }
 
 // renderSection renders a single section, always exactly Height rows so

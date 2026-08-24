@@ -407,12 +407,23 @@ func nextChartGuides(guides string) string {
 func normalizeLayoutOverrides(o *LayoutOverrides) {
 	for _, f := range []*float64{
 		&o.LeftSidebar, &o.RightSidebar, &o.System, &o.Media, &o.Logs,
-		&o.OverviewEnv, &o.OverviewConfig, &o.OverviewSummary,
 	} {
 		if math.IsNaN(*f) {
 			*f = 0
 		} else if *f != 0 {
 			*f = min(max(*f, MinLayoutFrac), MaxLayoutFrac)
+		}
+	}
+	// Overview shares are fractions of the sidebar's section area, not of
+	// the terminal, so only the unit range applies; the drag and the
+	// allocator enforce the real bounds (minimum heights, item counts).
+	for _, f := range []*float64{
+		&o.OverviewEnv, &o.OverviewConfig, &o.OverviewSummary,
+	} {
+		if math.IsNaN(*f) {
+			*f = 0
+		} else if *f != 0 {
+			*f = min(max(*f, 0), 1)
 		}
 	}
 }
