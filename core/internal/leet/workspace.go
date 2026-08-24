@@ -751,22 +751,17 @@ func (w *Workspace) overviewFocusAvailable() bool {
 // ---- Focus activate ----
 
 func (w *Workspace) activateRunsFocus(_ int) { w.runs.Active = true }
+
+// Chart focus is seeded via NavigateFocus(0, 0): activation always follows a
+// deactivation that reset the shared Focus, so the grid's no-focus path lands
+// on the first populated cell and sets the full focus state (including the
+// chart title shown in the status bar). Writing Type/Row/Col here directly
+// would fool that path into treating focus as already applied.
+
 func (w *Workspace) activateMetricsGridFocus(_ int) {
-	w.focus.Type = FocusMainChart
-	if w.focus.Row < 0 {
-		w.focus.Row = 0
-		w.focus.Col = 0
-	}
 	w.metricsGrid.NavigateFocus(0, 0)
 }
 func (w *Workspace) activateSysMetricsFocus(_ int) {
-	if w.systemMetricsFocus != nil {
-		w.systemMetricsFocus.Type = FocusSystemChart
-		if w.systemMetricsFocus.Row < 0 {
-			w.systemMetricsFocus.Row = 0
-			w.systemMetricsFocus.Col = 0
-		}
-	}
 	if g := w.activeSystemMetricsGrid(); g != nil {
 		g.NavigateFocus(0, 0)
 	}
