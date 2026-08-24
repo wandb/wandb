@@ -328,7 +328,9 @@ def init(
             In this approach you use a primary node and one or more worker nodes
             to log data to the same run. Within the primary node you
             initialize a run. For each worker node, initialize a run
-            using the run ID used by the primary node.
+            using the run ID used by the primary node. The transaction log
+            records the run as shared; `wandb sync` rejects those logs by default
+            because they cause duplicate metrics on the server.
         force: Determines if a W&B login is required to run the script. If `True`,
             the user must be logged in to W&B; otherwise, the script will not
             proceed. If `False` (default), the script can proceed without a login,
