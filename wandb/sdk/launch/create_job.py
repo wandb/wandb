@@ -461,7 +461,7 @@ def _make_code_artifact(
         name=artifact_name,
         type="code",
         description="Code artifact for job",
-        digest_algorithm=ArtifactDigestAlgorithm.MANIFEST_MD5,
+        digest_algorithm="MD5",
     )
 
     try:
