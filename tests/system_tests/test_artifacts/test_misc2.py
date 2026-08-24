@@ -74,6 +74,7 @@ def test_lazy_artifact_passthrough(user):
             "file_count",
             "created_at",
             "updated_at",
+            "linked_at",
         ]
 
         # These setters should be valid both before and after logging

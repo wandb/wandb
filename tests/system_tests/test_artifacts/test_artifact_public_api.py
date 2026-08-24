@@ -718,6 +718,7 @@ def test_fetch_registry_artifact(
         },
         version_index=1,
         aliases=[{"id": "PLACEHOLDER", "alias": "my-alias"}],
+        created_at="PLACEHOLDER",
     ).model_dump()
 
     mock_empty_rsp_data = {"data": {"project": {}}}

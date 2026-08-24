@@ -125,6 +125,17 @@ This is relevant for VERSION filters passed to:
 - Versions(...) ONLY in "advanced" search mode
 """
 
+ADVANCED_VERSIONS_ORDER_FIELDS = (
+    SearchField("artifact_created_at", aliases=["created_at"]),
+    SearchField("artifact_size"),
+    SearchField("acm_created_at", aliases=["linked_at"]),
+)
+"""Defines allowed Versions order fields for "advanced" search.
+
+This is relevant for VERSION orders passed to:
+- Versions(...) ONLY in "advanced" search mode
+"""
+
 # ------------------------------------------------------------------------------
 
 BASIC_REGISTRIES_FILTER_ALIASES = merge_alias_maps(BASIC_REGISTRIES_FILTER_FIELDS)
@@ -136,6 +147,7 @@ ADVANCED_COLLECTIONS_FILTER_ALIASES = merge_alias_maps(
     ADVANCED_COLLECTIONS_FILTER_FIELDS
 )
 ADVANCED_VERSIONS_FILTER_ALIASES = merge_alias_maps(ADVANCED_VERSIONS_FILTER_FIELDS)
+ADVANCED_VERSIONS_ORDER_ALIASES = merge_alias_maps(ADVANCED_VERSIONS_ORDER_FIELDS)
 
 
 class Visibility(str, Enum):

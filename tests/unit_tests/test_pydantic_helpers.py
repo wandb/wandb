@@ -3,15 +3,16 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import ConfigDict, Field, Json, ValidationError
-from pytest import raises
+from pydantic import ConfigDict, Field, Json, TypeAdapter, ValidationError
+from pytest import mark, param, raises
 from wandb._pydantic import (
     AliasChoices,
     CompatBaseModel,
     GQLInput,
     GQLResult,
+    OrderValidator,
     computed_field,
     field_validator,
     model_validator,
@@ -408,3 +409,57 @@ def test_gql_result_is_frozen_and_uses_camelcase_aliases_by_default():
     # Instances are frozen/immutable
     with raises(ValidationError):
         result.foo_bar = 9  # type: ignore[misc]
+
+
+ORDER_ALIASES = {
+    "created_at": "artifact_created_at",
+    "artifact_created_at": "artifact_created_at",
+}
+ALIASED_ORDER_ADAPTER = TypeAdapter(Annotated[str, OrderValidator(ORDER_ALIASES)])
+PLAIN_ORDER_ADAPTER = TypeAdapter(
+    Annotated[str, OrderValidator(("name", "created_at"))]
+)
+UNRESTRICTED_ORDER_ADAPTER = TypeAdapter(Annotated[str, OrderValidator()])
+
+
+@mark.parametrize(
+    ("raw", "expected"),
+    [
+        param("created_at", "+artifact_created_at", id="unsigned-alias"),
+        param("+created_at", "+artifact_created_at", id="ascending-alias"),
+        param("-created_at", "-artifact_created_at", id="descending-alias"),
+        param("artifact_created_at", "+artifact_created_at", id="canonical-name"),
+    ],
+)
+def test_order_validator_maps_aliases(raw: str, expected: str):
+    assert ALIASED_ORDER_ADAPTER.validate_python(raw) == expected
+
+
+@mark.parametrize(
+    ("raw", "expected"),
+    [
+        param("name", "+name", id="unsigned-defaults-to-asc"),
+        param("+name", "+name", id="explicit-asc"),
+        param("-created_at", "-created_at", id="explicit-desc"),
+    ],
+)
+def test_order_validator_identity_mapping(raw: str, expected: str):
+    assert PLAIN_ORDER_ADAPTER.validate_python(raw) == expected
+
+
+def test_order_validator_unrestricted_allows_any_field():
+    assert UNRESTRICTED_ORDER_ADAPTER.validate_python("custom_field") == "+custom_field"
+
+
+@mark.parametrize(
+    ("adapter", "raw"),
+    [
+        param(ALIASED_ORDER_ADAPTER, "updated_at", id="unknown-aliased-field"),
+        param(PLAIN_ORDER_ADAPTER, "updated_at", id="unknown-plain-field"),
+        param(PLAIN_ORDER_ADAPTER, "++name", id="invalid-syntax"),
+        param(PLAIN_ORDER_ADAPTER, "", id="empty"),
+    ],
+)
+def test_order_validator_rejects_invalid_values(adapter: TypeAdapter[str], raw: str):
+    with raises(ValidationError):
+        adapter.validate_python(raw)
