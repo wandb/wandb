@@ -255,6 +255,12 @@ class Artifact:
         self._digest_algorithm = _STR_TO_DIGEST_ALGORITHM.get(
             digest_algorithm, ArtifactDigestAlgorithm.MANIFEST_MD5
         )
+        if self._digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
+            termwarn(
+                "Creating an artifact with the XXH128 digest algorithm."
+                + " `artifact.verify()` will always fail for this artifact on wandb"
+                + " versions before 0.28.3."
+            )
 
         self._manifest: ArtifactManifest | None = ArtifactManifestV1(
             storage_policy=make_storage_policy(region=storage_region),
