@@ -956,7 +956,10 @@ def test_draft_inherits_digest_algorithm(api: Api):
 
     parent = api.artifact(f"{project}/my-sample-portfolio:latest")
     draft = parent.new_draft()
-    assert draft.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128
+    if server_supports(api._service_api, pb.ARTIFACT_DIGEST_ALGORITHM):
+        assert draft.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128
+    else:
+        assert draft.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_MD5
 
 
 def test_artifact_upload_with_fallback(api: Api):
