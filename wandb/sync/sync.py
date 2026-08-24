@@ -274,7 +274,9 @@ class SyncThread(threading.Thread):
                 pb.ParseFromString(data)
                 if pb.WhichOneof("record_type") == "run":
                     if pb.run.shared:
-                        wandb.termerror(f"{_SHARED_SYNC_REJECTED} Skipping: {sync_item}")
+                        wandb.termerror(
+                            f"{_SHARED_SYNC_REJECTED} Skipping: {sync_item}"
+                        )
                         return True
                     return False
         finally:

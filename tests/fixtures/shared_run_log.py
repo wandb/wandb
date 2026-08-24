@@ -10,7 +10,9 @@ from wandb.sdk.internal import datastore
 SHARED_SYNC_REJECTED_FRAGMENT = "Cannot sync a shared-mode run from a transaction log"
 
 
-def write_shared_run_log(wandb_file: pathlib.Path, *, run_id: str = "shared-run") -> None:
+def write_shared_run_log(
+    wandb_file: pathlib.Path, *, run_id: str = "shared-run"
+) -> None:
     """Write a minimal .wandb file whose RunRecord has shared=true."""
     wandb_file.parent.mkdir(parents=True, exist_ok=True)
 
