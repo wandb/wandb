@@ -739,7 +739,7 @@ def test_video_numpy_mp4(mock_run):
 def test_video_numpy_multi(mock_run):
     run = mock_run()
     video = np.random.random(size=(2, 10, 3, 28, 28))
-    vid = wandb.Video(video)
+    vid = wandb.Video(video, format="gif")
     vid.bind_to_run(run, "videos", 0)
     assert vid.to_json(run)["path"].endswith(".gif")
 
@@ -747,7 +747,7 @@ def test_video_numpy_multi(mock_run):
 def test_video_numpy_invalid():
     video = np.random.random(size=(3, 28, 28))
     with pytest.raises(ValueError):
-        wandb.Video(video)
+        wandb.Video(video, format="gif")
 
 
 def test_video_path(mock_run):
@@ -764,6 +764,29 @@ def test_video_path_invalid():
         f.write("00000")
     with pytest.raises(ValueError):
         wandb.Video("video.avi")
+
+
+def test_video_path_ignores_explicit_format(mock_run):
+    run = mock_run()
+    with open("video.mp4", "w") as f:
+        f.write("00000")
+    vid = wandb.Video("video.mp4", format="webm")
+    vid.bind_to_run(run, "videos", 0)
+    assert vid._format == "mp4"
+    assert vid.to_json(run)["path"].endswith(".mp4")
+
+
+@pytest.mark.parametrize(
+    "data_or_path",
+    [
+        np.random.randint(255, size=(10, 3, 28, 28)),
+        io.BytesIO(b"00000"),
+    ],
+    ids=["numpy", "bytesio"],
+)
+def test_video_requires_format(data_or_path):
+    with pytest.raises(ValueError, match="requires a `format` argument"):
+        wandb.Video(data_or_path)
 
 
 def test_video_encodes_with_spinner__displays_by_default(monkeypatch):
