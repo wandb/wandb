@@ -634,3 +634,24 @@ func TestInitRun_OfflineSharedMode_PersistsOnRunRecordBeforeUpsert(t *testing.T)
 	assert.True(t, run.GetShared())
 	assert.True(t, params.Settings.IsSharedMode())
 }
+
+func TestInitRun_SyncAppliesSharedModeFromRunRecord(t *testing.T) {
+	params := testParams(t)
+	params.Settings = settings.From(&spb.Settings{})
+
+	upserter, err := runupserter.InitRun(
+		runRecord(&spb.RunRecord{
+			RunId:  "shared-sync-run",
+			Shared: true,
+		}),
+		params,
+	)
+	require.NoError(t, err)
+	defer upserter.Finish()
+
+	assert.True(t, params.Settings.IsSharedMode())
+
+	run := &spb.RunRecord{}
+	upserter.FillRunRecord(run)
+	assert.True(t, run.GetShared())
+}
