@@ -153,6 +153,35 @@ func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {
 	s.Toggle()
 }
 
+func TestSidebar_View_SeparatorBetweenSections(t *testing.T) {
+	ro, s := testRunOverviewSidebar(t, false)
+	expandSidebar(t, s, 120, false)
+
+	ro.ProcessRunMsg(leet.RunMsg{
+		Config: &spb.ConfigRecord{
+			Update: []*spb.ConfigItem{
+				{NestedKey: []string{"trainer", "epochs"}, ValueJson: "10"},
+			},
+		},
+	})
+	ro.ProcessSummaryMsg([]*spb.SummaryRecord{
+		{Update: []*spb.SummaryItem{{NestedKey: []string{"acc"}, ValueJson: "0.9"}}},
+	})
+	ro.ProcessSystemInfoMsg(&spb.EnvironmentRecord{WriterId: "writer-1", Os: "linux"})
+
+	s.Sync()
+
+	// Three visible sections are set apart by two horizontal rules.
+	view := stripANSI(s.View(30).Content)
+	rules := 0
+	for line := range strings.SplitSeq(view, "\n") {
+		if strings.Contains(line, "————") {
+			rules++
+		}
+	}
+	require.Equal(t, 2, rules)
+}
+
 func TestSidebar_SectionsFillAvailableHeight(t *testing.T) {
 	ro, s := testRunOverviewSidebar(t, false)
 	expandSidebar(t, s, 120, false)
