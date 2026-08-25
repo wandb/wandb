@@ -31,7 +31,7 @@ import requests
 
 import wandb
 from wandb import util
-from wandb.analytics import get_sentry, get_telemetry_recorder
+from wandb.analytics import get_sentry
 from wandb.sdk.internal import internal_api
 
 from ..lib import file_stream_utils
@@ -483,12 +483,11 @@ class FileStreamApi:
         # TODO: Consolidate with internal_util.ExceptionThread
         try:
             self._thread_body()
-        except Exception as e:
+        except Exception:
             exc_info = sys.exc_info()
             self._exc_info = exc_info
             logger.exception("generic exception in filestream thread")
             get_sentry().exception(exc_info)
-            get_telemetry_recorder().exception(e)
             raise
 
     def _handle_response(self, response: Exception | requests.Response) -> None:
