@@ -71,10 +71,8 @@ def s3_bucket(s3: BaseClient) -> str:
 
 @fixture
 def artifact(request: FixtureRequest) -> Artifact:
-    digest_algorithm = getattr(request, "param", "MD5")
-    return Artifact(
-        type="dataset", name="data-artifact", digest_algorithm=digest_algorithm
-    )
+    kwargs = {"digest_algorithm": request.param} if hasattr(request, "param") else {}
+    return Artifact(type="dataset", name="data-artifact", **kwargs)
 
 
 def test_unsized_manifest_entry_real_file():
