@@ -158,7 +158,7 @@ class Artifact:
         digest_algorithm: The digest algorithm to use for the artifact. Defaults to MD5.
             If set to XXH128, the artifact will be hashed using the XXH128 algorithm
             unless it is part of a collection that is already using MD5. Calls to
-            `artifact.verify()` on SDK versions before 0.28.3 will always fail on
+            `artifact.verify()` on SDK versions before 0.29.0 will always fail on
             XXH128 artifacts.
         use_as: Deprecated.
 
