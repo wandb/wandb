@@ -14,6 +14,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runmetric"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -25,6 +26,10 @@ type LevelDBHistorySource struct {
 
 	// store is a W&B LevelDB-style transaction log that may be actively written.
 	store *LiveStore
+	// metricHandler accumulates define_metric records to resolve custom
+	// x-axes. Definitions apply only to later history records; points
+	// parsed before a definition arrives stay on the default axis.
+	metricHandler *runmetric.MetricHandler
 	// exitSeen is true if the exit record has been seen.
 	exitSeen bool
 	// exitCode is the exit code of the run if the exit record has been seen.
@@ -42,8 +47,9 @@ func NewLevelDBHistorySource(
 		return nil, err
 	}
 	return &LevelDBHistorySource{
-		runPath: runPath,
-		store:   store,
+		runPath:       runPath,
+		store:         store,
+		metricHandler: runmetric.New(),
 	}, nil
 }
 
@@ -90,7 +96,7 @@ func (hs *LevelDBHistorySource) Read(
 	}
 
 	var msgs []tea.Msg
-	var history historyAccumulator
+	history := historyAccumulator{metricHandler: hs.metricHandler}
 	var summaries []SummaryMsg
 	scannedCount := 0
 	startTime := time.Now()
@@ -179,6 +185,9 @@ func (hs *LevelDBHistorySource) recordToMsg(record *spb.Record) tea.Msg {
 			msg.StartTime = ts.AsTime()
 		}
 		return msg
+	case *spb.Record_Metric:
+		_ = hs.metricHandler.ProcessRecord(rec.Metric)
+		return nil
 	case *spb.Record_Stats:
 		return ParseStats(hs.runPath, rec.Stats)
 	case *spb.Record_Summary:
@@ -204,8 +213,14 @@ func (hs *LevelDBHistorySource) Close() {
 
 // historyAccumulator merges a chunk's history records into per-metric series.
 type historyAccumulator struct {
+	// metricHandler resolves custom x-axes and must be non-nil.
+	metricHandler *runmetric.MetricHandler
+
 	metrics map[string]MetricData
 	media   map[string][]MediaPoint
+
+	// values holds one record's numeric items and is reused across records.
+	values map[string]float64
 }
 
 func (acc *historyAccumulator) addRecord(runPath string, history *spb.HistoryRecord) {
@@ -216,6 +231,10 @@ func (acc *historyAccumulator) addRecord(runPath string, history *spb.HistoryRec
 	step := int(historyStep(history))
 	var mediaFieldsByKey map[string]map[string]string
 
+	if acc.values == nil {
+		acc.values = make(map[string]float64)
+	}
+	clear(acc.values)
 	for _, item := range history.GetItem() {
 		if item == nil {
 			continue
@@ -235,19 +254,38 @@ func (acc *historyAccumulator) addRecord(runPath string, history *spb.HistoryRec
 		}
 
 		key := historyItemKey(item)
-		if key == "" || strings.HasPrefix(key, "_") {
+		if key == "" {
 			continue
 		}
-		val, err := strconv.ParseFloat(trimJSONString(item.ValueJson), 64)
-		if err != nil {
+		if val, err := strconv.ParseFloat(trimJSONString(item.ValueJson), 64); err == nil {
+			acc.values[key] = val
+		}
+	}
+
+	for key, val := range acc.values {
+		// Internal keys get no chart but may serve as an x-axis (e.g. _runtime).
+		if strings.HasPrefix(key, "_") {
 			continue
+		}
+		x, xAxisMetric := float64(step), acc.metricHandler.StepMetric(key)
+		switch xAxisMetric {
+		case "", "_step":
+			xAxisMetric = ""
+		default:
+			// Rows without a finite x value are not plotted, as in the UI.
+			sx, ok := acc.values[xAxisMetric]
+			if !ok || !isFinite(sx) {
+				continue
+			}
+			x = sx
 		}
 		if acc.metrics == nil {
 			acc.metrics = make(map[string]MetricData)
 		}
 		md := acc.metrics[key]
-		md.X = append(md.X, float64(step))
+		md.X = append(md.X, x)
 		md.Y = append(md.Y, val)
+		md.XAxisMetric = xAxisMetric
 		acc.metrics[key] = md
 	}
 
@@ -275,8 +313,14 @@ func historyItemKey(item *spb.HistoryItem) string {
 }
 
 // ParseHistory extracts metrics and media from a history record.
-func ParseHistory(runPath string, history *spb.HistoryRecord) tea.Msg {
-	var acc historyAccumulator
+//
+// metricHandler resolves custom x-axes and must be non-nil.
+func ParseHistory(
+	runPath string,
+	history *spb.HistoryRecord,
+	metricHandler *runmetric.MetricHandler,
+) tea.Msg {
+	acc := historyAccumulator{metricHandler: metricHandler}
 	acc.addRecord(runPath, history)
 	msg, ok := acc.toMsg(runPath)
 	if !ok {

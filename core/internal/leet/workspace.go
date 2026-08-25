@@ -1361,9 +1361,7 @@ func (w *Workspace) activeFocusStatus() []string {
 
 	switch w.focus.Type {
 	case FocusMainChart:
-		if scaleLabel := w.metricsGrid.focusedChartScaleLabel(); scaleLabel != "" {
-			parts = append(parts, scaleLabel)
-		}
+		parts[0] += w.metricsGrid.focusedChartLabels()
 	case FocusSystemChart:
 		if g := w.activeSystemMetricsGrid(); g != nil {
 			if detail := g.FocusedChartTitleDetail(); detail != "" {
