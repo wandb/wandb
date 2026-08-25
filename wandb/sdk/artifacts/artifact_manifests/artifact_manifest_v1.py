@@ -10,7 +10,7 @@ from typing import Annotated, Any, ClassVar, Dict, Literal, final
 
 from pydantic import Field
 
-from wandb.sdk.lib.hashutil import HexMD5, _md5
+from wandb.sdk.lib.hashutil import HexDigest, _md5
 
 from .._factories import make_storage_policy
 from .._models.manifest import ArtifactManifestV1Data
@@ -61,7 +61,7 @@ class ArtifactManifestV1(ArtifactManifest):
     _DIGEST_HEADER: ClassVar[bytes] = b"wandb-artifact-manifest-v1\n"
     """Encoded prefix/header for the ArtifactManifest digest."""
 
-    def digest(self) -> HexMD5:
+    def digest(self) -> HexDigest:
         hasher = _md5(self._DIGEST_HEADER)
         # sort by key (path)
         for path, entry in sorted(self.entries.items(), key=itemgetter(0)):

@@ -19,7 +19,7 @@ from typing import IO, Protocol
 import wandb
 from wandb import env, util
 from wandb.sdk.lib.filesystem import files_in
-from wandb.sdk.lib.hashutil import B64MD5, ETag, b64_to_hex_id
+from wandb.sdk.lib.hashutil import B64Digest, ETag, b64_to_hex_id
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
 
@@ -55,7 +55,7 @@ class ArtifactFileCache:
         self._override_cache_path: StrPath | None = None
 
     def check_md5_obj_path(
-        self, b64_md5: B64MD5, size: int
+        self, b64_md5: B64Digest, size: int
     ) -> tuple[FilePathStr, bool, Opener]:
         # Check if we're using vs skipping the cache
         if self._override_cache_path is not None:
