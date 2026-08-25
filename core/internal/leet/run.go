@@ -69,6 +69,13 @@ type Run struct {
 	// Written on the main goroutine; read from the HeartbeatManager timer goroutine.
 	liveRunning atomic.Bool
 
+	// lastUpdateAt tracks when the transaction log last produced a record.
+	// A live run that stays silent past RunCrashTimeout is presumed crashed.
+	lastUpdateAt time.Time
+
+	// pulseTicking reports whether the live-indicator redraw loop is armed.
+	pulseTicking bool
+
 	// Data reader.
 	historySource HistorySource
 	initCancel    context.CancelFunc
@@ -173,6 +180,7 @@ func NewRun(
 		relayout: run.applyLayoutConfig,
 		logger:   logger,
 	}
+	run.leftSidebar.overridesSource = run.layoutOverrides
 	return run
 }
 
@@ -328,6 +336,8 @@ func (r *Run) dispatch(msg tea.Msg) []tea.Cmd {
 		return r.handleHeartbeat()
 	case FileChangedMsg:
 		return r.handleFileChange()
+	case RunLivePulseMsg:
+		return r.handleLivePulse()
 	case tea.WindowSizeMsg:
 		r.handleWindowResize(t)
 	case LeftSidebarAnimationMsg, RightSidebarAnimationMsg:
@@ -506,18 +516,23 @@ func (r *Run) renderLoadingScreen() string {
 
 // renderStatusBar creates the status bar.
 func (r *Run) renderStatusBar() string {
+	// The indicator is styled separately from the bar so its color codes
+	// don't reset the bar's own styling mid-line.
+	indicator := renderStateIndicator(r.runState)
+	barWidth := max(r.width-lipgloss.Width(indicator), 0)
+
 	statusText := r.buildStatusText()
 	helpText := r.buildHelpText()
 
-	innerWidth := max(r.width-2*StatusBarPadding, 0)
+	innerWidth := max(barWidth-2*StatusBarPadding, 0)
 	spaceForHelp := max(innerWidth-lipgloss.Width(statusText), 0)
 	rightAligned := lipgloss.PlaceHorizontal(spaceForHelp, lipgloss.Right, helpText)
 
 	fullStatus := statusText + rightAligned
 
-	return statusBarStyle.
-		Width(r.width).
-		MaxWidth(r.width).
+	return indicator + statusBarStyle.
+		Width(barWidth).
+		MaxWidth(barWidth).
 		Render(fullStatus)
 }
 

@@ -30,6 +30,8 @@ if TYPE_CHECKING:
     from wandb.apis.public.service_api import ServiceApi
     from wandb.sdk.artifacts._generated import RegistryFragment
 
+    from .registries_search import _VersionOrder
+
 
 class Registry:
     """A single registry in the Registry."""
@@ -215,6 +217,13 @@ class Registry:
                 Usually there is no reason to change this.
             start: Pagination cursor for resuming a past query, captured
                 from a previous paginator's `.cursor` attribute.
+
+        Returns:
+            A lazy iterator of `ArtifactCollection` objects. The returned object
+            supports Python's iterator protocol and fetches results lazily as you
+            iterate—for example, use :func:`itertools.islice` to request only the
+            first *n* items without fetching the rest. See
+            https://docs.python.org/3/library/itertools.html.
         """
         return Collections(
             service_api=self._service_api,
@@ -230,6 +239,7 @@ class Registry:
     def versions(
         self,
         filter: dict[str, Any] | None = None,
+        order: _VersionOrder | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ) -> Versions:
@@ -237,10 +247,21 @@ class Registry:
 
         Args:
             filter: Optional mapping of filters to apply to the artifact versions query.
+            order: Optional string to specify the order of the results.
+                Order can be `created_at`, `artifact_size`, or `linked_at`.
+                If prefixed with '+', sorts ascending (default).
+                If prefixed with '-', sorts descending.
             per_page: The number of results to fetch per page.
                 Usually there is no reason to change this.
             start: Pagination cursor for resuming a past query, captured
                 from a previous paginator's `.cursor` attribute.
+
+        Returns:
+            A lazy iterator of `Artifact` objects. The returned object supports
+            Python's iterator protocol and fetches results lazily as you
+            iterate—for example, use :func:`itertools.islice` to request only the
+            first *n* items without fetching the rest. See
+            https://docs.python.org/3/library/itertools.html.
         """
         return Versions(
             service_api=self._service_api,
@@ -248,6 +269,7 @@ class Registry:
             registry_filter=registry_filter_for(self),
             collection_filter=None,
             artifact_filter=filter,
+            order=order,
             per_page=per_page,
             start=start,
         )

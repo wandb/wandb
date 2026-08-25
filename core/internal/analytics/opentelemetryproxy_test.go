@@ -327,8 +327,14 @@ func TestTelemetryRecorder_SendsAPIKeyAuth(t *testing.T) {
 	require.NoError(t, proxy.Shutdown(context.Background()))
 
 	requests := proxy.Requests()
-	require.NotEmpty(t, requests, "expected at least one OTLP export request")
+	assert.Greater(t, len(requests), 1, "expected at least two requests")
 	for _, req := range requests {
+		// The capability probe sent during proxy construction is intentionally
+		// unauthenticated and carries no body.
+		// Only OTLP export requests must include the API key.
+		if req.ContentLength == 0 {
+			continue
+		}
 		assert.Equal(
 			t,
 			"Basic YXBpOnRlc3QtYXBpLWtleQ==",

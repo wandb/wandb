@@ -80,6 +80,7 @@ def mock_membership_fragment_data(
             },
         },
         versionIndex=1,
+        createdAt="PLACEHOLDER",
         aliases=[
             {"id": "PLACEHOLDER", "alias": "my-alias"},
         ],

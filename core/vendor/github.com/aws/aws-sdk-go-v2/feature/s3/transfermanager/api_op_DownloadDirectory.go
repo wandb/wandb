@@ -17,6 +17,13 @@ import (
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
+// createFileFn is a thin indirection over os.Create used when writing
+// downloaded objects to disk. It exists so tests can verify that every file
+// handle DownloadDirectory creates is subsequently closed, guarding against a
+// file-handle leak analogous to the one fixed for aws/aws-sdk-go-v2#3512. In
+// prod env it is exactly os.Create.
+var createFileFn = os.Create
+
 // DownloadDirectoryInput represents a request to the DownloadDirectory() call
 type DownloadDirectoryInput struct {
 	// Bucket where objects are downloaded from
@@ -262,54 +269,68 @@ func (d *directoryDownloader) downloadObject(ctx context.Context, ch chan object
 			continue
 		}
 
-		input := &GetObjectInput{
-			Bucket: d.in.Bucket,
-			Key:    aws.String(data.key),
-		}
-		if d.in.Callback != nil {
-			d.in.Callback.UpdateRequest(input)
-		}
-		out, err := d.c.GetObject(ctx, input)
-		if err != nil {
-			err = d.failurePolicy.OnDownloadFailed(d.in, input, err)
-			if err != nil {
-				d.setErr(fmt.Errorf("error when heading info of object %s: %v", data.key, err))
-			} else {
-				d.objectsFailed.Add(1)
-			}
-			continue
-		}
-
-		d.progressOnce.Do(func() {
-			d.emitter.Start(ctx, d.in)
-		})
-
-		err = os.MkdirAll(filepath.Dir(data.path), 0755)
-		if err != nil {
-			d.setErr(fmt.Errorf("error when creating directory for file %s: %v", data.path, err))
-			continue
-		}
-		file, err := os.Create(data.path)
-		if err != nil {
-			d.setErr(fmt.Errorf("error when creating file %s: %v", data.path, err))
-			continue
-		}
-		n, err := io.Copy(file, out.Body)
-		if err != nil {
-			// where s3.GetObject is really called, must be handled by failure policy
-			err = d.failurePolicy.OnDownloadFailed(d.in, input, err)
-			if err != nil {
-				d.setErr(fmt.Errorf("error when getting object and writing to local file %s: %v", data.path, err))
-			} else {
-				d.objectsFailed.Add(1)
-			}
-			os.Remove(data.path)
-			continue
-		}
-
-		d.objectsDownloaded.Add(1)
-		d.emitter.ObjectsTransferred(ctx, n)
+		d.downloadSingleObject(ctx, data)
 	}
+}
+
+func (d *directoryDownloader) downloadSingleObject(ctx context.Context, data objectEntry) {
+	input := &GetObjectInput{
+		Bucket: d.in.Bucket,
+		Key:    aws.String(data.key),
+	}
+	if d.in.Callback != nil {
+		d.in.Callback.UpdateRequest(input)
+	}
+	out, err := d.c.GetObject(ctx, input)
+	if err != nil {
+		err = d.failurePolicy.OnDownloadFailed(d.in, input, err)
+		if err != nil {
+			d.setErr(fmt.Errorf("error when heading info of object %s: %v", data.key, err))
+			return
+		}
+		d.objectsFailed.Add(1)
+		return
+	}
+
+	d.progressOnce.Do(func() {
+		d.emitter.Start(ctx, d.in)
+	})
+
+	err = os.MkdirAll(filepath.Dir(data.path), 0755)
+	if err != nil {
+		d.setErr(fmt.Errorf("error when creating directory for file %s: %v", data.path, err))
+		return
+	}
+
+	file, err := createFileFn(data.path)
+	if err != nil {
+		d.setErr(fmt.Errorf("error when creating file %s: %v", data.path, err))
+		return
+	}
+	var fileCopyFail bool
+	defer func() {
+		if err := file.Close(); err != nil {
+			d.setErr(fmt.Errorf("error when closing file %s: %v", data.path, err))
+		}
+		if fileCopyFail {
+			os.Remove(data.path) // only remove the file if the copy failed
+		}
+	}()
+	n, err := io.Copy(file, out.Body)
+	if err != nil {
+		fileCopyFail = true
+		// where s3.GetObject is really called, must be handled by failure policy
+		err = d.failurePolicy.OnDownloadFailed(d.in, input, err)
+		if err != nil {
+			d.setErr(fmt.Errorf("error when getting object and writing to local file %s: %v", data.path, err))
+			return
+		}
+		d.objectsFailed.Add(1)
+		return
+	}
+
+	d.objectsDownloaded.Add(1)
+	d.emitter.ObjectsTransferred(ctx, n)
 }
 
 func (d *directoryDownloader) freshContext(ctx context.Context) (context.Context, context.CancelFunc) {
@@ -323,7 +344,9 @@ func (d *directoryDownloader) setErr(err error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	d.err = err
+	if d.err == nil || (isCancellationError(d.err) && !isCancellationError(err)) {
+		d.err = err
+	}
 }
 
 func (d *directoryDownloader) getErr() error {

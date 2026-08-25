@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import platform
 from functools import wraps
-from pathlib import PurePath, PurePosixPath
+from pathlib import PurePath, PurePosixPath, PureWindowsPath
 from typing import Any, TypeAlias, Union
 
 # Path _inputs_ should generally accept any kind of path. This is named the same and
@@ -13,6 +13,32 @@ StrPath: TypeAlias = Union[str, "os.PathLike[str]"]
 
 FilePathStr: TypeAlias = str  #: A native path to a file on a local filesystem.
 URIStr: TypeAlias = str
+
+
+def validate_relpath(path: StrPath) -> LogicalPath:
+    """Validate and canonicalize a relative path for artifact or run files.
+
+    Among other things, this forbids absolute paths or relative paths with traversal.
+    """
+    logical_path = LogicalPath(path)
+    posix_path = logical_path.to_path()
+    windows_path = PureWindowsPath(path)
+
+    if (
+        logical_path == "."
+        or posix_path.anchor
+        or (".." in posix_path.parts)
+        or windows_path.anchor
+        or (".." in windows_path.parts)
+    ):
+        raise ValueError(f"Invalid path: {path!r}")
+
+    return logical_path
+
+
+def validate_fspath(root: StrPath, relpath: StrPath) -> FilePathStr:
+    """Validate a native filesystem path under `root`."""
+    return os.path.join(os.fspath(root), validate_relpath(relpath))
 
 
 class LogicalPath(str):
