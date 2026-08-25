@@ -330,8 +330,9 @@ def test_uploaded_artifacts_are_unstaged(temp_staging_dir: Path):
     assert dir_size(temp_staging_dir) == 0
 
 
+@mark.parametrize("digest_algorithm", ["MD5", "XXH128"])
 def test_large_manifests_passed_by_file(
-    monkeypatch: MonkeyPatch, mocker: MockerFixture, api: Api
+    monkeypatch: MonkeyPatch, mocker: MockerFixture, api: Api, digest_algorithm: str
 ):
     writer_spy = mocker.spy(
         wandb.sdk.interface.interface.InterfaceBase,
@@ -345,7 +346,9 @@ def test_large_manifests_passed_by_file(
 
     content = "test content\n"
     with wandb.init() as run:
-        artifact = Artifact(name="large-manifest", type="dataset")
+        artifact = Artifact(
+            name="large-manifest", type="dataset", digest_algorithm=digest_algorithm
+        )
         with artifact.new_file("test_file.txt") as f:
             f.write(content)
         artifact.manifest.entries["test_file.txt"].extra["test_key"] = {"x": 1}
@@ -363,7 +366,10 @@ def test_large_manifests_passed_by_file(
         assert len(artifact.manifest) == 1
         entry = artifact.manifest.entries.get("test_file.txt")
         assert entry is not None
-        if server_supports(api._service_api, pb.ARTIFACT_DIGEST_ALGORITHM):
+        if (
+            server_supports(api._service_api, pb.ARTIFACT_DIGEST_ALGORITHM)
+            and digest_algorithm == "XXH128"
+        ):
             assert entry.digest == xxh128_string(content)
         else:
             assert entry.digest == md5_string(content)
@@ -939,9 +945,7 @@ def test_artifact_multipart_download_refresh_presigned_url(
 
 
 def test_draft_inherits_digest_algorithm(api: Api):
-    art = Artifact("test-artifact", "test-type")
-    # Simulate a committed artifact with MD5 entries
-    art._digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_MD5
+    art = Artifact("test-artifact", "test-type", digest_algorithm="XXH128")
     with art.new_file("file.txt", "w") as f:
         f.write("hello")
 
@@ -952,7 +956,10 @@ def test_draft_inherits_digest_algorithm(api: Api):
 
     parent = api.artifact(f"{project}/my-sample-portfolio:latest")
     draft = parent.new_draft()
-    assert draft.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_MD5
+    if server_supports(api._service_api, pb.ARTIFACT_DIGEST_ALGORITHM):
+        assert draft.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128
+    else:
+        assert draft.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_MD5
 
 
 def test_artifact_upload_with_fallback(api: Api):
@@ -970,7 +977,7 @@ def test_artifact_upload_with_fallback(api: Api):
     assert artifact.digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_MD5
 
     # upload a second version of this artifact
-    artifact = Artifact("test-artifact", type="dataset")
+    artifact = Artifact("test-artifact", type="dataset", digest_algorithm="XXH128")
     Path("file1.txt").write_text("hello")
     artifact.add_file("file1.txt")
 
@@ -1003,7 +1010,7 @@ def test_artifact_upload_with_fallback(api: Api):
 
 
 def test_artifact_upload_with_correct_digests(api: Api):
-    artifact = Artifact("test-artifact", type="dataset")
+    artifact = Artifact("test-artifact", type="dataset", digest_algorithm="XXH128")
     Path("file1.txt").write_text("hello")
     artifact.add_file("file1.txt")
 
@@ -1055,7 +1062,7 @@ def test_artifact_new_draft_mixed_digest_algorithms(api: Api):
     if not server_supports(api._service_api, pb.ARTIFACT_DIGEST_ALGORITHM):
         return
 
-    artifact = Artifact("test-artifact", type="dataset")
+    artifact = Artifact("test-artifact", type="dataset", digest_algorithm="XXH128")
     assert artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128
     Path("file1.txt").write_text("hello")
     artifact.add_file("file1.txt")
@@ -1112,7 +1119,7 @@ def test_offline_artifact_legacy_upload_hashes_correctly(
     Path("file2.txt").write_text("hi")
 
     with wandb.init(mode="offline", project="test") as run:
-        artifact = Artifact("test-artifact", type="dataset")
+        artifact = Artifact("test-artifact", type="dataset", digest_algorithm="XXH128")
         artifact.add_file("file1.txt")
         artifact.add_file("file2.txt")
 

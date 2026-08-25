@@ -746,7 +746,7 @@ def test_artifact_multipart_download_writer_not_on_shared_executor():
 def test_offline_artifact_uses_xxh128():
     f = Path("file.txt")
     f.write_text("hello")
-    artifact = Artifact("test", type="dataset")
+    artifact = Artifact("test", type="dataset", digest_algorithm="XXH128")
 
     artifact.add_file(str(f))
     entry = artifact.manifest.entries["file.txt"]
@@ -755,7 +755,7 @@ def test_offline_artifact_uses_xxh128():
 
 
 def test_digest_algorithm_with_reference_entries():
-    artifact = Artifact("test-artifact", "test-type")
+    artifact = Artifact("test-artifact", "test-type", digest_algorithm="XXH128")
 
     f = Path("file.txt")
     f.write_text("hello")
@@ -779,10 +779,7 @@ def test_digest_algorithm_with_reference_entries():
 def test_manifest_digest_uses_xxh128_for_xxh128_artifact():
     f = Path("file.txt")
     f.write_text("hello")
-    artifact = Artifact("test", type="dataset")
-    # Force xxh128 algorithm
-    artifact._digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_XXH128
-    artifact.manifest.digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_XXH128
+    artifact = Artifact("test", type="dataset", digest_algorithm="XXH128")
     artifact.add_file(str(f))
 
     file_digest = xxh128_string("hello")
@@ -794,10 +791,7 @@ def test_manifest_digest_uses_xxh128_for_xxh128_artifact():
 def test_manifest_digest_uses_md5_for_md5_artifact():
     f = Path("file.txt")
     f.write_text("hello")
-    artifact = Artifact("test", type="dataset")
-    # Force MD5 algorithm
-    artifact._digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_MD5
-    artifact.manifest.digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_MD5
+    artifact = Artifact("test", type="dataset", digest_algorithm="MD5")
     artifact.add_file(str(f))
 
     file_digest = md5_string("hello")
@@ -831,9 +825,7 @@ def test_entry_digest_algorithm_reads_extra_tag(tag, expected):
 def test_add_file_tags_xxh128_entries():
     f = Path("file.txt")
     f.write_text("hello")
-    artifact = Artifact("test", type="dataset")
-    artifact._digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_XXH128
-    artifact.manifest.digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_XXH128
+    artifact = Artifact("test", type="dataset", digest_algorithm="XXH128")
 
     entry = artifact.add_file(str(f))
 
@@ -845,8 +837,6 @@ def test_add_file_leaves_md5_entries_untagged():
     f = Path("file.txt")
     f.write_text("hello")
     artifact = Artifact("test", type="dataset")
-    artifact._digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_MD5
-    artifact.manifest.digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_MD5
 
     entry = artifact.add_file(str(f))
 
@@ -860,9 +850,7 @@ def test_mixed_manifest_round_trip_preserves_per_entry_algorithm():
 
     f = Path("xxh.txt")
     f.write_text("hello")
-    artifact = Artifact("test", type="dataset")
-    artifact._digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_XXH128
-    artifact.manifest.digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_XXH128
+    artifact = Artifact("test", type="dataset", digest_algorithm="XXH128")
     artifact.add_file(str(f))
 
     # Simulate an entry carried over untagged from an older (md5) SDK, as
@@ -896,7 +884,7 @@ def test_hash_contents_with_md5_correctly_rehashes_xxh128_entries():
     f2 = Path("file2.txt")
     f2.write_text("hi")
 
-    artifact = Artifact("test", type="dataset")
+    artifact = Artifact("test", type="dataset", digest_algorithm="XXH128")
     artifact.add_file(str(f))
     artifact.add_file(str(f2))
     assert (
