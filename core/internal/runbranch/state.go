@@ -170,6 +170,8 @@ func (r *RunParams) SetOnProto(record *spb.RunRecord) {
 //
 // The record may be partially filled, in which case only non-empty fields are
 // used.
+//
+//gocyclo:ignore
 func (r *RunParams) Update(
 	record *spb.RunRecord,
 	runSettings *settings.Settings,

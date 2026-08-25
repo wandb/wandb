@@ -706,10 +706,10 @@ func (upserter *RunUpserter) lockedUpdateFromUpsert(
 func applySharedMode(
 	runParams *runbranch.RunParams,
 	runRecord *spb.RunRecord,
-	settings *settings.Settings,
+	runSettings *settings.Settings,
 ) {
-	if runParams.Shared || runRecord.GetShared() || settings.IsSharedMode() {
+	if runParams.Shared || runRecord.GetShared() || runSettings.IsSharedMode() {
 		runParams.Shared = true
-		settings.Proto.XShared = wrapperspb.Bool(true)
+		runSettings.Proto.XShared = wrapperspb.Bool(true)
 	}
 }
