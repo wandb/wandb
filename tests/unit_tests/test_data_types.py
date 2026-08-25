@@ -499,37 +499,8 @@ def test_image_masks_with_pytorch_tensors():
     wandb.Image(image, masks={"predictions": {"mask_data": mask}})
 
 
-def test_image_normalize_neg1_to_1():
-    # Sometimes images are represented with values in range [-1, 1].
-    data = np.array([[-0.2, 0.6]])
-
-    transformed_data = wandb.Image(data).to_data_array()
-
-    assert transformed_data == [[102, 204]]
-
-
-def test_image_normalize_0_to_1():
-    data = np.array([[0.2, 0.3]])
-
-    transformed_data = wandb.Image(data).to_data_array()
-
-    assert transformed_data == [[51, 76]]
-
-
-def test_image_normalize_clips_bad_range():
-    data = np.array([[-9, 0.1, 100, 254.5, 270]])
-
-    transformed_data = wandb.Image(data).to_data_array()
-
-    assert transformed_data == [[0, 0, 100, 254, 255]]
-
-
-@pytest.mark.parametrize(
-    "scale",
-    [1e-8, 1e-5, 1e0, 1e1, -1e-8, -1e-5, -1e0, -1e1],
-)
-def test_image_normalization_numpy_pytorch_equal(scale):
-    img = np.random.uniform(low=0, high=1, size=[4, 4, 3]) * scale
+def test_image_numpy_pytorch_equal():
+    img = np.random.randint(0, 256, size=[4, 4, 3]).astype(np.uint8)
     torch_img = torch.from_numpy(img.transpose(2, 0, 1))
 
     wb_image = wandb.Image(img)
@@ -1254,9 +1225,9 @@ def test_table_column_style():
     rand_1 = np.random.randint(256, size=(2, 2, 3))
     rand_2 = np.random.randint(256, size=(2, 2, 3))
     rand_3 = np.random.randint(256, size=(2, 2, 3))
-    img_1 = wandb.Image(rand_1, normalize=False)
-    img_2 = wandb.Image(rand_2, normalize=False)
-    img_3 = wandb.Image(rand_3, normalize=False)
+    img_1 = wandb.Image(rand_1)
+    img_2 = wandb.Image(rand_2)
+    img_3 = wandb.Image(rand_3)
 
     table2 = wandb.Table(columns=[], data=[])
     table2.add_column("np_data", [rand_1, rand_2])
