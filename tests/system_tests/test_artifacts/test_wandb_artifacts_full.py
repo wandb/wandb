@@ -11,15 +11,19 @@ from pathlib import Path
 import numpy as np
 import responses
 import wandb
+from click.testing import CliRunner
 from pytest import MonkeyPatch, mark, raises
 from pytest_mock import MockerFixture
 from wandb import Api, Artifact
 from wandb.errors import CommError
+from wandb.proto import wandb_internal_pb2 as pb
+from wandb.sdk.artifacts._generated.enums import ArtifactDigestAlgorithm
+from wandb.sdk.artifacts._gqlutils import server_supports
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 from wandb.sdk.artifacts._validators import NAME_MAXLEN, RESERVED_ARTIFACT_TYPE_PREFIX
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError, WaitTimeoutError
-from wandb.sdk.lib.hashutil import md5_string
+from wandb.sdk.lib.hashutil import md5_string, xxh128_string
 
 pytestmark = [
     # requesting the `user` fixture sets API env var for ALL tests in this module
@@ -273,6 +277,9 @@ def test_download_respects_skip_cache(tmp_path: Path, skip_download_cache: bool)
         run.log_artifact(artifact)
     artifact.wait()
 
+    # refetch the entry now that its uploaded
+    entry = artifact.get_entry(entry.path)
+
     # Ensure the uploaded file is in the cache.
     cache_pathstr, hit, _ = cache.check_digest_obj_path(
         entry.digest, entry.size, algorithm=artifact.digest_algorithm
@@ -324,7 +331,7 @@ def test_uploaded_artifacts_are_unstaged(temp_staging_dir: Path):
 
 
 def test_large_manifests_passed_by_file(
-    monkeypatch: MonkeyPatch, mocker: MockerFixture
+    monkeypatch: MonkeyPatch, mocker: MockerFixture, api: Api
 ):
     writer_spy = mocker.spy(
         wandb.sdk.interface.interface.InterfaceBase,
@@ -356,7 +363,10 @@ def test_large_manifests_passed_by_file(
         assert len(artifact.manifest) == 1
         entry = artifact.manifest.entries.get("test_file.txt")
         assert entry is not None
-        assert entry.digest == md5_string(content)
+        if server_supports(api._service_api, pb.ARTIFACT_DIGEST_ALGORITHM):
+            assert entry.digest == xxh128_string(content)
+        else:
+            assert entry.digest == md5_string(content)
         assert entry.size == len(content)
         assert entry.ref is None
         assert entry.extra["test_key"] == {"x": 1}
@@ -379,6 +389,10 @@ def test_mutable_uploads_with_cache_enabled(tmp_path: Path, temp_staging_dir: Pa
 
     with wandb.init() as run:
         run.log_artifact(artifact)
+    artifact.wait()
+
+    # refetch the entry now that its uploaded
+    manifest_entry = artifact.get_entry(manifest_entry.path)
 
     # The file is cached
     _, found, _ = cache.check_digest_obj_path(
@@ -435,6 +449,10 @@ def test_immutable_uploads_with_cache_enabled(tmp_path: Path, temp_staging_dir: 
 
     with wandb.init() as run:
         run.log_artifact(artifact)
+    artifact.wait()
+
+    # refetch the entry now that its uploaded
+    manifest_entry = artifact.get_entry(manifest_entry.path)
 
     # The file is cached
     _, found, _ = cache.check_digest_obj_path(
@@ -918,3 +936,214 @@ def test_artifact_multipart_download_refresh_presigned_url(
         f"Expected 3 calls (initial 403 + refresh URL then 500 + built-in retry 200), got {len(all_s3_requests)}. "
         f"Requests: {all_s3_requests}"
     )
+
+
+def test_draft_inherits_digest_algorithm(api: Api):
+    art = Artifact("test-artifact", "test-type")
+    # Simulate a committed artifact with MD5 entries
+    art._digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_MD5
+    with art.new_file("file.txt", "w") as f:
+        f.write("hello")
+
+    project = "test"
+    with wandb.init(project=project) as run:
+        run.log_artifact(art, aliases=["a"])
+        run.link_artifact(art, f"{project}/my-sample-portfolio")
+
+    parent = api.artifact(f"{project}/my-sample-portfolio:latest")
+    draft = parent.new_draft()
+    assert draft.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_MD5
+
+
+def test_artifact_upload_with_fallback(api: Api):
+    # upload an artifact with MD5 digest algorithm
+    project = "test"
+    Path("test.txt").write_text("test")
+    with wandb.init(project=project) as run:
+        artifact = Artifact("test-artifact", type="dataset")
+        artifact._digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_MD5
+        artifact.manifest.digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_MD5
+        artifact.add_file("test.txt")
+        run.log_artifact(artifact)
+        artifact.wait()
+
+    assert artifact.digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_MD5
+
+    # upload a second version of this artifact
+    artifact = Artifact("test-artifact", type="dataset")
+    Path("file1.txt").write_text("hello")
+    artifact.add_file("file1.txt")
+
+    # check that the digest is correctly computed with xxh128
+    assert artifact.digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH128
+    assert artifact.digest == "fe0d6c1a25b6d98451da9b04ebf6d80c"
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert manifest_contents["file1.txt"]["extra"] == {"alg": "XXH128"}
+    assert manifest_contents["file1.txt"]["digest"] == "tenBrQcbPn/Hec+qXlI4GA=="
+
+    with wandb.init(project=project) as run:
+        run.log_artifact(artifact)
+        artifact.wait()
+
+    # check that the artifact is updated and the digest is correctly re-hashed with md5
+    assert artifact.digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_MD5
+    assert artifact.digest == "a00c2239f036fb656c1dcbf9a32d89b4"
+    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+    assert len(manifest_contents) == 1
+    manifest_entry = artifact.get_entry("file1.txt")
+    assert manifest_entry.digest == "XUFAKrxLKna5cZ2REBfFkg=="
+    assert manifest_entry.extra == {}
+
+    # also fetch the artifact from the API and check the digest
+    fetched_artifact = api.artifact(f"{project}/test-artifact:latest")
+    assert fetched_artifact.digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_MD5
+    assert fetched_artifact.digest == "a00c2239f036fb656c1dcbf9a32d89b4"
+    manifest_entry = fetched_artifact.get_entry("file1.txt")
+    assert manifest_entry.extra == {}
+
+
+def test_artifact_upload_with_correct_digests(api: Api):
+    artifact = Artifact("test-artifact", type="dataset")
+    Path("file1.txt").write_text("hello")
+    artifact.add_file("file1.txt")
+
+    # check that the digest is correctly computed with xxh128
+    assert artifact.digest == "fe0d6c1a25b6d98451da9b04ebf6d80c"
+
+    with wandb.init(project="test") as run:
+        run.log_artifact(artifact)
+        artifact.wait()
+
+    if server_supports(api._service_api, pb.ARTIFACT_DIGEST_ALGORITHM):
+        assert artifact.digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH128
+        assert artifact.digest == "fe0d6c1a25b6d98451da9b04ebf6d80c"
+
+        fetched = api.artifact("test/test-artifact:latest")
+        assert fetched.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128
+        assert fetched.digest == "fe0d6c1a25b6d98451da9b04ebf6d80c"
+
+        entry = fetched.get_entry("file1.txt")
+        assert entry.digest == "tenBrQcbPn/Hec+qXlI4GA=="
+        assert entry.extra == {"alg": "XXH128"}
+
+        fetched.download()
+        fetched.verify()
+
+        draft = fetched.new_draft()
+        assert draft.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128
+    else:
+        assert artifact.digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_MD5
+        assert artifact.digest == "a00c2239f036fb656c1dcbf9a32d89b4"
+
+        fetched = api.artifact("test/test-artifact:latest")
+        assert fetched.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_MD5
+        assert fetched.digest == "a00c2239f036fb656c1dcbf9a32d89b4"
+
+        entry = fetched.get_entry("file1.txt")
+        assert entry.digest == "XUFAKrxLKna5cZ2REBfFkg=="
+        assert entry.extra == {}
+
+        fetched.download()
+        fetched.verify()
+
+        draft = fetched.new_draft()
+        assert draft.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_MD5
+
+
+def test_artifact_new_draft_mixed_digest_algorithms(api: Api):
+    """Test that a new draft of an artifact with mixed digest algorithms is correctly created."""
+    if not server_supports(api._service_api, pb.ARTIFACT_DIGEST_ALGORITHM):
+        return
+
+    artifact = Artifact("test-artifact", type="dataset")
+    assert artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128
+    Path("file1.txt").write_text("hello")
+    artifact.add_file("file1.txt")
+
+    with wandb.init(project="test") as run:
+        run.log_artifact(artifact)
+        artifact.wait()
+
+    fetched = api.artifact("test/test-artifact:latest")
+    assert fetched.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128
+    entry = fetched.get_entry("file1.txt")
+    assert entry.extra == {"alg": "XXH128"}
+
+    # mimic old SDK behavior by forcing MD5 for new drafts
+    draft = fetched.new_draft()
+    draft._digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_MD5
+    draft.manifest.digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_MD5
+
+    # check that we're hashing the manifest with MD5
+    assert draft.digest == "8800d706cf6a3d3d1ca11dc419b9f860"
+
+    # add a new file to the draft, check that it's hashed with MD5
+    Path("file2.txt").write_text("hi")
+    draft.add_file("file2.txt")
+    manifest_contents = draft.manifest.to_manifest_json()["contents"]
+    file2_entry = manifest_contents["file2.txt"]
+    assert file2_entry.get("extra") is None
+    assert file2_entry["digest"] == md5_string("hi")
+
+    with wandb.init(project="test") as run:
+        run.log_artifact(draft)
+        draft.wait()
+
+    fetched = api.artifact("test/test-artifact:latest")
+    assert fetched.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_MD5
+    assert fetched.digest == "2799203cb650433b7c69edef406fdc5b"
+
+    file1_entry = fetched.get_entry("file1.txt")
+    assert file1_entry.extra == {"alg": "XXH128"}
+    assert file1_entry.digest == xxh128_string("hello")
+
+    file2_entry = fetched.get_entry("file2.txt")
+    assert file2_entry.extra == {}
+    assert file2_entry.digest == md5_string("hi")
+
+
+def test_offline_artifact_legacy_upload_hashes_correctly(
+    runner: CliRunner,
+    api: Api,
+):
+    from wandb.cli import cli
+
+    Path("file1.txt").write_text("hello")
+    Path("file2.txt").write_text("hi")
+
+    with wandb.init(mode="offline", project="test") as run:
+        artifact = Artifact("test-artifact", type="dataset")
+        artifact.add_file("file1.txt")
+        artifact.add_file("file2.txt")
+
+        assert artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128
+
+        manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+        file1_entry = manifest_contents["file1.txt"]
+        assert file1_entry["extra"] == {"alg": "XXH128"}
+        assert file1_entry["digest"] == xxh128_string("hello")
+
+        file2_entry = manifest_contents["file2.txt"]
+        assert file2_entry["extra"] == {"alg": "XXH128"}
+        assert file2_entry["digest"] == xxh128_string("hi")
+
+        run.log_artifact(artifact)
+
+    runner.invoke(
+        cli.sync,
+        ["--sync-all", "--legacy"],
+    )
+
+    # check that the artifact is uploaded using MD5
+    artifact = api.artifact("test/test-artifact:latest")
+    assert artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_MD5
+
+    file1_entry = artifact.get_entry("file1.txt")
+    assert file1_entry.extra == {}
+    assert file1_entry.digest == md5_string("hello")
+    assert file1_entry.digest_algorithm() is ArtifactDigestAlgorithm.MANIFEST_MD5
+
+    file2_entry = artifact.get_entry("file2.txt")
+    assert file2_entry.extra == {}
+    assert file2_entry.digest == md5_string("hi")
+    assert file2_entry.digest_algorithm() is ArtifactDigestAlgorithm.MANIFEST_MD5

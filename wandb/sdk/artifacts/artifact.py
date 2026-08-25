@@ -244,9 +244,8 @@ class Artifact:
         # populated locally, it should take priority when determining these values.
         self._size: NonNegativeInt | None = None
         self._digest: str | None = None
-        # TODO: default to xxh128 once we have the fallback to md5 implemented in saver.go
         self._digest_algorithm: ArtifactDigestAlgorithm = (
-            ArtifactDigestAlgorithm.MANIFEST_MD5
+            ArtifactDigestAlgorithm.MANIFEST_XXH128
         )
 
         self._manifest: ArtifactManifest | None = ArtifactManifestV1(

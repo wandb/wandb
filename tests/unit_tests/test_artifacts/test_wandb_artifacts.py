@@ -743,31 +743,37 @@ def test_artifact_multipart_download_writer_not_on_shared_executor():
         fail("multipart_download deadlocked: writer likely sharing the chunk executor")
 
 
-# TODO: uncomment this once we have the fallback to md5 implemented in saver.go,
-# and we default to xxh128 for offline artifacts.
-# def test_offline_artifact_uses_xxh128():
-#     f = Path("file.txt")
-#     f.write_text("hello")
-#     artifact = Artifact("test", type="dataset")
-#     # _service_api is None by default (offline)
+def test_offline_artifact_uses_xxh128():
+    f = Path("file.txt")
+    f.write_text("hello")
+    artifact = Artifact("test", type="dataset")
 
-#     artifact.add_file(str(f))
-#     entry = artifact.manifest.entries["file.txt"]
-#     assert artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128
+    artifact.add_file(str(f))
+    entry = artifact.manifest.entries["file.txt"]
+    assert artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128
+    assert entry.digest == xxh128_string("hello")
 
-# def test_digest_algorithm_with_reference_entries():
-#     artifact = Artifact("test-artifact", "test-type")
 
-#     f = Path("file.txt")
-#     f.write_text("hello")
-#     artifact.add_file(str(f))
+def test_digest_algorithm_with_reference_entries():
+    artifact = Artifact("test-artifact", "test-type")
 
-#     f2 = Path("file2.txt")
-#     f2.write_text("also a test")
-#     artifact.add_reference(f2.resolve().as_uri(), "file2.txt")
+    f = Path("file.txt")
+    f.write_text("hello")
+    artifact.add_file(str(f))
 
-#     entry = artifact.manifest.entries["file.txt"]
-#     assert artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128
+    f2 = Path("file2.txt")
+    f2.write_text("also a test")
+    artifact.add_reference(f2.resolve().as_uri(), "file2.txt")
+
+    assert artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128
+
+    # regular file is hashed with XXH128
+    entry = artifact.manifest.entries["file.txt"]
+    assert entry.digest == xxh128_string("hello")
+
+    # local file reference is hashed with MD5
+    ref_entry = artifact.manifest.entries["file2.txt"]
+    assert ref_entry.digest == md5_string("also a test")
 
 
 def test_manifest_digest_uses_xxh128_for_xxh128_artifact():
@@ -879,5 +885,41 @@ def test_mixed_manifest_round_trip_preserves_per_entry_algorithm():
     )
     assert (
         restored.entries["md5.txt"].digest_algorithm()
+        is ArtifactDigestAlgorithm.MANIFEST_MD5
+    )
+
+
+def test_hash_contents_with_md5_correctly_rehashes_xxh128_entries():
+    f = Path("file.txt")
+    f.write_text("hello")
+
+    f2 = Path("file2.txt")
+    f2.write_text("hi")
+
+    artifact = Artifact("test", type="dataset")
+    artifact.add_file(str(f))
+    artifact.add_file(str(f2))
+    assert (
+        artifact.manifest.entries["file.txt"].digest_algorithm()
+        is ArtifactDigestAlgorithm.MANIFEST_XXH128
+    )
+    assert artifact.manifest.entries["file.txt"].digest == xxh128_string("hello")
+    assert (
+        artifact.manifest.entries["file2.txt"].digest_algorithm()
+        is ArtifactDigestAlgorithm.MANIFEST_XXH128
+    )
+    assert artifact.manifest.entries["file2.txt"].digest == xxh128_string("hi")
+
+    artifact.manifest.hash_contents_with_md5()
+    assert artifact.manifest.entries["file.txt"].digest == md5_string("hello")
+    assert artifact.manifest.entries["file.txt"].extra == {}
+    assert (
+        artifact.manifest.entries["file.txt"].digest_algorithm()
+        is ArtifactDigestAlgorithm.MANIFEST_MD5
+    )
+    assert artifact.manifest.entries["file2.txt"].digest == md5_string("hi")
+    assert artifact.manifest.entries["file2.txt"].extra == {}
+    assert (
+        artifact.manifest.entries["file2.txt"].digest_algorithm()
         is ArtifactDigestAlgorithm.MANIFEST_MD5
     )
