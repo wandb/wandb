@@ -22,11 +22,16 @@ logger = logging.getLogger(__name__)
 ETag: TypeAlias = str
 HexMD5: TypeAlias = str
 B64MD5: TypeAlias = str
+B64SHA256: TypeAlias = str
 
 
 def _md5(data: bytes = b"") -> _hashlib.HASH:
     """Allow FIPS-compliant md5 hash when supported."""
     return hashlib.md5(data, usedforsecurity=False)
+
+
+def _sha256(data: bytes = b"") -> _hashlib.HASH:
+    return hashlib.sha256(data)
 
 
 def md5_string(string: str) -> B64MD5:
@@ -65,20 +70,39 @@ def md5_file_hex(*paths: StrPath) -> HexMD5:
     return HexMD5(_md5_file_hasher(*paths).hexdigest())
 
 
+def sha256_file_b64(*paths: StrPath) -> B64SHA256:
+    start_time = time.monotonic()
+    digest = _b64_from_hasher(_sha256_file_hasher(*paths))
+    hash_time_seconds = time.monotonic() - start_time
+    if hash_time_seconds > 1.0:
+        logger.debug(
+            "Computed SHA-256 hash for file. paths=%s, hashTimeMs=%d",
+            paths,
+            int(hash_time_seconds * 1000),
+        )
+    return digest
+
+
 _KB: int = 1_024
 _CHUNKSIZE: int = 128 * _KB
 """Chunk size (in bytes) for iteratively reading from file, if needed."""
 
 
 def _md5_file_hasher(*paths: StrPath) -> _hashlib.HASH:
-    md5_hash = _md5()
+    return _file_hasher(_md5(), *paths)
 
+
+def _sha256_file_hasher(*paths: StrPath) -> _hashlib.HASH:
+    return _file_hasher(_sha256(), *paths)
+
+
+def _file_hasher(hasher: _hashlib.HASH, *paths: StrPath) -> _hashlib.HASH:
     # Note: We use str paths (instead of pathlib.Path objs) for minor perf improvements.
     for path in sorted(map(str, paths)):
         with open(path, "rb") as f:
             try:
                 with mmap.mmap(f.fileno(), length=0, access=mmap.ACCESS_READ) as mview:
-                    md5_hash.update(mview)
+                    hasher.update(mview)
             except OSError:
                 # This occurs if the mmap-ed file is on a different/mounted filesystem,
                 # so we'll fall back on a less performant implementation.
@@ -88,11 +112,11 @@ def _md5_file_hasher(*paths: StrPath) -> _hashlib.HASH:
                 # Consider revisiting once 3.7 support is no longer needed.
                 chunk = f.read(_CHUNKSIZE)
                 while chunk:
-                    md5_hash.update(chunk)
+                    hasher.update(chunk)
                     chunk = f.read(_CHUNKSIZE)
             except ValueError:
                 # This occurs when mmap-ing an empty file, which can be skipped.
                 # See: https://github.com/python/cpython/blob/986a4e1b6fcae7fe7a1d0a26aea446107dd58dd2/Modules/mmapmodule.c#L1589
                 pass
 
-    return md5_hash
+    return hasher

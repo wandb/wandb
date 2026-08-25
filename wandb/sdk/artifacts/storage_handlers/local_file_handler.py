@@ -14,7 +14,13 @@ from wandb.errors.term import termlog
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHandler
-from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64, md5_string
+from wandb.sdk.lib.hashutil import (
+    B64MD5,
+    B64SHA256,
+    md5_file_b64,
+    md5_string,
+    sha256_file_b64,
+)
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 from wandb.util import local_file_uri_to_path
 
@@ -31,6 +37,10 @@ def _md5_content(path: str) -> B64MD5:
 
 def _md5_path(path: str) -> B64MD5:
     return md5_string(Path(path).resolve().as_uri())
+
+
+def _sha256_content(path: str) -> B64SHA256:
+    return sha256_file_b64(path)
 
 
 class LocalFileHandler(StorageHandler):
@@ -68,7 +78,7 @@ class LocalFileHandler(StorageHandler):
         path, hit, cache_open = self._cache.check_md5_obj_path(
             b64_md5=expected_digest, size=manifest_entry.size or 0
         )
-        if hit:
+        if hit and manifest_entry._cache_hit_integrity_matches(path):
             return path
 
         if (digest := md5_file_b64(local_path)) != expected_digest:
@@ -81,6 +91,10 @@ class LocalFileHandler(StorageHandler):
 
         with cache_open() as f:
             shutil.copy(local_path, f.name)
+        if not manifest_entry._local_file_digest_matches(path):
+            raise ValueError(
+                f"Local file reference: Digest mismatch for path {local_path!r}"
+            )
         return path
 
     def store_path(
@@ -99,6 +113,9 @@ class LocalFileHandler(StorageHandler):
 
         # Closure func for calculating the file hash from its path
         check_md5: Callable[[str], B64MD5] = _md5_content if checksum else _md5_path
+        check_sha256: Callable[[str], B64SHA256] | None = (
+            _sha256_content if checksum else None
+        )
 
         # We have a single file or directory
         # Note, we follow symlinks for files contained within the directory
@@ -132,6 +149,11 @@ class LocalFileHandler(StorageHandler):
                         ref=os.path.join(path, file_path),
                         size=os.path.getsize(physical_path),
                         digest=check_md5(physical_path),
+                        extra=(
+                            {"sha256": check_sha256(physical_path)}
+                            if check_sha256
+                            else {}
+                        ),
                     )
                     entries.append(entry)
             return list(entries)
@@ -143,6 +165,7 @@ class LocalFileHandler(StorageHandler):
                     ref=path,
                     size=os.path.getsize(local_path),
                     digest=check_md5(local_path),
+                    extra={"sha256": check_sha256(local_path)} if check_sha256 else {},
                 )
             ]
         else:
