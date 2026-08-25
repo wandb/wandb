@@ -35,7 +35,7 @@ type RunOverviewSidebar struct {
 
 	// UI state: sections, filtering, navigation.
 	// TODO: encapsulate and refactor
-	sections      []PagedList
+	sections      []PagedList[KeyValuePair]
 	activeSection int
 
 	// Filter state.
@@ -52,18 +52,18 @@ func NewRunOverviewSidebar(
 	runOverview *RunOverview,
 	side SidebarSide,
 ) *RunOverviewSidebar {
-	es := PagedList{Title: "Environment", Active: true}
+	es := PagedList[KeyValuePair]{Title: "Environment", Active: true}
 	es.SetItemsPerPage(10)
-	cs := PagedList{Title: "Config"}
+	cs := PagedList[KeyValuePair]{Title: "Config"}
 	cs.SetItemsPerPage(15)
-	ss := PagedList{Title: "Summary"}
+	ss := PagedList[KeyValuePair]{Title: "Summary"}
 	ss.SetItemsPerPage(20)
 
 	return &RunOverviewSidebar{
 		config:        config,
 		animState:     animState,
 		runOverview:   runOverview,
-		sections:      []PagedList{es, cs, ss},
+		sections:      []PagedList[KeyValuePair]{es, cs, ss},
 		activeSection: 0,
 		filter:        NewFilter(),
 		side:          side,
@@ -477,7 +477,7 @@ func (s *RunOverviewSidebar) renderSection(idx, width int) string {
 }
 
 // renderSectionHeader renders the section title with pagination info.
-func (s *RunOverviewSidebar) renderSectionHeader(section *PagedList) string {
+func (s *RunOverviewSidebar) renderSectionHeader(section *PagedList[KeyValuePair]) string {
 	titleStyle := runOverviewSidebarSectionStyle
 	if section.Active {
 		titleStyle = runOverviewSidebarSectionHeaderStyle
@@ -497,7 +497,7 @@ func (s *RunOverviewSidebar) renderSectionHeader(section *PagedList) string {
 
 // buildSectionInfo builds the pagination/count info string for a section.
 func (s *RunOverviewSidebar) buildSectionInfo(
-	section *PagedList,
+	section *PagedList[KeyValuePair],
 	totalItems, filteredItems, startIdx, endIdx int,
 ) string {
 	switch {
@@ -517,7 +517,7 @@ func (s *RunOverviewSidebar) buildSectionInfo(
 }
 
 // renderSectionItems renders the items for a section.
-func (s *RunOverviewSidebar) renderSectionItems(section *PagedList, width int) []string {
+func (s *RunOverviewSidebar) renderSectionItems(section *PagedList[KeyValuePair], width int) []string {
 	maxKeyWidth := int(float64(width) * sidebarKeyWidthRatio)
 	maxValueWidth := width - maxKeyWidth - 3
 
@@ -550,7 +550,7 @@ func (s *RunOverviewSidebar) renderSectionItems(section *PagedList, width int) [
 func (s *RunOverviewSidebar) renderItem(
 	item KeyValuePair,
 	posInPage int,
-	section *PagedList,
+	section *PagedList[KeyValuePair],
 	maxKeyWidth, maxValueWidth int,
 ) string {
 	keyStyle := runOverviewSidebarKeyStyle

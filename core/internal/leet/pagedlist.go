@@ -1,10 +1,10 @@
 package leet
 
 // PagedList represents a paginated list of items.
-type PagedList struct {
+type PagedList[T any] struct {
 	Title         string
-	Items         []KeyValuePair // TODO: use pointers
-	FilteredItems []KeyValuePair
+	Items         []T
+	FilteredItems []T
 
 	itemsPerPage int
 	currentPage  int
@@ -14,17 +14,17 @@ type PagedList struct {
 	Active bool
 }
 
-func (s *PagedList) ItemsPerPage() int {
+func (s *PagedList[T]) ItemsPerPage() int {
 	return s.itemsPerPage
 }
-func (s *PagedList) CurrentPage() int {
+func (s *PagedList[T]) CurrentPage() int {
 	return s.currentPage
 }
-func (s *PagedList) CurrentLine() int {
+func (s *PagedList[T]) CurrentLine() int {
 	return s.currentLine
 }
 
-func (s *PagedList) SetItemsPerPage(n int) {
+func (s *PagedList[T]) SetItemsPerPage(n int) {
 	if n < 0 {
 		n = 0
 	}
@@ -34,7 +34,7 @@ func (s *PagedList) SetItemsPerPage(n int) {
 }
 
 // Up navigates to previous item.
-func (s *PagedList) Up() {
+func (s *PagedList[T]) Up() {
 	if !s.hasNavigableItems() {
 		s.resetCursor()
 		return
@@ -63,7 +63,7 @@ func (s *PagedList) Up() {
 }
 
 // Down navigates to next item.
-func (s *PagedList) Down() {
+func (s *PagedList[T]) Down() {
 	if !s.hasNavigableItems() {
 		s.resetCursor()
 		return
@@ -87,7 +87,7 @@ func (s *PagedList) Down() {
 }
 
 // PageUp navigates to previous page.
-func (s *PagedList) PageUp() {
+func (s *PagedList[T]) PageUp() {
 	if !s.hasNavigableItems() {
 		s.resetCursor()
 		return
@@ -102,7 +102,7 @@ func (s *PagedList) PageUp() {
 }
 
 // PageDown navigates to next page.
-func (s *PagedList) PageDown() {
+func (s *PagedList[T]) PageDown() {
 	if !s.hasNavigableItems() {
 		s.resetCursor()
 		return
@@ -117,13 +117,13 @@ func (s *PagedList) PageDown() {
 }
 
 // Home navigates to start page.
-func (s *PagedList) Home() {
+func (s *PagedList[T]) Home() {
 	s.currentPage = 0
 	s.currentLine = 0
 }
 
 // End navigates to the last item on the last page.
-func (s *PagedList) End() {
+func (s *PagedList[T]) End() {
 	if !s.hasNavigableItems() {
 		s.resetCursor()
 		return
@@ -134,7 +134,7 @@ func (s *PagedList) End() {
 	s.currentLine = s.itemsOnPage(s.currentPage) - 1
 }
 
-func (s *PagedList) SetPageAndLine(page, line int) {
+func (s *PagedList[T]) SetPageAndLine(page, line int) {
 	if !s.hasNavigableItems() {
 		s.resetCursor()
 		return
@@ -154,31 +154,56 @@ func (s *PagedList) SetPageAndLine(page, line int) {
 	s.currentLine = line
 }
 
-func (s *PagedList) CurrentItem() (KeyValuePair, bool) {
+func (s *PagedList[T]) CurrentItem() (T, bool) {
+	var zero T
 	if !s.hasNavigableItems() {
-		return KeyValuePair{}, false
+		return zero, false
 	}
 
 	start := s.currentPage * s.itemsPerPage
 	idx := start + s.currentLine
 	if idx < 0 || idx >= len(s.FilteredItems) {
-		return KeyValuePair{}, false
+		return zero, false
 	}
 	return s.FilteredItems[idx], true
 }
 
-func (s *PagedList) hasNavigableItems() bool {
+// CurrentIndex returns the index of the selected item within
+// FilteredItems, or -1 when there is no selection.
+func (s *PagedList[T]) CurrentIndex() int {
+	if !s.hasNavigableItems() {
+		return -1
+	}
+	idx := s.currentPage*s.itemsPerPage + s.currentLine
+	if idx < 0 || idx >= len(s.FilteredItems) {
+		return -1
+	}
+	return idx
+}
+
+// PageBounds returns the half-open range of FilteredItems visible on the
+// current page.
+func (s *PagedList[T]) PageBounds() (start, end int) {
+	if !s.hasNavigableItems() {
+		return 0, 0
+	}
+	start = s.currentPage * s.itemsPerPage
+	end = min(start+s.itemsPerPage, len(s.FilteredItems))
+	return start, end
+}
+
+func (s *PagedList[T]) hasNavigableItems() bool {
 	return s.itemsPerPage > 0 && len(s.FilteredItems) > 0
 }
 
-func (s *PagedList) totalPages() int {
+func (s *PagedList[T]) totalPages() int {
 	if !s.hasNavigableItems() {
 		return 0
 	}
 	return (len(s.FilteredItems) + s.itemsPerPage - 1) / s.itemsPerPage
 }
 
-func (s *PagedList) itemsOnPage(page int) int {
+func (s *PagedList[T]) itemsOnPage(page int) int {
 	if !s.hasNavigableItems() {
 		return 0
 	}
@@ -191,7 +216,7 @@ func (s *PagedList) itemsOnPage(page int) int {
 	return itemsOnPage
 }
 
-func (s *PagedList) clampCursor() {
+func (s *PagedList[T]) clampCursor() {
 	if !s.hasNavigableItems() {
 		s.resetCursor()
 		return
@@ -214,7 +239,7 @@ func (s *PagedList) clampCursor() {
 	}
 }
 
-func (s *PagedList) resetCursor() {
+func (s *PagedList[T]) resetCursor() {
 	s.currentPage = 0
 	s.currentLine = 0
 }
