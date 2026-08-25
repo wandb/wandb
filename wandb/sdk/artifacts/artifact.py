@@ -258,8 +258,8 @@ class Artifact:
         if self._digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
             termwarn(
                 "Creating an artifact with the XXH128 digest algorithm."
-                + " `artifact.verify()` will always fail for this artifact on wandb"
-                + " versions before 0.28.3."
+                + " Calling `artifact.verify()` for this artifact on wandb"
+                + " versions before 0.29.0 will fail."
             )
 
         self._manifest: ArtifactManifest | None = ArtifactManifestV1(
