@@ -150,13 +150,17 @@ func (r *Run) handleMouseMsg(msg tea.MouseMsg) tea.Cmd {
 
 // dragTargets reports which layout boundaries a mouse event may grab.
 func (r *Run) dragTargets() dragTargets {
-	return dragTargets{
+	t := dragTargets{
 		width:           r.width,
 		height:          r.height,
 		leftExpanded:    r.leftSidebar.IsExpanded(),
 		rightExpanded:   r.rightSidebar.animState.IsExpanded(),
 		mediaFullscreen: r.mediaPane.IsFullscreen(),
 	}
+	if t.leftExpanded {
+		t.overview = r.leftSidebar
+	}
+	return t
 }
 
 // handleResetLayout resets the view's pane proportions to the defaults.
