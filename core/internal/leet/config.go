@@ -461,6 +461,30 @@ func (cm *ConfigManager) save() error {
 	return nil
 }
 
+// set applies assign to the config under the write lock and persists the result.
+func (cm *ConfigManager) set(assign func(*Config)) error {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	assign(&cm.config)
+	return cm.save()
+}
+
+// setGridDim validates a grid dimension ("rows" or "cols") and stores it via assign.
+func (cm *ConfigManager) setGridDim(what string, v int, assign func(*Config)) error {
+	if v < MinGridSize || v > MaxGridSize {
+		return fmt.Errorf("%s must be between %d and %d, got %d", what, MinGridSize, MaxGridSize, v)
+	}
+	return cm.set(assign)
+}
+
+// setColorScheme validates scheme against the known palettes and stores it via assign.
+func (cm *ConfigManager) setColorScheme(scheme string, assign func(*Config)) error {
+	if _, ok := colorSchemes[scheme]; !ok {
+		return fmt.Errorf("unknown color scheme: %q", scheme)
+	}
+	return cm.set(assign)
+}
+
 // MetricsGrid returns the metrics grid configuration.
 func (cm *ConfigManager) MetricsGrid() (rows, cols int) {
 	cm.mu.RLock()
@@ -470,26 +494,12 @@ func (cm *ConfigManager) MetricsGrid() (rows, cols int) {
 
 // SetMetricsRows sets the metrics grid rows.
 func (cm *ConfigManager) SetMetricsRows(rows int) error {
-	if rows < MinGridSize || rows > MaxGridSize {
-		return fmt.Errorf("rows must be between %d and %d, got %d", MinGridSize, MaxGridSize, rows)
-	}
-
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.MetricsGrid.Rows = rows
-	return cm.save()
+	return cm.setGridDim("rows", rows, func(c *Config) { c.MetricsGrid.Rows = rows })
 }
 
 // SetMetricsCols sets the metrics grid columns.
 func (cm *ConfigManager) SetMetricsCols(cols int) error {
-	if cols < MinGridSize || cols > MaxGridSize {
-		return fmt.Errorf("cols must be between %d and %d, got %d", MinGridSize, MaxGridSize, cols)
-	}
-
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.MetricsGrid.Cols = cols
-	return cm.save()
+	return cm.setGridDim("cols", cols, func(c *Config) { c.MetricsGrid.Cols = cols })
 }
 
 // SystemGrid returns the system grid configuration.
@@ -501,26 +511,12 @@ func (cm *ConfigManager) SystemGrid() (rows, cols int) {
 
 // SetSystemRows sets the system grid rows.
 func (cm *ConfigManager) SetSystemRows(rows int) error {
-	if rows < MinGridSize || rows > MaxGridSize {
-		return fmt.Errorf("rows must be between %d and %d, got %d", MinGridSize, MaxGridSize, rows)
-	}
-
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.SystemGrid.Rows = rows
-	return cm.save()
+	return cm.setGridDim("rows", rows, func(c *Config) { c.SystemGrid.Rows = rows })
 }
 
 // SetSystemCols sets the system grid columns.
 func (cm *ConfigManager) SetSystemCols(cols int) error {
-	if cols < MinGridSize || cols > MaxGridSize {
-		return fmt.Errorf("cols must be between %d and %d, got %d", MinGridSize, MaxGridSize, cols)
-	}
-
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.SystemGrid.Cols = cols
-	return cm.save()
+	return cm.setGridDim("cols", cols, func(c *Config) { c.SystemGrid.Cols = cols })
 }
 
 // MediaGrid returns the media grid configuration.
@@ -532,26 +528,12 @@ func (cm *ConfigManager) MediaGrid() (rows, cols int) {
 
 // SetMediaRows sets the media grid rows.
 func (cm *ConfigManager) SetMediaRows(rows int) error {
-	if rows < MinGridSize || rows > MaxGridSize {
-		return fmt.Errorf("rows must be between %d and %d, got %d", MinGridSize, MaxGridSize, rows)
-	}
-
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.MediaGrid.Rows = rows
-	return cm.save()
+	return cm.setGridDim("rows", rows, func(c *Config) { c.MediaGrid.Rows = rows })
 }
 
 // SetMediaCols sets the media grid columns.
 func (cm *ConfigManager) SetMediaCols(cols int) error {
-	if cols < MinGridSize || cols > MaxGridSize {
-		return fmt.Errorf("cols must be between %d and %d, got %d", MinGridSize, MaxGridSize, cols)
-	}
-
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.MediaGrid.Cols = cols
-	return cm.save()
+	return cm.setGridDim("cols", cols, func(c *Config) { c.MediaGrid.Cols = cols })
 }
 
 // WorkspaceMetricsGrid returns the workspace metrics grid configuration.
@@ -562,25 +544,11 @@ func (cm *ConfigManager) WorkspaceMetricsGrid() (rows, cols int) {
 }
 
 func (cm *ConfigManager) SetWorkspaceMetricsRows(rows int) error {
-	if rows < MinGridSize || rows > MaxGridSize {
-		return fmt.Errorf("rows must be between %d and %d, got %d", MinGridSize, MaxGridSize, rows)
-	}
-
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.WorkspaceMetricsGrid.Rows = rows
-	return cm.save()
+	return cm.setGridDim("rows", rows, func(c *Config) { c.WorkspaceMetricsGrid.Rows = rows })
 }
 
 func (cm *ConfigManager) SetWorkspaceMetricsCols(cols int) error {
-	if cols < MinGridSize || cols > MaxGridSize {
-		return fmt.Errorf("cols must be between %d and %d, got %d", MinGridSize, MaxGridSize, cols)
-	}
-
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.WorkspaceMetricsGrid.Cols = cols
-	return cm.save()
+	return cm.setGridDim("cols", cols, func(c *Config) { c.WorkspaceMetricsGrid.Cols = cols })
 }
 
 // WorkspaceSystemGrid returns the workspace system grid configuration.
@@ -605,69 +573,27 @@ func (cm *ConfigManager) SymonGrid() (rows, cols int) {
 }
 
 func (cm *ConfigManager) SetWorkspaceSystemRows(rows int) error {
-	if rows < MinGridSize || rows > MaxGridSize {
-		return fmt.Errorf("rows must be between %d and %d, got %d", MinGridSize, MaxGridSize, rows)
-	}
-
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.WorkspaceSystemGrid.Rows = rows
-	return cm.save()
+	return cm.setGridDim("rows", rows, func(c *Config) { c.WorkspaceSystemGrid.Rows = rows })
 }
 
 func (cm *ConfigManager) SetWorkspaceSystemCols(cols int) error {
-	if cols < MinGridSize || cols > MaxGridSize {
-		return fmt.Errorf("cols must be between %d and %d, got %d", MinGridSize, MaxGridSize, cols)
-	}
-
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.WorkspaceSystemGrid.Cols = cols
-	return cm.save()
+	return cm.setGridDim("cols", cols, func(c *Config) { c.WorkspaceSystemGrid.Cols = cols })
 }
 
 func (cm *ConfigManager) SetWorkspaceMediaRows(rows int) error {
-	if rows < MinGridSize || rows > MaxGridSize {
-		return fmt.Errorf("rows must be between %d and %d, got %d", MinGridSize, MaxGridSize, rows)
-	}
-
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.WorkspaceMediaGrid.Rows = rows
-	return cm.save()
+	return cm.setGridDim("rows", rows, func(c *Config) { c.WorkspaceMediaGrid.Rows = rows })
 }
 
 func (cm *ConfigManager) SetWorkspaceMediaCols(cols int) error {
-	if cols < MinGridSize || cols > MaxGridSize {
-		return fmt.Errorf("cols must be between %d and %d, got %d", MinGridSize, MaxGridSize, cols)
-	}
-
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.WorkspaceMediaGrid.Cols = cols
-	return cm.save()
+	return cm.setGridDim("cols", cols, func(c *Config) { c.WorkspaceMediaGrid.Cols = cols })
 }
 
 func (cm *ConfigManager) SetSymonRows(rows int) error {
-	if rows < MinGridSize || rows > MaxGridSize {
-		return fmt.Errorf("rows must be between %d and %d, got %d", MinGridSize, MaxGridSize, rows)
-	}
-
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.SymonGrid.Rows = rows
-	return cm.save()
+	return cm.setGridDim("rows", rows, func(c *Config) { c.SymonGrid.Rows = rows })
 }
 
 func (cm *ConfigManager) SetSymonCols(cols int) error {
-	if cols < MinGridSize || cols > MaxGridSize {
-		return fmt.Errorf("cols must be between %d and %d, got %d", MinGridSize, MaxGridSize, cols)
-	}
-
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.SymonGrid.Cols = cols
-	return cm.save()
+	return cm.setGridDim("cols", cols, func(c *Config) { c.SymonGrid.Cols = cols })
 }
 
 // RunLayout returns the single-run view's layout overrides.
@@ -680,10 +606,7 @@ func (cm *ConfigManager) RunLayout() LayoutOverrides {
 // SetRunLayout sets and persists the single-run view's layout overrides.
 func (cm *ConfigManager) SetRunLayout(o LayoutOverrides) error {
 	normalizeLayoutOverrides(&o)
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.RunLayout = o
-	return cm.save()
+	return cm.set(func(c *Config) { c.RunLayout = o })
 }
 
 // WorkspaceLayout returns the workspace view's layout overrides.
@@ -696,10 +619,7 @@ func (cm *ConfigManager) WorkspaceLayout() LayoutOverrides {
 // SetWorkspaceLayout sets and persists the workspace view's layout overrides.
 func (cm *ConfigManager) SetWorkspaceLayout(o LayoutOverrides) error {
 	normalizeLayoutOverrides(&o)
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.WorkspaceLayout = o
-	return cm.save()
+	return cm.set(func(c *Config) { c.WorkspaceLayout = o })
 }
 
 // Path returns the on-disk config path.
@@ -731,10 +651,7 @@ func (cm *ConfigManager) SetStartupMode(mode string) error {
 			StartupModeWorkspaceLatest, StartupModeSingleRunLatest, mode,
 		)
 	}
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.StartupMode = mode
-	return cm.save()
+	return cm.set(func(c *Config) { c.StartupMode = mode })
 }
 
 // ChartGuides returns the background guide style for line charts.
@@ -749,11 +666,7 @@ func (cm *ConfigManager) SetChartGuides(guides string) error {
 	if !isChartGuides(guides) {
 		return fmt.Errorf("invalid chart guides: %q", guides)
 	}
-
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.ChartGuides = guides
-	return cm.save()
+	return cm.set(func(c *Config) { c.ChartGuides = guides })
 }
 
 // ColorScheme returns the current color scheme.
@@ -764,13 +677,7 @@ func (cm *ConfigManager) ColorScheme() string {
 }
 
 func (cm *ConfigManager) SetColorScheme(scheme string) error {
-	if _, ok := colorSchemes[scheme]; !ok {
-		return fmt.Errorf("unknown color scheme: %q", scheme)
-	}
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.ColorScheme = scheme
-	return cm.save()
+	return cm.setColorScheme(scheme, func(c *Config) { c.ColorScheme = scheme })
 }
 
 func (cm *ConfigManager) PerPlotColorScheme() string {
@@ -780,13 +687,7 @@ func (cm *ConfigManager) PerPlotColorScheme() string {
 }
 
 func (cm *ConfigManager) SetPerPlotColorScheme(scheme string) error {
-	if _, ok := colorSchemes[scheme]; !ok {
-		return fmt.Errorf("unknown color scheme: %q", scheme)
-	}
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.PerPlotColorScheme = scheme
-	return cm.save()
+	return cm.setColorScheme(scheme, func(c *Config) { c.PerPlotColorScheme = scheme })
 }
 
 func (cm *ConfigManager) TagColorScheme() string {
@@ -796,13 +697,7 @@ func (cm *ConfigManager) TagColorScheme() string {
 }
 
 func (cm *ConfigManager) SetTagColorScheme(scheme string) error {
-	if _, ok := colorSchemes[scheme]; !ok {
-		return fmt.Errorf("unknown color scheme: %q", scheme)
-	}
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.TagColorScheme = scheme
-	return cm.save()
+	return cm.setColorScheme(scheme, func(c *Config) { c.TagColorScheme = scheme })
 }
 
 func (cm *ConfigManager) SingleRunColorMode() string {
@@ -818,10 +713,7 @@ func (cm *ConfigManager) SetSingleRunColorMode(mode string) error {
 			ColorModePerPlot, ColorModePerSeries, mode,
 		)
 	}
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.SingleRunColorMode = mode
-	return cm.save()
+	return cm.set(func(c *Config) { c.SingleRunColorMode = mode })
 }
 
 // SystemColorScheme returns the color scheme for system metrics.
@@ -847,26 +739,12 @@ func (cm *ConfigManager) SystemColorMode() string {
 
 // SetSystemColorScheme sets the system color scheme.
 func (cm *ConfigManager) SetSystemColorScheme(scheme string) error {
-	if _, ok := colorSchemes[scheme]; !ok {
-		return fmt.Errorf("unknown color scheme: %q", scheme)
-	}
-
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.SystemColorScheme = scheme
-	return cm.save()
+	return cm.setColorScheme(scheme, func(c *Config) { c.SystemColorScheme = scheme })
 }
 
 // SetFrenchFriesColorScheme sets the French Fries heatmap color scheme.
 func (cm *ConfigManager) SetFrenchFriesColorScheme(scheme string) error {
-	if _, ok := colorSchemes[scheme]; !ok {
-		return fmt.Errorf("unknown color scheme: %q", scheme)
-	}
-
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.FrenchFriesColorScheme = scheme
-	return cm.save()
+	return cm.setColorScheme(scheme, func(c *Config) { c.FrenchFriesColorScheme = scheme })
 }
 
 // SetSystemColorMode sets the system color mode.
@@ -875,11 +753,7 @@ func (cm *ConfigManager) SetSystemColorMode(mode string) error {
 		return fmt.Errorf("invalid color mode: %s (must be %s or %s)",
 			mode, ColorModePerPlot, ColorModePerSeries)
 	}
-
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.SystemColorMode = mode
-	return cm.save()
+	return cm.set(func(c *Config) { c.SystemColorMode = mode })
 }
 
 // SystemTailWindow returns the default live tail window for system charts.
@@ -895,11 +769,7 @@ func (cm *ConfigManager) SetSystemTailWindowMinutes(minutes int) error {
 	if minutes <= 0 {
 		return fmt.Errorf("system tail window must be a positive integer")
 	}
-
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.SystemTailWindowMinutes = minutes
-	return cm.save()
+	return cm.set(func(c *Config) { c.SystemTailWindowMinutes = minutes })
 }
 
 // HeartbeatInterval returns the heartbeat interval as a Duration.
@@ -915,11 +785,7 @@ func (cm *ConfigManager) SetHeartbeatInterval(seconds int) error {
 	if seconds <= 0 {
 		return fmt.Errorf("heartbeat interval must be a positive integer")
 	}
-
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.HeartbeatInterval = seconds
-	return cm.save()
+	return cm.set(func(c *Config) { c.HeartbeatInterval = seconds })
 }
 
 // LeftSidebarVisible returns whether the left sidebar should be visible.
@@ -931,10 +797,7 @@ func (cm *ConfigManager) LeftSidebarVisible() bool {
 
 // SetLeftSidebarVisible sets the left sidebar visibility.
 func (cm *ConfigManager) SetLeftSidebarVisible(visible bool) error {
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.LeftSidebarVisible = visible
-	return cm.save()
+	return cm.set(func(c *Config) { c.LeftSidebarVisible = visible })
 }
 
 // RightSidebarVisible returns whether the right sidebar should be visible.
@@ -946,10 +809,7 @@ func (cm *ConfigManager) RightSidebarVisible() bool {
 
 // SetRightSidebarVisible sets the right sidebar visibility.
 func (cm *ConfigManager) SetRightSidebarVisible(visible bool) error {
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.RightSidebarVisible = visible
-	return cm.save()
+	return cm.set(func(c *Config) { c.RightSidebarVisible = visible })
 }
 
 // ConsoleLogsVisible returns whether the console logs pane
@@ -962,10 +822,7 @@ func (cm *ConfigManager) ConsoleLogsVisible() bool {
 
 // SetConsoleLogsVisible sets the single-run console logs pane visibility.
 func (cm *ConfigManager) SetConsoleLogsVisible(visible bool) error {
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.ConsoleLogsVisible = visible
-	return cm.save()
+	return cm.set(func(c *Config) { c.ConsoleLogsVisible = visible })
 }
 
 // MetricsGridVisible returns whether the metrics grid should be visible in single-run mode.
@@ -977,10 +834,7 @@ func (cm *ConfigManager) MetricsGridVisible() bool {
 
 // SetMetricsGridVisible sets the single-run metrics grid visibility.
 func (cm *ConfigManager) SetMetricsGridVisible(visible bool) error {
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.MetricsGridVisible = visible
-	return cm.save()
+	return cm.set(func(c *Config) { c.MetricsGridVisible = visible })
 }
 
 // MediaVisible returns whether the media pane should be visible in single-run mode.
@@ -992,10 +846,7 @@ func (cm *ConfigManager) MediaVisible() bool {
 
 // SetMediaVisible sets the single-run media pane visibility.
 func (cm *ConfigManager) SetMediaVisible(visible bool) error {
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.MediaVisible = visible
-	return cm.save()
+	return cm.set(func(c *Config) { c.MediaVisible = visible })
 }
 
 func (cm *ConfigManager) IsAwaitingGridConfig() bool {
@@ -1011,52 +862,53 @@ func (cm *ConfigManager) SetPendingGridConfig(gct gridConfigTarget) {
 	cm.pendingGridConfig = gct
 }
 
+// gridConfigSetters maps each pending grid config target to the setter that
+// applies it and the label used in the confirmation message.
+var gridConfigSetters = map[gridConfigTarget]struct {
+	setter func(*ConfigManager, int) error
+	label  string
+}{
+	gridConfigMetricsCols: {(*ConfigManager).SetMetricsCols,
+		"Metrics grid columns"},
+	gridConfigMetricsRows: {(*ConfigManager).SetMetricsRows,
+		"Metrics grid rows"},
+	gridConfigSystemCols: {(*ConfigManager).SetSystemCols,
+		"System grid columns"},
+	gridConfigSystemRows: {(*ConfigManager).SetSystemRows,
+		"System grid rows"},
+	gridConfigMediaCols: {(*ConfigManager).SetMediaCols,
+		"Media grid columns"},
+	gridConfigMediaRows: {(*ConfigManager).SetMediaRows,
+		"Media grid rows"},
+	gridConfigWorkspaceMetricsCols: {(*ConfigManager).SetWorkspaceMetricsCols,
+		"Workspace metrics grid columns"},
+	gridConfigWorkspaceMetricsRows: {(*ConfigManager).SetWorkspaceMetricsRows,
+		"Workspace metrics grid rows"},
+	gridConfigWorkspaceSystemCols: {(*ConfigManager).SetWorkspaceSystemCols,
+		"Workspace system grid columns"},
+	gridConfigWorkspaceSystemRows: {(*ConfigManager).SetWorkspaceSystemRows,
+		"Workspace system grid rows"},
+	gridConfigWorkspaceMediaCols: {(*ConfigManager).SetWorkspaceMediaCols,
+		"Workspace media grid columns"},
+	gridConfigWorkspaceMediaRows: {(*ConfigManager).SetWorkspaceMediaRows,
+		"Workspace media grid rows"},
+	gridConfigSymonCols: {(*ConfigManager).SetSymonCols,
+		"Symon grid columns"},
+	gridConfigSymonRows: {(*ConfigManager).SetSymonRows,
+		"Symon grid rows"},
+}
+
 // SetGridConfig sets a value for a pending grid config target (metrics or system).
 func (cm *ConfigManager) SetGridConfig(num int) (string, error) {
 	cm.mu.RLock()
 	pgc := cm.pendingGridConfig
 	cm.mu.RUnlock()
 
-	type entry struct {
-		setter func(int) error
-		label  string
-	}
-	table := map[gridConfigTarget]entry{
-		gridConfigMetricsCols: {cm.SetMetricsCols,
-			"Metrics grid columns"},
-		gridConfigMetricsRows: {cm.SetMetricsRows,
-			"Metrics grid rows"},
-		gridConfigSystemCols: {cm.SetSystemCols,
-			"System grid columns"},
-		gridConfigSystemRows: {cm.SetSystemRows,
-			"System grid rows"},
-		gridConfigMediaCols: {cm.SetMediaCols,
-			"Media grid columns"},
-		gridConfigMediaRows: {cm.SetMediaRows,
-			"Media grid rows"},
-		gridConfigWorkspaceMetricsCols: {cm.SetWorkspaceMetricsCols,
-			"Workspace metrics grid columns"},
-		gridConfigWorkspaceMetricsRows: {cm.SetWorkspaceMetricsRows,
-			"Workspace metrics grid rows"},
-		gridConfigWorkspaceSystemCols: {cm.SetWorkspaceSystemCols,
-			"Workspace system grid columns"},
-		gridConfigWorkspaceSystemRows: {cm.SetWorkspaceSystemRows,
-			"Workspace system grid rows"},
-		gridConfigWorkspaceMediaCols: {cm.SetWorkspaceMediaCols,
-			"Workspace media grid columns"},
-		gridConfigWorkspaceMediaRows: {cm.SetWorkspaceMediaRows,
-			"Workspace media grid rows"},
-		gridConfigSymonCols: {cm.SetSymonCols,
-			"Symon grid columns"},
-		gridConfigSymonRows: {cm.SetSymonRows,
-			"Symon grid rows"},
-	}
-
-	e, ok := table[pgc]
+	e, ok := gridConfigSetters[pgc]
 	if !ok {
 		return "", nil
 	}
-	if err := e.setter(num); err != nil {
+	if err := e.setter(cm, num); err != nil {
 		return "", err
 	}
 	return fmt.Sprintf("%s set to %d", e.label, num), nil
@@ -1105,10 +957,7 @@ func (cm *ConfigManager) WorkspaceOverviewVisible() bool {
 
 // SetWorkspaceOverviewVisible sets the workspace overview sidebar visibility.
 func (cm *ConfigManager) SetWorkspaceOverviewVisible(visible bool) error {
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.WorkspaceOverviewVisible = visible
-	return cm.save()
+	return cm.set(func(c *Config) { c.WorkspaceOverviewVisible = visible })
 }
 
 // WorkspaceSystemMetricsVisible returns whether the system metrics pane
@@ -1121,10 +970,7 @@ func (cm *ConfigManager) WorkspaceSystemMetricsVisible() bool {
 
 // SetWorkspaceSystemMetricsVisible sets the workspace system metrics pane visibility.
 func (cm *ConfigManager) SetWorkspaceSystemMetricsVisible(visible bool) error {
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.WorkspaceSystemMetricsVisible = visible
-	return cm.save()
+	return cm.set(func(c *Config) { c.WorkspaceSystemMetricsVisible = visible })
 }
 
 // WorkspaceConsoleLogsVisible returns whether the console logs pane
@@ -1137,10 +983,7 @@ func (cm *ConfigManager) WorkspaceConsoleLogsVisible() bool {
 
 // SetWorkspaceConsoleLogsVisible sets the workspace console logs pane visibility.
 func (cm *ConfigManager) SetWorkspaceConsoleLogsVisible(visible bool) error {
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.WorkspaceConsoleLogsVisible = visible
-	return cm.save()
+	return cm.set(func(c *Config) { c.WorkspaceConsoleLogsVisible = visible })
 }
 
 // WorkspaceMetricsGridVisible returns whether the metrics grid should be visible in workspace mode.
@@ -1152,10 +995,7 @@ func (cm *ConfigManager) WorkspaceMetricsGridVisible() bool {
 
 // SetWorkspaceMetricsGridVisible sets the workspace metrics grid visibility.
 func (cm *ConfigManager) SetWorkspaceMetricsGridVisible(visible bool) error {
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.WorkspaceMetricsGridVisible = visible
-	return cm.save()
+	return cm.set(func(c *Config) { c.WorkspaceMetricsGridVisible = visible })
 }
 
 // WorkspaceMediaVisible returns whether the media pane should be visible in workspace mode.
@@ -1167,10 +1007,7 @@ func (cm *ConfigManager) WorkspaceMediaVisible() bool {
 
 // SetWorkspaceMediaVisible sets the workspace media pane visibility.
 func (cm *ConfigManager) SetWorkspaceMediaVisible(visible bool) error {
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.WorkspaceMediaVisible = visible
-	return cm.save()
+	return cm.set(func(c *Config) { c.WorkspaceMediaVisible = visible })
 }
 
 // leetConfigPath returns the path where the config should be stored.
