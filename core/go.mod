@@ -37,6 +37,7 @@ require (
 	github.com/stretchr/testify v1.12.1
 	github.com/vektah/gqlparser/v2 v2.5.36
 	github.com/wandb/simplejsonext v0.0.0-20260707165459-87e0408255a5
+	github.com/zeebo/xxh3 v1.1.0
 	go.opentelemetry.io/otel v1.45.0
 	go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp v0.21.0
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.45.0
@@ -160,7 +161,6 @@ require (
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	github.com/xo/terminfo v1.0.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
-	github.com/zeebo/xxh3 v1.1.0
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/detectors/gcp v1.45.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.70.0 // indirect
