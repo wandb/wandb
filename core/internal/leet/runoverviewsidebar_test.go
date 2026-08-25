@@ -139,10 +139,10 @@ func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {
 
 	s.Sync()
 
-	// Small height -> ItemsPerPage=1 -> expect "[1-1 of N]" pagination per section.
+	// Small height -> the squeezed Config section paginates.
 	view := stripANSI(s.View(15).Content)
-	require.Contains(t, view, "Config [1-2 of 5]")
-	require.Contains(t, view, "Summary [1-1 of 2]")
+	require.Contains(t, view, "Config [1-3 of 5]")
+	require.Contains(t, view, "Summary [2 items]")
 	require.Contains(t, view, "Environment")
 
 	// Larger height -> enough space -> expect "[N items]" (non-paginated).
@@ -151,6 +151,106 @@ func TestSidebar_CalculateSectionHeights_PaginationAndAllItems(t *testing.T) {
 	require.Contains(t, view, "Summary [2 items]")
 
 	s.Toggle()
+}
+
+func TestSidebar_SectionsFillAvailableHeight(t *testing.T) {
+	ro, s := testRunOverviewSidebar(t, false)
+	expandSidebar(t, s, 120, false)
+
+	ro.ProcessRunMsg(leet.RunMsg{
+		Config: &spb.ConfigRecord{
+			Update: []*spb.ConfigItem{
+				{NestedKey: []string{"alpha", "a"}, ValueJson: "1"},
+				{NestedKey: []string{"alpha", "b"}, ValueJson: "2"},
+				{NestedKey: []string{"alpha", "c"}, ValueJson: "3"},
+				{NestedKey: []string{"beta", "d"}, ValueJson: "4"},
+				{NestedKey: []string{"beta", "e"}, ValueJson: "5"},
+			},
+		},
+	})
+
+	for i := range 40 {
+		ro.ProcessSummaryMsg([]*spb.SummaryRecord{{
+			Update: []*spb.SummaryItem{{
+				NestedKey: []string{"custom", fmt.Sprintf("metric_%d", i)},
+				ValueJson: fmt.Sprintf("%d", i),
+			}},
+		}})
+	}
+
+	ro.ProcessSystemInfoMsg(&spb.EnvironmentRecord{
+		WriterId: "writer-1",
+		Os:       "linux",
+	})
+
+	s.Sync()
+
+	// A tall sidebar shows all 40 summary items on one page instead of
+	// stopping at a fixed section size.
+	view := stripANSI(s.View(60).Content)
+	require.Contains(t, view, "Summary [40 items]")
+}
+
+func TestSidebar_SectionsReflowAsDataChanges(t *testing.T) {
+	ro, s := testRunOverviewSidebar(t, false)
+	expandSidebar(t, s, 120, false)
+
+	ro.ProcessRunMsg(leet.RunMsg{
+		Config: &spb.ConfigRecord{
+			Update: []*spb.ConfigItem{
+				{NestedKey: []string{"alpha", "a"}, ValueJson: "1"},
+				{NestedKey: []string{"alpha", "b"}, ValueJson: "2"},
+				{NestedKey: []string{"alpha", "c"}, ValueJson: "3"},
+				{NestedKey: []string{"beta", "d"}, ValueJson: "4"},
+				{NestedKey: []string{"beta", "e"}, ValueJson: "5"},
+			},
+		},
+	})
+	ro.ProcessSummaryMsg([]*spb.SummaryRecord{{
+		Update: []*spb.SummaryItem{
+			{NestedKey: []string{"acc"}, ValueJson: "0.9"},
+			{NestedKey: []string{"loss"}, ValueJson: "0.1"},
+			{NestedKey: []string{"lr"}, ValueJson: "0.001"},
+		},
+	}})
+	ro.ProcessSystemInfoMsg(&spb.EnvironmentRecord{WriterId: "writer-1", Os: "linux"})
+
+	// Everything fits: each section sized to its items.
+	s.Sync()
+	view := stripANSI(s.View(30).Content)
+	require.Contains(t, view, "Environment [2 items]")
+	require.Contains(t, view, "Config [5 items]")
+	require.Contains(t, view, "Summary [3 items]")
+
+	// The run logs 40 more summary metrics: Summary overflows and takes
+	// every row the sized-to-content sections do not use.
+	for i := range 40 {
+		ro.ProcessSummaryMsg([]*spb.SummaryRecord{{
+			Update: []*spb.SummaryItem{{
+				NestedKey: []string{"custom", fmt.Sprintf("metric_%d", i)},
+				ValueJson: fmt.Sprintf("%d", i),
+			}},
+		}})
+	}
+	s.Sync()
+	view = stripANSI(s.View(30).Content)
+	require.Contains(t, view, "Config [5 items]")
+	require.Contains(t, view, "Summary [1-15 of 43]")
+
+	// Three config values are deleted: the freed rows flow to Summary.
+	ro.ProcessRunMsg(leet.RunMsg{
+		Config: &spb.ConfigRecord{
+			Remove: []*spb.ConfigItem{
+				{NestedKey: []string{"alpha", "a"}},
+				{NestedKey: []string{"alpha", "b"}},
+				{NestedKey: []string{"alpha", "c"}},
+			},
+		},
+	})
+	s.Sync()
+	view = stripANSI(s.View(30).Content)
+	require.Contains(t, view, "Config [2 items]")
+	require.Contains(t, view, "Summary [1-18 of 43]")
 }
 
 func TestSidebar_Navigation_SectionPageUpDown(t *testing.T) {
