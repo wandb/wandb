@@ -178,6 +178,32 @@ type LayoutOverrides struct {
 	System       float64 `json:"system,omitempty"`
 	Media        float64 `json:"media,omitempty"`
 	Logs         float64 `json:"logs,omitempty"`
+
+	// Run overview section shares, set by dragging the separator rules
+	// between sections. Each is a fraction of the sidebar rows available
+	// to sections (not of the terminal height).
+	OverviewEnv     float64 `json:"overview_env,omitempty"`
+	OverviewConfig  float64 `json:"overview_config,omitempty"`
+	OverviewSummary float64 `json:"overview_summary,omitempty"`
+}
+
+// overviewFractions returns the run overview section shares indexed like
+// the sidebar's sections (environment, config, summary).
+func (o LayoutOverrides) overviewFractions() []float64 {
+	return []float64{o.OverviewEnv, o.OverviewConfig, o.OverviewSummary}
+}
+
+// setOverviewFraction records one run overview section's share by its
+// index in the sidebar's sections.
+func (o *LayoutOverrides) setOverviewFraction(idx int, frac float64) {
+	switch idx {
+	case 0:
+		o.OverviewEnv = frac
+	case 1:
+		o.OverviewConfig = frac
+	case 2:
+		o.OverviewSummary = frac
+	}
 }
 
 // ConfigManager manages application configuration with thread-safe access
@@ -386,6 +412,18 @@ func normalizeLayoutOverrides(o *LayoutOverrides) {
 			*f = 0
 		} else if *f != 0 {
 			*f = min(max(*f, MinLayoutFrac), MaxLayoutFrac)
+		}
+	}
+	// Overview shares are fractions of the sidebar's section area, not of
+	// the terminal, so only the unit range applies; the drag and the
+	// allocator enforce the real bounds (minimum heights, item counts).
+	for _, f := range []*float64{
+		&o.OverviewEnv, &o.OverviewConfig, &o.OverviewSummary,
+	} {
+		if math.IsNaN(*f) {
+			*f = 0
+		} else if *f != 0 {
+			*f = min(max(*f, 0), 1)
 		}
 	}
 }

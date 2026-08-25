@@ -3,7 +3,8 @@ package leet
 const (
 	// Each section's default share of the sidebar's vertical space when
 	// the sections want more rows than fit. The shares sum to 1, so a
-	// value reads directly as that section's slice of the area.
+	// value reads directly as that section's slice of the area, in the
+	// same unit as the dragged overview_* fractions.
 	sectionWeightEnvironment = 0.20
 	sectionWeightConfig      = 0.35
 	sectionWeightSummary     = 0.45
@@ -12,13 +13,48 @@ const (
 	sectionMinHeight = 2
 )
 
-// sectionWeights returns each section's desired share of the section area.
-func (s *RunOverviewSidebar) sectionWeights() []float64 {
-	return []float64{
+// sectionWeights returns each visible section's share of the section area:
+// the user-dragged fraction where set, otherwise the built-in default.
+// proportionalShares normalizes the weights, so dragged sections keep their
+// exact shares while all of them are set and every section degrades
+// proportionally when the data changes underneath.
+func (s *RunOverviewSidebar) sectionWeights(needs []int) []float64 {
+	defaults := []float64{
 		sectionWeightEnvironment,
 		sectionWeightConfig,
 		sectionWeightSummary,
 	}
+
+	var o LayoutOverrides
+	if s.overridesSource != nil {
+		o = s.overridesSource()
+	}
+	fracs := o.overviewFractions()
+
+	weights := make([]float64, len(needs))
+	for i, need := range needs {
+		if need <= 0 {
+			continue
+		}
+		if fracs[i] > 0 {
+			weights[i] = fracs[i]
+		} else {
+			weights[i] = defaults[i]
+		}
+	}
+	return weights
+}
+
+// sectionNeeds returns the rows each section can usefully fill (title +
+// items), 0 for empty sections.
+func (s *RunOverviewSidebar) sectionNeeds() []int {
+	needs := make([]int, len(s.sections))
+	for i := range s.sections {
+		if itemCount := len(s.sections[i].FilteredItems); itemCount > 0 {
+			needs[i] = itemCount + 1 // Title line.
+		}
+	}
+	return needs
 }
 
 // updateSectionHeights divides the sidebar rows below the header among the
@@ -28,14 +64,8 @@ func (s *RunOverviewSidebar) updateSectionHeights() {
 		return
 	}
 
-	needs := make([]int, len(s.sections))
-	for i := range s.sections {
-		if itemCount := len(s.sections[i].FilteredItems); itemCount > 0 {
-			needs[i] = itemCount + 1 // Title line.
-		}
-	}
-
-	heights := flexSectionHeights(s.sectionsArea(needs), s.sectionWeights(), needs)
+	needs := s.sectionNeeds()
+	heights := flexSectionHeights(s.sectionsArea(needs), s.sectionWeights(needs), needs)
 	for i := range s.sections {
 		s.sections[i].Height = heights[i]
 	}
