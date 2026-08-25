@@ -359,7 +359,7 @@ def test_wandb_storage_policy_load_file_uses_cache_md5(artifact_file_cache, tmp_
     )
 
     # We need to pass an artifact, but this test doesn't actually use it
-    empty_artifact = Artifact("test", type="dataset")
+    empty_artifact = Artifact("test", type="dataset", digest_algorithm="MD5")
 
     local_path = policy.load_file(empty_artifact, entry)
 
@@ -388,7 +388,7 @@ def test_wandb_storage_policy_load_file_uses_cache_xxh128(
     )
 
     # We need to pass an artifact, but this test doesn't actually use it
-    empty_artifact = Artifact("test", type="dataset", digest_algorithm="XXH128")
+    empty_artifact = Artifact("test", type="dataset")
 
     local_path = policy.load_file(empty_artifact, entry)
 
