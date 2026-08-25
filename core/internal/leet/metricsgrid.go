@@ -251,9 +251,14 @@ func (mg *MetricsGrid) ProcessHistory(msg HistoryMsg) bool {
 }
 
 // effectiveGridSize returns the grid size that can fit in the current viewport.
+//
+// It must derive the column count from the same padded width as
+// CalculateChartDimensions: View renders this many columns at cell widths
+// computed there, and any disagreement overflows the pane.
 func (mg *MetricsGrid) effectiveGridSize() GridSize {
 	gridRows, gridCols := mg.gridConfig()
-	return EffectiveGridSize(mg.width, mg.height, GridSpec{
+	innerW := max(mg.width-ContentPaddingCols, 0)
+	return EffectiveGridSize(innerW, mg.height, GridSpec{
 		Rows:        gridRows,
 		Cols:        gridCols,
 		MinCellW:    MinChartWidth,

@@ -885,6 +885,7 @@ query FetchLinkedArtifacts($artifactID: ID!) {
       edges {
         node {
           versionIndex
+          createdAt
           aliases {
             ...ArtifactAliasFragment
           }
@@ -1070,6 +1071,7 @@ fragment ArtifactMembershipFragment on ArtifactCollectionMembership {
   __typename
   id
   versionIndex
+  createdAt
   aliases {
     ...ArtifactAliasFragment
   }
@@ -1349,6 +1351,7 @@ fragment ArtifactMembershipFragment on ArtifactCollectionMembership {
   __typename
   id
   versionIndex
+  createdAt
   aliases {
     ...ArtifactAliasFragment
   }
@@ -1517,6 +1520,7 @@ fragment ArtifactMembershipFragment on ArtifactCollectionMembership {
   __typename
   id
   versionIndex
+  createdAt
   aliases {
     ...ArtifactAliasFragment
   }
