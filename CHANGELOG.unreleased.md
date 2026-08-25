@@ -43,6 +43,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - `wandb.sandbox` now allows GPU resource requests for sandboxes instead of rejecting `resources.gpu` client-side (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/12455)
 - Registry search methods (`Api.registries()`, `.collections()`, `.versions()`) now validate filter field names, rejecting unsupported field names. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12182)
 - `wandb.Video()` now requires the `format` argument when initializing from a numpy array or an io object. (@jacobromero in https://github.com/wandb/wandb/pull/12579)
+- Changed the default behavior of `wandb.Artifact` to use `digest_algorithm="XXH128"` (@amusipatla-wandb in https://github.com/wandb/wandb/pull/12571)
 
 ### Removed
 
