@@ -194,6 +194,7 @@ func NewWorkspace(
 		relayout: w.applyLayoutConfig,
 		logger:   logger,
 	}
+	w.runOverviewSidebar.overridesSource = w.layoutOverrides
 	// The runs list starts focused by default.
 	w.focusMgr.SetTarget(FocusTargetRunsList, 1)
 	return w
@@ -751,22 +752,17 @@ func (w *Workspace) overviewFocusAvailable() bool {
 // ---- Focus activate ----
 
 func (w *Workspace) activateRunsFocus(_ int) { w.runs.Active = true }
+
+// Chart focus is seeded via NavigateFocus(0, 0): activation always follows a
+// deactivation that reset the shared Focus, so the grid's no-focus path lands
+// on the first populated cell and sets the full focus state (including the
+// chart title shown in the status bar). Writing Type/Row/Col here directly
+// would fool that path into treating focus as already applied.
+
 func (w *Workspace) activateMetricsGridFocus(_ int) {
-	w.focus.Type = FocusMainChart
-	if w.focus.Row < 0 {
-		w.focus.Row = 0
-		w.focus.Col = 0
-	}
 	w.metricsGrid.NavigateFocus(0, 0)
 }
 func (w *Workspace) activateSysMetricsFocus(_ int) {
-	if w.systemMetricsFocus != nil {
-		w.systemMetricsFocus.Type = FocusSystemChart
-		if w.systemMetricsFocus.Row < 0 {
-			w.systemMetricsFocus.Row = 0
-			w.systemMetricsFocus.Col = 0
-		}
-	}
 	if g := w.activeSystemMetricsGrid(); g != nil {
 		g.NavigateFocus(0, 0)
 	}
@@ -1264,14 +1260,22 @@ func (w *Workspace) buildOverviewFilterStatus() string {
 func (w *Workspace) buildActiveStatus() string {
 	var parts []string
 
+	// The wandb dir answers "which runs am I browsing?", so it belongs to
+	// the run list; other panes put their own context in the status bar.
+	if w.focusMgr.IsTarget(FocusTargetRunsList) {
+		parts = append(parts, "wandb dir: "+w.wandbDir)
+	}
+
 	parts = append(parts, w.activeFilterStatus()...)
 	parts = append(parts, w.activeSelectionStatus()...)
 	parts = append(parts, w.activeFocusStatus()...)
 
+	// Never leave the status bar blank (e.g. Esc cleared focus and no
+	// filters are active).
 	if len(parts) == 0 {
-		return w.wandbDir
+		return "wandb dir: " + w.wandbDir
 	}
-	return w.wandbDir + " • " + strings.Join(parts, " • ")
+	return strings.Join(parts, " • ")
 }
 
 // activeFilterStatus collects status fragments for all active filters.

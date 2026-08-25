@@ -172,6 +172,12 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 			spb.ServerFeature_USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION,
 		)
 	})
+	serverProvidesArtifactDigestAlgorithm := sync.OnceValue(func() bool {
+		return f.FeatureProvider.Enabled(
+			featureCtx,
+			spb.ServerFeature_ARTIFACT_DIGEST_ALGORITHM,
+		)
+	})
 
 	consoleLogsSenderParams := runconsolelogs.Params{
 		FilesDir:              f.Settings.GetFilesDir(),
@@ -202,6 +208,7 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 			f.GraphqlClient,
 			f.FileTransferManager,
 			useArtifactProjectEntityInfo,
+			serverProvidesArtifactDigestAlgorithm,
 		),
 		networkPeeker:     f.Peeker,
 		printer:           f.Printer,

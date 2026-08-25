@@ -6,8 +6,8 @@ For formal specs and definitions, see https://relay.dev/graphql/connections.htm.
 from __future__ import annotations
 
 import re
-from collections.abc import Collection, Iterator
-from dataclasses import dataclass
+from collections.abc import Collection, Iterator, Mapping
+from dataclasses import dataclass, field
 from typing import Annotated, Any, Final, Generic, Literal, TypeAlias, TypeVar
 
 from pydantic import GetCoreSchemaHandler, NonNegativeInt, PlainSerializer
@@ -43,12 +43,22 @@ FilterDict: TypeAlias = Annotated[dict[str, Any], PlainSerializer(to_json)]
 class OrderValidator:
     """Pydantic metadata that validates and normalizes an `order` argument."""
 
-    valid: Collection[str] | None = None
-    """The allowed field names. If None, all fields are allowed."""
+    valid: Collection[str] | Mapping[str, str] | None = None
+    """Allowed names, or aliases mapped to canonical serialized names."""
+
+    aliases: tuple[tuple[str, str], ...] = field(init=False, default=())
+    """Immutable accepted-to-canonical aliases derived from ``valid``."""
 
     def __post_init__(self) -> None:
-        if valid := self.valid:
-            object.__setattr__(self, "valid", frozenset(valid))
+        # Empty collections are treated as None (no restrictions on valid names)
+        if isinstance(valid := self.valid, Mapping):
+            aliases = tuple(sorted(valid.items()))
+        else:
+            aliases = tuple((name, name) for name in sorted(valid or ()))
+        object.__setattr__(self, "aliases", aliases)
+
+        valid = frozenset(valid) if valid else None
+        object.__setattr__(self, "valid", valid)
 
     def __get_pydantic_core_schema__(
         self, source_type: Any, handler: GetCoreSchemaHandler
@@ -62,10 +72,15 @@ class OrderValidator:
 
         sign, name = m.groups()
 
-        # Check if the field name (without the sign) is allowed
-        if (valid := self.valid) and (name not in valid):
-            msg = f"Invalid order field {name!r}, must be one of: {repr_join(sorted(valid))}"
-            raise ValueError(msg)
+        # Check if the field name (without the sign) is allowed and get the canonical name
+        if aliases := dict(self.aliases):
+            if (canonical := aliases.get(name)) is None:
+                msg = (
+                    f"Invalid order field {name!r}, must be one of: "
+                    f"{repr_join(sorted(aliases))}"
+                )
+                raise ValueError(msg)
+            name = canonical
 
         # Default to ascending order
         return f"{sign or '+'}{name}"

@@ -21,6 +21,7 @@ dependencies = [
     "pydantic>=2.6,<3",
     "packaging",
     "opentelemetry-api>=1.43.0",
+    "xxhash>=3.0.0",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",

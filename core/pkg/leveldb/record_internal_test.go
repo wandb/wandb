@@ -919,10 +919,13 @@ func TestVerifyWandbHeader_Good(t *testing.T) {
 	data := []byte(":W&B\xE1\xBE\x0Dleveldb stuff")
 	r := NewReader(bytes.NewReader(data))
 
-	err := r.VerifyWandbHeader(0x0D)
+	version, err := r.VerifyWandbHeader()
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if version != 0x0D {
+		t.Fatalf("unexpected version: %d", version)
 	}
 }
 
@@ -930,7 +933,7 @@ func TestVerifyWandbHeader_TooShort(t *testing.T) {
 	data := []byte("short")
 	r := NewReader(bytes.NewReader(data))
 
-	err := r.VerifyWandbHeader(0)
+	_, err := r.VerifyWandbHeader()
 
 	if err != io.ErrUnexpectedEOF {
 		t.Fatalf("wrong error: %v", err)
@@ -941,7 +944,7 @@ func TestVerifyWandbHeader_InvalidIdent(t *testing.T) {
 	data := []byte("oops123")
 	r := NewReader(bytes.NewReader(data))
 
-	err := r.VerifyWandbHeader(0)
+	_, err := r.VerifyWandbHeader()
 
 	if !strings.Contains(err.Error(), `invalid W&B identifier: 6F6F7073 ("oops")`) {
 		t.Fatalf("wrong error: %v", err)
@@ -952,20 +955,9 @@ func TestVerifyWandbHeader_InvalidMagic(t *testing.T) {
 	data := []byte(":W&Bbad")
 	r := NewReader(bytes.NewReader(data))
 
-	err := r.VerifyWandbHeader(0)
+	_, err := r.VerifyWandbHeader()
 
 	if !strings.Contains(err.Error(), "invalid W&B magic") {
-		t.Fatalf("wrong error: %v", err)
-	}
-}
-
-func TestVerifyWandbHeader_InvalidVersion(t *testing.T) {
-	data := []byte(":W&B\xE1\xBE\x01")
-	r := NewReader(bytes.NewReader(data))
-
-	err := r.VerifyWandbHeader(0)
-
-	if !strings.Contains(err.Error(), "expected W&B version 0 but got 1") {
 		t.Fatalf("wrong error: %v", err)
 	}
 }

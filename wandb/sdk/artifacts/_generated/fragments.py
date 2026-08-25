@@ -9,7 +9,7 @@ from pydantic import Field
 
 from wandb._pydantic import GQLId, GQLResult, Typename
 
-from .enums import ArtifactState
+from .enums import ArtifactDigestAlgorithm, ArtifactState
 
 
 class ArtifactAliasFragment(GQLResult):
@@ -86,6 +86,9 @@ class ArtifactFragment(GQLResult):
     state: ArtifactState
     size: int
     digest: str
+    digest_algorithm: ArtifactDigestAlgorithm | None = Field(
+        alias="digestAlgorithm", default=None
+    )
     commit_hash: str | None = Field(alias="commitHash")
     file_count: int = Field(alias="fileCount")
     created_at: str = Field(alias="createdAt")
@@ -109,6 +112,7 @@ class ArtifactMembershipFragment(GQLResult):
     )
     id: GQLId
     version_index: int | None = Field(alias="versionIndex")
+    created_at: str = Field(alias="createdAt")
     aliases: list[ArtifactAliasFragment]
     artifact_collection: CollectionInfoFragment | None = Field(
         alias="artifactCollection"

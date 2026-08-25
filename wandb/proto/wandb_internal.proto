@@ -523,6 +523,7 @@ message ArtifactRecord {
   string base_id = 17;
   int64 ttl_duration_seconds = 18;
   repeated string tags = 19;
+  string digest_algorithm = 20;
   bool incremental_beta1 = 100;
   _RecordInfo _info = 200;
 }
@@ -1692,4 +1693,7 @@ enum ServerFeature {
   // Indicates that the server supports the enqueueSweepRun mutation, used by
   // the local sweep scheduler to enqueue runs.
   SWEEPS_LOCAL_SCHEDULER = 35;
+
+  // Indicates that the server supports queries for an artifact's digest algorithm.
+  ARTIFACT_DIGEST_ALGORITHM = 36;
 }

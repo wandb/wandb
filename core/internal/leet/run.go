@@ -180,6 +180,7 @@ func NewRun(
 		relayout: run.applyLayoutConfig,
 		logger:   logger,
 	}
+	run.leftSidebar.overridesSource = run.layoutOverrides
 	return run
 }
 
