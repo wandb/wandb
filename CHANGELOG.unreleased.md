@@ -40,6 +40,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 - `Artifact.new_file` now works for artifacts uploaded with `wandb sync` (@amusipatla-wandb in https://github.com/wandb/wandb/pull/12437)
 - At certain pane widths, such as while dragging a sidebar edge, LEET drew metric charts wider than the space available, pushing the right sidebar off screen (@dmitryduev in https://github.com/wandb/wandb/pull/12513)
+- LEET media panels painted black bars around images in the ANSI view and flashed black when switching to the full-res view; the area around the image now shows the terminal background and mode switches no longer flash or move the image (@dmitryduev in https://github.com/wandb/wandb/pull/12569)
 
 ### Security
 
