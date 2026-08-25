@@ -118,7 +118,7 @@ fn create_reader_internal(
                 return Err(format!("None of the requested columns were found in the schema"));
             }
 
-            ProjectionMask::leaves(builder.parquet_schema(), indices.into_iter())
+            ProjectionMask::roots(builder.parquet_schema(), indices.into_iter())
         } else {
             ProjectionMask::all()
         };
@@ -148,7 +148,7 @@ fn create_reader_internal(
             if indices.is_empty() {
                 return Err(format!("None of the requested columns were found in the schema"));
             }
-            ProjectionMask::leaves(builder.parquet_schema(), indices.into_iter())
+            ProjectionMask::roots(builder.parquet_schema(), indices.into_iter())
         } else {
             ProjectionMask::all()
         };
