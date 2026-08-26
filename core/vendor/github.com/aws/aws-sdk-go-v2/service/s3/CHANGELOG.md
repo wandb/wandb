@@ -1,3 +1,46 @@
+# v1.107.3 (2026-08-20)
+
+* **Bug Fix**: Expand S3 operations that check for an error inside an HTTP 200 response (wave 2/4)
+* **Bug Fix**: Forward the original response body's `Closer` in S3 200-error handling instead of wrapping it in `io.NopCloser`, to avoid issues with TCP connection reuse (observed on CompleteMultipartUpload).
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.107.2 (2026-08-14)
+
+* **Bug Fix**: Forward the original response body's `Closer` in S3 200-error handling instead of wrapping it in `io.NopCloser`, to avoid issues with TCP connection reuse (observed on CompleteMultipartUpload).
+* **Dependency Update**: Update to smithy-go v1.27.8.
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.107.1 (2026-08-10)
+
+* **Dependency Update**: Update to smithy-go v1.27.7.
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.107.0 (2026-08-06)
+
+* **Feature**: AWS Backup now lets you create read-only access points for Amazon S3 recovery points, enabling you to access backup data using S3 APIs without initiating a restore.
+
+# v1.106.5 (2026-08-05)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.106.4 (2026-08-03)
+
+* **Bug Fix**: Expand S3 operations that check for an error inside an HTTP 200 response
+
+# v1.106.3 (2026-07-31.2)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+* **Dependency Update**: Upgrade to smithy-go v1.27.6 to fix various serde issues in HTTP binding services.
+
+# v1.106.2 (2026-07-29)
+
+* **Dependency Update**: Updated to the latest SDK module versions
+
+# v1.106.1 (2026-07-28)
+
+* **Dependency Update**: Update to smithy-go v1.27.5.
+* **Dependency Update**: Updated to the latest SDK module versions
+
 # v1.106.0 (2026-07-21)
 
 * **Feature**: Add an option to clients to disable clock skew

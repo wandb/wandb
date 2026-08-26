@@ -1,7 +1,7 @@
 // Package ed25519 implements Ed25519 signature scheme as described in RFC-8032.
 //
 // This package provides optimized implementations of the three signature
-// variants and maintaining closer compatibility with crypto/ed25519.
+// variants and maintaining almost full compatibility with crypto/ed25519.
 //
 //	| Scheme Name | Sign Function     | Verification  | Context           |
 //	|-------------|-------------------|---------------|-------------------|
@@ -27,6 +27,13 @@
 // key representation includes a public key suffix to make multiple signing
 // operations with the same key more efficient. This package refers to the
 // RFC-8032 private key as the “seed”.
+//
+// Public keys are decoded following RFC 8032 strictly: an encoding whose
+// y-coordinate is not reduced modulo 2^255-19, or whose x-coordinate is zero
+// with the sign bit set, is rejected. crypto/ed25519 accepts those
+// non-canonical encodings instead, so for a small, fixed set of malformed
+// public keys the verification functions here return false where
+// crypto/ed25519 returns true.
 //
 // References
 //

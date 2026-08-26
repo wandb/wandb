@@ -28,6 +28,25 @@ func TestContext_NoOperation(t *testing.T) {
 	assert.Nil(t, wboperation.Get(context.Background()))
 }
 
+func TestErrorStatus(t *testing.T) {
+	ops := wboperation.NewOperations()
+	op := ops.New("op")
+
+	assert.Empty(t, op.ErrorStatus())
+
+	op.MarkRetryingError(errors.New("connection refused"))
+	assert.Equal(t, "retrying: connection refused", op.ErrorStatus())
+
+	op.ClearError()
+	assert.Empty(t, op.ErrorStatus())
+}
+
+func TestErrorStatus_NilOperation(t *testing.T) {
+	var op *wboperation.WandbOperation
+
+	assert.Empty(t, op.ErrorStatus())
+}
+
 func TestContext_WithOperation(t *testing.T) {
 	ops := wboperation.NewOperations()
 

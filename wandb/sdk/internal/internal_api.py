@@ -20,16 +20,23 @@ import click
 
 import wandb
 from wandb import env, util
-from wandb.analytics import get_sentry
+from wandb.analytics import TelemetryRecorder, get_sentry
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import AuthenticationError, CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
-from wandb.proto.wandb_api_pb2 import ApiRequest, DownloadFileRequest, UploadFileRequest
+from wandb.proto.wandb_api_pb2 import (
+    ApiRequest,
+    CreateRunQueueRequest,
+    DownloadFileRequest,
+    RunQueueOperationRequest,
+    UploadFileRequest,
+)
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk import wandb_setup
+from wandb.sdk.artifacts._generated.enums import ArtifactDigestAlgorithm
 from wandb.sdk.internal import settings_static
 from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
-from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
+from wandb.sdk.lib.hashutil import B64Digest, md5_file_b64
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 from ..lib import retry, wbauth
@@ -208,6 +215,7 @@ class Api:
         environ: MutableMapping[str, str] = os.environ,
         retry_callback: Callable[[int, str], Any] | None = None,
         api_key: str | None = None,
+        telemetry_recorder: TelemetryRecorder | None = None,
     ) -> None:
         import requests
 
@@ -258,10 +266,27 @@ class Api:
 
         auth: tuple[str, str] | None = None
         api_key = api_key or self.default_settings.get("api_key")
+        session_auth = wbauth.session_credentials(host=self.api_url)
         if api_key:
+            # Credentials provided explicitly for this instance.
             auth = ("api", api_key)
-        elif (access_token := self.access_token) is not None:
-            self._extra_http_headers["Authorization"] = f"Bearer {access_token}"
+        elif isinstance(session_auth, wbauth.AuthApiKey):
+            # Credentials configured for the session, such as through
+            # wandb.login().
+            auth = ("api", session_auth.api_key)
+        elif isinstance(session_auth, wbauth.AuthIdentityTokenFile):
+            # Federated identity: wandb-core exchanges the identity token
+            # for an access token and authenticates its requests with it.
+            # Code that talks to the server directly gets the token from
+            # wandb-core through the access_token property.
+            pass
+        elif token_file := self._environ.get(env.IDENTITY_TOKEN_FILE):
+            # Federated identity configured in the environment, before
+            # session credentials are established.
+            if not Path(token_file).exists():
+                raise AuthenticationError(
+                    f"Identity token file not found: {token_file}"
+                )
         else:
             auth = ("api", self.api_key or "")
 
@@ -281,6 +306,9 @@ class Api:
         }
         self._request_proxies = dict(proxies or {})
         self._service_api = self._new_service_api()
+        self._telemetry_recorder = telemetry_recorder or TelemetryRecorder(
+            service_api=self._service_api,
+        )
 
         self.retry_callback = retry_callback
         self._current_run_id: str | None = None
@@ -348,6 +376,10 @@ class Api:
         settings = wandb_setup.singleton().settings.model_copy()
         settings.base_url = self.settings("base_url")
         settings.api_key = self._request_auth[1] if self._request_auth else ""
+        if settings.api_key:
+            # wandb-core prefers an identity token file over an API key,
+            # so clear any token file inherited from the global settings.
+            settings.identity_token_file = None
         settings.x_extra_http_headers = dict(self._request_headers)
         settings.x_graphql_timeout_seconds = self.HTTP_TIMEOUT
 
@@ -374,8 +406,6 @@ class Api:
 
     @property
     def api_key(self) -> str | None:
-        from wandb.sdk.lib import wbauth
-
         if (  #
             (auth := wbauth.session_credentials(host=self.api_url))
             and isinstance(auth, wbauth.AuthApiKey)
@@ -388,36 +418,6 @@ class Api:
             or parse_sm_secrets().get(env.API_KEY)
             or self.default_settings.get("api_key")
         )
-
-    @property
-    def access_token(self) -> str | None:
-        """Retrieves an access token for authentication.
-
-        This function attempts to exchange an identity token for a temporary
-        access token from the server, and save it to the credentials file.
-        It uses the path to the identity token as defined in the environment
-        variables. If the environment variable is not set, it returns None.
-
-        Returns:
-            str | None: The access token if available, otherwise None if
-            no identity token is supplied.
-        Raises:
-            AuthenticationError: If the path to the identity token is not found.
-        """
-        token_file_str = self._environ.get(env.IDENTITY_TOKEN_FILE)
-        if not token_file_str:
-            return None
-
-        token_file = Path(token_file_str)
-        if not token_file.exists():
-            raise AuthenticationError(f"Identity token file not found: {token_file}")
-
-        auth = wbauth.AuthIdentityTokenFile(
-            host=self.settings("base_url"),
-            path=str(token_file),
-            credentials_file=wandb_setup.singleton().settings.credentials_file,
-        )
-        return auth.fetch_access_token()
 
     @property
     def api_url(self) -> str:
@@ -1162,104 +1162,6 @@ class Api:
         return project_run_queues
 
     @normalize_exceptions
-    def create_default_resource_config(
-        self,
-        entity: str,
-        resource: str,
-        config: str,
-        template_variables: dict[str, float | int | str] | None,
-    ) -> dict[str, Any] | None:
-        mutation_params = """
-            $entityName: String!,
-            $resource: String!,
-            $config: JSONString!,
-            $templateVariables: JSONString
-        """
-        mutation_inputs = """
-            entityName: $entityName,
-            resource: $resource,
-            config: $config,
-            templateVariables: $templateVariables
-        """
-
-        variables = {
-            "entityName": entity,
-            "resource": resource,
-            "config": config,
-        }
-
-        if template_variables is not None:
-            variables["templateVariables"] = json.dumps(template_variables)
-        else:
-            variables["templateVariables"] = "{}"
-
-        query = f"""
-        mutation createDefaultResourceConfig(
-            {mutation_params}
-        ) {{
-            createDefaultResourceConfig(
-            input: {{
-                {mutation_inputs}
-            }}
-            ) {{
-            defaultResourceConfigID
-            success
-            }}
-        }}
-        """
-
-        result: dict[str, Any] | None = self.execute(query, variables)[
-            "createDefaultResourceConfig"
-        ]
-        return result
-
-    @normalize_exceptions
-    def create_run_queue(
-        self,
-        entity: str,
-        project: str,
-        queue_name: str,
-        access: str,
-        prioritization_mode: str | None = None,
-        config_id: str | None = None,
-    ) -> dict[str, Any] | None:
-        query = """
-        mutation createRunQueue(
-            $entity: String!,
-            $project: String!,
-            $queueName: String!,
-            $access: RunQueueAccessType!,
-            $prioritizationMode: RunQueuePrioritizationMode,
-            $defaultResourceConfigID: ID,
-        ) {
-            createRunQueue(
-                input: {
-                    entityName: $entity,
-                    projectName: $project,
-                    queueName: $queueName,
-                    access: $access,
-                    prioritizationMode: $prioritizationMode
-                    defaultResourceConfigID: $defaultResourceConfigID
-                }
-            ) {
-                success
-                queueID
-            }
-        }
-        """
-        variables = {
-            "entity": entity,
-            "project": project,
-            "queueName": queue_name,
-            "access": access,
-            "prioritizationMode": prioritization_mode,
-            "defaultResourceConfigID": config_id,
-        }
-
-        result: dict[str, Any] | None = self.execute(query, variables)["createRunQueue"]
-        return result
-
-    @normalize_exceptions
     def upsert_run_queue(
         self,
         queue_name: str,
@@ -1461,19 +1363,25 @@ class Api:
                 wandb.termlog(
                     f"No default queue existing for entity: {entity} in project: {project_queue}, creating one."
                 )
-                res = self.create_run_queue(
-                    launch_spec["entity"],
-                    project_queue,
-                    queue_name,
-                    access="PROJECT",
+                create_queue_response = self._service_api.send_api_request(
+                    ApiRequest(
+                        run_queue_operation_request=RunQueueOperationRequest(
+                            create_run_queue_request=CreateRunQueueRequest(
+                                entity=launch_spec["entity"],
+                                project=project_queue,
+                                queue_name=queue_name,
+                                access="PROJECT",
+                            )
+                        )
+                    )
                 )
-
-                if res is None or res.get("queueID") is None:
+                queue_result = create_queue_response.run_queue_operation_response.create_run_queue_response
+                if not queue_result.success or not queue_result.queue_id:
                     wandb.termerror(
                         f"Unable to create default queue for entity: {entity} on project: {project_queue}. Run could not be added to a queue"
                     )
                     return None
-                queue_id = res["queueID"]
+                queue_id = queue_result.queue_id
 
             else:
                 if project_queue == "model-registry":
@@ -1588,14 +1496,24 @@ class Api:
         project_queues = self.get_project_run_queues(entity, project)
         if not project_queues:
             # create default queue if it doesn't already exist
-            default = self.create_run_queue(
-                entity, project, "default", access="PROJECT"
+            response = self._service_api.send_api_request(
+                ApiRequest(
+                    run_queue_operation_request=RunQueueOperationRequest(
+                        create_run_queue_request=CreateRunQueueRequest(
+                            entity=entity,
+                            project=project,
+                            queue_name="default",
+                            access="PROJECT",
+                        )
+                    )
+                )
             )
-            if default is None or default.get("queueID") is None:
+            default = response.run_queue_operation_response.create_run_queue_response
+            if not default.success or not default.queue_id:
                 raise CommError(
                     f"Unable to create default queue for {entity}/{project}. No queues for agent to poll"
                 )
-            project_queues = [{"id": default["queueID"], "name": "default"}]
+            project_queues = [{"id": default.queue_id, "name": "default"}]
         polling_queue_ids = [
             q["id"] for q in project_queues if q["name"] in queues
         ]  # filter to poll specified queues
@@ -2280,7 +2198,7 @@ class Api:
         """
         filename = metadata["name"]
         path = os.path.join(out_dir or self.settings("wandb_dir"), filename)
-        if self.file_current(path, B64MD5(metadata["md5"])):
+        if self.file_current(path, B64Digest(metadata["md5"])):
             return path, False
 
         self.download_file(metadata["url"], path)
@@ -2370,7 +2288,9 @@ class Api:
                 _e = retry.TransientError(exc=e)
                 raise _e.with_traceback(sys.exc_info()[2])
             else:
-                get_sentry().reraise(e)
+                # TODO: remove sentry once we no longer support/need it
+                get_sentry().exception(e)
+                self._telemetry_recorder.reraise(e)
         return response
 
     def upload_file(
@@ -2455,7 +2375,9 @@ class Api:
                 _e = retry.TransientError(exc=e)
                 raise _e.with_traceback(sys.exc_info()[2])
             else:
-                get_sentry().reraise(e)
+                # TODO: remove sentry once we no longer support/need it
+                get_sentry().exception(e)
+                self._telemetry_recorder.reraise(e)
 
         return response
 
@@ -2804,7 +2726,7 @@ class Api:
         return response["upsertSweep"]["sweep"]["name"], warnings
 
     @staticmethod
-    def file_current(fname: str, md5: B64MD5) -> bool:
+    def file_current(fname: str, md5: B64Digest) -> bool:
         """Checksum a file and compare the md5 with the known md5."""
         return os.path.isfile(fname) and md5_file_b64(fname) == md5
 
@@ -3249,6 +3171,7 @@ class Api:
                 $runName: String,
                 $description: String,
                 $digest: String!,
+                $digestAlgorithm: ArtifactDigestAlgorithm!,
                 $aliases: [ArtifactAliasInput!],
                 $metadata: JSONString,
                 $clientID: ID,
@@ -3265,7 +3188,7 @@ class Api:
                     runName: $runName,
                     description: $description,
                     digest: $digest,
-                    digestAlgorithm: MANIFEST_MD5,
+                    digestAlgorithm: $digestAlgorithm,
                     aliases: $aliases,
                     metadata: $metadata,
                     clientID: $clientID,
@@ -3312,6 +3235,7 @@ class Api:
         distributed_id: str | None = None,
         is_user_created: bool | None = False,
         history_step: int | None = None,
+        digest_algorithm: ArtifactDigestAlgorithm = ArtifactDigestAlgorithm.MANIFEST_MD5,
     ) -> tuple[dict, dict]:
         query_template = self._get_create_artifact_mutation(
             history_step,
@@ -3335,6 +3259,7 @@ class Api:
                 "clientID": client_id,
                 "sequenceClientID": sequence_client_id,
                 "digest": digest,
+                "digestAlgorithm": digest_algorithm,
                 "description": description,
                 "aliases": list(aliases or []),
                 "tags": list(tags or []),
@@ -3812,16 +3737,6 @@ class Api:
         """Resume the sweep to continue running new runs."""
         self.set_sweep_state(
             sweep=sweep, state="RUNNING", entity=entity, project=project
-        )
-
-    def _status_request(self, url: str, length: int) -> requests.Response:
-        """Ask google how much we've uploaded."""
-        import requests
-
-        check_httpclient_logger_handler()
-        return requests.put(
-            url=url,
-            headers={"Content-Length": "0", "Content-Range": f"bytes */{length}"},
         )
 
     def _flatten_edges(self, response: _Response) -> list[dict]:

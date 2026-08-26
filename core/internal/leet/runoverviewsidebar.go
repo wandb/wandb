@@ -18,11 +18,6 @@ const (
 	SidebarSideRight
 )
 
-// minSidebarHeaderLines preserves the existing baseline layout when only the
-// original metadata fields are present, while still allowing the header to grow
-// for wrapped tags and notes.
-const minSidebarHeaderLines = 6
-
 // RunOverviewSidebar stores and displays run metadata.
 //
 // It handles presentation concerns: sections, filtering, navigation, layout, and rendering.
@@ -35,7 +30,7 @@ type RunOverviewSidebar struct {
 
 	// UI state: sections, filtering, navigation.
 	// TODO: encapsulate and refactor
-	sections      []PagedList
+	sections      []PagedList[KeyValuePair]
 	activeSection int
 
 	// Filter state.
@@ -44,6 +39,21 @@ type RunOverviewSidebar struct {
 	// Placement and dimensions.
 	side   SidebarSide
 	height int
+
+	// overridesSource returns the owning view's live layout overrides:
+	// an in-progress drag's pending values, or the persisted config.
+	// Nil means no overrides (built-in section weights).
+	overridesSource func() LayoutOverrides
+
+	// separators are the rules between sections as drawn by the last
+	// render; mouse drags hit-test against them.
+	separators []overviewSeparator
+}
+
+// overviewSeparator locates one rendered separator rule between sections.
+type overviewSeparator struct {
+	row          int // Screen row of the rule.
+	above, below int // Section indices either side of it.
 }
 
 func NewRunOverviewSidebar(
@@ -52,18 +62,22 @@ func NewRunOverviewSidebar(
 	runOverview *RunOverview,
 	side SidebarSide,
 ) *RunOverviewSidebar {
-	es := PagedList{Title: "Environment", Active: true}
-	es.SetItemsPerPage(10)
-	cs := PagedList{Title: "Config"}
-	cs.SetItemsPerPage(15)
-	ss := PagedList{Title: "Summary"}
-	ss.SetItemsPerPage(20)
+	sections := []PagedList[KeyValuePair]{
+		{Title: "Environment", Active: true},
+		{Title: "Config"},
+		{Title: "Summary"},
+	}
+	for i := range sections {
+		// Provisional page size for navigation that happens before the
+		// first render computes the real section heights.
+		sections[i].SetItemsPerPage(10)
+	}
 
 	return &RunOverviewSidebar{
 		config:        config,
 		animState:     animState,
 		runOverview:   runOverview,
-		sections:      []PagedList{es, cs, ss},
+		sections:      sections,
 		activeSection: 0,
 		filter:        NewFilter(),
 		side:          side,
@@ -75,32 +89,11 @@ func (s *RunOverviewSidebar) Toggle() {
 	s.animState.Toggle()
 }
 
-// Update handles animation and input updates for the sidebar.
+// Update advances the sidebar's expand/collapse animation.
+//
+// Key input never reaches this method: all sidebar navigation flows through
+// the owning view's FocusManager and key bindings.
 func (s *RunOverviewSidebar) Update(msg tea.Msg) (*RunOverviewSidebar, tea.Cmd) {
-	// Handle key input only when expanded.
-	// TODO: hook up with keybindings.
-	if s.animState.IsExpanded() {
-		if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
-			switch keyMsg.Code {
-			case tea.KeyUp:
-				s.navigateUp()
-			case tea.KeyDown:
-				s.navigateDown()
-			case tea.KeyTab:
-				if keyMsg.Mod == tea.ModShift {
-					s.navigateSection(-1)
-				} else {
-					s.navigateSection(1)
-				}
-			case tea.KeyLeft:
-				s.navigatePageUp()
-			case tea.KeyRight:
-				s.navigatePageDown()
-			}
-		}
-	}
-
-	// Handle animation.
 	if s.animState.IsAnimating() {
 		if complete := s.animState.Update(time.Now()); !complete {
 			cmd := s.animationCmd()
@@ -144,6 +137,10 @@ func (s *RunOverviewSidebar) headerStyle() lipgloss.Style {
 
 // View renders the sidebar.
 func (s *RunOverviewSidebar) View(height int) tea.View {
+	// This render's rules are the drag targets; a sidebar that renders
+	// nothing must offer nothing to grab.
+	s.separators = s.separators[:0]
+
 	width := s.animState.Value()
 	if height <= 0 || width <= SidebarOverhead {
 		return tea.NewView("")
@@ -157,7 +154,7 @@ func (s *RunOverviewSidebar) View(height int) tea.View {
 	if s.runOverview != nil {
 		headerLines := s.buildHeaderLines(contentWidth)
 		s.updateSectionHeights()
-		sectionLines := s.buildSectionLines(contentWidth)
+		sectionLines := s.buildSectionLines(contentWidth, 1+len(headerLines))
 
 		lines = slices.Concat(lines, headerLines, sectionLines)
 	} else {
@@ -230,10 +227,15 @@ func (s *RunOverviewSidebar) Sync() {
 	}
 }
 
-// UpdateDimensions updates the sidebar dimensions based on terminal width
-// and the visibility of the sidebar on the opposite side.
-func (s *RunOverviewSidebar) UpdateDimensions(terminalWidth int, oppositeSidebarVisible bool) {
-	s.animState.SetExpanded(expandedSidebarWidth(terminalWidth, oppositeSidebarVisible))
+// UpdateDimensions updates the sidebar dimensions based on terminal width,
+// the visibility of the sidebar on the opposite side, and an optional
+// user-dragged width fraction (0 = default).
+func (s *RunOverviewSidebar) UpdateDimensions(
+	terminalWidth int,
+	oppositeSidebarVisible bool,
+	widthFrac float64,
+) {
+	s.animState.SetExpanded(expandedSidebarWidth(terminalWidth, oppositeSidebarVisible, widthFrac))
 }
 
 // Width returns the current width of the sidebar.
@@ -312,15 +314,11 @@ func truncateValue(value string, maxWidth int) string {
 	return value + "..."
 }
 
-// headerLineCount returns the number of lines occupied by the fixed header area,
-// including the top-level section title.
+// headerLineCount returns the number of lines the header area (the
+// top-level title plus the metadata block) renders at the current width.
 func (s *RunOverviewSidebar) headerLineCount() int {
-	if s.runOverview == nil {
-		return 1
-	}
-
 	contentWidth := s.sidebarContentWidth(s.animState.Value())
-	return max(minSidebarHeaderLines, 1+len(s.buildHeaderLines(contentWidth)))
+	return 1 + len(s.buildHeaderLines(contentWidth))
 }
 
 // buildHeaderLines builds the width-aware header metadata section.
@@ -332,10 +330,7 @@ func (s *RunOverviewSidebar) buildHeaderLines(contentWidth int) []string {
 	lines := make([]string, 0, 8)
 
 	if s.runOverview.State() != RunStateUnknown {
-		lines = slices.Concat(
-			lines,
-			s.renderWrappedHeaderValue("State: ", s.runOverview.StateString(), contentWidth),
-		)
+		lines = append(lines, s.renderStateHeaderLine())
 	}
 
 	lines = slices.Concat(
@@ -352,6 +347,22 @@ func (s *RunOverviewSidebar) buildHeaderLines(contentWidth int) []string {
 	}
 
 	return lines
+}
+
+// renderStateHeaderLine renders the "State:" field with state-aware coloring:
+// green while the run is live, red when it crashed or failed.
+func (s *RunOverviewSidebar) renderStateHeaderLine() string {
+	prefixText := runOverviewSidebarKeyStyle.Render("State: ")
+	valueStyle := runOverviewSidebarValueStyle
+
+	switch s.runOverview.State() {
+	case RunStateRunning:
+		valueStyle = valueStyle.Foreground(colorRunning)
+	case RunStateCrashed, RunStateFailed:
+		valueStyle = valueStyle.Foreground(colorCrashed)
+	}
+
+	return prefixText + valueStyle.Render(s.runOverview.StateString())
 }
 
 // renderWrappedHeaderValue renders a single metadata field, wrapping the value
@@ -436,30 +447,43 @@ func (s *RunOverviewSidebar) renderTagHeaderValue(
 	return lines
 }
 
-// buildSectionLines builds all section content lines.
-func (s *RunOverviewSidebar) buildSectionLines(contentWidth int) []string {
+// buildSectionLines builds all section content lines, recording the screen
+// row of each separator rule it draws between adjacent sections. firstRow
+// is the screen row of the first section line (the sidebar is drawn from
+// the top row of its side of the screen, below its title and header).
+func (s *RunOverviewSidebar) buildSectionLines(contentWidth, firstRow int) []string {
 	var lines []string
 
+	row := firstRow
+	prev := -1
 	for i := range s.sections {
 		if s.sections[i].Height == 0 {
 			continue
 		}
 
 		sectionContent := s.renderSection(i, contentWidth)
-		if sectionContent != "" {
-			lines = append(lines, sectionContent)
-
-			// Add spacing between sections if there's a next section.
-			if s.hasNextVisibleSection(i) {
-				lines = append(lines, "")
-			}
+		if sectionContent == "" {
+			continue
 		}
+
+		// Separate adjacent sections with the same rule the central
+		// column draws between its stacked panes.
+		if prev >= 0 {
+			lines = append(lines, renderHorizontalSeparator(contentWidth))
+			s.separators = append(s.separators,
+				overviewSeparator{row: row, above: prev, below: i})
+			row++
+		}
+		lines = append(lines, sectionContent)
+		row += lipgloss.Height(sectionContent)
+		prev = i
 	}
 
 	return lines
 }
 
-// renderSection renders a single section.
+// renderSection renders a single section, always exactly Height rows so
+// the layout matches the allocation and stays put while paging.
 func (s *RunOverviewSidebar) renderSection(idx, width int) string {
 	section := &s.sections[idx]
 
@@ -470,17 +494,26 @@ func (s *RunOverviewSidebar) renderSection(idx, width int) string {
 	var lines []string
 
 	// Render section header.
-	lines = append(lines, s.renderSectionHeader(section))
+	lines = append(lines, s.renderSectionHeader(section, width))
 
 	// Render section items.
 	itemLines := s.renderSectionItems(section, width)
 	lines = append(lines, itemLines...)
 
+	// A partial last page still occupies the section's allocated rows.
+	for len(lines) < section.Height {
+		lines = append(lines, "")
+	}
+
 	return lipgloss.JoinVertical(lipgloss.Top, lines...)
 }
 
-// renderSectionHeader renders the section title with pagination info.
-func (s *RunOverviewSidebar) renderSectionHeader(section *PagedList) string {
+// renderSectionHeader renders the section title with pagination info,
+// truncated to a single row (the section heights budget one row for it).
+func (s *RunOverviewSidebar) renderSectionHeader(
+	section *PagedList[KeyValuePair],
+	width int,
+) string {
 	titleStyle := runOverviewSidebarSectionStyle
 	if section.Active {
 		titleStyle = runOverviewSidebarSectionHeaderStyle
@@ -495,12 +528,13 @@ func (s *RunOverviewSidebar) renderSectionHeader(section *PagedList) string {
 	titleText := section.Title
 	infoText := s.buildSectionInfo(section, totalItems, filteredItems, startIdx, endIdx)
 
-	return titleStyle.Render(titleText) + navInfoStyle.Render(infoText)
+	header := titleStyle.Render(titleText) + navInfoStyle.Render(infoText)
+	return lipgloss.NewStyle().MaxWidth(width).Render(header)
 }
 
 // buildSectionInfo builds the pagination/count info string for a section.
 func (s *RunOverviewSidebar) buildSectionInfo(
-	section *PagedList,
+	section *PagedList[KeyValuePair],
 	totalItems, filteredItems, startIdx, endIdx int,
 ) string {
 	switch {
@@ -520,7 +554,10 @@ func (s *RunOverviewSidebar) buildSectionInfo(
 }
 
 // renderSectionItems renders the items for a section.
-func (s *RunOverviewSidebar) renderSectionItems(section *PagedList, width int) []string {
+func (s *RunOverviewSidebar) renderSectionItems(
+	section *PagedList[KeyValuePair],
+	width int,
+) []string {
 	maxKeyWidth := int(float64(width) * sidebarKeyWidthRatio)
 	maxValueWidth := width - maxKeyWidth - 3
 
@@ -553,7 +590,7 @@ func (s *RunOverviewSidebar) renderSectionItems(section *PagedList, width int) [
 func (s *RunOverviewSidebar) renderItem(
 	item KeyValuePair,
 	posInPage int,
-	section *PagedList,
+	section *PagedList[KeyValuePair],
 	maxKeyWidth, maxValueWidth int,
 ) string {
 	keyStyle := runOverviewSidebarKeyStyle
@@ -577,16 +614,6 @@ func (s *RunOverviewSidebar) renderItem(
 		return renderedKey + gap + renderedValue
 	}
 	return renderedKey + gap + valueStyle.MaxWidth(maxValueWidth).Render(value)
-}
-
-// hasNextVisibleSection returns true if there's another visible section after idx.
-func (s *RunOverviewSidebar) hasNextVisibleSection(idx int) bool {
-	for j := idx + 1; j < len(s.sections); j++ {
-		if s.sections[j].Height > 0 {
-			return true
-		}
-	}
-	return false
 }
 
 // activateSelection ensures that exactly one section is marked active (if possible).

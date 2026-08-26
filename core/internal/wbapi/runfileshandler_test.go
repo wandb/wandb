@@ -14,8 +14,12 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// fakeGQLClient records the request it receives and returns a canned result or
-// error.
+// fakeGQLClient records the request it receives and returns a canned result
+// and/or error.
+//
+// Setting both respMap and err models genqlient's behavior for a response
+// with partial data and GraphQL errors: data is populated and a non-nil
+// error is returned.
 type fakeGQLClient struct {
 	err     error
 	called  bool
@@ -30,14 +34,11 @@ func (c *fakeGQLClient) MakeRequest(
 ) error {
 	c.called = true
 	c.gotReq = req
-	if c.err != nil {
-		return c.err
-	}
 	if c.respMap != nil {
 		raw, _ := json.Marshal(c.respMap)
 		_ = json.Unmarshal(raw, resp.Data)
 	}
-	return nil
+	return c.err
 }
 
 func TestMarkRunFilesUploadedRunsMutation(t *testing.T) {

@@ -523,6 +523,7 @@ message ArtifactRecord {
   string base_id = 17;
   int64 ttl_duration_seconds = 18;
   repeated string tags = 19;
+  string digest_algorithm = 20;
   bool incremental_beta1 = 100;
   _RecordInfo _info = 200;
 }
@@ -590,17 +591,20 @@ message TBRecord {
 
   // A directory containing tfevents files to watch.
   //
-  // This may be an absolute or relative path.
+  // This may be a filesystem path (in the native format, meaning backslashes
+  // on Windows) or one of the supported cloud paths (S3, GCS, Azure). Relative
+  // paths are allowed, but discouraged, since their interpretation depends on
+  // the wandb-core working directory.
   string log_dir = 1;
 
   // An optional path to an ancestor of `log_dir` used for namespacing.
   //
-  // This may be an absolute or relative path.
+  // The format is the same as `log_dir`.
   //
-  // If set, then each event from tfevents files under `log_dir` is
-  // prefixed by the file's path relative to this directory. Additionally,
-  // if `save` is true, then each file's upload path is also its path
-  // relative to `root_dir`.
+  // If `namespace` is not provided, then each event from tfevents files under
+  // `log_dir` is prefixed by the file's path relative to this directory.
+  // If `save_path` is not provided and `save` is true, then each file's upload
+  // path is also its path relative to `root_dir`.
   //
   // For example, with `root_dir` set as "tb/logs" and `log_dir` as
   // "tb/logs/train":
@@ -611,11 +615,44 @@ message TBRecord {
   // If this is unset, then it is inferred using unspecified rules.
   string root_dir = 3;
 
+  // A prefix to prepend to tfevents tags to create W&B metric keys.
+  //
+  // If present, it is used instead of guessing based on the `root_dir`.
+  // It may be set to an empty string, in which case TB tags are used as W&B
+  // keys without modification.
+  //
+  // The namespace is prepended with a forward slash as a separator,
+  // so this field should not end with a forward slash.
+  optional string namespace = 4;
+
   // Whether to save tfevents files with the run.
   //
   // When true, this uploads the tfevents files, enabling the "TensorBoard"
   // tab in W&B.
   bool save = 2;
+
+  // Path where to save tfevents files, if `save` is true.
+  //
+  // If set, it is used instead of guessing based on the `root_dir`.
+  //
+  // The path is relative to the run's files directory. It must use the system
+  // file separator (backslash on Windows, forward slash elsewhere). The "."
+  // path can be used to save at the root of the run's files.
+  string save_path = 5;
+
+  // Whether to skip filtering by timestamp.
+  //
+  // By default, only tfevents files newer than the run are parsed, based
+  // on the Unix timestamp in the filename. If this field is set, then
+  // timestamps are ignored.
+  bool ignore_timestamp = 6;
+
+  // Whether to skip filtering by hostname.
+  //
+  // By default, only tfevents files with a hostname component exactly matching
+  // the W&B hostname setting (which is the output of HOSTNAME(1)) are parsed.
+  // If this field is set, then hostnames are ignored.
+  bool ignore_hostname = 7;
 }
 
 message TBResult {}
@@ -1649,4 +1686,14 @@ enum ServerFeature {
 
   // Indicates that the server supports Organization.triggers.
   AUTOMATIONS_ON_ORGANIZATION = 33;
+
+  // Indicates that the server supports gzip-compressed filestream request bodies.
+  FILESTREAM_GZIP = 34;
+
+  // Indicates that the server supports the enqueueSweepRun mutation, used by
+  // the local sweep scheduler to enqueue runs.
+  SWEEPS_LOCAL_SCHEDULER = 35;
+
+  // Indicates that the server supports queries for an artifact's digest algorithm.
+  ARTIFACT_DIGEST_ALGORITHM = 36;
 }

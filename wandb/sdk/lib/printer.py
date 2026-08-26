@@ -29,15 +29,6 @@ INFO = 20
 DEBUG = 10
 NOTSET = 0
 
-_level_to_name = {
-    CRITICAL: "CRITICAL",
-    ERROR: "ERROR",
-    WARNING: "WARNING",
-    INFO: "INFO",
-    DEBUG: "DEBUG",
-    NOTSET: "NOTSET",
-}
-
 _name_to_level = {
     "CRITICAL": CRITICAL,
     "FATAL": FATAL,
@@ -274,8 +265,8 @@ class DynamicText(abc.ABC):
 
         Args:
             text: The text to put in the block, with lines separated
-                by \n characters. The text should not end in \n unless
-                a blank line at the end of the block is desired.
+                by \n characters. A single \n at the end is ignored; to include
+                a blank line at the end, the text must end with \n\n.
                 May include styled output from methods on the Printer
                 that created this.
         """

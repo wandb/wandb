@@ -1,0 +1,732 @@
+// Package analytics provides an OpenTelemetry proxy that sends metrics, logs
+// to the W&B backend's OpenTelemetry proxy API.
+package analytics
+
+import (
+	"cmp"
+	"context"
+	"crypto/tls"
+	"fmt"
+	"log/slog"
+	"maps"
+	"net/http"
+	"runtime"
+	"strings"
+	"sync/atomic"
+	"time"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
+	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
+	otellogapi "go.opentelemetry.io/otel/log"
+	otelmetric "go.opentelemetry.io/otel/metric"
+	otellog "go.opentelemetry.io/otel/sdk/log"
+	"go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/resource"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
+
+	"github.com/wandb/wandb/core/internal/api"
+	"github.com/wandb/wandb/core/internal/httplayers"
+	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/version"
+)
+
+const (
+	// defaultExportInterval is the interval at which metrics and logs are sent to the backend.
+	defaultExportInterval = 60 * time.Second
+
+	// defaultExportTimeout is the total time allowed for an export to complete.
+	// It includes the time to collect and send metric/log records.
+	defaultExportTimeout = 5 * time.Second
+
+	// httpClientTimeout is the timeout for HTTP requests to the backend.
+	httpClientTimeout = 10 * time.Second
+
+	metricsPath = "/sdk/otel/v1/metrics"
+	logsPath    = "/sdk/otel/v1/logs"
+)
+
+// ConfigureOTelErrorHandler routes OpenTelemetry SDK errors to the core logger.
+func ConfigureOTelErrorHandler() {
+	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(err error) {
+		slog.Error(
+			"analytics: failed to send telemetry to backend proxy",
+			"error", err,
+		)
+	}))
+}
+
+// LowCardinalityAttributes is the fixed set of low-cardinality attributes
+// that can be added to the telemetry context.
+type LowCardinalityAttributes struct {
+	GoVersion       string
+	WandbVersion    string
+	OperatingSystem string
+	ErrorOriginator string
+
+	PythonVersion string
+	PythonRuntime string
+	ExceptionType string
+}
+
+// merge overwrites attrs with the non-empty fields of other.
+func (attrs *LowCardinalityAttributes) merge(other LowCardinalityAttributes) {
+	attrs.GoVersion = cmp.Or(other.GoVersion, attrs.GoVersion)
+	attrs.WandbVersion = cmp.Or(other.WandbVersion, attrs.WandbVersion)
+	attrs.OperatingSystem = cmp.Or(other.OperatingSystem, attrs.OperatingSystem)
+	attrs.ErrorOriginator = cmp.Or(other.ErrorOriginator, attrs.ErrorOriginator)
+
+	attrs.PythonVersion = cmp.Or(other.PythonVersion, attrs.PythonVersion)
+	attrs.PythonRuntime = cmp.Or(other.PythonRuntime, attrs.PythonRuntime)
+	attrs.ExceptionType = cmp.Or(other.ExceptionType, attrs.ExceptionType)
+}
+
+func (attrs LowCardinalityAttributes) toMap() map[string]string {
+	out := map[string]string{
+		"go_version":       attrs.GoVersion,
+		"operating_system": attrs.OperatingSystem,
+		"error.originator": attrs.ErrorOriginator,
+		"python_version":   attrs.PythonVersion,
+		"python_runtime":   attrs.PythonRuntime,
+		"exception_type":   attrs.ExceptionType,
+		"wandb_version":    attrs.WandbVersion,
+	}
+	maps.DeleteFunc(out, func(_ string, value string) bool {
+		return value == ""
+	})
+	return out
+}
+
+// disabled gates OpenTelemetryProxy in this process.
+var disabled atomic.Bool
+
+// Disable turns analytics off for the whole process.
+//
+// Once this function is called, no further telemetry will be recorded.
+func Disable() {
+	disabled.Store(true)
+}
+
+// TelemetryContext holds persistent attributes added to all telemetry records.
+//
+// Attributes are split into two buckets:
+//
+//   - Low-cardinality attributes are a small, bounded set of values
+//     (e.g. wandb_version, go_version, operating_system).
+//     These are restricted to a known set of keys,
+//
+//   - High-cardinality attributes are an unbounded set of values.
+//     These are attached to log records where high cardinality is acceptable.
+type TelemetryContext struct {
+	// lowCardinalityAttributes is a bounded set of attributes.
+	// These attributes are added to all telemetry records.
+	lowCardinalityAttributes LowCardinalityAttributes
+
+	// highCardinalityAttributes is an unbounded set of attributes.
+	// These attributes are added to telemetry records
+	// where high cardinality is acceptable, such as log records.
+	highCardinalityAttributes map[string]string
+}
+
+func NewTelemetryContext() TelemetryContext {
+	lowCardinalityAttributes := LowCardinalityAttributes{
+		WandbVersion:    version.Version,
+		GoVersion:       runtime.Version(),
+		OperatingSystem: runtime.GOOS,
+	}
+
+	return TelemetryContext{
+		lowCardinalityAttributes:  lowCardinalityAttributes,
+		highCardinalityAttributes: map[string]string{},
+	}
+}
+
+// with returns a child context that inherits this context's attributes
+// merged with the provided ones. The receiver is not modified.
+//
+// Non-empty low-cardinality fields and high-cardinality keys in the
+// arguments take precedence over the parent's attributes.
+
+func (s *TelemetryContext) with(
+	lowCardinalityAttributes LowCardinalityAttributes,
+	highCardinalityAttributes map[string]string,
+) TelemetryContext {
+	low := s.lowCardinalityAttributes
+	low.merge(lowCardinalityAttributes)
+
+	high := make(map[string]string, len(s.highCardinalityAttributes))
+	maps.Copy(high, s.highCardinalityAttributes)
+	maps.Copy(high, highCardinalityAttributes)
+
+	return TelemetryContext{
+		lowCardinalityAttributes:  low,
+		highCardinalityAttributes: high,
+	}
+}
+
+// TelemetryRecorder handles recording telemetry events to the OpenTelemetry.
+//
+// Recorders form a hierarchy using `With` derives a child recorder with
+// additional attributes. Child recorders share the root provider's
+// OpenTelemetry providers, and therefore do not need to be shut down.
+type TelemetryRecorder struct {
+	root             *OpenTelemetryProxy
+	telemetryContext TelemetryContext
+}
+
+// NewTelemetryRecorder returns a new TelemetryRecorder with the given root
+// OpenTelemetryProxy and telemetry context.
+//
+// If the root is nil, a nil pointer is returned.
+// A nil TelemetryRecorder is a no-op, as if telemetry is disabled.
+func NewTelemetryRecorder(
+	root *OpenTelemetryProxy,
+	telemetryContext TelemetryContext,
+) *TelemetryRecorder {
+	if root == nil {
+		return nil
+	}
+
+	return &TelemetryRecorder{
+		root:             root,
+		telemetryContext: telemetryContext,
+	}
+}
+
+// With returns a derived recorder whose telemetry context inherits
+// this recorder's attributes merged with the provided ones.
+//
+// The receiver is unchanged: attributes added to the derived recorder
+// never appear on records emitted through the parent or its siblings.
+//
+// If the receiver is nil, a nil pointer is returned.
+// A nil TelemetryRecorder is a no-op, as if telemetry is disabled.
+func (r *TelemetryRecorder) With(
+	lowCardinalityAttributes LowCardinalityAttributes,
+	highCardinalityAttributes map[string]string,
+) *TelemetryRecorder {
+	if r == nil {
+		return nil
+	}
+
+	return &TelemetryRecorder{
+		root: r.root,
+		telemetryContext: r.telemetryContext.with(
+			lowCardinalityAttributes,
+			highCardinalityAttributes,
+		),
+	}
+}
+
+// IncrementCounter increments a counter metric by 1
+// with the telemetry context's low-cardinality attributes
+func (r *TelemetryRecorder) IncrementCounter(
+	ctx context.Context,
+	name string,
+	lowCardinalityAttributes LowCardinalityAttributes,
+) {
+	if r == nil {
+		return
+	}
+
+	mergedLowCardinalityAttributes := r.telemetryContext.lowCardinalityAttributes
+	mergedLowCardinalityAttributes.merge(lowCardinalityAttributes)
+	r.root.incrementCounter(ctx, name, mergedLowCardinalityAttributes)
+}
+
+// IncrementCounterAndLogEvent increments a counter metric by 1
+// with the telemetry context's low-cardinality attributes
+//
+// It additionally records a log record with the telemetry
+// context's attributes plus the caller-supplied attributes under the same
+// name
+func (r *TelemetryRecorder) IncrementCounterAndLogEvent(
+	ctx context.Context,
+	name string,
+	attributes map[string]string,
+	lowCardinalityAttributes LowCardinalityAttributes,
+) {
+	if r == nil {
+		return
+	}
+
+	r.IncrementCounter(ctx, name, lowCardinalityAttributes)
+
+	recordAttributes := make(map[string]string)
+	maps.Copy(recordAttributes, r.telemetryContext.highCardinalityAttributes)
+	maps.Copy(recordAttributes, r.telemetryContext.lowCardinalityAttributes.toMap())
+	maps.Copy(recordAttributes, attributes)
+	r.root.log(
+		ctx,
+		name,
+		recordAttributes,
+		otellogapi.SeverityInfo,
+	)
+}
+
+// Log emits an OpenTelemetry log record with the specified severity level.
+//
+// The log record contains the telemetry context's attributes,
+// in addition to the caller-supplied attributes
+func (r *TelemetryRecorder) Log(
+	ctx context.Context,
+	message string,
+	attributes map[string]string,
+	severity otellogapi.Severity,
+) {
+	if r == nil {
+		return
+	}
+
+	// Copy attributes in order of precedence:
+	// 1. Context's high-cardinality attributes
+	// 2. Context's low-cardinality attributes
+	// 3. Per-record low-cardinality attributes
+	// 4. Per-record attributes
+	logAttributes := make(map[string]string)
+	maps.Copy(logAttributes, r.telemetryContext.highCardinalityAttributes)
+	maps.Copy(logAttributes, r.telemetryContext.lowCardinalityAttributes.toMap())
+	maps.Copy(logAttributes, attributes)
+	r.root.log(ctx, message, logAttributes, severity)
+}
+
+// ErrorMetric records an error as a counter metric.
+//
+// The counter metric has the name "error" and contains
+// the low-cardinality attributes from the current telemetry context plus an
+// "error.type" attribute (the caller-supplied error type) so the
+// rate of each error type can be aggregated and graphed.
+func (r *TelemetryRecorder) ErrorMetric(
+	ctx context.Context,
+	message string,
+	err error,
+	errorOriginator string,
+) {
+	if r == nil {
+		return
+	}
+
+	r.IncrementCounter(
+		ctx,
+		"error",
+		LowCardinalityAttributes{
+			ErrorOriginator: errorOriginator,
+		},
+	)
+}
+
+// ErrorLog emits an OpenTelemetry log record with the specified severity level.
+//
+// The log record contains the attributes from the current telemetry context,
+// plus "error.type", "error.message", "error.stacktrace", "error.originator",
+// and the caller-supplied attributes.
+//
+// The stack trace is captured at the point Error is called.
+func (r *TelemetryRecorder) ErrorLog(
+	ctx context.Context,
+	message string,
+	err error,
+	errorOriginator string,
+	attributes map[string]string,
+) {
+	if r == nil {
+		return
+	}
+
+	mergedLowCardinalityAttributes := r.telemetryContext.lowCardinalityAttributes
+	mergedLowCardinalityAttributes.merge(LowCardinalityAttributes{
+		ErrorOriginator: errorOriginator,
+	})
+
+	errorMessage := ""
+	if err != nil {
+		errorMessage = err.Error()
+	}
+	logAttributes := make(map[string]string)
+	maps.Copy(logAttributes, r.telemetryContext.highCardinalityAttributes)
+	maps.Copy(logAttributes, mergedLowCardinalityAttributes.toMap())
+	maps.Copy(logAttributes, attributes)
+	maps.Copy(logAttributes, map[string]string{
+		"error.message":    errorMessage,
+		"error.stacktrace": captureStacktrace(),
+	})
+	r.root.log(
+		ctx,
+		message,
+		logAttributes,
+		otellogapi.SeverityError,
+	)
+}
+
+// OpenTelemetryProxyImpl sends metrics, logs events through the W&B
+// backend's OpenTelemetry proxy API.
+type OpenTelemetryProxy struct {
+	// endpoint is the URL of the OpenTelemetry proxy API.
+	endpoint string
+
+	// logProvider is the OpenTelemetry log provider.
+	logProvider *otellog.LoggerProvider
+	// meterProvider is the OpenTelemetry meter provider.
+	meterProvider *metric.MeterProvider
+
+	// httpClient is the HTTP client used to send metrics and logs
+	// to the OpenTelemetry proxy API.
+	httpClient *http.Client
+
+	// serviceName is the name of the service being monitored.
+	// This is used to identify the service in the OpenTelemetry backend.
+	serviceName string
+
+	// shutdown guards Shutdown so the providers are only shut down once.
+	shutdown atomic.Bool
+}
+
+// NewOpenTelemetryProxy returns an OpenTelemetryProxy for the given endpoint.
+//
+// When analytics is disabled, the wandbSettings are offline, or no credentials
+// are available, a nil pointer is returned, making calls to the proxy a no-op.
+func NewOpenTelemetryProxy(
+	ctx context.Context,
+	wandbSettings *settings.Settings,
+	serviceName string,
+) *OpenTelemetryProxy {
+	if disabled.Load() || wandbSettings.IsOffline() {
+		return nil
+	}
+
+	if !checkServerSupportsOpenTelemetryProxy(ctx, wandbSettings) {
+		slog.Debug("analytics: server does not support OpenTelemetry proxy, disabling telemetry")
+		return nil
+	}
+
+	httpClient, err := newOTLPHTTPClient(wandbSettings)
+	if err != nil {
+		slog.Debug(
+			"analytics: failed to configure telemetry authentication",
+			"error", err,
+		)
+		return nil
+	}
+	if httpClient == nil {
+		return nil
+	}
+
+	proxy := &OpenTelemetryProxy{
+		endpoint:    wandbSettings.GetBaseURL(),
+		httpClient:  httpClient,
+		serviceName: serviceName,
+	}
+	if err := proxy.initializeOTelResources(ctx); err != nil {
+		return nil
+	}
+	return proxy
+}
+
+func newOTLPHTTPClient(
+	wandbSettings *settings.Settings,
+) (*http.Client, error) {
+	credentialProvider, err := api.NewCredentialProvider(
+		wandbSettings,
+		slog.Default(),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := credentialProvider.(api.NoopCredentialProvider); ok {
+		return nil, nil
+	}
+
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = wandbSettings.GetProxyFn()
+	transport.ProxyConnectHeader = wandbSettings.GetProxyConnectHeader()
+	if wandbSettings.IsInsecureDisableSSL() {
+		transport.TLSClientConfig = &tls.Config{
+			InsecureSkipVerify: true,
+		}
+	}
+
+	extraHeaders := wandbSettings.GetExtraHTTPHeaders()
+
+	client := &http.Client{
+		Timeout: httpClientTimeout,
+	}
+	client.Transport = httplayers.WrapRoundTripper(
+		transport,
+		httplayers.Concat(
+			httplayers.DefaultHeaders(extraHeaders),
+			credentialProvider,
+		),
+	)
+	return client, nil
+}
+
+// initializeOTelResources initializes the OpenTelemetry meter and log providers.
+func (o *OpenTelemetryProxy) initializeOTelResources(
+	ctx context.Context,
+) error {
+	if o == nil {
+		return nil
+	}
+
+	res, err := resource.New(
+		ctx,
+		resource.WithAttributes(semconv.ServiceName(o.serviceName)),
+	)
+	if err != nil {
+		return fmt.Errorf("create resource: %w", err)
+	}
+
+	meterProvider, err := o.setupMetrics(ctx, res)
+	if err != nil {
+		return err
+	}
+	logProvider, err := o.setupLogs(ctx, res)
+	if err != nil {
+		if shutdownErr := shutdownTelemetryProviders(
+			context.Background(),
+			meterProvider,
+			nil,
+		); shutdownErr != nil {
+			return fmt.Errorf("%w; cleanup failed: %v", err, shutdownErr)
+		}
+		return err
+	}
+
+	o.meterProvider = meterProvider
+	o.logProvider = logProvider
+	return nil
+}
+
+// setupMetrics sets up the OpenTelemetry meter provider, used to record metrics.
+func (o *OpenTelemetryProxy) setupMetrics(
+	ctx context.Context,
+	res *resource.Resource,
+) (*metric.MeterProvider, error) {
+	if o == nil {
+		return nil, fmt.Errorf("OpenTelemetryProxy is nil")
+	}
+
+	exporter, err := otlpmetrichttp.New(ctx,
+		otlpmetrichttp.WithEndpointURL(o.endpoint),
+		otlpmetrichttp.WithURLPath(metricsPath),
+		otlpmetrichttp.WithHTTPClient(o.httpClient),
+		otlpmetrichttp.WithTemporalitySelector(metric.DeltaTemporalitySelector),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create metric exporter: %w", err)
+	}
+
+	return metric.NewMeterProvider(
+		metric.WithResource(res),
+		metric.WithReader(
+			metric.NewPeriodicReader(exporter,
+				metric.WithInterval(defaultExportInterval),
+				metric.WithTimeout(defaultExportTimeout),
+			),
+		),
+	), nil
+}
+
+// setupLogs sets up the OpenTelemetry log provider, used to record logs.
+func (o *OpenTelemetryProxy) setupLogs(
+	ctx context.Context,
+	res *resource.Resource,
+) (*otellog.LoggerProvider, error) {
+	if o == nil {
+		return nil, fmt.Errorf("OpenTelemetryProxy is nil")
+	}
+
+	exporter, err := otlploghttp.New(ctx,
+		otlploghttp.WithEndpointURL(o.endpoint),
+		otlploghttp.WithURLPath(logsPath),
+		otlploghttp.WithHTTPClient(o.httpClient),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create log exporter: %w", err)
+	}
+
+	return otellog.NewLoggerProvider(
+		otellog.WithResource(res),
+		otellog.WithProcessor(
+			otellog.NewBatchProcessor(exporter,
+				otellog.WithExportInterval(defaultExportInterval),
+				otellog.WithExportTimeout(defaultExportTimeout),
+			),
+		),
+	), nil
+}
+
+func shutdownTelemetryProviders(
+	ctx context.Context,
+	meterProvider *metric.MeterProvider,
+	logProvider *otellog.LoggerProvider,
+) error {
+	var errs []error
+	if meterProvider != nil {
+		if err := meterProvider.Shutdown(ctx); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if logProvider != nil {
+		if err := logProvider.Shutdown(ctx); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("shutdown errors: %v", errs)
+	}
+	return nil
+}
+
+// Shutdown flushes any pending records and shuts down all providers,
+// after which this proxy and every recorder derived from it become
+// no-ops.
+//
+// It should be called once when telemetry is no longer needed.
+// Additional calls to Shutdown are no-ops.
+func (o *OpenTelemetryProxy) Shutdown(ctx context.Context) error {
+	if o == nil || !o.shutdown.CompareAndSwap(false, true) {
+		return nil
+	}
+
+	meterProvider := o.meterProvider
+	logProvider := o.logProvider
+	return shutdownTelemetryProviders(ctx, meterProvider, logProvider)
+}
+
+// incrementCounter increments a counter metric by 1.
+func (o *OpenTelemetryProxy) incrementCounter(
+	ctx context.Context,
+	name string,
+	lowCardinalityAttributes LowCardinalityAttributes,
+) {
+	if o == nil {
+		return
+	}
+
+	meter := o.meterProvider.Meter(o.serviceName)
+	counter, err := meter.Int64Counter(name)
+	if err != nil {
+		return
+	}
+
+	counter.Add(ctx, 1, toOTelAttrs(lowCardinalityAttributes.toMap()))
+}
+
+// log emits an OpenTelemetry log record with the supplied attributes
+// and severity level.
+func (o *OpenTelemetryProxy) log(
+	ctx context.Context,
+	body string,
+	attributes map[string]string,
+	severity otellogapi.Severity,
+) {
+	if o == nil {
+		return
+	}
+
+	logger := o.logProvider.Logger(o.serviceName)
+	var record otellogapi.Record
+	record.SetBody(attribute.StringValue(body))
+	record.SetSeverity(severity)
+
+	if len(attributes) > 0 {
+		kvs := make([]attribute.KeyValue, 0, len(attributes))
+		for k, v := range attributes {
+			kvs = append(kvs, attribute.String(k, v))
+		}
+		record.AddAttributes(kvs...)
+	}
+
+	logger.Emit(ctx, record)
+}
+
+// captureStacktrace returns a formatted stack trace of the calling goroutine,
+// starting at the caller of Error.
+//
+// This uses only the standard library: it captures the current call stack
+// rather than the site where err was created (which Go does not record for
+// plain errors.New/fmt.Errorf values).
+func captureStacktrace() string {
+	pcs := make([]uintptr, 64)
+	// Skip runtime.Callers, captureStacktrace, and Error so the trace
+	// starts at the code that reported the error.
+	n := runtime.Callers(3, pcs)
+	if n == 0 {
+		return ""
+	}
+	return formatStackPCs(pcs[:n])
+}
+
+// formatStackPCs symbolizes program counters into a human-readable, multi-line
+// stack trace of the form:
+//
+//	package/path.Function
+//		/abs/path/file.go:123
+func formatStackPCs(pcs []uintptr) string {
+	var b strings.Builder
+	frames := runtime.CallersFrames(pcs)
+	for {
+		frame, more := frames.Next()
+		fmt.Fprintf(
+			&b,
+			"%s\n\t%s:%d\n",
+			frame.Function,
+			frame.File,
+			frame.Line,
+		)
+		if !more {
+			break
+		}
+	}
+	return b.String()
+}
+
+// toOTelAttrs converts a map of string attributes
+// to an otelmetric.WithAttributes option.
+func toOTelAttrs(attrs map[string]string) otelmetric.MeasurementOption {
+	kvs := make([]attribute.KeyValue, 0, len(attrs))
+	for k, v := range attrs {
+		kvs = append(kvs, attribute.String(k, v))
+	}
+	return otelmetric.WithAttributes(kvs...)
+}
+
+// checkServerSupportsOpenTelemetryProxy probes the W&B OpenTelemetry proxy
+// endpoint to determine whether the server exposes it.
+func checkServerSupportsOpenTelemetryProxy(
+	ctx context.Context,
+	wandbSettings *settings.Settings,
+) bool {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = wandbSettings.GetProxyFn()
+	transport.ProxyConnectHeader = wandbSettings.GetProxyConnectHeader()
+	if wandbSettings.IsInsecureDisableSSL() {
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	}
+	httpClient := &http.Client{Timeout: httpClientTimeout, Transport: transport}
+
+	url := wandbSettings.GetBaseURL() + metricsPath
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		url,
+		http.NoBody,
+	)
+	if err != nil {
+		return false
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	// Depending on the server configuration, it may respond with a
+	// 404 Not Found or a 405 Method Not Allowed when it does not support
+	// the proxy API.
+	return resp.StatusCode != http.StatusMethodNotAllowed &&
+		resp.StatusCode != http.StatusNotFound
+}

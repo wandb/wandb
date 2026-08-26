@@ -82,15 +82,6 @@ class Retry(Generic[_R]):
 
         self._num_iter = 0
 
-    def _sleep_check_cancelled(
-        self, wait_seconds: float, cancel_event: threading.Event | None
-    ) -> bool:
-        if not cancel_event:
-            SLEEP_FN(wait_seconds)
-            return False
-        cancelled = cancel_event.wait(wait_seconds)
-        return cancelled
-
     @property
     def num_iters(self) -> int:
         """The number of iterations the previous __call__ retried."""
@@ -364,19 +355,6 @@ class ExponentialBackoff(Backoff):
         )
 
         return result
-
-
-class FilteredBackoff(Backoff):
-    """Re-raise any exceptions that fail a predicate; delegate others to another Backoff."""
-
-    def __init__(self, filter: Callable[[Exception], bool], wrapped: Backoff) -> None:
-        self._filter = filter
-        self._wrapped = wrapped
-
-    def next_sleep_or_reraise(self, exc: Exception) -> datetime.timedelta:
-        if not self._filter(exc):
-            raise exc
-        return self._wrapped.next_sleep_or_reraise(exc)
 
 
 async def retry_async(

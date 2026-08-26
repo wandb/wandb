@@ -30,12 +30,6 @@ if TYPE_CHECKING:
 _logger = logging.getLogger(__name__)
 
 
-# need to make user root for sagemaker, so users have access to /opt/ml directories
-# that let users create artifacts and access input data
-RESOURCE_UID_MAP = {"local": 1000, "sagemaker": 0}
-IMAGE_TAG_MAX_LENGTH = 32
-
-
 def _get_accelerator_base_image(
     resource_args_build: dict[str, Any],
 ) -> str | None:

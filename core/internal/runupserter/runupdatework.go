@@ -105,29 +105,25 @@ func (w *RunUpdateWork) initRun(request *runwork.Request) {
 
 	if err != nil {
 		w.Logger.Error("runupserter: failed to init run", "error", err)
-
-		if w.Record.Control.GetMailboxSlot() != "" {
-			respondRunUpdate(request, runInitErrorResult(err))
-		}
-
+		respondRunUpdate(request, runInitErrorResult(err))
 		return
 	}
 
 	err = w.RunHandle.Init(upserter)
 	if err != nil {
 		w.Logger.CaptureError(
+			"runupserter",
 			fmt.Errorf(
 				"runupserter: failed to set run after initializing: %v",
-				err))
+				err,
+			),
+		)
 
-		if w.Record.Control.GetMailboxSlot() != "" {
-			respondRunUpdate(request, runInitErrorResult(err))
-		}
-
+		respondRunUpdate(request, runInitErrorResult(err))
 		return
 	}
 
-	if w.Record.Control.GetMailboxSlot() != "" {
+	if request != nil {
 		updatedRun := proto.CloneOf(w.Record.GetRun())
 		upserter.FillRunRecord(updatedRun)
 		respondRunUpdate(request, &spb.RunUpdateResult{Run: updatedRun})
@@ -155,8 +151,7 @@ func respondRunUpdate(
 // If the error is a RunUpdateError, it is used to enhance the message.
 // Otherwise, a generic error with an unknown code is returned.
 func runInitErrorResult(err error) *spb.RunUpdateResult {
-	var runUpdateError *RunUpdateError
-	if errors.As(err, &runUpdateError) {
+	if runUpdateError, ok := errors.AsType[*RunUpdateError](err); ok {
 		return runUpdateError.AsResult()
 	} else {
 		return &spb.RunUpdateResult{

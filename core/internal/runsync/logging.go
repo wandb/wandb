@@ -10,6 +10,7 @@ import (
 
 	"github.com/getsentry/sentry-go"
 
+	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -75,6 +76,7 @@ func OpenDebugSyncLogFile(
 func NewSyncLogger(
 	logFile *DebugSyncLogFile,
 	logLevel slog.Level,
+	telemetryRecorder *analytics.TelemetryRecorder,
 ) *observability.CoreLogger {
 	return observability.NewCoreLogger(
 		slog.New(
@@ -83,5 +85,6 @@ func NewSyncLogger(
 				&slog.HandlerOptions{Level: logLevel},
 			)),
 		observability.NewSentryContext(sentry.CurrentHub()),
+		telemetryRecorder,
 	)
 }

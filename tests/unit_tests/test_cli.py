@@ -1,4 +1,3 @@
-import datetime
 import getpass
 import importlib
 import netrc
@@ -37,7 +36,7 @@ def docker(request, mocker, monkeypatch):
 
     def new_call(command, **kwargs):
         if command[0] == "docker":
-            return docker(command)
+            return docker(command, **kwargs)
         else:
             return old_call(command, **kwargs)
 
@@ -108,44 +107,6 @@ def test_login_invalid_key_arg(runner, dummy_api_key):
         assert "API key must have 40+ characters, has 35." in result.output
 
 
-@pytest.mark.usefixtures("patch_apikey")
-def test_sync_gc(runner):
-    with runner.isolated_filesystem():
-        if not os.path.isdir("wandb"):
-            os.mkdir("wandb")
-        d1 = datetime.datetime.now()
-        d2 = d1 - datetime.timedelta(hours=3)
-        run1 = d1.strftime("run-%Y%m%d_%H%M%S-abcd")
-        run2 = d2.strftime("run-%Y%m%d_%H%M%S-efgh")
-        run1_dir = os.path.join("wandb", run1)
-        run2_dir = os.path.join("wandb", run2)
-        os.mkdir(run1_dir)
-        with open(os.path.join(run1_dir, "run-abcd.wandb"), "w") as f:
-            f.write("")
-        with open(os.path.join(run1_dir, "run-abcd.wandb.synced"), "w") as f:
-            f.write("")
-        os.mkdir(run2_dir)
-        with open(os.path.join(run2_dir, "run-efgh.wandb"), "w") as f:
-            f.write("")
-        with open(os.path.join(run2_dir, "run-efgh.wandb.synced"), "w") as f:
-            f.write("")
-        assert (
-            runner.invoke(
-                cli.sync, ["--clean", "--clean-old-hours", "2"], input="y\n"
-            ).exit_code
-        ) == 0
-
-        assert os.path.exists(run1_dir)
-        assert not os.path.exists(run2_dir)
-        assert (
-            runner.invoke(
-                cli.sync, ["--clean", "--clean-old-hours", "0"], input="y\n"
-            ).exit_code
-            == 0
-        )
-        assert not os.path.exists(run1_dir)
-
-
 def test_docker_run_digest(runner, docker, monkeypatch):
     result = runner.invoke(
         cli.docker_run,
@@ -157,13 +118,14 @@ def test_docker_run_digest(runner, docker, monkeypatch):
             "docker",
             "run",
             "-e",
-            "WANDB_API_KEY=test",
+            "WANDB_API_KEY",
             "-e",
             f"WANDB_DOCKER={DOCKER_SHA}",
             "--runtime",
             "nvidia",
             f"{DOCKER_SHA}",
-        ]
+        ],
+        env=mock.ANY,
     )
 
 
@@ -175,11 +137,12 @@ def test_docker_run_bad_image(runner, docker, monkeypatch):
             "docker",
             "run",
             "-e",
-            "WANDB_API_KEY=test",
+            "WANDB_API_KEY",
             "--runtime",
             "nvidia",
             "wandb///foo$",
-        ]
+        ],
+        env=mock.ANY,
     )
 
 
@@ -192,13 +155,14 @@ def test_docker_run_no_nvidia(runner, docker, monkeypatch):
             "docker",
             "run",
             "-e",
-            "WANDB_API_KEY=test",
+            "WANDB_API_KEY",
             "-e",
             "WANDB_DOCKER=wandb/deepo@sha256:abc123",
             "-v",
             "cool:/cool",
             "rad",
-        ]
+        ],
+        env=mock.ANY,
     )
 
 
@@ -212,7 +176,7 @@ def test_docker_run_nvidia(runner, docker):
             "docker",
             "run",
             "-e",
-            "WANDB_API_KEY=test",
+            "WANDB_API_KEY",
             "-e",
             "WANDB_DOCKER=wandb/deepo@sha256:abc123",
             "--runtime",
@@ -222,8 +186,28 @@ def test_docker_run_nvidia(runner, docker):
             "rad",
             "/bin/bash",
             "cool",
-        ]
+        ],
+        env=mock.ANY,
     )
+
+
+def test_docker_run_api_key_not_in_args(runner, docker, mocker, monkeypatch):
+    mocker.patch(
+        "wandb.apis.InternalApi.api_key",
+        new_callable=mocker.PropertyMock,
+        return_value="fake-api-key",
+    )
+    monkeypatch.setenv("DOCKER_HOST", "tcp://localhost:2375")
+
+    result = runner.invoke(cli.docker_run, ["rad"])
+
+    assert result.exit_code == 0
+    command = docker.call_args.args[0]
+    assert "WANDB_API_KEY" in command
+    assert not any("fake-api-key" in arg for arg in command)
+    env = docker.call_args.kwargs["env"]
+    assert env["WANDB_API_KEY"] == "fake-api-key"
+    assert env["DOCKER_HOST"] == "tcp://localhost:2375"
 
 
 def test_docker(runner, docker):
@@ -247,11 +231,12 @@ def test_docker(runner, docker):
                 "-w",
                 "/app",
                 "-e",
-                "WANDB_API_KEY=test",
+                "WANDB_API_KEY",
                 "-it",
                 "test",
                 "/bin/bash",
-            ]
+            ],
+            env=mock.ANY,
         )
         assert result.exit_code == 0
 
@@ -277,11 +262,12 @@ def test_docker_basic(runner, docker, git_repo):
             "-w",
             "/app",
             "-e",
-            "WANDB_API_KEY=test",
+            "WANDB_API_KEY",
             "-it",
             "test:abc123",
             "/bin/bash",
-        ]
+        ],
+        env=mock.ANY,
     )
     assert result.exit_code == 0
 
@@ -306,11 +292,12 @@ def test_docker_sha(runner, docker):
             "-w",
             "/app",
             "-e",
-            "WANDB_API_KEY=test",
+            "WANDB_API_KEY",
             "-it",
             "test@sha256:abc123",
             "/bin/bash",
-        ]
+        ],
+        env=mock.ANY,
     )
     assert result.exit_code == 0
 
@@ -331,11 +318,12 @@ def test_docker_no_dir(runner, docker):
             "--entrypoint",
             "/wandb-entrypoint.sh",
             "-e",
-            "WANDB_API_KEY=test",
+            "WANDB_API_KEY",
             "-it",
             "test:abc123",
             "/bin/bash",
-        ]
+        ],
+        env=mock.ANY,
     )
     assert result.exit_code == 0
 
@@ -364,12 +352,13 @@ def test_docker_no_interactive_custom_command(runner, docker, git_repo):
             "-w",
             "/app",
             "-e",
-            "WANDB_API_KEY=test",
+            "WANDB_API_KEY",
             "test:abc123",
             "/bin/bash",
             "-c",
             "python foo.py",
-        ]
+        ],
+        env=mock.ANY,
     )
     assert result.exit_code == 0
 
@@ -395,7 +384,7 @@ def test_docker_jupyter(runner, docker):
                 "-w",
                 "/app",
                 "-e",
-                "WANDB_API_KEY=test",
+                "WANDB_API_KEY",
                 "-e",
                 "WANDB_ENSURE_JUPYTER=1",
                 "-p",
@@ -407,7 +396,8 @@ def test_docker_jupyter(runner, docker):
                     "jupyter lab --no-browser --ip=0.0.0.0 --allow-root "
                     "--NotebookApp.token= --notebook-dir /app"
                 ),
-            ]
+            ],
+            env=mock.ANY,
         )
         assert result.exit_code == 0
 
@@ -433,16 +423,37 @@ def test_docker_args(runner, docker):
                 "-w",
                 "/app",
                 "-e",
-                "WANDB_API_KEY=test",
+                "WANDB_API_KEY",
                 "test",
                 "-v",
                 "/tmp:/tmp",
                 "-it",
                 "wandb/deepo:all-cpu",
                 "/bin/bash",
-            ]
+            ],
+            env=mock.ANY,
         )
         assert result.exit_code == 0
+
+
+def test_docker_api_key_not_in_args(runner, docker, mocker, monkeypatch):
+    mocker.patch(
+        "wandb.apis.InternalApi.api_key",
+        new_callable=mocker.PropertyMock,
+        return_value="fake-api-key",
+    )
+    monkeypatch.setenv("DOCKER_HOST", "tcp://localhost:2375")
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli.docker, ["test"], input="n")
+
+    assert result.exit_code == 0
+    command = docker.call_args.args[0]
+    assert "WANDB_API_KEY" in command
+    assert not any("fake-api-key" in arg for arg in command)
+    env = docker.call_args.kwargs["env"]
+    assert env["WANDB_API_KEY"] == "fake-api-key"
+    assert env["DOCKER_HOST"] == "tcp://localhost:2375"
 
 
 def test_docker_digest(runner, docker):
@@ -474,7 +485,8 @@ def test_local_default(runner, docker, local_settings):
                 f"LOCAL_USERNAME={user}",
                 "-d",
                 "wandb/local",
-            ]
+            ],
+            stdout=subprocess.DEVNULL,
         )
 
 
@@ -499,7 +511,8 @@ def test_local_custom_port(runner, docker, local_settings):
             f"LOCAL_USERNAME={user}",
             "-d",
             "wandb/local",
-        ]
+        ],
+        stdout=subprocess.DEVNULL,
     )
 
 
@@ -526,7 +539,8 @@ def test_local_custom_env(runner, docker, local_settings):
             "FOO=bar",
             "-d",
             "wandb/local",
-        ]
+        ],
+        stdout=subprocess.DEVNULL,
     )
 
 

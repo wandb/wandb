@@ -218,8 +218,11 @@ func (s *Sender) StreamLoggerOutput(record *spb.OutputLoggerRecord) {
 		return
 	}
 
-	// We can discard the line reference because we never change the line.
-	_ = s.model.NextLine("", s.streamLabel, record.Line)
+	// Lines in the model must not contain '\n'.
+	for line := range strings.SplitSeq(strings.TrimSuffix(record.Line, "\n"), "\n") {
+		// We can discard the line reference because we never change the line.
+		_ = s.model.NextLine("", s.streamLabel, line)
+	}
 }
 
 // StreamLogs updates the run's captured console logs.
@@ -240,8 +243,10 @@ func (s *Sender) StreamLogs(record *spb.OutputRawRecord) {
 
 	default:
 		s.logger.CaptureError(
+			"runconsolelogs",
 			errors.New("runconsolelogs: invalid OutputRawRecord type"),
-			"type", record.OutputType,
+			"type",
+			record.OutputType,
 		)
 	}
 }

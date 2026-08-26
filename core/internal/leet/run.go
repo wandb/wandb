@@ -69,6 +69,13 @@ type Run struct {
 	// Written on the main goroutine; read from the HeartbeatManager timer goroutine.
 	liveRunning atomic.Bool
 
+	// lastUpdateAt tracks when the transaction log last produced a record.
+	// A live run that stays silent past RunCrashTimeout is presumed crashed.
+	lastUpdateAt time.Time
+
+	// pulseTicking reports whether the live-indicator redraw loop is armed.
+	pulseTicking bool
+
 	// Data reader.
 	historySource HistorySource
 	initCancel    context.CancelFunc
@@ -80,6 +87,13 @@ type Run struct {
 	// Focus management.
 	focusMgr *FocusManager
 	focus    *Focus
+
+	// focusSeeded is set once initial focus lands on the first pane that
+	// receives data. After that, focus only ever changes on user action.
+	focusSeeded bool
+
+	// drag owns in-progress pane-boundary resizing (mouse drag).
+	drag paneDragger
 
 	// UI components.
 	metricsGridAnimState *AnimatedValue
@@ -160,6 +174,13 @@ func NewRun(
 		logger:               logger,
 	}
 	run.focusMgr = run.buildRunFocusManager()
+	run.drag = paneDragger{
+		saved:    cfg.RunLayout,
+		persist:  cfg.SetRunLayout,
+		relayout: run.applyLayoutConfig,
+		logger:   logger,
+	}
+	run.leftSidebar.overridesSource = run.layoutOverrides
 	return run
 }
 
@@ -254,15 +275,39 @@ func (r *Run) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // handleWindowResize handles window resize messages.
 func (r *Run) handleWindowResize(msg tea.WindowSizeMsg) {
 	r.width, r.height = msg.Width, msg.Height
+	r.applyLayoutConfig()
+	r.focusMgr.Resolve()
+}
 
-	r.leftSidebar.UpdateDimensions(msg.Width, r.rightSidebar.animState.TargetVisible())
-	r.rightSidebar.UpdateDimensions(msg.Width, r.leftSidebar.animState.TargetVisible())
+// applyLayoutConfig re-derives all pane extents from the terminal size and
+// any saved layout overrides.
+func (r *Run) applyLayoutConfig() {
+	r.updateSidebarDimensions(
+		r.leftSidebar.animState.TargetVisible(),
+		r.rightSidebar.animState.TargetVisible(),
+	)
 	r.updateBottomPaneHeights(
 		r.mediaPane.animState.TargetVisible(), r.consoleLogsPane.animState.TargetVisible())
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
-	r.focusMgr.ResolveAfterAvailabilityChange()
+}
+
+// layoutOverrides returns the live pane proportions: the in-progress drag's
+// pending values, or the persisted config.
+func (r *Run) layoutOverrides() LayoutOverrides {
+	return r.drag.overrides()
+}
+
+// updateSidebarDimensions re-derives both sidebars' expanded widths from the
+// terminal width, the given post-toggle visibility of each side, and the
+// layout overrides.
+func (r *Run) updateSidebarDimensions(leftVisible, rightVisible bool) {
+	o := r.layoutOverrides()
+	left, right := fitSidebarFractions(
+		r.width, leftVisible, rightVisible, o.LeftSidebar, o.RightSidebar)
+	r.leftSidebar.UpdateDimensions(r.width, rightVisible, left)
+	r.rightSidebar.UpdateDimensions(r.width, leftVisible, right)
 }
 
 // isUIMsg returns true for messages that should flow to child view models.
@@ -291,6 +336,8 @@ func (r *Run) dispatch(msg tea.Msg) []tea.Cmd {
 		return r.handleHeartbeat()
 	case FileChangedMsg:
 		return r.handleFileChange()
+	case RunLivePulseMsg:
+		return r.handleLivePulse()
 	case tea.WindowSizeMsg:
 		r.handleWindowResize(t)
 	case LeftSidebarAnimationMsg, RightSidebarAnimationMsg:
@@ -355,7 +402,13 @@ func (r *Run) renderMainView() string {
 					renderMetricsEmptyState(w, layout.height, "No scalar metrics logged."))
 			} else {
 				dims := r.metricsGrid.CalculateChartDimensions(w, layout.height)
-				sections = append(sections, r.metricsGrid.View(dims))
+				// Pad the grid (header + rows*cellHeight lines, short of
+				// layout.height by the integer-division remainder) to its
+				// reserved height so the sections below sit exactly at the
+				// rows computeVerticalStackLayout reserves for them. Mouse
+				// hit-testing maps screen rows to sections via that layout.
+				sections = append(sections,
+					placeMainColumn(w, layout.height, r.metricsGrid.View(dims)))
 			}
 		}
 
@@ -422,6 +475,7 @@ func (m *Run) logPanic(ctx string) {
 	if r := recover(); r != nil {
 		stackTrace := string(debug.Stack())
 		m.logger.CaptureError(
+			"leet",
 			fmt.Errorf("PANIC in %s: %v\nStack trace:\n%s", ctx, r, stackTrace),
 		)
 		panic(r)
@@ -462,18 +516,23 @@ func (r *Run) renderLoadingScreen() string {
 
 // renderStatusBar creates the status bar.
 func (r *Run) renderStatusBar() string {
+	// The indicator is styled separately from the bar so its color codes
+	// don't reset the bar's own styling mid-line.
+	indicator := renderStateIndicator(r.runState)
+	barWidth := max(r.width-lipgloss.Width(indicator), 0)
+
 	statusText := r.buildStatusText()
 	helpText := r.buildHelpText()
 
-	innerWidth := max(r.width-2*StatusBarPadding, 0)
+	innerWidth := max(barWidth-2*StatusBarPadding, 0)
 	spaceForHelp := max(innerWidth-lipgloss.Width(statusText), 0)
 	rightAligned := lipgloss.PlaceHorizontal(spaceForHelp, lipgloss.Right, helpText)
 
 	fullStatus := statusText + rightAligned
 
-	return statusBarStyle.
-		Width(r.width).
-		MaxWidth(r.width).
+	return indicator + statusBarStyle.
+		Width(barWidth).
+		MaxWidth(barWidth).
 		Render(fullStatus)
 }
 
@@ -683,12 +742,29 @@ func (r *Run) updateBottomPaneHeights(mediaVisible, logsVisible bool) {
 		lowerTierH = maxH
 	}
 
+	o := r.layoutOverrides()
 	each := lowerTierH / lowerCount
+	heights := []int{
+		paneHeightFor(o.Media, r.height, each),
+		paneHeightFor(o.Logs, r.height, each),
+	}
+	budget := maxH
+	if metricsVisible {
+		budget = maxH - minFlexMetricsHeight
+	}
+	if !mediaVisible {
+		heights[0] = 0
+	}
+	if !logsVisible {
+		heights[1] = 0
+	}
+	fitStackHeights(heights,
+		[]int{mediaPaneMinHeight, ConsoleLogsPaneMinHeight}, budget)
 	if mediaVisible {
-		r.mediaPane.SetExpandedHeight(each)
+		r.mediaPane.SetExpandedHeight(heights[0])
 	}
 	if logsVisible {
-		r.consoleLogsPane.SetExpandedHeight(each)
+		r.consoleLogsPane.SetExpandedHeight(heights[1])
 	}
 }
 

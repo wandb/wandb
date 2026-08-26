@@ -97,8 +97,8 @@ func apiErrorResponse(message string, httpStatus int32) *spb.ApiResponse {
 // would see. When the body carries GraphQL `errors`, prefer their messages;
 // otherwise fall back to the HTTPError's default rendering.
 func graphqlErrorInfo(err error) (string, int32) {
-	var httpError *graphql.HTTPError
-	if !errors.As(err, &httpError) {
+	httpError, ok := errors.AsType[*graphql.HTTPError](err)
+	if !ok {
 		return err.Error(), 0
 	}
 

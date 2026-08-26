@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 import wandb
+from wandb.proto import wandb_internal_pb2 as pb
 
 
 @pytest.mark.parametrize("status_code", [429, 500])
@@ -67,3 +68,20 @@ def test_file_stream_forward_slashes(wandb_backend_spy):
     with wandb_backend_spy.freeze() as snapshot:
         for file in snapshot.uploaded_files(run_id=run.id):
             assert "\\" not in file
+
+
+def test_gzip_requests_are_processed(user, wandb_backend_spy):
+    api = wandb.Api(api_key=user)
+    if not api._service_api.feature_enabled(pb.ServerFeature.FILESTREAM_GZIP):
+        pytest.skip("Server does not support gzip-compressed filestream requests")
+
+    with wandb.init(
+        settings=wandb.Settings(x_file_stream_no_gzip=False),
+    ) as run:
+        run.log({"acc": 1})
+
+    with wandb_backend_spy.freeze() as snapshot:
+        encodings = snapshot.file_stream_content_encodings(run_id=run.id)
+        assert encodings
+        assert set(encodings) == {"gzip"}
+        assert snapshot.history(run_id=run.id)[0]["acc"] == 1

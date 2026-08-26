@@ -12,7 +12,7 @@ from wandb.sdk.launch.create_job import _create_job
 from wandb.sdk.launch.git_reference import GitReference
 
 
-def test_job_call(user):
+def test_job_call(user, create_run_queue):
     proj = "TEST_PROJECT"
     queue = "TEST_QUEUE"
     public_api = PublicApi()
@@ -25,8 +25,12 @@ def test_job_call(user):
     job_name = job_artifact.wait().name
     job = public_api.job(f"{user}/{proj}/{job_name}")
 
-    internal_api.create_run_queue(
-        entity=user, project=proj, queue_name=queue, access="PROJECT"
+    create_run_queue(
+        internal_api.api._service_api,
+        entity=user,
+        project=proj,
+        queue_name=queue,
+        access="PROJECT",
     )
 
     queued_run = job.call(config={}, project=proj, queue=queue, project_queue=proj)

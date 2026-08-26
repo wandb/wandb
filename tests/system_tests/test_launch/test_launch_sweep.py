@@ -11,6 +11,7 @@ def test_sweeps_on_launch(
     use_local_wandb_backend,
     user,
     monkeypatch,
+    create_run_queue,
 ):
     _ = use_local_wandb_backend
     monkeypatch.setattr(
@@ -38,7 +39,13 @@ def test_sweeps_on_launch(
         pass
 
     api = wandb.sdk.internal.internal_api.Api()
-    api.create_run_queue(entity=user, project=proj, queue_name=queue, access="USER")
+    create_run_queue(
+        api._service_api,
+        entity=user,
+        project=proj,
+        queue_name=queue,
+        access="USER",
+    )
 
     sweep_config = {
         "job": "fake-job:v1",
@@ -127,21 +134,15 @@ def test_sweep_scheduler_job_with_queue(runner, user, mocker):
     job_artifact = run._log_job_artifact_with_image("docker_image", args=[])
     job_name = job_artifact.wait().name
 
-    api = wandb.sdk.internal.internal_api.Api()
-    res = api.create_default_resource_config(
-        user,
-        "local-container",
-        json.dumps({"resource_args": {"local-container": {"e": "{{var}}"}}}),
-        {"var": {"schema": {"type": "string", "enum": ["1", "2"]}}},
-    )
-    id = res.get("defaultResourceConfigID")
-    api.create_run_queue(
+    PublicApi().create_run_queue(
+        name=queue,
+        type="local-container",
         entity=user,
-        project=LAUNCH_DEFAULT_PROJECT,
-        queue_name=queue,
-        access="USER",
-        config_id=id,
+        config={"e": "{{var}}"},
+        template_variables={"var": {"schema": {"type": "string", "enum": ["1", "2"]}}},
     )
+
+    api = wandb.sdk.internal.internal_api.Api()
     cli._get_cling_api(reset=True)
     with runner.isolated_filesystem():
         with open("config.json", "w") as f:

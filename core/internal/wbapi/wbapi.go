@@ -13,9 +13,9 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 
 	"github.com/wandb/wandb/core/internal/api"
-	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/httplayers"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -32,19 +32,26 @@ type WandbAPI struct {
 	// semaphore is a buffered channel limiting concurrent request handling
 	semaphore chan struct{}
 
+	logger *observability.CoreLogger
+
 	settings *settings.Settings
 
+	authHandler          *AuthHandler
+	customChartHandler   *CustomChartHandler
 	featuresHandler      *FeaturesHandler
 	fileTransferHandler  *FileTransferHandler
 	graphqlHandler       *GraphQLHandler
+	opentelemetryHandler *OpenTelemetryHandler
 	runFilesHandler      *RunFilesHandler
 	runHandler           *RunHandler
+	runQueueHandler      *RunQueueHandler
 	runHistoryApiHandler *RunHistoryAPIHandler
 }
 
 // New returns a new WandbAPI.
 func New(
 	s *settings.Settings,
+	serviceName string,
 	logger *observability.CoreLogger,
 ) (*WandbAPI, error) {
 	baseURL, err := url.Parse(s.GetBaseURL())
@@ -97,14 +104,23 @@ func New(
 
 	return &WandbAPI{
 		semaphore: make(chan struct{}, maxConcurrency),
+		logger:    logger,
 		settings:  s,
 
+		authHandler:          NewAuthHandler(graphqlClient, credentialProvider),
 		featuresHandler:      NewFeaturesHandler(featureProvider),
 		fileTransferHandler:  NewFileTransferHandler(fileTransferManager),
 		graphqlHandler:       NewGraphQLHandler(graphqlClient),
+		customChartHandler:   NewCustomChartHandler(graphqlClient),
+		opentelemetryHandler: NewOpenTelemetryHandler(s, serviceName),
 		runFilesHandler:      NewRunFilesHandler(graphqlClient),
 		runHandler:           NewRunHandler(graphqlClient),
-		runHistoryApiHandler: NewRunHistoryAPIHandler(graphqlClient, httpClient),
+		runQueueHandler:      NewRunQueueHandler(graphqlClient),
+		runHistoryApiHandler: NewRunHistoryAPIHandler(
+			graphqlClient,
+			httpClient,
+			logger,
+		),
 	}, nil
 }
 
@@ -115,7 +131,6 @@ func newFileTransferClient(
 	s *settings.Settings,
 ) api.RetryableClient {
 	httpOpts := api.ClientOptions{
-		BaseURL:     baseURL,
 		RetryPolicy: filetransfer.FileTransferRetryPolicy,
 		Logger:      logger.Logger,
 
@@ -124,14 +139,15 @@ func newFileTransferClient(
 		RetryWaitMax:    filetransfer.DefaultRetryWaitMax,
 		NonRetryTimeout: filetransfer.DefaultNonRetryTimeout,
 
-		Proxy: clients.ProxyFn(
-			s.GetHTTPProxy(),
-			s.GetHTTPSProxy(),
-		),
+		Proxy:              s.GetProxyFn(),
+		ProxyConnectHeader: s.GetProxyConnectHeader(),
 
 		InsecureDisableSSL: s.IsInsecureDisableSSL(),
-		ExtraHeaders:       s.GetExtraHTTPHeaders(),
-		CredentialProvider: credentialProvider,
+
+		PreRetryLayers: httplayers.Concat(
+			httplayers.DefaultHeaders(s.GetExtraHTTPHeaders()),
+			httplayers.LimitTo(baseURL, credentialProvider),
+		),
 	}
 
 	if retryMax := s.GetFileTransferMaxRetries(); retryMax > 0 {
@@ -173,6 +189,8 @@ func (p *WandbAPI) HandleRequest(
 	defer func() { <-p.semaphore }()
 
 	switch req := request.Request.(type) {
+	case *spb.ApiRequest_AuthRequest:
+		return p.authHandler.HandleRequest(ctx, req.AuthRequest)
 	case *spb.ApiRequest_FeaturesRequest:
 		return p.featuresHandler.HandleRequest(ctx, req.FeaturesRequest)
 	case *spb.ApiRequest_DownloadFileRequest:
@@ -183,11 +201,32 @@ func (p *WandbAPI) HandleRequest(
 		return p.runFilesHandler.HandleMarkRunFilesUploaded(ctx, req.MarkRunFilesUploadedRequest)
 	case *spb.ApiRequest_StopRunRequest:
 		return p.runHandler.HandleStopRun(ctx, req.StopRunRequest)
+	case *spb.ApiRequest_ReadRunConsoleLogsRequest:
+		return p.runHandler.HandleReadRunConsoleLogs(ctx, req.ReadRunConsoleLogsRequest)
+	case *spb.ApiRequest_CreateCustomChartRequest:
+		return p.customChartHandler.HandleCreateCustomChart(ctx, req.CreateCustomChartRequest)
+	case *spb.ApiRequest_RunQueueOperationRequest:
+		return p.runQueueHandler.HandleRequest(ctx, req.RunQueueOperationRequest)
 	case *spb.ApiRequest_GraphqlRequest:
 		return p.graphqlHandler.HandleRequest(ctx, req.GraphqlRequest)
 	case *spb.ApiRequest_ReadRunHistoryRequest:
 		return p.runHistoryApiHandler.HandleRequest(ctx, req.ReadRunHistoryRequest)
+	case *spb.ApiRequest_OpenTelemetryRequest:
+		return p.opentelemetryHandler.HandleRequest(ctx, req.OpenTelemetryRequest)
+	default:
+		return apiErrorResponse(fmt.Sprintf("unsupported API request type: %T", request.Request), 0)
 	}
+}
 
-	return nil
+// Shutdown shuts down any resources held by the WandbAPI.
+//
+// It should be called once when the API is no longer needed.
+func (p *WandbAPI) Shutdown(ctx context.Context) {
+	if err := p.opentelemetryHandler.Shutdown(ctx); err != nil {
+		p.logger.Error(
+			"wbapi: error shutting down OpenTelemetry handler",
+			"error",
+			err,
+		)
+	}
 }

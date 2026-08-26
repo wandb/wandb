@@ -99,7 +99,7 @@ if TYPE_CHECKING:
     import wandb
     from wandb.plot import CustomChart
 
-__version__: str = "0.28.2.dev1"
+__version__: str = "0.28.3.dev1"
 
 run: Run | None
 config: wandb_config.Config
@@ -165,7 +165,6 @@ def init(
 
 def finish(
     exit_code: int | None = None,
-    quiet: bool | None = None,
 ) -> None:
     """<sdk/wandb_run.py::finish>"""
     ...
@@ -176,7 +175,7 @@ def login(
     host: str | None = None,
     force: bool | None = None,
     timeout: int | None = None,
-    verify: bool = False,
+    verify: bool = True,
     referrer: str | None = None,
     anonymous: DoNotSet = UNSET,
 ) -> bool:
@@ -224,6 +223,7 @@ def agent(
     project: str | None = None,
     count: int | None = None,
     forward_signals: bool = False,
+    term_timeout: int | None = None,
 ) -> None:
     """<wandb_agent.py::agent>"""
     ...
@@ -234,7 +234,6 @@ def define_metric(
     step_sync: bool | None = None,
     hidden: bool | None = None,
     summary: str | None = None,
-    goal: str | None = None,
     overwrite: bool | None = None,
 ) -> wandb_metric.Metric:
     """<sdk/wandb_run.py::Run::define_metric>"""

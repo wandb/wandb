@@ -6,10 +6,10 @@ from typing import TYPE_CHECKING, Annotated, Any, Literal, get_args
 
 from pydantic import AfterValidator, BeforeValidator, Discriminator, Field
 
+from wandb._filters import And, FilterableField, MongoLikeFilter
 from wandb._pydantic import GQLBase, model_validator, pydantic_isinstance
 from wandb._strutils import nameof
 
-from ._filters import And, FilterableField, MongoLikeFilter
 from ._generated import FilterEventFields
 from ._run_metric_filters import (
     MetricChangeFilter,
@@ -53,11 +53,13 @@ class EventType(LenientStrEnum):
     # Note: "LINK_MODEL" is the (legacy) value expected by the backend, but we
     # name it "LINK_ARTIFACT" here in the public API for clarity and consistency.
     LINK_ARTIFACT = "LINK_MODEL"
+    LINK_MODEL = LINK_ARTIFACT
     UNLINK_ARTIFACT = "UNLINK_ARTIFACT"
 
     # ---------------------------------------------------------------------------
     # Events triggered by run conditions
     RUN_METRIC_THRESHOLD = "RUN_METRIC"
+    RUN_METRIC = RUN_METRIC_THRESHOLD
     RUN_METRIC_CHANGE = "RUN_METRIC_CHANGE"
     RUN_METRIC_ZSCORE = "RUN_METRIC_ZSCORE"
     RUN_STATE = "RUN_STATE"

@@ -43,3 +43,15 @@ func Test_Matches(t *testing.T) {
 		assert.False(t, filter.Matches("not a file name"))
 	})
 }
+
+func Test_Matches_NoFilter(t *testing.T) {
+	filter := tensorboard.TFEventsFileFilter{}
+
+	t.Run("true for the expected format", func(t *testing.T) {
+		assert.True(t, filter.Matches("prefix-tfevents.0000-suffix"))
+	})
+
+	t.Run("false for a missing timestamp", func(t *testing.T) {
+		assert.False(t, filter.Matches("prefix-tfevents-suffix"))
+	})
+}

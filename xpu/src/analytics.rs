@@ -22,9 +22,8 @@ pub fn setup_sentry() {
         None
     };
 
-    let _guard = sentry::init(sentry::ClientOptions {
-        dsn,
-        release: sentry::release_name!(),
-        ..Default::default()
-    });
+    let mut options = sentry::ClientOptions::new();
+    options.dsn = dsn;
+    options.release = sentry::release_name!();
+    let _guard = sentry::init(options);
 }

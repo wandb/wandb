@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import ast
-from typing import Any
 from collections.abc import Iterable
+from typing import Any, TypeGuard
 
 from pydantic import BaseModel, Field, field_validator
-from typing import TypeGuard
 
 
 def imported_names(stmt: ast.Import | ast.ImportFrom) -> list[str]:

@@ -229,6 +229,7 @@ SYMBOLS_RUN_OTHER = {
     "start_time",
     "path",
     "dir",
+    "sync_dir",
 }
 
 

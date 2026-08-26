@@ -216,6 +216,7 @@ def _run_core(args: list[str], env: dict[str, str] | None = None) -> Never:
         result = subprocess.run(args, env=env, close_fds=True)
         sys.exit(result.returncode)
     except Exception as e:
+        # TODO: remove sentry once we no longer support/need it
         get_sentry().reraise(e)
 
 

@@ -43,7 +43,7 @@ type ArtifactDownloader struct {
 	// HTTP client for downloading manifest json.
 	httpClient   *retryablehttp.Client
 	logger       *observability.CoreLogger
-	extraHeaders map[string]string
+	extraHeaders http.Header
 }
 
 func NewArtifactDownloader(
@@ -51,7 +51,7 @@ func NewArtifactDownloader(
 	graphQLClient graphql.Client,
 	downloadManager filetransfer.FileTransferManager,
 	logger *observability.CoreLogger,
-	extraHeaders map[string]string,
+	extraHeaders http.Header,
 	artifactID string,
 	downloadRoot string,
 	allowMissingReferences bool,
@@ -126,11 +126,7 @@ func (ad *ArtifactDownloader) downloadManifestFromURL(
 	if err != nil {
 		return Manifest{}, fmt.Errorf("create request failed: %v", err)
 	}
-
-	// Apply extra headers
-	for k, v := range ad.extraHeaders {
-		req.Header.Set(k, v)
-	}
+	maps.Copy(req.Header, ad.extraHeaders)
 
 	resp, err := ad.httpClient.Do(req)
 	if err != nil {

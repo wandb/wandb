@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import dataclasses
+import gzip
 import json
 import threading
 from collections.abc import Generator
@@ -233,12 +234,16 @@ class WandbBackendSpy:
         entity: str,
         project: str,
         run_id: str,
+        content_encoding: str | None,
     ) -> None:
         """Spy on a FileStream request and response."""
+        if content_encoding == "gzip":
+            request_raw = gzip.decompress(request_raw)
         request = json.loads(request_raw)
 
         with self._lock:
             run = self._runs.setdefault(entity, project, run_id, _RunData())
+            run._file_stream_content_encodings.append(content_encoding or "identity")
 
             run._was_ever_preempting |= request.get("preempting", False)
             run._uploaded_files |= set(request.get("uploaded", []))
@@ -299,6 +304,13 @@ class WandbBackendSnapshot:
         for offset, line in history_file.items():
             history_parsed[offset] = json.loads(line)
         return history_parsed
+
+    def file_stream_content_encodings(self, *, run_id: str) -> list[str]:
+        """Returns the Content-Encoding of each successful FileStream request."""
+        spy = self._assert_valid()
+        run = spy._runs.get(run_id)
+
+        return list(run._file_stream_content_encodings)
 
     def output(self, *, run_id: str) -> dict[int, str]:
         """Returns the run's console logs uploaded via FileStream.
@@ -568,6 +580,7 @@ class _RunData:
         self._was_ever_preempting = False
         self._uploaded_files: set[str] = set()
         self._file_stream_files: dict[str, dict[int, str]] = {}
+        self._file_stream_content_encodings: list[str] = []
         self._config_json_string: str | None = None
         self._job_type: str | None = None
         self._tags: list[str] = []

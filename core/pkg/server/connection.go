@@ -10,9 +10,11 @@ import (
 	"net"
 	"net/url"
 	"sync"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 
+	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/gql"
@@ -159,6 +161,17 @@ func (nc *Connection) ManageConnectionData() {
 	nc.Close()
 
 	wg.Wait()
+
+	// Flush telemetry buffered by API instances that were not explicitly
+	// cleaned up, such as when the client process exits abruptly. This
+	// runs after all request handlers have finished so that no telemetry
+	// is recorded after the flush.
+	shutdownCtx, cancel := context.WithTimeout(
+		context.Background(),
+		2*time.Second,
+	)
+	defer cancel()
+	nc.apiManager.Shutdown(shutdownCtx)
 
 	slog.Info("connection: ManageConnectionData: connection closed", "id", nc.id)
 }
@@ -348,7 +361,7 @@ func (nc *Connection) handleIncomingRequests() {
 		case *spb.ServerRequest_ApiInitRequest:
 			nc.handleApiInit(msg.RequestId, x.ApiInitRequest)
 		case *spb.ServerRequest_ApiCleanupRequest:
-			nc.handleApiCleanup(msg.RequestId, x.ApiCleanupRequest)
+			nc.handleApiCleanup(wg, x.ApiCleanupRequest)
 		case *spb.ServerRequest_ApiRequest:
 			nc.handleApi(wg, msg.RequestId, x.ApiRequest)
 		case nil:
@@ -506,7 +519,6 @@ func (nc *Connection) handleAuthenticateImpl(
 	credentialProvider := api.NewAPIKeyCredentialProvider(msg.ApiKey)
 
 	apiClient := api.NewClient(api.ClientOptions{
-		BaseURL:     baseURL,
 		RetryPolicy: clients.CheckRetry,
 
 		RetryMax:        api.DefaultRetryMax,
@@ -514,8 +526,9 @@ func (nc *Connection) handleAuthenticateImpl(
 		RetryWaitMax:    api.DefaultRetryWaitMax,
 		NonRetryTimeout: api.DefaultNonRetryTimeout,
 
-		CredentialProvider: credentialProvider,
-		Logger:             logger.Logger,
+		Logger: logger.Logger,
+
+		PreRetryLayers: credentialProvider,
 	})
 
 	graphqlClient := graphql.NewClient(
@@ -524,7 +537,14 @@ func (nc *Connection) handleAuthenticateImpl(
 	)
 
 	data, err := gql.Viewer(ctx, graphqlClient)
-	if err != nil || data == nil || data.GetViewer() == nil || data.GetViewer().GetEntity() == nil {
+
+	// Field-level GraphQL errors (like a failing resolver for one of the
+	// requested fields) do not invalidate the credentials, so partial data
+	// is accepted as long as the viewer and its entity were resolved.
+	if data == nil || data.GetViewer() == nil || data.GetViewer().GetEntity() == nil {
+		if err != nil {
+			slog.Debug("handleAuthenticate: viewer query failed", "error", err)
+		}
 		return &spb.ServerAuthenticateResponse{
 			ErrorStatus: "Invalid credentials",
 		}
@@ -668,8 +688,41 @@ func (nc *Connection) handleSyncStatus(
 // handleApiInit sets up a new wandbAPI instance.
 func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest) {
 	s := settings.From(request.GetSettings())
-	logger := observability.NewCoreLogger(slog.Default(), nil)
-	wbapiInstance, err := wbapi.New(s, logger)
+
+	telemetryProxy := analytics.NewOpenTelemetryProxy(
+		context.Background(),
+		s,
+		"wandb-core",
+	)
+	go func() {
+		<-nc.connLifetimeCtx.Done()
+		if telemetryProxy != nil {
+			shutdownCtx, cancel := context.WithTimeout(
+				context.Background(),
+				2*time.Second,
+			)
+			defer cancel()
+
+			err := telemetryProxy.Shutdown(shutdownCtx)
+			if err != nil {
+				slog.Error(
+					"connection: failed to shut down telemetry proxy",
+					"error",
+					err,
+				)
+			}
+		}
+	}()
+
+	logger := observability.NewCoreLogger(
+		slog.Default(),
+		nil,
+		analytics.NewTelemetryRecorder(
+			telemetryProxy,
+			analytics.NewTelemetryContext(),
+		),
+	)
+	wbapiInstance, err := wbapi.New(s, request.GetServiceName(), logger)
 	if err != nil {
 		nc.Respond(&spb.ServerResponse{
 			RequestId: id,
@@ -696,8 +749,20 @@ func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest
 }
 
 // handleApiCleanup cleans up a wandbAPI instance related to the provided id.
-func (nc *Connection) handleApiCleanup(id string, request *spb.ServerApiCleanupRequest) {
-	nc.apiManager.RemoveWandbAPI(request.GetApiId())
+func (nc *Connection) handleApiCleanup(
+	wg *sync.WaitGroup,
+	request *spb.ServerApiCleanupRequest,
+) {
+	wbapiInstance := nc.apiManager.RemoveWandbAPI(request.GetApiId())
+	if wbapiInstance == nil {
+		return
+	}
+
+	wg.Go(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		wbapiInstance.Shutdown(ctx)
+	})
 }
 
 func (nc *Connection) handleApi(

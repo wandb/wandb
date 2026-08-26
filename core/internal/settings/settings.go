@@ -2,12 +2,15 @@
 package settings
 
 import (
+	"net/http"
+	"net/url"
 	"path/filepath"
 	"sync"
 	"time"
 
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
+	"github.com/wandb/wandb/core/internal/clients"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -129,6 +132,18 @@ func (s *Settings) GetFinishTimeout() time.Duration {
 	return time.Duration(timeoutMs) * time.Millisecond
 }
 
+// The time the client waits for the response to a run initialization
+// request, after which it gives up.
+//
+// If not positive, there is no timeout.
+func (s *Settings) GetInitTimeout() time.Duration {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	timeoutMs := int64(s.Proto.InitTimeout.GetValue() * 1000)
+	return time.Duration(timeoutMs) * time.Millisecond
+}
+
 // The start time of the run in microseconds since the Unix epoch.
 func (s *Settings) GetStartTime() time.Time {
 	seconds := s.Proto.XStartTime.GetValue()
@@ -205,9 +220,23 @@ func (s *Settings) GetFileStreamMaxBytes() int32 {
 	return s.Proto.XFileStreamMaxBytes.GetValue()
 }
 
+// Whether to gzip filestream request bodies.
+func (s *Settings) IsFileStreamGzipEnabled() bool {
+	return !s.Proto.XFileStreamNoGzip.GetValue()
+}
+
 // Additional headers to add to all outgoing HTTP requests.
-func (s *Settings) GetExtraHTTPHeaders() map[string]string {
-	return s.Proto.XExtraHttpHeaders.GetValue()
+func (s *Settings) GetExtraHTTPHeaders() http.Header {
+	extraHeaders := s.Proto.XExtraHttpHeaders.GetValue()
+	if len(extraHeaders) == 0 {
+		return nil
+	}
+
+	h := make(http.Header, len(extraHeaders))
+	for key, value := range extraHeaders {
+		h.Set(key, value)
+	}
+	return h
 }
 
 // Maximum number of retries for filestream operations.
@@ -286,14 +315,27 @@ func (s *Settings) GetGraphQLTimeout() time.Duration {
 		s.Proto.XGraphqlTimeoutSeconds.GetValue())
 }
 
-// Custom proxy for http requests to W&B.
-func (s *Settings) GetHTTPProxy() string {
-	return s.Proto.HttpProxy.GetValue()
+// Custom proxy for HTTP and HTTPS requests to W&B.
+func (s *Settings) GetProxyFn() func(*http.Request) (*url.URL, error) {
+	return clients.ProxyFn(
+		s.Proto.HttpProxy.GetValue(),
+		s.Proto.HttpsProxy.GetValue(),
+	)
 }
 
-// Custom proxy for https requests to W&B.
-func (s *Settings) GetHTTPSProxy() string {
-	return s.Proto.HttpsProxy.GetValue()
+// Header to send on CONNECT requests to proxies, generally for authorization.
+func (s *Settings) GetProxyConnectHeader() http.Header {
+	authHeaderKey := http.CanonicalHeaderKey("Proxy-Authorization")
+
+	for key, value := range s.Proto.XExtraHttpHeaders.GetValue() {
+		if http.CanonicalHeaderKey(key) == authHeaderKey && value != "" {
+			h := http.Header{}
+			h.Set(authHeaderKey, value)
+			return h
+		}
+	}
+
+	return nil
 }
 
 // Whether to disable SSL verification.

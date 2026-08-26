@@ -129,10 +129,33 @@ func InitRun(
 		environment.ToRunConfigData(),
 	)
 
+	// Initialize other run metadata.
+	runParams := runbranch.NewRunParams(runRecord, params.Settings)
+
+	operation := params.Operations.New(
+		fmt.Sprintf("setting up run %s", runParams.RunID))
+	defer operation.Finish()
+	ctx := operation.Context(params.BeforeRunEndCtx)
+
+	// Give up at the client's init timeout, so that the error being
+	// retried (if any) can be reported to the client while it is still
+	// listening: the client waits slightly longer than this timeout
+	// before giving up with a generic message.
+	//
+	// This must cover all requests made before the run is initialized,
+	// including the feature check below: any of them may be what's stuck
+	// retrying. The countdown starts when this record is processed, which
+	// is slightly after the client starts waiting.
+	if timeout := params.Settings.GetInitTimeout(); timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+
 	// Initialize the run metrics.
 	enableServerExpandedMetrics := params.Settings.IsEnableServerSideExpandGlobMetrics()
 	if enableServerExpandedMetrics && !params.FeatureProvider.Enabled(
-		params.BeforeRunEndCtx,
+		ctx,
 		spb.ServerFeature_EXPAND_DEFINED_METRIC_GLOBS,
 	) {
 		params.Logger.Warn(
@@ -142,9 +165,6 @@ func InitRun(
 		enableServerExpandedMetrics = false
 	}
 	metrics := runmetric.NewRunConfigMetrics(enableServerExpandedMetrics)
-
-	// Initialize other run metadata.
-	runParams := runbranch.NewRunParams(runRecord, params.Settings)
 
 	upserter := &RunUpserter{
 		debounceDelay: params.DebounceDelay,
@@ -165,11 +185,6 @@ func InitRun(
 		metrics:     metrics,
 		environment: environment,
 	}
-
-	operation := upserter.operations.New(
-		fmt.Sprintf("setting up run %s", runParams.RunID))
-	defer operation.Finish()
-	ctx := operation.Context(upserter.beforeRunEndCtx)
 
 	// If resuming, rewinding or forking, we need to modify metadata
 	// in special ways before upserting the run.
@@ -263,7 +278,9 @@ func (upserter *RunUpserter) UpdateConfig(config *spb.ConfigRecord) {
 	upserter.config.ApplyChangeRecord(config,
 		func(err error) {
 			upserter.logger.CaptureError(
-				fmt.Errorf("runupserter: error updating config: %v", err))
+				"runupserter",
+				fmt.Errorf("runupserter: error updating config: %v", err),
+			)
 		})
 
 	upserter.isConfigDirty = true
@@ -318,7 +335,9 @@ func (upserter *RunUpserter) UpdateMetrics(metric *spb.MetricRecord) {
 	err := upserter.metrics.ProcessRecord(metric)
 	if err != nil {
 		upserter.logger.CaptureError(
-			fmt.Errorf("runupserter: failed to process metric: %v", err))
+			"runupserter",
+			fmt.Errorf("runupserter: failed to process metric: %v", err),
+		)
 		return
 	}
 
@@ -665,9 +684,10 @@ func (upserter *RunUpserter) lockedUpdateFromUpsert(
 	upserter.params.SweepID = nullify.ZeroIfNil(bucket.GetSweepName())
 
 	if lineCount := nullify.ZeroIfNil(bucket.GetHistoryLineCount()); lineCount > 0 {
-		upserter.params.FileStreamOffset = filestream.FileStreamOffsetMap{
-			filestream.HistoryChunk: lineCount,
+		if upserter.params.FileStreamOffset == nil {
+			upserter.params.FileStreamOffset = make(filestream.FileStreamOffsetMap)
 		}
+		upserter.params.FileStreamOffset[filestream.HistoryChunk] = lineCount
 	}
 
 	if project := bucket.GetProject(); project == nil {

@@ -58,6 +58,36 @@ def test_feature_flags_by_string_name(wandb_backend_spy: WandbBackendSpy):
     assert enabled
 
 
+def test_org_feature_flags(wandb_backend_spy: WandbBackendSpy):
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="OrgFeatureFlags"),
+        gql.once(
+            content={
+                "data": {
+                    "organization": {
+                        "featureFlags": [
+                            {"rampKey": "enabled-feat", "isEnabled": True},
+                            {"rampKey": "disabled-feat", "isEnabled": False},
+                            {"rampKey": "unrequested-feat", "isEnabled": True},
+                        ]
+                    }
+                }
+            }
+        ),
+    )
+
+    api = ServiceApi(wandb_setup.singleton().settings)
+    flags = api.org_feature_flags(
+        "test-org",
+        "enabled-feat",
+        "disabled-feat",
+        "missing-feat",
+    )
+
+    assert flags == {"enabled-feat": True, "disabled-feat": False}
+
+
 def test_feature_flags_timeout():
     class FakeConnection:
         def __init__(self):

@@ -225,6 +225,7 @@ func (d *decoder) decodeCodeLengths(dst []uint32, codeLengthCodeLengths []uint32
 }
 
 // decodeHuffmanTree decodes a Huffman tree into h.
+// h may be nil, in which case we decode and discard the tree.
 func (d *decoder) decodeHuffmanTree(h *hTree, alphabetSize uint32) error {
 	useSimple, err := d.read(1)
 	if err != nil {
@@ -252,6 +253,9 @@ func (d *decoder) decodeHuffmanTree(h *hTree, alphabetSize uint32) error {
 				return err
 			}
 		}
+		if h == nil {
+			return nil
+		}
 		return h.buildSimple(nSymbols, symbols, alphabetSize)
 	}
 
@@ -273,6 +277,9 @@ func (d *decoder) decodeHuffmanTree(h *hTree, alphabetSize uint32) error {
 	codeLengths := make([]uint32, alphabetSize)
 	if err = d.decodeCodeLengths(codeLengths, codeLengthCodeLengths[:]); err != nil {
 		return err
+	}
+	if h == nil {
+		return nil
 	}
 	return h.build(codeLengths)
 }
@@ -296,7 +303,23 @@ type hGroup [nHuff]hTree
 func (d *decoder) decodeHuffmanGroups(w int32, h int32, topLevel bool, ccBits uint32) (
 	hGroups []hGroup, hPix []byte, hBits uint32, err error) {
 
+	// hPix maps tiles to hGroup indices.
+	// The number of hGroups is determined by the maximum index.
+	// VP8L permits unused hGroups in the input.
+	// While the number of used hGroups is bounded by the number of tiles,
+	// the number of decoded hGroups is only bounded by the maximum hGroup index (2^16-1).
+	//
+	// When the total number of hGroups is large, we store only the referenced hGroups
+	// and rewrite hGroup indices in hPix.
+	//
+	// When mapping is nil, we do no remapping.
+	// Otherwise, for hGroup i (where i is the real index of the group),
+	// mapping[i] is -1 for an unreferenced group or the remapped index otherwise.
+	var mapping []int16
+
 	maxHGroupIndex := 0
+	numHGroups := int16(1)
+
 	if topLevel {
 		useMeta, err := d.read(1)
 		if err != nil {
@@ -308,7 +331,10 @@ func (d *decoder) decodeHuffmanGroups(w int32, h int32, topLevel bool, ccBits ui
 				return nil, nil, 0, err
 			}
 			hBits += 2
-			hPix, err = d.decodePix(nTiles(w, hBits), nTiles(h, hBits), 0, false)
+			tileW := nTiles(w, hBits)
+			tileH := nTiles(h, hBits)
+			numTiles := tileH * tileW
+			hPix, err = d.decodePix(tileW, tileH, 0, false)
 			if err != nil {
 				return nil, nil, 0, err
 			}
@@ -318,15 +344,67 @@ func (d *decoder) decodeHuffmanGroups(w int32, h int32, topLevel bool, ccBits ui
 					maxHGroupIndex = i
 				}
 			}
+
+			// The standard allows for up to 2^16-1 hGroups.
+			//
+			// An input file containing a 1600x900 image can include
+			// and reference every possible group. With maximum-size trees
+			// (a ~12MiB input file), this is >3GiB of allocation.
+			//
+			// libwebp will decode a file containing 2^16-1 hGroups,
+			// but it won't produce one. It encodes at most 2600 hGroups
+			// (MAX_HUFF_IMAGE_SIZE, src/dec/common_dec.h)
+			// Reject any image using more.
+			const maxHuffImageSize = 2600
+			const _ int16 = maxHuffImageSize + 1 // must fit in int16
+			if maxHGroupIndex >= maxHuffImageSize {
+				return nil, nil, 0, errors.New("vp8l: too many Huffman trees")
+			}
+
+			// If maxHGroupIndex is too large, map indices to contiguous indices
+			// to avoid allocating large slices of unused Huffman trees.
+			//
+			// The definition of "too large" matches the one used in libwebp
+			// (see src/dec/vp8l_dec.c).
+			if maxHGroupIndex >= 1000 || int32(maxHGroupIndex) >= numTiles {
+				mapping = make([]int16, maxHGroupIndex+1)
+				for i := range mapping {
+					mapping[i] = -1
+				}
+				numHGroups = 0
+				for p := 0; p < len(hPix); p += 4 {
+					i := int(hPix[p])<<8 | int(hPix[p+1])
+					if mapping[i] == -1 {
+						mapping[i] = numHGroups
+						numHGroups++
+					}
+					hPix[p] = byte(mapping[i] >> 8)
+					hPix[p+1] = byte(mapping[i])
+				}
+			} else {
+				numHGroups = int16(maxHGroupIndex + 1)
+			}
 		}
 	}
-	hGroups = make([]hGroup, maxHGroupIndex+1)
-	for i := range hGroups {
+
+	hGroups = make([]hGroup, numHGroups)
+	for i := range maxHGroupIndex + 1 {
+		var hg *hGroup
+		if mapping == nil {
+			hg = &hGroups[i]
+		} else if mapping[i] != -1 {
+			hg = &hGroups[mapping[i]]
+		}
+
 		for j, alphabetSize := range alphabetSizes {
 			if j == 0 && ccBits > 0 {
 				alphabetSize += 1 << ccBits
 			}
-			if err := d.decodeHuffmanTree(&hGroups[i][j], alphabetSize); err != nil {
+			var hTreeDst *hTree
+			if hg != nil {
+				hTreeDst = &hg[j]
+			}
+			if err := d.decodeHuffmanTree(hTreeDst, alphabetSize); err != nil {
 				return nil, nil, 0, err
 			}
 		}

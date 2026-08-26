@@ -54,6 +54,8 @@
 /wandb/_iterutils.py @wandb/sdk-team @wandb/art-reg-team
 /wandb/_strutils.py @wandb/sdk-team @wandb/art-reg-team
 /wandb/_pydantic/ @wandb/sdk-team @wandb/art-reg-team
+/wandb/_filters/ @wandb/sdk-team @wandb/art-reg-team
+/tests/unit_tests/test_filters/ @wandb/sdk-team @wandb/art-reg-team
 
 
 # Artifacts, Registries, Automations

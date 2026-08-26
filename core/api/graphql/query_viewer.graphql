@@ -3,6 +3,8 @@ query Viewer{
     viewer {
         id
         entity
+        username
+        email
         flags
         teams {
             edges {

@@ -29,15 +29,37 @@ def set_auth_settings(settings: Settings, auth: Auth | None) -> None:
         settings.identity_token_file = None
 
     elif isinstance(auth, AuthApiKey):
-        settings.api_key = auth.api_key
-        settings.identity_token_file = None
-        settings.base_url = auth.host.url
+        set_auth_settings_for_api_key(settings, auth.api_key, auth.host.url)
 
     elif isinstance(auth, AuthIdentityTokenFile):
-        settings.api_key = None
-        settings.identity_token_file = str(auth.path)
-        settings.credentials_file = str(auth.credentials_path)
-        settings.base_url = auth.host.url
+        set_auth_settings_for_identity_token_file(
+            settings,
+            str(auth.path),
+            str(auth.credentials_path),
+            auth.host.url,
+        )
 
     else:
         raise NotImplementedError(str(auth))
+
+
+def set_auth_settings_for_api_key(
+    settings: Settings,
+    api_key: str,
+    base_url: str,
+) -> None:
+    settings.api_key = api_key
+    settings.identity_token_file = None
+    settings.base_url = base_url
+
+
+def set_auth_settings_for_identity_token_file(
+    settings: Settings,
+    identity_token_file: str,
+    credentials_file: str,
+    base_url: str,
+) -> None:
+    settings.api_key = None
+    settings.identity_token_file = identity_token_file
+    settings.credentials_file = credentials_file
+    settings.base_url = base_url

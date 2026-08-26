@@ -7,7 +7,7 @@ from typing import Annotated, Any, Literal, get_args
 from pydantic import BeforeValidator, Field
 from typing_extensions import Self, TypeVar
 
-from wandb._pydantic import GQLBase, GQLId
+from wandb._pydantic import GQLBase, GQLId, default_if_none
 from wandb._strutils import nameof
 
 from ._generated import (
@@ -23,7 +23,6 @@ from ._generated import (
 from ._validators import (
     JsonEncoded,
     LenientStrEnum,
-    default_if_none,
     parse_input_action,
     parse_saved_action,
     upper_if_str,

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -17,7 +18,12 @@ func (r *Run) handleRecordMsg(msg tea.Msg) tea.Cmd {
 	defer func() {
 		r.logger.Debug(fmt.Sprintf("perf: processRecordMsg(%T) took %s", msg, time.Since(start)))
 	}()
-	defer r.focusMgr.ResolveAfterAvailabilityChange()
+	defer r.resolveFocusAfterData()
+
+	// Anything the reader produced counts as proof of life for the crash
+	// check. Terminal messages (FileComplete, Error) also land here, but
+	// they leave RunStateRunning, after which lastUpdateAt is irrelevant.
+	r.lastUpdateAt = time.Now()
 
 	switch msg := msg.(type) {
 	case RunMsg:
@@ -28,6 +34,7 @@ func (r *Run) handleRecordMsg(msg tea.Msg) tea.Cmd {
 		r.runState = RunStateRunning
 		r.syncLiveRunning()
 		r.isLoading = false
+		return r.ensureLivePulseCmd()
 
 	case HistoryMsg:
 		r.logger.Debug("model: processing HistoryMsg")
@@ -56,18 +63,13 @@ func (r *Run) handleRecordMsg(msg tea.Msg) tea.Cmd {
 	case ConsoleLogMsg:
 		r.logger.Debug("model: processing ConsoleLogMsg")
 		r.consoleLogs.ProcessRaw(msg.Text, msg.IsStderr, msg.Time)
+		// Keep the pane's data (and thus focus availability) current
+		// without waiting for the next render.
+		r.consoleLogsPane.SetConsoleLogs(r.consoleLogs.Items())
 
 	case FileCompleteMsg:
 		r.logger.Debug("model: processing FileCompleteMsg - file is complete!")
-		switch msg.ExitCode {
-		case 0:
-			r.runState = RunStateFinished
-		default:
-			r.runState = RunStateFailed
-		}
-		r.syncLiveRunning()
-		r.runOverview.SetRunState(r.runState)
-		r.leftSidebar.Sync()
+		r.setRunState(runStateForExitCode(msg.ExitCode))
 
 		r.logger.Debug("model: stopping heartbeats and finishing watcher")
 		r.heartbeatMgr.Stop()
@@ -80,15 +82,35 @@ func (r *Run) handleRecordMsg(msg tea.Msg) tea.Cmd {
 		if msg.Err != nil {
 			r.lastError = msg.Err.Error()
 		}
-		r.runState = RunStateFailed
-		r.syncLiveRunning()
-		r.runOverview.SetRunState(r.runState)
+		r.setRunState(RunStateFailed)
 		r.logger.Debug("model: stopping heartbeats and finishing watcher due to error")
 		r.heartbeatMgr.Stop()
 		r.watcherMgr.Finish()
 	}
 
 	return nil
+}
+
+// runStateForExitCode maps an exit record's code to a run state, following
+// the server's convention (254 is a client-reported crash).
+func runStateForExitCode(exitCode int32) RunState {
+	switch exitCode {
+	case 0:
+		return RunStateFinished
+	case 254:
+		return RunStateCrashed
+	default:
+		return RunStateFailed
+	}
+}
+
+// setRunState updates the run state everywhere it is mirrored: the atomic
+// liveness flag, the overview data model, and the sidebar.
+func (r *Run) setRunState(state RunState) {
+	r.runState = state
+	r.syncLiveRunning()
+	r.runOverview.SetRunState(state)
+	r.leftSidebar.Sync()
 }
 
 // handleHistoryMsg processes new history data.
@@ -110,6 +132,11 @@ func (r *Run) handleMouseMsg(msg tea.MouseMsg) tea.Cmd {
 
 	layout := r.computeViewports()
 
+	// Pane resizing wins over pane-local mouse handling.
+	if r.drag.handleMouse(msg, layout, r.dragTargets()) {
+		return nil
+	}
+
 	if r.isInLeftSidebar(msg, layout) {
 		return r.handleLeftSidebarMouse()
 	}
@@ -119,6 +146,27 @@ func (r *Run) handleMouseMsg(msg tea.MouseMsg) tea.Cmd {
 	}
 
 	return r.handleMainContentMouse(msg, layout)
+}
+
+// dragTargets reports which layout boundaries a mouse event may grab.
+func (r *Run) dragTargets() dragTargets {
+	t := dragTargets{
+		width:           r.width,
+		height:          r.height,
+		leftExpanded:    r.leftSidebar.IsExpanded(),
+		rightExpanded:   r.rightSidebar.animState.IsExpanded(),
+		mediaFullscreen: r.mediaPane.IsFullscreen(),
+	}
+	if t.leftExpanded {
+		t.overview = r.leftSidebar
+	}
+	return t
+}
+
+// handleResetLayout resets the view's pane proportions to the defaults.
+func (r *Run) handleResetLayout(tea.KeyPressMsg) tea.Cmd {
+	r.drag.reset()
+	return nil
 }
 
 // isInLeftSidebar checks if mouse position is in the left sidebar region.
@@ -375,8 +423,7 @@ func (r *Run) endAnimating() {
 }
 
 // handleToggleLeftSidebar toggles the left overview sidebar and resolves
-// focus so a collapsing sidebar loses focus and an expanding sidebar
-// gains it when nothing else is focused.
+// focus so a collapsing sidebar loses focus.
 func (r *Run) handleToggleLeftSidebar(msg tea.KeyPressMsg) tea.Cmd {
 	if !r.beginAnimating() {
 		return nil
@@ -388,11 +435,10 @@ func (r *Run) handleToggleLeftSidebar(msg tea.KeyPressMsg) tea.Cmd {
 		r.logger.Error(fmt.Sprintf("model: failed to save left sidebar state: %v", err))
 	}
 
-	r.leftSidebar.UpdateDimensions(r.width, r.rightSidebar.animState.TargetVisible())
-	r.rightSidebar.UpdateDimensions(r.width, leftWillBeVisible)
+	r.updateSidebarDimensions(leftWillBeVisible, r.rightSidebar.animState.TargetVisible())
 	r.leftSidebar.Toggle()
 
-	r.focusMgr.ResolveAfterVisibilityChange()
+	r.focusMgr.Resolve()
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
@@ -411,10 +457,9 @@ func (r *Run) handleToggleRightSidebar(msg tea.KeyPressMsg) tea.Cmd {
 		r.logger.Error(fmt.Sprintf("model: failed to save right sidebar state: %v", err))
 	}
 
-	r.rightSidebar.UpdateDimensions(r.width, r.leftSidebar.animState.TargetVisible())
-	r.leftSidebar.UpdateDimensions(r.width, rightWillBeVisible)
+	r.updateSidebarDimensions(r.leftSidebar.animState.TargetVisible(), rightWillBeVisible)
 	r.rightSidebar.Toggle()
-	r.focusMgr.ResolveAfterVisibilityChange()
+	r.focusMgr.Resolve()
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
@@ -498,6 +543,18 @@ func (r *Run) handleCycleFocusedChartMode(tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
+func (r *Run) handleCycleChartGuides(tea.KeyPressMsg) tea.Cmd {
+	guides := nextChartGuides(r.config.ChartGuides())
+	if err := r.config.SetChartGuides(guides); err != nil {
+		r.logger.Error(fmt.Sprintf("runhandlers: failed to save chart guides: %v", err))
+	}
+	r.metricsGrid.SetChartGuides(guides)
+	if r.rightSidebar != nil && r.rightSidebar.metricsGrid != nil {
+		r.rightSidebar.metricsGrid.SetChartGuides(guides)
+	}
+	return nil
+}
+
 func (r *Run) handleEnterMetricsFilter(msg tea.KeyPressMsg) tea.Cmd {
 	r.metricsGrid.EnterFilterMode()
 	return nil
@@ -533,7 +590,7 @@ func (r *Run) handleToggleMetricsGrid(msg tea.KeyPressMsg) tea.Cmd {
 	}
 
 	r.metricsGridAnimState.Toggle()
-	r.focusMgr.ResolveAfterVisibilityChange()
+	r.focusMgr.Resolve()
 
 	r.updateBottomPaneHeights(
 		r.mediaPane.animState.TargetVisible(), r.consoleLogsPane.animState.TargetVisible())
@@ -689,7 +746,8 @@ func (r *Run) handleSidebarAnimation(msg tea.Msg) []tea.Cmd {
 		}
 
 		r.endAnimating()
-		r.rightSidebar.UpdateDimensions(r.width, r.leftSidebar.animState.TargetVisible())
+		r.rightSidebar.UpdateDimensions(
+			r.width, r.leftSidebar.animState.TargetVisible(), r.layoutOverrides().RightSidebar)
 
 	case RightSidebarAnimationMsg:
 		layout := r.computeViewports()
@@ -700,7 +758,8 @@ func (r *Run) handleSidebarAnimation(msg tea.Msg) []tea.Cmd {
 		}
 
 		r.endAnimating()
-		r.leftSidebar.UpdateDimensions(r.width, r.rightSidebar.animState.TargetVisible())
+		r.leftSidebar.UpdateDimensions(
+			r.width, r.rightSidebar.animState.TargetVisible(), r.layoutOverrides().LeftSidebar)
 	}
 
 	return nil
@@ -724,9 +783,7 @@ func (r *Run) handleToggleMediaPane(msg tea.KeyPressMsg) tea.Cmd {
 	r.mediaPane.Toggle()
 	r.updateBottomPaneHeights(mediaWillBeVisible, r.consoleLogsPane.animState.TargetVisible())
 
-	if !mediaWillBeVisible {
-		r.focusMgr.ResolveAfterVisibilityChange()
-	}
+	r.focusMgr.Resolve()
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
@@ -754,9 +811,8 @@ func (r *Run) mediaPaneAnimationCmd() tea.Cmd {
 	})
 }
 
-// handleToggleConsoleLogsPane toggles the console logs bottom bar and resolves
-// focus so a collapsing bar loses focus and an expanding bar gains it
-// when nothing else is focused.
+// handleToggleConsoleLogsPane toggles the console logs bottom bar and
+// resolves focus so a collapsing bar loses focus.
 func (r *Run) handleToggleConsoleLogsPane(msg tea.KeyPressMsg) tea.Cmd {
 	if !r.beginAnimating() {
 		return nil
@@ -770,7 +826,7 @@ func (r *Run) handleToggleConsoleLogsPane(msg tea.KeyPressMsg) tea.Cmd {
 
 	r.consoleLogsPane.Toggle()
 	r.updateBottomPaneHeights(r.mediaPane.animState.TargetVisible(), bottomWillBeVisible)
-	r.focusMgr.ResolveAfterVisibilityChange()
+	r.focusMgr.Resolve()
 
 	layout := r.computeViewports()
 	r.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
@@ -899,11 +955,20 @@ func (r *Run) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 	// Boot load complete -> begin live mode once. The WaitForMsg pump is
 	// started alongside the watcher so it only runs while the watcher and
 	// heartbeat can produce messages; WatcherManager.Finish unblocks it.
-	if !r.IsRemote() && r.runState == RunStateRunning && !r.watcherMgr.IsStarted() {
+	if !r.IsRemote() && r.runState.mayBeLive() && !r.watcherMgr.IsStarted() {
 		if err := r.watcherMgr.Start(r.runParams.RunFile); err != nil {
-			r.logger.CaptureError(fmt.Errorf("model: error starting watcher: %v", err))
+			r.logger.CaptureError(
+				"leet",
+				fmt.Errorf("model: error starting watcher: %v", err),
+			)
 		} else {
 			r.logger.Info("model: watcher started successfully")
+			// Seed the staleness clock from the file so a run that died
+			// before LEET started is caught on the first heartbeat rather
+			// than a full RunCrashTimeout later.
+			if info, err := os.Stat(r.runParams.RunFile); err == nil {
+				r.lastUpdateAt = info.ModTime()
+			}
 			r.heartbeatMgr.Start(r.isRunning)
 			cmds = append(cmds, r.watcherMgr.WaitForMsg)
 		}
@@ -932,6 +997,12 @@ func (r *Run) handleHeartbeat() []tea.Cmd {
 		r.heartbeatMgr.Stop()
 		return nil
 	}
+	if r.presumedCrashed() {
+		r.markPresumedCrashed()
+		// Keep listening: if the writer comes back, handleFileChange
+		// revives the run.
+		return []tea.Cmd{r.watcherMgr.WaitForMsg}
+	}
 	r.heartbeatMgr.Reset(r.isRunning)
 	return []tea.Cmd{
 		r.ReadLiveBatchCmd(r.historySource),
@@ -939,16 +1010,65 @@ func (r *Run) handleHeartbeat() []tea.Cmd {
 	}
 }
 
+// presumedCrashed reports whether a live run's transaction log has been
+// silent long enough to presume the writer is gone.
+func (r *Run) presumedCrashed() bool {
+	return !r.lastUpdateAt.IsZero() && time.Since(r.lastUpdateAt) > RunCrashTimeout
+}
+
+// markPresumedCrashed mirrors the server's stale-runs sweep: a running run
+// that stopped writing without an exit record is moved to the crashed state.
+func (r *Run) markPresumedCrashed() {
+	r.logger.Info(fmt.Sprintf(
+		"model: no transaction log updates in %v, presuming the run crashed",
+		time.Since(r.lastUpdateAt).Round(time.Second)))
+	r.setRunState(RunStateCrashed)
+	r.heartbeatMgr.Stop()
+}
+
 // handleFileChange coalesces change notifications into a read.
 func (r *Run) handleFileChange() []tea.Cmd {
-	if r.runState != RunStateRunning {
+	if r.runState == RunStateCrashed {
+		// The writer came back: revive the presumed-crashed run.
+		r.logger.Info("model: transaction log updated, reviving crashed run")
+		r.lastUpdateAt = time.Now()
+		r.setRunState(RunStateRunning)
+	}
+	if !r.runState.mayBeLive() {
 		return nil
 	}
 	r.heartbeatMgr.Reset(r.isRunning)
 	return []tea.Cmd{
 		r.ReadLiveBatchCmd(r.historySource),
 		r.watcherMgr.WaitForMsg,
+		r.ensureLivePulseCmd(),
 	}
+}
+
+// livePulseCmd schedules the next live-indicator frame.
+func (r *Run) livePulseCmd() tea.Cmd {
+	return tea.Tick(LivePulseFrame, func(time.Time) tea.Msg {
+		return RunLivePulseMsg{}
+	})
+}
+
+// ensureLivePulseCmd starts the live-indicator redraw loop for a live run.
+// Returns nil if the loop is already ticking or the run is not live.
+func (r *Run) ensureLivePulseCmd() tea.Cmd {
+	if r.pulseTicking || r.runState != RunStateRunning {
+		return nil
+	}
+	r.pulseTicking = true
+	return r.livePulseCmd()
+}
+
+// handleLivePulse keeps the live indicator animating while the run is live.
+func (r *Run) handleLivePulse() []tea.Cmd {
+	if r.runState != RunStateRunning {
+		r.pulseTicking = false
+		return nil
+	}
+	return []tea.Cmd{r.livePulseCmd()}
 }
 
 // handleSidebarTabNav cycles focus between overview sections and the

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import datetime
 import getpass
 import json
 import logging
@@ -26,8 +25,9 @@ import wandb
 import wandb.errors
 import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent
-from wandb.analytics import get_sentry
+from wandb.analytics import TelemetryRecorder, get_sentry
 from wandb.apis import InternalApi, PublicApi
+from wandb.apis.public.service_api import ServiceApi
 from wandb.cli import beta_sync
 from wandb.errors.links import url_registry
 from wandb.sdk import wandb_setup, wandb_sweep
@@ -41,7 +41,7 @@ from wandb.sdk.launch.sweeps import SweepNotFoundError
 from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.lib import filesystem, settings_file
-from wandb.sync import TFEVENT_SUBSTRING, SyncManager, get_run_from_path, get_runs
+from wandb.sync import TFEVENT_SUBSTRING, SyncManager, get_runs
 
 from .beta import beta
 from .clean import clean
@@ -109,11 +109,6 @@ RUN_CONTEXT = {
     "allow_extra_args": True,
     "ignore_unknown_options": True,
 }
-
-
-def cli_unsupported(argument):
-    wandb.termerror(f"Unsupported argument `{argument}`")
-    sys.exit(1)
 
 
 class ClickWandbException(ClickException):
@@ -314,7 +309,7 @@ def projects(entity, display=True):
 )
 @click.option(
     "--verify/--no-verify",
-    default=False,
+    default=True,
     is_flag=True,
     help="""Verify the API key with W&B after storing it. If verification
     is successful, display the source of the credentials and the
@@ -350,9 +345,9 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
 
         $ wandb login WANDB_API_KEY_EXAMPLE
 
-    To log in and verify the API key is valid:
+    To log in and bypass verifying the API key:
 
-        $ wandb login --verify
+        $ wandb login --no-verify
 
     To log in to the W&B public cloud instead of a configured self-hosted instance:
 
@@ -646,24 +641,22 @@ def init(ctx, project, entity, reset, mode):
     default=False,
     help="(legacy only) Sync all unsynced runs in the local wandb directory.",
 )
-@click.option(
+@click.option(  # TODO: Remove wandb sync --clean completely.
     "--clean",
     is_flag=True,
     default=False,
-    help="(legacy only) Delete local data for runs that are already synced.",
+    help="Removed. Use `wandb clean`.",
 )
-@click.option(
+@click.option(  # TODO: Remove wandb sync --clean-old-hours completely.
     "--clean-old-hours",
-    default=24,
-    help="""Delete only synced runs older than this many
-    hours (use with --clean).""",
-    type=int,
+    default=None,
+    help="Removed. Use `wandb clean`.",
 )
-@click.option(
+@click.option(  # TODO: Remove wandb sync --clean-force completely.
     "--clean-force",
     is_flag=True,
     default=False,
-    help="Skip the confirmation prompt if --clean is specified.",
+    help="Removed. Use `wandb clean`.",
 )
 @click.option("--ignore", hidden=True)
 @click.option(
@@ -717,7 +710,7 @@ def sync(
     ignore: str | None,
     show: int,
     clean: bool,
-    clean_old_hours: int,
+    clean_old_hours: int | None,
     clean_force: bool,
     append: bool,
     skip_console: bool,
@@ -770,13 +763,11 @@ def sync(
 
         $ wandb sync --sync-all
 
-    To delete local data for runs that have already been synced:
+    Use `wandb clean` to delete local data for runs that have been synced. See
 
-        $ wandb sync --clean
+        $ wandb clean --help
 
-    To delete synced runs older than 48 hours without a confirmation prompt:
-
-        $ wandb sync --clean --clean-old-hours 48 --clean-force
+    for more info.
     """
     # Use `wandb beta sync` if possible.
     if (
@@ -817,6 +808,9 @@ def sync(
         )
         return
 
+    if clean or clean_old_hours or clean_force:
+        raise ClickException("Use `wandb clean` instead of `wandb sync --clean`")
+
     # Print out deprecations for legacy options, especially if they prevent
     # us from rerouting through `wandb beta sync`.
     if view:
@@ -837,6 +831,8 @@ def sync(
         )
     if skip_console:
         wandb.termwarn("--skip-console is deprecated and will be removed.")
+    if sync_tensorboard:
+        wandb.termwarn("--sync-tensorboard is deprecated and will be removed.")
 
     # Fail if any beta options are provided in legacy mode.
     bad_options: list[str] = []
@@ -897,7 +893,7 @@ def sync(
         else:
             wandb.termlog("No runs to be synced.")
         if synced:
-            clean_cmd = click.style("wandb sync --clean", fg="yellow")
+            clean_cmd = click.style("wandb clean", fg="yellow")
             wandb.termlog(
                 f"NOTE: use {clean_cmd} to delete {len(synced)} synced runs from local directory."
             )
@@ -948,60 +944,8 @@ def sync(
             sync_tb = sync_tensorboard if sync_tensorboard is not None else False
             _sync_path(sync_items, sync_tb)
 
-    def _clean():
-        if path:
-            runs = list(map(get_run_from_path, path))
-            if not clean_force:
-                click.confirm(
-                    click.style(
-                        f"Are you sure you want to remove {len(runs)} runs?",
-                        bold=True,
-                    ),
-                    abort=True,
-                )
-            for run in runs:
-                shutil.rmtree(run.path)
-            click.echo(click.style("Success!", fg="green"))
-            return
-        runs = get_runs(
-            include_online=include_online if include_online is not None else True,
-            include_offline=include_offline if include_offline is not None else True,
-            include_synced=include_synced if include_synced is not None else True,
-            include_unsynced=False,
-            exclude_globs=exclude_globs,
-            include_globs=include_globs,
-        )
-        since = datetime.datetime.now() - datetime.timedelta(hours=clean_old_hours)
-        old_runs = [run for run in runs if run.datetime < since]
-        old_runs.sort(key=lambda _run: _run.datetime)
-        if old_runs:
-            click.echo(
-                f"Found {len(runs)} runs, {len(old_runs)} are older than {clean_old_hours} hours"
-            )
-            for run in old_runs:
-                click.echo(run.path)
-            if not clean_force:
-                click.confirm(
-                    click.style(
-                        f"Are you sure you want to remove {len(old_runs)} runs?",
-                        bold=True,
-                    ),
-                    abort=True,
-                )
-            for run in old_runs:
-                shutil.rmtree(run.path)
-            click.echo(click.style("Success!", fg="green"))
-        else:
-            click.echo(
-                click.style(
-                    f"No runs older than {clean_old_hours} hours found", fg="red"
-                )
-            )
-
     if sync_all:
         _sync_all()
-    elif clean:
-        _clean()
     elif path:
         # When syncing a specific path, default to syncing tensorboard
         sync_tb = sync_tensorboard if sync_tensorboard is not None else True
@@ -1081,7 +1025,8 @@ def _parse_sync_replace_tags(replace_tags: str) -> dict[str, str] | None:
 @click.option(
     "--update",
     default=None,
-    help="Update an existing sweep configuration. Pass the sweep ID.",
+    help="""Update the configuration of a sweep while it is still
+    pending, before any run has started. Pass the sweep ID.""",
 )
 @click.option(
     "--stop",
@@ -1161,9 +1106,7 @@ def sweep(
 
         $ wandb sweep -p foobar -e team-awesome sweep_config.yaml
 
-    To update sweep abcd1234 with a new configuration from sweep_config.yaml.
-    This is useful for changing the parameters or search strategy of an
-    active sweep:
+    To update sweep abcd1234 with a new configuration from sweep_config.yaml:
 
         $ wandb sweep --update abcd1234 sweep_config.yaml
 
@@ -1855,6 +1798,8 @@ def launch(
 
     api = _get_cling_api()
     get_sentry().configure_scope(process_context="launch_cli")
+    service_api = ServiceApi(wandb_setup.singleton().settings)
+    telemetry_recorder = TelemetryRecorder(service_api=service_api)
 
     if run_async and queue is not None:
         raise LaunchError(
@@ -1986,10 +1931,12 @@ def launch(
                 sys.exit(1)
         except LaunchError as e:
             logger.exception("An error occurred.")
+            telemetry_recorder.exception(e)
             get_sentry().exception(e)
             sys.exit(e)
         except ExecutionError as e:
             logger.exception("An error occurred.")
+            telemetry_recorder.exception(e)
             get_sentry().exception(e)
             sys.exit(e)
         except asyncio.CancelledError:
@@ -2018,6 +1965,7 @@ def launch(
             )
 
         except Exception as e:
+            telemetry_recorder.exception(e)
             get_sentry().exception(e)
             raise
 
@@ -2095,6 +2043,8 @@ def launch_agent(
         _launch.set_launch_logfile(log_file)
 
     api = _get_cling_api()
+    service_api = ServiceApi(wandb_setup.singleton().settings)
+    telemetry_recorder = TelemetryRecorder(service_api=service_api)
     get_sentry().configure_scope(process_context="launch_agent")
     agent_config, api = _launch.resolve_agent_config(
         entity, max_jobs, queues, config, verbose
@@ -2109,8 +2059,13 @@ def launch_agent(
 
     wandb.termlog("Starting launch agent ✨")
     try:
-        _launch.create_and_run_agent(api, agent_config)
+        _launch.create_and_run_agent(
+            api,
+            agent_config,
+            telemetry_recorder=telemetry_recorder,
+        )
     except Exception as e:
+        telemetry_recorder.exception(e)
         get_sentry().exception(e)
         raise
 
@@ -2144,9 +2099,18 @@ def launch_agent(
     help="""Forward signals (e.g. SIGINT/SIGTERM) to child runs so they can
     shut down cleanly.""",
 )
+@click.option(
+    "--term-timeout",
+    "-t",
+    default=None,
+    type=int,
+    help="""Time (in seconds) after receiving a shutdown signal (e.g. SIGINT
+    /SIGTERM) to force-kill child runs which have not finished since receiving
+    the initial forwarded signal. Does nothing if --forward-signals is not set.""",
+)
 @click.argument("sweep_id")
 @display_error
-def agent(ctx, project, entity, count, forward_signals, sweep_id):
+def agent(ctx, project, entity, count, forward_signals, term_timeout, sweep_id):
     """Start a sweep agent.
 
     Poll the W&B server for hyperparameter configurations from
@@ -2192,6 +2156,7 @@ def agent(ctx, project, entity, count, forward_signals, sweep_id):
             project=project,
             count=count,
             forward_signals=forward_signals,
+            term_timeout=term_timeout,
         )
     # TODO: handle other errors with correct exit codes
     except SweepNotFoundError:
@@ -2224,6 +2189,8 @@ def scheduler(
         ctx.invoke(login, no_offline=True)
         api = InternalApi(reset=True)
 
+    service_api = ServiceApi(wandb_setup.singleton().settings)
+    telemetry_recorder = TelemetryRecorder(service_api=service_api)
     get_sentry().configure_scope(process_context="sweep_scheduler")
     wandb.termlog("Starting a Launch Scheduler 🚀")
     from wandb.sdk.launch.sweeps import load_scheduler
@@ -2248,6 +2215,7 @@ def scheduler(
         )
         _scheduler.start()
     except Exception as e:
+        telemetry_recorder.exception(e)
         get_sentry().exception(e)
         raise
 
@@ -2586,13 +2554,15 @@ def docker_run(ctx, docker_run_args):
         wandb.termlog(
             "Couldn't detect image argument, running command without the WANDB_DOCKER env variable"
         )
+    env = dict(os.environ)
     if api.api_key:
-        args = ["-e", f"WANDB_API_KEY={api.api_key}"] + args
+        args = ["-e", "WANDB_API_KEY"] + args
+        env["WANDB_API_KEY"] = api.api_key
     else:
         wandb.termlog(
             "Not logged in, run `wandb login` from the host machine to enable result logging"
         )
-    subprocess.call(["docker", "run"] + args)
+    subprocess.call(["docker", "run"] + args, env=env)
 
 
 @cli.command(context_settings=RUN_CONTEXT)
@@ -2724,8 +2694,10 @@ def docker(
     if not no_dir:
         #  TODO: We should default to the working directory if defined
         command.extend(["-v", cwd + ":" + dir, "-w", dir])
+    env = dict(os.environ)
     if api.api_key:
-        command.extend(["-e", f"WANDB_API_KEY={api.api_key}"])
+        command.extend(["-e", "WANDB_API_KEY"])
+        env["WANDB_API_KEY"] = api.api_key
     else:
         wandb.termlog(
             "Couldn't find WANDB_API_KEY, run `wandb login` to enable streaming metrics"
@@ -2742,7 +2714,7 @@ def docker(
             command.extend(["-e", f"WANDB_COMMAND={cmd}"])
         command.extend(["-it", image, shell])
         wandb.termlog("Launching docker container \U0001f6a2")
-    subprocess.call(command)
+    subprocess.call(command, env=env)
 
 
 @cli.command(
@@ -3669,13 +3641,13 @@ def verify(host):
     # TODO: (kdg) Build this all into a WandbVerify object, and clean this up.
     os.environ["WANDB_SILENT"] = "true"
     os.environ["WANDB_PROJECT"] = "verify"
-    api = _get_cling_api()
+    settings = wandb_setup.singleton().settings
     reinit = False
     if host is None:
-        host = api.settings("base_url")
+        host = settings.base_url
         wandb.termlog(f"Default host selected: {host}")
     # if the given host does not match the default host, re-run init
-    elif host != api.settings("base_url"):
+    elif host != settings.base_url:
         reinit = True
 
     tmp_dir = tempfile.mkdtemp()
@@ -3685,8 +3657,7 @@ def verify(host):
     os.chdir(tmp_dir)
     os.environ["WANDB_BASE_URL"] = host
     wandb.login(host=host)
-    if reinit:
-        api = _get_cling_api(reset=True)
+    api = _get_cling_api(reset=reinit)
     if not wandb_verify.check_host(host):
         sys.exit(1)
     if not wandb_verify.check_logged_in(api, host):
@@ -3694,7 +3665,7 @@ def verify(host):
     url_success, url = wandb_verify.check_graphql_put(api, host)
     large_post_success = wandb_verify.check_large_post()
     wandb_verify.check_secure_requests(
-        api.settings("base_url"),
+        settings.base_url,
         "Checking requests to base url",
         "Connections are not made over https. SSL required for secure communications.",
     )

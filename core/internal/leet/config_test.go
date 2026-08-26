@@ -1,6 +1,8 @@
 package leet_test
 
 import (
+	"math"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -83,6 +85,40 @@ func TestConfig_SetLeftSidebarVisible_AffectsModelOnStartup(t *testing.T) {
 	require.True(t, model.TestLeftSidebarVisible())
 }
 
+func TestConfig_SetRunLayout_PersistsAndReloads(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	path := filepath.Join(t.TempDir(), "config.json")
+	cfg := leet.NewConfigManager(path, logger)
+
+	want := leet.LayoutOverrides{LeftSidebar: 0.3, Media: 0.25}
+	require.NoError(t, cfg.SetRunLayout(want))
+	require.Equal(t, want, cfg.RunLayout())
+
+	// A fresh manager reads the same overrides back from disk.
+	reloaded := leet.NewConfigManager(path, logger)
+	require.Equal(t, want, reloaded.RunLayout())
+	require.Equal(t, leet.LayoutOverrides{}, reloaded.WorkspaceLayout())
+}
+
+func TestConfig_SetWorkspaceLayout_ClampsFractions(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	require.NoError(t, cfg.SetWorkspaceLayout(leet.LayoutOverrides{
+		LeftSidebar: 0.001, // below the minimum
+		Logs:        1.5,   // above the maximum
+		OverviewEnv: 2.0,   // overview section shares clamp to the unit range
+	}))
+
+	got := cfg.WorkspaceLayout()
+	require.Equal(t, leet.MinLayoutFrac, got.LeftSidebar)
+	require.Equal(t, leet.MaxLayoutFrac, got.Logs)
+	require.Equal(t, 1.0, got.OverviewEnv)
+	// Unset fractions stay zero ("use default") rather than being clamped.
+	require.Zero(t, got.Media)
+	require.Zero(t, got.OverviewSummary)
+}
+
 func TestConfig_SetTagColorScheme_Persists(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	path := filepath.Join(t.TempDir(), "config.json")
@@ -129,4 +165,46 @@ func TestConfig_SetFrenchFriesColorScheme_Persists(t *testing.T) {
 
 	cfg2 := leet.NewConfigManager(path, logger)
 	require.Equal(t, "cividis", cfg2.Snapshot().FrenchFriesColorScheme)
+}
+
+func TestConfig_SetChartGuides_Persists(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	path := filepath.Join(t.TempDir(), "config.json")
+	cfg := leet.NewConfigManager(path, logger)
+
+	require.Equal(t, leet.DefaultChartGuides, cfg.ChartGuides())
+	require.NoError(t, cfg.SetChartGuides(leet.ChartGuidesHorizontal))
+	require.Equal(t, leet.ChartGuidesHorizontal, cfg.ChartGuides())
+	require.Error(t, cfg.SetChartGuides("diagonal"))
+
+	cfg2 := leet.NewConfigManager(path, logger)
+	require.Equal(t, leet.ChartGuidesHorizontal, cfg2.ChartGuides())
+}
+
+// Regression: a config file where one unrelated field fails to decode used to
+// skip normalization entirely, letting out-of-range override fractions
+// through unclamped.
+func TestConfig_PartialDecodeStillClampsOverrides(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	path := filepath.Join(t.TempDir(), "config.json")
+	require.NoError(t, os.WriteFile(path, []byte(
+		`{"run_layout":{"media":5.0},"color_scheme":123}`), 0o644))
+
+	cfg := leet.NewConfigManager(path, logger)
+	require.LessOrEqual(t, cfg.RunLayout().Media, leet.MaxLayoutFrac,
+		"fractions must be clamped even when another field fails to decode")
+}
+
+// NaN would defeat the clamp and poison every subsequent save (encoding/json
+// rejects NaN); it resets to the default instead.
+func TestConfig_SetRunLayoutRejectsNaN(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	path := filepath.Join(t.TempDir(), "config.json")
+	cfg := leet.NewConfigManager(path, logger)
+
+	require.NoError(t, cfg.SetRunLayout(leet.LayoutOverrides{Media: math.NaN()}))
+	require.Zero(t, cfg.RunLayout().Media)
+
+	// Later unrelated saves keep working.
+	require.NoError(t, cfg.SetLeftSidebarVisible(false))
 }

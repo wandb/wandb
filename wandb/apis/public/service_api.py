@@ -11,8 +11,14 @@ from wandb.proto import wandb_server_pb2 as spb
 from wandb.proto.wandb_api_pb2 import (
     ApiRequest,
     ApiResponse,
+    AuthenticateRequest,
+    AuthenticateResponse,
+    AuthRequest,
     FeaturesRequest,
+    GetAccessTokenRequest,
     GraphQLRequest,
+    OrgFeaturesRequest,
+    ServerFeaturesRequest,
 )
 from wandb.sdk import wandb_settings, wandb_setup
 from wandb.sdk.lib.service.service_connection import (
@@ -49,6 +55,19 @@ class ServiceApi:
     def app_url(self) -> str:
         return self._settings.app_url.rstrip("/") + "/"
 
+    @property
+    def base_url(self) -> str:
+        return self._settings.base_url
+
+    @property
+    def initialized(self) -> bool:
+        """Returns whether the lazy connection to wandb-core has been made.
+
+        It does not indicate the the connection is healthy, only that a connection
+        has been cached.
+        """
+        return self._api_session is not None
+
     def _get_api_session(self) -> _ServiceApiSession:
         """Connect to the service and initialize resources for API requests."""
         if self._api_session is not None:
@@ -77,10 +96,15 @@ class ServiceApi:
         """Send an API request to the backend service.
 
         Creates the backend service connection if it has not been created yet.
+        Falls back to the timeout this API was created with when none is
+        given.
         """
         session = self._get_api_session()
         request.api_id = session.api_id
-        return session.connection.api_request(request, timeout=timeout)
+        return session.connection.api_request(
+            request,
+            timeout=self._timeout if timeout is None else timeout,
+        )
 
     def finalize(
         self,
@@ -162,11 +186,72 @@ class ServiceApi:
                 rename_fields=rename_fields,
             )
         )
-        resp = self.send_api_request(
-            req,
-            timeout=self._timeout if timeout is None else timeout,
-        )
+        resp = self.send_api_request(req, timeout=timeout)
         return parse(resp.graphql_response.data_json)
+
+    def authenticate(
+        self,
+        timeout: float | None = None,
+    ) -> AuthenticateResponse:
+        """Verify credentials with the W&B server and identify their account.
+
+        The credentials come from the settings this object was created with:
+        an API key, or an identity token file when using federated identity.
+        wandb-core authenticates to the W&B backend and asks it who the
+        credentials belong to.
+
+        Args:
+            timeout: Optional timeout in seconds for waiting on wandb-core.
+                On timeout, the request is cancelled on a best-effort basis.
+
+        Returns:
+            Information about the authenticated account (a user or a
+            service account), including the default entity and username.
+
+        Raises:
+            WandbApiFailedError: If the server rejects the credentials or the
+                request fails for any other reason, including timeouts while
+                waiting on wandb-core and transport errors.
+        """
+        req = ApiRequest(
+            auth_request=AuthRequest(authenticate_request=AuthenticateRequest())
+        )
+        resp = self.send_api_request(req, timeout=timeout)
+        return resp.auth_response.authenticate_response
+
+    def access_token(
+        self,
+        timeout: float | None = None,
+    ) -> str | None:
+        """Fetch the access token for the session credentials, if any.
+
+        A token exists only when using federated identity, in which case
+        wandb-core exchanges the identity token configured in the settings
+        for an access token, caching it in the credentials file and
+        refreshing it when it is at or near expiration.
+
+        Args:
+            timeout: Optional timeout in seconds for waiting on wandb-core.
+                On timeout, the request is cancelled on a best-effort basis.
+
+        Returns:
+            The access token, or None when the settings do not use
+            token-based credentials. When not using federated identity,
+            this returns None without a service round-trip.
+
+        Raises:
+            WandbApiFailedError: If the token exchange fails or the request
+                fails for any other reason, including timeouts while waiting
+                on wandb-core and transport errors.
+        """
+        if not self._settings.identity_token_file:
+            return None
+
+        req = ApiRequest(
+            auth_request=AuthRequest(get_access_token_request=GetAccessTokenRequest())
+        )
+        resp = self.send_api_request(req, timeout=timeout)
+        return resp.auth_response.get_access_token_response.access_token or None
 
     async def send_api_request_async(
         self,
@@ -181,6 +266,33 @@ class ServiceApi:
         session = self._get_api_session()
         request.api_id = session.api_id
         return await session.connection.api_request_async(request)
+
+    def api_publish(
+        self,
+        request: ApiRequest,
+    ) -> None:
+        """Publish an API request to the backend service, without awaiting a reply."""
+        session = self._get_api_session()
+        request.api_id = session.api_id
+        session.connection.api_publish(request)
+
+    def org_feature_flags(
+        self,
+        org: str,
+        *features: str,
+        timeout: float = 10,
+    ) -> dict[str, bool]:
+        """Return requested org feature flags and legacy ramps that exist."""
+        if not features:
+            return {}
+
+        req = ApiRequest(
+            features_request=FeaturesRequest(
+                org=OrgFeaturesRequest(org=org, features=features)
+            )
+        )
+        resp = self.send_api_request(req, timeout=timeout)
+        return dict(resp.features_response.org.features)
 
     def feature_enabled(
         self,
@@ -211,7 +323,11 @@ class ServiceApi:
                 # SERVER_FEATURE_UNSPECIFIED is always disabled.
                 return False
 
-        req = ApiRequest(features_request=FeaturesRequest(features=[feature]))
+        req = ApiRequest(
+            features_request=FeaturesRequest(
+                server=ServerFeaturesRequest(features=[feature])
+            )
+        )
 
         try:
             resp = self.send_api_request(req, timeout=timeout)
@@ -220,4 +336,4 @@ class ServiceApi:
             _logger.exception("Failed to load feature %s", feature)
             return False
 
-        return feature in resp.features_response.enabled
+        return feature in resp.features_response.server.enabled

@@ -253,7 +253,7 @@ pub struct Imports {
     #[prost(bool, tag = "107")]
     pub dspy: bool,
 }
-/// Next ID: 77
+/// Next ID: 80
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Feature {
     /// wandb.watch() called
@@ -345,7 +345,9 @@ pub struct Feature {
     /// catboost log summary used
     #[prost(bool, tag = "28")]
     pub catboost_log_summary: bool,
-    /// wandb.tensorflow.log or wandb.tensorboard.log used
+    /// wandb.tensorflow.log or wandb.tensorboard.log used, in an old SDK.
+    ///
+    /// These functions have been removed.
     #[prost(bool, tag = "29")]
     pub tensorboard_log: bool,
     /// wandb.tensorflow.WandbHook used
@@ -474,6 +476,15 @@ pub struct Feature {
     /// User using WandbDSPyCallback
     #[prost(bool, tag = "73")]
     pub dspy_callback: bool,
+    /// User logged an EvalTable via run.log()
+    #[prost(bool, tag = "77")]
+    pub eval_table: bool,
+    /// User logged a regular (non-incremental) wandb.Table via run.log()
+    #[prost(bool, tag = "78")]
+    pub table: bool,
+    /// User logged an incremental wandb.Table via run.log()
+    #[prost(bool, tag = "79")]
+    pub incremental_table: bool,
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Env {
@@ -549,27 +560,9 @@ pub struct Deprecated {
     /// wandb.sdk.lib.disabled.RunDisabled used
     #[prost(bool, tag = "16")]
     pub run_disabled: bool,
-    /// wandb.run.define_metric() called with summary="best" and goal="maximize/minimize"
-    #[prost(bool, tag = "18")]
-    pub run_define_metric_best_goal: bool,
-    /// wandb.run.finish(quiet=...) called
-    #[prost(bool, tag = "19")]
-    pub run_finish_quiet: bool,
     /// reinit setting set to a boolean value
     #[prost(bool, tag = "20")]
     pub run_reinit_bool: bool,
-    /// wandb.run.get_url() called
-    #[prost(bool, tag = "21")]
-    pub run_get_url: bool,
-    /// wandb.run.project_name() called
-    #[prost(bool, tag = "22")]
-    pub run_project_name: bool,
-    /// wandb.run.get_project_url() called
-    #[prost(bool, tag = "23")]
-    pub run_get_project_url: bool,
-    /// wandb.run.get_sweep_url() called
-    #[prost(bool, tag = "24")]
-    pub run_get_sweep_url: bool,
     /// wandb.run.use_artifact(use_as=...) called
     #[prost(bool, tag = "25")]
     pub run_use_artifact_use_as: bool,
@@ -1480,6 +1473,8 @@ pub struct ArtifactRecord {
     pub ttl_duration_seconds: i64,
     #[prost(string, repeated, tag = "19")]
     pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    #[prost(string, tag = "20")]
+    pub digest_algorithm: ::prost::alloc::string::String,
     #[prost(bool, tag = "100")]
     pub incremental_beta1: bool,
     #[prost(message, optional, tag = "200")]
@@ -1575,17 +1570,20 @@ pub struct TbRecord {
     pub info: ::core::option::Option<RecordInfo>,
     /// A directory containing tfevents files to watch.
     ///
-    /// This may be an absolute or relative path.
+    /// This may be a filesystem path (in the native format, meaning backslashes
+    /// on Windows) or one of the supported cloud paths (S3, GCS, Azure). Relative
+    /// paths are allowed, but discouraged, since their interpretation depends on
+    /// the wandb-core working directory.
     #[prost(string, tag = "1")]
     pub log_dir: ::prost::alloc::string::String,
     /// An optional path to an ancestor of `log_dir` used for namespacing.
     ///
-    /// This may be an absolute or relative path.
+    /// The format is the same as `log_dir`.
     ///
-    /// If set, then each event from tfevents files under `log_dir` is
-    /// prefixed by the file's path relative to this directory. Additionally,
-    /// if `save` is true, then each file's upload path is also its path
-    /// relative to `root_dir`.
+    /// If `namespace` is not provided, then each event from tfevents files under
+    /// `log_dir` is prefixed by the file's path relative to this directory.
+    /// If `save_path` is not provided and `save` is true, then each file's upload
+    /// path is also its path relative to `root_dir`.
     ///
     /// For example, with `root_dir` set as "tb/logs" and `log_dir` as
     /// "tb/logs/train":
@@ -1596,12 +1594,45 @@ pub struct TbRecord {
     /// If this is unset, then it is inferred using unspecified rules.
     #[prost(string, tag = "3")]
     pub root_dir: ::prost::alloc::string::String,
+    /// A prefix to prepend to tfevents tags to create W&B metric keys.
+    ///
+    /// If present, it is used instead of guessing based on the `root_dir`.
+    /// It may be set to an empty string, in which case TB tags are used as W&B
+    /// keys without modification.
+    ///
+    /// The namespace is prepended with a forward slash as a separator,
+    /// so this field should not end with a forward slash.
+    #[prost(string, optional, tag = "4")]
+    pub namespace: ::core::option::Option<::prost::alloc::string::String>,
     /// Whether to save tfevents files with the run.
     ///
     /// When true, this uploads the tfevents files, enabling the "TensorBoard"
     /// tab in W&B.
     #[prost(bool, tag = "2")]
     pub save: bool,
+    /// Path where to save tfevents files, if `save` is true.
+    ///
+    /// If set, it is used instead of guessing based on the `root_dir`.
+    ///
+    /// The path is relative to the run's files directory. It must use the system
+    /// file separator (backslash on Windows, forward slash elsewhere). The "."
+    /// path can be used to save at the root of the run's files.
+    #[prost(string, tag = "5")]
+    pub save_path: ::prost::alloc::string::String,
+    /// Whether to skip filtering by timestamp.
+    ///
+    /// By default, only tfevents files newer than the run are parsed, based
+    /// on the Unix timestamp in the filename. If this field is set, then
+    /// timestamps are ignored.
+    #[prost(bool, tag = "6")]
+    pub ignore_timestamp: bool,
+    /// Whether to skip filtering by hostname.
+    ///
+    /// By default, only tfevents files with a hostname component exactly matching
+    /// the W&B hostname setting (which is the output of HOSTNAME(1)) are parsed.
+    /// If this field is set, then hostnames are ignored.
+    #[prost(bool, tag = "7")]
+    pub ignore_hostname: bool,
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct TbResult {}
@@ -2965,6 +2996,13 @@ pub enum ServerFeature {
     QueryAutomationsOnEntity = 32,
     /// Indicates that the server supports Organization.triggers.
     AutomationsOnOrganization = 33,
+    /// Indicates that the server supports gzip-compressed filestream request bodies.
+    FilestreamGzip = 34,
+    /// Indicates that the server supports the enqueueSweepRun mutation, used by
+    /// the local sweep scheduler to enqueue runs.
+    SweepsLocalScheduler = 35,
+    /// Indicates that the server supports queries for an artifact's digest algorithm.
+    ArtifactDigestAlgorithm = 36,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -3031,6 +3069,9 @@ impl ServerFeature {
             Self::AutomationScopeEntity => "AUTOMATION_SCOPE_ENTITY",
             Self::QueryAutomationsOnEntity => "QUERY_AUTOMATIONS_ON_ENTITY",
             Self::AutomationsOnOrganization => "AUTOMATIONS_ON_ORGANIZATION",
+            Self::FilestreamGzip => "FILESTREAM_GZIP",
+            Self::SweepsLocalScheduler => "SWEEPS_LOCAL_SCHEDULER",
+            Self::ArtifactDigestAlgorithm => "ARTIFACT_DIGEST_ALGORITHM",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -3102,6 +3143,9 @@ impl ServerFeature {
             "AUTOMATION_SCOPE_ENTITY" => Some(Self::AutomationScopeEntity),
             "QUERY_AUTOMATIONS_ON_ENTITY" => Some(Self::QueryAutomationsOnEntity),
             "AUTOMATIONS_ON_ORGANIZATION" => Some(Self::AutomationsOnOrganization),
+            "FILESTREAM_GZIP" => Some(Self::FilestreamGzip),
+            "SWEEPS_LOCAL_SCHEDULER" => Some(Self::SweepsLocalScheduler),
+            "ARTIFACT_DIGEST_ALGORITHM" => Some(Self::ArtifactDigestAlgorithm),
             _ => None,
         }
     }

@@ -20,7 +20,8 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import wandb
 from wandb import util
-from wandb.analytics import get_sentry
+from wandb.analytics import TelemetryRecorder, get_sentry
+from wandb.apis.public.service_api import ServiceApi
 from wandb.errors import CommError, UsageError
 from wandb.errors.util import ProtobufErrorHandler
 from wandb.filesync.dir_watcher import DirWatcher
@@ -270,8 +271,12 @@ class SendManager:
         self._record_exit = None
         self._exit_result = None
 
+        service_api = ServiceApi(settings)
+        self._telemetry_recorder = TelemetryRecorder(service_api=service_api)
         self._api = internal_api.Api(
-            default_settings=settings, retry_callback=self.retry_callback
+            default_settings=settings,
+            retry_callback=self.retry_callback,
+            telemetry_recorder=self._telemetry_recorder,
         )
         self._api_settings = dict()
 

@@ -6,14 +6,13 @@ from unittest.mock import MagicMock
 
 import pytest
 import wandb
-from pytest_mock import MockerFixture
 from wandb import Api
-from wandb.apis import internal
 from wandb.apis._generated import ProjectFragment, UserFragment
 from wandb.errors import UsageError
 from wandb.proto import wandb_api_pb2 as apb
 from wandb.sdk import wandb_login
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
+from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 from wandb.sdk.lib import wbauth
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
@@ -233,35 +232,174 @@ def test_artifact_download_logger():
             termlog.assert_not_called()
 
 
-def test_create_custom_chart():
-    _api = internal.Api()
-    _api.api.execute = MagicMock(
-        return_value={"createCustomChart": {"chart": {"id": "1"}}}
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
+def test_public_api_create_custom_chart():
+    api = Api()
+    api._service_api = MagicMock()
+    api._service_api.send_api_request.return_value = apb.ApiResponse(
+        create_custom_chart_response=apb.CreateCustomChartResponse(
+            chart_id="test-entity/chart"
+        )
     )
 
-    # Test with uppercase access (as would be passed from public API)
-    kwargs = {
-        "entity": "test-entity",
-        "name": "chart",
-        "display_name": "Chart",
-        "spec_type": "vega2",
-        "access": "PRIVATE",  # Uppercase as converted by public API
-        "spec": {},
-    }
+    chart_id = api.create_custom_chart(
+        entity="test-entity",
+        name="chart",
+        display_name="Chart",
+        spec_type="vega2",
+        access="private",
+        spec={"mark": "bar"},
+    )
 
-    resp = _api.create_custom_chart(**kwargs)
-    assert resp == {"chart": {"id": "1"}}
-    _api.api.execute.assert_called_once()
-    query, variables = _api.api.execute.call_args.args
-    assert "mutation CreateCustomChart" in query
-    assert variables == {
-        "entity": "test-entity",
-        "name": "chart",
-        "displayName": "Chart",
-        "type": "vega2",
-        "access": "PRIVATE",
-        "spec": json.dumps({}),
+    assert chart_id == "test-entity/chart"
+    api._service_api.send_api_request.assert_called_once()
+    request = api._service_api.send_api_request.call_args.args[0]
+    assert request.WhichOneof("request") == "create_custom_chart_request"
+    create_chart = request.create_custom_chart_request
+    assert create_chart.entity == "test-entity"
+    assert create_chart.name == "chart"
+    assert create_chart.display_name == "Chart"
+    assert create_chart.spec_type == "vega2"
+    assert create_chart.access == "PRIVATE"
+    assert create_chart.spec == json.dumps({"mark": "bar"})
+
+
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
+def test_public_api_create_run_queue():
+    api = Api()
+    api._service_api = MagicMock()
+    api.create_project = MagicMock()
+    api._service_api.send_api_request.side_effect = [
+        apb.ApiResponse(
+            run_queue_operation_response=apb.RunQueueOperationResponse(
+                create_default_resource_config_response=apb.CreateDefaultResourceConfigResponse(
+                    success=True,
+                    default_resource_config_id="config-id",
+                )
+            )
+        ),
+        apb.ApiResponse(
+            run_queue_operation_response=apb.RunQueueOperationResponse(
+                create_run_queue_response=apb.CreateRunQueueResponse(
+                    success=True,
+                    queue_id="queue-id",
+                )
+            )
+        ),
+    ]
+
+    queue = api.create_run_queue(
+        name="queue",
+        type="kubernetes",
+        entity="test-entity",
+        prioritization_mode="V0",
+        config={"image": "example"},
+        template_variables={"image": {"type": "string"}},
+    )
+
+    assert queue.name == "queue"
+    api.create_project.assert_called_once_with(LAUNCH_DEFAULT_PROJECT, "test-entity")
+    requests = [
+        call.args[0] for call in api._service_api.send_api_request.call_args_list
+    ]
+    assert len(requests) == 2
+    assert requests[0].WhichOneof("request") == "run_queue_operation_request"
+    create_config_operation = requests[0].run_queue_operation_request
+    assert (
+        create_config_operation.WhichOneof("operation")
+        == "create_default_resource_config_request"
+    )
+    create_config = create_config_operation.create_default_resource_config_request
+    assert create_config.entity_name == "test-entity"
+    assert create_config.resource == "kubernetes"
+    assert json.loads(create_config.config) == {
+        "resource_args": {"kubernetes": {"image": "example"}}
     }
+    assert json.loads(create_config.template_variables) == {"image": {"type": "string"}}
+
+    assert requests[1].WhichOneof("request") == "run_queue_operation_request"
+    create_queue_operation = requests[1].run_queue_operation_request
+    assert create_queue_operation.WhichOneof("operation") == "create_run_queue_request"
+    create_queue = create_queue_operation.create_run_queue_request
+    assert create_queue.entity == "test-entity"
+    assert create_queue.project == LAUNCH_DEFAULT_PROJECT
+    assert create_queue.queue_name == "queue"
+    assert create_queue.access == "PROJECT"
+    assert create_queue.prioritization_mode == "V0"
+    assert create_queue.default_resource_config_id == "config-id"
+    assert create_queue.HasField("prioritization_mode")
+    assert create_queue.HasField("default_resource_config_id")
+
+
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
+def test_public_api_upsert_run_queue(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    api = Api()
+    api._service_api = MagicMock()
+    api.create_project = MagicMock()
+    api._service_api.send_api_request.return_value = apb.ApiResponse(
+        run_queue_operation_response=apb.RunQueueOperationResponse(
+            upsert_run_queue_response=apb.UpsertRunQueueResponse(
+                success=True,
+                config_schema_validation_errors=["invalid image"],
+            )
+        )
+    )
+    termwarn = MagicMock()
+    monkeypatch.setattr(wandb, "termwarn", termwarn)
+
+    queue = api.upsert_run_queue(
+        name="queue",
+        resource_config={"image": "example"},
+        resource_type="kubernetes",
+        entity="test-entity",
+        template_variables={"image": {"type": "string"}},
+        external_links={"docs": "https://example.test"},
+        prioritization_mode="V0",
+    )
+
+    assert queue.name == "queue"
+    api.create_project.assert_called_once_with(LAUNCH_DEFAULT_PROJECT, "test-entity")
+    api._service_api.send_api_request.assert_called_once()
+    request = api._service_api.send_api_request.call_args.args[0]
+    assert request.WhichOneof("request") == "run_queue_operation_request"
+    upsert_queue_operation = request.run_queue_operation_request
+    assert upsert_queue_operation.WhichOneof("operation") == "upsert_run_queue_request"
+    upsert_queue = upsert_queue_operation.upsert_run_queue_request
+    assert upsert_queue.entity_name == "test-entity"
+    assert upsert_queue.project_name == LAUNCH_DEFAULT_PROJECT
+    assert upsert_queue.queue_name == "queue"
+    assert upsert_queue.resource_type == "kubernetes"
+    assert json.loads(upsert_queue.resource_config) == {
+        "resource_args": {"kubernetes": {"image": "example"}}
+    }
+    assert json.loads(upsert_queue.template_variables) == {"image": {"type": "string"}}
+    assert upsert_queue.prioritization_mode == "V0"
+    assert json.loads(upsert_queue.external_links) == {
+        "links": [{"label": "docs", "url": "https://example.test"}]
+    }
+    termwarn.assert_called_once_with("resource config validation: invalid image")
+
+
+def test_initialize_api_with_federated_identity(federated_identity):
+    """Regression test for gh-11722: federated identity in wandb.Api().
+
+    With WANDB_IDENTITY_TOKEN_FILE set and no API key configured, all
+    network traffic goes through wandb-core, which exchanges the identity
+    token for an access token and authenticates with it as a Bearer token.
+    """
+    api = Api()
+
+    assert api.api_key is None
+    assert api.default_entity == federated_identity.entity
+    assert api.viewer.username == federated_identity.username
+    assert federated_identity.token_exchanges >= 1
+    assert federated_identity.graphql_auth_headers
+    assert all(
+        header == f"Bearer {federated_identity.access_token}"
+        for header in federated_identity.graphql_auth_headers
+    )
 
 
 def test_initialize_api_authenticates(
@@ -277,10 +415,13 @@ def test_initialize_api_authenticates(
     api = Api(overrides={"base_url": "https://test-url"})
 
     assert api.api_key == "1234" * 10
-    mock_verify_login.assert_called_once_with(
-        key="1234" * 10,
-        base_url="https://test-url",
-    )
+    mock_verify_login.assert_called_once()
+    (auth,) = mock_verify_login.call_args.args
+    assert isinstance(auth, wbauth.AuthApiKey)
+    assert auth.api_key == "1234" * 10
+    assert auth.host.url == "https://test-url"
+    # The Api's own service API handle is reused for verification.
+    assert mock_verify_login.call_args.kwargs["service_api"] is api._service_api
 
 
 def test_initialize_api_uses_explicit_key(
@@ -297,10 +438,13 @@ def test_initialize_api_uses_explicit_key(
     api = Api(api_key=key, overrides={"base_url": "https://test-url"})
 
     assert api.api_key == key
-    mock_verify_login.assert_called_once_with(
-        key=key,
-        base_url="https://test-url",
-    )
+    mock_verify_login.assert_called_once()
+    (auth,) = mock_verify_login.call_args.args
+    assert isinstance(auth, wbauth.AuthApiKey)
+    assert auth.api_key == key
+    assert auth.host.url == "https://test-url"
+    # The Api's own service API handle is reused for verification.
+    assert mock_verify_login.call_args.kwargs["service_api"] is api._service_api
 
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
@@ -366,6 +510,9 @@ def test_artifact_from_id_uses_service_api(monkeypatch):
 
     artifact_id = "test-artifact-id"
     artifact_instance_cache.pop(artifact_id, None)
+    service_api = MagicMock()
+    service_api.execute_graphql.return_value = {}
+    service_api.feature_enabled.return_value = True
     artifact = SimpleNamespace(
         artifact_sequence=SimpleNamespace(
             name="dataset",
@@ -378,7 +525,6 @@ def test_artifact_from_id_uses_service_api(monkeypatch):
     )
     # execute_graphql now parses the response into the pydantic model itself
     # (via parse=), so its return value is the already-parsed result.
-    service_api = MagicMock()
     service_api.execute_graphql.return_value = SimpleNamespace(artifact=artifact)
     from_attrs = MagicMock(return_value="artifact")
     monkeypatch.setattr(Artifact, "_from_attrs", from_attrs)
@@ -389,6 +535,7 @@ def test_artifact_from_id_uses_service_api(monkeypatch):
         ARTIFACT_BY_ID_GQL,
         variables={"id": artifact_id},
         parse=ArtifactByID.model_validate_json,
+        omit_fields=set(),
     )
     path, src_art, actual_service_api = from_attrs.call_args.args
     assert path.to_str() == "entity/project/dataset:v3"
@@ -468,19 +615,3 @@ def test_project_load__raises_error(monkeypatch):
 
     with pytest.raises(ValueError):
         project._load()
-
-
-@pytest.mark.usefixtures("skip_verify_login")
-def test_api_does_not_use_requests_auth(mocker: MockerFixture):
-    """Test that Api() does not build requests auth for the service API."""
-    mock_auth = wbauth.AuthApiKey(
-        host=wbauth.HostUrl("https://api.wandb.ai"),
-        api_key="a" * 40,
-    )
-    mocker.spy(mock_auth, "as_requests_auth")
-
-    mocker.patch.object(wbauth, "authenticate_session", return_value=mock_auth)
-
-    Api()
-
-    mock_auth.as_requests_auth.assert_not_called()

@@ -61,6 +61,9 @@ func (Curve) Double(P *Point) *Point { R := *P; R.Double(); return &R }
 func (Curve) Add(P, Q *Point) *Point { R := *P; R.Add(Q); return &R }
 
 // ScalarMult returns kP. This function runs in constant time.
+//
+// The result equals [k]P only when P is in the prime-order subgroup; any
+// torsion component of P is dropped.
 func (e Curve) ScalarMult(k *Scalar, P *Point) *Point {
 	k4 := &Scalar{}
 	k4.divBy4(k)
@@ -75,6 +78,9 @@ func (e Curve) ScalarBaseMult(k *Scalar) *Point {
 }
 
 // CombinedMult returns mG+nP, where G is the generator point. This function is non-constant time.
+//
+// Like ScalarMult, the result equals [m]G+[n]P only when P is in the
+// prime-order subgroup; any torsion component of P is dropped.
 func (e Curve) CombinedMult(m, n *Scalar, P *Point) *Point {
 	m4 := &Scalar{}
 	n4 := &Scalar{}

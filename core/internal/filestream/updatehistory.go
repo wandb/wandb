@@ -21,6 +21,7 @@ func (u *HistoryUpdate) Apply(ctx UpdateContext) error {
 		if err != nil {
 
 			ctx.Logger.CaptureError(
+				"filestream",
 				fmt.Errorf(
 					"filestream: failed to apply history record: %v",
 					err,

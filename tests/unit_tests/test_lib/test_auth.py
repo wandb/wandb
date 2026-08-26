@@ -1,6 +1,6 @@
 import pathlib
 import textwrap
-from unittest.mock import Mock
+from unittest.mock import MagicMock
 
 import pytest
 from wandb.errors import AuthenticationError
@@ -10,9 +10,12 @@ from wandb.sdk.lib.wbauth import (
     authenticate_session,
     session_credentials,
     use_explicit_auth,
+    validation,
 )
 
 from tests.fixtures.mock_wandb_log import MockWandbLog
+
+pytestmark = pytest.mark.usefixtures("skip_verify_login")
 
 
 def test_auth_repr_no_secrets():
@@ -82,6 +85,56 @@ def test_loads_api_key_from_environment_variable(
     )
 
 
+def test_verifies_system_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("WANDB_API_KEY", "test" * 40)
+    check_validity = MagicMock(return_value=None)
+    monkeypatch.setattr(validation, "check_api_key_validity", check_validity)
+
+    result = authenticate_session(
+        host="https://fake-url",
+        source="test",
+        verify=True,
+    )
+
+    assert isinstance(result, AuthApiKey)
+    check_validity.assert_called_once()
+    assert check_validity.call_args.kwargs["api_key"] == "test" * 40
+    assert check_validity.call_args.kwargs["host"].is_same_url("https://fake-url")
+
+
+def test_does_not_verify_system_credentials(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("WANDB_API_KEY", "test" * 40)
+    check_validity = MagicMock(return_value=None)
+    monkeypatch.setattr(validation, "check_api_key_validity", check_validity)
+
+    result = authenticate_session(
+        host="https://fake-url",
+        source="test",
+        verify=False,
+    )
+
+    assert isinstance(result, AuthApiKey)
+    check_validity.assert_not_called()
+
+
+def test_invalid_system_credentials_fail_verification(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv("WANDB_API_KEY", "test" * 40)
+    monkeypatch.setattr(
+        validation,
+        "check_api_key_validity",
+        MagicMock(return_value="Key is invalid."),
+    )
+
+    with pytest.raises(AuthenticationError, match="Key is invalid."):
+        authenticate_session(host="https://fake-url", source="test", verify=True)
+
+
 def test_invalid_env_api_key(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("WANDB_API_KEY", "invalid")
 
@@ -102,7 +155,10 @@ def test_loads_oidc_from_environment_variable(
 
     assert isinstance(result, AuthIdentityTokenFile)
     assert result.host.is_same_url("https://fake-url")
-    assert result.path == pathlib.Path("file.jwt")
+    # The path is absolutized so that the wandb-core service process,
+    # whose working directory may differ, reads the intended file.
+    assert result.path == pathlib.Path("file.jwt").absolute()
+    assert result.path.is_absolute()
     mock_wandb_log.assert_logged(
         "[test] Loaded credentials for https://fake-url from"
         + " WANDB_IDENTITY_TOKEN_FILE."
@@ -133,49 +189,6 @@ def test_reads_netrc(
     mock_wandb_log.assert_logged(
         f"[test] Loaded credentials for https://example.com from {netrc}"
     )
-
-
-def test_api_key_as_requests_auth():
-    auth = AuthApiKey(host="https://test", api_key="test" * 10)
-    requests_auth = auth.as_requests_auth()
-
-    request = Mock()
-    request.headers = {}
-
-    requests_auth(request)
-
-    assert "Authorization" in request.headers
-    assert request.headers["Authorization"].startswith("Basic ")
-
-
-def test_identity_token_as_requests_auth(tmp_path: pathlib.Path, monkeypatch):
-    token_file = tmp_path / "token.jwt"
-    token_file.write_text("test.jwt.token")
-    credentials_file = tmp_path / "credentials.json"
-
-    auth = AuthIdentityTokenFile(
-        host="https://test",
-        path=str(token_file),
-        credentials_file=str(credentials_file),
-    )
-
-    # Mock credentials.access_token to return a test token
-    from wandb.sdk.lib import credentials
-
-    monkeypatch.setattr(
-        credentials,
-        "access_token",
-        lambda base_url, token_path, creds_path: "test_access_token",
-    )
-
-    requests_auth = auth.as_requests_auth()
-
-    request = Mock()
-    request.headers = {}
-
-    requests_auth(request)
-
-    assert request.headers["Authorization"] == "Bearer test_access_token"
 
 
 def test_jwt_bypasses_validation():

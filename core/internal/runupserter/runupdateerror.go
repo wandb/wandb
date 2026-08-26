@@ -1,12 +1,13 @@
 package runupserter
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/Khan/genqlient/graphql"
 
+	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/runbranch"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -20,14 +21,16 @@ func ToRunUpdateError(err error) error {
 		return nil
 	}
 
-	var runBranchError *runbranch.BranchError
-	if errors.As(err, &runBranchError) {
+	if runBranchError, ok := errors.AsType[*runbranch.BranchError](err); ok {
 		return fromRunBranchError(runBranchError)
 	}
 
-	var gqlError *graphql.HTTPError
-	if errors.As(err, &gqlError) {
+	if gqlError, ok := errors.AsType[*graphql.HTTPError](err); ok {
 		return fromGQLError(gqlError)
+	}
+
+	if errors.Is(err, context.DeadlineExceeded) {
+		return fromTimeout(err)
 	}
 
 	return err
@@ -42,21 +45,7 @@ func fromRunBranchError(runBranchError *runbranch.BranchError) *RunUpdateError {
 }
 
 func fromGQLError(gqlError *graphql.HTTPError) *RunUpdateError {
-	var userMessage string
-
-	switch {
-	case len(gqlError.Response.Errors) == 0:
-		userMessage = gqlError.Error()
-	case len(gqlError.Response.Errors) == 1:
-		userMessage = gqlError.Response.Errors[0].Message
-	default:
-		var messages []string
-		for _, err := range gqlError.Response.Errors {
-			messages = append(messages, err.Message)
-		}
-		joinedMessages := strings.Join(messages, "; ")
-		userMessage = fmt.Sprintf("[%s]", joinedMessages)
-	}
+	userMessage := api.FormatGQLErrors(gqlError.Response)
 
 	if userMessage == "" {
 		// An empty UserMessage is treated like "no error" by the client.
@@ -69,6 +58,25 @@ func fromGQLError(gqlError *graphql.HTTPError) *RunUpdateError {
 	return &RunUpdateError{
 		Cause:       gqlError,
 		UserMessage: userMessage,
+		Code:        spb.ErrorInfo_COMMUNICATION,
+	}
+}
+
+func fromTimeout(err error) *RunUpdateError {
+	const timeoutSettingHint = "" +
+		"Consider increasing the init_timeout setting:" +
+		"\n  wandb.init(settings=wandb.Settings(init_timeout=...))"
+
+	var userMessage string
+	if retryErr, ok := errors.AsType[*api.RetryError](err); ok {
+		userMessage = fmt.Sprintf("Timed out while retrying: %s", retryErr.LastStatus)
+	} else {
+		userMessage = fmt.Sprintf("Timed out initializing run: %s", err.Error())
+	}
+
+	return &RunUpdateError{
+		Cause:       err,
+		UserMessage: fmt.Sprintf("%s\n%s", userMessage, timeoutSettingHint),
 		Code:        spb.ErrorInfo_COMMUNICATION,
 	}
 }

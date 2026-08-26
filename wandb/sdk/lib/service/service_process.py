@@ -78,6 +78,7 @@ def _start(
             idle_timeout=idle_timeout,
         )
     except Exception as e:
+        # TODO: remove sentry once we no longer support/need it
         get_sentry().reraise(e)
 
 
@@ -126,6 +127,7 @@ def _launch_server(
         try:
             core_path = get_core_path()
         except WandbCoreNotAvailableError as e:
+            # TODO: remove sentry once we no longer support/need it
             get_sentry().reraise(e)
 
         service_args.append(core_path)

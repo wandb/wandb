@@ -186,6 +186,7 @@ const (
 	enumProviderColorSchemes              // color palette names
 	enumProviderColorModes                // per_series | per_plot
 	enumProviderStartupModes              // workspace_latest | single_run_latest
+	enumProviderChartGuides               // off | dots | horizontal
 )
 
 // options returns the allowed values for this provider.
@@ -200,6 +201,8 @@ func (p enumProvider) options() []string {
 		return []string{ColorModePerSeries, ColorModePerPlot}
 	case enumProviderStartupModes:
 		return []string{StartupModeWorkspaceLatest, StartupModeSingleRunLatest}
+	case enumProviderChartGuides:
+		return []string{ChartGuidesOff, ChartGuidesDots, ChartGuidesHorizontal}
 	default:
 		return nil
 	}
@@ -377,7 +380,7 @@ func (m *ConfigEditor) updateBrowse(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	switch msg.String() {
+	switch normalizeKey(msg.String()) {
 	case "up", "k":
 		if m.selected > 0 {
 			m.selected--
@@ -396,7 +399,7 @@ func (m *ConfigEditor) updateBrowse(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case "enter":
 		return m.activateSelected()
-	case " ":
+	case "space":
 		// Space toggles bools; otherwise acts like enter.
 		f := &m.fields[m.selected]
 		if f.Kind == fieldBool {
@@ -581,9 +584,11 @@ func (m *ConfigEditor) updateIntEdit(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 
 // View implements [tea.Model].
 //
-// The layout is a vertical stack: header (title + config path), settings
-// table, footer (status/description/key hints), and an optional sub-editor
-// overlay for enum or int fields. The view uses alt-screen mode.
+// The layout is a vertical stack: header (title + config path), body, and
+// footer (status/description/key hints). In browse mode the body is the
+// settings table, scrolled so the selection stays visible; in enum/int edit
+// modes the sub-editor modal takes the table's place so it always fits on
+// screen. The view uses alt-screen mode.
 func (m *ConfigEditor) View() tea.View {
 	w := m.width
 	if w <= 0 {
@@ -601,28 +606,38 @@ func (m *ConfigEditor) View() tea.View {
 		navInfoStyle.Render(fmt.Sprintf("Path: %s", m.cfg.Path())),
 	)
 
-	table := m.renderTable(w)
 	footer := m.renderFooter(w)
 
-	view := lipgloss.JoinVertical(lipgloss.Left, top, "", table, "", footer)
-
+	var body string
 	switch m.mode {
 	case modeEnumSelect:
-		view = lipgloss.JoinVertical(lipgloss.Left, view, "", m.renderEnumPicker(w))
+		body = m.renderEnumPicker(w)
 	case modeIntEdit:
-		view = lipgloss.JoinVertical(lipgloss.Left, view, "", m.renderIntEditor(w))
+		body = m.renderIntEditor(w)
+	default:
+		maxRows := len(m.fields)
+		if m.height > 0 {
+			// Chrome around the field rows: outer padding (2), header
+			// block, two blank separators, table header row (1), footer.
+			chrome := 2 + lipgloss.Height(top) + 2 + 1 + lipgloss.Height(footer)
+			maxRows = max(m.height-chrome, 1)
+		}
+		body = m.renderTable(w, maxRows)
 	}
+
+	view := lipgloss.JoinVertical(lipgloss.Left, top, "", body, "", footer)
 
 	v := tea.NewView(lipgloss.NewStyle().Padding(1, 2).Render(view))
 	v.AltScreen = true
 	return v
 }
 
-// renderTable renders the two-column settings table (Setting | Value).
+// renderTable renders the two-column settings table (Setting | Value),
+// showing at most maxRows field rows scrolled so the selection is visible.
 //
 // The selected row is highlighted with [colorSelected]. Column widths
 // adapt to the longest label and available terminal width.
-func (m *ConfigEditor) renderTable(width int) string {
+func (m *ConfigEditor) renderTable(width, maxRows int) string {
 	// Column widths.
 	maxLabel := 0
 	for i := range m.fields {
@@ -648,7 +663,13 @@ func (m *ConfigEditor) renderTable(width int) string {
 		return strings.Join(lines, "\n")
 	}
 
-	for i := range m.fields {
+	visible := min(max(maxRows, 1), len(m.fields))
+	start := 0
+	if m.selected >= visible {
+		start = m.selected - visible + 1
+	}
+
+	for i := start; i < start+visible; i++ {
 		f := &m.fields[i]
 		val := fieldValue(f, &m.draft)
 		val = truncateRight(val, valW)

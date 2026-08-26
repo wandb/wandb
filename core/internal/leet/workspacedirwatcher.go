@@ -169,7 +169,10 @@ func (w *Workspace) handleWorkspaceRunDirs(msg WorkspaceRunDirsMsg) tea.Cmd {
 	pollCmd := w.pollWandbDirCmd(wandbDirPollInterval)
 
 	if msg.Err != nil {
-		w.logger.CaptureError(fmt.Errorf("workspace: wandb dir scan: %v", msg.Err))
+		w.logger.CaptureError(
+			"leet",
+			fmt.Errorf("workspace: wandb dir scan: %v", msg.Err),
+		)
 		return pollCmd
 	}
 
@@ -186,10 +189,7 @@ func (w *Workspace) handleWorkspaceRunDirs(msg WorkspaceRunDirsMsg) tea.Cmd {
 	w.enqueueMissingRunOverviews(msg.RunKeys)
 
 	startCmd := w.startRunOverviewPreloadsCmd()
-	if startCmd == nil {
-		return pollCmd
-	}
-	return tea.Batch(pollCmd, startCmd, selectLatestCmd)
+	return batchCmds(pollCmd, startCmd, selectLatestCmd)
 }
 
 // enqueueMissingRunOverviews queues runs that don't yet have overview state and
@@ -279,22 +279,31 @@ func (w *Workspace) handleWorkspaceRunOverviewPreloaded(
 ) tea.Cmd {
 	w.overviewPreloader.MarkDone(msg.RunKey)
 
-	if msg.Err == nil && msg.Run != nil && msg.Run.ID != "" {
+	_, streaming := w.runsByKey[msg.RunKey]
+
+	switch {
+	case msg.Err == nil && msg.Run != nil && msg.Run.ID != "" && streaming:
+		// A selected run streams its own records; don't let a stale preload
+		// snapshot overwrite the live overview (e.g., reset its state).
+
+	case msg.Err == nil && msg.Run != nil && msg.Run.ID != "":
 		ro := w.getOrCreateRunOverview(msg.RunKey)
-		if msg.Run != nil {
-			ro.ProcessRunMsg(*msg.Run)
-			w.indexRunFilterData(msg.RunKey, *msg.Run)
-		}
+		ro.ProcessRunMsg(*msg.Run)
+		w.indexRunFilterData(msg.RunKey, *msg.Run)
 		if w.filter.Query() != "" {
 			w.applyRunFilter()
 		}
 		// We don't know the final state of this run after a pre-load.
 		ro.SetRunState(RunStateUnknown)
-	} else if msg.Err != nil && !errors.Is(msg.Err, errRunRecordNotFound) && !os.IsNotExist(msg.Err) {
+
+	case msg.Err != nil && !errors.Is(msg.Err, errRunRecordNotFound) && !os.IsNotExist(msg.Err):
 		// Best-effort logging for unexpected failures; avoid spamming for
 		// "file not ready yet" or missing run records.
 		err := fmt.Errorf("workspace: preload run overview for %s: %v", msg.RunKey, msg.Err)
-		w.logger.CaptureError(err)
+		w.logger.CaptureError(
+			"leet",
+			err,
+		)
 	}
 
 	// Keep draining the queue.
@@ -374,6 +383,12 @@ func (w *Workspace) applyRunKeys(runKeys []string) {
 		w.restoreRunCursor(prevCursorKey)
 	}
 	w.syncRunsPage()
+
+	// Dropped runs may have emptied the focused pane. Availability reads
+	// the panes' own state, which is normally re-pointed at the cursor run
+	// during View — sync first so Resolve sees the post-drop state.
+	w.syncCurrentRunContext()
+	w.focusMgr.Resolve()
 }
 
 func (w *Workspace) setRunItems(runKeys []string) {

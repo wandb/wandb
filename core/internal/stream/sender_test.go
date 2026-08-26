@@ -49,9 +49,10 @@ func makeSender(t *testing.T, client graphql.Client) testFixtures {
 	baseURL := stream.BaseURLFromSettings(logger, settings)
 	credentialProvider := stream.CredentialsFromSettings(logger, settings)
 	fileStreamFactory := &filestream.FileStreamFactory{
-		Logger:   logger,
-		Printer:  observability.NewPrinter(0),
-		Settings: settings,
+		FeatureProvider: featurechecker.New(nil, logger),
+		Logger:          logger,
+		Printer:         observability.NewPrinter(0),
+		Settings:        settings,
 	}
 	fileTransferManager := stream.NewFileTransferManager(
 		baseURL,

@@ -28,12 +28,9 @@ import wandb
 from wandb import env
 from wandb._analytics import tracked
 from wandb._iterutils import one
-from wandb._strutils import nameof
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
-from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.apis.public.registries import Registries, Registry
-from wandb.apis.public.registries._utils import fetch_org_entity_from_organization
 from wandb.apis.public.service_api import ServiceApi
 from wandb.apis.public.utils import (
     PathType,
@@ -41,28 +38,27 @@ from wandb.apis.public.utils import (
     parse_org_from_registry_path,
 )
 from wandb.errors import UsageError
+from wandb.errors.errors import UnsupportedError
+from wandb.proto import wandb_api_pb2 as apb
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk import wandb_login, wandb_setup
 from wandb.sdk.artifacts._gqlutils import resolve_org_entity_name
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
-from wandb.sdk.lib import runid, wbauth
+from wandb.sdk.lib import json_util, runid, wbauth
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 if TYPE_CHECKING:
     from wandb.automations import (
-        ActionType,
         Automation,
-        EventType,
         Integration,
         NewAutomation,
-        ScopeType,
         SlackIntegration,
         WebhookIntegration,
     )
-    from wandb.automations._utils import WriteAutomationsKwargs
+    from wandb.automations._inputs import WriteAutomationsKwargs
     from wandb.sdk.artifacts.artifact import Artifact
 
     from .artifacts import (
@@ -150,10 +146,6 @@ class Api:
 
         if isinstance(self._auth, wbauth.AuthApiKey):
             self.api_key = self._auth.api_key
-            wandb_login._verify_login(
-                key=self.api_key,
-                base_url=base_url,
-            )
         else:
             self.api_key = None
 
@@ -187,8 +179,12 @@ class Api:
             settings=settings,
             timeout=self._timeout,
         )
+
+        if isinstance(self._auth, wbauth.AuthApiKey):
+            wandb_login._verify_login(self._auth, service_api=self._service_api)
+
         self._sentry = wandb.analytics.sentry.Sentry(pid=os.getpid())
-        self._configure_sentry()
+        self._configure_analytics()
 
     def _load_auth(self, base_url: str) -> wbauth.Auth:
         """Load or prompt for authentication credentials."""
@@ -206,7 +202,7 @@ class Api:
 
         return auth
 
-    def _configure_sentry(self) -> None:
+    def _configure_analytics(self) -> None:
         if not env.error_reporting_enabled():
             return
 
@@ -401,33 +397,48 @@ class Api:
         # 1. create required default launch project in the entity
         self.create_project(LAUNCH_DEFAULT_PROJECT, entity)
 
-        api = InternalApi(
-            default_settings={
-                "entity": entity,
-                "project": self.project(LAUNCH_DEFAULT_PROJECT),
-            },
-            retry_timedelta=RETRY_TIMEDELTA,
+        # 2. create default resource config, receive config id
+        config_json = json_util.dumps({"resource_args": {type: config}})
+        template_variables_json = (
+            json_util.dumps(template_variables) if template_variables else "{}"
         )
 
-        # 2. create default resource config, receive config id
-        config_json = json.dumps({"resource_args": {type: config}})
-        create_config_result = api.create_default_resource_config(
-            entity, type, config_json, template_variables
+        response = self._service_api.send_api_request(
+            apb.ApiRequest(
+                run_queue_operation_request=apb.RunQueueOperationRequest(
+                    create_default_resource_config_request=apb.CreateDefaultResourceConfigRequest(
+                        entity_name=entity,
+                        resource=type,
+                        config=config_json,
+                        template_variables=template_variables_json,
+                    )
+                )
+            )
         )
-        if not create_config_result["success"]:
+        create_config_result = response.run_queue_operation_response.create_default_resource_config_response
+        if not create_config_result.success:
             raise wandb.Error("failed to create default resource config")
-        config_id = create_config_result["defaultResourceConfigID"]
+        config_id = create_config_result.default_resource_config_id
 
         # 3. create run queue
-        create_queue_result = api.create_run_queue(
-            entity,
-            LAUNCH_DEFAULT_PROJECT,
-            name,
-            "PROJECT",
-            prioritization_mode,
-            config_id,
+        response = self._service_api.send_api_request(
+            apb.ApiRequest(
+                run_queue_operation_request=apb.RunQueueOperationRequest(
+                    create_run_queue_request=apb.CreateRunQueueRequest(
+                        entity=entity,
+                        project=LAUNCH_DEFAULT_PROJECT,
+                        queue_name=name,
+                        access="PROJECT",
+                        default_resource_config_id=config_id,
+                        prioritization_mode=prioritization_mode,
+                    )
+                )
+            )
         )
-        if not create_queue_result["success"]:
+        create_queue_result = (
+            response.run_queue_operation_response.create_run_queue_response
+        )
+        if not create_queue_result.success:
             raise wandb.Error("failed to create run queue")
 
         return public.RunQueue(
@@ -506,19 +517,21 @@ class Api:
         """
         # Convert user-facing lowercase access to backend uppercase
         backend_access = access.upper()
+        spec_json = spec if isinstance(spec, str) else json.dumps(spec)
 
-        api = InternalApi(retry_timedelta=RETRY_TIMEDELTA)
-        result = api.create_custom_chart(
-            entity=entity,
-            name=name,
-            display_name=display_name,
-            spec_type=spec_type,
-            access=backend_access,
-            spec=spec,
+        response = self._service_api.send_api_request(
+            apb.ApiRequest(
+                create_custom_chart_request=apb.CreateCustomChartRequest(
+                    entity=entity,
+                    name=name,
+                    display_name=display_name,
+                    spec_type=spec_type,
+                    access=backend_access,
+                    spec=spec_json,
+                )
+            )
         )
-        if result is None or result.get("chart") is None:
-            raise wandb.Error("failed to create custom chart")
-        return result["chart"]["id"]
+        return response.create_custom_chart_response.chart_id
 
     def upsert_run_queue(
         self,
@@ -587,13 +600,6 @@ class Api:
             )
 
         self.create_project(LAUNCH_DEFAULT_PROJECT, entity)
-        api = InternalApi(
-            default_settings={
-                "entity": entity,
-                "project": self.project(LAUNCH_DEFAULT_PROJECT),
-            },
-            retry_timedelta=RETRY_TIMEDELTA,
-        )
         # User provides external_links as a dict with name: url format
         # but backend stores it as a list of dicts with url and label keys.
         external_links = external_links or {}
@@ -606,20 +612,37 @@ class Api:
                 for key, value in external_links.items()
             ]
         }
-        upsert_run_queue_result = api.upsert_run_queue(
-            name,
-            entity,
-            resource_type,
-            {"resource_args": {resource_type: resource_config}},
-            template_variables=template_variables,
-            external_links=external_links,
-            prioritization_mode=prioritization_mode,
+        response = self._service_api.send_api_request(
+            apb.ApiRequest(
+                run_queue_operation_request=apb.RunQueueOperationRequest(
+                    upsert_run_queue_request=apb.UpsertRunQueueRequest(
+                        entity_name=entity,
+                        project_name=LAUNCH_DEFAULT_PROJECT,
+                        queue_name=name,
+                        resource_type=resource_type,
+                        resource_config=json.dumps(
+                            {"resource_args": {resource_type: resource_config}}
+                        ),
+                        external_links=(
+                            json.dumps(external_links) if external_links else None
+                        ),
+                        prioritization_mode=prioritization_mode,
+                        template_variables=(
+                            json.dumps(template_variables)
+                            if template_variables
+                            else None
+                        ),
+                    )
+                )
+            )
         )
-        if not upsert_run_queue_result["success"]:
+        upsert_run_queue_result = (
+            response.run_queue_operation_response.upsert_run_queue_response
+        )
+
+        if not upsert_run_queue_result.success:
             raise wandb.Error("failed to create run queue")
-        schema_errors = (
-            upsert_run_queue_result.get("configSchemaValidationErrors") or []
-        )
+        schema_errors = upsert_run_queue_result.config_schema_validation_errors
         for error in schema_errors:
             wandb.termwarn(f"resource config validation: {error}")
 
@@ -1258,7 +1281,7 @@ class Api:
         return self._runs[key]
 
     @normalize_exceptions
-    def run(self, path=""):
+    def run(self, path: str = "") -> public.Run:
         """Return a single run by parsing path in the form `entity/project/run_id`.
 
         Args:
@@ -1932,7 +1955,10 @@ class Api:
         """Returns a lazy iterator of `Registry` objects.
 
         Use the iterator to search and filter registries, collections,
-        or artifact versions across your organization's registry.
+        or artifact versions across your organization's registry. Results are
+        fetched lazily as you iterate, so you can stop after any number of
+        items—for example, with :func:`itertools.islice`—without requesting
+        the rest.
 
         Args:
             organization: The organization of the registry to fetch.
@@ -1952,7 +1978,9 @@ class Api:
                 from a previous paginator's `.cursor` attribute.
 
         Returns:
-            A lazy iterator of `Registry` objects.
+            A lazy iterator of `Registry` objects. The returned object supports
+            Python's iterator protocol and fetches results lazily as you
+            iterate. See https://docs.python.org/3/library/itertools.html.
 
         Examples:
         Find all registries with the names that contain "model"
@@ -2062,14 +2090,10 @@ class Api:
         organization = organization or fetch_org_from_settings_or_entity(
             self.settings, self.default_entity
         )
-        org_entity = fetch_org_entity_from_organization(
-            self._service_api,
-            organization,
-        )
         registry = Registry(
             self._service_api,
             organization,
-            org_entity,
+            self.organization(organization).org_entity.name,
             name,
         )
         registry.load()
@@ -2266,96 +2290,6 @@ class Api:
             self._service_api, variables=variables, per_page=per_page, start=start
         )
 
-    def _supports_automation(
-        self,
-        *,
-        scope: ScopeType | None = None,
-        event: EventType | None = None,
-        action: ActionType | None = None,
-    ) -> bool:
-        """Returns whether the server recognizes the automation event and/or action."""
-        from wandb.automations._utils import (
-            ALWAYS_SUPPORTED_ACTIONS,
-            ALWAYS_SUPPORTED_EVENTS,
-            ALWAYS_SUPPORTED_SCOPES,
-        )
-
-        supports_scope = (
-            (scope is None)
-            or (scope in ALWAYS_SUPPORTED_SCOPES)
-            or self._service_api.feature_enabled(f"AUTOMATION_SCOPE_{scope.value}")
-        )
-        supports_event = (
-            (event is None)
-            or (event in ALWAYS_SUPPORTED_EVENTS)
-            or self._service_api.feature_enabled(f"AUTOMATION_EVENT_{event.value}")
-        )
-        supports_action = (
-            (action is None)
-            or (action in ALWAYS_SUPPORTED_ACTIONS)
-            or self._service_api.feature_enabled(f"AUTOMATION_ACTION_{action.value}")
-        )
-        return supports_event and supports_action and supports_scope
-
-    def _omitted_automation_fragments(self) -> set[str]:
-        """Returns the names of unsupported automation-related fragments.
-
-        Older servers won't recognize newer GraphQL types, so a valid request may
-        unnecessarily error out because it won't recognize fragments defined on those types.
-
-        So e.g. if a server does not support `NO_OP` action types, then the following need to be
-        removed from the body of the GraphQL request:
-
-            - Fragment definition:
-                ```
-                fragment NoOpActionFields on NoOpTriggeredAction {
-                    noOp
-                }
-                ```
-
-            - Fragment spread in selection set:
-                ```
-                {
-                    ...NoOpActionFields
-                    # ... other fields ...
-                }
-                ```
-        """
-        from wandb.automations import ActionType, ScopeType
-        from wandb.automations._generated import (
-            EntityScopeFields,
-            GenericWebhookActionFields,
-            NoOpActionFields,
-            NotificationActionFields,
-            QueueJobActionFields,
-        )
-
-        # Note: we can't currently define this as a constant outside the method
-        # and still keep it nearby in this module, because it relies on pydantic v2-only imports
-        scope_fragment_names: dict[ScopeType, str] = {
-            ScopeType.ENTITY: nameof(EntityScopeFields),
-        }
-        action_fragment_names: dict[ActionType, str] = {
-            ActionType.NO_OP: nameof(NoOpActionFields),
-            ActionType.QUEUE_JOB: nameof(QueueJobActionFields),
-            ActionType.NOTIFICATION: nameof(NotificationActionFields),
-            ActionType.GENERIC_WEBHOOK: nameof(GenericWebhookActionFields),
-        }
-
-        omitted_scope_fragments = set(
-            name
-            for scope in ScopeType
-            if (not self._supports_automation(scope=scope))
-            and (name := scope_fragment_names.get(scope))
-        )
-        omitted_action_fragments = set(
-            name
-            for action in ActionType
-            if (not self._supports_automation(action=action))
-            and (name := action_fragment_names.get(action))
-        )
-        return omitted_scope_fragments | omitted_action_fragments
-
     @tracked
     def automation(
         self,
@@ -2429,33 +2363,34 @@ class Api:
         automations = api.automations(entity="my-team")
         ```
         """
-        from wandb.apis.public.automations import Automations
-        from wandb.automations._generated import (
-            GET_AUTOMATIONS_LEGACY_GQL,
-            GET_ENTITY_AUTOMATIONS_LEGACY_GQL,
+        from wandb.apis.public.automations import (
+            Automations,
+            EntityAutomations,
+            LegacyEntityAutomations,
         )
 
-        # For now, we need to use different queries depending on whether entity is given
-        variables = {"entity": entity}
-        if entity is None:
-            gql_str = GET_AUTOMATIONS_LEGACY_GQL  # Automations for viewer
-        else:
-            gql_str = GET_ENTITY_AUTOMATIONS_LEGACY_GQL  # Automations for entity
+        kwargs = dict(per_page=per_page, start=start)
 
-        # If needed, rewrite the GraphQL field selection set to omit unsupported fields/fragments/types
-        iterator = Automations(
-            self._service_api,
-            variables=variables,
-            per_page=per_page,
-            start=start,
-            _query=gql_str,
-            omit_fragments=self._omitted_automation_fragments(),
-        )
+        if entity and self._service_api.feature_enabled(pb.QUERY_AUTOMATIONS_ON_ENTITY):
+            return EntityAutomations(
+                self._service_api,
+                entity=entity,
+                filter={"name": name} if name else None,
+                **kwargs,
+            )
+        elif entity:
+            # TODO: Remove this project-walking fallback once the minimum supported
+            # server version is v0.83.0 or newer. That release added `Entity.triggers`
+            # (wandb/core#43336).
+            return LegacyEntityAutomations(
+                self._service_api,
+                entity=entity,
+                name=name,
+                **kwargs,
+            )
 
-        # FIXME: this is crude, move this client-side filtering logic into backend
-        if name is not None:
-            return filter(lambda x: x.name == name, iterator)
-        return iterator
+        # Legacy implementation: walk the viewer's projects for visible automations
+        return Automations(self._service_api, name=name, **kwargs)
 
     @normalize_exceptions
     @tracked
@@ -2517,23 +2452,28 @@ class Api:
         ```
         """
         from wandb.automations import Automation
+        from wandb.automations._compat import (
+            automation_enabled,
+            omit_automation_fragments,
+        )
         from wandb.automations._generated import CREATE_AUTOMATION_GQL, CreateAutomation
-        from wandb.automations._utils import prepare_to_create
+        from wandb.automations._inputs import prepare_to_create
 
         gql_input = prepare_to_create(obj, **kwargs)
 
-        if not self._supports_automation(
+        if not automation_enabled(
+            self._service_api,
+            scope=(scope := gql_input.scope_type),
             event=(event := gql_input.triggering_event_type),
             action=(action := gql_input.triggered_action_type),
         ):
-            raise ValueError(
-                f"Automation event or action ({event!r} -> {action!r}) "
+            msg = (
+                f"Automation scope, event, and/or action ({scope.value!r}, {event.value!r}, {action.value!r}) "
                 "is not supported on this wandb server version. "
-                "Please upgrade your server version, or contact support at "
-                "support@wandb.com."
+                "Please upgrade your server version, or contact support at support@wandb.com."
             )
+            raise UnsupportedError(msg) from None
 
-        omit_fragments = self._omitted_automation_fragments()
         variables = {"input": gql_input.model_dump()}
 
         name = gql_input.name
@@ -2541,7 +2481,7 @@ class Api:
             data = self._service_api.execute_graphql(
                 CREATE_AUTOMATION_GQL,
                 variables=variables,
-                omit_fragments=omit_fragments,
+                omit_fragments=omit_automation_fragments(self._service_api),
                 parse=CreateAutomation.model_validate_json,
             )
         except WandbApiFailedError as e:
@@ -2625,33 +2565,28 @@ class Api:
         )
         ```
         """
-        from wandb.automations import ActionType, Automation
+        from wandb.automations import Automation
+        from wandb.automations._compat import (
+            automation_enabled,
+            omit_automation_fragments,
+        )
         from wandb.automations._generated import UPDATE_AUTOMATION_GQL, UpdateAutomation
-        from wandb.automations._utils import prepare_to_update
-
-        # Check if the server even supports updating automations.
-        #
-        # NOTE: Unfortunately, there is no current server feature flag for this.  As a workaround,
-        # we check whether the server supports the NO_OP action, which is a reasonably safe proxy
-        # for whether it supports updating automations.
-        if not self._supports_automation(action=ActionType.NO_OP):
-            raise RuntimeError(
-                "Updating existing automations is not enabled on this wandb server version. "
-                "Please upgrade your server version, or contact support at support@wandb.com."
-            )
+        from wandb.automations._inputs import prepare_to_update
 
         gql_input = prepare_to_update(obj, **kwargs)
 
-        if not self._supports_automation(
+        if not automation_enabled(
+            self._service_api,
+            scope=(scope := gql_input.scope_type),
             event=(event := gql_input.triggering_event_type),
             action=(action := gql_input.triggered_action_type),
         ):
-            raise ValueError(
-                f"Automation event or action ({event.value} -> {action.value}) "
+            msg = (
+                f"Automation scope, event, and/or action ({scope.value!r}, {event.value!r}, {action.value!r}) "
                 "is not supported on this wandb server version. "
-                "Please upgrade your server version, or contact support at "
-                "support@wandb.com."
+                "Please upgrade your server version, or contact support at support@wandb.com."
             )
+            raise UnsupportedError(msg)
 
         variables = {"input": gql_input.model_dump()}
 
@@ -2660,7 +2595,7 @@ class Api:
             data = self._service_api.execute_graphql(
                 UPDATE_AUTOMATION_GQL,
                 variables=variables,
-                omit_fragments=self._omitted_automation_fragments(),
+                omit_fragments=omit_automation_fragments(self._service_api),
                 parse=UpdateAutomation.model_validate_json,
             )
         except WandbApiFailedError as e:
@@ -2699,7 +2634,7 @@ class Api:
             True if the automation was deleted successfully.
         """
         from wandb.automations._generated import DELETE_AUTOMATION_GQL, DeleteAutomation
-        from wandb.automations._utils import extract_id
+        from wandb.automations._inputs import extract_id
 
         id_ = extract_id(obj)
 

@@ -96,6 +96,7 @@ def stop(*, exit_code: int = 0) -> None:
         ) from e
 
     except Exception as e:
+        # TODO: remove sentry once we no longer support/need it
         get_sentry().reraise(e)
 
     finally:

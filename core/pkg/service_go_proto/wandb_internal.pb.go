@@ -100,6 +100,13 @@ const (
 	ServerFeature_QUERY_AUTOMATIONS_ON_ENTITY ServerFeature = 32
 	// Indicates that the server supports Organization.triggers.
 	ServerFeature_AUTOMATIONS_ON_ORGANIZATION ServerFeature = 33
+	// Indicates that the server supports gzip-compressed filestream request bodies.
+	ServerFeature_FILESTREAM_GZIP ServerFeature = 34
+	// Indicates that the server supports the enqueueSweepRun mutation, used by
+	// the local sweep scheduler to enqueue runs.
+	ServerFeature_SWEEPS_LOCAL_SCHEDULER ServerFeature = 35
+	// Indicates that the server supports queries for an artifact's digest algorithm.
+	ServerFeature_ARTIFACT_DIGEST_ALGORITHM ServerFeature = 36
 )
 
 // Enum value maps for ServerFeature.
@@ -139,15 +146,18 @@ var (
 		31: "AUTOMATION_SCOPE_ENTITY",
 		32: "QUERY_AUTOMATIONS_ON_ENTITY",
 		33: "AUTOMATIONS_ON_ORGANIZATION",
+		34: "FILESTREAM_GZIP",
+		35: "SWEEPS_LOCAL_SCHEDULER",
+		36: "ARTIFACT_DIGEST_ALGORITHM",
 	}
 	ServerFeature_value = map[string]int32{
-		"SERVER_FEATURE_UNSPECIFIED":           0,
-		"LARGE_FILENAMES":                      17,
-		"ARTIFACT_TAGS":                        1,
-		"CLIENT_IDS":                           2,
-		"ARTIFACT_REGISTRY_SEARCH":             3,
-		"STRUCTURED_CONSOLE_LOGS":              4,
-		"ARTIFACT_COLLECTION_MEMBERSHIP_FILES": 5,
+		"SERVER_FEATURE_UNSPECIFIED":                           0,
+		"LARGE_FILENAMES":                                      17,
+		"ARTIFACT_TAGS":                                        1,
+		"CLIENT_IDS":                                           2,
+		"ARTIFACT_REGISTRY_SEARCH":                             3,
+		"STRUCTURED_CONSOLE_LOGS":                              4,
+		"ARTIFACT_COLLECTION_MEMBERSHIP_FILES":                 5,
 		"ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER": 6,
 		"USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION":     7,
 		"EXPAND_DEFINED_METRIC_GLOBS":                          8,
@@ -175,6 +185,9 @@ var (
 		"AUTOMATION_SCOPE_ENTITY":                              31,
 		"QUERY_AUTOMATIONS_ON_ENTITY":                          32,
 		"AUTOMATIONS_ON_ORGANIZATION":                          33,
+		"FILESTREAM_GZIP":                                      34,
+		"SWEEPS_LOCAL_SCHEDULER":                               35,
+		"ARTIFACT_DIGEST_ALGORITHM":                            36,
 	}
 )
 
@@ -3862,6 +3875,7 @@ type ArtifactRecord struct {
 	BaseId             string                 `protobuf:"bytes,17,opt,name=base_id,json=baseId,proto3" json:"base_id,omitempty"`
 	TtlDurationSeconds int64                  `protobuf:"varint,18,opt,name=ttl_duration_seconds,json=ttlDurationSeconds,proto3" json:"ttl_duration_seconds,omitempty"`
 	Tags               []string               `protobuf:"bytes,19,rep,name=tags,proto3" json:"tags,omitempty"`
+	DigestAlgorithm    string                 `protobuf:"bytes,20,opt,name=digest_algorithm,json=digestAlgorithm,proto3" json:"digest_algorithm,omitempty"`
 	IncrementalBeta1   bool                   `protobuf:"varint,100,opt,name=incremental_beta1,json=incrementalBeta1,proto3" json:"incremental_beta1,omitempty"`
 	XInfo              *XRecordInfo           `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
 	unknownFields      protoimpl.UnknownFields
@@ -4029,6 +4043,13 @@ func (x *ArtifactRecord) GetTags() []string {
 		return x.Tags
 	}
 	return nil
+}
+
+func (x *ArtifactRecord) GetDigestAlgorithm() string {
+	if x != nil {
+		return x.DigestAlgorithm
+	}
+	return ""
 }
 
 func (x *ArtifactRecord) GetIncrementalBeta1() bool {
@@ -4568,16 +4589,19 @@ type TBRecord struct {
 	XInfo *XRecordInfo           `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
 	// A directory containing tfevents files to watch.
 	//
-	// This may be an absolute or relative path.
+	// This may be a filesystem path (in the native format, meaning backslashes
+	// on Windows) or one of the supported cloud paths (S3, GCS, Azure). Relative
+	// paths are allowed, but discouraged, since their interpretation depends on
+	// the wandb-core working directory.
 	LogDir string `protobuf:"bytes,1,opt,name=log_dir,json=logDir,proto3" json:"log_dir,omitempty"`
 	// An optional path to an ancestor of `log_dir` used for namespacing.
 	//
-	// This may be an absolute or relative path.
+	// The format is the same as `log_dir`.
 	//
-	// If set, then each event from tfevents files under `log_dir` is
-	// prefixed by the file's path relative to this directory. Additionally,
-	// if `save` is true, then each file's upload path is also its path
-	// relative to `root_dir`.
+	// If `namespace` is not provided, then each event from tfevents files under
+	// `log_dir` is prefixed by the file's path relative to this directory.
+	// If `save_path` is not provided and `save` is true, then each file's upload
+	// path is also its path relative to `root_dir`.
 	//
 	// For example, with `root_dir` set as "tb/logs" and `log_dir` as
 	// "tb/logs/train":
@@ -4587,13 +4611,42 @@ type TBRecord struct {
 	//
 	// If this is unset, then it is inferred using unspecified rules.
 	RootDir string `protobuf:"bytes,3,opt,name=root_dir,json=rootDir,proto3" json:"root_dir,omitempty"`
+	// A prefix to prepend to tfevents tags to create W&B metric keys.
+	//
+	// If present, it is used instead of guessing based on the `root_dir`.
+	// It may be set to an empty string, in which case TB tags are used as W&B
+	// keys without modification.
+	//
+	// The namespace is prepended with a forward slash as a separator,
+	// so this field should not end with a forward slash.
+	Namespace *string `protobuf:"bytes,4,opt,name=namespace,proto3,oneof" json:"namespace,omitempty"`
 	// Whether to save tfevents files with the run.
 	//
 	// When true, this uploads the tfevents files, enabling the "TensorBoard"
 	// tab in W&B.
-	Save          bool `protobuf:"varint,2,opt,name=save,proto3" json:"save,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Save bool `protobuf:"varint,2,opt,name=save,proto3" json:"save,omitempty"`
+	// Path where to save tfevents files, if `save` is true.
+	//
+	// If set, it is used instead of guessing based on the `root_dir`.
+	//
+	// The path is relative to the run's files directory. It must use the system
+	// file separator (backslash on Windows, forward slash elsewhere). The "."
+	// path can be used to save at the root of the run's files.
+	SavePath string `protobuf:"bytes,5,opt,name=save_path,json=savePath,proto3" json:"save_path,omitempty"`
+	// Whether to skip filtering by timestamp.
+	//
+	// By default, only tfevents files newer than the run are parsed, based
+	// on the Unix timestamp in the filename. If this field is set, then
+	// timestamps are ignored.
+	IgnoreTimestamp bool `protobuf:"varint,6,opt,name=ignore_timestamp,json=ignoreTimestamp,proto3" json:"ignore_timestamp,omitempty"`
+	// Whether to skip filtering by hostname.
+	//
+	// By default, only tfevents files with a hostname component exactly matching
+	// the W&B hostname setting (which is the output of HOSTNAME(1)) are parsed.
+	// If this field is set, then hostnames are ignored.
+	IgnoreHostname bool `protobuf:"varint,7,opt,name=ignore_hostname,json=ignoreHostname,proto3" json:"ignore_hostname,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *TBRecord) Reset() {
@@ -4647,9 +4700,37 @@ func (x *TBRecord) GetRootDir() string {
 	return ""
 }
 
+func (x *TBRecord) GetNamespace() string {
+	if x != nil && x.Namespace != nil {
+		return *x.Namespace
+	}
+	return ""
+}
+
 func (x *TBRecord) GetSave() bool {
 	if x != nil {
 		return x.Save
+	}
+	return false
+}
+
+func (x *TBRecord) GetSavePath() string {
+	if x != nil {
+		return x.SavePath
+	}
+	return ""
+}
+
+func (x *TBRecord) GetIgnoreTimestamp() bool {
+	if x != nil {
+		return x.IgnoreTimestamp
+	}
+	return false
+}
+
+func (x *TBRecord) GetIgnoreHostname() bool {
+	if x != nil {
+		return x.IgnoreHostname
 	}
 	return false
 }
@@ -12037,7 +12118,7 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\tStatsItem\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x1d\n" +
 	"\n" +
-	"value_json\x18\x10 \x01(\tR\tvalueJson\"\xc9\x05\n" +
+	"value_json\x18\x10 \x01(\tR\tvalueJson\"\xf4\x05\n" +
 	"\x0eArtifactRecord\x12\x15\n" +
 	"\x06run_id\x18\x01 \x01(\tR\x05runId\x12\x18\n" +
 	"\aproject\x18\x02 \x01(\tR\aproject\x12\x16\n" +
@@ -12058,7 +12139,8 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x12sequence_client_id\x18\x10 \x01(\tR\x10sequenceClientId\x12\x17\n" +
 	"\abase_id\x18\x11 \x01(\tR\x06baseId\x120\n" +
 	"\x14ttl_duration_seconds\x18\x12 \x01(\x03R\x12ttlDurationSeconds\x12\x12\n" +
-	"\x04tags\x18\x13 \x03(\tR\x04tags\x12+\n" +
+	"\x04tags\x18\x13 \x03(\tR\x04tags\x12)\n" +
+	"\x10digest_algorithm\x18\x14 \x01(\tR\x0fdigestAlgorithm\x12+\n" +
 	"\x11incremental_beta1\x18d \x01(\bR\x10incrementalBeta1\x121\n" +
 	"\x05_info\x18\xc8\x01 \x01(\v2\x1b.wandb_internal._RecordInfoR\x04Info\"\xa1\x02\n" +
 	"\x10ArtifactManifest\x12\x18\n" +
@@ -12101,12 +12183,18 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x14LinkArtifactResponse\x12#\n" +
 	"\rerror_message\x18\x01 \x01(\tR\ferrorMessage\x12(\n" +
 	"\rversion_index\x18\x02 \x01(\x05H\x00R\fversionIndex\x88\x01\x01B\x10\n" +
-	"\x0e_version_index\"\x85\x01\n" +
+	"\x0e_version_index\"\xa7\x02\n" +
 	"\bTBRecord\x121\n" +
 	"\x05_info\x18\xc8\x01 \x01(\v2\x1b.wandb_internal._RecordInfoR\x04Info\x12\x17\n" +
 	"\alog_dir\x18\x01 \x01(\tR\x06logDir\x12\x19\n" +
-	"\broot_dir\x18\x03 \x01(\tR\arootDir\x12\x12\n" +
-	"\x04save\x18\x02 \x01(\bR\x04save\"\n" +
+	"\broot_dir\x18\x03 \x01(\tR\arootDir\x12!\n" +
+	"\tnamespace\x18\x04 \x01(\tH\x00R\tnamespace\x88\x01\x01\x12\x12\n" +
+	"\x04save\x18\x02 \x01(\bR\x04save\x12\x1b\n" +
+	"\tsave_path\x18\x05 \x01(\tR\bsavePath\x12)\n" +
+	"\x10ignore_timestamp\x18\x06 \x01(\bR\x0fignoreTimestamp\x12'\n" +
+	"\x0fignore_hostname\x18\a \x01(\bR\x0eignoreHostnameB\f\n" +
+	"\n" +
+	"_namespace\"\n" +
 	"\n" +
 	"\bTBResult\"\xa5\x01\n" +
 	"\vAlertRecord\x12\x14\n" +
@@ -12631,7 +12719,8 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\finput_source\x18\x01 \x01(\v2\x1e.wandb_internal.JobInputSourceR\vinputSource\x12A\n" +
 	"\rinclude_paths\x18\x02 \x03(\v2\x1c.wandb_internal.JobInputPathR\fincludePaths\x12A\n" +
 	"\rexclude_paths\x18\x03 \x03(\v2\x1c.wandb_internal.JobInputPathR\fexcludePaths\x12!\n" +
-	"\finput_schema\x18\x04 \x01(\tR\vinputSchema*\xe9\t\n" +
+	"\finput_schema\x18\x04 \x01(\tR\vinputSchema*\xb9\n" +
+	"\n" +
 	"\rServerFeature\x12\x1e\n" +
 	"\x1aSERVER_FEATURE_UNSPECIFIED\x10\x00\x12\x13\n" +
 	"\x0fLARGE_FILENAMES\x10\x11\x12\x11\n" +
@@ -12668,7 +12757,10 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x16SWEEPS_QUERY_FILTERING\x10\x1e\x12\x1b\n" +
 	"\x17AUTOMATION_SCOPE_ENTITY\x10\x1f\x12\x1f\n" +
 	"\x1bQUERY_AUTOMATIONS_ON_ENTITY\x10 \x12\x1f\n" +
-	"\x1bAUTOMATIONS_ON_ORGANIZATION\x10!B\x1bZ\x19core/pkg/service_go_protob\x06proto3"
+	"\x1bAUTOMATIONS_ON_ORGANIZATION\x10!\x12\x13\n" +
+	"\x0fFILESTREAM_GZIP\x10\"\x12\x1a\n" +
+	"\x16SWEEPS_LOCAL_SCHEDULER\x10#\x12\x1d\n" +
+	"\x19ARTIFACT_DIGEST_ALGORITHM\x10$B\x1bZ\x19core/pkg/service_go_protob\x06proto3"
 
 var (
 	file_wandb_proto_wandb_internal_proto_rawDescOnce sync.Once
@@ -13153,6 +13245,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 		(*Result_Response)(nil),
 	}
 	file_wandb_proto_wandb_internal_proto_msgTypes[51].OneofWrappers = []any{}
+	file_wandb_proto_wandb_internal_proto_msgTypes[52].OneofWrappers = []any{}
 	file_wandb_proto_wandb_internal_proto_msgTypes[56].OneofWrappers = []any{
 		(*Request_StopStatus)(nil),
 		(*Request_NetworkStatus)(nil),

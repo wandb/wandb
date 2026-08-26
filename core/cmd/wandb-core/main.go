@@ -26,6 +26,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/getsentry/sentry-go"
 
+	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pprof"
@@ -130,6 +131,8 @@ func serviceMain() int {
 	var sentryDSN string
 	if !*disableAnalytics {
 		sentryDSN = observability.WandbCoreDSN
+	} else {
+		analytics.Disable()
 	}
 	err := sentry.Init(sentry.ClientOptions{
 		Dsn:              sentryDSN,
@@ -173,6 +176,8 @@ func serviceMain() int {
 		loggerPath = file.Name()
 		defer func() { _ = file.Close() }()
 	}
+
+	analytics.ConfigureOTelErrorHandler()
 
 	// Record certain signals in the log file for debugging.
 	signalCh := make(chan os.Signal, 1)
@@ -456,6 +461,7 @@ func newLeetLogger(logLevel int) (*observability.CoreLogger, func(), error) {
 			&slog.HandlerOptions{Level: slog.Level(logLevel)},
 		)),
 		observability.NewSentryContext(sentry.CurrentHub()),
+		analytics.NewTelemetryRecorder(nil, analytics.NewTelemetryContext()),
 	)
 	return logger, closeLogWriter, nil
 }
@@ -491,7 +497,10 @@ func runSymon(opts *leetOptions, logger *observability.CoreLogger) int {
 		finalModel, err := program.Run()
 		m.Cleanup()
 		if err != nil {
-			logger.CaptureError(fmt.Errorf("wandb-symon: %v", err))
+			logger.CaptureError(
+				"main",
+				fmt.Errorf("wandb-symon: %v", err),
+			)
 			return exitCodeErrorInternal
 		}
 
@@ -520,7 +529,10 @@ func runLeetWorkspace(opts *leetOptions, logger *observability.CoreLogger) int {
 
 		finalModel, err := program.Run()
 		if err != nil {
-			logger.CaptureError(fmt.Errorf("wandb-leet: %v", err))
+			logger.CaptureError(
+				"main",
+				fmt.Errorf("wandb-leet: %v", err),
+			)
 			return exitCodeErrorInternal
 		}
 

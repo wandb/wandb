@@ -37,7 +37,7 @@ from wandb.env import CONFIG_DIR
 from wandb.errors import UsageError
 from wandb.sdk.lib import asyncio_manager, import_hooks, wb_logging
 
-from .lib import config_util, server
+from .lib import config_util, identity
 
 if TYPE_CHECKING:
     from wandb.sdk import wandb_run
@@ -100,7 +100,7 @@ class _WandbSetup:
         self._active_runs_lock = threading.Lock()
 
         self._sweep_config: dict | None = None
-        self._server: server.Server | None = None
+        self._session_identity: identity.SessionIdentity | None = None
         self._pid = pid
 
         # TODO(jhr): defer strict checks until settings are fully initialized
@@ -270,7 +270,7 @@ class _WandbSetup:
 
     def update_user_settings(self) -> None:
         # Get rid of cached results to force a refresh.
-        self._server = None
+        self._session_identity = None
 
     def _early_logger_flush(self, new_logger: Logger) -> None:
         if self._logger is new_logger:
@@ -304,44 +304,41 @@ class _WandbSetup:
         return self._settings
 
     def _get_entity(self) -> str | None:
-        if self._settings and self._settings._offline:
-            return None
-        entity = self.viewer.get("entity")
-        return entity
+        who = self._resolve_identity()
+        return who.default_entity if who else None
 
     def _get_username(self) -> str | None:
-        if self._settings and self._settings._offline:
-            return None
-        return self.viewer.get("username")
+        who = self._resolve_identity()
+        return who.username if who else None
 
     def _get_teams(self) -> list[str]:
-        if self._settings and self._settings._offline:
-            return []
-        teams = self.viewer.get("teams")
-        if teams:
-            teams = [team["node"]["name"] for team in teams["edges"]]
-        return teams or []
+        who = self._resolve_identity()
+        return list(who.teams) if who else []
 
-    @property
-    def viewer(self) -> dict[str, Any]:
-        if self._server is None:
-            self._server = server.Server(settings=self.settings)
+    def _resolve_identity(self) -> identity.Identity | None:
+        """The account for the session credentials, or None if not known."""
+        if self._session_identity is None:
+            self._session_identity = identity.SessionIdentity(self.settings)
 
-        return self._server.viewer
+        return self._session_identity.identity
 
     def _load_user_settings(self) -> dict[str, Any] | None:
-        # offline?
-        if self._server is None:
+        # Only use the session identity if something already tried to resolve
+        # it, for example while printing the "logged in" message. A failed
+        # resolution may be retried here.
+        if self._session_identity is None:
             return None
 
-        flags = self._server._flags
-        user_settings = dict()
-        if "code_saving_enabled" in flags:
-            user_settings["save_code"] = flags["code_saving_enabled"]
+        who = self._session_identity.identity
+        if who is None:
+            return None
 
-        email = self.viewer.get("email", None)
-        if email:
-            user_settings["email"] = email
+        user_settings: dict[str, Any] = {}
+        if "code_saving_enabled" in who.flags:
+            user_settings["save_code"] = who.flags["code_saving_enabled"]
+
+        if who.email:
+            user_settings["email"] = who.email
 
         return user_settings
 

@@ -7,7 +7,8 @@ from typing import TYPE_CHECKING, Annotated, Any, Dict  # noqa: UP035
 
 from pydantic import Field
 
-from wandb.sdk.lib.hashutil import HexMD5
+from wandb.sdk.artifacts._generated import ArtifactDigestAlgorithm
+from wandb.sdk.lib.hashutil import HexDigest
 
 from ._models.base_model import ArtifactsBase
 from ._validators import validate_artifact_path
@@ -24,6 +25,9 @@ class ArtifactManifest(ArtifactsBase, ABC):
     entries: Dict[str, ArtifactManifestEntry] = Field(default_factory=dict)  # noqa: UP006
 
     storage_policy: Annotated[StoragePolicy, Field(exclude=True, repr=False)]
+    digest_algorithm: Annotated[
+        ArtifactDigestAlgorithm, Field(exclude=True, repr=False)
+    ]
 
     @classmethod
     def version(cls) -> int:
@@ -31,13 +35,17 @@ class ArtifactManifest(ArtifactsBase, ABC):
 
     @classmethod
     @abstractmethod
-    def from_manifest_json(cls, manifest_json: dict[str, Any]) -> ArtifactManifest:
+    def from_manifest_json(
+        cls,
+        manifest_json: dict[str, Any],
+        digest_algorithm: ArtifactDigestAlgorithm = ArtifactDigestAlgorithm.MANIFEST_MD5,
+    ) -> ArtifactManifest:
         if (version := manifest_json.get("version")) is None:
             raise ValueError("Invalid manifest format. Must contain version field.")
 
         for sub in cls.__subclasses__():
             if sub.version() == version:
-                return sub.from_manifest_json(manifest_json)
+                return sub.from_manifest_json(manifest_json, digest_algorithm)
         raise ValueError("Invalid manifest version.")
 
     def __len__(self) -> int:
@@ -48,11 +56,15 @@ class ArtifactManifest(ArtifactsBase, ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def digest(self) -> HexMD5:
+    def digest(self) -> HexDigest:
         raise NotImplementedError
 
     @abstractmethod
     def size(self) -> int:
+        raise NotImplementedError
+
+    @abstractmethod
+    def hash_contents_with_md5(self) -> None:
         raise NotImplementedError
 
     def add_entry(self, entry: ArtifactManifestEntry, overwrite: bool = False) -> None:

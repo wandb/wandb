@@ -13,11 +13,10 @@ from pydantic import (
 )
 from typing_extensions import override
 
+from wandb._filters import BaseOp, FilterExpr
+from wandb._filters.operators import RichReprResult
 from wandb._pydantic import GQLBase
 from wandb.automations._validators import LenientStrEnum
-
-from ._filters import BaseOp, FilterExpr
-from ._filters.operators import RichReprResult
 
 if TYPE_CHECKING:
     from wandb.automations.events import RunMetricFilter

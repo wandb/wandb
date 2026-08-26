@@ -33,7 +33,10 @@ type TBWork struct {
 func (w *TBWork) Schedule(wg *sync.WaitGroup, proceed func()) {
 	err := w.TBHandler.Handle(w.Record.GetTbrecord())
 	if err != nil {
-		w.Logger.CaptureError(err)
+		w.Logger.CaptureError(
+			"tensorboard",
+			err,
+		)
 	}
 	proceed()
 }

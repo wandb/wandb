@@ -131,7 +131,8 @@ func exitRecord(code int32) *spb.Record {
 func isExitRecord(code int32) gomock.Matcher {
 	return gomock.Cond(
 		func(val any) bool {
-			return val.(*spb.Record).GetExit().ExitCode == code
+			exit := val.(*spb.Record).GetExit()
+			return exit != nil && exit.ExitCode == code
 		},
 	)
 }
@@ -274,6 +275,49 @@ func Test_ParsesInitFailure(t *testing.T) {
 			assert.ErrorContains(t, err, tc.ErrMsg)
 		})
 	}
+}
+
+func Test_LaterRunRecordsDontWaitForResponse(t *testing.T) {
+	x := setup(t)
+	wandbFileWithRecords(t,
+		x.TransactionLog,
+		&spb.Record{
+			Num:        1,
+			RecordType: &spb.Record_Run{Run: &spb.RunRecord{}},
+		},
+		&spb.Record{
+			Num: 2,
+			RecordType: &spb.Record_Run{Run: &spb.RunRecord{
+				DisplayName: "new name",
+				Tags:        []string{"new tag"},
+				Notes:       "new notes",
+			}},
+		},
+		exitRecord(0),
+	)
+	runWork := &testWork{ID: 1}
+	runStartWork := &testWork{ID: 2}
+	runUpdateWork := &testWork{ID: 3}
+	exitWork := &testWork{ID: 4}
+	gomock.InOrder(
+		x.MockRecordParser.EXPECT().Parse(isRecordWithNumber(1)).Return(runWork),
+		x.MockRecordParser.EXPECT().Parse(isRunStartRequest()).Return(runStartWork),
+		x.MockRecordParser.EXPECT().Parse(isRecordWithNumber(2)).Return(runUpdateWork),
+		x.MockRecordParser.EXPECT().Parse(isExitRecord(0)).Return(exitWork),
+	)
+	// Only the first Run record and the Exit record get a response.
+	x.FakeRunWork.QueueResponse(&spb.ServerResponse{})
+	x.FakeRunWork.QueueResponse(&spb.ServerResponse{})
+
+	err := x.RunReader.ProcessTransactionLog(t.Context())
+	require.NoError(t, err)
+
+	allWork := x.FakeRunWork.AllWork()
+	require.Len(t, allWork, 4)
+	assert.Equal(t,
+		[]runwork.WorkImpl{runWork, runStartWork, runUpdateWork, exitWork},
+		x.FakeRunWork.AllWorkImpls())
+	assert.Nil(t, allWork[2].Request)
 }
 
 func Test_CreatesRunStartRequest(t *testing.T) {

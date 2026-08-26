@@ -90,14 +90,19 @@ func (tb *TBHandler) Handle(record *spb.TBRecord) error {
 
 	tb.rootDirGuesser.AddLogDirectory(logDir)
 
+	fileFilter := TFEventsFileFilter{}
+	if !record.IgnoreTimestamp {
+		fileFilter.StartTimeSec = tb.settings.GetStartTime().Unix()
+	}
+	if !record.IgnoreHostname {
+		fileFilter.Hostname = tb.settings.GetHostname()
+	}
+
 	stream := NewTFEventStream(
 		tb.extraWork.BeforeEndCtx(),
 		logDir,
 		tb.fileReadDelay,
-		TFEventsFileFilter{
-			StartTimeSec: tb.settings.GetStartTime().Unix(),
-			Hostname:     tb.settings.GetHostname(),
-		},
+		fileFilter,
 		tb.logger,
 	)
 
@@ -111,7 +116,7 @@ func (tb *TBHandler) Handle(record *spb.TBRecord) error {
 		explicitRootDir = NewRootDir(record.RootDir)
 	}
 
-	tb.startStream(stream, logDir, explicitRootDir, record.Save)
+	tb.startStream(stream, logDir, explicitRootDir, record)
 
 	return nil
 }
@@ -123,64 +128,106 @@ func (tb *TBHandler) startStream(
 	stream *tfEventStream,
 	logDir *LocalOrCloudPath,
 	explicitRootDir *RootDir,
-	shouldSave bool,
+	record *spb.TBRecord,
 ) {
 	tb.wg.Add(1)
 	tb.startWG.Add(1)
 	go func() {
 		defer tb.wg.Done()
 
-		rootDir := explicitRootDir
-		namespace := ""
+		// Lazily compute a RootDir if it is needed.
+		lazyRootDirAndNamespace := sync.OnceValues(func() (*RootDir, string) {
+			return tb.getRootDirAndNamespace(explicitRootDir, logDir)
+		})
 
-		// If the root wasn't given explicitly, try to guess it.
-		if rootDir == nil {
-			rootDir = tb.rootDirGuesser.InferRootOrTimeout(
-				logDir,
-				10*time.Second,
-			)
+		// Figure out the prefix for metric keys.
+		var namespace string
+		if record.Namespace != nil {
+			namespace = *record.Namespace
+		} else {
+			_, namespace = lazyRootDirAndNamespace()
 		}
 
-		if rootDir != nil {
-			// If we guessed the root, or if it was given explicitly,
-			// use it for the namespace.
-			var err error
-			namespace, err = rootDir.TrimFrom(logDir)
-
-			if err != nil {
-				namespace = ""
-				tb.logger.Warn(
-					"tensorboard: failed to compute namespace, using default",
-					"error", err,
-					"default", namespace)
-			}
-
-		} else if logDir.LocalPath != nil {
-			// Otherwise, if we're on a local filesystem, try using the
-			// current working directory as the root. The namespace will
-			// be empty.
-			var err error
-			rootDir, err = RootDirFromCWD()
-
-			if err != nil {
-				tb.logger.Warn(
-					"tensorboard: failed to use current working directory"+
-						" as the root directory",
-					"error", err)
-			}
+		// Figure out where to save files, if needed.
+		var fileNamer FileNamer
+		switch {
+		case !record.Save:
+			fileNamer = nil
+		case record.SavePath != "":
+			fileNamer = PrefixFileNamer(record.SavePath)
+		default:
+			rootDir, _ := lazyRootDirAndNamespace()
+			fileNamer = RootDirFileNamer(rootDir)
 		}
 
 		tb.logger.Info(
 			"tensorboard: tracking new log directory",
-			"rootDir", rootDir,
 			"logDir", logDir,
 			"namespace", namespace)
 
 		stream.Start()
 		tb.startWG.Done()
 
-		tb.watch(stream, namespace, rootDir, shouldSave)
+		tb.watch(stream, namespace, fileNamer)
 	}()
+}
+
+// getRootDirAndNamespace computes the root and namespace for the log directory.
+//
+// May block for a short time to wait to guess the root directory.
+func (tb *TBHandler) getRootDirAndNamespace(
+	explicitRootDir *RootDir,
+	logDir *LocalOrCloudPath,
+) (*RootDir, string) {
+	// Use the explicit directory if given.
+	if explicitRootDir != nil {
+		return explicitRootDir, tb.namespaceFrom(explicitRootDir, logDir)
+	}
+
+	// Try guessing based on logging directories.
+	if rootDir := tb.rootDirGuesser.InferRootOrTimeout(
+		logDir,
+		10*time.Second,
+	); rootDir != nil {
+		return rootDir, tb.namespaceFrom(rootDir, logDir)
+	}
+
+	// Try using the CWD, if we're on a local filesystem.
+	//
+	// We don't infer the namespace in this case, since it's likely
+	// to be ugly like "runs/CURRENT_DATETIME_HOSTNAME".
+	if logDir.LocalPath != nil {
+		if rootDir, err := RootDirFromCWD(); err != nil {
+			tb.logger.Warn(
+				"tensorboard: failed to use current working directory"+
+					" as the root directory",
+				"error", err)
+		} else {
+			return rootDir, ""
+		}
+	}
+
+	return nil, ""
+}
+
+// namespaceFrom computes the namespace for a logging directory given
+// a root directory.
+//
+// On error, warns and returns an empty string.
+func (tb *TBHandler) namespaceFrom(
+	rootDir *RootDir,
+	logDir *LocalOrCloudPath,
+) string {
+	namespace, err := rootDir.TrimFrom(logDir)
+
+	if err != nil {
+		tb.logger.Warn(
+			"tensorboard: failed to compute namespace",
+			"error", err)
+		return ""
+	}
+
+	return namespace
 }
 
 // watch consumes the TF event stream, uploading tfevents files
@@ -188,8 +235,7 @@ func (tb *TBHandler) startStream(
 func (tb *TBHandler) watch(
 	stream *tfEventStream,
 	namespace string,
-	rootDir *RootDir,
-	save bool,
+	fileNamer FileNamer,
 ) {
 	wg := &sync.WaitGroup{}
 
@@ -202,7 +248,7 @@ func (tb *TBHandler) watch(
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		tb.saveFiles(stream.Files(), save, rootDir)
+		tb.saveFiles(stream.Files(), fileNamer)
 	}()
 
 	wg.Wait()
@@ -224,6 +270,26 @@ func (tb *TBHandler) convertToRunHistory(
 ) {
 	converter := TFEventConverter{Namespace: namespace}
 
+	// Combine events with the same step into the same W&B step.
+	//
+	// The purpose of this is mainly aesthetic, as it makes graphs against
+	// the W&B step a bit nicer. It may also have a positive effect on the
+	// storage usage of a run by producing a more dense history.
+	//
+	// When doing this, we assume that consecutive events with the same step
+	// number do not have overlapping data, or else the latest value is taken.
+	// We similarly assume that the "wall time" is roughly the same for such
+	// events.
+	//
+	// Since different events in the same file can use the step to represent
+	// different quantities, this will sometimes merge unrelated events
+	// into the same W&B step. For example, Keras logs "epoch_loss" and
+	// "evaluation_loss_vs_iterations" during a validation run, which use
+	// the epoch and the iteration as the event step respectively. In this
+	// case, we assume such events don't have overlapping tags.
+	var emitter *tfEmitter
+	var emitterStep int64
+
 	for event := range events {
 		tb.logger.Debug(
 			"tensorboard: processed event",
@@ -231,22 +297,34 @@ func (tb *TBHandler) convertToRunHistory(
 			"namespace", namespace,
 		)
 
-		emitter := NewTFEmitter(tb.settings)
+		if emitter == nil {
+			emitter = NewTFEmitter(tb.settings)
+			emitterStep = event.Step
+		} else if emitterStep != event.Step {
+			emitter.Emit(tb.extraWork)
+			emitter = NewTFEmitter(tb.settings)
+			emitterStep = event.Step
+		}
+
 		converter.ConvertNext(emitter, event, tb.logger)
+	}
+
+	if emitter != nil {
 		emitter.Emit(tb.extraWork)
 	}
 }
 
 func (tb *TBHandler) saveFiles(
 	files <-chan *LocalOrCloudPath,
-	shouldSave bool,
-	rootDir *RootDir,
+	fileNamer FileNamer,
 ) {
-	for file := range files {
-		if !shouldSave {
-			continue
+	if fileNamer == nil {
+		for range files {
 		}
+		return
+	}
 
+	for file := range files {
 		if file.LocalPath == nil {
 			tb.logger.Warn(
 				"tensorboard: not saving tfevents file because it is in"+
@@ -256,7 +334,7 @@ func (tb *TBHandler) saveFiles(
 		}
 		localPath := *file.LocalPath
 
-		runPath, err := rootDir.TrimFrom(file)
+		runPath, err := fileNamer(file)
 
 		if err != nil {
 			tb.logger.Error(

@@ -36,8 +36,11 @@ func NewXPU(
 }
 
 func (a *XPU) Sample() (*spb.StatsRecord, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), defaultSamplingInterval)
+	defer cancel()
+
 	stats, err := a.client.GetStats(
-		context.Background(),
+		ctx,
 		&spb.GetStatsRequest{Pid: a.pid, GpuDeviceIds: a.gpuDeviceIds},
 	)
 	if err != nil {

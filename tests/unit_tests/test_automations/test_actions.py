@@ -6,8 +6,9 @@ from wandb.automations import ActionType, SendNotification, SendWebhook
 from wandb.automations._generated import AlertSeverity, TriggeredActionType
 from wandb.sdk.wandb_alerts import AlertLevel
 
-from ._automation_strategies import gql_ids, jsonables
-from ._strategies import printable_text
+from tests.unit_tests.test_filters._strategies import printable_text
+
+from ._strategies import gql_ids, jsonables
 
 VALID_ALERT_SEVERITY_ARG_VALUES = (
     # Where possible, accept both enum and (case-insensitive) string types for `severity`.
@@ -31,8 +32,8 @@ def test_public_action_type_enum_is_subset_of_generated():
 
 @given(
     integration_id=gql_ids(prefix="Integration"),
-    title=printable_text,
-    message=printable_text,
+    title=printable_text(),
+    message=printable_text(),
     severity=sampled_from(VALID_ALERT_SEVERITY_ARG_VALUES),
 )
 def test_notification_input_action_accepts_legacy_alert_args(

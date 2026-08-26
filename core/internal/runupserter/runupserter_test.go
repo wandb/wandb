@@ -16,6 +16,7 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/featurechecker"
+	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/runsyncstate"
@@ -184,6 +185,52 @@ func TestInitRun_UpsertError(t *testing.T) {
 	assert.Equal(t, "Everything is broken", runUpdateError.UserMessage)
 }
 
+func TestInitRun_InitTimeout(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := gqlmock.NewMockClient()
+		params := testParams(t)
+		params.GraphqlClientOrNil = mockClient
+		params.Settings = settings.From(&spb.Settings{
+			InitTimeout: wrapperspb.Double(10),
+		})
+		mockClient.StubMatchHang(gqlmock.WithOpName("UpsertBucket"))
+
+		upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{}), params)
+
+		assert.Nil(t, upserter)
+		assert.ErrorContains(t, err, "context deadline exceeded")
+	})
+}
+
+func TestInitRun_NoInitTimeout_Waits(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		mockClient := gqlmock.NewMockClient()
+		params := testParams(t)
+		params.GraphqlClientOrNil = mockClient
+		beforeRunEndCtx, cancel := context.WithCancel(context.Background())
+		params.BeforeRunEndCtx = beforeRunEndCtx
+		mockClient.StubMatchHang(gqlmock.WithOpName("UpsertBucket"))
+
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			_, _ = runupserter.InitRun(runRecord(&spb.RunRecord{}), params)
+		}()
+
+		// Without an init timeout (as during `wandb sync`), InitRun blocks
+		// on the request indefinitely rather than timing out.
+		time.Sleep(time.Hour)
+		select {
+		case <-done:
+			t.Error("InitRun returned despite no init timeout")
+		default:
+		}
+
+		cancel()
+		<-done
+	})
+}
+
 func TestInitRun_Offline(t *testing.T) {
 	params := testParams(t)
 	params.GraphqlClientOrNil = nil
@@ -265,6 +312,57 @@ func TestResume_ReusesSyncStateStartingStep(t *testing.T) {
 	// already uploaded more history, the pre-initialized value wins so that
 	// re-syncing doesn't shift steps forward.
 	assert.EqualValues(t, 6, run.StartingStep)
+}
+
+func TestResume_KeepsEventsAndOutputFileStreamOffsets(t *testing.T) {
+	mockClient := gqlmock.NewMockClient()
+	mockClient.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{
+		"model": {
+			"bucket": {
+				"name": "run",
+				"id": "storage-id",
+				"historyLineCount": 3,
+				"eventsLineCount": 13,
+				"logLineCount": 15,
+				"historyTail": "[]",
+				"summaryMetrics": "{}",
+				"config": "{}",
+				"eventsTail": "[]",
+				"wandbConfig": "{\"t\": 1}"
+			}
+		}
+	}`)
+	mockClient.StubMatchOnce(gqlmock.WithOpName("UpsertBucket"), `{
+		"upsertBucket": {
+			"bucket": {
+				"id": "storage ID",
+				"name": "run ID",
+				"displayName": "display name",
+				"sweepName": "sweep ID",
+				"project": {
+					"name": "project name",
+					"entity": {"name": "entity name"}
+				},
+				"historyLineCount": 5
+			}
+		}
+	}`)
+
+	params := testParams(t)
+	params.GraphqlClientOrNil = mockClient
+	params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("allow")})
+
+	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{RunId: "run"}), params)
+	require.NoError(t, err)
+	defer upserter.Finish()
+
+	assert.Equal(t,
+		filestream.FileStreamOffsetMap{
+			filestream.HistoryChunk: 5,
+			filestream.EventsChunk:  13,
+			filestream.OutputChunk:  15,
+		},
+		upserter.FileStreamOffsets())
 }
 
 func TestNewRun_InitializesSyncStateStartingStep(t *testing.T) {

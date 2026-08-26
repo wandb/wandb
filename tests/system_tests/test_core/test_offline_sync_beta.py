@@ -187,8 +187,9 @@ def test_syncs_run(
         run.log({"test_sync": 321})
         run.save(test_file, base_path=test_file.parent)
         run.summary["test_sync_summary"] = "test summary"
+        run.notes = "test note"
 
-    result = runner.invoke(cli.beta, f"sync {run.settings.sync_dir}")
+    result = runner.invoke(cli.beta, f"sync {run.sync_dir}")
 
     lines = result.output.splitlines()
     assert lines[0] == "wandb: Syncing 1 run(s):"
@@ -223,7 +224,7 @@ def test_sync_reports_init_error(
         gql.once(content="fake UpsertBucket error", status=400),
     )
 
-    result = runner.invoke(cli.beta, f"sync {run.settings.sync_dir}")
+    result = runner.invoke(cli.beta, f"sync {run.sync_dir}")
 
     assert "fake UpsertBucket error" in result.output
 
@@ -260,9 +261,9 @@ def test_syncs_resumed_run(
         run2.log({"x": "b"})
     with wandb.init(id=run1.id, resume="must") as run3:
         run3.log({"x": "c"})
-    run1_dir = run1.settings.sync_dir
-    run2_dir = run2.settings.sync_dir
-    run3_dir = run3.settings.sync_dir
+    run1_dir = run1.sync_dir
+    run2_dir = run2.sync_dir
+    run3_dir = run3.sync_dir
     new_id = f"{run1.id}-copy"
 
     # Use --no-skip-online since resuming offline runs is unsupported.
@@ -301,8 +302,8 @@ def test_resyncs_resumed_offline_run_keep_same_steps(
     with wandb.init(mode="offline", id=run1.id, resume="must") as run2:
         run2.log({"x": "b"})
 
-    run1_dir = run1.settings.sync_dir
-    run2_dir = run2.settings.sync_dir
+    run1_dir = run1.sync_dir
+    run2_dir = run2.sync_dir
 
     def resumed_segment_steps(history: dict[int, Any]) -> set[int]:
         return {row["_step"] for row in history.values() if row["x"] == "b"}
@@ -335,7 +336,7 @@ def test_sync_to_other_path(
 
     runner.invoke(
         cli.beta,
-        f"sync -p project2 --id {run.id}-copy {run.settings.sync_dir}",
+        f"sync -p project2 --id {run.id}-copy {run.sync_dir}",
     )
 
     with wandb_backend_spy.freeze() as snapshot:
@@ -361,7 +362,7 @@ def test_sync_overrides(
 
     runner.invoke(
         cli.beta,
-        f"sync {run.settings.sync_dir}"
+        f"sync {run.sync_dir}"
         + " --job-type job-override"
         + " --replace-tags old1=new1,old2=new2,delete=",
     )

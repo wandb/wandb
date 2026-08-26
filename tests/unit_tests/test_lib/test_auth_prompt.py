@@ -2,9 +2,11 @@ from unittest.mock import MagicMock
 
 import pytest
 from wandb.errors import links, term
-from wandb.sdk.lib.wbauth import host_url, prompt, saas, wbnetrc
+from wandb.sdk.lib.wbauth import host_url, prompt, saas, validation, wbnetrc
 
 from tests.fixtures.emulated_terminal import EmulatedTerminal
+
+pytestmark = pytest.mark.usefixtures("skip_verify_login")
 
 
 @pytest.fixture(autouse=True)
@@ -206,3 +208,56 @@ def test_choice_offline(emulated_terminal: EmulatedTerminal):
     result = prompt.prompt_and_save_api_key(host="https://test-host")
 
     assert result is None
+
+
+def test_reprompts_when_key_fails_verification(
+    emulated_terminal: EmulatedTerminal,
+    mock_write_netrc: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    check_validity = MagicMock(side_effect=["Key is invalid.", None])
+    monkeypatch.setattr(validation, "check_api_key_validity", check_validity)
+
+    emulated_terminal.queue_input("2")  # select "use an existing account"
+    emulated_terminal.queue_input("fail" * 10)  # rejected by the server
+    emulated_terminal.queue_input("2")  # select "use an existing account"
+    emulated_terminal.queue_input("good" * 10)  # accepted by the server
+    result = prompt.prompt_and_save_api_key(
+        host="https://test-host",
+        input_timeout=1,
+    )
+
+    assert result == "good" * 10
+    assert check_validity.call_count == 2
+    assert (
+        "wandb: ERROR Invalid API key: Key is invalid."
+        in emulated_terminal.read_stderr()
+    )
+    # Only the verified key is written to the .netrc file.
+    mock_write_netrc.assert_called_once_with(
+        host="https://test-host",
+        api_key="good" * 10,
+    )
+
+
+def test_no_verification_when_verify_false(
+    emulated_terminal: EmulatedTerminal,
+    mock_write_netrc: MagicMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    check_validity = MagicMock(return_value=None)
+    monkeypatch.setattr(validation, "check_api_key_validity", check_validity)
+
+    emulated_terminal.queue_input("2")  # select "use an existing account"
+    emulated_terminal.queue_input("test" * 10)  # input a fake API key
+    result = prompt.prompt_and_save_api_key(
+        host="https://test-host",
+        verify=False,
+    )
+
+    assert result == "test" * 10
+    check_validity.assert_not_called()
+    mock_write_netrc.assert_called_once_with(
+        host="https://test-host",
+        api_key="test" * 10,
+    )

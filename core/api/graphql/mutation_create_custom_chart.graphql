@@ -1,0 +1,23 @@
+mutation CreateCustomChart(
+    $entity: String!,
+    $chartName: String!,
+    $displayName: String!,
+    $chartType: String!,
+    $access: String!,
+    $spec: JSONString!,
+) {
+    createCustomChart(
+        input: {
+            entity: $entity,
+            name: $chartName,
+            displayName: $displayName,
+            type: $chartType,
+            access: $access,
+            spec: $spec,
+        }
+    ) {
+        chart {
+            id
+        }
+    }
+}

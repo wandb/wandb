@@ -32,7 +32,8 @@ func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceM
 	clientID := sharedmode.RandomClientID()
 	streamStreamLoggerFile := openStreamLoggerFile(settings2)
 	sentryContext := streamSentryContext(settings2)
-	coreLogger := streamLogger(streamStreamLoggerFile, sentryContext, settings2, logLevel)
+	openTelemetryProxy := streamOTelProxy(settings2)
+	coreLogger := streamLogger(streamStreamLoggerFile, sentryContext, openTelemetryProxy, settings2, logLevel)
 	wbBaseURL := BaseURLFromSettings(coreLogger, settings2)
 	credentialProvider := CredentialsFromSettings(coreLogger, settings2)
 	peeker := &observability.Peeker{}
@@ -75,11 +76,12 @@ func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceM
 		Settings:           settings2,
 	}
 	fileStreamFactory := &filestream.FileStreamFactory{
-		BaseURL:    wbBaseURL,
-		Logger:     coreLogger,
-		Operations: wandbOperations,
-		Printer:    printer,
-		Settings:   settings2,
+		BaseURL:         wbBaseURL,
+		FeatureProvider: featureProvider,
+		Logger:          coreLogger,
+		Operations:      wandbOperations,
+		Printer:         printer,
+		Settings:        settings2,
 	}
 	fileTransferManager := NewFileTransferManager(wbBaseURL, fileTransferStats, coreLogger, settings2)
 	watcher := provideFileWatcher(coreLogger)
@@ -119,7 +121,7 @@ func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceM
 		Logger:   coreLogger,
 		Settings: settings2,
 	}
-	stream := NewStream(clientID, debugCorePath, featureProvider, flowControlFactory, client, handlerFactory, streamStreamLoggerFile, coreLogger, wandbOperations, recordParserFactory, senderFactory, settings2, runHandle, tbHandlerFactory, writerFactory)
+	stream := NewStream(clientID, debugCorePath, featureProvider, flowControlFactory, client, handlerFactory, streamStreamLoggerFile, coreLogger, openTelemetryProxy, wandbOperations, recordParserFactory, senderFactory, settings2, runHandle, tbHandlerFactory, writerFactory)
 	return stream
 }
 

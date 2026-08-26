@@ -7,34 +7,6 @@ from wandb.errors import CommError
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 
-def test_create_run_queue():
-    _api = internal.Api()
-
-    # prioritization_mode present on server
-    _api.api.execute = MagicMock(return_value={"createRunQueue": "test-result"})
-
-    kwargs = {
-        "entity": "test-entity",
-        "project": "test-project",
-        "queue_name": "test-queue",
-        "access": "test-access",
-        "prioritization_mode": "test-prioritization-mode",
-        "config_id": "test-config-id",
-    }
-    resp = _api.create_run_queue(**kwargs)
-    assert resp == "test-result"
-    call_args = _api.api.execute.call_args[0]
-    assert "createRunQueue" in call_args[0]
-    assert call_args[1] == {
-        "entity": "test-entity",
-        "project": "test-project",
-        "queueName": "test-queue",
-        "access": "test-access",
-        "prioritizationMode": "test-prioritization-mode",
-        "defaultResourceConfigID": "test-config-id",
-    }
-
-
 def test_push_to_run_queue_by_name():
     _api = internal.Api()
     mock_run_spec = {"test-key": "test-value"}

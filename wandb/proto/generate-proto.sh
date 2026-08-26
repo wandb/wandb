@@ -29,6 +29,7 @@ PROTO_FILES=(
     wandb_internal.proto
     wandb_settings.proto
     wandb_telemetry.proto
+    wandb_otel.proto
     wandb_server.proto
     wandb_sync.proto
     wandb_api.proto

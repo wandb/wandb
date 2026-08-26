@@ -76,17 +76,6 @@ func Test_OpenReader_NoFile(t *testing.T) {
 	assert.ErrorIs(t, err, os.ErrNotExist)
 }
 
-func Test_OpenReader_BadHeader(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "run.wandb")
-	require.NoError(t, os.WriteFile(path, []byte{1, 2, 3, 4, 5, 6, 7}, 0o666))
-
-	reader, err := transactionlog.OpenReader(path, observabilitytest.NewTestLogger(t))
-	require.NoError(t, err)
-
-	_, err = reader.Read()
-	assert.ErrorContains(t, err, "bad header")
-}
-
 func Test_Read_AlreadyClosed(t *testing.T) {
 	path := emptyWandbFile(t)
 	reader, err := transactionlog.OpenReader(path, observabilitytest.NewTestLogger(t))
@@ -239,7 +228,7 @@ func Test_EOF(t *testing.T) {
 	})
 }
 
-func Test_ReadVerifiesHeader(t *testing.T) {
+func Test_Read_VerifiesHeader(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "run.wandb")
 	require.NoError(t, os.WriteFile(path, []byte("invalid header"), 0o644))
 
@@ -249,6 +238,20 @@ func Test_ReadVerifiesHeader(t *testing.T) {
 	reader.Close()
 
 	assert.ErrorContains(t, err, "invalid W&B identifier")
+}
+
+func Test_Read_UnsupportedNewVersion(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "run.wandb")
+	// The file version is the 0x01 byte at the end.
+	require.NoError(t, os.WriteFile(path, []byte(":W&B\xE1\xBE\x01"), 0o644))
+
+	reader, err := transactionlog.OpenReader(path, observabilitytest.NewTestLogger(t))
+	require.NoError(t, err)
+	_, err = reader.Read()
+	reader.Close()
+
+	assert.ErrorContains(t, err,
+		"a newer wandb version is required to read this file")
 }
 
 func Test_ReadAfterSeek_SkipsVerifyingHeader(t *testing.T) {

@@ -134,3 +134,29 @@ func TestExitCode_MergeIgnoresIfNotComplete(t *testing.T) {
 	assert.True(t, req1.Complete)
 	assert.EqualValues(t, 111, req1.ExitCode)
 }
+
+func TestIsHeartbeat(t *testing.T) {
+	someBool := true
+	someInt := int32(0)
+	testCases := []struct {
+		Name        string
+		Request     *FileStreamRequestJSON
+		IsHeartbeat bool
+	}{
+		{"nil", nil, false},
+		{"empty", &FileStreamRequestJSON{}, true},
+		// A few important cases. There's no way to test that the
+		// implementation exhaustively checks all fields.
+		{"with Complete", &FileStreamRequestJSON{Complete: &someBool}, false},
+		{"with ExitCode", &FileStreamRequestJSON{ExitCode: &someInt}, false},
+		{"with Files", &FileStreamRequestJSON{Files: map[string]OffsetAndContent{
+			"some-file": {},
+		}}, false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			assert.Equal(t, tc.IsHeartbeat, tc.Request.IsHeartbeat())
+		})
+	}
+}

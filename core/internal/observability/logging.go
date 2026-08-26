@@ -10,6 +10,9 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
+	otellogapi "go.opentelemetry.io/otel/log"
+
+	"github.com/wandb/wandb/core/internal/analytics"
 )
 
 type Tags map[string]string
@@ -46,18 +49,21 @@ type CoreLogger struct {
 	*slog.Logger
 	sentryCtx *SentryContext // nil if Sentry is disabled
 
+	telemetryRecorder *analytics.TelemetryRecorder
+
 	extraSentryTags Tags // extra Sentry tags for just this logger
 
 	captureRateLimiter *CaptureRateLimiter
 }
 
 // NewCoreLogger returns a new logger that writes messages to the slog Logger
-// and uploads captured messages using a clone of the sentryHub.
+// and uploads captured messages to Sentry and Datadog.
 //
-// sentryHub can be set to nil to disable Sentry.
+// Sentry events are captured with a clone of the sentryHub.
 func NewCoreLogger(
 	logger *slog.Logger,
 	sentryCtx *SentryContext,
+	telemetryRecorder *analytics.TelemetryRecorder,
 ) *CoreLogger {
 	const captureRateLimiterCacheSize = 100
 	const captureMinDuration = 5 * time.Minute
@@ -76,6 +82,7 @@ func NewCoreLogger(
 	return &CoreLogger{
 		Logger:             logger,
 		sentryCtx:          sentryCtx,
+		telemetryRecorder:  telemetryRecorder,
 		extraSentryTags:    make(Tags),
 		captureRateLimiter: captureRateLimiter,
 	}
@@ -91,48 +98,77 @@ func (cl *CoreLogger) withArgs(args ...any) Tags {
 	return tags
 }
 
-// With returns a derived logger with additional slog attrs and Sentry tags.
+// With returns a derived logger with additional slog attrs and telemetry tags.
 //
 // The returned logger inherits the attrs and tags of this logger.
 //
 // The additional attrs are logged with every message and included as tags on
-// every Sentry event. The tags are only uploaded to Sentry, so they can
-// be more verbose.
+// every Sentry+OpenTelemetry event.
+// The tags are captured in Sentry and OpenTelemetry, so they can be more verbose.
 func (cl *CoreLogger) With(
 	attrs []any,
 	tags map[string]string,
 ) *CoreLogger {
+	newTags := NewTags(attrs...)
+	maps.Copy(newTags, tags)
+
 	extraSentryTags := maps.Clone(cl.extraSentryTags)
-	maps.Copy(extraSentryTags, NewTags(attrs...))
-	maps.Copy(extraSentryTags, tags)
+	maps.Copy(extraSentryTags, newTags)
+
+	// Derive a child telemetry context so the new attributes are attached
+	// to telemetry emitted through the derived logger only.
+	telemetryRecorder := cl.telemetryRecorder.With(
+		analytics.LowCardinalityAttributes{},
+		map[string]string(newTags),
+	)
 
 	return &CoreLogger{
 		Logger:             cl.Logger.With(attrs...),
 		sentryCtx:          cl.sentryCtx,
+		telemetryRecorder:  telemetryRecorder,
 		extraSentryTags:    extraSentryTags,
 		captureRateLimiter: cl.captureRateLimiter,
 	}
 }
 
-// CaptureError logs an error and sends it to Sentry.
-func (cl *CoreLogger) CaptureError(err error, args ...any) {
+// CaptureError logs an error and records a corresponding telemetry event.
+//
+// errorOriginator must be the declared package name of the calling file.
+func (cl *CoreLogger) CaptureError(
+	errorOriginator string,
+	err error,
+	args ...any,
+) {
 	cl.Error(err.Error(), args...)
-	cl.captureException(err, args...)
+	cl.captureException(errorOriginator, err, args...)
 }
 
-// CaptureFatal logs a fatal error and sends it to Sentry.
-func (cl *CoreLogger) CaptureFatal(err error, args ...any) {
+// CaptureFatal logs a fatal error and records a corresponding telemetry event.
+//
+// errorOriginator must be the declared package name of the calling file.
+func (cl *CoreLogger) CaptureFatal(
+	errorOriginator string,
+	err error,
+	args ...any,
+) {
 	cl.Log(context.Background(), LevelFatal, err.Error(), args...)
-	cl.captureException(err, args...)
+	cl.captureException(errorOriginator, err, args...)
 }
 
-// CaptureFatalAndPanic logs a fatal error, sends it to Sentry and panics.
-func (cl *CoreLogger) CaptureFatalAndPanic(err error, args ...any) {
+// CaptureFatalAndPanic logs a fatal error, records a corresponding telemetry
+// event, and panics.
+//
+// errorOriginator must be the declared package name of the calling file.
+func (cl *CoreLogger) CaptureFatalAndPanic(
+	errorOriginator string,
+	err error,
+	args ...any,
+) {
 	if err == nil {
 		err = errors.New("observability: panicked with nil error")
 	}
 
-	cl.CaptureFatal(err, args...)
+	cl.CaptureFatal(errorOriginator, err, args...)
 
 	// Log panics to debug-core.log as well. This helps debugging if there are
 	// multiple active debug files.
@@ -152,21 +188,50 @@ func (cl *CoreLogger) CaptureFatalAndPanic(err error, args ...any) {
 	panic(err)
 }
 
-// CaptureWarn logs a warning and sends it to Sentry.
+// CaptureWarn logs a warning and records a corresponding telemetry event.
 func (cl *CoreLogger) CaptureWarn(msg string, args ...any) {
 	cl.Warn(msg, args...)
-	cl.captureMessage(msg, args...)
+	cl.captureMessage(msg, otellogapi.SeverityWarn, args...)
 }
 
-// CaptureInfo logs an info message and sends it to Sentry.
+// CaptureInfo logs an info message and records a corresponding telemetry event.
 func (cl *CoreLogger) CaptureInfo(msg string, args ...any) {
 	cl.Info(msg, args...)
-	cl.captureMessage(msg, args...)
+	cl.captureMessage(msg, otellogapi.SeverityInfo, args...)
 }
 
-// captureException uploads an error to Sentry if possible and allowed.
-func (cl *CoreLogger) captureException(err error, args ...any) {
-	if cl.sentryCtx == nil || !cl.captureRateLimiter.AllowCapture(err.Error()) {
+// captureException captures a telemetry error event if possible and allowed.
+//
+// errorOriginator is a telemetry tag that attributes where the
+// error was captured.
+func (cl *CoreLogger) captureException(
+	errorOriginator string,
+	err error,
+	args ...any,
+) {
+	// Always record the error as a counter metric.
+	// Since it will allow us to still see all errors,
+	// without flooding our logs.
+	cl.telemetryRecorder.ErrorMetric(
+		context.Background(),
+		err.Error(),
+		err,
+		errorOriginator,
+	)
+
+	if !cl.captureRateLimiter.AllowCapture(err.Error()) {
+		return
+	}
+
+	cl.telemetryRecorder.ErrorLog(
+		context.Background(),
+		err.Error(),
+		err,
+		errorOriginator,
+		cl.withArgs(args...),
+	)
+
+	if cl.sentryCtx == nil {
 		return
 	}
 
@@ -176,9 +241,24 @@ func (cl *CoreLogger) captureException(err error, args ...any) {
 	})
 }
 
-// captureException uploads a message to Sentry if possible and allowed.
-func (cl *CoreLogger) captureMessage(msg string, args ...any) {
-	if cl.sentryCtx == nil || !cl.captureRateLimiter.AllowCapture(msg) {
+// captureMessage captures a telemetry event if possible and allowed.
+func (cl *CoreLogger) captureMessage(
+	msg string,
+	severity otellogapi.Severity,
+	args ...any,
+) {
+	if !cl.captureRateLimiter.AllowCapture(msg) {
+		return
+	}
+
+	cl.telemetryRecorder.Log(
+		context.Background(),
+		msg,
+		NewTags(args...),
+		severity,
+	)
+
+	if cl.sentryCtx == nil {
 		return
 	}
 
@@ -188,25 +268,50 @@ func (cl *CoreLogger) captureMessage(msg string, args ...any) {
 	})
 }
 
-// Reraise logs a panic, uploads it to Sentry, and re-panics.
+// Reraise logs a panic, records a telemetry error event, and re-panics.
 //
 // It is meant to be used in a `defer` statement.
-func (cl *CoreLogger) Reraise(args ...any) {
+// errorOriginator must be the declared package name of the calling file.
+func (cl *CoreLogger) Reraise(errorOriginator string, args ...any) {
 	panicErr := recover()
 	if panicErr == nil { // if NO error, return
 		return
 	}
 
 	if err, ok := panicErr.(error); ok {
-		cl.CaptureFatalAndPanic(err, args...)
+		cl.CaptureFatalAndPanic(errorOriginator, err, args...)
 	} else {
-		cl.CaptureFatalAndPanic(fmt.Errorf("%v", panicErr), args...)
+		cl.CaptureFatalAndPanic(
+			errorOriginator,
+			fmt.Errorf("%v", panicErr),
+			args...,
+		)
 	}
+}
+
+// RecordTelemetry records an event as both a counter metric and a log record.
+//
+// The counter metric aggregates over a low-cardinality attribute space, while
+// the log record captures the full, possibly high-cardinality, attributes.
+func (cl *CoreLogger) RecordTelemetry(
+	event string,
+	attributes map[string]string,
+) {
+	cl.telemetryRecorder.IncrementCounterAndLogEvent(
+		context.Background(),
+		event,
+		attributes,
+		analytics.LowCardinalityAttributes{},
+	)
 }
 
 // NewNoOpLogger returns a logger that discards all messages.
 //
 // Used for testing.
 func NewNoOpLogger() *CoreLogger {
-	return NewCoreLogger(slog.New(slog.NewJSONHandler(io.Discard, nil)), nil)
+	return NewCoreLogger(
+		slog.New(slog.NewJSONHandler(io.Discard, nil)),
+		nil,
+		analytics.NewTelemetryRecorder(nil, analytics.NewTelemetryContext()),
+	)
 }
