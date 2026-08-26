@@ -939,8 +939,8 @@ def test_duplicate_wbimage_from_file(assets_path, artifact, add_duplicate):
 
 
 def test_deduplicate_wbimage_from_array():
-    im_data_1 = np.random.rand(300, 300, 3)
-    im_data_2 = np.random.rand(300, 300, 3)
+    im_data_1 = np.random.randint(0, 256, size=(300, 300, 3))
+    im_data_2 = np.random.randint(0, 256, size=(300, 300, 3))
 
     artifact = Artifact(type="dataset", name="artifact")
     wb_image_1 = wandb.Image(im_data_1)
