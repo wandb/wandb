@@ -397,7 +397,7 @@ func validateLeetOptions(fs *flag.FlagSet, opts *leetOptions) error {
 		fs.Usage()
 		return fmt.Errorf("--inspect combined with an incompatible mode")
 	case !opts.editConfig && !opts.symonMode && opts.wandbDir == "" &&
-		opts.remoteRun == nil && !(opts.inspect && opts.runFile != ""):
+		opts.remoteRun == nil && (!opts.inspect || opts.runFile == ""):
 		fmt.Fprintln(os.Stderr, "Error: wandb directory path or --remote-url required")
 		fs.Usage()
 		return fmt.Errorf("wandb directory path or --remote-url required")

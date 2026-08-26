@@ -217,7 +217,8 @@ func (ins *Inspector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return ins, ReadInspectorBatch(ins.scanStore, ins.nextNum())
 
 	case InspectorBatchMsg:
-		return ins, ins.handleBatch(msg)
+		cmd := ins.handleBatch(msg)
+		return ins, cmd
 
 	case InspectorFileChangedMsg:
 		if ins.scanStore == nil {
