@@ -23,6 +23,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Removed the deprecated `quiet` argument of `run.finish()` and `wandb.finish()`. Use `wandb.Settings(quiet=...)` instead.
 - Removed the deprecated `run.project_name()`, `run.get_url()`, `run.get_project_url()`, and `run.get_sweep_url()` methods. Use the `run.project`, `run.url`, `run.project_url`, and `run.sweep_url` properties instead.
 - `wandb.Image` no longer normalizes pixel values. Callers must now ensure their data already falls within the range [0, 255].
+- On macOS, `wandb` now requires macOS 13 (Ventura) or newer.
 
 ### Added
 
@@ -44,6 +45,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - `wandb.sandbox` now allows GPU resource requests for sandboxes instead of rejecting `resources.gpu` client-side (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/12455)
 - Registry search methods (`Api.registries()`, `.collections()`, `.versions()`) now validate filter field names, rejecting unsupported field names. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12182)
 - `wandb.Video()` now requires the `format` argument when initializing from a numpy array or an io object. (@jacobromero in https://github.com/wandb/wandb/pull/12579)
+- The macOS wheels now require macOS 13 (Ventura) or newer; macOS 12 reached end of life in 2024 (@dmitryduev in https://github.com/wandb/wandb/pull/12599)
 
 ### Removed
 
