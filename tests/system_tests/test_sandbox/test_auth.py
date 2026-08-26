@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
+from urllib.parse import urlsplit
 
 import cwsandbox
 import cwsandbox._sandbox as cwsandbox_sandbox
@@ -94,6 +96,16 @@ def _client_version_headers() -> dict[str, str]:
     }
 
 
+def _dedicated_host_headers() -> dict[str, str]:
+    """The x-wandb-host header sent for non-*.wandb.ai deployments.
+
+    The local test backend isn't a *.wandb.ai domain, so sandbox auth
+    treats it like a dedicated deployment and forwards its hostname.
+    """
+    hostname = urlsplit(os.environ["WANDB_BASE_URL"]).hostname
+    return {"x-wandb-host": hostname}
+
+
 def test_sandbox_run_uses_settings_entity_project(
     user,
     monkeypatch,
@@ -108,6 +120,7 @@ def test_sandbox_run_uses_settings_entity_project(
 
     expected_headers = {
         "x-wandb-api-key": user,
+        **_dedicated_host_headers(),
         "x-entity-id": "entity-from-settings",
         "x-project-name": "project-from-settings",
         **_client_version_headers(),
@@ -130,6 +143,7 @@ def test_sandbox_run_ignore_run_override(
 
     expected_headers = {
         "x-wandb-api-key": user,
+        **_dedicated_host_headers(),
         "x-entity-id": user,
         **_client_version_headers(),
     }
@@ -151,7 +165,11 @@ def test_sandbox_run_without_entity_or_project(
     with Sandbox.run("sleep", "infinity") as sandbox:
         assert sandbox.sandbox_id == "sb-system-test"
 
-    expected_headers = {"x-wandb-api-key": user, **_client_version_headers()}
+    expected_headers = {
+        "x-wandb-api-key": user,
+        **_dedicated_host_headers(),
+        **_client_version_headers(),
+    }
     assert len(calls.create) == 1
     assert dict(calls.create[0]["metadata"]) == expected_headers
     assert len(calls.delete) == 1
