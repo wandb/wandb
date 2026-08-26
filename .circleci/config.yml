@@ -129,7 +129,13 @@ commands:
           path: cover-results
 
   upload-coverage:
-    description: Upload coverage reports to Datadog Code Coverage.
+    description: |
+      Upload coverage reports to Datadog Code Coverage.
+
+      Only works on the self-hosted GKE runners: the Datadog API key is
+      fetched from GCP Secret Manager using the runner's ambient GCP
+      identity, so that no static credentials are stored in CircleCI.
+      Elsewhere the step is a no-op.
     parameters:
       flags:
         description: Flags for grouping and filtering coverage reports.
@@ -143,12 +149,8 @@ commands:
           name: Upload coverage to Datadog
           environment:
             DD_SITE: us5.datadoghq.com
+            DD_API_KEY_SECRET: projects/wandb-client-cicd/secrets/circleci-datadog-api-key
           command: |
-            if [ -z "${DD_API_KEY:-}" ]; then
-              echo "DD_API_KEY is not set; skipping coverage upload."
-              exit 0
-            fi
-
             reports=""
             for f in <<parameters.paths>>; do
               if [ -f "$f" ]; then
@@ -160,22 +162,37 @@ commands:
               exit 0
             fi
 
-            case $(uname | tr '[:upper:]' '[:lower:]') in
-              msys*|mingw*) os="win" ;;
-              darwin*) os="darwin" ;;
-              *) os="linux" ;;
-            esac
+            metadata="http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default"
+            token=$(curl -s --fail --connect-timeout 3 \
+              -H "Metadata-Flavor: Google" "$metadata/token" \
+              | python3 -c "import json, sys; print(json.load(sys.stdin)['access_token'])" \
+              2>/dev/null || true)
+            if [ -z "$token" ]; then
+              echo "No GCP metadata server available; skipping coverage upload."
+              exit 0
+            fi
+
+            DD_API_KEY=$(curl -s --fail \
+              -H "Authorization: Bearer $token" \
+              "https://secretmanager.googleapis.com/v1/$DD_API_KEY_SECRET/versions/latest:access" \
+              | python3 -c "import base64, json, sys; print(base64.b64decode(json.load(sys.stdin)['payload']['data']).decode())" \
+              2>/dev/null || true)
+            if [ -z "$DD_API_KEY" ]; then
+              echo "Could not read $DD_API_KEY_SECRET as" \
+                "$(curl -s -H 'Metadata-Flavor: Google' "$metadata/email")." \
+                "Grant it roles/secretmanager.secretAccessor on the secret." \
+                "Skipping coverage upload."
+              exit 0
+            fi
+            export DD_API_KEY
+
             case $(uname -m) in
               arm64|aarch64) arch="arm64" ;;
               *) arch="x64" ;;
             esac
-
             datadog_ci="$(mktemp -d)/datadog-ci"
-            if [ "$os" = "win" ]; then
-              datadog_ci="$datadog_ci.exe"
-            fi
             curl -L --fail --retry 3 \
-              "https://github.com/DataDog/datadog-ci/releases/download/v5.23.0/datadog-ci_${os}-${arch}" \
+              "https://github.com/DataDog/datadog-ci/releases/download/v5.23.0/datadog-ci_linux-${arch}" \
               --output "$datadog_ci"
             chmod +x "$datadog_ci"
 
@@ -188,7 +205,6 @@ commands:
     parameters:
       python: { type: string }
       session: { type: string }
-      coverage_flags: { type: string }
     steps:
       - run:
           name: Install Python dependencies
@@ -201,7 +217,6 @@ commands:
           command: >
             nox -s "<<parameters.session>>" --python <<parameters.python>> --verbose
 
-      - upload-coverage: { flags: <<parameters.coverage_flags>> }
       - save-test-results
 
   local-wandb-server-deps:
@@ -388,16 +403,16 @@ jobs:
             - connect-to-local-testcontainer
 
       - run-nox-tests:
-          coverage_flags: <<parameters.coverage_flags>>
           python: <<parameters.python>>
           session: <<parameters.session>>
+
+      - upload-coverage: { flags: <<parameters.coverage_flags>> }
 
       - save-all-caches
 
   nox-tests-macos:
     parameters:
       parallelism: { type: integer }
-      coverage_flags: { type: string }
       python: { type: string }
       session: { type: string }
 
@@ -415,7 +430,6 @@ jobs:
       - load-all-caches
 
       - run-nox-tests:
-          coverage_flags: <<parameters.coverage_flags>>
           python: <<parameters.python>>
           session: <<parameters.session>>
 
@@ -424,7 +438,6 @@ jobs:
   nox-tests-win:
     parameters:
       parallelism: { type: integer }
-      coverage_flags: { type: string }
       python: { type: string }
       session: { type: string }
 
@@ -458,7 +471,6 @@ jobs:
       - load-all-caches
 
       - run-nox-tests:
-          coverage_flags: <<parameters.coverage_flags>>
           python: <<parameters.python>>
           session: <<parameters.session>>
 
@@ -584,7 +596,6 @@ workflows:
       - nox-tests-macos:
           name: unit-tests-macos-<<matrix.python>>
           session: unit_tests
-          coverage_flags: unit
           parallelism: 4
 
           matrix:
@@ -597,7 +608,6 @@ workflows:
       - nox-tests-win:
           name: unit-tests-win-<<matrix.python>>
           session: unit_tests
-          coverage_flags: unit
           parallelism: 4
 
           filters:
