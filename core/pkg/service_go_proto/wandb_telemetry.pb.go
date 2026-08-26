@@ -1839,7 +1839,6 @@ type Deprecated struct {
 	ArtifactCollection_ChangeType bool `protobuf:"varint,14,opt,name=artifact_collection__change_type,json=artifactCollectionChangeType,proto3" json:"artifact_collection__change_type,omitempty"`
 	// wandb.run.define_metric() called with summary="copy"
 	Run_DefineMetricCopy bool `protobuf:"varint,15,opt,name=run__define_metric_copy,json=runDefineMetricCopy,proto3" json:"run__define_metric_copy,omitempty"`
-	RunDisabled          bool `protobuf:"varint,16,opt,name=run_disabled,json=runDisabled,proto3" json:"run_disabled,omitempty"` // wandb.sdk.lib.disabled.RunDisabled used
 	// wandb.run.define_metric() called with summary="best" and goal="maximize/minimize"
 	Run_DefineMetricBestGoal bool `protobuf:"varint,18,opt,name=run__define_metric_best_goal,json=runDefineMetricBestGoal,proto3" json:"run__define_metric_best_goal,omitempty"`
 	Run_FinishQuiet          bool `protobuf:"varint,19,opt,name=run__finish_quiet,json=runFinishQuiet,proto3" json:"run__finish_quiet,omitempty"`                    // wandb.run.finish(quiet=...) called
@@ -1938,13 +1937,6 @@ func (x *Deprecated) GetArtifactCollection_ChangeType() bool {
 func (x *Deprecated) GetRun_DefineMetricCopy() bool {
 	if x != nil {
 		return x.Run_DefineMetricCopy
-	}
-	return false
-}
-
-func (x *Deprecated) GetRunDisabled() bool {
-	if x != nil {
-		return x.RunDisabled
 	}
 	return false
 }
@@ -2266,7 +2258,7 @@ const file_wandb_proto_wandb_telemetry_proto_rawDesc = "" +
 	"codeString\x12\x1f\n" +
 	"\vrepo_string\x18\x02 \x01(\tR\n" +
 	"repoString\x12!\n" +
-	"\fcode_version\x18\x03 \x01(\tR\vcodeVersion\"\x91\b\n" +
+	"\fcode_version\x18\x03 \x01(\tR\vcodeVersion\"\xf4\a\n" +
 	"\n" +
 	"Deprecated\x12\x14\n" +
 	"\x05plots\x18\x05 \x01(\bR\x05plots\x128\n" +
@@ -2276,8 +2268,7 @@ const file_wandb_proto_wandb_telemetry_proto_rawDesc = "" +
 	"\x1bartifactmanifestentry__name\x18\f \x01(\bR\x19artifactmanifestentryName\x123\n" +
 	"\x16api__artifact_versions\x18\r \x01(\bR\x13apiArtifactVersions\x12F\n" +
 	" artifact_collection__change_type\x18\x0e \x01(\bR\x1cartifactCollectionChangeType\x124\n" +
-	"\x17run__define_metric_copy\x18\x0f \x01(\bR\x13runDefineMetricCopy\x12!\n" +
-	"\frun_disabled\x18\x10 \x01(\bR\vrunDisabled\x12=\n" +
+	"\x17run__define_metric_copy\x18\x0f \x01(\bR\x13runDefineMetricCopy\x12=\n" +
 	"\x1crun__define_metric_best_goal\x18\x12 \x01(\bR\x17runDefineMetricBestGoal\x12)\n" +
 	"\x11run__finish_quiet\x18\x13 \x01(\bR\x0erunFinishQuiet\x12'\n" +
 	"\x10run__reinit_bool\x18\x14 \x01(\bR\rrunReinitBool\x12\x1f\n" +
@@ -2290,7 +2281,7 @@ const file_wandb_proto_wandb_telemetry_proto_rawDesc = "" +
 	"\x15artifact__init_use_as\x18\x1b \x01(\bR\x11artifactInitUseAs\x12'\n" +
 	"\x10kfp_v1_wandb_log\x18\x1f \x01(\bR\rkfpV1WandbLogJ\x04\b\x01\x10\x02J\x04\b\x02\x10\x03J\x04\b\x03\x10\x04J\x04\b\x04\x10\x05J\x04\b\x06\x10\aJ\x04\b\t\x10\n" +
 	"J\x04\b\n" +
-	"\x10\vJ\x04\b\x11\x10\x12J\x04\b\x1c\x10\x1dJ\x04\b\x1d\x10\x1eJ\x04\b\x1e\x10\x1fB\x1bZ\x19core/pkg/service_go_protob\x06proto3"
+	"\x10\vJ\x04\b\x10\x10\x11J\x04\b\x11\x10\x12J\x04\b\x1c\x10\x1dJ\x04\b\x1d\x10\x1eJ\x04\b\x1e\x10\x1fB\x1bZ\x19core/pkg/service_go_protob\x06proto3"
 
 var (
 	file_wandb_proto_wandb_telemetry_proto_rawDescOnce sync.Once
