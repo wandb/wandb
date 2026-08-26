@@ -27,6 +27,7 @@ The `.length` property on paginated objects (e.g. `Api.runs()`, `Api.sweeps()`, 
 - Drag the separator lines between LEET's run overview sections to resize them with the mouse. The proportions are saved per view; press `0` to reset them along with the other pane sizes (@dmitryduev in https://github.com/wandb/wandb/pull/12525)
 - Registry API version queries (`Api.registries().versions()`, `Api.registries().collections().versions()`, `Registry.versions()`, `Registry.collections().versions()`) now accept an optional `order` string as a keyword argument for organizations with advanced search. The API supports ordering versions by `created_at`, `artifact_size`, and `linked_at` (@amusipatla-wandb in https://github.com/wandb/wandb/pull/12489)
 - Added `Artifact.linked_at` which returns when the version was linked to the relevant portfolio. This is valid only for linked versions, and for source artifacts returns `None` (@amusipatla-wandb in https://github.com/wandb/wandb/pull/12490)
+- `wandb.Artifact` now accepts a `digest_algorithm` argument (`"MD5"` or `"XXH128"`, defaulting to `"MD5"`). Passing `digest_algorithm="XXH128"` opts the artifact into XXH128 hashing when possible. For artifacts created with `digest_algorithm="XXH128"`, `artifact.verify()` will fail for SDK versions older than 0.29.0. (@amusipatla-wandb in https://github.com/wandb/wandb/pull/12564)
 
 ### Changed
 
