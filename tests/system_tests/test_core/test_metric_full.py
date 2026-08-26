@@ -194,19 +194,6 @@ def test_metric_mult(wandb_backend_spy):
         assert metrics and len(metrics) == 3
 
 
-def test_metric_goal(wandb_backend_spy):
-    with wandb.init(
-        settings=wandb.Settings(x_server_side_expand_glob_metrics=False),
-    ) as run:
-        run.define_metric("mystep", hidden=True)
-        run.define_metric("*", step_metric="mystep", goal="maximize")
-        _gen_metric_sync_step(run)
-
-    with wandb_backend_spy.freeze() as snapshot:
-        metrics = snapshot.metrics(run_id=run.id)
-        assert metrics and len(metrics) == 3
-
-
 def test_metric_nan_mean(wandb_backend_spy):
     with wandb.init() as run:
         run.define_metric("val", summary="mean")

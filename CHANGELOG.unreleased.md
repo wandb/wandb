@@ -18,6 +18,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 The `.length` property on paginated objects (e.g. `Api.runs()`, `Api.sweeps()`, `run.files()`) has been removed. Use `len(...)` instead.
 `wandb.Video()` now requires the `format` argument when initializing from a numpy array or raw bytes.
+Removed the deprecated `summary="best"` option and `goal` argument of `run.define_metric()`. Use `summary="min"` or `summary="max"` instead.
 
 ### Added
 
@@ -43,6 +44,7 @@ The `.length` property on paginated objects (e.g. `Api.runs()`, `Api.sweeps()`, 
 
 - Removed `wandb.tensorboard.log()` / `wandb.tensorflow.log()` (@timoffex in https://github.com/wandb/wandb/pull/12423)
 - Removed the deprecated `.length` property from `wandb.apis.paginator.SizedPaginator`. Use `len(...)` instead (@jacobromero in https://github.com/wandb/wandb/pull/12575)
+- The deprecated `summary="best"` option and `goal` argument of `run.define_metric()`; use `summary="min"` or `summary="max"` instead (@dmitryduev in https://github.com/wandb/wandb/pull/12583)
 
 ### Fixed
 

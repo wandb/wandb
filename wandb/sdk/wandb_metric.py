@@ -19,7 +19,6 @@ class Metric:
     _step_sync: bool | None
     _hidden: bool | None
     _summary: Sequence[str] | None
-    _goal: str | None
     _overwrite: bool | None
 
     def __init__(
@@ -29,7 +28,6 @@ class Metric:
         step_sync: bool | None = None,
         hidden: bool | None = None,
         summary: Sequence[str] | None = None,
-        goal: str | None = None,
         overwrite: bool | None = None,
     ) -> None:
         self._callback = None
@@ -40,7 +38,6 @@ class Metric:
         self._step_sync = step_sync
         self._hidden = hidden
         self._summary = summary
-        self._goal = goal
         self._overwrite = overwrite
 
     def _set_callback(self, cb: Callable[[pb.MetricRecord], None]) -> None:
@@ -67,11 +64,6 @@ class Metric:
     @property
     def hidden(self) -> bool | None:
         return self._hidden
-
-    @property
-    def goal(self) -> str | None:
-        goal_dict = dict(min="minimize", max="maximize")
-        return goal_dict[self._goal] if self._goal else None
 
     def _commit(self) -> None:
         m = pb.MetricRecord()
@@ -100,14 +92,8 @@ class Metric:
                 m.summary.copy = True
             if "none" in summary_set:
                 m.summary.none = True
-            if "best" in summary_set:
-                m.summary.best = True
             if "first" in summary_set:
                 m.summary.first = True
-        if self._goal == "min":
-            m.goal = m.GOAL_MINIMIZE
-        if self._goal == "max":
-            m.goal = m.GOAL_MAXIMIZE
         if self._overwrite:
             m._control.overwrite = self._overwrite
         if self._callback:

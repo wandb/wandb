@@ -560,9 +560,6 @@ pub struct Deprecated {
     /// wandb.sdk.lib.disabled.RunDisabled used
     #[prost(bool, tag = "16")]
     pub run_disabled: bool,
-    /// wandb.run.define_metric() called with summary="best" and goal="maximize/minimize"
-    #[prost(bool, tag = "18")]
-    pub run_define_metric_best_goal: bool,
     /// wandb.run.finish(quiet=...) called
     #[prost(bool, tag = "19")]
     pub run_finish_quiet: bool,
