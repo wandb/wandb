@@ -22,7 +22,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Removed the deprecated `summary="best"` option and `goal` argument of `run.define_metric()`. Use `summary="min"` or `summary="max"` instead.
 - Removed the deprecated `quiet` argument of `run.finish()` and `wandb.finish()`. Use `wandb.Settings(quiet=...)` instead.
 - Removed the deprecated `run.project_name()`, `run.get_url()`, `run.get_project_url()`, and `run.get_sweep_url()` methods. Use the `run.project`, `run.url`, `run.project_url`, and `run.sweep_url` properties instead.
-`wandb.Image` no longer normalizes pixel values. Callers must now ensure their data already falls within the range [0, 255].
+- `wandb.Image` no longer normalizes pixel values. Callers must now ensure their data already falls within the range [0, 255].
 
 ### Added
 
