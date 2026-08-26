@@ -275,8 +275,8 @@ func TestWorkspace_RemoteBackend_DiscoveryAndPreload(t *testing.T) {
 	assert.Equal(t, run2, w.TestRunOverviewID(run2))
 	params := backend.RunParams(run1)
 	require.NotNil(t, params)
-	require.NotNil(t, params.RemoteRunParams)
-	assert.Equal(t, "test-entity", params.Entity)
-	assert.Equal(t, "test-project", params.Project)
-	assert.Equal(t, run1, params.RunId)
+	require.NotNil(t, params.Remote)
+	assert.Equal(t, "test-entity", params.Remote.Entity)
+	assert.Equal(t, "test-project", params.Remote.Project)
+	assert.Equal(t, run1, params.Remote.RunID)
 }

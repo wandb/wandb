@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -210,11 +211,44 @@ func TestRemoteWorkspaceBackend_RunParams(t *testing.T) {
 	params := backend.RunParams("run-xyz")
 
 	require.NotNil(t, params)
-	require.NotNil(t, params.RemoteRunParams)
-	assert.Equal(t, "https://api.wandb.ai", params.BaseURL)
-	assert.Equal(t, "test-entity", params.Entity)
-	assert.Equal(t, "test-project", params.Project)
-	assert.Equal(t, "run-xyz", params.RunId)
+	require.NotNil(t, params.Remote)
+	assert.Equal(t, "https://api.wandb.ai", params.Remote.BaseURL)
+	assert.Equal(t, "test-entity", params.Remote.Entity)
+	assert.Equal(t, "test-project", params.Remote.Project)
+	assert.Equal(t, "run-xyz", params.Remote.RunID)
+	assert.Equal(t, "test-entity/test-project/run-xyz", backend.SeriesKey("run-xyz"))
+}
+
+func TestRemoteWorkspaceBackend_DeselectRemovesRemoteSeriesKey(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(t.TempDir()+"/config.json", logger)
+	backend := newTestRemoteBackend(gqlmock.NewMockClient())
+	w := leet.NewWorkspace(backend, cfg, logger)
+	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+
+	runKey := "run-abc"
+	_ = w.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: []string{runKey}})
+	require.True(t, w.TestIsRunSelected(runKey))
+
+	run := leet.TestNewWorkspaceRun(runKey)
+	w.TestAttachRun(run, true)
+	w.TestHandleWorkspaceRecord(run, leet.HistoryMsg{
+		RunPath: backend.SeriesKey(runKey),
+		Metrics: map[string]leet.MetricData{
+			"loss": {X: []float64{1}, Y: []float64{0.5}},
+		},
+	})
+	require.Equal(t, 1, w.TestMetricsGrid().ChartCount())
+
+	_ = w.Update(tea.KeyPressMsg{Code: tea.KeySpace})
+
+	require.False(t, w.TestIsRunSelected(runKey))
+	require.Equal(
+		t,
+		0,
+		w.TestMetricsGrid().ChartCount(),
+		"deselect should remove remote history series from the graph",
+	)
 }
 
 func TestRemoteWorkspaceBackend_DisplayLabel(t *testing.T) {

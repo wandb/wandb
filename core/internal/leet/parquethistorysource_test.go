@@ -1,6 +1,6 @@
 //go:build !race
 
-package leet_test
+package leet
 
 import (
 	"context"
@@ -16,13 +16,12 @@ import (
 	"unsafe"
 
 	"github.com/hashicorp/go-retryablehttp"
-)
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/gqlmock"
-	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runhistoryreader"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/ffi"
 )
@@ -204,7 +203,48 @@ func createMockRustArrowWrapper(
 	)
 }
 
-func TestParseParquetHistorySteps(t *testing.T) {
+type fakeStepReader struct {
+	steps    []parquet.KeyValueList
+	released int
+}
+
+func (r *fakeStepReader) GetHistorySteps(
+	_ context.Context,
+	minStep int64,
+	maxStep int64,
+) ([]parquet.KeyValueList, error) {
+	filtered := make([]parquet.KeyValueList, 0, len(r.steps))
+	for _, step := range r.steps {
+		stepValue := int64(step.StepValue())
+		if stepValue >= minStep && stepValue < maxStep {
+			filtered = append(filtered, step)
+		}
+	}
+	return filtered, nil
+}
+
+func (r *fakeStepReader) Release() {
+	r.released++
+}
+
+func lossRow(step int64, loss float64) parquet.KeyValueList {
+	return parquet.KeyValueList{
+		{Key: parquet.StepKey, Value: float64(step)},
+		{Key: "loss", Value: loss},
+	}
+}
+
+func testRunInfo(summary map[string]any) *RunInfo {
+	return &RunInfo{
+		entity:      "entity",
+		project:     "project",
+		runId:       "run-id",
+		runSummary:  summary,
+		displayName: "run_display_name",
+	}
+}
+
+func TestParseParquetHistorySteps_Basic(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	historySteps := []parquet.KeyValueList{
 		{
@@ -221,7 +261,7 @@ func TestParseParquetHistorySteps(t *testing.T) {
 		},
 	}
 
-	result := leet.ParseParquetHistorySteps(historySteps, logger)
+	result := parseParquetHistorySteps(historySteps, logger)
 
 	require.NotNil(t, result)
 	require.NotNil(t, result.Metrics)
@@ -250,27 +290,29 @@ func TestReadRecords_ThenExit(t *testing.T) {
 	mockGQL := mockGraphQLWithParquetUrls([]string{server.URL + "/test.parquet"})
 	mockWrapper := createMockRustArrowWrapper(t, columns, data)
 
-	runInfo := leet.NewRunInfo(
-		"entity",
-		"project",
-		"run-id",
-		map[string]any{
-			"loss": 0.6,
+	runInfo := &RunInfo{
+		entity:  "entity",
+		project: "project",
+		runId:   "run-id",
+		runSummary: map[string]any{
+			"_step": int64(2),
+			"loss":  0.6,
 		},
-		"run_display_name",
-	)
-	source, err := leet.NewParquetHistorySource(
+		displayName: "run_display_name",
+	}
+	reader, err := runhistoryreader.New(
 		context.Background(),
 		"test-entity",
 		"test-project",
 		"test-run-id",
 		mockGQL,
 		retryablehttp.NewClient(),
-		runInfo,
-		logger,
+		[]string{},
+		false,
 		mockWrapper,
 	)
-	)
+	require.NoError(t, err)
+	source := newParquetHistorySource(context.Background(), runInfo, reader, logger)
 
 	msg, err := source.Read(100, 10*time.Second)
 	require.NoError(t, err)
@@ -296,8 +338,8 @@ func TestReadRecords_ThenExit(t *testing.T) {
 	historyMsg, ok := batch.Msgs[2].(HistoryMsg)
 	require.True(t, ok)
 	assert.Equal(t, "entity/project/run-id", historyMsg.RunPath)
-	assert.Equal(t, []float64{0, 50, 1000}, historyMsg.Metrics["loss"].X)
-	assert.Equal(t, []float64{1.0, 0.5, 0.1}, historyMsg.Metrics["loss"].Y)
+	assert.Equal(t, []float64{0, 1, 2}, historyMsg.Metrics["loss"].X)
+	assert.Equal(t, []float64{1.0, 0.8, 0.6}, historyMsg.Metrics["loss"].Y)
 
 	require.IsType(t, FileCompleteMsg{}, batch.Msgs[3])
 

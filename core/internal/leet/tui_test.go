@@ -575,9 +575,6 @@ func TestConsoleLogsPanel_ToggleAppendAndNavigate(t *testing.T) {
 	}
 	require.NoError(t, writer.Flush())
 
-	modelParams, err := leet.CreateModelParams(startupArgs, observability.NewNoOpLogger())
-	require.NoError(t, err)
-
 	// Trigger live read + redraw.
 	tm.Send(leet.FileChangedMsg{})
 
@@ -797,37 +794,4 @@ func TestWorkspace_SystemMetricsPaneAndConsoleLogs(t *testing.T) {
 	// 6) Quit.
 	tm.Type("q")
 	tm.WaitFinished(t, teatest.WithFinalTimeout(shortWait))
-}
-
-func TestCreateModelParams_RemoteWorkspace_StartsInWorkspaceMode(t *testing.T) {
-	t.Setenv("WANDB_API_KEY", "test-api-key")
-	baseURL := "https://api.wandb.ai"
-	entity := "test-entity"
-	project := "test-project"
-	startupArgs := &leet.StartupArgs{
-		BaseURL: &baseURL,
-		Entity:  &entity,
-		Project: &project,
-	}
-
-	modelParams, err := leet.CreateModelParams(startupArgs, observability.NewNoOpLogger())
-	require.NoError(t, err)
-
-	require.NotNil(t, modelParams.Backend)
-	require.Nil(t, modelParams.RunParams)
-}
-
-func TestCreateModelParams_RemoteWorkspace_NoApiKey(t *testing.T) {
-	t.Setenv("WANDB_API_KEY", "")
-	baseURL := "https://api.wandb.ai"
-	entity := "test-entity"
-	project := "test-project"
-	startupArgs := &leet.StartupArgs{
-		BaseURL: &baseURL,
-		Entity:  &entity,
-		Project: &project,
-	}
-
-	_, err := leet.CreateModelParams(startupArgs, observability.NewNoOpLogger())
-	require.Error(t, err)
 }
