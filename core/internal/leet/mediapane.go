@@ -1255,6 +1255,10 @@ func (r *mediaImageRenderer) Update(msg tea.Msg) tea.Cmd {
 	// Remember the terminal's cell pixel size for pictures created later;
 	// existing pictures pick it up through the forwarding loop below.
 	if ev, ok := msg.(uv.CellSizeEvent); ok {
+		if ev.Width != r.cellPixelW || ev.Height != r.cellPixelH {
+			// Glyph renders aspect-fit against the cell pixel size.
+			clear(r.rendered)
+		}
 		r.cellPixelW, r.cellPixelH = ev.Width, ev.Height
 	}
 
@@ -1353,11 +1357,14 @@ func (r *mediaImageRenderer) Render(path string, width, height int) string {
 	r.mu.RLock()
 	if r.mode == picture.PictureKitty {
 		pic := r.pictures[key]
+		img := r.decoded[path]
+		cellW, cellH := r.cellPixelW, r.cellPixelH
 		r.mu.RUnlock()
 		// View mutates the model's render cache, so call it outside the lock.
-		if pic != nil {
+		if pic != nil && img != nil {
 			if view := pic.model.View().Content; view != "" {
-				return view
+				cols, rows := containCells(img.Bounds(), width, height, cellW, cellH)
+				return placeMediaView(view, cols, rows, width, height)
 			}
 		}
 		return r.renderGlyph(path, width, height)
@@ -1404,8 +1411,12 @@ func (r *mediaImageRenderer) renderGlyph(path string, width, height int) string 
 		return renderMediaPlaceholder(width, height, truncateValue(errEntry.text, width))
 	}
 
+	r.mu.RLock()
+	cellW, cellH := r.cellPixelW, r.cellPixelH
+	r.mu.RUnlock()
+
 	key := mediaRenderKey{path: path, width: width, height: height}
-	rendered := renderPictureGlyph(img, width, height)
+	rendered := renderPictureGlyph(img, width, height, cellW, cellH)
 	r.mu.Lock()
 	r.rendered[key] = rendered
 	r.mu.Unlock()
@@ -1418,7 +1429,12 @@ func (r *mediaImageRenderer) preparePictureLocked(key mediaRenderKey, img image.
 	pic := r.pictures[key]
 	if pic == nil {
 		model := picture.NewWithConfig(picture.Config{
-			KittyID:         nextMediaKittyID(),
+			KittyID: nextMediaKittyID(),
+			// FitFill at the aspect-fitted cell rect (below) instead of
+			// FitContain at the full rect: the model's transitional glyph
+			// fallback paints its letterbox black, and the rect matches the
+			// Glyph backend so the image doesn't move when switching modes.
+			Fit:             picture.FitFill,
 			CellPixelWidth:  r.cellPixelW,
 			CellPixelHeight: r.cellPixelH,
 		})
@@ -1431,7 +1447,8 @@ func (r *mediaImageRenderer) preparePictureLocked(key mediaRenderKey, img image.
 		}
 	}
 
-	if cmd := pic.model.SetSize(key.width, key.height); cmd != nil {
+	cols, rows := containCells(img.Bounds(), key.width, key.height, r.cellPixelW, r.cellPixelH)
+	if cmd := pic.model.SetSize(cols, rows); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
 	if pic.img != img {
@@ -1457,7 +1474,14 @@ func loadMediaImage(path string) (image.Image, error) {
 	return img, nil
 }
 
-func renderPictureGlyph(img image.Image, width, height int) string {
+// renderPictureGlyph renders img as half-block glyphs aspect-fitted and
+// centered within a width×height cell rect. The contain math happens here,
+// in cells, rather than via the picture model's FitContain: the glyph
+// backend paints every letterbox cell an explicit color (transparent pixels
+// flatten to black), while the plain spaces used for centering let the pane
+// background show through. FitFill on the inner render absorbs the sub-cell
+// rounding remainder that would otherwise come back as thin black bars.
+func renderPictureGlyph(img image.Image, width, height, cellW, cellH int) string {
 	if width <= 0 || height <= 0 {
 		return ""
 	}
@@ -1465,12 +1489,46 @@ func renderPictureGlyph(img image.Image, width, height int) string {
 		return renderMediaPlaceholder(width, height, "Empty image")
 	}
 
-	model := picture.New()
-	model.SetSize(width, height)
+	cols, rows := containCells(img.Bounds(), width, height, cellW, cellH)
+	model := picture.NewWithConfig(picture.Config{Fit: picture.FitFill})
+	model.SetSize(cols, rows)
 	model.SetImage(img)
 	view := model.View().Content
 	if view == "" {
 		return renderMediaPlaceholder(width, height, "Empty image")
 	}
-	return view
+	return placeMediaView(view, cols, rows, width, height)
+}
+
+// placeMediaView centers a cols×rows media view within a width×height cell
+// rect using plain spaces.
+func placeMediaView(view string, cols, rows, width, height int) string {
+	if cols == width && rows == height {
+		return view
+	}
+	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, view)
+}
+
+// containCells returns the largest cell rect that preserves the image's
+// aspect ratio within width×height cells. cellW/cellH are the terminal cell
+// pixel dimensions; non-positive values fall back to the typical 1:2 cell.
+// Both media backends render at this rect: the glyph backend needs it so the
+// letterbox stays outside the painted cells, and the Kitty backend matches it
+// so the image doesn't move when switching modes.
+func containCells(bounds image.Rectangle, width, height, cellW, cellH int) (cols, rows int) {
+	if cellW <= 0 {
+		cellW = 8
+	}
+	if cellH <= 0 {
+		cellH = 16
+	}
+	sw, sh := bounds.Dx(), bounds.Dy()
+	tw, th := width*cellW, height*cellH
+	if sw*th >= sh*tw {
+		// Width-limited: the image is wider than the target rect.
+		return width, clamp(int(math.Round(float64(sh*tw)/float64(sw*cellH))), 1, height)
+	}
+	// The glyph backend (ansimage) refuses to render fewer than 2 columns,
+	// so clamp the narrow side up for very tall images.
+	return clamp(int(math.Round(float64(sw*th)/float64(sh*cellW))), min(2, width), width), height
 }

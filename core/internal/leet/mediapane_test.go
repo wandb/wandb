@@ -705,6 +705,40 @@ func TestMediaPane_ViewANSIKeepsTopAndBottomRows(t *testing.T) {
 	require.NotEmpty(t, strings.Trim(lines[footerIdx-1], " │"))
 }
 
+func TestMediaPane_ViewANSILetterboxIsTransparent(t *testing.T) {
+	for name, dims := range map[string][2]int{"wide": {64, 4}, "tall": {4, 64}} {
+		t.Run(name, func(t *testing.T) {
+			pane, store := testMediaPaneWithGrid(t, 1, 1)
+			path := t.TempDir() + "/img.png"
+			img := image.NewRGBA(image.Rect(0, 0, dims[0], dims[1]))
+			for y := range dims[1] {
+				for x := range dims[0] {
+					img.Set(x, y, color.RGBA{R: 255, A: 255})
+				}
+			}
+			f, err := os.Create(path)
+			require.NoError(t, err)
+			require.NoError(t, png.Encode(f, img))
+			require.NoError(t, f.Close())
+
+			store.ProcessHistory(leet.HistoryMsg{
+				Media: map[string][]leet.MediaPoint{
+					"s": {{X: 0, FilePath: path}},
+				},
+			})
+			pane.SetStore(store)
+
+			view := pane.View(40, 14, "", "")
+			require.Contains(t, view, "255;0;0", "image should be rendered")
+			require.NotContains(t, view, "Empty image")
+			// The letterbox around the image must be plain spaces, not
+			// cells painted with the flattened-to-black transparent color.
+			require.NotContains(t, view, "48;2;0;0;0")
+			require.NotContains(t, view, "38;2;0;0;0")
+		})
+	}
+}
+
 func TestMediaPane_ToggleRendererModeTitle(t *testing.T) {
 	setKittyGraphicsEnv(t, true)
 
