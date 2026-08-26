@@ -51,6 +51,7 @@ class LinkArtifactFields:
     name: str
     version: str
     aliases: list[str]
+    linked_at: str
 
     # These fields shouldn't be user-editable, linked artifacts always have these values
     _is_link: Literal[True] = field(init=False, default=True)

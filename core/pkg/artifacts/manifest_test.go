@@ -3,6 +3,7 @@ package artifacts
 import (
 	"bufio"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandb/wandb/core/internal/gql"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -219,4 +221,241 @@ func TestManifest_GetManifestEntryFromArtifactFilePath(t *testing.T) {
 
 	_, err = manifest.GetManifestEntryFromArtifactFilePath("nonexistent")
 	assert.Error(t, err)
+}
+
+func TestManifest_HashContentsWithMd5_Xxh128_Entry_Is_Updated(t *testing.T) {
+	ctx := context.Background()
+
+	localPath1, err := os.CreateTemp("", "file1.txt")
+	assert.NoError(t, err)
+	defer func() {
+		_ = os.Remove(localPath1.Name())
+	}()
+	_, err = localPath1.WriteString("hello")
+	assert.NoError(t, err)
+
+	proto := &spb.ArtifactManifest{
+		Version:       1,
+		StoragePolicy: "policy",
+		Contents: []*spb.ArtifactManifestEntry{
+			{
+				Path:      "file1.txt",
+				Digest:    "tenBrQcbPn/Hec+qXlI4GA==",
+				Size:      int64(5),
+				LocalPath: localPath1.Name(),
+				Extra: []*spb.ExtraItem{
+					{Key: digestAlgorithmExtraKey, ValueJson: `"XXH128"`},
+				},
+			},
+		},
+	}
+
+	manifest, err := NewManifestFromProto(proto)
+	assert.NoError(t, err)
+
+	err = manifest.HashContentsWithMd5(ctx)
+	assert.NoError(t, err)
+
+	// file1.txt should be rehashed with md5, and its xxh128 tag dropped.
+	assert.Equal(t, "XUFAKrxLKna5cZ2REBfFkg==", manifest.Contents["file1.txt"].Digest)
+	assert.Equal(t, localPath1.Name(), *manifest.Contents["file1.txt"].LocalPath)
+	assert.NotContains(t, manifest.Contents["file1.txt"].Extra, digestAlgorithmExtraKey)
+}
+
+func TestManifest_HashContentsWithMd5_Md5_And_Ref_Entries_Are_Not_Updated(t *testing.T) {
+	ctx := context.Background()
+
+	localPath2, err := os.CreateTemp("", "file2.txt")
+	assert.NoError(t, err)
+	defer func() {
+		_ = os.Remove(localPath2.Name())
+	}()
+	_, err = localPath2.WriteString("test")
+	assert.NoError(t, err)
+
+	proto := &spb.ArtifactManifest{
+		Version:       1,
+		StoragePolicy: "policy",
+		Contents: []*spb.ArtifactManifestEntry{
+			{
+				Path:      "file2.txt",
+				Digest:    "CY9rzUYh03PK3k6DJie09g==",
+				Size:      int64(4),
+				LocalPath: localPath2.Name(),
+			},
+			{
+				Path:   "path4",
+				Digest: "digest4",
+				Size:   int64(123),
+				Ref:    "local/path4",
+			},
+		},
+	}
+
+	manifest, err := NewManifestFromProto(proto)
+	assert.NoError(t, err)
+
+	err = manifest.HashContentsWithMd5(ctx)
+	assert.NoError(t, err)
+
+	// file2.txt digest should not change, and it stays untagged.
+	assert.Equal(t, "CY9rzUYh03PK3k6DJie09g==", manifest.Contents["file2.txt"].Digest)
+	assert.Equal(t, localPath2.Name(), *manifest.Contents["file2.txt"].LocalPath)
+	assert.NotContains(t, manifest.Contents["file2.txt"].Extra, digestAlgorithmExtraKey)
+
+	// path4 reference file should not be rehashed
+	assert.Equal(t, "digest4", manifest.Contents["path4"].Digest)
+	assert.Equal(t, "local/path4", *manifest.Contents["path4"].Ref)
+	assert.Nil(t, manifest.Contents["path4"].LocalPath)
+}
+
+func TestManifest_HashContentsWithMd5_Xxh128_Subdir_Entry_Is_Updated(t *testing.T) {
+	ctx := context.Background()
+
+	subdir := t.TempDir()
+	localPathInDir1, err := os.CreateTemp(subdir, "file.txt")
+	assert.NoError(t, err)
+	defer func() {
+		_ = os.Remove(localPathInDir1.Name())
+	}()
+	_, err = localPathInDir1.WriteString("hi")
+	assert.NoError(t, err)
+
+	proto := &spb.ArtifactManifest{
+		Version:       1,
+		StoragePolicy: "policy",
+		Contents: []*spb.ArtifactManifestEntry{
+			{
+				Path:      "different-subdir/file.txt",
+				Digest:    "fVls5fyrr2IqIwC71+pumg==",
+				Size:      int64(2),
+				LocalPath: localPathInDir1.Name(),
+				Extra: []*spb.ExtraItem{
+					{Key: digestAlgorithmExtraKey, ValueJson: `"XXH128"`},
+				},
+			},
+		},
+	}
+
+	manifest, err := NewManifestFromProto(proto)
+	assert.NoError(t, err)
+
+	err = manifest.HashContentsWithMd5(ctx)
+	assert.NoError(t, err)
+
+	// different-subdir/file.txt should be rehashed with md5, tag dropped.
+	assert.Equal(
+		t,
+		"SfaKXIST7CwL9ImCHCH8Ow==",
+		manifest.Contents["different-subdir/file.txt"].Digest,
+	)
+	assert.Equal(
+		t,
+		localPathInDir1.Name(),
+		*manifest.Contents["different-subdir/file.txt"].LocalPath,
+	)
+	assert.NotContains(
+		t,
+		manifest.Contents["different-subdir/file.txt"].Extra,
+		digestAlgorithmExtraKey,
+	)
+}
+
+func TestManifest_HashContentsWithMd5_Xxh128_Carried_Over_Entry_Is_Not_Updated(t *testing.T) {
+	ctx := context.Background()
+
+	proto := &spb.ArtifactManifest{
+		Version:       1,
+		StoragePolicy: "policy",
+		Contents: []*spb.ArtifactManifestEntry{
+			{
+				// Carried-over xxh128 file from new_draft scenario (already uploaded, no local path):
+				// must be left untouched so the mixed manifest is preserved.
+				Path:            "carried-over.txt",
+				Digest:          "digest-carried-over",
+				Size:            int64(5),
+				BirthArtifactId: "birthArtifactID1",
+				Extra: []*spb.ExtraItem{
+					{Key: digestAlgorithmExtraKey, ValueJson: `"XXH128"`},
+				},
+			},
+		},
+	}
+
+	manifest, err := NewManifestFromProto(proto)
+	assert.NoError(t, err)
+
+	err = manifest.HashContentsWithMd5(ctx)
+	assert.NoError(t, err)
+
+	// carried-over.txt has no local path, so it must be left untouched
+	assert.Equal(t, "digest-carried-over", manifest.Contents["carried-over.txt"].Digest)
+	assert.Nil(t, manifest.Contents["carried-over.txt"].LocalPath)
+	assert.Equal(
+		t,
+		"XXH128",
+		manifest.Contents["carried-over.txt"].Extra[digestAlgorithmExtraKey],
+	)
+}
+
+func TestManifest_ArtifactDigest_MD5(t *testing.T) {
+	proto := &spb.ArtifactManifest{
+		Version:       1,
+		StoragePolicy: "policy",
+		Contents: []*spb.ArtifactManifestEntry{
+			{
+				Path:   "path3",
+				Digest: "digest3",
+				Size:   123,
+			},
+			{
+				Path:   "path1",
+				Digest: "digest1",
+				Size:   123,
+			},
+			{
+				Path:   "path2",
+				Digest: "digest2",
+				Size:   123,
+			},
+		},
+	}
+
+	manifest, err := NewManifestFromProto(proto)
+	assert.NoError(t, err)
+
+	digest, err := manifest.ArtifactDigest(gql.ArtifactDigestAlgorithmManifestMd5)
+	assert.NoError(t, err)
+	assert.Equal(t, "bcce5f1c0031174bb95df20e6258f4a1", digest)
+}
+
+func TestManifest_ArtifactDigest_XXH128(t *testing.T) {
+	proto := &spb.ArtifactManifest{
+		Version:       1,
+		StoragePolicy: "policy",
+		Contents: []*spb.ArtifactManifestEntry{
+			{
+				Path:   "path3",
+				Digest: "digest3",
+				Size:   123,
+			},
+			{
+				Path:   "path1",
+				Digest: "digest1",
+				Size:   123,
+			},
+			{
+				Path:   "path2",
+				Digest: "digest2",
+				Size:   123,
+			},
+		},
+	}
+
+	manifest, err := NewManifestFromProto(proto)
+	assert.NoError(t, err)
+
+	digest, err := manifest.ArtifactDigest(gql.ArtifactDigestAlgorithmManifestXxh128)
+	assert.NoError(t, err)
+	assert.Equal(t, "c6ba6996c206b49f5a0e7ec9dad6822c", digest)
 }

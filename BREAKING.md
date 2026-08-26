@@ -32,11 +32,6 @@ When preparing a release that can include breaking changes, consider applying ch
 
 ## Changes
 
-- Make `--verify` the default for `wandb login`
-    - PR: https://github.com/wandb/wandb/pull/9230
-    - Owner: @jacobromero
-    - Can do in >=0.20
-
 - Remove `quiet` argument from `run.finish()`
     - Owner: @kptkin
     - Deprecated in 0.18.7 (https://github.com/wandb/wandb/pull/8794)
@@ -135,3 +130,8 @@ When preparing a release that can include breaking changes, consider applying ch
   - Owner: @timoffex
   - Deprecated after 0.28.0 (https://github.com/wandb/wandb/pull/12098)
   - Can do a few releases after 0.28.1 or 0.29.0 (whichever comes first)
+
+- Make `digest_algorithm="XXH128"` the default for `wandb.Artifact`:
+  - PR: https://github.com/wandb/wandb/pull/12571
+  - Owner: @art-reg-team
+  - Can do a few releases after 0.29.0, or when we're confident that `artifact.verify` usage on older SDK versions is low.

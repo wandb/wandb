@@ -19,10 +19,11 @@ import responses
 import wandb
 import wandb.sdk.internal.sender
 from moto import mock_aws
-from pytest import MonkeyPatch, fixture, mark, param, raises
+from pytest import FixtureRequest, MonkeyPatch, fixture, mark, param, raises
 from wandb import Api, Artifact
 from wandb.data_types import ImageMask, PartitionedTable
 from wandb.errors.errors import CommError
+from wandb.sdk.artifacts._generated.enums import ArtifactDigestAlgorithm
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 from wandb.sdk.artifacts._validators import NAME_MAXLEN, RESERVED_ARTIFACT_TYPE_PREFIX
 from wandb.sdk.artifacts.artifact_file_cache import (
@@ -69,8 +70,9 @@ def s3_bucket(s3: BaseClient) -> str:
 
 
 @fixture
-def artifact() -> Artifact:
-    return Artifact(type="dataset", name="data-artifact")
+def artifact(request: FixtureRequest) -> Artifact:
+    kwargs = {"digest_algorithm": request.param} if hasattr(request, "param") else {}
+    return Artifact(type="dataset", name="data-artifact", **kwargs)
 
 
 def test_unsized_manifest_entry_real_file():
@@ -87,37 +89,73 @@ def test_unsized_manifest_entry():
     assert "No such file" in str(e.value)
 
 
+@mark.parametrize("artifact", ["MD5", "XXH128"], indirect=True)
 def test_add_one_file(artifact):
     Path("file1.txt").write_text("hello")
     artifact.add_file("file1.txt")
 
-    assert artifact.digest == "a00c2239f036fb656c1dcbf9a32d89b4"
-    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    assert manifest_contents == {
-        "file1.txt": {"digest": "XUFAKrxLKna5cZ2REBfFkg==", "size": 5}
-    }
+    if artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
+        assert artifact.digest == "fe0d6c1a25b6d98451da9b04ebf6d80c"
+        manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+        assert manifest_contents == {
+            "file1.txt": {
+                "digest": "tenBrQcbPn/Hec+qXlI4GA==",
+                "size": 5,
+                "extra": {"alg": "XXH128"},
+            }
+        }
+    else:
+        assert artifact.digest == "a00c2239f036fb656c1dcbf9a32d89b4"
+        manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+        assert manifest_contents == {
+            "file1.txt": {"digest": "XUFAKrxLKna5cZ2REBfFkg==", "size": 5}
+        }
 
 
+@mark.parametrize("artifact", ["MD5", "XXH128"], indirect=True)
 def test_add_named_file(artifact):
     Path("file1.txt").write_text("hello")
     artifact.add_file("file1.txt", name="great-file.txt")
 
-    assert artifact.digest == "585b9ada17797e37c9cbab391e69b8c5"
-    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    assert manifest_contents == {
-        "great-file.txt": {"digest": "XUFAKrxLKna5cZ2REBfFkg==", "size": 5}
-    }
+    if artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
+        assert artifact.digest == "5128bda8426a0e35a91082780b668e43"
+        manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+        assert manifest_contents == {
+            "great-file.txt": {
+                "digest": "tenBrQcbPn/Hec+qXlI4GA==",
+                "size": 5,
+                "extra": {"alg": "XXH128"},
+            }
+        }
+    else:
+        assert artifact.digest == "585b9ada17797e37c9cbab391e69b8c5"
+        manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+        assert manifest_contents == {
+            "great-file.txt": {"digest": "XUFAKrxLKna5cZ2REBfFkg==", "size": 5}
+        }
 
 
+@mark.parametrize("artifact", ["MD5", "XXH128"], indirect=True)
 def test_add_new_file(artifact):
     with artifact.new_file("file1.txt") as f:
         f.write("hello")
 
-    assert artifact.digest == "a00c2239f036fb656c1dcbf9a32d89b4"
-    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    assert manifest_contents == {
-        "file1.txt": {"digest": "XUFAKrxLKna5cZ2REBfFkg==", "size": 5}
-    }
+    if artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
+        assert artifact.digest == "fe0d6c1a25b6d98451da9b04ebf6d80c"
+        manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+        assert manifest_contents == {
+            "file1.txt": {
+                "digest": "tenBrQcbPn/Hec+qXlI4GA==",
+                "size": 5,
+                "extra": {"alg": "XXH128"},
+            }
+        }
+    else:
+        assert artifact.digest == "a00c2239f036fb656c1dcbf9a32d89b4"
+        manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+        assert manifest_contents == {
+            "file1.txt": {"digest": "XUFAKrxLKna5cZ2REBfFkg==", "size": 5}
+        }
 
 
 def test_add_after_finalize(artifact):
@@ -147,31 +185,54 @@ def test_add_file_again_after_edit(overwrite, artifact):
         artifact.add_file(str(filepath), overwrite=overwrite)
 
 
+@mark.parametrize("artifact", ["MD5", "XXH128"], indirect=True)
 def test_add_dir(artifact):
     Path("file1.txt").write_text("hello")
 
     artifact.add_dir(".")
 
-    assert artifact.digest == "a00c2239f036fb656c1dcbf9a32d89b4"
-    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    assert manifest_contents == {
-        "file1.txt": {"digest": "XUFAKrxLKna5cZ2REBfFkg==", "size": 5}
-    }
+    if artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
+        assert artifact.digest == "fe0d6c1a25b6d98451da9b04ebf6d80c"
+        manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+        assert manifest_contents == {
+            "file1.txt": {
+                "digest": "tenBrQcbPn/Hec+qXlI4GA==",
+                "size": 5,
+                "extra": {"alg": "XXH128"},
+            }
+        }
+    else:
+        assert artifact.digest == "a00c2239f036fb656c1dcbf9a32d89b4"
+        manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+        assert manifest_contents == {
+            "file1.txt": {"digest": "XUFAKrxLKna5cZ2REBfFkg==", "size": 5}
+        }
 
 
+@mark.parametrize("artifact", ["MD5", "XXH128"], indirect=True)
 def test_add_named_dir(artifact):
     Path("file1.txt").write_text("hello")
     artifact.add_dir(".", name="subdir")
 
-    assert artifact.digest == "a757208d042e8627b2970d72a71bed5b"
-
-    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    assert manifest_contents == {
-        "subdir/file1.txt": {
-            "digest": "XUFAKrxLKna5cZ2REBfFkg==",
-            "size": 5,
-        },
-    }
+    if artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
+        assert artifact.digest == "90433061a33aed87ab6c0ff48c7f983c"
+        manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+        assert manifest_contents == {
+            "subdir/file1.txt": {
+                "digest": "tenBrQcbPn/Hec+qXlI4GA==",
+                "size": 5,
+                "extra": {"alg": "XXH128"},
+            }
+        }
+    else:
+        assert artifact.digest == "a757208d042e8627b2970d72a71bed5b"
+        manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+        assert manifest_contents == {
+            "subdir/file1.txt": {
+                "digest": "XUFAKrxLKna5cZ2REBfFkg==",
+                "size": 5,
+            },
+        }
 
 
 @mark.parametrize("merge", [True, False])
@@ -717,33 +778,55 @@ def test_add_obj_wbimage_no_classes(im_path: str, artifact: Artifact):
         artifact.add(wb_image, "my-image")
 
 
-def test_add_obj_wbimage(im_path: str, artifact: Artifact):
+@mark.parametrize("artifact", ["MD5", "XXH128"], indirect=True)
+def test_add_obj_wbimage(artifact, im_path: str):
     wb_image = wandb.Image(
         im_path,
         classes=[{"id": 0, "name": "person"}],
     )
     artifact.add(wb_image, "my-image")
 
-    assert artifact.digest == "7772370e2243066215a845a34f3cc42c"
-
-    manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    assert manifest_contents == {
-        "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
-            "digest": "eG00DqdCcCBqphilriLNfw==",
-            "size": 64,
-        },
-        "media/images/641e917f31888a48f546/2x2.png": {
-            "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
-            "size": 71,
-        },
-        "my-image.image-file.json": {
-            "digest": "IcEgVbPW7fE1a+g577K+VQ==",
-            "size": 346,
-        },
-    }
+    if artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
+        assert artifact.digest == "c9a97125b7449fb9a7f7890940b7cde2"
+        manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+        assert manifest_contents == {
+            "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
+                "digest": "+xqgbLA2igrfKWtbRYuOPw==",
+                "size": 64,
+                "extra": {"alg": "XXH128"},
+            },
+            "media/images/641e917f31888a48f546/2x2.png": {
+                "digest": "A+ER///ySqfqzroxc022rA==",
+                "size": 71,
+                "extra": {"alg": "XXH128"},
+            },
+            "my-image.image-file.json": {
+                "digest": "Lz8Y3vPOzyJ+rGot+Ax+IA==",
+                "size": 346,
+                "extra": {"alg": "XXH128"},
+            },
+        }
+    else:
+        assert artifact.digest == "7772370e2243066215a845a34f3cc42c"
+        manifest_contents = artifact.manifest.to_manifest_json()["contents"]
+        assert manifest_contents == {
+            "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
+                "digest": "eG00DqdCcCBqphilriLNfw==",
+                "size": 64,
+            },
+            "media/images/641e917f31888a48f546/2x2.png": {
+                "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
+                "size": 71,
+            },
+            "my-image.image-file.json": {
+                "digest": "IcEgVbPW7fE1a+g577K+VQ==",
+                "size": 346,
+            },
+        }
 
 
 @mark.parametrize("overwrite", [True, False])
+@mark.parametrize("artifact", ["MD5", "XXH128"], indirect=True)
 def test_add_obj_wbimage_again_after_edit(
     tmp_path, assets_path, copy_asset, overwrite, artifact
 ):
@@ -765,7 +848,10 @@ def test_add_obj_wbimage_again_after_edit(
     manifest_contents1 = artifact.manifest.to_manifest_json()["contents"]
     digest1 = artifact.digest
 
-    assert digest1 == "2a7a8a7f29c929fe05b57983a2944fca"
+    if artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
+        assert digest1 == "1f1ca302bcc7aa196c5b4562daa88c82"
+    else:
+        assert digest1 == "2a7a8a7f29c929fe05b57983a2944fca"
     assert len(manifest_contents1) == 2
 
     # Modify the object, keeping the path unchanged
@@ -786,7 +872,8 @@ def test_add_obj_wbimage_again_after_edit(
     assert manifest_contents1.keys() == manifest_contents2.keys()
 
 
-def test_add_obj_using_brackets(im_path: str, artifact: Artifact):
+@mark.parametrize("artifact", ["MD5", "XXH128"], indirect=True)
+def test_add_obj_using_brackets(artifact, im_path: str):
     wb_image = wandb.Image(
         im_path,
         classes=[{"id": 0, "name": "person"}],
@@ -794,21 +881,41 @@ def test_add_obj_using_brackets(im_path: str, artifact: Artifact):
     artifact["my-image"] = wb_image
 
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    assert artifact.digest == "7772370e2243066215a845a34f3cc42c"
-    assert manifest_contents == {
-        "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
-            "digest": "eG00DqdCcCBqphilriLNfw==",
-            "size": 64,
-        },
-        "media/images/641e917f31888a48f546/2x2.png": {
-            "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
-            "size": 71,
-        },
-        "my-image.image-file.json": {
-            "digest": "IcEgVbPW7fE1a+g577K+VQ==",
-            "size": 346,
-        },
-    }
+    if artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
+        assert artifact.digest == "c9a97125b7449fb9a7f7890940b7cde2"
+        assert manifest_contents == {
+            "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
+                "digest": "+xqgbLA2igrfKWtbRYuOPw==",
+                "size": 64,
+                "extra": {"alg": "XXH128"},
+            },
+            "media/images/641e917f31888a48f546/2x2.png": {
+                "digest": "A+ER///ySqfqzroxc022rA==",
+                "size": 71,
+                "extra": {"alg": "XXH128"},
+            },
+            "my-image.image-file.json": {
+                "digest": "Lz8Y3vPOzyJ+rGot+Ax+IA==",
+                "size": 346,
+                "extra": {"alg": "XXH128"},
+            },
+        }
+    else:
+        assert artifact.digest == "7772370e2243066215a845a34f3cc42c"
+        assert manifest_contents == {
+            "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
+                "digest": "eG00DqdCcCBqphilriLNfw==",
+                "size": 64,
+            },
+            "media/images/641e917f31888a48f546/2x2.png": {
+                "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
+                "size": 71,
+            },
+            "my-image.image-file.json": {
+                "digest": "IcEgVbPW7fE1a+g577K+VQ==",
+                "size": 346,
+            },
+        }
 
     with raises(ArtifactNotLoggedError):
         _ = artifact["my-image"]
@@ -871,75 +978,141 @@ def test_deduplicate_wbimagemask_from_array(artifact, add_duplicate):
         assert len(artifact.manifest.entries) == 4
 
 
-def test_add_obj_wbimage_classes_obj(im_path: str, artifact: Artifact):
+@mark.parametrize("artifact", ["MD5", "XXH128"], indirect=True)
+def test_add_obj_wbimage_classes_obj(artifact, im_path: str):
     classes = wandb.Classes([{"id": 0, "name": "person"}])
     wb_image = wandb.Image(im_path, classes=classes)
     artifact.add(wb_image, "my-image")
 
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    assert manifest_contents == {
-        "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
-            "digest": "eG00DqdCcCBqphilriLNfw==",
-            "size": 64,
-        },
-        "media/images/641e917f31888a48f546/2x2.png": {
-            "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
-            "size": 71,
-        },
-        "my-image.image-file.json": {
-            "digest": "IcEgVbPW7fE1a+g577K+VQ==",
-            "size": 346,
-        },
-    }
+    if artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
+        assert manifest_contents == {
+            "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
+                "digest": "+xqgbLA2igrfKWtbRYuOPw==",
+                "size": 64,
+                "extra": {"alg": "XXH128"},
+            },
+            "media/images/641e917f31888a48f546/2x2.png": {
+                "digest": "A+ER///ySqfqzroxc022rA==",
+                "size": 71,
+                "extra": {"alg": "XXH128"},
+            },
+            "my-image.image-file.json": {
+                "digest": "Lz8Y3vPOzyJ+rGot+Ax+IA==",
+                "size": 346,
+                "extra": {"alg": "XXH128"},
+            },
+        }
+    else:
+        assert manifest_contents == {
+            "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
+                "digest": "eG00DqdCcCBqphilriLNfw==",
+                "size": 64,
+            },
+            "media/images/641e917f31888a48f546/2x2.png": {
+                "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
+                "size": 71,
+            },
+            "my-image.image-file.json": {
+                "digest": "IcEgVbPW7fE1a+g577K+VQ==",
+                "size": 346,
+            },
+        }
 
 
-def test_add_obj_wbimage_classes_obj_already_added(im_path: str, artifact: Artifact):
+@mark.parametrize("artifact", ["MD5", "XXH128"], indirect=True)
+def test_add_obj_wbimage_classes_obj_already_added(artifact, im_path: str):
     classes = wandb.Classes([{"id": 0, "name": "person"}])
     artifact.add(classes, "my-classes")
     wb_image = wandb.Image(im_path, classes=classes)
     artifact.add(wb_image, "my-image")
 
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    assert manifest_contents == {
-        "my-classes.classes.json": {
-            "digest": "eG00DqdCcCBqphilriLNfw==",
-            "size": 64,
-        },
-        "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
-            "digest": "eG00DqdCcCBqphilriLNfw==",
-            "size": 64,
-        },
-        "media/images/641e917f31888a48f546/2x2.png": {
-            "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
-            "size": 71,
-        },
-        "my-image.image-file.json": {
-            "digest": "IcEgVbPW7fE1a+g577K+VQ==",
-            "size": 346,
-        },
-    }
+    if artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
+        assert manifest_contents == {
+            "my-classes.classes.json": {
+                "digest": "+xqgbLA2igrfKWtbRYuOPw==",
+                "size": 64,
+                "extra": {"alg": "XXH128"},
+            },
+            "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
+                "digest": "+xqgbLA2igrfKWtbRYuOPw==",
+                "size": 64,
+                "extra": {"alg": "XXH128"},
+            },
+            "media/images/641e917f31888a48f546/2x2.png": {
+                "digest": "A+ER///ySqfqzroxc022rA==",
+                "size": 71,
+                "extra": {"alg": "XXH128"},
+            },
+            "my-image.image-file.json": {
+                "digest": "Lz8Y3vPOzyJ+rGot+Ax+IA==",
+                "size": 346,
+                "extra": {"alg": "XXH128"},
+            },
+        }
+    else:
+        assert manifest_contents == {
+            "my-classes.classes.json": {
+                "digest": "eG00DqdCcCBqphilriLNfw==",
+                "size": 64,
+            },
+            "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
+                "digest": "eG00DqdCcCBqphilriLNfw==",
+                "size": 64,
+            },
+            "media/images/641e917f31888a48f546/2x2.png": {
+                "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
+                "size": 71,
+            },
+            "my-image.image-file.json": {
+                "digest": "IcEgVbPW7fE1a+g577K+VQ==",
+                "size": 346,
+            },
+        }
 
 
-def test_add_obj_wbimage_image_already_added(im_path: str, artifact: Artifact):
+@mark.parametrize("artifact", ["MD5", "XXH128"], indirect=True)
+def test_add_obj_wbimage_image_already_added(artifact, im_path: str):
     artifact.add_file(im_path)
     wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
     artifact.add(wb_image, "my-image")
 
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    assert manifest_contents == {
-        "2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
-        "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
-            "digest": "eG00DqdCcCBqphilriLNfw==",
-            "size": 64,
-        },
-        "my-image.image-file.json": {
-            "digest": "BPGPVjCBRxX6MNySpv2Rmg==",
-            "size": 312,
-        },
-    }
+    if artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
+        assert manifest_contents == {
+            "2x2.png": {
+                "digest": "A+ER///ySqfqzroxc022rA==",
+                "size": 71,
+                "extra": {"alg": "XXH128"},
+            },
+            "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
+                "digest": "+xqgbLA2igrfKWtbRYuOPw==",
+                "size": 64,
+                "extra": {"alg": "XXH128"},
+            },
+            "my-image.image-file.json": {
+                "digest": "Hkgsnrh6Hhzq3OHzuDpdDA==",
+                "size": 312,
+                "extra": {"alg": "XXH128"},
+            },
+        }
+    else:
+        assert manifest_contents == {
+            "2x2.png": {"digest": "L1pBeGPxG+6XVRQk4WuvdQ==", "size": 71},
+            "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
+                "digest": "eG00DqdCcCBqphilriLNfw==",
+                "size": 64,
+            },
+            "my-image.image-file.json": {
+                "digest": "BPGPVjCBRxX6MNySpv2Rmg==",
+                "size": 312,
+            },
+        }
 
 
-def test_add_obj_wbtable_images(im_path: str, artifact: Artifact):
+@mark.parametrize("artifact", ["MD5", "XXH128"], indirect=True)
+def test_add_obj_wbtable_images(artifact, im_path: str):
     wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
     wb_table = wandb.Table(["examples"])
     wb_table.add_data(wb_image)
@@ -947,20 +1120,40 @@ def test_add_obj_wbtable_images(im_path: str, artifact: Artifact):
     artifact.add(wb_table, "my-table")
 
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    assert manifest_contents == {
-        "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
-            "digest": "eG00DqdCcCBqphilriLNfw==",
-            "size": 64,
-        },
-        "media/images/641e917f31888a48f546/2x2.png": {
-            "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
-            "size": 71,
-        },
-        "my-table.table.json": {"digest": "4cthfS5X+SxpFwajjuhrMw==", "size": 1476},
-    }
+    if artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
+        assert manifest_contents == {
+            "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
+                "digest": "+xqgbLA2igrfKWtbRYuOPw==",
+                "size": 64,
+                "extra": {"alg": "XXH128"},
+            },
+            "media/images/641e917f31888a48f546/2x2.png": {
+                "digest": "A+ER///ySqfqzroxc022rA==",
+                "size": 71,
+                "extra": {"alg": "XXH128"},
+            },
+            "my-table.table.json": {
+                "digest": "JGNyt74ECHUCdLy4T2k1Kg==",
+                "size": 1476,
+                "extra": {"alg": "XXH128"},
+            },
+        }
+    else:
+        assert manifest_contents == {
+            "media/classes/65347c6442e21b09b198d62e080e46ce_cls.classes.json": {
+                "digest": "eG00DqdCcCBqphilriLNfw==",
+                "size": 64,
+            },
+            "media/images/641e917f31888a48f546/2x2.png": {
+                "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
+                "size": 71,
+            },
+            "my-table.table.json": {"digest": "4cthfS5X+SxpFwajjuhrMw==", "size": 1476},
+        }
 
 
-def test_add_obj_wbtable_images_duplicate_name(assets_path, artifact):
+@mark.parametrize("artifact", ["MD5", "XXH128"], indirect=True)
+def test_add_obj_wbtable_images_duplicate_name(artifact, assets_path):
     img_1 = str(assets_path("2x2.png"))
     img_2 = str(assets_path("test2.png"))
 
@@ -977,19 +1170,39 @@ def test_add_obj_wbtable_images_duplicate_name(assets_path, artifact):
     artifact.add(wb_table, "my-table")
 
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    assert manifest_contents == {
-        "media/images/641e917f31888a48f546/img.png": {
-            "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
-            "size": 71,
-        },
-        "media/images/cf37c38fd1dca3aaba6e/img.png": {
-            "digest": "pQVvBBgcuG+jTN0Xo97eZQ==",
-            "size": 8837,
-        },
-        "my-table.table.json": {"digest": "uuw1nKn7THwjEBDbxXvmfQ==", "size": 1167},
-    }
+    if artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
+        assert manifest_contents == {
+            "media/images/641e917f31888a48f546/img.png": {
+                "digest": "A+ER///ySqfqzroxc022rA==",
+                "size": 71,
+                "extra": {"alg": "XXH128"},
+            },
+            "media/images/cf37c38fd1dca3aaba6e/img.png": {
+                "digest": "AejlaOuKomIlEY8EwEalig==",
+                "size": 8837,
+                "extra": {"alg": "XXH128"},
+            },
+            "my-table.table.json": {
+                "digest": "DyOndR3vYxEdHAJG+DKX6Q==",
+                "size": 1167,
+                "extra": {"alg": "XXH128"},
+            },
+        }
+    else:
+        assert manifest_contents == {
+            "media/images/641e917f31888a48f546/img.png": {
+                "digest": "L1pBeGPxG+6XVRQk4WuvdQ==",
+                "size": 71,
+            },
+            "media/images/cf37c38fd1dca3aaba6e/img.png": {
+                "digest": "pQVvBBgcuG+jTN0Xo97eZQ==",
+                "size": 8837,
+            },
+            "my-table.table.json": {"digest": "uuw1nKn7THwjEBDbxXvmfQ==", "size": 1167},
+        }
 
 
+@mark.parametrize("artifact", ["MD5", "XXH128"], indirect=True)
 def test_add_partition_folder(artifact):
     table_name = "dataset"
     table_parts_dir = "dataset_parts"
@@ -997,13 +1210,23 @@ def test_add_partition_folder(artifact):
     partition_table = PartitionedTable(parts_path=table_parts_dir)
     artifact.add(partition_table, table_name)
     manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-    assert artifact.digest == "c6a4d80ed84fd68df380425ded894b19"
-    assert manifest_contents == {
-        "dataset.partitioned-table.json": {
-            "digest": "uo/SjoAO+O7pcSfg+yhlDg==",
-            "size": 61,
-        },
-    }
+    if artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
+        assert artifact.digest == "297c4e4629f16a087c500de7e66d6d9b"
+        assert manifest_contents == {
+            "dataset.partitioned-table.json": {
+                "digest": "c8UvCotcfBnCM6gvoOZV1Q==",
+                "size": 61,
+                "extra": {"alg": "XXH128"},
+            },
+        }
+    else:
+        assert artifact.digest == "c6a4d80ed84fd68df380425ded894b19"
+        assert manifest_contents == {
+            "dataset.partitioned-table.json": {
+                "digest": "uo/SjoAO+O7pcSfg+yhlDg==",
+                "size": 61,
+            },
+        }
 
 
 @mark.parametrize(
@@ -1395,7 +1618,9 @@ def test_cache_cleanup_allows_upload(user, artifact):
         artifact.wait()
 
     manifest_entry = artifact.manifest.entries["test-file"]
-    _, found, _ = cache.check_md5_obj_path(manifest_entry.digest, 2**20)
+    _, found, _ = cache.check_digest_obj_path(
+        manifest_entry.digest, 2**20, algorithm=artifact.digest_algorithm
+    )
 
     # Now the file should be in the cache.
     # Even though this works in production, the test often fails. I don't know why :(.
