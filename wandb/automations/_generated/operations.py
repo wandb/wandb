@@ -125,15 +125,18 @@ fragment TriggerFields on Trigger {
   description
   enabled
   scope {
+    __typename
     ...ProjectScopeFields
     ...ArtifactPortfolioScopeFields
     ...ArtifactSequenceScopeFields
     ...EntityScopeFields
   }
   event: triggeringCondition {
+    __typename
     ...FilterEventFields
   }
   action: triggeredAction {
+    __typename
     ...QueueJobActionFields
     ...NotificationActionFields
     ...GenericWebhookActionFields
@@ -262,15 +265,18 @@ fragment TriggerFields on Trigger {
   description
   enabled
   scope {
+    __typename
     ...ProjectScopeFields
     ...ArtifactPortfolioScopeFields
     ...ArtifactSequenceScopeFields
     ...EntityScopeFields
   }
   event: triggeringCondition {
+    __typename
     ...FilterEventFields
   }
   action: triggeredAction {
+    __typename
     ...QueueJobActionFields
     ...NotificationActionFields
     ...GenericWebhookActionFields
@@ -392,15 +398,18 @@ fragment TriggerFields on Trigger {
   description
   enabled
   scope {
+    __typename
     ...ProjectScopeFields
     ...ArtifactPortfolioScopeFields
     ...ArtifactSequenceScopeFields
     ...EntityScopeFields
   }
   event: triggeringCondition {
+    __typename
     ...FilterEventFields
   }
   action: triggeredAction {
+    __typename
     ...QueueJobActionFields
     ...NotificationActionFields
     ...GenericWebhookActionFields
@@ -522,15 +531,18 @@ fragment TriggerFields on Trigger {
   description
   enabled
   scope {
+    __typename
     ...ProjectScopeFields
     ...ArtifactPortfolioScopeFields
     ...ArtifactSequenceScopeFields
     ...EntityScopeFields
   }
   event: triggeringCondition {
+    __typename
     ...FilterEventFields
   }
   action: triggeredAction {
+    __typename
     ...QueueJobActionFields
     ...NotificationActionFields
     ...GenericWebhookActionFields
@@ -640,15 +652,18 @@ fragment TriggerFields on Trigger {
   description
   enabled
   scope {
+    __typename
     ...ProjectScopeFields
     ...ArtifactPortfolioScopeFields
     ...ArtifactSequenceScopeFields
     ...EntityScopeFields
   }
   event: triggeringCondition {
+    __typename
     ...FilterEventFields
   }
   action: triggeredAction {
+    __typename
     ...QueueJobActionFields
     ...NotificationActionFields
     ...GenericWebhookActionFields
@@ -758,15 +773,18 @@ fragment TriggerFields on Trigger {
   description
   enabled
   scope {
+    __typename
     ...ProjectScopeFields
     ...ArtifactPortfolioScopeFields
     ...ArtifactSequenceScopeFields
     ...EntityScopeFields
   }
   event: triggeringCondition {
+    __typename
     ...FilterEventFields
   }
   action: triggeredAction {
+    __typename
     ...QueueJobActionFields
     ...NotificationActionFields
     ...GenericWebhookActionFields
