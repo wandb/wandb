@@ -149,7 +149,7 @@ commands:
           name: Upload coverage to Datadog
           environment:
             DD_SITE: us5.datadoghq.com
-            DD_API_KEY_SECRET: projects/wandb-client-cicd/secrets/circleci-datadog-api-key
+            DD_API_KEY_SECRET: projects/wandb-production/secrets/circleci-datadog-api-key
           command: |
             reports=""
             for f in <<parameters.paths>>; do
