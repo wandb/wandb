@@ -158,6 +158,17 @@ func (ins *Inspector) Init() tea.Cmd {
 	)
 }
 
+// IsFiltering reports whether the filter input is capturing keystrokes.
+func (ins *Inspector) IsFiltering() bool {
+	return ins.filter.IsActive()
+}
+
+// CapturesEscape reports whether the next Esc is consumed internally
+// (to unfocus the detail pane) rather than exiting the inspector.
+func (ins *Inspector) CapturesEscape() bool {
+	return ins.detailFocused()
+}
+
 // detailFocused reports whether the detail pane holds keyboard focus.
 func (ins *Inspector) detailFocused() bool {
 	return ins.focusMgr.IsTarget(FocusTargetRecordDetail)

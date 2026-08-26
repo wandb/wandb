@@ -46,6 +46,11 @@ type Model struct {
 	// workspace mode and created on-demand when they press Enter on a run.
 	run *Run
 
+	// inspector is the raw record view for the run's .wandb file. It is
+	// created on-demand when the user presses "i" in single-run view and
+	// destroyed on Esc.
+	inspector *Inspector
+
 	// width and height cache the latest terminal dimensions for layout.
 	width, height int
 
@@ -165,10 +170,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// would miss them.
 	awaitingInput := m.isAwaitingUserInput()
 	runHadPaneFocus := m.mode == viewModeRun && m.run != nil && m.run.HasPaneFocus()
+	inspectorHadFocus := m.mode == viewModeInspect &&
+		m.inspector != nil && m.inspector.CapturesEscape()
 
 	cmds := m.updateSubComponents(msg)
 
-	if cmd := m.handleModeSwitch(msg, awaitingInput, runHadPaneFocus); cmd != nil {
+	if cmd := m.handleModeSwitch(
+		msg, awaitingInput, runHadPaneFocus, inspectorHadFocus); cmd != nil {
 		return m, cmd
 	}
 
@@ -194,17 +202,40 @@ func (m *Model) updateSubComponents(msg tea.Msg) []tea.Cmd {
 		if _, cmd := m.run.Update(msg); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
+	case viewModeInspect:
+		// Keep the underlying run and workspace streaming in the background
+		// so the run view is current when the user returns.
+		if !isUserInputMsg(msg) {
+			if m.run != nil && !m.run.IsRemote() {
+				if cmd := m.workspace.Update(msg); cmd != nil {
+					cmds = append(cmds, cmd)
+				}
+			}
+			if m.run != nil {
+				if _, cmd := m.run.Update(msg); cmd != nil {
+					cmds = append(cmds, cmd)
+				}
+			}
+		}
+		if m.inspector != nil {
+			if _, cmd := m.inspector.Update(msg); cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+		}
 	}
 	return cmds
 }
 
-// handleModeSwitch checks for Enter/Esc and transitions between views.
+// handleModeSwitch checks for Enter/Esc/i and transitions between views.
 //
-// awaitingInput and runHadPaneFocus must be snapshotted before sub-components
-// process the message: an Enter in filter mode exits the filter, and an Esc
-// with a focused pane clears that focus. Either would otherwise fall through
-// to a view switch on the same key press.
-func (m *Model) handleModeSwitch(msg tea.Msg, awaitingInput, runHadPaneFocus bool) tea.Cmd {
+// awaitingInput, runHadPaneFocus and inspectorHadFocus must be snapshotted
+// before sub-components process the message: an Enter in filter mode exits
+// the filter, and an Esc with a focused pane clears that focus. Either would
+// otherwise fall through to a view switch on the same key press.
+func (m *Model) handleModeSwitch(
+	msg tea.Msg,
+	awaitingInput, runHadPaneFocus, inspectorHadFocus bool,
+) tea.Cmd {
 	keyMsg, ok := msg.(tea.KeyPressMsg)
 	if !ok {
 		return nil
@@ -224,6 +255,14 @@ func (m *Model) handleModeSwitch(msg tea.Msg, awaitingInput, runHadPaneFocus boo
 			!awaitingInput && !runCapturesEsc {
 			return m.exitRunView()
 		}
+		if keyMsg.Code == 'i' && !awaitingInput {
+			return m.enterInspectView()
+		}
+	case viewModeInspect:
+		if keyMsg.Code == tea.KeyEsc &&
+			!awaitingInput && !inspectorHadFocus {
+			return m.exitInspectView()
+		}
 	}
 	return nil
 }
@@ -242,6 +281,8 @@ func (m *Model) View() tea.View {
 			vs = m.workspace.View().Content
 		case viewModeRun:
 			vs = m.run.View().Content
+		case viewModeInspect:
+			vs = m.inspector.View().Content
 		}
 	}
 
@@ -265,6 +306,9 @@ func (m *Model) ShouldRestart() bool {
 // Safe to call multiple times. Called after the program exits, e.g. before
 // a full restart.
 func (m *Model) Cleanup() {
+	if m.inspector != nil {
+		m.inspector.Cleanup()
+	}
 	if m.run != nil {
 		m.run.Cleanup()
 	}
@@ -295,6 +339,8 @@ func (m *Model) isAwaitingUserInput() bool {
 		return m.workspace.IsFiltering()
 	case viewModeRun:
 		return m.run.IsFiltering()
+	case viewModeInspect:
+		return m.inspector != nil && m.inspector.IsFiltering()
 	default:
 		return false
 	}
@@ -404,6 +450,39 @@ func (m *Model) enterRunView() tea.Cmd {
 			return tea.WindowSizeMsg{Width: m.width, Height: m.height}
 		},
 	)
+}
+
+// enterInspectView opens the record inspector for the current run's
+// .wandb file. Remote runs have no local file and are not inspectable.
+func (m *Model) enterInspectView() tea.Cmd {
+	if m.run == nil || m.run.RunFile() == "" {
+		return nil
+	}
+
+	m.inspector = NewInspector(InspectorParams{
+		RunFile: m.run.RunFile(),
+		Config:  m.config,
+		Logger:  m.logger,
+	})
+	m.mode = viewModeInspect
+
+	return tea.Batch(
+		m.inspector.Init(),
+		func() tea.Msg {
+			return tea.WindowSizeMsg{Width: m.width, Height: m.height}
+		},
+	)
+}
+
+// exitInspectView returns to the single-run view.
+func (m *Model) exitInspectView() tea.Cmd {
+	if m.inspector != nil {
+		m.inspector.Cleanup()
+		m.inspector = nil
+	}
+
+	m.mode = viewModeRun
+	return nil
 }
 
 // exitRunView returns to the workspace view.
