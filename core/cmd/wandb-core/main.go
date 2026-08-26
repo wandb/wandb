@@ -25,14 +25,17 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/getsentry/sentry-go"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pprof"
 	"github.com/wandb/wandb/core/internal/processlib"
+	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/server"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // commit hash is set by the build script.
@@ -240,7 +243,18 @@ func leetMain(args []string) int {
 	flushSentry := configureLeetSentry(opts.disableAnalytics, leetSentryMessage(&opts))
 	defer flushSentry()
 
-	logger, closeLogger, err := newLeetLogger(opts.logLevel)
+	telemetryProxy := configureLeetTelemetry(
+		opts.disableAnalytics,
+		opts.telemetryEndpoint,
+		os.Getenv("WANDB_API_KEY"),
+	)
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		_ = telemetryProxy.Shutdown(shutdownCtx)
+	}()
+
+	logger, closeLogger, err := newLeetLogger(opts.logLevel, telemetryProxy)
 	if err != nil {
 		fmt.Println("fatal:", err)
 		return exitCodeErrorInternal
@@ -267,6 +281,9 @@ type leetOptions struct {
 
 	// remoteRun is the parsed remoteURL. Set during validation.
 	remoteRun *leet.RemoteRunParams
+
+	// telemetryEndpoint is the endpoint to send telemetry data to.
+	telemetryEndpoint string
 }
 
 func parseLeetOptions(args []string) (leetOptions, error) {
@@ -328,6 +345,14 @@ func bindLeetFlags(fs *flag.FlagSet, opts *leetOptions) {
 		"",
 		"URL of a W&B run to open"+
 			" (e.g. https://api.wandb.ai/<entity>/<project>/runs/<run-id>).",
+	)
+
+	// Telemetry flags
+	fs.StringVar(
+		&opts.telemetryEndpoint,
+		"telemetry-endpoint",
+		"",
+		"Endpoint to send telemetry data to.",
 	)
 }
 
@@ -426,6 +451,31 @@ func configureLeetSentry(disableAnalytics bool, message string) func() {
 	return func() { sentry.Flush(2 * time.Second) }
 }
 
+// configureLeetTelemetry builds the OpenTelemetryProxy used to record LEET
+// usage telemetry. It returns nil (a no-op proxy) if disableAnalytics is
+// set, the endpoint or apiKey is empty, or the backend is offline.
+func configureLeetTelemetry(
+	disableAnalytics bool,
+	endpoint string,
+	apiKey string,
+) *analytics.OpenTelemetryProxy {
+	if disableAnalytics {
+		analytics.Disable()
+	}
+
+	analytics.ConfigureOTelErrorHandler()
+	s := settings.From(&spb.Settings{
+		BaseUrl: wrapperspb.String(endpoint),
+		ApiKey:  wrapperspb.String(apiKey),
+	})
+
+	return analytics.NewOpenTelemetryProxy(
+		context.Background(),
+		s,
+		"wandb-leet",
+	)
+}
+
 func leetSentryMessage(opts *leetOptions) string {
 	switch {
 	case opts.editConfig:
@@ -437,7 +487,10 @@ func leetSentryMessage(opts *leetOptions) string {
 	}
 }
 
-func newLeetLogger(logLevel int) (*observability.CoreLogger, func(), error) {
+func newLeetLogger(
+	logLevel int,
+	telemetryProxy *analytics.OpenTelemetryProxy,
+) (*observability.CoreLogger, func(), error) {
 	logWriter := io.Discard
 	closeLogWriter := func() {}
 
@@ -461,18 +514,33 @@ func newLeetLogger(logLevel int) (*observability.CoreLogger, func(), error) {
 			&slog.HandlerOptions{Level: slog.Level(logLevel)},
 		)),
 		observability.NewSentryContext(sentry.CurrentHub()),
-		analytics.NewTelemetryRecorder(nil, analytics.NewTelemetryContext()),
+		analytics.NewTelemetryRecorder(telemetryProxy, analytics.NewTelemetryContext()),
 	)
 	return logger, closeLogWriter, nil
 }
 
 func runLeetCommand(opts *leetOptions, logger *observability.CoreLogger) int {
 	if opts.editConfig {
+		logger.RecordTelemetry(
+			"wandb-leet-started",
+			map[string]string{"mode": "edit-config"},
+		)
+
 		return runLeetConfigEditor(logger)
 	}
 	if opts.symonMode {
+		logger.RecordTelemetry(
+			"wandb-leet-started",
+			map[string]string{"mode": "symon"},
+		)
+
 		return runSymon(opts, logger)
 	}
+
+	logger.RecordTelemetry(
+		"wandb-leet-started",
+		map[string]string{"mode": "workspace"},
+	)
 	return runLeetWorkspace(opts, logger)
 }
 
