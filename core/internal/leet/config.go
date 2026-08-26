@@ -634,10 +634,7 @@ func (cm *ConfigManager) InspectorLayout() LayoutOverrides {
 // SetInspectorLayout sets and persists the record inspector's layout overrides.
 func (cm *ConfigManager) SetInspectorLayout(o LayoutOverrides) error {
 	normalizeLayoutOverrides(&o)
-	cm.mu.Lock()
-	defer cm.mu.Unlock()
-	cm.config.InspectorLayout = o
-	return cm.save()
+	return cm.set(func(c *Config) { c.InspectorLayout = o })
 }
 
 // Path returns the on-disk config path.
