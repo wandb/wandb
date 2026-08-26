@@ -65,10 +65,6 @@ When preparing a release that can include breaking changes, consider applying ch
     - Owner: @jacobromero
     - Can do in >=0.20
 
-- Require `format` argument when initializing `wandb.Video`
-    - Owner: @jacobromero
-    - Can do in >=0.20
-
 - Remove the `start_method` setting:
     - Owner: @kptkin
     - Deprecated in 0.20.0 (https://github.com/wandb/wandb/pull/9837)
