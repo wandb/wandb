@@ -21,6 +21,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 `wandb.Video()` now requires the `format` argument when initializing from a numpy array or raw bytes.
 - Removed the deprecated `summary="best"` option and `goal` argument of `run.define_metric()`. Use `summary="min"` or `summary="max"` instead.
 - Removed the deprecated `quiet` argument of `run.finish()` and `wandb.finish()`. Use `wandb.Settings(quiet=...)` instead.
+- Removed the deprecated `run.project_name()`, `run.get_url()`, `run.get_project_url()`, and `run.get_sweep_url()` methods. Use the `run.project`, `run.url`, `run.project_url`, and `run.sweep_url` properties instead.
 
 ### Added
 
@@ -49,6 +50,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Removed the deprecated `.length` property from `wandb.apis.paginator.SizedPaginator`. Use `len(...)` instead (@jacobromero in https://github.com/wandb/wandb/pull/12575)
 - The deprecated `summary="best"` option and `goal` argument of `run.define_metric()`; use `summary="min"` or `summary="max"` instead (@dmitryduev in https://github.com/wandb/wandb/pull/12583)
 - The deprecated `quiet` argument of `run.finish()` and `wandb.finish()`; use `wandb.Settings(quiet=...)` instead (@dmitryduev in https://github.com/wandb/wandb/pull/12584)
+- The deprecated `run.project_name()`, `run.get_url()`, `run.get_project_url()`, and `run.get_sweep_url()` methods; use the `run.project`, `run.url`, `run.project_url`, and `run.sweep_url` properties instead (@dmitryduev in https://github.com/wandb/wandb/pull/12585)
 
 ### Fixed
 
