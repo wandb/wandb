@@ -33,6 +33,7 @@ func NewStacktrace() *Stacktrace {
 	}
 
 	runtimeFrames := extractFrames(pcs[:n])
+	runtimeFrames = trimPanicFrames(runtimeFrames)
 	frames := createFrames(runtimeFrames)
 
 	stacktrace := Stacktrace{
@@ -279,6 +280,21 @@ func extractFrames(pcs []uintptr) []runtime.Frame {
 	}
 
 	slices.Reverse(frames)
+	return frames
+}
+
+// trimPanicFrames removes frames added while handling an active panic.
+//
+// The runtime.gopanic frame indicates the part of the code that caused the panic.
+// This is helpful for skipping any wrapper code that was used to handle and recover
+// from the panic, so that we only keep the relevant frames.
+func trimPanicFrames(frames []runtime.Frame) []runtime.Frame {
+	for i := len(frames) - 1; i >= 0; i-- {
+		if frames[i].Function == "runtime.gopanic" {
+			return frames[:i]
+		}
+	}
+
 	return frames
 }
 

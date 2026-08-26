@@ -47,7 +47,7 @@ const (
 	UnitPercent = "percent"
 )
 
-// NewMeter returns a new Meter. If there is no Client bound to the current hub, or if metrics are disabled,
+// NewMeter returns a new Meter. If there is no Client bound to the current hub,
 // it returns a no-op Meter that discards all metrics.
 func NewMeter(ctx context.Context) Meter {
 	hub := GetHubFromContext(ctx)
@@ -55,7 +55,7 @@ func NewMeter(ctx context.Context) Meter {
 		hub = CurrentHub()
 	}
 	client := hub.Client()
-	if client != nil && !client.options.DisableMetrics {
+	if client != nil {
 		// build default attrs
 		serverAddr := client.options.ServerName
 		if serverAddr == "" {
@@ -86,7 +86,7 @@ func NewMeter(ctx context.Context) Meter {
 		}
 	}
 
-	debuglog.Printf("fallback to noopMeter: metrics disabled")
+	debuglog.Printf("fallback to noopMeter: SDK not initialized")
 	return &noopMeter{}
 }
 
@@ -222,20 +222,20 @@ func (n *noopMeter) WithCtx(_ context.Context) Meter {
 
 // Count implements Meter.
 func (n *noopMeter) Count(name string, _ int64, _ ...MeterOption) {
-	debuglog.Printf("Metric %q is being dropped. Turn on metrics by setting DisableMetrics to false", name)
+	debuglog.Printf("Metric %q is being dropped. Ensure the SDK is initialized", name)
 }
 
 // Distribution implements Meter.
 func (n *noopMeter) Distribution(name string, _ float64, _ ...MeterOption) {
-	debuglog.Printf("Metric %q is being dropped. Turn on metrics by setting DisableMetrics to false", name)
+	debuglog.Printf("Metric %q is being dropped. Ensure the SDK is initialized", name)
 }
 
 // Gauge implements Meter.
 func (n *noopMeter) Gauge(name string, _ float64, _ ...MeterOption) {
-	debuglog.Printf("Metric %q is being dropped. Turn on metrics by setting DisableMetrics to false", name)
+	debuglog.Printf("Metric %q is being dropped. Ensure the SDK is initialized", name)
 }
 
 // SetAttributes implements Meter.
 func (n *noopMeter) SetAttributes(_ ...attribute.Builder) {
-	debuglog.Printf("No attributes attached. Turn on metrics by setting DisableMetrics to false")
+	debuglog.Printf("No attributes attached")
 }
