@@ -266,7 +266,7 @@ func (s *closeTrackingHistorySource) Close() { s.closed = true }
 func TestWorkspace_Cleanup_ReleasesRunResources(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(t.TempDir(), logger), cfg, logger)
 
 	src := &closeTrackingHistorySource{}
 	run := &leet.WorkspaceRun{Key: "run-1", Reader: src}
@@ -298,7 +298,7 @@ func TestWorkspace_Cleanup_ReleasesRunResources(t *testing.T) {
 func TestWorkspaceBoot_WatchesUnknownStateRun(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	workspace := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	workspace := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(t.TempDir(), logger), cfg, logger)
 	defer workspace.Cleanup()
 
 	wandbFile := filepath.Join(t.TempDir(), "run-abc.wandb")

@@ -15,6 +15,8 @@ import (
 
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/httplayers"
+
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runhistoryreader"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/ffi"
@@ -81,13 +83,12 @@ func NewRemoteWorkspaceBackend(
 		s,
 	)
 	httpClient := api.NewClient(api.ClientOptions{
-		BaseURL:            apiBaseURL,
-		RetryMax:           3,
-		RetryWaitMin:       1 * time.Second,
-		RetryWaitMax:       10 * time.Second,
-		NonRetryTimeout:    10 * time.Second,
-		CredentialProvider: credentialProvider,
-		Logger:             logger.Logger,
+		RetryMax:        3,
+		RetryWaitMin:    1 * time.Second,
+		RetryWaitMax:    10 * time.Second,
+		NonRetryTimeout: 10 * time.Second,
+		Logger:          logger.Logger,
+		PreRetryLayers:  httplayers.LimitTo(apiBaseURL, credentialProvider),
 	})
 
 	return &RemoteWorkspaceBackend{

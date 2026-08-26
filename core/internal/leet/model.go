@@ -98,6 +98,10 @@ func NewModel(params ModelParams) *Model {
 		params.Config = NewConfigManager(leetConfigPath(), params.Logger)
 	}
 
+	if params.Backend == nil {
+		params.Backend = NewLocalWorkspaceBackend("", params.Logger)
+	}
+
 	if params.RunParams == nil && params.Config.StartupMode() == StartupModeSingleRunLatest {
 		latest, err := wandbFileFromLatestRunLink(params.Backend.DisplayLabel())
 		if err != nil {

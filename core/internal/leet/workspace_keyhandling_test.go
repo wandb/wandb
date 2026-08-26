@@ -256,11 +256,11 @@ func TestWorkspace_TabSkipsEmptyLogsPane(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
-	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(t.TempDir(), logger), cfg, logger)
 	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
 
 	runKey := "run-20260209_010101-abcdefg"
-	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{runKey}})
+	_ = w.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: []string{runKey}})
 	w.TestForceExpandRunsSidebar()
 	w.TestForceExpandConsoleLogsPane(10)
 
@@ -278,7 +278,7 @@ func TestWorkspace_DragResizesRunsSidebarAndPersists(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
-	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(t.TempDir(), logger), cfg, logger)
 	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
 	w.TestForceExpandRunsSidebar()
 	w.TestForceExpandOverviewSidebar()
@@ -310,7 +310,7 @@ func TestWorkspace_DragSeparatorResizesBothFixedNeighbors(t *testing.T) {
 	_ = cfg.SetWorkspaceMediaVisible(true)
 	_ = cfg.SetWorkspaceConsoleLogsVisible(true)
 
-	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(t.TempDir(), logger), cfg, logger)
 	// Tall terminal so all panes sit above their minimum heights.
 	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 100})
 
@@ -345,7 +345,7 @@ func TestWorkspace_ClickWithoutMotionDoesNotPersist(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
-	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(t.TempDir(), logger), cfg, logger)
 	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
 	w.TestForceExpandRunsSidebar()
 
@@ -366,7 +366,7 @@ func TestWorkspace_MaxedSidebarStaysDraggable(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
-	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(t.TempDir(), logger), cfg, logger)
 	_ = w.Update(tea.WindowSizeMsg{Width: width, Height: 60})
 	w.TestForceExpandRunsSidebar()
 	w.TestForceExpandOverviewSidebar()
@@ -1056,7 +1056,7 @@ func TestWorkspace_ToggleWithEmptyRunsListKeepsFocus(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
-	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(t.TempDir(), logger), cfg, logger)
 	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
 	require.Equal(t, int(leet.FocusTargetRunsList), w.TestCurrentFocusRegion(),
 		"runs list starts focused")
@@ -1077,15 +1077,15 @@ func TestWorkspace_DroppedRunClearsFocusFromEmptiedPane(t *testing.T) {
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	_ = cfg.SetWorkspaceConsoleLogsVisible(true)
 
-	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(t.TempDir(), logger), cfg, logger)
 	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
-	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: []string{"run-a"}})
+	_ = w.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: []string{"run-a"}})
 	w.TestSeedConsoleLogs("run-a", "hello")
 	w.TestSetFocusTarget(int(leet.FocusTargetConsoleLogs))
 	require.Equal(t, int(leet.FocusTargetConsoleLogs), w.TestCurrentFocusRegion())
 
 	// The run's directory disappears; the pane it fed is now empty.
-	_ = w.Update(leet.WorkspaceRunDirsMsg{RunKeys: nil})
+	_ = w.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: nil})
 	require.Equal(t, int(leet.FocusTargetNone), w.TestCurrentFocusRegion(),
 		"focus must not stay on a pane emptied by a dropped run")
 }
