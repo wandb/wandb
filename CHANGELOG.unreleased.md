@@ -14,6 +14,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
+### Notable Changes
+
+Removed the deprecated `start_method` setting that already had no effect.
+
 ### Added
 
 - Added `run.console_logs()` to the public API for reading the console output that W&B captured for a run — the whole log, or only the last N lines with `run.console_logs(last=N)`, for finished and still-running runs alike. Reading from the beginning requires W&B Server 0.77 or newer (@dmitryduev in https://github.com/wandb/wandb/pull/12442)
@@ -36,6 +40,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Removed
 
 - Removed `wandb.tensorboard.log()` / `wandb.tensorflow.log()` (@timoffex in https://github.com/wandb/wandb/pull/12423)
+- The deprecated `start_method` setting that already had no effect (@dmitryduev in https://github.com/wandb/wandb/pull/12581)
 
 ### Fixed
 
