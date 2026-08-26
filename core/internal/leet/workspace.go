@@ -40,7 +40,7 @@ type Workspace struct {
 	runsAnimState *AnimatedValue
 
 	// runs is the run selector.
-	runs         PagedList
+	runs         PagedList[KeyValuePair]
 	selectedRuns map[string]bool // runDirName -> selected
 	pinnedRun    string          // runDirName or ""
 
@@ -128,7 +128,7 @@ func NewWorkspace(
 	}
 
 	// TODO: refactor to allow non-KeyValue items + make filtered ones pointers
-	runs := PagedList{
+	runs := PagedList[KeyValuePair]{
 		Title:  "Runs",
 		Active: true,
 	}
@@ -1260,14 +1260,22 @@ func (w *Workspace) buildOverviewFilterStatus() string {
 func (w *Workspace) buildActiveStatus() string {
 	var parts []string
 
+	// The wandb dir answers "which runs am I browsing?", so it belongs to
+	// the run list; other panes put their own context in the status bar.
+	if w.focusMgr.IsTarget(FocusTargetRunsList) {
+		parts = append(parts, "wandb dir: "+w.wandbDir)
+	}
+
 	parts = append(parts, w.activeFilterStatus()...)
 	parts = append(parts, w.activeSelectionStatus()...)
 	parts = append(parts, w.activeFocusStatus()...)
 
+	// Never leave the status bar blank (e.g. Esc cleared focus and no
+	// filters are active).
 	if len(parts) == 0 {
-		return w.wandbDir
+		return "wandb dir: " + w.wandbDir
 	}
-	return w.wandbDir + " • " + strings.Join(parts, " • ")
+	return strings.Join(parts, " • ")
 }
 
 // activeFilterStatus collects status fragments for all active filters.

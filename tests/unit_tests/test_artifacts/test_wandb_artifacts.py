@@ -17,6 +17,7 @@ from hypothesis import given
 from hypothesis.strategies import from_regex, text
 from pytest import CaptureFixture, MonkeyPatch, fail, fixture, mark, raises
 from wandb.filesync.step_prepare import ResponsePrepare, StepPrepare
+from wandb.sdk.artifacts._generated.enums import ArtifactDigestAlgorithm
 from wandb.sdk.artifacts._validators import NAME_MAXLEN
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
@@ -30,6 +31,7 @@ from wandb.sdk.artifacts.storage_policies._multipart import (
     should_multipart_download,
 )
 from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import WandbStoragePolicy
+from wandb.sdk.lib.hashutil import _md5, _xxh128, md5_string, xxh128_string
 
 if TYPE_CHECKING:
     from typing import Protocol
@@ -51,7 +53,7 @@ if TYPE_CHECKING:
 
 
 def is_cache_hit(cache: ArtifactFileCache, digest: str, size: int) -> bool:
-    _, hit, _ = cache.check_md5_obj_path(digest, size)
+    _, hit, _ = cache.check_digest_obj_path(digest, size)
     return hit
 
 
@@ -739,3 +741,173 @@ def test_artifact_multipart_download_writer_not_on_shared_executor():
         future.result(timeout=5)
     except TimeoutError:
         fail("multipart_download deadlocked: writer likely sharing the chunk executor")
+
+
+def test_offline_artifact_uses_xxh128():
+    f = Path("file.txt")
+    f.write_text("hello")
+    artifact = Artifact("test", type="dataset", digest_algorithm="XXH128")
+
+    artifact.add_file(str(f))
+    entry = artifact.manifest.entries["file.txt"]
+    assert artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128
+    assert entry.digest == xxh128_string("hello")
+
+
+def test_digest_algorithm_with_reference_entries():
+    artifact = Artifact("test-artifact", "test-type", digest_algorithm="XXH128")
+
+    f = Path("file.txt")
+    f.write_text("hello")
+    artifact.add_file(str(f))
+
+    f2 = Path("file2.txt")
+    f2.write_text("also a test")
+    artifact.add_reference(f2.resolve().as_uri(), "file2.txt")
+
+    assert artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128
+
+    # regular file is hashed with XXH128
+    entry = artifact.manifest.entries["file.txt"]
+    assert entry.digest == xxh128_string("hello")
+
+    # local file reference is hashed with MD5
+    ref_entry = artifact.manifest.entries["file2.txt"]
+    assert ref_entry.digest == md5_string("also a test")
+
+
+def test_manifest_digest_uses_xxh128_for_xxh128_artifact():
+    f = Path("file.txt")
+    f.write_text("hello")
+    artifact = Artifact("test", type="dataset", digest_algorithm="XXH128")
+    artifact.add_file(str(f))
+
+    file_digest = xxh128_string("hello")
+    xxh128_hasher = _xxh128(b"wandb-artifact-manifest-v1\n")
+    xxh128_hasher.update(f"file.txt:{file_digest}\n".encode())
+    assert artifact.digest == xxh128_hasher.hexdigest()
+
+
+def test_manifest_digest_uses_md5_for_md5_artifact():
+    f = Path("file.txt")
+    f.write_text("hello")
+    artifact = Artifact("test", type="dataset", digest_algorithm="MD5")
+    artifact.add_file(str(f))
+
+    file_digest = md5_string("hello")
+    md5_hasher = _md5(b"wandb-artifact-manifest-v1\n")
+    md5_hasher.update(f"file.txt:{file_digest}\n".encode())
+    assert artifact.digest == md5_hasher.hexdigest()
+
+
+def test_entry_digest_algorithm_defaults_to_md5_when_untagged():
+    entry = ArtifactManifestEntry(path="file.txt", digest="abc123", size=1)
+    assert entry.extra == {}
+    assert entry.digest_algorithm() is ArtifactDigestAlgorithm.MANIFEST_MD5
+
+
+@mark.parametrize(
+    ("tag", "expected"),
+    [
+        ("MD5", ArtifactDigestAlgorithm.MANIFEST_MD5),
+        ("XXH128", ArtifactDigestAlgorithm.MANIFEST_XXH128),
+        # Unknown/garbage tags fall back to the MD5 default.
+        ("bogus", ArtifactDigestAlgorithm.MANIFEST_MD5),
+    ],
+)
+def test_entry_digest_algorithm_reads_extra_tag(tag, expected):
+    entry = ArtifactManifestEntry(
+        path="file.txt", digest="abc123", size=1, extra={"alg": tag}
+    )
+    assert entry.digest_algorithm() is expected
+
+
+def test_add_file_tags_xxh128_entries():
+    f = Path("file.txt")
+    f.write_text("hello")
+    artifact = Artifact("test", type="dataset", digest_algorithm="XXH128")
+
+    entry = artifact.add_file(str(f))
+
+    assert entry.extra == {"alg": "XXH128"}
+    assert entry.digest_algorithm() is ArtifactDigestAlgorithm.MANIFEST_XXH128
+
+
+def test_add_file_leaves_md5_entries_untagged():
+    f = Path("file.txt")
+    f.write_text("hello")
+    artifact = Artifact("test", type="dataset")
+
+    entry = artifact.add_file(str(f))
+
+    # Untagged entries are interpreted as MD5, so we avoid the per-entry bloat.
+    assert entry.extra == {}
+    assert entry.digest_algorithm() is ArtifactDigestAlgorithm.MANIFEST_MD5
+
+
+def test_mixed_manifest_round_trip_preserves_per_entry_algorithm():
+    from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
+
+    f = Path("xxh.txt")
+    f.write_text("hello")
+    artifact = Artifact("test", type="dataset", digest_algorithm="XXH128")
+    artifact.add_file(str(f))
+
+    # Simulate an entry carried over untagged from an older (md5) SDK, as
+    # happens with `new_draft` across SDK versions.
+    artifact.manifest.add_entry(
+        ArtifactManifestEntry(path="md5.txt", digest="XUFAKrxLKna5cZ2REBfFkg==", size=5)
+    )
+
+    manifest_json = artifact.manifest.to_manifest_json()
+    # Only the xxh128 entry is tagged; the untagged md5 entry carries no `extra`.
+    assert manifest_json["contents"]["xxh.txt"]["extra"] == {"alg": "XXH128"}
+    assert "extra" not in manifest_json["contents"]["md5.txt"]
+
+    restored = ArtifactManifest.from_manifest_json(
+        manifest_json, artifact.digest_algorithm
+    )
+    assert (
+        restored.entries["xxh.txt"].digest_algorithm()
+        is ArtifactDigestAlgorithm.MANIFEST_XXH128
+    )
+    assert (
+        restored.entries["md5.txt"].digest_algorithm()
+        is ArtifactDigestAlgorithm.MANIFEST_MD5
+    )
+
+
+def test_hash_contents_with_md5_correctly_rehashes_xxh128_entries():
+    f = Path("file.txt")
+    f.write_text("hello")
+
+    f2 = Path("file2.txt")
+    f2.write_text("hi")
+
+    artifact = Artifact("test", type="dataset", digest_algorithm="XXH128")
+    artifact.add_file(str(f))
+    artifact.add_file(str(f2))
+    assert (
+        artifact.manifest.entries["file.txt"].digest_algorithm()
+        is ArtifactDigestAlgorithm.MANIFEST_XXH128
+    )
+    assert artifact.manifest.entries["file.txt"].digest == xxh128_string("hello")
+    assert (
+        artifact.manifest.entries["file2.txt"].digest_algorithm()
+        is ArtifactDigestAlgorithm.MANIFEST_XXH128
+    )
+    assert artifact.manifest.entries["file2.txt"].digest == xxh128_string("hi")
+
+    artifact.manifest.hash_contents_with_md5()
+    assert artifact.manifest.entries["file.txt"].digest == md5_string("hello")
+    assert artifact.manifest.entries["file.txt"].extra == {}
+    assert (
+        artifact.manifest.entries["file.txt"].digest_algorithm()
+        is ArtifactDigestAlgorithm.MANIFEST_MD5
+    )
+    assert artifact.manifest.entries["file2.txt"].digest == md5_string("hi")
+    assert artifact.manifest.entries["file2.txt"].extra == {}
+    assert (
+        artifact.manifest.entries["file2.txt"].digest_algorithm()
+        is ArtifactDigestAlgorithm.MANIFEST_MD5
+    )

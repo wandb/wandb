@@ -78,9 +78,6 @@ class NoopRun(wandb_run.Run):
     for __symbol in (
         "alert",
         "finish_artifact",
-        "get_project_url",
-        "get_sweep_url",
-        "get_url",
         "link_artifact",
         "link_model",
         "use_artifact",

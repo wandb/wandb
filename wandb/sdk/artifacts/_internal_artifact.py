@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from base64 import urlsafe_b64encode
-from typing import Any, Final
+from typing import Any, Final, Literal
 from zlib import crc32
 
 from wandb.sdk.artifacts.artifact import Artifact
@@ -46,9 +46,21 @@ class InternalArtifact(Artifact):
         metadata: dict[str, Any] | None = None,
         incremental: bool = False,
         use_as: str | None = None,
+        digest_algorithm: Literal["MD5", "XXH128"] = "MD5",
     ) -> None:
         sanitized_name = sanitize_artifact_name(name)
+
+        if type == "job":
+            # Match go-core JobBuilder / ArtifactBuilder, which always uses MD5.
+            digest_algorithm = "MD5"
+
         super().__init__(
-            sanitized_name, PLACEHOLDER, description, metadata, incremental, use_as
+            sanitized_name,
+            PLACEHOLDER,
+            description,
+            metadata,
+            incremental,
+            use_as,
+            digest_algorithm=digest_algorithm,
         )
         self._type = type

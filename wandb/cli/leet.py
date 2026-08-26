@@ -66,6 +66,7 @@ def leet() -> None:
         wandb leet ./wandb            Browse runs in a wandb directory
         wandb leet <run-url>          View a remote W&B run
         wandb leet symon              View live local system metrics
+        wandb leet inspect [PATH]     Browse the raw records in a .wandb log
     """  # noqa: D301 -- the \b escape is click's marker to not rewrap Examples.
 
 
@@ -107,6 +108,24 @@ def run(path: str | None = None, pprof: str = "") -> None:
 def symon(pprof: str = "", interval: str = "") -> None:
     """Launch the standalone system monitor."""
     launch_symon(pprof=pprof, interval=interval)
+
+
+@leet.command()
+@click.argument("path", nargs=1, type=click.STRING, required=False)
+@click.help_option("-h", "--help")
+def inspect(path: str | None = None) -> None:
+    """Browse the raw records in a run's .wandb transaction log.
+
+    Opens a browsable list of the records stored in the log next to a
+    text view of the selected record. When stdout is not a terminal,
+    prints the records as text instead, e.g.:
+
+        wandb leet inspect run.wandb | less
+
+    PATH can be a .wandb file, a run directory containing one, or a
+    wandb directory. If PATH is not provided, the latest run is used.
+    """
+    launch_inspect(path)
 
 
 @leet.command()
@@ -244,6 +263,21 @@ def launch(path: str | None, pprof: str) -> Never:
         env["WANDB_API_KEY"] = config.api_key
 
     _run_core(args, env)
+
+
+def launch_inspect(path: str | None) -> Never:
+    """Launch the transaction log record inspector."""
+    get_sentry().configure_scope(process_context="leet-inspect")
+
+    config = _resolve_path(path)
+    if not isinstance(config, LocalLaunchConfig):
+        _fatal("`wandb leet inspect` requires a local .wandb file.")
+
+    args = _base_args()
+    args.append("--inspect")
+    args.extend(_get_local_launch_args(config))
+
+    _run_core(args)
 
 
 def launch_config() -> Never:

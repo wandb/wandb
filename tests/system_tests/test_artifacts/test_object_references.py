@@ -216,7 +216,8 @@ def make_video() -> Callable[[], wandb.Video]:
     def _make_video() -> wandb.Video:
         # time, channel, height, width
         return wandb.Video(
-            np.random.randint(0, high=255, size=(4, 3, 10, 10), dtype=np.uint8)
+            np.random.randint(0, high=255, size=(4, 3, 10, 10), dtype=np.uint8),
+            format="gif",
         )
 
     return _make_video
