@@ -6,7 +6,7 @@ from urllib.parse import urlsplit, urlunsplit
 from wandb import util
 from wandb.errors import links, term
 
-from . import saas, validation, wbnetrc
+from . import validation, wbnetrc
 from .host_url import HostUrl
 
 _logger = logging.getLogger(__name__)
@@ -144,7 +144,7 @@ def _use_existing_account(host: HostUrl, referrer: str) -> str:
     Returns:
         The API key entered by the user.
     """
-    if saas.is_wandb_domain(host.url):
+    if host.is_wandb_domain:
         help_url = links.url_registry.url("wandb-server")
         term.termlog(
             f"Logging into {host}. "

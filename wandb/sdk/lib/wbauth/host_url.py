@@ -7,6 +7,8 @@ from typing_extensions import final, override
 from wandb import env, util
 from wandb.sdk.lib import urls
 
+from . import saas
+
 
 @final
 class HostUrl:
@@ -63,6 +65,10 @@ class HostUrl:
     @property
     def app_url(self) -> str:
         return self._app_url
+
+    @property
+    def is_wandb_domain(self) -> bool:
+        return saas.is_wandb_domain(self._url)
 
     @override
     def __str__(self) -> str:

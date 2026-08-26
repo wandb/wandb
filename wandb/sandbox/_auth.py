@@ -12,7 +12,6 @@ import wandb
 from wandb.errors import UsageError
 from wandb.sdk import wandb_setup
 from wandb.sdk.lib import wbauth
-from wandb.sdk.lib.wbauth.saas import is_wandb_domain
 
 _AUTH_MODE_NAME = "wandb"
 _OVERRIDE_UNSET = object()
@@ -77,8 +76,8 @@ def _resolve_wandb_sdk_auth() -> AuthHeaders:
 
     # For dedicated W&B deployments, forward the instance hostname so
     # the sandbox gateway authenticates the user against the correct deployment.
-    if not is_wandb_domain(settings.base_url):
-        dedicated_host = urlsplit(settings.base_url).hostname
+    if not host.is_wandb_domain:
+        dedicated_host = urlsplit(host.url).hostname
         if dedicated_host:
             metadata.append(("x-wandb-host", dedicated_host))
 
