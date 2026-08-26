@@ -1949,7 +1949,7 @@ class Run:
                 size=(10, 3, 100, 100),
                 dtype=np.uint8,
             )
-            run.log({"video": wandb.Video(frames, fps=4)})
+            run.log({"video": wandb.Video(frames, format="mp4", fps=4)})
         ```
 
         Matplotlib plot

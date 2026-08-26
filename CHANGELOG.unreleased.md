@@ -16,7 +16,9 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Notable Changes
 
-Removed the deprecated `start_method` setting that already had no effect.
+- Removed the deprecated `start_method` setting that already had no effect.
+- The `.length` property on paginated objects (e.g. `Api.runs()`, `Api.sweeps()`, `run.files()`) has been removed. Use `len(...)` instead.
+`wandb.Video()` now requires the `format` argument when initializing from a numpy array or raw bytes.
 
 ### Added
 
@@ -36,11 +38,13 @@ Removed the deprecated `start_method` setting that already had no effect.
 - The message format used to communicate between internal processes has slightly changed. If you use `wandb beta core`, restart the service after upgrading `wandb`, as some operations may fail if the SDK and service versions differ. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12374)
 - `wandb.sandbox` now allows GPU resource requests for sandboxes instead of rejecting `resources.gpu` client-side (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/12455)
 - Registry search methods (`Api.registries()`, `.collections()`, `.versions()`) now validate filter field names, rejecting unsupported field names. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12182)
+- `wandb.Video()` now requires the `format` argument when initializing from a numpy array or an io object. (@jacobromero in https://github.com/wandb/wandb/pull/12579)
 
 ### Removed
 
 - Removed `wandb.tensorboard.log()` / `wandb.tensorflow.log()` (@timoffex in https://github.com/wandb/wandb/pull/12423)
 - The deprecated `start_method` setting that already had no effect (@dmitryduev in https://github.com/wandb/wandb/pull/12581)
+- Removed the deprecated `.length` property from `wandb.apis.paginator.SizedPaginator`. Use `len(...)` instead (@jacobromero in https://github.com/wandb/wandb/pull/12575)
 
 ### Fixed
 
