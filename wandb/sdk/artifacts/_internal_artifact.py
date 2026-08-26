@@ -46,7 +46,7 @@ class InternalArtifact(Artifact):
         metadata: dict[str, Any] | None = None,
         incremental: bool = False,
         use_as: str | None = None,
-        digest_algorithm: Literal["MD5", "XXH128"] = "MD5",
+        digest_algorithm: Literal["MD5", "XXH128"] = "XXH128",
     ) -> None:
         sanitized_name = sanitize_artifact_name(name)
 

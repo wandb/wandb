@@ -945,7 +945,7 @@ def test_artifact_multipart_download_refresh_presigned_url(
 
 
 def test_draft_inherits_digest_algorithm(api: Api):
-    art = Artifact("test-artifact", "test-type", digest_algorithm="XXH128")
+    art = Artifact("test-artifact", "test-type", digest_algorithm="MD5")
     with art.new_file("file.txt", "w") as f:
         f.write("hello")
 
@@ -956,10 +956,7 @@ def test_draft_inherits_digest_algorithm(api: Api):
 
     parent = api.artifact(f"{project}/my-sample-portfolio:latest")
     draft = parent.new_draft()
-    if server_supports(api._service_api, pb.ARTIFACT_DIGEST_ALGORITHM):
-        assert draft.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128
-    else:
-        assert draft.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_MD5
+    assert draft.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_MD5
 
 
 def test_artifact_upload_with_fallback(api: Api):
@@ -967,9 +964,7 @@ def test_artifact_upload_with_fallback(api: Api):
     project = "test"
     Path("test.txt").write_text("test")
     with wandb.init(project=project) as run:
-        artifact = Artifact("test-artifact", type="dataset")
-        artifact._digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_MD5
-        artifact.manifest.digest_algorithm = ArtifactDigestAlgorithm.MANIFEST_MD5
+        artifact = Artifact("test-artifact", type="dataset", digest_algorithm="MD5")
         artifact.add_file("test.txt")
         run.log_artifact(artifact)
         artifact.wait()
@@ -977,7 +972,7 @@ def test_artifact_upload_with_fallback(api: Api):
     assert artifact.digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_MD5
 
     # upload a second version of this artifact
-    artifact = Artifact("test-artifact", type="dataset", digest_algorithm="XXH128")
+    artifact = Artifact("test-artifact", type="dataset")
     Path("file1.txt").write_text("hello")
     artifact.add_file("file1.txt")
 
@@ -1010,7 +1005,7 @@ def test_artifact_upload_with_fallback(api: Api):
 
 
 def test_artifact_upload_with_correct_digests(api: Api):
-    artifact = Artifact("test-artifact", type="dataset", digest_algorithm="XXH128")
+    artifact = Artifact("test-artifact", type="dataset")
     Path("file1.txt").write_text("hello")
     artifact.add_file("file1.txt")
 
@@ -1062,7 +1057,7 @@ def test_artifact_new_draft_mixed_digest_algorithms(api: Api):
     if not server_supports(api._service_api, pb.ARTIFACT_DIGEST_ALGORITHM):
         return
 
-    artifact = Artifact("test-artifact", type="dataset", digest_algorithm="XXH128")
+    artifact = Artifact("test-artifact", type="dataset")
     assert artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128
     Path("file1.txt").write_text("hello")
     artifact.add_file("file1.txt")
@@ -1119,7 +1114,7 @@ def test_offline_artifact_legacy_upload_hashes_correctly(
     Path("file2.txt").write_text("hi")
 
     with wandb.init(mode="offline", project="test") as run:
-        artifact = Artifact("test-artifact", type="dataset", digest_algorithm="XXH128")
+        artifact = Artifact("test-artifact", type="dataset")
         artifact.add_file("file1.txt")
         artifact.add_file("file2.txt")
 

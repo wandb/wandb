@@ -155,11 +155,11 @@ class Artifact:
             than 100 total keys.
         incremental: Use `Artifact.new_draft()` method instead to modify an
             existing artifact.
-        digest_algorithm: The digest algorithm to use for the artifact. Defaults to MD5.
-            If set to XXH128, the artifact will be hashed using the XXH128 algorithm
-            unless it is part of a collection that is already using MD5. Calls to
-            `artifact.verify()` on SDK versions before 0.29.0 will always fail on
-            XXH128 artifacts.
+        digest_algorithm: The digest algorithm to use for the artifact. Defaults to
+            XXH128. If set to XXH128, the artifact will be hashed using the XXH128
+            algorithm unless it is part of a collection that is already using MD5.
+            Calls to `artifact.verify()` on SDK versions before 0.29.0 will always
+            fail on XXH128 artifacts.
         use_as: Deprecated.
 
     Returns:
@@ -178,7 +178,7 @@ class Artifact:
         incremental: bool = False,
         use_as: str | None = None,
         storage_region: str | None = None,
-        digest_algorithm: Literal["MD5", "XXH128"] = "MD5",
+        digest_algorithm: Literal["MD5", "XXH128"] = "XXH128",
     ) -> None:
         from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 
@@ -253,14 +253,8 @@ class Artifact:
         self._digest: str | None = None
 
         self._digest_algorithm = _STR_TO_DIGEST_ALGORITHM.get(
-            digest_algorithm, ArtifactDigestAlgorithm.MANIFEST_MD5
+            digest_algorithm, ArtifactDigestAlgorithm.MANIFEST_XXH128
         )
-        if self._digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
-            termwarn(
-                "Creating an artifact with the XXH128 digest algorithm."
-                + " Calling `artifact.verify()` for this artifact on wandb"
-                + " versions before 0.29.0 will fail."
-            )
 
         self._manifest: ArtifactManifest | None = ArtifactManifestV1(
             storage_policy=make_storage_policy(region=storage_region),
