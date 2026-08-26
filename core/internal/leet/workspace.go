@@ -40,7 +40,7 @@ type Workspace struct {
 	runsAnimState *AnimatedValue
 
 	// runs is the run selector.
-	runs         PagedList
+	runs         PagedList[KeyValuePair]
 	selectedRuns map[string]bool // runDirName -> selected
 	pinnedRun    string          // runDirName or ""
 
@@ -128,7 +128,7 @@ func NewWorkspace(
 	}
 
 	// TODO: refactor to allow non-KeyValue items + make filtered ones pointers
-	runs := PagedList{
+	runs := PagedList[KeyValuePair]{
 		Title:  "Runs",
 		Active: true,
 	}
