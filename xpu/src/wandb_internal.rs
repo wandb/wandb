@@ -560,9 +560,6 @@ pub struct Deprecated {
     /// wandb.sdk.lib.disabled.RunDisabled used
     #[prost(bool, tag = "16")]
     pub run_disabled: bool,
-    /// wandb.run.finish(quiet=...) called
-    #[prost(bool, tag = "19")]
-    pub run_finish_quiet: bool,
     /// reinit setting set to a boolean value
     #[prost(bool, tag = "20")]
     pub run_reinit_bool: bool,

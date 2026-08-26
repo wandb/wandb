@@ -165,7 +165,6 @@ def init(
 
 def finish(
     exit_code: int | None = None,
-    quiet: bool | None = None,
 ) -> None:
     """<sdk/wandb_run.py::finish>"""
     ...

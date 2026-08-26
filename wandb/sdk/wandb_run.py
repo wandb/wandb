@@ -2347,7 +2347,6 @@ class Run:
     def finish(
         self,
         exit_code: int | None = None,
-        quiet: bool | None = None,
     ) -> None:
         """Finish a run and upload any remaining data.
 
@@ -2364,18 +2363,7 @@ class Run:
         Args:
             exit_code: Integer indicating the run's exit status. Use 0 for success,
                 any other value marks the run as failed.
-            quiet: Deprecated. Configure logging verbosity using `wandb.Settings(quiet=...)`.
         """
-        if quiet is not None:
-            deprecation.warn_and_record_deprecation(
-                feature=Deprecated(run__finish_quiet=True),
-                message=(
-                    "The `quiet` argument to `wandb.run.finish()` is deprecated, "
-                    "use `wandb.Settings(quiet=...)` to set this instead."
-                ),
-                run=self,
-            )
-
         self._finish(exit_code)
 
     @_log_to_run
@@ -4194,7 +4182,6 @@ except AttributeError:
 
 def finish(
     exit_code: int | None = None,
-    quiet: bool | None = None,
 ) -> None:
     """Finish a run and upload any remaining data.
 
@@ -4210,7 +4197,6 @@ def finish(
     Args:
         exit_code: Integer indicating the run's exit status. Use 0 for success,
             any other value marks the run as failed.
-        quiet: Deprecated. Configure logging verbosity using `wandb.Settings(quiet=...)`.
     """
     if wandb.run:
-        wandb.run.finish(exit_code=exit_code, quiet=quiet)
+        wandb.run.finish(exit_code=exit_code)

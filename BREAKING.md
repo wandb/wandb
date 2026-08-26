@@ -32,11 +32,6 @@ When preparing a release that can include breaking changes, consider applying ch
 
 ## Changes
 
-- Remove `quiet` argument from `run.finish()`
-    - Owner: @kptkin
-    - Deprecated in 0.18.7 (https://github.com/wandb/wandb/pull/8794)
-    - Can do in >=0.20
-
 - Remove `summary="copy"` from `run.define_metric()`
     - Owner: @timoffex
     - Deprecated in 0.17.6 (https://github.com/wandb/wandb/pull/8219)
