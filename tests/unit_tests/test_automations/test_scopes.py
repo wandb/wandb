@@ -108,6 +108,28 @@ def test_scope_can_validate_from_wandb_registry(
     ),
     ids=("project", "bare-prefix", "registry"),
 )
+def test_project_scope_dict_without_is_registry_uses_name(
+    name: str,
+    expected_type: type[ProjectScope],
+    expected_is_registry: bool,
+):
+    """Listing payloads omit `isRegistry`; infer project vs registry from `name`."""
+    validated = HasScope(
+        scope={"__typename": "Project", "id": "Project:1", "name": name}
+    )
+    assert type(validated.scope) is expected_type
+    assert validated.scope.is_registry is expected_is_registry
+
+
+@mark.parametrize(
+    ("name", "expected_type", "expected_is_registry"),
+    (
+        ("test-project", ProjectScope, False),
+        (REGISTRY_PREFIX, ProjectScope, False),
+        (f"{REGISTRY_PREFIX}test", RegistryScope, True),
+    ),
+    ids=("project", "bare-prefix", "registry"),
+)
 def test_project_scope_fragment_sets_registry_discriminator(
     project: Project,
     name: str,
