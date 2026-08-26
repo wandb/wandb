@@ -158,6 +158,55 @@ def test_client_version_headers_includes_sdk_versions() -> None:
     assert headers["x-cwsandbox-client-version"]
 
 
+def test_resolve_wandb_sdk_auth_includes_host_for_dedicated_deployment(
+    monkeypatch,
+) -> None:
+    """When base_url points to a dedicated instance (not *.wandb.ai),
+    x-wandb-host must be included so the sandbox gateway authenticates
+    against the correct deployment."""
+    singleton = _singleton()
+    singleton.settings.base_url = "https://qa-aws.wandb.io"
+    singleton.settings.app_url = "https://qa-aws.wandb.io"
+    monkeypatch.setattr(sandbox_auth.wandb_setup, "singleton", lambda: singleton)
+    monkeypatch.setattr(sandbox_auth, "_client_version_headers", list)
+    monkeypatch.setattr(
+        sandbox_auth.wbauth,
+        "authenticate_session",
+        lambda **kwargs: sandbox_auth.wbauth.AuthApiKey(
+            host=kwargs["host"],
+            api_key=_VALID_API_KEY,
+        ),
+    )
+
+    headers = sandbox_auth._resolve_wandb_sdk_auth().headers
+
+    assert headers["x-wandb-host"] == "qa-aws.wandb.io"
+    assert headers["x-wandb-api-key"] == _VALID_API_KEY
+    assert headers["x-entity-id"] == "default-entity"
+
+
+def test_resolve_wandb_sdk_auth_omits_host_for_saas(
+    monkeypatch,
+) -> None:
+    """SaaS (api.wandb.ai) must NOT send x-wandb-host; the gateway uses
+    the existing SaaS auth path for those requests."""
+    singleton = _singleton()
+    monkeypatch.setattr(sandbox_auth.wandb_setup, "singleton", lambda: singleton)
+    monkeypatch.setattr(sandbox_auth, "_client_version_headers", list)
+    monkeypatch.setattr(
+        sandbox_auth.wbauth,
+        "authenticate_session",
+        lambda **kwargs: sandbox_auth.wbauth.AuthApiKey(
+            host=kwargs["host"],
+            api_key=_VALID_API_KEY,
+        ),
+    )
+
+    headers = sandbox_auth._resolve_wandb_sdk_auth().headers
+
+    assert "x-wandb-host" not in headers
+
+
 def test_resolve_wandb_sdk_auth_rejects_non_api_key_credentials(
     monkeypatch,
 ) -> None:

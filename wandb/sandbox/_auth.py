@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Generator
 from contextlib import contextmanager
 from contextvars import ContextVar
+from urllib.parse import urlsplit
 
 import cwsandbox
 from cwsandbox import AuthHeaders, CWSandboxAuthenticationError, set_auth_mode
@@ -11,6 +12,7 @@ import wandb
 from wandb.errors import UsageError
 from wandb.sdk import wandb_setup
 from wandb.sdk.lib import wbauth
+from wandb.sdk.lib.wbauth.saas import is_wandb_domain
 
 _AUTH_MODE_NAME = "wandb"
 _OVERRIDE_UNSET = object()
@@ -72,6 +74,14 @@ def _resolve_wandb_sdk_auth() -> AuthHeaders:
         raise UsageError("wandb.sandbox currently supports only W&B user API-key auth.")
 
     metadata: list[tuple[str, str]] = [("x-wandb-api-key", auth.api_key)]
+
+    # For dedicated W&B deployments, forward the instance hostname so
+    # the sandbox gateway authenticates the user against the correct deployment.
+    if not is_wandb_domain(settings.base_url):
+        dedicated_host = urlsplit(settings.base_url).hostname
+        if dedicated_host:
+            metadata.append(("x-wandb-host", dedicated_host))
+
     # Both entity and project are optional.
     # entity will use the default entity user set in web UI.
     # project will use/create 'sandbox' project automatically.
