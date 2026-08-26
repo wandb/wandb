@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Final
 from wandb._strutils import nameof
 
 from ._generated import (
+    AriaActionFields,
     EntityScopeFields,
     GenericWebhookActionFields,
     NoOpActionFields,
@@ -91,6 +92,7 @@ ACTION_FRAGMENT_NAMES: Final[dict[ActionType, str]] = {
     ActionType.QUEUE_JOB: nameof(QueueJobActionFields),
     ActionType.NOTIFICATION: nameof(NotificationActionFields),
     ActionType.GENERIC_WEBHOOK: nameof(GenericWebhookActionFields),
+    ActionType.ARIA: nameof(AriaActionFields),
 }
 
 
