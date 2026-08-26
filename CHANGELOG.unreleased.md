@@ -36,6 +36,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Removed
 
 - Removed `wandb.tensorboard.log()` / `wandb.tensorflow.log()` (@timoffex in https://github.com/wandb/wandb/pull/12423)
+- The deprecated `RunDisabled` class. `wandb.init(mode="disabled")` has returned a regular `wandb.Run` since v0.17.6 (@dmitryduev in https://github.com/wandb/wandb/pull/12586)
 
 ### Fixed
 
