@@ -60,11 +60,6 @@ When preparing a release that can include breaking changes, consider applying ch
     - Owner: @jacobromero
     - Can do in >=0.20
 
-- Remove the `start_method` setting:
-    - Owner: @kptkin
-    - Deprecated in 0.20.0 (https://github.com/wandb/wandb/pull/9837)
-    - Can do in >=0.21
-
 - Remove `RunDisabled` object:
     - Owner: @dmitryduev
     - Deprecated in 0.17.6 (https://github.com/wandb/wandb/pull/8064)

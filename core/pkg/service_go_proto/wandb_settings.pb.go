@@ -736,7 +736,6 @@ type Settings struct {
 	ShowInfo                        *wrapperspb.BoolValue    `protobuf:"bytes,121,opt,name=show_info,json=showInfo,proto3" json:"show_info,omitempty"`
 	ShowWarnings                    *wrapperspb.BoolValue    `protobuf:"bytes,122,opt,name=show_warnings,json=showWarnings,proto3" json:"show_warnings,omitempty"`
 	Silent                          *wrapperspb.BoolValue    `protobuf:"bytes,123,opt,name=silent,proto3" json:"silent,omitempty"`
-	StartMethod                     *wrapperspb.StringValue  `protobuf:"bytes,124,opt,name=start_method,json=startMethod,proto3" json:"start_method,omitempty"`
 	Strict                          *wrapperspb.BoolValue    `protobuf:"bytes,125,opt,name=strict,proto3" json:"strict,omitempty"`
 	SummaryErrors                   *wrapperspb.Int32Value   `protobuf:"bytes,126,opt,name=summary_errors,json=summaryErrors,proto3" json:"summary_errors,omitempty"`
 	SummaryTimeout                  *wrapperspb.Int32Value   `protobuf:"bytes,127,opt,name=summary_timeout,json=summaryTimeout,proto3" json:"summary_timeout,omitempty"`
@@ -1976,13 +1975,6 @@ func (x *Settings) GetSilent() *wrapperspb.BoolValue {
 	return nil
 }
 
-func (x *Settings) GetStartMethod() *wrapperspb.StringValue {
-	if x != nil {
-		return x.StartMethod
-	}
-	return nil
-}
-
 func (x *Settings) GetStrict() *wrapperspb.BoolValue {
 	if x != nil {
 		return x.Strict
@@ -2116,7 +2108,7 @@ const file_wandb_proto_wandb_settings_proto_rawDesc = "" +
 	"\tRunMoment\x12\x10\n" +
 	"\x03run\x18\x01 \x01(\tR\x03run\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x01R\x05value\x12\x16\n" +
-	"\x06metric\x18\x03 \x01(\tR\x06metric\"\xadg\n" +
+	"\x06metric\x18\x03 \x01(\tR\x06metric\"\xf2f\n" +
 	"\bSettings\x125\n" +
 	"\aapi_key\x187 \x01(\v2\x1c.google.protobuf.StringValueR\x06apiKey\x12M\n" +
 	"\x13identity_token_file\x18\xaa\x01 \x01(\v2\x1c.google.protobuf.StringValueR\x11identityTokenFile\x12H\n" +
@@ -2304,8 +2296,7 @@ const file_wandb_proto_wandb_settings_proto_rawDesc = "" +
 	"showErrors\x127\n" +
 	"\tshow_info\x18y \x01(\v2\x1a.google.protobuf.BoolValueR\bshowInfo\x12?\n" +
 	"\rshow_warnings\x18z \x01(\v2\x1a.google.protobuf.BoolValueR\fshowWarnings\x122\n" +
-	"\x06silent\x18{ \x01(\v2\x1a.google.protobuf.BoolValueR\x06silent\x12?\n" +
-	"\fstart_method\x18| \x01(\v2\x1c.google.protobuf.StringValueR\vstartMethod\x122\n" +
+	"\x06silent\x18{ \x01(\v2\x1a.google.protobuf.BoolValueR\x06silent\x122\n" +
 	"\x06strict\x18} \x01(\v2\x1a.google.protobuf.BoolValueR\x06strict\x12B\n" +
 	"\x0esummary_errors\x18~ \x01(\v2\x1b.google.protobuf.Int32ValueR\rsummaryErrors\x12D\n" +
 	"\x0fsummary_timeout\x18\x7f \x01(\v2\x1b.google.protobuf.Int32ValueR\x0esummaryTimeout\x12G\n" +
@@ -2321,7 +2312,7 @@ const file_wandb_proto_wandb_settings_proto_rawDesc = "" +
 	"\x0ex_jupyter_name\x18\x8f\x01 \x01(\v2\x1c.google.protobuf.StringValueR\fxJupyterName\x12C\n" +
 	"\x0ex_jupyter_path\x18\x90\x01 \x01(\v2\x1c.google.protobuf.StringValueR\fxJupyterPath\x128\n" +
 	"\bjob_name\x18\x91\x01 \x01(\v2\x1c.google.protobuf.StringValueR\ajobNameJ\x04\b\x03\x10\x04J\x04\b\x06\x10\aJ\x04\b\b\x10\tJ\x04\b\t\x10\n" +
-	"J\x04\b\f\x10\rJ\x04\b\x13\x10\x14J\x04\b$\x10%J\x04\b+\x10,J\x04\b,\x10-J\x04\b-\x10.J\x04\b2\x103J\x04\b3\x104J\x04\b6\x107J\x04\bF\x10GJ\x04\b[\x10\\J\x04\b^\x10_J\x04\bd\x10eJ\x06\b\x88\x01\x10\x89\x01J\x06\b\x89\x01\x10\x8a\x01J\x06\b\xad\x01\x10\xae\x01J\x06\b\xb0\x01\x10\xb1\x01J\x06\b\xb4\x01\x10\xb5\x01B\x1bZ\x19core/pkg/service_go_protob\x06proto3"
+	"J\x04\b\f\x10\rJ\x04\b\x13\x10\x14J\x04\b$\x10%J\x04\b+\x10,J\x04\b,\x10-J\x04\b-\x10.J\x04\b2\x103J\x04\b3\x104J\x04\b6\x107J\x04\bF\x10GJ\x04\b[\x10\\J\x04\b^\x10_J\x04\bd\x10eJ\x04\b|\x10}J\x06\b\x88\x01\x10\x89\x01J\x06\b\x89\x01\x10\x8a\x01J\x06\b\xad\x01\x10\xae\x01J\x06\b\xb0\x01\x10\xb1\x01J\x06\b\xb4\x01\x10\xb5\x01B\x1bZ\x19core/pkg/service_go_protob\x06proto3"
 
 var (
 	file_wandb_proto_wandb_settings_proto_rawDescOnce sync.Once
@@ -2526,28 +2517,27 @@ var file_wandb_proto_wandb_settings_proto_depIdxs = []int32{
 	10,  // 171: wandb_internal.Settings.show_info:type_name -> google.protobuf.BoolValue
 	10,  // 172: wandb_internal.Settings.show_warnings:type_name -> google.protobuf.BoolValue
 	10,  // 173: wandb_internal.Settings.silent:type_name -> google.protobuf.BoolValue
-	9,   // 174: wandb_internal.Settings.start_method:type_name -> google.protobuf.StringValue
-	10,  // 175: wandb_internal.Settings.strict:type_name -> google.protobuf.BoolValue
-	12,  // 176: wandb_internal.Settings.summary_errors:type_name -> google.protobuf.Int32Value
-	12,  // 177: wandb_internal.Settings.summary_timeout:type_name -> google.protobuf.Int32Value
-	12,  // 178: wandb_internal.Settings.summary_warnings:type_name -> google.protobuf.Int32Value
-	9,   // 179: wandb_internal.Settings.sweep_id:type_name -> google.protobuf.StringValue
-	9,   // 180: wandb_internal.Settings.sweep_param_path:type_name -> google.protobuf.StringValue
-	10,  // 181: wandb_internal.Settings.symlink:type_name -> google.protobuf.BoolValue
-	9,   // 182: wandb_internal.Settings.sync_dir:type_name -> google.protobuf.StringValue
-	9,   // 183: wandb_internal.Settings.sync_symlink_latest:type_name -> google.protobuf.StringValue
-	10,  // 184: wandb_internal.Settings.table_raise_on_max_row_limit_exceeded:type_name -> google.protobuf.BoolValue
-	9,   // 185: wandb_internal.Settings.timespec:type_name -> google.protobuf.StringValue
-	9,   // 186: wandb_internal.Settings.tmp_dir:type_name -> google.protobuf.StringValue
-	9,   // 187: wandb_internal.Settings.x_jupyter_name:type_name -> google.protobuf.StringValue
-	9,   // 188: wandb_internal.Settings.x_jupyter_path:type_name -> google.protobuf.StringValue
-	9,   // 189: wandb_internal.Settings.job_name:type_name -> google.protobuf.StringValue
-	2,   // 190: wandb_internal.MapStringKeyMapStringKeyStringValue.ValueEntry.value:type_name -> wandb_internal.MapStringKeyStringValue
-	191, // [191:191] is the sub-list for method output_type
-	191, // [191:191] is the sub-list for method input_type
-	191, // [191:191] is the sub-list for extension type_name
-	191, // [191:191] is the sub-list for extension extendee
-	0,   // [0:191] is the sub-list for field type_name
+	10,  // 174: wandb_internal.Settings.strict:type_name -> google.protobuf.BoolValue
+	12,  // 175: wandb_internal.Settings.summary_errors:type_name -> google.protobuf.Int32Value
+	12,  // 176: wandb_internal.Settings.summary_timeout:type_name -> google.protobuf.Int32Value
+	12,  // 177: wandb_internal.Settings.summary_warnings:type_name -> google.protobuf.Int32Value
+	9,   // 178: wandb_internal.Settings.sweep_id:type_name -> google.protobuf.StringValue
+	9,   // 179: wandb_internal.Settings.sweep_param_path:type_name -> google.protobuf.StringValue
+	10,  // 180: wandb_internal.Settings.symlink:type_name -> google.protobuf.BoolValue
+	9,   // 181: wandb_internal.Settings.sync_dir:type_name -> google.protobuf.StringValue
+	9,   // 182: wandb_internal.Settings.sync_symlink_latest:type_name -> google.protobuf.StringValue
+	10,  // 183: wandb_internal.Settings.table_raise_on_max_row_limit_exceeded:type_name -> google.protobuf.BoolValue
+	9,   // 184: wandb_internal.Settings.timespec:type_name -> google.protobuf.StringValue
+	9,   // 185: wandb_internal.Settings.tmp_dir:type_name -> google.protobuf.StringValue
+	9,   // 186: wandb_internal.Settings.x_jupyter_name:type_name -> google.protobuf.StringValue
+	9,   // 187: wandb_internal.Settings.x_jupyter_path:type_name -> google.protobuf.StringValue
+	9,   // 188: wandb_internal.Settings.job_name:type_name -> google.protobuf.StringValue
+	2,   // 189: wandb_internal.MapStringKeyMapStringKeyStringValue.ValueEntry.value:type_name -> wandb_internal.MapStringKeyStringValue
+	190, // [190:190] is the sub-list for method output_type
+	190, // [190:190] is the sub-list for method input_type
+	190, // [190:190] is the sub-list for extension type_name
+	190, // [190:190] is the sub-list for extension extendee
+	0,   // [0:190] is the sub-list for field type_name
 }
 
 func init() { file_wandb_proto_wandb_settings_proto_init() }
