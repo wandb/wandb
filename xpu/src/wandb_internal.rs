@@ -560,24 +560,9 @@ pub struct Deprecated {
     /// wandb.sdk.lib.disabled.RunDisabled used
     #[prost(bool, tag = "16")]
     pub run_disabled: bool,
-    /// wandb.run.finish(quiet=...) called
-    #[prost(bool, tag = "19")]
-    pub run_finish_quiet: bool,
     /// reinit setting set to a boolean value
     #[prost(bool, tag = "20")]
     pub run_reinit_bool: bool,
-    /// wandb.run.get_url() called
-    #[prost(bool, tag = "21")]
-    pub run_get_url: bool,
-    /// wandb.run.project_name() called
-    #[prost(bool, tag = "22")]
-    pub run_project_name: bool,
-    /// wandb.run.get_project_url() called
-    #[prost(bool, tag = "23")]
-    pub run_get_project_url: bool,
-    /// wandb.run.get_sweep_url() called
-    #[prost(bool, tag = "24")]
-    pub run_get_sweep_url: bool,
     /// wandb.run.use_artifact(use_as=...) called
     #[prost(bool, tag = "25")]
     pub run_use_artifact_use_as: bool,

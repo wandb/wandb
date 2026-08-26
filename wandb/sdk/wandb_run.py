@@ -986,22 +986,6 @@ class Run:
         """
         return self._settings.run_job_type or ""
 
-    def project_name(self) -> str:
-        """This method is deprecated and will be removed in a future release. Use `run.project` instead.
-
-        Name of the W&B project associated with the run.
-
-        <!-- lazydoc-ignore -->
-        """
-        deprecation.warn_and_record_deprecation(
-            feature=Deprecated(run__project_name=True),
-            message=(
-                "The project_name method is deprecated and will be removed in a"
-                " future release. Please use `run.project` instead."
-            ),
-        )
-        return self.project
-
     @property
     @_log_to_run
     @_attach
@@ -1009,24 +993,6 @@ class Run:
         """Name of the W&B project associated with the run."""
         assert self._settings.project is not None
         return self._settings.project
-
-    @_log_to_run
-    def get_project_url(self) -> str | None:
-        """This method is deprecated and will be removed in a future release. Use `run.project_url` instead.
-
-        URL of the W&B project associated with the run, if there is one.
-        Offline runs do not have a project URL.
-
-        <!-- lazydoc-ignore -->
-        """
-        deprecation.warn_and_record_deprecation(
-            feature=Deprecated(run__get_project_url=True),
-            message=(
-                "The get_project_url method is deprecated and will be removed in a"
-                " future release. Please use `run.project_url` instead."
-            ),
-        )
-        return self.project_url
 
     @property
     @_log_to_run
@@ -1146,24 +1112,6 @@ class Run:
 
         return artifact
 
-    @_log_to_run
-    def get_sweep_url(self) -> str | None:
-        """This method is deprecated and will be removed in a future release. Use `run.sweep_url` instead.
-
-        The URL of the sweep associated with the run, if there is one.
-        Offline runs do not have a sweep URL.
-
-        <!-- lazydoc-ignore -->
-        """
-        deprecation.warn_and_record_deprecation(
-            feature=Deprecated(run__get_sweep_url=True),
-            message=(
-                "The get_sweep_url method is deprecated and will be removed in a"
-                " future release. Please use `run.sweep_url` instead."
-            ),
-        )
-        return self.sweep_url
-
     @property
     @_attach
     def sweep_url(self) -> str | None:
@@ -1175,23 +1123,6 @@ class Run:
             wandb.termwarn("URL not available in offline run")
             return None
         return self._settings.sweep_url
-
-    @_log_to_run
-    def get_url(self) -> str | None:
-        """This method is deprecated and will be removed in a future release. Use `run.url` instead.
-
-        URL of the W&B run, if there is one. Offline runs do not have a URL.
-
-        <!-- lazydoc-ignore -->
-        """
-        deprecation.warn_and_record_deprecation(
-            feature=Deprecated(run__get_url=True),
-            message=(
-                "The get_url method is deprecated and will be removed in a"
-                " future release. Please use `run.url` instead."
-            ),
-        )
-        return self.url
 
     @property
     @_log_to_run
@@ -2347,7 +2278,6 @@ class Run:
     def finish(
         self,
         exit_code: int | None = None,
-        quiet: bool | None = None,
     ) -> None:
         """Finish a run and upload any remaining data.
 
@@ -2364,18 +2294,7 @@ class Run:
         Args:
             exit_code: Integer indicating the run's exit status. Use 0 for success,
                 any other value marks the run as failed.
-            quiet: Deprecated. Configure logging verbosity using `wandb.Settings(quiet=...)`.
         """
-        if quiet is not None:
-            deprecation.warn_and_record_deprecation(
-                feature=Deprecated(run__finish_quiet=True),
-                message=(
-                    "The `quiet` argument to `wandb.run.finish()` is deprecated, "
-                    "use `wandb.Settings(quiet=...)` to set this instead."
-                ),
-                run=self,
-            )
-
         self._finish(exit_code)
 
     @_log_to_run
@@ -4194,7 +4113,6 @@ except AttributeError:
 
 def finish(
     exit_code: int | None = None,
-    quiet: bool | None = None,
 ) -> None:
     """Finish a run and upload any remaining data.
 
@@ -4210,7 +4128,6 @@ def finish(
     Args:
         exit_code: Integer indicating the run's exit status. Use 0 for success,
             any other value marks the run as failed.
-        quiet: Deprecated. Configure logging verbosity using `wandb.Settings(quiet=...)`.
     """
     if wandb.run:
-        wandb.run.finish(exit_code=exit_code, quiet=quiet)
+        wandb.run.finish(exit_code=exit_code)

@@ -224,7 +224,6 @@ def test_run_project(user):
         run = wandb.init()
         run.finish()
         assert run.project == "proj1"
-        assert run.project_name() == "proj1"
 
 
 def test_run_group(user):
@@ -317,21 +316,20 @@ def test_run_projecturl(user):
     run = wandb.init(settings={"mode": "offline"})
     run.finish()
     # URL is not available offline
-    assert run.get_project_url() is None
+    assert run.project_url is None
 
 
 def test_run_sweepurl(user):
     run = wandb.init(settings={"mode": "offline"})
     run.finish()
     # URL is not available offline
-    assert run.get_sweep_url() is None
+    assert run.sweep_url is None
 
 
 def test_run_url(user):
     run = wandb.init(settings={"mode": "offline"})
     run.finish()
     # URL is not available offline
-    assert run.get_url() is None
     assert run.url is None
 
 
