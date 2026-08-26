@@ -16,7 +16,8 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Notable Changes
 
-The `.length` property on paginated objects (e.g. `Api.runs()`, `Api.sweeps()`, `run.files()`) has been removed. Use `len(...)` instead.
+- Removed the deprecated `start_method` setting that already had no effect.
+- The `.length` property on paginated objects (e.g. `Api.runs()`, `Api.sweeps()`, `run.files()`) has been removed. Use `len(...)` instead.
 `wandb.Video()` now requires the `format` argument when initializing from a numpy array or raw bytes.
 
 ### Added
@@ -42,6 +43,7 @@ The `.length` property on paginated objects (e.g. `Api.runs()`, `Api.sweeps()`, 
 ### Removed
 
 - Removed `wandb.tensorboard.log()` / `wandb.tensorflow.log()` (@timoffex in https://github.com/wandb/wandb/pull/12423)
+- The deprecated `start_method` setting that already had no effect (@dmitryduev in https://github.com/wandb/wandb/pull/12581)
 - Removed the deprecated `.length` property from `wandb.apis.paginator.SizedPaginator`. Use `len(...)` instead (@jacobromero in https://github.com/wandb/wandb/pull/12575)
 
 ### Fixed
