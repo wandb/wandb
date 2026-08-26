@@ -19,7 +19,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Removed the deprecated `start_method` setting that already had no effect.
 - The `.length` property on paginated objects (e.g. `Api.runs()`, `Api.sweeps()`, `run.files()`) has been removed. Use `len(...)` instead.
 `wandb.Video()` now requires the `format` argument when initializing from a numpy array or raw bytes.
-Removed the deprecated `summary="best"` option and `goal` argument of `run.define_metric()`. Use `summary="min"` or `summary="max"` instead.
+- Removed the deprecated `summary="best"` option and `goal` argument of `run.define_metric()`. Use `summary="min"` or `summary="max"` instead.
 
 ### Added
 
