@@ -240,7 +240,7 @@ message Labels {
 }
 
 message Deprecated {
-  reserved 1, 2, 3, 4, 6, 9, 10, 17, 28, 29, 30;
+  reserved 1, 2, 3, 4, 6, 9, 10, 17, 18, 28, 29, 30;
 
   bool plots = 5;                      // wandb.plots.* called
   bool init__config_include_keys = 7;  // wandb.init(config_include_keys=...) called
@@ -257,9 +257,6 @@ message Deprecated {
   bool run__define_metric_copy = 15;
 
   bool run_disabled = 16;  // wandb.sdk.lib.disabled.RunDisabled used
-
-  // wandb.run.define_metric() called with summary="best" and goal="maximize/minimize"
-  bool run__define_metric_best_goal = 18;
 
   bool run__finish_quiet = 19;  // wandb.run.finish(quiet=...) called
 

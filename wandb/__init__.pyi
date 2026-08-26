@@ -932,7 +932,6 @@ def define_metric(
     step_sync: bool | None = None,
     hidden: bool | None = None,
     summary: str | None = None,
-    goal: str | None = None,
     overwrite: bool | None = None,
 ) -> wandb_metric.Metric:
     """Customize metrics logged with `wandb.Run.log()`.
@@ -947,14 +946,9 @@ def define_metric(
         hidden: Hide this metric from automatic plots.
         summary: Specify aggregate metrics added to summary.
             Supported aggregations include "min", "max", "mean", "last",
-            "first", "best", "copy" and "none". "none" prevents a summary
-            from being generated. "best" is used together with the goal
-            parameter, "best" is deprecated and should not be used, use
-            "min" or "max" instead. "copy" is deprecated and should not be
+            "first", "copy" and "none". "none" prevents a summary
+            from being generated. "copy" is deprecated and should not be
             used.
-        goal: Specify how to interpret the "best" summary type.
-            Supported options are "minimize" and "maximize". "goal" is
-            deprecated and should not be used, use "min" or "max" instead.
         overwrite: If false, then this call is merged with previous
             `define_metric` calls for the same metric by using their
             values for any unspecified parameters. If true, then
