@@ -191,6 +191,10 @@ message RunRecord {
   // This stores pre-sync intention. Distinct from `resumed` which stores what
   // actually happened.
   bool resume = 24;
+  // If true, the sender may reassign history steps at upload time. The handler
+  // writes steps into the log without resume reconciliation. Old logs omit this
+  // field; the sender must preserve logged steps.
+  bool sync_may_reassign_steps = 25;
 
   _RecordInfo _info = 200;
 }

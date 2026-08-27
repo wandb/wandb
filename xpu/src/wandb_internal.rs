@@ -832,6 +832,11 @@ pub struct RunRecord {
     /// actually happened.
     #[prost(bool, tag = "24")]
     pub resume: bool,
+    /// If true, the sender may reassign history steps at upload time. The handler
+    /// writes steps into the log without resume reconciliation. Old logs omit this
+    /// field; the sender must preserve logged steps.
+    #[prost(bool, tag = "25")]
+    pub sync_may_reassign_steps: bool,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }
