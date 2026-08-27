@@ -20,14 +20,7 @@ jobs:
     if: >-
       github.event.state == 'success' &&
       github.event.branches[0] != null &&
-      (github.event.context == 'ci/circleci: unit-tests-go' ||
-       startsWith(github.event.context, 'ci/circleci: unit-tests-linux') ||
-       startsWith(github.event.context, 'ci/circleci: unit-tests-macos') ||
-       startsWith(github.event.context, 'ci/circleci: unit-tests-win') ||
-       startsWith(github.event.context, 'ci/circleci: system-tests') ||
-       startsWith(github.event.context, 'ci/circleci: notebook-tests') ||
-       startsWith(github.event.context, 'ci/circleci: functional-tests') ||
-       startsWith(github.event.context, 'ci/circleci: experimental-tests'))
+      startsWith(github.event.context, 'ci/circleci: ')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -48,4 +41,4 @@ jobs:
           DD_GIT_COMMIT_SHA: ${{ github.event.sha }}
           DD_GIT_BRANCH: ${{ github.event.branches[0].name }}
           TARGET_URL: ${{ github.event.target_url }}
-        run: python3 .github/scripts/upload-coverage-to-datadog.py
+        run: python3 .github/scripts/upload_coverage_to_datadog.py

@@ -60,7 +60,6 @@ def main() -> int:
     for flags, artifacts in sorted(by_flags.items()):
         reports_dir = pathlib.Path("coverage-reports", flags)
         for artifact in artifacts:
-            # Parallel job nodes store identically-named reports.
             node_dir = reports_dir / str(artifact["node_index"])
             node_dir.mkdir(parents=True, exist_ok=True)
             print(f"Downloading {artifact['path']} from node {artifact['node_index']}")
@@ -71,8 +70,6 @@ def main() -> int:
             "datadog-ci",
             "coverage",
             "upload",
-            # Datadog's GitHub integration provides git metadata, and the
-            # checkout here is the default branch, not the covered commit.
             "--skip-git-metadata-upload",
             "--disable-file-fixes",
             "--flags",
