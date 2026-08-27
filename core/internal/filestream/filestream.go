@@ -268,7 +268,7 @@ func (fs *fileStream) StreamUpdate(update Update) {
 
 	if startsTransmitRamp(update) {
 		fs.transmitRampOnce.Do(func() {
-			go rampTransmitRateLimit(
+			startTransmitRamp(
 				fs.beforeRunEndCtx,
 				fs.transmitRateLimit,
 				fs.initialTransmitInterval,

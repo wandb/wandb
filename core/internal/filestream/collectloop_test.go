@@ -60,6 +60,46 @@ func TestCollectLoop_SendsLastRequestImmediately(t *testing.T) {
 	assert.Nil(t, request2)
 }
 
+func TestCollectLoop_AppliesNewRateLimitToPendingBatch(t *testing.T) {
+	requests := make(chan *FileStreamRequest)
+	defer close(requests)
+	limiter := rate.NewLimiter(rate.Every(time.Hour), 1)
+	loop := CollectLoop{
+		Logger:            observability.NewNoOpLogger(),
+		Printer:           observability.NewPrinter(0),
+		TransmitRateLimit: limiter,
+	}
+	state := &FileStreamState{MaxRequestSizeBytes: 99999}
+	noHeartbeat := make(<-chan time.Time)
+
+	transmissions := loop.Start(state, requests)
+
+	// The first request is sent immediately, emptying the token bucket,
+	// so that the next batch reserves a transmission an hour out.
+	requests <- &FileStreamRequest{UploadedFiles: map[string]struct{}{"one": {}}}
+	_, ok := transmissions.NextRequest(noHeartbeat)
+	assert.True(t, ok)
+	requests <- &FileStreamRequest{UploadedFiles: map[string]struct{}{"two": {}}}
+	time.Sleep(10 * time.Millisecond)
+
+	// Speeding up the limiter (as the transmit ramp does) must apply to
+	// the pending batch when more data is merged into it.
+	limiter.SetLimit(rate.Every(time.Millisecond))
+	requests <- &FileStreamRequest{HistoryLines: []string{"{}"}}
+
+	released := make(chan struct{})
+	go func() {
+		_, _ = transmissions.NextRequest(noHeartbeat)
+		close(released)
+	}()
+	select {
+	case <-released:
+	case <-time.After(5 * time.Second):
+		t.Error("pending batch not released after the rate limit sped up")
+	}
+	transmissions.IgnoreFutureRequests()
+}
+
 func TestCollectLoop_BlocksOnceAtMaxSize(t *testing.T) {
 	requests := make(chan *FileStreamRequest)
 	loop := CollectLoop{

@@ -68,6 +68,7 @@ func (cl CollectLoop) waitForRateLimit(
 		return
 	}
 
+	reservedLimit := cl.TransmitRateLimit.Limit()
 	reservation := cl.TransmitRateLimit.Reserve()
 
 	// If we would be rate-limited forever, just ignore the limit.
@@ -92,6 +93,19 @@ func (cl CollectLoop) waitForRateLimit(
 
 			if cl.shouldSendASAP(state, buffer) {
 				return
+			}
+
+			// If the rate limit changed while we were waiting (e.g. the
+			// transmit ramp sped it up), the reservation we hold still
+			// reflects the old limit. Return the token and re-reserve so
+			// the new limit applies to this batch.
+			if newLimit := cl.TransmitRateLimit.Limit(); newLimit != reservedLimit {
+				reservation.Cancel()
+				reservedLimit = newLimit
+				reservation = cl.TransmitRateLimit.Reserve()
+				if !reservation.OK() {
+					return
+				}
 			}
 		}
 	}

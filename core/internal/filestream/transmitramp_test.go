@@ -92,14 +92,7 @@ func TestStreamUpdate_RunDataStartsRamp(t *testing.T) {
 
 	fs.StreamUpdate(&HistoryUpdate{})
 
-	assert.Eventually(
-		t,
-		func() bool {
-			return fs.transmitRateLimit.Limit() == rate.Every(30*time.Second)
-		},
-		time.Second,
-		time.Millisecond,
-	)
+	assert.Equal(t, rate.Every(30*time.Second), fs.transmitRateLimit.Limit())
 }
 
 func TestStreamUpdate_AutomaticUpdatesDontStartRamp(t *testing.T) {
@@ -119,14 +112,7 @@ func TestStreamUpdate_AutomaticUpdatesDontStartRamp(t *testing.T) {
 	fs.StreamUpdate(&StatsUpdate{})
 	fs.StreamUpdate(&FilesUploadedUpdate{})
 
-	assert.Never(
-		t,
-		func() bool {
-			return fs.transmitRateLimit.Limit() != rate.Every(time.Minute)
-		},
-		50*time.Millisecond,
-		5*time.Millisecond,
-	)
+	assert.Equal(t, rate.Every(time.Minute), fs.transmitRateLimit.Limit())
 }
 
 func TestStartsTransmitRamp(t *testing.T) {
@@ -151,47 +137,43 @@ func TestStartsTransmitRamp(t *testing.T) {
 	}
 }
 
-func TestRampTransmitRateLimit_ReachesTarget(t *testing.T) {
-	initial := time.Millisecond
-	target := 8 * time.Millisecond
-	limiter := rate.NewLimiter(rate.Every(target), 1)
-
-	rampTransmitRateLimit(context.Background(), limiter, initial, target)
-
-	assert.Equal(t, rate.Every(target), limiter.Limit())
-}
-
-func TestRampTransmitRateLimit_NeverExceedsTarget(t *testing.T) {
+func TestStartTransmitRamp_ReachesTargetExactly(t *testing.T) {
 	// A target that's not a power-of-two multiple of the initial interval
 	// must be reached exactly, not overshot.
 	initial := time.Millisecond
 	target := 5 * time.Millisecond
 	limiter := rate.NewLimiter(rate.Every(target), 1)
 
-	rampTransmitRateLimit(context.Background(), limiter, initial, target)
+	startTransmitRamp(context.Background(), limiter, initial, target)
 
-	assert.Equal(t, rate.Every(target), limiter.Limit())
+	assert.Equal(t, rate.Every(initial), limiter.Limit())
+	assert.Eventually(
+		t,
+		func() bool { return limiter.Limit() == rate.Every(target) },
+		time.Second,
+		time.Millisecond,
+	)
 }
 
-func TestRampTransmitRateLimit_StopsOnContextDone(t *testing.T) {
+func TestStartTransmitRamp_StopsOnContextDone(t *testing.T) {
 	initial := time.Hour
 	target := 2 * time.Hour
 	limiter := rate.NewLimiter(rate.Every(target), 1)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	rampTransmitRateLimit(ctx, limiter, initial, target)
+	startTransmitRamp(ctx, limiter, initial, target)
 
 	// The limiter is sped up to the initial interval, but the ramp stops
 	// before slowing it back down.
 	assert.Equal(t, rate.Every(initial), limiter.Limit())
 }
 
-func TestRampTransmitRateLimit_NoOpIfInitialNotLessThanTarget(t *testing.T) {
+func TestStartTransmitRamp_NoOpIfInitialNotLessThanTarget(t *testing.T) {
 	interval := time.Hour
 	limiter := rate.NewLimiter(rate.Every(interval), 1)
 
-	rampTransmitRateLimit(context.Background(), limiter, interval, interval)
+	startTransmitRamp(context.Background(), limiter, interval, interval)
 
 	assert.Equal(t, rate.Every(interval), limiter.Limit())
 }

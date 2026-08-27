@@ -23,17 +23,19 @@ func startsTransmitRamp(update Update) bool {
 	}
 }
 
-// rampTransmitRateLimit speeds the limiter up to the initial transmit
-// interval, then gradually slows it back to the target interval, doubling
-// the interval each time it elapses.
+// startTransmitRamp speeds the limiter up to the initial transmit
+// interval, then gradually slows it back to the target interval in the
+// background, doubling the interval each time it elapses.
 //
-// It is started when a run's first user-visible data arrives, so that the
+// It is called when a run's first user-visible data arrives, so that the
 // first batches of data reach the backend (and the UI) quickly before
 // transmissions decay to the steady-state interval.
 //
-// It returns once the target interval is reached or ctx is done. It is a
-// no-op if initial is not less than target.
-func rampTransmitRateLimit(
+// The limiter is sped up synchronously so that the update that triggered
+// the ramp observes the faster rate. The background goroutine returns
+// once the target interval is reached or ctx is done. It is a no-op if
+// initial is not less than target.
+func startTransmitRamp(
 	ctx context.Context,
 	limiter *rate.Limiter,
 	initial time.Duration,
@@ -45,16 +47,18 @@ func rampTransmitRateLimit(
 
 	limiter.SetLimit(rate.Every(initial))
 
-	for interval := initial; interval < target; {
-		select {
-		case <-ctx.Done():
-			return
-		case <-time.After(interval):
-		}
+	go func() {
+		for interval := initial; interval < target; {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(interval):
+			}
 
-		interval = nextTransmitInterval(interval, target)
-		limiter.SetLimit(rate.Every(interval))
-	}
+			interval = nextTransmitInterval(interval, target)
+			limiter.SetLimit(rate.Every(interval))
+		}
+	}()
 }
 
 // nextTransmitInterval doubles interval without overflowing, capped at target.
