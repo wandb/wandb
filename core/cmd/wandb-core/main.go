@@ -20,6 +20,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -259,7 +260,14 @@ func leetMain(args []string) int {
 	analytics.ConfigureOTelErrorHandler(logger.Logger)
 	logger.RecordTelemetry("leet_launch", nil)
 
-	return runLeetCommand(&opts, logger)
+	started := time.Now()
+	exitCode := runLeetCommand(&opts, logger)
+	logger.RecordTelemetry("leet_session", map[string]string{
+		"duration_seconds": strconv.FormatInt(
+			int64(time.Since(started)/time.Second), 10),
+		"exit_code": strconv.Itoa(exitCode),
+	})
+	return exitCode
 }
 
 type leetOptions struct {
