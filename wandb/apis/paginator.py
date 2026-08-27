@@ -5,7 +5,6 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sized
 from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar, overload
 
-import wandb
 from wandb._strutils import nameof
 
 if TYPE_CHECKING:
@@ -133,17 +132,6 @@ class SizedPaginator(Paginator[_WandbT], Sized, ABC):
     """A Paginator for objects with a known total count."""
 
     last_response: dict[str, Any] | None = None
-
-    @property
-    def length(self) -> int | None:
-        wandb.termwarn(
-            (
-                "`.length` is deprecated and will be removed in a future version. "
-                "Use `len(...)` instead."
-            ),
-            repeat=False,
-        )
-        return len(self)
 
     def __len__(self) -> int:
         if self._length is None:

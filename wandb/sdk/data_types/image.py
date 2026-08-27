@@ -38,62 +38,6 @@ if TYPE_CHECKING:  # pragma: no cover
     ImageDataOrPathType: TypeAlias = "str | pathlib.Path | Image | ImageDataType"
 
 
-def _warn_on_invalid_data_range(
-    data: np.ndarray,
-    normalize: bool = True,
-) -> None:
-    if not normalize:
-        return
-
-    np = util.get_module(
-        "numpy",
-        required="wandb.Image requires numpy if not supplying PIL Images: pip install numpy",
-    )
-
-    if np.min(data) < 0 or np.max(data) > 255:
-        wandb.termwarn(
-            "Data passed to `wandb.Image` should consist of values in the range [0, 255], "
-            "image data will be normalized to this range, "
-            "but behavior will be removed in a future version of wandb.",
-            repeat=False,
-        )
-
-
-def _guess_and_rescale_to_0_255(data: np.ndarray) -> np.ndarray:
-    """Guess the image's format and rescale its values to the range [0, 255].
-
-    This is an unfortunate design flaw carried forward for backward
-    compatibility. A better design would have been to document the expected
-    data format and not mangle the data provided by the user.
-
-    If given data in the range [0, 1], we multiply all values by 255
-    and round down to get integers.
-
-    If given data in the range [-1, 1], we rescale it by mapping -1 to 0 and
-    1 to 255, then round down to get integers.
-
-    We clip and round all other data.
-    """
-    try:
-        import numpy as np
-    except ImportError:
-        raise wandb.Error(
-            "wandb.Image requires numpy if not supplying PIL images: pip install numpy"
-        ) from None
-
-    data_min: float = data.min()
-    data_max: float = data.max()
-
-    if 0 <= data_min and data_max <= 1:
-        return (data * 255).astype(np.uint8)
-
-    elif -1 <= data_min and data_max <= 1:
-        return (255 * 0.5 * (data + 1)).astype(np.uint8)
-
-    else:
-        return data.clip(0, 255).astype(np.uint8)
-
-
 def _convert_to_uint8(data: np.ndarray) -> np.ndarray:
     np = util.get_module(
         "numpy",
@@ -160,20 +104,8 @@ class Image(BatchableMedia):
         boxes: dict[str, BoundingBoxes2D] | dict[str, dict] | None = None,
         masks: dict[str, ImageMask] | dict[str, dict] | None = None,
         file_type: str | None = None,
-        normalize: bool = True,
     ) -> None:
         """Initialize a `wandb.Image` object.
-
-        This class handles various image data formats and automatically normalizes
-        pixel values to the range [0, 255] when needed, ensuring compatibility
-        with the W&B backend.
-
-        * Data in range [0, 1] is multiplied by 255 and converted to uint8
-        * Data in range [-1, 1] is rescaled from [-1, 1] to [0, 255] by mapping
-            -1 to 0 and 1 to 255, then converted to uint8
-        * Data outside [-1, 1] but not in [0, 255] is clipped to [0, 255] and
-            converted to uint8 (with a warning if values fall outside [0, 255])
-        * Data already in [0, 255] is converted to uint8 without modification
 
         When you log an image to a run, W&B saves the file under a generated
         name that includes a content hash, such as
@@ -187,9 +119,7 @@ class Image(BatchableMedia):
                 a PIL image object, or a path to an image file. If a NumPy
                 array or pytorch tensor is provided,
                 the image data will be saved to the given file type.
-                If the values are not in the range [0, 255] or all values are in the range [0, 1],
-                the image pixel values will be normalized to the range [0, 255]
-                unless `normalize` is set to `False`.
+                Values are expected to already be in the range [0, 255].
             - pytorch tensor should be in the format (channel, height, width)
             - NumPy array should be in the format (height, width, channel)
             mode: The PIL mode for an image. Most common are "L", "RGB", "RGBA".
@@ -204,8 +134,6 @@ class Image(BatchableMedia):
                 see https://docs.wandb.ai/models/ref/python/data-types/imagemask
             file_type: The file type to save the image as.
                 This parameter has no effect if `data_or_path` is a path to an image file.
-            normalize: If `True`, normalize the image pixel values to fall within the range of [0, 255].
-                Normalize is only applied if `data_or_path` is a numpy array or pytorch tensor.
 
         Examples:
         Create a wandb.Image from a numpy array
@@ -284,7 +212,7 @@ class Image(BatchableMedia):
             else:
                 self._initialize_from_path(data_or_path)
         else:
-            self._initialize_from_data(data_or_path, mode, file_type, normalize)
+            self._initialize_from_data(data_or_path, mode, file_type)
         self._set_initialization_meta(
             grouping, caption, classes, boxes, masks, file_type
         )
@@ -403,7 +331,6 @@ class Image(BatchableMedia):
         data: ImageDataType,
         mode: str | None = None,
         file_type: str | None = None,
-        normalize: bool = True,
     ) -> None:
         pil_image = util.get_module(
             "PIL.Image",
@@ -431,10 +358,6 @@ class Image(BatchableMedia):
                 data = data.to(float)  # type: ignore [union-attr]
             mode = mode or self.guess_mode(data, file_type)
             data = data.permute(1, 2, 0).cpu().numpy()  # type: ignore [union-attr]
-
-            _warn_on_invalid_data_range(data, normalize)
-
-            data = _guess_and_rescale_to_0_255(data) if normalize else data  # type: ignore [arg-type]
             data = _convert_to_uint8(data)
 
             if data.ndim > 2:
@@ -448,10 +371,7 @@ class Image(BatchableMedia):
                 # get rid of trivial dimensions as a convenience
                 data = data.squeeze()  # type: ignore [union-attr]
 
-            _warn_on_invalid_data_range(data, normalize)  # type: ignore [arg-type]
-
             mode = mode or self.guess_mode(data, file_type)
-            data = _guess_and_rescale_to_0_255(data) if normalize else data  # type: ignore [arg-type]
             data = _convert_to_uint8(data)  # type: ignore [arg-type]
             self._image = pil_image.fromarray(data).convert(mode)
 

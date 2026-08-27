@@ -752,7 +752,10 @@ class DiffusersMultiModalPipelineResolver:
                 wandb.log(
                     {
                         f"Generated-Video/Pipeline-Call-{self.pipeline_call_count}": wandb.Video(
-                            postprocess_pils_to_np(image), fps=4, caption=caption
+                            postprocess_pils_to_np(image),
+                            format="mp4",
+                            fps=4,
+                            caption=caption,
                         )
                     }
                 )
@@ -806,7 +809,9 @@ class DiffusersMultiModalPipelineResolver:
                 SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name]["output-type"]
                 == "video"
             ):
-                table_row.append(wandb.Video(postprocess_pils_to_np(image), fps=4))
+                table_row.append(
+                    wandb.Video(postprocess_pils_to_np(image), format="mp4", fps=4)
+                )
             elif (
                 SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name]["output-type"]
                 == "audio"
@@ -844,7 +849,7 @@ class DiffusersMultiModalPipelineResolver:
             wandb.log(
                 {
                     f"Generated-Video/Pipeline-Call-{self.pipeline_call_count}": wandb.Video(
-                        video, fps=4, caption=kwargs["prompt"]
+                        video, format="mp4", fps=4, caption=kwargs["prompt"]
                     )
                 }
             )
@@ -855,7 +860,7 @@ class DiffusersMultiModalPipelineResolver:
                 kwargs[loggable_kwarg_ids[idx]]
                 for idx in range(len(loggable_kwarg_ids))
             ]
-            table_row.append(wandb.Video(video, fps=4))
+            table_row.append(wandb.Video(video, format="mp4", fps=4))
             self.wandb_table.add_data(*table_row)
         else:
             loggable_kwarg_ids = SUPPORTED_MULTIMODAL_PIPELINES[self.pipeline_name][

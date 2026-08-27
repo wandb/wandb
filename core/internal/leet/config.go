@@ -107,6 +107,7 @@ type Config struct {
 	// the "0" reset key, not the config editor.
 	RunLayout       LayoutOverrides `json:"run_layout,omitzero"       leet:"-"`
 	WorkspaceLayout LayoutOverrides `json:"workspace_layout,omitzero" leet:"-"`
+	InspectorLayout LayoutOverrides `json:"inspector_layout,omitzero" leet:"-"`
 
 	// ColorScheme is the color scheme to display the main metrics.
 	ColorScheme string `json:"color_scheme" leet:"desc=Palette for main run metrics charts (and run list colors).,options=colorSchemes"`
@@ -382,6 +383,7 @@ func (cm *ConfigManager) normalizeConfig() {
 
 	normalizeLayoutOverrides(&cm.config.RunLayout)
 	normalizeLayoutOverrides(&cm.config.WorkspaceLayout)
+	normalizeLayoutOverrides(&cm.config.InspectorLayout)
 }
 
 func isChartGuides(guides string) bool {
@@ -620,6 +622,19 @@ func (cm *ConfigManager) WorkspaceLayout() LayoutOverrides {
 func (cm *ConfigManager) SetWorkspaceLayout(o LayoutOverrides) error {
 	normalizeLayoutOverrides(&o)
 	return cm.set(func(c *Config) { c.WorkspaceLayout = o })
+}
+
+// InspectorLayout returns the record inspector's layout overrides.
+func (cm *ConfigManager) InspectorLayout() LayoutOverrides {
+	cm.mu.RLock()
+	defer cm.mu.RUnlock()
+	return cm.config.InspectorLayout
+}
+
+// SetInspectorLayout sets and persists the record inspector's layout overrides.
+func (cm *ConfigManager) SetInspectorLayout(o LayoutOverrides) error {
+	normalizeLayoutOverrides(&o)
+	return cm.set(func(c *Config) { c.InspectorLayout = o })
 }
 
 // Path returns the on-disk config path.

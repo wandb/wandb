@@ -80,6 +80,26 @@ class Video(BatchableMedia):
     _width: int | None
     _height: int | None
 
+    @staticmethod
+    def _require_format(
+        format: str | None,
+        source_description: str,
+    ) -> str:
+        """Validate a `format` argument that is required for the given source.
+
+        <!-- lazydoc-ignore -->
+        """
+        if format is None:
+            raise ValueError(
+                f"wandb.Video requires a `format` argument when initializing "
+                f"with {source_description}."
+            )
+        if format not in Video.EXTS:
+            raise ValueError(
+                "wandb.Video accepts {} formats".format(", ".join(Video.EXTS))
+            )
+        return format
+
     def __init__(
         self,
         data_or_path: str | pathlib.Path | np.ndarray | TextIO | BytesIO,
@@ -106,7 +126,6 @@ class Video(BatchableMedia):
                 or io object. This parameter will be used to determine the format
                 to use when encoding the video data. Accepted values are "gif",
                 "mp4", "webm", or "ogg".
-                If no value is provided, the default format will be "gif".
 
         Examples:
         Log a numpy array as a video
@@ -125,20 +144,9 @@ class Video(BatchableMedia):
         """
         super().__init__(caption=caption)
 
-        if format is None:
-            wandb.termwarn(
-                "`format` argument was not provided, defaulting to `gif`. "
-                "This parameter will be required in v0.20.0, "
-                "please specify the format explicitly."
-            )
-        self._format = format or "gif"
         self._width = None
         self._height = None
         self._channels = None
-        if self._format not in Video.EXTS:
-            raise ValueError(
-                "wandb.Video accepts {} formats".format(", ".join(Video.EXTS))
-            )
 
         if isinstance(data_or_path, (BytesIO, str)) and fps:
             msg = (
@@ -148,6 +156,7 @@ class Video(BatchableMedia):
             wandb.termwarn(msg)
 
         if isinstance(data_or_path, BytesIO):
+            self._format = self._require_format(format, "raw bytes (an io object)")
             filename = os.path.join(
                 MEDIA_TMP.name, runid.generate_id() + "." + self._format
             )
@@ -163,9 +172,11 @@ class Video(BatchableMedia):
                 raise ValueError(
                     "wandb.Video accepts {} formats".format(", ".join(Video.EXTS))
                 )
+            self._format = ext
             self._set_file(data_or_path, is_tmp=False)
             # ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 data_or_path
         else:
+            self._format = self._require_format(format, "a numpy array")
             if hasattr(data_or_path, "numpy"):  # TF data eager tensors
                 self.data = data_or_path.numpy()
             elif util.is_numpy_array(data_or_path):
