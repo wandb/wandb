@@ -186,6 +186,11 @@ message RunRecord {
   // Information about the source if this is a fork or rewind of another run.
   BranchPoint branch_point = 23;
 
+  // If true, the sender may reassign history steps at upload time. The handler
+  // writes steps into the log without resume reconciliation. Old logs omit this
+  // field; the sender must preserve logged steps.
+  bool sync_may_reassign_steps = 25;
+
   _RecordInfo _info = 200;
 }
 
