@@ -384,8 +384,9 @@ type OpenTelemetryProxy struct {
 
 // NewOpenTelemetryProxy returns an OpenTelemetryProxy for the given endpoint.
 //
-// When analytics is disabled, the wandbSettings are offline, or no credentials
-// are available, a nil pointer is returned, making calls to the proxy a no-op.
+// When analytics is disabled, the wandbSettings are offline, or the server
+// does not support the proxy API, a nil pointer is returned, making calls
+// to the proxy a no-op.
 func NewOpenTelemetryProxy(
 	ctx context.Context,
 	wandbSettings *settings.Settings,
@@ -408,9 +409,6 @@ func NewOpenTelemetryProxy(
 		)
 		return nil
 	}
-	if httpClient == nil {
-		return nil
-	}
 
 	proxy := &OpenTelemetryProxy{
 		endpoint:    wandbSettings.GetBaseURL(),
@@ -423,6 +421,11 @@ func NewOpenTelemetryProxy(
 	return proxy
 }
 
+// newOTLPHTTPClient builds the HTTP client used for OTLP exports.
+//
+// The backend accepts unauthenticated telemetry uploads, so when no
+// credentials are configured the requests are simply sent without an
+// Authorization header.
 func newOTLPHTTPClient(
 	wandbSettings *settings.Settings,
 ) (*http.Client, error) {
@@ -432,9 +435,6 @@ func newOTLPHTTPClient(
 	)
 	if err != nil {
 		return nil, err
-	}
-	if _, ok := credentialProvider.(api.NoopCredentialProvider); ok {
-		return nil, nil
 	}
 
 	transport := http.DefaultTransport.(*http.Transport).Clone()

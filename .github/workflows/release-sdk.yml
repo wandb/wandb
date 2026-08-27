@@ -215,8 +215,12 @@ jobs:
               --ignore-missing-dependencies \
               -w {dest_dir} \
               -v {wheel}
+          # Sets the minimum macOS version for the wheels. Must be at least
+          # the minimum supported by the Go toolchain (go1.27 stamps a
+          # minimum of macOS 13 into wandb-core), or delocate fails the
+          # wheel repair step.
           CIBW_ENVIRONMENT_MACOS: >
-            MACOSX_DEPLOYMENT_TARGET=12
+            MACOSX_DEPLOYMENT_TARGET=13.0
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
