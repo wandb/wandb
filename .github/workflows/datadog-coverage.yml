@@ -1,0 +1,49 @@
+name: datadog-coverage
+
+# Uploads coverage reports produced by CircleCI test jobs to Datadog Code
+# Coverage. The jobs store reports as coverage-reports/<flags>/* artifacts
+# (the store-coverage command in .circleci/config.yml); this workflow reacts
+# to each job's commit status, downloads the artifacts through CircleCI's
+# public API, and uploads them with datadog-ci. Keeping the Datadog API key
+# in a GitHub secret means CircleCI holds no Datadog credentials.
+#
+# Runs only for commits on branches in this repo: statuses on forked pull
+# requests have no matching branch, and secrets must not be exposed to them.
+
+on: status
+
+permissions:
+  contents: read
+
+jobs:
+  upload:
+    if: >-
+      github.event.state == 'success' &&
+      github.event.branches[0] != null &&
+      (github.event.context == 'ci/circleci: unit-tests-go' ||
+       startsWith(github.event.context, 'ci/circleci: unit-tests-linux') ||
+       startsWith(github.event.context, 'ci/circleci: system-tests') ||
+       startsWith(github.event.context, 'ci/circleci: notebook-tests') ||
+       startsWith(github.event.context, 'ci/circleci: functional-tests') ||
+       startsWith(github.event.context, 'ci/circleci: experimental-tests'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install datadog-ci
+        run: |
+          curl -L --fail --retry 3 \
+            "https://github.com/DataDog/datadog-ci/releases/download/v5.23.0/datadog-ci_linux-x64" \
+            --output /usr/local/bin/datadog-ci
+          chmod +x /usr/local/bin/datadog-ci
+
+      - name: Upload coverage reports to Datadog
+        env:
+          DD_API_KEY: ${{ secrets.DD_API_KEY }}
+          DD_SITE: us5.datadoghq.com
+          DD_GIT_REPOSITORY_URL: https://github.com/wandb/wandb.git
+          DD_GIT_COMMIT_SHA: ${{ github.event.sha }}
+          DD_GIT_BRANCH: ${{ github.event.branches[0].name }}
+          TARGET_URL: ${{ github.event.target_url }}
+        run: python3 .github/scripts/upload-coverage-to-datadog.py

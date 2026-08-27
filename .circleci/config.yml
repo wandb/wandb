@@ -128,14 +128,13 @@ commands:
       - store_artifacts:
           path: cover-results
 
-  upload-coverage:
+  store-coverage:
     description: |
-      Upload coverage reports to Datadog Code Coverage.
+      Store coverage reports as CircleCI artifacts under coverage-reports/.
 
-      Only works on the self-hosted GKE runners: the Datadog API key is
-      fetched from GCP Secret Manager using the runner's ambient GCP
-      identity, so that no static credentials are stored in CircleCI.
-      Elsewhere the step is a no-op.
+      The datadog-coverage GitHub Actions workflow reacts to this job's
+      commit status, downloads the artifacts, and uploads them to Datadog
+      Code Coverage. CircleCI holds no Datadog credentials.
     parameters:
       flags:
         description: Flags for grouping and filtering coverage reports.
@@ -146,57 +145,17 @@ commands:
         default: coverage.xml coverage.txt
     steps:
       - run:
-          name: Upload coverage to Datadog
-          environment:
-            DD_SITE: us5.datadoghq.com
-            DD_API_KEY_SECRET: projects/wandb-production/secrets/datadog-api-key
+          name: Collect coverage reports
           command: |
-            reports=""
+            mkdir -p coverage-reports/<<parameters.flags>>
             for f in <<parameters.paths>>; do
               if [ -f "$f" ]; then
-                reports="$reports $f"
+                cp "$f" coverage-reports/<<parameters.flags>>/
               fi
             done
-            if [ -z "$reports" ]; then
-              echo "No coverage reports found; skipping upload."
-              exit 0
-            fi
-
-            metadata="http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default"
-            token=$(curl -s --fail --connect-timeout 3 \
-              -H "Metadata-Flavor: Google" "$metadata/token" \
-              | python3 -c "import json, sys; print(json.load(sys.stdin)['access_token'])" \
-              2>/dev/null || true)
-            if [ -z "$token" ]; then
-              echo "No GCP metadata server available; skipping coverage upload."
-              exit 0
-            fi
-
-            DD_API_KEY=$(curl -s --fail \
-              -H "Authorization: Bearer $token" \
-              "https://secretmanager.googleapis.com/v1/$DD_API_KEY_SECRET/versions/latest:access" \
-              | python3 -c "import base64, json, sys; print(base64.b64decode(json.load(sys.stdin)['payload']['data']).decode())" \
-              2>/dev/null || true)
-            if [ -z "$DD_API_KEY" ]; then
-              echo "Could not read $DD_API_KEY_SECRET as" \
-                "$(curl -s -H 'Metadata-Flavor: Google' "$metadata/email")." \
-                "Grant it roles/secretmanager.secretAccessor on the secret." \
-                "Skipping coverage upload."
-              exit 0
-            fi
-            export DD_API_KEY
-
-            case $(uname -m) in
-              arm64|aarch64) arch="arm64" ;;
-              *) arch="x64" ;;
-            esac
-            datadog_ci="$(mktemp -d)/datadog-ci"
-            curl -L --fail --retry 3 \
-              "https://github.com/DataDog/datadog-ci/releases/download/v5.23.0/datadog-ci_linux-${arch}" \
-              --output "$datadog_ci"
-            chmod +x "$datadog_ci"
-
-            "$datadog_ci" coverage upload --flags <<parameters.flags>> $reports
+      - store_artifacts:
+          path: coverage-reports
+          destination: coverage-reports
 
   run-nox-tests:
     description:
@@ -406,7 +365,7 @@ jobs:
           python: <<parameters.python>>
           session: <<parameters.session>>
 
-      - upload-coverage: { flags: <<parameters.coverage_flags>> }
+      - store-coverage: { flags: <<parameters.coverage_flags>> }
 
       - save-all-caches
 
@@ -530,7 +489,7 @@ jobs:
             cd core
             go test -count=1 -race -coverprofile=coverage.txt -covermode=atomic ./...
       - save-go-cache
-      - upload-coverage:
+      - store-coverage:
           flags: unit
           paths: core/coverage.txt
 
