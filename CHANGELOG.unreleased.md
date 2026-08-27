@@ -14,6 +14,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
+### Changed
+
+- Filestream uploads now run more frequently when a run's first data is logged, ramping from a 2-second interval to the configured interval (15 seconds by default) (@dmitryduev in https://github.com/wandb/wandb/pull/12170)
+
 ### Deprecated
 
 - `wandb.sandbox` is deprecated and will be removed in a future release. Use the `cwsandbox` package directly instead.
