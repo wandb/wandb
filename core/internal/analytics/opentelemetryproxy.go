@@ -47,6 +47,10 @@ const (
 	logsPath    = "/sdk/otel/v1/logs"
 )
 
+// ServiceName is the OpenTelemetry service.name reported for wandb-core's
+// SDK telemetry.
+const ServiceName = "sdk-wandb-core"
+
 // ConfigureOTelErrorHandler routes OpenTelemetry SDK errors to the core logger.
 func ConfigureOTelErrorHandler() {
 	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(err error) {
