@@ -6,7 +6,6 @@ import pytest
 from wandb.cli import cli, leet
 from wandb.errors import WandbCoreNotAvailableError
 
-
 _BASE_URL = "https://api.wandb.ai"
 
 
