@@ -164,6 +164,7 @@ commands:
     parameters:
       python: { type: string }
       session: { type: string }
+      coverage_flags: { type: string }
     steps:
       - run:
           name: Install Python dependencies
@@ -176,6 +177,7 @@ commands:
           command: >
             nox -s "<<parameters.session>>" --python <<parameters.python>> --verbose
 
+      - store-coverage: { flags: <<parameters.coverage_flags>> }
       - save-test-results
 
   local-wandb-server-deps:
@@ -362,16 +364,16 @@ jobs:
             - connect-to-local-testcontainer
 
       - run-nox-tests:
+          coverage_flags: <<parameters.coverage_flags>>
           python: <<parameters.python>>
           session: <<parameters.session>>
-
-      - store-coverage: { flags: <<parameters.coverage_flags>> }
 
       - save-all-caches
 
   nox-tests-macos:
     parameters:
       parallelism: { type: integer }
+      coverage_flags: { type: string }
       python: { type: string }
       session: { type: string }
 
@@ -389,6 +391,7 @@ jobs:
       - load-all-caches
 
       - run-nox-tests:
+          coverage_flags: <<parameters.coverage_flags>>
           python: <<parameters.python>>
           session: <<parameters.session>>
 
@@ -397,6 +400,7 @@ jobs:
   nox-tests-win:
     parameters:
       parallelism: { type: integer }
+      coverage_flags: { type: string }
       python: { type: string }
       session: { type: string }
 
@@ -430,6 +434,7 @@ jobs:
       - load-all-caches
 
       - run-nox-tests:
+          coverage_flags: <<parameters.coverage_flags>>
           python: <<parameters.python>>
           session: <<parameters.session>>
 
@@ -555,6 +560,7 @@ workflows:
       - nox-tests-macos:
           name: unit-tests-macos-<<matrix.python>>
           session: unit_tests
+          coverage_flags: unit
           parallelism: 4
 
           matrix:
@@ -567,6 +573,7 @@ workflows:
       - nox-tests-win:
           name: unit-tests-win-<<matrix.python>>
           session: unit_tests
+          coverage_flags: unit
           parallelism: 4
 
           filters:

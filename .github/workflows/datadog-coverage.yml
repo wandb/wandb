@@ -22,6 +22,8 @@ jobs:
       github.event.branches[0] != null &&
       (github.event.context == 'ci/circleci: unit-tests-go' ||
        startsWith(github.event.context, 'ci/circleci: unit-tests-linux') ||
+       startsWith(github.event.context, 'ci/circleci: unit-tests-macos') ||
+       startsWith(github.event.context, 'ci/circleci: unit-tests-win') ||
        startsWith(github.event.context, 'ci/circleci: system-tests') ||
        startsWith(github.event.context, 'ci/circleci: notebook-tests') ||
        startsWith(github.event.context, 'ci/circleci: functional-tests') ||
