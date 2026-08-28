@@ -178,7 +178,7 @@ func serviceMain() int {
 		defer func() { _ = file.Close() }()
 	}
 
-	analytics.ConfigureOTelErrorHandler()
+	analytics.ConfigureOTelErrorHandler(slog.Default())
 
 	// Record certain signals in the log file for debugging.
 	signalCh := make(chan os.Signal, 1)
@@ -241,12 +241,23 @@ func leetMain(args []string) int {
 	flushSentry := configureLeetSentry(opts.disableAnalytics, leetSentryMessage(&opts))
 	defer flushSentry()
 
-	logger, closeLogger, err := newLeetLogger(opts.logLevel)
+	recorder, stopTelemetry := leet.ConfigureTelemetry(leet.TelemetryParams{
+		Disabled: opts.disableAnalytics,
+		Mode:     leetMode(&opts),
+		Commit:   commit,
+		BaseURL:  opts.baseURL,
+	})
+	defer stopTelemetry()
+
+	logger, closeLogger, err := newLeetLogger(opts.logLevel, recorder)
 	if err != nil {
 		fmt.Println("fatal:", err)
 		return exitCodeErrorInternal
 	}
 	defer closeLogger()
+
+	analytics.ConfigureOTelErrorHandler(logger.Logger)
+	logger.RecordTelemetry("leet_launch", nil)
 
 	return runLeetCommand(&opts, logger)
 }
@@ -254,6 +265,7 @@ func leetMain(args []string) int {
 type leetOptions struct {
 	logLevel         int
 	disableAnalytics bool
+	baseURL          string
 	runFile          string
 	pprofAddr        string
 	editConfig       bool
@@ -303,6 +315,13 @@ func bindLeetFlags(fs *flag.FlagSet, opts *leetOptions) {
 		"no-observability",
 		false,
 		"Disables observability features such as metrics and logging analytics.",
+	)
+	fs.StringVar(
+		&opts.baseURL,
+		"base-url",
+		"",
+		"URL of the W&B server to upload telemetry to."+
+			" Defaults to the public W&B API.",
 	)
 	fs.StringVar(
 		&opts.runFile,
@@ -455,7 +474,24 @@ func leetSentryMessage(opts *leetOptions) string {
 	}
 }
 
-func newLeetLogger(logLevel int) (*observability.CoreLogger, func(), error) {
+// leetMode names the launch mode for telemetry.
+func leetMode(opts *leetOptions) string {
+	switch {
+	case opts.editConfig:
+		return "config"
+	case opts.symonMode:
+		return "symon"
+	case opts.inspect:
+		return "inspect"
+	default:
+		return "leet"
+	}
+}
+
+func newLeetLogger(
+	logLevel int,
+	recorder *analytics.TelemetryRecorder,
+) (*observability.CoreLogger, func(), error) {
 	logWriter := io.Discard
 	closeLogWriter := func() {}
 
@@ -479,7 +515,7 @@ func newLeetLogger(logLevel int) (*observability.CoreLogger, func(), error) {
 			&slog.HandlerOptions{Level: slog.Level(logLevel)},
 		)),
 		observability.NewSentryContext(sentry.CurrentHub()),
-		analytics.NewTelemetryRecorder(nil, analytics.NewTelemetryContext()),
+		recorder,
 	)
 	return logger, closeLogWriter, nil
 }

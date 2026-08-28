@@ -47,10 +47,13 @@ const (
 	logsPath    = "/sdk/otel/v1/logs"
 )
 
-// ConfigureOTelErrorHandler routes OpenTelemetry SDK errors to the core logger.
-func ConfigureOTelErrorHandler() {
+// ConfigureOTelErrorHandler routes OpenTelemetry SDK errors to the logger.
+//
+// Without this, the OpenTelemetry SDK prints errors to stderr, which
+// corrupts the display of terminal UIs like leet.
+func ConfigureOTelErrorHandler(logger *slog.Logger) {
 	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(err error) {
-		slog.Error(
+		logger.Error(
 			"analytics: failed to send telemetry to backend proxy",
 			"error", err,
 		)
@@ -63,11 +66,19 @@ type LowCardinalityAttributes struct {
 	GoVersion       string
 	WandbVersion    string
 	OperatingSystem string
+	Architecture    string
 	ErrorOriginator string
 
 	PythonVersion string
 	PythonRuntime string
 	ExceptionType string
+
+	// LeetMode is the leet launch mode: leet, config, inspect or symon.
+	LeetMode string
+
+	// ExecutionContext classifies where the process runs:
+	// kubernetes, container, slurm, ci, ssh or local.
+	ExecutionContext string
 }
 
 // merge overwrites attrs with the non-empty fields of other.
@@ -75,22 +86,29 @@ func (attrs *LowCardinalityAttributes) merge(other LowCardinalityAttributes) {
 	attrs.GoVersion = cmp.Or(other.GoVersion, attrs.GoVersion)
 	attrs.WandbVersion = cmp.Or(other.WandbVersion, attrs.WandbVersion)
 	attrs.OperatingSystem = cmp.Or(other.OperatingSystem, attrs.OperatingSystem)
+	attrs.Architecture = cmp.Or(other.Architecture, attrs.Architecture)
 	attrs.ErrorOriginator = cmp.Or(other.ErrorOriginator, attrs.ErrorOriginator)
 
 	attrs.PythonVersion = cmp.Or(other.PythonVersion, attrs.PythonVersion)
 	attrs.PythonRuntime = cmp.Or(other.PythonRuntime, attrs.PythonRuntime)
 	attrs.ExceptionType = cmp.Or(other.ExceptionType, attrs.ExceptionType)
+
+	attrs.LeetMode = cmp.Or(other.LeetMode, attrs.LeetMode)
+	attrs.ExecutionContext = cmp.Or(other.ExecutionContext, attrs.ExecutionContext)
 }
 
 func (attrs LowCardinalityAttributes) toMap() map[string]string {
 	out := map[string]string{
-		"go_version":       attrs.GoVersion,
-		"operating_system": attrs.OperatingSystem,
-		"error.originator": attrs.ErrorOriginator,
-		"python_version":   attrs.PythonVersion,
-		"python_runtime":   attrs.PythonRuntime,
-		"exception_type":   attrs.ExceptionType,
-		"wandb_version":    attrs.WandbVersion,
+		"go_version":        attrs.GoVersion,
+		"operating_system":  attrs.OperatingSystem,
+		"architecture":      attrs.Architecture,
+		"error.originator":  attrs.ErrorOriginator,
+		"python_version":    attrs.PythonVersion,
+		"python_runtime":    attrs.PythonRuntime,
+		"exception_type":    attrs.ExceptionType,
+		"wandb_version":     attrs.WandbVersion,
+		"leet_mode":         attrs.LeetMode,
+		"execution_context": attrs.ExecutionContext,
 	}
 	maps.DeleteFunc(out, func(_ string, value string) bool {
 		return value == ""
@@ -134,6 +152,7 @@ func NewTelemetryContext() TelemetryContext {
 		WandbVersion:    version.Version,
 		GoVersion:       runtime.Version(),
 		OperatingSystem: runtime.GOOS,
+		Architecture:    runtime.GOARCH,
 	}
 
 	return TelemetryContext{
@@ -401,6 +420,31 @@ func NewOpenTelemetryProxy(
 		return nil
 	}
 
+	return newOpenTelemetryProxy(ctx, wandbSettings, serviceName)
+}
+
+// NewOpenTelemetryProxyUnchecked is like NewOpenTelemetryProxy except that it
+// skips the network probe checking whether the server supports the proxy API.
+//
+// Use it with endpoints known to expose the API when blocking on a network
+// round trip at construction time is not acceptable.
+func NewOpenTelemetryProxyUnchecked(
+	ctx context.Context,
+	wandbSettings *settings.Settings,
+	serviceName string,
+) *OpenTelemetryProxy {
+	if disabled.Load() || wandbSettings.IsOffline() {
+		return nil
+	}
+
+	return newOpenTelemetryProxy(ctx, wandbSettings, serviceName)
+}
+
+func newOpenTelemetryProxy(
+	ctx context.Context,
+	wandbSettings *settings.Settings,
+	serviceName string,
+) *OpenTelemetryProxy {
 	httpClient, err := newOTLPHTTPClient(wandbSettings)
 	if err != nil {
 		slog.Debug(
