@@ -49,7 +49,7 @@ type RunOverviewSidebar struct {
 	// render; mouse drags hit-test against them.
 	separators []overviewSeparator
 
-	// dragCue is the owning view's hovered or dragged layout boundary;
+	// dragCue is the owning view's actively dragged layout boundary;
 	// the sidebar highlights its border or the matching section rule.
 	dragCue layoutDrag
 }
@@ -135,7 +135,7 @@ func (s *RunOverviewSidebar) borderStyle() lipgloss.Style {
 	return lipgloss.NewStyle()
 }
 
-// SetDragCue passes the owning view's hovered or dragged boundary in for
+// SetDragCue passes the owning view's actively dragged boundary in for
 // the next render to highlight.
 func (s *RunOverviewSidebar) SetDragCue(cue layoutDrag) {
 	s.dragCue = cue
@@ -483,8 +483,8 @@ func (s *RunOverviewSidebar) buildSectionLines(contentWidth, firstRow int) []str
 		}
 
 		// Separate adjacent sections with the same rule the central
-		// column draws between its stacked panes. The hovered or dragged
-		// rule is matched by its neighbor pair: its row moves mid-drag.
+		// column draws between its stacked panes. The dragged rule is matched
+		// by its neighbor pair because its row moves during the drag.
 		if prev >= 0 {
 			highlighted := s.dragCue.boundary == dragBoundaryOverviewSection &&
 				s.dragCue.overview.above == prev &&

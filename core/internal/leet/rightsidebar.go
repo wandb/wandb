@@ -26,12 +26,12 @@ type RightSidebar struct {
 	focusState  *Focus
 	logger      *observability.CoreLogger
 
-	// borderHighlight renders the border as hovered or dragged.
+	// borderHighlight colors the border during an active drag.
 	borderHighlight bool
 }
 
 // SetBorderHighlight sets whether the next render draws the border
-// highlighted, cueing that it can be dragged.
+// highlighted during an active drag.
 func (rs *RightSidebar) SetBorderHighlight(highlighted bool) {
 	rs.borderHighlight = highlighted
 }

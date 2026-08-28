@@ -81,25 +81,15 @@ type dragTargets struct {
 type paneDragger struct {
 	drag layoutDrag
 
-	// hover is the draggable boundary under the unpressed pointer, if any.
-	// Views render it highlighted so boundaries advertise that they can be
-	// grabbed. Only updated when the terminal reports unpressed motion
-	// (MouseModeAllMotion); elsewhere it stays zero and no cue is shown.
-	hover layoutDrag
-
 	saved    func() LayoutOverrides
 	persist  func(LayoutOverrides) error
 	relayout func()
 	logger   *observability.CoreLogger
 }
 
-// cue returns the boundary to render highlighted: the active drag's latched
-// boundary, or the one under the unpressed pointer.
+// cue returns the active drag's latched boundary for rendering feedback.
 func (d *paneDragger) cue() layoutDrag {
-	if d.drag.active() {
-		return d.drag
-	}
-	return d.hover
+	return d.drag
 }
 
 // overrides returns the live pane proportions: the in-progress drag's
@@ -125,7 +115,6 @@ func (d *paneDragger) handleMouse(msg tea.MouseMsg, layout Layout, t dragTargets
 			// reached this view (help overlay, view switch); any new
 			// press that misses a boundary clears it.
 			d.drag = layoutDrag{}
-			d.hover = layoutDrag{}
 			return false
 		}
 		drag.overrides = d.saved()
@@ -133,17 +122,7 @@ func (d *paneDragger) handleMouse(msg tea.MouseMsg, layout Layout, t dragTargets
 		return true
 
 	case tea.MouseMotionMsg:
-		if !d.drag.active() {
-			if m.Button == tea.MouseNone {
-				// Unpressed motion only feeds the hover cue; it never
-				// reached the panes under cell-motion tracking, so keep
-				// it away from them under all-motion tracking too.
-				d.updateHover(m.X, m.Y, layout, t)
-				return true
-			}
-			return false
-		}
-		if m.Button != tea.MouseLeft {
+		if !d.drag.active() || m.Button != tea.MouseLeft {
 			return false
 		}
 		d.apply(m.X, m.Y, layout, t)
@@ -158,21 +137,9 @@ func (d *paneDragger) handleMouse(msg tea.MouseMsg, layout Layout, t dragTargets
 			return false
 		}
 		d.finish()
-		// The pointer rests on the boundary it just dropped.
-		d.updateHover(m.X, m.Y, layout, t)
 		return true
 	}
 	return false
-}
-
-// updateHover records the draggable boundary under the unpressed pointer.
-func (d *paneDragger) updateHover(x, y int, layout Layout, t dragTargets) {
-	drag, ok := grabbableBoundaryAt(x, y, layout, t)
-	if !ok {
-		d.hover = layoutDrag{}
-		return
-	}
-	d.hover = drag
 }
 
 // apply updates the pending overrides from the mouse position and re-lays

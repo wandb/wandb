@@ -266,9 +266,7 @@ func (ins *Inspector) View() tea.View {
 	view := tea.NewView(content)
 	view.WindowTitle = "wandb leet inspect"
 	view.AltScreen = true
-	// All-motion (not cell-motion) tracking so unpressed pointer motion
-	// reaches the pane dragger, which highlights the boundary on hover.
-	view.MouseMode = tea.MouseModeAllMotion
+	view.MouseMode = tea.MouseModeCellMotion
 	return view
 }
 

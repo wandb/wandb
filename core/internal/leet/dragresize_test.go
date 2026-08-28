@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/require"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -153,7 +154,7 @@ func TestBoundaryAtOverviewSeparators(t *testing.T) {
 	require.False(t, ok)
 }
 
-func TestHoverCuesBoundary(t *testing.T) {
+func TestDragCuesBoundary(t *testing.T) {
 	layout := testRunLayout()
 	targets := testDragTargets()
 	d := paneDragger{
@@ -161,45 +162,50 @@ func TestHoverCuesBoundary(t *testing.T) {
 		persist:  func(LayoutOverrides) error { return nil },
 		relayout: func() {},
 	}
-	hover := func(x, y int) tea.MouseMotionMsg {
-		return tea.MouseMotionMsg{X: x, Y: y, Button: tea.MouseNone}
-	}
-
-	// Unpressed motion over a separator is consumed and cues it.
-	require.True(t, d.handleMouse(hover(100, layout.mediaY-1), layout, targets))
-	require.Equal(t, dragBoundarySeparator, d.cue().boundary)
-	require.Equal(t, stackSectionMedia, d.cue().section)
-
-	// Moving off the boundary clears the cue (still consumed).
-	require.True(t, d.handleMouse(hover(100, layout.mediaY), layout, targets))
-	require.Equal(t, dragBoundaryNone, d.cue().boundary)
-
-	// Separators hide behind a fullscreen media pane; no cue there.
-	fullscreen := targets
-	fullscreen.mediaFullscreen = true
-	require.True(t, d.handleMouse(hover(100, layout.mediaY-1), layout, fullscreen))
-	require.Equal(t, dragBoundaryNone, d.cue().boundary)
-
-	// Pressed motion without a latched drag stays with the panes
-	// (chart inspection drags), and does not disturb the cue.
-	require.True(t, d.handleMouse(hover(39, 5), layout, targets))
+	// Unpressed motion is not consumed and cannot create a cue.
 	require.False(t, d.handleMouse(
-		tea.MouseMotionMsg{X: 100, Y: 5, Button: tea.MouseLeft}, layout, targets))
-	require.Equal(t, dragBoundaryLeftSidebar, d.cue().boundary)
+		tea.MouseMotionMsg{
+			X: 100, Y: layout.mediaY - 1, Button: tea.MouseNone,
+		},
+		layout, targets,
+	))
+	require.Equal(t, dragBoundaryNone, d.cue().boundary)
 
-	// While a drag is latched, the cue is the dragged boundary; the hover
-	// left over from before the click does not shadow it.
+	// Clicking a separator latches and cues it immediately.
 	require.True(t, d.handleMouse(
 		tea.MouseClickMsg{X: 100, Y: layout.mediaY - 1, Button: tea.MouseLeft},
 		layout, targets))
 	require.Equal(t, dragBoundarySeparator, d.cue().boundary)
+	require.Equal(t, stackSectionMedia, d.cue().section)
 
-	// Release re-cues whatever rests under the pointer.
+	// Releasing removes the cue.
 	require.True(t, d.handleMouse(
 		tea.MouseReleaseMsg{X: 100, Y: layout.mediaY - 1, Button: tea.MouseLeft},
 		layout, targets))
-	require.Equal(t, dragBoundarySeparator, d.cue().boundary)
+	require.Equal(t, dragBoundaryNone, d.cue().boundary)
 	require.False(t, d.drag.active())
+
+	// Hidden separators cannot latch or cue.
+	fullscreen := targets
+	fullscreen.mediaFullscreen = true
+	require.False(t, d.handleMouse(
+		tea.MouseClickMsg{X: 100, Y: layout.mediaY - 1, Button: tea.MouseLeft},
+		layout, fullscreen))
+	require.Equal(t, dragBoundaryNone, d.cue().boundary)
+}
+
+func TestDragCueUsesColorWithoutChangingSeparatorWeight(t *testing.T) {
+	normal := renderHorizontalSeparator(5, false)
+	highlighted := renderHorizontalSeparator(5, true)
+
+	require.Equal(t, strings.Repeat(string(unicodeEmDash), 5), ansi.Strip(normal))
+	require.Equal(t, ansi.Strip(normal), ansi.Strip(highlighted))
+	require.NotEqual(t, normal, highlighted)
+
+	normal = leftSidebarBorderStyle.Render("content")
+	highlighted = leftSidebarBorderHighlightStyle.Render("content")
+	require.Equal(t, ansi.Strip(normal), ansi.Strip(highlighted))
+	require.NotEqual(t, normal, highlighted)
 }
 
 func TestHighlightedStackSeparator(t *testing.T) {

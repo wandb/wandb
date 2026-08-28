@@ -191,11 +191,6 @@ const (
 	// boxLightHorizontal is U+2500, the horizontal counterpart of boxLightVertical.
 	boxLightHorizontal rune = '\u2500' // ─
 
-	// Heavy box-drawing counterparts of the light rules, used to render a
-	// draggable boundary while it is hovered or dragged.
-	boxHeavyVertical   rune = '\u2503' // ┃
-	boxHeavyHorizontal rune = '\u2501' // ━
-
 	// unicodeEmDash is the em dash.
 	unicodeEmDash rune = '\u2014'
 
@@ -739,30 +734,14 @@ var (
 		BottomRight: string(unicodeSpace),
 	}
 
-	// leftSidebarBorderHighlightStyle renders the same border as a heavy
-	// rule in the highlight color while the boundary is hovered or dragged.
+	// leftSidebarBorderHighlightStyle colors the border while it is dragged.
 	leftSidebarBorderHighlightStyle = lipgloss.NewStyle().
-					Border(heavyBorder(&RightBorder)).
+					Border(RightBorder).
 					BorderForeground(colorLayoutHighlight).
 					BorderTop(false).
 					BorderBottom(false).
 					BorderLeft(false)
 )
-
-// heavyBorder returns a copy of border with its light vertical rules
-// replaced by heavy ones, for rendering a sidebar border as hovered or
-// dragged.
-func heavyBorder(border *lipgloss.Border) lipgloss.Border {
-	b := *border
-	light, heavy := string(boxLightVertical), string(boxHeavyVertical)
-	if b.Left == light {
-		b.Left = heavy
-	}
-	if b.Right == light {
-		b.Right = heavy
-	}
-	return b
-}
 
 // Right sidebar styles.
 var (
@@ -788,10 +767,9 @@ var (
 		BottomRight: string(unicodeSpace),
 	}
 
-	// rightSidebarBorderHighlightStyle renders the same border as a heavy
-	// rule in the highlight color while the boundary is hovered or dragged.
+	// rightSidebarBorderHighlightStyle colors the border while it is dragged.
 	rightSidebarBorderHighlightStyle = lipgloss.NewStyle().
-						Border(heavyBorder(&LeftBorder)).
+						Border(LeftBorder).
 						BorderForeground(colorLayoutHighlight).
 						BorderTop(false).
 						BorderBottom(false).
@@ -824,14 +802,14 @@ var (
 
 // renderHorizontalSeparator draws a full-width em-dash separator line.
 // This is used between vertically stacked panes in the central column
-// instead of per-pane top borders. A highlighted separator is drawn as a
-// heavy rule in the highlight color, cueing that it can be dragged.
+// instead of per-pane top borders. An actively dragged separator keeps the
+// same glyph and is distinguished only by the layout highlight color.
 func renderHorizontalSeparator(width int, highlighted bool) string {
 	if width <= 0 {
 		return ""
 	}
 	if highlighted {
-		line := strings.Repeat(string(boxHeavyHorizontal), width)
+		line := strings.Repeat(string(unicodeEmDash), width)
 		return lipgloss.NewStyle().Foreground(colorLayoutHighlight).Render(line)
 	}
 	line := strings.Repeat(string(unicodeEmDash), width)
