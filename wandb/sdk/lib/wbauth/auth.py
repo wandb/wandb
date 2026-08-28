@@ -90,7 +90,7 @@ class AuthApiKey(Auth):
 
 @final
 class AuthIdentityTokenFile(Auth):
-    """A path to a file storing a JWT with OIDC credentials."""
+    """A file containing OIDC identity credentials."""
 
     @override
     def __init__(
@@ -104,7 +104,7 @@ class AuthIdentityTokenFile(Auth):
 
         Args:
             host: The W&B server URL.
-            path: Path to the identity token file containing a JWT.
+            path: Path to the identity token file.
             credentials_file: Path to the credentials file for caching access tokens.
         """
         super().__init__(host=host)
@@ -143,4 +143,4 @@ class AuthWithSource:
     auth: Auth
 
     source: str
-    """A file path or environment variable."""
+    """A file path, environment variable, or setting name."""

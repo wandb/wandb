@@ -86,6 +86,18 @@ def test_login_key(emulated_terminal):
     assert wandb.api.api_key == "A" * 40
 
 
+@pytest.mark.usefixtures("local_settings", "skip_verify_login")
+def test_login_key_clears_persisted_identity_token():
+    settings = wandb_setup.singleton().settings
+    system_settings = settings.read_system_settings()
+    system_settings.set("identity_token_file", "/tmp/identity.json", globally=True)
+    system_settings.save()
+
+    wandb.login(key="A" * 40)
+
+    assert "identity_token_file" not in settings.read_system_settings().all()
+
+
 def test_login(test_settings):
     settings = test_settings(dict(mode="disabled"))
     wandb.setup(settings=settings)

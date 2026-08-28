@@ -40,9 +40,11 @@ from wandb.sdk.launch.errors import ExecutionError, LaunchError
 from wandb.sdk.launch.sweeps import SweepNotFoundError
 from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
-from wandb.sdk.lib import filesystem, settings_file
+from wandb.sdk.lib import filesystem, settings_file, wbauth
+from wandb.sdk.lib.wbauth import sso_login
 from wandb.sync import TFEVENT_SUBSTRING, SyncManager, get_runs
 
+from ._click_utils import DefaultCommandGroup
 from .beta import beta
 from .clean import clean
 from .leet import leet
@@ -276,47 +278,15 @@ def projects(entity, display=True):
     return projects
 
 
-@cli.command(context_settings=CONTEXT)
-@click.argument("key", nargs=-1)
-@click.option(
-    "--cloud",
-    is_flag=True,
-    help="""Log in to the W&B public cloud
-    (https://api.wandb.ai).
-    Mutually exclusive with --host.""",
+@cli.group(
+    cls=DefaultCommandGroup,
+    default_cmd="key",
+    usage="[KEY] | COMMAND [ARGS]...",
+    show_default_options=True,
+    invoke_without_command=True,
+    context_settings=CONTEXT,
 )
-@click.option(
-    "--host",
-    "--base-url",
-    default=None,
-    help="""Log in to a specific W&B server
-    instance by URL
-    (e.g. https://my-wandb.example.com).
-    Mutually exclusive with --cloud.""",
-)
-@click.option(
-    "--relogin",
-    default=None,
-    is_flag=True,
-    help="Force a new login prompt, ignoring any existing credentials.",
-)
-@click.option(
-    "--anonymously",
-    default=False,
-    hidden=True,
-    is_flag=True,
-    help="Deprecated. Has no effect and will be removed in a future version.",
-)
-@click.option(
-    "--verify/--no-verify",
-    default=True,
-    is_flag=True,
-    help="""Verify the API key with W&B after storing it. If verification
-    is successful, display the source of the credentials and the
-    default team.""",
-)
-@display_error
-def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
+def login() -> None:
     """Authenticate your machine with W&B.
 
     Store an API key locally for authenticating with W&B services.
@@ -360,6 +330,58 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
     To force a new login prompt even if already authenticated:
 
         $ wandb login --relogin
+
+    To log in via your organization's identity provider (SSO) instead of an
+    API key:
+
+        $ wandb login sso
+    """
+
+
+@login.command(name="key", context_settings=CONTEXT, hidden=True)
+@click.argument("key", nargs=-1)
+@click.option(
+    "--cloud",
+    is_flag=True,
+    help="""Log in to the W&B public cloud
+    (https://api.wandb.ai).
+    Mutually exclusive with --host.""",
+)
+@click.option(
+    "--host",
+    "--base-url",
+    default=None,
+    help="""Log in to a specific W&B server
+    instance by URL
+    (e.g. https://my-wandb.example.com).
+    Mutually exclusive with --cloud.""",
+)
+@click.option(
+    "--relogin",
+    default=None,
+    is_flag=True,
+    help="Force a new login prompt, ignoring any existing credentials.",
+)
+@click.option(
+    "--anonymously",
+    default=False,
+    hidden=True,
+    is_flag=True,
+    help="Deprecated. Has no effect and will be removed in a future version.",
+)
+@click.option(
+    "--verify/--no-verify",
+    default=True,
+    is_flag=True,
+    help="""Verify the API key with W&B after storing it. If verification
+    is successful, display the source of the credentials and the
+    default team.""",
+)
+@display_error
+def _login_with_key(key, host, cloud, relogin, anonymously, verify, no_offline=False):
+    """Authenticate your machine with W&B using an API key.
+
+    This is `wandb login`'s default subcommand; see `wandb login --help`.
     """
     # TODO: handle no_offline
     if anonymously:
@@ -392,6 +414,114 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
         verify=verify,
         referrer="models",
     )
+
+
+@login.command(name="sso", context_settings=CONTEXT)
+@click.option(
+    "--host",
+    default=None,
+    help="""Log in to a specific W&B server instance by URL
+    (e.g. https://my-wandb.example.com). Use this for
+    dedicated/self-hosted instances; the instance resolves its own
+    organization automatically. Pass either --host or --org.""",
+)
+@click.option(
+    "--org",
+    default=None,
+    help="""The organization whose SSO configuration to use. Required on
+    multi-tenant SaaS to select which organization's identity provider to
+    log in with. Pass either --host or --org.""",
+)
+@click.option(
+    "--identity-token-file",
+    "identity_token_file",
+    default=None,
+    help="""Where to write the credentials obtained from the login.
+    Defaults to identity_token.json in the W&B config directory.""",
+)
+@display_error
+def _login_sso(host, org, identity_token_file):
+    """Log in via your organization's identity provider (SSO).
+
+    This opens the configured identity provider in a browser and stores
+    the resulting ID and refresh tokens for subsequent commands and runs.
+
+    You must pass either --org or --host.
+
+    On multi-tenant SaaS, pass --org to select which organization's
+    identity provider to use:
+
+        $ wandb login sso --org my-org
+
+    For a dedicated/self-hosted instance, pass --host; the instance
+    resolves its own organization automatically:
+
+        $ wandb login sso --host https://my-wandb-server.example.com
+
+    """
+    settings = wandb_setup.singleton().settings
+    if not host and not org:
+        raise click.UsageError(
+            "Pass --org to log in to a multi-tenant SaaS organization, or"
+            " --host to log in to a dedicated/self-hosted instance."
+        )
+    host_url = (
+        wbauth.HostUrl(host)
+        if host
+        else wbauth.HostUrl(settings.base_url, app_url=settings.app_url)
+    )
+    token_path = pathlib.Path(
+        identity_token_file or sso_login.default_identity_token_file()
+    ).expanduser()
+
+    wandb.termlog(f"Logging in to {host_url} via SSO...")
+    tokens = sso_login.login_with_pkce(host_url, org=org)
+    token_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        dir=token_path.parent,
+        prefix=f".{token_path.name}.",
+        delete=False,
+    ) as temporary_file:
+        temporary_path = pathlib.Path(temporary_file.name)
+    try:
+        tokens.write(temporary_path)
+        wbauth.AuthIdentityTokenFile(
+            host=host_url,
+            path=str(temporary_path),
+            credentials_file=settings.credentials_file,
+        ).verify()
+        os.replace(temporary_path, token_path)
+    finally:
+        temporary_path.unlink(missing_ok=True)
+
+    auth = wbauth.AuthIdentityTokenFile(
+        host=host_url,
+        path=str(token_path),
+        credentials_file=settings.credentials_file,
+    )
+    _save_sso_settings(settings, auth)
+    wbauth.use_explicit_auth(auth, source="wandb login sso")
+    wandb.termlog(
+        f"Logged in to {host_url} via SSO. Credentials saved to {token_path}."
+    )
+
+
+def _save_sso_settings(
+    settings: wandb.Settings,
+    auth: wbauth.AuthIdentityTokenFile,
+) -> None:
+    system_settings = settings.read_system_settings()
+    system_settings.clear("api_key", globally=True)
+    system_settings.set("identity_token_file", str(auth.path), globally=True)
+    system_settings.set("credentials_file", str(auth.credentials_path), globally=True)
+    if auth.host.is_same_url("https://api.wandb.ai"):
+        system_settings.clear("base_url", globally=True)
+    else:
+        system_settings.set("base_url", auth.host.url, globally=True)
+    try:
+        system_settings.save()
+    except settings_file.SaveSettingsError as e:
+        raise Error(f"Failed to save SSO settings: {e}") from e
 
 
 @cli.command(context_settings=CONTEXT)
@@ -471,7 +601,7 @@ def init(ctx, project, entity, reset, mode):
         )
     api = _get_cling_api()
     if api.api_key is None:
-        ctx.invoke(login)
+        ctx.invoke(_login_with_key)
         api = _get_cling_api(reset=True)
 
     viewer = api.viewer()
@@ -486,7 +616,7 @@ def init(ctx, project, entity, reset, mode):
                 bold=True,
             )
         )
-        ctx.invoke(login)
+        ctx.invoke(_login_with_key)
         api = _get_cling_api(reset=True)
 
     # This shouldn't happen.
@@ -851,7 +981,7 @@ def sync(
     api = _get_cling_api()
     if not api.is_authenticated:
         wandb.termlog("Login to W&B to sync runs")
-        ctx.invoke(login, no_offline=True)
+        ctx.invoke(_login_with_key, no_offline=True)
         api = _get_cling_api(reset=True)
 
     if ignore:
@@ -1147,7 +1277,7 @@ def sweep(
         api = _get_cling_api()
         if not api.is_authenticated:
             wandb.termlog("Login to W&B to use the sweep feature")
-            ctx.invoke(login, no_offline=True)
+            ctx.invoke(_login_with_key, no_offline=True)
             api = _get_cling_api(reset=True)
         parts = dict(entity=entity, project=project, name=sweep_id)
         err = sweep_utils.parse_sweep_id(parts)
@@ -1190,7 +1320,7 @@ def sweep(
     api = _get_cling_api()
     if not api.is_authenticated:
         wandb.termlog("Login to W&B to use the sweep feature")
-        ctx.invoke(login, no_offline=True)
+        ctx.invoke(_login_with_key, no_offline=True)
         api = _get_cling_api(reset=True)
 
     sweep_obj_id = None
@@ -1367,7 +1497,7 @@ def launch_sweep(
     env = os.environ
     if not api.is_authenticated:
         wandb.termlog("Login to W&B to use the sweep feature")
-        ctx.invoke(login, no_offline=True)
+        ctx.invoke(_login_with_key, no_offline=True)
         api = _get_cling_api(reset=True)
 
     entity = entity or env.get("WANDB_ENTITY") or api.settings("entity")
@@ -2145,7 +2275,7 @@ def agent(ctx, project, entity, count, forward_signals, term_timeout, sweep_id):
     api = _get_cling_api()
     if not api.is_authenticated:
         wandb.termlog("Login to W&B to use the sweep agent feature")
-        ctx.invoke(login, no_offline=True)
+        ctx.invoke(_login_with_key, no_offline=True)
         api = _get_cling_api(reset=True)
 
     wandb.termlog("Starting wandb agent 🕵️")
@@ -2186,7 +2316,7 @@ def scheduler(
     api = InternalApi()
     if not api.is_authenticated:
         wandb.termlog("Login to W&B to use the sweep scheduler feature")
-        ctx.invoke(login, no_offline=True)
+        ctx.invoke(_login_with_key, no_offline=True)
         api = InternalApi(reset=True)
 
     service_api = ServiceApi(wandb_setup.singleton().settings)
@@ -2888,7 +3018,7 @@ def start(ctx, port, env, daemon, upgrade, edge):
             if not api.api_key:
                 # Let the server start before potentially launching a browser
                 time.sleep(2)
-                ctx.invoke(login, host=host)
+                ctx.invoke(_login_with_key, host=host)
 
 
 @server.command(context_settings=RUN_CONTEXT)

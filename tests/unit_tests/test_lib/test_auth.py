@@ -4,18 +4,29 @@ from unittest.mock import MagicMock
 
 import pytest
 from wandb.errors import AuthenticationError
+from wandb.sdk import wandb_setup
 from wandb.sdk.lib.wbauth import (
     AuthApiKey,
     AuthIdentityTokenFile,
+    HostUrl,
     authenticate_session,
     session_credentials,
     use_explicit_auth,
     validation,
 )
+from wandb.sdk.lib.wbauth.authenticate import _try_settings_file_auth
 
 from tests.fixtures.mock_wandb_log import MockWandbLog
 
 pytestmark = pytest.mark.usefixtures("skip_verify_login")
+
+
+def _write_system_settings(contents: str) -> None:
+    settings = wandb_setup.singleton().settings
+    path = pathlib.Path(settings.settings_system)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(textwrap.dedent(contents))
+    settings.update_from_system_settings()
 
 
 def test_auth_repr_no_secrets():
@@ -163,6 +174,69 @@ def test_loads_oidc_from_environment_variable(
         "[test] Loaded credentials for https://fake-url from"
         + " WANDB_IDENTITY_TOKEN_FILE."
     )
+
+
+def test_loads_identity_token_from_settings_file(
+    mock_wandb_log: MockWandbLog,
+    local_settings,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.delenv("WANDB_API_KEY", raising=False)
+    monkeypatch.delenv("WANDB_IDENTITY_TOKEN_FILE", raising=False)
+
+    token_path = tmp_path / "identity_token.json"
+    _write_system_settings(
+        f"""\
+            [default]
+            base_url = https://fake-url
+            identity_token_file = {token_path}
+        """
+    )
+
+    result = authenticate_session(host="https://fake-url", source="test")
+
+    assert isinstance(result, AuthIdentityTokenFile)
+    assert result.host.is_same_url("https://fake-url")
+    assert result.path == token_path.absolute()
+    mock_wandb_log.assert_logged(
+        "[test] Loaded credentials for https://fake-url from"
+        + " the identity_token_file setting."
+    )
+
+
+def test_env_var_takes_priority_over_settings_file(
+    local_settings,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    _write_system_settings(
+        f"""\
+            [default]
+            identity_token_file = {tmp_path / "identity_token.json"}
+        """
+    )
+    monkeypatch.setenv("WANDB_API_KEY", "from_env" * 5)
+
+    result = authenticate_session(host="https://fake-url", source="test")
+
+    assert isinstance(result, AuthApiKey)
+    assert result.api_key == "from_env" * 5
+
+
+def test_ignores_identity_token_setting_for_different_host(
+    local_settings,
+    tmp_path: pathlib.Path,
+):
+    _write_system_settings(
+        f"""\
+            [default]
+            base_url = https://first.example.com
+            identity_token_file = {tmp_path / "identity_token.json"}
+        """
+    )
+
+    assert _try_settings_file_auth(host=HostUrl("https://second.example.com")) is None
 
 
 def test_reads_netrc(

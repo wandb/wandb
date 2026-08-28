@@ -164,8 +164,8 @@ def _use_system_auth(
 ) -> Auth | None:
     """Load (or reload) session credentials from external sources.
 
-    Loads credentials from environment variables or the .netrc file.
-    If no credentials are found, the session credentials are unchanged.
+    Loads credentials from environment variables, persisted SSO settings,
+    or the .netrc file, in that order.
 
     Args:
         host: The W&B server URL.
@@ -181,7 +181,8 @@ def _use_system_auth(
         The new credentials, if any.
     """
     auth = (
-        _try_env_auth(host=host)  #
+        _try_env_auth(host=host)
+        or _try_settings_file_auth(host=host)
         or wbnetrc.read_netrc_auth_with_source(host=host)
     )
 
@@ -231,6 +232,23 @@ def _try_env_auth(*, host: HostUrl) -> AuthWithSource | None:
                 credentials_file=wandb_setup.singleton().settings.credentials_file,
             ),
             source=env.IDENTITY_TOKEN_FILE,
+        )
+
+    return None
+
+
+def _try_settings_file_auth(*, host: HostUrl) -> AuthWithSource | None:
+    """Returns SSO credentials persisted for this host, if any."""
+    settings = wandb_setup.singleton().settings
+
+    if settings.identity_token_file and HostUrl(settings.base_url).is_same_url(host):
+        return AuthWithSource(
+            auth=AuthIdentityTokenFile(
+                host=host,
+                path=settings.identity_token_file,
+                credentials_file=settings.credentials_file,
+            ),
+            source="the identity_token_file setting",
         )
 
     return None

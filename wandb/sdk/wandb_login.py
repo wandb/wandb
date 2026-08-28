@@ -97,7 +97,7 @@ def login(
     if host:
         host = host.rstrip("/")
 
-    logged_in, _ = _login(
+    logged_in, api_key = _login(
         key=key,
         relogin=relogin,
         host=host,
@@ -110,6 +110,7 @@ def login(
     _update_system_settings(
         global_settings.read_system_settings(),
         host=host,
+        clear_identity_token=api_key is not None,
     )
     return logged_in
 
@@ -118,10 +119,13 @@ def _update_system_settings(
     system_settings: settings_file.SettingsFiles,
     *,
     host: str | None,
+    clear_identity_token: bool,
 ) -> None:
     """Update the user's system settings files."""
     # 'anonymous' is deprecated; we clear it automatically for now.
     system_settings.clear("anonymous", globally=True)
+    if clear_identity_token:
+        system_settings.clear("identity_token_file", globally=True)
 
     if host:
         if host == "https://api.wandb.ai":

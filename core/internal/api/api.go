@@ -108,6 +108,9 @@ type ClientOptions struct {
 	// request for retry
 	PrepareRetry func(*http.Request) error
 
+	// Function that controls whether redirects are followed.
+	CheckRedirect func(*http.Request, []*http.Request) error
+
 	Logger *slog.Logger
 
 	// PreRetryLayers specifies additional functionality to the HTTP client
@@ -135,6 +138,7 @@ func NewClient(opts ClientOptions) RetryableClient {
 	retryableHTTP.RetryWaitMin = opts.RetryWaitMin
 	retryableHTTP.RetryWaitMax = opts.RetryWaitMax
 	retryableHTTP.HTTPClient.Timeout = opts.NonRetryTimeout
+	retryableHTTP.HTTPClient.CheckRedirect = opts.CheckRedirect
 	retryableHTTP.PrepareRetry = opts.PrepareRetry
 	retryableHTTP.CheckRetry = withRetryObservation(
 		opts.RetryPolicy,
