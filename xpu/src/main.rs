@@ -7,7 +7,6 @@
 //! - Apple ARM Mac GPUs and CPUs (ARM Mac only)
 //! - AMD GPUs (Linux only)
 
-mod analytics;
 mod metrics;
 mod monitors;
 #[allow(dead_code)]
@@ -479,10 +478,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let _log_guard = init_file_logger(logging_level);
     debug!("Starting system metrics service");
-
-    // Initialize error reporting with Sentry.
-    analytics::setup_sentry();
-    debug!("Sentry set up");
 
     // Create the channel for service shutdown signals.
     let (shutdown_sender, shutdown_receiver) = tokio::sync::oneshot::channel::<()>();
