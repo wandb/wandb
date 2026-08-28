@@ -13,8 +13,9 @@ use std::{
     collections::HashSet,
     ffi::{CStr, CString, c_char, c_int, c_void},
     ptr,
-    sync::mpsc::{self, Receiver as SyncReceiver, SyncSender},
+    sync::mpsc::{self, Receiver as SyncReceiver, RecvTimeoutError, SyncSender},
     thread,
+    time::Duration,
 };
 use tokio::sync::oneshot;
 
@@ -27,6 +28,8 @@ const DCGM_ST_OK: i32 = 0;
 const DCGM_ST_NO_DATA: i32 = -35;
 const DCGM_ST_NOT_SUPPORTED: i32 = -14;
 const DCGM_ST_NOT_CONFIGURED: i32 = -8;
+
+const DCGM_INIT_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// Maximum length for various DCGM strings.
 const DCGM_MAX_STR_LENGTH: usize = 256;
@@ -937,7 +940,7 @@ impl DcgmClient {
         log::info!("DCGM worker OS thread spawned. Waiting for init confirmation...");
 
         // --- Wait for Handshake Result ---
-        match init_receiver.recv() {
+        match init_receiver.recv_timeout(DCGM_INIT_TIMEOUT) {
             Ok(Ok(())) => {
                 // Worker signaled successful initialization
                 log::info!("DCGM worker thread initialized successfully.");
@@ -947,7 +950,14 @@ impl DcgmClient {
                 // Worker signaled failure during initialization
                 Err(format!("DCGM worker thread failed initialization: {}", e))
             }
-            Err(_) => {
+            Err(RecvTimeoutError::Timeout) => {
+                log::warn!(
+                    "DCGM worker thread did not initialize within {:?}.",
+                    DCGM_INIT_TIMEOUT
+                );
+                Err("DCGM worker thread initialization timed out".to_string())
+            }
+            Err(RecvTimeoutError::Disconnected) => {
                 // Channel disconnected - worker thread likely panicked or exited before sending handshake
                 log::error!("DCGM worker thread disconnected unexpectedly during initialization.");
                 Err("DCGM worker thread exited prematurely during initialization".to_string())
