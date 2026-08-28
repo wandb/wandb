@@ -81,10 +81,25 @@ type dragTargets struct {
 type paneDragger struct {
 	drag layoutDrag
 
+	// hover is the draggable boundary under the unpressed pointer, if any.
+	// Views render it highlighted so boundaries advertise that they can be
+	// grabbed. Only updated when the terminal reports unpressed motion
+	// (MouseModeAllMotion); elsewhere it stays zero and no cue is shown.
+	hover layoutDrag
+
 	saved    func() LayoutOverrides
 	persist  func(LayoutOverrides) error
 	relayout func()
 	logger   *observability.CoreLogger
+}
+
+// cue returns the boundary to render highlighted: the active drag's latched
+// boundary, or the one under the unpressed pointer.
+func (d *paneDragger) cue() layoutDrag {
+	if d.drag.active() {
+		return d.drag
+	}
+	return d.hover
 }
 
 // overrides returns the live pane proportions: the in-progress drag's
@@ -104,12 +119,13 @@ func (d *paneDragger) handleMouse(msg tea.MouseMsg, layout Layout, t dragTargets
 		if m.Button != tea.MouseLeft {
 			return false
 		}
-		drag, ok := boundaryAt(m.X, m.Y, layout, t)
-		if !ok || (drag.boundary == dragBoundarySeparator && t.mediaFullscreen) {
+		drag, ok := grabbableBoundaryAt(m.X, m.Y, layout, t)
+		if !ok {
 			// A stale latch survives when the matching release never
 			// reached this view (help overlay, view switch); any new
 			// press that misses a boundary clears it.
 			d.drag = layoutDrag{}
+			d.hover = layoutDrag{}
 			return false
 		}
 		drag.overrides = d.saved()
@@ -117,7 +133,17 @@ func (d *paneDragger) handleMouse(msg tea.MouseMsg, layout Layout, t dragTargets
 		return true
 
 	case tea.MouseMotionMsg:
-		if !d.drag.active() || m.Button != tea.MouseLeft {
+		if !d.drag.active() {
+			if m.Button == tea.MouseNone {
+				// Unpressed motion only feeds the hover cue; it never
+				// reached the panes under cell-motion tracking, so keep
+				// it away from them under all-motion tracking too.
+				d.updateHover(m.X, m.Y, layout, t)
+				return true
+			}
+			return false
+		}
+		if m.Button != tea.MouseLeft {
 			return false
 		}
 		d.apply(m.X, m.Y, layout, t)
@@ -132,9 +158,21 @@ func (d *paneDragger) handleMouse(msg tea.MouseMsg, layout Layout, t dragTargets
 			return false
 		}
 		d.finish()
+		// The pointer rests on the boundary it just dropped.
+		d.updateHover(m.X, m.Y, layout, t)
 		return true
 	}
 	return false
+}
+
+// updateHover records the draggable boundary under the unpressed pointer.
+func (d *paneDragger) updateHover(x, y int, layout Layout, t dragTargets) {
+	drag, ok := grabbableBoundaryAt(x, y, layout, t)
+	if !ok {
+		d.hover = layoutDrag{}
+		return
+	}
+	d.hover = drag
 }
 
 // apply updates the pending overrides from the mouse position and re-lays
@@ -242,6 +280,37 @@ const sidebarGrabTolerance = 1
 func nearColumn(x, col int) bool {
 	d := x - col
 	return -sidebarGrabTolerance <= d && d <= sidebarGrabTolerance
+}
+
+// grabbableBoundaryAt hit-tests like boundaryAt but rejects the central
+// stack's separators while the media pane is fullscreen (they are hidden).
+func grabbableBoundaryAt(x, y int, layout Layout, t dragTargets) (layoutDrag, bool) {
+	drag, ok := boundaryAt(x, y, layout, t)
+	if !ok || (drag.boundary == dragBoundarySeparator && t.mediaFullscreen) {
+		return layoutDrag{}, false
+	}
+	return drag, true
+}
+
+// highlightedStackSeparator maps cue to the index of the separator to
+// highlight in a central column of n joined sections (separator i sits below
+// section i), or -1. A count mismatch between the joined sections and the
+// layout's stack geometry means the mapping is unreliable, so no separator
+// is highlighted.
+func highlightedStackSeparator(cue layoutDrag, layout Layout, n int) int {
+	if cue.boundary != dragBoundarySeparator {
+		return -1
+	}
+	sections := stackGeometry(layout)
+	if len(sections) != n {
+		return -1
+	}
+	for i := 1; i < len(sections); i++ {
+		if sections[i].id == cue.section {
+			return i - 1
+		}
+	}
+	return -1
 }
 
 // boundaryAt hit-tests a mouse position against the draggable boundaries:

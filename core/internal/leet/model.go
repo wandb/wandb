@@ -290,7 +290,9 @@ func (m *Model) View() tea.View {
 
 	v.WindowTitle = "wandb leet"
 	v.AltScreen = true
-	v.MouseMode = tea.MouseModeCellMotion
+	// All-motion (not cell-motion) tracking so unpressed pointer motion
+	// reaches the pane draggers, which highlight boundaries on hover.
+	v.MouseMode = tea.MouseModeAllMotion
 
 	return v
 }

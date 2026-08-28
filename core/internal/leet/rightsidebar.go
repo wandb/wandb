@@ -25,6 +25,15 @@ type RightSidebar struct {
 	metricsGrid *SystemMetricsGrid
 	focusState  *Focus
 	logger      *observability.CoreLogger
+
+	// borderHighlight renders the border as hovered or dragged.
+	borderHighlight bool
+}
+
+// SetBorderHighlight sets whether the next render draws the border
+// highlighted, cueing that it can be dragged.
+func (rs *RightSidebar) SetBorderHighlight(highlighted bool) {
+	rs.borderHighlight = highlighted
 }
 
 func NewRightSidebar(
@@ -215,7 +224,11 @@ func (rs *RightSidebar) View(height int) string {
 		Height(height).
 		MaxHeight(height).
 		Render(body)
-	bordered := rightSidebarBorderStyle.
+	borderStyle := rightSidebarBorderStyle
+	if rs.borderHighlight {
+		borderStyle = rightSidebarBorderHighlightStyle
+	}
+	bordered := borderStyle.
 		Height(height).
 		MaxHeight(height).
 		Render(styled)

@@ -48,6 +48,10 @@ type RunOverviewSidebar struct {
 	// separators are the rules between sections as drawn by the last
 	// render; mouse drags hit-test against them.
 	separators []overviewSeparator
+
+	// dragCue is the owning view's hovered or dragged layout boundary;
+	// the sidebar highlights its border or the matching section rule.
+	dragCue layoutDrag
 }
 
 // overviewSeparator locates one rendered separator rule between sections.
@@ -118,11 +122,23 @@ func (s *RunOverviewSidebar) style() lipgloss.Style {
 func (s *RunOverviewSidebar) borderStyle() lipgloss.Style {
 	switch s.side {
 	case SidebarSideLeft:
+		if s.dragCue.boundary == dragBoundaryLeftSidebar {
+			return leftSidebarBorderHighlightStyle
+		}
 		return leftSidebarBorderStyle
 	case SidebarSideRight:
+		if s.dragCue.boundary == dragBoundaryRightSidebar {
+			return rightSidebarBorderHighlightStyle
+		}
 		return rightSidebarBorderStyle
 	}
 	return lipgloss.NewStyle()
+}
+
+// SetDragCue passes the owning view's hovered or dragged boundary in for
+// the next render to highlight.
+func (s *RunOverviewSidebar) SetDragCue(cue layoutDrag) {
+	s.dragCue = cue
 }
 
 func (s *RunOverviewSidebar) headerStyle() lipgloss.Style {
@@ -467,9 +483,13 @@ func (s *RunOverviewSidebar) buildSectionLines(contentWidth, firstRow int) []str
 		}
 
 		// Separate adjacent sections with the same rule the central
-		// column draws between its stacked panes.
+		// column draws between its stacked panes. The hovered or dragged
+		// rule is matched by its neighbor pair: its row moves mid-drag.
 		if prev >= 0 {
-			lines = append(lines, renderHorizontalSeparator(contentWidth))
+			highlighted := s.dragCue.boundary == dragBoundaryOverviewSection &&
+				s.dragCue.overview.above == prev &&
+				s.dragCue.overview.below == i
+			lines = append(lines, renderHorizontalSeparator(contentWidth, highlighted))
 			s.separators = append(s.separators,
 				overviewSeparator{row: row, above: prev, below: i})
 			row++

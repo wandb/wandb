@@ -256,6 +256,57 @@ func TestMetricsAndSystemMetrics_RenderAndSeriesCount(t *testing.T) {
 	tm.WaitFinished(t, teatest.WithFinalTimeout(shortWait))
 }
 
+func TestBoundaryHoverCue(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode")
+	}
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	_ = cfg.SetRightSidebarVisible(true)
+
+	tmp, err := os.CreateTemp(t.TempDir(), "hover-*.wandb")
+	require.NoError(t, err)
+	defer tmp.Close()
+	writer := leveldb.NewWriterExt(tmp, leveldb.CRCAlgoIEEE, 0)
+	writeRecord(t, writer, &spb.Record{
+		RecordType: &spb.Record_Run{
+			Run: &spb.RunRecord{RunId: "test-run", Project: "test-project"},
+		},
+	})
+	writeRecord(t, writer, &spb.Record{
+		RecordType: &spb.Record_History{
+			History: &spb.HistoryRecord{
+				Step: &spb.HistoryStep{Num: 1},
+				Item: []*spb.HistoryItem{
+					{NestedKey: []string{"_step"}, ValueJson: "1"},
+					{NestedKey: []string{"loss"}, ValueJson: "1.0"},
+				},
+			},
+		},
+	})
+	require.NoError(t, writer.Flush())
+
+	const W, H = 240, 80
+	tm := newTestModel(t, cfg, tmp.Name(), W, H)
+	waitForContent(t, tm.Output(),
+		func(s string) bool { return strings.Contains(s, "loss") },
+		teatest.WithDuration(longWait),
+	)
+
+	// Sweep the unpressed pointer across one row. It crosses the sidebar
+	// border columns, which must light up as heavy rules while hovered.
+	for x := range W {
+		tm.Send(tea.MouseMotionMsg{X: x, Y: 5, Button: tea.MouseNone})
+	}
+	waitForContent(t, tm.Output(),
+		func(s string) bool { return strings.Contains(s, "┃") },
+		teatest.WithDuration(longWait),
+	)
+
+	tm.Type("q")
+	tm.WaitFinished(t, teatest.WithFinalTimeout(shortWait))
+}
+
 // newWorkspaceTestModel mirrors newTestModel from tui_test.go but starts in workspace mode.
 func newWorkspaceTestModel(
 	t *testing.T,
