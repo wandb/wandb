@@ -1,0 +1,112 @@
+name: macOS unit tests (GHA shadow)
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-unit-tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  unit-tests:
+    name: unit-tests-macos-${{ matrix.python }}-shard-${{ matrix.shard }}
+    # GitHub's ARM64 M2 Pro larger runner is the closest hosted equivalent to
+    # CircleCI's ARM64 m4pro.medium runner. The standard macOS runner has half
+    # as many CPU cores and one quarter of the RAM of the CircleCI runner.
+    runs-on: macos-15-xlarge
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.13"]
+        shard: [0, 1, 2, 3]
+    env:
+      # Preserve the four-way split used by CircleCI so shadow-run timings are
+      # comparable. A follow-up migration can make these variable names
+      # CI-provider-neutral.
+      CIRCLE_NODE_INDEX: ${{ matrix.shard }}
+      CIRCLE_NODE_TOTAL: 4
+      HOMEBREW_NO_AUTO_UPDATE: 1
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Report runner resources
+        run: |
+          system_profiler SPHardwareDataType SPSoftwareDataType
+          echo "Logical CPUs: $(sysctl -n hw.logicalcpu)"
+          echo "Physical memory: $(sysctl -n hw.memsize) bytes"
+          df -h /
+
+      - name: Select Xcode 16.4
+        run: |
+          sudo xcode-select --switch /Applications/Xcode_16.4.app/Contents/Developer
+          xcodebuild -version
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: ${{ matrix.python }}
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.sum
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+
+      - name: Restore Cargo cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/git/db
+            ~/.cargo/registry/cache
+            ~/.cargo/registry/index
+            parquet-rust-wrapper/target
+            xpu/target
+          key: macos-${{ runner.arch }}-py${{ matrix.python }}-cargo-${{ hashFiles('parquet-rust-wrapper/Cargo.lock', 'xpu/Cargo.lock') }}
+          restore-keys: |
+            macos-${{ runner.arch }}-py${{ matrix.python }}-cargo-
+
+      - name: Install system and test dependencies
+        run: |
+          brew install ffmpeg
+          python -m pip install --upgrade nox pip "uv!=0.10.5"
+
+      - name: Run unit tests
+        run: |
+          started=$SECONDS
+          set +e
+          nox -s unit_tests --python "${{ matrix.python }}" --verbose
+          status=$?
+          duration=$((SECONDS - started))
+          set -e
+
+          {
+            echo "### macOS unit test timing"
+            echo "- Python: ${{ matrix.python }}"
+            echo "- Shard: $(( ${{ matrix.shard }} + 1 ))/4"
+            echo "- Test command: ${duration}s"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          exit "$status"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: macos-py${{ matrix.python }}-shard-${{ matrix.shard }}-results
+          path: |
+            test-results/
+            cover-results/
+          if-no-files-found: ignore
+          retention-days: 7
