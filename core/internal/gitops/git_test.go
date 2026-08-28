@@ -19,16 +19,6 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
-func TestMain(m *testing.M) {
-	// Git exports repository-local variables to hooks. These tests create
-	// independent temporary repositories, so inheriting the parent hook's
-	// repository would make command-line Git ignore each test's working
-	// directory.
-	_ = os.Unsetenv("GIT_DIR")
-	_ = os.Unsetenv("GIT_WORK_TREE")
-	os.Exit(m.Run())
-}
-
 func setupTestRepo() (string, *git.Repository, func(), error) {
 	repoPath, err := os.MkdirTemp("", "testrepo")
 	if err != nil {
