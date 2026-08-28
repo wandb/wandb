@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+const portfilePollInterval = 10 * time.Millisecond
+
 // portfile is used to communicate the token of the gRPC service
 // started by the wandb-xpu sidecar binary to the wandb-core process.
 type portfile struct {
@@ -27,17 +29,19 @@ func NewPortfile() *portfile {
 
 // Read reads the target URI from the portfile.
 func (p *portfile) Read(ctx context.Context) (string, error) {
+	ticker := time.NewTicker(portfilePollInterval)
+	defer ticker.Stop()
+
 	for {
+		target, err := p.ReadFile()
+		if err == nil {
+			return target, nil
+		}
+
 		select {
 		case <-ctx.Done():
 			return "", fmt.Errorf("timeout reading portfile %s", p.Path)
-		default:
-			target, err := p.ReadFile()
-			if err != nil {
-				time.Sleep(100 * time.Millisecond)
-				continue
-			}
-			return target, nil
+		case <-ticker.C:
 		}
 	}
 }
