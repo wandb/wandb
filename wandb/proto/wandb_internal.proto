@@ -187,7 +187,9 @@ message RunRecord {
   BranchPoint branch_point = 23;
 
   // Whether syncing should resume an existing run.
-  // Unlike `resumed`, this records input intent.
+  //
+  // This stores pre-sync intention. Distinct from `resumed` which stores what
+  // actually happened.
   bool resume = 24;
 
   _RecordInfo _info = 200;
