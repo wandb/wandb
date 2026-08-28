@@ -827,7 +827,9 @@ pub struct RunRecord {
     #[prost(message, optional, tag = "23")]
     pub branch_point: ::core::option::Option<BranchPoint>,
     /// Whether syncing should resume an existing run.
-    /// Unlike `resumed`, this records input intent.
+    ///
+    /// This stores pre-sync intention. Distinct from `resumed` which stores what
+    /// actually happened.
     #[prost(bool, tag = "24")]
     pub resume: bool,
     #[prost(message, optional, tag = "200")]

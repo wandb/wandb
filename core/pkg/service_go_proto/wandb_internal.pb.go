@@ -1756,7 +1756,9 @@ type RunRecord struct {
 	// Information about the source if this is a fork or rewind of another run.
 	BranchPoint *BranchPoint `protobuf:"bytes,23,opt,name=branch_point,json=branchPoint,proto3" json:"branch_point,omitempty"`
 	// Whether syncing should resume an existing run.
-	// Unlike `resumed`, this records input intent.
+	//
+	// This stores pre-sync intention. Distinct from `resumed` which stores what
+	// actually happened.
 	Resume        bool         `protobuf:"varint,24,opt,name=resume,proto3" json:"resume,omitempty"`
 	XInfo         *XRecordInfo `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
 	unknownFields protoimpl.UnknownFields
