@@ -113,8 +113,10 @@ pub struct SystemMonitorServiceImpl {
     shutdown_sender: Arc<tokio::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>>,
     /// Handle to the task that monitors the parent process.
     parent_monitor_handle: Option<JoinHandle<()>>,
-    /// GPU monitoring components
-    gpu_monitors: GpuMonitors,
+    /// GPU monitoring components, initialized when the first request arrives.
+    gpu_monitors: tokio::sync::OnceCell<GpuMonitors>,
+    /// Whether to initialize DCGM profiling.
+    enable_dcgm_profiling: bool,
 }
 
 impl SystemMonitorServiceImpl {
@@ -123,12 +125,11 @@ impl SystemMonitorServiceImpl {
         enable_dcgm_profiling: bool,
         shutdown_sender: Arc<tokio::sync::Mutex<Option<tokio::sync::oneshot::Sender<()>>>>,
     ) -> Self {
-        let gpu_monitors = GpuMonitors::new(enable_dcgm_profiling);
-
         let mut system_monitor = SystemMonitorServiceImpl {
             shutdown_sender: shutdown_sender.clone(),
             parent_monitor_handle: None,
-            gpu_monitors,
+            gpu_monitors: tokio::sync::OnceCell::new(),
+            enable_dcgm_profiling,
         };
 
         // An async task that monitors the parent process id, if provided.
@@ -153,6 +154,20 @@ impl SystemMonitorServiceImpl {
         system_monitor
     }
 
+    async fn gpu_monitors(&self) -> &GpuMonitors {
+        self.gpu_monitors
+            .get_or_init(|| async {
+                let enable_dcgm_profiling = self.enable_dcgm_profiling;
+                tokio::task::spawn_blocking(move || GpuMonitors::new(enable_dcgm_profiling))
+                    .await
+                    .unwrap_or_else(|error| {
+                        log::error!("Failed to initialize GPU monitors: {error}");
+                        GpuMonitors::default()
+                    })
+            })
+            .await
+    }
+
     /// Collect system metrics.
     async fn sample(
         &self,
@@ -172,7 +187,11 @@ impl SystemMonitorServiceImpl {
         ));
 
         // Collect metrics from all available GPU monitors
-        let gpu_metrics = self.gpu_monitors.collect_metrics(pid, gpu_device_ids).await;
+        let gpu_metrics = self
+            .gpu_monitors()
+            .await
+            .collect_metrics(pid, gpu_device_ids)
+            .await;
         all_metrics.extend(gpu_metrics);
 
         all_metrics
@@ -190,7 +209,9 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
         debug!("Received a request to ShutdownShutdown: {:?}", request);
 
         // Shutdown GPU monitors
-        self.gpu_monitors.shutdown();
+        if let Some(gpu_monitors) = self.gpu_monitors.get() {
+            gpu_monitors.shutdown();
+        }
 
         // Signal the gRPC server to shutdown
         let mut sender = self.shutdown_sender.lock().await;
@@ -214,7 +235,7 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
             .map(|(name, value)| (name.to_string(), value))
             .collect();
 
-        let metadata = self.gpu_monitors.collect_metadata(&samples).await;
+        let metadata = self.gpu_monitors().await.collect_metadata(&samples).await;
 
         let record = Record {
             record_type: Some(RecordType::Environment(metadata)),

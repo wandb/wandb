@@ -23,6 +23,7 @@ pub trait GpuMonitor: Send + Sync {
 }
 
 /// Container for all GPU monitors
+#[derive(Default)]
 pub struct GpuMonitors {
     monitors: Vec<Box<dyn GpuMonitor>>,
 }
