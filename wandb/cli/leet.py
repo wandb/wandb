@@ -222,6 +222,9 @@ def _base_args() -> list[str]:
 
     if not error_reporting_enabled():
         args.append("--no-observability")
+    else:
+        # Tell wandb-core which W&B server to upload telemetry to.
+        args.extend(["--base-url", wandb_setup.singleton().settings.base_url])
 
     if is_debug(default="False"):
         args.extend(["--log-level", "-4"])
