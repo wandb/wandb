@@ -79,6 +79,11 @@ jobs:
 
       - name: Install system and test dependencies
         run: |
+          # The hosted image includes this untrusted third-party tap. It is not
+          # needed here, and Homebrew warns on every invocation while it exists.
+          if brew tap | grep -qx aws/tap; then
+            brew untap aws/tap
+          fi
           brew install ffmpeg
           python -m pip install --upgrade nox pip "uv!=0.10.5"
 
