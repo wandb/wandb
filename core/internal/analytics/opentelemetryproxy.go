@@ -254,6 +254,28 @@ func (r *TelemetryRecorder) IncrementCounter(
 	r.root.incrementCounter(ctx, name, mergedLowCardinalityAttributes)
 }
 
+// RecordDuration records a duration histogram metric in seconds with the
+// telemetry context's low-cardinality attributes.
+func (r *TelemetryRecorder) RecordDuration(
+	ctx context.Context,
+	name string,
+	duration time.Duration,
+	lowCardinalityAttributes LowCardinalityAttributes,
+) {
+	if r == nil {
+		return
+	}
+
+	mergedLowCardinalityAttributes := r.telemetryContext.lowCardinalityAttributes
+	mergedLowCardinalityAttributes.merge(lowCardinalityAttributes)
+	r.root.recordDuration(
+		ctx,
+		name,
+		duration,
+		mergedLowCardinalityAttributes,
+	)
+}
+
 // IncrementCounterAndLogEvent increments a counter metric by 1
 // with the telemetry context's low-cardinality attributes
 //
@@ -656,6 +678,33 @@ func (o *OpenTelemetryProxy) incrementCounter(
 	}
 
 	counter.Add(ctx, 1, toOTelAttrs(lowCardinalityAttributes.toMap()))
+}
+
+// recordDuration records a duration histogram metric in seconds.
+func (o *OpenTelemetryProxy) recordDuration(
+	ctx context.Context,
+	name string,
+	duration time.Duration,
+	lowCardinalityAttributes LowCardinalityAttributes,
+) {
+	if o == nil {
+		return
+	}
+
+	meter := o.meterProvider.Meter(o.serviceName)
+	histogram, err := meter.Float64Histogram(
+		name,
+		otelmetric.WithUnit("s"),
+	)
+	if err != nil {
+		return
+	}
+
+	histogram.Record(
+		ctx,
+		duration.Seconds(),
+		toOTelAttrs(lowCardinalityAttributes.toMap()),
+	)
 }
 
 // log emits an OpenTelemetry log record with the supplied attributes

@@ -4,6 +4,7 @@ import (
 	"context"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -309,6 +310,35 @@ func TestTelemetryRecorder_RecordMetricAndLogEvent(t *testing.T) {
 	require.True(t, ok, "expected a log named after the event")
 	assert.Equal(t, otellogapi.SeverityInfo, log.Severity)
 	assert.Equal(t, "value", log.Attributes["custom"])
+}
+
+func TestTelemetryRecorder_RecordDuration(t *testing.T) {
+	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.NewTelemetryContext(),
+	).With(
+		analytics.LowCardinalityAttributes{LeetMode: "inspect"},
+		nil,
+	)
+
+	recorder.RecordDuration(
+		t.Context(),
+		"session_duration",
+		1500*time.Millisecond,
+		analytics.LowCardinalityAttributes{
+			ExecutionContext: "local",
+		},
+	)
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	metric, ok := proxy.FindMetric("session_duration")
+	require.True(t, ok, "expected a duration histogram")
+	assert.Equal(t, "s", metric.Unit)
+	assert.Equal(t, uint64(1), metric.HistogramCount)
+	assert.InDelta(t, 1.5, metric.HistogramSum, 0.0001)
+	assert.Equal(t, "inspect", metric.Attributes["leet_mode"])
+	assert.Equal(t, "local", metric.Attributes["execution_context"])
 }
 
 func TestTelemetryRecorder_SendsAPIKeyAuth(t *testing.T) {
