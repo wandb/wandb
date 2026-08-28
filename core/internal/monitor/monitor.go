@@ -437,15 +437,17 @@ func (sm *SystemMonitor) monitorResource(resource Resource) {
 		}
 	}()
 
-	// Create a ticker that fires every `samplingInterval` seconds
-	ticker := time.NewTicker(sm.samplingInterval)
-	defer ticker.Stop()
+	// Sample immediately, then wait `samplingInterval` between samples.
+	timer := time.NewTimer(0)
+	defer timer.Stop()
 
 	for {
 		select {
 		case <-sm.ctx.Done():
 			return
-		case <-ticker.C:
+		case <-timer.C:
+			timer.Reset(sm.samplingInterval)
+
 			if sm.state.Load() != StateRunning {
 				continue // Skip work when not running
 			}
