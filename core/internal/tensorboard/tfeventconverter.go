@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/wandb/wandb/core/internal/observability"
-	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"
 )
 
@@ -32,7 +31,7 @@ func (h *TFEventConverter) ConvertNext(
 	event *tbproto.TFEvent,
 	logger *observability.CoreLogger,
 ) {
-	emitter.SetTFStep(pathtree.PathOf("global_step"), event.Step)
+	emitter.SetTFStep(event.Step)
 	emitter.SetTFWallTime(event.WallTime)
 
 	for _, value := range event.GetSummary().GetValue() {

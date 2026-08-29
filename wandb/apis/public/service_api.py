@@ -96,15 +96,14 @@ class ServiceApi:
         """Send an API request to the backend service.
 
         Creates the backend service connection if it has not been created yet.
-        Falls back to the timeout this API was created with when none is
-        given.
+
+        A timeout of None means to wait indefinitely for the response. This
+        is required for requests that take as long as they take, such as
+        file transfers, which wandb-core acknowledges only on completion.
         """
         session = self._get_api_session()
         request.api_id = session.api_id
-        return session.connection.api_request(
-            request,
-            timeout=self._timeout if timeout is None else timeout,
-        )
+        return session.connection.api_request(request, timeout=timeout)
 
     def finalize(
         self,
@@ -186,7 +185,10 @@ class ServiceApi:
                 rename_fields=rename_fields,
             )
         )
-        resp = self.send_api_request(req, timeout=timeout)
+        resp = self.send_api_request(
+            req,
+            timeout=self._timeout if timeout is None else timeout,
+        )
         return parse(resp.graphql_response.data_json)
 
     def authenticate(
@@ -216,7 +218,10 @@ class ServiceApi:
         req = ApiRequest(
             auth_request=AuthRequest(authenticate_request=AuthenticateRequest())
         )
-        resp = self.send_api_request(req, timeout=timeout)
+        resp = self.send_api_request(
+            req,
+            timeout=self._timeout if timeout is None else timeout,
+        )
         return resp.auth_response.authenticate_response
 
     def access_token(
@@ -250,7 +255,10 @@ class ServiceApi:
         req = ApiRequest(
             auth_request=AuthRequest(get_access_token_request=GetAccessTokenRequest())
         )
-        resp = self.send_api_request(req, timeout=timeout)
+        resp = self.send_api_request(
+            req,
+            timeout=self._timeout if timeout is None else timeout,
+        )
         return resp.auth_response.get_access_token_response.access_token or None
 
     async def send_api_request_async(
