@@ -10,6 +10,7 @@ import socket
 import sys
 import threading
 import time
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import wandb
@@ -49,12 +50,16 @@ def _link_and_save_file(
     abs_path = os.path.abspath(path)
     wandb_path = os.path.join(files_dir, file_name)
     filesystem.mkdir_exists_ok(os.path.dirname(wandb_path))
-    # We overwrite existing symlinks because namespaces can change in Tensorboard
+    # We overwrite existing links because namespaces can change in Tensorboard.
+    # link_or_copy honours settings.symlink, which defaults to False on Windows,
+    # and falls back symlink -> hardlink -> copy. Calling os.symlink directly here
+    # bypassed that and raised OSError (WinError 1314) for any Windows user without
+    # elevation or Developer Mode.
     if os.path.islink(wandb_path) and abs_path != os.readlink(wandb_path):
         os.remove(wandb_path)
-        os.symlink(abs_path, wandb_path)
+        filesystem.link_or_copy(settings, Path(abs_path), Path(wandb_path))
     elif not os.path.exists(wandb_path):
-        os.symlink(abs_path, wandb_path)
+        filesystem.link_or_copy(settings, Path(abs_path), Path(wandb_path))
     # TODO(jhr): need to figure out policy, live/throttled?
     interface.publish_files(
         dict(files=[(filesystem.GlobStr(glob.escape(file_name)), "live")])
