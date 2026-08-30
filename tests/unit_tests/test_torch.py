@@ -1,6 +1,9 @@
+import json
+
 import pytest
 import torch
 import torch.nn as nn
+import wandb
 from wandb.integration.torch import wandb_torch
 
 
@@ -24,6 +27,38 @@ def test_nested_shape():
     t3.append(t2)
     shape = wandb_torch.nested_shape([t1, t2, t3])
     assert shape == [[2, 3], [4, 5], [[2, 3], [4, 5], 0, [4, 5]]]
+
+
+def test_nested_shape_with_jagged_tensor_is_json_serializable():
+    jagged_tensor = torch.nested.nested_tensor(
+        [torch.randn(4, 10), torch.randn(5, 10)], layout=torch.jagged
+    )
+
+    output_shape = wandb_torch.nested_shape((jagged_tensor,))
+
+    assert json.loads(wandb.util.json_dumps_safer(output_shape)) == [
+        [2, str(jagged_tensor.shape[1]), 10]
+    ]
+
+
+def test_watch_graph_with_jagged_tensor(mock_run):
+    class JaggedModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.layer = nn.Linear(10, 10)
+
+        def forward(self, tensor):
+            return self.layer(tensor).sum()
+
+    run = mock_run()
+    model = JaggedModel()
+    run.watch(model, log=None, log_graph=True)
+
+    jagged_tensor = torch.nested.nested_tensor(
+        [torch.randn(4, 10), torch.randn(5, 10)], layout=torch.jagged
+    )
+
+    assert model(jagged_tensor).shape == torch.Size([])
 
 
 @pytest.mark.parametrize(

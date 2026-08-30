@@ -30,7 +30,10 @@ def nested_shape(array_or_tuple, seen=None):
         seen = set()
     if hasattr(array_or_tuple, "size"):
         # pytorch tensors use V.size() to get size of tensor
-        return list(array_or_tuple.size())
+        return [
+            size if isinstance(size, int) else str(size)
+            for size in array_or_tuple.size()
+        ]
     elif hasattr(array_or_tuple, "get_shape"):
         # tensorflow uses V.get_shape() to get size of tensor
         return array_or_tuple.get_shape().as_list()
