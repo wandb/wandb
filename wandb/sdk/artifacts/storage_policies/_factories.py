@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 from typing import TYPE_CHECKING, Final
 
 from ..storage_handler import StorageHandler
@@ -30,6 +31,7 @@ def make_http_session() -> Session:
     from requests.adapters import HTTPAdapter
     from urllib3.util.retry import Retry
 
+    from wandb import env
     from wandb.sdk import wandb_setup
 
     # Sleep length: 0, 2, 4, 8, 16, 32, 64, 120, 120, 120, 120, 120, 120, 120, 120, 120
@@ -48,6 +50,12 @@ def make_http_session() -> Session:
     settings = wandb_setup.singleton().settings
     headers = settings.x_extra_http_headers or {}
     session.headers.update(headers)
+
+    timeout = settings.x_file_transfer_timeout_seconds
+    if timeout is None:
+        timeout = env.get_http_timeout()
+    if timeout > 0:
+        session.get = functools.partial(session.get, timeout=timeout)  # type: ignore[method-assign]
 
     # Explicitly configure the retry strategy for http/https adapters.
     adapter = HTTPAdapter(
