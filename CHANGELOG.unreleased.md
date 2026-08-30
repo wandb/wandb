@@ -16,4 +16,5 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Fixed
 
+- Importing `wandb` no longer creates artifact and media temporary directories until they are first needed (#7148).
 - File uploads and downloads no longer fail in some cases with `CommError: Failed to execute API request: the service process is busy and did not respond in time` when they take longer than 20 seconds. This was a regression in 0.29.0 (@dmitryduev in https://github.com/wandb/wandb/pull/12603)
