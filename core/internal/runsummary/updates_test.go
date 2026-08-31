@@ -111,7 +111,7 @@ func TestUpdates_FromProto(t *testing.T) {
 		rs.ToNestedMaps())
 }
 
-func TestUpdates_IgnoreStep_DiscardsUpdateAndRemoval(t *testing.T) {
+func TestUpdates_IgnoreStep_DiscardsUpdate(t *testing.T) {
 	rs := runsummary.New()
 	rs.Set(pathtree.PathOf("_step"), int64(4))
 	rs.Set(pathtree.PathOf("loss"), 1.23)
@@ -121,7 +121,6 @@ func TestUpdates_IgnoreStep_DiscardsUpdateAndRemoval(t *testing.T) {
 			{Key: "loss", ValueJson: "0.5"},
 			{Key: "_step", ValueJson: "999"},
 		},
-		Remove: []*spb.SummaryItem{{Key: "_step"}},
 	})
 	updates.IgnoreStep()
 	err := updates.Apply(rs)
@@ -132,6 +131,22 @@ func TestUpdates_IgnoreStep_DiscardsUpdateAndRemoval(t *testing.T) {
 			"_step": int64(4),
 			"loss":  float64(0.5),
 		},
+		rs.ToNestedMaps())
+}
+
+func TestUpdates_IgnoreStep_DiscardsRemoval(t *testing.T) {
+	rs := runsummary.New()
+	rs.Set(pathtree.PathOf("_step"), int64(4))
+
+	updates := runsummary.FromProto(&spb.SummaryRecord{
+		Remove: []*spb.SummaryItem{{Key: "_step"}},
+	})
+	updates.IgnoreStep()
+	err := updates.Apply(rs)
+
+	assert.NoError(t, err)
+	assert.Equal(t,
+		map[string]any{"_step": int64(4)},
 		rs.ToNestedMaps())
 }
 
