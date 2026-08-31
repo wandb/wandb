@@ -11,7 +11,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runsyncstate"
 )
 
-func TestSyncStateStore_GetOrInitStartingStep_PersistsFirstValue(t *testing.T) {
+func TestFileStore_GetOrInitStartingStep_PersistsFirstValue(t *testing.T) {
 	wandbFile := filepath.Join(t.TempDir(), "run-xyz.wandb")
 	store := runsyncstate.File(wandbFile)
 
@@ -26,7 +26,7 @@ func TestSyncStateStore_GetOrInitStartingStep_PersistsFirstValue(t *testing.T) {
 	assert.EqualValues(t, 5, step)
 }
 
-func TestSyncStateStore_GetOrInitStartingStep_PersistsAcrossStores(t *testing.T) {
+func TestFileStore_GetOrInitStartingStep_PersistsAcrossStores(t *testing.T) {
 	wandbFile := filepath.Join(t.TempDir(), "run-xyz.wandb")
 
 	_, err := runsyncstate.File(wandbFile).GetOrInitStartingStep(7)
@@ -38,7 +38,7 @@ func TestSyncStateStore_GetOrInitStartingStep_PersistsAcrossStores(t *testing.T)
 	assert.EqualValues(t, 7, step)
 }
 
-func TestSyncStateStore_GetOrInitStartingStep_HandlesMissingStartingStep(t *testing.T) {
+func TestFileStore_GetOrInitStartingStep_HandlesMissingStartingStep(t *testing.T) {
 	wandbFile := filepath.Join(t.TempDir(), "run-xyz.wandb")
 
 	// Simulate a pre-existing sync state file that's valid JSON but
