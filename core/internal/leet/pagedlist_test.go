@@ -9,7 +9,7 @@ import (
 )
 
 func TestPagedList_EmptyNavigation_IsStable(t *testing.T) {
-	var list leet.PagedList
+	var list leet.PagedList[leet.KeyValuePair]
 
 	list.Up()
 	list.Down()
@@ -25,7 +25,7 @@ func TestPagedList_EmptyNavigation_IsStable(t *testing.T) {
 }
 
 func TestPagedList_SetItemsPerPage_ZeroDisablesNavigation(t *testing.T) {
-	list := leet.PagedList{
+	list := leet.PagedList[leet.KeyValuePair]{
 		FilteredItems: []leet.KeyValuePair{{Key: "a"}, {Key: "b"}},
 	}
 
@@ -47,7 +47,7 @@ func TestPagedList_SetItemsPerPage_ZeroDisablesNavigation(t *testing.T) {
 
 func TestPagedList_End_JumpsToLastItem(t *testing.T) {
 	// 5 items, 2 per page -> 3 pages: [a b][c d][e]; End -> last page, last line.
-	list := leet.PagedList{
+	list := leet.PagedList[leet.KeyValuePair]{
 		FilteredItems: []leet.KeyValuePair{
 			{Key: "a"}, {Key: "b"}, {Key: "c"}, {Key: "d"}, {Key: "e"},
 		},
@@ -62,7 +62,7 @@ func TestPagedList_End_JumpsToLastItem(t *testing.T) {
 	require.Equal(t, 0, list.CurrentLine())
 
 	// Full last page: 4 items, 2 per page -> End lands on (page 1, line 1).
-	full := leet.PagedList{
+	full := leet.PagedList[leet.KeyValuePair]{
 		FilteredItems: []leet.KeyValuePair{{Key: "a"}, {Key: "b"}, {Key: "c"}, {Key: "d"}},
 	}
 	full.SetItemsPerPage(2)

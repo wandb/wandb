@@ -140,6 +140,30 @@ func TestFocus_Clicks_SetClear(t *testing.T) {
 	require.Equal(t, leet.FocusNone, model.TestFocusState().Type)
 }
 
+func TestFocus_TabIntoMetricsGrid_SetsChartTitle(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	runParams := &leet.RunParams{
+		RunFile: "dummy",
+	}
+	var m tea.Model = leet.NewRun(runParams, cfg, logger)
+
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 180, Height: 60})
+	m, _ = m.Update(leet.HistoryMsg{Metrics: map[string]leet.MetricData{
+		"loss": {X: []float64{0}, Y: []float64{1}},
+	}})
+
+	// Clear any auto-seeded focus, then Tab back into the metrics grid.
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	model := m.(*leet.Run)
+	require.Equal(t, leet.FocusNone, model.TestFocusState().Type)
+
+	_, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	fs := model.TestFocusState()
+	require.Equal(t, leet.FocusMainChart, fs.Type)
+	require.Equal(t, "loss", fs.Title, "focused chart title feeds the status bar")
+}
+
 func TestHandleOverviewFilter_TypingSpaceBackspaceEnterEsc(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)

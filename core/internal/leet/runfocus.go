@@ -83,21 +83,17 @@ func (r *Run) activateOverviewFocus(direction int) {
 	}
 }
 
+// Chart focus is seeded via NavigateFocus(0, 0): activation always follows a
+// deactivation that reset the shared Focus, so the grid's no-focus path lands
+// on the first populated cell and sets the full focus state (including the
+// chart title shown in the status bar). Writing Type/Row/Col here directly
+// would fool that path into treating focus as already applied.
+
 func (r *Run) activateMetricsGridFocus(_ int) {
-	r.focus.Type = FocusMainChart
-	if r.focus.Row < 0 || r.focus.Col < 0 {
-		r.focus.Row = 0
-		r.focus.Col = 0
-	}
 	r.metricsGrid.NavigateFocus(0, 0)
 }
 
 func (r *Run) activateSystemMetricsFocus(_ int) {
-	r.focus.Type = FocusSystemChart
-	if r.focus.Row < 0 || r.focus.Col < 0 {
-		r.focus.Row = 0
-		r.focus.Col = 0
-	}
 	r.rightSidebar.metricsGrid.NavigateFocus(0, 0)
 }
 

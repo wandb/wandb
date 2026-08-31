@@ -11,6 +11,8 @@ const (
 	FocusTargetSystemMetrics
 	FocusTargetMedia
 	FocusTargetConsoleLogs
+	FocusTargetRecordList
+	FocusTargetRecordDetail
 )
 
 // FocusRegionDef defines a focusable region with availability and activation hooks.

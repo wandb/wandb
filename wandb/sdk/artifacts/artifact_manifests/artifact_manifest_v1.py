@@ -5,17 +5,19 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from operator import itemgetter
 from typing import Annotated, Any, ClassVar, Dict, Literal, final
 
 from pydantic import Field
 
-from wandb.sdk.lib.hashutil import HexMD5, _md5
+from wandb.sdk.lib.hashutil import HexDigest, _md5, _xxh128, md5_file_b64
 
 from .._factories import make_storage_policy
+from .._generated import ArtifactDigestAlgorithm
 from .._models.manifest import ArtifactManifestV1Data
 from ..artifact_manifest import ArtifactManifest
-from ..artifact_manifest_entry import ArtifactManifestEntry
+from ..artifact_manifest_entry import DIGEST_ALGORITHM_EXTRA_KEY, ArtifactManifestEntry
 from ..storage_policy import StoragePolicy
 
 
@@ -28,15 +30,26 @@ class ArtifactManifestV1(ArtifactManifest):
         default_factory=make_storage_policy, exclude=True, repr=False
     )
 
+    digest_algorithm: Annotated[
+        ArtifactDigestAlgorithm, Field(exclude=True, repr=False)
+    ]
+
     @classmethod
-    def from_manifest_json(cls, manifest_json: dict[str, Any]) -> ArtifactManifestV1:
+    def from_manifest_json(
+        cls,
+        manifest_json: dict[str, Any],
+        digest_algorithm: ArtifactDigestAlgorithm = ArtifactDigestAlgorithm.MANIFEST_MD5,
+    ) -> ArtifactManifestV1:
         data = ArtifactManifestV1Data(**manifest_json)
 
         policy_name = data.storage_policy
         policy_cfg = data.storage_policy_config
         policy = StoragePolicy.lookup_by_name(policy_name).from_config(policy_cfg)
         return cls(
-            manifest_version=data.version, entries=data.contents, storage_policy=policy
+            manifest_version=data.version,
+            entries=data.contents,
+            storage_policy=policy,
+            digest_algorithm=digest_algorithm,
         )
 
     def to_manifest_json(self) -> dict:
@@ -61,8 +74,12 @@ class ArtifactManifestV1(ArtifactManifest):
     _DIGEST_HEADER: ClassVar[bytes] = b"wandb-artifact-manifest-v1\n"
     """Encoded prefix/header for the ArtifactManifest digest."""
 
-    def digest(self) -> HexMD5:
-        hasher = _md5(self._DIGEST_HEADER)
+    def digest(self) -> HexDigest:
+        hasher = (
+            _xxh128(self._DIGEST_HEADER)
+            if self.digest_algorithm == ArtifactDigestAlgorithm.MANIFEST_XXH128
+            else _md5(self._DIGEST_HEADER)
+        )
         # sort by key (path)
         for path, entry in sorted(self.entries.items(), key=itemgetter(0)):
             hasher.update(f"{path}:{entry.digest}\n".encode())
@@ -70,3 +87,20 @@ class ArtifactManifestV1(ArtifactManifest):
 
     def size(self) -> int:
         return sum(entry.size for entry in self.entries.values() if entry.size)
+
+    def hash_contents_with_md5(self) -> None:
+        """Re-hash all of the entries with MD5."""
+
+        def _rehash(item: ArtifactManifestEntry) -> None:
+            if (
+                not item.local_path
+                or item.digest_algorithm() is ArtifactDigestAlgorithm.MANIFEST_MD5
+            ):
+                return
+            item.digest = md5_file_b64(item.local_path)
+            del item.extra[DIGEST_ALGORITHM_EXTRA_KEY]
+
+        with ThreadPoolExecutor(max_workers=16) as executor:
+            futures = [executor.submit(_rehash, item) for item in self.entries.values()]
+            for future in as_completed(futures):
+                future.result()

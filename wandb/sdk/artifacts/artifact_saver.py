@@ -13,7 +13,7 @@ import wandb
 import wandb.filesync.step_prepare
 from wandb import util
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
-from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
+from wandb.sdk.lib.hashutil import B64Digest, b64_to_hex_id, md5_file_b64
 from wandb.sdk.lib.paths import URIStr
 
 if TYPE_CHECKING:
@@ -50,8 +50,11 @@ class ArtifactSaver:
     ) -> None:
         self._api = api
         self._file_pusher = file_pusher
-        self._digest = digest
+
         self._manifest = ArtifactManifest.from_manifest_json(manifest_json)
+        self._manifest.hash_contents_with_md5()
+        self._digest = self._manifest.digest()
+
         self._manifest.storage_policy._api = self._api
         self._is_user_created = is_user_created
         self._server_artifact = None
@@ -271,5 +274,5 @@ class ArtifactSaver:
                 if artifact_id is None:
                     raise RuntimeError(f"Could not resolve client id {client_id}")
                 entry.ref = URIStr(
-                    f"wandb-artifact://{b64_to_hex_id(B64MD5(artifact_id))}/{artifact_file_path}"
+                    f"wandb-artifact://{b64_to_hex_id(B64Digest(artifact_id))}/{artifact_file_path}"
                 )
