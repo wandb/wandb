@@ -20,7 +20,6 @@ type HistoryStepTrackerFactory struct {
 // HistoryStepTracker assigns increasing _step values to history rows.
 type HistoryStepTracker struct {
 	logger    *observability.CoreLogger
-	settings  *settings.Settings
 	runHandle *runhandle.RunHandle
 
 	// nextStep is the minimum step for the next history row.
@@ -32,22 +31,17 @@ type HistoryStepTracker struct {
 func (f *HistoryStepTrackerFactory) New() *HistoryStepTracker {
 	return &HistoryStepTracker{
 		logger:    f.Logger,
-		settings:  f.Settings,
 		runHandle: f.RunHandle,
 	}
 }
 
 // ApplyHistoryStep writes an increasing _step onto record.
 //
-// In shared mode it leaves the record unchanged and returns 0, nil.
 // err is non-nil when the run is not initialized; the caller must skip
 // the history row.
 func (t *HistoryStepTracker) ApplyHistoryStep(
 	record *spb.HistoryRecord,
 ) (int64, error) {
-	if t.settings.IsSharedMode() {
-		return 0, nil
-	}
 	if err := t.ensureInit(); err != nil {
 		return 0, err
 	}
