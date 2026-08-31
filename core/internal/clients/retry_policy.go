@@ -63,6 +63,8 @@ func RetryMostFailures(
 		return false, nil
 	case http.StatusUnauthorized: // don't retry on 401 unauthorized
 		return false, nil
+	case http.StatusPaymentRequired: // don't retry on 402 payment required
+		return false, nil
 	case http.StatusForbidden: // don't retry on 403 forbidden
 		return false, nil
 	case http.StatusNotFound: // don't retry on 404 not found
