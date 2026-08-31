@@ -187,10 +187,13 @@ message RunRecord {
   BranchPoint branch_point = 23;
 
   // Whether syncing should resume an existing run.
-  //
-  // This stores pre-sync intention. Distinct from `resumed` which stores what
-  // actually happened.
+  // Unlike `resumed`, this records input intent.
   bool resume = 24;
+
+  // If true, the sender may reassign history steps at upload time. The handler
+  // writes steps into the log without resume reconciliation. Old logs omit this
+  // field; the sender must preserve logged steps.
+  bool sync_may_reassign_steps = 25;
 
   _RecordInfo _info = 200;
 }
@@ -360,7 +363,7 @@ message MetricRecord {
   // step metric index can be used instead of step_metric when
   // MetricRecord is encoded in a list of MetricRecords
   string step_metric = 4;
-  int32 step_metric_index = 5;  // one-based array index
+  int32 step_metric_index = 5; // one-based array index
 
   MetricOptions options = 6;
   MetricSummary summary = 7;
@@ -382,7 +385,7 @@ message MetricResult {}
 message MetricOptions {
   bool step_sync = 1;
   bool hidden = 2;
-  bool defined = 3;  // metric explicitly defined (not from glob match or step metric)
+  bool defined = 3; // metric explicitly defined (not from glob match or step metric)
 }
 
 message MetricControl {
@@ -1366,7 +1369,7 @@ message UseArtifactResult {}
  * Cancel:
  */
 message CancelRequest {
-  string cancel_slot = 1;  // mailbox slot
+  string cancel_slot = 1; // mailbox slot
   _RequestInfo _info = 200;
 }
 

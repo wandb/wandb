@@ -285,6 +285,58 @@ def test_syncs_resumed_run(
         assert xs == {0: "a", 1: "b", 2: "c"}
 
 
+@pytest.mark.parametrize("resume", ("must", "allow", "auto"))
+def test_syncs_resumed_offline_run(
+    wandb_backend_spy: WandbBackendSpy,
+    runner: CliRunner,
+    resume: str,
+):
+    """A resumed offline run appends to the run it resumes.
+
+    The resume intent is recorded in the .wandb file when the run starts,
+    and is the only signal available at sync time since `wandb beta sync`
+    does not pass a `resume` setting of its own.
+    """
+    with wandb.init(mode="offline") as run1:
+        run1.log({"x": "a"})
+    with wandb.init(mode="offline", id=run1.id, resume=resume) as run2:
+        run2.log({"x": "b"})
+
+    runner.invoke(
+        cli.beta,
+        f"sync {run1.settings.sync_dir} {run2.settings.sync_dir}",
+    )
+
+    with wandb_backend_spy.freeze() as snapshot:
+        history = snapshot.history(run_id=run1.id)
+        assert {row["_step"]: row["x"] for row in history.values()} == {
+            0: "a",
+            1: "b",
+        }
+
+
+@pytest.mark.parametrize("resume", ("never", None))
+def test_syncs_offline_run_without_resume__overwrites(
+    wandb_backend_spy: WandbBackendSpy,
+    runner: CliRunner,
+    resume: str | None,
+):
+    """An offline run that doesn't ask to resume overwrites the earlier one."""
+    with wandb.init(mode="offline") as run1:
+        run1.log({"x": "a"})
+    with wandb.init(mode="offline", id=run1.id, resume=resume) as run2:
+        run2.log({"x": "b"})
+
+    runner.invoke(
+        cli.beta,
+        f"sync {run1.settings.sync_dir} {run2.settings.sync_dir}",
+    )
+
+    with wandb_backend_spy.freeze() as snapshot:
+        history = snapshot.history(run_id=run1.id)
+        assert {row["_step"]: row["x"] for row in history.values()} == {0: "b"}
+
+
 def test_resyncs_resumed_offline_run_keep_same_steps(
     wandb_backend_spy: WandbBackendSpy,
     runner: CliRunner,
@@ -313,6 +365,10 @@ def test_resyncs_resumed_offline_run_keep_same_steps(
     with wandb_backend_spy.freeze() as snapshot:
         history = snapshot.history(run_id=run1.id)
         first_sync_steps = resumed_segment_steps(history)
+
+    # The resumed segment must come after the first segment's step 0,
+    # not overwrite it.
+    assert first_sync_steps == {1}
 
     # Re-sync the same files, bypassing the .synced marker.
     runner.invoke(cli.beta, f"sync --no-skip-synced {run1_dir} {run2_dir}")

@@ -922,9 +922,7 @@ func TestHandleDerivedSummary(t *testing.T) {
 				makeExitRecord(),
 			},
 			expectedHistoryRecords: 1,
-			// We expect 2 summary records from the partial history record
-			// (run timing information + derived summary) and another summary
-			// record from the exit record.
+			// Derived metric summary on flush plus run timing on flush and exit.
 			expectedSummaryRecords: 3,
 			expectedExitRecords:    1,
 		},

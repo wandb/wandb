@@ -110,6 +110,9 @@ type Sender struct {
 	// runSummary is the full summary for the run
 	runSummary *runsummary.RunSummary
 
+	// stepTracker assigns monotonic _step values and updates summary _step.
+	stepTracker *HistoryStepTracker
+
 	// receivedExit is true once the Sender receives an Exit record.
 	receivedExit bool
 
@@ -218,6 +221,13 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 		runSummary:        runsummary.New(),
 		consoleLogsSender: runconsolelogs.New(consoleLogsSenderParams),
 	}
+
+	s.stepTracker = (&HistoryStepTrackerFactory{
+		Logger:     s.logger,
+		Settings:   s.settings,
+		RunSummary: s.runSummary,
+		RunHandle:  s.runHandle,
+	}).New()
 
 	if !s.settings.IsOffline() && !s.settings.IsJobCreationDisabled() {
 		s.jobBuilder = launch.NewJobBuilder(s.settings, s.logger, false)
@@ -812,19 +822,32 @@ func (s *Sender) sendUseArtifact(record *spb.Record) {
 	s.jobBuilder.HandleUseArtifactRecord(record)
 }
 
-// sendHistory sends a history record to the file stream,
-// which will then send it to the server
+// sendHistory queues a history record for uploading to the server.
+//
+// If the history record does not contain a _step value, this method will
+// auto-assign one. It will also update the run summary's _step value.
 func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 	if s.receivedExit {
 		s.logCalledAfterExit("sendHistory")
 		return
 	}
 
+	summaryUpdates := s.stepTracker.ApplyHistoryStep(record)
 	if s.fileStream == nil {
 		return
 	}
 
 	s.fileStream.StreamUpdate(&fs.HistoryUpdate{Record: record})
+	if summaryUpdates != nil {
+		s.fileStream.StreamUpdate(&fs.SummaryUpdate{Updates: summaryUpdates})
+	}
+}
+
+// SummaryForTest returns the sender's derived run summary as records.
+//
+// This is for testing purposes only.
+func (s *Sender) SummaryForTest() ([]*spb.SummaryItem, error) {
+	return s.runSummary.ToRecords()
 }
 
 func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {
@@ -834,6 +857,10 @@ func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {
 	}
 
 	updates := runsummary.FromProto(summary)
+	if s.stepTracker.MayReassignSteps() {
+		// Drop _step from summary records when sync may reassign steps.
+		updates.IgnoreStep()
+	}
 	if err := updates.Apply(s.runSummary); err != nil {
 		s.logger.CaptureError(
 			"stream",

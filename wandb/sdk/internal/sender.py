@@ -50,6 +50,7 @@ if TYPE_CHECKING:
         ArtifactManifestEntry,
         ArtifactRecord,
         EnvironmentRecord,
+        HistoryRecord,
         HttpResponse,
         LocalInfo,
         Record,
@@ -292,6 +293,12 @@ class SendManager:
         self._partial_output = dict()
 
         self._exit_code = 0
+
+        # Auto-increment step state for legacy sync history upload.
+        # Although legacy sync does not support resume, the go handler
+        # does not assign steps, so this legacy sender must assign them.
+        self._next_auto_step = 0
+        self._auto_step_initialized = False
 
         # internal vars for handing raw console output
         self._output_raw_streams = dict()
@@ -932,6 +939,8 @@ class SendManager:
 
         # Only spin up our threads on the first run message
         if is_wandb_init:
+            self._next_auto_step = 0
+            self._auto_step_initialized = False
             self._start_run_threads(file_dir)
         else:
             logger.info("updated run: %s", self._run.run_id)
@@ -1089,6 +1098,51 @@ class SendManager:
             self._run.start_time.ToMicroseconds() / 1e6,
         )
 
+    def _initialize_auto_step(self) -> None:
+        if self._auto_step_initialized:
+            return
+        if self._run is not None:
+            self._next_auto_step = self._run.starting_step
+        else:
+            self._next_auto_step = 0
+        self._auto_step_initialized = True
+
+    def _advance_auto_step_past(self, step: int) -> None:
+        self._initialize_auto_step()
+        if step >= self._next_auto_step:
+            self._next_auto_step = step + 1
+
+    def _ensure_history_step(
+        self,
+        history: HistoryRecord,
+        history_dict: dict[str, Any],
+    ) -> None:
+        if self._settings._shared:
+            return
+
+        if "_step" in history_dict:
+            step = history_dict["_step"]
+            self._initialize_auto_step()
+            if step < self._next_auto_step:
+                history_dict["_step"] = self._next_auto_step
+                step = self._next_auto_step
+            self._advance_auto_step_past(step)
+            return
+
+        if history.HasField("step"):
+            step = history.step.num
+            self._initialize_auto_step()
+            if step < self._next_auto_step:
+                step = self._next_auto_step
+            history_dict["_step"] = step
+            self._advance_auto_step_past(step)
+            return
+
+        self._initialize_auto_step()
+        step = self._next_auto_step
+        history_dict["_step"] = step
+        self._next_auto_step += 1
+
     def _save_history(self, history_dict: dict[str, Any]) -> None:
         if self._fs:
             self._fs.push(filenames.HISTORY_FNAME, json.dumps(history_dict))
@@ -1096,6 +1150,8 @@ class SendManager:
     def send_history(self, record: Record) -> None:
         history = record.history
         history_dict = proto_util.dict_from_proto_list(history.item)
+        if self._run and self._run.sync_may_reassign_steps:
+            self._ensure_history_step(history, history_dict)
         self._save_history(history_dict)
 
     def _update_summary_record(self, summary: SummaryRecord) -> None:

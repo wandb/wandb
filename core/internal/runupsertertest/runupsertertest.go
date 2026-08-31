@@ -58,9 +58,10 @@ func NewTestUpserter(
 
 	record := &spb.Record{RecordType: &spb.Record_Run{
 		Run: &spb.RunRecord{
-			Entity:  "test-entity",
-			Project: "test-project",
-			RunId:   "test-run",
+			Entity:               "test-entity",
+			Project:              "test-project",
+			RunId:                "test-run",
+			SyncMayReassignSteps: true,
 		},
 	}}
 
@@ -86,6 +87,24 @@ func StubUpsertBucket(t *testing.T, mockGQL *gqlmock.MockClient) {
 				}
 			}
 		}
+	}`)
+}
+
+// StubRunResumeStatusExistingRun stubs RunResumeStatus to return an initialized
+// run with no history rows.
+func StubRunResumeStatusExistingRun(t *testing.T, mock *gqlmock.MockClient) {
+	t.Helper()
+	mock.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{
+		"model": {"bucket": {
+			"config": "{}",
+			"wandbConfig": "{\"t\": 1}",
+			"historyLineCount": 0,
+			"eventsLineCount": 0,
+			"logLineCount": 0,
+			"historyTail": "[]",
+			"eventsTail": "[]",
+			"summaryMetrics": "{}"
+		}}
 	}`)
 }
 

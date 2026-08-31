@@ -54,6 +54,15 @@ def test_makedirs_raises_oserror__uses_temp_dir(tmp_path, monkeypatch):
     assert run.settings.root_dir == tempfile.gettempdir()
 
 
+@pytest.mark.parametrize("resume", ["must", "never", "allow", "auto"])
+def test_offline_resume_valid(resume):
+    with wandb.init(
+        mode="offline", id=f"offline-resume-valid-{resume}", resume=resume
+    ) as run:
+        run.log({"test": 2})
+    assert run.settings.resume == resume
+
+
 def test_avoids_sync_dir_conflict(mocker):
     # Make the run start time the same for all runs.
     mocker.patch("time.time", return_value=123)
