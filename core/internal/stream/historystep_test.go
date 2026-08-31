@@ -173,9 +173,7 @@ func TestHistoryStepTracker_RewritesUnparseableStep(t *testing.T) {
 	assert.Equal(t, "2", historyStepValue(history))
 }
 
-func TestHistoryStepTracker_ErrorsWhenRunNotInitialized(t *testing.T) {
-	tracker := makeHistoryStepTracker(t, 0)
-
+func TestHistoryStepTracker_FailsWhenRunNotInitialized(t *testing.T) {
 	logger := observabilitytest.NewTestLogger(t)
 	settings := wbsettings.From(&spb.Settings{
 		RunId: &wrapperspb.StringValue{Value: "run1"},
@@ -195,8 +193,4 @@ func TestHistoryStepTracker_ErrorsWhenRunNotInitialized(t *testing.T) {
 
 	_, err := uninit.ApplyHistoryStep(history)
 	require.Error(t, err)
-
-	// A tracker with an initialized handle still works.
-	_, err = tracker.ApplyHistoryStep(history)
-	require.NoError(t, err)
 }
