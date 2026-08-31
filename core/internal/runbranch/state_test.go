@@ -51,6 +51,7 @@ func TestRecreatesProto(t *testing.T) {
 		Summary: &spb.SummaryRecord{},
 
 		Shared: true,
+		Resume: true,
 
 		Resumed: true,
 		Forked:  true,

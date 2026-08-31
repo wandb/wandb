@@ -163,10 +163,11 @@ class InterfaceBase(abc.ABC):
             proto_run.sweep_id = run._settings.sweep_id
         if run._settings.host:
             proto_run.host = run._settings.host
-        if run._settings._shared:
-            proto_run.shared = True
+        proto_run.resume = run._settings.resume in ("allow", "must")
         if run._settings.resumed:
             proto_run.resumed = run._settings.resumed
+        if run._settings._shared:
+            proto_run.shared = True
         if run._settings.fork_from:
             run_moment = run._settings.fork_from
             proto_run.branch_point.run = run_moment.run

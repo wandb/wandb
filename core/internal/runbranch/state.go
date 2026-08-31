@@ -89,6 +89,13 @@ type RunParams struct {
 	// Shared is whether the run was created in shared mode. It is
 	// persisted on the RunRecord so sync can reject re-uploads.
 	Shared bool
+	// Resume is whether the run is expected to resume an existing run.
+	//
+	// This is distinct from Resumed: Resume is what the user asked for,
+	// while Resumed reflects whether the backend actually resumed the run.
+	// It is persisted on the RunRecord so that offline runs can defer resume
+	// reconciliation to sync time.
+	Resume bool
 
 	Resumed bool
 	Forked  bool
@@ -159,6 +166,7 @@ func (r *RunParams) SetOnProto(record *spb.RunRecord) {
 	}
 
 	record.Shared = r.Shared
+	record.Resume = r.Resume
 
 	record.Resumed = r.Resumed
 	record.Forked = r.Forked
@@ -237,6 +245,9 @@ func (r *RunParams) Update(
 
 	if record.Shared {
 		r.Shared = true
+	}
+	if record.Resume {
+		r.Resume = true
 	}
 
 	if record.Resumed {

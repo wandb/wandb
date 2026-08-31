@@ -186,9 +186,15 @@ message RunRecord {
   // Information about the source if this is a fork or rewind of another run.
   BranchPoint branch_point = 23;
 
+  // Whether syncing should resume an existing run.
+  //
+  // This stores pre-sync intention. Distinct from `resumed` which stores what
+  // actually happened.
+  bool resume = 24;
+
   // Whether this run was created in shared mode. Sync rejects logs with this
   // flag set because re-syncing can duplicate metrics.
-  bool shared = 24;
+  bool shared = 25;
 
   _RecordInfo _info = 200;
 }
