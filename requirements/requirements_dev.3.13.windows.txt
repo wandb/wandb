@@ -31,7 +31,7 @@ anyio==4.14.2
     #   starlette
 argon2-cffi==25.1.0
     # via jupyter-server
-argon2-cffi-bindings==25.1.0
+argon2-cffi-bindings==26.1.0
     # via argon2-cffi
 ariadne-codegen==0.16.0
     # via -r requirements/requirements_dev.txt
@@ -48,7 +48,7 @@ attrs==26.1.0
     #   aiohttp
     #   jsonschema
     #   referencing
-autoflake==2.3.3
+autoflake==2.4.0
     # via ariadne-codegen
 awscli==1.46.0
     # via wandb
@@ -73,14 +73,14 @@ bleach==6.4.0
     # via nbconvert
 blinker==1.9.0
     # via flask
-bokeh==3.9.2
+bokeh==3.10.0
     # via -r requirements/requirements_dev.txt
-boto3==1.43.72
+boto3==1.43.78
     # via
     #   metaflow
     #   moto
     #   wandb
-botocore==1.43.72
+botocore==1.43.78
     # via
     #   boto3
     #   moto
@@ -144,9 +144,7 @@ comm==0.2.3
     #   ipykernel
     #   ipywidgets
 contourpy==1.3.3
-    # via
-    #   bokeh
-    #   matplotlib
+    # via matplotlib
 coverage==7.15.4
     # via
     #   -r requirements/requirements_test.txt
@@ -161,7 +159,7 @@ cryptography==46.0.7
     #   msal
     #   pyjwt
     #   pyopenssl
-cwsandbox==1.0.0
+cwsandbox==1.6.0
     # via wandb
 cycler==0.12.1
     # via matplotlib
@@ -173,8 +171,6 @@ defusedxml==0.7.1
     # via nbconvert
 diskcache==5.6.3
     # via dspy
-distro==1.9.0
-    # via openai
 docker==7.2.0
     # via -r requirements/requirements_dev.txt
 docstring-parser==0.18.0
@@ -183,7 +179,7 @@ docstring-parser==0.18.0
     #   kfp
 docutils==0.19
     # via awscli
-dspy==3.3.0
+dspy==3.3.1
     # via -r requirements/requirements_dev.txt
 execnet==2.1.2
     # via pytest-xdist
@@ -197,7 +193,7 @@ fastjsonschema==2.22.2
     # via nbformat
 fastuuid==0.14.0
     # via litellm
-filelock==3.32.3
+filelock==3.32.4
     # via
     #   -r requirements/requirements_dev.txt
     #   huggingface-hub
@@ -222,7 +218,7 @@ fsspec==2026.7.0
     #   torch
 gast==0.7.0
     # via tensorflow
-gepa==0.1.1
+gepa==0.1.4
     # via dspy
 google-api-core==2.34.0
     # via
@@ -329,7 +325,7 @@ hf-xet==1.6.0
     # via huggingface-hub
 httpcore==1.0.9
     # via httpx
-httpcore2==2.10.0
+httpcore2==2.12.0
     # via httpx2
 httpx==0.27.2
     # via
@@ -338,7 +334,7 @@ httpx==0.27.2
     #   huggingface-hub
     #   jupyterlab
     #   litellm
-httpx2==2.10.0
+httpx2==2.12.0
     # via openai
 huggingface-hub==1.16.1
     # via tokenizers
@@ -348,7 +344,7 @@ hypothesis==6.165.10
     #   hypothesis-fspaths
 hypothesis-fspaths==0.1
     # via -r requirements/requirements_test.txt
-idna==3.18
+idna==3.19
     # via
     #   anyio
     #   httpx
@@ -382,7 +378,7 @@ ipython==9.16.1
     #   jupyter-console
 ipython-pygments-lexers==1.1.1
     # via ipython
-ipywidgets==8.1.8
+ipywidgets==8.1.9
     # via jupyter
 iso8601==2.1.0
     # via wandb
@@ -396,9 +392,9 @@ isort==8.0.1
     # via ariadne-codegen
 itsdangerous==2.2.0
     # via flask
-jax==0.11.0
+jax==0.11.1
     # via -r requirements/requirements_dev.txt
-jaxlib==0.11.0
+jaxlib==0.11.1
     # via jax
 jedi==0.20.0
     # via ipython
@@ -421,7 +417,7 @@ jmespath==1.1.0
     #   botocore
 joblib==1.5.3
     # via scikit-learn
-json-repair==0.63.2
+json-repair==0.63.3
     # via dspy
 json5==0.15.0
     # via jupyterlab-server
@@ -487,7 +483,7 @@ jupyterlab-server==2.28.0
     # via
     #   jupyterlab
     #   notebook
-jupyterlab-widgets==3.0.16
+jupyterlab-widgets==3.0.17
     # via ipywidgets
 keras==3.15.1
     # via tensorflow
@@ -544,7 +540,7 @@ matplotlib-inline==0.2.2
     #   ipython
 mdurl==0.1.2
     # via markdown-it-py
-metaflow==2.19.37
+metaflow==2.19.38
     # via -r requirements/requirements_dev.txt
 mistune==3.3.4
     # via nbconvert
@@ -554,13 +550,13 @@ ml-dtypes==0.6.0
     #   jaxlib
     #   keras
     #   tensorflow
-moto==5.2.2
+moto==5.2.3
     # via -r requirements/requirements_test.txt
 moviepy==1.0.3
     # via -r requirements/requirements_dev.txt
 mpmath==1.3.0
     # via sympy
-msal==1.37.0
+msal==1.38.0
     # via
     #   azure-identity
     #   msal-extensions
@@ -574,7 +570,7 @@ mypy-extensions==1.1.0
     # via black
 namex==0.1.0
     # via keras
-narwhals==2.24.0
+narwhals==2.25.0
     # via
     #   bokeh
     #   lightgbm
@@ -641,7 +637,7 @@ oauthlib==3.3.1
     # via
     #   kubernetes
     #   requests-oauthlib
-openai==3.1.0
+openai==3.3.1
     # via
     #   -r requirements/requirements_dev.txt
     #   dspy
@@ -652,7 +648,7 @@ opt-einsum==3.4.0
     # via
     #   jax
     #   tensorflow
-optree==0.19.1
+optree==0.20.0
     # via keras
 optuna==4.9.0
     # via wandb
@@ -706,7 +702,7 @@ pillow==12.3.0
     #   rdkit
     #   tensorboard
     #   torchvision
-platformdirs==4.11.3
+platformdirs==4.11.4
     # via
     #   black
     #   jupyter-core
@@ -884,7 +880,7 @@ pyyaml==6.0.3
     #   responses
     #   sweeps
     #   wandb
-pyzmq==27.1.0
+pyzmq==27.2.0
     # via
     #   ipykernel
     #   jupyter-client
@@ -957,7 +953,7 @@ scikit-learn==1.9.0
     # via
     #   -r requirements/requirements_dev.txt
     #   sweeps
-scipy==1.18.0
+scipy==1.18.1
     # via
     #   catboost
     #   jax
@@ -968,7 +964,7 @@ scipy==1.18.0
     #   xgboost
 send2trash==2.1.0
     # via jupyter-server
-sentry-sdk==2.68.0
+sentry-sdk==2.68.1
     # via wandb
 setuptools==81.0.0
     # via
@@ -1036,7 +1032,7 @@ terminado==0.18.1
     #   jupyter-server-terminals
 threadpoolctl==3.6.0
     # via scikit-learn
-tiktoken==0.13.0
+tiktoken==0.14.0
     # via litellm
 tinycss2==1.5.1
     # via bleach
@@ -1077,7 +1073,6 @@ tqdm==4.70.0
     #   huggingface-hub
     #   lightning
     #   moviepy
-    #   openai
     #   optuna
     #   proglog
     #   pytorch-lightning
@@ -1181,7 +1176,7 @@ werkzeug==3.1.8
     #   tensorboard
 wheel==0.48.0
     # via astunparse
-widgetsnbextension==4.0.15
+widgetsnbextension==4.0.16
     # via ipywidgets
 wrapt==2.3.0
     # via tensorflow
@@ -1189,6 +1184,8 @@ xgboost==3.4.1
     # via -r requirements/requirements_dev.txt
 xmltodict==1.0.4
     # via moto
+xxhash==4.0.1
+    # via wandb
 xyzservices==2026.3.0
     # via bokeh
 yarl==1.24.5
