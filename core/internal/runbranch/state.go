@@ -73,7 +73,7 @@ type RunParams struct {
 
 	// run state fields based on response from the server
 	StartingStep int64
-	Runtime      int32
+	Runtime      time.Duration
 
 	Tags []string
 
@@ -149,7 +149,7 @@ func (r *RunParams) SetOnProto(record *spb.RunRecord) {
 	record.SweepId = r.SweepID
 
 	record.StartingStep = r.StartingStep
-	record.Runtime = r.Runtime
+	record.Runtime = int32(r.Runtime.Seconds())
 
 	record.Tags = slices.Clone(r.Tags)
 
@@ -230,7 +230,7 @@ func (r *RunParams) Update(
 		r.StartingStep = record.StartingStep
 	}
 	if record.Runtime != 0 {
-		r.Runtime = record.Runtime
+		r.Runtime = time.Duration(record.Runtime) * time.Second
 	}
 
 	if len(record.Tags) > 0 {
