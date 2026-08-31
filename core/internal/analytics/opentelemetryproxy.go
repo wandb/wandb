@@ -26,7 +26,6 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 
-	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/httplayers"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
@@ -254,6 +253,28 @@ func (r *TelemetryRecorder) IncrementCounter(
 	r.root.incrementCounter(ctx, name, mergedLowCardinalityAttributes)
 }
 
+// RecordDuration records a duration histogram metric in seconds with the
+// telemetry context's low-cardinality attributes.
+func (r *TelemetryRecorder) RecordDuration(
+	ctx context.Context,
+	name string,
+	duration time.Duration,
+	lowCardinalityAttributes LowCardinalityAttributes,
+) {
+	if r == nil {
+		return
+	}
+
+	mergedLowCardinalityAttributes := r.telemetryContext.lowCardinalityAttributes
+	mergedLowCardinalityAttributes.merge(lowCardinalityAttributes)
+	r.root.recordDuration(
+		ctx,
+		name,
+		duration,
+		mergedLowCardinalityAttributes,
+	)
+}
+
 // IncrementCounterAndLogEvent increments a counter metric by 1
 // with the telemetry context's low-cardinality attributes
 //
@@ -473,14 +494,6 @@ func newOpenTelemetryProxy(
 func newOTLPHTTPClient(
 	wandbSettings *settings.Settings,
 ) (*http.Client, error) {
-	credentialProvider, err := api.NewCredentialProvider(
-		wandbSettings,
-		slog.Default(),
-	)
-	if err != nil {
-		return nil, err
-	}
-
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = wandbSettings.GetProxyFn()
 	transport.ProxyConnectHeader = wandbSettings.GetProxyConnectHeader()
@@ -499,7 +512,6 @@ func newOTLPHTTPClient(
 		transport,
 		httplayers.Concat(
 			httplayers.DefaultHeaders(extraHeaders),
-			credentialProvider,
 		),
 	)
 	return client, nil
@@ -656,6 +668,33 @@ func (o *OpenTelemetryProxy) incrementCounter(
 	}
 
 	counter.Add(ctx, 1, toOTelAttrs(lowCardinalityAttributes.toMap()))
+}
+
+// recordDuration records a duration histogram metric in seconds.
+func (o *OpenTelemetryProxy) recordDuration(
+	ctx context.Context,
+	name string,
+	duration time.Duration,
+	lowCardinalityAttributes LowCardinalityAttributes,
+) {
+	if o == nil {
+		return
+	}
+
+	meter := o.meterProvider.Meter(o.serviceName)
+	histogram, err := meter.Float64Histogram(
+		name,
+		otelmetric.WithUnit("s"),
+	)
+	if err != nil {
+		return
+	}
+
+	histogram.Record(
+		ctx,
+		duration.Seconds(),
+		toOTelAttrs(lowCardinalityAttributes.toMap()),
+	)
 }
 
 // log emits an OpenTelemetry log record with the supplied attributes
