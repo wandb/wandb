@@ -16,28 +16,18 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-type trackerConfig struct {
-	shared       bool
-	startingStep int64
-}
-
-type historyStepFixtures struct {
-	Tracker *stream.HistoryStepTracker
-}
-
-func makeHistoryStepTracker(t *testing.T, cfg trackerConfig) historyStepFixtures {
+func makeHistoryStepTracker(t *testing.T, startingStep int64) *stream.HistoryStepTracker {
 	t.Helper()
 	logger := observabilitytest.NewTestLogger(t)
 	settings := wbsettings.From(&spb.Settings{
-		RunId:   &wrapperspb.StringValue{Value: "run1"},
-		XShared: &wrapperspb.BoolValue{Value: cfg.shared},
+		RunId: &wrapperspb.StringValue{Value: "run1"},
 	})
 
 	run := &spb.RunRecord{
 		Entity:       "test-entity",
 		Project:      "test-project",
 		RunId:        "test-run",
-		StartingStep: cfg.startingStep,
+		StartingStep: startingStep,
 	}
 	handle := runhandle.New()
 	require.NoError(t, handle.Init(
@@ -49,7 +39,7 @@ func makeHistoryStepTracker(t *testing.T, cfg trackerConfig) historyStepFixtures
 		RunHandle: handle,
 	}
 
-	return historyStepFixtures{Tracker: factory.New()}
+	return factory.New()
 }
 
 func historyStepValue(record *spb.HistoryRecord) string {
@@ -63,7 +53,7 @@ func historyStepValue(record *spb.HistoryRecord) string {
 }
 
 func TestHistoryStepTracker_AssignsMissingStep(t *testing.T) {
-	x := makeHistoryStepTracker(t, trackerConfig{})
+	tracker := makeHistoryStepTracker(t, 0)
 
 	history := &spb.HistoryRecord{
 		Item: []*spb.HistoryItem{{
@@ -72,7 +62,7 @@ func TestHistoryStepTracker_AssignsMissingStep(t *testing.T) {
 		}},
 	}
 
-	step, err := x.Tracker.ApplyHistoryStep(history)
+	step, err := tracker.ApplyHistoryStep(history)
 	require.NoError(t, err)
 
 	assert.Equal(t, int64(0), step)
@@ -83,7 +73,7 @@ func TestHistoryStepTracker_AssignsMissingStep(t *testing.T) {
 }
 
 func TestHistoryStepTracker_PreservesExistingStep(t *testing.T) {
-	x := makeHistoryStepTracker(t, trackerConfig{})
+	tracker := makeHistoryStepTracker(t, 0)
 
 	history := &spb.HistoryRecord{
 		Item: []*spb.HistoryItem{
@@ -92,7 +82,7 @@ func TestHistoryStepTracker_PreservesExistingStep(t *testing.T) {
 		},
 	}
 
-	step, err := x.Tracker.ApplyHistoryStep(history)
+	step, err := tracker.ApplyHistoryStep(history)
 	require.NoError(t, err)
 
 	assert.Equal(t, int64(7), step)
@@ -102,48 +92,34 @@ func TestHistoryStepTracker_PreservesExistingStep(t *testing.T) {
 	}, history.Item)
 }
 
-func TestHistoryStepTracker_RewritesStepBelowStartingStep(t *testing.T) {
-	x := makeHistoryStepTracker(t, trackerConfig{startingStep: 2})
+func TestHistoryStepTracker_ClampsHistoryItemStep(t *testing.T) {
+	tracker := makeHistoryStepTracker(t, 2)
 
-	history := &spb.HistoryRecord{
+	history1 := &spb.HistoryRecord{
 		Item: []*spb.HistoryItem{
 			{NestedKey: []string{"loss"}, ValueJson: "0.6"},
 			{NestedKey: []string{"_step"}, ValueJson: "0"},
 		},
 	}
-
-	step, err := x.Tracker.ApplyHistoryStep(history)
+	step1, err := tracker.ApplyHistoryStep(history1)
 	require.NoError(t, err)
+	assert.Equal(t, int64(2), step1)
+	assert.Equal(t, "2", historyStepValue(history1))
 
-	assert.Equal(t, int64(2), step)
-	assert.Equal(t, "2", history.Item[1].ValueJson)
-}
-
-func TestHistoryStepTracker_OfflineResumedSegmentRewritesSteps(t *testing.T) {
-	x := makeHistoryStepTracker(t, trackerConfig{startingStep: 2})
-
-	for _, tc := range []struct {
-		localStep string
-		loss      string
-		wantStep  string
-	}{
-		{localStep: "0", loss: "0.6", wantStep: "2"},
-		{localStep: "1", loss: "0.4", wantStep: "3"},
-	} {
-		history := &spb.HistoryRecord{
-			Item: []*spb.HistoryItem{
-				{NestedKey: []string{"loss"}, ValueJson: tc.loss},
-				{NestedKey: []string{"_step"}, ValueJson: tc.localStep},
-			},
-		}
-		_, err := x.Tracker.ApplyHistoryStep(history)
-		require.NoError(t, err)
-		assert.Equal(t, tc.wantStep, historyStepValue(history))
+	history2 := &spb.HistoryRecord{
+		Item: []*spb.HistoryItem{
+			{NestedKey: []string{"loss"}, ValueJson: "0.4"},
+			{NestedKey: []string{"_step"}, ValueJson: "1"},
+		},
 	}
+	step2, err := tracker.ApplyHistoryStep(history2)
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), step2)
+	assert.Equal(t, "3", historyStepValue(history2))
 }
 
 func TestHistoryStepTracker_AppliesRecordStep(t *testing.T) {
-	x := makeHistoryStepTracker(t, trackerConfig{})
+	tracker := makeHistoryStepTracker(t, 0)
 
 	history := &spb.HistoryRecord{
 		Item: []*spb.HistoryItem{{
@@ -153,7 +129,7 @@ func TestHistoryStepTracker_AppliesRecordStep(t *testing.T) {
 		Step: &spb.HistoryStep{Num: 5},
 	}
 
-	step, err := x.Tracker.ApplyHistoryStep(history)
+	step, err := tracker.ApplyHistoryStep(history)
 	require.NoError(t, err)
 
 	assert.Equal(t, int64(5), step)
@@ -163,46 +139,25 @@ func TestHistoryStepTracker_AppliesRecordStep(t *testing.T) {
 	}, history.Item)
 }
 
-func TestHistoryStepTracker_RewritesRecordStepBelowStartingStep(t *testing.T) {
-	x := makeHistoryStepTracker(t, trackerConfig{startingStep: 2})
+func TestHistoryStepTracker_ClampsRecordStep(t *testing.T) {
+	tracker := makeHistoryStepTracker(t, 5)
 
-	history := &spb.HistoryRecord{
-		Item: []*spb.HistoryItem{{
-			NestedKey: []string{"loss"},
-			ValueJson: "1.23",
-		}},
-		Step: &spb.HistoryStep{Num: 0},
-	}
+	history1 := &spb.HistoryRecord{}
+	step1, err := tracker.ApplyHistoryStep(history1)
+	require.NoError(t, err)
+	assert.Equal(t, int64(5), step1)
+	assert.Equal(t, "5", historyStepValue(history1))
 
-	step, err := x.Tracker.ApplyHistoryStep(history)
+	history2 := &spb.HistoryRecord{Step: &spb.HistoryStep{Num: 1}}
+	step2, err := tracker.ApplyHistoryStep(history2)
 	require.NoError(t, err)
 
-	assert.Equal(t, int64(2), step)
-	assert.Equal(t, []*spb.HistoryItem{
-		{NestedKey: []string{"loss"}, ValueJson: "1.23"},
-		{NestedKey: []string{"_step"}, ValueJson: "2"},
-	}, history.Item)
-}
-
-func TestHistoryStepTracker_RewritesRecordStepBelowRunningStep(t *testing.T) {
-	x := makeHistoryStepTracker(t, trackerConfig{})
-
-	first := &spb.HistoryRecord{Step: &spb.HistoryStep{Num: 5}}
-	_, err := x.Tracker.ApplyHistoryStep(first)
-	require.NoError(t, err)
-
-	history := &spb.HistoryRecord{Step: &spb.HistoryStep{Num: 1}}
-	step, err := x.Tracker.ApplyHistoryStep(history)
-	require.NoError(t, err)
-
-	assert.Equal(t, int64(6), step)
-	assert.Equal(t, []*spb.HistoryItem{
-		{NestedKey: []string{"_step"}, ValueJson: "6"},
-	}, history.Item)
+	assert.Equal(t, int64(6), step2)
+	assert.Equal(t, "6", historyStepValue(history2))
 }
 
 func TestHistoryStepTracker_RewritesUnparseableStep(t *testing.T) {
-	x := makeHistoryStepTracker(t, trackerConfig{startingStep: 2})
+	tracker := makeHistoryStepTracker(t, 2)
 
 	history := &spb.HistoryRecord{
 		Item: []*spb.HistoryItem{
@@ -211,7 +166,7 @@ func TestHistoryStepTracker_RewritesUnparseableStep(t *testing.T) {
 		},
 	}
 
-	step, err := x.Tracker.ApplyHistoryStep(history)
+	step, err := tracker.ApplyHistoryStep(history)
 	require.NoError(t, err)
 
 	assert.Equal(t, int64(2), step)
@@ -219,7 +174,7 @@ func TestHistoryStepTracker_RewritesUnparseableStep(t *testing.T) {
 }
 
 func TestHistoryStepTracker_ErrorsWhenRunNotInitialized(t *testing.T) {
-	x := makeHistoryStepTracker(t, trackerConfig{})
+	tracker := makeHistoryStepTracker(t, 0)
 
 	logger := observabilitytest.NewTestLogger(t)
 	settings := wbsettings.From(&spb.Settings{
@@ -242,27 +197,6 @@ func TestHistoryStepTracker_ErrorsWhenRunNotInitialized(t *testing.T) {
 	require.Error(t, err)
 
 	// A tracker with an initialized handle still works.
-	_, err = x.Tracker.ApplyHistoryStep(history)
+	_, err = tracker.ApplyHistoryStep(history)
 	require.NoError(t, err)
-}
-
-func TestHistoryStepTracker_SharedModeLeavesRecordUnchanged(t *testing.T) {
-	x := makeHistoryStepTracker(t, trackerConfig{shared: true})
-
-	history := &spb.HistoryRecord{
-		Item: []*spb.HistoryItem{{
-			NestedKey: []string{"loss"},
-			ValueJson: "1.23",
-		}},
-	}
-
-	step, err := x.Tracker.ApplyHistoryStep(history)
-	require.NoError(t, err)
-
-	assert.Equal(t, int64(0), step)
-	assert.Equal(t, []*spb.HistoryItem{{
-		NestedKey: []string{"loss"},
-		ValueJson: "1.23",
-	}}, history.Item)
-	assert.Empty(t, historyStepValue(history))
 }

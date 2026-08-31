@@ -20,7 +20,6 @@ type HistoryStepTrackerFactory struct {
 // HistoryStepTracker assigns increasing _step values to history rows.
 type HistoryStepTracker struct {
 	logger    *observability.CoreLogger
-	settings  *settings.Settings
 	runHandle *runhandle.RunHandle
 
 	// nextStep is the minimum step for the next history row.
@@ -32,44 +31,35 @@ type HistoryStepTracker struct {
 func (f *HistoryStepTrackerFactory) New() *HistoryStepTracker {
 	return &HistoryStepTracker{
 		logger:    f.Logger,
-		settings:  f.Settings,
 		runHandle: f.RunHandle,
 	}
 }
 
 // ApplyHistoryStep writes an increasing _step onto record.
 //
-// In shared mode it leaves the record unchanged and returns 0, nil.
 // err is non-nil when the run is not initialized; the caller must skip
 // the history row.
 func (t *HistoryStepTracker) ApplyHistoryStep(
 	record *spb.HistoryRecord,
 ) (int64, error) {
-	if t.settings.IsSharedMode() {
-		return 0, nil
-	}
 	if err := t.ensureInit(); err != nil {
 		return 0, err
 	}
 
-	var step int64
 	item := explicitHistoryStepItem(record)
-	if item != nil {
-		var err error
-		step, err = strconv.ParseInt(item.GetValueJson(), 10, 64)
-		if err != nil {
-			t.logger.CaptureWarn(
-				"historystep: ignoring unparseable history _step",
-				"value", item.GetValueJson(),
-			)
-			step = t.nextStep
-		}
-	}
-	if record.GetStep() != nil {
-		step = record.GetStep().GetNum()
-	}
 
-	step = t.clampStep(step)
+	var step int64
+	switch {
+	case item != nil:
+		parsedStep := t.parseStep(item.GetValueJson())
+		step = t.clampStep(parsedStep)
+
+	case record.Step != nil:
+		step = t.clampStep(record.Step.Num)
+
+	default:
+		step = t.nextStep
+	}
 
 	stepValue := strconv.FormatInt(step, 10)
 	if item != nil {
@@ -133,4 +123,16 @@ func explicitHistoryStepItem(record *spb.HistoryRecord) *spb.HistoryItem {
 		}
 	}
 	return nil
+}
+
+func (t *HistoryStepTracker) parseStep(value string) int64 {
+	step, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		t.logger.CaptureWarn(
+			"historystep: ignoring unparseable history _step",
+			"value", value,
+		)
+		return t.nextStep
+	}
+	return step
 }
