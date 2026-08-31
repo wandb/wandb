@@ -16,6 +16,7 @@ import (
 	internalauth "github.com/aws/aws-sdk-go-v2/internal/auth"
 	internalauthsmithy "github.com/aws/aws-sdk-go-v2/internal/auth/smithy"
 	internalConfig "github.com/aws/aws-sdk-go-v2/internal/configsources"
+	"github.com/aws/aws-sdk-go-v2/internal/timeouts"
 	"github.com/aws/aws-sdk-go-v2/internal/v4a"
 	acceptencodingcust "github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding"
 	presignedurlcust "github.com/aws/aws-sdk-go-v2/service/internal/presigned-url"
@@ -531,6 +532,12 @@ func resolveHTTPClient(o *Options) {
 				transport.TLSHandshakeTimeout = tlsHandshakeTimeout
 			}
 		})
+	}
+
+	if _, ok := buildable.GetReadTimeout(); !ok {
+		if timeout, ok := timeouts.GetServiceReadTimeout(ServiceID); ok {
+			buildable = buildable.WithReadTimeout(timeout)
+		}
 	}
 
 	o.HTTPClient = buildable
