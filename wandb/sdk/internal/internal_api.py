@@ -20,7 +20,7 @@ import click
 
 import wandb
 from wandb import env, util
-from wandb.analytics import TelemetryRecorder, get_sentry, get_telemetry_recorder
+from wandb.analytics import TelemetryRecorder, get_telemetry_recorder
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import AuthenticationError, CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
@@ -2286,8 +2286,6 @@ class Api:
                 _e = retry.TransientError(exc=e)
                 raise _e.with_traceback(sys.exc_info()[2])
             else:
-                # TODO: remove sentry once we no longer support/need it
-                get_sentry().exception(e)
                 self._telemetry_recorder.reraise(e)
         return response
 
@@ -2373,8 +2371,6 @@ class Api:
                 _e = retry.TransientError(exc=e)
                 raise _e.with_traceback(sys.exc_info()[2])
             else:
-                # TODO: remove sentry once we no longer support/need it
-                get_sentry().exception(e)
                 self._telemetry_recorder.reraise(e)
 
         return response

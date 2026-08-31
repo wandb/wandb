@@ -5,7 +5,7 @@ import os
 from typing import TYPE_CHECKING
 
 import wandb
-from wandb.analytics import get_sentry
+from wandb.analytics import get_telemetry_recorder
 from wandb.sdk.lib.paths import LogicalPath
 
 if TYPE_CHECKING:
@@ -74,7 +74,7 @@ class UploadJob:
             except Exception as e:
                 self._stats.update_failed_file(self.save_path)
                 logger.exception("Failed to upload file: %s", self.save_path)
-                get_sentry().exception(e)
+                get_telemetry_recorder().exception(e)
                 message = str(e)
                 # TODO: this is usually XML, but could be JSON
                 if hasattr(e, "response"):
@@ -134,7 +134,7 @@ class UploadJob:
             except Exception as e:
                 self._stats.update_failed_file(self.save_name)
                 logger.exception("Failed to upload file: %s", self.save_path)
-                get_sentry().exception(e)
+                get_telemetry_recorder().exception(e)
                 if not self.silent:
                     wandb.termerror(
                         f'Error uploading "{self.save_name}": {type(e).__name__}, {e}'

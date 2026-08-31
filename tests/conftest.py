@@ -15,7 +15,7 @@ from typing import Any
 
 from wandb.sdk import wandb_setup
 
-# Don't write to Sentry in wandb.
+# Don't write error telemetry in tests.
 os.environ["WANDB_ERROR_REPORTING"] = "false"
 
 # Hide the developer's global and system git config from tests that run git,
