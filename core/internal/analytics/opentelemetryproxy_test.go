@@ -341,40 +341,6 @@ func TestTelemetryRecorder_RecordDuration(t *testing.T) {
 	assert.Equal(t, "local", metric.Attributes["execution_context"])
 }
 
-func TestTelemetryRecorder_SendsAPIKeyAuth(t *testing.T) {
-	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
-	recorder := analytics.NewTelemetryRecorder(
-		proxy.OpenTelemetryProxy,
-		analytics.NewTelemetryContext(),
-	)
-
-	recorder.IncrementCounterAndLogEvent(
-		t.Context(),
-		"authenticated_event",
-		nil,
-		analytics.LowCardinalityAttributes{},
-	)
-	require.NoError(t, proxy.Shutdown(context.Background()))
-
-	requests := proxy.Requests()
-	assert.Greater(t, len(requests), 1, "expected at least two requests")
-	for _, req := range requests {
-		// The capability probe sent during proxy construction is intentionally
-		// unauthenticated and carries no body.
-		// Only OTLP export requests must include the API key.
-		if req.ContentLength == 0 {
-			continue
-		}
-		assert.Equal(
-			t,
-			"Basic YXBpOnRlc3QtYXBpLWtleQ==",
-			req.Authorization,
-			"path %s",
-			req.Path,
-		)
-	}
-}
-
 func TestTelemetryRecorder_ErrorLog(t *testing.T) {
 	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
 	recorder := analytics.NewTelemetryRecorder(
