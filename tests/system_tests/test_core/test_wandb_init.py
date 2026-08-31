@@ -9,6 +9,7 @@ import wandb
 from wandb.errors import AuthenticationError, CommError
 from wandb.sdk.lib import runid
 
+from tests.fixtures.shared_run_log import read_first_run_record
 from tests.fixtures.wandb_backend_spy import WandbBackendSpy
 
 
@@ -162,6 +163,17 @@ def test_shared_mode_x_label(user):
         )
     ) as run:
         assert run.settings.x_label == "node-rank"
+
+
+def test_shared_mode_writes_shared_to_transaction_log(user):
+    _ = user  # Create a fake user on the backend server.
+
+    with wandb.init(settings=wandb.Settings(mode="shared")) as run:
+        sync_file = run.settings.sync_file
+
+    run_record = read_first_run_record(Path(sync_file))
+    assert run_record is not None
+    assert run_record.shared is True
 
 
 @pytest.mark.parametrize("skip_transaction_log", [True, False])

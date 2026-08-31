@@ -192,6 +192,10 @@ message RunRecord {
   // actually happened.
   bool resume = 24;
 
+  // Whether this run was created in shared mode. Sync rejects logs with this
+  // flag set because re-syncing can duplicate metrics.
+  bool shared = 25;
+
   _RecordInfo _info = 200;
 }
 

@@ -105,6 +105,10 @@ type ServerInitSyncRequest struct {
 	//
 	// Mapping a tag to an empty string deletes it.
 	TagReplacements map[string]string `protobuf:"bytes,9,rep,name=tag_replacements,json=tagReplacements,proto3" json:"tag_replacements,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	// Whether to sync runs flagged with RunRecord.shared.
+	//
+	// By default, shared-mode transaction logs are rejected.
+	AllowSharedSync bool `protobuf:"varint,10,opt,name=allow_shared_sync,json=allowSharedSync,proto3" json:"allow_shared_sync,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -200,6 +204,13 @@ func (x *ServerInitSyncRequest) GetTagReplacements() map[string]string {
 		return x.TagReplacements
 	}
 	return nil
+}
+
+func (x *ServerInitSyncRequest) GetAllowSharedSync() bool {
+	if x != nil {
+		return x.AllowSharedSync
+	}
+	return false
 }
 
 // Indicates a sync operation is ready.
@@ -513,7 +524,7 @@ var File_wandb_proto_wandb_sync_proto protoreflect.FileDescriptor
 
 const file_wandb_proto_wandb_sync_proto_rawDesc = "" +
 	"\n" +
-	"\x1cwandb/proto/wandb_sync.proto\x12\x0ewandb_internal\x1a wandb/proto/wandb_internal.proto\x1a wandb/proto/wandb_settings.proto\"\xb2\x03\n" +
+	"\x1cwandb/proto/wandb_sync.proto\x12\x0ewandb_internal\x1a wandb/proto/wandb_internal.proto\x1a wandb/proto/wandb_settings.proto\"\xde\x03\n" +
 	"\x15ServerInitSyncRequest\x12\x12\n" +
 	"\x04path\x18\x01 \x03(\tR\x04path\x12\x10\n" +
 	"\x03cwd\x18\a \x01(\tR\x03cwd\x12\x12\n" +
@@ -527,7 +538,9 @@ const file_wandb_proto_wandb_sync_proto_rawDesc = "" +
 	"new_run_id\x18\x05 \x01(\tR\bnewRunId\x12 \n" +
 	"\fnew_job_type\x18\b \x01(\tR\n" +
 	"newJobType\x12e\n" +
-	"\x10tag_replacements\x18\t \x03(\v2:.wandb_internal.ServerInitSyncRequest.TagReplacementsEntryR\x0ftagReplacements\x1aB\n" +
+	"\x10tag_replacements\x18\t \x03(\v2:.wandb_internal.ServerInitSyncRequest.TagReplacementsEntryR\x0ftagReplacements\x12*\n" +
+	"\x11allow_shared_sync\x18\n" +
+	" \x01(\bR\x0fallowSharedSync\x1aB\n" +
 	"\x14TagReplacementsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"(\n" +

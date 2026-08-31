@@ -37,6 +37,7 @@ func (f *RunSyncOperationFactory) New(
 	cwd string,
 	updates *RunSyncUpdates,
 	live bool,
+	allowSharedSync bool,
 	globalSettings *spb.Settings,
 ) *RunSyncOperation {
 	wandbSettings := settings.From(globalSettings)
@@ -80,7 +81,7 @@ func (f *RunSyncOperationFactory) New(
 		)
 
 		op.syncers = append(op.syncers,
-			factory.New(path, ToDisplayPath(userPath, cwd), updates, live))
+			factory.New(path, ToDisplayPath(userPath, cwd), updates, live, allowSharedSync))
 	}
 
 	return op

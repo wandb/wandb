@@ -45,6 +45,11 @@ message ServerInitSyncRequest {
   //
   // Mapping a tag to an empty string deletes it.
   map<string, string> tag_replacements = 9;
+
+  // Whether to sync runs flagged with RunRecord.shared.
+  //
+  // By default, shared-mode transaction logs are rejected.
+  bool allow_shared_sync = 10;
 }
 
 // Indicates a sync operation is ready.

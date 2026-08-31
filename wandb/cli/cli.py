@@ -629,6 +629,12 @@ def init(ctx, project, entity, reset, mode):
     help="Include runs that are already synced.",
 )
 @click.option(
+    "--include-shared/--no-include-shared",
+    is_flag=True,
+    default=False,
+    help="Override shared mode rejection (will duplicate metrics on server).",
+)
+@click.option(
     "--mark-synced/--no-mark-synced",
     is_flag=True,
     default=True,
@@ -704,6 +710,7 @@ def sync(
     include_online: bool | None,
     include_offline: bool | None,
     include_synced: bool | None,
+    include_shared: bool,
     mark_synced: bool,
     sync_all: bool,
     ignore: str | None,
@@ -726,6 +733,10 @@ def sync(
     the W&B server. If PATH is provided, sync runs at that path. If no
     path is given, search for a ./wandb directory, then a wandb/
     subdirectory.
+
+    Sync rejects transaction logs created in shared mode by default because
+    they will cause duplicate metrics on the server. Use `--include-shared` to
+    override this behavior and upload shared-mode logs.
 
     Run without arguments to print a summary of synced and unsynced
     runs without uploading anything.
@@ -767,6 +778,7 @@ def sync(
         $ wandb clean --help
 
     for more info.
+
     """
     # Use `wandb beta sync` if possible.
     if (
@@ -802,6 +814,7 @@ def sync(
             skip_confirmation=skip_confirmation,
             skip_synced=not include_synced,
             skip_online=not include_online,
+            include_shared=include_shared,
             verbose=verbose,
             parallelism=5,  # same default as wandb beta sync
         )
@@ -920,6 +933,7 @@ def sync(
             append=append,
             skip_console=skip_console,
             replace_tags=replace_tags_dict,
+            include_shared=include_shared,
         )
         for p in _path:
             sm.add(p)

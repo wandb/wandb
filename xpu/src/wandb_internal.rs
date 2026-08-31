@@ -832,6 +832,10 @@ pub struct RunRecord {
     /// actually happened.
     #[prost(bool, tag = "24")]
     pub resume: bool,
+    /// Whether this run was created in shared mode. Sync rejects logs with this
+    /// flag set because re-syncing can duplicate metrics.
+    #[prost(bool, tag = "25")]
+    pub shared: bool,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }

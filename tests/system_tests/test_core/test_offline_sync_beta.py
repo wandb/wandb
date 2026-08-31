@@ -21,6 +21,10 @@ from wandb.sdk.mailbox.mailbox import Mailbox
 from wandb.sdk.mailbox.mailbox_handle import MailboxHandle
 
 from tests.fixtures.emulated_terminal import EmulatedTerminal
+from tests.fixtures.shared_run_log import (
+    SHARED_SYNC_REJECTED_FRAGMENT,
+    write_shared_run_log,
+)
 from tests.fixtures.wandb_backend_spy import WandbBackendSpy
 
 _T = TypeVar("_T")
@@ -596,6 +600,7 @@ def test_prints_status_updates(
                     run_id="",
                     job_type="",
                     tag_replacements={},
+                    include_shared=False,
                     settings=wandb.Settings(),
                     printer=new_printer(),
                     parallelism=1,
@@ -612,3 +617,38 @@ def test_prints_status_updates(
         ]
 
     singleton.asyncer.run(do_test)
+
+
+def test_sync_rejects_shared_run(
+    tmp_path: pathlib.Path,
+    wandb_backend_spy: WandbBackendSpy,
+    runner: CliRunner,
+):
+    run_dir = tmp_path / "offline-run-shared"
+    write_shared_run_log(run_dir / "run-shared.wandb")
+
+    result = runner.invoke(cli.beta, f"sync {run_dir}")
+
+    assert SHARED_SYNC_REJECTED_FRAGMENT in result.output
+    with wandb_backend_spy.freeze() as snapshot:
+        assert not snapshot.run_ids()
+
+
+def test_sync_shared_run_with_override_reaches_upload(
+    tmp_path: pathlib.Path,
+    wandb_backend_spy: WandbBackendSpy,
+    runner: CliRunner,
+):
+    run_dir = tmp_path / "offline-run-shared"
+    write_shared_run_log(run_dir / "run-shared.wandb")
+
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="UpsertBucket"),
+        gql.once(content="reached upload", status=400),
+    )
+
+    result = runner.invoke(cli.beta, f"sync --include-shared {run_dir}")
+
+    assert SHARED_SYNC_REJECTED_FRAGMENT not in result.output
+    assert "reached upload" in result.output

@@ -24,6 +24,12 @@ from wandb.util import check_and_warn_old
 WANDB_SUFFIX = ".wandb"
 SYNCED_SUFFIX = ".synced"
 TFEVENT_SUBSTRING = ".tfevents."
+_SHARED_SYNC_REJECTED = (
+    "Cannot sync a shared-mode run from a transaction log."
+    " Shared mode requires a live server connection."
+    " Re-syncing the same `.wandb` file can duplicate metrics."
+    " Use `--include-shared` to override."
+)
 
 
 class _LocalRun:
@@ -56,6 +62,7 @@ class SyncThread(threading.Thread):
         append=None,
         skip_console=None,
         replace_tags=None,
+        include_shared=None,
     ):
         threading.Thread.__init__(self)
         self._sync_list = sync_list
@@ -72,6 +79,7 @@ class SyncThread(threading.Thread):
         self._append = append
         self._skip_console = skip_console
         self._replace_tags = replace_tags or {}
+        self._include_shared = include_shared
 
         self._tmp_dir = tempfile.TemporaryDirectory()
         atexit.register(self._tmp_dir.cleanup)
@@ -251,9 +259,36 @@ class SyncThread(threading.Thread):
             else:
                 raise
 
+    def _reject_shared_sync(self, sync_item: str, ds: datastore.DataStore) -> bool:
+        """Return True if the sync item should be skipped due to shared mode."""
+        if self._include_shared:
+            return False
+
+        saved = ds.get_offset()
+        try:
+            while True:
+                data = self._robust_scan(ds)
+                if data is None:
+                    return False
+                pb = wandb_internal_pb2.Record()
+                pb.ParseFromString(data)
+                if pb.WhichOneof("record_type") == "run":
+                    if pb.run.shared:
+                        wandb.termerror(
+                            f"{_SHARED_SYNC_REJECTED} Skipping: {sync_item}"
+                        )
+                        return True
+                    return False
+        finally:
+            ds.seek(saved)
+
     def run(self):
         if self._log_path is not None:
             print(f"Find logs at: {self._log_path}")  # noqa: T201
+        if self._include_shared:
+            wandb.termwarn(
+                "Syncing shared-mode runs can duplicate metrics that already exist on the server."
+            )
         for sync_item in self._sync_list:
             tb_event_files, tb_logdirs, tb_root = self._find_tfevent_files(sync_item)
             if os.path.isdir(sync_item):
@@ -286,6 +321,9 @@ class SyncThread(threading.Thread):
                 ds.open_for_scan(sync_item)
             except AssertionError as e:
                 print(f".wandb file is empty ({e}), skipping: {sync_item}")  # noqa: T201
+                continue
+
+            if self._reject_shared_sync(sync_item, ds):
                 continue
 
             # save exit for final send
@@ -347,6 +385,7 @@ class SyncManager:
         append=None,
         skip_console=None,
         replace_tags=None,
+        include_shared=None,
     ):
         self._sync_list = []
         self._thread = None
@@ -363,6 +402,7 @@ class SyncManager:
         self._append = append
         self._skip_console = skip_console
         self._replace_tags = replace_tags or {}
+        self._include_shared = include_shared
 
     def status(self):
         pass
@@ -387,6 +427,7 @@ class SyncManager:
             append=self._append,
             skip_console=self._skip_console,
             replace_tags=self._replace_tags,
+            include_shared=self._include_shared,
         )
         self._thread.start()
 

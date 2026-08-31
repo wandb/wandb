@@ -86,6 +86,9 @@ type RunParams struct {
 	// TODO: Untangle Summary logic and remove this field.
 	Summary map[string]any
 
+	// Shared is whether the run was created in shared mode. It is
+	// persisted on the RunRecord so sync can reject re-uploads.
+	Shared bool
 	// Resume is whether the run is expected to resume an existing run.
 	//
 	// This is distinct from Resumed: Resume is what the user asked for,
@@ -162,6 +165,7 @@ func (r *RunParams) SetOnProto(record *spb.RunRecord) {
 		})
 	}
 
+	record.Shared = r.Shared
 	record.Resume = r.Resume
 
 	record.Resumed = r.Resumed
@@ -175,7 +179,7 @@ func (r *RunParams) SetOnProto(record *spb.RunRecord) {
 // The record may be partially filled, in which case only non-empty fields are
 // used.
 //
-//nolint:gocyclo // Update copies most fields one by one. A split would make that harder to read.
+//gocyclo:ignore
 func (r *RunParams) Update(
 	record *spb.RunRecord,
 	runSettings *settings.Settings,
@@ -239,6 +243,9 @@ func (r *RunParams) Update(
 
 	// NOTE: Summary is ignored; see comment on the field.
 
+	if record.Shared {
+		r.Shared = true
+	}
 	if record.Resume {
 		r.Resume = true
 	}

@@ -591,3 +591,67 @@ func TestUpdateMetrics_Uploads(t *testing.T) {
 				`, version.Version))))
 	})
 }
+
+func TestInitRun_OnlineSharedMode_PersistsOnRunRecord(t *testing.T) {
+	mockClient := gqlmock.NewMockClient()
+	params := testParams(t)
+	params.GraphqlClientOrNil = mockClient
+	params.Settings = settings.From(&spb.Settings{
+		XShared: wrapperspb.Bool(true),
+	})
+	runupsertertest.StubUpsertBucket(t, mockClient)
+
+	upserter, err := runupserter.InitRun(
+		runRecord(&spb.RunRecord{RunId: "shared-run"}),
+		params,
+	)
+	require.NoError(t, err)
+	defer upserter.Finish()
+
+	run := &spb.RunRecord{}
+	upserter.FillRunRecord(run)
+	assert.True(t, run.GetShared())
+	assert.True(t, params.Settings.IsSharedMode())
+	assert.True(t, mockClient.AllStubsUsed())
+}
+
+func TestInitRun_OfflineSharedMode_PersistsOnRunRecordBeforeUpsert(t *testing.T) {
+	params := testParams(t)
+	params.Settings = settings.From(&spb.Settings{
+		XShared:  wrapperspb.Bool(true),
+		XOffline: wrapperspb.Bool(true),
+	})
+
+	upserter, err := runupserter.InitRun(
+		runRecord(&spb.RunRecord{RunId: "shared-offline-run"}),
+		params,
+	)
+	require.NoError(t, err)
+	defer upserter.Finish()
+
+	run := &spb.RunRecord{}
+	upserter.FillRunRecord(run)
+	assert.True(t, run.GetShared())
+	assert.True(t, params.Settings.IsSharedMode())
+}
+
+func TestInitRun_SyncAppliesSharedModeFromRunRecord(t *testing.T) {
+	params := testParams(t)
+	params.Settings = settings.From(&spb.Settings{})
+
+	upserter, err := runupserter.InitRun(
+		runRecord(&spb.RunRecord{
+			RunId:  "shared-sync-run",
+			Shared: true,
+		}),
+		params,
+	)
+	require.NoError(t, err)
+	defer upserter.Finish()
+
+	assert.True(t, params.Settings.IsSharedMode())
+
+	run := &spb.RunRecord{}
+	upserter.FillRunRecord(run)
+	assert.True(t, run.GetShared())
+}

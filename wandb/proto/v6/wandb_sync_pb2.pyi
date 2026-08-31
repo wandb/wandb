@@ -10,7 +10,7 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class ServerInitSyncRequest(_message.Message):
-    __slots__ = ("path", "cwd", "live", "settings", "new_entity", "new_project", "new_run_id", "new_job_type", "tag_replacements")
+    __slots__ = ("path", "cwd", "live", "settings", "new_entity", "new_project", "new_run_id", "new_job_type", "tag_replacements", "allow_shared_sync")
     class TagReplacementsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -27,6 +27,7 @@ class ServerInitSyncRequest(_message.Message):
     NEW_RUN_ID_FIELD_NUMBER: _ClassVar[int]
     NEW_JOB_TYPE_FIELD_NUMBER: _ClassVar[int]
     TAG_REPLACEMENTS_FIELD_NUMBER: _ClassVar[int]
+    ALLOW_SHARED_SYNC_FIELD_NUMBER: _ClassVar[int]
     path: _containers.RepeatedScalarFieldContainer[str]
     cwd: str
     live: bool
@@ -36,7 +37,8 @@ class ServerInitSyncRequest(_message.Message):
     new_run_id: str
     new_job_type: str
     tag_replacements: _containers.ScalarMap[str, str]
-    def __init__(self, path: _Optional[_Iterable[str]] = ..., cwd: _Optional[str] = ..., live: bool = ..., settings: _Optional[_Union[_wandb_settings_pb2.Settings, _Mapping]] = ..., new_entity: _Optional[str] = ..., new_project: _Optional[str] = ..., new_run_id: _Optional[str] = ..., new_job_type: _Optional[str] = ..., tag_replacements: _Optional[_Mapping[str, str]] = ...) -> None: ...
+    allow_shared_sync: bool
+    def __init__(self, path: _Optional[_Iterable[str]] = ..., cwd: _Optional[str] = ..., live: bool = ..., settings: _Optional[_Union[_wandb_settings_pb2.Settings, _Mapping]] = ..., new_entity: _Optional[str] = ..., new_project: _Optional[str] = ..., new_run_id: _Optional[str] = ..., new_job_type: _Optional[str] = ..., tag_replacements: _Optional[_Mapping[str, str]] = ..., allow_shared_sync: bool = ...) -> None: ...
 
 class ServerInitSyncResponse(_message.Message):
     __slots__ = ("id",)
