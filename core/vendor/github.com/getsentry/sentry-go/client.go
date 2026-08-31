@@ -270,11 +270,6 @@ type ClientOptions struct {
 	MaxErrorDepth int
 	// Default event tags. These are overridden by tags set on a scope.
 	Tags map[string]string
-	// DisableLogs controls whether logs should be emitted.
-	// By default, logs are enabled. Set to true to disable log emission.
-	DisableLogs bool
-	// DisableMetrics controls when metrics should be emitted.
-	DisableMetrics bool
 	// DisableClientReports controls when client reports should be emitted.
 	DisableClientReports bool
 	// TraceIgnoreStatusCodes is a list of HTTP status codes that should not be traced.
@@ -442,14 +437,10 @@ func NewClient(options ClientOptions) (*Client, error) {
 		}
 		client.setupTransport()
 
-		if !options.DisableLogs {
-			client.batchLogger = newLogBatchProcessor(&client)
-			client.batchLogger.Start()
-		}
-		if !options.DisableMetrics {
-			client.batchMeter = newMetricBatchProcessor(&client)
-			client.batchMeter.Start()
-		}
+		client.batchLogger = newLogBatchProcessor(&client)
+		client.batchLogger.Start()
+		client.batchMeter = newMetricBatchProcessor(&client)
+		client.batchMeter.Start()
 	}
 	client.setupIntegrations()
 	if options.OrgID != 0 && client.dsn != nil {

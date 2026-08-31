@@ -17,7 +17,7 @@ from typing import Any
 import click
 from typing_extensions import Never
 
-from wandb.analytics import get_sentry
+from wandb.analytics import get_sentry, get_telemetry_recorder
 from wandb.env import error_reporting_enabled, is_debug
 from wandb.errors import WandbCoreNotAvailableError
 from wandb.sdk import wandb_setup
@@ -216,12 +216,18 @@ def _base_args() -> list[str]:
         core_path = get_core_path()
     except WandbCoreNotAvailableError as e:
         get_sentry().exception(f"using `wandb leet`. failed with {e}")
+        get_telemetry_recorder().exception(
+            WandbCoreNotAvailableError(f"using `wandb leet`. failed with {e}")
+        )
         _fatal(str(e))
 
     args = [core_path, "leet"]
 
     if not error_reporting_enabled():
         args.append("--no-observability")
+    else:
+        # Tell wandb-core which W&B server to upload telemetry to.
+        args.extend(["--base-url", wandb_setup.singleton().settings.base_url])
 
     if is_debug(default="False"):
         args.extend(["--log-level", "-4"])
@@ -236,7 +242,8 @@ def _run_core(args: list[str], env: dict[str, str] | None = None) -> Never:
         sys.exit(result.returncode)
     except Exception as e:
         # TODO: remove sentry once we no longer support/need it
-        get_sentry().reraise(e)
+        get_sentry().exception(e)
+        get_telemetry_recorder().reraise(e)
 
 
 def launch(path: str | None, pprof: str) -> Never:

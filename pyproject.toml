@@ -21,6 +21,8 @@ dependencies = [
     "pydantic>=2.6,<3",
     "packaging",
     "opentelemetry-api>=1.43.0",
+    "opentelemetry-sdk>=1.43.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.43.0",
     "xxhash>=3.0.0",
 ]
 classifiers = [

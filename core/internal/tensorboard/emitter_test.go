@@ -73,7 +73,7 @@ func TestAccumulatesHistory(t *testing.T) {
 func TestStepAndWallTime(t *testing.T) {
 	emitter := tensorboard.NewTFEmitter(settings.From(&spb.Settings{}))
 
-	emitter.SetTFStep(pathtree.PathOf("train", "global_step"), 9)
+	emitter.SetTFStep(9)
 	emitter.SetTFWallTime(2.5)
 	emitter.EmitHistory(pathtree.PathOf("x"), "4")
 	fakeRunWork := runworktest.New()
@@ -84,7 +84,7 @@ func TestStepAndWallTime(t *testing.T) {
 	assertProtoEqual(t,
 		localFlushPartialHistory([]*spb.HistoryItem{
 			{NestedKey: []string{"x"}, ValueJson: "4"},
-			{NestedKey: []string{"train", "global_step"}, ValueJson: "9"},
+			{Key: "global_step", ValueJson: "9"},
 			{Key: "_timestamp", ValueJson: "2.5"},
 		}),
 		records[0])

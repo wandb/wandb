@@ -10,9 +10,9 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/getsentry/sentry-go"
-	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/simplejsonext"
 
+	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runhistoryreader"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet"
@@ -24,7 +24,7 @@ import (
 // related to reading a run's history.
 type RunHistoryAPIHandler struct {
 	graphqlClient graphql.Client
-	httpClient    *retryablehttp.Client
+	httpClient    api.RetryableClient
 	logger        *observability.CoreLogger
 
 	// mu protects scanHistoryReaders and downloadOperations from
@@ -62,7 +62,7 @@ type RunHistoryAPIHandler struct {
 
 func NewRunHistoryAPIHandler(
 	graphqlClient graphql.Client,
-	httpClient *retryablehttp.Client,
+	httpClient api.RetryableClient,
 	logger *observability.CoreLogger,
 ) *RunHistoryAPIHandler {
 
