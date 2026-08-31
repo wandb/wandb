@@ -5,6 +5,7 @@ import os
 import re
 import time
 from pathlib import Path
+from typing import Any
 
 import responses
 import wandb
@@ -12,6 +13,8 @@ from pytest import mark, raises
 from wandb import Api
 from wandb.errors import CommError
 from wandb.sdk.artifacts.artifact import Artifact
+
+from tests.fixtures.wandb_backend_spy import WandbBackendSpy
 
 
 def _fetch_artifact_with_tags(
@@ -629,3 +632,59 @@ def test_artifact_download_http_headers(user, monkeypatch, tmp_path):
         # Expect all requests to have been populated with the custom headers
         for req in storage_requests:
             assert custom_headers.items() <= req.headers.items()
+
+
+@mark.parametrize(
+    ("data", "expected_message"),
+    [
+        (
+            {"project": None},
+            "Project 'project' not found in entity 'entity'",
+        ),
+        (
+            {"project": {"artifactType": None}},
+            "Artifact type 'type' not found in 'entity/project'",
+        ),
+        (
+            {"project": {"artifactType": {"artifactCollection": None}}},
+            "Artifact collection 'collection' not found in 'entity/project'",
+        ),
+        (
+            {
+                "project": {
+                    "artifactType": {
+                        "artifactCollection": {"artifacts": None},
+                    }
+                }
+            },
+            "Unable to parse 'Artifacts' response data",
+        ),
+    ],
+    ids=("project", "type", "collection", "connection"),
+)
+def test_artifacts_invalid_response(
+    wandb_backend_spy: WandbBackendSpy,
+    api: Api,
+    data: dict[str, Any],
+    expected_message: str,
+):
+    gql = wandb_backend_spy.gql
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="ProjectArtifacts"),
+        gql.Constant(content={"data": data}),
+    )
+
+    with raises(ValueError, match=re.escape(expected_message)):
+        list(api.artifacts(type_name="type", name="entity/project/collection"))
+
+
+def test_project_collections_invalid_project(logged_artifact: Artifact, api: Api):
+    invalid_project_name = "nonexistent_project"
+
+    # This doesn't error because the data for the returned Project is fetched lazily.
+    project = api.project(name=invalid_project_name, entity=logged_artifact.entity)
+
+    expected_message = rf"{invalid_project_name}.*not found"
+
+    with raises(ValueError, match=expected_message):
+        list(project.collections())

@@ -14,6 +14,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
+### Changed
+
+- More informative errors are raised from `Api.artifacts()` and related artifact paginators when the artifact path is invalid or inaccessible (@tonyyli-wandb in https://github.com/wandb/wandb/pull/11813)
+
 ### Fixed
 
 - File uploads and downloads no longer fail in some cases with `CommError: Failed to execute API request: the service process is busy and did not respond in time` when they take longer than 20 seconds. This was a regression in 0.29.0 (@dmitryduev in https://github.com/wandb/wandb/pull/12603)
