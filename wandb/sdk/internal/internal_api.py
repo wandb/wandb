@@ -20,7 +20,7 @@ import click
 
 import wandb
 from wandb import env, util
-from wandb.analytics import TelemetryRecorder, get_sentry
+from wandb.analytics import TelemetryRecorder, get_sentry, get_telemetry_recorder
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import AuthenticationError, CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
@@ -33,9 +33,10 @@ from wandb.proto.wandb_api_pb2 import (
 )
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk import wandb_setup
+from wandb.sdk.artifacts._generated.enums import ArtifactDigestAlgorithm
 from wandb.sdk.internal import settings_static
 from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
-from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
+from wandb.sdk.lib.hashutil import B64Digest, md5_file_b64
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 from ..lib import retry, wbauth
@@ -305,9 +306,7 @@ class Api:
         }
         self._request_proxies = dict(proxies or {})
         self._service_api = self._new_service_api()
-        self._telemetry_recorder = telemetry_recorder or TelemetryRecorder(
-            service_api=self._service_api,
-        )
+        self._telemetry_recorder = telemetry_recorder or get_telemetry_recorder()
 
         self.retry_callback = retry_callback
         self._current_run_id: str | None = None
@@ -2197,7 +2196,7 @@ class Api:
         """
         filename = metadata["name"]
         path = os.path.join(out_dir or self.settings("wandb_dir"), filename)
-        if self.file_current(path, B64MD5(metadata["md5"])):
+        if self.file_current(path, B64Digest(metadata["md5"])):
             return path, False
 
         self.download_file(metadata["url"], path)
@@ -2725,7 +2724,7 @@ class Api:
         return response["upsertSweep"]["sweep"]["name"], warnings
 
     @staticmethod
-    def file_current(fname: str, md5: B64MD5) -> bool:
+    def file_current(fname: str, md5: B64Digest) -> bool:
         """Checksum a file and compare the md5 with the known md5."""
         return os.path.isfile(fname) and md5_file_b64(fname) == md5
 
@@ -3170,6 +3169,7 @@ class Api:
                 $runName: String,
                 $description: String,
                 $digest: String!,
+                $digestAlgorithm: ArtifactDigestAlgorithm!,
                 $aliases: [ArtifactAliasInput!],
                 $metadata: JSONString,
                 $clientID: ID,
@@ -3186,7 +3186,7 @@ class Api:
                     runName: $runName,
                     description: $description,
                     digest: $digest,
-                    digestAlgorithm: MANIFEST_MD5,
+                    digestAlgorithm: $digestAlgorithm,
                     aliases: $aliases,
                     metadata: $metadata,
                     clientID: $clientID,
@@ -3233,6 +3233,7 @@ class Api:
         distributed_id: str | None = None,
         is_user_created: bool | None = False,
         history_step: int | None = None,
+        digest_algorithm: ArtifactDigestAlgorithm = ArtifactDigestAlgorithm.MANIFEST_MD5,
     ) -> tuple[dict, dict]:
         query_template = self._get_create_artifact_mutation(
             history_step,
@@ -3256,6 +3257,7 @@ class Api:
                 "clientID": client_id,
                 "sequenceClientID": sequence_client_id,
                 "digest": digest,
+                "digestAlgorithm": digest_algorithm,
                 "description": description,
                 "aliases": list(aliases or []),
                 "tags": list(tags or []),

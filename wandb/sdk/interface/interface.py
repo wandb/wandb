@@ -163,7 +163,7 @@ class InterfaceBase(abc.ABC):
             proto_run.sweep_id = run._settings.sweep_id
         if run._settings.host:
             proto_run.host = run._settings.host
-        proto_run.resume = run._settings.resume in ("allow", "must", "auto")
+        proto_run.resume = run._settings.resume in ("allow", "must")
         proto_run.sync_may_reassign_steps = not run._settings._shared
         if run._settings.resumed:
             proto_run.resumed = run._settings.resumed
@@ -363,6 +363,7 @@ class InterfaceBase(abc.ABC):
         proto_artifact.client_id = artifact._client_id
         proto_artifact.sequence_client_id = artifact._sequence_client_id
         proto_artifact.digest = artifact.digest
+        proto_artifact.digest_algorithm = artifact.digest_algorithm
         if artifact.distributed_id:
             proto_artifact.distributed_id = artifact.distributed_id
         if artifact.description:

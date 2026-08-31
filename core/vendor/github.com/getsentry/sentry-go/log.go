@@ -51,7 +51,7 @@ type logEntry struct {
 	shouldFatal bool
 }
 
-// NewLogger returns a Logger that emits logs to Sentry. If logging is turned off, all logs get discarded.
+// NewLogger returns a Logger that emits logs to Sentry.
 func NewLogger(ctx context.Context) Logger { // nolint: dupl
 	var hub *Hub
 	hub = GetHubFromContext(ctx)
@@ -60,7 +60,7 @@ func NewLogger(ctx context.Context) Logger { // nolint: dupl
 	}
 
 	client := hub.Client()
-	if client != nil && !client.options.DisableLogs {
+	if client != nil {
 		// Build default attrs
 		serverAddr := client.options.ServerName
 		if serverAddr == "" {
@@ -91,7 +91,7 @@ func NewLogger(ctx context.Context) Logger { // nolint: dupl
 		}
 	}
 
-	debuglog.Println("fallback to noopLogger: SDK not initialized or logs disabled")
+	debuglog.Println("fallback to noopLogger: SDK not initialized")
 	return &noopLogger{}
 }
 

@@ -1,0 +1,19 @@
+schema-version: v1
+
+ignore:
+  # Vendored code.
+  - wandb/vendor/
+  - core/vendor/
+
+  # Generated protobuf files.
+  - "**/*.pb.go"
+  - "**/*_pb2.py"
+  - "**/*_pb2.pyi"
+  - wandb/proto/wandb_generate_proto.py
+
+  # Generated GraphQL files.
+  - core/internal/gql/
+
+  # Not library code.
+  - tools/
+  - tests/

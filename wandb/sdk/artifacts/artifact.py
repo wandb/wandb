@@ -51,7 +51,12 @@ from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.lib import retry, telemetry
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 from wandb.sdk.lib.filesystem import check_exists, system_preferred_path
-from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
+from wandb.sdk.lib.hashutil import (
+    B64Digest,
+    b64_to_hex_id,
+    md5_file_b64,
+    xxh128_file_b64,
+)
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 from wandb.sdk.lib.runid import generate_fast_id, generate_id
 from wandb.sdk.mailbox import MailboxHandle
@@ -64,7 +69,12 @@ from wandb.util import (
 )
 
 from ._factories import make_storage_policy
-from ._gqlutils import org_info_from_entity, resolve_org_entity_name, server_supports
+from ._generated.enums import ArtifactDigestAlgorithm
+from ._gqlutils import (
+    omit_artifact_fields,
+    org_info_from_entity,
+    resolve_org_entity_name,
+)
 from ._validators import (
     ensure_logged,
     ensure_not_finalized,
@@ -78,7 +88,12 @@ from .artifact_instance_cache import (
     artifact_instance_cache_by_client_id,
 )
 from .artifact_manifest import ArtifactManifest
-from .artifact_manifest_entry import ArtifactManifestEntry
+from .artifact_manifest_entry import (
+    _STR_TO_DIGEST_ALGORITHM,
+    DIGEST_ALGORITHM_EXTRA_KEY,
+    DIGEST_ALGORITHM_TO_STR,
+    ArtifactManifestEntry,
+)
 from .artifact_manifests.artifact_manifest_v1 import ArtifactManifestV1
 from .artifact_state import ArtifactState
 from .artifact_ttl import ArtifactTTL
@@ -140,6 +155,11 @@ class Artifact:
             than 100 total keys.
         incremental: Use `Artifact.new_draft()` method instead to modify an
             existing artifact.
+        digest_algorithm: The digest algorithm to use for the artifact. Defaults to MD5.
+            If set to XXH128, the artifact will be hashed using the XXH128 algorithm
+            unless it is part of a collection that is already using MD5. Calls to
+            `artifact.verify()` on SDK versions before 0.29.0 will always fail on
+            XXH128 artifacts.
         use_as: Deprecated.
 
     Returns:
@@ -158,6 +178,7 @@ class Artifact:
         incremental: bool = False,
         use_as: str | None = None,
         storage_region: str | None = None,
+        digest_algorithm: Literal["MD5", "XXH128"] = "MD5",
     ) -> None:
         from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 
@@ -231,8 +252,19 @@ class Artifact:
         self._size: NonNegativeInt | None = None
         self._digest: str | None = None
 
+        self._digest_algorithm = _STR_TO_DIGEST_ALGORITHM.get(
+            digest_algorithm, ArtifactDigestAlgorithm.MANIFEST_MD5
+        )
+        if self._digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
+            termwarn(
+                "Creating an artifact with the XXH128 digest algorithm."
+                + " Calling `artifact.verify()` for this artifact on wandb"
+                + " versions before 0.29.0 will fail."
+            )
+
         self._manifest: ArtifactManifest | None = ArtifactManifestV1(
-            storage_policy=make_storage_policy(region=storage_region)
+            storage_policy=make_storage_policy(region=storage_region),
+            digest_algorithm=self._digest_algorithm,
         )
 
         self._commit_hash: str | None = None
@@ -273,7 +305,9 @@ class Artifact:
             ARTIFACT_BY_ID_GQL,
             variables={"id": artifact_id},
             parse=ArtifactByID.model_validate_json,
+            omit_fields=omit_artifact_fields(service_api),
         )
+
         if (artifact := result.artifact) is None:
             return None
 
@@ -300,6 +334,7 @@ class Artifact:
             ARTIFACT_MEMBERSHIP_BY_NAME_GQL,
             {"entity": path.prefix, "project": path.project, "name": path.name},
             parse=ArtifactMembershipByName.model_validate_json,
+            omit_fields=omit_artifact_fields(service_api),
         )
 
         if not (project := result.project):
@@ -479,7 +514,9 @@ class Artifact:
         self._state = ArtifactState(src_art.state)
         self._size = src_art.size
         self._digest = src_art.digest
-
+        self._digest_algorithm = (
+            src_art.digest_algorithm or ArtifactDigestAlgorithm.MANIFEST_MD5
+        )
         self._manifest = None
 
         self._commit_hash = src_art.commit_hash
@@ -520,8 +557,10 @@ class Artifact:
         artifact._service_api = self._service_api
         artifact._description = self.description
         artifact._metadata = self.metadata
+        artifact._digest_algorithm = self.digest_algorithm
         artifact._manifest = ArtifactManifest.from_manifest_json(
-            self.manifest.to_manifest_json()
+            self.manifest.to_manifest_json(),
+            self.digest_algorithm,
         )
         return artifact
 
@@ -1048,7 +1087,9 @@ class Artifact:
             # artifacts.
             with make_http_session() as session:
                 response = session.get(manifest.file.direct_url)
-            return ArtifactManifest.from_manifest_json(from_json(response.content))
+            return ArtifactManifest.from_manifest_json(
+                from_json(response.content), self.digest_algorithm
+            )
 
         raise ValueError("Failed to fetch artifact manifest")
 
@@ -1068,6 +1109,17 @@ class Artifact:
             if (self._manifest is None) and (self._digest is not None)
             else self.manifest.digest()
         )
+
+    @property
+    def digest_algorithm(self) -> ArtifactDigestAlgorithm:
+        """The digest algorithm used to compute the artifact's digest."""
+        return self._digest_algorithm
+
+    def _calculate_file_digest(self, file_path: StrPath) -> str:
+        """Calculate the digest of a file using the artifact digest algorithm."""
+        if self.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
+            return xxh128_file_b64(file_path)
+        return md5_file_b64(file_path)
 
     @property
     def size(self) -> int:
@@ -1254,6 +1306,7 @@ class Artifact:
             ARTIFACT_BY_ID_GQL,
             variables={"id": artifact_id},
             parse=ArtifactByID.model_validate_json,
+            omit_fields=omit_artifact_fields(client),
         )
 
         if not (artifact := result.artifact):
@@ -1302,6 +1355,7 @@ class Artifact:
                 UPDATE_ARTIFACT_GQL,
                 variables={"input": gql_input.model_dump()},
                 parse=UpdateArtifact.model_validate_json,
+                omit_fields=omit_artifact_fields(client),
             )
 
             if not ((result := data.result) and (artifact := result.artifact)):
@@ -1511,7 +1565,8 @@ class Artifact:
             raise ValueError(f"Path is not a file: {local_path!r}")
 
         name = LogicalPath(name or os.path.basename(local_path))
-        digest = md5_file_b64(local_path)
+
+        digest = self._calculate_file_digest(local_path)
 
         if is_tmp:
             file_path, file_name = os.path.split(name)
@@ -1786,7 +1841,7 @@ class Artifact:
         self,
         name: StrPath,
         path: StrPath,
-        digest: B64MD5 | None = None,
+        digest: B64Digest | None = None,
         skip_cache: bool | None = False,
         policy: Literal["mutable", "immutable"] | None = "mutable",
         overwrite: bool = False,
@@ -1805,12 +1860,20 @@ class Artifact:
                 os.chmod(staging_path, stat.S_IRUSR)
                 upload_path = staging_path
 
+        # Tag only non-MD5 entries; untagged entries are interpreted as MD5.
+        extra = (
+            {DIGEST_ALGORITHM_EXTRA_KEY: DIGEST_ALGORITHM_TO_STR[self.digest_algorithm]}
+            if self.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128
+            else {}
+        )
+
         entry = ArtifactManifestEntry(
             path=name,
-            digest=digest or md5_file_b64(upload_path),
+            digest=digest or self._calculate_file_digest(upload_path),
             size=os.path.getsize(upload_path),
             local_path=upload_path,
             skip_cache=skip_cache,
+            extra=extra,
         )
         self.manifest.add_entry(entry, overwrite=overwrite)
         self._added_local_paths[os.fspath(path)] = entry
@@ -2268,6 +2331,16 @@ class Artifact:
             ArtifactNotLoggedError: If the artifact is not logged.
             ValueError: If the verification fails.
         """
+        from wandb.analytics import get_telemetry_recorder
+        from wandb.analytics.opentelemetry.opentelemetry_proxy import (
+            LowCardinalityAttributes,
+        )
+
+        get_telemetry_recorder().increment_counter(
+            "artifact_verify",
+            LowCardinalityAttributes(),
+        )
+
         root = root or self._default_root()
 
         for dirpath, _, files in os.walk(root):
@@ -2283,8 +2356,13 @@ class Artifact:
 
         ref_count = 0
         for entry in self.manifest.entries.values():
+            entry_digest_algorithm = entry.digest_algorithm()
             if entry.ref is None:
-                if md5_file_b64(validate_fspath(root, entry.path)) != entry.digest:
+                if entry_digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128:
+                    file_digest = xxh128_file_b64(validate_fspath(root, entry.path))
+                else:
+                    file_digest = md5_file_b64(validate_fspath(root, entry.path))
+                if file_digest != entry.digest:
                     raise ValueError(f"Digest mismatch for file: {entry.path}")
             else:
                 ref_count += 1
@@ -2492,12 +2570,13 @@ class Artifact:
 
         # Newer server versions can return `artifactMembership` directly in the response,
         # avoiding the need to re-fetch the linked artifact at the end.
-        omit_variables = omit_fields = None
-        if not server_supports(
-            service_api, pb.ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE
+        omit_fields = omit_artifact_fields(service_api)
+        omit_variables = None
+        if not service_api.feature_enabled(
+            pb.ARTIFACT_MEMBERSHIP_IN_LINK_ARTIFACT_RESPONSE
         ):
             omit_variables = {"includeAliases"}
-            omit_fields = {"artifactMembership"}
+            omit_fields.add("artifactMembership")
 
         data = service_api.execute_graphql(
             LINK_ARTIFACT_GQL,

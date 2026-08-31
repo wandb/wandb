@@ -33,9 +33,12 @@ type Log struct {
 // Metric is a OTLP metric data point received by an OpenTelemetryProxyTest,
 // with its name, value, and attributes extracted.
 type Metric struct {
-	Name       string
-	Value      int64
-	Attributes map[string]string
+	Name           string
+	Unit           string
+	Value          int64
+	HistogramCount uint64
+	HistogramSum   float64
+	Attributes     map[string]string
 }
 
 // Request is an HTTP request received by an OpenTelemetryProxyTest.
@@ -181,6 +184,16 @@ func (s *OpenTelemetryProxyTest) addMetrics(body []byte) error {
 						Name:       metric.GetName(),
 						Value:      dataPoint.GetAsInt(),
 						Attributes: keyValuesToMap(dataPoint.GetAttributes()),
+					})
+				}
+				for _, dataPoint := range metric.GetHistogram().GetDataPoints() {
+					s.metrics = append(s.metrics, Metric{
+						Name:           metric.GetName(),
+						Unit:           metric.GetUnit(),
+						HistogramCount: dataPoint.GetCount(),
+						HistogramSum:   dataPoint.GetSum(),
+						Attributes: keyValuesToMap(
+							dataPoint.GetAttributes()),
 					})
 				}
 			}

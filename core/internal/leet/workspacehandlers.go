@@ -157,13 +157,17 @@ func (w *Workspace) handleMouse(msg tea.MouseMsg) tea.Cmd {
 
 // dragTargets reports which layout boundaries a mouse event may grab.
 func (w *Workspace) dragTargets() dragTargets {
-	return dragTargets{
+	t := dragTargets{
 		width:           w.width,
 		height:          w.height,
 		leftExpanded:    w.runsAnimState.IsExpanded(),
 		rightExpanded:   w.runOverviewSidebar.IsExpanded(),
 		mediaFullscreen: w.mediaPane.IsFullscreen(),
 	}
+	if t.rightExpanded {
+		t.overview = w.runOverviewSidebar
+	}
+	return t
 }
 
 // handleResetLayout resets the view's pane proportions to the defaults.
@@ -803,10 +807,10 @@ func (w *Workspace) handleHeartbeat() tea.Cmd {
 // stream, so mark it failed instead of leaving it silently frozen in
 // whatever state it was in.
 func (w *Workspace) handleRunReadErr(msg WorkspaceRunReadErrMsg) tea.Cmd {
-	w.logger.CaptureError(
-		"leet",
-		fmt.Errorf("workspace: run %s read failed: %v", msg.RunKey, msg.Err),
-	)
+	// A dead run's file often ends mid-record, so keep this out of error
+	// telemetry.
+	w.logger.Error(fmt.Sprintf(
+		"workspace: run %s read failed: %v", msg.RunKey, msg.Err))
 
 	run := w.runsByKey[msg.RunKey]
 	if run == nil {

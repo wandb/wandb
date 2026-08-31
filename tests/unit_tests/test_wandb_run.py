@@ -19,9 +19,6 @@ REFERENCE_ATTRIBUTES = set(
         "entity",
         "finish",
         "finish_artifact",
-        "get_project_url",
-        "get_sweep_url",
-        "get_url",
         "group",
         "id",
         "job_type",
@@ -38,7 +35,6 @@ REFERENCE_ATTRIBUTES = set(
         "path",
         "pin_config_keys",
         "project",
-        "project_name",
         "project_url",
         "restore",
         "resumed",
@@ -122,8 +118,8 @@ def test_run_urls(mock_run):
             run_id=run_id,
         )
     )
-    assert run.get_project_url() == f"{base_url}/{entity}/{project}"
-    assert run.get_url() == f"{base_url}/{entity}/{project}/runs/{run.id}"
+    assert run.project_url == f"{base_url}/{entity}/{project}"
+    assert run.url == f"{base_url}/{entity}/{project}/runs/{run.id}"
 
 
 def test_run_publish_config(mock_run, parse_records, record_q):

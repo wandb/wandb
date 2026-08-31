@@ -182,7 +182,7 @@ func (r *RunParams) SetOnProto(record *spb.RunRecord) {
 // The record may be partially filled, in which case only non-empty fields are
 // used.
 //
-//nolint:gocyclo // this updates most fields in a mechanical way; splitting would make it harder to read
+//nolint:gocyclo // Update copies most fields one by one. A split would make that harder to read.
 func (r *RunParams) Update(
 	record *spb.RunRecord,
 	runSettings *settings.Settings,

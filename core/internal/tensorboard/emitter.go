@@ -20,7 +20,7 @@ type Emitter interface {
 	// SetTFStep sets the TFEvent step for this W&B history step.
 	//
 	// This is only added to the history if EmitHistory is used.
-	SetTFStep(key pathtree.TreePath, step int64)
+	SetTFStep(step int64)
 
 	// SetTFWallTime sets the TFEvent wall time for this W&B history step.
 	//
@@ -54,7 +54,6 @@ type tfEmitter struct {
 	mediaFiles   []string
 
 	hasTFStep bool
-	tfStepKey []string
 	tfStep    int64
 
 	hasWallTime bool
@@ -148,7 +147,7 @@ func (e *tfEmitter) historyRecord() *spb.Record {
 	if e.hasTFStep {
 		items = append(items,
 			&spb.HistoryItem{
-				NestedKey: e.tfStepKey,
+				Key:       "global_step",
 				ValueJson: fmt.Sprintf("%v", e.tfStep),
 			})
 	}
@@ -180,9 +179,8 @@ func (e *tfEmitter) historyRecord() *spb.Record {
 	}
 }
 
-func (e *tfEmitter) SetTFStep(key pathtree.TreePath, step int64) {
+func (e *tfEmitter) SetTFStep(step int64) {
 	e.hasTFStep = true
-	e.tfStepKey = key.Labels()
 	e.tfStep = step
 }
 

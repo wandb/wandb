@@ -48,31 +48,6 @@ def test_metric_hidden(mock_run, parse_records, record_q):
     assert len(parsed.metric) == 1
 
 
-def test_metric_goal(mock_run, parse_records, record_q):
-    run = mock_run()
-    metric_1 = run.define_metric(
-        "glob",
-        goal="maximize",
-    )
-    assert metric_1.goal == "maximize"
-
-    metric_2 = run.define_metric(
-        "glob",
-        goal="minimize",
-    )
-    assert metric_2.goal == "minimize"
-
-    with pytest.raises(wandb.Error):
-        run.define_metric(
-            "m2",
-            goal="nothing",
-        )
-
-    parsed = parse_records(record_q)
-    assert len(parsed.records) == 2
-    assert len(parsed.metric) == 2
-
-
 def test_metric_step_metric(mock_run, parse_records, record_q):
     run = mock_run()
     metric_1 = run.define_metric(
@@ -144,33 +119,27 @@ def test_metric_summary(mock_run, parse_records, record_q):
     )
     assert not metric_2.summary
 
-    metirc_3 = run.define_metric(
-        "metric",
-        summary="best",
-    )
-    assert metirc_3.summary == ("best",)
-
-    metric_4 = run.define_metric(
+    metric_3 = run.define_metric(
         "metric",
         summary="mean",
     )
-    assert metric_4.summary == ("mean",)
+    assert metric_3.summary == ("mean",)
 
-    metric_5 = run.define_metric(
+    metric_4 = run.define_metric(
         "metric",
         summary="",
     )
-    assert not metric_5.summary
+    assert not metric_4.summary
 
-    metric_6 = run.define_metric(
+    metric_5 = run.define_metric(
         "metric",
         summary="first",
     )
-    assert metric_6.summary == ("first",)
+    assert metric_5.summary == ("first",)
 
     parsed = parse_records(record_q)
-    assert len(parsed.records) == 6
-    assert len(parsed.metric) == 6
+    assert len(parsed.records) == 5
+    assert len(parsed.metric) == 5
 
 
 @pytest.mark.parametrize(
@@ -191,6 +160,10 @@ def test_metric_summary(mock_run, parse_records, record_q):
         (
             "metric",
             {"summary": "doesnotexist"},
+        ),
+        (
+            "metric",
+            {"summary": "best"},
         ),
     ],
 )
@@ -214,7 +187,7 @@ def test_metric_twice_or_overwrite(kwargs, mock_run, parse_records, record_q):
     run = mock_run()
     _ = run.define_metric(
         "metric",
-        summary="best,max",
+        summary="max",
         step_metric="thestep",
     )
     _ = run.define_metric(
