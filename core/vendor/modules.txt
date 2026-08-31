@@ -486,21 +486,6 @@ github.com/envoyproxy/protoc-gen-validate/validate
 # github.com/felixge/httpsnoop v1.1.0
 ## explicit; go 1.25
 github.com/felixge/httpsnoop
-# github.com/getsentry/sentry-go v0.49.0
-## explicit; go 1.25.0
-github.com/getsentry/sentry-go
-github.com/getsentry/sentry-go/attribute
-github.com/getsentry/sentry-go/internal/debug
-github.com/getsentry/sentry-go/internal/debuglog
-github.com/getsentry/sentry-go/internal/http
-github.com/getsentry/sentry-go/internal/httputils
-github.com/getsentry/sentry-go/internal/otel/baggage
-github.com/getsentry/sentry-go/internal/otel/baggage/internal/baggage
-github.com/getsentry/sentry-go/internal/protocol
-github.com/getsentry/sentry-go/internal/ratelimit
-github.com/getsentry/sentry-go/internal/telemetry
-github.com/getsentry/sentry-go/internal/util
-github.com/getsentry/sentry-go/report
 # github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376
 ## explicit; go 1.13
 github.com/go-git/gcfg
@@ -1036,12 +1021,6 @@ golang.org/x/sys/windows
 golang.org/x/sys/windows/registry
 # golang.org/x/text v0.41.0
 ## explicit; go 1.25.0
-golang.org/x/text/cases
-golang.org/x/text/internal
-golang.org/x/text/internal/language
-golang.org/x/text/internal/language/compact
-golang.org/x/text/internal/tag
-golang.org/x/text/language
 golang.org/x/text/runes
 golang.org/x/text/secure/bidirule
 golang.org/x/text/transform

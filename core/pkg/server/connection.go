@@ -716,7 +716,6 @@ func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest
 
 	logger := observability.NewCoreLogger(
 		slog.Default(),
-		nil,
 		analytics.NewTelemetryRecorder(
 			telemetryProxy,
 			analytics.NewTelemetryContext(),
