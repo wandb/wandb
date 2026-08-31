@@ -1,10 +1,10 @@
-"""Uploads a CircleCI job's coverage artifacts to Datadog Code Coverage.
+"""Downloads a CircleCI job's coverage artifacts for upload to Datadog.
 
 Invoked by the datadog-coverage workflow with TARGET_URL set to the
 CircleCI job link from the commit status. Downloads the job's
-coverage-reports/<flags>/* artifacts and runs `datadog-ci coverage upload`
-once per flags group. Requires DD_API_KEY and the DD_GIT_* variables; the
-git metadata itself comes from Datadog's GitHub integration.
+coverage-reports/<flags>/* artifacts and emits `flags` and `reports-dir`
+step outputs for DataDog/coverage-upload-github-action. Each job stores
+reports under a single flags group, so finding more than one is an error.
 """
 
 # ruff: noqa: T201 (allow print())
@@ -13,7 +13,6 @@ import json
 import os
 import pathlib
 import re
-import subprocess
 import sys
 import urllib.request
 
@@ -35,11 +34,12 @@ def _list_artifacts(job_number: str) -> list[dict]:
             return artifacts
 
 
-def main() -> int:
-    if not os.environ.get("DD_API_KEY"):
-        print("DD_API_KEY is not set; skipping coverage upload.")
-        return 0
+def _set_output(name: str, value: str) -> None:
+    with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+        f.write(f"{name}={value}\n")
 
+
+def main() -> int:
     target_url = os.environ["TARGET_URL"]
     match = re.search(r"/(\d+)(?:\?|$)", target_url)
     if not match:
@@ -57,29 +57,21 @@ def main() -> int:
         print(f"No coverage reports in CircleCI job {job_number}; nothing to do.")
         return 0
 
-    for flags, artifacts in sorted(by_flags.items()):
-        reports_dir = pathlib.Path("coverage-reports", flags)
-        for artifact in artifacts:
-            node_dir = reports_dir / str(artifact["node_index"])
-            node_dir.mkdir(parents=True, exist_ok=True)
-            print(f"Downloading {artifact['path']} from node {artifact['node_index']}")
-            name = artifact["path"].rsplit("/", 1)[-1]
-            urllib.request.urlretrieve(artifact["url"], node_dir / name)
+    if len(by_flags) > 1:
+        print(f"Expected one flags group per job, found {sorted(by_flags)}.")
+        return 1
 
-        command = [
-            "datadog-ci",
-            "coverage",
-            "upload",
-            "--skip-git-metadata-upload",
-            "--disable-file-fixes",
-            "--flags",
-            flags,
-            str(reports_dir),
-        ]
-        if os.environ.get("DRY_RUN"):
-            command.append("--dry-run")
-        subprocess.run(command, check=True)
+    ((flags, artifacts),) = by_flags.items()
+    reports_dir = pathlib.Path("coverage-reports", flags)
+    for artifact in artifacts:
+        node_dir = reports_dir / str(artifact["node_index"])
+        node_dir.mkdir(parents=True, exist_ok=True)
+        print(f"Downloading {artifact['path']} from node {artifact['node_index']}")
+        name = artifact["path"].rsplit("/", 1)[-1]
+        urllib.request.urlretrieve(artifact["url"], node_dir / name)
 
+    _set_output("flags", flags)
+    _set_output("reports-dir", str(reports_dir))
     return 0
 
 

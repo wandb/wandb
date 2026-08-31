@@ -4,8 +4,9 @@ name: datadog-coverage
 # Coverage. The jobs store reports as coverage-reports/<flags>/* artifacts
 # (the store-coverage command in .circleci/config.yml); this workflow reacts
 # to each job's commit status, downloads the artifacts through CircleCI's
-# public API, and uploads them with datadog-ci. Keeping the Datadog API key
-# in a GitHub secret means CircleCI holds no Datadog credentials.
+# public API, and uploads them with DataDog/coverage-upload-github-action.
+# Keeping the Datadog API key in a GitHub secret means CircleCI holds no
+# Datadog credentials.
 #
 # Runs only for commits on branches in this repo: statuses on forked pull
 # requests have no matching branch, and secrets must not be exposed to them.
@@ -22,23 +23,39 @@ jobs:
       github.event.branches[0] != null &&
       startsWith(github.event.context, 'ci/circleci: ')
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
+    env:
+      # The secrets context isn't available in job-level `if`, so gate the
+      # steps instead: until the DD_API_KEY repo secret is added, skip
+      # gracefully so merge order doesn't matter.
+      HAS_DD_API_KEY: ${{ secrets.DD_API_KEY != '' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      - name: Install datadog-ci
-        run: |
-          curl -L --fail --retry 3 \
-            "https://github.com/DataDog/datadog-ci/releases/download/v5.23.0/datadog-ci_linux-x64" \
-            --output /usr/local/bin/datadog-ci
-          chmod +x /usr/local/bin/datadog-ci
+      - name: Skip when DD_API_KEY is not configured
+        if: env.HAS_DD_API_KEY != 'true'
+        run: echo "DD_API_KEY is not set; skipping coverage upload."
+
+      - name: Download coverage reports from CircleCI
+        id: download
+        if: env.HAS_DD_API_KEY == 'true'
+        env:
+          TARGET_URL: ${{ github.event.target_url }}
+        run: python3 .github/scripts/download_circleci_coverage.py
 
       - name: Upload coverage reports to Datadog
+        if: env.HAS_DD_API_KEY == 'true' && steps.download.outputs.flags != ''
+        uses: DataDog/coverage-upload-github-action@d9548b1c3c4ab639d5d3ab29a1508af188975f77 # v1.0.5
         env:
-          DD_API_KEY: ${{ secrets.DD_API_KEY }}
-          DD_SITE: us5.datadoghq.com
+          # On `status` events github.sha is the default branch, not the
+          # status commit, so pass git metadata explicitly and skip the git
+          # metadata upload via extra-args.
           DD_GIT_REPOSITORY_URL: https://github.com/wandb/wandb.git
           DD_GIT_COMMIT_SHA: ${{ github.event.sha }}
           DD_GIT_BRANCH: ${{ github.event.branches[0].name }}
-          TARGET_URL: ${{ github.event.target_url }}
-        run: python3 .github/scripts/upload_coverage_to_datadog.py
+        with:
+          api_key: ${{ secrets.DD_API_KEY }}
+          site: us5.datadoghq.com
+          files: ${{ steps.download.outputs.reports-dir }}
+          flags: ${{ steps.download.outputs.flags }}
+          extra-args: --skip-git-metadata-upload --disable-file-fixes
