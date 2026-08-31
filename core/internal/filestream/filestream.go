@@ -250,6 +250,7 @@ func (fs *fileStream) FinishWithExit(exitCode int32) {
 func (fs *fileStream) FinishWithoutExit() {
 	fs.mu.Lock()
 	if fs.isFinished {
+		fs.mu.Unlock()
 		return
 	}
 	fs.isFinished = true
