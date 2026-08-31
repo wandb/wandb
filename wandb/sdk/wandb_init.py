@@ -30,7 +30,7 @@ import wandb
 import wandb.env
 from wandb import env, trigger
 from wandb.analytics import TelemetryRecorder, get_sentry
-from wandb.apis.public.service_api import ServiceApi
+from wandb.analytics.opentelemetry.opentelemetry_proxy import OpenTelemetryProxy
 from wandb.errors import Error, UsageError
 from wandb.errors.links import url_registry
 from wandb.errors.util import ProtobufErrorHandler
@@ -1458,7 +1458,8 @@ def init(  # noqa: C901
 
     # Create a noop telemetry recorder while we do not know the user's credentials
     # once that is resolve we can create a proper telemetry recorder.
-    telemetry_recorder = TelemetryRecorder()
+    open_telemetry_proxy = OpenTelemetryProxy.from_settings(settings=init_settings)
+    telemetry_recorder = TelemetryRecorder(open_telemetry_proxy=open_telemetry_proxy)
 
     try:
         wl = wandb_setup.singleton()
@@ -1470,8 +1471,9 @@ def init(  # noqa: C901
 
         # Create a telemetry recorder once we know the user's credentials
         # Anything after this point will actually record telemetry.
-        service_api = ServiceApi(run_settings)
-        telemetry_recorder = TelemetryRecorder(service_api=service_api)
+        telemetry_recorder = TelemetryRecorder(
+            open_telemetry_proxy=OpenTelemetryProxy.from_settings(settings=run_settings)
+        )
 
         if isinstance(run_settings.reinit, bool):
             wi.deprecated_features_used.append(

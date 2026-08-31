@@ -2331,13 +2331,17 @@ class Artifact:
             ArtifactNotLoggedError: If the artifact is not logged.
             ValueError: If the verification fails.
         """
-        from wandb.analytics import TelemetryRecorder
+        from wandb.analytics import OpenTelemetryProxy, TelemetryRecorder
         from wandb.analytics.opentelemetry.opentelemetry_proxy import (
             LowCardinalityAttributes,
         )
 
-        TelemetryRecorder(service_api=self._get_service_api()).increment_counter(
-            "artifact_verify", LowCardinalityAttributes()
+        proxy = OpenTelemetryProxy.from_settings(
+            settings=wandb_setup.singleton().settings.model_copy(),
+        )
+        TelemetryRecorder(open_telemetry_proxy=proxy).increment_counter(
+            "artifact_verify",
+            LowCardinalityAttributes(),
         )
 
         root = root or self._default_root()
