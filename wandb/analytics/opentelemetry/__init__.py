@@ -6,8 +6,15 @@ into Datadog.
 """
 
 __all__ = (
+    "OpenTelemetryProxy",
     "TelemetryContext",
     "TelemetryRecorder",
+    "get_telemetry_recorder",
 )
 
-from .opentelemetry_proxy import TelemetryContext, TelemetryRecorder
+from .opentelemetry_proxy import (
+    OpenTelemetryProxy,
+    TelemetryContext,
+    TelemetryRecorder,
+    get_telemetry_recorder,
+)
