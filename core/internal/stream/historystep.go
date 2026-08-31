@@ -31,10 +31,6 @@ type HistoryStepTracker struct {
 	// already contain one.
 	nextAutoStep int64
 	initialized  bool
-
-	// syncMayReassignSteps is true when sync may reassign history steps from
-	// the transaction log.
-	syncMayReassignSteps bool
 }
 
 // New returns a tracker that owns history step assignment.
@@ -54,31 +50,12 @@ func (t *HistoryStepTracker) SeedStartingStep(step int64) {
 	t.initialized = true
 }
 
-// SeedSyncMayReassignSteps grants step reassignment permission. Tests use this
-// in place of a RunHandle. If init is short-circuited, also call
-// SeedStartingStep when the starting step matters.
-func (t *HistoryStepTracker) SeedSyncMayReassignSteps() {
-	t.syncMayReassignSteps = true
-	t.initialized = true
-}
-
-// MayReassignSteps reports whether sync may reassign history steps.
-func (t *HistoryStepTracker) MayReassignSteps() bool {
-	if t.settings.IsSharedMode() {
-		return false
-	}
-
-	t.initializeAutoStep()
-	return t.syncMayReassignSteps
-}
-
 // ApplyHistoryStep writes a monotonic _step onto record, updates run summary
-// _step when sync may reassign steps, and returns summary updates to stream
-// (nil if none).
+// _step, and returns summary updates to stream (nil if none).
 func (t *HistoryStepTracker) ApplyHistoryStep(
 	record *spb.HistoryRecord,
 ) *runsummary.Updates {
-	if !t.MayReassignSteps() {
+	if t.settings.IsSharedMode() {
 		return nil
 	}
 
@@ -164,7 +141,6 @@ func (t *HistoryStepTracker) initializeAutoStep() {
 			run := &spb.RunRecord{}
 			upserter.FillRunRecord(run)
 			startingStep = run.GetStartingStep()
-			t.syncMayReassignSteps = run.GetSyncMayReassignSteps()
 		}
 	}
 
