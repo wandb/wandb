@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from wandb.errors.term import termwarn
+
 try:
     import cwsandbox
 except ImportError as exc:
@@ -14,6 +16,12 @@ from cwsandbox import __all__ as cwsandbox_all
 from ._auth import _set_wandb_auth_mode
 from ._sandbox import Sandbox, Session
 from ._secret import Secret
+
+termwarn(
+    "`wandb.sandbox` is deprecated and will be removed in a future release. "
+    "Use the `cwsandbox` package directly instead.",
+    repeat=False,
+)
 
 _set_wandb_auth_mode()
 
