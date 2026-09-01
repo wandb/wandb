@@ -128,7 +128,6 @@ func NewServer(params ServerParams) *Server {
 
 	sweepSchedLogger := observability.NewCoreLogger(
 		slog.Default(),
-		nil,
 		analytics.NewTelemetryRecorder(
 			nil,
 			analytics.NewTelemetryContext(),

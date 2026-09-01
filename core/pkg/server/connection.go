@@ -752,11 +752,19 @@ func (nc *Connection) handleSweepSchedulerNextTask(
 	go func() {
 		defer wg.Done()
 
+		ctx, cancel := nc.requestCanceller.Context(id)
+		defer cancel()
+
+		response := nc.sweepSchedBroker.NextTask(ctx, request)
+		if response == nil {
+			// the client cancelled its poll
+			return
+		}
+
 		nc.Respond(&spb.ServerResponse{
 			RequestId: id,
 			ServerResponseType: &spb.ServerResponse_SweepSchedulerNextTaskResponse{
-				SweepSchedulerNextTaskResponse: nc.sweepSchedBroker.NextTask(
-					request),
+				SweepSchedulerNextTaskResponse: response,
 			},
 		})
 	}()

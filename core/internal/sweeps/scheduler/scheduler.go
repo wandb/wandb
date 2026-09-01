@@ -296,6 +296,7 @@ type SchedulerParams struct {
 
 	SweepNodeID string
 	MetricKey   string
+	RunCap      int
 
 	BatchSize    int
 	PollInterval time.Duration
@@ -359,7 +360,7 @@ func NewTaskResolverFactory(logger *observability.CoreLogger) TaskResolverFactor
 			return nil, nil, err
 		}
 
-		metricKey, err := parseMetricKey(facts.Config)
+		cfg, err := parseSweepConfig(facts.Config)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -368,8 +369,9 @@ func NewTaskResolverFactory(logger *observability.CoreLogger) TaskResolverFactor
 			API:          sweepAPI,
 			Logger:       logger,
 			SweepNodeID:  facts.NodeID,
-			MetricKey:    metricKey,
+			MetricKey:    cfg.Metric.Name,
 			BatchSize:    int(req.BatchSize),
+			RunCap:       cfg.RunCap,
 			PollInterval: secondsToDuration(req.PollIntervalSeconds),
 		})
 
@@ -632,15 +634,18 @@ type sweepConfig struct {
 	Metric struct {
 		Name string `yaml:"name"`
 	} `yaml:"metric"`
+	RunCap int `yaml:"run_cap"`
 }
 
-// parseMetricKey returns the sweep's objective metric name, or ""
-// when the config declares none: that disables history fetching and
-// the FINISHED-without-metric reclassification rather than failing.
-func parseMetricKey(configYAML string) (string, error) {
-	var config sweepConfig
-	if err := yaml.Unmarshal([]byte(configYAML), &config); err != nil {
-		return "", fmt.Errorf("scheduler: parsing sweep config: %v", err)
+// parseSweepConfig returns the sweep's objective metric name and run cap.
+//
+// An empty metric key disables history fetching and the
+// FINISHED-without-metric reclassification rather than failing. A run
+// cap of 0 means the sweep is uncapped.
+func parseSweepConfig(configYAML string) (*sweepConfig, error) {
+	var cfg sweepConfig
+	if err := yaml.Unmarshal([]byte(configYAML), &cfg); err != nil {
+		return nil, fmt.Errorf("scheduler: parsing sweep config: %v", err)
 	}
-	return config.Metric.Name, nil
+	return &cfg, nil
 }

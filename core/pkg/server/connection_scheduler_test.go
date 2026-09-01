@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"io"
 	"net"
-	"sync"
 	"testing"
 	"time"
 
@@ -21,19 +20,19 @@ import (
 )
 
 // newSchedulerTestConn wires a Connection with a scheduler broker over a
-// pipe, returning the pipe's client side and a WaitGroup that unwinds
-// with the connection.
+// pipe, returning the pipe's client side and a channel closed once the
+// connection has unwound.
 func newSchedulerTestConn(
 	t *testing.T,
 	factory scheduler.TaskResolverFactory,
-) (net.Conn, *sync.WaitGroup) {
+) (net.Conn, <-chan struct{}) {
 	t.Helper()
 
 	serverConn, clientConn := net.Pipe()
 	t.Cleanup(func() { _ = serverConn.Close() })
 	t.Cleanup(func() { _ = clientConn.Close() })
 	require.NoError(t,
-		clientConn.SetDeadline(time.Now().Add(30*time.Second)))
+		clientConn.SetDeadline(time.Now().Add(schedulertest.ReceiveTimeout)))
 
 	broker := scheduler.NewIPCSessionBroker(
 		factory, observabilitytest.NewTestLogger(t))
@@ -48,9 +47,12 @@ func newSchedulerTestConn(
 		},
 	)
 
-	var wg sync.WaitGroup
-	wg.Go(func() { conn.ManageConnectionData() })
-	return clientConn, &wg
+	unwound := make(chan struct{})
+	go func() {
+		defer close(unwound)
+		conn.ManageConnectionData()
+	}()
+	return clientConn, unwound
 }
 
 func writeServerRequest(
@@ -108,7 +110,7 @@ func TestConnection_SweepSchedulerRouting(t *testing.T) {
 			},
 		})
 
-	clientConn, wg := newSchedulerTestConn(t, func(
+	clientConn, unwound := newSchedulerTestConn(t, func(
 		schedCtx context.Context,
 		reqCtx context.Context,
 		req *spb.SweepSchedulerClientInitRequest,
@@ -181,11 +183,11 @@ func TestConnection_SweepSchedulerRouting(t *testing.T) {
 	// Closing the client unwinds the connection promptly even though a
 	// scheduler session exists.
 	require.NoError(t, clientConn.Close())
-	wg.Wait()
+	schedulertest.Receive(t, unwound)
 }
 
 func TestConnection_SweepSchedulerInitErrorResponse(t *testing.T) {
-	clientConn, wg := newSchedulerTestConn(t, func(
+	clientConn, unwound := newSchedulerTestConn(t, func(
 		schedCtx context.Context,
 		reqCtx context.Context,
 		req *spb.SweepSchedulerClientInitRequest,
@@ -207,5 +209,5 @@ func TestConnection_SweepSchedulerInitErrorResponse(t *testing.T) {
 		response.GetErrorResponse().Message, "does not support")
 
 	require.NoError(t, clientConn.Close())
-	wg.Wait()
+	schedulertest.Receive(t, unwound)
 }
