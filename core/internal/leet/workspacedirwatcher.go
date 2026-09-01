@@ -278,6 +278,10 @@ func (w *Workspace) handleWorkspaceRunOverviewPreloaded(
 ) tea.Cmd {
 	w.overviewPreloader.MarkDone(msg.RunKey)
 
+	if msg.Run != nil {
+		sessionRuns.observe(*msg.Run, false)
+	}
+
 	_, streaming := w.runsByKey[msg.RunKey]
 
 	switch {

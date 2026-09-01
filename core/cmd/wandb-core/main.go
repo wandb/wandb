@@ -269,11 +269,12 @@ func leetMain(args []string) int {
 		duration,
 		analytics.LowCardinalityAttributes{},
 	)
-	logger.RecordTelemetry("leet_session", map[string]string{
-		"duration_seconds": strconv.FormatInt(
-			int64(duration/time.Second), 10),
-		"exit_code": strconv.Itoa(exitCode),
-	})
+
+	sessionAttributes := leet.SessionAttributes()
+	sessionAttributes["duration_seconds"] = strconv.FormatInt(
+		int64(duration/time.Second), 10)
+	sessionAttributes["exit_code"] = strconv.Itoa(exitCode)
+	logger.RecordTelemetry("leet_session", sessionAttributes)
 	return exitCode
 }
 

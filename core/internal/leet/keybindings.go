@@ -654,8 +654,9 @@ func buildKeyMap[T any](
 			if binding.Handler == nil {
 				continue
 			}
+			handler := recordFeatureUsage(binding.Handler)
 			for _, key := range binding.Keys {
-				keyMap[normalizeKey(key)] = binding.Handler
+				keyMap[normalizeKey(key)] = handler
 			}
 		}
 	}

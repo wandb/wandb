@@ -161,15 +161,21 @@ func (hs *LevelDBHistorySource) Read(
 func (hs *LevelDBHistorySource) recordToMsg(record *spb.Record) tea.Msg {
 	switch rec := record.RecordType.(type) {
 	case *spb.Record_Run:
-		return RunMsg{
+		msg := RunMsg{
 			RunPath:     hs.runPath,
 			ID:          rec.Run.GetRunId(),
+			Entity:      rec.Run.GetEntity(),
 			DisplayName: rec.Run.GetDisplayName(),
 			Project:     rec.Run.GetProject(),
 			Notes:       rec.Run.GetNotes(),
 			Tags:        slices.Clone(rec.Run.GetTags()),
 			Config:      rec.Run.GetConfig(),
+			Telemetry:   rec.Run.GetTelemetry(),
 		}
+		if ts := rec.Run.GetStartTime(); ts != nil {
+			msg.StartTime = ts.AsTime()
+		}
+		return msg
 	case *spb.Record_History:
 		return ParseHistory(hs.runPath, rec.History)
 	case *spb.Record_Stats:
