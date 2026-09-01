@@ -269,6 +269,52 @@ class Config:
             sanitized[k] = v
         return sanitized
 
+    def _config_values_equal(self, val1, val2):
+        """Compare config values, treating missing empty dicts as equivalent.
+        
+        This handles the case where config resumption loses empty dictionaries
+        due to server-side serialization/deserialization, which should not be
+        considered a config change.
+        """
+        if val1 == val2:
+            return True
+        
+        # If both are dicts, do deep comparison with empty dict normalization
+        if isinstance(val1, dict) and isinstance(val2, dict):
+            # Create normalized copies that treat missing keys as empty dicts
+            def normalize_dict(d):
+                normalized = {}
+                for k, v in d.items():
+                    if isinstance(v, dict):
+                        normalized[k] = normalize_dict(v)
+                    else:
+                        normalized[k] = v
+                return normalized
+            
+            def add_missing_empty_dicts(target, source):
+                """Add empty dicts to target for keys that exist in source with empty dicts."""
+                for k, v in source.items():
+                    if k not in target:
+                        if isinstance(v, dict) and not v:  # empty dict
+                            target[k] = {}
+                        elif isinstance(v, dict):  # non-empty dict
+                            target[k] = {}
+                            add_missing_empty_dicts(target[k], v)
+                    elif isinstance(v, dict) and isinstance(target[k], dict):
+                        add_missing_empty_dicts(target[k], v)
+            
+            # Make copies and normalize
+            norm_val1 = normalize_dict(val1)
+            norm_val2 = normalize_dict(val2)
+            
+            # Add missing empty dicts to both sides
+            add_missing_empty_dicts(norm_val1, norm_val2)
+            add_missing_empty_dicts(norm_val2, norm_val1)
+            
+            return norm_val1 == norm_val2
+        
+        return False
+
     def _sanitize(self, key, val, allow_val_change=None):
         # TODO: enable WBValues in the config in the future
         # refuse all WBValues which is all Media and Histograms
@@ -287,7 +333,7 @@ class Config:
         if (
             (not allow_val_change)
             and (key in self._items)
-            and (val != self._items[key])
+            and (not self._config_values_equal(val, self._items[key]))
         ):
             raise config_util.ConfigError(
                 f'Attempted to change value of key "{key}" '
