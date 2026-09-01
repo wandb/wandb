@@ -64,6 +64,10 @@ type SystemMonitor struct {
 	// The state of the system monitor: stopped, running, or paused.
 	state atomic.Int32
 
+	// wakeCh is a buffered channel used to force sampling of the monitored resources
+	// at startup and upon monitoring resumption.
+	wakeCh chan struct{}
+
 	// The list of resources to monitor.
 	resources []Resource
 
@@ -125,6 +129,7 @@ func (f *SystemMonitorFactory) New(extraWork runwork.ExtraWork) *SystemMonitor {
 		ctx:              ctx,
 		cancel:           cancel,
 		wg:               sync.WaitGroup{},
+		wakeCh:           make(chan struct{}, 1),
 		runHandle:        f.RunHandle,
 		settings:         f.Settings,
 		logger:           f.Logger,
@@ -359,14 +364,22 @@ func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
 
 	sm.git = git
 
-	// Start collecting metrics.
-	if !sm.settings.IsDisableStats() && !sm.settings.IsDisableMachineInfo() {
-		sm.logger.Debug("monitor: starting")
-		for _, resource := range sm.resources {
-			sm.wg.Go(func() {
-				sm.monitorResource(resource)
-			})
-		}
+	if sm.settings.IsDisableStats() || sm.settings.IsDisableMachineInfo() {
+		return
+	}
+
+	sm.logger.Debug("monitor: starting")
+	sm.wg.Go(func() {
+		sm.loop()
+	})
+	sm.wake()
+}
+
+// wake forces the system monitor to sample resources immediately.
+func (sm *SystemMonitor) wake() {
+	select {
+	case sm.wakeCh <- struct{}{}:
+	default: // a wake is already pending; coalesce
 	}
 }
 
@@ -413,46 +426,43 @@ func (sm *SystemMonitor) Pause() {
 func (sm *SystemMonitor) Resume() {
 	if sm.state.CompareAndSwap(StatePaused, StateRunning) {
 		sm.logger.Debug("monitor: resuming")
+		sm.wake()
 	}
 }
 
-// monitorResource handles the monitoring loop for a single resource.
-//
-// It handles sampling, aggregation, and reporting of metrics
-// and is meant to run in its own goroutine.
-func (sm *SystemMonitor) monitorResource(resource Resource) {
-	if resource == nil {
-		return
-	}
-
-	// recover from panic and log the error
-	defer func() {
-		if err := recover(); err != nil {
-			if resource != nil {
-				sm.logger.CaptureError(
-					"monitor",
-					fmt.Errorf("monitor: panic: %v", err),
-				)
-			}
-		}
-	}()
-
-	// Sample immediately, then wait `samplingInterval` between samples.
-	timer := time.NewTimer(0)
-	defer timer.Stop()
+// loop handles the resource monitoring loop.
+func (sm *SystemMonitor) loop() {
+	ticker := time.NewTicker(sm.samplingInterval)
+	defer ticker.Stop()
 
 	for {
 		select {
 		case <-sm.ctx.Done():
 			return
-		case <-timer.C:
-			timer.Reset(sm.samplingInterval)
+		case <-sm.wakeCh:
+			ticker.Reset(sm.samplingInterval) // realign cadence to "now"
+		case <-ticker.C:
+		}
 
-			if sm.state.Load() != StateRunning {
-				continue // Skip work when not running
-			}
+		if sm.state.Load() != StateRunning {
+			continue
+		}
 
-			metrics, err := resource.Sample()
+		sm.sample()
+	}
+}
+
+// sample collects and publishes stats for all monitored resources.
+func (sm *SystemMonitor) sample() {
+	for _, r := range sm.resources {
+		sm.wg.Go(func() {
+			defer func() {
+				if err := recover(); err != nil {
+					sm.logger.CaptureError("monitor",
+						fmt.Errorf("monitor: panic sampling: %v", err))
+				}
+			}()
+			metrics, err := r.Sample()
 			if err != nil {
 				if ShouldCaptureSamplingError(err) {
 					sm.logger.CaptureError(
@@ -465,10 +475,10 @@ func (sm *SystemMonitor) monitorResource(resource Resource) {
 			}
 
 			if metrics == nil || len(metrics.Item) == 0 {
-				continue // nothing to do
+				return // nothing to do
 			}
 
-			// Push metrics to the buffer when in-memory buffering is enabled.
+			// Push metrics to the in-memory buffer when enabled.
 			if sm.buffer != nil {
 				sm.buffer.Push(metrics)
 			}
@@ -480,7 +490,7 @@ func (sm *SystemMonitor) monitorResource(resource Resource) {
 				}
 			}
 
-			// publish metrics
+			// Publish metrics.
 			record := &spb.Record{
 				RecordType: &spb.Record_Stats{
 					Stats: metrics,
@@ -491,9 +501,8 @@ func (sm *SystemMonitor) monitorResource(resource Resource) {
 				sm.ctx.Done(),
 				runwork.NoRequest(runwork.WorkFromRecord(record)),
 			)
-		}
+		})
 	}
-
 }
 
 // ShouldCaptureSamplingError checks if a resource sampling error should be sent to Sentry.
