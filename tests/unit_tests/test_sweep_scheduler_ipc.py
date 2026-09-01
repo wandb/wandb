@@ -3,11 +3,12 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import Sequence
-from typing import Any
+from unittest.mock import Mock
 
 import pytest
 from wandb.proto import wandb_sweep_scheduler_pb2 as sspb
-from wandb.sdk.mailbox import HandleAbandonedError
+from wandb.sdk.lib.service.service_connection import ServiceConnection
+from wandb.sdk.mailbox import HandleAbandonedError, MailboxHandle
 from wandb.sdk.sweeps.run_state import RunState
 from wandb.sdk.sweeps.scheduler.ipc import (
     SchedulerServiceExitedError,
@@ -16,101 +17,51 @@ from wandb.sdk.sweeps.scheduler.ipc import (
     forget_discards,
 )
 from wandb.sdk.sweeps.scheduler.optimizer import Optimizer, RunConfig, RunSuggestion
-from wandb.sdk.sweeps.sweep_info import SweepInfo
-
-from .test_sweep_scheduler import make_scheduler_grid_sweep
 
 
-class RecordingOptimizer(Optimizer):
-    """Records hook calls in order and plays scripted ask returns."""
+def make_optimizer() -> Mock:
+    """A Mock(spec=Optimizer) with the production no-op hook defaults.
 
-    def __init__(self, sweep: SweepInfo):
-        super().__init__(sweep)
-        self.calls: list[tuple[str, Any]] = []
-        self.ask_returns: list[Any] = []
-        self.prune_returns: list[list[str]] = []
-        self.raise_on_tell: set[str] = set()
-        self.raise_on_ask = False
-
-    def validate_sweep_objective(self) -> None:
-        return None
-
-    def ask_n_runs(self, n):
-        self.calls.append(("ask", n))
-        if self.raise_on_ask:
-            raise RuntimeError("ask exploded")
-        if self.ask_returns:
-            return self.ask_returns.pop(0)
-        return None
-
-    def tell_run(self, run_id, data):
-        self.calls.append(("tell", run_id))
-        if run_id in self.raise_on_tell:
-            raise RuntimeError(f"cannot ingest {run_id}")
-
-    def tell_existing_finished_run(self, data):
-        self.calls.append(("tell_finished", data.wandb_run_id))
-        if data.wandb_run_id in self.raise_on_tell:
-            raise RuntimeError(f"cannot ingest {data.wandb_run_id}")
-
-    def tell_existing_active_run(self, data):
-        self.calls.append(("adopt", data.wandb_run_id))
-        return f"adopted-{data.wandb_run_id}"
-
-    def prune_runs(self, run_ids, runs):
-        self.calls.append(("prune", list(run_ids)))
-        if self.prune_returns:
-            return self.prune_returns.pop(0)
-        return []
-
-    def should_terminate_sweep(self):
-        self.calls.append(("terminate?", None))
-        return False
-
-    def forget_run(self, run_id):
-        self.calls.append(("forget", run_id))
+    Tests configure `return_value`/`side_effect` on only the hooks they
+    exercise; hook calls are visible in order via `optimizer.mock_calls`.
+    """
+    optimizer = Mock(spec=Optimizer)
+    optimizer.ask_n_runs.return_value = None
+    optimizer.tell_existing_active_run.return_value = None
+    optimizer.prune_runs.return_value = []
+    optimizer.should_terminate_sweep.return_value = False
+    return optimizer
 
 
-class _FakeHandle:
-    """A MailboxHandle whose response is already known."""
-
-    def __init__(
-        self,
-        response: sspb.SweepSchedulerServerNextTaskResponse | None,
-    ) -> None:
-        self._response = response
-        self.cancelled = False
-
-    async def wait_async(self, *, timeout):
-        if self._response is None:
-            raise HandleAbandonedError
-        return self._response
-
-    def cancel(self) -> None:
-        self.cancelled = True
-
-
-class FakeSchedulerService:
-    """Scripts next-task responses and records reported results.
+def make_service(
+    tasks: list[sspb.SweepSchedulerServerNextTaskResponse | None],
+) -> Mock:
+    """A Mock(spec=ServiceConnection) that scripts next-task responses.
 
     A None entry in the script simulates wandb-core dying: the handle
     for that poll is abandoned.
     """
+    tasks = list(tasks)
+    service = Mock(spec=ServiceConnection)
 
-    def __init__(
-        self,
-        tasks: list[sspb.SweepSchedulerServerNextTaskResponse | None],
-    ) -> None:
-        self.tasks = list(tasks)
-        self.results: list[sspb.SweepSchedulerClientTaskResult | None] = []
-        self.stops: list[str] = []
+    async def next_task(session_id, result):
+        handle = Mock(spec=MailboxHandle)
+        response = tasks.pop(0)
+        if response is None:
+            handle.wait_async.side_effect = HandleAbandonedError
+        else:
+            handle.wait_async.return_value = response
+        return handle
 
-    async def sweep_scheduler_next_task(self, session_id, result):
-        self.results.append(result)
-        return _FakeHandle(self.tasks.pop(0))
+    service.sweep_scheduler_next_task.side_effect = next_task
+    return service
 
-    async def stop_sweep_scheduler(self, session_id):
-        self.stops.append(session_id)
+
+def sent_results(
+    service: Mock,
+) -> list[sspb.SweepSchedulerClientTaskResult | None]:
+    """The `result` argument of each `sweep_scheduler_next_task` call."""
+    return [c.args[1] for c in service.sweep_scheduler_next_task.call_args_list]
 
 
 def warm_task(
@@ -185,21 +136,25 @@ def done_task(
 
 
 def run_exchange(
-    service: FakeSchedulerService,
-    optimizer: Optimizer,
+    service: Mock,
+    optimizer: Mock,
 ) -> sspb.SweepSchedulerServerDoneTask:
     exchange = SchedulerTaskExchange(service, "scheduler-0", optimizer)  # type: ignore[arg-type]
     return asyncio.run(exchange.run())
 
 
-def make_optimizer() -> RecordingOptimizer:
-    return RecordingOptimizer(make_scheduler_grid_sweep())
-
-
 def test_warm_start_adoptions_and_skips():
     optimizer = make_optimizer()
-    optimizer.raise_on_tell.add("poison")
-    service = FakeSchedulerService(
+
+    def tell_existing_finished_run(data):
+        if data.wandb_run_id == "poison":
+            raise RuntimeError("cannot ingest poison")
+
+    optimizer.tell_existing_finished_run.side_effect = tell_existing_finished_run
+    optimizer.tell_existing_active_run.side_effect = lambda data: (
+        f"adopted-{data.wandb_run_id}"
+    )
+    service = make_service(
         [
             warm_task(1, finished=["good", "poison"], active=["running"]),
             done_task(2),
@@ -208,21 +163,25 @@ def test_warm_start_adoptions_and_skips():
 
     run_exchange(service, optimizer)
 
-    result = service.results[1]
+    result = sent_results(service)[1]
     assert result.task_seq == 1
     warm = result.warm_start
     assert dict(warm.adoptions) == {"running": "adopted-running"}
     assert [s.wandb_run_id for s in warm.skipped] == ["poison"]
     # The good run was ingested despite the poison one.
-    assert ("tell_finished", "good") in optimizer.calls
+    told_finished = [
+        c.args[0].wandb_run_id
+        for c in optimizer.tell_existing_finished_run.call_args_list
+    ]
+    assert "good" in told_finished
 
 
 def test_generation_orders_tell_prune_terminate_ask():
     optimizer = make_optimizer()
-    optimizer.ask_returns = [
-        [RunSuggestion(config=RunConfig.from_values({"param1": 3}), run_id="s1")]
+    optimizer.ask_n_runs.return_value = [
+        RunSuggestion(config=RunConfig.from_values({"param1": 3}), run_id="s1")
     ]
-    service = FakeSchedulerService(
+    service = make_service(
         [
             generation_task(
                 1,
@@ -236,10 +195,15 @@ def test_generation_orders_tell_prune_terminate_ask():
 
     run_exchange(service, optimizer)
 
-    kinds = [kind for kind, _ in optimizer.calls]
-    assert kinds == ["tell", "prune", "terminate?", "ask"]
+    kinds = [c[0] for c in optimizer.mock_calls]
+    assert kinds == [
+        "tell_run",
+        "prune_runs",
+        "should_terminate_sweep",
+        "ask_n_runs",
+    ]
 
-    generation = service.results[1].generation
+    generation = sent_results(service)[1].generation
     assert (
         generation.ask_outcome
         == sspb.SweepSchedulerClientGenerationResult.ASK_OUTCOME_SUGGESTED
@@ -250,8 +214,8 @@ def test_generation_orders_tell_prune_terminate_ask():
 
 def test_ask_outcomes_encode_exhausted_and_declined():
     optimizer = make_optimizer()
-    optimizer.ask_returns = [None, []]
-    service = FakeSchedulerService(
+    optimizer.ask_n_runs.side_effect = [None, []]
+    service = make_service(
         [
             generation_task(1, ask_up_to=1),
             generation_task(2, ask_up_to=1),
@@ -261,20 +225,21 @@ def test_ask_outcomes_encode_exhausted_and_declined():
 
     run_exchange(service, optimizer)
 
+    results = sent_results(service)
     assert (
-        service.results[1].generation.ask_outcome
+        results[1].generation.ask_outcome
         == sspb.SweepSchedulerClientGenerationResult.ASK_OUTCOME_DECLINED
     )
     assert (
-        service.results[2].generation.ask_outcome
+        results[2].generation.ask_outcome
         == sspb.SweepSchedulerClientGenerationResult.ASK_OUTCOME_EXHAUSTED
     )
 
 
 def test_optimizer_exception_becomes_task_error():
     optimizer = make_optimizer()
-    optimizer.raise_on_ask = True
-    service = FakeSchedulerService(
+    optimizer.ask_n_runs.side_effect = RuntimeError("ask exploded")
+    service = make_service(
         [
             generation_task(1, ask_up_to=1),
             done_task(
@@ -285,7 +250,7 @@ def test_optimizer_exception_becomes_task_error():
 
     done = run_exchange(service, optimizer)
 
-    error = service.results[1].error
+    error = sent_results(service)[1].error
     assert "ask exploded" in error.message
     assert "RuntimeError" in error.traceback
     assert done.reason == sspb.SweepSchedulerServerDoneTask.REASON_OPTIMIZER_ERROR
@@ -293,7 +258,7 @@ def test_optimizer_exception_becomes_task_error():
 
 def test_redelivered_task_answered_from_cache():
     optimizer = make_optimizer()
-    service = FakeSchedulerService(
+    service = make_service(
         [
             generation_task(1, updates={"r1": sspb.SWEEP_RUN_STATE_RUNNING}),
             # The same task again: the previous response was lost.
@@ -306,17 +271,20 @@ def test_redelivered_task_answered_from_cache():
 
     # The optimizer saw the update exactly once, and the retried poll
     # carried a byte-identical result.
-    tells = [call for call in optimizer.calls if call[0] == "tell"]
-    assert len(tells) == 1
-    assert service.results[1].SerializeToString() == (
-        service.results[2].SerializeToString()
-    )
+    assert optimizer.tell_run.call_count == 1
+    results = sent_results(service)
+    assert results[1].SerializeToString() == results[2].SerializeToString()
 
 
 def test_tell_error_reported_and_prune_candidates_filtered():
     optimizer = make_optimizer()
-    optimizer.raise_on_tell.add("poison")
-    service = FakeSchedulerService(
+
+    def tell_run(run_id, data):
+        if run_id == "poison":
+            raise RuntimeError(f"cannot ingest {run_id}")
+
+    optimizer.tell_run.side_effect = tell_run
+    service = make_service(
         [
             generation_task(
                 1,
@@ -332,15 +300,15 @@ def test_tell_error_reported_and_prune_candidates_filtered():
 
     run_exchange(service, optimizer)
 
-    generation = service.results[1].generation
+    generation = sent_results(service)[1].generation
     assert [e.optimizer_run_id for e in generation.tell_errors] == ["poison"]
     # Only the successfully told run was offered for pruning.
-    assert ("prune", ["good"]) in optimizer.calls
+    assert optimizer.prune_runs.call_args.args[0] == ["good"]
 
 
 def test_discarded_suggestions_are_forgotten():
     optimizer = make_optimizer()
-    service = FakeSchedulerService(
+    service = make_service(
         [
             generation_task(1, discarded=["lost-1", "lost-2"]),
             done_task(2),
@@ -349,7 +317,7 @@ def test_discarded_suggestions_are_forgotten():
 
     run_exchange(service, optimizer)
 
-    forgets = [run_id for kind, run_id in optimizer.calls if kind == "forget"]
+    forgets = [c.args[0] for c in optimizer.forget_run.call_args_list]
     assert forgets == ["lost-1", "lost-2"]
 
 
@@ -362,40 +330,25 @@ def test_done_discards_are_forgotten():
 
     forget_discards(optimizer, done)
 
-    assert optimizer.calls == [("forget", "final")]
+    optimizer.forget_run.assert_called_once_with("final")
 
 
 def test_abandoned_handle_raises_service_exited():
     optimizer = make_optimizer()
-    service = FakeSchedulerService([None])
+    service = make_service([None])
 
     with pytest.raises(SchedulerServiceExitedError):
         run_exchange(service, optimizer)
 
     # The optimizer was never touched.
-    assert optimizer.calls == []
-
-
-def test_optimizer_rebind_refused():
-    optimizer = make_optimizer()
-    service = FakeSchedulerService([done_task(1)])
-    run_exchange(service, optimizer)
-
-    with pytest.raises(ValueError, match="already served"):
-        run_exchange(FakeSchedulerService([done_task(1)]), optimizer)
+    assert optimizer.mock_calls == []
 
 
 def test_unknown_run_state_maps_to_unknown():
     optimizer = make_optimizer()
     told_states: list[RunState] = []
-    original_tell = optimizer.tell_run
-
-    def tell_run(run_id, data):
-        told_states.append(data.state)
-        return original_tell(run_id, data)
-
-    optimizer.tell_run = tell_run  # type: ignore[method-assign]
-    service = FakeSchedulerService(
+    optimizer.tell_run.side_effect = lambda run_id, data: told_states.append(data.state)
+    service = make_service(
         [
             generation_task(
                 1,

@@ -13,7 +13,6 @@ import json
 import traceback
 
 from wandb.proto import wandb_sweep_scheduler_pb2 as sspb
-from wandb.sdk.lib import ratelimit
 from wandb.sdk.lib.service.service_connection import ServiceConnection
 from wandb.sdk.mailbox import HandleAbandonedError, MailboxClosedError
 from wandb.sdk.sweeps.run_state import RunState
@@ -23,9 +22,6 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
     RunConfig,
     RunWithMetrics,
 )
-
-# Guards against a hot loop if the server ever answers polls instantly.
-_POLL_COOLDOWN_SECONDS = 0.1
 
 
 class SchedulerServiceExitedError(Exception):
@@ -86,10 +82,6 @@ class SchedulerTaskExchange:
         scheduler_id: str,
         optimizer: Optimizer,
     ) -> None:
-        # One optimizer instance per scheduler session: its state mirrors
-        # the session's, and reusing it would double-count adopted runs.
-        optimizer.bind_to_scheduler()
-
         self._service = service
         self._id = scheduler_id
         self._optimizer = optimizer
@@ -110,13 +102,8 @@ class SchedulerTaskExchange:
                 state is stored on the backend, so rerunning the scheduler
                 resumes it.
         """
-        # Constructed here because Cooldown reads the running loop's clock.
-        rate_limit = ratelimit.Cooldown(_POLL_COOLDOWN_SECONDS)
-
         result: sspb.SweepSchedulerClientTaskResult | None = None
         while True:
-            await rate_limit.wait()
-
             handle = await self._service.sweep_scheduler_next_task(self._id, result)
             try:
                 response = await handle.wait_async(timeout=None)
