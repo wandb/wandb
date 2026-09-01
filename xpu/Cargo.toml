@@ -50,4 +50,6 @@ libc = "0.2.189"
 nix = { version = "0.31.3", features = ["process"] }
 
 [profile.release]
-strip = "symbols"
+# Drop debug info but keep symbol names so panic backtraces from user
+# machines remain readable (there is no crash reporting in the sidecar).
+strip = "debuginfo"
