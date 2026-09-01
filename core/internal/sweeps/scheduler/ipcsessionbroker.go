@@ -10,18 +10,12 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// ErrAlreadyScheduled rejects an init for a sweep that already has a
-// live scheduler in this process.
-//
-// The message travels verbatim to the rejected client's terminal.
+// ErrAlreadyScheduled is returned when a sweep is already scheduled.
 var ErrAlreadyScheduled = errors.New(
 	"scheduler: this sweep already has a running scheduler in this" +
 		" wandb-core process; stop it before starting another")
 
 // TaskResolverFactory builds the resolver for a new scheduler session.
-//
-// schedCtx spans the session; reqCtx bounds the init request's network
-// calls. The returned response's id field is filled in by the broker.
 type TaskResolverFactory func(
 	schedCtx context.Context,
 	reqCtx context.Context,
@@ -37,8 +31,7 @@ type IPCSessionBroker struct {
 	logger   *observability.CoreLogger
 	sessions map[string]*session
 
-	// bySweep indexes sessions by sweep so a second init for the same
-	// sweep is rejected while the first is live instead of racing it.
+	// bySweep maps sweep ids to session ids.
 	bySweep map[string]string
 }
 
@@ -54,6 +47,7 @@ type session struct {
 	cancel context.CancelCauseFunc
 }
 
+// NewIPCSessionBroker creates a new IPCSessionBroker.
 func NewIPCSessionBroker(
 	factory TaskResolverFactory,
 	logger *observability.CoreLogger,
@@ -68,13 +62,8 @@ func NewIPCSessionBroker(
 
 // InitScheduler starts a scheduler session for a sweep.
 //
-// Returns ErrAlreadyScheduled while this process has a live session for
-// the same sweep: concurrent schedulers would race each other's polls
-// and enqueues. A session whose loop finished or whose client's
-// connection died does not block a new one, so a scheduler can be rerun
-// without restarting wandb-core. connCtx is the creating connection's
-// lifetime context — the session dies with its client — and reqCtx
-// bounds the init's own network calls.
+// connCtx is the creating connection's lifetime — the session dies
+// with its client — and reqCtx bounds the init's own network calls.
 func (b *IPCSessionBroker) InitScheduler(
 	connCtx context.Context,
 	reqCtx context.Context,
@@ -83,8 +72,6 @@ func (b *IPCSessionBroker) InitScheduler(
 	sweepKey := fmt.Sprintf(
 		"%s/%s/%s", req.Entity, req.Project, req.SweepId)
 
-	// Reject before the factory's network calls; re-checked under the
-	// same lock that inserts, in case a concurrent init wins the race.
 	if err := b.checkNotScheduled(sweepKey); err != nil {
 		return nil, err
 	}
@@ -153,9 +140,8 @@ func (b *IPCSessionBroker) checkNotScheduled(sweepKey string) error {
 }
 
 // liveSessionLocked returns the sweep's session if it can still serve
-// tasks. A finished session is not here — NextTask releases the sweep
-// when it delivers the terminal task — so only a dead client's session
-// remains to filter out through its cancelled context.
+// tasks. NextTask already released every finished session, so the only
+// case left to filter out is a dead client's cancelled context.
 //
 // Callers must hold mu.
 func (b *IPCSessionBroker) liveSessionLocked(sweepKey string) *session {
@@ -178,8 +164,7 @@ func (b *IPCSessionBroker) NextTask(
 ) *spb.SweepSchedulerServerNextTaskResponse {
 	s := b.lookup(req.SessionId)
 	if s == nil {
-		// The id predates this process: wandb-core restarted since the
-		// scheduler was initialized.
+		// The id predates this process: wandb-core restarted.
 		b.logger.Warn(
 			"scheduler: poll for unknown scheduler id",
 			"id", req.SessionId)
@@ -203,9 +188,9 @@ func (b *IPCSessionBroker) NextTask(
 
 // release frees the sweep for a new scheduler once s is finished.
 //
-// The session itself is kept so redelivered polls still find the cached
-// terminal task. The id check matters when a dead client's session was
-// already replaced: its late Done must not free the successor's sweep.
+// The session is kept so a later poll still finds the cached terminal
+// task. The id check stops a dead session's late Done from freeing the
+// sweep of the successor that replaced it.
 func (b *IPCSessionBroker) release(
 	s *session,
 	done *spb.SweepSchedulerServerDoneTask,
@@ -241,9 +226,8 @@ func (b *IPCSessionBroker) Stop(req *spb.SweepSchedulerClientStopRequest) {
 }
 
 // Shutdown cancels every session because the server is exiting.
-//
-// Sessions observe the cancellation through their contexts; there are no
-// scheduler goroutines to wait for.
+// Sessions observe it through their contexts; there are no scheduler
+// goroutines to wait for.
 func (b *IPCSessionBroker) Shutdown() {
 	b.mu.Lock()
 	defer b.mu.Unlock()

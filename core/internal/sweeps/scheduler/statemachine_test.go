@@ -112,23 +112,58 @@ func TestMatchingResultAdvances(t *testing.T) {
 	assert.EqualValues(t, 1, resolver.results[1].TaskSeq)
 }
 
-func TestNilOrStaleResultRedeliversCachedTask(t *testing.T) {
+func TestMissingResultEndsSessionWithFatalDone(t *testing.T) {
+	resolver := &fakeTaskResolver{
+		tasks: []*spb.SweepSchedulerServerNextTaskResponse{generationTask()},
+	}
+	machine := newTestStateMachine(t, resolver)
+	machine.NextTask(nil)
+
+	// The client polled again without answering the task it was given.
+	response := machine.NextTask(nil)
+
+	done := response.GetDone()
+	require.NotNil(t, done)
+	assert.Equal(t,
+		spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR, done.Reason)
+	assert.Contains(t, done.Message, "out of sync")
+	// The resolver never saw the desynchronized poll.
+	assert.Equal(t, 1, resolver.stepCount())
+}
+
+func TestStaleResultEndsSessionWithFatalDone(t *testing.T) {
 	resolver := &fakeTaskResolver{
 		tasks: []*spb.SweepSchedulerServerNextTaskResponse{generationTask()},
 	}
 	machine := newTestStateMachine(t, resolver)
 	first := machine.NextTask(nil)
 
-	redeliveredNil := machine.NextTask(nil)
-	redeliveredStale := machine.NextTask(resultForSeq(first.TaskSeq + 7))
+	response := machine.NextTask(resultForSeq(first.TaskSeq + 7))
 
-	assert.Same(t, first, redeliveredNil)
-	assert.Same(t, first, redeliveredStale)
-	// The resolver never saw the nil or stale results.
+	done := response.GetDone()
+	require.NotNil(t, done)
+	assert.Equal(t,
+		spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR, done.Reason)
 	assert.Equal(t, 1, resolver.stepCount())
 }
 
-func TestResultAppliedAtMostOnce(t *testing.T) {
+func TestResultOnFirstPollEndsSessionWithFatalDone(t *testing.T) {
+	resolver := &fakeTaskResolver{
+		tasks: []*spb.SweepSchedulerServerNextTaskResponse{generationTask()},
+	}
+	machine := newTestStateMachine(t, resolver)
+
+	// No task has been issued, so there is nothing this result can answer.
+	response := machine.NextTask(resultForSeq(1))
+
+	done := response.GetDone()
+	require.NotNil(t, done)
+	assert.Equal(t,
+		spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR, done.Reason)
+	assert.Equal(t, 0, resolver.stepCount())
+}
+
+func TestRepeatedResultEndsSessionWithFatalDone(t *testing.T) {
 	resolver := &fakeTaskResolver{
 		tasks: []*spb.SweepSchedulerServerNextTaskResponse{
 			generationTask(), generationTask(),
@@ -136,14 +171,30 @@ func TestResultAppliedAtMostOnce(t *testing.T) {
 	}
 	machine := newTestStateMachine(t, resolver)
 	first := machine.NextTask(nil)
+	machine.NextTask(resultForSeq(first.TaskSeq))
 
-	second := machine.NextTask(resultForSeq(first.TaskSeq))
-	// A retry of the already-consumed result must not re-apply it; it is
-	// stale relative to the new outstanding task.
-	retried := machine.NextTask(resultForSeq(first.TaskSeq))
+	// Reporting the same result twice would double-apply it.
+	response := machine.NextTask(resultForSeq(first.TaskSeq))
 
-	assert.Same(t, second, retried)
+	done := response.GetDone()
+	require.NotNil(t, done)
+	assert.Equal(t,
+		spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR, done.Reason)
 	assert.Equal(t, 2, resolver.stepCount())
+}
+
+func TestFatalDoneIsCachedForLaterPolls(t *testing.T) {
+	resolver := &fakeTaskResolver{
+		tasks: []*spb.SweepSchedulerServerNextTaskResponse{generationTask()},
+	}
+	machine := newTestStateMachine(t, resolver)
+	machine.NextTask(nil)
+	fatal := machine.NextTask(nil)
+
+	// Once the session has failed, every later poll gets the same answer.
+	assert.Same(t, fatal, machine.NextTask(nil))
+	assert.Same(t, fatal, machine.NextTask(resultForSeq(fatal.TaskSeq)))
+	assert.Equal(t, 1, resolver.stepCount())
 }
 
 func TestDoneTaskIsTerminalAndCached(t *testing.T) {
@@ -173,7 +224,7 @@ func TestNilTaskResolverTaskBecomesShutdownDone(t *testing.T) {
 		task.GetDone().Reason)
 }
 
-func TestConcurrentPollsSerializeAndRedeliver(t *testing.T) {
+func TestConcurrentPollsSerialize(t *testing.T) {
 	resolver := &fakeTaskResolver{
 		tasks: []*spb.SweepSchedulerServerNextTaskResponse{generationTask()},
 		// Hold the first Step open until both polls are in flight.
@@ -190,11 +241,22 @@ func TestConcurrentPollsSerializeAndRedeliver(t *testing.T) {
 	wg.Wait()
 	close(responses)
 
-	// One poll computed the task and the other was redelivered it; the
-	// resolver ran exactly once either way.
+	// The client is supposed to keep one poll outstanding. Both are
+	// still answered: one computed the task, and the other could not be
+	// answering it, so it ended the session.
+	var tasks, fatals int
 	for response := range responses {
-		assert.EqualValues(t, 1, response.TaskSeq)
+		if done := response.GetDone(); done != nil {
+			assert.Equal(t,
+				spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR,
+				done.Reason)
+			fatals++
+		} else {
+			tasks++
+		}
 	}
+	assert.Equal(t, 1, tasks)
+	assert.Equal(t, 1, fatals)
 	assert.Equal(t, 1, resolver.stepCount())
 }
 
@@ -208,8 +270,7 @@ func TestStopForwardsWhileStepBlocked(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Go(func() { machine.NextTask(nil) })
 
-	// Stop must not block on the machine's mutex even though a Step is
-	// in progress under it.
+	// Stop must not block on the machine's mutex while a Step holds it.
 	machine.Stop()
 
 	resolver.blockStep <- struct{}{}
