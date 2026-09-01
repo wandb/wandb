@@ -1,13 +1,19 @@
+# ruff: noqa: E402
+
 from __future__ import annotations
 
 from wandb.errors.term import termwarn
 
+termwarn(
+    "`wandb.sandbox` is deprecated and will be removed in a future release. "
+    "Use the `cwsandbox` package directly instead.",
+    repeat=False,
+)
+
 try:
     import cwsandbox
 except ImportError as exc:
-    raise ImportError(
-        "cwsandbox is not installed. Please install it with: pip install wandb[sandbox]"
-    ) from exc
+    raise ImportError("cwsandbox is not installed") from exc
 
 from cwsandbox import *  # noqa: F403
 from cwsandbox import __all__ as cwsandbox_all
@@ -16,12 +22,6 @@ from cwsandbox import __all__ as cwsandbox_all
 from ._auth import _set_wandb_auth_mode
 from ._sandbox import Sandbox, Session
 from ._secret import Secret
-
-termwarn(
-    "`wandb.sandbox` is deprecated and will be removed in a future release. "
-    "Use the `cwsandbox` package directly instead.",
-    repeat=False,
-)
 
 _set_wandb_auth_mode()
 

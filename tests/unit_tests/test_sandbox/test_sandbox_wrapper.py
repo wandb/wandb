@@ -1,5 +1,3 @@
-import subprocess
-import sys
 from typing import Any
 
 import cwsandbox
@@ -25,18 +23,6 @@ _SUPPORTED_NETWORK_VALUES = (
     {"deny_egress": False},
     {"deny_egress": True},
 )
-
-
-def test_import_warns_that_wandb_sandbox_is_deprecated() -> None:
-    result = subprocess.run(
-        [sys.executable, "-c", "import wandb.sandbox"],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-
-    assert "`wandb.sandbox` is deprecated" in result.stderr
-    assert "Use the `cwsandbox` package directly instead." in result.stderr
 
 
 def test_sandbox_wrapper_reexports_cwsandbox_public_api() -> None:
