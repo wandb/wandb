@@ -5,7 +5,7 @@ import dataclasses
 import gzip
 import json
 import threading
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from typing import Any
 
 import fastapi
@@ -22,6 +22,7 @@ class WandbBackendSpy:
         self._runs: _Runs = _Runs()
         self._gql_stubs: list[gql_match.GQLStub] = []
         self._filestream_stubs: list[_FileStreamResponse] = []
+        self._graphql_rewriters: list[Callable[[bytes], bytes]] = []
 
     @contextlib.contextmanager
     def freeze(self) -> Generator[WandbBackendSnapshot]:
@@ -96,6 +97,24 @@ class WandbBackendSpy:
             self._filestream_stubs.extend(
                 [_FileStreamResponse(status=status, body=body)] * n_times
             )
+
+    def add_graphql_rewriter(
+        self,
+        rewriter: Callable[[bytes], bytes],
+    ) -> None:
+        """Rewrite GraphQL requests before stubs and relay handlers run."""
+        with self._lock:
+            self._graphql_rewriters.append(rewriter)
+
+    def rewrite_graphql(self, request_raw: bytes) -> bytes:
+        """Apply registered GraphQL request rewriters."""
+        with self._lock:
+            rewriters = self._graphql_rewriters
+
+        for rewriter in rewriters:
+            request_raw = rewriter(request_raw)
+
+        return request_raw
 
     def intercept_graphql(self, request_raw: bytes) -> fastapi.Response | None:
         """Intercept a GraphQL request to produce a fake response."""

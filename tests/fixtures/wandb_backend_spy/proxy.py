@@ -151,8 +151,15 @@ class WandbBackendProxy:
 
         return app
 
-    async def _relay(self, request: fastapi.Request) -> fastapi.Response:
+    async def _relay(
+        self,
+        request: fastapi.Request,
+        body: bytes | None = None,
+    ) -> fastapi.Response:
         """Forward the request to the actual backend and get the response."""
+        if body is None:
+            body = await request.body()
+
         forwarded_request = self._client.build_request(
             method=request.method,
             url=str(
@@ -161,7 +168,7 @@ class WandbBackendProxy:
                     port=self._target_port,
                 )
             ),
-            content=await request.body(),
+            content=body,
         )
         for header, value in request.headers.items():
             if header in _RELAYABLE_REQUEST_HEADERS:
@@ -184,15 +191,19 @@ class WandbBackendProxy:
         with self._lock:
             spy = self._spy
 
-        response = None
+        body = await request.body()
         if spy:
-            response = spy.intercept_graphql(await request.body())
+            body = spy.rewrite_graphql(body)
+            response = spy.intercept_graphql(body)
+        else:
+            response = None
+
         if not response:
-            response = await self._relay(request)
+            response = await self._relay(request, body)
 
         if spy:
             spy.post_graphql(
-                await request.body(),
+                body,
                 response.body,
                 response_code=response.status_code,
             )

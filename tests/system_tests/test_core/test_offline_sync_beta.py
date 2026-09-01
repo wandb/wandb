@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import pathlib
 import re
+import uuid
 from collections.abc import Callable
 from typing import cast
 
@@ -24,6 +26,53 @@ from tests.fixtures.emulated_terminal import EmulatedTerminal
 from tests.fixtures.wandb_backend_spy import WandbBackendSpy
 
 _T = TypeVar("_T")
+
+
+def _losses_in_step_order(history: dict[int, Any]) -> list[float]:
+    return [
+        row["loss"] for row in sorted(history.values(), key=lambda row: row["_step"])
+    ]
+
+
+def _fork_branch_point_step(config: str) -> int | None:
+    config_json = json.loads(config)
+    branch_point = config_json.get("_wandb", {}).get("value", {}).get("branch_point")
+    if not branch_point:
+        return None
+    return int(branch_point["step"])
+
+
+def _strip_fork_branch_point_from_upsert_bucket(request_raw: bytes) -> bytes:
+    """Strip fork metadata so the local testcontainer accepts UpsertBucket.
+
+    The testcontainer does not support fork upserts. Removing `branch_point`
+    lets sync create the run and upload client history. Parent history copied
+    server-side is not visible to `wandb_backend_spy`.
+    """
+    request = json.loads(request_raw)
+    query = request.get("query", "")
+    if "mutation UpsertBucket" not in query:
+        return request_raw
+
+    variables = request.get("variables")
+    if not isinstance(variables, dict):
+        return request_raw
+
+    config = variables.get("config")
+    if not isinstance(config, str) or _fork_branch_point_step(config) is None:
+        return request_raw
+
+    config_json = json.loads(config)
+    config_json.get("_wandb", {}).get("value", {}).pop("branch_point", None)
+    variables["config"] = json.dumps(config_json)
+    request["variables"] = variables
+    return json.dumps(request).encode()
+
+
+def _enable_fork_sync_on_testcontainer(wandb_backend_spy: WandbBackendSpy) -> None:
+    wandb_backend_spy.add_graphql_rewriter(
+        _strip_fork_branch_point_from_upsert_bucket,
+    )
 
 
 class _Tester:
@@ -378,6 +427,97 @@ def test_resyncs_resumed_offline_run_keep_same_steps(
         second_sync_steps = resumed_segment_steps(history)
 
     assert second_sync_steps == first_sync_steps
+
+
+def test_syncs_offline_resume_then_fork_then_resume(
+    wandb_backend_spy: WandbBackendSpy,
+    runner: CliRunner,
+):
+    """Offline resume, fork, and resume segments sync with correct history.
+
+    Covers a parent run resumed offline twice, an offline fork from that
+    parent, and a resumed offline segment on the forked run.
+    """
+    _enable_fork_sync_on_testcontainer(wandb_backend_spy)
+    parent_id = f"offline-parent-{uuid.uuid4().hex[:12]}"
+
+    with wandb.init(id=parent_id, mode="offline", resume="must") as parent1:
+        parent1.log({"loss": 0.5})
+        parent1.log({"loss": 0.7})
+
+    with wandb.init(id=parent_id, mode="offline", resume="must") as parent2:
+        parent2.log({"loss": 0.8})
+        parent2.log({"loss": 0.85})
+
+    with wandb.init(
+        fork_from=f"{parent_id}?_step=2",
+        mode="offline",
+    ) as fork1:
+        fork1.log({"loss": 0.6})
+        fork1.log({"loss": 0.4})
+        fork_id = fork1.id
+
+    with wandb.init(id=fork_id, mode="offline", resume="allow") as fork2:
+        fork2.log({"loss": 0.2})
+        fork2.log({"loss": 0.15})
+
+    # Parent and fork are different run paths, so `wandb beta sync` uploads them
+    # in parallel. Fork init needs the parent on the backend, so sync parent
+    # segments before fork segments.
+    runner.invoke(
+        cli.beta,
+        f"sync {parent1.sync_dir} {parent2.sync_dir}",
+    )
+    runner.invoke(
+        cli.beta,
+        f"sync {fork1.sync_dir} {fork2.sync_dir}",
+    )
+
+    with wandb_backend_spy.freeze() as snapshot:
+        parent_losses = _losses_in_step_order(snapshot.history(run_id=parent_id))
+        fork_losses = _losses_in_step_order(snapshot.history(run_id=fork_id))
+
+    assert parent_losses == [0.5, 0.7, 0.8, 0.85]
+    # Spy only sees client file_stream uploads, not parent history copied on fork.
+    assert fork_losses == [0.6, 0.4, 0.2, 0.15]
+
+
+@pytest.mark.parametrize(
+    "parent_case",
+    [
+        pytest.param("missing_run_id", id="missing_run_id"),
+        pytest.param("unsynced_offline_parent", id="unsynced_offline_parent"),
+    ],
+)
+def test_sync_offline_fork_without_parent_on_server__does_not_inherit_history(
+    wandb_backend_spy: WandbBackendSpy,
+    runner: CliRunner,
+    parent_case: str,
+):
+    """Fork sync cannot copy parent history when the parent is not on the backend."""
+    _enable_fork_sync_on_testcontainer(wandb_backend_spy)
+    if parent_case == "unsynced_offline_parent":
+        with wandb.init(mode="offline", resume="must") as parent:
+            parent.log({"loss": 0.5})
+            parent.log({"loss": 0.7})
+            parent_id = parent.id
+    else:
+        parent_id = f"missing-parent-{uuid.uuid4().hex[:12]}"
+
+    with wandb.init(
+        fork_from=f"{parent_id}?_step=1",
+        mode="offline",
+    ) as fork_run:
+        fork_run.log({"loss": 0.6})
+        fork_id = fork_run.id
+        fork_dir = fork_run.sync_dir
+
+    runner.invoke(cli.beta, f"sync {fork_dir}")
+
+    with wandb_backend_spy.freeze() as snapshot:
+        fork_losses = _losses_in_step_order(snapshot.history(run_id=fork_id))
+
+    assert fork_losses == [0.6]
 
 
 def test_sync_to_other_path(
