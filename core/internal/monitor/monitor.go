@@ -509,6 +509,13 @@ func (sm *SystemMonitor) sample() {
 //
 // Use to filter out expected/transient failures. Keep this intentionally small and specific.
 func ShouldCaptureSamplingError(err error) bool {
+	// The wandb-xpu sidecar failed to start. The first failure per run is
+	// returned unwrapped and captured; repeats carry this sentinel and are
+	// logged at debug level.
+	if errors.Is(err, ErrXPUInitReported) {
+		return false
+	}
+
 	// Transient gRPC connectivity to the wandb-xpu sidecar.
 	if s, ok := status.FromError(err); ok && s.Code() == codes.Unavailable {
 		return false
