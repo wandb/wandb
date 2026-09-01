@@ -935,6 +935,30 @@ type CreatedArtifactArtifactArtifactSequenceLatestArtifact struct {
 // GetId returns CreatedArtifactArtifactArtifactSequenceLatestArtifact.Id, and is useful for accessing the field via an interface.
 func (v *CreatedArtifactArtifactArtifactSequenceLatestArtifact) GetId() string { return v.Id }
 
+// EnqueueSweepRunEnqueueSweepRunEnqueueSweepRunPayload includes the requested fields of the GraphQL type EnqueueSweepRunPayload.
+type EnqueueSweepRunEnqueueSweepRunEnqueueSweepRunPayload struct {
+	Id             *string `json:"id"`
+	RunQueueItemId *string `json:"runQueueItemId"`
+}
+
+// GetId returns EnqueueSweepRunEnqueueSweepRunEnqueueSweepRunPayload.Id, and is useful for accessing the field via an interface.
+func (v *EnqueueSweepRunEnqueueSweepRunEnqueueSweepRunPayload) GetId() *string { return v.Id }
+
+// GetRunQueueItemId returns EnqueueSweepRunEnqueueSweepRunEnqueueSweepRunPayload.RunQueueItemId, and is useful for accessing the field via an interface.
+func (v *EnqueueSweepRunEnqueueSweepRunEnqueueSweepRunPayload) GetRunQueueItemId() *string {
+	return v.RunQueueItemId
+}
+
+// EnqueueSweepRunResponse is returned by EnqueueSweepRun on success.
+type EnqueueSweepRunResponse struct {
+	EnqueueSweepRun *EnqueueSweepRunEnqueueSweepRunEnqueueSweepRunPayload `json:"enqueueSweepRun"`
+}
+
+// GetEnqueueSweepRun returns EnqueueSweepRunResponse.EnqueueSweepRun, and is useful for accessing the field via an interface.
+func (v *EnqueueSweepRunResponse) GetEnqueueSweepRun() *EnqueueSweepRunEnqueueSweepRunEnqueueSweepRunPayload {
+	return v.EnqueueSweepRun
+}
+
 // FetchArtifactDigestAlgorithmProject includes the requested fields of the GraphQL type Project.
 type FetchArtifactDigestAlgorithmProject struct {
 	ArtifactType *FetchArtifactDigestAlgorithmProjectArtifactType `json:"artifactType"`
@@ -1782,6 +1806,34 @@ type RunResumeStatusResponse struct {
 // GetModel returns RunResumeStatusResponse.Model, and is useful for accessing the field via an interface.
 func (v *RunResumeStatusResponse) GetModel() *RunResumeStatusModelProject { return v.Model }
 
+// RunStateProject includes the requested fields of the GraphQL type Project.
+type RunStateProject struct {
+	Run *RunStateProjectRun `json:"run"`
+}
+
+// GetRun returns RunStateProject.Run, and is useful for accessing the field via an interface.
+func (v *RunStateProject) GetRun() *RunStateProjectRun { return v.Run }
+
+// RunStateProjectRun includes the requested fields of the GraphQL type Run.
+type RunStateProjectRun struct {
+	Id    string  `json:"id"`
+	State *string `json:"state"`
+}
+
+// GetId returns RunStateProjectRun.Id, and is useful for accessing the field via an interface.
+func (v *RunStateProjectRun) GetId() string { return v.Id }
+
+// GetState returns RunStateProjectRun.State, and is useful for accessing the field via an interface.
+func (v *RunStateProjectRun) GetState() *string { return v.State }
+
+// RunStateResponse is returned by RunState on success.
+type RunStateResponse struct {
+	Project *RunStateProject `json:"project"`
+}
+
+// GetProject returns RunStateResponse.Project, and is useful for accessing the field via an interface.
+func (v *RunStateResponse) GetProject() *RunStateProject { return v.Project }
+
 // RunStoppedStatusProject includes the requested fields of the GraphQL type Project.
 type RunStoppedStatusProject struct {
 	Run *RunStoppedStatusProjectRun `json:"run"`
@@ -1919,6 +1971,158 @@ type StopRunStopRunStopRunPayload struct {
 
 // GetSuccess returns StopRunStopRunStopRunPayload.Success, and is useful for accessing the field via an interface.
 func (v *StopRunStopRunStopRunPayload) GetSuccess() bool { return v.Success }
+
+// SweepConfigProject includes the requested fields of the GraphQL type Project.
+type SweepConfigProject struct {
+	Sweep *SweepConfigProjectSweep `json:"sweep"`
+}
+
+// GetSweep returns SweepConfigProject.Sweep, and is useful for accessing the field via an interface.
+func (v *SweepConfigProject) GetSweep() *SweepConfigProjectSweep { return v.Sweep }
+
+// SweepConfigProjectSweep includes the requested fields of the GraphQL type Sweep.
+type SweepConfigProjectSweep struct {
+	Id                string  `json:"id"`
+	State             string  `json:"state"`
+	Config            string  `json:"config"`
+	DisplayName       *string `json:"displayName"`
+	ControllerRunName string  `json:"controllerRunName"`
+}
+
+// GetId returns SweepConfigProjectSweep.Id, and is useful for accessing the field via an interface.
+func (v *SweepConfigProjectSweep) GetId() string { return v.Id }
+
+// GetState returns SweepConfigProjectSweep.State, and is useful for accessing the field via an interface.
+func (v *SweepConfigProjectSweep) GetState() string { return v.State }
+
+// GetConfig returns SweepConfigProjectSweep.Config, and is useful for accessing the field via an interface.
+func (v *SweepConfigProjectSweep) GetConfig() string { return v.Config }
+
+// GetDisplayName returns SweepConfigProjectSweep.DisplayName, and is useful for accessing the field via an interface.
+func (v *SweepConfigProjectSweep) GetDisplayName() *string { return v.DisplayName }
+
+// GetControllerRunName returns SweepConfigProjectSweep.ControllerRunName, and is useful for accessing the field via an interface.
+func (v *SweepConfigProjectSweep) GetControllerRunName() string { return v.ControllerRunName }
+
+// SweepConfigResponse is returned by SweepConfig on success.
+type SweepConfigResponse struct {
+	Project *SweepConfigProject `json:"project"`
+}
+
+// GetProject returns SweepConfigResponse.Project, and is useful for accessing the field via an interface.
+func (v *SweepConfigResponse) GetProject() *SweepConfigProject { return v.Project }
+
+// SweepRunsWithHistoryProject includes the requested fields of the GraphQL type Project.
+type SweepRunsWithHistoryProject struct {
+	Sweep *SweepRunsWithHistoryProjectSweep `json:"sweep"`
+}
+
+// GetSweep returns SweepRunsWithHistoryProject.Sweep, and is useful for accessing the field via an interface.
+func (v *SweepRunsWithHistoryProject) GetSweep() *SweepRunsWithHistoryProjectSweep { return v.Sweep }
+
+// SweepRunsWithHistoryProjectSweep includes the requested fields of the GraphQL type Sweep.
+type SweepRunsWithHistoryProjectSweep struct {
+	State string                                            `json:"state"`
+	Runs  SweepRunsWithHistoryProjectSweepRunsRunConnection `json:"runs"`
+}
+
+// GetState returns SweepRunsWithHistoryProjectSweep.State, and is useful for accessing the field via an interface.
+func (v *SweepRunsWithHistoryProjectSweep) GetState() string { return v.State }
+
+// GetRuns returns SweepRunsWithHistoryProjectSweep.Runs, and is useful for accessing the field via an interface.
+func (v *SweepRunsWithHistoryProjectSweep) GetRuns() SweepRunsWithHistoryProjectSweepRunsRunConnection {
+	return v.Runs
+}
+
+// SweepRunsWithHistoryProjectSweepRunsRunConnection includes the requested fields of the GraphQL type RunConnection.
+type SweepRunsWithHistoryProjectSweepRunsRunConnection struct {
+	PageInfo SweepRunsWithHistoryProjectSweepRunsRunConnectionPageInfo       `json:"pageInfo"`
+	Edges    []SweepRunsWithHistoryProjectSweepRunsRunConnectionEdgesRunEdge `json:"edges"`
+}
+
+// GetPageInfo returns SweepRunsWithHistoryProjectSweepRunsRunConnection.PageInfo, and is useful for accessing the field via an interface.
+func (v *SweepRunsWithHistoryProjectSweepRunsRunConnection) GetPageInfo() SweepRunsWithHistoryProjectSweepRunsRunConnectionPageInfo {
+	return v.PageInfo
+}
+
+// GetEdges returns SweepRunsWithHistoryProjectSweepRunsRunConnection.Edges, and is useful for accessing the field via an interface.
+func (v *SweepRunsWithHistoryProjectSweepRunsRunConnection) GetEdges() []SweepRunsWithHistoryProjectSweepRunsRunConnectionEdgesRunEdge {
+	return v.Edges
+}
+
+// SweepRunsWithHistoryProjectSweepRunsRunConnectionEdgesRunEdge includes the requested fields of the GraphQL type RunEdge.
+type SweepRunsWithHistoryProjectSweepRunsRunConnectionEdgesRunEdge struct {
+	Node SweepRunsWithHistoryProjectSweepRunsRunConnectionEdgesRunEdgeNodeRun `json:"node"`
+}
+
+// GetNode returns SweepRunsWithHistoryProjectSweepRunsRunConnectionEdgesRunEdge.Node, and is useful for accessing the field via an interface.
+func (v *SweepRunsWithHistoryProjectSweepRunsRunConnectionEdgesRunEdge) GetNode() SweepRunsWithHistoryProjectSweepRunsRunConnectionEdgesRunEdgeNodeRun {
+	return v.Node
+}
+
+// SweepRunsWithHistoryProjectSweepRunsRunConnectionEdgesRunEdgeNodeRun includes the requested fields of the GraphQL type Run.
+type SweepRunsWithHistoryProjectSweepRunsRunConnectionEdgesRunEdgeNodeRun struct {
+	Id             string        `json:"id"`
+	Name           string        `json:"name"`
+	State          *string       `json:"state"`
+	Config         *string       `json:"config"`
+	SummaryMetrics *string       `json:"summaryMetrics"`
+	SampledHistory []interface{} `json:"sampledHistory"`
+}
+
+// GetId returns SweepRunsWithHistoryProjectSweepRunsRunConnectionEdgesRunEdgeNodeRun.Id, and is useful for accessing the field via an interface.
+func (v *SweepRunsWithHistoryProjectSweepRunsRunConnectionEdgesRunEdgeNodeRun) GetId() string {
+	return v.Id
+}
+
+// GetName returns SweepRunsWithHistoryProjectSweepRunsRunConnectionEdgesRunEdgeNodeRun.Name, and is useful for accessing the field via an interface.
+func (v *SweepRunsWithHistoryProjectSweepRunsRunConnectionEdgesRunEdgeNodeRun) GetName() string {
+	return v.Name
+}
+
+// GetState returns SweepRunsWithHistoryProjectSweepRunsRunConnectionEdgesRunEdgeNodeRun.State, and is useful for accessing the field via an interface.
+func (v *SweepRunsWithHistoryProjectSweepRunsRunConnectionEdgesRunEdgeNodeRun) GetState() *string {
+	return v.State
+}
+
+// GetConfig returns SweepRunsWithHistoryProjectSweepRunsRunConnectionEdgesRunEdgeNodeRun.Config, and is useful for accessing the field via an interface.
+func (v *SweepRunsWithHistoryProjectSweepRunsRunConnectionEdgesRunEdgeNodeRun) GetConfig() *string {
+	return v.Config
+}
+
+// GetSummaryMetrics returns SweepRunsWithHistoryProjectSweepRunsRunConnectionEdgesRunEdgeNodeRun.SummaryMetrics, and is useful for accessing the field via an interface.
+func (v *SweepRunsWithHistoryProjectSweepRunsRunConnectionEdgesRunEdgeNodeRun) GetSummaryMetrics() *string {
+	return v.SummaryMetrics
+}
+
+// GetSampledHistory returns SweepRunsWithHistoryProjectSweepRunsRunConnectionEdgesRunEdgeNodeRun.SampledHistory, and is useful for accessing the field via an interface.
+func (v *SweepRunsWithHistoryProjectSweepRunsRunConnectionEdgesRunEdgeNodeRun) GetSampledHistory() []interface{} {
+	return v.SampledHistory
+}
+
+// SweepRunsWithHistoryProjectSweepRunsRunConnectionPageInfo includes the requested fields of the GraphQL type PageInfo.
+type SweepRunsWithHistoryProjectSweepRunsRunConnectionPageInfo struct {
+	HasNextPage bool    `json:"hasNextPage"`
+	EndCursor   *string `json:"endCursor"`
+}
+
+// GetHasNextPage returns SweepRunsWithHistoryProjectSweepRunsRunConnectionPageInfo.HasNextPage, and is useful for accessing the field via an interface.
+func (v *SweepRunsWithHistoryProjectSweepRunsRunConnectionPageInfo) GetHasNextPage() bool {
+	return v.HasNextPage
+}
+
+// GetEndCursor returns SweepRunsWithHistoryProjectSweepRunsRunConnectionPageInfo.EndCursor, and is useful for accessing the field via an interface.
+func (v *SweepRunsWithHistoryProjectSweepRunsRunConnectionPageInfo) GetEndCursor() *string {
+	return v.EndCursor
+}
+
+// SweepRunsWithHistoryResponse is returned by SweepRunsWithHistory on success.
+type SweepRunsWithHistoryResponse struct {
+	Project *SweepRunsWithHistoryProject `json:"project"`
+}
+
+// GetProject returns SweepRunsWithHistoryResponse.Project, and is useful for accessing the field via an interface.
+func (v *SweepRunsWithHistoryResponse) GetProject() *SweepRunsWithHistoryProject { return v.Project }
 
 type TagInput struct {
 	Attributes      *string `json:"attributes"`
@@ -2159,6 +2363,34 @@ func (v *UpsertRunQueueUpsertRunQueueUpsertRunQueuePayload) GetSuccess() *bool {
 func (v *UpsertRunQueueUpsertRunQueueUpsertRunQueuePayload) GetConfigSchemaValidationErrors() []string {
 	return v.ConfigSchemaValidationErrors
 }
+
+// UpsertSweepStateResponse is returned by UpsertSweepState on success.
+type UpsertSweepStateResponse struct {
+	UpsertSweep *UpsertSweepStateUpsertSweepUpsertSweepPayload `json:"upsertSweep"`
+}
+
+// GetUpsertSweep returns UpsertSweepStateResponse.UpsertSweep, and is useful for accessing the field via an interface.
+func (v *UpsertSweepStateResponse) GetUpsertSweep() *UpsertSweepStateUpsertSweepUpsertSweepPayload {
+	return v.UpsertSweep
+}
+
+// UpsertSweepStateUpsertSweepUpsertSweepPayload includes the requested fields of the GraphQL type UpsertSweepPayload.
+type UpsertSweepStateUpsertSweepUpsertSweepPayload struct {
+	Sweep *UpsertSweepStateUpsertSweepUpsertSweepPayloadSweep `json:"sweep"`
+}
+
+// GetSweep returns UpsertSweepStateUpsertSweepUpsertSweepPayload.Sweep, and is useful for accessing the field via an interface.
+func (v *UpsertSweepStateUpsertSweepUpsertSweepPayload) GetSweep() *UpsertSweepStateUpsertSweepUpsertSweepPayloadSweep {
+	return v.Sweep
+}
+
+// UpsertSweepStateUpsertSweepUpsertSweepPayloadSweep includes the requested fields of the GraphQL type Sweep.
+type UpsertSweepStateUpsertSweepUpsertSweepPayloadSweep struct {
+	State string `json:"state"`
+}
+
+// GetState returns UpsertSweepStateUpsertSweepUpsertSweepPayloadSweep.State, and is useful for accessing the field via an interface.
+func (v *UpsertSweepStateUpsertSweepUpsertSweepPayloadSweep) GetState() string { return v.State }
 
 type UseArtifactInput struct {
 	ArtifactEntityName  *string `json:"artifactEntityName,omitempty"`
@@ -2559,6 +2791,22 @@ func (v *__CreateRunQueueInput) GetDefaultResourceConfigID() *string {
 	return v.DefaultResourceConfigID
 }
 
+// __EnqueueSweepRunInput is used internally by genqlient
+type __EnqueueSweepRunInput struct {
+	Id          string  `json:"id"`
+	Config      string  `json:"config"`
+	DisplayName *string `json:"displayName"`
+}
+
+// GetId returns __EnqueueSweepRunInput.Id, and is useful for accessing the field via an interface.
+func (v *__EnqueueSweepRunInput) GetId() string { return v.Id }
+
+// GetConfig returns __EnqueueSweepRunInput.Config, and is useful for accessing the field via an interface.
+func (v *__EnqueueSweepRunInput) GetConfig() string { return v.Config }
+
+// GetDisplayName returns __EnqueueSweepRunInput.DisplayName, and is useful for accessing the field via an interface.
+func (v *__EnqueueSweepRunInput) GetDisplayName() *string { return v.DisplayName }
+
 // __FetchArtifactDigestAlgorithmInput is used internally by genqlient
 type __FetchArtifactDigestAlgorithmInput struct {
 	EntityName             string `json:"entityName"`
@@ -2833,6 +3081,22 @@ func (v *__RunResumeStatusInput) GetEntity() *string { return v.Entity }
 // GetName returns __RunResumeStatusInput.Name, and is useful for accessing the field via an interface.
 func (v *__RunResumeStatusInput) GetName() string { return v.Name }
 
+// __RunStateInput is used internally by genqlient
+type __RunStateInput struct {
+	Entity  string `json:"entity"`
+	Project string `json:"project"`
+	Run     string `json:"run"`
+}
+
+// GetEntity returns __RunStateInput.Entity, and is useful for accessing the field via an interface.
+func (v *__RunStateInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __RunStateInput.Project, and is useful for accessing the field via an interface.
+func (v *__RunStateInput) GetProject() string { return v.Project }
+
+// GetRun returns __RunStateInput.Run, and is useful for accessing the field via an interface.
+func (v *__RunStateInput) GetRun() string { return v.Run }
+
 // __RunStoppedStatusInput is used internally by genqlient
 type __RunStoppedStatusInput struct {
 	EntityName  *string `json:"entityName"`
@@ -2876,6 +3140,50 @@ type __StopRunInput struct {
 
 // GetId returns __StopRunInput.Id, and is useful for accessing the field via an interface.
 func (v *__StopRunInput) GetId() string { return v.Id }
+
+// __SweepConfigInput is used internally by genqlient
+type __SweepConfigInput struct {
+	Entity  string `json:"entity"`
+	Project string `json:"project"`
+	Sweep   string `json:"sweep"`
+}
+
+// GetEntity returns __SweepConfigInput.Entity, and is useful for accessing the field via an interface.
+func (v *__SweepConfigInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __SweepConfigInput.Project, and is useful for accessing the field via an interface.
+func (v *__SweepConfigInput) GetProject() string { return v.Project }
+
+// GetSweep returns __SweepConfigInput.Sweep, and is useful for accessing the field via an interface.
+func (v *__SweepConfigInput) GetSweep() string { return v.Sweep }
+
+// __SweepRunsWithHistoryInput is used internally by genqlient
+type __SweepRunsWithHistoryInput struct {
+	Entity       string   `json:"entity"`
+	Project      string   `json:"project"`
+	Sweep        string   `json:"sweep"`
+	First        int      `json:"first"`
+	Cursor       *string  `json:"cursor"`
+	HistorySpecs []string `json:"historySpecs"`
+}
+
+// GetEntity returns __SweepRunsWithHistoryInput.Entity, and is useful for accessing the field via an interface.
+func (v *__SweepRunsWithHistoryInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __SweepRunsWithHistoryInput.Project, and is useful for accessing the field via an interface.
+func (v *__SweepRunsWithHistoryInput) GetProject() string { return v.Project }
+
+// GetSweep returns __SweepRunsWithHistoryInput.Sweep, and is useful for accessing the field via an interface.
+func (v *__SweepRunsWithHistoryInput) GetSweep() string { return v.Sweep }
+
+// GetFirst returns __SweepRunsWithHistoryInput.First, and is useful for accessing the field via an interface.
+func (v *__SweepRunsWithHistoryInput) GetFirst() int { return v.First }
+
+// GetCursor returns __SweepRunsWithHistoryInput.Cursor, and is useful for accessing the field via an interface.
+func (v *__SweepRunsWithHistoryInput) GetCursor() *string { return v.Cursor }
+
+// GetHistorySpecs returns __SweepRunsWithHistoryInput.HistorySpecs, and is useful for accessing the field via an interface.
+func (v *__SweepRunsWithHistoryInput) GetHistorySpecs() []string { return v.HistorySpecs }
 
 // __UpdateArtifactInput is used internally by genqlient
 type __UpdateArtifactInput struct {
@@ -3030,6 +3338,18 @@ func (v *__UpsertRunQueueInput) GetExternalLinks() *string { return v.ExternalLi
 
 // GetClientMutationId returns __UpsertRunQueueInput.ClientMutationId, and is useful for accessing the field via an interface.
 func (v *__UpsertRunQueueInput) GetClientMutationId() *string { return v.ClientMutationId }
+
+// __UpsertSweepStateInput is used internally by genqlient
+type __UpsertSweepStateInput struct {
+	Id    string `json:"id"`
+	State string `json:"state"`
+}
+
+// GetId returns __UpsertSweepStateInput.Id, and is useful for accessing the field via an interface.
+func (v *__UpsertSweepStateInput) GetId() string { return v.Id }
+
+// GetState returns __UpsertSweepStateInput.State, and is useful for accessing the field via an interface.
+func (v *__UpsertSweepStateInput) GetState() string { return v.State }
 
 // __UseArtifactInput is used internally by genqlient
 type __UseArtifactInput struct {
@@ -3623,6 +3943,49 @@ func CreateRunQueue(
 	}
 
 	data_ = &CreateRunQueueResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The mutation executed by EnqueueSweepRun.
+const EnqueueSweepRun_Operation = `
+mutation EnqueueSweepRun ($id: ID!, $config: JSONString!, $displayName: String) {
+	enqueueSweepRun(input: {id:$id,config:$config,displayName:$displayName}) {
+		id
+		runQueueItemId
+	}
+}
+`
+
+// The scheduler joins the minted run back to its suggestion by the
+// returned id at the next poll; it sets no display name. The arguments
+// mirror the public API's EnqueueSweepRun operation in
+// wandb/apis/public/sweeps.py.
+func EnqueueSweepRun(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	id string,
+	config string,
+	displayName *string,
+) (data_ *EnqueueSweepRunResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "EnqueueSweepRun",
+		Query:  EnqueueSweepRun_Operation,
+		Variables: &__EnqueueSweepRunInput{
+			Id:          id,
+			Config:      config,
+			DisplayName: displayName,
+		},
+	}
+
+	data_ = &EnqueueSweepRunResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
@@ -4296,6 +4659,49 @@ func RunResumeStatus(
 	return data_, err_
 }
 
+// The query executed by RunState.
+const RunState_Operation = `
+query RunState ($entity: String!, $project: String!, $run: String!) {
+	project(name: $project, entityName: $entity) {
+		run(name: $run) {
+			id
+			state
+		}
+	}
+}
+`
+
+// Confirms a tracked run still exists before it is reaped as deleted:
+// a run can be missing from a paginated walk without being gone.
+func RunState(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+	run string,
+) (data_ *RunStateResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "RunState",
+		Query:  RunState_Operation,
+		Variables: &__RunStateInput{
+			Entity:  entity,
+			Project: project,
+			Run:     run,
+		},
+	}
+
+	data_ = &RunStateResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
 // The query executed by RunStoppedStatus.
 const RunStoppedStatus_Operation = `
 query RunStoppedStatus ($entityName: String, $projectName: String, $runId: String!) {
@@ -4471,6 +4877,112 @@ func StopRun(
 	}
 
 	data_ = &StopRunResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by SweepConfig.
+const SweepConfig_Operation = `
+query SweepConfig ($entity: String!, $project: String!, $sweep: String!) {
+	project(name: $project, entityName: $entity) {
+		sweep(sweepName: $sweep) {
+			id
+			state
+			config
+			displayName
+			controllerRunName
+		}
+	}
+}
+`
+
+func SweepConfig(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+	sweep string,
+) (data_ *SweepConfigResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "SweepConfig",
+		Query:  SweepConfig_Operation,
+		Variables: &__SweepConfigInput{
+			Entity:  entity,
+			Project: project,
+			Sweep:   sweep,
+		},
+	}
+
+	data_ = &SweepConfigResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by SweepRunsWithHistory.
+const SweepRunsWithHistory_Operation = `
+query SweepRunsWithHistory ($entity: String!, $project: String!, $sweep: String!, $first: Int!, $cursor: String, $historySpecs: [JSONString!]!) {
+	project(name: $project, entityName: $entity) {
+		sweep(sweepName: $sweep) {
+			state
+			runs(first: $first, after: $cursor) {
+				pageInfo {
+					hasNextPage
+					endCursor
+				}
+				edges {
+					node {
+						id
+						name
+						state
+						config
+						summaryMetrics
+						sampledHistory(specs: $historySpecs)
+					}
+				}
+			}
+		}
+	}
+}
+`
+
+func SweepRunsWithHistory(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+	sweep string,
+	first int,
+	cursor *string,
+	historySpecs []string,
+) (data_ *SweepRunsWithHistoryResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "SweepRunsWithHistory",
+		Query:  SweepRunsWithHistory_Operation,
+		Variables: &__SweepRunsWithHistoryInput{
+			Entity:       entity,
+			Project:      project,
+			Sweep:        sweep,
+			First:        first,
+			Cursor:       cursor,
+			HistorySpecs: historySpecs,
+		},
+	}
+
+	data_ = &SweepRunsWithHistoryResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
@@ -4694,6 +5206,44 @@ func UpsertRunQueue(
 	}
 
 	data_ = &UpsertRunQueueResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The mutation executed by UpsertSweepState.
+const UpsertSweepState_Operation = `
+mutation UpsertSweepState ($id: ID!, $state: String!) {
+	upsertSweep(input: {id:$id,state:$state}) {
+		sweep {
+			state
+		}
+	}
+}
+`
+
+func UpsertSweepState(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	id string,
+	state string,
+) (data_ *UpsertSweepStateResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "UpsertSweepState",
+		Query:  UpsertSweepState_Operation,
+		Variables: &__UpsertSweepStateInput{
+			Id:    id,
+			State: state,
+		},
+	}
+
+	data_ = &UpsertSweepStateResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
