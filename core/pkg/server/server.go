@@ -12,9 +12,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/monitor"
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runsync"
 	"github.com/wandb/wandb/core/internal/stream"
+	"github.com/wandb/wandb/core/internal/sweeps/scheduler"
 	"github.com/wandb/wandb/core/pkg/server/listeners"
 )
 
@@ -52,6 +55,9 @@ type Server struct {
 
 	// runSyncManager implements `wandb sync` operations.
 	runSyncManager *runsync.RunSyncManager
+
+	// sweepSchedBroker implements `wandb sweep-scheduler` sessions.
+	sweepSchedBroker *scheduler.IPCSessionBroker
 
 	// xpuResourceManager manages costly resources for accelerator system metrics.
 	xpuResourceManager *monitor.XPUResourceManager
@@ -120,6 +126,15 @@ func NewServer(params ServerParams) *Server {
 	serverLifetimeCtx, stopServer := context.WithCancel(context.Background())
 	forceStopCtx, forceStopCancelFunc := context.WithCancel(context.Background())
 
+	sweepSchedLogger := observability.NewCoreLogger(
+		slog.Default(),
+		nil,
+		analytics.NewTelemetryRecorder(
+			nil,
+			analytics.NewTelemetryContext(),
+		),
+	)
+
 	return &Server{
 		serverLifetimeCtx:   serverLifetimeCtx,
 		stopServer:          stopServer,
@@ -127,15 +142,19 @@ func NewServer(params ServerParams) *Server {
 		forceStopCancelFunc: forceStopCancelFunc,
 		streamMux:           stream.NewStreamMux(),
 		runSyncManager:      runsync.NewRunSyncManager(),
-		xpuResourceManager:  monitor.NewXPUResourceManager(params.EnableDCGMProfiling),
-		connectionsWG:       sync.WaitGroup{},
-		parentPID:           params.ParentPID,
-		detached:            params.Detached,
-		idleTimeout:         params.IdleTimeout,
-		commit:              params.Commit,
-		listenOnLocalhost:   params.ListenOnLocalhost,
-		loggerPath:          params.LoggerPath,
-		logLevel:            params.LogLevel,
+		sweepSchedBroker: scheduler.NewIPCSessionBroker(
+			scheduler.NewTaskResolverFactory(sweepSchedLogger),
+			sweepSchedLogger,
+		),
+		xpuResourceManager: monitor.NewXPUResourceManager(params.EnableDCGMProfiling),
+		connectionsWG:      sync.WaitGroup{},
+		parentPID:          params.ParentPID,
+		detached:           params.Detached,
+		idleTimeout:        params.IdleTimeout,
+		commit:             params.Commit,
+		listenOnLocalhost:  params.ListenOnLocalhost,
+		loggerPath:         params.LoggerPath,
+		logLevel:           params.LogLevel,
 	}
 }
 
@@ -200,6 +219,10 @@ func (s *Server) Serve(portFile string) error {
 	// Wait for the signal to shut down.
 	<-s.serverLifetimeCtx.Done()
 	slog.Info("server: is shutting down")
+
+	// Scheduler sessions die with their connections, but cancelling them
+	// here as well lets in-flight polls return promptly during shutdown.
+	s.sweepSchedBroker.Shutdown()
 
 	s.stopIdleTimer()
 
@@ -295,6 +318,7 @@ func (s *Server) handleConnection(conn net.Conn) {
 			Conn:               conn,
 			StreamMux:          s.streamMux,
 			RunSyncManager:     s.runSyncManager,
+			SweepSchedBroker:   s.sweepSchedBroker,
 			XPUResourceManager: s.xpuResourceManager,
 			Commit:             s.commit,
 			LoggerPath:         s.loggerPath,
