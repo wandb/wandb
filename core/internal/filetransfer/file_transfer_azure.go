@@ -12,8 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
@@ -26,7 +24,8 @@ import (
 )
 
 const (
-	maxAzureWorkers = 500
+	maxAzureWorkers = 32
+	azureBlockSize  = 4 * 1024 * 1024
 	// Azure blob storage urls have the following format:
 	// https://<storage-account-name>.blob.core.windows.net/<container-name>/<blob-name>
 	azureScheme = "https"
@@ -256,16 +255,9 @@ func (ft *AzureFileTransfer) uploadBlob(
 	task *DefaultUploadTask,
 	requestBody io.Reader,
 ) (*http.Response, error) {
-	clientOptions := blockblob.ClientOptions{
-		ClientOptions: azcore.ClientOptions{
-			Retry: policy.RetryOptions{
-				MaxRetries: 0,
-			},
-		},
-	}
 	blockBlobClient := ft.blockBlobClient
 	if blockBlobClient == nil {
-		client, err := blockblob.NewClientWithNoCredential(task.Url, &clientOptions)
+		client, err := blockblob.NewClientWithNoCredential(task.Url, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -274,7 +266,7 @@ func (ft *AzureFileTransfer) uploadBlob(
 
 	uploadOptions := blockblob.UploadStreamOptions{
 		Concurrency: 4,
-		BlockSize:   4 * 1024,
+		BlockSize:   azureBlockSize,
 		HTTPHeaders: &blob.HTTPHeaders{},
 	}
 
@@ -289,7 +281,11 @@ func (ft *AzureFileTransfer) uploadBlob(
 		uploadOptions.HTTPHeaders.BlobContentType = &contentType
 	}
 
-	resp, err := blockBlobClient.UploadStream(context.Background(), requestBody, &uploadOptions)
+	ctx := task.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	resp, err := blockBlobClient.UploadStream(ctx, requestBody, &uploadOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -571,6 +567,17 @@ func (ft *AzureFileTransfer) downloadBlobToFile(
 	if err != nil {
 		return fmt.Errorf("unable to create destination file %s: %w", localPath, err)
 	}
+	defer func() {
+		if err := destination.Close(); err != nil {
+			ft.logger.CaptureError(
+				fmt.Errorf(
+					"azure file transfer: download: error closing file %s: %w",
+					localPath,
+					err,
+				),
+			)
+		}
+	}()
 
 	// If version ID is specified, use the blob client to download the blob
 	_, ok := task.VersionIDString()
