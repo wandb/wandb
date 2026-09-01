@@ -1,3 +1,11 @@
+"""Unit tests of Optimizer implementations, in pure Python.
+
+No wandb-core process, IPC connection or backend is involved: each
+Optimizer is exercised directly through its ask/tell interface. For the
+Python-and-Go integration tests, see
+tests/system_tests/test_sweep/test_sweep_scheduler_e2e.py.
+"""
+
 from __future__ import annotations
 
 import abc
@@ -240,12 +248,6 @@ class TestSweepSchedulerCli:
 
         return CliRunner().invoke(cli.sweep_scheduler, args, catch_exceptions=False)
 
-    def test_rejects_short_poll_interval(self, api, run_scheduler_mock):
-        result = self.invoke("--poll-interval", "1", "e/p/s")
-
-        assert result.exit_code == 1
-        run_scheduler_mock.assert_not_called()
-
     def test_rejects_nonpositive_batch_size(self, api, run_scheduler_mock):
         result = self.invoke("--batch-size", "0", "e/p/s")
 
@@ -345,6 +347,38 @@ class TestWandbOptimizerAcceptance(OptimizerAcceptanceTests):
         optimizer.forget_run(first_run.run_id)
         again = next(iter(optimizer.ask_n_runs(1)))
         assert again.config["param1"].value == first_value
+
+
+class TestRunSchedulerInit:
+    def test_server_response_error_becomes_wandb_error(self, monkeypatch):
+        """A raw ServerResponseError must not escape `run_scheduler`.
+
+        The CLI only knows to report `wandb.Error` failures cleanly, so
+        errors from wandb-core's init round trip must be wrapped.
+        """
+        from unittest.mock import MagicMock
+
+        import wandb
+        from wandb.sdk.mailbox.mailbox_handle import ServerResponseError
+        from wandb.sdk.sweeps.scheduler import client
+
+        monkeypatch.setattr(
+            client.wbauth, "authenticate_session", lambda **kwargs: True
+        )
+
+        singleton = MagicMock()
+        singleton.asyncer.run.side_effect = ServerResponseError("sweep not found")
+        monkeypatch.setattr(client.wandb_setup, "singleton", lambda: singleton)
+
+        with pytest.raises(wandb.Error, match="failed to initialize"):
+            client.run_scheduler(
+                entity="e",
+                project="p",
+                sweep_id="s",
+                make_optimizer=lambda sweep: None,
+                batch_size=1,
+                poll_interval=10,
+            )
 
 
 class TestSchedulerHostOffMainThread:

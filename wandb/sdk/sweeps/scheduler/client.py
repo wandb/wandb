@@ -20,12 +20,12 @@ from wandb.errors import term
 from wandb.proto import wandb_sweep_scheduler_pb2 as sspb
 from wandb.sdk import wandb_setup
 from wandb.sdk.lib import wbauth
-from wandb.sdk.sweeps.scheduler.optimizer import Optimizer
 from wandb.sdk.sweeps.scheduler.ipc import (
     SchedulerTaskExchange,
     describe_done,
     forget_discards,
 )
+from wandb.sdk.sweeps.scheduler.optimizer import Optimizer
 from wandb.sdk.sweeps.sweep_info import SweepInfo
 
 # Init is one wandb-core round trip to the W&B backend, registering the
@@ -94,7 +94,11 @@ def run_scheduler(
         )
         return await handle.wait_async(timeout=_INIT_TIMEOUT_SECONDS)
 
-    init_response = singleton.asyncer.run(init)
+    try:
+        init_response = singleton.asyncer.run(init)
+    except Exception as e:
+        term.termerror(f"Sweep scheduler for {sweep_id} failed to initialize: {e}")
+        raise wandb.Error(f"The sweep scheduler failed to initialize: {e}") from e
 
     sweep = SweepInfo(
         id=sweep_id,
