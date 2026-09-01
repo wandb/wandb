@@ -13,7 +13,6 @@ import json
 import traceback
 
 from wandb.proto import wandb_sweep_scheduler_pb2 as sspb
-from wandb.sdk.lib import ratelimit
 from wandb.sdk.lib.service.service_connection import ServiceConnection
 from wandb.sdk.mailbox import HandleAbandonedError, MailboxClosedError
 from wandb.sdk.sweeps.run_state import RunState
@@ -23,9 +22,6 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
     RunConfig,
     RunWithMetrics,
 )
-
-# Guards against a hot loop if the server ever answers polls instantly.
-_POLL_COOLDOWN_SECONDS = 0.1
 
 
 class SchedulerServiceExitedError(Exception):
@@ -86,18 +82,9 @@ class SchedulerTaskExchange:
         scheduler_id: str,
         optimizer: Optimizer,
     ) -> None:
-        # One optimizer instance per scheduler session: its state mirrors
-        # the session's, and reusing it would double-count adopted runs.
-        optimizer.bind_to_scheduler()
-
         self._service = service
         self._id = scheduler_id
         self._optimizer = optimizer
-
-        # The last applied task and its result, so a redelivered task is
-        # answered from cache instead of re-running optimizer hooks.
-        self._last_seq: int | None = None
-        self._last_result: sspb.SweepSchedulerClientTaskResult | None = None
 
     async def run(self) -> sspb.SweepSchedulerServerDoneTask:
         """Exchange tasks until the scheduler is done.
@@ -110,13 +97,8 @@ class SchedulerTaskExchange:
                 state is stored on the backend, so rerunning the scheduler
                 resumes it.
         """
-        # Constructed here because Cooldown reads the running loop's clock.
-        rate_limit = ratelimit.Cooldown(_POLL_COOLDOWN_SECONDS)
-
         result: sspb.SweepSchedulerClientTaskResult | None = None
         while True:
-            await rate_limit.wait()
-
             handle = await self._service.sweep_scheduler_next_task(self._id, result)
             try:
                 response = await handle.wait_async(timeout=None)
@@ -134,19 +116,10 @@ class SchedulerTaskExchange:
             if response.WhichOneof("task") == "done":
                 return response.done
 
-            if response.task_seq == self._last_seq and self._last_result is not None:
-                # A redelivered task: our previous response was lost.
-                # Resend the identical result without touching the
-                # optimizer, whose state already reflects it.
-                result = self._last_result
-                continue
-
             # Optimizer calls can block for minutes; run them off the
             # event loop so the mailbox stays responsive.
             result = await asyncio.to_thread(self._execute, response)
             result.task_seq = response.task_seq
-            self._last_seq = response.task_seq
-            self._last_result = result
 
     def _execute(
         self,
