@@ -107,7 +107,8 @@ const (
 	SweepSchedulerServerDoneTask_REASON_SWEEP_FINISHED SweepSchedulerServerDoneTask_Reason = 3
 	// The sweep was deleted.
 	SweepSchedulerServerDoneTask_REASON_SWEEP_NOT_FOUND SweepSchedulerServerDoneTask_Reason = 4
-	// A fatal backend error, or too many consecutive errors.
+	// A fatal backend error, too many consecutive errors, or a result
+	// that did not answer the task the scheduler issued last.
 	SweepSchedulerServerDoneTask_REASON_FATAL_ERROR SweepSchedulerServerDoneTask_Reason = 5
 	// The client reported a task error.
 	SweepSchedulerServerDoneTask_REASON_OPTIMIZER_ERROR SweepSchedulerServerDoneTask_Reason = 6
@@ -224,12 +225,10 @@ func (SweepSchedulerClientGenerationResult_AskOutcome) EnumDescriptor() ([]byte,
 
 // Starts a sweep-scheduling loop in wandb-core.
 //
-// Core fetches the sweep, verifies that the server supports locally
-// scheduled sweeps, and prepares the loop. The response includes the
-// sweep's config so the client can build an optimizer without its own
-// backend access. Errors (sweep not found, unsupported server, a live
-// scheduler for the same sweep in this process) are returned as a
-// ServerErrorResponse.
+// The response carries the sweep's config so the client can build an
+// optimizer without its own backend access. Errors (sweep not found,
+// unsupported server, a live scheduler for the same sweep in this
+// process) are returned as a ServerErrorResponse.
 type SweepSchedulerClientInitRequest struct {
 	state   protoimpl.MessageState `protogen:"open.v1"`
 	Entity  string                 `protobuf:"bytes,1,opt,name=entity,proto3" json:"entity,omitempty"`
@@ -327,12 +326,11 @@ type SweepSchedulerServerInitResponse struct {
 	SweepConfig string `protobuf:"bytes,2,opt,name=sweep_config,json=sweepConfig,proto3" json:"sweep_config,omitempty"`
 	// The sweep's display name.
 	DisplayName string `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
-	// The name of the run that collects the scheduler's logs, if the
-	// server created one for this sweep.
+	// The run that collects the scheduler's logs, if the server created
+	// one for this sweep.
 	//
 	// Log delivery is not part of this protocol: the client streams its
-	// console output to this run through the regular runs system, and the
-	// backend orders lines from the sweep's several writers.
+	// console output to this run through the regular runs system.
 	ControllerRunName string `protobuf:"bytes,4,opt,name=controller_run_name,json=controllerRunName,proto3" json:"controller_run_name,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
@@ -398,18 +396,24 @@ func (x *SweepSchedulerServerInitResponse) GetControllerRunName() string {
 
 // Reports the previous task's result and asks for the next task.
 //
-// This is a long poll: the response arrives once the next task is ready,
-// up to roughly one poll interval later. The client keeps exactly one
-// request outstanding per scheduler.
+// This is a long poll: the response arrives once the next task is
+// ready, up to roughly one poll interval later. It must not time out
+// on the client and must not be retried; a Stop request, or the
+// connection closing, is what ends a waiting poll early.
+//
+// The client must keep exactly one request outstanding per scheduler:
+// the exchange is strictly alternating over a reliable ordered socket,
+// so the server never resends a task or tolerates a repeated result.
 type SweepSchedulerClientNextTaskRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The scheduler's ID, from SweepSchedulerServerInitResponse.
 	SessionId string `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	// The result of the previous task. Unset on the first poll.
+	// The result of the previous task. Unset only on the first poll.
 	//
-	// A client retrying after a lost response must resend the identical
-	// result with its original task_seq; the server applies each task's
-	// result at most once and otherwise redelivers the unacknowledged task.
+	// It must answer the task the server issued last, carrying that task's
+	// task_seq. Anything else — a missing, repeated or stale result —
+	// means the two sides no longer agree on where the sweep is, and the
+	// server ends the session with a REASON_FATAL_ERROR Done task.
 	Result        *SweepSchedulerClientTaskResult `protobuf:"bytes,2,opt,name=result,proto3" json:"result,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -629,9 +633,8 @@ type SweepSchedulerServerWarmStartTask struct {
 	ActiveRuns []*SweepSchedulerServerRunData `protobuf:"bytes,2,rep,name=active_runs,json=activeRuns,proto3" json:"active_runs,omitempty"`
 	// Whether more warm-start pages follow this one.
 	//
-	// Informational: a client does not need it to page, because each page is
-	// delivered as its own task and the last one is followed by a generation
-	// task. It lets a client report warm-start progress.
+	// Informational: each page is its own task and the last is followed by
+	// a generation task, so a client needs this only to report progress.
 	HasMore       bool `protobuf:"varint,3,opt,name=has_more,json=hasMore,proto3" json:"has_more,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -701,10 +704,9 @@ type SweepSchedulerServerGenerationTask struct {
 	// SweepSchedulerClientGenerationResult.prune outside this list are
 	// ignored.
 	PruneCandidates []string `protobuf:"bytes,3,rep,name=prune_candidates,json=pruneCandidates,proto3" json:"prune_candidates,omitempty"`
-	// Optimizer run ids of suggestions the scheduler accepted earlier but
-	// could not durably schedule (for example, the enqueue failed or the
-	// sweep finished first). Each discarded id is reported exactly once;
-	// no update ever follows for it.
+	// Optimizer run ids of suggestions the scheduler accepted but could
+	// not durably schedule (the enqueue failed, the sweep finished).
+	// Each id is reported exactly once and no update ever follows it.
 	DiscardedOptimizerRunIds []string `protobuf:"bytes,4,rep,name=discarded_optimizer_run_ids,json=discardedOptimizerRunIds,proto3" json:"discarded_optimizer_run_ids,omitempty"`
 	unknownFields            protoimpl.UnknownFields
 	sizeCache                protoimpl.SizeCache
@@ -772,11 +774,8 @@ func (x *SweepSchedulerServerGenerationTask) GetDiscardedOptimizerRunIds() []str
 type SweepSchedulerServerRunUpdate struct {
 	state protoimpl.MessageState       `protogen:"open.v1"`
 	Run   *SweepSchedulerServerRunData `protobuf:"bytes,1,opt,name=run,proto3" json:"run,omitempty"`
-	// True when this is the final update of a run the optimizer pruned.
-	//
-	// Informational: tells must be idempotent regardless, but it lets an
-	// optimizer tell its own pruning apart from a run that stopped on its
-	// own.
+	// True when this is the final update of a run the optimizer pruned,
+	// which tells its own pruning apart from a run that stopped by itself.
 	Pruned        bool `protobuf:"varint,2,opt,name=pruned,proto3" json:"pruned,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

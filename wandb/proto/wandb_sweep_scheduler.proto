@@ -8,16 +8,14 @@ option go_package = "core/pkg/service_go_proto";
 
 // The sweep-scheduler protocol between a Python client and wandb-core.
 //
-// wandb-core (the Server) owns the scheduling loop and all backend I/O:
-// it polls the sweep, tracks in-flight runs, enqueues and stops runs.
+// wandb-core (the Server) owns the scheduling loop and all backend I/O.
 // The Python process (the Client) hosts the search strategy (the
-// "optimizer") and repeatedly long-polls for the next task, reporting the
-// previous task's result on each poll.
+// "optimizer") and long-polls for the next task, reporting the previous
+// task's result on each poll.
 //
-// Message names state the origin: SweepSchedulerClient* messages originate
-// from the Python client and flow client-to-server; SweepSchedulerServer*
-// messages originate from wandb-core and flow server-to-client. Request
-// and Response suffixes mark the RPC pair on the server socket.
+// Message names state the origin: SweepSchedulerClient* flows
+// client-to-server, SweepSchedulerServer* server-to-client. Request and
+// Response suffixes mark the RPC pair on the server socket.
 
 // A sweep run's state as reported by the W&B backend.
 //
@@ -38,12 +36,10 @@ enum SweepRunState {
 
 // Starts a sweep-scheduling loop in wandb-core.
 //
-// Core fetches the sweep, verifies that the server supports locally
-// scheduled sweeps, and prepares the loop. The response includes the
-// sweep's config so the client can build an optimizer without its own
-// backend access. Errors (sweep not found, unsupported server, a live
-// scheduler for the same sweep in this process) are returned as a
-// ServerErrorResponse.
+// The response carries the sweep's config so the client can build an
+// optimizer without its own backend access. Errors (sweep not found,
+// unsupported server, a live scheduler for the same sweep in this
+// process) are returned as a ServerErrorResponse.
 message SweepSchedulerClientInitRequest {
   string entity = 1;
   string project = 2;
@@ -72,29 +68,34 @@ message SweepSchedulerServerInitResponse {
   // The sweep's display name.
   string display_name = 3;
 
-  // The name of the run that collects the scheduler's logs, if the
-  // server created one for this sweep.
+  // The run that collects the scheduler's logs, if the server created
+  // one for this sweep.
   //
   // Log delivery is not part of this protocol: the client streams its
-  // console output to this run through the regular runs system, and the
-  // backend orders lines from the sweep's several writers.
+  // console output to this run through the regular runs system.
   string controller_run_name = 4;
 }
 
 // Reports the previous task's result and asks for the next task.
 //
-// This is a long poll: the response arrives once the next task is ready,
-// up to roughly one poll interval later. The client keeps exactly one
-// request outstanding per scheduler.
+// This is a long poll: the response arrives once the next task is
+// ready, up to roughly one poll interval later. It must not time out
+// on the client and must not be retried; a Stop request, or the
+// connection closing, is what ends a waiting poll early.
+//
+// The client must keep exactly one request outstanding per scheduler:
+// the exchange is strictly alternating over a reliable ordered socket,
+// so the server never resends a task or tolerates a repeated result.
 message SweepSchedulerClientNextTaskRequest {
   // The scheduler's ID, from SweepSchedulerServerInitResponse.
   string session_id = 1;
 
-  // The result of the previous task. Unset on the first poll.
+  // The result of the previous task. Unset only on the first poll.
   //
-  // A client retrying after a lost response must resend the identical
-  // result with its original task_seq; the server applies each task's
-  // result at most once and otherwise redelivers the unacknowledged task.
+  // It must answer the task the server issued last, carrying that task's
+  // task_seq. Anything else — a missing, repeated or stale result —
+  // means the two sides no longer agree on where the sweep is, and the
+  // server ends the session with a REASON_FATAL_ERROR Done task.
   SweepSchedulerClientTaskResult result = 2;
 }
 
@@ -131,9 +132,8 @@ message SweepSchedulerServerWarmStartTask {
 
   // Whether more warm-start pages follow this one.
   //
-  // Informational: a client does not need it to page, because each page is
-  // delivered as its own task and the last one is followed by a generation
-  // task. It lets a client report warm-start progress.
+  // Informational: each page is its own task and the last is followed by
+  // a generation task, so a client needs this only to report progress.
   bool has_more = 3;
 }
 
@@ -152,10 +152,9 @@ message SweepSchedulerServerGenerationTask {
   // ignored.
   repeated string prune_candidates = 3;
 
-  // Optimizer run ids of suggestions the scheduler accepted earlier but
-  // could not durably schedule (for example, the enqueue failed or the
-  // sweep finished first). Each discarded id is reported exactly once;
-  // no update ever follows for it.
+  // Optimizer run ids of suggestions the scheduler accepted but could
+  // not durably schedule (the enqueue failed, the sweep finished).
+  // Each id is reported exactly once and no update ever follows it.
   repeated string discarded_optimizer_run_ids = 4;
 }
 
@@ -163,11 +162,8 @@ message SweepSchedulerServerGenerationTask {
 message SweepSchedulerServerRunUpdate {
   SweepSchedulerServerRunData run = 1;
 
-  // True when this is the final update of a run the optimizer pruned.
-  //
-  // Informational: tells must be idempotent regardless, but it lets an
-  // optimizer tell its own pruning apart from a run that stopped on its
-  // own.
+  // True when this is the final update of a run the optimizer pruned,
+  // which tells its own pruning apart from a run that stopped by itself.
   bool pruned = 2;
 }
 
@@ -211,7 +207,8 @@ message SweepSchedulerServerDoneTask {
     // The sweep was deleted.
     REASON_SWEEP_NOT_FOUND = 4;
 
-    // A fatal backend error, or too many consecutive errors.
+    // A fatal backend error, too many consecutive errors, or a result
+    // that did not answer the task the scheduler issued last.
     REASON_FATAL_ERROR = 5;
 
     // The client reported a task error.
