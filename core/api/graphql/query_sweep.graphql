@@ -1,0 +1,61 @@
+query SweepConfig(
+    $entity: String!,
+    $project: String!,
+    $sweep: String!,
+) {
+    project(name: $project, entityName: $entity) {
+        sweep(sweepName: $sweep) {
+            id
+            state
+            config
+            displayName
+            controllerRunName
+        }
+    }
+}
+
+query SweepRunsWithHistory(
+    $entity: String!,
+    $project: String!,
+    $sweep: String!,
+    $first: Int!,
+    $cursor: String,
+    $historySpecs: [JSONString!]!,
+) {
+    project(name: $project, entityName: $entity) {
+        sweep(sweepName: $sweep) {
+            state
+            runs(first: $first, after: $cursor) {
+                pageInfo {
+                    hasNextPage
+                    endCursor
+                }
+                edges {
+                    node {
+                        id
+                        name
+                        state
+                        config
+                        summaryMetrics
+                        sampledHistory(specs: $historySpecs)
+                    }
+                }
+            }
+        }
+    }
+}
+
+# Confirms a tracked run still exists before it is reaped as deleted:
+# a run can be missing from a paginated walk without being gone.
+query RunState(
+    $entity: String!,
+    $project: String!,
+    $run: String!,
+) {
+    project(name: $project, entityName: $entity) {
+        run(name: $run) {
+            id
+            state
+        }
+    }
+}
