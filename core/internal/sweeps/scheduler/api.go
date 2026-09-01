@@ -41,13 +41,12 @@ func NewSweepAPI(
 
 // SweepFacts is the sweep as fetched at init and on state checks.
 type SweepFacts struct {
-	NodeID string
-	State string
-	Config string
+	NodeID      string
+	State       string
+	Config      string
 	DisplayName string
 
-	// ControllerRunName is the name of the run collecting the
-	// scheduler's logs
+	// ControllerRunName is the run collecting the scheduler's logs.
 	ControllerRunName string
 }
 
@@ -55,11 +54,11 @@ type SweepFacts struct {
 type PollRun struct {
 	// StorageID is the run's GraphQL node id, used to stop the run.
 	StorageID string
-	Name string
-	State string
+	Name      string
+	State     string
 
 	// {param: {"value": v}}, as a JSON object string.
-	ConfigJSON string
+	ConfigJSON  string
 	SummaryJSON string
 	HistoryJSON string
 }
@@ -84,8 +83,7 @@ func (a *SweepAPI) CheckLocalSchedulerSupported(ctx context.Context) error {
 	return nil
 }
 
-// FetchSweep returns the sweep's node id, state, config, display name and
-// controller run name.
+// FetchSweep fetches the sweep's facts.
 //
 // Returns ErrSweepNotFound if the sweep (or its project) does not exist.
 func (a *SweepAPI) FetchSweep(ctx context.Context) (*SweepFacts, error) {
@@ -114,10 +112,9 @@ func (a *SweepAPI) FetchSweep(ctx context.Context) (*SweepFacts, error) {
 
 // PollPage fetches one page of the sweep's runs with the sweep's state.
 //
-// pageSize caps how many runs the page holds. metricKey selects the
-// metric whose sampled history each run carries; pass "" to skip
-// history. Returns ErrSweepNotFound if the sweep (or its project) does
-// not exist.
+// metricKey selects the metric whose sampled history each run carries;
+// pass "" to skip history. Returns ErrSweepNotFound if the sweep (or
+// its project) does not exist.
 func (a *SweepAPI) PollPage(
 	ctx context.Context,
 	pageSize int,
@@ -183,10 +180,8 @@ func historyJSON(sampled []any) string {
 	return string(encoded)
 }
 
-// ConfirmRunExists reports whether the named run still exists.
-//
-// Used before reaping a tracked run as deleted: a run can be missing from
-// a paginated poll without being gone.
+// ConfirmRunExists reports whether the named run still exists: a run
+// can be missing from a paginated poll without being gone.
 func (a *SweepAPI) ConfirmRunExists(
 	ctx context.Context,
 	runName string,
@@ -203,9 +198,9 @@ func (a *SweepAPI) ConfirmRunExists(
 	return project != nil && project.GetRun() != nil, nil
 }
 
-// EnqueueRun creates a run with the given wire-form config in the sweep's
-// run queue and returns the id the backend minted for it: the name of a
-// run that is guaranteed to appear in the sweep as pending.
+// EnqueueRun queues a run with the given wire-form config and returns
+// the id the backend minted: the name of a run guaranteed to appear in
+// the sweep as pending.
 func (a *SweepAPI) EnqueueRun(
 	ctx context.Context,
 	sweepNodeID string,
@@ -229,8 +224,7 @@ func (a *SweepAPI) EnqueueRun(
 
 // StopRun asks the backend to stop the run with the given node id.
 //
-// Returns false when the backend refused, which includes runs that have
-// already stopped.
+// Returns false when the backend refused, e.g. an already-stopped run.
 func (a *SweepAPI) StopRun(ctx context.Context, storageID string) (bool, error) {
 	data, err := gql.StopRun(ctx, a.gqlClient, storageID)
 	if err != nil {
@@ -244,8 +238,7 @@ func (a *SweepAPI) StopRun(ctx context.Context, storageID string) (bool, error) 
 	return payload.GetSuccess(), nil
 }
 
-// UpsertSweepState sets the sweep's state, e.g. to "FINISHED" when the
-// search space is exhausted or the optimizer terminates the sweep.
+// UpsertSweepState sets the sweep's state, e.g. "FINISHED".
 func (a *SweepAPI) UpsertSweepState(
 	ctx context.Context,
 	sweepNodeID string,
