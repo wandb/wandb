@@ -467,6 +467,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (shutdown_sender, shutdown_receiver) = tokio::sync::oneshot::channel::<()>();
     let shutdown_sender = Arc::new(tokio::sync::Mutex::new(Some(shutdown_sender)));
 
+    // Bind the socket and publish the portfile before initializing hardware
+    // monitors, so wandb-core does not wait on driver initialization.
+    let listener = create_listener(&args).await?;
+
     let system_monitor_service = SystemMonitorServiceImpl::new(
         args.parent_pid,
         args.enable_dcgm_profiling,
@@ -480,8 +484,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         shutdown_receiver.await.ok();
         debug!("Server is shutting down...");
     };
-
-    let listener = create_listener(&args).await?;
 
     match listener {
         ListenerType::Tcp(stream) => {
