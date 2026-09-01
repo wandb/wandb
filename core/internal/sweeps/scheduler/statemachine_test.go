@@ -7,58 +7,22 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/wandb/wandb/core/internal/observabilitytest"
+	"github.com/wandb/wandb/core/internal/sweeps/schedulertest"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
+
+// newTestResolver builds a mock resolver verified when the test ends.
+func newTestResolver(t *testing.T) *schedulertest.MockTaskResolver {
+	return schedulertest.NewMockTaskResolver(gomock.NewController(t))
+}
 
 // newTestStateMachine builds a state machine logging to the test's output.
 func newTestStateMachine(t *testing.T, resolver TaskResolver) *schedulerStateMachine {
 	return newSchedulerStateMachine(
 		context.Background(), resolver, observabilitytest.NewTestLogger(t))
-}
-
-// fakeTaskResolver scripts Step returns and records the results it received.
-type fakeTaskResolver struct {
-	mu      sync.Mutex
-	tasks   []*spb.SweepSchedulerServerNextTaskResponse
-	results []*spb.SweepSchedulerClientTaskResult
-	stopped bool
-
-	// blockStep, when non-nil, is received from at the start of each
-	// Step call so a test can hold a Step open.
-	blockStep chan struct{}
-}
-
-func (s *fakeTaskResolver) Step(
-	ctx context.Context,
-	result *spb.SweepSchedulerClientTaskResult,
-) *spb.SweepSchedulerServerNextTaskResponse {
-	if s.blockStep != nil {
-		<-s.blockStep
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.results = append(s.results, result)
-	if len(s.tasks) == 0 {
-		return nil
-	}
-	task := s.tasks[0]
-	s.tasks = s.tasks[1:]
-	return task
-}
-
-func (s *fakeTaskResolver) Stop() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.stopped = true
-}
-
-func (s *fakeTaskResolver) stepCount() int {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return len(s.results)
 }
 
 func generationTask() *spb.SweepSchedulerServerNextTaskResponse {
@@ -83,39 +47,50 @@ func resultForSeq(seq uint64) *spb.SweepSchedulerClientTaskResult {
 	return &spb.SweepSchedulerClientTaskResult{TaskSeq: seq}
 }
 
+// answering matches the result that answers task seq.
+func answering(seq uint64) gomock.Matcher {
+	return gomock.Cond(func(result *spb.SweepSchedulerClientTaskResult) bool {
+		return result != nil && result.TaskSeq == seq
+	})
+}
+
 func TestFirstPollStepsWithNilResult(t *testing.T) {
-	resolver := &fakeTaskResolver{
-		tasks: []*spb.SweepSchedulerServerNextTaskResponse{generationTask()},
-	}
+	resolver := newTestResolver(t)
+	resolver.EXPECT().
+		Step(gomock.Any(), gomock.Nil()).
+		Return(generationTask())
 	machine := newTestStateMachine(t, resolver)
 
 	task := machine.NextTask(nil)
 
 	assert.EqualValues(t, 1, task.TaskSeq)
-	require.Equal(t, 1, resolver.stepCount())
-	assert.Nil(t, resolver.results[0])
 }
 
 func TestMatchingResultAdvances(t *testing.T) {
-	resolver := &fakeTaskResolver{
-		tasks: []*spb.SweepSchedulerServerNextTaskResponse{
-			generationTask(), generationTask(),
-		},
-	}
+	resolver := newTestResolver(t)
+	gomock.InOrder(
+		resolver.EXPECT().
+			Step(gomock.Any(), gomock.Nil()).
+			Return(generationTask()),
+		resolver.EXPECT().
+			Step(gomock.Any(), answering(1)).
+			Return(generationTask()),
+	)
 	machine := newTestStateMachine(t, resolver)
 	first := machine.NextTask(nil)
 
 	second := machine.NextTask(resultForSeq(first.TaskSeq))
 
 	assert.EqualValues(t, 2, second.TaskSeq)
-	require.Equal(t, 2, resolver.stepCount())
-	assert.EqualValues(t, 1, resolver.results[1].TaskSeq)
 }
 
 func TestMissingResultEndsSessionWithFatalDone(t *testing.T) {
-	resolver := &fakeTaskResolver{
-		tasks: []*spb.SweepSchedulerServerNextTaskResponse{generationTask()},
-	}
+	resolver := newTestResolver(t)
+	// The lone expectation also asserts that the resolver never sees the
+	// desynchronized poll.
+	resolver.EXPECT().
+		Step(gomock.Any(), gomock.Nil()).
+		Return(generationTask())
 	machine := newTestStateMachine(t, resolver)
 	machine.NextTask(nil)
 
@@ -127,14 +102,13 @@ func TestMissingResultEndsSessionWithFatalDone(t *testing.T) {
 	assert.Equal(t,
 		spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR, done.Reason)
 	assert.Contains(t, done.Message, "out of sync")
-	// The resolver never saw the desynchronized poll.
-	assert.Equal(t, 1, resolver.stepCount())
 }
 
 func TestStaleResultEndsSessionWithFatalDone(t *testing.T) {
-	resolver := &fakeTaskResolver{
-		tasks: []*spb.SweepSchedulerServerNextTaskResponse{generationTask()},
-	}
+	resolver := newTestResolver(t)
+	resolver.EXPECT().
+		Step(gomock.Any(), gomock.Nil()).
+		Return(generationTask())
 	machine := newTestStateMachine(t, resolver)
 	first := machine.NextTask(nil)
 
@@ -144,13 +118,11 @@ func TestStaleResultEndsSessionWithFatalDone(t *testing.T) {
 	require.NotNil(t, done)
 	assert.Equal(t,
 		spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR, done.Reason)
-	assert.Equal(t, 1, resolver.stepCount())
 }
 
 func TestResultOnFirstPollEndsSessionWithFatalDone(t *testing.T) {
-	resolver := &fakeTaskResolver{
-		tasks: []*spb.SweepSchedulerServerNextTaskResponse{generationTask()},
-	}
+	// No expectations: nothing may reach the resolver.
+	resolver := newTestResolver(t)
 	machine := newTestStateMachine(t, resolver)
 
 	// No task has been issued, so there is nothing this result can answer.
@@ -160,15 +132,18 @@ func TestResultOnFirstPollEndsSessionWithFatalDone(t *testing.T) {
 	require.NotNil(t, done)
 	assert.Equal(t,
 		spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR, done.Reason)
-	assert.Equal(t, 0, resolver.stepCount())
 }
 
 func TestRepeatedResultEndsSessionWithFatalDone(t *testing.T) {
-	resolver := &fakeTaskResolver{
-		tasks: []*spb.SweepSchedulerServerNextTaskResponse{
-			generationTask(), generationTask(),
-		},
-	}
+	resolver := newTestResolver(t)
+	gomock.InOrder(
+		resolver.EXPECT().
+			Step(gomock.Any(), gomock.Nil()).
+			Return(generationTask()),
+		resolver.EXPECT().
+			Step(gomock.Any(), answering(1)).
+			Return(generationTask()),
+	)
 	machine := newTestStateMachine(t, resolver)
 	first := machine.NextTask(nil)
 	machine.NextTask(resultForSeq(first.TaskSeq))
@@ -180,13 +155,13 @@ func TestRepeatedResultEndsSessionWithFatalDone(t *testing.T) {
 	require.NotNil(t, done)
 	assert.Equal(t,
 		spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR, done.Reason)
-	assert.Equal(t, 2, resolver.stepCount())
 }
 
 func TestFatalDoneIsCachedForLaterPolls(t *testing.T) {
-	resolver := &fakeTaskResolver{
-		tasks: []*spb.SweepSchedulerServerNextTaskResponse{generationTask()},
-	}
+	resolver := newTestResolver(t)
+	resolver.EXPECT().
+		Step(gomock.Any(), gomock.Nil()).
+		Return(generationTask())
 	machine := newTestStateMachine(t, resolver)
 	machine.NextTask(nil)
 	fatal := machine.NextTask(nil)
@@ -194,13 +169,13 @@ func TestFatalDoneIsCachedForLaterPolls(t *testing.T) {
 	// Once the session has failed, every later poll gets the same answer.
 	assert.Same(t, fatal, machine.NextTask(nil))
 	assert.Same(t, fatal, machine.NextTask(resultForSeq(fatal.TaskSeq)))
-	assert.Equal(t, 1, resolver.stepCount())
 }
 
 func TestDoneTaskIsTerminalAndCached(t *testing.T) {
-	resolver := &fakeTaskResolver{
-		tasks: []*spb.SweepSchedulerServerNextTaskResponse{doneTask()},
-	}
+	resolver := newTestResolver(t)
+	resolver.EXPECT().
+		Step(gomock.Any(), gomock.Nil()).
+		Return(doneTask())
 	machine := newTestStateMachine(t, resolver)
 
 	done := machine.NextTask(nil)
@@ -210,11 +185,12 @@ func TestDoneTaskIsTerminalAndCached(t *testing.T) {
 	require.NotNil(t, done.GetDone())
 	assert.Same(t, done, late)
 	assert.Same(t, done, nilPoll)
-	assert.Equal(t, 1, resolver.stepCount())
 }
 
 func TestNilTaskResolverTaskBecomesShutdownDone(t *testing.T) {
-	machine := newTestStateMachine(t, &fakeTaskResolver{})
+	resolver := newTestResolver(t)
+	resolver.EXPECT().Step(gomock.Any(), gomock.Nil()).Return(nil)
+	machine := newTestStateMachine(t, resolver)
 
 	task := machine.NextTask(nil)
 
@@ -225,11 +201,18 @@ func TestNilTaskResolverTaskBecomesShutdownDone(t *testing.T) {
 }
 
 func TestConcurrentPollsSerialize(t *testing.T) {
-	resolver := &fakeTaskResolver{
-		tasks: []*spb.SweepSchedulerServerNextTaskResponse{generationTask()},
-		// Hold the first Step open until both polls are in flight.
-		blockStep: make(chan struct{}),
-	}
+	resolver := newTestResolver(t)
+	// Hold the only Step open until both polls are in flight.
+	release := make(chan struct{})
+	resolver.EXPECT().
+		Step(gomock.Any(), gomock.Nil()).
+		DoAndReturn(func(
+			context.Context,
+			*spb.SweepSchedulerClientTaskResult,
+		) *spb.SweepSchedulerServerNextTaskResponse {
+			<-release
+			return generationTask()
+		})
 	machine := newTestStateMachine(t, resolver)
 
 	responses := make(chan *spb.SweepSchedulerServerNextTaskResponse, 2)
@@ -237,7 +220,7 @@ func TestConcurrentPollsSerialize(t *testing.T) {
 	for range 2 {
 		wg.Go(func() { responses <- machine.NextTask(nil) })
 	}
-	resolver.blockStep <- struct{}{}
+	release <- struct{}{}
 	wg.Wait()
 	close(responses)
 
@@ -257,23 +240,33 @@ func TestConcurrentPollsSerialize(t *testing.T) {
 	}
 	assert.Equal(t, 1, tasks)
 	assert.Equal(t, 1, fatals)
-	assert.Equal(t, 1, resolver.stepCount())
 }
 
 func TestStopForwardsWhileStepBlocked(t *testing.T) {
-	resolver := &fakeTaskResolver{
-		tasks:     []*spb.SweepSchedulerServerNextTaskResponse{generationTask()},
-		blockStep: make(chan struct{}),
-	}
+	resolver := newTestResolver(t)
+	stepping := make(chan struct{})
+	release := make(chan struct{})
+	resolver.EXPECT().
+		Step(gomock.Any(), gomock.Nil()).
+		DoAndReturn(func(
+			context.Context,
+			*spb.SweepSchedulerClientTaskResult,
+		) *spb.SweepSchedulerServerNextTaskResponse {
+			close(stepping)
+			<-release
+			return generationTask()
+		})
+	// The expectation is the assertion: Stop must reach the resolver.
+	resolver.EXPECT().Stop()
 	machine := newTestStateMachine(t, resolver)
 
 	var wg sync.WaitGroup
 	wg.Go(func() { machine.NextTask(nil) })
+	<-stepping
 
 	// Stop must not block on the machine's mutex while a Step holds it.
 	machine.Stop()
 
-	resolver.blockStep <- struct{}{}
+	close(release)
 	wg.Wait()
-	assert.True(t, resolver.stopped)
 }
