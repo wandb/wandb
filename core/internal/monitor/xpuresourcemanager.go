@@ -19,6 +19,10 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
+// collectorStartupTimeout bounds how long Acquire waits for the sidecar
+// process to write its portfile.
+const collectorStartupTimeout = 5 * time.Second
+
 type XPUResourceManagerRef int
 
 // XPUResourceManager manages the sidecar process that collects
@@ -43,7 +47,7 @@ func NewXPUResourceManager(enableDCGMProfiling bool) *XPUResourceManager {
 	}
 }
 
-func (m *XPUResourceManager) Acquire() (
+func (m *XPUResourceManager) Acquire(ctx context.Context) (
 	spb.SystemMonitorServiceClient,
 	XPUResourceManagerRef,
 	error,
@@ -52,7 +56,7 @@ func (m *XPUResourceManager) Acquire() (
 	defer m.mu.Unlock()
 
 	if m.collectorConn == nil {
-		if err := m.startCollector(); err != nil {
+		if err := m.startCollector(ctx); err != nil {
 			return nil, 0, err
 		}
 	}
@@ -86,7 +90,7 @@ func (m *XPUResourceManager) Release(ref XPUResourceManagerRef) {
 	}()
 }
 
-func (m *XPUResourceManager) startCollector() error {
+func (m *XPUResourceManager) startCollector(ctx context.Context) error {
 	pf := NewPortfile()
 	if pf == nil {
 		return errors.New("monitor: could not create portfile")
@@ -114,7 +118,7 @@ func (m *XPUResourceManager) startCollector() error {
 		return fmt.Errorf("monitor: could not start wandb-xpu binary: %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, collectorStartupTimeout)
 	defer cancel()
 	targetURI, err := pf.Read(ctx)
 	if err != nil {
