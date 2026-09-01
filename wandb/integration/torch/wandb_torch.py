@@ -275,7 +275,11 @@ class TorchHistory:
                 return
             self.log_tensor_stats(grad.data, name)
 
-        handle = var.register_hook(lambda grad: _callback(grad, log_track))
+        handle = var.register_hook(
+            torch.utils.hooks.unserializable_hook(
+                lambda grad: _callback(grad, log_track)
+            )
+        )
         self._hook_handles[name] = handle
         return handle
 
