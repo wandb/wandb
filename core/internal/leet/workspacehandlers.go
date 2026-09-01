@@ -727,6 +727,7 @@ func (w *Workspace) handleWorkspaceRecord(run *WorkspaceRun, msg tea.Msg) {
 
 	switch m := msg.(type) {
 	case RunMsg:
+		sessionRuns.observe(m, true)
 		w.getOrCreateRunOverview(run.Key).ProcessRunMsg(m)
 		w.indexRunFilterData(run.Key, m)
 		if w.filter.Query() != "" {
