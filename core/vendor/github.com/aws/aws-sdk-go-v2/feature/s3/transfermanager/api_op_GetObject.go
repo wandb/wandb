@@ -612,18 +612,19 @@ func (g *getter) get(ctx context.Context) (out *GetObjectOutput, err error) {
 	clientOptions := []func(*s3.Options){
 		func(o *s3.Options) {
 			o.APIOptions = append(o.APIOptions,
-				middleware.AddSDKAgentKey(middleware.FeatureMetadata, userAgentKey),
+				middleware.AddSDKAgentKeyValue(middleware.FeatureMetadata, userAgentKey, goModuleVersion),
 				addFeatureUserAgent,
 			)
 		}}
 
 	r := &concurrentReader{
-		ctx:      ctx,
-		buf:      make(map[int32]*outChunk),
-		partSize: 1,
-		options:  g.options.Copy(),
-		in:       g.in,
-		ch:       make(chan outChunk, g.options.Concurrency),
+		ctx:             ctx,
+		buf:             make(map[int32]*outChunk),
+		partSize:        1,
+		options:         g.options.Copy(),
+		in:              g.in,
+		ch:              make(chan outChunk, g.options.Concurrency),
+		bufferThreshold: g.options.GetObjectBufferSize,
 	}
 
 	output := &GetObjectOutput{}
@@ -658,6 +659,7 @@ func (g *getter) get(ctx context.Context) (out *GetObjectOutput, err error) {
 		r.partSize = partSize
 		atomic.StoreInt32(&r.capacity, min(capacity, partsCount))
 		r.partsCount = partsCount
+		r.getType = types.GetObjectParts
 	} else {
 		out, err := g.options.S3.HeadObject(ctx, &s3.HeadObjectInput{
 			Bucket:               g.in.Bucket,
@@ -701,6 +703,7 @@ func (g *getter) get(ctx context.Context) (out *GetObjectOutput, err error) {
 		r.partsCount = partsCount
 		r.sectionParts = sectionParts
 		r.totalBytes = total
+		r.getType = types.GetObjectRanges
 	}
 
 	r.etag = output.ETag
