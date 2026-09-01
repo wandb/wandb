@@ -1,0 +1,53 @@
+{
+  "name": "single-tiny-run-view-01",
+  "fixture": "single-tiny",
+  "size": {
+    "cols": 120,
+    "rows": 40
+  },
+  "steps": [
+    {
+      "await_update": {
+        "type": "WorkspaceChunkedBatchMsg",
+        "count": 1,
+        "timeout_ms": 20000
+      }
+    },
+    {
+      "quiesce": {
+        "quiet_ms": 300
+      }
+    },
+    {
+      "key": "enter"
+    },
+    {
+      "await_update": {
+        "type": "ChunkedBatchMsg",
+        "count": 1,
+        "timeout_ms": 15000
+      }
+    },
+    {
+      "quiesce": {
+        "quiet_ms": 500,
+        "timeout_ms": 20000
+      }
+    },
+    {
+      "snap": "run-view"
+    },
+    {
+      "key": "esc"
+    },
+    {
+      "quiesce": {
+        "quiet_ms": 300
+      }
+    },
+    {
+      "snap": "back-to-workspace"
+    }
+  ],
+  "tier": 2
+}

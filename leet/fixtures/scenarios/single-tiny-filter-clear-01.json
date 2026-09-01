@@ -1,0 +1,89 @@
+{
+  "name": "single-tiny-filter-clear-01",
+  "fixture": "single-tiny",
+  "size": {
+    "cols": 120,
+    "rows": 40
+  },
+  "steps": [
+    {
+      "await_update": {
+        "type": "WorkspaceChunkedBatchMsg",
+        "count": 1,
+        "timeout_ms": 20000
+      }
+    },
+    {
+      "quiesce": {
+        "quiet_ms": 300
+      }
+    },
+    {
+      "key": "/"
+    },
+    {
+      "key": "l"
+    },
+    {
+      "key": "o"
+    },
+    {
+      "key": "s"
+    },
+    {
+      "key": "s"
+    },
+    {
+      "key": "enter"
+    },
+    {
+      "snap": "filtered"
+    },
+    {
+      "key": "ctrl+/"
+    },
+    {
+      "quiesce": {
+        "quiet_ms": 300
+      }
+    },
+    {
+      "snap": "cleared"
+    },
+    {
+      "key": "/"
+    },
+    {
+      "key": "l"
+    },
+    {
+      "key": "o"
+    },
+    {
+      "key": "s"
+    },
+    {
+      "key": "s"
+    },
+    {
+      "key": "enter"
+    },
+    {
+      "quiesce": {
+        "quiet_ms": 300
+      }
+    },
+    {
+      "key": "ctrl+_"
+    },
+    {
+      "quiesce": {
+        "quiet_ms": 300
+      }
+    },
+    {
+      "snap": "legacy-0x1f-noop-still-filtered"
+    }
+  ],
+  "tier": 2
+}

@@ -177,6 +177,11 @@ func (p *MediaPane) UpdateExpandedHeight(maxTerminalHeight int) {
 // for what Kitty rendering needs: its cell pixel size (so images are encoded
 // at the display's true resolution) and Kitty graphics support.
 func (p *MediaPane) Init() tea.Cmd {
+	if testModeEnabled() {
+		// No capability queries under the test harness: frames must not
+		// depend on terminal replies, and the renderer stays in glyph mode.
+		return p.waitForPrepare()
+	}
 	return batchCmds(
 		p.waitForPrepare(),
 		picture.RequestCellSize(),

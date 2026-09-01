@@ -1,0 +1,51 @@
+{
+  "name": "single-tiny-resize-01",
+  "fixture": "single-tiny",
+  "size": {
+    "cols": 120,
+    "rows": 40
+  },
+  "steps": [
+    {
+      "await_update": {
+        "type": "WorkspaceChunkedBatchMsg",
+        "count": 1,
+        "timeout_ms": 20000
+      }
+    },
+    {
+      "quiesce": {
+        "quiet_ms": 300
+      }
+    },
+    {
+      "resize": {
+        "cols": 80,
+        "rows": 24
+      }
+    },
+    {
+      "quiesce": {
+        "quiet_ms": 300
+      }
+    },
+    {
+      "snap": "small"
+    },
+    {
+      "resize": {
+        "cols": 200,
+        "rows": 60
+      }
+    },
+    {
+      "quiesce": {
+        "quiet_ms": 300
+      }
+    },
+    {
+      "snap": "large"
+    }
+  ],
+  "tier": 2
+}

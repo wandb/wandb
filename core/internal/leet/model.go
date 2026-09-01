@@ -128,7 +128,13 @@ func NewModel(params ModelParams) *Model {
 // If starting in single-run mode, the run's reader and watcher commands are
 // also started.
 func (m *Model) Init() tea.Cmd {
-	cmds := []tea.Cmd{tea.RequestBackgroundColor}
+	var cmds []tea.Cmd
+	if testModeEnabled() {
+		// No OSC round-trip under the test harness; the background is forced.
+		SetDarkBackground(!testForcedLightBackground())
+	} else {
+		cmds = append(cmds, tea.RequestBackgroundColor)
+	}
 
 	// Workspace always exists; initialize its long‑running commands.
 	if m.workspace != nil && !m.isRemoteRunMode() {
@@ -148,6 +154,7 @@ func (m *Model) Init() tea.Cmd {
 //
 // Implements tea.Model.Update.
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	defer testAckUpdate(msg)
 	if wsMsg, ok := msg.(tea.WindowSizeMsg); ok {
 		m.width, m.height = wsMsg.Width, wsMsg.Height
 		m.help.SetSize(wsMsg.Width, wsMsg.Height)
@@ -271,6 +278,7 @@ func (m *Model) handleModeSwitch(
 //
 // Implements tea.Model.View.
 func (m *Model) View() tea.View {
+	defer testAckView()
 	var vs string
 
 	if m.help.IsActive() {

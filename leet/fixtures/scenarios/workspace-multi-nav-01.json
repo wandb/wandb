@@ -1,0 +1,51 @@
+{
+  "name": "workspace-multi-nav-01",
+  "fixture": "workspace-multi",
+  "size": {
+    "cols": 120,
+    "rows": 40
+  },
+  "steps": [
+    {
+      "await_update": {
+        "type": "WorkspaceChunkedBatchMsg",
+        "count": 1,
+        "timeout_ms": 20000
+      }
+    },
+    {
+      "quiesce": {
+        "quiet_ms": 400
+      }
+    },
+    {
+      "key": "s"
+    },
+    {
+      "snap": "after-down"
+    },
+    {
+      "key": "space"
+    },
+    {
+      "quiesce": {
+        "quiet_ms": 400
+      }
+    },
+    {
+      "snap": "after-select"
+    },
+    {
+      "key": "p"
+    },
+    {
+      "quiesce": {
+        "quiet_ms": 300
+      }
+    },
+    {
+      "snap": "after-pin"
+    }
+  ],
+  "tier": 2
+}

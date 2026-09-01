@@ -1,0 +1,29 @@
+[package]
+name = "wandb-leet"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "wandb-leet"
+path = "src/main.rs"
+
+[features]
+default = ["symon"]
+symon = ["dep:leet-symon"]
+remote = ["dep:leet-remote"]
+
+[dependencies]
+leet-data.workspace = true
+leet-tui.workspace = true
+leet-symon = { workspace = true, optional = true }
+leet-remote = { workspace = true, optional = true }
+clap.workspace = true
+anyhow.workspace = true
+
+[lints]
+workspace = true

@@ -52,6 +52,10 @@ func ReadRecords(
 	maxTimePerChunk time.Duration,
 ) tea.Cmd {
 	return func() tea.Msg {
+		if testModeEnabled() {
+			// Deterministic chunk boundaries: bound by record count only.
+			maxTimePerChunk = 24 * time.Hour
+		}
 		msgs, err := source.Read(
 			chunkSize,
 			maxTimePerChunk,
