@@ -7,8 +7,10 @@ from typing import TYPE_CHECKING, Any
 
 from typing_extensions import override
 
+from wandb import sweep as wandb_sweep
 from wandb import util
 from wandb.sdk.sweeps.run_state import RunState
+from wandb.sdk.sweeps.scheduler.client import SchedulerOptions, run_scheduler
 from wandb.sdk.sweeps.scheduler.optimizer import (
     Optimizer,
     Run,
@@ -214,3 +216,151 @@ class WandbOptimizer(Optimizer):
             state=_to_sweeps_state(data.state),
         )
         return run_id
+
+
+# ---------------------------------------------------------------------------
+# Public entry points.
+#
+# These free functions are the supported way to run a scheduler; callers
+# should not instantiate `WandbOptimizer` directly. Each drives the sweep
+# until its scheduler stops: wandb-core owns the scheduling loop and this
+# process hosts the optimizer.
+# ---------------------------------------------------------------------------
+
+
+def _parse_sweep_path(sweep: str) -> tuple[str, str, str]:
+    """Split an "entity/project/sweep_id" path into its parts."""
+    parts = sweep.split("/") if sweep else []
+    if len(parts) != 3 or not all(parts):
+        raise ValueError(
+            f"Expected a sweep path of the form entity/project/sweep_id, got: {sweep!r}"
+        )
+    entity, project, sweep_id = parts
+    return entity, project, sweep_id
+
+
+def resume_sweep(
+    sweep: str,
+    *,
+    options: SchedulerOptions | None = None,
+) -> None:
+    """Run a scheduler on a sweep that already exists, until it stops.
+
+    `sweep` is an "entity/project/sweep_id" path string. The sweep's own
+    `method` and `parameters` define the search, and its prior runs warm
+    start it.
+
+    Args:
+        sweep: The sweep to drive, as "entity/project/sweep_id".
+        options: How the scheduler drives the sweep; see `SchedulerOptions`.
+
+    Raises:
+        ValueError: If `sweep` is not a full sweep path.
+    """
+    entity, project, sweep_id = _parse_sweep_path(sweep)
+    options = options or SchedulerOptions()
+    run_scheduler(
+        entity=entity,
+        project=project,
+        sweep_id=sweep_id,
+        make_optimizer=WandbOptimizer,
+        batch_size=options.batch_size,
+        poll_interval=options.poll_interval_s,
+    )
+
+
+def create_sweep(
+    entity: str,
+    project: str,
+    parameters: dict[str, Any],
+    metric_name: str,
+    *,
+    method: str = "bayes",
+    goal: str = "minimize",
+    program_path: str | None = None,
+    options: SchedulerOptions | None = None,
+) -> str:
+    """Create a sweep from a parameter space, then run its scheduler.
+
+    Args:
+        entity: The entity to create the sweep under.
+        project: The project to create the sweep under.
+        parameters: The sweep config's `parameters` block, mapping each
+            name to its space (e.g. `{"lr": {"min": 0.0, "max": 1.0}}`).
+        metric_name: The metric runs log and the search optimizes.
+        method: The search method: `"bayes"`, `"random"` or `"grid"`.
+        goal: Either `"minimize"` or `"maximize"`.
+        program_path: The training program recorded in the sweep config.
+        options: How the scheduler drives the sweep; see `SchedulerOptions`.
+
+    Returns:
+        The sweep's id.
+
+    Raises:
+        ValueError: If `entity`, `project`, `parameters` or `metric_name`
+            is empty.
+    """
+    if not entity or not project or not metric_name:
+        raise ValueError("entity, project and metric_name must be non-empty")
+    if not parameters:
+        raise ValueError("parameters must be non-empty")
+
+    config: dict[str, Any] = {
+        "method": method,
+        "metric": {"name": metric_name, "goal": goal},
+        "parameters": parameters,
+        "scheduler": {"engine": "wandb"},
+    }
+    if program_path is not None:
+        config["program"] = program_path
+
+    return create_sweep_from_config(config, entity, project, options=options)
+
+
+def create_sweep_from_config(
+    config: dict[str, Any],
+    entity: str,
+    project: str,
+    *,
+    options: SchedulerOptions | None = None,
+) -> str:
+    """Create a sweep from `config`, then run its scheduler.
+
+    Args:
+        config: The sweep config; its `scheduler.engine` must be `"wandb"`
+            if it sets one.
+        entity: The entity to create the sweep under.
+        project: The project to create the sweep under.
+        options: How the scheduler drives the sweep; see `SchedulerOptions`.
+
+    Returns:
+        The sweep's id.
+
+    Raises:
+        ValueError: If `config` selects another engine, or if `entity` or
+            `project` is empty.
+    """
+    if not entity or not project:
+        raise ValueError("entity and project must be non-empty")
+
+    engine = (config.get("scheduler") or {}).get("engine", "wandb")
+    if engine != "wandb":
+        raise ValueError(
+            f"config selects the {engine!r} engine; use that engine's "
+            f"create_sweep_from_config instead."
+        )
+
+    options = options or SchedulerOptions()
+    # The server leaves the search to this scheduler only when the config
+    # records an engine, so make sure it does.
+    config = {**config, "scheduler": {"engine": "wandb"}}
+    sweep_id = wandb_sweep(config, entity=entity, project=project)
+    run_scheduler(
+        entity=entity,
+        project=project,
+        sweep_id=sweep_id,
+        make_optimizer=WandbOptimizer,
+        batch_size=options.batch_size,
+        poll_interval=options.poll_interval_s,
+    )
+    return sweep_id

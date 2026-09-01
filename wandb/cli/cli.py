@@ -1086,6 +1086,11 @@ def sweep(
 
     styled_path = click.style(f"wandb agent {sweep_path}", fg="yellow")
     wandb.termlog(f"Run sweep agent with: {styled_path}")
+    if config is not None and config.get("scheduler") is not None:
+        styled_scheduler = click.style(
+            f"wandb sweep-scheduler {sweep_path}", fg="yellow"
+        )
+        wandb.termlog(f"Run scheduler with: {styled_scheduler}")
     if controller:
         wandb.termlog("Starting wandb controller...")
         from wandb import controller as wandb_controller
@@ -2003,6 +2008,116 @@ def scheduler(
     except Exception as e:
         telemetry_recorder.exception(e)
         raise
+
+
+_SCHEDULER_MIN_POLL_INTERVAL_S = 5
+
+
+def _build_wandb_scheduler_optimizer(sweep, scheduler_config: dict):
+    """Build the optimizer for a sweep whose `scheduler.engine` is `wandb`."""
+    search_space = scheduler_config.get("search_space")
+    optimizer = scheduler_config.get("optimizer")
+    if optimizer is not None:
+        wandb.termwarn("optimizer config is not supported by the wandb engine.")
+    if search_space is not None:
+        wandb.termwarn("search_space config is not supported by the wandb engine.")
+    if scheduler_config.get("terminator") is not None:
+        wandb.termwarn("terminator config is not supported by the wandb engine.")
+
+    from wandb.sdk.sweeps.scheduler import wandb as wandb_scheduler
+
+    return wandb_scheduler.WandbOptimizer(sweep=sweep)
+
+
+@cli.command(
+    name="sweep-scheduler",
+    context_settings=CONTEXT,
+    help="Run a local scheduler that suggests a sweep's runs (Experimental).",
+)
+@click.option("--entity", "-e", default=None, help="Entity that owns the sweep.")
+@click.option("--project", "-p", default=None, help="Project that owns the sweep.")
+@click.option(
+    "--batch-size",
+    default=10,
+    type=int,
+    help="Number of runs to keep in flight at once.",
+)
+@click.option(
+    "--poll-interval",
+    default=10.0,
+    type=float,
+    help="Seconds to wait between polls of the sweep's runs.",
+)
+@click.argument("sweep_id")
+@display_error
+def sweep_scheduler(
+    entity,
+    project,
+    batch_size,
+    poll_interval,
+    sweep_id,
+):
+    """Drive an existing sweep with a locally chosen search strategy.
+
+    Create the sweep first with `wandb sweep sweep.yaml`; its config must set
+    `scheduler: {engine: <wandb>}` so the server leaves the search to this
+    scheduler. wandb-core runs the scheduling loop; this process hosts the
+    optimizer that proposes runs and learns from their results.
+    """
+    api = _get_cling_api()
+    if not api.is_authenticated:
+        wandb.termlog("Login to W&B to use the sweep scheduler feature")
+        click.get_current_context().invoke(login, no_offline=True)
+        api = _get_cling_api(reset=True)
+
+    if poll_interval < _SCHEDULER_MIN_POLL_INTERVAL_S:
+        wandb.termerror(
+            f"--poll-interval must be at least {_SCHEDULER_MIN_POLL_INTERVAL_S} seconds"
+        )
+        sys.exit(1)
+
+    if batch_size < 1:
+        wandb.termerror("--batch-size must be at least 1")
+        sys.exit(1)
+
+    # Resolve the sweep the user already created with `wandb sweep`.
+    parts = dict(entity=entity, project=project, name=sweep_id)
+    err = sweep_utils.parse_sweep_id(parts)
+    if err:
+        raise ClickException(err)
+    entity = parts.get("entity") or entity or api.settings("entity")
+    project = parts.get("project") or project or api.settings("project")
+    sweep_id = parts.get("name") or sweep_id
+    if not entity or not project:
+        raise ClickException(
+            "Pass the sweep as entity/project/sweep_id or provide "
+            "--entity and --project."
+        )
+
+    from wandb.sdk.sweeps.scheduler import client
+
+    def make_optimizer(sweep):
+        # The local scheduler only drives sweeps that opted out of
+        # server-side search, which the `scheduler.engine` block records.
+        scheduler_config = sweep.config.get("scheduler") or {}
+        engine = scheduler_config.get("engine")
+        if engine == "wandb":
+            return _build_wandb_scheduler_optimizer(sweep, scheduler_config)
+        raise ClickException(f"Unsupported engine: {engine}")
+
+    wandb.termlog(f"Starting sweep scheduler for {sweep_id} 🧹")
+    try:
+        client.run_scheduler(
+            entity=entity,
+            project=project,
+            sweep_id=sweep_id,
+            make_optimizer=make_optimizer,
+            batch_size=batch_size,
+            poll_interval=poll_interval,
+        )
+    except wandb.Error:
+        # run_scheduler already explained the failure.
+        sys.exit(1)
 
 
 @cli.group(help="Commands for managing and viewing W&B jobs.")
