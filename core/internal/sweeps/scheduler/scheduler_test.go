@@ -237,8 +237,7 @@ func TestSuggestionsEnqueueAndAppear(t *testing.T) {
 	// The suggestion triggers a sweep re-check and an enqueue.
 	fixture.stubSweepConfig("RUNNING")
 	fixture.stubEnqueue("backend-name-1")
-	// The minted run appears in the next poll under the id the enqueue
-	// returned.
+	// The minted run appears in the next poll under the enqueued id.
 	fixture.stubPoll(pollJSON("RUNNING", false, "",
 		testRun{name: "backend-name-1", state: "pending"},
 	))
@@ -709,9 +708,8 @@ func TestEnqueuedRunDeletedBeforeAppearingIsReaped(t *testing.T) {
 	fixture.stubSweepConfig("RUNNING")
 	fixture.stubEnqueue("minted-1")
 
-	// The minted run never shows up in any poll: the user deleted it in
-	// the time the scheduler was polling. Two missing polls plus a
-	// confirming query reap it as failed, like any deleted run.
+	// The minted run never shows up: it was deleted before appearing.
+	// Two missing polls plus a confirming query reap it as failed.
 	fixture.stubPoll(pollJSON("RUNNING", false, ""))
 	first := fixture.step(t, generationResult(suggest("opt-1")))
 	assert.Empty(t, first.GetGeneration().Updates)
@@ -762,9 +760,8 @@ func TestStopEnqueuesPendingSuggestionsThenDone(t *testing.T) {
 
 	fixture.scheduler.Stop()
 
-	// The client already produced these suggestions; graceful shutdown
-	// enqueues the whole batch once rather than discarding it, then
-	// returns Done without starting another poll or ask.
+	// Graceful shutdown enqueues the batch the client already produced,
+	// then returns Done without another poll or ask.
 	fixture.stubSweepConfig("RUNNING")
 	fixture.stubEnqueue("minted-a")
 	fixture.stubEnqueue("minted-b")
@@ -883,7 +880,7 @@ func TestResumedRunIsNotRetoldNorCounted(t *testing.T) {
 	require.Len(t, terminal.GetGeneration().Updates, 1)
 
 	// The run resumes: no second terminal tell, and it does not count
-	// toward the batch, which budgets only this scheduler's own runs.
+	// toward the batch.
 	fixture.stubPoll(pollJSON("RUNNING", false, "",
 		testRun{name: "run-1", state: "running"},
 	))

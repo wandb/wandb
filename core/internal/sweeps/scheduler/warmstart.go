@@ -8,10 +8,9 @@ import (
 
 // warmStartStep delivers one page of the sweep's pre-existing runs.
 //
-// Pages are delivered back to back; the client's adoptions come back in
-// each page's result and are merged by applyResult. A failed page skips
-// the rest of the warm start rather than failing the sweep: the search
-// just starts with less history.
+// Pages are delivered back to back, each page's adoptions merged by
+// applyResult. A failed page skips the rest of the warm start: the
+// search just starts with less history.
 func (s *Scheduler) warmStartStep(
 	ctx context.Context,
 ) *spb.SweepSchedulerServerNextTaskResponse {
@@ -48,8 +47,8 @@ func (s *Scheduler) warmStartStep(
 		if state == spb.SweepRunState_SWEEP_RUN_STATE_FINISHED &&
 			s.metricKey != "" &&
 			!summaryHasMetric(row.SummaryJSON, s.metricKey) {
-			// The same reclassification the poll path applies: a prior
-			// run without the objective is a failure, not a sample.
+			// As in the poll path: a prior run without the objective
+			// is a failure, not a sample.
 			state = spb.SweepRunState_SWEEP_RUN_STATE_FAILED
 		}
 

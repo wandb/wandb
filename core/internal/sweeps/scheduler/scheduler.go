@@ -22,16 +22,13 @@ import (
 )
 
 const (
-	// defaultPollInterval is how long the loop waits between polls when
-	// the client does not choose an interval.
+	// defaultPollInterval is used when the client chooses no interval.
 	defaultPollInterval = 5 * time.Second
 
-	// defaultBatchSize is the in-flight run target when the client does
-	// not choose one.
+	// defaultBatchSize is used when the client chooses no batch size.
 	defaultBatchSize = 1
 
-	// stagnantLogInterval is how often the loop logs that polling has
-	// detected no change in the backend's state.
+	// stagnantLogInterval is how often unchanged polls are logged.
 	stagnantLogInterval = time.Minute
 
 	// stopGrace is how long a pruned run may keep running before its
@@ -42,10 +39,9 @@ const (
 
 // Scheduler drives one sweep; it implements TaskResolver.
 //
-// All state is confined to Step, which the task machine serializes, so
-// no field except the stop channel needs synchronization. Every run the
-// scheduler touches is one trackedRun record whose lifecycle state is a
-// TrackingState; see that type for the states and their order.
+// All state is mutated in Step, which the state machine serializes, so
+// no field except the stop channel needs synchronization. Every run it
+// touches is one trackedRun; see TrackingState for the lifecycle.
 type Scheduler struct {
 	api    *trackedAPI
 	logger *observability.CoreLogger
@@ -65,35 +61,31 @@ type Scheduler struct {
 	warmCursor *string
 	warmDone   bool
 
-	// runs holds one record per accepted suggestion or adopted run,
-	// keyed by optimizer run id, in every lifecycle state. Records are
-	// never removed, so an id stays reserved for the scheduler's
-	// lifetime.
+	// runs is keyed by optimizer run id. Records are never removed, so
+	// an id stays reserved for the scheduler's lifetime.
 	runs map[string]*trackedRun
 
-	// runsByName indexes the same records by W&B run name once it is
-	// known. Runs this scheduler never scheduled or adopted have no
-	// optimizer id and appear only here.
+	// runsByName indexes the same records by W&B run name. Runs this
+	// scheduler never scheduled or adopted appear only here.
 	runsByName map[string]*trackedRun
 
-	// discards accumulates optimizer run ids of suggestions that were
-	// accepted but never durably scheduled, reported on the next task.
+	// discards holds ids of suggestions accepted but never durably
+	// scheduled; reported on the next task.
 	discards []string
 
 	// lastPruneCandidates is the candidate set offered by the latest
 	// generation task; prune ids outside it are ignored.
 	lastPruneCandidates map[string]bool
 
-	// exhausted means the optimizer has no more runs to propose, so the
-	// loop stops asking and waits for the runs already scheduled.
+	// exhausted stops further asks; the loop waits out the runs already
+	// scheduled.
 	exhausted bool
 
 	warnedUnrecognized map[string]bool
 	warnedForeign      bool
 	warnedResumed      bool
 
-	// lastFingerprint, lastChange and lastStagnantLog drive the
-	// stagnation heartbeat; see noteBackendState.
+	// Stagnation heartbeat; see noteBackendState.
 	lastFingerprint string
 	lastChange      time.Time
 	lastStagnantLog time.Time
@@ -104,33 +96,29 @@ var _ TaskResolverFactory = NewTaskResolverFactory(nil)
 
 // TrackingState is where a run stands in its lifecycle.
 //
-// A suggestion's states, in order: proposed (the Python client receives
-// it from its optimizer and reports it with an generation result — the
-// scheduler has no record yet), then TrackingInFlight,
-// TrackingTerminalDelivered and TrackingRetired.
+// A suggestion passes through TrackingInFlight,
+// TrackingTerminalDelivered and TrackingRetired in that order; before
+// the scheduler has a record for it, it is merely proposed.
 type TrackingState int
 
 const (
-	// TrackingInFlight: the run is tracked. An enqueued suggestion is
-	// in flight the moment enqueueSweepRun returns its run id: the run
-	// is guaranteed to appear in the sweep as pending, and one that
-	// stays missing is handled like any tracked run deleted by the
-	// user. Every generation task carries the run's latest state and
-	// metrics.
+	// TrackingInFlight: every generation task carries the run's latest
+	// state and metrics. An enqueued suggestion is in flight the moment
+	// enqueueSweepRun returns its id, because the run is guaranteed to
+	// appear in the sweep as pending.
 	TrackingInFlight TrackingState = iota
 
 	// TrackingTerminalDelivered: the run's final update rode the latest
-	// task; the run retires only once that task's result is accepted,
-	// so a lost response cannot lose the terminal tell.
+	// task and retires only once that task's result is accepted, so it is
+	// not forgotten before the optimizer has been told.
 	TrackingTerminalDelivered
 
 	// TrackingRetired: the scheduler will ignore this run.
 	TrackingRetired
 )
 
-// trackedRun is one run of the sweep as the scheduler knows it — born
-// from a suggestion, adopted at warm start, or merely observed in a
-// poll — together with the lifecycle state it is in.
+// trackedRun is one run of the sweep as the scheduler knows it: born
+// from a suggestion, adopted at warm start, or merely observed.
 type trackedRun struct {
 	state TrackingState
 
@@ -142,35 +130,31 @@ type trackedRun struct {
 	// enqueueSweepRun returned.
 	name string
 
-	// storageID is the run's GraphQL node id, captured from polls and
-	// required to stop the run.
+	// storageID is the run's GraphQL node id, required to stop it.
 	storageID string
 
 	// runState is the run's state as the backend reports it.
 	runState spb.SweepRunState
 
-	// reported means the run's terminal update was delivered and
-	// acknowledged: a retired reported run seen alive again was
-	// resumed rather than foreign or excluded.
+	// reported means the terminal update was acknowledged, so a retired
+	// run seen alive again was resumed rather than foreign or excluded.
 	reported bool
 
-	// pruned means the optimizer asked to stop this run. It receives one
-	// final terminal update and is excluded from tells and prune
-	// candidates until then.
+	// pruned means the optimizer asked to stop this run: it is excluded
+	// from tells and prune candidates until its one terminal update.
 	pruned bool
 
-	// stopIssued and stopRetried track the StopRun calls made for a
-	// pruned run, so a run whose client ignores the stop flag is asked
-	// once more and then stops occupying a batch slot.
+	// stopIssued and stopRetried let a run whose client ignores the stop
+	// flag be asked once more, then stop occupying a batch slot.
 	stopIssued  time.Time
 	stopRetried bool
 
-	// unknownStreak counts consecutive polls whose row for this run was
-	// unreadable; two in a row fail the run.
+	// unknownStreak counts consecutive polls with an unreadable row;
+	// two in a row fail the run.
 	unknownStreak int
 
-	// missingStreak counts consecutive complete polls the run was absent
-	// from; two in a row (plus a confirming query) reap it as deleted.
+	// missingStreak counts consecutive polls the run was absent from;
+	// two (plus a confirming query) reap it as deleted.
 	missingStreak int
 }
 
@@ -181,23 +165,18 @@ func (r *trackedRun) isTracked() bool {
 		r.state == TrackingTerminalDelivered
 }
 
-// Stop asks Step to return a Done task. Two cases:
-//
-//   - A backend poll (or the wait before one) is in flight: abandon it
-//     and exit. Do not ask the optimizer for another batch.
-//   - The optimizer is producing suggestions for the outstanding
-//     generation: apply that result, enqueue the suggestions once, then
-//     exit.
+// Stop asks Step to return a Done task: an in-flight poll (or the
+// wait before one) is abandoned without asking for another batch,
+// while an outstanding generation's suggestions are still enqueued
+// once before exiting.
 func (s *Scheduler) Stop() {
 	s.stopOnce.Do(func() { close(s.stop) })
 }
 
-// withStopCancel returns a child of ctx that is cancelled when Stop is
-// requested. The cancelled call surfaces as Done through ctx.Done or
-// doneFromError. cancel must be called so the watcher goroutine exits.
+// withStopCancel returns a child of ctx that is cancelled when Stop
+// is requested; cancel must be called so the watcher goroutine exits.
 //
-// Apply-result / enqueue still uses the session context, which this
-// does not cancel.
+// Apply-result and enqueue keep using the uncancelled session context.
 func (s *Scheduler) withStopCancel(
 	ctx context.Context,
 ) (context.Context, context.CancelFunc) {
@@ -236,9 +215,8 @@ func (s *Scheduler) Step(
 		}
 	}
 
-	// Stop cancels this context so sleep and polls abort; enqueue above
-	// used the session context so in-flight suggestions are still
-	// scheduled.
+	// Stop cancels this context so sleep and polls abort; the enqueue
+	// above used the session context and still ran.
 	ctx, cancel := s.withStopCancel(ctx)
 	defer cancel()
 
@@ -276,18 +254,15 @@ func (s *Scheduler) sleep(
 	}
 }
 
-// doneFromError maps a classified poll or enqueue failure onto a Done
-// task, or returns nil if the loop should keep going.
-//
-// The API layer already recorded the failure in the backoff; this only
-// decides whether the loop can continue.
+// doneFromError maps a failed poll or enqueue onto a Done task, or
+// returns nil if the loop should keep going. The API layer already
+// recorded the failure in the backoff.
 func (s *Scheduler) doneFromError(
 	ctx context.Context,
 	err error,
 ) *spb.SweepSchedulerServerNextTaskResponse {
-	// Cancellation is shutdown (Stop or the session ending), not a
-	// backend failure. Deadlines go through Classify: a timed-out
-	// call is transient, like any other request that got no response.
+	// Cancellation is shutdown, not a backend failure. Deadlines go
+	// through Classify, which treats them as transient.
 	if errors.Is(ctx.Err(), context.Canceled) ||
 		errors.Is(err, context.Canceled) {
 		return s.doneTask(
@@ -359,8 +334,8 @@ func (s *Scheduler) finishExhausted(
 		spb.SweepSchedulerServerDoneTask_REASON_EXHAUSTED, "")
 }
 
-// finishSweep marks the sweep FINISHED, best-effort: the Done task is
-// delivered either way, and a failed upsert only costs the state label.
+// finishSweep marks the sweep FINISHED, best-effort: a failed upsert
+// only costs the state label.
 func (s *Scheduler) finishSweep(ctx context.Context) {
 	err := s.api.UpsertSweepState(ctx, s.sweepNodeID, sweepStateFinished)
 	if err != nil {
@@ -369,9 +344,8 @@ func (s *Scheduler) finishSweep(ctx context.Context) {
 	}
 }
 
-// SchedulerParams configures a Scheduler directly, bypassing settings
-// and client construction. It is the test seam; production code goes
-// through NewTaskResolverFactory.
+// SchedulerParams configures a Scheduler directly; production code
+// goes through NewTaskResolverFactory.
 type SchedulerParams struct {
 	API    *SweepAPI
 	Logger *observability.CoreLogger
@@ -426,8 +400,8 @@ func NewScheduler(params SchedulerParams) *Scheduler {
 	}
 }
 
-// NewTaskResolverFactory returns the factory the session broker uses to start
-// scheduler sessions from client init requests.
+// NewTaskResolverFactory returns the factory the session broker uses
+// to start scheduler sessions.
 func NewTaskResolverFactory(logger *observability.CoreLogger) TaskResolverFactory {
 	return func(
 		schedCtx context.Context,
@@ -577,8 +551,7 @@ func (s *Scheduler) generationStep(
 	updates, candidates := s.buildUpdates(ctx, snapshot)
 
 	if s.exhausted {
-		// Every scheduled run has reported its outcome, so the sweep is
-		// done; asking again would only repeat the empty answer.
+		// Every scheduled run has reported, so the sweep is done.
 		if s.trackedRunCount() == 0 {
 			return s.finishExhausted(ctx)
 		}
@@ -587,7 +560,7 @@ func (s *Scheduler) generationStep(
 	return s.generationTask(updates, candidates, s.askBudget())
 }
 
-// generationTask assembles an generation task with any pending discards.
+// generationTask assembles a generation task with any discards.
 func (s *Scheduler) generationTask(
 	updates []*spb.SweepSchedulerServerRunUpdate,
 	pruneCandidates []string,
@@ -610,11 +583,9 @@ func (s *Scheduler) generationTask(
 	}
 }
 
-// noteBackendState logs, every stagnantLogInterval, that polling has
-// detected no significant change: the sweep's state and every row's
-// name, state and summary are as the previous poll saw them. The
-// cadence gives a stuck sweep — say, pending runs no agent picks up —
-// a visible heartbeat to debug from.
+// noteBackendState logs, every stagnantLogInterval, that the sweep's
+// state and every row's name, state and summary are as the previous
+// poll saw them, giving a stuck sweep a heartbeat to debug from.
 func (s *Scheduler) noteBackendState(snapshot *pollSnapshot) {
 	fingerprint := snapshotFingerprint(snapshot)
 	now := s.now()
@@ -636,9 +607,8 @@ func (s *Scheduler) noteBackendState(snapshot *pollSnapshot) {
 		"runs", len(snapshot.order))
 }
 
-// snapshotFingerprint condenses a poll's observable state; two equal
-// fingerprints mean polling saw no significant change. Rows are hashed
-// in name order so backend ordering cannot masquerade as change.
+// snapshotFingerprint condenses a poll's observable state. Rows are
+// hashed in name order so backend ordering cannot look like change.
 func snapshotFingerprint(snapshot *pollSnapshot) string {
 	names := slices.Sorted(maps.Keys(snapshot.rows))
 
@@ -659,10 +629,9 @@ func snapshotFingerprint(snapshot *pollSnapshot) string {
 
 // observeUntrackedRuns flags rows the scheduler is not tracking.
 //
-// Untracked runs never count toward the batch: batch_size budgets only
-// this scheduler's own runs. A reported run that turned alive
-// again was resumed after its result was delivered; it cannot be
-// re-told, because search strategies are append-only.
+// Untracked runs never count toward the batch: batch_size budgets
+// only this scheduler's own runs. A reported run that is alive again
+// was resumed, and cannot be re-told: strategies are append-only.
 func (s *Scheduler) observeUntrackedRuns(snapshot *pollSnapshot) {
 	for _, name := range snapshot.order {
 		row := snapshot.rows[name]
@@ -764,15 +733,15 @@ func (s *Scheduler) trackedInOrder(snapshot *pollSnapshot) []*trackedRun {
 	return runs
 }
 
-// updateTrackedRunFromPoll applies one poll row to a tracked run, including the
-// state reclassifications the optimizer should never have to know about.
+// updateTrackedRunFromPoll applies one poll row to a tracked run,
+// including the state reclassifications.
 func (s *Scheduler) updateTrackedRunFromPoll(run *trackedRun, row PollRun) {
 	run.missingStreak = 0
 	run.storageID = row.StorageID
 
 	if row.State == "" {
 		// The row was readable but stateless; twice in a row means the
-		// run's record is broken and it will never progress.
+		// run's record is broken.
 		run.unknownStreak++
 		if run.unknownStreak >= 2 {
 			run.runState = spb.SweepRunState_SWEEP_RUN_STATE_FAILED
@@ -785,9 +754,8 @@ func (s *Scheduler) updateTrackedRunFromPoll(run *trackedRun, row PollRun) {
 
 	if state == spb.SweepRunState_SWEEP_RUN_STATE_FINISHED &&
 		s.metricKey != "" && !summaryHasMetric(row.SummaryJSON, s.metricKey) {
-		// A run that finished without logging the objective gave the
-		// search nothing; report it failed so strategies do not treat
-		// a missing value as a great one.
+		// Report it failed so strategies do not treat a missing
+		// objective as a great one.
 		s.logger.Warn(
 			"scheduler: run finished without the sweep metric; "+
 				"reporting it as failed",
@@ -862,12 +830,11 @@ func (s *Scheduler) askBudget() int {
 	return s.batchSize - occupied
 }
 
-// flattenWireConfig converts the backend's {param: {"value": v}} config
-// form into the flat {param: v} form the protocol carries.
+// flattenWireConfig converts the backend's {param: {"value": v}}
+// config form into the flat {param: v} form the protocol carries.
 //
-// Values that are not in the wrapped form pass through unchanged, and an
-// unparseable config becomes an empty object: the optimizer already knows
-// the configs of runs it proposed, so this only matters for adoption.
+// Unwrapped values pass through, and an unparseable config becomes an
+// empty object; only adopted runs' configs are new to the optimizer.
 func flattenWireConfig(wireJSON string) string {
 	if wireJSON == "" {
 		return "{}"
@@ -951,15 +918,14 @@ func (s *Scheduler) applyWarmStartResult(
 				"scheduler: dropping adoption with an empty or "+
 					"duplicate optimizer run id",
 				"run", wandbRunID, "id", optimizerRunID)
-			// Report it like a dropped suggestion: the optimizer thinks
-			// it adopted the run and would otherwise wait forever for
-			// updates the scheduler will never send.
+			// The optimizer thinks it adopted the run and would
+			// otherwise wait forever for updates.
 			s.discards = append(s.discards, optimizerRunID)
 			continue
 		}
 		if run := s.runsByName[wandbRunID]; run != nil && run.isTracked() {
-			// Adoption merging is idempotent per page; a redelivered
-			// page's adoptions are already tracked.
+			// Already tracked: adopted on an earlier page, or scheduled
+			// by this scheduler.
 			continue
 		}
 
@@ -967,8 +933,7 @@ func (s *Scheduler) applyWarmStartResult(
 			state:          TrackingInFlight,
 			name:           wandbRunID,
 			optimizerRunID: optimizerRunID,
-			// The next poll refreshes the state; until then the run is
-			// alive, which is why it was offered for adoption.
+			// Placeholder until the next poll; UNKNOWN is not terminal.
 			runState: spb.SweepRunState_SWEEP_RUN_STATE_UNKNOWN,
 		}
 		s.runs[optimizerRunID] = run
@@ -1007,9 +972,8 @@ func (s *Scheduler) applyGenerationResult(
 
 	switch result.AskOutcome {
 	case spb.SweepSchedulerClientGenerationResult_ASK_OUTCOME_EXHAUSTED:
-		// Runs already scheduled still have results to report, and a
-		// finished sweep stops the backend handing them to agents, so
-		// wait for them instead of abandoning the last batch.
+		// Finishing the sweep now would stop the backend handing the
+		// scheduled runs to agents, so wait for them.
 		s.exhausted = true
 		if remaining := s.trackedRunCount(); remaining > 0 {
 			s.logger.Info(
@@ -1029,8 +993,7 @@ func (s *Scheduler) applyGenerationResult(
 }
 
 // popDeliveredTerminals retires runs whose terminal update the client
-// has now acknowledged, so a resumed run is noticed rather than
-// re-told.
+// acknowledged, so a resumed run is noticed rather than re-told.
 func (s *Scheduler) popDeliveredTerminals() {
 	for _, run := range s.runs {
 		if run.state == TrackingTerminalDelivered {
@@ -1058,9 +1021,8 @@ func (s *Scheduler) popTellErrors(
 			"scheduler: the optimizer could not ingest a run's "+
 				"update; excluding the run",
 			"run", run.name, "error", tellError.Message)
-		// Retired without reported: the run is ignored for good and,
-		// unlike a reported run that resumes, frees its batch slot so
-		// the search can replace it.
+		// Retired without reported: unlike a reported run that resumes,
+		// this frees the batch slot so the search can replace it.
 		run.state = TrackingRetired
 	}
 }
@@ -1068,13 +1030,11 @@ func (s *Scheduler) popTellErrors(
 // enqueueSuggestions schedules the optimizer's new runs. A non-nil
 // return ends the scheduler with that Done task.
 //
-// Every suggestion that is not durably enqueued lands in the discard
-// channel so the optimizer can release it; silently dropping one would
-// leave the search counting a run that will never happen.
+// Every suggestion not durably enqueued is discarded so the optimizer
+// releases it instead of counting a run that will never happen.
 //
-// A pending Stop does not skip this: graceful shutdown still tries once
-// to enqueue the suggestions the client just produced. Step then
-// observes stop on the next long wait (sleep or poll) and returns Done.
+// A pending Stop does not skip this: shutdown still enqueues the batch
+// the client just produced, and Step returns Done on its next wait.
 func (s *Scheduler) enqueueSuggestions(
 	ctx context.Context,
 	suggestions []*spb.SweepSchedulerClientRunSuggestion,
@@ -1083,8 +1043,7 @@ func (s *Scheduler) enqueueSuggestions(
 		return nil
 	}
 
-	// The suggestions were computed against an earlier poll; make sure
-	// the sweep did not finish while the optimizer was thinking.
+	// The sweep may have finished while the optimizer was thinking.
 	facts, err := s.api.FetchSweep(ctx)
 	switch {
 	case err != nil && Classify(err) == DispositionNotFound:
@@ -1104,8 +1063,7 @@ func (s *Scheduler) enqueueSuggestions(
 			"the sweep is "+facts.State)
 	case facts.State == sweepStatePaused:
 		// Pausing is not terminal, but new runs must not start; the
-		// optimizer gets these back through the discard channel and the
-		// next asks are skipped until the sweep resumes.
+		// optimizer gets these back as discards.
 		s.discardAll(suggestions)
 		return nil
 	}
@@ -1119,17 +1077,15 @@ func (s *Scheduler) enqueueSuggestions(
 	return nil
 }
 
-// enqueueOne schedules a single suggestion. A failed enqueue ends the
-// scheduler with an error, discarding the suggestion so the optimizer
-// forgets it. A non-nil return ends the scheduler with that Done task.
+// enqueueOne schedules a single suggestion, discarding it if that
+// fails. A non-nil return ends the scheduler with that Done task.
 func (s *Scheduler) enqueueOne(
 	ctx context.Context,
 	suggestion *spb.SweepSchedulerClientRunSuggestion,
 ) *spb.SweepSchedulerServerNextTaskResponse {
 	id := suggestion.OptimizerRunId
 	if id == "" {
-		// Ids key the scheduler's run tracking, so an id-less
-		// suggestion cannot be tracked.
+		// Ids key run tracking, so this one cannot be tracked.
 		s.logger.Warn("scheduler: dropping suggestion with an empty id")
 		s.discards = append(s.discards, id)
 		return nil
@@ -1182,9 +1138,8 @@ func (s *Scheduler) enqueueOne(
 
 	s.logger.Info("scheduler: enqueued run", "id", id)
 	// The minted run is guaranteed to appear in the sweep as pending;
-	// the next poll refreshes the placeholder state. One that never
-	// appears was deleted by the user and is reaped like any other
-	// tracked run missing from polls.
+	// one that never does was deleted and is reaped like any other
+	// missing tracked run.
 	run.state = TrackingInFlight
 	run.name = mintedID
 	run.runState = spb.SweepRunState_SWEEP_RUN_STATE_PENDING
@@ -1237,10 +1192,9 @@ func (r *trackedRun) occupiesSlot(now time.Time, stopGrace time.Duration) bool {
 
 // applyPrunes stops the runs the optimizer pruned.
 //
-// Ids outside the candidates offered with the task are ignored, and stop
-// failures are never loop-fatal: the run stays tracked (and prunable)
-// until its terminal state arrives by poll. A pruned run gets one final
-// terminal update and is excluded from tells and candidates until then.
+// Ids outside the candidates offered with the task are ignored, and a
+// failed stop is never loop-fatal: the run stays tracked and prunable
+// until a poll reports it terminal.
 func (s *Scheduler) applyPrunes(ctx context.Context, pruneIDs []string) {
 	if len(pruneIDs) == 0 {
 		return
@@ -1294,11 +1248,8 @@ func sweepIsActive(state string) bool {
 		state == sweepStatePaused
 }
 
-// runStates maps the backend's run state strings onto the protocol enum.
-//
-// An unlisted string maps to UNKNOWN; stateOrFailed reports such runs
-// as failed rather than guess what a state this scheduler predates
-// means.
+// runStates maps the backend's run state strings onto the protocol
+// enum. An unlisted string maps to UNKNOWN; see stateOrFailed.
 var runStates = map[string]spb.SweepRunState{
 	"running":    spb.SweepRunState_SWEEP_RUN_STATE_RUNNING,
 	"pending":    spb.SweepRunState_SWEEP_RUN_STATE_PENDING,
@@ -1318,10 +1269,10 @@ func runStateOf(state string) spb.SweepRunState {
 	return spb.SweepRunState_SWEEP_RUN_STATE_UNKNOWN
 }
 
-// stateOrFailed classifies a backend run state string, reporting a run
-// in a state this scheduler does not recognize as failed: search
-// strategies need clean alive-or-terminal semantics, and a run left
-// alive on a guess could hold the sweep open forever.
+// stateOrFailed classifies a backend run state string, reporting an
+// unrecognized state as failed: strategies need clean
+// alive-or-terminal semantics, and a run left alive on a guess could
+// hold the sweep open forever.
 func (s *Scheduler) stateOrFailed(stateString string) spb.SweepRunState {
 	state := runStateOf(stateString)
 	if state != spb.SweepRunState_SWEEP_RUN_STATE_UNKNOWN {
@@ -1339,9 +1290,7 @@ func (s *Scheduler) stateOrFailed(stateString string) spb.SweepRunState {
 }
 
 // runStateIsTerminal reports whether the run has stopped for good.
-//
-// UNKNOWN, the pre-refresh placeholder of adopted runs, is
-// non-terminal; PREEMPTED is both stopped and terminal.
+// UNKNOWN, the placeholder for adopted runs, is not terminal.
 func runStateIsTerminal(state spb.SweepRunState) bool {
 	switch state {
 	case spb.SweepRunState_SWEEP_RUN_STATE_FINISHED,
@@ -1369,12 +1318,9 @@ type sweepConfig struct {
 	} `yaml:"metric"`
 }
 
-// parseMetricKey returns the sweep's objective metric name, or "" when
-// the config declares none.
-//
-// A missing metric is allowed: it disables metric-history fetching and
-// the FINISHED-without-metric reclassification rather than failing every
-// poll.
+// parseMetricKey returns the sweep's objective metric name, or ""
+// when the config declares none: that disables history fetching and
+// the FINISHED-without-metric reclassification rather than failing.
 func parseMetricKey(configYAML string) (string, error) {
 	var config sweepConfig
 	if err := yaml.Unmarshal([]byte(configYAML), &config); err != nil {
