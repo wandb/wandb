@@ -21,12 +21,12 @@ from wandb.errors import term
 from wandb.proto import wandb_sweep_scheduler_pb2 as sspb
 from wandb.sdk import wandb_setup
 from wandb.sdk.lib import wbauth
-from wandb.sdk.sweeps.scheduler.optimizer import Optimizer
 from wandb.sdk.sweeps.scheduler.ipc import (
     SchedulerTaskExchange,
     describe_done,
     forget_discards,
 )
+from wandb.sdk.sweeps.scheduler.optimizer import Optimizer
 from wandb.sdk.sweeps.sweep_info import SweepInfo
 
 # Init is one wandb-core round trip to the W&B backend, registering the

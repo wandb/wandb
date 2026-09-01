@@ -1,3 +1,11 @@
+"""Unit tests of Optimizer implementations, in pure Python.
+
+No wandb-core process, IPC connection or backend is involved: each
+Optimizer is exercised directly through its ask/tell interface. For the
+Python-and-Go integration tests, see
+tests/system_tests/test_sweep/test_sweep_scheduler_e2e.py.
+"""
+
 from __future__ import annotations
 
 import abc
