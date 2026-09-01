@@ -106,25 +106,7 @@ class Optimizer(ABC):
 
     def __init__(self, sweep: SweepInfo):
         self._sweep = sweep
-        self._bound_to_scheduler = False
         self.validate_sweep_objective()
-
-    def bind_to_scheduler(self) -> None:
-        """Claim this optimizer for one scheduler session.
-
-        Called by the scheduler task exchange. An optimizer's state mirrors the
-        session that produced it, so serving a second one would corrupt
-        the search.
-
-        Raises:
-            ValueError: If this optimizer already served a session.
-        """
-        if self._bound_to_scheduler:
-            raise ValueError(
-                "This optimizer already served a scheduler session; "
-                "construct a new one to run again."
-            )
-        self._bound_to_scheduler = True
 
     @abstractmethod
     def validate_sweep_objective(self) -> None:
