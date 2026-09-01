@@ -24,6 +24,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
+	"github.com/wandb/wandb/core/internal/sweeps/scheduler"
 	"github.com/wandb/wandb/core/internal/wbapi"
 
 	"google.golang.org/protobuf/proto"
@@ -39,6 +40,7 @@ const (
 type ConnectionParams struct {
 	StreamMux          *stream.StreamMux
 	RunSyncManager     *runsync.RunSyncManager
+	SweepSchedBroker   *scheduler.IPCSessionBroker
 	XPUResourceManager *monitor.XPUResourceManager
 
 	ID string
@@ -81,6 +83,9 @@ type Connection struct {
 
 	// runSyncManager implements `wandb sync` operations.
 	runSyncManager *runsync.RunSyncManager
+
+	// sweepSchedBroker implements `wandb sweep-scheduler` sessions.
+	sweepSchedBroker *scheduler.IPCSessionBroker
 
 	// xpuResourceManager is used by streams for system accelerator metrics.
 	xpuResourceManager *monitor.XPUResourceManager
@@ -125,6 +130,7 @@ func NewConnection(
 		stopServer:         stopServer,
 		streamMux:          params.StreamMux,
 		runSyncManager:     params.RunSyncManager,
+		sweepSchedBroker:   params.SweepSchedBroker,
 		xpuResourceManager: params.XPUResourceManager,
 		conn:               params.Conn,
 		commit:             params.Commit,
@@ -364,6 +370,13 @@ func (nc *Connection) handleIncomingRequests() {
 			nc.handleApiCleanup(wg, x.ApiCleanupRequest)
 		case *spb.ServerRequest_ApiRequest:
 			nc.handleApi(wg, msg.RequestId, x.ApiRequest)
+		case *spb.ServerRequest_SweepSchedulerInit:
+			nc.handleSweepSchedulerInit(wg, msg.RequestId, x.SweepSchedulerInit)
+		case *spb.ServerRequest_SweepSchedulerNextTask:
+			nc.handleSweepSchedulerNextTask(
+				wg, msg.RequestId, x.SweepSchedulerNextTask)
+		case *spb.ServerRequest_SweepSchedulerStop:
+			nc.handleSweepSchedulerStop(x.SweepSchedulerStop)
 		case nil:
 			slog.Error(
 				"handleIncomingRequests: ServerRequestType is nil",
@@ -683,6 +696,77 @@ func (nc *Connection) handleSyncStatus(
 			SyncStatusResponse: response,
 		},
 	})
+}
+
+// handleSweepSchedulerInit asynchronously starts a sweep scheduler.
+//
+// Async because initialization talks to the W&B backend; the serial
+// request drain must not block on the network.
+func (nc *Connection) handleSweepSchedulerInit(
+	wg *sync.WaitGroup,
+	id string,
+	request *spb.SweepSchedulerClientInitRequest,
+) {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		ctx, cancel := nc.requestCanceller.Context(id)
+		defer cancel()
+
+		response, err := nc.sweepSchedBroker.InitScheduler(
+			nc.connLifetimeCtx, ctx, request)
+		if err != nil {
+			nc.Respond(&spb.ServerResponse{
+				RequestId: id,
+				ServerResponseType: &spb.ServerResponse_ErrorResponse{
+					ErrorResponse: &spb.ServerErrorResponse{
+						Message: err.Error(),
+					},
+				},
+			})
+			return
+		}
+
+		nc.Respond(&spb.ServerResponse{
+			RequestId: id,
+			ServerResponseType: &spb.ServerResponse_SweepSchedulerInitResponse{
+				SweepSchedulerInitResponse: response,
+			},
+		})
+	}()
+}
+
+// handleSweepSchedulerNextTask asynchronously answers a scheduler's
+// long poll.
+//
+// Async because the response is only ready after up to one poll
+// interval; handling it inline would stall every other request on the
+// connection.
+func (nc *Connection) handleSweepSchedulerNextTask(
+	wg *sync.WaitGroup,
+	id string,
+	request *spb.SweepSchedulerClientNextTaskRequest,
+) {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		nc.Respond(&spb.ServerResponse{
+			RequestId: id,
+			ServerResponseType: &spb.ServerResponse_SweepSchedulerNextTaskResponse{
+				SweepSchedulerNextTaskResponse: nc.sweepSchedBroker.NextTask(
+					request),
+			},
+		})
+	}()
+}
+
+// handleSweepSchedulerStop forwards a fire-and-forget stop request.
+func (nc *Connection) handleSweepSchedulerStop(
+	request *spb.SweepSchedulerClientStopRequest,
+) {
+	nc.sweepSchedBroker.Stop(request)
 }
 
 // handleApiInit sets up a new wandbAPI instance.
