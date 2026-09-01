@@ -2,59 +2,29 @@ package scheduler_test
 
 import (
 	"context"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/sweeps/scheduler"
+	"github.com/wandb/wandb/core/internal/sweeps/schedulertest"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// scriptedTaskResolver returns empty generation tasks until stopped, then a
-// Done task, like the real scheduler loop.
-type scriptedTaskResolver struct {
-	mu      sync.Mutex
-	stopped bool
-}
-
-func (s *scriptedTaskResolver) Step(
-	ctx context.Context,
-	result *spb.SweepSchedulerClientTaskResult,
-) *spb.SweepSchedulerServerNextTaskResponse {
-	s.mu.Lock()
-	stopped := s.stopped
-	s.mu.Unlock()
-
-	if stopped {
-		return &spb.SweepSchedulerServerNextTaskResponse{
-			Task: &spb.SweepSchedulerServerNextTaskResponse_Done{
-				Done: &spb.SweepSchedulerServerDoneTask{
-					Reason: spb.SweepSchedulerServerDoneTask_REASON_SHUTDOWN,
-				},
-			},
-		}
-	}
-	return &spb.SweepSchedulerServerNextTaskResponse{
-		Task: &spb.SweepSchedulerServerNextTaskResponse_Generation{
-			Generation: &spb.SweepSchedulerServerGenerationTask{},
-		},
-	}
-}
-
-func (s *scriptedTaskResolver) Stop() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.stopped = true
-}
-
-// testFactory records the session contexts and resolvers it created.
+// testFactory hands the broker mock resolvers and records the session
+// contexts it created them with.
 type testFactory struct {
+	ctrl      *gomock.Controller
 	schedCtxs []context.Context
-	resolvers []*scriptedTaskResolver
+	resolvers []*schedulertest.MockTaskResolver
 	err       error
+}
+
+func newTestFactory(t *testing.T) *testFactory {
+	return &testFactory{ctrl: gomock.NewController(t)}
 }
 
 func (f *testFactory) make(
@@ -65,7 +35,7 @@ func (f *testFactory) make(
 	if f.err != nil {
 		return nil, nil, f.err
 	}
-	resolver := &scriptedTaskResolver{}
+	resolver := schedulertest.NewMockTaskResolver(f.ctrl)
 	f.schedCtxs = append(f.schedCtxs, schedCtx)
 	f.resolvers = append(f.resolvers, resolver)
 	return resolver, &spb.SweepSchedulerServerInitResponse{
@@ -87,8 +57,26 @@ func newTestBroker(t *testing.T, factory *testFactory) *scheduler.IPCSessionBrok
 		factory.make, observabilitytest.NewTestLogger(t))
 }
 
+func generationTask() *spb.SweepSchedulerServerNextTaskResponse {
+	return &spb.SweepSchedulerServerNextTaskResponse{
+		Task: &spb.SweepSchedulerServerNextTaskResponse_Generation{
+			Generation: &spb.SweepSchedulerServerGenerationTask{},
+		},
+	}
+}
+
+func shutdownTask() *spb.SweepSchedulerServerNextTaskResponse {
+	return &spb.SweepSchedulerServerNextTaskResponse{
+		Task: &spb.SweepSchedulerServerNextTaskResponse_Done{
+			Done: &spb.SweepSchedulerServerDoneTask{
+				Reason: spb.SweepSchedulerServerDoneTask_REASON_SHUTDOWN,
+			},
+		},
+	}
+}
+
 func TestInitSchedulerAssignsIDs(t *testing.T) {
-	factory := &testFactory{}
+	factory := newTestFactory(t)
 	broker := newTestBroker(t, factory)
 	ctx := context.Background()
 
@@ -103,7 +91,8 @@ func TestInitSchedulerAssignsIDs(t *testing.T) {
 }
 
 func TestInitSchedulerFactoryError(t *testing.T) {
-	factory := &testFactory{err: assert.AnError}
+	factory := newTestFactory(t)
+	factory.err = assert.AnError
 	broker := newTestBroker(t, factory)
 	ctx := context.Background()
 
@@ -113,7 +102,7 @@ func TestInitSchedulerFactoryError(t *testing.T) {
 }
 
 func TestSecondInitSameSweepIsRejected(t *testing.T) {
-	factory := &testFactory{}
+	factory := newTestFactory(t)
 	broker := newTestBroker(t, factory)
 	ctx := context.Background()
 
@@ -129,7 +118,7 @@ func TestSecondInitSameSweepIsRejected(t *testing.T) {
 }
 
 func TestRerunAllowedAfterClientDies(t *testing.T) {
-	factory := &testFactory{}
+	factory := newTestFactory(t)
 	broker := newTestBroker(t, factory)
 	connCtx, cancel := context.WithCancel(context.Background())
 	reqCtx := context.Background()
@@ -145,12 +134,16 @@ func TestRerunAllowedAfterClientDies(t *testing.T) {
 }
 
 func TestRerunAllowedAfterSchedulerFinishes(t *testing.T) {
-	factory := &testFactory{}
+	factory := newTestFactory(t)
 	broker := newTestBroker(t, factory)
 	ctx := context.Background()
 
 	first, err := broker.InitScheduler(ctx, ctx, initRequest("sweep-a"))
 	require.NoError(t, err)
+	factory.resolvers[0].EXPECT().Stop()
+	factory.resolvers[0].EXPECT().
+		Step(gomock.Any(), gomock.Nil()).
+		Return(shutdownTask())
 
 	// Drive the first session to its terminal task.
 	broker.Stop(&spb.SweepSchedulerClientStopRequest{SessionId: first.SessionId})
@@ -164,7 +157,7 @@ func TestRerunAllowedAfterSchedulerFinishes(t *testing.T) {
 }
 
 func TestInitsForDifferentSweepsCoexist(t *testing.T) {
-	factory := &testFactory{}
+	factory := newTestFactory(t)
 	broker := newTestBroker(t, factory)
 	ctx := context.Background()
 
@@ -178,7 +171,7 @@ func TestInitsForDifferentSweepsCoexist(t *testing.T) {
 }
 
 func TestNextTaskUnknownIDReturnsFatalDone(t *testing.T) {
-	broker := newTestBroker(t, &testFactory{})
+	broker := newTestBroker(t, newTestFactory(t))
 
 	response := broker.NextTask(
 		&spb.SweepSchedulerClientNextTaskRequest{SessionId: "scheduler-99"})
@@ -191,12 +184,15 @@ func TestNextTaskUnknownIDReturnsFatalDone(t *testing.T) {
 }
 
 func TestNextTaskRoutesToSession(t *testing.T) {
-	factory := &testFactory{}
+	factory := newTestFactory(t)
 	broker := newTestBroker(t, factory)
 	ctx := context.Background()
 	initResponse, err := broker.InitScheduler(
 		ctx, ctx, initRequest("sweep-a"))
 	require.NoError(t, err)
+	factory.resolvers[0].EXPECT().
+		Step(gomock.Any(), gomock.Nil()).
+		Return(generationTask())
 
 	response := broker.NextTask(
 		&spb.SweepSchedulerClientNextTaskRequest{SessionId: initResponse.SessionId})
@@ -206,21 +202,21 @@ func TestNextTaskRoutesToSession(t *testing.T) {
 }
 
 func TestStopRoutesToSessionAndIgnoresUnknown(t *testing.T) {
-	factory := &testFactory{}
+	factory := newTestFactory(t)
 	broker := newTestBroker(t, factory)
 	ctx := context.Background()
 	initResponse, err := broker.InitScheduler(
 		ctx, ctx, initRequest("sweep-a"))
 	require.NoError(t, err)
+	// Exactly one Stop must reach the session; the unknown id is dropped.
+	factory.resolvers[0].EXPECT().Stop()
 
 	broker.Stop(&spb.SweepSchedulerClientStopRequest{SessionId: initResponse.SessionId})
 	broker.Stop(&spb.SweepSchedulerClientStopRequest{SessionId: "scheduler-99"})
-
-	assert.True(t, factory.resolvers[0].stopped)
 }
 
 func TestShutdownCancelsAllSessions(t *testing.T) {
-	factory := &testFactory{}
+	factory := newTestFactory(t)
 	broker := newTestBroker(t, factory)
 	ctx := context.Background()
 	_, err1 := broker.InitScheduler(ctx, ctx, initRequest("sweep-a"))
