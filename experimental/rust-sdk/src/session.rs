@@ -1,123 +1,111 @@
-use core::panic;
-use std::io;
-use std::io::Result;
-use std::net::TcpStream;
+//! A session owns a wandb-core service process and the connection to it.
 
-use sentry;
-use std::env;
-use std::path::Path;
 use std::sync::Arc;
-use tracing;
+use std::time::Duration;
 
-use crate::connection::{Connection, Interface};
-use crate::launcher::Launcher;
+use crate::connection::Connection;
+use crate::error::{Error, Result};
+use crate::launcher::CoreProcess;
 use crate::run::Run;
 use crate::settings::Settings;
-use crate::wandb_internal;
+use crate::wandb_internal as pb;
 
+const AUTHENTICATE_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// How long to let wandb-core finish uploading run data on shutdown.
+/// Process exit is the signal that all data has been flushed.
+const TEARDOWN_TIMEOUT: Duration = Duration::from_secs(300);
+
+/// A connection to a wandb-core service that can host multiple runs.
+///
+/// The service process is started on creation and shut down when the
+/// session and all of its runs are dropped.
 pub struct Session {
     inner: Arc<SessionInner>,
 }
 
-#[derive(Debug)]
-pub struct SessionInner {
-    settings: Settings,
-    addr: String,
-}
-
-pub fn get_core_address() -> String {
-    let current_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("bin");
-    let core_cmd = Path::new(&current_dir)
-        .join("wandb-core")
-        .into_os_string()
-        .into_string()
-        .expect("Failed to convert path to string");
-
-    let mut launcher = Launcher {
-        command: core_cmd,
-        child_process: None,
-    };
-    let port = launcher.start();
-
-    if let Ok(port) = port {
-        format!("127.0.0.1:{}", port)
-    } else {
-        sentry::capture_error(&io::Error::new(
-            io::ErrorKind::Other,
-            "Couldn't get port from launcher...",
-        ));
-        tracing::error!("Couldn't get port from launcher...");
-        panic!();
+impl Session {
+    /// Starts wandb-core and connects to it.
+    pub fn new(settings: Settings) -> Result<Session> {
+        let process = CoreProcess::launch()?;
+        let connection = Connection::connect(&process.transport)?;
+        Ok(Session {
+            inner: Arc::new(SessionInner {
+                connection,
+                process,
+                settings,
+            }),
+        })
     }
-}
 
-impl SessionInner {
-    pub fn connect(&self) -> TcpStream {
-        tracing::debug!("Connecting to {}", self.addr);
+    /// Starts a new run.
+    pub fn init_run(&self) -> Result<Run> {
+        Run::init(Arc::clone(&self.inner))
+    }
 
-        if let Ok(stream) = TcpStream::connect(&self.addr) {
-            tracing::debug!("Stream peer address: {}", stream.peer_addr().unwrap());
-            tracing::debug!("Stream local address: {}", stream.local_addr().unwrap());
+    /// Verifies the configured API key with the W&B server and returns the
+    /// default entity for it.
+    pub fn authenticate(&self) -> Result<String> {
+        let api_key = self.inner.settings.api_key().ok_or_else(|| {
+            Error::InvalidInput("no API key configured; set WANDB_API_KEY".to_string())
+        })?;
 
-            return stream;
-        } else {
-            sentry::capture_error(&io::Error::new(
-                io::ErrorKind::Other,
-                "Couldn't connect to server...",
-            ));
-            tracing::error!("Couldn't connect to server...");
-            panic!();
+        // wandb-core responds to authenticate requests without a request_id,
+        // echoing `_info` instead; send the request ID as the stream ID too.
+        let request_id = crate::generate_id(12);
+        let request = pb::ServerRequest {
+            request_id: request_id.clone(),
+            server_request_type: Some(pb::server_request::ServerRequestType::Authenticate(
+                pb::ServerAuthenticateRequest {
+                    api_key,
+                    base_url: self.inner.settings.base_url(),
+                    info: Some(pb::RecordInfo {
+                        stream_id: request_id.clone(),
+                        ..Default::default()
+                    }),
+                },
+            )),
+        };
+        let response = self
+            .inner
+            .connection
+            .request(&request_id, request, AUTHENTICATE_TIMEOUT)?;
+
+        match response.server_response_type {
+            Some(pb::server_response::ServerResponseType::AuthenticateResponse(auth)) => {
+                if auth.error_status.is_empty() {
+                    Ok(auth.default_entity)
+                } else {
+                    Err(Error::Server(auth.error_status))
+                }
+            }
+            _ => Err(Error::UnexpectedResponse("expected authenticate response")),
         }
     }
 }
 
-impl Drop for SessionInner {
-    fn drop(&mut self) {
-        println!("Dropping session");
-        // Send a teardown request to the wandb-core
-        let conn = Connection::new(self.connect());
-        let interface = Interface::new(conn);
-
-        let inform_teardown_request = wandb_internal::ServerRequest {
-            server_request_type: Some(
-                wandb_internal::server_request::ServerRequestType::InformTeardown(
-                    wandb_internal::ServerInformTeardownRequest {
-                        exit_code: 0,
-                        info: None,
-                    },
-                ),
-            ),
-        };
-        tracing::debug!(
-            "Sending inform teardown request {:?}",
-            inform_teardown_request
-        );
-        interface
-            .conn
-            .send_message(&inform_teardown_request)
-            .unwrap();
-    }
+/// Shared session state, kept alive by the session and each of its runs.
+pub(crate) struct SessionInner {
+    pub connection: Connection,
+    process: CoreProcess,
+    pub settings: Settings,
 }
 
-impl Session {
-    pub fn new(settings: Settings) -> Result<Session> {
-        let addr = get_core_address();
-        let inner = Arc::new(SessionInner { settings, addr });
-        Ok(Session { inner })
-    }
-
-    pub fn init_run(&self, run_id: Option<String>) -> Result<Run> {
-        let conn = Connection::new(self.inner.connect());
-        let interface = Interface::new(conn);
-
-        let mut run = Run {
-            settings: self.inner.settings.clone(),
-            interface,
-            _session: Arc::clone(&self.inner),
-        };
-
-        run.init(run_id);
-
-        Ok(run)
+impl Drop for SessionInner {
+    fn drop(&mut self) {
+        // Ask wandb-core to flush all runs and exit, then wait for it.
+        let _ = self.connection.notify(pb::ServerRequest {
+            server_request_type: Some(pb::server_request::ServerRequestType::InformTeardown(
+                pb::ServerInformTeardownRequest {
+                    exit_code: 0,
+                    info: None,
+                },
+            )),
+            ..Default::default()
+        });
+        self.connection.close();
+        if let Err(e) = self.process.join(TEARDOWN_TIMEOUT) {
+            tracing::warn!("failed to shut down wandb-core: {e}");
+        }
     }
 }
