@@ -9,6 +9,7 @@ import (
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/randomid"
+	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/wbvalue"
@@ -59,11 +60,15 @@ type tfEmitter struct {
 	hasWallTime bool
 	tfWallTime  float64
 
-	settings *settings.Settings
+	runHandle *runhandle.RunHandle
+	settings  *settings.Settings
 }
 
-func NewTFEmitter(s *settings.Settings) *tfEmitter {
-	return &tfEmitter{settings: s}
+func NewTFEmitter(
+	runHandle *runhandle.RunHandle,
+	s *settings.Settings,
+) *tfEmitter {
+	return &tfEmitter{runHandle: runHandle, settings: s}
 }
 
 // Emit sends accumulated data to the run.
@@ -97,7 +102,6 @@ func (e *tfEmitter) filesRecord() *spb.Record {
 	}
 
 	return &spb.Record{
-		Control: &spb.Control{Local: true},
 		RecordType: &spb.Record_Files{
 			Files: &spb.FilesRecord{
 				Files: files,
@@ -121,7 +125,6 @@ func (e *tfEmitter) configRecord() *spb.Record {
 	}
 
 	return &spb.Record{
-		Control: &spb.Control{Local: true},
 		RecordType: &spb.Record_Config{
 			Config: &spb.ConfigRecord{
 				Update: items,
@@ -135,7 +138,13 @@ func (e *tfEmitter) historyRecord() *spb.Record {
 		return nil
 	}
 
-	var items []*spb.HistoryItem
+	items := []*spb.HistoryItem{
+		{
+			Key:       "_runtime",
+			ValueJson: fmt.Sprintf("%f", e.runHandle.Runtime().Seconds()),
+		},
+	}
+
 	for _, value := range e.historyStep {
 		items = append(items,
 			&spb.HistoryItem{
@@ -161,19 +170,9 @@ func (e *tfEmitter) historyRecord() *spb.Record {
 	}
 
 	return &spb.Record{
-		Control: &spb.Control{Local: true},
-		RecordType: &spb.Record_Request{
-			Request: &spb.Request{
-				RequestType: &spb.Request_PartialHistory{
-					PartialHistory: &spb.PartialHistoryRequest{
-						Item: items,
-
-						// Setting "Flush" indicates that the event should be uploaded as
-						// its own history row, rather than combined with future events.
-						// Future events may contain new values for the same keys.
-						Action: &spb.HistoryAction{Flush: true},
-					},
-				},
+		RecordType: &spb.Record_History{
+			History: &spb.HistoryRecord{
+				Item: items,
 			},
 		},
 	}
