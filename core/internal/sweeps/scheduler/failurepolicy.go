@@ -43,17 +43,15 @@ func Classify(err error) Disposition {
 	}
 
 	if errors.Is(err, context.DeadlineExceeded) {
-		// A timed-out request got no response, like a dropped
-		// connection; keep polling and let the error budget decide.
+		// A timed-out request got no response; the error budget
+		// decides when to give up.
 		return DispositionTransient
 	}
 
 	httpError, ok := errors.AsType[*graphql.HTTPError](err)
 	if !ok {
-		// No HTTP status means the failure never got a response:
-		// a connection problem or a garbled body. The HTTP client has
-		// already retried; treat what is left as transient and let the
-		// consecutive-error budget end the loop if it persists.
+		// No HTTP status means the call never got a response. The HTTP
+		// client already retried, so let the error budget end the loop.
 		return DispositionTransient
 	}
 
@@ -64,12 +62,12 @@ func Classify(err error) Disposition {
 	case status == http.StatusTooManyRequests:
 		return DispositionRateLimited
 	case clients.RetryableStatus(status):
-		// The backend client retried and still failed; polling again
-		// later is the only retry left.
+		// The backend client retried; polling later is the only retry
+		// left.
 		return DispositionTransient
 	default:
-		// A status the backend client never retries cannot start
-		// succeeding just because the loop polls again.
+		// A status the client never retries will not start succeeding
+		// because the loop polls again.
 		return DispositionFatal
 	}
 }
@@ -107,9 +105,8 @@ func (b *Backoff) OnSuccess() {
 	b.consecutive = 0
 }
 
-// OnError doubles the slowdown. Rate limits slow polling without
-// counting toward Exhausted: the server asked us to back off, and
-// obliging will never succeed less.
+// OnError doubles the slowdown. A rate limit slows polling without
+// counting toward Exhausted: obliging the server is not a failure.
 func (b *Backoff) OnError(disposition Disposition) {
 	b.slowdown = min(max(2*b.slowdown, initialSlowdown), maxSlowdown)
 
@@ -125,12 +122,11 @@ func (b *Backoff) Exhausted() bool {
 	return b.consecutive >= maxConsecutiveErrors
 }
 
-// trackedAPI is the scheduler loop's view of the W&B backend, with the
-// failure policy applied in one layer: every call's outcome feeds the
-// backoff here, so no call site records success or failure itself.
+// trackedAPI wraps SweepAPI so every call's outcome feeds the backoff
+// in one place; no call site records success or failure itself.
 //
-// A call that failed because ctx was cancelled is not recorded: a
-// cancelled call means shutdown, not backend failure.
+// A call that failed because ctx was cancelled is not recorded:
+// cancellation means shutdown, not backend failure.
 type trackedAPI struct {
 	api     *SweepAPI
 	backoff Backoff
