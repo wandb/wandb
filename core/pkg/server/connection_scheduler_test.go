@@ -11,48 +11,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/sweeps/scheduler"
+	"github.com/wandb/wandb/core/internal/sweeps/schedulertest"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
-
-// stopAwareResolver returns empty generation tasks until stopped, then a
-// shutdown Done task.
-type stopAwareResolver struct {
-	mu      sync.Mutex
-	stopped bool
-}
-
-func (s *stopAwareResolver) Step(
-	ctx context.Context,
-	result *spb.SweepSchedulerClientTaskResult,
-) *spb.SweepSchedulerServerNextTaskResponse {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.stopped {
-		return &spb.SweepSchedulerServerNextTaskResponse{
-			Task: &spb.SweepSchedulerServerNextTaskResponse_Done{
-				Done: &spb.SweepSchedulerServerDoneTask{
-					Reason: spb.SweepSchedulerServerDoneTask_REASON_SHUTDOWN,
-				},
-			},
-		}
-	}
-	return &spb.SweepSchedulerServerNextTaskResponse{
-		Task: &spb.SweepSchedulerServerNextTaskResponse_Generation{
-			Generation: &spb.SweepSchedulerServerGenerationTask{},
-		},
-	}
-}
-
-func (s *stopAwareResolver) Stop() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.stopped = true
-}
 
 // newSchedulerTestConn wires a Connection with a scheduler broker over a
 // pipe, returning the pipe's client side and a WaitGroup that unwinds
@@ -121,7 +87,27 @@ func readServerResponse(
 }
 
 func TestConnection_SweepSchedulerRouting(t *testing.T) {
-	resolver := &stopAwareResolver{}
+	resolver := schedulertest.NewMockTaskResolver(gomock.NewController(t))
+	// The first poll carries no result; the one after the stop does.
+	resolver.EXPECT().
+		Step(gomock.Any(), gomock.Nil()).
+		Return(&spb.SweepSchedulerServerNextTaskResponse{
+			Task: &spb.SweepSchedulerServerNextTaskResponse_Generation{
+				Generation: &spb.SweepSchedulerServerGenerationTask{},
+			},
+		})
+	// The expectation is the assertion that the stop was routed.
+	resolver.EXPECT().Stop()
+	resolver.EXPECT().
+		Step(gomock.Any(), gomock.Not(gomock.Nil())).
+		Return(&spb.SweepSchedulerServerNextTaskResponse{
+			Task: &spb.SweepSchedulerServerNextTaskResponse_Done{
+				Done: &spb.SweepSchedulerServerDoneTask{
+					Reason: spb.SweepSchedulerServerDoneTask_REASON_SHUTDOWN,
+				},
+			},
+		})
+
 	clientConn, wg := newSchedulerTestConn(t, func(
 		schedCtx context.Context,
 		reqCtx context.Context,
