@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"context"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -202,7 +201,7 @@ func TestNilTaskResolverTaskBecomesShutdownDone(t *testing.T) {
 
 func TestConcurrentPollsSerialize(t *testing.T) {
 	resolver := newTestResolver(t)
-	// Hold the only Step open until both polls are in flight.
+	stepping := make(chan struct{})
 	release := make(chan struct{})
 	resolver.EXPECT().
 		Step(gomock.Any(), gomock.Nil()).
@@ -210,26 +209,27 @@ func TestConcurrentPollsSerialize(t *testing.T) {
 			context.Context,
 			*spb.SweepSchedulerClientTaskResult,
 		) *spb.SweepSchedulerServerNextTaskResponse {
+			close(stepping)
 			<-release
 			return generationTask()
 		})
 	machine := newTestStateMachine(t, resolver)
 
 	responses := make(chan *spb.SweepSchedulerServerNextTaskResponse, 2)
-	var wg sync.WaitGroup
 	for range 2 {
-		wg.Go(func() { responses <- machine.NextTask(nil) })
+		go func() { responses <- machine.NextTask(nil) }()
 	}
-	release <- struct{}{}
-	wg.Wait()
-	close(responses)
+	// Hold the only Step open until it is under way, so the poll that
+	// lost the race meets a Step that is genuinely in flight.
+	schedulertest.Receive(t, stepping)
+	close(release)
 
 	// The client is supposed to keep one poll outstanding. Both are
 	// still answered: one computed the task, and the other could not be
 	// answering it, so it ended the session.
 	var tasks, fatals int
-	for response := range responses {
-		if done := response.GetDone(); done != nil {
+	for range 2 {
+		if done := schedulertest.Receive(t, responses).GetDone(); done != nil {
 			assert.Equal(t,
 				spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR,
 				done.Reason)
@@ -260,13 +260,13 @@ func TestStopForwardsWhileStepBlocked(t *testing.T) {
 	resolver.EXPECT().Stop()
 	machine := newTestStateMachine(t, resolver)
 
-	var wg sync.WaitGroup
-	wg.Go(func() { machine.NextTask(nil) })
-	<-stepping
+	polled := make(chan *spb.SweepSchedulerServerNextTaskResponse, 1)
+	go func() { polled <- machine.NextTask(nil) }()
+	schedulertest.Receive(t, stepping)
 
 	// Stop must not block on the machine's mutex while a Step holds it.
 	machine.Stop()
 
 	close(release)
-	wg.Wait()
+	schedulertest.Receive(t, polled)
 }
