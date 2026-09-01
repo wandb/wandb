@@ -133,3 +133,7 @@ func TestBackoffResetsOnSuccess(t *testing.T) {
 
 	assert.Equal(t, 0.0, backoff.Slowdown().Seconds())
 }
+
+func TestDefaultPollIntervalMeetsFloor(t *testing.T) {
+	assert.GreaterOrEqual(t, defaultPollInterval, minPollInterval)
+}
