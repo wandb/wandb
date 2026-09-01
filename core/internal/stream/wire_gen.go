@@ -62,6 +62,7 @@ func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceM
 		Logger:               coreLogger,
 		Mailbox:              mailboxMailbox,
 		Operations:           wandbOperations,
+		RunHandle:            runHandle,
 		Settings:             settings2,
 		SystemMonitorFactory: systemMonitorFactory,
 		TerminalPrinter:      printer,

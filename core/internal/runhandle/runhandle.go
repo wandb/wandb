@@ -3,6 +3,7 @@ package runhandle
 import (
 	"errors"
 	"sync"
+	"time"
 
 	"google.golang.org/protobuf/proto"
 
@@ -28,6 +29,12 @@ type RunHandle struct {
 	// unsentTelemetry is telemetry that was recorded before the run
 	// was initialized.
 	unsentTelemetry *spb.TelemetryRecord
+
+	// stopwatch tracks the _runtime metric.
+	//
+	// `_runtime` is the default X axis for system metrics, and it is named
+	// something like "Relative Time (Process)" in the UI.
+	stopwatch Stopwatch
 }
 
 func New() *RunHandle {
@@ -75,6 +82,9 @@ func (h *RunHandle) Init(upserter *runupserter.RunUpserter) error {
 		return errors.New("runhandle: nil upserter")
 	}
 
+	h.stopwatch.Adjust(upserter.StartRuntime())
+	h.stopwatch.Start()
+
 	h.upserter = upserter
 	close(h.ready)
 
@@ -98,4 +108,31 @@ func (h *RunHandle) Upserter() (*runupserter.RunUpserter, error) {
 	}
 
 	return h.upserter, nil
+}
+
+// Runtime returns the `_runtime` metric for the run.
+//
+// This may be incorrect if the run has not been initialized.
+func (h *RunHandle) Runtime() time.Duration {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.stopwatch.Elapsed()
+}
+
+// PauseRunTimer pauses the `_runtime` metric, preventing it from increasing.
+//
+// This is used in Jupyter notebooks after a cell finishes running.
+func (h *RunHandle) PauseRunTimer() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.stopwatch.Stop()
+}
+
+// ResumeRunTimer unpauses the `_runtime` metric.
+//
+// This is used in Jupyter notebooks before a cell starts to run.
+func (h *RunHandle) ResumeRunTimer() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.stopwatch.Start()
 }
