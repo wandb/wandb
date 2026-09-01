@@ -21,6 +21,9 @@ const (
 	// defaultPollInterval is used when the client chooses no interval.
 	defaultPollInterval = 5 * time.Second
 
+	// minPollInterval is the floor below which a chosen interval is clamped.
+	minPollInterval = 5 * time.Second
+
 	// defaultBatchSize is used when the client chooses no batch size.
 	defaultBatchSize = 1
 
@@ -314,6 +317,13 @@ func NewScheduler(params SchedulerParams) *Scheduler {
 	}
 	if params.PollInterval <= 0 {
 		params.PollInterval = defaultPollInterval
+	} else if params.PollInterval < minPollInterval {
+		if params.Logger != nil {
+			params.Logger.Warn(
+				"scheduler: poll interval below the floor, clamping",
+				"requested", params.PollInterval, "floor", minPollInterval)
+		}
+		params.PollInterval = minPollInterval
 	}
 	if params.Clock == nil {
 		params.Clock = realClock{}

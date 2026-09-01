@@ -1,3 +1,10 @@
+"""Unit tests of SchedulerTaskExchange, in pure Python.
+
+Both `ServiceConnection` and `Optimizer` are mocked: no wandb-core process
+or backend is involved. For the few tests that exercise the real IPC path
+end-to-end, see tests/system_tests/test_sweep/test_sweep_scheduler_e2e.py.
+"""
+
 from __future__ import annotations
 
 import asyncio

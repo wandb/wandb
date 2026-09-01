@@ -1929,7 +1929,7 @@ def scheduler(
 
     telemetry_recorder = get_telemetry_recorder().with_context(
         high_cardinality_attributes={
-            "process_context": "sweep_scheduler",
+            "process_context": "launch_scheduler",
         }
     )
     wandb.termlog("Starting a Launch Scheduler 🚀")
@@ -1957,9 +1957,6 @@ def scheduler(
     except Exception as e:
         telemetry_recorder.exception(e)
         raise
-
-
-_SCHEDULER_MIN_POLL_INTERVAL_S = 5
 
 
 def _build_wandb_scheduler_optimizer(sweep, scheduler_config: dict):
@@ -2013,12 +2010,6 @@ def sweep_scheduler(
     scheduler. wandb-core runs the scheduling loop; this process hosts the
     optimizer that proposes runs and learns from their results.
     """
-    if poll_interval < _SCHEDULER_MIN_POLL_INTERVAL_S:
-        wandb.termerror(
-            f"--poll-interval must be at least {_SCHEDULER_MIN_POLL_INTERVAL_S} seconds"
-        )
-        sys.exit(1)
-
     if batch_size < 1:
         wandb.termerror("--batch-size must be at least 1")
         sys.exit(1)
