@@ -596,10 +596,10 @@ class _WandbInit:
         except OSError:
             pass
 
-    def _pre_run_cell_hook(self, *args, **kwargs) -> None:
-        """Hook for the IPython pre_run_cell event.
+    def _post_run_cell_hook(self, *args, **kwargs) -> None:
+        """Hook for the IPython post_run_cell event.
 
-        This pauses a run, preventing system metrics from being collected
+        This pauses a run, preventing system metrics from being collected and
         the run's runtime from increasing. It also uploads the notebook's code.
         """
         if not self._interface:
@@ -613,8 +613,8 @@ class _WandbInit:
         self._logger.info("pausing backend")
         self._interface.publish_pause()
 
-    def _post_run_cell_hook(self, *args, **kwargs) -> None:
-        """Hook for the IPython post_run_cell event.
+    def _pre_run_cell_hook(self, *args, **kwargs) -> None:
+        """Hook for the IPython pre_run_cell event.
 
         Resumes collection of system metrics and the run's timer.
         """
