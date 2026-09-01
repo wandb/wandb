@@ -17,7 +17,7 @@ from typing import Any
 import click
 from typing_extensions import Never
 
-from wandb.analytics import get_sentry, get_telemetry_recorder
+from wandb.analytics import get_telemetry_recorder
 from wandb.env import error_reporting_enabled, is_debug
 from wandb.errors import WandbCoreNotAvailableError
 from wandb.sdk import wandb_setup
@@ -215,7 +215,6 @@ def _base_args() -> list[str]:
     try:
         core_path = get_core_path()
     except WandbCoreNotAvailableError as e:
-        get_sentry().exception(f"using `wandb leet`. failed with {e}")
         get_telemetry_recorder().exception(
             WandbCoreNotAvailableError(f"using `wandb leet`. failed with {e}")
         )
@@ -241,15 +240,11 @@ def _run_core(args: list[str], env: dict[str, str] | None = None) -> Never:
         result = subprocess.run(args, env=env, close_fds=True)
         sys.exit(result.returncode)
     except Exception as e:
-        # TODO: remove sentry once we no longer support/need it
-        get_sentry().exception(e)
         get_telemetry_recorder().reraise(e)
 
 
 def launch(path: str | None, pprof: str) -> Never:
     """Launch the LEET TUI."""
-    get_sentry().configure_scope(process_context="leet")
-
     if path is not None and (path.startswith("https://") or path.startswith("http://")):
         config = _create_remote_launch_config(path)
     else:
@@ -274,8 +269,6 @@ def launch(path: str | None, pprof: str) -> Never:
 
 def launch_inspect(path: str | None) -> Never:
     """Launch the transaction log record inspector."""
-    get_sentry().configure_scope(process_context="leet-inspect")
-
     config = _resolve_path(path)
     if not isinstance(config, LocalLaunchConfig):
         _fatal("`wandb leet inspect` requires a local .wandb file.")
@@ -289,8 +282,6 @@ def launch_inspect(path: str | None) -> Never:
 
 def launch_config() -> Never:
     """Launch the LEET configuration editor."""
-    get_sentry().configure_scope(process_context="leet-config")
-
     args = _base_args()
     args.append("--config")
 
@@ -299,8 +290,6 @@ def launch_config() -> Never:
 
 def launch_symon(pprof: str = "", interval: str = "") -> Never:
     """Launch the standalone system monitor."""
-    get_sentry().configure_scope(process_context="leet-symon")
-
     args = _base_args()
     args.append("--symon")
 

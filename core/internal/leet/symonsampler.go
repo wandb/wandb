@@ -144,8 +144,8 @@ func (s *SymonSampler) Cleanup() {
 	}
 }
 
-// logSamplingError routes sampling failures either to Sentry or debug logs,
-// depending on whether the monitor package considers them expected.
+// logSamplingError captures unexpected sampling failures and debug-logs
+// expected ones.
 func (s *SymonSampler) logSamplingError(err error) {
 	if monitor.ShouldCaptureSamplingError(err) {
 		s.logger.CaptureError(
