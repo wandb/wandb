@@ -40,15 +40,13 @@ def _to_sweeps_state(state: RunState) -> Any:
 class WandbOptimizer(Optimizer):
     """`Optimizer` driven by the `sweeps` search algorithms.
 
-    The `sweeps` search functions (`grid`/`random`/`bayes` and the hyperband
-    early-terminator) are stateless, so this class keeps the full list of sweep
-    runs in memory.
+    The `sweeps` search functions are stateless, so this class keeps the full
+    list of sweep runs in memory.
     """
 
     @override
     def __init__(self, sweep: SweepInfo):
         super().__init__(sweep)
-        # key: run id, value: the SweepRun we hold for it
         self._runs: dict[str, sweeps.SweepRun] = {}
         self._run_counter = 0
 
@@ -56,8 +54,7 @@ class WandbOptimizer(Optimizer):
     def validate_sweep_objective(self) -> None:
         """No-op: the sweep config is the only objective this optimizer reads.
 
-        Unlike the optuna and Ax optimizers there is no external study or
-        experiment that could disagree with it.
+        There is no external study or experiment that could disagree with it.
         """
         return None
 
@@ -77,7 +74,6 @@ class WandbOptimizer(Optimizer):
         return sweep_run
 
     def _record(self, run_id: str, data: RunWithMetrics) -> Any:
-        """Create and store a SweepRun for `run_id` from `data`."""
         sweep_run = self._to_sweep_run(run_id, data)
         self._runs[run_id] = sweep_run
         return sweep_run
@@ -106,11 +102,10 @@ class WandbOptimizer(Optimizer):
                 continue
             run_id = self._new_run_id()
             sweep_run.name = run_id
-            # Record it (state defaults to pending) so the next search call and
-            # tell_run can find it.
+            # State defaults to pending, so the next search call and tell_run
+            # can find it.
             self._runs[run_id] = sweep_run
-            # `sweeps` hands back the wire form ({param: {"value": v}}); unwrap
-            # it into the flat mapping `RunConfig.from_values` takes.
+            # Unwrap the wire form `sweeps` returns into a flat mapping.
             suggestions.append(
                 RunSuggestion(
                     config=RunConfig.from_values(
@@ -135,8 +130,8 @@ class WandbOptimizer(Optimizer):
         Raises:
             ValueError: If `run_id` was never proposed by this optimizer.
         """
-        # Keep the config we suggested — `data.config` may be empty (e.g. a
-        # reaped run) — only the outcome (state, metrics, history) is new here.
+        # Keep the config we suggested: `data.config` may be empty for a
+        # reaped run.
         sweep_run = self._runs.get(run_id)
         if sweep_run is None:
             raise ValueError(f"Run {run_id} not found")
@@ -189,7 +184,7 @@ class WandbOptimizer(Optimizer):
     def tell_existing_finished_run(self, data: RunWithMetrics) -> None:
         """Add a terminal run that predates this optimizer to its memory.
 
-        The search then treats it as a completed sample. Non-terminal runs are
+        The search treats it as a completed sample. Non-terminal runs are
         ignored.
 
         Args:
@@ -203,8 +198,8 @@ class WandbOptimizer(Optimizer):
     def tell_existing_active_run(self, data: Run) -> Any:
         """Adopt an in-flight run that predates this optimizer.
 
-        Its config is stored so the search counts it as in flight; the next poll
-        refreshes its metrics via `tell_run` before any suggestion reads them.
+        Only its config is stored, so the search counts it as in flight; the
+        next poll fills in metrics via `tell_run`.
 
         Args:
             data: The existing run's config and state.

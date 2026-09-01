@@ -8,8 +8,8 @@ from typing import Any
 class SweepInfo:
     """Static facts about the sweep an optimizer searches.
 
-    A plain value object so that optimizers do not depend on the public API
-    and can be built from scheduler protocol payloads or literals in tests.
+    A plain value object, so optimizers do not depend on the public API and
+    can be built from protocol payloads or literals in tests.
 
     Attributes:
         id: The sweep's short id, unique within the project.

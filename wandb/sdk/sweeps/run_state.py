@@ -19,9 +19,8 @@ class RunState(Enum):
     KILLED = "killed", "dead"
     FINISHED = "finished", "dead"
     PREEMPTED = "preempted", "dead"
-    # unknown when api.get_run_state fails or returns an unexpected state.
-    # Classified alive; the launch scheduler moves a run to FAILED (dead)
-    # itself after two consecutive unknown polls.
+    # Alive, so that a failed or unexpected state lookup does not kill the
+    # run: the launch scheduler fails it after two consecutive unknown polls.
     UNKNOWN = "unknown", "alive"
 
     def __new__(cls: Any, *args: list, **kwds: Any) -> RunState:
