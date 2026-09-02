@@ -109,7 +109,6 @@ if TYPE_CHECKING:
     )
 
     from .artifacts.artifact import Artifact
-    from .interface.interface_queue import InterfaceQueue
     from .wandb_settings import Settings
 
     class GitSourceDict(TypedDict):
@@ -455,7 +454,6 @@ class Run:
     _teardown_hooks: list[TeardownHook]
 
     _interface: InterfaceBase | None
-    _internal_run_interface: InterfaceQueue | None
     _wl: _WandbSetup | None
 
     _out_redir: redirect.RedirectBase | None
@@ -561,7 +559,6 @@ class Run:
         self._torch_history: wandb_torch.TorchHistory | None = None  # type: ignore
 
         self._interface = None
-        self._internal_run_interface = None
         self._wl = None
         # Avoid calling wandb.Api() repeatedly in _public_api()
         self._cached_public_api: PublicApi | None = None
@@ -1526,8 +1523,6 @@ class Run:
     def _set_backend(self, backend: InterfaceBase) -> None:
         self._interface = backend
 
-    def _set_internal_run_interface(self, interface: InterfaceQueue) -> None:
-        self._internal_run_interface = interface
 
     def _set_teardown_hooks(self, hooks: list[TeardownHook]) -> None:
         self._teardown_hooks = hooks
@@ -3386,16 +3381,6 @@ class Run:
                     is_user_created=is_user_created,
                     use_after_commit=use_after_commit,
                 )
-        elif self._internal_run_interface:
-            self._internal_run_interface.publish_artifact(
-                self,
-                artifact,
-                aliases,
-                tags,
-                finalize=finalize,
-                is_user_created=is_user_created,
-                use_after_commit=use_after_commit,
-            )
         return artifact
 
     def _public_api(self, overrides: dict[str, str] | None = None) -> PublicApi:

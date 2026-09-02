@@ -29,7 +29,6 @@ import wandb
 import wandb.util
 from click.testing import CliRunner
 from wandb.errors import term
-from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.lib import filesystem, module, runid, wbauth
 from wandb.sdk.lib.gitlib import GitRepo
 from wandb.sdk.lib.paths import StrPath
@@ -274,11 +273,6 @@ def record_q() -> Queue:
     return Queue()
 
 
-@pytest.fixture()
-def mocked_interface(record_q: Queue) -> InterfaceQueue:
-    return InterfaceQueue(record_q=record_q)
-
-
 @pytest.fixture(scope="function")
 def test_settings():
     def update_test_settings(
@@ -302,7 +296,7 @@ def test_settings():
 
 
 @pytest.fixture(scope="function")
-def mock_run(test_settings, mocked_interface) -> Generator[Callable, None, None]:
+def mock_run(test_settings) -> Generator[Callable, None, None]:
     """Create a Run object with a mocked interface.
 
     This is similar to using `wandb.init(mode="offline")`, but much faster
@@ -313,16 +307,14 @@ def mock_run(test_settings, mocked_interface) -> Generator[Callable, None, None]
     own unit-tested module instead.
     """
 
-    def mock_run_fn(use_magic_mock=False, **kwargs: Any) -> wandb.Run:
+    def mock_run_fn(**kwargs: Any) -> wandb.Run:
         kwargs_settings = kwargs.pop("settings", dict())
         kwargs_settings = {
             "run_id": runid.generate_id(),
             **dict(kwargs_settings),
         }
         run = wandb.Run(settings=test_settings(kwargs_settings), **kwargs)
-        run._set_backend(
-            unittest.mock.MagicMock() if use_magic_mock else mocked_interface
-        )
+        run._set_backend(unittest.mock.MagicMock())
         run._set_library(unittest.mock.MagicMock())
 
         module.set_global(
