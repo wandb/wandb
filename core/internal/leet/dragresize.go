@@ -87,6 +87,12 @@ type paneDragger struct {
 	logger   *observability.CoreLogger
 }
 
+// cue returns the in-progress drag for views to highlight; its boundary is
+// dragBoundaryNone when no drag is active.
+func (d *paneDragger) cue() layoutDrag {
+	return d.drag
+}
+
 // overrides returns the live pane proportions: the in-progress drag's
 // pending values, or the persisted config.
 func (d *paneDragger) overrides() LayoutOverrides {
@@ -243,6 +249,26 @@ const sidebarGrabTolerance = 1
 func nearColumn(x, col int) bool {
 	d := x - col
 	return -sidebarGrabTolerance <= d && d <= sidebarGrabTolerance
+}
+
+// highlightedStackSeparator returns the index of the dragged separator in a
+// central column of n joined sections (separator i sits below section i), or
+// -1 when no stack separator is dragged or the joined sections do not match
+// the layout's stack.
+func highlightedStackSeparator(cue layoutDrag, layout Layout, n int) int {
+	if cue.boundary != dragBoundarySeparator {
+		return -1
+	}
+	sections := stackGeometry(layout)
+	if len(sections) != n {
+		return -1
+	}
+	for i := 1; i < len(sections); i++ {
+		if sections[i].id == cue.section {
+			return i - 1
+		}
+	}
+	return -1
 }
 
 // boundaryAt hit-tests a mouse position against the draggable boundaries:

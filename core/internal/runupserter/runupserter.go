@@ -57,6 +57,13 @@ type RunUpserter struct {
 	isParamsDirty bool // whether params has un-uploaded changes
 	isConfigDirty bool // whether config has un-uploaded changes
 
+	// startRuntime is the initial value of params.Runtime.
+	//
+	// It's stored separately because params.Runtime can be updated in theory,
+	// even though it doesn't seem to be in practice. This can be removed if
+	// the Runtime field can be dropped from the RunRecord.
+	startRuntime time.Duration
+
 	params      *runbranch.RunParams
 	config      *runconfig.RunConfig
 	telemetry   *spb.TelemetryRecord
@@ -226,6 +233,8 @@ func InitRun(
 		return nil, ToRunUpdateError(err)
 	}
 	upserter.params.StartingStep = startingStep
+
+	upserter.startRuntime = time.Duration(upserter.params.Runtime) * time.Second
 
 	// If we're offline, skip upserting.
 	if upserter.graphqlClientOrNil == nil {
@@ -407,6 +416,13 @@ func (upserter *RunUpserter) StartingStep() int64 {
 	upserter.mu.Lock()
 	defer upserter.mu.Unlock()
 	return upserter.params.StartingStep
+}
+
+// StartRuntime returns the run's initial `_runtime` metric.
+func (upserter *RunUpserter) StartRuntime() time.Duration {
+	upserter.mu.Lock()
+	defer upserter.mu.Unlock()
+	return upserter.startRuntime
 }
 
 func (upserter *RunUpserter) StartTime() time.Time {

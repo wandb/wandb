@@ -352,7 +352,8 @@ func (w *Workspace) View() tea.View {
 		if len(sections) == 0 {
 			centralColumn = renderLogoArt(contentWidth, layout.totalContentAreaHeight)
 		} else {
-			centralColumn = joinWithSeparators(sections, contentWidth)
+			centralColumn = joinWithSeparators(sections, contentWidth,
+				highlightedStackSeparator(w.drag.cue(), layout, len(sections)))
 		}
 	}
 	centralColumn = placeMainColumn(contentWidth, layout.totalContentAreaHeight, centralColumn)
@@ -1060,7 +1061,11 @@ func (w *Workspace) renderRunsList() string {
 		MaxHeight(totalH).
 		Render(content)
 
-	boxed := leftSidebarBorderStyle.
+	borderStyle := leftSidebarBorderStyle
+	if w.drag.cue().boundary == dragBoundaryLeftSidebar {
+		borderStyle = leftSidebarBorderHighlightStyle
+	}
+	boxed := borderStyle.
 		Height(totalH).
 		MaxHeight(totalH).
 		Render(styledContent)
@@ -1083,6 +1088,7 @@ func (w *Workspace) renderRunOverview() string {
 		w.runOverviewSidebar.deactivateAllSections()
 	}
 
+	w.runOverviewSidebar.SetDragCue(w.drag.cue())
 	contentH := max(w.height-StatusBarHeight, 0)
 	return w.runOverviewSidebar.View(contentH).Content
 }
