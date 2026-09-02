@@ -112,6 +112,7 @@ func (s *Symon) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if bgMsg, ok := msg.(tea.BackgroundColorMsg); ok {
 		SetDarkBackground(bgMsg.IsDark())
+		SetTerminalBackground(bgMsg)
 	}
 
 	if handled, cmd := s.handleHelp(msg); handled {
@@ -141,8 +142,8 @@ func (s *Symon) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return s, cmd
 
 	case StatsMsg:
-		// ProcessStats handles pagination and redraw when the chart set changes.
 		s.grid.ProcessStats(msg)
+		s.grid.drawVisible()
 		cmd := s.sampleLaterCmd()
 		return s, cmd
 

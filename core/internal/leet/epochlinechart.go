@@ -217,6 +217,12 @@ type EpochLineChart struct {
 	// inspectionLabelFormatter customizes legend labels for inspection mode.
 	// When nil, a default numeric formatter is used.
 	inspectionLabelFormatter func(seriesKey string, x, y float64) string
+
+	// cachedView memoizes the stringified canvas until the next Draw or
+	// Resize, or until the style epoch changes.
+	cachedView      string
+	cachedViewOK    bool
+	cachedViewEpoch uint64
 }
 
 func NewEpochLineChart(title string) *EpochLineChart {
@@ -574,8 +580,19 @@ func (c *EpochLineChart) HandleZoom(direction string, mouseX int) {
 	c.dirty = true
 }
 
+// View returns the rendered canvas, cached between draws.
+func (c *EpochLineChart) View() string {
+	if epoch := StyleEpoch(); !c.cachedViewOK || c.cachedViewEpoch != epoch {
+		c.cachedView = c.Model.View()
+		c.cachedViewOK = true
+		c.cachedViewEpoch = epoch
+	}
+	return c.cachedView
+}
+
 // Draw renders all series using Braille patterns.
 func (c *EpochLineChart) Draw() {
+	c.cachedViewOK = false
 	c.Clear()
 
 	// Draw axes and X labels via ntcharts, but suppress its Y labels and
@@ -712,23 +729,45 @@ func (c *EpochLineChart) drawSeries(s *Series, startX int) {
 		0, float64(c.GraphHeight()),
 	)
 
+	c.rasterizeSeries(bGrid, s, lb, ub)
+
+	patterns := bGrid.BraillePatterns()
+	style := s.style.Load().(lipgloss.Style)
+
+	drawBraillePatternsOccluded(&c.Canvas, canvas.Point{X: startX, Y: 0}, patterns, &style)
+}
+
+// rasterizeSeries plots the series window [lb, ub) onto the braille grid.
+// Samples sharing a braille column collapse into one vertical span and
+// columns connect with Bresenham, so the work is O(pixels), not O(points).
+func (c *EpochLineChart) rasterizeSeries(
+	bGrid *graph.BrailleGrid,
+	s *Series,
+	lb, ub int,
+) {
 	xScale := float64(c.GraphWidth()) / (c.ViewMaxX() - c.ViewMinX())
 	yScale := float64(c.GraphHeight()) / (c.ViewMaxY() - c.ViewMinY())
 
-	segments := make([][]canvas.Float64Point, 0, 1)
-	current := make([]canvas.Float64Point, 0, ub-lb)
-	flush := func() {
-		if len(current) == 0 {
+	var (
+		inSegment      bool
+		prev           canvas.Point
+		colX           int
+		colMin, colMax int
+	)
+	flushColumn := func() {
+		if !inSegment {
 			return
 		}
-		segments = append(segments, current)
-		current = make([]canvas.Float64Point, 0, ub-lb)
+		for y := colMin; y <= colMax; y++ {
+			bGrid.Set(canvas.Point{X: colX, Y: y})
+		}
 	}
 
 	for i := lb; i < ub; i++ {
 		yValue, ok := c.scaleYValue(s.Y[i])
 		if !ok {
-			flush()
+			flushColumn()
+			inSegment = false
 			continue
 		}
 
@@ -736,30 +775,27 @@ func (c *EpochLineChart) drawSeries(s *Series, startX int) {
 		y := (yValue - c.ViewMinY()) * yScale
 
 		if x < 0 || x > float64(c.GraphWidth()) || y < 0 || y > float64(c.GraphHeight()) {
-			flush()
+			flushColumn()
+			inSegment = false
 			continue
 		}
 
-		current = append(current, canvas.Float64Point{X: x, Y: y})
-	}
-	flush()
-
-	for _, points := range segments {
-		if len(points) == 1 {
-			bGrid.Set(bGrid.GridPoint(points[0]))
-			continue
+		gp := bGrid.GridPoint(canvas.Float64Point{X: x, Y: y})
+		switch {
+		case !inSegment:
+			colX, colMin, colMax = gp.X, gp.Y, gp.Y
+			inSegment = true
+		case gp.X == colX:
+			colMin = min(colMin, gp.Y)
+			colMax = max(colMax, gp.Y)
+		default:
+			flushColumn()
+			drawLine(bGrid, prev, gp)
+			colX, colMin, colMax = gp.X, gp.Y, gp.Y
 		}
-		for i := range len(points) - 1 {
-			gp1 := bGrid.GridPoint(points[i])
-			gp2 := bGrid.GridPoint(points[i+1])
-			drawLine(bGrid, gp1, gp2)
-		}
+		prev = gp
 	}
-
-	patterns := bGrid.BraillePatterns()
-	style := s.style.Load().(lipgloss.Style)
-
-	drawBraillePatternsOccluded(&c.Canvas, canvas.Point{X: startX, Y: 0}, patterns, &style)
+	flushColumn()
 }
 
 // drawBraillePatternsOccluded draws braille runes with opaque compositing.
@@ -1018,6 +1054,7 @@ func (c *EpochLineChart) Resize(width, height int) {
 	c.Model.Resize(width, height)
 	c.updateRanges()
 	c.dirty = true
+	c.cachedViewOK = false
 }
 
 // Park minimizes canvas memory for off-screen charts.
@@ -1076,6 +1113,7 @@ func TruncateTitle(title string, maxWidth int) string {
 func (c *EpochLineChart) SetGraphStyle(s *lipgloss.Style) {
 	if top := c.topSeries(); top != nil {
 		top.style.Store(*s)
+		c.dirty = true
 	}
 }
 

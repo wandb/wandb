@@ -918,6 +918,7 @@ func (r *Run) handleRecordsBatch(subMsgs []tea.Msg, suppressRedraw bool) []tea.C
 	if !r.suppressDraw {
 		r.metricsGrid.drawVisible()
 	}
+	r.rightSidebar.metricsGrid.drawVisible()
 
 	return cmds
 }

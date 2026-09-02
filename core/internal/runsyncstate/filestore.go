@@ -3,18 +3,18 @@ package runsyncstate
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/rogpeppe/go-internal/lockedfile"
 )
 
 // syncState is the content of the run's sync state file.
 type syncState struct {
-	// StartingStep is the initial step number for the run.
-	//
-	// For new runs this is zero.
-	// For forked runs this is specified by the user when they create the run.
-	// For resumed runs, this is determined during the first upload.
+	// StartingStep is the encoded StartState.StartStep.
 	StartingStep *int64 `json:"starting_step,omitempty"`
+
+	// StartingRuntimeMs is the StartState.StartRuntime in milliseconds.
+	StartingRuntimeMs *int64 `json:"starting_runtime,omitempty"`
 }
 
 // fileStore implements Store with a file and file-level locks.
@@ -23,31 +23,48 @@ type fileStore struct {
 	path string
 }
 
-// GetOrInitStartingStep implements Store.GetOrInitStartingStep.
-func (s *fileStore) GetOrInitStartingStep(
-	startingStep int64,
-) (int64, error) {
-	var state syncState
+// GetOrInitStartState implements Store.GetOrInitStartState.
+func (s *fileStore) GetOrInitStartState(
+	initialState StartState,
+) (result StartState, err error) {
+	err = lockedfile.Transform(s.path, func(data []byte) ([]byte, error) {
+		var fileContent syncState
 
-	err := lockedfile.Transform(s.path, func(data []byte) ([]byte, error) {
 		if len(data) > 0 {
-			if err := json.Unmarshal(data, &state); err != nil {
-				return nil, fmt.Errorf("runsync: failed to parse sync state file: %v", err)
-			}
-			if state.StartingStep != nil {
-				return data, nil
+			if err := json.Unmarshal(data, &fileContent); err != nil {
+				return nil, fmt.Errorf(
+					"runsync: failed to parse sync state file: %v",
+					err,
+				)
 			}
 		}
 
-		state.StartingStep = &startingStep
-		updated, err := json.Marshal(state)
-		if err != nil {
-			return nil, fmt.Errorf("runsync: failed to encode sync state file: %v", err)
+		if fileContent.StartingStep != nil {
+			result.StartStep = *fileContent.StartingStep
+		} else {
+			result.StartStep = initialState.StartStep
+			fileContent.StartingStep = &initialState.StartStep
 		}
+
+		if fileContent.StartingRuntimeMs != nil {
+			result.StartRuntime = time.Millisecond *
+				time.Duration(*fileContent.StartingRuntimeMs)
+		} else {
+			result.StartRuntime = initialState.StartRuntime
+			millis := initialState.StartRuntime.Milliseconds()
+			fileContent.StartingRuntimeMs = &millis
+		}
+
+		updated, err := json.Marshal(fileContent)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"runsync: failed to encode sync state file: %v",
+				err,
+			)
+		}
+
 		return updated, nil
 	})
-	if err != nil {
-		return 0, fmt.Errorf("runsync: failed to update sync state file: %v", err)
-	}
-	return *state.StartingStep, nil
+
+	return
 }

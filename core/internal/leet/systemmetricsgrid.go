@@ -29,6 +29,10 @@ type SystemMetricsGrid struct {
 	filtered    []systemMetricChart          // charts matching current filter
 	currentPage [][]systemMetricChart        // current page view
 
+	// classified caches MatchMetricDef results per metric name; stats records
+	// repeat the same names and the match scans ~115 regexes.
+	classified map[string]metricClassification
+
 	// Filter state.
 	filter *Filter
 
@@ -59,6 +63,7 @@ func NewSystemMetricsGrid(
 		byBaseKey:  make(map[string]systemMetricChart),
 		ordered:    make([]systemMetricChart, 0),
 		filtered:   make([]systemMetricChart, 0),
+		classified: make(map[string]metricClassification),
 		filter:     filter,
 		focus:      focusState,
 		width:      width,
@@ -203,28 +208,34 @@ func (g *SystemMetricsGrid) ProcessStats(msg StatsMsg) {
 	}
 }
 
+// metricClassification is one metric name's cached definition lookup.
+type metricClassification struct {
+	def        *MetricDef // nil for unrecognized metrics
+	baseKey    string
+	seriesName string
+}
+
 // addDataPoint adds a sample and reports whether the chart set changed.
 func (g *SystemMetricsGrid) addDataPoint(
 	metricName string,
 	timestamp int64,
 	value float64,
 ) bool {
-	g.logger.Debug(fmt.Sprintf(
-		"SystemMetricsGrid.AddDataPoint: metric=%s, timestamp=%d, value=%f",
-		metricName, timestamp, value))
-
-	def := MatchMetricDef(metricName)
-	if def == nil {
-		g.logger.Debug(fmt.Sprintf(
-			"SystemMetricsGrid.AddDataPoint: no definition for metric=%s", metricName))
+	cls, ok := g.classified[metricName]
+	if !ok {
+		cls.def = MatchMetricDef(metricName)
+		if cls.def != nil {
+			cls.baseKey = ExtractBaseKey(metricName)
+			cls.seriesName = ExtractSeriesName(metricName)
+		}
+		g.classified[metricName] = cls
+	}
+	if cls.def == nil {
 		return false
 	}
 
-	baseKey := ExtractBaseKey(metricName)
-	seriesName := ExtractSeriesName(metricName)
-
-	chart, created := g.getOrCreateChart(baseKey, def)
-	chart.AddDataPoint(seriesName, timestamp, value)
+	chart, created := g.getOrCreateChart(cls.baseKey, cls.def)
+	chart.AddDataPoint(cls.seriesName, timestamp, value)
 	return created
 }
 
@@ -559,23 +570,14 @@ func (g *SystemMetricsGrid) cycleFocusedChartMode() bool {
 // Resize updates viewport dimensions and resizes/redraws visible charts.
 func (g *SystemMetricsGrid) Resize(width, height int) {
 	if width <= 0 || height <= 0 {
-		g.logger.Debug(fmt.Sprintf(
-			"systemmetricsgrid: Resize: invalid dimensions %dx%d, skipping", width, height))
+		return
+	}
+	if g.width == width && g.height == height {
 		return
 	}
 
 	g.width = width
 	g.height = height
-
-	dims := g.calculateChartDimensions()
-	if dims.CellW <= 0 || dims.CellH <= 0 ||
-		dims.CellW < MinMetricChartWidth ||
-		dims.CellH < MinMetricChartHeight {
-		g.logger.Debug(fmt.Sprintf(
-			"systemmetricsgrid: Resize: calculated dimensions %dx%d invalid, skipping",
-			dims.CellW, dims.CellH))
-		return
-	}
 
 	size := g.effectiveGridSize()
 	g.nav.UpdateTotalPages(len(g.filtered), ItemsPerPage(size))
