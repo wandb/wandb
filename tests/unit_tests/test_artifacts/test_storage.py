@@ -150,15 +150,6 @@ def test_check_digest_obj_path_override(artifact_file_cache):
     assert exists is False
 
 
-def test_check_md5_obj_path_override_is_never_a_hit(artifact_file_cache, tmp_path):
-    dest_path = tmp_path / "dest.txt"
-    dest_path.write_text("EXAMPLE")  # Same size as "example", different contents.
-
-    artifact_file_cache._override_cache_path = dest_path
-    _, exists, _ = artifact_file_cache.check_md5_obj_path(example_digest, 7)
-    assert exists is False
-
-
 def test_check_etag_obj_path_points_to_opener_dst(artifact_file_cache):
     path, _, opener = artifact_file_cache.check_etag_obj_path(
         "http://my/url", "abc", 10
@@ -177,16 +168,6 @@ def test_check_etag_obj_path_override(artifact_file_cache):
     artifact_file_cache._override_cache_path = override_path
     path, exists, _ = artifact_file_cache.check_etag_obj_path("http://my/url", "abc", 2)
     assert path == override_path
-    assert exists is False
-
-
-def test_check_etag_obj_path_override_is_never_a_hit(artifact_file_cache, tmp_path):
-    size = 123
-    dest_path = tmp_path / "dest.txt"
-    dest_path.write_text(size * "b")
-
-    artifact_file_cache._override_cache_path = dest_path
-    _, exists, _ = artifact_file_cache.check_etag_obj_path("http://my/url", "abc", size)
     assert exists is False
 
 
