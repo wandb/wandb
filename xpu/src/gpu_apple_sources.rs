@@ -31,7 +31,7 @@ use std::{
     marker::{PhantomData, PhantomPinned},
     mem::{MaybeUninit, size_of},
     os::raw::c_void,
-    ptr::null,
+    ptr::{null, null_mut},
     time::{Duration, Instant},
 };
 
@@ -44,7 +44,9 @@ use core_foundation::{
         CFDictionaryGetKeysAndValues, CFDictionaryGetValue, CFDictionaryRef,
         CFMutableDictionaryRef, kCFTypeDictionaryKeyCallBacks, kCFTypeDictionaryValueCallBacks,
     },
-    number::{CFNumberCreate, CFNumberRef, kCFNumberSInt32Type},
+    number::{
+        CFNumberCreate, CFNumberGetValue, CFNumberRef, kCFNumberSInt32Type, kCFNumberSInt64Type,
+    },
     string::{
         CFStringCreateWithBytesNoCopy, CFStringGetCString, CFStringRef, kCFStringEncodingUTF8,
     },
@@ -467,20 +469,43 @@ pub fn get_dvfs_mhz(dict: CFDictionaryRef, key: &str) -> (Vec<u32>, Vec<u32>) {
     }
 }
 
-pub fn run_system_profiler() -> WithError<serde_json::Value> {
-    // system_profiler -listDataTypes
-    let out = std::process::Command::new("system_profiler")
-        .args([
-            "SPHardwareDataType",
-            "SPDisplaysDataType",
-            "SPSoftwareDataType",
-            "-json",
-        ])
-        .output()?;
+fn sysctl_str(name: &str) -> WithError<String> {
+    let cname = std::ffi::CString::new(name)?;
+    let mut size = 0usize;
+    unsafe {
+        if libc::sysctlbyname(cname.as_ptr(), null_mut(), &mut size, null_mut(), 0) != 0 {
+            return Err(format!("sysctl {name} failed").into());
+        }
+        let mut buf = vec![0u8; size];
+        let ptr = buf.as_mut_ptr() as *mut c_void;
+        if libc::sysctlbyname(cname.as_ptr(), ptr, &mut size, null_mut(), 0) != 0 {
+            return Err(format!("sysctl {name} failed").into());
+        }
+        buf.truncate(size.saturating_sub(1));
+        Ok(String::from_utf8_lossy(&buf).into_owned())
+    }
+}
 
-    let out = std::str::from_utf8(&out.stdout)?;
-    let out = serde_json::from_str::<serde_json::Value>(out)?;
-    Ok(out)
+/// Reads a 32- or 64-bit integer sysctl.
+fn sysctl_int(name: &str) -> WithError<u64> {
+    let cname = std::ffi::CString::new(name)?;
+    let mut buf = [0u8; 8];
+    let mut size = buf.len();
+    let ptr = buf.as_mut_ptr() as *mut c_void;
+    if unsafe { libc::sysctlbyname(cname.as_ptr(), ptr, &mut size, null_mut(), 0) } != 0 {
+        return Err(format!("sysctl {name} failed").into());
+    }
+    Ok(match size {
+        4 => u32::from_ne_bytes(buf[..4].try_into().unwrap()) as u64,
+        _ => u64::from_ne_bytes(buf),
+    })
+}
+
+fn cfnum_get_i64(dict: CFDictionaryRef, key: &str) -> Option<i64> {
+    let obj = cfdict_get_val(dict, key)? as CFNumberRef;
+    let mut val: i64 = 0;
+    let ptr = &mut val as *mut i64 as *mut c_void;
+    unsafe { CFNumberGetValue(obj, kCFNumberSInt64Type, ptr) }.then_some(val)
 }
 
 fn to_mhz(vals: Vec<u32>, scale: u32) -> Vec<u32> {
@@ -488,63 +513,37 @@ fn to_mhz(vals: Vec<u32>, scale: u32) -> Vec<u32> {
 }
 
 pub fn get_soc_info() -> WithError<SocInfo> {
-    let out = run_system_profiler()?;
-    let mut info = SocInfo::default();
-
-    // SPHardwareDataType.0.chip_type
-    let chip_name = out["SPHardwareDataType"][0]["chip_type"]
-        .as_str()
-        .unwrap_or("Unknown chip")
-        .to_string();
-
-    // SPHardwareDataType.0.machine_model
-    let mac_model = out["SPHardwareDataType"][0]["machine_model"]
-        .as_str()
-        .unwrap_or("Unknown model")
-        .to_string();
-
-    // SPHardwareDataType.0.physical_memory -> "x GB"
-    let mem_gb = out["SPHardwareDataType"][0]["physical_memory"]
-        .as_str()
-        .and_then(|mem| mem.strip_suffix(" GB"))
-        .unwrap_or("0")
-        .parse::<u64>()
-        .unwrap_or(0);
-
-    // SPHardwareDataType.0.number_processors -> "proc x:y:z"
-    let cpu_cores = out["SPHardwareDataType"][0]["number_processors"]
-        .as_str()
-        .and_then(|cores| cores.strip_prefix("proc "))
-        .unwrap_or("")
-        .split(':')
-        .map(|x| x.parse::<u64>().unwrap_or(0))
-        .collect::<Vec<_>>();
-    let (ecpu_cores, pcpu_cores) = if cpu_cores.len() >= 3 {
-        (cpu_cores[2], cpu_cores[1])
-    } else {
-        (0, 0) // Fallback in case of invalid data
+    let mut info = SocInfo {
+        chip_name: sysctl_str("machdep.cpu.brand_string")?,
+        mac_model: sysctl_str("hw.model")?,
+        memory_gb: (sysctl_int("hw.memsize")? >> 30) as u16,
+        ..Default::default()
     };
 
-    // SPDisplaysDataType.0.sppci_cores
-    let gpu_cores = out["SPDisplaysDataType"][0]["sppci_cores"]
-        .as_str()
-        .unwrap_or("0")
-        .parse::<u64>()
-        .unwrap_or(0);
+    // hw.perflevel0 is the highest-performance core type, the last level the lowest.
+    let core_counts: Vec<u64> = (0..sysctl_int("hw.nperflevels")?)
+        .filter_map(|i| sysctl_int(&format!("hw.perflevel{i}.physicalcpu")).ok())
+        .filter(|n| *n > 0)
+        .collect();
+    if let [pcpu, .., ecpu] = core_counts[..] {
+        info.pcpu_cores = pcpu as u8;
+        info.ecpu_cores = ecpu as u8;
+    }
+
+    for (entry, name) in IOServiceIterator::new("AGXAccelerator")? {
+        let item = cfio_get_props(entry, name)?;
+        if let Some(cores) = cfnum_get_i64(item, "gpu-core-count") {
+            info.gpu_cores = cores as u8;
+        }
+        unsafe { CFRelease(item as _) }
+    }
 
     // Determine scaling based on chip type
-    let before_m4 =
-        chip_name.contains("M1") || chip_name.contains("M2") || chip_name.contains("M3");
+    let before_m4 = info.chip_name.contains("M1")
+        || info.chip_name.contains("M2")
+        || info.chip_name.contains("M3");
     let cpu_scale: u32 = if before_m4 { 1000 * 1000 } else { 1000 }; // MHz before M4, KHz after
     let gpu_scale: u32 = 1000 * 1000; // MHz
-
-    // Assign parsed values to info
-    info.chip_name = chip_name;
-    info.mac_model = mac_model;
-    info.memory_gb = mem_gb as u16;
-    info.gpu_cores = gpu_cores as u8;
-    info.ecpu_cores = ecpu_cores as u8;
-    info.pcpu_cores = pcpu_cores as u8;
 
     // CPU frequencies
     for (entry, name) in IOServiceIterator::new("AppleARMIODevice")? {
