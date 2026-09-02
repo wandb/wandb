@@ -17,6 +17,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Deprecated
 
 - `wandb.sandbox` is deprecated and will be removed in a future release. Use the `cwsandbox` package directly instead.
+- `wandb beta sandbox` is deprecated and will be removed in a future release. Sandbox functionality is now maintained in the `cwsandbox` package.
 
 ### Fixed
 
