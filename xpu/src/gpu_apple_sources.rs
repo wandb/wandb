@@ -446,9 +446,6 @@ impl SocInfo {
 // dynamic voltage and frequency scaling
 pub fn get_dvfs_mhz(dict: CFDictionaryRef, key: &str) -> (Vec<u32>, Vec<u32>) {
     unsafe {
-        // Some chips do not expose every `voltage-states*` key that earlier
-        // generations did. Apple M5, for instance, dropped `voltage-states1-sram`
-        // (the efficiency-core DVFS table). Treat a missing key as "no data".
         let obj = match cfdict_get_val(dict, key) {
             Some(obj) => obj as CFDataRef,
             None => return (vec![], vec![]),
@@ -508,6 +505,27 @@ fn cfnum_get_i64(dict: CFDictionaryRef, key: &str) -> Option<i64> {
     unsafe { CFNumberGetValue(obj, kCFNumberSInt64Type, ptr) }.then_some(val)
 }
 
+/// Maps the `acc-clusters` pmgr property to the `voltage-states*-sram` keys of the two
+/// highest CPU core tiers, as (lower, higher). M5 renumbered those keys, so the fixed
+/// names used by earlier chips are missing there.
+fn dvfs_keys_from_acc_clusters(dict: CFDictionaryRef) -> Option<(String, String)> {
+    let obj = cfdict_get_val(dict, "acc-clusters")? as CFDataRef;
+    let len = unsafe { CFDataGetLength(obj) };
+    let mut data = vec![0u8; len as usize];
+    unsafe { CFDataGetBytes(obj, CFRange::init(0, len), data.as_mut_ptr()) };
+
+    // 8-byte entries: byte 0 is the voltage-states index, byte 1 the core tier.
+    let mut clusters: Vec<(u8, u8)> = data.chunks_exact(8).map(|c| (c[1], c[0])).collect();
+    clusters.sort_unstable();
+    let [.., (_, lower), (_, higher)] = clusters[..] else {
+        return None;
+    };
+    Some((
+        format!("voltage-states{lower}-sram"),
+        format!("voltage-states{higher}-sram"),
+    ))
+}
+
 /// Converts a DVFS frequency table to MHz. Chips before M4 and the A series store
 /// frequencies in Hz, M4 and later in kHz.
 fn to_mhz(vals: Vec<u32>) -> Vec<u32> {
@@ -552,18 +570,18 @@ pub fn get_soc_info() -> WithError<SocInfo> {
             // 1) `strings /usr/bin/powermetrics | grep voltage-states` uses non-sram keys
             //    but their values are zero, so sram used here; it looks valid.
             // 2) sudo powermetrics --samplers cpu_power -i 1000 -n 1 | grep "active residency" | grep "Cluster"
-            info.ecpu_freqs = to_mhz(get_dvfs_mhz(item, "voltage-states1-sram").1);
-            info.pcpu_freqs = to_mhz(get_dvfs_mhz(item, "voltage-states5-sram").1);
+            let (ecpu_key, pcpu_key) = match dvfs_keys_from_acc_clusters(item) {
+                Some(keys) if cfdict_get_val(item, "voltage-states1-sram").is_none() => keys,
+                _ => ("voltage-states1-sram".into(), "voltage-states5-sram".into()),
+            };
+            info.ecpu_freqs = to_mhz(get_dvfs_mhz(item, &ecpu_key).1);
+            info.pcpu_freqs = to_mhz(get_dvfs_mhz(item, &pcpu_key).1);
             info.gpu_freqs = to_mhz(get_dvfs_mhz(item, "voltage-states9").1);
             unsafe { CFRelease(item as _) }
         }
     }
 
     if info.ecpu_freqs.is_empty() || info.pcpu_freqs.is_empty() {
-        // Don't abort. A missing CPU DVFS table (seen on Apple M5, whose pmgr no
-        // longer exposes `voltage-states1-sram` for the efficiency cluster) must
-        // not disable GPU, power, temperature and memory metrics. Only the
-        // affected CPU frequency/utilization metrics are omitted.
         warn!(
             "Incomplete CPU frequency tables for '{}' (ecpu states: {}, pcpu states: {}); \
              some CPU metrics will be unavailable",

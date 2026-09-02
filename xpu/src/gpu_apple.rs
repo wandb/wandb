@@ -299,7 +299,8 @@ impl Sampler {
 
         for x in sample {
             if x.group == "CPU Stats" && x.subgroup == CPU_FREQ_CORE_SUBG {
-                if x.channel.contains("ECPU") {
+                // M5 Pro and Max report their second core tier as MCPU channels.
+                if x.channel.contains("ECPU") || x.channel.contains("MCPU") {
                     ecpu_usages.push(calc_freq(x.item, &self.soc.ecpu_freqs));
                     continue;
                 }
