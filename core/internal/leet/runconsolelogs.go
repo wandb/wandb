@@ -58,12 +58,22 @@ type RunConsoleLogs struct {
 	// It is updated incrementally so View does not need to reformat every line on
 	// every render.
 	items []KeyValuePair
+
+	// maxLines caps the retained scrollback; the oldest lines are evicted past it.
+	maxLines int
+
+	// evicted counts lines dropped from the front; appendLine indices are absolute.
+	evicted int
+
+	// One filter per stream: an escape sequence may be split across raw records.
+	stdoutFilter ansiFilter
+	stderrFilter ansiFilter
 }
 
 // NewRunConsoleLogs creates an empty console log store with terminal
-// emulators for stdout and stderr.
-func NewRunConsoleLogs() *RunConsoleLogs {
-	cl := &RunConsoleLogs{}
+// emulators for stdout and stderr, keeping at most maxLines lines.
+func NewRunConsoleLogs(maxLines int) *RunConsoleLogs {
+	cl := &RunConsoleLogs{maxLines: maxLines}
 
 	cl.stdoutTerm = terminalemulator.NewTerminal(
 		&consoleLineSupplier{owner: cl, isStderr: false},
@@ -87,9 +97,9 @@ func (cl *RunConsoleLogs) ProcessRaw(text string, isStderr bool, ts time.Time) {
 	cl.currentTimestamp = ts
 
 	if isStderr {
-		cl.stderrTerm.Write(text)
+		cl.stderrTerm.Write(cl.stderrFilter.strip(text))
 	} else {
-		cl.stdoutTerm.Write(text)
+		cl.stdoutTerm.Write(cl.stdoutFilter.strip(text))
 	}
 }
 
@@ -115,9 +125,8 @@ func (cl *RunConsoleLogs) Items() []KeyValuePair {
 }
 
 // appendLine is called by the line supplier when a new terminal line is
-// created. Returns the index for future PutChar callbacks.
+// created. Returns the absolute index for future PutChar callbacks.
 func (cl *RunConsoleLogs) appendLine(isStderr bool) int {
-	idx := len(cl.lines)
 	cl.lines = append(cl.lines, ConsoleLogLine{
 		Timestamp: cl.currentTimestamp,
 		IsStderr:  isStderr,
@@ -125,12 +134,22 @@ func (cl *RunConsoleLogs) appendLine(isStderr bool) int {
 	cl.items = append(cl.items, KeyValuePair{
 		Key: cl.currentTimestamp.Format(consoleTimestampFormat),
 	})
-	return idx
+
+	if len(cl.lines) > cl.maxLines {
+		n := len(cl.lines) - cl.maxLines
+		cl.lines = cl.lines[n:]
+		cl.items = cl.items[n:]
+		cl.evicted += n
+	}
+
+	return cl.evicted + len(cl.lines) - 1
 }
 
 // onLineChanged is called when the terminal emulator modifies a
-// character on an existing line via PutChar.
+// character on an existing line via PutChar. idx is the absolute
+// index returned by appendLine; evicted lines are silently dropped.
 func (cl *RunConsoleLogs) onLineChanged(idx int, content []rune) {
+	idx -= cl.evicted
 	if idx < 0 || idx >= len(cl.lines) {
 		return
 	}
@@ -170,5 +189,102 @@ type consoleLine struct {
 func (l *consoleLine) PutChar(c rune, offset int) {
 	if l.content.PutChar(c, offset) {
 		l.owner.onLineChanged(l.index, l.content.Content)
+	}
+}
+
+// ---- ANSI filtering ----
+
+// ansiFilterState tracks progress through an escape sequence across strip calls.
+type ansiFilterState int
+
+const (
+	ansiGround ansiFilterState = iota
+	ansiEsc                    // seen ESC
+	ansiCSI                    // seen ESC [
+	ansiOSC                    // seen ESC ]
+	ansiOSCEsc                 // seen ESC inside an OSC string
+)
+
+// ansiFilter drops escape sequences the terminal emulator does not interpret
+// (SGR colors, erase-line, OSC, ...); the cursor moves it does understand
+// (ESC[A, ESC[B) pass through. A newline inside a sequence aborts it.
+type ansiFilter struct {
+	state ansiFilterState
+
+	// csiParams is set once the current CSI sequence has parameter bytes.
+	csiParams bool
+}
+
+func (f *ansiFilter) strip(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		f.feed(r, &b)
+	}
+	return b.String()
+}
+
+// feed advances the filter by one rune, writing whatever should be kept.
+func (f *ansiFilter) feed(r rune, b *strings.Builder) {
+	switch f.state {
+	case ansiGround:
+		if r == '\x1b' {
+			f.state = ansiEsc
+		} else {
+			b.WriteRune(r)
+		}
+	case ansiEsc:
+		switch r {
+		case '[':
+			f.state = ansiCSI
+			f.csiParams = false
+		case ']':
+			f.state = ansiOSC
+		default:
+			f.state = ansiGround
+			if r == '\n' || r == '\r' {
+				b.WriteRune(r)
+			}
+		}
+	case ansiCSI:
+		f.feedCSI(r, b)
+	case ansiOSC:
+		f.feedOSC(r, b)
+	case ansiOSCEsc:
+		if r == '\\' {
+			f.state = ansiGround
+		} else {
+			f.state = ansiOSC
+		}
+	}
+}
+
+func (f *ansiFilter) feedCSI(r rune, b *strings.Builder) {
+	switch {
+	case r >= 0x40 && r <= 0x7e:
+		if !f.csiParams && (r == 'A' || r == 'B') {
+			b.WriteString("\x1b[")
+			b.WriteRune(r)
+		}
+		f.state = ansiGround
+	case r == '\x1b':
+		f.state = ansiEsc
+	case r == '\n' || r == '\r':
+		b.WriteRune(r)
+		f.state = ansiGround
+	default:
+		f.csiParams = true
+	}
+}
+
+func (f *ansiFilter) feedOSC(r rune, b *strings.Builder) {
+	switch r {
+	case '\a':
+		f.state = ansiGround
+	case '\x1b':
+		f.state = ansiOSCEsc
+	case '\n', '\r':
+		b.WriteRune(r)
+		f.state = ansiGround
 	}
 }
