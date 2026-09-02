@@ -87,7 +87,8 @@ type paneDragger struct {
 	logger   *observability.CoreLogger
 }
 
-// cue returns the active drag's latched boundary for rendering feedback.
+// cue returns the in-progress drag for views to highlight; its boundary is
+// dragBoundaryNone when no drag is active.
 func (d *paneDragger) cue() layoutDrag {
 	return d.drag
 }
@@ -109,8 +110,8 @@ func (d *paneDragger) handleMouse(msg tea.MouseMsg, layout Layout, t dragTargets
 		if m.Button != tea.MouseLeft {
 			return false
 		}
-		drag, ok := grabbableBoundaryAt(m.X, m.Y, layout, t)
-		if !ok {
+		drag, ok := boundaryAt(m.X, m.Y, layout, t)
+		if !ok || (drag.boundary == dragBoundarySeparator && t.mediaFullscreen) {
 			// A stale latch survives when the matching release never
 			// reached this view (help overlay, view switch); any new
 			// press that misses a boundary clears it.
@@ -249,21 +250,10 @@ func nearColumn(x, col int) bool {
 	return -sidebarGrabTolerance <= d && d <= sidebarGrabTolerance
 }
 
-// grabbableBoundaryAt hit-tests like boundaryAt but rejects the central
-// stack's separators while the media pane is fullscreen (they are hidden).
-func grabbableBoundaryAt(x, y int, layout Layout, t dragTargets) (layoutDrag, bool) {
-	drag, ok := boundaryAt(x, y, layout, t)
-	if !ok || (drag.boundary == dragBoundarySeparator && t.mediaFullscreen) {
-		return layoutDrag{}, false
-	}
-	return drag, true
-}
-
-// highlightedStackSeparator maps cue to the index of the separator to
-// highlight in a central column of n joined sections (separator i sits below
-// section i), or -1. A count mismatch between the joined sections and the
-// layout's stack geometry means the mapping is unreliable, so no separator
-// is highlighted.
+// highlightedStackSeparator returns the index of the dragged separator in a
+// central column of n joined sections (separator i sits below section i), or
+// -1 when no stack separator is dragged or the joined sections do not match
+// the layout's stack.
 func highlightedStackSeparator(cue layoutDrag, layout Layout, n int) int {
 	if cue.boundary != dragBoundarySeparator {
 		return -1

@@ -466,8 +466,8 @@ func (r *Run) buildMainViewWithSidebars(
 	parts = append(parts, gridView)
 
 	if rightWidth > 0 {
-		r.rightSidebar.SetBorderHighlight(cue.boundary == dragBoundaryRightSidebar)
-		rightView := r.rightSidebar.View(contentHeight)
+		rightView := r.rightSidebar.View(contentHeight,
+			cue.boundary == dragBoundaryRightSidebar)
 		parts = append(parts, rightView)
 	}
 

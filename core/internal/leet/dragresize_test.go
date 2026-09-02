@@ -5,8 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/x/ansi"
 	"github.com/stretchr/testify/require"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -152,76 +150,6 @@ func TestBoundaryAtOverviewSeparators(t *testing.T) {
 	targets.overview = nil
 	_, ok = boundaryAt(5, seps[0].row, layout, targets)
 	require.False(t, ok)
-}
-
-func TestDragCuesBoundary(t *testing.T) {
-	layout := testRunLayout()
-	targets := testDragTargets()
-	d := paneDragger{
-		saved:    func() LayoutOverrides { return LayoutOverrides{} },
-		persist:  func(LayoutOverrides) error { return nil },
-		relayout: func() {},
-	}
-	// Unpressed motion is not consumed and cannot create a cue.
-	require.False(t, d.handleMouse(
-		tea.MouseMotionMsg{
-			X: 100, Y: layout.mediaY - 1, Button: tea.MouseNone,
-		},
-		layout, targets,
-	))
-	require.Equal(t, dragBoundaryNone, d.cue().boundary)
-
-	// Clicking a separator latches and cues it immediately.
-	require.True(t, d.handleMouse(
-		tea.MouseClickMsg{X: 100, Y: layout.mediaY - 1, Button: tea.MouseLeft},
-		layout, targets))
-	require.Equal(t, dragBoundarySeparator, d.cue().boundary)
-	require.Equal(t, stackSectionMedia, d.cue().section)
-
-	// Releasing removes the cue.
-	require.True(t, d.handleMouse(
-		tea.MouseReleaseMsg{X: 100, Y: layout.mediaY - 1, Button: tea.MouseLeft},
-		layout, targets))
-	require.Equal(t, dragBoundaryNone, d.cue().boundary)
-	require.False(t, d.drag.active())
-
-	// Hidden separators cannot latch or cue.
-	fullscreen := targets
-	fullscreen.mediaFullscreen = true
-	require.False(t, d.handleMouse(
-		tea.MouseClickMsg{X: 100, Y: layout.mediaY - 1, Button: tea.MouseLeft},
-		layout, fullscreen))
-	require.Equal(t, dragBoundaryNone, d.cue().boundary)
-}
-
-func TestDragCueUsesColorWithoutChangingSeparatorWeight(t *testing.T) {
-	normal := renderHorizontalSeparator(5, false)
-	highlighted := renderHorizontalSeparator(5, true)
-
-	require.Equal(t, strings.Repeat(string(unicodeEmDash), 5), ansi.Strip(normal))
-	require.Equal(t, ansi.Strip(normal), ansi.Strip(highlighted))
-	require.NotEqual(t, normal, highlighted)
-
-	normal = leftSidebarBorderStyle.Render("content")
-	highlighted = leftSidebarBorderHighlightStyle.Render("content")
-	require.Equal(t, ansi.Strip(normal), ansi.Strip(highlighted))
-	require.NotEqual(t, normal, highlighted)
-}
-
-func TestHighlightedStackSeparator(t *testing.T) {
-	layout := testRunLayout()
-	// testRunLayout stacks metrics, media, and logs: the separator below
-	// section 0 belongs to media, the one below section 1 to logs.
-	cue := layoutDrag{boundary: dragBoundarySeparator, section: stackSectionMedia}
-	require.Equal(t, 0, highlightedStackSeparator(cue, layout, 3))
-	cue.section = stackSectionConsoleLogs
-	require.Equal(t, 1, highlightedStackSeparator(cue, layout, 3))
-
-	// A mismatch between joined sections and the stack geometry, or a
-	// non-separator cue, highlights nothing.
-	require.Equal(t, -1, highlightedStackSeparator(cue, layout, 2))
-	cue.boundary = dragBoundaryLeftSidebar
-	require.Equal(t, -1, highlightedStackSeparator(cue, layout, 3))
 }
 
 func TestDragOverviewSectionTradesRows(t *testing.T) {

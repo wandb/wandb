@@ -483,8 +483,7 @@ func (s *RunOverviewSidebar) buildSectionLines(contentWidth, firstRow int) []str
 		}
 
 		// Separate adjacent sections with the same rule the central
-		// column draws between its stacked panes. The dragged rule is matched
-		// by its neighbor pair because its row moves during the drag.
+		// column draws between its stacked panes.
 		if prev >= 0 {
 			highlighted := s.dragCue.boundary == dragBoundaryOverviewSection &&
 				s.dragCue.overview.above == prev &&

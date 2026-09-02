@@ -25,15 +25,6 @@ type RightSidebar struct {
 	metricsGrid *SystemMetricsGrid
 	focusState  *Focus
 	logger      *observability.CoreLogger
-
-	// borderHighlight colors the border during an active drag.
-	borderHighlight bool
-}
-
-// SetBorderHighlight sets whether the next render draws the border
-// highlighted during an active drag.
-func (rs *RightSidebar) SetBorderHighlight(highlighted bool) {
-	rs.borderHighlight = highlighted
 }
 
 func NewRightSidebar(
@@ -194,8 +185,9 @@ func (rs *RightSidebar) Update(msg tea.Msg) (*RightSidebar, tea.Cmd) {
 	return rs, nil
 }
 
-// View renders the right sidebar.
-func (rs *RightSidebar) View(height int) string {
+// View renders the right sidebar, with its border highlighted while it is
+// being dragged.
+func (rs *RightSidebar) View(height int, borderHighlight bool) string {
 	width := rs.animState.Value()
 	if height <= 0 || width <= SidebarOverhead {
 		return ""
@@ -225,7 +217,7 @@ func (rs *RightSidebar) View(height int) string {
 		MaxHeight(height).
 		Render(body)
 	borderStyle := rightSidebarBorderStyle
-	if rs.borderHighlight {
+	if borderHighlight {
 		borderStyle = rightSidebarBorderHighlightStyle
 	}
 	bordered := borderStyle.

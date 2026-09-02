@@ -735,12 +735,7 @@ var (
 	}
 
 	// leftSidebarBorderHighlightStyle colors the border while it is dragged.
-	leftSidebarBorderHighlightStyle = lipgloss.NewStyle().
-					Border(RightBorder).
-					BorderForeground(colorLayoutHighlight).
-					BorderTop(false).
-					BorderBottom(false).
-					BorderLeft(false)
+	leftSidebarBorderHighlightStyle = leftSidebarBorderStyle.BorderForeground(colorLayoutHighlight)
 )
 
 // Right sidebar styles.
@@ -768,12 +763,8 @@ var (
 	}
 
 	// rightSidebarBorderHighlightStyle colors the border while it is dragged.
-	rightSidebarBorderHighlightStyle = lipgloss.NewStyle().
-						Border(LeftBorder).
-						BorderForeground(colorLayoutHighlight).
-						BorderTop(false).
-						BorderBottom(false).
-						BorderRight(false)
+	rightSidebarBorderHighlightStyle = rightSidebarBorderStyle.
+						BorderForeground(colorLayoutHighlight)
 )
 
 // Console logs pane styles.
@@ -800,20 +791,20 @@ var (
 						Foreground(colorDark)
 )
 
-// renderHorizontalSeparator draws a full-width em-dash separator line.
-// This is used between vertically stacked panes in the central column
-// instead of per-pane top borders. An actively dragged separator keeps the
-// same glyph and is distinguished only by the layout highlight color.
+// renderHorizontalSeparator draws a full-width em-dash separator line, in
+// the layout highlight color when highlighted. This is used between
+// vertically stacked panes in the central column instead of per-pane top
+// borders.
 func renderHorizontalSeparator(width int, highlighted bool) string {
 	if width <= 0 {
 		return ""
 	}
+	fg := colorLayout
 	if highlighted {
-		line := strings.Repeat(string(unicodeEmDash), width)
-		return lipgloss.NewStyle().Foreground(colorLayoutHighlight).Render(line)
+		fg = colorLayoutHighlight
 	}
 	line := strings.Repeat(string(unicodeEmDash), width)
-	return lipgloss.NewStyle().Foreground(colorLayout).Render(line)
+	return lipgloss.NewStyle().Foreground(fg).Render(line)
 }
 
 // joinWithSeparators joins rendered sections with horizontal separator
