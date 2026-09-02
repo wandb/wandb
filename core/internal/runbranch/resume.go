@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
-	"math"
 
 	"github.com/Khan/genqlient/graphql"
 
@@ -185,11 +184,10 @@ func processResponse(
 		return err
 	} else if events != nil {
 		if runtime, ok := events["_runtime"]; ok {
-			params.Runtime = int32(
-				math.Max(
-					extractRuntime(runtime),
-					float64(params.Runtime),
-				))
+			params.Runtime = max(
+				extractRuntime(runtime),
+				params.Runtime,
+			)
 		}
 	}
 
@@ -216,19 +214,17 @@ func processResponse(
 		switch x := params.Summary["_wandb"].(type) {
 		case map[string]any:
 			if runtime, ok := x["runtime"]; ok {
-				params.Runtime = int32(
-					math.Max(
-						extractRuntime(runtime),
-						float64(params.Runtime),
-					))
+				params.Runtime = max(
+					extractRuntime(runtime),
+					params.Runtime,
+				)
 			}
 		default:
 			if runtime, ok := params.Summary["_runtime"]; ok {
-				params.Runtime = int32(
-					math.Max(
-						extractRuntime(runtime),
-						float64(params.Runtime),
-					))
+				params.Runtime = max(
+					extractRuntime(runtime),
+					params.Runtime,
+				)
 			}
 		}
 	}
@@ -247,11 +243,10 @@ func processResponse(
 		}
 
 		if runtime, ok := history["_runtime"]; ok {
-			params.Runtime = int32(
-				math.Max(
-					extractRuntime(runtime),
-					float64(params.Runtime),
-				))
+			params.Runtime = max(
+				extractRuntime(runtime),
+				params.Runtime,
+			)
 		}
 	}
 

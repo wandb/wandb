@@ -1492,7 +1492,7 @@ func (w *Workspace) renderRunLines(contentWidth int) []string {
 		// Determine row style.
 		style := evenRunStyle
 		if idxOnPage%2 == 1 {
-			style = oddRunStyle
+			style = oddRunStyle()
 		}
 		if idxOnPage == selectedLine {
 			if w.runs.Active {
