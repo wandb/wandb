@@ -78,6 +78,10 @@ pub fn zero_div<T: core::ops::Div<Output = T> + Default + PartialEq>(a: T, b: T)
     if b == zero { zero } else { a / b }
 }
 
+fn is_valid_temp(val: f32) -> bool {
+    val > 0.0 && val <= 150.0
+}
+
 fn calc_freq(item: CFDictionaryRef, freqs: &[u32]) -> (u32, f32) {
     let items = cfio_get_residencies(item); // (ns, freq)
     let (len1, len2) = (items.len(), freqs.len());
@@ -211,7 +215,7 @@ impl Sampler {
         for sensor in &self.smc_cpu_keys {
             let val = self.smc.read_val(sensor)?;
             let val = f32::from_le_bytes(val.data[0..4].try_into().unwrap());
-            if val != 0.0 {
+            if is_valid_temp(val) {
                 cpu_metrics.push(val);
             }
         }
@@ -220,7 +224,7 @@ impl Sampler {
         for sensor in &self.smc_gpu_keys {
             let val = self.smc.read_val(sensor)?;
             let val = f32::from_le_bytes(val.data[0..4].try_into().unwrap());
-            if val != 0.0 {
+            if is_valid_temp(val) {
                 gpu_metrics.push(val);
             }
         }
@@ -243,14 +247,16 @@ impl Sampler {
         for (name, value) in &metrics {
             if name.starts_with("pACC MTR Temp Sensor") || name.starts_with("eACC MTR Temp Sensor")
             {
-                // println!("{}: {}", name, value);
-                cpu_values.push(*value);
+                if is_valid_temp(*value) {
+                    cpu_values.push(*value);
+                }
                 continue;
             }
 
             if name.starts_with("GPU MTR Temp Sensor") {
-                // println!("{}: {}", name, value);
-                gpu_values.push(*value);
+                if is_valid_temp(*value) {
+                    gpu_values.push(*value);
+                }
                 continue;
             }
         }
