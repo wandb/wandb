@@ -59,47 +59,50 @@ def test_disabled_telemetry_does_not_publish(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    ("status_code", "expected_none"),
+    ("status_code", "supported"),
     [
-        (requests.codes.not_found, True),
-        (requests.codes.method_not_allowed, True),
-        (requests.codes.unauthorized, False),
+        (requests.codes.not_found, False),
+        (requests.codes.method_not_allowed, False),
+        (requests.codes.unauthorized, True),
     ],
 )
-def test_server_supports_open_telemetry_proxy(
+def test_check_server_supports_open_telemetry_proxy(
     monkeypatch,
     status_code: int,
-    expected_none: bool,
+    supported: bool,
 ):
-    post = MagicMock(return_value=MagicMock(status_code=status_code))
-    monkeypatch.setattr(opentelemetry_proxy.requests, "post", post)
     monkeypatch.setattr(
-        OpenTelemetryProxy,
-        "_build_meter_provider",
-        MagicMock(),
-    )
-    monkeypatch.setattr(
-        OpenTelemetryProxy,
-        "_build_logger_provider",
-        MagicMock(),
+        opentelemetry_proxy.requests,
+        "post",
+        MagicMock(return_value=MagicMock(status_code=status_code)),
     )
 
-    settings = Settings(base_url="http://localhost:8765")
-    proxy = OpenTelemetryProxy.from_settings(settings)
+    assert (
+        opentelemetry_proxy._check_server_supports_open_telemetry_proxy(Settings())
+        is supported
+    )
 
-    assert (proxy is None) is expected_none
 
-
-def test_server_supports_open_telemetry_proxy_timeout(monkeypatch):
+def test_check_server_supports_open_telemetry_proxy_timeout(monkeypatch):
     monkeypatch.setattr(
         opentelemetry_proxy.requests,
         "post",
         MagicMock(side_effect=requests.Timeout),
     )
 
-    proxy = OpenTelemetryProxy.from_settings(Settings(base_url="http://localhost:8765"))
+    assert not opentelemetry_proxy._check_server_supports_open_telemetry_proxy(
+        Settings()
+    )
 
-    assert proxy is None
+
+@pytest.mark.parametrize("supported", [True, False])
+def test_probed_exporter_only_exports_to_supporting_server(supported: bool):
+    exporter = MagicMock()
+    probed = opentelemetry_proxy._ProbedExporter(exporter, lambda: supported, None)
+
+    probed.export("batch")
+
+    assert exporter.export.called is supported
 
 
 def test_telemetry_without_proxy_does_not_publish():

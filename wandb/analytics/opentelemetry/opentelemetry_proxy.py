@@ -9,7 +9,7 @@ import threading
 import traceback
 from collections.abc import Callable
 from dataclasses import dataclass, fields
-from typing import TYPE_CHECKING, Concatenate
+from typing import TYPE_CHECKING, Any, Concatenate
 
 import requests
 from opentelemetry._logs import SeverityNumber
@@ -22,8 +22,14 @@ from wandb.sdk import wandb_setup
 from wandb.sdk.wandb_settings import Settings
 
 if TYPE_CHECKING:
+    from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
+    from opentelemetry.exporter.otlp.proto.http.metric_exporter import (
+        OTLPMetricExporter,
+    )
     from opentelemetry.sdk._logs import LoggerProvider
+    from opentelemetry.sdk._logs.export import LogExportResult
     from opentelemetry.sdk.metrics import MeterProvider
+    from opentelemetry.sdk.metrics.export import MetricExportResult
     from opentelemetry.sdk.resources import Resource
 
 # defaultExportInterval mirror: how often batched metrics/logs are flushed to
@@ -36,11 +42,6 @@ _DEFAULT_EXPORT_TIMEOUT_MILLIS = 5_000
 
 # httpClientTimeout mirror: per-request timeout for HTTP calls to the backend.
 _HTTP_CLIENT_TIMEOUT_SECONDS = 10
-
-# probeTimeout is the timeout for the server capability probe. The probe runs
-# during SDK initialization, so it must be shorter than the initialization
-# timeout rather than consuming the whole request budget.
-_PROBE_TIMEOUT_SECONDS = 2
 
 # Backend OpenTelemetry proxy ingestion paths, appended to the base URL.
 _METRICS_PATH = "/sdk/otel/v1/metrics"
@@ -58,7 +59,7 @@ def _check_server_supports_open_telemetry_proxy(settings: Settings) -> bool:
     try:
         response = requests.post(
             settings.base_url.rstrip("/") + _METRICS_PATH,
-            timeout=_PROBE_TIMEOUT_SECONDS,
+            timeout=_HTTP_CLIENT_TIMEOUT_SECONDS,
         )
     except requests.RequestException:
         return False
@@ -71,6 +72,33 @@ def _check_server_supports_open_telemetry_proxy(settings: Settings) -> bool:
         requests.codes.not_found,
         requests.codes.method_not_allowed,
     )
+
+
+class _ProbedExporter:
+    """Wraps an OTLP exporter so nothing is sent to a server without the proxy API.
+
+    The first export probes the server; batches bound for a server that does
+    not support the proxy API are dropped. Everything else is delegated to the
+    wrapped exporter.
+    """
+
+    def __init__(
+        self,
+        exporter: OTLPMetricExporter | OTLPLogExporter,
+        server_supports_proxy: Callable[[], bool],
+        dropped_result: MetricExportResult | LogExportResult,
+    ) -> None:
+        self._exporter = exporter
+        self._server_supports_proxy = server_supports_proxy
+        self._dropped_result = dropped_result
+
+    def export(self, *args: Any, **kwargs: Any) -> Any:
+        if not self._server_supports_proxy():
+            return self._dropped_result
+        return self._exporter.export(*args, **kwargs)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._exporter, name)
 
 
 def disable() -> None:
@@ -407,11 +435,7 @@ class OpenTelemetryProxy:
         pid: int | None = None,
     ) -> OpenTelemetryProxy | None:
         """Create a proxy from settings, or None if telemetry is disabled."""
-        if (
-            _disabled.is_set()
-            or settings._offline
-            or not _check_server_supports_open_telemetry_proxy(settings)
-        ):
+        if _disabled.is_set() or settings._offline:
             return None
         return cls(settings=settings, pid=pid)
 
@@ -421,36 +445,81 @@ class OpenTelemetryProxy:
         settings: Settings,
         pid: int | None = None,
     ) -> None:
-        """Initialize the proxy and its OpenTelemetry providers.
+        """Initialize the proxy.
+
+        The OpenTelemetry providers are built on first use, so a process that
+        never records telemetry starts no export threads and sends nothing.
 
         Args:
             settings: The settings to use to configure the proxy.
         """
-        from opentelemetry.sdk.resources import SERVICE_NAME, Resource
-
         self._pid = pid or os.getpid()
-
-        session = requests.Session()
-        resource = Resource.create({SERVICE_NAME: _DEFAULT_SERVICE_NAME})
-        self._meter_provider = self._build_meter_provider(
-            resource=resource,
-            endpoint=settings.base_url,
-            session=session,
-        )
-        self._logger_provider = self._build_logger_provider(
-            resource=resource,
-            endpoint=settings.base_url,
-            session=session,
-        )
+        self._settings = settings
 
         # Counters are cached by name so the same instrument is reused across
         # calls, avoiding duplicate-instrument warnings from the SDK.
         self._counters: dict[str, Counter] = {}
         self._counters_lock = threading.Lock()
 
-        # shutdown guards Shutdown so the providers are only shut down once.
+        # _lock guards the providers and the shutdown flag, so the providers
+        # are built at most once and shut down at most once.
+        self._lock = threading.Lock()
+        self._meter_provider: MeterProvider | None = None
+        self._logger_provider: LoggerProvider | None = None
         self._shutdown = False
-        self._shutdown_lock = threading.Lock()
+
+        # Whether the server exposes the proxy API, or None until the first
+        # export probes it.
+        self._probe_lock = threading.Lock()
+        self._server_supports_proxy: bool | None = None
+
+    def _server_supported(self) -> bool:
+        """Return whether the server supports the proxy API, probing it once.
+
+        Called by the exporters, so this runs on the SDK's export threads or
+        inside `shutdown`, never on the thread recording telemetry.
+        """
+        with self._probe_lock:
+            if self._server_supports_proxy is None:
+                self._server_supports_proxy = (
+                    _check_server_supports_open_telemetry_proxy(self._settings)
+                )
+            return self._server_supports_proxy
+
+    def _providers(self) -> tuple[MeterProvider, LoggerProvider] | None:
+        """Return the providers, building them on first use.
+
+        Returns None once the proxy is shut down, telemetry is disabled, or
+        the server is known not to support the proxy API.
+        """
+        with self._lock:
+            if (
+                self._shutdown
+                or _disabled.is_set()
+                or self._server_supports_proxy is False
+            ):
+                return None
+            if self._meter_provider is None or self._logger_provider is None:
+                self._meter_provider, self._logger_provider = self._build_providers()
+            return self._meter_provider, self._logger_provider
+
+    def _build_providers(self) -> tuple[MeterProvider, LoggerProvider]:
+        from opentelemetry.sdk.resources import SERVICE_NAME, Resource
+
+        session = requests.Session()
+        resource = Resource.create({SERVICE_NAME: _DEFAULT_SERVICE_NAME})
+        return (
+            self._build_meter_provider(
+                resource=resource,
+                endpoint=self._settings.base_url,
+                session=session,
+            ),
+            self._build_logger_provider(
+                resource=resource,
+                endpoint=self._settings.base_url,
+                session=session,
+            ),
+        )
 
     def _build_meter_provider(
         self,
@@ -465,13 +534,20 @@ class OpenTelemetryProxy:
         )
         from opentelemetry.sdk.metrics import Counter as SdkCounter
         from opentelemetry.sdk.metrics import MeterProvider
-        from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+        from opentelemetry.sdk.metrics.export import (
+            MetricExportResult,
+            PeriodicExportingMetricReader,
+        )
 
-        exporter = OTLPMetricExporter(
-            endpoint=endpoint.rstrip("/") + _METRICS_PATH,
-            session=session,
-            timeout=_HTTP_CLIENT_TIMEOUT_SECONDS,
-            preferred_temporality={SdkCounter: AggregationTemporality.DELTA},
+        exporter = _ProbedExporter(
+            OTLPMetricExporter(
+                endpoint=endpoint.rstrip("/") + _METRICS_PATH,
+                session=session,
+                timeout=_HTTP_CLIENT_TIMEOUT_SECONDS,
+                preferred_temporality={SdkCounter: AggregationTemporality.DELTA},
+            ),
+            self._server_supported,
+            MetricExportResult.SUCCESS,
         )
         reader = PeriodicExportingMetricReader(
             exporter,
@@ -490,12 +566,19 @@ class OpenTelemetryProxy:
         """Build a logger provider that exports logs via OTLP/HTTP."""
         from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
         from opentelemetry.sdk._logs import LoggerProvider
-        from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+        from opentelemetry.sdk._logs.export import (
+            BatchLogRecordProcessor,
+            LogExportResult,
+        )
 
-        exporter = OTLPLogExporter(
-            endpoint=endpoint.rstrip("/") + _LOGS_PATH,
-            session=session,
-            timeout=_HTTP_CLIENT_TIMEOUT_SECONDS,
+        exporter = _ProbedExporter(
+            OTLPLogExporter(
+                endpoint=endpoint.rstrip("/") + _LOGS_PATH,
+                session=session,
+                timeout=_HTTP_CLIENT_TIMEOUT_SECONDS,
+            ),
+            self._server_supported,
+            LogExportResult.SUCCESS,
         )
         provider = LoggerProvider(resource=resource)
         provider.add_log_record_processor(
@@ -513,17 +596,18 @@ class OpenTelemetryProxy:
         attributes: dict[str, str] | None = None,
     ) -> None:
         """Increment the counter metric `name` by 1 with the given attributes."""
-        if self._shutdown or _disabled.is_set():
+        providers = self._providers()
+        if providers is None:
             return
 
-        counter = self._counter(name)
-        counter.add(1, attributes or {})
+        meter_provider, _ = providers
+        self._counter(meter_provider, name).add(1, attributes or {})
 
-    def _counter(self, name: str) -> Counter:
+    def _counter(self, meter_provider: MeterProvider, name: str) -> Counter:
         with self._counters_lock:
             counter = self._counters.get(name)
             if counter is None:
-                meter = self._meter_provider.get_meter(_DEFAULT_SERVICE_NAME)
+                meter = meter_provider.get_meter(_DEFAULT_SERVICE_NAME)
                 counter = meter.create_counter(name)
                 self._counters[name] = counter
             return counter
@@ -535,10 +619,12 @@ class OpenTelemetryProxy:
         severity: SeverityNumber = SeverityNumber.INFO,
     ) -> None:
         """Emit a log record with the given body, attributes, and severity."""
-        if self._shutdown or _disabled.is_set():
+        providers = self._providers()
+        if providers is None:
             return
 
-        logger = self._logger_provider.get_logger(_DEFAULT_SERVICE_NAME)
+        _, logger_provider = providers
+        logger = logger_provider.get_logger(_DEFAULT_SERVICE_NAME)
         logger.emit(
             body=body,
             severity_number=severity,
@@ -552,17 +638,19 @@ class OpenTelemetryProxy:
         After this returns, the proxy becomes a no-op. Additional calls are
         ignored. Should be called once when telemetry is no longer needed.
         """
-        with self._shutdown_lock:
+        with self._lock:
             if self._shutdown:
                 return
             self._shutdown = True
+            meter_provider = self._meter_provider
+            logger_provider = self._logger_provider
 
-        if self._meter_provider is not None:
+        if meter_provider is not None:
             with contextlib.suppress(Exception):
-                self._meter_provider.shutdown(timeout_millis=timeout_millis)
-        if self._logger_provider is not None:
+                meter_provider.shutdown(timeout_millis=timeout_millis)
+        if logger_provider is not None:
             with contextlib.suppress(Exception):
-                self._logger_provider.shutdown()
+                logger_provider.shutdown()
 
 
 def _exception_stacktrace(exc: Exception) -> str:
