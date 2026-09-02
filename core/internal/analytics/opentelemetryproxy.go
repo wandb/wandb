@@ -42,6 +42,15 @@ const (
 	// httpClientTimeout is the timeout for HTTP requests to the backend.
 	httpClientTimeout = 10 * time.Second
 
+	// probeTimeout is the timeout for the server capability probe.
+	//
+	// The probe runs while handling api-init, for which the SDK waits 10
+	// seconds in total (see ServiceConnection.api_init_request). A probe
+	// allowed to take httpClientTimeout can therefore spend that whole
+	// budget, failing the caller's `wandb.Api()` rather than just its own
+	// request, wherever the endpoint is slow to answer.
+	probeTimeout = 2 * time.Second
+
 	metricsPath = "/sdk/otel/v1/metrics"
 	logsPath    = "/sdk/otel/v1/logs"
 )
@@ -788,7 +797,7 @@ func checkServerSupportsOpenTelemetryProxy(
 	if wandbSettings.IsInsecureDisableSSL() {
 		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
-	httpClient := &http.Client{Timeout: httpClientTimeout, Transport: transport}
+	httpClient := &http.Client{Timeout: probeTimeout, Transport: transport}
 
 	url := wandbSettings.GetBaseURL() + metricsPath
 	req, err := http.NewRequestWithContext(

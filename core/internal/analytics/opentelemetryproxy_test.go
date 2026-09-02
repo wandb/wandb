@@ -2,6 +2,8 @@ package analytics_test
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"runtime"
 	"testing"
 	"time"
@@ -9,10 +11,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	otellogapi "go.opentelemetry.io/otel/log"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/analyticstest"
+	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 func TestTelemetryRecorder_RecordsDefaultAttributes(t *testing.T) {
@@ -405,6 +410,26 @@ func TestOpenTelemetryProxy_Shutdown_CalledMultipleTimes(t *testing.T) {
 
 	// A second shutdown should not error.
 	require.NoError(t, proxy.Shutdown(context.Background()))
+}
+
+func TestNewOpenTelemetryProxy_UnresponsiveServer_GivesUpQuickly(t *testing.T) {
+	block := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) { <-block },
+	))
+	defer server.Close()
+	defer close(block)
+
+	start := time.Now()
+	proxy := analytics.NewOpenTelemetryProxy(
+		context.Background(),
+		settings.From(&spb.Settings{BaseUrl: wrapperspb.String(server.URL)}),
+		"wandb-core",
+	)
+
+	assert.Nil(t, proxy, "expected telemetry to be disabled")
+	// The SDK gives api-init, which this runs inside, 10 seconds in total.
+	assert.Less(t, time.Since(start), 5*time.Second)
 }
 
 func TestTelemetryRecorder_RecordAfterShutdown_IsNoop(t *testing.T) {
