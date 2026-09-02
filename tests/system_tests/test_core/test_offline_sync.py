@@ -56,13 +56,7 @@ def test_legacy_sync_append_renumbers_step_from_server_cursor(
     wandb_backend_spy,
     runner,
 ):
-    """Legacy `--append` resumes against the server and writes at the next offset.
-
-    This is the append behavior that has existed since PR #4848: `_setup_resume`
-    sets the FileStream history offset so prior rows are preserved and the
-    synced segment is appended rather than overwriting offset 0. Uses the real
-    backend `RunResumeStatus` response (no stub).
-    """
+    """Legacy `--append` resumes against the server and writes at the next offset."""
     with wandb.init() as run:
         run.log({"loss": 0.1}, step=0)
         run.log({"loss": 0.2}, step=1)
