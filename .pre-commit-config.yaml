@@ -14,7 +14,7 @@ repos:
         args: [--fix]
       - id: ruff-format
   - repo: https://github.com/astral-sh/ty-pre-commit
-    rev: "v0.0.73"
+    rev: "v0.0.75"
     hooks:
       # Type-check with ty on every commit.
       # ty's coverage and rule config live in [tool.ty] in pyproject.toml.
