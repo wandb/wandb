@@ -403,6 +403,12 @@ func (upserter *RunUpserter) EnvironmentJSON() ([]byte, error) {
 	return upserter.environment.ToJSON()
 }
 
+func (upserter *RunUpserter) StartingStep() int64 {
+	upserter.mu.Lock()
+	defer upserter.mu.Unlock()
+	return upserter.params.StartingStep
+}
+
 func (upserter *RunUpserter) StartTime() time.Time {
 	upserter.mu.Lock()
 	defer upserter.mu.Unlock()
