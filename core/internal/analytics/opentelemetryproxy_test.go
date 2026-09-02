@@ -4,6 +4,7 @@ import (
 	"context"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -41,11 +42,11 @@ func TestTelemetryRecorder_RecordsDefaultAttributes(t *testing.T) {
 	}
 }
 
-func TestTelemetryRecorder_With_LowCardinalityAttributes(t *testing.T) {
+func TestTelemetryRecorder_With_OnlyProvidedLowCardinalityAttributes(t *testing.T) {
 	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
 	recorder := analytics.NewTelemetryRecorder(
 		proxy.OpenTelemetryProxy,
-		analytics.NewTelemetryContext(),
+		analytics.TelemetryContext{},
 	)
 
 	derived := recorder.With(
@@ -62,11 +63,19 @@ func TestTelemetryRecorder_With_LowCardinalityAttributes(t *testing.T) {
 
 	log, ok := proxy.FindLog("low_card_event")
 	require.True(t, ok, "expected a log for the event")
-	assert.Equal(t, "MyFunction", log.Attributes["error.originator"])
+	assert.Equal(
+		t,
+		map[string]string{"error.originator": "MyFunction"},
+		log.Attributes,
+	)
 
 	metric, ok := proxy.FindMetric("low_card_event")
 	require.True(t, ok, "expected a metric for the event")
-	assert.Equal(t, "MyFunction", metric.Attributes["error.originator"])
+	assert.Equal(
+		t,
+		map[string]string{"error.originator": "MyFunction"},
+		metric.Attributes,
+	)
 }
 
 func TestTelemetryRecorder_With_InheritsAndIgnoresEmptyFields(
@@ -303,32 +312,33 @@ func TestTelemetryRecorder_RecordMetricAndLogEvent(t *testing.T) {
 	assert.Equal(t, "value", log.Attributes["custom"])
 }
 
-func TestTelemetryRecorder_SendsAPIKeyAuth(t *testing.T) {
+func TestTelemetryRecorder_RecordDuration(t *testing.T) {
 	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
 	recorder := analytics.NewTelemetryRecorder(
 		proxy.OpenTelemetryProxy,
 		analytics.NewTelemetryContext(),
+	).With(
+		analytics.LowCardinalityAttributes{LeetMode: "inspect"},
+		nil,
 	)
 
-	recorder.IncrementCounterAndLogEvent(
+	recorder.RecordDuration(
 		t.Context(),
-		"authenticated_event",
-		nil,
-		analytics.LowCardinalityAttributes{},
+		"session_duration",
+		1500*time.Millisecond,
+		analytics.LowCardinalityAttributes{
+			ExecutionContext: "local",
+		},
 	)
 	require.NoError(t, proxy.Shutdown(context.Background()))
 
-	requests := proxy.Requests()
-	require.NotEmpty(t, requests, "expected at least one OTLP export request")
-	for _, req := range requests {
-		assert.Equal(
-			t,
-			"Basic YXBpOnRlc3QtYXBpLWtleQ==",
-			req.Authorization,
-			"path %s",
-			req.Path,
-		)
-	}
+	metric, ok := proxy.FindMetric("session_duration")
+	require.True(t, ok, "expected a duration histogram")
+	assert.Equal(t, "s", metric.Unit)
+	assert.Equal(t, uint64(1), metric.HistogramCount)
+	assert.InDelta(t, 1.5, metric.HistogramSum, 0.0001)
+	assert.Equal(t, "inspect", metric.Attributes["leet_mode"])
+	assert.Equal(t, "local", metric.Attributes["execution_context"])
 }
 
 func TestTelemetryRecorder_ErrorLog(t *testing.T) {

@@ -345,7 +345,9 @@ pub struct Feature {
     /// catboost log summary used
     #[prost(bool, tag = "28")]
     pub catboost_log_summary: bool,
-    /// wandb.tensorflow.log or wandb.tensorboard.log used
+    /// wandb.tensorflow.log or wandb.tensorboard.log used, in an old SDK.
+    ///
+    /// These functions have been removed.
     #[prost(bool, tag = "29")]
     pub tensorboard_log: bool,
     /// wandb.tensorflow.WandbHook used
@@ -558,27 +560,9 @@ pub struct Deprecated {
     /// wandb.sdk.lib.disabled.RunDisabled used
     #[prost(bool, tag = "16")]
     pub run_disabled: bool,
-    /// wandb.run.define_metric() called with summary="best" and goal="maximize/minimize"
-    #[prost(bool, tag = "18")]
-    pub run_define_metric_best_goal: bool,
-    /// wandb.run.finish(quiet=...) called
-    #[prost(bool, tag = "19")]
-    pub run_finish_quiet: bool,
     /// reinit setting set to a boolean value
     #[prost(bool, tag = "20")]
     pub run_reinit_bool: bool,
-    /// wandb.run.get_url() called
-    #[prost(bool, tag = "21")]
-    pub run_get_url: bool,
-    /// wandb.run.project_name() called
-    #[prost(bool, tag = "22")]
-    pub run_project_name: bool,
-    /// wandb.run.get_project_url() called
-    #[prost(bool, tag = "23")]
-    pub run_get_project_url: bool,
-    /// wandb.run.get_sweep_url() called
-    #[prost(bool, tag = "24")]
-    pub run_get_sweep_url: bool,
     /// wandb.run.use_artifact(use_as=...) called
     #[prost(bool, tag = "25")]
     pub run_use_artifact_use_as: bool,
@@ -842,6 +826,12 @@ pub struct RunRecord {
     /// Information about the source if this is a fork or rewind of another run.
     #[prost(message, optional, tag = "23")]
     pub branch_point: ::core::option::Option<BranchPoint>,
+    /// Whether syncing should resume an existing run.
+    ///
+    /// This stores pre-sync intention. Distinct from `resumed` which stores what
+    /// actually happened.
+    #[prost(bool, tag = "24")]
+    pub resume: bool,
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }
@@ -1489,6 +1479,8 @@ pub struct ArtifactRecord {
     pub ttl_duration_seconds: i64,
     #[prost(string, repeated, tag = "19")]
     pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    #[prost(string, tag = "20")]
+    pub digest_algorithm: ::prost::alloc::string::String,
     #[prost(bool, tag = "100")]
     pub incremental_beta1: bool,
     #[prost(message, optional, tag = "200")]
@@ -3015,6 +3007,8 @@ pub enum ServerFeature {
     /// Indicates that the server supports the enqueueSweepRun mutation, used by
     /// the local sweep scheduler to enqueue runs.
     SweepsLocalScheduler = 35,
+    /// Indicates that the server supports queries for an artifact's digest algorithm.
+    ArtifactDigestAlgorithm = 36,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -3083,6 +3077,7 @@ impl ServerFeature {
             Self::AutomationsOnOrganization => "AUTOMATIONS_ON_ORGANIZATION",
             Self::FilestreamGzip => "FILESTREAM_GZIP",
             Self::SweepsLocalScheduler => "SWEEPS_LOCAL_SCHEDULER",
+            Self::ArtifactDigestAlgorithm => "ARTIFACT_DIGEST_ALGORITHM",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -3156,6 +3151,7 @@ impl ServerFeature {
             "AUTOMATIONS_ON_ORGANIZATION" => Some(Self::AutomationsOnOrganization),
             "FILESTREAM_GZIP" => Some(Self::FilestreamGzip),
             "SWEEPS_LOCAL_SCHEDULER" => Some(Self::SweepsLocalScheduler),
+            "ARTIFACT_DIGEST_ALGORITHM" => Some(Self::ArtifactDigestAlgorithm),
             _ => None,
         }
     }

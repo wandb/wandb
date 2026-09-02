@@ -46,10 +46,15 @@ func NewRightSidebar(
 	}
 }
 
-// UpdateDimensions updates the right sidebar dimensions based on terminal width
-// and the visibility of the left sidebar.
-func (rs *RightSidebar) UpdateDimensions(terminalWidth int, leftSidebarVisible bool) {
-	rs.animState.SetExpanded(expandedSidebarWidth(terminalWidth, leftSidebarVisible))
+// UpdateDimensions updates the right sidebar dimensions based on terminal
+// width, the visibility of the left sidebar, and an optional user-dragged
+// width fraction (0 = default).
+func (rs *RightSidebar) UpdateDimensions(
+	terminalWidth int,
+	leftSidebarVisible bool,
+	widthFrac float64,
+) {
+	rs.animState.SetExpanded(expandedSidebarWidth(terminalWidth, leftSidebarVisible, widthFrac))
 
 	if gridWidth := sidebarContentWidth(rs.animState.Value()); gridWidth > 0 {
 		rs.metricsGrid.Resize(gridWidth, defaultSystemMetricsGridHeight)
@@ -180,8 +185,9 @@ func (rs *RightSidebar) Update(msg tea.Msg) (*RightSidebar, tea.Cmd) {
 	return rs, nil
 }
 
-// View renders the right sidebar.
-func (rs *RightSidebar) View(height int) string {
+// View renders the right sidebar, with its border highlighted while it is
+// being dragged.
+func (rs *RightSidebar) View(height int, borderHighlight bool) string {
 	width := rs.animState.Value()
 	if height <= 0 || width <= SidebarOverhead {
 		return ""
@@ -210,7 +216,11 @@ func (rs *RightSidebar) View(height int) string {
 		Height(height).
 		MaxHeight(height).
 		Render(body)
-	bordered := rightSidebarBorderStyle.
+	borderStyle := rightSidebarBorderStyle
+	if borderHighlight {
+		borderStyle = rightSidebarBorderHighlightStyle
+	}
+	bordered := borderStyle.
 		Height(height).
 		MaxHeight(height).
 		Render(styled)

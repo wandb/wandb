@@ -48,3 +48,11 @@ query FetchOrganization($org: String!) {
     }
   }
 }
+
+query FetchAdvancedRegistryFeatures($organization: String!) {
+  organization(name: $organization) {
+    advancedRegistryFeatures {
+      advancedSearch
+    }
+  }
+}

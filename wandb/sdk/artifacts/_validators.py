@@ -8,7 +8,6 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from functools import singledispatch, wraps
-from pathlib import PureWindowsPath
 from typing import TYPE_CHECKING, Any, Concatenate, Literal, Optional, TypeVar
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
@@ -17,7 +16,7 @@ from typing_extensions import ParamSpec, Self
 from wandb._iterutils import always_list, unique_list
 from wandb._pydantic import from_json
 from wandb._strutils import nameof, repr_join
-from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath
+from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, validate_relpath
 from wandb.util import json_friendly_val
 
 from .exceptions import ArtifactFinalizedError, ArtifactNotLoggedError
@@ -52,6 +51,7 @@ class LinkArtifactFields:
     name: str
     version: str
     aliases: list[str]
+    linked_at: str
 
     # These fields shouldn't be user-editable, linked artifacts always have these values
     _is_link: Literal[True] = field(init=False, default=True)
@@ -71,25 +71,30 @@ def validate_artifact_path(path: StrPath) -> LogicalPath:
 
     Among other things, this forbids absolute paths or relative paths with traversal.
     """
-    logical_path = LogicalPath(path)
-    posix_path = logical_path.to_path()
-    windows_path = PureWindowsPath(path)
-
-    if (
-        logical_path == "."
-        or posix_path.anchor
-        or (".." in posix_path.parts)
-        or windows_path.anchor
-        or (".." in windows_path.parts)
-    ):
-        raise ValueError(f"Invalid artifact path: {path!r}")
-
-    return logical_path
+    try:
+        return validate_relpath(path)
+    except ValueError:
+        raise ValueError(f"Invalid artifact path: {path!r}") from None
 
 
 def validate_fspath(root: StrPath, relpath: StrPath) -> FilePathStr:
     """Validate a native filesystem path under `root`."""
     return os.path.join(os.fspath(root), validate_artifact_path(relpath))
+
+
+def validate_artifact_root_name(name: str) -> str:
+    """Validate an artifact `name` or `name:version` used to build a local download root.
+
+    Existing collection names can still include relative path, so we validate
+    it when it used in checkout and download as the default root. One exception is single
+    character collection name, e.g. `a:v0` is valid but can be rejected as Windows drive.
+    """
+    relpath = name[2:] if len(name) > 1 and name[1] == ":" else name
+    try:
+        validate_relpath(relpath)
+    except ValueError:
+        raise ValueError(f"Invalid artifact name: {name!r}") from None
+    return name
 
 
 def validate_artifact_name(name: str) -> str:
@@ -298,7 +303,7 @@ def ensure_not_finalized(method: MethodT[ArtifactT, P, R]) -> MethodT[ArtifactT,
 
 
 def is_artifact_registry_project(project: str) -> bool:
-    return project.startswith(REGISTRY_PREFIX)
+    return project.startswith(REGISTRY_PREFIX) and project != REGISTRY_PREFIX
 
 
 def remove_registry_prefix(project: str) -> str:

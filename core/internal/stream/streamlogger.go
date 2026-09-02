@@ -32,7 +32,7 @@ var streamLoggerProviders = wire.NewSet(
 // The stream owns the proxy's lifecycle: it is shut down in Stream.Close
 // after all of the stream's work is processed.
 func streamOTelProxy(s *settings.Settings) *analytics.OpenTelemetryProxy {
-	return analytics.NewOpenTelemetryProxy(context.Background(), s)
+	return analytics.NewOpenTelemetryProxy(context.Background(), s, "wandb-core")
 }
 
 // symlinkDebugCore symlinks the debug-core.log file to the run's directory.

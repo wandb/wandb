@@ -26,25 +26,33 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 
-	"github.com/wandb/wandb/core/internal/api"
-	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/httplayers"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
 )
 
 const (
-	defaultExportIntervalMs = 500
-	defaultTimeout          = 1 * time.Second
-	serviceName             = "wandb-core"
-	metricsPath             = "/sdk/otel/v1/metrics"
-	logsPath                = "/sdk/otel/v1/logs"
+	// defaultExportInterval is the interval at which metrics and logs are sent to the backend.
+	defaultExportInterval = 60 * time.Second
+
+	// defaultExportTimeout is the total time allowed for an export to complete.
+	// It includes the time to collect and send metric/log records.
+	defaultExportTimeout = 5 * time.Second
+
+	// httpClientTimeout is the timeout for HTTP requests to the backend.
+	httpClientTimeout = 10 * time.Second
+
+	metricsPath = "/sdk/otel/v1/metrics"
+	logsPath    = "/sdk/otel/v1/logs"
 )
 
-// ConfigureOTelErrorHandler routes OpenTelemetry SDK errors to the core logger.
-func ConfigureOTelErrorHandler() {
+// ConfigureOTelErrorHandler routes OpenTelemetry SDK errors to the logger.
+//
+// Without this, the OpenTelemetry SDK prints errors to stderr, which
+// corrupts the display of terminal UIs like leet.
+func ConfigureOTelErrorHandler(logger *slog.Logger) {
 	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(err error) {
-		slog.Error(
+		logger.Error(
 			"analytics: failed to send telemetry to backend proxy",
 			"error", err,
 		)
@@ -57,7 +65,19 @@ type LowCardinalityAttributes struct {
 	GoVersion       string
 	WandbVersion    string
 	OperatingSystem string
+	Architecture    string
 	ErrorOriginator string
+
+	PythonVersion string
+	PythonRuntime string
+	ExceptionType string
+
+	// LeetMode is the leet launch mode: leet, config, inspect or symon.
+	LeetMode string
+
+	// ExecutionContext classifies where the process runs:
+	// kubernetes, container, slurm, ci, ssh or local.
+	ExecutionContext string
 }
 
 // merge overwrites attrs with the non-empty fields of other.
@@ -65,23 +85,33 @@ func (attrs *LowCardinalityAttributes) merge(other LowCardinalityAttributes) {
 	attrs.GoVersion = cmp.Or(other.GoVersion, attrs.GoVersion)
 	attrs.WandbVersion = cmp.Or(other.WandbVersion, attrs.WandbVersion)
 	attrs.OperatingSystem = cmp.Or(other.OperatingSystem, attrs.OperatingSystem)
+	attrs.Architecture = cmp.Or(other.Architecture, attrs.Architecture)
 	attrs.ErrorOriginator = cmp.Or(other.ErrorOriginator, attrs.ErrorOriginator)
+
+	attrs.PythonVersion = cmp.Or(other.PythonVersion, attrs.PythonVersion)
+	attrs.PythonRuntime = cmp.Or(other.PythonRuntime, attrs.PythonRuntime)
+	attrs.ExceptionType = cmp.Or(other.ExceptionType, attrs.ExceptionType)
+
+	attrs.LeetMode = cmp.Or(other.LeetMode, attrs.LeetMode)
+	attrs.ExecutionContext = cmp.Or(other.ExecutionContext, attrs.ExecutionContext)
 }
 
 func (attrs LowCardinalityAttributes) toMap() map[string]string {
-	out := make(map[string]string, 4)
-	if attrs.GoVersion != "" {
-		out["go_version"] = attrs.GoVersion
+	out := map[string]string{
+		"go_version":        attrs.GoVersion,
+		"operating_system":  attrs.OperatingSystem,
+		"architecture":      attrs.Architecture,
+		"error.originator":  attrs.ErrorOriginator,
+		"python_version":    attrs.PythonVersion,
+		"python_runtime":    attrs.PythonRuntime,
+		"exception_type":    attrs.ExceptionType,
+		"wandb_version":     attrs.WandbVersion,
+		"leet_mode":         attrs.LeetMode,
+		"execution_context": attrs.ExecutionContext,
 	}
-	if attrs.WandbVersion != "" {
-		out["wandb_version"] = attrs.WandbVersion
-	}
-	if attrs.OperatingSystem != "" {
-		out["operating_system"] = attrs.OperatingSystem
-	}
-	if attrs.ErrorOriginator != "" {
-		out["error.originator"] = attrs.ErrorOriginator
-	}
+	maps.DeleteFunc(out, func(_ string, value string) bool {
+		return value == ""
+	})
 	return out
 }
 
@@ -121,6 +151,7 @@ func NewTelemetryContext() TelemetryContext {
 		WandbVersion:    version.Version,
 		GoVersion:       runtime.Version(),
 		OperatingSystem: runtime.GOOS,
+		Architecture:    runtime.GOARCH,
 	}
 
 	return TelemetryContext{
@@ -220,6 +251,28 @@ func (r *TelemetryRecorder) IncrementCounter(
 	mergedLowCardinalityAttributes := r.telemetryContext.lowCardinalityAttributes
 	mergedLowCardinalityAttributes.merge(lowCardinalityAttributes)
 	r.root.incrementCounter(ctx, name, mergedLowCardinalityAttributes)
+}
+
+// RecordDuration records a duration histogram metric in seconds with the
+// telemetry context's low-cardinality attributes.
+func (r *TelemetryRecorder) RecordDuration(
+	ctx context.Context,
+	name string,
+	duration time.Duration,
+	lowCardinalityAttributes LowCardinalityAttributes,
+) {
+	if r == nil {
+		return
+	}
+
+	mergedLowCardinalityAttributes := r.telemetryContext.lowCardinalityAttributes
+	mergedLowCardinalityAttributes.merge(lowCardinalityAttributes)
+	r.root.recordDuration(
+		ctx,
+		name,
+		duration,
+		mergedLowCardinalityAttributes,
+	)
 }
 
 // IncrementCounterAndLogEvent increments a counter metric by 1
@@ -361,22 +414,58 @@ type OpenTelemetryProxy struct {
 	// to the OpenTelemetry proxy API.
 	httpClient *http.Client
 
+	// serviceName is the name of the service being monitored.
+	// This is used to identify the service in the OpenTelemetry backend.
+	serviceName string
+
 	// shutdown guards Shutdown so the providers are only shut down once.
 	shutdown atomic.Bool
 }
 
 // NewOpenTelemetryProxy returns an OpenTelemetryProxy for the given endpoint.
 //
-// When analytics is disabled, the wandbSettings are offline, or no credentials
-// are available, a nil pointer is returned, making calls to the proxy a no-op.
+// When analytics is disabled, the wandbSettings are offline, or the server
+// does not support the proxy API, a nil pointer is returned, making calls
+// to the proxy a no-op.
 func NewOpenTelemetryProxy(
 	ctx context.Context,
 	wandbSettings *settings.Settings,
+	serviceName string,
 ) *OpenTelemetryProxy {
 	if disabled.Load() || wandbSettings.IsOffline() {
 		return nil
 	}
 
+	if !checkServerSupportsOpenTelemetryProxy(ctx, wandbSettings) {
+		slog.Debug("analytics: server does not support OpenTelemetry proxy, disabling telemetry")
+		return nil
+	}
+
+	return newOpenTelemetryProxy(ctx, wandbSettings, serviceName)
+}
+
+// NewOpenTelemetryProxyUnchecked is like NewOpenTelemetryProxy except that it
+// skips the network probe checking whether the server supports the proxy API.
+//
+// Use it with endpoints known to expose the API when blocking on a network
+// round trip at construction time is not acceptable.
+func NewOpenTelemetryProxyUnchecked(
+	ctx context.Context,
+	wandbSettings *settings.Settings,
+	serviceName string,
+) *OpenTelemetryProxy {
+	if disabled.Load() || wandbSettings.IsOffline() {
+		return nil
+	}
+
+	return newOpenTelemetryProxy(ctx, wandbSettings, serviceName)
+}
+
+func newOpenTelemetryProxy(
+	ctx context.Context,
+	wandbSettings *settings.Settings,
+	serviceName string,
+) *OpenTelemetryProxy {
 	httpClient, err := newOTLPHTTPClient(wandbSettings)
 	if err != nil {
 		slog.Debug(
@@ -385,13 +474,11 @@ func NewOpenTelemetryProxy(
 		)
 		return nil
 	}
-	if httpClient == nil {
-		return nil
-	}
 
 	proxy := &OpenTelemetryProxy{
-		endpoint:   wandbSettings.GetBaseURL(),
-		httpClient: httpClient,
+		endpoint:    wandbSettings.GetBaseURL(),
+		httpClient:  httpClient,
+		serviceName: serviceName,
 	}
 	if err := proxy.initializeOTelResources(ctx); err != nil {
 		return nil
@@ -399,63 +486,48 @@ func NewOpenTelemetryProxy(
 	return proxy
 }
 
+// newOTLPHTTPClient builds the HTTP client used for OTLP exports.
+//
+// The backend accepts unauthenticated telemetry uploads, so when no
+// credentials are configured the requests are simply sent without an
+// Authorization header.
 func newOTLPHTTPClient(
 	wandbSettings *settings.Settings,
 ) (*http.Client, error) {
-	credentialProvider, err := api.NewCredentialProvider(
-		wandbSettings,
-		slog.Default(),
-	)
-	if err != nil {
-		return nil, err
-	}
-	if _, ok := credentialProvider.(api.NoopCredentialProvider); ok {
-		return nil, nil
-	}
-
 	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.Proxy = clients.ProxyFn(
-		wandbSettings.GetHTTPProxy(),
-		wandbSettings.GetHTTPSProxy(),
-	)
+	transport.Proxy = wandbSettings.GetProxyFn()
+	transport.ProxyConnectHeader = wandbSettings.GetProxyConnectHeader()
 	if wandbSettings.IsInsecureDisableSSL() {
 		transport.TLSClientConfig = &tls.Config{
 			InsecureSkipVerify: true,
 		}
 	}
 
-	extraHeaders := make(http.Header, len(wandbSettings.GetExtraHTTPHeaders()))
-	for key, value := range wandbSettings.GetExtraHTTPHeaders() {
-		extraHeaders.Set(key, value)
-	}
-	if header := extraHeaders.Get("Proxy-Authorization"); header != "" {
-		transport.ProxyConnectHeader = http.Header{
-			"Proxy-Authorization": []string{header},
-		}
-	}
+	extraHeaders := wandbSettings.GetExtraHTTPHeaders()
 
 	client := &http.Client{
-		Timeout: defaultTimeout,
+		Timeout: httpClientTimeout,
 	}
 	client.Transport = httplayers.WrapRoundTripper(
 		transport,
 		httplayers.Concat(
-			httplayers.ExtraHeaders(extraHeaders),
-			credentialProvider,
+			httplayers.DefaultHeaders(extraHeaders),
 		),
 	)
 	return client, nil
 }
 
 // initializeOTelResources initializes the OpenTelemetry meter and log providers.
-func (o *OpenTelemetryProxy) initializeOTelResources(ctx context.Context) error {
+func (o *OpenTelemetryProxy) initializeOTelResources(
+	ctx context.Context,
+) error {
 	if o == nil {
 		return nil
 	}
 
 	res, err := resource.New(
 		ctx,
-		resource.WithAttributes(semconv.ServiceName(serviceName)),
+		resource.WithAttributes(semconv.ServiceName(o.serviceName)),
 	)
 	if err != nil {
 		return fmt.Errorf("create resource: %w", err)
@@ -505,7 +577,8 @@ func (o *OpenTelemetryProxy) setupMetrics(
 		metric.WithResource(res),
 		metric.WithReader(
 			metric.NewPeriodicReader(exporter,
-				metric.WithInterval(defaultExportIntervalMs*time.Millisecond),
+				metric.WithInterval(defaultExportInterval),
+				metric.WithTimeout(defaultExportTimeout),
 			),
 		),
 	), nil
@@ -531,7 +604,12 @@ func (o *OpenTelemetryProxy) setupLogs(
 
 	return otellog.NewLoggerProvider(
 		otellog.WithResource(res),
-		otellog.WithProcessor(otellog.NewBatchProcessor(exporter)),
+		otellog.WithProcessor(
+			otellog.NewBatchProcessor(exporter,
+				otellog.WithExportInterval(defaultExportInterval),
+				otellog.WithExportTimeout(defaultExportTimeout),
+			),
+		),
 	), nil
 }
 
@@ -583,13 +661,40 @@ func (o *OpenTelemetryProxy) incrementCounter(
 		return
 	}
 
-	meter := o.meterProvider.Meter(serviceName)
+	meter := o.meterProvider.Meter(o.serviceName)
 	counter, err := meter.Int64Counter(name)
 	if err != nil {
 		return
 	}
 
 	counter.Add(ctx, 1, toOTelAttrs(lowCardinalityAttributes.toMap()))
+}
+
+// recordDuration records a duration histogram metric in seconds.
+func (o *OpenTelemetryProxy) recordDuration(
+	ctx context.Context,
+	name string,
+	duration time.Duration,
+	lowCardinalityAttributes LowCardinalityAttributes,
+) {
+	if o == nil {
+		return
+	}
+
+	meter := o.meterProvider.Meter(o.serviceName)
+	histogram, err := meter.Float64Histogram(
+		name,
+		otelmetric.WithUnit("s"),
+	)
+	if err != nil {
+		return
+	}
+
+	histogram.Record(
+		ctx,
+		duration.Seconds(),
+		toOTelAttrs(lowCardinalityAttributes.toMap()),
+	)
 }
 
 // log emits an OpenTelemetry log record with the supplied attributes
@@ -604,7 +709,7 @@ func (o *OpenTelemetryProxy) log(
 		return
 	}
 
-	logger := o.logProvider.Logger(serviceName)
+	logger := o.logProvider.Logger(o.serviceName)
 	var record otellogapi.Record
 	record.SetBody(attribute.StringValue(body))
 	record.SetSeverity(severity)
@@ -669,4 +774,42 @@ func toOTelAttrs(attrs map[string]string) otelmetric.MeasurementOption {
 		kvs = append(kvs, attribute.String(k, v))
 	}
 	return otelmetric.WithAttributes(kvs...)
+}
+
+// checkServerSupportsOpenTelemetryProxy probes the W&B OpenTelemetry proxy
+// endpoint to determine whether the server exposes it.
+func checkServerSupportsOpenTelemetryProxy(
+	ctx context.Context,
+	wandbSettings *settings.Settings,
+) bool {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = wandbSettings.GetProxyFn()
+	transport.ProxyConnectHeader = wandbSettings.GetProxyConnectHeader()
+	if wandbSettings.IsInsecureDisableSSL() {
+		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	}
+	httpClient := &http.Client{Timeout: httpClientTimeout, Transport: transport}
+
+	url := wandbSettings.GetBaseURL() + metricsPath
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		url,
+		http.NoBody,
+	)
+	if err != nil {
+		return false
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	// Depending on the server configuration, it may respond with a
+	// 404 Not Found or a 405 Method Not Allowed when it does not support
+	// the proxy API.
+	return resp.StatusCode != http.StatusMethodNotAllowed &&
+		resp.StatusCode != http.StatusNotFound
 }

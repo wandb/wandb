@@ -1,4 +1,5 @@
 from wandb.proto import wandb_internal_pb2 as _wandb_internal_pb2
+from wandb.proto import wandb_otel_pb2 as _wandb_otel_pb2
 from wandb.proto import wandb_settings_pb2 as _wandb_settings_pb2
 from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
@@ -17,10 +18,12 @@ UNKNOWN_ERROR: ErrorType
 INCOMPLETE_RUN_HISTORY_ERROR: ErrorType
 
 class ServerApiInitRequest(_message.Message):
-    __slots__ = ("settings",)
+    __slots__ = ("settings", "service_name")
     SETTINGS_FIELD_NUMBER: _ClassVar[int]
+    SERVICE_NAME_FIELD_NUMBER: _ClassVar[int]
     settings: _wandb_settings_pb2.Settings
-    def __init__(self, settings: _Optional[_Union[_wandb_settings_pb2.Settings, _Mapping]] = ...) -> None: ...
+    service_name: str
+    def __init__(self, settings: _Optional[_Union[_wandb_settings_pb2.Settings, _Mapping]] = ..., service_name: _Optional[str] = ...) -> None: ...
 
 class ServerApiInitResponse(_message.Message):
     __slots__ = ("error_message", "api_id")
@@ -31,7 +34,7 @@ class ServerApiInitResponse(_message.Message):
     def __init__(self, error_message: _Optional[str] = ..., api_id: _Optional[str] = ...) -> None: ...
 
 class ApiRequest(_message.Message):
-    __slots__ = ("api_id", "read_run_history_request", "features_request", "graphql_request", "download_file_request", "upload_file_request", "mark_run_files_uploaded_request", "stop_run_request", "auth_request", "create_custom_chart_request", "run_queue_operation_request")
+    __slots__ = ("api_id", "read_run_history_request", "features_request", "graphql_request", "download_file_request", "upload_file_request", "mark_run_files_uploaded_request", "stop_run_request", "auth_request", "create_custom_chart_request", "run_queue_operation_request", "open_telemetry_request", "read_run_console_logs_request")
     API_ID_FIELD_NUMBER: _ClassVar[int]
     READ_RUN_HISTORY_REQUEST_FIELD_NUMBER: _ClassVar[int]
     FEATURES_REQUEST_FIELD_NUMBER: _ClassVar[int]
@@ -43,6 +46,8 @@ class ApiRequest(_message.Message):
     AUTH_REQUEST_FIELD_NUMBER: _ClassVar[int]
     CREATE_CUSTOM_CHART_REQUEST_FIELD_NUMBER: _ClassVar[int]
     RUN_QUEUE_OPERATION_REQUEST_FIELD_NUMBER: _ClassVar[int]
+    OPEN_TELEMETRY_REQUEST_FIELD_NUMBER: _ClassVar[int]
+    READ_RUN_CONSOLE_LOGS_REQUEST_FIELD_NUMBER: _ClassVar[int]
     api_id: str
     read_run_history_request: ReadRunHistoryRequest
     features_request: FeaturesRequest
@@ -54,10 +59,12 @@ class ApiRequest(_message.Message):
     auth_request: AuthRequest
     create_custom_chart_request: CreateCustomChartRequest
     run_queue_operation_request: RunQueueOperationRequest
-    def __init__(self, api_id: _Optional[str] = ..., read_run_history_request: _Optional[_Union[ReadRunHistoryRequest, _Mapping]] = ..., features_request: _Optional[_Union[FeaturesRequest, _Mapping]] = ..., graphql_request: _Optional[_Union[GraphQLRequest, _Mapping]] = ..., download_file_request: _Optional[_Union[DownloadFileRequest, _Mapping]] = ..., upload_file_request: _Optional[_Union[UploadFileRequest, _Mapping]] = ..., mark_run_files_uploaded_request: _Optional[_Union[MarkRunFilesUploadedRequest, _Mapping]] = ..., stop_run_request: _Optional[_Union[StopRunRequest, _Mapping]] = ..., auth_request: _Optional[_Union[AuthRequest, _Mapping]] = ..., create_custom_chart_request: _Optional[_Union[CreateCustomChartRequest, _Mapping]] = ..., run_queue_operation_request: _Optional[_Union[RunQueueOperationRequest, _Mapping]] = ...) -> None: ...
+    open_telemetry_request: _wandb_otel_pb2.OpenTelemetryRequest
+    read_run_console_logs_request: ReadRunConsoleLogsRequest
+    def __init__(self, api_id: _Optional[str] = ..., read_run_history_request: _Optional[_Union[ReadRunHistoryRequest, _Mapping]] = ..., features_request: _Optional[_Union[FeaturesRequest, _Mapping]] = ..., graphql_request: _Optional[_Union[GraphQLRequest, _Mapping]] = ..., download_file_request: _Optional[_Union[DownloadFileRequest, _Mapping]] = ..., upload_file_request: _Optional[_Union[UploadFileRequest, _Mapping]] = ..., mark_run_files_uploaded_request: _Optional[_Union[MarkRunFilesUploadedRequest, _Mapping]] = ..., stop_run_request: _Optional[_Union[StopRunRequest, _Mapping]] = ..., auth_request: _Optional[_Union[AuthRequest, _Mapping]] = ..., create_custom_chart_request: _Optional[_Union[CreateCustomChartRequest, _Mapping]] = ..., run_queue_operation_request: _Optional[_Union[RunQueueOperationRequest, _Mapping]] = ..., open_telemetry_request: _Optional[_Union[_wandb_otel_pb2.OpenTelemetryRequest, _Mapping]] = ..., read_run_console_logs_request: _Optional[_Union[ReadRunConsoleLogsRequest, _Mapping]] = ...) -> None: ...
 
 class ApiResponse(_message.Message):
-    __slots__ = ("read_run_history_response", "features_response", "graphql_response", "download_file_response", "upload_file_response", "mark_run_files_uploaded_response", "stop_run_response", "auth_response", "create_custom_chart_response", "run_queue_operation_response", "api_error_response")
+    __slots__ = ("read_run_history_response", "features_response", "graphql_response", "download_file_response", "upload_file_response", "mark_run_files_uploaded_response", "stop_run_response", "auth_response", "create_custom_chart_response", "run_queue_operation_response", "read_run_console_logs_response", "api_error_response")
     READ_RUN_HISTORY_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     FEATURES_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     GRAPHQL_RESPONSE_FIELD_NUMBER: _ClassVar[int]
@@ -68,6 +75,7 @@ class ApiResponse(_message.Message):
     AUTH_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     CREATE_CUSTOM_CHART_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     RUN_QUEUE_OPERATION_RESPONSE_FIELD_NUMBER: _ClassVar[int]
+    READ_RUN_CONSOLE_LOGS_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     API_ERROR_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     read_run_history_response: ReadRunHistoryResponse
     features_response: FeaturesResponse
@@ -79,8 +87,9 @@ class ApiResponse(_message.Message):
     auth_response: AuthResponse
     create_custom_chart_response: CreateCustomChartResponse
     run_queue_operation_response: RunQueueOperationResponse
+    read_run_console_logs_response: ReadRunConsoleLogsResponse
     api_error_response: ApiErrorResponse
-    def __init__(self, read_run_history_response: _Optional[_Union[ReadRunHistoryResponse, _Mapping]] = ..., features_response: _Optional[_Union[FeaturesResponse, _Mapping]] = ..., graphql_response: _Optional[_Union[GraphQLResponse, _Mapping]] = ..., download_file_response: _Optional[_Union[DownloadFileResponse, _Mapping]] = ..., upload_file_response: _Optional[_Union[UploadFileResponse, _Mapping]] = ..., mark_run_files_uploaded_response: _Optional[_Union[MarkRunFilesUploadedResponse, _Mapping]] = ..., stop_run_response: _Optional[_Union[StopRunResponse, _Mapping]] = ..., auth_response: _Optional[_Union[AuthResponse, _Mapping]] = ..., create_custom_chart_response: _Optional[_Union[CreateCustomChartResponse, _Mapping]] = ..., run_queue_operation_response: _Optional[_Union[RunQueueOperationResponse, _Mapping]] = ..., api_error_response: _Optional[_Union[ApiErrorResponse, _Mapping]] = ...) -> None: ...
+    def __init__(self, read_run_history_response: _Optional[_Union[ReadRunHistoryResponse, _Mapping]] = ..., features_response: _Optional[_Union[FeaturesResponse, _Mapping]] = ..., graphql_response: _Optional[_Union[GraphQLResponse, _Mapping]] = ..., download_file_response: _Optional[_Union[DownloadFileResponse, _Mapping]] = ..., upload_file_response: _Optional[_Union[UploadFileResponse, _Mapping]] = ..., mark_run_files_uploaded_response: _Optional[_Union[MarkRunFilesUploadedResponse, _Mapping]] = ..., stop_run_response: _Optional[_Union[StopRunResponse, _Mapping]] = ..., auth_response: _Optional[_Union[AuthResponse, _Mapping]] = ..., create_custom_chart_response: _Optional[_Union[CreateCustomChartResponse, _Mapping]] = ..., run_queue_operation_response: _Optional[_Union[RunQueueOperationResponse, _Mapping]] = ..., read_run_console_logs_response: _Optional[_Union[ReadRunConsoleLogsResponse, _Mapping]] = ..., api_error_response: _Optional[_Union[ApiErrorResponse, _Mapping]] = ...) -> None: ...
 
 class ApiErrorResponse(_message.Message):
     __slots__ = ("message", "error_type", "http_status")
@@ -99,16 +108,53 @@ class ServerApiCleanupRequest(_message.Message):
     def __init__(self, api_id: _Optional[str] = ...) -> None: ...
 
 class FeaturesRequest(_message.Message):
+    __slots__ = ("server", "org")
+    SERVER_FIELD_NUMBER: _ClassVar[int]
+    ORG_FIELD_NUMBER: _ClassVar[int]
+    server: ServerFeaturesRequest
+    org: OrgFeaturesRequest
+    def __init__(self, server: _Optional[_Union[ServerFeaturesRequest, _Mapping]] = ..., org: _Optional[_Union[OrgFeaturesRequest, _Mapping]] = ...) -> None: ...
+
+class FeaturesResponse(_message.Message):
+    __slots__ = ("server", "org")
+    SERVER_FIELD_NUMBER: _ClassVar[int]
+    ORG_FIELD_NUMBER: _ClassVar[int]
+    server: ServerFeaturesResponse
+    org: OrgFeaturesResponse
+    def __init__(self, server: _Optional[_Union[ServerFeaturesResponse, _Mapping]] = ..., org: _Optional[_Union[OrgFeaturesResponse, _Mapping]] = ...) -> None: ...
+
+class ServerFeaturesRequest(_message.Message):
     __slots__ = ("features",)
     FEATURES_FIELD_NUMBER: _ClassVar[int]
     features: _containers.RepeatedScalarFieldContainer[_wandb_internal_pb2.ServerFeature]
     def __init__(self, features: _Optional[_Iterable[_Union[_wandb_internal_pb2.ServerFeature, str]]] = ...) -> None: ...
 
-class FeaturesResponse(_message.Message):
+class ServerFeaturesResponse(_message.Message):
     __slots__ = ("enabled",)
     ENABLED_FIELD_NUMBER: _ClassVar[int]
     enabled: _containers.RepeatedScalarFieldContainer[_wandb_internal_pb2.ServerFeature]
     def __init__(self, enabled: _Optional[_Iterable[_Union[_wandb_internal_pb2.ServerFeature, str]]] = ...) -> None: ...
+
+class OrgFeaturesRequest(_message.Message):
+    __slots__ = ("org", "features")
+    ORG_FIELD_NUMBER: _ClassVar[int]
+    FEATURES_FIELD_NUMBER: _ClassVar[int]
+    org: str
+    features: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, org: _Optional[str] = ..., features: _Optional[_Iterable[str]] = ...) -> None: ...
+
+class OrgFeaturesResponse(_message.Message):
+    __slots__ = ("features",)
+    class FeaturesEntry(_message.Message):
+        __slots__ = ("key", "value")
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: bool
+        def __init__(self, key: _Optional[str] = ..., value: bool = ...) -> None: ...
+    FEATURES_FIELD_NUMBER: _ClassVar[int]
+    features: _containers.ScalarMap[str, bool]
+    def __init__(self, features: _Optional[_Mapping[str, bool]] = ...) -> None: ...
 
 class GraphQLRequest(_message.Message):
     __slots__ = ("query", "variables_json", "omit_variables", "omit_fragments", "omit_fields", "rename_fields")
@@ -243,6 +289,48 @@ class StopRunRequest(_message.Message):
 class StopRunResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
+
+class ReadRunConsoleLogsRequest(_message.Message):
+    __slots__ = ("entity", "project", "run_id", "first", "after", "last")
+    ENTITY_FIELD_NUMBER: _ClassVar[int]
+    PROJECT_FIELD_NUMBER: _ClassVar[int]
+    RUN_ID_FIELD_NUMBER: _ClassVar[int]
+    FIRST_FIELD_NUMBER: _ClassVar[int]
+    AFTER_FIELD_NUMBER: _ClassVar[int]
+    LAST_FIELD_NUMBER: _ClassVar[int]
+    entity: str
+    project: str
+    run_id: str
+    first: int
+    after: str
+    last: int
+    def __init__(self, entity: _Optional[str] = ..., project: _Optional[str] = ..., run_id: _Optional[str] = ..., first: _Optional[int] = ..., after: _Optional[str] = ..., last: _Optional[int] = ...) -> None: ...
+
+class ReadRunConsoleLogsResponse(_message.Message):
+    __slots__ = ("lines", "end_cursor", "has_next_page", "total_lines")
+    LINES_FIELD_NUMBER: _ClassVar[int]
+    END_CURSOR_FIELD_NUMBER: _ClassVar[int]
+    HAS_NEXT_PAGE_FIELD_NUMBER: _ClassVar[int]
+    TOTAL_LINES_FIELD_NUMBER: _ClassVar[int]
+    lines: _containers.RepeatedCompositeFieldContainer[RunConsoleLogLine]
+    end_cursor: str
+    has_next_page: bool
+    total_lines: int
+    def __init__(self, lines: _Optional[_Iterable[_Union[RunConsoleLogLine, _Mapping]]] = ..., end_cursor: _Optional[str] = ..., has_next_page: bool = ..., total_lines: _Optional[int] = ...) -> None: ...
+
+class RunConsoleLogLine(_message.Message):
+    __slots__ = ("number", "timestamp", "level", "label", "content")
+    NUMBER_FIELD_NUMBER: _ClassVar[int]
+    TIMESTAMP_FIELD_NUMBER: _ClassVar[int]
+    LEVEL_FIELD_NUMBER: _ClassVar[int]
+    LABEL_FIELD_NUMBER: _ClassVar[int]
+    CONTENT_FIELD_NUMBER: _ClassVar[int]
+    number: int
+    timestamp: str
+    level: str
+    label: str
+    content: str
+    def __init__(self, number: _Optional[int] = ..., timestamp: _Optional[str] = ..., level: _Optional[str] = ..., label: _Optional[str] = ..., content: _Optional[str] = ...) -> None: ...
 
 class CreateCustomChartRequest(_message.Message):
     __slots__ = ("entity", "name", "display_name", "spec_type", "access", "spec")

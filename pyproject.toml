@@ -23,6 +23,7 @@ dependencies = [
     "opentelemetry-api>=1.43.0",
     "opentelemetry-sdk>=1.43.0",
     "opentelemetry-exporter-otlp-proto-http>=1.43.0",
+    "xxhash>=3.0.0",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -106,7 +107,7 @@ launch = [
 models = ["cloudpickle"]
 workspaces = ["wandb-workspaces"]
 # cwsandbox requires Python >=3.11, so this extra is unavailable on 3.10.
-sandbox = ["cwsandbox[cli]>=0.20.0; python_version >= '3.11'"]
+sandbox = ["cwsandbox[cli]>=1.0.0; python_version >= '3.11'"]
 eval-table = [ # wandb.EvalTable support (private testing only)
     "weave>=0.52.41",
 ]

@@ -1035,15 +1035,18 @@ type Feature struct {
 	SetRunTags          bool                   `protobuf:"varint,18,opt,name=set_run_tags,json=setRunTags,proto3" json:"set_run_tags,omitempty"`                            // user sets run name via wandb.run.tags = ...
 	SetConfigItem       bool                   `protobuf:"varint,19,opt,name=set_config_item,json=setConfigItem,proto3" json:"set_config_item,omitempty"`                   // users set key in run config via run.config.key
 	// or run.config["key"]
-	Launch                   bool `protobuf:"varint,20,opt,name=launch,proto3" json:"launch,omitempty"`                                                                         // run is created through wandb launch
-	TorchProfilerTrace       bool `protobuf:"varint,21,opt,name=torch_profiler_trace,json=torchProfilerTrace,proto3" json:"torch_profiler_trace,omitempty"`                     // wandb.profiler.torch_trace_handler() called
-	Sb3                      bool `protobuf:"varint,22,opt,name=sb3,proto3" json:"sb3,omitempty"`                                                                               // Using stable_baselines3 integration
-	InitReturnRun            bool `protobuf:"varint,24,opt,name=init_return_run,json=initReturnRun,proto3" json:"init_return_run,omitempty"`                                    // wandb.init() called in the same process returning previous run
-	LightgbmWandbCallback    bool `protobuf:"varint,25,opt,name=lightgbm_wandb_callback,json=lightgbmWandbCallback,proto3" json:"lightgbm_wandb_callback,omitempty"`            // lightgbm callback used
-	LightgbmLogSummary       bool `protobuf:"varint,26,opt,name=lightgbm_log_summary,json=lightgbmLogSummary,proto3" json:"lightgbm_log_summary,omitempty"`                     // lightgbm log summary used
-	CatboostWandbCallback    bool `protobuf:"varint,27,opt,name=catboost_wandb_callback,json=catboostWandbCallback,proto3" json:"catboost_wandb_callback,omitempty"`            // catboost callback used
-	CatboostLogSummary       bool `protobuf:"varint,28,opt,name=catboost_log_summary,json=catboostLogSummary,proto3" json:"catboost_log_summary,omitempty"`                     // catboost log summary used
-	TensorboardLog           bool `protobuf:"varint,29,opt,name=tensorboard_log,json=tensorboardLog,proto3" json:"tensorboard_log,omitempty"`                                   // wandb.tensorflow.log or wandb.tensorboard.log used
+	Launch                bool `protobuf:"varint,20,opt,name=launch,proto3" json:"launch,omitempty"`                                                              // run is created through wandb launch
+	TorchProfilerTrace    bool `protobuf:"varint,21,opt,name=torch_profiler_trace,json=torchProfilerTrace,proto3" json:"torch_profiler_trace,omitempty"`          // wandb.profiler.torch_trace_handler() called
+	Sb3                   bool `protobuf:"varint,22,opt,name=sb3,proto3" json:"sb3,omitempty"`                                                                    // Using stable_baselines3 integration
+	InitReturnRun         bool `protobuf:"varint,24,opt,name=init_return_run,json=initReturnRun,proto3" json:"init_return_run,omitempty"`                         // wandb.init() called in the same process returning previous run
+	LightgbmWandbCallback bool `protobuf:"varint,25,opt,name=lightgbm_wandb_callback,json=lightgbmWandbCallback,proto3" json:"lightgbm_wandb_callback,omitempty"` // lightgbm callback used
+	LightgbmLogSummary    bool `protobuf:"varint,26,opt,name=lightgbm_log_summary,json=lightgbmLogSummary,proto3" json:"lightgbm_log_summary,omitempty"`          // lightgbm log summary used
+	CatboostWandbCallback bool `protobuf:"varint,27,opt,name=catboost_wandb_callback,json=catboostWandbCallback,proto3" json:"catboost_wandb_callback,omitempty"` // catboost callback used
+	CatboostLogSummary    bool `protobuf:"varint,28,opt,name=catboost_log_summary,json=catboostLogSummary,proto3" json:"catboost_log_summary,omitempty"`          // catboost log summary used
+	// wandb.tensorflow.log or wandb.tensorboard.log used, in an old SDK.
+	//
+	// These functions have been removed.
+	TensorboardLog           bool `protobuf:"varint,29,opt,name=tensorboard_log,json=tensorboardLog,proto3" json:"tensorboard_log,omitempty"`
 	EstimatorHook            bool `protobuf:"varint,30,opt,name=estimator_hook,json=estimatorHook,proto3" json:"estimator_hook,omitempty"`                                      // wandb.tensorflow.WandbHook used
 	XgboostWandbCallback     bool `protobuf:"varint,31,opt,name=xgboost_wandb_callback,json=xgboostWandbCallback,proto3" json:"xgboost_wandb_callback,omitempty"`               // xgboost callback used
 	XgboostOldWandbCallback  bool `protobuf:"varint,32,opt,name=xgboost_old_wandb_callback,json=xgboostOldWandbCallback,proto3" json:"xgboost_old_wandb_callback,omitempty"`    // xgboost old callback used (to be depreciated)
@@ -1836,21 +1839,14 @@ type Deprecated struct {
 	ArtifactCollection_ChangeType bool `protobuf:"varint,14,opt,name=artifact_collection__change_type,json=artifactCollectionChangeType,proto3" json:"artifact_collection__change_type,omitempty"`
 	// wandb.run.define_metric() called with summary="copy"
 	Run_DefineMetricCopy bool `protobuf:"varint,15,opt,name=run__define_metric_copy,json=runDefineMetricCopy,proto3" json:"run__define_metric_copy,omitempty"`
-	RunDisabled          bool `protobuf:"varint,16,opt,name=run_disabled,json=runDisabled,proto3" json:"run_disabled,omitempty"` // wandb.sdk.lib.disabled.RunDisabled used
-	// wandb.run.define_metric() called with summary="best" and goal="maximize/minimize"
-	Run_DefineMetricBestGoal bool `protobuf:"varint,18,opt,name=run__define_metric_best_goal,json=runDefineMetricBestGoal,proto3" json:"run__define_metric_best_goal,omitempty"`
-	Run_FinishQuiet          bool `protobuf:"varint,19,opt,name=run__finish_quiet,json=runFinishQuiet,proto3" json:"run__finish_quiet,omitempty"`                    // wandb.run.finish(quiet=...) called
-	Run_ReinitBool           bool `protobuf:"varint,20,opt,name=run__reinit_bool,json=runReinitBool,proto3" json:"run__reinit_bool,omitempty"`                       // reinit setting set to a boolean value
-	Run_GetUrl               bool `protobuf:"varint,21,opt,name=run__get_url,json=runGetUrl,proto3" json:"run__get_url,omitempty"`                                   // wandb.run.get_url() called
-	Run_ProjectName          bool `protobuf:"varint,22,opt,name=run__project_name,json=runProjectName,proto3" json:"run__project_name,omitempty"`                    // wandb.run.project_name() called
-	Run_GetProjectUrl        bool `protobuf:"varint,23,opt,name=run__get_project_url,json=runGetProjectUrl,proto3" json:"run__get_project_url,omitempty"`            // wandb.run.get_project_url() called
-	Run_GetSweepUrl          bool `protobuf:"varint,24,opt,name=run__get_sweep_url,json=runGetSweepUrl,proto3" json:"run__get_sweep_url,omitempty"`                  // wandb.run.get_sweep_url() called
-	Run_UseArtifactUseAs     bool `protobuf:"varint,25,opt,name=run__use_artifact_use_as,json=runUseArtifactUseAs,proto3" json:"run__use_artifact_use_as,omitempty"` // wandb.run.use_artifact(use_as=...) called
-	Artifact_UseAs           bool `protobuf:"varint,26,opt,name=artifact__use_as,json=artifactUseAs,proto3" json:"artifact__use_as,omitempty"`                       // wandb.sdk.artifacts.artifact.Artifact.use_as() called
-	Artifact_InitUseAs       bool `protobuf:"varint,27,opt,name=artifact__init_use_as,json=artifactInitUseAs,proto3" json:"artifact__init_use_as,omitempty"`         // wandb.sdk.artifacts.artifact.Artifact(use_as=...) called
-	KfpV1WandbLog            bool `protobuf:"varint,31,opt,name=kfp_v1_wandb_log,json=kfpV1WandbLog,proto3" json:"kfp_v1_wandb_log,omitempty"`                       // wandb.integration.kfp.wandb_log used with kfp<2.0.0
-	unknownFields            protoimpl.UnknownFields
-	sizeCache                protoimpl.SizeCache
+	RunDisabled          bool `protobuf:"varint,16,opt,name=run_disabled,json=runDisabled,proto3" json:"run_disabled,omitempty"`                                 // wandb.sdk.lib.disabled.RunDisabled used
+	Run_ReinitBool       bool `protobuf:"varint,20,opt,name=run__reinit_bool,json=runReinitBool,proto3" json:"run__reinit_bool,omitempty"`                       // reinit setting set to a boolean value
+	Run_UseArtifactUseAs bool `protobuf:"varint,25,opt,name=run__use_artifact_use_as,json=runUseArtifactUseAs,proto3" json:"run__use_artifact_use_as,omitempty"` // wandb.run.use_artifact(use_as=...) called
+	Artifact_UseAs       bool `protobuf:"varint,26,opt,name=artifact__use_as,json=artifactUseAs,proto3" json:"artifact__use_as,omitempty"`                       // wandb.sdk.artifacts.artifact.Artifact.use_as() called
+	Artifact_InitUseAs   bool `protobuf:"varint,27,opt,name=artifact__init_use_as,json=artifactInitUseAs,proto3" json:"artifact__init_use_as,omitempty"`         // wandb.sdk.artifacts.artifact.Artifact(use_as=...) called
+	KfpV1WandbLog        bool `protobuf:"varint,31,opt,name=kfp_v1_wandb_log,json=kfpV1WandbLog,proto3" json:"kfp_v1_wandb_log,omitempty"`                       // wandb.integration.kfp.wandb_log used with kfp<2.0.0
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *Deprecated) Reset() {
@@ -1946,51 +1942,9 @@ func (x *Deprecated) GetRunDisabled() bool {
 	return false
 }
 
-func (x *Deprecated) GetRun_DefineMetricBestGoal() bool {
-	if x != nil {
-		return x.Run_DefineMetricBestGoal
-	}
-	return false
-}
-
-func (x *Deprecated) GetRun_FinishQuiet() bool {
-	if x != nil {
-		return x.Run_FinishQuiet
-	}
-	return false
-}
-
 func (x *Deprecated) GetRun_ReinitBool() bool {
 	if x != nil {
 		return x.Run_ReinitBool
-	}
-	return false
-}
-
-func (x *Deprecated) GetRun_GetUrl() bool {
-	if x != nil {
-		return x.Run_GetUrl
-	}
-	return false
-}
-
-func (x *Deprecated) GetRun_ProjectName() bool {
-	if x != nil {
-		return x.Run_ProjectName
-	}
-	return false
-}
-
-func (x *Deprecated) GetRun_GetProjectUrl() bool {
-	if x != nil {
-		return x.Run_GetProjectUrl
-	}
-	return false
-}
-
-func (x *Deprecated) GetRun_GetSweepUrl() bool {
-	if x != nil {
-		return x.Run_GetSweepUrl
 	}
 	return false
 }
@@ -2263,7 +2217,7 @@ const file_wandb_proto_wandb_telemetry_proto_rawDesc = "" +
 	"codeString\x12\x1f\n" +
 	"\vrepo_string\x18\x02 \x01(\tR\n" +
 	"repoString\x12!\n" +
-	"\fcode_version\x18\x03 \x01(\tR\vcodeVersion\"\x91\b\n" +
+	"\fcode_version\x18\x03 \x01(\tR\vcodeVersion\"\xa3\x06\n" +
 	"\n" +
 	"Deprecated\x12\x14\n" +
 	"\x05plots\x18\x05 \x01(\bR\x05plots\x128\n" +
@@ -2274,20 +2228,14 @@ const file_wandb_proto_wandb_telemetry_proto_rawDesc = "" +
 	"\x16api__artifact_versions\x18\r \x01(\bR\x13apiArtifactVersions\x12F\n" +
 	" artifact_collection__change_type\x18\x0e \x01(\bR\x1cartifactCollectionChangeType\x124\n" +
 	"\x17run__define_metric_copy\x18\x0f \x01(\bR\x13runDefineMetricCopy\x12!\n" +
-	"\frun_disabled\x18\x10 \x01(\bR\vrunDisabled\x12=\n" +
-	"\x1crun__define_metric_best_goal\x18\x12 \x01(\bR\x17runDefineMetricBestGoal\x12)\n" +
-	"\x11run__finish_quiet\x18\x13 \x01(\bR\x0erunFinishQuiet\x12'\n" +
-	"\x10run__reinit_bool\x18\x14 \x01(\bR\rrunReinitBool\x12\x1f\n" +
-	"\frun__get_url\x18\x15 \x01(\bR\trunGetUrl\x12)\n" +
-	"\x11run__project_name\x18\x16 \x01(\bR\x0erunProjectName\x12.\n" +
-	"\x14run__get_project_url\x18\x17 \x01(\bR\x10runGetProjectUrl\x12*\n" +
-	"\x12run__get_sweep_url\x18\x18 \x01(\bR\x0erunGetSweepUrl\x125\n" +
+	"\frun_disabled\x18\x10 \x01(\bR\vrunDisabled\x12'\n" +
+	"\x10run__reinit_bool\x18\x14 \x01(\bR\rrunReinitBool\x125\n" +
 	"\x18run__use_artifact_use_as\x18\x19 \x01(\bR\x13runUseArtifactUseAs\x12'\n" +
 	"\x10artifact__use_as\x18\x1a \x01(\bR\rartifactUseAs\x120\n" +
 	"\x15artifact__init_use_as\x18\x1b \x01(\bR\x11artifactInitUseAs\x12'\n" +
 	"\x10kfp_v1_wandb_log\x18\x1f \x01(\bR\rkfpV1WandbLogJ\x04\b\x01\x10\x02J\x04\b\x02\x10\x03J\x04\b\x03\x10\x04J\x04\b\x04\x10\x05J\x04\b\x06\x10\aJ\x04\b\t\x10\n" +
 	"J\x04\b\n" +
-	"\x10\vJ\x04\b\x11\x10\x12J\x04\b\x1c\x10\x1dJ\x04\b\x1d\x10\x1eJ\x04\b\x1e\x10\x1fB\x1bZ\x19core/pkg/service_go_protob\x06proto3"
+	"\x10\vJ\x04\b\x11\x10\x12J\x04\b\x12\x10\x13J\x04\b\x13\x10\x14J\x04\b\x15\x10\x16J\x04\b\x16\x10\x17J\x04\b\x17\x10\x18J\x04\b\x18\x10\x19J\x04\b\x1c\x10\x1dJ\x04\b\x1d\x10\x1eJ\x04\b\x1e\x10\x1fB\x1bZ\x19core/pkg/service_go_protob\x06proto3"
 
 var (
 	file_wandb_proto_wandb_telemetry_proto_rawDescOnce sync.Once

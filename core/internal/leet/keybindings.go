@@ -42,7 +42,12 @@ func RunKeyBindings() []BindingCategory[Run] {
 				},
 				{
 					Keys:        []string{"esc"},
-					Description: "Back to workspace (when not filtering/configuring)",
+					Description: "Unfocus pane, then back to workspace",
+					Handler:     (*Run).handleEscape,
+				},
+				{
+					Keys:        []string{"i"},
+					Description: "Inspect the raw records in the run's .wandb file",
 				},
 			},
 		},
@@ -73,6 +78,15 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Keys:        []string{"4"},
 					Description: "Toggle console logs panel",
 					Handler:     (*Run).handleToggleConsoleLogsPane,
+				},
+				{
+					Keys:        []string{"drag border/separator"},
+					Description: "Resize panes with the mouse",
+				},
+				{
+					Keys:        []string{"0"},
+					Description: "Reset pane sizes to defaults",
+					Handler:     (*Run).handleResetLayout,
 				},
 			},
 		},
@@ -112,6 +126,11 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Keys:        []string{"y"},
 					Description: "Cycle focused chart mode (log Y / heatmap)",
 					Handler:     (*Run).handleCycleFocusedChartMode,
+				},
+				{
+					Keys:        []string{"g"},
+					Description: "Cycle chart guides (off / dots / horizontal)",
+					Handler:     (*Run).handleCycleChartGuides,
 				},
 				{
 					Keys:        []string{"/"},
@@ -272,6 +291,15 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Description: "Toggle console logs panel",
 					Handler:     (*Workspace).handleToggleConsoleLogsPane,
 				},
+				{
+					Keys:        []string{"drag border/separator"},
+					Description: "Resize panes with the mouse",
+				},
+				{
+					Keys:        []string{"0"},
+					Description: "Reset pane sizes to defaults",
+					Handler:     (*Workspace).handleResetLayout,
+				},
 			},
 		},
 		{
@@ -325,6 +353,11 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Keys:        []string{"y"},
 					Description: "Cycle focused chart mode (log Y / heatmap)",
 					Handler:     (*Workspace).handleCycleFocusedChartMode,
+				},
+				{
+					Keys:        []string{"g"},
+					Description: "Cycle chart guides (off / dots / horizontal)",
+					Handler:     (*Workspace).handleCycleChartGuides,
 				},
 				{
 					Keys:        []string{"/"},
@@ -495,6 +528,11 @@ func SymonKeyBindings() []BindingCategory[Symon] {
 					Handler:     (*Symon).handleToggleFocusedChartLogY,
 				},
 				{
+					Keys:        []string{"g"},
+					Description: "Cycle chart guides (off / dots / horizontal)",
+					Handler:     (*Symon).handleCycleChartGuides,
+				},
+				{
 					Keys:        []string{"\\"},
 					Description: "Filter system metrics by pattern",
 					Handler:     (*Symon).handleEnterSystemMetricsFilter,
@@ -526,6 +564,87 @@ func SymonKeyBindings() []BindingCategory[Symon] {
 	}
 }
 
+// InspectorKeyBindings returns key bindings for the record inspector view.
+func InspectorKeyBindings() []BindingCategory[Inspector] {
+	return []BindingCategory[Inspector]{
+		{
+			Name: "General",
+			Bindings: []KeyBinding[Inspector]{
+				{
+					Keys:        []string{"h", "?"},
+					Description: "Toggle this help screen",
+				},
+				{
+					Keys:        []string{"q", "ctrl+c"},
+					Description: "Quit",
+					Handler:     (*Inspector).handleQuit,
+				},
+				{
+					Keys:        []string{"esc"},
+					Description: "Unfocus the detail pane",
+					Handler:     (*Inspector).handleEscape,
+				},
+				{
+					Keys:        []string{"drag border"},
+					Description: "Resize the panes with the mouse",
+				},
+				{
+					Keys:        []string{"0"},
+					Description: "Reset pane sizes to defaults",
+					Handler:     (*Inspector).handleResetLayout,
+				},
+			},
+		},
+		{
+			Name: "Navigation",
+			Bindings: []KeyBinding[Inspector]{
+				{
+					Keys:        []string{"tab", "shift+tab"},
+					Description: "Switch focus: record list ↔ record detail",
+					Handler:     (*Inspector).handleToggleFocus,
+				},
+				{
+					Keys: concatKeys(
+						NavKeysFor(NavIntentUp), NavKeysFor(NavIntentDown)),
+					Description: "Previous/next record (list) / scroll (detail)",
+					Handler:     (*Inspector).handleVerticalNav,
+				},
+				{
+					Keys: concatKeys(
+						NavKeysFor(NavIntentPageUp), NavKeysFor(NavIntentPageDown)),
+					Description: "Page up / page down",
+					Handler:     (*Inspector).handlePageNav,
+				},
+				{
+					Keys:        NavKeysFor(NavIntentHome),
+					Description: "Jump to the first record / top of the detail",
+					Handler:     (*Inspector).handleNavHome,
+				},
+				{
+					Keys:        NavKeysFor(NavIntentEnd),
+					Description: "Jump to the last record; follows a live run",
+					Handler:     (*Inspector).handleNavEnd,
+				},
+			},
+		},
+		{
+			Name: "Filter",
+			Bindings: []KeyBinding[Inspector]{
+				{
+					Keys:        []string{"/"},
+					Description: "Filter records by type or summary",
+					Handler:     (*Inspector).handleEnterFilter,
+				},
+				{
+					Keys:        []string{"ctrl+/"},
+					Description: "Clear the filter",
+					Handler:     (*Inspector).handleClearFilter,
+				},
+			},
+		},
+	}
+}
+
 // buildKeyMap builds a fast lookup map from key string to handler.
 func buildKeyMap[T any](
 	categories []BindingCategory[T]) map[string]func(*T, tea.KeyPressMsg) tea.Cmd {
@@ -535,8 +654,9 @@ func buildKeyMap[T any](
 			if binding.Handler == nil {
 				continue
 			}
+			handler := recordFeatureUsage(binding.Handler)
 			for _, key := range binding.Keys {
-				keyMap[normalizeKey(key)] = binding.Handler
+				keyMap[normalizeKey(key)] = handler
 			}
 		}
 	}
@@ -548,8 +668,13 @@ func buildKeyMap[T any](
 // Bubble Tea has historically reported space as " " in some situations; we want a
 // help-friendly, explicit key name.
 func normalizeKey(key string) string {
-	if key == " " {
+	switch key {
+	case " ":
 		return "space"
+	case "alt+esc", "shift+esc", "ctrl+esc":
+		// The terminal decoder coalesces a fast Esc-Esc mash into a single
+		// alt+esc; any modified Esc still means Esc.
+		return "esc"
 	}
 	return key
 }

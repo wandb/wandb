@@ -9,9 +9,6 @@ package mlsbset
 import (
 	"errors"
 	"fmt"
-	"math/big"
-
-	"github.com/cloudflare/circl/internal/conv"
 )
 
 // EltG is a group element.
@@ -69,17 +66,43 @@ func (m Encoder) Encode(k []byte) (*Power, error) {
 	k = append(k, make([]byte, ap)...)
 	s := m.signs(k)
 	b := make([]int32, m.p.L-m.p.D)
-	c := conv.BytesLe2BigInt(k)
-	c.Rsh(c, m.p.D)
-	var bi big.Int
+
+	// Original algorithm starts with c := k >> D, then computes
+	//
+	//	  b_(i-D) = s_(i%D) * lsb(c)
+	//	  c = [ (c>>1)+1   if b_(i-D) = -1
+	//		  [ c>>1       otherwise
+	//
+	// To prevent keeping a large k around, we note that at any step i we have
+	//
+	//	  c = (k >> i) + t		for t in {0,1}
+	//
+	// Base case is obvious. For induction, write kbit for the i-th bit of k.
+	// Note lsb(c) = kbit ^ t. From that we can compute b_(i-D). Now we need
+	// to compute the next t.
+	//
+	// Consider c >> 1 = (k >> i) + t) >> 1. This equals k >> (i+1)
+	// unless t = 1 = kbit.
+	//
+	// If b_(i-D) is negative, then we must have had 1=lsb(c)=kbit^t, and so
+	// c >> 1 = k >> (i+1), as desired with new t equal to 1.
+	// For the other case assume b_(i-D) isn't negative. Now it is possible
+	// that t = 1 = kbit, and only in that case the new t is equal to 1.
+	var t uint64
 	for i := m.p.D; i < m.p.L; i++ {
-		c0 := int32(c.Bit(0))
-		b[i-m.p.D] = s[i%m.p.D] * c0
-		bi.SetInt64(int64(b[i-m.p.D] >> 1))
-		c.Rsh(c, 1)
-		c.Sub(c, &bi)
+		si := s[i%m.p.D]
+		kbit := uint64(k[i>>3]>>(i&7)) & 1
+		lsbc := kbit ^ t
+		neg := uint64(si>>31) & 1 // 1 iff si == -1
+		b[i-m.p.D] = si * int32(lsbc)
+		t = (kbit & t) | (lsbc & neg)
 	}
-	carry := int(c.Int64())
+	// carry = (k >> L) + t: any bits of k at positions >= L (present when L is
+	// not a multiple of 8) plus the final carry, matching the original.
+	carry := int(t)
+	for pos := m.p.L; int(pos>>3) < len(k); pos++ {
+		carry += int((k[pos>>3]>>(pos&7))&1) << (pos - m.p.L)
+	}
 	return &Power{m, s, b, carry}, nil
 }
 

@@ -38,6 +38,7 @@ from wandb.errors.errors import UnsupportedError
 from wandb.errors.term import termlog
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
+from wandb.sdk.artifacts._gqlutils import omit_artifact_fields, server_supports
 from wandb.sdk.artifacts._models import ArtifactCollectionData
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 
@@ -602,6 +603,20 @@ class ArtifactCollection:
         """The project that contains the artifact collection."""
         return self._current.project
 
+    @property
+    def project_id(self) -> str:
+        """The encoded GraphQL ID for this collection's project."""
+        return self._current.project_id
+
+    @property
+    def project_internal_id(self) -> str | None:
+        """The GraphQL `internalId` for this collection's backing project, if fetched.
+
+        This is a base64-encoded global ID. When decoded, it looks like
+        `Project:123` or `ProjectInternalId:123`.
+        """
+        return self._current.project_internal_id
+
     @normalize_exceptions
     def artifacts(
         self,
@@ -983,6 +998,7 @@ class Artifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
             variables=args.model_dump(),
             per_page=args.per_page,
             start=start,
+            omit_fields=omit_artifact_fields(service_api),
         )
 
     @override
@@ -1078,18 +1094,22 @@ class RunArtifacts(SizedRelayPaginator["ArtifactFragment", "Artifact"]):
             per_page=per_page,
         )
         self.run = run
+        omit_fields = omit_artifact_fields(service_api)
         super().__init__(
             service_api,
             variables=args.model_dump(),
             per_page=args.per_page,
             start=start,
+            omit_fields=omit_fields,
         )
 
     @override
     def _update_response(self) -> None:
         from wandb.sdk.artifacts._models.pagination import RunArtifactConnection
 
-        data = self._service_api.execute_graphql(self.QUERY, variables=self.variables)
+        data = self._service_api.execute_graphql(
+            self.QUERY, variables=self.variables, omit_fields=self._omit_fields
+        )
 
         # Extract the inner `*Connection` result for faster/easier access.
         inner_data = data["project"]["run"]["artifacts"]
@@ -1138,7 +1158,6 @@ class ArtifactFiles(SizedRelayPaginator["FileFragment", "File"]):
         per_page: int = 50,
         start: str | None = None,
     ):
-        from wandb.sdk.artifacts._gqlutils import server_supports
 
         if self.QUERY is None:
             from wandb.sdk.artifacts._generated import ARTIFACT_MEMBERSHIP_FILES_GQL

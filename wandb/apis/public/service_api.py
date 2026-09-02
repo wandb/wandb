@@ -17,6 +17,8 @@ from wandb.proto.wandb_api_pb2 import (
     FeaturesRequest,
     GetAccessTokenRequest,
     GraphQLRequest,
+    OrgFeaturesRequest,
+    ServerFeaturesRequest,
 )
 from wandb.sdk import wandb_settings, wandb_setup
 from wandb.sdk.lib.service.service_connection import (
@@ -57,6 +59,15 @@ class ServiceApi:
     def base_url(self) -> str:
         return self._settings.base_url
 
+    @property
+    def initialized(self) -> bool:
+        """Returns whether the lazy connection to wandb-core has been made.
+
+        It does not indicate the the connection is healthy, only that a connection
+        has been cached.
+        """
+        return self._api_session is not None
+
     def _get_api_session(self) -> _ServiceApiSession:
         """Connect to the service and initialize resources for API requests."""
         if self._api_session is not None:
@@ -85,6 +96,10 @@ class ServiceApi:
         """Send an API request to the backend service.
 
         Creates the backend service connection if it has not been created yet.
+
+        A timeout of None means to wait indefinitely for the response. This
+        is required for requests that take as long as they take, such as
+        file transfers, which wandb-core acknowledges only on completion.
         """
         session = self._get_api_session()
         request.api_id = session.api_id
@@ -260,6 +275,33 @@ class ServiceApi:
         request.api_id = session.api_id
         return await session.connection.api_request_async(request)
 
+    def api_publish(
+        self,
+        request: ApiRequest,
+    ) -> None:
+        """Publish an API request to the backend service, without awaiting a reply."""
+        session = self._get_api_session()
+        request.api_id = session.api_id
+        session.connection.api_publish(request)
+
+    def org_feature_flags(
+        self,
+        org: str,
+        *features: str,
+        timeout: float = 10,
+    ) -> dict[str, bool]:
+        """Return requested org feature flags and legacy ramps that exist."""
+        if not features:
+            return {}
+
+        req = ApiRequest(
+            features_request=FeaturesRequest(
+                org=OrgFeaturesRequest(org=org, features=features)
+            )
+        )
+        resp = self.send_api_request(req, timeout=timeout)
+        return dict(resp.features_response.org.features)
+
     def feature_enabled(
         self,
         feature: pb.ServerFeature | str,
@@ -289,7 +331,11 @@ class ServiceApi:
                 # SERVER_FEATURE_UNSPECIFIED is always disabled.
                 return False
 
-        req = ApiRequest(features_request=FeaturesRequest(features=[feature]))
+        req = ApiRequest(
+            features_request=FeaturesRequest(
+                server=ServerFeaturesRequest(features=[feature])
+            )
+        )
 
         try:
             resp = self.send_api_request(req, timeout=timeout)
@@ -298,4 +344,4 @@ class ServiceApi:
             _logger.exception("Failed to load feature %s", feature)
             return False
 
-        return feature in resp.features_response.enabled
+        return feature in resp.features_response.server.enabled

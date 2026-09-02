@@ -105,6 +105,8 @@ const (
 	// Indicates that the server supports the enqueueSweepRun mutation, used by
 	// the local sweep scheduler to enqueue runs.
 	ServerFeature_SWEEPS_LOCAL_SCHEDULER ServerFeature = 35
+	// Indicates that the server supports queries for an artifact's digest algorithm.
+	ServerFeature_ARTIFACT_DIGEST_ALGORITHM ServerFeature = 36
 )
 
 // Enum value maps for ServerFeature.
@@ -146,15 +148,16 @@ var (
 		33: "AUTOMATIONS_ON_ORGANIZATION",
 		34: "FILESTREAM_GZIP",
 		35: "SWEEPS_LOCAL_SCHEDULER",
+		36: "ARTIFACT_DIGEST_ALGORITHM",
 	}
 	ServerFeature_value = map[string]int32{
-		"SERVER_FEATURE_UNSPECIFIED":           0,
-		"LARGE_FILENAMES":                      17,
-		"ARTIFACT_TAGS":                        1,
-		"CLIENT_IDS":                           2,
-		"ARTIFACT_REGISTRY_SEARCH":             3,
-		"STRUCTURED_CONSOLE_LOGS":              4,
-		"ARTIFACT_COLLECTION_MEMBERSHIP_FILES": 5,
+		"SERVER_FEATURE_UNSPECIFIED":                           0,
+		"LARGE_FILENAMES":                                      17,
+		"ARTIFACT_TAGS":                                        1,
+		"CLIENT_IDS":                                           2,
+		"ARTIFACT_REGISTRY_SEARCH":                             3,
+		"STRUCTURED_CONSOLE_LOGS":                              4,
+		"ARTIFACT_COLLECTION_MEMBERSHIP_FILES":                 5,
 		"ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER": 6,
 		"USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION":     7,
 		"EXPAND_DEFINED_METRIC_GLOBS":                          8,
@@ -184,6 +187,7 @@ var (
 		"AUTOMATIONS_ON_ORGANIZATION":                          33,
 		"FILESTREAM_GZIP":                                      34,
 		"SWEEPS_LOCAL_SCHEDULER":                               35,
+		"ARTIFACT_DIGEST_ALGORITHM":                            36,
 	}
 )
 
@@ -1750,7 +1754,12 @@ type RunRecord struct {
 	Git          *GitRepoRecord         `protobuf:"bytes,21,opt,name=git,proto3" json:"git,omitempty"`
 	Forked       bool                   `protobuf:"varint,22,opt,name=forked,proto3" json:"forked,omitempty"`
 	// Information about the source if this is a fork or rewind of another run.
-	BranchPoint   *BranchPoint `protobuf:"bytes,23,opt,name=branch_point,json=branchPoint,proto3" json:"branch_point,omitempty"`
+	BranchPoint *BranchPoint `protobuf:"bytes,23,opt,name=branch_point,json=branchPoint,proto3" json:"branch_point,omitempty"`
+	// Whether syncing should resume an existing run.
+	//
+	// This stores pre-sync intention. Distinct from `resumed` which stores what
+	// actually happened.
+	Resume        bool         `protobuf:"varint,24,opt,name=resume,proto3" json:"resume,omitempty"`
 	XInfo         *XRecordInfo `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1938,6 +1947,13 @@ func (x *RunRecord) GetBranchPoint() *BranchPoint {
 		return x.BranchPoint
 	}
 	return nil
+}
+
+func (x *RunRecord) GetResume() bool {
+	if x != nil {
+		return x.Resume
+	}
+	return false
 }
 
 func (x *RunRecord) GetXInfo() *XRecordInfo {
@@ -3871,6 +3887,7 @@ type ArtifactRecord struct {
 	BaseId             string                 `protobuf:"bytes,17,opt,name=base_id,json=baseId,proto3" json:"base_id,omitempty"`
 	TtlDurationSeconds int64                  `protobuf:"varint,18,opt,name=ttl_duration_seconds,json=ttlDurationSeconds,proto3" json:"ttl_duration_seconds,omitempty"`
 	Tags               []string               `protobuf:"bytes,19,rep,name=tags,proto3" json:"tags,omitempty"`
+	DigestAlgorithm    string                 `protobuf:"bytes,20,opt,name=digest_algorithm,json=digestAlgorithm,proto3" json:"digest_algorithm,omitempty"`
 	IncrementalBeta1   bool                   `protobuf:"varint,100,opt,name=incremental_beta1,json=incrementalBeta1,proto3" json:"incremental_beta1,omitempty"`
 	XInfo              *XRecordInfo           `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
 	unknownFields      protoimpl.UnknownFields
@@ -4038,6 +4055,13 @@ func (x *ArtifactRecord) GetTags() []string {
 		return x.Tags
 	}
 	return nil
+}
+
+func (x *ArtifactRecord) GetDigestAlgorithm() string {
+	if x != nil {
+		return x.DigestAlgorithm
+	}
+	return ""
 }
 
 func (x *ArtifactRecord) GetIncrementalBeta1() bool {
@@ -11916,7 +11940,7 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\vBranchPoint\x12\x10\n" +
 	"\x03run\x18\x01 \x01(\tR\x03run\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x01R\x05value\x12\x16\n" +
-	"\x06metric\x18\x03 \x01(\tR\x06metric\"\xe1\x06\n" +
+	"\x06metric\x18\x03 \x01(\tR\x06metric\"\xf9\x06\n" +
 	"\tRunRecord\x12\x15\n" +
 	"\x06run_id\x18\x01 \x01(\tR\x05runId\x12\x16\n" +
 	"\x06entity\x18\x02 \x01(\tR\x06entity\x12\x18\n" +
@@ -11942,7 +11966,8 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\aruntime\x18\x14 \x01(\x05R\aruntime\x12/\n" +
 	"\x03git\x18\x15 \x01(\v2\x1d.wandb_internal.GitRepoRecordR\x03git\x12\x16\n" +
 	"\x06forked\x18\x16 \x01(\bR\x06forked\x12>\n" +
-	"\fbranch_point\x18\x17 \x01(\v2\x1b.wandb_internal.BranchPointR\vbranchPoint\x121\n" +
+	"\fbranch_point\x18\x17 \x01(\v2\x1b.wandb_internal.BranchPointR\vbranchPoint\x12\x16\n" +
+	"\x06resume\x18\x18 \x01(\bR\x06resume\x121\n" +
 	"\x05_info\x18\xc8\x01 \x01(\v2\x1b.wandb_internal._RecordInfoR\x04Info\"C\n" +
 	"\rGitRepoRecord\x12\x1a\n" +
 	"\n" +
@@ -12106,7 +12131,7 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\tStatsItem\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x1d\n" +
 	"\n" +
-	"value_json\x18\x10 \x01(\tR\tvalueJson\"\xc9\x05\n" +
+	"value_json\x18\x10 \x01(\tR\tvalueJson\"\xf4\x05\n" +
 	"\x0eArtifactRecord\x12\x15\n" +
 	"\x06run_id\x18\x01 \x01(\tR\x05runId\x12\x18\n" +
 	"\aproject\x18\x02 \x01(\tR\aproject\x12\x16\n" +
@@ -12127,7 +12152,8 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x12sequence_client_id\x18\x10 \x01(\tR\x10sequenceClientId\x12\x17\n" +
 	"\abase_id\x18\x11 \x01(\tR\x06baseId\x120\n" +
 	"\x14ttl_duration_seconds\x18\x12 \x01(\x03R\x12ttlDurationSeconds\x12\x12\n" +
-	"\x04tags\x18\x13 \x03(\tR\x04tags\x12+\n" +
+	"\x04tags\x18\x13 \x03(\tR\x04tags\x12)\n" +
+	"\x10digest_algorithm\x18\x14 \x01(\tR\x0fdigestAlgorithm\x12+\n" +
 	"\x11incremental_beta1\x18d \x01(\bR\x10incrementalBeta1\x121\n" +
 	"\x05_info\x18\xc8\x01 \x01(\v2\x1b.wandb_internal._RecordInfoR\x04Info\"\xa1\x02\n" +
 	"\x10ArtifactManifest\x12\x18\n" +
@@ -12706,7 +12732,7 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\finput_source\x18\x01 \x01(\v2\x1e.wandb_internal.JobInputSourceR\vinputSource\x12A\n" +
 	"\rinclude_paths\x18\x02 \x03(\v2\x1c.wandb_internal.JobInputPathR\fincludePaths\x12A\n" +
 	"\rexclude_paths\x18\x03 \x03(\v2\x1c.wandb_internal.JobInputPathR\fexcludePaths\x12!\n" +
-	"\finput_schema\x18\x04 \x01(\tR\vinputSchema*\x9a\n" +
+	"\finput_schema\x18\x04 \x01(\tR\vinputSchema*\xb9\n" +
 	"\n" +
 	"\rServerFeature\x12\x1e\n" +
 	"\x1aSERVER_FEATURE_UNSPECIFIED\x10\x00\x12\x13\n" +
@@ -12746,7 +12772,8 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x1bQUERY_AUTOMATIONS_ON_ENTITY\x10 \x12\x1f\n" +
 	"\x1bAUTOMATIONS_ON_ORGANIZATION\x10!\x12\x13\n" +
 	"\x0fFILESTREAM_GZIP\x10\"\x12\x1a\n" +
-	"\x16SWEEPS_LOCAL_SCHEDULER\x10#B\x1bZ\x19core/pkg/service_go_protob\x06proto3"
+	"\x16SWEEPS_LOCAL_SCHEDULER\x10#\x12\x1d\n" +
+	"\x19ARTIFACT_DIGEST_ALGORITHM\x10$B\x1bZ\x19core/pkg/service_go_protob\x06proto3"
 
 var (
 	file_wandb_proto_wandb_internal_proto_rawDescOnce sync.Once

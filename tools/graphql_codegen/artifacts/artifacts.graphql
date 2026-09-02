@@ -18,6 +18,8 @@ fragment SourceCollectionInfoFragment on ArtifactSequence {
 
 # A fragment on Project that only includes minimal identifying fields.
 fragment ProjectInfoFragment on Project {
+  id
+  internalId
   name
   entity {
     name
@@ -45,6 +47,7 @@ fragment ArtifactFragment on Artifact {
   state
   size
   digest
+  digestAlgorithm @include(if: true)
   commitHash
   fileCount
   createdAt
@@ -68,6 +71,7 @@ fragment ArtifactMembershipFragment on ArtifactCollectionMembership {
   __typename
   id
   versionIndex
+  createdAt
   aliases {
     ...ArtifactAliasFragment
   }
@@ -171,6 +175,7 @@ query FetchLinkedArtifacts($artifactID: ID!) {
       edges {
         node {
           versionIndex
+          createdAt
           aliases {
             ...ArtifactAliasFragment
           }

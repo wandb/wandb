@@ -843,7 +843,7 @@ func (u *uploader) upload(ctx context.Context) (*UploadObjectOutput, error) {
 		func(o *s3.Options) {
 			o.RequestChecksumCalculation = u.options.RequestChecksumCalculation
 			o.APIOptions = append(o.APIOptions,
-				middleware.AddSDKAgentKey(middleware.FeatureMetadata, userAgentKey),
+				middleware.AddSDKAgentKeyValue(middleware.FeatureMetadata, userAgentKey, goModuleVersion),
 				addFeatureUserAgent,
 				func(s *smithymiddleware.Stack) error {
 					return s.Finalize.Insert(&setS3ExpressDefaultChecksum{}, "ResolveEndpointV2", smithymiddleware.After)

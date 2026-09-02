@@ -1171,6 +1171,61 @@ class Run(Attrs):
         """
         return public.Files(self._service_api, self, [name])[0]
 
+    def console_logs(
+        self,
+        *,
+        per_page: int = 1000,
+        last: int | None = None,
+    ) -> public.ConsoleLogs:
+        """Return the run's captured console output.
+
+        While a run is running, W&B captures what its process writes to
+        stdout and stderr and records it as the run's console log — the
+        same log shown in the "Logs" tab of the run page in the W&B App.
+        This reads that log back, for finished and still-running runs
+        alike.
+
+        Args:
+            per_page: Number of lines to fetch per request when reading
+                the log from the beginning. Ignored when `last` is given.
+            last: If set, fetch only the last N lines of
+                the log in a single request — useful for checking on a
+                live run or diagnosing a crash. The backend caps how many
+                lines one request returns, so a larger tail comes back
+                truncated to the newest lines.
+
+        Returns:
+            A `ConsoleLogs` object: an iterator over `ConsoleLogLine`
+            objects in ascending line order, with fields `number`,
+            `timestamp`, `level`, `label`, and `content`.
+
+        Raises:
+            CommError: When iterating, if a request fails. Reading the
+                log from the beginning requires W&B server 0.77 or
+                newer; on older servers, read the last N lines instead.
+
+        Example:
+        ```python
+        import wandb
+
+        run = wandb.Api().run("entity/project/run_id")
+
+        # Read the whole log, oldest line first.
+        for line in run.console_logs():
+            print(line.content)
+
+        # Read only the last 100 lines.
+        for line in run.console_logs(last=100):
+            print(line.timestamp, line.content)
+        ```
+        """
+        return public.ConsoleLogs(
+            self._service_api,
+            self,
+            per_page=per_page,
+            last=last,
+        )
+
     @normalize_exceptions
     def upload_file(self, path: str, root: str = ".") -> public.File:
         """Upload a local file to W&B, associating it with this run.
@@ -1484,6 +1539,7 @@ class Run(Attrs):
             project_name=self.project,
             aliases=aliases,
             tags=tags,
+            digest_algorithm=artifact.digest_algorithm,
         )
         return artifact
 

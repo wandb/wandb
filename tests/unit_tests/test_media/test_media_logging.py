@@ -22,7 +22,7 @@ def audio_media() -> wandb.Audio:
 @pytest.fixture
 def video_media() -> wandb.Video:
     frames = np.random.randint(low=0, high=256, size=(10, 3, 100, 100), dtype=np.uint8)
-    return wandb.Video(frames)
+    return wandb.Video(frames, format="gif")
 
 
 @pytest.fixture

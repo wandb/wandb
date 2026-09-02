@@ -3,14 +3,13 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from typing import TYPE_CHECKING, Any, ParamSpec, TypeVar
 
-from cwsandbox import NetworkOptions, RemoteFunction, ResourceOptions, SandboxDefaults
+from cwsandbox import RemoteFunction, SandboxDefaults
 from cwsandbox import Sandbox as _BaseSandbox
 from cwsandbox import Session as _BaseSession
 
 from wandb.errors import UsageError
 
 _PLACEMENT_OVERRIDE_FIELDS = ("profile_ids", "profile_names", "runner_ids")
-_SUPPORTED_EGRESS_MODES = ("internet", "none")
 _SERVERLESS_DEFAULT_MAX_LIFETIME_SECONDS = 12 * 60 * 60
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -34,57 +33,8 @@ def _reject_placement_override_kwargs(kwargs: Mapping[str, Any]) -> None:
         raise _placement_override_error(blocked)
 
 
-def _resources_include_gpu(
-    resources: ResourceOptions | Mapping[str, Any] | None,
-) -> bool:
-    if resources is None:
-        return False
-
-    if isinstance(resources, Mapping):
-        gpu = resources.get("gpu")
-        return gpu is not None and gpu != {}
-
-    if isinstance(resources, ResourceOptions):
-        return resources.gpu is not None
-
-    return False
-
-
-def _reject_gpu_resources(
-    resources: ResourceOptions | Mapping[str, Any] | None,
-) -> None:
-    if _resources_include_gpu(resources):
-        raise UsageError(
-            "W&B Serverless currently supports only CPU and memory resources. "
-            "Remove resources.gpu."
-        )
-
-
-def _reject_unsupported_egress_mode(
-    network: NetworkOptions | Mapping[str, Any] | None,
-) -> None:
-    if network is None:
-        return
-
-    if isinstance(network, Mapping):
-        egress_mode = network.get("egress_mode")
-    elif isinstance(network, NetworkOptions):
-        egress_mode = network.egress_mode
-    else:
-        return
-
-    if egress_mode is not None and egress_mode not in _SUPPORTED_EGRESS_MODES:
-        modes_display = ", ".join(_SUPPORTED_EGRESS_MODES)
-        raise UsageError(
-            "wandb.sandbox supports only egress modes "
-            f"({modes_display}). Got {egress_mode!r}."
-        )
-
-
 def _reject_invalid_kwargs(kwargs: Mapping[str, Any]) -> None:
     _reject_placement_override_kwargs(kwargs)
-    _reject_gpu_resources(kwargs.get("resources"))
-    _reject_unsupported_egress_mode(kwargs.get("network"))
 
 
 def _with_serverless_max_lifetime_default(
@@ -138,20 +88,6 @@ def _reject_invalid_defaults(
 
     if blocked:
         raise _placement_override_error(blocked)
-
-    resources = (
-        defaults.get("resources")
-        if isinstance(defaults, Mapping)
-        else getattr(defaults, "resources", None)
-    )
-    _reject_gpu_resources(resources)
-
-    network = (
-        defaults.get("network")
-        if isinstance(defaults, Mapping)
-        else getattr(defaults, "network", None)
-    )
-    _reject_unsupported_egress_mode(network)
 
 
 class Sandbox(_BaseSandbox):

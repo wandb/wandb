@@ -29,7 +29,8 @@ from typing_extensions import Any, Protocol
 import wandb
 import wandb.env
 from wandb import env, trigger
-from wandb.analytics import get_sentry
+from wandb.analytics import TelemetryRecorder, get_sentry, get_telemetry_recorder
+from wandb.analytics.opentelemetry.opentelemetry_proxy import OpenTelemetryProxy
 from wandb.errors import Error, UsageError
 from wandb.errors.links import url_registry
 from wandb.errors.util import ProtobufErrorHandler
@@ -595,10 +596,10 @@ class _WandbInit:
         except OSError:
             pass
 
-    def _pre_run_cell_hook(self, *args, **kwargs) -> None:
-        """Hook for the IPython pre_run_cell event.
+    def _post_run_cell_hook(self, *args, **kwargs) -> None:
+        """Hook for the IPython post_run_cell event.
 
-        This pauses a run, preventing system metrics from being collected
+        This pauses a run, preventing system metrics from being collected and
         the run's runtime from increasing. It also uploads the notebook's code.
         """
         if not self._interface:
@@ -612,8 +613,8 @@ class _WandbInit:
         self._logger.info("pausing backend")
         self._interface.publish_pause()
 
-    def _post_run_cell_hook(self, *args, **kwargs) -> None:
-        """Hook for the IPython post_run_cell event.
+    def _pre_run_cell_hook(self, *args, **kwargs) -> None:
+        """Hook for the IPython pre_run_cell event.
 
         Resumes collection of system metrics and the run's timer.
         """
@@ -1455,6 +1456,10 @@ def init(  # noqa: C901
 
     wl: wandb_setup._WandbSetup | None = None
 
+    # Create a temporary telemetry recorder while do not know run specific settings,
+    # such as the url to send telemetry to.
+    telemetry_recorder = get_telemetry_recorder()
+
     try:
         wl = wandb_setup.singleton()
 
@@ -1462,6 +1467,12 @@ def init(  # noqa: C901
 
         wi.maybe_login(init_settings)
         run_settings, show_warnings = wi.make_run_settings(init_settings)
+
+        # Create a telemetry recorder once we know run specific settings,
+        # such as the url to send telemetry to.
+        telemetry_recorder = TelemetryRecorder(
+            open_telemetry_proxy=OpenTelemetryProxy.from_settings(settings=run_settings)
+        )
 
         if isinstance(run_settings.reinit, bool):
             wi.deprecated_features_used.append(
@@ -1542,5 +1553,6 @@ def init(  # noqa: C901
     except Exception as e:
         if wl:
             wl._get_logger().exception("error in wandb.init()", exc_info=e)
-
-        get_sentry().reraise(e)
+        # TODO: remove sentry once we no longer support/need it
+        get_sentry().exception(e)
+        telemetry_recorder.reraise(e)

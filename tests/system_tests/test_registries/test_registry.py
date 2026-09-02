@@ -1,15 +1,23 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Generator
 from itertools import islice, product
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import wandb
 from pytest import fixture, mark, param, raises
-from wandb import Api, Artifact
+from wandb import Api, Artifact, CommError
 from wandb._strutils import b64decode_ascii
+from wandb.apis.public.registries._utils import advanced_search_enabled
 from wandb.apis.public.registries.registry import Registry
+from wandb.errors import UnsupportedError
+from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.artifacts._validators import REGISTRY_PREFIX, remove_registry_prefix
+
+if TYPE_CHECKING:
+    from tests.fixtures.wandb_backend_spy import WandbBackendSpy
 
 
 @fixture
@@ -215,24 +223,18 @@ def test_infer_organization_from_create_load(default_organization, api: Api):
 @mark.usefixtures("skip_if_server_does_not_support_create_registry")
 def test_input_invalid_organizations(default_organization, api: Api):
     """Tests that invalid organization inputs raise errors."""
-    bad_org_name = f"{default_organization}_wrong_organization"
+    invalid = f"{default_organization}_wrong_organization"
 
     registry_name = "test"
-    with raises(
-        ValueError,
-        match=f"Organization entity for {bad_org_name!r} not found.",
-    ):
+    with raises(CommError, match=rf"(?i)organization.*{invalid!r}.*not found"):
         api.create_registry(
             name=registry_name,
             visibility="organization",
-            organization=bad_org_name,
+            organization=invalid,
         )
 
-    with raises(
-        ValueError,
-        match=f"Organization entity for {bad_org_name!r} not found.",
-    ):
-        api.registry(registry_name, f"{default_organization}_wrong_organization")
+    with raises(CommError, match=rf"(?i)organization.*{invalid!r}.*not found"):
+        api.registry(registry_name, organization=invalid)
 
 
 @mark.usefixtures("skip_if_server_does_not_support_create_registry")
@@ -407,6 +409,70 @@ def test_fetch_registries(team: str, org: str, org_entity: str, api: Api):
     descending = [r.name for r in api.registries(organization=org, order="-name")]
     assert ascending == expected_asc_names
     assert descending == expected_desc_names
+
+
+@fixture
+def enable_advanced_search(wandb_backend_spy: WandbBackendSpy) -> None:
+    """Simulate feature flags that signal advanced registry search features are enabled."""
+    gql = wandb_backend_spy.gql
+    features = (
+        pb.ServerFeature.Name(pb.ARTIFACT_REGISTRY_SEARCH),
+        pb.ServerFeature.Name(pb.ARTIFACT_COLLECTIONS_FILTERING_SORTING),
+    )
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="ServerFeaturesQuery"),
+        gql.Constant(
+            content={
+                "data": {
+                    "serverInfo": {
+                        "features": [{"name": f, "isEnabled": True} for f in features]
+                    }
+                }
+            }
+        ),
+    )
+
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(
+            operation="FetchAdvancedRegistryFeatures",
+            variables={"organization": "advanced-org"},
+        ),
+        gql.Constant(
+            content={
+                "data": {
+                    "organization": {
+                        "advancedRegistryFeatures": {"advancedSearch": True}
+                    }
+                }
+            }
+        ),
+    )
+
+
+@mark.usefixtures(enable_advanced_search.__name__)
+def test_advanced_feature_response_selects_version_filter_fields(api: Api):
+    versions = (
+        api.registries(organization="advanced-org", filter={"id": "registry-id"})
+        .collections(filter={"collection_id": "collection-id"})
+        .versions(filter={"created_at": "2026-08-10"})
+    )
+
+    assert json.loads(versions.variables["registryFilter"]) == {
+        "project_id": "registry-id"
+    }
+    assert json.loads(versions.variables["collectionFilter"]) == {
+        "artifact_collection_id": "collection-id"
+    }
+    assert json.loads(versions.variables["artifactFilter"]) == {
+        "artifact_created_at": "2026-08-10"
+    }
+
+
+@mark.usefixtures(enable_advanced_search.__name__)
+def test_advanced_feature_response_selects_version_order_field(api: Api):
+    versions = api.registries(organization="advanced-org").versions(order="created_at")
+
+    assert versions.variables["order"] == "+artifact_created_at"
 
 
 @fixture
@@ -773,6 +839,13 @@ def test_registries_versions(
 
     assert remaining_names_via_search == remaining_names_via_registry
     assert all_version_names == [first_page_name, *remaining_names_via_search]
+
+    if not advanced_search_enabled(api._service_api, org):
+        with raises(
+            UnsupportedError,
+            match="Ordering registry versions is not supported for this organization.",
+        ):
+            registries.versions(order="created_at")
 
     versions = sorted(registries.versions(), key=lambda v: v.name)
     assert len(versions) == len(source_artifacts)

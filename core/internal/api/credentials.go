@@ -71,25 +71,22 @@ func NewCredentialProvider(
 	logger *slog.Logger,
 ) (CredentialProvider, error) {
 	if s.GetIdentityTokenFile() != "" {
-		baseURL, err := url.Parse(s.GetBaseURL())
-		if err != nil {
-			return nil, fmt.Errorf("api: invalid base URL: %v", err)
-		}
-
 		// The exchange must not use a credential provider: supplying its
 		// credentials is what it is being used to make possible.
 		exchangeClient := NewClient(ClientOptions{
-			BaseURL:            baseURL,
-			RetryMax:           TokenExchangeRetryMax,
-			RetryWaitMin:       tokenExchangeRetryWaitMin,
-			RetryWaitMax:       tokenExchangeRetryWaitMax,
-			RetryPolicy:        TokenExchangeRetryPolicy,
-			NonRetryTimeout:    tokenExchangeAttemptTimeout,
-			ExtraHeaders:       s.GetExtraHTTPHeaders(),
-			Proxy:              clients.ProxyFn(s.GetHTTPProxy(), s.GetHTTPSProxy()),
+			RetryMax:        TokenExchangeRetryMax,
+			RetryWaitMin:    tokenExchangeRetryWaitMin,
+			RetryWaitMax:    tokenExchangeRetryWaitMax,
+			RetryPolicy:     TokenExchangeRetryPolicy,
+			NonRetryTimeout: tokenExchangeAttemptTimeout,
+
+			Proxy:              s.GetProxyFn(),
+			ProxyConnectHeader: s.GetProxyConnectHeader(),
+
 			InsecureDisableSSL: s.IsInsecureDisableSSL(),
-			CredentialProvider: NoopCredentialProvider{},
 			Logger:             logger,
+
+			PreRetryLayers: httplayers.DefaultHeaders(s.GetExtraHTTPHeaders()),
 		})
 
 		return NewOAuth2CredentialProvider(

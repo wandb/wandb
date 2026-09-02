@@ -6,7 +6,6 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
 	"path/filepath"
 	"sync/atomic"
@@ -586,19 +585,15 @@ func oauth2ProviderWithRetries(
 	retryMax int,
 	nonRetryTimeout time.Duration,
 ) api.CredentialProvider {
-	baseURL, err := url.Parse(serverURL)
-	require.NoError(t, err)
 	logger := observabilitytest.NewTestLogger(t).Logger
 
 	exchangeClient := api.NewClient(api.ClientOptions{
-		BaseURL:            baseURL,
-		RetryMax:           retryMax,
-		RetryWaitMin:       time.Millisecond,
-		RetryWaitMax:       10 * time.Millisecond,
-		RetryPolicy:        api.TokenExchangeRetryPolicy,
-		NonRetryTimeout:    nonRetryTimeout,
-		CredentialProvider: api.NoopCredentialProvider{},
-		Logger:             logger,
+		RetryMax:        retryMax,
+		RetryWaitMin:    time.Millisecond,
+		RetryWaitMax:    10 * time.Millisecond,
+		RetryPolicy:     api.TokenExchangeRetryPolicy,
+		NonRetryTimeout: nonRetryTimeout,
+		Logger:          logger,
 	})
 
 	tokenFile, credentialsFile := writeTokenFile(t)

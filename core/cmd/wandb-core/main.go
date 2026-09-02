@@ -20,11 +20,13 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/getsentry/sentry-go"
+	"github.com/mattn/go-isatty"
 
 	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/leet"
@@ -177,7 +179,7 @@ func serviceMain() int {
 		defer func() { _ = file.Close() }()
 	}
 
-	analytics.ConfigureOTelErrorHandler()
+	analytics.ConfigureOTelErrorHandler(slog.Default())
 
 	// Record certain signals in the log file for debugging.
 	signalCh := make(chan os.Signal, 1)
@@ -237,27 +239,52 @@ func leetMain(args []string) int {
 	}
 	defer stopLeetPprof(pprofStop)
 
-	flushSentry := configureLeetSentry(opts.disableAnalytics, leetSentryMessage(&opts))
-	defer flushSentry()
+	recorder, stopTelemetry := leet.ConfigureTelemetry(leet.TelemetryParams{
+		Disabled: opts.disableAnalytics,
+		Mode:     leetMode(&opts),
+		Commit:   commit,
+		BaseURL:  opts.baseURL,
+	})
+	defer stopTelemetry()
 
-	logger, closeLogger, err := newLeetLogger(opts.logLevel)
+	logger, closeLogger, err := newLeetLogger(opts.logLevel, recorder)
 	if err != nil {
 		fmt.Println("fatal:", err)
 		return exitCodeErrorInternal
 	}
 	defer closeLogger()
 
-	return runLeetCommand(&opts, logger)
+	analytics.ConfigureOTelErrorHandler(logger.Logger)
+	logger.RecordTelemetry("leet_launch", nil)
+
+	started := time.Now()
+	exitCode := runLeetCommand(&opts, logger)
+	duration := time.Since(started)
+	recorder.RecordDuration(
+		context.Background(),
+		"leet_session_duration",
+		duration,
+		analytics.LowCardinalityAttributes{},
+	)
+
+	sessionAttributes := leet.SessionAttributes()
+	sessionAttributes["duration_seconds"] = strconv.FormatInt(
+		int64(duration/time.Second), 10)
+	sessionAttributes["exit_code"] = strconv.Itoa(exitCode)
+	logger.RecordTelemetry("leet_session", sessionAttributes)
+	return exitCode
 }
 
 type leetOptions struct {
 	logLevel         int
 	disableAnalytics bool
+	baseURL          string
 	runFile          string
 	pprofAddr        string
 	editConfig       bool
 	symonMode        bool
 	symonInterval    time.Duration
+	inspect          bool
 	wandbDir         string
 
 	// remoteURL is the W&B URL of the run to open
@@ -303,6 +330,13 @@ func bindLeetFlags(fs *flag.FlagSet, opts *leetOptions) {
 		"Disables observability features such as metrics and logging analytics.",
 	)
 	fs.StringVar(
+		&opts.baseURL,
+		"base-url",
+		"",
+		"URL of the W&B server to upload telemetry to."+
+			" Defaults to the public W&B API.",
+	)
+	fs.StringVar(
 		&opts.runFile,
 		"run-file",
 		"",
@@ -316,6 +350,13 @@ func bindLeetFlags(fs *flag.FlagSet, opts *leetOptions) {
 	)
 	fs.BoolVar(&opts.editConfig, "config", false, "Open config editor.")
 	fs.BoolVar(&opts.symonMode, "symon", false, "Launch standalone system metrics mode.")
+	fs.BoolVar(
+		&opts.inspect,
+		"inspect",
+		false,
+		"Open the record inspector for the run's .wandb transaction log."+
+			" Prints records as text when stdout is not a terminal.",
+	)
 	fs.DurationVar(
 		&opts.symonInterval,
 		"interval",
@@ -339,6 +380,7 @@ Usage:
   wandb-core leet [flags] <wandb-directory>
   wandb-core leet --run-file <wandb-file> <wandb-directory>
   wandb-core leet --remote-url <wandb-run-url>
+  wandb-core leet --inspect [--run-file <wandb-file>] [<wandb-directory>]
   wandb-core leet --config
   wandb-core leet --symon [flags]
 
@@ -381,7 +423,13 @@ func validateLeetOptions(fs *flag.FlagSet, opts *leetOptions) error {
 		fmt.Fprintln(os.Stderr, "Error: --symon does not take a wandb directory")
 		fs.Usage()
 		return fmt.Errorf("unexpected wandb directory %q in symon mode", fs.Arg(0))
-	case !opts.editConfig && !opts.symonMode && opts.wandbDir == "" && opts.remoteRun == nil:
+	case opts.inspect && (opts.remoteRun != nil || opts.symonMode || opts.editConfig):
+		fmt.Fprintln(os.Stderr,
+			"Error: --inspect cannot be used with --remote-url, --symon or --config")
+		fs.Usage()
+		return fmt.Errorf("--inspect combined with an incompatible mode")
+	case !opts.editConfig && !opts.symonMode && opts.wandbDir == "" &&
+		opts.remoteRun == nil && (!opts.inspect || opts.runFile == ""):
 		fmt.Fprintln(os.Stderr, "Error: wandb directory path or --remote-url required")
 		fs.Usage()
 		return fmt.Errorf("wandb directory path or --remote-url required")
@@ -404,40 +452,24 @@ func stopLeetPprof(pprofStop func(context.Context) error) {
 	_ = pprofStop(ctx)
 }
 
-func configureLeetSentry(disableAnalytics bool, message string) func() {
-	var sentryDSN string
-	if !disableAnalytics {
-		sentryDSN = observability.LeetSentryDSN
-	}
-
-	err := sentry.Init(sentry.ClientOptions{
-		Dsn:              sentryDSN,
-		AttachStacktrace: true,
-		Release:          version.Version,
-		Dist:             commit,
-		Environment:      version.Environment,
-	})
-	if err != nil {
-		slog.Error("main: failed to init Sentry", "error", err)
-		return func() {}
-	}
-
-	sentry.CaptureMessage(message)
-	return func() { sentry.Flush(2 * time.Second) }
-}
-
-func leetSentryMessage(opts *leetOptions) string {
+// leetMode names the launch mode for telemetry.
+func leetMode(opts *leetOptions) string {
 	switch {
 	case opts.editConfig:
-		return "wandb-leet-config"
+		return "config"
 	case opts.symonMode:
-		return "wandb-symon"
+		return "symon"
+	case opts.inspect:
+		return "inspect"
 	default:
-		return "wandb-leet"
+		return "leet"
 	}
 }
 
-func newLeetLogger(logLevel int) (*observability.CoreLogger, func(), error) {
+func newLeetLogger(
+	logLevel int,
+	recorder *analytics.TelemetryRecorder,
+) (*observability.CoreLogger, func(), error) {
 	logWriter := io.Discard
 	closeLogWriter := func() {}
 
@@ -460,8 +492,8 @@ func newLeetLogger(logLevel int) (*observability.CoreLogger, func(), error) {
 			logWriter,
 			&slog.HandlerOptions{Level: slog.Level(logLevel)},
 		)),
-		observability.NewSentryContext(sentry.CurrentHub()),
-		analytics.NewTelemetryRecorder(nil, analytics.NewTelemetryContext()),
+		nil,
+		recorder,
 	)
 	return logger, closeLogWriter, nil
 }
@@ -473,7 +505,46 @@ func runLeetCommand(opts *leetOptions, logger *observability.CoreLogger) int {
 	if opts.symonMode {
 		return runSymon(opts, logger)
 	}
+	if opts.inspect {
+		return runLeetInspector(opts, logger)
+	}
 	return runLeetWorkspace(opts, logger)
+}
+
+// runLeetInspector runs the transaction log record inspector. When stdout
+// is not a terminal, it prints the records as prototext instead.
+func runLeetInspector(opts *leetOptions, logger *observability.CoreLogger) int {
+	if !stdoutIsTerminal() {
+		if err := leet.DumpRecords(opts.runFile, opts.wandbDir, os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, "Error:", err)
+			return exitCodeErrorInternal
+		}
+		return exitCodeSuccess
+	}
+
+	m := leet.NewInspector(leet.InspectorParams{
+		RunFile:  opts.runFile,
+		WandbDir: opts.wandbDir,
+		Logger:   logger,
+	})
+	program := tea.NewProgram(m)
+
+	_, err := program.Run()
+	m.Cleanup()
+	if err != nil {
+		logger.CaptureError(
+			"main",
+			fmt.Errorf("wandb-leet-inspect: %v", err),
+		)
+		return exitCodeErrorInternal
+	}
+	return exitCodeSuccess
+}
+
+// stdoutIsTerminal reports whether stdout is attached to a terminal.
+func stdoutIsTerminal() bool {
+	fd := os.Stdout.Fd()
+	return isatty.IsTerminal(fd) || isatty.IsCygwinTerminal(fd)
 }
 
 func runLeetConfigEditor(logger *observability.CoreLogger) int {

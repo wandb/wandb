@@ -3,12 +3,11 @@ version: 2.1
 orbs:
   go: circleci/go@3.0.4
   slack: circleci/slack@4.12.5
-  codecov: codecov/codecov@6.0.0
 
 parameters:
   go_version:
     type: string
-    default: "1.26.5"
+    default: "1.27.0"
   server_image:
     type: string
     default: "us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer"
@@ -129,6 +128,35 @@ commands:
       - store_artifacts:
           path: cover-results
 
+  store-coverage:
+    description: |
+      Store coverage reports as CircleCI artifacts under coverage-reports/.
+
+      The datadog-coverage GitHub Actions workflow reacts to this job's
+      commit status, downloads the artifacts, and uploads them to Datadog
+      Code Coverage. CircleCI holds no Datadog credentials.
+    parameters:
+      flags:
+        description: Flags for grouping and filtering coverage reports.
+        type: string
+      paths:
+        description: Space-separated list of coverage report files.
+        type: string
+        default: coverage.xml coverage.txt
+    steps:
+      - run:
+          name: Collect coverage reports
+          command: |
+            mkdir -p coverage-reports/<<parameters.flags>>
+            for f in <<parameters.paths>>; do
+              if [ -f "$f" ]; then
+                cp "$f" coverage-reports/<<parameters.flags>>/
+              fi
+            done
+      - store_artifacts:
+          path: coverage-reports
+          destination: coverage-reports
+
   run-nox-tests:
     description:
       Helper command for the nox-tests-* jobs. Runs a nox session and uploads
@@ -136,7 +164,7 @@ commands:
     parameters:
       python: { type: string }
       session: { type: string }
-      codecov_flags: { type: string }
+      coverage_flags: { type: string }
     steps:
       - run:
           name: Install Python dependencies
@@ -149,8 +177,7 @@ commands:
           command: >
             nox -s "<<parameters.session>>" --python <<parameters.python>> --verbose
 
-      # TODO[WB-35582]: Temporarily disable codecov because brew install broke it.
-      # - codecov/upload: { flags: <<parameters.codecov_flags>> }
+      - store-coverage: { flags: <<parameters.coverage_flags>> }
       - save-test-results
 
   local-wandb-server-deps:
@@ -295,7 +322,7 @@ jobs:
         type: string
         default: linux-python
       parallelism: { type: integer }
-      codecov_flags: { type: string }
+      coverage_flags: { type: string }
       python: { type: string }
       session: { type: string }
       server_image:
@@ -337,7 +364,7 @@ jobs:
             - connect-to-local-testcontainer
 
       - run-nox-tests:
-          codecov_flags: <<parameters.codecov_flags>>
+          coverage_flags: <<parameters.coverage_flags>>
           python: <<parameters.python>>
           session: <<parameters.session>>
 
@@ -346,7 +373,7 @@ jobs:
   nox-tests-macos:
     parameters:
       parallelism: { type: integer }
-      codecov_flags: { type: string }
+      coverage_flags: { type: string }
       python: { type: string }
       session: { type: string }
 
@@ -364,7 +391,7 @@ jobs:
       - load-all-caches
 
       - run-nox-tests:
-          codecov_flags: <<parameters.codecov_flags>>
+          coverage_flags: <<parameters.coverage_flags>>
           python: <<parameters.python>>
           session: <<parameters.session>>
 
@@ -373,7 +400,7 @@ jobs:
   nox-tests-win:
     parameters:
       parallelism: { type: integer }
-      codecov_flags: { type: string }
+      coverage_flags: { type: string }
       python: { type: string }
       session: { type: string }
 
@@ -407,7 +434,7 @@ jobs:
       - load-all-caches
 
       - run-nox-tests:
-          codecov_flags: <<parameters.codecov_flags>>
+          coverage_flags: <<parameters.coverage_flags>>
           python: <<parameters.python>>
           session: <<parameters.session>>
 
@@ -467,8 +494,9 @@ jobs:
             cd core
             go test -count=1 -race -coverprofile=coverage.txt -covermode=atomic ./...
       - save-go-cache
-      # TODO[WB-35582]: Temporarily disable codecov because brew install broke it.
-      # - codecov/upload: { flags: unit }
+      - store-coverage:
+          flags: unit
+          paths: core/coverage.txt
 
   unit-tests-rust:
     resource_class: wandb/docker-builder
@@ -493,6 +521,11 @@ jobs:
             sudo apt-get install -y -qq python3-pip >/dev/null
             cd xpu
             cargo test --verbose
+      - run:
+          name: Check wandb-xpu proto tooling compiles
+          command: |
+            cd xpu
+            cargo check --features build-proto --bin build_proto
       - save-cargo-cache
 
 workflows:
@@ -519,7 +552,7 @@ workflows:
       - nox-tests-linux:
           name: unit-tests-linux-<<matrix.python>>
           session: unit_tests
-          codecov_flags: unit
+          coverage_flags: unit
           parallelism: 4
 
           matrix:
@@ -532,7 +565,7 @@ workflows:
       - nox-tests-macos:
           name: unit-tests-macos-<<matrix.python>>
           session: unit_tests
-          codecov_flags: unit
+          coverage_flags: unit
           parallelism: 4
 
           matrix:
@@ -545,7 +578,7 @@ workflows:
       - nox-tests-win:
           name: unit-tests-win-<<matrix.python>>
           session: unit_tests
-          codecov_flags: unit
+          coverage_flags: unit
           parallelism: 4
 
           filters:
@@ -565,7 +598,7 @@ workflows:
       - nox-tests-linux:
           name: system-tests-linux-<<matrix.python>>
           session: system_tests
-          codecov_flags: system
+          coverage_flags: system
           parallelism: 8
           executor_name: local-testcontainer
 
@@ -581,7 +614,7 @@ workflows:
       - nox-tests-linux:
           name: system-tests-min-server-version-linux-<<matrix.python>>
           session: system_tests
-          codecov_flags: system
+          coverage_flags: system
           parallelism: 8
           executor_name: local-testcontainer
 
@@ -602,7 +635,7 @@ workflows:
       - nox-tests-linux:
           name: notebook-tests-linux-<<matrix.python>>
           session: notebook_tests
-          codecov_flags: system
+          coverage_flags: system
           parallelism: 1
           executor_name: local-testcontainer
 
@@ -616,7 +649,7 @@ workflows:
       - nox-tests-linux:
           name: functional-tests-linux-<<matrix.python>>
           session: functional_tests
-          codecov_flags: func
+          coverage_flags: func
           parallelism: 1
           executor_name: local-testcontainer
 
@@ -635,7 +668,7 @@ workflows:
       - nox-tests-linux:
           name: experimental-tests-linux-<<matrix.python>>
           session: experimental_tests
-          codecov_flags: func
+          coverage_flags: func
           parallelism: 1
           executor_name: local-testcontainer
           install_extras: true

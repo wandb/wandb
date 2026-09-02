@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator, Mapping
-from typing import TYPE_CHECKING, Any, ClassVar
+from collections.abc import Iterator, Mapping
+from typing import TYPE_CHECKING, Any, ClassVar, TypeAlias
 
 from pydantic import ValidationError
 from typing_extensions import override
@@ -18,13 +18,19 @@ if TYPE_CHECKING:
         GetAutomationsLegacy,
         GetEntityAutomationsLegacy,
         ProjectTriggersFields,
+        TriggerFields,
     )
 
 
 class _LegacyAutomationsPaginator(
     RelayPaginator["ProjectTriggersFields", "Automation"]
 ):
-    """A lazy iterator of automations found by walking projects."""
+    """A lazy iterator of `Automation` objects for older servers.
+
+    For older servers that don't support direct queries for automations, this
+    walks projects for all automations that are visible to the user.
+    Obviously, this is suboptimal.
+    """
 
     QUERY: ClassVar[str | None] = None  # type: ignore[misc]
     last_response: Connection[ProjectTriggersFields] | None
@@ -37,21 +43,17 @@ class _LegacyAutomationsPaginator(
         name: str | None = None,
         per_page: int = 50,
         start: str | None = None,
-        omit_variables: Iterable[str] | None = None,
-        omit_fragments: Iterable[str] | None = None,
-        omit_fields: Iterable[str] | None = None,
-        rename_fields: Mapping[str, str] | None = None,
     ):
+        from wandb.automations._compat import omit_automation_fragments
+
         self._name = name
+
         super().__init__(
             service_api,
             variables=variables,
             per_page=per_page,
             start=start,
-            omit_variables=omit_variables,
-            omit_fragments=omit_fragments,
-            omit_fields=omit_fields,
-            rename_fields=rename_fields,
+            omit_fragments=omit_automation_fragments(service_api),
         )
 
     @classmethod
@@ -92,55 +94,8 @@ class _LegacyAutomationsPaginator(
                 yield from self._convert(node)
 
 
-class Automations(_LegacyAutomationsPaginator):
-    """A generic legacy automations paginator retained for compatibility."""
-
-    QUERY: str  # type: ignore[misc]
-
-    def __init__(
-        self,
-        service_api: ServiceApi,
-        variables: Mapping[str, Any],
-        per_page: int = 50,
-        *,
-        start: str | None = None,
-        _query: str,
-        omit_variables: Iterable[str] | None = None,
-        omit_fragments: Iterable[str] | None = None,
-        omit_fields: Iterable[str] | None = None,
-        rename_fields: Mapping[str, str] | None = None,
-    ):
-        self.QUERY = _query
-        super().__init__(
-            service_api,
-            variables=variables,
-            per_page=per_page,
-            start=start,
-            omit_variables=omit_variables,
-            omit_fragments=omit_fragments,
-            omit_fields=omit_fields,
-            rename_fields=rename_fields,
-        )
-
-    @override
-    def _update_response(self) -> None:
-        """Fetch raw response data for the compatibility query."""
-        from wandb._pydantic import Connection
-        from wandb.automations._generated import ProjectTriggersFields
-
-        data: dict[str, Any] = self._execute_query()
-        try:
-            conn = Connection[ProjectTriggersFields].model_validate(
-                data["scope"]["projects"]
-            )
-        except (LookupError, AttributeError, ValidationError) as e:
-            raise ValueError("Unexpected response data") from e
-        else:
-            self.last_response = conn
-
-
 class LegacyAutomations(_LegacyAutomationsPaginator):
-    """A lazy iterator of automations found by walking the viewer's projects."""
+    """A lazy iterator of `Automation` objects, walking the viewer's projects."""
 
     def __init__(
         self,
@@ -149,7 +104,6 @@ class LegacyAutomations(_LegacyAutomationsPaginator):
         name: str | None = None,
         per_page: int = 50,
         start: str | None = None,
-        omit_fragments: Iterable[str] | None = None,
     ):
         if self.QUERY is None:
             from wandb.automations._generated import GET_AUTOMATIONS_LEGACY_GQL
@@ -157,12 +111,7 @@ class LegacyAutomations(_LegacyAutomationsPaginator):
             type(self).QUERY = GET_AUTOMATIONS_LEGACY_GQL
 
         super().__init__(
-            service_api,
-            variables={},
-            name=name,
-            per_page=per_page,
-            start=start,
-            omit_fragments=omit_fragments,
+            service_api, variables={}, name=name, per_page=per_page, start=start
         )
 
     @classmethod
@@ -174,7 +123,7 @@ class LegacyAutomations(_LegacyAutomationsPaginator):
 
 
 class LegacyEntityAutomations(_LegacyAutomationsPaginator):
-    """A lazy iterator of an entity's automations found by walking its projects."""
+    """A lazy iterator of an entity's `Automation` objects, walking its projects."""
 
     def __init__(
         self,
@@ -184,7 +133,6 @@ class LegacyEntityAutomations(_LegacyAutomationsPaginator):
         name: str | None = None,
         per_page: int = 50,
         start: str | None = None,
-        omit_fragments: Iterable[str] | None = None,
     ):
         if self.QUERY is None:
             from wandb.automations._generated import GET_ENTITY_AUTOMATIONS_LEGACY_GQL
@@ -197,7 +145,6 @@ class LegacyEntityAutomations(_LegacyAutomationsPaginator):
             name=name,
             per_page=per_page,
             start=start,
-            omit_fragments=omit_fragments,
         )
 
     @classmethod
@@ -206,3 +153,61 @@ class LegacyEntityAutomations(_LegacyAutomationsPaginator):
         from wandb.automations._generated import GetEntityAutomationsLegacy
 
         return GetEntityAutomationsLegacy
+
+
+class EntityAutomations(RelayPaginator["TriggerFields", "Automation"]):
+    """A lazy iterator of `Automation` objects from an entity."""
+
+    QUERY: ClassVar[str | None] = None  # type: ignore[misc]
+    last_response: Connection[TriggerFields] | None
+
+    def __init__(
+        self,
+        service_api: ServiceApi,
+        entity: str,
+        *,
+        filter: dict[str, Any] | None = None,
+        per_page: int = 50,
+        start: str | None = None,
+    ):
+        from wandb._pydantic import to_json
+        from wandb.automations._compat import omit_automation_fragments
+
+        if self.QUERY is None:
+            from wandb.automations._generated import GET_ENTITY_AUTOMATIONS_GQL
+
+            type(self).QUERY = GET_ENTITY_AUTOMATIONS_GQL
+
+        super().__init__(
+            service_api,
+            variables={
+                "entity": entity,
+                "filters": to_json(f) if (f := filter) else None,
+            },
+            per_page=per_page,
+            start=start,
+            omit_fragments=omit_automation_fragments(service_api),
+        )
+
+    @override
+    def _update_response(self) -> None:
+        """Fetch the raw response data for the current page."""
+        from wandb._pydantic import Connection
+        from wandb.automations._generated import GetEntityAutomations, TriggerFields
+
+        try:
+            res = self._execute_query(parse=GetEntityAutomations.model_validate_json)
+            conn = Connection[TriggerFields].model_validate(res.scope.triggers)  # type: ignore[union-attr]
+        except (LookupError, AttributeError, ValidationError) as e:
+            raise ValueError("Unexpected response data") from e
+        else:
+            self.last_response = conn
+
+    @override
+    def _convert(self, node: TriggerFields) -> Automation:
+        from wandb.automations import Automation
+
+        return Automation.model_validate(node)
+
+
+Automations: TypeAlias = LegacyAutomations  # For now

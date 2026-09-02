@@ -52,6 +52,27 @@ func TestConfigEditor_EnumChange_SaveAndPersists(t *testing.T) {
 	require.Equal(t, leet.StartupModeSingleRunLatest, cfg2.Snapshot().StartupMode)
 }
 
+func TestConfigEditor_ChartGuidesChange_SaveAndPersists(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	path := filepath.Join(t.TempDir(), "config.json")
+	cfg := leet.NewConfigManager(path, logger)
+
+	var m tea.Model = leet.NewConfigEditor(leet.ConfigEditorParams{Config: cfg, Logger: logger})
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	m = selectField(t, m, "chart_guides")
+
+	// The default is off; Right twice selects horizontal.
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyRight})
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 's', Text: "s"})
+	require.NotNil(t, cmd)
+	_, ok := cmd().(tea.QuitMsg)
+	require.True(t, ok)
+
+	cfg2 := leet.NewConfigManager(path, logger)
+	require.Equal(t, leet.ChartGuidesHorizontal, cfg2.ChartGuides())
+}
+
 func TestConfigEditor_QuitConfirmation_RespectsCtrlCAndClearsOnOtherKeys(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
@@ -150,6 +171,61 @@ func TestConfigEditor_DefaultDescriptionsForGridConfig(t *testing.T) {
 	view := m.View().Content
 	require.Contains(t, view, "Rows in the main metrics grid.")
 	require.Contains(t, view, "(metrics_grid.rows)")
+}
+
+func TestConfigEditor_SpaceTogglesBool(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	path := filepath.Join(t.TempDir(), "config.json")
+	cfg := leet.NewConfigManager(path, logger)
+
+	var m tea.Model = leet.NewConfigEditor(leet.ConfigEditorParams{Config: cfg, Logger: logger})
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+
+	m = selectField(t, m, "left_sidebar_visible")
+
+	// Space toggles the bool (default true).
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeySpace, Text: " "})
+
+	// Save & quit.
+	_, cmd := m.Update(tea.KeyPressMsg{Code: 's', Text: "s"})
+	require.NotNil(t, cmd)
+	_, ok := cmd().(tea.QuitMsg)
+	require.True(t, ok)
+
+	cfg2 := leet.NewConfigManager(path, logger)
+	require.False(t, cfg2.Snapshot().LeftSidebarVisible)
+}
+
+// firstLines returns the first n lines of the view with ANSI stripped.
+func firstLines(m tea.Model, n int) string {
+	lines := strings.Split(stripANSI(m.View().Content), "\n")
+	if len(lines) > n {
+		lines = lines[:n]
+	}
+	return strings.Join(lines, "\n")
+}
+
+func TestConfigEditor_Height24_SelectionAndEnumModalVisible(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	var m tea.Model = leet.NewConfigEditor(leet.ConfigEditorParams{Config: cfg, Logger: logger})
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 24})
+
+	// Open the largest enum picker (14 color schemes); the whole modal
+	// must render within the 24 visible lines.
+	m = selectField(t, m, "color_scheme")
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	head := firstLines(m, 24)
+	require.Contains(t, head, "Select Color scheme")
+	require.Contains(t, head, "> "+leet.DefaultColorScheme)
+	require.Contains(t, head, "╰") // modal bottom border
+
+	// Back to browse; the selected row must stay within the 24 visible
+	// lines even for the last field.
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	m = selectField(t, m, "workspace_media_visible")
+	require.Contains(t, firstLines(m, 24), "Workspace media visible")
 }
 
 func TestConfigEditor_ColorSchemePicker_ShowsPalettePreview(t *testing.T) {

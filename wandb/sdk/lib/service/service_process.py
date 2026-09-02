@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 from typing import TYPE_CHECKING
 
-from wandb.analytics import get_sentry
+from wandb.analytics import get_sentry, get_telemetry_recorder
 from wandb.env import core_debug, dcgm_profiling_enabled, error_reporting_enabled
 from wandb.errors import WandbCoreNotAvailableError
 from wandb.sdk.lib.service import ipc_support
@@ -78,7 +78,9 @@ def _start(
             idle_timeout=idle_timeout,
         )
     except Exception as e:
-        get_sentry().reraise(e)
+        # TODO: remove sentry once we no longer support/need it
+        get_sentry().exception(e)
+        get_telemetry_recorder().reraise(e)
 
 
 class ServiceProcess:
@@ -126,7 +128,9 @@ def _launch_server(
         try:
             core_path = get_core_path()
         except WandbCoreNotAvailableError as e:
-            get_sentry().reraise(e)
+            # TODO: remove sentry once we no longer support/need it
+            get_sentry().exception(e)
+            get_telemetry_recorder().reraise(e)
 
         service_args.append(core_path)
 

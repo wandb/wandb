@@ -52,7 +52,7 @@ message RunMoment {
 //
 // Next ID: 209
 message Settings {
-  reserved 3, 6, 8, 9, 12, 19, 36, 43, 44, 45, 50, 51, 54, 70, 91, 94, 100, 136, 137, 173, 176, 180;
+  reserved 3, 6, 8, 9, 12, 19, 36, 43, 44, 45, 50, 51, 54, 70, 91, 94, 100, 124, 136, 137, 173, 176, 180;
 
   // The W&B API key.
   //
@@ -522,7 +522,6 @@ message Settings {
   google.protobuf.BoolValue show_info = 121;
   google.protobuf.BoolValue show_warnings = 122;
   google.protobuf.BoolValue silent = 123;
-  google.protobuf.StringValue start_method = 124;
   google.protobuf.BoolValue strict = 125;
   google.protobuf.Int32Value summary_errors = 126;
   google.protobuf.Int32Value summary_timeout = 127;

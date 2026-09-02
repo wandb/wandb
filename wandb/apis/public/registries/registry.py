@@ -22,17 +22,15 @@ from ._members import (
     UserMember,
     parse_member_ids,
 )
-from ._utils import (
-    Visibility,
-    fetch_org_entity_from_organization,
-    prepare_artifact_types_input,
-)
+from ._utils import Visibility, prepare_artifact_types_input, registry_filter_for
 from .registries_search import Collections, Versions
 
 if TYPE_CHECKING:
     from wandb.apis.public.api import Api
     from wandb.apis.public.service_api import ServiceApi
     from wandb.sdk.artifacts._generated import RegistryFragment
+
+    from .registries_search import _VersionOrder
 
 
 class Registry:
@@ -75,6 +73,15 @@ class Registry:
     def id(self) -> str:
         """The unique ID for this registry."""
         return self._current.id
+
+    @property
+    def internal_id(self) -> str | None:
+        """The GraphQL `internalId` for this registry's backing project, if fetched.
+
+        This is a base64-encoded global ID. When decoded, it looks like
+        `Project:123` or `ProjectInternalId:123`.
+        """
+        return self._current.internal_id
 
     @property
     def full_name(self) -> str:
@@ -210,11 +217,18 @@ class Registry:
                 Usually there is no reason to change this.
             start: Pagination cursor for resuming a past query, captured
                 from a previous paginator's `.cursor` attribute.
+
+        Returns:
+            A lazy iterator of `ArtifactCollection` objects. The returned object
+            supports Python's iterator protocol and fetches results lazily as you
+            iterate—for example, use :func:`itertools.islice` to request only the
+            first *n* items without fetching the rest. See
+            https://docs.python.org/3/library/itertools.html.
         """
         return Collections(
             service_api=self._service_api,
             organization=self.organization,
-            registry_filter={"name": self.full_name},
+            registry_filter=registry_filter_for(self),
             collection_filter=filter,
             order=order,
             per_page=per_page,
@@ -225,6 +239,7 @@ class Registry:
     def versions(
         self,
         filter: dict[str, Any] | None = None,
+        order: _VersionOrder | None = None,
         per_page: PositiveInt = 100,
         start: str | None = None,
     ) -> Versions:
@@ -232,17 +247,29 @@ class Registry:
 
         Args:
             filter: Optional mapping of filters to apply to the artifact versions query.
+            order: Optional string to specify the order of the results.
+                Order can be `created_at`, `artifact_size`, or `linked_at`.
+                If prefixed with '+', sorts ascending (default).
+                If prefixed with '-', sorts descending.
             per_page: The number of results to fetch per page.
                 Usually there is no reason to change this.
             start: Pagination cursor for resuming a past query, captured
                 from a previous paginator's `.cursor` attribute.
+
+        Returns:
+            A lazy iterator of `Artifact` objects. The returned object supports
+            Python's iterator protocol and fetches results lazily as you
+            iterate—for example, use :func:`itertools.islice` to request only the
+            first *n* items without fetching the rest. See
+            https://docs.python.org/3/library/itertools.html.
         """
         return Versions(
             service_api=self._service_api,
             organization=self.organization,
-            registry_filter={"name": self.full_name},
+            registry_filter=registry_filter_for(self),
             collection_filter=None,
             artifact_filter=filter,
+            order=order,
             per_page=per_page,
             start=start,
         )
@@ -292,9 +319,7 @@ class Registry:
             f"Failed to create registry {name!r} in organization {organization!r}."
         )
 
-        # TODO: Avoid reaching into Api internals once registry creation has a
-        # dedicated wandb-core API request.
-        org_entity = fetch_org_entity_from_organization(api._service_api, organization)
+        org_entity = api.organization(organization).org_entity.name
         gql_input = UpsertModelInput(
             description=description,
             entity_name=org_entity,

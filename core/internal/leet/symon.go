@@ -13,7 +13,7 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
-// symonHeaderLines is the number of rows reserved above the chart grid for the
+// symonHeaderLines is the number of rows reserved above the chart guides for the
 // shared system metrics header.
 const symonHeaderLines = 1
 
@@ -34,7 +34,7 @@ type SymonParams struct {
 // Symon is a standalone full-screen system metrics monitor.
 //
 // Unlike the run view's system metrics pane, Symon is not tied to a specific
-// run. It owns its own chart grid, filter state, help overlay, and live sampler
+// run. It owns its own chart guides, filter state, help overlay, and live sampler
 // while reusing the shared charting and monitor plumbing from the rest of LEET.
 type Symon struct {
 	ctx    context.Context
@@ -277,6 +277,15 @@ func (s *Symon) handleToggleFocusedChartLogY(msg tea.KeyPressMsg) tea.Cmd {
 	return s.handleCycleFocusedChartMode(msg)
 }
 
+func (s *Symon) handleCycleChartGuides(tea.KeyPressMsg) tea.Cmd {
+	guides := nextChartGuides(s.config.ChartGuides())
+	if err := s.config.SetChartGuides(guides); err != nil {
+		s.logger.Error(fmt.Sprintf("symon: failed to save chart guides: %v", err))
+	}
+	s.grid.SetChartGuides(guides)
+	return nil
+}
+
 func (s *Symon) handleEnterSystemMetricsFilter(tea.KeyPressMsg) tea.Cmd {
 	s.grid.EnterFilterMode()
 	s.grid.ApplyFilter()
@@ -487,7 +496,7 @@ func (s *Symon) renderHelpScreen() string {
 	return lipgloss.Place(s.width, s.height, lipgloss.Left, lipgloss.Top, content)
 }
 
-// resizeGrid keeps the chart grid sized to the currently available content
+// resizeGrid keeps the chart guides sized to the currently available content
 // area below the header and above the status bar.
 func (s *Symon) resizeGrid() {
 	if s.width <= 0 || s.height <= 0 {

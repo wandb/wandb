@@ -90,7 +90,7 @@ func getFakeArtifactDownloader(
 		gqlClient,
 		ftm,
 		observabilitytest.NewTestLogger(t),
-		map[string]string{},
+		http.Header{},
 		fakeArtifactID,
 		"",
 		false,
@@ -142,14 +142,14 @@ func TestDownload(t *testing.T) {
 func verifyHeadersInRequest(
 	t *testing.T,
 	r *http.Request,
-	expectedHeaders map[string]string,
+	expectedHeaders http.Header,
 ) {
 	t.Helper()
 	for key, expectedValue := range expectedHeaders {
 		assert.Equal(
 			t,
 			expectedValue,
-			r.Header.Get(key),
+			r.Header.Values(key),
 			"Header %s should have value %s",
 			key,
 			expectedValue,
@@ -170,10 +170,9 @@ func TestGetArtifactManifest_WithExtraHeaders(t *testing.T) {
 		}
 	}`
 
-	extraHeaders := map[string]string{
-		"X-Custom-Header-1": "value1",
-		"X-Custom-Header-2": "value2",
-	}
+	extraHeaders := http.Header{}
+	extraHeaders.Set("X-Custom-Header-1", "value1")
+	extraHeaders.Set("X-Custom-Header-2", "value2")
 
 	// Create HTTP test server that verifies headers and returns manifest
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

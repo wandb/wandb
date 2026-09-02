@@ -52,6 +52,13 @@ type Resource interface {
 	Probe(ctx context.Context) *spb.EnvironmentRecord
 }
 
+// monitoredResource is a Resource whose mutex is held while it is being
+// sampled, so that a slow sample is skipped rather than overlapped.
+type monitoredResource struct {
+	Resource
+	sync.Mutex
+}
+
 // SystemMonitor is responsible for monitoring system metrics across various resources.
 type SystemMonitor struct {
 	// The context for the system monitor.
@@ -64,8 +71,12 @@ type SystemMonitor struct {
 	// The state of the system monitor: stopped, running, or paused.
 	state atomic.Int32
 
+	// wakeCh is a buffered channel used to force sampling of the monitored resources
+	// at startup and upon monitoring resumption.
+	wakeCh chan struct{}
+
 	// The list of resources to monitor.
-	resources []Resource
+	resources []*monitoredResource
 
 	// extraWork accepts outgoing messages for the run.
 	extraWork runwork.ExtraWork
@@ -125,6 +136,7 @@ func (f *SystemMonitorFactory) New(extraWork runwork.ExtraWork) *SystemMonitor {
 		ctx:              ctx,
 		cancel:           cancel,
 		wg:               sync.WaitGroup{},
+		wakeCh:           make(chan struct{}, 1),
 		runHandle:        f.RunHandle,
 		settings:         f.Settings,
 		logger:           f.Logger,
@@ -157,6 +169,11 @@ func (f *SystemMonitorFactory) New(extraWork runwork.ExtraWork) *SystemMonitor {
 	return sm
 }
 
+// addResource registers a resource to monitor.
+func (sm *SystemMonitor) addResource(r Resource) {
+	sm.resources = append(sm.resources, &monitoredResource{Resource: r})
+}
+
 // initializeResources sets up the resources to be monitored based on the provided settings.
 func (sm *SystemMonitor) initializeResources(xpuResourceManager *XPUResourceManager) {
 	pid := sm.settings.GetStatsPid()
@@ -172,17 +189,10 @@ func (sm *SystemMonitor) initializeResources(xpuResourceManager *XPUResourceMana
 			DiskPaths:                   sm.settings.GetStatsDiskPaths(),
 		},
 	); system != nil {
-		sm.resources = append(sm.resources, system)
+		sm.addResource(system)
 	}
 
-	if xpu, err := NewXPU(xpuResourceManager, pid, gpuDeviceIds); xpu != nil {
-		sm.resources = append(sm.resources, xpu)
-	} else if err != nil {
-		sm.logger.CaptureError(
-			"monitor",
-			fmt.Errorf("monitor: failed to initialize xpu resource: %v", err),
-		)
-	}
+	sm.addResource(NewXPU(sm.ctx, xpuResourceManager, pid, gpuDeviceIds))
 
 	if trainium := NewTrainium(
 		sm.logger,
@@ -190,7 +200,7 @@ func (sm *SystemMonitor) initializeResources(xpuResourceManager *XPUResourceMana
 		samplingInterval,
 		neuronMonitorConfigPath,
 	); trainium != nil {
-		sm.resources = append(sm.resources, trainium)
+		sm.addResource(trainium)
 	}
 
 	// CoreWeave compute environment metadata.
@@ -202,7 +212,7 @@ func (sm *SystemMonitor) initializeResources(xpuResourceManager *XPUResourceMana
 			Settings:      sm.settings,
 		},
 	); cwm != nil {
-		sm.resources = append(sm.resources, cwm)
+		sm.addResource(cwm)
 	} else if err != nil {
 		sm.logger.CaptureError(
 			"monitor",
@@ -221,7 +231,7 @@ func (sm *SystemMonitor) initializeResources(xpuResourceManager *XPUResourceMana
 			Logger:  sm.logger,
 		}
 		if de := NewDCGMExporter(params); de != nil {
-			sm.resources = append(sm.resources, de)
+			sm.addResource(de)
 		}
 	}
 
@@ -231,7 +241,7 @@ func (sm *SystemMonitor) initializeResources(xpuResourceManager *XPUResourceMana
 			filters := sm.settings.GetStatsOpenMetricsFilters()
 			headers := sm.settings.GetStatsOpenMetricsHeaders()
 			if om := NewOpenMetrics(sm.logger, name, url, filters, headers, nil); om != nil {
-				sm.resources = append(sm.resources, om)
+				sm.addResource(om)
 			}
 		}
 	}
@@ -359,14 +369,22 @@ func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
 
 	sm.git = git
 
-	// Start collecting metrics.
-	if !sm.settings.IsDisableStats() && !sm.settings.IsDisableMachineInfo() {
-		sm.logger.Debug("monitor: starting")
-		for _, resource := range sm.resources {
-			sm.wg.Go(func() {
-				sm.monitorResource(resource)
-			})
-		}
+	if sm.settings.IsDisableStats() || sm.settings.IsDisableMachineInfo() {
+		return
+	}
+
+	sm.logger.Debug("monitor: starting")
+	sm.wg.Go(func() {
+		sm.loop()
+	})
+	sm.wake()
+}
+
+// wake forces the system monitor to sample resources immediately.
+func (sm *SystemMonitor) wake() {
+	select {
+	case sm.wakeCh <- struct{}{}:
+	default: // a wake is already pending; coalesce
 	}
 }
 
@@ -413,31 +431,12 @@ func (sm *SystemMonitor) Pause() {
 func (sm *SystemMonitor) Resume() {
 	if sm.state.CompareAndSwap(StatePaused, StateRunning) {
 		sm.logger.Debug("monitor: resuming")
+		sm.wake()
 	}
 }
 
-// monitorResource handles the monitoring loop for a single resource.
-//
-// It handles sampling, aggregation, and reporting of metrics
-// and is meant to run in its own goroutine.
-func (sm *SystemMonitor) monitorResource(resource Resource) {
-	if resource == nil {
-		return
-	}
-
-	// recover from panic and log the error
-	defer func() {
-		if err := recover(); err != nil {
-			if resource != nil {
-				sm.logger.CaptureError(
-					"monitor",
-					fmt.Errorf("monitor: panic: %v", err),
-				)
-			}
-		}
-	}()
-
-	// Create a ticker that fires every `samplingInterval` seconds
+// loop handles the resource monitoring loop.
+func (sm *SystemMonitor) loop() {
 	ticker := time.NewTicker(sm.samplingInterval)
 	defer ticker.Stop()
 
@@ -445,12 +444,36 @@ func (sm *SystemMonitor) monitorResource(resource Resource) {
 		select {
 		case <-sm.ctx.Done():
 			return
+		case <-sm.wakeCh:
+			ticker.Reset(sm.samplingInterval) // realign cadence to "now"
 		case <-ticker.C:
-			if sm.state.Load() != StateRunning {
-				continue // Skip work when not running
-			}
+		}
 
-			metrics, err := resource.Sample()
+		if sm.state.Load() != StateRunning {
+			continue
+		}
+
+		sm.sample()
+	}
+}
+
+// sample collects and publishes stats for all monitored resources.
+//
+// A resource whose previous sample has not returned yet is skipped.
+func (sm *SystemMonitor) sample() {
+	for _, r := range sm.resources {
+		if !r.TryLock() {
+			continue
+		}
+		sm.wg.Go(func() {
+			defer r.Unlock()
+			defer func() {
+				if err := recover(); err != nil {
+					sm.logger.CaptureError("monitor",
+						fmt.Errorf("monitor: panic sampling: %v", err))
+				}
+			}()
+			metrics, err := r.Sample()
 			if err != nil {
 				if ShouldCaptureSamplingError(err) {
 					sm.logger.CaptureError(
@@ -463,10 +486,10 @@ func (sm *SystemMonitor) monitorResource(resource Resource) {
 			}
 
 			if metrics == nil || len(metrics.Item) == 0 {
-				continue // nothing to do
+				return // nothing to do
 			}
 
-			// Push metrics to the buffer when in-memory buffering is enabled.
+			// Push metrics to the in-memory buffer when enabled.
 			if sm.buffer != nil {
 				sm.buffer.Push(metrics)
 			}
@@ -478,7 +501,7 @@ func (sm *SystemMonitor) monitorResource(resource Resource) {
 				}
 			}
 
-			// publish metrics
+			// Publish metrics.
 			record := &spb.Record{
 				RecordType: &spb.Record_Stats{
 					Stats: metrics,
@@ -489,17 +512,23 @@ func (sm *SystemMonitor) monitorResource(resource Resource) {
 				sm.ctx.Done(),
 				runwork.NoRequest(runwork.WorkFromRecord(record)),
 			)
-		}
+		})
 	}
-
 }
 
 // ShouldCaptureSamplingError checks if a resource sampling error should be sent to Sentry.
 //
 // Use to filter out expected/transient failures. Keep this intentionally small and specific.
 func ShouldCaptureSamplingError(err error) bool {
-	// Transient gRPC connectivity to the wandb-xpu sidecar.
-	if s, ok := status.FromError(err); ok && s.Code() == codes.Unavailable {
+	// The caller went away, e.g. the run finished mid-sample.
+	if errors.Is(err, context.Canceled) {
+		return false
+	}
+
+	// Transient gRPC connectivity to the wandb-xpu sidecar, or a request
+	// canceled by the caller.
+	if s, ok := status.FromError(err); ok &&
+		(s.Code() == codes.Unavailable || s.Code() == codes.Canceled) {
 		return false
 	}
 
@@ -564,7 +593,7 @@ func (sm *SystemMonitor) Finish() {
 	sm.wg.Wait()
 	// close the resources, if they require any cleanup
 	for _, resource := range sm.resources {
-		if closer, ok := resource.(interface{ Close() }); ok {
+		if closer, ok := resource.Resource.(interface{ Close() }); ok {
 			closer.Close()
 		}
 	}

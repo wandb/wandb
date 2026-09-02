@@ -83,6 +83,19 @@ func blendRGB(r, g, b, tr, tg, tb uint8, alpha float64) color.Color {
 	))
 }
 
+// terminalBackgroundRGB returns the terminal's background color, falling
+// back to a typical dark/light background when detection failed.
+func terminalBackgroundRGB() (r, g, b uint8) {
+	initTerminalBg()
+	if termBgDetected {
+		return termBgR, termBgG, termBgB
+	}
+	if IsDarkBackground() {
+		return 0x1c, 0x1c, 0x1c
+	}
+	return 0xff, 0xff, 0xff
+}
+
 // getOddRunStyleColor returns a color 5% darker than the terminal background.
 func getOddRunStyleColor() color.Color {
 	initTerminalBg()
@@ -175,6 +188,9 @@ const (
 	// BoxLightVertical is U+2502 and is "taller" than verticalLine.
 	boxLightVertical rune = '\u2502' // │
 
+	// boxLightHorizontal is U+2500, the horizontal counterpart of boxLightVertical.
+	boxLightHorizontal rune = '\u2500' // ─
+
 	// unicodeEmDash is the em dash.
 	unicodeEmDash rune = '\u2014'
 
@@ -224,6 +240,13 @@ var (
 		Dark:  lipgloss.Color("#585858"),
 	}
 
+	// Color for chart guides. Keep it quieter than axes and labels so the
+	// background adds structure without competing with the data.
+	colorChartGuides = AdaptiveColor{
+		Light: lipgloss.Color("#c5c5c5"),
+		Dark:  lipgloss.Color("#383838"),
+	}
+
 	// Color for layout elements, like borders and separator lines.
 	colorLayout = AdaptiveColor{
 		Light: lipgloss.Color("#949494"),
@@ -257,6 +280,25 @@ var (
 	colorSelected = AdaptiveColor{
 		Dark:  lipgloss.Color("#FCBC32"),
 		Light: lipgloss.Color("#FCBC32"),
+	}
+
+	// Color for live (running) runs: the state indicator dot and the
+	// "Running" state text.
+	//
+	// These state colors sit on exact xterm-256 cube entries: on
+	// non-truecolor terminals (e.g. tmux without RGB overrides) the
+	// downsampler maps off-cube dark reds to gray, turning the indicator
+	// black.
+	colorRunning = AdaptiveColor{
+		Light: lipgloss.Color("#00875F"), // xterm 29
+		Dark:  lipgloss.Color("#3DD68C"),
+	}
+
+	// Color for runs that ended badly: crashed/failed state text and the
+	// crashed state indicator dot.
+	colorCrashed = AdaptiveColor{
+		Light: lipgloss.Color("#AF0000"), // xterm 124
+		Dark:  lipgloss.Color("#FF5F5F"), // xterm 203
 	}
 )
 
@@ -540,6 +582,8 @@ var (
 
 	axisStyle = lipgloss.NewStyle().Foreground(colorSubtle)
 
+	chartGuidesStyle = lipgloss.NewStyle().Foreground(colorChartGuides)
+
 	labelStyle = lipgloss.NewStyle().Foreground(colorText)
 
 	inspectionLineStyle = lipgloss.NewStyle().Foreground(colorSubtle)
@@ -689,6 +733,9 @@ var (
 		BottomLeft:  string(unicodeSpace),
 		BottomRight: string(unicodeSpace),
 	}
+
+	// leftSidebarBorderHighlightStyle colors the border while it is dragged.
+	leftSidebarBorderHighlightStyle = leftSidebarBorderStyle.BorderForeground(colorLayoutHighlight)
 )
 
 // Right sidebar styles.
@@ -714,6 +761,10 @@ var (
 		BottomLeft:  string(unicodeSpace),
 		BottomRight: string(unicodeSpace),
 	}
+
+	// rightSidebarBorderHighlightStyle colors the border while it is dragged.
+	rightSidebarBorderHighlightStyle = rightSidebarBorderStyle.
+						BorderForeground(colorLayoutHighlight)
 )
 
 // Console logs pane styles.
@@ -740,25 +791,32 @@ var (
 						Foreground(colorDark)
 )
 
-// renderHorizontalSeparator draws a full-width em-dash separator line.
-// This is used between vertically stacked panes in the central column
-// instead of per-pane top borders.
-func renderHorizontalSeparator(width int) string {
+// renderHorizontalSeparator draws a full-width em-dash separator line, in
+// the layout highlight color when highlighted. This is used between
+// vertically stacked panes in the central column instead of per-pane top
+// borders.
+func renderHorizontalSeparator(width int, highlighted bool) string {
 	if width <= 0 {
 		return ""
 	}
+	fg := colorLayout
+	if highlighted {
+		fg = colorLayoutHighlight
+	}
 	line := strings.Repeat(string(unicodeEmDash), width)
-	return lipgloss.NewStyle().Foreground(colorLayout).Render(line)
+	return lipgloss.NewStyle().Foreground(fg).Render(line)
 }
 
-// joinWithSeparators joins rendered sections with horizontal separator lines.
-func joinWithSeparators(sections []string, width int) string {
+// joinWithSeparators joins rendered sections with horizontal separator
+// lines, highlighting the one at index highlightSep (below section
+// highlightSep; -1 for none).
+func joinWithSeparators(sections []string, width, highlightSep int) string {
 	if len(sections) == 0 {
 		return ""
 	}
-	sep := renderHorizontalSeparator(width)
 	result := sections[0]
-	for _, s := range sections[1:] {
+	for i, s := range sections[1:] {
+		sep := renderHorizontalSeparator(width, i == highlightSep)
 		result = lipgloss.JoinVertical(lipgloss.Left, result, sep, s)
 	}
 	return result

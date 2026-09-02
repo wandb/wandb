@@ -386,6 +386,116 @@ inputs:
       message: 'UNION a: field must be one of SCALAR, ENUM, INPUT_OBJECT.'
       locations: [{line: 3, column: 13}]
 
+  - name: cannot reference itself through a non-null field
+    input: |
+      input T {
+        self: T!
+      }
+    error:
+      message: 'Cannot reference Input Object "T" within itself through a series of non-null fields: "self".'
+      locations: [{line: 2, column: 3}]
+
+  - name: cannot reference itself through a chain of non-null fields
+    input: |
+      input A {
+        startLoop: B!
+      }
+      input B {
+        nextInLoop: C!
+      }
+      input C {
+        closeLoop: A!
+      }
+    error:
+      message: 'Cannot reference Input Object "A" within itself through a series of non-null fields: "startLoop.nextInLoop.closeLoop".'
+      locations: [{line: 2, column: 3}]
+
+  - name: cannot reference itself through a non-null field added by an extension
+    input: |
+      input T {
+        id: ID
+      }
+      extend input T {
+        self: T!
+      }
+    error:
+      message: 'Cannot reference Input Object "T" within itself through a series of non-null fields: "self".'
+      locations: [{line: 5, column: 3}]
+
+  - name: cannot reference itself through a non-null field on a nested cycle
+    input: |
+      input Outer {
+        inner: Inner!
+      }
+      input Inner {
+        self: Inner!
+      }
+    error:
+      message: 'Cannot reference Input Object "Inner" within itself through a series of non-null fields: "self".'
+      locations: [{line: 5, column: 3}]
+
+  - name: cannot reference itself when an earlier input object is cycle free
+    input: |
+      input Entry {
+        maybe: Loop
+      }
+      input Loop {
+        self: Loop!
+      }
+    error:
+      message: 'Cannot reference Input Object "Loop" within itself through a series of non-null fields: "self".'
+      locations: [{line: 5, column: 3}]
+
+  - name: can reference itself through a nullable field
+    input: |
+      input T {
+        self: T
+      }
+
+  - name: can reference itself through a list field
+    input: |
+      input T {
+        a: [T!]!
+        b: [T]!
+        c: [T!]
+        d: [T]
+        e: [[T!]!]!
+      }
+
+  - name: can reference itself when the chain is broken by a list
+    input: |
+      input A {
+        startLoop: B!
+      }
+      input B {
+        loopBack: [A!]!
+      }
+
+  - name: can reference itself when the chain is broken by a nullable field
+    input: |
+      input A {
+        startLoop: B!
+      }
+      input B {
+        nextInLoop: C
+      }
+      input C {
+        closeLoop: A!
+      }
+
+  - name: can reference the same input object twice without a cycle
+    input: |
+      input A {
+        b: B!
+        c: C!
+      }
+      input B {
+        c: C!
+      }
+      input C {
+        id: ID!
+      }
+
 args:
   - name: Valid arg types
     input: |
