@@ -261,7 +261,7 @@ commands:
 
             rm $file_name
 
-            echo 'export PATH="$HOME/sdk/go/bin:$PATH"' >> "$BASH_ENV"
+            echo 'export PATH="$HOME/sdk/go/bin:$HOME/go/bin:$PATH"' >> "$BASH_ENV"
 
             $HOME/sdk/go/bin/go version
             $HOME/sdk/go/bin/go env -w GOCACHE=$HOME/.cache/go-build
