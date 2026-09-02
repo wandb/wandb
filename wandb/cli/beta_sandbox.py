@@ -4,10 +4,8 @@ import json
 from datetime import datetime
 
 import click
+from cwsandbox import CWSandboxError, SandboxStatus
 from cwsandbox.cli.shell import _validate_cmd as _cwsandbox_validate_cmd
-
-from wandb.sandbox import CWSandboxError, Sandbox, SandboxStatus
-from wandb.sandbox._auth import override_sandbox_entity
 
 _STATUS_CHOICES = [s.value for s in SandboxStatus if s != SandboxStatus.UNSPECIFIED]
 
@@ -27,6 +25,8 @@ class SandboxCommand(click.Command):
         ]
 
     def invoke(self, ctx: click.Context) -> object:
+        from wandb.sandbox._auth import override_sandbox_entity
+
         entity = ctx.params.pop("entity", None)
 
         try:
@@ -118,6 +118,8 @@ def list_sandboxes(
 
         wandb beta sandbox ls --entity team
     """
+    from wandb.sandbox import Sandbox
+
     sandboxes = Sandbox.list(
         tags=list(tags) if tags else None,
         status=status,
