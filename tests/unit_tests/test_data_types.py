@@ -18,6 +18,7 @@ from wandb import data_types, env
 from wandb.sdk.data_types import _dtypes
 from wandb.sdk.data_types import utils as data_types_utils
 from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
+from wandb.sdk.data_types.helper_types.image_mask import ImageMask
 from wandb.sdk.wandb_settings import Settings
 
 
@@ -497,6 +498,23 @@ def test_image_masks_with_pytorch_tensors():
     mask = torch.from_numpy(np.array([[1, 0], [0, 1]]))
 
     wandb.Image(image, masks={"predictions": {"mask_data": mask}})
+
+
+@pytest.mark.parametrize("dtype", [np.int32, np.float32, np.float64])
+def test_image_mask_rejects_out_of_range_values(dtype):
+    mask = np.array([[0, 300], [1000, 1]], dtype=dtype)
+
+    with pytest.raises(TypeError, match="between 0 and 255"):
+        ImageMask({"mask_data": mask}, key="predictions")
+
+
+@pytest.mark.parametrize("dtype", [np.uint8, np.int32, np.float32, np.float64])
+def test_image_mask_accepts_in_range_values(dtype):
+    mask = np.array([[0, 1], [200, 255]], dtype=dtype)
+
+    image_mask = ImageMask({"mask_data": mask}, key="predictions")
+
+    assert np.array_equal(np.array(Image.open(image_mask._path)), mask.astype(np.uint8))
 
 
 def test_image_numpy_pytorch_equal():
