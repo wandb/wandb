@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import datetime
-import inspect
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any
 
@@ -26,7 +25,7 @@ EVAL_TABLE_MARKER = {"wandb_eval_table": True}
 
 EVAL_TABLE_ROW_INDEX_KEY = "row"
 
-_MIN_WEAVE_VERSION = "0.52.41"
+_MIN_WEAVE_VERSION = "0.53.7"
 
 
 def _is_numpy_datetime64(val: Any) -> bool:
@@ -116,22 +115,6 @@ def _normalize_value(
         unsupported_media_mode,
     )
     return _normalize_non_media_value(val)
-
-
-def _weave_supports_trace_scores_param(evaluation_logger_cls: Any) -> bool:
-    """Whether the installed weave's EvaluationLogger accepts `trace_scores`.
-
-    Added in weave 0.53.4, but detected rather than pinned through
-    _MIN_WEAVE_VERSION so EvalTable keeps working on older weave, which always
-    traces. Both produce the same table, so falling back only costs speed.
-    """
-    try:
-        parameters = inspect.signature(
-            evaluation_logger_cls._create_with_meta
-        ).parameters
-    except (TypeError, ValueError):
-        return False
-    return "trace_scores" in parameters
 
 
 class EvalTable(Table):
@@ -443,14 +426,10 @@ class EvalTable(Table):
             self._input_columns, self._output_columns, self._score_columns
         )
 
-        kwargs: dict[str, Any] = {}
-        if _weave_supports_trace_scores_param(EvaluationLogger):
-            kwargs["trace_scores"] = self._trace_scores
-
         return EvaluationLogger._create_with_meta(
             EVAL_TABLE_MARKER,
             name=eval_name,
-            **kwargs,
+            trace_scores=self._trace_scores,
         )
 
     def _warn_immutable_already_logged(self) -> None:

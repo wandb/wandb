@@ -255,6 +255,7 @@ def test_standard_immutable_log(mock_eval_logger, mock_wandb_log, run, monkeypat
     mock_eval_logger._create_with_meta.assert_called_once_with(
         {"wandb_eval_table": True},
         name="my_eval",
+        trace_scores=False,
     )
 
     ev = mock_eval_logger.created_loggers[0]
@@ -1028,101 +1029,14 @@ def test_wandb_image_with_int_column_unwrapped_to_pil(mock_eval_logger, run):
     assert call_kwargs["inputs"] == {"row": 1}
 
 
-def _fake_logger_cls(*, supports_trace_scores: bool, calls: list):
-    """An EvaluationLogger stand-in whose signature drives capability detection.
-
-    A MagicMock reports a `(*args, **kwargs)` signature, which would make the
-    detection answer "unsupported" no matter what, so these tests need a real
-    function signature.
-    """
-    if supports_trace_scores:
-
-        class NewEvaluationLogger:
-            @classmethod
-            def _create_with_meta(
-                cls,
-                eval_meta,
-                *,
-                name=None,
-                model=None,
-                dataset=None,
-                eval_attributes=None,
-                scorers=None,
-                trace_scores=True,
-            ):
-                calls.append({"trace_scores": trace_scores})
-                return MagicMock()
-
-        return NewEvaluationLogger
-
-    class OldEvaluationLogger:
-        @classmethod
-        def _create_with_meta(
-            cls,
-            eval_meta,
-            *,
-            name=None,
-            model=None,
-            dataset=None,
-            eval_attributes=None,
-            scorers=None,
-        ):
-            calls.append({})
-            return MagicMock()
-
-    return OldEvaluationLogger
-
-
-def test_weave_supports_trace_scores_param_detects_signature():
-    calls: list = []
-    assert eval_table_module._weave_supports_trace_scores_param(
-        _fake_logger_cls(supports_trace_scores=True, calls=calls)
-    )
-    assert not eval_table_module._weave_supports_trace_scores_param(
-        _fake_logger_cls(supports_trace_scores=False, calls=calls)
-    )
-
-
-def test_eval_table_does_not_trace_scores_by_default(mock_eval_logger):
-    # An EvalTable's scores are values already in the table, so the per-score
-    # scorer call records nothing new and costs a traced call per row per score.
-    assert wandb.EvalTable(columns=["a"], data=[[1]])._trace_scores is False
-    assert (
-        wandb.EvalTable(columns=["a"], data=[[1]], trace_scores=True)._trace_scores
-        is True
-    )
-
-
-@pytest.mark.parametrize("trace_scores", [False, True])
-def test_eval_table_forwards_trace_scores_to_weave(
-    monkeypatch, mock_eval_logger, trace_scores
-):
-    calls: list = []
-    monkeypatch.setattr(
-        sys.modules["weave.evaluation.eval_imperative"],
-        "EvaluationLogger",
-        _fake_logger_cls(supports_trace_scores=True, calls=calls),
-    )
-
+def test_eval_table_can_enable_score_tracing(mock_eval_logger):
     et = wandb.EvalTable(
-        columns=["a"], data=[[1]], score_columns=["a"], trace_scores=trace_scores
+        columns=["a"], data=[[1]], score_columns=["a"], trace_scores=True
     )
     et._create_weave_eval_logger("key")
 
-    assert calls == [{"trace_scores": trace_scores}]
-
-
-def test_eval_table_omits_trace_scores_on_older_weave(monkeypatch, mock_eval_logger):
-    # Older weave has no trace_scores kwarg; passing it would be a TypeError, so
-    # EvalTable must fall back to weave's always-traced behavior instead.
-    calls: list = []
-    monkeypatch.setattr(
-        sys.modules["weave.evaluation.eval_imperative"],
-        "EvaluationLogger",
-        _fake_logger_cls(supports_trace_scores=False, calls=calls),
+    mock_eval_logger._create_with_meta.assert_called_once_with(
+        {"wandb_eval_table": True},
+        name="key",
+        trace_scores=True,
     )
-
-    et = wandb.EvalTable(columns=["a"], data=[[1]], score_columns=["a"])
-    et._create_weave_eval_logger("key")
-
-    assert calls == [{}]
