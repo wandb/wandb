@@ -22,7 +22,7 @@ def test_sync_with_tensorboard(wandb_backend_spy, runner, copy_asset):
             assert value > 0
 
 
-def test_legacy_sync_assigns_monotonic_steps(wandb_backend_spy, runner):
+def test_legacy_sync_assigns_increasing_steps(wandb_backend_spy, runner):
     with wandb.init(mode="offline") as run:
         run.log({"loss": 0.1})
         run.log({"loss": 0.2})
