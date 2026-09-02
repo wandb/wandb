@@ -135,10 +135,11 @@ def _unwatch(
         if not isinstance(models, (tuple, list)):
             models = (models,)
         for model in models:
-            if not hasattr(model, "_wandb_hook_names"):
+            hook_names = getattr(model, "_wandb_hook_names", None)
+            if hook_names is None:
                 wandb.termwarn(f"{model} model has not been watched")
             else:
-                for name in model._wandb_hook_names:
+                for name in hook_names:
                     run._torch.unhook(name)
                 delattr(model, "_wandb_hook_names")
                 # TODO: we should also remove recursively model._wandb_watch_called
