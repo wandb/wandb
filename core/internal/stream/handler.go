@@ -20,12 +20,12 @@ import (
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pathtree"
+	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/internal/timer"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/wboperation"
 
@@ -53,6 +53,7 @@ type HandlerFactory struct {
 	Logger               *observability.CoreLogger
 	Mailbox              *mailbox.Mailbox
 	Operations           *wboperation.WandbOperations
+	RunHandle            *runhandle.RunHandle
 	Settings             *settings.Settings
 	SystemMonitorFactory *monitor.SystemMonitorFactory
 	TerminalPrinter      *observability.Printer
@@ -107,8 +108,8 @@ type Handler struct {
 	// which may be arbitrarily far behind the Handler.
 	runSummary *runsummary.RunSummary
 
-	// runTimer is used to track the run start and execution times
-	runTimer *timer.Timer
+	// runHandle contains the run's `_runtime` timer.
+	runHandle *runhandle.RunHandle
 
 	// settings is the settings for the handler
 	settings *settings.Settings
@@ -138,7 +139,7 @@ func (f *HandlerFactory) New(extraWork runwork.ExtraWork) *Handler {
 		pollExitLogRateLimit: rate.NewLimiter(rate.Every(time.Minute), 1),
 		runHistorySampler:    runhistory.NewRunHistorySampler(),
 		runSummary:           runsummary.New(),
-		runTimer:             timer.New(0),
+		runHandle:            f.RunHandle,
 		settings:             f.Settings,
 		systemMonitor:        systemMonitor,
 		terminalPrinter:      f.TerminalPrinter,
@@ -495,13 +496,6 @@ func (h *Handler) handleRequestRunStart(
 	var ok bool
 	run := req.Run
 
-	// Add on to the previous run time for branched runs.
-	offset := time.Duration(run.Runtime) * time.Second
-	h.runTimer = timer.New(offset)
-
-	// start the timer
-	h.runTimer.Start()
-
 	if h.runRecord, ok = proto.Clone(run).(*spb.RunRecord); !ok {
 		h.logger.CaptureFatalAndPanic(
 			"stream",
@@ -704,12 +698,12 @@ func (h *Handler) handleRequestCancel(request *spb.CancelRequest) {
 }
 
 func (h *Handler) handleRequestPause() {
-	h.runTimer.Stop()
+	h.runHandle.PauseRunTimer()
 	h.systemMonitor.Pause()
 }
 
 func (h *Handler) handleRequestResume() {
-	h.runTimer.Start()
+	h.runHandle.ResumeRunTimer()
 	h.systemMonitor.Resume()
 }
 
@@ -718,9 +712,7 @@ func (h *Handler) handleExit(
 	exit *spb.RunExitRecord,
 	request *runwork.Request,
 ) {
-	// stop the run timer and set the runtime
-	h.runTimer.Stop()
-	exit.Runtime = int32(h.runTimer.Elapsed().Seconds())
+	exit.Runtime = int32(h.runHandle.Runtime().Seconds())
 
 	if !h.settings.IsEnableServerSideDerivedSummary() {
 		h.updateRunTiming()
@@ -880,7 +872,7 @@ func (h *Handler) handleSummary(summary *spb.SummaryRecord) {
 //
 // This emits a summary record that is written to the transaction log.
 func (h *Handler) updateRunTiming() {
-	runtime := int(h.runTimer.Elapsed().Seconds())
+	runtime := int(h.runHandle.Runtime().Seconds())
 	record := &spb.Record{
 		RecordType: &spb.Record_Summary{
 			Summary: &spb.SummaryRecord{
@@ -1055,7 +1047,7 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 
 	h.partialHistory.SetFloat(
 		pathtree.PathOf("_runtime"),
-		h.runTimer.Elapsed().Seconds(),
+		h.runHandle.Runtime().Seconds(),
 	)
 
 	if !h.settings.IsSharedMode() && useStep {

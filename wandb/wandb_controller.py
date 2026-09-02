@@ -240,7 +240,11 @@ class _WandbController:
         self,
         stopping: str
         | Callable[
-            [dict | sweeps.SweepConfig, list[sweeps.SweepRun]], list[sweeps.SweepRun]
+            [dict],
+            Callable[
+                [dict | sweeps.SweepConfig, list[sweeps.SweepRun]],
+                list[sweeps.SweepRun],
+            ],
         ],
         **kwargs,
     ):

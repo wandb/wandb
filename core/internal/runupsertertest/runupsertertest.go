@@ -53,7 +53,7 @@ func NewTestUpserter(
 		params.FeatureProvider = featurechecker.NewPreloaded(nil)
 	}
 	if params.SyncStateStore == nil {
-		params.SyncStateStore = runsyncstate.Noop()
+		params.SyncStateStore = runsyncstate.InMemory()
 	}
 
 	record := &spb.Record{RecordType: &spb.Record_Run{

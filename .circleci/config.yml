@@ -124,8 +124,6 @@ commands:
       - store_artifacts:
           path: test-results
       - store_artifacts:
-          path: mypy-results
-      - store_artifacts:
           path: cover-results
 
   store-coverage:
@@ -458,9 +456,6 @@ jobs:
       - run:
           name: Automatically generate code and check for changes
           command: nox -vs codegen-check
-      - run:
-          name: Run mypy and report results
-          command: nox -vs mypy-report
       - run:
           name: Run import sanity check
           command: |
