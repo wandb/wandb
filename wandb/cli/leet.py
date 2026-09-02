@@ -17,7 +17,7 @@ from typing import Any
 import click
 from typing_extensions import Never
 
-from wandb.analytics import get_sentry
+from wandb.analytics import get_telemetry_recorder
 from wandb.env import error_reporting_enabled, is_debug
 from wandb.errors import WandbCoreNotAvailableError
 from wandb.sdk import wandb_setup
@@ -66,6 +66,7 @@ def leet() -> None:
         wandb leet ./wandb            Browse runs in a wandb directory
         wandb leet <run-url>          View a remote W&B run
         wandb leet symon              View live local system metrics
+        wandb leet inspect [PATH]     Browse the raw records in a .wandb log
     """  # noqa: D301 -- the \b escape is click's marker to not rewrap Examples.
 
 
@@ -107,6 +108,24 @@ def run(path: str | None = None, pprof: str = "") -> None:
 def symon(pprof: str = "", interval: str = "") -> None:
     """Launch the standalone system monitor."""
     launch_symon(pprof=pprof, interval=interval)
+
+
+@leet.command()
+@click.argument("path", nargs=1, type=click.STRING, required=False)
+@click.help_option("-h", "--help")
+def inspect(path: str | None = None) -> None:
+    """Browse the raw records in a run's .wandb transaction log.
+
+    Opens a browsable list of the records stored in the log next to a
+    text view of the selected record. When stdout is not a terminal,
+    prints the records as text instead, e.g.:
+
+        wandb leet inspect run.wandb | less
+
+    PATH can be a .wandb file, a run directory containing one, or a
+    wandb directory. If PATH is not provided, the latest run is used.
+    """
+    launch_inspect(path)
 
 
 @leet.command()
@@ -196,13 +215,18 @@ def _base_args() -> list[str]:
     try:
         core_path = get_core_path()
     except WandbCoreNotAvailableError as e:
-        get_sentry().exception(f"using `wandb leet`. failed with {e}")
+        get_telemetry_recorder().exception(
+            WandbCoreNotAvailableError(f"using `wandb leet`. failed with {e}")
+        )
         _fatal(str(e))
 
     args = [core_path, "leet"]
 
     if not error_reporting_enabled():
         args.append("--no-observability")
+    else:
+        # Tell wandb-core which W&B server to upload telemetry to.
+        args.extend(["--base-url", wandb_setup.singleton().settings.base_url])
 
     if is_debug(default="False"):
         args.extend(["--log-level", "-4"])
@@ -216,14 +240,11 @@ def _run_core(args: list[str], env: dict[str, str] | None = None) -> Never:
         result = subprocess.run(args, env=env, close_fds=True)
         sys.exit(result.returncode)
     except Exception as e:
-        # TODO: remove sentry once we no longer support/need it
-        get_sentry().reraise(e)
+        get_telemetry_recorder().reraise(e)
 
 
 def launch(path: str | None, pprof: str) -> Never:
     """Launch the LEET TUI."""
-    get_sentry().configure_scope(process_context="leet")
-
     if path is not None and (path.startswith("https://") or path.startswith("http://")):
         config = _create_remote_launch_config(path)
     else:
@@ -246,10 +267,21 @@ def launch(path: str | None, pprof: str) -> Never:
     _run_core(args, env)
 
 
+def launch_inspect(path: str | None) -> Never:
+    """Launch the transaction log record inspector."""
+    config = _resolve_path(path)
+    if not isinstance(config, LocalLaunchConfig):
+        _fatal("`wandb leet inspect` requires a local .wandb file.")
+
+    args = _base_args()
+    args.append("--inspect")
+    args.extend(_get_local_launch_args(config))
+
+    _run_core(args)
+
+
 def launch_config() -> Never:
     """Launch the LEET configuration editor."""
-    get_sentry().configure_scope(process_context="leet-config")
-
     args = _base_args()
     args.append("--config")
 
@@ -258,8 +290,6 @@ def launch_config() -> Never:
 
 def launch_symon(pprof: str = "", interval: str = "") -> Never:
     """Launch the standalone system monitor."""
-    get_sentry().configure_scope(process_context="leet-symon")
-
     args = _base_args()
     args.append("--symon")
 

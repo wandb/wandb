@@ -215,8 +215,12 @@ jobs:
               --ignore-missing-dependencies \
               -w {dest_dir} \
               -v {wheel}
+          # Sets the minimum macOS version for the wheels. Must be at least
+          # the minimum supported by the Go toolchain (go1.27 stamps a
+          # minimum of macOS 13 into wandb-core), or delocate fails the
+          # wheel repair step.
           CIBW_ENVIRONMENT_MACOS: >
-            MACOSX_DEPLOYMENT_TARGET=12
+            MACOSX_DEPLOYMENT_TARGET=13.0
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
@@ -486,7 +490,7 @@ jobs:
           echo "## What's Changed" > release_notes.md
           awk '/## \[${{ github.event.inputs.version }}\]/{flag=1;next}/## \[/{flag=0}flag' CHANGELOG.md >> release_notes.md
       - name: Create Release Notes
-        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
           name: v${{ github.event.inputs.version }}
           tag_name: v${{ github.event.inputs.version }}

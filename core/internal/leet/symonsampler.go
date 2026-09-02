@@ -1,6 +1,7 @@
 package leet
 
 import (
+	"context"
 	"fmt"
 	"maps"
 	"os"
@@ -63,15 +64,9 @@ func NewSymonSampler(params SymonSamplerParams) *SymonSampler {
 			Pid:              0,
 			TrackProcessTree: false,
 			DiskPaths:        defaultSymonDiskPaths(),
-		}))
-
-	xm := monitor.NewXPUResourceManager(false)
-	xpu, err := monitor.NewXPU(xm, 0, nil)
-	if err != nil {
-		logger.Debug(fmt.Sprintf("symon: xpu monitor unavailable: %v", err))
-	} else if xpu != nil {
-		sampler.resources = append(sampler.resources, xpu)
-	}
+		}),
+		monitor.NewXPU(context.Background(), monitor.NewXPUResourceManager(false), 0, nil),
+	)
 
 	return sampler
 }
@@ -144,8 +139,8 @@ func (s *SymonSampler) Cleanup() {
 	}
 }
 
-// logSamplingError routes sampling failures either to Sentry or debug logs,
-// depending on whether the monitor package considers them expected.
+// logSamplingError captures unexpected sampling failures and debug-logs
+// expected ones.
 func (s *SymonSampler) logSamplingError(err error) {
 	if monitor.ShouldCaptureSamplingError(err) {
 		s.logger.CaptureError(

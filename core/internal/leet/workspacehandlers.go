@@ -727,6 +727,7 @@ func (w *Workspace) handleWorkspaceRecord(run *WorkspaceRun, msg tea.Msg) {
 
 	switch m := msg.(type) {
 	case RunMsg:
+		sessionRuns.observe(m, true)
 		w.getOrCreateRunOverview(run.Key).ProcessRunMsg(m)
 		w.indexRunFilterData(run.Key, m)
 		if w.filter.Query() != "" {
@@ -807,10 +808,10 @@ func (w *Workspace) handleHeartbeat() tea.Cmd {
 // stream, so mark it failed instead of leaving it silently frozen in
 // whatever state it was in.
 func (w *Workspace) handleRunReadErr(msg WorkspaceRunReadErrMsg) tea.Cmd {
-	w.logger.CaptureError(
-		"leet",
-		fmt.Errorf("workspace: run %s read failed: %v", msg.RunKey, msg.Err),
-	)
+	// A dead run's file often ends mid-record, so keep this out of error
+	// telemetry.
+	w.logger.Error(fmt.Sprintf(
+		"workspace: run %s read failed: %v", msg.RunKey, msg.Err))
 
 	run := w.runsByKey[msg.RunKey]
 	if run == nil {

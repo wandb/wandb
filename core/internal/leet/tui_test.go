@@ -86,6 +86,21 @@ func forceRepaint(tm *teatest.TestModel, w, h int) {
 	tm.Send(tea.WindowSizeMsg{Width: w + 1, Height: h})
 }
 
+// waitForFrame is waitForContent for conditions that must see a complete
+// frame, such as parsing a value whose cells were only partly redrawn.
+// Before each check it resends the window size, which makes the renderer
+// erase and redraw the whole screen.
+func waitForFrame(t *testing.T, tm *teatest.TestModel, w, h int, cond func(string) bool) {
+	t.Helper()
+	teatest.WaitFor(t, tm.Output(), func(b []byte) bool {
+		if cond(stripANSI(string(b))) {
+			return true
+		}
+		tm.Send(tea.WindowSizeMsg{Width: w, Height: h})
+		return false
+	}, teatest.WithDuration(longWait))
+}
+
 func TestLoadingScreenAndQuit(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
@@ -545,8 +560,9 @@ func TestConsoleLogsPanel_ToggleAppendAndNavigate(t *testing.T) {
 	}
 
 	// Append output_raw console logs.
+	const numLogs = 10
 	baseTS := time.Now().Unix()
-	for i := 1; i <= 10; i++ {
+	for i := 1; i <= numLogs; i++ {
 		writeRecord(t, writer, &spb.Record{
 			RecordType: &spb.Record_OutputRaw{
 				OutputRaw: &spb.OutputRawRecord{
@@ -562,42 +578,25 @@ func TestConsoleLogsPanel_ToggleAppendAndNavigate(t *testing.T) {
 	// Trigger live read + redraw.
 	tm.Send(leet.FileChangedMsg{})
 
-	// Track width bumps so we always get fresh bytes after WaitFor consumes output.
-	repaintW := W
-	forceRepaint(tm, repaintW, H)
-	repaintW++
-
-	// Wait until:
-	// - log 10 is visible (auto-scroll)
-	// - range is present and scrolled to the latest log
-	var start0, end0, total0 int
-	waitForContent(t, tm.Output(),
+	// Wait until all logs are loaded and the view auto-scrolled to the latest.
+	var start0, total0 int
+	waitForFrame(t, tm, W, H,
 		func(s string) bool {
-			if !strings.Contains(s, "log 10") {
-				return false
-			}
 			st, en, tot, ok := parseRange(s)
-			if !ok || tot < 2 {
+			if !ok || tot != numLogs || en != tot {
 				return false
 			}
-			if en != tot {
-				return false
-			}
-			start0, end0, total0 = st, en, tot
-			_ = end0 // captured for debugging; start0/total0 used below
+			start0, total0 = st, tot
 			return true
 		},
-		teatest.WithDuration(longWait),
 	)
 
 	// Focus logs (tab) and page up (left).
 	tm.Send(tea.KeyPressMsg{Code: tea.KeyTab})
 	tm.Send(tea.KeyPressMsg{Code: tea.KeyLeft})
-	forceRepaint(tm, repaintW, H)
-	repaintW++
 
 	var start1, total1 int
-	waitForContent(t, tm.Output(),
+	waitForFrame(t, tm, W, H,
 		func(s string) bool {
 			st, _, tot, ok := parseRange(s)
 			if !ok {
@@ -606,25 +605,20 @@ func TestConsoleLogsPanel_ToggleAppendAndNavigate(t *testing.T) {
 			start1, total1 = st, tot
 			return total1 == total0 && start1 < start0
 		},
-		teatest.WithDuration(longWait),
 	)
 
 	// Page down (right) back toward the end.
 	tm.Send(tea.KeyPressMsg{Code: tea.KeyRight})
-	forceRepaint(tm, repaintW, H)
-	repaintW++
 
-	waitForContent(t, tm.Output(),
+	waitForFrame(t, tm, W, H,
 		func(s string) bool {
 			st, _, tot, ok := parseRange(s)
 			return ok && tot == total0 && st > start1 && strings.Contains(s, "log 10")
 		},
-		teatest.WithDuration(longWait),
 	)
 
 	// Close console logs panel.
 	tm.Type("4")
-	forceRepaint(tm, repaintW, H)
 
 	// Quit.
 	tm.Type("q")

@@ -169,10 +169,9 @@ func (w *Workspace) handleWorkspaceRunDirs(msg WorkspaceRunDirsMsg) tea.Cmd {
 	pollCmd := w.pollWandbDirCmd(wandbDirPollInterval)
 
 	if msg.Err != nil {
-		w.logger.CaptureError(
-			"leet",
-			fmt.Errorf("workspace: wandb dir scan: %v", msg.Err),
-		)
+		// The poll loop retries and re-reports on every tick, so keep this
+		// out of error telemetry.
+		w.logger.Error(fmt.Sprintf("workspace: wandb dir scan: %v", msg.Err))
 		return pollCmd
 	}
 
@@ -279,6 +278,10 @@ func (w *Workspace) handleWorkspaceRunOverviewPreloaded(
 ) tea.Cmd {
 	w.overviewPreloader.MarkDone(msg.RunKey)
 
+	if msg.Run != nil {
+		sessionRuns.observe(*msg.Run, false)
+	}
+
 	_, streaming := w.runsByKey[msg.RunKey]
 
 	switch {
@@ -297,13 +300,10 @@ func (w *Workspace) handleWorkspaceRunOverviewPreloaded(
 		ro.SetRunState(RunStateUnknown)
 
 	case msg.Err != nil && !errors.Is(msg.Err, errRunRecordNotFound) && !os.IsNotExist(msg.Err):
-		// Best-effort logging for unexpected failures; avoid spamming for
-		// "file not ready yet" or missing run records.
-		err := fmt.Errorf("workspace: preload run overview for %s: %v", msg.RunKey, msg.Err)
-		w.logger.CaptureError(
-			"leet",
-			err,
-		)
+		// Truncated or partially written .wandb files fail here on every
+		// scan, so keep this out of error telemetry.
+		w.logger.Error(fmt.Sprintf(
+			"workspace: preload run overview for %s: %v", msg.RunKey, msg.Err))
 	}
 
 	// Keep draining the queue.

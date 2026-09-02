@@ -6,16 +6,25 @@ import pytest
 from wandb.cli import cli, leet
 from wandb.errors import WandbCoreNotAvailableError
 
+_BASE_URL = "https://api.wandb.ai"
+
 
 @pytest.fixture
 def core_calls(monkeypatch) -> list[list[str]]:
     """Stub out wandb-core and record the arguments it would be invoked with."""
     calls: list[list[str]] = []
 
+    class _StubSettings:
+        base_url = _BASE_URL
+
+    class _StubSingleton:
+        settings = _StubSettings()
+
     monkeypatch.setattr(leet, "get_core_path", lambda: "wandb-core")
     monkeypatch.setattr(leet, "error_reporting_enabled", lambda: True)
     monkeypatch.setattr(leet, "is_debug", lambda default: False)
     monkeypatch.setattr(leet, "_run_core", lambda args, env=None: calls.append(args))
+    monkeypatch.setattr(leet.wandb_setup, "singleton", lambda: _StubSingleton())
 
     return calls
 
@@ -40,6 +49,7 @@ def test_leet_help_shows_group_help(runner, core_unavailable, help_flag):
     assert "Launch the LEET TUI" in result.output
     assert "Launch the standalone system monitor" in result.output
     assert "Edit LEET configuration" in result.output
+    assert "Browse the raw records" in result.output
     assert "wandb-core not found" not in result.output
 
 
@@ -67,7 +77,9 @@ def test_leet_defaults_to_run_command(runner, core_calls, tmp_path: pathlib.Path
     result = runner.invoke(cli.cli, ["leet", str(wandb_dir)])
 
     assert result.exit_code == 0
-    assert core_calls == [["wandb-core", "leet", str(wandb_dir.resolve())]]
+    assert core_calls == [
+        ["wandb-core", "leet", "--base-url", _BASE_URL, str(wandb_dir.resolve())]
+    ]
 
 
 def test_leet_resolves_run_directory(runner, core_calls, tmp_path: pathlib.Path):
@@ -83,9 +95,57 @@ def test_leet_resolves_run_directory(runner, core_calls, tmp_path: pathlib.Path)
         [
             "wandb-core",
             "leet",
+            "--base-url",
+            _BASE_URL,
             "--run-file",
             str(run_file.resolve()),
             str((tmp_path / "wandb").resolve()),
+        ]
+    ]
+
+
+def test_leet_inspect_resolves_run_directory(
+    runner, core_calls, tmp_path: pathlib.Path
+):
+    run_dir = tmp_path / "wandb" / "run-20250101_000000-abc123"
+    run_dir.mkdir(parents=True)
+    run_file = run_dir / "run-abc123.wandb"
+    run_file.touch()
+
+    result = runner.invoke(cli.cli, ["leet", "inspect", str(run_dir)])
+
+    assert result.exit_code == 0
+    assert core_calls == [
+        [
+            "wandb-core",
+            "leet",
+            "--base-url",
+            _BASE_URL,
+            "--inspect",
+            "--run-file",
+            str(run_file.resolve()),
+            str((tmp_path / "wandb").resolve()),
+        ]
+    ]
+
+
+def test_leet_inspect_wandb_dir_uses_latest_run(
+    runner, core_calls, tmp_path: pathlib.Path
+):
+    wandb_dir = tmp_path / "wandb"
+    wandb_dir.mkdir()
+
+    result = runner.invoke(cli.cli, ["leet", "inspect", str(wandb_dir)])
+
+    assert result.exit_code == 0
+    assert core_calls == [
+        [
+            "wandb-core",
+            "leet",
+            "--base-url",
+            _BASE_URL,
+            "--inspect",
+            str(wandb_dir.resolve()),
         ]
     ]
 
@@ -98,4 +158,6 @@ def test_beta_leet_is_an_alias(runner, core_calls, tmp_path: pathlib.Path):
 
     assert result.exit_code == 0
     assert "generally available as `wandb leet`" in result.stderr
-    assert core_calls == [["wandb-core", "leet", str(wandb_dir.resolve())]]
+    assert core_calls == [
+        ["wandb-core", "leet", "--base-url", _BASE_URL, str(wandb_dir.resolve())]
+    ]

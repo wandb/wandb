@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.49.0
+
+### Breaking Changes 🛠
+
+- removing DisableLogs and DisableMetrics client options. Sending metrics and logs is already gated by the usage of our APIs already, so having a global kill switch is counter intuitive. Users that won't to opt out should just not call the relevant APIs or setup the integrations. by @giortzisg in [#1392](https://github.com/getsentry/sentry-go/pull/1392)
+
+### New Features ✨
+
+- add `WithProxy`option for OTLP. This allows setting an `otlptracehttp.HTTPTransportProxyFunc` for the span exporter by @pierrre in [#1377](https://github.com/getsentry/sentry-go/pull/1377)
+
+### Bug Fixes 🐛
+
+- (echo) Propagate span through request context by @EricGusmao in [#1385](https://github.com/getsentry/sentry-go/pull/1385)
+- Skip recover frames on panic. This changes stacktrace behavior for captured panics, removing `sentry.Recover` frames to focus on the actual panic frames. The changes might affect issue grouping. by @giortzisg in [#1364](https://github.com/getsentry/sentry-go/pull/1364)
+
+### Internal Changes 🔧
+
+#### Deps
+
+- Bump github.com/labstack/echo/v5 from 5.0.3 to 5.2.0 in /echo by @dependabot in [#1399](https://github.com/getsentry/sentry-go/pull/1399)
+- Bump github.com/gorilla/websocket from 1.5.1 to 1.5.3 by @dependabot in [#1397](https://github.com/getsentry/sentry-go/pull/1397)
+- Bump getsentry/craft from 2.26.6 to 2.27.2 by @dependabot in [#1381](https://github.com/getsentry/sentry-go/pull/1381)
+- Bump actions/setup-go from 6.4.0 to 7.0.0 by @dependabot in [#1382](https://github.com/getsentry/sentry-go/pull/1382)
+- Bump actions/checkout from 6.0.3 to 7.0.1 by @dependabot in [#1380](https://github.com/getsentry/sentry-go/pull/1380)
+- Bump google.golang.org/grpc to 1.82.1 and golang.org/x/sys to 0.46.0 by @dependabot in [#1375](https://github.com/getsentry/sentry-go/pull/1375)
+- Bump golang.org/x/text to v0.39.0 and x/net to v0.56.0 by @giortzisg in [#1374](https://github.com/getsentry/sentry-go/pull/1374)
+
 ## 0.48.0
 
 ### Breaking Changes 🛠

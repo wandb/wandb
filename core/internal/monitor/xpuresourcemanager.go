@@ -19,6 +19,16 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
+const (
+	// collectorStartupTimeout bounds how long Acquire waits for the
+	// sidecar process to write its portfile.
+	collectorStartupTimeout = 5 * time.Second
+
+	// collectorShutdownTimeout bounds how long Release waits for the
+	// sidecar process to exit after asking it to tear down.
+	collectorShutdownTimeout = 5 * time.Second
+)
+
 type XPUResourceManagerRef int
 
 // XPUResourceManager manages the sidecar process that collects
@@ -43,7 +53,9 @@ func NewXPUResourceManager(enableDCGMProfiling bool) *XPUResourceManager {
 	}
 }
 
-func (m *XPUResourceManager) Acquire() (
+// Acquire starts the sidecar if it is not running and registers a
+// reference to it. ctx bounds the start.
+func (m *XPUResourceManager) Acquire(ctx context.Context) (
 	spb.SystemMonitorServiceClient,
 	XPUResourceManagerRef,
 	error,
@@ -52,7 +64,7 @@ func (m *XPUResourceManager) Acquire() (
 	defer m.mu.Unlock()
 
 	if m.collectorConn == nil {
-		if err := m.startCollector(); err != nil {
+		if err := m.startCollector(ctx); err != nil {
 			return nil, 0, err
 		}
 	}
@@ -80,13 +92,25 @@ func (m *XPUResourceManager) Release(ref XPUResourceManagerRef) {
 	m.collectorClient = nil
 
 	go func() {
-		_, _ = client.TearDown(context.Background(), &spb.TearDownRequest{})
+		ctx, cancel := context.WithTimeout(
+			context.Background(),
+			collectorShutdownTimeout,
+		)
+		defer cancel()
+
+		_, _ = client.TearDown(ctx, &spb.TearDownRequest{})
 		_ = conn.Close()
+
+		context.AfterFunc(ctx, func() { _ = proc.Process.Kill() })
 		_ = proc.Wait()
 	}()
 }
 
-func (m *XPUResourceManager) startCollector() error {
+func (m *XPUResourceManager) startCollector(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	pf := NewPortfile()
 	if pf == nil {
 		return errors.New("monitor: could not create portfile")
@@ -114,12 +138,13 @@ func (m *XPUResourceManager) startCollector() error {
 		return fmt.Errorf("monitor: could not start wandb-xpu binary: %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, collectorStartupTimeout)
 	defer cancel()
 	targetURI, err := pf.Read(ctx)
 	if err != nil {
 		_ = cmd.Process.Kill()
-		return fmt.Errorf("monitor: wandb-xpu binary failed to start: %v", err)
+		_ = cmd.Wait()
+		return fmt.Errorf("monitor: wandb-xpu binary failed to start: %w", err)
 	}
 
 	conn, err := grpc.NewClient(
@@ -128,6 +153,7 @@ func (m *XPUResourceManager) startCollector() error {
 	)
 	if err != nil {
 		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
 		return fmt.Errorf("monitor: could not connect to wandb-xpu binary: %v", err)
 	}
 
