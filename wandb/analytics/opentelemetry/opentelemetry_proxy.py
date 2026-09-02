@@ -37,6 +37,11 @@ _DEFAULT_EXPORT_TIMEOUT_MILLIS = 5_000
 # httpClientTimeout mirror: per-request timeout for HTTP calls to the backend.
 _HTTP_CLIENT_TIMEOUT_SECONDS = 10
 
+# probeTimeout is the timeout for the server capability probe. The probe runs
+# during SDK initialization, so it must be shorter than the initialization
+# timeout rather than consuming the whole request budget.
+_PROBE_TIMEOUT_SECONDS = 2
+
 # Backend OpenTelemetry proxy ingestion paths, appended to the base URL.
 _METRICS_PATH = "/sdk/otel/v1/metrics"
 _LOGS_PATH = "/sdk/otel/v1/logs"
@@ -46,6 +51,26 @@ _DEFAULT_SERVICE_NAME = "sdk-wandb"
 # _disabled gates OpenTelemetryProxy for the whole process. Once set, no new
 # proxy is created and telemetry becomes a no-op.
 _disabled = threading.Event()
+
+
+def _check_server_supports_open_telemetry_proxy(settings: Settings) -> bool:
+    """Return whether the server exposes the OpenTelemetry proxy endpoint."""
+    try:
+        response = requests.post(
+            settings.base_url.rstrip("/") + _METRICS_PATH,
+            timeout=_PROBE_TIMEOUT_SECONDS,
+        )
+    except requests.RequestException:
+        return False
+    status_code = response.status_code
+    response.close()
+
+    # Depending on the server configuration, an unsupported endpoint may
+    # respond with either 404 Not Found or 405 Method Not Allowed.
+    return status_code not in (
+        requests.codes.not_found,
+        requests.codes.method_not_allowed,
+    )
 
 
 def disable() -> None:
@@ -382,7 +407,11 @@ class OpenTelemetryProxy:
         pid: int | None = None,
     ) -> OpenTelemetryProxy | None:
         """Create a proxy from settings, or None if telemetry is disabled."""
-        if _disabled.is_set() or settings._offline:
+        if (
+            _disabled.is_set()
+            or settings._offline
+            or not _check_server_supports_open_telemetry_proxy(settings)
+        ):
             return None
         return cls(settings=settings, pid=pid)
 
