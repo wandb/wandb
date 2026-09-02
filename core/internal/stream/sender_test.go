@@ -12,6 +12,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filestream"
+	"github.com/wandb/wandb/core/internal/filestreamtest"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/mailbox"
@@ -19,6 +20,7 @@ import (
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runhandle"
+	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/runupserter"
 	"github.com/wandb/wandb/core/internal/runupsertertest"
 	"github.com/wandb/wandb/core/internal/runworktest"
@@ -41,6 +43,14 @@ type testFixtures struct {
 }
 
 func makeSender(t *testing.T, client graphql.Client) testFixtures {
+	return makeSenderWithFileStream(t, client, nil)
+}
+
+func makeSenderWithFileStream(
+	t *testing.T,
+	client graphql.Client,
+	fileStream filestream.FileStream,
+) testFixtures {
 	t.Helper()
 	runWork := runworktest.New()
 	logger := observabilitytest.NewTestLogger(t)
@@ -93,8 +103,14 @@ func makeSender(t *testing.T, client graphql.Client) testFixtures {
 		FeatureProvider:         featurechecker.New(nil, logger),
 		RunHandle:               runHandle,
 	}
+	var sender *stream.Sender
+	if fileStream != nil {
+		sender = senderFactory.NewWithFileStream(runWork, fileStream)
+	} else {
+		sender = senderFactory.New(runWork)
+	}
 	return testFixtures{
-		Sender:    senderFactory.New(runWork),
+		Sender:    sender,
 		RunHandle: runHandle,
 		Settings:  settings,
 		Logger:    logger,
@@ -102,7 +118,8 @@ func makeSender(t *testing.T, client graphql.Client) testFixtures {
 }
 
 func TestSendSummaryIgnoresInboundStepWithReassignFlag(t *testing.T) {
-	x := makeSender(t, gqlmock.NewMockClient())
+	fileStream := filestreamtest.NewFakeFileStream()
+	x := makeSenderWithFileStream(t, gqlmock.NewMockClient(), fileStream)
 
 	x.Sender.SendRecord(&spb.Record{
 		RecordType: &spb.Record_History{
@@ -124,50 +141,34 @@ func TestSendSummaryIgnoresInboundStepWithReassignFlag(t *testing.T) {
 		},
 	}, nil)
 
-	summary, err := x.Sender.SummaryForTest()
-	require.NoError(t, err)
+	request := fileStream.GetRequest(x.Settings)
+	require.NotNil(t, request.SummaryUpdates)
 
-	values := map[string]string{}
-	for _, item := range summary {
-		values[item.GetKey()] = item.GetValueJson()
-	}
-	assert.Equal(t, "0", values["_step"],
+	summary := runsummary.New()
+	require.NoError(t, request.SummaryUpdates.Apply(summary))
+	encoded, err := summary.Serialize()
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"loss": 1.23, "_step": 0}`, string(encoded),
 		"the tracker's step must survive a stale summary update")
-	assert.Equal(t, "1.23", values["loss"],
-		"non-step keys must still be applied")
 }
 
 func TestSendHistoryPreservesLoggedSteps(t *testing.T) {
-	mockClient := gqlmock.NewMockClient()
-	x := makeSender(t, mockClient)
+	fileStream := filestreamtest.NewFakeFileStream()
+	x := makeSenderWithFileStream(t, gqlmock.NewMockClient(), fileStream)
 
-	history := &spb.HistoryRecord{
-		Item: []*spb.HistoryItem{
-			{NestedKey: []string{"loss"}, ValueJson: "1.23"},
-			{NestedKey: []string{"_step"}, ValueJson: "7"},
-		},
-		Step: &spb.HistoryStep{Num: 7},
-	}
 	x.Sender.SendRecord(&spb.Record{
-		RecordType: &spb.Record_History{History: history},
+		RecordType: &spb.Record_History{History: &spb.HistoryRecord{
+			Item: []*spb.HistoryItem{
+				{NestedKey: []string{"loss"}, ValueJson: "1.23"},
+				{NestedKey: []string{"_step"}, ValueJson: "7"},
+			},
+			Step: &spb.HistoryStep{Num: 7},
+		}},
 	}, nil)
-	assert.Equal(t, "7", history.Item[1].ValueJson)
-	assert.Equal(t, int64(7), history.GetStep().GetNum())
 
-	// requests := mockClient.AllRequests()
-	// require.Len(t, requests, 1)
-	// gqlmock.AssertVariables(t,
-	// 	requests[0],
-	// 	gqlmock.GQLVar("history", gqlmock.JSONEq(fmt.Sprintf(`
-	// 		{
-	// 			"item": [
-	// 				{"nestedKey": ["loss"], "valueJson": "1.23"},
-	// 				{"nestedKey": ["_step"], "valueJson": "7"}
-	// 			],
-	// 			"step": {"num": 7}
-	// 		}
-	// 	`))),
-	// )
+	request := fileStream.GetRequest(x.Settings)
+	require.Len(t, request.HistoryLines, 1)
+	assert.JSONEq(t, `{"loss": 1.23, "_step": 7}`, request.HistoryLines[0])
 }
 
 // Verify that arguments are properly passed through to graphql

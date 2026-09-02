@@ -149,7 +149,16 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 			f.Settings,
 		)
 	}
+	return f.NewWithFileStream(runWork, fileStream)
+}
 
+// NewWithFileStream returns a new Sender that uses the given FileStream.
+//
+// Tests use this to inject a fake FileStream. Production code should use New.
+func (f *SenderFactory) NewWithFileStream(
+	runWork runwork.RunWork,
+	fileStream fs.FileStream,
+) *Sender {
 	var runfilesUploader runfiles.Uploader
 	if !f.Settings.IsOffline() {
 		runfilesUploader = f.RunfilesUploaderFactory.New(
@@ -869,10 +878,6 @@ func (s *Sender) updateSummaryStep(step int64) {
 	s.fileStream.StreamUpdate(&fs.SummaryUpdate{Updates: updates})
 }
 
-func (s *Sender) SummaryForTest() ([]*spb.SummaryItem, error) {
-	return s.runSummary.ToRecords()
-}
-
 func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {
 	if s.receivedExit {
 		s.logCalledAfterExit("sendSummary")
@@ -880,6 +885,10 @@ func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {
 	}
 
 	updates := runsummary.FromProto(summary)
+
+	// Summary should always use the step from history records.
+	updates.IgnoreStep()
+
 	if err := updates.Apply(s.runSummary); err != nil {
 		s.logger.CaptureError(
 			"stream",
