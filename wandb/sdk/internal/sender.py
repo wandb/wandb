@@ -295,8 +295,12 @@ class SendManager:
         self._exit_code = 0
 
         # Auto-increment step state for legacy sync history upload.
-        # Although legacy sync does not support resume, the go handler
-        # does not assign steps, so this legacy sender must assign them.
+        #
+        # The handler writes _step into the transaction log, so a replayed
+        # row normally keeps the step it was logged with. `--append` is the
+        # exception: it sets the file stream offset from the server's row
+        # count, so a replayed step must be clamped up to the starting step
+        # to avoid renumbering rows that are already on the server.
         self._next_auto_step = 0
         self._auto_step_initialized = False
 
