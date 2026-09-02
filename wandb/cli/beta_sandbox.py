@@ -8,6 +8,10 @@ from cwsandbox import CWSandboxError, SandboxStatus
 from cwsandbox.cli.shell import _validate_cmd as _cwsandbox_validate_cmd
 
 _STATUS_CHOICES = [s.value for s in SandboxStatus if s != SandboxStatus.UNSPECIFIED]
+_DEPRECATION_MESSAGE = (
+    "It will be removed in a future release. "
+    "Sandbox functionality is now maintained in the `cwsandbox` package."
+)
 
 
 class SandboxCommand(click.Command):
@@ -42,7 +46,7 @@ class SandboxGroup(click.Group):
     command_class = SandboxCommand
 
 
-@click.group(cls=SandboxGroup)
+@click.group(cls=SandboxGroup, deprecated=_DEPRECATION_MESSAGE)
 def sandbox() -> None:
     """Manage W&B sandboxes.
 
