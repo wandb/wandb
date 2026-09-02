@@ -69,7 +69,11 @@ func (ins *Inspector) renderList(width, height int) string {
 		Height(height).
 		Padding(0, ContentPadding).
 		Render(strings.Join(lines, "\n"))
-	return leftSidebarBorderStyle.Render(block)
+	borderStyle := leftSidebarBorderStyle
+	if ins.drag.cue().boundary == dragBoundaryLeftSidebar {
+		borderStyle = leftSidebarBorderHighlightStyle
+	}
+	return borderStyle.Render(block)
 }
 
 // renderListHeader renders the list title with pagination info, following

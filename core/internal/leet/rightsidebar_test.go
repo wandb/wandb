@@ -38,7 +38,7 @@ func TestRightSidebar_UpdateDimensions_ToggleAndViewHeader(t *testing.T) {
 	require.Equal(t, want, rs.Width())
 
 	// Ensure View renders header text once visible and grid ensured.
-	view := rs.View(20)
+	view := rs.View(20, false)
 	require.NotEmpty(t, view)
 	require.Contains(t, view, "System Metrics")
 }
@@ -98,7 +98,7 @@ func TestRightSidebar_HeaderShowsPaginationInfo(t *testing.T) {
 		},
 	})
 
-	view := rs.View(12)
+	view := rs.View(12, false)
 	require.Contains(t, view, "System Metrics")
 	// Header includes "[start-end of total]".
 	require.Contains(t, view, "[1-1 of 3]")
