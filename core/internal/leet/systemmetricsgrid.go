@@ -559,23 +559,14 @@ func (g *SystemMetricsGrid) cycleFocusedChartMode() bool {
 // Resize updates viewport dimensions and resizes/redraws visible charts.
 func (g *SystemMetricsGrid) Resize(width, height int) {
 	if width <= 0 || height <= 0 {
-		g.logger.Debug(fmt.Sprintf(
-			"systemmetricsgrid: Resize: invalid dimensions %dx%d, skipping", width, height))
+		return
+	}
+	if g.width == width && g.height == height {
 		return
 	}
 
 	g.width = width
 	g.height = height
-
-	dims := g.calculateChartDimensions()
-	if dims.CellW <= 0 || dims.CellH <= 0 ||
-		dims.CellW < MinMetricChartWidth ||
-		dims.CellH < MinMetricChartHeight {
-		g.logger.Debug(fmt.Sprintf(
-			"systemmetricsgrid: Resize: calculated dimensions %dx%d invalid, skipping",
-			dims.CellW, dims.CellH))
-		return
-	}
 
 	size := g.effectiveGridSize()
 	g.nav.UpdateTotalPages(len(g.filtered), ItemsPerPage(size))

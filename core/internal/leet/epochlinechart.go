@@ -1095,6 +1095,7 @@ func TruncateTitle(title string, maxWidth int) string {
 func (c *EpochLineChart) SetGraphStyle(s *lipgloss.Style) {
 	if top := c.topSeries(); top != nil {
 		top.style.Store(*s)
+		c.dirty = true
 	}
 }
 
