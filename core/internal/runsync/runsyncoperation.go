@@ -138,10 +138,6 @@ func (op *RunSyncOperation) Do(
 
 // initAndPlan inits all syncers and returns the order in which to run them.
 //
-// Syncers that fail to initialize, such as for an unreadable .wandb file, are
-// reported to the user and left out of the plan. An error is only returned if
-// the operation is cancelled.
-//
 // The return value is a map from run paths to lists of syncers.
 // Different paths can be synced independently, but all syncers for the same
 // path must run in order. This happens when syncing multiple resumed
@@ -158,14 +154,7 @@ func (op *RunSyncOperation) initAndPlan(
 	for _, syncer := range op.syncers {
 		info, err := syncer.Init(ctx)
 		if err != nil {
-			// Don't report every remaining file if the operation is over.
-			if ctx.Err() != nil {
-				return nil, err
-			}
-
-			LogSyncFailure(op.logger, err)
-			op.printer.Errorf("%s", ToUserText(err))
-			continue
+			return nil, err
 		}
 
 		runPath := info.Path()
