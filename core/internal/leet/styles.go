@@ -4,14 +4,11 @@ import (
 	"fmt"
 	"image/color"
 	"math"
-	"os"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
 	"charm.land/lipgloss/v2"
-	"github.com/muesli/termenv"
 )
 
 // darkBackground tracks whether the terminal has a dark background.
@@ -22,10 +19,21 @@ var darkBackground atomic.Bool
 
 func init() { darkBackground.Store(true) }
 
+// styleEpoch increments when a global style input changes (the terminal
+// background); cached renders rebuild when it moves.
+var styleEpoch atomic.Uint64
+
+// StyleEpoch returns the current global style generation.
+func StyleEpoch() uint64 { return styleEpoch.Load() }
+
 // SetDarkBackground updates the cached terminal-background flag.
 // Call this from your Bubble Tea Update when you receive
 // tea.BackgroundColorMsg.
-func SetDarkBackground(dark bool) { darkBackground.Store(dark) }
+func SetDarkBackground(dark bool) {
+	if darkBackground.Swap(dark) != dark {
+		styleEpoch.Add(1)
+	}
+}
 
 // IsDarkBackground reports the current cached value.
 func IsDarkBackground() bool { return darkBackground.Load() }
@@ -43,34 +51,23 @@ func (c AdaptiveColor) RGBA() (uint32, uint32, uint32, uint32) {
 	return lipgloss.LightDark(darkBackground.Load())(c.Light, c.Dark).RGBA()
 }
 
-// Terminal background detection (cached).
-var (
-	termBgOnce     sync.Once
-	termBgR        uint8
-	termBgG        uint8
-	termBgB        uint8
-	termBgDetected bool
-)
+// terminalBg is the terminal's reported background, nil until Bubble Tea
+// delivers tea.BackgroundColorMsg. Never query it directly: an OSC 11
+// round-trip at package init blocks every importing binary.
+var terminalBg atomic.Pointer[[3]uint8]
 
-// initTerminalBg queries the terminal for its background color (once).
-func initTerminalBg() {
-	termBgOnce.Do(func() {
-		output := termenv.NewOutput(os.Stdout)
-		bg := output.BackgroundColor()
-		if bg == nil {
-			return
-		}
-
-		// termenv.RGBColor is a string type like "#RRGGBB"
-		if rgb, ok := bg.(termenv.RGBColor); ok {
-			var r, g, b uint8
-			if _, err := fmt.Sscanf(string(rgb), "#%02x%02x%02x", &r, &g, &b); err != nil {
-				return
-			}
-			termBgR, termBgG, termBgB = r, g, b
-			termBgDetected = true
-		}
-	})
+// SetTerminalBackground records the terminal background from tea.BackgroundColorMsg.
+func SetTerminalBackground(c color.Color) {
+	if c == nil {
+		return
+	}
+	r, g, b, _ := c.RGBA()
+	rgb := [3]uint8{uint8(r >> 8), uint8(g >> 8), uint8(b >> 8)}
+	if prev := terminalBg.Load(); prev != nil && *prev == rgb {
+		return
+	}
+	terminalBg.Store(&rgb)
+	styleEpoch.Add(1)
 }
 
 // blendRGB blends (r,g,b) toward (tr,tg,tb) by alpha (0.0–1.0).
@@ -84,11 +81,10 @@ func blendRGB(r, g, b, tr, tg, tb uint8, alpha float64) color.Color {
 }
 
 // terminalBackgroundRGB returns the terminal's background color, falling
-// back to a typical dark/light background when detection failed.
+// back to a typical dark/light background until the terminal reports one.
 func terminalBackgroundRGB() (r, g, b uint8) {
-	initTerminalBg()
-	if termBgDetected {
-		return termBgR, termBgG, termBgB
+	if bg := terminalBg.Load(); bg != nil {
+		return bg[0], bg[1], bg[2]
 	}
 	if IsDarkBackground() {
 		return 0x1c, 0x1c, 0x1c
@@ -96,18 +92,22 @@ func terminalBackgroundRGB() (r, g, b uint8) {
 	return 0xff, 0xff, 0xff
 }
 
-// getOddRunStyleColor returns a color 5% darker than the terminal background.
+// getOddRunStyleColor returns the terminal background blended 5% toward
+// mid-gray, or an adaptive fallback until the terminal reports its color.
 func getOddRunStyleColor() color.Color {
-	initTerminalBg()
-
-	if termBgDetected {
-		return blendRGB(termBgR, termBgG, termBgB, 128, 128, 128, 0.05)
+	if bg := terminalBg.Load(); bg != nil {
+		return blendRGB(bg[0], bg[1], bg[2], 128, 128, 128, 0.05)
 	}
 
 	return AdaptiveColor{
 		Light: lipgloss.Color("#d0d0d0"),
 		Dark:  lipgloss.Color("#1c1c1c"),
 	}
+}
+
+// oddRunStyle returns the zebra-stripe row style for the current terminal background.
+func oddRunStyle() lipgloss.Style {
+	return lipgloss.NewStyle().Background(getOddRunStyleColor())
 }
 
 // Immutable UI constants.
@@ -851,8 +851,8 @@ var (
 		Dark:  lipgloss.Color("#6B5200"),
 	}
 
-	evenRunStyle             = lipgloss.NewStyle()
-	oddRunStyle              = lipgloss.NewStyle().Background(getOddRunStyleColor())
+	evenRunStyle = lipgloss.NewStyle()
+
 	selectedRunStyle         = lipgloss.NewStyle().Background(colorSelected)
 	selectedRunInactiveStyle = lipgloss.NewStyle().Background(colorSelectedRunInactiveStyle)
 )
