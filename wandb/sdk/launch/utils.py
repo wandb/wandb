@@ -11,7 +11,7 @@ import subprocess
 import sys
 from collections import defaultdict
 from collections.abc import Iterator
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 import click
 
@@ -148,9 +148,7 @@ def event_loop_thread_exec(func: Any) -> Any:
 
     async def wrapper(*args: Any, **kwargs: Any) -> Any:
         loop = asyncio.get_event_loop()
-        result = cast(
-            Any, await loop.run_in_executor(None, lambda: func(*args, **kwargs))
-        )
+        result = await loop.run_in_executor(None, lambda: func(*args, **kwargs))
         return result
 
     return wrapper
