@@ -84,6 +84,43 @@ def mock_preparer(**kwargs):
     return Mock(**kwargs)
 
 
+@mark.parametrize(
+    ("file_transfer_timeout", "request_timeout", "expected_timeout"),
+    [
+        (None, None, 7),
+        (4.5, None, 4.5),
+        (0, None, None),
+        (None, 3, 3),
+    ],
+)
+def test_artifact_http_session_timeout(
+    monkeypatch: MonkeyPatch,
+    file_transfer_timeout: float | None,
+    request_timeout: float | None,
+    expected_timeout: float | None,
+) -> None:
+    settings = Mock(
+        x_extra_http_headers=None,
+        x_file_transfer_timeout_seconds=file_transfer_timeout,
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.wandb_setup.singleton",
+        Mock(return_value=Mock(settings=settings)),
+    )
+    monkeypatch.setenv("WANDB_HTTP_TIMEOUT", "7")
+    request = Mock()
+    monkeypatch.setattr(requests.Session, "request", request)
+
+    with make_http_session() as session:
+        kwargs = {} if request_timeout is None else {"timeout": request_timeout}
+        session.get("https://example.invalid/manifest.json", **kwargs)
+
+    if expected_timeout is None:
+        assert "timeout" not in request.call_args.kwargs
+    else:
+        assert request.call_args.kwargs["timeout"] == expected_timeout
+
+
 def test_capped_cache():
     for i in range(101):
         art = Artifact(f"foo-{i}", type="test")
