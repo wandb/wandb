@@ -86,8 +86,10 @@ def test_server_supports_open_telemetry_proxy(
 
     settings = Settings(base_url="http://localhost:8765")
     proxy = OpenTelemetryProxy.from_settings(settings)
+    assert proxy is not None
+    proxy._probe_thread.join()
 
-    assert (proxy is None) is expected_none
+    assert proxy._disabled is expected_none
 
 
 def test_server_supports_open_telemetry_proxy_timeout(monkeypatch):
@@ -97,9 +99,13 @@ def test_server_supports_open_telemetry_proxy_timeout(monkeypatch):
         MagicMock(side_effect=requests.Timeout),
     )
 
-    proxy = OpenTelemetryProxy.from_settings(Settings(base_url="http://localhost:8765"))
+    proxy = OpenTelemetryProxy.from_settings(
+        Settings(base_url="http://localhost:8765"),
+    )
+    assert proxy is not None
+    proxy._probe_thread.join()
 
-    assert proxy is None
+    assert proxy._disabled
 
 
 def test_telemetry_without_proxy_does_not_publish():
@@ -150,6 +156,11 @@ def test_reraise_raises_original_on_telemetry_fail(monkeypatch):
 def test_proxy_noop_after_disable(monkeypatch):
     disabled = threading.Event()
     monkeypatch.setattr(opentelemetry_proxy, "_disabled", disabled)
+    monkeypatch.setattr(
+        opentelemetry_proxy,
+        "_check_server_supports_open_telemetry_proxy",
+        MagicMock(return_value=True),
+    )
     meter_provider = MagicMock()
     logger_provider = MagicMock()
     monkeypatch.setattr(
