@@ -192,14 +192,7 @@ func (sm *SystemMonitor) initializeResources(xpuResourceManager *XPUResourceMana
 		sm.addResource(system)
 	}
 
-	if xpu, err := NewXPU(xpuResourceManager, pid, gpuDeviceIds); xpu != nil {
-		sm.addResource(xpu)
-	} else if err != nil {
-		sm.logger.CaptureError(
-			"monitor",
-			fmt.Errorf("monitor: failed to initialize xpu resource: %v", err),
-		)
-	}
+	sm.addResource(NewXPU(sm.ctx, xpuResourceManager, pid, gpuDeviceIds))
 
 	if trainium := NewTrainium(
 		sm.logger,
@@ -527,8 +520,15 @@ func (sm *SystemMonitor) sample() {
 //
 // Use to filter out expected/transient failures. Keep this intentionally small and specific.
 func ShouldCaptureSamplingError(err error) bool {
-	// Transient gRPC connectivity to the wandb-xpu sidecar.
-	if s, ok := status.FromError(err); ok && s.Code() == codes.Unavailable {
+	// The caller went away, e.g. the run finished mid-sample.
+	if errors.Is(err, context.Canceled) {
+		return false
+	}
+
+	// Transient gRPC connectivity to the wandb-xpu sidecar, or a request
+	// canceled by the caller.
+	if s, ok := status.FromError(err); ok &&
+		(s.Code() == codes.Unavailable || s.Code() == codes.Canceled) {
 		return false
 	}
 
