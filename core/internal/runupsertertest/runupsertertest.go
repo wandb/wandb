@@ -89,7 +89,12 @@ func StubUpsertBucket(t *testing.T, mockGQL *gqlmock.MockClient) {
 	}`)
 }
 
-func StubRunResumeStatusWithStep(t *testing.T, mock *gqlmock.MockClient, step int64) {
+func StubRunResumeStatusWithStepAndRuntime(
+	t *testing.T,
+	mock *gqlmock.MockClient,
+	step int64,
+	runtime float64,
+) {
 	mock.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), fmt.Sprintf(`{
 		"model": {
 			"bucket": {
@@ -99,13 +104,13 @@ func StubRunResumeStatusWithStep(t *testing.T, mock *gqlmock.MockClient, step in
 				"eventsLineCount": 0,
 				"logLineCount": 0,
 				"historyTail": "[]",
-				"summaryMetrics": "{\"_step\": %d}",
+				"summaryMetrics": "{\"_step\": %d, \"_runtime\": %f}",
 				"config": "{}",
 				"eventsTail": "[]",
 				"wandbConfig": "{\"t\": 1}"
 			}
 		}
-	}`, step))
+	}`, step, runtime))
 }
 
 // Telemetry is the telemetry uploaded through an UpsertBucket request.
