@@ -14,6 +14,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
+### Added
+
+- LEET charts metrics against the custom x-axes set with `run.define_metric()`. A metric defined with a `step_metric`, directly or through a glob like `run.define_metric("train/*", step_metric="train/step")`, is plotted against that metric instead of the step counter, with the axis name shown as `[x: train/step]` in the chart header. Applies to runs viewed from local `.wandb` files (@dmitryduev in https://github.com/wandb/wandb/pull/12568)
+
 ### Changed
 
 - LEET is faster on long runs: a 50k-step run loads in about half the time, frames render about 30 percent faster, and live chart updates no longer re-render every point (@dmitryduev in https://github.com/wandb/wandb/pull/12535, https://github.com/wandb/wandb/pull/12536, https://github.com/wandb/wandb/pull/12537, https://github.com/wandb/wandb/pull/12538, https://github.com/wandb/wandb/pull/12539)
