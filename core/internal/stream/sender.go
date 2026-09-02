@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -109,6 +110,9 @@ type Sender struct {
 
 	// runSummary is the full summary for the run
 	runSummary *runsummary.RunSummary
+
+	// stepTracker assigns increasing _step values and updates summary _step.
+	stepTracker *HistoryStepTracker
 
 	// receivedExit is true once the Sender receives an Exit record.
 	receivedExit bool
@@ -218,6 +222,11 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 		runSummary:        runsummary.New(),
 		consoleLogsSender: runconsolelogs.New(consoleLogsSenderParams),
 	}
+	s.stepTracker = (&HistoryStepTrackerFactory{
+		Logger:    s.logger,
+		Settings:  s.settings,
+		RunHandle: s.runHandle,
+	}).New()
 
 	if !s.settings.IsOffline() && !s.settings.IsJobCreationDisabled() {
 		s.jobBuilder = launch.NewJobBuilder(s.settings, s.logger, false)
@@ -812,11 +821,22 @@ func (s *Sender) sendUseArtifact(record *spb.Record) {
 	s.jobBuilder.HandleUseArtifactRecord(record)
 }
 
-// sendHistory sends a history record to the file stream,
-// which will then send it to the server
+// sendHistory queues a history record for uploading to the server.
+//
+// If the history record does not contain a _step value, this method will
+// auto-assign one. It will also update the run summary's _step value.
 func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 	if s.receivedExit {
 		s.logCalledAfterExit("sendHistory")
+		return
+	}
+
+	step, err := s.stepTracker.ApplyHistoryStep(record)
+	if err != nil {
+		s.logger.CaptureError(
+			"stream",
+			fmt.Errorf("sender: error applying history step: %v", err),
+		)
 		return
 	}
 
@@ -825,6 +845,32 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 	}
 
 	s.fileStream.StreamUpdate(&fs.HistoryUpdate{Record: record})
+	if !s.settings.IsSharedMode() || s.settings.IsEnableServerSideDerivedSummary() {
+		s.updateSummaryStep(step)
+	}
+}
+
+func (s *Sender) updateSummaryStep(step int64) {
+	if s.settings.IsEnableServerSideDerivedSummary() {
+		return
+	}
+
+	updates := runsummary.FromProto(&spb.SummaryRecord{Update: []*spb.SummaryItem{{
+		Key:       "_step",
+		ValueJson: strconv.FormatInt(step, 10),
+	}}})
+	if err := updates.Apply(s.runSummary); err != nil {
+		s.logger.CaptureError(
+			"stream",
+			fmt.Errorf("historystep: error updating summary step: %v", err))
+		return
+	}
+
+	s.fileStream.StreamUpdate(&fs.SummaryUpdate{Updates: updates})
+}
+
+func (s *Sender) SummaryForTest() ([]*spb.SummaryItem, error) {
+	return s.runSummary.ToRecords()
 }
 
 func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {
