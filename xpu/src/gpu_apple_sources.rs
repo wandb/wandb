@@ -32,6 +32,7 @@ use std::{
     mem::{MaybeUninit, size_of},
     os::raw::c_void,
     ptr::null,
+    time::{Duration, Instant},
 };
 
 use core_foundation::{
@@ -209,13 +210,13 @@ pub fn cfio_get_residencies(item: CFDictionaryRef) -> Vec<(String, i64)> {
     res
 }
 
-pub fn cfio_watts(item: CFDictionaryRef, unit: &String, duration: u64) -> WithError<f32> {
-    let val = unsafe { IOReportSimpleGetIntegerValue(item, 0) } as f32;
-    let val = val / (duration as f32 / 1000.0);
-    match unit.as_str() {
-        "mJ" => Ok(val / 1e3f32),
-        "uJ" => Ok(val / 1e6f32),
-        "nJ" => Ok(val / 1e9f32),
+pub fn cfio_watts(item: CFDictionaryRef, unit: &str, duration: Duration) -> WithError<f32> {
+    let val = unsafe { IOReportSimpleGetIntegerValue(item, 0) } as f64;
+    let val = val / duration.as_secs_f64();
+    match unit {
+        "mJ" => Ok((val / 1e3) as f32),
+        "uJ" => Ok((val / 1e6) as f32),
+        "nJ" => Ok((val / 1e9) as f32),
         _ => Err(format!("Invalid energy unit: {}", unit).into()),
     }
 }
@@ -425,7 +426,7 @@ pub fn libc_swap() -> WithError<(u64, u64)> {
 pub struct SocInfo {
     pub mac_model: String,
     pub chip_name: String,
-    pub memory_gb: u8,
+    pub memory_gb: u16,
     pub ecpu_cores: u8,
     pub pcpu_cores: u8,
     pub ecpu_freqs: Vec<u32>,
@@ -540,7 +541,7 @@ pub fn get_soc_info() -> WithError<SocInfo> {
     // Assign parsed values to info
     info.chip_name = chip_name;
     info.mac_model = mac_model;
-    info.memory_gb = mem_gb as u8;
+    info.memory_gb = mem_gb as u16;
     info.gpu_cores = gpu_cores as u8;
     info.ecpu_cores = ecpu_cores as u8;
     info.pcpu_cores = pcpu_cores as u8;
@@ -635,65 +636,31 @@ fn cfio_get_subs(chan: CFMutableDictionaryRef) -> WithError<IOReportSubscription
 pub struct IOReport {
     subs: IOReportSubscriptionRef,
     chan: CFMutableDictionaryRef,
-    prev: Option<(CFDictionaryRef, std::time::Instant)>,
+    prev: (CFDictionaryRef, Instant),
 }
 
 impl IOReport {
     pub fn new(channels: Vec<(&str, Option<&str>)>) -> WithError<Self> {
         let chan = cfio_get_chan(channels)?;
         let subs = cfio_get_subs(chan)?;
-        Ok(Self {
-            subs,
-            chan,
-            prev: None,
-        })
+        let prev = unsafe { (IOReportCreateSamples(subs, chan, null()), Instant::now()) };
+        Ok(Self { subs, chan, prev })
     }
 
-    pub fn get_sample(&self, duration: u64) -> IOReportIterator {
-        unsafe {
-            let sample1 = IOReportCreateSamples(self.subs, self.chan, null());
-            std::thread::sleep(std::time::Duration::from_millis(duration));
-            let sample2 = IOReportCreateSamples(self.subs, self.chan, null());
-
-            let sample3 = IOReportCreateSamplesDelta(sample1, sample2, null());
-            CFRelease(sample1 as _);
-            CFRelease(sample2 as _);
-            IOReportIterator::new(sample3)
-        }
-    }
-
-    fn raw_sample(&self) -> (CFDictionaryRef, std::time::Instant) {
-        (
-            unsafe { IOReportCreateSamples(self.subs, self.chan, null()) },
-            std::time::Instant::now(),
-        )
-    }
-
-    pub fn get_samples(&mut self, duration: u64, count: usize) -> Vec<(IOReportIterator, u64)> {
-        let count = count.clamp(1, 32);
-        let mut samples: Vec<(IOReportIterator, u64)> = Vec::with_capacity(count);
-        let step_msec = duration / count as u64;
-
-        let mut prev = match self.prev {
-            Some(x) => x,
-            None => self.raw_sample(),
+    /// Returns the counter deltas since the previous call (or since construction)
+    /// together with the elapsed wall time.
+    pub fn sample_since_last(&mut self) -> (IOReportIterator, Duration) {
+        let next = unsafe {
+            (
+                IOReportCreateSamples(self.subs, self.chan, null()),
+                Instant::now(),
+            )
         };
-
-        for _ in 0..count {
-            std::thread::sleep(std::time::Duration::from_millis(step_msec));
-
-            let next = self.raw_sample();
-            let diff = unsafe { IOReportCreateSamplesDelta(prev.0, next.0, null()) };
-            unsafe { CFRelease(prev.0 as _) };
-
-            let elapsed = next.1.duration_since(prev.1).as_millis() as u64;
-            prev = next;
-
-            samples.push((IOReportIterator::new(diff), elapsed.max(1)));
-        }
-
-        self.prev = Some(prev);
-        samples
+        let diff = unsafe { IOReportCreateSamplesDelta(self.prev.0, next.0, null()) };
+        unsafe { CFRelease(self.prev.0 as _) };
+        let elapsed = next.1.duration_since(self.prev.1);
+        self.prev = next;
+        (IOReportIterator::new(diff), elapsed)
     }
 }
 
@@ -702,9 +669,7 @@ impl Drop for IOReport {
         unsafe {
             CFRelease(self.chan as _);
             CFRelease(self.subs as _);
-            if self.prev.is_some() {
-                CFRelease(self.prev.unwrap().0 as _);
-            }
+            CFRelease(self.prev.0 as _);
         }
     }
 }
