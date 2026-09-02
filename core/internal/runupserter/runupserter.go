@@ -202,13 +202,6 @@ func InitRun(
 	// UpsertBucket request.
 	branchPoint := runRecord.BranchPoint
 	switch {
-	case params.Settings.GetResume() != "":
-		err := upserter.updateMetadataForResume(ctx, params.Settings.GetResume())
-
-		if err != nil {
-			return nil, ToRunUpdateError(err)
-		}
-
 	case branchPoint != nil && branchPoint.GetRun() == runRecord.RunId:
 		// Branching a run from an earlier point in its history is rewinding.
 		err := upserter.updateMetadataForRewind(ctx, branchPoint)
@@ -224,6 +217,20 @@ func InitRun(
 		if err != nil {
 			return nil, ToRunUpdateError(err)
 		}
+
+	default:
+		resumeSetting := params.Settings.GetResume()
+		if runParams.Resume || resumeSetting == "never" {
+			if err := upserter.updateMetadataForResume(ctx, resumeSetting); err != nil {
+				return nil, ToRunUpdateError(err)
+			}
+		}
+	}
+
+	// If we're offline, skip upserting and leave the sync state to
+	// when we actually sync.
+	if upserter.graphqlClientOrNil == nil {
+		return upserter, nil
 	}
 
 	startingStep, err := upserter.syncStateStore.GetOrInitStartingStep(
@@ -235,11 +242,6 @@ func InitRun(
 	upserter.params.StartingStep = startingStep
 
 	upserter.startRuntime = time.Duration(upserter.params.Runtime) * time.Second
-
-	// If we're offline, skip upserting.
-	if upserter.graphqlClientOrNil == nil {
-		return upserter, nil
-	}
 
 	upserter.mu.Lock()
 	defer upserter.mu.Unlock()
@@ -474,11 +476,8 @@ func (upserter *RunUpserter) updateMetadataForResume(
 	resumeSetting string,
 ) error {
 	if upserter.graphqlClientOrNil == nil {
-		// Ignore the resume mode when offline.
-		//
-		// A warning is printed by the client during wandb.init().
-		//
-		// resume="auto" is always OK and is handled by the client.
+		// When offline, we cannot query the backend to reconcile resume state,
+		// so resume reconciliation is deferred to `wandb sync`.
 		return nil
 	}
 
@@ -486,6 +485,7 @@ func (upserter *RunUpserter) updateMetadataForResume(
 		ctx,
 		upserter.graphqlClientOrNil,
 		resumeSetting,
+		upserter.logger,
 	).UpdateForResume(
 		upserter.params,
 		upserter.config,

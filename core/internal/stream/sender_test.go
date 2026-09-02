@@ -6,6 +6,7 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
@@ -18,6 +19,8 @@ import (
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runhandle"
+	"github.com/wandb/wandb/core/internal/runupserter"
+	"github.com/wandb/wandb/core/internal/runupsertertest"
 	"github.com/wandb/wandb/core/internal/runworktest"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
@@ -68,6 +71,14 @@ func makeSender(t *testing.T, client graphql.Client) testFixtures {
 		Settings:     settings,
 	}
 	runHandle := runhandle.New()
+	upserter := runupsertertest.NewTestUpserter(
+		t,
+		"test-entity",
+		"test-project",
+		"run1",
+		runupserter.RunUpserterParams{Settings: settings},
+	)
+	assert.NoError(t, runHandle.Init(upserter))
 
 	senderFactory := stream.SenderFactory{
 		BaseURL:                 baseURL,
@@ -88,6 +99,75 @@ func makeSender(t *testing.T, client graphql.Client) testFixtures {
 		Settings:  settings,
 		Logger:    logger,
 	}
+}
+
+func TestSendSummaryIgnoresInboundStepWithReassignFlag(t *testing.T) {
+	x := makeSender(t, gqlmock.NewMockClient())
+
+	x.Sender.SendRecord(&spb.Record{
+		RecordType: &spb.Record_History{
+			History: &spb.HistoryRecord{
+				Item: []*spb.HistoryItem{
+					{NestedKey: []string{"loss"}, ValueJson: "1.23"},
+				},
+			},
+		},
+	}, nil)
+	x.Sender.SendRecord(&spb.Record{
+		RecordType: &spb.Record_Summary{
+			Summary: &spb.SummaryRecord{
+				Update: []*spb.SummaryItem{
+					{Key: "loss", ValueJson: "1.23"},
+					{Key: "_step", ValueJson: "999"},
+				},
+			},
+		},
+	}, nil)
+
+	summary, err := x.Sender.SummaryForTest()
+	require.NoError(t, err)
+
+	values := map[string]string{}
+	for _, item := range summary {
+		values[item.GetKey()] = item.GetValueJson()
+	}
+	assert.Equal(t, "0", values["_step"],
+		"the tracker's step must survive a stale summary update")
+	assert.Equal(t, "1.23", values["loss"],
+		"non-step keys must still be applied")
+}
+
+func TestSendHistoryPreservesLoggedSteps(t *testing.T) {
+	mockClient := gqlmock.NewMockClient()
+	x := makeSender(t, mockClient)
+
+	history := &spb.HistoryRecord{
+		Item: []*spb.HistoryItem{
+			{NestedKey: []string{"loss"}, ValueJson: "1.23"},
+			{NestedKey: []string{"_step"}, ValueJson: "7"},
+		},
+		Step: &spb.HistoryStep{Num: 7},
+	}
+	x.Sender.SendRecord(&spb.Record{
+		RecordType: &spb.Record_History{History: history},
+	}, nil)
+	assert.Equal(t, "7", history.Item[1].ValueJson)
+	assert.Equal(t, int64(7), history.GetStep().GetNum())
+
+	// requests := mockClient.AllRequests()
+	// require.Len(t, requests, 1)
+	// gqlmock.AssertVariables(t,
+	// 	requests[0],
+	// 	gqlmock.GQLVar("history", gqlmock.JSONEq(fmt.Sprintf(`
+	// 		{
+	// 			"item": [
+	// 				{"nestedKey": ["loss"], "valueJson": "1.23"},
+	// 				{"nestedKey": ["_step"], "valueJson": "7"}
+	// 			],
+	// 			"step": {"num": 7}
+	// 		}
+	// 	`))),
+	// )
 }
 
 // Verify that arguments are properly passed through to graphql
