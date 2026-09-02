@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
@@ -19,7 +20,7 @@ func newTestSystemMonitor(t *testing.T) *monitor.SystemMonitor {
 	t.Helper()
 	factory := &monitor.SystemMonitorFactory{
 		Logger:             observabilitytest.NewTestLogger(t),
-		Settings:           settings.From(&spb.Settings{}),
+		Settings:           settings.From(&spb.Settings{XDisableStats: wrapperspb.Bool(true)}),
 		XPUResourceManager: monitor.NewXPUResourceManager(false),
 	}
 	return factory.New(runworktest.New())
