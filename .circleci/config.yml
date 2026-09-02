@@ -521,6 +521,11 @@ jobs:
             sudo apt-get install -y -qq python3-pip >/dev/null
             cd xpu
             cargo test --verbose
+      - run:
+          name: Check wandb-xpu proto tooling compiles
+          command: |
+            cd xpu
+            cargo check --features build-proto --bin build_proto
       - save-cargo-cache
 
 workflows:

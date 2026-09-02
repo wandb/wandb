@@ -7,6 +7,10 @@ rust-version = "1.88"
 [[bin]]
 name = "build_proto"
 path = "tools/build_proto.rs"
+required-features = ["build-proto"]
+
+[features]
+build-proto = ["dep:tempfile", "dep:tonic-prost-build"]
 
 [dependencies]
 log = "0.4.33"
@@ -19,13 +23,12 @@ prost = "0.14.4"
 prost-types = "0.14.4"
 tonic = "0.14.6"
 tonic-prost = "0.14.6"
-tonic-reflection = "0.14.6"
 tokio = { version = "1.53.1", features = ["full"] }
 tokio-stream = "0.1.19"
 chrono = "0.4.45"
 
-tonic-prost-build = "0.14.6"
-tempfile = "3.27.0"
+tonic-prost-build = { version = "0.14.6", optional = true }
+tempfile = { version = "3.27.0", optional = true }
 
 libloading = "0.9"
 async-trait = "0.1.91"
