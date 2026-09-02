@@ -974,21 +974,8 @@ impl SMC {
 
     pub fn read_all_keys(&mut self) -> WithError<Vec<String>> {
         let val = self.read_val("#KEY")?;
-        let val = u32::from_be_bytes(val.data[0..4].try_into().unwrap());
-
-        let mut keys = Vec::new();
-        for i in 0..val {
-            let key = self.key_by_index(i)?;
-            let val = self.read_val(&key);
-            if val.is_err() {
-                continue;
-            }
-
-            let val = val.unwrap();
-            keys.push(val.name);
-        }
-
-        Ok(keys)
+        let count = u32::from_be_bytes(val.data[0..4].try_into().unwrap());
+        (0..count).map(|i| self.key_by_index(i)).collect()
     }
 }
 
