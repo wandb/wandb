@@ -90,7 +90,7 @@ func (hs *LevelDBHistorySource) Read(
 	}
 
 	var msgs []tea.Msg
-	var histories []HistoryMsg
+	var history historyAccumulator
 	var summaries []SummaryMsg
 	scannedCount := 0
 	startTime := time.Now()
@@ -122,10 +122,13 @@ func (hs *LevelDBHistorySource) Read(
 			break
 		}
 
+		if h, ok := record.RecordType.(*spb.Record_History); ok {
+			history.addRecord(hs.runPath, h.History)
+			continue
+		}
+
 		if msg := hs.recordToMsg(record); msg != nil {
 			switch m := msg.(type) {
-			case HistoryMsg:
-				histories = append(histories, m)
 			case SummaryMsg:
 				summaries = append(summaries, m)
 			default:
@@ -134,8 +137,8 @@ func (hs *LevelDBHistorySource) Read(
 		}
 	}
 
-	if len(histories) > 0 {
-		msgs = append(msgs, concatenateHistory(histories, hs.runPath))
+	if msg, ok := history.toMsg(hs.runPath); ok {
+		msgs = append(msgs, msg)
 	}
 	if len(summaries) > 0 {
 		msgs = append(msgs, concatenateSummary(summaries, hs.runPath))
@@ -176,8 +179,6 @@ func (hs *LevelDBHistorySource) recordToMsg(record *spb.Record) tea.Msg {
 			msg.StartTime = ts.AsTime()
 		}
 		return msg
-	case *spb.Record_History:
-		return ParseHistory(hs.runPath, rec.History)
 	case *spb.Record_Stats:
 		return ParseStats(hs.runPath, rec.Stats)
 	case *spb.Record_Summary:
@@ -201,15 +202,19 @@ func (hs *LevelDBHistorySource) Close() {
 	}
 }
 
-// ParseHistory extracts metrics and media from a history record.
-func ParseHistory(runPath string, history *spb.HistoryRecord) tea.Msg {
+// historyAccumulator merges a chunk's history records into per-metric series.
+type historyAccumulator struct {
+	metrics map[string]MetricData
+	media   map[string][]MediaPoint
+}
+
+func (acc *historyAccumulator) addRecord(runPath string, history *spb.HistoryRecord) {
 	if history == nil {
-		return nil
+		return
 	}
 
-	step := int(history.GetStep().GetNum())
-	values := make(map[string]float64, len(history.GetItem()))
-	mediaFieldsByKey := make(map[string]map[string]string)
+	step := int(historyStep(history))
+	var mediaFieldsByKey map[string]map[string]string
 
 	for _, item := range history.GetItem() {
 		if item == nil {
@@ -217,6 +222,9 @@ func ParseHistory(runPath string, history *spb.HistoryRecord) tea.Msg {
 		}
 
 		if mediaKey, field, ok := historyMediaField(item); ok {
+			if mediaFieldsByKey == nil {
+				mediaFieldsByKey = make(map[string]map[string]string)
+			}
 			fields := mediaFieldsByKey[mediaKey]
 			if fields == nil {
 				fields = make(map[string]string)
@@ -226,49 +234,53 @@ func ParseHistory(runPath string, history *spb.HistoryRecord) tea.Msg {
 			continue
 		}
 
-		key := strings.Join(item.GetNestedKey(), ".")
-		if key == "" {
-			key = item.GetKey()
-		}
-		if key == "" {
+		key := historyItemKey(item)
+		if key == "" || strings.HasPrefix(key, "_") {
 			continue
 		}
-
-		v := trimJSONString(item.ValueJson)
-		if key == "_step" {
-			if s, err := strconv.Atoi(v); err == nil {
-				step = s
-			}
+		val, err := strconv.ParseFloat(trimJSONString(item.ValueJson), 64)
+		if err != nil {
 			continue
 		}
-		if strings.HasPrefix(key, "_") {
-			continue
+		if acc.metrics == nil {
+			acc.metrics = make(map[string]MetricData)
 		}
-		if val, err := strconv.ParseFloat(v, 64); err == nil {
-			values[key] = val
-		}
+		md := acc.metrics[key]
+		md.X = append(md.X, float64(step))
+		md.Y = append(md.Y, val)
+		acc.metrics[key] = md
 	}
 
-	metrics := make(map[string]MetricData, len(values))
-	if len(values) > 0 {
-		x := []float64{float64(step)}
-		for k, y := range values {
-			metrics[k] = MetricData{X: x, Y: []float64{y}}
+	for key, points := range parseHistoryMedia(runPath, step, mediaFieldsByKey) {
+		if acc.media == nil {
+			acc.media = make(map[string][]MediaPoint)
 		}
+		acc.media[key] = append(acc.media[key], points...)
 	}
+}
 
-	media := parseHistoryMedia(runPath, step, mediaFieldsByKey)
+func (acc *historyAccumulator) toMsg(runPath string) (HistoryMsg, bool) {
+	if len(acc.metrics) == 0 && len(acc.media) == 0 {
+		return HistoryMsg{}, false
+	}
+	return HistoryMsg{RunPath: runPath, Metrics: acc.metrics, Media: acc.media}, true
+}
 
-	if len(metrics) == 0 && len(media) == 0 {
+// historyItemKey returns the dotted nested key, or the flat key when there is none.
+func historyItemKey(item *spb.HistoryItem) string {
+	if key := strings.Join(item.GetNestedKey(), "."); key != "" {
+		return key
+	}
+	return item.GetKey()
+}
+
+// ParseHistory extracts metrics and media from a history record.
+func ParseHistory(runPath string, history *spb.HistoryRecord) tea.Msg {
+	var acc historyAccumulator
+	acc.addRecord(runPath, history)
+	msg, ok := acc.toMsg(runPath)
+	if !ok {
 		return nil
-	}
-
-	msg := HistoryMsg{RunPath: runPath}
-	if len(metrics) > 0 {
-		msg.Metrics = metrics
-	}
-	if len(media) > 0 {
-		msg.Media = media
 	}
 	return msg
 }
@@ -290,6 +302,9 @@ func parseHistoryMedia(
 	step int,
 	mediaFieldsByKey map[string]map[string]string,
 ) map[string][]MediaPoint {
+	if len(mediaFieldsByKey) == 0 {
+		return nil
+	}
 	media := make(map[string][]MediaPoint)
 	for mediaKey, fields := range mediaFieldsByKey {
 		switch fields["_type"] {
