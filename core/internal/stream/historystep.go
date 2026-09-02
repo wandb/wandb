@@ -95,9 +95,7 @@ func (t *HistoryStepTracker) ensureInit() error {
 	if err != nil {
 		return fmt.Errorf("historystep: %w", err)
 	}
-	run := &spb.RunRecord{}
-	upserter.FillRunRecord(run)
-	t.nextStep = run.GetStartingStep()
+	t.nextStep = upserter.StartingStep()
 	t.initialized = true
 	return nil
 }

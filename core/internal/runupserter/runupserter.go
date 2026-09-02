@@ -415,6 +415,12 @@ func (upserter *RunUpserter) EnvironmentJSON() ([]byte, error) {
 	return upserter.environment.ToJSON()
 }
 
+func (upserter *RunUpserter) StartingStep() int64 {
+	upserter.mu.Lock()
+	defer upserter.mu.Unlock()
+	return upserter.params.StartingStep
+}
+
 // StartRuntime returns the run's initial `_runtime` metric.
 func (upserter *RunUpserter) StartRuntime() time.Duration {
 	upserter.mu.Lock()
