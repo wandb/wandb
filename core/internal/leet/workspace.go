@@ -393,6 +393,9 @@ func (w *Workspace) Cleanup() {
 			run.Reader.Close()
 		}
 	}
+	if w.mediaPane != nil {
+		w.mediaPane.Close()
+	}
 }
 
 // IsFiltering reports whether any workspace-level filter UI is active.

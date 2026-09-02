@@ -139,6 +139,8 @@ type MediaPane struct {
 	renderKeys []mediaRenderKey
 	// prepareCh wakes the Bubble Tea command that prepares visible Kitty images.
 	prepareCh chan struct{}
+	// closed reports that prepareCh has been closed.
+	closed bool
 }
 
 func NewMediaPane(animState *AnimatedValue, gridConfig func() (rows, cols int)) *MediaPane {
@@ -206,19 +208,31 @@ func (p *MediaPane) handlePictureMsg(msg tea.Msg) tea.Cmd {
 
 func (p *MediaPane) waitForPrepare() tea.Cmd {
 	return func() tea.Msg {
-		<-p.prepareCh
+		if _, ok := <-p.prepareCh; !ok {
+			return nil
+		}
 		return mediaPanePrepareMsg{pane: p}
 	}
 }
 
 func (p *MediaPane) requestRenderedMediaPrepare() {
-	if p.renderer.Mode() != picture.PictureKitty {
+	if p.closed || p.renderer.Mode() != picture.PictureKitty {
 		return
 	}
 	select {
 	case p.prepareCh <- struct{}{}:
 	default:
 	}
+}
+
+// Close unblocks the prepare command started by Init and drops cached images.
+func (p *MediaPane) Close() {
+	if p.closed {
+		return
+	}
+	p.closed = true
+	close(p.prepareCh)
+	p.renderer.releaseAll()
 }
 
 func (p *MediaPane) handlePrepareMsg() tea.Cmd {
@@ -1173,6 +1187,10 @@ type mediaImageRenderer struct {
 	pictures   map[mediaRenderKey]*mediaPicture
 }
 
+// mediaDecodedCacheSize is how many decoded images Park keeps before evicting
+// the off-screen ones; scrubbing back and forth then rarely re-decodes.
+const mediaDecodedCacheSize = 16
+
 func newMediaImageRenderer() *mediaImageRenderer {
 	return &mediaImageRenderer{
 		decoded:  make(map[string]image.Image),
@@ -1328,9 +1346,11 @@ func (r *mediaImageRenderer) Park(keys []mediaRenderKey) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	for path := range r.decoded {
-		if _, ok := visiblePaths[path]; !ok {
-			delete(r.decoded, path)
+	if len(r.decoded) > mediaDecodedCacheSize {
+		for path := range r.decoded {
+			if _, ok := visiblePaths[path]; !ok {
+				delete(r.decoded, path)
+			}
 		}
 	}
 	for path := range r.errors {
@@ -1403,6 +1423,15 @@ func (r *mediaImageRenderer) image(path string) (image.Image, mediaRenderError) 
 	r.decoded[path] = loaded
 	delete(r.errors, path)
 	return loaded, mediaRenderError{}
+}
+
+// releaseAll drops every cached decode and render.
+func (r *mediaImageRenderer) releaseAll() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	clear(r.decoded)
+	clear(r.errors)
+	clear(r.rendered)
 }
 
 func (r *mediaImageRenderer) renderGlyph(path string, width, height int) string {
