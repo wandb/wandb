@@ -733,6 +733,9 @@ var (
 		BottomLeft:  string(unicodeSpace),
 		BottomRight: string(unicodeSpace),
 	}
+
+	// leftSidebarBorderHighlightStyle colors the border while it is dragged.
+	leftSidebarBorderHighlightStyle = leftSidebarBorderStyle.BorderForeground(colorLayoutHighlight)
 )
 
 // Right sidebar styles.
@@ -758,6 +761,10 @@ var (
 		BottomLeft:  string(unicodeSpace),
 		BottomRight: string(unicodeSpace),
 	}
+
+	// rightSidebarBorderHighlightStyle colors the border while it is dragged.
+	rightSidebarBorderHighlightStyle = rightSidebarBorderStyle.
+						BorderForeground(colorLayoutHighlight)
 )
 
 // Console logs pane styles.
@@ -784,25 +791,32 @@ var (
 						Foreground(colorDark)
 )
 
-// renderHorizontalSeparator draws a full-width em-dash separator line.
-// This is used between vertically stacked panes in the central column
-// instead of per-pane top borders.
-func renderHorizontalSeparator(width int) string {
+// renderHorizontalSeparator draws a full-width em-dash separator line, in
+// the layout highlight color when highlighted. This is used between
+// vertically stacked panes in the central column instead of per-pane top
+// borders.
+func renderHorizontalSeparator(width int, highlighted bool) string {
 	if width <= 0 {
 		return ""
 	}
+	fg := colorLayout
+	if highlighted {
+		fg = colorLayoutHighlight
+	}
 	line := strings.Repeat(string(unicodeEmDash), width)
-	return lipgloss.NewStyle().Foreground(colorLayout).Render(line)
+	return lipgloss.NewStyle().Foreground(fg).Render(line)
 }
 
-// joinWithSeparators joins rendered sections with horizontal separator lines.
-func joinWithSeparators(sections []string, width int) string {
+// joinWithSeparators joins rendered sections with horizontal separator
+// lines, highlighting the one at index highlightSep (below section
+// highlightSep; -1 for none).
+func joinWithSeparators(sections []string, width, highlightSep int) string {
 	if len(sections) == 0 {
 		return ""
 	}
-	sep := renderHorizontalSeparator(width)
 	result := sections[0]
-	for _, s := range sections[1:] {
+	for i, s := range sections[1:] {
+		sep := renderHorizontalSeparator(width, i == highlightSep)
 		result = lipgloss.JoinVertical(lipgloss.Left, result, sep, s)
 	}
 	return result

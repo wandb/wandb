@@ -9,4 +9,4 @@ cd "$SCRIPT_DIR/.."
 
 # Run the Rust proto generation.
 echo "[INFO] generate-proto.sh: Generating Rust protobuf files"
-cargo run --bin build_proto
+cargo run --features build-proto --bin build_proto
