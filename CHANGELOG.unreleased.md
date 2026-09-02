@@ -36,3 +36,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Fixed the memory size of Apple Silicon Macs with 256 GB or more of RAM being reported as 0 GB (@dmitryduev in https://github.com/wandb/wandb/pull/12677)
 - Fixed CPU and GPU temperature metrics on Apple Silicon Macs being skewed by invalid sensor readings (@dmitryduev in https://github.com/wandb/wandb/pull/12678)
 - Fixed the `ecpu_cores` count of Apple M5 Pro and M5 Max Macs being reported as 0 (@dmitryduev in https://github.com/wandb/wandb/pull/12680)
+- Fixed CPU frequency metrics on the MacBook Neo being reported about 1000 times too high (@dmitryduev in https://github.com/wandb/wandb/pull/12681)

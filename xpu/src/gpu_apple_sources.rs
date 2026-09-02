@@ -508,7 +508,14 @@ fn cfnum_get_i64(dict: CFDictionaryRef, key: &str) -> Option<i64> {
     unsafe { CFNumberGetValue(obj, kCFNumberSInt64Type, ptr) }.then_some(val)
 }
 
-fn to_mhz(vals: Vec<u32>, scale: u32) -> Vec<u32> {
+/// Converts a DVFS frequency table to MHz. Chips before M4 and the A series store
+/// frequencies in Hz, M4 and later in kHz.
+fn to_mhz(vals: Vec<u32>) -> Vec<u32> {
+    let scale = match vals.iter().max() {
+        Some(&max) if max >= 100_000_000 => 1_000_000,
+        Some(&max) if max >= 100_000 => 1_000,
+        _ => 1,
+    };
     vals.iter().map(|x| *x / scale).collect()
 }
 
@@ -538,13 +545,6 @@ pub fn get_soc_info() -> WithError<SocInfo> {
         unsafe { CFRelease(item as _) }
     }
 
-    // Determine scaling based on chip type
-    let before_m4 = info.chip_name.contains("M1")
-        || info.chip_name.contains("M2")
-        || info.chip_name.contains("M3");
-    let cpu_scale: u32 = if before_m4 { 1000 * 1000 } else { 1000 }; // MHz before M4, KHz after
-    let gpu_scale: u32 = 1000 * 1000; // MHz
-
     // CPU frequencies
     for (entry, name) in IOServiceIterator::new("AppleARMIODevice")? {
         if name == "pmgr" {
@@ -552,9 +552,9 @@ pub fn get_soc_info() -> WithError<SocInfo> {
             // 1) `strings /usr/bin/powermetrics | grep voltage-states` uses non-sram keys
             //    but their values are zero, so sram used here; it looks valid.
             // 2) sudo powermetrics --samplers cpu_power -i 1000 -n 1 | grep "active residency" | grep "Cluster"
-            info.ecpu_freqs = to_mhz(get_dvfs_mhz(item, "voltage-states1-sram").1, cpu_scale);
-            info.pcpu_freqs = to_mhz(get_dvfs_mhz(item, "voltage-states5-sram").1, cpu_scale);
-            info.gpu_freqs = to_mhz(get_dvfs_mhz(item, "voltage-states9").1, gpu_scale);
+            info.ecpu_freqs = to_mhz(get_dvfs_mhz(item, "voltage-states1-sram").1);
+            info.pcpu_freqs = to_mhz(get_dvfs_mhz(item, "voltage-states5-sram").1);
+            info.gpu_freqs = to_mhz(get_dvfs_mhz(item, "voltage-states9").1);
             unsafe { CFRelease(item as _) }
         }
     }
