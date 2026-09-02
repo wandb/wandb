@@ -117,7 +117,7 @@ func makeSenderWithFileStream(
 	}
 }
 
-func TestSendSummaryIgnoresInboundStepWithReassignFlag(t *testing.T) {
+func TestSendSummaryIgnoresInboundStep(t *testing.T) {
 	fileStream := filestreamtest.NewFakeFileStream()
 	x := makeSenderWithFileStream(t, gqlmock.NewMockClient(), fileStream)
 
