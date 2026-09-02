@@ -69,13 +69,14 @@ func DownloadRunHistoryFile(
 	fileUrl string,
 	filePath string,
 ) (err error) {
-	file, err := os.Create(filePath)
+	file, err := os.CreateTemp(filepath.Dir(filePath), filepath.Base(filePath)+".tmp")
 	if err != nil {
 		return err
 	}
 	defer func() {
-		if closeErr := file.Close(); closeErr != nil && err == nil {
-			err = closeErr
+		if err != nil {
+			_ = file.Close()
+			_ = os.Remove(file.Name())
 		}
 	}()
 
@@ -94,8 +95,13 @@ func DownloadRunHistoryFile(
 	}
 	defer resp.Body.Close()
 
-	_, err = io.Copy(file, resp.Body)
-	return err
+	if _, err = io.Copy(file, resp.Body); err != nil {
+		return err
+	}
+	if err := file.Close(); err != nil {
+		return err
+	}
+	return os.Rename(file.Name(), filePath)
 }
 
 func extractStepValuesFromLiveData(liveData []any) ([]int64, error) {

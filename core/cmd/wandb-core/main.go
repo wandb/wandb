@@ -599,6 +599,7 @@ func runLeetWorkspace(opts *leetOptions, logger *observability.CoreLogger) int {
 		program := tea.NewProgram(m)
 
 		finalModel, err := program.Run()
+		m.Cleanup()
 		if err != nil {
 			logger.CaptureError(
 				"main",
