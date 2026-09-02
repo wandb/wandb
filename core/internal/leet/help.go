@@ -207,9 +207,6 @@ func (h *HelpModel) Update(msg tea.Msg) (*HelpModel, tea.Cmd) {
 		case "h", "?", "esc":
 			h.Toggle()
 			return h, nil
-		case "q", "ctrl+c":
-			// Allow quitting from help screen
-			return h, tea.Quit
 		default:
 			// Let viewport handle other keys
 			h.viewport, cmd = h.viewport.Update(msg)

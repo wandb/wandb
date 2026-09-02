@@ -336,6 +336,11 @@ func (r *Run) handleMainContentMouse(msg tea.MouseMsg, layout Layout) tea.Cmd {
 
 // handleKeyPressMsg processes keyboard events using the centralized key bindings.
 func (r *Run) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
+	// Quit must work even while a filter input owns the keyboard.
+	if msg.String() == "ctrl+c" {
+		return r.handleQuit(msg)
+	}
+
 	// Filter modes take priority.
 	if r.leftSidebar.IsFilterMode() {
 		r.leftSidebar.HandleFilterKey(msg)
