@@ -226,13 +226,16 @@ func InitRun(
 		}
 	}
 
-	startingStep, err := upserter.syncStateStore.GetOrInitStartingStep(
-		upserter.params.StartingStep,
-	)
+	startState, err := upserter.syncStateStore.GetOrInitStartState(
+		runsyncstate.StartState{
+			StartStep:    upserter.params.StartingStep,
+			StartRuntime: upserter.params.Runtime,
+		})
 	if err != nil {
 		return nil, ToRunUpdateError(err)
 	}
-	upserter.params.StartingStep = startingStep
+	upserter.params.StartingStep = startState.StartStep
+	upserter.params.Runtime = startState.StartRuntime
 
 	upserter.startRuntime = time.Duration(upserter.params.Runtime) * time.Second
 
