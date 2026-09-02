@@ -3,8 +3,6 @@ package filestream
 import (
 	"time"
 
-	"golang.org/x/time/rate"
-
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
@@ -13,9 +11,20 @@ import (
 // This batches all incoming requests while waiting for transmissions
 // to go through.
 type CollectLoop struct {
-	Logger            *observability.CoreLogger
-	Printer           *observability.Printer
-	TransmitRateLimit *rate.Limiter
+	Logger  *observability.CoreLogger
+	Printer *observability.Printer
+
+	// TransmitInterval is the steady-state time between transmissions.
+	TransmitInterval time.Duration
+
+	// InitialTransmitInterval is the time between transmissions once the
+	// run's first history is collected. It doubles each time it elapses
+	// until it reaches TransmitInterval, so that a run's first logged data
+	// reaches the backend quickly.
+	//
+	// There is no ramp if it is not positive or not less than
+	// TransmitInterval.
+	InitialTransmitInterval time.Duration
 }
 
 // Start ingests requests and outputs rate-limited, batched requests.
@@ -28,20 +37,22 @@ func (cl CollectLoop) Start(
 		panic("filestream: CollectLoop.Logger is nil")
 	case cl.Printer == nil:
 		panic("filestream: CollectLoop.Printer is nil")
-	case cl.TransmitRateLimit == nil:
-		panic("filestream: CollectLoop.TransmitRateLimit is nil")
 	}
 
 	output := NewTransmitChan()
 
 	go func() {
 		buffer := &FileStreamRequest{}
+		schedule := newTransmitSchedule(
+			cl.TransmitInterval,
+			cl.InitialTransmitInterval,
+		)
 		hasMore := true
 
 		for request := range requests {
 			buffer.Merge(request)
 
-			cl.waitForRateLimit(state, buffer, requests)
+			cl.waitForRateLimit(state, buffer, requests, schedule)
 			hasMore = cl.transmit(state, buffer, requests, output)
 		}
 
@@ -63,21 +74,17 @@ func (cl CollectLoop) waitForRateLimit(
 	state *FileStreamState,
 	buffer *FileStreamRequest,
 	requests <-chan *FileStreamRequest,
+	schedule *transmitSchedule,
 ) {
 	if cl.shouldSendASAP(state, buffer) {
 		return
 	}
 
-	reservedLimit := cl.TransmitRateLimit.Limit()
-	reservation := cl.TransmitRateLimit.Reserve()
-
-	// If we would be rate-limited forever, just ignore the limit.
-	if !reservation.OK() {
-		return
-	}
+	due := schedule.next(time.Now(), buffer)
+	defer func() { schedule.last = due }()
 
 	for {
-		timer := time.NewTimer(reservation.Delay())
+		timer := time.NewTimer(time.Until(due))
 		select {
 		case <-timer.C:
 			return
@@ -95,17 +102,10 @@ func (cl CollectLoop) waitForRateLimit(
 				return
 			}
 
-			// If the rate limit changed while we were waiting (e.g. the
-			// transmit ramp sped it up), the reservation we hold still
-			// reflects the old limit. Return the token and re-reserve so
-			// the new limit applies to this batch.
-			if newLimit := cl.TransmitRateLimit.Limit(); newLimit != reservedLimit {
-				reservation.Cancel()
-				reservedLimit = newLimit
-				reservation = cl.TransmitRateLimit.Reserve()
-				if !reservation.OK() {
-					return
-				}
+			// The run's first history starts the ramp, which may allow
+			// transmitting sooner.
+			if next := schedule.next(time.Now(), buffer); next.Before(due) {
+				due = next
 			}
 		}
 	}

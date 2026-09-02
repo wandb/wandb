@@ -2,10 +2,11 @@ package filestream_test
 
 import (
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/time/rate"
+	"github.com/stretchr/testify/require"
 
 	. "github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/observability"
@@ -15,9 +16,8 @@ func TestCollectLoop_BatchesWhileWaiting(t *testing.T) {
 	requests := make(chan *FileStreamRequest)
 	defer close(requests)
 	loop := CollectLoop{
-		Logger:            observability.NewNoOpLogger(),
-		Printer:           observability.NewPrinter(0),
-		TransmitRateLimit: rate.NewLimiter(rate.Inf, 1),
+		Logger:  observability.NewNoOpLogger(),
+		Printer: observability.NewPrinter(0),
 	}
 	state := &FileStreamState{MaxRequestSizeBytes: 99999}
 
@@ -41,11 +41,9 @@ func TestCollectLoop_BatchesWhileWaiting(t *testing.T) {
 
 func TestCollectLoop_SendsLastRequestImmediately(t *testing.T) {
 	requests := make(chan *FileStreamRequest)
-	// Use a rate limiter that never lets requests through.
 	loop := CollectLoop{
-		Logger:            observability.NewNoOpLogger(),
-		Printer:           observability.NewPrinter(0),
-		TransmitRateLimit: &rate.Limiter{},
+		Logger:  observability.NewNoOpLogger(),
+		Printer: observability.NewPrinter(0),
 	}
 	state := &FileStreamState{MaxRequestSizeBytes: 99999}
 
@@ -60,52 +58,68 @@ func TestCollectLoop_SendsLastRequestImmediately(t *testing.T) {
 	assert.Nil(t, request2)
 }
 
-func TestCollectLoop_AppliesNewRateLimitToPendingBatch(t *testing.T) {
-	requests := make(chan *FileStreamRequest)
-	defer close(requests)
-	limiter := rate.NewLimiter(rate.Every(time.Hour), 1)
-	loop := CollectLoop{
-		Logger:            observability.NewNoOpLogger(),
-		Printer:           observability.NewPrinter(0),
-		TransmitRateLimit: limiter,
-	}
-	state := &FileStreamState{MaxRequestSizeBytes: 99999}
-	noHeartbeat := make(<-chan time.Time)
+func TestCollectLoop_RampsAfterFirstHistory(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		requests := make(chan *FileStreamRequest)
+		loop := CollectLoop{
+			Logger:                  observability.NewNoOpLogger(),
+			Printer:                 observability.NewPrinter(0),
+			TransmitInterval:        15 * time.Second,
+			InitialTransmitInterval: 2 * time.Second,
+		}
+		defer loop.Printer.Close()
+		state := &FileStreamState{MaxRequestSizeBytes: 99999}
+		start := time.Now()
 
-	transmissions := loop.Start(state, requests)
+		transmissions := loop.Start(state, requests)
+		var sentAt []time.Duration
+		nextRequest := func() {
+			_, ok := transmissions.NextRequest(make(<-chan time.Time))
+			require.True(t, ok)
+			sentAt = append(sentAt, time.Since(start))
+		}
 
-	// The first request is sent immediately, emptying the token bucket,
-	// so that the next batch reserves a transmission an hour out.
-	requests <- &FileStreamRequest{UploadedFiles: map[string]struct{}{"one": {}}}
-	_, ok := transmissions.NextRequest(noHeartbeat)
-	assert.True(t, ok)
-	requests <- &FileStreamRequest{UploadedFiles: map[string]struct{}{"two": {}}}
-	time.Sleep(10 * time.Millisecond)
+		// Without history, the second batch waits the steady-state interval.
+		requests <- &FileStreamRequest{EventsLines: []string{"{}"}}
+		nextRequest()
+		requests <- &FileStreamRequest{EventsLines: []string{"{}"}}
 
-	// Speeding up the limiter (as the transmit ramp does) must apply to
-	// the pending batch when more data is merged into it.
-	limiter.SetLimit(rate.Every(time.Millisecond))
-	requests <- &FileStreamRequest{HistoryLines: []string{"{}"}}
+		// The first history starts the ramp and speeds up the pending batch.
+		time.Sleep(time.Second)
+		requests <- &FileStreamRequest{HistoryLines: []string{"{}"}}
+		nextRequest()
 
-	released := make(chan struct{})
-	go func() {
-		_, _ = transmissions.NextRequest(noHeartbeat)
-		close(released)
-	}()
-	select {
-	case <-released:
-	case <-time.After(5 * time.Second):
-		t.Error("pending batch not released after the rate limit sped up")
-	}
-	transmissions.IgnoreFutureRequests()
+		// Spacing is measured from when a batch was due, not from when
+		// a slow consumer picked it up.
+		requests <- &FileStreamRequest{HistoryLines: []string{"{}"}}
+		time.Sleep(3 * time.Second)
+		nextRequest()
+
+		// The interval doubles until it reaches the steady-state interval.
+		for range 3 {
+			requests <- &FileStreamRequest{HistoryLines: []string{"{}"}}
+			nextRequest()
+		}
+		close(requests)
+
+		assert.Equal(t,
+			[]time.Duration{
+				0,
+				2 * time.Second,
+				5 * time.Second,
+				8 * time.Second,
+				16 * time.Second,
+				31 * time.Second,
+			},
+			sentAt)
+	})
 }
 
 func TestCollectLoop_BlocksOnceAtMaxSize(t *testing.T) {
 	requests := make(chan *FileStreamRequest)
 	loop := CollectLoop{
-		Logger:            observability.NewNoOpLogger(),
-		Printer:           observability.NewPrinter(0),
-		TransmitRateLimit: rate.NewLimiter(rate.Inf, 1),
+		Logger:  observability.NewNoOpLogger(),
+		Printer: observability.NewPrinter(0),
 	}
 	state := &FileStreamState{MaxRequestSizeBytes: 5}
 

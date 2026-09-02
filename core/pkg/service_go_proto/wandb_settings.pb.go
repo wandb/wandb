@@ -423,13 +423,17 @@ type Settings struct {
 	// This number is approximate: requests will be slightly larger.
 	XFileStreamMaxBytes *wrapperspb.Int32Value `protobuf:"bytes,172,opt,name=x_file_stream_max_bytes,json=xFileStreamMaxBytes,proto3" json:"x_file_stream_max_bytes,omitempty"`
 	// Interval in seconds between filestream transmissions.
+	//
+	// Transmissions are more frequent for a short time after the run's first
+	// history is logged; see x_file_stream_transmit_interval_initial.
 	XFileStreamTransmitInterval *wrapperspb.DoubleValue `protobuf:"bytes,175,opt,name=x_file_stream_transmit_interval,json=xFileStreamTransmitInterval,proto3" json:"x_file_stream_transmit_interval,omitempty"`
 	// Initial interval in seconds between filestream transmissions.
 	//
-	// When the run's first user-visible data (history, summary or console
-	// logs) is logged, transmissions start at this interval and gradually
-	// slow to x_file_stream_transmit_interval, so that a run's first logged
-	// data is uploaded quickly no matter when it is logged.
+	// When the run's first history is logged, transmissions start at this
+	// interval and the interval doubles each time it elapses until it reaches
+	// x_file_stream_transmit_interval, so that a run's first logged data is
+	// uploaded quickly no matter when it is logged. A value greater than or
+	// equal to x_file_stream_transmit_interval disables this.
 	XFileStreamTransmitIntervalInitial *wrapperspb.DoubleValue `protobuf:"bytes,209,opt,name=x_file_stream_transmit_interval_initial,json=xFileStreamTransmitIntervalInitial,proto3" json:"x_file_stream_transmit_interval_initial,omitempty"`
 	// Whether to disable gzip compression of filestream request bodies.
 	XFileStreamNoGzip *wrapperspb.BoolValue `protobuf:"bytes,208,opt,name=x_file_stream_no_gzip,json=xFileStreamNoGzip,proto3" json:"x_file_stream_no_gzip,omitempty"`
