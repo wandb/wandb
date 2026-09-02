@@ -9,6 +9,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
+	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/runworktest"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -33,6 +34,7 @@ func makeHandler(
 		Settings:        s,
 		TerminalPrinter: observability.NewPrinter(0),
 		Commit:          stream.GitCommitHash(commit),
+		RunHandle:       runhandle.New(),
 	}
 	h := handlerFactory.New(runworktest.New())
 
