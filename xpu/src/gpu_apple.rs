@@ -142,36 +142,31 @@ fn init_smc() -> WithError<(SMC, Vec<String>, Vec<String>)> {
     let mut cpu_sensors = Vec::new();
     let mut gpu_sensors = Vec::new();
 
-    let names = smc.read_all_keys().unwrap_or(vec![]);
-    for name in &names {
-        let key = match smc.read_key_info(name) {
-            Ok(key) => key,
-            Err(_) => continue,
-        };
-
-        if key.data_size != 4 || key.data_type != FLOAT_TYPE {
+    // Unfortunately, it is not known which keys are responsible for what.
+    // Basically in the code that can be found publicly "Tp" is used for CPU and "Tg" for GPU.
+    // "Tp" – performance cores, "Te" – efficiency cores
+    for name in smc.read_all_keys().unwrap_or_default() {
+        let is_cpu = name.starts_with("Tp") || name.starts_with("Te");
+        let is_gpu = name.starts_with("Tg");
+        if !is_cpu && !is_gpu {
             continue;
         }
 
-        let _ = match smc.read_val(name) {
-            Ok(val) => val,
+        let key = match smc.read_key_info(&name) {
+            Ok(key) => key,
             Err(_) => continue,
         };
+        if key.data_size != 4 || key.data_type != FLOAT_TYPE || smc.read_val(&name).is_err() {
+            continue;
+        }
 
-        // Unfortunately, it is not known which keys are responsible for what.
-        // Basically in the code that can be found publicly "Tp" is used for CPU and "Tg" for GPU.
-
-        match name {
-            // "Tp" – performance cores, "Te" – efficiency cores
-            name if name.starts_with("Tp") || name.starts_with("Te") => {
-                cpu_sensors.push(name.clone())
-            }
-            name if name.starts_with("Tg") => gpu_sensors.push(name.clone()),
-            _ => (),
+        if is_cpu {
+            cpu_sensors.push(name);
+        } else {
+            gpu_sensors.push(name);
         }
     }
 
-    // println!("{} {}", cpu_sensors.len(), gpu_sensors.len());
     Ok((smc, cpu_sensors, gpu_sensors))
 }
 
