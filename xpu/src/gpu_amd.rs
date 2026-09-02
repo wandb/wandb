@@ -250,12 +250,8 @@ impl GpuAmd {
         is_driver_installed() // Check if AMD GPU driver is installed
             .then(|| find_rocm_smi().ok()) // Find rocm-smi binary
             .flatten()
-            .and_then(|path| {
-                let gpu = Self {
-                    rocm_smi_path: path,
-                };
-                // Check if we can read stats using the found rocm-smi
-                (!gpu.get_rocm_smi_stats().unwrap_or_default().is_empty()).then_some(gpu)
+            .map(|path| Self {
+                rocm_smi_path: path,
             })
     }
 
@@ -323,10 +319,15 @@ impl GpuAmd {
             })
             .collect();
 
+        let gpu_type = gpu_amd
+            .first()
+            .map(|gpu| gpu.series.clone())
+            .unwrap_or_default();
+
         Ok(EnvironmentRecord {
             gpu_count: raw_stats.len() as u32,
-            gpu_type: gpu_amd[0].series.clone(),
-            gpu_amd: gpu_amd,
+            gpu_type,
+            gpu_amd,
             ..Default::default()
         })
     }

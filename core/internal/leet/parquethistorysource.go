@@ -214,6 +214,7 @@ func (s *ParquetHistorySource) Read(
 			RunMsg{
 				RunPath:     s.runPath,
 				ID:          s.runInfo.runId,
+				Entity:      s.runInfo.entity,
 				Project:     s.runInfo.project,
 				DisplayName: s.runInfo.displayName,
 				Config:      nil,

@@ -3,6 +3,7 @@ package leet
 import (
 	"cmp"
 	"context"
+	"maps"
 	"os"
 	"strings"
 	"time"
@@ -95,6 +96,16 @@ func ConfigureTelemetry(
 		defer cancel()
 		_ = proxy.Shutdown(ctx)
 	}
+}
+
+// SessionAttributes summarizes the runs and UI features seen during this
+// session for the leet_session telemetry event. One leet process is one
+// session; the collectors are only touched from the Bubble Tea update loop
+// and read after it exits, so they are unsynchronized.
+func SessionAttributes() map[string]string {
+	attrs := sessionFeatures.attributes()
+	maps.Copy(attrs, sessionRuns.attributes())
+	return attrs
 }
 
 // detectExecutionContext classifies the environment leet runs in.

@@ -118,6 +118,16 @@ func Validate(schema *Schema, doc *QueryDocument, rules ...Rule) gqlerror.List {
 	return errs
 }
 
+// ValidateWithSources is the source-aware counterpart to Validate. It keeps
+// source documents for every location recorded by the built-in At option while
+// leaving Error and the regular validation API unchanged.
+func ValidateWithSources(schema *Schema, doc *QueryDocument, rules ...Rule) gqlerror.SourceList {
+	if rules == nil {
+		rules = specifiedRules
+	}
+	return validateWithSources(schema, doc, rules)
+}
+
 func ValidateWithRules(
 	schema *Schema,
 	doc *QueryDocument,
@@ -155,6 +165,62 @@ func ValidateWithRules(
 				o(err)
 			}
 			errs = append(errs, err)
+		})
+	}
+
+	Walk(schema, doc, observers)
+	return errs
+}
+
+// ValidateWithRulesWithSources is the source-aware counterpart to
+// ValidateWithRules.
+func ValidateWithRulesWithSources(
+	schema *Schema,
+	doc *QueryDocument,
+	rules *validatorrules.Rules,
+) gqlerror.SourceList {
+	if rules == nil {
+		rules = validatorrules.NewDefaultRules()
+	}
+
+	var currentRules []Rule //nolint:prealloc // would require extra local refs for len
+	for name, ruleFunc := range rules.GetInner() {
+		currentRules = append(currentRules, Rule{Name: name, RuleFunc: ruleFunc})
+		// ensure deterministic order evaluation
+		sort.Sort(core.NameSorter(currentRules))
+	}
+	return validateWithSources(schema, doc, currentRules)
+}
+
+func validateWithSources(schema *Schema, doc *QueryDocument, rules []Rule) gqlerror.SourceList {
+	var errs gqlerror.SourceList
+	if schema == nil {
+		errs = append(errs, gqlerror.NewErrorWithSources(
+			gqlerror.Errorf("cannot validate as Schema is nil"),
+			nil,
+		))
+	}
+	if doc == nil {
+		errs = append(errs, gqlerror.NewErrorWithSources(
+			gqlerror.Errorf("cannot validate as QueryDocument is nil"),
+			nil,
+		))
+	}
+	if len(errs) > 0 {
+		return errs
+	}
+
+	observers := &core.Events{}
+	for i := range rules {
+		rule := rules[i]
+		rule.RuleFunc(observers, func(options ...ErrorOption) {
+			err := &gqlerror.Error{Rule: rule.Name}
+			sources := core.CaptureSourceLocations(err, func() {
+				for _, option := range options {
+					option(err)
+				}
+			})
+			errs = append(errs, gqlerror.NewErrorWithSources(err, sources))
 		})
 	}
 

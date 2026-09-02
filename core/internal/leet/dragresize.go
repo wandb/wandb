@@ -188,6 +188,7 @@ func (d *paneDragger) finish() {
 	if !drag.dirty {
 		return // Click without motion: nothing changed.
 	}
+	sessionFeatures.mark("pane_resize")
 	if err := d.persist(drag.overrides); err != nil {
 		d.logger.Error(fmt.Sprintf("leet: failed to save layout: %v", err))
 	}
