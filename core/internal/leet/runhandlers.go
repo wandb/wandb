@@ -29,6 +29,7 @@ func (r *Run) handleRecordMsg(msg tea.Msg) tea.Cmd {
 	case RunMsg:
 		r.logger.Debug("model: processing RunMsg")
 		r.lastError = ""
+		sessionRuns.observe(msg, true)
 		r.runOverview.ProcessRunMsg(msg)
 		r.leftSidebar.Sync()
 		r.runState = RunStateRunning

@@ -239,9 +239,6 @@ func leetMain(args []string) int {
 	}
 	defer stopLeetPprof(pprofStop)
 
-	flushSentry := configureLeetSentry(opts.disableAnalytics, leetSentryMessage(&opts))
-	defer flushSentry()
-
 	recorder, stopTelemetry := leet.ConfigureTelemetry(leet.TelemetryParams{
 		Disabled: opts.disableAnalytics,
 		Mode:     leetMode(&opts),
@@ -269,11 +266,12 @@ func leetMain(args []string) int {
 		duration,
 		analytics.LowCardinalityAttributes{},
 	)
-	logger.RecordTelemetry("leet_session", map[string]string{
-		"duration_seconds": strconv.FormatInt(
-			int64(duration/time.Second), 10),
-		"exit_code": strconv.Itoa(exitCode),
-	})
+
+	sessionAttributes := leet.SessionAttributes()
+	sessionAttributes["duration_seconds"] = strconv.FormatInt(
+		int64(duration/time.Second), 10)
+	sessionAttributes["exit_code"] = strconv.Itoa(exitCode)
+	logger.RecordTelemetry("leet_session", sessionAttributes)
 	return exitCode
 }
 
@@ -454,41 +452,6 @@ func stopLeetPprof(pprofStop func(context.Context) error) {
 	_ = pprofStop(ctx)
 }
 
-func configureLeetSentry(disableAnalytics bool, message string) func() {
-	var sentryDSN string
-	if !disableAnalytics {
-		sentryDSN = observability.LeetSentryDSN
-	}
-
-	err := sentry.Init(sentry.ClientOptions{
-		Dsn:              sentryDSN,
-		AttachStacktrace: true,
-		Release:          version.Version,
-		Dist:             commit,
-		Environment:      version.Environment,
-	})
-	if err != nil {
-		slog.Error("main: failed to init Sentry", "error", err)
-		return func() {}
-	}
-
-	sentry.CaptureMessage(message)
-	return func() { sentry.Flush(2 * time.Second) }
-}
-
-func leetSentryMessage(opts *leetOptions) string {
-	switch {
-	case opts.editConfig:
-		return "wandb-leet-config"
-	case opts.symonMode:
-		return "wandb-symon"
-	case opts.inspect:
-		return "wandb-leet-inspect"
-	default:
-		return "wandb-leet"
-	}
-}
-
 // leetMode names the launch mode for telemetry.
 func leetMode(opts *leetOptions) string {
 	switch {
@@ -529,7 +492,7 @@ func newLeetLogger(
 			logWriter,
 			&slog.HandlerOptions{Level: slog.Level(logLevel)},
 		)),
-		observability.NewSentryContext(sentry.CurrentHub()),
+		nil,
 		recorder,
 	)
 	return logger, closeLogWriter, nil

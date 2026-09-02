@@ -24,11 +24,14 @@ type HistoryMsg struct {
 type RunMsg struct {
 	RunPath     string
 	ID          string
+	Entity      string
 	Project     string
 	DisplayName string
 	Notes       string
 	Tags        []string
 	Config      *spb.ConfigRecord
+	StartTime   time.Time
+	Telemetry   *spb.TelemetryRecord
 }
 
 // SummaryMsg contains summary data from the wandb run.
