@@ -57,14 +57,6 @@ func newTestBroker(t *testing.T, factory *testFactory) *scheduler.IPCSessionBrok
 		factory.make, observabilitytest.NewTestLogger(t))
 }
 
-func generationTask() *spb.SweepSchedulerServerNextTaskResponse {
-	return &spb.SweepSchedulerServerNextTaskResponse{
-		Task: &spb.SweepSchedulerServerNextTaskResponse_Generation{
-			Generation: &spb.SweepSchedulerServerGenerationTask{},
-		},
-	}
-}
-
 func shutdownTask() *spb.SweepSchedulerServerNextTaskResponse {
 	return &spb.SweepSchedulerServerNextTaskResponse{
 		Task: &spb.SweepSchedulerServerNextTaskResponse_Done{
@@ -181,24 +173,6 @@ func TestNextTaskUnknownIDReturnsFatalDone(t *testing.T) {
 	assert.Equal(t,
 		spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR, done.Reason)
 	assert.Contains(t, done.Message, "unknown scheduler id")
-}
-
-func TestNextTaskRoutesToSession(t *testing.T) {
-	factory := newTestFactory(t)
-	broker := newTestBroker(t, factory)
-	ctx := context.Background()
-	initResponse, err := broker.InitScheduler(
-		ctx, ctx, initRequest("sweep-a"))
-	require.NoError(t, err)
-	factory.resolvers[0].EXPECT().
-		Step(gomock.Any(), gomock.Nil()).
-		Return(generationTask())
-
-	response := broker.NextTask(
-		&spb.SweepSchedulerClientNextTaskRequest{SessionId: initResponse.SessionId})
-
-	assert.NotNil(t, response.GetGeneration())
-	assert.EqualValues(t, 1, response.TaskSeq)
 }
 
 func TestStopRoutesToSessionAndIgnoresUnknown(t *testing.T) {

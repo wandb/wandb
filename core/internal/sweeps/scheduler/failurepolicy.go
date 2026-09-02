@@ -86,9 +86,6 @@ const (
 )
 
 // Backoff spaces polls out after failures.
-//
-// Failed calls are never retried in place — the backend client already
-// retried them — the loop just polls less often until a call succeeds.
 type Backoff struct {
 	slowdown    time.Duration
 	consecutive int
@@ -105,8 +102,7 @@ func (b *Backoff) OnSuccess() {
 	b.consecutive = 0
 }
 
-// OnError doubles the slowdown. A rate limit slows polling without
-// counting toward Exhausted: obliging the server is not a failure.
+// OnError increases the slowdown and implements backoff
 func (b *Backoff) OnError(disposition Disposition) {
 	b.slowdown = min(max(2*b.slowdown, initialSlowdown), maxSlowdown)
 
@@ -122,11 +118,7 @@ func (b *Backoff) Exhausted() bool {
 	return b.consecutive >= maxConsecutiveErrors
 }
 
-// trackedAPI wraps SweepAPI so every call's outcome feeds the backoff
-// in one place; no call site records success or failure itself.
-//
-// A call that failed because ctx was cancelled is not recorded:
-// cancellation means shutdown, not backend failure.
+// trackedAPI wraps SweepAPI with Backoff
 type trackedAPI struct {
 	api     *SweepAPI
 	backoff Backoff
