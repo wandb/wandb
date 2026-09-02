@@ -7,11 +7,14 @@ import (
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
+	"github.com/vektah/gqlparser/v2/gqlerror"
 
 	"github.com/wandb/wandb/core/internal/clients"
 )
 
 // Disposition is what the scheduler loop should do about a failed API call.
+//
+// Values are ordered so that gqlerror List values can be combined by max.
 type Disposition int
 
 const (
@@ -32,26 +35,22 @@ const (
 
 // Classify decides what the scheduler loop should do about an error from
 // a W&B API call.
-//
-// Callers must check for context cancellation first: a cancelled call
-// means shutdown, not failure.
 func Classify(err error) Disposition {
-	// A deleted sweep answers 200 with a null sweep rather than 404,
-	// so this is the signal that it is gone.
 	if errors.Is(err, ErrSweepNotFound) {
 		return DispositionNotFound
 	}
-
 	if errors.Is(err, context.DeadlineExceeded) {
-		// A timed-out request got no response; the error budget
-		// decides when to give up.
 		return DispositionTransient
+	}
+
+	// genqlient returns the response body's "errors" array directly as a
+	// gqlerror.List when the server answers with GraphQL-level errors
+	if gqlErrs, ok := errors.AsType[gqlerror.List](err); ok && len(gqlErrs) > 0 {
+		return classifyGQLErrors(gqlErrs)
 	}
 
 	httpError, ok := errors.AsType[*graphql.HTTPError](err)
 	if !ok {
-		// No HTTP status means the call never got a response. The HTTP
-		// client already retried, so let the error budget end the loop.
 		return DispositionTransient
 	}
 
@@ -62,14 +61,51 @@ func Classify(err error) Disposition {
 	case status == http.StatusTooManyRequests:
 		return DispositionRateLimited
 	case clients.RetryableStatus(status):
-		// The backend client retried; polling later is the only retry
-		// left.
+		// schedulerRetryPolicy keeps the HTTP client from retrying these itself.
 		return DispositionTransient
 	default:
-		// A status the client never retries will not start succeeding
+		// A status that is not retryable will not start succeeding
 		// because the loop polls again.
 		return DispositionFatal
 	}
+}
+
+// schedulerRetryPolicy hands every response the server sends back to
+// Classify instead of letting the HTTP client retry it.
+func schedulerRetryPolicy(
+	ctx context.Context,
+	resp *http.Response,
+	err error,
+) (bool, error) {
+	if err != nil || ctx.Err() != nil {
+		// leave transport errors to the shared client's retries.
+		return clients.RetryMostFailures(ctx, resp, err)
+	}
+	return false, nil
+}
+
+// withSchedulerRetryPolicy applies schedulerRetryPolicy to the requests
+// made with the returned context.
+func withSchedulerRetryPolicy(ctx context.Context) context.Context {
+	return context.WithValue(
+		ctx,
+		clients.CtxRetryPolicyKey,
+		schedulerRetryPolicy,
+	)
+}
+
+func classifyGQLErrors(errs gqlerror.List) Disposition {
+	// A bare GraphQL-level error defaults to Fatal
+	result := DispositionFatal
+	for _, gqlErr := range errs {
+		if gqlErr == nil || gqlErr.Err == nil {
+			continue
+		}
+		if d := Classify(gqlErr.Err); d > result {
+			result = d
+		}
+	}
+	return result
 }
 
 const (
@@ -86,9 +122,6 @@ const (
 )
 
 // Backoff spaces polls out after failures.
-//
-// Failed calls are never retried in place — the backend client already
-// retried them — the loop just polls less often until a call succeeds.
 type Backoff struct {
 	slowdown    time.Duration
 	consecutive int
@@ -105,8 +138,7 @@ func (b *Backoff) OnSuccess() {
 	b.consecutive = 0
 }
 
-// OnError doubles the slowdown. A rate limit slows polling without
-// counting toward Exhausted: obliging the server is not a failure.
+// OnError increases the slowdown and implements backoff
 func (b *Backoff) OnError(disposition Disposition) {
 	b.slowdown = min(max(2*b.slowdown, initialSlowdown), maxSlowdown)
 
@@ -122,11 +154,7 @@ func (b *Backoff) Exhausted() bool {
 	return b.consecutive >= maxConsecutiveErrors
 }
 
-// trackedAPI wraps SweepAPI so every call's outcome feeds the backoff
-// in one place; no call site records success or failure itself.
-//
-// A call that failed because ctx was cancelled is not recorded:
-// cancellation means shutdown, not backend failure.
+// trackedAPI wraps SweepAPI with Backoff
 type trackedAPI struct {
 	api     *SweepAPI
 	backoff Backoff
@@ -161,6 +189,7 @@ func (a *trackedAPI) Exhausted() bool {
 }
 
 func (a *trackedAPI) FetchSweep(ctx context.Context) (*SweepFacts, error) {
+	ctx = withSchedulerRetryPolicy(ctx)
 	facts, err := a.api.FetchSweep(ctx)
 	a.record(ctx, err)
 	return facts, err
@@ -172,6 +201,7 @@ func (a *trackedAPI) PollPage(
 	cursor *string,
 	metricKey string,
 ) (*PollPage, error) {
+	ctx = withSchedulerRetryPolicy(ctx)
 	page, err := a.api.PollPage(ctx, pageSize, cursor, metricKey)
 	a.record(ctx, err)
 	return page, err
@@ -181,6 +211,7 @@ func (a *trackedAPI) ConfirmRunExists(
 	ctx context.Context,
 	runName string,
 ) (bool, error) {
+	ctx = withSchedulerRetryPolicy(ctx)
 	exists, err := a.api.ConfirmRunExists(ctx, runName)
 	a.record(ctx, err)
 	return exists, err
@@ -191,6 +222,7 @@ func (a *trackedAPI) EnqueueRun(
 	sweepNodeID string,
 	configWireJSON string,
 ) (string, error) {
+	ctx = withSchedulerRetryPolicy(ctx)
 	mintedID, err := a.api.EnqueueRun(ctx, sweepNodeID, configWireJSON)
 	a.record(ctx, err)
 	return mintedID, err
@@ -200,6 +232,7 @@ func (a *trackedAPI) StopRun(
 	ctx context.Context,
 	storageID string,
 ) (bool, error) {
+	ctx = withSchedulerRetryPolicy(ctx)
 	stopped, err := a.api.StopRun(ctx, storageID)
 	a.record(ctx, err)
 	return stopped, err
@@ -210,6 +243,7 @@ func (a *trackedAPI) UpsertSweepState(
 	sweepNodeID string,
 	state string,
 ) error {
+	ctx = withSchedulerRetryPolicy(ctx)
 	err := a.api.UpsertSweepState(ctx, sweepNodeID, state)
 	a.record(ctx, err)
 	return err

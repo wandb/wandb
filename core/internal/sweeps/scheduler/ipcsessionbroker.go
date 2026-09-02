@@ -10,6 +10,10 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
+// errSessionFinished is the cancel cause of a session that reached its
+// terminal task.
+var errSessionFinished = errors.New("scheduler: session finished")
+
 // ErrAlreadyScheduled is returned when a sweep is already scheduled.
 var ErrAlreadyScheduled = errors.New(
 	"scheduler: this sweep already has a running scheduler in this" +
@@ -45,6 +49,10 @@ type session struct {
 	// connection, so liveness checks see a dead client's session.
 	ctx    context.Context
 	cancel context.CancelCauseFunc
+
+	// stopWatch unregisters the session's context watcher. It reports
+	// whether it got there first, and is safe to call more than once.
+	stopWatch func() bool
 }
 
 // NewIPCSessionBroker creates a new IPCSessionBroker.
@@ -102,7 +110,7 @@ func (b *IPCSessionBroker) InitScheduler(
 
 	id := fmt.Sprintf("scheduler-%d", b.nextID)
 	b.nextID++
-	b.sessions[id] = &session{
+	s := &session{
 		id:       id,
 		sweepKey: sweepKey,
 		machine: newSchedulerStateMachine(
@@ -113,7 +121,13 @@ func (b *IPCSessionBroker) InitScheduler(
 		ctx:    schedCtx,
 		cancel: cancel,
 	}
+	b.sessions[id] = s
 	b.bySweep[sweepKey] = id
+
+	// A client killed between polls leaves no poll to notice, so the
+	// session's own context is what drops it in that case. Retiring a
+	// session unregisters this again, so no goroutine is left to run.
+	s.stopWatch = context.AfterFunc(schedCtx, func() { b.dropOnClose(s) })
 
 	b.logger.Info(
 		"scheduler: session started",
@@ -140,8 +154,9 @@ func (b *IPCSessionBroker) checkNotScheduled(sweepKey string) error {
 }
 
 // liveSessionLocked returns the sweep's session if it can still serve
-// tasks. NextTask already released every finished session, so the only
-// case left to filter out is a dead client's cancelled context.
+// tasks. Finished and abandoned sessions are dropped, but a session
+// whose client just died is dropped from another goroutine, so a
+// cancelled context is the remaining case to filter out.
 //
 // Callers must hold mu.
 func (b *IPCSessionBroker) liveSessionLocked(sweepKey string) *session {
@@ -150,6 +165,7 @@ func (b *IPCSessionBroker) liveSessionLocked(sweepKey string) *session {
 		return nil
 	}
 
+	// drop removes both entries at once, so the mapped session exists.
 	s := b.sessions[id]
 	if s.ctx.Err() != nil {
 		return nil
@@ -186,26 +202,65 @@ func (b *IPCSessionBroker) NextTask(
 	return response
 }
 
-// release frees the sweep for a new scheduler once s is finished.
+// release retires a session that reached its terminal task: the sweep
+// becomes schedulable again, and cancelling the session lets its
+// scheduler and API client be collected instead of living as long as
+// the process.
 //
-// The session is kept so a later poll still finds the cached terminal
-// task. The id check stops a dead session's late Done from freeing the
-// sweep of the successor that replaced it.
+// The session is not kept around to redeliver its terminal task; a
+// later poll for its id is answered by NextTask's unknown-id Done,
+// which tells the client the same thing.
 func (b *IPCSessionBroker) release(
 	s *session,
 	done *spb.SweepSchedulerServerDoneTask,
 ) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	if b.bySweep[s.sweepKey] == s.id {
-		delete(b.bySweep, s.sweepKey)
+	if b.drop(s) {
 		b.logger.Info(
 			"scheduler: session finished",
 			"id", s.id,
 			"sweep", s.sweepKey,
 			"reason", done.Reason.String())
 	}
+	s.cancel(errSessionFinished)
+}
+
+// dropOnClose retires a session whose client's connection ended before
+// the session reached a terminal task.
+func (b *IPCSessionBroker) dropOnClose(s *session) {
+	if b.drop(s) {
+		b.logger.Debug(
+			"scheduler: session dropped, its client is gone",
+			"id", s.id,
+			"sweep", s.sweepKey)
+	}
+}
+
+// drop forgets s and reports whether it was still tracked.
+func (b *IPCSessionBroker) drop(s *session) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.dropLocked(s)
+}
+
+// dropLocked forgets s and reports whether it was still tracked.
+//
+// The identity checks stop a session that is retiring late from
+// evicting the successor that replaced it.
+//
+// Callers must hold mu.
+func (b *IPCSessionBroker) dropLocked(s *session) bool {
+	if b.sessions[s.id] != s {
+		return false
+	}
+	delete(b.sessions, s.id)
+
+	if b.bySweep[s.sweepKey] == s.id {
+		delete(b.bySweep, s.sweepKey)
+	}
+
+	// Nothing is left for the watcher to drop.
+	s.stopWatch()
+	return true
 }
 
 // Stop asks a session to finish its current step and stop.
@@ -225,9 +280,11 @@ func (b *IPCSessionBroker) Stop(req *spb.SweepSchedulerClientStopRequest) {
 	s.machine.Stop()
 }
 
-// Shutdown cancels every session because the server is exiting.
-// Sessions observe it through their contexts; there are no scheduler
-// goroutines to wait for.
+// Shutdown retires every session because the server is exiting.
+//
+// It does not wait for anything: dropping the sessions here also
+// unregisters their context watchers, so cancelling them starts no
+// goroutine that could outlive the call.
 func (b *IPCSessionBroker) Shutdown() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -236,6 +293,7 @@ func (b *IPCSessionBroker) Shutdown() {
 		"scheduler: cancelling all sessions for server shutdown",
 		"count", len(b.sessions))
 	for _, s := range b.sessions {
+		b.dropLocked(s)
 		s.cancel(context.Canceled)
 	}
 }

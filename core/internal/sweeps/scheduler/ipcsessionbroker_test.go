@@ -3,6 +3,7 @@ package scheduler_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -52,17 +53,14 @@ func initRequest(sweepID string) *spb.SweepSchedulerClientInitRequest {
 }
 
 // newTestBroker builds a broker logging to the test's output.
+//
+// It is shut down when the test ends, so no session watcher outlives
+// the test that created it.
 func newTestBroker(t *testing.T, factory *testFactory) *scheduler.IPCSessionBroker {
-	return scheduler.NewIPCSessionBroker(
+	broker := scheduler.NewIPCSessionBroker(
 		factory.make, observabilitytest.NewTestLogger(t))
-}
-
-func generationTask() *spb.SweepSchedulerServerNextTaskResponse {
-	return &spb.SweepSchedulerServerNextTaskResponse{
-		Task: &spb.SweepSchedulerServerNextTaskResponse_Generation{
-			Generation: &spb.SweepSchedulerServerGenerationTask{},
-		},
-	}
+	t.Cleanup(broker.Shutdown)
+	return broker
 }
 
 func shutdownTask() *spb.SweepSchedulerServerNextTaskResponse {
@@ -73,6 +71,49 @@ func shutdownTask() *spb.SweepSchedulerServerNextTaskResponse {
 			},
 		},
 	}
+}
+
+func generationTask() *spb.SweepSchedulerServerNextTaskResponse {
+	return &spb.SweepSchedulerServerNextTaskResponse{
+		Task: &spb.SweepSchedulerServerNextTaskResponse_Generation{
+			Generation: &spb.SweepSchedulerServerGenerationTask{},
+		},
+	}
+}
+
+// pollUntilDropped polls a session until the broker no longer knows its
+// id, keeping each poll in sync with the task the last one returned,
+// and returns the Done that ends it.
+//
+// A session the broker still tracks answers with a task, which is how
+// this tells "not dropped yet" from "dropped". It fails the test if the
+// session is still tracked after schedulertest.ReceiveTimeout.
+func pollUntilDropped(
+	t *testing.T,
+	broker *scheduler.IPCSessionBroker,
+	sessionID string,
+) *spb.SweepSchedulerServerDoneTask {
+	t.Helper()
+
+	var result *spb.SweepSchedulerClientTaskResult
+	deadline := time.Now().Add(schedulertest.ReceiveTimeout)
+	for time.Now().Before(deadline) {
+		response := broker.NextTask(
+			&spb.SweepSchedulerClientNextTaskRequest{
+				SessionId: sessionID,
+				Result:    result,
+			})
+		if done := response.GetDone(); done != nil {
+			return done
+		}
+		result = &spb.SweepSchedulerClientTaskResult{TaskSeq: response.TaskSeq}
+		time.Sleep(time.Millisecond)
+	}
+
+	t.Fatalf(
+		"the session was still tracked after %s",
+		schedulertest.ReceiveTimeout)
+	return nil
 }
 
 func TestInitSchedulerAssignsIDs(t *testing.T) {
@@ -156,6 +197,97 @@ func TestRerunAllowedAfterSchedulerFinishes(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestFinishedSessionIsRetired(t *testing.T) {
+	factory := newTestFactory(t)
+	broker := newTestBroker(t, factory)
+	ctx := context.Background()
+	initResponse, err := broker.InitScheduler(ctx, ctx, initRequest("sweep-a"))
+	require.NoError(t, err)
+	// Exactly one Step runs: the retired session is gone by the second
+	// poll, so nothing reaches its resolver again.
+	factory.resolvers[0].EXPECT().
+		Step(gomock.Any(), gomock.Nil()).
+		Return(shutdownTask())
+
+	first := broker.NextTask(
+		&spb.SweepSchedulerClientNextTaskRequest{SessionId: initResponse.SessionId})
+	second := broker.NextTask(
+		&spb.SweepSchedulerClientNextTaskRequest{SessionId: initResponse.SessionId})
+
+	require.NotNil(t, first.GetDone())
+	// The scheduler's context ends with it, so the run state and API
+	// client it held are no longer pinned.
+	assert.Error(t, factory.schedCtxs[0].Err())
+	require.NotNil(t, second.GetDone())
+	assert.Contains(t, second.GetDone().Message, "unknown scheduler id")
+}
+
+func TestSessionEndsWhenClientDiesMidPoll(t *testing.T) {
+	factory := newTestFactory(t)
+	broker := newTestBroker(t, factory)
+	connCtx, cancel := context.WithCancel(context.Background())
+	initResponse, err := broker.InitScheduler(
+		connCtx, context.Background(), initRequest("sweep-a"))
+	require.NoError(t, err)
+	// The outstanding Step ends with the session's context, as a
+	// resolver must.
+	stepping := make(chan struct{})
+	factory.resolvers[0].EXPECT().
+		Step(gomock.Any(), gomock.Nil()).
+		DoAndReturn(func(
+			ctx context.Context,
+			_ *spb.SweepSchedulerClientTaskResult,
+		) *spb.SweepSchedulerServerNextTaskResponse {
+			close(stepping)
+			<-ctx.Done()
+			return shutdownTask()
+		})
+
+	polled := make(chan *spb.SweepSchedulerServerNextTaskResponse, 1)
+	go func() {
+		polled <- broker.NextTask(
+			&spb.SweepSchedulerClientNextTaskRequest{
+				SessionId: initResponse.SessionId,
+			})
+	}()
+	// Kill the connection only once the poll is genuinely in flight.
+	schedulertest.Receive(t, stepping)
+	cancel()
+
+	require.NotNil(t, schedulertest.Receive(t, polled).GetDone())
+	// The session is retired, not left in the broker awaiting a client
+	// that is gone.
+	response := broker.NextTask(
+		&spb.SweepSchedulerClientNextTaskRequest{SessionId: initResponse.SessionId})
+	require.NotNil(t, response.GetDone())
+	assert.Contains(t, response.GetDone().Message, "unknown scheduler id")
+}
+
+func TestSessionDroppedWhenClientDiesBetweenPolls(t *testing.T) {
+	factory := newTestFactory(t)
+	broker := newTestBroker(t, factory)
+	connCtx, cancel := context.WithCancel(context.Background())
+	initResponse, err := broker.InitScheduler(
+		connCtx, context.Background(), initRequest("sweep-a"))
+	require.NoError(t, err)
+	// This resolver keeps answering with tasks, so the only Done the
+	// polls below can see is the one for a dropped session. A real
+	// resolver ends with its context instead.
+	factory.resolvers[0].EXPECT().
+		Step(gomock.Any(), gomock.Any()).
+		Return(generationTask()).
+		AnyTimes()
+
+	cancel() // The client's connection dies between polls.
+
+	// No poll is in flight to notice, so the session's own context is
+	// what drops it, from a goroutine of its own.
+	done := pollUntilDropped(t, broker, initResponse.SessionId)
+	assert.Equal(t,
+		spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR, done.Reason)
+	assert.Contains(t, done.Message, "unknown scheduler id")
+}
+
 func TestInitsForDifferentSweepsCoexist(t *testing.T) {
 	factory := newTestFactory(t)
 	broker := newTestBroker(t, factory)
@@ -181,24 +313,6 @@ func TestNextTaskUnknownIDReturnsFatalDone(t *testing.T) {
 	assert.Equal(t,
 		spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR, done.Reason)
 	assert.Contains(t, done.Message, "unknown scheduler id")
-}
-
-func TestNextTaskRoutesToSession(t *testing.T) {
-	factory := newTestFactory(t)
-	broker := newTestBroker(t, factory)
-	ctx := context.Background()
-	initResponse, err := broker.InitScheduler(
-		ctx, ctx, initRequest("sweep-a"))
-	require.NoError(t, err)
-	factory.resolvers[0].EXPECT().
-		Step(gomock.Any(), gomock.Nil()).
-		Return(generationTask())
-
-	response := broker.NextTask(
-		&spb.SweepSchedulerClientNextTaskRequest{SessionId: initResponse.SessionId})
-
-	assert.NotNil(t, response.GetGeneration())
-	assert.EqualValues(t, 1, response.TaskSeq)
 }
 
 func TestStopRoutesToSessionAndIgnoresUnknown(t *testing.T) {

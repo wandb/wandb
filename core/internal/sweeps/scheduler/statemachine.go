@@ -12,7 +12,10 @@ import (
 // TaskResolver computes one scheduling step for a sweep.
 type TaskResolver interface {
 	// Step applies the previous task's result (nil on the first step),
-	// then blocks up to one poll interval and returns the next task
+	// then blocks up to one poll interval and returns the next task.
+	//
+	// A Step whose ctx ends must return a Done task, which retires the
+	// session instead of leaving it waiting for a client that is gone.
 	Step(
 		ctx context.Context,
 		result *spb.SweepSchedulerClientTaskResult,
