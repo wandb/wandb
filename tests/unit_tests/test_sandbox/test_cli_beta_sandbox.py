@@ -62,7 +62,12 @@ def test_sandbox_help_text(
 
     assert result.exit_code == 0, result.output
     assert "wandb beta sandbox" in result.output
-    assert "cwsandbox" not in result.output
+    normalized_output = " ".join(result.output.split())
+    assert "deprecated" in normalized_output.lower()
+    assert (
+        "It will be removed in a future release. Sandbox functionality is now "
+        "maintained in the `cwsandbox` package." in normalized_output
+    )
     for expected in expected_strings:
         assert expected in result.output
 
