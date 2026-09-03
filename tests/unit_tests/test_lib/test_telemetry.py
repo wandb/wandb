@@ -102,6 +102,24 @@ def test_reraise_raises_original_on_telemetry_fail(monkeypatch):
     assert exc_info.value is original
 
 
+def test_exception_captures_extra_attributes(monkeypatch):
+    monkeypatch.setattr(env, "error_reporting_enabled", lambda: True)
+    open_telemetry_proxy = MagicMock()
+    recorder = TelemetryRecorder(open_telemetry_proxy=open_telemetry_proxy)
+
+    recorder.exception(
+        Exception("test exception"),
+        attributes={
+            "error.context.command": "['wandb-core', 'service']",
+            "error.context.proc_err": "connection refused",
+        },
+    )
+
+    attributes = open_telemetry_proxy.log.call_args.args[1]
+    assert attributes["error.context.command"] == "['wandb-core', 'service']"
+    assert attributes["error.context.proc_err"] == "connection refused"
+
+
 def test_proxy_noop_after_disable(monkeypatch):
     disabled = threading.Event()
     monkeypatch.setattr(opentelemetry_proxy, "_disabled", disabled)
