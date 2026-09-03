@@ -191,6 +191,7 @@ message RunRecord {
   // This stores pre-sync intention. Distinct from `resumed` which stores what
   // actually happened.
   bool resume = 24;
+
   _RecordInfo _info = 200;
 }
 

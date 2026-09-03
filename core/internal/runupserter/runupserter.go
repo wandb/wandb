@@ -229,6 +229,12 @@ func InitRun(
 		return upserter, nil
 	}
 
+	// If we're offline, skip upserting and leave the sync state to
+	// when we actually sync.
+	if upserter.graphqlClientOrNil == nil {
+		return upserter, nil
+	}
+
 	startState, err := upserter.syncStateStore.GetOrInitStartState(
 		runsyncstate.StartState{
 			StartStep:    upserter.params.StartingStep,
@@ -484,6 +490,7 @@ func (upserter *RunUpserter) updateMetadataForResume(
 		ctx,
 		upserter.graphqlClientOrNil,
 		resumeSetting,
+		upserter.logger,
 	).UpdateForResume(
 		upserter.params,
 		upserter.config,

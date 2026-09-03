@@ -12,6 +12,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/nullify"
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runconfig"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -20,11 +21,17 @@ type ResumeBranch struct {
 	ctx    context.Context
 	client graphql.Client
 	mode   string
+	logger *observability.CoreLogger
 }
 
 // NewResumeBranch creates a new ResumeBranch
-func NewResumeBranch(ctx context.Context, client graphql.Client, mode string) *ResumeBranch {
-	return &ResumeBranch{ctx: ctx, client: client, mode: mode}
+func NewResumeBranch(
+	ctx context.Context,
+	client graphql.Client,
+	mode string,
+	logger *observability.CoreLogger,
+) *ResumeBranch {
+	return &ResumeBranch{ctx: ctx, client: client, mode: mode, logger: logger}
 }
 
 // UpdateForResume modifies run metadata for resuming.
