@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/wandb/simplejsonext"
 
@@ -126,12 +127,12 @@ func processHistory(history *string) (map[string]any, error) {
 	return historyTail, nil
 }
 
-func extractRuntime(runtime any) float64 {
+func extractRuntime(runtime any) time.Duration {
 	switch x := runtime.(type) {
 	case int64:
-		return float64(x)
+		return time.Duration(x) * time.Second
 	case float64:
-		return x
+		return time.Duration(int64(x*1000)) * time.Millisecond
 	}
 	return 0
 }

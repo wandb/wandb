@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -280,7 +281,7 @@ func TestMustResumeValidHistory(t *testing.T) {
 	params := &runbranch.RunParams{}
 	err = resumeState.UpdateForResume(params, runconfig.New())
 	assert.Equal(t, int64(2), params.StartingStep, "GetUpdates should return correct starting step")
-	assert.Equal(t, int32(50), params.Runtime, "GetUpdates should return correct runtime")
+	assert.Equal(t, 50*time.Second, params.Runtime, "GetUpdates should return correct runtime")
 	assert.True(t, params.Resumed, "GetUpdates should return correct resumed state")
 	assert.Nil(t, err, "GetUpdates should not return an error")
 }
@@ -324,7 +325,7 @@ func TestMustResumeZeroHisotry(t *testing.T) {
 	params := &runbranch.RunParams{}
 	err = resumeState.UpdateForResume(params, runconfig.New())
 	assert.Equal(t, int64(0), params.StartingStep, "GetUpdates should return correct starting step")
-	assert.Equal(t, int32(0), params.Runtime, "GetUpdates should return correct runtime")
+	assert.EqualValues(t, 0, params.Runtime, "GetUpdates should return correct runtime")
 	assert.True(t, params.Resumed, "GetUpdates should return correct resumed state")
 	assert.Nil(t, err, "GetUpdates should not return an error")
 }
@@ -369,7 +370,7 @@ func TestMustResumeHistoryTailStepZero(t *testing.T) {
 	params := &runbranch.RunParams{}
 	err = resumeState.UpdateForResume(params, runconfig.New())
 	assert.Equal(t, int64(1), params.StartingStep, "GetUpdates should return correct starting step")
-	assert.Equal(t, int32(0), params.Runtime, "GetUpdates should return correct runtime")
+	assert.EqualValues(t, 0, params.Runtime, "GetUpdates should return correct runtime")
 	assert.True(t, params.Resumed, "GetUpdates should return correct resumed state")
 	assert.Nil(t, err, "GetUpdates should not return an error")
 }
@@ -413,9 +414,9 @@ func TestMustResumeValidSummary(t *testing.T) {
 
 	params := &runbranch.RunParams{}
 	err = resumeState.UpdateForResume(params, runconfig.New())
-	assert.Equal(t, int64(2), params.StartingStep, "GetUpdates should return correct starting step")
-	assert.Equal(t, int32(40), params.Runtime, "GetUpdates should return correct runtime")
-	assert.True(t, params.Resumed, "GetUpdates should return correct resumed state")
+	assert.Equal(t, int64(2), params.StartingStep)
+	assert.EqualValues(t, 40.2, params.Runtime.Seconds())
+	assert.True(t, params.Resumed)
 
 	// check the value of the summary are correct
 	assert.Len(t, params.Summary, 4, "GetUpdates should return correct summary")
@@ -479,7 +480,7 @@ func TestMustResumeValidConfig(t *testing.T) {
 	err = resumeState.UpdateForResume(params, config)
 	assert.Nil(t, err, "GetUpdates should not return an error")
 	assert.Equal(t, int64(0), params.StartingStep, "GetUpdates should return correct starting step")
-	assert.Equal(t, int32(0), params.Runtime, "GetUpdates should return correct runtime")
+	assert.EqualValues(t, 0, params.Runtime, "GetUpdates should return correct runtime")
 	assert.True(t, params.Resumed, "GetUpdates should return correct resumed state")
 	assert.Len(t, config.CloneTree(), 1, "GetUpdates should return correct config")
 	assert.Equal(t, 0.001, config.CloneTree()["lr"], "GetUpdates should return correct config")
@@ -527,7 +528,7 @@ func TestMustResumeValidTags(t *testing.T) {
 	err = resumeState.UpdateForResume(params, runconfig.New())
 	assert.Nil(t, err, "GetUpdates should not return an error")
 	assert.Equal(t, int64(0), params.StartingStep, "GetUpdates should return correct starting step")
-	assert.Equal(t, int32(0), params.Runtime, "GetUpdates should return correct runtime")
+	assert.EqualValues(t, 0, params.Runtime, "GetUpdates should return correct runtime")
 	assert.True(t, params.Resumed, "GetUpdates should return correct resumed state")
 	assert.Len(t, params.Tags, 2, "GetUpdates should return correct tags")
 	assert.Contains(t, params.Tags, "tag1", "GetUpdates should return correct tags")
@@ -576,7 +577,7 @@ func TestMustResumeValidStorageId(t *testing.T) {
 	err = resumeState.UpdateForResume(params, runconfig.New())
 	assert.Nil(t, err, "GetUpdates should not return an error")
 	assert.Equal(t, int64(0), params.StartingStep, "GetUpdates should return correct starting step")
-	assert.Equal(t, int32(0), params.Runtime, "GetUpdates should return correct runtime")
+	assert.EqualValues(t, 0, params.Runtime, "GetUpdates should return correct runtime")
 	assert.True(t, params.Resumed, "GetUpdates should return correct resumed state")
 	assert.Equal(t, "storage_id", params.StorageID, "GetUpdates should return correct storage id")
 }
@@ -624,7 +625,7 @@ func TestMustResumeValidEvents(t *testing.T) {
 	err = resumeState.UpdateForResume(params, runconfig.New())
 	assert.Nil(t, err, "GetUpdates should not return an error")
 	assert.Equal(t, int64(0), params.StartingStep, "GetUpdates should return correct starting step")
-	assert.Equal(t, int32(50), params.Runtime, "GetUpdates should return correct runtime")
+	assert.Equal(t, 50*time.Second, params.Runtime, "GetUpdates should return correct runtime")
 	assert.True(t, params.Resumed, "GetUpdates should return correct resumed state")
 
 	assert.Len(t, params.Summary, 1, "GetUpdates should return correct summary")
@@ -1155,7 +1156,7 @@ func TestExtractRunState(t *testing.T) {
 	assert.Equal(t, int64(5), params.StartingStep, "Incorrect starting step")
 
 	// Test Runtime
-	assert.Equal(t, int32(130), params.Runtime, "Incorrect runtime")
+	assert.Equal(t, 130*time.Second, params.Runtime, "Incorrect runtime")
 
 	// Test Resumed flag
 	assert.True(t, params.Resumed, "Resumed flag should be true")
@@ -1397,7 +1398,7 @@ func TestExtractRunStateAdjustsStartTime(t *testing.T) {
 	assert.Nil(t, err, "GetUpdates should not return an error")
 
 	// Verify other fields are set correctly
-	assert.Equal(t, int32(130), params.Runtime, "Runtime should be set to the maximum value")
+	assert.Equal(t, 130*time.Second, params.Runtime, "Runtime should be set to the maximum value")
 	assert.True(t, params.Resumed, "Resumed flag should be set to true")
 }
 

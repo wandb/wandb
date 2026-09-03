@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/leet"
+	"github.com/wandb/wandb/core/internal/runmetric"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -26,7 +27,7 @@ func TestParseHistory_ImageFile(t *testing.T) {
 		},
 	}
 
-	msg, ok := leet.ParseHistory(runPath, history).(leet.HistoryMsg)
+	msg, ok := leet.ParseHistory(runPath, history, runmetric.New()).(leet.HistoryMsg)
 	require.True(t, ok)
 	require.Contains(t, msg.Media, "media/generated_sample")
 	require.Len(t, msg.Media["media/generated_sample"], 1)
@@ -56,7 +57,7 @@ func TestParseHistory_ImageFile_NormalizesRelativePathWithinFilesDir(t *testing.
 		},
 	}
 
-	msg, ok := leet.ParseHistory(runPath, history).(leet.HistoryMsg)
+	msg, ok := leet.ParseHistory(runPath, history, runmetric.New()).(leet.HistoryMsg)
 	require.True(t, ok)
 	require.Contains(t, msg.Media, "media/generated_sample")
 	require.Len(t, msg.Media["media/generated_sample"], 1)
@@ -88,7 +89,7 @@ func TestParseHistory_ImagesSeparated(t *testing.T) {
 		},
 	}
 
-	msg, ok := leet.ParseHistory(runPath, history).(leet.HistoryMsg)
+	msg, ok := leet.ParseHistory(runPath, history, runmetric.New()).(leet.HistoryMsg)
 	require.True(t, ok)
 	require.Len(t, msg.Media, 2)
 	require.Contains(t, msg.Media, "attention_maps[0]")
@@ -123,7 +124,7 @@ func TestParseHistory_ImagesSeparated_NoCaptions(t *testing.T) {
 		},
 	}
 
-	msg, ok := leet.ParseHistory(runPath, history).(leet.HistoryMsg)
+	msg, ok := leet.ParseHistory(runPath, history, runmetric.New()).(leet.HistoryMsg)
 	require.True(t, ok)
 	require.Len(t, msg.Media, 1)
 	require.Contains(t, msg.Media, "samples[0]")
