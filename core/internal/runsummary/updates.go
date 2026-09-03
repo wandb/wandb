@@ -60,6 +60,16 @@ func FromProto(record *spb.SummaryRecord) *Updates {
 	return u
 }
 
+// IgnoreStep discards changes to _step.
+func (u *Updates) IgnoreStep() {
+	if u == nil {
+		return
+	}
+	step := pathtree.PathOf("_step")
+	u.update.Remove(step)
+	u.remove.Remove(step)
+}
+
 // Merge merges the given Updates into this Updates instance,
 // so that `u1.Apply(rs); u2.Apply(rs)` has the same effect on `rs` as
 // `u1.Merge(u2); u1.Apply(rs)`.

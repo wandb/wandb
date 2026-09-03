@@ -1,5 +1,4 @@
 use fork::{fork, Fork};
-use sentry;
 use std::fs;
 use std::io;
 use std::process::{Child, Command};
@@ -97,7 +96,6 @@ impl Launcher {
             }
             Err(e) => {
                 let error = LauncherError::ForkFailed(e.to_string());
-                sentry::capture_error(&error);
                 tracing::error!("Fork failed: {}", e);
                 Err(error)
             }

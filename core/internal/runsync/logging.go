@@ -8,8 +8,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/getsentry/sentry-go"
-
 	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/observability"
@@ -84,7 +82,6 @@ func NewSyncLogger(
 				logFile.Writer(),
 				&slog.HandlerOptions{Level: logLevel},
 			)),
-		observability.NewSentryContext(sentry.CurrentHub()),
 		telemetryRecorder,
 	)
 }

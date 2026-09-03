@@ -29,7 +29,7 @@ from typing_extensions import Any, Protocol
 import wandb
 import wandb.env
 from wandb import env, trigger
-from wandb.analytics import TelemetryRecorder, get_sentry, get_telemetry_recorder
+from wandb.analytics import TelemetryRecorder, get_telemetry_recorder
 from wandb.analytics.opentelemetry.opentelemetry_proxy import OpenTelemetryProxy
 from wandb.errors import Error, UsageError
 from wandb.errors.links import url_registry
@@ -1553,6 +1553,4 @@ def init(  # noqa: C901
     except Exception as e:
         if wl:
             wl._get_logger().exception("error in wandb.init()", exc_info=e)
-        # TODO: remove sentry once we no longer support/need it
-        get_sentry().exception(e)
         telemetry_recorder.reraise(e)

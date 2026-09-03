@@ -19,7 +19,6 @@ require (
 	github.com/charmbracelet/x/ansi v0.11.8
 	github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20260830003929-9f48cc723c1c
 	github.com/ebitengine/purego v0.11.0
-	github.com/getsentry/sentry-go v0.49.0
 	github.com/go-git/go-git/v5 v5.19.2
 	github.com/google/wire v0.7.0
 	github.com/googleapis/gax-go/v2 v2.24.0

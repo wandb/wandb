@@ -31,9 +31,8 @@ import (
 func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceManager, debugCorePath DebugCorePath, logLevel slog.Level, settings2 *settings.Settings) *Stream {
 	clientID := sharedmode.RandomClientID()
 	streamStreamLoggerFile := openStreamLoggerFile(settings2)
-	sentryContext := streamSentryContext(settings2)
 	openTelemetryProxy := streamOTelProxy(settings2)
-	coreLogger := streamLogger(streamStreamLoggerFile, sentryContext, openTelemetryProxy, settings2, logLevel)
+	coreLogger := streamLogger(streamStreamLoggerFile, openTelemetryProxy, settings2, logLevel)
 	wbBaseURL := BaseURLFromSettings(coreLogger, settings2)
 	credentialProvider := CredentialsFromSettings(coreLogger, settings2)
 	peeker := &observability.Peeker{}

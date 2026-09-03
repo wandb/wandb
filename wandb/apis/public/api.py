@@ -183,9 +183,6 @@ class Api:
         if isinstance(self._auth, wbauth.AuthApiKey):
             wandb_login._verify_login(self._auth, service_api=self._service_api)
 
-        self._sentry = wandb.analytics.sentry.Sentry(pid=os.getpid())
-        self._configure_analytics()
-
     def _load_auth(self, base_url: str) -> wbauth.Auth:
         """Load or prompt for authentication credentials."""
         auth = wbauth.authenticate_session(
@@ -201,26 +198,6 @@ class Api:
             )
 
         return auth
-
-    def _configure_analytics(self) -> None:
-        if not env.error_reporting_enabled():
-            return
-
-        try:
-            viewer = self.viewer
-        except (ValueError, WandbApiFailedError):
-            # we need the viewer to configure the entity, and user email
-            return
-
-        email = viewer.email if viewer else None
-        entity = self.default_entity
-
-        self._sentry.configure_scope(
-            tags={
-                "entity": entity,
-                "email": email,
-            },
-        )
 
     def _resolve_org_entity_name(
         self,
@@ -281,7 +258,6 @@ class Api:
         entity: str | None = None,
         state: Literal["running", "pending"] = "running",
     ) -> public.Run:
-        self._sentry.message("Invoking Run.create", level="info")
         run_id = run_id or runid.generate_id()
         project = project or self.settings.get("project") or "uncategorized"
         mutation = """

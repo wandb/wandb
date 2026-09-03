@@ -2,11 +2,8 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"sync"
-
-	"github.com/getsentry/sentry-go"
 )
 
 // requestCountWarnInterval is the default RequestCanceller.warnInterval value.
@@ -92,11 +89,6 @@ func (rc *RequestCanceller) Context(id string) (context.Context, func()) {
 
 		message := "server: requestcanceller: many unfinished requests"
 		rc.logger.Warn(message, "count", count)
-
-		sentry.WithScope(func(scope *sentry.Scope) {
-			scope.SetTag("count", fmt.Sprintf("%d", count))
-			sentry.CaptureMessage(message)
-		})
 	}
 
 	return ctx, cancel
