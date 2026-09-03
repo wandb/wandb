@@ -413,52 +413,36 @@ func TestOpenTelemetryProxy_Shutdown_CalledMultipleTimes(t *testing.T) {
 	require.NoError(t, proxy.Shutdown(context.Background()))
 }
 
-func TestNewOpenTelemetryProxy_UnresponsiveServer_ProbesOnFirstRecord(
-	t *testing.T,
-) {
-	block := make(chan struct{})
+func TestOpenTelemetryProxy_UnsupportedServer_DropsRecords(t *testing.T) {
 	var requests atomic.Int32
-	var logs atomic.Int32
-	var metrics atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			requests.Add(1)
-			if r.URL.Path == "/sdk/otel/v1/logs" {
-				logs.Add(1)
-			}
-			if r.URL.Path == "/sdk/otel/v1/metrics" && r.ContentLength != 0 {
-				metrics.Add(1)
-			}
-
-			// Block to force the server probe to timeout
-			<-block
-			w.WriteHeader(http.StatusNotFound)
+			http.NotFound(w, r)
 		},
 	))
 	defer server.Close()
 
-	start := time.Now()
 	proxy := analytics.NewOpenTelemetryProxy(
-		context.Background(),
+		t.Context(),
 		settings.From(&spb.Settings{BaseUrl: wrapperspb.String(server.URL)}),
 		"wandb-core",
 	)
-
 	require.NotNil(t, proxy)
 	recorder := analytics.NewTelemetryRecorder(
 		proxy,
 		analytics.NewTelemetryContext(),
 	)
+
 	recorder.Log(t.Context(), "test", nil, otellogapi.SeverityInfo)
-	recorder.Log(t.Context(), "test again", nil, otellogapi.SeverityInfo)
-	close(block)
+
+	// Neither construction nor recording touches the network.
+	assert.Zero(t, requests.Load())
+
 	require.NoError(t, proxy.Shutdown(context.Background()))
 
-	// The SDK gives api-init, which this runs inside, 10 seconds in total.
-	assert.Less(t, time.Since(start), 5*time.Second)
+	// The final flush probes the server once and drops the record.
 	assert.Equal(t, int32(1), requests.Load())
-	assert.Equal(t, int32(0), logs.Load())
-	assert.Equal(t, int32(0), metrics.Load())
 }
 
 func TestTelemetryRecorder_RecordAfterShutdown_IsNoop(t *testing.T) {

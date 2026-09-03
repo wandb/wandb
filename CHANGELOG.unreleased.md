@@ -43,6 +43,7 @@ Legacy `wandb sync` options have been removed. See `wandb sync --help`.
 - Fixed the `ecpu_cores` count of Apple M5 Pro and M5 Max Macs being reported as 0 (@dmitryduev in https://github.com/wandb/wandb/pull/12680)
 - Fixed CPU frequency metrics on the MacBook Neo being reported about 1000 times too high (@dmitryduev in https://github.com/wandb/wandb/pull/12681)
 - Fixed missing CPU utilization and frequency metrics for the efficiency cores of Apple M5 Macs and the performance cores of M5 Pro and M5 Max Macs (@dmitryduev in https://github.com/wandb/wandb/pull/12682)
+- `wandb.init()` and `wandb.Api()` no longer stall for up to 10 seconds when the W&B server is slow to respond. This was a regression in 0.29.0 (@mitja-kleider and @jacobromero in https://github.com/wandb/wandb/pull/12697)
 
 ### Removed
 
