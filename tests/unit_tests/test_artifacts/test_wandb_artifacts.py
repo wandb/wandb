@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 import functools
+import json
+import os
 import queue
 import shutil
+import subprocess
+import sys
+import textwrap
 import unittest.mock as mock
 from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
@@ -91,6 +96,69 @@ def test_capped_cache():
         art._state = "COMMITTED"
         artifact_instance_cache[art.id] = art
     assert len(artifact_instance_cache) == 100
+
+
+def test_import_defers_temp_directory_creation(tmp_path: Path) -> None:
+    script = textwrap.dedent(
+        """
+        import json
+        import os
+        from pathlib import Path
+
+        temp_dir = Path(os.environ["TMPDIR"])
+        before_import = {path.name for path in temp_dir.iterdir()}
+
+        import wandb
+
+        after_import = {path.name for path in temp_dir.iterdir()}
+        media = wandb.Html("<p>media</p>")
+        artifact = wandb.Artifact("artifact", type="dataset")
+        artifact.add(wandb.Table(data=[[1]], columns=["value"]), "media/tables/table")
+
+        from wandb.sdk.artifacts.artifact import Artifact
+        from wandb.sdk.data_types._private import MEDIA_TMP
+
+        print(
+            "RESULT="
+            + json.dumps(
+                {
+                    "new_temp_entries": sorted(after_import - before_import),
+                    "artifact_temp_dir": Artifact._TMP_DIR.name,
+                    "media_temp_dir": MEDIA_TMP.name,
+                    "media_path": media._path,
+                }
+            )
+        )
+        """
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        capture_output=True,
+        check=True,
+        cwd=Path(__file__).parents[3],
+        env={
+            **os.environ,
+            "TMPDIR": str(tmp_path),
+            "TMP": str(tmp_path),
+            "TEMP": str(tmp_path),
+        },
+        text=True,
+    )
+    output_line = next(
+        line for line in result.stdout.splitlines() if line.startswith("RESULT=")
+    )
+    result_data = json.loads(output_line.removeprefix("RESULT="))
+
+    assert result_data["new_temp_entries"] == []
+
+    artifact_temp_dir = Path(result_data["artifact_temp_dir"])
+    media_temp_dir = Path(result_data["media_temp_dir"])
+    assert artifact_temp_dir.parent == tmp_path
+    assert media_temp_dir.parent == tmp_path
+    assert Path(result_data["media_path"]).parent == media_temp_dir
+    assert not artifact_temp_dir.exists()
+    assert not media_temp_dir.exists()
 
 
 class TestStoreFile:

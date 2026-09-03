@@ -12,6 +12,7 @@ import re
 import shutil
 import stat
 import tempfile
+import threading
 import time
 from collections import deque
 from collections.abc import Generator, Sequence
@@ -166,8 +167,16 @@ class Artifact:
         An `Artifact` object.
     """
 
-    _TMP_DIR = tempfile.TemporaryDirectory("wandb-artifacts")
-    atexit.register(_TMP_DIR.cleanup)
+    _TMP_DIR: tempfile.TemporaryDirectory | None = None
+    _TMP_DIR_LOCK = threading.Lock()
+
+    @staticmethod
+    def _get_tmp_dir() -> tempfile.TemporaryDirectory:
+        with Artifact._TMP_DIR_LOCK:
+            if Artifact._TMP_DIR is None:
+                Artifact._TMP_DIR = tempfile.TemporaryDirectory("wandb-artifacts")
+                atexit.register(Artifact._TMP_DIR.cleanup)
+            return Artifact._TMP_DIR
 
     def __init__(
         self,
@@ -1811,7 +1820,7 @@ class Artifact:
             return entry
 
         if is_tmp_name:
-            file_path = os.path.join(self._TMP_DIR.name, str(id(self)), name)
+            file_path = os.path.join(self._get_tmp_dir().name, str(id(self)), name)
             folder_path, _ = os.path.split(file_path)
             os.makedirs(folder_path, exist_ok=True)
             with open(file_path, "w", encoding="utf-8") as tmp_f:
