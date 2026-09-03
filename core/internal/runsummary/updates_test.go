@@ -111,6 +111,50 @@ func TestUpdates_FromProto(t *testing.T) {
 		rs.ToNestedMaps())
 }
 
+func TestUpdates_IgnoreStep_DiscardsUpdate(t *testing.T) {
+	rs := runsummary.New()
+	rs.Set(pathtree.PathOf("_step"), int64(4))
+	rs.Set(pathtree.PathOf("loss"), 1.23)
+
+	updates := runsummary.FromProto(&spb.SummaryRecord{
+		Update: []*spb.SummaryItem{
+			{Key: "loss", ValueJson: "0.5"},
+			{Key: "_step", ValueJson: "999"},
+		},
+	})
+	updates.IgnoreStep()
+	err := updates.Apply(rs)
+
+	assert.NoError(t, err)
+	assert.Equal(t,
+		map[string]any{
+			"_step": int64(4),
+			"loss":  float64(0.5),
+		},
+		rs.ToNestedMaps())
+}
+
+func TestUpdates_IgnoreStep_DiscardsRemoval(t *testing.T) {
+	rs := runsummary.New()
+	rs.Set(pathtree.PathOf("_step"), int64(4))
+
+	updates := runsummary.FromProto(&spb.SummaryRecord{
+		Remove: []*spb.SummaryItem{{Key: "_step"}},
+	})
+	updates.IgnoreStep()
+	err := updates.Apply(rs)
+
+	assert.NoError(t, err)
+	assert.Equal(t,
+		map[string]any{"_step": int64(4)},
+		rs.ToNestedMaps())
+}
+
+func TestUpdates_IgnoreStep_NilIsNoOp(t *testing.T) {
+	var updates *runsummary.Updates
+	updates.IgnoreStep()
+}
+
 func TestUpdates_IsEmpty(t *testing.T) {
 	testCases := []struct {
 		name    string

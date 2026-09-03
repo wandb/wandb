@@ -1588,15 +1588,7 @@ class Settings(BaseModel, validate_assignment=True):
     @property
     def _aws_lambda(self) -> bool:
         """Check if we are running in a lambda environment."""
-        from sentry_sdk.integrations.aws_lambda import (  # type: ignore[import-not-found]
-            get_lambda_bootstrap,
-        )
-
-        lambda_bootstrap = get_lambda_bootstrap()
-        return not (
-            not lambda_bootstrap
-            or not hasattr(lambda_bootstrap, "handle_event_request")
-        )
+        return "AWS_LAMBDA_FUNCTION_NAME" in os.environ
 
     @computed_field  # type: ignore[prop-decorator]
     @property

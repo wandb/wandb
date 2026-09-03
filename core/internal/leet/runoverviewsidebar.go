@@ -52,6 +52,11 @@ type RunOverviewSidebar struct {
 	// dragCue is the owning view's actively dragged layout boundary;
 	// the sidebar highlights its border or the matching section rule.
 	dragCue layoutDrag
+
+	// syncedOverview and syncedGen identify the overview state the sections
+	// were last built from; Sync is a no-op while they match.
+	syncedOverview *RunOverview
+	syncedGen      uint64
 }
 
 // overviewSeparator locates one rendered separator rule between sections.
@@ -211,6 +216,11 @@ func (s *RunOverviewSidebar) Sync() {
 	if s.runOverview == nil {
 		return
 	}
+	if s.syncedOverview == s.runOverview && s.syncedGen == s.runOverview.gen {
+		return
+	}
+	s.syncedOverview = s.runOverview
+	s.syncedGen = s.runOverview.gen
 
 	hadActiveSection := s.hasActiveSection()
 	var selectedKey string

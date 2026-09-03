@@ -164,8 +164,6 @@ var scales = []struct {
 	factor float64
 	suffix string
 }{
-	{1e-6, "μ"},
-	{1e-3, "m"},
 	{1.0, ""},
 	{1e3, "k"},
 	{1e6, "M"},

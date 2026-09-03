@@ -226,13 +226,16 @@ func InitRun(
 		}
 	}
 
-	startingStep, err := upserter.syncStateStore.GetOrInitStartingStep(
-		upserter.params.StartingStep,
-	)
+	startState, err := upserter.syncStateStore.GetOrInitStartState(
+		runsyncstate.StartState{
+			StartStep:    upserter.params.StartingStep,
+			StartRuntime: upserter.params.Runtime,
+		})
 	if err != nil {
 		return nil, ToRunUpdateError(err)
 	}
-	upserter.params.StartingStep = startingStep
+	upserter.params.StartingStep = startState.StartStep
+	upserter.params.Runtime = startState.StartRuntime
 
 	upserter.startRuntime = time.Duration(upserter.params.Runtime) * time.Second
 
@@ -410,6 +413,12 @@ func (upserter *RunUpserter) EnvironmentJSON() ([]byte, error) {
 	upserter.mu.Lock()
 	defer upserter.mu.Unlock()
 	return upserter.environment.ToJSON()
+}
+
+func (upserter *RunUpserter) StartingStep() int64 {
+	upserter.mu.Lock()
+	defer upserter.mu.Unlock()
+	return upserter.params.StartingStep
 }
 
 // StartRuntime returns the run's initial `_runtime` metric.

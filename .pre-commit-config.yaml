@@ -1,20 +1,20 @@
 # Exclude:
 #   * vendored code
 #   * generated protobuf files
-exclude: '^(wandb/vendor|core/vendor/)|\.pb\.go$|_pb2\.pyi?$'
+exclude: '^core/vendor/|\.pb\.go$|_pb2\.pyi?$'
 
 default_stages:
   - pre-push
 default_install_hook_types: [pre-push, pre-commit]
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: "v0.16.4"
+    rev: "v0.16.5"
     hooks:
       - id: ruff-check
         args: [--fix]
       - id: ruff-format
   - repo: https://github.com/astral-sh/ty-pre-commit
-    rev: "v0.0.75"
+    rev: "v0.0.78"
     hooks:
       # Type-check with ty on every commit.
       # ty's coverage and rule config live in [tool.ty] in pyproject.toml.

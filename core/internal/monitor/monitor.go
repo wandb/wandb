@@ -516,7 +516,7 @@ func (sm *SystemMonitor) sample() {
 	}
 }
 
-// ShouldCaptureSamplingError checks if a resource sampling error should be sent to Sentry.
+// ShouldCaptureSamplingError checks if a resource sampling error should be captured as a telemetry error.
 //
 // Use to filter out expected/transient failures. Keep this intentionally small and specific.
 func ShouldCaptureSamplingError(err error) bool {

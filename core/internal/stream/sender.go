@@ -1173,7 +1173,6 @@ func (s *Sender) sendRequestLogArtifact(
 
 		if result.Err != nil {
 			response.ErrorMessage = result.Err.Error()
-			// TODO: it will send error to sentry, do we want it?
 			s.logger.CaptureError(
 				"stream",
 				fmt.Errorf("sender: failed to log artifact: %v", result.Err),
