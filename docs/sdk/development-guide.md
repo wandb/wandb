@@ -87,31 +87,38 @@ prek install
 prek run ruff-format --all-files --hook-stage pre-push
 ```
 
-## Python API reference documentation
+## Python API reference doc generation
 
-The Python API reference is generated from the SDK source rather than maintained
-as a separate copy. The
-[generation scripts](https://github.com/ngrayluna/generate-wandb-python-reference)
-select exported objects from configured namespaces, use `lazydocs` to render
-their Google-style docstrings as Markdown, then post-process, organize, and clean
-the generated pages for the
-[W&B documentation repository](https://github.com/wandb/docs). Update the
-docstrings and export lists in this repository when changing API documentation.
+The Python API reference is generated from the SDK source.
 
-Use one of the two supported docstring markers to omit implementation details
-from the generated reference:
+- [Example reference doc](https://docs.wandb.ai/models/ref/python/experiments/run)
+- [Example generated doc in repo](https://github.com/wandb/docs/blob/main/models/ref/python/experiments/run.mdx)
+- [Generation Scripts](https://github.com/ngrayluna/generate-wandb-python-reference)
 
-- `<!-- lazydoc-ignore -->` omits the generated section for the method,
-  property, class method, or function whose docstring contains it.
+To exclude doc generation for an entire exported class or object, go to the
+appropriate `__init__.py` file and append `# doc:exclude`, e.g.:
+
+```python
+__all__ = (
+    "MyInternalClass",  # doc:exclude
+)
+```
+
+The script documents any public properties or functions, including `__init__`.
+It automatically skips internal properties or functions indicated with an
+underscore prefix.
+
+If you want it to skip any normally documented internal-only properties or
+functions, use one of these docstring markers:
+- `<!-- lazydoc-ignore -->` omits generation for the property or function for
+  that docstring.
 - `<!-- lazydoc-ignore-init: internal -->` goes in a class docstring and omits
-  only the generated `__init__` section. The class and its other documented
-  members remain in the reference. `internal` is part of the exact marker, not
-  a configurable visibility level.
+  generation for `__init__`. Docs will still be generated for the class itself.
 
 For example:
 
 ```python
-class PublicClass:
+class MyPublicClass:
     """A public class with an internal constructor.
 
     <!-- lazydoc-ignore-init: internal -->
@@ -122,16 +129,6 @@ class PublicClass:
 
         <!-- lazydoc-ignore -->
         """
-```
-
-These comments affect generated documentation only; they do not change runtime
-behavior. To omit an entire exported object, add `# doc:exclude` to its entry in
-the appropriate `__all__` definition instead:
-
-```python
-__all__ = (
-    "InternalClass",  # doc:exclude
-)
 ```
 
 ## Proto changes
