@@ -4,8 +4,8 @@ on:
   # Allow manual runs.
   workflow_dispatch:
 
-  # Run daily at 9 or 10 AM Pacific time (17:00 UTC).
-  schedule: [cron: "0 17 * * *"]
+  # Run on weekdays at 9 or 10 AM Pacific time (17:00 UTC).
+  schedule: [cron: "0 17 * * 1-5"]
 
 jobs:
   update-go-deps:
