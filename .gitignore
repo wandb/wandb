@@ -35,9 +35,6 @@ coverage.xml
 coverage.txt
 cover-results/
 
-mypy-results/
-.mypy_cache/
-
 # Build output in xpu.
 xpu/target/
 
