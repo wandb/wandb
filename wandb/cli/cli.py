@@ -40,7 +40,6 @@ from wandb.sdk.launch.sweeps import SweepNotFoundError
 from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.lib import filesystem, settings_file
-from wandb.sync import TFEVENT_SUBSTRING, SyncManager, get_runs
 
 from .beta import beta
 from .clean import clean
@@ -555,58 +554,42 @@ def init(ctx, project, entity, reset, mode):
 
 
 @cli.command(context_settings=CONTEXT)
-@click.pass_context
-@click.argument("path", nargs=-1, type=click.Path(exists=True))
+@click.argument("paths", nargs=-1, type=click.Path(exists=True))
 @click.option(
-    "--view",
-    is_flag=True,
-    default=False,
-    help="(legacy only) View runs. Try `wandb leet` instead!",
-    hidden=True,
-)
-@click.option(
+    "-v",
     "--verbose",
     is_flag=True,
-    default=False,
-    help="Enable verbose output.",
-    hidden=True,
+    help="Print more information.",
 )
 @click.option(
     "--yes",
     "skip_confirmation",
     is_flag=True,
-    default=False,
-    help="(beta only) Don't prompt for confirmation.",
+    help="Don't prompt for confirmation.",
 )
-@click.option("--id", "run_id", help="Upload to an existing run ID.")
-@click.option("--project", "-p", help="Set the project to upload the run to.")
-@click.option("--entity", "-e", help="Set the entity to scope the project to.")
 @click.option(
-    "--job_type",
+    "--id",
+    "run_id",
+    help="""Upload to an existing run ID.
+
+    If this is set when syncing multiple files (with the same entity
+    and project), the files will be synced in order of start time.
+    """,
+)
+@click.option(
+    "--project",
+    "-p",
+    help="Override the project for all synced runs.",
+)
+@click.option(
+    "--entity",
+    "-e",
+    help="Override the entity for all synced runs.",
+)
+@click.option(
+    "--job-type",
     "job_type",
-    help="Set the job type to group related runs.",
-)
-@click.option(
-    "--sync-tensorboard/--no-sync-tensorboard",
-    is_flag=True,
-    default=None,
-    help="""(legacy only) Sync TensorBoard tfevent files.
-    On by default for specific paths,
-    off for --sync-all.""",
-)
-@click.option(
-    "--include-globs",
-    help="""
-        (legacy only) Include only runs matching these glob patterns
-        (comma-separated).
-    """,
-)
-@click.option(
-    "--exclude-globs",
-    help="""
-        (legacy only) Exclude runs matching these glob patterns
-        (comma-separated).
-    """,
+    help="Override the job type for all synced runs.",
 )
 @click.option(
     "--include-online/--no-include-online",
@@ -616,12 +599,6 @@ def init(ctx, project, entity, reset, mode):
     help="Include runs created in online mode.",
 )
 @click.option(
-    "--include-offline/--no-include-offline",
-    is_flag=True,
-    default=None,
-    help="""(legacy only) Include runs created in offline mode.""",
-)
-@click.option(
     "--include-synced/--no-include-synced",
     "--no-skip-synced/--skip-synced",
     is_flag=True,
@@ -629,138 +606,93 @@ def init(ctx, project, entity, reset, mode):
     help="Include runs that are already synced.",
 )
 @click.option(
-    "--mark-synced/--no-mark-synced",
-    is_flag=True,
-    default=True,
-    help="(legacy only) Mark runs as synced after upload.",
+    "--replace-tags",
+    help="Rename tags using the format 'old1=new1,old2=new2'.",
 )
 @click.option(
-    "--sync-all",
+    "--dry-run",
     is_flag=True,
-    default=False,
-    help="(legacy only) Sync all unsynced runs in the local wandb directory.",
-)
-@click.option(  # TODO: Remove wandb sync --clean completely.
-    "--clean",
-    is_flag=True,
-    default=False,
-    help="Removed. Use `wandb clean`.",
-)
-@click.option(  # TODO: Remove wandb sync --clean-old-hours completely.
-    "--clean-old-hours",
-    default=None,
-    help="Removed. Use `wandb clean`.",
-)
-@click.option(  # TODO: Remove wandb sync --clean-force completely.
-    "--clean-force",
-    is_flag=True,
-    default=False,
-    help="Removed. Use `wandb clean`.",
-)
-@click.option("--ignore", hidden=True)
-@click.option(
-    "--show",
-    default=5,
-    help="Set the number of runs to show in the summary.",
+    help="Print what would happen without uploading anything.",
 )
 @click.option(
-    "--append",
-    is_flag=True,
-    default=False,
-    help="""
-        (legacy only) Append data to an existing run instead of creating
-        a new run.
+    "-n",
+    "parallelism",
+    default=5,  # Same as for `wandb beta sync`
+    help="""Max number of runs to sync at a time.
+
+    When syncing multiple files that are part of the same run,
+    the files are synced sequentially in order of start time
+    regardless of this setting. This happens for resumed runs
+    or when using the --id parameter.
     """,
 )
-@click.option(
-    "--skip-console",
-    is_flag=True,
-    default=False,
-    help="(legacy only) Skip uploading console logs.",
-)
-@click.option(
-    "--replace-tags",
-    help="Rename tags during sync. Use 'old=new' pairs separated by commas.",
-)
-@click.option(
-    "--legacy",
-    is_flag=True,
-    help="Force legacy behavior instead of rerouting to `wandb beta sync`.",
-)
+# Removed options. Kept to provide a nice message for a few releases.
+@click.option("--sync-tensorboard", hidden=True, is_flag=True, default=None)
+@click.option("--include-globs", hidden=True, default=None)
+@click.option("--exclude-globs", hidden=True, default=None)
+@click.option("--include-offline/--no-include-offline", hidden=True, default=None)
+@click.option("--clean", hidden=True, is_flag=True, default=None)
+@click.option("--clean-old-hours", hidden=True, default=None)
+@click.option("--clean-force", hidden=True, is_flag=True, default=None)
+@click.option("--mark-synced/--no-mark-synced", hidden=True, default=None)
+@click.option("--sync-all", hidden=True, is_flag=True, default=None)
+@click.option("--skip-console", hidden=True, is_flag=True, default=None)
+@click.option("--legacy", hidden=True, is_flag=True, default=None)
 @display_error
 def sync(
-    ctx: click.Context,
-    path: tuple[str, ...],
-    view: bool,
+    paths: tuple[str, ...],
     verbose: bool,
     skip_confirmation: bool,
     run_id: str | None,
     project: str | None,
     entity: str | None,
     job_type: str | None,
+    replace_tags: str | None,
+    include_online: bool | None,
+    include_synced: bool | None,
+    dry_run: bool,
+    parallelism: int,
+    # Removed options:
     sync_tensorboard: bool | None,
     include_globs: str | None,
     exclude_globs: str | None,
-    include_online: bool | None,
     include_offline: bool | None,
-    include_synced: bool | None,
-    mark_synced: bool,
-    sync_all: bool,
-    ignore: str | None,
-    show: int,
-    clean: bool,
+    mark_synced: bool | None,
+    sync_all: bool | None,
+    clean: bool | None,
     clean_old_hours: int | None,
-    clean_force: bool,
-    append: bool,
-    skip_console: bool,
-    replace_tags: str | None,
-    legacy: bool,
+    clean_force: bool | None,
+    skip_console: bool | None,
+    legacy: bool | None,
 ):
     """Upload existing local W&B run data to the cloud.
 
-    MIGRATION NOTE: This command is being gradually rerouted to
-    `wandb beta sync`. Some options are only allowed in legacy mode, and others
-    only in beta mode. See option descriptions for info.
+    Sync offline or incomplete runs to the W&B server. Provide PATHS to sync
+    specific runs, or run with no arguments to sync un-uploaded runs in the
+    wandb folder.
 
-    Sync offline or incomplete runs from the local `wandb` directory to
-    the W&B server. If PATH is provided, sync runs at that path. If no
-    path is given, search for a ./wandb directory, then a wandb/
-    subdirectory.
+    When no PATHS are given, this will ask for confirmation before
+    syncing. Pass --yes to skip confirmation or --dry-run to exit without
+    syncing.
 
-    Run without arguments to print a summary of synced and unsynced
-    runs without uploading anything.
+    PATHS should be run directories, usually in the format
 
-    When syncing a specific path, include TensorBoard event files
-    by default. When using `--sync-all`, disable TensorBoard by
-    default (use `--sync-tensorboard` to enable it).
+    ./wandb/run-YYYYMMDD_HHMMSS-RUN_ID
 
-    PATH is a .wandb file or a run directory that contains a .wandb file.
-    A typical path looks like:
-
-    ./wandb/run-YYYYMMDD_HHMMSS-RUN_ID/run-RUN_ID.wandb
-
-    where run-YYYYMMDD_HHMMSS-RUN_ID is the run directory and
-    run-RUN_ID.wandb is the .wandb file. YYYYMMDD_HHMMSS is the
-    timestamp of when the run was created and RUN_ID is the unique ID
-    of the run.
+    YYYYMMDD_HHMMSS is the timestamp of when the run was created and RUN_ID is
+    its unique ID.
 
     For example, to show a summary of local runs and their sync status:
 
-        $ wandb sync
+        $ wandb sync --dry-run
 
-    To sync run ID abcd1234 that is locally saved locally in
-    the ./wandb/run-20170617_000000-abcd1234 directory:
+    To sync run ID abcd1234 that is saved in ./wandb/run-20170617_000000-abcd1234:
 
         $ wandb sync ./wandb/run-20170617_000000-abcd1234
 
-    To sync run abcd1234 by its local .wandb
-    filepath (./wandb/run-20170617_000000-abcd1234/run-abcd1234.wandb):
+    To sync all unsynced runs in the wandb folder:
 
-        $ wandb sync ./wandb/run-20170617_000000-abcd1234/run-abcd1234.wandb
-
-    To sync all unsynced runs in the local wandb directory:
-
-        $ wandb sync --sync-all
+        $ wandb sync
 
     Use `wandb clean` to delete local data for runs that have been synced. See
 
@@ -768,214 +700,54 @@ def sync(
 
     for more info.
     """
-    # Use `wandb beta sync` if possible.
-    if (
-        not legacy
-        and not any(TFEVENT_SUBSTRING in p for p in path)  # no tfevents support
-        and not view
-        # verbose, run_id, project, entity, job_type OK
-        and not sync_tensorboard
-        and not include_globs
-        and not exclude_globs
-        # include_online OK
-        and include_offline is not False  # True and None OK
-        # include_synced OK
-        and mark_synced
-        and not sync_all
-        # ignore, show OK (unused)
-        and not clean
-        # clean_old_hours, clean_force OK (no-op without clean)
-        and not append
-        and not skip_console
-        # replace_tags OK
-    ):
-        wandb.termlog("Using wandb beta sync. Turn this off with --legacy.")
-        beta_sync.sync(
-            [pathlib.Path(p) for p in path],
-            live=False,
-            entity=entity or "",
-            project=project or "",
-            run_id=run_id or "",
-            job_type=job_type or "",
-            replace_tags=replace_tags or "",
-            dry_run=False,
-            skip_confirmation=skip_confirmation,
-            skip_synced=not include_synced,
-            skip_online=not include_online,
-            verbose=verbose,
-            parallelism=5,  # same default as wandb beta sync
-        )
-        return
-
-    if clean or clean_old_hours or clean_force:
+    if clean is not None or clean_old_hours is not None or clean_force is not None:
         raise ClickException("Use `wandb clean` instead of `wandb sync --clean`")
 
-    # Print out deprecations for legacy options, especially if they prevent
-    # us from rerouting through `wandb beta sync`.
-    if view:
-        wandb.termwarn("--view is deprecated. Consider using `wandb leet`.")
-    if include_globs or exclude_globs:
-        wandb.termwarn(
-            "--include-globs and --exclude-globs are deprecated."
-            + " Provide explicit paths instead."
+    if sync_all is not None:
+        raise ClickException(
+            "`--sync-all` has been removed."
+            + " Use `wandb sync` without arguments instead, or pass --yes"
+            + " in scripts."
         )
-    if include_offline is False:
-        wandb.termwarn("--no-include-offline is deprecated and will be removed.")
-    if not mark_synced:
-        wandb.termwarn("--no-mark-synced is deprecated and will be removed.")
-    if sync_all:
-        wandb.termwarn(
-            "--sync-all is deprecated. It is equivalent to"
-            + " `wandb sync --yes --include-online`."
+
+    removed_options: list[str] = []
+    if sync_tensorboard is not None:
+        removed_options.append("--sync-tensorboard")
+    if include_globs is not None:
+        removed_options.append("--include-globs")
+    if exclude_globs is not None:
+        removed_options.append("--exclude-globs")
+    if include_offline is not None:
+        removed_options.append("--include-offline/--no-include-offline")
+    if mark_synced is not None:
+        removed_options.append("--mark-synced/--no-mark-synced")
+    if skip_console is not None:
+        removed_options.append("--skip-console")
+    if legacy is not None:
+        removed_options.append("--legacy")
+
+    if removed_options:
+        removed_options_str = ", ".join(removed_options)
+        raise ClickException(
+            f"The following options have been removed: {removed_options_str}."
+            + " Downgrade to wandb<=0.29.0 to use them.",
         )
-    if skip_console:
-        wandb.termwarn("--skip-console is deprecated and will be removed.")
-    if sync_tensorboard:
-        wandb.termwarn("--sync-tensorboard is deprecated and will be removed.")
 
-    # Fail if any beta options are provided in legacy mode.
-    bad_options: list[str] = []
-    if skip_confirmation:
-        bad_options.append("--yes")
-    if bad_options:
-        if not legacy:
-            wandb.termlog(
-                "Legacy mode was selected due to presence of legacy options."
-                + " See --help for more info or use `wandb beta sync` directly."
-            )
-
-        bad_opts_str = ", ".join(bad_options)
-        raise ClickException(f"Not allowed in legacy mode: {bad_opts_str}")
-
-    api = _get_cling_api()
-    if not api.is_authenticated:
-        wandb.termlog("Login to W&B to sync runs")
-        ctx.invoke(login, no_offline=True)
-        api = _get_cling_api(reset=True)
-
-    if ignore:
-        exclude_globs = ignore
-    if include_globs:
-        include_globs = include_globs.split(",")
-    if exclude_globs:
-        exclude_globs = exclude_globs.split(",")
-
-    replace_tags_dict = _parse_sync_replace_tags(replace_tags)
-    if replace_tags and replace_tags_dict is None:
-        return  # Error already printed by helper function
-
-    def _summary():
-        all_items = get_runs(
-            include_online=True,
-            include_offline=True,
-            include_synced=True,
-            include_unsynced=True,
-        )
-        sync_items = get_runs(
-            include_online=include_online if include_online is not None else True,
-            include_offline=include_offline if include_offline is not None else True,
-            include_synced=include_synced if include_synced is not None else False,
-            include_unsynced=True,
-            exclude_globs=exclude_globs,
-            include_globs=include_globs,
-        )
-        synced = []
-        unsynced = []
-        for item in all_items:
-            (synced if item.synced else unsynced).append(item)
-        if sync_items:
-            wandb.termlog(f"Number of runs to be synced: {len(sync_items)}")
-            if show and show < len(sync_items):
-                wandb.termlog(f"Showing {show} runs to be synced:")
-            for item in sync_items[: (show or len(sync_items))]:
-                wandb.termlog(f"  {item}")
-        else:
-            wandb.termlog("No runs to be synced.")
-        if synced:
-            clean_cmd = click.style("wandb clean", fg="yellow")
-            wandb.termlog(
-                f"NOTE: use {clean_cmd} to delete {len(synced)} synced runs from local directory."
-            )
-        if unsynced:
-            sync_cmd = click.style("wandb sync --sync-all", fg="yellow")
-            wandb.termlog(
-                f"NOTE: use {sync_cmd} to sync {len(unsynced)} unsynced runs from local directory."
-            )
-
-    def _sync_path(_path, _sync_tensorboard):
-        if run_id and len(_path) > 1:
-            wandb.termerror("id can only be set for a single run.")
-            sys.exit(1)
-        sm = SyncManager(
-            project=project,
-            entity=entity,
-            run_id=run_id,
-            job_type=job_type,
-            mark_synced=mark_synced,
-            app_url=api.app_url,
-            view=view,
-            verbose=verbose,
-            sync_tensorboard=_sync_tensorboard,
-            log_path=_wandb_log_path,
-            append=append,
-            skip_console=skip_console,
-            replace_tags=replace_tags_dict,
-        )
-        for p in _path:
-            sm.add(p)
-        sm.start()
-        while not sm.is_done():
-            _ = sm.poll()
-
-    def _sync_all():
-        sync_items = get_runs(
-            include_online=include_online if include_online is not None else True,
-            include_offline=include_offline if include_offline is not None else True,
-            include_synced=include_synced if include_synced is not None else False,
-            include_unsynced=True,
-            exclude_globs=exclude_globs,
-            include_globs=include_globs,
-        )
-        if not sync_items:
-            wandb.termerror("Nothing to sync.")
-        else:
-            # When syncing run directories, default to not syncing tensorboard
-            sync_tb = sync_tensorboard if sync_tensorboard is not None else False
-            _sync_path(sync_items, sync_tb)
-
-    if sync_all:
-        _sync_all()
-    elif path:
-        # When syncing a specific path, default to syncing tensorboard
-        sync_tb = sync_tensorboard if sync_tensorboard is not None else True
-        _sync_path(path, sync_tb)
-    else:
-        _summary()
-
-
-def _parse_sync_replace_tags(replace_tags: str) -> dict[str, str] | None:
-    """Parse replace_tags string into a dictionary.
-
-    Args:
-        replace_tags: String in format 'old_tag1=new_tag1,old_tag2=new_tag2'
-
-    Returns:
-        Mapping of old tags to new tags, or None if format is invalid
-    """
-    if not replace_tags:
-        return {}
-
-    replace_tags_dict = {}
-    for pair in replace_tags.split(","):
-        if "=" not in pair:
-            wandb.termerror(
-                f"Invalid replace-tags format: {pair}. Use 'old_tag=new_tag' format."
-            )
-            return None
-        old_tag, new_tag = pair.split("=", 1)
-        replace_tags_dict[old_tag.strip()] = new_tag.strip()
-
-    return replace_tags_dict
+    beta_sync.sync(
+        [pathlib.Path(p) for p in paths],
+        live=False,
+        entity=entity or "",
+        project=project or "",
+        run_id=run_id or "",
+        job_type=job_type or "",
+        replace_tags=replace_tags or "",
+        dry_run=dry_run,
+        skip_confirmation=skip_confirmation,
+        skip_synced=not include_synced,
+        skip_online=not include_online,
+        verbose=verbose,
+        parallelism=parallelism,
+    )
 
 
 @cli.command(context_settings=CONTEXT)
