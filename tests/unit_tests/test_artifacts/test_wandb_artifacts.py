@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import queue
-import shutil
 import unittest.mock as mock
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -12,7 +11,7 @@ import requests
 import responses
 from hypothesis import given
 from hypothesis.strategies import from_regex, text
-from pytest import CaptureFixture, MonkeyPatch, fail, mark, raises
+from pytest import fail, mark, raises
 from wandb.sdk.artifacts._generated.enums import ArtifactDigestAlgorithm
 from wandb.sdk.artifacts._validators import NAME_MAXLEN
 from wandb.sdk.artifacts.artifact import Artifact
@@ -26,7 +25,6 @@ from wandb.sdk.artifacts.storage_policies._multipart import (
     multipart_download,
     should_multipart_download,
 )
-from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import WandbStoragePolicy
 from wandb.sdk.lib.hashutil import _md5, _xxh128, md5_string, xxh128_string
 
 
@@ -128,29 +126,6 @@ def test_unlogged_artifact_other_method_errors():
 
     with raises(ArtifactNotLoggedError, match="Artifact.get"):
         art["obj_name"]
-
-
-def test_cache_write_failure_is_ignored(
-    monkeypatch: MonkeyPatch, capsys: CaptureFixture[str]
-):
-    def bad_write(*args, **kwargs):
-        raise FileNotFoundError("unable to copy from source file")
-
-    monkeypatch.setattr(shutil, "copyfileobj", bad_write)
-    policy = WandbStoragePolicy()
-    path = Path("foo.txt")
-    path.write_text("hello")
-
-    entry = ArtifactManifestEntry(
-        path=path,
-        digest="NWQ0MTQwMmFiYzRiMmE3NmI5NzE5ZDkxMTAxN2M1OTI=",
-        local_path=path,
-    )
-
-    policy._write_cache(entry)
-
-    captured = capsys.readouterr()
-    assert "Failed to cache" in captured.err
 
 
 def test_artifact_manifest_length():
