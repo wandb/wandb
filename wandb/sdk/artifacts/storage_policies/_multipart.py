@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import math
 import threading
 from collections.abc import Callable, Iterator
 from concurrent.futures import FIRST_EXCEPTION, Executor, ThreadPoolExecutor, wait
@@ -26,15 +25,10 @@ logger = logging.getLogger(__name__)
 KiB: Final[int] = 1024
 MiB: Final[int] = 1024**2
 GiB: Final[int] = 1024**3
-TiB: Final[int] = 1024**4
 
-# AWS S3 max upload parts without having to make additional requests for extra parts
-MAX_PARTS = 1_000
-MIN_MULTI_UPLOAD_SIZE = 2 * GiB
-MAX_MULTI_UPLOAD_SIZE = 5 * TiB
 
-# Minimum size to switch to multipart download, same threshold as upload.
-MIN_MULTI_DOWNLOAD_SIZE = MIN_MULTI_UPLOAD_SIZE
+# Minimum size to switch to multipart download.
+MIN_MULTI_DOWNLOAD_SIZE = 2 * GiB
 
 # Multipart download part size matches the upload size and is hard coded to
 # 100 MB.
@@ -83,11 +77,6 @@ QueuedChunk: TypeAlias = ChunkContent | _ChunkSentinel
 
 def should_multipart_download(size: int | None, override: bool | None = None) -> bool:
     return ((size or 0) >= MIN_MULTI_DOWNLOAD_SIZE) if (override is None) else override
-
-
-def calc_part_size(file_size: int, min_part_size: int = MULTI_DEFAULT_PART_SIZE) -> int:
-    # Default to a chunk size of 100MiB. S3 has a cap of 10,000 upload parts.
-    return max(math.ceil(file_size / MAX_PARTS), min_part_size)
 
 
 def scan_chunks(path: str, chunk_size: int) -> Iterator[bytes]:
