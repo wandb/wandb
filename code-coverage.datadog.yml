@@ -2,7 +2,6 @@ schema-version: v1
 
 ignore:
   # Vendored code.
-  - wandb/vendor/
   - core/vendor/
 
   # Generated protobuf files.
