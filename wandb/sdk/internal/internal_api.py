@@ -324,11 +324,7 @@ class Api:
         self.upload_file_retry = normalize_exceptions(
             retry.retriable(retry_timedelta=retry_timedelta)(self.upload_file)
         )
-        self.upload_multipart_file_chunk_retry = normalize_exceptions(
-            retry.retriable(retry_timedelta=retry_timedelta)(
-                self.upload_multipart_file_chunk
-            )
-        )
+
         self._client_id_mapping: dict[str, str] = {}
         # Large file uploads to azure can optionally use their SDK
         self._azure_blob_module = util.get_module("azure.storage.blob")
@@ -2237,57 +2233,6 @@ class Api:
                 raise requests.exceptions.RequestException(e.message, response=response)
             else:
                 raise requests.exceptions.ConnectionError(e.message)
-
-    def upload_multipart_file_chunk(
-        self,
-        url: str,
-        upload_chunk: bytes,
-        extra_headers: dict[str, str] | None = None,
-    ) -> requests.Response | None:
-        """Upload a file chunk to S3 with failure resumption.
-
-        Args:
-            url: The url to download
-            upload_chunk: The path to the file you want to upload
-            extra_headers: A dictionary of extra headers to send with the request
-
-        Returns:
-            The `requests` library response object
-        """
-        import requests
-
-        check_httpclient_logger_handler()
-        try:
-            if env.is_debug(env=self._environ):
-                logger.debug("upload_file: %s", url)
-            response = self._upload_file_session.put(
-                url, data=upload_chunk, headers=extra_headers
-            )
-            if env.is_debug(env=self._environ):
-                logger.debug("upload_file: %s complete", url)
-            response.raise_for_status()
-        except requests.exceptions.RequestException as e:
-            logger.exception(f"upload_file exception for {url=}")
-            response_content = e.response.content if e.response is not None else ""
-            status_code = e.response.status_code if e.response is not None else 0
-            # S3 reports retryable request timeouts out-of-band
-            is_aws_retryable = status_code == 400 and "RequestTimeout" in str(
-                response_content
-            )
-            # Retry errors from cloud storage or local network issues
-            if (
-                status_code in (308, 408, 409, 429, 500, 502, 503, 504)
-                or isinstance(
-                    e,
-                    (requests.exceptions.Timeout, requests.exceptions.ConnectionError),
-                )
-                or is_aws_retryable
-            ):
-                _e = retry.TransientError(exc=e)
-                raise _e.with_traceback(sys.exc_info()[2])
-            else:
-                self._telemetry_recorder.reraise(e)
-        return response
 
     def upload_file(
         self,
