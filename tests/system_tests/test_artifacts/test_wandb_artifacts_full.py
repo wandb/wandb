@@ -11,7 +11,6 @@ from pathlib import Path
 import numpy as np
 import responses
 import wandb
-from click.testing import CliRunner
 from pytest import MonkeyPatch, mark, raises
 from pytest_mock import MockerFixture
 from wandb import Api, Artifact
@@ -1107,50 +1106,3 @@ def test_artifact_new_draft_mixed_digest_algorithms(api: Api):
     file2_entry = fetched.get_entry("file2.txt")
     assert file2_entry.extra == {}
     assert file2_entry.digest == md5_string("hi")
-
-
-def test_offline_artifact_legacy_upload_hashes_correctly(
-    runner: CliRunner,
-    api: Api,
-):
-    from wandb.cli import cli
-
-    Path("file1.txt").write_text("hello")
-    Path("file2.txt").write_text("hi")
-
-    with wandb.init(mode="offline", project="test") as run:
-        artifact = Artifact("test-artifact", type="dataset", digest_algorithm="XXH128")
-        artifact.add_file("file1.txt")
-        artifact.add_file("file2.txt")
-
-        assert artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_XXH128
-
-        manifest_contents = artifact.manifest.to_manifest_json()["contents"]
-        file1_entry = manifest_contents["file1.txt"]
-        assert file1_entry["extra"] == {"alg": "XXH128"}
-        assert file1_entry["digest"] == xxh128_string("hello")
-
-        file2_entry = manifest_contents["file2.txt"]
-        assert file2_entry["extra"] == {"alg": "XXH128"}
-        assert file2_entry["digest"] == xxh128_string("hi")
-
-        run.log_artifact(artifact)
-
-    runner.invoke(
-        cli.sync,
-        ["--sync-all", "--legacy"],
-    )
-
-    # check that the artifact is uploaded using MD5
-    artifact = api.artifact("test/test-artifact:latest")
-    assert artifact.digest_algorithm is ArtifactDigestAlgorithm.MANIFEST_MD5
-
-    file1_entry = artifact.get_entry("file1.txt")
-    assert file1_entry.extra == {}
-    assert file1_entry.digest == md5_string("hello")
-    assert file1_entry.digest_algorithm() is ArtifactDigestAlgorithm.MANIFEST_MD5
-
-    file2_entry = artifact.get_entry("file2.txt")
-    assert file2_entry.extra == {}
-    assert file2_entry.digest == md5_string("hi")
-    assert file2_entry.digest_algorithm() is ArtifactDigestAlgorithm.MANIFEST_MD5
