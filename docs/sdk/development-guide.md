@@ -87,6 +87,53 @@ prek install
 prek run ruff-format --all-files --hook-stage pre-push
 ```
 
+## Python API reference documentation
+
+The Python API reference is generated from the SDK source rather than maintained
+as a separate copy. The
+[generation scripts](https://github.com/ngrayluna/generate-wandb-python-reference)
+select exported objects from configured namespaces, use `lazydocs` to render
+their Google-style docstrings as Markdown, then post-process, organize, and clean
+the generated pages for the
+[W&B documentation repository](https://github.com/wandb/docs). Update the
+docstrings and export lists in this repository when changing API documentation.
+
+Use one of the two supported docstring markers to omit implementation details
+from the generated reference:
+
+- `<!-- lazydoc-ignore -->` omits the generated section for the method,
+  property, class method, or function whose docstring contains it.
+- `<!-- lazydoc-ignore-init: internal -->` goes in a class docstring and omits
+  only the generated `__init__` section. The class and its other documented
+  members remain in the reference. `internal` is part of the exact marker, not
+  a configurable visibility level.
+
+For example:
+
+```python
+class PublicClass:
+    """A public class with an internal constructor.
+
+    <!-- lazydoc-ignore-init: internal -->
+    """
+
+    def internal_method(self) -> None:
+        """Perform internal work.
+
+        <!-- lazydoc-ignore -->
+        """
+```
+
+These comments affect generated documentation only; they do not change runtime
+behavior. To omit an entire exported object, add `# doc:exclude` to its entry in
+the appropriate `__all__` definition instead:
+
+```python
+__all__ = (
+    "InternalClass",  # doc:exclude
+)
+```
+
 ## Proto changes
 
 The protobuf files in [`wandb/proto`](../../wandb/proto) generate Python stubs under `wandb/proto` and Go stubs under `core/pkg/service_go_proto`.
