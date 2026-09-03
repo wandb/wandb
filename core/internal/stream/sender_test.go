@@ -6,11 +6,13 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filestream"
+	"github.com/wandb/wandb/core/internal/filestreamtest"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/mailbox"
@@ -18,6 +20,9 @@ import (
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runhandle"
+	"github.com/wandb/wandb/core/internal/runsummary"
+	"github.com/wandb/wandb/core/internal/runupserter"
+	"github.com/wandb/wandb/core/internal/runupsertertest"
 	"github.com/wandb/wandb/core/internal/runworktest"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
@@ -38,6 +43,14 @@ type testFixtures struct {
 }
 
 func makeSender(t *testing.T, client graphql.Client) testFixtures {
+	return makeSenderWithFileStream(t, client, nil)
+}
+
+func makeSenderWithFileStream(
+	t *testing.T,
+	client graphql.Client,
+	fileStream filestream.FileStream,
+) testFixtures {
 	t.Helper()
 	runWork := runworktest.New()
 	logger := observabilitytest.NewTestLogger(t)
@@ -68,6 +81,14 @@ func makeSender(t *testing.T, client graphql.Client) testFixtures {
 		Settings:     settings,
 	}
 	runHandle := runhandle.New()
+	upserter := runupsertertest.NewTestUpserter(
+		t,
+		"test-entity",
+		"test-project",
+		"run1",
+		runupserter.RunUpserterParams{Settings: settings},
+	)
+	assert.NoError(t, runHandle.Init(upserter))
 
 	senderFactory := stream.SenderFactory{
 		BaseURL:                 baseURL,
@@ -82,12 +103,72 @@ func makeSender(t *testing.T, client graphql.Client) testFixtures {
 		FeatureProvider:         featurechecker.New(nil, logger),
 		RunHandle:               runHandle,
 	}
+	var sender *stream.Sender
+	if fileStream != nil {
+		sender = senderFactory.NewWithFileStream(runWork, fileStream)
+	} else {
+		sender = senderFactory.New(runWork)
+	}
 	return testFixtures{
-		Sender:    senderFactory.New(runWork),
+		Sender:    sender,
 		RunHandle: runHandle,
 		Settings:  settings,
 		Logger:    logger,
 	}
+}
+
+func TestSendSummaryIgnoresInboundStep(t *testing.T) {
+	fileStream := filestreamtest.NewFakeFileStream()
+	x := makeSenderWithFileStream(t, gqlmock.NewMockClient(), fileStream)
+
+	x.Sender.SendRecord(&spb.Record{
+		RecordType: &spb.Record_History{
+			History: &spb.HistoryRecord{
+				Item: []*spb.HistoryItem{
+					{NestedKey: []string{"loss"}, ValueJson: "1.23"},
+				},
+			},
+		},
+	}, nil)
+	x.Sender.SendRecord(&spb.Record{
+		RecordType: &spb.Record_Summary{
+			Summary: &spb.SummaryRecord{
+				Update: []*spb.SummaryItem{
+					{Key: "loss", ValueJson: "1.23"},
+					{Key: "_step", ValueJson: "999"},
+				},
+			},
+		},
+	}, nil)
+
+	request := fileStream.GetRequest(x.Settings)
+	require.NotNil(t, request.SummaryUpdates)
+
+	summary := runsummary.New()
+	require.NoError(t, request.SummaryUpdates.Apply(summary))
+	encoded, err := summary.Serialize()
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"loss": 1.23, "_step": 0}`, string(encoded),
+		"the tracker's step must survive a stale summary update")
+}
+
+func TestSendHistoryPreservesLoggedSteps(t *testing.T) {
+	fileStream := filestreamtest.NewFakeFileStream()
+	x := makeSenderWithFileStream(t, gqlmock.NewMockClient(), fileStream)
+
+	x.Sender.SendRecord(&spb.Record{
+		RecordType: &spb.Record_History{History: &spb.HistoryRecord{
+			Item: []*spb.HistoryItem{
+				{NestedKey: []string{"loss"}, ValueJson: "1.23"},
+				{NestedKey: []string{"_step"}, ValueJson: "7"},
+			},
+			Step: &spb.HistoryStep{Num: 7},
+		}},
+	}, nil)
+
+	request := fileStream.GetRequest(x.Settings)
+	require.Len(t, request.HistoryLines, 1)
+	assert.JSONEq(t, `{"loss": 1.23, "_step": 7}`, request.HistoryLines[0])
 }
 
 // Verify that arguments are properly passed through to graphql
