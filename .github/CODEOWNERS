@@ -6,7 +6,6 @@
 /wandb/__init__.py @wandb/sdk-team
 
 # Updating core tools and testing infrastructure
-/tests/backend_fixtures.py @wandb/sdk-team
 /tests/conftest.py @wandb/sdk-team
 
 /tests/system_tests/backend_fixtures.py @wandb/sdk-team
@@ -25,13 +24,11 @@
 
 # Packaging and releasing-related files
 /pyproject.toml @wandb/sdk-team
-/setup.py @wandb/sdk-team
 /hatch.toml @wandb/sdk-team
 /hatch_build.py @wandb/sdk-team
 /CHANGELOG.unreleased.md @wandb/sdk-team
 /CHANGELOG.md @wandb/sdk-team
 /BREAKING.md @wandb/sdk-team
-/MANIFEST.in @wandb/sdk-team
 /CONTRIBUTING.md @wandb/sdk-team
 
 # Core code owned by the SDK team

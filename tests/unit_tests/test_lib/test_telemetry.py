@@ -4,6 +4,7 @@ import threading
 from unittest.mock import MagicMock
 
 import pytest
+import requests
 from wandb import env
 from wandb.analytics.opentelemetry import opentelemetry_proxy
 from wandb.analytics.opentelemetry.opentelemetry_proxy import (
@@ -55,6 +56,33 @@ def test_disabled_telemetry_does_not_publish(monkeypatch):
 
     recorder.increment_counter_and_log_event("test")
     recorder.exception(Exception("test"))
+
+
+@pytest.mark.parametrize(
+    ("status_code", "supported"),
+    [
+        (requests.codes.not_found, False),
+        (requests.codes.method_not_allowed, False),
+        (requests.codes.unauthorized, True),
+    ],
+)
+def test_check_server_supports_open_telemetry_proxy(status_code: int, supported: bool):
+    session = MagicMock()
+    session.post.return_value = MagicMock(status_code=status_code)
+
+    assert (
+        opentelemetry_proxy._check_server_supports_open_telemetry_proxy(session, "url")
+        is supported
+    )
+
+
+def test_check_server_supports_open_telemetry_proxy_timeout():
+    session = MagicMock()
+    session.post.side_effect = requests.Timeout
+
+    assert not opentelemetry_proxy._check_server_supports_open_telemetry_proxy(
+        session, "url"
+    )
 
 
 def test_telemetry_without_proxy_does_not_publish():
