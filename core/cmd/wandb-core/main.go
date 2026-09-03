@@ -25,7 +25,6 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/getsentry/sentry-go"
 	"github.com/mattn/go-isatty"
 
 	"github.com/wandb/wandb/core/internal/analytics"
@@ -129,24 +128,9 @@ func serviceMain() int {
 		shutdownOnParentExitEnabled = processlib.ShutdownOnParentExit(*pid)
 	}
 
-	// Sentry (disabled if --no-observability)
-	var sentryDSN string
-	if !*disableAnalytics {
-		sentryDSN = observability.WandbCoreDSN
-	} else {
+	// Datadog telemetry is disabled if --no-observability.
+	if *disableAnalytics {
 		analytics.Disable()
-	}
-	err := sentry.Init(sentry.ClientOptions{
-		Dsn:              sentryDSN,
-		AttachStacktrace: true,
-		Release:          version.Version,
-		Dist:             commit,
-		Environment:      version.Environment,
-	})
-	if err != nil {
-		slog.Error("main: failed to init Sentry", "error", err)
-	} else {
-		defer sentry.Flush(2 * time.Second)
 	}
 
 	// Structured logging to file selected by observability package.
@@ -492,7 +476,6 @@ func newLeetLogger(
 			logWriter,
 			&slog.HandlerOptions{Level: slog.Level(logLevel)},
 		)),
-		nil,
 		recorder,
 	)
 	return logger, closeLogWriter, nil

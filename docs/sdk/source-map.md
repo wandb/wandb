@@ -70,7 +70,9 @@ Service connection selection:
 ```python
 token = service_token.from_env()
 if token:
-    return ServiceConnection(asyncer=asyncer, client=token.connect(asyncer=asyncer), proc=None)
+    return ServiceConnection(
+        asyncer=asyncer, client=token.connect(asyncer=asyncer), proc=None
+    )
 else:
     return _start_and_connect_service(asyncer, settings)
 ```

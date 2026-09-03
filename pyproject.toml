@@ -13,7 +13,6 @@ requires-python = ">=3.10"
 dependencies = [
     "Click>=8.2.0",
     "requests>=2.0.0,<3",
-    "sentry-sdk>=2.0.0",
     "protobuf>=5,!=5.28.0,!=5.29.0,<8",
     "PyYAML",
     "platformdirs",
@@ -144,7 +143,6 @@ testpaths = "tests"
 norecursedirs = [
     # Custom directories to ignore:
     "vendor",
-    "wandb/vendor",
     "landfill",
     # Standard directories to ignore:
     ".*",
@@ -158,11 +156,11 @@ wandb = ["wandb/", "**/site-packages/wandb/"]
 
 [tool.coverage.run]
 concurrency = ["multiprocessing", "thread"]
-omit = ["**/wandb/vendor/**", "**/wandb/proto/**"]
+omit = ["**/wandb/proto/**"]
 
 [tool.coverage.report]
 exclude_also = ["if TYPE_CHECKING:", "@abstractmethod"]
-omit = ["**/wandb/vendor/**", "**/wandb/proto/**"]
+omit = ["**/wandb/proto/**"]
 ignore_errors = true
 
 
@@ -170,7 +168,6 @@ ignore_errors = true
 extend-exclude = [
     "landfill/**",
     "wandb/__init__.py",
-    "wandb/vendor/**",
     "wandb/proto/**",
 ]
 target-version = "py310"
@@ -363,7 +360,7 @@ python-version = "3.10"
 
 [tool.ty.src]
 include = ["wandb"]
-exclude = ["wandb/vendor", "wandb/proto", "wandb/integration"]
+exclude = ["wandb/proto", "wandb/integration"]
 
 [tool.ty.rules]
 unresolved-attribute = "ignore"

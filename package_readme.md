@@ -52,7 +52,7 @@ import wandb
 project = "my-awesome-project"
 
 # Dictionary with hyperparameters
-config = {"epochs" : 1337, "lr" : 3e-4}
+config = {"epochs": 1337, "lr": 3e-4}
 
 # The `with` syntax marks the run as finished upon exiting the `with` block,
 # and it marks the run "failed" if there's an exception.
