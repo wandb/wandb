@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"runtime"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -41,6 +42,9 @@ const (
 
 	// httpClientTimeout is the timeout for HTTP requests to the backend.
 	httpClientTimeout = 10 * time.Second
+
+	// probeTimeout is the timeout for the server capability probe.
+	probeTimeout = 2 * time.Second
 
 	metricsPath = "/sdk/otel/v1/metrics"
 	logsPath    = "/sdk/otel/v1/logs"
@@ -418,15 +422,24 @@ type OpenTelemetryProxy struct {
 	// This is used to identify the service in the OpenTelemetry backend.
 	serviceName string
 
+	// serverSupportOnce probes whether the server supports the proxy on the
+	// first recording attempt.
+	serverSupportOnce sync.Once
+	serverSupported   bool
+
+	// otelResourcesOnce initializes the OpenTelemetry providers on the first
+	// recording attempt, after the server support probe succeeds.
+	otelResourcesOnce  sync.Once
+	otelResourcesReady atomic.Bool
+
 	// shutdown guards Shutdown so the providers are only shut down once.
 	shutdown atomic.Bool
 }
 
 // NewOpenTelemetryProxy returns an OpenTelemetryProxy for the given endpoint.
 //
-// When analytics is disabled, the wandbSettings are offline, or the server
-// does not support the proxy API, a nil pointer is returned, making calls
-// to the proxy a no-op.
+// When analytics is disabled or the wandbSettings are offline,
+// a nil pointer is returned.
 func NewOpenTelemetryProxy(
 	ctx context.Context,
 	wandbSettings *settings.Settings,
@@ -436,16 +449,10 @@ func NewOpenTelemetryProxy(
 		return nil
 	}
 
-	if !checkServerSupportsOpenTelemetryProxy(ctx, wandbSettings) {
-		slog.Debug("analytics: server does not support OpenTelemetry proxy, disabling telemetry")
-		return nil
-	}
-
-	return newOpenTelemetryProxy(ctx, wandbSettings, serviceName)
+	return newOpenTelemetryProxy(wandbSettings, serviceName)
 }
 
 // NewOpenTelemetryProxyUnchecked is like NewOpenTelemetryProxy except that it
-// skips the network probe checking whether the server supports the proxy API.
 //
 // Use it with endpoints known to expose the API when blocking on a network
 // round trip at construction time is not acceptable.
@@ -458,11 +465,50 @@ func NewOpenTelemetryProxyUnchecked(
 		return nil
 	}
 
-	return newOpenTelemetryProxy(ctx, wandbSettings, serviceName)
+	return newOpenTelemetryProxy(wandbSettings, serviceName)
+}
+
+// ensureOTelProxy probes the server to verify it supports the OpenTelemetry
+// proxy API
+//
+// If the server supports the proxy API, it initializes the OpenTelemetry resources.
+// resources on the first recording attempt.
+func (o *OpenTelemetryProxy) ensureOTelProxy(ctx context.Context) bool {
+	o.serverSupportOnce.Do(func() {
+		probeCtx, cancel := context.WithTimeout(context.Background(), probeTimeout)
+		defer cancel()
+		o.serverSupported = checkServerSupportsOpenTelemetryProxy(
+			probeCtx,
+			o.httpClient,
+			o.endpoint,
+		)
+		if !o.serverSupported {
+			slog.Debug(
+				"analytics: server does not support OpenTelemetry proxy, disabling telemetry",
+			)
+		}
+	})
+	if !o.serverSupported {
+		return false
+	}
+
+	o.otelResourcesOnce.Do(func() {
+		if o.shutdown.Load() {
+			return
+		}
+		if err := o.initializeOTelResources(ctx); err != nil {
+			slog.Error(
+				"analytics: failed to initialize OpenTelemetry resources",
+				"error", err,
+			)
+			return
+		}
+		o.otelResourcesReady.Store(true)
+	})
+	return o.otelResourcesReady.Load() && !o.shutdown.Load()
 }
 
 func newOpenTelemetryProxy(
-	ctx context.Context,
 	wandbSettings *settings.Settings,
 	serviceName string,
 ) *OpenTelemetryProxy {
@@ -479,9 +525,6 @@ func newOpenTelemetryProxy(
 		endpoint:    wandbSettings.GetBaseURL(),
 		httpClient:  httpClient,
 		serviceName: serviceName,
-	}
-	if err := proxy.initializeOTelResources(ctx); err != nil {
-		return nil
 	}
 	return proxy
 }
@@ -646,6 +689,11 @@ func (o *OpenTelemetryProxy) Shutdown(ctx context.Context) error {
 		return nil
 	}
 
+	// Wait for a concurrent lazy initialization to finish. If initialization
+	// has not started, mark it complete so a later recording attempt cannot
+	// initialize providers after shutdown.
+	o.otelResourcesOnce.Do(func() {})
+
 	meterProvider := o.meterProvider
 	logProvider := o.logProvider
 	return shutdownTelemetryProviders(ctx, meterProvider, logProvider)
@@ -657,7 +705,7 @@ func (o *OpenTelemetryProxy) incrementCounter(
 	name string,
 	lowCardinalityAttributes LowCardinalityAttributes,
 ) {
-	if o == nil {
+	if o == nil || o.shutdown.Load() || !o.ensureOTelProxy(ctx) {
 		return
 	}
 
@@ -677,7 +725,7 @@ func (o *OpenTelemetryProxy) recordDuration(
 	duration time.Duration,
 	lowCardinalityAttributes LowCardinalityAttributes,
 ) {
-	if o == nil {
+	if o == nil || o.shutdown.Load() || !o.ensureOTelProxy(ctx) {
 		return
 	}
 
@@ -705,7 +753,7 @@ func (o *OpenTelemetryProxy) log(
 	attributes map[string]string,
 	severity otellogapi.Severity,
 ) {
-	if o == nil {
+	if o == nil || o.shutdown.Load() || !o.ensureOTelProxy(ctx) {
 		return
 	}
 
@@ -780,17 +828,10 @@ func toOTelAttrs(attrs map[string]string) otelmetric.MeasurementOption {
 // endpoint to determine whether the server exposes it.
 func checkServerSupportsOpenTelemetryProxy(
 	ctx context.Context,
-	wandbSettings *settings.Settings,
+	httpClient *http.Client,
+	endpoint string,
 ) bool {
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	transport.Proxy = wandbSettings.GetProxyFn()
-	transport.ProxyConnectHeader = wandbSettings.GetProxyConnectHeader()
-	if wandbSettings.IsInsecureDisableSSL() {
-		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
-	}
-	httpClient := &http.Client{Timeout: httpClientTimeout, Transport: transport}
-
-	url := wandbSettings.GetBaseURL() + metricsPath
+	url := endpoint + metricsPath
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,

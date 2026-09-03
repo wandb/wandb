@@ -2,17 +2,23 @@ package analytics_test
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"runtime"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	otellogapi "go.opentelemetry.io/otel/log"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/analyticstest"
+	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 func TestTelemetryRecorder_RecordsDefaultAttributes(t *testing.T) {
@@ -405,6 +411,54 @@ func TestOpenTelemetryProxy_Shutdown_CalledMultipleTimes(t *testing.T) {
 
 	// A second shutdown should not error.
 	require.NoError(t, proxy.Shutdown(context.Background()))
+}
+
+func TestNewOpenTelemetryProxy_UnresponsiveServer_ProbesOnFirstRecord(
+	t *testing.T,
+) {
+	block := make(chan struct{})
+	var requests atomic.Int32
+	var logs atomic.Int32
+	var metrics atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			requests.Add(1)
+			if r.URL.Path == "/sdk/otel/v1/logs" {
+				logs.Add(1)
+			}
+			if r.URL.Path == "/sdk/otel/v1/metrics" && r.ContentLength != 0 {
+				metrics.Add(1)
+			}
+
+			// Block to force the server probe to timeout
+			<-block
+			w.WriteHeader(http.StatusNotFound)
+		},
+	))
+	defer server.Close()
+
+	start := time.Now()
+	proxy := analytics.NewOpenTelemetryProxy(
+		context.Background(),
+		settings.From(&spb.Settings{BaseUrl: wrapperspb.String(server.URL)}),
+		"wandb-core",
+	)
+
+	require.NotNil(t, proxy)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy,
+		analytics.NewTelemetryContext(),
+	)
+	recorder.Log(t.Context(), "test", nil, otellogapi.SeverityInfo)
+	recorder.Log(t.Context(), "test again", nil, otellogapi.SeverityInfo)
+	close(block)
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	// The SDK gives api-init, which this runs inside, 10 seconds in total.
+	assert.Less(t, time.Since(start), 5*time.Second)
+	assert.Equal(t, int32(1), requests.Load())
+	assert.Equal(t, int32(0), logs.Load())
+	assert.Equal(t, int32(0), metrics.Load())
 }
 
 func TestTelemetryRecorder_RecordAfterShutdown_IsNoop(t *testing.T) {
