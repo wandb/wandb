@@ -26,10 +26,11 @@ Legacy `wandb sync` options have been removed. See `wandb sync --help`.
 
 - LEET is faster on long runs: a 50k-step run loads in about half the time, frames render about 30 percent faster, and live chart updates no longer re-render every point (@dmitryduev in https://github.com/wandb/wandb/pull/12535, https://github.com/wandb/wandb/pull/12536, https://github.com/wandb/wandb/pull/12537, https://github.com/wandb/wandb/pull/12538, https://github.com/wandb/wandb/pull/12539)
 - System metrics from Apple Silicon Macs become available about 1.5 seconds sooner after monitoring starts (@dmitryduev in https://github.com/wandb/wandb/pull/12679)
+- A run's first logged metrics now appear in the UI within seconds of `wandb.log()` instead of up to 15 seconds later. Uploads start every 2 seconds after the first `wandb.log()` and gradually slow back to the usual interval; set `x_file_stream_transmit_interval_initial` to at least `x_file_stream_transmit_interval` to disable this (@dmitryduev in https://github.com/wandb/wandb/pull/12170)
 
 ### Deprecated
 
-- `wandb.sandbox` is deprecated and will be removed in a future release. Use the `cwsandbox` package directly instead.
+- `wandb.sandbox` is deprecated and will be removed in a future release. Use the `cwsandbox` package directly instead (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/12647)
 
 ### Fixed
 
@@ -43,6 +44,7 @@ Legacy `wandb sync` options have been removed. See `wandb sync --help`.
 - Fixed the `ecpu_cores` count of Apple M5 Pro and M5 Max Macs being reported as 0 (@dmitryduev in https://github.com/wandb/wandb/pull/12680)
 - Fixed CPU frequency metrics on the MacBook Neo being reported about 1000 times too high (@dmitryduev in https://github.com/wandb/wandb/pull/12681)
 - Fixed missing CPU utilization and frequency metrics for the efficiency cores of Apple M5 Macs and the performance cores of M5 Pro and M5 Max Macs (@dmitryduev in https://github.com/wandb/wandb/pull/12682)
+- Fractional values of `x_file_stream_transmit_interval`, such as `0.5`, are now honored instead of falling back to the default (@dmitryduev in https://github.com/wandb/wandb/pull/12170)
 
 ### Removed
 

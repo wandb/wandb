@@ -86,9 +86,10 @@ func (fs *fileStream) startTransmitting(
 	}
 
 	transmissions := CollectLoop{
-		Logger:            fs.logger,
-		Printer:           fs.printer,
-		TransmitRateLimit: fs.transmitRateLimit,
+		Logger:                  fs.logger,
+		Printer:                 fs.printer,
+		TransmitInterval:        fs.transmitInterval,
+		InitialTransmitInterval: fs.initialTransmitInterval,
 	}.Start(state, requests)
 
 	feedback := TransmitLoop{

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/google/wire"
-	"golang.org/x/time/rate"
 
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/featurechecker"
@@ -27,6 +26,14 @@ const (
 	OutputFileName           = "output.log"
 	defaultHeartbeatInterval = 30 * time.Second
 	defaultTransmitInterval  = 15 * time.Second
+
+	// defaultInitialTransmitInterval is the default transmit interval when
+	// a run's first history arrives, before the interval ramps up to its
+	// configured value.
+	//
+	// Transmitting more frequently at first makes a run's early data visible
+	// in the UI sooner.
+	defaultInitialTransmitInterval = 2 * time.Second
 
 	// Maximum line length for filestream jsonl files, imposed by the back-end.
 	//
@@ -123,8 +130,12 @@ type fileStream struct {
 	apiClient api.RetryableClient
 	baseURL   *url.URL
 
-	// The rate limit for sending data to the backend.
-	transmitRateLimit *rate.Limiter
+	// The steady-state time between transmissions to the backend.
+	transmitInterval time.Duration
+
+	// The time between transmissions when the run's first history arrives,
+	// before ramping up to transmitInterval.
+	initialTransmitInterval time.Duration
 
 	// How long to wait between sending heartbeats to the backend
 	// to prove the run is still alive.
@@ -155,11 +166,15 @@ type FileStreamFactory struct {
 }
 
 // New returns a new FileStream.
+//
+// A non-positive transmitInterval or initialTransmitInterval means to use
+// the default.
 func (f *FileStreamFactory) New(
 	apiClient api.RetryableClient,
 	beforeRunEndCtx context.Context,
 	heartbeatPeriod time.Duration,
-	transmitRateLimit *rate.Limiter,
+	transmitInterval time.Duration,
+	initialTransmitInterval time.Duration,
 ) FileStream {
 	// Panic early to avoid surprises. These fields are required.
 	switch {
@@ -191,9 +206,14 @@ func (f *FileStreamFactory) New(
 		fs.heartbeatPeriod = defaultHeartbeatInterval
 	}
 
-	fs.transmitRateLimit = transmitRateLimit
-	if fs.transmitRateLimit == nil {
-		fs.transmitRateLimit = rate.NewLimiter(rate.Every(defaultTransmitInterval), 1)
+	fs.transmitInterval = transmitInterval
+	if fs.transmitInterval <= 0 {
+		fs.transmitInterval = defaultTransmitInterval
+	}
+
+	fs.initialTransmitInterval = initialTransmitInterval
+	if fs.initialTransmitInterval <= 0 {
+		fs.initialTransmitInterval = defaultInitialTransmitInterval
 	}
 
 	return fs

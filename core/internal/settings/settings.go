@@ -2,6 +2,7 @@
 package settings
 
 import (
+	"math"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -261,7 +262,30 @@ func (s *Settings) GetFileStreamTimeout() time.Duration {
 
 // Interval at which to transmit filestream updates.
 func (s *Settings) GetFileStreamTransmitInterval() time.Duration {
-	return time.Second * time.Duration(s.Proto.XFileStreamTransmitInterval.GetValue())
+	return seconds(s.Proto.XFileStreamTransmitInterval.GetValue())
+}
+
+// Initial interval at which to transmit filestream updates, before
+// gradually slowing to GetFileStreamTransmitInterval.
+func (s *Settings) GetFileStreamTransmitIntervalInitial() time.Duration {
+	return seconds(s.Proto.XFileStreamTransmitIntervalInitial.GetValue())
+}
+
+// seconds converts a number of seconds to a duration.
+//
+// Durations too long to represent saturate at the maximum, and NaN and
+// negative values become zero, so that the result doesn't depend on the
+// platform's float-to-integer conversion.
+func seconds(s float64) time.Duration {
+	ns := s * float64(time.Second)
+	switch {
+	case ns >= math.MaxInt64:
+		return math.MaxInt64
+	case ns > 0:
+		return time.Duration(ns)
+	default:
+		return 0
+	}
 }
 
 // Maximum line length for filestream jsonl files, imposed by the back-end.
