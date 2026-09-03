@@ -16,6 +16,9 @@ build/
 # Conventional location for Python virtual environments.
 .venv/*
 
+# Written by uv when the ty prek hook runs.
+uv.lock
+
 # Configuration files.
 .python-version
 .idea/
