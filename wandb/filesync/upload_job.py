@@ -9,7 +9,7 @@ from wandb.analytics import get_sentry
 from wandb.sdk.lib.paths import LogicalPath
 
 if TYPE_CHECKING:
-    from wandb.filesync import dir_watcher, stats, step_upload
+    from wandb.filesync import stats, step_upload
     from wandb.sdk.internal import file_stream, internal_api
 
 
@@ -24,7 +24,7 @@ class UploadJob:
         file_stream: file_stream.FileStreamApi,
         silent: bool,
         save_name: LogicalPath,
-        path: dir_watcher.PathStr,
+        path: str,
         artifact_id: str | None,
         md5: str | None,
         copied: bool,
