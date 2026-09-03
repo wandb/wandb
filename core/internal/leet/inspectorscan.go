@@ -211,7 +211,7 @@ func historyStep(h *spb.HistoryRecord) int64 {
 		return step.GetNum()
 	}
 	for _, item := range h.GetItem() {
-		if item.GetKey() != "_step" {
+		if historyItemKey(item) != "_step" {
 			continue
 		}
 		v, err := strconv.ParseInt(strings.TrimSpace(item.GetValueJson()), 10, 64)

@@ -426,7 +426,8 @@ func (r *Run) renderMainView() string {
 		if len(sections) == 0 {
 			centralColumn = renderLogoArt(w, layout.totalContentAreaHeight)
 		} else {
-			centralColumn = joinWithSeparators(sections, w)
+			centralColumn = joinWithSeparators(sections, w,
+				highlightedStackSeparator(r.drag.cue(), layout, len(sections)))
 		}
 	}
 	centralColumn = placeMainColumn(w, layout.totalContentAreaHeight, centralColumn)
@@ -454,8 +455,10 @@ func (r *Run) buildMainViewWithSidebars(
 	}
 
 	var parts []string
+	cue := r.drag.cue()
 
 	if leftWidth > 0 {
+		r.leftSidebar.SetDragCue(cue)
 		leftView := r.leftSidebar.View(contentHeight).Content
 		parts = append(parts, leftView)
 	}
@@ -463,7 +466,8 @@ func (r *Run) buildMainViewWithSidebars(
 	parts = append(parts, gridView)
 
 	if rightWidth > 0 {
-		rightView := r.rightSidebar.View(contentHeight)
+		rightView := r.rightSidebar.View(contentHeight,
+			cue.boundary == dragBoundaryRightSidebar)
 		parts = append(parts, rightView)
 	}
 
@@ -662,9 +666,7 @@ func (r *Run) buildActiveStatus() string {
 		parts = append(parts, focusedTitle)
 		switch r.focus.Type {
 		case FocusMainChart:
-			if scaleLabel := r.metricsGrid.focusedChartScaleLabel(); scaleLabel != "" {
-				parts = append(parts, scaleLabel)
-			}
+			parts[len(parts)-1] += r.metricsGrid.focusedChartLabels()
 		case FocusSystemChart:
 			if detail := r.rightSidebar.metricsGrid.FocusedChartTitleDetail(); detail != "" {
 				parts = append(parts, detail)

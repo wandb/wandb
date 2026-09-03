@@ -10,6 +10,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runmetric"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -120,7 +121,7 @@ func TestParseHistory_UsesHistoryStepFallback(t *testing.T) {
 		Item: []*spb.HistoryItem{
 			{NestedKey: []string{"loss"}, ValueJson: "0.5"},
 		},
-	}).(leet.HistoryMsg)
+	}, runmetric.New()).(leet.HistoryMsg)
 
 	require.Equal(t, 7.0, msg.Metrics["loss"].X[0])
 }

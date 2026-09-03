@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 AutologInitArgs = dict[str, Any] | None
 
 
-K = TypeVar("K", bound=str)
+K = TypeVar("K", bound=str, contravariant=True)
 V = TypeVar("V")
 
 

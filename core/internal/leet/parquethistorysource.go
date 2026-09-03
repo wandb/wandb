@@ -62,6 +62,10 @@ type historyStepReader interface {
 // ParquetHistorySource reads a remote run's history from its parquet
 // exports on the W&B backend.
 //
+// TODO: resolve custom x-axes like LevelDBHistorySource does for
+// Record_Metric. For remote runs the define_metric definitions live in
+// the run config under _wandb.m, which is not fetched yet.
+//
 // Implements HistorySource.
 type ParquetHistorySource struct {
 	logger *observability.CoreLogger

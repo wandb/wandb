@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 
 	tea "charm.land/bubbletea/v2"
@@ -161,12 +162,21 @@ func (mg *MetricsGrid) focusedChart() *EpochLineChart {
 	return mg.currentPage[mg.focus.Row][mg.focus.Col]
 }
 
-func (mg *MetricsGrid) focusedChartScaleLabel() string {
+// focusedChartLabels returns the focused chart's status-bar decorations,
+// e.g. " [log] [x: train/step]", or an empty string if it has none.
+func (mg *MetricsGrid) focusedChartLabels() string {
 	chart := mg.focusedChart()
 	if chart == nil {
 		return ""
 	}
-	return chart.ScaleLabel()
+	labels := ""
+	if chart.IsLogY() {
+		labels += " [log]"
+	}
+	if m := chart.XAxisMetric(); m != "" {
+		labels += " [x: " + m + "]"
+	}
+	return labels
 }
 
 func (mg *MetricsGrid) toggleFocusedChartLogY() bool {
@@ -228,6 +238,9 @@ func (mg *MetricsGrid) ProcessHistory(msg HistoryMsg) bool {
 			if mg.logger != nil && len(mg.all)%1000 == 0 {
 				mg.logger.Debug(fmt.Sprintf("metricsgrid: created %d charts", len(mg.all)))
 			}
+		}
+		if data.XAxisMetric != "" {
+			chart.SetXAxisMetric(data.XAxisMetric)
 		}
 		chart.AddData(msg.RunPath, data)
 		if seriesStyle != nil {
@@ -480,10 +493,24 @@ func (mg *MetricsGrid) renderGridCell(row, col int, dims GridDims) string {
 		if chart.IsLogY() {
 			titleSuffix = " [log]"
 		}
+		xLabel := ""
+		if m := chart.XAxisMetric(); m != "" {
+			xLabel = "[x: " + m + "]"
+		}
 
-		availableTitleWidth := max(dims.CellWWithPadding-4-lipgloss.Width(titleSuffix), 10)
-		displayTitle := TruncateTitle(chart.Title(), availableTitleWidth)
+		titleWidth := dims.CellWWithPadding - 4 - lipgloss.Width(titleSuffix)
+		if w := titleWidth - lipgloss.Width(xLabel); w >= 10 {
+			titleWidth = w
+		}
+		displayTitle := TruncateTitle(chart.Title(), max(titleWidth, 10))
 		titleText := titleStyle.Render(displayTitle) + navInfoStyle.Render(titleSuffix)
+
+		if xLabel != "" {
+			gap := chart.Width() - lipgloss.Width(titleText) - lipgloss.Width(xLabel)
+			if gap >= 1 {
+				titleText += strings.Repeat(" ", gap) + navInfoStyle.Render(xLabel)
+			}
+		}
 
 		boxContent := lipgloss.JoinVertical(
 			lipgloss.Left,
@@ -576,7 +603,7 @@ func (mg *MetricsGrid) drawVisible() {
 	// ProcessHistory's AddData calls on the same chart internals.
 	for ch := range currentCharts {
 		ch.Resize(dims.CellW, dims.CellH)
-		ch.Draw()
+		ch.DrawIfNeeded()
 	}
 }
 
@@ -868,7 +895,7 @@ func (mg *MetricsGrid) StartInspection(adjustedX, row, col int, dims GridDims, s
 	if synced {
 		mg.syncInspectActive = true
 		if x, _, active := chart.InspectionData(); active {
-			mg.broadcastInspectAtDataX(x)
+			mg.broadcastInspectAtDataX(x, chart.XAxisMetric())
 		}
 	}
 }
@@ -888,7 +915,7 @@ func (mg *MetricsGrid) UpdateInspection(adjustedX, row, col int, dims GridDims) 
 
 	if mg.syncInspectActive {
 		if x, _, active := chart.InspectionData(); active {
-			mg.broadcastInspectAtDataX(x)
+			mg.broadcastInspectAtDataX(x, chart.XAxisMetric())
 		}
 	}
 }
@@ -920,15 +947,16 @@ func (mg *MetricsGrid) EndInspection() {
 	}
 }
 
-// broadcastInspectAtDataX applies InspectAtDataX to all visible charts on the current page.
-func (mg *MetricsGrid) broadcastInspectAtDataX(anchorX float64) {
+// broadcastInspectAtDataX applies InspectAtDataX to the visible charts on
+// the current page that share the source chart's x-axis.
+func (mg *MetricsGrid) broadcastInspectAtDataX(anchorX float64, xAxisMetric string) {
 	mg.mu.RLock()
 	page := mg.currentPage
 	mg.mu.RUnlock()
 
 	for r := range page {
 		for c := range page[r] {
-			if ch := page[r][c]; ch != nil {
+			if ch := page[r][c]; ch != nil && ch.XAxisMetric() == xAxisMetric {
 				ch.InspectAtDataX(anchorX)
 				ch.DrawIfNeeded()
 			}

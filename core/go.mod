@@ -28,7 +28,6 @@ require (
 	github.com/hashicorp/golang-lru v1.0.2
 	github.com/mattn/go-isatty v0.0.24
 	github.com/mattn/go-runewidth v0.0.28
-	github.com/muesli/termenv v0.16.0
 	github.com/prometheus/client_golang v1.24.1
 	github.com/prometheus/common v0.71.0
 	github.com/prometheus/procfs v0.22.0
@@ -95,7 +94,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.41.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.48.0 // indirect
 	github.com/aws/smithy-go v1.28.1 // indirect
-	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/aymanbagabas/go-udiff v0.4.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.10.0 // indirect
