@@ -320,6 +320,7 @@ class TelemetryRecorder:
         self,
         exc: Exception,
         message: str | None = None,
+        attributes: dict[str, str] | None = None,
     ) -> None:
         """Record an exception as both a counter metric and an error log.
 
@@ -353,15 +354,20 @@ class TelemetryRecorder:
                 "exception.type": type(exc).__name__,
                 "exception.stacktrace": _exception_stacktrace(exc),
                 "exception.message": str(exc),
+                **(attributes or {}),
             },
         )
 
-    def reraise(self, exc: Exception) -> Never:
+    def reraise(
+        self,
+        exc: Exception,
+        attributes: dict[str, str] | None = None,
+    ) -> Never:
         """Log the exception to telemetry, then re-raise it."""
         # `exception` is guarded by `guard` decorator,
         # so recording telemetry here can never mask
         # or replace the exception we re-raise.
-        self.exception(exc)
+        self.exception(exc, attributes=attributes)
         raise exc
 
 

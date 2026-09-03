@@ -26,7 +26,6 @@ import wandb
 import wandb.env
 import wandb.util
 from wandb import trigger
-from wandb.analytics import get_sentry
 from wandb.errors import CommError, UsageError
 from wandb.errors.links import url_registry
 from wandb.integration.torch import wandb_torch
@@ -595,13 +594,6 @@ class Run:
         self._telemetry_obj_dirty = False
 
         self._atexit_cleanup_called = False
-
-        # Initial scope setup for sentry.
-        # This might get updated when the actual run comes back.
-        get_sentry().configure_scope(
-            tags=dict(self._settings),
-            process_context="user",
-        )
 
         self._launch_artifact_mapping: dict[str, Any] = {}
         self._unique_launch_artifact_sequence_names: dict[str, Any] = {}
@@ -1588,11 +1580,6 @@ class Run:
         if run_obj.forked:
             self._forked = run_obj.forked
 
-        get_sentry().configure_scope(
-            process_context="user",
-            tags=dict(self._settings),
-        )
-
     def _populate_git_info(self) -> None:
         from .lib.gitlib import GitRepo
 
@@ -2348,7 +2335,6 @@ class Run:
         finally:
             if wandb.run is self:
                 module.unset_globals()
-            get_sentry().end_session()
 
         if self._finish_timed_out and self.settings.finish_timeout_raises:
             # NOTE: A timeout is theoretically possible in offline mode, so

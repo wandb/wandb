@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
-	"github.com/getsentry/sentry-go"
 	"github.com/wandb/simplejsonext"
 
+	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runhistoryreader"
@@ -133,17 +133,6 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryInit(
 			},
 		}
 	}
-
-	localHub := sentry.CurrentHub().Clone()
-	localHub.WithScope(func(scope *sentry.Scope) {
-		scope.SetTags(map[string]string{
-			"entity":  request.Entity,
-			"project": request.Project,
-			"runId":   request.RunId,
-		})
-		localHub.CaptureMessage("handleScanRunHistoryInit")
-	})
-
 	requestId := f.currentRequestId.Add(1)
 	requestKeys := request.GetKeys()
 
@@ -226,21 +215,12 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryRead(
 		}
 	}
 	getHistoryStepsEnd := time.Now()
-
-	localHub := sentry.CurrentHub().Clone()
-	localHub.WithScope(func(scope *sentry.Scope) {
-		scope.SetTags(map[string]string{
-			"entity":  historyReader.GetEntity(),
-			"project": historyReader.GetProject(),
-			"runId":   historyReader.GetRunId(),
-		})
-		localHub.CaptureMessage(
-			fmt.Sprintf(
-				"handleScanRunHistoryRead: getHistorySteps time: %dms",
-				getHistoryStepsEnd.Sub(getHistoryStepsStart).Milliseconds(),
-			),
-		)
-	})
+	f.logger.TelemetryRecorder.RecordDuration(
+		ctx,
+		"scan_run_history_read",
+		getHistoryStepsEnd.Sub(getHistoryStepsStart),
+		analytics.LowCardinalityAttributes{},
+	)
 
 	historyRows := make([]*spb.HistoryRow, 0, len(historySteps))
 	for _, historyStep := range historySteps {

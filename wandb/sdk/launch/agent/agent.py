@@ -15,7 +15,7 @@ from multiprocessing import Event
 from typing import Any
 
 import wandb
-from wandb.analytics import TelemetryRecorder, get_sentry
+from wandb.analytics import TelemetryRecorder
 from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch._launch_add import launch_add
@@ -497,10 +497,6 @@ class LaunchAgent:
                 Exception(),
                 "launch agent called finish thread id on thread without run or exception",
             )
-            get_sentry().exception(
-                "launch agent called finish thread id on thread without run or exception"
-            )
-
         # TODO:  keep logs or something for the finished jobs
         with self._jobs_lock:
             del self._jobs[thread_id]
@@ -623,7 +619,6 @@ class LaunchAgent:
                                 f"{LOG_PREFIX}Error running job: {traceback.format_exc()}"
                             )
                             await self._record_telemetry_exception(e)
-                            get_sentry().exception(e)
 
                             # always the first phase, because we only enter phase 2 within the thread
                             files = file_saver.save_contents(
@@ -683,17 +678,14 @@ class LaunchAgent:
             )
             exception = e
             await self._record_telemetry_exception(e)
-            get_sentry().exception(e)
         except LaunchError as e:
             wandb.termerror(f"{LOG_PREFIX}Error running job: {e}")
             exception = e
             await self._record_telemetry_exception(e)
-            get_sentry().exception(e)
         except Exception as e:
             wandb.termerror(f"{LOG_PREFIX}Error running job: {traceback.format_exc()}")
             exception = e
             await self._record_telemetry_exception(e)
-            get_sentry().exception(e)
         finally:
             await self.finish_thread_id(rqi_id, exception)
 
@@ -936,7 +928,6 @@ class LaunchAgent:
             _logger.info(traceback.format_exc())
             _logger.info("---")
             await self._record_telemetry_exception(e)
-            get_sentry().exception(e)
         return known_error
 
     async def get_job_and_queue(self) -> JobSpecAndQueue | None:
