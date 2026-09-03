@@ -12,8 +12,10 @@ from dataclasses import dataclass, fields
 from typing import TYPE_CHECKING, Concatenate
 
 import requests
-from opentelemetry._logs import SeverityNumber
-from opentelemetry.metrics import Counter
+from opentelemetry._logs import NoOpLoggerProvider, SeverityNumber
+from opentelemetry.metrics import Counter, NoOpMeterProvider
+from opentelemetry.sdk._logs import LoggerProvider
+from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import AggregationTemporality
 from typing_extensions import Never, ParamSpec
 
@@ -22,8 +24,6 @@ from wandb.sdk import wandb_setup
 from wandb.sdk.wandb_settings import Settings
 
 if TYPE_CHECKING:
-    from opentelemetry.sdk._logs import LoggerProvider
-    from opentelemetry.sdk.metrics import MeterProvider
     from opentelemetry.sdk.resources import Resource
 
 # defaultExportInterval mirror: how often batched metrics/logs are flushed to
@@ -37,6 +37,11 @@ _DEFAULT_EXPORT_TIMEOUT_MILLIS = 5_000
 # httpClientTimeout mirror: per-request timeout for HTTP calls to the backend.
 _HTTP_CLIENT_TIMEOUT_SECONDS = 10
 
+# probeTimeout is the timeout for the server capability probe. The probe runs
+# during SDK initialization, so it must be shorter than the initialization
+# timeout rather than consuming the whole request budget.
+_PROBE_TIMEOUT_SECONDS = 5
+
 # Backend OpenTelemetry proxy ingestion paths, appended to the base URL.
 _METRICS_PATH = "/sdk/otel/v1/metrics"
 _LOGS_PATH = "/sdk/otel/v1/logs"
@@ -46,6 +51,26 @@ _DEFAULT_SERVICE_NAME = "sdk-wandb"
 # _disabled gates OpenTelemetryProxy for the whole process. Once set, no new
 # proxy is created and telemetry becomes a no-op.
 _disabled = threading.Event()
+
+
+def _check_server_supports_open_telemetry_proxy(settings: Settings) -> bool:
+    """Return whether the server exposes the OpenTelemetry proxy endpoint."""
+    try:
+        response = requests.post(
+            settings.base_url.rstrip("/") + _METRICS_PATH,
+            timeout=_PROBE_TIMEOUT_SECONDS,
+        )
+    except requests.RequestException:
+        return False
+    status_code = response.status_code
+    response.close()
+
+    # Depending on the server configuration, an unsupported endpoint may
+    # respond with either 404 Not Found or 405 Method Not Allowed.
+    return status_code not in (
+        requests.codes.not_found,
+        requests.codes.method_not_allowed,
+    )
 
 
 def disable() -> None:
@@ -403,9 +428,56 @@ class OpenTelemetryProxy:
         Args:
             settings: The settings to use to configure the proxy.
         """
-        from opentelemetry.sdk.resources import SERVICE_NAME, Resource
-
         self._pid = pid or os.getpid()
+
+        # Providers are initialized after we verify the server supports proxying telemetry.
+        self._meter_provider: MeterProvider | NoOpMeterProvider = NoOpMeterProvider()
+        self._logger_provider: LoggerProvider | NoOpLoggerProvider = (
+            NoOpLoggerProvider()
+        )
+
+        # Counters are cached by name so the same instrument is reused across
+        # calls, avoiding duplicate-instrument warnings from the SDK.
+        self._counters: dict[str, Counter] = {}
+        self._counters_lock = threading.Lock()
+
+        # Probe the server support for OpenTelemetry proxy.
+        # shutdown guards Shutdown so the providers are only shut down once.
+        self._shutdown = False
+        self._shutdown_lock = threading.Lock()
+        self._disabled = _disabled.is_set() or settings._offline
+        self._probe_complete = threading.Event()
+        if not self._disabled:
+            self._start_server_probe(settings)
+        else:
+            self._probe_complete.set()
+
+    def _start_server_probe(self, settings: Settings) -> None:
+        """Probe server support without blocking proxy creation."""
+
+        def probe_server_support() -> None:
+            """Disable this proxy if the server does not support OpenTelemetry."""
+            try:
+                if not _check_server_supports_open_telemetry_proxy(settings):
+                    self._disabled = True
+                    return
+
+                self._initialize_providers(settings)
+            finally:
+                self._probe_complete.set()
+
+        if self._probe_complete.is_set():
+            return
+
+        self._probe_thread = threading.Thread(
+            target=probe_server_support,
+            daemon=True,
+        )
+        self._probe_thread.start()
+
+    def _initialize_providers(self, settings: Settings) -> None:
+        """Initialize the OpenTelemetry providers for exporting telemetry."""
+        from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 
         session = requests.Session()
         resource = Resource.create({SERVICE_NAME: _DEFAULT_SERVICE_NAME})
@@ -419,15 +491,6 @@ class OpenTelemetryProxy:
             endpoint=settings.base_url,
             session=session,
         )
-
-        # Counters are cached by name so the same instrument is reused across
-        # calls, avoiding duplicate-instrument warnings from the SDK.
-        self._counters: dict[str, Counter] = {}
-        self._counters_lock = threading.Lock()
-
-        # shutdown guards Shutdown so the providers are only shut down once.
-        self._shutdown = False
-        self._shutdown_lock = threading.Lock()
 
     def _build_meter_provider(
         self,
@@ -490,7 +553,8 @@ class OpenTelemetryProxy:
         attributes: dict[str, str] | None = None,
     ) -> None:
         """Increment the counter metric `name` by 1 with the given attributes."""
-        if self._shutdown or _disabled.is_set():
+        self._probe_complete.wait(timeout=_PROBE_TIMEOUT_SECONDS)
+        if self._shutdown or self._disabled or _disabled.is_set():
             return
 
         counter = self._counter(name)
@@ -512,7 +576,8 @@ class OpenTelemetryProxy:
         severity: SeverityNumber = SeverityNumber.INFO,
     ) -> None:
         """Emit a log record with the given body, attributes, and severity."""
-        if self._shutdown or _disabled.is_set():
+        self._probe_complete.wait(timeout=_PROBE_TIMEOUT_SECONDS)
+        if self._shutdown or self._disabled or _disabled.is_set():
             return
 
         logger = self._logger_provider.get_logger(_DEFAULT_SERVICE_NAME)
@@ -534,10 +599,10 @@ class OpenTelemetryProxy:
                 return
             self._shutdown = True
 
-        if self._meter_provider is not None:
+        if isinstance(self._meter_provider, MeterProvider):
             with contextlib.suppress(Exception):
                 self._meter_provider.shutdown(timeout_millis=timeout_millis)
-        if self._logger_provider is not None:
+        if isinstance(self._logger_provider, LoggerProvider):
             with contextlib.suppress(Exception):
                 self._logger_provider.shutdown()
 
