@@ -39,6 +39,12 @@ func TestDefaultRetryPolicy(t *testing.T) {
 			"the API key you provided is either invalid or missing. (Error 401: Unauthorized)",
 		},
 		{
+			"PaymentRequired",
+			http.StatusPaymentRequired,
+			false,
+			"the server responded with an error. (Error 402: Payment Required)",
+		},
+		{
 			"Forbidden",
 			http.StatusForbidden,
 			false,

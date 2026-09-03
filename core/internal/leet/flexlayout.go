@@ -1,6 +1,11 @@
 package leet
 
-import "charm.land/lipgloss/v2"
+import (
+	"math"
+	"strings"
+
+	"charm.land/lipgloss/v2"
+)
 
 // stackSectionID identifies a vertically stacked pane in the main content area.
 type stackSectionID int
@@ -98,12 +103,129 @@ func (l verticalStackLayout) Y(id stackSectionID) int {
 	return l.Sections[id].Y
 }
 
-func expandedSidebarWidth(terminalWidth int, oppositeVisible bool) int {
+const (
+	// sidebarDragMinWidth is the narrowest a sidebar override can make it.
+	// Deliberately smaller than SidebarMinWidth so users can shrink
+	// sidebars below the default clamp.
+	sidebarDragMinWidth = 20
+
+	// mainDragMinWidth is the narrowest the main content column can be
+	// squeezed to by a sidebar override.
+	mainDragMinWidth = 24
+)
+
+// expandedSidebarWidth returns a sidebar's expanded width: a user-dragged
+// fraction of the terminal width when set (non-zero), or the golden-ratio
+// default. Dragged widths may go below the default minimum but always leave
+// room for the main content column.
+func expandedSidebarWidth(terminalWidth int, oppositeVisible bool, frac float64) int {
+	if frac > 0 {
+		maxW := max(terminalWidth-mainDragMinWidth, sidebarDragMinWidth)
+		w := int(math.Round(float64(terminalWidth) * frac))
+		return clamp(w, sidebarDragMinWidth, maxW)
+	}
+
 	ratio := SidebarWidthRatio
 	if oppositeVisible {
 		ratio = SidebarWidthRatioBoth
 	}
 	return clamp(int(float64(terminalWidth)*ratio), SidebarMinWidth, SidebarMaxWidth)
+}
+
+// minFlexMetricsHeight is the shortest the flex metrics section can be
+// squeezed to by the fixed panes below it.
+const minFlexMetricsHeight = 5
+
+// fitSidebarFractions clamps sidebar override fractions so both expanded
+// sidebars together leave the main content column its minimum width. Only
+// overridden (non-zero) fractions are adjusted; the golden-ratio defaults
+// already fit jointly.
+func fitSidebarFractions(
+	width int,
+	leftVisible, rightVisible bool,
+	leftFrac, rightFrac float64,
+) (float64, float64) {
+	if width <= 0 || !leftVisible || !rightVisible ||
+		(leftFrac <= 0 && rightFrac <= 0) {
+		return leftFrac, rightFrac
+	}
+
+	leftW := expandedSidebarWidth(width, true, leftFrac)
+	rightW := expandedSidebarWidth(width, true, rightFrac)
+	total := width - mainDragMinWidth
+	if leftW+rightW <= total {
+		return leftFrac, rightFrac
+	}
+
+	newLeft, newRight := leftW, rightW
+	switch {
+	case rightFrac <= 0: // Only the left override can shrink.
+		newLeft = total - rightW
+	case leftFrac <= 0: // Only the right override can shrink.
+		newRight = total - leftW
+	default: // Shrink both, proportionally.
+		newLeft = leftW * total / (leftW + rightW)
+		newRight = total - newLeft
+	}
+
+	if leftFrac > 0 {
+		leftFrac = float64(max(newLeft, sidebarDragMinWidth)) / float64(width)
+	}
+	if rightFrac > 0 {
+		rightFrac = float64(max(newRight, sidebarDragMinWidth)) / float64(width)
+	}
+	return leftFrac, rightFrac
+}
+
+// paneHeightFor returns a stacked pane's expanded height for the given
+// override fraction of the terminal height, or the fallback default when no
+// override is set. The pane's own SetExpandedHeight enforces its minimum.
+func paneHeightFor(frac float64, terminalHeight, fallback int) int {
+	if frac <= 0 {
+		return fallback
+	}
+	return int(math.Round(float64(terminalHeight) * frac))
+}
+
+// fitStackHeights lowers the fixed stacked panes' heights to fit budget so
+// overridden panes cannot crowd out the flex metrics section or overflow
+// the stack. Each pane gives up slack above its own minimum, proportionally
+// — the panes re-inflate anything below their minimums, which would
+// silently undo a plain proportional scale. When even the minimums exceed
+// the budget the panes keep their minimums (tiny-terminal degradation the
+// renderer crops).
+func fitStackHeights(heights, minimums []int, budget int) {
+	sum, slack := 0, 0
+	for i := range heights {
+		sum += heights[i]
+		slack += max(heights[i]-minimums[i], 0)
+	}
+	over := sum - max(budget, 0)
+	if over <= 0 {
+		return
+	}
+	if over >= slack {
+		for i := range heights {
+			heights[i] = min(heights[i], minimums[i])
+		}
+		return
+	}
+
+	left := over
+	for i := range heights {
+		cut := over * max(heights[i]-minimums[i], 0) / slack
+		heights[i] -= cut
+		left -= cut
+	}
+	// Integer-division dust: take the remainder from panes with slack.
+	for i := range heights {
+		if left == 0 {
+			break
+		}
+		cut := min(left, max(heights[i]-minimums[i], 0))
+		heights[i] -= cut
+		left -= cut
+	}
 }
 
 // sidebarContentWidth returns the width available for text content inside a
@@ -129,9 +251,17 @@ func filterNonEmptySections(sections []string) []string {
 	return filtered
 }
 
+// placeMainColumn pads or crops content to exactly width x height. Mouse
+// hit-testing maps screen rows to sections via computeVerticalStackLayout,
+// so rendered content must never spill past its reserved rows —
+// lipgloss.Place pads short content but never crops tall content (e.g. the
+// metrics grid's minimum chart height in a short section).
 func placeMainColumn(width, height int, content string) string {
 	if width <= 0 || height <= 0 {
 		return ""
+	}
+	if lines := strings.Split(content, "\n"); len(lines) > height {
+		content = strings.Join(lines[:height], "\n")
 	}
 	return lipgloss.Place(width, height, lipgloss.Left, lipgloss.Top, content)
 }

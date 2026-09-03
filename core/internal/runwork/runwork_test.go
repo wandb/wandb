@@ -79,7 +79,6 @@ func TestAddWorkAfterClose(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{}))
 	rw := runwork.New(0, observability.NewCoreLogger(
 		logger,
-		nil,
 		analytics.NewTelemetryRecorder(nil, analytics.NewTelemetryContext()),
 	))
 	req := newTestRequest(t)
@@ -99,7 +98,6 @@ func TestCloseDuringAddWork(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{}))
 	rw := runwork.New(0, observability.NewCoreLogger(
 		logger,
-		nil,
 		analytics.NewTelemetryRecorder(nil, analytics.NewTelemetryContext()),
 	))
 	req := newTestRequest(t)

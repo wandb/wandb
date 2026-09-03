@@ -105,11 +105,7 @@ func (w *RunUpdateWork) initRun(request *runwork.Request) {
 
 	if err != nil {
 		w.Logger.Error("runupserter: failed to init run", "error", err)
-
-		if w.Record.Control.GetMailboxSlot() != "" {
-			respondRunUpdate(request, runInitErrorResult(err))
-		}
-
+		respondRunUpdate(request, runInitErrorResult(err))
 		return
 	}
 
@@ -123,14 +119,11 @@ func (w *RunUpdateWork) initRun(request *runwork.Request) {
 			),
 		)
 
-		if w.Record.Control.GetMailboxSlot() != "" {
-			respondRunUpdate(request, runInitErrorResult(err))
-		}
-
+		respondRunUpdate(request, runInitErrorResult(err))
 		return
 	}
 
-	if w.Record.Control.GetMailboxSlot() != "" {
+	if request != nil {
 		updatedRun := proto.CloneOf(w.Record.GetRun())
 		upserter.FillRunRecord(updatedRun)
 		respondRunUpdate(request, &spb.RunUpdateResult{Run: updatedRun})

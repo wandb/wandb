@@ -12,6 +12,16 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
+// RunCrashTimeout is how long a live run may go without writing to its
+// transaction log before LEET presumes it crashed.
+//
+// Modeled on the server's stale-runs sweep (staleRunHeartbeatThreshold in
+// gorilla), which moves running runs with no filestream heartbeat for
+// 5 minutes to the crashed state. Locally, writes to the .wandb file play
+// the role of the heartbeat, and their cadence varies more than the SDK's
+// heartbeats, so be twice as lenient.
+const RunCrashTimeout = 10 * time.Minute
+
 // HeartbeatManager manages periodic heartbeat messages for live runs.
 type HeartbeatManager struct {
 	mu         sync.Mutex // guards timer lifecycle (start/stop/replace)

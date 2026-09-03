@@ -13,7 +13,7 @@ import logging
 import click
 
 from wandb import env as wandb_env
-from wandb.analytics import get_sentry
+from wandb.analytics import get_telemetry_recorder
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.sdk.lib import asyncio_manager
 from wandb.sdk.lib.service import service_process, service_token
@@ -61,8 +61,6 @@ def start(*, idle_timeout: str) -> None:
 
 def stop(*, exit_code: int = 0) -> None:
     """Stop a detached wandb-core service addressed by WANDB_SERVICE."""
-    get_sentry().configure_scope(process_context="beta-core-stop")
-
     try:
         token = service_token.from_env()
     except ValueError as e:
@@ -96,7 +94,7 @@ def stop(*, exit_code: int = 0) -> None:
         ) from e
 
     except Exception as e:
-        get_sentry().reraise(e)
+        get_telemetry_recorder().reraise(e)
 
     finally:
         asyncer.join()

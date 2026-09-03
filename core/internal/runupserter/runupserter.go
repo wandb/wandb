@@ -57,6 +57,13 @@ type RunUpserter struct {
 	isParamsDirty bool // whether params has un-uploaded changes
 	isConfigDirty bool // whether config has un-uploaded changes
 
+	// startRuntime is the initial value of params.Runtime.
+	//
+	// It's stored separately because params.Runtime can be updated in theory,
+	// even though it doesn't seem to be in practice. This can be removed if
+	// the Runtime field can be dropped from the RunRecord.
+	startRuntime time.Duration
+
 	params      *runbranch.RunParams
 	config      *runconfig.RunConfig
 	telemetry   *spb.TelemetryRecord
@@ -219,13 +226,18 @@ func InitRun(
 		}
 	}
 
-	startingStep, err := upserter.syncStateStore.GetOrInitStartingStep(
-		upserter.params.StartingStep,
-	)
+	startState, err := upserter.syncStateStore.GetOrInitStartState(
+		runsyncstate.StartState{
+			StartStep:    upserter.params.StartingStep,
+			StartRuntime: upserter.params.Runtime,
+		})
 	if err != nil {
 		return nil, ToRunUpdateError(err)
 	}
-	upserter.params.StartingStep = startingStep
+	upserter.params.StartingStep = startState.StartStep
+	upserter.params.Runtime = startState.StartRuntime
+
+	upserter.startRuntime = time.Duration(upserter.params.Runtime) * time.Second
 
 	// If we're offline, skip upserting.
 	if upserter.graphqlClientOrNil == nil {
@@ -401,6 +413,19 @@ func (upserter *RunUpserter) EnvironmentJSON() ([]byte, error) {
 	upserter.mu.Lock()
 	defer upserter.mu.Unlock()
 	return upserter.environment.ToJSON()
+}
+
+func (upserter *RunUpserter) StartingStep() int64 {
+	upserter.mu.Lock()
+	defer upserter.mu.Unlock()
+	return upserter.params.StartingStep
+}
+
+// StartRuntime returns the run's initial `_runtime` metric.
+func (upserter *RunUpserter) StartRuntime() time.Duration {
+	upserter.mu.Lock()
+	defer upserter.mu.Unlock()
+	return upserter.startRuntime
 }
 
 func (upserter *RunUpserter) StartTime() time.Time {
@@ -684,9 +709,10 @@ func (upserter *RunUpserter) lockedUpdateFromUpsert(
 	upserter.params.SweepID = nullify.ZeroIfNil(bucket.GetSweepName())
 
 	if lineCount := nullify.ZeroIfNil(bucket.GetHistoryLineCount()); lineCount > 0 {
-		upserter.params.FileStreamOffset = filestream.FileStreamOffsetMap{
-			filestream.HistoryChunk: lineCount,
+		if upserter.params.FileStreamOffset == nil {
+			upserter.params.FileStreamOffset = make(filestream.FileStreamOffsetMap)
 		}
+		upserter.params.FileStreamOffset[filestream.HistoryChunk] = lineCount
 	}
 
 	if project := bucket.GetProject(); project == nil {

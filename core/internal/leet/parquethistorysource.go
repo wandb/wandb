@@ -18,6 +18,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/httplayers"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runhistoryreader"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet"
@@ -60,6 +61,10 @@ type historyStepReader interface {
 
 // ParquetHistorySource reads a remote run's history from its parquet
 // exports on the W&B backend.
+//
+// TODO: resolve custom x-axes like LevelDBHistorySource does for
+// Record_Metric. For remote runs the define_metric definitions live in
+// the run config under _wandb.m, which is not fetched yet.
 //
 // Implements HistorySource.
 type ParquetHistorySource struct {
@@ -145,13 +150,12 @@ func InitializeParquetHistorySource(
 			s,
 		)
 		httpClient := api.NewClient(api.ClientOptions{
-			BaseURL:            baseURL,
-			RetryMax:           3,
-			RetryWaitMin:       1 * time.Second,
-			RetryWaitMax:       10 * time.Second,
-			NonRetryTimeout:    10 * time.Second,
-			CredentialProvider: credentialProvider,
-			Logger:             logger.Logger,
+			RetryMax:        3,
+			RetryWaitMin:    1 * time.Second,
+			RetryWaitMax:    10 * time.Second,
+			NonRetryTimeout: 10 * time.Second,
+			Logger:          logger.Logger,
+			PreRetryLayers:  httplayers.LimitTo(baseURL, credentialProvider),
 		})
 
 		runInfo, err := loadRunInfo(
@@ -214,6 +218,7 @@ func (s *ParquetHistorySource) Read(
 			RunMsg{
 				RunPath:     s.runPath,
 				ID:          s.runInfo.runId,
+				Entity:      s.runInfo.entity,
 				Project:     s.runInfo.project,
 				DisplayName: s.runInfo.displayName,
 				Config:      nil,

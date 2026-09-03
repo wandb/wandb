@@ -162,6 +162,17 @@ func (nc *Connection) ManageConnectionData() {
 
 	wg.Wait()
 
+	// Flush telemetry buffered by API instances that were not explicitly
+	// cleaned up, such as when the client process exits abruptly. This
+	// runs after all request handlers have finished so that no telemetry
+	// is recorded after the flush.
+	shutdownCtx, cancel := context.WithTimeout(
+		context.Background(),
+		2*time.Second,
+	)
+	defer cancel()
+	nc.apiManager.Shutdown(shutdownCtx)
+
 	slog.Info("connection: ManageConnectionData: connection closed", "id", nc.id)
 }
 
@@ -350,7 +361,7 @@ func (nc *Connection) handleIncomingRequests() {
 		case *spb.ServerRequest_ApiInitRequest:
 			nc.handleApiInit(msg.RequestId, x.ApiInitRequest)
 		case *spb.ServerRequest_ApiCleanupRequest:
-			nc.handleApiCleanup(msg.RequestId, x.ApiCleanupRequest)
+			nc.handleApiCleanup(wg, x.ApiCleanupRequest)
 		case *spb.ServerRequest_ApiRequest:
 			nc.handleApi(wg, msg.RequestId, x.ApiRequest)
 		case nil:
@@ -508,7 +519,6 @@ func (nc *Connection) handleAuthenticateImpl(
 	credentialProvider := api.NewAPIKeyCredentialProvider(msg.ApiKey)
 
 	apiClient := api.NewClient(api.ClientOptions{
-		BaseURL:     baseURL,
 		RetryPolicy: clients.CheckRetry,
 
 		RetryMax:        api.DefaultRetryMax,
@@ -516,8 +526,9 @@ func (nc *Connection) handleAuthenticateImpl(
 		RetryWaitMax:    api.DefaultRetryWaitMax,
 		NonRetryTimeout: api.DefaultNonRetryTimeout,
 
-		CredentialProvider: credentialProvider,
-		Logger:             logger.Logger,
+		Logger: logger.Logger,
+
+		PreRetryLayers: credentialProvider,
 	})
 
 	graphqlClient := graphql.NewClient(
@@ -678,7 +689,11 @@ func (nc *Connection) handleSyncStatus(
 func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest) {
 	s := settings.From(request.GetSettings())
 
-	telemetryProxy := analytics.NewOpenTelemetryProxy(context.Background(), s)
+	telemetryProxy := analytics.NewOpenTelemetryProxy(
+		context.Background(),
+		s,
+		"wandb-core",
+	)
 	go func() {
 		<-nc.connLifetimeCtx.Done()
 		if telemetryProxy != nil {
@@ -701,13 +716,12 @@ func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest
 
 	logger := observability.NewCoreLogger(
 		slog.Default(),
-		nil,
 		analytics.NewTelemetryRecorder(
 			telemetryProxy,
 			analytics.NewTelemetryContext(),
 		),
 	)
-	wbapiInstance, err := wbapi.New(s, logger)
+	wbapiInstance, err := wbapi.New(s, request.GetServiceName(), logger)
 	if err != nil {
 		nc.Respond(&spb.ServerResponse{
 			RequestId: id,
@@ -734,8 +748,20 @@ func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest
 }
 
 // handleApiCleanup cleans up a wandbAPI instance related to the provided id.
-func (nc *Connection) handleApiCleanup(id string, request *spb.ServerApiCleanupRequest) {
-	nc.apiManager.RemoveWandbAPI(request.GetApiId())
+func (nc *Connection) handleApiCleanup(
+	wg *sync.WaitGroup,
+	request *spb.ServerApiCleanupRequest,
+) {
+	wbapiInstance := nc.apiManager.RemoveWandbAPI(request.GetApiId())
+	if wbapiInstance == nil {
+		return
+	}
+
+	wg.Go(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		wbapiInstance.Shutdown(ctx)
+	})
 }
 
 func (nc *Connection) handleApi(

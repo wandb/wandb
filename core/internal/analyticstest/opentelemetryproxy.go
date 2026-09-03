@@ -33,9 +33,12 @@ type Log struct {
 // Metric is a OTLP metric data point received by an OpenTelemetryProxyTest,
 // with its name, value, and attributes extracted.
 type Metric struct {
-	Name       string
-	Value      int64
-	Attributes map[string]string
+	Name           string
+	Unit           string
+	Value          int64
+	HistogramCount uint64
+	HistogramSum   float64
+	Attributes     map[string]string
 }
 
 // Request is an HTTP request received by an OpenTelemetryProxyTest.
@@ -44,6 +47,7 @@ type Request struct {
 	Authorization string
 	Headers       http.Header
 	URLHost       string
+	ContentLength int64
 }
 
 // OpenTelemetryProxyTest is an OpenTelemetry proxy and test OTLP collector.
@@ -106,7 +110,7 @@ func NewOpenTelemetryProxyTest(
 		BaseUrl: wrapperspb.String(testProxy.server.URL),
 		ApiKey:  wrapperspb.String("test-api-key"),
 	})
-	proxy := analytics.NewOpenTelemetryProxy(t.Context(), settings)
+	proxy := analytics.NewOpenTelemetryProxy(t.Context(), settings, "wandb-core")
 	require.NotNil(t, proxy)
 	t.Cleanup(func() {
 		require.NoError(t, proxy.Shutdown(context.Background()))
@@ -182,6 +186,16 @@ func (s *OpenTelemetryProxyTest) addMetrics(body []byte) error {
 						Attributes: keyValuesToMap(dataPoint.GetAttributes()),
 					})
 				}
+				for _, dataPoint := range metric.GetHistogram().GetDataPoints() {
+					s.metrics = append(s.metrics, Metric{
+						Name:           metric.GetName(),
+						Unit:           metric.GetUnit(),
+						HistogramCount: dataPoint.GetCount(),
+						HistogramSum:   dataPoint.GetSum(),
+						Attributes: keyValuesToMap(
+							dataPoint.GetAttributes()),
+					})
+				}
 			}
 		}
 	}
@@ -196,6 +210,7 @@ func (s *OpenTelemetryProxyTest) addRequest(request *http.Request) {
 		Authorization: request.Header.Get("Authorization"),
 		Headers:       request.Header.Clone(),
 		URLHost:       request.URL.Host,
+		ContentLength: request.ContentLength,
 	})
 }
 

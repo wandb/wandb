@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable
 from typing import Any, TypeAlias
 
@@ -32,6 +33,17 @@ from .operators import (
     Scalar,
     SupportsBitwiseLogicalOps,
 )
+
+FIELD_REGEX: re.Pattern[str] = re.compile(
+    r"""
+    \A         # Absolute start of string, multiline not allowed
+    [a-zA-Z_]  # field names must start with a letter or underscore
+    \w*        # [a-zA-Z0-9_]* in ASCII mode
+    \Z         # Absolute end of string, multiline not allowed
+    """,
+    flags=re.VERBOSE | re.ASCII,
+)
+"""A compiled regex pattern for validating field names."""
 
 
 class FilterableField:
@@ -87,10 +99,10 @@ class FilterableField:
     def gte(self, value: Scalar, /) -> FilterExpr:
         return FilterExpr(field=self._name, op=Gte(val=value))
 
-    def ne(self, value: Scalar, /) -> FilterExpr:
+    def ne(self, value: Scalar | Iterable[Scalar], /) -> FilterExpr:
         return FilterExpr(field=self._name, op=Ne(val=value))
 
-    def eq(self, value: Scalar, /) -> FilterExpr:
+    def eq(self, value: Scalar | Iterable[Scalar], /) -> FilterExpr:
         return FilterExpr(field=self._name, op=Eq(val=value))
 
     def in_(self, values: Iterable[Scalar], /) -> FilterExpr:

@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -47,6 +48,77 @@ func newTestRetryableHTTPClient(logger *observability.CoreLogger) *retryablehttp
 	client.RetryMax = 0 // Disable retries
 	client.HTTPClient.Timeout = 1 * time.Second
 	return client
+}
+
+// sampleMetadataValue returns the value of a key in
+// coreWeaveSampleMetadataResponse, failing the test if it is absent so
+// that assertions about the value cannot pass trivially.
+func sampleMetadataValue(t *testing.T, key string) string {
+	t.Helper()
+
+	for line := range strings.Lines(coreWeaveSampleMetadataResponse) {
+		k, v, ok := strings.Cut(line, ":")
+		if ok && k == key {
+			value := strings.TrimSpace(v)
+			require.NotEmpty(t, value,
+				"%q has no value in coreWeaveSampleMetadataResponse", key)
+			return value
+		}
+	}
+
+	t.Fatalf("%q is not in coreWeaveSampleMetadataResponse", key)
+	return ""
+}
+
+func TestCoreWeaveMetadataProbeDoesNotLogCredentials(t *testing.T) {
+	logger, logs := observabilitytest.NewDebugRecordingTestLogger(t)
+
+	mockGQLClient := gqlmock.NewMockClient()
+	mockGQLClient.StubMatchOnce(
+		gqlmock.WithOpName("OrganizationCoreWeaveOrganizationID"),
+		`{"entity":{"organization":{"coreWeaveOrganizationId":"cw1337"}}}`,
+	)
+
+	server := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			_, _ = w.Write([]byte(coreWeaveSampleMetadataResponse))
+		},
+	))
+	defer server.Close()
+
+	s := settings.New()
+	s.UpdateStatsCoreWeaveMetadataBaseURL(server.URL)
+	s.UpdateStatsCoreWeaveMetadataEndpoint(testEndpointPath)
+
+	runHandle := runhandle.New()
+	require.NoError(t, runHandle.Init(runupsertertest.NewOfflineUpserter(t)))
+
+	cwm, err := monitor.NewCoreWeaveMetadata(monitor.CoreWeaveMetadataParams{
+		Client:        newTestRetryableHTTPClient(logger),
+		Logger:        logger,
+		GraphqlClient: mockGQLClient,
+		RunHandle:     runHandle,
+		Settings:      s,
+	})
+	require.NoError(t, err)
+
+	e := cwm.Probe(context.Background())
+
+	require.NotNil(t, e)
+	require.NotNil(t, e.Coreweave)
+	assert.Equal(t, "cks-wb", e.Coreweave.ClusterName)
+	assert.Equal(t, "b13ad0", e.Coreweave.OrgId)
+	assert.Equal(t, "us-east-04", e.Coreweave.Region)
+
+	// The metadata must have been logged for the assertions below to be
+	// meaningful: credentials cannot appear in a log that was never written.
+	assert.Contains(t, logs.String(), "cwmetadata: successfully parsed metadata")
+
+	for _, key := range []string{"join_token", "ca_cert_hash", "teleport_token"} {
+		value := sampleMetadataValue(t, key)
+		assert.NotContains(t, logs.String(), value,
+			"the value of %q must not be logged", key)
+	}
 }
 
 func TestCoreWeaveMetadataProbe(t *testing.T) {

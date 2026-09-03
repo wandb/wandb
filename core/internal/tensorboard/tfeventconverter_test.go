@@ -169,17 +169,12 @@ func summaryEvent(
 
 // mockEmitter is a mock of the Emitter interface.
 type mockEmitter struct {
-	SetTFStepCalls     []mockEmitter_SetTFStep
+	SetTFStepCalls     []int64
 	SetTFWallTimeCalls []float64
 	EmitHistoryCalls   []mockEmitter_EmitHistory
 	EmitChartCalls     []mockEmitter_EmitChart
 	EmitTableCalls     []mockEmitter_EmitTable
 	EmitImagesCalls    []mockEmitter_EmitImages
-}
-
-type mockEmitter_SetTFStep struct {
-	Key  pathtree.TreePath
-	Step int64
 }
 
 type mockEmitter_EmitHistory struct {
@@ -202,9 +197,8 @@ type mockEmitter_EmitImages struct {
 	Images []wbvalue.Image
 }
 
-func (e *mockEmitter) SetTFStep(key pathtree.TreePath, step int64) {
-	e.SetTFStepCalls = append(e.SetTFStepCalls,
-		mockEmitter_SetTFStep{key, step})
+func (e *mockEmitter) SetTFStep(step int64) {
+	e.SetTFStepCalls = append(e.SetTFStepCalls, step)
 }
 
 func (e *mockEmitter) SetTFWallTime(wallTime float64) {
@@ -248,12 +242,8 @@ func TestConvertStepAndTimestamp(t *testing.T) {
 		observabilitytest.NewTestLogger(t),
 	)
 
-	assert.Equal(t,
-		[]mockEmitter_SetTFStep{{pathtree.PathOf("global_step"), 123}},
-		emitter.SetTFStepCalls)
-	assert.Equal(t,
-		[]float64{0.345},
-		emitter.SetTFWallTimeCalls)
+	assert.Equal(t, []int64{123}, emitter.SetTFStepCalls)
+	assert.Equal(t, []float64{0.345}, emitter.SetTFWallTimeCalls)
 }
 
 func TestConvertScalar(t *testing.T) {
@@ -530,7 +520,6 @@ func TestConvertImage_NotPNG(t *testing.T) {
 				"2", "4", "not a PNG")),
 		observability.NewCoreLogger(
 			slog.New(slog.NewTextHandler(&logs, nil)),
-			nil,
 			analytics.NewTelemetryRecorder(nil, analytics.NewTelemetryContext()),
 		),
 	)
@@ -551,7 +540,6 @@ func TestConvertImage_BadDims(t *testing.T) {
 				"2a", "4x", "\x89PNG\x0D\x0A\x1A\x0Acontent")),
 		observability.NewCoreLogger(
 			slog.New(slog.NewTextHandler(&logs, nil)),
-			nil,
 			analytics.NewTelemetryRecorder(nil, analytics.NewTelemetryContext()),
 		),
 	)
@@ -573,7 +561,6 @@ func TestConvertImage_UnknownTBFormat(t *testing.T) {
 			tensorValueStrings("my_img", "images", "not enough strings")),
 		observability.NewCoreLogger(
 			slog.New(slog.NewTextHandler(&logs, nil)),
-			nil,
 			analytics.NewTelemetryRecorder(nil, analytics.NewTelemetryContext()),
 		),
 	)

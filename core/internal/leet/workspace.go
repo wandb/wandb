@@ -29,6 +29,9 @@ type Workspace struct {
 	// focusMgr is the single source of truth for UI focus state.
 	focusMgr *FocusManager
 
+	// drag owns in-progress pane-boundary resizing (mouse drag).
+	drag paneDragger
+
 	// Configuration and key bindings.
 	config *ConfigManager
 	keyMap map[string]func(*Workspace, tea.KeyPressMsg) tea.Cmd
@@ -37,12 +40,15 @@ type Workspace struct {
 	runsAnimState *AnimatedValue
 
 	// runs is the run selector.
-	runs         PagedList
+	runs         PagedList[KeyValuePair]
 	selectedRuns map[string]bool // runDirName -> selected
 	pinnedRun    string          // runDirName or ""
 
 	// hasLiveRuns caches whether any selected run is in RunStateRunning.
 	hasLiveRuns atomic.Bool
+
+	// pulseTicking reports whether the live-indicator redraw loop is armed.
+	pulseTicking bool
 
 	// Run overview for each run keyed by run path.
 	runOverview        map[string]*RunOverview
@@ -104,6 +110,10 @@ type WorkspaceRun struct {
 	wandbPath string
 	watcher   *WatcherManager
 	state     RunState
+
+	// lastUpdateAt tracks when the transaction log last produced a record.
+	// A live run that stays silent past RunCrashTimeout is presumed crashed.
+	lastUpdateAt time.Time
 }
 
 func NewWorkspace(
@@ -118,7 +128,7 @@ func NewWorkspace(
 	}
 
 	// TODO: refactor to allow non-KeyValue items + make filtered ones pointers
-	runs := PagedList{
+	runs := PagedList[KeyValuePair]{
 		Title:  "Runs",
 		Active: true,
 	}
@@ -178,6 +188,13 @@ func NewWorkspace(
 		runsFilterIndex:     make(map[string]WorkspaceRunFilterData),
 	}
 	w.focusMgr = w.buildWorkspaceFocusManager()
+	w.drag = paneDragger{
+		saved:    cfg.WorkspaceLayout,
+		persist:  cfg.SetWorkspaceLayout,
+		relayout: w.applyLayoutConfig,
+		logger:   logger,
+	}
+	w.runOverviewSidebar.overridesSource = w.layoutOverrides
 	// The runs list starts focused by default.
 	w.focusMgr.SetTarget(FocusTargetRunsList, 1)
 	return w
@@ -271,15 +288,21 @@ func (w *Workspace) Update(msg tea.Msg) tea.Cmd {
 	case WorkspaceFileChangedMsg:
 		return w.handleWorkspaceFileChanged(t)
 
+	case WorkspaceRunReadErrMsg:
+		return w.handleRunReadErr(t)
+
 	case HeartbeatMsg:
 		return w.handleHeartbeat()
 
+	case WorkspaceLivePulseMsg:
+		return w.handleLivePulse()
+
 	case ErrorMsg:
-		// Read errors from per-run commands; the affected run simply stops
-		// streaming, so surface the error in the logs.
+		// Errors without a run key; per-run read errors arrive as
+		// WorkspaceRunReadErrMsg and are handled above.
 		w.logger.CaptureError(
 			"leet",
-			fmt.Errorf("workspace: run read failed: %v", t.Err),
+			fmt.Errorf("workspace: %v", t.Err),
 		)
 	}
 
@@ -329,7 +352,8 @@ func (w *Workspace) View() tea.View {
 		if len(sections) == 0 {
 			centralColumn = renderLogoArt(contentWidth, layout.totalContentAreaHeight)
 		} else {
-			centralColumn = joinWithSeparators(sections, contentWidth)
+			centralColumn = joinWithSeparators(sections, contentWidth,
+				highlightedStackSeparator(w.drag.cue(), layout, len(sections)))
 		}
 	}
 	centralColumn = placeMainColumn(contentWidth, layout.totalContentAreaHeight, centralColumn)
@@ -553,11 +577,21 @@ func (w *Workspace) computeViewports() Layout {
 	}
 }
 
+// layoutOverrides returns the live pane proportions: the in-progress drag's
+// pending values, or the persisted config.
+func (w *Workspace) layoutOverrides() LayoutOverrides {
+	return w.drag.overrides()
+}
+
 // updateSidebarDimensions tells both sidebars to recalculate their expanded
-// widths given the post-toggle visibility of each side.
+// widths given the post-toggle visibility of each side and the layout
+// overrides.
 func (w *Workspace) updateSidebarDimensions(leftVisible, rightVisible bool) {
-	w.runsAnimState.SetExpanded(expandedSidebarWidth(w.width, rightVisible))
-	w.runOverviewSidebar.UpdateDimensions(w.width, leftVisible)
+	o := w.layoutOverrides()
+	left, right := fitSidebarFractions(
+		w.width, leftVisible, rightVisible, o.LeftSidebar, o.RightSidebar)
+	w.runsAnimState.SetExpanded(expandedSidebarWidth(w.width, rightVisible, left))
+	w.runOverviewSidebar.UpdateDimensions(w.width, leftVisible, right)
 }
 
 func (w *Workspace) updateBottomPaneHeights(sysVisible, mediaVisible, logsVisible bool) {
@@ -601,15 +635,37 @@ func (w *Workspace) updateBottomPaneHeights(sysVisible, mediaVisible, logsVisibl
 		lowerTierH = maxH
 	}
 
+	o := w.layoutOverrides()
 	each := lowerTierH / lowerCount
+	heights := []int{
+		paneHeightFor(o.System, w.height, each),
+		paneHeightFor(o.Media, w.height, each),
+		paneHeightFor(o.Logs, w.height, each),
+	}
+	budget := maxH
+	if metricsVisible {
+		budget = maxH - minFlexMetricsHeight
+	}
+	if !sysVisible {
+		heights[0] = 0
+	}
+	if !mediaVisible {
+		heights[1] = 0
+	}
+	if !logsVisible {
+		heights[2] = 0
+	}
+	fitStackHeights(heights, []int{
+		systemMetricsPaneMinHeight, mediaPaneMinHeight, ConsoleLogsPaneMinHeight,
+	}, budget)
 	if sysVisible {
-		w.systemMetricsPane.SetExpandedHeight(each)
+		w.systemMetricsPane.SetExpandedHeight(heights[0])
 	}
 	if mediaVisible {
-		w.mediaPane.SetExpandedHeight(each)
+		w.mediaPane.SetExpandedHeight(heights[1])
 	}
 	if logsVisible {
-		w.consoleLogsPane.SetExpandedHeight(each)
+		w.consoleLogsPane.SetExpandedHeight(heights[2])
 	}
 }
 
@@ -618,77 +674,62 @@ func (w *Workspace) updateBottomPaneHeights(sysVisible, mediaVisible, logsVisibl
 func (w *Workspace) buildWorkspaceFocusManager() *FocusManager {
 	return NewFocusManager([]FocusRegionDef{
 		{
-			Target:          FocusTargetRunsList,
-			Available:       w.runsFocusAvailable,
-			AvailableTarget: w.runsFocusTargetAvailable,
-			Activate:        w.activateRunsFocus,
-			Deactivate:      w.deactivateRunsFocus,
+			Target:     FocusTargetRunsList,
+			Available:  w.runsFocusAvailable,
+			Activate:   w.activateRunsFocus,
+			Deactivate: w.deactivateRunsFocus,
 		},
 		{
-			Target:          FocusTargetMetricsGrid,
-			Available:       w.metricsGridFocusAvailable,
-			AvailableTarget: w.metricsGridFocusTargetAvailable,
-			Activate:        w.activateMetricsGridFocus,
-			Deactivate:      w.deactivateMetricsGridFocus,
+			Target:     FocusTargetMetricsGrid,
+			Available:  w.metricsGridFocusAvailable,
+			Activate:   w.activateMetricsGridFocus,
+			Deactivate: w.deactivateMetricsGridFocus,
 		},
 		{
-			Target:          FocusTargetSystemMetrics,
-			Available:       w.sysMetricsFocusAvailable,
-			AvailableTarget: w.sysMetricsFocusTargetAvailable,
-			Activate:        w.activateSysMetricsFocus,
-			Deactivate:      w.deactivateSysMetricsFocus,
+			Target:     FocusTargetSystemMetrics,
+			Available:  w.sysMetricsFocusAvailable,
+			Activate:   w.activateSysMetricsFocus,
+			Deactivate: w.deactivateSysMetricsFocus,
 		},
 		{
-			Target:          FocusTargetMedia,
-			Available:       w.mediaFocusAvailable,
-			AvailableTarget: w.mediaFocusTargetAvailable,
-			Activate:        w.activateMediaFocus,
-			Deactivate:      w.deactivateMediaFocus,
+			Target:     FocusTargetMedia,
+			Available:  w.mediaFocusAvailable,
+			Activate:   w.activateMediaFocus,
+			Deactivate: w.deactivateMediaFocus,
 		},
 		{
-			Target:          FocusTargetConsoleLogs,
-			Available:       w.logsFocusAvailable,
-			AvailableTarget: w.logsFocusTargetAvailable,
-			Activate:        w.activateLogsFocus,
-			Deactivate:      w.deactivateLogsFocus,
+			Target:     FocusTargetConsoleLogs,
+			Available:  w.logsFocusAvailable,
+			Activate:   w.activateLogsFocus,
+			Deactivate: w.deactivateLogsFocus,
 		},
 		{
-			Target:          FocusTargetOverview,
-			Available:       w.overviewFocusAvailable,
-			AvailableTarget: w.overviewFocusTargetAvailable,
-			Activate:        w.activateOverviewFocus,
-			Deactivate:      w.deactivateOverviewFocus,
+			Target:     FocusTargetOverview,
+			Available:  w.overviewFocusAvailable,
+			Activate:   w.activateOverviewFocus,
+			Deactivate: w.deactivateOverviewFocus,
 		},
 	})
 }
 
 // ---- Focus availability ----
+//
+// A data pane is available when its target state is visible and it has
+// content to interact with; empty panes are skipped by Tab navigation.
+// The runs list is the one exception (see runsFocusAvailable).
 
+// The runs list is the workspace's home surface: it stays focusable while
+// visible even when empty, so focus survives the empty-list windows during
+// startup and no-match filters.
 func (w *Workspace) runsFocusAvailable() bool {
-	return w.runsAnimState.IsVisible() && len(w.runs.FilteredItems) > 0
-}
-
-func (w *Workspace) runsFocusTargetAvailable() bool {
-	return w.runsAnimState.TargetVisible() && len(w.runs.FilteredItems) > 0
+	return w.runsAnimState.TargetVisible()
 }
 
 func (w *Workspace) metricsGridFocusAvailable() bool {
-	return w.metricsGridAnimState.IsExpanded() && w.metricsGrid.ChartCount() > 0
-}
-
-func (w *Workspace) metricsGridFocusTargetAvailable() bool {
 	return w.metricsGridAnimState.TargetVisible() && w.metricsGrid.ChartCount() > 0
 }
 
 func (w *Workspace) sysMetricsFocusAvailable() bool {
-	if !w.systemMetricsPane.IsExpanded() {
-		return false
-	}
-	g := w.activeSystemMetricsGrid()
-	return g != nil && g.ChartCount() > 0
-}
-
-func (w *Workspace) sysMetricsFocusTargetAvailable() bool {
 	if !w.systemMetricsPane.animState.TargetVisible() {
 		return false
 	}
@@ -697,27 +738,14 @@ func (w *Workspace) sysMetricsFocusTargetAvailable() bool {
 }
 
 func (w *Workspace) mediaFocusAvailable() bool {
-	return w.mediaPane.IsExpanded() && w.mediaPane.HasData()
-}
-
-func (w *Workspace) mediaFocusTargetAvailable() bool {
 	return w.mediaPane.animState.TargetVisible() && w.mediaPane.HasData()
 }
 
 func (w *Workspace) logsFocusAvailable() bool {
-	return w.consoleLogsPane.IsExpanded()
-}
-
-func (w *Workspace) logsFocusTargetAvailable() bool {
-	return w.consoleLogsPane.animState.TargetVisible()
+	return w.consoleLogsPane.animState.TargetVisible() && w.consoleLogsPane.HasData()
 }
 
 func (w *Workspace) overviewFocusAvailable() bool {
-	firstSec, _ := w.runOverviewSidebar.focusableSectionBounds()
-	return w.runOverviewSidebar.animState.IsExpanded() && firstSec != -1
-}
-
-func (w *Workspace) overviewFocusTargetAvailable() bool {
 	firstSec, _ := w.runOverviewSidebar.focusableSectionBounds()
 	return w.runOverviewSidebar.animState.TargetVisible() && firstSec != -1
 }
@@ -725,22 +753,17 @@ func (w *Workspace) overviewFocusTargetAvailable() bool {
 // ---- Focus activate ----
 
 func (w *Workspace) activateRunsFocus(_ int) { w.runs.Active = true }
+
+// Chart focus is seeded via NavigateFocus(0, 0): activation always follows a
+// deactivation that reset the shared Focus, so the grid's no-focus path lands
+// on the first populated cell and sets the full focus state (including the
+// chart title shown in the status bar). Writing Type/Row/Col here directly
+// would fool that path into treating focus as already applied.
+
 func (w *Workspace) activateMetricsGridFocus(_ int) {
-	w.focus.Type = FocusMainChart
-	if w.focus.Row < 0 {
-		w.focus.Row = 0
-		w.focus.Col = 0
-	}
 	w.metricsGrid.NavigateFocus(0, 0)
 }
 func (w *Workspace) activateSysMetricsFocus(_ int) {
-	if w.systemMetricsFocus != nil {
-		w.systemMetricsFocus.Type = FocusSystemChart
-		if w.systemMetricsFocus.Row < 0 {
-			w.systemMetricsFocus.Row = 0
-			w.systemMetricsFocus.Col = 0
-		}
-	}
 	if g := w.activeSystemMetricsGrid(); g != nil {
 		g.NavigateFocus(0, 0)
 	}
@@ -769,7 +792,12 @@ func (w *Workspace) deactivateSysMetricsFocus() {
 		w.systemMetricsFocus.Reset()
 	}
 }
-func (w *Workspace) deactivateMediaFocus()    { w.mediaPane.SetActive(false) }
+func (w *Workspace) deactivateMediaFocus() {
+	// Fullscreen follows focus: once focus leaves the pane, no key path
+	// could exit fullscreen and Esc would be captured forever.
+	w.mediaPane.ExitFullscreen()
+	w.mediaPane.SetActive(false)
+}
 func (w *Workspace) deactivateLogsFocus()     { w.consoleLogsPane.SetActive(false) }
 func (w *Workspace) deactivateOverviewFocus() { w.runOverviewSidebar.deactivateAllSections() }
 
@@ -778,7 +806,7 @@ func (w *Workspace) deactivateOverviewFocus() { w.runOverviewSidebar.deactivateA
 // Returns true if the navigation was handled (i.e. we're not at a boundary).
 func (w *Workspace) cycleOverviewSection(direction int) bool {
 	firstSec, lastSec := w.runOverviewSidebar.focusableSectionBounds()
-	if !w.runOverviewSidebar.animState.IsExpanded() || firstSec == -1 {
+	if !w.overviewFocusAvailable() {
 		return false
 	}
 
@@ -795,6 +823,12 @@ func (w *Workspace) cycleOverviewSection(direction int) bool {
 // handleWindowResize handles window resize messages.
 func (w *Workspace) handleWindowResize(width, height int) {
 	w.SetSize(width, height)
+	w.applyLayoutConfig()
+}
+
+// applyLayoutConfig re-derives all pane extents from the terminal size and
+// any saved layout overrides.
+func (w *Workspace) applyLayoutConfig() {
 	w.updateSidebarDimensions(
 		w.runsAnimState.TargetVisible(),
 		w.runOverviewSidebar.animState.TargetVisible(),
@@ -1027,7 +1061,11 @@ func (w *Workspace) renderRunsList() string {
 		MaxHeight(totalH).
 		Render(content)
 
-	boxed := leftSidebarBorderStyle.
+	borderStyle := leftSidebarBorderStyle
+	if w.drag.cue().boundary == dragBoundaryLeftSidebar {
+		borderStyle = leftSidebarBorderHighlightStyle
+	}
+	boxed := borderStyle.
 		Height(totalH).
 		MaxHeight(totalH).
 		Render(styledContent)
@@ -1050,6 +1088,7 @@ func (w *Workspace) renderRunOverview() string {
 		w.runOverviewSidebar.deactivateAllSections()
 	}
 
+	w.runOverviewSidebar.SetDragCue(w.drag.cue())
 	contentH := max(w.height-StatusBarHeight, 0)
 	return w.runOverviewSidebar.View(contentH).Content
 }
@@ -1072,9 +1111,12 @@ func (w *Workspace) renderMetrics(layout Layout) string {
 		return renderMetricsEmptyState(contentWidth, contentHeight, "No scalar metrics logged.")
 	}
 
-	// When we have selected runs, render the metrics grid.
+	// When we have selected runs, render the metrics grid, padded to its
+	// reserved height so the sections below sit exactly at the rows
+	// computeVerticalStackLayout reserves for them (mouse hit-testing maps
+	// screen rows to sections via that layout).
 	dims := w.metricsGrid.CalculateChartDimensions(contentWidth, contentHeight)
-	return w.metricsGrid.View(dims)
+	return placeMainColumn(contentWidth, contentHeight, w.metricsGrid.View(dims))
 }
 
 // renderMetricsEmptyState renders a styled "Metrics" header with a hint message.
@@ -1086,7 +1128,9 @@ func renderMetricsEmptyState(width, height int, hint string) string {
 	header := mediaPaneHeaderStyle.Render("Metrics")
 	hintText := mediaTilePlaceholderStyle.Render(hint)
 	content := lipgloss.JoinVertical(lipgloss.Left, header, "", hintText)
-	content = lipgloss.Place(innerW, height, lipgloss.Left, lipgloss.Top, content)
+	// placeMainColumn rather than lipgloss.Place: the three-line hint must
+	// also crop to a shorter reservation, like every stack section.
+	content = placeMainColumn(innerW, height, content)
 	return lipgloss.NewStyle().Padding(0, ContentPadding).Render(content)
 }
 
@@ -1115,19 +1159,44 @@ func renderLogoArt(width, height int) string {
 }
 
 func (w *Workspace) renderStatusBar() string {
+	// The indicator shows the state of the run under the cursor. It is
+	// styled separately from the bar so its color codes don't reset the
+	// bar's own styling mid-line.
+	indicator := renderStateIndicator(w.cursorRunState())
+	barWidth := max(w.width-lipgloss.Width(indicator), 0)
+
 	statusText := w.buildStatusText()
 	helpText := w.buildHelpText()
 
-	innerWidth := max(w.width-2*StatusBarPadding, 0)
+	innerWidth := max(barWidth-2*StatusBarPadding, 0)
 	spaceForHelp := max(innerWidth-lipgloss.Width(statusText), 0)
 	rightAligned := lipgloss.PlaceHorizontal(spaceForHelp, lipgloss.Right, helpText)
 
 	fullStatus := statusText + rightAligned
 
-	return statusBarStyle.
-		Width(w.width).
-		MaxWidth(w.width).
+	return indicator + statusBarStyle.
+		Width(barWidth).
+		MaxWidth(barWidth).
 		Render(fullStatus)
+}
+
+// cursorRunState returns the known state of the run under the cursor.
+//
+// Only streaming (selected) runs have live state. For others, fall back to
+// the preloaded overview, never trusting a stale Running claim from a run
+// that is no longer streaming.
+func (w *Workspace) cursorRunState() RunState {
+	cur, ok := w.runs.CurrentItem()
+	if !ok {
+		return RunStateUnknown
+	}
+	if run := w.runsByKey[cur.Key]; run != nil {
+		return run.state
+	}
+	if ro := w.runOverview[cur.Key]; ro != nil && ro.State() != RunStateRunning {
+		return ro.State()
+	}
+	return RunStateUnknown
 }
 
 func (w *Workspace) buildStatusText() string {
@@ -1197,14 +1266,22 @@ func (w *Workspace) buildOverviewFilterStatus() string {
 func (w *Workspace) buildActiveStatus() string {
 	var parts []string
 
+	// The wandb dir answers "which runs am I browsing?", so it belongs to
+	// the run list; other panes put their own context in the status bar.
+	if w.focusMgr.IsTarget(FocusTargetRunsList) {
+		parts = append(parts, "wandb dir: "+w.wandbDir)
+	}
+
 	parts = append(parts, w.activeFilterStatus()...)
 	parts = append(parts, w.activeSelectionStatus()...)
 	parts = append(parts, w.activeFocusStatus()...)
 
+	// Never leave the status bar blank (e.g. Esc cleared focus and no
+	// filters are active).
 	if len(parts) == 0 {
-		return w.wandbDir
+		return "wandb dir: " + w.wandbDir
 	}
-	return w.wandbDir + " • " + strings.Join(parts, " • ")
+	return strings.Join(parts, " • ")
 }
 
 // activeFilterStatus collects status fragments for all active filters.
@@ -1284,9 +1361,7 @@ func (w *Workspace) activeFocusStatus() []string {
 
 	switch w.focus.Type {
 	case FocusMainChart:
-		if scaleLabel := w.metricsGrid.focusedChartScaleLabel(); scaleLabel != "" {
-			parts = append(parts, scaleLabel)
-		}
+		parts[0] += w.metricsGrid.focusedChartLabels()
 	case FocusSystemChart:
 		if g := w.activeSystemMetricsGrid(); g != nil {
 			if detail := g.FocusedChartTitleDetail(); detail != "" {
@@ -1415,7 +1490,7 @@ func (w *Workspace) renderRunLines(contentWidth int) []string {
 		// Determine row style.
 		style := evenRunStyle
 		if idxOnPage%2 == 1 {
-			style = oddRunStyle
+			style = oddRunStyle()
 		}
 		if idxOnPage == selectedLine {
 			if w.runs.Active {
@@ -1439,8 +1514,15 @@ func (w *Workspace) renderRunLines(contentWidth int) []string {
 			mark = PinnedRunMark
 		}
 
+		// A live run's mark breathes: its color fades all the way to the
+		// terminal background ("not filled") and back to the run color.
+		prefixStyle := lipgloss.NewStyle().Foreground(runColor)
+		if run := w.runsByKey[runKey]; run != nil && run.state == RunStateRunning {
+			prefixStyle = prefixStyle.Foreground(runMarkPulseColor(runColor, time.Now()))
+		}
+
 		// Render prefix without background.
-		prefix := lipgloss.NewStyle().Foreground(runColor).Render(mark + " ")
+		prefix := prefixStyle.Render(mark + " ")
 		prefixWidth := lipgloss.Width(prefix)
 
 		// Apply subtle muting to unselected/unpinned runs

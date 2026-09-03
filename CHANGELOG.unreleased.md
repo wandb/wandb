@@ -14,41 +14,37 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
-## Notable Changes
+### Notable Changes
 
-The `wandb sync --clean` command now exits with code 1 and prints a hint to use `wandb clean`, which is the replacement.
-`wandb login` now verifies credentials by default. This can be disabled with `wandb login --no-verify` or programmatically with `wandb.login(verify=False)`.
+Legacy `wandb sync` options have been removed. See `wandb sync --help`.
 
-## Added
+### Added
 
-- Added support for gzip compression of filestream requests, reducing network traffic when logging metrics. It is currently opt-in and requires server support: set `x_file_stream_no_gzip=False` in `wandb.Settings` to enable it. Compression will become the default in a future release (@dmitryduev in https://github.com/wandb/wandb/pull/12262)
-- Added a `--term-timeout` flag to `wandb agent` (@nathancy-wandb in https://github.com/wandb/wandb/pull/12246)
-- Added `run.sync_dir` (@timoffex in https://github.com/wandb/wandb/pull/12319)
+- LEET charts metrics against the custom x-axes set with `run.define_metric()`. A metric defined with a `step_metric`, directly or through a glob like `run.define_metric("train/*", step_metric="train/step")`, is plotted against that metric instead of the step counter, with the axis name shown as `[x: train/step]` in the chart header. Applies to runs viewed from local `.wandb` files (@dmitryduev in https://github.com/wandb/wandb/pull/12568)
 
-## Changed
+### Changed
 
-- The new `wandb clean` command replaces `wandb sync --clean` (@timoffex in https://github.com/wandb/wandb/pull/12238)
-- Hardened argument handling in `wandb launch` for the local-process resource so that job-supplied values are always shell-quoted (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/12220)
-- The launch agent now restricts a job's git source URL to https/ssh remotes and pins git's protocol allowlist when fetching it and updating submodules (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/12221)
-- Response parsing is now faster for many `wandb.Api` operations, including artifact and registry queries (@tonyyli-wandb in https://github.com/wandb/wandb/pull/12213)
-- `wandb.init()` now reports the error it was retrying (such as a network error) when it times out, instead of a generic timeout message. The `init_timeout` setting now also bounds the backend's retries during run initialization (@skhanna-cw in https://github.com/wandb/wandb/pull/12216)
-- `wandb.Api().create_run_queue()`, `wandb.Api().create_custom_chart()`, and `wandb.Api().upsert_run_queue()` now raise `WandbApiFailedError` when the operation fails on the backend. (@jacobromero in https://github.com/wandb/wandb/pull/12307)
+- LEET is faster on long runs: a 50k-step run loads in about half the time, frames render about 30 percent faster, and live chart updates no longer re-render every point (@dmitryduev in https://github.com/wandb/wandb/pull/12535, https://github.com/wandb/wandb/pull/12536, https://github.com/wandb/wandb/pull/12537, https://github.com/wandb/wandb/pull/12538, https://github.com/wandb/wandb/pull/12539)
+- System metrics from Apple Silicon Macs become available about 1.5 seconds sooner after monitoring starts (@dmitryduev in https://github.com/wandb/wandb/pull/12679)
 
-## Removed
+### Deprecated
 
-- Releases no longer include 32-bit Windows (`win32`) wheels; use 64-bit Python on Windows (@dmitryduev in https://github.com/wandb/wandb/pull/12267)
+- `wandb.sandbox` is deprecated and will be removed in a future release. Use the `cwsandbox` package directly instead.
 
-## Fixed
+### Fixed
 
-- Registry search `registries(order=...).collections(order=...).versions()` now returns artifact versions in registry and/or collection order. (@ibindlish in https://github.com/wandb/wandb/pull/12154)
-- macOS x86_64 wheels now contain x86_64 builds of the `wandb-xpu` binary and the Rust parquet library, which previously shipped as arm64 and could not run or be loaded on Intel Macs (@dmitryduev in https://github.com/wandb/wandb/pull/12267)
-- `wandb.login(verify=True)` and `wandb login --verify` now verify federated identity (identity token) credentials, which were previously not verified (@dmitryduev in https://github.com/wandb/wandb/pull/12294)
-- `wandb login` and `wandb verify` no longer update the system host settings when failing to login (@jacobromero in https://github.com/wandb/wandb/pull/12332)
-- `wandb verify` now reports a failed check instead of crashing when an operation still fails after retries (@dmitryduev in https://github.com/wandb/wandb/pull/12360)
-- Calling Sweeps agent with a custom `WANDB_DIR` will now respect it when dumping JSON output (@kelu-wandb in https://github.com/wandb/wandb/pull/12344)
-- Fixed `wandb.Api(overrides={"base_url": ...})` failing to authenticate with federated identity (identity token) credentials when the specified server was not the default one, such as a dedicated cloud deployment, unless `WANDB_BASE_URL` was also set (@dmitryduev in https://github.com/wandb/wandb/pull/12340)
-- When using federated identity, the identity token file is now re-read for each access token exchange instead of once at startup, so short-lived identity tokens re-minted to the same path keep working for runs that outlive them (@dmitryduev in https://github.com/wandb/wandb/pull/12341)
-- When using federated identity, requests now fail immediately with the server's error message when the server rejects the identity token exchange, such as for an invalid or expired identity token. Previously, the rejected exchange was retried until requests timed out with a generic error (@dmitryduev in https://github.com/wandb/wandb/pull/12366)
-- `wandb login` validates api keys prior to saving to the `.netrc` file (@jacobromero in https://github.com/wandb/wandb/pull/12347)
-- The `global_step` metric created when syncing TensorBoard files is no longer prefixed, like `train/global_step`, so that it is easier to compare training and validation metrics (@timoffex in https://github.com/wandb/wandb/pull/12372)
-- The TensorBoard integration now produces fewer W&B steps by merging data for the same `global_step` into one W&B step when possible (@timoffex in https://github.com/wandb/wandb/pull/12414)
+- `wandb.Image` masks are no longer silently corrupted when `mask_data` is a float array with values outside 0-255. The range check previously only ran for integer dtypes, so out-of-range class ids were written to the saved mask wrapped modulo 256; they now raise `TypeError` like their integer equivalents already did (@Kayvan-Zahiri in https://github.com/wandb/wandb/pull/12685)
+- File uploads and downloads no longer fail in some cases with `CommError: Failed to execute API request: the service process is busy and did not respond in time` when they take longer than 20 seconds. This was a regression in 0.29.0 (@dmitryduev in https://github.com/wandb/wandb/pull/12603)
+- System metrics are now collected as soon as monitoring starts instead of after the first sampling interval (@dmitryduev in https://github.com/wandb/wandb/pull/12649)
+- `wandb.init()` no longer waits for the GPU and TPU metrics collector to start (@dmitryduev in https://github.com/wandb/wandb/pull/12651)
+- Fixed noisy CPU utilization and frequency metrics and overstated power metrics on Apple Silicon Macs. They now cover the whole sampling interval instead of a snapshot of about 10 milliseconds (@dmitryduev in https://github.com/wandb/wandb/pull/12676)
+- Fixed the memory size of Apple Silicon Macs with 256 GB or more of RAM being reported as 0 GB (@dmitryduev in https://github.com/wandb/wandb/pull/12677)
+- Fixed CPU and GPU temperature metrics on Apple Silicon Macs being skewed by invalid sensor readings (@dmitryduev in https://github.com/wandb/wandb/pull/12678)
+- Fixed the `ecpu_cores` count of Apple M5 Pro and M5 Max Macs being reported as 0 (@dmitryduev in https://github.com/wandb/wandb/pull/12680)
+- Fixed CPU frequency metrics on the MacBook Neo being reported about 1000 times too high (@dmitryduev in https://github.com/wandb/wandb/pull/12681)
+- Fixed missing CPU utilization and frequency metrics for the efficiency cores of Apple M5 Macs and the performance cores of M5 Pro and M5 Max Macs (@dmitryduev in https://github.com/wandb/wandb/pull/12682)
+
+### Removed
+
+- All legacy options to `wandb sync` have been removed (@timoffex in https://github.com/wandb/wandb/pull/12686)
+  - In particular, instead of `--sync-all`, use `wandb sync` with no arguments

@@ -9,7 +9,7 @@ from pydantic import Field
 
 from wandb._pydantic import GQLId, GQLResult, Typename
 
-from .enums import ArtifactState
+from .enums import ArtifactDigestAlgorithm, ArtifactState
 
 
 class ArtifactAliasFragment(GQLResult):
@@ -19,6 +19,8 @@ class ArtifactAliasFragment(GQLResult):
 
 
 class ProjectInfoFragment(GQLResult):
+    id: GQLId
+    internal_id: GQLId = Field(alias="internalId")
     name: str
     entity: ProjectInfoFragmentEntity
 
@@ -84,6 +86,9 @@ class ArtifactFragment(GQLResult):
     state: ArtifactState
     size: int
     digest: str
+    digest_algorithm: ArtifactDigestAlgorithm | None = Field(
+        alias="digestAlgorithm", default=None
+    )
     commit_hash: str | None = Field(alias="commitHash")
     file_count: int = Field(alias="fileCount")
     created_at: str = Field(alias="createdAt")
@@ -107,6 +112,7 @@ class ArtifactMembershipFragment(GQLResult):
     )
     id: GQLId
     version_index: int | None = Field(alias="versionIndex")
+    created_at: str = Field(alias="createdAt")
     aliases: list[ArtifactAliasFragment]
     artifact_collection: CollectionInfoFragment | None = Field(
         alias="artifactCollection"
@@ -204,6 +210,7 @@ class RegistryCollectionFragmentTagsEdges(GQLResult):
 class RegistryFragment(GQLResult):
     typename__: Typename[Literal["Project"]] = "Project"
     id: GQLId
+    internal_id: GQLId = Field(alias="internalId")
     name: str
     entity: RegistryFragmentEntity
     description: str | None

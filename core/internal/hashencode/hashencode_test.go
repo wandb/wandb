@@ -84,3 +84,33 @@ func TestComputeReaderHexMD5(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "2eafcaa8ba7a355a6f0e240471291609", partMD5)
 }
+
+func TestComputeFileB64XXH128(t *testing.T) {
+	testFile, err := os.CreateTemp("", "")
+	assert.NoError(t, err)
+	defer testFile.Close()
+
+	_, err = testFile.WriteString(`foobar`)
+	assert.NoError(t, err)
+
+	expectedB64XXH128 := "PJ4QJiiZf0Ssh7CxMcaZLQ=="
+	b64xxh128, err := hashencode.ComputeFileB64XXH128(testFile.Name())
+	assert.NoError(t, err)
+	assert.Equal(t, expectedB64XXH128, b64xxh128)
+}
+
+func TestComputeB64XXH128(t *testing.T) {
+	data := []byte(`example data`)
+	expectedB64XXH128 := "88IGVr0nFHhyxx5M7OU7IA=="
+
+	b64XXH128 := hashencode.ComputeB64XXH128(data)
+	assert.Equal(t, expectedB64XXH128, b64XXH128)
+}
+
+func TestComputeHexXXH128(t *testing.T) {
+	data := []byte(`example data`)
+	expectedHexXXH128 := "f3c20656bd27147872c71e4cece53b20"
+
+	hexXXH128 := hashencode.ComputeHexXXH128(data)
+	assert.Equal(t, expectedHexXXH128, hexXXH128)
+}

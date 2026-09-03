@@ -11,6 +11,9 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
+// errLiveStoreClosed is returned by reads on a closed LiveStore.
+var errLiveStoreClosed = errors.New("livestore: reader is closed")
+
 // LiveStore is the persistent store for a stream that may be actively
 // written to by another process.
 type LiveStore struct {
@@ -38,7 +41,7 @@ func (ls *LiveStore) Read() (*spb.Record, error) {
 	defer ls.mu.Unlock()
 
 	if ls.reader == nil {
-		return nil, fmt.Errorf("livestore: reader is closed")
+		return nil, errLiveStoreClosed
 	}
 
 	record, err := ls.reader.Read()
@@ -54,6 +57,54 @@ func (ls *LiveStore) Read() (*spb.Record, error) {
 	}
 
 	return record, nil
+}
+
+// ReadWithOffset reads the next record and returns it together with its
+// byte offset in the file, a valid input to ReadAt.
+//
+// On EOF (including an unexpected EOF from a partially written record) the
+// read position is rewound so a future call retries once more data has
+// been written, and the error wraps io.EOF. Any other error means corrupt
+// data was skipped: the caller may keep reading from the next good block.
+func (ls *LiveStore) ReadWithOffset() (*spb.Record, int64, error) {
+	ls.mu.Lock()
+	defer ls.mu.Unlock()
+
+	if ls.reader == nil {
+		return nil, 0, errLiveStoreClosed
+	}
+
+	offset := ls.reader.NextRecordOffset()
+
+	record, err := ls.reader.Read()
+	if err != nil {
+		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+			resetErr := ls.reader.ResetLastRead()
+			return nil, 0, errors.Join(io.EOF, resetErr)
+		}
+		return nil, 0, err
+	}
+
+	return record, offset, nil
+}
+
+// ReadAt reads the record at the given offset, previously obtained from
+// ReadWithOffset.
+//
+// It moves the read position, so use a dedicated LiveStore for random
+// access rather than sharing one with sequential readers.
+func (ls *LiveStore) ReadAt(offset int64) (*spb.Record, error) {
+	ls.mu.Lock()
+	defer ls.mu.Unlock()
+
+	if ls.reader == nil {
+		return nil, errLiveStoreClosed
+	}
+
+	if err := ls.reader.SeekRecord(offset); err != nil {
+		return nil, err
+	}
+	return ls.reader.Read()
 }
 
 // Close closes the database.

@@ -99,7 +99,7 @@ if TYPE_CHECKING:
     import wandb
     from wandb.plot import CustomChart
 
-__version__: str = "0.28.2.dev1"
+__version__: str = "0.29.1.dev1"
 
 run: Run | None
 config: wandb_config.Config
@@ -421,7 +421,6 @@ def init(
 
 def finish(
     exit_code: int | None = None,
-    quiet: bool | None = None,
 ) -> None:
     """Finish a run and upload any remaining data.
 
@@ -437,7 +436,6 @@ def finish(
     Args:
         exit_code: Integer indicating the run's exit status. Use 0 for success,
             any other value marks the run as failed.
-        quiet: Deprecated. Configure logging verbosity using `wandb.Settings(quiet=...)`.
     """
     ...
 
@@ -701,7 +699,7 @@ def log(
             size=(10, 3, 100, 100),
             dtype=np.uint8,
         )
-        run.log({"video": wandb.Video(frames, fps=4)})
+        run.log({"video": wandb.Video(frames, format="mp4", fps=4)})
     ```
 
     Matplotlib plot
@@ -932,7 +930,6 @@ def define_metric(
     step_sync: bool | None = None,
     hidden: bool | None = None,
     summary: str | None = None,
-    goal: str | None = None,
     overwrite: bool | None = None,
 ) -> wandb_metric.Metric:
     """Customize metrics logged with `wandb.Run.log()`.
@@ -947,14 +944,9 @@ def define_metric(
         hidden: Hide this metric from automatic plots.
         summary: Specify aggregate metrics added to summary.
             Supported aggregations include "min", "max", "mean", "last",
-            "first", "best", "copy" and "none". "none" prevents a summary
-            from being generated. "best" is used together with the goal
-            parameter, "best" is deprecated and should not be used, use
-            "min" or "max" instead. "copy" is deprecated and should not be
+            "first", "copy" and "none". "none" prevents a summary
+            from being generated. "copy" is deprecated and should not be
             used.
-        goal: Specify how to interpret the "best" summary type.
-            Supported options are "minimize" and "maximize". "goal" is
-            deprecated and should not be used, use "min" or "max" instead.
         overwrite: If false, then this call is merged with previous
             `define_metric` calls for the same metric by using their
             values for any unspecified parameters. If true, then

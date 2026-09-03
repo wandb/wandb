@@ -1,4 +1,4 @@
-from .expressions import FilterableField, FilterExpr, MongoLikeFilter
+from .expressions import FIELD_REGEX, FilterableField, FilterExpr, MongoLikeFilter
 from .filterutils import simplify_expr
 from .operators import (
     All,
@@ -21,9 +21,11 @@ from .operators import (
     Regex,
     Size,
 )
+from .validation import FilterValidator
 
 __all__ = [
     "BaseOp",
+    "FilterValidator",
     "And",
     "Or",
     "Nor",
@@ -46,4 +48,5 @@ __all__ = [
     "FilterExpr",
     "MongoLikeFilter",
     "simplify_expr",
+    "FIELD_REGEX",
 ]

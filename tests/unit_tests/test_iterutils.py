@@ -1,9 +1,44 @@
+from collections.abc import Hashable, Iterable
 from itertools import repeat, tee
 
 from hypothesis import example, given
-from hypothesis.strategies import integers, iterables, sampled_from
+from hypothesis.strategies import (
+    binary,
+    booleans,
+    dictionaries,
+    floats,
+    integers,
+    iterables,
+    lists,
+    none,
+    recursive,
+    sampled_from,
+    text,
+)
 from pytest import raises
-from wandb._iterutils import one
+from wandb._iterutils import merge_dicts, one
+
+hashables = (
+    none() | booleans() | integers() | floats(allow_nan=False) | text() | binary()
+)
+values = recursive(
+    hashables,
+    lambda children: (
+        lists(children, max_size=5) | dictionaries(hashables, children, max_size=5)
+    ),
+    max_leaves=10,
+)
+
+
+@example(dicts=[])
+@given(dicts=iterables(dictionaries(hashables, values), max_size=10))
+def test_merge_dicts(dicts: Iterable[dict[Hashable, object]]):
+    test_dicts, ref_dicts = tee(dicts)
+    expected: dict[Hashable, object] = {}
+    for d in ref_dicts:
+        expected.update(d)
+
+    assert merge_dicts(test_dicts) == expected
 
 
 @given(iterable=iterables(integers(), min_size=1, max_size=1))

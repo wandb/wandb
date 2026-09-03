@@ -11,6 +11,9 @@ import (
 type MetricData struct {
 	X []float64
 	Y []float64
+
+	// XAxisMetric is the metric whose values X holds, or "" for _step.
+	XAxisMetric string
 }
 
 // HistoryMsg contains metrics data from a wandb history record.
@@ -24,11 +27,14 @@ type HistoryMsg struct {
 type RunMsg struct {
 	RunPath     string
 	ID          string
+	Entity      string
 	Project     string
 	DisplayName string
 	Notes       string
 	Tags        []string
 	Config      *spb.ConfigRecord
+	StartTime   time.Time
+	Telemetry   *spb.TelemetryRecord
 }
 
 // SummaryMsg contains summary data from the wandb run.
@@ -94,6 +100,12 @@ type ChunkedBatchMsg struct {
 // HeartbeatMsg is sent periodically for live runs to ensure we don't miss data.
 type HeartbeatMsg struct{}
 
+// RunLivePulseMsg drives the single-run view's breathing live indicator.
+type RunLivePulseMsg struct{}
+
+// WorkspaceLivePulseMsg drives the workspace's breathing live indicators.
+type WorkspaceLivePulseMsg struct{}
+
 // LeftSidebarAnimationMsg is sent during left sidebar animations.
 type LeftSidebarAnimationMsg struct{}
 
@@ -123,6 +135,13 @@ type WorkspaceChunkedBatchMsg struct {
 type WorkspaceBatchedRecordsMsg struct {
 	RunKey string
 	Batch  BatchedRecordsMsg
+}
+
+// WorkspaceRunReadErrMsg reports a failed read of a workspace run's
+// transaction log.
+type WorkspaceRunReadErrMsg struct {
+	RunKey string
+	Err    error
 }
 
 // WorkspaceFileChangedMsg is emitted when a watched workspace run's .wandb

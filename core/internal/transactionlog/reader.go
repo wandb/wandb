@@ -89,10 +89,22 @@ func NewReader(
 
 // SeekRecord seeks the underlying file to a specific offset.
 //
-// The offset should have come from a writer's LastRecordOffset().
+// The offset should have come from a writer's LastRecordOffset()
+// or the reader's NextRecordOffset().
 func (r *Reader) SeekRecord(offset int64) error {
 	r.needsToVerifyHeader = false // May not be at the start anymore.
 	return r.reader.SeekRecord(offset)
+}
+
+// NextRecordOffset returns the offset at which the next Read will start.
+//
+// Calling it before a successful Read yields that record's offset, which
+// is a valid input to SeekRecord. Returns 0 if the reader is closed.
+func (r *Reader) NextRecordOffset() int64 {
+	if r.reader == nil {
+		return 0
+	}
+	return r.reader.NextOffset()
 }
 
 // Read returns the next record from the transaction log.
@@ -153,8 +165,13 @@ func (r *Reader) verifyWBHeaderBeforeFirstRead() error {
 		return nil
 	}
 
-	if err := r.reader.VerifyWandbHeader(wandbStoreVersion); err != nil {
+	version, err := r.reader.VerifyWandbHeader()
+	if err != nil {
 		return fmt.Errorf("transactionlog: bad header: %w", err)
+	}
+
+	if err := ensureSupportedVersion(version); err != nil {
+		return err
 	}
 
 	r.needsToVerifyHeader = false

@@ -30,16 +30,17 @@ from wandb._filters import (
 from ._strategies import (
     all_dicts,
     and_dicts,
-    comparison_op_operands,
+    comparison_operands,
     contains_dicts,
     eq_dicts,
+    equality_operands,
     exists_dicts,
     filter_dicts,
     ge_dicts,
     gt_dicts,
     in_dicts,
     le_dicts,
-    logical_op_operands,
+    logical_operands,
     lt_dicts,
     ne_dicts,
     nin_dicts,
@@ -57,21 +58,21 @@ from ._strategies import (
 
 
 # Variadic logical ops
-@given(op=builds(And, exprs=lists(logical_op_operands)))
+@given(op=builds(And, exprs=lists(logical_operands())))
 def test_and_from_validated_op(op: And):
     assert op.model_dump().keys() == {"$and"}
     assert And.model_validate(op.model_dump()) == op
     assert And.model_validate_json(op.model_dump_json()) == op
 
 
-@given(op=builds(Or, exprs=lists(logical_op_operands)))
+@given(op=builds(Or, exprs=lists(logical_operands())))
 def test_or_from_validated_op(op: Or):
     assert op.model_dump().keys() == {"$or"}
     assert Or.model_validate(op.model_dump()) == op
     assert Or.model_validate_json(op.model_dump_json()) == op
 
 
-@given(op=builds(Nor, exprs=lists(logical_op_operands)))
+@given(op=builds(Nor, exprs=lists(logical_operands())))
 def test_nor_from_validated_op(op: Nor):
     assert op.model_dump().keys() == {"$nor"}
     assert Nor.model_validate(op.model_dump()) == op
@@ -79,7 +80,7 @@ def test_nor_from_validated_op(op: Nor):
 
 
 # Unary logical ops
-@given(op=builds(Not, expr=logical_op_operands))
+@given(op=builds(Not, expr=logical_operands()))
 def test_not_from_validated_op(op: Not):
     assert op.model_dump().keys() == {"$not"}
     assert Not.model_validate(op.model_dump()) == op
@@ -87,56 +88,56 @@ def test_not_from_validated_op(op: Not):
 
 
 # Comparison ops
-@given(op=builds(Gt, val=comparison_op_operands))
+@given(op=builds(Gt, val=comparison_operands()))
 def test_gt_from_validated_op(op: Gt):
     assert op.model_dump().keys() == {"$gt"}
     assert Gt.model_validate(op.model_dump()) == op
     assert Gt.model_validate_json(op.model_dump_json()) == op
 
 
-@given(op=builds(Lt, val=comparison_op_operands))
+@given(op=builds(Lt, val=comparison_operands()))
 def test_lt_from_validated_op(op: Lt):
     assert op.model_dump().keys() == {"$lt"}
     assert Lt.model_validate(op.model_dump()) == op
     assert Lt.model_validate_json(op.model_dump_json()) == op
 
 
-@given(op=builds(Gte, val=comparison_op_operands))
+@given(op=builds(Gte, val=comparison_operands()))
 def test_gte_from_validated_op(op: Gte):
     assert op.model_dump().keys() == {"$gte"}
     assert Gte.model_validate(op.model_dump()) == op
     assert Gte.model_validate_json(op.model_dump_json()) == op
 
 
-@given(op=builds(Lte, val=comparison_op_operands))
+@given(op=builds(Lte, val=comparison_operands()))
 def test_lte_from_validated_op(op: Lte):
     assert op.model_dump().keys() == {"$lte"}
     assert Lte.model_validate(op.model_dump()) == op
     assert Lte.model_validate_json(op.model_dump_json()) == op
 
 
-@given(op=builds(Eq, val=comparison_op_operands))
+@given(op=builds(Eq, val=equality_operands()))
 def test_eq_from_validated_op(op: Eq):
     assert op.model_dump().keys() == {"$eq"}
     assert Eq.model_validate(op.model_dump()) == op
     assert Eq.model_validate_json(op.model_dump_json()) == op
 
 
-@given(op=builds(Ne, val=comparison_op_operands))
+@given(op=builds(Ne, val=equality_operands()))
 def test_ne_from_validated_op(op: Ne):
     assert op.model_dump().keys() == {"$ne"}
     assert Ne.model_validate(op.model_dump()) == op
     assert Ne.model_validate_json(op.model_dump_json()) == op
 
 
-@given(op=builds(In, val=lists(comparison_op_operands)))
+@given(op=builds(In, val=lists(comparison_operands())))
 def test_in_from_validated_op(op: In):
     assert op.model_dump().keys() == {"$in"}
     assert In.model_validate(op.model_dump()) == op
     assert In.model_validate_json(op.model_dump_json()) == op
 
 
-@given(op=builds(NotIn, val=lists(comparison_op_operands)))
+@given(op=builds(NotIn, val=lists(comparison_operands())))
 def test_not_in_from_validated_op(op: NotIn):
     assert op.model_dump().keys() == {"$nin"}
     assert NotIn.model_validate(op.model_dump()) == op
@@ -151,21 +152,21 @@ def test_exists_from_validated_op(op: Exists):
 
 
 # Evaluation ops
-@given(op=builds(Regex, val=printable_text))
+@given(op=builds(Regex, val=printable_text()))
 def test_regex_from_validated_op(op: Regex):
     assert op.model_dump().keys() == {"$regex"}
     assert Regex.model_validate(op.model_dump()) == op
     assert Regex.model_validate_json(op.model_dump_json()) == op
 
 
-@given(op=builds(Contains, val=printable_text))
+@given(op=builds(Contains, val=printable_text()))
 def test_contains_from_validated_op(op: Contains):
     assert op.model_dump().keys() == {"$contains"}
     assert Contains.model_validate(op.model_dump()) == op
     assert Contains.model_validate_json(op.model_dump_json()) == op
 
 
-@given(op=builds(All, val=lists(comparison_op_operands)))
+@given(op=builds(All, val=lists(comparison_operands())))
 def test_all_from_validated_op(op: All):
     assert op.model_dump().keys() == {"$all"}
     assert All.model_validate(op.model_dump()) == op
@@ -269,7 +270,7 @@ def test_size_from_dict(orig_dict: dict[str, Any]):
 
 # ----------------------------------------------------------------------------
 # Checks on FilterExpr behavior
-@given(orig_dict=filter_dicts)
+@given(orig_dict=filter_dicts())
 def test_filter_expr_dict_roundtrip(orig_dict: dict[str, Any]):
     assert orig_dict == FilterExpr.model_validate(orig_dict).model_dump()
 

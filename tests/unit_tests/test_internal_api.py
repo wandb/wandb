@@ -22,12 +22,13 @@ from wandb.apis import internal
 from wandb.errors import CommError
 from wandb.proto import wandb_api_pb2 as apb
 from wandb.proto.wandb_internal_pb2 import ServerFeature
+from wandb.sdk import wandb_setup
 from wandb.sdk.internal.internal_api import (
     _match_org_with_fetched_org_entities,
     _OrgNames,
 )
 from wandb.sdk.launch.sweeps import SweepNotFoundError
-from wandb.sdk.lib import retry
+from wandb.sdk.lib import retry, wbauth
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 from .test_retry import MockTime, mock_time  # noqa: F401
@@ -86,6 +87,9 @@ def test_get_run_state_invalid_kwargs():
 
 def test_execute_propagates_service_api_errors(mocker: MockerFixture):
     service_api = mocker.Mock()
+    service_api.settings.base_url = "https://api.wandb.ai"
+    service_api.settings.api_key = "test-api-key"
+    service_api.settings.identity_token_file = None
     error_response = apb.ApiErrorResponse(message="server unavailable")
     service_api.execute_graphql.side_effect = WandbApiFailedError(
         error_response.message,
@@ -548,6 +552,9 @@ ENABLED_FEATURE_RESPONSE = {
 @pytest.fixture
 def mock_service_api(mocker: MockerFixture):
     mock = mocker.Mock()
+    mock.settings.base_url = "https://api.wandb.ai"
+    mock.settings.api_key = "test-api-key"
+    mock.settings.identity_token_file = None
     mocker.patch(
         "wandb.sdk.internal.internal_api.Api._new_service_api",
         return_value=mock,
@@ -803,6 +810,48 @@ class TestJWTAuth:
 
         fetch_mock.assert_not_called()
         assert api.request_auth == ("api", "a" * 40)
+
+    def test_session_api_key_takes_precedence_over_jwt(
+        self, tmp_path: pathlib.Path, mocker: MockerFixture
+    ):
+        token_file = tmp_path / "token.jwt"
+        token_file.write_text("test.jwt.token")
+
+        fetch_mock = mocker.patch(
+            "wandb.apis.public.service_api.ServiceApi.access_token",
+            return_value="test_access_token",
+        )
+        wbauth.use_explicit_auth(
+            wbauth.AuthApiKey(host="https://api.wandb.ai", api_key="a" * 40),
+            source="test",
+        )
+        # Simulate global settings that read the environment variable after
+        # login, as in a forked process.
+        wandb_setup.singleton().settings.identity_token_file = str(token_file)
+
+        environ = {"WANDB_IDENTITY_TOKEN_FILE": str(token_file)}
+        api = internal.InternalApi(environ=environ)
+
+        fetch_mock.assert_not_called()
+        assert api.request_auth == ("api", "a" * 40)
+        assert api._service_api._settings.api_key == "a" * 40
+        assert api._service_api._settings.identity_token_file is None
+
+    def test_session_identity_token_file_uses_jwt(self, tmp_path: pathlib.Path):
+        token_file = tmp_path / "token.jwt"
+        token_file.write_text("test.jwt.token")
+        wbauth.use_explicit_auth(
+            wbauth.AuthIdentityTokenFile(
+                host="https://api.wandb.ai",
+                path=str(token_file),
+                credentials_file=str(tmp_path / "credentials.json"),
+            ),
+            source="test",
+        )
+
+        api = internal.InternalApi(environ={})
+
+        assert api.request_auth is None
 
     def test_access_token_none_without_identity_token(self, mocker: MockerFixture):
         # Without federated identity, the token is None and no request is

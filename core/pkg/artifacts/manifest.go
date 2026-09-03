@@ -3,14 +3,26 @@ package artifacts
 import (
 	"bufio"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
+	"sort"
+	"sync"
 
+	"golang.org/x/sync/errgroup"
+
+	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/hashencode"
 	"github.com/wandb/wandb/core/internal/nullify"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
+
+// maxSimultaneousHashes is the maximum number of concurrent
+// hash operations.
+const maxSimultaneousHashes = 128
 
 type Manifest struct {
 	Version             int32                    `json:"version"`
@@ -36,6 +48,10 @@ type ManifestEntry struct {
 	// Added and used during download.
 	DownloadURL *string `json:"-"`
 }
+
+// This is used to track the digest algorithm used to hash an entry's file.
+// It mirrors the Python SDK's DIGEST_ALGORITHM_EXTRA_KEY.
+const digestAlgorithmExtraKey = "alg"
 
 // NewManifestFromProto is used by [ArtifactSaver] to decode manifest sent
 // from python process. If the manifest JSON is too big for proto, python
@@ -196,4 +212,58 @@ func (m *Manifest) GetManifestEntryFromArtifactFilePath(path string) (ManifestEn
 		return ManifestEntry{}, fmt.Errorf("path not contained in artifact: %s", path)
 	}
 	return manifestEntry, nil
+}
+
+// HashContentsWithMd5 hashes the contents of the manifest with MD5.
+func (m *Manifest) HashContentsWithMd5(ctx context.Context) error {
+	var mu sync.Mutex
+
+	g, _ := errgroup.WithContext(ctx)
+	g.SetLimit(maxSimultaneousHashes)
+	for path, entry := range maps.Clone(m.Contents) {
+		if entry.LocalPath == nil || entry.Ref != nil {
+			continue
+		}
+		g.Go(func() error {
+			md5Hash, err := hashencode.ComputeFileB64MD5(*entry.LocalPath)
+			if err != nil {
+				return fmt.Errorf("ArtifactSaver.hashArtifactWithMd5: %w", err)
+			}
+
+			entry.Digest = md5Hash
+			// Drop any per-entry digest algorithm tag.
+			delete(entry.Extra, digestAlgorithmExtraKey)
+
+			mu.Lock()
+			m.Contents[path] = entry
+			mu.Unlock()
+			return nil
+		})
+	}
+
+	return g.Wait()
+}
+
+// ArtifactDigest calculates the digest of an artifact based on the manifest and using the specified digest algorithm
+// This mimics the calculation done in the Python SDK's Artifact Manifest class.
+func (m *Manifest) ArtifactDigest(digestAlgorithm gql.ArtifactDigestAlgorithm) (string, error) {
+	sortedPaths := make([]string, 0, len(m.Contents))
+	for path := range m.Contents {
+		sortedPaths = append(sortedPaths, path)
+	}
+	sort.Slice(sortedPaths, func(i, j int) bool {
+		return sortedPaths[i] < sortedPaths[j]
+	})
+
+	data := []byte("wandb-artifact-manifest-v1\n")
+	for _, path := range sortedPaths {
+		entry := m.Contents[path]
+		data = append(data, []byte(path+":"+entry.Digest+"\n")...)
+	}
+
+	if digestAlgorithm == gql.ArtifactDigestAlgorithmManifestXxh128 {
+		return hashencode.ComputeHexXXH128(data), nil
+	}
+
+	return hashencode.ComputeHexMD5(data), nil
 }

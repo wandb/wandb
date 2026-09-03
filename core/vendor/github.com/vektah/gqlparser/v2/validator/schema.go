@@ -189,6 +189,10 @@ func ValidateSchemaDocument(sd *SchemaDocument) (*Schema, error) {
 		return nil, err
 	}
 
+	if err := validateInputObjectCircularRefs(&schema); err != nil {
+		return nil, err
+	}
+
 	if err := validateDirectiveDefinitions(&schema); err != nil {
 		return nil, err
 	}
@@ -239,6 +243,75 @@ func validateTypeDefinitions(schema *Schema) *gqlerror.Error {
 	for _, typ := range types {
 		err := validateDefinition(schema, schema.Types[typ])
 		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// validateInputObjectCircularRefs rejects input object cycles of non-null fields.
+// https://spec.graphql.org/October2021/#sec-Input-Objects.Circular-References
+func validateInputObjectCircularRefs(schema *Schema) *gqlerror.Error {
+	types := make([]string, 0, len(schema.Types))
+	for typ := range schema.Types {
+		types = append(types, typ)
+	}
+	sort.Strings(types)
+
+	// A type still on fieldPath means a cycle. A visited type was already checked.
+	visited := make(map[string]bool, len(schema.Types))
+	fieldPath := make([]*FieldDefinition, 0, len(schema.Types))
+	fieldPathIndexByTypeName := make(map[string]int, len(schema.Types))
+
+	var detectCycle func(def *Definition) *gqlerror.Error
+	detectCycle = func(def *Definition) *gqlerror.Error {
+		if visited[def.Name] {
+			return nil
+		}
+		visited[def.Name] = true
+		fieldPathIndexByTypeName[def.Name] = len(fieldPath)
+
+		for _, field := range def.Fields {
+			// A nullable field or any list breaks the chain.
+			if !field.Type.NonNull || field.Type.NamedType == "" {
+				continue
+			}
+			fieldType := schema.Types[field.Type.NamedType]
+			if fieldType == nil || fieldType.Kind != InputObject {
+				continue
+			}
+
+			fieldPath = append(fieldPath, field)
+			if cycleIndex, ok := fieldPathIndexByTypeName[fieldType.Name]; ok {
+				cyclePath := fieldPath[cycleIndex:]
+				fieldNames := make([]string, len(cyclePath))
+				for i, cycleField := range cyclePath {
+					fieldNames[i] = cycleField.Name
+				}
+				return gqlerror.ErrorPosf(
+					cyclePath[0].Position,
+					"Cannot reference Input Object %s within itself through "+
+						"a series of non-null fields: %s.",
+					strconv.Quote(fieldType.Name),
+					strconv.Quote(strings.Join(fieldNames, ".")),
+				)
+			}
+			if err := detectCycle(fieldType); err != nil {
+				return err
+			}
+			fieldPath = fieldPath[:len(fieldPath)-1]
+		}
+
+		delete(fieldPathIndexByTypeName, def.Name)
+		return nil
+	}
+
+	for _, typ := range types {
+		def := schema.Types[typ]
+		if def.Kind != InputObject {
+			continue
+		}
+		if err := detectCycle(def); err != nil {
 			return err
 		}
 	}

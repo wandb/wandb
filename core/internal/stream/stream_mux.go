@@ -3,6 +3,8 @@ package stream
 import (
 	"fmt"
 	"log/slog"
+	"maps"
+	"slices"
 	"sync"
 )
 
@@ -57,21 +59,25 @@ func (sm *StreamMux) RemoveStream(streamId string) (*Stream, error) {
 	}
 }
 
+// popAllStreams removes all streams from the mux and returns them.
+func (sm *StreamMux) popAllStreams() []*Stream {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	streams := slices.Collect(maps.Values(sm.mux))
+	clear(sm.mux)
+	return streams
+}
+
 // FinishAndCloseAllStreams closes all streams in the mux.
 //
 // Blocks until all streams are done.
 func (sm *StreamMux) FinishAndCloseAllStreams(exitCode int32) {
-	sm.mutex.RLock()
-	defer sm.mutex.RUnlock()
-
 	wg := sync.WaitGroup{}
-	for streamId, stream := range sm.mux {
+	for _, stream := range sm.popAllStreams() {
 		wg.Go(func() {
 			stream.FinishAndClose(exitCode)
 		})
-
-		// delete all streams from mux
-		delete(sm.mux, streamId)
 	}
 	wg.Wait()
 	slog.Debug("all streams were closed")

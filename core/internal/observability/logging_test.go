@@ -137,7 +137,7 @@ func TestCaptureFatalAndPanic_Nil(t *testing.T) {
 }
 
 func TestLoggerHierarchy(t *testing.T) {
-	baseLogger, logs, sentry := observabilitytest.NewSentryTestLogger(t)
+	baseLogger, logs := observabilitytest.NewRecordingTestLogger(t)
 
 	childLogger := baseLogger.With(
 		[]any{"attr", "attr-value"},
@@ -146,15 +146,6 @@ func TestLoggerHierarchy(t *testing.T) {
 
 	baseLogger.CaptureInfo("base message")
 	childLogger.CaptureInfo("child message")
-
-	sentryEvents := sentry.Events()
-	require.Len(t, sentryEvents, 2)
-	assert.Empty(t, sentryEvents[0].Tags)
-	assert.Equal(t, map[string]string{
-		// Sentry tags include attrs and tags passed to With().
-		"attr":      "attr-value",
-		"child-tag": "child-value",
-	}, sentryEvents[1].Tags)
 
 	logRecords := observabilitytest.ExtractLogs(t, logs)
 	require.Len(t, logRecords, 2)
@@ -207,7 +198,7 @@ func captureTelemetryLog(
 		BaseUrl: wrapperspb.String(server.URL),
 		ApiKey:  wrapperspb.String("test-api-key"),
 	})
-	proxy := analytics.NewOpenTelemetryProxy(t.Context(), settings)
+	proxy := analytics.NewOpenTelemetryProxy(t.Context(), settings, "wandb-core")
 	require.NotNil(t, proxy)
 	recorder := analytics.NewTelemetryRecorder(
 		proxy,
@@ -215,7 +206,6 @@ func captureTelemetryLog(
 	)
 	logger := observability.NewCoreLogger(
 		slog.New(slog.NewJSONHandler(io.Discard, nil)),
-		nil,
 		recorder,
 	)
 

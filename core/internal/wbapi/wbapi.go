@@ -10,12 +10,10 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/hashicorp/go-retryablehttp"
-
 	"github.com/wandb/wandb/core/internal/api"
-	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/httplayers"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -32,13 +30,16 @@ type WandbAPI struct {
 	// semaphore is a buffered channel limiting concurrent request handling
 	semaphore chan struct{}
 
+	logger *observability.CoreLogger
+
 	settings *settings.Settings
 
 	authHandler          *AuthHandler
+	customChartHandler   *CustomChartHandler
 	featuresHandler      *FeaturesHandler
 	fileTransferHandler  *FileTransferHandler
 	graphqlHandler       *GraphQLHandler
-	customChartHandler   *CustomChartHandler
+	opentelemetryHandler *OpenTelemetryHandler
 	runFilesHandler      *RunFilesHandler
 	runHandler           *RunHandler
 	runQueueHandler      *RunQueueHandler
@@ -48,6 +49,7 @@ type WandbAPI struct {
 // New returns a new WandbAPI.
 func New(
 	s *settings.Settings,
+	serviceName string,
 	logger *observability.CoreLogger,
 ) (*WandbAPI, error) {
 	baseURL, err := url.Parse(s.GetBaseURL())
@@ -69,13 +71,6 @@ func New(
 		s,
 		s.GetExtraHTTPHeaders(),
 	)
-
-	httpClient := retryablehttp.NewClient()
-	httpClient.RetryMax = int(s.GetFileTransferMaxRetries())
-	httpClient.RetryWaitMin = s.GetFileTransferRetryWaitMin()
-	httpClient.RetryWaitMax = s.GetFileTransferRetryWaitMax()
-	httpClient.HTTPClient.Timeout = s.GetFileTransferTimeout()
-	httpClient.Logger = logger
 
 	fileTransferClient := newFileTransferClient(
 		baseURL,
@@ -100,19 +95,21 @@ func New(
 
 	return &WandbAPI{
 		semaphore: make(chan struct{}, maxConcurrency),
+		logger:    logger,
 		settings:  s,
 
-		authHandler:         NewAuthHandler(graphqlClient, credentialProvider),
-		featuresHandler:     NewFeaturesHandler(featureProvider),
-		fileTransferHandler: NewFileTransferHandler(fileTransferManager),
-		graphqlHandler:      NewGraphQLHandler(graphqlClient),
-		customChartHandler:  NewCustomChartHandler(graphqlClient),
-		runFilesHandler:     NewRunFilesHandler(graphqlClient),
-		runHandler:          NewRunHandler(graphqlClient),
-		runQueueHandler:     NewRunQueueHandler(graphqlClient),
+		authHandler:          NewAuthHandler(graphqlClient, credentialProvider),
+		featuresHandler:      NewFeaturesHandler(featureProvider),
+		fileTransferHandler:  NewFileTransferHandler(fileTransferManager),
+		graphqlHandler:       NewGraphQLHandler(graphqlClient),
+		customChartHandler:   NewCustomChartHandler(graphqlClient),
+		opentelemetryHandler: NewOpenTelemetryHandler(s, serviceName),
+		runFilesHandler:      NewRunFilesHandler(graphqlClient),
+		runHandler:           NewRunHandler(graphqlClient),
+		runQueueHandler:      NewRunQueueHandler(graphqlClient),
 		runHistoryApiHandler: NewRunHistoryAPIHandler(
 			graphqlClient,
-			httpClient,
+			fileTransferClient,
 			logger,
 		),
 	}, nil
@@ -125,7 +122,6 @@ func newFileTransferClient(
 	s *settings.Settings,
 ) api.RetryableClient {
 	httpOpts := api.ClientOptions{
-		BaseURL:     baseURL,
 		RetryPolicy: filetransfer.FileTransferRetryPolicy,
 		Logger:      logger.Logger,
 
@@ -134,14 +130,15 @@ func newFileTransferClient(
 		RetryWaitMax:    filetransfer.DefaultRetryWaitMax,
 		NonRetryTimeout: filetransfer.DefaultNonRetryTimeout,
 
-		Proxy: clients.ProxyFn(
-			s.GetHTTPProxy(),
-			s.GetHTTPSProxy(),
-		),
+		Proxy:              s.GetProxyFn(),
+		ProxyConnectHeader: s.GetProxyConnectHeader(),
 
 		InsecureDisableSSL: s.IsInsecureDisableSSL(),
-		ExtraHeaders:       s.GetExtraHTTPHeaders(),
-		CredentialProvider: credentialProvider,
+
+		PreRetryLayers: httplayers.Concat(
+			httplayers.DefaultHeaders(s.GetExtraHTTPHeaders()),
+			httplayers.LimitTo(baseURL, credentialProvider),
+		),
 	}
 
 	if retryMax := s.GetFileTransferMaxRetries(); retryMax > 0 {
@@ -195,6 +192,8 @@ func (p *WandbAPI) HandleRequest(
 		return p.runFilesHandler.HandleMarkRunFilesUploaded(ctx, req.MarkRunFilesUploadedRequest)
 	case *spb.ApiRequest_StopRunRequest:
 		return p.runHandler.HandleStopRun(ctx, req.StopRunRequest)
+	case *spb.ApiRequest_ReadRunConsoleLogsRequest:
+		return p.runHandler.HandleReadRunConsoleLogs(ctx, req.ReadRunConsoleLogsRequest)
 	case *spb.ApiRequest_CreateCustomChartRequest:
 		return p.customChartHandler.HandleCreateCustomChart(ctx, req.CreateCustomChartRequest)
 	case *spb.ApiRequest_RunQueueOperationRequest:
@@ -203,7 +202,22 @@ func (p *WandbAPI) HandleRequest(
 		return p.graphqlHandler.HandleRequest(ctx, req.GraphqlRequest)
 	case *spb.ApiRequest_ReadRunHistoryRequest:
 		return p.runHistoryApiHandler.HandleRequest(ctx, req.ReadRunHistoryRequest)
+	case *spb.ApiRequest_OpenTelemetryRequest:
+		return p.opentelemetryHandler.HandleRequest(ctx, req.OpenTelemetryRequest)
 	default:
 		return apiErrorResponse(fmt.Sprintf("unsupported API request type: %T", request.Request), 0)
+	}
+}
+
+// Shutdown shuts down any resources held by the WandbAPI.
+//
+// It should be called once when the API is no longer needed.
+func (p *WandbAPI) Shutdown(ctx context.Context) {
+	if err := p.opentelemetryHandler.Shutdown(ctx); err != nil {
+		p.logger.Error(
+			"wbapi: error shutting down OpenTelemetry handler",
+			"error",
+			err,
+		)
 	}
 }

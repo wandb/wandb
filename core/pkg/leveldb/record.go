@@ -349,47 +349,43 @@ func (r *Reader) isShortBlock() bool {
 	return 0 < r.n && r.n < blockSize
 }
 
-// VerifyWandbHeader checks for a W&B header with the correct version.
+// VerifyWandbHeader checks for the presence of a valid W&B header.
 //
 // The reader must be positioned at the start.
 //
 // The error wraps EOF if there's no data at all and ErrUnexpectedEOF
 // if there's not enough data to hold a header.
-func (r *Reader) VerifyWandbHeader(expectedVersion byte) error {
+//
+// On success, returns the file version number in the header.
+func (r *Reader) VerifyWandbHeader() (uint8, error) {
 	if r.blockOffset != 0 {
-		return errors.New("leveldb/record: reader not in first block")
+		return 0, errors.New("leveldb/record: reader not in first block")
 	}
 
 	if r.n == 0 {
 		if r.err = r.readBlock(); r.err != nil {
-			return r.err
+			return 0, r.err
 		}
 	}
 
 	if r.n < wandbHeaderLength {
-		return io.ErrUnexpectedEOF
+		return 0, io.ErrUnexpectedEOF
 	}
 
 	identBytes, magicBytes, version := r.buf[0:4], r.buf[4:6], r.buf[6]
 
 	if string(identBytes) != wandbHeaderIdent {
-		return fmt.Errorf(
+		return 0, fmt.Errorf(
 			"leveldb/record: invalid W&B identifier: %X (%q)",
 			identBytes, identBytes)
 	}
 
 	magic := uint16(magicBytes[0]) + uint16(magicBytes[1])<<8
 	if magic != wandbHeaderMagic {
-		return fmt.Errorf("leveldb/record: invalid W&B magic: %X", magic)
+		return 0, fmt.Errorf("leveldb/record: invalid W&B magic: %X", magic)
 	}
 
-	if version != expectedVersion {
-		return fmt.Errorf(
-			"leveldb/record: expected W&B version %d but got %d",
-			expectedVersion, version)
-	}
-
-	return nil
+	return version, nil
 }
 
 // NextOffset returns the offset from which Next() will start to read.

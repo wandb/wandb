@@ -25,19 +25,19 @@ func NewPortfile() *portfile {
 	return &portfile{Path: file.Name()}
 }
 
-// Read reads the target URI from the portfile.
+// Read reads the target URI from the portfile, polling until it appears
+// or ctx is canceled.
 func (p *portfile) Read(ctx context.Context) (string, error) {
 	for {
+		target, err := p.ReadFile()
+		if err == nil {
+			return target, nil
+		}
+
 		select {
 		case <-ctx.Done():
-			return "", fmt.Errorf("timeout reading portfile %s", p.Path)
-		default:
-			target, err := p.ReadFile()
-			if err != nil {
-				time.Sleep(100 * time.Millisecond)
-				continue
-			}
-			return target, nil
+			return "", fmt.Errorf("reading portfile %s: %w", p.Path, ctx.Err())
+		case <-time.After(20 * time.Millisecond):
 		}
 	}
 }

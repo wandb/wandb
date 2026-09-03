@@ -7,7 +7,6 @@
 <a href="https://anaconda.org/conda-forge/wandb"><img src="https://img.shields.io/conda/vn/conda-forge/wandb" /></a>
 <a href="https://pypi.python.org/pypi/wandb"><img src="https://img.shields.io/pypi/pyversions/wandb" /></a>
 <a href="https://circleci.com/gh/wandb/wandb"><img src="https://img.shields.io/circleci/build/github/wandb/wandb/main" /></a>
-<a href="https://codecov.io/gh/wandb/wandb"><img src="https://img.shields.io/codecov/c/gh/wandb/wandb" /></a>
 </p>
 <p align='center'>
 <a href="https://colab.research.google.com/github/wandb/examples/blob/master/colabs/intro/Intro_to_Weights_%26_Biases.ipynb"><img src="https://colab.research.google.com/assets/colab-badge.svg" /></a>
@@ -53,7 +52,7 @@ import wandb
 project = "my-awesome-project"
 
 # Dictionary with hyperparameters
-config = {"epochs" : 1337, "lr" : 3e-4}
+config = {"epochs": 1337, "lr": 3e-4}
 
 # The `with` syntax marks the run as finished upon exiting the `with` block,
 # and it marks the run "failed" if there's an exception.

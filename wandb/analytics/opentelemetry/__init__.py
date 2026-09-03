@@ -1,8 +1,20 @@
 """OpenTelemetry-based analytics for the wandb SDK.
 
-Provides a protobuf-free OTLP/JSON telemetry proxy and its custom exporters.
+Forwards telemetry events (metrics and logs) to wandb-core.
+Wandb-core then forwards the telemetry events to the W&B backend for ingestion
+into Datadog.
 """
 
-__all__ = ("get_otel",)
+__all__ = (
+    "OpenTelemetryProxy",
+    "TelemetryContext",
+    "TelemetryRecorder",
+    "get_telemetry_recorder",
+)
 
-from .opentelemetry_proxy import get_otel
+from .opentelemetry_proxy import (
+    OpenTelemetryProxy,
+    TelemetryContext,
+    TelemetryRecorder,
+    get_telemetry_recorder,
+)

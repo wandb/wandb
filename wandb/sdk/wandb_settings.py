@@ -546,13 +546,6 @@ class Settings(BaseModel, validate_assignment=True):
     silent: bool = False
     """Flag to suppress all output."""
 
-    start_method: str | None = None
-    """Method to use for starting subprocesses.
-
-    This is deprecated and will be removed in a future release.
-    <!-- lazydoc-ignore -->
-    """
-
     stop_on_fatal_error: bool = False
     """Whether to stop the run after a fatal error.
 
@@ -1408,22 +1401,6 @@ class Settings(BaseModel, validate_assignment=True):
             raise UsageError("Service wait time cannot be negative")
         return value
 
-    @field_validator("start_method", mode="after")
-    @classmethod
-    def validate_start_method(cls, value):
-        """Validate the start method for subprocesses.
-
-        <!-- lazydoc-ignore -->
-        """
-        if value is None:
-            return value
-        wandb.termwarn(
-            "`start_method` is deprecated and will be removed in a future version "
-            "of wandb. This setting is currently non-functional and safely ignored.",
-            repeat=False,
-        )
-        return value
-
     @field_validator("x_stats_coreweave_metadata_base_url", mode="after")
     @classmethod
     def validate_x_stats_coreweave_metadata_base_url(cls, value):
@@ -1594,15 +1571,7 @@ class Settings(BaseModel, validate_assignment=True):
     @property
     def _aws_lambda(self) -> bool:
         """Check if we are running in a lambda environment."""
-        from sentry_sdk.integrations.aws_lambda import (  # type: ignore[import-not-found]
-            get_lambda_bootstrap,
-        )
-
-        lambda_bootstrap = get_lambda_bootstrap()
-        return not (
-            not lambda_bootstrap
-            or not hasattr(lambda_bootstrap, "handle_event_request")
-        )
+        return "AWS_LAMBDA_FUNCTION_NAME" in os.environ
 
     @computed_field  # type: ignore[prop-decorator]
     @property

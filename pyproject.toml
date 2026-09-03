@@ -13,7 +13,6 @@ requires-python = ">=3.10"
 dependencies = [
     "Click>=8.2.0",
     "requests>=2.0.0,<3",
-    "sentry-sdk>=2.0.0",
     "protobuf>=5,!=5.28.0,!=5.29.0,<8",
     "PyYAML",
     "platformdirs",
@@ -23,6 +22,7 @@ dependencies = [
     "opentelemetry-api>=1.43.0",
     "opentelemetry-sdk>=1.43.0",
     "opentelemetry-exporter-otlp-proto-http>=1.43.0",
+    "xxhash>=3.0.0",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -106,7 +106,7 @@ launch = [
 models = ["cloudpickle"]
 workspaces = ["wandb-workspaces"]
 # cwsandbox requires Python >=3.11, so this extra is unavailable on 3.10.
-sandbox = ["cwsandbox[cli]>=0.20.0; python_version >= '3.11'"]
+sandbox = ["cwsandbox[cli]>=1.0.0; python_version >= '3.11'"]
 eval-table = [ # wandb.EvalTable support (private testing only)
     "weave>=0.53.7",
 ]
@@ -369,11 +369,9 @@ unresolved-attribute = "ignore"
 invalid-argument-type = "ignore"
 unused-type-ignore-comment = "ignore"
 possibly-missing-submodule = "ignore"
-unknown-argument = "ignore"
 unresolved-import = "ignore"
 invalid-assignment = "ignore"
 invalid-method-override = "ignore"
-missing-argument = "ignore"
 call-non-callable = "ignore"
 not-subscriptable = "ignore"
 deprecated = "ignore"
@@ -381,125 +379,7 @@ no-matching-overload = "ignore"
 invalid-attribute-override = "ignore"
 invalid-type-form = "ignore"
 invalid-key = "ignore"
-not-iterable = "ignore"
-unresolved-reference = "ignore"
-invalid-frozen-dataclass-subclass = "ignore"
 call-top-callable = "ignore"
-redundant-cast = "ignore"
-
-[tool.mypy]
-plugins = ["pydantic.mypy"]
-warn_redundant_casts = true
-exclude = '''
-   (?x)(
-      wandb/vendor/.
-   )
-'''
-# wandb.*
-[[tool.mypy.overrides]]
-module = "wandb.*"
-ignore_errors = false
-
-[[tool.mypy.overrides]]
-module = [
-    "wandb.integration.*",
-    "wandb.apis",
-    "wandb.apis.internal",
-    "wandb.apis.normalize",
-    "wandb.apis.paginator",
-    "wandb.apis.public.api",
-    "wandb.apis.public.artifacts",
-    "wandb.apis.public.files",
-    "wandb.apis.public.history",
-    "wandb.apis.public.jobs",
-    "wandb.apis.public.integrations",
-    "wandb.apis.public.projects",
-    "wandb.apis.public.registries._freezable_list",
-    "wandb.apis.public.registries._members",
-    "wandb.apis.public.registries._utils",
-    "wandb.apis.public.registries.registries_search",
-    "wandb.apis.public.registries.registry",
-    "wandb.apis.public.reports",
-    "wandb.apis.public.runs",
-    "wandb.apis.public.sweeps",
-    "wandb.apis.public.users",
-    "wandb.apis.reports.v1",
-    "wandb.apis.reports.v2",
-    "wandb.apis.workspaces",
-    "wandb.proto.*",
-    "wandb.cli.*",
-    "wandb.wandb_torch.*",
-    "wandb.wandb_controller.*",
-    "wandb.wandb_agent.*",
-    "wandb.sdk.verify.*",
-    "wandb.trigger.*",
-    "wandb.wandb_summary.*",
-    "wandb.sync.*",
-    "wandb.sdk.integration_utils.*",
-    "wandb.plot.*",
-    "wandb.old.*",
-    "wandb.*._generated.*",
-]
-ignore_errors = true
-
-# wandb/env
-[[tool.mypy.overrides]]
-module = "wandb.env"
-ignore_errors = false
-disallow_incomplete_defs = true
-disallow_untyped_defs = true
-warn_unused_ignores = true
-warn_return_any = true
-warn_unreachable = true
-check_untyped_defs = true
-disallow_untyped_decorators = true
-strict_equality = true
-implicit_reexport = false
-
-# wandb/filesync.*
-[[tool.mypy.overrides]]
-module = "wandb.filesync.*"
-ignore_errors = false
-disallow_incomplete_defs = true
-disallow_untyped_defs = true
-warn_unused_ignores = true
-warn_return_any = true
-warn_unreachable = true
-check_untyped_defs = true
-disallow_untyped_calls = false
-disallow_untyped_decorators = true
-strict_equality = true
-implicit_reexport = false
-
-# More wandb/ modules can be added in a similar manner as overrides
-
-# wandb/automations.*
-[[tool.mypy.overrides]]
-module = "wandb.automations.*"
-disallow_any_generics = true
-disallow_subclassing_any = true
-disallow_untyped_calls = true
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-check_untyped_defs = true
-disallow_untyped_decorators = true
-warn_unused_ignores = true
-warn_return_any = true
-no_implicit_reexport = true
-strict_equality = true
-
-# External libraries
-[[tool.mypy.overrides]]
-module = [
-    "psutil.*",
-    "tensorboard.*",
-    "grpc.*",
-    "ultralytics.*",
-    "wandb.vendor.*",
-    "opentelemetry.*",
-]
-ignore_missing_imports = true
-
 
 [tool.basedpyright]
 pythonVersion = "3.10"

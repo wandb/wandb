@@ -97,6 +97,42 @@ func TestRemove(t *testing.T) {
 		string(encoded))
 }
 
+func TestRemove_NestedValue(t *testing.T) {
+	rs := runsummary.New()
+	rh := runhistory.New()
+	rh.SetFloat(pathtree.PathOf("nested", "x"), 1.5)
+	rh.SetInt(pathtree.PathOf("nested", "deeper", "y"), 2)
+	rh.SetInt(pathtree.PathOf("other"), 3)
+	_, _ = rs.UpdateSummaries(rh)
+
+	rs.Remove(pathtree.PathOf("nested"))
+
+	encoded, err := rs.Serialize()
+	require.NoError(t, err)
+	assert.JSONEq(t,
+		`{"other": 3}`,
+		string(encoded))
+}
+
+func TestRemove_KeepsMetricConfiguration(t *testing.T) {
+	rs := runsummary.New()
+	rh := runhistory.New()
+	rh.SetFloat(pathtree.PathOf("x"), 1.5)
+	rs.ConfigureMetric(pathtree.PathOf("x"), false, runsummary.Latest)
+	_, _ = rs.UpdateSummaries(rh)
+
+	rs.Remove(pathtree.PathOf("x"))
+	assert.Empty(t, rs.ToNestedMaps())
+
+	_, _ = rs.UpdateSummaries(rh)
+
+	encoded, err := rs.Serialize()
+	require.NoError(t, err)
+	assert.JSONEq(t,
+		`{"x": {"last": 1.5}}`,
+		string(encoded))
+}
+
 func TestNoSummary(t *testing.T) {
 	rs := runsummary.New()
 

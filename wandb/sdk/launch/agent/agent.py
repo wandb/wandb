@@ -15,7 +15,7 @@ from multiprocessing import Event
 from typing import Any
 
 import wandb
-from wandb.analytics import get_sentry
+from wandb.analytics import TelemetryRecorder
 from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch._launch_add import launch_add
@@ -197,16 +197,23 @@ class LaunchAgent:
         """Return whether the agent is initialized."""
         return cls._instance is not None
 
-    def __init__(self, api: Api, config: dict[str, Any]):
+    def __init__(
+        self,
+        api: Api,
+        config: dict[str, Any],
+        telemetry_recorder: TelemetryRecorder,
+    ) -> None:
         """Initialize a launch agent.
 
         Arguments:
             api: Api object to use for making requests to the backend.
             config: Config dictionary for the agent.
+            telemetry_recorder: Recorder used to report agent errors.
         """
         self._entity = config["entity"]
         self._project = LAUNCH_DEFAULT_PROJECT
         self._api = api
+        self._telemetry_recorder = telemetry_recorder
         self._base_url = self._api.settings().get("base_url")
         self._ticks = 0
         self._jobs: dict[int, JobAndRunStatusTracker] = {}
@@ -486,10 +493,10 @@ class LaunchAgent:
             self._internal_logger.info(
                 f"Finish thread id {thread_id} had no exception and no run"
             )
-            get_sentry().exception(
-                "launch agent called finish thread id on thread without run or exception"
+            await self._record_telemetry_exception(
+                Exception(),
+                "launch agent called finish thread id on thread without run or exception",
             )
-
         # TODO:  keep logs or something for the finished jobs
         with self._jobs_lock:
             del self._jobs[thread_id]
@@ -611,7 +618,7 @@ class LaunchAgent:
                             wandb.termerror(
                                 f"{LOG_PREFIX}Error running job: {traceback.format_exc()}"
                             )
-                            get_sentry().exception(e)
+                            await self._record_telemetry_exception(e)
 
                             # always the first phase, because we only enter phase 2 within the thread
                             files = file_saver.save_contents(
@@ -670,15 +677,15 @@ class LaunchAgent:
                 f"{LOG_PREFIX}agent {self._name} encountered an issue while starting Docker, see above output for details."
             )
             exception = e
-            get_sentry().exception(e)
+            await self._record_telemetry_exception(e)
         except LaunchError as e:
             wandb.termerror(f"{LOG_PREFIX}Error running job: {e}")
             exception = e
-            get_sentry().exception(e)
+            await self._record_telemetry_exception(e)
         except Exception as e:
             wandb.termerror(f"{LOG_PREFIX}Error running job: {traceback.format_exc()}")
             exception = e
-            get_sentry().exception(e)
+            await self._record_telemetry_exception(e)
         finally:
             await self.finish_thread_id(rqi_id, exception)
 
@@ -920,7 +927,7 @@ class LaunchAgent:
             _logger.info(f"Job ID: {run.id}")
             _logger.info(traceback.format_exc())
             _logger.info("---")
-            get_sentry().exception(e)
+            await self._record_telemetry_exception(e)
         return known_error
 
     async def get_job_and_queue(self) -> JobSpecAndQueue | None:
@@ -940,3 +947,14 @@ class LaunchAgent:
         # queue entity currently always matches the agent
         project.queue_entity = self._entity
         project.run_queue_item_id = job["runQueueItemId"]
+
+    async def _record_telemetry_exception(
+        self,
+        exception: Exception,
+        message: str | None = None,
+    ) -> None:
+        await asyncio.to_thread(
+            self._telemetry_recorder.exception,
+            exception,
+            message,
+        )

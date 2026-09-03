@@ -7,12 +7,9 @@ from typing import TYPE_CHECKING, Any
 
 import wandb
 import wandb.util
-from wandb.sdk.lib import telemetry
 
 if TYPE_CHECKING:
     import numpy as np
-
-    from wandb.sdk.internal.tb_watcher import TBHistory
 
 # We have at least the default namestep and a global step to track
 # TODO: reset this structure on wandb.finish
@@ -274,7 +271,7 @@ def reset_state() -> None:
 
 def _log(
     tf_summary_str_or_pb: Any,
-    history: TBHistory | None = None,
+    history=None,
     step: int = 0,
     namespace: str = "",
     **kwargs: Any,
@@ -339,15 +336,3 @@ def _log(
             wandb.run._log(log_dict, commit=False)
     else:
         history._row_update(log_dict)
-
-
-def log(tf_summary_str_or_pb: Any, step: int = 0, namespace: str = "") -> None:
-    if wandb.run is None:
-        raise wandb.Error(
-            "You must call `wandb.init()` before calling `wandb.tensorflow.log`"
-        )
-
-    with telemetry.context() as tel:
-        tel.feature.tensorboard_log = True
-
-    _log(tf_summary_str_or_pb, namespace=namespace, step=step)

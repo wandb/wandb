@@ -24,6 +24,16 @@ const (
 	RunStateCrashed
 )
 
+// mayBeLive reports whether the run could still be producing data.
+//
+// True while the run is known to be running, and also while its state is
+// unknown: a freshly started run's Run record may not have been flushed to
+// the transaction log yet, so an Unknown run must be watched like a live
+// one or it would never stream.
+func (s RunState) mayBeLive() bool {
+	return s == RunStateRunning || s == RunStateUnknown
+}
+
 // KeyValuePair represents a single key-value item to display.
 type KeyValuePair struct {
 	Key, Value string
@@ -43,6 +53,10 @@ type RunOverview struct {
 	runEnvironment *runenvironment.RunEnvironment
 	runSummary     *runsummary.RunSummary
 	runState       RunState
+
+	// gen increments on every mutation; views re-derive their item lists
+	// only when it changes.
+	gen uint64
 }
 
 func NewRunOverview() *RunOverview {
@@ -62,7 +76,7 @@ func (ro *RunOverview) StateString() string {
 	case RunStateFailed:
 		return "Failed"
 	case RunStateCrashed:
-		return "Error"
+		return "Crashed"
 	default:
 		return "Unknown"
 	}
@@ -70,6 +84,7 @@ func (ro *RunOverview) StateString() string {
 
 // ProcessRunMsg processes a run message and updates internal state.
 func (ro *RunOverview) ProcessRunMsg(msg RunMsg) {
+	ro.gen++
 	ro.runID = msg.ID
 	ro.displayName = msg.DisplayName
 	ro.project = msg.Project
@@ -84,6 +99,7 @@ func (ro *RunOverview) ProcessRunMsg(msg RunMsg) {
 
 // ProcessSystemInfoMsg processes system/environment information.
 func (ro *RunOverview) ProcessSystemInfoMsg(record *spb.EnvironmentRecord) {
+	ro.gen++
 	if ro.runEnvironment == nil && record != nil {
 		ro.runEnvironment = runenvironment.New(record.GetWriterId())
 	}
@@ -94,14 +110,15 @@ func (ro *RunOverview) ProcessSystemInfoMsg(record *spb.EnvironmentRecord) {
 
 // ProcessSummaryMsg processes summary data.
 func (ro *RunOverview) ProcessSummaryMsg(summary []*spb.SummaryRecord) {
+	ro.gen++
 	for _, s := range summary {
 		_ = runsummary.FromProto(s).Apply(ro.runSummary)
 	}
-
 }
 
 // SetRunState sets the run state.
 func (ro *RunOverview) SetRunState(state RunState) {
+	ro.gen++
 	ro.runState = state
 }
 

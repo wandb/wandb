@@ -2,6 +2,7 @@ package featurechecker
 
 import (
 	"context"
+	"errors"
 
 	"github.com/Khan/genqlient/graphql"
 
@@ -10,10 +11,10 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// FeatureProvider fetches the values of server features.
+// FeatureProvider fetches server and organization feature values.
 //
-// It is not guaranteed that current feature values are returned.
-// Features may change at runtime, like if a server update happens,
+// It is not guaranteed that current server feature values are returned.
+// Server features may change at runtime, like if a server update happens,
 // but callers may assume that these changes are backward compatible
 // and that acting according to old feature values is okay.
 //
@@ -130,4 +131,45 @@ func (fp *FeatureProvider) Enabled(
 	}
 
 	return fp.boolFeatures[feature]
+}
+
+// OrgFeatures returns requested feature values that exist for an organization.
+//
+// Organization feature values are not cached.
+func (fp *FeatureProvider) OrgFeatures(
+	ctx context.Context,
+	org string,
+	features []string,
+) (map[string]bool, error) {
+	result := make(map[string]bool)
+	if len(features) == 0 {
+		return result, nil
+	}
+	if fp.graphqlClient == nil {
+		return nil, errors.New("featurechecker: GraphQL client is nil")
+	}
+
+	response, err := gql.OrgFeatureFlags(ctx, fp.graphqlClient, org)
+	if err != nil {
+		return nil, err
+	}
+
+	requested := make(map[string]struct{}, len(features))
+	for _, feature := range features {
+		requested[feature] = struct{}{}
+	}
+
+	if response.Organization != nil {
+		for _, feature := range response.Organization.FeatureFlags {
+			if feature == nil {
+				continue
+			}
+
+			if _, ok := requested[feature.RampKey]; ok {
+				result[feature.RampKey] = feature.IsEnabled
+			}
+		}
+	}
+
+	return result, nil
 }

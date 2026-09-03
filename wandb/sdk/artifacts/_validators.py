@@ -8,7 +8,6 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from functools import singledispatch, wraps
-from pathlib import PureWindowsPath
 from typing import TYPE_CHECKING, Any, Concatenate, Literal, Optional, TypeVar
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
@@ -16,8 +15,8 @@ from typing_extensions import ParamSpec, Self
 
 from wandb._iterutils import always_list, unique_list
 from wandb._pydantic import from_json
-from wandb._strutils import nameof
-from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath
+from wandb._strutils import nameof, repr_join
+from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, validate_relpath
 from wandb.util import json_friendly_val
 
 from .exceptions import ArtifactFinalizedError, ArtifactNotLoggedError
@@ -52,6 +51,7 @@ class LinkArtifactFields:
     name: str
     version: str
     aliases: list[str]
+    linked_at: str
 
     # These fields shouldn't be user-editable, linked artifacts always have these values
     _is_link: Literal[True] = field(init=False, default=True)
@@ -71,25 +71,30 @@ def validate_artifact_path(path: StrPath) -> LogicalPath:
 
     Among other things, this forbids absolute paths or relative paths with traversal.
     """
-    logical_path = LogicalPath(path)
-    posix_path = logical_path.to_path()
-    windows_path = PureWindowsPath(path)
-
-    if (
-        logical_path == "."
-        or posix_path.anchor
-        or (".." in posix_path.parts)
-        or windows_path.anchor
-        or (".." in windows_path.parts)
-    ):
-        raise ValueError(f"Invalid artifact path: {path!r}")
-
-    return logical_path
+    try:
+        return validate_relpath(path)
+    except ValueError:
+        raise ValueError(f"Invalid artifact path: {path!r}") from None
 
 
 def validate_fspath(root: StrPath, relpath: StrPath) -> FilePathStr:
     """Validate a native filesystem path under `root`."""
     return os.path.join(os.fspath(root), validate_artifact_path(relpath))
+
+
+def validate_artifact_root_name(name: str) -> str:
+    """Validate an artifact `name` or `name:version` used to build a local download root.
+
+    Existing collection names can still include relative path, so we validate
+    it when it used in checkout and download as the default root. One exception is single
+    character collection name, e.g. `a:v0` is valid but can be rejected as Windows drive.
+    """
+    relpath = name[2:] if len(name) > 1 and name[1] == ":" else name
+    try:
+        validate_relpath(relpath)
+    except ValueError:
+        raise ValueError(f"Invalid artifact name: {name!r}") from None
+    return name
 
 
 def validate_artifact_name(name: str) -> str:
@@ -107,7 +112,7 @@ def validate_artifact_name(name: str) -> str:
     if INVALID_ARTIFACT_NAME_CHARS.intersection(name):
         raise ValueError(
             "Artifact names must not contain any of the following characters: "
-            f"{', '.join(sorted(INVALID_ARTIFACT_NAME_CHARS))}.  Got: {name!r}"
+            f"{repr_join(sorted(INVALID_ARTIFACT_NAME_CHARS))}.  Got: {name!r}"
         )
 
     return name
@@ -137,12 +142,10 @@ def validate_project_name(name: str) -> str:
         raise ValueError(msg)
 
     # Find the first occurrence of any invalid character
-    if invalid_chars := set(INVALID_URL_CHARS).intersection(name):
+    if invalid_chars := INVALID_URL_CHARS.intersection(name):
         error_name = registry_name or name
-        invalid_chars_repr = ", ".join(sorted(map(repr, invalid_chars)))
-        raise ValueError(
-            f"Invalid project/registry name {error_name!r}, cannot contain characters: {invalid_chars_repr!s}"
-        )
+        msg = f"Invalid project/registry name {error_name!r}, cannot contain characters: {repr_join(sorted(invalid_chars))}"
+        raise ValueError(msg)
     return name
 
 
@@ -154,10 +157,8 @@ def validate_aliases(aliases: Iterable[str] | str) -> list[str]:
     """
     aliases_list = always_list(aliases)
     if any(ARTIFACT_SEP_CHARS.intersection(name) for name in aliases_list):
-        invalid_chars = ", ".join(sorted(map(repr, ARTIFACT_SEP_CHARS)))
-        raise ValueError(
-            f"Aliases must not contain any of the following characters: {invalid_chars}"
-        )
+        msg = f"Aliases must not contain any of the following characters: {repr_join(sorted(ARTIFACT_SEP_CHARS))}"
+        raise ValueError(msg)
     return aliases_list
 
 
@@ -165,14 +166,11 @@ def validate_artifact_types(types: Iterable[str] | str) -> list[str]:
     """Validate the artifact type names and return them as a list."""
     types_list = always_list(types)
     if any(ARTIFACT_SEP_CHARS.intersection(name) for name in types_list):
-        invalid_chars = ", ".join(sorted(map(repr, ARTIFACT_SEP_CHARS)))
-        raise ValueError(
-            f"Artifact types must not contain any of the following characters: {invalid_chars}"
-        )
+        msg = f"Artifact types must not contain any of the following characters: {repr_join(sorted(ARTIFACT_SEP_CHARS))}"
+        raise ValueError(msg)
     if any(len(name) > NAME_MAXLEN for name in types_list):
-        raise ValueError(
-            f"Artifact types must be less than or equal to {NAME_MAXLEN!r} characters"
-        )
+        msg = f"Artifact types must be less than or equal to {NAME_MAXLEN!r} characters"
+        raise ValueError(msg)
     return types_list
 
 
@@ -305,7 +303,7 @@ def ensure_not_finalized(method: MethodT[ArtifactT, P, R]) -> MethodT[ArtifactT,
 
 
 def is_artifact_registry_project(project: str) -> bool:
-    return project.startswith(REGISTRY_PREFIX)
+    return project.startswith(REGISTRY_PREFIX) and project != REGISTRY_PREFIX
 
 
 def remove_registry_prefix(project: str) -> str:

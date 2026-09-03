@@ -7,6 +7,7 @@ import sys
 from typing import Any
 
 import wandb
+from wandb.analytics import TelemetryRecorder
 from wandb.apis.internal import Api
 
 from . import loader
@@ -144,7 +145,11 @@ def resolve_agent_config(
 def create_and_run_agent(
     api: Api,
     config: dict[str, Any],
+    telemetry_recorder: TelemetryRecorder | None = None,
 ) -> None:
+    if telemetry_recorder is None:
+        telemetry_recorder = TelemetryRecorder()
+
     try:
         from wandb.sdk.launch.agent import config as agent_config
     except ModuleNotFoundError:
@@ -165,7 +170,7 @@ def create_and_run_agent(
             msg += f": {error['msg']}"
             wandb.termerror(msg)
         raise LaunchError("Invalid launch agent config")
-    agent = LaunchAgent(api, config)
+    agent = LaunchAgent(api, config, telemetry_recorder)
     try:
         asyncio.run(agent.loop())
     except asyncio.CancelledError:

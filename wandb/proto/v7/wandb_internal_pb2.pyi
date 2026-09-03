@@ -51,6 +51,7 @@ class ServerFeature(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     AUTOMATIONS_ON_ORGANIZATION: _ClassVar[ServerFeature]
     FILESTREAM_GZIP: _ClassVar[ServerFeature]
     SWEEPS_LOCAL_SCHEDULER: _ClassVar[ServerFeature]
+    ARTIFACT_DIGEST_ALGORITHM: _ClassVar[ServerFeature]
 SERVER_FEATURE_UNSPECIFIED: ServerFeature
 LARGE_FILENAMES: ServerFeature
 ARTIFACT_TAGS: ServerFeature
@@ -87,6 +88,7 @@ QUERY_AUTOMATIONS_ON_ENTITY: ServerFeature
 AUTOMATIONS_ON_ORGANIZATION: ServerFeature
 FILESTREAM_GZIP: ServerFeature
 SWEEPS_LOCAL_SCHEDULER: ServerFeature
+ARTIFACT_DIGEST_ALGORITHM: ServerFeature
 
 class Record(_message.Message):
     __slots__ = ("num", "history", "summary", "output", "config", "files", "stats", "artifact", "tbrecord", "alert", "telemetry", "metric", "output_raw", "run", "exit", "final", "header", "footer", "preempting", "noop_link_artifact", "use_artifact", "environment", "output_logger", "request", "control", "uuid", "_info")
@@ -231,7 +233,7 @@ class BranchPoint(_message.Message):
     def __init__(self, run: _Optional[str] = ..., value: _Optional[float] = ..., metric: _Optional[str] = ...) -> None: ...
 
 class RunRecord(_message.Message):
-    __slots__ = ("run_id", "entity", "project", "config", "summary", "run_group", "job_type", "display_name", "notes", "tags", "settings", "sweep_id", "host", "starting_step", "storage_id", "start_time", "resumed", "telemetry", "runtime", "git", "forked", "branch_point", "_info")
+    __slots__ = ("run_id", "entity", "project", "config", "summary", "run_group", "job_type", "display_name", "notes", "tags", "settings", "sweep_id", "host", "starting_step", "storage_id", "start_time", "resumed", "telemetry", "runtime", "git", "forked", "branch_point", "resume", "_info")
     RUN_ID_FIELD_NUMBER: _ClassVar[int]
     ENTITY_FIELD_NUMBER: _ClassVar[int]
     PROJECT_FIELD_NUMBER: _ClassVar[int]
@@ -254,6 +256,7 @@ class RunRecord(_message.Message):
     GIT_FIELD_NUMBER: _ClassVar[int]
     FORKED_FIELD_NUMBER: _ClassVar[int]
     BRANCH_POINT_FIELD_NUMBER: _ClassVar[int]
+    RESUME_FIELD_NUMBER: _ClassVar[int]
     _INFO_FIELD_NUMBER: _ClassVar[int]
     run_id: str
     entity: str
@@ -277,8 +280,9 @@ class RunRecord(_message.Message):
     git: GitRepoRecord
     forked: bool
     branch_point: BranchPoint
+    resume: bool
     _info: _wandb_base_pb2._RecordInfo
-    def __init__(self, run_id: _Optional[str] = ..., entity: _Optional[str] = ..., project: _Optional[str] = ..., config: _Optional[_Union[ConfigRecord, _Mapping]] = ..., summary: _Optional[_Union[SummaryRecord, _Mapping]] = ..., run_group: _Optional[str] = ..., job_type: _Optional[str] = ..., display_name: _Optional[str] = ..., notes: _Optional[str] = ..., tags: _Optional[_Iterable[str]] = ..., settings: _Optional[_Union[SettingsRecord, _Mapping]] = ..., sweep_id: _Optional[str] = ..., host: _Optional[str] = ..., starting_step: _Optional[int] = ..., storage_id: _Optional[str] = ..., start_time: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., resumed: _Optional[bool] = ..., telemetry: _Optional[_Union[_wandb_telemetry_pb2.TelemetryRecord, _Mapping]] = ..., runtime: _Optional[int] = ..., git: _Optional[_Union[GitRepoRecord, _Mapping]] = ..., forked: _Optional[bool] = ..., branch_point: _Optional[_Union[BranchPoint, _Mapping]] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
+    def __init__(self, run_id: _Optional[str] = ..., entity: _Optional[str] = ..., project: _Optional[str] = ..., config: _Optional[_Union[ConfigRecord, _Mapping]] = ..., summary: _Optional[_Union[SummaryRecord, _Mapping]] = ..., run_group: _Optional[str] = ..., job_type: _Optional[str] = ..., display_name: _Optional[str] = ..., notes: _Optional[str] = ..., tags: _Optional[_Iterable[str]] = ..., settings: _Optional[_Union[SettingsRecord, _Mapping]] = ..., sweep_id: _Optional[str] = ..., host: _Optional[str] = ..., starting_step: _Optional[int] = ..., storage_id: _Optional[str] = ..., start_time: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., resumed: _Optional[bool] = ..., telemetry: _Optional[_Union[_wandb_telemetry_pb2.TelemetryRecord, _Mapping]] = ..., runtime: _Optional[int] = ..., git: _Optional[_Union[GitRepoRecord, _Mapping]] = ..., forked: _Optional[bool] = ..., branch_point: _Optional[_Union[BranchPoint, _Mapping]] = ..., resume: _Optional[bool] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
 
 class GitRepoRecord(_message.Message):
     __slots__ = ("remote_url", "commit")
@@ -625,7 +629,7 @@ class StatsItem(_message.Message):
     def __init__(self, key: _Optional[str] = ..., value_json: _Optional[str] = ...) -> None: ...
 
 class ArtifactRecord(_message.Message):
-    __slots__ = ("run_id", "project", "entity", "type", "name", "digest", "description", "metadata", "user_created", "use_after_commit", "aliases", "manifest", "distributed_id", "finalize", "client_id", "sequence_client_id", "base_id", "ttl_duration_seconds", "tags", "incremental_beta1", "_info")
+    __slots__ = ("run_id", "project", "entity", "type", "name", "digest", "description", "metadata", "user_created", "use_after_commit", "aliases", "manifest", "distributed_id", "finalize", "client_id", "sequence_client_id", "base_id", "ttl_duration_seconds", "tags", "digest_algorithm", "incremental_beta1", "_info")
     RUN_ID_FIELD_NUMBER: _ClassVar[int]
     PROJECT_FIELD_NUMBER: _ClassVar[int]
     ENTITY_FIELD_NUMBER: _ClassVar[int]
@@ -645,6 +649,7 @@ class ArtifactRecord(_message.Message):
     BASE_ID_FIELD_NUMBER: _ClassVar[int]
     TTL_DURATION_SECONDS_FIELD_NUMBER: _ClassVar[int]
     TAGS_FIELD_NUMBER: _ClassVar[int]
+    DIGEST_ALGORITHM_FIELD_NUMBER: _ClassVar[int]
     INCREMENTAL_BETA1_FIELD_NUMBER: _ClassVar[int]
     _INFO_FIELD_NUMBER: _ClassVar[int]
     run_id: str
@@ -666,9 +671,10 @@ class ArtifactRecord(_message.Message):
     base_id: str
     ttl_duration_seconds: int
     tags: _containers.RepeatedScalarFieldContainer[str]
+    digest_algorithm: str
     incremental_beta1: bool
     _info: _wandb_base_pb2._RecordInfo
-    def __init__(self, run_id: _Optional[str] = ..., project: _Optional[str] = ..., entity: _Optional[str] = ..., type: _Optional[str] = ..., name: _Optional[str] = ..., digest: _Optional[str] = ..., description: _Optional[str] = ..., metadata: _Optional[str] = ..., user_created: _Optional[bool] = ..., use_after_commit: _Optional[bool] = ..., aliases: _Optional[_Iterable[str]] = ..., manifest: _Optional[_Union[ArtifactManifest, _Mapping]] = ..., distributed_id: _Optional[str] = ..., finalize: _Optional[bool] = ..., client_id: _Optional[str] = ..., sequence_client_id: _Optional[str] = ..., base_id: _Optional[str] = ..., ttl_duration_seconds: _Optional[int] = ..., tags: _Optional[_Iterable[str]] = ..., incremental_beta1: _Optional[bool] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
+    def __init__(self, run_id: _Optional[str] = ..., project: _Optional[str] = ..., entity: _Optional[str] = ..., type: _Optional[str] = ..., name: _Optional[str] = ..., digest: _Optional[str] = ..., description: _Optional[str] = ..., metadata: _Optional[str] = ..., user_created: _Optional[bool] = ..., use_after_commit: _Optional[bool] = ..., aliases: _Optional[_Iterable[str]] = ..., manifest: _Optional[_Union[ArtifactManifest, _Mapping]] = ..., distributed_id: _Optional[str] = ..., finalize: _Optional[bool] = ..., client_id: _Optional[str] = ..., sequence_client_id: _Optional[str] = ..., base_id: _Optional[str] = ..., ttl_duration_seconds: _Optional[int] = ..., tags: _Optional[_Iterable[str]] = ..., digest_algorithm: _Optional[str] = ..., incremental_beta1: _Optional[bool] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
 
 class ArtifactManifest(_message.Message):
     __slots__ = ("version", "storage_policy", "storage_policy_config", "contents", "manifest_file_path")

@@ -5,6 +5,7 @@ import pytest
 import torch
 import wandb
 from pytest_mock import MockerFixture
+from wandb._strutils import b64encode_ascii
 from wandb.apis.public.service_api import ServiceApi
 from wandb.sdk.artifacts._generated import ArtifactFragment
 from wandb.sdk.artifacts.artifact import Artifact
@@ -116,6 +117,8 @@ class ArtifactPatch(Artifact):
 def make_local_artifact_public(art: Artifact, mocker: MockerFixture):
     from wandb.sdk.artifacts._validators import FullArtifactPath
 
+    project_gql_id = b64encode_ascii("Project:1")
+    project_internal_gql_id = b64encode_ascii("ProjectInternalId:1")
     path = FullArtifactPath(
         prefix="FAKE_ENTITY",
         project="FAKE_PROJECT",
@@ -132,6 +135,8 @@ def make_local_artifact_public(art: Artifact, mocker: MockerFixture):
                     "__typename": "ArtifactSequence",
                     "name": path.name,
                     "project": {
+                        "id": project_gql_id,
+                        "internalId": project_internal_gql_id,
                         "name": path.project,
                         "entity": {"name": path.prefix},
                     },
@@ -141,6 +146,8 @@ def make_local_artifact_public(art: Artifact, mocker: MockerFixture):
         artifactSequence={
             "name": "FAKE_SEQUENCE_NAME",
             "project": {
+                "id": project_gql_id,
+                "internalId": project_internal_gql_id,
                 "name": path.project,
                 "entity": {"name": path.prefix},
             },

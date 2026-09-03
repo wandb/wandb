@@ -122,7 +122,7 @@ func NewStream(
 		runWork,
 		/*fileReadDelay=*/ 5*time.Second,
 	)
-	syncStateStore := runsyncstate.Noop()
+	syncStateStore := runsyncstate.InMemory()
 	if !s.IsSkipTransactionLog() {
 		syncStateStore = runsyncstate.File(s.GetTransactionLogPath())
 	}
