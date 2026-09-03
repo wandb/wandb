@@ -1,12 +1,12 @@
 module github.com/wandb/wandb/core
 
-go 1.27.0
+go 1.27.1
 
 require (
 	charm.land/bubbles/v2 v2.2.1
 	charm.land/bubbletea/v2 v2.0.9
 	charm.land/lipgloss/v2 v2.0.6
-	cloud.google.com/go/storage v1.66.0
+	cloud.google.com/go/storage v1.67.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.1
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.14.1
 	github.com/Azure/azure-sdk-for-go/sdk/storage/azblob v1.8.0
@@ -15,19 +15,18 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.45.1
 	github.com/aws/aws-sdk-go-v2/config v1.33.2
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.110.0
-	github.com/charmbracelet/ultraviolet v0.0.0-20260901015450-d60c34963517
+	github.com/charmbracelet/ultraviolet v0.0.0-20260903151058-ae99b731b8c5
 	github.com/charmbracelet/x/ansi v0.11.8
-	github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20260830003929-9f48cc723c1c
+	github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20260902165432-6f6ad8b37b0a
 	github.com/ebitengine/purego v0.11.0
-	github.com/getsentry/sentry-go v0.49.0
 	github.com/go-git/go-git/v5 v5.19.2
 	github.com/google/wire v0.7.0
-	github.com/googleapis/gax-go/v2 v2.24.0
+	github.com/googleapis/gax-go/v2 v2.24.1
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/hashicorp/go-retryablehttp v0.7.8
 	github.com/hashicorp/golang-lru v1.0.2
 	github.com/mattn/go-isatty v0.0.24
-	github.com/mattn/go-runewidth v0.0.28
+	github.com/mattn/go-runewidth v0.0.29
 	github.com/prometheus/client_golang v1.24.1
 	github.com/prometheus/common v0.71.0
 	github.com/prometheus/procfs v0.22.0
@@ -52,7 +51,7 @@ require (
 	gocloud.dev v0.46.0
 	golang.org/x/sync v0.22.0
 	golang.org/x/time v0.15.0
-	google.golang.org/api v0.296.0
+	google.golang.org/api v0.297.0
 	google.golang.org/grpc v1.83.2
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/yaml.v3 v3.0.1
@@ -100,7 +99,7 @@ require (
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/charmbracelet/colorprofile v0.4.3 // indirect
-	github.com/charmbracelet/x/exp/golden v0.0.0-20260830003929-9f48cc723c1c // indirect
+	github.com/charmbracelet/x/exp/golden v0.0.0-20260902165432-6f6ad8b37b0a // indirect
 	github.com/charmbracelet/x/term v0.2.2 // indirect
 	github.com/charmbracelet/x/termios v0.1.1 // indirect
 	github.com/charmbracelet/x/windows v0.2.2 // indirect
@@ -117,7 +116,7 @@ require (
 	github.com/felixge/httpsnoop v1.1.0 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.9.1 // indirect
-	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.5 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
@@ -166,7 +165,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.46.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/crypto v0.55.0 // indirect
+	golang.org/x/crypto v0.56.0 // indirect
 	golang.org/x/image v0.45.0 // indirect
 	golang.org/x/mod v0.40.0 // indirect
 	golang.org/x/net v0.58.0 // indirect

@@ -223,10 +223,10 @@ uv pip install nox
 
 ### Setting up Go
 
-Install Go version `1.27.0` following the instructions [here](https://go.dev/doc/install) or using your package manager, for example:
+Install the Go version specified in [`core/go.mod`](core/go.mod) following the instructions [here](https://go.dev/doc/install) or using your package manager, for example:
 
 ```shell
-brew install go@1.26
+brew install go
 ```
 
 ### Setting up Rust

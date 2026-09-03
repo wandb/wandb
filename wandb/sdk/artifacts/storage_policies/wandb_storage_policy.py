@@ -3,50 +3,34 @@
 from __future__ import annotations
 
 import concurrent.futures
-import hashlib
 import logging
-import os
-import shutil
-from collections import deque
-from operator import itemgetter
 from typing import TYPE_CHECKING, Any
 from urllib.parse import quote
 
 import requests
 from typing_extensions import assert_never
 
-from wandb.errors.term import termwarn
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.artifacts._models.storage import StoragePolicyConfig
 from wandb.sdk.artifacts.artifact_file_cache import (
     ArtifactFileCache,
     get_artifact_file_cache,
 )
-from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.artifacts.storage_handlers.multi_handler import MultiHandler
 from wandb.sdk.artifacts.storage_handlers.tracking_handler import TrackingHandler
 from wandb.sdk.artifacts.storage_layout import StorageLayout
-from wandb.sdk.artifacts.storage_policies._multipart import (
-    MAX_MULTI_UPLOAD_SIZE,
-    MIN_MULTI_UPLOAD_SIZE,
-    KiB,
-    calc_part_size,
-    multipart_download,
-    scan_chunks,
-)
+from wandb.sdk.artifacts.storage_policies._multipart import KiB, multipart_download
 from wandb.sdk.artifacts.storage_policies.register import WANDB_STORAGE_POLICY
 from wandb.sdk.artifacts.storage_policy import StoragePolicy
 from wandb.sdk.internal.internal_api import Api as InternalApi
-from wandb.sdk.lib.hashutil import b64_to_hex_id, hex_to_b64_id
+from wandb.sdk.lib.hashutil import b64_to_hex_id
 from wandb.sdk.lib.paths import FilePathStr, URIStr
 
 from ._factories import make_http_session, make_storage_handlers
 
 if TYPE_CHECKING:
-    from wandb.filesync.step_prepare import StepPrepare
     from wandb.sdk.artifacts.artifact import Artifact
     from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
-    from wandb.sdk.internal import progress
 
 logger = logging.getLogger(__name__)
 
@@ -249,138 +233,3 @@ class WandbStoragePolicy(StoragePolicy):
             return f"{base_url}/artifactsV2/{region}/{quote(entity)}/{quote(project)}/{quote(collection)}/{quote(birth_artifact_id)}/{hexhash}/{entry.path.name}"
 
         assert_never(layout)
-
-    def s3_multipart_file_upload(
-        self,
-        file_path: str,
-        chunk_size: int,
-        hex_digests: dict[int, str],
-        multipart_urls: dict[int, str],
-        extra_headers: dict[str, str],
-    ) -> list[dict[str, Any]]:
-        etags: deque[dict[str, Any]] = deque()
-        file_chunks = scan_chunks(file_path, chunk_size)
-        for num, data in enumerate(file_chunks, start=1):
-            rsp = self._api.upload_multipart_file_chunk_retry(
-                multipart_urls[num],
-                data,
-                extra_headers={
-                    "content-md5": hex_to_b64_id(hex_digests[num]),
-                    "content-length": str(len(data)),
-                    "content-type": extra_headers.get("Content-Type") or "",
-                },
-            )
-            assert rsp is not None
-            etags.append({"partNumber": num, "hexMD5": rsp.headers["ETag"]})
-        return list(etags)
-
-    def default_file_upload(
-        self,
-        upload_url: str,
-        file_path: str,
-        extra_headers: dict[str, Any],
-        progress_callback: progress.ProgressFn | None = None,
-    ) -> None:
-        """Upload a file to the artifact store and write to cache."""
-        with open(file_path, "rb") as file:
-            # This fails if we don't send the first byte before the signed URL expires.
-            self._api.upload_file_retry(
-                upload_url, file, progress_callback, extra_headers=extra_headers
-            )
-
-    def store_file(
-        self,
-        artifact_id: str,
-        artifact_manifest_id: str,
-        entry: ArtifactManifestEntry,
-        preparer: StepPrepare,
-        progress_callback: progress.ProgressFn | None = None,
-    ) -> bool:
-        """Upload a file to the artifact store.
-
-        Returns:
-            True if the file was a duplicate (did not need to be uploaded),
-            False if it needed to be uploaded or was a reference (nothing to dedupe).
-        """
-        file_size = entry.size or 0
-        chunk_size = calc_part_size(file_size)
-        file_path = entry.local_path or ""
-        # Logic for AWS s3 multipart upload.
-        # Only chunk files if larger than 2 GiB. Currently can only support up to 5TiB.
-        if MIN_MULTI_UPLOAD_SIZE <= file_size <= MAX_MULTI_UPLOAD_SIZE:
-            file_chunks = scan_chunks(file_path, chunk_size)
-            upload_parts = [
-                {"partNumber": num, "hexMD5": hashlib.md5(data).hexdigest()}
-                for num, data in enumerate(file_chunks, start=1)
-            ]
-            hex_digests = dict(map(itemgetter("partNumber", "hexMD5"), upload_parts))
-        else:
-            upload_parts = []
-            hex_digests = {}
-
-        resp = preparer.prepare(
-            {
-                "artifactID": artifact_id,
-                "artifactManifestID": artifact_manifest_id,
-                "name": entry.path,
-                "md5": entry.digest,
-                "uploadPartsInput": upload_parts,
-            }
-        ).get()
-
-        entry.birth_artifact_id = resp.birth_artifact_id
-
-        if resp.upload_url is None:
-            return True
-        if entry.local_path is None:
-            return False
-
-        extra_headers = dict(hdr.split(":", 1) for hdr in (resp.upload_headers or []))
-
-        # This multipart upload isn't available, do a regular single url upload
-        if (multipart_urls := resp.multipart_upload_urls) is None and resp.upload_url:
-            self.default_file_upload(
-                resp.upload_url, file_path, extra_headers, progress_callback
-            )
-        elif multipart_urls is None:
-            raise ValueError(f"No multipart urls to upload for file: {file_path}")
-        else:
-            # Upload files using s3 multipart upload urls
-            etags = self.s3_multipart_file_upload(
-                file_path,
-                chunk_size,
-                hex_digests,
-                multipart_urls,
-                extra_headers,
-            )
-            assert resp.storage_path is not None
-            self._api.complete_multipart_upload_artifact(
-                artifact_id, resp.storage_path, etags, resp.upload_id
-            )
-        self._write_cache(entry)
-
-        return False
-
-    def _write_cache(self, entry: ArtifactManifestEntry) -> None:
-        if entry.local_path is None:
-            return
-
-        # Cache upon successful upload.
-        _, hit, cache_open = self._cache.check_digest_obj_path(
-            entry.digest,
-            size=entry.size or 0,
-            algorithm=entry.digest_algorithm(),
-        )
-
-        staging_dir = get_staging_dir()
-        try:
-            if not (entry.skip_cache or hit):
-                with cache_open("wb") as f, open(entry.local_path, "rb") as src:
-                    shutil.copyfileobj(src, f)
-            if entry.local_path.startswith(staging_dir):
-                # Delete staged files here instead of waiting till
-                # all the files are uploaded
-                os.chmod(entry.local_path, 0o600)
-                os.remove(entry.local_path)
-        except OSError as e:
-            termwarn(f"Failed to cache {entry.local_path}, ignoring {e}")

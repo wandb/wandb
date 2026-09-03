@@ -216,7 +216,8 @@ def _base_args() -> list[str]:
         core_path = get_core_path()
     except WandbCoreNotAvailableError as e:
         get_telemetry_recorder().exception(
-            WandbCoreNotAvailableError(f"using `wandb leet`. failed with {e}")
+            WandbCoreNotAvailableError(f"using `wandb leet`. failed with {e}"),
+            attributes=e.context,
         )
         _fatal(str(e))
 

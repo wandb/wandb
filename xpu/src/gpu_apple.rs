@@ -78,6 +78,10 @@ pub fn zero_div<T: core::ops::Div<Output = T> + Default + PartialEq>(a: T, b: T)
     if b == zero { zero } else { a / b }
 }
 
+fn is_valid_temp(val: f32) -> bool {
+    val > 0.0 && val <= 150.0
+}
+
 fn calc_freq(item: CFDictionaryRef, freqs: &[u32]) -> (u32, f32) {
     let items = cfio_get_residencies(item); // (ns, freq)
     let (len1, len2) = (items.len(), freqs.len());
@@ -138,36 +142,31 @@ fn init_smc() -> WithError<(SMC, Vec<String>, Vec<String>)> {
     let mut cpu_sensors = Vec::new();
     let mut gpu_sensors = Vec::new();
 
-    let names = smc.read_all_keys().unwrap_or(vec![]);
-    for name in &names {
-        let key = match smc.read_key_info(name) {
-            Ok(key) => key,
-            Err(_) => continue,
-        };
-
-        if key.data_size != 4 || key.data_type != FLOAT_TYPE {
+    // Unfortunately, it is not known which keys are responsible for what.
+    // Basically in the code that can be found publicly "Tp" is used for CPU and "Tg" for GPU.
+    // "Tp" – performance cores, "Te" – efficiency cores
+    for name in smc.read_all_keys().unwrap_or_default() {
+        let is_cpu = name.starts_with("Tp") || name.starts_with("Te");
+        let is_gpu = name.starts_with("Tg");
+        if !is_cpu && !is_gpu {
             continue;
         }
 
-        let _ = match smc.read_val(name) {
-            Ok(val) => val,
+        let key = match smc.read_key_info(&name) {
+            Ok(key) => key,
             Err(_) => continue,
         };
+        if key.data_size != 4 || key.data_type != FLOAT_TYPE || smc.read_val(&name).is_err() {
+            continue;
+        }
 
-        // Unfortunately, it is not known which keys are responsible for what.
-        // Basically in the code that can be found publicly "Tp" is used for CPU and "Tg" for GPU.
-
-        match name {
-            // "Tp" – performance cores, "Te" – efficiency cores
-            name if name.starts_with("Tp") || name.starts_with("Te") => {
-                cpu_sensors.push(name.clone())
-            }
-            name if name.starts_with("Tg") => gpu_sensors.push(name.clone()),
-            _ => (),
+        if is_cpu {
+            cpu_sensors.push(name);
+        } else {
+            gpu_sensors.push(name);
         }
     }
 
-    // println!("{} {}", cpu_sensors.len(), gpu_sensors.len());
     Ok((smc, cpu_sensors, gpu_sensors))
 }
 
@@ -211,7 +210,7 @@ impl Sampler {
         for sensor in &self.smc_cpu_keys {
             let val = self.smc.read_val(sensor)?;
             let val = f32::from_le_bytes(val.data[0..4].try_into().unwrap());
-            if val != 0.0 {
+            if is_valid_temp(val) {
                 cpu_metrics.push(val);
             }
         }
@@ -220,7 +219,7 @@ impl Sampler {
         for sensor in &self.smc_gpu_keys {
             let val = self.smc.read_val(sensor)?;
             let val = f32::from_le_bytes(val.data[0..4].try_into().unwrap());
-            if val != 0.0 {
+            if is_valid_temp(val) {
                 gpu_metrics.push(val);
             }
         }
@@ -243,14 +242,16 @@ impl Sampler {
         for (name, value) in &metrics {
             if name.starts_with("pACC MTR Temp Sensor") || name.starts_with("eACC MTR Temp Sensor")
             {
-                // println!("{}: {}", name, value);
-                cpu_values.push(*value);
+                if is_valid_temp(*value) {
+                    cpu_values.push(*value);
+                }
                 continue;
             }
 
             if name.starts_with("GPU MTR Temp Sensor") {
-                // println!("{}: {}", name, value);
-                gpu_values.push(*value);
+                if is_valid_temp(*value) {
+                    gpu_values.push(*value);
+                }
                 continue;
             }
         }
@@ -298,7 +299,8 @@ impl Sampler {
 
         for x in sample {
             if x.group == "CPU Stats" && x.subgroup == CPU_FREQ_CORE_SUBG {
-                if x.channel.contains("ECPU") {
+                // M5 Pro and Max report their second core tier as MCPU channels.
+                if x.channel.contains("ECPU") || x.channel.contains("MCPU") {
                     ecpu_usages.push(calc_freq(x.item, &self.soc.ecpu_freqs));
                     continue;
                 }
