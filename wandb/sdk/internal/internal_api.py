@@ -34,7 +34,6 @@ from wandb.proto.wandb_api_pb2 import (
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk import wandb_setup
 from wandb.sdk.artifacts._generated.enums import ArtifactDigestAlgorithm
-from wandb.sdk.internal import settings_static
 from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
 from wandb.sdk.lib.hashutil import B64Digest, md5_file_b64
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
@@ -206,7 +205,6 @@ class Api:
         self,
         default_settings: (
             wandb.Settings  #
-            | settings_static.SettingsStatic
             | DefaultSettings
             | None
         ) = None,
