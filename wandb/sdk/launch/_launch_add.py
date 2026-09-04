@@ -6,8 +6,8 @@ from typing import Any
 
 import wandb
 import wandb.apis.public as public
-from wandb.apis.internal import Api
 from wandb.errors import CommError
+from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.launch.builder.build import build_image_from_project
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.utils import (
@@ -94,7 +94,7 @@ def launch_add(
     params = {"alpha": 0.5, "l1_ratio": 0.01}
     # Run W&B project and create a reproducible docker environment
     # on a local host
-    api = wandb.apis.internal.Api()
+    api = wandb.sdk.internal.internal_api.Api()
     launch_add(uri=project_uri, parameters=params)
     ```
 

@@ -21,7 +21,7 @@ from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.lib import runid
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
-from ...apis.internal import Api
+from ..internal.internal_api import Api
 
 PROJECT_NAME = "verify"
 GET_RUN_MAX_TIME = 10
@@ -74,7 +74,7 @@ def check_logged_in(api: Api, host: str) -> bool:
     # check that api key is correct
     # TODO: Better check for api key is correct
     else:
-        res = api.api.viewer()
+        res = api.viewer()
         if not res:
             fail_string = (
                 "Could not get viewer with default API key. "

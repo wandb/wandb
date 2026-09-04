@@ -3,8 +3,8 @@ import subprocess
 
 import pytest
 import wandb
-from wandb.apis.internal import InternalApi
 from wandb.apis.public import Api
+from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 
 
