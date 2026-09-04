@@ -211,8 +211,9 @@ func TestParquetHistorySource_Read_LoadsRemoteSystemMetrics(t *testing.T) {
 	mockGQL.StubMatchOnce(
 		gqlmock.WithOpName("QueryRunBucketedHistory"),
 		`{"project":{"run":{"bucketedHistory":[[
-			{"_timestampAvg":1700000000,"system/cpuAvg":42}
-		]]}}}`,
+			{"_timestampAvg":1700000000,"system/cpuAvg":42},
+			{"_timestampAvg":1700000060,"system/cpuAvg":55}
+		],[],[],[],[],[],[],[],[],[],[]]}}}`,
 	)
 	source := newParquetHistorySource(
 		t.Context(),
@@ -231,8 +232,8 @@ func TestParquetHistorySource_Read_LoadsRemoteSystemMetrics(t *testing.T) {
 
 	require.Equal(t, StatsMsg{
 		RunPath:   "entity/project/run-id",
-		Timestamp: 1700000000,
-		Metrics:   map[string]float64{"cpu": 42},
+		Timestamp: 1700000060,
+		Metrics:   map[string]float64{"cpu": 55},
 	}, batch.Msgs[len(batch.Msgs)-1])
 
 	msg, err = source.Read(1, 10*time.Second)

@@ -13,8 +13,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet"
 	"github.com/wandb/wandb/core/internal/transactionlog"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -606,4 +608,51 @@ func TestModel_HandleMouseMsg(t *testing.T) {
 			tc.verify(t, m)
 		})
 	}
+}
+
+func TestRemoteRun_ParquetHistory_SystemMetricsRender(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	require.NoError(t, cfg.SetSystemRows(2))
+	require.NoError(t, cfg.SetSystemCols(2))
+	require.NoError(t, cfg.SetRightSidebarVisible(true))
+
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("QueryRunBucketedHistory"),
+		`{"project":{"run":{"bucketedHistory":[[
+			{"_timestampAvg":1700000000,"system/cpuAvg":42},
+			{"_timestampAvg":1700000060,"system/cpuAvg":55}
+		],[],[],[],[],[],[],[],[],[],[]]}}}`,
+	)
+
+	source := leet.NewTestParquetHistorySource(
+		t.Context(),
+		"entity", "project", "run-id", "Remote Run",
+		map[string]any{"_step": 0},
+		&leet.TestStepReader{
+			Steps: []parquet.KeyValueList{{
+				{Key: parquet.StepKey, Value: float64(0)},
+				{Key: "loss", Value: float64(1.0)},
+			}},
+		},
+		mockGQL,
+		logger,
+	)
+
+	var model tea.Model = leet.NewRun(&leet.RunParams{
+		Remote: &leet.RemoteRunParams{
+			BaseURL: "https://api.wandb.ai",
+			Entity:  "entity",
+			Project: "project",
+			RunID:   "run-id",
+		},
+	}, cfg, logger)
+	model, _ = model.Update(tea.WindowSizeMsg{Width: 240, Height: 80})
+	run := leet.BootLoadRunHistory(t, model.(*leet.Run), source)
+
+	view := stripANSI(run.View().Content)
+	require.Contains(t, view, "loss")
+	require.Contains(t, view, "System Metrics")
+	require.Contains(t, view, "Process CPU")
 }

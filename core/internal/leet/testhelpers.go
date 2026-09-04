@@ -3,12 +3,16 @@
 package leet
 
 import (
+	"context"
 	"math"
+	"testing"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/Khan/genqlient/graphql"
 
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -707,6 +711,81 @@ func (w *Workspace) TestOverviewFiltering() bool {
 // TestOverviewFilterQuery returns the current overview filter query string.
 func (w *Workspace) TestOverviewFilterQuery() string {
 	return w.runOverviewSidebar.FilterQuery()
+}
+
+// TestStepReader is an in-memory historyStepReader for tests.
+type TestStepReader struct {
+	Steps    []parquet.KeyValueList
+	Released int
+}
+
+func (r *TestStepReader) GetHistorySteps(
+	ctx context.Context,
+	minStep int64,
+	maxStep int64,
+) ([]parquet.KeyValueList, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	var out []parquet.KeyValueList
+	for _, step := range r.Steps {
+		if v := step.StepValue(); v >= minStep && v < maxStep {
+			out = append(out, step)
+		}
+	}
+	return out, nil
+}
+
+func (r *TestStepReader) Release() { r.Released++ }
+
+// NewTestParquetHistorySource constructs a ParquetHistorySource for tests.
+func NewTestParquetHistorySource(
+	ctx context.Context,
+	entity, project, runID, displayName string,
+	runSummary map[string]any,
+	reader historyStepReader,
+	graphqlClient graphql.Client,
+	logger *observability.CoreLogger,
+) HistorySource {
+	return newParquetHistorySource(
+		ctx,
+		&RunInfo{
+			entity:      entity,
+			project:     project,
+			runId:       runID,
+			displayName: displayName,
+			runSummary:  runSummary,
+		},
+		reader,
+		graphqlClient,
+		logger,
+	)
+}
+
+// BootLoadRunHistory reads every boot chunk from source into run.
+func BootLoadRunHistory(t *testing.T, r *Run, source HistorySource) *Run {
+	t.Helper()
+
+	var m tea.Model = r
+	m, _ = m.Update(InitMsg{Source: source})
+	for {
+		msg := ReadRecords(source, BootLoadChunkSize, BootLoadMaxTime)()
+		if msg == nil {
+			break
+		}
+		if errMsg, ok := msg.(ErrorMsg); ok {
+			t.Fatalf("boot load: %v", errMsg.Err)
+		}
+		batch, ok := msg.(ChunkedBatchMsg)
+		if !ok {
+			t.Fatalf("unexpected boot load msg %T", msg)
+		}
+		m, _ = m.Update(batch)
+		if !batch.HasMore {
+			break
+		}
+	}
+	return m.(*Run)
 }
 
 // TestOverviewFilterInfo returns the compact match summary for the overview filter.
