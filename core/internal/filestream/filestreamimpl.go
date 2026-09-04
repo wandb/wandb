@@ -85,12 +85,13 @@ func (fs *fileStream) startTransmitting(
 		state.ConsoleLineOffset = initialOffsets[OutputChunk]
 	}
 
-	transmissions := CollectLoop{
+	collectLoop := &CollectLoop{
 		Logger:                  fs.logger,
 		Printer:                 fs.printer,
 		TransmitInterval:        fs.transmitInterval,
 		InitialTransmitInterval: fs.initialTransmitInterval,
-	}.Start(state, requests)
+	}
+	transmissions := collectLoop.Start(state, requests)
 
 	feedback := TransmitLoop{
 		HeartbeatPeriod:        fs.heartbeatPeriod,

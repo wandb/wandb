@@ -58,47 +58,45 @@ func TestCollectLoop_SendsLastRequestImmediately(t *testing.T) {
 	assert.Nil(t, request2)
 }
 
+// startRampLoop starts a collect loop with a 15-second transmit interval
+// inside a synctest bubble.
+//
+// It returns the loop's request channel and a function that waits for the
+// next transmission and returns the time since the loop started.
+func startRampLoop(
+	t *testing.T,
+	initialTransmitInterval time.Duration,
+) (chan<- *FileStreamRequest, func() time.Duration) {
+	requests := make(chan *FileStreamRequest)
+	loop := CollectLoop{
+		Logger:                  observability.NewNoOpLogger(),
+		Printer:                 observability.NewPrinter(0),
+		TransmitInterval:        15 * time.Second,
+		InitialTransmitInterval: initialTransmitInterval,
+	}
+	t.Cleanup(loop.Printer.Close)
+	state := &FileStreamState{MaxRequestSizeBytes: 99999}
+
+	transmissions := loop.Start(state, requests)
+	start := time.Now()
+
+	return requests, func() time.Duration {
+		_, ok := transmissions.NextRequest(make(<-chan time.Time))
+		require.True(t, ok)
+		return time.Since(start)
+	}
+}
+
 func TestCollectLoop_RampsAfterFirstHistory(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		requests := make(chan *FileStreamRequest)
-		loop := CollectLoop{
-			Logger:                  observability.NewNoOpLogger(),
-			Printer:                 observability.NewPrinter(0),
-			TransmitInterval:        15 * time.Second,
-			InitialTransmitInterval: 2 * time.Second,
-		}
-		defer loop.Printer.Close()
-		state := &FileStreamState{MaxRequestSizeBytes: 99999}
-		start := time.Now()
+		requests, sent := startRampLoop(t, 2*time.Second)
 
-		transmissions := loop.Start(state, requests)
+		// The first history is sent immediately, and the interval then
+		// doubles after each transmission until it is back at 15 seconds.
 		var sentAt []time.Duration
-		nextRequest := func() {
-			_, ok := transmissions.NextRequest(make(<-chan time.Time))
-			require.True(t, ok)
-			sentAt = append(sentAt, time.Since(start))
-		}
-
-		// Without history, the second batch waits the steady-state interval.
-		requests <- &FileStreamRequest{EventsLines: []string{"{}"}}
-		nextRequest()
-		requests <- &FileStreamRequest{EventsLines: []string{"{}"}}
-
-		// The first history starts the ramp and speeds up the pending batch.
-		time.Sleep(time.Second)
-		requests <- &FileStreamRequest{HistoryLines: []string{"{}"}}
-		nextRequest()
-
-		// Spacing is measured from when a batch was due, not from when
-		// a slow consumer picked it up.
-		requests <- &FileStreamRequest{HistoryLines: []string{"{}"}}
-		time.Sleep(3 * time.Second)
-		nextRequest()
-
-		// The interval doubles until it reaches the steady-state interval.
-		for range 3 {
+		for range 5 {
 			requests <- &FileStreamRequest{HistoryLines: []string{"{}"}}
-			nextRequest()
+			sentAt = append(sentAt, sent())
 		}
 		close(requests)
 
@@ -106,12 +104,59 @@ func TestCollectLoop_RampsAfterFirstHistory(t *testing.T) {
 			[]time.Duration{
 				0,
 				2 * time.Second,
-				5 * time.Second,
-				8 * time.Second,
-				16 * time.Second,
-				31 * time.Second,
+				6 * time.Second,
+				14 * time.Second,
+				29 * time.Second,
 			},
 			sentAt)
+	})
+}
+
+func TestCollectLoop_RampSpeedsUpPendingBatch(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		requests, sent := startRampLoop(t, 2*time.Second)
+
+		requests <- &FileStreamRequest{EventsLines: []string{"{}"}}
+		sent()
+		requests <- &FileStreamRequest{EventsLines: []string{"{}"}}
+
+		// Halfway through the pending batch's 15-second wait, the first
+		// history leaves it half of the new 2-second interval.
+		time.Sleep(7500 * time.Millisecond)
+		requests <- &FileStreamRequest{HistoryLines: []string{"{}"}}
+		assert.Equal(t, 8500*time.Millisecond, sent())
+		close(requests)
+	})
+}
+
+func TestCollectLoop_RampStartsWhileTransmitting(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		requests, sent := startRampLoop(t, 2*time.Second)
+
+		// The first history arrives while the loop is waiting for the
+		// uploader, so it is merged into the batch already being sent.
+		requests <- &FileStreamRequest{EventsLines: []string{"{}"}}
+		time.Sleep(7500 * time.Millisecond)
+		requests <- &FileStreamRequest{HistoryLines: []string{"{}"}}
+		sent()
+
+		// The ramp started anyway, so the next batch waits the 1 second
+		// left of the 2-second interval rather than 15 seconds.
+		requests <- &FileStreamRequest{EventsLines: []string{"{}"}}
+		assert.Equal(t, 8500*time.Millisecond, sent())
+		close(requests)
+	})
+}
+
+func TestCollectLoop_NoRampIfInitialIntervalIsNotShorter(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		requests, sent := startRampLoop(t, 30*time.Second)
+
+		requests <- &FileStreamRequest{HistoryLines: []string{"{}"}}
+		sent()
+		requests <- &FileStreamRequest{HistoryLines: []string{"{}"}}
+		assert.Equal(t, 15*time.Second, sent())
+		close(requests)
 	})
 }
 

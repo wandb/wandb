@@ -663,9 +663,9 @@ class Settings(BaseModel, validate_assignment=True):
     """Initial interval in seconds between filestream transmissions.
 
     Defaults to 2 seconds. When the run's first history is logged,
-    transmissions start at this interval and the interval doubles each time
-    it elapses until it reaches `x_file_stream_transmit_interval`, so that a
-    run's first logged data is uploaded quickly no matter when it is logged.
+    transmissions start at this interval, which doubles after each
+    transmission until it reaches `x_file_stream_transmit_interval`, so that
+    a run's first logged data is uploaded quickly no matter when it is logged.
     Set to a value greater than or equal to `x_file_stream_transmit_interval`
     to disable this.
 

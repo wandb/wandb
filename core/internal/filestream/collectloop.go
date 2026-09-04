@@ -3,6 +3,8 @@ package filestream
 import (
 	"time"
 
+	"golang.org/x/time/rate"
+
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
@@ -18,17 +20,26 @@ type CollectLoop struct {
 	TransmitInterval time.Duration
 
 	// InitialTransmitInterval is the time between transmissions once the
-	// run's first history is collected. It doubles each time it elapses
-	// until it reaches TransmitInterval, so that a run's first logged data
-	// reaches the backend quickly.
+	// run's first history is collected. It doubles after each rate-limited
+	// transmission until it reaches TransmitInterval, so that a run's first
+	// logged data reaches the backend quickly.
 	//
 	// There is no ramp if it is not positive or not less than
 	// TransmitInterval.
 	InitialTransmitInterval time.Duration
+
+	// transmitRateLimit allows one transmission per transmitInterval.
+	transmitRateLimit *rate.Limiter
+
+	// transmitInterval is the current time between transmissions.
+	transmitInterval time.Duration
+
+	// transmitRampStarted is whether the run's first history was collected.
+	transmitRampStarted bool
 }
 
 // Start ingests requests and outputs rate-limited, batched requests.
-func (cl CollectLoop) Start(
+func (cl *CollectLoop) Start(
 	state *FileStreamState,
 	requests <-chan *FileStreamRequest,
 ) *TransmitChan {
@@ -39,20 +50,19 @@ func (cl CollectLoop) Start(
 		panic("filestream: CollectLoop.Printer is nil")
 	}
 
+	cl.transmitInterval = cl.TransmitInterval
+	cl.transmitRateLimit = rate.NewLimiter(rate.Every(cl.transmitInterval), 1)
+
 	output := NewTransmitChan()
 
 	go func() {
 		buffer := &FileStreamRequest{}
-		schedule := newTransmitSchedule(
-			cl.TransmitInterval,
-			cl.InitialTransmitInterval,
-		)
 		hasMore := true
 
 		for request := range requests {
 			buffer.Merge(request)
 
-			cl.waitForRateLimit(state, buffer, requests, schedule)
+			cl.waitForRateLimit(state, buffer, requests)
 			hasMore = cl.transmit(state, buffer, requests, output)
 		}
 
@@ -70,23 +80,31 @@ func (cl CollectLoop) Start(
 
 // waitForRateLimit merges requests until the rate limit allows us
 // to transmit data.
-func (cl CollectLoop) waitForRateLimit(
+func (cl *CollectLoop) waitForRateLimit(
 	state *FileStreamState,
 	buffer *FileStreamRequest,
 	requests <-chan *FileStreamRequest,
-	schedule *transmitSchedule,
 ) {
+	cl.maybeStartTransmitRamp(buffer)
+
 	if cl.shouldSendASAP(state, buffer) {
 		return
 	}
 
-	due := schedule.next(time.Now(), buffer)
-	defer func() { schedule.last = due }()
+	reservation := cl.transmitRateLimit.Reserve()
+	isDelayed := reservation.Delay() > 0
 
 	for {
-		timer := time.NewTimer(time.Until(due))
+		timer := time.NewTimer(reservation.Delay())
 		select {
 		case <-timer.C:
+			// Each rate-limited transmission during the ramp doubles the
+			// interval for the next one.
+			if isDelayed && cl.transmitInterval < cl.TransmitInterval {
+				cl.transmitInterval =
+					min(2*cl.transmitInterval, cl.TransmitInterval)
+				cl.transmitRateLimit.SetLimit(rate.Every(cl.transmitInterval))
+			}
 			return
 
 		case request, ok := <-requests:
@@ -97,24 +115,48 @@ func (cl CollectLoop) waitForRateLimit(
 			}
 
 			buffer.Merge(request)
+			startedRamp := cl.maybeStartTransmitRamp(request)
 
 			if cl.shouldSendASAP(state, buffer) {
 				return
 			}
 
-			// The run's first history starts the ramp, which may allow
-			// transmitting sooner.
-			if next := schedule.next(time.Now(), buffer); next.Before(due) {
-				due = next
+			// Apply the sped-up rate limit to this batch unless it is
+			// already due: cancelling an overdue reservation is a no-op,
+			// so re-reserving would charge a second token.
+			if startedRamp {
+				now := time.Now()
+				if reservation.DelayFrom(now) > 0 {
+					reservation.CancelAt(now)
+					reservation = cl.transmitRateLimit.ReserveN(now, 1)
+				}
 			}
 		}
 	}
 }
 
+// maybeStartTransmitRamp speeds up transmissions if the request contains
+// the run's first history, returning whether the rate limit changed.
+func (cl *CollectLoop) maybeStartTransmitRamp(request *FileStreamRequest) bool {
+	if cl.transmitRampStarted || len(request.HistoryLines) == 0 {
+		return false
+	}
+	cl.transmitRampStarted = true
+
+	initial := cl.InitialTransmitInterval
+	if initial <= 0 || initial >= cl.TransmitInterval {
+		return false
+	}
+
+	cl.transmitInterval = initial
+	cl.transmitRateLimit.SetLimit(rate.Every(initial))
+	return true
+}
+
 // transmit accumulates incoming requests until a transmission goes through.
 //
 // Returns whether there remains unsent data in the buffer.
-func (cl CollectLoop) transmit(
+func (cl *CollectLoop) transmit(
 	state *FileStreamState,
 	buffer *FileStreamRequest,
 	requests <-chan *FileStreamRequest,
@@ -144,13 +186,14 @@ func (cl CollectLoop) transmit(
 			}
 
 			buffer.Merge(request)
+			cl.maybeStartTransmitRamp(request)
 		}
 	}
 }
 
 // pop calls [FileStreamState.Pop], extracting a JSON value to send from the
 // request and returning whether the request contains more data.
-func (cl CollectLoop) pop(
+func (cl *CollectLoop) pop(
 	state *FileStreamState,
 	request *FileStreamRequest,
 ) (*FileStreamRequestJSON, bool) {
@@ -162,7 +205,7 @@ func (cl CollectLoop) pop(
 }
 
 // shouldSendASAP returns a request should be made regardless of rate limits.
-func (cl CollectLoop) shouldSendASAP(
+func (cl *CollectLoop) shouldSendASAP(
 	state *FileStreamState,
 	request *FileStreamRequest,
 ) bool {

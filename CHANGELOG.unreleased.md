@@ -44,7 +44,7 @@ Legacy `wandb sync` options have been removed. See `wandb sync --help`.
 - Fixed the `ecpu_cores` count of Apple M5 Pro and M5 Max Macs being reported as 0 (@dmitryduev in https://github.com/wandb/wandb/pull/12680)
 - Fixed CPU frequency metrics on the MacBook Neo being reported about 1000 times too high (@dmitryduev in https://github.com/wandb/wandb/pull/12681)
 - Fixed missing CPU utilization and frequency metrics for the efficiency cores of Apple M5 Macs and the performance cores of M5 Pro and M5 Max Macs (@dmitryduev in https://github.com/wandb/wandb/pull/12682)
-- Fractional values of `x_file_stream_transmit_interval`, such as `0.5`, are now honored instead of falling back to the default (@dmitryduev in https://github.com/wandb/wandb/pull/12170)
+- Fractional values of `x_file_stream_transmit_interval` are now honored. They were previously truncated to whole seconds, and values below 1 second, such as `0.5`, fell back to the default (@dmitryduev in https://github.com/wandb/wandb/pull/12170)
 
 ### Removed
 
