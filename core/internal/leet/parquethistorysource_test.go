@@ -69,6 +69,7 @@ func TestParquetHistorySource_Read(t *testing.T) {
 		t.Context(),
 		testRunInfo(map[string]any{"_step": int64(1000), "loss": 0.1}),
 		reader,
+		nil,
 		observability.NewNoOpLogger(),
 	)
 
@@ -117,6 +118,7 @@ func TestParquetHistorySource_Read_WithoutSummaryStepStopsAtEmptyWindow(t *testi
 		t.Context(),
 		testRunInfo(map[string]any{"loss": 0.1}), // no "_step" bound
 		reader,
+		nil,
 		observability.NewNoOpLogger(),
 	)
 
@@ -139,6 +141,7 @@ func TestParquetHistorySource_Close(t *testing.T) {
 		t.Context(),
 		testRunInfo(nil),
 		reader,
+		nil,
 		observability.NewNoOpLogger(),
 	)
 
@@ -196,12 +199,46 @@ func TestLoadRunInfo(t *testing.T) {
 
 	runInfo, err := loadRunInfo(t.Context(), mockGQL, "entity", "project", "run-id")
 	require.NoError(t, err)
-
 	assert.Equal(t, "entity", runInfo.entity)
 	assert.Equal(t, "project", runInfo.project)
 	assert.Equal(t, "run-id", runInfo.runId)
 	assert.Equal(t, "run_display_name", runInfo.displayName)
 	assert.Equal(t, int64(1000), maxStepFromSummary(runInfo.runSummary))
+}
+
+func TestParquetHistorySource_Read_LoadsRemoteSystemMetrics(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("QueryRunBucketedHistory"),
+		`{"project":{"run":{"bucketedHistory":[[
+			{"_timestampAvg":1700000000,"system/cpuAvg":42}
+		]]}}}`,
+	)
+	source := newParquetHistorySource(
+		t.Context(),
+		testRunInfo(map[string]any{"_step": 0, "_timestamp": 1700000900}),
+		&fakeStepReader{steps: []parquet.KeyValueList{{
+			{Key: parquet.StepKey, Value: float64(0)},
+		}}},
+		mockGQL,
+		observability.NewNoOpLogger(),
+	)
+
+	msg, err := source.Read(1, 1*time.Second)
+	require.NoError(t, err)
+	batch := msg.(ChunkedBatchMsg)
+	require.True(t, batch.HasMore)
+
+	require.Equal(t, StatsMsg{
+		RunPath:   "entity/project/run-id",
+		Timestamp: 1700000000,
+		Metrics:   map[string]float64{"cpu": 42},
+	}, batch.Msgs[len(batch.Msgs)-1])
+
+	msg, err = source.Read(1, 10*time.Second)
+	require.NoError(t, err)
+	batch = msg.(ChunkedBatchMsg)
+	require.False(t, batch.HasMore)
 }
 
 func TestLoadRunInfo_RunNotFound(t *testing.T) {
