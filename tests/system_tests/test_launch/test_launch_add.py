@@ -3,7 +3,7 @@ from unittest import mock
 
 import pytest
 import wandb
-from wandb.apis.public import Api as PublicApi
+from wandb import Api
 from wandb.sdk.launch._launch_add import launch_add
 from wandb.sdk.launch.api import LaunchApi
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT, LaunchError
@@ -326,7 +326,7 @@ def test_launch_add_with_priority(
     base_config = {}
 
     with runner.isolated_filesystem():
-        api = PublicApi(api_key=user)
+        api = Api(api_key=user)
         api.create_run_queue(
             entity=user,
             name=queue_name,
@@ -372,7 +372,7 @@ def test_launch_add_with_priority_to_no_prio_queue_raises(
     base_config = {}
 
     with runner.isolated_filesystem():
-        api = PublicApi(api_key=user)
+        api = Api(api_key=user)
         api.create_run_queue(
             entity=user,
             name=queue_name,
@@ -405,7 +405,7 @@ def test_launch_add_template_variables(
     template_variables = {"var1": "a"}
     base_config = {"template_variables": {"var1": "b"}}
     with runner.isolated_filesystem():
-        api = PublicApi(api_key=user)
+        api = Api(api_key=user)
         api.create_run_queue(
             entity=user,
             name=queue_name,
@@ -448,7 +448,7 @@ def test_launch_add_template_variables_legacy_push(
         lambda *args, **kwargs: None,
     )
     with runner.isolated_filesystem():
-        api = PublicApi(api_key=user)
+        api = Api(api_key=user)
         api.create_run_queue(
             entity=user,
             name=queue_name,
@@ -529,7 +529,7 @@ def test_container_queued_run(monkeypatch, user):
         lambda *arg, **kwargs: patched_push_to_run_queue_by_name(*arg, **kwargs),
     )
     monkeypatch.setattr(
-        wandb.PublicApi,
+        wandb.Api,
         "_artifact",
         lambda *arg, **kwargs: "artifact",
     )
