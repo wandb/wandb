@@ -64,10 +64,26 @@ def install_wandb(session: nox.Session, dev: bool = True):
         session.env["WANDB_BUILD_COVERAGE"] = "true"
         session.env["WANDB_BUILD_GORACEDETECT"] = "true"
 
+    package = os.environ.get("WANDB_TEST_WHEEL", ".")
     if session.venv_backend == "uv":
-        install_timed(session, "--reinstall", "--refresh-package", "wandb", ".")
+        install_timed(
+            session,
+            "--reinstall",
+            "--refresh-package",
+            "wandb",
+            package,
+        )
     else:
-        install_timed(session, "--force-reinstall", ".")
+        install_timed(session, "--force-reinstall", package)
+
+    if package != ".":
+        # Pytest imports Python modules from the source tree, so make the
+        # prebuilt wheel's native artifacts available there too.
+        shutil.copytree(
+            site_packages_dir(session) / "wandb" / "bin",
+            pathlib.Path("wandb", "bin"),
+            dirs_exist_ok=True,
+        )
 
 
 def get_session_file_name(session: nox.Session) -> str:
@@ -143,6 +159,7 @@ def run_pytest(
         # which uses auth information from the home directory.
         "HOME": os.environ.get("HOME"),
         "CI": os.environ.get("CI"),
+        "TMPDIR": os.environ.get("TMPDIR"),
     }
 
     # Print 20 slowest tests.
@@ -205,13 +222,20 @@ def unit_tests(session: nox.Session) -> None:
 
     install_wandb(session, dev=not is_windows)
 
-    install_timed(
-        session,
+    requirements_args = [
         "-r",
         _requirements_file(session.python),
         # For test_reports:
         "polyfactory",
-    )
+    ]
+    if os.environ.get("WANDB_TEST_WHEEL"):
+        # The compiled requirements contain the complete dependency closure.
+        # Avoid resolving the local project referenced by its extras and
+        # rebuilding it after installing the prebuilt wheel.
+        excludes = pathlib.Path(session.create_tmp(), "requirements-excludes.txt")
+        excludes.write_text("wandb\n")
+        requirements_args[:0] = ["--no-deps", "--excludes", str(excludes)]
+    install_timed(session, *requirements_args)
 
     paths = session.posargs or ["tests/unit_tests"]
 
@@ -219,7 +243,12 @@ def unit_tests(session: nox.Session) -> None:
         session,
         paths=paths,
         # TODO: consider relaxing this once the test memory usage is under control.
-        opts={"n": "4" if is_windows else "8"},
+        opts={
+            "n": os.environ.get(
+                "WANDB_TEST_MAX_WORKERS",
+                "4" if is_windows else "8",
+            ),
+        },
     )
 
 
