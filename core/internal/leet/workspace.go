@@ -536,6 +536,15 @@ func (w *Workspace) recalculateLayout() {
 	w.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
 }
 
+// attachFilters restores the filters remembered for the wandb directory and
+// keeps them saved. System metrics grids are created per run and pick up the
+// shared filter as their charts arrive.
+func (w *Workspace) attachFilters(df *dirFilters) {
+	df.bind(&df.Metrics, w.metricsGrid.filter, w.metricsGrid.ApplyFilter)
+	df.bind(&df.SystemMetrics, w.systemMetricsFilter, nil)
+	df.bind(&df.Runs, w.filter, w.applyRunFilter)
+}
+
 // computeViewports returns the computed layout dimensions.
 //
 // Separator lines between visible sections are subtracted from available height
