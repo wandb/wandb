@@ -57,6 +57,31 @@ func TestModel_WorkspaceFilterDoesNotLeakIntoRunView(t *testing.T) {
 	require.NotContains(t, view, `"trainx"`)
 }
 
+func TestModel_FiltersPersistPerWandbDir(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	wandbDir := t.TempDir()
+	open := func() tea.Model {
+		cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+		var model tea.Model = leet.NewModel(leet.ModelParams{
+			WandbDir: wandbDir,
+			Config:   cfg,
+			Logger:   logger,
+		})
+		model, _ = model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+		return model
+	}
+
+	model := open()
+	model, _ = model.Update(keyPressMsg('/'))
+	for _, r := range "train" {
+		model, _ = model.Update(keyPressMsg(r))
+	}
+	model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	reopened := open()
+	require.Contains(t, stripANSI(reopened.View().Content), `"train"`)
+}
+
 func TestModel_CtrlLInRunViewDoesNotClearWorkspaceFilter(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
