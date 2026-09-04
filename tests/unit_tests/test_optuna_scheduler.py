@@ -533,3 +533,26 @@ class TestMultiObjective:
         trials = optimizer.study.get_trials(deepcopy=False)
         assert len(trials) == 1
         assert trials[0].values == [0.5, 0.9]
+
+
+class TestIntermediateReporting:
+    """Single-objective sweeps report intermediate values for pruning."""
+
+    @pytest.fixture
+    def optimizer(self, sweep: SweepInfo) -> OptunaDeclarativeOptimizer:
+        study = optuna.create_study(direction="minimize")
+        distributions = {"x": optuna.distributions.FloatDistribution(0.0, 1.0)}
+        return OptunaDeclarativeOptimizer(study, distributions, sweep)
+
+    def test_tell_run_rejects_history_missing_step(self, optimizer) -> None:
+        suggestion = next(iter(optimizer.ask_n_runs(1)))
+        run = RunWithMetrics(
+            config=suggestion.config,
+            state=RunState.RUNNING,
+            wandb_run_id="wandb-run-id",
+            summary_metrics={},
+            history_metrics=[{"loss": 1.0}],
+        )
+
+        with pytest.raises(ValueError, match="_step"):
+            optimizer.tell_run(suggestion.run_id, run)

@@ -455,8 +455,13 @@ class OptunaOptimizer(Optimizer):
         # single-objective only, so a multi-objective study rejects them.
         if not self._is_multi_objective:
             last = self._last_reported_step.get(run_id, -1)
-            for index, row in enumerate(data.history_metrics):
-                step = row.get("_step", index)
+            for row in data.history_metrics:
+                if "_step" not in row:
+                    raise ValueError(
+                        "Sampled history is missing '_step'; cannot report "
+                        "intermediate values for pruning/early-termination."
+                    )
+                step = row["_step"]
                 if step <= last:
                     continue
                 value = self.metric_value(row)
