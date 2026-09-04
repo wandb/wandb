@@ -18,8 +18,6 @@ from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.lib.filenames import DIFF_FNAME, METADATA_FNAME, REQUIREMENTS_FNAME
 from wandb.util import make_artifact_name_safe
 
-from .settings_static import SettingsStatic
-
 _logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
@@ -121,7 +119,7 @@ def get_min_supported_for_source_dict(
 
 
 class JobBuilder:
-    _settings: SettingsStatic
+    _settings: wandb.Settings
     _files_dir: str
     _metadatafile_path: str | None
     _requirements_path: str | None
@@ -139,7 +137,7 @@ class JobBuilder:
 
     def __init__(
         self,
-        settings: SettingsStatic,
+        settings: wandb.Settings,
         verbose: bool = False,
         *,
         files_dir: str,

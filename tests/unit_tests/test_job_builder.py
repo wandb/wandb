@@ -4,8 +4,8 @@ import random
 import string
 
 import pytest
+import wandb
 from wandb.sdk.internal.job_builder import JobBuilder
-from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.util import make_artifact_name_safe
 
 
@@ -29,10 +29,8 @@ def test_build_repo_job(runner, api):
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
 
-        settings = SettingsStatic(
-            {
-                "disable_job_creation": False,
-            }
+        settings = wandb.Settings(
+            disable_job_creation=False,
         )
         job_builder = JobBuilder(settings, files_dir="./")
         artifact = job_builder.build(
@@ -85,11 +83,9 @@ def test_build_repo_notebook_job(runner, tmp_path, api, mocker):
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
 
-        settings = SettingsStatic(
-            {
-                "disable_job_creation": False,
-                "x_jupyter_root": str(tmp_path),
-            }
+        settings = wandb.Settings(
+            disable_job_creation=False,
+            x_jupyter_root=str(tmp_path),
         )
         job_builder = JobBuilder(settings, True, files_dir="./")
         artifact = job_builder.build(api)
@@ -118,10 +114,8 @@ def test_build_artifact_job(runner, api):
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
 
-        settings = SettingsStatic(
-            {
-                "disable_job_creation": False,
-            }
+        settings = wandb.Settings(
+            disable_job_creation=False,
         )
         job_builder = JobBuilder(settings, files_dir="./")
         job_builder._logged_code_artifact = {
@@ -160,11 +154,9 @@ def test_build_artifact_notebook_job(runner, tmp_path, mocker, api):
             f.write("wandb")
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
-        settings = SettingsStatic(
-            {
-                "disable_job_creation": False,
-                "x_jupyter_root": str(tmp_path),
-            }
+        settings = wandb.Settings(
+            disable_job_creation=False,
+            x_jupyter_root=str(tmp_path),
         )
         job_builder = JobBuilder(settings, files_dir="./")
         job_builder._logged_code_artifact = {
@@ -206,11 +198,9 @@ def test_build_artifact_notebook_job_no_program(
             f.write("wandb")
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
-        settings = SettingsStatic(
-            {
-                "disable_job_creation": False,
-                "x_jupyter_root": str(tmp_path),
-            }
+        settings = wandb.Settings(
+            disable_job_creation=False,
+            x_jupyter_root=str(tmp_path),
         )
         job_builder = JobBuilder(settings, verbose, files_dir="./")
         job_builder._logged_code_artifact = {
@@ -247,11 +237,9 @@ def test_build_artifact_notebook_job_no_metadata(
             f.write("numpy==1.19.0")
             f.write("wandb")
 
-        settings = SettingsStatic(
-            {
-                "disable_job_creation": False,
-                "x_jupyter_root": str(tmp_path),
-            }
+        settings = wandb.Settings(
+            disable_job_creation=False,
+            x_jupyter_root=str(tmp_path),
         )
         job_builder = JobBuilder(settings, verbose, files_dir="./")
         job_builder._logged_code_artifact = {
@@ -293,11 +281,9 @@ def test_build_artifact_notebook_job_no_program_metadata(
             f.write("wandb")
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
-        settings = SettingsStatic(
-            {
-                "disable_job_creation": False,
-                "x_jupyter_root": str(tmp_path),
-            }
+        settings = wandb.Settings(
+            disable_job_creation=False,
+            x_jupyter_root=str(tmp_path),
         )
         job_builder = JobBuilder(settings, verbose, files_dir="./")
         job_builder._logged_code_artifact = {
@@ -330,10 +316,8 @@ def test_build_image_job(runner, api):
             f.write("wandb")
         with open("wandb-metadata.json", "w") as f:
             f.write(json.dumps(metadata))
-        settings = SettingsStatic(
-            {
-                "disable_job_creation": False,
-            }
+        settings = wandb.Settings(
+            disable_job_creation=False,
         )
         job_builder = JobBuilder(settings, files_dir="./")
         artifact = job_builder.build(api)
@@ -345,10 +329,8 @@ def test_build_image_job(runner, api):
 
 
 def test_set_disabled():
-    settings = SettingsStatic(
-        {
-            "disable_job_creation": False,
-        }
+    settings = wandb.Settings(
+        disable_job_creation=False,
     )
 
     job_builder = JobBuilder(settings, files_dir="./")
@@ -358,10 +340,8 @@ def test_set_disabled():
 
 @pytest.mark.usefixtures("patch_apikey")
 def test_no_metadata_file(api):
-    settings = SettingsStatic(
-        {
-            "disable_job_creation": False,
-        }
+    settings = wandb.Settings(
+        disable_job_creation=False,
     )
     job_builder = JobBuilder(settings, files_dir="./")
     artifact = job_builder.build(api)
