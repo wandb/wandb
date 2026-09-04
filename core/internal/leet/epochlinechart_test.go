@@ -460,3 +460,19 @@ func TestEpochLineChart_YLabelsFitTopTick(t *testing.T) {
 	c.Draw()
 	require.Contains(t, stripANSI(c.View()), "\n  0└")
 }
+
+func TestEpochLineChart_OneXAxisPerChart(t *testing.T) {
+	c := leet.NewEpochLineChart("train/loss")
+	c.Resize(80, 12)
+	c.AddData("step-run", leet.MetricData{X: []float64{0, 1}, Y: []float64{1, 2}})
+	c.HandleZoom("in", 40)
+	c.AddData("tokens-run", leet.MetricData{
+		X: []float64{4096, 8192}, Y: []float64{3, 4}, XAxisMetric: "custom/tokens",
+	})
+	c.AddData("step-run", leet.MetricData{X: []float64{2}, Y: []float64{5}})
+
+	require.Equal(t, "custom/tokens", c.XAxisMetric())
+	require.Equal(t, []string{"tokens-run"}, c.DrawOrder())
+	require.Equal(t, 4096.0, c.MinX())
+	require.Equal(t, 4096.0, c.ViewMinX())
+}
