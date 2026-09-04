@@ -315,7 +315,7 @@ func (w *Workspace) View() tea.View {
 	runLabel, systemGrid, systemHint, mediaHint, logsHint := w.syncCurrentRunContext()
 
 	var cols []string
-	if w.runsAnimState.IsVisible() {
+	if layout.leftSidebarWidth > 0 {
 		cols = append(cols, w.renderRunsList())
 	}
 
@@ -359,7 +359,7 @@ func (w *Workspace) View() tea.View {
 	centralColumn = placeMainColumn(contentWidth, layout.totalContentAreaHeight, centralColumn)
 	cols = append(cols, centralColumn)
 
-	if w.runOverviewSidebar.IsVisible() {
+	if layout.rightSidebarWidth > 0 {
 		cols = append(cols, w.renderRunOverview())
 	}
 
@@ -538,7 +538,8 @@ func (w *Workspace) recalculateLayout() {
 // Separator lines between visible sections are subtracted from available height
 // to prevent the status bar from being pushed off screen.
 func (w *Workspace) computeViewports() Layout {
-	leftW, rightW := w.runsAnimState.Value(), w.runOverviewSidebar.Width()
+	leftW, rightW := fitSidebarWidths(
+		w.width, w.runsAnimState.Value(), w.runOverviewSidebar.Width())
 	contentW := max(w.width-leftW-rightW, 1)
 	totalH := max(w.height-StatusBarHeight, 0)
 

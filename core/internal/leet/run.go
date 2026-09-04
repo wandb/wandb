@@ -621,7 +621,7 @@ func (r *Run) buildActiveStatus() string {
 	// Add filter info if active.
 	if r.metricsGrid.IsFiltering() {
 		parts = append(parts, fmt.Sprintf(
-			"Filter (%s): %q [%d/%d] (/ to change, Ctrl+L to clear)",
+			"Filter (%s): %q [%d/%d] (/ to change, ctrl+/ to clear)",
 			r.metricsGrid.FilterMode().String(),
 			r.metricsGrid.FilterQuery(),
 			r.metricsGrid.FilteredChartCount(), r.metricsGrid.ChartCount()))
@@ -629,7 +629,7 @@ func (r *Run) buildActiveStatus() string {
 
 	// Add overview filter info if active.
 	if r.leftSidebar.IsFiltering() {
-		parts = append(parts, fmt.Sprintf("Overview: %q [%s] (o to change, Ctrl+K to clear)",
+		parts = append(parts, fmt.Sprintf("Overview: %q [%s] (o to change, ctrl+o to clear)",
 			r.leftSidebar.FilterQuery(),
 			r.leftSidebar.FilterInfo(),
 		))
@@ -638,7 +638,7 @@ func (r *Run) buildActiveStatus() string {
 	if r.rightSidebar.IsFiltering() {
 		grid := r.rightSidebar.metricsGrid
 		parts = append(parts, fmt.Sprintf(
-			"System filter (%s): %q [%d/%d] (\\ to change, Ctrl+\\ to clear)",
+			"System filter (%s): %q [%d/%d] (\\ to change, ctrl+\\ to clear)",
 			grid.FilterMode().String(),
 			grid.FilterQuery(),
 			grid.FilteredChartCount(),
@@ -798,35 +798,9 @@ type Layout struct {
 	consoleLogsHeight      int
 }
 
-// effectiveSidebarWidths returns the widths that can actually be rendered
-// without starving the main content area.
-//
-// The visibility preferences remain unchanged: this method only clamps the
-// current render/layout pass and does not mutate animation state.
-func (r *Run) effectiveSidebarWidths() (leftW, rightW int) {
-	const minRunMainContentWidth = 10
-
-	leftW = r.leftSidebar.Width()
-	rightW = r.rightSidebar.Width()
-
-	if leftW+rightW < r.width-minRunMainContentWidth {
-		return leftW, rightW
-	}
-	if rightW > 0 {
-		rightW = 0
-	}
-	if leftW+rightW < r.width-minRunMainContentWidth {
-		return leftW, rightW
-	}
-	if leftW > 0 {
-		leftW = 0
-	}
-	return leftW, rightW
-}
-
 // computeViewports returns (leftW, contentW, rightW, contentH).
 func (r *Run) computeViewports() Layout {
-	leftW, rightW := r.effectiveSidebarWidths()
+	leftW, rightW := fitSidebarWidths(r.width, r.leftSidebar.Width(), r.rightSidebar.Width())
 	contentW := max(r.width-leftW-rightW, 1)
 	totalH := max(r.height-StatusBarHeight, 0)
 
