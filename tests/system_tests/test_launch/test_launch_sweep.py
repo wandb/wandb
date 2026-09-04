@@ -2,7 +2,9 @@ import json
 
 import wandb
 from wandb.apis.public import Api as PublicApi
+from wandb.apis.public.sweeps import _get_sweep_state, _upsert_sweep
 from wandb.cli import cli
+from wandb.sdk.launch.api import LaunchApi
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT, construct_launch_spec
 
@@ -38,7 +40,7 @@ def test_sweeps_on_launch(
     with wandb.init(settings=wandb.Settings(project=proj)):
         pass
 
-    api = wandb.sdk.internal.internal_api.Api()
+    api = LaunchApi()
     create_run_queue(
         api._service_api,
         entity=user,
@@ -98,7 +100,8 @@ def test_sweeps_on_launch(
         }
     )
 
-    sweep_id, warnings = api.upsert_sweep(
+    sweep_obj, warnings = _upsert_sweep(
+        api,
         sweep_config,
         project=proj,
         entity=user,
@@ -107,9 +110,10 @@ def test_sweeps_on_launch(
     )
 
     assert len(warnings) == 0
+    sweep_id = sweep_obj["name"]
     assert sweep_id
 
-    sweep_state = api.get_sweep_state(sweep_id, user, proj)
+    sweep_state = _get_sweep_state(api, sweep_id, entity=user, project=proj)
 
     assert sweep_state == "PENDING"
 
@@ -142,7 +146,7 @@ def test_sweep_scheduler_job_with_queue(runner, user, mocker):
         template_variables={"var": {"schema": {"type": "string", "enum": ["1", "2"]}}},
     )
 
-    api = wandb.sdk.internal.internal_api.Api()
+    api = LaunchApi()
     cli._get_cling_api(reset=True)
     with runner.isolated_filesystem():
         with open("config.json", "w") as f:
@@ -172,7 +176,7 @@ def test_sweep_scheduler_job_with_queue(runner, user, mocker):
 
         # cli._get_cling_api(reset=True) calls wandb.teardown(), so create a
         # fresh API before inspecting queue state.
-        api = wandb.sdk.internal.internal_api.Api()
+        api = LaunchApi()
         rqi = api.pop_from_run_queue(
             queue,
             user,

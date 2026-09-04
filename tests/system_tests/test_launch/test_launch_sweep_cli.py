@@ -4,7 +4,7 @@ import subprocess
 import pytest
 import wandb
 from wandb.apis.public import Api
-from wandb.sdk.internal.internal_api import Api as InternalApi
+from wandb.sdk.launch.api import LaunchApi
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 
 
@@ -101,7 +101,7 @@ def test_launch_sweep_scheduler_resources(user, scheduler_args, msg, create_run_
     job_name = f"{user}/model-registry/{job_artifact.wait().name}"
     run.finish()
 
-    internal_api = InternalApi()
+    internal_api = LaunchApi()
     create_run_queue(
         internal_api._service_api,
         entity=user,
@@ -141,7 +141,7 @@ def test_launch_sweep_scheduler_resources(user, scheduler_args, msg, create_run_
 )
 def test_launch_sweep_launch_uri(user, image_uri, launch_config, create_run_queue):
     queue = "test"
-    api = InternalApi()
+    api = LaunchApi()
     public_api = Api()
     public_api.create_project(LAUNCH_DEFAULT_PROJECT, user)
 
@@ -186,7 +186,7 @@ def test_launch_sweep_launch_uri(user, image_uri, launch_config, create_run_queu
 
 
 def test_launch_sweep_launch_resume(user, create_run_queue):
-    api = InternalApi()
+    api = LaunchApi()
     public_api = Api()
     public_api.create_project(LAUNCH_DEFAULT_PROJECT, user)
 

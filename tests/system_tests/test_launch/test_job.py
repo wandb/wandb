@@ -7,7 +7,7 @@ import pytest
 import wandb
 from wandb.apis.public import Api as PublicApi
 from wandb.sdk.artifacts.artifact import Artifact
-from wandb.sdk.internal.internal_api import Api as InternalApi
+from wandb.sdk.launch.api import LaunchApi
 from wandb.sdk.launch.create_job import _create_job
 from wandb.sdk.launch.git_reference import GitReference
 
@@ -16,7 +16,7 @@ def test_job_call(user, create_run_queue):
     proj = "TEST_PROJECT"
     queue = "TEST_QUEUE"
     public_api = PublicApi()
-    internal_api = InternalApi()
+    internal_api = LaunchApi()
 
     run = wandb.init(settings=wandb.Settings(project=proj))
 
@@ -51,7 +51,7 @@ def test_create_job_artifact(runner, user):
     proj = "test-p"
     settings = wandb.Settings(project=proj)
 
-    internal_api = InternalApi()
+    internal_api = LaunchApi()
     public_api = PublicApi()
 
     # create code artifact dir
@@ -129,7 +129,7 @@ def test_create_git_job(runner, user, monkeypatch):
     proj = "test-p99999"
     settings = wandb.Settings(project=proj)
 
-    internal_api = InternalApi()
+    internal_api = LaunchApi()
     public_api = PublicApi()
 
     path = "https://username:pword@github.com/wandb/mock-examples-123/blob/commit/path/requirements.txt"
@@ -214,7 +214,7 @@ def test_create_git_job(runner, user, monkeypatch):
 def test_create_job_image(user, image_name):
     proj = "test-p1"
 
-    internal_api = InternalApi()
+    internal_api = LaunchApi()
     public_api = PublicApi()
 
     artifact, action, aliases = _create_job(

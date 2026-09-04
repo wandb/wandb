@@ -1,8 +1,8 @@
 from unittest.mock import MagicMock
 
 import pytest
-from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.launch._project_spec import LaunchProject
+from wandb.sdk.launch.api import LaunchApi
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.runner.vertex_runner import VertexRunner, VertexSubmittedRun
 
@@ -57,7 +57,7 @@ async def test_vertex_submitted_run():
     assert (await run.get_status()).state == "failed"
 
 
-def launch_project_factory(resource_args: dict, api: Api):
+def launch_project_factory(resource_args: dict, api: LaunchApi):
     """Construct a dummy LaunchProject with the given resource args."""
     return LaunchProject(
         api=api,
@@ -79,7 +79,7 @@ def launch_project_factory(resource_args: dict, api: Api):
 
 
 @pytest.fixture
-def vertex_runner(test_settings):
+def vertex_runner(test_api):
     """Vertex runner initialized with no backend config."""
     registry = MagicMock()
     environment = MagicMock()
@@ -92,8 +92,7 @@ def vertex_runner(test_settings):
 
     environment.get_credentials = _mock_get_credentials
     environment.verify = _mock_verify
-    api = Api(default_settings=test_settings(), load_settings=False)
-    runner = VertexRunner(api, {"SYNCHRONOUS": False}, environment, registry)
+    runner = VertexRunner(test_api, {"SYNCHRONOUS": False}, environment, registry)
     return runner
 
 

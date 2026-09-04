@@ -11,12 +11,11 @@ import os
 import shlex
 import time
 from collections.abc import Iterator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
 import wandb
-from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
@@ -80,6 +79,9 @@ from kubernetes_asyncio.client.models.v1_secret import (  # type: ignore # noqa:
     V1Secret,
 )
 from kubernetes_asyncio.client.rest import ApiException  # type: ignore # noqa: E402
+
+if TYPE_CHECKING:
+    from wandb.sdk.launch.api import LaunchApi
 
 TIMEOUT = 5
 API_KEY_SECRET_MAX_RETRIES = 5
@@ -349,7 +351,7 @@ class KubernetesRunner(AbstractRunner):
 
     def __init__(
         self,
-        api: Api,
+        api: LaunchApi,
         backend_config: dict[str, Any],
         environment: AbstractEnvironment,
         registry: AbstractRegistry,
@@ -1452,7 +1454,7 @@ def _configure_containers_for_code_mount(
 
 
 def apply_code_mount_configuration_emptydir(
-    manifest: dict | list, project: LaunchProject, api: Api
+    manifest: dict | list, project: LaunchProject, api: LaunchApi
 ) -> None:
     """Apply emptyDir code mount configuration when no PVC is available.
 
@@ -1462,9 +1464,9 @@ def apply_code_mount_configuration_emptydir(
     Args:
         manifest: The manifest to modify.
         project: The launch project.
-        api: The internal API instance (for base_url).
+        api: The launch API instance (for base_url).
     """
-    base_url = api.settings("base_url")
+    base_url = api.settings["base_url"]
     source_type = project.job_source_type
     source_info = project.job_source_info
     install_deps = project._auto_default_base_image

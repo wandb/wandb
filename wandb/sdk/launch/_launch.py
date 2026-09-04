@@ -4,11 +4,10 @@ import asyncio
 import logging
 import os
 import sys
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import wandb
 from wandb.analytics import TelemetryRecorder
-from wandb.sdk.internal.internal_api import Api
 
 from . import loader
 from ._project_spec import LaunchProject
@@ -23,6 +22,9 @@ from .utils import (
     construct_launch_spec,
     validate_launch_spec_source,
 )
+
+if TYPE_CHECKING:
+    from wandb.sdk.launch.api import LaunchApi
 
 _logger = logging.getLogger(__name__)
 
@@ -62,11 +64,11 @@ def resolve_agent_config(
     queues: tuple[str] | None,
     config: str | None,
     verbosity: int | None,
-) -> tuple[dict[str, Any], Api]:
+) -> tuple[dict[str, Any], LaunchApi]:
     """Resolve the agent config.
 
     Arguments:
-        api (Api): The api.
+        api (LaunchApi): The api.
         entity (str): The entity.
         max_jobs (int): The max number of jobs.
         queues (Tuple[str]): The queues.
@@ -74,7 +76,7 @@ def resolve_agent_config(
         verbosity (int): How verbose to print, 0 or None = default, 1 = print status every 20 seconds, 2 = also print debugging information
 
     Returns:
-        Tuple[Dict[str, Any], Api]: The resolved config and api.
+        Tuple[Dict[str, Any], LaunchApi]: The resolved config and api.
     """
     import yaml
 
@@ -134,7 +136,9 @@ def resolve_agent_config(
         k: resolved_config.get(k) for k in keys if resolved_config.get(k) is not None
     }
 
-    api = Api(default_settings=settings)
+    from wandb.sdk.launch.api import LaunchApi
+
+    api = LaunchApi(overrides=settings)
 
     if resolved_config.get("entity") is None:
         resolved_config.update({"entity": api.default_entity})
@@ -143,7 +147,7 @@ def resolve_agent_config(
 
 
 def create_and_run_agent(
-    api: Api,
+    api: LaunchApi,
     config: dict[str, Any],
     telemetry_recorder: TelemetryRecorder | None = None,
 ) -> None:
@@ -178,7 +182,7 @@ def create_and_run_agent(
 
 
 async def _launch(
-    api: Api,
+    api: LaunchApi,
     job: str | None = None,
     name: str | None = None,
     project: str | None = None,
@@ -254,7 +258,7 @@ async def _launch(
 
 
 def launch(
-    api: Api,
+    api: LaunchApi,
     job: str | None = None,
     entry_point: list[str] | None = None,
     version: str | None = None,
@@ -273,7 +277,7 @@ def launch(
 
     Arguments:
         job: string reference to a wandb.Job eg: wandb/test/my-job:latest
-        api: An instance of `wandb.sdk.internal.internal_api.Api`.
+        api: An instance of `wandb.sdk.launch.api.LaunchApi`.
         entry_point: Entry point to run within the project. Defaults to using the entry point used
             in the original run for wandb URIs, or main.py for git repository URIs.
         version: For Git-based projects, either a commit hash or a branch name.
@@ -303,7 +307,7 @@ def launch(
         params = {"epochs": 5}
         # Run W&B project and create a reproducible docker environment
         # on a local host
-        api = wandb.sdk.internal.internal_api.Api()
+        api = wandb.sdk.launch.api.LaunchApi()
         launch(api, job, parameters=params)
         ```
 

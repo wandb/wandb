@@ -2,12 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import pprint
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import wandb
 import wandb.apis.public as public
 from wandb.errors import CommError
-from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.launch.builder.build import build_image_from_project
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.utils import (
@@ -19,9 +18,12 @@ from wandb.sdk.launch.utils import (
 
 from ._project_spec import LaunchProject
 
+if TYPE_CHECKING:
+    from wandb.sdk.launch.api import LaunchApi
+
 
 def push_to_queue(
-    api: Api,
+    api: LaunchApi,
     queue_name: str,
     launch_spec: dict[str, Any],
     template_variables: dict | None,
@@ -94,7 +96,7 @@ def launch_add(
     params = {"alpha": 0.5, "l1_ratio": 0.01}
     # Run W&B project and create a reproducible docker environment
     # on a local host
-    api = wandb.sdk.internal.internal_api.Api()
+    api = wandb.sdk.launch.api.LaunchApi()
     launch_add(uri=project_uri, parameters=params)
     ```
 
@@ -107,7 +109,9 @@ def launch_add(
     Raises:
         `wandb.exceptions.LaunchError` if unsuccessful
     """
-    api = Api()
+    from wandb.sdk.launch.api import LaunchApi
+
+    api = LaunchApi()
 
     return _launch_add(
         api,
@@ -134,7 +138,7 @@ def launch_add(
 
 
 def _launch_add(
-    api: Api,
+    api: LaunchApi,
     job: str | None,
     config: dict[str, Any] | None,
     template_variables: dict | None,

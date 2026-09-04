@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import hashlib
 import json
 import logging
@@ -6,12 +8,11 @@ import pathlib
 import re
 import shlex
 import shutil
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import wandb
 import wandb.env
 from wandb import docker
-from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.launch.loader import (
     builder_from_config,
     environment_from_config,
@@ -29,6 +30,9 @@ from .templates.dockerfile import (
     PYTHON_SETUP_TEMPLATE,
     USER_CREATE_TEMPLATE,
 )
+
+if TYPE_CHECKING:
+    from wandb.sdk.launch.api import LaunchApi
 
 _logger = logging.getLogger(__name__)
 
@@ -84,7 +88,7 @@ def join(split_command: list[str]) -> str:
 
 async def build_image_from_project(
     launch_project: LaunchProject,
-    api: Api,
+    api: LaunchApi,
     launch_config: dict[str, Any],
 ) -> str:
     """Construct a docker image from a project and returns the URI of the image.
