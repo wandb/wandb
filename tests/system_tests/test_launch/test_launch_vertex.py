@@ -2,9 +2,9 @@ from unittest.mock import MagicMock
 
 import pytest
 import wandb
-from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.launch import loader
 from wandb.sdk.launch._project_spec import EntryPoint
+from wandb.sdk.launch.api import LaunchApi
 from wandb.sdk.launch.environment.gcp_environment import GcpEnvironment
 
 
@@ -118,7 +118,7 @@ async def test_vertex_resolved_submitted_job(use_local_wandb_backend, monkeypatc
         "WANDB_ARTIFACTS": '{"_wandb_job": "testjob"}',
     }
     environment = loader.environment_from_config({})
-    api = Api()
+    api = LaunchApi()
     runner = loader.runner_from_config(
         "vertex",
         api,

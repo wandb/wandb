@@ -4,8 +4,8 @@ from unittest.mock import MagicMock
 
 import pytest
 import wandb
-from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
+from wandb.sdk.launch.api import LaunchApi
 
 
 @pytest.mark.asyncio
@@ -14,7 +14,7 @@ async def test_check_stop_run_not_exist(user):
         "run_queue_item_id", "test-queue", MagicMock(), MagicMock()
     )
     run = wandb.init(id="testrun")
-    api = InternalApi()
+    api = LaunchApi()
     mock_launch_project = MagicMock()
     mock_launch_project.target_entity = run.entity
     mock_launch_project.target_project = run.project
@@ -33,7 +33,7 @@ async def test_check_stop_run_exist_stopped(user):
         "run_queue_item_id", "test-queue", MagicMock(), MagicMock()
     )
     run = wandb.init(id="testrun", entity=user)
-    api = InternalApi()
+    api = LaunchApi()
     encoded_run_id = base64.standard_b64encode(
         f"Run:v1:testrun:{run.project}:{run.entity}".encode()
     ).decode("utf-8")
@@ -42,7 +42,7 @@ async def test_check_stop_run_exist_stopped(user):
     mock_launch_project.target_project = run.project
     mock_launch_project.run_id = run.id
 
-    api_run = api.run_config(project=run.project, entity=run.entity, run=run.id)
+    api_run = api.run(f"{run.entity}/{run.project}/{run.id}")
     assert api_run
 
     job_tracker.update_run_info(mock_launch_project)

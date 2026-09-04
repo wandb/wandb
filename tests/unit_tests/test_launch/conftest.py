@@ -1,7 +1,7 @@
 import pytest
-from wandb.sdk.internal.internal_api import Api as InternalApi
+from wandb.sdk.launch.api import LaunchApi
 
 
 @pytest.fixture
-def test_api(test_settings):
-    return InternalApi(default_settings=test_settings(), load_settings=False)
+def test_api(patch_apikey, skip_verify_login):
+    return LaunchApi()

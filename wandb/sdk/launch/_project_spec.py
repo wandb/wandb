@@ -17,7 +17,6 @@ from typing import TYPE_CHECKING, Any, cast
 
 import wandb
 from wandb.errors import CommError
-from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.launch.utils import get_entrypoint_file
 from wandb.sdk.lib.runid import generate_id
 
@@ -26,6 +25,7 @@ from .utils import CODE_MOUNT_DIR, LOG_PREFIX, recursive_macro_sub
 
 if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
+    from wandb.sdk.launch.api import LaunchApi
 
 _logger = logging.getLogger(__name__)
 
@@ -96,7 +96,7 @@ class LaunchProject:
         self,
         uri: str | None,
         job: str | None,
-        api: Api,
+        api: LaunchApi,
         launch_spec: dict[str, Any],
         target_entity: str,
         target_project: str,
@@ -218,12 +218,12 @@ class LaunchProject:
         return f"{self.uri}"
 
     @classmethod
-    def from_spec(cls, launch_spec: dict[str, Any], api: Api) -> LaunchProject:
+    def from_spec(cls, launch_spec: dict[str, Any], api: LaunchApi) -> LaunchProject:
         """Constructs a LaunchProject instance using a launch spec.
 
         Arguments:
             launch_spec: Dictionary representation of launch spec
-            api: Instance of `wandb.sdk.internal.internal_api.Api`
+            api: Instance of `wandb.sdk.launch.api.LaunchApi`
 
         Returns:
             An initialized `LaunchProject` object
@@ -422,7 +422,7 @@ class LaunchProject:
 
         Arguments:
             launch_project: LaunchProject to fetch and validate.
-            api: Instance of `wandb.sdk.internal.internal_api.Api`
+            api: Instance of `wandb.sdk.launch.api.LaunchApi`
 
         Returns:
             A validated `LaunchProject` object.
@@ -477,7 +477,7 @@ class LaunchProject:
         job.configure_launch_project(self)  # Why is this a method of the job?
         self._job_artifact = job._job_artifact
 
-    def get_env_vars_dict(self, api: Api, max_env_length: int) -> dict[str, str]:
+    def get_env_vars_dict(self, api: LaunchApi, max_env_length: int) -> dict[str, str]:
         """Generate environment variables for the project.
 
         Arguments:
@@ -487,7 +487,7 @@ class LaunchProject:
             Dictionary of environment variables.
         """
         env_vars = {}
-        env_vars["WANDB_BASE_URL"] = api.settings("base_url")
+        env_vars["WANDB_BASE_URL"] = api.settings["base_url"]
         override_api_key = self.launch_spec.get("_wandb_api_key")
         env_vars["WANDB_API_KEY"] = override_api_key or api.api_key or ""
         if self.target_project:
