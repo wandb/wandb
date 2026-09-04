@@ -10,6 +10,7 @@ from typing import Any
 
 import wandb
 from wandb.sdk.artifacts._generated.enums import ArtifactDigestAlgorithm
+from wandb.sdk.artifacts._gqlutils import create_artifact_version
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal.internal_api import Api
@@ -220,7 +221,8 @@ def _create_job(
             }
         }
 
-    res, _ = api.create_artifact(
+    res, _ = create_artifact_version(
+        api._service_api,
         artifact_type_name="job",
         artifact_collection_name=name,
         digest=artifact.digest,
@@ -232,7 +234,6 @@ def _create_job(
         run_name=run.id,  # type: ignore # run will be deleted after creation
         description=description,
         metadata=metadata,
-        is_user_created=True,
         aliases=[{"artifactCollectionName": name, "alias": a} for a in aliases],
     )
     action = "No changes detected for"
@@ -481,7 +482,8 @@ def _make_code_artifact(
         except FileNotFoundError:
             pass
 
-    res, _ = api.create_artifact(
+    res, _ = create_artifact_version(
+        api._service_api,
         artifact_type_name="code",
         artifact_collection_name=artifact_name,
         digest=code_artifact.digest,
@@ -493,7 +495,6 @@ def _make_code_artifact(
         run_name=run.id,  # run will be deleted after creation
         description="Code artifact for job",
         metadata={"codePath": path, "entrypoint": entrypoint_file},
-        is_user_created=True,
         aliases=[
             {"artifactCollectionName": artifact_name, "alias": a} for a in ["latest"]
         ],

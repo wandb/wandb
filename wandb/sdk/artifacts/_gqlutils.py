@@ -1,16 +1,19 @@
 from __future__ import annotations
 
+import json
 from contextlib import suppress
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
+from wandb import util
 from wandb._iterutils import one
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
 
 if TYPE_CHECKING:
     from wandb.apis.public.service_api import ServiceApi
+    from wandb.sdk.artifacts._generated.enums import ArtifactDigestAlgorithm
     from wandb.sdk.artifacts._generated.fetch_org_info_from_entity import (
         FetchOrgInfoFromEntityEntity,
     )
@@ -199,3 +202,158 @@ def omit_artifact_fields(service_api: ServiceApi) -> set[str]:
         omit_fields.add("digestAlgorithm")
 
     return omit_fields
+
+
+def record_artifact_use(
+    service_api: ServiceApi,
+    *,
+    artifact_id: str | None,
+    entity_name: str | None,
+    project_name: str | None,
+    run_name: str | None,
+    artifact_entity_name: str | None = None,
+    artifact_project_name: str | None = None,
+    use_as: str | None = None,
+) -> dict[str, Any] | None:
+    """Declare an artifact as an input of a run."""
+    query_vars = [
+        "$entityName: String!",
+        "$projectName: String!",
+        "$runName: String!",
+        "$artifactID: ID!",
+    ]
+    query_args = [
+        "entityName: $entityName",
+        "projectName: $projectName",
+        "runName: $runName",
+        "artifactID: $artifactID",
+    ]
+    variables: dict[str, Any] = {
+        "entityName": entity_name,
+        "projectName": project_name,
+        "runName": run_name,
+        "artifactID": artifact_id,
+        "usedAs": use_as,
+    }
+    if use_as:
+        query_vars.append("$usedAs: String")
+        query_args.append("usedAs: $usedAs")
+    if service_api.feature_enabled(
+        ServerFeature.USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION
+    ):
+        query_vars += ["$artifactEntityName: String", "$artifactProjectName: String"]
+        query_args += [
+            "artifactEntityName: $artifactEntityName",
+            "artifactProjectName: $artifactProjectName",
+        ]
+        variables["artifactEntityName"] = artifact_entity_name
+        variables["artifactProjectName"] = artifact_project_name
+
+    mutation = f"""
+        mutation UseArtifact({", ".join(query_vars)}) {{
+            useArtifact(input: {{{", ".join(query_args)}}}) {{
+                artifact {{
+                    id
+                    digest
+                    description
+                    state
+                    createdAt
+                    metadata
+                }}
+            }}
+        }}
+        """
+    response = service_api.execute_graphql(mutation, variables)
+    return response["useArtifact"]["artifact"] or None
+
+
+def create_artifact_version(
+    service_api: ServiceApi,
+    *,
+    artifact_type_name: str,
+    artifact_collection_name: str,
+    digest: str,
+    digest_algorithm: ArtifactDigestAlgorithm,
+    entity_name: str,
+    project_name: str,
+    run_name: str | None,
+    client_id: str | None = None,
+    sequence_client_id: str | None = None,
+    description: str | None = None,
+    metadata: dict[str, Any] | None = None,
+    aliases: list[dict[str, str]] | None = None,
+    tags: list[dict[str, str]] | None = None,
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    """Create an artifact version from a digest.
+
+    Returns the created artifact and the collection's latest artifact before
+    the call, which is None for a new collection.
+    """
+    mutation = """
+        mutation CreateArtifact(
+            $artifactTypeName: String!,
+            $artifactCollectionNames: [String!],
+            $entityName: String!,
+            $projectName: String!,
+            $runName: String,
+            $description: String,
+            $digest: String!,
+            $digestAlgorithm: ArtifactDigestAlgorithm!,
+            $aliases: [ArtifactAliasInput!],
+            $metadata: JSONString,
+            $clientID: ID,
+            $sequenceClientID: ID,
+            $tags: [TagInput!],
+        ) {
+            createArtifact(input: {
+                artifactTypeName: $artifactTypeName,
+                artifactCollectionNames: $artifactCollectionNames,
+                entityName: $entityName,
+                projectName: $projectName,
+                runName: $runName,
+                description: $description,
+                digest: $digest,
+                digestAlgorithm: $digestAlgorithm,
+                aliases: $aliases,
+                metadata: $metadata,
+                clientID: $clientID,
+                sequenceClientID: $sequenceClientID,
+                enableDigestDeduplication: true,
+                tags: $tags,
+            }) {
+                artifact {
+                    id
+                    state
+                    artifactSequence {
+                        id
+                        latestArtifact {
+                            id
+                            versionIndex
+                        }
+                    }
+                }
+            }
+        }
+        """
+    response = service_api.execute_graphql(
+        mutation,
+        {
+            "entityName": entity_name,
+            "projectName": project_name,
+            "runName": run_name,
+            "artifactTypeName": artifact_type_name,
+            "artifactCollectionNames": [artifact_collection_name],
+            "clientID": client_id,
+            "sequenceClientID": sequence_client_id,
+            "digest": digest,
+            "digestAlgorithm": digest_algorithm,
+            "description": description,
+            "aliases": list(aliases or []),
+            "tags": list(tags or []),
+            "metadata": json.dumps(util.make_safe_for_json(metadata))
+            if metadata
+            else None,
+        },
+    )
+    artifact = response["createArtifact"]["artifact"]
+    return artifact, artifact["artifactSequence"].get("latestArtifact")
