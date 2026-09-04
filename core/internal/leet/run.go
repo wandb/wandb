@@ -106,6 +106,11 @@ type Run struct {
 	mediaStore           *MediaStore
 	mediaPane            *MediaPane
 
+	// stepTimes maps history steps to wall-clock time. With linkConsole set,
+	// the selected console line and the charts' crosshair follow each other.
+	stepTimes   stepTimeline
+	linkConsole bool
+
 	// Sidebar animation synchronization.
 	animationMu sync.Mutex
 	animating   bool
@@ -684,6 +689,14 @@ func (r *Run) buildActiveStatus() string {
 	if r.mediaPane.Active() {
 		if label := r.mediaPane.StatusLabel(); label != "" {
 			parts = append(parts, label)
+		}
+	}
+
+	if r.consoleLogsPane.Active() {
+		if r.linkConsole {
+			parts = append(parts, "linked to charts (l to unlink)")
+		} else {
+			parts = append(parts, "l: link to charts")
 		}
 	}
 

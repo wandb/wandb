@@ -218,6 +218,11 @@ func RunKeyBindings() []BindingCategory[Run] {
 					Description: "Link scrubbing: arrow keys scrub all media series in sync (media pane focused)",
 				},
 				{
+					Keys: []string{"l"},
+					Description: "Link console logs and charts: the selected line and the chart " +
+						"crosshair follow each other (logs pane focused)",
+				},
+				{
 					Keys:        []string{"k"},
 					Description: "Toggle media image renderer: ANSI ↔ full-res (media pane focused)",
 				},

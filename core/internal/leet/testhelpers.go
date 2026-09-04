@@ -484,6 +484,8 @@ func (w *Workspace) TestExecutePreloadCmd(runKey string) WorkspaceRunOverviewPre
 // ---- Run bottom bar / sidebar test helpers ----
 
 // TestConsoleLogsPaneActive reports whether the bottom bar has focus.
+func (r *Run) TestMetricsGrid() *MetricsGrid { return r.metricsGrid }
+
 func (r *Run) TestConsoleLogsPaneActive() bool {
 	return r.consoleLogsPane.Active()
 }

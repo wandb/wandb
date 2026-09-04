@@ -86,6 +86,8 @@ func concatenateHistory(messages []HistoryMsg, runPath string) HistoryMsg {
 		for mediaKey, points := range msg.Media {
 			h.Media[mediaKey] = append(h.Media[mediaKey], points...)
 		}
+		h.StepTimes.X = append(h.StepTimes.X, msg.StepTimes.X...)
+		h.StepTimes.Y = append(h.StepTimes.Y, msg.StepTimes.Y...)
 	}
 
 	if len(h.Metrics) == 0 {
