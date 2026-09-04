@@ -1525,11 +1525,6 @@ def parse_artifact_string(v: str) -> tuple[str, str | None, bool]:
     return f"{entity}/{project}/{name_and_alias_or_version}", base_uri, False
 
 
-def _get_max_cli_version() -> str | None:
-    max_cli_version = wandb.api.max_cli_version()
-    return str(max_cli_version) if max_cli_version is not None else None
-
-
 def make_artifact_name_safe(name: str) -> str:
     """Make an artifact name safe for use in artifacts."""
     # artifact names may only contain alphanumeric characters, dashes, underscores, and dots.
