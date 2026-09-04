@@ -2,8 +2,8 @@ import json
 from unittest.mock import Mock
 
 import pytest
-from wandb.apis.public.sweeps import Sweep, _agent_heartbeat
-from wandb.errors import UnsupportedError
+from wandb.apis.public.sweeps import Sweep, _agent_heartbeat, _upsert_sweep
+from wandb.errors import CommError, UnsupportedError
 from wandb.proto import wandb_api_pb2 as apb
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
@@ -124,3 +124,49 @@ def test_agent_heartbeat_raises_sweep_not_found_on_404():
 
 def test_agent_heartbeat_returns_empty_on_non_404_error():
     assert _agent_heartbeat(_api_failing_with(500), "test-agent-id", {}, {}) == []
+
+
+def test_upsert_sweep():
+    api = Mock()
+    api.settings = {"entity": None, "project": None}
+    api._service_api.execute_graphql.return_value = {
+        "upsertSweep": {"sweep": {"name": "test-sweep"}}
+    }
+    sweep_config = {
+        "job": "fake-job:v1",
+        "method": "bayes",
+        "metric": {"name": "loss_metric", "goal": "minimize"},
+        "parameters": {
+            "epochs": {"value": 1},
+            "increment": {"values": [0.1, 0.2, 0.3]},
+        },
+    }
+
+    sweep, warnings = _upsert_sweep(
+        api, sweep_config, prior_runs=["abc", "def"], display_name="test-display-name"
+    )
+
+    assert (sweep, warnings) == ({"name": "test-sweep"}, [])
+    (mutation,), kwargs = api._service_api.execute_graphql.call_args
+    assert "$priorRunsFilters: JSONString" in mutation
+    assert "priorRunsFilters: $priorRunsFilters" in mutation
+    assert (
+        kwargs["variables"]["priorRunsFilters"]
+        == '{"$or": [{"name": "abc"}, {"name": "def"}]}'
+    )
+    assert "$displayName: String" in mutation
+    assert "displayName: $displayName" in mutation
+    assert kwargs["variables"]["displayName"] == "test-display-name"
+
+
+def test_upsert_sweep_does_not_drop_launch_scheduler_on_errors():
+    api = Mock()
+    api.settings = {"entity": None, "project": None}
+    api._service_api.execute_graphql.side_effect = WandbApiFailedError(
+        "could not find launch queue project"
+    )
+
+    with pytest.raises(CommError):
+        _upsert_sweep(api, {"method": "grid", "parameters": {}}, launch_scheduler="{}")
+
+    assert api._service_api.execute_graphql.call_count == 2

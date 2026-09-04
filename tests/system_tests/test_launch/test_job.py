@@ -5,7 +5,7 @@ from unittest import mock
 
 import pytest
 import wandb
-from wandb.apis.public import Api as PublicApi
+from wandb import Api
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.launch.api import LaunchApi
 from wandb.sdk.launch.create_job import _create_job
@@ -15,8 +15,8 @@ from wandb.sdk.launch.git_reference import GitReference
 def test_job_call(user, create_run_queue):
     proj = "TEST_PROJECT"
     queue = "TEST_QUEUE"
-    public_api = PublicApi()
-    internal_api = LaunchApi()
+    public_api = Api()
+    launch_api = LaunchApi()
 
     run = wandb.init(settings=wandb.Settings(project=proj))
 
@@ -26,7 +26,7 @@ def test_job_call(user, create_run_queue):
     job = public_api.job(f"{user}/{proj}/{job_name}")
 
     create_run_queue(
-        internal_api._service_api,
+        launch_api._service_api,
         entity=user,
         project=proj,
         queue_name=queue,
@@ -39,7 +39,7 @@ def test_job_call(user, create_run_queue):
     assert queued_run.entity == user
     assert queued_run.project == proj
 
-    rqi = internal_api.pop_from_run_queue(queue, user, proj)
+    rqi = launch_api.pop_from_run_queue(queue, user, proj)
 
     assert rqi["runSpec"]["job"].split("/")[-1] == f"job-{docker_image}:v0"
     assert rqi["runSpec"]["project"] == proj
@@ -51,8 +51,8 @@ def test_create_job_artifact(runner, user):
     proj = "test-p"
     settings = wandb.Settings(project=proj)
 
-    internal_api = LaunchApi()
-    public_api = PublicApi()
+    launch_api = LaunchApi()
+    public_api = Api()
 
     # create code artifact dir
     source_dir = "./" + tempfile.TemporaryDirectory().name
@@ -70,7 +70,7 @@ def test_create_job_artifact(runner, user):
         f.write("log text")
 
     artifact, action, aliases = _create_job(
-        api=internal_api,
+        api=launch_api,
         path=source_dir,
         project=proj,
         entity=user,
@@ -129,8 +129,8 @@ def test_create_git_job(runner, user, monkeypatch):
     proj = "test-p99999"
     settings = wandb.Settings(project=proj)
 
-    internal_api = LaunchApi()
-    public_api = PublicApi()
+    launch_api = LaunchApi()
+    public_api = Api()
 
     path = "https://username:pword@github.com/wandb/mock-examples-123/blob/commit/path/requirements.txt"
 
@@ -152,7 +152,7 @@ def test_create_git_job(runner, user, monkeypatch):
     monkeypatch.setattr(GitReference, "fetch", mock_fetch_repo)
 
     artifact, action, aliases = _create_job(
-        api=internal_api,
+        api=launch_api,
         path=path,
         entrypoint="python main.py",
         project=proj,
@@ -214,11 +214,11 @@ def test_create_git_job(runner, user, monkeypatch):
 def test_create_job_image(user, image_name):
     proj = "test-p1"
 
-    internal_api = LaunchApi()
-    public_api = PublicApi()
+    launch_api = LaunchApi()
+    public_api = Api()
 
     artifact, action, aliases = _create_job(
-        api=internal_api,
+        api=launch_api,
         path=image_name,
         project=proj,
         entity=user,

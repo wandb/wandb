@@ -7,8 +7,8 @@ from typing import Any
 import pytest
 import wandb
 import wandb.apis
+from wandb.apis.public.sweeps import _validate_config_and_fill_distribution
 from wandb.cli import cli
-from wandb.sdk.internal.internal_api import Api as InternalApi
 
 # Sweep configs used for testing
 SWEEP_CONFIG_GRID: dict[str, Any] = {
@@ -173,14 +173,13 @@ def test_object_dict_config(user, upsert_sweep_spy, sweep_config):
 
 
 def test_minmax_validation():
-    api = InternalApi()
     sweep_config = {
         "name": "My Sweep",
         "method": "random",
         "parameters": {"parameter1": {"min": 0, "max": 1}},
     }
 
-    filled = api._validate_config_and_fill_distribution(sweep_config)
+    filled = _validate_config_and_fill_distribution(sweep_config)
     assert "distribution" in filled["parameters"]["parameter1"]
     assert "int_uniform" == filled["parameters"]["parameter1"]["distribution"]
 
@@ -190,7 +189,7 @@ def test_minmax_validation():
         "parameters": {"parameter1": {"min": 0.0, "max": 1.0}},
     }
 
-    filled = api._validate_config_and_fill_distribution(sweep_config)
+    filled = _validate_config_and_fill_distribution(sweep_config)
     assert "distribution" in filled["parameters"]["parameter1"]
     assert "uniform" == filled["parameters"]["parameter1"]["distribution"]
 
@@ -201,7 +200,7 @@ def test_minmax_validation():
     }
 
     with pytest.raises(ValueError):
-        api._validate_config_and_fill_distribution(sweep_config)
+        _validate_config_and_fill_distribution(sweep_config)
 
 
 def test_add_run_to_existing_sweep(wandb_backend_spy, user):
@@ -214,17 +213,13 @@ def test_add_run_to_existing_sweep(wandb_backend_spy, user):
 
 
 def test_nones_validation():
-    api = InternalApi()
-    filled = api._validate_config_and_fill_distribution(SWEEP_CONFIG_BAYES_NONES)
+    filled = _validate_config_and_fill_distribution(SWEEP_CONFIG_BAYES_NONES)
     assert filled["parameters"]["param1"]["values"] == [None, 1, 2, 3]
     assert filled["parameters"]["param2"]["value"] is None
 
 
 def test_whitespace_parameters():
-    api = InternalApi()
-    filled = api._validate_config_and_fill_distribution(
-        SWEEP_CONFIG_GRID_PARAM_WHITESPACE
-    )
+    filled = _validate_config_and_fill_distribution(SWEEP_CONFIG_GRID_PARAM_WHITESPACE)
     assert filled["parameters"]["param1"]["values"] == [
         "one two",
         "three four",
@@ -235,8 +230,6 @@ def test_whitespace_parameters():
 @pytest.mark.parametrize("stop_method", ["cancel", "stop"])
 def test_sweep_pause(runner, user, mocker, stop_method, monkeypatch):
     with runner.isolated_filesystem():
-        # hack: need to reset the cling between reqs
-        cli._get_cling_api(reset=True)
         sweep_config = {
             "name": f"My Sweep-{stop_method}",
             "method": "grid",
@@ -275,7 +268,6 @@ def test_sweep_pause(runner, user, mocker, stop_method, monkeypatch):
 
 
 def test_sweep_scheduler(runner, user):
-    cli._get_cling_api(reset=True)
     with runner.isolated_filesystem():
         with open("config.json", "w") as f:
             json.dump(
