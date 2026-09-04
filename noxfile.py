@@ -212,13 +212,18 @@ def unit_tests(session: nox.Session) -> None:
 
     install_wandb(session, dev=not is_windows)
 
-    install_timed(
-        session,
+    requirements_args = [
         "-r",
         _requirements_file(session.python),
         # For test_reports:
         "polyfactory",
-    )
+    ]
+    if os.environ.get("WANDB_TEST_WHEEL"):
+        # The compiled requirements contain the complete dependency closure.
+        # Avoid resolving the local project referenced by its extras and
+        # rebuilding it after installing the prebuilt wheel.
+        requirements_args.insert(0, "--no-deps")
+    install_timed(session, *requirements_args)
 
     paths = session.posargs or ["tests/unit_tests"]
 
