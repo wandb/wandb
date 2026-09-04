@@ -118,6 +118,7 @@ func (r *Run) setRunState(state RunState) {
 func (r *Run) handleHistoryMsg(msg HistoryMsg) {
 	defer timeit(r.logger, "Model.handleHistoryMsg")()
 
+	r.stepTimes.add(msg.StepTimes)
 	shouldDraw := r.metricsGrid.ProcessHistory(msg)
 	// Sync even when this call saw nothing new: the store may be shared with
 	// the workspace, whose reader can ingest the same points first.
@@ -239,10 +240,12 @@ func (r *Run) handleRightSidebarMouse(msg tea.MouseMsg, layout Layout) tea.Cmd {
 			r.metricsGrid.clearFocus()
 			r.rightSidebar.StartInspection(adjustedX, mouse.Y, alt)
 			r.adoptChartMouseFocus()
+			r.syncConsoleToSystemMetrics()
 		}
 	case tea.MouseMotionMsg:
 		if m.Button == tea.MouseRight {
 			r.rightSidebar.UpdateInspection(adjustedX, mouse.Y)
+			r.syncConsoleToSystemMetrics()
 		}
 	case tea.MouseReleaseMsg:
 		if m.Button == tea.MouseRight {
@@ -313,10 +316,12 @@ func (r *Run) handleMainContentMouse(msg tea.MouseMsg, layout Layout) tea.Cmd {
 			// visible on the current page.
 			r.metricsGrid.StartInspection(adjustedX, row, col, dims, alt)
 			r.adoptChartMouseFocus()
+			r.syncConsoleToMetrics()
 		}
 	case tea.MouseMotionMsg:
 		if m.Button == tea.MouseRight {
 			r.metricsGrid.UpdateInspection(adjustedX, row, col, dims)
+			r.syncConsoleToMetrics()
 		}
 	case tea.MouseReleaseMsg:
 		if m.Button == tea.MouseRight {
@@ -370,6 +375,12 @@ func (r *Run) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 		if handled, cmd := r.mediaPane.HandleKey(msg); handled {
 			return cmd
 		}
+	case FocusTargetConsoleLogs:
+		if msg.String() == "l" {
+			r.toggleConsoleLink()
+			return nil
+		}
+		defer r.syncChartsToConsole()
 	}
 
 	// Dispatch to key map.
@@ -377,6 +388,60 @@ func (r *Run) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 		return handler(r, msg)
 	}
 	return nil
+}
+
+// toggleConsoleLink links or unlinks the console logs and the charts.
+func (r *Run) toggleConsoleLink() {
+	r.linkConsole = !r.linkConsole
+	if r.linkConsole {
+		r.syncChartsToConsole()
+		return
+	}
+	r.metricsGrid.broadcastEndInspection()
+	r.rightSidebar.metricsGrid.broadcastEndInspection()
+}
+
+// syncChartsToConsole puts a crosshair on the visible charts at the time the
+// selected console line was logged: the system charts by time, the metrics
+// charts at the history step logged nearest to it.
+func (r *Run) syncChartsToConsole() {
+	if !r.linkConsole || !r.consoleLogsPane.Active() {
+		return
+	}
+	t, ok := r.consoleLogs.TimeAt(r.consoleLogsPane.CursorIndex())
+	if !ok {
+		return
+	}
+	if step, ok := r.stepTimes.stepAt(t); ok {
+		r.metricsGrid.broadcastInspectAtDataX(step, "")
+	}
+	r.rightSidebar.metricsGrid.broadcastInspectAtDataX(float64(t.UnixNano()) / 1e9)
+}
+
+// syncConsoleToMetrics selects the console line logged nearest to the
+// inspected step of the focused metrics chart.
+func (r *Run) syncConsoleToMetrics() {
+	if !r.linkConsole {
+		return
+	}
+	step, xAxisMetric, ok := r.metricsGrid.InspectionX()
+	if !ok || xAxisMetric != "" {
+		return
+	}
+	if t, ok := r.stepTimes.timeAt(step); ok {
+		r.consoleLogsPane.SelectIndex(r.consoleLogs.IndexNear(t))
+	}
+}
+
+// syncConsoleToSystemMetrics selects the console line logged nearest to the
+// inspected time of the focused system chart.
+func (r *Run) syncConsoleToSystemMetrics() {
+	if !r.linkConsole {
+		return
+	}
+	if sec, ok := r.rightSidebar.metricsGrid.InspectionX(); ok {
+		r.consoleLogsPane.SelectIndex(r.consoleLogs.IndexNear(unixSeconds(sec)))
+	}
 }
 
 // cleanup releases the run's data-loading resources: it stops the heartbeat
