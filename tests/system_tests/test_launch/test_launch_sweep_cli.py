@@ -101,9 +101,9 @@ def test_launch_sweep_scheduler_resources(user, scheduler_args, msg, create_run_
     job_name = f"{user}/model-registry/{job_artifact.wait().name}"
     run.finish()
 
-    internal_api = LaunchApi()
+    launch_api = LaunchApi()
     create_run_queue(
-        internal_api._service_api,
+        launch_api._service_api,
         entity=user,
         project="model-registry",
         queue_name="q",
