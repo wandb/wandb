@@ -25,6 +25,7 @@ def login(
     timeout: int | None = None,
     verify: bool = True,
     referrer: str | None = None,
+    prompt: bool = True,
     anonymous: DoNotSet = UNSET,
 ) -> bool:
     """Log into W&B.
@@ -51,7 +52,7 @@ def login(
     - The api_key setting in a system or workspace settings file
     - The .netrc file (either ~/.netrc, ~/_netrc or the path specified by the
       NETRC environment variable)
-    - An interactive prompt (if available)
+    - An interactive prompt, if available and `prompt` is True
 
     Args:
         key: The API key to use.
@@ -67,14 +68,19 @@ def login(
             AuthenticationError on failure. This works for API keys as well
             as identity tokens.
         referrer: The referrer to use in the URL login request for analytics.
+        prompt: Whether to ask for an API key interactively when none is
+            configured. If False, this returns False instead and leaves the
+            session and settings unchanged, which makes it a way to check
+            for credentials without blocking.
 
     Returns:
-        bool: If `key` is configured.
+        True if the session has credentials after this call.
 
     Raises:
         AuthenticationError: If the credentials fail verification with
             the server.
-        UsageError: If `api_key` cannot be configured and no tty.
+        UsageError: If no credentials are configured, `prompt` is True and
+            there is no terminal to ask for an API key.
     """
     if anonymous is not UNSET:
         term.termwarn(
@@ -105,6 +111,7 @@ def login(
         timeout=timeout,
         verify=verify,
         referrer=referrer or "models",
+        prompt=prompt,
     )
 
     _update_system_settings(
@@ -144,6 +151,7 @@ def _login(
     timeout: float | None = None,
     verify: bool = False,
     referrer: str = "models",
+    prompt: bool = True,
     update_api_key: bool = True,
     _silent: bool | None = None,
 ) -> tuple[bool, str | None]:
@@ -200,10 +208,11 @@ def _login(
             referrer=referrer,
             input_timeout=timeout,
             verify=verify,
+            prompt=prompt,
         )
 
     wandb_setup.singleton().update_user_settings()
-    if not _silent:
+    if auth is not None and not _silent:
         _print_logged_in_message(settings, host=str(host_url))
 
     if auth is None:
@@ -263,6 +272,7 @@ def _find_or_prompt_for_key(
     referrer: str,
     input_timeout: float | None,
     verify: bool,
+    prompt: bool,
 ) -> wbauth.Auth | None:
     """Log in without an explicit key.
 
@@ -281,12 +291,13 @@ def _find_or_prompt_for_key(
             input_timeout=input_timeout,
             relogin=relogin,
             verify=verify,
+            prompt=prompt,
         )
 
     except TimeoutError:
         timed_out = True
 
-    if not auth:
+    if not auth and prompt:
         if timed_out:
             term.termwarn("W&B disabled due to login timeout.")
             settings.mode = "disabled"

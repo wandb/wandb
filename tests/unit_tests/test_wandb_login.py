@@ -37,6 +37,18 @@ def test_login_no_terminput():
         wandb.login()
 
 
+def test_login_no_prompt_without_credentials():
+    assert wandb.login(prompt=False) is False
+    assert wandb.setup().settings.mode == "online"
+
+
+@pytest.mark.usefixtures("skip_verify_login")
+def test_login_no_prompt_with_env_key(monkeypatch, dummy_api_key):
+    monkeypatch.setenv("WANDB_API_KEY", dummy_api_key)
+
+    assert wandb.login(prompt=False) is True
+
+
 def test_login_timeout_choose(emulated_terminal):
     emulated_terminal.queue_input("3")
 
