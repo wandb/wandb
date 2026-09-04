@@ -684,9 +684,12 @@ func (w *Workspace) handleWorkspaceChunkedBatch(msg WorkspaceChunkedBatchMsg) te
 	for _, sub := range msg.Batch.Msgs {
 		w.handleWorkspaceRecord(run, sub)
 	}
-	w.metricsGrid.drawVisible()
-	if g := w.systemMetrics[msg.RunKey]; g != nil {
-		g.drawVisible()
+	if !msg.Batch.HasMore || time.Since(w.lastDrawAt) >= bootRedrawInterval {
+		w.lastDrawAt = time.Now()
+		w.metricsGrid.drawVisible()
+		if g := w.systemMetrics[msg.RunKey]; g != nil {
+			g.drawVisible()
+		}
 	}
 
 	if msg.Batch.HasMore {
