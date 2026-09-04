@@ -58,36 +58,37 @@ func RetryMostFailures(
 		return retryablehttp.DefaultRetryPolicy(ctx, resp, err)
 	}
 
-	switch resp.StatusCode {
-	case http.StatusBadRequest: // don't retry on 400 bad request
-		return false, nil
-	case http.StatusUnauthorized: // don't retry on 401 unauthorized
-		return false, nil
-	case http.StatusPaymentRequired: // don't retry on 402 payment required
-		return false, nil
-	case http.StatusForbidden: // don't retry on 403 forbidden
-		return false, nil
-	case http.StatusNotFound: // don't retry on 404 not found
-		return false, nil
-	case http.StatusConflict: // don't retry on 409 conflict
-		return false, nil
-	case http.StatusGone: // don't retry on 410 Gone
-		return false, nil
-	case http.StatusRequestEntityTooLarge: // don't retry on 413 Content Too Large
-		return false, nil
-	case http.StatusUnprocessableEntity: // don't retry on 422 Unprocessable Content
-		return false, nil
-	case http.StatusNotImplemented: // don't retry on 501 not implemented
-		return false, nil
+	return RetryableStatus(resp.StatusCode), nil
+}
+
+// RetryableStatus reports whether a request that returned the given HTTP
+// status may succeed if retried.
+//
+// This is the status classification behind RetryMostFailures: most client
+// (4xx) and server (5xx) errors are retryable, except those that mean the
+// request itself can never succeed.
+func RetryableStatus(statusCode int) bool {
+	switch statusCode {
+	case http.StatusBadRequest, // 400
+		http.StatusUnauthorized,          // 401
+		http.StatusPaymentRequired,       // 402
+		http.StatusForbidden,             // 403
+		http.StatusNotFound,              // 404
+		http.StatusConflict,              // 409
+		http.StatusGone,                  // 410
+		http.StatusRequestEntityTooLarge, // 413
+		http.StatusUnprocessableEntity,   // 422
+		http.StatusNotImplemented:        // 501
+		return false
 	}
 
 	// Retry some invalid HTTP codes.
-	if resp.StatusCode == 0 || resp.StatusCode >= 600 {
-		return true, nil
+	if statusCode == 0 || statusCode >= 600 {
+		return true
 	}
 
 	// Retry any other client or server errors.
-	return resp.StatusCode >= 400 && resp.StatusCode <= 599, nil
+	return statusCode >= 400 && statusCode <= 599
 }
 
 func UpsertBucketRetryPolicy(ctx context.Context, resp *http.Response, err error) (bool, error) {
