@@ -1316,6 +1316,58 @@ func (v *OrganizationCoreWeaveOrganizationIDResponse) GetEntity() *OrganizationC
 	return v.Entity
 }
 
+// QueryRunBucketedHistoryProject includes the requested fields of the GraphQL type Project.
+type QueryRunBucketedHistoryProject struct {
+	Run *QueryRunBucketedHistoryProjectRun `json:"run"`
+}
+
+// GetRun returns QueryRunBucketedHistoryProject.Run, and is useful for accessing the field via an interface.
+func (v *QueryRunBucketedHistoryProject) GetRun() *QueryRunBucketedHistoryProjectRun { return v.Run }
+
+// QueryRunBucketedHistoryProjectRun includes the requested fields of the GraphQL type Run.
+type QueryRunBucketedHistoryProjectRun struct {
+	BucketedHistory []interface{} `json:"bucketedHistory"`
+}
+
+// GetBucketedHistory returns QueryRunBucketedHistoryProjectRun.BucketedHistory, and is useful for accessing the field via an interface.
+func (v *QueryRunBucketedHistoryProjectRun) GetBucketedHistory() []interface{} {
+	return v.BucketedHistory
+}
+
+// QueryRunBucketedHistoryResponse is returned by QueryRunBucketedHistory on success.
+type QueryRunBucketedHistoryResponse struct {
+	Project *QueryRunBucketedHistoryProject `json:"project"`
+}
+
+// GetProject returns QueryRunBucketedHistoryResponse.Project, and is useful for accessing the field via an interface.
+func (v *QueryRunBucketedHistoryResponse) GetProject() *QueryRunBucketedHistoryProject {
+	return v.Project
+}
+
+// QueryRunHistoryKeysProject includes the requested fields of the GraphQL type Project.
+type QueryRunHistoryKeysProject struct {
+	Run *QueryRunHistoryKeysProjectRun `json:"run"`
+}
+
+// GetRun returns QueryRunHistoryKeysProject.Run, and is useful for accessing the field via an interface.
+func (v *QueryRunHistoryKeysProject) GetRun() *QueryRunHistoryKeysProjectRun { return v.Run }
+
+// QueryRunHistoryKeysProjectRun includes the requested fields of the GraphQL type Run.
+type QueryRunHistoryKeysProjectRun struct {
+	HistoryKeys *interface{} `json:"historyKeys"`
+}
+
+// GetHistoryKeys returns QueryRunHistoryKeysProjectRun.HistoryKeys, and is useful for accessing the field via an interface.
+func (v *QueryRunHistoryKeysProjectRun) GetHistoryKeys() *interface{} { return v.HistoryKeys }
+
+// QueryRunHistoryKeysResponse is returned by QueryRunHistoryKeys on success.
+type QueryRunHistoryKeysResponse struct {
+	Project *QueryRunHistoryKeysProject `json:"project"`
+}
+
+// GetProject returns QueryRunHistoryKeysResponse.Project, and is useful for accessing the field via an interface.
+func (v *QueryRunHistoryKeysResponse) GetProject() *QueryRunHistoryKeysProject { return v.Project }
+
 // QueryRunInfoProject includes the requested fields of the GraphQL type Project.
 type QueryRunInfoProject struct {
 	Run *QueryRunInfoProjectRun `json:"run"`
@@ -2713,6 +2765,42 @@ type __OrganizationCoreWeaveOrganizationIDInput struct {
 // GetEntityName returns __OrganizationCoreWeaveOrganizationIDInput.EntityName, and is useful for accessing the field via an interface.
 func (v *__OrganizationCoreWeaveOrganizationIDInput) GetEntityName() string { return v.EntityName }
 
+// __QueryRunBucketedHistoryInput is used internally by genqlient
+type __QueryRunBucketedHistoryInput struct {
+	Entity  string   `json:"entity"`
+	Project string   `json:"project"`
+	Run     string   `json:"run"`
+	Specs   []string `json:"specs"`
+}
+
+// GetEntity returns __QueryRunBucketedHistoryInput.Entity, and is useful for accessing the field via an interface.
+func (v *__QueryRunBucketedHistoryInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __QueryRunBucketedHistoryInput.Project, and is useful for accessing the field via an interface.
+func (v *__QueryRunBucketedHistoryInput) GetProject() string { return v.Project }
+
+// GetRun returns __QueryRunBucketedHistoryInput.Run, and is useful for accessing the field via an interface.
+func (v *__QueryRunBucketedHistoryInput) GetRun() string { return v.Run }
+
+// GetSpecs returns __QueryRunBucketedHistoryInput.Specs, and is useful for accessing the field via an interface.
+func (v *__QueryRunBucketedHistoryInput) GetSpecs() []string { return v.Specs }
+
+// __QueryRunHistoryKeysInput is used internally by genqlient
+type __QueryRunHistoryKeysInput struct {
+	Entity  string `json:"entity"`
+	Project string `json:"project"`
+	Run     string `json:"run"`
+}
+
+// GetEntity returns __QueryRunHistoryKeysInput.Entity, and is useful for accessing the field via an interface.
+func (v *__QueryRunHistoryKeysInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __QueryRunHistoryKeysInput.Project, and is useful for accessing the field via an interface.
+func (v *__QueryRunHistoryKeysInput) GetProject() string { return v.Project }
+
+// GetRun returns __QueryRunHistoryKeysInput.Run, and is useful for accessing the field via an interface.
+func (v *__QueryRunHistoryKeysInput) GetRun() string { return v.Run }
+
 // __QueryRunInfoInput is used internally by genqlient
 type __QueryRunInfoInput struct {
 	Entity  string `json:"entity"`
@@ -3959,6 +4047,88 @@ func OrganizationCoreWeaveOrganizationID(
 	}
 
 	data_ = &OrganizationCoreWeaveOrganizationIDResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by QueryRunBucketedHistory.
+const QueryRunBucketedHistory_Operation = `
+query QueryRunBucketedHistory ($entity: String!, $project: String!, $run: String!, $specs: [JSONString!]!) {
+	project(name: $project, entityName: $entity) {
+		run(name: $run) {
+			bucketedHistory(specs: $specs)
+		}
+	}
+}
+`
+
+func QueryRunBucketedHistory(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+	run string,
+	specs []string,
+) (data_ *QueryRunBucketedHistoryResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "QueryRunBucketedHistory",
+		Query:  QueryRunBucketedHistory_Operation,
+		Variables: &__QueryRunBucketedHistoryInput{
+			Entity:  entity,
+			Project: project,
+			Run:     run,
+			Specs:   specs,
+		},
+	}
+
+	data_ = &QueryRunBucketedHistoryResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by QueryRunHistoryKeys.
+const QueryRunHistoryKeys_Operation = `
+query QueryRunHistoryKeys ($entity: String!, $project: String!, $run: String!) {
+	project(name: $project, entityName: $entity) {
+		run(name: $run) {
+			historyKeys
+		}
+	}
+}
+`
+
+func QueryRunHistoryKeys(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+	run string,
+) (data_ *QueryRunHistoryKeysResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "QueryRunHistoryKeys",
+		Query:  QueryRunHistoryKeys_Operation,
+		Variables: &__QueryRunHistoryKeysInput{
+			Entity:  entity,
+			Project: project,
+			Run:     run,
+		},
+	}
+
+	data_ = &QueryRunHistoryKeysResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(

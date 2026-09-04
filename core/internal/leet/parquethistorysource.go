@@ -80,7 +80,9 @@ type ParquetHistorySource struct {
 	readerDone bool
 
 	// reader is the reader for the run history's parquet files.
-	reader historyStepReader
+	reader              historyStepReader
+	graphqlClient       graphql.Client
+	systemMetricsLoaded bool
 
 	// runPath identifies the remote run in messages.
 	runPath string
@@ -105,18 +107,21 @@ func newParquetHistorySource(
 	ctx context.Context,
 	runInfo *RunInfo,
 	reader historyStepReader,
+	graphqlClient graphql.Client,
 	logger *observability.CoreLogger,
 ) *ParquetHistorySource {
 	ctx, cancel := context.WithCancel(ctx)
 
 	return &ParquetHistorySource{
-		logger:       logger,
-		ctx:          ctx,
-		cancel:       cancel,
-		runPath:      fmt.Sprintf("%s/%s/%s", runInfo.entity, runInfo.project, runInfo.runId),
-		maxKnownStep: maxStepFromSummary(runInfo.runSummary),
-		runInfo:      runInfo,
-		reader:       reader,
+		logger:              logger,
+		ctx:                 ctx,
+		cancel:              cancel,
+		runPath:             fmt.Sprintf("%s/%s/%s", runInfo.entity, runInfo.project, runInfo.runId),
+		maxKnownStep:        maxStepFromSummary(runInfo.runSummary),
+		runInfo:             runInfo,
+		reader:              reader,
+		graphqlClient:       graphqlClient,
+		systemMetricsLoaded: graphqlClient == nil,
 	}
 }
 
@@ -190,7 +195,7 @@ func InitializeParquetHistorySource(
 		}
 
 		return InitMsg{
-			Source: newParquetHistorySource(ctx, runInfo, reader, logger),
+			Source: newParquetHistorySource(ctx, runInfo, reader, graphqlClient, logger),
 		}
 	}
 }
@@ -213,6 +218,23 @@ func (s *ParquetHistorySource) Read(
 	hasMore := true
 	numMsgs := 0
 
+	var remoteMetricsCh <-chan []tea.Msg
+	if !s.systemMetricsLoaded && s.graphqlClient != nil {
+		ch := make(chan []tea.Msg, 1)
+		remoteMetricsCh = ch
+		go func() {
+			metrics, err := s.loadRemoteSystemMetrics()
+			if err != nil {
+				s.logger.Warn("parquet history source: failed to load system metrics",
+					"error", err,
+				)
+				ch <- nil
+				return
+			}
+			ch <- metrics
+		}()
+	}
+
 	if s.currentStep == 0 {
 		msgs = append(msgs,
 			RunMsg{
@@ -230,7 +252,6 @@ func (s *ParquetHistorySource) Read(
 	for time.Since(startTime) < maxTimePerChunk && numMsgs < chunkSize {
 		if s.maxKnownStep >= 0 && s.currentStep > s.maxKnownStep {
 			hasMore = false
-			s.readerDone = true
 			break
 		}
 
@@ -243,7 +264,6 @@ func (s *ParquetHistorySource) Read(
 		if len(historySteps) == 0 {
 			if s.maxKnownStep < 0 {
 				hasMore = false
-				s.readerDone = true
 				break
 			}
 			s.currentStep = nextStep
@@ -261,7 +281,6 @@ func (s *ParquetHistorySource) Read(
 
 		if s.maxKnownStep >= 0 && s.currentStep > s.maxKnownStep {
 			hasMore = false
-			s.readerDone = true
 			break
 		}
 	}
@@ -270,7 +289,15 @@ func (s *ParquetHistorySource) Read(
 		msgs = append(msgs, concatenateHistory(histories, s.runPath))
 	}
 
+	if remoteMetricsCh != nil {
+		s.systemMetricsLoaded = true
+		if metrics := <-remoteMetricsCh; len(metrics) > 0 {
+			msgs = append(msgs, metrics...)
+		}
+	}
+
 	if !hasMore {
+		s.readerDone = true
 		msgs = append(msgs, FileCompleteMsg{ExitCode: 0})
 	}
 

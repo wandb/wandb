@@ -1,0 +1,12 @@
+query QueryRunBucketedHistory(
+    $entity: String!,
+    $project: String!,
+    $run: String!,
+    $specs: [JSONString!]!,
+) {
+    project(name: $project, entityName: $entity) {
+        run(name: $run) {
+            bucketedHistory(specs: $specs)
+        }
+    }
+}
