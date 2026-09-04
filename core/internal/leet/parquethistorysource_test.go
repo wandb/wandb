@@ -2,6 +2,7 @@ package leet
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"testing"
@@ -14,6 +15,39 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet"
 )
+
+func historyKeyInfo(keyType string) map[string]any {
+	return map[string]any{
+		"typeCounts": []any{
+			map[string]any{"type": keyType, "count": float64(1)},
+		},
+	}
+}
+
+func stubQueryRunHistoryKeys(
+	t *testing.T,
+	mockGQL *gqlmock.MockClient,
+	keys map[string]any,
+) {
+	t.Helper()
+
+	payload, err := json.Marshal(map[string]any{
+		"project": map[string]any{
+			"run": map[string]any{
+				"historyKeys": map[string]any{
+					"keys":     keys,
+					"lastStep": float64(0),
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("QueryRunHistoryKeys"),
+		string(payload),
+	)
+}
 
 // fakeStepReader is an in-memory historyStepReader.
 type fakeStepReader struct {
@@ -206,14 +240,88 @@ func TestLoadRunInfo(t *testing.T) {
 	assert.Equal(t, int64(1000), maxStepFromSummary(runInfo.runSummary))
 }
 
+func TestParquetHistorySource_LoadRemoteSystemMetricKeys(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		keys      map[string]any
+		want      []string
+		wantEmpty bool
+		wantErr   string
+	}{
+		{
+			name: "numeric system keys only",
+			keys: map[string]any{
+				"system/cpu":          historyKeyInfo("number"),
+				"system.cpu":          historyKeyInfo("number"),
+				"system/gpu.0.gpu":    historyKeyInfo("string"),
+				"system/memory":       historyKeyInfo("number"),
+				"system/network.recv": historyKeyInfo("number"),
+				"loss":                historyKeyInfo("number"),
+			},
+			want: []string{
+				"system/cpu",
+				"system/memory",
+				"system/network.recv",
+			},
+		},
+		{
+			name:      "no system keys",
+			keys:      map[string]any{"loss": historyKeyInfo("number")},
+			wantEmpty: true,
+		},
+		{
+			name:      "empty keys",
+			keys:      map[string]any{},
+			wantEmpty: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			mockGQL := gqlmock.NewMockClient()
+			stubQueryRunHistoryKeys(t, mockGQL, tc.keys)
+
+			source := newParquetHistorySource(
+				t.Context(),
+				testRunInfo(map[string]any{"_step": 0}),
+				&fakeStepReader{steps: []parquet.KeyValueList{{
+					{Key: parquet.StepKey, Value: float64(0)},
+				}}},
+				mockGQL,
+				observability.NewNoOpLogger(),
+			)
+			got, err := source.loadRemoteSystemMetricKeys()
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+				return
+			}
+
+			require.NoError(t, err)
+			if tc.wantEmpty {
+				assert.Empty(t, got)
+				return
+			}
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
 func TestParquetHistorySource_Read_LoadsRemoteSystemMetrics(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
+	stubQueryRunHistoryKeys(t, mockGQL, map[string]any{
+		"system/cpu": historyKeyInfo("number"),
+		"loss":       historyKeyInfo("number"),
+	})
 	mockGQL.StubMatchOnce(
 		gqlmock.WithOpName("QueryRunBucketedHistory"),
 		`{"project":{"run":{"bucketedHistory":[[
 			{"_timestampAvg":1700000000,"system/cpuAvg":42},
 			{"_timestampAvg":1700000060,"system/cpuAvg":55}
-		],[],[],[],[],[],[],[],[],[],[]]}}}`,
+		]]}}}`,
 	)
 	source := newParquetHistorySource(
 		t.Context(),

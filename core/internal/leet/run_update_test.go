@@ -619,11 +619,18 @@ func TestRemoteRun_ParquetHistory_SystemMetricsRender(t *testing.T) {
 
 	mockGQL := gqlmock.NewMockClient()
 	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("QueryRunHistoryKeys"),
+		`{"project":{"run":{"historyKeys":{"keys":{
+			"system/cpu":{"typeCounts":[{"type":"number","count":2}]},
+			"loss":{"typeCounts":[{"type":"number","count":2}]}
+		},"lastStep":0}}}}`,
+	)
+	mockGQL.StubMatchOnce(
 		gqlmock.WithOpName("QueryRunBucketedHistory"),
 		`{"project":{"run":{"bucketedHistory":[[
 			{"_timestampAvg":1700000000,"system/cpuAvg":42},
 			{"_timestampAvg":1700000060,"system/cpuAvg":55}
-		],[],[],[],[],[],[],[],[],[],[]]}}}`,
+		]]}}}`,
 	)
 
 	source := leet.NewTestParquetHistorySource(

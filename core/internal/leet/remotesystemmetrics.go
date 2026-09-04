@@ -12,31 +12,21 @@ import (
 	"github.com/wandb/wandb/core/internal/gql"
 )
 
-// TODO: determine bucket size by chart width
-const remoteMetricsBins = 300
-
-// TODO: determine all system metrics by querying the backend first
-// Use historyKeys query
-// TODO: should we query bucketedHistory individually for each metric?
-var remoteSystemMetricKeys = []string{
-	"system/cpu",
-	"system/memory",
-	"system/memory_percent",
-	"system/memory.used",
-	"system/memory.used_percent",
-	"system/disk",
-	"system/proc.memory.rssMB",
-	"system/proc.memory.percent",
-	"system/proc.memory.availableMB",
-	"system/proc.cpu.threads",
-	"system/network.recv",
-	"system/network.sent",
-}
+const remoteMetricsBins = 500
 
 // loadRemoteSystemMetrics fetches bucketed system-metric history.
 func (s *ParquetHistorySource) loadRemoteSystemMetrics() ([]tea.Msg, error) {
-	specs := make([]string, 0, len(remoteSystemMetricKeys))
-	for _, key := range remoteSystemMetricKeys {
+	// Find all system metrics we want to fetch from the backend.
+	metricKeys, err := s.loadRemoteSystemMetricKeys()
+	if err != nil {
+		return nil, err
+	}
+	if len(metricKeys) == 0 {
+		return nil, nil
+	}
+
+	specs := make([]string, 0, len(metricKeys))
+	for _, key := range metricKeys {
 		spec, err := simplejsonext.MarshalToString(map[string]any{
 			"keys":  []string{key},
 			"bins":  remoteMetricsBins,
@@ -50,6 +40,7 @@ func (s *ParquetHistorySource) loadRemoteSystemMetrics() ([]tea.Msg, error) {
 		specs = append(specs, spec)
 	}
 
+	// Query the backend for system metrics.
 	response, err := gql.QueryRunBucketedHistory(
 		s.ctx,
 		s.graphqlClient,
@@ -65,6 +56,7 @@ func (s *ParquetHistorySource) loadRemoteSystemMetrics() ([]tea.Msg, error) {
 		return nil, fmt.Errorf("remote bucketed system metrics returned no run")
 	}
 
+	// Extract bucketed system metrics by timestamp.
 	metricsByTimestamp := make(map[int64]map[string]float64)
 	timestamps := make([]int64, 0)
 	for _, rawHistory := range response.Project.Run.BucketedHistory {
@@ -122,6 +114,88 @@ func (s *ParquetHistorySource) loadRemoteSystemMetrics() ([]tea.Msg, error) {
 	}
 
 	return metrics, nil
+}
+
+func (s *ParquetHistorySource) loadRemoteSystemMetricKeys() ([]string, error) {
+	response, err := gql.QueryRunHistoryKeys(
+		s.ctx,
+		s.graphqlClient,
+		s.runInfo.entity,
+		s.runInfo.project,
+		s.runInfo.runId,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query remote history keys: %w", err)
+	}
+	if response == nil || response.Project == nil || response.Project.Run == nil {
+		return nil, fmt.Errorf("remote history keys returned no run")
+	}
+	if response.Project.Run.HistoryKeys == nil {
+		return nil, nil
+	}
+
+	return parseRemoteSystemMetricKeys(*response.Project.Run.HistoryKeys)
+}
+
+func parseRemoteSystemMetricKeys(historyKeys any) ([]string, error) {
+	root, ok := historyKeys.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("unexpected history keys type %T", historyKeys)
+	}
+
+	rawKeys, ok := root["keys"].(map[string]any)
+	if !ok {
+		return nil, nil
+	}
+
+	keys := make([]string, 0)
+	for key, rawInfo := range rawKeys {
+		if !isRemoteSystemMetricKey(key) {
+			continue
+		}
+
+		info, ok := rawInfo.(map[string]any)
+		if !ok || !isNumericHistoryKey(info) {
+			continue
+		}
+
+		keys = append(keys, remoteSystemMetricBucketKey(key))
+	}
+
+	slices.Sort(keys)
+	return slices.Compact(keys), nil
+}
+
+func isRemoteSystemMetricKey(key string) bool {
+	return strings.HasPrefix(key, "system/") || strings.HasPrefix(key, "system.")
+}
+
+func remoteSystemMetricBucketKey(key string) string {
+	if strings.HasPrefix(key, "system.") {
+		return "system/" + strings.TrimPrefix(key, "system.")
+	}
+	return key
+}
+
+func isNumericHistoryKey(info map[string]any) bool {
+	typeCounts, ok := info["typeCounts"].([]any)
+	if !ok {
+		return false
+	}
+
+	for _, raw := range typeCounts {
+		entry, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		typeName, _ := entry["type"].(string)
+		if typeName == "number" {
+			return true
+		}
+	}
+
+	return false
 }
 
 func decodeBucketedHistory(value any) ([]any, error) {
