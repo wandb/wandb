@@ -613,6 +613,17 @@ class Settings(BaseModel, validate_assignment=True):
     x_disable_stats: bool = False
     """Flag to disable the collection of system metrics."""
 
+    x_disable_transaction_log_flush: bool = False
+    """Whether to stop flushing run data to the transaction log periodically.
+
+    By default, buffered data is written to the run's `.wandb` file about once
+    a second, less often on slow filesystems, so that tools reading the file
+    see a running run's progress. When disabled, data is written only when a
+    buffer fills or the run finishes.
+
+    <!-- lazydoc-ignore -->
+    """
+
     x_disable_viewer: bool = False
     """Flag to disable the early viewer query.
 
