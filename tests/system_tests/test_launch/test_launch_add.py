@@ -4,8 +4,8 @@ from unittest import mock
 import pytest
 import wandb
 from wandb.apis.public import Api as PublicApi
-from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch._launch_add import launch_add
+from wandb.sdk.launch.api import LaunchApi
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT, LaunchError
 
 
@@ -107,7 +107,7 @@ def test_launch_add_delete_queued_run(
     entry_point = ["python", "/examples/examples/launch/launch-quickstart/train.py"]
     settings = test_settings({"project": LAUNCH_DEFAULT_PROJECT})
 
-    api = InternalApi()
+    api = LaunchApi()
 
     with wandb.init(settings=settings):
         create_run_queue(
@@ -223,7 +223,7 @@ def test_push_to_runqueue_exists(
     }
 
     with wandb.init(settings=wandb.Settings(project=LAUNCH_DEFAULT_PROJECT)):
-        api = wandb.sdk.internal.internal_api.Api()
+        api = LaunchApi()
         create_run_queue(
             api._service_api,
             entity=user,
@@ -246,7 +246,7 @@ def test_push_to_default_runqueue_notexist(
     mocked_fetchable_git_repo,
 ):
     _ = use_local_wandb_backend
-    api = wandb.sdk.internal.internal_api.Api()
+    api = LaunchApi()
     proj = "test_project54"
     uri = "https://github.com/FooBar/examples.git"
     entry_point = ["python", "train.py"]
@@ -294,12 +294,12 @@ def test_push_to_runqueue_old_server(
     settings = test_settings({"project": LAUNCH_DEFAULT_PROJECT})
 
     monkeypatch.setattr(
-        "wandb.sdk.internal.internal_api.Api.push_to_run_queue_by_name",
+        "wandb.sdk.launch.api.LaunchApi.push_to_run_queue_by_name",
         lambda *args: None,
     )
 
     with wandb.init(settings=settings):
-        api = wandb.sdk.internal.internal_api.Api()
+        api = LaunchApi()
 
         create_run_queue(
             api._service_api,
@@ -361,7 +361,7 @@ def test_launch_add_with_priority_to_no_prio_queue_raises(
         return None
 
     monkeypatch.setattr(
-        wandb.sdk.internal.internal_api.Api,
+        LaunchApi,
         "push_to_run_queue_by_name",
         patched_push_to_run_queue_by_name,
     )
@@ -443,7 +443,7 @@ def test_launch_add_template_variables_legacy_push(
     }
     template_variables = {"var1": "a"}
     monkeypatch.setattr(
-        wandb.sdk.internal.internal_api.Api,
+        LaunchApi,
         "push_to_run_queue_by_name",
         lambda *args, **kwargs: None,
     )
@@ -480,7 +480,7 @@ def test_display_updated_runspec(
     proj = "test1"
     entry_point = ["python", "/examples/examples/launch/launch-quickstart/train.py"]
     settings = test_settings({"project": proj})
-    api = InternalApi()
+    api = LaunchApi()
 
     def push_with_drc(
         api, queue_name, launch_spec, template_variables, project_queue, priority
@@ -524,7 +524,7 @@ def test_container_queued_run(monkeypatch, user):
         return {"runQueueItemId": "1"}
 
     monkeypatch.setattr(
-        wandb.sdk.internal.internal_api.Api,
+        LaunchApi,
         "push_to_run_queue_by_name",
         lambda *arg, **kwargs: patched_push_to_run_queue_by_name(*arg, **kwargs),
     )
@@ -543,7 +543,7 @@ def test_job_dne(monkeypatch, user):
         return {"runQueueItemId": "1"}
 
     monkeypatch.setattr(
-        wandb.sdk.internal.internal_api.Api,
+        LaunchApi,
         "push_to_run_queue_by_name",
         lambda *arg, **kwargs: patched_push_to_run_queue_by_name(*arg, **kwargs),
     )

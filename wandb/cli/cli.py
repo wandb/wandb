@@ -27,6 +27,7 @@ import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent
 from wandb.analytics import get_telemetry_recorder
 from wandb.apis import PublicApi
+from wandb.apis.public.sweeps import _sweep_with_runs, _upsert_sweep
 from wandb.cli import beta_sync
 from wandb.errors.links import url_registry
 from wandb.sdk import wandb_setup, wandb_sweep
@@ -35,6 +36,7 @@ from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch import utils as launch_utils
 from wandb.sdk.launch._launch_add import _launch_add
+from wandb.sdk.launch.api import LaunchApi
 from wandb.sdk.launch.errors import ExecutionError, LaunchError
 from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
@@ -1144,25 +1146,21 @@ def launch_sweep(
     resume_id,
     prior_runs,
 ):
-    api = _get_cling_api()
+    api = LaunchApi()
     env = os.environ
-    if not api.is_authenticated:
-        wandb.termlog("Login to W&B to use the sweep feature")
-        ctx.invoke(login, no_offline=True)
-        api = _get_cling_api(reset=True)
 
-    entity = entity or env.get("WANDB_ENTITY") or api.settings("entity")
+    entity = entity or env.get("WANDB_ENTITY") or api.settings["entity"]
     if entity is None:
         wandb.termerror("Must specify entity when using launch")
         return
 
-    project = project or env.get("WANDB_PROJECT") or api.settings("project")
+    project = project or env.get("WANDB_PROJECT") or api.settings["project"]
     if project is None:
         wandb.termerror("A project must be configured when using launch")
         return
 
     # get personal username, not team name or service account, default to entity
-    author = api.viewer().get("username") or entity
+    author = api.viewer.username or entity
 
     # if not sweep_config XOR resume_id
     if not (config or resume_id):
@@ -1204,7 +1202,7 @@ def launch_sweep(
             sweep_config["method"] = settings["method"]
 
     else:  # Resuming an existing sweep
-        found = api.sweep(resume_id, "{}", entity=entity, project=project)
+        found = _sweep_with_runs(api, resume_id, "{}", entity=entity, project=project)
         if not found:
             wandb.termerror(f"Could not find sweep {entity}/{project}/{resume_id}")
             return
@@ -1320,7 +1318,8 @@ def launch_sweep(
         }
     )
 
-    sweep_id, warnings = api.upsert_sweep(
+    sweep_obj, warnings = _upsert_sweep(
+        api,
         sweep_config,
         project=project,
         entity=entity,
@@ -1331,10 +1330,11 @@ def launch_sweep(
         template_variable_values=scheduler_args.get("template_variables"),
     )
     sweep_utils.handle_sweep_config_violations(warnings)
+    sweep_id = sweep_obj["name"]
     # Log nicely formatted sweep information
     styled_id = click.style(sweep_id, fg="yellow")
     wandb.termlog(f"{'Resumed' if resume_id else 'Created'} sweep with ID: {styled_id}")
-    sweep_url = wandb_sweep._get_sweep_url(api, sweep_id)
+    sweep_url = wandb_sweep._get_sweep_url(api, sweep_obj)
     if sweep_url:
         styled_url = click.style(sweep_url, underline=True, fg="blue")
         wandb.termlog(f"View sweep at: {styled_url}")
@@ -1577,7 +1577,7 @@ def launch(
     from wandb.sdk.launch.create_job import _create_job
     from wandb.sdk.launch.utils import _is_git_uri
 
-    api = _get_cling_api()
+    api = LaunchApi()
     telemetry_recorder = get_telemetry_recorder().with_context(
         high_cardinality_attributes={
             "process_context": "launch_cli",
@@ -1618,11 +1618,6 @@ def launch(
 
     if build and queue is None:
         raise LaunchError("Build flag requires a queue to be set")
-
-    try:
-        launch_utils.check_logged_in(api)
-    except Exception:
-        wandb.termerror(f"Error running job: {traceback.format_exc()}")
 
     run_id = config.get("run_id")
 
@@ -1678,8 +1673,7 @@ def launch(
             raise LaunchError("'--set-var' flag requires queue to be set")
         if entity is None:
             entity = launch_utils.get_default_entity(api, config)
-        public_api = PublicApi()
-        runqueue = public_api.run_queue(entity=entity, name=queue)
+        runqueue = api.run_queue(entity=entity, name=queue)
         template_variables = launch_utils.fetch_and_validate_template_variables(
             runqueue, cli_template_vars
         )
@@ -1825,7 +1819,6 @@ def launch_agent(
     if log_file is not None:
         _launch.set_launch_logfile(log_file)
 
-    api = _get_cling_api()
     telemetry_recorder = get_telemetry_recorder().with_context(
         high_cardinality_attributes={
             "process_context": "launch_agent",
@@ -1839,8 +1832,6 @@ def launch_agent(
         raise LaunchError(
             "To launch an agent please specify a queue or a list of queues in the configuration file or cli."
         )
-
-    launch_utils.check_logged_in(api)
 
     wandb.termlog("Starting launch agent ✨")
     try:
@@ -1967,11 +1958,7 @@ def scheduler(
     ctx,
     sweep_id,
 ):
-    api = InternalApi()
-    if not api.is_authenticated:
-        wandb.termlog("Login to W&B to use the sweep scheduler feature")
-        ctx.invoke(login, no_offline=True)
-        api = InternalApi()
+    api = LaunchApi()
 
     telemetry_recorder = get_telemetry_recorder().with_context(
         high_cardinality_attributes={
@@ -2195,7 +2182,7 @@ def create(
     """
     from wandb.sdk.launch.create_job import _create_job
 
-    api = _get_cling_api()
+    api = LaunchApi()
     entity = entity or os.getenv("WANDB_ENTITY") or api.default_entity
     if not entity:
         wandb.termerror("No entity provided, use --entity or set WANDB_ENTITY")
@@ -2254,7 +2241,7 @@ def create(
         msg += f", with aliases: {alias_str}"
 
     wandb.termlog(msg)
-    web_url = util.app_url(api.settings().get("base_url"))
+    web_url = util.app_url(api.settings["base_url"])
     url = click.style(f"{web_url}/{entity}/{project}/jobs", underline=True)
     wandb.termlog(f"View all jobs in project '{project}' here: {url}\n")
 

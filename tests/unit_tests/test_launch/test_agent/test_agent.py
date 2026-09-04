@@ -544,7 +544,12 @@ async def test_agent_fails_sweep_state(mocker, clean_agent):
         assert sweep == "test-sweep-id"
         assert state == "CANCELED"
 
-    mocker.api.set_sweep_state = mock_set_sweep_state
+    mocker.patch(
+        "wandb.apis.public.sweeps._set_sweep_state",
+        lambda api, sweep, state, *, entity, project: mock_set_sweep_state(
+            sweep, entity, project, state
+        ),
+    )
 
     agent = LaunchAgent(
         api=mocker.api,
