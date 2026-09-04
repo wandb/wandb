@@ -222,7 +222,7 @@ def unit_tests(session: nox.Session) -> None:
         # The compiled requirements contain the complete dependency closure.
         # Avoid resolving the local project referenced by its extras and
         # rebuilding it after installing the prebuilt wheel.
-        requirements_args.insert(0, "--no-deps")
+        requirements_args[:0] = ["--no-deps", "--excludes", "wandb"]
     install_timed(session, *requirements_args)
 
     paths = session.posargs or ["tests/unit_tests"]
