@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from abc import abstractmethod
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, TypeAlias
 
 from typing_extensions import override
 
+import wandb
 from wandb import util
 from wandb.sdk.sweeps.run_state import RunState
 from wandb.sdk.sweeps.scheduler.optimizer import (
@@ -25,6 +27,7 @@ if TYPE_CHECKING:
     import optuna
     import optuna.distributions
     import optuna.trial
+    import optuna.pruners
 else:
     optuna = util.get_module(
         "optuna",
@@ -34,6 +37,13 @@ else:
 
 TrialConstructor: TypeAlias = Callable[["optuna.Trial"], dict[str, Any]]
 TerminatorCallback: TypeAlias = Callable[["optuna.Study"], bool]
+
+# optuna's `Study.stop` refuses to run outside an `optimize()` loop, so a
+# sampler that stops the study from `after_trial` -- GridSampler does once the
+# grid is spent -- surfaces as a RuntimeError carrying this text out of
+# `study.tell`. Matching it is the documented ask-and-tell workaround; see
+# https://github.com/optuna/optuna/issues/4121.
+_STOP_OUTSIDE_OPTIMIZE_LOOP = "`Study.stop` is supposed to be invoked inside"
 
 
 @dataclass
@@ -97,7 +107,9 @@ def sweep_parameter_to_distribution(
     - `q_uniform` -> `IntDistribution(min, max, step=q)` when `min`, `max`,
       and `q` are all integers, else `FloatDistribution(min, max, step=q)`
     - `q_log_uniform_values` -> `IntDistribution(min, max, log=True, step=q)`
-      (`q` defaults to 1)
+      (`q` defaults to 1), or `FloatDistribution(min, max, log=True)` with a
+      `termwarn` (dropping `q`) when optuna can't represent it as a
+      log-scale int distribution -- i.e. `q != 1` or `min < 1`
     - a numeric spec with no `distribution` key -> `int_uniform` or `uniform`,
       inferred from the `min`/`max` types as W&B does
 
@@ -141,13 +153,19 @@ def sweep_parameter_to_distribution(
 
     if dist == "q_log_uniform_values":
         # optuna forbids step+log on floats, so this maps to a log-scale int
-        # space.
-        return distributions.IntDistribution(
-            parameter["min"],
-            parameter["max"],
-            log=True,
-            step=int(parameter.get("q", 1)),
-        )
+        # space -- but optuna also rejects IntDistribution(log=True) when
+        # step != 1 or low < 1, so fall back to a (step-less) float space.
+        lo, hi, q = parameter["min"], parameter["max"], parameter.get("q", 1)
+        if q != 1 or lo < 1:
+            wandb.termwarn(
+                "Sweep parameter has a q_log_uniform_values distribution "
+                f"with min={lo!r}, q={q!r} that optuna cannot represent as "
+                "a log-scale int distribution (it requires step=1 and "
+                "min>=1). Converting to a FloatDistribution(log=True) "
+                "instead; q will be ignored."
+            )
+            return distributions.FloatDistribution(lo, hi, log=True)
+        return distributions.IntDistribution(lo, hi, log=True, step=int(q))
 
     raise ValueError(
         f"Sweep distribution {dist!r} has no optuna equivalent and cannot be converted."
@@ -191,6 +209,8 @@ class OptunaOptimizer(Optimizer):
         # full (re)sampled history, but optuna ignores a re-reported step
         # and warns about it, so only steps past this mark are reported.
         self._last_reported_step: dict[str, int] = {}
+        # Set when a sampler asks the study to stop; see `_tell_study`.
+        self._stop_requested = False
 
         super().__init__(sweep)
 
@@ -198,6 +218,84 @@ class OptunaOptimizer(Optimizer):
     def _is_multi_objective(self) -> bool:
         """Whether the study optimizes more than one objective."""
         return len(self.study.directions) > 1
+
+    def _tell_study(
+        self,
+        trial: optuna.Trial,
+        values: Any = None,
+        *,
+        state: optuna.trial.TrialState,
+    ) -> None:
+        """Finalize a trial, absorbing a sampler's request to stop the study.
+
+        optuna records the trial's outcome before running the sampler's
+        `after_trial` hook, so the outcome is already durable when a stop
+        request surfaces from it. Letting that escape would fail the tell for
+        a run the study accepted, and the scheduler would retire the run as a
+        tell error. The request is remembered instead, so the next ask
+        reports the search as exhausted.
+
+        Args:
+            trial: The live trial to finalize.
+            values: The trial's objective value(s), or None if it has none.
+            state: The terminal state to record the trial in.
+
+        Raises:
+            RuntimeError: Any error from `after_trial` other than a sampler
+                asking the study to stop.
+        """
+        try:
+            self.study.tell(trial, values, state=state)
+        except RuntimeError as e:
+            if _STOP_OUTSIDE_OPTIMIZE_LOOP not in str(e):
+                raise
+            self._stop_requested = True
+
+    def _search_is_exhausted(self) -> bool:
+        """Whether the study has no unexplored point left to propose.
+
+        A sampler over a finite space does not refuse a further ask: optuna's
+        GridSampler hands out a *duplicate* grid point (warning as it goes)
+        once the grid is spent, so asking again would re-run finished work
+        forever. Samplers over an unbounded space never report exhaustion.
+        """
+        if self._stop_requested:
+            return True
+        # `is_exhausted` is GridSampler's; other samplers don't define it.
+        is_exhausted = getattr(self.study.sampler, "is_exhausted", None)
+        return is_exhausted is not None and bool(is_exhausted(self.study))
+
+    @abstractmethod
+    def _ask_suggestion(self) -> RunSuggestion:
+        """Ask the study for one trial and describe it as a run to start."""
+        ...
+
+    def _track(self, trial: optuna.Trial, params: dict[str, Any]) -> RunSuggestion:
+        """Keep a live trial and describe it to the scheduler.
+
+        The run id is `str(trial.number)`, which is how `tell_run` and
+        `prune_run` find the trial again.
+        """
+        run_id = str(trial.number)
+        self.trials[run_id] = trial
+        return RunSuggestion(config=RunConfig.from_values(params), run_id=run_id)
+
+    @override
+    def ask_n_runs(self, n: int) -> Sequence[RunSuggestion]:
+        """Propose up to `n` runs to start next.
+
+        Returns fewer than `n` -- possibly none, which finishes the sweep --
+        once the study has no unexplored point left to offer.
+
+        Args:
+            n: The maximum number of runs to propose.
+        """
+        suggestions = []
+        for _ in range(n):
+            if self._search_is_exhausted():
+                break
+            suggestions.append(self._ask_suggestion())
+        return suggestions
 
     def metric_names(self) -> list[str]:
         """Return the sweep's objective metric names, in the study's order.
@@ -352,13 +450,13 @@ class OptunaOptimizer(Optimizer):
                 # A run that finished without every objective taught the
                 # search nothing; record a failure rather than telling the
                 # study a missing value.
-                self.study.tell(trial, state=optuna.trial.TrialState.FAIL)
+                self._tell_study(trial, state=optuna.trial.TrialState.FAIL)
             elif self._is_multi_objective:
-                self.study.tell(trial, values, state=state)
+                self._tell_study(trial, values, state=state)
             else:
-                self.study.tell(trial, values[0], state=state)
+                self._tell_study(trial, values[0], state=state)
         elif state == optuna.trial.TrialState.FAIL:
-            self.study.tell(trial, state=state)
+            self._tell_study(trial, state=state)
         else:
             # RUNNING: only intermediate values are reported; the trial is
             # finalized later (on completion/failure) or by prune_run.
@@ -379,7 +477,7 @@ class OptunaOptimizer(Optimizer):
         self._last_reported_step.pop(run_id, None)
         if trial is None:
             return
-        self.study.tell(trial, state=optuna.trial.TrialState.FAIL)
+        self._tell_study(trial, state=optuna.trial.TrialState.FAIL)
 
     @override
     def prune_run(self, run_id: Any, data: RunWithMetrics) -> bool:
@@ -398,7 +496,7 @@ class OptunaOptimizer(Optimizer):
             return False
         if not trial.should_prune():
             return False
-        self.study.tell(trial, state=optuna.trial.TrialState.PRUNED)
+        self._tell_study(trial, state=optuna.trial.TrialState.PRUNED)
         del self.trials[run_id]
         self._last_reported_step.pop(run_id, None)
         return True
@@ -407,26 +505,27 @@ class OptunaOptimizer(Optimizer):
     def tell_existing_active_run(self, data: Run) -> Any:
         """Adopt an in-flight run by recreating a live trial for its params.
 
-        Enqueuing the run's params makes the next ask() (via ask_n_runs, which
-        also handles the imperative conditional branch) return a trial fixed to
-        them. The trial is left RUNNING — not told — so the loop reports its
-        intermediate values for pruning and finalizes it via tell_run when the
-        run completes.
+        Enqueuing the run's params makes the next ask() (via _ask_suggestion,
+        which also handles the imperative conditional branch) return a trial
+        fixed to them. The trial is left RUNNING — not told — so the loop
+        reports its intermediate values for pruning and finalizes it via
+        tell_run when the run completes.
 
         Returns:
-            The trial number to track the run by, or None if the study
-            produced no trial for the enqueued params.
+            The trial number to track the run by.
         """
         self.study.enqueue_trial(data.config.flat_dict())
-        runs = self.ask_n_runs(1)
-        return runs[0].run_id if runs else None
+        # Asks directly rather than through ask_n_runs: the enqueued params
+        # are fixed, so they cost the search nothing and an exhausted space
+        # must still adopt the run rather than leave it untracked.
+        return self._ask_suggestion().run_id
 
 
 class OptunaDeclarativeOptimizer(OptunaOptimizer):
     """Define-and-run: the space is supplied up front as distributions.
 
     The distributions are known before any trial runs, so the sweep is built
-    directly from them and `ask_n_runs` samples by passing them to `study.ask`.
+    directly from them and each ask passes them to `study.ask`.
     """
 
     @override
@@ -441,19 +540,10 @@ class OptunaDeclarativeOptimizer(OptunaOptimizer):
         super().__init__(study, sweep, terminator)
 
     @override
-    def ask_n_runs(self, n: int) -> Sequence[RunSuggestion]:
-        """Sample `n` trials from the declared distributions."""
-        suggestions = []
-        for _ in range(n):
-            trial = self.study.ask(self.distributions)
-            self.trials[str(trial.number)] = trial
-            suggestions.append(
-                RunSuggestion(
-                    config=RunConfig.from_values(trial.params),
-                    run_id=str(trial.number),
-                )
-            )
-        return suggestions
+    def _ask_suggestion(self) -> RunSuggestion:
+        """Sample one trial from the declared distributions."""
+        trial = self.study.ask(self.distributions)
+        return self._track(trial, trial.params)
 
     @override
     def tell_existing_finished_run(self, data: RunWithMetrics) -> None:
@@ -490,7 +580,7 @@ class OptunaImperativeOptimizer(OptunaOptimizer):
 
     The constructor's `trial.suggest_*` calls implicitly define the space. We
     run it once against a throwaway trial to record the distributions, build the
-    sweep from them, then re-run it for real suggestions in `ask_n_runs`.
+    sweep from them, then re-run it on each ask for real suggestions.
     """
 
     @override
@@ -505,22 +595,11 @@ class OptunaImperativeOptimizer(OptunaOptimizer):
         super().__init__(study, sweep, terminator)
 
     @override
-    def ask_n_runs(self, n: int) -> Sequence[RunSuggestion]:
-        """Sample `n` trials, running the constructor on each."""
-        suggestions = []
-        for _ in range(n):
-            trial = self.study.ask()
-            # A define-by-run constructor returns the flat {param: value}
-            # mapping.
-            params = self.trial_constructor(trial)
-            self.trials[str(trial.number)] = trial
-            # run_id is str(trial.number), so tell_run can look up the trial.
-            suggestions.append(
-                RunSuggestion(
-                    config=RunConfig.from_values(params), run_id=str(trial.number)
-                )
-            )
-        return suggestions
+    def _ask_suggestion(self) -> RunSuggestion:
+        """Sample one trial, running the constructor to define its params."""
+        trial = self.study.ask()
+        # A define-by-run constructor returns the flat {param: value} mapping.
+        return self._track(trial, self.trial_constructor(trial))
 
     @override
     def tell_existing_finished_run(self, data: RunWithMetrics) -> None:
@@ -539,11 +618,14 @@ class OptunaImperativeOptimizer(OptunaOptimizer):
             and self._objective_values(data.summary_metrics) is None
         ):
             return
-        self.study.enqueue_trial(data.config.flat_dict(), skip_if_exists=True)
-        suggestions = list(self.ask_n_runs(1))
-        if not suggestions:
-            return
-        self.tell_run(suggestions[0].run_id, data)
+        # Never skip_if_exists: two prior runs can share a config, and a
+        # skipped enqueue would leave ask() free to sample a fresh point that
+        # then gets told this run's result -- teaching the study a value the
+        # params never produced. Repeated params are a faithful warm start.
+        self.study.enqueue_trial(data.config.flat_dict())
+        # Asks directly rather than through ask_n_runs, as the enqueued params
+        # are fixed and so cost an exhausted space nothing.
+        self.tell_run(self._ask_suggestion().run_id, data)
 
 
 # ---------------------------------------------------------------------------
@@ -556,6 +638,40 @@ class OptunaImperativeOptimizer(OptunaOptimizer):
 # ---------------------------------------------------------------------------
 
 
+def _hyperband_resources_from_config(
+    prune_cfg: dict[str, Any],
+) -> tuple[int, str | int]:
+    """Map W&B hyperband `early_terminate` keys onto HyperbandPruner resources.
+
+    W&B brackets grow from `min_iter` or shrink from `max_iter` and `s`; Optuna
+    needs the smallest bracket step as `min_resource` and the iteration budget
+    as `max_resource`. When only `min_iter` is set, `max_resource` is left to
+    Optuna's `"auto"` because the sweep config does not cap iterations.
+
+    `max_iter` takes precedence when both `max_iter` and `min_iter` are set.
+    """
+    eta = prune_cfg.get("eta", 3)
+
+    if "max_iter" in prune_cfg:
+        max_iter = prune_cfg["max_iter"]
+        band = max_iter
+        bands: list[int] = []
+        for _ in range(prune_cfg["s"]):
+            band /= eta
+            if band < 1:
+                break
+            bands.append(int(band))
+        if not bands:
+            raise ValueError(
+                "Hyperband early_terminate produced no brackets; try increasing "
+                "s, decreasing eta, or increasing max_iter."
+            )
+        return min(bands), max_iter
+
+    # min_iter is guaranteed by Sweep validation
+    return prune_cfg.get("min_iter", 1), "auto"
+
+
 def create_study_from_sweep_config(config: dict[str, Any]) -> optuna.Study:
     """Build an optuna study from a sweep config's metric objective(s).
 
@@ -565,11 +681,21 @@ def create_study_from_sweep_config(config: dict[str, Any]) -> optuna.Study:
     `config["metric"]["goal"]`.
     """
     metrics = config.get("metrics")
+    prune_cfg = config.get("early_terminate")
+    if prune_cfg is not None and prune_cfg.get("type", "hyperband") == "hyperband":
+        min_resource, max_resource = _hyperband_resources_from_config(prune_cfg)
+        pruner = optuna.pruners.HyperbandPruner(
+            min_resource=min_resource,
+            max_resource=max_resource,
+            reduction_factor=prune_cfg.get("eta", 3),
+        )
+    else:
+        pruner = optuna.pruners.NopPruner()
     if metrics is not None:
         directions = [str(metric.get("goal", "minimize")).lower() for metric in metrics]
-        return optuna.create_study(directions=directions)
+        return optuna.create_study(directions=directions, pruner=pruner)
     goal = (config.get("metric") or {}).get("goal", "minimize")
-    return optuna.create_study(direction=goal)
+    return optuna.create_study(direction=goal, pruner=pruner)
 
 
 def make_optimizer(

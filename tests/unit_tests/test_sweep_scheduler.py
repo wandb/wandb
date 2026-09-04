@@ -155,21 +155,29 @@ class OptimizerAcceptanceTests(abc.ABC):
                 suggestions[0],
                 state=RunState.FINISHED,
                 summary={"loss": 6.0},
-                history=[{"loss": 10.0}, {"loss": 6.0}, {"loss": 6.0}],
+                history=[
+                    {"loss": 10.0, "_step": 0},
+                    {"loss": 6.0, "_step": 1},
+                    {"loss": 6.0, "_step": 2},
+                ],
             ),
         )
         worst_running = make_run(
             suggestions[1],
             state=RunState.RUNNING,
             summary={"loss": 10.0},
-            history=[{"loss": 10.0}, {"loss": 10.0}],
+            history=[{"loss": 10.0, "_step": 0}, {"loss": 10.0, "_step": 1}],
         )
         loss = self.better_running_loss
         better_running = make_run(
             suggestions[2],
             state=RunState.RUNNING,
             summary={"loss": loss},
-            history=[{"loss": 10.0}, {"loss": loss}, {"loss": loss}],
+            history=[
+                {"loss": 10.0, "_step": 0},
+                {"loss": loss, "_step": 1},
+                {"loss": loss, "_step": 2},
+            ],
         )
         optimizer.tell_run(suggestions[1].run_id, worst_running)
         optimizer.tell_run(suggestions[2].run_id, better_running)
@@ -194,7 +202,10 @@ class OptimizerAcceptanceTests(abc.ABC):
                 suggestion,
                 state=RunState.RUNNING,
                 summary={"loss": float(10 * (i + 1))},
-                history=[{"loss": float(10 * (i + 1))}] * 2,
+                history=[
+                    {"loss": float(10 * (i + 1)), "_step": 0},
+                    {"loss": float(10 * (i + 1)), "_step": 1},
+                ],
             )
             optimizer.tell_run(suggestion.run_id, run)
             runs.append(run)
