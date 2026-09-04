@@ -2872,8 +2872,8 @@ def get(path, root, type):
             settings_entity = public_api.settings["entity"] or public_api.default_entity
             # Registry artifacts are under the org entity. Because we offer a shorthand and alias for this path,
             # we need to fetch the org entity to for the user behind the scenes.
-            entity = InternalApi()._resolve_org_entity_name(
-                entity=settings_entity, organization=organization
+            entity = public_api._resolve_org_entity_name(
+                non_org_entity=settings_entity, org_or_entity=organization
             )
         full_path = f"{entity}/{project}/{artifact_name}:{version}"
         wandb.termlog(
