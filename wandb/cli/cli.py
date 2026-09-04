@@ -27,14 +27,12 @@ import wandb.errors
 import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent
 from wandb.analytics import get_telemetry_recorder
-from wandb.apis import PublicApi
-from wandb.apis.public.sweeps import _sweep_with_runs, _upsert_sweep
+from wandb.apis.public.sweeps import _set_sweep_state, _sweep_with_runs, _upsert_sweep
 from wandb.cli import beta_sync
 from wandb.errors.links import url_registry
 from wandb.sdk import wandb_setup, wandb_sweep
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
-from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch import utils as launch_utils
 from wandb.sdk.launch._launch_add import _launch_add
 from wandb.sdk.launch.api import LaunchApi
@@ -178,23 +176,6 @@ def display_error(func):
             raise click_exc.with_traceback(sys.exc_info()[2])
 
     return wrapper
-
-
-_api = None  # caching api instance allows patching from unit tests
-
-
-def _get_cling_api(reset=None):
-    """Get a reference to the internal api with cling settings."""
-    global _api
-    if reset:
-        _api = None
-        wandb.teardown()
-    if _api is None:
-        # TODO(jhr): make a settings object that is better for non runs.
-        # only override the necessary setting
-        wandb_setup.singleton().settings.x_cli_only_mode = True
-        _api = InternalApi()
-    return _api
 
 
 def _configured_api_key() -> str | None:
@@ -908,11 +889,7 @@ def sweep(
         raise Exception("Only one state flag (stop/cancel/pause/resume) is allowed.")
     elif is_state_change_command == 1:
         sweep_id = config_yaml_or_sweep_id
-        api = _get_cling_api()
-        if not api.is_authenticated:
-            wandb.termlog("Login to W&B to use the sweep feature")
-            ctx.invoke(login, no_offline=True)
-            api = _get_cling_api(reset=True)
+        api = wandb.Api()
         parts = dict(entity=entity, project=project, name=sweep_id)
         err = sweep_utils.parse_sweep_id(parts)
         if err:
@@ -929,7 +906,8 @@ def sweep(
             "resume": "Resuming",
         }
         wandb.termlog(f"{ings[state]} sweep {entity}/{project}/{sweep_id}")
-        api.set_sweep_state(
+        _set_sweep_state(
+            api,
             sweep_id,
             {
                 "stop": "FINISHED",
@@ -961,11 +939,7 @@ def sweep(
         wandb.termwarn("Unable to parse settings parameter", repeat=False)
         return ret
 
-    api = _get_cling_api()
-    if not api.is_authenticated:
-        wandb.termlog("Login to W&B to use the sweep feature")
-        ctx.invoke(login, no_offline=True)
-        api = _get_cling_api(reset=True)
+    api = wandb.Api()
 
     sweep_obj_id = None
     if update:
@@ -978,8 +952,8 @@ def sweep(
         project = parts.get("project") or project
         sweep_id = parts.get("name") or update
 
-        has_project = (project or api.settings("project")) is not None
-        has_entity = (entity or api.settings("entity")) is not None
+        has_project = (project or api.settings["project"]) is not None
+        has_entity = (entity or api.settings["entity"]) is not None
 
         termerror_msg = (
             "Sweep lookup requires a valid %s, and none was specified. \n"
@@ -996,7 +970,7 @@ def sweep(
             wandb.termerror(termerror_msg % (("project",) * 2))
             return
 
-        found = api.sweep(sweep_id, "{}", entity=entity, project=project)
+        found = _sweep_with_runs(api, sweep_id, "{}", entity=entity, project=project)
         if not found:
             wandb.termerror(f"Could not find sweep {entity}/{project}/{sweep_id}")
             return
@@ -1035,17 +1009,18 @@ def sweep(
         entity
         or env.get("WANDB_ENTITY")
         or config.get("entity")
-        or api.settings("entity")
+        or api.settings["entity"]
     )
     project = (
         project
         or env.get("WANDB_PROJECT")
         or config.get("project")
-        or api.settings("project")
+        or api.settings["project"]
         or util.auto_project_name(config.get("program"))
     )
 
-    sweep_id, warnings = api.upsert_sweep(
+    sweep_obj, warnings = _upsert_sweep(
+        api,
         config,
         project=project,
         entity=entity,
@@ -1053,12 +1028,13 @@ def sweep(
         prior_runs=prior_runs,
     )
     sweep_utils.handle_sweep_config_violations(warnings)
+    sweep_id = sweep_obj["name"]
 
     # Log nicely formatted sweep information
     styled_id = click.style(sweep_id, fg="yellow")
     wandb.termlog(f"{action} sweep with ID: {styled_id}")
 
-    sweep_url = wandb_sweep._get_sweep_url(api, sweep_id)
+    sweep_url = wandb_sweep._get_sweep_url(api, sweep_obj)
     if sweep_url:
         styled_url = click.style(sweep_url, underline=True, fg="blue")
         wandb.termlog(f"View sweep at: {styled_url}")
@@ -1246,11 +1222,11 @@ def launch_sweep(
         return
 
     # validate training job existence
-    if not sweep_utils.check_job_exists(PublicApi(), sweep_config.get("job")):
+    if not sweep_utils.check_job_exists(wandb.Api(), sweep_config.get("job")):
         return False
 
     # validate scheduler job existence, if present
-    if not sweep_utils.check_job_exists(PublicApi(), scheduler_job):
+    if not sweep_utils.check_job_exists(wandb.Api(), scheduler_job):
         return False
 
     # Set run overrides for the Scheduler
@@ -1908,12 +1884,6 @@ def agent(ctx, project, entity, count, forward_signals, term_timeout, sweep_id):
 
         $ wandb agent --forward-signals wbyz9876
     """
-    api = _get_cling_api()
-    if not api.is_authenticated:
-        wandb.termlog("Login to W&B to use the sweep agent feature")
-        ctx.invoke(login, no_offline=True)
-        api = _get_cling_api(reset=True)
-
     wandb.termlog("Starting wandb agent 🕵️")
     try:
         wandb_agent.agent(
@@ -2004,7 +1974,7 @@ def job() -> None:
 )
 def _list(project, entity):
     wandb.termlog(f"Listing jobs in {entity}/{project}")
-    public_api = PublicApi()
+    public_api = wandb.Api()
     try:
         jobs = public_api.list_jobs(entity=entity, project=project)
     except wandb.errors.CommError as e:
@@ -2036,7 +2006,7 @@ def _list(project, entity):
 )
 @click.argument("job")
 def describe(job):
-    public_api = PublicApi()
+    public_api = wandb.Api()
     try:
         job = public_api.job(name=job)
     except wandb.errors.CommError as e:
@@ -2763,7 +2733,7 @@ def put(
     """
     if name is None:
         name = os.path.basename(path)
-    public_api = PublicApi()
+    public_api = wandb.Api()
     entity, project, artifact_name = public_api._parse_artifact_path(name)
     if project is None:
         project = click.prompt("Enter the name of the project you want to use")
@@ -2832,7 +2802,7 @@ def get(path, root, type):
 
         $ wandb artifact get --root ./data team-awesome/foobar/processed-training-set:v2
     """
-    public_api = PublicApi()
+    public_api = wandb.Api()
     entity, project, artifact_name = public_api._parse_artifact_path(path)
     if project is None:
         project = click.prompt("Enter the name of the project you want to use")
@@ -2888,7 +2858,7 @@ def ls(path, type):
 
         $ wandb artifact ls --type model team-awesome/foobar
     """
-    public_api = PublicApi()
+    public_api = wandb.Api()
     if type is not None:
         types = [public_api.artifact_type(type, path)]
     else:
