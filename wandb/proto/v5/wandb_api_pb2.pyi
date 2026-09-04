@@ -1,3 +1,4 @@
+from google.protobuf import timestamp_pb2 as _timestamp_pb2
 from wandb.proto import wandb_internal_pb2 as _wandb_internal_pb2
 from wandb.proto import wandb_otel_pb2 as _wandb_otel_pb2
 from wandb.proto import wandb_settings_pb2 as _wandb_settings_pb2
@@ -33,7 +34,7 @@ class ServerApiInitResponse(_message.Message):
     def __init__(self, error_message: _Optional[str] = ..., api_id: _Optional[str] = ...) -> None: ...
 
 class ApiRequest(_message.Message):
-    __slots__ = ("api_id", "read_run_history_request", "features_request", "graphql_request", "download_file_request", "upload_file_request", "mark_run_files_uploaded_request", "stop_run_request", "auth_request", "create_custom_chart_request", "run_queue_operation_request", "open_telemetry_request", "read_run_console_logs_request")
+    __slots__ = ("api_id", "read_run_history_request", "features_request", "graphql_request", "download_file_request", "upload_file_request", "mark_run_files_uploaded_request", "stop_run_request", "auth_request", "create_custom_chart_request", "run_queue_operation_request", "open_telemetry_request", "read_run_console_logs_request", "list_local_runs_request", "read_local_run_request", "read_local_run_history_request", "read_local_run_console_logs_request")
     API_ID_FIELD_NUMBER: _ClassVar[int]
     READ_RUN_HISTORY_REQUEST_FIELD_NUMBER: _ClassVar[int]
     FEATURES_REQUEST_FIELD_NUMBER: _ClassVar[int]
@@ -47,6 +48,10 @@ class ApiRequest(_message.Message):
     RUN_QUEUE_OPERATION_REQUEST_FIELD_NUMBER: _ClassVar[int]
     OPEN_TELEMETRY_REQUEST_FIELD_NUMBER: _ClassVar[int]
     READ_RUN_CONSOLE_LOGS_REQUEST_FIELD_NUMBER: _ClassVar[int]
+    LIST_LOCAL_RUNS_REQUEST_FIELD_NUMBER: _ClassVar[int]
+    READ_LOCAL_RUN_REQUEST_FIELD_NUMBER: _ClassVar[int]
+    READ_LOCAL_RUN_HISTORY_REQUEST_FIELD_NUMBER: _ClassVar[int]
+    READ_LOCAL_RUN_CONSOLE_LOGS_REQUEST_FIELD_NUMBER: _ClassVar[int]
     api_id: str
     read_run_history_request: ReadRunHistoryRequest
     features_request: FeaturesRequest
@@ -60,10 +65,14 @@ class ApiRequest(_message.Message):
     run_queue_operation_request: RunQueueOperationRequest
     open_telemetry_request: _wandb_otel_pb2.OpenTelemetryRequest
     read_run_console_logs_request: ReadRunConsoleLogsRequest
-    def __init__(self, api_id: _Optional[str] = ..., read_run_history_request: _Optional[_Union[ReadRunHistoryRequest, _Mapping]] = ..., features_request: _Optional[_Union[FeaturesRequest, _Mapping]] = ..., graphql_request: _Optional[_Union[GraphQLRequest, _Mapping]] = ..., download_file_request: _Optional[_Union[DownloadFileRequest, _Mapping]] = ..., upload_file_request: _Optional[_Union[UploadFileRequest, _Mapping]] = ..., mark_run_files_uploaded_request: _Optional[_Union[MarkRunFilesUploadedRequest, _Mapping]] = ..., stop_run_request: _Optional[_Union[StopRunRequest, _Mapping]] = ..., auth_request: _Optional[_Union[AuthRequest, _Mapping]] = ..., create_custom_chart_request: _Optional[_Union[CreateCustomChartRequest, _Mapping]] = ..., run_queue_operation_request: _Optional[_Union[RunQueueOperationRequest, _Mapping]] = ..., open_telemetry_request: _Optional[_Union[_wandb_otel_pb2.OpenTelemetryRequest, _Mapping]] = ..., read_run_console_logs_request: _Optional[_Union[ReadRunConsoleLogsRequest, _Mapping]] = ...) -> None: ...
+    list_local_runs_request: ListLocalRunsRequest
+    read_local_run_request: ReadLocalRunRequest
+    read_local_run_history_request: ReadLocalRunHistoryRequest
+    read_local_run_console_logs_request: ReadLocalRunConsoleLogsRequest
+    def __init__(self, api_id: _Optional[str] = ..., read_run_history_request: _Optional[_Union[ReadRunHistoryRequest, _Mapping]] = ..., features_request: _Optional[_Union[FeaturesRequest, _Mapping]] = ..., graphql_request: _Optional[_Union[GraphQLRequest, _Mapping]] = ..., download_file_request: _Optional[_Union[DownloadFileRequest, _Mapping]] = ..., upload_file_request: _Optional[_Union[UploadFileRequest, _Mapping]] = ..., mark_run_files_uploaded_request: _Optional[_Union[MarkRunFilesUploadedRequest, _Mapping]] = ..., stop_run_request: _Optional[_Union[StopRunRequest, _Mapping]] = ..., auth_request: _Optional[_Union[AuthRequest, _Mapping]] = ..., create_custom_chart_request: _Optional[_Union[CreateCustomChartRequest, _Mapping]] = ..., run_queue_operation_request: _Optional[_Union[RunQueueOperationRequest, _Mapping]] = ..., open_telemetry_request: _Optional[_Union[_wandb_otel_pb2.OpenTelemetryRequest, _Mapping]] = ..., read_run_console_logs_request: _Optional[_Union[ReadRunConsoleLogsRequest, _Mapping]] = ..., list_local_runs_request: _Optional[_Union[ListLocalRunsRequest, _Mapping]] = ..., read_local_run_request: _Optional[_Union[ReadLocalRunRequest, _Mapping]] = ..., read_local_run_history_request: _Optional[_Union[ReadLocalRunHistoryRequest, _Mapping]] = ..., read_local_run_console_logs_request: _Optional[_Union[ReadLocalRunConsoleLogsRequest, _Mapping]] = ...) -> None: ...
 
 class ApiResponse(_message.Message):
-    __slots__ = ("read_run_history_response", "features_response", "graphql_response", "download_file_response", "upload_file_response", "mark_run_files_uploaded_response", "stop_run_response", "auth_response", "create_custom_chart_response", "run_queue_operation_response", "read_run_console_logs_response", "api_error_response")
+    __slots__ = ("read_run_history_response", "features_response", "graphql_response", "download_file_response", "upload_file_response", "mark_run_files_uploaded_response", "stop_run_response", "auth_response", "create_custom_chart_response", "run_queue_operation_response", "read_run_console_logs_response", "list_local_runs_response", "read_local_run_response", "read_local_run_history_response", "read_local_run_console_logs_response", "api_error_response")
     READ_RUN_HISTORY_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     FEATURES_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     GRAPHQL_RESPONSE_FIELD_NUMBER: _ClassVar[int]
@@ -75,6 +84,10 @@ class ApiResponse(_message.Message):
     CREATE_CUSTOM_CHART_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     RUN_QUEUE_OPERATION_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     READ_RUN_CONSOLE_LOGS_RESPONSE_FIELD_NUMBER: _ClassVar[int]
+    LIST_LOCAL_RUNS_RESPONSE_FIELD_NUMBER: _ClassVar[int]
+    READ_LOCAL_RUN_RESPONSE_FIELD_NUMBER: _ClassVar[int]
+    READ_LOCAL_RUN_HISTORY_RESPONSE_FIELD_NUMBER: _ClassVar[int]
+    READ_LOCAL_RUN_CONSOLE_LOGS_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     API_ERROR_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     read_run_history_response: ReadRunHistoryResponse
     features_response: FeaturesResponse
@@ -87,8 +100,12 @@ class ApiResponse(_message.Message):
     create_custom_chart_response: CreateCustomChartResponse
     run_queue_operation_response: RunQueueOperationResponse
     read_run_console_logs_response: ReadRunConsoleLogsResponse
+    list_local_runs_response: ListLocalRunsResponse
+    read_local_run_response: ReadLocalRunResponse
+    read_local_run_history_response: ReadLocalRunHistoryResponse
+    read_local_run_console_logs_response: ReadLocalRunConsoleLogsResponse
     api_error_response: ApiErrorResponse
-    def __init__(self, read_run_history_response: _Optional[_Union[ReadRunHistoryResponse, _Mapping]] = ..., features_response: _Optional[_Union[FeaturesResponse, _Mapping]] = ..., graphql_response: _Optional[_Union[GraphQLResponse, _Mapping]] = ..., download_file_response: _Optional[_Union[DownloadFileResponse, _Mapping]] = ..., upload_file_response: _Optional[_Union[UploadFileResponse, _Mapping]] = ..., mark_run_files_uploaded_response: _Optional[_Union[MarkRunFilesUploadedResponse, _Mapping]] = ..., stop_run_response: _Optional[_Union[StopRunResponse, _Mapping]] = ..., auth_response: _Optional[_Union[AuthResponse, _Mapping]] = ..., create_custom_chart_response: _Optional[_Union[CreateCustomChartResponse, _Mapping]] = ..., run_queue_operation_response: _Optional[_Union[RunQueueOperationResponse, _Mapping]] = ..., read_run_console_logs_response: _Optional[_Union[ReadRunConsoleLogsResponse, _Mapping]] = ..., api_error_response: _Optional[_Union[ApiErrorResponse, _Mapping]] = ...) -> None: ...
+    def __init__(self, read_run_history_response: _Optional[_Union[ReadRunHistoryResponse, _Mapping]] = ..., features_response: _Optional[_Union[FeaturesResponse, _Mapping]] = ..., graphql_response: _Optional[_Union[GraphQLResponse, _Mapping]] = ..., download_file_response: _Optional[_Union[DownloadFileResponse, _Mapping]] = ..., upload_file_response: _Optional[_Union[UploadFileResponse, _Mapping]] = ..., mark_run_files_uploaded_response: _Optional[_Union[MarkRunFilesUploadedResponse, _Mapping]] = ..., stop_run_response: _Optional[_Union[StopRunResponse, _Mapping]] = ..., auth_response: _Optional[_Union[AuthResponse, _Mapping]] = ..., create_custom_chart_response: _Optional[_Union[CreateCustomChartResponse, _Mapping]] = ..., run_queue_operation_response: _Optional[_Union[RunQueueOperationResponse, _Mapping]] = ..., read_run_console_logs_response: _Optional[_Union[ReadRunConsoleLogsResponse, _Mapping]] = ..., list_local_runs_response: _Optional[_Union[ListLocalRunsResponse, _Mapping]] = ..., read_local_run_response: _Optional[_Union[ReadLocalRunResponse, _Mapping]] = ..., read_local_run_history_response: _Optional[_Union[ReadLocalRunHistoryResponse, _Mapping]] = ..., read_local_run_console_logs_response: _Optional[_Union[ReadLocalRunConsoleLogsResponse, _Mapping]] = ..., api_error_response: _Optional[_Union[ApiErrorResponse, _Mapping]] = ...) -> None: ...
 
 class ApiErrorResponse(_message.Message):
     __slots__ = ("message", "error_type", "http_status")
@@ -538,6 +555,126 @@ class ScanRunHistoryCleanup(_message.Message):
 class ScanRunHistoryCleanupResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
+
+class ListLocalRunsRequest(_message.Message):
+    __slots__ = ("wandb_dir",)
+    WANDB_DIR_FIELD_NUMBER: _ClassVar[int]
+    wandb_dir: str
+    def __init__(self, wandb_dir: _Optional[str] = ...) -> None: ...
+
+class ListLocalRunsResponse(_message.Message):
+    __slots__ = ("runs",)
+    RUNS_FIELD_NUMBER: _ClassVar[int]
+    runs: _containers.RepeatedCompositeFieldContainer[LocalRunInfo]
+    def __init__(self, runs: _Optional[_Iterable[_Union[LocalRunInfo, _Mapping]]] = ...) -> None: ...
+
+class LocalRunInfo(_message.Message):
+    __slots__ = ("wandb_file", "run_id", "entity", "project", "display_name", "notes", "tags", "group", "job_type", "sweep_id", "host", "start_time", "offline", "state")
+    WANDB_FILE_FIELD_NUMBER: _ClassVar[int]
+    RUN_ID_FIELD_NUMBER: _ClassVar[int]
+    ENTITY_FIELD_NUMBER: _ClassVar[int]
+    PROJECT_FIELD_NUMBER: _ClassVar[int]
+    DISPLAY_NAME_FIELD_NUMBER: _ClassVar[int]
+    NOTES_FIELD_NUMBER: _ClassVar[int]
+    TAGS_FIELD_NUMBER: _ClassVar[int]
+    GROUP_FIELD_NUMBER: _ClassVar[int]
+    JOB_TYPE_FIELD_NUMBER: _ClassVar[int]
+    SWEEP_ID_FIELD_NUMBER: _ClassVar[int]
+    HOST_FIELD_NUMBER: _ClassVar[int]
+    START_TIME_FIELD_NUMBER: _ClassVar[int]
+    OFFLINE_FIELD_NUMBER: _ClassVar[int]
+    STATE_FIELD_NUMBER: _ClassVar[int]
+    wandb_file: str
+    run_id: str
+    entity: str
+    project: str
+    display_name: str
+    notes: str
+    tags: _containers.RepeatedScalarFieldContainer[str]
+    group: str
+    job_type: str
+    sweep_id: str
+    host: str
+    start_time: _timestamp_pb2.Timestamp
+    offline: bool
+    state: str
+    def __init__(self, wandb_file: _Optional[str] = ..., run_id: _Optional[str] = ..., entity: _Optional[str] = ..., project: _Optional[str] = ..., display_name: _Optional[str] = ..., notes: _Optional[str] = ..., tags: _Optional[_Iterable[str]] = ..., group: _Optional[str] = ..., job_type: _Optional[str] = ..., sweep_id: _Optional[str] = ..., host: _Optional[str] = ..., start_time: _Optional[_Union[_timestamp_pb2.Timestamp, _Mapping]] = ..., offline: bool = ..., state: _Optional[str] = ...) -> None: ...
+
+class ReadLocalRunRequest(_message.Message):
+    __slots__ = ("wandb_file",)
+    WANDB_FILE_FIELD_NUMBER: _ClassVar[int]
+    wandb_file: str
+    def __init__(self, wandb_file: _Optional[str] = ...) -> None: ...
+
+class ReadLocalRunResponse(_message.Message):
+    __slots__ = ("info", "config_json", "summary_json", "environment_json", "last_step", "history_keys", "exit_code")
+    INFO_FIELD_NUMBER: _ClassVar[int]
+    CONFIG_JSON_FIELD_NUMBER: _ClassVar[int]
+    SUMMARY_JSON_FIELD_NUMBER: _ClassVar[int]
+    ENVIRONMENT_JSON_FIELD_NUMBER: _ClassVar[int]
+    LAST_STEP_FIELD_NUMBER: _ClassVar[int]
+    HISTORY_KEYS_FIELD_NUMBER: _ClassVar[int]
+    EXIT_CODE_FIELD_NUMBER: _ClassVar[int]
+    info: LocalRunInfo
+    config_json: str
+    summary_json: str
+    environment_json: str
+    last_step: int
+    history_keys: _containers.RepeatedScalarFieldContainer[str]
+    exit_code: int
+    def __init__(self, info: _Optional[_Union[LocalRunInfo, _Mapping]] = ..., config_json: _Optional[str] = ..., summary_json: _Optional[str] = ..., environment_json: _Optional[str] = ..., last_step: _Optional[int] = ..., history_keys: _Optional[_Iterable[str]] = ..., exit_code: _Optional[int] = ...) -> None: ...
+
+class ReadLocalRunHistoryRequest(_message.Message):
+    __slots__ = ("wandb_file", "keys", "min_step", "max_step", "last")
+    WANDB_FILE_FIELD_NUMBER: _ClassVar[int]
+    KEYS_FIELD_NUMBER: _ClassVar[int]
+    MIN_STEP_FIELD_NUMBER: _ClassVar[int]
+    MAX_STEP_FIELD_NUMBER: _ClassVar[int]
+    LAST_FIELD_NUMBER: _ClassVar[int]
+    wandb_file: str
+    keys: _containers.RepeatedScalarFieldContainer[str]
+    min_step: int
+    max_step: int
+    last: int
+    def __init__(self, wandb_file: _Optional[str] = ..., keys: _Optional[_Iterable[str]] = ..., min_step: _Optional[int] = ..., max_step: _Optional[int] = ..., last: _Optional[int] = ...) -> None: ...
+
+class ReadLocalRunHistoryResponse(_message.Message):
+    __slots__ = ("rows",)
+    ROWS_FIELD_NUMBER: _ClassVar[int]
+    rows: _containers.RepeatedCompositeFieldContainer[LocalHistoryRow]
+    def __init__(self, rows: _Optional[_Iterable[_Union[LocalHistoryRow, _Mapping]]] = ...) -> None: ...
+
+class LocalHistoryRow(_message.Message):
+    __slots__ = ("step", "items")
+    STEP_FIELD_NUMBER: _ClassVar[int]
+    ITEMS_FIELD_NUMBER: _ClassVar[int]
+    step: int
+    items: _containers.RepeatedCompositeFieldContainer[LocalHistoryItem]
+    def __init__(self, step: _Optional[int] = ..., items: _Optional[_Iterable[_Union[LocalHistoryItem, _Mapping]]] = ...) -> None: ...
+
+class LocalHistoryItem(_message.Message):
+    __slots__ = ("key", "value_json")
+    KEY_FIELD_NUMBER: _ClassVar[int]
+    VALUE_JSON_FIELD_NUMBER: _ClassVar[int]
+    key: str
+    value_json: str
+    def __init__(self, key: _Optional[str] = ..., value_json: _Optional[str] = ...) -> None: ...
+
+class ReadLocalRunConsoleLogsRequest(_message.Message):
+    __slots__ = ("wandb_file", "last")
+    WANDB_FILE_FIELD_NUMBER: _ClassVar[int]
+    LAST_FIELD_NUMBER: _ClassVar[int]
+    wandb_file: str
+    last: int
+    def __init__(self, wandb_file: _Optional[str] = ..., last: _Optional[int] = ...) -> None: ...
+
+class ReadLocalRunConsoleLogsResponse(_message.Message):
+    __slots__ = ("lines", "total_lines")
+    LINES_FIELD_NUMBER: _ClassVar[int]
+    TOTAL_LINES_FIELD_NUMBER: _ClassVar[int]
+    lines: _containers.RepeatedCompositeFieldContainer[RunConsoleLogLine]
+    total_lines: int
+    def __init__(self, lines: _Optional[_Iterable[_Union[RunConsoleLogLine, _Mapping]]] = ..., total_lines: _Optional[int] = ...) -> None: ...
 
 class DownloadRunHistoryInit(_message.Message):
     __slots__ = ("entity", "project", "run_id", "download_dir", "require_complete_history")
