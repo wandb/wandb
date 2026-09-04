@@ -136,6 +136,21 @@ func expandedSidebarWidth(terminalWidth int, oppositeVisible bool, frac float64)
 // squeezed to by the fixed panes below it.
 const minFlexMetricsHeight = 5
 
+// fitSidebarWidths drops the right sidebar, then the left one, when together
+// they would leave the main content column narrower than mainDragMinWidth.
+//
+// Visibility preferences and animation state are untouched: only the current
+// layout pass is clamped, so the sidebars come back when the terminal grows.
+func fitSidebarWidths(width, leftW, rightW int) (int, int) {
+	if leftW+rightW <= width-mainDragMinWidth {
+		return leftW, rightW
+	}
+	if leftW <= width-mainDragMinWidth {
+		return leftW, 0
+	}
+	return 0, 0
+}
+
 // fitSidebarFractions clamps sidebar override fractions so both expanded
 // sidebars together leave the main content column its minimum width. Only
 // overridden (non-zero) fractions are adjusted; the golden-ratio defaults
