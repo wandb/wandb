@@ -99,6 +99,7 @@ class Scheduler(ABC):
         import yaml
 
         from wandb.apis.public import Api as PublicApi
+        from wandb.apis.public.sweeps import _sweep_with_runs
 
         self._api = api
         self._public_api = PublicApi()
@@ -116,8 +117,12 @@ class Scheduler(ABC):
 
         # Make sure the provided sweep_id corresponds to a valid sweep
         try:
-            resp = self._api.sweep(
-                sweep_id, "{}", entity=self._entity, project=self._project
+            resp = _sweep_with_runs(
+                self._public_api,
+                sweep_id,
+                "{}",
+                entity=self._entity,
+                project=self._project,
             )
             if resp.get("state") == SchedulerState.CANCELLED.name:
                 self._state = SchedulerState.CANCELLED
@@ -405,15 +410,18 @@ class Scheduler(ABC):
         return bool(self._kwargs.get("image_uri"))
 
     async def _register_agents(self) -> None:
+        from wandb.apis.public.sweeps import _register_agent
+
         tasks = []
-        register_agent = event_loop_thread_exec(self._api.register_agent)
+        register_agent = event_loop_thread_exec(_register_agent)
         for worker_id in range(self._num_workers):
             _logger.debug(f"{LOG_PREFIX}Starting AgentHeartbeat worker ({worker_id})")
             try:
                 worker = register_agent(
+                    self._public_api,
                     f"{socket.gethostname()}-{worker_id}",  # host
                     sweep_id=self._sweep_id,
-                    project_name=self._project,
+                    project=self._project,
                     entity=self._entity,
                 )
                 tasks.append(worker)
@@ -501,9 +509,14 @@ class Scheduler(ABC):
             self.state = SchedulerState.COMPLETED
 
         # check sweep state for completed states, overwrite scheduler state
+        from wandb.apis.public.sweeps import _get_sweep_state
+
         try:
-            sweep_state = self._api.get_sweep_state(
-                self._sweep_id, self._entity, self._project
+            sweep_state = _get_sweep_state(
+                self._public_api,
+                self._sweep_id,
+                entity=self._entity,
+                project=self._project,
             )
         except Exception as e:
             _logger.debug(f"sweep state error: {e}")
@@ -612,9 +625,17 @@ class Scheduler(ABC):
             )
 
     def _set_sweep_state(self, state: str) -> None:
+        from wandb.apis.public.sweeps import _set_sweep_state
+
         wandb.termlog(f"{LOG_PREFIX}Updating sweep state to: {state.lower()}")
         try:
-            self._api.set_sweep_state(sweep=self._sweep_id, state=state)
+            _set_sweep_state(
+                self._public_api,
+                self._sweep_id,
+                state,
+                entity=self._entity,
+                project=self._project,
+            )
         except Exception as e:
             _logger.debug(f"[set_sweep_state] {e}")
 
