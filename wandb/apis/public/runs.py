@@ -55,13 +55,12 @@ from wandb.apis._generated.get_agent_runs import GetAgentRuns
 from wandb.apis.attrs import Attrs
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import SizedPaginator
-from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.apis.public.service_api import ServiceApi
 from wandb.errors import CommError
 from wandb.proto import wandb_api_pb2 as apb
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk import wandb_setup
-from wandb.sdk.internal.internal_api import Api as InternalApi
+from wandb.sdk.artifacts._gqlutils import create_artifact_version, record_artifact_use
 from wandb.sdk.lib import ipython, json_util
 from wandb.sdk.lib.paths import LogicalPath
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
@@ -1506,18 +1505,16 @@ class Run(Attrs):
         Returns:
             An `Artifact` object.
         """
-        api = InternalApi(
-            default_settings={"entity": self.entity, "project": self.project},
-            retry_timedelta=RETRY_TIMEDELTA,
-        )
-        api.set_current_run_id(self.id)
-
         if isinstance(artifact, wandb.Artifact) and not artifact.is_draft():
-            api.use_artifact(
-                artifact.id,
-                use_as=use_as or artifact.name,
+            record_artifact_use(
+                self._service_api,
+                artifact_id=artifact.id,
+                entity_name=self.entity,
+                project_name=self.project,
+                run_name=self.id,
                 artifact_entity_name=artifact.entity,
                 artifact_project_name=artifact.project,
+                use_as=use_as or artifact.name,
             )
             return artifact
         elif isinstance(artifact, wandb.Artifact) and artifact.is_draft():
@@ -1546,12 +1543,6 @@ class Run(Attrs):
         Returns:
             A `Artifact` object.
         """
-        api = InternalApi(
-            default_settings={"entity": self.entity, "project": self.project},
-            retry_timedelta=RETRY_TIMEDELTA,
-        )
-        api.set_current_run_id(self.id)
-
         if not isinstance(artifact, wandb.Artifact):
             raise TypeError("You must pass a wandb.Api().artifact() to use_artifact")
         if artifact.is_draft():
@@ -1566,15 +1557,20 @@ class Run(Attrs):
             raise ValueError("A run can't log an artifact to a different project.")
 
         artifact_collection_name = artifact.source_name.split(":")[0]
-        api.create_artifact(
-            artifact.type,
-            artifact_collection_name,
-            artifact.digest,
+        create_artifact_version(
+            self._service_api,
+            artifact_type_name=artifact.type,
+            artifact_collection_name=artifact_collection_name,
+            digest=artifact.digest,
+            digest_algorithm=artifact.digest_algorithm,
             entity_name=self.entity,
             project_name=self.project,
-            aliases=aliases,
-            tags=tags,
-            digest_algorithm=artifact.digest_algorithm,
+            run_name=self.id,
+            aliases=[
+                {"artifactCollectionName": artifact_collection_name, "alias": alias}
+                for alias in aliases or []
+            ],
+            tags=[{"tagName": tag} for tag in tags or []],
         )
         return artifact
 
