@@ -901,23 +901,27 @@ func (r *Run) ReadLiveBatchCmd(source HistorySource) tea.Cmd {
 	}
 }
 
-// handleRecordsBatch processes a batch of sub-messages and manages redraw + loading flags.
-func (r *Run) handleRecordsBatch(subMsgs []tea.Msg, suppressRedraw bool) []tea.Cmd {
+// handleRecordsBatch processes a batch of sub-messages and redraws the
+// visible charts once at the end. While more chunks are on the way, redraws
+// are rate-limited to bootRedrawInterval.
+func (r *Run) handleRecordsBatch(subMsgs []tea.Msg, hasMore bool) []tea.Cmd {
 	defer timeit(r.logger, "Model.handleRecordsBatch")()
 
 	var cmds []tea.Cmd
 
-	prev := r.suppressDraw
-	r.suppressDraw = suppressRedraw
+	r.suppressDraw = true
 	for _, subMsg := range subMsgs {
 		if cmd := r.handleRecordMsg(subMsg); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
 	}
-	r.suppressDraw = prev
-	if !r.suppressDraw {
-		r.metricsGrid.drawVisible()
+	r.suppressDraw = false
+
+	if hasMore && time.Since(r.lastDrawAt) < bootRedrawInterval {
+		return cmds
 	}
+	r.lastDrawAt = time.Now()
+	r.metricsGrid.drawVisible()
 	r.rightSidebar.metricsGrid.drawVisible()
 
 	return cmds
@@ -944,8 +948,7 @@ func (r *Run) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 
 	r.recordsLoaded += msg.Progress
 
-	// Draw once per boot chunk instead of once per history record.
-	cmds := r.handleRecordsBatch(msg.Msgs, true)
+	cmds := r.handleRecordsBatch(msg.Msgs, msg.HasMore)
 
 	if msg.HasMore {
 		cmds = append(
@@ -982,7 +985,7 @@ func (r *Run) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 // handleBatched handles live drain batches.
 func (r *Run) handleBatched(msg BatchedRecordsMsg) []tea.Cmd {
 	r.logger.Debug(fmt.Sprintf("model: BatchedRecordsMsg received with %d messages", len(msg.Msgs)))
-	cmds := r.handleRecordsBatch(msg.Msgs, true)
+	cmds := r.handleRecordsBatch(msg.Msgs, false)
 	if r.runState != RunStateRunning {
 		return cmds
 	}
