@@ -159,6 +159,7 @@ def run_pytest(
         # which uses auth information from the home directory.
         "HOME": os.environ.get("HOME"),
         "CI": os.environ.get("CI"),
+        "TMPDIR": os.environ.get("TMPDIR"),
     }
 
     # Print 20 slowest tests.
