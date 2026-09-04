@@ -2,10 +2,13 @@ package scheduler_test
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/gqlmock"
@@ -106,7 +109,7 @@ func TestPollPage(t *testing.T) {
 									"state": "running",
 									"config": "{\"param1\": {\"value\": 1}}",
 									"summaryMetrics": "{\"loss\": 0.5}",
-									"sampledHistory": [[{"loss": 1.0}, {"loss": 0.5}]]
+									"sampledHistory": [[{"loss": 1.0, "_step": 0}, {"loss": 0.5, "_step": 1}]]
 								}
 							}
 						]
@@ -130,7 +133,20 @@ func TestPollPage(t *testing.T) {
 	assert.Equal(t, "running", run.State)
 	assert.Equal(t, `{"param1": {"value": 1}}`, run.ConfigJSON)
 	assert.Equal(t, `{"loss": 0.5}`, run.SummaryJSON)
-	assert.JSONEq(t, `[{"loss": 1.0}, {"loss": 0.5}]`, run.HistoryJSON)
+	assert.JSONEq(
+		t,
+		`[{"loss": 1.0, "_step": 0}, {"loss": 0.5, "_step": 1}]`,
+		run.HistoryJSON,
+	)
+
+	// The optimizer's early-terminate/prune policies plot the metric
+	// against _step, so the sampled-history spec must request both
+	// keys or the backend silently omits _step from every row.
+	gqlmock.AssertVariables(
+		t,
+		client.AllRequests()[0],
+		gqlmock.GQLVar("historySpecs", historySpecsWantKeys("loss", "_step")),
+	)
 }
 
 func TestPollPageWithoutMetricSkipsHistory(t *testing.T) {
@@ -181,4 +197,38 @@ func TestPollPageSweepNotFound(t *testing.T) {
 	_, err := api.PollPage(context.Background(), 200, nil, "loss")
 
 	assert.ErrorIs(t, err, scheduler.ErrSweepNotFound)
+}
+
+// historySpecsWantKeys matches a historySpecs variable whose first spec
+// requests exactly the given "keys", in order.
+func historySpecsWantKeys(keys ...string) gomock.Matcher {
+	return &historySpecsKeysMatcher{keys}
+}
+
+type historySpecsKeysMatcher struct {
+	keys []string
+}
+
+func (m *historySpecsKeysMatcher) Matches(x any) bool {
+	specs, ok := x.([]any)
+	if !ok || len(specs) == 0 {
+		return false
+	}
+	specJSON, ok := specs[0].(string)
+	if !ok {
+		return false
+	}
+
+	var spec struct {
+		Keys []string `json:"keys"`
+	}
+	if err := json.Unmarshal([]byte(specJSON), &spec); err != nil {
+		return false
+	}
+
+	return assert.ObjectsAreEqual(m.keys, spec.Keys)
+}
+
+func (m *historySpecsKeysMatcher) String() string {
+	return fmt.Sprintf("has first history spec with keys %v", m.keys)
 }

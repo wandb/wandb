@@ -124,7 +124,7 @@ func (a *SweepAPI) PollPage(
 	var specs []string
 	if metricKey != "" {
 		spec, err := json.Marshal(map[string]any{
-			"keys":    []string{metricKey},
+			"keys":    []string{metricKey, stepKey},
 			"samples": historySampleCount,
 		})
 		if err != nil {
