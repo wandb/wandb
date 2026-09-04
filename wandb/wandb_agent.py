@@ -19,6 +19,7 @@ from typing import Any
 
 import wandb
 from wandb import util
+from wandb.apis.public.sweeps import _agent_heartbeat, _register_agent, _sweep_with_runs
 from wandb.sdk import wandb_login, wandb_setup
 from wandb.sdk.lib import config_util, ipython
 from wandb.sdk.sweeps import SweepNotFoundError
@@ -417,8 +418,6 @@ class Agent:
                     # service process open for all the agent instances and inform_finish when
                     # the run should be marked complete.  This however could require
                     # inform_finish on every run created by this process.
-                    from wandb.sdk.internal.internal_api import Api as InternalApi
-
                     exit_code = 0
                     if isinstance(poll_result, int):
                         exit_code = poll_result
@@ -428,7 +427,7 @@ class Agent:
                     # The agent outlives user jobs, but teardown closes
                     # the service-backed API resources used for the
                     # subsequent heartbeats.
-                    self._api = InternalApi()
+                    self._api = wandb.Api()
 
                     del self._run_processes[run_id]
                     self._last_report_time = None
@@ -457,7 +456,7 @@ class Agent:
         # TODO: catch exceptions, handle errors, show validation warnings, and make more generic
         import yaml
 
-        sweep_obj = self._api.sweep(self._sweep_id, "{}")
+        sweep_obj = _sweep_with_runs(self._api, self._sweep_id, "{}")
         if sweep_obj:
             sweep_yaml = sweep_obj.get("config")
             if sweep_yaml:
@@ -468,7 +467,9 @@ class Agent:
                         self._sweep_command = sweep_command
 
         # TODO: include sweep ID
-        agent = self._api.register_agent(socket.gethostname(), sweep_id=self._sweep_id)
+        agent = _register_agent(
+            self._api, socket.gethostname(), sweep_id=self._sweep_id
+        )
         agent_id = agent["id"]
 
         tier = TerminationTier.NORMAL_EXECUTION
@@ -532,7 +533,7 @@ class Agent:
             return []
 
         try:
-            return self._api.agent_heartbeat(agent_id, {}, run_status)
+            return _agent_heartbeat(self._api, agent_id, {}, run_status)
         except SweepNotFoundError:
             if not self._run_processes:
                 wandb.termerror("Sweep was deleted or agent was not found.")
@@ -628,13 +629,11 @@ class Agent:
 
         if self._function:
             # make sure that each run regenerates setup singleton
-            from wandb.sdk.internal.internal_api import Api as InternalApi
-
             wandb.teardown()
             # The agent outlives user jobs, but teardown closes the
             # service-backed API resources used for the subsequent
             # heartbeats.
-            self._api = InternalApi()
+            self._api = wandb.Api()
             proc = AgentProcess(
                 function=self._function,
                 env=env,
@@ -713,7 +712,6 @@ def run_agent(
     forward_signals=False,
     term_timeout: int | None = None,
 ):
-    from wandb.sdk.internal.internal_api import Api as InternalApi
     from wandb.sdk.launch.sweeps import utils as sweep_utils
 
     parts = dict(entity=entity, project=project, name=sweep_id)
@@ -745,7 +743,7 @@ def run_agent(
     try:
         logger.addHandler(ch)
 
-        api = InternalApi()
+        api = wandb.Api()
         queue = multiprocessing.Queue()
         agent = Agent(
             api,

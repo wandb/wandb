@@ -5,31 +5,32 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 import wandb
-from wandb import env
+from wandb import env, util
 
 from . import wandb_login
 
 if TYPE_CHECKING:
+    from wandb.apis.public import Api
     from wandb.wandb_controller import _WandbController
 
 
-def _get_sweep_url(api, sweep_id):
-    """Return sweep url if we can figure it out."""
-    if api.api_key:
-        if api.settings("entity") is None:
-            viewer = api.viewer()
-            if viewer.get("entity"):
-                api.set_setting("entity", viewer["entity"])
-        project = api.settings("project")
-        if not project:
-            return
-        if api.settings("entity"):
-            return "{base}/{entity}/{project}/sweeps/{sweepid}".format(
-                base=api.app_url,
-                entity=urllib.parse.quote(api.settings("entity")),
-                project=urllib.parse.quote(project),
-                sweepid=urllib.parse.quote(sweep_id),
-            )
+def _get_sweep_url(api: Api, sweep: dict) -> str | None:
+    """Return the sweep's URL if its entity and project are known."""
+    project = sweep.get("project") or {}
+    entity_name = (
+        (project.get("entity") or {}).get("name")
+        or api.settings["entity"]
+        or api.default_entity
+    )
+    project_name = project.get("name") or api.settings["project"]
+    if not (entity_name and project_name):
+        return None
+    return "{base}/{entity}/{project}/sweeps/{sweepid}".format(
+        base=util.app_url(api.settings["base_url"]),
+        entity=urllib.parse.quote(entity_name),
+        project=urllib.parse.quote(project_name),
+        sweepid=urllib.parse.quote(sweep["name"]),
+    )
 
 
 def sweep(
@@ -68,7 +69,7 @@ def sweep(
     Returns:
       str: A unique identifier for the sweep.
     """
-    from wandb.sdk.internal.internal_api import Api as InternalApi
+    from wandb.apis.public.sweeps import _upsert_sweep
     from wandb.sdk.launch.sweeps.utils import handle_sweep_config_violations
 
     if callable(sweep):
@@ -87,11 +88,12 @@ def sweep(
     # Make sure we are logged in
     if wandb.run is None:
         wandb_login._login(_silent=True)
-    api = InternalApi()
-    sweep_id, warnings = api.upsert_sweep(sweep, prior_runs=prior_runs)
+    api = wandb.Api()
+    sweep_obj, warnings = _upsert_sweep(api, sweep, prior_runs=prior_runs)
     handle_sweep_config_violations(warnings)
+    sweep_id = sweep_obj["name"]
     print("Create sweep with ID:", sweep_id)  # noqa: T201
-    sweep_url = _get_sweep_url(api, sweep_id)
+    sweep_url = _get_sweep_url(api, sweep_obj)
     if sweep_url:
         print("Sweep URL:", sweep_url)  # noqa: T201
     return sweep_id
