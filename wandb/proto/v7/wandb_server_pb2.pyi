@@ -2,6 +2,7 @@ from wandb.proto import wandb_api_pb2 as _wandb_api_pb2
 from wandb.proto import wandb_base_pb2 as _wandb_base_pb2
 from wandb.proto import wandb_internal_pb2 as _wandb_internal_pb2
 from wandb.proto import wandb_settings_pb2 as _wandb_settings_pb2
+from wandb.proto import wandb_sweep_scheduler_pb2 as _wandb_sweep_scheduler_pb2
 from wandb.proto import wandb_sync_pb2 as _wandb_sync_pb2
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
@@ -121,7 +122,7 @@ class ServerErrorResponse(_message.Message):
     def __init__(self, message: _Optional[str] = ...) -> None: ...
 
 class ServerRequest(_message.Message):
-    __slots__ = ("request_id", "cancel", "record_publish", "record_communicate", "inform_init", "inform_finish", "inform_attach", "inform_detach", "inform_teardown", "authenticate", "init_sync", "sync", "sync_status", "api_init_request", "api_cleanup_request", "api_request")
+    __slots__ = ("request_id", "cancel", "record_publish", "record_communicate", "inform_init", "inform_finish", "inform_attach", "inform_detach", "inform_teardown", "authenticate", "init_sync", "sync", "sync_status", "api_init_request", "api_cleanup_request", "api_request", "sweep_scheduler_init", "sweep_scheduler_next_task", "sweep_scheduler_stop")
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     CANCEL_FIELD_NUMBER: _ClassVar[int]
     RECORD_PUBLISH_FIELD_NUMBER: _ClassVar[int]
@@ -138,6 +139,9 @@ class ServerRequest(_message.Message):
     API_INIT_REQUEST_FIELD_NUMBER: _ClassVar[int]
     API_CLEANUP_REQUEST_FIELD_NUMBER: _ClassVar[int]
     API_REQUEST_FIELD_NUMBER: _ClassVar[int]
+    SWEEP_SCHEDULER_INIT_FIELD_NUMBER: _ClassVar[int]
+    SWEEP_SCHEDULER_NEXT_TASK_FIELD_NUMBER: _ClassVar[int]
+    SWEEP_SCHEDULER_STOP_FIELD_NUMBER: _ClassVar[int]
     request_id: str
     cancel: ServerCancelRequest
     record_publish: _wandb_internal_pb2.Record
@@ -154,10 +158,13 @@ class ServerRequest(_message.Message):
     api_init_request: _wandb_api_pb2.ServerApiInitRequest
     api_cleanup_request: _wandb_api_pb2.ServerApiCleanupRequest
     api_request: _wandb_api_pb2.ApiRequest
-    def __init__(self, request_id: _Optional[str] = ..., cancel: _Optional[_Union[ServerCancelRequest, _Mapping]] = ..., record_publish: _Optional[_Union[_wandb_internal_pb2.Record, _Mapping]] = ..., record_communicate: _Optional[_Union[_wandb_internal_pb2.Record, _Mapping]] = ..., inform_init: _Optional[_Union[ServerInformInitRequest, _Mapping]] = ..., inform_finish: _Optional[_Union[ServerInformFinishRequest, _Mapping]] = ..., inform_attach: _Optional[_Union[ServerInformAttachRequest, _Mapping]] = ..., inform_detach: _Optional[_Union[ServerInformDetachRequest, _Mapping]] = ..., inform_teardown: _Optional[_Union[ServerInformTeardownRequest, _Mapping]] = ..., authenticate: _Optional[_Union[ServerAuthenticateRequest, _Mapping]] = ..., init_sync: _Optional[_Union[_wandb_sync_pb2.ServerInitSyncRequest, _Mapping]] = ..., sync: _Optional[_Union[_wandb_sync_pb2.ServerSyncRequest, _Mapping]] = ..., sync_status: _Optional[_Union[_wandb_sync_pb2.ServerSyncStatusRequest, _Mapping]] = ..., api_init_request: _Optional[_Union[_wandb_api_pb2.ServerApiInitRequest, _Mapping]] = ..., api_cleanup_request: _Optional[_Union[_wandb_api_pb2.ServerApiCleanupRequest, _Mapping]] = ..., api_request: _Optional[_Union[_wandb_api_pb2.ApiRequest, _Mapping]] = ...) -> None: ...
+    sweep_scheduler_init: _wandb_sweep_scheduler_pb2.SweepSchedulerClientInitRequest
+    sweep_scheduler_next_task: _wandb_sweep_scheduler_pb2.SweepSchedulerClientNextTaskRequest
+    sweep_scheduler_stop: _wandb_sweep_scheduler_pb2.SweepSchedulerClientStopRequest
+    def __init__(self, request_id: _Optional[str] = ..., cancel: _Optional[_Union[ServerCancelRequest, _Mapping]] = ..., record_publish: _Optional[_Union[_wandb_internal_pb2.Record, _Mapping]] = ..., record_communicate: _Optional[_Union[_wandb_internal_pb2.Record, _Mapping]] = ..., inform_init: _Optional[_Union[ServerInformInitRequest, _Mapping]] = ..., inform_finish: _Optional[_Union[ServerInformFinishRequest, _Mapping]] = ..., inform_attach: _Optional[_Union[ServerInformAttachRequest, _Mapping]] = ..., inform_detach: _Optional[_Union[ServerInformDetachRequest, _Mapping]] = ..., inform_teardown: _Optional[_Union[ServerInformTeardownRequest, _Mapping]] = ..., authenticate: _Optional[_Union[ServerAuthenticateRequest, _Mapping]] = ..., init_sync: _Optional[_Union[_wandb_sync_pb2.ServerInitSyncRequest, _Mapping]] = ..., sync: _Optional[_Union[_wandb_sync_pb2.ServerSyncRequest, _Mapping]] = ..., sync_status: _Optional[_Union[_wandb_sync_pb2.ServerSyncStatusRequest, _Mapping]] = ..., api_init_request: _Optional[_Union[_wandb_api_pb2.ServerApiInitRequest, _Mapping]] = ..., api_cleanup_request: _Optional[_Union[_wandb_api_pb2.ServerApiCleanupRequest, _Mapping]] = ..., api_request: _Optional[_Union[_wandb_api_pb2.ApiRequest, _Mapping]] = ..., sweep_scheduler_init: _Optional[_Union[_wandb_sweep_scheduler_pb2.SweepSchedulerClientInitRequest, _Mapping]] = ..., sweep_scheduler_next_task: _Optional[_Union[_wandb_sweep_scheduler_pb2.SweepSchedulerClientNextTaskRequest, _Mapping]] = ..., sweep_scheduler_stop: _Optional[_Union[_wandb_sweep_scheduler_pb2.SweepSchedulerClientStopRequest, _Mapping]] = ...) -> None: ...
 
 class ServerResponse(_message.Message):
-    __slots__ = ("request_id", "result_communicate", "inform_init_response", "inform_finish_response", "inform_attach_response", "inform_detach_response", "inform_teardown_response", "authenticate_response", "init_sync_response", "sync_response", "sync_status_response", "api_init_response", "api_response", "error_response")
+    __slots__ = ("request_id", "result_communicate", "inform_init_response", "inform_finish_response", "inform_attach_response", "inform_detach_response", "inform_teardown_response", "authenticate_response", "init_sync_response", "sync_response", "sync_status_response", "api_init_response", "api_response", "sweep_scheduler_init_response", "sweep_scheduler_next_task_response", "error_response")
     REQUEST_ID_FIELD_NUMBER: _ClassVar[int]
     RESULT_COMMUNICATE_FIELD_NUMBER: _ClassVar[int]
     INFORM_INIT_RESPONSE_FIELD_NUMBER: _ClassVar[int]
@@ -171,6 +178,8 @@ class ServerResponse(_message.Message):
     SYNC_STATUS_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     API_INIT_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     API_RESPONSE_FIELD_NUMBER: _ClassVar[int]
+    SWEEP_SCHEDULER_INIT_RESPONSE_FIELD_NUMBER: _ClassVar[int]
+    SWEEP_SCHEDULER_NEXT_TASK_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     ERROR_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     request_id: str
     result_communicate: _wandb_internal_pb2.Result
@@ -185,5 +194,7 @@ class ServerResponse(_message.Message):
     sync_status_response: _wandb_sync_pb2.ServerSyncStatusResponse
     api_init_response: _wandb_api_pb2.ServerApiInitResponse
     api_response: _wandb_api_pb2.ApiResponse
+    sweep_scheduler_init_response: _wandb_sweep_scheduler_pb2.SweepSchedulerServerInitResponse
+    sweep_scheduler_next_task_response: _wandb_sweep_scheduler_pb2.SweepSchedulerServerNextTaskResponse
     error_response: ServerErrorResponse
-    def __init__(self, request_id: _Optional[str] = ..., result_communicate: _Optional[_Union[_wandb_internal_pb2.Result, _Mapping]] = ..., inform_init_response: _Optional[_Union[ServerInformInitResponse, _Mapping]] = ..., inform_finish_response: _Optional[_Union[ServerInformFinishResponse, _Mapping]] = ..., inform_attach_response: _Optional[_Union[ServerInformAttachResponse, _Mapping]] = ..., inform_detach_response: _Optional[_Union[ServerInformDetachResponse, _Mapping]] = ..., inform_teardown_response: _Optional[_Union[ServerInformTeardownResponse, _Mapping]] = ..., authenticate_response: _Optional[_Union[ServerAuthenticateResponse, _Mapping]] = ..., init_sync_response: _Optional[_Union[_wandb_sync_pb2.ServerInitSyncResponse, _Mapping]] = ..., sync_response: _Optional[_Union[_wandb_sync_pb2.ServerSyncResponse, _Mapping]] = ..., sync_status_response: _Optional[_Union[_wandb_sync_pb2.ServerSyncStatusResponse, _Mapping]] = ..., api_init_response: _Optional[_Union[_wandb_api_pb2.ServerApiInitResponse, _Mapping]] = ..., api_response: _Optional[_Union[_wandb_api_pb2.ApiResponse, _Mapping]] = ..., error_response: _Optional[_Union[ServerErrorResponse, _Mapping]] = ...) -> None: ...
+    def __init__(self, request_id: _Optional[str] = ..., result_communicate: _Optional[_Union[_wandb_internal_pb2.Result, _Mapping]] = ..., inform_init_response: _Optional[_Union[ServerInformInitResponse, _Mapping]] = ..., inform_finish_response: _Optional[_Union[ServerInformFinishResponse, _Mapping]] = ..., inform_attach_response: _Optional[_Union[ServerInformAttachResponse, _Mapping]] = ..., inform_detach_response: _Optional[_Union[ServerInformDetachResponse, _Mapping]] = ..., inform_teardown_response: _Optional[_Union[ServerInformTeardownResponse, _Mapping]] = ..., authenticate_response: _Optional[_Union[ServerAuthenticateResponse, _Mapping]] = ..., init_sync_response: _Optional[_Union[_wandb_sync_pb2.ServerInitSyncResponse, _Mapping]] = ..., sync_response: _Optional[_Union[_wandb_sync_pb2.ServerSyncResponse, _Mapping]] = ..., sync_status_response: _Optional[_Union[_wandb_sync_pb2.ServerSyncStatusResponse, _Mapping]] = ..., api_init_response: _Optional[_Union[_wandb_api_pb2.ServerApiInitResponse, _Mapping]] = ..., api_response: _Optional[_Union[_wandb_api_pb2.ApiResponse, _Mapping]] = ..., sweep_scheduler_init_response: _Optional[_Union[_wandb_sweep_scheduler_pb2.SweepSchedulerServerInitResponse, _Mapping]] = ..., sweep_scheduler_next_task_response: _Optional[_Union[_wandb_sweep_scheduler_pb2.SweepSchedulerServerNextTaskResponse, _Mapping]] = ..., error_response: _Optional[_Union[ServerErrorResponse, _Mapping]] = ...) -> None: ...
