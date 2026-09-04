@@ -121,6 +121,12 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
 
+      # The coverage session still needs Go to process wandb-core's coverage.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.sum
+
       - name: Download wheel
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:

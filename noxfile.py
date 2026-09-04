@@ -76,6 +76,15 @@ def install_wandb(session: nox.Session, dev: bool = True):
     else:
         install_timed(session, "--force-reinstall", package)
 
+    if package != ".":
+        # Pytest imports Python modules from the source tree, so make the
+        # prebuilt wheel's native artifacts available there too.
+        shutil.copytree(
+            site_packages_dir(session) / "wandb" / "bin",
+            pathlib.Path("wandb", "bin"),
+            dirs_exist_ok=True,
+        )
+
 
 def get_session_file_name(session: nox.Session) -> str:
     """Returns the session name transformed to be usable in a file name."""
