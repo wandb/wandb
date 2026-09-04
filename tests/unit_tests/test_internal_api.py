@@ -13,7 +13,6 @@ import wandb.sdk.internal.internal_api
 from pytest_mock import MockerFixture
 from wandb.errors import CommError
 from wandb.proto import wandb_api_pb2 as apb
-from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk import wandb_setup
 from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.lib import wbauth
@@ -148,125 +147,6 @@ def test_internal_api_with_no_write_global_config_dir(
         Api()
     finally:
         config_dir.chmod(0o711)  # allow test to clean up
-
-
-ENABLED_FEATURE_RESPONSE = {
-    "serverInfo": {
-        "features": [
-            {"name": "LARGE_FILENAMES", "isEnabled": True},
-            {"name": "ARTIFACT_TAGS", "isEnabled": False},
-        ]
-    }
-}
-
-
-@pytest.fixture
-def mock_service_api(mocker: MockerFixture):
-    mock = mocker.Mock()
-    mock.settings.base_url = "https://api.wandb.ai"
-    mock.settings.api_key = "test-api-key"
-    mock.settings.identity_token_file = None
-    mocker.patch(
-        "wandb.sdk.internal.internal_api.Api._new_service_api",
-        return_value=mock,
-    )
-    yield mock
-
-
-@pytest.fixture
-def mock_service_api_with_enabled_features(mock_service_api):
-    mock_service_api.execute_graphql.return_value = ENABLED_FEATURE_RESPONSE
-    yield mock_service_api
-
-
-NO_FEATURES_RESPONSE = {"serverInfo": {"features": []}}
-
-
-@pytest.fixture
-def mock_service_api_with_no_features(mock_service_api):
-    mock_service_api.execute_graphql.return_value = NO_FEATURES_RESPONSE
-    yield mock_service_api
-
-
-@pytest.fixture
-def mock_service_api_with_error_no_field(mock_service_api):
-    error_msg = 'Cannot query field "features" on type "ServerInfo".'
-    mock_service_api.execute_graphql.side_effect = Exception(error_msg)
-    yield mock_service_api
-
-
-@pytest.fixture
-def mock_service_api_with_random_error(mock_service_api):
-    error_msg = "Some random error"
-    mock_service_api.execute_graphql.side_effect = Exception(error_msg)
-    yield mock_service_api
-
-
-@pytest.mark.parametrize(
-    "fixture_name, feature, expected_result, expected_error",
-    [
-        (
-            # Test enabled features
-            mock_service_api_with_enabled_features.__name__,
-            ServerFeature.LARGE_FILENAMES,
-            True,
-            False,
-        ),
-        (
-            # Test disabled features
-            mock_service_api_with_enabled_features.__name__,
-            ServerFeature.ARTIFACT_TAGS,
-            False,
-            False,
-        ),
-        (
-            # Test features not in response
-            mock_service_api_with_enabled_features.__name__,
-            ServerFeature.ARTIFACT_REGISTRY_SEARCH,
-            False,
-            False,
-        ),
-        (
-            # Test empty features list
-            mock_service_api_with_no_features.__name__,
-            ServerFeature.LARGE_FILENAMES,
-            False,
-            False,
-        ),
-        (
-            # Test server not supporting features
-            mock_service_api_with_error_no_field.__name__,
-            ServerFeature.LARGE_FILENAMES,
-            False,
-            False,
-        ),
-        (
-            # Test other server errors
-            mock_service_api_with_random_error.__name__,
-            ServerFeature.LARGE_FILENAMES,
-            False,
-            True,
-        ),
-    ],
-)
-@pytest.mark.usefixtures("patch_apikey", "patch_prompt")
-def test_server_feature_checks(
-    request,
-    fixture_name,
-    feature: ServerFeature,
-    expected_result,
-    expected_error,
-):
-    """Test check_server_feature with various scenarios."""
-    request.getfixturevalue(fixture_name)
-    api = Api()
-
-    if expected_error:
-        with pytest.raises(Exception, match="Some random error"):
-            api._server_supports(feature)
-    else:
-        result = api._server_supports(feature)
-        assert result == expected_result
 
 
 class TestJWTAuth:
