@@ -58,9 +58,10 @@ from collections.abc import Callable
 
 import yaml
 
+import wandb
 from wandb import env
+from wandb.apis.public.sweeps import _sweep_with_runs, _upsert_sweep
 from wandb.sdk import wandb_sweep
-from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.sweeps.utils import (
     handle_sweep_config_violations,
     sweep_config_err_text_from_jsonschema_violations,
@@ -192,7 +193,7 @@ class _WandbController:
             env.set_entity(entity, env=environ)
         if project:
             env.set_project(project, env=environ)
-        self._api = InternalApi(environ=environ)
+        self._api = wandb.Api()
 
         if isinstance(sweep_id_or_config, str):
             self._sweep_id = sweep_id_or_config
@@ -395,11 +396,12 @@ class _WandbController:
         self._create = sweeps.SweepConfig(self._create)
 
         # Create sweep
-        sweep_id, warnings = self._api.upsert_sweep(self._create)
+        sweep_obj, warnings = _upsert_sweep(self._api, self._create)
         handle_sweep_config_violations(warnings)
+        sweep_id = sweep_obj["name"]
 
         print("Create sweep with ID:", sweep_id)  # noqa: T201
-        sweep_url = wandb_sweep._get_sweep_url(self._api, sweep_id)
+        sweep_url = wandb_sweep._get_sweep_url(self._api, sweep_obj)
         if sweep_url:
             print("Sweep URL:", sweep_url)  # noqa: T201
         self._sweep_id = sweep_id
@@ -436,7 +438,7 @@ class _WandbController:
             specs_json = {"keys": k, "samples": 100000}
         specs = json.dumps(specs_json)
         # TODO(jhr): catch exceptions?
-        sweep_obj = self._api.sweep(self._sweep_id, specs)
+        sweep_obj = _sweep_with_runs(self._api, self._sweep_id, specs)
         if not sweep_obj:
             return
         self._sweep_obj = sweep_obj
@@ -480,8 +482,8 @@ class _WandbController:
             return
         sweep_obj_id = self._sweep_obj["id"]
         controller = json.dumps(self._controller)
-        _, warnings = self._api.upsert_sweep(
-            self._sweep_config, controller=controller, obj_id=sweep_obj_id
+        _, warnings = _upsert_sweep(
+            self._api, self._sweep_config, controller=controller, obj_id=sweep_obj_id
         )
         handle_sweep_config_violations(warnings)
         self._controller_prev_step = self._controller.copy()

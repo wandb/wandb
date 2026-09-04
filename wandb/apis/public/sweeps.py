@@ -30,24 +30,32 @@ Note:
 from __future__ import annotations
 
 import json
+import logging
 import urllib
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, ClassVar
+from copy import deepcopy
+from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
 from typing_extensions import override
 
 import wandb
-from wandb import util
+from wandb import env, util
 from wandb.apis import public
 from wandb.apis.attrs import Attrs
+from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import SizedPaginator
-from wandb.errors import Error, UnsupportedError
+from wandb.errors import Error, UnsupportedError, UsageError
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.lib import ipython
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 # Minimum W&B server release that supports filtering sweeps via the `filters`
 # argument on the `sweeps` field.
 _SWEEP_FILTERS_MIN_SERVER_VERSION = "0.81.4"
+
+logger = logging.getLogger(__name__)
+
+SweepState = Literal["RUNNING", "PAUSED", "CANCELED", "FINISHED"]
 
 if TYPE_CHECKING:
     from wandb.apis._generated import GetSweeps
@@ -628,3 +636,450 @@ class Agent(Attrs):
         state = self._attrs.get("state", "Unknown State")
         name = self._attrs.get("id", "Unknown")
         return f"<Agent {name} ({state})>"
+
+
+def _validate_config_and_fill_distribution(config: dict) -> dict:
+    # verify that parameters are well specified.
+    # TODO(dag): deprecate this in favor of jsonschema validation once
+    # apiVersion 2 is released and local controller is integrated with
+    # wandb/client.
+
+    # avoid modifying the original config dict in
+    # case it is reused outside the calling func
+    config = deepcopy(config)
+
+    # explicitly cast to dict in case config was passed as a sweepconfig
+    # sweepconfig does not serialize cleanly to yaml and breaks graphql,
+    # but it is a subclass of dict, so this conversion is clean
+    config = dict(config)
+
+    if "parameters" not in config:
+        # still shows an anaconda warning, but doesn't error
+        return config
+
+    for parameter_name in config["parameters"]:
+        parameter = config["parameters"][parameter_name]
+        if (
+            "min" in parameter
+            and "max" in parameter
+            and "distribution" not in parameter
+        ):
+            if isinstance(parameter["min"], int) and isinstance(parameter["max"], int):
+                parameter["distribution"] = "int_uniform"
+            elif isinstance(parameter["min"], float) and isinstance(
+                parameter["max"], float
+            ):
+                parameter["distribution"] = "uniform"
+            else:
+                raise ValueError(
+                    f"Parameter {parameter_name} is ambiguous, please specify bounds as both floats (for a float_"
+                    "uniform distribution) or ints (for an int_uniform distribution)."
+                )
+    return config
+
+
+@normalize_exceptions
+def _upsert_sweep(
+    api: Api,
+    config: dict,
+    *,
+    controller: str | None = None,
+    launch_scheduler: str | None = None,
+    scheduler: str | None = None,
+    obj_id: str | None = None,
+    project: str | None = None,
+    entity: str | None = None,
+    state: str | None = None,
+    prior_runs: list[str] | None = None,
+    display_name: str | None = None,
+    template_variable_values: dict[str, Any] | None = None,
+) -> tuple[dict[str, Any], list[str]]:
+    """Create or update a sweep.
+
+    Returns the sweep as the server returned it and the config validation
+    warnings. The sweep's project and entity become the process defaults so
+    that agents started afterwards in the same process find the sweep.
+    """
+    import yaml
+
+    project_query = """
+        project {
+            id
+            name
+            entity {
+                id
+                name
+            }
+        }
+    """
+    mutation_str = """
+    mutation UpsertSweep(
+        $id: ID,
+        $config: String,
+        $description: String,
+        $entityName: String,
+        $projectName: String,
+        $controller: JSONString,
+        $scheduler: JSONString,
+        $state: String,
+        $priorRunsFilters: JSONString,
+        $displayName: String,
+    ) {
+        upsertSweep(input: {
+            id: $id,
+            config: $config,
+            description: $description,
+            entityName: $entityName,
+            projectName: $projectName,
+            controller: $controller,
+            scheduler: $scheduler,
+            state: $state,
+            priorRunsFilters: $priorRunsFilters,
+            displayName: $displayName,
+        }) {
+            sweep {
+                name
+                _PROJECT_QUERY_
+            }
+            configValidationWarnings
+        }
+    }
+    """
+    # TODO(jhr): we need protocol versioning to know schema is not supported
+    # for now we will just try both new and old query
+    mutation_5 = (
+        mutation_str.replace(
+            "$controller: JSONString,",
+            "$controller: JSONString,$launchScheduler: JSONString, $templateVariableValues: JSONString,",
+        )
+        .replace(
+            "controller: $controller,",
+            "controller: $controller,launchScheduler: $launchScheduler,templateVariableValues: $templateVariableValues,",
+        )
+        .replace("_PROJECT_QUERY_", project_query)
+    )
+    # launchScheduler was introduced in core v0.14.0
+    mutation_4 = (
+        mutation_str.replace(
+            "$controller: JSONString,",
+            "$controller: JSONString,$launchScheduler: JSONString,",
+        )
+        .replace(
+            "controller: $controller,",
+            "controller: $controller,launchScheduler: $launchScheduler",
+        )
+        .replace("_PROJECT_QUERY_", project_query)
+    )
+
+    # mutation 3 maps to backend that can support CLI version of at least 0.10.31
+    mutation_3 = mutation_str.replace("_PROJECT_QUERY_", project_query)
+    mutation_2 = mutation_str.replace("_PROJECT_QUERY_", project_query).replace(
+        "configValidationWarnings", ""
+    )
+    mutation_1 = mutation_str.replace("_PROJECT_QUERY_", "").replace(
+        "configValidationWarnings", ""
+    )
+
+    # TODO(dag): replace this with a query for protocol versioning
+    mutations = [mutation_5, mutation_4]
+    if launch_scheduler is None:
+        mutations.extend([mutation_3, mutation_2, mutation_1])
+
+    config = _validate_config_and_fill_distribution(config)
+
+    # Silly, but attr-dicts like Easydicts don't serialize correctly to yaml.
+    # This sanitizes them with a round trip pass through json to get a regular dict.
+    class NonOctalStringDumper(yaml.Dumper):
+        """Prevents strings containing non-octal values like "008" and "009" from being converted to numbers in in the yaml string saved as the sweep config."""
+
+        def represent_scalar(self, tag, value, style=None):
+            if (
+                tag == "tag:yaml.org,2002:str"
+                and value.startswith("0")
+                and len(value) > 1
+            ):
+                return super().represent_scalar(tag, value, style="'")
+            return super().represent_scalar(tag, value, style)
+
+    config_str = yaml.dump(json.loads(json.dumps(config)), Dumper=NonOctalStringDumper)
+    filters = None
+    if prior_runs:
+        filters = json.dumps({"$or": [{"name": r} for r in prior_runs]})
+
+    err: Exception | None = None
+    for mutation in mutations:
+        try:
+            variables = {
+                "id": obj_id,
+                "config": config_str,
+                "description": config.get("description"),
+                "entityName": entity or api.settings["entity"],
+                "projectName": project or api.settings["project"],
+                "controller": controller,
+                "launchScheduler": launch_scheduler,
+                "templateVariableValues": json.dumps(template_variable_values),
+                "scheduler": scheduler,
+                "priorRunsFilters": filters,
+                "displayName": display_name,
+            }
+            if state:
+                variables["state"] = state
+
+            response = api._service_api.execute_graphql(mutation, variables=variables)
+        except UsageError:
+            raise
+        except Exception as e:
+            # graphql schema exception is generic
+            err = e
+            continue
+        err = None
+        break
+    if err:
+        raise err
+
+    sweep: dict[str, Any] = response["upsertSweep"]["sweep"]
+    if project_obj := sweep.get("project"):
+        env.set_project(project_obj["name"])
+        if entity_obj := project_obj.get("entity"):
+            env.set_entity(entity_obj["name"])
+
+    return sweep, response["upsertSweep"].get("configValidationWarnings", [])
+
+
+@normalize_exceptions
+def _sweep_with_runs(
+    api: Api,
+    sweep: str,
+    specs: str,
+    *,
+    project: str | None = None,
+    entity: str | None = None,
+) -> dict[str, Any]:
+    """Fetch a sweep with its runs and their sampled history.
+
+    Args:
+        sweep: The sweep to get details for.
+        specs: History specs.
+        project: The project to scope this sweep to.
+        entity: The entity to scope this sweep to.
+    """
+    query = """
+    query SweepWithRuns($entity: String, $project: String, $sweep: String!, $specs: [JSONString!]!) {
+        project(name: $project, entityName: $entity) {
+            sweep(sweepName: $sweep) {
+                id
+                name
+                method
+                state
+                description
+                config
+                createdAt
+                heartbeatAt
+                updatedAt
+                earlyStopJobRunning
+                bestLoss
+                controller
+                scheduler
+                runs {
+                    edges {
+                        node {
+                            name
+                            state
+                            config
+                            exitcode
+                            heartbeatAt
+                            shouldStop
+                            failed
+                            stopped
+                            running
+                            summaryMetrics
+                            sampledHistory(specs: $specs)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    """
+    entity = entity or api.settings["entity"]
+    project = project or api.settings["project"]
+    response = api._service_api.execute_graphql(
+        query,
+        variables={
+            "entity": entity,
+            "project": project,
+            "sweep": sweep,
+            "specs": specs,
+        },
+    )
+    if response["project"] is None or response["project"]["sweep"] is None:
+        raise ValueError(f"Sweep {entity}/{project}/{sweep} not found")
+    data: dict[str, Any] = response["project"]["sweep"]
+    if data:
+        data["runs"] = [edge["node"] for edge in data["runs"]["edges"]]
+    return data
+
+
+@normalize_exceptions
+def _register_agent(
+    api: Api,
+    host: str,
+    *,
+    sweep_id: str,
+    project: str | None = None,
+    entity: str | None = None,
+) -> dict[str, Any]:
+    """Register a new sweep agent and return it."""
+    mutation = """
+    mutation CreateAgent(
+        $host: String!
+        $projectName: String,
+        $entityName: String,
+        $sweep: String!
+    ) {
+        createAgent(input: {
+            host: $host,
+            projectName: $projectName,
+            entityName: $entityName,
+            sweep: $sweep,
+        }) {
+            agent {
+                id
+            }
+        }
+    }
+    """
+    response = api._service_api.execute_graphql(
+        mutation,
+        variables={
+            "host": host,
+            "entityName": entity or api.settings["entity"],
+            "projectName": project or api.settings["project"],
+            "sweep": sweep_id,
+        },
+    )
+    return response["createAgent"]["agent"]
+
+
+def _agent_heartbeat(
+    api: Api, agent_id: str, metrics: dict, run_states: dict
+) -> list[dict[str, Any]]:
+    """Notify the server about agent state and receive commands to execute.
+
+    Raises:
+        SweepNotFoundError: If the server returns a 404, indicating the
+            sweep was likely deleted.
+    """
+    from wandb.sdk.sweeps import SweepNotFoundError
+
+    mutation = """
+    mutation Heartbeat(
+        $id: ID!,
+        $metrics: JSONString,
+        $runState: JSONString
+    ) {
+        agentHeartbeat(input: {
+            id: $id,
+            metrics: $metrics,
+            runState: $runState
+        }) {
+            agent {
+                id
+            }
+            commands
+        }
+    }
+    """
+
+    if agent_id is None:
+        raise ValueError("Cannot call heartbeat with an unregistered agent.")
+
+    try:
+        response = api._service_api.execute_graphql(
+            mutation,
+            variables={
+                "id": agent_id,
+                "metrics": json.dumps(metrics),
+                "runState": json.dumps(run_states),
+            },
+            timeout=60,
+        )
+    except WandbApiFailedError as e:
+        if e.response is not None and e.response.http_status == 404:
+            raise SweepNotFoundError(
+                "Sweep not found. The sweep may have been deleted."
+            ) from e
+        logger.exception("Error communicating with W&B.")
+        return []
+    except Exception:
+        logger.exception("Error communicating with W&B.")
+        return []
+    return json.loads(response["agentHeartbeat"]["commands"])
+
+
+def _get_sweep_state(
+    api: Api, sweep: str, *, entity: str | None = None, project: str | None = None
+) -> SweepState:
+    query = """
+        query GetSweepState($entity: String, $project: String, $sweep: String!) {
+            project(name: $project, entityName: $entity) {
+                sweep(sweepName: $sweep) {
+                    state
+                }
+            }
+        }
+        """
+    response = api._service_api.execute_graphql(
+        query,
+        variables={
+            "sweep": sweep,
+            "entity": entity or api.settings["entity"],
+            "project": project or api.settings["project"],
+        },
+    )
+    return response["project"]["sweep"]["state"]
+
+
+def _set_sweep_state(
+    api: Api,
+    sweep: str,
+    state: SweepState,
+    *,
+    entity: str | None = None,
+    project: str | None = None,
+) -> None:
+    assert state in ("RUNNING", "PAUSED", "CANCELED", "FINISHED")
+    s = _sweep_with_runs(api, sweep, "{}", entity=entity, project=project)
+    curr_state = s["state"].upper()
+    if state == "PAUSED" and curr_state not in ("PAUSED", "RUNNING"):
+        raise Exception(f"Cannot pause {curr_state.lower()} sweep.")
+    elif state != "RUNNING" and curr_state not in ("RUNNING", "PAUSED", "PENDING"):
+        raise Exception(f"Sweep already {curr_state.lower()}.")
+    mutation = """
+    mutation UpsertSweep(
+        $id: ID,
+        $state: String,
+        $entityName: String,
+        $projectName: String
+    ) {
+        upsertSweep(input: {
+            id: $id,
+            state: $state,
+            entityName: $entityName,
+            projectName: $projectName
+        }){
+            sweep {
+                name
+            }
+        }
+    }
+    """
+    api._service_api.execute_graphql(
+        mutation,
+        variables={
+            "id": s["id"],
+            "state": state,
+            "entityName": entity or api.settings["entity"],
+            "projectName": project or api.settings["project"],
+        },
+    )
