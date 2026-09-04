@@ -174,9 +174,9 @@ require (
 	golang.org/x/text v0.41.0 // indirect
 	golang.org/x/tools v0.49.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
-	google.golang.org/genproto v0.0.0-20260831171406-18b4a7587f8a // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20260831171406-18b4a7587f8a // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260831171406-18b4a7587f8a // indirect
+	google.golang.org/genproto v0.0.0-20260904163448-b1c236e22ff4 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20260904163448-b1c236e22ff4 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260904163448-b1c236e22ff4 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
