@@ -32,6 +32,9 @@ type Workspace struct {
 	// drag owns in-progress pane-boundary resizing (mouse drag).
 	drag paneDragger
 
+	// lastDrawAt is when the charts were last redrawn while a run was loading.
+	lastDrawAt time.Time
+
 	// Configuration and key bindings.
 	config *ConfigManager
 	keyMap map[string]func(*Workspace, tea.KeyPressMsg) tea.Cmd
