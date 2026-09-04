@@ -72,7 +72,7 @@ func (rb *ResumeBranch) UpdateForResume(
 		return rb.resumeNotAllowedError(params.RunID)
 	}
 
-	err = processResponse(params, config, data)
+	err = processResponse(params, config, data, rb.logger)
 	if err != nil && rb.mustResume() {
 		return rb.resumeFailedError(params.RunID, err)
 	}
@@ -176,6 +176,7 @@ func processResponse(
 	params *RunParams,
 	config *runconfig.RunConfig,
 	data *gql.RunResumeStatusModelProjectBucketRun,
+	logger *observability.CoreLogger,
 ) error {
 	// Get Config information
 	if oldConfig, err := processConfigResume(data.GetConfig()); err != nil {
@@ -207,6 +208,10 @@ func processResponse(
 		}
 	}
 
+	// The highest explicit _step reported by the summary or the history
+	// tail, or -1 if neither reports one.
+	lastStep := int64(-1)
+
 	// Get Summary information
 	if summary, err := processSummary(data.GetSummaryMetrics()); err != nil {
 		return err
@@ -218,10 +223,8 @@ func processResponse(
 		}
 
 		if step, ok := summary["_step"]; ok {
-			// if we are resuming, we need to update the starting step
-			// to be the next step after the last step we ran
 			if x, ok := step.(int64); ok {
-				params.StartingStep = x
+				lastStep = max(lastStep, x)
 			}
 		}
 
@@ -251,10 +254,8 @@ func processResponse(
 		return err
 	} else if history != nil {
 		if step, ok := history["_step"]; ok {
-			// if we are resuming, we need to update the starting step
-			// to be the next step after the last step we ran
 			if x, ok := step.(int64); ok {
-				params.StartingStep = x
+				lastStep = max(lastStep, x)
 			}
 		}
 
@@ -266,10 +267,26 @@ func processResponse(
 		}
 	}
 
-	// if we are resuming, we need to update the starting step
-	if params.FileStreamOffset[filestream.HistoryChunk] > 0 {
-		params.StartingStep += 1
+	// The number of history rows in the file stream.
+	historyRowCount := int64(params.FileStreamOffset[filestream.HistoryChunk])
+
+	// If the summary and history tail step are less than the history row
+	// count, then they must be stale, so use the history row count - 1 as a
+	// lower bound.
+	// Note that this may still not be accurate if the run was logged at
+	// sparse steps, so we warn the user.
+	if lastStep >= 0 && historyRowCount > lastStep+1 {
+		logger.Warn(
+			"runbranch: resume: history row count exceeds the last "+
+				"reported step + 1; the reported step is stale, using "+
+				"the row count as the starting step",
+			"historyRowCount", historyRowCount,
+			"lastStep", lastStep,
+		)
 	}
+
+	lastStep = max(lastStep, historyRowCount-1)
+	params.StartingStep = lastStep + 1 // next step after the last reported step
 
 	// If the user provided tags when initializing, use them. Otherwise,
 	// initialize to the previous run's tags.
