@@ -14,6 +14,7 @@ package tensorboard
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -349,6 +350,26 @@ func (tb *TBHandler) saveFiles(
 	}
 }
 
+// copyFile copies a regular file, creating or truncating the destination.
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	if _, err := io.Copy(out, in); err != nil {
+		return err
+	}
+	return out.Sync()
+}
+
 // saveFile saves a TensorBoard file with the run.
 //
 // This does just two things:
@@ -382,11 +403,27 @@ func (tb *TBHandler) saveFile(
 		return
 	}
 	if err := os.Symlink(string(fileLocation), targetPath); err != nil {
-		tb.logger.Error("tensorboard: error creating symlink",
+		// Symlink creation fails on Windows unless the process is
+		// elevated or Developer Mode is on (ERROR_PRIVILEGE_NOT_HELD),
+		// which is not the default. Fall back to a hardlink so the
+		// linked file stays in sync as TensorBoard keeps appending,
+		// and finally to a plain copy, rather than dropping the file.
+		tb.logger.Warn(
+			"tensorboard: error creating symlink, trying fallback",
 			"target", fileLocation,
 			"symlink", targetPath,
-			"error", err)
-		return
+			"error", err,
+		)
+		if linkErr := os.Link(string(fileLocation), targetPath); linkErr != nil {
+			if copyErr := copyFile(string(fileLocation), targetPath); copyErr != nil {
+				tb.logger.Error("tensorboard: error copying file",
+					"target", fileLocation,
+					"file", targetPath,
+					"error", copyErr,
+				)
+				return
+			}
+		}
 	}
 
 	// Write a record indicating that the file should be uploaded.
