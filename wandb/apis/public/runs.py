@@ -57,6 +57,7 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import SizedPaginator
 from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.apis.public.service_api import ServiceApi
+from wandb.errors import CommError
 from wandb.proto import wandb_api_pb2 as apb
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk import wandb_setup
@@ -1240,16 +1241,50 @@ class Run(Attrs):
         Returns:
             A `File` object representing the uploaded file.
         """
-        api = InternalApi(
-            default_settings={"entity": self.entity, "project": self.project},
-            retry_timedelta=RETRY_TIMEDELTA,
-        )
-        api.set_current_run_id(self.id)
         root = os.path.abspath(root)
         name = os.path.relpath(path, root)
-        upload_path = util.make_file_path_upload_safe(name)
-        with open(os.path.join(root, name), "rb") as f:
-            api.push({LogicalPath(upload_path): f})
+        upload_path = str(LogicalPath(util.make_file_path_upload_safe(name)))
+        mutation = """
+        mutation CreateRunFiles($entity: String!, $project: String!, $run: String!, $files: [String!]!) {
+            createRunFiles(input: {entityName: $entity, projectName: $project, runName: $run, files: $files}) {
+                runID
+                uploadHeaders
+                files {
+                    name
+                    uploadUrl
+                }
+            }
+        }
+        """
+        result = self._service_api.execute_graphql(
+            mutation,
+            {
+                "entity": self.entity,
+                "project": self.project,
+                "run": self.id,
+                "files": [upload_path],
+            },
+        )["createRunFiles"]
+        if not result["runID"]:
+            raise CommError(
+                f"Error uploading files to {self.entity}/{self.project}/{self.id}. "
+                "Check that this project exists and you have access to this entity and project"
+            )
+        (file_info,) = result["files"]
+        upload_url = file_info["uploadUrl"]
+        if upload_url.startswith("/"):
+            upload_url = f"{self._service_api.base_url}{upload_url}"
+        self._service_api.send_api_request(
+            apb.ApiRequest(
+                upload_file_request=apb.UploadFileRequest(
+                    url=upload_url,
+                    path=os.path.join(root, name),
+                    headers=dict(
+                        header.split(":", 1) for header in result["uploadHeaders"]
+                    ),
+                )
+            )
+        )
 
         # Uploading the bytes to the (presigned) destination URL doesn't notify
         # the backend that the file is committed. SaaS finalizes it via native
@@ -1268,7 +1303,7 @@ class Run(Attrs):
                         entity=self.entity,
                         project=self.project,
                         run_id=self.id,
-                        files=[str(upload_path)],
+                        files=[upload_path],
                     )
                 )
             )

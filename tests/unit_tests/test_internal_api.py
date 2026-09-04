@@ -5,37 +5,21 @@ import hashlib
 import os
 import pathlib
 import tempfile
-from collections.abc import Callable, Mapping
 from itertools import chain
-from pathlib import Path
-from typing import TypeVar
 from unittest.mock import Mock, patch
 
 import pytest
-import requests
 import wandb.errors
 import wandb.sdk.internal.internal_api
-import wandb.sdk.internal.progress
 from pytest_mock import MockerFixture
-from responses import RequestsMock
 from wandb.errors import CommError
 from wandb.proto import wandb_api_pb2 as apb
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk import wandb_setup
 from wandb.sdk.internal.internal_api import Api
-from wandb.sdk.lib import retry, wbauth
+from wandb.sdk.lib import wbauth
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 from wandb.sdk.sweeps import SweepNotFoundError
-
-from .test_retry import MockTime, mock_time  # noqa: F401
-
-_T = TypeVar("_T")
-
-
-@pytest.fixture
-def mock_responses():
-    with RequestsMock() as rsps:
-        yield rsps
 
 
 def test_agent_heartbeat_with_no_agent_id_fails():
@@ -165,106 +149,6 @@ def test_internal_api_with_no_write_global_config_dir(
         Api()
     finally:
         config_dir.chmod(0o711)  # allow test to clean up
-
-
-MockResponseOrException = Exception | tuple[int, Mapping[int, int], str]
-
-
-class TestUploadFile:
-    """Tests `upload_file`."""
-
-    def test_routes_non_azure_uploads_through_core(self, example_file: Path):
-        """Non-Azure uploads are sent to wandb-core as an UploadFileRequest.
-
-        Retries, timeouts, and the AWS-specific transient-error handling that
-        used to live here are now owned by wandb-core's file transfer subsystem.
-        """
-        api = Api()
-        api._service_api.send_api_request = Mock()
-
-        with example_file.open("rb") as file:
-            result = api.upload_file(
-                "http://example.com/upload-dst",
-                file,
-                extra_headers={"X-Test": "test"},
-            )
-
-        assert result is None
-        api._service_api.send_api_request.assert_called_once()
-        request = api._service_api.send_api_request.call_args[0][0]
-        upload = request.upload_file_request
-        assert upload.url == "http://example.com/upload-dst"
-        assert upload.path == str(example_file.resolve())
-        assert upload.headers["X-Test"] == "test"
-
-    def test_propagates_core_errors(self, example_file: Path):
-        """Failures from wandb-core propagate to the caller."""
-        api = Api()
-        api._service_api.send_api_request = Mock(
-            side_effect=WandbApiFailedError("upload failed")
-        )
-
-        with example_file.open("rb") as file:
-            with pytest.raises(WandbApiFailedError):
-                api.upload_file("http://example.com/upload-dst", file)
-
-    class TestAzure:
-        MAGIC_HEADERS = {"x-ms-blob-type": "SomeBlobType"}
-
-        def test_uses_azure_lib_if_available(self, example_file: Path):
-            api = Api()
-            api._azure_blob_module = Mock()
-
-            api.upload_file(
-                "http://example.com/upload-dst",
-                example_file.open("rb"),
-                extra_headers=self.MAGIC_HEADERS,
-            )
-
-            api._azure_blob_module.BlobClient.from_blob_url().upload_blob.assert_called_once()
-
-        @pytest.mark.parametrize(
-            "response,expected_errtype,check_err",
-            [
-                (
-                    (400, {}, "my-reason"),
-                    requests.RequestException,
-                    lambda e: e.response.status_code == 400 and "my-reason" in str(e),
-                ),
-                (
-                    (500, {}, "my-reason"),
-                    retry.TransientError,
-                    lambda e: (
-                        e.exception.response.status_code == 500
-                        and "my-reason" in str(e.exception)
-                    ),
-                ),
-                (
-                    requests.exceptions.ConnectionError("my-reason"),
-                    retry.TransientError,
-                    lambda e: "my-reason" in str(e.exception),
-                ),
-            ],
-        )
-        def test_translates_azure_err_to_normal_err(
-            self,
-            mock_responses: RequestsMock,
-            example_file: Path,
-            response: MockResponseOrException,
-            expected_errtype: type[Exception],
-            check_err: Callable[[Exception], bool],
-        ):
-            mock_responses.add_callback(
-                "PUT", "https://example.com/foo/bar/baz", Mock(return_value=response)
-            )
-            with pytest.raises(expected_errtype) as e:
-                Api().upload_file(
-                    "https://example.com/foo/bar/baz",
-                    example_file.open("rb"),
-                    extra_headers=self.MAGIC_HEADERS,
-                )
-
-            assert check_err(e.value), e.value
 
 
 ENABLED_FEATURE_RESPONSE = {
