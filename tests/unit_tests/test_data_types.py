@@ -18,6 +18,7 @@ from wandb import data_types, env
 from wandb.sdk.data_types import _dtypes
 from wandb.sdk.data_types import utils as data_types_utils
 from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
+from wandb.sdk.data_types.helper_types.image_mask import ImageMask
 from wandb.sdk.wandb_settings import Settings
 
 
@@ -164,7 +165,6 @@ def test_captions(
     assert wandb.Image.all_captions([wbone, wbtwo]) == ["Cool", "Nice"]
 
 
-@pytest.mark.usefixtures("patch_max_cli_version")
 def test_bind_image(
     mock_run,
     image,
@@ -180,7 +180,6 @@ def test_image_accepts_other_images():
     assert image_a == image_b
 
 
-@pytest.mark.usefixtures("patch_max_cli_version")
 def test_image_accepts_bounding_boxes(
     mock_run,
     image,
@@ -201,7 +200,6 @@ def test_image_accepts_bounding_boxes(
     assert os.path.exists(os.path.join(run.dir, path))
 
 
-@pytest.mark.usefixtures("patch_max_cli_version")
 def test_image_accepts_bounding_boxes_optional_args(
     mock_run,
     image,
@@ -227,7 +225,6 @@ def test_image_accepts_bounding_boxes_optional_args(
     assert os.path.exists(os.path.join(run.dir, path))
 
 
-@pytest.mark.usefixtures("patch_max_cli_version")
 def test_image_accepts_masks(
     mock_run,
     image,
@@ -246,7 +243,6 @@ def test_image_accepts_masks(
     assert os.path.exists(os.path.join(run.dir, path))
 
 
-@pytest.mark.usefixtures("patch_max_cli_version")
 def test_image_accepts_masks_without_class_labels(
     mock_run,
     image,
@@ -335,7 +331,6 @@ def test_image_mask_type_schema_carries_per_mask_class_maps(image):
     }
 
 
-@pytest.mark.usefixtures("patch_max_cli_version")
 def test_image_seq_to_json(
     mock_run,
     image,
@@ -347,7 +342,6 @@ def test_image_seq_to_json(
     assert os.path.exists(os.path.join(run.dir, "media", "images", "test_0_0.png"))
 
 
-@pytest.mark.usefixtures("patch_max_cli_version")
 def test_max_images(mock_run):
     run = mock_run()
     large_image = np.random.randint(255, size=(10, 10))
@@ -462,7 +456,6 @@ def test_image_from_matplotlib_with_image():
 @pytest.mark.skipif(
     platform.system() != "Windows", reason="Failure case is only happening on Windows"
 )
-@pytest.mark.usefixtures("patch_max_cli_version")
 def test_fail_to_make_file(
     mock_run,
     image,
@@ -497,6 +490,23 @@ def test_image_masks_with_pytorch_tensors():
     mask = torch.from_numpy(np.array([[1, 0], [0, 1]]))
 
     wandb.Image(image, masks={"predictions": {"mask_data": mask}})
+
+
+@pytest.mark.parametrize("dtype", [np.int32, np.float32, np.float64])
+def test_image_mask_rejects_out_of_range_values(dtype):
+    mask = np.array([[0, 300], [1000, 1]], dtype=dtype)
+
+    with pytest.raises(TypeError, match="between 0 and 255"):
+        ImageMask({"mask_data": mask}, key="predictions")
+
+
+@pytest.mark.parametrize("dtype", [np.uint8, np.int32, np.float32, np.float64])
+def test_image_mask_accepts_in_range_values(dtype):
+    mask = np.array([[0, 1], [200, 255]], dtype=dtype)
+
+    image_mask = ImageMask({"mask_data": mask}, key="predictions")
+
+    assert np.array_equal(np.array(Image.open(image_mask._path)), mask.astype(np.uint8))
 
 
 def test_image_numpy_pytorch_equal():

@@ -2,17 +2,23 @@ package analytics_test
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"runtime"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	otellogapi "go.opentelemetry.io/otel/log"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/analyticstest"
+	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 func TestTelemetryRecorder_RecordsDefaultAttributes(t *testing.T) {
@@ -341,40 +347,6 @@ func TestTelemetryRecorder_RecordDuration(t *testing.T) {
 	assert.Equal(t, "local", metric.Attributes["execution_context"])
 }
 
-func TestTelemetryRecorder_SendsAPIKeyAuth(t *testing.T) {
-	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
-	recorder := analytics.NewTelemetryRecorder(
-		proxy.OpenTelemetryProxy,
-		analytics.NewTelemetryContext(),
-	)
-
-	recorder.IncrementCounterAndLogEvent(
-		t.Context(),
-		"authenticated_event",
-		nil,
-		analytics.LowCardinalityAttributes{},
-	)
-	require.NoError(t, proxy.Shutdown(context.Background()))
-
-	requests := proxy.Requests()
-	assert.Greater(t, len(requests), 1, "expected at least two requests")
-	for _, req := range requests {
-		// The capability probe sent during proxy construction is intentionally
-		// unauthenticated and carries no body.
-		// Only OTLP export requests must include the API key.
-		if req.ContentLength == 0 {
-			continue
-		}
-		assert.Equal(
-			t,
-			"Basic YXBpOnRlc3QtYXBpLWtleQ==",
-			req.Authorization,
-			"path %s",
-			req.Path,
-		)
-	}
-}
-
 func TestTelemetryRecorder_ErrorLog(t *testing.T) {
 	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
 	recorder := analytics.NewTelemetryRecorder(
@@ -439,6 +411,38 @@ func TestOpenTelemetryProxy_Shutdown_CalledMultipleTimes(t *testing.T) {
 
 	// A second shutdown should not error.
 	require.NoError(t, proxy.Shutdown(context.Background()))
+}
+
+func TestOpenTelemetryProxy_UnsupportedServer_DropsRecords(t *testing.T) {
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			requests.Add(1)
+			http.NotFound(w, r)
+		},
+	))
+	defer server.Close()
+
+	proxy := analytics.NewOpenTelemetryProxy(
+		t.Context(),
+		settings.From(&spb.Settings{BaseUrl: wrapperspb.String(server.URL)}),
+		"wandb-core",
+	)
+	require.NotNil(t, proxy)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy,
+		analytics.NewTelemetryContext(),
+	)
+
+	recorder.Log(t.Context(), "test", nil, otellogapi.SeverityInfo)
+
+	// Neither construction nor recording touches the network.
+	assert.Zero(t, requests.Load())
+
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	// The final flush probes the server once and drops the record.
+	assert.Equal(t, int32(1), requests.Load())
 }
 
 func TestTelemetryRecorder_RecordAfterShutdown_IsNoop(t *testing.T) {

@@ -78,6 +78,10 @@ pub fn zero_div<T: core::ops::Div<Output = T> + Default + PartialEq>(a: T, b: T)
     if b == zero { zero } else { a / b }
 }
 
+fn is_valid_temp(val: f32) -> bool {
+    val > 0.0 && val <= 150.0
+}
+
 fn calc_freq(item: CFDictionaryRef, freqs: &[u32]) -> (u32, f32) {
     let items = cfio_get_residencies(item); // (ns, freq)
     let (len1, len2) = (items.len(), freqs.len());
@@ -138,36 +142,31 @@ fn init_smc() -> WithError<(SMC, Vec<String>, Vec<String>)> {
     let mut cpu_sensors = Vec::new();
     let mut gpu_sensors = Vec::new();
 
-    let names = smc.read_all_keys().unwrap_or(vec![]);
-    for name in &names {
-        let key = match smc.read_key_info(name) {
-            Ok(key) => key,
-            Err(_) => continue,
-        };
-
-        if key.data_size != 4 || key.data_type != FLOAT_TYPE {
+    // Unfortunately, it is not known which keys are responsible for what.
+    // Basically in the code that can be found publicly "Tp" is used for CPU and "Tg" for GPU.
+    // "Tp" – performance cores, "Te" – efficiency cores
+    for name in smc.read_all_keys().unwrap_or_default() {
+        let is_cpu = name.starts_with("Tp") || name.starts_with("Te");
+        let is_gpu = name.starts_with("Tg");
+        if !is_cpu && !is_gpu {
             continue;
         }
 
-        let _ = match smc.read_val(name) {
-            Ok(val) => val,
+        let key = match smc.read_key_info(&name) {
+            Ok(key) => key,
             Err(_) => continue,
         };
+        if key.data_size != 4 || key.data_type != FLOAT_TYPE || smc.read_val(&name).is_err() {
+            continue;
+        }
 
-        // Unfortunately, it is not known which keys are responsible for what.
-        // Basically in the code that can be found publicly "Tp" is used for CPU and "Tg" for GPU.
-
-        match name {
-            // "Tp" – performance cores, "Te" – efficiency cores
-            name if name.starts_with("Tp") || name.starts_with("Te") => {
-                cpu_sensors.push(name.clone())
-            }
-            name if name.starts_with("Tg") => gpu_sensors.push(name.clone()),
-            _ => (),
+        if is_cpu {
+            cpu_sensors.push(name);
+        } else {
+            gpu_sensors.push(name);
         }
     }
 
-    // println!("{} {}", cpu_sensors.len(), gpu_sensors.len());
     Ok((smc, cpu_sensors, gpu_sensors))
 }
 
@@ -211,7 +210,7 @@ impl Sampler {
         for sensor in &self.smc_cpu_keys {
             let val = self.smc.read_val(sensor)?;
             let val = f32::from_le_bytes(val.data[0..4].try_into().unwrap());
-            if val != 0.0 {
+            if is_valid_temp(val) {
                 cpu_metrics.push(val);
             }
         }
@@ -220,7 +219,7 @@ impl Sampler {
         for sensor in &self.smc_gpu_keys {
             let val = self.smc.read_val(sensor)?;
             let val = f32::from_le_bytes(val.data[0..4].try_into().unwrap());
-            if val != 0.0 {
+            if is_valid_temp(val) {
                 gpu_metrics.push(val);
             }
         }
@@ -243,14 +242,16 @@ impl Sampler {
         for (name, value) in &metrics {
             if name.starts_with("pACC MTR Temp Sensor") || name.starts_with("eACC MTR Temp Sensor")
             {
-                // println!("{}: {}", name, value);
-                cpu_values.push(*value);
+                if is_valid_temp(*value) {
+                    cpu_values.push(*value);
+                }
                 continue;
             }
 
             if name.starts_with("GPU MTR Temp Sensor") {
-                // println!("{}: {}", name, value);
-                gpu_values.push(*value);
+                if is_valid_temp(*value) {
+                    gpu_values.push(*value);
+                }
                 continue;
             }
         }
@@ -290,79 +291,56 @@ impl Sampler {
         Ok(val)
     }
 
-    pub fn get_metrics(&mut self, duration: u32) -> WithError<Metrics> {
-        let measures: usize = 4;
-        let mut results: Vec<Metrics> = Vec::with_capacity(measures);
+    pub fn get_metrics(&mut self) -> WithError<Metrics> {
+        let (sample, dt) = self.ior.sample_since_last();
+        let mut ecpu_usages = Vec::new();
+        let mut pcpu_usages = Vec::new();
+        let mut rs = Metrics::default();
 
-        // do several samples to smooth metrics
-        // see: https://github.com/vladkens/macmon/issues/10
-        for (sample, dt) in self.ior.get_samples(duration as u64, measures) {
-            let mut ecpu_usages = Vec::new();
-            let mut pcpu_usages = Vec::new();
-            let mut rs = Metrics::default();
-
-            for x in sample {
-                if x.group == "CPU Stats" && x.subgroup == CPU_FREQ_CORE_SUBG {
-                    if x.channel.contains("ECPU") {
-                        ecpu_usages.push(calc_freq(x.item, &self.soc.ecpu_freqs));
-                        continue;
-                    }
-
-                    if x.channel.contains("PCPU") {
-                        pcpu_usages.push(calc_freq(x.item, &self.soc.pcpu_freqs));
-                        continue;
-                    }
+        for x in sample {
+            if x.group == "CPU Stats" && x.subgroup == CPU_FREQ_CORE_SUBG {
+                // M5 Pro and Max report their second core tier as MCPU channels.
+                if x.channel.contains("ECPU") || x.channel.contains("MCPU") {
+                    ecpu_usages.push(calc_freq(x.item, &self.soc.ecpu_freqs));
+                    continue;
                 }
 
-                if x.group == "GPU Stats" && x.subgroup == GPU_FREQ_DICE_SUBG {
-                    match x.channel.as_str() {
-                        // Guard the `[1..]` slice: indexing an empty table panics.
-                        "GPUPH" if !self.soc.gpu_freqs.is_empty() => {
-                            rs.gpu_usage = calc_freq(x.item, &self.soc.gpu_freqs[1..])
-                        }
-                        _ => {}
-                    }
-                }
-
-                if x.group == "Energy Model" {
-                    match x.channel.as_str() {
-                        "GPU Energy" => rs.gpu_power += cfio_watts(x.item, &x.unit, dt)?,
-                        // "CPU Energy" for Basic / Max, "DIE_{}_CPU Energy" for Ultra
-                        c if c.ends_with("CPU Energy") => {
-                            rs.cpu_power += cfio_watts(x.item, &x.unit, dt)?
-                        }
-                        // same pattern next keys: "ANE" for Basic, "ANE0" for Max, "ANE0_{}" for Ultra
-                        c if c.starts_with("ANE") => {
-                            rs.ane_power += cfio_watts(x.item, &x.unit, dt)?
-                        }
-                        c if c.starts_with("DRAM") => {
-                            rs.ram_power += cfio_watts(x.item, &x.unit, dt)?
-                        }
-                        c if c.starts_with("GPU SRAM") => {
-                            rs.gpu_ram_power += cfio_watts(x.item, &x.unit, dt)?
-                        }
-                        _ => {}
-                    }
+                if x.channel.contains("PCPU") {
+                    pcpu_usages.push(calc_freq(x.item, &self.soc.pcpu_freqs));
+                    continue;
                 }
             }
 
-            rs.ecpu_usage = calc_freq_final(&ecpu_usages, &self.soc.ecpu_freqs);
-            rs.pcpu_usage = calc_freq_final(&pcpu_usages, &self.soc.pcpu_freqs);
-            results.push(rs);
+            if x.group == "GPU Stats" && x.subgroup == GPU_FREQ_DICE_SUBG {
+                match x.channel.as_str() {
+                    // Guard the `[1..]` slice: indexing an empty table panics.
+                    "GPUPH" if !self.soc.gpu_freqs.is_empty() => {
+                        rs.gpu_usage = calc_freq(x.item, &self.soc.gpu_freqs[1..])
+                    }
+                    _ => {}
+                }
+            }
+
+            if x.group == "Energy Model" {
+                match x.channel.as_str() {
+                    "GPU Energy" => rs.gpu_power += cfio_watts(x.item, &x.unit, dt)?,
+                    // "CPU Energy" for Basic / Max, "DIE_{}_CPU Energy" for Ultra
+                    c if c.ends_with("CPU Energy") => {
+                        rs.cpu_power += cfio_watts(x.item, &x.unit, dt)?
+                    }
+                    // same pattern next keys: "ANE" for Basic, "ANE0" for Max, "ANE0_{}" for Ultra
+                    c if c.starts_with("ANE") => rs.ane_power += cfio_watts(x.item, &x.unit, dt)?,
+                    c if c.starts_with("DRAM") => rs.ram_power += cfio_watts(x.item, &x.unit, dt)?,
+                    c if c.starts_with("GPU SRAM") => {
+                        rs.gpu_ram_power += cfio_watts(x.item, &x.unit, dt)?
+                    }
+                    _ => {}
+                }
+            }
         }
 
-        let mut rs = Metrics::default();
-        rs.ecpu_usage.0 = zero_div(results.iter().map(|x| x.ecpu_usage.0).sum(), measures as _);
-        rs.ecpu_usage.1 = zero_div(results.iter().map(|x| x.ecpu_usage.1).sum(), measures as _);
-        rs.pcpu_usage.0 = zero_div(results.iter().map(|x| x.pcpu_usage.0).sum(), measures as _);
-        rs.pcpu_usage.1 = zero_div(results.iter().map(|x| x.pcpu_usage.1).sum(), measures as _);
-        rs.gpu_usage.0 = zero_div(results.iter().map(|x| x.gpu_usage.0).sum(), measures as _);
-        rs.gpu_usage.1 = zero_div(results.iter().map(|x| x.gpu_usage.1).sum(), measures as _);
-        rs.cpu_power = zero_div(results.iter().map(|x| x.cpu_power).sum(), measures as _);
-        rs.gpu_power = zero_div(results.iter().map(|x| x.gpu_power).sum(), measures as _);
-        rs.ane_power = zero_div(results.iter().map(|x| x.ane_power).sum(), measures as _);
-        rs.ram_power = zero_div(results.iter().map(|x| x.ram_power).sum(), measures as _);
-        rs.gpu_ram_power = zero_div(results.iter().map(|x| x.gpu_ram_power).sum(), measures as _);
+        rs.ecpu_usage = calc_freq_final(&ecpu_usages, &self.soc.ecpu_freqs);
+        rs.pcpu_usage = calc_freq_final(&pcpu_usages, &self.soc.pcpu_freqs);
         rs.all_power = rs.cpu_power + rs.gpu_power + rs.ane_power;
 
         rs.memory = self.get_mem()?;
@@ -695,7 +673,7 @@ fn sampler_thread(receiver: Receiver<SamplerCommand>) {
                 // Catch panics from a single sample so one bad reading can't
                 // permanently kill the sampler thread (and with it all metrics).
                 let result = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    sampler.get_metrics(1)
+                    sampler.get_metrics()
                 })) {
                     Ok(result) => result.map_err(|e| SamplerError(e.to_string())),
                     Err(_) => Err(SamplerError("panic while sampling Apple metrics".into())),

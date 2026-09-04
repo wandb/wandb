@@ -3,10 +3,8 @@ package runbranch
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"maps"
-	"math"
 
 	"github.com/Khan/genqlient/graphql"
 
@@ -80,7 +78,10 @@ func (rb *ResumeBranch) UpdateForResume(
 				" If you are trying to start a new run, please omit the `resume` argument or use `resume='allow'`.",
 				params.RunID),
 		}
-		err = errors.New("no data but must resume")
+		err = fmt.Errorf(
+			"resume setting is 'must' but run %s does not exist",
+			params.RunID,
+		)
 		return &BranchError{Err: err, Response: info}
 	}
 
@@ -94,7 +95,10 @@ func (rb *ResumeBranch) UpdateForResume(
 				"  Please check your inputs and try again with a valid value for the `resume` argument.",
 				params.RunID),
 		}
-		err = errors.New("data but cannot resume")
+		err = fmt.Errorf(
+			"resume setting is 'never' but run %s exists",
+			params.RunID,
+		)
 		return &BranchError{Err: err, Response: info}
 	}
 
@@ -180,11 +184,10 @@ func processResponse(
 		return err
 	} else if events != nil {
 		if runtime, ok := events["_runtime"]; ok {
-			params.Runtime = int32(
-				math.Max(
-					extractRuntime(runtime),
-					float64(params.Runtime),
-				))
+			params.Runtime = max(
+				extractRuntime(runtime),
+				params.Runtime,
+			)
 		}
 	}
 
@@ -211,19 +214,17 @@ func processResponse(
 		switch x := params.Summary["_wandb"].(type) {
 		case map[string]any:
 			if runtime, ok := x["runtime"]; ok {
-				params.Runtime = int32(
-					math.Max(
-						extractRuntime(runtime),
-						float64(params.Runtime),
-					))
+				params.Runtime = max(
+					extractRuntime(runtime),
+					params.Runtime,
+				)
 			}
 		default:
 			if runtime, ok := params.Summary["_runtime"]; ok {
-				params.Runtime = int32(
-					math.Max(
-						extractRuntime(runtime),
-						float64(params.Runtime),
-					))
+				params.Runtime = max(
+					extractRuntime(runtime),
+					params.Runtime,
+				)
 			}
 		}
 	}
@@ -242,11 +243,10 @@ func processResponse(
 		}
 
 		if runtime, ok := history["_runtime"]; ok {
-			params.Runtime = int32(
-				math.Max(
-					extractRuntime(runtime),
-					float64(params.Runtime),
-				))
+			params.Runtime = max(
+				extractRuntime(runtime),
+				params.Runtime,
+			)
 		}
 	}
 

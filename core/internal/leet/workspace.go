@@ -352,7 +352,8 @@ func (w *Workspace) View() tea.View {
 		if len(sections) == 0 {
 			centralColumn = renderLogoArt(contentWidth, layout.totalContentAreaHeight)
 		} else {
-			centralColumn = joinWithSeparators(sections, contentWidth)
+			centralColumn = joinWithSeparators(sections, contentWidth,
+				highlightedStackSeparator(w.drag.cue(), layout, len(sections)))
 		}
 	}
 	centralColumn = placeMainColumn(contentWidth, layout.totalContentAreaHeight, centralColumn)
@@ -1060,7 +1061,11 @@ func (w *Workspace) renderRunsList() string {
 		MaxHeight(totalH).
 		Render(content)
 
-	boxed := leftSidebarBorderStyle.
+	borderStyle := leftSidebarBorderStyle
+	if w.drag.cue().boundary == dragBoundaryLeftSidebar {
+		borderStyle = leftSidebarBorderHighlightStyle
+	}
+	boxed := borderStyle.
 		Height(totalH).
 		MaxHeight(totalH).
 		Render(styledContent)
@@ -1083,6 +1088,7 @@ func (w *Workspace) renderRunOverview() string {
 		w.runOverviewSidebar.deactivateAllSections()
 	}
 
+	w.runOverviewSidebar.SetDragCue(w.drag.cue())
 	contentH := max(w.height-StatusBarHeight, 0)
 	return w.runOverviewSidebar.View(contentH).Content
 }
@@ -1355,9 +1361,7 @@ func (w *Workspace) activeFocusStatus() []string {
 
 	switch w.focus.Type {
 	case FocusMainChart:
-		if scaleLabel := w.metricsGrid.focusedChartScaleLabel(); scaleLabel != "" {
-			parts = append(parts, scaleLabel)
-		}
+		parts[0] += w.metricsGrid.focusedChartLabels()
 	case FocusSystemChart:
 		if g := w.activeSystemMetricsGrid(); g != nil {
 			if detail := g.FocusedChartTitleDetail(); detail != "" {
@@ -1486,7 +1490,7 @@ func (w *Workspace) renderRunLines(contentWidth int) []string {
 		// Determine row style.
 		style := evenRunStyle
 		if idxOnPage%2 == 1 {
-			style = oddRunStyle
+			style = oddRunStyle()
 		}
 		if idxOnPage == selectedLine {
 			if w.runs.Active {

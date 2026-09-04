@@ -102,9 +102,6 @@ class Api:
     def settings(self, *args, **kwargs):
         return self.api.settings(*args, **kwargs)
 
-    def clear_setting(self, key: str) -> None:
-        return self.api.clear_setting(key)
-
     def set_setting(self, key: str, value: Any) -> None:
         return self.api.set_setting(key, value)
 
@@ -135,15 +132,6 @@ class Api:
     def stop_sweep(self, *args, **kwargs):
         return self.api.stop_sweep(*args, **kwargs)
 
-    def cancel_sweep(self, *args, **kwargs):
-        return self.api.cancel_sweep(*args, **kwargs)
-
-    def pause_sweep(self, *args, **kwargs):
-        return self.api.pause_sweep(*args, **kwargs)
-
-    def resume_sweep(self, *args, **kwargs):
-        return self.api.resume_sweep(*args, **kwargs)
-
     def register_agent(self, *args, **kwargs):
         return self.api.register_agent(*args, **kwargs)
 
@@ -156,17 +144,8 @@ class Api:
     def create_artifact(self, *args, **kwargs):
         return self.api.create_artifact(*args, **kwargs)
 
-    def complete_multipart_upload_artifact(self, *args, **kwargs):
-        return self.api.complete_multipart_upload_artifact(*args, **kwargs)
-
     def run_config(self, *args, **kwargs):
         return self.api.run_config(*args, **kwargs)
-
-    def upload_file_retry(self, *args, **kwargs):
-        return self.api.upload_file_retry(*args, **kwargs)
-
-    def upload_multipart_file_chunk_retry(self, *args, **kwargs):
-        return self.api.upload_multipart_file_chunk_retry(*args, **kwargs)
 
     def get_run_info(self, *args, **kwargs):
         return self.api.get_run_info(*args, **kwargs)
@@ -176,9 +155,6 @@ class Api:
 
     def entity_is_team(self, *args, **kwargs):
         return self.api.entity_is_team(*args, **kwargs)
-
-    def get_project_run_queues(self, *args, **kwargs):
-        return self.api.get_project_run_queues(*args, **kwargs)
 
     def push_to_run_queue(self, *args, **kwargs):
         return self.api.push_to_run_queue(*args, **kwargs)
@@ -191,12 +167,6 @@ class Api:
 
     def create_launch_agent(self, *args, **kwargs):
         return self.api.create_launch_agent(*args, **kwargs)
-
-    def upsert_run_queue(self, *args, **kwargs):
-        return self.api.upsert_run_queue(*args, **kwargs)
-
-    def create_custom_chart(self, *args, **kwargs):
-        return self.api.create_custom_chart(*args, **kwargs)
 
     def update_launch_agent_status(self, *args, **kwargs):
         return self.api.update_launch_agent_status(*args, **kwargs)

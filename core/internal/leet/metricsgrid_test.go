@@ -64,6 +64,19 @@ func TestMetricsGrid_View_FitsPaneWidth(t *testing.T) {
 	}
 }
 
+func TestMetricsGrid_XAxisMetricInChartHeader(t *testing.T) {
+	grid := newMetricsGrid(t, 1, 1, 80, 24, nil)
+	grid.ProcessHistory(leet.HistoryMsg{
+		Metrics: map[string]leet.MetricData{
+			"train/loss": {X: []float64{9}, Y: []float64{0.5}, XAxisMetric: "custom_step"},
+		},
+	})
+	grid.UpdateDimensions(80, 24)
+
+	dims := grid.CalculateChartDimensions(80, 24)
+	require.Contains(t, grid.View(dims), "[x: custom_step]")
+}
+
 func TestMetricsGrid_Render_EmptyGridShowsSectionHeader(t *testing.T) {
 	grid := newMetricsGrid(t, 2, 2, 200, 80, nil)
 
@@ -276,7 +289,7 @@ func TestMetricsGrid_Inspection_FocusedOnly(t *testing.T) {
 
 func TestMetricsGrid_Inspection_Synchronized_BroadcastAndEnd(t *testing.T) {
 	w, h := 240, 60
-	grid := newMetricsGrid(t, 1, 2, w, h, nil)
+	grid := newMetricsGrid(t, 1, 3, w, h, nil)
 
 	// alpha has dense steps, beta has sparse to exercise nearestIndex tie-breaks.
 	hist := map[string]leet.MetricData{
@@ -288,6 +301,11 @@ func TestMetricsGrid_Inspection_Synchronized_BroadcastAndEnd(t *testing.T) {
 			X: []float64{0, 2, 4, 6, 8},
 			Y: []float64{20, 40, 60, 80, 100},
 		},
+		"gamma": {
+			X:           []float64{0, 2, 4, 6, 8},
+			Y:           []float64{20, 40, 60, 80, 100},
+			XAxisMetric: "custom_step",
+		},
 	}
 	m := leet.HistoryMsg{Metrics: hist}
 	require.True(t, grid.ProcessHistory(m))
@@ -297,8 +315,10 @@ func TestMetricsGrid_Inspection_Synchronized_BroadcastAndEnd(t *testing.T) {
 
 	chA := grid.TestChartAt(0, 0)
 	chB := grid.TestChartAt(0, 1)
+	chC := grid.TestChartAt(0, 2)
 	require.NotNil(t, chA)
 	require.NotNil(t, chB)
+	require.NotNil(t, chC)
 
 	// Start synchronized at X=3 on alpha.
 	relPX := int(math.Round(
@@ -314,6 +334,7 @@ func TestMetricsGrid_Inspection_Synchronized_BroadcastAndEnd(t *testing.T) {
 	xB, _, bActive := chB.InspectionData()
 	require.True(t, aActive)
 	require.True(t, bActive)
+	require.False(t, chC.IsInspecting(), "gamma is on another x-axis")
 	require.InDelta(t, 3.0, xA, 1e-6) // alpha matches anchor exactly
 
 	// For beta (X: {0,2,4,6,8}), nearest to 3 is a tie (2 and 4). Implementation picks the lower (2).

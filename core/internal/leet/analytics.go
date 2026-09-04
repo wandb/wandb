@@ -3,6 +3,7 @@ package leet
 import (
 	"cmp"
 	"context"
+	"maps"
 	"os"
 	"strings"
 	"time"
@@ -39,9 +40,9 @@ type TelemetryParams struct {
 // Datadog through the W&B OpenTelemetry proxy.
 //
 // Telemetry is uploaded, unauthenticated, to the given server so that
-// dedicated instances ingest their own traffic. Servers without the proxy
-// API reject the uploads, which are dropped quietly; construction never
-// touches the network, so leet startup is not delayed.
+// dedicated instances ingest their own traffic. Uploads to servers without
+// the proxy API are dropped quietly; construction never touches the
+// network, so leet startup is not delayed.
 //
 // The returned function flushes pending records and stops uploads; call it
 // on exit. The recorder is nil, and telemetry a no-op, when disabled.
@@ -57,7 +58,7 @@ func ConfigureTelemetry(
 		cmp.Or(params.BaseURL, defaultTelemetryBaseURL),
 		"/",
 	)
-	proxy := analytics.NewOpenTelemetryProxyUnchecked(
+	proxy := analytics.NewOpenTelemetryProxy(
 		context.Background(),
 		settings.From(&spb.Settings{
 			BaseUrl: wrapperspb.String(baseURL),
@@ -95,6 +96,16 @@ func ConfigureTelemetry(
 		defer cancel()
 		_ = proxy.Shutdown(ctx)
 	}
+}
+
+// SessionAttributes summarizes the runs and UI features seen during this
+// session for the leet_session telemetry event. One leet process is one
+// session; the collectors are only touched from the Bubble Tea update loop
+// and read after it exits, so they are unsynchronized.
+func SessionAttributes() map[string]string {
+	attrs := sessionFeatures.attributes()
+	maps.Copy(attrs, sessionRuns.attributes())
+	return attrs
 }
 
 // detectExecutionContext classifies the environment leet runs in.

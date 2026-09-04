@@ -7,9 +7,7 @@ class Error(Exception):
     def __init__(self, message: str, context: dict | None = None) -> None:
         super().__init__(message)
         self.message = message
-        # sentry context capture
-        if context:
-            self.context = context
+        self.context = context or {}
 
 
 class CommError(Error):

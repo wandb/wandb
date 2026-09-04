@@ -185,8 +185,9 @@ func (rs *RightSidebar) Update(msg tea.Msg) (*RightSidebar, tea.Cmd) {
 	return rs, nil
 }
 
-// View renders the right sidebar.
-func (rs *RightSidebar) View(height int) string {
+// View renders the right sidebar, with its border highlighted while it is
+// being dragged.
+func (rs *RightSidebar) View(height int, borderHighlight bool) string {
 	width := rs.animState.Value()
 	if height <= 0 || width <= SidebarOverhead {
 		return ""
@@ -215,7 +216,11 @@ func (rs *RightSidebar) View(height int) string {
 		Height(height).
 		MaxHeight(height).
 		Render(body)
-	bordered := rightSidebarBorderStyle.
+	borderStyle := rightSidebarBorderStyle
+	if borderHighlight {
+		borderStyle = rightSidebarBorderHighlightStyle
+	}
+	bordered := borderStyle.
 		Height(height).
 		MaxHeight(height).
 		Render(styled)
@@ -254,10 +259,6 @@ func (rs *RightSidebar) IsFiltering() bool {
 
 // ProcessStatsMsg processes a stats message and updates the metrics.
 func (rs *RightSidebar) ProcessStatsMsg(msg StatsMsg) {
-	rs.logger.Debug(fmt.Sprintf(
-		"rightsidebar: ProcessStatsMsg: processing %d metrics (state=%v, width=%d)",
-		len(msg.Metrics), rs.animState, rs.animState.Value()))
-
 	rs.metricsGrid.ProcessStats(msg)
 }
 

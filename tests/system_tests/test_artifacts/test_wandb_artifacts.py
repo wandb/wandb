@@ -17,7 +17,6 @@ import numpy as np
 import requests
 import responses
 import wandb
-import wandb.sdk.internal.sender
 from moto import mock_aws
 from pytest import FixtureRequest, MonkeyPatch, fixture, mark, param, raises
 from wandb import Api, Artifact
@@ -1572,27 +1571,11 @@ def test_tracking_storage_handler(artifact):
     # assert handler.load_path(entry) == "/path/to/file.txt"
 
 
-def test_manifest_json_version():
-    pd_manifest = wandb.proto.wandb_internal_pb2.ArtifactManifest()
-    pd_manifest.version = 1
-    manifest = wandb.sdk.internal.sender._manifest_json_from_proto(pd_manifest)
-    assert manifest["version"] == 1
-
-
 @mark.parametrize("version", ["1", 1.0])
 def test_manifest_version_is_integer(version):
     pd_manifest = wandb.proto.wandb_internal_pb2.ArtifactManifest()
     with raises(TypeError):
         pd_manifest.version = version
-
-
-@mark.parametrize("version", [0, 2])
-def test_manifest_json_invalid_version(version):
-    pd_manifest = wandb.proto.wandb_internal_pb2.ArtifactManifest()
-    pd_manifest.version = version
-    with raises(Exception) as e:
-        wandb.sdk.internal.sender._manifest_json_from_proto(pd_manifest)
-    assert "manifest version" in str(e.value)
 
 
 @mark.usefixtures("override_env_dirs")

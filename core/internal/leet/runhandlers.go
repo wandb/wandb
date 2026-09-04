@@ -29,6 +29,7 @@ func (r *Run) handleRecordMsg(msg tea.Msg) tea.Cmd {
 	case RunMsg:
 		r.logger.Debug("model: processing RunMsg")
 		r.lastError = ""
+		sessionRuns.observe(msg, true)
 		r.runOverview.ProcessRunMsg(msg)
 		r.leftSidebar.Sync()
 		r.runState = RunStateRunning
@@ -118,9 +119,10 @@ func (r *Run) handleHistoryMsg(msg HistoryMsg) {
 	defer timeit(r.logger, "Model.handleHistoryMsg")()
 
 	shouldDraw := r.metricsGrid.ProcessHistory(msg)
-	if r.mediaStore.ProcessHistory(msg) {
-		r.mediaPane.SetStore(r.mediaStore)
-	}
+	// Sync even when this call saw nothing new: the store may be shared with
+	// the workspace, whose reader can ingest the same points first.
+	r.mediaStore.ProcessHistory(msg)
+	r.mediaPane.SetStore(r.mediaStore)
 	if shouldDraw && !r.suppressDraw {
 		r.metricsGrid.drawVisible()
 	}
@@ -916,6 +918,7 @@ func (r *Run) handleRecordsBatch(subMsgs []tea.Msg, suppressRedraw bool) []tea.C
 	if !r.suppressDraw {
 		r.metricsGrid.drawVisible()
 	}
+	r.rightSidebar.metricsGrid.drawVisible()
 
 	return cmds
 }

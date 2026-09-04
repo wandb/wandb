@@ -11,6 +11,9 @@ import (
 type MetricData struct {
 	X []float64
 	Y []float64
+
+	// XAxisMetric is the metric whose values X holds, or "" for _step.
+	XAxisMetric string
 }
 
 // HistoryMsg contains metrics data from a wandb history record.
@@ -24,11 +27,14 @@ type HistoryMsg struct {
 type RunMsg struct {
 	RunPath     string
 	ID          string
+	Entity      string
 	Project     string
 	DisplayName string
 	Notes       string
 	Tags        []string
 	Config      *spb.ConfigRecord
+	StartTime   time.Time
+	Telemetry   *spb.TelemetryRecord
 }
 
 // SummaryMsg contains summary data from the wandb run.

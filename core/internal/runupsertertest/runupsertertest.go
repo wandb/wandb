@@ -36,6 +36,21 @@ func NewTestUpserter(
 	params runupserter.RunUpserterParams,
 ) *runupserter.RunUpserter {
 	t.Helper()
+	return NewTestUpserterFromRun(t, &spb.RunRecord{
+		Entity:  entity,
+		Project: project,
+		RunId:   runID,
+	}, params)
+}
+
+// NewTestUpserterFromRun creates a RunUpserter from a RunRecord with test
+// defaults for required parameters that are unspecified.
+func NewTestUpserterFromRun(
+	t *testing.T,
+	run *spb.RunRecord,
+	params runupserter.RunUpserterParams,
+) *runupserter.RunUpserter {
+	t.Helper()
 
 	if params.ClientID == "" {
 		params.ClientID = "test-client-id"
@@ -53,18 +68,13 @@ func NewTestUpserter(
 		params.FeatureProvider = featurechecker.NewPreloaded(nil)
 	}
 	if params.SyncStateStore == nil {
-		params.SyncStateStore = runsyncstate.Noop()
+		params.SyncStateStore = runsyncstate.InMemory()
 	}
 
-	record := &spb.Record{RecordType: &spb.Record_Run{
-		Run: &spb.RunRecord{
-			Entity:  "test-entity",
-			Project: "test-project",
-			RunId:   "test-run",
-		},
-	}}
-
-	upserter, err := runupserter.InitRun(record, params)
+	upserter, err := runupserter.InitRun(
+		&spb.Record{RecordType: &spb.Record_Run{Run: run}},
+		params,
+	)
 	require.NoError(t, err)
 
 	return upserter
@@ -89,7 +99,12 @@ func StubUpsertBucket(t *testing.T, mockGQL *gqlmock.MockClient) {
 	}`)
 }
 
-func StubRunResumeStatusWithStep(t *testing.T, mock *gqlmock.MockClient, step int64) {
+func StubRunResumeStatusWithStepAndRuntime(
+	t *testing.T,
+	mock *gqlmock.MockClient,
+	step int64,
+	runtime float64,
+) {
 	mock.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), fmt.Sprintf(`{
 		"model": {
 			"bucket": {
@@ -99,13 +114,13 @@ func StubRunResumeStatusWithStep(t *testing.T, mock *gqlmock.MockClient, step in
 				"eventsLineCount": 0,
 				"logLineCount": 0,
 				"historyTail": "[]",
-				"summaryMetrics": "{\"_step\": %d}",
+				"summaryMetrics": "{\"_step\": %d, \"_runtime\": %f}",
 				"config": "{}",
 				"eventsTail": "[]",
 				"wandbConfig": "{\"t\": 1}"
 			}
 		}
-	}`, step))
+	}`, step, runtime))
 }
 
 // Telemetry is the telemetry uploaded through an UpsertBucket request.

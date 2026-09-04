@@ -16,6 +16,9 @@ build/
 # Conventional location for Python virtual environments.
 .venv/*
 
+# Written by uv when the ty prek hook runs.
+uv.lock
+
 # Configuration files.
 .python-version
 .idea/
@@ -34,9 +37,6 @@ test-results/
 coverage.xml
 coverage.txt
 cover-results/
-
-mypy-results/
-.mypy_cache/
 
 # Build output in xpu.
 xpu/target/
