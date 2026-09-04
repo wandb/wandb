@@ -98,7 +98,7 @@ jobs:
       CIRCLE_NODE_TOTAL: 4
       HOMEBREW_NO_AUTO_UPDATE: 1
       # Keep pytest temporary directories outside the checked-out Git repo.
-      TMPDIR: ${{ runner.temp }}
+      TMPDIR: /tmp
       # Standard macOS runners have 7 GB of RAM, so avoid overcommitting them.
       WANDB_TEST_MAX_WORKERS: 4
 
