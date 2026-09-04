@@ -64,10 +64,17 @@ def install_wandb(session: nox.Session, dev: bool = True):
         session.env["WANDB_BUILD_COVERAGE"] = "true"
         session.env["WANDB_BUILD_GORACEDETECT"] = "true"
 
+    package = os.environ.get("WANDB_TEST_WHEEL", ".")
     if session.venv_backend == "uv":
-        install_timed(session, "--reinstall", "--refresh-package", "wandb", ".")
+        install_timed(
+            session,
+            "--reinstall",
+            "--refresh-package",
+            "wandb",
+            package,
+        )
     else:
-        install_timed(session, "--force-reinstall", ".")
+        install_timed(session, "--force-reinstall", package)
 
 
 def get_session_file_name(session: nox.Session) -> str:
@@ -219,7 +226,12 @@ def unit_tests(session: nox.Session) -> None:
         session,
         paths=paths,
         # TODO: consider relaxing this once the test memory usage is under control.
-        opts={"n": "4" if is_windows else "8"},
+        opts={
+            "n": os.environ.get(
+                "WANDB_TEST_MAX_WORKERS",
+                "4" if is_windows else "8",
+            ),
+        },
     )
 
 
