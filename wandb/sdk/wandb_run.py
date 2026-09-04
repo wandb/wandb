@@ -3098,13 +3098,13 @@ class Run:
         ```
 
         """
-        from wandb.apis import internal
         from wandb.sdk.artifacts.artifact import Artifact
+        from wandb.sdk.internal.internal_api import Api as InternalApi
 
         if self._settings._offline:
             raise TypeError("Cannot use artifact when in offline mode.")
 
-        api = internal.Api(
+        api = InternalApi(
             default_settings={
                 "entity": self._settings.entity,
                 "project": self._settings.project,

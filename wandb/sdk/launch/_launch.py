@@ -8,7 +8,7 @@ from typing import Any
 
 import wandb
 from wandb.analytics import TelemetryRecorder
-from wandb.apis.internal import Api
+from wandb.sdk.internal.internal_api import Api
 
 from . import loader
 from ._project_spec import LaunchProject
@@ -273,7 +273,7 @@ def launch(
 
     Arguments:
         job: string reference to a wandb.Job eg: wandb/test/my-job:latest
-        api: An instance of a wandb Api from wandb.apis.internal.
+        api: An instance of `wandb.sdk.internal.internal_api.Api`.
         entry_point: Entry point to run within the project. Defaults to using the entry point used
             in the original run for wandb URIs, or main.py for git repository URIs.
         version: For Git-based projects, either a commit hash or a branch name.
@@ -303,7 +303,7 @@ def launch(
         params = {"epochs": 5}
         # Run W&B project and create a reproducible docker environment
         # on a local host
-        api = wandb.apis.internal.Api()
+        api = wandb.sdk.internal.internal_api.Api()
         launch(api, job, parameters=params)
         ```
 

@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock
 
 import pytest
-from wandb.apis.internal import Api
+from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.launch import loader
 from wandb.sdk.launch._project_spec import EntryPoint
 

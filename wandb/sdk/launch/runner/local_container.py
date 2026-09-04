@@ -32,7 +32,7 @@ from ..utils import (
 from .abstract import AbstractRun, AbstractRunner, Status
 
 if TYPE_CHECKING:
-    from wandb.apis.internal import Api
+    from wandb.sdk.internal.internal_api import Api
 
 _logger = logging.getLogger(__name__)
 
