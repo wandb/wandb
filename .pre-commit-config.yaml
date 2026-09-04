@@ -1,7 +1,7 @@
 # Exclude:
 #   * vendored code
 #   * generated protobuf files
-exclude: '^(wandb/vendor|core/vendor/)|\.pb\.go$|_pb2\.pyi?$'
+exclude: '^core/vendor/|\.pb\.go$|_pb2\.pyi?$'
 
 default_stages:
   - pre-push
@@ -35,7 +35,7 @@ repos:
         exclude: ^(wandb/|tests/|src/|.*_durations)
       - id: check-added-large-files
       - id: check-executables-have-shebangs
-        exclude: ^(wandb/|tests/|landfill/)
+        exclude: ^(wandb/|tests/)
       - id: check-symlinks
       - id: check-yaml
         exclude: ^(wandb/|tests/)
@@ -47,7 +47,7 @@ repos:
         exclude: ^(wandb/__init__.py|tools/graphql_codegen/plugin\.py)$
       - id: forbid-submodules
       - id: check-shebang-scripts-are-executable
-        exclude: ^(wandb/|tests/|landfill/)
+        exclude: ^(wandb/|tests/)
 
   - repo: https://github.com/golangci/golangci-lint
     rev: v2.13.1

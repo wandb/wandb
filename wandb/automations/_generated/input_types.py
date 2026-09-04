@@ -15,6 +15,10 @@ from .enums import (
 )
 
 
+class ARIAActionInput(GQLInput):
+    prompt: str
+
+
 class CreateFilterTriggerInput(GQLInput):
     client_mutation_id: str | None = Field(alias="clientMutationId", default=None)
     description: str | None = None
@@ -69,6 +73,9 @@ class QueueJobActionInput(GQLInput):
 
 
 class TriggeredActionConfig(GQLInput):
+    aria_action_input: ARIAActionInput | None = Field(
+        alias="ariaActionInput", default=None
+    )
     generic_webhook_action_input: GenericWebhookActionInput | None = Field(
         alias="genericWebhookActionInput", default=None
     )

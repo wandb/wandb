@@ -191,7 +191,6 @@ message RunRecord {
   // This stores pre-sync intention. Distinct from `resumed` which stores what
   // actually happened.
   bool resume = 24;
-
   _RecordInfo _info = 200;
 }
 
@@ -1702,4 +1701,7 @@ enum ServerFeature {
 
   // Indicates that the server supports queries for an artifact's digest algorithm.
   ARTIFACT_DIGEST_ALGORITHM = 36;
+
+  // Indicates that the server supports automation action ARIA.
+  AUTOMATION_ACTION_ARIA = 37;
 }

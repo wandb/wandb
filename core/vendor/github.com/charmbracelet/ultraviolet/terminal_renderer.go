@@ -834,7 +834,17 @@ func lineHasDrift(m ansi.Method, line Line) bool {
 		if c == nil || c.Width == 0 || len(c.Content) == 0 {
 			continue
 		}
-		if c.Width > 1 || m.StringWidth(c.Content) != ansi.StringWidth(c.Content) {
+		if c.Width > 1 {
+			return true
+		}
+		// One printable ASCII byte is one column under every width model, so
+		// it can never be a cell the models disagree about. Worth saying out
+		// loud because working the width out means segmenting the content,
+		// and this runs for every cell of every line the renderer diffs.
+		if len(c.Content) == 1 && c.Content[0] >= 0x20 && c.Content[0] < 0x7f {
+			continue
+		}
+		if m.StringWidth(c.Content) != ansi.StringWidth(c.Content) {
 			return true
 		}
 	}
@@ -1386,7 +1396,12 @@ func (s *TerminalRenderer) Render(newbuf *RenderBuffer) {
 		// fullscreen, where the renderer owns every cell it is about to
 		// clear. Inline mode shares the screen with whatever came before,
 		// so it uses the narrower partial clear below instead.
-		if s.flags.Contains(tFullscreen) && (newWidth < curWidth || newHeight < curHeight) {
+		// A shrink makes the terminal reflow. A height grow is no safer: the
+		// terminal fills the rows it gains from its scrollback, and an earlier
+		// shrink may have rewrapped a row too wide to fit into exactly that
+		// space. Those lines come back at the top and push the screen down, so
+		// no row keeps its meaning and there is nothing to diff against.
+		if s.flags.Contains(tFullscreen) && (newWidth < curWidth || newHeight != curHeight) {
 			s.clear = true
 		}
 	}

@@ -11,8 +11,6 @@ import wandb.util
 if TYPE_CHECKING:
     import numpy as np
 
-    from wandb.sdk.internal.tb_watcher import TBHistory
-
 # We have at least the default namestep and a global step to track
 # TODO: reset this structure on wandb.finish
 STEPS: dict[str, dict[str, Any]] = {
@@ -273,7 +271,7 @@ def reset_state() -> None:
 
 def _log(
     tf_summary_str_or_pb: Any,
-    history: TBHistory | None = None,
+    history=None,
     step: int = 0,
     namespace: str = "",
     **kwargs: Any,

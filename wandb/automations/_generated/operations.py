@@ -29,6 +29,11 @@ query GetAutomationsLegacy($cursor: String, $perPage: Int) {
   }
 }
 
+fragment AriaActionFields on ARIATriggeredAction {
+  __typename
+  prompt
+}
+
 fragment ArtifactPortfolioScopeFields on ArtifactPortfolio {
   __typename
   id
@@ -133,6 +138,7 @@ fragment TriggerFields on Trigger {
     ...NotificationActionFields
     ...GenericWebhookActionFields
     ...NoOpActionFields
+    ...AriaActionFields
   }
 }
 
@@ -160,6 +166,11 @@ query GetEntityAutomationsLegacy($entity: String!, $cursor: String, $perPage: In
   }
 }
 
+fragment AriaActionFields on ARIATriggeredAction {
+  __typename
+  prompt
+}
+
 fragment ArtifactPortfolioScopeFields on ArtifactPortfolio {
   __typename
   id
@@ -264,6 +275,7 @@ fragment TriggerFields on Trigger {
     ...NotificationActionFields
     ...GenericWebhookActionFields
     ...NoOpActionFields
+    ...AriaActionFields
   }
 }
 
@@ -291,6 +303,11 @@ query GetEntityAutomations($entity: String!, $cursor: String, $perPage: Int, $or
   }
 }
 
+fragment AriaActionFields on ARIATriggeredAction {
+  __typename
+  prompt
+}
+
 fragment ArtifactPortfolioScopeFields on ArtifactPortfolio {
   __typename
   id
@@ -388,6 +405,7 @@ fragment TriggerFields on Trigger {
     ...NotificationActionFields
     ...GenericWebhookActionFields
     ...NoOpActionFields
+    ...AriaActionFields
   }
 }
 
@@ -415,6 +433,11 @@ query GetOrgAutomations($org: String!, $cursor: String, $perPage: Int, $order: S
   }
 }
 
+fragment AriaActionFields on ARIATriggeredAction {
+  __typename
+  prompt
+}
+
 fragment ArtifactPortfolioScopeFields on ArtifactPortfolio {
   __typename
   id
@@ -512,6 +535,7 @@ fragment TriggerFields on Trigger {
     ...NotificationActionFields
     ...GenericWebhookActionFields
     ...NoOpActionFields
+    ...AriaActionFields
   }
 }
 
@@ -532,6 +556,11 @@ mutation CreateAutomation($input: CreateFilterTriggerInput!) {
   }
 }
 
+fragment AriaActionFields on ARIATriggeredAction {
+  __typename
+  prompt
+}
+
 fragment ArtifactPortfolioScopeFields on ArtifactPortfolio {
   __typename
   id
@@ -624,6 +653,7 @@ fragment TriggerFields on Trigger {
     ...NotificationActionFields
     ...GenericWebhookActionFields
     ...NoOpActionFields
+    ...AriaActionFields
   }
 }
 
@@ -644,6 +674,11 @@ mutation UpdateAutomation($input: UpdateFilterTriggerInput!) {
   }
 }
 
+fragment AriaActionFields on ARIATriggeredAction {
+  __typename
+  prompt
+}
+
 fragment ArtifactPortfolioScopeFields on ArtifactPortfolio {
   __typename
   id
@@ -736,6 +771,7 @@ fragment TriggerFields on Trigger {
     ...NotificationActionFields
     ...GenericWebhookActionFields
     ...NoOpActionFields
+    ...AriaActionFields
   }
 }
 

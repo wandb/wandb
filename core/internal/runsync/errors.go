@@ -76,7 +76,7 @@ func LogSyncFailure(logger *observability.CoreLogger, err error) {
 	// Any other errors are captured as they are unexpected
 	// and don't have helpful user text.
 	//
-	// If you're here from Sentry, please figure out where
+	// If you're here from Datadog, please figure out where
 	// the error happens and wrap it in a SyncError with
 	// proper UserText. Or fix it so it can't happen.
 	logger.CaptureError("runsync", err)

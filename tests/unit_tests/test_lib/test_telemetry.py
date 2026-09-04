@@ -4,6 +4,7 @@ import threading
 from unittest.mock import MagicMock
 
 import pytest
+import requests
 from wandb import env
 from wandb.analytics.opentelemetry import opentelemetry_proxy
 from wandb.analytics.opentelemetry.opentelemetry_proxy import (
@@ -57,6 +58,33 @@ def test_disabled_telemetry_does_not_publish(monkeypatch):
     recorder.exception(Exception("test"))
 
 
+@pytest.mark.parametrize(
+    ("status_code", "supported"),
+    [
+        (requests.codes.not_found, False),
+        (requests.codes.method_not_allowed, False),
+        (requests.codes.unauthorized, True),
+    ],
+)
+def test_check_server_supports_open_telemetry_proxy(status_code: int, supported: bool):
+    session = MagicMock()
+    session.post.return_value = MagicMock(status_code=status_code)
+
+    assert (
+        opentelemetry_proxy._check_server_supports_open_telemetry_proxy(session, "url")
+        is supported
+    )
+
+
+def test_check_server_supports_open_telemetry_proxy_timeout():
+    session = MagicMock()
+    session.post.side_effect = requests.Timeout
+
+    assert not opentelemetry_proxy._check_server_supports_open_telemetry_proxy(
+        session, "url"
+    )
+
+
 def test_telemetry_without_proxy_does_not_publish():
     open_telemetry_proxy = MagicMock()
     recorder = TelemetryRecorder(open_telemetry_proxy=None)
@@ -100,6 +128,24 @@ def test_reraise_raises_original_on_telemetry_fail(monkeypatch):
         recorder.reraise(original)
 
     assert exc_info.value is original
+
+
+def test_exception_captures_extra_attributes(monkeypatch):
+    monkeypatch.setattr(env, "error_reporting_enabled", lambda: True)
+    open_telemetry_proxy = MagicMock()
+    recorder = TelemetryRecorder(open_telemetry_proxy=open_telemetry_proxy)
+
+    recorder.exception(
+        Exception("test exception"),
+        attributes={
+            "error.context.command": "['wandb-core', 'service']",
+            "error.context.proc_err": "connection refused",
+        },
+    )
+
+    attributes = open_telemetry_proxy.log.call_args.args[1]
+    assert attributes["error.context.command"] == "['wandb-core', 'service']"
+    assert attributes["error.context.proc_err"] == "connection refused"
 
 
 def test_proxy_noop_after_disable(monkeypatch):
