@@ -1,22 +1,16 @@
 from __future__ import annotations
 
-import base64
 import datetime
-import functools
-import http.client
 import json
 import logging
 import os
 import re
 import socket
-import sys
 import tempfile
 from collections.abc import Mapping, MutableMapping
 from copy import deepcopy
 from pathlib import Path
-from typing import IO, TYPE_CHECKING, Any, Literal, TextIO, overload
-
-import click
+from typing import TYPE_CHECKING, Any, Literal, overload
 
 import wandb
 from wandb import env, util
@@ -29,7 +23,6 @@ from wandb.proto.wandb_api_pb2 import (
     CreateRunQueueRequest,
     DownloadFileRequest,
     RunQueueOperationRequest,
-    UploadFileRequest,
 )
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk import wandb_setup
@@ -38,9 +31,8 @@ from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeatu
 from wandb.sdk.lib.hashutil import B64Digest, md5_file_b64
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
-from ..lib import retry, wbauth
+from ..lib import wbauth
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
-from .progress import Progress
 
 logger = logging.getLogger(__name__)
 
@@ -49,11 +41,7 @@ LAUNCH_DEFAULT_PROJECT = "model-registry"
 if TYPE_CHECKING:
     from typing import Literal, TypedDict
 
-    import requests
-
     from wandb.apis.public.service_api import ServiceApi
-
-    from .progress import ProgressFn
 
     class DefaultSettings(TypedDict, total=False):
         section: str
@@ -70,33 +58,6 @@ if TYPE_CHECKING:
 
     _Response = MutableMapping
     SweepState = Literal["RUNNING", "PAUSED", "CANCELED", "FINISHED"]
-
-httpclient_logger = logging.getLogger("http.client")
-if os.environ.get("WANDB_DEBUG"):
-    httpclient_logger.setLevel(logging.DEBUG)
-
-
-def check_httpclient_logger_handler() -> None:
-    # Only enable http.client logging if WANDB_DEBUG is set
-    if not os.environ.get("WANDB_DEBUG"):
-        return
-    if httpclient_logger.handlers:
-        return
-
-    # Enable HTTPConnection debug logging to the logging framework
-    level = logging.DEBUG
-
-    def httpclient_log(*args: Any) -> None:
-        httpclient_logger.log(level, " ".join(args))
-
-    # mask the print() built-in in the http.client module to use logging instead
-    http.client.print = httpclient_log  # type: ignore[attr-defined]
-    # enable debugging
-    http.client.HTTPConnection.debuglevel = 1
-
-    root_logger = logging.getLogger("wandb")
-    if root_logger.handlers:
-        httpclient_logger.addHandler(root_logger.handlers[0])
 
 
 class Api:
@@ -115,7 +76,6 @@ class Api:
     """
 
     HTTP_TIMEOUT = env.get_http_timeout(20)
-    FILE_PUSHER_TIMEOUT = env.get_file_pusher_timeout()
 
     def __init__(
         self,
@@ -130,8 +90,6 @@ class Api:
         api_key: str | None = None,
         telemetry_recorder: TelemetryRecorder | None = None,
     ) -> None:
-        import requests
-
         self._environ = environ
 
         default_overrides: dict[str, Any] = (
@@ -214,23 +172,6 @@ class Api:
         self._telemetry_recorder = telemetry_recorder or get_telemetry_recorder()
 
         self._current_run_id: str | None = None
-        self._upload_file_session = requests.Session()
-        if self.FILE_PUSHER_TIMEOUT:
-            self._upload_file_session.put = functools.partial(  # type: ignore
-                self._upload_file_session.put,
-                timeout=self.FILE_PUSHER_TIMEOUT,
-            )
-        if proxies:
-            self._upload_file_session.proxies.update(proxies)
-        # This Retry class is initialized once for each Api instance, so this
-        # defaults to retrying 1 million times per process or 7 days
-        self.upload_file_retry = normalize_exceptions(
-            retry.retriable(retry_timedelta=retry_timedelta)(self.upload_file)
-        )
-
-        # Large file uploads to azure can optionally use their SDK
-        self._azure_blob_module = util.get_module("azure.storage.blob")
-
         self._max_cli_version: str | None = None
 
         self._server_features_cache: dict[str, bool] | None = None
@@ -1571,75 +1512,6 @@ class Api:
         return run_state
 
     @normalize_exceptions
-    def upload_urls(
-        self,
-        project: str,
-        files: list[str] | dict[str, IO],
-        run: str | None = None,
-        entity: str | None = None,
-        description: str | None = None,
-    ) -> tuple[str, list[str], dict[str, dict[str, Any]]]:
-        """Generate temporary resumable upload urls.
-
-        Args:
-            project (str): The project to download
-            files (list or dict): The filenames to upload
-            run (str, optional): The run to upload to
-            entity (str, optional): The entity to scope this project to.
-            description (str, optional): description
-
-        Returns:
-            (run_id, upload_headers, file_info)
-            run_id: id of run we uploaded files to
-            upload_headers: A list of headers to use when uploading files.
-            file_info: A dict of filenames and urls.
-                {
-                    "run_id": "run_id",
-                    "upload_headers": [""],
-                    "file_info":  [
-                        { "weights.h5": { "uploadUrl": "https://weights.url" } },
-                        { "model.json": { "uploadUrl": "https://model.json" } }
-                    ]
-                }
-        """
-        run_name = run or self.current_run_id
-        assert run_name, "run must be specified"
-        entity = entity or self.settings("entity")
-        assert entity, "entity must be specified"
-
-        query = """
-        mutation CreateRunFiles($entity: String!, $project: String!, $run: String!, $files: [String!]!) {
-            createRunFiles(input: {entityName: $entity, projectName: $project, runName: $run, files: $files}) {
-                runID
-                uploadHeaders
-                files {
-                    name
-                    uploadUrl
-                }
-            }
-        }
-        """
-
-        query_result = self.execute(
-            query,
-            variables={
-                "project": project,
-                "run": run_name,
-                "entity": entity,
-                "files": [file for file in files],
-            },
-        )
-
-        result = query_result["createRunFiles"]
-        run_id = result["runID"]
-        if not run_id:
-            raise CommError(
-                f"Error uploading files to {entity}/{project}/{run_name}. Check that this project exists and you have access to this entity and project"
-            )
-        file_name_urls = {file["name"]: file for file in result["files"]}
-        return run_id, result["uploadHeaders"], file_name_urls
-
-    @normalize_exceptions
     def download_urls(
         self,
         project: str,
@@ -1696,63 +1568,6 @@ class Api:
         return {file["name"]: file for file in files if file}
 
     @normalize_exceptions
-    def download_url(
-        self,
-        project: str,
-        file_name: str,
-        run: str | None = None,
-        entity: str | None = None,
-    ) -> dict[str, str] | None:
-        """Generate download urls.
-
-        Args:
-            project (str): The project to download
-            file_name (str): The name of the file to download
-            run (str): The run to upload to
-            entity (str, optional): The entity to scope this project to.  Defaults to wandb models
-
-        Returns:
-            A dict of extensions and urls
-
-                { "url": "https://weights.url", "updatedAt": '2013-04-26T22:22:23.832Z', 'md5': 'mZFLkyvTelC5g8XnyQrpOw==' }
-
-        """
-        query = """
-        query RunDownloadUrl($name: String!, $fileName: String!, $entity: String, $run: String!)  {
-            model(name: $name, entityName: $entity) {
-                bucket(name: $run) {
-                    files(names: [$fileName]) {
-                        edges {
-                            node {
-                                name
-                                url
-                                md5
-                                updatedAt
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        """
-        run = run or self.current_run_id
-        assert run, "run must be specified"
-        query_result = self.execute(
-            query,
-            variables={
-                "name": project,
-                "run": run,
-                "fileName": file_name,
-                "entity": entity or self.settings("entity"),
-            },
-        )
-        if query_result["model"]:
-            files = self._flatten_edges(query_result["model"]["bucket"]["files"])
-            return files[0] if len(files) > 0 and files[0].get("updatedAt") else None
-        else:
-            return None
-
-    @normalize_exceptions
     def download_write_file(
         self,
         metadata: dict[str, str],
@@ -1774,128 +1589,6 @@ class Api:
 
         self.download_file(metadata["url"], path)
         return path, True
-
-    def upload_file_azure(
-        self, url: str, file: Any, extra_headers: dict[str, str]
-    ) -> None:
-        """Upload a file to azure."""
-        import requests
-        from azure.core.exceptions import AzureError  # type: ignore
-
-        # Configure the client without retries so our existing logic can handle them
-        client = self._azure_blob_module.BlobClient.from_blob_url(
-            url, retry_policy=self._azure_blob_module.LinearRetry(retry_total=0)
-        )
-        try:
-            if extra_headers.get("Content-MD5") is not None:
-                md5: bytes | None = base64.b64decode(extra_headers["Content-MD5"])
-            else:
-                md5 = None
-            content_settings = self._azure_blob_module.ContentSettings(
-                content_md5=md5,
-                content_type=extra_headers.get("Content-Type"),
-            )
-            client.upload_blob(
-                file,
-                max_concurrency=4,
-                length=len(file),
-                overwrite=True,
-                content_settings=content_settings,
-            )
-        except AzureError as e:
-            if hasattr(e, "response"):
-                response = requests.models.Response()
-                response.status_code = e.response.status_code
-                response.headers = e.response.headers
-                raise requests.exceptions.RequestException(e.message, response=response)
-            else:
-                raise requests.exceptions.ConnectionError(e.message)
-
-    def upload_file(
-        self,
-        url: str,
-        file: IO[bytes],
-        callback: ProgressFn | None = None,
-        extra_headers: dict[str, str] | None = None,
-    ) -> requests.Response | None:
-        """Upload a file to W&B with failure resumption.
-
-        Args:
-            url: The destination URL.
-            file: An open file object for the file to upload.
-            callback: A callback passed the number of bytes uploaded since
-                the last call, used to report progress. Only honored for
-                Azure uploads.
-            extra_headers: A dictionary of extra headers to send with the request.
-
-        Returns:
-            The `requests` response for Azure uploads, otherwise None.
-        """
-        extra_headers = extra_headers.copy() if extra_headers else {}
-
-        # Non-Azure uploads go through wandb-core's file transfer subsystem.
-        if "x-ms-blob-type" not in extra_headers:
-            self._service_api.send_api_request(
-                ApiRequest(
-                    upload_file_request=UploadFileRequest(
-                        url=url,
-                        path=str(Path(file.name).resolve()),
-                        headers=extra_headers,
-                    )
-                )
-            )
-            return None
-
-        # Azure uploads stay on the azure SDK, or a direct PUT for blobs
-        # small enough not to require it.
-        import requests
-
-        check_httpclient_logger_handler()
-        response: requests.Response | None = None
-        progress = Progress(file, callback=callback)
-        try:
-            if self._azure_blob_module:
-                self.upload_file_azure(url, progress, extra_headers)
-            else:
-                wandb.termwarn(
-                    "Azure uploads over 256MB require the azure SDK, install with pip install wandb[azure]",
-                    repeat=False,
-                )
-                if env.is_debug(env=self._environ):
-                    logger.debug("upload_file: %s", url)
-                response = self._upload_file_session.put(
-                    url, data=progress, headers=extra_headers
-                )
-                if env.is_debug(env=self._environ):
-                    logger.debug("upload_file: %s complete", url)
-                response.raise_for_status()
-        except requests.exceptions.RequestException as e:
-            logger.exception(f"upload_file exception for {url=}")
-            response_content = e.response.content if e.response is not None else ""
-            status_code = e.response.status_code if e.response is not None else 0
-            # S3 reports retryable request timeouts out-of-band
-            is_aws_retryable = (
-                "x-amz-meta-md5" in extra_headers
-                and status_code == 400
-                and "RequestTimeout" in str(response_content)
-            )
-            # We need to rewind the file for the next retry (the file passed in is `seek`'ed to 0)
-            progress.rewind()
-            # Retry errors from cloud storage or local network issues
-            if (
-                status_code in (308, 408, 409, 429, 500, 502, 503, 504)
-                or isinstance(
-                    e,
-                    (requests.exceptions.Timeout, requests.exceptions.ConnectionError),
-                )
-                or is_aws_retryable
-            ):
-                _e = retry.TransientError(exc=e)
-                raise _e.with_traceback(sys.exc_info()[2])
-            else:
-                self._telemetry_recorder.reraise(e)
-
-        return response
 
     @normalize_exceptions
     def register_agent(
@@ -2245,109 +1938,6 @@ class Api:
     def file_current(fname: str, md5: B64Digest) -> bool:
         """Checksum a file and compare the md5 with the known md5."""
         return os.path.isfile(fname) and md5_file_b64(fname) == md5
-
-    def get_project(self) -> str:
-        project: str = self.default_settings.get("project") or self.settings("project")
-        return project
-
-    @normalize_exceptions
-    def push(
-        self,
-        files: list[str] | dict[str, IO],
-        run: str | None = None,
-        entity: str | None = None,
-        project: str | None = None,
-        description: str | None = None,
-        force: bool = True,
-        progress: TextIO | Literal[False] = False,
-    ) -> list[requests.Response | None]:
-        """Uploads multiple files to W&B.
-
-        Args:
-            files (list or dict): The filenames to upload, when dict the values are open files
-            run (str, optional): The run to upload to
-            entity (str, optional): The entity to scope this project to.  Defaults to wandb models
-            project (str, optional): The name of the project to upload to. Defaults to the one in settings.
-            description (str, optional): The description of the changes
-            force (bool, optional): Whether to prevent push if git has uncommitted changes
-            progress (callable, or stream): If callable, will be called with (chunk_bytes,
-                total_bytes) as argument. If TextIO, renders a progress bar to it.
-
-        Returns:
-            A list of `requests.Response` objects
-        """
-        if project is None:
-            project = self.get_project()
-        if project is None:
-            raise CommError("No project configured.")
-        if run is None:
-            run = self.current_run_id
-
-        # TODO(adrian): we use a retriable version of self.upload_file() so
-        # will never retry self.upload_urls() here. Instead, maybe we should
-        # make push itself retriable.
-        _, upload_headers, result = self.upload_urls(
-            project,
-            files,
-            run,
-            entity,
-        )
-        extra_headers = {}
-        for upload_header in upload_headers:
-            key, val = upload_header.split(":", 1)
-            extra_headers[key] = val
-        responses = []
-        for file_name, file_info in result.items():
-            file_url = file_info["uploadUrl"]
-
-            # If the upload URL is relative, fill it in with the base URL,
-            # since it's a proxied file store like the on-prem VM.
-            if file_url.startswith("/"):
-                file_url = f"{self.api_url}{file_url}"
-
-            try:
-                # To handle Windows paths
-                # TODO: this doesn't handle absolute paths...
-                normal_name = os.path.join(*file_name.split("/"))
-                open_file = (
-                    files[file_name]
-                    if isinstance(files, dict)
-                    else open(normal_name, "rb")
-                )
-            except OSError:
-                print(f"{file_name} does not exist")  # noqa: T201
-                continue
-            if progress is False:
-                responses.append(
-                    self.upload_file_retry(
-                        file_info["uploadUrl"], open_file, extra_headers=extra_headers
-                    )
-                )
-            else:
-                if callable(progress):
-                    responses.append(  # type: ignore
-                        self.upload_file_retry(
-                            file_url, open_file, progress, extra_headers=extra_headers
-                        )
-                    )
-                else:
-                    length = os.fstat(open_file.fileno()).st_size
-                    with click.progressbar(  # type: ignore
-                        file=progress,
-                        length=length,
-                        label=f"Uploading file: {file_name}",
-                        fill_char=click.style("&", fg="green"),
-                    ) as bar:
-                        responses.append(
-                            self.upload_file_retry(
-                                file_url,
-                                open_file,
-                                lambda bites, _: bar.update(bites),
-                                extra_headers=extra_headers,
-                            )
-                        )
-            open_file.close()
-        return responses
 
     def _construct_use_artifact_query(
         self,
