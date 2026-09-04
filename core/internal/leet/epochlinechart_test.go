@@ -445,3 +445,18 @@ func TestTimeSeriesLineChart_LogY_FormatsTicksWithMetricUnits(t *testing.T) {
 	require.True(t, ch.TestIsLogY())
 	require.Equal(t, "10%", ch.TestFormatYTick(1))
 }
+
+func TestEpochLineChart_YLabelsFitTopTick(t *testing.T) {
+	c := leet.NewEpochLineChart("norm")
+	c.AddData("run", leet.MetricData{X: []float64{0, 1, 2}, Y: []float64{0, 500, 1090}})
+
+	// Height 10 adds a top tick whose label is wider than the stepped ones.
+	c.Resize(30, 10)
+	c.Draw()
+	require.Contains(t, stripANSI(c.View()), "1.2e+03│")
+
+	// Height 8 has no top tick, so the column stays as wide as "999".
+	c.Resize(30, 8)
+	c.Draw()
+	require.Contains(t, stripANSI(c.View()), "\n  0└")
+}

@@ -250,8 +250,16 @@ func NewEpochLineChart(title string) *EpochLineChart {
 	chart.XLabelFormatter = func(_ int, v float64) string {
 		return FormatXAxisTick(v, chart.maxXLabelWidth())
 	}
+	// ntcharts sizes the label column from the stepped ticks only, so pad
+	// labels to the width of the top label when drawYLabels adds one.
 	chart.YLabelFormatter = func(_ int, v float64) string {
-		return chart.formatYTick(v)
+		s := chart.formatYTick(v)
+		if hasTopYTick(chart.GraphHeight(), chart.YStep()) {
+			if top := chart.formatYTick(chart.ViewMaxY()); len(top) > len(s) {
+				s = strings.Repeat(" ", len(top)-len(s)) + s
+			}
+		}
+		return s
 	}
 
 	return chart
@@ -704,16 +712,19 @@ func (c *EpochLineChart) drawYLabels() {
 	}
 
 	var lastVal string
-	lastI := 0
 	for i := 0; i <= graphH; i += yStep {
 		lastVal = draw(i, lastVal)
-		lastI = i
 	}
-	// Add a top tick when the last stepped tick fell short of graphHeight
-	// and there's room for a non-adjacent label.
-	if lastI < graphH && graphH-lastI >= (yStep+1)/2 {
+	if hasTopYTick(graphH, yStep) {
 		draw(graphH, lastVal)
 	}
+}
+
+// hasTopYTick reports whether drawYLabels labels the top of the axis, which
+// it does when the top is not a stepped tick and there is room for a
+// non-adjacent label above the last one.
+func hasTopYTick(graphH, yStep int) bool {
+	return yStep > 0 && graphH%yStep >= (yStep+1)/2
 }
 
 // drawSeries renders a single series onto the canvas.
