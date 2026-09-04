@@ -25,6 +25,8 @@ Legacy `wandb sync` options have been removed. See `wandb sync --help`.
 - Added `wandb sweep-scheduler`, which runs a sweep's search locally while wandb-core drives the runs, so you can plug in your own optimizer (@kmikowicz in https://github.com/wandb/wandb/pull/12560)
 - `wandb sweep-scheduler` can search a sweep with Optuna, including its pruners and any stopping rule you supply (@kmikowicz in https://github.com/wandb/wandb/pull/12561)
 - `wandb sweep-scheduler` can search a sweep with Ax, including its early stopping and any stopping rule you supply. Requires Python 3.11 or newer (@kmikowicz in https://github.com/wandb/wandb/pull/12562)
+- A sweep's controller run now collects the logs of `wandb sweep-scheduler`, labeling the optimizer library's own output with the library's name, so you can read a sweep's scheduling history in the UI (@kmikowicz in https://github.com/wandb/wandb/pull/12563)
+- Added the `label` argument to `run.write_logs()`, which attributes the written lines to a named source instead of the run's `x_label` setting (@kmikowicz in https://github.com/wandb/wandb/pull/12563)
 
 ### Changed
 

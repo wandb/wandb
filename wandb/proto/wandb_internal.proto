@@ -346,6 +346,9 @@ message OutputRawResult {}
  */
 message OutputLoggerRecord {
   string line = 1;
+
+  // A label for the lines, in place of the run's x_label setting.
+  string label = 2;
 }
 
 /*

@@ -426,6 +426,15 @@ message Settings {
   // Time-based rollover threshold for multipart console logs, in seconds.
   google.protobuf.Int32Value console_chunk_max_seconds = 201;
 
+  // Whether to stream captured console output only as complete lines.
+  //
+  // Text after a line's last newline is held back until the rest of the
+  // line arrives, so a backend that appends console updates instead of
+  // overwriting them by offset never records a partial line twice.
+  // Output that rewrites a line in place is flushed once the held text
+  // grows past one terminal line.
+  google.protobuf.BoolValue x_console_complete_lines = 209;
+
   // Whether to sync TensorBoard logs to W&B.
   google.protobuf.BoolValue sync_tensorboard = 179;
 

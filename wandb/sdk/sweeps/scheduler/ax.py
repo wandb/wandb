@@ -406,6 +406,11 @@ class AxOptimizer(Optimizer):
         super().__init__(sweep)
 
     @override
+    def captured_loggers(self) -> Sequence[str]:
+        """Surface Ax's internal logging, e.g. generation-node choices."""
+        return ("ax",)
+
+    @override
     def should_terminate_sweep(self) -> bool:
         """Return True once the caller's `terminator` says the search is done.
 

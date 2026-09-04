@@ -319,6 +319,11 @@ class OptunaOptimizer(Optimizer):
 
         super().__init__(sweep)
 
+    @override
+    def captured_loggers(self) -> Sequence[str]:
+        """Surface optuna's internal logging, e.g. trial completions."""
+        return ("optuna",)
+
     @property
     def _is_multi_objective(self) -> bool:
         """Whether the study optimizes more than one objective."""

@@ -489,6 +489,11 @@ func (s *Settings) IsConsoleMultipart() bool {
 	return s.Proto.ConsoleMultipart.GetValue()
 }
 
+// Whether to stream captured console output only as complete lines.
+func (s *Settings) IsConsoleCompleteLines() bool {
+	return s.Proto.XConsoleCompleteLines.GetValue()
+}
+
 // Whether to disable metadata collection.
 func (s *Settings) IsDisableMeta() bool {
 	return s.Proto.XDisableMeta.GetValue()
