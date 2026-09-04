@@ -107,6 +107,8 @@ const (
 	ServerFeature_SWEEPS_LOCAL_SCHEDULER ServerFeature = 35
 	// Indicates that the server supports queries for an artifact's digest algorithm.
 	ServerFeature_ARTIFACT_DIGEST_ALGORITHM ServerFeature = 36
+	// Indicates that the server supports automation action ARIA.
+	ServerFeature_AUTOMATION_ACTION_ARIA ServerFeature = 37
 )
 
 // Enum value maps for ServerFeature.
@@ -149,6 +151,7 @@ var (
 		34: "FILESTREAM_GZIP",
 		35: "SWEEPS_LOCAL_SCHEDULER",
 		36: "ARTIFACT_DIGEST_ALGORITHM",
+		37: "AUTOMATION_ACTION_ARIA",
 	}
 	ServerFeature_value = map[string]int32{
 		"SERVER_FEATURE_UNSPECIFIED":                           0,
@@ -188,6 +191,7 @@ var (
 		"FILESTREAM_GZIP":                                      34,
 		"SWEEPS_LOCAL_SCHEDULER":                               35,
 		"ARTIFACT_DIGEST_ALGORITHM":                            36,
+		"AUTOMATION_ACTION_ARIA":                               37,
 	}
 )
 
@@ -12732,7 +12736,7 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\finput_source\x18\x01 \x01(\v2\x1e.wandb_internal.JobInputSourceR\vinputSource\x12A\n" +
 	"\rinclude_paths\x18\x02 \x03(\v2\x1c.wandb_internal.JobInputPathR\fincludePaths\x12A\n" +
 	"\rexclude_paths\x18\x03 \x03(\v2\x1c.wandb_internal.JobInputPathR\fexcludePaths\x12!\n" +
-	"\finput_schema\x18\x04 \x01(\tR\vinputSchema*\xb9\n" +
+	"\finput_schema\x18\x04 \x01(\tR\vinputSchema*\xd5\n" +
 	"\n" +
 	"\rServerFeature\x12\x1e\n" +
 	"\x1aSERVER_FEATURE_UNSPECIFIED\x10\x00\x12\x13\n" +
@@ -12773,7 +12777,8 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x1bAUTOMATIONS_ON_ORGANIZATION\x10!\x12\x13\n" +
 	"\x0fFILESTREAM_GZIP\x10\"\x12\x1a\n" +
 	"\x16SWEEPS_LOCAL_SCHEDULER\x10#\x12\x1d\n" +
-	"\x19ARTIFACT_DIGEST_ALGORITHM\x10$B\x1bZ\x19core/pkg/service_go_protob\x06proto3"
+	"\x19ARTIFACT_DIGEST_ALGORITHM\x10$\x12\x1a\n" +
+	"\x16AUTOMATION_ACTION_ARIA\x10%B\x1bZ\x19core/pkg/service_go_protob\x06proto3"
 
 var (
 	file_wandb_proto_wandb_internal_proto_rawDescOnce sync.Once
