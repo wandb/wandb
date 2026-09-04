@@ -11,7 +11,7 @@ import re
 import socket
 import sys
 import tempfile
-from collections.abc import Callable, Iterable, Mapping, MutableMapping, Sequence
+from collections.abc import Mapping, MutableMapping, Sequence
 from copy import deepcopy
 from pathlib import Path
 from typing import IO, TYPE_CHECKING, Any, Literal, NamedTuple, TextIO, overload
@@ -55,50 +55,6 @@ if TYPE_CHECKING:
 
     from .progress import ProgressFn
 
-    class CreateArtifactFileSpecInput(TypedDict, total=False):
-        """Corresponds to `type CreateArtifactFileSpecInput` in schema.graphql."""
-
-        artifactID: str
-        name: str
-        md5: str
-        mimetype: str | None
-        artifactManifestID: str | None
-        uploadPartsInput: list[dict[str, object]] | None
-
-    class CreateArtifactFilesResponseFile(TypedDict):
-        id: str
-        name: str
-        displayName: str
-        uploadUrl: str | None
-        uploadHeaders: Sequence[str]
-        uploadMultipartUrls: UploadPartsResponse
-        storagePath: str
-        artifact: CreateArtifactFilesResponseFileNode
-
-    class CreateArtifactFilesResponseFileNode(TypedDict):
-        id: str
-
-    class UploadPartsResponse(TypedDict):
-        uploadUrlParts: list[UploadUrlParts]
-        uploadID: str
-
-    class UploadUrlParts(TypedDict):
-        partNumber: int
-        uploadUrl: str
-
-    class CompleteMultipartUploadArtifactInput(TypedDict):
-        """Corresponds to `type CompleteMultipartUploadArtifactInput` in schema.graphql."""
-
-        completeMultipartAction: str
-        completedParts: dict[int, str]
-        artifactID: str
-        storagePath: str
-        uploadID: str
-        md5: str
-
-    class CompleteMultipartUploadArtifactResponse(TypedDict):
-        digest: str
-
     class DefaultSettings(TypedDict, total=False):
         section: str
         git_remote: str
@@ -114,7 +70,6 @@ if TYPE_CHECKING:
 
     _Response = MutableMapping
     SweepState = Literal["RUNNING", "PAUSED", "CANCELED", "FINISHED"]
-    Number = int | float
 
 httpclient_logger = logging.getLogger("http.client")
 if os.environ.get("WANDB_DEBUG"):
@@ -211,7 +166,6 @@ class Api:
         load_settings: bool = True,
         retry_timedelta: datetime.timedelta | None = None,
         environ: MutableMapping[str, str] = os.environ,
-        retry_callback: Callable[[int, str], Any] | None = None,
         api_key: str | None = None,
         telemetry_recorder: TelemetryRecorder | None = None,
     ) -> None:
@@ -246,15 +200,7 @@ class Api:
         else:
             self._settings = {}
 
-        # Mutable settings set by the _file_stream_api
-        self.dynamic_settings = {
-            "system_sample_seconds": 2,
-            "system_samples": 15,
-            "heartbeat_seconds": 30,
-        }
-
         self.retry_timedelta = retry_timedelta or datetime.timedelta(days=7)
-        self.retry_uploads = 10
 
         # todo: remove these hacky hacks after settings refactor is complete
         #  keeping this code here to limit scope and so that it is easy to remove later
@@ -306,9 +252,7 @@ class Api:
         self._service_api = self._new_service_api()
         self._telemetry_recorder = telemetry_recorder or get_telemetry_recorder()
 
-        self.retry_callback = retry_callback
         self._current_run_id: str | None = None
-        self._file_stream_api = None
         self._upload_file_session = requests.Session()
         if self.FILE_PUSHER_TIMEOUT:
             self._upload_file_session.put = functools.partial(  # type: ignore
@@ -323,18 +267,12 @@ class Api:
             retry.retriable(retry_timedelta=retry_timedelta)(self.upload_file)
         )
 
-        self._client_id_mapping: dict[str, str] = {}
         # Large file uploads to azure can optionally use their SDK
         self._azure_blob_module = util.get_module("azure.storage.blob")
 
         self._max_cli_version: str | None = None
 
         self._server_features_cache: dict[str, bool] | None = None
-
-    def reauth(self) -> None:
-        """Ensure the current api key is set on the service API."""
-        self._request_auth = ("api", self.api_key or "")
-        self._service_api = self._new_service_api()
 
     def relocate(self) -> None:
         """Ensure the current api points to the right server."""
@@ -353,14 +291,6 @@ class Api:
     @property
     def request_auth(self) -> tuple[str, str] | None:
         return self._request_auth
-
-    @property
-    def request_headers(self) -> Mapping[str, str]:
-        return self._request_headers
-
-    @property
-    def request_proxies(self) -> Mapping[str, str]:
-        return self._request_proxies
 
     def _new_service_api(self) -> ServiceApi:
         from wandb.apis.public.service_api import ServiceApi
@@ -483,9 +413,6 @@ class Api:
         )
 
         return result if key is None else result[key]
-
-    def clear_setting(self, key: str) -> None:
-        self._settings.pop(key, None)
 
     def set_setting(self, key: str, value: Any) -> None:
         self._settings[key] = value
@@ -832,45 +759,6 @@ class Api:
         return data
 
     @normalize_exceptions
-    def list_runs(
-        self, project: str, entity: str | None = None
-    ) -> list[dict[str, str]]:
-        """List runs in W&B scoped by project.
-
-        Args:
-            project (str): The project to scope the runs to
-            entity (str, optional): The entity to scope this project to.  Defaults to public models
-
-        Returns:
-                [{"id","name","description"}]
-        """
-        query = """
-        query ProjectRuns($model: String!, $entity: String) {
-            model(name: $model, entityName: $entity) {
-                buckets(first: 10) {
-                    edges {
-                        node {
-                            id
-                            name
-                            displayName
-                            description
-                        }
-                    }
-                }
-            }
-        }
-        """
-        return self._flatten_edges(
-            self.execute(
-                query,
-                variables={
-                    "entity": entity or self.settings("entity"),
-                    "model": project or self.settings("project"),
-                },
-            )["model"]["buckets"]
-        )
-
-    @normalize_exceptions
     def run_config(
         self, project: str, run: str | None = None, entity: str | None = None
     ) -> tuple[str, dict[str, Any], str | None, dict[str, Any]]:
@@ -956,67 +844,6 @@ class Api:
                             patch = path.read_text(encoding="utf-8")
 
         return commit, config, patch, metadata
-
-    @normalize_exceptions
-    def run_resume_status(
-        self, entity: str, project_name: str, name: str
-    ) -> dict[str, Any] | None:
-        """Check if a run exists and get resume information.
-
-        Args:
-            entity (str): The entity to scope this project to.
-            project_name (str): The project to download, (can include bucket)
-            name (str): The run to download
-        """
-        # Pulling wandbConfig.start_time is required so that we can determine if a run has actually started
-        query = """
-        query RunResumeStatus($project: String, $entity: String, $name: String!) {
-            model(name: $project, entityName: $entity) {
-                id
-                name
-                entity {
-                    id
-                    name
-                }
-
-                bucket(name: $name, missingOk: true) {
-                    id
-                    name
-                    summaryMetrics
-                    displayName
-                    logLineCount
-                    historyLineCount
-                    eventsLineCount
-                    historyTail
-                    eventsTail
-                    config
-                    tags
-                    wandbConfig(keys: ["t"])
-                }
-            }
-        }
-        """
-
-        response = self.execute(
-            query,
-            variables={
-                "entity": entity,
-                "project": project_name,
-                "name": name,
-            },
-        )
-
-        if "model" not in response or "bucket" not in (response["model"] or {}):
-            return None
-
-        project = response["model"]
-        self.set_setting("project", project_name)
-        if "entity" in project:
-            self.set_setting("entity", project["entity"]["name"])
-
-        result: dict[str, Any] = project["bucket"]
-
-        return result
 
     @normalize_exceptions
     def check_stop_requested(
@@ -1152,63 +979,6 @@ class Api:
 
         project_run_queues: list[dict[str, str]] = res["project"]["runQueues"]
         return project_run_queues
-
-    @normalize_exceptions
-    def upsert_run_queue(
-        self,
-        queue_name: str,
-        entity: str,
-        resource_type: str,
-        resource_config: dict,
-        project: str = LAUNCH_DEFAULT_PROJECT,
-        prioritization_mode: str | None = None,
-        template_variables: dict | None = None,
-        external_links: dict | None = None,
-    ) -> dict[str, Any] | None:
-        query = """
-            mutation upsertRunQueue(
-                $entityName: String!
-                $projectName: String!
-                $queueName: String!
-                $resourceType: String!
-                $resourceConfig: JSONString!
-                $templateVariables: JSONString
-                $prioritizationMode: RunQueuePrioritizationMode
-                $externalLinks: JSONString
-                $clientMutationId: String
-            ) {
-                upsertRunQueue(
-                    input: {
-                        entityName: $entityName
-                        projectName: $projectName
-                        queueName: $queueName
-                        resourceType: $resourceType
-                        resourceConfig: $resourceConfig
-                        templateVariables: $templateVariables
-                        prioritizationMode: $prioritizationMode
-                        externalLinks: $externalLinks
-                        clientMutationId: $clientMutationId
-                    }
-                ) {
-                    success
-                    configSchemaValidationErrors
-                }
-            }
-            """
-        variables = {
-            "entityName": entity,
-            "projectName": project,
-            "queueName": queue_name,
-            "resourceType": resource_type,
-            "resourceConfig": json.dumps(resource_config),
-            "templateVariables": (
-                json.dumps(template_variables) if template_variables else None
-            ),
-            "prioritizationMode": prioritization_mode,
-            "externalLinks": json.dumps(external_links) if external_links else None,
-        }
-        result: _Response = self.execute(query, variables)
-        return result["upsertRunQueue"]
 
     @normalize_exceptions
     def push_to_run_queue_by_name(
@@ -1767,100 +1537,6 @@ class Api:
         )
 
     @normalize_exceptions
-    def rewind_run(
-        self,
-        run_name: str,
-        metric_name: str,
-        metric_value: float,
-        program_path: str | None = None,
-        entity: str | None = None,
-        project: str | None = None,
-        num_retries: int | None = None,
-    ) -> dict:
-        """Rewinds a run to a previous state.
-
-        Args:
-            run_name (str): The name of the run to rewind
-            metric_name (str): The name of the metric to rewind to
-            metric_value (float): The value of the metric to rewind to
-            program_path (str, optional): Path to the program
-            entity (str, optional): The entity to scope this project to
-            project (str, optional): The name of the project
-            num_retries (int, optional): Number of retries
-
-        Returns:
-            A dict with the rewound run
-
-                {
-                    "id": "run_id",
-                    "name": "run_name",
-                    "displayName": "run_display_name",
-                    "description": "run_description",
-                    "config": "stringified_run_config_json",
-                    "sweepName": "run_sweep_name",
-                    "project": {
-                        "id": "project_id",
-                        "name": "project_name",
-                        "entity": {
-                            "id": "entity_id",
-                            "name": "entity_name"
-                        }
-                    },
-                    "historyLineCount": 100,
-                }
-        """
-        query_string = """
-        mutation RewindRun($runName: String!, $entity: String, $project: String, $metricName: String!, $metricValue: Float!) {
-            rewindRun(input: {runName: $runName, entityName: $entity, projectName: $project, metricName: $metricName, metricValue: $metricValue}) {
-                rewoundRun {
-                    id
-                    name
-                    displayName
-                    description
-                    config
-                    sweepName
-                    project {
-                        id
-                        name
-                        entity {
-                            id
-                            name
-                        }
-                    }
-                    historyLineCount
-                }
-            }
-        }
-        """
-
-        mutation = query_string
-
-        variables = {
-            "runName": run_name,
-            "entity": entity or self.settings("entity"),
-            "project": project or util.auto_project_name(program_path),
-            "metricName": metric_name,
-            "metricValue": metric_value,
-        }
-
-        response = self.execute(
-            mutation,
-            variables=variables,
-        )
-
-        run_obj: dict[str, dict[str, dict[str, str]]] = response.get(
-            "rewindRun", {}
-        ).get("rewoundRun", {})
-        project_obj: dict[str, dict[str, str]] = run_obj.get("project", {})
-        if project_obj:
-            self.set_setting("project", project_obj["name"])
-            entity_obj = project_obj.get("entity", {})
-            if entity_obj:
-                self.set_setting("entity", entity_obj["name"])
-
-        return run_obj
-
-    @normalize_exceptions
     def get_run_info(
         self,
         entity: str,
@@ -1997,68 +1673,6 @@ class Api:
             )
         file_name_urls = {file["name"]: file for file in result["files"]}
         return run_id, result["uploadHeaders"], file_name_urls
-
-    def legacy_upload_urls(
-        self,
-        project: str,
-        files: list[str] | dict[str, IO],
-        run: str | None = None,
-        entity: str | None = None,
-        description: str | None = None,
-    ) -> tuple[str, list[str], dict[str, dict[str, Any]]]:
-        """Generate temporary resumable upload urls.
-
-        A new mutation createRunFiles was introduced after 0.15.4.
-        This function is used to support older versions.
-        """
-        query = """
-        query RunUploadUrls($name: String!, $files: [String]!, $entity: String, $run: String!, $description: String) {
-            model(name: $name, entityName: $entity) {
-                bucket(name: $run, desc: $description) {
-                    id
-                    files(names: $files) {
-                        uploadHeaders
-                        edges {
-                            node {
-                                name
-                                url(upload: true)
-                                updatedAt
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        """
-        run_id = run or self.current_run_id
-        assert run_id, "run must be specified"
-        entity = entity or self.settings("entity")
-        query_result = self.execute(
-            query,
-            variables={
-                "name": project,
-                "run": run_id,
-                "entity": entity,
-                "files": [file for file in files],
-                "description": description,
-            },
-        )
-
-        run_obj = query_result["model"]["bucket"]
-        if run_obj:
-            for file_node in run_obj["files"]["edges"]:
-                file = file_node["node"]
-                # we previously used "url" field but now use "uploadUrl"
-                # replace the "url" field with "uploadUrl for downstream compatibility
-                if "url" in file and "uploadUrl" not in file:
-                    file["uploadUrl"] = file.pop("url")
-
-            result = {
-                file["name"]: file for file in self._flatten_edges(run_obj["files"])
-            }
-            return run_obj["id"], run_obj["files"]["uploadHeaders"], result
-        else:
-            raise CommError(f"Run does not exist {entity}/{project}/{run_id}.")
 
     @normalize_exceptions
     def download_urls(
@@ -2770,76 +2384,6 @@ class Api:
             open_file.close()
         return responses
 
-    def link_artifact(
-        self,
-        client_id: str,
-        server_id: str,
-        portfolio_name: str,
-        entity: str,
-        project: str,
-        aliases: Sequence[str],
-        organization: str,
-    ) -> dict[str, Any]:
-        from wandb.sdk.artifacts._validators import is_artifact_registry_project
-
-        template = """
-                mutation LinkArtifact(
-                    $artifactPortfolioName: String!,
-                    $entityName: String!,
-                    $projectName: String!,
-                    $aliases: [ArtifactAliasInput!],
-                    ID_TYPE
-                    ) {
-                        linkArtifact(input: {
-                            artifactPortfolioName: $artifactPortfolioName,
-                            entityName: $entityName,
-                            projectName: $projectName,
-                            aliases: $aliases,
-                            ID_VALUE
-                        }) {
-                            versionIndex
-                        }
-                    }
-            """
-
-        org_entity = ""
-        if is_artifact_registry_project(project):
-            try:
-                org_entity = self._resolve_org_entity_name(
-                    entity=entity, organization=organization
-                )
-            except ValueError as e:
-                wandb.termerror(str(e))
-                raise
-
-        def replace(a: str, b: str) -> None:
-            nonlocal template
-            template = template.replace(a, b)
-
-        if server_id:
-            replace("ID_TYPE", "$artifactID: ID")
-            replace("ID_VALUE", "artifactID: $artifactID")
-        elif client_id:
-            replace("ID_TYPE", "$clientID: ID")
-            replace("ID_VALUE", "clientID: $clientID")
-
-        variables = {
-            "clientID": client_id,
-            "artifactID": server_id,
-            "artifactPortfolioName": portfolio_name,
-            "entityName": org_entity or entity,
-            "projectName": project,
-            "aliases": [
-                {"alias": alias, "artifactCollectionName": portfolio_name}
-                for alias in aliases
-            ],
-        }
-
-        mutation = template
-        response = self.execute(mutation, variables=variables)
-        link_artifact: dict[str, Any] = response["linkArtifact"]
-        return link_artifact
-
     def _resolve_org_entity_name(self, entity: str, organization: str = "") -> str:
         # resolveOrgEntityName fetches the portfolio's org entity's name.
         #
@@ -3043,46 +2587,6 @@ class Api:
             return artifact
         return None
 
-    def create_artifact_type(
-        self,
-        artifact_type_name: str,
-        entity_name: str | None = None,
-        project_name: str | None = None,
-        description: str | None = None,
-    ) -> str | None:
-        mutation = """
-        mutation CreateArtifactType(
-            $entityName: String!,
-            $projectName: String!,
-            $artifactTypeName: String!,
-            $description: String
-        ) {
-            createArtifactType(input: {
-                entityName: $entityName,
-                projectName: $projectName,
-                name: $artifactTypeName,
-                description: $description
-            }) {
-                artifactType {
-                    id
-                }
-            }
-        }
-        """
-        entity_name = entity_name or self.settings("entity")
-        project_name = project_name or self.settings("project")
-        response = self.execute(
-            mutation,
-            variables={
-                "entityName": entity_name,
-                "projectName": project_name,
-                "artifactTypeName": artifact_type_name,
-                "description": description,
-            },
-        )
-        _id: str | None = response["createArtifactType"]["artifactType"]["id"]
-        return _id
-
     def _get_create_artifact_mutation(
         self,
         history_step: int | None,
@@ -3214,193 +2718,6 @@ class Api:
         )
         return av, latest
 
-    def commit_artifact(self, artifact_id: str) -> _Response:
-        mutation = """
-        mutation CommitArtifact(
-            $artifactID: ID!,
-        ) {
-            commitArtifact(input: {
-                artifactID: $artifactID,
-            }) {
-                artifact {
-                    id
-                    digest
-                }
-            }
-        }
-        """
-
-        response: _Response = self.execute(
-            mutation,
-            variables={"artifactID": artifact_id},
-            timeout=60,
-        )
-        return response
-
-    def complete_multipart_upload_artifact(
-        self,
-        artifact_id: str,
-        storage_path: str,
-        completed_parts: list[dict[str, Any]],
-        upload_id: str | None,
-        complete_multipart_action: str = "Complete",
-    ) -> str | None:
-        mutation = """
-        mutation CompleteMultipartUploadArtifact(
-            $completeMultipartAction: CompleteMultipartAction!,
-            $completedParts: [UploadPartsInput!]!,
-            $artifactID: ID!
-            $storagePath: String!
-            $uploadID: String!
-        ) {
-        completeMultipartUploadArtifact(
-            input: {
-                completeMultipartAction: $completeMultipartAction,
-                completedParts: $completedParts,
-                artifactID: $artifactID,
-                storagePath: $storagePath
-                uploadID: $uploadID
-            }
-            ) {
-                digest
-            }
-        }
-        """
-        response = self.execute(
-            mutation,
-            variables={
-                "completeMultipartAction": complete_multipart_action,
-                "artifactID": artifact_id,
-                "storagePath": storage_path,
-                "completedParts": completed_parts,
-                "uploadID": upload_id,
-            },
-        )
-        digest: str | None = response["completeMultipartUploadArtifact"]["digest"]
-        return digest
-
-    def create_artifact_manifest(
-        self,
-        name: str,
-        digest: str,
-        artifact_id: str | None,
-        base_artifact_id: str | None = None,
-        entity: str | None = None,
-        project: str | None = None,
-        run: str | None = None,
-        include_upload: bool = True,
-        type: str = "FULL",
-    ) -> tuple[str, dict[str, Any]]:
-        mutation = """
-        mutation CreateArtifactManifest(
-            $name: String!,
-            $digest: String!,
-            $artifactID: ID!,
-            $baseArtifactID: ID,
-            $entityName: String!,
-            $projectName: String!,
-            $runName: String!,
-            $includeUpload: Boolean!,
-            {}
-        ) {{
-            createArtifactManifest(input: {{
-                name: $name,
-                digest: $digest,
-                artifactID: $artifactID,
-                baseArtifactID: $baseArtifactID,
-                entityName: $entityName,
-                projectName: $projectName,
-                runName: $runName,
-                {}
-            }}) {{
-                artifactManifest {{
-                    id
-                    file {{
-                        id
-                        name
-                        displayName
-                        uploadUrl @include(if: $includeUpload)
-                        uploadHeaders @include(if: $includeUpload)
-                    }}
-                }}
-            }}
-        }}
-        """.format(
-            "$type: ArtifactManifestType = FULL" if type != "FULL" else "",
-            "type: $type" if type != "FULL" else "",
-        )
-
-        entity_name = entity or self.settings("entity")
-        project_name = project or self.settings("project")
-        run_name = run or self.current_run_id
-
-        response = self.execute(
-            mutation,
-            variables={
-                "name": name,
-                "digest": digest,
-                "artifactID": artifact_id,
-                "baseArtifactID": base_artifact_id,
-                "entityName": entity_name,
-                "projectName": project_name,
-                "runName": run_name,
-                "includeUpload": include_upload,
-                "type": type,
-            },
-        )
-        return (
-            response["createArtifactManifest"]["artifactManifest"]["id"],
-            response["createArtifactManifest"]["artifactManifest"]["file"],
-        )
-
-    def update_artifact_manifest(
-        self,
-        artifact_manifest_id: str,
-        base_artifact_id: str | None = None,
-        digest: str | None = None,
-        include_upload: bool | None = True,
-    ) -> tuple[str, dict[str, Any]]:
-        mutation = """
-        mutation UpdateArtifactManifest(
-            $artifactManifestID: ID!,
-            $digest: String,
-            $baseArtifactID: ID,
-            $includeUpload: Boolean!,
-        ) {
-            updateArtifactManifest(input: {
-                artifactManifestID: $artifactManifestID,
-                digest: $digest,
-                baseArtifactID: $baseArtifactID,
-            }) {
-                artifactManifest {
-                    id
-                    file {
-                        id
-                        name
-                        displayName
-                        uploadUrl @include(if: $includeUpload)
-                        uploadHeaders @include(if: $includeUpload)
-                    }
-                }
-            }
-        }
-        """
-
-        response = self.execute(
-            mutation,
-            variables={
-                "artifactManifestID": artifact_manifest_id,
-                "digest": digest,
-                "baseArtifactID": base_artifact_id,
-                "includeUpload": include_upload,
-            },
-        )
-
-        return (
-            response["updateArtifactManifest"]["artifactManifest"]["id"],
-            response["updateArtifactManifest"]["artifactManifest"]["file"],
-        )
-
     def update_artifact_metadata(
         self, artifact_id: str, metadata: dict[str, Any]
     ) -> dict[str, Any]:
@@ -3428,143 +2745,6 @@ class Api:
             },
         )
         return response["updateArtifact"]["artifact"]
-
-    def _resolve_client_id(
-        self,
-        client_id: str,
-    ) -> str | None:
-        if client_id in self._client_id_mapping:
-            return self._client_id_mapping[client_id]
-
-        query = """
-            query ClientIDMapping($clientID: ID!) {
-                clientIDMapping(clientID: $clientID) {
-                    serverID
-                }
-            }
-        """
-        response = self.execute(
-            query,
-            variables={
-                "clientID": client_id,
-            },
-        )
-        server_id = None
-        if response is not None:
-            client_id_mapping = response.get("clientIDMapping")
-            if client_id_mapping is not None:
-                server_id = client_id_mapping.get("serverID")
-                if server_id is not None:
-                    self._client_id_mapping[client_id] = server_id
-        return server_id
-
-    @normalize_exceptions
-    def create_artifact_files(
-        self, artifact_files: Iterable[CreateArtifactFileSpecInput]
-    ) -> Mapping[str, CreateArtifactFilesResponseFile]:
-        query_template = """
-        mutation CreateArtifactFiles(
-            $storageLayout: ArtifactStorageLayout!
-            $artifactFiles: [CreateArtifactFileSpecInput!]!
-        ) {
-            createArtifactFiles(input: {
-                artifactFiles: $artifactFiles,
-                storageLayout: $storageLayout,
-            }) {
-                files {
-                    edges {
-                        node {
-                            id
-                            name
-                            displayName
-                            uploadUrl
-                            uploadHeaders
-                            storagePath
-                            uploadMultipartUrls {
-                                uploadID
-                                uploadUrlParts {
-                                    partNumber
-                                    uploadUrl
-                                }
-                            }
-                            artifact {
-                                id
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        """
-
-        # TODO: we should use constants here from interface/artifacts.py
-        # but probably don't want the dependency. We're going to remove
-        # this setting in a future release, so I'm just hard-coding the strings.
-        storage_layout = "V2"
-        if env.get_use_v1_artifacts():
-            storage_layout = "V1"
-
-        mutation = query_template
-        response = self.execute(
-            mutation,
-            variables={
-                "storageLayout": storage_layout,
-                "artifactFiles": [af for af in artifact_files],
-            },
-        )
-
-        result = {}
-        for edge in response["createArtifactFiles"]["files"]["edges"]:
-            node = edge["node"]
-            result[node["displayName"]] = node
-        return result
-
-    @normalize_exceptions
-    def notify_scriptable_run_alert(
-        self,
-        title: str,
-        text: str,
-        level: str | None = None,
-        wait_duration: Number | None = None,
-    ) -> bool:
-        mutation = """
-        mutation NotifyScriptableRunAlert(
-            $entityName: String!,
-            $projectName: String!,
-            $runName: String!,
-            $title: String!,
-            $text: String!,
-            $severity: AlertSeverity = INFO,
-            $waitDuration: Duration
-        ) {
-            notifyScriptableRunAlert(input: {
-                entityName: $entityName,
-                projectName: $projectName,
-                runName: $runName,
-                title: $title,
-                text: $text,
-                severity: $severity,
-                waitDuration: $waitDuration
-            }) {
-               success
-            }
-        }
-        """
-
-        response = self.execute(
-            mutation,
-            variables={
-                "entityName": self.settings("entity"),
-                "projectName": self.settings("project"),
-                "runName": self.current_run_id,
-                "title": title,
-                "text": text,
-                "severity": level,
-                "waitDuration": wait_duration,
-            },
-        )
-        success: bool = response["notifyScriptableRunAlert"]["success"]
-        return success
 
     def get_sweep_state(
         self, sweep: str, entity: str | None = None, project: str | None = None
@@ -3643,39 +2823,6 @@ class Api:
             sweep=sweep, state="FINISHED", entity=entity, project=project
         )
 
-    def cancel_sweep(
-        self,
-        sweep: str,
-        entity: str | None = None,
-        project: str | None = None,
-    ) -> None:
-        """Cancel the sweep to kill all running runs and stop running new runs."""
-        self.set_sweep_state(
-            sweep=sweep, state="CANCELED", entity=entity, project=project
-        )
-
-    def pause_sweep(
-        self,
-        sweep: str,
-        entity: str | None = None,
-        project: str | None = None,
-    ) -> None:
-        """Pause the sweep to temporarily stop running new runs."""
-        self.set_sweep_state(
-            sweep=sweep, state="PAUSED", entity=entity, project=project
-        )
-
-    def resume_sweep(
-        self,
-        sweep: str,
-        entity: str | None = None,
-        project: str | None = None,
-    ) -> None:
-        """Resume the sweep to continue running new runs."""
-        self.set_sweep_state(
-            sweep=sweep, state="RUNNING", entity=entity, project=project
-        )
-
     def _flatten_edges(self, response: _Response) -> list[dict]:
         """Return an array from the nested graphql relay structure."""
         return [node["node"] for node in response["edges"]]
@@ -3706,54 +2853,3 @@ class Api:
         success: bool = response["stopRun"].get("success")
 
         return success
-
-    @normalize_exceptions
-    def create_custom_chart(
-        self,
-        entity: str,
-        name: str,
-        display_name: str,
-        spec_type: str,
-        access: str,
-        spec: str | Mapping[str, Any],
-    ) -> dict[str, Any] | None:
-        if not isinstance(spec, str):
-            spec = json.dumps(spec)
-
-        mutation = """
-            mutation CreateCustomChart(
-                $entity: String!
-                $name: String!
-                $displayName: String!
-                $type: String!
-                $access: String!
-                $spec: JSONString!
-            ) {
-                createCustomChart(
-                    input: {
-                        entity: $entity
-                        name: $name
-                        displayName: $displayName
-                        type: $type
-                        access: $access
-                        spec: $spec
-                    }
-                ) {
-                    chart { id }
-                }
-            }
-            """
-
-        variables = {
-            "entity": entity,
-            "name": name,
-            "displayName": display_name,
-            "type": spec_type,
-            "access": access,
-            "spec": spec,
-        }
-
-        result: dict[str, Any] | None = self.execute(mutation, variables)[
-            "createCustomChart"
-        ]
-        return result

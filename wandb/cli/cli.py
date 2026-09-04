@@ -936,7 +936,17 @@ def sweep(
             "resume": "Resuming",
         }
         wandb.termlog(f"{ings[state]} sweep {entity}/{project}/{sweep_id}")
-        getattr(api, f"{state}_sweep")(sweep_id, entity=entity, project=project)
+        api.set_sweep_state(
+            sweep_id,
+            {
+                "stop": "FINISHED",
+                "cancel": "CANCELED",
+                "pause": "PAUSED",
+                "resume": "RUNNING",
+            }[state],
+            entity=entity,
+            project=project,
+        )
         wandb.termlog("Done.")
         return
     else:
