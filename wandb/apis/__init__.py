@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 import wandb
-from wandb import env, util
+from wandb import env
 
 
 def _disable_ssl() -> Callable[[], None]:
@@ -40,11 +40,7 @@ if env.ssl_disabled():
     _disable_ssl()
 
 
-reset_path = util.vendor_setup()
-
 from .internal import Api as InternalApi  # noqa
 from .public import Api as PublicApi  # noqa
-
-reset_path()
 
 __all__ = ["InternalApi", "PublicApi"]

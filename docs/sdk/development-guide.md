@@ -87,6 +87,50 @@ prek install
 prek run ruff-format --all-files --hook-stage pre-push
 ```
 
+## Python API reference doc generation
+
+The Python API reference is generated from the SDK source.
+
+- [Example reference doc](https://docs.wandb.ai/models/ref/python/experiments/run)
+- [Example generated doc in repo](https://github.com/wandb/docs/blob/main/models/ref/python/experiments/run.mdx)
+- [Generation Scripts](https://github.com/ngrayluna/generate-wandb-python-reference)
+
+To exclude doc generation for an entire exported class or object, go to the
+appropriate `__init__.py` file and append `# doc:exclude`, e.g.:
+
+```python
+__all__ = (
+    "MyInternalClass",  # doc:exclude
+)
+```
+
+The script documents any public properties or functions, including `__init__`.
+It automatically skips internal properties or functions indicated with an
+underscore prefix.
+
+If you want it to skip any normally documented internal-only properties or
+functions, use one of these docstring markers:
+- `<!-- lazydoc-ignore -->` omits generation for the property or function for
+  that docstring.
+- `<!-- lazydoc-ignore-init: internal -->` goes in a class docstring and omits
+  generation for `__init__`. Docs will still be generated for the class itself.
+
+For example:
+
+```python
+class MyPublicClass:
+    """A public class with an internal constructor.
+
+    <!-- lazydoc-ignore-init: internal -->
+    """
+
+    def internal_method(self) -> None:
+        """Perform internal work.
+
+        <!-- lazydoc-ignore -->
+        """
+```
+
 ## Proto changes
 
 The protobuf files in [`wandb/proto`](../../wandb/proto) generate Python stubs under `wandb/proto` and Go stubs under `core/pkg/service_go_proto`.

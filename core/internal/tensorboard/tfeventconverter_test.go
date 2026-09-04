@@ -520,7 +520,6 @@ func TestConvertImage_NotPNG(t *testing.T) {
 				"2", "4", "not a PNG")),
 		observability.NewCoreLogger(
 			slog.New(slog.NewTextHandler(&logs, nil)),
-			nil,
 			analytics.NewTelemetryRecorder(nil, analytics.NewTelemetryContext()),
 		),
 	)
@@ -541,7 +540,6 @@ func TestConvertImage_BadDims(t *testing.T) {
 				"2a", "4x", "\x89PNG\x0D\x0A\x1A\x0Acontent")),
 		observability.NewCoreLogger(
 			slog.New(slog.NewTextHandler(&logs, nil)),
-			nil,
 			analytics.NewTelemetryRecorder(nil, analytics.NewTelemetryContext()),
 		),
 	)
@@ -563,7 +561,6 @@ func TestConvertImage_UnknownTBFormat(t *testing.T) {
 			tensorValueStrings("my_img", "images", "not enough strings")),
 		observability.NewCoreLogger(
 			slog.New(slog.NewTextHandler(&logs, nil)),
-			nil,
 			analytics.NewTelemetryRecorder(nil, analytics.NewTelemetryContext()),
 		),
 	)

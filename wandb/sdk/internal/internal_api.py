@@ -20,7 +20,7 @@ import click
 
 import wandb
 from wandb import env, util
-from wandb.analytics import TelemetryRecorder, get_sentry, get_telemetry_recorder
+from wandb.analytics import TelemetryRecorder, get_telemetry_recorder
 from wandb.apis.normalize import normalize_exceptions
 from wandb.errors import AuthenticationError, CommError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
@@ -34,7 +34,6 @@ from wandb.proto.wandb_api_pb2 import (
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk import wandb_setup
 from wandb.sdk.artifacts._generated.enums import ArtifactDigestAlgorithm
-from wandb.sdk.internal import settings_static
 from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
 from wandb.sdk.lib.hashutil import B64Digest, md5_file_b64
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
@@ -206,7 +205,6 @@ class Api:
         self,
         default_settings: (
             wandb.Settings  #
-            | settings_static.SettingsStatic
             | DefaultSettings
             | None
         ) = None,
@@ -324,11 +322,7 @@ class Api:
         self.upload_file_retry = normalize_exceptions(
             retry.retriable(retry_timedelta=retry_timedelta)(self.upload_file)
         )
-        self.upload_multipart_file_chunk_retry = normalize_exceptions(
-            retry.retriable(retry_timedelta=retry_timedelta)(
-                self.upload_multipart_file_chunk
-            )
-        )
+
         self._client_id_mapping: dict[str, str] = {}
         # Large file uploads to azure can optionally use their SDK
         self._azure_blob_module = util.get_module("azure.storage.blob")
@@ -2238,59 +2232,6 @@ class Api:
             else:
                 raise requests.exceptions.ConnectionError(e.message)
 
-    def upload_multipart_file_chunk(
-        self,
-        url: str,
-        upload_chunk: bytes,
-        extra_headers: dict[str, str] | None = None,
-    ) -> requests.Response | None:
-        """Upload a file chunk to S3 with failure resumption.
-
-        Args:
-            url: The url to download
-            upload_chunk: The path to the file you want to upload
-            extra_headers: A dictionary of extra headers to send with the request
-
-        Returns:
-            The `requests` library response object
-        """
-        import requests
-
-        check_httpclient_logger_handler()
-        try:
-            if env.is_debug(env=self._environ):
-                logger.debug("upload_file: %s", url)
-            response = self._upload_file_session.put(
-                url, data=upload_chunk, headers=extra_headers
-            )
-            if env.is_debug(env=self._environ):
-                logger.debug("upload_file: %s complete", url)
-            response.raise_for_status()
-        except requests.exceptions.RequestException as e:
-            logger.exception(f"upload_file exception for {url=}")
-            response_content = e.response.content if e.response is not None else ""
-            status_code = e.response.status_code if e.response is not None else 0
-            # S3 reports retryable request timeouts out-of-band
-            is_aws_retryable = status_code == 400 and "RequestTimeout" in str(
-                response_content
-            )
-            # Retry errors from cloud storage or local network issues
-            if (
-                status_code in (308, 408, 409, 429, 500, 502, 503, 504)
-                or isinstance(
-                    e,
-                    (requests.exceptions.Timeout, requests.exceptions.ConnectionError),
-                )
-                or is_aws_retryable
-            ):
-                _e = retry.TransientError(exc=e)
-                raise _e.with_traceback(sys.exc_info()[2])
-            else:
-                # TODO: remove sentry once we no longer support/need it
-                get_sentry().exception(e)
-                self._telemetry_recorder.reraise(e)
-        return response
-
     def upload_file(
         self,
         url: str,
@@ -2373,8 +2314,6 @@ class Api:
                 _e = retry.TransientError(exc=e)
                 raise _e.with_traceback(sys.exc_info()[2])
             else:
-                # TODO: remove sentry once we no longer support/need it
-                get_sentry().exception(e)
                 self._telemetry_recorder.reraise(e)
 
         return response
