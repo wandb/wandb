@@ -20,6 +20,7 @@ Legacy `wandb sync` options have been removed. See `wandb sync --help`.
 
 ### Added
 
+- LEET filters console logs: with the logs pane focused, press `/` and type a pattern (regex, or glob after `Tab`) to show only the matching lines, following new matches as they arrive; `ctrl+/` clears the filter (@dmitryduev in https://github.com/wandb/wandb/pull/12736)
 - LEET remembers the metrics, system metrics and runs filters for each wandb directory: the next time you open the directory, in the workspace or the single-run view, the filters from the previous session are already applied. They are stored in `.wandb-leet.json` inside the directory; clearing a filter (`ctrl+/`, `ctrl+\`, `ctrl+f`) forgets it (@dmitryduev in https://github.com/wandb/wandb/pull/12735)
 - LEET charts metrics against the custom x-axes set with `run.define_metric()`. A metric defined with a `step_metric`, directly or through a glob like `run.define_metric("train/*", step_metric="train/step")`, is plotted against that metric instead of the step counter, with the axis name shown as `[x: train/step]` in the chart header. Applies to runs viewed from local `.wandb` files. Each chart has a single x-axis, so a run that plots a metric against a different axis is not shown on that chart (@dmitryduev in https://github.com/wandb/wandb/pull/12568, https://github.com/wandb/wandb/pull/12728)
 - The automations API now supports sending a prompt to ARIA (`SendPromptToAria`) as an automation action. (@gdecarvalhovaz-lgtm in https://github.com/wandb/wandb/pull/12594)

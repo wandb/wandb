@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/leet"
@@ -33,6 +35,35 @@ func makeLogs(n int) []leet.KeyValuePair {
 		}
 	}
 	return logs
+}
+
+func TestConsoleLogsPane_FilterNarrowsAndFollowsNewLines(t *testing.T) {
+	clp := leet.NewConsoleLogsPane(leet.NewAnimatedValue(false, leet.ConsoleLogsPaneMinHeight))
+	expandConsoleLogsPane(t, clp, 12)
+	logs := makeLogs(10)
+	clp.SetConsoleLogs(logs)
+
+	clp.EnterFilterMode()
+	clp.HandleFilterKey(keyPressMsg('3'))
+	clp.HandleFilterKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	view := stripANSI(clp.View(120, "", ""))
+	require.Contains(t, view, "log 03")
+	require.NotContains(t, view, "log 02")
+	require.Contains(t, view, "[1-1 of 1]")
+
+	logs = append(logs,
+		leet.KeyValuePair{Key: "t11", Value: "log 13"},
+		leet.KeyValuePair{Key: "t12", Value: "log 12"})
+	clp.SetConsoleLogs(logs)
+
+	view = stripANSI(clp.View(120, "", ""))
+	require.Contains(t, view, "log 13")
+	require.NotContains(t, view, "log 12")
+	require.Contains(t, view, "[1-2 of 2]")
+
+	clp.ClearFilter()
+	require.Contains(t, stripANSI(clp.View(120, "", "")), "of 12]")
 }
 
 func TestConsoleLogsPane_AutoScrollFreezesWhenUserScrollsUp(t *testing.T) {
