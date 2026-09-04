@@ -24,6 +24,7 @@ Legacy `wandb sync` options have been removed. See `wandb sync --help`.
 - The automations API now supports sending a prompt to ARIA (`SendPromptToAria`) as an automation action. (@gdecarvalhovaz-lgtm in https://github.com/wandb/wandb/pull/12594)
 - Added `wandb sweep-scheduler`, which runs a sweep's search locally while wandb-core drives the runs, so you can plug in your own optimizer (@kmikowicz in https://github.com/wandb/wandb/pull/12560)
 - `wandb sweep-scheduler` can search a sweep with Optuna, including its pruners and any stopping rule you supply (@kmikowicz in https://github.com/wandb/wandb/pull/12561)
+- `wandb sweep-scheduler` can search a sweep with Ax, including its early stopping and any stopping rule you supply. Requires Python 3.11 or newer (@kmikowicz in https://github.com/wandb/wandb/pull/12562)
 
 ### Changed
 
