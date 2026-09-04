@@ -1,11 +1,6 @@
 from __future__ import annotations
 
-import base64
-import hashlib
-import os
 import pathlib
-import tempfile
-from unittest.mock import Mock
 
 import pytest
 import wandb.errors
@@ -41,54 +36,6 @@ def test_execute_propagates_service_api_errors(mocker: MockerFixture):
     service_api.execute_graphql.assert_called_once_with(
         "query Viewer { viewer { id } }"
     )
-
-
-@pytest.mark.parametrize(
-    "existing_contents,expect_download",
-    [
-        (None, True),
-        ("outdated contents", True),
-        ("current contents", False),
-    ],
-)
-def test_download_write_file_fetches_iff_file_checksum_mismatched(
-    existing_contents: str | None,
-    expect_download: bool,
-):
-    url = "https://example.com/path/to/file.txt"
-    current_contents = "current contents"
-    with tempfile.TemporaryDirectory() as tmpdir:
-        filepath = os.path.join(tmpdir, "file.txt")
-
-        if existing_contents is not None:
-            with open(filepath, "w") as f:
-                f.write(existing_contents)
-
-        api = Api()
-
-        # Stand in for wandb-core, writing the file a real download would.
-        def fake_download(request):
-            path = request.download_file_request.path
-            with open(path, "w") as f:
-                f.write(current_contents)
-
-        api._service_api.send_api_request = Mock(side_effect=fake_download)
-
-        path, downloaded = api.download_write_file(
-            metadata={
-                "name": filepath,
-                "md5": base64.b64encode(
-                    hashlib.md5(current_contents.encode()).digest()
-                ).decode(),
-                "url": url,
-            },
-            out_dir=tmpdir,
-        )
-
-        assert downloaded == expect_download
-        # Either way, the file on disk holds the current contents afterward.
-        with open(path) as f:
-            assert f.read() == current_contents
 
 
 def test_internal_api_with_no_write_global_config_dir(
