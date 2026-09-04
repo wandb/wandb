@@ -947,6 +947,17 @@ func (mg *MetricsGrid) EndInspection() {
 	}
 }
 
+// InspectionX returns the inspected x of the focused chart and the chart's
+// x-axis metric ("" for the step axis).
+func (mg *MetricsGrid) InspectionX() (x float64, xAxisMetric string, ok bool) {
+	chart := mg.focusedChart()
+	if chart == nil {
+		return 0, "", false
+	}
+	x, _, ok = chart.InspectionData()
+	return x, chart.XAxisMetric(), ok
+}
+
 // broadcastInspectAtDataX applies InspectAtDataX to the visible charts on
 // the current page that share the source chart's x-axis.
 func (mg *MetricsGrid) broadcastInspectAtDataX(anchorX float64, xAxisMetric string) {

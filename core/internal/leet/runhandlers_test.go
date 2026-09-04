@@ -203,6 +203,48 @@ func TestRun_SlashFiltersConsoleLogsWhenLogsPaneFocused(t *testing.T) {
 	require.Contains(t, stripANSI(r.View().Content), `Console filter (regex): "x" [0/1]`)
 }
 
+// ---- Console <-> charts link ----
+
+func TestRun_LinkedConsoleCursorMovesChartCrosshair(t *testing.T) {
+	r, _ := newTestRun(t, 200, 60, nil)
+	r.TestHandleRecordMsg(leet.RunMsg{ID: "abc123", Project: "p"})
+
+	base := time.Unix(1_700_000_000, 0)
+	steps := make([]float64, 10)
+	times := make([]float64, 10)
+	for i := range steps {
+		steps[i] = float64(i)
+		times[i] = float64(base.Unix() + int64(i))
+	}
+	r.TestHandleRecordMsg(leet.HistoryMsg{
+		Metrics:   map[string]leet.MetricData{"loss": {X: steps, Y: steps}},
+		StepTimes: leet.MetricData{X: steps, Y: times},
+	})
+	for _, offset := range []float64{0.5, 3.2, 7.9} {
+		r.TestHandleRecordMsg(leet.ConsoleLogMsg{
+			Text: "line\n", Time: base.Add(time.Duration(offset * float64(time.Second)))})
+	}
+	r.TestForceExpandConsoleLogsPane(10)
+	r.TestSetFocusTarget(int(leet.FocusTargetConsoleLogs))
+	r.View()
+
+	inspectedStep := func() float64 {
+		x, _, active := r.TestMetricsGrid().TestChartAt(0, 0).InspectionData()
+		require.True(t, active, "the chart should show a crosshair")
+		return x
+	}
+
+	r.Update(keyPressMsg('l'))
+	require.Equal(t, 8.0, inspectedStep(), "the tail line at +7.9s maps to step 8")
+
+	r.Update(tea.KeyPressMsg{Code: tea.KeyUp})
+	require.Equal(t, 3.0, inspectedStep(), "the line at +3.2s maps to step 3")
+
+	r.Update(keyPressMsg('l'))
+	_, _, active := r.TestMetricsGrid().TestChartAt(0, 0).InspectionData()
+	require.False(t, active, "unlinking clears the crosshair")
+}
+
 // ---- Mouse drag-resize ----
 
 func TestRun_DragResizesRightSidebarAndPersists(t *testing.T) {

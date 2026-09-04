@@ -216,8 +216,9 @@ type historyAccumulator struct {
 	// metricHandler resolves custom x-axes and must be non-nil.
 	metricHandler *runmetric.MetricHandler
 
-	metrics map[string]MetricData
-	media   map[string][]MediaPoint
+	metrics   map[string]MetricData
+	media     map[string][]MediaPoint
+	stepTimes MetricData
 
 	// values holds one record's numeric items and is reused across records.
 	values map[string]float64
@@ -262,6 +263,11 @@ func (acc *historyAccumulator) addRecord(runPath string, history *spb.HistoryRec
 		}
 	}
 
+	if ts, ok := acc.values["_timestamp"]; ok {
+		acc.stepTimes.X = append(acc.stepTimes.X, float64(step))
+		acc.stepTimes.Y = append(acc.stepTimes.Y, ts)
+	}
+
 	for key, val := range acc.values {
 		// Internal keys get no chart but may serve as an x-axis (e.g. _runtime).
 		if strings.HasPrefix(key, "_") {
@@ -301,7 +307,12 @@ func (acc *historyAccumulator) toMsg(runPath string) (HistoryMsg, bool) {
 	if len(acc.metrics) == 0 && len(acc.media) == 0 {
 		return HistoryMsg{}, false
 	}
-	return HistoryMsg{RunPath: runPath, Metrics: acc.metrics, Media: acc.media}, true
+	return HistoryMsg{
+		RunPath:   runPath,
+		Metrics:   acc.metrics,
+		Media:     acc.media,
+		StepTimes: acc.stepTimes,
+	}, true
 }
 
 // historyItemKey returns the dotted nested key, or the flat key when there is none.

@@ -917,6 +917,16 @@ func (g *SystemMetricsGrid) EndInspection() {
 	chart.DrawIfNeeded()
 }
 
+// InspectionX returns the inspected time, in unix seconds, of the focused chart.
+func (g *SystemMetricsGrid) InspectionX() (float64, bool) {
+	chart := g.focusedChart()
+	if chart == nil {
+		return 0, false
+	}
+	x, _, ok := chart.InspectionData()
+	return x, ok
+}
+
 // broadcastInspectAtDataX applies InspectAtDataX to all visible charts on the current page.
 func (g *SystemMetricsGrid) broadcastInspectAtDataX(anchorX float64) {
 	for row := range g.currentPage {

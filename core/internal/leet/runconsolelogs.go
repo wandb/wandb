@@ -1,6 +1,7 @@
 package leet
 
 import (
+	"sort"
 	"strings"
 	"time"
 
@@ -112,6 +113,32 @@ func (cl *RunConsoleLogs) Items() []KeyValuePair {
 	}
 	cl.items = items
 	return cl.items
+}
+
+// TimeAt returns when line i was logged.
+func (cl *RunConsoleLogs) TimeAt(i int) (time.Time, bool) {
+	if i < 0 || i >= len(cl.lines) {
+		return time.Time{}, false
+	}
+	return cl.lines[i].Timestamp, true
+}
+
+// IndexNear returns the index of the line logged nearest to t, or -1 when
+// there are no lines. Lines are appended in logging order, so their
+// timestamps are sorted.
+func (cl *RunConsoleLogs) IndexNear(t time.Time) int {
+	n := len(cl.lines)
+	if n == 0 {
+		return -1
+	}
+	i := sort.Search(n, func(i int) bool { return !cl.lines[i].Timestamp.Before(t) })
+	if i == n {
+		return n - 1
+	}
+	if i > 0 && t.Sub(cl.lines[i-1].Timestamp) < cl.lines[i].Timestamp.Sub(t) {
+		return i - 1
+	}
+	return i
 }
 
 // appendLine is called by the line supplier when a new terminal line is

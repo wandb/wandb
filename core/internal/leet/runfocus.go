@@ -103,6 +103,7 @@ func (r *Run) activateMediaFocus(_ int) {
 
 func (r *Run) activateLogsFocus(_ int) {
 	r.consoleLogsPane.SetActive(true)
+	r.syncChartsToConsole()
 }
 
 // ---- Deactivate ----
@@ -132,6 +133,10 @@ func (r *Run) deactivateMediaFocus() {
 
 func (r *Run) deactivateLogsFocus() {
 	r.consoleLogsPane.SetActive(false)
+	if r.linkConsole {
+		r.metricsGrid.broadcastEndInspection()
+		r.rightSidebar.metricsGrid.broadcastEndInspection()
+	}
 }
 
 // resolveFocusAfterData keeps focus consistent as data streams in.

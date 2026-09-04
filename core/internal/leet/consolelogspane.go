@@ -2,6 +2,7 @@ package leet
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -204,6 +205,32 @@ func (c *ConsoleLogsPane) entry(i int) KeyValuePair {
 		return c.all[i]
 	}
 	return c.all[c.matched[i]]
+}
+
+// CursorIndex returns the source index of the selected entry, or -1 when
+// nothing is shown.
+func (c *ConsoleLogsPane) CursorIndex() int {
+	if c.count() == 0 {
+		return -1
+	}
+	if c.filter.Query() == "" {
+		return c.cursor
+	}
+	return c.matched[c.cursor]
+}
+
+// SelectIndex selects the shown entry with source index i, or the next one
+// shown when i is filtered out.
+func (c *ConsoleLogsPane) SelectIndex(i int) {
+	if c.count() == 0 {
+		return
+	}
+	if c.filter.Query() != "" {
+		i = sort.SearchInts(c.matched, i)
+	}
+	c.cursor = clamp(i, 0, c.count()-1)
+	c.ensureCursorVisible()
+	c.updateAutoScroll()
 }
 
 // ---- Filter ----
