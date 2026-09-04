@@ -16,7 +16,7 @@ import traceback
 from typing import Any
 
 import wandb
-from wandb.apis import InternalApi
+from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.lib import config_util
 from wandb.sdk.sweeps import SweepNotFoundError

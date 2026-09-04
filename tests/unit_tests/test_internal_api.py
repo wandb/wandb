@@ -18,12 +18,12 @@ import wandb.sdk.internal.internal_api
 import wandb.sdk.internal.progress
 from pytest_mock import MockerFixture
 from responses import RequestsMock
-from wandb.apis import internal
 from wandb.errors import CommError
 from wandb.proto import wandb_api_pb2 as apb
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk import wandb_setup
 from wandb.sdk.internal.internal_api import (
+    Api,
     _match_org_with_fetched_org_entities,
     _OrgNames,
 )
@@ -43,43 +43,43 @@ def mock_responses():
 
 
 def test_agent_heartbeat_with_no_agent_id_fails():
-    a = internal.Api()
+    a = Api()
     with pytest.raises(ValueError):
         a.agent_heartbeat(None, {}, {})
 
 
 def test_agent_heartbeat_raises_sweep_not_found_on_404():
     """Test that agent_heartbeat raises SweepNotFoundError on 404."""
-    a = internal.Api()
+    a = Api()
 
     error_response = apb.ApiErrorResponse(message="not found", http_status=404)
     error = WandbApiFailedError(error_response.message, error_response)
 
-    with patch.object(a.api, "execute", side_effect=error):
+    with patch.object(a, "execute", side_effect=error):
         with pytest.raises(SweepNotFoundError):
             a.agent_heartbeat("test-agent-id", {}, {})
 
 
 def test_agent_heartbeat_returns_empty_on_non_404_error():
     """Test that non-404 HTTP errors return empty list instead of raising."""
-    a = internal.Api()
+    a = Api()
 
     error_response = apb.ApiErrorResponse(message="server error", http_status=500)
     error = WandbApiFailedError(error_response.message, error_response)
 
-    with patch.object(a.api, "execute", side_effect=error):
+    with patch.object(a, "execute", side_effect=error):
         result = a.agent_heartbeat("test-agent-id", {}, {})
         assert result == []
 
 
 def test_get_run_state_invalid_kwargs():
     with pytest.raises(CommError) as e:
-        _api = internal.Api()
+        _api = Api()
 
         def _mock_execute(*args, **kwargs):
             return dict()
 
-        _api.api.execute = _mock_execute
+        _api.execute = _mock_execute
         _api.get_run_state("test_entity", None, "test_run")
 
     assert "Error fetching run state" in str(e.value)
@@ -99,7 +99,7 @@ def test_execute_propagates_service_api_errors(mocker: MockerFixture):
         "wandb.sdk.internal.internal_api.Api._new_service_api",
         return_value=service_api,
     )
-    api = internal.InternalApi()
+    api = Api()
 
     with pytest.raises(WandbApiFailedError):
         api.execute("query Viewer { viewer { id } }")
@@ -130,7 +130,7 @@ def test_download_write_file_fetches_iff_file_checksum_mismatched(
             with open(filepath, "w") as f:
                 f.write(existing_contents)
 
-        api = internal.InternalApi()
+        api = Api()
 
         # Stand in for wandb-core, writing the file a real download would.
         def fake_download(request):
@@ -166,7 +166,7 @@ def test_internal_api_with_no_write_global_config_dir(
     config_dir.mkdir(0o511)  # read and list only
 
     try:
-        internal.InternalApi()
+        Api()
     finally:
         config_dir.chmod(0o711)  # allow test to clean up
 
@@ -180,7 +180,7 @@ def mock_gql():
 
 def test_fetch_orgs_from_team_entity(mock_gql):
     """Test fetching organization entities from a team entity."""
-    api = internal.InternalApi()
+    api = Api()
     mock_gql.return_value = {
         "entity": {
             "organization": {
@@ -196,7 +196,7 @@ def test_fetch_orgs_from_team_entity(mock_gql):
 
 def test_fetch_orgs_from_personal_entity_single_org(mock_gql):
     """Test fetching organization entities from a personal entity with single org."""
-    api = internal.InternalApi()
+    api = Api()
     mock_gql.return_value = {
         "entity": {
             "organization": None,
@@ -218,7 +218,7 @@ def test_fetch_orgs_from_personal_entity_single_org(mock_gql):
 
 def test_fetch_orgs_from_personal_entity_multiple_orgs(mock_gql):
     """Test fetching organization entities from a personal entity with multiple orgs."""
-    api = internal.InternalApi()
+    api = Api()
     mock_gql.return_value = {
         "entity": {
             "organization": None,
@@ -245,7 +245,7 @@ def test_fetch_orgs_from_personal_entity_multiple_orgs(mock_gql):
 
 def test_fetch_orgs_from_personal_entity_no_orgs(mock_gql):
     """Test fetching organization entities from a personal entity with no orgs."""
-    api = internal.InternalApi()
+    api = Api()
     mock_gql.return_value = {
         "entity": {
             "organization": None,
@@ -261,7 +261,7 @@ def test_fetch_orgs_from_personal_entity_no_orgs(mock_gql):
 
 def test_fetch_orgs_from_nonexistent_entity(mock_gql):
     """Test fetching organization entities from a nonexistent entity."""
-    api = internal.InternalApi()
+    api = Api()
     mock_gql.return_value = {
         "entity": {
             "organization": None,
@@ -277,7 +277,7 @@ def test_fetch_orgs_from_nonexistent_entity(mock_gql):
 
 def test_fetch_orgs_with_invalid_response_structure(mock_gql):
     """Test fetching organization entities with invalid response structure."""
-    api = internal.InternalApi()
+    api = Api()
     mock_gql.return_value = {
         "entity": {
             "organization": {
@@ -349,7 +349,7 @@ def test_match_org_multiple_orgs_no_match():
 
 @pytest.fixture
 def api_with_single_org():
-    api = internal.InternalApi()
+    api = Api()
     api._fetch_orgs_and_org_entities_from_entity = Mock(
         return_value=[_OrgNames(entity_name="org-entity", display_name="org-display")]
     )
@@ -394,7 +394,7 @@ def test_resolve_org_entity_name_with_single_org_errors(
 
 @pytest.fixture
 def api_with_multiple_orgs():
-    api = internal.InternalApi()
+    api = Api()
     api._fetch_orgs_and_org_entities_from_entity = Mock(
         return_value=[
             _OrgNames(entity_name="org1-entity", display_name="org1-display"),
@@ -451,7 +451,7 @@ class TestUploadFile:
         Retries, timeouts, and the AWS-specific transient-error handling that
         used to live here are now owned by wandb-core's file transfer subsystem.
         """
-        api = internal.InternalApi()
+        api = Api()
         api._service_api.send_api_request = Mock()
 
         with example_file.open("rb") as file:
@@ -471,7 +471,7 @@ class TestUploadFile:
 
     def test_propagates_core_errors(self, example_file: Path):
         """Failures from wandb-core propagate to the caller."""
-        api = internal.InternalApi()
+        api = Api()
         api._service_api.send_api_request = Mock(
             side_effect=WandbApiFailedError("upload failed")
         )
@@ -484,7 +484,7 @@ class TestUploadFile:
         MAGIC_HEADERS = {"x-ms-blob-type": "SomeBlobType"}
 
         def test_uses_azure_lib_if_available(self, example_file: Path):
-            api = internal.InternalApi()
+            api = Api()
             api._azure_blob_module = Mock()
 
             api.upload_file(
@@ -530,7 +530,7 @@ class TestUploadFile:
                 "PUT", "https://example.com/foo/bar/baz", Mock(return_value=response)
             )
             with pytest.raises(expected_errtype) as e:
-                internal.InternalApi().upload_file(
+                Api().upload_file(
                     "https://example.com/foo/bar/baz",
                     example_file.open("rb"),
                     extra_headers=self.MAGIC_HEADERS,
@@ -648,7 +648,7 @@ def test_server_feature_checks(
 ):
     """Test check_server_feature with various scenarios."""
     request.getfixturevalue(fixture_name)
-    api = internal.InternalApi()
+    api = Api()
 
     if expected_error:
         with pytest.raises(Exception, match="Some random error"):
@@ -660,7 +660,7 @@ def test_server_feature_checks(
 
 def test_construct_use_artifact_query_with_every_field(mocker: MockerFixture):
     # Create mock internal API instance
-    api = internal.InternalApi()
+    api = Api()
 
     mocker.patch.object(api, "settings", side_effect=lambda x: "default-" + x)
 
@@ -726,7 +726,7 @@ def test_construct_use_artifact_query_with_every_field(mocker: MockerFixture):
 
 def test_construct_use_artifact_query_without_entity_project():
     # Test when server doesn't support entity/project information
-    api = internal.InternalApi()
+    api = Api()
     api.settings = Mock(side_effect=lambda x: "default-" + x)
 
     # Mock methods to return False for entity/project support
@@ -752,7 +752,7 @@ def test_construct_use_artifact_query_without_entity_project():
 
 def test_construct_use_artifact_query_without_used_as():
     # Test when no use_as value is provided.
-    api = internal.InternalApi()
+    api = Api()
     api.settings = Mock(side_effect=lambda x: "default-" + x)
 
     # Simulate server support for ALL known features
@@ -786,7 +786,7 @@ class TestJWTAuth:
         token_file.write_text("test.jwt.token")
 
         environ = {"WANDB_IDENTITY_TOKEN_FILE": str(token_file)}
-        api = internal.InternalApi(environ=environ)
+        api = Api(environ=environ)
 
         assert "Authorization" not in api._extra_http_headers
         assert api.request_auth is None
@@ -803,7 +803,7 @@ class TestJWTAuth:
         )
 
         environ = {"WANDB_IDENTITY_TOKEN_FILE": str(token_file)}
-        api = internal.InternalApi(
+        api = Api(
             default_settings={"api_key": "a" * 40},
             environ=environ,
         )
@@ -830,7 +830,7 @@ class TestJWTAuth:
         wandb_setup.singleton().settings.identity_token_file = str(token_file)
 
         environ = {"WANDB_IDENTITY_TOKEN_FILE": str(token_file)}
-        api = internal.InternalApi(environ=environ)
+        api = Api(environ=environ)
 
         fetch_mock.assert_not_called()
         assert api.request_auth == ("api", "a" * 40)
@@ -849,14 +849,14 @@ class TestJWTAuth:
             source="test",
         )
 
-        api = internal.InternalApi(environ={})
+        api = Api(environ={})
 
         assert api.request_auth is None
 
     def test_access_token_none_without_identity_token(self, mocker: MockerFixture):
         # Without federated identity, the token is None and no request is
         # sent to wandb-core.
-        api = internal.InternalApi(environ={})
+        api = Api(environ={})
         send_mock = mocker.patch(
             "wandb.apis.public.service_api.ServiceApi.send_api_request"
         )
@@ -869,11 +869,11 @@ class TestJWTAuth:
         environ = {"WANDB_IDENTITY_TOKEN_FILE": str(missing_file)}
 
         with pytest.raises(wandb.errors.AuthenticationError, match="not found"):
-            internal.InternalApi(environ=environ)
+            Api(environ=environ)
 
     def test_access_token_via_wandb_core(self, federated_identity):
         """End-to-end: the token exchange happens in wandb-core."""
-        api = internal.InternalApi()
+        api = Api()
 
         access_token = api._service_api.access_token()
 

@@ -9,10 +9,10 @@ import tempfile
 from typing import Any
 
 import wandb
-from wandb.apis.internal import Api
 from wandb.sdk.artifacts._generated.enums import ArtifactDigestAlgorithm
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 from wandb.sdk.artifacts.artifact import Artifact
+from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.internal.job_builder import JobBuilder
 from wandb.sdk.launch.git_reference import GitReference
 from wandb.sdk.launch.inputs.internal import _validate_schema
@@ -194,7 +194,7 @@ def _create_job(
 
     # build job artifact, loads wandb-metadata and creates wandb-job.json here
     artifact = job_builder.build(
-        api.api,
+        api,
         dockerfile=dockerfile,
         build_context=build_context,
         base_image=base_image,

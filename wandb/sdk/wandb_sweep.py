@@ -68,7 +68,7 @@ def sweep(
     Returns:
       str: A unique identifier for the sweep.
     """
-    from wandb.apis import InternalApi
+    from wandb.sdk.internal.internal_api import Api as InternalApi
     from wandb.sdk.launch.sweeps.utils import handle_sweep_config_violations
 
     if callable(sweep):

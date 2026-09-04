@@ -16,7 +16,7 @@ from typing import Any
 import yaml
 
 import wandb
-from wandb.apis.internal import Api
+from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry

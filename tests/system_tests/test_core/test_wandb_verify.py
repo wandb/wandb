@@ -2,7 +2,7 @@ import unittest.mock
 
 import wandb
 import wandb.sdk.verify.verify as wandb_verify
-from wandb.apis import InternalApi
+from wandb.sdk.internal.internal_api import Api as InternalApi
 
 
 def test_check_logged_in(user):

@@ -269,7 +269,7 @@ def test_get_env_vars_dict(
     run_id = env_vars.pop("WANDB_RUN_ID")
     assert len(run_id) == 8
     assert env_vars == {
-        "WANDB_API_KEY": None,
+        "WANDB_API_KEY": "",
         "WANDB_ARTIFACTS": "{}",
         "WANDB_BASE_URL": "https://launch-test.invalid",
         "WANDB_CONFIG": "{}",
@@ -304,7 +304,7 @@ def test_get_env_vars_dict_with_low_max_length(
 
     assert len(run_id) == 8
     assert env_vars == {
-        "WANDB_API_KEY": None,
+        "WANDB_API_KEY": "",
         "WANDB_ARTIFACTS": "{}",
         "WANDB_BASE_URL": "https://launch-test.invalid",
         "WANDB_CONFIG_0": '{"learning_r',

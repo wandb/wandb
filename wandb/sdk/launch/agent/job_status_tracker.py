@@ -3,8 +3,8 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from wandb.apis.internal import Api
 from wandb.errors import CommError
+from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.launch._project_spec import LaunchProject
 
 from ..runner.abstract import AbstractRun
@@ -48,7 +48,7 @@ class JobAndRunStatusTracker:
         ), (
             "Job tracker does not contain run info. Update with run info before checking if run stopped"
         )
-        check_stop = event_loop_thread_exec(api.api.check_stop_requested)
+        check_stop = event_loop_thread_exec(api.check_stop_requested)
         try:
             return bool(await check_stop(self.project, self.entity, self.run_id))
         except CommError:
