@@ -1029,6 +1029,11 @@ func (cm *ConfigManager) SetWorkspaceMediaVisible(visible bool) error {
 //
 // Matches the Python logic (same directory as the system "settings" file),
 // with fallbacks to UserConfigDir and a temp dir.
+// DebugLogPath returns the path of the debug log, next to the config file.
+func DebugLogPath() string {
+	return filepath.Join(filepath.Dir(leetConfigPath()), "wandb-leet.debug.log")
+}
+
 func leetConfigPath() string {
 	// 1) Honor WANDB_CONFIG_DIR (like in Python)
 	if raw := strings.TrimSpace(os.Getenv(envConfigDir)); raw != "" {
