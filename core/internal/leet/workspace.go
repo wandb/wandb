@@ -402,6 +402,7 @@ func (w *Workspace) Cleanup() {
 func (w *Workspace) IsFiltering() bool {
 	if w.metricsGrid.IsFilterMode() ||
 		w.runOverviewSidebar.IsFilterMode() ||
+		w.consoleLogsPane.IsFilterMode() ||
 		w.filter.IsActive() {
 		return true
 	}
@@ -1226,6 +1227,9 @@ func (w *Workspace) buildStatusText() string {
 	if w.runOverviewSidebar.IsFilterMode() {
 		return w.buildOverviewFilterStatus()
 	}
+	if w.consoleLogsPane.IsFilterMode() {
+		return w.buildConsoleFilterStatus()
+	}
 
 	// Grid layout prompt (rows/cols) for metrics/system grids.
 	if w.config != nil && w.config.IsAwaitingGridConfig() {
@@ -1257,6 +1261,18 @@ func (w *Workspace) buildSystemMetricsFilterStatus(grid *SystemMetricsGrid) stri
 		string(mediumShadeBlock),
 		grid.FilteredChartCount(),
 		grid.ChartCount(),
+	)
+}
+
+func (w *Workspace) buildConsoleFilterStatus() string {
+	shown, total := w.consoleLogsPane.FilterCounts()
+	return fmt.Sprintf(
+		"Console filter (%s): %s%s [%d/%d] (Enter to apply • Tab to toggle mode)",
+		w.consoleLogsPane.FilterMode().String(),
+		w.consoleLogsPane.FilterQuery(),
+		string(mediumShadeBlock),
+		shown,
+		total,
 	)
 }
 
@@ -1338,6 +1354,17 @@ func (w *Workspace) activeFilterStatus() []string {
 			"Overview: %q [%s] (o to change, ctrl+o to clear)",
 			w.runOverviewSidebar.FilterQuery(),
 			w.runOverviewSidebar.FilterInfo(),
+		))
+	}
+
+	if w.consoleLogsPane.IsVisible() && w.consoleLogsPane.IsFiltering() {
+		shown, total := w.consoleLogsPane.FilterCounts()
+		parts = append(parts, fmt.Sprintf(
+			"Console filter (%s): %q [%d/%d] (focus logs, / to change, ctrl+/ to clear)",
+			w.consoleLogsPane.FilterMode().String(),
+			w.consoleLogsPane.FilterQuery(),
+			shown,
+			total,
 		))
 	}
 
