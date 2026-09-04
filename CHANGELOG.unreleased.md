@@ -31,6 +31,7 @@ Legacy `wandb sync` options have been removed. See `wandb sync --help`.
 ### Deprecated
 
 - `wandb.sandbox` is deprecated and will be removed in a future release. Use the `cwsandbox` package directly instead.
+- `wandb.api` and `wandb.ensure_configured()` are deprecated and will be removed in a future release. `wandb.api` now only provides `api_key`, `default_entity` and `viewer()`; use `wandb.Api()` instead of the last two (@dmitryduev in https://github.com/wandb/wandb/pull/12715)
 
 ### Fixed
 
@@ -48,5 +49,6 @@ Legacy `wandb sync` options have been removed. See `wandb sync --help`.
 
 ### Removed
 
+- Removed `wandb.InternalApi`. Use `wandb.Api()` instead (@dmitryduev in https://github.com/wandb/wandb/pull/12715)
 - All legacy options to `wandb sync` have been removed (@timoffex in https://github.com/wandb/wandb/pull/12686)
   - In particular, instead of `--sync-all`, use `wandb sync` with no arguments

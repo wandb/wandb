@@ -77,3 +77,8 @@ When preparing a release that can include breaking changes, consider applying ch
   - PR: https://github.com/wandb/wandb/pull/12571
   - Owner: @art-reg-team
   - Can do a few releases after 0.29.0, or when we're confident that `artifact.verify` usage on older SDK versions is low.
+
+- Remove `wandb.api` and `wandb.ensure_configured()`
+    - Owner: @dmitryduev
+    - Deprecated after 0.29.0 (https://github.com/wandb/wandb/pull/12715)
+    - Can do in 1.0, once `ray`, `deepchem` and the other packages that check `wandb.api.api_key` before logging in have a public replacement and have migrated to it

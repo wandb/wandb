@@ -575,6 +575,9 @@ pub struct Deprecated {
     /// wandb.integration.kfp.wandb_log used with kfp\<2.0.0
     #[prost(bool, tag = "31")]
     pub kfp_v1_wandb_log: bool,
+    /// wandb.api or wandb.ensure_configured() used
+    #[prost(bool, tag = "32")]
+    pub wandb_api: bool,
 }
 /// A sequence of Records fully defines a run.
 ///
