@@ -33,6 +33,7 @@ Legacy `wandb sync` options have been removed. See `wandb sync --help`.
 
 ### Fixed
 
+- `wandb leet` now prints an error message when it cannot start, for example when it is run without a terminal; previously it exited with status 1 and no output. Debug logs (`WANDB_DEBUG=true`) are written next to the LEET config file instead of the current directory (@dmitryduev in https://github.com/wandb/wandb/pull/12732)
 - LEET now hides the workspace's run overview sidebar, and then the runs list, when together they would leave the charts fewer than 24 columns wide; previously an 80-column terminal showed the charts as a one-column sliver between the two sidebars. The single-run view, which already did this, uses the same 24-column minimum instead of 10 (@dmitryduev in https://github.com/wandb/wandb/pull/12731)
 - `wandb.Image` masks are no longer silently corrupted when `mask_data` is a float array with values outside 0-255. The range check previously only ran for integer dtypes, so out-of-range class ids were written to the saved mask wrapped modulo 256; they now raise `TypeError` like their integer equivalents already did (@Kayvan-Zahiri in https://github.com/wandb/wandb/pull/12685)
 - File uploads and downloads no longer fail in some cases with `CommError: Failed to execute API request: the service process is busy and did not respond in time` when they take longer than 20 seconds. This was a regression in 0.29.0 (@dmitryduev in https://github.com/wandb/wandb/pull/12603)
