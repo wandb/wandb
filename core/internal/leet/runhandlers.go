@@ -350,6 +350,10 @@ func (r *Run) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 		r.rightSidebar.HandleFilterKey(msg)
 		return nil
 	}
+	if r.consoleLogsPane.IsFilterMode() {
+		r.consoleLogsPane.HandleFilterKey(msg)
+		return nil
+	}
 
 	// Grid config capture takes priority.
 	if r.config.IsAwaitingGridConfig() {
@@ -558,11 +562,19 @@ func (r *Run) handleCycleChartGuides(tea.KeyPressMsg) tea.Cmd {
 }
 
 func (r *Run) handleEnterMetricsFilter(msg tea.KeyPressMsg) tea.Cmd {
+	if r.focusMgr.Current() == FocusTargetConsoleLogs {
+		r.consoleLogsPane.EnterFilterMode()
+		return nil
+	}
 	r.metricsGrid.EnterFilterMode()
 	return nil
 }
 
 func (r *Run) handleClearMetricsFilter(msg tea.KeyPressMsg) tea.Cmd {
+	if r.focusMgr.Current() == FocusTargetConsoleLogs {
+		r.consoleLogsPane.ClearFilter()
+		return nil
+	}
 	if r.metricsGrid.FilterQuery() != "" {
 		r.metricsGrid.ClearFilter()
 	}

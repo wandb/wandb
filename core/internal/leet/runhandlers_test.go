@@ -186,6 +186,23 @@ func TestRun_InitialFocus_PicksFirstAvailablePane(t *testing.T) {
 		"collapsed overview should not appear focused")
 }
 
+// ---- Console filter ----
+
+func TestRun_SlashFiltersConsoleLogsWhenLogsPaneFocused(t *testing.T) {
+	r := newRunForHandlerTest(t)
+	r.TestForceExpandConsoleLogsPane(10)
+	seedConsoleLog(r)
+	r.TestSetFocusTarget(int(leet.FocusTargetConsoleLogs))
+
+	r.Update(keyPressMsg('/'))
+	require.Contains(t, stripANSI(r.View().Content), "Console filter (regex):")
+	require.True(t, r.IsFiltering())
+
+	r.Update(keyPressMsg('x'))
+	r.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.Contains(t, stripANSI(r.View().Content), `Console filter (regex): "x" [0/1]`)
+}
+
 // ---- Mouse drag-resize ----
 
 func TestRun_DragResizesRightSidebarAndPersists(t *testing.T) {
