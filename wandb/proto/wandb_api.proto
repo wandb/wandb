@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package wandb_internal;
 
+import "google/protobuf/timestamp.proto";
 import "wandb/proto/wandb_internal.proto";
 import "wandb/proto/wandb_otel.proto";
 import "wandb/proto/wandb_settings.proto";
@@ -44,6 +45,10 @@ message ApiRequest {
     RunQueueOperationRequest run_queue_operation_request = 11;
     OpenTelemetryRequest open_telemetry_request = 12;
     ReadRunConsoleLogsRequest read_run_console_logs_request = 13;
+    ListLocalRunsRequest list_local_runs_request = 14;
+    ReadLocalRunRequest read_local_run_request = 15;
+    ReadLocalRunHistoryRequest read_local_run_history_request = 16;
+    ReadLocalRunConsoleLogsRequest read_local_run_console_logs_request = 17;
   }
 }
 
@@ -60,6 +65,10 @@ message ApiResponse {
     CreateCustomChartResponse create_custom_chart_response = 10;
     RunQueueOperationResponse run_queue_operation_response = 11;
     ReadRunConsoleLogsResponse read_run_console_logs_response = 12;
+    ListLocalRunsResponse list_local_runs_response = 13;
+    ReadLocalRunResponse read_local_run_response = 14;
+    ReadLocalRunHistoryResponse read_local_run_history_response = 15;
+    ReadLocalRunConsoleLogsResponse read_local_run_console_logs_response = 16;
 
     ApiErrorResponse api_error_response = 2;
   }
@@ -578,6 +587,138 @@ message ScanRunHistoryCleanup {
 message ScanRunHistoryCleanupResponse {}
 
 // End of Scan run history
+
+// Start of local runs
+//
+// These requests read runs from the transaction logs in a local wandb
+// directory, without a W&B server. They back the experimental LocalApi.
+//
+// Paths are absolute: wandb-core resolves them in its own working directory,
+// which is not the client's.
+
+// Lists the runs in a wandb directory, newest first.
+message ListLocalRunsRequest {
+  // The absolute path of the wandb directory.
+  string wandb_dir = 1;
+}
+
+message ListLocalRunsResponse {
+  repeated LocalRunInfo runs = 1;
+}
+
+// A run stored in a local wandb directory.
+message LocalRunInfo {
+  // The absolute path of the run's .wandb transaction log, which identifies
+  // the run in the other local run requests.
+  string wandb_file = 1;
+
+  // The run ID, from the run's record or, before that is written, from the
+  // name of the run's directory.
+  string run_id = 2;
+
+  string entity = 3;
+  string project = 4;
+  string display_name = 5;
+  string notes = 6;
+  repeated string tags = 7;
+  string group = 8;
+  string job_type = 9;
+  string sweep_id = 10;
+  string host = 11;
+  google.protobuf.Timestamp start_time = 12;
+
+  // Whether the run was started in offline mode.
+  bool offline = 13;
+
+  // One of "pending", "running", "finished", "failed" or "crashed".
+  //
+  // "pending" means the run's record has not been written yet. A run with
+  // no exit record whose log has not changed for 10 minutes counts as
+  // crashed.
+  string state = 14;
+}
+
+// Reads a run's identity, config and summary from its transaction log.
+message ReadLocalRunRequest {
+  string wandb_file = 1;
+}
+
+message ReadLocalRunResponse {
+  LocalRunInfo info = 1;
+
+  // The run's config as a JSON object.
+  string config_json = 2;
+
+  // The run's summary as a JSON object.
+  string summary_json = 3;
+
+  // The run's environment as a JSON object, the contents of
+  // wandb-metadata.json. Empty if none was recorded.
+  string environment_json = 4;
+
+  // The highest history step logged, or -1 if there is no history.
+  int64 last_step = 5;
+
+  // The keys logged to the run's history, sorted.
+  repeated string history_keys = 6;
+
+  // The run's exit code, once it has exited.
+  optional int32 exit_code = 7;
+}
+
+// Reads rows of a run's history from its transaction log.
+//
+// The log has no index, so every request reads the whole file.
+message ReadLocalRunHistoryRequest {
+  string wandb_file = 1;
+
+  // Return only these keys; empty means all. Rows with none of the keys
+  // are skipped.
+  repeated string keys = 2;
+
+  // Bounds on the rows' steps, inclusive.
+  optional int64 min_step = 3;
+  optional int64 max_step = 4;
+
+  // If set, return only the last N matching rows.
+  optional int32 last = 5;
+}
+
+message ReadLocalRunHistoryResponse {
+  // The matching rows, in step order.
+  repeated LocalHistoryRow rows = 1;
+}
+
+message LocalHistoryRow {
+  int64 step = 1;
+  repeated LocalHistoryItem items = 2;
+}
+
+message LocalHistoryItem {
+  // The logged key; nested keys are joined with ".".
+  string key = 1;
+
+  // The logged value as JSON.
+  string value_json = 2;
+}
+
+// Reads a run's console output from its transaction log.
+message ReadLocalRunConsoleLogsRequest {
+  string wandb_file = 1;
+
+  // If set, return only the last N lines; otherwise return all lines.
+  optional int32 last = 2;
+}
+
+message ReadLocalRunConsoleLogsResponse {
+  // The returned lines, in ascending line order. Their labels are empty.
+  repeated RunConsoleLogLine lines = 1;
+
+  // Total number of lines in the run's console log.
+  int64 total_lines = 2;
+}
+
+// End of local runs
 
 // Download run history
 
