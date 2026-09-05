@@ -486,7 +486,10 @@ def test_sweep_scheduler_sweeps_stop_agent_heartbeat(user, monkeypatch):
     def mock_agent_heartbeat(*args, **kwargs):
         return [{"type": "stop"}]
 
-    api.agent_heartbeat = mock_agent_heartbeat
+    monkeypatch.setattr(
+        "wandb.apis.public.sweeps._agent_heartbeat",
+        lambda api, *args, **kwargs: mock_agent_heartbeat(*args, **kwargs),
+    )
 
     def mock_get_run_state(*args, **kwargs):
         if args[2] == "sweep-scheduler":
@@ -525,7 +528,10 @@ def test_sweep_scheduler_sweep_deleted(user, monkeypatch):
     def mock_agent_heartbeat(*args, **kwargs):
         raise SweepNotFoundError("Sweep not found")
 
-    api.agent_heartbeat = mock_agent_heartbeat
+    monkeypatch.setattr(
+        "wandb.apis.public.sweeps._agent_heartbeat",
+        lambda api, *args, **kwargs: mock_agent_heartbeat(*args, **kwargs),
+    )
 
     def mock_get_run_state(*args, **kwargs):
         if args[2] == "sweep-scheduler":
@@ -565,7 +571,10 @@ def test_sweep_scheduler_sweeps_invalid_agent_heartbeat(user, monkeypatch):
     def mock_agent_heartbeat(*args, **kwargs):
         return [{"type": "foo"}]
 
-    api.agent_heartbeat = mock_agent_heartbeat
+    monkeypatch.setattr(
+        "wandb.apis.public.sweeps._agent_heartbeat",
+        lambda api, *args, **kwargs: mock_agent_heartbeat(*args, **kwargs),
+    )
 
     def mock_get_run_state(*args, **kwargs):
         if args[2] == "sweep-scheduler":
@@ -589,10 +598,15 @@ def test_sweep_scheduler_sweeps_invalid_agent_heartbeat(user, monkeypatch):
     assert _scheduler.state == SchedulerState.FAILED
     assert _scheduler.is_alive is False
 
-    def mock_agent_heartbeat(*args, **kwargs):
+    def mock_agent_heartbeat_without_run_id(*args, **kwargs):
         return [{"type": "run"}]  # No run_id should throw error
 
-    api.agent_heartbeat = mock_agent_heartbeat
+    monkeypatch.setattr(
+        "wandb.apis.public.sweeps._agent_heartbeat",
+        lambda api, *args, **kwargs: mock_agent_heartbeat_without_run_id(
+            *args, **kwargs
+        ),
+    )
     api.get_run_state = mock_get_run_state
 
     sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
