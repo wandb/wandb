@@ -5,13 +5,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runupserter"
 	"github.com/wandb/wandb/core/internal/runupsertertest"
-	wbsettings "github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -19,9 +17,6 @@ import (
 func makeHistoryStepTracker(t *testing.T, startingStep int64) *stream.HistoryStepTracker {
 	t.Helper()
 	logger := observabilitytest.NewTestLogger(t)
-	settings := wbsettings.From(&spb.Settings{
-		RunId: &wrapperspb.StringValue{Value: "run1"},
-	})
 
 	run := &spb.RunRecord{
 		Entity:       "test-entity",
@@ -33,13 +28,8 @@ func makeHistoryStepTracker(t *testing.T, startingStep int64) *stream.HistorySte
 	require.NoError(t, handle.Init(
 		runupsertertest.NewTestUpserterFromRun(t, run, runupserter.RunUpserterParams{}),
 	))
-	factory := &stream.HistoryStepTrackerFactory{
-		Logger:    logger,
-		Settings:  settings,
-		RunHandle: handle,
-	}
 
-	return factory.New()
+	return stream.NewHistoryStepTracker(logger, handle)
 }
 
 func historyStepValue(record *spb.HistoryRecord) string {
@@ -175,14 +165,7 @@ func TestHistoryStepTracker_RewritesUnparseableStep(t *testing.T) {
 
 func TestHistoryStepTracker_FailsWhenRunNotInitialized(t *testing.T) {
 	logger := observabilitytest.NewTestLogger(t)
-	settings := wbsettings.From(&spb.Settings{
-		RunId: &wrapperspb.StringValue{Value: "run1"},
-	})
-	uninit := (&stream.HistoryStepTrackerFactory{
-		Logger:    logger,
-		Settings:  settings,
-		RunHandle: runhandle.New(),
-	}).New()
+	uninit := stream.NewHistoryStepTracker(logger, runhandle.New())
 
 	history := &spb.HistoryRecord{
 		Item: []*spb.HistoryItem{{

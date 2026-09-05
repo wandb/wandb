@@ -3,6 +3,7 @@ package runbranch
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/nullify"
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runconfig"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -19,11 +21,17 @@ type ResumeBranch struct {
 	ctx    context.Context
 	client graphql.Client
 	mode   string
+	logger *observability.CoreLogger
 }
 
 // NewResumeBranch creates a new ResumeBranch
-func NewResumeBranch(ctx context.Context, client graphql.Client, mode string) *ResumeBranch {
-	return &ResumeBranch{ctx: ctx, client: client, mode: mode}
+func NewResumeBranch(
+	ctx context.Context,
+	client graphql.Client,
+	mode string,
+	logger *observability.CoreLogger,
+) *ResumeBranch {
+	return &ResumeBranch{ctx: ctx, client: client, mode: mode, logger: logger}
 }
 
 // UpdateForResume modifies run metadata for resuming.
@@ -44,7 +52,6 @@ func (rb *ResumeBranch) UpdateForResume(
 		nullify.NilIfZero(params.Entity),
 		params.RunID,
 	)
-
 	// if we get an error we are in an unknown state and we should raise an error
 	if err != nil {
 		info := &spb.ErrorInfo{
@@ -56,101 +63,107 @@ func (rb *ResumeBranch) UpdateForResume(
 		return &BranchError{Err: err, Response: info}
 	}
 
-	var data *gql.RunResumeStatusModelProjectBucketRun
-	if runExists(response) {
-		data = response.GetModel().GetBucket()
+	data := runDataFromResponse(response)
+	if data == nil {
+		return rb.runDoesNotExistError(params.RunID)
 	}
 
-	// if we are not in the resume mode MUST and we didn't get data, we can just
-	// return without error
-	if data == nil && rb.mode != "must" {
-		return nil
+	// Data is non-nil, so the run exists, and "never" means we are not allowed to resume.
+	if rb.mode == "never" {
+		return rb.resumeNotAllowedError(params.RunID)
 	}
 
-	// if we are in the resume mode MUST and we don't have data (the run is not initialized),
-	// we need to return an error because we can't resume
-	if data == nil && rb.mode == "must" {
-		info := &spb.ErrorInfo{
-			Code: spb.ErrorInfo_USAGE,
-			Message: fmt.Sprintf("You provided an invalid value for the `resume` argument."+
-				" The value 'must' is not a valid option for resuming the run (%s) that has not been initialized."+
-				" Please check your inputs and try again with a valid run ID."+
-				" If you are trying to start a new run, please omit the `resume` argument or use `resume='allow'`.",
-				params.RunID),
-		}
-		err = fmt.Errorf(
-			"resume setting is 'must' but run %s does not exist",
-			params.RunID,
-		)
-		return &BranchError{Err: err, Response: info}
+	err = processResponse(params, config, data)
+	if err != nil && rb.mustResume() {
+		return rb.resumeFailedError(params.RunID, err)
 	}
 
-	// if we have data and we are in a never resume mode we need to return an
-	// error because we are not allowed to resume
-	if data != nil && rb.mode == "never" {
-		info := &spb.ErrorInfo{
-			Code: spb.ErrorInfo_USAGE,
-			Message: fmt.Sprintf("You provided an invalid value for the `resume` argument."+
-				"  The value 'never' is not a valid option for resuming a run (%s) that already exists."+
-				"  Please check your inputs and try again with a valid value for the `resume` argument.",
-				params.RunID),
-		}
-		err = fmt.Errorf(
-			"resume setting is 'never' but run %s exists",
-			params.RunID,
-		)
-		return &BranchError{Err: err, Response: info}
-	}
-
-	// if we have data and we are in the MUST or ALLOW resume mode, we can resume the run
-	if data != nil && rb.mode != "never" {
-		err := processResponse(params, config, data)
-
-		if err != nil && rb.mode == "must" {
-			info := &spb.ErrorInfo{
-				Code: spb.ErrorInfo_USAGE,
-				Message: fmt.Sprintf(
-					"The run (%s) failed to resume, and the `resume` argument is set to 'must'.",
-					params.RunID,
-				),
-			}
-			err = fmt.Errorf("could not resume run: %s", err)
-			return &BranchError{Err: err, Response: info}
-		}
-
-		return err
-	}
-
-	return nil
+	return err
 }
 
-// runExists checks if the run exists based on the response we get from the server
-func runExists(response *gql.RunResumeStatusResponse) bool {
+// runDataFromResponse checks if the run exists based on the response we get from the server
+func runDataFromResponse(
+	response *gql.RunResumeStatusResponse,
+) *gql.RunResumeStatusModelProjectBucketRun {
 	// If response is nil, run doesn't exist yet
 	if response == nil {
-		return false
+		return nil
 	}
 
 	// if response doesn't have a model, or the model doesn't have a bucket, the run doesn't exist
 	// or the backend is not returning the expected data
 	if response.GetModel() == nil || response.GetModel().GetBucket() == nil {
-		return false
+		return nil
 	}
 
 	// If bucket is non-nil but WandbConfig has no "t" key, the run exists but hasn't started
 	// (e.g. a sweep run that was created ahead of time)
 	bucket := response.GetModel().GetBucket()
 	if bucket.GetWandbConfig() == nil {
-		return false
+		return nil
 	}
 	var cfg map[string]any
 	if err := json.Unmarshal([]byte(*bucket.GetWandbConfig()), &cfg); err != nil {
-		return false
+		return nil
 	}
 	if _, ok := cfg["t"]; !ok {
-		return false
+		return nil
 	}
-	return true
+	return bucket
+}
+
+func (rb *ResumeBranch) runDoesNotExistError(runID string) error {
+	if !rb.mustResume() {
+		return nil
+	}
+
+	// A strict resume requires the run to exist.
+	info := &spb.ErrorInfo{
+		Code: spb.ErrorInfo_USAGE,
+		Message: fmt.Sprintf(
+			"Run (%s) does not exist or has not been initialized, but your"+
+				" `resume` setting requires an existing run to resume."+
+				" Verify the run ID is correct."+
+				" If you are starting a new run, omit `resume` in wandb.init()"+
+				" or set `resume` or `WANDB_RESUME` to `allow` or `never`.",
+			runID,
+		),
+	}
+	err := errors.New("run does not exist")
+	return &BranchError{Err: err, Response: info}
+}
+
+func (rb *ResumeBranch) mustResume() bool {
+	return rb.mode == "must"
+}
+
+func (rb *ResumeBranch) resumeFailedError(runID string, err error) error {
+	info := &spb.ErrorInfo{
+		Code: spb.ErrorInfo_USAGE,
+		Message: fmt.Sprintf(
+			"The run (%s) failed to resume, and the `resume` argument is set to 'must'.",
+			runID,
+		),
+	}
+	err = fmt.Errorf("could not resume run: %s", err)
+	return &BranchError{Err: err, Response: info}
+}
+
+func (rb *ResumeBranch) resumeNotAllowedError(runID string) error {
+	info := &spb.ErrorInfo{
+		Code: spb.ErrorInfo_USAGE,
+		Message: fmt.Sprintf(
+			"Run (%s) already exists, but your `resume` setting does not allow"+
+				" resuming an existing run."+
+				" Verify the run ID is correct."+
+				" To resume this run, set `resume` in wandb.init() or `WANDB_RESUME`"+
+				" to `allow` or `must`."+
+				" To start a new run, use a different run ID.",
+			runID,
+		),
+	}
+	err := errors.New("run exists but cannot resume")
+	return &BranchError{Err: err, Response: info}
 }
 
 // processResponse updates run metadata based on the server response.
