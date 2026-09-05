@@ -11,10 +11,10 @@ import re
 import socket
 import sys
 import tempfile
-from collections.abc import Mapping, MutableMapping, Sequence
+from collections.abc import Mapping, MutableMapping
 from copy import deepcopy
 from pathlib import Path
-from typing import IO, TYPE_CHECKING, Any, Literal, NamedTuple, TextIO, overload
+from typing import IO, TYPE_CHECKING, Any, Literal, TextIO, overload
 
 import click
 
@@ -97,45 +97,6 @@ def check_httpclient_logger_handler() -> None:
     root_logger = logging.getLogger("wandb")
     if root_logger.handlers:
         httpclient_logger.addHandler(root_logger.handlers[0])
-
-
-class _OrgNames(NamedTuple):
-    entity_name: str
-    display_name: str
-
-
-def _match_org_with_fetched_org_entities(
-    organization: str, orgs: Sequence[_OrgNames]
-) -> str:
-    """Match the organization provided in the path with the org entity or org name of the input entity.
-
-    Args:
-        organization: The organization name to match
-        orgs: list of tuples containing (org_entity_name, org_display_name)
-
-    Returns:
-        str: The matched org entity name
-
-    Raises:
-        ValueError: If no matching organization is found or if multiple orgs exist without a match
-    """
-    for org_names in orgs:
-        if organization in org_names:
-            return org_names.entity_name
-
-    if len(orgs) == 1:
-        raise ValueError(
-            f"Expecting the organization name or entity name to match {orgs[0].display_name!r} "
-            f"and cannot be linked/fetched with {organization!r}. "
-            "Please update the target path with the correct organization name."
-        )
-
-    raise ValueError(
-        "Personal entity belongs to multiple organizations "
-        f"and cannot be linked/fetched with {organization!r}. "
-        "Please update the target path with the correct organization name "
-        "or use a team entity in the entity settings."
-    )
 
 
 class Api:
@@ -2387,106 +2348,6 @@ class Api:
                         )
             open_file.close()
         return responses
-
-    def _resolve_org_entity_name(self, entity: str, organization: str = "") -> str:
-        # resolveOrgEntityName fetches the portfolio's org entity's name.
-        #
-        # The organization parameter may be empty, an org's display name, or an org entity name.
-        #
-        # If the server doesn't support fetching the org name of a portfolio, then this returns
-        # the organization parameter, or an error if it is empty. Otherwise, this returns the
-        # fetched value after validating that the given organization, if not empty, matches
-        # either the org's display or entity name.
-
-        if not entity:
-            raise ValueError("Entity name is required to resolve org entity name.")
-
-        orgs_from_entity = self._fetch_orgs_and_org_entities_from_entity(entity)
-        if organization:
-            return _match_org_with_fetched_org_entities(organization, orgs_from_entity)
-
-        # If no input organization provided, error if entity belongs to multiple orgs because we
-        # cannot determine which one to use.
-        if len(orgs_from_entity) > 1:
-            raise ValueError(
-                f"Personal entity {entity!r} belongs to multiple organizations "
-                "and cannot be used without specifying the organization name. "
-                "Please specify the organization in the Registry path or use a team entity in the entity settings."
-            )
-        return orgs_from_entity[0].entity_name
-
-    def _fetch_orgs_and_org_entities_from_entity(self, entity: str) -> list[_OrgNames]:
-        """Fetches organization entity names and display names for a given entity.
-
-        Args:
-            entity (str): Entity name to lookup. Can be either a personal or team entity.
-
-        Returns:
-            list[_OrgNames]: list of _OrgNames tuples. (_OrgNames(entity_name, display_name))
-
-        Raises:
-        ValueError: If entity is not found, has no organizations, or other validation errors.
-        """
-        query = """
-            query FetchOrgEntityFromEntity($entityName: String!) {
-                entity(name: $entityName) {
-                    organization {
-                        name
-                        orgEntity {
-                            name
-                        }
-                    }
-                    user {
-                        organizations {
-                            name
-                            orgEntity {
-                                name
-                            }
-                        }
-                    }
-                }
-            }
-            """
-        response = self.execute(
-            query,
-            variables={
-                "entityName": entity,
-            },
-        )
-
-        # Parse organization from response
-        entity_resp = response["entity"]["organization"]
-        user_resp = response["entity"]["user"]
-        # Check for organization under team/org entity type
-        if entity_resp:
-            org_name = entity_resp.get("name")
-            org_entity_name = entity_resp.get("orgEntity") and entity_resp[
-                "orgEntity"
-            ].get("name")
-            if not org_name or not org_entity_name:
-                raise ValueError(
-                    f"Unable to find an organization under entity {entity!r}."
-                )
-            return [_OrgNames(entity_name=org_entity_name, display_name=org_name)]
-        # Check for organization under personal entity type, where a user can belong to multiple orgs
-        elif user_resp:
-            orgs = user_resp.get("organizations", [])
-            org_entities_return = [
-                _OrgNames(
-                    entity_name=org["orgEntity"]["name"], display_name=org["name"]
-                )
-                for org in orgs
-                if org.get("orgEntity") and org.get("name")
-            ]
-            if not org_entities_return:
-                raise ValueError(
-                    f"Unable to resolve an organization associated with personal entity: {entity!r}. "
-                    "This could be because its a personal entity that doesn't belong to any organizations. "
-                    "Please specify the organization in the Registry path or use a team entity in the entity settings."
-                )
-            return org_entities_return
-        else:
-            raise ValueError(f"Unable to find an organization under entity {entity!r}.")
 
     def _construct_use_artifact_query(
         self,
