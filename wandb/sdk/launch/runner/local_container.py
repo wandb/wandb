@@ -32,7 +32,7 @@ from ..utils import (
 from .abstract import AbstractRun, AbstractRunner, Status
 
 if TYPE_CHECKING:
-    from wandb.sdk.internal.internal_api import Api
+    from wandb.sdk.launch.api import LaunchApi
 
 _logger = logging.getLogger(__name__)
 
@@ -104,7 +104,7 @@ class LocalContainerRunner(AbstractRunner):
 
     def __init__(
         self,
-        api: Api,
+        api: LaunchApi,
         backend_config: dict[str, Any],
         environment: AbstractEnvironment,
         registry: AbstractRegistry,
@@ -121,7 +121,7 @@ class LocalContainerRunner(AbstractRunner):
         ).get("local-container", {})
         validate_local_container_resource_args(submitter_docker_args)
         docker_args = dict(submitter_docker_args)
-        if _is_wandb_local_uri(self._api.settings("base_url")):
+        if _is_wandb_local_uri(self._api.settings["base_url"]):
             if sys.platform == "win32":
                 docker_args["net"] = "host"
             else:
@@ -155,12 +155,12 @@ class LocalContainerRunner(AbstractRunner):
 
         # When running against local port, need to swap to local docker host
         if (
-            _is_wandb_local_uri(self._api.settings("base_url"))
+            _is_wandb_local_uri(self._api.settings["base_url"])
             and sys.platform == "darwin"
         ):
-            _, _, port = self._api.settings("base_url").split(":")
+            _, _, port = self._api.settings["base_url"].split(":")
             env_vars["WANDB_BASE_URL"] = f"http://host.docker.internal:{port}"
-        elif _is_wandb_dev_uri(self._api.settings("base_url")):
+        elif _is_wandb_dev_uri(self._api.settings["base_url"]):
             env_vars["WANDB_BASE_URL"] = "http://host.docker.internal:9001"
 
         if launch_project.docker_image or launch_project.job_base_image:

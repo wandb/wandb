@@ -252,14 +252,8 @@ def test_project_parse_existing_requirements_invalid_requirement(
     assert "Unable to parse line" in wandb_caplog.text
 
 
-def test_get_env_vars_dict(
-    mock_project_args,
-    test_api,
-    monkeypatch: pytest.MonkeyPatch,
-):
+def test_get_env_vars_dict(mock_project_args, test_api):
     """Test that env vars are correctly set from a launch project."""
-    monkeypatch.setenv("WANDB_BASE_URL", "https://launch-test.invalid")
-
     project = LaunchProject(**mock_project_args)
     project._queue_name = "mock-queue"
     project._queue_entity = "mock-test-entity"
@@ -269,9 +263,9 @@ def test_get_env_vars_dict(
     run_id = env_vars.pop("WANDB_RUN_ID")
     assert len(run_id) == 8
     assert env_vars == {
-        "WANDB_API_KEY": "",
+        "WANDB_API_KEY": test_api.api_key,
         "WANDB_ARTIFACTS": "{}",
-        "WANDB_BASE_URL": "https://launch-test.invalid",
+        "WANDB_BASE_URL": test_api.settings["base_url"],
         "WANDB_CONFIG": "{}",
         "WANDB_DOCKER": "mock-test-image:v0",
         "WANDB_ENTITY": "mock-test-entity",
@@ -286,13 +280,8 @@ def test_get_env_vars_dict(
     }
 
 
-def test_get_env_vars_dict_with_low_max_length(
-    mock_project_args,
-    test_api,
-    monkeypatch: pytest.MonkeyPatch,
-):
+def test_get_env_vars_dict_with_low_max_length(mock_project_args, test_api):
     """Test that we break config over multiple env vars when it exceeds the max length."""
-    monkeypatch.setenv("WANDB_BASE_URL", "https://launch-test.invalid")
     project = LaunchProject(**mock_project_args)
     project.override_config = {
         "learning_rate": 0.01,
@@ -304,9 +293,9 @@ def test_get_env_vars_dict_with_low_max_length(
 
     assert len(run_id) == 8
     assert env_vars == {
-        "WANDB_API_KEY": "",
+        "WANDB_API_KEY": test_api.api_key,
         "WANDB_ARTIFACTS": "{}",
-        "WANDB_BASE_URL": "https://launch-test.invalid",
+        "WANDB_BASE_URL": test_api.settings["base_url"],
         "WANDB_CONFIG_0": '{"learning_r',
         "WANDB_CONFIG_1": 'ate": 0.01, ',
         "WANDB_CONFIG_2": '"batch_size"',

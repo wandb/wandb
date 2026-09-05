@@ -203,7 +203,7 @@ def test_populate_docker_args_does_not_mutate_submitter_resource_args(
     mock_launch_project.fill_macros.return_value = {"local-container": docker_args}
     mock_launch_project.job_base_image = "test-base-image"
     mock_launch_project.resolved_working_dir = "/mnt/wandb"
-    test_api.settings = MagicMock(return_value="http://localhost:8080")
+    test_api.settings = {"base_url": "http://localhost:8080"}
     runner = LocalContainerRunner(
         test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
     )

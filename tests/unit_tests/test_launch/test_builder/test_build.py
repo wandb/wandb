@@ -178,7 +178,7 @@ def _setup(mocker):
     mocker.launch_project = launch_project
 
     api = MagicMock()
-    api.settings = lambda x: x
+    api.settings = {"base_url": "base_url"}
     api.api_key = "test-api-key"
     mocker.api = api
 
