@@ -166,7 +166,6 @@ class Api:
 
         self._max_cli_version: str | None = None
 
-
     def relocate(self) -> None:
         """Ensure the current api points to the right server."""
         self._service_api = self._new_service_api()
