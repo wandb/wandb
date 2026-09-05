@@ -40,7 +40,6 @@ if env.ssl_disabled():
     _disable_ssl()
 
 
-from .internal import Api as InternalApi  # noqa
 from .public import Api as PublicApi  # noqa
 
-__all__ = ["InternalApi", "PublicApi"]
+__all__ = ["PublicApi"]

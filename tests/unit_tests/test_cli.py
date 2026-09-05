@@ -27,7 +27,7 @@ def docker(request, mocker, monkeypatch):
         wandb_args.update(marker.kwargs)
     docker = mocker.MagicMock()
     api_key = mocker.patch(
-        "wandb.apis.InternalApi.api_key", new_callable=mocker.PropertyMock
+        "wandb.sdk.internal.internal_api.Api.api_key", new_callable=mocker.PropertyMock
     )
     api_key.return_value = "test"
     monkeypatch.setattr(cli, "_HAS_NVIDIA_DOCKER", True)
@@ -193,7 +193,7 @@ def test_docker_run_nvidia(runner, docker):
 
 def test_docker_run_api_key_not_in_args(runner, docker, mocker, monkeypatch):
     mocker.patch(
-        "wandb.apis.InternalApi.api_key",
+        "wandb.sdk.internal.internal_api.Api.api_key",
         new_callable=mocker.PropertyMock,
         return_value="fake-api-key",
     )
@@ -438,7 +438,7 @@ def test_docker_args(runner, docker):
 
 def test_docker_api_key_not_in_args(runner, docker, mocker, monkeypatch):
     mocker.patch(
-        "wandb.apis.InternalApi.api_key",
+        "wandb.sdk.internal.internal_api.Api.api_key",
         new_callable=mocker.PropertyMock,
         return_value="fake-api-key",
     )

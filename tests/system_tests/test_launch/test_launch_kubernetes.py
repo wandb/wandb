@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import kubernetes_asyncio
 import pytest
-from wandb.apis.internal import Api
+from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.launch import loader
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.runner import kubernetes_monitor, kubernetes_runner

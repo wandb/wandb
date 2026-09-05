@@ -50,5 +50,6 @@ Legacy `wandb sync` options have been removed. See `wandb sync --help`.
 ### Removed
 
 - Removed `wandb.InternalApi`. Use `wandb.Api()` instead (@dmitryduev in https://github.com/wandb/wandb/pull/12715)
+- Removed the `wandb.apis.internal` module and the `wandb.apis.InternalApi` alias (@dmitryduev in https://github.com/wandb/wandb/pull/12716)
 - All legacy options to `wandb sync` have been removed (@timoffex in https://github.com/wandb/wandb/pull/12686)
   - In particular, instead of `--sync-all`, use `wandb sync` with no arguments

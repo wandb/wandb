@@ -26,13 +26,13 @@ import wandb.errors
 import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent
 from wandb.analytics import get_telemetry_recorder
-from wandb.apis import InternalApi, PublicApi
+from wandb.apis import PublicApi
 from wandb.cli import beta_sync
 from wandb.errors.links import url_registry
 from wandb.sdk import wandb_setup, wandb_sweep
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
-from wandb.sdk.internal.internal_api import Api as SDKInternalApi
+from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch import utils as launch_utils
 from wandb.sdk.launch._launch_add import _launch_add
 from wandb.sdk.launch.errors import ExecutionError, LaunchError
@@ -1971,7 +1971,7 @@ def scheduler(
     if not api.is_authenticated:
         wandb.termlog("Login to W&B to use the sweep scheduler feature")
         ctx.invoke(login, no_offline=True)
-        api = InternalApi(reset=True)
+        api = InternalApi()
 
     telemetry_recorder = get_telemetry_recorder().with_context(
         high_cardinality_attributes={
@@ -2872,7 +2872,7 @@ def get(path, root, type):
             settings_entity = public_api.settings["entity"] or public_api.default_entity
             # Registry artifacts are under the org entity. Because we offer a shorthand and alias for this path,
             # we need to fetch the org entity to for the user behind the scenes.
-            entity = SDKInternalApi()._resolve_org_entity_name(
+            entity = InternalApi()._resolve_org_entity_name(
                 entity=settings_entity, organization=organization
             )
         full_path = f"{entity}/{project}/{artifact_name}:{version}"

@@ -5,9 +5,9 @@ from unittest import mock
 
 import pytest
 import wandb
-from wandb.apis.internal import Api as InternalApi
 from wandb.apis.public import Api as PublicApi
 from wandb.sdk.artifacts.artifact import Artifact
+from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.create_job import _create_job
 from wandb.sdk.launch.git_reference import GitReference
 
@@ -26,7 +26,7 @@ def test_job_call(user, create_run_queue):
     job = public_api.job(f"{user}/{proj}/{job_name}")
 
     create_run_queue(
-        internal_api.api._service_api,
+        internal_api._service_api,
         entity=user,
         project=proj,
         queue_name=queue,

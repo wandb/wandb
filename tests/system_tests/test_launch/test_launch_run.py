@@ -2,8 +2,9 @@ import json
 from unittest import mock
 
 import wandb
-from wandb.apis import internal, public
+from wandb.apis import public
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
+from wandb.sdk.internal import internal_api as internal
 from wandb.sdk.internal import job_builder
 from wandb.sdk.launch._project_spec import _inject_wandb_config_env_vars
 from wandb.util import make_artifact_name_safe

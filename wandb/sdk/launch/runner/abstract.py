@@ -14,7 +14,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Literal
 
 import wandb
-from wandb.apis.internal import Api
+from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.lib import runid
 
 from .._project_spec import LaunchProject

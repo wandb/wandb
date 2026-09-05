@@ -342,6 +342,10 @@ class Api:
         )
 
     @property
+    def is_authenticated(self) -> bool:
+        return self.api_key is not None or self._service_api.access_token() is not None
+
+    @property
     def api_url(self) -> str:
         return self.settings("base_url")  # type: ignore
 
