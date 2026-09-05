@@ -48,6 +48,8 @@ executors:
         environment:
           CI: 1
           WANDB_ENABLE_TEST_CONTAINER: true
+          GUNICORN_WORKERS: 9
+          GUNICORN_THREADS: 1
     resource_class: wandb/docker-builder
 
 commands:
