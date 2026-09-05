@@ -13,8 +13,9 @@ from wandb.sdk.lib import wbauth
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
 
 _MESSAGE = (
-    "wandb.api and wandb.ensure_configured() are deprecated"
-    " and will be removed in a future release."
+    "wandb.api and wandb.ensure_configured() are deprecated and will be removed"
+    " in a future release. To check for credentials without prompting,"
+    " use wandb.login(prompt=False)."
 )
 
 

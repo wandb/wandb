@@ -81,4 +81,4 @@ When preparing a release that can include breaking changes, consider applying ch
 - Remove `wandb.api` and `wandb.ensure_configured()`
     - Owner: @dmitryduev
     - Deprecated after 0.29.0 (https://github.com/wandb/wandb/pull/12715)
-    - Can do in 1.0, once `ray`, `deepchem` and the other packages that check `wandb.api.api_key` before logging in have a public replacement and have migrated to it
+    - Can do in 1.0, once `ray`, `deepchem` and the other packages that check `wandb.api.api_key` before logging in have migrated to `wandb.login(prompt=False)`

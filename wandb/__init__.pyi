@@ -453,6 +453,7 @@ def login(
     timeout: int | None = None,
     verify: bool = True,
     referrer: str | None = None,
+    prompt: bool = True,
     anonymous: DoNotSet = UNSET,
 ) -> bool:
     """Log into W&B.
@@ -479,7 +480,7 @@ def login(
     - The api_key setting in a system or workspace settings file
     - The .netrc file (either ~/.netrc, ~/_netrc or the path specified by the
       NETRC environment variable)
-    - An interactive prompt (if available)
+    - An interactive prompt, if available and `prompt` is True
 
     Args:
         key: The API key to use.
@@ -495,14 +496,19 @@ def login(
             AuthenticationError on failure. This works for API keys as well
             as identity tokens.
         referrer: The referrer to use in the URL login request for analytics.
+        prompt: Whether to ask for an API key interactively when none is
+            configured. If False, this returns False instead and leaves the
+            session and settings unchanged, which makes it a way to check
+            for credentials without blocking.
 
     Returns:
-        bool: If `key` is configured.
+        True if the session has credentials after this call.
 
     Raises:
         AuthenticationError: If the credentials fail verification with
             the server.
-        UsageError: If `api_key` cannot be configured and no tty.
+        UsageError: If no credentials are configured, `prompt` is True and
+            there is no terminal to ask for an API key.
     """
     ...
 
