@@ -80,6 +80,11 @@ func (s *Settings) IsSkipTransactionLog() bool {
 	return s.Proto.XSkipTransactionLog.GetValue()
 }
 
+// Whether to stop flushing the transaction log periodically.
+func (s *Settings) IsDisableTransactionLogFlush() bool {
+	return s.Proto.XDisableTransactionLogFlush.GetValue()
+}
+
 // Whether we are in shared mode.
 //
 // In "shared" mode, multiple processes can write to the same run,

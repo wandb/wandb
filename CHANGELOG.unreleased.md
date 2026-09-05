@@ -25,6 +25,7 @@ Legacy `wandb sync` options have been removed. See `wandb sync --help`.
 
 ### Changed
 
+- Runs now write their buffered data to the local `.wandb` file about once a second, less often on slow filesystems, instead of only when a buffer fills or the run finishes. Tools that read the file, such as `wandb leet`, see a running run's progress within seconds. Set `x_disable_transaction_log_flush=True` to restore the previous behavior (@dmitryduev in https://github.com/wandb/wandb/pull/12742)
 - LEET is faster on long runs: a 50k-step run loads in about half the time, frames render about 30 percent faster, and live chart updates no longer re-render every point (@dmitryduev in https://github.com/wandb/wandb/pull/12535, https://github.com/wandb/wandb/pull/12536, https://github.com/wandb/wandb/pull/12537, https://github.com/wandb/wandb/pull/12538, https://github.com/wandb/wandb/pull/12539)
 - System metrics from Apple Silicon Macs become available about 1.5 seconds sooner after monitoring starts (@dmitryduev in https://github.com/wandb/wandb/pull/12679)
 
