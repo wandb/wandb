@@ -1,4 +1,4 @@
-"""Tests for the `wandb.apis.PublicApi` module."""
+"""Tests for `wandb.Api`."""
 
 from __future__ import annotations
 

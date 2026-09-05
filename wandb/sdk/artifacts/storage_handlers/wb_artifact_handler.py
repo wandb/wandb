@@ -6,7 +6,7 @@ import os
 from typing import TYPE_CHECKING, Literal
 from urllib.parse import urlparse
 
-from wandb.apis import PublicApi
+from wandb.apis.public import Api
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import StorageHandler
@@ -25,7 +25,7 @@ class WBArtifactHandler(StorageHandler):
 
     _scheme: Literal["wandb-artifact"]
     _cache: ArtifactFileCache
-    _client: PublicApi | None
+    _client: Api | None
 
     def __init__(self) -> None:
         self._scheme = "wandb-artifact"
@@ -36,9 +36,9 @@ class WBArtifactHandler(StorageHandler):
         return parsed_url.scheme == self._scheme
 
     @property
-    def client(self) -> PublicApi:
+    def client(self) -> Api:
         if self._client is None:
-            self._client = PublicApi()
+            self._client = Api()
         return self._client
 
     def load_path(

@@ -1,7 +1,7 @@
 import json
 
 import wandb
-from wandb.apis.public import Api as PublicApi
+from wandb import Api
 from wandb.apis.public.sweeps import _get_sweep_state, _upsert_sweep
 from wandb.cli import cli
 from wandb.sdk.launch.api import LaunchApi
@@ -117,7 +117,7 @@ def test_sweeps_on_launch(
 
     assert sweep_state == "PENDING"
 
-    public_api = PublicApi()
+    public_api = Api()
     sweep = public_api.sweep(f"{user}/{proj}/{sweep_id}")
 
     assert sweep.config == sweep_config
@@ -138,7 +138,7 @@ def test_sweep_scheduler_job_with_queue(runner, user, mocker):
     job_artifact = run._log_job_artifact_with_image("docker_image", args=[])
     job_name = job_artifact.wait().name
 
-    PublicApi().create_run_queue(
+    Api().create_run_queue(
         name=queue,
         type="local-container",
         entity=user,
@@ -147,7 +147,6 @@ def test_sweep_scheduler_job_with_queue(runner, user, mocker):
     )
 
     api = LaunchApi()
-    cli._get_cling_api(reset=True)
     with runner.isolated_filesystem():
         with open("config.json", "w") as f:
             json.dump(
@@ -174,8 +173,6 @@ def test_sweep_scheduler_job_with_queue(runner, user, mocker):
             ["config.json", "--queue", queue],
         )
 
-        # cli._get_cling_api(reset=True) calls wandb.teardown(), so create a
-        # fresh API before inspecting queue state.
         api = LaunchApi()
         rqi = api.pop_from_run_queue(
             queue,
