@@ -370,20 +370,30 @@ func (c *EpochLineChart) SetPalette(colors []AdaptiveColor) {
 //
 // X values should be appended in non-decreasing order for efficient rendering.
 // Empty data is a no-op.
+//
+// A chart has a single x-axis. A custom axis replaces the step axis and the
+// series plotted against it; data on any other axis is not plotted.
 func (c *EpochLineChart) AddData(key string, data MetricData) {
+	if len(data.X) == 0 || len(data.X) != len(data.Y) {
+		return
+	}
+
+	if data.XAxisMetric != c.xAxisMetric {
+		if c.xAxisMetric != "" {
+			return
+		}
+		clear(c.data)
+		c.order = c.order[:0]
+		c.recomputeBounds()
+		c.xAxisMetric = data.XAxisMetric
+		c.isZoomed = false
+	}
+
 	s, ok := c.data[key]
 	if !ok {
 		s = NewSeries(key, c.palette)
 		c.data[key] = s
 		c.order = append(c.order, key)
-	}
-
-	// Safety checks.
-	if len(data.X) != len(data.Y) {
-		return
-	}
-	if len(data.X) == 0 || len(data.Y) == 0 {
-		return
 	}
 
 	// Amortized linear growth. Do not use slices.Concat as it causes
@@ -1059,11 +1069,6 @@ func (c *EpochLineChart) DrawIfNeeded() {
 // Title returns the chart title.
 func (c *EpochLineChart) Title() string {
 	return c.title
-}
-
-// SetXAxisMetric sets the metric plotted on the x-axis.
-func (c *EpochLineChart) SetXAxisMetric(name string) {
-	c.xAxisMetric = name
 }
 
 // XAxisMetric returns the metric plotted on the x-axis, or "" for _step.
