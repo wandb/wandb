@@ -102,6 +102,7 @@ func makeSenderWithFileStream(
 		GraphqlClient:           client,
 		FeatureProvider:         featurechecker.New(nil, logger),
 		RunHandle:               runHandle,
+		HistoryStepTracker:      stream.NewHistoryStepTracker(logger, runHandle),
 	}
 	var sender *stream.Sender
 	if fileStream != nil {

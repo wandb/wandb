@@ -39,6 +39,7 @@ import (
 
 var SenderProviders = wire.NewSet(
 	wire.Struct(new(SenderFactory), "*"),
+	NewHistoryStepTracker,
 )
 
 // SenderFactory constructs a Sender.
@@ -60,6 +61,7 @@ type SenderFactory struct {
 	Printer                 *observability.Printer
 	RunHandle               *runhandle.RunHandle
 	Mailbox                 *mailbox.Mailbox
+	HistoryStepTracker      *HistoryStepTracker
 }
 
 // Sender performs blocking operations to process Work, such as uploading data.
@@ -228,14 +230,10 @@ func (f *SenderFactory) NewWithFileStream(
 		graphqlClient:     f.GraphqlClient,
 		mailbox:           f.Mailbox,
 		runHandle:         f.RunHandle,
+		stepTracker:       f.HistoryStepTracker,
 		runSummary:        runsummary.New(),
 		consoleLogsSender: runconsolelogs.New(consoleLogsSenderParams),
 	}
-	s.stepTracker = (&HistoryStepTrackerFactory{
-		Logger:    s.logger,
-		Settings:  s.settings,
-		RunHandle: s.runHandle,
-	}).New()
 
 	if !s.settings.IsOffline() && !s.settings.IsJobCreationDisabled() {
 		s.jobBuilder = launch.NewJobBuilder(s.settings, s.logger, false)
