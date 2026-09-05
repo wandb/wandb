@@ -81,12 +81,28 @@ class WandbAgentTestEnv:
     def mock_api(
         self, *, for_cli: bool = False, agent_id: str = DEFAULT_AGENT_ID
     ) -> mock.MagicMock:
-        """Return a mock InternalApi with agent registration stubbed out."""
+        """Return a mock API with agent registration stubbed out."""
         api = mock.MagicMock()
         api.register_agent.return_value = {"id": agent_id}
         if for_cli:
             api.sweep.return_value = None
+        self.patch_sweep_helpers("wandb.wandb_agent", api)
+        self.patch_sweep_helpers("wandb.agents.pyagent", api)
         return api
+
+    def patch_sweep_helpers(self, module: str, api: mock.MagicMock) -> None:
+        """Route the module's sweep API helpers to the mock API's methods."""
+        self.monkeypatch.setattr(wandb, "Api", lambda *args, **kwargs: api)
+        for helper, method in [
+            ("_sweep_with_runs", api.sweep),
+            ("_register_agent", api.register_agent),
+            ("_agent_heartbeat", api.agent_heartbeat),
+        ]:
+            self.monkeypatch.setattr(
+                f"{module}.{helper}",
+                lambda _api, *args, _method=method, **kwargs: _method(*args, **kwargs),
+                raising=False,
+            )
 
     def patch_cli(self, sweep_id: str | None = None) -> None:
         """Avoid slow queue reads and noisy teardown when unit-testing CLI agents."""
@@ -107,12 +123,7 @@ class WandbAgentTestEnv:
         *,
         mock_finish: bool = True,
     ) -> Iterator[None]:
-        """Apply pyagent env isolation and mock API for an agent run.
-
-        `_run_job` recreates `InternalApi()` after `wandb.teardown()`, so
-        `agent_heartbeat` is patched on the underlying `Api` class rather than
-        only on the constructor return value.
-        """
+        """Apply pyagent env isolation for an agent run."""
         self.monkeypatch.chdir(self.tmp_path)
         self.monkeypatch.setenv(wandb.env.DIR, str(self.tmp_path))
         if mock_finish:
@@ -128,14 +139,7 @@ class WandbAgentTestEnv:
 
         self.monkeypatch.setattr(queue.Queue, "get", fast_queue_get)
 
-        with (
-            mock.patch("wandb.agents.pyagent.InternalApi", return_value=api),
-            mock.patch(
-                "wandb.sdk.internal.internal_api.Api.agent_heartbeat",
-                api.agent_heartbeat,
-            ),
-        ):
-            yield
+        yield
 
     def make_pyagent(
         self,

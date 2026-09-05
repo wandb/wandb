@@ -25,7 +25,6 @@ from wandb.proto.wandb_api_pb2 import (
 )
 from wandb.sdk import wandb_setup
 from wandb.sdk.lib.hashutil import B64Digest, md5_file_b64
-from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 from ..lib import wbauth
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
@@ -1530,125 +1529,6 @@ class Api:
         self.download_file(metadata["url"], path)
         return path, True
 
-    @normalize_exceptions
-    def register_agent(
-        self,
-        host: str,
-        sweep_id: str | None = None,
-        project_name: str | None = None,
-        entity: str | None = None,
-    ) -> dict:
-        """Register a new agent.
-
-        Args:
-            host (str): hostname
-            sweep_id (str): sweep id
-            project_name: (str): model that contains sweep
-            entity: (str): entity that contains sweep
-        """
-        mutation = """
-        mutation CreateAgent(
-            $host: String!
-            $projectName: String,
-            $entityName: String,
-            $sweep: String!
-        ) {
-            createAgent(input: {
-                host: $host,
-                projectName: $projectName,
-                entityName: $entityName,
-                sweep: $sweep,
-            }) {
-                agent {
-                    id
-                }
-            }
-        }
-        """
-        if entity is None:
-            entity = self.settings("entity")
-        if project_name is None:
-            project_name = self.settings("project")
-
-        response = self.execute(
-            mutation,
-            variables={
-                "host": host,
-                "entityName": entity,
-                "projectName": project_name,
-                "sweep": sweep_id,
-            },
-        )
-        result: dict = response["createAgent"]["agent"]
-        return result
-
-    def agent_heartbeat(
-        self, agent_id: str, metrics: dict, run_states: dict
-    ) -> list[dict[str, Any]]:
-        """Notify server about agent state, receive commands.
-
-        Args:
-            agent_id (str): agent_id
-            metrics (dict): system metrics
-            run_states (dict): run_id: state mapping
-
-        Returns:
-            list of commands to execute.
-
-        Raises:
-            SweepNotFoundError: If the server returns a 404, indicating the
-                sweep was likely deleted.
-        """
-        from wandb.sdk.sweeps import SweepNotFoundError
-
-        mutation = """
-        mutation Heartbeat(
-            $id: ID!,
-            $metrics: JSONString,
-            $runState: JSONString
-        ) {
-            agentHeartbeat(input: {
-                id: $id,
-                metrics: $metrics,
-                runState: $runState
-            }) {
-                agent {
-                    id
-                }
-                commands
-            }
-        }
-        """
-
-        if agent_id is None:
-            raise ValueError("Cannot call heartbeat with an unregistered agent.")
-
-        try:
-            response = self.execute(
-                mutation,
-                variables={
-                    "id": agent_id,
-                    "metrics": json.dumps(metrics),
-                    "runState": json.dumps(run_states),
-                },
-                timeout=60,
-            )
-        except WandbApiFailedError as e:
-            if e.response is not None and e.response.http_status == 404:
-                raise SweepNotFoundError(
-                    "Sweep not found. The sweep may have been deleted."
-                ) from e
-            logger.exception("Error communicating with W&B.")
-            return []
-        except Exception:
-            logger.exception("Error communicating with W&B.")
-            return []
-        else:
-            result: list[dict[str, Any]] = json.loads(
-                response["agentHeartbeat"]["commands"]
-            )
-            return result
-
     @staticmethod
     def _validate_config_and_fill_distribution(config: dict) -> dict:
         # verify that parameters are well specified.
@@ -1971,17 +1851,6 @@ class Api:
                 "entityName": entity or self.settings("entity"),
                 "projectName": project or self.settings("project"),
             },
-        )
-
-    def stop_sweep(
-        self,
-        sweep: str,
-        entity: str | None = None,
-        project: str | None = None,
-    ) -> None:
-        """Finish the sweep to stop running new runs and let currently running runs finish."""
-        self.set_sweep_state(
-            sweep=sweep, state="FINISHED", entity=entity, project=project
         )
 
     def _flatten_edges(self, response: _Response) -> list[dict]:
