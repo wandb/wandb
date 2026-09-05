@@ -11,26 +11,12 @@ import pytest
 import wandb.errors
 import wandb.sdk.internal.internal_api
 from pytest_mock import MockerFixture
-from wandb.errors import CommError
 from wandb.proto import wandb_api_pb2 as apb
 from wandb.sdk import wandb_setup
 from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.lib import wbauth
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 from wandb.sdk.sweeps import SweepNotFoundError
-
-
-def test_get_run_state_invalid_kwargs():
-    with pytest.raises(CommError) as e:
-        _api = Api()
-
-        def _mock_execute(*args, **kwargs):
-            return dict()
-
-        _api.execute = _mock_execute
-        _api.get_run_state("test_entity", None, "test_run")
-
-    assert "Error fetching run state" in str(e.value)
 
 
 def test_execute_propagates_service_api_errors(mocker: MockerFixture):

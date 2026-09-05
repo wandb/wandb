@@ -6,14 +6,13 @@ import os
 import re
 import sys
 import tempfile
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import wandb
 from wandb.sdk.artifacts._generated.enums import ArtifactDigestAlgorithm
 from wandb.sdk.artifacts._gqlutils import create_artifact_version
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 from wandb.sdk.artifacts.artifact import Artifact
-from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.internal.job_builder import JobBuilder
 from wandb.sdk.launch.git_reference import GitReference
 from wandb.sdk.launch.inputs.internal import _validate_schema
@@ -24,6 +23,9 @@ from wandb.sdk.launch.utils import (
 )
 from wandb.sdk.lib import filesystem
 from wandb.util import make_artifact_name_safe
+
+if TYPE_CHECKING:
+    from wandb.sdk.launch.api import LaunchApi
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 _logger = logging.getLogger("wandb")
@@ -85,7 +87,9 @@ def create_job(
         artifact_job.call()
         ```
     """
-    api = Api()
+    from wandb.sdk.launch.api import LaunchApi
+
+    api = LaunchApi()
 
     artifact_job, _action, _aliases = _create_job(
         api,
@@ -107,7 +111,7 @@ def create_job(
 
 
 def _create_job(
-    api: Api,
+    api: LaunchApi,
     job_type: str,
     path: str,
     entity: str | None = None,
@@ -438,7 +442,7 @@ def _configure_job_builder_for_partial(tmpdir: str, job_source: str) -> JobBuild
 
 
 def _make_code_artifact(
-    api: Api,
+    api: LaunchApi,
     job_builder: JobBuilder,
     run: wandb.Run,
     path: str,

@@ -7,7 +7,7 @@ import pytest
 import wandb
 from wandb.apis import public
 from wandb.errors import CommError
-from wandb.sdk.internal import internal_api as internal
+from wandb.sdk.launch.api import LaunchApi
 from wandb.sdk.launch.sweeps import SchedulerError, load_scheduler
 from wandb.sdk.launch.sweeps.scheduler import (
     RunState,
@@ -50,7 +50,7 @@ def test_sweep_scheduler_entity_project_sweep_id(
     _patch_wandb_run(monkeypatch)
     _entity = user
     _project = "test-project"
-    api = internal.Api()
+    api = LaunchApi()
     # Entity, project, and sweep should be everything you need to create a scheduler
     sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
     _ = Scheduler(
@@ -71,7 +71,7 @@ def test_sweep_scheduler_start_failed(user, monkeypatch):
     sweep_config = SWEEP_CONFIG_RANDOM
     _entity = user
     _project = "test-project"
-    api = internal.Api()
+    api = LaunchApi()
     # Entity, project, and sweep should be everything you need to create a scheduler
     sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
 
@@ -144,7 +144,7 @@ def test_sweep_scheduler_runcap(user, monkeypatch):
         return "finished"
 
     # Entity, project, and sweep should be everything you need to create a scheduler
-    api = internal.Api()
+    api = LaunchApi()
     api.get_run_state = mock_get_run_state
     sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
     scheduler = SweepScheduler(
@@ -176,7 +176,7 @@ def test_sweep_scheduler_sweep_id_no_job(user, monkeypatch):
     )
     _entity = user
     _project = "test-project"
-    api = internal.Api()
+    api = LaunchApi()
     # Entity, project, and sweep
     sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
     # No job
@@ -208,7 +208,7 @@ def test_sweep_scheduler_sweep_id_with_job(user, monkeypatch):
 
     _entity = user
     _project = "test-project"
-    api = internal.Api()
+    api = LaunchApi()
     # Entity, project, and sweep
     sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
     # Yes job
@@ -225,7 +225,7 @@ def test_sweep_scheduler_base_scheduler_states(user, monkeypatch):
     _patch_wandb_run(monkeypatch)
     _entity = user
     _project = "test-project"
-    api = internal.Api()
+    api = LaunchApi()
     sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
 
     def mock_run_complete_scheduler(self, *args, **kwargs):
@@ -316,7 +316,7 @@ def test_sweep_scheduler_base_run_states(user, monkeypatch):
     _patch_wandb_run(monkeypatch)
     _entity = user
     _project = "test-project"
-    api = internal.Api()
+    api = LaunchApi()
     sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
 
     # Mock api.get_run_state() to return crashed and running runs
@@ -382,7 +382,7 @@ def test_sweep_scheduler_base_run_states(user, monkeypatch):
 def test_sweep_scheduler_base_add_to_launch_queue(user, monkeypatch):
     sweep_config = SWEEP_CONFIG_RANDOM
     _patch_wandb_run(monkeypatch)
-    api = internal.Api()
+    api = LaunchApi()
 
     _project = "test-project"
     _job = "test-job:latest"
@@ -481,7 +481,7 @@ def test_sweep_scheduler_sweeps_stop_agent_heartbeat(user, monkeypatch):
         lambda _: True,
     )
 
-    api = internal.Api()
+    api = LaunchApi()
 
     def mock_agent_heartbeat(*args, **kwargs):
         return [{"type": "stop"}]
@@ -523,7 +523,7 @@ def test_sweep_scheduler_sweep_deleted(user, monkeypatch):
         lambda _: True,
     )
 
-    api = internal.Api()
+    api = LaunchApi()
 
     def mock_agent_heartbeat(*args, **kwargs):
         raise SweepNotFoundError("Sweep not found")
@@ -564,7 +564,7 @@ def test_sweep_scheduler_sweeps_invalid_agent_heartbeat(user, monkeypatch):
         lambda _: True,
     )
 
-    api = internal.Api()
+    api = LaunchApi()
     _project = "test-project"
     sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
 
@@ -634,7 +634,7 @@ def test_sweep_scheduler_sweeps_run_and_heartbeat(user, monkeypatch):
         lambda _: True,
     )
 
-    api = internal.Api()
+    api = LaunchApi()
     # Mock agent heartbeat stops after 10 heartbeats
     api.agent_heartbeat = Mock(
         side_effect=[
@@ -702,7 +702,7 @@ def test_launch_sweep_scheduler_try_executable_works(user, test_settings, monkey
     sweep_id = wandb.sweep(SWEEP_CONFIG_RANDOM, entity=user, project=_project)
 
     _scheduler = SweepScheduler(
-        internal.Api(),
+        LaunchApi(),
         sweep_id=sweep_id,
         entity=user,
         project=_project,
@@ -721,7 +721,7 @@ def test_launch_sweep_scheduler_try_executable_fails(user, monkeypatch):
     sweep_id = wandb.sweep(SWEEP_CONFIG_RANDOM, entity=user, project=_project)
 
     _scheduler = SweepScheduler(
-        internal.Api(),
+        LaunchApi(),
         sweep_id=sweep_id,
         entity=user,
         project=_project,
@@ -742,7 +742,7 @@ def test_launch_sweep_scheduler_try_executable_image(user, monkeypatch):
     sweep_id = wandb.sweep(SWEEP_CONFIG_RANDOM, entity=user, project=_project)
 
     _scheduler = SweepScheduler(
-        internal.Api(),
+        LaunchApi(),
         sweep_id=sweep_id,
         entity=user,
         project=_project,
@@ -822,7 +822,7 @@ def test_launch_sweep_scheduler_macro_args(user, monkeypatch, command):
         "command": command,
     }
     # Entity, project, and sweep should be everything you need to create a scheduler
-    api = internal.Api()
+    api = LaunchApi()
     s = wandb.sweep(sweep_config, entity=user, project="t")
     scheduler = SweepScheduler(
         api, sweep_id=s, entity=user, project="t", queue="q", num_workers=1

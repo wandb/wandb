@@ -2,9 +2,9 @@ from unittest.mock import MagicMock
 
 import pytest
 import wandb
-from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.launch import loader
 from wandb.sdk.launch._project_spec import EntryPoint, LaunchProject
+from wandb.sdk.launch.api import LaunchApi
 from wandb.sdk.launch.environment.aws_environment import AwsEnvironment
 
 
@@ -119,7 +119,7 @@ async def test_sagemaker_resolved_submitted_job(
         "WANDB_BASE_URL": "",
     }
     environment = loader.environment_from_config({})
-    api = Api()
+    api = LaunchApi()
     runner = loader.runner_from_config(
         "sagemaker",
         api,

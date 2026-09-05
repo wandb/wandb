@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 if False:
     import boto3  # type: ignore
 
 import wandb
-from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.launch.environment.aws_environment import AwsEnvironment
 from wandb.sdk.launch.errors import LaunchError
 
@@ -24,6 +23,9 @@ from ..utils import (
     to_camel_case,
 )
 from .abstract import AbstractRun, AbstractRunner, Status
+
+if TYPE_CHECKING:
+    from wandb.sdk.launch.api import LaunchApi
 
 _logger = logging.getLogger(__name__)
 
@@ -125,7 +127,7 @@ class SageMakerRunner(AbstractRunner):
 
     def __init__(
         self,
-        api: Api,
+        api: LaunchApi,
         backend_config: dict[str, Any],
         environment: AwsEnvironment,
         registry: AbstractRegistry,
@@ -133,7 +135,7 @@ class SageMakerRunner(AbstractRunner):
         """Initialize the SagemakerRunner.
 
         Arguments:
-            api (Api): The API instance.
+            api (LaunchApi): The API instance.
             backend_config (Dict[str, Any]): The backend configuration.
             environment (AwsEnvironment): The AWS environment.
 
@@ -292,7 +294,7 @@ def merge_image_uri_with_algorithm_specification(
 
 def build_sagemaker_args(
     launch_project: LaunchProject,
-    api: Api,
+    api: LaunchApi,
     role_arn: str,
     entry_point: EntryPoint | None,
     args: list[str] | None,

@@ -1,40 +1,9 @@
-import json
 from unittest.mock import MagicMock
 
 import pytest
 from wandb.errors import CommError
 from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
-
-
-def test_push_to_run_queue_by_name():
-    _api = Api()
-    mock_run_spec = {"test-key": "test-value"}
-    mock_gql_response = {"pushToRunQueueByName": {"runSpec": json.dumps(mock_run_spec)}}
-    _api.execute = MagicMock(return_value=mock_gql_response)
-
-    push_kwargs = {
-        "entity": "test-entity",
-        "project": "test-project",
-        "queue_name": "test-queue",
-        "run_spec": "{}",
-        "template_variables": None,
-        "priority": 2,
-    }
-
-    resp = _api.push_to_run_queue_by_name(**push_kwargs)
-
-    assert resp == {"runSpec": mock_run_spec}
-    call_args = _api.execute.call_args[0]
-    assert "$priority: Int" in call_args[0]
-    assert "priority: $priority" in call_args[0]
-    assert call_args[1] == {
-        "entityName": "test-entity",
-        "projectName": "test-project",
-        "queueName": "test-queue",
-        "runSpec": "{}",
-        "priority": 2,
-    }
 
 
 def test_upsert_sweep():
