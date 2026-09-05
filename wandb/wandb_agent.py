@@ -20,8 +20,8 @@ from typing import Any
 import wandb
 from wandb import util
 from wandb.sdk import wandb_login, wandb_setup
-from wandb.sdk.launch.sweeps import SweepNotFoundError
 from wandb.sdk.lib import config_util, ipython
+from wandb.sdk.sweeps import SweepNotFoundError
 
 logger = logging.getLogger(__name__)
 

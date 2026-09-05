@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
-from typing import TYPE_CHECKING, TypeAlias
+from typing import TypeAlias
 
 import matplotlib
 import numpy as np
@@ -12,9 +12,6 @@ from wandb import Api
 from wandb.data_types import Table, WBValue
 from wandb.sdk.data_types._dtypes import TypedDictType
 from wandb.sdk.internal import incremental_table_util
-
-if TYPE_CHECKING:
-    from tests.fixtures.wandb_backend_spy import WandbBackendSpy
 
 matplotlib.use("Agg")
 
@@ -135,28 +132,7 @@ def test_table_logged_from_run_with_special_characters_in_name(
         run.log({"my-table": table}, step=1)
 
 
-@mark.parametrize("max_cli_version", ["0.10.33", "0.11.0"])
-def test_reference_table_logging(
-    user: str,
-    test_settings: SettingsFactory,
-    wandb_backend_spy: WandbBackendSpy,
-    max_cli_version: str,
-):
-    gql = wandb_backend_spy.gql
-    wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="ServerInfo"),
-        gql.once(
-            content={
-                "data": {
-                    "serverInfo": {
-                        "cliVersionInfo": {"max_cli_version": max_cli_version}
-                    }
-                }
-            },
-            status=200,
-        ),
-    )
-
+def test_reference_table_logging(user: str, test_settings: SettingsFactory):
     with wandb.init(settings=test_settings()) as run:
         t = wandb.Table(
             columns=["a"],
@@ -166,24 +142,7 @@ def test_reference_table_logging(
         run.log({"logged_table": t})
 
 
-def test_reference_table_artifacts(
-    user: str,
-    test_settings: SettingsFactory,
-    wandb_backend_spy: WandbBackendSpy,
-):
-    gql = wandb_backend_spy.gql
-    wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="ServerInfo"),
-        gql.once(
-            content={
-                "data": {
-                    "serverInfo": {"cliVersionInfo": {"max_cli_version": "0.11.0"}}
-                }
-            },
-            status=200,
-        ),
-    )
-
+def test_reference_table_artifacts(user: str, test_settings: SettingsFactory):
     with wandb.init(settings=test_settings()) as run:
         t = wandb.Table(
             columns=["a"],

@@ -1219,7 +1219,9 @@ urllib3==2.7.0
 uvicorn==0.32.1
     # via -r requirements/requirements_test.txt
 .
-    # via -r requirements/requirements_dev.txt
+    # via
+    #   -r requirements/requirements_dev.txt
+    #   -r requirements/requirements_test.txt
 wcwidth==0.8.2
     # via
     #   prompt-toolkit

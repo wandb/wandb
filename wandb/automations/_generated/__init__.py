@@ -19,6 +19,7 @@ __all__ = [
     "DeleteAutomation",
     "IntegrationsByEntity",
     "CreateGenericWebhookIntegration",
+    "ARIAActionInput",
     "CreateFilterTriggerInput",
     "CreateGenericWebhookIntegrationInput",
     "GenericWebhookActionInput",
@@ -28,6 +29,7 @@ __all__ = [
     "QueueJobActionInput",
     "TriggeredActionConfig",
     "UpdateFilterTriggerInput",
+    "AriaActionFields",
     "ArtifactPortfolioScopeFields",
     "ArtifactSequenceScopeFields",
     "EntityScopeFields",
@@ -57,6 +59,7 @@ from .enums import (
     TriggerScopeType,
 )
 from .fragments import (
+    AriaActionFields,
     ArtifactPortfolioScopeFields,
     ArtifactSequenceScopeFields,
     EntityScopeFields,
@@ -77,6 +80,7 @@ from .get_entity_automations import GetEntityAutomations
 from .get_entity_automations_legacy import GetEntityAutomationsLegacy
 from .get_org_automations import GetOrgAutomations
 from .input_types import (
+    ARIAActionInput,
     CreateFilterTriggerInput,
     CreateGenericWebhookIntegrationInput,
     GenericWebhookActionInput,
