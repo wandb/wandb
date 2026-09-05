@@ -36,10 +36,10 @@ from wandb.sdk.internal.internal_api import Api as SDKInternalApi
 from wandb.sdk.launch import utils as launch_utils
 from wandb.sdk.launch._launch_add import _launch_add
 from wandb.sdk.launch.errors import ExecutionError, LaunchError
-from wandb.sdk.launch.sweeps import SweepNotFoundError
 from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.lib import filesystem, settings_file
+from wandb.sdk.sweeps import SweepNotFoundError
 
 from .beta import beta
 from .clean import clean
@@ -936,7 +936,17 @@ def sweep(
             "resume": "Resuming",
         }
         wandb.termlog(f"{ings[state]} sweep {entity}/{project}/{sweep_id}")
-        getattr(api, f"{state}_sweep")(sweep_id, entity=entity, project=project)
+        api.set_sweep_state(
+            sweep_id,
+            {
+                "stop": "FINISHED",
+                "cancel": "CANCELED",
+                "pause": "PAUSED",
+                "resume": "RUNNING",
+            }[state],
+            entity=entity,
+            project=project,
+        )
         wandb.termlog("Done.")
         return
     else:

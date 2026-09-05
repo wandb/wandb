@@ -9,8 +9,6 @@ from io import BytesIO
 from typing import TYPE_CHECKING, Any, TypeAlias, cast
 from urllib import parse
 
-from packaging.version import parse as parse_version
-
 import wandb
 from wandb import util
 from wandb.sdk.lib import hashutil, runid
@@ -44,33 +42,6 @@ def _convert_to_uint8(data: np.ndarray) -> np.ndarray:
         required="wandb.Image requires numpy if not supplying PIL Images: pip install numpy",
     )
     return data.astype(np.uint8)
-
-
-def _server_accepts_image_filenames(run: wandb.Run) -> bool:
-    if run.offline:
-        return True
-
-    # Newer versions of wandb accept large image filenames arrays
-    # but older versions would have issues with this.
-    max_cli_version = util._get_max_cli_version()
-    if max_cli_version is None:
-        return False
-
-    accepts_image_filenames: bool = parse_version(max_cli_version) >= parse_version(
-        "0.12.10"
-    )
-    return accepts_image_filenames
-
-
-def _server_accepts_artifact_path(run: wandb.Run) -> bool:
-    if run.offline:
-        return False
-
-    max_cli_version = util._get_max_cli_version()
-    if max_cli_version is None:
-        return False
-
-    return parse_version(max_cli_version) >= parse_version("0.12.14")
 
 
 class Image(BatchableMedia):
@@ -455,10 +426,7 @@ class Image(BatchableMedia):
         # Windows filenames fail fast instead of blocking on a version lookup.
         util.make_file_path_upload_safe(str(key))
 
-        if (
-            not _server_accepts_artifact_path(run)
-            or self._get_artifact_entry_ref_url() is None
-        ):
+        if run.offline or self._get_artifact_entry_ref_url() is None:
             super().bind_to_run(run, key, step, id_, ignore_copy_err=ignore_copy_err)
         if self._boxes is not None:
             for i, k in enumerate(self._boxes):
@@ -613,16 +581,7 @@ class Image(BatchableMedia):
             "format": format,
             "count": num_images_to_log,
         }
-        if _server_accepts_image_filenames(run):
-            meta["filenames"] = [
-                obj.get("path", obj.get("artifact_path")) for obj in jsons
-            ]
-        else:
-            wandb.termwarn(
-                "Unable to log image array filenames. In some cases, this can prevent images from being "
-                "viewed in the UI. Please upgrade your wandb server",
-                repeat=False,
-            )
+        meta["filenames"] = [obj.get("path", obj.get("artifact_path")) for obj in jsons]
 
         captions = Image.all_captions(seq)
 

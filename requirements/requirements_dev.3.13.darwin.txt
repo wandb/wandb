@@ -400,12 +400,15 @@ json5==0.15.0
     # via jupyterlab-server
 jsonpointer==3.1.1
     # via jsonschema
+jsonref==1.1.0
+    # via sweeps
 jsonschema==4.26.0
     # via
     #   jupyter-events
     #   jupyterlab-server
     #   litellm
     #   nbformat
+    #   sweeps
     #   wandb
 jsonschema-specifications==2025.9.1
     # via jsonschema
@@ -590,6 +593,7 @@ numpy==2.3.5
     #   shapely
     #   soundfile
     #   stable-baselines3
+    #   sweeps
     #   tensorboard
     #   tensorboardx
     #   torchmetrics
@@ -746,6 +750,7 @@ pydantic==2.13.4
     #   google-genai
     #   litellm
     #   openai
+    #   sweeps
     #   wandb
 pydantic-core==2.46.4
     # via pydantic
@@ -829,6 +834,7 @@ pyyaml==6.0.3
     #   optuna
     #   pytorch-lightning
     #   responses
+    #   sweeps
     #   wandb
 pyzmq==27.2.0
     # via
@@ -897,7 +903,9 @@ rsa==4.7.2
 s3transfer==0.19.2
     # via boto3
 scikit-learn==1.9.0
-    # via -r requirements/requirements_dev.txt
+    # via
+    #   -r requirements/requirements_dev.txt
+    #   sweeps
 scipy==1.18.1
     # via
     #   catboost
@@ -905,6 +913,7 @@ scipy==1.18.1
     #   jaxlib
     #   lightgbm
     #   scikit-learn
+    #   sweeps
     #   xgboost
 send2trash==2.1.0
     # via jupyter-server
@@ -946,6 +955,8 @@ stack-data==0.6.3
     # via ipython
 starlette==0.46.2
     # via fastapi
+sweeps==0.2.0
+    # via wandb
 sympy==1.14.0
     # via torch
 tabulate==0.10.0
@@ -1084,7 +1095,9 @@ urllib3==2.7.0
 uvicorn==0.32.1
     # via -r requirements/requirements_test.txt
 .
-    # via -r requirements/requirements_dev.txt
+    # via
+    #   -r requirements/requirements_dev.txt
+    #   -r requirements/requirements_test.txt
 wcwidth==0.8.2
     # via
     #   prompt-toolkit
