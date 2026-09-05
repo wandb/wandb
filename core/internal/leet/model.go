@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -64,6 +65,10 @@ type Model struct {
 	// schemes, sidebar visibility, etc.).
 	config *ConfigManager
 
+	// cow is the spherical cow living on the logo screen. Shared by the
+	// workspace and run views so it keeps its position across mode switches.
+	cow *SphericalCow
+
 	logger *observability.CoreLogger
 }
 
@@ -111,11 +116,14 @@ func NewModel(params ModelParams) *Model {
 		workspace: NewWorkspace(params.WandbDir, params.Config, params.Logger),
 		help:      NewHelp(),
 		config:    params.Config,
+		cow:       NewSphericalCow(),
 		logger:    params.Logger,
 	}
+	m.workspace.cow = m.cow
 
 	if params.RunParams != nil {
 		m.run = NewRun(params.RunParams, params.Config, params.Logger)
+		m.run.cow = m.cow
 		m.mode = viewModeRun
 	}
 
@@ -128,7 +136,7 @@ func NewModel(params ModelParams) *Model {
 // If starting in single-run mode, the run's reader and watcher commands are
 // also started.
 func (m *Model) Init() tea.Cmd {
-	cmds := []tea.Cmd{tea.RequestBackgroundColor}
+	cmds := []tea.Cmd{tea.RequestBackgroundColor, cowAnimationCmd(cowFrame)}
 
 	// Workspace always exists; initialize its long‑running commands.
 	if m.workspace != nil && !m.isRemoteRunMode() {
@@ -156,6 +164,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if bgMsg, ok := msg.(tea.BackgroundColorMsg); ok {
 		SetDarkBackground(bgMsg.IsDark())
 		SetTerminalBackground(bgMsg)
+	}
+
+	if _, ok := msg.(CowAnimationMsg); ok {
+		return m, m.cow.HandleTick(time.Now())
 	}
 
 	if handled, cmd := m.handleHelp(msg); handled {
@@ -432,6 +444,7 @@ func (m *Model) enterRunView() tea.Cmd {
 	}
 
 	m.run = NewRun(&RunParams{RunFile: wandbFile}, m.config, m.logger)
+	m.run.cow = m.cow
 	m.mode = viewModeRun
 
 	// Share the workspace's media store so data persists across transitions.
