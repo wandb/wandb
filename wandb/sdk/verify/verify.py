@@ -17,11 +17,10 @@ import click
 import requests
 
 import wandb
+from wandb.apis.public import Api
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.lib import runid
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
-
-from ..internal.internal_api import Api
 
 PROJECT_NAME = "verify"
 GET_RUN_MAX_TIME = 10
@@ -71,15 +70,6 @@ def check_logged_in(api: Api, host: str) -> bool:
                 click.style(login_doc_url, underline=True, fg="blue")
             )
         )
-    # check that api key is correct
-    # TODO: Better check for api key is correct
-    else:
-        res = api.viewer()
-        if not res:
-            fail_string = (
-                "Could not get viewer with default API key. "
-                f"Please relogin using `WANDB_BASE_URL={host} wandb login --relogin` and try again"
-            )
 
     print_results(fail_string, False)
     return fail_string is None
@@ -467,7 +457,9 @@ def check_large_post() -> bool:
 
 def check_wandb_version(api: Api) -> None:
     print("Checking wandb package version is up to date".ljust(72, "."), end="")  # noqa: T201
-    _, server_info = api.viewer_server_info()
+    server_info = api._service_api.execute_graphql(
+        "query ServerInfo { serverInfo { cliVersionInfo } }"
+    )["serverInfo"]
     fail_string = None
     warning = False
     max_cli_version = server_info.get("cliVersionInfo", {}).get("max_cli_version", None)
