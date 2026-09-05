@@ -53,7 +53,6 @@ from wandb.apis import public
 from wandb.apis._generated import GET_AGENT_RUNS_GQL
 from wandb.apis._generated.get_agent_runs import GetAgentRuns
 from wandb.apis.attrs import Attrs
-from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import SizedPaginator
 from wandb.apis.public.const import RETRY_TIMEDELTA
@@ -61,6 +60,7 @@ from wandb.apis.public.service_api import ServiceApi
 from wandb.proto import wandb_api_pb2 as apb
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk import wandb_setup
+from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.lib import ipython, json_util
 from wandb.sdk.lib.paths import LogicalPath
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError

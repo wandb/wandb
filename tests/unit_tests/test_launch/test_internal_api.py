@@ -2,16 +2,16 @@ import json
 from unittest.mock import MagicMock
 
 import pytest
-from wandb.apis import internal
 from wandb.errors import CommError
+from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 
 def test_push_to_run_queue_by_name():
-    _api = internal.Api()
+    _api = Api()
     mock_run_spec = {"test-key": "test-value"}
     mock_gql_response = {"pushToRunQueueByName": {"runSpec": json.dumps(mock_run_spec)}}
-    _api.api.execute = MagicMock(return_value=mock_gql_response)
+    _api.execute = MagicMock(return_value=mock_gql_response)
 
     push_kwargs = {
         "entity": "test-entity",
@@ -22,10 +22,10 @@ def test_push_to_run_queue_by_name():
         "priority": 2,
     }
 
-    resp = _api.api.push_to_run_queue_by_name(**push_kwargs)
+    resp = _api.push_to_run_queue_by_name(**push_kwargs)
 
     assert resp == {"runSpec": mock_run_spec}
-    call_args = _api.api.execute.call_args[0]
+    call_args = _api.execute.call_args[0]
     assert "$priority: Int" in call_args[0]
     assert "priority: $priority" in call_args[0]
     assert call_args[1] == {
@@ -38,11 +38,11 @@ def test_push_to_run_queue_by_name():
 
 
 def test_upsert_sweep():
-    _api = internal.Api()
+    _api = Api()
     mock_sweep_name = "test-sweep"
     mock_display_name = "test-sweep-display-name"
     mock_gql_response = {"upsertSweep": {"sweep": {"name": mock_sweep_name}}}
-    _api.api.execute = MagicMock(return_value=mock_gql_response)
+    _api.execute = MagicMock(return_value=mock_gql_response)
 
     run_ids = ["abc", "def"]
     sweep_config = {
@@ -62,11 +62,11 @@ def test_upsert_sweep():
         "prior_runs": run_ids,
         "display_name": mock_display_name,
     }
-    resp = _api.api.upsert_sweep(**upsert_kwargs)
+    resp = _api.upsert_sweep(**upsert_kwargs)
 
     assert resp == (mock_sweep_name, [])
-    call_args = _api.api.execute.call_args[0]
-    call_kwargs = _api.api.execute.call_args.kwargs
+    call_args = _api.execute.call_args[0]
+    call_kwargs = _api.execute.call_args.kwargs
     assert "$priorRunsFilters: JSONString" in call_args[0]
     assert "priorRunsFilters: $priorRunsFilters" in call_args[0]
     assert (
@@ -79,15 +79,15 @@ def test_upsert_sweep():
 
 
 def test_upsert_sweep_does_not_drop_launch_scheduler_on_errors():
-    _api = internal.Api()
-    _api.api.execute = MagicMock(
+    _api = Api()
+    _api.execute = MagicMock(
         side_effect=WandbApiFailedError("could not find launch queue project")
     )
 
     with pytest.raises(CommError):
-        _api.api.upsert_sweep(
+        _api.upsert_sweep(
             config={"method": "grid", "parameters": {}},
             launch_scheduler="{}",
         )
 
-    assert _api.api.execute.call_count == 2
+    assert _api.execute.call_count == 2

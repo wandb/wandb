@@ -2,7 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 import wandb
-from wandb.apis.internal import Api
+from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.launch import loader
 from wandb.sdk.launch._project_spec import EntryPoint, LaunchProject
 from wandb.sdk.launch.environment.aws_environment import AwsEnvironment

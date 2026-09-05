@@ -7,7 +7,7 @@ from typing import Any
 if False:
     from google.cloud import aiplatform  # type: ignore   # noqa: F401
 
-from wandb.apis.internal import Api
+from wandb.sdk.internal.internal_api import Api
 from wandb.util import get_module
 
 from .._project_spec import LaunchProject
