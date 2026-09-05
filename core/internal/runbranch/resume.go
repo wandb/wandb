@@ -63,12 +63,13 @@ func (rb *ResumeBranch) UpdateForResume(
 		return &BranchError{Err: err, Response: info}
 	}
 
-	data, runExists := runDataFromResponse(response)
-	if !runExists {
+	data := runDataFromResponse(response)
+	if data == nil {
 		return rb.runDoesNotExistError(params.RunID)
 	}
 
-	if !rb.allowResume() {
+	// Data is non-nil, so the run exists, and "never" means we are not allowed to resume.
+	if rb.mode == "never" {
 		return rb.resumeNotAllowedError(params.RunID)
 	}
 
@@ -83,32 +84,32 @@ func (rb *ResumeBranch) UpdateForResume(
 // runDataFromResponse checks if the run exists based on the response we get from the server
 func runDataFromResponse(
 	response *gql.RunResumeStatusResponse,
-) (*gql.RunResumeStatusModelProjectBucketRun, bool) {
+) *gql.RunResumeStatusModelProjectBucketRun {
 	// If response is nil, run doesn't exist yet
 	if response == nil {
-		return nil, false
+		return nil
 	}
 
 	// if response doesn't have a model, or the model doesn't have a bucket, the run doesn't exist
 	// or the backend is not returning the expected data
 	if response.GetModel() == nil || response.GetModel().GetBucket() == nil {
-		return nil, false
+		return nil
 	}
 
 	// If bucket is non-nil but WandbConfig has no "t" key, the run exists but hasn't started
 	// (e.g. a sweep run that was created ahead of time)
 	bucket := response.GetModel().GetBucket()
 	if bucket.GetWandbConfig() == nil {
-		return nil, false
+		return nil
 	}
 	var cfg map[string]any
 	if err := json.Unmarshal([]byte(*bucket.GetWandbConfig()), &cfg); err != nil {
-		return nil, false
+		return nil
 	}
 	if _, ok := cfg["t"]; !ok {
-		return nil, false
+		return nil
 	}
-	return bucket, true
+	return bucket
 }
 
 func (rb *ResumeBranch) runDoesNotExistError(runID string) error {
@@ -130,10 +131,6 @@ func (rb *ResumeBranch) runDoesNotExistError(runID string) error {
 	}
 	err := errors.New("run does not exist")
 	return &BranchError{Err: err, Response: info}
-}
-
-func (rb *ResumeBranch) allowResume() bool {
-	return rb.mode != "never"
 }
 
 func (rb *ResumeBranch) mustResume() bool {
