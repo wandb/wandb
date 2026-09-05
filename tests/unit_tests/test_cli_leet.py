@@ -16,6 +16,8 @@ def core_calls(monkeypatch) -> list[list[str]]:
 
     class _StubSettings:
         base_url = _BASE_URL
+        _offline = False
+        _noop = False
 
     class _StubSingleton:
         settings = _StubSettings()
@@ -79,6 +81,22 @@ def test_leet_defaults_to_run_command(runner, core_calls, tmp_path: pathlib.Path
     assert result.exit_code == 0
     assert core_calls == [
         ["wandb-core", "leet", "--base-url", _BASE_URL, str(wandb_dir.resolve())]
+    ]
+
+
+@pytest.mark.parametrize("mode_attr", ["_offline", "_noop"])
+def test_leet_offline_disables_telemetry(
+    runner, core_calls, tmp_path: pathlib.Path, mode_attr: str
+):
+    wandb_dir = tmp_path / "wandb"
+    wandb_dir.mkdir()
+    setattr(leet.wandb_setup.singleton().settings, mode_attr, True)
+
+    result = runner.invoke(cli.cli, ["leet", str(wandb_dir)])
+
+    assert result.exit_code == 0
+    assert core_calls == [
+        ["wandb-core", "leet", "--no-observability", str(wandb_dir.resolve())]
     ]
 
 
