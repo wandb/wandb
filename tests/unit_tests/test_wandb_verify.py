@@ -83,15 +83,14 @@ def test_check_large_post_reports_core_413(monkeypatch, capsys):
 
 def test_check_wandb_version(capsys):
     api = unittest.mock.Mock()
-    api.viewer_server_info.return_value = (
-        None,
-        {
+    api._service_api.execute_graphql.return_value = {
+        "serverInfo": {
             "cliVersionInfo": {
                 "min_cli_version": "0.10.0",
                 "max_cli_version": "1.0.0",
             }
-        },
-    )
+        }
+    }
 
     with unittest.mock.patch.object(wandb, "__version__", "0.0.1"):
         wandb_verify.check_wandb_version(api)

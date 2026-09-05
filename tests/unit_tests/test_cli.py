@@ -26,10 +26,7 @@ def docker(request, mocker, monkeypatch):
     if marker:
         wandb_args.update(marker.kwargs)
     docker = mocker.MagicMock()
-    api_key = mocker.patch(
-        "wandb.sdk.internal.internal_api.Api.api_key", new_callable=mocker.PropertyMock
-    )
-    api_key.return_value = "test"
+    mocker.patch("wandb.cli.cli._configured_api_key", return_value="test")
     monkeypatch.setattr(cli, "_HAS_NVIDIA_DOCKER", True)
     monkeypatch.setattr(cli, "_HAS_DOCKER", True)
     old_call = subprocess.call
@@ -192,11 +189,7 @@ def test_docker_run_nvidia(runner, docker):
 
 
 def test_docker_run_api_key_not_in_args(runner, docker, mocker, monkeypatch):
-    mocker.patch(
-        "wandb.sdk.internal.internal_api.Api.api_key",
-        new_callable=mocker.PropertyMock,
-        return_value="fake-api-key",
-    )
+    mocker.patch("wandb.cli.cli._configured_api_key", return_value="fake-api-key")
     monkeypatch.setenv("DOCKER_HOST", "tcp://localhost:2375")
 
     result = runner.invoke(cli.docker_run, ["rad"])
@@ -437,11 +430,7 @@ def test_docker_args(runner, docker):
 
 
 def test_docker_api_key_not_in_args(runner, docker, mocker, monkeypatch):
-    mocker.patch(
-        "wandb.sdk.internal.internal_api.Api.api_key",
-        new_callable=mocker.PropertyMock,
-        return_value="fake-api-key",
-    )
+    mocker.patch("wandb.cli.cli._configured_api_key", return_value="fake-api-key")
     monkeypatch.setenv("DOCKER_HOST", "tcp://localhost:2375")
 
     with runner.isolated_filesystem():

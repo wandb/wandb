@@ -3,8 +3,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import re
-import tempfile
 from collections.abc import Mapping, MutableMapping
 from copy import deepcopy
 from pathlib import Path
@@ -14,14 +12,11 @@ import wandb
 from wandb import env
 from wandb.analytics import TelemetryRecorder, get_telemetry_recorder
 from wandb.apis.normalize import normalize_exceptions
-from wandb.errors import AuthenticationError, CommError, UsageError
+from wandb.errors import AuthenticationError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
-from wandb.proto.wandb_api_pb2 import ApiRequest, DownloadFileRequest
 from wandb.sdk import wandb_setup
-from wandb.sdk.lib.hashutil import B64Digest, md5_file_b64
 
 from ..lib import wbauth
-from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 
 logger = logging.getLogger(__name__)
 
@@ -155,21 +150,12 @@ class Api:
         self._service_api = self._new_service_api()
         self._telemetry_recorder = telemetry_recorder or get_telemetry_recorder()
 
-        self._max_cli_version: str | None = None
-
     def relocate(self) -> None:
         """Ensure the current api points to the right server."""
         self._service_api = self._new_service_api()
 
     def execute(self, *args: Any, **kwargs: Any) -> _Response:
         return self._service_api.execute_graphql(*args, **kwargs)  # type: ignore[return-value]
-
-    @normalize_exceptions
-    def download_file(self, url: str, path: str) -> None:
-        """Download the file at `url` to `path` via wandb-core's file transfer subsystem."""
-        self._service_api.send_api_request(
-            ApiRequest(download_file_request=DownloadFileRequest(url=url, path=path))
-        )
 
     @property
     def request_auth(self) -> tuple[str, str] | None:
@@ -224,14 +210,6 @@ class Api:
     @property
     def api_url(self) -> str:
         return self.settings("base_url")  # type: ignore
-
-    @property
-    def app_url(self) -> str:
-        return wandb.util.app_url(self.api_url)
-
-    @property
-    def default_entity(self) -> str:
-        return self.viewer().get("entity")  # type: ignore
 
     @overload
     def settings(self, key: None = None) -> dict[str, Any]: ...
@@ -303,154 +281,6 @@ class Api:
             env.set_project(value, env=self._environ)
         elif key == "base_url":
             self.relocate()
-
-    def parse_slug(
-        self, slug: str, project: str | None = None, run: str | None = None
-    ) -> tuple[str, str]:
-        """Parse a slug into a project and run.
-
-        Args:
-            slug (str): The slug to parse
-            project (str, optional): The project to use, if not provided it will be
-            inferred from the slug
-            run (str, optional): The run to use, if not provided it will be inferred
-            from the slug
-
-        Returns:
-            A dict with the project and run
-        """
-        if slug and "/" in slug:
-            parts = slug.split("/")
-            project = parts[0]
-            run = parts[1]
-        else:
-            project = project or self.settings().get("project")
-            if project is None:
-                raise CommError("No default project configured.")
-            run = run or slug or env.get_run(env=self._environ)
-            assert run, "run must be specified"
-        return project, run
-
-    @normalize_exceptions
-    def viewer(self) -> dict[str, Any]:
-        query = """
-        query Viewer{
-            viewer {
-                id
-                entity
-                username
-                flags
-                teams {
-                    edges {
-                        node {
-                            name
-                        }
-                    }
-                }
-            }
-        }
-        """
-        res = self.execute(query)
-        return res.get("viewer") or {}
-
-    @normalize_exceptions
-    def max_cli_version(self) -> str | None:
-        if self._max_cli_version is not None:
-            return self._max_cli_version
-
-        _, server_info = self.viewer_server_info()
-        self._max_cli_version = server_info.get("cliVersionInfo", {}).get(
-            "max_cli_version"
-        )
-        return self._max_cli_version
-
-    @normalize_exceptions
-    def viewer_server_info(self) -> tuple[dict[str, Any], dict[str, Any]]:
-        query = """
-        query Viewer{
-            viewer {
-                id
-                entity
-                username
-                email
-                flags
-                teams {
-                    edges {
-                        node {
-                            name
-                        }
-                    }
-                }
-            }
-            serverInfo {
-                cliVersionInfo
-                latestLocalVersionInfo {
-                    outOfDate
-                    latestVersionString
-                    versionOnThisInstanceString
-                }
-            }
-        }
-        """
-        res = self.execute(query)
-        return res.get("viewer") or {}, res.get("serverInfo") or {}
-
-    @normalize_exceptions
-    def list_projects(self, entity: str | None = None) -> list[dict[str, str]]:
-        """List projects in W&B scoped by entity.
-
-        Args:
-            entity (str, optional): The entity to scope this project to.
-
-        Returns:
-                [{"id","name","description"}]
-        """
-        query = """
-        query EntityProjects($entity: String) {
-            models(first: 10, entityName: $entity) {
-                edges {
-                    node {
-                        id
-                        name
-                        description
-                    }
-                }
-            }
-        }
-        """
-        project_list: list[dict[str, str]] = self._flatten_edges(
-            self.execute(
-                query, variables={"entity": entity or self.settings("entity")}
-            )["models"]
-        )
-        return project_list
-
-    @normalize_exceptions
-    def project(self, project: str, entity: str | None = None) -> _Response:
-        """Retrieve project.
-
-        Args:
-            project (str): The project to get details for
-            entity (str, optional): The entity to scope this project to.
-
-        Returns:
-                [{"id","name","repo","dockerImage","description"}]
-        """
-        query = """
-        query ProjectDetails($entity: String, $project: String) {
-            model(name: $project, entityName: $entity) {
-                id
-                name
-                repo
-                dockerImage
-                description
-            }
-        }
-        """
-        response: _Response = self.execute(
-            query, variables={"entity": entity, "project": project}
-        )["model"]
-        return response
 
     @normalize_exceptions
     def sweep(
@@ -526,211 +356,6 @@ class Api:
         if data:
             data["runs"] = self._flatten_edges(data["runs"])
         return data
-
-    @normalize_exceptions
-    def run_config(
-        self, project: str, run: str | None = None, entity: str | None = None
-    ) -> tuple[str, dict[str, Any], str | None, dict[str, Any]]:
-        """Get the relevant configs for a run.
-
-        Args:
-            project (str): The project to download, (can include bucket)
-            run (str, optional): The run to download
-            entity (str, optional): The entity to scope this project to.
-        """
-        query = """
-        query RunConfigs(
-            $name: String!,
-            $entity: String,
-            $run: String!,
-            $pattern: String!,
-            $includeConfig: Boolean!,
-        ) {
-            model(name: $name, entityName: $entity) {
-                bucket(name: $run) {
-                    config @include(if: $includeConfig)
-                    commit @include(if: $includeConfig)
-                    files(pattern: $pattern) {
-                        pageInfo {
-                            hasNextPage
-                            endCursor
-                        }
-                        edges {
-                            node {
-                                name
-                                directUrl
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        """
-
-        variables = {
-            "name": project,
-            "run": run,
-            "entity": entity,
-            "includeConfig": True,
-        }
-
-        commit: str = ""
-        config: dict[str, Any] = {}
-        patch: str | None = None
-        metadata: dict[str, Any] = {}
-
-        # If we use the `names` parameter on the `files` node, then the server
-        # will helpfully give us and 'open' file handle to the files that don't
-        # exist. This is so that we can upload data to it. However, in this
-        # case, we just want to download that file and not upload to it, so
-        # let's instead query for the files that do exist using `pattern`
-        # (with no wildcards).
-        #
-        # Unfortunately we're unable to construct a single pattern that matches
-        # our 2 files, we would need something like regex for that.
-        with tempfile.TemporaryDirectory() as tmpdir:
-            for filename in [DIFF_FNAME, METADATA_FNAME]:
-                variables["pattern"] = filename
-                response = self.execute(query, variables=variables)
-                if response["model"] is None:
-                    raise CommError(f"Run {entity}/{project}/{run} not found")
-                run_obj: dict = response["model"]["bucket"]
-                # we only need to fetch this config once
-                if variables["includeConfig"]:
-                    commit = run_obj["commit"]
-                    config = json.loads(run_obj["config"] or "{}")
-                    variables["includeConfig"] = False
-                if run_obj["files"] is not None:
-                    for file_edge in run_obj["files"]["edges"]:
-                        name = file_edge["node"]["name"]
-                        url = file_edge["node"]["directUrl"]
-                        path = Path(tmpdir, name)
-                        self.download_file(url, str(path))
-                        if name == METADATA_FNAME:
-                            with path.open(encoding="utf-8") as file:
-                                metadata = json.load(file)
-                        elif name == DIFF_FNAME:
-                            patch = path.read_text(encoding="utf-8")
-
-        return commit, config, patch, metadata
-
-    def format_project(self, project: str) -> str:
-        return re.sub(r"\W+", "-", project.lower()).strip("-_")
-
-    @normalize_exceptions
-    def upsert_project(
-        self,
-        project: str,
-        id: str | None = None,
-        description: str | None = None,
-        entity: str | None = None,
-    ) -> dict[str, Any]:
-        """Create a new project.
-
-        Args:
-            project (str): The project to create
-            description (str, optional): A description of this project
-            entity (str, optional): The entity to scope this project to.
-        """
-        mutation = """
-        mutation UpsertModel($name: String!, $id: String, $entity: String!, $description: String, $repo: String)  {
-            upsertModel(input: { id: $id, name: $name, entityName: $entity, description: $description, repo: $repo }) {
-                model {
-                    name
-                    description
-                }
-            }
-        }
-        """
-        response = self.execute(
-            mutation,
-            variables={
-                "name": self.format_project(project),
-                "entity": entity or self.settings("entity"),
-                "description": description,
-                "id": id,
-            },
-        )
-        result: dict[str, Any] = response["upsertModel"]["model"]
-        return result
-
-    @normalize_exceptions
-    def download_urls(
-        self,
-        project: str,
-        run: str | None = None,
-        entity: str | None = None,
-    ) -> dict[str, dict[str, str]]:
-        """Generate download urls.
-
-        Args:
-            project (str): The project to download
-            run (str): The run to upload to
-            entity (str, optional): The entity to scope this project to.  Defaults to wandb models
-
-        Returns:
-            A dict of extensions and urls
-
-                {
-                    'weights.h5': { "url": "https://weights.url", "updatedAt": '2013-04-26T22:22:23.832Z', 'md5': 'mZFLkyvTelC5g8XnyQrpOw==' },
-                    'model.json': { "url": "https://model.url", "updatedAt": '2013-04-26T22:22:23.832Z', 'md5': 'mZFLkyvTelC5g8XnyQrpOw==' }
-                }
-        """
-        query = """
-        query RunDownloadUrls($name: String!, $entity: String, $run: String!)  {
-            model(name: $name, entityName: $entity) {
-                bucket(name: $run) {
-                    files {
-                        edges {
-                            node {
-                                name
-                                url
-                                md5
-                                updatedAt
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        """
-        assert run, "run must be specified"
-        entity = entity or self.settings("entity")
-        query_result = self.execute(
-            query,
-            variables={
-                "name": project,
-                "run": run,
-                "entity": entity,
-            },
-        )
-        if query_result["model"] is None:
-            raise CommError(f"Run does not exist {entity}/{project}/{run}.")
-        files = self._flatten_edges(query_result["model"]["bucket"]["files"])
-        return {file["name"]: file for file in files if file}
-
-    @normalize_exceptions
-    def download_write_file(
-        self,
-        metadata: dict[str, str],
-        out_dir: str | None = None,
-    ) -> tuple[str, bool]:
-        """Download a file from a run and write it to wandb/.
-
-        Args:
-            metadata (obj): The metadata object for the file to download. Comes from Api.download_urls().
-            out_dir (str, optional): The directory to write the file to. Defaults to wandb/
-
-        Returns:
-            A tuple of the file's local path and whether it was downloaded.
-        """
-        filename = metadata["name"]
-        path = os.path.join(out_dir or self.settings("wandb_dir"), filename)
-        if self.file_current(path, B64Digest(metadata["md5"])):
-            return path, False
-
-        self.download_file(metadata["url"], path)
-        return path, True
 
     @staticmethod
     def _validate_config_and_fill_distribution(config: dict) -> dict:
@@ -956,39 +581,6 @@ class Api:
 
         warnings = response["upsertSweep"].get("configValidationWarnings", [])
         return response["upsertSweep"]["sweep"]["name"], warnings
-
-    @staticmethod
-    def file_current(fname: str, md5: B64Digest) -> bool:
-        """Checksum a file and compare the md5 with the known md5."""
-        return os.path.isfile(fname) and md5_file_b64(fname) == md5
-
-    def update_artifact_metadata(
-        self, artifact_id: str, metadata: dict[str, Any]
-    ) -> dict[str, Any]:
-        """Set the metadata of the given artifact version."""
-        mutation = """
-        mutation UpdateArtifact(
-            $artifactID: ID!,
-            $metadata: JSONString,
-        ) {
-            updateArtifact(input: {
-                artifactID: $artifactID,
-                metadata: $metadata,
-            }) {
-                artifact {
-                    id
-                }
-            }
-        }
-        """
-        response = self.execute(
-            mutation,
-            variables={
-                "artifactID": artifact_id,
-                "metadata": json.dumps(metadata),
-            },
-        )
-        return response["updateArtifact"]["artifact"]
 
     def set_sweep_state(
         self,
