@@ -2,6 +2,7 @@ package artifacts
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -222,6 +223,47 @@ func TestSave_DeletesOnlyStagingFiles(t *testing.T) {
 				assert.NoFileExists(t, input)
 			} else {
 				assert.FileExists(t, input)
+			}
+		})
+	}
+}
+
+func TestSave_MissingMD5File(t *testing.T) {
+	for _, state := range []string{"COMMITTED", "PENDING"} {
+		t.Run(state, func(t *testing.T) {
+			mockGQL := gqlmock.NewMockClient()
+			mockGQL.StubMatchOnce(
+				gqlmock.WithOpName("CreateArtifact"),
+				fmt.Sprintf(
+					`{"createArtifact":{"artifact":{"id":"artifact-id","state":%q}}}`,
+					state,
+				),
+			)
+			if state == "PENDING" {
+				mockGQL.StubMatchOnce(gqlmock.WithOpName("CreateArtifactManifest"),
+					`{"createArtifactManifest":{}}`)
+			}
+			saver := NewArtifactSaveManager(
+				observabilitytest.NewTestLogger(t), observability.NewPrinter(0), mockGQL,
+				filetransfertest.NewFakeFileTransferManager(),
+				func() bool { return true }, func() bool { return false },
+			)
+			result := <-saver.Save(context.Background(), &spb.ArtifactRecord{
+				Manifest: &spb.ArtifactManifest{Contents: []*spb.ArtifactManifestEntry{{
+					Path: "file.txt", Digest: "XUFAKrxLKna5cZ2REBfFkg==", Size: 5,
+					LocalPath: filepath.Join(t.TempDir(), "removed-staging-file"),
+				}}},
+			}, 0, "")
+
+			if state == "PENDING" {
+				require.ErrorContains(
+					t,
+					result.Err,
+					"ArtifactSaver.uploadFiles: failed to get file size",
+				)
+			} else {
+				require.NoError(t, result.Err)
+				assert.Equal(t, "artifact-id", result.ArtifactID)
 			}
 		})
 	}
