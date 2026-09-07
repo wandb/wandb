@@ -401,7 +401,12 @@ class _WandbController:
         sweep_id = sweep_obj["name"]
 
         print("Create sweep with ID:", sweep_id)  # noqa: T201
-        sweep_url = wandb_sweep._get_sweep_url(self._api, sweep_obj)
+        sweep_url = wandb_sweep._get_sweep_url(
+            base_url=self._api.settings["base_url"],
+            entity=self._api.settings["entity"] or self._api.default_entity,
+            project=self._api.settings["project"],
+            sweep_id=sweep_id,
+        )
         if sweep_url:
             print("Sweep URL:", sweep_url)  # noqa: T201
         self._sweep_id = sweep_id

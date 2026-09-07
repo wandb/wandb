@@ -10,27 +10,16 @@ from wandb import env, util
 from . import wandb_login
 
 if TYPE_CHECKING:
-    from wandb.apis.public import Api
     from wandb.wandb_controller import _WandbController
 
 
-def _get_sweep_url(api: Api, sweep: dict) -> str | None:
+def _get_sweep_url(
+    *, base_url: str, entity: str | None, project: str | None, sweep_id: str
+) -> str | None:
     """Return the sweep's URL if its entity and project are known."""
-    project = sweep.get("project") or {}
-    entity_name = (
-        (project.get("entity") or {}).get("name")
-        or api.settings["entity"]
-        or api.default_entity
-    )
-    project_name = project.get("name") or api.settings["project"]
-    if not (entity_name and project_name):
+    if not (entity and project):
         return None
-    return "{base}/{entity}/{project}/sweeps/{sweepid}".format(
-        base=util.app_url(api.settings["base_url"]),
-        entity=urllib.parse.quote(entity_name),
-        project=urllib.parse.quote(project_name),
-        sweepid=urllib.parse.quote(sweep["name"]),
-    )
+    return f"{util.app_url(base_url)}/{urllib.parse.quote(entity)}/{urllib.parse.quote(project)}/sweeps/{urllib.parse.quote(sweep_id)}"
 
 
 def sweep(
@@ -93,7 +82,12 @@ def sweep(
     handle_sweep_config_violations(warnings)
     sweep_id = sweep_obj["name"]
     print("Create sweep with ID:", sweep_id)  # noqa: T201
-    sweep_url = _get_sweep_url(api, sweep_obj)
+    sweep_url = _get_sweep_url(
+        base_url=api.settings["base_url"],
+        entity=api.settings["entity"] or api.default_entity,
+        project=api.settings["project"],
+        sweep_id=sweep_id,
+    )
     if sweep_url:
         print("Sweep URL:", sweep_url)  # noqa: T201
     return sweep_id

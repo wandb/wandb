@@ -636,7 +636,7 @@ def test_sweep_scheduler_sweeps_run_and_heartbeat(user, monkeypatch):
 
     api = internal.Api()
     # Mock agent heartbeat stops after 10 heartbeats
-    api.agent_heartbeat = Mock(
+    agent_heartbeat = Mock(
         side_effect=[
             [
                 {
@@ -650,6 +650,7 @@ def test_sweep_scheduler_sweeps_run_and_heartbeat(user, monkeypatch):
         * 10
         + [[{"type": "stop", "run_cap": 7}]]
     )
+    monkeypatch.setattr("wandb.apis.public.sweeps._agent_heartbeat", agent_heartbeat)
 
     def mock_launch_add(*args, **kwargs):
         return Mock(spec=public.QueuedRun)
@@ -687,6 +688,7 @@ def test_sweep_scheduler_sweeps_run_and_heartbeat(user, monkeypatch):
     assert _scheduler.state == SchedulerState.PENDING
     assert _scheduler.is_alive is True
     _scheduler.start()
+    assert agent_heartbeat.call_count == 11
     assert "mock-run-id-1" not in _scheduler._runs
 
 

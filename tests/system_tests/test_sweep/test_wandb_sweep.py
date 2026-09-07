@@ -149,6 +149,17 @@ def test_sweep_create(user, upsert_sweep_spy, sweep_config):
     assert upsert_sweep_spy.total_calls == 1
 
 
+def test_sweep_cli_create(user, runner, tmp_path):
+    config_path = tmp_path / "sweep.json"
+    config_path.write_text(json.dumps(SWEEP_CONFIG_GRID))
+
+    result = runner.invoke(cli.sweep, [str(config_path), "--project", "cli-sweep"])
+
+    assert result.exit_code == 0, result.output
+    assert f"/{user}/cli-sweep/sweeps/" in result.output
+    assert f"wandb agent {user}/cli-sweep/" in result.output
+
+
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
 def test_sweep_entity_project_callable(user, upsert_sweep_spy, sweep_config):
     def sweep_callable():
