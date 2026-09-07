@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import datetime
 import json
 import logging
 import os
@@ -26,7 +25,6 @@ from wandb.proto.wandb_api_pb2 import (
 )
 from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk import wandb_setup
-from wandb.sdk.artifacts._generated.enums import ArtifactDigestAlgorithm
 from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
 from wandb.sdk.lib.hashutil import B64Digest, md5_file_b64
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
@@ -85,7 +83,6 @@ class Api:
             | None
         ) = None,
         load_settings: bool = True,
-        retry_timedelta: datetime.timedelta | None = None,
         environ: MutableMapping[str, str] = os.environ,
         api_key: str | None = None,
         telemetry_recorder: TelemetryRecorder | None = None,
@@ -118,8 +115,6 @@ class Api:
             self._settings = global_settings.read_system_settings().all()
         else:
             self._settings = {}
-
-        self.retry_timedelta = retry_timedelta or datetime.timedelta(days=7)
 
         # todo: remove these hacky hacks after settings refactor is complete
         #  keeping this code here to limit scope and so that it is easy to remove later
@@ -171,7 +166,6 @@ class Api:
         self._service_api = self._new_service_api()
         self._telemetry_recorder = telemetry_recorder or get_telemetry_recorder()
 
-        self._current_run_id: str | None = None
         self._max_cli_version: str | None = None
 
         self._server_features_cache: dict[str, bool] | None = None
@@ -216,13 +210,6 @@ class Api:
             settings=settings,
             timeout=self.HTTP_TIMEOUT,
         )
-
-    def set_current_run_id(self, run_id: str) -> None:
-        self._current_run_id = run_id
-
-    @property
-    def current_run_id(self) -> str | None:
-        return self._current_run_id
 
     @property
     def user_agent(self) -> str:
@@ -353,7 +340,7 @@ class Api:
             project = project or self.settings().get("project")
             if project is None:
                 raise CommError("No default project configured.")
-            run = run or slug or self.current_run_id or env.get_run(env=self._environ)
+            run = run or slug or env.get_run(env=self._environ)
             assert run, "run must be specified"
         return project, run
 
@@ -1551,7 +1538,6 @@ class Api:
             }
         }
         """
-        run = run or self.current_run_id
         assert run, "run must be specified"
         entity = entity or self.settings("entity")
         query_result = self.execute(
@@ -1938,240 +1924,6 @@ class Api:
     def file_current(fname: str, md5: B64Digest) -> bool:
         """Checksum a file and compare the md5 with the known md5."""
         return os.path.isfile(fname) and md5_file_b64(fname) == md5
-
-    def _construct_use_artifact_query(
-        self,
-        artifact_id: str,
-        entity_name: str | None = None,
-        project_name: str | None = None,
-        run_name: str | None = None,
-        use_as: str | None = None,
-        artifact_entity_name: str | None = None,
-        artifact_project_name: str | None = None,
-    ) -> tuple[str, dict[str, Any]]:
-        query_vars = [
-            "$entityName: String!",
-            "$projectName: String!",
-            "$runName: String!",
-            "$artifactID: ID!",
-        ]
-        query_args = [
-            "entityName: $entityName",
-            "projectName: $projectName",
-            "runName: $runName",
-            "artifactID: $artifactID",
-        ]
-
-        if use_as:
-            query_vars.append("$usedAs: String")
-            query_args.append("usedAs: $usedAs")
-
-        entity_name = entity_name or self.settings("entity")
-        project_name = project_name or self.settings("project")
-        run_name = run_name or self.current_run_id
-
-        variables: dict[str, Any] = {
-            "entityName": entity_name,
-            "projectName": project_name,
-            "runName": run_name,
-            "artifactID": artifact_id,
-            "usedAs": use_as,
-        }
-
-        server_allows_entity_project_information = self._server_supports(
-            ServerFeature.USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION
-        )
-        if server_allows_entity_project_information:
-            query_vars.extend(
-                [
-                    "$artifactEntityName: String",
-                    "$artifactProjectName: String",
-                ]
-            )
-            query_args.extend(
-                [
-                    "artifactEntityName: $artifactEntityName",
-                    "artifactProjectName: $artifactProjectName",
-                ]
-            )
-            variables["artifactEntityName"] = artifact_entity_name
-            variables["artifactProjectName"] = artifact_project_name
-
-        vars_str = ", ".join(query_vars)
-        args_str = ", ".join(query_args)
-
-        query = f"""
-            mutation UseArtifact({vars_str}) {{
-                useArtifact(input: {{{args_str}}}) {{
-                    artifact {{
-                        id
-                        digest
-                        description
-                        state
-                        createdAt
-                        metadata
-                    }}
-                }}
-            }}
-            """
-        return query, variables
-
-    def use_artifact(
-        self,
-        artifact_id: str,
-        entity_name: str | None = None,
-        project_name: str | None = None,
-        run_name: str | None = None,
-        artifact_entity_name: str | None = None,
-        artifact_project_name: str | None = None,
-        use_as: str | None = None,
-    ) -> dict[str, Any] | None:
-        query, variables = self._construct_use_artifact_query(
-            artifact_id,
-            entity_name,
-            project_name,
-            run_name,
-            use_as,
-            artifact_entity_name,
-            artifact_project_name,
-        )
-        response = self.execute(query, variables)
-
-        if response["useArtifact"]["artifact"]:
-            artifact: dict[str, Any] = response["useArtifact"]["artifact"]
-            return artifact
-        return None
-
-    def _get_create_artifact_mutation(
-        self,
-        history_step: int | None,
-        distributed_id: str | None,
-    ) -> str:
-        types = ""
-        values = ""
-
-        if history_step not in [0, None]:
-            types += "$historyStep: Int64!,"
-            values += "historyStep: $historyStep,"
-
-        if distributed_id:
-            types += "$distributedID: String,"
-            values += "distributedID: $distributedID,"
-
-        query_template = """
-            mutation CreateArtifact(
-                $artifactTypeName: String!,
-                $artifactCollectionNames: [String!],
-                $entityName: String!,
-                $projectName: String!,
-                $runName: String,
-                $description: String,
-                $digest: String!,
-                $digestAlgorithm: ArtifactDigestAlgorithm!,
-                $aliases: [ArtifactAliasInput!],
-                $metadata: JSONString,
-                $clientID: ID,
-                $sequenceClientID: ID,
-                $ttlDurationSeconds: Int64,
-                $tags: [TagInput!],
-                _CREATE_ARTIFACT_ADDITIONAL_TYPE_
-            ) {
-                createArtifact(input: {
-                    artifactTypeName: $artifactTypeName,
-                    artifactCollectionNames: $artifactCollectionNames,
-                    entityName: $entityName,
-                    projectName: $projectName,
-                    runName: $runName,
-                    description: $description,
-                    digest: $digest,
-                    digestAlgorithm: $digestAlgorithm,
-                    aliases: $aliases,
-                    metadata: $metadata,
-                    clientID: $clientID,
-                    sequenceClientID: $sequenceClientID,
-                    enableDigestDeduplication: true,
-                    ttlDurationSeconds: $ttlDurationSeconds,
-                    tags: $tags,
-                    _CREATE_ARTIFACT_ADDITIONAL_VALUE_
-                }) {
-                    artifact {
-                        id
-                        state
-                        artifactSequence {
-                            id
-                            latestArtifact {
-                                id
-                                versionIndex
-                            }
-                        }
-                    }
-                }
-            }
-        """
-
-        return query_template.replace(
-            "_CREATE_ARTIFACT_ADDITIONAL_TYPE_", types
-        ).replace("_CREATE_ARTIFACT_ADDITIONAL_VALUE_", values)
-
-    def create_artifact(
-        self,
-        artifact_type_name: str,
-        artifact_collection_name: str,
-        digest: str,
-        client_id: str | None = None,
-        sequence_client_id: str | None = None,
-        entity_name: str | None = None,
-        project_name: str | None = None,
-        run_name: str | None = None,
-        description: str | None = None,
-        metadata: dict | None = None,
-        ttl_duration_seconds: int | None = None,
-        aliases: list[dict[str, str]] | None = None,
-        tags: list[dict[str, str]] | None = None,
-        distributed_id: str | None = None,
-        is_user_created: bool | None = False,
-        history_step: int | None = None,
-        digest_algorithm: ArtifactDigestAlgorithm = ArtifactDigestAlgorithm.MANIFEST_MD5,
-    ) -> tuple[dict, dict]:
-        query_template = self._get_create_artifact_mutation(
-            history_step,
-            distributed_id,
-        )
-
-        entity_name = entity_name or self.settings("entity")
-        project_name = project_name or self.settings("project")
-        if not is_user_created:
-            run_name = run_name or self.current_run_id
-
-        mutation = query_template
-        response = self.execute(
-            mutation,
-            variables={
-                "entityName": entity_name,
-                "projectName": project_name,
-                "runName": run_name,
-                "artifactTypeName": artifact_type_name,
-                "artifactCollectionNames": [artifact_collection_name],
-                "clientID": client_id,
-                "sequenceClientID": sequence_client_id,
-                "digest": digest,
-                "digestAlgorithm": digest_algorithm,
-                "description": description,
-                "aliases": list(aliases or []),
-                "tags": list(tags or []),
-                "metadata": json.dumps(util.make_safe_for_json(metadata))
-                if metadata
-                else None,
-                "ttlDurationSeconds": ttl_duration_seconds,
-                "distributedID": distributed_id,
-                "historyStep": history_step,
-            },
-        )
-        av = response["createArtifact"]["artifact"]
-        latest = response["createArtifact"]["artifact"]["artifactSequence"].get(
-            "latestArtifact"
-        )
-        return av, latest
 
     def update_artifact_metadata(
         self, artifact_id: str, metadata: dict[str, Any]

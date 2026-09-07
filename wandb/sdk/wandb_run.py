@@ -3098,19 +3098,11 @@ class Run:
         ```
 
         """
+        from wandb.sdk.artifacts._gqlutils import record_artifact_use
         from wandb.sdk.artifacts.artifact import Artifact
-        from wandb.sdk.internal.internal_api import Api as InternalApi
 
         if self._settings._offline:
             raise TypeError("Cannot use artifact when in offline mode.")
-
-        api = InternalApi(
-            default_settings={
-                "entity": self._settings.entity,
-                "project": self._settings.project,
-            }
-        )
-        api.set_current_run_id(self._settings.run_id)
 
         if use_as is not None:
             deprecation.warn_and_record_deprecation(
@@ -3128,10 +3120,12 @@ class Run:
                 raise ValueError(
                     f"Supplied type {type} does not match type {artifact.type} of artifact {artifact.name}"
                 )
-            api.use_artifact(
-                artifact.id,
+            record_artifact_use(
+                public_api._service_api,
+                artifact_id=artifact.id,
                 entity_name=self._settings.entity,
                 project_name=self._settings.project,
+                run_name=self._settings.run_id,
                 artifact_entity_name=artifact.entity,
                 artifact_project_name=artifact.project,
             )
@@ -3154,8 +3148,12 @@ class Run:
                 )
                 artifact.wait()
             elif isinstance(artifact, Artifact) and not artifact.is_draft():
-                api.use_artifact(
-                    artifact.id,
+                record_artifact_use(
+                    self._public_api()._service_api,
+                    artifact_id=artifact.id,
+                    entity_name=self._settings.entity,
+                    project_name=self._settings.project,
+                    run_name=self._settings.run_id,
                     artifact_entity_name=artifact.entity,
                     artifact_project_name=artifact.project,
                 )
