@@ -6,7 +6,6 @@ import concurrent.futures
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
-from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.lib.paths import FilePathStr, URIStr
 
 if TYPE_CHECKING:
@@ -19,8 +18,6 @@ _POLICY_REGISTRY: dict[str, type[StoragePolicy]] = {}
 
 
 class StoragePolicy(ABC):
-    _api: InternalApi | None = None
-
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
         _POLICY_REGISTRY[cls.name()] = cls

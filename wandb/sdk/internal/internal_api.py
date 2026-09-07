@@ -23,9 +23,7 @@ from wandb.proto.wandb_api_pb2 import (
     DownloadFileRequest,
     RunQueueOperationRequest,
 )
-from wandb.proto.wandb_internal_pb2 import ServerFeature
 from wandb.sdk import wandb_setup
-from wandb.sdk.internal._generated import SERVER_FEATURES_QUERY_GQL, ServerFeaturesQuery
 from wandb.sdk.lib.hashutil import B64Digest, md5_file_b64
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
@@ -167,8 +165,6 @@ class Api:
         self._telemetry_recorder = telemetry_recorder or get_telemetry_recorder()
 
         self._max_cli_version: str | None = None
-
-        self._server_features_cache: dict[str, bool] | None = None
 
     def relocate(self) -> None:
         """Ensure the current api points to the right server."""
@@ -378,48 +374,6 @@ class Api:
         response = self.execute(mutation, variables=variables)
         result: bool = response["failRunQueueItem"]["success"]
         return result
-
-    def _server_features(self) -> dict[str, bool]:
-        # NOTE: Avoid caching via `@cached_property`, due to undocumented
-        # locking behavior before Python 3.12.
-        # See: https://github.com/python/cpython/issues/87634
-        query = SERVER_FEATURES_QUERY_GQL
-        try:
-            response = self.execute(query)
-        except Exception as e:
-            # Unfortunately we currently have to match on the text of the error message,
-            # as the `gql` client raises `Exception` rather than a more specific error.
-            if 'Cannot query field "features" on type "ServerInfo".' in str(e):
-                self._server_features_cache = {}
-            else:
-                raise
-        else:
-            info = ServerFeaturesQuery.model_validate(response).server_info
-            if info and (feats := info.features):
-                self._server_features_cache = {f.name: f.is_enabled for f in feats if f}
-            else:
-                self._server_features_cache = {}
-        return self._server_features_cache
-
-    def _server_supports(self, feature: int | str) -> bool:
-        """Return whether the current server supports the given feature.
-
-        NOTE: This is deprecated. Outside of this file, please use
-        `ServiceApi.feature_enabled()`. The `ServiceApi` is a sort of
-        replacement to this "internal" `Api` class.
-
-        This also caches the underlying lookup of server feature flags,
-        and it maps {feature_name (str) -> is_enabled (bool)}.
-
-        Good to use for features that have a fallback mechanism for older servers.
-        """
-        # If we're given the protobuf enum value, convert to a string name.
-        # NOTE: We deliberately use names (str) instead of enum values (int)
-        # as the keys here, since:
-        # - the server identifies features by their name, rather than (client-side) enum value
-        # - the defined list of client-side flags may be behind the server-side list of flags
-        key = ServerFeature.Name(feature) if isinstance(feature, int) else feature
-        return self._server_features().get(key) or False
 
     @normalize_exceptions
     def update_run_queue_item_warning(
