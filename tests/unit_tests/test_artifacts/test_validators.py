@@ -5,6 +5,7 @@ from wandb.sdk.artifacts._validators import (
     REGISTRY_PREFIX,
     RESERVED_ARTIFACT_TYPE_PREFIX,
     ArtifactPath,
+    validate_artifact_name,
     validate_artifact_path,
     validate_artifact_root_name,
     validate_artifact_type,
@@ -247,3 +248,31 @@ def test_link_target_alias_suffix_stays_in_name():
     path = ArtifactPath.from_str("wandb-registry-model/my-coll:prod")
 
     assert path.name == "my-coll:prod"
+
+
+@mark.parametrize(
+    "name",
+    [
+        "my-artifact",
+        "model.v1",
+        "dataset_2026",
+        "a" * 128,
+    ],
+)
+def test_validate_artifact_name_valid(name: str):
+    assert validate_artifact_name(name) == name
+
+
+@mark.parametrize(
+    "name, expected_err",
+    [
+        ("a" * 129, "Artifact name is longer than 128 characters"),
+        (
+            "invalid/name",
+            "Artifact names must not contain any of the following characters: '/'",
+        ),
+    ],
+)
+def test_validate_artifact_name_invalid(name: str, expected_err: str):
+    with raises(ValueError, match=expected_err):
+        validate_artifact_name(name)
