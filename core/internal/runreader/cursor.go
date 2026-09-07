@@ -43,13 +43,6 @@ func (c *Cursor) Next() (*spb.Record, error) {
 	}
 }
 
-// SeekRecord positions the cursor at a record offset, as returned by a
-// writer's LastRecordOffset or the start of any 32 KiB block after the first,
-// which holds the file header.
-func (c *Cursor) SeekRecord(offset int64) error {
-	return c.reader.SeekRecord(offset)
-}
-
 func (c *Cursor) Close() {
 	c.reader.Close()
 }

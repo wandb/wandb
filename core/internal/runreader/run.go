@@ -16,6 +16,8 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/internal/runenvironment"
+	"github.com/wandb/wandb/core/internal/runhistory"
+	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -95,6 +97,10 @@ type Run struct {
 	exit        *spb.RunExitRecord
 	lastStep    int64
 	historyKeys map[string]struct{}
+
+	// summaryMetrics is non-nil when summaries must be derived from history
+	// because the SDK delegated their computation to the server.
+	summaryMetrics *runmetric.MetricHandler
 }
 
 // Open prepares to read the transaction log at path. Nothing is read until
@@ -140,6 +146,10 @@ func (r *Run) apply(record *spb.Record) {
 	case *spb.Record_Run:
 		r.info = infoFromRecord(rec.Run)
 		r.infoSeen = true
+		if r.summaryMetrics == nil &&
+			rec.Run.GetTelemetry().GetFeature().GetServerSideDerivedSummary() {
+			r.summaryMetrics = runmetric.New()
+		}
 		if cfg := rec.Run.GetConfig(); cfg != nil {
 			r.config.ApplyChangeRecord(cfg, func(error) {})
 		}
@@ -147,6 +157,12 @@ func (r *Run) apply(record *spb.Record) {
 		r.config.ApplyChangeRecord(rec.Config, func(error) {})
 	case *spb.Record_Summary:
 		_ = runsummary.FromProto(rec.Summary).Apply(r.summary)
+	case *spb.Record_Metric:
+		if r.summaryMetrics != nil {
+			if err := r.summaryMetrics.ProcessRecord(rec.Metric); err == nil {
+				r.summaryMetrics.UpdateSummary(rec.Metric.GetName(), r.summary)
+			}
+		}
 	case *spb.Record_Environment:
 		if r.environment == nil {
 			r.environment = runenvironment.New(rec.Environment.GetWriterId())
@@ -154,6 +170,9 @@ func (r *Run) apply(record *spb.Record) {
 		r.environment.ProcessRecord(rec.Environment)
 	case *spb.Record_History:
 		r.lastStep = max(r.lastStep, historyStep(rec.History))
+		if r.summaryMetrics != nil {
+			r.deriveSummary(rec.History)
+		}
 		for _, item := range rec.History.GetItem() {
 			if key := historyItemKey(item); key != "" {
 				r.historyKeys[key] = struct{}{}
@@ -161,9 +180,23 @@ func (r *Run) apply(record *spb.Record) {
 		}
 	case *spb.Record_OutputRaw:
 		r.console.Process(rec.OutputRaw)
+	case *spb.Record_OutputLogger:
+		r.console.ProcessLogger(rec.OutputLogger)
 	case *spb.Record_Exit:
 		r.exit = rec.Exit
 	}
+}
+
+// deriveSummary reuses the SDK's metric definitions and summary aggregation.
+func (r *Run) deriveSummary(record *spb.HistoryRecord) {
+	history := runhistory.New()
+	for _, item := range record.GetItem() {
+		_ = history.SetFromRecord(item)
+	}
+	for _, metric := range r.summaryMetrics.UpdateMetrics(history) {
+		r.summaryMetrics.UpdateSummary(metric.GetName(), r.summary)
+	}
+	_, _ = r.summary.UpdateSummaries(history)
 }
 
 // Info returns the run's identity. Zero until a run record is read.
@@ -257,10 +290,18 @@ func historyStep(h *spb.HistoryRecord) int64 {
 	return 0
 }
 
-// historyItemKey is the dotted nested key, or the flat key when there is none.
+var historyKeyEscaper = strings.NewReplacer(`\`, `\\`, `.`, `\.`)
+
+// historyItemKey joins path segments with dots, escaping literal dots and
+// backslashes so nested and flat keys remain distinct.
 func historyItemKey(item *spb.HistoryItem) string {
-	if key := strings.Join(item.GetNestedKey(), "."); key != "" {
-		return key
+	parts := item.GetNestedKey()
+	if len(parts) == 0 {
+		return historyKeyEscaper.Replace(item.GetKey())
 	}
-	return item.GetKey()
+	escaped := make([]string, len(parts))
+	for i, part := range parts {
+		escaped[i] = historyKeyEscaper.Replace(part)
+	}
+	return strings.Join(escaped, ".")
 }

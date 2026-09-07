@@ -24,7 +24,7 @@ type ConsoleLine struct {
 	Content string
 }
 
-// Console assembles OutputRaw records into lines.
+// Console assembles raw console output and logger records into lines.
 //
 // Raw output carries ANSI escapes, carriage returns and partial lines, so
 // each stream goes through a terminal emulator like the SDK's own console
@@ -38,6 +38,10 @@ type Console struct {
 	current time.Time
 
 	lines []ConsoleLine
+
+	// changed holds lines modified by the current record, including those
+	// that have already scrolled out of the terminal's window.
+	changed []*consoleLine
 }
 
 func NewConsole() *Console {
@@ -58,6 +62,21 @@ func (c *Console) Process(rec *spb.OutputRawRecord) {
 		c.stderr.Write(rec.GetLine())
 	} else {
 		c.stdout.Write(rec.GetLine())
+	}
+	for _, line := range c.changed {
+		c.lines[line.index].Content =
+			strings.TrimRight(string(line.content.Content), " \t")
+		line.changed = false
+	}
+	clear(c.changed)
+	c.changed = c.changed[:0]
+}
+
+// ProcessLogger appends complete lines without affecting either terminal.
+// Logger records carry no timestamp, so these lines have a zero Time.
+func (c *Console) ProcessLogger(rec *spb.OutputLoggerRecord) {
+	for line := range strings.SplitSeq(strings.TrimSuffix(rec.GetLine(), "\n"), "\n") {
+		c.lines = append(c.lines, ConsoleLine{Content: line})
 	}
 }
 
@@ -86,11 +105,12 @@ type consoleLine struct {
 	content terminalemulator.LineContent
 	console *Console
 	index   int
+	changed bool
 }
 
 func (l *consoleLine) PutChar(c rune, offset int) {
-	if l.content.PutChar(c, offset) {
-		l.console.lines[l.index].Content =
-			strings.TrimRight(string(l.content.Content), " \t")
+	if l.content.PutChar(c, offset) && !l.changed {
+		l.changed = true
+		l.console.changed = append(l.console.changed, l)
 	}
 }

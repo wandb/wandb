@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -167,7 +166,7 @@ func TestRun_UnreadableFileIsAnError(t *testing.T) {
 	require.NoError(t, os.WriteFile(path, []byte("this is not a transaction log at all\n"), 0o644))
 	logger := observability.NewNoOpLogger()
 
-	done := make(chan error, 3)
+	done := make(chan error, 2)
 	go func() {
 		run, err := runreader.Open(path, logger)
 		if err == nil {
@@ -175,12 +174,10 @@ func TestRun_UnreadableFileIsAnError(t *testing.T) {
 			run.Close()
 		}
 		done <- err
-		_, err = runreader.Probe(path, logger)
-		done <- err
 		_, err = runreader.ScanHistory(context.Background(), path, runreader.HistoryQuery{}, logger)
 		done <- err
 	}()
-	for range 3 {
+	for range 2 {
 		select {
 		case err := <-done:
 			assert.Error(t, err)
@@ -214,51 +211,6 @@ func TestScanHistory(t *testing.T) {
 	require.Len(t, rows, 2)
 	assert.Equal(t, int64(1), rows[0].Step)
 	assert.Len(t, rows[0].Items, 2)
-}
-
-func TestProbe(t *testing.T) {
-	dir := t.TempDir()
-	logger := observability.NewNoOpLogger()
-
-	renamed := runRecord("s", nil)
-	renamed.GetRun().DisplayName = "renamed"
-	small := filepath.Join(dir, "small.wandb")
-	writeLog(t, small, runRecord("s", nil), renamed, exitRecord(1))
-	result, err := runreader.Probe(small, logger)
-	require.NoError(t, err)
-	assert.Equal(t, "s", result.Info.RunID)
-	assert.Equal(t, "renamed", result.Info.DisplayName)
-	assert.Equal(t, runreader.StateFailed, result.State)
-
-	// Enough history to span many 32 KiB blocks, so the exit record is
-	// found from the tail rather than by reading everything.
-	big := []*spb.Record{runRecord("b", nil)}
-	for step := range int64(100) {
-		big = append(big, historyRecord(step, map[string]string{"text": strings.Repeat("x", 8000)}))
-	}
-	late := runRecord("b", nil)
-	late.GetRun().DisplayName = "late"
-	finished := filepath.Join(dir, "finished.wandb")
-	writeLog(t, finished, append(big, late, exitRecord(0))...)
-	result, err = runreader.Probe(finished, logger)
-	require.NoError(t, err)
-	assert.Equal(t, "b", result.Info.RunID)
-	assert.Equal(t, "late", result.Info.DisplayName)
-	assert.Equal(t, runreader.StateFinished, result.State)
-
-	running := filepath.Join(dir, "running.wandb")
-	writeLog(t, running, big...)
-	result, err = runreader.Probe(running, logger)
-	require.NoError(t, err)
-	assert.Equal(t, runreader.StateRunning, result.State)
-
-	// The exit record is not in the last block when records follow it.
-	trailing := filepath.Join(dir, "trailing.wandb")
-	writeLog(t, trailing, append(big, exitRecord(0),
-		summaryRecord(map[string]string{"text": `"` + strings.Repeat("y", 40000) + `"`}))...)
-	result, err = runreader.Probe(trailing, logger)
-	require.NoError(t, err)
-	assert.Equal(t, runreader.StateFinished, result.State)
 }
 
 func TestListRunDirs(t *testing.T) {

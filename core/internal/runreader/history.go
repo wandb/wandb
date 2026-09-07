@@ -11,7 +11,8 @@ import (
 // HistoryQuery selects history rows.
 type HistoryQuery struct {
 	// Keys restricts the items returned to these keys; empty means all.
-	// Rows with none of the keys are skipped.
+	// Rows with none of the keys are skipped. Dots separate nested keys;
+	// literal dots and backslashes are escaped with a backslash.
 	Keys []string
 
 	// MinStep and MaxStep bound the rows' steps, inclusive, when non-nil.
