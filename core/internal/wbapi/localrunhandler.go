@@ -40,8 +40,8 @@ func NewLocalRunHandler(logger *observability.CoreLogger) *LocalRunHandler {
 
 // HandleListLocalRuns lists the runs in a wandb directory, newest first.
 //
-// Each run is probed rather than read in full, so this stays cheap for
-// directories with many long runs.
+// Runs share the cache used by detail requests, so cached runs read only
+// appended records. The first read scans the full log for metadata updates.
 func (h *LocalRunHandler) HandleListLocalRuns(
 	ctx context.Context,
 	request *spb.ListLocalRunsRequest,
@@ -50,19 +50,25 @@ func (h *LocalRunHandler) HandleListLocalRuns(
 	if err != nil {
 		return apiErrorResponse(err.Error(), 0)
 	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
 
 	response := &spb.ListLocalRunsResponse{}
 	for _, dir := range dirs {
 		if err := ctx.Err(); err != nil {
 			return apiErrorResponse(err.Error(), 0)
 		}
-		probe, err := runreader.Probe(dir.WandbFile, h.logger)
+		run, err := h.read(ctx, dir.WandbFile)
 		if err != nil {
+			if ctx.Err() != nil {
+				return apiErrorResponse(ctx.Err().Error(), 0)
+			}
 			h.logger.Debug("wbapi: skipping local run", "path", dir.WandbFile, "error", err)
 			continue
 		}
+		info := run.Info()
 		response.Runs = append(response.Runs,
-			localRunInfo(dir.WandbFile, &probe.Info, probe.State))
+			localRunInfo(dir.WandbFile, &info, run.State()))
 	}
 
 	return &spb.ApiResponse{
@@ -188,17 +194,26 @@ func (h *LocalRunHandler) withRun(
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	run, err := h.open(path)
+	run, err := h.read(ctx, path)
 	if err != nil {
 		return apiErrorResponse(err.Error(), 0)
+	}
+	return fn(run)
+}
+
+// read brings a cached run up to date. The caller must hold h.mu.
+func (h *LocalRunHandler) read(ctx context.Context, path string) (*runreader.Run, error) {
+	run, err := h.open(path)
+	if err != nil {
+		return nil, err
 	}
 	if err := run.Update(ctx); err != nil {
 		if ctx.Err() == nil {
 			h.runs.Remove(path)
 		}
-		return apiErrorResponse(err.Error(), 0)
+		return nil, err
 	}
-	return fn(run)
+	return run, nil
 }
 
 // open returns the run cached at path, or opens it. A cached run whose file

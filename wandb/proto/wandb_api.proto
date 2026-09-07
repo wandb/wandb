@@ -695,7 +695,8 @@ message LocalHistoryRow {
 }
 
 message LocalHistoryItem {
-  // The logged key; nested keys are joined with ".".
+  // The logged key; dots separate nested keys. Literal dots and backslashes
+  // in key segments are escaped with a backslash.
   string key = 1;
 
   // The logged value as JSON.

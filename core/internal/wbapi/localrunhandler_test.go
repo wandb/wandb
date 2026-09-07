@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -132,4 +133,61 @@ func TestLocalRunHandler(t *testing.T) {
 	require.NoError(t, os.RemoveAll(filepath.Dir(path)))
 	deleted := h.HandleReadLocalRun(ctx, &spb.ReadLocalRunRequest{WandbFile: path})
 	assert.NotNil(t, deleted.GetApiErrorResponse())
+}
+
+func TestLocalRunHandler_ListTracksMetadataUpdates(t *testing.T) {
+	dir := t.TempDir()
+	runDir := filepath.Join(dir, "run-20260101_120000-abc")
+	require.NoError(t, os.Mkdir(runDir, 0o755))
+	w, err := transactionlog.OpenWriter(filepath.Join(runDir, "run-abc.wandb"))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, w.Close()) })
+	h := NewLocalRunHandler(observability.NewNoOpLogger())
+	defer h.Close()
+	writeInfo := func(name string) {
+		t.Helper()
+		require.NoError(t, w.Write(&spb.Record{RecordType: &spb.Record_Run{
+			Run: &spb.RunRecord{RunId: "abc", DisplayName: name, Notes: name, Tags: []string{name}},
+		}}))
+	}
+	writeHistory := func() {
+		t.Helper()
+		for range 100 {
+			require.NoError(t, w.Write(&spb.Record{RecordType: &spb.Record_History{
+				History: &spb.HistoryRecord{Item: []*spb.HistoryItem{
+					{Key: "text", ValueJson: `"` + strings.Repeat("x", 8000) + `"`},
+				}},
+			}}))
+		}
+	}
+	assertInfo := func(name, state string) {
+		t.Helper()
+		require.NoError(t, w.Flush())
+		response := h.HandleListLocalRuns(context.Background(),
+			&spb.ListLocalRunsRequest{WandbDir: dir}).GetListLocalRunsResponse()
+		require.Len(t, response.GetRuns(), 1)
+		info := response.Runs[0]
+		assert.Equal(t, name, info.GetDisplayName())
+		assert.Equal(t, name, info.GetNotes())
+		assert.Equal(t, []string{name}, info.GetTags())
+		assert.Equal(t, state, info.GetState())
+	}
+
+	writeInfo("initial")
+	writeHistory()
+	writeInfo("renamed")
+	writeHistory()
+	assertInfo("renamed", "running")
+
+	// A later listing must read appended updates, even outside the tail blocks.
+	writeInfo("latest")
+	writeHistory()
+	assertInfo("latest", "running")
+
+	// An exit need not be in the last four blocks, either.
+	require.NoError(t, w.Write(&spb.Record{RecordType: &spb.Record_Exit{
+		Exit: &spb.RunExitRecord{ExitCode: 0},
+	}}))
+	writeHistory()
+	assertInfo("latest", "finished")
 }

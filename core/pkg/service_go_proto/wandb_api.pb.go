@@ -4551,7 +4551,8 @@ func (x *LocalHistoryRow) GetItems() []*LocalHistoryItem {
 
 type LocalHistoryItem struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The logged key; nested keys are joined with ".".
+	// The logged key; dots separate nested keys. Literal dots and backslashes
+	// in key segments are escaped with a backslash.
 	Key string `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
 	// The logged value as JSON.
 	ValueJson     string `protobuf:"bytes,2,opt,name=value_json,json=valueJson,proto3" json:"value_json,omitempty"`
