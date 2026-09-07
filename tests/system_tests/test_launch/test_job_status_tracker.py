@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 import wandb
-from wandb.apis.internal import Api as InternalApi
+from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 
 

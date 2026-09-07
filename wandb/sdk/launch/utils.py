@@ -18,7 +18,7 @@ import click
 import wandb
 import wandb.docker as docker
 from wandb import util
-from wandb.apis.internal import Api
+from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.git_reference import GitReference
 from wandb.sdk.launch.wandb_reference import WandbReference
@@ -866,7 +866,7 @@ def check_logged_in(api: Api) -> bool:
     Raises an error if the viewer doesn't load (likely a broken API key). Expected time
     cost is 0.1-0.2 seconds.
     """
-    res = api.api.viewer()
+    res = api.viewer()
     if not res:
         raise LaunchError(
             "Could not connect with current API-key. "

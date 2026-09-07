@@ -2,7 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 import wandb
-from wandb.apis.internal import Api
+from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.launch import loader
 from wandb.sdk.launch._project_spec import EntryPoint
 from wandb.sdk.launch.environment.gcp_environment import GcpEnvironment

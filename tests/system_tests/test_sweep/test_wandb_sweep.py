@@ -8,6 +8,7 @@ import pytest
 import wandb
 import wandb.apis
 from wandb.cli import cli
+from wandb.sdk.internal.internal_api import Api as InternalApi
 
 # Sweep configs used for testing
 SWEEP_CONFIG_GRID: dict[str, Any] = {
@@ -172,14 +173,14 @@ def test_object_dict_config(user, upsert_sweep_spy, sweep_config):
 
 
 def test_minmax_validation():
-    api = wandb.apis.InternalApi()
+    api = InternalApi()
     sweep_config = {
         "name": "My Sweep",
         "method": "random",
         "parameters": {"parameter1": {"min": 0, "max": 1}},
     }
 
-    filled = api.api._validate_config_and_fill_distribution(sweep_config)
+    filled = api._validate_config_and_fill_distribution(sweep_config)
     assert "distribution" in filled["parameters"]["parameter1"]
     assert "int_uniform" == filled["parameters"]["parameter1"]["distribution"]
 
@@ -189,7 +190,7 @@ def test_minmax_validation():
         "parameters": {"parameter1": {"min": 0.0, "max": 1.0}},
     }
 
-    filled = api.api._validate_config_and_fill_distribution(sweep_config)
+    filled = api._validate_config_and_fill_distribution(sweep_config)
     assert "distribution" in filled["parameters"]["parameter1"]
     assert "uniform" == filled["parameters"]["parameter1"]["distribution"]
 
@@ -200,7 +201,7 @@ def test_minmax_validation():
     }
 
     with pytest.raises(ValueError):
-        api.api._validate_config_and_fill_distribution(sweep_config)
+        api._validate_config_and_fill_distribution(sweep_config)
 
 
 def test_add_run_to_existing_sweep(wandb_backend_spy, user):
@@ -213,15 +214,15 @@ def test_add_run_to_existing_sweep(wandb_backend_spy, user):
 
 
 def test_nones_validation():
-    api = wandb.apis.InternalApi()
-    filled = api.api._validate_config_and_fill_distribution(SWEEP_CONFIG_BAYES_NONES)
+    api = InternalApi()
+    filled = api._validate_config_and_fill_distribution(SWEEP_CONFIG_BAYES_NONES)
     assert filled["parameters"]["param1"]["values"] == [None, 1, 2, 3]
     assert filled["parameters"]["param2"]["value"] is None
 
 
 def test_whitespace_parameters():
-    api = wandb.apis.InternalApi()
-    filled = api.api._validate_config_and_fill_distribution(
+    api = InternalApi()
+    filled = api._validate_config_and_fill_distribution(
         SWEEP_CONFIG_GRID_PARAM_WHITESPACE
     )
     assert filled["parameters"]["param1"]["values"] == [

@@ -16,8 +16,8 @@ from copy import deepcopy
 from typing import TYPE_CHECKING, Any, cast
 
 import wandb
-from wandb.apis.internal import Api
 from wandb.errors import CommError
+from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.launch.utils import get_entrypoint_file
 from wandb.sdk.lib.runid import generate_id
 
@@ -223,7 +223,7 @@ class LaunchProject:
 
         Arguments:
             launch_spec: Dictionary representation of launch spec
-            api: Instance of wandb.apis.internal Api
+            api: Instance of `wandb.sdk.internal.internal_api.Api`
 
         Returns:
             An initialized `LaunchProject` object
@@ -422,7 +422,7 @@ class LaunchProject:
 
         Arguments:
             launch_project: LaunchProject to fetch and validate.
-            api: Instance of wandb.apis.internal Api
+            api: Instance of `wandb.sdk.internal.internal_api.Api`
 
         Returns:
             A validated `LaunchProject` object.
@@ -489,7 +489,7 @@ class LaunchProject:
         env_vars = {}
         env_vars["WANDB_BASE_URL"] = api.settings("base_url")
         override_api_key = self.launch_spec.get("_wandb_api_key")
-        env_vars["WANDB_API_KEY"] = override_api_key or api.api_key
+        env_vars["WANDB_API_KEY"] = override_api_key or api.api_key or ""
         if self.target_project:
             env_vars["WANDB_PROJECT"] = self.target_project
         env_vars["WANDB_ENTITY"] = self.target_entity

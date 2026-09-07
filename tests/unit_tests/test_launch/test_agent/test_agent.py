@@ -734,7 +734,7 @@ async def test_inner_thread_run_job(mocker, clean_agent):
         "project": "test",
     }
 
-    mocker.api.check_stop_requested = True
+    mocker.api.check_stop_requested.return_value = True
 
     def _side_effect(*args, **kwargs):
         job.completed_status = True

@@ -16,8 +16,8 @@ from typing import Any
 
 import wandb
 from wandb.analytics import TelemetryRecorder
-from wandb.apis.internal import Api
 from wandb.errors import CommError
+from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.launch._launch_add import launch_add
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
 from wandb.sdk.launch.runner.local_process import LocalProcessRunner

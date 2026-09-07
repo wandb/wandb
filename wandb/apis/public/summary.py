@@ -3,8 +3,8 @@ import time
 
 import wandb
 from wandb import util
-from wandb.apis.internal import Api
 from wandb.sdk.data_types.utils import val_to_json
+from wandb.sdk.internal.internal_api import Api
 
 DEEP_SUMMARY_FNAME = "wandb.h5"
 H5_TYPES = ("numpy.ndarray", "tensorflow.Tensor", "torch.Tensor")

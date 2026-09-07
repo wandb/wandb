@@ -40,8 +40,8 @@ from wandb.sdk.sweeps import RunState as RunState
 
 if TYPE_CHECKING:
     import wandb.apis.public as public
-    from wandb.apis.internal import Api
     from wandb.apis.public import QueuedRun, Run
+    from wandb.sdk.internal.internal_api import Api
 
 
 _logger = logging.getLogger(__name__)

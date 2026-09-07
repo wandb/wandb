@@ -417,7 +417,7 @@ class Agent:
                     # service process open for all the agent instances and inform_finish when
                     # the run should be marked complete.  This however could require
                     # inform_finish on every run created by this process.
-                    from wandb.apis import InternalApi
+                    from wandb.sdk.internal.internal_api import Api as InternalApi
 
                     exit_code = 0
                     if isinstance(poll_result, int):
@@ -628,7 +628,7 @@ class Agent:
 
         if self._function:
             # make sure that each run regenerates setup singleton
-            from wandb.apis import InternalApi
+            from wandb.sdk.internal.internal_api import Api as InternalApi
 
             wandb.teardown()
             # The agent outlives user jobs, but teardown closes the
@@ -713,7 +713,7 @@ def run_agent(
     forward_signals=False,
     term_timeout: int | None = None,
 ):
-    from wandb.apis import InternalApi
+    from wandb.sdk.internal.internal_api import Api as InternalApi
     from wandb.sdk.launch.sweeps import utils as sweep_utils
 
     parts = dict(entity=entity, project=project, name=sweep_id)

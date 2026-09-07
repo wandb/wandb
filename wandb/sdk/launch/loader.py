@@ -5,8 +5,8 @@ from __future__ import annotations
 from typing import Any
 
 import wandb
-from wandb.apis.internal import Api
 from wandb.docker import is_docker_installed
+from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.launch.errors import LaunchError
 
 from .builder.abstract import AbstractBuilder

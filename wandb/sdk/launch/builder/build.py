@@ -11,7 +11,7 @@ from typing import Any
 import wandb
 import wandb.env
 from wandb import docker
-from wandb.apis.internal import Api
+from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.launch.loader import (
     builder_from_config,
     environment_from_config,
