@@ -2,7 +2,12 @@ import json
 from unittest.mock import Mock
 
 import pytest
-from wandb.apis.public.sweeps import Sweep, _agent_heartbeat
+from wandb.apis.public.sweeps import (
+    Sweep,
+    _agent_heartbeat,
+    _sweep_with_runs,
+    _upsert_sweep,
+)
 from wandb.errors import UnsupportedError
 from wandb.proto import wandb_api_pb2 as apb
 from wandb.proto import wandb_internal_pb2 as pb
@@ -124,3 +129,34 @@ def test_agent_heartbeat_raises_sweep_not_found_on_404():
 
 def test_agent_heartbeat_returns_empty_on_non_404_error():
     assert _agent_heartbeat(_api_failing_with(500), "test-agent-id", {}, {}) == []
+
+
+def test_created_sweep_can_be_read_with_same_api(monkeypatch):
+    monkeypatch.delenv("WANDB_ENTITY", raising=False)
+    monkeypatch.delenv("WANDB_PROJECT", raising=False)
+    api = Mock()
+    api.settings = {"entity": None, "project": None}
+    api._service_api.execute_graphql.side_effect = [
+        {
+            "upsertSweep": {
+                "sweep": {
+                    "name": "test-sweep",
+                    "project": {
+                        "name": "uncategorized",
+                        "entity": {"name": "test-entity"},
+                    },
+                }
+            }
+        },
+        {"project": {"sweep": {"runs": {"edges": []}}}},
+    ]
+
+    sweep, _ = _upsert_sweep(api, {"method": "grid", "parameters": {}})
+    _sweep_with_runs(api, sweep["name"], "{}")
+
+    assert api._service_api.execute_graphql.call_args.kwargs["variables"] == {
+        "entity": "test-entity",
+        "project": "uncategorized",
+        "sweep": "test-sweep",
+        "specs": "{}",
+    }

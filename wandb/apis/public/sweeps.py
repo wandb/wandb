@@ -839,8 +839,10 @@ def _upsert_sweep(
 
     sweep: dict[str, Any] = response["upsertSweep"]["sweep"]
     if project_obj := sweep.get("project"):
+        api.settings["project"] = project_obj["name"]
         env.set_project(project_obj["name"])
         if entity_obj := project_obj.get("entity"):
+            api.settings["entity"] = entity_obj["name"]
             env.set_entity(entity_obj["name"])
 
     return sweep, response["upsertSweep"].get("configValidationWarnings", [])
