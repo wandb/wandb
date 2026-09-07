@@ -31,11 +31,16 @@ class DeprecatedApi:
     @property
     def api_key(self) -> str | None:
         _warn(_MESSAGE)
-        host = wandb_setup.singleton().settings.base_url
+        settings = wandb_setup.singleton().settings
+        host = settings.base_url
         auth = wbauth.session_credentials(host=host)
         if isinstance(auth, wbauth.AuthApiKey):
             return auth.api_key
-        return os.getenv(env.API_KEY) or wbauth.read_netrc_auth(host=host)
+        return (
+            os.getenv(env.API_KEY)
+            or wbauth.read_netrc_auth(host=host)
+            or settings.api_key
+        )
 
     @property
     def default_entity(self) -> str | None:
