@@ -315,7 +315,7 @@ func (w *Workspace) View() tea.View {
 	runLabel, systemGrid, systemHint, mediaHint, logsHint := w.syncCurrentRunContext()
 
 	var cols []string
-	if w.runsAnimState.IsVisible() {
+	if layout.leftSidebarWidth > 0 {
 		cols = append(cols, w.renderRunsList())
 	}
 
@@ -359,7 +359,7 @@ func (w *Workspace) View() tea.View {
 	centralColumn = placeMainColumn(contentWidth, layout.totalContentAreaHeight, centralColumn)
 	cols = append(cols, centralColumn)
 
-	if w.runOverviewSidebar.IsVisible() {
+	if layout.rightSidebarWidth > 0 {
 		cols = append(cols, w.renderRunOverview())
 	}
 
@@ -531,6 +531,7 @@ func (w *Workspace) syncCurrentRunContext() (
 func (w *Workspace) recalculateLayout() {
 	layout := w.computeViewports()
 	w.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
+	w.focusMgr.Resolve()
 }
 
 // computeViewports returns the computed layout dimensions.
@@ -538,7 +539,8 @@ func (w *Workspace) recalculateLayout() {
 // Separator lines between visible sections are subtracted from available height
 // to prevent the status bar from being pushed off screen.
 func (w *Workspace) computeViewports() Layout {
-	leftW, rightW := w.runsAnimState.Value(), w.runOverviewSidebar.Width()
+	leftW, rightW := fitSidebarWidths(
+		w.width, w.runsAnimState.Value(), w.runOverviewSidebar.Width())
 	contentW := max(w.width-leftW-rightW, 1)
 	totalH := max(w.height-StatusBarHeight, 0)
 
@@ -722,7 +724,8 @@ func (w *Workspace) buildWorkspaceFocusManager() *FocusManager {
 // visible even when empty, so focus survives the empty-list windows during
 // startup and no-match filters.
 func (w *Workspace) runsFocusAvailable() bool {
-	return w.runsAnimState.TargetVisible()
+	return w.runsAnimState.TargetVisible() &&
+		(w.width == 0 || w.computeViewports().leftSidebarWidth > 0)
 }
 
 func (w *Workspace) metricsGridFocusAvailable() bool {
@@ -747,7 +750,8 @@ func (w *Workspace) logsFocusAvailable() bool {
 
 func (w *Workspace) overviewFocusAvailable() bool {
 	firstSec, _ := w.runOverviewSidebar.focusableSectionBounds()
-	return w.runOverviewSidebar.animState.TargetVisible() && firstSec != -1
+	return w.runOverviewSidebar.animState.TargetVisible() &&
+		(w.width == 0 || w.computeViewports().rightSidebarWidth > 0) && firstSec != -1
 }
 
 // ---- Focus activate ----
