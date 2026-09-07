@@ -7,9 +7,7 @@ from wandb.sdk.launch.api import LaunchApi
 
 
 @pytest.mark.asyncio
-async def test_local_container_entrypoint(use_local_wandb_backend, monkeypatch):
-    _ = use_local_wandb_backend
-
+async def test_local_container_entrypoint(user, monkeypatch):
     def mock_run_entrypoint(*args, **kwargs):
         # return first arg, which is command
         return args[0]

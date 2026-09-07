@@ -21,9 +21,7 @@ def mock_vertex_environment():
 
 
 @pytest.mark.asyncio
-async def test_vertex_resolved_submitted_job(use_local_wandb_backend, monkeypatch):
-    _ = use_local_wandb_backend
-
+async def test_vertex_resolved_submitted_job(user, monkeypatch):
     async def mock_launch_vertex_job(*args, **kwargs):
         return args[1]
 

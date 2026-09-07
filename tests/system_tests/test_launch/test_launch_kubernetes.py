@@ -171,12 +171,10 @@ async def test_kubernetes_run_with_annotations(
 
 @pytest.mark.asyncio
 async def test_kubernetes_run_env_vars(
-    use_local_wandb_backend,
+    user,
     monkeypatch,
     assets_path,
 ):
-    _ = use_local_wandb_backend
-
     jobs = {}
     status = MockDict(
         {
