@@ -87,6 +87,9 @@ func (r *Run) handleRecordMsg(msg tea.Msg) tea.Cmd {
 		r.logger.Debug("model: stopping heartbeats and finishing watcher due to error")
 		r.heartbeatMgr.Stop()
 		r.watcherMgr.Finish()
+		// No final boot chunk will arrive to draw any throttled history.
+		r.metricsGrid.drawVisible()
+		r.rightSidebar.metricsGrid.drawVisible()
 	}
 
 	return nil

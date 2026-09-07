@@ -834,6 +834,11 @@ func (w *Workspace) handleRunReadErr(msg WorkspaceRunReadErrMsg) tea.Cmd {
 	if !w.anyRunRunning() {
 		w.heartbeatMgr.Stop()
 	}
+	// No final boot chunk will arrive to draw any throttled history.
+	w.metricsGrid.drawVisible()
+	if g := w.systemMetrics[msg.RunKey]; g != nil {
+		g.drawVisible()
+	}
 	return nil
 }
 
