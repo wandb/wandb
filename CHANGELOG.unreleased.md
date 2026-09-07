@@ -59,6 +59,7 @@ Section headings should be at level 3 (e.g. `### Added`).
   - Regression introduced in 0.27.0
 - Resumed runs no longer report a huge or negative `_runtime` and run duration, a regression in v0.30.0 (@dmitryduev in https://github.com/wandb/wandb/pull/12999)
 - `wandb leet inspect` no longer prints "skipped corrupt data" forever when its output is piped and the file is not a `.wandb` log it can read; it now exits with an error (@dmitryduev in https://github.com/wandb/wandb/pull/12950)
+- Auto-generated artifact names (e.g. run tables, incremental tables, and file logs) are now safely bounded to 128 characters with middle ellipsis truncation and CRC32 uniqueness preservation, preventing unexpected client-side validation errors (@somuai in https://github.com/wandb/wandb/issues/11212)
 - Changing system metrics grid rows or columns in LEET, including `wandb leet symon`, no longer crashes and takes effect immediately without waiting for new data (@dmitryduev in https://github.com/wandb/wandb/pull/12763)
 - `wandb beta sync` no longer overwrites the earlier history of a resumed run when the backend reports a stale step. The starting step is now reconciled against the summary `_step`, the history tail `_step`, and the history row count (@geoffhardy in https://github.com/wandb/wandb/pull/12668)
 - Calling `wandb.init()` after `wandb.agent(sweep_id, function=...)` returns now creates a new run instead of reusing and overwriting the last sweep run (@nathancy-wandb in https://github.com/wandb/wandb/pull/12970)
