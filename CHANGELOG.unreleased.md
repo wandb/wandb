@@ -25,6 +25,7 @@ Legacy `wandb sync` options have been removed. See `wandb sync --help`.
 
 ### Changed
 
+- LEET loads long runs faster: while a run's history is loading, the charts are redrawn at most ten times a second instead of after every 1000 records, which made loading time grow with the square of the run's length. A 100-metric run with 400k steps now opens in about 0.3 s instead of 3.8 s (@dmitryduev in https://github.com/wandb/wandb/pull/12734)
 - LEET is faster on long runs: a 50k-step run loads in about half the time, frames render about 30 percent faster, and live chart updates no longer re-render every point (@dmitryduev in https://github.com/wandb/wandb/pull/12535, https://github.com/wandb/wandb/pull/12536, https://github.com/wandb/wandb/pull/12537, https://github.com/wandb/wandb/pull/12538, https://github.com/wandb/wandb/pull/12539)
 - System metrics from Apple Silicon Macs become available about 1.5 seconds sooner after monitoring starts (@dmitryduev in https://github.com/wandb/wandb/pull/12679)
 

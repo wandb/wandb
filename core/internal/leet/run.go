@@ -117,6 +117,7 @@ type Run struct {
 
 	// Coalesce expensive redraws during batch processing.
 	suppressDraw bool
+	lastDrawAt   time.Time
 
 	// Logger.
 	logger *observability.CoreLogger
