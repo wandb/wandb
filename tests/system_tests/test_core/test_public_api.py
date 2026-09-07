@@ -13,8 +13,10 @@ import wandb.util
 from wandb import Api
 from wandb.apis._generated import ProjectFragment, UserFragment
 from wandb.apis._generated.generate_api_key import GenerateApiKey
+from wandb.apis.public.service_api import ServiceApi
 from wandb.apis.public.summary import Summary
 from wandb.errors.errors import CommError
+from wandb.proto import wandb_api_pb2 as apb
 from wandb.sdk.artifacts._gqlutils import server_supports
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
@@ -1474,8 +1476,31 @@ def test_run_upload_file_with_directory_traversal(
         gql.Matcher(operation="MarkRunFilesUploaded"),
         gql.Constant(content={"data": {"markRunFilesUploaded": {"success": True}}}),
     )
-    mock_push = mock.MagicMock()
-    monkeypatch.setattr(wandb.sdk.internal.internal_api.Api, "push", mock_push)
+    create_run_files = gql.Constant(
+        content={
+            "data": {
+                "createRunFiles": {
+                    "runID": "UnVuOnYxOnRlc3Q=",
+                    "uploadHeaders": [],
+                    "files": [
+                        {"name": "__/test.txt", "uploadUrl": "https://storage/test.txt"}
+                    ],
+                }
+            }
+        }
+    )
+    wandb_backend_spy.stub_gql(
+        gql.Matcher(operation="CreateRunFiles"),
+        create_run_files,
+    )
+    send_api_request = ServiceApi.send_api_request
+
+    def skip_file_transfers(self, request, timeout=None):
+        if request.HasField("upload_file_request"):
+            return apb.ApiResponse(upload_file_response=apb.UploadFileResponse())
+        return send_api_request(self, request, timeout=timeout)
+
+    monkeypatch.setattr(ServiceApi, "send_api_request", skip_file_transfers)
     tmp_path.joinpath("root").mkdir()
     root = tmp_path.joinpath("root")
     tmp_path.joinpath("test.txt").write_text("test")
@@ -1484,5 +1509,5 @@ def test_run_upload_file_with_directory_traversal(
 
     run.upload_file("../test.txt", root=str(root))
 
-    mock_push.assert_called_once()
-    assert "__/test.txt" in mock_push.call_args[0][0]
+    (request,) = create_run_files.requests
+    assert request.variables["files"] == ["__/test.txt"]

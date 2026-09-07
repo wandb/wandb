@@ -4,7 +4,6 @@ import time
 import wandb
 from wandb import util
 from wandb.sdk.data_types.utils import val_to_json
-from wandb.sdk.internal.internal_api import Api
 
 DEEP_SUMMARY_FNAME = "wandb.h5"
 H5_TYPES = ("numpy.ndarray", "tensorflow.Tensor", "torch.Tensor")
@@ -326,30 +325,6 @@ class Summary(SummarySubDict):
             return json_value
 
 
-def download_h5(run_id, entity=None, project=None, out_dir=None):
-    api = Api()
-    meta = api.download_url(
-        project or api.settings("project"),
-        DEEP_SUMMARY_FNAME,
-        entity=entity or api.settings("entity"),
-        run=run_id,
-    )
-    if meta and "md5" in meta and meta["md5"] is not None:
-        # TODO: make this non-blocking
-        wandb.termlog("Downloading summary data...")
-        path, _ = api.download_write_file(meta, out_dir=out_dir)
-        return path
-
-
-def upload_h5(file, run_id, entity=None, project=None):
-    api = Api()
-    wandb.termlog("Uploading summary data...")
-    with open(file, "rb") as f:
-        api.push(
-            {os.path.basename(file): f}, run=run_id, project=project, entity=entity
-        )
-
-
 class HTTPSummary(Summary):
     def __init__(self, run, service_api, summary=None):
         super().__init__(run, summary=summary)
@@ -367,12 +342,10 @@ class HTTPSummary(Summary):
 
     def open_h5(self):
         if not self._h5 and h5py:
-            download_h5(
-                self._run.id,
-                entity=self._run.entity,
-                project=self._run.project,
-                out_dir=self._run.dir,
-            )
+            for file in self._run.files(names=[DEEP_SUMMARY_FNAME]):
+                if file.updated_at:
+                    wandb.termlog("Downloading summary data...")
+                    file.download(root=self._run.dir, replace=True)
         super().open_h5()
 
     def _write(self, commit=False):
@@ -395,11 +368,11 @@ class HTTPSummary(Summary):
                 },
             )
             assert res["upsertBucket"]["bucket"]["id"]
-            entity, project, run = self._run.path
             if (
                 os.path.exists(self._h5_path)
                 and os.path.getmtime(self._h5_path) >= self._started
             ):
-                upload_h5(self._h5_path, run, entity=entity, project=project)
+                wandb.termlog("Uploading summary data...")
+                self._run.upload_file(self._h5_path, root=self._run.dir)
         else:
             return False
