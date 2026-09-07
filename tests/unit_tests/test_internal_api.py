@@ -17,7 +17,6 @@ from wandb.sdk import wandb_setup
 from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.lib import wbauth
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
-from wandb.sdk.sweeps import SweepNotFoundError
 
 
 def test_get_run_state_invalid_kwargs():
