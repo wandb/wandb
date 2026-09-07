@@ -531,6 +531,7 @@ func (w *Workspace) syncCurrentRunContext() (
 func (w *Workspace) recalculateLayout() {
 	layout := w.computeViewports()
 	w.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
+	w.focusMgr.Resolve()
 }
 
 // computeViewports returns the computed layout dimensions.
@@ -723,7 +724,8 @@ func (w *Workspace) buildWorkspaceFocusManager() *FocusManager {
 // visible even when empty, so focus survives the empty-list windows during
 // startup and no-match filters.
 func (w *Workspace) runsFocusAvailable() bool {
-	return w.runsAnimState.TargetVisible()
+	return w.runsAnimState.TargetVisible() &&
+		(w.width == 0 || w.computeViewports().leftSidebarWidth > 0)
 }
 
 func (w *Workspace) metricsGridFocusAvailable() bool {
@@ -748,7 +750,8 @@ func (w *Workspace) logsFocusAvailable() bool {
 
 func (w *Workspace) overviewFocusAvailable() bool {
 	firstSec, _ := w.runOverviewSidebar.focusableSectionBounds()
-	return w.runOverviewSidebar.animState.TargetVisible() && firstSec != -1
+	return w.runOverviewSidebar.animState.TargetVisible() &&
+		(w.width == 0 || w.computeViewports().rightSidebarWidth > 0) && firstSec != -1
 }
 
 // ---- Focus activate ----

@@ -156,6 +156,31 @@ func newWorkspaceWithPanels(t *testing.T) *leet.Workspace {
 	return w
 }
 
+func TestWorkspace_NarrowLayoutSkipsHiddenSidebars(t *testing.T) {
+	w := newWorkspaceWithPanels(t)
+	w.TestSetFocusTarget(int(leet.FocusTargetOverview))
+	w.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+	_, right := w.TestLayoutWidths()
+	require.Zero(t, right)
+	require.Equal(t, int(leet.FocusTargetNone), w.TestCurrentFocusRegion())
+	w.TestSetFocusTarget(int(leet.FocusTargetConsoleLogs))
+	w.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	require.Equal(t, testFocusRuns, w.TestCurrentFocusRegion())
+
+	w.Update(tea.WindowSizeMsg{Width: 50, Height: 24})
+	left, _ := w.TestLayoutWidths()
+	require.Zero(t, left)
+	require.False(t, w.RunSelectorActive())
+	w.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	require.Equal(t, int(leet.FocusTargetNone), w.TestCurrentFocusRegion())
+	w.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	require.Equal(t, testFocusLogs, w.TestCurrentFocusRegion())
+
+	w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+	w.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	require.Equal(t, testFocusRuns, w.TestCurrentFocusRegion())
+}
+
 // ---- handleToggleConsoleLogsPane ----
 
 func TestWorkspace_ToggleConsoleLogsPane_FocusClears(t *testing.T) {
