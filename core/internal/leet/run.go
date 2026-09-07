@@ -799,6 +799,14 @@ type Layout struct {
 	consoleLogsHeight      int
 }
 
+// attachFilters restores the filters remembered for the run's wandb
+// directory and keeps them saved.
+func (r *Run) attachFilters(df *dirFilters) {
+	df.bind(&df.Metrics, r.metricsGrid.filter, r.metricsGrid.ApplyFilter)
+	df.bind(&df.SystemMetrics,
+		r.rightSidebar.metricsGrid.filter, r.rightSidebar.metricsGrid.ApplyFilter)
+}
+
 // computeViewports returns (leftW, contentW, rightW, contentH).
 func (r *Run) computeViewports() Layout {
 	leftW, rightW := fitSidebarWidths(r.width, r.leftSidebar.Width(), r.rightSidebar.Width())
