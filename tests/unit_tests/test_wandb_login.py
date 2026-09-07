@@ -122,8 +122,6 @@ def test_login_verify_wraps_service_errors(monkeypatch: pytest.MonkeyPatch):
         "wandb.sdk.wandb_login.ServiceApi.authenticate",
         raise_service_error,
     )
-    wandb.ensure_configured()
-
     with pytest.raises(wandb.errors.AuthenticationError):
         wandb.login(key="X" * 40, verify=True)
 
@@ -136,8 +134,6 @@ def test_login_invalid_key(monkeypatch: pytest.MonkeyPatch):
         "wandb.sdk.wandb_login.ServiceApi.authenticate",
         reject_credentials,
     )
-    wandb.ensure_configured()
-
     with pytest.raises(wandb.errors.AuthenticationError):
         wandb.login(key="X" * 40, verify=True)
 

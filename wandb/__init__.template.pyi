@@ -67,7 +67,6 @@ from collections.abc import Callable, Iterable, Sequence
 from typing import TYPE_CHECKING, Any, Literal, TextIO
 
 import wandb.plot as plot
-from wandb.apis import InternalApi
 from wandb.apis import PublicApi as Api
 from wandb.data_types import (
     Audio,
@@ -87,6 +86,7 @@ from wandb.errors import Error
 from wandb.errors.term import termerror, termlog, termsetup, termwarn
 from wandb.sdk import Artifact, Settings, wandb_config, wandb_metric, wandb_summary
 from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
+from wandb.sdk.lib.deprecated_api import DeprecatedApi
 from wandb.sdk.lib.filesystem import PolicyName
 from wandb.sdk.lib.paths import FilePathStr, StrPath
 from wandb.sdk.wandb_run import Run
@@ -106,8 +106,14 @@ config: wandb_config.Config
 summary: wandb_summary.Summary
 
 # private attributes
-api: InternalApi
 patched: dict[str, list[Callable]]
+
+# deprecated
+api: DeprecatedApi
+
+def ensure_configured() -> None:
+    """<sdk/lib/deprecated_api.py::ensure_configured>"""
+    ...
 
 def require(
     requirement: str | Iterable[str] | None = None,

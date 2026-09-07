@@ -16,6 +16,7 @@ from unittest import mock
 import numpy as np
 import pytest
 import wandb
+from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.lib import filesystem
 
 
@@ -70,7 +71,7 @@ def mock_sagemaker():
 def test_sagemaker_key():
     with open("secrets.env", "w") as f:
         f.write("WANDB_API_KEY={}".format("S" * 40))
-    assert wandb.api.api_key == "S" * 40
+    assert InternalApi().api_key == "S" * 40
 
 
 def test_sagemaker(user, git_repo, mock_sagemaker):
