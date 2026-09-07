@@ -66,7 +66,7 @@ func (r *Run) handleRecordMsg(msg tea.Msg) tea.Cmd {
 		r.consoleLogs.ProcessRaw(msg.Text, msg.IsStderr, msg.Time)
 		// Keep the pane's data (and thus focus availability) current
 		// without waiting for the next render.
-		r.consoleLogsPane.SetConsoleLogs(r.consoleLogs.Items())
+		r.consoleLogsPane.SetConsoleLogs(r.consoleLogs.takeChanges())
 
 	case FileCompleteMsg:
 		r.logger.Debug("model: processing FileCompleteMsg - file is complete!")

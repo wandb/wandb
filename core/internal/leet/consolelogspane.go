@@ -2,6 +2,7 @@ package leet
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -136,12 +137,15 @@ func (c *ConsoleLogsPane) UpdateExpandedHeight(maxTerminalHeight int) {
 // SetConsoleLogs replaces the log entries and adjusts the viewport. If
 // auto-scroll is enabled, the view snaps to the tail.
 //
-// Entries are appended in place by their source, so only the new tail is
-// matched against the filter, unless the source was swapped for another
-// run's entries or shrank.
-func (c *ConsoleLogsPane) SetConsoleLogs(items []KeyValuePair) {
+// changedFrom is the first entry that may have changed. Earlier matches
+// are retained unless the source was swapped for another run or shrank.
+func (c *ConsoleLogsPane) SetConsoleLogs(items []KeyValuePair, changedFrom int) {
 	if len(items) < c.scanned || (c.scanned > 0 && &items[0] != &c.all[0]) {
 		c.scanned, c.matched = 0, c.matched[:0]
+	}
+	if changedFrom < c.scanned {
+		c.scanned = changedFrom
+		c.matched = c.matched[:sort.SearchInts(c.matched, changedFrom)]
 	}
 	c.all = items
 	c.scanFilter()

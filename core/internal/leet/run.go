@@ -419,7 +419,7 @@ func (r *Run) renderMainView() string {
 			r.mediaPane.Park()
 		}
 		if layout.consoleLogsHeight > 0 {
-			r.consoleLogsPane.SetConsoleLogs(r.consoleLogs.Items())
+			r.consoleLogsPane.SetConsoleLogs(r.consoleLogs.takeChanges())
 			sections = append(sections, r.consoleLogsPane.View(w, "", ""))
 		}
 

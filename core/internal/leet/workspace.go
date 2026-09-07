@@ -508,14 +508,14 @@ func (w *Workspace) syncCurrentRunContext() (
 	}
 
 	if currentRunKey == "" {
-		w.consoleLogsPane.SetConsoleLogs(nil)
+		w.consoleLogsPane.SetConsoleLogs(nil, 0)
 		return runLabel, systemGrid, systemHint, mediaHint, logsHint
 	}
 
 	if cl := w.consoleLogs[currentRunKey]; cl != nil {
-		w.consoleLogsPane.SetConsoleLogs(cl.Items())
+		w.consoleLogsPane.SetConsoleLogs(cl.takeChanges())
 	} else {
-		w.consoleLogsPane.SetConsoleLogs(nil)
+		w.consoleLogsPane.SetConsoleLogs(nil, 0)
 	}
 
 	if _, selected := w.selectedRuns[currentRunKey]; !selected {
