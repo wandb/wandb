@@ -77,6 +77,10 @@ func (w *Workspace) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 		g.handleFilterKey(msg)
 		return nil
 	}
+	if w.consoleLogsPane.IsFilterMode() {
+		w.consoleLogsPane.HandleFilterKey(msg)
+		return nil
+	}
 
 	// Grid config capture takes priority.
 	if w.config.IsAwaitingGridConfig() {
@@ -1028,6 +1032,10 @@ func (w *Workspace) handleCycleChartGuides(tea.KeyPressMsg) tea.Cmd {
 }
 
 func (w *Workspace) handleEnterMetricsFilter(msg tea.KeyPressMsg) tea.Cmd {
+	if w.focusMgr.Current() == FocusTargetConsoleLogs {
+		w.consoleLogsPane.EnterFilterMode()
+		return nil
+	}
 	w.metricsGrid.EnterFilterMode()
 	return nil
 }
@@ -1053,6 +1061,10 @@ func (w *Workspace) handleEnterSystemMetricsFilter(msg tea.KeyPressMsg) tea.Cmd 
 }
 
 func (w *Workspace) handleClearMetricsFilter(msg tea.KeyPressMsg) tea.Cmd {
+	if w.focusMgr.Current() == FocusTargetConsoleLogs {
+		w.consoleLogsPane.ClearFilter()
+		return nil
+	}
 	if w.metricsGrid.FilterQuery() != "" {
 		w.metricsGrid.ClearFilter()
 	}
