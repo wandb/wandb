@@ -52,7 +52,9 @@ class LocalApi:
             " or be removed in any release.",
             repeat=False,
         )
-        settings = wandb_setup.singleton().settings.model_copy()
+        settings = wandb_setup.singleton().settings.model_copy(
+            update={"identity_token_file": None}
+        )
         self.wandb_dir = str(
             pathlib.Path(wandb_dir or settings.wandb_dir).expanduser().resolve()
         )
@@ -63,7 +65,11 @@ class LocalApi:
 
     @normalize_exceptions
     def runs(self) -> list[LocalRun]:
-        """Returns the runs in the directory, newest first."""
+        """Returns the runs in the directory, newest first.
+
+        Reads each run's log to recover its latest metadata. Up to 32 runs
+        are cached; later reads of cached runs process only appended records.
+        """
         request = apb.ApiRequest(
             list_local_runs_request=apb.ListLocalRunsRequest(wandb_dir=self.wandb_dir)
         )
@@ -255,6 +261,11 @@ class LocalRun:
 
     @property
     def history_keys(self) -> list[str]:
+        """The sorted history keys, suitable for passing to `history(keys=...)`.
+
+        Dots separate nested path segments. A backslash escapes literal dots
+        and backslashes within a segment.
+        """
         return list(self._load().history_keys)
 
     @property
@@ -276,6 +287,10 @@ class LocalRun:
 
         Every row has `_step`. The log has no index, so each call reads the
         whole file.
+
+        Keys use dots to separate nested path segments, with literal dots
+        and backslashes escaped by a backslash. Use `history_keys` to find
+        the keys available for filtering.
 
         Args:
             keys: Return only these keys; rows with none of them are skipped.

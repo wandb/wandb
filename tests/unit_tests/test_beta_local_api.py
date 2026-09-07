@@ -7,6 +7,7 @@ from unittest import mock
 import pytest
 from wandb.beta import LocalApi, LocalRun
 from wandb.proto import wandb_api_pb2 as apb
+from wandb.sdk import wandb_setup
 
 RUN_DIR = "run-20260101_120000-abc"
 
@@ -28,6 +29,24 @@ def _api(tmp_path: pathlib.Path, service_api) -> LocalApi:
     api = LocalApi(tmp_path)
     api._service_api = service_api
     return api
+
+
+def test_local_reads_do_not_require_identity_token(tmp_path, monkeypatch):
+    setup = wandb_setup.singleton()
+    token_file = str(tmp_path / "missing.jwt")
+    monkeypatch.setattr(setup.settings, "identity_token_file", token_file)
+    connection = mock.MagicMock()
+    connection.api_init_request.return_value = apb.ServerApiInitResponse(api_id="local")
+    connection.api_request.return_value = apb.ApiResponse(
+        list_local_runs_response=apb.ListLocalRunsResponse()
+    )
+
+    with mock.patch.object(setup, "ensure_service", return_value=connection):
+        assert LocalApi(tmp_path).runs() == []
+
+    settings = connection.api_init_request.call_args.args[0]
+    assert not settings.HasField("identity_token_file")
+    assert setup.settings.identity_token_file == token_file
 
 
 def test_runs_lists_the_directory(tmp_path):
@@ -90,6 +109,8 @@ def test_history_rows_are_decoded(tmp_path):
                     items=[
                         apb.LocalHistoryItem(key="loss", value_json="0.25"),
                         apb.LocalHistoryItem(key="name", value_json='"x"'),
+                        apb.LocalHistoryItem(key="a.b", value_json="1"),
+                        apb.LocalHistoryItem(key=r"a\.b", value_json="2"),
                     ],
                 )
             ]
@@ -97,11 +118,12 @@ def test_history_rows_are_decoded(tmp_path):
     )
     run = LocalRun(service_api, info=_info(tmp_path))
 
-    rows = run.history(keys=["loss", "name"], last=1)
+    keys = ["loss", "name", "a.b", r"a\.b"]
+    rows = run.history(keys=keys, last=1)
 
-    assert rows == [{"_step": 3, "loss": 0.25, "name": "x"}]
+    assert rows == [{"_step": 3, "loss": 0.25, "name": "x", "a.b": 1, r"a\.b": 2}]
     request = service_api.send_api_request.call_args.args[0]
-    assert list(request.read_local_run_history_request.keys) == ["loss", "name"]
+    assert list(request.read_local_run_history_request.keys) == keys
     assert request.read_local_run_history_request.last == 1
     assert not request.read_local_run_history_request.HasField("min_step")
 
