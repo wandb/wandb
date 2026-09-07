@@ -234,7 +234,8 @@ func TestRun_ConsoleFilterRematchesChangedLines(t *testing.T) {
 
 // ---- Console <-> charts link ----
 
-func TestRun_LinkedConsoleCursorMovesChartCrosshair(t *testing.T) {
+func newRunForConsoleLinkTest(t *testing.T) (*leet.Run, time.Time) {
+	t.Helper()
 	r, _ := newTestRun(t, 200, 60, nil)
 	r.TestHandleRecordMsg(leet.RunMsg{ID: "abc123", Project: "p"})
 
@@ -256,6 +257,11 @@ func TestRun_LinkedConsoleCursorMovesChartCrosshair(t *testing.T) {
 	r.TestForceExpandConsoleLogsPane(10)
 	r.TestSetFocusTarget(int(leet.FocusTargetConsoleLogs))
 	r.View()
+	return r, base
+}
+
+func TestRun_LinkedConsoleCursorMovesChartCrosshair(t *testing.T) {
+	r, _ := newRunForConsoleLinkTest(t)
 
 	inspectedStep := func() float64 {
 		x, _, active := r.TestMetricsGrid().TestChartAt(0, 0).InspectionData()
@@ -272,6 +278,88 @@ func TestRun_LinkedConsoleCursorMovesChartCrosshair(t *testing.T) {
 	r.Update(keyPressMsg('l'))
 	_, _, active := r.TestMetricsGrid().TestChartAt(0, 0).InspectionData()
 	require.False(t, active, "unlinking clears the crosshair")
+}
+
+func TestRun_ConsoleLinkPreservesMouseInspection(t *testing.T) {
+	for _, linked := range []bool{false, true} {
+		t.Run(map[bool]string{false: "unlinked", true: "linked"}[linked], func(t *testing.T) {
+			r, _ := newRunForConsoleLinkTest(t)
+			if linked {
+				r.Update(keyPressMsg('l'))
+			}
+			chart := r.TestMetricsGrid().TestChartAt(0, 0)
+			left, _ := r.TestLayoutWidths()
+			x := left + leet.ContentPadding + computeAdjustedX(t, chart, 0, 0, 0)
+			click := tea.MouseClickMsg{X: x, Y: 5, Button: tea.MouseRight}
+			r.Update(click)
+			require.True(t, chart.IsInspecting(), "the first click must start inspection")
+			r.Update(tea.MouseReleaseMsg{X: x, Y: 5, Button: tea.MouseRight})
+			require.False(t, chart.IsInspecting())
+			r.Update(click)
+			require.True(t, chart.IsInspecting(), "another click must also start inspection")
+			r.Update(
+				tea.MouseMotionMsg{X: x + chart.GraphWidth() - 1, Y: 5, Button: tea.MouseRight},
+			)
+			step, _, active := chart.InspectionData()
+			require.True(t, active)
+			require.Equal(t, 9.0, step, "dragging moves the crosshair")
+			r.Update(click)
+			if linked {
+				r.TestSetFocusTarget(int(leet.FocusTargetConsoleLogs))
+				step, _, active = chart.InspectionData()
+				require.True(t, active)
+				require.Equal(t, 0.0, step, "inspection selected the first console line")
+			}
+		})
+	}
+}
+
+func TestRun_ConsoleLinkClearsOnFocusDeparture(t *testing.T) {
+	r, _ := newRunForConsoleLinkTest(t)
+	r.Update(keyPressMsg('l'))
+	chart := r.TestMetricsGrid().TestChartAt(0, 0)
+	r.Update(tea.MouseClickMsg{X: -1, Y: -1, Button: tea.MouseRight})
+	require.True(t, r.TestConsoleLogsPaneActive(), "an invalid click preserves logs focus")
+	require.True(t, chart.IsInspecting())
+	r.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	require.False(t, r.TestConsoleLogsPaneActive())
+	require.False(t, chart.IsInspecting(), "leaving the logs clears their crosshairs")
+}
+
+func TestRun_ConsoleLinkFollowsLiveOutput(t *testing.T) {
+	for _, batched := range []bool{false, true} {
+		t.Run(map[bool]string{false: "record", true: "batch"}[batched], func(t *testing.T) {
+			r, base := newRunForConsoleLinkTest(t)
+			r.Update(keyPressMsg('l'))
+			var msg tea.Msg = leet.ConsoleLogMsg{Text: "new line\n", Time: base.Add(9 * time.Second)}
+			if batched {
+				msg = leet.BatchedRecordsMsg{Msgs: []tea.Msg{msg}}
+			}
+			r.Update(msg)
+			step, _, active := r.TestMetricsGrid().TestChartAt(0, 0).InspectionData()
+			require.True(t, active)
+			require.Equal(t, 9.0, step, "the crosshair follows the new tail line")
+		})
+	}
+}
+
+func TestRun_ConsoleLinkFollowsFilter(t *testing.T) {
+	r, base := newRunForConsoleLinkTest(t)
+	r.Update(leet.ConsoleLogMsg{Text: "target\n", Time: base.Add(9 * time.Second)})
+	r.Update(keyPressMsg('l'))
+	r.Update(keyPressMsg('/'))
+	for _, char := range "line" {
+		r.Update(keyPressMsg(char))
+	}
+	r.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	chart := r.TestMetricsGrid().TestChartAt(0, 0)
+	step, _, active := chart.InspectionData()
+	require.True(t, active)
+	require.Equal(t, 8.0, step, "the crosshair follows the filtered tail line")
+
+	r.Update(keyPressMsg('/'))
+	r.Update(keyPressMsg('x'))
+	require.False(t, chart.IsInspecting(), "no matches leaves no crosshair")
 }
 
 // ---- Mouse drag-resize ----

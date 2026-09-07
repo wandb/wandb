@@ -13,6 +13,7 @@ import (
 // handleRecordMsg handles messages that carry data from the .wandb file.
 func (r *Run) handleRecordMsg(msg tea.Msg) tea.Cmd {
 	defer r.logPanic("processRecordMsg")
+	defer r.syncChartsToConsole()
 
 	start := time.Now()
 	defer func() {
@@ -135,6 +136,18 @@ func (r *Run) handleHistoryMsg(msg HistoryMsg) {
 // handleMouseMsg processes mouse events, routing by region.
 func (r *Run) handleMouseMsg(msg tea.MouseMsg) tea.Cmd {
 	defer timeit(r.logger, "Model.handleMouseMsg")()
+
+	// Clear the console-driven crosshairs before starting mouse inspection.
+	// Restore them if the click does not move focus away from the logs.
+	if m, ok := msg.(tea.MouseClickMsg); ok && m.Button == tea.MouseRight &&
+		r.linkConsole && r.consoleLogsPane.Active() {
+		r.deactivateLogsFocus()
+		defer func() {
+			if r.focusMgr.IsTarget(FocusTargetConsoleLogs) {
+				r.activateLogsFocus(0)
+			}
+		}()
+	}
 
 	layout := r.computeViewports()
 
@@ -345,6 +358,8 @@ func (r *Run) handleMainContentMouse(msg tea.MouseMsg, layout Layout) tea.Cmd {
 
 // handleKeyPressMsg processes keyboard events using the centralized key bindings.
 func (r *Run) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
+	defer r.syncChartsToConsole()
+
 	// Filter modes take priority.
 	if r.leftSidebar.IsFilterMode() {
 		r.leftSidebar.HandleFilterKey(msg)
@@ -383,7 +398,6 @@ func (r *Run) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 			r.toggleConsoleLink()
 			return nil
 		}
-		defer r.syncChartsToConsole()
 	}
 
 	// Dispatch to key map.
@@ -396,23 +410,23 @@ func (r *Run) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 // toggleConsoleLink links or unlinks the console logs and the charts.
 func (r *Run) toggleConsoleLink() {
 	r.linkConsole = !r.linkConsole
-	if r.linkConsole {
-		r.syncChartsToConsole()
-		return
+	if !r.linkConsole {
+		r.metricsGrid.broadcastEndInspection()
+		r.rightSidebar.metricsGrid.broadcastEndInspection()
 	}
-	r.metricsGrid.broadcastEndInspection()
-	r.rightSidebar.metricsGrid.broadcastEndInspection()
 }
 
 // syncChartsToConsole puts a crosshair on the visible charts at the time the
 // selected console line was logged: the system charts by time, the metrics
 // charts at the history step logged nearest to it.
 func (r *Run) syncChartsToConsole() {
-	if !r.linkConsole || !r.consoleLogsPane.Active() {
+	if !r.linkConsole || !r.consoleLogsPane.Active() || r.suppressDraw {
 		return
 	}
 	t, ok := r.consoleLogs.TimeAt(r.consoleLogsPane.CursorIndex())
 	if !ok {
+		r.metricsGrid.broadcastEndInspection()
+		r.rightSidebar.metricsGrid.broadcastEndInspection()
 		return
 	}
 	if step, ok := r.stepTimes.stepAt(t); ok {
@@ -1001,6 +1015,7 @@ func (r *Run) handleRecordsBatch(subMsgs []tea.Msg, hasMore bool) []tea.Cmd {
 		return cmds
 	}
 	r.lastDrawAt = time.Now()
+	r.syncChartsToConsole()
 	r.metricsGrid.drawVisible()
 	r.rightSidebar.metricsGrid.drawVisible()
 

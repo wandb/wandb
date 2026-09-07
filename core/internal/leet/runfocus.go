@@ -132,6 +132,9 @@ func (r *Run) deactivateMediaFocus() {
 }
 
 func (r *Run) deactivateLogsFocus() {
+	if !r.consoleLogsPane.Active() {
+		return
+	}
 	r.consoleLogsPane.SetActive(false)
 	if r.linkConsole {
 		r.metricsGrid.broadcastEndInspection()
