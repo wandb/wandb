@@ -20,11 +20,14 @@ Legacy `wandb sync` options have been removed. See `wandb sync --help`.
 
 ### Added
 
+- LEET filters console logs: with the logs pane focused, press `/` and type a pattern (regex, or glob after `Tab`) to show only the matching lines, following new matches as they arrive; `ctrl+/` clears the filter (@dmitryduev in https://github.com/wandb/wandb/pull/12736)
+- LEET remembers the metrics, system metrics and runs filters for each wandb directory: the next time you open the directory, in the workspace or the single-run view, the filters from the previous session are already applied. They are stored in `.wandb-leet.json` inside the directory; clearing a filter (`ctrl+/`, `ctrl+\`, `ctrl+f`) forgets it (@dmitryduev in https://github.com/wandb/wandb/pull/12735)
 - LEET charts metrics against the custom x-axes set with `run.define_metric()`. A metric defined with a `step_metric`, directly or through a glob like `run.define_metric("train/*", step_metric="train/step")`, is plotted against that metric instead of the step counter, with the axis name shown as `[x: train/step]` in the chart header. Applies to runs viewed from local `.wandb` files. Each chart has a single x-axis, so a run that plots a metric against a different axis is not shown on that chart (@dmitryduev in https://github.com/wandb/wandb/pull/12568, https://github.com/wandb/wandb/pull/12728)
 - The automations API now supports sending a prompt to ARIA (`SendPromptToAria`) as an automation action. (@gdecarvalhovaz-lgtm in https://github.com/wandb/wandb/pull/12594)
 
 ### Changed
 
+- LEET loads long runs faster: while a run's history is loading, the charts are redrawn at most ten times a second instead of after every 1000 records, which made loading time grow with the square of the run's length. A 100-metric run with 400k steps now opens in about 0.3 s instead of 3.8 s (@dmitryduev in https://github.com/wandb/wandb/pull/12734)
 - LEET is faster on long runs: a 50k-step run loads in about half the time, frames render about 30 percent faster, and live chart updates no longer re-render every point (@dmitryduev in https://github.com/wandb/wandb/pull/12535, https://github.com/wandb/wandb/pull/12536, https://github.com/wandb/wandb/pull/12537, https://github.com/wandb/wandb/pull/12538, https://github.com/wandb/wandb/pull/12539)
 - System metrics from Apple Silicon Macs become available about 1.5 seconds sooner after monitoring starts (@dmitryduev in https://github.com/wandb/wandb/pull/12679)
 
@@ -35,7 +38,10 @@ Legacy `wandb sync` options have been removed. See `wandb sync --help`.
 
 ### Fixed
 
+- `wandb leet` no longer sends usage telemetry when W&B is in offline or disabled mode (`WANDB_MODE=offline` or `WANDB_MODE=disabled`), like the rest of the SDK (@dmitryduev in https://github.com/wandb/wandb/pull/12733)
+- `wandb leet` now prints an error message when it cannot start, for example when it is run without a terminal; previously it exited with status 1 and no output. Debug logs (`WANDB_DEBUG=true`) are written next to the LEET config file instead of the current directory (@dmitryduev in https://github.com/wandb/wandb/pull/12732)
 - Passing `aliases` or `tags` to `Run.log_artifact()` in the public API no longer fails with a server error (@dmitryduev in https://github.com/wandb/wandb/pull/12719)
+- LEET now hides the workspace's run overview sidebar, and then the runs list, when together they would leave the charts fewer than 24 columns wide; previously an 80-column terminal showed the charts as a one-column sliver between the two sidebars. The single-run view, which already did this, uses the same 24-column minimum instead of 10 (@dmitryduev in https://github.com/wandb/wandb/pull/12731)
 - `wandb.Image` masks are no longer silently corrupted when `mask_data` is a float array with values outside 0-255. The range check previously only ran for integer dtypes, so out-of-range class ids were written to the saved mask wrapped modulo 256; they now raise `TypeError` like their integer equivalents already did (@Kayvan-Zahiri in https://github.com/wandb/wandb/pull/12685)
 - File uploads and downloads no longer fail in some cases with `CommError: Failed to execute API request: the service process is busy and did not respond in time` when they take longer than 20 seconds. This was a regression in 0.29.0 (@dmitryduev in https://github.com/wandb/wandb/pull/12603)
 - System metrics are now collected as soon as monitoring starts instead of after the first sampling interval (@dmitryduev in https://github.com/wandb/wandb/pull/12649)
