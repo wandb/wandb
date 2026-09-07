@@ -3,9 +3,11 @@ package artifacts
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	"github.com/wandb/wandb/core/internal/filetransfertest"
@@ -137,4 +139,90 @@ func TestSave_CleansUpManifestFileInStagingDir(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Empty(t, entries,
 		"manifest temp file should be removed, leaving the staging dir clean")
+}
+
+func TestSave_PreservesInputsOnFailure(t *testing.T) {
+	for _, hasStagingDir := range []bool{false, true} {
+		name := "without staging directory"
+		if hasStagingDir {
+			name = "with staging directory"
+		}
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			input := filepath.Join(dir, "file.txt")
+			require.NoError(t, os.WriteFile(input, []byte("hello"), 0o600))
+			stagingDir := ""
+			if hasStagingDir {
+				stagingDir = dir
+			}
+
+			mockGQL := gqlmock.NewMockClient()
+			mockGQL.StubMatchWithError(gqlmock.WithOpName("CreateArtifact"), context.Canceled)
+			mockGQL.StubMatchOnce(gqlmock.WithOpName("CreateArtifact"),
+				`{"createArtifact":{"artifact":{"id":"artifact-id","state":"COMMITTED"}}}`)
+			saver := NewArtifactSaveManager(
+				observabilitytest.NewTestLogger(t), observability.NewPrinter(0), mockGQL,
+				filetransfertest.NewFakeFileTransferManager(),
+				func() bool { return true }, func() bool { return false },
+			)
+			artifact := &spb.ArtifactRecord{
+				Manifest: &spb.ArtifactManifest{Contents: []*spb.ArtifactManifestEntry{{
+					Path: "file.txt", Digest: "XUFAKrxLKna5cZ2REBfFkg==", Size: 5, LocalPath: input,
+				}}},
+			}
+
+			result := <-saver.Save(context.Background(), artifact, 0, stagingDir)
+			require.ErrorIs(t, result.Err, context.Canceled)
+			require.FileExists(t, input)
+			result = <-saver.Save(context.Background(), artifact, 0, stagingDir)
+			require.NoError(t, result.Err)
+			assert.Equal(t, "artifact-id", result.ArtifactID)
+		})
+	}
+}
+
+func TestSave_DeletesOnlyStagingFiles(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		stagingDir   string
+		inputDir     string
+		shouldDelete bool
+	}{
+		{"staging file", "staging", "staging", true},
+		{"nested staging file", "staging", "staging/nested", true},
+		{"no staging directory", "", "source", false},
+		{"sibling directory", "staging", "staging-other", false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			input := filepath.Join(dir, tt.inputDir, "file.txt")
+			require.NoError(t, os.MkdirAll(filepath.Dir(input), 0o700))
+			require.NoError(t, os.WriteFile(input, []byte("hello"), 0o400))
+			stagingDir := ""
+			if tt.stagingDir != "" {
+				stagingDir = filepath.Join(dir, tt.stagingDir)
+			}
+
+			mockGQL := gqlmock.NewMockClient()
+			mockGQL.StubMatchOnce(gqlmock.WithOpName("CreateArtifact"),
+				`{"createArtifact":{"artifact":{"id":"artifact-id","state":"COMMITTED"}}}`)
+			saver := NewArtifactSaveManager(
+				observabilitytest.NewTestLogger(t), observability.NewPrinter(0), mockGQL,
+				filetransfertest.NewFakeFileTransferManager(),
+				func() bool { return true }, func() bool { return false },
+			)
+			result := <-saver.Save(context.Background(), &spb.ArtifactRecord{
+				Manifest: &spb.ArtifactManifest{Contents: []*spb.ArtifactManifestEntry{{
+					Path: "file.txt", Digest: "XUFAKrxLKna5cZ2REBfFkg==", Size: 5, LocalPath: input,
+				}}},
+			}, 0, stagingDir)
+
+			require.NoError(t, result.Err)
+			if tt.shouldDelete {
+				assert.NoFileExists(t, input)
+			} else {
+				assert.FileExists(t, input)
+			}
+		})
+	}
 }
