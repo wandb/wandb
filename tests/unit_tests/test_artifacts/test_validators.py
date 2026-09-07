@@ -5,6 +5,7 @@ from wandb.sdk.artifacts._validators import (
     REGISTRY_PREFIX,
     RESERVED_ARTIFACT_TYPE_PREFIX,
     ArtifactPath,
+    validate_artifact_name,
     validate_artifact_path,
     validate_artifact_root_name,
     validate_artifact_type,
@@ -226,3 +227,31 @@ def test_artifact_path_roundtrip_from_str(path_str: str):
 def test_artifact_path_roundtrip_from_instance(path_obj: ArtifactPath):
     """Check that the roundtrip conversion ArtifactPath -> str -> ArtifactPath preserves the original."""
     assert ArtifactPath.from_str(path_obj.to_str()) == path_obj
+
+
+@mark.parametrize(
+    "name",
+    [
+        "my-artifact",
+        "model.v1",
+        "dataset_2026",
+        "a" * 128,
+    ],
+)
+def test_validate_artifact_name_valid(name: str):
+    assert validate_artifact_name(name) == name
+
+
+@mark.parametrize(
+    "name, expected_err",
+    [
+        ("a" * 129, "Artifact name is longer than 128 characters"),
+        (
+            "invalid/name",
+            "Artifact names must not contain any of the following characters: '/'",
+        ),
+    ],
+)
+def test_validate_artifact_name_invalid(name: str, expected_err: str):
+    with raises(ValueError, match=expected_err):
+        validate_artifact_name(name)
