@@ -302,7 +302,9 @@ jobs:
 
   system-tests-linux:
     name: system-tests-linux-${{ matrix.python }}-shard-${{ matrix.shard }}
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    if: >-
+      vars.GHA_SHADOW_SERVER_TESTS == 'true' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     permissions:
       contents: read
       id-token: write
@@ -325,11 +327,15 @@ jobs:
           shards: 8
           artifact-name: linux-system-py${{ matrix.python }}-shard-${{ matrix.shard }}
           server-image: us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:master
-          gcp-credentials: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON_DECODED }}
+          gcp-project: ${{ secrets.GCP_REGISTRY_PROJECT_NAME }}
+          gcp-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          gcp-service-account: ${{ secrets.GCP_REGISTRY_SA }}
 
   system-tests-min-server-version-linux:
     name: system-tests-min-server-version-linux-3.13-shard-${{ matrix.shard }}
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    if: >-
+      vars.GHA_SHADOW_SERVER_TESTS == 'true' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     permissions:
       contents: read
       id-token: write
@@ -351,11 +357,15 @@ jobs:
           shards: 8
           artifact-name: linux-system-min-server-py3.13-shard-${{ matrix.shard }}
           server-image: us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer:0.70.0
-          gcp-credentials: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON_DECODED }}
+          gcp-project: ${{ secrets.GCP_REGISTRY_PROJECT_NAME }}
+          gcp-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          gcp-service-account: ${{ secrets.GCP_REGISTRY_SA }}
 
   notebook-tests-linux:
     name: notebook-tests-linux-${{ matrix.python }}
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    if: >-
+      vars.GHA_SHADOW_SERVER_TESTS == 'true' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     permissions:
       contents: read
       id-token: write
@@ -377,11 +387,15 @@ jobs:
           shards: 1
           artifact-name: linux-notebook-py${{ matrix.python }}
           server-image: us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:master
-          gcp-credentials: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON_DECODED }}
+          gcp-project: ${{ secrets.GCP_REGISTRY_PROJECT_NAME }}
+          gcp-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          gcp-service-account: ${{ secrets.GCP_REGISTRY_SA }}
 
   functional-tests-linux:
     name: functional-tests-linux-3.13
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    if: >-
+      vars.GHA_SHADOW_SERVER_TESTS == 'true' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     permissions:
       contents: read
       id-token: write
@@ -399,11 +413,15 @@ jobs:
           shards: 1
           artifact-name: linux-functional-py3.13
           server-image: us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:master
-          gcp-credentials: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON_DECODED }}
+          gcp-project: ${{ secrets.GCP_REGISTRY_PROJECT_NAME }}
+          gcp-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          gcp-service-account: ${{ secrets.GCP_REGISTRY_SA }}
 
   experimental-tests-linux:
     name: experimental-tests-linux-3.13
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    if: >-
+      vars.GHA_SHADOW_SERVER_TESTS == 'true' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     permissions:
       contents: read
       id-token: write
@@ -422,7 +440,9 @@ jobs:
           artifact-name: linux-experimental-py3.13
           install-dotnet: "true"
           server-image: us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:master
-          gcp-credentials: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON_DECODED }}
+          gcp-project: ${{ secrets.GCP_REGISTRY_PROJECT_NAME }}
+          gcp-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          gcp-service-account: ${{ secrets.GCP_REGISTRY_SA }}
 
   unit-tests-windows:
     name: unit-tests-windows-${{ matrix.python }}-shard-${{ matrix.shard }}
