@@ -38,6 +38,7 @@ Legacy `wandb sync` options have been removed. See `wandb sync --help`.
 
 ### Fixed
 
+- Syncing an already uploaded MD5 artifact no longer fails when its staged files have been removed. This was a regression in 0.29.0 (@dmitryduev in https://github.com/wandb/wandb/pull/12750)
 - Failed artifact uploads preserve their input files for retry, and artifact cleanup only removes files inside the supplied staging directory (@dmitryduev in https://github.com/wandb/wandb/pull/12749)
 - `wandb leet` no longer sends usage telemetry when W&B is in offline or disabled mode (`WANDB_MODE=offline` or `WANDB_MODE=disabled`), like the rest of the SDK (@dmitryduev in https://github.com/wandb/wandb/pull/12733)
 - `wandb leet` now prints an error message when it cannot start, for example when it is run without a terminal; previously it exited with status 1 and no output. Debug logs (`WANDB_DEBUG=true`) are written next to the LEET config file instead of the current directory (@dmitryduev in https://github.com/wandb/wandb/pull/12732)

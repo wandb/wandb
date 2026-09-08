@@ -264,14 +264,8 @@ func TestManifest_HashContentsWithMd5_Xxh128_Entry_Is_Updated(t *testing.T) {
 
 func TestManifest_HashContentsWithMd5_Md5_And_Ref_Entries_Are_Not_Updated(t *testing.T) {
 	ctx := context.Background()
-
-	localPath2, err := os.CreateTemp("", "file2.txt")
-	assert.NoError(t, err)
-	defer func() {
-		_ = os.Remove(localPath2.Name())
-	}()
-	_, err = localPath2.WriteString("test")
-	assert.NoError(t, err)
+	// An existing MD5 digest remains usable after its staged file is removed.
+	localPath2 := filepath.Join(t.TempDir(), "removed-file.txt")
 
 	proto := &spb.ArtifactManifest{
 		Version:       1,
@@ -281,7 +275,7 @@ func TestManifest_HashContentsWithMd5_Md5_And_Ref_Entries_Are_Not_Updated(t *tes
 				Path:      "file2.txt",
 				Digest:    "CY9rzUYh03PK3k6DJie09g==",
 				Size:      int64(4),
-				LocalPath: localPath2.Name(),
+				LocalPath: localPath2,
 			},
 			{
 				Path:   "path4",
@@ -300,13 +294,29 @@ func TestManifest_HashContentsWithMd5_Md5_And_Ref_Entries_Are_Not_Updated(t *tes
 
 	// file2.txt digest should not change, and it stays untagged.
 	assert.Equal(t, "CY9rzUYh03PK3k6DJie09g==", manifest.Contents["file2.txt"].Digest)
-	assert.Equal(t, localPath2.Name(), *manifest.Contents["file2.txt"].LocalPath)
+	assert.Equal(t, localPath2, *manifest.Contents["file2.txt"].LocalPath)
 	assert.NotContains(t, manifest.Contents["file2.txt"].Extra, digestAlgorithmExtraKey)
 
 	// path4 reference file should not be rehashed
 	assert.Equal(t, "digest4", manifest.Contents["path4"].Digest)
 	assert.Equal(t, "local/path4", *manifest.Contents["path4"].Ref)
 	assert.Nil(t, manifest.Contents["path4"].LocalPath)
+}
+
+func TestManifest_HashContentsWithMd5_MissingXxh128File(t *testing.T) {
+	localPath := filepath.Join(t.TempDir(), "missing-file.txt")
+	manifest := Manifest{Contents: map[string]ManifestEntry{
+		"file.txt": {
+			Digest: "xxh128-digest", LocalPath: &localPath,
+			Extra: map[string]any{digestAlgorithmExtraKey: "XXH128"},
+		},
+	}}
+
+	err := manifest.HashContentsWithMd5(context.Background())
+
+	assert.ErrorIs(t, err, os.ErrNotExist)
+	assert.Equal(t, "xxh128-digest", manifest.Contents["file.txt"].Digest)
+	assert.Equal(t, "XXH128", manifest.Contents["file.txt"].Extra[digestAlgorithmExtraKey])
 }
 
 func TestManifest_HashContentsWithMd5_Xxh128_Subdir_Entry_Is_Updated(t *testing.T) {
