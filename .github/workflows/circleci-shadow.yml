@@ -325,9 +325,7 @@ jobs:
           shards: 8
           artifact-name: linux-system-py${{ matrix.python }}-shard-${{ matrix.shard }}
           server-image: us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:master
-          gcp-project: ${{ secrets.GCP_REGISTRY_PROJECT_NAME }}
-          gcp-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          gcp-service-account: ${{ secrets.GCP_REGISTRY_SA }}
+          gcp-credentials: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON_DECODED }}
 
   system-tests-min-server-version-linux:
     name: system-tests-min-server-version-linux-3.13-shard-${{ matrix.shard }}
@@ -353,9 +351,7 @@ jobs:
           shards: 8
           artifact-name: linux-system-min-server-py3.13-shard-${{ matrix.shard }}
           server-image: us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer:0.70.0
-          gcp-project: ${{ secrets.GCP_REGISTRY_PROJECT_NAME }}
-          gcp-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          gcp-service-account: ${{ secrets.GCP_REGISTRY_SA }}
+          gcp-credentials: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON_DECODED }}
 
   notebook-tests-linux:
     name: notebook-tests-linux-${{ matrix.python }}
@@ -381,9 +377,7 @@ jobs:
           shards: 1
           artifact-name: linux-notebook-py${{ matrix.python }}
           server-image: us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:master
-          gcp-project: ${{ secrets.GCP_REGISTRY_PROJECT_NAME }}
-          gcp-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          gcp-service-account: ${{ secrets.GCP_REGISTRY_SA }}
+          gcp-credentials: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON_DECODED }}
 
   functional-tests-linux:
     name: functional-tests-linux-3.13
@@ -405,9 +399,7 @@ jobs:
           shards: 1
           artifact-name: linux-functional-py3.13
           server-image: us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:master
-          gcp-project: ${{ secrets.GCP_REGISTRY_PROJECT_NAME }}
-          gcp-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          gcp-service-account: ${{ secrets.GCP_REGISTRY_SA }}
+          gcp-credentials: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON_DECODED }}
 
   experimental-tests-linux:
     name: experimental-tests-linux-3.13
@@ -430,9 +422,7 @@ jobs:
           artifact-name: linux-experimental-py3.13
           install-dotnet: "true"
           server-image: us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:master
-          gcp-project: ${{ secrets.GCP_REGISTRY_PROJECT_NAME }}
-          gcp-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          gcp-service-account: ${{ secrets.GCP_REGISTRY_SA }}
+          gcp-credentials: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON_DECODED }}
 
   unit-tests-windows:
     name: unit-tests-windows-${{ matrix.python }}-shard-${{ matrix.shard }}
