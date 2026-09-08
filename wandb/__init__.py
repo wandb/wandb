@@ -44,7 +44,7 @@ AlertLevel = wandb_sdk.AlertLevel
 Settings = wandb_sdk.Settings
 Config = wandb_sdk.Config
 
-from wandb.apis import PublicApi
+from wandb.apis.public import Api
 from wandb.errors import CommError, UsageError
 
 from wandb.sdk.lib import preinit as _preinit
@@ -84,7 +84,6 @@ from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
 
 
 # globals
-Api = PublicApi
 run: Run | None = None
 config = _preinit.PreInitObject("wandb.config", wandb_sdk.wandb_config.Config)
 summary = _preinit.PreInitObject("wandb.summary", wandb_sdk.wandb_summary.Summary)
