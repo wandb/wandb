@@ -13,6 +13,7 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/google/wire"
+	"github.com/shirou/gopsutil/v4/process"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -520,6 +521,23 @@ func (sm *SystemMonitor) sample() {
 //
 // Use to filter out expected/transient failures. Keep this intentionally small and specific.
 func ShouldCaptureSamplingError(err error) bool {
+	// A sample can combine failures from several collectors. Keep reporting it
+	// if any of those failures is unexpected, including when the join is wrapped.
+	var joined interface{ Unwrap() []error }
+	if errors.As(err, &joined) {
+		for _, cause := range joined.Unwrap() {
+			if ShouldCaptureSamplingError(cause) {
+				return true
+			}
+		}
+		return false
+	}
+
+	// The monitored process may exit before its last sample completes.
+	if errors.Is(err, process.ErrorProcessNotRunning) {
+		return false
+	}
+
 	// The caller went away, e.g. the run finished mid-sample.
 	if errors.Is(err, context.Canceled) {
 		return false
