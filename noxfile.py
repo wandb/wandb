@@ -719,6 +719,10 @@ def combine_test_results(session: nox.Session) -> None:
 @nox.session(name="wandb-core-size-check", python="3.12")
 def wandb_core_size_check(session: nox.Session) -> None:
     """Compare wandb-core binary size against main branch."""
+    current_revision = session.run(
+        "git", "rev-parse", "HEAD", external=True, silent=True
+    ).strip()
+
     # Build and install main branch version.
     session.run("git", "fetch", "origin", "main", external=True)
     session.run("git", "switch", "--detach", "origin/main", external=True)
@@ -729,8 +733,8 @@ def wandb_core_size_check(session: nox.Session) -> None:
     )[0]
     main_size = main_binary.stat().st_size
 
-    # Build and install current branch version.
-    session.run("git", "switch", "-", external=True)
+    # Build and install the original revision. It may be detached in CI.
+    session.run("git", "switch", "--detach", current_revision, external=True)
     install_wandb(session, dev=False)
 
     current_binary = list(
@@ -776,6 +780,9 @@ def wandb_core_size_check(session: nox.Session) -> None:
 @nox.session(name="wandb-import-time-check", python="3.12")
 def wandb_import_time_check(session: nox.Session) -> None:
     """Compare wandb import time against main branch."""
+    current_revision = session.run(
+        "git", "rev-parse", "HEAD", external=True, silent=True
+    ).strip()
 
     def measure_import_time(num_samples: int = 5) -> float:
         """Measure the average time to import wandb across multiple samples."""
@@ -796,7 +803,7 @@ def wandb_import_time_check(session: nox.Session) -> None:
     install_wandb(session, dev=False)
     main_time = measure_import_time()
 
-    session.run("git", "switch", "-", external=True)
+    session.run("git", "switch", "--detach", current_revision, external=True)
     install_wandb(session, dev=False)
     current_time = measure_import_time()
 
