@@ -37,6 +37,31 @@ def test_login_no_terminput():
         wandb.login()
 
 
+def test_login_no_prompt_without_credentials():
+    assert wandb.login(prompt=False) is False
+    assert wandb.setup().settings.mode == "online"
+
+
+@pytest.mark.usefixtures("local_settings")
+def test_login_no_prompt_preserves_saved_settings_without_credentials():
+    settings = wandb_setup.singleton().settings.read_system_settings()
+    settings.set("base_url", "https://existing.invalid", globally=True)
+    settings.set("project", "existing-project", globally=True)
+    settings.save()
+
+    assert wandb.login(host="https://other.invalid", prompt=False) is False
+
+    saved_settings = wandb_setup.singleton().settings.read_system_settings()
+    assert saved_settings.all() == settings.all()
+
+
+@pytest.mark.usefixtures("skip_verify_login")
+def test_login_no_prompt_with_env_key(monkeypatch, dummy_api_key):
+    monkeypatch.setenv("WANDB_API_KEY", dummy_api_key)
+
+    assert wandb.login(prompt=False) is True
+
+
 def test_login_timeout_choose(emulated_terminal):
     emulated_terminal.queue_input("3")
 
