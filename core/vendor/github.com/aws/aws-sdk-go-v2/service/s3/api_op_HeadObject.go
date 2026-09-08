@@ -541,6 +541,24 @@ type HeadObjectOutput struct {
 	// This functionality is not supported for directory buckets.
 	MissingMeta *int32
 
+	// The event hold status for this object. This header is only returned if the
+	// requester has the s3:GetObjectRetention permission.
+	//
+	// This functionality is not supported for directory buckets.
+	ObjectLockEventHold types.ObjectLockEventHold
+
+	// The event hold duration in days for this object. Only returned when the event
+	// hold is enabled.
+	//
+	// This functionality is not supported for directory buckets.
+	ObjectLockEventHoldDurationDays *int32
+
+	// The event hold duration in years for this object. Only returned when the event
+	// hold is enabled.
+	//
+	// This functionality is not supported for directory buckets.
+	ObjectLockEventHoldDurationYears *int32
+
 	// Specifies whether a legal hold is in effect for this object. This header is
 	// only returned if the requester has the s3:GetObjectLegalHold permission. This
 	// header is not returned if the specified version of this object has never had a
