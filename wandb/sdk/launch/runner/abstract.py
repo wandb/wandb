@@ -11,13 +11,15 @@ import os
 import shutil
 import sys
 from abc import ABC, abstractmethod
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import wandb
-from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.lib import runid
 
 from .._project_spec import LaunchProject
+
+if TYPE_CHECKING:
+    from wandb.sdk.launch.api import LaunchApi
 
 _logger = logging.getLogger(__name__)
 
@@ -115,7 +117,7 @@ class AbstractRunner(ABC):
 
     def __init__(
         self,
-        api: Api,
+        api: LaunchApi,
         backend_config: dict[str, Any],
     ) -> None:
         self._api = api

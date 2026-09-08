@@ -18,7 +18,6 @@ import click
 import wandb
 import wandb.docker as docker
 from wandb import util
-from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.git_reference import GitReference
 from wandb.sdk.launch.wandb_reference import WandbReference
@@ -35,6 +34,7 @@ FAILED_PACKAGES_REGEX = re.compile(
 
 if TYPE_CHECKING:  # pragma: no cover
     from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
+    from wandb.sdk.launch.api import LaunchApi
 
 
 # TODO: this should be restricted to just Git repos and not S3 and stuff like that
@@ -189,7 +189,7 @@ def get_project_from_job(job: str) -> str | None:
 def set_project_entity_defaults(
     uri: str | None,
     job: str | None,
-    api: Api,
+    api: LaunchApi,
     project: str | None,
     entity: str | None,
     launch_config: dict[str, Any] | None,
@@ -219,7 +219,7 @@ def set_project_entity_defaults(
     return project, entity
 
 
-def get_default_entity(api: Api, launch_config: dict[str, Any] | None):
+def get_default_entity(api: LaunchApi, launch_config: dict[str, Any] | None):
     config_entity = None
     if launch_config:
         config_entity = launch_config.get("entity")
@@ -238,7 +238,7 @@ def strip_resource_args_and_template_vars(launch_spec: dict[str, Any]) -> None:
 def construct_launch_spec(
     uri: str | None,
     job: str | None,
-    api: Api,
+    api: LaunchApi,
     name: str | None,
     project: str | None,
     entity: str | None,
@@ -860,23 +860,6 @@ def resolve_build_and_registry_config(
     return resolved_build_config, resolved_registry_config
 
 
-def check_logged_in(api: Api) -> bool:
-    """Check if a user is logged in.
-
-    Raises an error if the viewer doesn't load (likely a broken API key). Expected time
-    cost is 0.1-0.2 seconds.
-    """
-    res = api.viewer()
-    if not res:
-        raise LaunchError(
-            "Could not connect with current API-key. "
-            "Please relogin using `wandb login --relogin`"
-            " and try again (see `wandb login --help` for more options)"
-        )
-
-    return True
-
-
 def make_name_dns_safe(name: str) -> str:
     resp = name.replace("_", "-").lower()
     resp = re.sub(r"[^a-z\.\-]", "", resp)
@@ -912,7 +895,7 @@ def make_k8s_label_safe(value: str) -> str:
 
 
 def warn_failed_packages_from_build_logs(
-    log: str, image_uri: str, api: Api, job_tracker: JobAndRunStatusTracker | None
+    log: str, image_uri: str, api: LaunchApi, job_tracker: JobAndRunStatusTracker | None
 ) -> None:
     match = FAILED_PACKAGES_REGEX.search(log)
     if match:

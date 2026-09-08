@@ -2,9 +2,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import kubernetes_asyncio
 import pytest
-from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.launch import loader
 from wandb.sdk.launch.agent.agent import LaunchAgent
+from wandb.sdk.launch.api import LaunchApi
 from wandb.sdk.launch.runner import kubernetes_monitor, kubernetes_runner
 from wandb.sdk.launch.utils import make_name_dns_safe
 
@@ -68,7 +68,7 @@ async def test_kubernetes_run_clean_generate_name(
     project.job_base_image = None
 
     environment = loader.environment_from_config({})
-    api = Api()
+    api = LaunchApi()
     runner = loader.runner_from_config(
         runner_name="kubernetes",
         api=api,
@@ -111,7 +111,7 @@ async def test_kubernetes_run_with_annotations(
     )
 
     environment = loader.environment_from_config({})
-    api = Api()
+    api = LaunchApi()
     runner = loader.runner_from_config(
         runner_name="kubernetes",
         api=api,
@@ -171,12 +171,10 @@ async def test_kubernetes_run_with_annotations(
 
 @pytest.mark.asyncio
 async def test_kubernetes_run_env_vars(
-    use_local_wandb_backend,
+    user,
     monkeypatch,
     assets_path,
 ):
-    _ = use_local_wandb_backend
-
     jobs = {}
     status = MockDict(
         {
@@ -222,7 +220,7 @@ async def test_kubernetes_run_env_vars(
     project.job_base_image = None
 
     environment = loader.environment_from_config({})
-    api = Api()
+    api = LaunchApi()
     runner = loader.runner_from_config(
         runner_name="kubernetes",
         api=api,

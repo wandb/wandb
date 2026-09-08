@@ -2,17 +2,19 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import wandb
 from wandb.docker import is_docker_installed
-from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.launch.errors import LaunchError
 
 from .builder.abstract import AbstractBuilder
 from .environment.abstract import AbstractEnvironment
 from .registry.abstract import AbstractRegistry
 from .runner.abstract import AbstractRunner
+
+if TYPE_CHECKING:
+    from wandb.sdk.launch.api import LaunchApi
 
 WANDB_RUNNERS = {
     "local-container",
@@ -183,7 +185,7 @@ def builder_from_config(
 
 def runner_from_config(
     runner_name: str,
-    api: Api,
+    api: LaunchApi,
     runner_config: dict[str, Any],
     environment: AbstractEnvironment,
     registry: AbstractRegistry,
@@ -197,7 +199,7 @@ def runner_from_config(
 
     Arguments:
         runner_name (str): The name of the backend.
-        api (Api): The API.
+        api (LaunchApi): The API.
         runner_config (Dict[str, Any]): The backend config.
 
     Returns:

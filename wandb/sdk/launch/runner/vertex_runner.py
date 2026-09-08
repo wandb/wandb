@@ -2,12 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 if False:
     from google.cloud import aiplatform  # type: ignore   # noqa: F401
 
-from wandb.sdk.internal.internal_api import Api
 from wandb.util import get_module
 
 from .._project_spec import LaunchProject
@@ -16,6 +15,9 @@ from ..errors import LaunchError
 from ..registry.abstract import AbstractRegistry
 from ..utils import MAX_ENV_LENGTHS, PROJECT_SYNCHRONOUS, event_loop_thread_exec
 from .abstract import AbstractRun, AbstractRunner, Status
+
+if TYPE_CHECKING:
+    from wandb.sdk.launch.api import LaunchApi
 
 GCP_CONSOLE_URI = "https://console.cloud.google.com"
 
@@ -79,7 +81,7 @@ class VertexRunner(AbstractRunner):
 
     def __init__(
         self,
-        api: Api,
+        api: LaunchApi,
         backend_config: dict[str, Any],
         environment: GcpEnvironment,
         registry: AbstractRegistry,

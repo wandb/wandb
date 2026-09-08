@@ -75,7 +75,7 @@ class SweepScheduler(Scheduler):
 
         try:
             commands = _agent_heartbeat(
-                self._public_api, self._workers[worker_id].agent_id, {}, _run_states
+                self._api, self._workers[worker_id].agent_id, {}, _run_states
             )
         except SweepNotFoundError:
             wandb.termerror(

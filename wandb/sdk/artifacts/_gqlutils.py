@@ -357,3 +357,28 @@ def create_artifact_version(
     )
     artifact = response["createArtifact"]["artifact"]
     return artifact, artifact["artifactSequence"].get("latestArtifact")
+
+
+def update_artifact_metadata(
+    service_api: ServiceApi, artifact_id: str, metadata: dict[str, Any]
+) -> dict[str, Any]:
+    """Set the metadata of the given artifact version."""
+    mutation = """
+    mutation UpdateArtifact(
+        $artifactID: ID!,
+        $metadata: JSONString,
+    ) {
+        updateArtifact(input: {
+            artifactID: $artifactID,
+            metadata: $metadata,
+        }) {
+            artifact {
+                id
+            }
+        }
+    }
+    """
+    response = service_api.execute_graphql(
+        mutation, {"artifactID": artifact_id, "metadata": json.dumps(metadata)}
+    )
+    return response["updateArtifact"]["artifact"]

@@ -1,15 +1,13 @@
 from unittest.mock import MagicMock
 
 import pytest
-from wandb.sdk.internal.internal_api import Api
 from wandb.sdk.launch import loader
 from wandb.sdk.launch._project_spec import EntryPoint
+from wandb.sdk.launch.api import LaunchApi
 
 
 @pytest.mark.asyncio
-async def test_local_container_entrypoint(use_local_wandb_backend, monkeypatch):
-    _ = use_local_wandb_backend
-
+async def test_local_container_entrypoint(user, monkeypatch):
     def mock_run_entrypoint(*args, **kwargs):
         # return first arg, which is command
         return args[0]
@@ -65,7 +63,7 @@ async def test_local_container_entrypoint(use_local_wandb_backend, monkeypatch):
     project.queue_entity = "queue-entity"
     project.run_queue_item_id = None
     environment = loader.environment_from_config({})
-    api = Api()
+    api = LaunchApi()
     runner = loader.runner_from_config(
         "local-container",
         api,
