@@ -75,14 +75,16 @@ def authenticate_session(
     referrer: str = "models",
     relogin: bool = False,
     verify: bool = False,
+    prompt: bool = True,
 ) -> Auth | None:
     """Returns or configures the session credentials.
 
     If the session credentials are already configured for the given host,
     returns them. Otherwise, uses system credentials or prompts interactively.
 
-    The return value is only None if the user selected offline mode in
-    the interactive prompt.
+    The return value is None if the user selected offline mode in the
+    interactive prompt, or if `prompt` is False and no credentials are
+    configured.
 
     Args:
         host: The W&B server URL.
@@ -95,6 +97,7 @@ def authenticate_session(
         referrer: Referrer parameter to add to printed URLs for analytics.
         relogin: If true, forces an interactive prompt.
         verify: If true, verifies the credentials against the W&B server.
+        prompt: Whether to prompt interactively when no credentials are found.
 
     Raises:
         TimeoutError: If an interactive prompt is shown and input_timeout expires.
@@ -115,6 +118,9 @@ def authenticate_session(
         )
     ):
         return auth
+
+    if not prompt:
+        return None
 
     try:
         return _use_prompted_auth(
