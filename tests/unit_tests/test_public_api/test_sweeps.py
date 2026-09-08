@@ -1,9 +1,18 @@
 import json
+from unittest.mock import Mock
 
 import pytest
-from wandb.apis.public.sweeps import Sweep
+from wandb.apis.public.sweeps import (
+    Sweep,
+    _agent_heartbeat,
+    _sweep_with_runs,
+    _upsert_sweep,
+)
 from wandb.errors import UnsupportedError
+from wandb.proto import wandb_api_pb2 as apb
 from wandb.proto import wandb_internal_pb2 as pb
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
+from wandb.sdk.sweeps import SweepNotFoundError
 
 
 def _make_sweep(
@@ -97,3 +106,57 @@ def test_enqueue_run_raises_when_feature_unsupported(mocker):
         sweep.enqueue_run({"lr": {"value": 0.1}})
 
     sweep._service_api.execute_graphql.assert_not_called()
+
+
+def _api_failing_with(http_status: int) -> Mock:
+    api = Mock()
+    response = apb.ApiErrorResponse(message="error", http_status=http_status)
+    api._service_api.execute_graphql.side_effect = WandbApiFailedError(
+        response.message, response
+    )
+    return api
+
+
+def test_agent_heartbeat_with_no_agent_id_fails():
+    with pytest.raises(ValueError):
+        _agent_heartbeat(Mock(), None, {}, {})
+
+
+def test_agent_heartbeat_raises_sweep_not_found_on_404():
+    with pytest.raises(SweepNotFoundError):
+        _agent_heartbeat(_api_failing_with(404), "test-agent-id", {}, {})
+
+
+def test_agent_heartbeat_returns_empty_on_non_404_error():
+    assert _agent_heartbeat(_api_failing_with(500), "test-agent-id", {}, {}) == []
+
+
+def test_created_sweep_can_be_read_with_same_api(monkeypatch):
+    monkeypatch.delenv("WANDB_ENTITY", raising=False)
+    monkeypatch.delenv("WANDB_PROJECT", raising=False)
+    api = Mock()
+    api.settings = {"entity": None, "project": None}
+    api._service_api.execute_graphql.side_effect = [
+        {
+            "upsertSweep": {
+                "sweep": {
+                    "name": "test-sweep",
+                    "project": {
+                        "name": "uncategorized",
+                        "entity": {"name": "test-entity"},
+                    },
+                }
+            }
+        },
+        {"project": {"sweep": {"runs": {"edges": []}}}},
+    ]
+
+    sweep, _ = _upsert_sweep(api, {"method": "grid", "parameters": {}})
+    _sweep_with_runs(api, sweep["name"], "{}")
+
+    assert api._service_api.execute_graphql.call_args.kwargs["variables"] == {
+        "entity": "test-entity",
+        "project": "uncategorized",
+        "sweep": "test-sweep",
+        "specs": "{}",
+    }

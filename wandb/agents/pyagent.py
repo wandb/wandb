@@ -16,7 +16,7 @@ import traceback
 from typing import Any
 
 import wandb
-from wandb.sdk.internal.internal_api import Api as InternalApi
+from wandb.apis.public.sweeps import _agent_heartbeat, _register_agent
 from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.lib import config_util
 from wandb.sdk.sweeps import SweepNotFoundError
@@ -95,7 +95,7 @@ class Agent:
         # glob_config = os.path.expanduser('~/.config/wandb/settings')
         # loc_config = 'wandb/settings'
         # files = (glob_config, loc_config)
-        self._api = InternalApi()
+        self._api = wandb.Api()
         self._api_lock = threading.Lock()
         self._agent_id = None
         self._max_initial_failures = wandb.env.get_agent_max_initial_failures(
@@ -117,7 +117,13 @@ class Agent:
 
     def _register(self):
         logger.debug("Agent._register()")
-        agent = self._api.register_agent(socket.gethostname(), sweep_id=self._sweep_id)
+        agent = _register_agent(
+            self._api,
+            socket.gethostname(),
+            sweep_id=self._sweep_id,
+            entity=self._entity,
+            project=self._project,
+        )
         self._agent_id = agent["id"]
         logger.debug(f"agent_id = {self._agent_id}")
 
@@ -129,15 +135,15 @@ class Agent:
         if err:
             wandb.termerror(err)
             return
-        entity = parts.get("entity") or self._entity
-        project = parts.get("project") or self._project
+        self._entity = parts.get("entity") or self._entity
+        self._project = parts.get("project") or self._project
         sweep_id = parts.get("name") or self._sweep_id
         if sweep_id:
             os.environ[wandb.env.SWEEP_ID] = sweep_id
-        if entity:
-            wandb.env.set_entity(entity)
-        if project:
-            wandb.env.set_project(project)
+        if self._entity:
+            wandb.env.set_entity(self._entity)
+        if self._project:
+            wandb.env.set_project(self._project)
         if sweep_id:
             self._sweep_id = sweep_id
         self._register()
@@ -172,7 +178,7 @@ class Agent:
 
         try:
             with self._api_lock:
-                return self._api.agent_heartbeat(self._agent_id, {}, run_status)
+                return _agent_heartbeat(self._api, self._agent_id, {}, run_status)
         except SweepNotFoundError:
             self._sweep_not_found = True
             if self._has_running_thread():
@@ -331,7 +337,7 @@ class Agent:
                 wandb.teardown()
                 # The agent outlives user jobs, but teardown closes the
                 # service-backed API resources used for heartbeats.
-                self._api = InternalApi()
+                self._api = wandb.Api()
 
             wandb.termlog(f"Agent Starting Run: {run_id} with config:")
             for k, v in job.config.items():
