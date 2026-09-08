@@ -44,6 +44,7 @@ from wandb.apis import public
 from wandb.apis.attrs import Attrs
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import SizedPaginator
+from wandb.apis.public.run_filters import validate_run_filters
 from wandb.errors import Error, UnsupportedError, UsageError
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.lib import ipython
@@ -102,7 +103,11 @@ class Sweeps(SizedPaginator["Sweep"]):
             per_page: The number of sweeps to fetch per request to the API.
             filters: (dict) queries for specific sweeps using the runs filters,
                 See wandb/apis/public/api.py:runs for more details.
+
+        Raises:
+            ValueError: If a checked filter is malformed.
         """
+        filters = validate_run_filters(filters)
         if self.QUERY is None:
             from wandb.apis._generated import GET_SWEEPS_GQL
 
@@ -128,7 +133,7 @@ class Sweeps(SizedPaginator["Sweep"]):
         variables = {
             "project": self.project,
             "entity": self.entity,
-            "filters": json.dumps(filters or {}),
+            "filters": json.dumps(filters),
         }
         super().__init__(service_api, variables, per_page)
 

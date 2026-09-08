@@ -31,6 +31,7 @@ from wandb._iterutils import one
 from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.registries import Registries, Registry
+from wandb.apis.public.run_filters import validate_run_filters
 from wandb.apis.public.service_api import ServiceApi
 from wandb.apis.public.utils import (
     PathType,
@@ -1189,6 +1190,9 @@ class Api:
         Returns:
             A `Runs` object, which is an iterable collection of `Run` objects.
 
+        Raises:
+            ValueError: If a query or tag membership predicate is malformed.
+
         Examples:
         ```python
         import wandb
@@ -1235,8 +1239,9 @@ class Api:
         Api.runs(path="my_entity/project", order="+summary_metrics.loss")
         ```
         """
+        # Resolving the default entity can make a request, so validate first.
+        filters = validate_run_filters(filters)
         entity, project = self._parse_project_path(path)
-        filters = filters or {}
         key = (path or "") + str(filters) + str(order)
 
         # Check if we have cached results
