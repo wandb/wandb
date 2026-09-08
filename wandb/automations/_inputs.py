@@ -8,6 +8,7 @@ from typing_extensions import Self, Unpack
 
 from wandb._filters import MongoLikeFilter
 from wandb._pydantic import GQLId, GQLInput, computed_field, model_validator, to_json
+from wandb.errors import UnsupportedError
 
 from ._generated import (
     CreateFilterTriggerInput,
@@ -21,6 +22,7 @@ from .actions import (
     DoNothing,
     InputAction,
     SavedAction,
+    SavedUnknownAction,
     SendNotification,
     SendPromptToAria,
     SendWebhook,
@@ -32,9 +34,10 @@ from .events import (
     RunMetricFilter,
     RunStateFilter,
     SavedEvent,
+    SavedUnknownEvent,
     _WrappedSavedEventFilter,
 )
-from .scopes import AutomationScope, ScopeType
+from .scopes import AutomationScope, SavedUnknownScope, ScopeType
 
 INVALID_INPUT_EVENTS: Final[Collection[EventType]] = (EventType.UPDATE_ARTIFACT_ALIAS,)
 """Event types that should NOT be allowed as new values on new or edited automations.
@@ -275,5 +278,18 @@ def prepare_to_update(
     # - if an object is provided, override its fields with any keyword args
     # - otherwise, instantiate from the keyword args
     obj_dict = dict(obj or {}) | kwargs
+    unknown_parts = (
+        ("action", SavedUnknownAction),
+        ("event", SavedUnknownEvent),
+        ("scope", SavedUnknownScope),
+    )
+    for field, unknown_type in unknown_parts:
+        if isinstance(value := obj_dict.get(field), unknown_type):
+            typename = value.typename__
+            raise UnsupportedError(
+                f"Cannot update an automation with unsupported {field} type "
+                f"{typename!r}. Upgrade wandb to a version that supports it."
+            )
+
     vobj = ValidatedUpdateInput(**obj_dict)
     return UpdateFilterTriggerInput.model_validate(vobj)
