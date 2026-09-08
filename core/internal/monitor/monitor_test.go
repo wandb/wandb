@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -179,6 +180,20 @@ func TestShouldCaptureSamplingErr(t *testing.T) {
 		err  error
 		want bool
 	}{
+		{"ProcessExited", process.ErrorProcessNotRunning, false},
+		{
+			"ProcessExitedWithOtherError",
+			errors.Join(process.ErrorProcessNotRunning, errors.New("disk read failed")),
+			true,
+		},
+		{
+			"ProcessExitedWithOtherExpectedError",
+			errors.Join(
+				process.ErrorProcessNotRunning,
+				status.Error(codes.Unavailable, "disconnected"),
+			),
+			false,
+		},
 		{
 			"NetstatMissing",
 			errors.New(`exec: "netstat": executable file not found in $PATH`),

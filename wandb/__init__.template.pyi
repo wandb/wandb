@@ -67,7 +67,7 @@ from collections.abc import Callable, Iterable, Sequence
 from typing import TYPE_CHECKING, Any, Literal, TextIO
 
 import wandb.plot as plot
-from wandb.apis import PublicApi as Api
+from wandb.apis.public import Api
 from wandb.data_types import (
     Audio,
     EvalTable,
@@ -183,6 +183,7 @@ def login(
     timeout: int | None = None,
     verify: bool = True,
     referrer: str | None = None,
+    prompt: bool = True,
     anonymous: DoNotSet = UNSET,
 ) -> bool:
     """<sdk/wandb_login.py::login>"""

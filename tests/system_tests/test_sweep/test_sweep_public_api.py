@@ -3,10 +3,9 @@ import json
 import pytest
 import wandb
 from wandb import Api
-from wandb.apis.public.sweeps import Sweep
+from wandb.apis.public.sweeps import Sweep, _upsert_sweep
 from wandb.errors import UnsupportedError
 from wandb.proto import wandb_internal_pb2 as pb
-from wandb.sdk.internal.internal_api import Api as InternalApi
 
 from tests.fixtures.wandb_backend_spy import WandbBackendSpy
 
@@ -152,8 +151,9 @@ def test_sweep_with_edited_display_name(use_local_wandb_backend, user):
     edited_display_name = "Updated Sweep Name"
     # Use internal API to update display name because there's no public API for it right now.
     # (It can currently only be edited in the UI.)
-    InternalApi().upsert_sweep(
-        config=sweep_config,
+    _upsert_sweep(
+        Api(),
+        sweep_config,
         obj_id=original_sweep._attrs[
             "id"
         ],  # Use the internal ID to update existing sweep

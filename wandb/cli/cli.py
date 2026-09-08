@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import pathlib
+import re
 import shlex
 import shutil
 import subprocess
@@ -24,23 +25,24 @@ from click.exceptions import ClickException
 import wandb
 import wandb.errors
 import wandb.sdk.verify.verify as wandb_verify
-from wandb import Config, Error, env, util, wandb_agent
+from wandb import Error, env, util, wandb_agent
 from wandb.analytics import get_telemetry_recorder
-from wandb.apis import PublicApi
-from wandb.apis.public.sweeps import _sweep_with_runs, _upsert_sweep
+from wandb.apis.public.sweeps import _set_sweep_state, _sweep_with_runs, _upsert_sweep
 from wandb.cli import beta_sync
 from wandb.errors.links import url_registry
 from wandb.sdk import wandb_setup, wandb_sweep
 from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
-from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch import utils as launch_utils
 from wandb.sdk.launch._launch_add import _launch_add
 from wandb.sdk.launch.api import LaunchApi
 from wandb.sdk.launch.errors import ExecutionError, LaunchError
 from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
-from wandb.sdk.lib import filesystem, settings_file
+from wandb.sdk.lib import config_util, filesystem, settings_file, wbauth
+from wandb.sdk.lib.filenames import DIFF_FNAME
+from wandb.sdk.lib.hashutil import md5_file_b64
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 from wandb.sdk.sweeps import SweepNotFoundError
 
 from .beta import beta
@@ -176,34 +178,38 @@ def display_error(func):
     return wrapper
 
 
-_api = None  # caching api instance allows patching from unit tests
+def _configured_api_key() -> str | None:
+    """The API key from the environment or netrc, without prompting for one."""
+    settings = wandb_setup.singleton().settings
+    return settings.api_key or wbauth.read_netrc_auth(host=settings.base_url)
 
 
-def _get_cling_api(reset=None):
-    """Get a reference to the internal api with cling settings."""
-    global _api
-    if reset:
-        _api = None
-        wandb.teardown()
-    if _api is None:
-        # TODO(jhr): make a settings object that is better for non runs.
-        # only override the necessary setting
-        wandb_setup.singleton().settings.x_cli_only_mode = True
-        _api = InternalApi()
-    return _api
+def _run_file_text(api_run, name: str) -> str | None:
+    """Return the contents of a run's file, or None if the run has no such file."""
+    for file in api_run.files(names=[name]):
+        if file.updated_at:
+            with (
+                tempfile.TemporaryDirectory() as tmpdir,
+                file.download(root=tmpdir) as f,
+            ):
+                return f.read()
+    return None
 
 
-def prompt_for_project(ctx, entity):
+def _format_project(project: str) -> str:
+    return re.sub(r"\W+", "-", project.lower()).strip("-_")
+
+
+def prompt_for_project(ctx, entity, api):
     """Ask the user for a project, creating one if necessary."""
     result = ctx.invoke(projects, entity=entity, display=False)
-    api = _get_cling_api()
     try:
         if len(result) == 0:
             project = click.prompt("Enter a name for your first project")
-            # description = editor()
-            project = api.upsert_project(project, entity=entity)["name"]
+            project = _format_project(project)
+            api.create_project(project, entity)
         else:
-            project_names = [project["name"] for project in result] + ["Create New"]
+            project_names = [project.name for project in result] + ["Create New"]
             wandb.termlog("Which project should we use?")
             result = util.prompt_choices(project_names)
             if result:
@@ -213,12 +219,11 @@ def prompt_for_project(ctx, entity):
             # TODO: check with the server if the project exists
             if project == "Create New":
                 project = click.prompt(
-                    "Enter a name for your new project", value_proc=api.format_project
+                    "Enter a name for your new project", value_proc=_format_project
                 )
-                # description = editor()
-                project = api.upsert_project(project, entity=entity)["name"]
+                api.create_project(project, entity)
 
-    except wandb.errors.CommError as e:
+    except (wandb.Error, WandbApiFailedError) as e:
         raise ClickException(str(e))
 
     return project
@@ -255,8 +260,9 @@ def cli(ctx):
 @display_error
 def projects(entity, display=True):
     """List projects for the current entity."""
-    api = _get_cling_api()
-    projects = api.list_projects(entity=entity)
+    api = wandb.Api()
+    entity = entity or api.settings["entity"] or api.default_entity
+    projects = api.projects(entity)
     if len(projects) == 0:
         message = f"No projects found for {entity}"
     else:
@@ -264,15 +270,7 @@ def projects(entity, display=True):
     if display:
         click.echo(click.style(message, bold=True))
         for project in projects:
-            click.echo(
-                "".join(
-                    (
-                        click.style(project["name"], fg="blue", bold=True),
-                        " - ",
-                        str(project["description"] or "").split("\n")[0],
-                    )
-                )
-            )
+            click.echo(click.style(project.name, fg="blue", bold=True))
     return projects
 
 
@@ -469,44 +467,11 @@ def init(ctx, project, entity, reset, mode):
         click.echo(
             click.style("Let's setup this directory for W&B!", fg="green", bold=True)
         )
-    api = _get_cling_api()
-    if api.api_key is None:
-        ctx.invoke(login)
-        api = _get_cling_api(reset=True)
+    api = wandb.Api()
+    viewer = api.viewer
 
-    viewer = api.viewer()
-
-    # Viewer can be `None` in case your API information became invalid, or
-    # in testing if you switch hosts.
-    if not viewer:
-        click.echo(
-            click.style(
-                "Your login information seems to be invalid: can you log in again please?",
-                fg="red",
-                bold=True,
-            )
-        )
-        ctx.invoke(login)
-        api = _get_cling_api(reset=True)
-
-    # This shouldn't happen.
-    viewer = api.viewer()
-    if not viewer:
-        click.echo(
-            click.style(
-                "We're sorry, there was a problem logging you in. "
-                "Please send us a note at support@wandb.com and tell us how this happened.",
-                fg="red",
-                bold=True,
-            )
-        )
-        sys.exit(1)
-
-    # At this point we should be logged in successfully.
-    if len(viewer["teams"]["edges"]) > 1:
-        team_names = [e["node"]["name"] for e in viewer["teams"]["edges"]] + [
-            "Manual entry"
-        ]
+    if len(viewer.teams) > 1:
+        team_names = viewer.teams + ["Manual entry"]
         wandb.termlog(
             "Which team should we use?",
         )
@@ -519,13 +484,11 @@ def init(ctx, project, entity, reset, mode):
         if entity == "Manual Entry":
             entity = click.prompt("Enter the name of the team you want to use")
     else:
-        entity = viewer.get("entity") or click.prompt(
-            "What username or team should we use?"
-        )
+        entity = viewer.entity or click.prompt("What username or team should we use?")
 
     # TODO: this error handling sucks and the output isn't pretty
     try:
-        project = prompt_for_project(ctx, entity)
+        project = prompt_for_project(ctx, entity, api)
     except ClickWandbException:
         raise ClickException(f"Could not find team: {entity}")
 
@@ -917,11 +880,7 @@ def sweep(
         raise Exception("Only one state flag (stop/cancel/pause/resume) is allowed.")
     elif is_state_change_command == 1:
         sweep_id = config_yaml_or_sweep_id
-        api = _get_cling_api()
-        if not api.is_authenticated:
-            wandb.termlog("Login to W&B to use the sweep feature")
-            ctx.invoke(login, no_offline=True)
-            api = _get_cling_api(reset=True)
+        api = wandb.Api()
         parts = dict(entity=entity, project=project, name=sweep_id)
         err = sweep_utils.parse_sweep_id(parts)
         if err:
@@ -938,7 +897,8 @@ def sweep(
             "resume": "Resuming",
         }
         wandb.termlog(f"{ings[state]} sweep {entity}/{project}/{sweep_id}")
-        api.set_sweep_state(
+        _set_sweep_state(
+            api,
             sweep_id,
             {
                 "stop": "FINISHED",
@@ -970,11 +930,7 @@ def sweep(
         wandb.termwarn("Unable to parse settings parameter", repeat=False)
         return ret
 
-    api = _get_cling_api()
-    if not api.is_authenticated:
-        wandb.termlog("Login to W&B to use the sweep feature")
-        ctx.invoke(login, no_offline=True)
-        api = _get_cling_api(reset=True)
+    api = wandb.Api()
 
     sweep_obj_id = None
     if update:
@@ -987,8 +943,8 @@ def sweep(
         project = parts.get("project") or project
         sweep_id = parts.get("name") or update
 
-        has_project = (project or api.settings("project")) is not None
-        has_entity = (entity or api.settings("entity")) is not None
+        has_project = (project or api.settings["project"]) is not None
+        has_entity = (entity or api.settings["entity"]) is not None
 
         termerror_msg = (
             "Sweep lookup requires a valid %s, and none was specified. \n"
@@ -1005,7 +961,7 @@ def sweep(
             wandb.termerror(termerror_msg % (("project",) * 2))
             return
 
-        found = api.sweep(sweep_id, "{}", entity=entity, project=project)
+        found = _sweep_with_runs(api, sweep_id, "{}", entity=entity, project=project)
         if not found:
             wandb.termerror(f"Could not find sweep {entity}/{project}/{sweep_id}")
             return
@@ -1044,17 +1000,18 @@ def sweep(
         entity
         or env.get("WANDB_ENTITY")
         or config.get("entity")
-        or api.settings("entity")
+        or api.settings["entity"]
     )
     project = (
         project
         or env.get("WANDB_PROJECT")
         or config.get("project")
-        or api.settings("project")
+        or api.settings["project"]
         or util.auto_project_name(config.get("program"))
     )
 
-    sweep_id, warnings = api.upsert_sweep(
+    sweep_obj, warnings = _upsert_sweep(
+        api,
         config,
         project=project,
         entity=entity,
@@ -1062,15 +1019,16 @@ def sweep(
         prior_runs=prior_runs,
     )
     sweep_utils.handle_sweep_config_violations(warnings)
+    sweep_id = sweep_obj["name"]
 
     # Log nicely formatted sweep information
     styled_id = click.style(sweep_id, fg="yellow")
     wandb.termlog(f"{action} sweep with ID: {styled_id}")
 
     sweep_url = wandb_sweep._get_sweep_url(
-        base_url=api.settings("base_url"),
-        entity=api.settings("entity") or api.default_entity,
-        project=api.settings("project"),
+        base_url=api.settings["base_url"],
+        entity=api.settings["entity"] or api.default_entity,
+        project=api.settings["project"],
         sweep_id=sweep_id,
     )
     if sweep_url:
@@ -1260,11 +1218,11 @@ def launch_sweep(
         return
 
     # validate training job existence
-    if not sweep_utils.check_job_exists(PublicApi(), sweep_config.get("job")):
+    if not sweep_utils.check_job_exists(wandb.Api(), sweep_config.get("job")):
         return False
 
     # validate scheduler job existence, if present
-    if not sweep_utils.check_job_exists(PublicApi(), scheduler_job):
+    if not sweep_utils.check_job_exists(wandb.Api(), scheduler_job):
         return False
 
     # Set run overrides for the Scheduler
@@ -1927,12 +1885,6 @@ def agent(ctx, project, entity, count, forward_signals, term_timeout, sweep_id):
 
         $ wandb agent --forward-signals wbyz9876
     """
-    api = _get_cling_api()
-    if not api.is_authenticated:
-        wandb.termlog("Login to W&B to use the sweep agent feature")
-        ctx.invoke(login, no_offline=True)
-        api = _get_cling_api(reset=True)
-
     wandb.termlog("Starting wandb agent 🕵️")
     try:
         wandb_agent.agent(
@@ -2023,7 +1975,7 @@ def job() -> None:
 )
 def _list(project, entity):
     wandb.termlog(f"Listing jobs in {entity}/{project}")
-    public_api = PublicApi()
+    public_api = wandb.Api()
     try:
         jobs = public_api.list_jobs(entity=entity, project=project)
     except wandb.errors.CommError as e:
@@ -2055,7 +2007,7 @@ def _list(project, entity):
 )
 @click.argument("job")
 def describe(job):
-    public_api = PublicApi()
+    public_api = wandb.Api()
     try:
         job = public_api.job(name=job)
     except wandb.errors.CommError as e:
@@ -2316,7 +2268,7 @@ def docker_run(ctx, docker_run_args):
     """
     import wandb.docker
 
-    api = InternalApi()
+    api_key = _configured_api_key()
     args = list(docker_run_args)
     if len(args) > 0 and args[0] == "run":
         args.pop(0)
@@ -2335,9 +2287,9 @@ def docker_run(ctx, docker_run_args):
             "Couldn't detect image argument, running command without the WANDB_DOCKER env variable"
         )
     env = dict(os.environ)
-    if api.api_key:
+    if api_key:
         args = ["-e", "WANDB_API_KEY"] + args
-        env["WANDB_API_KEY"] = api.api_key
+        env["WANDB_API_KEY"] = api_key
     else:
         wandb.termlog(
             "Not logged in, run `wandb login` from the host machine to enable result logging"
@@ -2419,7 +2371,7 @@ def docker(
 
         $ wandb docker wandb/deepo:keras-gpu --no-tty --cmd "python train.py"
     """
-    api = InternalApi()
+    api_key = _configured_api_key()
     if not _HAS_DOCKER:
         raise ClickException("Docker not installed, install it from https://docker.com")
 
@@ -2475,9 +2427,9 @@ def docker(
         #  TODO: We should default to the working directory if defined
         command.extend(["-v", cwd + ":" + dir, "-w", dir])
     env = dict(os.environ)
-    if api.api_key:
+    if api_key:
         command.extend(["-e", "WANDB_API_KEY"])
-        env["WANDB_API_KEY"] = api.api_key
+        env["WANDB_API_KEY"] = api_key
     else:
         wandb.termlog(
             "Couldn't find WANDB_API_KEY, run `wandb login` to enable streaming metrics"
@@ -2589,7 +2541,7 @@ def start(ctx, port, env, daemon, upgrade, edge):
 
         $ wandb server start --no-daemon
     """
-    api = InternalApi()
+    api_key = _configured_api_key()
     if not _HAS_DOCKER:
         raise ClickException("Docker not installed, install it from https://docker.com")
 
@@ -2665,7 +2617,7 @@ def start(ctx, port, env, daemon, upgrade, edge):
         else:
             wandb.termlog(f"W&B server started at http://localhost:{port} \U0001f680")
             wandb.termlog("You can stop the server by running `wandb server stop`")
-            if not api.api_key:
+            if not api_key:
                 # Let the server start before potentially launching a browser
                 time.sleep(2)
                 ctx.invoke(login, host=host)
@@ -2782,7 +2734,7 @@ def put(
     """
     if name is None:
         name = os.path.basename(path)
-    public_api = PublicApi()
+    public_api = wandb.Api()
     entity, project, artifact_name = public_api._parse_artifact_path(name)
     if project is None:
         project = click.prompt("Enter the name of the project you want to use")
@@ -2851,7 +2803,7 @@ def get(path, root, type):
 
         $ wandb artifact get --root ./data team-awesome/foobar/processed-training-set:v2
     """
-    public_api = PublicApi()
+    public_api = wandb.Api()
     entity, project, artifact_name = public_api._parse_artifact_path(path)
     if project is None:
         project = click.prompt("Enter the name of the project you want to use")
@@ -2907,7 +2859,7 @@ def ls(path, type):
 
         $ wandb artifact ls --type model team-awesome/foobar
     """
-    public_api = PublicApi()
+    public_api = wandb.Api()
     if type is not None:
         types = [public_api.artifact_type(type, path)]
     else:
@@ -3006,19 +2958,25 @@ def pull(run, project, entity):
 
         $ wandb pull -p foobar -e team-awesome abcd1234
     """
-    api = InternalApi()
-    project, run = api.parse_slug(run, project=project)
-    urls = api.download_urls(project, run=run, entity=entity)
-    if len(urls) == 0:
+    api = wandb.Api(
+        overrides={
+            key: value
+            for key, value in {"project": project, "entity": entity}.items()
+            if value is not None
+        }
+    )
+    api_run = api.run(run)
+    files = api_run.files()
+    if len(files) == 0:
         raise ClickException("Run has no files")
-    click.echo(f"Downloading: {click.style(project, bold=True)}/{run}")
+    click.echo(f"Downloading: {click.style(api_run.project, bold=True)}/{api_run.id}")
 
-    for name in urls:
-        if api.file_current(name, urls[name]["md5"]):
-            click.echo(f"File {name} is up to date")
+    for file in files:
+        if os.path.isfile(file.name) and md5_file_b64(file.name) == file.md5:
+            click.echo(f"File {file.name} is up to date")
         else:
-            api.download_file(urls[name]["url"], name)
-            click.echo(f"File {name}")
+            file.download(replace=True)
+            click.echo(f"File {file.name}")
 
 
 @cli.command(context_settings=CONTEXT)
@@ -3101,26 +3059,25 @@ def restore(ctx, run, no_git, branch, project, entity):
     """
     from wandb.sdk.lib.gitlib import GitRepo
 
-    api = _get_cling_api()
-    if ":" in run:
-        if "/" in run:
-            entity, rest = run.split("/", 1)
-        else:
-            rest = run
-        project, run = rest.split(":", 1)
-    elif run.count("/") > 1:
-        entity, run = run.split("/", 1)
-
-    project, run = api.parse_slug(run, project=project)
-    commit, json_config, patch_content, metadata = api.run_config(
-        project, run=run, entity=entity
+    api = wandb.Api(
+        overrides={
+            key: value
+            for key, value in {"project": project, "entity": entity}.items()
+            if value is not None
+        }
     )
+    api_run = api.run(run)
+    project, run = api_run.project, api_run.id
+    commit = api_run.commit
+    json_config = api_run.rawconfig
+    patch_content = _run_file_text(api_run, DIFF_FNAME)
+    metadata = api_run.metadata or {}
     repo = metadata.get("git", {}).get("repo")
     image = metadata.get("docker")
     restore_message = f"""`wandb restore` needs to be run from the same git repository as the original run.
 Run `git clone {repo}` and restore from there or pass the --no-git flag."""
 
-    git = GitRepo(remote=api.settings("git_remote"))
+    git = GitRepo(remote=wandb_setup.singleton().settings.git_remote)
 
     if no_git:
         commit = None
@@ -3138,19 +3095,19 @@ Run `git clone {repo}` and restore from there or pass the --no-git flag."""
         if not git.has_commit(commit):
             wandb.termlog(f"Couldn't find original commit: {commit}")
             commit = None
-            files = api.download_urls(project, run=run, entity=entity)
-            for filename in files:
-                if filename.startswith("upstream_diff_") and filename.endswith(
-                    ".patch"
-                ):
-                    commit = filename[len("upstream_diff_") : -len(".patch")]
+            upstream_patch = None
+            for file in api_run.files():
+                name = file.name
+                if name.startswith("upstream_diff_") and name.endswith(".patch"):
+                    commit = name[len("upstream_diff_") : -len(".patch")]
                     if git.has_commit(commit):
+                        upstream_patch = file
                         break
-                    commit = None
 
-            if commit:
+            if upstream_patch:
                 wandb.termlog(f"Falling back to upstream commit: {commit}")
-                patch_path, _ = api.download_write_file(files[filename])
+                with upstream_patch.download(root=_get_wandb_dir(), replace=True) as f:
+                    patch_path = f.name
             else:
                 raise ClickException(restore_message)
         else:
@@ -3192,23 +3149,15 @@ Run `git clone {repo}` and restore from there or pass the --no-git flag."""
                 )
 
     wandb_dir = _get_wandb_dir()
-    filesystem.mkdir_exists_ok(wandb_dir)
     config_path = os.path.join(wandb_dir, "config.yaml")
-    config = Config()
-    for k, v in json_config.items():
-        if k not in ("_wandb", "wandb_version"):
-            config[k] = v
-    s = b"wandb_version: 1"
-    s += b"\n\n" + yaml.dump(
-        config._as_dict(),
-        Dumper=yaml.SafeDumper,
-        default_flow_style=False,
-        allow_unicode=True,
-        encoding="utf-8",
+    config_util.save_config_file_from_dict(
+        config_path,
+        {
+            key: {"value": value}
+            for key, value in json_config.items()
+            if key not in ("_wandb", "wandb_version")
+        },
     )
-    s = s.decode("utf-8")
-    with open(config_path, "w") as f:
-        f.write(s)
 
     wandb.termlog(f"Restored config variables to {config_path}")
     if image:
@@ -3313,10 +3262,21 @@ def status(settings):
 
         $ wandb status
     """
-    api = _get_cling_api()
     if settings:
         click.echo(click.style("Current Settings", bold=True))
-        settings = api.settings()
+        global_settings = wandb_setup.singleton().settings
+        settings = {
+            key: getattr(global_settings, key)
+            for key in (
+                "base_url",
+                "entity",
+                "project",
+                "organization",
+                "git_remote",
+                "ignore_globs",
+                "root_dir",
+            )
+        }
         click.echo(
             json.dumps(settings, sort_keys=True, indent=2, separators=(",", ": "))
         )
@@ -3422,13 +3382,9 @@ def verify(host):
     os.environ["WANDB_SILENT"] = "true"
     os.environ["WANDB_PROJECT"] = "verify"
     settings = wandb_setup.singleton().settings
-    reinit = False
     if host is None:
         host = settings.base_url
         wandb.termlog(f"Default host selected: {host}")
-    # if the given host does not match the default host, re-run init
-    elif host != settings.base_url:
-        reinit = True
 
     tmp_dir = tempfile.mkdtemp()
     wandb.termlog(
@@ -3437,7 +3393,7 @@ def verify(host):
     os.chdir(tmp_dir)
     os.environ["WANDB_BASE_URL"] = host
     wandb.login(host=host)
-    api = _get_cling_api(reset=reinit)
+    api = wandb.Api()
     if not wandb_verify.check_host(host):
         sys.exit(1)
     if not wandb_verify.check_logged_in(api, host):

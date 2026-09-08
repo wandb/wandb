@@ -20,6 +20,7 @@ Legacy `wandb sync` options have been removed. See `wandb sync --help`.
 
 ### Added
 
+- `wandb.login(prompt=False)` loads configured credentials without asking for an API key when none are found. It returns `False` instead of prompting or switching to offline mode, so code can check whether the user is logged in without blocking (@dmitryduev in https://github.com/wandb/wandb/pull/12741)
 - LEET filters console logs: with the logs pane focused, press `/` and type a pattern (regex, or glob after `Tab`) to show only the matching lines, following new matches as they arrive; `ctrl+/` clears the filter (@dmitryduev in https://github.com/wandb/wandb/pull/12736)
 - LEET remembers the metrics, system metrics and runs filters for each wandb directory: the next time you open the directory, in the workspace or the single-run view, the filters from the previous session are already applied. They are stored in `.wandb-leet.json` inside the directory; clearing a filter (`ctrl+/`, `ctrl+\`, `ctrl+f`) forgets it (@dmitryduev in https://github.com/wandb/wandb/pull/12735)
 - LEET charts metrics against the custom x-axes set with `run.define_metric()`. A metric defined with a `step_metric`, directly or through a glob like `run.define_metric("train/*", step_metric="train/step")`, is plotted against that metric instead of the step counter, with the axis name shown as `[x: train/step]` in the chart header. Applies to runs viewed from local `.wandb` files. Each chart has a single x-axis, so a run that plots a metric against a different axis is not shown on that chart (@dmitryduev in https://github.com/wandb/wandb/pull/12568, https://github.com/wandb/wandb/pull/12728)
@@ -27,17 +28,20 @@ Legacy `wandb sync` options have been removed. See `wandb sync --help`.
 
 ### Changed
 
+- `wandb status --settings` no longer prints the API key, and `wandb projects` no longer prints project descriptions (@dmitryduev in https://github.com/wandb/wandb/pull/12723)
 - LEET loads long runs faster: while a run's history is loading, the charts are redrawn at most ten times a second instead of after every 1000 records, which made loading time grow with the square of the run's length. A 100-metric run with 400k steps now opens in about 0.3 s instead of 3.8 s (@dmitryduev in https://github.com/wandb/wandb/pull/12734)
 - LEET is faster on long runs: a 50k-step run loads in about half the time, frames render about 30 percent faster, and live chart updates no longer re-render every point (@dmitryduev in https://github.com/wandb/wandb/pull/12535, https://github.com/wandb/wandb/pull/12536, https://github.com/wandb/wandb/pull/12537, https://github.com/wandb/wandb/pull/12538, https://github.com/wandb/wandb/pull/12539)
 - System metrics from Apple Silicon Macs become available about 1.5 seconds sooner after monitoring starts (@dmitryduev in https://github.com/wandb/wandb/pull/12679)
 
 ### Deprecated
 
-- `wandb.sandbox` is deprecated and will be removed in a future release. Use the `cwsandbox` package directly instead.
+- `wandb.sandbox` is deprecated and will be removed in a future release. Use the `cwsandbox` package directly instead (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/12647)
 - `wandb.api` and `wandb.ensure_configured()` are deprecated and will be removed in a future release. `wandb.api` now only provides `api_key`, `default_entity` and `viewer()`; use `wandb.Api()` instead of the last two (@dmitryduev in https://github.com/wandb/wandb/pull/12715)
+- `wandb beta sandbox` is deprecated and will be removed in a future release. Sandbox functionality is now maintained in the `cwsandbox` package (@nicholaspun-wandb in https://github.com/wandb/wandb/pull/12689)
 
 ### Fixed
 
+- `wandb sync` explains that a `.wandb` file ends with an incomplete record and how to retry, instead of reporting an internal error (@dmitryduev in https://github.com/wandb/wandb/pull/12751)
 - Syncing an already uploaded MD5 artifact no longer fails when its staged files have been removed. This was a regression in 0.29.0 (@dmitryduev in https://github.com/wandb/wandb/pull/12750)
 - Failed artifact uploads preserve their input files for retry, and artifact cleanup only removes files inside the supplied staging directory (@dmitryduev in https://github.com/wandb/wandb/pull/12749)
 - `wandb leet` no longer sends usage telemetry when W&B is in offline or disabled mode (`WANDB_MODE=offline` or `WANDB_MODE=disabled`), like the rest of the SDK (@dmitryduev in https://github.com/wandb/wandb/pull/12733)
@@ -61,5 +65,6 @@ Legacy `wandb sync` options have been removed. See `wandb sync --help`.
 
 - Removed `wandb.InternalApi`. Use `wandb.Api()` instead (@dmitryduev in https://github.com/wandb/wandb/pull/12715)
 - Removed the `wandb.apis.internal` module and the `wandb.apis.InternalApi` alias (@dmitryduev in https://github.com/wandb/wandb/pull/12716)
+- Removed the `wandb.sdk.internal.internal_api` module and the `wandb.apis.PublicApi` and `wandb.PublicApi` aliases. Use `wandb.Api` (@dmitryduev in https://github.com/wandb/wandb/pull/12724)
 - All legacy options to `wandb sync` have been removed (@timoffex in https://github.com/wandb/wandb/pull/12686)
   - In particular, instead of `--sync-all`, use `wandb sync` with no arguments
