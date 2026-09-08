@@ -25,8 +25,16 @@ inputs:
     description: Whether to install .NET 9 for experimental client tests
     required: false
     default: "false"
-  gcp-credentials:
-    description: GCP service-account JSON used to read the local-testcontainer image
+  gcp-project:
+    description: GCP project used to read the local-testcontainer image
+    required: false
+    default: ""
+  gcp-provider:
+    description: GCP workload identity provider
+    required: false
+    default: ""
+  gcp-service-account:
+    description: GCP service account
     required: false
     default: ""
 
@@ -79,7 +87,9 @@ runs:
       if: inputs.server-image != ''
       uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
       with:
-        credentials_json: ${{ inputs.gcp-credentials }}
+        project_id: ${{ inputs.gcp-project }}
+        workload_identity_provider: ${{ inputs.gcp-provider }}
+        service_account: ${{ inputs.gcp-service-account }}
 
     - name: Start local-testcontainer
       if: inputs.server-image != ''
