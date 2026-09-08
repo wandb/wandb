@@ -2,14 +2,13 @@ import unittest.mock
 
 import wandb
 import wandb.sdk.verify.verify as wandb_verify
-from wandb.sdk.internal.internal_api import Api as InternalApi
 
 
 def test_check_logged_in(user):
-    internal_api = unittest.mock.MagicMock(spec=InternalApi)
-    internal_api.api_key = None
-    assert not wandb_verify.check_logged_in(internal_api, "localhost:8000")
+    api = unittest.mock.MagicMock(spec=wandb.Api)
+    api.api_key = None
+    assert not wandb_verify.check_logged_in(api, "localhost:8000")
 
     run = wandb.init()
-    assert wandb_verify.check_logged_in(InternalApi(), run.settings.base_url)
+    assert wandb_verify.check_logged_in(wandb.Api(), run.settings.base_url)
     run.finish()

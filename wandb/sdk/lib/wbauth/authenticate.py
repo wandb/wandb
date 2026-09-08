@@ -164,7 +164,7 @@ def _use_system_auth(
 ) -> Auth | None:
     """Load (or reload) session credentials from external sources.
 
-    Loads credentials from environment variables or the .netrc file.
+    Loads credentials from environment variables, .netrc, or global settings.
     If no credentials are found, the session credentials are unchanged.
 
     Args:
@@ -184,6 +184,13 @@ def _use_system_auth(
         _try_env_auth(host=host)  #
         or wbnetrc.read_netrc_auth_with_source(host=host)
     )
+    if auth is None:
+        settings = wandb_setup.singleton().settings
+        if settings.api_key and host.is_same_url(settings.base_url):
+            auth = AuthWithSource(
+                auth=AuthApiKey(host=host, api_key=settings.api_key),
+                source="settings",
+            )
 
     if verify and auth:
         auth.auth.verify()

@@ -3,7 +3,9 @@ import textwrap
 from unittest.mock import MagicMock
 
 import pytest
-from wandb.errors import AuthenticationError
+from wandb.errors import AuthenticationError, UsageError
+from wandb.sdk import wandb_setup
+from wandb.sdk.lib import wbauth
 from wandb.sdk.lib.wbauth import (
     AuthApiKey,
     AuthIdentityTokenFile,
@@ -189,6 +191,37 @@ def test_reads_netrc(
     mock_wandb_log.assert_logged(
         f"[test] Loaded credentials for https://example.com from {netrc}"
     )
+
+
+@pytest.mark.parametrize("source", ["settings", "environment", "netrc", "identity"])
+def test_settings_credentials_are_a_fallback(monkeypatch, source):
+    settings = wandb_setup.singleton().settings
+    settings.api_key = "settings" * 5
+    expected = settings.api_key
+    if source == "environment":
+        expected = "from_env" * 5
+        monkeypatch.setenv("WANDB_API_KEY", expected)
+    elif source == "netrc":
+        expected = "netrc" * 8
+        wbauth.write_netrc_auth(host=settings.base_url, api_key=expected)
+    elif source == "identity":
+        monkeypatch.setenv("WANDB_IDENTITY_TOKEN_FILE", "identity.jwt")
+
+    auth = authenticate_session(host=settings.base_url, source="test")
+
+    if source == "identity":
+        assert isinstance(auth, AuthIdentityTokenFile)
+    else:
+        assert isinstance(auth, AuthApiKey)
+        assert auth.api_key == expected
+
+
+def test_settings_credentials_are_scoped_to_host():
+    settings = wandb_setup.singleton().settings
+    settings.api_key = "settings" * 5
+
+    with pytest.raises(UsageError, match="No API key configured"):
+        authenticate_session(host="https://other.invalid", source="test")
 
 
 def test_jwt_bypasses_validation():
