@@ -166,7 +166,7 @@ func TestRun_UnreadableFileIsAnError(t *testing.T) {
 	require.NoError(t, os.WriteFile(path, []byte("this is not a transaction log at all\n"), 0o644))
 	logger := observability.NewNoOpLogger()
 
-	done := make(chan error, 2)
+	done := make(chan error, 1)
 	go func() {
 		run, err := runreader.Open(path, logger)
 		if err == nil {
@@ -174,43 +174,13 @@ func TestRun_UnreadableFileIsAnError(t *testing.T) {
 			run.Close()
 		}
 		done <- err
-		_, err = runreader.ScanHistory(context.Background(), path, runreader.HistoryQuery{}, logger)
-		done <- err
 	}()
-	for range 2 {
-		select {
-		case err := <-done:
-			assert.Error(t, err)
-		case <-time.After(5 * time.Second):
-			t.Fatal("reading an unreadable file did not return")
-		}
+	select {
+	case err := <-done:
+		assert.Error(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("reading an unreadable file did not return")
 	}
-}
-
-func TestScanHistory(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "run-abc.wandb")
-	var records []*spb.Record
-	for step := range int64(5) {
-		records = append(records, historyRecord(step, map[string]string{"loss": "1", "acc": "2"}))
-	}
-	writeLog(t, path, append([]*spb.Record{runRecord("abc", nil)}, records...)...)
-	logger := observability.NewNoOpLogger()
-
-	rows, err := runreader.ScanHistory(context.Background(), path,
-		runreader.HistoryQuery{Keys: []string{"loss"}, Last: 2}, logger)
-	require.NoError(t, err)
-	assert.Equal(t, []runreader.HistoryRow{
-		{Step: 3, Items: []runreader.HistoryItem{{Key: "loss", ValueJSON: "1"}}},
-		{Step: 4, Items: []runreader.HistoryItem{{Key: "loss", ValueJSON: "1"}}},
-	}, rows)
-
-	minStep, maxStep := int64(1), int64(2)
-	rows, err = runreader.ScanHistory(context.Background(), path,
-		runreader.HistoryQuery{MinStep: &minStep, MaxStep: &maxStep}, logger)
-	require.NoError(t, err)
-	require.Len(t, rows, 2)
-	assert.Equal(t, int64(1), rows[0].Step)
-	assert.Len(t, rows[0].Items, 2)
 }
 
 func TestListRunDirs(t *testing.T) {

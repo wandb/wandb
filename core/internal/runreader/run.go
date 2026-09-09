@@ -82,8 +82,7 @@ func infoFromRecord(rec *spb.RunRecord) Info {
 // Run is a run's state folded from its transaction log.
 //
 // Update reads the records written since the last call, so a Run kept open
-// follows a live run cheaply. History rows are not retained; see
-// ScanHistory.
+// follows a live run cheaply. History rows are not retained.
 type Run struct {
 	path   string
 	cursor *Cursor
@@ -290,18 +289,12 @@ func historyStep(h *spb.HistoryRecord) int64 {
 	return 0
 }
 
-var historyKeyEscaper = strings.NewReplacer(`\`, `\\`, `.`, `\.`)
-
-// historyItemKey joins path segments with dots, escaping literal dots and
-// backslashes so nested and flat keys remain distinct.
+// historyItemKey returns the item's key, joining nested keys with dots as
+// the W&B UI names them. A key containing a literal dot is indistinguishable
+// from a nested key with the same spelling, as on the server.
 func historyItemKey(item *spb.HistoryItem) string {
-	parts := item.GetNestedKey()
-	if len(parts) == 0 {
-		return historyKeyEscaper.Replace(item.GetKey())
+	if parts := item.GetNestedKey(); len(parts) > 0 {
+		return strings.Join(parts, ".")
 	}
-	escaped := make([]string, len(parts))
-	for i, part := range parts {
-		escaped[i] = historyKeyEscaper.Replace(part)
-	}
-	return strings.Join(escaped, ".")
+	return item.GetKey()
 }
