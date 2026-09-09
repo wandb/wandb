@@ -667,40 +667,35 @@ message ReadLocalRunResponse {
 }
 
 // Reads rows of a run's history from its transaction log.
-//
-// The log has no index, so every request reads the whole file.
 message ReadLocalRunHistoryRequest {
   string wandb_file = 1;
 
-  // Return only these keys; empty means all. Rows with none of the keys
-  // are skipped.
+  // Return only these keys, plus _step; empty means all. Rows with none of
+  // the keys are skipped.
   repeated string keys = 2;
 
   // Bounds on the rows' steps, inclusive.
   optional int64 min_step = 3;
   optional int64 max_step = 4;
 
-  // If set, return only the last N matching rows.
+  // If set, return only the last N matching rows, in a single page.
   optional int32 last = 5;
+
+  // Continue a scan from a previous response's next_offset.
+  int64 offset = 6;
+
+  // The most rows to return; zero means all.
+  int32 limit = 7;
 }
 
 message ReadLocalRunHistoryResponse {
-  // The matching rows, in step order.
-  repeated LocalHistoryRow rows = 1;
-}
+  // The matching rows in step order, one JSON object per line. Nested keys
+  // are joined with dots and values are as logged.
+  bytes rows = 1;
 
-message LocalHistoryRow {
-  int64 step = 1;
-  repeated LocalHistoryItem items = 2;
-}
-
-message LocalHistoryItem {
-  // The logged key; dots separate nested keys. Literal dots and backslashes
-  // in key segments are escaped with a backslash.
-  string key = 1;
-
-  // The logged value as JSON.
-  string value_json = 2;
+  // The offset to request the next page from, or 0 when there are no more
+  // rows.
+  int64 next_offset = 2;
 }
 
 // Reads a run's console output from its transaction log.

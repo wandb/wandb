@@ -103,10 +103,8 @@ func TestLocalRunHandler(t *testing.T) {
 	history := h.HandleReadLocalRunHistory(ctx, &spb.ReadLocalRunHistoryRequest{
 		WandbFile: path, Keys: []string{"loss"}, Last: &last,
 	}).GetReadLocalRunHistoryResponse()
-	require.Len(t, history.GetRows(), 1)
-	assert.Equal(t, int64(1), history.Rows[0].GetStep())
-	assert.Equal(t, "loss", history.Rows[0].Items[0].GetKey())
-	assert.Equal(t, "0.5", history.Rows[0].Items[0].GetValueJson())
+	assert.Equal(t, "{\"_step\":1,\"loss\":0.5}\n", string(history.GetRows()))
+	assert.Zero(t, history.GetNextOffset())
 
 	tail := h.HandleReadLocalRunConsoleLogs(ctx, &spb.ReadLocalRunConsoleLogsRequest{
 		WandbFile: path, Last: &last,

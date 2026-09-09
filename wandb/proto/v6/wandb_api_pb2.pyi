@@ -626,40 +626,30 @@ class ReadLocalRunResponse(_message.Message):
     def __init__(self, info: _Optional[_Union[LocalRunInfo, _Mapping]] = ..., config_json: _Optional[str] = ..., summary_json: _Optional[str] = ..., environment_json: _Optional[str] = ..., last_step: _Optional[int] = ..., history_keys: _Optional[_Iterable[str]] = ..., exit_code: _Optional[int] = ...) -> None: ...
 
 class ReadLocalRunHistoryRequest(_message.Message):
-    __slots__ = ("wandb_file", "keys", "min_step", "max_step", "last")
+    __slots__ = ("wandb_file", "keys", "min_step", "max_step", "last", "offset", "limit")
     WANDB_FILE_FIELD_NUMBER: _ClassVar[int]
     KEYS_FIELD_NUMBER: _ClassVar[int]
     MIN_STEP_FIELD_NUMBER: _ClassVar[int]
     MAX_STEP_FIELD_NUMBER: _ClassVar[int]
     LAST_FIELD_NUMBER: _ClassVar[int]
+    OFFSET_FIELD_NUMBER: _ClassVar[int]
+    LIMIT_FIELD_NUMBER: _ClassVar[int]
     wandb_file: str
     keys: _containers.RepeatedScalarFieldContainer[str]
     min_step: int
     max_step: int
     last: int
-    def __init__(self, wandb_file: _Optional[str] = ..., keys: _Optional[_Iterable[str]] = ..., min_step: _Optional[int] = ..., max_step: _Optional[int] = ..., last: _Optional[int] = ...) -> None: ...
+    offset: int
+    limit: int
+    def __init__(self, wandb_file: _Optional[str] = ..., keys: _Optional[_Iterable[str]] = ..., min_step: _Optional[int] = ..., max_step: _Optional[int] = ..., last: _Optional[int] = ..., offset: _Optional[int] = ..., limit: _Optional[int] = ...) -> None: ...
 
 class ReadLocalRunHistoryResponse(_message.Message):
-    __slots__ = ("rows",)
+    __slots__ = ("rows", "next_offset")
     ROWS_FIELD_NUMBER: _ClassVar[int]
-    rows: _containers.RepeatedCompositeFieldContainer[LocalHistoryRow]
-    def __init__(self, rows: _Optional[_Iterable[_Union[LocalHistoryRow, _Mapping]]] = ...) -> None: ...
-
-class LocalHistoryRow(_message.Message):
-    __slots__ = ("step", "items")
-    STEP_FIELD_NUMBER: _ClassVar[int]
-    ITEMS_FIELD_NUMBER: _ClassVar[int]
-    step: int
-    items: _containers.RepeatedCompositeFieldContainer[LocalHistoryItem]
-    def __init__(self, step: _Optional[int] = ..., items: _Optional[_Iterable[_Union[LocalHistoryItem, _Mapping]]] = ...) -> None: ...
-
-class LocalHistoryItem(_message.Message):
-    __slots__ = ("key", "value_json")
-    KEY_FIELD_NUMBER: _ClassVar[int]
-    VALUE_JSON_FIELD_NUMBER: _ClassVar[int]
-    key: str
-    value_json: str
-    def __init__(self, key: _Optional[str] = ..., value_json: _Optional[str] = ...) -> None: ...
+    NEXT_OFFSET_FIELD_NUMBER: _ClassVar[int]
+    rows: bytes
+    next_offset: int
+    def __init__(self, rows: _Optional[bytes] = ..., next_offset: _Optional[int] = ...) -> None: ...
 
 class ReadLocalRunConsoleLogsRequest(_message.Message):
     __slots__ = ("wandb_file", "last")

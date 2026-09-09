@@ -124,29 +124,27 @@ func (h *LocalRunHandler) HandleReadLocalRunHistory(
 		return apiErrorResponse("'last' must be positive", 0)
 	}
 
-	rows, err := runreader.ScanHistory(ctx, request.GetWandbFile(), runreader.HistoryQuery{
-		Keys:    request.GetKeys(),
-		MinStep: request.MinStep,
-		MaxStep: request.MaxStep,
-		Last:    int(request.GetLast()),
-	}, h.logger)
-	if err != nil {
-		return apiErrorResponse(err.Error(), 0)
-	}
-
-	response := &spb.ReadLocalRunHistoryResponse{}
-	for _, row := range rows {
-		items := make([]*spb.LocalHistoryItem, 0, len(row.Items))
-		for _, item := range row.Items {
-			items = append(items, &spb.LocalHistoryItem{Key: item.Key, ValueJson: item.ValueJSON})
+	return h.withRun(ctx, request.GetWandbFile(), func(run *runreader.Run) *spb.ApiResponse {
+		page, err := run.History(ctx, runreader.HistoryQuery{
+			Keys:    request.GetKeys(),
+			MinStep: request.MinStep,
+			MaxStep: request.MaxStep,
+			Last:    int(request.GetLast()),
+			Offset:  request.GetOffset(),
+			Limit:   int(request.GetLimit()),
+		})
+		if err != nil {
+			return apiErrorResponse(err.Error(), 0)
 		}
-		response.Rows = append(response.Rows, &spb.LocalHistoryRow{Step: row.Step, Items: items})
-	}
-	return &spb.ApiResponse{
-		Response: &spb.ApiResponse_ReadLocalRunHistoryResponse{
-			ReadLocalRunHistoryResponse: response,
-		},
-	}
+		return &spb.ApiResponse{
+			Response: &spb.ApiResponse_ReadLocalRunHistoryResponse{
+				ReadLocalRunHistoryResponse: &spb.ReadLocalRunHistoryResponse{
+					Rows:       page.Rows,
+					NextOffset: page.NextOffset,
+				},
+			},
+		}
+	})
 }
 
 // HandleReadLocalRunConsoleLogs reads a run's console output or its tail.
