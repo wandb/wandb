@@ -28,12 +28,14 @@ from wandb.automations import (
     RunEvent,
     ScopeType,
     SendNotification,
+    SendPromptToAria,
     SendWebhook,
 )
 from wandb.automations._inputs import INVALID_INPUT_ACTIONS, INVALID_INPUT_EVENTS
 from wandb.automations.actions import (
     InputAction,
     SavedAction,
+    SavedAriaAction,
     SavedNoOpAction,
     SavedNotificationAction,
     SavedWebhookAction,
@@ -472,12 +474,18 @@ def do_nothing() -> DoNothing:
 
 
 @fixture
+def send_prompt_to_aria() -> SendPromptToAria:
+    return SendPromptToAria(prompt="Summarize this run")
+
+
+@fixture
 def input_action(request: FixtureRequest, action_type: ActionType) -> InputAction:
     """An action object for defining a **new** automation."""
     action2fixture: dict[ActionType, str] = {
         ActionType.NOTIFICATION: send_notification.__name__,
         ActionType.GENERIC_WEBHOOK: send_webhook.__name__,
         ActionType.NO_OP: do_nothing.__name__,
+        ActionType.ARIA: send_prompt_to_aria.__name__,
     }
     return request.getfixturevalue(action2fixture[action_type])
 
@@ -499,6 +507,8 @@ def saved_action(request: FixtureRequest) -> SavedAction:
                 integration={"id": "PLACEHOLDER"},
                 request_payload=None,
             )
+        case ActionType.ARIA:
+            return SavedAriaAction(prompt="Summarize this run")
         case _:
             raise ValueError(f"Unsupported saved action type: {action_type!r}")
 

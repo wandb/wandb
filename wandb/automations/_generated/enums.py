@@ -36,6 +36,7 @@ class TriggerScopeType(str, Enum):
 
 
 class TriggeredActionType(str, Enum):
+    ARIA = "ARIA"
     GENERIC_WEBHOOK = "GENERIC_WEBHOOK"
     NOTIFICATION = "NOTIFICATION"
     NO_OP = "NO_OP"

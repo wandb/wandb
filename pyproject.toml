@@ -297,7 +297,6 @@ ignore-decorators = [
 "wandb/old/**" = ["B006", "B020", "D", "F822", "W505"]
 "wandb/plot/**" = ["D", "B007", "F401", "N812", "F841", "UP031", "W505"]
 "wandb/sdk/internal/file_stream.py" = ["TRY300"]
-"wandb/sdk/internal/internal_api.py" = ["TRY300"]
 "wandb/sdk/launch/**" = ["T20", "W505"]
 "wandb/sdk/launch/agent/agent.py" = ["TRY300"]
 "wandb/sdk/launch/builder/templates/_wandb_bootstrap.py" = ["TRY300"]

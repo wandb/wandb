@@ -239,9 +239,6 @@ func (mg *MetricsGrid) ProcessHistory(msg HistoryMsg) bool {
 				mg.logger.Debug(fmt.Sprintf("metricsgrid: created %d charts", len(mg.all)))
 			}
 		}
-		if data.XAxisMetric != "" {
-			chart.SetXAxisMetric(data.XAxisMetric)
-		}
 		chart.AddData(msg.RunPath, data)
 		if seriesStyle != nil {
 			chart.SetSeriesStyle(msg.RunPath, seriesStyle)

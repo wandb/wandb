@@ -22,6 +22,7 @@ from .actions import (
     InputAction,
     SavedAction,
     SendNotification,
+    SendPromptToAria,
     SendWebhook,
 )
 from .automations import Automation, NewAutomation
@@ -72,6 +73,7 @@ class ActionSpecInput(TriggeredActionConfig):
     notification_action_input: SendNotification | None = None
     generic_webhook_action_input: SendWebhook | None = None
     no_op_action_input: DoNothing | None = None
+    aria_action_input: SendPromptToAria | None = None
 
     @classmethod
     def from_action(cls, obj: SavedAction | InputAction) -> Self:
@@ -88,6 +90,8 @@ class ActionSpecInput(TriggeredActionConfig):
                 return cls(generic_webhook_action_input=parsed)
             case ActionType.NO_OP:
                 return cls(no_op_action_input=parsed)
+            case ActionType.ARIA:
+                return cls(aria_action_input=parsed)
             case ActionType.QUEUE_JOB:
                 return cls(queue_job_action_input=parsed)
             case _:

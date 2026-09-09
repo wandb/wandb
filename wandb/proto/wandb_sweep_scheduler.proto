@@ -1,0 +1,322 @@
+syntax = "proto3";
+
+package wandb_internal;
+
+import "wandb/proto/wandb_settings.proto";
+
+option go_package = "core/pkg/service_go_proto";
+
+// The sweep-scheduler protocol between a Python client and wandb-core.
+//
+// wandb-core (the Server) owns the scheduling loop and all backend I/O.
+// The Python process (the Client) hosts the search strategy (the
+// "optimizer") and long-polls for the next task, reporting the previous
+// task's result on each poll.
+//
+// Message names state the origin: SweepSchedulerClient* flows
+// client-to-server, SweepSchedulerServer* server-to-client. Request and
+// Response suffixes mark the RPC pair on the server socket.
+
+// A sweep run's state as reported by the W&B backend.
+//
+// UNKNOWN stands for a state value this client version does not
+// recognize; such runs are treated as alive.
+enum SweepRunState {
+  SWEEP_RUN_STATE_UNSPECIFIED = 0;
+  SWEEP_RUN_STATE_RUNNING = 1;
+  SWEEP_RUN_STATE_PENDING = 2;
+  SWEEP_RUN_STATE_PREEMPTING = 3;
+  SWEEP_RUN_STATE_PREEMPTED = 4;
+  SWEEP_RUN_STATE_FINISHED = 5;
+  SWEEP_RUN_STATE_FAILED = 6;
+  SWEEP_RUN_STATE_CRASHED = 7;
+  SWEEP_RUN_STATE_KILLED = 8;
+  SWEEP_RUN_STATE_UNKNOWN = 9;
+}
+
+// Starts a sweep-scheduling loop in wandb-core.
+//
+// The response carries the sweep's config so the client can build an
+// optimizer without its own backend access. Errors (sweep not found,
+// unsupported server, a live scheduler for the same sweep in this
+// process) are returned as a ServerErrorResponse.
+message SweepSchedulerClientInitRequest {
+  string entity = 1;
+  string project = 2;
+
+  // The sweep's short id, as in entity/project/sweep_id.
+  string sweep_id = 3;
+
+  // Settings for credentials, base_url and proxies.
+  Settings settings = 4;
+
+  // Target number of concurrently in-flight runs.
+  uint32 batch_size = 5;
+
+  // Seconds between backend polls. Zero means the server default.
+  double poll_interval_seconds = 6;
+}
+
+// Identifies the started scheduler and describes its sweep.
+message SweepSchedulerServerInitResponse {
+  // An ID identifying the scheduler in future requests.
+  string session_id = 1;
+
+  // The sweep's raw config as stored by the server (YAML or JSON).
+  string sweep_config = 2;
+
+  // The sweep's display name.
+  string display_name = 3;
+
+  // The run that collects the scheduler's logs, if the server created
+  // one for this sweep.
+  //
+  // Log delivery is not part of this protocol: the client streams its
+  // console output to this run through the regular runs system.
+  string controller_run_name = 4;
+}
+
+// Reports the previous task's result and asks for the next task.
+//
+// This is a long poll: the response arrives once the next task is
+// ready, up to roughly one poll interval later. It must not time out
+// on the client and must not be retried; a Stop request, or the
+// connection closing, is what ends a waiting poll early.
+//
+// The client must keep exactly one request outstanding per scheduler:
+// the exchange is strictly alternating over a reliable ordered socket,
+// so the server never resends a task or tolerates a repeated result.
+message SweepSchedulerClientNextTaskRequest {
+  // The scheduler's ID, from SweepSchedulerServerInitResponse.
+  string session_id = 1;
+
+  // The result of the previous task. Unset only on the first poll.
+  //
+  // It must answer the task the server issued last, carrying that task's
+  // task_seq. Anything else — a missing, repeated or stale result —
+  // means the two sides no longer agree on where the sweep is, and the
+  // server ends the session with a REASON_FATAL_ERROR Done task.
+  SweepSchedulerClientTaskResult result = 2;
+}
+
+// The next task for the client's optimizer.
+message SweepSchedulerServerNextTaskResponse {
+  // Monotonic task number; the client echoes it in the task's result.
+  uint64 task_seq = 1;
+
+  oneof task {
+    SweepSchedulerServerWarmStartTask warm_start = 2;
+    SweepSchedulerServerGenerationTask generation = 3;
+    SweepSchedulerServerDoneTask done = 4;
+  }
+}
+
+// Asks the scheduler to finish its current step and stop.
+//
+// Fire-and-forget: there is no response message. The scheduler answers
+// the outstanding (or next) long poll with a Done task. Stopping an
+// unknown or already-finished scheduler has no effect.
+message SweepSchedulerClientStopRequest {
+  // The scheduler's ID, from SweepSchedulerServerInitResponse.
+  string session_id = 1;
+}
+
+// A page of the sweep's pre-existing runs, delivered before generation
+// starts so the optimizer can warm-start from prior results.
+message SweepSchedulerServerWarmStartTask {
+  // Runs that already reached a terminal state, with their metrics.
+  repeated SweepSchedulerServerRunData finished_runs = 1;
+
+  // Runs still in flight; the optimizer may adopt them.
+  repeated SweepSchedulerServerRunData active_runs = 2;
+
+  // Whether more warm-start pages follow this one.
+  //
+  // Informational: each page is its own task and the last is followed by
+  // a generation task, so a client needs this only to report progress.
+  bool has_more = 3;
+}
+
+// One scheduling step: run updates to report, runs eligible for pruning,
+// and how many new runs to propose.
+message SweepSchedulerServerGenerationTask {
+  // The latest state and metrics of every tracked run, including one
+  // final terminal update per run.
+  repeated SweepSchedulerServerRunUpdate updates = 1;
+
+  // Maximum number of new run suggestions wanted. Zero means do not ask.
+  uint32 ask_up_to = 2;
+
+  // Optimizer run ids eligible for pruning. Ids returned in
+  // SweepSchedulerClientGenerationResult.prune outside this list are
+  // ignored.
+  repeated string prune_candidates = 3;
+
+  // Optimizer run ids of suggestions the scheduler accepted but could
+  // not durably schedule (the enqueue failed, the sweep finished).
+  // Each id is reported exactly once and no update ever follows it.
+  repeated string discarded_optimizer_run_ids = 4;
+}
+
+// A tracked run's latest state as the optimizer should see it.
+message SweepSchedulerServerRunUpdate {
+  SweepSchedulerServerRunData run = 1;
+
+  // True when this is the final update of a run the optimizer pruned,
+  // which tells its own pruning apart from a run that stopped by itself.
+  bool pruned = 2;
+}
+
+// A sweep run as the optimizer sees it.
+message SweepSchedulerServerRunData {
+  // The run's W&B name.
+  string wandb_run_id = 1;
+
+  // The id the optimizer tracks the run by; empty for pre-existing runs
+  // it has not adopted.
+  string optimizer_run_id = 2;
+
+  SweepRunState state = 3;
+
+  // The run's hyperparameters as flat {param: value} JSON. The server
+  // owns wrapping and unwrapping the backend's {param: {"value": v}}
+  // wire form.
+  string config_json = 4;
+
+  // The run's summary metrics as a JSON object.
+  string summary_json = 5;
+
+  // Sampled history rows as a JSON array of objects.
+  string history_json = 6;
+}
+
+// Tells the client the scheduler stopped and the task exchange should exit.
+message SweepSchedulerServerDoneTask {
+  enum Reason {
+    REASON_UNSPECIFIED = 0;
+
+    // The optimizer reported an exhausted search space.
+    REASON_EXHAUSTED = 1;
+
+    // The optimizer asked to terminate the sweep.
+    REASON_TERMINATED = 2;
+
+    // The sweep finished or was canceled outside the scheduler.
+    REASON_SWEEP_FINISHED = 3;
+
+    // The sweep was deleted.
+    REASON_SWEEP_NOT_FOUND = 4;
+
+    // A fatal backend error, too many consecutive errors, or a result
+    // that did not answer the task the scheduler issued last.
+    REASON_FATAL_ERROR = 5;
+
+    // The client reported a task error.
+    REASON_OPTIMIZER_ERROR = 6;
+
+    // wandb-core is shutting down or a stop was requested.
+    REASON_SHUTDOWN = 7;
+  }
+
+  Reason reason = 1;
+
+  // Details for the terminal message shown to the user.
+  string message = 2;
+
+  // Suggestions discarded at termination; see
+  // SweepSchedulerServerGenerationTask.discarded_optimizer_run_ids.
+  repeated string discarded_optimizer_run_ids = 3;
+}
+
+// The optimizer's output for one task.
+message SweepSchedulerClientTaskResult {
+  // The task this result answers, echoed from
+  // SweepSchedulerServerNextTaskResponse.task_seq.
+  uint64 task_seq = 1;
+
+  oneof result {
+    SweepSchedulerClientWarmStartResult warm_start = 2;
+    SweepSchedulerClientGenerationResult generation = 3;
+    SweepSchedulerClientTaskError error = 4;
+  }
+}
+
+// The optimizer's reaction to one warm-start page.
+message SweepSchedulerClientWarmStartResult {
+  // In-flight runs the optimizer adopted, as wandb_run_id to
+  // optimizer_run_id. Later generations report their updates.
+  map<string, string> adoptions = 1;
+
+  // Runs whose warm-start tell raised; the scheduler excludes them
+  // from tracking instead of failing the sweep.
+  repeated SweepSchedulerClientSkippedRun skipped = 2;
+}
+
+// A warm-start run the optimizer could not ingest.
+message SweepSchedulerClientSkippedRun {
+  string wandb_run_id = 1;
+
+  // The exception message.
+  string error = 2;
+}
+
+// The optimizer's output for one generation task.
+message SweepSchedulerClientGenerationResult {
+  enum AskOutcome {
+    // The task's ask_up_to was zero, so the optimizer was not asked.
+    ASK_OUTCOME_UNSPECIFIED = 0;
+
+    // suggestions holds up to ask_up_to new runs.
+    ASK_OUTCOME_SUGGESTED = 1;
+
+    // The optimizer declined to propose for now; ask again later.
+    ASK_OUTCOME_DECLINED = 2;
+
+    // The search space is exhausted; the scheduler finishes the sweep.
+    ASK_OUTCOME_EXHAUSTED = 3;
+  }
+
+  AskOutcome ask_outcome = 1;
+
+  repeated SweepSchedulerClientRunSuggestion suggestions = 2;
+
+  // Optimizer run ids whose runs should be stopped early.
+  repeated string prune = 3;
+
+  // Whether the sweep should be terminated; the scheduler finishes it.
+  bool terminate = 4;
+
+  // Runs whose tell raised; the scheduler stops tracking them and
+  // continues instead of failing the sweep.
+  repeated SweepSchedulerClientTellError tell_errors = 5;
+}
+
+// A new run the optimizer proposes.
+message SweepSchedulerClientRunSuggestion {
+  // The id the optimizer will track the run by. Ids must be unique for
+  // the scheduler's lifetime, across suggestions and adoptions.
+  string optimizer_run_id = 1;
+
+  // The run's hyperparameters as flat {param: value} JSON.
+  string config_json = 2;
+}
+
+// A run update the optimizer failed to ingest.
+message SweepSchedulerClientTellError {
+  string optimizer_run_id = 1;
+
+  // The exception message.
+  string message = 2;
+}
+
+// Reports that the optimizer raised outside a per-run tell.
+//
+// The scheduler stops without finishing the sweep, so a fixed client
+// can resume it later.
+message SweepSchedulerClientTaskError {
+  // The exception message.
+  string message = 1;
+
+  // The formatted traceback, for the scheduler's logs.
+  string traceback = 2;
+}

@@ -4,8 +4,8 @@ from unittest.mock import MagicMock
 import pytest
 import wandb
 from wandb.errors import CommError
-from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch._launch import _launch
+from wandb.sdk.launch.api import LaunchApi
 from wandb.sdk.launch.errors import LaunchError
 
 
@@ -25,7 +25,7 @@ async def test_launch_incorrect_backend(runner, user, monkeypatch):
     proj = "test1"
     entry_point = ["python", "/examples/examples/launch/launch-quickstart/train.py"]
     settings = wandb.Settings(project=proj)
-    api = InternalApi()
+    api = LaunchApi()
 
     monkeypatch.setattr(
         wandb.sdk.launch.builder.build,
@@ -90,7 +90,7 @@ def test_launch_multi_run(runner, user):
 
 def test_launch_get_project_queue_error(user):
     proj = "projectq32e"
-    api = InternalApi()
+    api = LaunchApi()
     with pytest.raises(
         CommError,
         match=f"Error fetching run queues for {user}/{proj} check that you have access to this entity and project",

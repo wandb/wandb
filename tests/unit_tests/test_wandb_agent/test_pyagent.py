@@ -8,8 +8,8 @@ import threading
 
 import pytest
 import wandb
-from wandb.sdk.launch.sweeps import SweepNotFoundError
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
+from wandb.sdk.sweeps import SweepNotFoundError
 
 from .conftest import (
     DEFAULT_ENTITY,

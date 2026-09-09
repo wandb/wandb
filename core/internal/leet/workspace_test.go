@@ -57,6 +57,31 @@ func TestModel_WorkspaceFilterDoesNotLeakIntoRunView(t *testing.T) {
 	require.NotContains(t, view, `"trainx"`)
 }
 
+func TestModel_FiltersPersistPerWandbDir(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	wandbDir := t.TempDir()
+	open := func() tea.Model {
+		cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+		var model tea.Model = leet.NewModel(leet.ModelParams{
+			WandbDir: wandbDir,
+			Config:   cfg,
+			Logger:   logger,
+		})
+		model, _ = model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+		return model
+	}
+
+	model := open()
+	model, _ = model.Update(keyPressMsg('/'))
+	for _, r := range "train" {
+		model, _ = model.Update(keyPressMsg(r))
+	}
+	model.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	reopened := open()
+	require.Contains(t, stripANSI(reopened.View().Content), `"train"`)
+}
+
 func TestModel_CtrlLInRunViewDoesNotClearWorkspaceFilter(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
@@ -175,6 +200,20 @@ func TestWorkspace_View_ConsoleLogsPaneShowsNoDataWithoutLogs(t *testing.T) {
 	view := stripANSI(w.View().Content)
 	require.Contains(t, view, "No data.",
 		"bottom bar should show 'No data.' when no console logs exist")
+}
+
+func TestWorkspace_NarrowTerminalKeepsMainColumnUsable(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	_ = cfg.SetWorkspaceOverviewVisible(true)
+	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+
+	w.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
+
+	left, right := w.TestLayoutWidths()
+	require.GreaterOrEqual(t, 80-left-right, 24,
+		"the sidebars must leave room for the main content column")
+	require.Positive(t, left, "the runs list stays when only one sidebar fits")
 }
 
 func TestWorkspace_View_HiddenPanesNotRendered(t *testing.T) {

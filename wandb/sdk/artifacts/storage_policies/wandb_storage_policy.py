@@ -22,7 +22,6 @@ from wandb.sdk.artifacts.storage_layout import StorageLayout
 from wandb.sdk.artifacts.storage_policies._multipart import KiB, multipart_download
 from wandb.sdk.artifacts.storage_policies.register import WANDB_STORAGE_POLICY
 from wandb.sdk.artifacts.storage_policy import StoragePolicy
-from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.lib.hashutil import b64_to_hex_id
 from wandb.sdk.lib.paths import FilePathStr, URIStr
 
@@ -48,7 +47,6 @@ class WandbStoragePolicy(StoragePolicy):
         self,
         config: StoragePolicyConfig | None = None,
         cache: ArtifactFileCache | None = None,
-        api: InternalApi | None = None,
     ) -> None:
         self._config = StoragePolicyConfig.model_validate(config or {})
 
@@ -56,7 +54,6 @@ class WandbStoragePolicy(StoragePolicy):
         # first time they're needed. Otherwise, at the time of writing, this
         # significantly slows down `Artifact.__init__()`.
         self._maybe_cache = cache
-        self._maybe_api = api
         self._maybe_session: requests.Session | None = None
         self._maybe_handler: MultiHandler | None = None
 
@@ -65,16 +62,6 @@ class WandbStoragePolicy(StoragePolicy):
         if self._maybe_cache is None:
             self._maybe_cache = get_artifact_file_cache()
         return self._maybe_cache
-
-    @property
-    def _api(self) -> InternalApi:
-        if self._maybe_api is None:
-            self._maybe_api = InternalApi()
-        return self._maybe_api
-
-    @_api.setter
-    def _api(self, api: InternalApi) -> None:
-        self._maybe_api = api
 
     @property
     def _session(self) -> requests.Session:
@@ -162,12 +149,13 @@ class WandbStoragePolicy(StoragePolicy):
         if manifest_entry._download_url is None:
             auth = None
             headers: dict[str, str] = {}
+            service_api = artifact._get_service_api()
 
             # For auth, prefer using (in order): auth header, cookies, HTTP Basic Auth
-            if token := self._api._service_api.access_token():
+            if token := service_api.access_token():
                 headers = {"Authorization": f"Bearer {token}"}
             else:
-                auth = ("api", self._api.api_key or "")
+                auth = ("api", service_api.api_key or "")
 
             file_url = self._file_url(artifact, manifest_entry)
             response = self._session.get(
@@ -207,8 +195,8 @@ class WandbStoragePolicy(StoragePolicy):
         return self._handler.load_path(manifest_entry, local)
 
     def _file_url(self, artifact: Artifact, entry: ArtifactManifestEntry) -> str:
-        api = self._api
-        base_url: str = api.settings("base_url")
+        service_api = artifact._get_service_api()
+        base_url = service_api.base_url
 
         layout = self._config.storage_layout or StorageLayout.V1
         region = self._config.storage_region or "default"
@@ -224,7 +212,7 @@ class WandbStoragePolicy(StoragePolicy):
 
         if layout is StorageLayout.V2:
             birth_artifact_id = entry.birth_artifact_id or ""
-            if api._server_supports(
+            if service_api.feature_enabled(
                 pb.ARTIFACT_V2_DOWNLOAD_HANDLER_SUPPORTS_ARTIFACT_ID
             ):
                 artifact_id = artifact.id or ""

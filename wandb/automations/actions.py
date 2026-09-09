@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal, get_args
 
-from pydantic import BeforeValidator, Field
+from pydantic import AfterValidator, BeforeValidator, Field
 from typing_extensions import Self, TypeVar
 
 from wandb._pydantic import GQLBase, GQLId, default_if_none
@@ -12,6 +12,8 @@ from wandb._strutils import nameof
 
 from ._generated import (
     AlertSeverity,
+    AriaActionFields,
+    ARIAActionInput,
     GenericWebhookActionFields,
     GenericWebhookActionInput,
     NoOpActionFields,
@@ -40,6 +42,7 @@ class ActionType(LenientStrEnum):
     QUEUE_JOB = "QUEUE_JOB"  # NOTE: Deprecated for creation
     GENERIC_WEBHOOK = "GENERIC_WEBHOOK"
     NOTIFICATION = "NOTIFICATION"
+    ARIA = "ARIA"
     PUSH_NOTIFICATION = "PUSH_NOTIFICATION"
 
 
@@ -117,12 +120,20 @@ class SavedNoOpAction(NoOpActionFields, frozen=False):
     """
 
 
+class SavedAriaAction(AriaActionFields, frozen=False):
+    action_type: Literal[ActionType.ARIA] = ActionType.ARIA
+
+    prompt: str
+    """The prompt ARIA receives when this automation is triggered."""
+
+
 # for type annotations
 SavedAction = Annotated[
     SavedLaunchJobAction
     | SavedNotificationAction
     | SavedWebhookAction
-    | SavedNoOpAction,
+    | SavedNoOpAction
+    | SavedAriaAction,
     BeforeValidator(parse_saved_action),
     Field(discriminator="typename__"),
 ]
@@ -216,9 +227,31 @@ class DoNothing(_BaseActionInput, NoOpTriggeredActionInput, frozen=True):
     """
 
 
+_MAX_ARIA_PROMPT_BYTES = 4000
+
+
+def _validate_aria_prompt(value: str) -> str:
+    """Normalize and validate an ARIA prompt as the server does."""
+    prompt = value.strip()
+    if not prompt:
+        raise ValueError("ARIA prompt cannot be empty")
+    if len(prompt.encode("utf-8")) > _MAX_ARIA_PROMPT_BYTES:
+        raise ValueError(f"ARIA prompt exceeds {_MAX_ARIA_PROMPT_BYTES} bytes")
+    return prompt
+
+
+class SendPromptToAria(_BaseActionInput, ARIAActionInput):
+    """Defines an automation action that sends a prompt to ARIA."""
+
+    action_type: Literal[ActionType.ARIA] = ActionType.ARIA
+
+    prompt: Annotated[str, AfterValidator(_validate_aria_prompt)]
+    """The prompt ARIA receives when this automation is triggered."""
+
+
 # for type annotations
 InputAction = Annotated[
-    SendNotification | SendWebhook | DoNothing,
+    SendNotification | SendWebhook | DoNothing | SendPromptToAria,
     BeforeValidator(parse_input_action),
     Field(discriminator="action_type"),
 ]

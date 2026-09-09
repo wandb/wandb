@@ -1845,6 +1845,7 @@ type Deprecated struct {
 	Artifact_UseAs       bool `protobuf:"varint,26,opt,name=artifact__use_as,json=artifactUseAs,proto3" json:"artifact__use_as,omitempty"`                       // wandb.sdk.artifacts.artifact.Artifact.use_as() called
 	Artifact_InitUseAs   bool `protobuf:"varint,27,opt,name=artifact__init_use_as,json=artifactInitUseAs,proto3" json:"artifact__init_use_as,omitempty"`         // wandb.sdk.artifacts.artifact.Artifact(use_as=...) called
 	KfpV1WandbLog        bool `protobuf:"varint,31,opt,name=kfp_v1_wandb_log,json=kfpV1WandbLog,proto3" json:"kfp_v1_wandb_log,omitempty"`                       // wandb.integration.kfp.wandb_log used with kfp<2.0.0
+	WandbApi             bool `protobuf:"varint,32,opt,name=wandb_api,json=wandbApi,proto3" json:"wandb_api,omitempty"`                                          // wandb.api or wandb.ensure_configured() used
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -1973,6 +1974,13 @@ func (x *Deprecated) GetArtifact_InitUseAs() bool {
 func (x *Deprecated) GetKfpV1WandbLog() bool {
 	if x != nil {
 		return x.KfpV1WandbLog
+	}
+	return false
+}
+
+func (x *Deprecated) GetWandbApi() bool {
+	if x != nil {
+		return x.WandbApi
 	}
 	return false
 }
@@ -2217,7 +2225,7 @@ const file_wandb_proto_wandb_telemetry_proto_rawDesc = "" +
 	"codeString\x12\x1f\n" +
 	"\vrepo_string\x18\x02 \x01(\tR\n" +
 	"repoString\x12!\n" +
-	"\fcode_version\x18\x03 \x01(\tR\vcodeVersion\"\xa3\x06\n" +
+	"\fcode_version\x18\x03 \x01(\tR\vcodeVersion\"\xc0\x06\n" +
 	"\n" +
 	"Deprecated\x12\x14\n" +
 	"\x05plots\x18\x05 \x01(\bR\x05plots\x128\n" +
@@ -2233,7 +2241,8 @@ const file_wandb_proto_wandb_telemetry_proto_rawDesc = "" +
 	"\x18run__use_artifact_use_as\x18\x19 \x01(\bR\x13runUseArtifactUseAs\x12'\n" +
 	"\x10artifact__use_as\x18\x1a \x01(\bR\rartifactUseAs\x120\n" +
 	"\x15artifact__init_use_as\x18\x1b \x01(\bR\x11artifactInitUseAs\x12'\n" +
-	"\x10kfp_v1_wandb_log\x18\x1f \x01(\bR\rkfpV1WandbLogJ\x04\b\x01\x10\x02J\x04\b\x02\x10\x03J\x04\b\x03\x10\x04J\x04\b\x04\x10\x05J\x04\b\x06\x10\aJ\x04\b\t\x10\n" +
+	"\x10kfp_v1_wandb_log\x18\x1f \x01(\bR\rkfpV1WandbLog\x12\x1b\n" +
+	"\twandb_api\x18  \x01(\bR\bwandbApiJ\x04\b\x01\x10\x02J\x04\b\x02\x10\x03J\x04\b\x03\x10\x04J\x04\b\x04\x10\x05J\x04\b\x06\x10\aJ\x04\b\t\x10\n" +
 	"J\x04\b\n" +
 	"\x10\vJ\x04\b\x11\x10\x12J\x04\b\x12\x10\x13J\x04\b\x13\x10\x14J\x04\b\x15\x10\x16J\x04\b\x16\x10\x17J\x04\b\x17\x10\x18J\x04\b\x18\x10\x19J\x04\b\x1c\x10\x1dJ\x04\b\x1d\x10\x1eJ\x04\b\x1e\x10\x1fB\x1bZ\x19core/pkg/service_go_protob\x06proto3"
 
