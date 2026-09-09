@@ -3,6 +3,7 @@ package stream
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/google/wire"
 
@@ -26,6 +27,9 @@ type WriterFactory struct {
 //
 // The transaction log is primarily used for offline runs. During online runs,
 // it is used for data recovery in case there is an issue uploading data.
+//
+// Buffered records are flushed to the file periodically so that readers of
+// the file, such as `wandb leet`, see a running run's progress.
 type Writer struct {
 	logger   *observability.CoreLogger // logger for debugging
 	settings *settings.Settings        // the run's settings
@@ -68,39 +72,70 @@ func (w *Writer) Do(allWork <-chan runwork.Work) {
 	defer close(w.out)
 	w.logger.Info("writer: started", "stream_id", w.settings.GetRunID())
 
-	for work := range allWork {
-		w.logger.Debug(
-			"writer: got work",
-			"work", work,
-			"stream_id", w.settings.GetRunID(),
-		)
-
-		savedWork := runwork.MaybeSavedWork{Work: work}
-
-		record := work.ToRecord()
-		if !w.isLocal(record) {
-			recordNum := w.setNumber(record)
-			offset, err := w.write(record)
-
-			if err != nil {
-				w.logger.CaptureError(
-					"stream",
-					fmt.Errorf("writer: failed to save record: %v", err),
-				)
-			} else {
-				savedWork.IsSaved = true
-				savedWork.SavedOffset = offset
-				savedWork.RecordNumber = recordNum
-			}
-		}
-
-		if w.settings.IsOffline() && !work.BypassOfflineMode() {
-			continue
-		}
-
-		w.out <- savedWork
+	// A nil channel never fires, which disables the periodic flush.
+	var tick <-chan time.Time
+	if interval := w.settings.GetTransactionLogFlushInterval(); interval > 0 {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		tick = ticker.C
 	}
 
+	for {
+		select {
+		case work, ok := <-allWork:
+			if !ok {
+				w.finish()
+				return
+			}
+			w.process(work)
+
+		case <-tick:
+			if err := w.Flush(); err != nil {
+				w.logger.CaptureError(
+					"stream",
+					fmt.Errorf("writer: failed to flush: %v", err),
+				)
+			}
+		}
+	}
+}
+
+// process saves one Work and pushes it to the output channel.
+func (w *Writer) process(work runwork.Work) {
+	w.logger.Debug(
+		"writer: got work",
+		"work", work,
+		"stream_id", w.settings.GetRunID(),
+	)
+
+	savedWork := runwork.MaybeSavedWork{Work: work}
+
+	record := work.ToRecord()
+	if !w.isLocal(record) {
+		recordNum := w.setNumber(record)
+		offset, err := w.write(record)
+
+		if err != nil {
+			w.logger.CaptureError(
+				"stream",
+				fmt.Errorf("writer: failed to save record: %v", err),
+			)
+		} else {
+			savedWork.IsSaved = true
+			savedWork.SavedOffset = offset
+			savedWork.RecordNumber = recordNum
+		}
+	}
+
+	if w.settings.IsOffline() && !work.BypassOfflineMode() {
+		return
+	}
+
+	w.out <- savedWork
+}
+
+// finish closes the transaction log writer.
+func (w *Writer) finish() {
 	w.writerMu.Lock()
 	defer w.writerMu.Unlock()
 	w.finished = true
