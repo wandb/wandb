@@ -99,6 +99,7 @@ func pollUntilDropped(
 	deadline := time.Now().Add(schedulertest.ReceiveTimeout)
 	for time.Now().Before(deadline) {
 		response := broker.NextTask(
+			context.Background(),
 			&spb.SweepSchedulerClientNextTaskRequest{
 				SessionId: sessionID,
 				Result:    result,
@@ -189,6 +190,7 @@ func TestRerunAllowedAfterSchedulerFinishes(t *testing.T) {
 	// Drive the first session to its terminal task.
 	broker.Stop(&spb.SweepSchedulerClientStopRequest{SessionId: first.SessionId})
 	response := broker.NextTask(
+		context.Background(),
 		&spb.SweepSchedulerClientNextTaskRequest{SessionId: first.SessionId})
 	require.NotNil(t, response.GetDone())
 
@@ -210,8 +212,10 @@ func TestFinishedSessionIsRetired(t *testing.T) {
 		Return(shutdownTask())
 
 	first := broker.NextTask(
+		context.Background(),
 		&spb.SweepSchedulerClientNextTaskRequest{SessionId: initResponse.SessionId})
 	second := broker.NextTask(
+		context.Background(),
 		&spb.SweepSchedulerClientNextTaskRequest{SessionId: initResponse.SessionId})
 
 	require.NotNil(t, first.GetDone())
@@ -246,6 +250,7 @@ func TestSessionEndsWhenClientDiesMidPoll(t *testing.T) {
 	polled := make(chan *spb.SweepSchedulerServerNextTaskResponse, 1)
 	go func() {
 		polled <- broker.NextTask(
+			context.Background(),
 			&spb.SweepSchedulerClientNextTaskRequest{
 				SessionId: initResponse.SessionId,
 			})
@@ -258,9 +263,43 @@ func TestSessionEndsWhenClientDiesMidPoll(t *testing.T) {
 	// The session is retired, not left in the broker awaiting a client
 	// that is gone.
 	response := broker.NextTask(
+		context.Background(),
 		&spb.SweepSchedulerClientNextTaskRequest{SessionId: initResponse.SessionId})
 	require.NotNil(t, response.GetDone())
 	assert.Contains(t, response.GetDone().Message, "unknown scheduler id")
+}
+
+func TestCancelledPollLeavesSessionRunning(t *testing.T) {
+	factory := newTestFactory(t)
+	broker := newTestBroker(t, factory)
+	ctx := context.Background()
+	initResponse, err := broker.InitScheduler(ctx, ctx, initRequest("sweep-a"))
+	require.NoError(t, err)
+	// The lone expectation also asserts that the abandoned poll never
+	// reaches the resolver.
+	factory.resolvers[0].EXPECT().
+		Step(gomock.Any(), gomock.Nil()).
+		Return(generationTask())
+	cancelled, cancelPoll := context.WithCancel(context.Background())
+	cancelPoll()
+
+	abandoned := broker.NextTask(
+		cancelled,
+		&spb.SweepSchedulerClientNextTaskRequest{
+			SessionId: initResponse.SessionId,
+		})
+
+	// Nothing to answer, and the sweep keeps its scheduler: one poll
+	// giving up is not the client giving up.
+	assert.Nil(t, abandoned)
+	assert.NoError(t, factory.schedCtxs[0].Err())
+	resumed := broker.NextTask(
+		context.Background(),
+		&spb.SweepSchedulerClientNextTaskRequest{
+			SessionId: initResponse.SessionId,
+		})
+	require.NotNil(t, resumed)
+	assert.Nil(t, resumed.GetDone())
 }
 
 func TestSessionDroppedWhenClientDiesBetweenPolls(t *testing.T) {
@@ -306,6 +345,7 @@ func TestNextTaskUnknownIDReturnsFatalDone(t *testing.T) {
 	broker := newTestBroker(t, newTestFactory(t))
 
 	response := broker.NextTask(
+		context.Background(),
 		&spb.SweepSchedulerClientNextTaskRequest{SessionId: "scheduler-99"})
 
 	done := response.GetDone()

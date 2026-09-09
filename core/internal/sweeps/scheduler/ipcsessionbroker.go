@@ -50,9 +50,8 @@ type session struct {
 	ctx    context.Context
 	cancel context.CancelCauseFunc
 
-	// stopWatch unregisters the session's context watcher. It reports
-	// whether it got there first, and is safe to call more than once.
-	stopWatch func() bool
+	// stopCleanup unregisters the cleanup function on the session's context
+	stopCleanup func() bool
 }
 
 // NewIPCSessionBroker creates a new IPCSessionBroker.
@@ -127,7 +126,7 @@ func (b *IPCSessionBroker) InitScheduler(
 	// A client killed between polls leaves no poll to notice, so the
 	// session's own context is what drops it in that case. Retiring a
 	// session unregisters this again, so no goroutine is left to run.
-	s.stopWatch = context.AfterFunc(schedCtx, func() { b.dropOnClose(s) })
+	s.stopCleanup = context.AfterFunc(schedCtx, func() { b.dropOnClose(s) })
 
 	b.logger.Info(
 		"scheduler: session started",
@@ -175,7 +174,13 @@ func (b *IPCSessionBroker) liveSessionLocked(sweepKey string) *session {
 
 // NextTask reports the previous task's result and blocks for the next
 // task, up to about one poll interval.
+//
+// ctx is the poll's own lifetime. Returns nil if it ended before the
+// poll cost anything, meaning the client is no longer waiting for an
+// answer; the session lives on, since one abandoned poll is not the
+// client giving up on its sweep.
 func (b *IPCSessionBroker) NextTask(
+	ctx context.Context,
 	req *spb.SweepSchedulerClientNextTaskRequest,
 ) *spb.SweepSchedulerServerNextTaskResponse {
 	s := b.lookup(req.SessionId)
@@ -195,7 +200,11 @@ func (b *IPCSessionBroker) NextTask(
 		}
 	}
 
-	response := s.machine.NextTask(req.Result)
+	response := s.machine.NextTask(ctx, req.Result)
+	if response == nil {
+		return nil
+	}
+
 	if done := response.GetDone(); done != nil {
 		b.release(s, done)
 	}
@@ -259,7 +268,7 @@ func (b *IPCSessionBroker) dropLocked(s *session) bool {
 	}
 
 	// Nothing is left for the watcher to drop.
-	s.stopWatch()
+	s.stopCleanup()
 	return true
 }
 

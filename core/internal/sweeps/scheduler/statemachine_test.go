@@ -60,7 +60,7 @@ func TestFirstPollStepsWithNilResult(t *testing.T) {
 		Return(generationTask())
 	machine := newTestStateMachine(t, resolver)
 
-	task := machine.NextTask(nil)
+	task := machine.NextTask(context.Background(), nil)
 
 	assert.EqualValues(t, 1, task.TaskSeq)
 }
@@ -76,9 +76,9 @@ func TestMatchingResultAdvances(t *testing.T) {
 			Return(generationTask()),
 	)
 	machine := newTestStateMachine(t, resolver)
-	first := machine.NextTask(nil)
+	first := machine.NextTask(context.Background(), nil)
 
-	second := machine.NextTask(resultForSeq(first.TaskSeq))
+	second := machine.NextTask(context.Background(), resultForSeq(first.TaskSeq))
 
 	assert.EqualValues(t, 2, second.TaskSeq)
 }
@@ -91,10 +91,10 @@ func TestMissingResultEndsSessionWithFatalDone(t *testing.T) {
 		Step(gomock.Any(), gomock.Nil()).
 		Return(generationTask())
 	machine := newTestStateMachine(t, resolver)
-	machine.NextTask(nil)
+	machine.NextTask(context.Background(), nil)
 
 	// The client polled again without answering the task it was given.
-	response := machine.NextTask(nil)
+	response := machine.NextTask(context.Background(), nil)
 
 	done := response.GetDone()
 	require.NotNil(t, done)
@@ -109,9 +109,9 @@ func TestStaleResultEndsSessionWithFatalDone(t *testing.T) {
 		Step(gomock.Any(), gomock.Nil()).
 		Return(generationTask())
 	machine := newTestStateMachine(t, resolver)
-	first := machine.NextTask(nil)
+	first := machine.NextTask(context.Background(), nil)
 
-	response := machine.NextTask(resultForSeq(first.TaskSeq + 7))
+	response := machine.NextTask(context.Background(), resultForSeq(first.TaskSeq+7))
 
 	done := response.GetDone()
 	require.NotNil(t, done)
@@ -125,7 +125,7 @@ func TestResultOnFirstPollEndsSessionWithFatalDone(t *testing.T) {
 	machine := newTestStateMachine(t, resolver)
 
 	// No task has been issued, so there is nothing this result can answer.
-	response := machine.NextTask(resultForSeq(1))
+	response := machine.NextTask(context.Background(), resultForSeq(1))
 
 	done := response.GetDone()
 	require.NotNil(t, done)
@@ -144,11 +144,11 @@ func TestRepeatedResultEndsSessionWithFatalDone(t *testing.T) {
 			Return(generationTask()),
 	)
 	machine := newTestStateMachine(t, resolver)
-	first := machine.NextTask(nil)
-	machine.NextTask(resultForSeq(first.TaskSeq))
+	first := machine.NextTask(context.Background(), nil)
+	machine.NextTask(context.Background(), resultForSeq(first.TaskSeq))
 
 	// Reporting the same result twice would double-apply it.
-	response := machine.NextTask(resultForSeq(first.TaskSeq))
+	response := machine.NextTask(context.Background(), resultForSeq(first.TaskSeq))
 
 	done := response.GetDone()
 	require.NotNil(t, done)
@@ -162,12 +162,12 @@ func TestFatalDoneIsCachedForLaterPolls(t *testing.T) {
 		Step(gomock.Any(), gomock.Nil()).
 		Return(generationTask())
 	machine := newTestStateMachine(t, resolver)
-	machine.NextTask(nil)
-	fatal := machine.NextTask(nil)
+	machine.NextTask(context.Background(), nil)
+	fatal := machine.NextTask(context.Background(), nil)
 
 	// Once the session has failed, every later poll gets the same answer.
-	assert.Same(t, fatal, machine.NextTask(nil))
-	assert.Same(t, fatal, machine.NextTask(resultForSeq(fatal.TaskSeq)))
+	assert.Same(t, fatal, machine.NextTask(context.Background(), nil))
+	assert.Same(t, fatal, machine.NextTask(context.Background(), resultForSeq(fatal.TaskSeq)))
 }
 
 func TestDoneTaskIsTerminalAndCached(t *testing.T) {
@@ -177,9 +177,9 @@ func TestDoneTaskIsTerminalAndCached(t *testing.T) {
 		Return(doneTask())
 	machine := newTestStateMachine(t, resolver)
 
-	done := machine.NextTask(nil)
-	late := machine.NextTask(resultForSeq(done.TaskSeq))
-	nilPoll := machine.NextTask(nil)
+	done := machine.NextTask(context.Background(), nil)
+	late := machine.NextTask(context.Background(), resultForSeq(done.TaskSeq))
+	nilPoll := machine.NextTask(context.Background(), nil)
 
 	require.NotNil(t, done.GetDone())
 	assert.Same(t, done, late)
@@ -191,12 +191,42 @@ func TestNilTaskResolverTaskBecomesShutdownDone(t *testing.T) {
 	resolver.EXPECT().Step(gomock.Any(), gomock.Nil()).Return(nil)
 	machine := newTestStateMachine(t, resolver)
 
-	task := machine.NextTask(nil)
+	task := machine.NextTask(context.Background(), nil)
 
 	require.NotNil(t, task.GetDone())
 	assert.Equal(t,
 		spb.SweepSchedulerServerDoneTask_REASON_SHUTDOWN,
 		task.GetDone().Reason)
+}
+
+func TestCancelledPollIsAbandonedWithoutStepping(t *testing.T) {
+	// No expectations: a poll nobody is waiting for must not reach the
+	// resolver, whose step would apply the result and take a poll
+	// interval to answer.
+	resolver := newTestResolver(t)
+	machine := newTestStateMachine(t, resolver)
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	assert.Nil(t, machine.NextTask(cancelled, nil))
+}
+
+func TestSessionSurvivesACancelledPoll(t *testing.T) {
+	resolver := newTestResolver(t)
+	resolver.EXPECT().
+		Step(gomock.Any(), gomock.Nil()).
+		Return(generationTask())
+	machine := newTestStateMachine(t, resolver)
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	machine.NextTask(cancelled, nil)
+	task := machine.NextTask(context.Background(), nil)
+
+	// The abandoned poll issued no task, so the next one is still the
+	// session's first.
+	assert.EqualValues(t, 1, task.TaskSeq)
+	assert.Nil(t, task.GetDone())
 }
 
 func TestConcurrentPollsSerialize(t *testing.T) {
@@ -217,7 +247,7 @@ func TestConcurrentPollsSerialize(t *testing.T) {
 
 	responses := make(chan *spb.SweepSchedulerServerNextTaskResponse, 2)
 	for range 2 {
-		go func() { responses <- machine.NextTask(nil) }()
+		go func() { responses <- machine.NextTask(context.Background(), nil) }()
 	}
 	// Hold the only Step open until it is under way, so the poll that
 	// lost the race meets a Step that is genuinely in flight.
@@ -261,7 +291,7 @@ func TestStopForwardsWhileStepBlocked(t *testing.T) {
 	machine := newTestStateMachine(t, resolver)
 
 	polled := make(chan *spb.SweepSchedulerServerNextTaskResponse, 1)
-	go func() { polled <- machine.NextTask(nil) }()
+	go func() { polled <- machine.NextTask(context.Background(), nil) }()
 	schedulertest.Receive(t, stepping)
 
 	// Stop must not block on the machine's mutex while a Step holds it.

@@ -29,7 +29,7 @@ type TaskResolver interface {
 type schedulerStateMachine struct {
 	mu sync.Mutex
 
-	// sessionCtx allows the scheduler to detect client disconnect
+	// sessionCtx is the session's lifetime, which bounds every step.
 	sessionCtx context.Context
 
 	resolver TaskResolver
@@ -55,10 +55,18 @@ func newSchedulerStateMachine(
 	}
 }
 
-// NextTask reports the previous task's result and returns the next task.
+// NextTask reports the previous task's result and returns the next task,
+// or nil if pollCtx ended before the step began and no answer is needed.
+//
+// pollCtx is the poll's own lifetime. It gates the step rather than
+// bounding it: a step applies the client's result and issues the next
+// task, so abandoning one midway would either lose an issued task or
+// re-apply a result the resolver already consumed. The session's own
+// context is what ends a step in flight.
 //
 // Safe to call concurrently; calls are serialized under mu.
 func (m *schedulerStateMachine) NextTask(
+	pollCtx context.Context,
 	result *spb.SweepSchedulerClientTaskResult,
 ) *spb.SweepSchedulerServerNextTaskResponse {
 	m.mu.Lock()
@@ -69,6 +77,17 @@ func (m *schedulerStateMachine) NextTask(
 			"scheduler: redelivering terminal task",
 			"seq", m.terminal.TaskSeq)
 		return m.terminal
+	}
+
+	if pollCtx.Err() != nil {
+		// The client stopped waiting before this poll cost anything, so
+		// the session is still answering the task it last issued. It
+		// keeps running: the client may poll again, and a client that
+		// is gone for good takes its session down with its connection.
+		m.logger.Debug(
+			"scheduler: poll abandoned before its step",
+			"cause", context.Cause(pollCtx))
+		return nil
 	}
 
 	if err := m.checkAnswersLastTask(result); err != nil {
