@@ -19,23 +19,24 @@ func (s *Scheduler) warmStartStep(
 ) *spb.SweepSchedulerServerNextTaskResponse {
 	page, err := s.api.PollPage(ctx, warmStartPageSize, s.warmCursor, s.metricKey)
 	if err != nil {
-		if done := s.doneFromError(ctx, err); done != nil {
-			return done
+		if !retryable(ctx, err) {
+			return s.doneFromError(ctx, phaseWarmStart, err)
 		}
+
 		// Keep the cursor and retry this page rather than skipping the
-		// rest of the warm start
+		// rest of the warm start.
+		s.recordStepAbandoned(phaseWarmStart, err)
 		s.logger.Warn(
-			"scheduler: warm-start page failed; retrying it", "error", err)
+			"scheduler: warm-start page rate limited; retrying it",
+			"error", err)
 		if done := s.sleep(ctx); done != nil {
 			return done
 		}
 		return emptyWarmStartTask()
 	}
 
-	if !sweepIsActive(page.SweepState) {
-		return s.doneTask(
-			spb.SweepSchedulerServerDoneTask_REASON_SWEEP_FINISHED,
-			"the sweep is "+page.SweepState)
+	if sweepIsDone(page.SweepState) {
+		return s.doneForSweepState(page.SweepState)
 	}
 
 	task := &spb.SweepSchedulerServerWarmStartTask{
@@ -57,6 +58,7 @@ func (s *Scheduler) warmStartStep(
 			// is a failure, not a sample.
 			state = spb.SweepRunState_SWEEP_RUN_STATE_FAILED
 		}
+		s.noteFinished(s.runsByName[row.Name], state)
 
 		data := &spb.SweepSchedulerServerRunData{
 			WandbRunId: row.Name,
@@ -108,9 +110,10 @@ type endReason struct {
 // returns nil if the loop should keep going.
 func (s *Scheduler) doneFromError(
 	ctx context.Context,
+	phase loopPhase,
 	err error,
 ) *spb.SweepSchedulerServerNextTaskResponse {
-	end := s.endFromError(ctx, err)
+	end := s.endFromError(ctx, phase, err)
 	if end == nil {
 		return nil
 	}
@@ -120,11 +123,14 @@ func (s *Scheduler) doneFromError(
 // endFromError maps a failed call onto the reason the loop should end
 // with, or nil if it should keep going. The API layer already recorded
 // the failure in the backoff.
-func (s *Scheduler) endFromError(ctx context.Context, err error) *endReason {
-	// Cancellation is shutdown, not a backend failure. Deadlines go
-	// through Classify, which treats them as transient.
-	if errors.Is(ctx.Err(), context.Canceled) ||
-		errors.Is(err, context.Canceled) {
+//
+// phase names the call for the fatal-error metric.
+func (s *Scheduler) endFromError(
+	ctx context.Context,
+	phase loopPhase,
+	err error,
+) *endReason {
+	if isShutdown(ctx, err) {
 		return &endReason{
 			reason: spb.SweepSchedulerServerDoneTask_REASON_SHUTDOWN,
 		}
@@ -136,21 +142,30 @@ func (s *Scheduler) endFromError(ctx context.Context, err error) *endReason {
 			reason:  spb.SweepSchedulerServerDoneTask_REASON_SWEEP_NOT_FOUND,
 			message: "the sweep was deleted",
 		}
-	case DispositionFatal:
+	case DispositionRateLimited:
+		// The backoff has already widened the next wait.
+		s.logger.Warn("scheduler: rate limited by the backend", "error", err)
+		return nil
+	default:
+		s.recordFatalError(phase, err.Error())
 		return &endReason{
 			reason:  spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR,
 			message: err.Error(),
 		}
-	default:
-		if s.api.Exhausted() {
-			return &endReason{
-				reason:  spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR,
-				message: "too many consecutive errors; last: " + err.Error(),
-			}
-		}
-		s.logger.Warn("scheduler: transient failure", "error", err)
-		return nil
 	}
+}
+
+// isShutdown reports whether a failed call is the scheduler shutting
+// down rather than the backend failing.
+func isShutdown(ctx context.Context, err error) bool {
+	return errors.Is(ctx.Err(), context.Canceled) ||
+		errors.Is(err, context.Canceled)
+}
+
+// retryable reports whether an error is retryable (not fatal).
+func retryable(ctx context.Context, err error) bool {
+	return !isShutdown(ctx, err) &&
+		Classify(err) == DispositionRateLimited
 }
 
 // finishExhausted ends the sweep because the search space ran out.
@@ -158,9 +173,37 @@ func (s *Scheduler) finishExhausted(
 	ctx context.Context,
 ) *spb.SweepSchedulerServerNextTaskResponse {
 	s.finishSweep(ctx)
-	// No message: the reason alone already says it.
 	return s.doneTask(
-		spb.SweepSchedulerServerDoneTask_REASON_EXHAUSTED, "")
+		spb.SweepSchedulerServerDoneTask_REASON_SWEEP_FINISHED,
+		"the search space is exhausted")
+}
+
+// finishRunCap ends the sweep because the run cap was hit
+func (s *Scheduler) finishRunCap(
+	ctx context.Context,
+) *spb.SweepSchedulerServerNextTaskResponse {
+	s.finishSweep(ctx)
+	return s.doneTask(
+		spb.SweepSchedulerServerDoneTask_REASON_SWEEP_FINISHED,
+		"the run cap was hit")
+}
+
+// doneForSweepState ends the scheduler for a state it cannot schedule
+// under, reporting whether the sweep completed, the user stopped it or
+// it failed.
+func (s *Scheduler) doneForSweepState(
+	state string,
+) *spb.SweepSchedulerServerNextTaskResponse {
+	var reason spb.SweepSchedulerServerDoneTask_Reason
+	switch state {
+	case sweepStateFinished:
+		reason = spb.SweepSchedulerServerDoneTask_REASON_SWEEP_FINISHED
+	case sweepStateError, sweepStateFlapping, sweepStateCrashed:
+		reason = spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR
+	default:
+		reason = spb.SweepSchedulerServerDoneTask_REASON_TERMINATED
+	}
+	return s.doneTask(reason, "the sweep is "+state)
 }
 
 // finishSweep marks the sweep FINISHED, best-effort: a failed upsert
@@ -215,21 +258,24 @@ func (s *Scheduler) generationStep(
 ) *spb.SweepSchedulerServerNextTaskResponse {
 	snapshot, err := s.pollAll(ctx)
 	if err != nil {
-		if done := s.doneFromError(ctx, err); done != nil {
+		if done := s.doneFromError(ctx, phasePoll, err); done != nil {
 			return done
 		}
-		// Transient: deliver an empty task and try again next poll.
+		// Rate limited: deliver an empty task and try again next poll.
+		s.recordStepAbandoned(phasePoll, err)
 		return s.generationTask(nil, nil, 0)
 	}
 	s.noteBackendState(snapshot)
 
-	if !sweepIsActive(snapshot.sweepState) {
-		return s.doneTask(
-			spb.SweepSchedulerServerDoneTask_REASON_SWEEP_FINISHED,
-			"the sweep is "+snapshot.sweepState)
+	if sweepIsDone(snapshot.sweepState) {
+		return s.doneForSweepState(snapshot.sweepState)
 	}
 	if snapshot.sweepState == sweepStatePaused {
 		return s.generationTask(nil, nil, 0)
+	}
+
+	if s.runCap > 0 && s.finishedRunCount >= s.runCap {
+		return s.finishRunCap(ctx)
 	}
 
 	s.observeUntrackedRuns(snapshot)
@@ -346,14 +392,9 @@ func (s *Scheduler) buildUpdates(
 			s.updateTrackedRunFromPoll(run, row)
 
 		case present:
-			// The row exists but its state came back empty. This is
-			// not a per-run glitch: it usually means the backend and
-			// this SDK have mismatched GQL schemas, in which case
-			// every run in the sweep hits it at once. Report it so
-			// backend operators notice a bad rollout, and reuse the
-			// run's last known state rather than failing it: existing
-			// states are never removed for backward compatibility, so
-			// a fixed backend will eventually return one again.
+			// The row exists but its state came back empty.
+			// The backend and this SDK have mismatched GQL schemas
+			// Report this for tracking
 			run.storageID = row.StorageID
 			s.logger.CaptureError(
 				"scheduler",
@@ -431,6 +472,19 @@ func (s *Scheduler) updateTrackedRunFromPoll(run *trackedRun, row PollRun) {
 		state = spb.SweepRunState_SWEEP_RUN_STATE_FAILED
 	}
 	run.runState = state
+	s.noteFinished(run, state)
+}
+
+// noteFinished counts a run toward finishedRunCount the first time it
+// is observed to have completed successfully; a run counts once even
+// if it is later adopted and polled again.
+func (s *Scheduler) noteFinished(run *trackedRun, state spb.SweepRunState) {
+	if run == nil || run.finishedCounted ||
+		state != spb.SweepRunState_SWEEP_RUN_STATE_FINISHED {
+		return
+	}
+	run.finishedCounted = true
+	s.finishedRunCount++
 }
 
 // reapIfGone confirms with a direct read whether a run absent from a
@@ -499,11 +553,9 @@ func (s *Scheduler) enqueueSuggestions(
 		s.logger.Error(
 			"scheduler: could not re-check the sweep before "+
 				"enqueueing", "error", err)
-	case !sweepIsActive(facts.State):
+	case sweepIsDone(facts.State):
 		s.discardAll(suggestions)
-		return s.doneTask(
-			spb.SweepSchedulerServerDoneTask_REASON_SWEEP_FINISHED,
-			"the sweep is "+facts.State)
+		return s.doneForSweepState(facts.State)
 	case facts.State == sweepStatePaused:
 		// Pausing is not terminal, but new runs must not start; the
 		// optimizer gets these back as discards.
@@ -560,6 +612,7 @@ func (s *Scheduler) enqueueOne(
 			"scheduler: dropping suggestion with an unusable config",
 			"id", id, "error", err)
 		s.discards = append(s.discards, id)
+		s.recordRunDiscarded(discardCauseBadConfig, id)
 		return nil
 	}
 
@@ -571,9 +624,13 @@ func (s *Scheduler) enqueueOne(
 		s.logger.Error(
 			"scheduler: failed to enqueue a suggestion",
 			"id", id, "error", err)
-		// A transient failure costs only this suggestion; the error
-		// budget decides when a run of them ends the scheduler.
-		return s.endFromError(ctx, err)
+		// A rate limit costs only this suggestion; anything else has
+		// already outlived the client's retries and ends the scheduler.
+		end := s.endFromError(ctx, phaseEnqueue, err)
+		if end == nil {
+			s.recordRunDiscarded(discardCauseEnqueueFailed, id)
+		}
+		return end
 	}
 
 	s.logger.Info("scheduler: enqueued run", "id", id)
@@ -619,10 +676,8 @@ func wrapFlatConfig(flatJSON string) (string, error) {
 // applyPrunes stops the runs the optimizer pruned.
 //
 // Ids outside the candidates offered with the task are ignored. Once
-// the backend accepts the stop, the run is retired immediately: it is
-// not polled again, and no further update is delivered for it. A
-// failed stop is never loop-fatal: the run stays tracked and prunable,
-// and the optimizer may prune it again next generation.
+// the backend accepts the stop, the run is retired immediately
+// failure to stop a run can be retried again by the optimizer
 func (s *Scheduler) applyPrunes(ctx context.Context, pruneIDs []string) {
 	if len(pruneIDs) == 0 {
 		return
@@ -659,20 +714,51 @@ func (s *Scheduler) applyPrunes(ctx context.Context, pruneIDs []string) {
 	}
 }
 
-// Sweep states the loop keeps scheduling under; any other state ends it.
+// The sweep states the backend defines. upsertSweep stores whatever
+// state a client sends without validating it, so others are possible.
 const (
-	sweepStateRunning = "RUNNING"
+	// sweepStatePending accepts configuration changes.
 	sweepStatePending = "PENDING"
-	sweepStatePaused  = "PAUSED"
 
+	// sweepStateRunning hands agents new runs.
+	sweepStateRunning = "RUNNING"
+
+	// sweepStatePaused keeps running runs alive but starts no new ones.
+	sweepStatePaused = "PAUSED"
+
+	// sweepStateFinished lets running runs finish; no new ones start.
 	sweepStateFinished = "FINISHED"
+
+	// sweepStateCanceled kills the running runs. The UI calls it
+	// "Stopped"; it is what a user's stop or cancel produces.
+	sweepStateCanceled = "CANCELED"
+
+	// sweepStateError is the backend's catch-all failure.
+	sweepStateError = "ERROR"
+
+	// sweepStateFlapping is the backend pausing a sweep whose runs keep
+	// crashing. The UI calls it "Crashed".
+	sweepStateFlapping = "FLAPPING"
+
+	// sweepStateCrashed is not a backend state: the launch scheduler
+	// sets it on itself dying, and the backend stores it as-is.
+	sweepStateCrashed = "CRASHED"
 )
 
-// sweepIsActive reports whether the loop should keep driving the sweep.
-func sweepIsActive(state string) bool {
-	return state == sweepStateRunning ||
-		state == sweepStatePending ||
-		state == sweepStatePaused
+// sweepIsDone reports whether the sweep reached a state the scheduler
+// can no longer schedule under. A state this build does not know is
+// not one of them: the loop keeps going.
+func sweepIsDone(state string) bool {
+	switch state {
+	case sweepStateFinished,
+		sweepStateCanceled,
+		sweepStateError,
+		sweepStateFlapping,
+		sweepStateCrashed:
+		return true
+	default:
+		return false
+	}
 }
 
 // runStates maps the backend's run state strings onto the protocol
@@ -698,11 +784,6 @@ func runStateOf(state string) spb.SweepRunState {
 
 // stateOrFailed classifies a backend run state, reporting one this
 // build does not recognize as FAILED.
-//
-// Treating it as alive instead would hold the run's batch slot for as
-// long as the sweep runs: the states this build knows already cover
-// every live one, so a new value is almost certainly a terminal state
-// added since, and a run waited on forever stalls the search.
 func (s *Scheduler) stateOrFailed(stateString string) spb.SweepRunState {
 	state := runStateOf(stateString)
 	if state != spb.SweepRunState_SWEEP_RUN_STATE_UNKNOWN {

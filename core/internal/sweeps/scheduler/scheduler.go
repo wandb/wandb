@@ -74,6 +74,9 @@ type Scheduler struct {
 	warmCursor *string
 	warmDone   bool
 
+	runCap int
+	finishedRunCount int
+
 	// runs is keyed by optimizer run id. Records are never removed, so
 	// an id stays reserved for the scheduler's lifetime.
 	runs map[string]*trackedRun
@@ -141,6 +144,9 @@ type trackedRun struct {
 
 	// reported means the terminal update was acknowledged
 	reported bool
+
+	// finishedCounted means this run already counted toward finishedRunCount
+	finishedCounted bool
 }
 
 // isTracked reports whether the run is followed in polls: its terminal
@@ -294,6 +300,8 @@ type SchedulerParams struct {
 	BatchSize    int
 	PollInterval time.Duration
 
+	RunCap int
+
 	// Clock stubs time; nil means the real clock.
 	Clock Clock
 }
@@ -318,6 +326,7 @@ func NewScheduler(params SchedulerParams) *Scheduler {
 		metricKey:    params.MetricKey,
 		batchSize:    params.BatchSize,
 		pollInterval: params.PollInterval,
+		runCap:       params.RunCap,
 
 		stop:  make(chan struct{}),
 		clock: params.Clock,
@@ -463,6 +472,7 @@ func (s *Scheduler) applyResult(
 ) *spb.SweepSchedulerServerNextTaskResponse {
 	switch r := result.Result.(type) {
 	case *spb.SweepSchedulerClientTaskResult_Error:
+		s.recordFatalError(phaseOptimizer, r.Error.Message)
 		s.logger.Error(
 			"scheduler: the optimizer failed",
 			"error", r.Error.Message,
@@ -555,7 +565,8 @@ func (s *Scheduler) applyGenerationResult(
 	if result.Terminate {
 		s.finishSweep(ctx)
 		return s.doneTask(
-			spb.SweepSchedulerServerDoneTask_REASON_TERMINATED, "")
+			spb.SweepSchedulerServerDoneTask_REASON_SWEEP_FINISHED,
+			"the optimizer ended the sweep")
 	}
 
 	switch result.AskOutcome {

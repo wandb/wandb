@@ -200,21 +200,24 @@ message SweepSchedulerServerRunData {
 // Tells the client the scheduler stopped and the task exchange should exit.
 message SweepSchedulerServerDoneTask {
   enum Reason {
+    // REASON_EXHAUSTED, an exhausted search space, is reported as
+    // REASON_SWEEP_FINISHED.
+    reserved 1;
+    reserved "REASON_EXHAUSTED";
+
     REASON_UNSPECIFIED = 0;
 
-    // The optimizer reported an exhausted search space.
-    REASON_EXHAUSTED = 1;
-
-    // The optimizer asked to terminate the sweep.
+    // The user stopped or killed the sweep.
     REASON_TERMINATED = 2;
 
-    // The sweep finished or was canceled outside the scheduler.
+    // The sweep is done: the backend marked it finished, its run cap
+    // was reached, or the optimizer ended the search.
     REASON_SWEEP_FINISHED = 3;
 
     // The sweep was deleted.
     REASON_SWEEP_NOT_FOUND = 4;
 
-    // A fatal backend error, too many consecutive errors, or a result
+    // A backend error the scheduler cannot retry past, or a result
     // that did not answer the task the scheduler issued last.
     REASON_FATAL_ERROR = 5;
 

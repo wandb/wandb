@@ -106,15 +106,14 @@ type SweepSchedulerServerDoneTask_Reason int32
 
 const (
 	SweepSchedulerServerDoneTask_REASON_UNSPECIFIED SweepSchedulerServerDoneTask_Reason = 0
-	// The optimizer reported an exhausted search space.
-	SweepSchedulerServerDoneTask_REASON_EXHAUSTED SweepSchedulerServerDoneTask_Reason = 1
-	// The optimizer asked to terminate the sweep.
+	// The user stopped or killed the sweep.
 	SweepSchedulerServerDoneTask_REASON_TERMINATED SweepSchedulerServerDoneTask_Reason = 2
-	// The sweep finished or was canceled outside the scheduler.
+	// The sweep is done: the backend marked it finished, its run cap
+	// was reached, or the optimizer ended the search.
 	SweepSchedulerServerDoneTask_REASON_SWEEP_FINISHED SweepSchedulerServerDoneTask_Reason = 3
 	// The sweep was deleted.
 	SweepSchedulerServerDoneTask_REASON_SWEEP_NOT_FOUND SweepSchedulerServerDoneTask_Reason = 4
-	// A fatal backend error, too many consecutive errors, or a result
+	// A backend error the scheduler cannot retry past, or a result
 	// that did not answer the task the scheduler issued last.
 	SweepSchedulerServerDoneTask_REASON_FATAL_ERROR SweepSchedulerServerDoneTask_Reason = 5
 	// The client reported a task error.
@@ -127,7 +126,6 @@ const (
 var (
 	SweepSchedulerServerDoneTask_Reason_name = map[int32]string{
 		0: "REASON_UNSPECIFIED",
-		1: "REASON_EXHAUSTED",
 		2: "REASON_TERMINATED",
 		3: "REASON_SWEEP_FINISHED",
 		4: "REASON_SWEEP_NOT_FOUND",
@@ -137,7 +135,6 @@ var (
 	}
 	SweepSchedulerServerDoneTask_Reason_value = map[string]int32{
 		"REASON_UNSPECIFIED":     0,
-		"REASON_EXHAUSTED":       1,
 		"REASON_TERMINATED":      2,
 		"REASON_SWEEP_FINISHED":  3,
 		"REASON_SWEEP_NOT_FOUND": 4,
@@ -1514,20 +1511,19 @@ const file_wandb_proto_wandb_sweep_scheduler_proto_rawDesc = "" +
 	"\vconfig_json\x18\x04 \x01(\tR\n" +
 	"configJson\x12!\n" +
 	"\fsummary_json\x18\x05 \x01(\tR\vsummaryJson\x12!\n" +
-	"\fhistory_json\x18\x06 \x01(\tR\vhistoryJson\"\x94\x03\n" +
+	"\fhistory_json\x18\x06 \x01(\tR\vhistoryJson\"\x96\x03\n" +
 	"\x1cSweepSchedulerServerDoneTask\x12K\n" +
 	"\x06reason\x18\x01 \x01(\x0e23.wandb_internal.SweepSchedulerServerDoneTask.ReasonR\x06reason\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12=\n" +
-	"\x1bdiscarded_optimizer_run_ids\x18\x03 \x03(\tR\x18discardedOptimizerRunIds\"\xcd\x01\n" +
+	"\x1bdiscarded_optimizer_run_ids\x18\x03 \x03(\tR\x18discardedOptimizerRunIds\"\xcf\x01\n" +
 	"\x06Reason\x12\x16\n" +
-	"\x12REASON_UNSPECIFIED\x10\x00\x12\x14\n" +
-	"\x10REASON_EXHAUSTED\x10\x01\x12\x15\n" +
+	"\x12REASON_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11REASON_TERMINATED\x10\x02\x12\x19\n" +
 	"\x15REASON_SWEEP_FINISHED\x10\x03\x12\x1a\n" +
 	"\x16REASON_SWEEP_NOT_FOUND\x10\x04\x12\x16\n" +
 	"\x12REASON_FATAL_ERROR\x10\x05\x12\x1a\n" +
 	"\x16REASON_OPTIMIZER_ERROR\x10\x06\x12\x13\n" +
-	"\x0fREASON_SHUTDOWN\x10\a\"\xba\x02\n" +
+	"\x0fREASON_SHUTDOWN\x10\a\"\x04\b\x01\x10\x01*\x10REASON_EXHAUSTED\"\xba\x02\n" +
 	"\x1eSweepSchedulerClientTaskResult\x12\x19\n" +
 	"\btask_seq\x18\x01 \x01(\x04R\ataskSeq\x12T\n" +
 	"\n" +
