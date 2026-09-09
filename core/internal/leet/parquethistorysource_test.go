@@ -2,6 +2,7 @@ package leet
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"testing"
@@ -57,7 +58,64 @@ func testRunInfo(runSummary map[string]any) *RunInfo {
 	}
 }
 
+func consoleLogsPageResp(
+	logLineCount any,
+	edges []map[string]any,
+	hasNextPage bool,
+	endCursor string,
+) string {
+	resp := map[string]any{
+		"project": map[string]any{
+			"run": map[string]any{
+				"logLineCount": logLineCount,
+				"logLines": map[string]any{
+					"edges": edges,
+					"pageInfo": map[string]any{
+						"endCursor":   endCursor,
+						"hasNextPage": hasNextPage,
+					},
+				},
+			},
+		},
+	}
+	b, err := json.Marshal(resp)
+	if err != nil {
+		panic(err)
+	}
+	return string(b)
+}
+
+func consoleLogEdge(number int, line, level string) map[string]any {
+	return map[string]any{
+		"node": map[string]any{
+			"number":    number,
+			"timestamp": "2026-01-01T12:34:56Z",
+			"level":     level,
+			"label":     "",
+			"line":      line,
+		},
+	}
+}
+
+// dummyGraphQLClient returns a mock client that stubs an empty console log page.
+func dummyGraphQLClient() *gqlmock.MockClient {
+	mock := gqlmock.NewMockClient()
+	mock.StubMatchOnce(
+		gqlmock.WithOpName("RunConsoleLogPage"),
+		consoleLogsPageResp(0, []map[string]any{}, false, ""),
+	)
+	return mock
+}
+
 func TestParquetHistorySource_Read(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("RunConsoleLogPage"),
+		consoleLogsPageResp(1, []map[string]any{
+			consoleLogEdge(0, "remote log line", ""),
+		}, false, "cursor-1"),
+	)
+
 	reader := &fakeStepReader{
 		steps: []parquet.KeyValueList{
 			lossRow(0, 1.0),
@@ -69,6 +127,7 @@ func TestParquetHistorySource_Read(t *testing.T) {
 		t.Context(),
 		testRunInfo(map[string]any{"_step": int64(1000), "loss": 0.1}),
 		reader,
+		mockGQL,
 		observability.NewNoOpLogger(),
 	)
 
@@ -78,7 +137,7 @@ func TestParquetHistorySource_Read(t *testing.T) {
 	batch, ok := msg.(ChunkedBatchMsg)
 	require.True(t, ok)
 	require.False(t, batch.HasMore)
-	require.Len(t, batch.Msgs, 4)
+	require.Len(t, batch.Msgs, 5)
 
 	runMsg, ok := batch.Msgs[0].(RunMsg)
 	require.True(t, ok)
@@ -93,13 +152,17 @@ func TestParquetHistorySource_Read(t *testing.T) {
 	require.Len(t, summaryMsg.Summary, 1)
 	assert.Len(t, summaryMsg.Summary[0].Update, 2)
 
-	historyMsg, ok := batch.Msgs[2].(HistoryMsg)
+	consoleMsg, ok := batch.Msgs[2].(ConsoleLogMsg)
+	require.True(t, ok)
+	assert.Equal(t, "remote log line", consoleMsg.Text)
+
+	historyMsg, ok := batch.Msgs[3].(HistoryMsg)
 	require.True(t, ok)
 	assert.Equal(t, "entity/project/run-id", historyMsg.RunPath)
 	assert.Equal(t, []float64{0, 50, 1000}, historyMsg.Metrics["loss"].X)
 	assert.Equal(t, []float64{1.0, 0.5, 0.1}, historyMsg.Metrics["loss"].Y)
 
-	require.IsType(t, FileCompleteMsg{}, batch.Msgs[3])
+	require.IsType(t, FileCompleteMsg{}, batch.Msgs[4])
 
 	// The source is exhausted.
 	_, err = source.Read(100, 10*time.Second)
@@ -117,6 +180,7 @@ func TestParquetHistorySource_Read_WithoutSummaryStepStopsAtEmptyWindow(t *testi
 		t.Context(),
 		testRunInfo(map[string]any{"loss": 0.1}), // no "_step" bound
 		reader,
+		dummyGraphQLClient(),
 		observability.NewNoOpLogger(),
 	)
 
@@ -139,6 +203,7 @@ func TestParquetHistorySource_Close(t *testing.T) {
 		t.Context(),
 		testRunInfo(nil),
 		reader,
+		dummyGraphQLClient(),
 		observability.NewNoOpLogger(),
 	)
 

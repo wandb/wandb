@@ -19,6 +19,7 @@ import (
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/httplayers"
+	"github.com/wandb/wandb/core/internal/leet/remote"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runhistoryreader"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet"
@@ -82,6 +83,9 @@ type ParquetHistorySource struct {
 	// reader is the reader for the run history's parquet files.
 	reader historyStepReader
 
+	// consoleLogs pages through the run's captured console output.
+	consoleLogs *remote.ConsoleLogReader
+
 	// runPath identifies the remote run in messages.
 	runPath string
 
@@ -105,19 +109,28 @@ func newParquetHistorySource(
 	ctx context.Context,
 	runInfo *RunInfo,
 	reader historyStepReader,
+	graphqlClient graphql.Client,
 	logger *observability.CoreLogger,
 ) *ParquetHistorySource {
 	ctx, cancel := context.WithCancel(ctx)
+	runPath := fmt.Sprintf("%s/%s/%s", runInfo.entity, runInfo.project, runInfo.runId)
 
-	return &ParquetHistorySource{
+	source := &ParquetHistorySource{
 		logger:       logger,
 		ctx:          ctx,
 		cancel:       cancel,
-		runPath:      fmt.Sprintf("%s/%s/%s", runInfo.entity, runInfo.project, runInfo.runId),
+		runPath:      runPath,
 		maxKnownStep: maxStepFromSummary(runInfo.runSummary),
 		runInfo:      runInfo,
 		reader:       reader,
+		consoleLogs: remote.NewConsoleLogReader(
+			graphqlClient,
+			runInfo.entity,
+			runInfo.project,
+			runInfo.runId,
+		),
 	}
+	return source
 }
 
 // InitializeParquetHistorySource returns a tea.Cmd that initializes a
@@ -190,7 +203,13 @@ func InitializeParquetHistorySource(
 		}
 
 		return InitMsg{
-			Source: newParquetHistorySource(ctx, runInfo, reader, logger),
+			Source: newParquetHistorySource(
+				ctx,
+				runInfo,
+				reader,
+				graphqlClient,
+				logger,
+			),
 		}
 	}
 }
@@ -207,11 +226,9 @@ func (s *ParquetHistorySource) Read(
 		return nil, io.EOF
 	}
 
+	var readerWG sync.WaitGroup
 	var msgs []tea.Msg
-	var histories []HistoryMsg
-	startTime := time.Now()
-	hasMore := true
-	numMsgs := 0
+	deadline := time.Now().Add(maxTimePerChunk)
 
 	if s.currentStep == 0 {
 		msgs = append(msgs,
@@ -227,7 +244,103 @@ func (s *ParquetHistorySource) Read(
 		)
 	}
 
-	for time.Since(startTime) < maxTimePerChunk && numMsgs < chunkSize {
+	var (
+		consoleMsgs     []tea.Msg
+		numConsoleMsgs  int
+		moreConsoleLogs bool
+		consoleErr      error
+
+		histories      []HistoryMsg
+		numHistoryMsgs int
+		moreHistory    bool
+		historyErr     error
+	)
+
+	readerWG.Go(func() {
+		consoleMsgs, numConsoleMsgs, moreConsoleLogs, consoleErr =
+			s.readConsoleLogsUntil(deadline, chunkSize)
+	})
+
+	readerWG.Go(func() {
+		histories, numHistoryMsgs, moreHistory, historyErr =
+			s.readParquetHistoryUntil(deadline, chunkSize)
+	})
+
+	readerWG.Wait()
+	if historyErr != nil {
+		return nil, historyErr
+	}
+	if consoleErr != nil {
+		return nil, consoleErr
+	}
+
+	msgs = append(msgs, consoleMsgs...)
+	if len(histories) > 0 {
+		msgs = append(msgs, concatenateHistory(histories, s.runPath))
+	}
+
+	hasMore := moreConsoleLogs || moreHistory
+	if !hasMore {
+		msgs = append(msgs, FileCompleteMsg{ExitCode: 0})
+	}
+
+	return ChunkedBatchMsg{
+		Msgs:     msgs,
+		HasMore:  hasMore,
+		Progress: numConsoleMsgs + numHistoryMsgs,
+	}, nil
+}
+
+// readConsoleLogsUntil fetches console log pages until the deadline
+// or the chunk size is reached.
+func (s *ParquetHistorySource) readConsoleLogsUntil(
+	deadline time.Time,
+	chunkSize int,
+) ([]tea.Msg, int, bool, error) {
+	var msgs []tea.Msg
+	numMsgs := 0
+	for time.Now().Before(deadline) && numMsgs < chunkSize {
+		if err := s.ctx.Err(); err != nil {
+			return msgs, numMsgs, s.consoleLogs.HasMore(), err
+		}
+
+		page, err := s.consoleLogs.ReadPage(s.ctx)
+		if err != nil {
+			return msgs, numMsgs, s.consoleLogs.HasMore(), err
+		}
+		if len(page) == 0 {
+			break
+		}
+
+		numMsgs += len(page)
+		for i := range page {
+			msgs = append(msgs, consoleLogMsgFromRemoteLine(s.runPath, page[i]))
+		}
+	}
+	return msgs, numMsgs, s.consoleLogs.HasMore(), nil
+}
+
+func consoleLogMsgFromRemoteLine(runPath string, line remote.Line) ConsoleLogMsg {
+	return ConsoleLogMsg{
+		RunPath:   runPath,
+		Text:      line.Content,
+		IsStderr:  line.IsStderr,
+		Time:      line.Timestamp,
+		Assembled: true,
+	}
+}
+
+// readParquetHistoryUntil pages through parquet history until the deadline
+// or the chunk size is reached.
+func (s *ParquetHistorySource) readParquetHistoryUntil(
+	deadline time.Time,
+	chunkSize int,
+) ([]HistoryMsg, int, bool, error) {
+	var histories []HistoryMsg
+	numMsgs := 0
+	hasMore := true
+
+	for time.Now().Before(deadline) && numMsgs < chunkSize {
 		if s.maxKnownStep >= 0 && s.currentStep > s.maxKnownStep {
 			hasMore = false
 			s.readerDone = true
@@ -237,7 +350,7 @@ func (s *ParquetHistorySource) Read(
 		nextStep := s.currentStep + int64(parquetBatchScanSize)
 		historySteps, err := s.reader.GetHistorySteps(s.ctx, s.currentStep, nextStep)
 		if err != nil {
-			return nil, err
+			return histories, numMsgs, hasMore, err
 		}
 
 		if len(historySteps) == 0 {
@@ -266,19 +379,7 @@ func (s *ParquetHistorySource) Read(
 		}
 	}
 
-	if len(histories) > 0 {
-		msgs = append(msgs, concatenateHistory(histories, s.runPath))
-	}
-
-	if !hasMore {
-		msgs = append(msgs, FileCompleteMsg{ExitCode: 0})
-	}
-
-	return ChunkedBatchMsg{
-		Msgs:     msgs,
-		HasMore:  hasMore,
-		Progress: numMsgs,
-	}, nil
+	return histories, numMsgs, hasMore, nil
 }
 
 // Close implements HistorySource.Close.

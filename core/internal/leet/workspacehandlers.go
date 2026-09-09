@@ -770,7 +770,7 @@ func (w *Workspace) handleWorkspaceRecord(run *WorkspaceRun, msg tea.Msg) {
 		w.getOrCreateRunOverview(run.Key).ProcessSummaryMsg(m.Summary)
 
 	case ConsoleLogMsg:
-		w.getOrCreateConsoleLogs(run.Key).ProcessRaw(m.Text, m.IsStderr, m.Time)
+		w.getOrCreateConsoleLogs(run.Key).Process(m)
 
 	case FileCompleteMsg:
 		run.state = runStateForExitCode(m.ExitCode)
