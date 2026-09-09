@@ -128,21 +128,18 @@ def _requirements_file(python_version: str) -> str:
     return "requirements/requirements_dev.txt"
 
 
-def get_circleci_splits() -> tuple[int, int]:
-    """Returns the test splitting arguments from our CircleCI config.
+def get_test_group() -> tuple[int, int]:
+    """Return the one-based test group and group count, or (0, 0) without splitting."""
+    group = os.environ.get("WANDB_TEST_GROUP")
+    groups = os.environ.get("WANDB_TEST_GROUPS")
+    if group and groups:
+        return (int(group), int(groups))
 
-    When using test splitting, CircleCI sets the CIRCLE_NODE_TOTAL and
-    CIRCLE_NODE_INDEX environment variables to indicate which group of
-    tests we should run.
-
-    This returns (index, total), with 0 <= index < total, if the variables
-    are set. Otherwise, returns (0, 0).
-    """
     circle_node_total = os.environ.get("CIRCLE_NODE_TOTAL")
     circle_node_index = os.environ.get("CIRCLE_NODE_INDEX")
 
     if circle_node_total and circle_node_index:
-        return (int(circle_node_index), int(circle_node_total))
+        return (int(circle_node_index) + 1, int(circle_node_total))
 
     return (0, 0)
 
@@ -188,10 +185,10 @@ def run_pytest(
     pytest_opts.append("--maxprocesses=10")
 
     # (pytest-split) Run a subset of tests only (for external parallelism).
-    (circle_node_index, circle_node_total) = get_circleci_splits()
-    if circle_node_total > 0:
-        pytest_opts.append(f"--splits={circle_node_total}")
-        pytest_opts.append(f"--group={int(circle_node_index) + 1}")
+    group, groups = get_test_group()
+    if groups > 0:
+        pytest_opts.append(f"--splits={groups}")
+        pytest_opts.append(f"--group={group}")
 
     # (pytest-cov) Enable Python code coverage collection.
     # We set "--cov-report=" to suppress terminal output.
