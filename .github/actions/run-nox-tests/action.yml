@@ -42,7 +42,8 @@ runs:
     - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
       with:
         version: "0.12.11"
-        enable-cache: ${{ inputs.wheel-artifact == '' }}
+        enable-cache: ${{ runner.os == 'macOS' || inputs.wheel-artifact == '' }}
+        save-cache: ${{ inputs.test-group == '' || inputs.test-group == '1' }}
         cache-local-path: ${{ runner.temp }}/setup-uv-cache
         cache-dependency-glob: requirements/requirements_dev.${{ inputs.python }}.*.txt
         cache-suffix: ${{ inputs.python }}
