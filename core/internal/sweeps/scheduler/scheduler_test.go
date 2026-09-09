@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Khan/genqlient/graphql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -27,8 +28,8 @@ type testRun struct {
 	history string
 }
 
-// pollJSON builds a SweepRunsWithHistory response.
-func pollJSON(sweepState string, hasNext bool, cursor string, runs ...testRun) string {
+// runConnection builds the runs connection both run queries return.
+func runConnection(hasNext bool, cursor string, runs []testRun) map[string]any {
 	edges := make([]map[string]any, 0, len(runs))
 	for _, run := range runs {
 		config := run.config
@@ -59,25 +60,45 @@ func pollJSON(sweepState string, hasNext bool, cursor string, runs ...testRun) s
 		})
 	}
 
-	response := map[string]any{
-		"project": map[string]any{
-			"sweep": map[string]any{
-				"state": sweepState,
-				"runs": map[string]any{
-					"pageInfo": map[string]any{
-						"hasNextPage": hasNext,
-						"endCursor":   orNil(cursor),
-					},
-					"edges": edges,
-				},
-			},
+	return map[string]any{
+		"pageInfo": map[string]any{
+			"hasNextPage": hasNext,
+			"endCursor":   orNil(cursor),
 		},
+		"edges": edges,
 	}
+}
+
+func encodeJSON(response map[string]any) string {
 	encoded, err := json.Marshal(response)
 	if err != nil {
 		panic(err)
 	}
 	return string(encoded)
+}
+
+// warmJSON builds a SweepRunsWithHistory response: one page of every
+// run in the sweep.
+func warmJSON(sweepState string, hasNext bool, cursor string, runs ...testRun) string {
+	return encodeJSON(map[string]any{
+		"project": map[string]any{
+			"sweep": map[string]any{
+				"state": sweepState,
+				"runs":  runConnection(hasNext, cursor, runs),
+			},
+		},
+	})
+}
+
+// pollJSON builds a SweepWatchedRuns response: the sweep's state and
+// one page of the runs the scheduler asked for by name.
+func pollJSON(sweepState string, hasNext bool, cursor string, runs ...testRun) string {
+	return encodeJSON(map[string]any{
+		"project": map[string]any{
+			"sweep": map[string]any{"state": sweepState},
+			"runs":  runConnection(hasNext, cursor, runs),
+		},
+	})
 }
 
 func orNil(s string) any {
@@ -123,7 +144,9 @@ func newLoopFixture(t *testing.T, params scheduler.SchedulerParams) *loopFixture
 		}),
 		"test-entity", "test-project", "test-sweep",
 	)
-	params.Logger = observability.NewNoOpLogger()
+	if params.Logger == nil {
+		params.Logger = observability.NewNoOpLogger()
+	}
 	params.SweepNodeID = "sweep-node-id"
 	if params.PollInterval == 0 {
 		params.PollInterval = time.Millisecond
@@ -136,7 +159,19 @@ func newLoopFixture(t *testing.T, params scheduler.SchedulerParams) *loopFixture
 	return fixture
 }
 
+// stubPoll answers one generation poll of the watched runs.
 func (f *loopFixture) stubPoll(response string) {
+	f.client.StubMatchOnce(gqlmock.WithOpName("SweepWatchedRuns"), response)
+}
+
+// stubIdlePoll answers one generation poll made with nothing to watch,
+// which reads only the sweep's state.
+func (f *loopFixture) stubIdlePoll(sweepState string) {
+	f.stubSweepConfig(sweepState)
+}
+
+// stubWarmStart answers one warm-start page.
+func (f *loopFixture) stubWarmStart(response string) {
 	f.client.StubMatchOnce(gqlmock.WithOpName("SweepRunsWithHistory"), response)
 }
 
@@ -167,6 +202,17 @@ func (f *loopFixture) stubFinishSweep() {
 	)
 }
 
+// requestsFor returns every request made for the named operation.
+func (f *loopFixture) requestsFor(opName string) []*graphql.Request {
+	var found []*graphql.Request
+	for _, req := range f.client.AllRequests() {
+		if req.OpName == opName {
+			found = append(found, req)
+		}
+	}
+	return found
+}
+
 // step drives one Step with a timeout guard.
 func (f *loopFixture) step(
 	t *testing.T,
@@ -183,7 +229,7 @@ func (f *loopFixture) step(
 // iterating. The caller stubs subsequent polls.
 func (f *loopFixture) warmTo(t *testing.T) {
 	t.Helper()
-	f.stubPoll(pollJSON("RUNNING", false, ""))
+	f.stubWarmStart(warmJSON("RUNNING", false, ""))
 	task := f.step(t, nil)
 	require.NotNil(t, task.GetWarmStart(), "expected a warm-start task")
 	require.False(t, task.GetWarmStart().HasMore)
@@ -231,11 +277,11 @@ func TestDeclinedAskAsksAgain(t *testing.T) {
 	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
 	fixture.warmTo(t)
 
-	fixture.stubPoll(pollJSON("RUNNING", false, ""))
+	fixture.stubIdlePoll("RUNNING")
 	first := fixture.step(t, warmResult(nil))
 	require.EqualValues(t, 1, first.GetGeneration().AskUpTo)
 
-	fixture.stubPoll(pollJSON("RUNNING", false, ""))
+	fixture.stubIdlePoll("RUNNING")
 	second := fixture.step(t, generationResult(
 		&spb.SweepSchedulerClientGenerationResult{
 			AskOutcome: spb.SweepSchedulerClientGenerationResult_ASK_OUTCOME_DECLINED,
@@ -249,7 +295,7 @@ func TestDeclinedAskAsksAgain(t *testing.T) {
 func TestTerminateFinishesSweep(t *testing.T) {
 	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
 	fixture.warmTo(t)
-	fixture.stubPoll(pollJSON("RUNNING", false, ""))
+	fixture.stubIdlePoll("RUNNING")
 	fixture.step(t, warmResult(nil))
 
 	fixture.stubFinishSweep()
@@ -258,14 +304,14 @@ func TestTerminateFinishesSweep(t *testing.T) {
 
 	require.NotNil(t, done.GetDone())
 	assert.Equal(t,
-		spb.SweepSchedulerServerDoneTask_REASON_TERMINATED,
+		spb.SweepSchedulerServerDoneTask_REASON_SWEEP_FINISHED,
 		done.GetDone().Reason)
 }
 
 func TestOptimizerErrorEndsLoopWithoutFinishingSweep(t *testing.T) {
 	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
 	fixture.warmTo(t)
-	fixture.stubPoll(pollJSON("RUNNING", false, ""))
+	fixture.stubIdlePoll("RUNNING")
 	fixture.step(t, warmResult(nil))
 
 	// No UpsertSweepState stub: finishing the sweep here would fail the
@@ -288,14 +334,14 @@ func TestOptimizerErrorEndsLoopWithoutFinishingSweep(t *testing.T) {
 func TestStopDuringPollExitsWithoutAsking(t *testing.T) {
 	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
 	fixture.warmTo(t)
-	fixture.stubPoll(pollJSON("RUNNING", false, ""))
+	fixture.stubIdlePoll("RUNNING")
 	fixture.step(t, warmResult(nil))
 
-	fixture.client.StubMatchHang(gqlmock.WithOpName("SweepRunsWithHistory"))
+	fixture.client.StubMatchHang(gqlmock.WithOpName("SweepConfig"))
 
 	pollsBefore := 0
 	for _, req := range fixture.client.AllRequests() {
-		if req.OpName == "SweepRunsWithHistory" {
+		if req.OpName == "SweepConfig" {
 			pollsBefore++
 		}
 	}
@@ -308,7 +354,7 @@ func TestStopDuringPollExitsWithoutAsking(t *testing.T) {
 	require.Eventually(t, func() bool {
 		n := 0
 		for _, req := range fixture.client.AllRequests() {
-			if req.OpName == "SweepRunsWithHistory" {
+			if req.OpName == "SweepConfig" {
 				n++
 			}
 		}
@@ -329,7 +375,7 @@ func TestSessionCancelReturnsShutdown(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	fixture.stubPoll(pollJSON("RUNNING", false, ""))
+	fixture.stubWarmStart(warmJSON("RUNNING", false, ""))
 	task := fixture.scheduler.Step(ctx, nil)
 
 	// The warm-start page may complete, but the following generation's
@@ -351,11 +397,9 @@ func TestTellErrorPopsRunAndContinues(t *testing.T) {
 	))
 	fixture.step(t, warmResult(map[string]string{"poison": "opt-p"}))
 
-	// The optimizer failed to ingest the run; it stops being tracked
-	// and frees its slot.
-	fixture.stubPoll(pollJSON("RUNNING", false, "",
-		testRun{name: "poison", state: "running"},
-	))
+	// The optimizer failed to ingest the run; it is retired, so it frees
+	// its slot and drops out of the watched set entirely.
+	fixture.stubIdlePoll("RUNNING")
 	task := fixture.step(t, generationResult(
 		&spb.SweepSchedulerClientGenerationResult{
 			TellErrors: []*spb.SweepSchedulerClientTellError{
@@ -371,7 +415,7 @@ func TestTellErrorPopsRunAndContinues(t *testing.T) {
 
 func TestDuplicateAdoptionDroppedWithoutDiscarding(t *testing.T) {
 	fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 3})
-	fixture.stubPoll(pollJSON("RUNNING", false, "",
+	fixture.stubWarmStart(warmJSON("RUNNING", false, "",
 		testRun{name: "run-1", state: "running"},
 		testRun{name: "run-2", state: "running"},
 	))

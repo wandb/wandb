@@ -166,14 +166,27 @@ func (a *trackedAPI) FetchSweep(ctx context.Context) (*SweepFacts, error) {
 	return facts, err
 }
 
-func (a *trackedAPI) PollPage(
+func (a *trackedAPI) WarmStartPage(
 	ctx context.Context,
 	pageSize int,
 	cursor *string,
 	metricKey string,
 ) (*PollPage, error) {
 	ctx = withSchedulerRetryPolicy(ctx)
-	page, err := a.api.PollPage(ctx, pageSize, cursor, metricKey)
+	page, err := a.api.WarmStartPage(ctx, pageSize, cursor, metricKey)
+	a.record(ctx, err)
+	return page, err
+}
+
+func (a *trackedAPI) FetchWatchedRuns(
+	ctx context.Context,
+	names []string,
+	pageSize int,
+	cursor *string,
+	metricKey string,
+) (*PollPage, error) {
+	ctx = withSchedulerRetryPolicy(ctx)
+	page, err := a.api.FetchWatchedRuns(ctx, names, pageSize, cursor, metricKey)
 	a.record(ctx, err)
 	return page, err
 }

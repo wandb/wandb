@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/url"
+	"slices"
 	"sync"
 	"time"
 
@@ -74,12 +76,20 @@ type Scheduler struct {
 	warmCursor *string
 	warmDone   bool
 
+	runCap           int
+	finishedRunCount int
+
 	// runs is keyed by optimizer run id. Records are never removed, so
 	// an id stays reserved for the scheduler's lifetime.
 	runs map[string]*trackedRun
 
-	// runsByName indexes the same records by W&B run name. Runs this
-	// scheduler never scheduled or adopted appear only here.
+	// runOrder lists the ids in runs in the order they were created, so
+	// polls and updates are assembled deterministically.
+	runOrder []string
+
+	// runsByName indexes the prior runs warm start walked, so an adoption
+	// can find the record that already counted toward the run cap.
+	// Generation polls key off runs instead.
 	runsByName map[string]*trackedRun
 
 	// discards holds ids of suggestions accepted but never durably
@@ -95,8 +105,6 @@ type Scheduler struct {
 	exhausted bool
 
 	warnedUnrecognized map[string]bool
-	warnedForeign      bool
-	warnedResumed      bool
 
 	// Stagnation heartbeat; see noteBackendState.
 	lastFingerprint string
@@ -109,9 +117,10 @@ var _ TaskResolverFactory = NewTaskResolverFactory(nil)
 
 // TrackingState is where a run stands in its lifecycle.
 //
-// A suggestion passes through TrackingInFlight,
-// TrackingTerminalDelivered and TrackingRetired in that order; before
-// the scheduler has a record for it, it is merely proposed.
+// A suggestion passes through TrackingInFlight and
+// TrackingTerminalDelivered, then settles in TrackingDormant or
+// TrackingRetired; before the scheduler has a record for it, it is
+// merely proposed.
 type TrackingState int
 
 const (
@@ -120,6 +129,12 @@ const (
 	// TrackingTerminalDelivered: the run's final update was delivered
 	// but not acked yet.
 	TrackingTerminalDelivered
+
+	// TrackingDormant: the run ended without succeeding. It is still
+	// polled, so a resume can be reported to the user, but it gets no
+	// further updates and holds no batch slot. See noteResumed for why
+	// it cannot simply be told again.
+	TrackingDormant
 
 	// TrackingRetired: the scheduler will ignore this run.
 	TrackingRetired
@@ -139,15 +154,23 @@ type trackedRun struct {
 
 	runState spb.SweepRunState
 
-	// reported means the terminal update was acknowledged
-	reported bool
+	// finishedCounted means this run already counted toward finishedRunCount
+	finishedCounted bool
+
+	// warnedResumed means the resume warning was already logged for it
+	warnedResumed bool
 }
 
-// isTracked reports whether the run is followed in polls: its terminal
-// update has not been acknowledged yet.
+// isTracked reports whether the run is reported to the optimizer: its
+// terminal update has not been acknowledged yet.
 func (r *trackedRun) isTracked() bool {
 	return r.state == TrackingInFlight ||
 		r.state == TrackingTerminalDelivered
+}
+
+// isWatched reports whether the run is read on every poll.
+func (r *trackedRun) isWatched() bool {
+	return r.state != TrackingRetired
 }
 
 // Stop asks Step to return a Done task
@@ -250,6 +273,24 @@ func (s *Scheduler) takeDiscards() []string {
 	return discards
 }
 
+// track registers a run under its optimizer id, keeping runOrder in
+// step with runs.
+func (s *Scheduler) track(run *trackedRun) {
+	s.runs[run.optimizerRunID] = run
+	s.runOrder = append(s.runOrder, run.optimizerRunID)
+}
+
+// watchedRuns are the runs read on the next poll, in creation order.
+func (s *Scheduler) watchedRuns() []*trackedRun {
+	var watched []*trackedRun
+	for _, id := range s.runOrder {
+		if run := s.runs[id]; run.isWatched() {
+			watched = append(watched, run)
+		}
+	}
+	return watched
+}
+
 func (s *Scheduler) trackedRunCount() int {
 	count := 0
 	for _, run := range s.runs {
@@ -294,6 +335,8 @@ type SchedulerParams struct {
 	BatchSize    int
 	PollInterval time.Duration
 
+	RunCap int
+
 	// Clock stubs time; nil means the real clock.
 	Clock Clock
 }
@@ -318,6 +361,7 @@ func NewScheduler(params SchedulerParams) *Scheduler {
 		metricKey:    params.MetricKey,
 		batchSize:    params.BatchSize,
 		pollInterval: params.PollInterval,
+		runCap:       params.RunCap,
 
 		stop:  make(chan struct{}),
 		clock: params.Clock,
@@ -350,7 +394,7 @@ func NewTaskResolverFactory(logger *observability.CoreLogger) TaskResolverFactor
 			return nil, nil, err
 		}
 
-		metricKey, err := parseMetricKey(facts.Config)
+		cfg, err := parseSweepConfig(facts.Config)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -359,9 +403,10 @@ func NewTaskResolverFactory(logger *observability.CoreLogger) TaskResolverFactor
 			API:          sweepAPI,
 			Logger:       logger,
 			SweepNodeID:  facts.NodeID,
-			MetricKey:    metricKey,
+			MetricKey:    cfg.Metric.Name,
 			BatchSize:    int(req.BatchSize),
 			PollInterval: secondsToDuration(req.PollIntervalSeconds),
+			RunCap:       cfg.RunCap,
 		})
 
 		return scheduler, &spb.SweepSchedulerServerInitResponse{
@@ -463,6 +508,7 @@ func (s *Scheduler) applyResult(
 ) *spb.SweepSchedulerServerNextTaskResponse {
 	switch r := result.Result.(type) {
 	case *spb.SweepSchedulerClientTaskResult_Error:
+		s.recordFatalError(phaseOptimizer, r.Error.Message)
 		s.logger.Error(
 			"scheduler: the optimizer failed",
 			"error", r.Error.Message,
@@ -490,7 +536,11 @@ func (s *Scheduler) applyResult(
 func (s *Scheduler) applyWarmStartResult(
 	result *spb.SweepSchedulerClientWarmStartResult,
 ) {
-	for wandbRunID, optimizerRunID := range result.Adoptions {
+	// Sorted so that runOrder, and with it the order of every later
+	// poll and task, does not depend on map iteration.
+	for _, wandbRunID := range slices.Sorted(maps.Keys(result.Adoptions)) {
+		optimizerRunID := result.Adoptions[wandbRunID]
+
 		// Neither bad adoption is reported as a discard. An empty id
 		// names no run to forget, and a colliding one names a run this
 		// scheduler already tracks: the client forgets discarded ids
@@ -524,7 +574,7 @@ func (s *Scheduler) applyWarmStartResult(
 			// Placeholder until the next poll; UNKNOWN is not terminal.
 			runState: spb.SweepRunState_SWEEP_RUN_STATE_UNKNOWN,
 		}
-		s.runs[optimizerRunID] = run
+		s.track(run)
 		s.runsByName[wandbRunID] = run
 	}
 
@@ -555,7 +605,8 @@ func (s *Scheduler) applyGenerationResult(
 	if result.Terminate {
 		s.finishSweep(ctx)
 		return s.doneTask(
-			spb.SweepSchedulerServerDoneTask_REASON_TERMINATED, "")
+			spb.SweepSchedulerServerDoneTask_REASON_SWEEP_FINISHED,
+			"the optimizer ended the sweep")
 	}
 
 	switch result.AskOutcome {
@@ -580,13 +631,19 @@ func (s *Scheduler) applyGenerationResult(
 	}
 }
 
-// popDeliveredTerminals retires runs whose terminal update the client
-// acknowledged, so a resumed run is noticed rather than re-told.
+// popDeliveredTerminals settles runs whose terminal update the client
+// acknowledged. Only one that finished successfully is done with for
+// good, since its result cannot improve; any other ending goes dormant,
+// where a resume is still worth reporting to the user.
 func (s *Scheduler) popDeliveredTerminals() {
 	for _, run := range s.runs {
-		if run.state == TrackingTerminalDelivered {
+		if run.state != TrackingTerminalDelivered {
+			continue
+		}
+		if run.runState == spb.SweepRunState_SWEEP_RUN_STATE_FINISHED {
 			run.state = TrackingRetired
-			run.reported = true
+		} else {
+			run.state = TrackingDormant
 		}
 	}
 }
@@ -621,15 +678,18 @@ type sweepConfig struct {
 	Metric struct {
 		Name string `yaml:"name"`
 	} `yaml:"metric"`
+	RunCap int `yaml:"run_cap"`
 }
 
-// parseMetricKey returns the sweep's objective metric name, or ""
-// when the config declares none: that disables history fetching and
-// the FINISHED-without-metric reclassification rather than failing.
-func parseMetricKey(configYAML string) (string, error) {
-	var config sweepConfig
-	if err := yaml.Unmarshal([]byte(configYAML), &config); err != nil {
-		return "", fmt.Errorf("scheduler: parsing sweep config: %v", err)
+// parseSweepConfig returns the sweep's objective metric name and run cap.
+//
+// An empty metric key disables history fetching and the
+// FINISHED-without-metric reclassification rather than failing. A run
+// cap of 0 means the sweep is uncapped.
+func parseSweepConfig(configYAML string) (*sweepConfig, error) {
+	var cfg sweepConfig
+	if err := yaml.Unmarshal([]byte(configYAML), &cfg); err != nil {
+		return nil, fmt.Errorf("scheduler: parsing sweep config: %v", err)
 	}
-	return config.Metric.Name, nil
+	return &cfg, nil
 }

@@ -1,23 +1,123 @@
 package scheduler_test
 
 import (
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/sweeps/scheduler"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
+// The sweep can hold thousands of runs this scheduler neither owns nor
+// acts on, so a poll reads only the ones it is still watching.
+func TestPollAsksOnlyForTheWatchedRuns(t *testing.T) {
+	fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 2})
+	fixture.stubWarmStart(warmJSON("RUNNING", false, "",
+		testRun{name: "mine", state: "running"},
+		testRun{name: "stranger", state: "running"},
+	))
+	require.NotNil(t, fixture.step(t, nil).GetWarmStart())
+
+	fixture.stubPoll(pollJSON("RUNNING", false, "",
+		testRun{name: "mine", state: "running"},
+	))
+	fixture.step(t, warmResult(map[string]string{"mine": "opt-1"}))
+
+	requests := fixture.requestsFor("SweepWatchedRuns")
+	require.Len(t, requests, 1)
+	gqlmock.AssertVariables(t, requests[0],
+		gqlmock.GQLVar("filters", gomock.Eq(`{"name":{"$in":["mine"]}}`)))
+}
+
+func TestPollWithNothingToWatchReadsOnlyTheSweepState(t *testing.T) {
+	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
+	fixture.warmTo(t)
+
+	fixture.stubIdlePoll("RUNNING")
+	task := fixture.step(t, warmResult(nil))
+
+	require.NotNil(t, task.GetGeneration())
+	assert.Empty(t, fixture.requestsFor("SweepWatchedRuns"),
+		"a scheduler with no runs to watch must not read any")
+}
+
+func TestPollWalksEveryPageOfTheWatchedRuns(t *testing.T) {
+	fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 3})
+	fixture.stubWarmStart(warmJSON("RUNNING", false, "",
+		testRun{name: "run-1", state: "running"},
+		testRun{name: "run-2", state: "running"},
+	))
+	require.NotNil(t, fixture.step(t, nil).GetWarmStart())
+
+	// Stopping at the first page would make the run on the second look
+	// deleted and get it reaped.
+	fixture.stubPoll(pollJSON("RUNNING", true, "cursor-1",
+		testRun{name: "run-1", state: "running"},
+	))
+	fixture.stubPoll(pollJSON("RUNNING", false, "",
+		testRun{name: "run-2", state: "finished", summary: `{"loss": 1}`},
+	))
+	task := fixture.step(t, warmResult(map[string]string{
+		"run-1": "opt-1",
+		"run-2": "opt-2",
+	}))
+
+	updates := task.GetGeneration().Updates
+	require.Len(t, updates, 2)
+	assert.Equal(t,
+		spb.SweepRunState_SWEEP_RUN_STATE_RUNNING, updates[0].Run.State)
+	assert.Equal(t,
+		spb.SweepRunState_SWEEP_RUN_STATE_FINISHED, updates[1].Run.State)
+	assert.True(t, fixture.client.AllStubsUsed())
+}
+
+// A dormant run that turns out to be deleted stops being read, rather
+// than costing a confirming query on every later poll.
+func TestDeletedDormantRunStopsBeingWatched(t *testing.T) {
+	fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 2})
+	fixture.warmTo(t)
+	fixture.stubPoll(pollJSON("RUNNING", false, "",
+		testRun{name: "run-1", state: "running"},
+	))
+	fixture.step(t, warmResult(map[string]string{"run-1": "opt-1"}))
+
+	// It fails, and the terminal update is acked, leaving it dormant.
+	fixture.stubPoll(pollJSON("RUNNING", false, "",
+		testRun{name: "run-1", state: "failed"},
+	))
+	require.Len(t, fixture.step(t, emptyIterResult()).GetGeneration().Updates, 1)
+
+	// Now it is gone for good.
+	fixture.stubPoll(pollJSON("RUNNING", false, ""))
+	fixture.client.StubMatchOnce(
+		gqlmock.WithOpName("RunState"),
+		`{"project": {"run": null}}`,
+	)
+	reaped := fixture.step(t, emptyIterResult())
+	assert.Empty(t, reaped.GetGeneration().Updates)
+
+	// Nothing left to watch, so no runs query and no confirming read.
+	pollsBefore := len(fixture.requestsFor("SweepWatchedRuns"))
+	fixture.stubIdlePoll("RUNNING")
+	fixture.step(t, emptyIterResult())
+
+	assert.Len(t, fixture.requestsFor("SweepWatchedRuns"), pollsBefore)
+	assert.Len(t, fixture.requestsFor("RunState"), 1)
+	assert.True(t, fixture.client.AllStubsUsed())
+}
+
 func TestSuggestionsEnqueueAndAppear(t *testing.T) {
 	fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 2})
 	fixture.warmTo(t)
 
-	fixture.stubPoll(pollJSON("RUNNING", false, ""))
+	fixture.stubIdlePoll("RUNNING")
 	first := fixture.step(t, warmResult(nil))
 	require.NotNil(t, first.GetGeneration())
 	assert.EqualValues(t, 2, first.GetGeneration().AskUpTo)
@@ -44,7 +144,7 @@ func TestSuggestionsEnqueueAndAppear(t *testing.T) {
 func TestExhaustedFinishesSweep(t *testing.T) {
 	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
 	fixture.warmTo(t)
-	fixture.stubPoll(pollJSON("RUNNING", false, ""))
+	fixture.stubIdlePoll("RUNNING")
 	fixture.step(t, warmResult(nil))
 
 	fixture.stubFinishSweep()
@@ -55,7 +155,7 @@ func TestExhaustedFinishesSweep(t *testing.T) {
 
 	require.NotNil(t, done.GetDone())
 	assert.Equal(t,
-		spb.SweepSchedulerServerDoneTask_REASON_EXHAUSTED,
+		spb.SweepSchedulerServerDoneTask_REASON_SWEEP_FINISHED,
 		done.GetDone().Reason)
 	assert.True(t, fixture.client.AllStubsUsed())
 }
@@ -78,7 +178,7 @@ func TestPruneLifecycle(t *testing.T) {
 		gqlmock.WithOpName("StopRun"),
 		`{"stopRun": {"success": true}}`,
 	)
-	fixture.stubPoll(pollJSON("RUNNING", false, ""))
+	fixture.stubIdlePoll("RUNNING")
 	second := fixture.step(t, generationResult(
 		&spb.SweepSchedulerClientGenerationResult{Prune: []string{"opt-v"}}))
 
@@ -87,11 +187,10 @@ func TestPruneLifecycle(t *testing.T) {
 	assert.Empty(t, second.GetGeneration().PruneCandidates)
 	assert.EqualValues(t, 2, second.GetGeneration().AskUpTo)
 
-	// The run is retired for good: even if the backend still reports
-	// it running, it is never polled or told about again.
-	fixture.stubPoll(pollJSON("RUNNING", false, "",
-		testRun{name: "victim", state: "running"},
-	))
+	// The run is retired for good: it drops out of the watched set, so
+	// the scheduler stops reading it at all rather than reading it and
+	// discarding the row.
+	fixture.stubIdlePoll("RUNNING")
 	third := fixture.step(t, emptyIterResult())
 	assert.Empty(t, third.GetGeneration().Updates)
 	assert.True(t, fixture.client.AllStubsUsed())
@@ -100,12 +199,12 @@ func TestPruneLifecycle(t *testing.T) {
 func TestPruneIgnoresNonCandidates(t *testing.T) {
 	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
 	fixture.warmTo(t)
-	fixture.stubPoll(pollJSON("RUNNING", false, ""))
+	fixture.stubIdlePoll("RUNNING")
 	fixture.step(t, warmResult(nil))
 
 	// No StopRun stub: pruning an id that was never a candidate must
 	// not call the backend.
-	fixture.stubPoll(pollJSON("RUNNING", false, ""))
+	fixture.stubIdlePoll("RUNNING")
 	task := fixture.step(t, generationResult(
 		&spb.SweepSchedulerClientGenerationResult{
 			Prune: []string{"never-offered"},
@@ -268,7 +367,7 @@ func TestPausedSweepIdles(t *testing.T) {
 	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
 	fixture.warmTo(t)
 
-	fixture.stubPoll(pollJSON("PAUSED", false, ""))
+	fixture.stubIdlePoll("PAUSED")
 	task := fixture.step(t, warmResult(nil))
 
 	generation := task.GetGeneration()
@@ -281,7 +380,7 @@ func TestExternallyFinishedSweepEndsLoop(t *testing.T) {
 	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
 	fixture.warmTo(t)
 
-	fixture.stubPoll(pollJSON("FINISHED", false, ""))
+	fixture.stubIdlePoll("FINISHED")
 	done := fixture.step(t, warmResult(nil))
 
 	require.NotNil(t, done.GetDone())
@@ -290,10 +389,50 @@ func TestExternallyFinishedSweepEndsLoop(t *testing.T) {
 		done.GetDone().Reason)
 }
 
+func TestCanceledSweepEndsLoopAsTerminated(t *testing.T) {
+	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
+	fixture.warmTo(t)
+
+	fixture.stubIdlePoll("CANCELED")
+	done := fixture.step(t, warmResult(nil))
+
+	require.NotNil(t, done.GetDone())
+	assert.Equal(t,
+		spb.SweepSchedulerServerDoneTask_REASON_TERMINATED,
+		done.GetDone().Reason)
+}
+
+func TestFlappingSweepEndsLoopAsFatalError(t *testing.T) {
+	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
+	fixture.warmTo(t)
+
+	// The backend, not the user, gave up on the sweep.
+	fixture.stubIdlePoll("FLAPPING")
+	done := fixture.step(t, warmResult(nil))
+
+	require.NotNil(t, done.GetDone())
+	assert.Equal(t,
+		spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR,
+		done.GetDone().Reason)
+}
+
+func TestUnrecognizedSweepStateKeepsScheduling(t *testing.T) {
+	fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 1})
+	fixture.warmTo(t)
+
+	// A state this build does not know is not a done state, so the loop
+	// keeps scheduling instead of reporting the sweep terminated.
+	fixture.stubIdlePoll("SOME_NEW_ACTIVE_STATE")
+	task := fixture.step(t, warmResult(nil))
+
+	require.NotNil(t, task.GetGeneration())
+	assert.EqualValues(t, 1, task.GetGeneration().AskUpTo)
+}
+
 func TestLateSuggestionsDiscardedWhenSweepFinished(t *testing.T) {
 	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
 	fixture.warmTo(t)
-	fixture.stubPoll(pollJSON("RUNNING", false, ""))
+	fixture.stubIdlePoll("RUNNING")
 	fixture.step(t, warmResult(nil))
 
 	// The sweep finished while the optimizer was thinking; its
@@ -313,7 +452,10 @@ func TestSweepNotFoundEndsLoop(t *testing.T) {
 	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
 	fixture.warmTo(t)
 
-	fixture.stubPoll(`{"project": {"sweep": null}}`)
+	fixture.client.StubMatchOnce(
+		gqlmock.WithOpName("SweepConfig"),
+		`{"project": {"sweep": null}}`,
+	)
 	done := fixture.step(t, warmResult(nil))
 
 	require.NotNil(t, done.GetDone())
@@ -327,7 +469,7 @@ func TestFatalPollErrorEndsLoopImmediately(t *testing.T) {
 	fixture.warmTo(t)
 
 	fixture.client.StubMatchWithError(
-		gqlmock.WithOpName("SweepRunsWithHistory"),
+		gqlmock.WithOpName("SweepConfig"),
 		&graphql.HTTPError{StatusCode: 403},
 	)
 	done := fixture.step(t, warmResult(nil))
@@ -338,47 +480,59 @@ func TestFatalPollErrorEndsLoopImmediately(t *testing.T) {
 		done.GetDone().Reason)
 }
 
-func TestTransientPollErrorsGiveUpEventually(t *testing.T) {
+func TestPollErrorEndsTheScheduler(t *testing.T) {
 	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
 	fixture.warmTo(t)
-	fixture.stubPoll(pollJSON("RUNNING", false, ""))
+	fixture.stubIdlePoll("RUNNING")
 	fixture.step(t, warmResult(nil))
 
-	result := emptyIterResult()
-	for polls := 0; ; polls++ {
-		require.Less(t, polls, 11, "the loop never gave up")
+	// The HTTP client has already retried a 502 by the time the loop
+	// sees it, so polling again is not what would make it succeed.
+	fixture.client.StubMatchWithError(
+		gqlmock.WithOpName("SweepConfig"),
+		&graphql.HTTPError{StatusCode: 502},
+	)
+	task := fixture.step(t, emptyIterResult())
 
-		fixture.client.StubMatchWithError(
-			gqlmock.WithOpName("SweepRunsWithHistory"),
-			&graphql.HTTPError{StatusCode: 502},
-		)
-		task := fixture.step(t, result)
-		if done := task.GetDone(); done != nil {
-			assert.Equal(t,
-				spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR,
-				done.Reason)
-			assert.Contains(t, done.Message, "too many consecutive")
-			break
-		}
-		// Empty tasks while the backend misbehaves.
-		assert.Empty(t, task.GetGeneration().Updates)
-	}
+	done := task.GetDone()
+	require.NotNil(t, done)
+	assert.Equal(t,
+		spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR, done.Reason)
 }
 
-func TestTransientEnqueueFailureDiscardsAndContinues(t *testing.T) {
-	fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 2})
+func TestRateLimitedPollKeepsGoing(t *testing.T) {
+	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
 	fixture.warmTo(t)
-	fixture.stubPoll(pollJSON("RUNNING", false, ""))
+	fixture.stubIdlePoll("RUNNING")
 	fixture.step(t, warmResult(nil))
 
-	// A 502 is retryable, so it costs only this suggestion: the error
-	// budget, not one failed enqueue, decides when the loop gives up.
+	fixture.client.StubMatchWithError(
+		gqlmock.WithOpName("SweepConfig"),
+		&graphql.HTTPError{StatusCode: 429},
+	)
+	task := fixture.step(t, emptyIterResult())
+
+	// An empty task while the backend asks for a slower pace.
+	generation := task.GetGeneration()
+	require.NotNil(t, generation)
+	assert.Empty(t, generation.Updates)
+}
+
+func TestRateLimitedEnqueueDiscardsAndContinues(t *testing.T) {
+	fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 2})
+	fixture.warmTo(t)
+	fixture.stubIdlePoll("RUNNING")
+	fixture.step(t, warmResult(nil))
+
+	// A rate limit costs only this suggestion; the loop slows down and
+	// carries on.
 	fixture.stubSweepConfig("RUNNING")
 	fixture.client.StubMatchWithError(
 		gqlmock.WithOpName("EnqueueSweepRun"),
-		&graphql.HTTPError{StatusCode: 502},
+		&graphql.HTTPError{StatusCode: 429},
 	)
-	fixture.stubPoll(pollJSON("RUNNING", false, ""))
+	// The suggestion never became a run, so there is nothing to watch.
+	fixture.stubIdlePoll("RUNNING")
 	task := fixture.step(t, generationResult(suggest("opt-lost")))
 
 	generation := task.GetGeneration()
@@ -393,7 +547,7 @@ func TestTransientEnqueueFailureDiscardsAndContinues(t *testing.T) {
 func TestFatalEnqueueFailureEndsTheSchedulerWithTheDiscard(t *testing.T) {
 	fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 2})
 	fixture.warmTo(t)
-	fixture.stubPoll(pollJSON("RUNNING", false, ""))
+	fixture.stubIdlePoll("RUNNING")
 	fixture.step(t, warmResult(nil))
 
 	// A 400 is never retried, so polling again cannot help.
@@ -417,7 +571,7 @@ func TestFatalEnqueueFailureEndsTheSchedulerWithTheDiscard(t *testing.T) {
 func TestSuggestionsAfterAFatalEnqueueAreDiscarded(t *testing.T) {
 	fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 3})
 	fixture.warmTo(t)
-	fixture.stubPoll(pollJSON("RUNNING", false, ""))
+	fixture.stubIdlePoll("RUNNING")
 	fixture.step(t, warmResult(nil))
 
 	// Only the first suggestion is attempted; the rest are never
@@ -466,7 +620,7 @@ func TestDuplicateSuggestionIDDroppedWithoutDiscarding(t *testing.T) {
 func TestEnqueuedRunDeletedBeforeAppearingIsReaped(t *testing.T) {
 	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
 	fixture.warmTo(t)
-	fixture.stubPoll(pollJSON("RUNNING", false, ""))
+	fixture.stubIdlePoll("RUNNING")
 	fixture.step(t, warmResult(nil))
 
 	fixture.stubSweepConfig("RUNNING")
@@ -519,7 +673,7 @@ func TestPendingRunKeepsSlot(t *testing.T) {
 func TestStopEnqueuesPendingSuggestionsThenDone(t *testing.T) {
 	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
 	fixture.warmTo(t)
-	fixture.stubPoll(pollJSON("RUNNING", false, ""))
+	fixture.stubIdlePoll("RUNNING")
 	fixture.step(t, warmResult(nil))
 
 	fixture.scheduler.Stop()
@@ -540,7 +694,7 @@ func TestStopEnqueuesPendingSuggestionsThenDone(t *testing.T) {
 		"must not poll again after enqueueing the in-flight suggestions")
 }
 
-func TestResumedRunIsNotRetoldNorCounted(t *testing.T) {
+func TestSucceededRunIsDroppedFromTheWatchedSet(t *testing.T) {
 	fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 2})
 	fixture.warmTo(t)
 	fixture.stubPoll(pollJSON("RUNNING", false, "",
@@ -555,28 +709,97 @@ func TestResumedRunIsNotRetoldNorCounted(t *testing.T) {
 	terminal := fixture.step(t, emptyIterResult())
 	require.Len(t, terminal.GetGeneration().Updates, 1)
 
-	// The run resumes: no second terminal tell, and it does not count
-	// toward the batch.
+	// Its result is valid and final, so it is never read again. A resume
+	// after this point cannot improve on what the optimizer already has.
+	fixture.stubIdlePoll("RUNNING")
+	settled := fixture.step(t, emptyIterResult())
+
+	generation := settled.GetGeneration()
+	assert.Empty(t, generation.Updates)
+	assert.EqualValues(t, 2, generation.AskUpTo)
+	assert.True(t, fixture.client.AllStubsUsed())
+}
+
+// A run that ended badly stays readable so a resume can be reported to
+// the user, but it is never told to the optimizer again: both optimizers
+// finalize a trial on its terminal tell and ignore every later one, so a
+// re-tell would teach the search nothing while costing a batch slot.
+func TestResumedRunIsNotRetoldNorCounted(t *testing.T) {
+	fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 2})
+	fixture.warmTo(t)
+	fixture.stubPoll(pollJSON("RUNNING", false, "",
+		testRun{name: "run-1", state: "running"},
+	))
+	fixture.step(t, warmResult(map[string]string{"run-1": "opt-1"}))
+
+	// It crashes; the terminal update is delivered and acked, freeing
+	// its batch slot.
+	fixture.stubPoll(pollJSON("RUNNING", false, "",
+		testRun{name: "run-1", state: "crashed"},
+	))
+	crashed := fixture.step(t, emptyIterResult())
+	require.Len(t, crashed.GetGeneration().Updates, 1)
+	assert.EqualValues(t, 2, crashed.GetGeneration().AskUpTo)
+
+	// It resumes: still read, but no second tell and no slot reclaimed.
 	fixture.stubPoll(pollJSON("RUNNING", false, "",
 		testRun{name: "run-1", state: "running"},
 	))
 	resumed := fixture.step(t, emptyIterResult())
+	assert.Empty(t, resumed.GetGeneration().Updates)
+	assert.EqualValues(t, 2, resumed.GetGeneration().AskUpTo)
 
-	generation := resumed.GetGeneration()
-	assert.Empty(t, generation.Updates)
-	assert.EqualValues(t, 2, generation.AskUpTo)
+	// Not even if it goes on to finish: the trial is already closed.
+	fixture.stubPoll(pollJSON("RUNNING", false, "",
+		testRun{name: "run-1", state: "finished", summary: `{"loss": 1}`},
+	))
+	finished := fixture.step(t, emptyIterResult())
+	assert.Empty(t, finished.GetGeneration().Updates)
+	assert.EqualValues(t, 2, finished.GetGeneration().AskUpTo)
+	assert.True(t, fixture.client.AllStubsUsed())
+}
+
+// PREEMPTED is terminal here because it is terminal on the client: both
+// optimizers see RunState.PREEMPTED as dead and fail the trial on the
+// first tell. Holding the slot open would strand the batch.
+func TestPreemptedRunIsTerminalAndFreesItsSlot(t *testing.T) {
+	fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 1})
+	fixture.warmTo(t)
+	fixture.stubPoll(pollJSON("RUNNING", false, "",
+		testRun{name: "run-1", state: "running"},
+	))
+	fixture.step(t, warmResult(map[string]string{"run-1": "opt-1"}))
+
+	fixture.stubPoll(pollJSON("RUNNING", false, "",
+		testRun{name: "run-1", state: "preempted"},
+	))
+	task := fixture.step(t, emptyIterResult())
+
+	generation := task.GetGeneration()
+	require.Len(t, generation.Updates, 1)
+	assert.Equal(t,
+		spb.SweepRunState_SWEEP_RUN_STATE_PREEMPTED,
+		generation.Updates[0].Run.State)
+
+	// The slot is released once the client acks, so a batch of one can
+	// schedule again instead of deadlocking.
+	fixture.stubPoll(pollJSON("RUNNING", false, "",
+		testRun{name: "run-1", state: "preempted"},
+	))
+	next := fixture.step(t, emptyIterResult())
+	assert.EqualValues(t, 1, next.GetGeneration().AskUpTo)
 }
 
 func TestEmptySuggestionIDDroppedWithoutDiscarding(t *testing.T) {
 	fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 2})
 	fixture.warmTo(t)
-	fixture.stubPoll(pollJSON("RUNNING", false, ""))
+	fixture.stubIdlePoll("RUNNING")
 	fixture.step(t, warmResult(nil))
 
 	// An empty id would join to any run without a display name, so the
 	// suggestion is dropped before it is enqueued (no enqueue stub).
 	fixture.stubSweepConfig("RUNNING")
-	fixture.stubPoll(pollJSON("RUNNING", false, ""))
+	fixture.stubIdlePoll("RUNNING")
 	task := fixture.step(t, generationResult(suggest("")))
 
 	generation := task.GetGeneration()
@@ -623,19 +846,19 @@ func TestExhaustedWaitsForScheduledRuns(t *testing.T) {
 
 	// With nothing left in flight, the sweep is finished for real.
 	fixture.stubFinishSweep()
-	fixture.stubPoll(pollJSON("RUNNING", false, ""))
+	fixture.stubIdlePoll("RUNNING")
 	done := fixture.step(t, emptyIterResult())
 
 	require.NotNil(t, done.GetDone())
 	assert.Equal(t,
-		spb.SweepSchedulerServerDoneTask_REASON_EXHAUSTED, done.GetDone().Reason)
+		spb.SweepSchedulerServerDoneTask_REASON_SWEEP_FINISHED, done.GetDone().Reason)
 	assert.True(t, fixture.client.AllStubsUsed())
 }
 
 func TestExhaustedWaitsForInvisibleEnqueuedRun(t *testing.T) {
 	fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 1})
 	fixture.warmTo(t)
-	fixture.stubPoll(pollJSON("RUNNING", false, ""))
+	fixture.stubIdlePoll("RUNNING")
 	fixture.step(t, warmResult(nil))
 
 	// A suggestion is enqueued but its run has not appeared yet.
@@ -659,12 +882,12 @@ func TestExhaustedWaitsForInvisibleEnqueuedRun(t *testing.T) {
 
 func TestWarmStartPagesAndAdoption(t *testing.T) {
 	fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 3})
-	fixture.stubPoll(pollJSON("RUNNING", true, "cursor-1",
+	fixture.stubWarmStart(warmJSON("RUNNING", true, "cursor-1",
 		testRun{name: "old-finished", state: "finished",
 			config:  `{"param1": {"value": 1}}`,
 			summary: `{"loss": 0.5}`},
 	))
-	fixture.stubPoll(pollJSON("RUNNING", false, "",
+	fixture.stubWarmStart(warmJSON("RUNNING", false, "",
 		testRun{name: "old-running", state: "running",
 			config: `{"param1": {"value": 2}}`},
 	))
@@ -705,7 +928,7 @@ func TestWarmStartPagesAndAdoption(t *testing.T) {
 func TestWarmPageReclassifiesFinishedWithoutMetric(t *testing.T) {
 	fixture := newLoopFixture(t,
 		scheduler.SchedulerParams{MetricKey: "loss"})
-	fixture.stubPoll(pollJSON("RUNNING", false, "",
+	fixture.stubWarmStart(warmJSON("RUNNING", false, "",
 		testRun{name: "no-metric", state: "finished", summary: `{}`},
 	))
 
@@ -719,11 +942,11 @@ func TestWarmPageReclassifiesFinishedWithoutMetric(t *testing.T) {
 		warmStart.FinishedRuns[0].State)
 }
 
-func TestWarmPageErrorRetriesThePage(t *testing.T) {
+func TestRateLimitedWarmPageRetriesThePage(t *testing.T) {
 	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
 	fixture.client.StubMatchWithError(
 		gqlmock.WithOpName("SweepRunsWithHistory"),
-		&graphql.HTTPError{StatusCode: 500},
+		&graphql.HTTPError{StatusCode: 429},
 	)
 
 	task := fixture.step(t, nil)
@@ -737,7 +960,7 @@ func TestWarmPageErrorRetriesThePage(t *testing.T) {
 	assert.True(t, warmStart.HasMore)
 
 	// The retry re-reads the page, and its runs reach the optimizer.
-	fixture.stubPoll(pollJSON("RUNNING", false, "",
+	fixture.stubWarmStart(warmJSON("RUNNING", false, "",
 		testRun{name: "prior-1", state: "finished"},
 	))
 	retried := fixture.step(t, warmResult(nil))
@@ -750,27 +973,109 @@ func TestWarmPageErrorRetriesThePage(t *testing.T) {
 	assert.True(t, fixture.client.AllStubsUsed())
 }
 
-func TestWarmStartGivesUpOnceTheErrorBudgetIsSpent(t *testing.T) {
-	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
+func TestWarmStartFinishedRunReachesRunCap(t *testing.T) {
+	fixture := newLoopFixture(t, scheduler.SchedulerParams{RunCap: 1})
 
-	// Retrying costs the same budget a poll has; once it is spent the
-	// session ends rather than retrying forever.
-	var task *spb.SweepSchedulerServerNextTaskResponse
-	for range 20 {
-		fixture.client.StubMatchWithError(
-			gqlmock.WithOpName("SweepRunsWithHistory"),
-			&graphql.HTTPError{StatusCode: 500},
-		)
-		task = fixture.step(t, nil)
-		if task.GetDone() != nil {
-			break
-		}
-		require.NotNil(t, task.GetWarmStart())
-	}
+	fixture.stubWarmStart(warmJSON("RUNNING", false, "",
+		testRun{name: "old-finished", state: "finished", summary: `{"loss": 1}`},
+	))
+	warm := fixture.step(t, nil)
+	require.Len(t, warm.GetWarmStart().FinishedRuns, 1)
 
-	done := task.GetDone()
-	require.NotNil(t, done, "warm start retried past its error budget")
+	// The cap was already reached by the warm-started run alone.
+	fixture.stubIdlePoll("RUNNING")
+	done := fixture.step(t, warmResult(nil))
+
+	require.NotNil(t, done.GetDone())
 	assert.Equal(t,
-		spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR, done.Reason)
-	assert.Contains(t, done.Message, "too many consecutive errors")
+		spb.SweepSchedulerServerDoneTask_REASON_SWEEP_FINISHED,
+		done.GetDone().Reason)
+	assert.Contains(t, done.GetDone().Message, "run cap")
+}
+
+func TestFailedWarmStartRunDoesNotCountTowardRunCap(t *testing.T) {
+	fixture := newLoopFixture(t, scheduler.SchedulerParams{RunCap: 1})
+
+	fixture.stubWarmStart(warmJSON("RUNNING", false, "",
+		testRun{name: "old-failed", state: "failed"},
+	))
+	warm := fixture.step(t, nil)
+	require.Len(t, warm.GetWarmStart().FinishedRuns, 1)
+	assert.Equal(t,
+		spb.SweepRunState_SWEEP_RUN_STATE_FAILED,
+		warm.GetWarmStart().FinishedRuns[0].State)
+
+	// A failed run never counts toward the cap: the loop keeps going.
+	fixture.stubIdlePoll("RUNNING")
+	task := fixture.step(t, warmResult(nil))
+
+	require.NotNil(t, task.GetGeneration())
+}
+
+func TestRunCapAccountsForRunsFinishedDuringPolling(t *testing.T) {
+	fixture := newLoopFixture(t, scheduler.SchedulerParams{RunCap: 2})
+
+	// One prior run already finished by warm start.
+	fixture.stubWarmStart(warmJSON("RUNNING", false, "",
+		testRun{name: "old-finished", state: "finished", summary: `{"loss": 1}`},
+	))
+	warm := fixture.step(t, nil)
+	require.Len(t, warm.GetWarmStart().FinishedRuns, 1)
+
+	// Adopt a running run so a second run can finish under pollAll.
+	fixture.stubPoll(pollJSON("RUNNING", false, "",
+		testRun{name: "run-1", state: "running"},
+	))
+	generation := fixture.step(t, warmResult(map[string]string{"run-1": "opt-1"}))
+	require.NotNil(t, generation.GetGeneration())
+
+	// run-1 finishes: the cap is now reached, but its terminal update is
+	// still delivered before the loop notices next step.
+	fixture.stubPoll(pollJSON("RUNNING", false, "",
+		testRun{name: "run-1", state: "finished", summary: `{"loss": 1}`},
+	))
+	terminal := fixture.step(t, emptyIterResult())
+	require.Len(t, terminal.GetGeneration().Updates, 1)
+	assert.Equal(t,
+		spb.SweepRunState_SWEEP_RUN_STATE_FINISHED,
+		terminal.GetGeneration().Updates[0].Run.State)
+
+	// The next step sees the cap reached and ends the sweep.
+	fixture.stubIdlePoll("RUNNING")
+	done := fixture.step(t, emptyIterResult())
+
+	require.NotNil(t, done.GetDone())
+	assert.Equal(t,
+		spb.SweepSchedulerServerDoneTask_REASON_SWEEP_FINISHED,
+		done.GetDone().Reason)
+	assert.Contains(t, done.GetDone().Message, "run cap")
+}
+
+func TestWarmPageErrorEndsTheScheduler(t *testing.T) {
+	// Only a rate limit leaves the page worth re-reading; everything
+	// else has already outlived the HTTP client's retries. An empty
+	// warm-start task would tell the optimizer this page held no prior
+	// runs, so it must never stand in for one of these.
+	for name, err := range map[string]error{
+		"server error":    &graphql.HTTPError{StatusCode: 500},
+		"forbidden":       &graphql.HTTPError{StatusCode: 403},
+		"bad request":     &graphql.HTTPError{StatusCode: 400},
+		"retries used up": errors.New("giving up after 20 attempt(s)"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			fixture := newLoopFixture(t, scheduler.SchedulerParams{})
+			fixture.client.StubMatchWithError(
+				gqlmock.WithOpName("SweepRunsWithHistory"), err)
+
+			task := fixture.step(t, nil)
+
+			require.Nil(t, task.GetWarmStart(),
+				"warm start reported an empty page for an unretryable error")
+			done := task.GetDone()
+			require.NotNil(t, done, "warm start retried an unretryable page")
+			assert.Equal(t,
+				spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR,
+				done.Reason)
+		})
+	}
 }
