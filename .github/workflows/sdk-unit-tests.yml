@@ -1,0 +1,42 @@
+name: SDK unit tests
+
+on:
+  workflow_call:
+    inputs:
+      python:
+        type: string
+        required: true
+      runs-on:
+        type: string
+        required: true
+      wheel-artifact:
+        type: string
+        required: true
+      artifact-name:
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.group }} of 4
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/run-nox-tests
+        with:
+          python: ${{ inputs.python }}
+          session: unit_tests
+          wheel-artifact: ${{ inputs.wheel-artifact }}
+          test-group: ${{ matrix.group }}
+          test-groups: "4"
+          artifact-name: ${{ inputs.artifact-name }}-${{ matrix.group }}
