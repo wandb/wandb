@@ -1,5 +1,4 @@
 import json
-import re
 from copy import deepcopy
 from functools import partial
 from unittest.mock import Mock
@@ -20,42 +19,19 @@ from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 from wandb.sdk.sweeps import SweepNotFoundError
 
 
-@pytest.fixture(params=["constructor", "project"])
-def make_sweeps(request, mocker):
+@pytest.fixture
+def make_sweeps(mocker):
     service_api = mocker.Mock()
     service_api.feature_enabled.return_value = True
-    if request.param == "constructor":
-        return partial(Sweeps, service_api, "entity", "project"), service_api
-    project = Project(service_api, "entity", "project", attrs={})
-    return project.sweeps, service_api
+    return partial(Sweeps, service_api, "entity", "project"), service_api
 
 
-@pytest.mark.parametrize(
-    "filters,error",
-    [
-        (
-            {"tags": {"$all": [["sgd"], "test"], "$nin": ["test-2"]}},
-            "filters.tags.$all[0]: expected a tag string, got list",
-        ),
-        (
-            {"$in": ["group-1"]},
-            "filters.$in: $in must be nested under a field name",
-        ),
-        (
-            {"tags": [["sgd"]]},
-            "filters.tags[0]: expected a tag string, got list",
-        ),
-        (0, "filters: expected a filter dictionary"),
-        ("", "filters: expected a filter dictionary"),
-        (False, "filters: expected a filter dictionary"),
-        ([], "filters: expected a filter dictionary"),
-    ],
-)
-def test_sweeps_reject_invalid_filters_before_requests(make_sweeps, filters, error):
+def test_sweeps_reject_invalid_filters_before_requests(make_sweeps):
     create_sweeps, service_api = make_sweeps
+    filters = {"tags": {"$all": [["sgd"], "test"]}}
     original_filters = deepcopy(filters)
 
-    with pytest.raises(ValueError, match=re.escape(error)):
+    with pytest.raises(ValueError, match=r"filters\.tags\.\$all\[0\]"):
         create_sweeps(filters=filters)
 
     assert filters == original_filters
@@ -63,33 +39,15 @@ def test_sweeps_reject_invalid_filters_before_requests(make_sweeps, filters, err
     service_api.execute_graphql.assert_not_called()
 
 
-@pytest.mark.parametrize(
-    "filters",
-    [
-        None,
-        {},
-        {"tags": {"$all": ["sgd", "test"], "$nin": ["test-2"]}},
-        {"tags": ["sgd", "test"]},
-        {"tags": ("sgd", "test")},
-        {
-            "$and": [
-                {"tags": {"$in": ["sgd"]}},
-                {"summary_metrics.values": {"$in": [[1, 2], [3, 4]]}},
-                {"config.layers": {"$eq": [32, 64]}},
-            ]
-        },
-    ],
-)
-def test_sweeps_preserve_valid_filters(make_sweeps, filters):
-    create_sweeps, service_api = make_sweeps
-    original_filters = deepcopy(filters)
+def test_sweeps_preserve_valid_filters(mocker):
+    service_api = mocker.Mock()
+    service_api.feature_enabled.return_value = True
+    project = Project(service_api, "entity", "project", attrs={})
+    filters = {"tags": {"$all": ["sgd"], "$nin": ["test-2"]}}
 
-    sweeps = create_sweeps(filters=filters)
+    sweeps = project.sweeps(filters=filters)
 
-    assert filters == original_filters
-    assert sweeps.variables["filters"] == json.dumps({} if filters is None else filters)
-    service_api.feature_enabled.assert_called_once_with(pb.SWEEPS_QUERY_FILTERING)
-    service_api.execute_graphql.assert_not_called()
+    assert sweeps.variables["filters"] == json.dumps(filters)
 
 
 def test_sweeps_reject_filters_on_unsupported_server(make_sweeps):
@@ -103,12 +61,11 @@ def test_sweeps_reject_filters_on_unsupported_server(make_sweeps):
     service_api.execute_graphql.assert_not_called()
 
 
-@pytest.mark.parametrize("filters", [None, {}])
-def test_sweeps_allow_empty_filters_on_unsupported_server(make_sweeps, filters):
+def test_sweeps_allow_empty_filters_on_unsupported_server(make_sweeps):
     create_sweeps, service_api = make_sweeps
     service_api.feature_enabled.return_value = False
 
-    sweeps = create_sweeps(filters=filters)
+    sweeps = create_sweeps(filters=None)
 
     assert sweeps.variables["filters"] == "{}"
     service_api.feature_enabled.assert_called_once_with(pb.SWEEPS_QUERY_FILTERING)

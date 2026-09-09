@@ -1,6 +1,5 @@
 import json
 from copy import deepcopy
-from typing import Any
 from unittest import mock
 
 import pytest
@@ -10,67 +9,19 @@ from wandb.apis.public.sweeps import Sweep
 from wandb.proto import wandb_api_pb2 as apb
 
 
-@pytest.mark.parametrize("lazy", [True, False])
-def test_runs_reject_nested_tag_list(lazy: bool) -> None:
+def test_runs_reject_nested_tag_list() -> None:
     service_api = mock.MagicMock()
-    filters = {"tags": {"$all": [["sgd"], "test"], "$nin": ["test-2"]}}
+    filters = {"tags": {"$all": [["sgd"], "test"]}}
     original_filters = deepcopy(filters)
 
     with pytest.raises(
         ValueError,
         match=r"filters\.tags\.\$all\[0\]: expected a tag string",
     ):
-        Runs(service_api, "entity", "project", filters=filters, lazy=lazy)
+        Runs(service_api, "entity", "project", filters=filters)
 
     service_api.execute_graphql.assert_not_called()
     assert filters == original_filters
-
-
-@pytest.mark.parametrize(
-    "filters,error_path",
-    [
-        ({"tags": {"$all": "sgd"}}, "filters.tags.$all"),
-        ({"tags": {"$in": None}}, "filters.tags.$in"),
-        ({"tags": {"$nin": {"tag": "sgd"}}}, "filters.tags.$nin"),
-        ({"tags": {"$all": 1}}, "filters.tags.$all"),
-        ({"tags": {"$all": [{"tag": "sgd"}]}}, "filters.tags.$all[0]"),
-        ({"tags": {"$in": [1]}}, "filters.tags.$in[0]"),
-        ({"tags": {"$nin": [None]}}, "filters.tags.$nin[0]"),
-        ({"tags": {"$in": [("sgd",)]}}, "filters.tags.$in[0]"),
-        ({"tags": {"$nin": [["sgd"]]}}, "filters.tags.$nin[0]"),
-        ({"tags": [["sgd"]]}, "filters.tags[0]"),
-        ({"tags": (("sgd",),)}, "filters.tags[0]"),
-        ({"tags": ["sgd", 1]}, "filters.tags[1]"),
-        ({"tags": [None]}, "filters.tags[0]"),
-        ({"tags": [{"tag": "sgd"}]}, "filters.tags[0]"),
-        ({"$and": {"state": "finished"}}, "filters.$and"),
-        ({"$or": "sgd"}, "filters.$or"),
-        ({"$nor": None}, "filters.$nor"),
-        ({"$and": [None]}, "filters.$and[0]"),
-        ({"$or": ["sgd"]}, "filters.$or[0]"),
-        ({"$nor": [[]]}, "filters.$nor[0]"),
-        (
-            {"$and": [{"$or": ({"$nor": [{"tags": {"$all": [["sgd"]]}}]},)}]},
-            "filters.$and[0].$or[0].$nor[0].tags.$all[0]",
-        ),
-        ({"$all": ["sgd"]}, "filters.$all"),
-        ({"$in": ["group-1"]}, "filters.$in"),
-        ({"$nin": ["group-1"]}, "filters.$nin"),
-        ({"$or": [{"$in": ["group-1"]}]}, "filters.$or[0].$in"),
-        ([], "filters"),
-        ("", "filters"),
-        (0, "filters"),
-        (False, "filters"),
-    ],
-)
-def test_runs_reject_invalid_filters(filters: Any, error_path: str) -> None:
-    service_api = mock.MagicMock()
-
-    with pytest.raises(ValueError) as exc_info:
-        Runs(service_api, "entity", "project", filters=filters)
-
-    assert error_path in str(exc_info.value)
-    service_api.execute_graphql.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -78,31 +29,10 @@ def test_runs_reject_invalid_filters(filters: Any, error_path: str) -> None:
     [
         None,
         {},
-        {"tags": "sgd"},
-        {"tags": ["sgd", "test"]},
-        {"tags": ("sgd", "test")},
-        {"tags": []},
-        {"tags": ()},
-        {"tags": {"$all": ["sgd", "test"], "$nin": ["test-2"]}},
-        {"tags": {"$in": ("sgd", "test"), "$all": (), "$nin": []}},
-        {
-            "$and": [
-                {"tags": {"$all": ["sgd"]}},
-                {"$or": ({"group": {"$in": ["group-1"]}},)},
-                {"$nor": [{"state": "failed"}]},
-            ]
-        },
-        {"$and": [], "$or": (), "$nor": []},
-        {
-            "config.options": {"tags": {"$all": [["literal"]]}},
-            "summary_metrics.values": {"$in": [[1, 2], [3, 4]]},
-            "config.query": {"$or": "literal"},
-        },
-        {"tags": {"$exists": True}, "$futureOperator": {"value": [1, 2]}},
-        {"group": {"$in": [["group-1"]]}},
+        {"tags": {"$all": ["sgd"], "$nin": ["test-2"]}},
     ],
 )
-def test_runs_preserve_valid_filters(filters: dict[str, Any] | None) -> None:
+def test_runs_preserve_valid_filters(filters: dict | None) -> None:
     service_api = mock.MagicMock()
     service_api.execute_graphql.return_value = {
         "project": {

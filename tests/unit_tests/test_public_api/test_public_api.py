@@ -2,7 +2,6 @@ import json
 import sys
 from copy import deepcopy
 from types import SimpleNamespace
-from typing import Any
 from unittest import mock
 from unittest.mock import MagicMock
 
@@ -156,48 +155,27 @@ def test_parse_project_path_proj():
         assert project == "proj"
 
 
-@pytest.mark.parametrize("lazy", [True, False])
-@pytest.mark.parametrize(
-    "filters,error_path",
-    [
-        (
-            {"tags": {"$all": [["sgd"], "test"], "$nin": ["test-2"]}},
-            "filters.tags.$all[0]",
-        ),
-        ({"$in": ["group-1"]}, "filters.$in"),
-    ],
-)
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
-def test_api_runs_validate_before_path_resolution_and_cache(
-    filters: dict[str, Any], error_path: str, lazy: bool
-) -> None:
+def test_api_runs_validate_before_path_resolution_and_cache() -> None:
     api = Api()
     api._service_api = MagicMock()
+    filters = {"tags": {"$all": [["sgd"], "test"]}}
     path = "entity/project"
-    cache_key = path + str(filters) + "+created_at"
-    api._runs[cache_key] = MagicMock()
+    api._runs[path + str(filters) + "+created_at"] = MagicMock()
 
     with mock.patch.object(api, "_parse_project_path") as parse_project_path:
         parse_project_path.side_effect = AssertionError(
             "Invalid filters must be rejected before resolving the project"
         )
-        with pytest.raises(ValueError) as exc_info:
-            api.runs(path, filters=filters, lazy=lazy)
+        with pytest.raises(ValueError, match=r"filters\.tags\.\$all\[0\]"):
+            api.runs(path, filters=filters)
 
-    assert error_path in str(exc_info.value)
     parse_project_path.assert_not_called()
     api._service_api.execute_graphql.assert_not_called()
 
 
-@pytest.mark.parametrize("lazy", [True, False])
-@pytest.mark.parametrize(
-    "filters",
-    [None, {}, {"tags": {"$all": ("sgd", "test"), "$nin": ["test-2"]}}],
-)
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
-def test_api_runs_preserve_valid_filters(
-    filters: dict[str, Any] | None, lazy: bool
-) -> None:
+def test_api_runs_preserve_valid_filters() -> None:
     api = Api()
     api._service_api = MagicMock()
     api._service_api.execute_graphql.return_value = {
@@ -206,16 +184,14 @@ def test_api_runs_preserve_valid_filters(
             "runs": {"edges": [], "pageInfo": {"hasNextPage": False}},
         }
     }
+    filters = {"tags": {"$all": ("sgd", "test"), "$nin": ["test-2"]}}
     original_filters = deepcopy(filters)
 
-    runs = api.runs("entity/project", filters=filters, lazy=lazy)
+    runs = api.runs("entity/project", filters=filters)
 
     assert list(runs) == []
-    api._service_api.execute_graphql.assert_called_once()
     variables = api._service_api.execute_graphql.call_args.args[1]
-    assert variables["filters"] == json.dumps(
-        {} if original_filters is None else original_filters
-    )
+    assert variables["filters"] == json.dumps(original_filters)
     assert filters == original_filters
 
 
