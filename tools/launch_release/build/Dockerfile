@@ -1,4 +1,4 @@
-FROM us-central1-docker.pkg.dev/wandb-production/chainguard-pull-through/coreweave/chainguard-base@sha256:latest AS builder
+FROM us-central1-docker.pkg.dev/wandb-production/chainguard-pull-through/coreweave/chainguard-base@sha256:6ea9aff8f65c7d2bf0d3af874f2224431c7403cbe531c1193bd97edfe3490fe1 AS builder
 LABEL maintainer='Weights & Biases <support@wandb.com>'
 
 ARG TARGETARCH
@@ -32,7 +32,7 @@ RUN pip3 install --upgrade pip \
     && pip3 install --no-cache-dir "wandb[launch] @ git+https://github.com/wandb/wandb.git@$REF"
 
 # --- Final image: no Go toolchain, no build tools ---
-FROM us-central1-docker.pkg.dev/wandb-production/chainguard-pull-through/coreweave/chainguard-base@sha256:latest
+FROM us-central1-docker.pkg.dev/wandb-production/chainguard-pull-through/coreweave/chainguard-base@sha256:6ea9aff8f65c7d2bf0d3af874f2224431c7403cbe531c1193bd97edfe3490fe1
 LABEL maintainer='Weights & Biases <support@wandb.com>'
 
 # Suppress RequestsDependencyWarning (pip-resolved urllib3/charset_normalizer often trigger it)
