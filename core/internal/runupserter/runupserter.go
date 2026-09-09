@@ -218,12 +218,9 @@ func InitRun(
 			return nil, ToRunUpdateError(err)
 		}
 
-	default:
-		resumeSetting := params.Settings.GetResume()
-		if runParams.Resume || resumeSetting != "" {
-			if err := upserter.updateMetadataForResume(ctx, resumeSetting); err != nil {
-				return nil, ToRunUpdateError(err)
-			}
+	case runParams.Resume || params.Settings.GetResume() != "":
+		if err := upserter.updateMetadataForResume(ctx, params.Settings.GetResume()); err != nil {
+			return nil, ToRunUpdateError(err)
 		}
 	}
 

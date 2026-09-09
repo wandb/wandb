@@ -27,6 +27,7 @@ Legacy `wandb sync` options have been removed. See `wandb sync --help`.
 
 - LEET is faster on long runs: a 50k-step run loads in about half the time, frames render about 30 percent faster, and live chart updates no longer re-render every point (@dmitryduev in https://github.com/wandb/wandb/pull/12535, https://github.com/wandb/wandb/pull/12536, https://github.com/wandb/wandb/pull/12537, https://github.com/wandb/wandb/pull/12538, https://github.com/wandb/wandb/pull/12539)
 - System metrics from Apple Silicon Macs become available about 1.5 seconds sooner after monitoring starts (@dmitryduev in https://github.com/wandb/wandb/pull/12679)
+- `wandb.init()` now honors `mode="offline"` and `resume="..."` instead of logging a warning and ignoring the `resume` option. The requested mode is reconciled against the backend when the run is later synced with `wandb beta sync`. (@geoffhardy in https://github.com/wandb/wandb/pull/12110)
 
 ### Deprecated
 

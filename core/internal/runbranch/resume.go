@@ -65,7 +65,10 @@ func (rb *ResumeBranch) UpdateForResume(
 
 	data := runDataFromResponse(response)
 	if data == nil {
-		return rb.runDoesNotExistError(params.RunID)
+		if rb.mode == "must" {
+			return rb.runDoesNotExistError(params.RunID)
+		}
+		return nil
 	}
 
 	// Data is non-nil, so the run exists, and "never" means we are not allowed to resume.
@@ -74,8 +77,8 @@ func (rb *ResumeBranch) UpdateForResume(
 	}
 
 	err = processResponse(params, config, data)
-	if err != nil && rb.mustResume() {
-		return rb.resumeFailedError(params.RunID, err)
+	if err != nil && rb.mode == "must" {
+		return rb.resumeFailedOnMustError(params.RunID, err)
 	}
 
 	return err
@@ -113,9 +116,6 @@ func runDataFromResponse(
 }
 
 func (rb *ResumeBranch) runDoesNotExistError(runID string) error {
-	if !rb.mustResume() {
-		return nil
-	}
 
 	// A strict resume requires the run to exist.
 	info := &spb.ErrorInfo{
@@ -133,11 +133,7 @@ func (rb *ResumeBranch) runDoesNotExistError(runID string) error {
 	return &BranchError{Err: err, Response: info}
 }
 
-func (rb *ResumeBranch) mustResume() bool {
-	return rb.mode == "must"
-}
-
-func (rb *ResumeBranch) resumeFailedError(runID string, err error) error {
+func (rb *ResumeBranch) resumeFailedOnMustError(runID string, err error) error {
 	info := &spb.ErrorInfo{
 		Code: spb.ErrorInfo_USAGE,
 		Message: fmt.Sprintf(
