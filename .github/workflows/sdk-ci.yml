@@ -3,7 +3,7 @@ name: SDK CI (shadow)
 on:
   pull_request:
   push:
-    branches: [main, "release-*", "**-ci-win"]
+    branches: [main, "release-*"]
   workflow_dispatch:
     inputs:
       windows:
