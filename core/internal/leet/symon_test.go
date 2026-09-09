@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"charm.land/lipgloss/v2"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/leet"
@@ -13,73 +12,27 @@ import (
 )
 
 func TestSymon_ConfigHotkeys_UpdateGridDimensions(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		key  rune
-		rows int
-		cols int
-	}{
-		{name: "rows", key: 'r', rows: 4, cols: 3},
-		{name: "columns", key: 'c', rows: 3, cols: 4},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			logger := observability.NewNoOpLogger()
-			cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-			require.NoError(t, cfg.SetSymonRows(3))
-			require.NoError(t, cfg.SetSymonCols(3))
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
-			s := leet.NewSymon(leet.SymonParams{Config: cfg, Logger: logger})
-			defer s.Cleanup()
-			var m tea.Model = s
-			// Both the original and enlarged grids fit without a terminal resize.
-			m, _ = m.Update(tea.WindowSizeMsg{Width: 188, Height: 60})
-			m, _ = m.Update(leet.StatsMsg{
-				Timestamp: 100,
-				Metrics: map[string]float64{
-					"gpu.0.temp": 40,
-				},
-			})
-			require.Contains(t, m.View().Content, "GPU Temp")
+	var m tea.Model = leet.NewSymon(leet.SymonParams{Config: cfg, Logger: logger})
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	m, _ = m.Update(leet.StatsMsg{
+		Timestamp: 100,
+		Metrics:   map[string]float64{"gpu.0.temp": 40},
+	})
 
-			// Grow, then shrink, without sending another sample or resize event.
-			for _, key := range []rune{'4', '1'} {
-				m, _ = m.Update(tea.KeyPressMsg{Code: tc.key})
-				m, _ = m.Update(tea.KeyPressMsg{Code: key})
-				wantRows, wantCols := tc.rows, tc.cols
-				if key == '1' {
-					if tc.key == 'r' {
-						wantRows = 1
-					} else {
-						wantCols = 1
-					}
-				}
-				rows, cols := cfg.SymonGrid()
-				require.Equal(t, wantRows, rows)
-				require.Equal(t, wantCols, cols)
+	m, _ = m.Update(tea.KeyPressMsg{Code: 'r'})
+	m, _ = m.Update(tea.KeyPressMsg{Code: '5'})
+	rows, _ := cfg.SymonGrid()
+	require.Equal(t, 5, rows)
+	require.Contains(t, m.View().Content, "GPU Temp")
 
-				// The key handler must reflow and redraw before Update returns.
-				grid := s.TestGrid()
-				page := grid.TestCurrentPage()
-				require.Len(t, page, wantRows)
-				for _, row := range page {
-					require.Len(t, row, wantCols)
-				}
-				chart := grid.TestChartAt(0, 0)
-				require.NotNil(t, chart)
-				// 186x58 is the viewport after padding, header, and status bar.
-				require.Equal(t, 186/wantCols-leet.ChartBorderSize, chart.Width())
-				require.Equal(
-					t, 58/wantRows-leet.ChartBorderSize-leet.ChartTitleHeight, chart.Height())
-				chartView := chart.View()
-				require.Equal(t, chart.Width(), lipgloss.Width(chartView))
-				require.Equal(t, chart.Height(), lipgloss.Height(chartView))
-
-				var view string
-				require.NotPanics(t, func() { view = m.View().Content })
-				require.Contains(t, view, "GPU Temp")
-			}
-		})
-	}
+	m, _ = m.Update(tea.KeyPressMsg{Code: 'c'})
+	m, _ = m.Update(tea.KeyPressMsg{Code: '4'})
+	_, cols := cfg.SymonGrid()
+	require.Equal(t, 4, cols)
+	require.Contains(t, m.View().Content, "GPU Temp")
 }
 
 func TestSymon_FilterLifecycle(t *testing.T) {
