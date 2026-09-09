@@ -227,8 +227,6 @@ def unit_tests(session: nox.Session) -> None:
     requirements_args = [
         "-r",
         _requirements_file(session.python),
-        # For test_reports:
-        "polyfactory",
     ]
     if os.environ.get("WANDB_TEST_WHEEL"):
         # The compiled requirements contain the complete dependency closure.
@@ -238,6 +236,7 @@ def unit_tests(session: nox.Session) -> None:
         excludes.write_text("wandb\n")
         requirements_args[:0] = ["--no-deps", "--excludes", str(excludes)]
     install_timed(session, *requirements_args)
+    install_timed(session, "polyfactory")  # For test_reports.
 
     paths = session.posargs or ["tests/unit_tests"]
 
