@@ -86,9 +86,6 @@ type ParquetHistorySource struct {
 	// consoleLogs pages through the run's captured console output.
 	consoleLogs *remote.ConsoleLogReader
 
-	// graphqlClient fetches run metadata and console logs.
-	graphqlClient graphql.Client
-
 	// runPath identifies the remote run in messages.
 	runPath string
 
@@ -119,14 +116,13 @@ func newParquetHistorySource(
 	runPath := fmt.Sprintf("%s/%s/%s", runInfo.entity, runInfo.project, runInfo.runId)
 
 	source := &ParquetHistorySource{
-		logger:        logger,
-		ctx:           ctx,
-		cancel:        cancel,
-		runPath:       runPath,
-		maxKnownStep:  maxStepFromSummary(runInfo.runSummary),
-		runInfo:       runInfo,
-		reader:        reader,
-		graphqlClient: graphqlClient,
+		logger:       logger,
+		ctx:          ctx,
+		cancel:       cancel,
+		runPath:      runPath,
+		maxKnownStep: maxStepFromSummary(runInfo.runSummary),
+		runInfo:      runInfo,
+		reader:       reader,
 		consoleLogs: remote.NewConsoleLogReader(
 			graphqlClient,
 			runInfo.entity,

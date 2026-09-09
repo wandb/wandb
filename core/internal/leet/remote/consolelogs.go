@@ -54,14 +54,14 @@ func (r *ConsoleLogReader) ReadPage(ctx context.Context) ([]Line, error) {
 		return nil, nil
 	}
 
-	first := consoleLogPageSize
+	pageSize := consoleLogPageSize
 	data, err := gql.RunConsoleLogPage(
 		ctx,
 		r.client,
 		r.entity,
 		r.project,
 		r.runID,
-		&first,
+		&pageSize,
 		r.cursor,
 	)
 	if err != nil {
@@ -73,8 +73,8 @@ func (r *ConsoleLogReader) ReadPage(ctx context.Context) ([]Line, error) {
 		r.done = true
 		return nil, nil
 	}
-	run := project.GetRun()
 
+	run := project.GetRun()
 	conn := run.GetLogLines()
 	if conn == nil || len(conn.Edges) == 0 {
 		r.done = true
@@ -84,9 +84,11 @@ func (r *ConsoleLogReader) ReadPage(ctx context.Context) ([]Line, error) {
 	lines := linesFromPageEdges(conn.Edges)
 	totalLines := int64(nullify.ZeroIfNil(run.GetLogLineCount()))
 	r.cursor = conn.PageInfo.GetEndCursor()
+
 	if !consoleLogPageHasNext(conn, totalLines) {
 		r.done = true
 	}
+
 	return lines, nil
 }
 
@@ -94,9 +96,11 @@ func linesFromPageEdges(
 	edges []gql.RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdge,
 ) []Line {
 	lines := make([]Line, 0, len(edges))
+
 	for i := range edges {
 		lines = append(lines, lineFromNode(&edges[i].Node))
 	}
+
 	return lines
 }
 
@@ -109,6 +113,7 @@ type logLineNode interface {
 func lineFromNode(node logLineNode) Line {
 	content := nullify.ZeroIfNil(node.GetLine())
 	level := nullify.ZeroIfNil(node.GetLevel())
+
 	return Line{
 		Timestamp: parseConsoleLogTimestamp(
 			nullify.ZeroIfNil(node.GetTimestamp()),
@@ -118,7 +123,6 @@ func lineFromNode(node logLineNode) Line {
 	}
 }
 
-// consoleLogPageHasNext mirrors wbapi.pageHasNextLines for the page query.
 func consoleLogPageHasNext(
 	conn *gql.RunConsoleLogPageProjectRunLogLinesLogLineConnection,
 	totalLines int64,
@@ -126,12 +130,14 @@ func consoleLogPageHasNext(
 	if nullify.ZeroIfNil(conn.PageInfo.GetEndCursor()) == "" {
 		return false
 	}
-	if conn.PageInfo.GetHasNextPage() {
-		return true
-	}
 	if len(conn.Edges) == 0 {
 		return false
 	}
+
+	if conn.PageInfo.GetHasNextPage() {
+		return true
+	}
+
 	lastNumber := nullify.ZeroIfNil(conn.Edges[len(conn.Edges)-1].Node.GetNumber())
 	return int64(lastNumber)+1 < totalLines
 }
@@ -140,9 +146,20 @@ func parseConsoleLogTimestamp(value string) time.Time {
 	if value == "" {
 		return time.Time{}
 	}
-	parsed, err := time.Parse(time.RFC3339Nano, value)
-	if err != nil {
-		return time.Time{}
+
+	if parsed, err := time.Parse(time.RFC3339Nano, value); err == nil {
+		return parsed.UTC()
 	}
-	return parsed.UTC()
+
+	// The backend records UTC timestamps but may omit the zone designator.
+	for _, layout := range []string{
+		"2006-01-02T15:04:05.999999999",
+		"2006-01-02T15:04:05",
+	} {
+		if parsed, err := time.Parse(layout, value); err == nil {
+			return parsed.UTC()
+		}
+	}
+
+	return time.Time{}
 }

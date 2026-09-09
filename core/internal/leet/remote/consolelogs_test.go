@@ -104,3 +104,16 @@ func TestConsoleLogReader_Paginates(t *testing.T) {
 	assert.Equal(t, "second", lines[0].Content)
 	assert.False(t, reader.HasMore())
 }
+
+func TestParseConsoleLogTimestamp(t *testing.T) {
+	ts := parseConsoleLogTimestamp("2026-01-01T12:34:56.123456Z")
+	assert.Equal(t, 2026, ts.Year())
+	assert.Equal(t, 12, int(ts.Hour()))
+
+	ts = parseConsoleLogTimestamp("2026-01-01T12:34:56")
+	assert.False(t, ts.IsZero())
+	assert.Equal(t, 12, int(ts.Hour()))
+
+	assert.True(t, parseConsoleLogTimestamp("").IsZero())
+	assert.True(t, parseConsoleLogTimestamp("not-a-time").IsZero())
+}
