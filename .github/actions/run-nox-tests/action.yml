@@ -75,7 +75,7 @@ runs:
       shell: bash
       run: |
         sudo apt-get update
-        sudo apt-get install -y ffmpeg libsndfile1
+        sudo apt-get install --no-install-recommends -y ffmpeg libsndfile1
     - name: Install macOS dependencies
       if: runner.os == 'macOS'
       shell: bash
