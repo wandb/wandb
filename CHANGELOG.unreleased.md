@@ -16,7 +16,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Changed
 
-- Runs now write their buffered data to the local `.wandb` transaction log file every 15 seconds instead of only when a buffer fills or the run finishes, so tools that read the file, such as `wandb leet`, see a running run's progress sooner (@dmitryduev in https://github.com/wandb/wandb/pull/12742)
+- Runs now write data to disk every 15 seconds, so that wandb leet updates sooner for runs that don't log a lot of data (@dmitryduev in https://github.com/wandb/wandb/pull/12742)
 
 ### Fixed
 
