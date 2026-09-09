@@ -2,7 +2,6 @@ package remote
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
@@ -11,10 +10,7 @@ import (
 	"github.com/wandb/wandb/core/internal/nullify"
 )
 
-const (
-	consoleLogPageSize     = 1000
-	consoleLogTailFallback = 10000
-)
+const consoleLogPageSize = 1000
 
 // Line is a single line from a run's captured console output on the backend.
 type Line struct {
@@ -30,9 +26,8 @@ type ConsoleLogReader struct {
 	project string
 	runID   string
 
-	cursor          *string
-	done            bool
-	useTailFallback bool
+	cursor *string
+	done   bool
 }
 
 // NewConsoleLogReader creates a reader for a run's backend console log.
@@ -59,10 +54,6 @@ func (r *ConsoleLogReader) ReadPage(ctx context.Context) ([]Line, error) {
 		return nil, nil
 	}
 
-	if r.useTailFallback {
-		return r.readTail(ctx)
-	}
-
 	first := consoleLogPageSize
 	data, err := gql.RunConsoleLogPage(
 		ctx,
@@ -74,10 +65,6 @@ func (r *ConsoleLogReader) ReadPage(ctx context.Context) ([]Line, error) {
 		r.cursor,
 	)
 	if err != nil {
-		if strings.Contains(err.Error(), "useImprovedPagination") {
-			r.useTailFallback = true
-			return r.readTail(ctx)
-		}
 		return nil, err
 	}
 
@@ -103,46 +90,8 @@ func (r *ConsoleLogReader) ReadPage(ctx context.Context) ([]Line, error) {
 	return lines, nil
 }
 
-func (r *ConsoleLogReader) readTail(ctx context.Context) ([]Line, error) {
-	data, err := gql.RunConsoleLogTail(
-		ctx,
-		r.client,
-		r.entity,
-		r.project,
-		r.runID,
-		consoleLogTailFallback,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	project := data.GetProject()
-	if project == nil || project.GetRun() == nil {
-		r.done = true
-		return nil, nil
-	}
-
-	conn := project.GetRun().GetLogLines()
-	var lines []Line
-	if conn != nil {
-		lines = linesFromTailEdges(conn.Edges)
-	}
-	r.done = true
-	return lines, nil
-}
-
 func linesFromPageEdges(
 	edges []gql.RunConsoleLogPageProjectRunLogLinesLogLineConnectionEdgesLogLineEdge,
-) []Line {
-	lines := make([]Line, 0, len(edges))
-	for i := range edges {
-		lines = append(lines, lineFromNode(&edges[i].Node))
-	}
-	return lines
-}
-
-func linesFromTailEdges(
-	edges []gql.RunConsoleLogTailProjectRunLogLinesLogLineConnectionEdgesLogLineEdge,
 ) []Line {
 	lines := make([]Line, 0, len(edges))
 	for i := range edges {
