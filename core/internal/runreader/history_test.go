@@ -8,9 +8,11 @@ import (
 	"path/filepath"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runreader"
@@ -41,7 +43,8 @@ func writeHistoryLog(t testing.TB, path string, rows int, extraKeys int) {
 		}
 		require.NoError(t, w.Write(record))
 		require.NoError(t, w.Write(&spb.Record{RecordType: &spb.Record_Stats{Stats: &spb.StatsRecord{
-			Item: []*spb.StatsItem{{Key: "cpu", ValueJson: "1"}},
+			Timestamp: timestamppb.New(time.Unix(1_700_000_000+step, 0)),
+			Item:      []*spb.StatsItem{{Key: "cpu", ValueJson: "1"}},
 		}}}))
 	}
 	require.NoError(t, w.Close())
@@ -95,6 +98,12 @@ func TestRun_History(t *testing.T) {
 	rows = readAll(t, run, runreader.HistoryQuery{MinStep: step(150), MaxStep: step(152)})
 	assert.Equal(t, []float64{150, 151, 152}, steps(rows))
 
+	rows = readAll(t, run, runreader.HistoryQuery{SystemMetrics: true, Last: 2})
+	assert.Equal(t, []map[string]any{
+		{"_timestamp": 1_700_000_248.0, "system.cpu": 1.0},
+		{"_timestamp": 1_700_000_249.0, "system.cpu": 1.0},
+	}, rows)
+
 	rows = readAll(t, run, runreader.HistoryQuery{Keys: []string{"acc"}, Last: 12})
 	assert.Equal(t, []float64{130, 140, 150, 160, 170, 180, 190, 200, 210, 220, 230, 240}, steps(rows))
 
@@ -116,11 +125,12 @@ func BenchmarkHistory(b *testing.B) {
 	require.NoError(b, run.Update(context.Background()))
 	minStep := int64(19_990)
 	for name, query := range map[string]runreader.HistoryQuery{
-		"all":     {},
-		"one_key": {Keys: []string{"acc"}},
-		"last_10": {Last: 10},
-		"tail_10": {MinStep: &minStep},
-		"page_1k": {Limit: 1000},
+		"all":            {},
+		"one_key":        {Keys: []string{"acc"}},
+		"last_10":        {Last: 10},
+		"system_last_10": {SystemMetrics: true, Last: 10},
+		"tail_10":        {MinStep: &minStep},
+		"page_1k":        {Limit: 1000},
 	} {
 		b.Run(name, func(b *testing.B) {
 			for b.Loop() {

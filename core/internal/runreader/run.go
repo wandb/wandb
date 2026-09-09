@@ -89,12 +89,15 @@ type Run struct {
 	cursor *Cursor
 	logger *observability.CoreLogger
 
-	// index has one entry per indexStride history records, in file order.
-	// Steps never decrease within a log, since the SDK drops out-of-order
-	// steps, so a scan for a step or for the last rows can seek to the
-	// entry nearest its target instead of reading from the start.
+	// index and statsIndex have one entry per indexStride history and
+	// stats records respectively, in file order. Steps never decrease
+	// within a log, since the SDK drops out-of-order steps, so a scan for a
+	// step or for the last rows can seek to the entry nearest its target
+	// instead of reading from the start.
 	index        []indexEntry
 	historyCount int
+	statsIndex   []indexEntry
+	statsCount   int
 
 	info        Info
 	infoSeen    bool
@@ -192,6 +195,11 @@ func (r *Run) apply(record *spb.Record, offset int64) {
 				r.historyKeys[key] = struct{}{}
 			}
 		}
+	case *spb.Record_Stats:
+		if r.statsCount%indexStride == 0 {
+			r.statsIndex = append(r.statsIndex, indexEntry{offset: offset})
+		}
+		r.statsCount++
 	case *spb.Record_OutputRaw:
 		r.console.Process(rec.OutputRaw)
 	case *spb.Record_OutputLogger:

@@ -628,7 +628,7 @@ class ReadLocalRunResponse(_message.Message):
     def __init__(self, info: _Optional[_Union[LocalRunInfo, _Mapping]] = ..., config_json: _Optional[str] = ..., summary_json: _Optional[str] = ..., environment_json: _Optional[str] = ..., last_step: _Optional[int] = ..., history_keys: _Optional[_Iterable[str]] = ..., exit_code: _Optional[int] = ...) -> None: ...
 
 class ReadLocalRunHistoryRequest(_message.Message):
-    __slots__ = ("wandb_file", "keys", "min_step", "max_step", "last", "offset", "limit")
+    __slots__ = ("wandb_file", "keys", "min_step", "max_step", "last", "offset", "limit", "system_metrics")
     WANDB_FILE_FIELD_NUMBER: _ClassVar[int]
     KEYS_FIELD_NUMBER: _ClassVar[int]
     MIN_STEP_FIELD_NUMBER: _ClassVar[int]
@@ -636,6 +636,7 @@ class ReadLocalRunHistoryRequest(_message.Message):
     LAST_FIELD_NUMBER: _ClassVar[int]
     OFFSET_FIELD_NUMBER: _ClassVar[int]
     LIMIT_FIELD_NUMBER: _ClassVar[int]
+    SYSTEM_METRICS_FIELD_NUMBER: _ClassVar[int]
     wandb_file: str
     keys: _containers.RepeatedScalarFieldContainer[str]
     min_step: int
@@ -643,7 +644,8 @@ class ReadLocalRunHistoryRequest(_message.Message):
     last: int
     offset: int
     limit: int
-    def __init__(self, wandb_file: _Optional[str] = ..., keys: _Optional[_Iterable[str]] = ..., min_step: _Optional[int] = ..., max_step: _Optional[int] = ..., last: _Optional[int] = ..., offset: _Optional[int] = ..., limit: _Optional[int] = ...) -> None: ...
+    system_metrics: bool
+    def __init__(self, wandb_file: _Optional[str] = ..., keys: _Optional[_Iterable[str]] = ..., min_step: _Optional[int] = ..., max_step: _Optional[int] = ..., last: _Optional[int] = ..., offset: _Optional[int] = ..., limit: _Optional[int] = ..., system_metrics: _Optional[bool] = ...) -> None: ...
 
 class ReadLocalRunHistoryResponse(_message.Message):
     __slots__ = ("rows", "next_offset")
