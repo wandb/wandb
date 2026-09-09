@@ -43,6 +43,7 @@ runs:
       with:
         version: "0.12.11"
         enable-cache: ${{ inputs.wheel-artifact == '' }}
+        cache-local-path: ${{ runner.temp }}/setup-uv-cache
         cache-dependency-glob: requirements/requirements_dev.${{ inputs.python }}.*.txt
         cache-suffix: ${{ inputs.python }}
     - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
@@ -138,7 +139,7 @@ runs:
         WHEEL_ARTIFACT: ${{ inputs.wheel-artifact }}
         WANDB_TEST_GROUP: ${{ inputs.test-group }}
         WANDB_TEST_GROUPS: ${{ inputs.test-groups }}
-        WANDB_TEST_MAX_WORKERS: ${{ runner.os == 'Linux' && '8' || '4' }}
+        WANDB_TEST_MAX_WORKERS: ${{ runner.os == 'Windows' && '4' || '8' }}
       run: |
         if [[ -n "$WHEEL_ARTIFACT" ]]; then
           shopt -s nullglob
