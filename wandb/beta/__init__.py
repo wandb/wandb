@@ -3,6 +3,6 @@
 Anything in this package may change or be removed in any release of wandb.
 """
 
-from wandb.beta.local_api import LocalApi, LocalRun
+from wandb.beta.local_api import LocalApi, LocalHistory, LocalRun
 
-__all__ = ["LocalApi", "LocalRun"]
+__all__ = ["LocalApi", "LocalHistory", "LocalRun"]

@@ -99,33 +99,34 @@ def test_run_details_are_read_once_until_refresh(tmp_path):
     assert service_api.send_api_request.call_count == 2
 
 
-def test_history_rows_are_decoded(tmp_path):
+def test_history_follows_pages(tmp_path):
     service_api = mock.MagicMock()
-    service_api.send_api_request.return_value = apb.ApiResponse(
-        read_local_run_history_response=apb.ReadLocalRunHistoryResponse(
-            rows=[
-                apb.LocalHistoryRow(
-                    step=3,
-                    items=[
-                        apb.LocalHistoryItem(key="loss", value_json="0.25"),
-                        apb.LocalHistoryItem(key="name", value_json='"x"'),
-                        apb.LocalHistoryItem(key="a.b", value_json="1"),
-                        apb.LocalHistoryItem(key=r"a\.b", value_json="2"),
-                    ],
-                )
-            ]
-        )
-    )
+    service_api.send_api_request.side_effect = [
+        apb.ApiResponse(
+            read_local_run_history_response=apb.ReadLocalRunHistoryResponse(
+                rows=b'{"_step":3,"loss":0.25}\n{"_step":4,"a.b":"x"}\n',
+                next_offset=512,
+            )
+        ),
+        apb.ApiResponse(
+            read_local_run_history_response=apb.ReadLocalRunHistoryResponse(
+                rows=b'{"_step":5,"loss":NaN}\n'
+            )
+        ),
+    ]
     run = LocalRun(service_api, info=_info(tmp_path))
 
-    keys = ["loss", "name", "a.b", r"a\.b"]
-    rows = run.history(keys=keys, last=1)
+    rows = list(run.history(keys=["loss", "a.b"], min_step=3))
 
-    assert rows == [{"_step": 3, "loss": 0.25, "name": "x", "a.b": 1, r"a\.b": 2}]
-    request = service_api.send_api_request.call_args.args[0]
-    assert list(request.read_local_run_history_request.keys) == keys
-    assert request.read_local_run_history_request.last == 1
-    assert not request.read_local_run_history_request.HasField("min_step")
+    assert rows[:2] == [{"_step": 3, "loss": 0.25}, {"_step": 4, "a.b": "x"}]
+    assert rows[2]["loss"] != rows[2]["loss"]
+    first, second = (
+        call.args[0].read_local_run_history_request
+        for call in service_api.send_api_request.call_args_list
+    )
+    assert (list(first.keys), first.min_step, first.offset) == (["loss", "a.b"], 3, 0)
+    assert second.offset == 512
+    assert first.limit == second.limit > 0
 
 
 def test_console_logs(tmp_path):

@@ -24,12 +24,13 @@ for line in run.console_logs(last=20):
 from __future__ import annotations
 
 import glob
-import json
 import os
 import pathlib
+from collections.abc import Iterator
 from datetime import datetime, timezone
 from typing import Any
 
+from wandb._pydantic import from_json
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.console_logs import ConsoleLogLine, _parse_timestamp
 from wandb.apis.public.service_api import ServiceApi
@@ -240,19 +241,19 @@ class LocalRun:
     @property
     def config(self) -> dict[str, Any]:
         """The run's config, without W&B's internal `_wandb` entry."""
-        config = json.loads(self._load().config_json or "{}")
+        config = from_json(self._load().config_json or "{}")
         config.pop("_wandb", None)
         return config
 
     @property
     def summary(self) -> dict[str, Any]:
-        return json.loads(self._load().summary_json or "{}")
+        return from_json(self._load().summary_json or "{}")
 
     @property
     def metadata(self) -> dict[str, Any] | None:
         """The run's environment, the contents of wandb-metadata.json."""
         environment_json = self._load().environment_json
-        return json.loads(environment_json) if environment_json else None
+        return from_json(environment_json) if environment_json else None
 
     @property
     def last_step(self) -> int:
@@ -274,7 +275,6 @@ class LocalRun:
         details = self._load()
         return details.exit_code if details.HasField("exit_code") else None
 
-    @normalize_exceptions
     def history(
         self,
         keys: list[str] | None = None,
@@ -282,15 +282,12 @@ class LocalRun:
         min_step: int | None = None,
         max_step: int | None = None,
         last: int | None = None,
-    ) -> list[dict[str, Any]]:
-        """Returns history rows, oldest first.
+    ) -> LocalHistory:
+        """Returns the run's history rows, oldest first.
 
-        Every row has `_step`. The log has no index, so each call reads the
-        whole file.
-
-        Keys use dots to separate nested path segments, with literal dots
-        and backslashes escaped by a backslash. Use `history_keys` to find
-        the keys available for filtering.
+        Every row is a dict with `_step` and the values logged at that step.
+        Nested keys are joined with dots, as the W&B UI names them; use
+        `history_keys` to see the keys available for filtering.
 
         Args:
             keys: Return only these keys; rows with none of them are skipped.
@@ -307,17 +304,7 @@ class LocalRun:
             request.max_step = max_step
         if last is not None:
             request.last = last
-        response = self._service_api.send_api_request(
-            apb.ApiRequest(read_local_run_history_request=request)
-        )
-
-        rows: list[dict[str, Any]] = []
-        for row in response.read_local_run_history_response.rows:
-            values: dict[str, Any] = {"_step": row.step}
-            for item in row.items:
-                values[item.key] = json.loads(item.value_json)
-            rows.append(values)
-        return rows
+        return LocalHistory(self._service_api, request)
 
     @normalize_exceptions
     def console_logs(self, last: int | None = None) -> list[ConsoleLogLine]:
@@ -342,3 +329,43 @@ class LocalRun:
             )
             for line in response.read_local_run_console_logs_response.lines
         ]
+
+
+class LocalHistory:
+    """Rows of a run's history, read from the run's log as they are iterated.
+
+    Each pass over the rows reads the log again, so iterating a second time
+    over a still-running run includes the rows written since.
+    """
+
+    _PAGE_ROWS = 10_000
+
+    def __init__(
+        self,
+        service_api: ServiceApi,
+        request: apb.ReadLocalRunHistoryRequest,
+    ) -> None:
+        self._service_api = service_api
+        self._request = request
+
+    def __iter__(self) -> Iterator[dict[str, Any]]:
+        request = apb.ReadLocalRunHistoryRequest()
+        request.CopyFrom(self._request)
+        request.limit = self._PAGE_ROWS
+        while True:
+            response = self._read_page(request)
+            for line in response.rows.split(b"\n"):
+                if line:
+                    yield from_json(line)
+            if not response.next_offset:
+                return
+            request.offset = response.next_offset
+
+    @normalize_exceptions
+    def _read_page(
+        self, request: apb.ReadLocalRunHistoryRequest
+    ) -> apb.ReadLocalRunHistoryResponse:
+        response = self._service_api.send_api_request(
+            apb.ApiRequest(read_local_run_history_request=request)
+        )
+        return response.read_local_run_history_response
