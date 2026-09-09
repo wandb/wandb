@@ -22,6 +22,7 @@ import (
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
+	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runconsolelogs"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runhandle"
@@ -854,27 +855,17 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 	}
 
 	s.fileStream.StreamUpdate(&fs.HistoryUpdate{Record: record})
-	if !s.settings.IsSharedMode() || s.settings.IsEnableServerSideDerivedSummary() {
+	if !s.settings.IsSharedMode() || !s.settings.IsEnableServerSideDerivedSummary() {
 		s.updateSummaryStep(step)
 	}
 }
 
 func (s *Sender) updateSummaryStep(step int64) {
-	if s.settings.IsEnableServerSideDerivedSummary() {
-		return
-	}
-
+	s.runSummary.Set(pathtree.PathOf("_step"), step)
 	updates := runsummary.FromProto(&spb.SummaryRecord{Update: []*spb.SummaryItem{{
 		Key:       "_step",
 		ValueJson: strconv.FormatInt(step, 10),
 	}}})
-	if err := updates.Apply(s.runSummary); err != nil {
-		s.logger.CaptureError(
-			"stream",
-			fmt.Errorf("historystep: error updating summary step: %v", err))
-		return
-	}
-
 	s.fileStream.StreamUpdate(&fs.SummaryUpdate{Updates: updates})
 }
 

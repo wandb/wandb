@@ -80,6 +80,30 @@ class MockWandbLog:
         """Raise if no message passed to termerror() matches msg_re."""
         self._assert_logged(self._termerror, matches=msg_re)
 
+    def assert_not_logged(self, msg: str | None = None) -> None:
+        """Raise if any message passed to termlog() contains msg."""
+        self._assert_not_logged(self._termlog, contains=msg)
+
+    def assert_not_logged_re(self, msg_re: str) -> None:
+        """Raise if any message passed to termlog() matches msg_re."""
+        self._assert_not_logged(self._termlog, matches=msg_re)
+
+    def assert_not_warned(self, msg: str | None = None) -> None:
+        """Raise if any message passed to termwarn() contains msg."""
+        self._assert_not_logged(self._termwarn, contains=msg)
+
+    def assert_not_warned_re(self, msg_re: str) -> None:
+        """Raise if any message passed to termwarn() matches msg_re."""
+        self._assert_not_logged(self._termwarn, matches=msg_re)
+
+    def assert_not_errored(self, msg: str | None = None) -> None:
+        """Raise if any message passed to termerror() contains msg."""
+        self._assert_not_logged(self._termerror, contains=msg)
+
+    def assert_not_errored_re(self, msg_re: str) -> None:
+        """Raise if any message passed to termerror() matches msg_re."""
+        self._assert_not_logged(self._termerror, matches=msg_re)
+
     def _assert_logged(
         self,
         termfunc: unittest.mock.MagicMock,
@@ -103,6 +127,31 @@ class MockWandbLog:
                 raise AssertionError(
                     f"{matches!r} does not match any of \n{messages_pretty}"
                 )
+
+    def _assert_not_logged(
+        self,
+        termfunc: unittest.mock.MagicMock,
+        *,
+        contains: str | None = None,
+        matches: str | None = None,
+    ) -> None:
+        messages = list(self._logs(termfunc))
+        matching = []
+        for msg in messages:
+            if matches and re.match(matches, msg):
+                matching.append(msg)
+            elif contains and contains in msg:
+                matching.append(msg)
+            else: # contains and matches are not set, so match any message
+                matching.append(msg)
+        if matching:
+            messages_pretty = textwrap.indent("\n".join(matching), ">    ")
+            if contains:
+                raise AssertionError(f"{contains!r} found in\n{messages_pretty}")
+            elif matches:
+                raise AssertionError(f"{matches!r} matched\n{messages_pretty}")
+            else:
+                raise AssertionError(f"Any message found\n{messages_pretty}")
 
     def _logs(self, termfunc: unittest.mock.MagicMock) -> Iterable[str]:
         # All the term*() functions have a similar API: the message is the
