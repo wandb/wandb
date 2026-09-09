@@ -15,6 +15,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runmetric"
+	"github.com/wandb/wandb/core/internal/runreader"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -24,8 +25,8 @@ type LevelDBHistorySource struct {
 
 	runPath string
 
-	// store is a W&B LevelDB-style transaction log that may be actively written.
-	store *LiveStore
+	// cursor reads the transaction log, which may still be written to.
+	cursor *runreader.Cursor
 	// metricHandler accumulates define_metric records to resolve custom
 	// x-axes. Definitions apply only to later history records.
 	metricHandler *runmetric.MetricHandler
@@ -41,13 +42,13 @@ func NewLevelDBHistorySource(
 	runPath string,
 	logger *observability.CoreLogger,
 ) (*LevelDBHistorySource, error) {
-	store, err := NewLiveStore(runPath, logger)
+	cursor, err := runreader.OpenCursor(runPath, logger)
 	if err != nil {
 		return nil, err
 	}
 	return &LevelDBHistorySource{
 		runPath:       runPath,
-		store:         store,
+		cursor:        cursor,
 		metricHandler: runmetric.New(),
 	}, nil
 }
@@ -63,7 +64,7 @@ func InitializeLevelDBHistorySource(
 		if err != nil {
 			return ErrorMsg{
 				Err: fmt.Errorf(
-					"leveldbhistory: failed to create live store: %v",
+					"leveldbhistory: failed to open transaction log: %v",
 					err,
 				),
 			}
@@ -81,7 +82,7 @@ func (hs *LevelDBHistorySource) Read(
 	hs.mu.Lock()
 	defer hs.mu.Unlock()
 
-	if hs.store == nil {
+	if hs.cursor == nil {
 		return ChunkedBatchMsg{
 			Msgs:    []tea.Msg{},
 			HasMore: false,
@@ -102,7 +103,7 @@ func (hs *LevelDBHistorySource) Read(
 	var err error
 
 	for scannedCount < chunkSize && time.Since(startTime) < maxTimePerChunk {
-		record, readErr := hs.store.Read()
+		record, _, readErr := hs.cursor.Next()
 		if readErr != nil {
 			if errors.Is(readErr, io.EOF) {
 				if hs.exitSeen {
@@ -204,9 +205,9 @@ func (hs *LevelDBHistorySource) Close() {
 	hs.mu.Lock()
 	defer hs.mu.Unlock()
 
-	if hs.store != nil {
-		hs.store.Close()
-		hs.store = nil
+	if hs.cursor != nil {
+		hs.cursor.Close()
+		hs.cursor = nil
 	}
 }
 
@@ -227,7 +228,7 @@ func (acc *historyAccumulator) addRecord(runPath string, history *spb.HistoryRec
 		return
 	}
 
-	step := int(historyStep(history))
+	step := int(runreader.HistoryStep(history))
 	var mediaFieldsByKey map[string]map[string]string
 
 	if acc.values == nil {
@@ -252,7 +253,7 @@ func (acc *historyAccumulator) addRecord(runPath string, history *spb.HistoryRec
 			continue
 		}
 
-		key := historyItemKey(item)
+		key := runreader.HistoryItemKey(item)
 		if key == "" {
 			continue
 		}
@@ -308,14 +309,6 @@ func (acc *historyAccumulator) toMsg(runPath string) (HistoryMsg, bool) {
 		return HistoryMsg{}, false
 	}
 	return HistoryMsg{RunPath: runPath, Metrics: acc.metrics, Media: acc.media}, true
-}
-
-// historyItemKey returns the dotted nested key, or the flat key when there is none.
-func historyItemKey(item *spb.HistoryItem) string {
-	if key := strings.Join(item.GetNestedKey(), "."); key != "" {
-		return key
-	}
-	return item.GetKey()
 }
 
 // ParseHistory extracts metrics and media from a history record.

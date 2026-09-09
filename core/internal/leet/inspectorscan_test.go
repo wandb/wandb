@@ -11,6 +11,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runreader"
 	"github.com/wandb/wandb/core/internal/transactionlog"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -58,7 +59,7 @@ func inspectorTestRecords() []*spb.Record {
 	}
 }
 
-func scanBatch(t *testing.T, store *leet.LiveStore, startNum int) leet.InspectorBatchMsg {
+func scanBatch(t *testing.T, store *runreader.Cursor, startNum int) leet.InspectorBatchMsg {
 	t.Helper()
 	msg := leet.ReadInspectorBatch(store, startNum)()
 	require.IsType(t, leet.InspectorBatchMsg{}, msg)
@@ -69,7 +70,7 @@ func TestReadInspectorBatch_ScanAndReadAt(t *testing.T) {
 	path := writeWandbFile(t, inspectorTestRecords()...)
 	logger := observability.NewNoOpLogger()
 
-	scan, err := leet.NewLiveStore(path, logger)
+	scan, err := runreader.OpenCursor(path, logger)
 	require.NoError(t, err)
 	defer scan.Close()
 
@@ -97,15 +98,17 @@ func TestReadInspectorBatch_ScanAndReadAt(t *testing.T) {
 	assert.Zero(t, batch.Corrupt)
 
 	// Re-read records by offset, out of order, with a separate reader.
-	detail, err := leet.NewLiveStore(path, logger)
+	detail, err := runreader.OpenCursor(path, logger)
 	require.NoError(t, err)
 	defer detail.Close()
 
-	record, err := detail.ReadAt(entries[1].Offset)
+	require.NoError(t, detail.SeekRecord(entries[1].Offset))
+	record, _, err := detail.Next()
 	require.NoError(t, err)
 	assert.EqualValues(t, 5, record.GetHistory().GetStep().GetNum())
 
-	record, err = detail.ReadAt(entries[0].Offset)
+	require.NoError(t, detail.SeekRecord(entries[0].Offset))
+	record, _, err = detail.Next()
 	require.NoError(t, err)
 	assert.Equal(t, "abc123", record.GetRun().GetRunId())
 }
@@ -121,7 +124,7 @@ func TestReadInspectorBatch_LiveAppend(t *testing.T) {
 	}))
 	require.NoError(t, w.Flush())
 
-	scan, err := leet.NewLiveStore(path, observability.NewNoOpLogger())
+	scan, err := runreader.OpenCursor(path, observability.NewNoOpLogger())
 	require.NoError(t, err)
 	defer scan.Close()
 

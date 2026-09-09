@@ -3,15 +3,24 @@ package runreader
 import (
 	"errors"
 	"io"
+	"sync"
 
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/transactionlog"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
+// ErrClosed is returned by a Cursor's methods after Close.
+var ErrClosed = errors.New("runreader: cursor is closed")
+
 // Cursor reads records from a transaction log that may still be written to.
+//
+// It may be closed from another goroutine while a read is in progress, which
+// is how LEET stops a scan when the user leaves a view.
 type Cursor struct {
-	reader *transactionlog.Reader
+	mu      sync.Mutex
+	reader  *transactionlog.Reader // nil once closed
+	skipped int
 }
 
 func OpenCursor(path string, logger *observability.CoreLogger) (*Cursor, error) {
@@ -29,6 +38,11 @@ func OpenCursor(path string, logger *observability.CoreLogger) (*Cursor, error) 
 // so Next can be retried after the file grows. Any other error is terminal:
 // the file is not a transaction log this version can read.
 func (c *Cursor) Next() (*spb.Record, int64, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.reader == nil {
+		return nil, 0, ErrClosed
+	}
 	for {
 		before := c.reader.NextRecordOffset()
 		record, err := c.reader.Read()
@@ -40,20 +54,44 @@ func (c *Cursor) Next() (*spb.Record, int64, error) {
 		case c.reader.NextRecordOffset() <= before:
 			return nil, 0, err
 		}
+		c.skipped++
 	}
 }
 
-// Offset returns the offset of the next record to read.
+// Skipped returns how many corrupt regions Next has skipped so far.
+func (c *Cursor) Skipped() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.skipped
+}
+
+// Offset returns the offset of the next record to read, or 0 once closed.
 func (c *Cursor) Offset() int64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.reader == nil {
+		return 0
+	}
 	return c.reader.NextRecordOffset()
 }
 
 // SeekRecord moves the cursor to a record's offset, as returned by Next or
 // Offset.
 func (c *Cursor) SeekRecord(offset int64) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.reader == nil {
+		return ErrClosed
+	}
 	return c.reader.SeekRecord(offset)
 }
 
+// Close releases the file. Later calls return ErrClosed.
 func (c *Cursor) Close() {
-	c.reader.Close()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.reader != nil {
+		c.reader.Close()
+		c.reader = nil
+	}
 }

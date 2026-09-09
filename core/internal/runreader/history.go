@@ -143,7 +143,7 @@ func (s *historyScan) read(dst []byte, limit int, end int64) ([]byte, int, int64
 			if history == nil {
 				continue
 			}
-			step := historyStep(history)
+			step := HistoryStep(history)
 			if s.query.MinStep != nil && step < *s.query.MinStep {
 				continue
 			}
@@ -209,7 +209,7 @@ func appendRow(dst []byte, history *spb.HistoryRecord, keys map[string]struct{})
 	}
 	matched := keys == nil
 	for _, item := range history.GetItem() {
-		key := historyItemKey(item)
+		key := HistoryItemKey(item)
 		if key == "_step" && history.Step != nil {
 			continue
 		}

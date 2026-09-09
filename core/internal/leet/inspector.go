@@ -9,6 +9,8 @@ import (
 	"google.golang.org/protobuf/encoding/prototext"
 
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runreader"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 const (
@@ -57,8 +59,8 @@ type Inspector struct {
 
 	// scanStore reads the file sequentially to build the record index;
 	// detailStore re-reads individual records by offset on demand.
-	scanStore   *LiveStore
-	detailStore *LiveStore
+	scanStore   *runreader.Cursor
+	detailStore *runreader.Cursor
 
 	// watcherMgr triggers incremental scans as a live file grows.
 	watcherMgr *WatcherManager
@@ -412,7 +414,7 @@ func (ins *Inspector) showSelected() {
 	}
 
 	var text string
-	record, err := ins.detailStore.ReadAt(e.Offset)
+	record, err := readRecordAt(ins.detailStore, e.Offset)
 	if err != nil {
 		text = fmt.Sprintf("failed to read record %d: %v", e.Num, err)
 	} else {
@@ -425,4 +427,13 @@ func (ins *Inspector) showSelected() {
 	}
 	ins.detail.SetContent(text)
 	ins.detail.GotoTop()
+}
+
+// readRecordAt returns the record at an offset from the scan.
+func readRecordAt(cursor *runreader.Cursor, offset int64) (*spb.Record, error) {
+	if err := cursor.SeekRecord(offset); err != nil {
+		return nil, err
+	}
+	record, _, err := cursor.Next()
+	return record, err
 }

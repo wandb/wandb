@@ -181,7 +181,7 @@ func (r *Run) apply(record *spb.Record, offset int64) {
 		}
 		r.environment.ProcessRecord(rec.Environment)
 	case *spb.Record_History:
-		step := historyStep(rec.History)
+		step := HistoryStep(rec.History)
 		if r.historyCount%indexStride == 0 {
 			r.index = append(r.index, indexEntry{step: step, offset: offset})
 		}
@@ -191,7 +191,7 @@ func (r *Run) apply(record *spb.Record, offset int64) {
 			r.deriveSummary(rec.History)
 		}
 		for _, item := range rec.History.GetItem() {
-			if key := historyItemKey(item); key != "" {
+			if key := HistoryItemKey(item); key != "" {
 				r.historyKeys[key] = struct{}{}
 			}
 		}
@@ -295,14 +295,14 @@ func (r *Run) Console() []ConsoleLine { return r.console.Lines() }
 
 func (r *Run) Close() { r.cursor.Close() }
 
-// historyStep returns a history record's step, falling back to its _step
+// HistoryStep returns a history record's step, falling back to its _step
 // item for records without an explicit step.
-func historyStep(h *spb.HistoryRecord) int64 {
+func HistoryStep(h *spb.HistoryRecord) int64 {
 	if step := h.GetStep(); step != nil {
 		return step.GetNum()
 	}
 	for _, item := range h.GetItem() {
-		if historyItemKey(item) != "_step" {
+		if HistoryItemKey(item) != "_step" {
 			continue
 		}
 		if v, err := strconv.ParseInt(strings.TrimSpace(item.GetValueJson()), 10, 64); err == nil {
@@ -312,10 +312,10 @@ func historyStep(h *spb.HistoryRecord) int64 {
 	return 0
 }
 
-// historyItemKey returns the item's key, joining nested keys with dots as
+// HistoryItemKey returns the item's key, joining nested keys with dots as
 // the W&B UI names them. A key containing a literal dot is indistinguishable
 // from a nested key with the same spelling, as on the server.
-func historyItemKey(item *spb.HistoryItem) string {
+func HistoryItemKey(item *spb.HistoryItem) string {
 	if parts := item.GetNestedKey(); len(parts) > 0 {
 		return strings.Join(parts, ".")
 	}
