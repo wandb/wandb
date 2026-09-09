@@ -14,17 +14,14 @@ import (
 
 // Disposition is what the scheduler loop should do about a failed API call.
 //
-// Values are ordered so that gqlerror List values can be combined by max.
+// Values are ordered least to most restrictive, so the errors of one
+// GraphQL response can be combined by taking the maximum.
 type Disposition int
 
 const (
-	// DispositionTransient may clear up on its own; keep polling, but
-	// less often.
-	DispositionTransient Disposition = iota
-
 	// DispositionRateLimited means the server asked us to slow down;
 	// poll less often.
-	DispositionRateLimited
+	DispositionRateLimited Disposition = iota
 
 	// DispositionFatal means the call will never succeed; end the loop.
 	DispositionFatal
@@ -34,13 +31,10 @@ const (
 )
 
 // Classify decides what the scheduler loop should do about an error from
-// a W&B API call.
+// a W&B API call, after the underlying HTTP client has retried.
 func Classify(err error) Disposition {
 	if errors.Is(err, ErrSweepNotFound) {
 		return DispositionNotFound
-	}
-	if errors.Is(err, context.DeadlineExceeded) {
-		return DispositionTransient
 	}
 
 	// genqlient returns the response body's "errors" array directly as a
@@ -51,37 +45,37 @@ func Classify(err error) Disposition {
 
 	httpError, ok := errors.AsType[*graphql.HTTPError](err)
 	if !ok {
-		return DispositionTransient
+		return DispositionFatal
 	}
 
-	status := httpError.StatusCode
-	switch {
-	case status == http.StatusNotFound:
+	switch httpError.StatusCode {
+	case http.StatusNotFound:
 		return DispositionNotFound
-	case status == http.StatusTooManyRequests:
+	case http.StatusTooManyRequests:
 		return DispositionRateLimited
-	case clients.RetryableStatus(status):
-		// schedulerRetryPolicy keeps the HTTP client from retrying these itself.
-		return DispositionTransient
 	default:
-		// A status that is not retryable will not start succeeding
-		// because the loop polls again.
 		return DispositionFatal
 	}
 }
 
-// schedulerRetryPolicy hands every response the server sends back to
-// Classify instead of letting the HTTP client retry it.
+// schedulerRetryPolicy hands a rate limit back to the loop instead of
+// retrying it, and retries everything else the way the shared client
+// does.
+//
+// The step is the retry: it already spaces its next call out by a
+// doubling slowdown, which is what the server asked for.
+//
+// The shared client only consults this for a response it actually got:
+// transport errors and cancellations never reach it.
 func schedulerRetryPolicy(
 	ctx context.Context,
 	resp *http.Response,
 	err error,
 ) (bool, error) {
-	if err != nil || ctx.Err() != nil {
-		// leave transport errors to the shared client's retries.
-		return clients.RetryMostFailures(ctx, resp, err)
+	if resp.StatusCode == http.StatusTooManyRequests {
+		return false, nil
 	}
-	return false, nil
+	return clients.RetryMostFailures(ctx, resp, err)
 }
 
 // withSchedulerRetryPolicy applies schedulerRetryPolicy to the requests
@@ -115,16 +109,11 @@ const (
 
 	// maxSlowdown caps the delay added to the poll interval.
 	maxSlowdown = 60 * time.Second
-
-	// maxConsecutiveErrors is how many transient failures in a row the
-	// loop tolerates before giving up.
-	maxConsecutiveErrors = 10
 )
 
 // Backoff spaces polls out after failures.
 type Backoff struct {
-	slowdown    time.Duration
-	consecutive int
+	slowdown time.Duration
 }
 
 // Slowdown is the extra delay to add to the poll interval.
@@ -135,23 +124,11 @@ func (b *Backoff) Slowdown() time.Duration {
 // OnSuccess resets the slowdown after a successful poll.
 func (b *Backoff) OnSuccess() {
 	b.slowdown = 0
-	b.consecutive = 0
 }
 
-// OnError increases the slowdown and implements backoff
-func (b *Backoff) OnError(disposition Disposition) {
+// OnError doubles the delay the next poll waits, up to maxSlowdown.
+func (b *Backoff) OnError() {
 	b.slowdown = min(max(2*b.slowdown, initialSlowdown), maxSlowdown)
-
-	if disposition == DispositionRateLimited {
-		return
-	}
-	b.consecutive++
-}
-
-// Exhausted reports whether so many calls failed in a row that the loop
-// should give up.
-func (b *Backoff) Exhausted() bool {
-	return b.consecutive >= maxConsecutiveErrors
 }
 
 // trackedAPI wraps SweepAPI with Backoff
@@ -171,7 +148,7 @@ func (a *trackedAPI) record(ctx context.Context, err error) {
 	}
 
 	if err != nil {
-		a.backoff.OnError(Classify(err))
+		a.backoff.OnError()
 		return
 	}
 	a.backoff.OnSuccess()
@@ -180,12 +157,6 @@ func (a *trackedAPI) record(ctx context.Context, err error) {
 // Slowdown is the extra delay to add to the poll interval.
 func (a *trackedAPI) Slowdown() time.Duration {
 	return a.backoff.Slowdown()
-}
-
-// Exhausted reports whether so many calls failed in a row that the loop
-// should give up.
-func (a *trackedAPI) Exhausted() bool {
-	return a.backoff.Exhausted()
 }
 
 func (a *trackedAPI) FetchSweep(ctx context.Context) (*SweepFacts, error) {

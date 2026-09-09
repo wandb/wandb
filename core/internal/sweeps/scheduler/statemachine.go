@@ -56,13 +56,9 @@ func newSchedulerStateMachine(
 }
 
 // NextTask reports the previous task's result and returns the next task,
-// or nil if pollCtx ended before the step began and no answer is needed.
 //
-// pollCtx is the poll's own lifetime. It gates the step rather than
-// bounding it: a step applies the client's result and issues the next
-// task, so abandoning one midway would either lose an issued task or
-// re-apply a result the resolver already consumed. The session's own
-// context is what ends a step in flight.
+// pollCtx is the poll's own lifetime, though the task may continue executing
+// after it ends to publish intermediate results.
 //
 // Safe to call concurrently; calls are serialized under mu.
 func (m *schedulerStateMachine) NextTask(
@@ -80,10 +76,6 @@ func (m *schedulerStateMachine) NextTask(
 	}
 
 	if pollCtx.Err() != nil {
-		// The client stopped waiting before this poll cost anything, so
-		// the session is still answering the task it last issued. It
-		// keeps running: the client may poll again, and a client that
-		// is gone for good takes its session down with its connection.
 		m.logger.Debug(
 			"scheduler: poll abandoned before its step",
 			"cause", context.Cause(pollCtx))

@@ -28,29 +28,24 @@ func TestClassify(t *testing.T) {
 	}{
 		{ErrSweepNotFound, DispositionNotFound},
 		{fmt.Errorf("wrapped: %w", ErrSweepNotFound), DispositionNotFound},
-		{assert.AnError, DispositionTransient},
-		{context.DeadlineExceeded, DispositionTransient},
 		{httpError(404), DispositionNotFound},
 		{httpError(429), DispositionRateLimited},
+
+		// Everything the loop cannot name is fatal: the HTTP client has
+		// already spent its retries by the time the error arrives.
+		{assert.AnError, DispositionFatal},
+		{context.DeadlineExceeded, DispositionFatal},
 		{httpError(400), DispositionFatal},
 		{httpError(401), DispositionFatal},
 		{httpError(403), DispositionFatal},
 		{httpError(409), DispositionFatal},
-		{httpError(410), DispositionFatal},
-		{httpError(413), DispositionFatal},
-		{httpError(422), DispositionFatal},
-		{httpError(501), DispositionFatal},
-		{httpError(408), DispositionTransient},
-		{httpError(500), DispositionTransient},
-		{httpError(502), DispositionTransient},
-		{httpError(503), DispositionTransient},
-		// An unrecognized 4xx may still clear up, so the loop keeps
-		// polling and lets its error budget decide.
-		{httpError(418), DispositionTransient},
+		{httpError(418), DispositionFatal},
+		{httpError(500), DispositionFatal},
+		{httpError(503), DispositionFatal},
 
 		// A GraphQL-level error (permissions, validation) means the
-		// server answered, so it is Fatal rather than Transient even
-		// though it carries no HTTP status.
+		// server answered, so it is fatal even though it carries no
+		// HTTP status.
 		{gqlErrors(&gqlerror.Error{Message: "permission denied"}),
 			DispositionFatal},
 		{fmt.Errorf("wrapped: %w", gqlErrors(&gqlerror.Error{Message: "bad input"})),
@@ -78,46 +73,41 @@ func TestClassify(t *testing.T) {
 //
 // It fails if clients.CheckRetry does not pick the policy up: the value
 // has to have the plain function type CheckRetry type-asserts against.
-func checkRetry(t *testing.T, resp *http.Response, err error) bool {
+func checkRetry(t *testing.T, status int) bool {
 	t.Helper()
 
 	ctx := withSchedulerRetryPolicy(context.Background())
 	assert.NotNil(t, ctx.Value(clients.CtxRetryPolicyKey))
 
-	retry, _ := clients.CheckRetry(ctx, resp, err)
+	retry, _ := clients.CheckRetry(ctx, &http.Response{StatusCode: status}, nil)
 	return retry
 }
 
-func TestSchedulerRetryPolicyLeavesStatusesToClassify(t *testing.T) {
+func TestSchedulerRetryPolicyLeavesRateLimitsToTheLoop(t *testing.T) {
+	// The step's own backoff is the retry, and only an unretried 429
+	// reaches Classify with a status to slow down on.
+	assert.False(t, checkRetry(t, http.StatusTooManyRequests))
+}
+
+func TestSchedulerRetryPolicyRetriesWhatTheSharedClientWould(t *testing.T) {
 	for _, status := range []int{
-		http.StatusTooManyRequests,     // 429
 		http.StatusInternalServerError, // 500
 		http.StatusBadGateway,          // 502
 		http.StatusServiceUnavailable,  // 503
-		http.StatusNotFound,            // 404
 	} {
-		resp := &http.Response{StatusCode: status}
-
-		assert.False(t, checkRetry(t, resp, nil),
-			"status %d should reach Classify instead of being retried",
-			status)
+		assert.True(t, checkRetry(t, status),
+			"status %d should still be retried by the HTTP client", status)
 	}
-}
 
-func TestSchedulerRetryPolicyRetriesTransportErrors(t *testing.T) {
-	// A request that got no response carries no status to classify, so
-	// the shared client still retries it.
-	assert.True(t, checkRetry(t, nil, assert.AnError))
-}
-
-func TestSchedulerRetryPolicyStopsOnCancellation(t *testing.T) {
-	ctx, cancel := context.WithCancel(
-		withSchedulerRetryPolicy(context.Background()))
-	cancel()
-
-	retry, _ := clients.CheckRetry(ctx, &http.Response{StatusCode: 500}, nil)
-
-	assert.False(t, retry)
+	for _, status := range []int{
+		http.StatusBadRequest,   // 400
+		http.StatusUnauthorized, // 401
+		http.StatusForbidden,    // 403
+		http.StatusNotFound,     // 404
+	} {
+		assert.False(t, checkRetry(t, status),
+			"status %d can never succeed on a retry", status)
+	}
 }
 
 func TestBackoffDoublesAndCaps(t *testing.T) {
@@ -125,7 +115,7 @@ func TestBackoffDoublesAndCaps(t *testing.T) {
 
 	var slowdowns []float64
 	for range 8 {
-		backoff.OnError(DispositionTransient)
+		backoff.OnError()
 		slowdowns = append(slowdowns, backoff.Slowdown().Seconds())
 	}
 
@@ -136,36 +126,10 @@ func TestBackoffDoublesAndCaps(t *testing.T) {
 
 func TestBackoffResetsOnSuccess(t *testing.T) {
 	backoff := &Backoff{}
-	backoff.OnError(DispositionTransient)
-	backoff.OnError(DispositionTransient)
+	backoff.OnError()
+	backoff.OnError()
 
 	backoff.OnSuccess()
 
 	assert.Equal(t, 0.0, backoff.Slowdown().Seconds())
-}
-
-func TestBackoffExhaustedAfterConsecutiveErrors(t *testing.T) {
-	backoff := &Backoff{}
-
-	count := 0
-	for !backoff.Exhausted() {
-		backoff.OnError(DispositionTransient)
-		count++
-	}
-
-	assert.Equal(t, 10, count)
-}
-
-func TestBackoffRateLimitSlowsButNeverExhausts(t *testing.T) {
-	backoff := &Backoff{}
-
-	for range 100 {
-		backoff.OnError(DispositionRateLimited)
-	}
-
-	assert.False(t, backoff.Exhausted())
-	assert.Equal(t, 60.0, backoff.Slowdown().Seconds())
-	// A transient error after rate limits starts the budget fresh.
-	backoff.OnError(DispositionTransient)
-	assert.False(t, backoff.Exhausted())
 }

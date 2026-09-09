@@ -124,8 +124,7 @@ func (b *IPCSessionBroker) InitScheduler(
 	b.bySweep[sweepKey] = id
 
 	// A client killed between polls leaves no poll to notice, so the
-	// session's own context is what drops it in that case. Retiring a
-	// session unregisters this again, so no goroutine is left to run.
+	// session's own context is what drops it in that case
 	s.stopCleanup = context.AfterFunc(schedCtx, func() { b.dropOnClose(s) })
 
 	b.logger.Info(
@@ -153,10 +152,7 @@ func (b *IPCSessionBroker) checkNotScheduled(sweepKey string) error {
 }
 
 // liveSessionLocked returns the sweep's session if it can still serve
-// tasks. Finished and abandoned sessions are dropped, but a session
-// whose client just died is dropped from another goroutine, so a
-// cancelled context is the remaining case to filter out.
-//
+// tasks. Finished and abandoned sessions are dropped
 // Callers must hold mu.
 func (b *IPCSessionBroker) liveSessionLocked(sweepKey string) *session {
 	id, ok := b.bySweep[sweepKey]
@@ -175,10 +171,7 @@ func (b *IPCSessionBroker) liveSessionLocked(sweepKey string) *session {
 // NextTask reports the previous task's result and blocks for the next
 // task, up to about one poll interval.
 //
-// ctx is the poll's own lifetime. Returns nil if it ended before the
-// poll cost anything, meaning the client is no longer waiting for an
-// answer; the session lives on, since one abandoned poll is not the
-// client giving up on its sweep.
+// ctx is the poll's own lifetime. The session is under a different ctx
 func (b *IPCSessionBroker) NextTask(
 	ctx context.Context,
 	req *spb.SweepSchedulerClientNextTaskRequest,
@@ -211,14 +204,7 @@ func (b *IPCSessionBroker) NextTask(
 	return response
 }
 
-// release retires a session that reached its terminal task: the sweep
-// becomes schedulable again, and cancelling the session lets its
-// scheduler and API client be collected instead of living as long as
-// the process.
-//
-// The session is not kept around to redeliver its terminal task; a
-// later poll for its id is answered by NextTask's unknown-id Done,
-// which tells the client the same thing.
+// release retires a session that reached its terminal task:
 func (b *IPCSessionBroker) release(
 	s *session,
 	done *spb.SweepSchedulerServerDoneTask,
@@ -290,10 +276,6 @@ func (b *IPCSessionBroker) Stop(req *spb.SweepSchedulerClientStopRequest) {
 }
 
 // Shutdown retires every session because the server is exiting.
-//
-// It does not wait for anything: dropping the sessions here also
-// unregisters their context watchers, so cancelling them starts no
-// goroutine that could outlive the call.
 func (b *IPCSessionBroker) Shutdown() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
