@@ -53,18 +53,23 @@ def install_timed(session: nox.Session, *args, **kwargs):
         session.install(*args, **kwargs)
 
 
-def install_wandb(session: nox.Session, dev: bool = True):
+def install_wandb(
+    session: nox.Session, dev: bool = True, *, package: str | None = None
+):
     """Builds and installs wandb.
 
     Args:
         dev: Whether to set dev build flags. Note that this
             increases the binary size.
+        package: Package to install. Defaults to WANDB_TEST_WHEEL if set,
+            otherwise the source checkout.
     """
     if dev:
         session.env["WANDB_BUILD_COVERAGE"] = "true"
         session.env["WANDB_BUILD_GORACEDETECT"] = "true"
 
-    package = os.environ.get("WANDB_TEST_WHEEL", ".")
+    if package is None:
+        package = os.environ.get("WANDB_TEST_WHEEL", ".")
     if session.venv_backend == "uv":
         install_timed(
             session,
@@ -716,26 +721,39 @@ def combine_test_results(session: nox.Session) -> None:
     shutil.rmtree(_NOX_PYTEST_RESULTS_DIR, ignore_errors=True)
 
 
-@nox.session(name="wandb-core-size-check", python="3.12")
-def wandb_core_size_check(session: nox.Session) -> None:
-    """Compare wandb-core binary size against main branch."""
+@contextmanager
+def _checkout_main(session: nox.Session):
+    """Temporarily check out main, restoring the original branch or revision."""
     current_revision = session.run(
         "git", "rev-parse", "HEAD", external=True, silent=True
     ).strip()
+    current_branch = session.run(
+        "git", "branch", "--show-current", external=True, silent=True
+    ).strip()
 
-    # Build and install main branch version.
     session.run("git", "fetch", "origin", "main", external=True)
-    session.run("git", "switch", "--detach", "origin/main", external=True)
-    install_wandb(session, dev=False)
+    try:
+        session.run("git", "switch", "--detach", "origin/main", external=True)
+        yield
+    finally:
+        if current_branch:
+            session.run("git", "switch", current_branch, external=True)
+        else:
+            session.run("git", "switch", "--detach", current_revision, external=True)
 
-    main_binary = list(
-        (site_packages_dir(session) / "wandb" / "bin").glob("wandb-core*")
-    )[0]
-    main_size = main_binary.stat().st_size
 
-    # Build and install the original revision. It may be detached in CI.
-    session.run("git", "switch", "--detach", current_revision, external=True)
-    install_wandb(session, dev=False)
+@nox.session(name="wandb-core-size-check", python="3.12")
+def wandb_core_size_check(session: nox.Session) -> None:
+    """Compare wandb-core binary size against main branch."""
+    with _checkout_main(session):
+        install_wandb(session, dev=False, package=".")
+
+        main_binary = list(
+            (site_packages_dir(session) / "wandb" / "bin").glob("wandb-core*")
+        )[0]
+        main_size = main_binary.stat().st_size
+
+    install_wandb(session, dev=False, package=".")
 
     current_binary = list(
         (site_packages_dir(session) / "wandb" / "bin").glob("wandb-core*")
@@ -780,9 +798,6 @@ def wandb_core_size_check(session: nox.Session) -> None:
 @nox.session(name="wandb-import-time-check", python="3.12")
 def wandb_import_time_check(session: nox.Session) -> None:
     """Compare wandb import time against main branch."""
-    current_revision = session.run(
-        "git", "rev-parse", "HEAD", external=True, silent=True
-    ).strip()
 
     def measure_import_time(num_samples: int = 5) -> float:
         """Measure the average time to import wandb across multiple samples."""
@@ -798,13 +813,11 @@ def wandb_import_time_check(session: nox.Session) -> None:
             times.append(float(result.strip()))
         return sum(times) / len(times)
 
-    session.run("git", "fetch", "origin", "main", external=True)
-    session.run("git", "switch", "--detach", "origin/main", external=True)
-    install_wandb(session, dev=False)
-    main_time = measure_import_time()
+    with _checkout_main(session):
+        install_wandb(session, dev=False, package=".")
+        main_time = measure_import_time()
 
-    session.run("git", "switch", "--detach", current_revision, external=True)
-    install_wandb(session, dev=False)
+    install_wandb(session, dev=False, package=".")
     current_time = measure_import_time()
 
     diff = current_time - main_time
