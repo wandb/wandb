@@ -91,16 +91,20 @@ class WandbAgentTestEnv:
         return api
 
     def patch_sweep_helpers(self, module: str, api: mock.MagicMock) -> None:
-        """Route the module's sweep API helpers to the mock API's methods."""
+        """Route sweep helpers to the calling agent's mock API."""
         self.monkeypatch.setattr(wandb, "Api", lambda *args, **kwargs: api)
         for helper, method in [
-            ("_sweep_with_runs", api.sweep),
-            ("_register_agent", api.register_agent),
-            ("_agent_heartbeat", api.agent_heartbeat),
+            ("_sweep_with_runs", "sweep"),
+            ("_register_agent", "register_agent"),
+            ("_agent_heartbeat", "agent_heartbeat"),
         ]:
+            # A previous agent's heartbeat may still be exiting when another
+            # mock API is created. Keep its requests on its own API instance.
             self.monkeypatch.setattr(
                 f"{module}.{helper}",
-                lambda _api, *args, _method=method, **kwargs: _method(*args, **kwargs),
+                lambda _api, *args, _method=method, **kwargs: getattr(_api, _method)(
+                    *args, **kwargs
+                ),
                 raising=False,
             )
 
