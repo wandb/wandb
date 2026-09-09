@@ -22,11 +22,14 @@ func (s *Scheduler) warmStartStep(
 		if done := s.doneFromError(ctx, err); done != nil {
 			return done
 		}
+		// Keep the cursor and retry this page rather than skipping the
+		// rest of the warm start
 		s.logger.Warn(
-			"scheduler: warm-start page failed; starting without the " +
-				"remaining prior runs")
-		s.warmDone = true
-		return s.generationTask(nil, nil, 0)
+			"scheduler: warm-start page failed; retrying it", "error", err)
+		if done := s.sleep(ctx); done != nil {
+			return done
+		}
+		return emptyWarmStartTask()
 	}
 
 	if !sweepIsActive(page.SweepState) {
@@ -81,35 +84,69 @@ func (s *Scheduler) warmStartStep(
 	}
 }
 
+// emptyWarmStartTask reports no prior runs, keeping the client in the
+// warm-start phase while a page is retried.
+func emptyWarmStartTask() *spb.SweepSchedulerServerNextTaskResponse {
+	return &spb.SweepSchedulerServerNextTaskResponse{
+		Task: &spb.SweepSchedulerServerNextTaskResponse_WarmStart{
+			WarmStart: &spb.SweepSchedulerServerWarmStartTask{HasMore: true},
+		},
+	}
+}
+
+// endReason is why the scheduler should stop.
+//
+// It is kept apart from the Done task itself so a caller can finish its
+// bookkeeping first: doneTask drains the pending discards, so anything
+// appended after it is built is never reported.
+type endReason struct {
+	reason  spb.SweepSchedulerServerDoneTask_Reason
+	message string
+}
+
 // doneFromError maps a failed poll or enqueue onto a Done task, or
-// returns nil if the loop should keep going. The API layer already
-// recorded the failure in the backoff.
+// returns nil if the loop should keep going.
 func (s *Scheduler) doneFromError(
 	ctx context.Context,
 	err error,
 ) *spb.SweepSchedulerServerNextTaskResponse {
+	end := s.endFromError(ctx, err)
+	if end == nil {
+		return nil
+	}
+	return s.doneTask(end.reason, end.message)
+}
+
+// endFromError maps a failed call onto the reason the loop should end
+// with, or nil if it should keep going. The API layer already recorded
+// the failure in the backoff.
+func (s *Scheduler) endFromError(ctx context.Context, err error) *endReason {
 	// Cancellation is shutdown, not a backend failure. Deadlines go
 	// through Classify, which treats them as transient.
 	if errors.Is(ctx.Err(), context.Canceled) ||
 		errors.Is(err, context.Canceled) {
-		return s.doneTask(
-			spb.SweepSchedulerServerDoneTask_REASON_SHUTDOWN, "")
+		return &endReason{
+			reason: spb.SweepSchedulerServerDoneTask_REASON_SHUTDOWN,
+		}
 	}
 
 	switch Classify(err) {
 	case DispositionNotFound:
-		return s.doneTask(
-			spb.SweepSchedulerServerDoneTask_REASON_SWEEP_NOT_FOUND,
-			"the sweep was deleted")
+		return &endReason{
+			reason:  spb.SweepSchedulerServerDoneTask_REASON_SWEEP_NOT_FOUND,
+			message: "the sweep was deleted",
+		}
 	case DispositionFatal:
-		return s.doneTask(
-			spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR,
-			err.Error())
+		return &endReason{
+			reason:  spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR,
+			message: err.Error(),
+		}
 	default:
 		if s.api.Exhausted() {
-			return s.doneTask(
-				spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR,
-				"too many consecutive errors; last: "+err.Error())
+			return &endReason{
+				reason:  spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR,
+				message: "too many consecutive errors; last: " + err.Error(),
+			}
 		}
 		s.logger.Warn("scheduler: transient failure", "error", err)
 		return nil
@@ -475,32 +512,40 @@ func (s *Scheduler) enqueueSuggestions(
 	}
 
 	for i, suggestion := range suggestions {
-		if done := s.enqueueOne(ctx, suggestion); done != nil {
-			s.discardAll(suggestions[i:])
-			return done
+		end := s.enqueueOne(ctx, suggestion)
+		if end == nil {
+			continue
 		}
+		// Discard the suggestions this scheduler will never reach before
+		// building the Done, which drains the discard list. enqueueOne
+		// has already discarded the one it failed on.
+		s.discardAll(suggestions[i+1:])
+		return s.doneTask(end.reason, end.message)
 	}
 	return nil
 }
 
 // enqueueOne schedules a single suggestion, discarding it if that
-// fails. A non-nil return ends the scheduler with that Done task.
+// fails. A non-nil return ends the scheduler for that reason.
 func (s *Scheduler) enqueueOne(
 	ctx context.Context,
 	suggestion *spb.SweepSchedulerClientRunSuggestion,
-) *spb.SweepSchedulerServerNextTaskResponse {
+) *endReason {
 	id := suggestion.OptimizerRunId
 	if id == "" {
-		// Ids key run tracking, so this one cannot be tracked.
+		// Ids key run tracking, so this one cannot be tracked. It is not
+		// reported as a discard: an empty id names no run to forget.
 		s.logger.Warn("scheduler: dropping suggestion with an empty id")
-		s.discards = append(s.discards, id)
 		return nil
 	}
 	if s.runs[id] != nil {
+		// Not reported as a discard either. The id belongs to a run this
+		// scheduler already tracks, and the client forgets discarded ids
+		// before applying the task's updates, so reporting it would
+		// retire that run instead of this bogus suggestion.
 		s.logger.Warn(
 			"scheduler: dropping suggestion with a duplicate "+
 				"optimizer run id", "id", id)
-		s.discards = append(s.discards, id)
 		return nil
 	}
 
@@ -520,26 +565,15 @@ func (s *Scheduler) enqueueOne(
 
 	mintedID, err := s.api.EnqueueRun(ctx, s.sweepNodeID, wireConfig)
 	if err != nil {
-		// The discard rides the Done task so the optimizer still
-		// forgets the suggestion.
+		// The discard rides the next task, Done or not, so the optimizer
+		// forgets a suggestion that will never run.
 		s.discards = append(s.discards, id)
-
-		if ctx.Err() != nil {
-			return s.doneTask(
-				spb.SweepSchedulerServerDoneTask_REASON_SHUTDOWN, "")
-		}
-		if Classify(err) == DispositionNotFound {
-			return s.doneTask(
-				spb.SweepSchedulerServerDoneTask_REASON_SWEEP_NOT_FOUND,
-				"the sweep was deleted")
-		}
-
 		s.logger.Error(
 			"scheduler: failed to enqueue a suggestion",
 			"id", id, "error", err)
-		return s.doneTask(
-			spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR,
-			"failed to enqueue a suggestion: "+err.Error())
+		// A transient failure costs only this suggestion; the error
+		// budget decides when a run of them ends the scheduler.
+		return s.endFromError(ctx, err)
 	}
 
 	s.logger.Info("scheduler: enqueued run", "id", id)
@@ -662,6 +696,13 @@ func runStateOf(state string) spb.SweepRunState {
 	return spb.SweepRunState_SWEEP_RUN_STATE_UNKNOWN
 }
 
+// stateOrFailed classifies a backend run state, reporting one this
+// build does not recognize as FAILED.
+//
+// Treating it as alive instead would hold the run's batch slot for as
+// long as the sweep runs: the states this build knows already cover
+// every live one, so a new value is almost certainly a terminal state
+// added since, and a run waited on forever stalls the search.
 func (s *Scheduler) stateOrFailed(stateString string) spb.SweepRunState {
 	state := runStateOf(stateString)
 	if state != spb.SweepRunState_SWEEP_RUN_STATE_UNKNOWN {

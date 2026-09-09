@@ -369,7 +369,7 @@ func TestTellErrorPopsRunAndContinues(t *testing.T) {
 	assert.EqualValues(t, 2, generation.AskUpTo)
 }
 
-func TestDuplicateAdoptionReportedAsDiscarded(t *testing.T) {
+func TestDuplicateAdoptionDroppedWithoutDiscarding(t *testing.T) {
 	fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 3})
 	fixture.stubPoll(pollJSON("RUNNING", false, "",
 		testRun{name: "run-1", state: "running"},
@@ -377,8 +377,8 @@ func TestDuplicateAdoptionReportedAsDiscarded(t *testing.T) {
 	))
 	fixture.step(t, nil)
 
-	// Both runs claim the same optimizer id; the second is dropped, and
-	// the optimizer is told so rather than waiting for updates forever.
+	// Both runs claim the same optimizer id, so the second adoption is
+	// dropped.
 	fixture.stubPoll(pollJSON("RUNNING", false, "",
 		testRun{name: "run-1", state: "running"},
 		testRun{name: "run-2", state: "running"},
@@ -390,7 +390,11 @@ func TestDuplicateAdoptionReportedAsDiscarded(t *testing.T) {
 
 	generation := task.GetGeneration()
 	require.NotNil(t, generation)
-	assert.Equal(t, []string{"opt-dup"}, generation.DiscardedOptimizerRunIds)
+	// The id is not reported: the client forgets discarded ids before
+	// applying updates, so reporting it would drop the run that owns it
+	// and then fail that run's update in this same task.
+	assert.Empty(t, generation.DiscardedOptimizerRunIds)
 	// Exactly one of the two runs is tracked.
-	assert.Len(t, generation.Updates, 1)
+	require.Len(t, generation.Updates, 1)
+	assert.Equal(t, "opt-dup", generation.Updates[0].Run.OptimizerRunId)
 }

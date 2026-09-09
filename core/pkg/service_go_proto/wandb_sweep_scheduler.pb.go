@@ -23,8 +23,15 @@ const (
 
 // A sweep run's state as reported by the W&B backend.
 //
-// UNKNOWN stands for a state value this client version does not
-// recognize; such runs are treated as alive.
+// UNKNOWN is a run whose state has not been observed yet, such as one
+// just adopted at warm start; it is treated as alive until a poll
+// reports otherwise.
+//
+// A backend state the scheduler does not recognize is reported FAILED.
+// The states above already cover every live one, so a new value is
+// almost certainly a terminal state added since this build, and
+// treating it as alive would hold the run's slot for the rest of the
+// sweep.
 type SweepRunState int32
 
 const (
