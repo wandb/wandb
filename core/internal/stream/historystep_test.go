@@ -14,7 +14,7 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-func makeHistoryStepTracker(t *testing.T, startingStep int64, shared bool) *stream.HistoryStepTracker {
+func makeHistoryStepTracker(t *testing.T, startingStep int64) *stream.HistoryStepTracker {
 	t.Helper()
 	logger := observabilitytest.NewTestLogger(t)
 
@@ -43,7 +43,7 @@ func historyStepValue(record *spb.HistoryRecord) string {
 }
 
 func TestHistoryStepTracker_AssignsMissingStep(t *testing.T) {
-	tracker := makeHistoryStepTracker(t, 0, false)
+	tracker := makeHistoryStepTracker(t, 0)
 
 	history := &spb.HistoryRecord{
 		Item: []*spb.HistoryItem{{
@@ -63,7 +63,7 @@ func TestHistoryStepTracker_AssignsMissingStep(t *testing.T) {
 }
 
 func TestHistoryStepTracker_PreservesExistingStep(t *testing.T) {
-	tracker := makeHistoryStepTracker(t, 0, false)
+	tracker := makeHistoryStepTracker(t, 0)
 
 	history := &spb.HistoryRecord{
 		Item: []*spb.HistoryItem{
@@ -83,7 +83,7 @@ func TestHistoryStepTracker_PreservesExistingStep(t *testing.T) {
 }
 
 func TestHistoryStepTracker_ClampsHistoryItemStep(t *testing.T) {
-	tracker := makeHistoryStepTracker(t, 2, false)
+	tracker := makeHistoryStepTracker(t, 2)
 
 	history1 := &spb.HistoryRecord{
 		Item: []*spb.HistoryItem{
@@ -109,7 +109,7 @@ func TestHistoryStepTracker_ClampsHistoryItemStep(t *testing.T) {
 }
 
 func TestHistoryStepTracker_AppliesRecordStep(t *testing.T) {
-	tracker := makeHistoryStepTracker(t, 0, false)
+	tracker := makeHistoryStepTracker(t, 0)
 
 	history := &spb.HistoryRecord{
 		Item: []*spb.HistoryItem{{
@@ -130,7 +130,7 @@ func TestHistoryStepTracker_AppliesRecordStep(t *testing.T) {
 }
 
 func TestHistoryStepTracker_ClampsRecordStep(t *testing.T) {
-	tracker := makeHistoryStepTracker(t, 5, false)
+	tracker := makeHistoryStepTracker(t, 5)
 
 	history1 := &spb.HistoryRecord{}
 	step1, err := tracker.ApplyHistoryStep(history1)
@@ -147,7 +147,7 @@ func TestHistoryStepTracker_ClampsRecordStep(t *testing.T) {
 }
 
 func TestHistoryStepTracker_RewritesUnparseableStep(t *testing.T) {
-	tracker := makeHistoryStepTracker(t, 2, false)
+	tracker := makeHistoryStepTracker(t, 2)
 
 	history := &spb.HistoryRecord{
 		Item: []*spb.HistoryItem{
@@ -176,25 +176,4 @@ func TestHistoryStepTracker_FailsWhenRunNotInitialized(t *testing.T) {
 
 	_, err := uninit.ApplyHistoryStep(history)
 	require.Error(t, err)
-}
-
-func TestHistoryStepTracker_SharedModeLeavesRecordUnchanged(t *testing.T) {
-	tracker := makeHistoryStepTracker(t, 0, true)
-
-	history := &spb.HistoryRecord{
-		Item: []*spb.HistoryItem{{
-			NestedKey: []string{"loss"},
-			ValueJson: "1.23",
-		}},
-	}
-
-	step, err := tracker.ApplyHistoryStep(history)
-	require.NoError(t, err)
-
-	assert.Equal(t, int64(0), step)
-	assert.Equal(t, []*spb.HistoryItem{{
-		NestedKey: []string{"loss"},
-		ValueJson: "1.23",
-	}}, history.Item)
-	assert.Empty(t, historyStepValue(history))
 }

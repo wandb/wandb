@@ -142,7 +142,7 @@ class MockWandbLog:
                 matching.append(msg)
             elif contains and contains in msg:
                 matching.append(msg)
-            else: # contains and matches are not set, so match any message
+            else:  # contains and matches are not set, so match any message
                 matching.append(msg)
         if matching:
             messages_pretty = textwrap.indent("\n".join(matching), ">    ")

@@ -89,14 +89,16 @@ func makeSenderWithFileStream(
 		Settings:     settings,
 		RunHandle:    runHandle,
 	}
-	upserter := runupsertertest.NewTestUpserter(
-		t,
-		"test-entity",
-		"test-project",
-		"run1",
-		runupserter.RunUpserterParams{Settings: settings},
-	)
-	assert.NoError(t, runHandle.Init(upserter))
+	if fileStream != nil {
+		upserter := runupsertertest.NewTestUpserter(
+			t,
+			"test-entity",
+			"test-project",
+			"run1",
+			runupserter.RunUpserterParams{Settings: settings},
+		)
+		assert.NoError(t, runHandle.Init(upserter))
+	}
 
 	senderFactory := stream.SenderFactory{
 		BaseURL:                 baseURL,
