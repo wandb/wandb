@@ -64,13 +64,18 @@ type StatsMsg struct {
 	Metrics   map[string]float64 // metric name -> value
 }
 
-// ConsoleLogMsg carries a raw console output record to be assembled
-// by [RunConsoleLogs]. Produced by the reader from output_raw records.
+// ConsoleLogMsg carries console output to [RunConsoleLogs].
+//
+// Local runs send raw terminal output from output_raw records.
+// Remote runs send backend log lines that are already assembled.
 type ConsoleLogMsg struct {
 	RunPath  string
 	Text     string
 	IsStderr bool
 	Time     time.Time
+
+	// Marks the log line as display ready rather than raw terminal output.
+	Assembled bool
 }
 
 // ErrorMsg wraps an error.

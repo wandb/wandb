@@ -63,7 +63,7 @@ func (r *Run) handleRecordMsg(msg tea.Msg) tea.Cmd {
 
 	case ConsoleLogMsg:
 		r.logger.Debug("model: processing ConsoleLogMsg")
-		r.consoleLogs.ProcessRaw(msg.Text, msg.IsStderr, msg.Time)
+		r.consoleLogs.Process(msg)
 		// Keep the pane's data (and thus focus availability) current
 		// without waiting for the next render.
 		r.consoleLogsPane.SetConsoleLogs(r.consoleLogs.takeChanges())

@@ -80,6 +80,39 @@ func NewRunConsoleLogs() *RunConsoleLogs {
 	return cl
 }
 
+// Process routes a [ConsoleLogMsg] to the appropriate assembly path.
+func (cl *RunConsoleLogs) Process(msg ConsoleLogMsg) {
+	if msg.Assembled {
+		cl.AppendAssembledLine(msg.Text, msg.IsStderr, msg.Time)
+		return
+	}
+
+	cl.ProcessRaw(msg.Text, msg.IsStderr, msg.Time)
+}
+
+// AppendAssembledLine appends a backend log line that is already display-ready.
+func (cl *RunConsoleLogs) AppendAssembledLine(
+	content string,
+	isStderr bool,
+	ts time.Time,
+) {
+	cl.lines = append(cl.lines, ConsoleLogLine{
+		Timestamp: ts,
+		Content:   content,
+		IsStderr:  isStderr,
+	})
+
+	key := ts.Format(consoleTimestampFormat)
+	if ts.IsZero() {
+		key = ""
+	}
+
+	cl.items = append(cl.items, KeyValuePair{
+		Key:   key,
+		Value: content,
+	})
+}
+
 // ProcessRaw feeds a raw output record through the terminal emulator.
 //
 // The text may contain newlines, ANSI escape codes (e.g. cursor-up),
