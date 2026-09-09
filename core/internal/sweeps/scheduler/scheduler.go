@@ -74,6 +74,9 @@ type Scheduler struct {
 	warmCursor *string
 	warmDone   bool
 
+	runCap           int
+	finishedRunCount int
+
 	// runs is keyed by optimizer run id. Records are never removed, so
 	// an id stays reserved for the scheduler's lifetime.
 	runs map[string]*trackedRun
@@ -141,6 +144,9 @@ type trackedRun struct {
 
 	// reported means the terminal update was acknowledged
 	reported bool
+
+	// finishedCounted means this run already counted toward finishedRunCount
+	finishedCounted bool
 }
 
 // isTracked reports whether the run is followed in polls: its terminal
@@ -294,6 +300,8 @@ type SchedulerParams struct {
 	BatchSize    int
 	PollInterval time.Duration
 
+	RunCap int
+
 	// Clock stubs time; nil means the real clock.
 	Clock Clock
 }
@@ -318,6 +326,7 @@ func NewScheduler(params SchedulerParams) *Scheduler {
 		metricKey:    params.MetricKey,
 		batchSize:    params.BatchSize,
 		pollInterval: params.PollInterval,
+		runCap:       params.RunCap,
 
 		stop:  make(chan struct{}),
 		clock: params.Clock,
@@ -350,7 +359,7 @@ func NewTaskResolverFactory(logger *observability.CoreLogger) TaskResolverFactor
 			return nil, nil, err
 		}
 
-		metricKey, err := parseMetricKey(facts.Config)
+		cfg, err := parseSweepConfig(facts.Config)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -359,9 +368,10 @@ func NewTaskResolverFactory(logger *observability.CoreLogger) TaskResolverFactor
 			API:          sweepAPI,
 			Logger:       logger,
 			SweepNodeID:  facts.NodeID,
-			MetricKey:    metricKey,
+			MetricKey:    cfg.Metric.Name,
 			BatchSize:    int(req.BatchSize),
 			PollInterval: secondsToDuration(req.PollIntervalSeconds),
+			RunCap:       cfg.RunCap,
 		})
 
 		return scheduler, &spb.SweepSchedulerServerInitResponse{
@@ -463,6 +473,7 @@ func (s *Scheduler) applyResult(
 ) *spb.SweepSchedulerServerNextTaskResponse {
 	switch r := result.Result.(type) {
 	case *spb.SweepSchedulerClientTaskResult_Error:
+		s.recordFatalError(phaseOptimizer, r.Error.Message)
 		s.logger.Error(
 			"scheduler: the optimizer failed",
 			"error", r.Error.Message,
@@ -555,7 +566,8 @@ func (s *Scheduler) applyGenerationResult(
 	if result.Terminate {
 		s.finishSweep(ctx)
 		return s.doneTask(
-			spb.SweepSchedulerServerDoneTask_REASON_TERMINATED, "")
+			spb.SweepSchedulerServerDoneTask_REASON_SWEEP_FINISHED,
+			"the optimizer ended the sweep")
 	}
 
 	switch result.AskOutcome {
@@ -621,15 +633,18 @@ type sweepConfig struct {
 	Metric struct {
 		Name string `yaml:"name"`
 	} `yaml:"metric"`
+	RunCap int `yaml:"run_cap"`
 }
 
-// parseMetricKey returns the sweep's objective metric name, or ""
-// when the config declares none: that disables history fetching and
-// the FINISHED-without-metric reclassification rather than failing.
-func parseMetricKey(configYAML string) (string, error) {
-	var config sweepConfig
-	if err := yaml.Unmarshal([]byte(configYAML), &config); err != nil {
-		return "", fmt.Errorf("scheduler: parsing sweep config: %v", err)
+// parseSweepConfig returns the sweep's objective metric name and run cap.
+//
+// An empty metric key disables history fetching and the
+// FINISHED-without-metric reclassification rather than failing. A run
+// cap of 0 means the sweep is uncapped.
+func parseSweepConfig(configYAML string) (*sweepConfig, error) {
+	var cfg sweepConfig
+	if err := yaml.Unmarshal([]byte(configYAML), &cfg); err != nil {
+		return nil, fmt.Errorf("scheduler: parsing sweep config: %v", err)
 	}
-	return config.Metric.Name, nil
+	return &cfg, nil
 }

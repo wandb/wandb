@@ -123,7 +123,9 @@ func newLoopFixture(t *testing.T, params scheduler.SchedulerParams) *loopFixture
 		}),
 		"test-entity", "test-project", "test-sweep",
 	)
-	params.Logger = observability.NewNoOpLogger()
+	if params.Logger == nil {
+		params.Logger = observability.NewNoOpLogger()
+	}
 	params.SweepNodeID = "sweep-node-id"
 	if params.PollInterval == 0 {
 		params.PollInterval = time.Millisecond
@@ -258,7 +260,7 @@ func TestTerminateFinishesSweep(t *testing.T) {
 
 	require.NotNil(t, done.GetDone())
 	assert.Equal(t,
-		spb.SweepSchedulerServerDoneTask_REASON_TERMINATED,
+		spb.SweepSchedulerServerDoneTask_REASON_SWEEP_FINISHED,
 		done.GetDone().Reason)
 }
 
