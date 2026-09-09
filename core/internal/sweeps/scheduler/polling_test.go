@@ -223,15 +223,21 @@ func TestNovelStateFailsTheRun(t *testing.T) {
 	))
 	fixture.step(t, warmResult(map[string]string{"run-1": "opt-1"}))
 
+	// The states this build knows already cover every live one, so an
+	// unrecognized value is almost certainly a terminal state added
+	// since: the run is failed and frees its slot rather than being
+	// waited on for the rest of the sweep.
 	fixture.stubPoll(pollJSON("RUNNING", false, "",
 		testRun{name: "run-1", state: "hibernating"},
 	))
 	task := fixture.step(t, emptyIterResult())
 
-	updates := task.GetGeneration().Updates
+	generation := task.GetGeneration()
+	updates := generation.Updates
 	require.Len(t, updates, 1)
 	assert.Equal(t,
 		spb.SweepRunState_SWEEP_RUN_STATE_FAILED, updates[0].Run.State)
+	assert.EqualValues(t, 1, generation.AskUpTo)
 }
 
 func TestUnreadableRowReusesLastKnownState(t *testing.T) {
@@ -359,16 +365,42 @@ func TestTransientPollErrorsGiveUpEventually(t *testing.T) {
 	}
 }
 
-func TestEnqueueFailureEndsTheSchedulerWithTheDiscard(t *testing.T) {
+func TestTransientEnqueueFailureDiscardsAndContinues(t *testing.T) {
 	fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 2})
 	fixture.warmTo(t)
 	fixture.stubPoll(pollJSON("RUNNING", false, ""))
 	fixture.step(t, warmResult(nil))
 
+	// A 502 is retryable, so it costs only this suggestion: the error
+	// budget, not one failed enqueue, decides when the loop gives up.
 	fixture.stubSweepConfig("RUNNING")
 	fixture.client.StubMatchWithError(
 		gqlmock.WithOpName("EnqueueSweepRun"),
 		&graphql.HTTPError{StatusCode: 502},
+	)
+	fixture.stubPoll(pollJSON("RUNNING", false, ""))
+	task := fixture.step(t, generationResult(suggest("opt-lost")))
+
+	generation := task.GetGeneration()
+	require.NotNil(t, generation)
+	// The discard rides the next task so the optimizer still forgets
+	// the suggestion.
+	assert.Equal(t,
+		[]string{"opt-lost"}, generation.DiscardedOptimizerRunIds)
+	assert.True(t, fixture.client.AllStubsUsed())
+}
+
+func TestFatalEnqueueFailureEndsTheSchedulerWithTheDiscard(t *testing.T) {
+	fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 2})
+	fixture.warmTo(t)
+	fixture.stubPoll(pollJSON("RUNNING", false, ""))
+	fixture.step(t, warmResult(nil))
+
+	// A 400 is never retried, so polling again cannot help.
+	fixture.stubSweepConfig("RUNNING")
+	fixture.client.StubMatchWithError(
+		gqlmock.WithOpName("EnqueueSweepRun"),
+		&graphql.HTTPError{StatusCode: 400},
 	)
 	task := fixture.step(t, generationResult(suggest("opt-lost")))
 
@@ -376,14 +408,37 @@ func TestEnqueueFailureEndsTheSchedulerWithTheDiscard(t *testing.T) {
 	require.NotNil(t, done)
 	assert.Equal(t,
 		spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR, done.Reason)
-	assert.Contains(t, done.Message, "failed to enqueue")
 	// The discard rides the Done task so the optimizer still forgets
 	// the suggestion.
 	assert.Equal(t,
 		[]string{"opt-lost"}, done.DiscardedOptimizerRunIds)
 }
 
-func TestDuplicateSuggestionIDDiscarded(t *testing.T) {
+func TestSuggestionsAfterAFatalEnqueueAreDiscarded(t *testing.T) {
+	fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 3})
+	fixture.warmTo(t)
+	fixture.stubPoll(pollJSON("RUNNING", false, ""))
+	fixture.step(t, warmResult(nil))
+
+	// Only the first suggestion is attempted; the rest are never
+	// enqueued, so the Done must carry all three ids or the optimizer
+	// waits forever for runs that will not happen.
+	fixture.stubSweepConfig("RUNNING")
+	fixture.client.StubMatchWithError(
+		gqlmock.WithOpName("EnqueueSweepRun"),
+		&graphql.HTTPError{StatusCode: 400},
+	)
+	task := fixture.step(t,
+		generationResult(suggest("opt-1", "opt-2", "opt-3")))
+
+	done := task.GetDone()
+	require.NotNil(t, done)
+	assert.Equal(t,
+		[]string{"opt-1", "opt-2", "opt-3"},
+		done.DiscardedOptimizerRunIds)
+}
+
+func TestDuplicateSuggestionIDDroppedWithoutDiscarding(t *testing.T) {
 	fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 2})
 	fixture.warmTo(t)
 	fixture.stubPoll(pollJSON("RUNNING", false, "",
@@ -401,8 +456,11 @@ func TestDuplicateSuggestionIDDiscarded(t *testing.T) {
 
 	generation := task.GetGeneration()
 	require.NotNil(t, generation)
-	assert.Equal(t,
-		[]string{"opt-1"}, generation.DiscardedOptimizerRunIds)
+	// Reporting the id would make the client forget the run that owns
+	// it, and its update in this very task would then fail.
+	assert.Empty(t, generation.DiscardedOptimizerRunIds)
+	require.Len(t, generation.Updates, 1)
+	assert.Equal(t, "opt-1", generation.Updates[0].Run.OptimizerRunId)
 }
 
 func TestEnqueuedRunDeletedBeforeAppearingIsReaped(t *testing.T) {
@@ -509,7 +567,7 @@ func TestResumedRunIsNotRetoldNorCounted(t *testing.T) {
 	assert.EqualValues(t, 2, generation.AskUpTo)
 }
 
-func TestEmptySuggestionIDDiscarded(t *testing.T) {
+func TestEmptySuggestionIDDroppedWithoutDiscarding(t *testing.T) {
 	fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 2})
 	fixture.warmTo(t)
 	fixture.stubPoll(pollJSON("RUNNING", false, ""))
@@ -523,7 +581,8 @@ func TestEmptySuggestionIDDiscarded(t *testing.T) {
 
 	generation := task.GetGeneration()
 	require.NotNil(t, generation)
-	assert.Equal(t, []string{""}, generation.DiscardedOptimizerRunIds)
+	// An empty id names no run for the client to forget.
+	assert.Empty(t, generation.DiscardedOptimizerRunIds)
 }
 
 func TestExhaustedWaitsForScheduledRuns(t *testing.T) {
@@ -660,7 +719,7 @@ func TestWarmPageReclassifiesFinishedWithoutMetric(t *testing.T) {
 		warmStart.FinishedRuns[0].State)
 }
 
-func TestWarmPageErrorSkipsRemainingWarmStart(t *testing.T) {
+func TestWarmPageErrorRetriesThePage(t *testing.T) {
 	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
 	fixture.client.StubMatchWithError(
 		gqlmock.WithOpName("SweepRunsWithHistory"),
@@ -669,8 +728,49 @@ func TestWarmPageErrorSkipsRemainingWarmStart(t *testing.T) {
 
 	task := fixture.step(t, nil)
 
-	// The loop proceeds to (empty) generation instead of dying.
-	require.NotNil(t, task.GetGeneration())
-	assert.Empty(t, task.GetGeneration().Updates)
-	assert.Zero(t, task.GetGeneration().AskUpTo)
+	// Still warm-starting: skipping the page would start the search
+	// cold over the runs it covers.
+	warmStart := task.GetWarmStart()
+	require.NotNil(t, warmStart)
+	assert.Empty(t, warmStart.FinishedRuns)
+	assert.Empty(t, warmStart.ActiveRuns)
+	assert.True(t, warmStart.HasMore)
+
+	// The retry re-reads the page, and its runs reach the optimizer.
+	fixture.stubPoll(pollJSON("RUNNING", false, "",
+		testRun{name: "prior-1", state: "finished"},
+	))
+	retried := fixture.step(t, warmResult(nil))
+
+	warmStart = retried.GetWarmStart()
+	require.NotNil(t, warmStart)
+	require.Len(t, warmStart.FinishedRuns, 1)
+	assert.Equal(t, "prior-1", warmStart.FinishedRuns[0].WandbRunId)
+	assert.False(t, warmStart.HasMore)
+	assert.True(t, fixture.client.AllStubsUsed())
+}
+
+func TestWarmStartGivesUpOnceTheErrorBudgetIsSpent(t *testing.T) {
+	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
+
+	// Retrying costs the same budget a poll has; once it is spent the
+	// session ends rather than retrying forever.
+	var task *spb.SweepSchedulerServerNextTaskResponse
+	for range 20 {
+		fixture.client.StubMatchWithError(
+			gqlmock.WithOpName("SweepRunsWithHistory"),
+			&graphql.HTTPError{StatusCode: 500},
+		)
+		task = fixture.step(t, nil)
+		if task.GetDone() != nil {
+			break
+		}
+		require.NotNil(t, task.GetWarmStart())
+	}
+
+	done := task.GetDone()
+	require.NotNil(t, done, "warm start retried past its error budget")
+	assert.Equal(t,
+		spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR, done.Reason)
+	assert.Contains(t, done.Message, "too many consecutive errors")
 }

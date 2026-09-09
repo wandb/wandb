@@ -491,14 +491,24 @@ func (s *Scheduler) applyWarmStartResult(
 	result *spb.SweepSchedulerClientWarmStartResult,
 ) {
 	for wandbRunID, optimizerRunID := range result.Adoptions {
-		if optimizerRunID == "" || s.runs[optimizerRunID] != nil {
+		// Neither bad adoption is reported as a discard. An empty id
+		// names no run to forget, and a colliding one names a run this
+		// scheduler already tracks: the client forgets discarded ids
+		// before applying the task's updates, so reporting it would
+		// drop that run from the optimizer and make its own update in
+		// the same task fail.
+		if optimizerRunID == "" {
 			s.logger.Warn(
-				"scheduler: dropping adoption with an empty or "+
-					"duplicate optimizer run id",
+				"scheduler: dropping an adoption with an empty "+
+					"optimizer run id",
+				"run", wandbRunID)
+			continue
+		}
+		if s.runs[optimizerRunID] != nil {
+			s.logger.Warn(
+				"scheduler: dropping an adoption whose optimizer run id "+
+					"is already in use",
 				"run", wandbRunID, "id", optimizerRunID)
-			// The optimizer thinks it adopted the run and would
-			// otherwise wait forever for updates.
-			s.discards = append(s.discards, optimizerRunID)
 			continue
 		}
 		if run := s.runsByName[wandbRunID]; run != nil && run.isTracked() {
