@@ -29,7 +29,7 @@ concurrency:
 jobs:
   build-linux-wheel:
     name: Build wheel · Linux x64
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest-8-cores
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -172,7 +172,7 @@ jobs:
     uses: ./.github/workflows/sdk-unit-tests.yml
     with:
       python: "3.10"
-      runs-on: ubuntu-24.04
+      runs-on: ubuntu-latest-8-cores
       wheel-artifact: linux-x64-wheel
       artifact-name: unit-linux-3-10
 
@@ -182,7 +182,7 @@ jobs:
     uses: ./.github/workflows/sdk-unit-tests.yml
     with:
       python: "3.13"
-      runs-on: ubuntu-24.04
+      runs-on: ubuntu-latest-8-cores
       wheel-artifact: linux-x64-wheel
       artifact-name: unit-linux-3-13
 
@@ -192,7 +192,7 @@ jobs:
     uses: ./.github/workflows/sdk-unit-tests.yml
     with:
       python: "3.10"
-      runs-on: macos-15
+      runs-on: macos-15-xlarge
       wheel-artifact: macos-arm64-wheel
       artifact-name: unit-macos-3-10
 
@@ -202,7 +202,7 @@ jobs:
     uses: ./.github/workflows/sdk-unit-tests.yml
     with:
       python: "3.13"
-      runs-on: macos-15
+      runs-on: macos-15-xlarge
       wheel-artifact: macos-arm64-wheel
       artifact-name: unit-macos-3-13
 
