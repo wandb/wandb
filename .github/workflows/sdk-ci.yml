@@ -161,9 +161,9 @@ jobs:
             ~/.cargo/registry/index
             parquet-rust-wrapper/target
             xpu/target
-          key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('parquet-rust-wrapper/Cargo.lock', 'xpu/Cargo.lock') }}-${{ github.sha }}
+          key: ${{ runner.os }}-${{ runner.arch }}-cargo-tests-${{ hashFiles('parquet-rust-wrapper/Cargo.lock', 'xpu/Cargo.lock') }}-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('parquet-rust-wrapper/Cargo.lock', 'xpu/Cargo.lock') }}-
+            ${{ runner.os }}-${{ runner.arch }}-cargo-tests-${{ hashFiles('parquet-rust-wrapper/Cargo.lock', 'xpu/Cargo.lock') }}-
       - name: Test parquet-rust-wrapper
         working-directory: parquet-rust-wrapper
         run: cargo test --verbose
