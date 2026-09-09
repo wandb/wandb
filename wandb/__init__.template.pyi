@@ -67,8 +67,7 @@ from collections.abc import Callable, Iterable, Sequence
 from typing import TYPE_CHECKING, Any, Literal, TextIO
 
 import wandb.plot as plot
-from wandb.apis import InternalApi
-from wandb.apis import PublicApi as Api
+from wandb.apis.public import Api
 from wandb.data_types import (
     Audio,
     EvalTable,
@@ -87,6 +86,7 @@ from wandb.errors import Error
 from wandb.errors.term import termerror, termlog, termsetup, termwarn
 from wandb.sdk import Artifact, Settings, wandb_config, wandb_metric, wandb_summary
 from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
+from wandb.sdk.lib.deprecated_api import DeprecatedApi
 from wandb.sdk.lib.filesystem import PolicyName
 from wandb.sdk.lib.paths import FilePathStr, StrPath
 from wandb.sdk.wandb_run import Run
@@ -99,15 +99,21 @@ if TYPE_CHECKING:
     import wandb
     from wandb.plot import CustomChart
 
-__version__: str = "0.29.1.dev1"
+__version__: str = "0.30.1.dev1"
 
 run: Run | None
 config: wandb_config.Config
 summary: wandb_summary.Summary
 
 # private attributes
-api: InternalApi
 patched: dict[str, list[Callable]]
+
+# deprecated
+api: DeprecatedApi
+
+def ensure_configured() -> None:
+    """<sdk/lib/deprecated_api.py::ensure_configured>"""
+    ...
 
 def require(
     requirement: str | Iterable[str] | None = None,
@@ -177,6 +183,7 @@ def login(
     timeout: int | None = None,
     verify: bool = True,
     referrer: str | None = None,
+    prompt: bool = True,
     anonymous: DoNotSet = UNSET,
 ) -> bool:
     """<sdk/wandb_login.py::login>"""

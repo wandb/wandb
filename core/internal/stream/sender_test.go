@@ -1,11 +1,15 @@
 package stream_test
 
 import (
+	"bytes"
 	"context"
+	"os"
 	"testing"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
@@ -35,16 +39,19 @@ type testFixtures struct {
 	RunHandle *runhandle.RunHandle
 	Settings  *wbsettings.Settings
 	Logger    *observability.CoreLogger
+	Logs      *bytes.Buffer
 }
 
 func makeSender(t *testing.T, client graphql.Client) testFixtures {
 	t.Helper()
 	runWork := runworktest.New()
-	logger := observabilitytest.NewTestLogger(t)
+	logger, logs := observabilitytest.NewRecordingTestLogger(t)
 	settings := wbsettings.From(&spb.Settings{
-		RunId:   &wrapperspb.StringValue{Value: "run1"},
-		Console: &wrapperspb.StringValue{Value: "off"},
-		ApiKey:  &wrapperspb.StringValue{Value: "test-api-key"},
+		RunId:    &wrapperspb.StringValue{Value: "run1"},
+		Console:  &wrapperspb.StringValue{Value: "off"},
+		ApiKey:   &wrapperspb.StringValue{Value: "test-api-key"},
+		SyncDir:  wrapperspb.String(t.TempDir()),
+		XPrimary: wrapperspb.Bool(true),
 	})
 	baseURL := stream.BaseURLFromSettings(logger, settings)
 	credentialProvider := stream.CredentialsFromSettings(logger, settings)
@@ -60,22 +67,27 @@ func makeSender(t *testing.T, client graphql.Client) testFixtures {
 		logger,
 		settings,
 	)
+	runHandle := runhandle.New()
+	fileWatcher := watchertest.NewFakeWatcher()
 	runfilesUploaderFactory := &runfiles.UploaderFactory{
 		FileTransfer: fileTransferManager,
-		FileWatcher:  watchertest.NewFakeWatcher(),
+		FileWatcher:  fileWatcher,
 		GraphQL:      client,
 		Logger:       logger,
 		Settings:     settings,
+		RunHandle:    runHandle,
 	}
-	runHandle := runhandle.New()
 
 	senderFactory := stream.SenderFactory{
 		BaseURL:                 baseURL,
 		CredentialProvider:      credentialProvider,
 		Logger:                  logger,
+		Printer:                 observability.NewPrinter(0),
 		Settings:                settings,
 		FileStreamFactory:       fileStreamFactory,
 		FileTransferManager:     fileTransferManager,
+		FileTransferStats:       filetransfer.NewFileTransferStats(),
+		FileWatcher:             fileWatcher,
 		RunfilesUploaderFactory: runfilesUploaderFactory,
 		Mailbox:                 mailbox.New(),
 		GraphqlClient:           client,
@@ -87,6 +99,32 @@ func makeSender(t *testing.T, client graphql.Client) testFixtures {
 		RunHandle: runHandle,
 		Settings:  settings,
 		Logger:    logger,
+		Logs:      logs,
+	}
+}
+
+func TestSendExitBeforeRunInitialization(t *testing.T) {
+	client := gqlmock.NewMockClient()
+	x := makeSender(t, client)
+	require.NoError(t, os.MkdirAll(x.Settings.GetFilesDir(), 0o700))
+	request, responses := runworktest.SimpleRequest(t, "exit")
+	x.Sender.SendRecord(&spb.Record{
+		RecordType: &spb.Record_Exit{Exit: &spb.RunExitRecord{}},
+	}, request)
+
+	select {
+	case response := <-responses:
+		require.NotNil(t, response.GetResultCommunicate().GetExitResult())
+	case <-time.After(5 * time.Second):
+		t.Fatal("shutdown did not finish")
+	}
+
+	assert.Empty(t, client.AllRequests())
+	files, err := os.ReadDir(x.Settings.GetFilesDir())
+	require.NoError(t, err)
+	assert.Empty(t, files)
+	for _, entry := range observabilitytest.ExtractLogs(t, x.Logs) {
+		assert.NotEqual(t, "ERROR", entry["level"], entry["msg"])
 	}
 }
 

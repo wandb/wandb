@@ -77,6 +77,10 @@ func (w *Workspace) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 		g.handleFilterKey(msg)
 		return nil
 	}
+	if w.consoleLogsPane.IsFilterMode() {
+		w.consoleLogsPane.HandleFilterKey(msg)
+		return nil
+	}
 
 	// Grid config capture takes priority.
 	if w.config.IsAwaitingGridConfig() {
@@ -684,9 +688,12 @@ func (w *Workspace) handleWorkspaceChunkedBatch(msg WorkspaceChunkedBatchMsg) te
 	for _, sub := range msg.Batch.Msgs {
 		w.handleWorkspaceRecord(run, sub)
 	}
-	w.metricsGrid.drawVisible()
-	if g := w.systemMetrics[msg.RunKey]; g != nil {
-		g.drawVisible()
+	if !msg.Batch.HasMore || time.Since(w.lastDrawAt) >= bootRedrawInterval {
+		w.lastDrawAt = time.Now()
+		w.metricsGrid.drawVisible()
+		if g := w.systemMetrics[msg.RunKey]; g != nil {
+			g.drawVisible()
+		}
 	}
 
 	if msg.Batch.HasMore {
@@ -830,6 +837,11 @@ func (w *Workspace) handleRunReadErr(msg WorkspaceRunReadErrMsg) tea.Cmd {
 	w.syncLiveRunState()
 	if !w.anyRunRunning() {
 		w.heartbeatMgr.Stop()
+	}
+	// No final boot chunk will arrive to draw any throttled history.
+	w.metricsGrid.drawVisible()
+	if g := w.systemMetrics[msg.RunKey]; g != nil {
+		g.drawVisible()
 	}
 	return nil
 }
@@ -1020,6 +1032,10 @@ func (w *Workspace) handleCycleChartGuides(tea.KeyPressMsg) tea.Cmd {
 }
 
 func (w *Workspace) handleEnterMetricsFilter(msg tea.KeyPressMsg) tea.Cmd {
+	if w.focusMgr.Current() == FocusTargetConsoleLogs {
+		w.consoleLogsPane.EnterFilterMode()
+		return nil
+	}
 	w.metricsGrid.EnterFilterMode()
 	return nil
 }
@@ -1045,6 +1061,10 @@ func (w *Workspace) handleEnterSystemMetricsFilter(msg tea.KeyPressMsg) tea.Cmd 
 }
 
 func (w *Workspace) handleClearMetricsFilter(msg tea.KeyPressMsg) tea.Cmd {
+	if w.focusMgr.Current() == FocusTargetConsoleLogs {
+		w.consoleLogsPane.ClearFilter()
+		return nil
+	}
 	if w.metricsGrid.FilterQuery() != "" {
 		w.metricsGrid.ClearFilter()
 	}
