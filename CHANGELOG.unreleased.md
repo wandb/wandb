@@ -14,6 +14,11 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
+### Changed
+
+- Runs now write data to disk every 15 seconds, so that wandb leet updates sooner for runs that don't log a lot of data (@dmitryduev in https://github.com/wandb/wandb/pull/12742)
+
 ### Fixed
 
 - Single-element NumPy arrays stored in run config are now converted to native scalar values instead of strings. (@tandede, https://github.com/wandb/wandb/issues/1184)
+- Changing system metrics grid rows or columns in LEET, including `wandb leet symon`, no longer crashes and takes effect immediately without waiting for new data (@dmitryduev in https://github.com/wandb/wandb/pull/12763)

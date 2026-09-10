@@ -17,16 +17,22 @@ func TestSymon_ConfigHotkeys_UpdateGridDimensions(t *testing.T) {
 
 	var m tea.Model = leet.NewSymon(leet.SymonParams{Config: cfg, Logger: logger})
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	m, _ = m.Update(leet.StatsMsg{
+		Timestamp: 100,
+		Metrics:   map[string]float64{"gpu.0.temp": 40},
+	})
 
 	m, _ = m.Update(tea.KeyPressMsg{Code: 'r'})
 	m, _ = m.Update(tea.KeyPressMsg{Code: '5'})
 	rows, _ := cfg.SymonGrid()
 	require.Equal(t, 5, rows)
+	require.Contains(t, m.View().Content, "GPU Temp")
 
 	m, _ = m.Update(tea.KeyPressMsg{Code: 'c'})
-	_, _ = m.Update(tea.KeyPressMsg{Code: '4'})
+	m, _ = m.Update(tea.KeyPressMsg{Code: '4'})
 	_, cols := cfg.SymonGrid()
 	require.Equal(t, 4, cols)
+	require.Contains(t, m.View().Content, "GPU Temp")
 }
 
 func TestSymon_FilterLifecycle(t *testing.T) {

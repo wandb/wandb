@@ -50,7 +50,7 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 209
+// Next ID: 210
 message Settings {
   reserved 3, 6, 8, 9, 12, 19, 36, 43, 44, 45, 50, 51, 54, 70, 91, 94, 100, 124, 136, 137, 173, 176, 180;
 
@@ -443,6 +443,13 @@ message Settings {
   // Should be used with caution, as it removes the gurantees about
   // recoverability.
   google.protobuf.BoolValue x_skip_transaction_log = 191;
+
+  // Interval in seconds between flushes of buffered run data to the .wandb
+  // file, so that tools reading the file see a running run's progress.
+  //
+  // Zero disables periodic flushing: data is then written only when a
+  // buffer fills or the run finishes.
+  google.protobuf.DoubleValue x_transaction_log_flush_interval = 209;
 
   // The scheme and hostname for contacting the CoreWeave metadata server.
   google.protobuf.StringValue x_stats_coreweave_metadata_base_url = 192;
