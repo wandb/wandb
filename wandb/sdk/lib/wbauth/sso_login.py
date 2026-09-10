@@ -58,6 +58,14 @@ class OidcDiscovery:
     token_endpoint: str
     device_authorization_endpoint: str | None = None
 
+    iss_parameter_supported: bool = False
+    """Whether the IdP promises to identify itself in authorization responses.
+
+    When true, a response without an `iss` parameter is rejected (RFC 9207
+    section 2.4). When false the parameter is still checked if it arrives,
+    since an IdP may send it without advertising it.
+    """
+
 
 def _parse_idp_config(body: object) -> IdpConfig:
     if not isinstance(body, dict):
@@ -123,12 +131,19 @@ def _parse_discovery(body: object, *, issuer: str) -> OidcDiscovery:
             device_endpoint, name="device_authorization_endpoint"
         )
 
+    iss_supported = body.get("authorization_response_iss_parameter_supported", False)
+    if not isinstance(iss_supported, bool):
+        raise TypeError(
+            "authorization_response_iss_parameter_supported must be a boolean"
+        )
+
     return OidcDiscovery(
         authorization_endpoint=_secure_url(
             body["authorization_endpoint"], name="authorization_endpoint"
         ),
         token_endpoint=_secure_url(body["token_endpoint"], name="token_endpoint"),
         device_authorization_endpoint=device_endpoint,
+        iss_parameter_supported=iss_supported,
     )
 
 
@@ -291,7 +306,12 @@ def pkce_login(
     finally:
         server.server_close()
 
-    code = _authorization_code(params, expected_state=state)
+    code = _authorization_code(
+        params,
+        expected_state=state,
+        expected_issuer=idp_config.issuer,
+        require_issuer=discovery.iss_parameter_supported,
+    )
 
     return _exchange_code(
         discovery.token_endpoint,
@@ -643,11 +663,18 @@ def _wait_for_callback(
     return server.callback_params  # type: ignore[attr-defined]
 
 
-def _authorization_code(params: dict[str, list[str]], *, expected_state: str) -> str:
+def _authorization_code(
+    params: dict[str, list[str]],
+    *,
+    expected_state: str,
+    expected_issuer: str | None = None,
+    require_issuer: bool = False,
+) -> str:
     """Extracts and validates the authorization code."""
-    # Checked before the state so that an IdP that rejects the login says
-    # why, rather than being reported as a state mismatch: RFC 6749 asks
-    # the IdP to echo the state on errors, but not every one does.
+    # Checked before the state and the issuer so that an IdP that rejects
+    # the login says why, rather than being reported as a state mismatch:
+    # RFC 6749 asks the IdP to echo the state on errors, but not every one
+    # does, and an error response carries no code to be confused about.
     if error := params.get("error", [None])[0]:
         description = params.get("error_description", [error])[0]
         raise AuthenticationError(f"SSO login failed: {description}")
@@ -658,6 +685,13 @@ def _authorization_code(params: dict[str, list[str]], *, expected_state: str) ->
             " request. Please try again." + (f" (got {state!r})" if state else "")
         )
 
+    if expected_issuer:
+        _check_response_issuer(
+            params,
+            expected=expected_issuer,
+            required=require_issuer,
+        )
+
     if not (code := params.get("code", [None])[0]):
         raise AuthenticationError(
             "SSO login failed: the identity provider's redirect did not"
@@ -665,6 +699,35 @@ def _authorization_code(params: dict[str, list[str]], *, expected_state: str) ->
         )
 
     return code
+
+
+def _check_response_issuer(
+    params: dict[str, list[str]],
+    *,
+    expected: str,
+    required: bool,
+) -> None:
+    """Rejects an authorization response from an unexpected IdP (RFC 9207).
+
+    Every organization brings its own authorization server, so this client
+    talks to many of them. Without this check, a code minted by one of them
+    could be redeemed at another's token endpoint -- the mix-up attack the
+    `iss` parameter exists to stop.
+    """
+    if (issuer := params.get("iss", [None])[0]) is None:
+        if required:
+            raise AuthenticationError(
+                "SSO login failed: the identity provider says it identifies"
+                " itself in authorization responses, but this one did not."
+                " Please try again."
+            )
+        return
+
+    if issuer.rstrip("/") != expected.rstrip("/"):
+        raise AuthenticationError(
+            f"SSO login failed: the redirect came from {issuer!r}, but the"
+            f" login was sent to {expected!r}."
+        )
 
 
 def _parse_token_response(body: object) -> tuple[str, str]:

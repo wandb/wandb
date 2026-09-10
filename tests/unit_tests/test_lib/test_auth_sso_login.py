@@ -275,6 +275,172 @@ def test_discover_oidc_rejects_issuer_mismatch(mock_responses: RequestsMock):
         sso_login.discover_oidc("https://idp.example.com")
 
 
+def test_discover_oidc_reads_iss_parameter_support(mock_responses: RequestsMock):
+    mock_responses.add(
+        "GET",
+        "https://idp.example.com/.well-known/openid-configuration",
+        json={
+            "issuer": "https://idp.example.com",
+            "authorization_endpoint": "https://idp.example.com/authorize",
+            "token_endpoint": "https://idp.example.com/token",
+            "authorization_response_iss_parameter_supported": True,
+        },
+    )
+
+    result = sso_login.discover_oidc("https://idp.example.com")
+
+    assert result.iss_parameter_supported
+
+
+def test_discover_oidc_rejects_malformed_iss_parameter_support(
+    mock_responses: RequestsMock,
+):
+    mock_responses.add(
+        "GET",
+        "https://idp.example.com/.well-known/openid-configuration",
+        json={
+            "issuer": "https://idp.example.com",
+            "authorization_endpoint": "https://idp.example.com/authorize",
+            "token_endpoint": "https://idp.example.com/token",
+            "authorization_response_iss_parameter_supported": "yes",
+        },
+    )
+
+    with pytest.raises(AuthenticationError, match="must be a boolean"):
+        sso_login.discover_oidc("https://idp.example.com")
+
+
+def test_authorization_code_accepts_matching_iss():
+    code = sso_login._authorization_code(
+        {"state": ["s"], "code": ["c"], "iss": ["https://idp.example.com/"]},
+        expected_state="s",
+        expected_issuer="https://idp.example.com",
+    )
+
+    assert code == "c"
+
+
+def test_authorization_code_rejects_foreign_iss():
+    with pytest.raises(AuthenticationError, match="attacker.example.com"):
+        sso_login._authorization_code(
+            {"state": ["s"], "code": ["c"], "iss": ["https://attacker.example.com"]},
+            expected_state="s",
+            expected_issuer="https://idp.example.com",
+        )
+
+
+def test_authorization_code_tolerates_missing_iss():
+    code = sso_login._authorization_code(
+        {"state": ["s"], "code": ["c"]},
+        expected_state="s",
+        expected_issuer="https://idp.example.com",
+    )
+
+    assert code == "c"
+
+
+def test_authorization_code_requires_iss_when_advertised():
+    with pytest.raises(AuthenticationError, match="did not"):
+        sso_login._authorization_code(
+            {"state": ["s"], "code": ["c"]},
+            expected_state="s",
+            expected_issuer="https://idp.example.com",
+            require_issuer=True,
+        )
+
+
+def test_authorization_code_surfaces_idp_error_before_checking_iss():
+    with pytest.raises(AuthenticationError, match="Consent required"):
+        sso_login._authorization_code(
+            {
+                "error": ["access_denied"],
+                "error_description": ["Consent required"],
+                "iss": ["https://attacker.example.com"],
+            },
+            expected_state="s",
+            expected_issuer="https://idp.example.com",
+        )
+
+
+def test_pkce_login_rejects_response_from_another_issuer(
+    mock_responses: RequestsMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    _simulate_browser_hitting_callback(
+        monkeypatch,
+        extra_params={"iss": "https://attacker.example.com"},
+    )
+
+    idp_config = sso_login.IdpConfig(
+        issuer="https://idp.example.com",
+        client_id="wandb-cli",
+        scopes=("openid",),
+    )
+    discovery = sso_login.OidcDiscovery(
+        authorization_endpoint="https://idp.example.com/authorize",
+        token_endpoint="https://idp.example.com/token",
+    )
+
+    with pytest.raises(AuthenticationError, match="attacker.example.com"):
+        sso_login.pkce_login(idp_config, discovery, timeout=10)
+
+    # The code never reached the token endpoint.
+    assert len(mock_responses.calls) == 0
+
+
+def test_pkce_login_accepts_response_carrying_its_own_issuer(
+    mock_responses: RequestsMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    _simulate_browser_hitting_callback(
+        monkeypatch,
+        extra_params={"iss": "https://idp.example.com"},
+    )
+    mock_responses.add(
+        "POST",
+        "https://idp.example.com/token",
+        json={"id_token": "fake-id-token", "refresh_token": "fake-refresh-token"},
+    )
+
+    idp_config = sso_login.IdpConfig(
+        issuer="https://idp.example.com",
+        client_id="wandb-cli",
+        scopes=("openid",),
+    )
+    discovery = sso_login.OidcDiscovery(
+        authorization_endpoint="https://idp.example.com/authorize",
+        token_endpoint="https://idp.example.com/token",
+        iss_parameter_supported=True,
+    )
+
+    result = sso_login.pkce_login(idp_config, discovery, timeout=10)
+
+    assert result.id_token == "fake-id-token"
+
+
+def test_pkce_login_requires_iss_from_an_idp_that_advertises_it(
+    mock_responses: RequestsMock,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    _simulate_browser_hitting_callback(monkeypatch)
+
+    idp_config = sso_login.IdpConfig(
+        issuer="https://idp.example.com",
+        client_id="wandb-cli",
+        scopes=("openid",),
+    )
+    discovery = sso_login.OidcDiscovery(
+        authorization_endpoint="https://idp.example.com/authorize",
+        token_endpoint="https://idp.example.com/token",
+        iss_parameter_supported=True,
+    )
+
+    with pytest.raises(AuthenticationError, match="identifies itself"):
+        sso_login.pkce_login(idp_config, discovery, timeout=10)
+
+    assert len(mock_responses.calls) == 0
+
+
 def test_exchange_code_requires_refresh_token(mock_responses: RequestsMock):
     mock_responses.add(
         "POST",
@@ -412,6 +578,7 @@ def _simulate_browser_hitting_callback(
     *,
     code: str = "fake-auth-code",
     omit_state: bool = False,
+    extra_params: dict[str, str] | None = None,
 ) -> list[str]:
     """Makes webbrowser.open() redirect to the loopback callback."""
     opened_urls: list[str] = []
@@ -420,7 +587,7 @@ def _simulate_browser_hitting_callback(
         opened_urls.append(auth_url)
         query = urllib.parse.parse_qs(urllib.parse.urlparse(auth_url).query)
         redirect_uri = query["redirect_uri"][0]
-        params = {"code": code}
+        params = {"code": code, **(extra_params or {})}
         if not omit_state:
             params["state"] = query["state"][0]
 
