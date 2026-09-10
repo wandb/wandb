@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -481,6 +482,770 @@ func TestNewOAuth2CredentialProvider_RereadsIdentityTokenFile(t *testing.T) {
 	assert.Contains(t, string(exchanges[1].Body), "assertion=second-token")
 }
 
+func fakeJWT(t *testing.T, exp time.Time) string {
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"none"}`))
+	payload, err := json.Marshal(map[string]int64{"exp": exp.Unix()})
+	require.NoError(t, err)
+	return header + "." + base64.RawURLEncoding.EncodeToString(payload) + ".sig"
+}
+
+func writeJSONIdentityTokenFile(
+	t *testing.T,
+	idToken, refreshToken, tokenEndpoint, clientID string,
+	hostAndOrg ...string,
+) string {
+	account := map[string]string{
+		"id_token":       idToken,
+		"refresh_token":  refreshToken,
+		"token_endpoint": tokenEndpoint,
+		"client_id":      clientID,
+	}
+	var host, org string
+	if len(hostAndOrg) > 0 {
+		host = hostAndOrg[0]
+		account["host"] = host
+	}
+	if len(hostAndOrg) > 1 {
+		org = hostAndOrg[1]
+		account["org"] = org
+	}
+
+	key := host
+	if org != "" {
+		key += "#" + org
+	}
+	return writeIdentityAccountsFile(t, key,
+		map[string]map[string]string{key: account})
+}
+
+func writeIdentityAccountsFile(
+	t *testing.T,
+	active string,
+	accounts map[string]map[string]string,
+) string {
+	path := filepath.Join(t.TempDir(), "identity_token.json")
+	data, err := json.Marshal(map[string]any{
+		"version":  1,
+		"active":   active,
+		"accounts": accounts,
+	})
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(path, data, 0o600))
+	return path
+}
+
+func readIdentityAccounts(
+	t *testing.T,
+	path string,
+) map[string]map[string]string {
+	data, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	var file struct {
+		Version  int                          `json:"version"`
+		Accounts map[string]map[string]string `json:"accounts"`
+	}
+	require.NoError(t, json.Unmarshal(data, &file))
+	assert.Equal(t, 1, file.Version)
+	return file.Accounts
+}
+
+func readIdentityAccount(t *testing.T, path string) map[string]string {
+	accounts := readIdentityAccounts(t, path)
+	require.Len(t, accounts, 1)
+	for _, account := range accounts {
+		return account
+	}
+	return nil
+}
+
+func idpRefreshHandler(idToken, refreshToken string) http.HandlerFunc {
+	return func(w http.ResponseWriter, req *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"id_token":      idToken,
+			"refresh_token": refreshToken,
+		})
+	}
+}
+
+func TestNewOAuth2CredentialProvider_SendsOrganizationHint(t *testing.T) {
+	token := "fake-token"
+	server := authServer(token, time.Hour)
+	defer server.Close()
+
+	idToken := fakeJWT(t, time.Now().Add(time.Hour))
+	tokenFile := writeJSONIdentityTokenFile(t,
+		idToken,
+		"refresh-token",
+		"https://idp.example.com/token",
+		"wandb-cli",
+		server.URL,
+		"acme",
+	)
+	credentialsFile := filepath.Join(t.TempDir(), "credentials.json")
+
+	settings := wbsettings.From(&spb.Settings{
+		BaseUrl:           &wrapperspb.StringValue{Value: server.URL},
+		IdentityTokenFile: &wrapperspb.StringValue{Value: tokenFile},
+		CredentialsFile:   &wrapperspb.StringValue{Value: credentialsFile},
+	})
+	credentialProvider, err := api.NewCredentialProvider(
+		settings,
+		observabilitytest.NewTestLogger(t).Logger,
+	)
+	require.NoError(t, err)
+
+	reqs, err := httplayerstest.MapRequest(t,
+		credentialProvider,
+		exampleGetRequest(t),
+	)
+
+	require.NoError(t, err)
+	require.Len(t, reqs, 1)
+	assert.Equal(t, "Bearer "+token, reqs[0].Header.Get("Authorization"))
+
+	exchanges := server.Requests()
+	require.Len(t, exchanges, 1)
+	assert.Contains(t, string(exchanges[0].Body), "assertion="+idToken)
+	assert.Contains(t, string(exchanges[0].Body), "organization=acme")
+}
+
+func TestNewOAuth2CredentialProvider_RejectsTokenForDifferentHost(t *testing.T) {
+	tokenFile := writeJSONIdentityTokenFile(
+		t,
+		fakeJWT(t, time.Now().Add(time.Hour)),
+		"refresh-token",
+		"https://idp.example.com/token",
+		"wandb-cli",
+		"https://first.example.com",
+	)
+	settings := wbsettings.From(&spb.Settings{
+		BaseUrl:           &wrapperspb.StringValue{Value: "https://second.example.com"},
+		IdentityTokenFile: &wrapperspb.StringValue{Value: tokenFile},
+		CredentialsFile: &wrapperspb.StringValue{
+			Value: filepath.Join(t.TempDir(), "credentials.json"),
+		},
+	})
+
+	_, err := api.NewCredentialProvider(
+		settings,
+		observabilitytest.NewTestLogger(t).Logger,
+	)
+
+	require.ErrorContains(t, err, tokenFile)
+	require.ErrorContains(t, err,
+		"has no credentials for https://second.example.com,"+
+			" only for https://first.example.com")
+}
+
+func TestNewOAuth2CredentialProvider_SelectsAccountForHost(t *testing.T) {
+	token := "fake-token"
+	server := authServer(token, time.Hour)
+	defer server.Close()
+
+	idToken := fakeJWT(t, time.Now().Add(time.Hour))
+	tokenFile := writeIdentityAccountsFile(t,
+		"https://other.example.com",
+		map[string]map[string]string{
+			"https://other.example.com": {
+				"id_token": "other-id-token",
+				"host":     "https://other.example.com",
+			},
+			server.URL: {
+				"id_token": idToken,
+				"host":     server.URL,
+				"org":      "acme",
+			},
+		})
+
+	settings := wbsettings.From(&spb.Settings{
+		BaseUrl:           &wrapperspb.StringValue{Value: server.URL},
+		IdentityTokenFile: &wrapperspb.StringValue{Value: tokenFile},
+		CredentialsFile: &wrapperspb.StringValue{
+			Value: filepath.Join(t.TempDir(), "credentials.json"),
+		},
+	})
+	credentialProvider, err := api.NewCredentialProvider(
+		settings,
+		observabilitytest.NewTestLogger(t).Logger,
+	)
+	require.NoError(t, err)
+
+	_, err = httplayerstest.MapRequest(t, credentialProvider, exampleGetRequest(t))
+
+	require.NoError(t, err)
+	exchanges := server.Requests()
+	require.Len(t, exchanges, 1)
+	assert.Contains(t, string(exchanges[0].Body), "assertion="+idToken)
+	assert.Contains(t, string(exchanges[0].Body), "organization=acme")
+}
+
+func TestNewOAuth2CredentialProvider_ActiveAccountBreaksTie(t *testing.T) {
+	// Multi-tenant SaaS serves several organizations from one URL, so the
+	// base URL alone cannot say which account to use.
+	token := "fake-token"
+	server := authServer(token, time.Hour)
+	defer server.Close()
+
+	idToken := fakeJWT(t, time.Now().Add(time.Hour))
+	accounts := map[string]map[string]string{
+		server.URL + "#acme": {
+			"id_token": "acme-id-token",
+			"host":     server.URL,
+			"org":      "acme",
+		},
+		server.URL + "#zeta": {
+			"id_token": idToken,
+			"host":     server.URL,
+			"org":      "zeta",
+		},
+	}
+	credentialsFile := &wrapperspb.StringValue{
+		Value: filepath.Join(t.TempDir(), "credentials.json"),
+	}
+
+	settings := wbsettings.From(&spb.Settings{
+		BaseUrl: &wrapperspb.StringValue{Value: server.URL},
+		IdentityTokenFile: &wrapperspb.StringValue{
+			Value: writeIdentityAccountsFile(t, server.URL+"#zeta", accounts),
+		},
+		CredentialsFile: credentialsFile,
+	})
+	credentialProvider, err := api.NewCredentialProvider(
+		settings,
+		observabilitytest.NewTestLogger(t).Logger,
+	)
+	require.NoError(t, err)
+
+	_, err = httplayerstest.MapRequest(t, credentialProvider, exampleGetRequest(t))
+
+	require.NoError(t, err)
+	exchanges := server.Requests()
+	require.Len(t, exchanges, 1)
+	assert.Contains(t, string(exchanges[0].Body), "assertion="+idToken)
+	assert.Contains(t, string(exchanges[0].Body), "organization=zeta")
+
+	// The access token is cached per account, not per W&B server, so that
+	// the other organization's token is never used by mistake.
+	data, err := os.ReadFile(credentialsFile.Value)
+	require.NoError(t, err)
+	var cached api.CredentialsFile
+	require.NoError(t, json.Unmarshal(data, &cached))
+	assert.Equal(t, token, cached.Credentials[server.URL+"#zeta"].AccessToken)
+}
+
+func TestNewOAuth2CredentialProvider_RejectsAmbiguousAccounts(t *testing.T) {
+	accounts := map[string]map[string]string{
+		"https://api.wandb.ai#acme": {
+			"id_token": "acme-id-token",
+			"host":     "https://api.wandb.ai",
+			"org":      "acme",
+		},
+		"https://api.wandb.ai#zeta": {
+			"id_token": "zeta-id-token",
+			"host":     "https://api.wandb.ai",
+			"org":      "zeta",
+		},
+	}
+	tokenFile := writeIdentityAccountsFile(t, "", accounts)
+	settings := wbsettings.From(&spb.Settings{
+		BaseUrl:           &wrapperspb.StringValue{Value: "https://api.wandb.ai"},
+		IdentityTokenFile: &wrapperspb.StringValue{Value: tokenFile},
+		CredentialsFile: &wrapperspb.StringValue{
+			Value: filepath.Join(t.TempDir(), "credentials.json"),
+		},
+	})
+
+	_, err := api.NewCredentialProvider(
+		settings,
+		observabilitytest.NewTestLogger(t).Logger,
+	)
+
+	require.ErrorContains(t, err, tokenFile)
+	require.ErrorContains(t, err,
+		"several accounts for https://api.wandb.ai"+
+			" (https://api.wandb.ai#acme, https://api.wandb.ai#zeta)")
+}
+
+func TestNewOAuth2CredentialProvider_RejectsUnsupportedFileVersion(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "identity_token.json")
+	require.NoError(t, os.WriteFile(path, []byte(`{"version": 2}`), 0o600))
+
+	settings := wbsettings.From(&spb.Settings{
+		BaseUrl:           &wrapperspb.StringValue{Value: "https://api.wandb.ai"},
+		IdentityTokenFile: &wrapperspb.StringValue{Value: path},
+		CredentialsFile: &wrapperspb.StringValue{
+			Value: filepath.Join(t.TempDir(), "credentials.json"),
+		},
+	})
+
+	_, err := api.NewCredentialProvider(
+		settings,
+		observabilitytest.NewTestLogger(t).Logger,
+	)
+
+	require.ErrorContains(t, err, path)
+	require.ErrorContains(t, err, "file format version 2")
+	require.ErrorContains(t, err, "upgrade wandb")
+}
+
+func TestNewOAuth2CredentialProvider_ReportsFileLocationForMissingIDToken(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "identity_token.json")
+	require.NoError(t, os.WriteFile(path, []byte(
+		`{"version": 1, "accounts": {"https://wandb.dedicated.test": {"host": "https://wandb.dedicated.test"}}}`,
+	), 0o600))
+
+	settings := wbsettings.From(&spb.Settings{
+		BaseUrl:           &wrapperspb.StringValue{Value: "https://wandb.dedicated.test"},
+		IdentityTokenFile: &wrapperspb.StringValue{Value: path},
+		CredentialsFile: &wrapperspb.StringValue{
+			Value: filepath.Join(t.TempDir(), "credentials.json"),
+		},
+	})
+
+	_, err := api.NewCredentialProvider(
+		settings,
+		observabilitytest.NewTestLogger(t).Logger,
+	)
+
+	require.ErrorContains(t, err, path)
+	require.ErrorContains(t, err, "has no id_token")
+}
+
+func TestNewOAuth2CredentialProvider_RejectsInsecureRefreshEndpoint(t *testing.T) {
+	tokenFile := writeJSONIdentityTokenFile(
+		t,
+		fakeJWT(t, time.Now().Add(time.Hour)),
+		"refresh-token",
+		"http://idp.example.com/token",
+		"wandb-cli",
+	)
+	settings := wbsettings.From(&spb.Settings{
+		BaseUrl:           &wrapperspb.StringValue{Value: "https://api.wandb.ai"},
+		IdentityTokenFile: &wrapperspb.StringValue{Value: tokenFile},
+		CredentialsFile: &wrapperspb.StringValue{
+			Value: filepath.Join(t.TempDir(), "credentials.json"),
+		},
+	})
+
+	_, err := api.NewCredentialProvider(
+		settings,
+		observabilitytest.NewTestLogger(t).Logger,
+	)
+
+	require.ErrorContains(t, err, "token_endpoint must use HTTPS")
+}
+
+func TestNewOAuth2CredentialProvider_RefreshesExpiredIdentityToken(t *testing.T) {
+	wbToken := "fake-wb-token"
+	wbServer := authServer(wbToken, time.Hour)
+	defer wbServer.Close()
+
+	newIDToken := fakeJWT(t, time.Now().Add(time.Hour))
+	idpServer := apitest.NewRecordingServer(
+		apitest.WithHandlerFunc(idpRefreshHandler(newIDToken, "new-refresh-token")))
+	defer idpServer.Close()
+
+	tokenFile := writeJSONIdentityTokenFile(t,
+		fakeJWT(t, time.Now().Add(-time.Hour)), // expired
+		"old-refresh-token",
+		idpServer.URL,
+		"wandb-cli",
+		wbServer.URL,
+		"acme",
+	)
+	require.NoError(t, os.Chmod(tokenFile, 0o644))
+	credentialsFile := filepath.Join(t.TempDir(), "credentials.json")
+
+	settings := wbsettings.From(&spb.Settings{
+		BaseUrl:           &wrapperspb.StringValue{Value: wbServer.URL},
+		IdentityTokenFile: &wrapperspb.StringValue{Value: tokenFile},
+		CredentialsFile:   &wrapperspb.StringValue{Value: credentialsFile},
+		XExtraHttpHeaders: &spb.MapStringKeyStringValue{
+			Value: map[string]string{"X-Wandb-Only": "secret"},
+		},
+	})
+	credentialProvider, err := api.NewCredentialProvider(
+		settings,
+		observabilitytest.NewTestLogger(t).Logger,
+	)
+	require.NoError(t, err)
+
+	reqs, err := httplayerstest.MapRequest(t,
+		credentialProvider,
+		exampleGetRequest(t),
+	)
+	require.NoError(t, err)
+	require.Len(t, reqs, 1)
+	assert.Equal(t, "Bearer "+wbToken, reqs[0].Header.Get("Authorization"))
+
+	idpReqs := idpServer.Requests()
+	require.Len(t, idpReqs, 1)
+	assert.Contains(t, string(idpReqs[0].Body), "grant_type=refresh_token")
+	assert.Contains(t, string(idpReqs[0].Body), "refresh_token=old-refresh-token")
+	assert.Contains(t, string(idpReqs[0].Body), "client_id=wandb-cli")
+	assert.Empty(t, idpReqs[0].Header.Get("X-Wandb-Only"))
+
+	wbReqs := wbServer.Requests()
+	require.Len(t, wbReqs, 1)
+	assert.Contains(t, string(wbReqs[0].Body), "assertion="+newIDToken)
+	assert.Equal(t, "secret", wbReqs[0].Header.Get("X-Wandb-Only"))
+
+	rewritten := readIdentityAccount(t, tokenFile)
+	assert.Equal(t, newIDToken, rewritten["id_token"])
+	assert.Equal(t, "new-refresh-token", rewritten["refresh_token"])
+	assert.Equal(t, idpServer.URL, rewritten["token_endpoint"])
+	assert.Equal(t, "wandb-cli", rewritten["client_id"])
+	assert.Equal(t, wbServer.URL, rewritten["host"])
+	assert.Equal(t, "acme", rewritten["org"])
+	info, err := os.Stat(tokenFile)
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+}
+
+func TestNewOAuth2CredentialProvider_RefreshKeepsOtherAccounts(t *testing.T) {
+	wbServer := authServer("fake-wb-token", time.Hour)
+	defer wbServer.Close()
+
+	newIDToken := fakeJWT(t, time.Now().Add(time.Hour))
+	idpServer := apitest.NewRecordingServer(
+		apitest.WithHandlerFunc(idpRefreshHandler(newIDToken, "new-refresh-token")))
+	defer idpServer.Close()
+
+	tokenFile := writeIdentityAccountsFile(t, wbServer.URL,
+		map[string]map[string]string{
+			wbServer.URL: {
+				"id_token":       fakeJWT(t, time.Now().Add(-time.Hour)), // expired
+				"refresh_token":  "old-refresh-token",
+				"token_endpoint": idpServer.URL,
+				"client_id":      "wandb-cli",
+				"host":           wbServer.URL,
+			},
+			"https://other.example.com": {
+				"id_token": "other-id-token",
+				"host":     "https://other.example.com",
+			},
+		})
+
+	settings := wbsettings.From(&spb.Settings{
+		BaseUrl:           &wrapperspb.StringValue{Value: wbServer.URL},
+		IdentityTokenFile: &wrapperspb.StringValue{Value: tokenFile},
+		CredentialsFile: &wrapperspb.StringValue{
+			Value: filepath.Join(t.TempDir(), "credentials.json"),
+		},
+	})
+	credentialProvider, err := api.NewCredentialProvider(
+		settings,
+		observabilitytest.NewTestLogger(t).Logger,
+	)
+	require.NoError(t, err)
+
+	_, err = httplayerstest.MapRequest(t, credentialProvider, exampleGetRequest(t))
+	require.NoError(t, err)
+
+	accounts := readIdentityAccounts(t, tokenFile)
+	require.Len(t, accounts, 2)
+	assert.Equal(t, newIDToken, accounts[wbServer.URL]["id_token"])
+	assert.Equal(t,
+		"other-id-token",
+		accounts["https://other.example.com"]["id_token"])
+}
+
+func TestOAuth2CredentialProvider_SerializesRefreshAcrossProviders(t *testing.T) {
+	wbServer := authServer("fake-wb-token", time.Hour)
+	defer wbServer.Close()
+
+	var refreshes atomic.Int32
+	newIDToken := fakeJWT(t, time.Now().Add(time.Hour))
+	idpServer := apitest.NewRecordingServer(apitest.WithHandlerFunc(
+		func(w http.ResponseWriter, req *http.Request) {
+			refreshes.Add(1)
+			time.Sleep(100 * time.Millisecond)
+			idpRefreshHandler(newIDToken, "new-refresh-token")(w, req)
+		},
+	))
+	defer idpServer.Close()
+
+	tokenFile := writeJSONIdentityTokenFile(t,
+		fakeJWT(t, time.Now().Add(-time.Hour)),
+		"old-refresh-token",
+		idpServer.URL,
+		"wandb-cli",
+	)
+	settings := wbsettings.From(&spb.Settings{
+		BaseUrl:           &wrapperspb.StringValue{Value: wbServer.URL},
+		IdentityTokenFile: &wrapperspb.StringValue{Value: tokenFile},
+		CredentialsFile: &wrapperspb.StringValue{
+			Value: filepath.Join(t.TempDir(), "credentials.json"),
+		},
+	})
+
+	providers := make([]api.CredentialProvider, 2)
+	for i := range providers {
+		var err error
+		providers[i], err = api.NewCredentialProvider(
+			settings,
+			observabilitytest.NewTestLogger(t).Logger,
+		)
+		require.NoError(t, err)
+	}
+
+	var group errgroup.Group
+	for _, provider := range providers {
+		group.Go(func() error {
+			_, err := httplayerstest.MapRequest(
+				t, provider, exampleGetRequest(t))
+			return err
+		})
+	}
+	require.NoError(t, group.Wait())
+	assert.Equal(t, int32(1), refreshes.Load())
+}
+
+func TestOAuth2CredentialProvider_ExpiredIdentityTokenWithoutRefreshTokenFails(t *testing.T) {
+	server := authServer("fake-token", time.Hour)
+	defer server.Close()
+
+	tokenFile := filepath.Join(t.TempDir(), "jwt.txt")
+	require.NoError(t, os.WriteFile(
+		tokenFile, []byte(fakeJWT(t, time.Now().Add(-time.Hour))), 0o600))
+	credentialsFile := filepath.Join(t.TempDir(), "credentials.json")
+
+	settings := wbsettings.From(&spb.Settings{
+		BaseUrl:           &wrapperspb.StringValue{Value: server.URL},
+		IdentityTokenFile: &wrapperspb.StringValue{Value: tokenFile},
+		CredentialsFile:   &wrapperspb.StringValue{Value: credentialsFile},
+	})
+	credentialProvider, err := api.NewCredentialProvider(
+		settings,
+		observabilitytest.NewTestLogger(t).Logger,
+	)
+	require.NoError(t, err)
+
+	_, err = httplayerstest.MapRequest(t, credentialProvider, exampleGetRequest(t))
+
+	var expiredErr *api.IdentityTokenExpiredError
+	require.ErrorAs(t, err, &expiredErr)
+	assert.True(t, expiredErr.PermanentError())
+	assert.Contains(t, err.Error(), "wandb login sso")
+	assert.Empty(t, server.Requests())
+}
+
+func TestOAuth2CredentialProvider_RefreshFailureIsPermanent(t *testing.T) {
+	server := authServer("fake-token", time.Hour)
+	defer server.Close()
+
+	idpServer := rejectingAuthServer(http.StatusBadRequest, `{"error":"invalid_grant"}`)
+	defer idpServer.Close()
+
+	tokenFile := writeJSONIdentityTokenFile(t,
+		fakeJWT(t, time.Now().Add(-time.Hour)), // expired
+		"refresh-token",
+		idpServer.URL,
+		"wandb-cli",
+	)
+	credentialsFile := filepath.Join(t.TempDir(), "credentials.json")
+
+	settings := wbsettings.From(&spb.Settings{
+		BaseUrl:           &wrapperspb.StringValue{Value: server.URL},
+		IdentityTokenFile: &wrapperspb.StringValue{Value: tokenFile},
+		CredentialsFile:   &wrapperspb.StringValue{Value: credentialsFile},
+	})
+	credentialProvider, err := api.NewCredentialProvider(
+		settings,
+		observabilitytest.NewTestLogger(t).Logger,
+	)
+	require.NoError(t, err)
+
+	_, err = httplayerstest.MapRequest(t, credentialProvider, exampleGetRequest(t))
+
+	var refreshErr *api.IdentityTokenRefreshError
+	require.ErrorAs(t, err, &refreshErr)
+	assert.Equal(t, http.StatusBadRequest, refreshErr.StatusCode)
+	assert.True(t, refreshErr.PermanentError())
+	assert.Contains(t, err.Error(), "invalid_grant")
+
+	assert.Empty(t, server.Requests())
+}
+
+func TestOAuth2CredentialProvider_RefreshRequestIsNotRetried(t *testing.T) {
+	wbServer := authServer("fake-token", time.Hour)
+	defer wbServer.Close()
+	idpServer := rejectingAuthServer(
+		http.StatusInternalServerError,
+		`{"error":"server_error"}`,
+	)
+	defer idpServer.Close()
+
+	tokenFile := writeJSONIdentityTokenFile(t,
+		fakeJWT(t, time.Now().Add(-time.Hour)),
+		"refresh-token",
+		idpServer.URL,
+		"wandb-cli",
+	)
+	settings := wbsettings.From(&spb.Settings{
+		BaseUrl:           &wrapperspb.StringValue{Value: wbServer.URL},
+		IdentityTokenFile: &wrapperspb.StringValue{Value: tokenFile},
+		CredentialsFile: &wrapperspb.StringValue{
+			Value: filepath.Join(t.TempDir(), "credentials.json"),
+		},
+	})
+	provider, err := api.NewCredentialProvider(
+		settings,
+		observabilitytest.NewTestLogger(t).Logger,
+	)
+	require.NoError(t, err)
+
+	_, err = httplayerstest.MapRequest(t, provider, exampleGetRequest(t))
+
+	var refreshErr *api.IdentityTokenRefreshError
+	require.ErrorAs(t, err, &refreshErr)
+	assert.True(t, refreshErr.PermanentError())
+	assert.Len(t, idpServer.Requests(), 1)
+	assert.Empty(t, wbServer.Requests())
+}
+
+func TestOAuth2CredentialProvider_RefreshDoesNotFollowRedirect(t *testing.T) {
+	redirectTarget := apitest.NewRecordingServer(apitest.WithHandlerFunc(
+		idpRefreshHandler("stolen-token", "stolen-refresh-token"),
+	))
+	defer redirectTarget.Close()
+	redirector := apitest.NewRecordingServer(apitest.WithHandlerFunc(
+		func(w http.ResponseWriter, req *http.Request) {
+			http.Redirect(w, req, redirectTarget.URL, http.StatusTemporaryRedirect)
+		},
+	))
+	defer redirector.Close()
+	wbServer := authServer("fake-token", time.Hour)
+	defer wbServer.Close()
+
+	tokenFile := writeJSONIdentityTokenFile(t,
+		fakeJWT(t, time.Now().Add(-time.Hour)),
+		"refresh-token",
+		redirector.URL,
+		"wandb-cli",
+	)
+	settings := wbsettings.From(&spb.Settings{
+		BaseUrl:           &wrapperspb.StringValue{Value: wbServer.URL},
+		IdentityTokenFile: &wrapperspb.StringValue{Value: tokenFile},
+		CredentialsFile: &wrapperspb.StringValue{
+			Value: filepath.Join(t.TempDir(), "credentials.json"),
+		},
+	})
+	provider, err := api.NewCredentialProvider(
+		settings,
+		observabilitytest.NewTestLogger(t).Logger,
+	)
+	require.NoError(t, err)
+
+	_, err = httplayerstest.MapRequest(t, provider, exampleGetRequest(t))
+
+	require.Error(t, err)
+	assert.Len(t, redirector.Requests(), 1)
+	assert.Empty(t, redirectTarget.Requests())
+	assert.Empty(t, wbServer.Requests())
+}
+
+func TestOAuth2CredentialProvider_RefreshesOnlyForUnrefreshedInvalidToken(
+	t *testing.T,
+) {
+	tests := []struct {
+		name          string
+		idToken       string
+		expired       bool
+		wbStatus      int
+		wbBody        string
+		wantRefreshes int
+	}{
+		{
+			name:          "refreshed token is not refreshed again",
+			expired:       true,
+			wbStatus:      http.StatusUnauthorized,
+			wbBody:        `{"error":"invalid_grant"}`,
+			wantRefreshes: 1,
+		},
+		{
+			name:          "forbidden exchange does not consume refresh token",
+			idToken:       "not-a-jwt",
+			wbStatus:      http.StatusForbidden,
+			wbBody:        `{"error":"insufficient_scope"}`,
+			wantRefreshes: 0,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			wbServer := rejectingAuthServer(test.wbStatus, test.wbBody)
+			defer wbServer.Close()
+			idpServer := apitest.NewRecordingServer(apitest.WithHandlerFunc(
+				idpRefreshHandler(fakeJWT(t, time.Now().Add(time.Hour)), ""),
+			))
+			defer idpServer.Close()
+
+			idToken := test.idToken
+			if test.expired {
+				idToken = fakeJWT(t, time.Now().Add(-time.Hour))
+			}
+			tokenFile := writeJSONIdentityTokenFile(
+				t, idToken, "refresh-token", idpServer.URL, "wandb-cli")
+			settings := wbsettings.From(&spb.Settings{
+				BaseUrl:           &wrapperspb.StringValue{Value: wbServer.URL},
+				IdentityTokenFile: &wrapperspb.StringValue{Value: tokenFile},
+				CredentialsFile: &wrapperspb.StringValue{
+					Value: filepath.Join(t.TempDir(), "credentials.json"),
+				},
+			})
+			provider, err := api.NewCredentialProvider(
+				settings,
+				observabilitytest.NewTestLogger(t).Logger,
+			)
+			require.NoError(t, err)
+
+			_, err = httplayerstest.MapRequest(t, provider, exampleGetRequest(t))
+
+			require.Error(t, err)
+			assert.Len(t, idpServer.Requests(), test.wantRefreshes)
+			assert.Len(t, wbServer.Requests(), 1)
+		})
+	}
+}
+
+func TestOAuth2CredentialProvider_RefreshesOnServerRejectionWhenLocalCheckMissed(t *testing.T) {
+	wbServer := sequencedAuthServer(http.StatusUnauthorized, http.StatusOK)
+	defer wbServer.Close()
+
+	newIDToken := fakeJWT(t, time.Now().Add(time.Hour))
+	idpServer := apitest.NewRecordingServer(
+		apitest.WithHandlerFunc(idpRefreshHandler(newIDToken, "")))
+	defer idpServer.Close()
+
+	tokenFile := writeJSONIdentityTokenFile(t,
+		"not-a-jwt", "old-refresh-token", idpServer.URL, "wandb-cli")
+	credentialsFile := filepath.Join(t.TempDir(), "credentials.json")
+
+	settings := wbsettings.From(&spb.Settings{
+		BaseUrl:           &wrapperspb.StringValue{Value: wbServer.URL},
+		IdentityTokenFile: &wrapperspb.StringValue{Value: tokenFile},
+		CredentialsFile:   &wrapperspb.StringValue{Value: credentialsFile},
+	})
+	credentialProvider, err := api.NewCredentialProvider(
+		settings,
+		observabilitytest.NewTestLogger(t).Logger,
+	)
+	require.NoError(t, err)
+
+	reqs, err := httplayerstest.MapRequest(t, credentialProvider, exampleGetRequest(t))
+	require.NoError(t, err)
+	require.Len(t, reqs, 1)
+	assert.Equal(t, "Bearer fake-token", reqs[0].Header.Get("Authorization"))
+	assert.Len(t, wbServer.Requests(), 2)
+	assert.Len(t, idpServer.Requests(), 1)
+
+	rewritten := readIdentityAccount(t, tokenFile)
+	assert.Equal(t, "old-refresh-token", rewritten["refresh_token"])
+}
+
 // rejectingAuthServer is a token endpoint that always responds with the
 // given status code and body.
 func rejectingAuthServer(statusCode int, body string) *apitest.RecordingServer {
@@ -602,6 +1367,7 @@ func oauth2ProviderWithRetries(
 		tokenFile,
 		credentialsFile,
 		exchangeClient,
+		exchangeClient,
 		logger,
 	)
 	require.NoError(t, err)
@@ -666,6 +1432,12 @@ func sequencedAuthServer(statuses ...int) *apitest.RecordingServer {
 			authHandler("fake-token", time.Hour)(w, req)
 			return
 		}
+		if status == http.StatusBadRequest || status == http.StatusUnauthorized {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(status)
+			_, _ = w.Write([]byte(`{"error":"invalid_grant"}`))
+			return
+		}
 
 		http.Error(w, "nope", status)
 	}
@@ -700,6 +1472,16 @@ func TestOAuth2CredentialProvider_ExchangeRetries(t *testing.T) {
 		{
 			name:         "a server error is retried until it succeeds",
 			statuses:     []int{http.StatusInternalServerError, http.StatusOK},
+			wantRequests: 2,
+		},
+		{
+			name:         "a request timeout is retried",
+			statuses:     []int{http.StatusRequestTimeout, http.StatusOK},
+			wantRequests: 2,
+		},
+		{
+			name:         "too early is retried",
+			statuses:     []int{http.StatusTooEarly, http.StatusOK},
 			wantRequests: 2,
 		},
 	}
