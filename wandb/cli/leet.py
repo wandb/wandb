@@ -12,7 +12,6 @@ import pathlib
 import subprocess
 import sys
 import urllib.parse
-from typing import Any
 
 import click
 from typing_extensions import Never
@@ -24,34 +23,13 @@ from wandb.sdk import wandb_setup
 from wandb.sdk.lib import wbauth
 from wandb.util import get_core_path
 
-
-class DefaultCommandGroup(click.Group):
-    """A click Group that falls through to a default command.
-
-    If the first argument isn't a recognized subcommand or a help flag,
-    the default command is invoked with all arguments passed through.
-    This allows backward-compatible CLIs where `cmd [path]` and
-    `cmd run [path]` are equivalent.
-    """
-
-    def __init__(self, *args: Any, default_cmd: str = "run", **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
-        self.default_cmd = default_cmd
-
-    def parse_args(self, ctx: click.Context, args: list[str]) -> list[str]:
-        if args and args[0] in ctx.help_option_names:
-            return super().parse_args(ctx, args)
-        if not args or args[0].startswith("-") or args[0] not in self.commands:
-            args = [self.default_cmd, *args]
-        return super().parse_args(ctx, args)
-
-    def format_usage(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
-        formatter.write_usage(ctx.command_path, "[PATH] | COMMAND [ARGS]...")
+from ._click_utils import DefaultCommandGroup
 
 
 @click.group(
     cls=DefaultCommandGroup,
     default_cmd="run",
+    usage="[PATH] | COMMAND [ARGS]...",
     invoke_without_command=True,
     context_settings={"help_option_names": ["-h", "--help"]},
 )
