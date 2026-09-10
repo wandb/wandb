@@ -28,6 +28,9 @@ uv.lock
 .nox/
 .nox-wandb/
 
+# CLI debug logs.
+wandb/debug-cli.*.log
+
 # Unit test / coverage reports / linting.
 test-results/
 .pytest_cache/

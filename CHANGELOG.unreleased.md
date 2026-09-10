@@ -14,6 +14,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
+### Added
+
+- `wandb login sso` logs in through your organization's identity provider in a browser, instead of an API key. On multi-tenant SaaS, pass `--org` together with `--issuer` and `--client-id`, which are checked against the identity provider that organization registered before anything is sent to it. Pass `--host` for a dedicated or self-hosted instance, which serves a single organization and resolves it automatically. The resulting credentials are saved to `identity_token.json` in the W&B config directory, one entry per account, and wandb-core refreshes them as they expire.
+
 ### Changed
 
 - Setting both `WANDB_API_KEY` and `WANDB_IDENTITY_TOKEN_FILE` is no longer an error. Federated identity credentials take precedence and W&B warns that the API key is being ignored.
