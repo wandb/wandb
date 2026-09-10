@@ -686,6 +686,11 @@ message ReadLocalRunHistoryRequest {
 
   // The most rows to return; zero means all.
   int32 limit = 7;
+
+  // Read the run's system metrics instead of its history. Rows are keyed by
+  // _timestamp, in seconds, and metrics are prefixed with "system.";
+  // min_step and max_step do not apply.
+  bool system_metrics = 8;
 }
 
 message ReadLocalRunHistoryResponse {

@@ -4384,7 +4384,11 @@ type ReadLocalRunHistoryRequest struct {
 	// Continue a scan from a previous response's next_offset.
 	Offset int64 `protobuf:"varint,6,opt,name=offset,proto3" json:"offset,omitempty"`
 	// The most rows to return; zero means all.
-	Limit         int32 `protobuf:"varint,7,opt,name=limit,proto3" json:"limit,omitempty"`
+	Limit int32 `protobuf:"varint,7,opt,name=limit,proto3" json:"limit,omitempty"`
+	// Read the run's system metrics instead of its history. Rows are keyed by
+	// _timestamp, in seconds, and metrics are prefixed with "system.";
+	// min_step and max_step do not apply.
+	SystemMetrics bool `protobuf:"varint,8,opt,name=system_metrics,json=systemMetrics,proto3" json:"system_metrics,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4466,6 +4470,13 @@ func (x *ReadLocalRunHistoryRequest) GetLimit() int32 {
 		return x.Limit
 	}
 	return 0
+}
+
+func (x *ReadLocalRunHistoryRequest) GetSystemMetrics() bool {
+	if x != nil {
+		return x.SystemMetrics
+	}
+	return false
 }
 
 type ReadLocalRunHistoryResponse struct {
@@ -5304,7 +5315,7 @@ const file_wandb_proto_wandb_api_proto_rawDesc = "" +
 	"\fhistory_keys\x18\x06 \x03(\tR\vhistoryKeys\x12 \n" +
 	"\texit_code\x18\a \x01(\x05H\x00R\bexitCode\x88\x01\x01B\f\n" +
 	"\n" +
-	"_exit_code\"\xf9\x01\n" +
+	"_exit_code\"\xa0\x02\n" +
 	"\x1aReadLocalRunHistoryRequest\x12\x1d\n" +
 	"\n" +
 	"wandb_file\x18\x01 \x01(\tR\twandbFile\x12\x12\n" +
@@ -5313,7 +5324,8 @@ const file_wandb_proto_wandb_api_proto_rawDesc = "" +
 	"\bmax_step\x18\x04 \x01(\x03H\x01R\amaxStep\x88\x01\x01\x12\x17\n" +
 	"\x04last\x18\x05 \x01(\x05H\x02R\x04last\x88\x01\x01\x12\x16\n" +
 	"\x06offset\x18\x06 \x01(\x03R\x06offset\x12\x14\n" +
-	"\x05limit\x18\a \x01(\x05R\x05limitB\v\n" +
+	"\x05limit\x18\a \x01(\x05R\x05limit\x12%\n" +
+	"\x0esystem_metrics\x18\b \x01(\bR\rsystemMetricsB\v\n" +
 	"\t_min_stepB\v\n" +
 	"\t_max_stepB\a\n" +
 	"\x05_last\"R\n" +

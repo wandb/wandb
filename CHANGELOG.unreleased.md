@@ -16,7 +16,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Added
 
-- `wandb.beta.LocalApi` reads runs from a local wandb directory without a W&B server, API key or network: list the runs with their state, and read a run's config, summary, history rows (as dicts or a pandas or polars DataFrame) and console logs, including while the run is still writing. It is experimental and may change in any release (@dmitryduev in https://github.com/wandb/wandb/pull/12745, https://github.com/wandb/wandb/pull/12766)
+- `wandb.beta.LocalApi` reads runs from a local wandb directory without a W&B server, API key or network: list the runs with their state, and read a run's config, summary, history rows and system metrics (as dicts or a pandas or polars DataFrame) and console logs, including while the run is still writing. It is experimental and may change in any release (@dmitryduev in https://github.com/wandb/wandb/pull/12745, https://github.com/wandb/wandb/pull/12766, https://github.com/wandb/wandb/pull/12767)
 
 ### Changed
 
