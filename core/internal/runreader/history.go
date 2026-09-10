@@ -4,13 +4,20 @@ import (
 	"context"
 	"errors"
 	"io"
+	"runtime"
 	"sort"
+	"sync"
+
+	"google.golang.org/protobuf/proto"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // indexStride is the number of history records between index entries.
 const indexStride = 100
+
+// decodeBatchBytes is how many bytes of records a worker decodes at a time.
+const decodeBatchBytes = 1 << 20
 
 type indexEntry struct {
 	step   int64
@@ -89,15 +96,7 @@ func (r *Run) History(ctx context.Context, query HistoryQuery) (HistoryPage, err
 			return HistoryPage{}, err
 		}
 	}
-	chunk, next, err := scan.read(query.Limit, 0)
-	if err != nil {
-		return HistoryPage{}, err
-	}
-	page := HistoryPage{NextOffset: next}
-	if chunk.Rows > 0 {
-		page.Chunks = []*Chunk{chunk}
-	}
-	return page, nil
+	return scan.readForward(query.Limit)
 }
 
 // offsetForStep returns the offset of the last index entry at or before
@@ -117,48 +116,188 @@ type historyScan struct {
 	keys   map[string]struct{}
 }
 
+// readForward reads from the cursor to the end of the file, a step past
+// MaxStep, or limit matching rows (when positive), decoding records on
+// every CPU. Records are read in byte-bounded batches, each decoded into
+// one chunk, so a page's chunks are the batches its rows came from.
+func (s *historyScan) readForward(limit int) (HistoryPage, error) {
+	var page HistoryPage
+	workers := min(runtime.GOMAXPROCS(0), 8)
+	rows := 0
+	for {
+		// A record holds at most one row, so a page short of its limit
+		// needs at most that many more records this round.
+		wanted := 0
+		if limit > 0 {
+			wanted = limit - rows
+		}
+		batches := make([]batch, 0, workers)
+		atEnd := false
+		for len(batches) < workers && !atEnd && (limit == 0 || wanted > 0) {
+			var b batch
+			var err error
+			b, atEnd, err = s.readBatch(wanted)
+			if err != nil {
+				return HistoryPage{}, err
+			}
+			if len(b.ends) > 0 {
+				batches = append(batches, b)
+				wanted -= len(b.ends)
+			}
+		}
+
+		results := make([]decoded, len(batches))
+		var wg sync.WaitGroup
+		for i := range batches {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				results[i] = s.decodeBatch(batches[i])
+			}()
+		}
+		wg.Wait()
+
+		for _, res := range results {
+			if limit > 0 && rows == limit {
+				page.NextOffset = res.start
+				return page, nil
+			}
+			if res.chunk.Rows > 0 {
+				if limit > 0 && rows+res.chunk.Rows > limit {
+					keep := limit - rows
+					page.NextOffset = res.rowOffsets[keep]
+					res.chunk.truncate(keep)
+					page.Chunks = append(page.Chunks, res.chunk)
+					return page, nil
+				}
+				page.Chunks = append(page.Chunks, res.chunk)
+				rows += res.chunk.Rows
+			}
+			if res.stopped {
+				return page, nil
+			}
+		}
+		if atEnd {
+			return page, nil
+		}
+		if limit > 0 && rows == limit {
+			page.NextOffset = s.cursor.Offset()
+			return page, nil
+		}
+	}
+}
+
+// batch is a run of consecutive records' bytes, back to back in data and
+// ending at ends, with the file offset of each.
+type batch struct {
+	data    []byte
+	ends    []int
+	offsets []int64
+}
+
+// readBatch reads records until the batch holds decodeBatchBytes, or
+// maxRecords records when positive, or the file ends, reporting the latter.
+func (s *historyScan) readBatch(maxRecords int) (batch, bool, error) {
+	var b batch
+	for len(b.data) < decodeBatchBytes && (maxRecords <= 0 || len(b.ends) < maxRecords) {
+		if err := s.ctx.Err(); err != nil {
+			return batch{}, false, err
+		}
+		data, offset, err := s.cursor.NextRaw(b.data)
+		if errors.Is(err, io.EOF) {
+			return b, true, nil
+		}
+		if err != nil {
+			return batch{}, false, err
+		}
+		b.data = data
+		b.ends = append(b.ends, len(data))
+		b.offsets = append(b.offsets, offset)
+	}
+	return b, false, nil
+}
+
+// decoded is a batch's matching rows.
+type decoded struct {
+	chunk *Chunk
+	// start is the offset of the batch's first record; rowOffsets holds the
+	// offset of each row's record, so a page cut short can say where the
+	// next one starts.
+	start      int64
+	rowOffsets []int64
+	// stopped is true if a step past MaxStep was seen.
+	stopped bool
+}
+
+func (s *historyScan) decodeBatch(b batch) decoded {
+	res := decoded{chunk: &Chunk{}, start: b.offsets[0]}
+	start := 0
+	for i, end := range b.ends {
+		record := &spb.Record{}
+		if err := proto.Unmarshal(b.data[start:end], record); err == nil {
+			rows := res.chunk.Rows
+			if !s.addRecord(res.chunk, record) {
+				res.stopped = true
+				break
+			}
+			if res.chunk.Rows > rows {
+				res.rowOffsets = append(res.rowOffsets, b.offsets[i])
+			}
+		}
+		start = end
+	}
+	res.chunk.finish()
+	return res
+}
+
 // read decodes matching rows into a chunk until the record at offset end
-// (when positive), the end of the file, a step past MaxStep, or limit rows
-// (when positive). It returns the chunk and the offset to continue from,
-// which is 0 once the scan is complete.
-func (s *historyScan) read(limit int, end int64) (*Chunk, int64, error) {
+// (when positive), the end of the file, or a step past MaxStep.
+func (s *historyScan) read(end int64) (*Chunk, error) {
 	chunk := &Chunk{}
 	for {
 		if err := s.ctx.Err(); err != nil {
-			return nil, 0, err
+			return nil, err
 		}
-		if limit > 0 && chunk.Rows == limit || end > 0 && s.cursor.Offset() >= end {
-			chunk.finish()
-			return chunk, s.cursor.Offset(), nil
+		if end > 0 && s.cursor.Offset() >= end {
+			break
 		}
 		record, _, err := s.cursor.Next()
 		if errors.Is(err, io.EOF) {
-			chunk.finish()
-			return chunk, 0, nil
+			break
 		}
 		if err != nil {
-			return nil, 0, err
+			return nil, err
 		}
-		if s.query.SystemMetrics {
-			if stats := record.GetStats(); stats != nil {
-				s.addStatsRow(chunk, stats)
-			}
-			continue
+		if !s.addRecord(chunk, record) {
+			break
 		}
-		history := record.GetHistory()
-		if history == nil {
-			continue
-		}
-		step := HistoryStep(history)
-		if s.query.MinStep != nil && step < *s.query.MinStep {
-			continue
-		}
-		if s.query.MaxStep != nil && step > *s.query.MaxStep {
-			chunk.finish()
-			return chunk, 0, nil
-		}
-		s.addHistoryRow(chunk, history, step)
 	}
+	chunk.finish()
+	return chunk, nil
+}
+
+// addRecord adds the record's row to the chunk if it matches the query. It
+// returns false once a step past MaxStep is seen.
+func (s *historyScan) addRecord(chunk *Chunk, record *spb.Record) bool {
+	if s.query.SystemMetrics {
+		if stats := record.GetStats(); stats != nil {
+			s.addStatsRow(chunk, stats)
+		}
+		return true
+	}
+	history := record.GetHistory()
+	if history == nil {
+		return true
+	}
+	step := HistoryStep(history)
+	if s.query.MinStep != nil && step < *s.query.MinStep {
+		return true
+	}
+	if s.query.MaxStep != nil && step > *s.query.MaxStep {
+		return false
+	}
+	s.addHistoryRow(chunk, history, step)
+	return true
 }
 
 // addHistoryRow adds the record's items as a row, with _step from the
@@ -233,7 +372,7 @@ func (s *historyScan) last(index []indexEntry) (HistoryPage, error) {
 		if g+1 < len(index) {
 			end = index[g+1].offset
 		}
-		chunk, _, err := s.read(0, end)
+		chunk, err := s.read(end)
 		if err != nil {
 			return HistoryPage{}, err
 		}

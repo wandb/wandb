@@ -117,8 +117,39 @@ func (r *Reader) NextRecordOffset() int64 {
 // position in the transaction log again. The error wraps EOF
 // or ErrUnexpectedEOF if it may be resolved by waiting for more data.
 func (r *Reader) Read() (*spb.Record, error) {
+	buf := r.bufPool.Get().(*bytes.Buffer)
+	defer func() {
+		buf.Reset()
+		r.bufPool.Put(buf)
+	}()
+
+	if err := r.readInto(buf); err != nil {
+		return nil, err
+	}
+
+	msg := &spb.Record{}
+	if err := proto.Unmarshal(buf.Bytes(), msg); err != nil {
+		return nil, fmt.Errorf("transactionlog: error unmarshaling: %v", err)
+	}
+
+	return msg, nil
+}
+
+// ReadRaw appends the next record's serialized bytes to dst and returns the
+// result, so that a caller can decode records elsewhere, such as on other
+// goroutines. Errors are as for Read.
+func (r *Reader) ReadRaw(dst []byte) ([]byte, error) {
+	buf := bytes.NewBuffer(dst)
+	if err := r.readInto(buf); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+// readInto appends the next record's bytes to buf.
+func (r *Reader) readInto(buf *bytes.Buffer) error {
 	if r.reader == nil {
-		return nil, errors.New("transactionlog: reader is closed")
+		return errors.New("transactionlog: reader is closed")
 	}
 
 	// Always recover after errors, skipping corrupt data.
@@ -129,33 +160,18 @@ func (r *Reader) Read() (*spb.Record, error) {
 
 	// Verify the W&B header before the first read.
 	if err := r.verifyWBHeaderBeforeFirstRead(); err != nil {
-		return nil, err
+		return err
 	}
 
 	recordReader, err := r.reader.Next()
-
 	if err != nil {
-		return nil, fmt.Errorf(
-			"transactionlog: error getting next record: %w", err)
+		return fmt.Errorf("transactionlog: error getting next record: %w", err)
 	}
 
-	buf := r.bufPool.Get().(*bytes.Buffer)
-	defer func() {
-		buf.Reset()
-		r.bufPool.Put(buf)
-	}()
-
-	_, err = io.Copy(buf, recordReader)
-	if err != nil {
-		return nil, fmt.Errorf("transactionlog: error reading: %w", err)
+	if _, err := io.Copy(buf, recordReader); err != nil {
+		return fmt.Errorf("transactionlog: error reading: %w", err)
 	}
-
-	msg := &spb.Record{}
-	if err = proto.Unmarshal(buf.Bytes(), msg); err != nil {
-		return nil, fmt.Errorf("transactionlog: error unmarshaling: %v", err)
-	}
-
-	return msg, nil
+	return nil
 }
 
 // verifyWBHeaderBeforeFirstRead verifies the W&B header if it hasn't yet been

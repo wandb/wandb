@@ -146,12 +146,56 @@ func TestRun_History(t *testing.T) {
 
 	page, err = run.History(context.Background(), runreader.HistoryQuery{Limit: 100})
 	require.NoError(t, err)
-	require.Len(t, page.Chunks, 1)
-	assert.Equal(t, 100, page.Chunks[0].Rows)
+	pageRows := 0
+	for _, chunk := range page.Chunks {
+		pageRows += chunk.Rows
+	}
+	assert.Equal(t, 100, pageRows)
 	assert.NotZero(t, page.NextOffset)
 	rows = readAll(t, run, runreader.HistoryQuery{Limit: 100, Offset: page.NextOffset})
 	assert.Equal(t, 150, len(rows))
 	assert.Equal(t, int64(100), rows[0]["_step"])
+}
+
+func TestRun_HistoryPagesAcrossDecodeBatches(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "run-abc.wandb")
+	writeHistoryLog(t, path, 20_000, 20)
+	run, err := runreader.Open(path, observability.NewNoOpLogger())
+	require.NoError(t, err)
+	defer run.Close()
+	require.NoError(t, run.Update(context.Background()))
+
+	var steps []int64
+	var pages, chunks int
+	query := runreader.HistoryQuery{Keys: []string{"acc"}, Limit: 700}
+	for {
+		page, err := run.History(context.Background(), query)
+		require.NoError(t, err)
+		pages++
+		chunks += len(page.Chunks)
+		for _, chunk := range page.Chunks {
+			for _, col := range chunk.Columns {
+				if col.Key == "_step" {
+					steps = append(steps, col.Ints...)
+				}
+			}
+		}
+		if page.NextOffset == 0 {
+			break
+		}
+		query.Offset = page.NextOffset
+	}
+	require.Len(t, steps, 2000)
+	for i, step := range steps {
+		require.Equal(t, int64(10*i), step)
+	}
+	assert.Equal(t, 3, pages)
+	assert.Greater(t, chunks, pages, "a page should span several decode batches")
+
+	maxStep := int64(19_005)
+	rows := readAll(t, run, runreader.HistoryQuery{MinStep: &maxStep, MaxStep: &maxStep})
+	require.Len(t, rows, 1)
+	assert.Equal(t, int64(19_005), rows[0]["_step"])
 }
 
 func BenchmarkHistory(b *testing.B) {
