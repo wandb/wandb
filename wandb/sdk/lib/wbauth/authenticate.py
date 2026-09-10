@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import os
+import pathlib
 import threading
 
 from wandb import env
 from wandb.errors import AuthenticationError, UsageError, term
 from wandb.sdk import wandb_setup
 
-from . import prompt, wbnetrc
+from . import identity_token_file, prompt, wbnetrc
 from .auth import Auth, AuthApiKey, AuthIdentityTokenFile, AuthWithSource
 from .host_url import HostUrl
 from .settings import set_auth_settings
@@ -170,7 +171,11 @@ def _use_system_auth(
 ) -> Auth | None:
     """Load (or reload) session credentials from external sources.
 
-    Loads credentials from environment variables, .netrc, or global settings.
+    Loads federated-identity credentials from the identity-token environment
+    variable, persisted setting, or default token path. When an API-key
+    environment variable is also configured, federated identity takes
+    precedence and a warning is printed. If no identity token is configured,
+    it loads an API key from the environment, .netrc, or global settings.
     If no credentials are found, the session credentials are unchanged.
 
     Args:
@@ -186,8 +191,17 @@ def _use_system_auth(
     Returns:
         The new credentials, if any.
     """
+    identity_token_auth = _try_identity_token_auth(host=host)
+    api_key = os.getenv(env.API_KEY)
+    if api_key and identity_token_auth:
+        term.termwarn(
+            f"Ignoring {env.API_KEY} because federated identity credentials"
+            + f" are configured from {identity_token_auth.source}."
+        )
+
     auth = (
-        _try_env_auth(host=host)  #
+        identity_token_auth
+        or _try_env_api_key_auth(host=host)
         or wbnetrc.read_netrc_auth_with_source(host=host)
     )
     if auth is None:
@@ -212,41 +226,95 @@ def _use_system_auth(
         return _session_auth
 
 
-def _try_env_auth(*, host: HostUrl) -> AuthWithSource | None:
-    """Returns credentials from environment variables, if set.
+def _try_identity_token_auth(*, host: HostUrl) -> AuthWithSource | None:
+    """Returns identity-token credentials from their configured sources.
 
-    Raises an authentication error if an invalid combination of environment
-    variables is set.
+    The identity-token environment variable takes precedence over the persisted
+    setting, which takes precedence over the standard config-directory path.
+    The latter lets a preceding ``wandb login sso`` be used without setting an
+    environment variable explicitly.
     """
-    api_key = os.getenv(env.API_KEY)
-    identity_token_file = os.getenv(env.IDENTITY_TOKEN_FILE)
+    if path := os.getenv(env.IDENTITY_TOKEN_FILE):
+        return _identity_token_auth(path, host=host, source=env.IDENTITY_TOKEN_FILE)
 
-    if api_key and identity_token_file:
-        raise AuthenticationError(
-            f"Both {env.API_KEY} and {env.IDENTITY_TOKEN_FILE} are set,"
-            + " which is not allowed."
-        )
+    if auth := _try_settings_file_auth(host=host):
+        return auth
 
-    if api_key:
-        try:
-            return AuthWithSource(
-                auth=AuthApiKey(host=host, api_key=api_key),
-                source=env.API_KEY,
-            )
-        except AuthenticationError as e:
-            raise AuthenticationError(f"{env.API_KEY} invalid: {e}") from None
-
-    elif identity_token_file:
-        return AuthWithSource(
-            auth=AuthIdentityTokenFile(
-                host=host,
-                path=identity_token_file,
-                credentials_file=wandb_setup.singleton().settings.credentials_file,
-            ),
-            source=env.IDENTITY_TOKEN_FILE,
-        )
+    default_path = identity_token_file.default_path()
+    if _has_sso_account(default_path, host=host):
+        return _identity_token_auth(default_path, host=host, source=_SSO_SOURCE)
 
     return None
+
+
+_SSO_SOURCE = "your saved SSO credentials"
+
+
+def _identity_token_auth(
+    path: str | pathlib.Path,
+    *,
+    host: HostUrl,
+    source: str,
+) -> AuthWithSource:
+    return AuthWithSource(
+        auth=AuthIdentityTokenFile(
+            host=host,
+            path=str(path),
+            credentials_file=wandb_setup.singleton().settings.credentials_file,
+        ),
+        source=source,
+    )
+
+
+def _has_sso_account(path: pathlib.Path, *, host: HostUrl) -> bool:
+    """Returns whether ``path`` holds `wandb login sso` credentials for ``host``."""
+    try:
+        return identity_token_file.load(path).for_host(host) is not None
+    except identity_token_file.AmbiguousAccountError as e:
+        # Let another configured credential source work instead of blocking
+        # every request until the saved accounts are sorted out.
+        term.termwarn(str(e))
+        return False
+    except identity_token_file.InvalidIdentityTokenFileError:
+        # This may be a bare JWT provisioned outside `wandb login sso`,
+        # which has no host to match automatically.
+        return False
+
+
+def _try_env_api_key_auth(*, host: HostUrl) -> AuthWithSource | None:
+    """Returns API-key credentials from the environment, if set."""
+    api_key = os.getenv(env.API_KEY)
+    if not api_key:
+        return None
+
+    try:
+        return AuthWithSource(
+            auth=AuthApiKey(host=host, api_key=api_key),
+            source=env.API_KEY,
+        )
+    except AuthenticationError as e:
+        raise AuthenticationError(f"{env.API_KEY} invalid: {e}") from None
+
+
+def _try_settings_file_auth(*, host: HostUrl) -> AuthWithSource | None:
+    """Returns identity-token credentials persisted for this host, if any."""
+    settings = wandb_setup.singleton().settings
+
+    if not settings.identity_token_file:
+        return None
+    if not HostUrl(settings.base_url).is_same_url(host):
+        return None
+
+    path = pathlib.Path(settings.identity_token_file)
+    return _identity_token_auth(
+        path,
+        host=host,
+        source=(
+            _SSO_SOURCE
+            if _has_sso_account(path, host=host)
+            else f"an identity token file configured in your settings ({path})"
+        ),
+    )
 
 
 def _use_prompted_auth(
