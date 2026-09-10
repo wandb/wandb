@@ -16,6 +16,7 @@ for run in api.runs():
 run = api.run("abc123")
 for row in run.history(keys=["loss"], last=10):
     print(row["_step"], row["loss"])
+df = run.history().to_pandas()
 for line in run.console_logs(last=20):
     print(line.timestamp, line.content)
 ```
@@ -28,7 +29,7 @@ import os
 import pathlib
 from collections.abc import Iterator
 from datetime import datetime, timezone
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from wandb._pydantic import from_json
 from wandb.apis.normalize import normalize_exceptions
@@ -37,6 +38,10 @@ from wandb.apis.public.service_api import ServiceApi
 from wandb.errors.term import termwarn
 from wandb.proto import wandb_api_pb2 as apb
 from wandb.sdk import wandb_setup
+
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
 
 
 class LocalApi:
@@ -360,6 +365,18 @@ class LocalHistory:
             if not response.next_offset:
                 return
             request.offset = response.next_offset
+
+    def to_pandas(self) -> pd.DataFrame:
+        """Returns the rows as a pandas DataFrame with a column per key."""
+        import pandas as pd
+
+        return pd.DataFrame(list(self))
+
+    def to_polars(self) -> pl.DataFrame:
+        """Returns the rows as a polars DataFrame with a column per key."""
+        import polars as pl
+
+        return pl.DataFrame(list(self), infer_schema_length=None)
 
     @normalize_exceptions
     def _read_page(
