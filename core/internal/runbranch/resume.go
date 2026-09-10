@@ -12,7 +12,6 @@ import (
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/nullify"
-	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runconfig"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -21,17 +20,11 @@ type ResumeBranch struct {
 	ctx    context.Context
 	client graphql.Client
 	mode   string
-	logger *observability.CoreLogger
 }
 
 // NewResumeBranch creates a new ResumeBranch
-func NewResumeBranch(
-	ctx context.Context,
-	client graphql.Client,
-	mode string,
-	logger *observability.CoreLogger,
-) *ResumeBranch {
-	return &ResumeBranch{ctx: ctx, client: client, mode: mode, logger: logger}
+func NewResumeBranch(ctx context.Context, client graphql.Client, mode string) *ResumeBranch {
+	return &ResumeBranch{ctx: ctx, client: client, mode: mode}
 }
 
 // UpdateForResume modifies run metadata for resuming.
@@ -64,24 +57,16 @@ func (rb *ResumeBranch) UpdateForResume(
 	}
 
 	data := runDataFromResponse(response)
-	if data == nil {
-		if rb.mode == "must" {
-			return rb.runDoesNotExistError(params.RunID)
-		}
+	switch {
+	case data == nil && rb.mode != "must":
 		return nil
-	}
-
-	// Data is non-nil, so the run exists, and "never" means we are not allowed to resume.
-	if rb.mode == "never" {
+	case data == nil && rb.mode == "must":
+		return rb.runDoesNotExistError(params.RunID)
+	case data != nil && rb.mode == "never":
 		return rb.resumeNotAllowedError(params.RunID)
+	default:
+		return processResponse(params, config, data)
 	}
-
-	err = processResponse(params, config, data)
-	if err != nil && rb.mode == "must" {
-		return rb.resumeFailedOnMustError(params.RunID, err)
-	}
-
-	return err
 }
 
 // runDataFromResponse checks if the run exists based on the response we get from the server

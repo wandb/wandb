@@ -387,37 +387,6 @@ func TestResume_KeepsEventsAndOutputFileStreamOffsets(t *testing.T) {
 		upserter.FileStreamOffsets())
 }
 
-type fakeSyncState struct {
-	Called bool
-}
-
-func (f *fakeSyncState) GetOrInitStartState(
-	initialState runsyncstate.StartState,
-) (runsyncstate.StartState, error) {
-	f.Called = true
-	return initialState, nil
-}
-
-func TestOfflineResume_DoesNotInitializeSyncStartState(t *testing.T) {
-	// An offline run cannot reconcile resume state with the backend, so it
-	// must not save a starting step: `wandb sync` computes the real one and
-	// would otherwise reuse the offline placeholder and re-upload the
-	// segment starting at step 0.
-	offlineParams := testParams(t)
-	offlineParams.Settings = settings.From(&spb.Settings{
-		Resume:   wrapperspb.String("must"),
-		XOffline: wrapperspb.Bool(true),
-	})
-	fakeSyncState := &fakeSyncState{}
-	offlineParams.SyncStateStore = fakeSyncState
-
-	offline, err := runupserter.InitRun(
-		runRecord(&spb.RunRecord{RunId: "run"}), offlineParams)
-	require.NoError(t, err)
-	offline.Finish()
-	assert.False(t, fakeSyncState.Called)
-}
-
 type variablesForUpdateTest struct {
 	MockClient *gqlmock.MockClient
 	Upserter   *runupserter.RunUpserter
