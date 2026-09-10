@@ -3,6 +3,7 @@ package wbapi
 import (
 	"cmp"
 	"context"
+	"encoding/binary"
 	"os"
 	"sync"
 	"time"
@@ -134,13 +135,30 @@ func (h *LocalRunHandler) HandleReadLocalRunHistory(
 		}
 		return &spb.ApiResponse{
 			Response: &spb.ApiResponse_ReadLocalRunHistoryResponse{
-				ReadLocalRunHistoryResponse: &spb.ReadLocalRunHistoryResponse{
-					Rows:       page.Rows,
-					NextOffset: page.NextOffset,
-				},
+				ReadLocalRunHistoryResponse: historyResponse(page),
 			},
 		}
 	})
+}
+
+// historyResponse encodes a page's columns as little-endian bytes, which
+// numpy reads without copying.
+func historyResponse(page runreader.HistoryPage) *spb.ReadLocalRunHistoryResponse {
+	response := &spb.ReadLocalRunHistoryResponse{NextOffset: page.NextOffset}
+	for _, chunk := range page.Chunks {
+		columns := make([]*spb.LocalHistoryColumn, 0, len(chunk.Columns))
+		for _, col := range chunk.Columns {
+			ints, _ := binary.Append(nil, binary.LittleEndian, col.Ints)
+			floats, _ := binary.Append(nil, binary.LittleEndian, col.Floats)
+			rows, _ := binary.Append(nil, binary.LittleEndian, col.RowIndex)
+			columns = append(columns, &spb.LocalHistoryColumn{
+				Key: col.Key, Ints: ints, Floats: floats, Json: col.JSON, Rows: rows,
+			})
+		}
+		response.Chunks = append(response.Chunks,
+			&spb.LocalHistoryChunk{Rows: int64(chunk.Rows), Columns: columns})
+	}
+	return response
 }
 
 // HandleReadLocalRunConsoleLogs reads a run's console output or its tail.

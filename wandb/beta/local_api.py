@@ -25,9 +25,11 @@ for line in run.console_logs(last=20):
 
 from __future__ import annotations
 
+import array
 import glob
 import os
 import pathlib
+import sys
 from collections.abc import Iterator
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
@@ -364,6 +366,9 @@ class LocalHistory:
 
     Each pass over the rows reads the log again, so iterating a second time
     over a still-running run includes the rows written since.
+
+    wandb-core sends the rows by column, so `to_pandas()` and `to_polars()`
+    build their frames without touching values one at a time.
     """
 
     _PAGE_ROWS = 10_000
@@ -377,29 +382,73 @@ class LocalHistory:
         self._request = request
 
     def __iter__(self) -> Iterator[dict[str, Any]]:
+        for chunk in self._chunks():
+            columns = [(col.key, _values(col, chunk.rows)) for col in chunk.columns]
+            for row in zip(*(values for _, values in columns), strict=True):
+                yield {
+                    key: value
+                    for (key, _), value in zip(columns, row, strict=True)
+                    if value is not _MISSING
+                }
+
+    def to_pandas(self) -> pd.DataFrame:
+        """Returns the rows as a pandas DataFrame with a column per key."""
+        import numpy as np
+        import pandas as pd
+
+        def column(col: apb.LocalHistoryColumn, rows: int) -> Any:
+            values, index = _arrays(col, np)
+            if index is None:
+                return values
+            if col.ints:
+                series = pd.Series(values, index=index, dtype="Int64")
+                return series.reindex(range(rows)).array
+            full = np.full(rows, np.nan if col.floats else None, dtype=values.dtype)
+            full[index] = values
+            return full
+
+        frames = [
+            pd.DataFrame({col.key: column(col, chunk.rows) for col in chunk.columns})
+            for chunk in self._chunks()
+        ]
+        return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+
+    def to_polars(self) -> pl.DataFrame:
+        """Returns the rows as a polars DataFrame with a column per key."""
+        import numpy as np
+        import polars as pl
+
+        def column(col: apb.LocalHistoryColumn, rows: int) -> pl.Series:
+            values, index = _arrays(col, np)
+            if col.json:
+                full = [None] * rows
+                for i, value in zip(
+                    index if index is not None else range(rows), values, strict=True
+                ):
+                    full[i] = value
+                return pl.Series(col.key, full, strict=False)
+            if index is None:
+                return pl.Series(col.key, values)
+            dtype = pl.Int64 if col.ints else pl.Float64
+            series = pl.repeat(None, rows, dtype=dtype, eager=True).alias(col.key)
+            return series.scatter(index, values)
+
+        frames = [
+            pl.DataFrame([column(col, chunk.rows) for col in chunk.columns])
+            for chunk in self._chunks()
+        ]
+        return pl.concat(frames, how="diagonal_relaxed") if frames else pl.DataFrame()
+
+    def _chunks(self) -> Iterator[apb.LocalHistoryChunk]:
         request = apb.ReadLocalRunHistoryRequest()
         request.CopyFrom(self._request)
         request.limit = self._PAGE_ROWS
         while True:
             response = self._read_page(request)
-            for line in response.rows.split(b"\n"):
-                if line:
-                    yield from_json(line)
+            yield from response.chunks
             if not response.next_offset:
                 return
             request.offset = response.next_offset
-
-    def to_pandas(self) -> pd.DataFrame:
-        """Returns the rows as a pandas DataFrame with a column per key."""
-        import pandas as pd
-
-        return pd.DataFrame(list(self))
-
-    def to_polars(self) -> pl.DataFrame:
-        """Returns the rows as a polars DataFrame with a column per key."""
-        import polars as pl
-
-        return pl.DataFrame(list(self), infer_schema_length=None)
 
     @normalize_exceptions
     def _read_page(
@@ -409,3 +458,47 @@ class LocalHistory:
             apb.ApiRequest(read_local_run_history_request=request)
         )
         return response.read_local_run_history_response
+
+
+_MISSING = object()
+
+
+def _values(col: apb.LocalHistoryColumn, rows: int) -> list[Any]:
+    """Returns a column's values as Python objects, one per row of the chunk."""
+    if col.floats:
+        values = _numbers(col.floats, "d")
+    elif col.ints:
+        values = _numbers(col.ints, "q")
+    else:
+        values = [from_json(value) for value in col.json]
+    if not col.rows:
+        return values
+    full: list[Any] = [_MISSING] * rows
+    for i, value in zip(_numbers(col.rows, "I"), values, strict=True):
+        full[i] = value
+    return full
+
+
+def _numbers(data: bytes, typecode: str) -> list[Any]:
+    values = array.array(typecode)
+    values.frombytes(data)
+    if sys.byteorder != "little":
+        values.byteswap()
+    return values.tolist()
+
+
+def _arrays(col: apb.LocalHistoryColumn, np: Any) -> tuple[Any, Any]:
+    """Returns a column's values as a numpy array, plus the row of each value.
+
+    The row index is None when every row has a value.
+    """
+    if col.floats:
+        values = np.frombuffer(col.floats, dtype="<f8")
+    elif col.ints:
+        values = np.frombuffer(col.ints, dtype="<i8")
+    else:
+        values = np.empty(len(col.json), dtype=object)
+        for i, value in enumerate(col.json):
+            values[i] = from_json(value)
+    index = np.frombuffer(col.rows, dtype="<u4") if col.rows else None
+    return values, index

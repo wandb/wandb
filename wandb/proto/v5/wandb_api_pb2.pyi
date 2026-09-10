@@ -645,12 +645,34 @@ class ReadLocalRunHistoryRequest(_message.Message):
     def __init__(self, wandb_file: _Optional[str] = ..., keys: _Optional[_Iterable[str]] = ..., min_step: _Optional[int] = ..., max_step: _Optional[int] = ..., last: _Optional[int] = ..., offset: _Optional[int] = ..., limit: _Optional[int] = ..., system_metrics: bool = ...) -> None: ...
 
 class ReadLocalRunHistoryResponse(_message.Message):
-    __slots__ = ("rows", "next_offset")
-    ROWS_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("chunks", "next_offset")
+    CHUNKS_FIELD_NUMBER: _ClassVar[int]
     NEXT_OFFSET_FIELD_NUMBER: _ClassVar[int]
-    rows: bytes
+    chunks: _containers.RepeatedCompositeFieldContainer[LocalHistoryChunk]
     next_offset: int
-    def __init__(self, rows: _Optional[bytes] = ..., next_offset: _Optional[int] = ...) -> None: ...
+    def __init__(self, chunks: _Optional[_Iterable[_Union[LocalHistoryChunk, _Mapping]]] = ..., next_offset: _Optional[int] = ...) -> None: ...
+
+class LocalHistoryChunk(_message.Message):
+    __slots__ = ("rows", "columns")
+    ROWS_FIELD_NUMBER: _ClassVar[int]
+    COLUMNS_FIELD_NUMBER: _ClassVar[int]
+    rows: int
+    columns: _containers.RepeatedCompositeFieldContainer[LocalHistoryColumn]
+    def __init__(self, rows: _Optional[int] = ..., columns: _Optional[_Iterable[_Union[LocalHistoryColumn, _Mapping]]] = ...) -> None: ...
+
+class LocalHistoryColumn(_message.Message):
+    __slots__ = ("key", "ints", "floats", "json", "rows")
+    KEY_FIELD_NUMBER: _ClassVar[int]
+    INTS_FIELD_NUMBER: _ClassVar[int]
+    FLOATS_FIELD_NUMBER: _ClassVar[int]
+    JSON_FIELD_NUMBER: _ClassVar[int]
+    ROWS_FIELD_NUMBER: _ClassVar[int]
+    key: str
+    ints: bytes
+    floats: bytes
+    json: _containers.RepeatedScalarFieldContainer[str]
+    rows: bytes
+    def __init__(self, key: _Optional[str] = ..., ints: _Optional[bytes] = ..., floats: _Optional[bytes] = ..., json: _Optional[_Iterable[str]] = ..., rows: _Optional[bytes] = ...) -> None: ...
 
 class ReadLocalRunConsoleLogsRequest(_message.Message):
     __slots__ = ("wandb_file", "last")

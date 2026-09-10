@@ -1,7 +1,6 @@
 package runreader_test
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -50,18 +49,39 @@ func writeHistoryLog(t testing.TB, path string, rows int, extraKeys int) {
 	require.NoError(t, w.Close())
 }
 
-// readAll runs the query, following pages, and returns the decoded rows.
+// readAll runs the query, following pages, and returns the rows as maps
+// with int64, float64 and decoded JSON values.
 func readAll(t *testing.T, run *runreader.Run, query runreader.HistoryQuery) []map[string]any {
 	t.Helper()
 	var rows []map[string]any
 	for {
 		page, err := run.History(context.Background(), query)
 		require.NoError(t, err)
-		decoder := json.NewDecoder(bytes.NewReader(page.Rows))
-		for decoder.More() {
-			var row map[string]any
-			require.NoError(t, decoder.Decode(&row))
-			rows = append(rows, row)
+		for _, chunk := range page.Chunks {
+			chunkRows := make([]map[string]any, chunk.Rows)
+			for i := range chunkRows {
+				chunkRows[i] = map[string]any{}
+			}
+			for _, col := range chunk.Columns {
+				n := len(col.Ints) + len(col.Floats) + len(col.JSON)
+				for i := range n {
+					row := i
+					if col.RowIndex != nil {
+						row = int(col.RowIndex[i])
+					}
+					switch {
+					case col.Ints != nil:
+						chunkRows[row][col.Key] = col.Ints[i]
+					case col.Floats != nil:
+						chunkRows[row][col.Key] = col.Floats[i]
+					default:
+						var v any
+						require.NoError(t, json.Unmarshal([]byte(col.JSON[i]), &v))
+						chunkRows[row][col.Key] = v
+					}
+				}
+			}
+			rows = append(rows, chunkRows...)
 		}
 		if page.NextOffset == 0 {
 			return rows
@@ -77,43 +97,61 @@ func TestRun_History(t *testing.T) {
 	require.NoError(t, err)
 	defer run.Close()
 	require.NoError(t, run.Update(context.Background()))
-	steps := func(rows []map[string]any) []float64 {
-		var steps []float64
+	steps := func(rows []map[string]any) []int64 {
+		var steps []int64
 		for _, row := range rows {
-			steps = append(steps, row["_step"].(float64))
+			steps = append(steps, row["_step"].(int64))
 		}
 		return steps
 	}
 	step := func(n int64) *int64 { return &n }
 
+	page, err := run.History(context.Background(), runreader.HistoryQuery{})
+	require.NoError(t, err)
+	require.Len(t, page.Chunks, 1)
+	chunk := page.Chunks[0]
+	assert.Equal(t, 250, chunk.Rows)
+	columns := map[string]*runreader.Column{}
+	for _, col := range chunk.Columns {
+		columns[col.Key] = col
+	}
+	// _step is a dense int column; loss starts as the integer 0 and becomes
+	// a float column at 0.5; acc and val.loss are sparse.
+	assert.Len(t, columns["_step"].Ints, 250)
+	assert.Nil(t, columns["_step"].RowIndex)
+	assert.Len(t, columns["loss"].Floats, 250)
+	assert.Equal(t, []uint32{0, 10, 20}, columns["acc"].RowIndex[:3])
+	assert.Equal(t, &runreader.Column{Key: "val.loss", Floats: []float64{0.25}, RowIndex: []uint32{7}},
+		columns["val.loss"])
+
 	rows := readAll(t, run, runreader.HistoryQuery{})
 	require.Len(t, rows, 250)
-	assert.Equal(t, map[string]any{"_step": 0.0, "loss": 0.0, "acc": 0.9}, rows[0])
-	assert.Equal(t, 0.25, rows[7]["val.loss"])
+	assert.Equal(t, map[string]any{"_step": int64(0), "loss": 0.0, "acc": 0.9}, rows[0])
 
 	rows = readAll(t, run, runreader.HistoryQuery{Keys: []string{"acc"}})
 	require.Len(t, rows, 25)
-	assert.Equal(t, map[string]any{"_step": 240.0, "acc": 0.9}, rows[24])
+	assert.Equal(t, map[string]any{"_step": int64(240), "acc": 0.9}, rows[24])
 
 	rows = readAll(t, run, runreader.HistoryQuery{MinStep: step(150), MaxStep: step(152)})
-	assert.Equal(t, []float64{150, 151, 152}, steps(rows))
+	assert.Equal(t, []int64{150, 151, 152}, steps(rows))
 
 	rows = readAll(t, run, runreader.HistoryQuery{SystemMetrics: true, Last: 2})
 	assert.Equal(t, []map[string]any{
-		{"_timestamp": 1_700_000_248.0, "system.cpu": 1.0},
-		{"_timestamp": 1_700_000_249.0, "system.cpu": 1.0},
+		{"_timestamp": 1_700_000_248.0, "system.cpu": int64(1)},
+		{"_timestamp": 1_700_000_249.0, "system.cpu": int64(1)},
 	}, rows)
 
 	rows = readAll(t, run, runreader.HistoryQuery{Keys: []string{"acc"}, Last: 12})
-	assert.Equal(t, []float64{130, 140, 150, 160, 170, 180, 190, 200, 210, 220, 230, 240}, steps(rows))
+	assert.Equal(t, []int64{130, 140, 150, 160, 170, 180, 190, 200, 210, 220, 230, 240}, steps(rows))
 
-	page, err := run.History(context.Background(), runreader.HistoryQuery{Limit: 100})
+	page, err = run.History(context.Background(), runreader.HistoryQuery{Limit: 100})
 	require.NoError(t, err)
-	assert.Equal(t, 100, bytes.Count(page.Rows, []byte("\n")))
+	require.Len(t, page.Chunks, 1)
+	assert.Equal(t, 100, page.Chunks[0].Rows)
 	assert.NotZero(t, page.NextOffset)
 	rows = readAll(t, run, runreader.HistoryQuery{Limit: 100, Offset: page.NextOffset})
 	assert.Equal(t, 150, len(rows))
-	assert.Equal(t, 100.0, rows[0]["_step"])
+	assert.Equal(t, int64(100), rows[0]["_step"])
 }
 
 func BenchmarkHistory(b *testing.B) {

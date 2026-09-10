@@ -694,13 +694,38 @@ message ReadLocalRunHistoryRequest {
 }
 
 message ReadLocalRunHistoryResponse {
-  // The matching rows in step order, one JSON object per line. Nested keys
-  // are joined with dots and values are as logged.
-  bytes rows = 1;
+  // The matching rows in order, as runs of consecutive rows stored by
+  // column. Nested keys are joined with dots and system metrics are
+  // prefixed with "system.", as the W&B UI names them.
+  repeated LocalHistoryChunk chunks = 1;
 
   // The offset to request the next page from, or 0 when there are no more
   // rows.
   int64 next_offset = 2;
+}
+
+message LocalHistoryChunk {
+  int64 rows = 1;
+  repeated LocalHistoryColumn columns = 2;
+}
+
+// One key's values in a chunk, in row order, in exactly one of ints, floats
+// and json.
+message LocalHistoryColumn {
+  string key = 1;
+
+  // Little-endian int64 values, when every value is an integer.
+  bytes ints = 2;
+
+  // Little-endian float64 values, when every value is a number.
+  bytes floats = 3;
+
+  // The values as logged, as JSON.
+  repeated string json = 4;
+
+  // The row of each value as little-endian uint32, when some rows have no
+  // value for the key. Empty when every row has one.
+  bytes rows = 5;
 }
 
 // Reads a run's console output from its transaction log.
