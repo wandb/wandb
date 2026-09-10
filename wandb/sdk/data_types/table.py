@@ -234,7 +234,7 @@ class Table(Media):
         dtype: Any = None,
         optional: bool | list[bool] = True,
         allow_mixed_types: bool = False,
-        log_mode: LogMode | None = "IMMUTABLE",
+        log_mode: LogMode = "IMMUTABLE",
     ) -> None:
         """Initializes a Table object.
 
@@ -279,7 +279,7 @@ class Table(Media):
         self.columns: list[ColumnKey]
         self._column_types: _dtypes.Type
         self._validate_log_mode(log_mode)
-        self.log_mode: LogMode | None = log_mode
+        self.log_mode: LogMode = log_mode
         if self.log_mode == "INCREMENTAL":
             self._increment_num: int | None = None
             self._last_logged_idx: int | None = None
@@ -323,7 +323,7 @@ class Table(Media):
 
     def _validate_log_mode(
         self,
-        log_mode: LogMode | None,
+        log_mode: LogMode,
     ) -> None:
         assert log_mode in _SUPPORTED_LOGGING_MODES, (
             f"Invalid log_mode: {log_mode}. Must be one of {_SUPPORTED_LOGGING_MODES}"
