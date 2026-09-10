@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strconv"
 	"strings"
 	"time"
 
@@ -13,6 +12,7 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runreader"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -44,11 +44,11 @@ type InspectorInitMsg struct {
 	RunFile string
 
 	// Scan is the sequential reader used to index records.
-	Scan *LiveStore
+	Scan *runreader.Cursor
 
 	// Detail is the random-access reader used to re-read the selected
 	// record, kept separate so seeking never disturbs the scan position.
-	Detail *LiveStore
+	Detail *runreader.Cursor
 }
 
 // InspectorBatchMsg carries newly scanned record entries.
@@ -81,11 +81,11 @@ func InitializeInspector(
 			return ErrorMsg{Err: err}
 		}
 
-		scan, err := NewLiveStore(path, logger)
+		scan, err := runreader.OpenCursor(path, logger)
 		if err != nil {
 			return ErrorMsg{Err: err}
 		}
-		detail, err := NewLiveStore(path, logger)
+		detail, err := runreader.OpenCursor(path, logger)
 		if err != nil {
 			scan.Close()
 			return ErrorMsg{Err: err}
@@ -97,22 +97,22 @@ func InitializeInspector(
 
 // ReadInspectorBatch returns a command that scans the next batch of
 // records from the store, numbering them from startNum.
-func ReadInspectorBatch(store *LiveStore, startNum int) tea.Cmd {
+func ReadInspectorBatch(store *runreader.Cursor, startNum int) tea.Cmd {
 	return func() tea.Msg {
 		var msg InspectorBatchMsg
+		skipped := store.Skipped()
+		defer func() { msg.Corrupt = store.Skipped() - skipped }()
 
 		start := time.Now()
 		for len(msg.Entries) < LiveMonitorChunkSize &&
 			time.Since(start) < LiveMonitorMaxTime {
-			record, offset, err := store.ReadWithOffset()
+			record, offset, err := store.Next()
 			switch {
-			case errors.Is(err, io.EOF), errors.Is(err, errLiveStoreClosed):
+			case errors.Is(err, io.EOF), errors.Is(err, runreader.ErrClosed):
 				msg.AtEOF = true
 				return msg
 			case err != nil:
-				// Corrupt data was skipped; keep scanning.
-				msg.Corrupt++
-				continue
+				return ErrorMsg{Err: err}
 			}
 
 			if exit, ok := record.RecordType.(*spb.Record_Exit); ok {
@@ -170,7 +170,7 @@ func recordSummary(record *spb.Record) string {
 	case *spb.Record_Run:
 		return sanitizeRecordSummary(t.Run.GetRunId())
 	case *spb.Record_History:
-		return fmt.Sprintf("step %d", historyStep(t.History))
+		return fmt.Sprintf("step %d", runreader.HistoryStep(t.History))
 	case *spb.Record_Stats:
 		if ts := t.Stats.GetTimestamp(); ts != nil {
 			return time.Unix(ts.GetSeconds(), 0).Format("15:04:05")
@@ -202,24 +202,6 @@ func recordSummary(record *spb.Record) string {
 	default:
 		return ""
 	}
-}
-
-// historyStep extracts the step from a history record, falling back to the
-// "_step" item for records without an explicit step.
-func historyStep(h *spb.HistoryRecord) int64 {
-	if step := h.GetStep(); step != nil {
-		return step.GetNum()
-	}
-	for _, item := range h.GetItem() {
-		if historyItemKey(item) != "_step" {
-			continue
-		}
-		v, err := strconv.ParseInt(strings.TrimSpace(item.GetValueJson()), 10, 64)
-		if err == nil {
-			return v
-		}
-	}
-	return 0
 }
 
 func countSummary(n int, noun string) string {
