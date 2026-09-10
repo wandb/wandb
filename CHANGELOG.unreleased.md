@@ -16,6 +16,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Changed
 
+- Setting both `WANDB_API_KEY` and `WANDB_IDENTITY_TOKEN_FILE` is no longer an error. Federated identity credentials take precedence and W&B warns that the API key is being ignored.
 - Runs now write data to disk every 15 seconds, so that wandb leet updates sooner for runs that don't log a lot of data (@dmitryduev in https://github.com/wandb/wandb/pull/12742)
 
 ### Fixed
