@@ -15,6 +15,7 @@ from wandb.sdk import wandb_setup
 from wandb.sdk.lib import settings_file, wbauth
 from wandb.sdk.lib.deprecation import UNSET, DoNotSet
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
+from wandb.sdk.lib.wbauth import identity_token_file
 
 
 def login(
@@ -36,9 +37,12 @@ def login(
     This updates global credentials for the session (affecting all wandb usage
     in the current Python process after this call) and possibly the .netrc file.
 
-    If an identity token file is configured, like through the
-    WANDB_IDENTITY_TOKEN_FILE environment variable, then it is used for the
-    session (federated identity) and no API key is read or saved.
+    If an identity token file is configured through the
+    WANDB_IDENTITY_TOKEN_FILE environment variable or settings file, it is
+    used for the session (federated identity). When neither is configured,
+    W&B uses ``identity_token.json`` from its config directory (usually
+    ``~/.config/wandb``) if it exists. If WANDB_API_KEY is also configured,
+    federated identity is used and W&B prints a warning.
 
     Otherwise, if an explicit API key is provided, it is used and written to
     the system .netrc file. If no key is provided, but the session is already
@@ -97,7 +101,7 @@ def login(
     if host:
         host = host.rstrip("/")
 
-    logged_in, _ = _login(
+    logged_in, api_key = _login(
         key=key,
         relogin=relogin,
         host=host,
@@ -107,21 +111,49 @@ def login(
         referrer=referrer or "models",
     )
 
+    if api_key is not None:
+        _forget_sso_credentials(host or global_settings.base_url)
+
     _update_system_settings(
         global_settings.read_system_settings(),
         host=host,
+        clear_identity_token=api_key is not None,
     )
     return logged_in
+
+
+def _forget_sso_credentials(host: str) -> None:
+    """Drops saved SSO credentials for a host after an API-key login.
+
+    Saved SSO credentials outrank an API key, so leaving them in place
+    would silently override the key the user just logged in with.
+    """
+    path = identity_token_file.default_path()
+    try:
+        accounts = identity_token_file.load(path)
+        if not accounts.remove_host(host):
+            return
+        accounts.save(path)
+    except identity_token_file.InvalidIdentityTokenFileError:
+        return
+    except (OSError, ValueError) as e:
+        term.termwarn(f"Failed to remove saved SSO credentials from {path}: {e}")
+        return
+
+    term.termlog(f"Removed the saved SSO credentials for {host}.")
 
 
 def _update_system_settings(
     system_settings: settings_file.SettingsFiles,
     *,
     host: str | None,
+    clear_identity_token: bool,
 ) -> None:
     """Update the user's system settings files."""
     # 'anonymous' is deprecated; we clear it automatically for now.
     system_settings.clear("anonymous", globally=True)
+    if clear_identity_token:
+        system_settings.clear("identity_token_file", globally=True)
 
     if host:
         if host == "https://api.wandb.ai":

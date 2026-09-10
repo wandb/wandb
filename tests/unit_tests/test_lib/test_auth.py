@@ -3,19 +3,47 @@ import textwrap
 from unittest.mock import MagicMock
 
 import pytest
+from wandb import env
 from wandb.errors import AuthenticationError
+from wandb.sdk import wandb_setup
 from wandb.sdk.lib.wbauth import (
     AuthApiKey,
     AuthIdentityTokenFile,
+    HostUrl,
     authenticate_session,
+    identity_token_file,
     session_credentials,
     use_explicit_auth,
     validation,
 )
+from wandb.sdk.lib.wbauth.authenticate import _try_settings_file_auth
 
 from tests.fixtures.mock_wandb_log import MockWandbLog
 
 pytestmark = pytest.mark.usefixtures("skip_verify_login")
+
+
+def _write_sso_account(path: pathlib.Path, host: str) -> None:
+    """Saves credentials for a host, as `wandb login sso` does."""
+    accounts = identity_token_file.Accounts()
+    accounts.add(
+        identity_token_file.Account(
+            id_token="id-token",
+            refresh_token="refresh-token",
+            token_endpoint="https://idp.example.com/token",
+            client_id="wandb-cli",
+            host=host,
+        )
+    )
+    accounts.save(path)
+
+
+def _write_system_settings(contents: str) -> None:
+    settings = wandb_setup.singleton().settings
+    path = pathlib.Path(settings.settings_system)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(textwrap.dedent(contents))
+    settings.update_from_system_settings()
 
 
 def test_auth_repr_no_secrets():
@@ -56,17 +84,21 @@ def test_warns_if_changing_auth(mock_wandb_log: MockWandbLog):
     )
 
 
-def test_error_if_multiple_credentials_in_env(
+def test_identity_token_environment_variable_takes_priority_over_api_key(
+    mock_wandb_log: MockWandbLog,
     monkeypatch: pytest.MonkeyPatch,
 ):
     monkeypatch.setenv("WANDB_API_KEY", "from_env" * 5)
     monkeypatch.setenv("WANDB_IDENTITY_TOKEN_FILE", "file.jwt")
 
-    with pytest.raises(
-        AuthenticationError,
-        match="Both WANDB_API_KEY and WANDB_IDENTITY_TOKEN_FILE are set",
-    ):
-        authenticate_session(host="https://fake-url", source="test")
+    result = authenticate_session(host="https://fake-url", source="test")
+
+    assert isinstance(result, AuthIdentityTokenFile)
+    assert result.path == pathlib.Path("file.jwt").absolute()
+    mock_wandb_log.assert_warned(
+        "Ignoring WANDB_API_KEY because federated identity credentials are"
+        + " configured from WANDB_IDENTITY_TOKEN_FILE."
+    )
 
 
 def test_loads_api_key_from_environment_variable(
@@ -163,6 +195,171 @@ def test_loads_oidc_from_environment_variable(
         "[test] Loaded credentials for https://fake-url from"
         + " WANDB_IDENTITY_TOKEN_FILE."
     )
+
+
+def test_loads_identity_token_from_settings_file(
+    mock_wandb_log: MockWandbLog,
+    local_settings,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.delenv("WANDB_API_KEY", raising=False)
+    monkeypatch.delenv("WANDB_IDENTITY_TOKEN_FILE", raising=False)
+
+    token_path = tmp_path / "identity_token.json"
+    _write_sso_account(token_path, "https://fake-url")
+    _write_system_settings(
+        f"""\
+            [default]
+            base_url = https://fake-url
+            identity_token_file = {token_path}
+        """
+    )
+
+    result = authenticate_session(host="https://fake-url", source="test")
+
+    assert isinstance(result, AuthIdentityTokenFile)
+    assert result.host.is_same_url("https://fake-url")
+    assert result.path == token_path.absolute()
+    mock_wandb_log.assert_logged(
+        "[test] Loaded credentials for https://fake-url from"
+        + " your saved SSO credentials."
+    )
+
+
+def test_identity_token_setting_takes_priority_over_api_key(
+    mock_wandb_log: MockWandbLog,
+    local_settings,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    token_path = tmp_path / "identity_token.json"
+    _write_sso_account(token_path, "https://fake-url")
+    _write_system_settings(
+        f"""\
+            [default]
+            base_url = https://fake-url
+            identity_token_file = {token_path}
+        """
+    )
+    monkeypatch.setenv("WANDB_API_KEY", "from_env" * 5)
+
+    result = authenticate_session(host="https://fake-url", source="test")
+
+    assert isinstance(result, AuthIdentityTokenFile)
+    mock_wandb_log.assert_warned(
+        "Ignoring WANDB_API_KEY because federated identity credentials are"
+        + " configured from your saved SSO credentials."
+    )
+
+
+def test_loads_identity_token_from_default_path(
+    mock_wandb_log: MockWandbLog,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.delenv(env.API_KEY, raising=False)
+    monkeypatch.delenv(env.IDENTITY_TOKEN_FILE, raising=False)
+    monkeypatch.setenv(env.CONFIG_DIR, str(tmp_path))
+    token_path = identity_token_file.default_path()
+    token_path.parent.mkdir(exist_ok=True)
+    _write_sso_account(token_path, "https://fake-url")
+
+    result = authenticate_session(host="https://fake-url", source="test")
+
+    assert isinstance(result, AuthIdentityTokenFile)
+    assert result.path == token_path.absolute()
+    mock_wandb_log.assert_logged(
+        "[test] Loaded credentials for https://fake-url from"
+        + " your saved SSO credentials."
+    )
+
+
+def test_default_identity_token_file_takes_priority_over_api_key(
+    mock_wandb_log: MockWandbLog,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv(env.API_KEY, "from_env" * 5)
+    monkeypatch.delenv(env.IDENTITY_TOKEN_FILE, raising=False)
+    monkeypatch.setenv(env.CONFIG_DIR, str(tmp_path))
+    token_path = identity_token_file.default_path()
+    token_path.parent.mkdir(exist_ok=True)
+    _write_sso_account(token_path, "https://fake-url")
+
+    result = authenticate_session(host="https://fake-url", source="test")
+
+    assert isinstance(result, AuthIdentityTokenFile)
+    mock_wandb_log.assert_warned(
+        "Ignoring WANDB_API_KEY because federated identity credentials are"
+        + " configured from your saved SSO credentials."
+    )
+
+
+def test_falls_back_when_the_default_token_file_is_ambiguous(
+    mock_wandb_log: MockWandbLog,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv(env.API_KEY, "from_env" * 5)
+    monkeypatch.delenv(env.IDENTITY_TOKEN_FILE, raising=False)
+    monkeypatch.setenv(env.CONFIG_DIR, str(tmp_path))
+    token_path = identity_token_file.default_path()
+    token_path.parent.mkdir(exist_ok=True)
+    accounts = identity_token_file.Accounts()
+    for org in ("acme", "globex"):
+        accounts.add(
+            identity_token_file.Account(
+                id_token="id-token",
+                refresh_token="refresh-token",
+                token_endpoint="https://idp.example.com/token",
+                client_id="wandb-cli",
+                host="https://fake-url",
+                org=org,
+            )
+        )
+    accounts.active = None
+    accounts.save(token_path)
+
+    result = authenticate_session(host="https://fake-url", source="test")
+
+    assert isinstance(result, AuthApiKey)
+    mock_wandb_log.assert_warned("Several accounts are saved for https://fake-url")
+
+
+def test_ignores_default_identity_token_file_for_different_host(
+    mock_wandb_log: MockWandbLog,
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setenv(env.API_KEY, "from_env" * 5)
+    monkeypatch.delenv(env.IDENTITY_TOKEN_FILE, raising=False)
+    monkeypatch.setenv(env.CONFIG_DIR, str(tmp_path))
+    token_path = identity_token_file.default_path()
+    token_path.parent.mkdir(exist_ok=True)
+    _write_sso_account(token_path, "https://other-fake-url")
+
+    result = authenticate_session(host="https://fake-url", source="test")
+
+    assert isinstance(result, AuthApiKey)
+    mock_wandb_log.assert_logged(
+        "[test] Loaded credentials for https://fake-url from WANDB_API_KEY."
+    )
+
+
+def test_ignores_identity_token_setting_for_different_host(
+    local_settings,
+    tmp_path: pathlib.Path,
+):
+    _write_system_settings(
+        f"""\
+            [default]
+            base_url = https://first.example.com
+            identity_token_file = {tmp_path / "identity_token.json"}
+        """
+    )
+
+    assert _try_settings_file_auth(host=HostUrl("https://second.example.com")) is None
 
 
 def test_reads_netrc(

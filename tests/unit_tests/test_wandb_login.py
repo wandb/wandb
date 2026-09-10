@@ -5,6 +5,7 @@ import wandb
 from wandb.errors import UsageError
 from wandb.sdk import wandb_login, wandb_setup
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
+from wandb.sdk.lib.wbauth import identity_token_file
 
 
 @pytest.fixture(autouse=True)
@@ -84,6 +85,42 @@ def test_login_key(emulated_terminal):
 
     assert "Appending key" in "\n".join(emulated_terminal.read_stderr())
     assert wandb.api.api_key == "A" * 40
+
+
+@pytest.mark.usefixtures("local_settings", "skip_verify_login")
+def test_login_key_clears_persisted_identity_token():
+    settings = wandb_setup.singleton().settings
+    system_settings = settings.read_system_settings()
+    system_settings.set("identity_token_file", "/tmp/identity.json", globally=True)
+    system_settings.save()
+
+    wandb.login(key="A" * 40)
+
+    assert "identity_token_file" not in settings.read_system_settings().all()
+
+
+@pytest.mark.usefixtures("local_settings", "skip_verify_login")
+def test_login_key_forgets_saved_sso_credentials_for_the_host(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+):
+    monkeypatch.setenv("WANDB_CONFIG_DIR", str(tmp_path))
+    accounts = identity_token_file.Accounts()
+    for host in ("https://api.wandb.ai", "https://other.example.com"):
+        accounts.add(
+            identity_token_file.Account(
+                id_token="id-token",
+                refresh_token="refresh-token",
+                token_endpoint="https://idp.example.com/token",
+                client_id="wandb-cli",
+                host=host,
+            )
+        )
+    accounts.save(identity_token_file.default_path())
+
+    wandb.login(key="A" * 40, host="https://api.wandb.ai")
+
+    saved = identity_token_file.load(identity_token_file.default_path())
+    assert set(saved.accounts) == {"https://other.example.com"}
 
 
 def test_login(test_settings):
