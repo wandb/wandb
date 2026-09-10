@@ -83,6 +83,17 @@ func TestLevelDBHistorySource_CustomXAxis(t *testing.T) {
 
 	w, err := transactionlog.OpenWriter(path)
 	require.NoError(t, err)
+	// Logged before the definition, so dropped.
+	require.NoError(t, w.Write(&spb.Record{
+		RecordType: &spb.Record_History{
+			History: &spb.HistoryRecord{
+				Item: []*spb.HistoryItem{
+					{NestedKey: []string{"_step"}, ValueJson: "0"},
+					{NestedKey: []string{"train/loss"}, ValueJson: "0.6"},
+				},
+			},
+		},
+	}))
 	require.NoError(t, w.Write(&spb.Record{
 		RecordType: &spb.Record_Metric{
 			Metric: &spb.MetricRecord{

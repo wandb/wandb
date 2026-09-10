@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import re
 from enum import Enum
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 from wandb._iterutils import one
-from wandb.sdk.internal.internal_api import Api as InternalApi
+from wandb.sdk.artifacts._gqlutils import org_info_from_entity
+
+if TYPE_CHECKING:
+    from wandb.apis.public.service_api import ServiceApi
 
 
 def parse_s3_url_to_s3_uri(url) -> str:
@@ -74,33 +78,34 @@ def parse_org_from_registry_path(path: str, path_type: PathType) -> str:
 
 
 def fetch_org_from_settings_or_entity(
-    settings: dict, default_entity: str | None = None
+    service_api: ServiceApi, settings: dict, default_entity: str | None = None
 ) -> str:
     """Fetch the org from either the settings or deriving it from the entity.
 
     Returns the org from the settings if available. If no org is passed in or set, the entity is used to fetch the org.
 
     Args:
-        organization (str | None): The organization to fetch the org for.
+        service_api (ServiceApi): The service API used to look up the entity's organization.
         settings (dict): The settings to fetch the org for.
         default_entity (str | None): The default entity to fetch the org for.
     """
-    if (organization := settings.get("organization")) is None:
-        # Fetch the org via the Entity. Won't work if default entity is a personal entity and belongs to multiple orgs
-        entity = settings.get("entity") or default_entity
-        if entity is None:
-            raise ValueError(
-                "No entity specified and can't fetch organization from the entity"
-            )
-        entity_orgs = InternalApi()._fetch_orgs_and_org_entities_from_entity(entity)
-        entity_org = one(
-            entity_orgs,
-            too_short=ValueError(
-                "No organizations found for entity. Please specify an organization in the settings."
-            ),
-            too_long=ValueError(
-                "Multiple organizations found for entity. Please specify an organization in the settings."
-            ),
+    if (organization := settings.get("organization")) is not None:
+        return organization
+    entity = settings.get("entity") or default_entity
+    if entity is None:
+        raise ValueError(
+            "No entity specified and can't fetch organization from the entity"
         )
-        organization = entity_org.display_name
-    return organization
+    info = org_info_from_entity(service_api, entity)
+    if info and info.organization:
+        return info.organization.name
+    orgs = info.user.organizations if info and info.user else []
+    return one(
+        orgs,
+        too_short=ValueError(
+            "No organizations found for entity. Please specify an organization in the settings."
+        ),
+        too_long=ValueError(
+            "Multiple organizations found for entity. Please specify an organization in the settings."
+        ),
+    ).name

@@ -58,6 +58,9 @@ type RunConsoleLogs struct {
 	// It is updated incrementally so View does not need to reformat every line on
 	// every render.
 	items []KeyValuePair
+
+	// dirtyFrom is the first line changed since the pane took an update.
+	dirtyFrom int
 }
 
 // NewRunConsoleLogs creates an empty console log store with terminal
@@ -114,6 +117,15 @@ func (cl *RunConsoleLogs) Items() []KeyValuePair {
 	return cl.items
 }
 
+// takeChanges returns the entries and the first one that needs rematching.
+// The owning console pane is the sole consumer of these updates.
+func (cl *RunConsoleLogs) takeChanges() ([]KeyValuePair, int) {
+	items := cl.Items()
+	dirtyFrom := cl.dirtyFrom
+	cl.dirtyFrom = len(items)
+	return items, dirtyFrom
+}
+
 // appendLine is called by the line supplier when a new terminal line is
 // created. Returns the index for future PutChar callbacks.
 func (cl *RunConsoleLogs) appendLine(isStderr bool) int {
@@ -136,6 +148,7 @@ func (cl *RunConsoleLogs) onLineChanged(idx int, content []rune) {
 	}
 	value := strings.TrimRight(string(content), " \t")
 	cl.lines[idx].Content = value
+	cl.dirtyFrom = min(cl.dirtyFrom, idx)
 	if idx < len(cl.items) {
 		cl.items[idx].Value = value
 	}

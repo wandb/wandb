@@ -600,6 +600,22 @@ type CreateMultipartUploadInput struct {
 	// A map of metadata to store with the object in S3.
 	Metadata map[string]string
 
+	// Specifies the event hold status to apply to the uploaded object. Set to ON to
+	// enable or OFF to disable.
+	//
+	// This functionality is not supported for directory buckets.
+	ObjectLockEventHold types.ObjectLockEventHold
+
+	// Specifies the event hold duration in days to apply to the uploaded object.
+	//
+	// This functionality is not supported for directory buckets.
+	ObjectLockEventHoldDurationDays *int32
+
+	// Specifies the event hold duration in years to apply to the uploaded object.
+	//
+	// This functionality is not supported for directory buckets.
+	ObjectLockEventHoldDurationYears *int32
+
 	// Specifies whether you want to apply a legal hold to the uploaded object.
 	//
 	// This functionality is not supported for directory buckets.

@@ -56,5 +56,4 @@ responses
 ariadne-codegen
 
 .[launch]
-.[sweeps] ; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')
 .[sandbox]

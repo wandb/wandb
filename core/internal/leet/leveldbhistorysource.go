@@ -27,8 +27,7 @@ type LevelDBHistorySource struct {
 	// store is a W&B LevelDB-style transaction log that may be actively written.
 	store *LiveStore
 	// metricHandler accumulates define_metric records to resolve custom
-	// x-axes. Definitions apply only to later history records; points
-	// parsed before a definition arrives stay on the default axis.
+	// x-axes. Definitions apply only to later history records.
 	metricHandler *runmetric.MetricHandler
 	// exitSeen is true if the exit record has been seen.
 	exitSeen bool
@@ -283,9 +282,16 @@ func (acc *historyAccumulator) addRecord(runPath string, history *spb.HistoryRec
 			acc.metrics = make(map[string]MetricData)
 		}
 		md := acc.metrics[key]
+		// One x-axis per metric, as on its chart: a custom axis replaces
+		// step-axis points, and rows on any other axis are skipped.
+		if md.XAxisMetric != xAxisMetric {
+			if md.XAxisMetric != "" {
+				continue
+			}
+			md = MetricData{XAxisMetric: xAxisMetric}
+		}
 		md.X = append(md.X, x)
 		md.Y = append(md.Y, val)
-		md.XAxisMetric = xAxisMetric
 		acc.metrics[key] = md
 	}
 

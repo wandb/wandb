@@ -459,7 +459,13 @@ func (s *TerminalRenderer) move(newbuf *RenderBuffer, x, y int) {
 	// }
 
 	if height > 0 {
-		if s.cur.Y > height-1 {
+		// Only clamp the remembered cursor row in fullscreen mode, where the
+		// buffer covers the whole screen. In relative mode the terminal
+		// screen extends beyond the frame buffer: after a shrink the
+		// real cursor can legitimately sit below the new frame's last row,
+		// and clamping the model here would skip the cursor-up move and leave
+		// the old frame's top lines on screen.
+		if !s.flags.Contains(tRelativeCursor) && s.cur.Y > height-1 {
 			s.cur.Y = height - 1
 		}
 		if y > height-1 {

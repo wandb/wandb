@@ -250,8 +250,16 @@ func NewEpochLineChart(title string) *EpochLineChart {
 	chart.XLabelFormatter = func(_ int, v float64) string {
 		return FormatXAxisTick(v, chart.maxXLabelWidth())
 	}
+	// ntcharts sizes the label column from the stepped ticks only, so pad
+	// labels to the width of the top label when drawYLabels adds one.
 	chart.YLabelFormatter = func(_ int, v float64) string {
-		return chart.formatYTick(v)
+		s := chart.formatYTick(v)
+		if hasTopYTick(chart.GraphHeight(), chart.YStep()) {
+			if top := chart.formatYTick(chart.ViewMaxY()); len(top) > len(s) {
+				s = strings.Repeat(" ", len(top)-len(s)) + s
+			}
+		}
+		return s
 	}
 
 	return chart
@@ -362,20 +370,30 @@ func (c *EpochLineChart) SetPalette(colors []AdaptiveColor) {
 //
 // X values should be appended in non-decreasing order for efficient rendering.
 // Empty data is a no-op.
+//
+// A chart has a single x-axis. A custom axis replaces the step axis and the
+// series plotted against it; data on any other axis is not plotted.
 func (c *EpochLineChart) AddData(key string, data MetricData) {
+	if len(data.X) == 0 || len(data.X) != len(data.Y) {
+		return
+	}
+
+	if data.XAxisMetric != c.xAxisMetric {
+		if c.xAxisMetric != "" {
+			return
+		}
+		clear(c.data)
+		c.order = c.order[:0]
+		c.recomputeBounds()
+		c.xAxisMetric = data.XAxisMetric
+		c.isZoomed = false
+	}
+
 	s, ok := c.data[key]
 	if !ok {
 		s = NewSeries(key, c.palette)
 		c.data[key] = s
 		c.order = append(c.order, key)
-	}
-
-	// Safety checks.
-	if len(data.X) != len(data.Y) {
-		return
-	}
-	if len(data.X) == 0 || len(data.Y) == 0 {
-		return
 	}
 
 	// Amortized linear growth. Do not use slices.Concat as it causes
@@ -704,16 +722,19 @@ func (c *EpochLineChart) drawYLabels() {
 	}
 
 	var lastVal string
-	lastI := 0
 	for i := 0; i <= graphH; i += yStep {
 		lastVal = draw(i, lastVal)
-		lastI = i
 	}
-	// Add a top tick when the last stepped tick fell short of graphHeight
-	// and there's room for a non-adjacent label.
-	if lastI < graphH && graphH-lastI >= (yStep+1)/2 {
+	if hasTopYTick(graphH, yStep) {
 		draw(graphH, lastVal)
 	}
+}
+
+// hasTopYTick reports whether drawYLabels labels the top of the axis, which
+// it does when the top is not a stepped tick and there is room for a
+// non-adjacent label above the last one.
+func hasTopYTick(graphH, yStep int) bool {
+	return yStep > 0 && graphH%yStep >= (yStep+1)/2
 }
 
 // drawSeries renders a single series onto the canvas.
@@ -1048,11 +1069,6 @@ func (c *EpochLineChart) DrawIfNeeded() {
 // Title returns the chart title.
 func (c *EpochLineChart) Title() string {
 	return c.title
-}
-
-// SetXAxisMetric sets the metric plotted on the x-axis.
-func (c *EpochLineChart) SetXAxisMetric(name string) {
-	c.xAxisMetric = name
 }
 
 // XAxisMetric returns the metric plotted on the x-axis, or "" for _step.

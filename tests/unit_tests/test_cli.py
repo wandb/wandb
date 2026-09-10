@@ -12,6 +12,8 @@ import wandb
 import wandb.docker
 from wandb import env
 from wandb.cli import cli
+from wandb.sdk import wandb_setup
+from wandb.sdk.lib import config_util
 
 DOCKER_SHA = (
     "wandb/deepo@sha256:"
@@ -26,10 +28,7 @@ def docker(request, mocker, monkeypatch):
     if marker:
         wandb_args.update(marker.kwargs)
     docker = mocker.MagicMock()
-    api_key = mocker.patch(
-        "wandb.apis.InternalApi.api_key", new_callable=mocker.PropertyMock
-    )
-    api_key.return_value = "test"
+    mocker.patch("wandb.cli.cli._configured_api_key", return_value="test")
     monkeypatch.setattr(cli, "_HAS_NVIDIA_DOCKER", True)
     monkeypatch.setattr(cli, "_HAS_DOCKER", True)
     old_call = subprocess.call
@@ -84,6 +83,74 @@ def test_no_project_bad_command(runner):
         result = runner.invoke(cli.cli, ["fsd"])
         assert "No such command" in result.output
         assert result.exit_code == 2
+
+
+@pytest.mark.usefixtures("skip_verify_login")
+def test_projects_with_sagemaker_credentials(runner, monkeypatch, mocker):
+    monkeypatch.setenv("SM_TRAINING_ENV", "{}")
+    with open("secrets.env", "w") as f:
+        f.write(f"WANDB_API_KEY={'sagemaker' * 5}\n")
+    mocker.patch.object(wandb.Api, "projects", return_value=[])
+
+    result = runner.invoke(cli.projects, ["--entity", "example"])
+
+    assert result.exit_code == 0, result.output
+    assert "No projects found for example" in result.output
+
+
+@pytest.fixture
+def cli_run(mocker, patch_apikey):
+    mocker.patch("wandb.sdk.wandb_login._verify_login")
+    run_class = mocker.patch("wandb.apis.public.Run")
+    run = run_class.return_value
+    run.id = "run-id"
+    run.project = "configured-project"
+    run.commit = None
+    run.rawconfig = {}
+    run.metadata = {}
+    file = mocker.Mock()
+    file.name = "file.txt"
+    run.files.side_effect = lambda names=None: [] if names else [file]
+    return run_class
+
+
+@pytest.mark.parametrize("command", [cli.pull, cli.restore])
+@pytest.mark.parametrize(
+    "path, expected",
+    [
+        ("run-id", ("option-entity", "configured-project", "run-id")),
+        ("path-project/run-id", ("option-entity", "path-project", "run-id")),
+        ("path-project:run-id", ("option-entity", "path-project", "run-id")),
+        (
+            "path-entity/path-project/run-id",
+            ("path-entity", "path-project", "run-id"),
+        ),
+    ],
+)
+def test_run_commands_resolve_path(
+    runner, cli_run, monkeypatch, command, path, expected
+):
+    monkeypatch.delenv("WANDB_PROJECT", raising=False)
+    wandb_setup.singleton().settings.project = "configured-project"
+    args = ["--entity", "option-entity", path]
+    if command is cli.restore:
+        args.insert(0, "--no-git")
+
+    result = runner.invoke(command, args)
+
+    assert result.exit_code == 0, result.output
+    assert cli_run.call_args.args[1:] == expected
+
+
+def test_restore_config_can_be_loaded(runner, cli_run, tmp_path, monkeypatch):
+    config = {"epochs": 10, "layers": [32, 64], "nested": {"value": "original"}}
+    cli_run.return_value.rawconfig = {**config, "_wandb": {}, "wandb_version": 1}
+    monkeypatch.setattr(cli, "_get_wandb_dir", lambda: str(tmp_path / "wandb"))
+
+    result = runner.invoke(cli.restore, ["--no-git", "entity/project/run-id"])
+
+    assert result.exit_code == 0, result.output
+    assert config_util.dict_from_config_file(tmp_path / "wandb/config.yaml") == config
 
 
 @pytest.mark.parametrize(
@@ -192,11 +259,7 @@ def test_docker_run_nvidia(runner, docker):
 
 
 def test_docker_run_api_key_not_in_args(runner, docker, mocker, monkeypatch):
-    mocker.patch(
-        "wandb.apis.InternalApi.api_key",
-        new_callable=mocker.PropertyMock,
-        return_value="fake-api-key",
-    )
+    mocker.patch("wandb.cli.cli._configured_api_key", return_value="fake-api-key")
     monkeypatch.setenv("DOCKER_HOST", "tcp://localhost:2375")
 
     result = runner.invoke(cli.docker_run, ["rad"])
@@ -437,11 +500,7 @@ def test_docker_args(runner, docker):
 
 
 def test_docker_api_key_not_in_args(runner, docker, mocker, monkeypatch):
-    mocker.patch(
-        "wandb.apis.InternalApi.api_key",
-        new_callable=mocker.PropertyMock,
-        return_value="fake-api-key",
-    )
+    mocker.patch("wandb.cli.cli._configured_api_key", return_value="fake-api-key")
     monkeypatch.setenv("DOCKER_HOST", "tcp://localhost:2375")
 
     with runner.isolated_filesystem():

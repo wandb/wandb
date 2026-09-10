@@ -67,12 +67,6 @@ def mock_sagemaker():
         yield
 
 
-def test_sagemaker_key():
-    with open("secrets.env", "w") as f:
-        f.write("WANDB_API_KEY={}".format("S" * 40))
-    assert wandb.api.api_key == "S" * 40
-
-
 def test_sagemaker(user, git_repo, mock_sagemaker):
     run = wandb.init()
     run.finish()

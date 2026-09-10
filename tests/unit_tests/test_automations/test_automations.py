@@ -285,6 +285,12 @@ class TestPrepareToCreate:
             },
         }
 
+    @mark.parametrize("action_type", [ActionType.ARIA], indirect=True)
+    def test_action_payload_for_aria_actions(self, input_action, action_config_dict):
+        assert action_config_dict == {
+            "ariaActionInput": {"prompt": input_action.prompt},
+        }
+
 
 class TestPrepareToUpdate:
     """Checks on the internal helper that prepares the GraphQL input for UpdateFilterTrigger mutations."""

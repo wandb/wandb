@@ -4,8 +4,10 @@ from collections.abc import Collection
 from typing import TYPE_CHECKING, Final
 
 from wandb._strutils import nameof
+from wandb.proto.wandb_internal_pb2 import ServerFeature
 
 from ._generated import (
+    AriaActionFields,
     EntityScopeFields,
     GenericWebhookActionFields,
     NoOpActionFields,
@@ -48,23 +50,53 @@ UNGATED_ACTIONS: Final[Collection[ActionType]] = frozenset(
 )
 """Action types that should be supported by all current, non-EOL server versions."""
 
+# Explicit ServerFeature names so they stay grep-able. Types with no matching
+# proto flag are omitted; lookups treat a missing entry as disabled.
+SCOPE_FEATURES: Final[dict[ScopeType, ServerFeature]] = {
+    ScopeType.ENTITY: ServerFeature.AUTOMATION_SCOPE_ENTITY,
+}
+
+EVENT_FEATURES: Final[dict[EventType, ServerFeature]] = {
+    EventType.RUN_METRIC_THRESHOLD: ServerFeature.AUTOMATION_EVENT_RUN_METRIC,
+    EventType.RUN_METRIC_CHANGE: ServerFeature.AUTOMATION_EVENT_RUN_METRIC_CHANGE,
+    EventType.RUN_METRIC_ZSCORE: ServerFeature.AUTOMATION_EVENT_RUN_METRIC_ZSCORE,
+    EventType.RUN_STATE: ServerFeature.AUTOMATION_EVENT_RUN_STATE,
+    EventType.ADD_ARTIFACT_TAG: ServerFeature.AUTOMATION_EVENT_ADD_ARTIFACT_TAG,
+    EventType.ADD_COLLECTION_TAG: ServerFeature.AUTOMATION_EVENT_ADD_COLLECTION_TAG,
+    EventType.REMOVE_ARTIFACT_TAG: ServerFeature.AUTOMATION_EVENT_REMOVE_ARTIFACT_TAG,
+    EventType.REMOVE_COLLECTION_TAG: ServerFeature.AUTOMATION_EVENT_REMOVE_COLLECTION_TAG,
+    EventType.UNLINK_ARTIFACT: ServerFeature.AUTOMATION_EVENT_UNLINK_ARTIFACT,
+}
+
+ACTION_FEATURES: Final[dict[ActionType, ServerFeature]] = {
+    ActionType.NO_OP: ServerFeature.AUTOMATION_ACTION_NO_OP,
+    ActionType.PUSH_NOTIFICATION: ServerFeature.AUTOMATION_ACTION_PUSH_NOTIFICATION,
+    ActionType.ARIA: ServerFeature.AUTOMATION_ACTION_ARIA,
+}
+
 
 def scope_enabled(service_api: ServiceApi, scope: ScopeType) -> bool:
     """Returns whether the server supports the automation scope."""
-    flag_name = f"AUTOMATION_SCOPE_{scope.value}"
-    return (scope in UNGATED_SCOPES) or service_api.feature_enabled(flag_name)
+    if scope in UNGATED_SCOPES:
+        return True
+    feature = SCOPE_FEATURES.get(scope)
+    return feature is not None and service_api.feature_enabled(feature)
 
 
 def event_enabled(service_api: ServiceApi, event: EventType) -> bool:
     """Returns whether the server supports the automation event."""
-    flag_name = f"AUTOMATION_EVENT_{event.value}"
-    return (event in UNGATED_EVENTS) or service_api.feature_enabled(flag_name)
+    if event in UNGATED_EVENTS:
+        return True
+    feature = EVENT_FEATURES.get(event)
+    return feature is not None and service_api.feature_enabled(feature)
 
 
 def action_enabled(service_api: ServiceApi, action: ActionType) -> bool:
     """Returns whether the server supports the automation action."""
-    flag_name = f"AUTOMATION_ACTION_{action.value}"
-    return (action in UNGATED_ACTIONS) or service_api.feature_enabled(flag_name)
+    if action in UNGATED_ACTIONS:
+        return True
+    feature = ACTION_FEATURES.get(action)
+    return feature is not None and service_api.feature_enabled(feature)
 
 
 def automation_enabled(
@@ -91,6 +123,7 @@ ACTION_FRAGMENT_NAMES: Final[dict[ActionType, str]] = {
     ActionType.QUEUE_JOB: nameof(QueueJobActionFields),
     ActionType.NOTIFICATION: nameof(NotificationActionFields),
     ActionType.GENERIC_WEBHOOK: nameof(GenericWebhookActionFields),
+    ActionType.ARIA: nameof(AriaActionFields),
 }
 
 

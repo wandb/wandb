@@ -13,6 +13,11 @@ from wandb._pydantic import GQLId, GQLResult, Typename
 from .enums import AlertSeverity, EventTriggeringConditionType
 
 
+class AriaActionFields(GQLResult):
+    typename__: Typename[Literal["ARIATriggeredAction"]] = "ARIATriggeredAction"
+    prompt: str
+
+
 class ArtifactPortfolioScopeFields(GQLResult):
     typename__: Typename[Literal["ArtifactPortfolio"]] = "ArtifactPortfolio"
     id: GQLId
@@ -133,7 +138,8 @@ class TriggerFields(GQLResult):
     ) = Field(discriminator="typename__")
     event: FilterEventFields
     action: (
-        GenericWebhookActionFields
+        AriaActionFields
+        | GenericWebhookActionFields
         | NoOpActionFields
         | NotificationActionFields
         | TriggerFieldsActionPushNotificationTriggeredAction
@@ -150,6 +156,7 @@ class ProjectTriggersFields(GQLResult):
     triggers: list[TriggerFields]
 
 
+AriaActionFields.model_rebuild()
 ArtifactPortfolioScopeFields.model_rebuild()
 ArtifactSequenceScopeFields.model_rebuild()
 EntityScopeFields.model_rebuild()

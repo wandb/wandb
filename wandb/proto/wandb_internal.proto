@@ -1701,4 +1701,7 @@ enum ServerFeature {
 
   // Indicates that the server supports queries for an artifact's digest algorithm.
   ARTIFACT_DIGEST_ALGORITHM = 36;
+
+  // Indicates that the server supports automation action ARIA.
+  AUTOMATION_ACTION_ARIA = 37;
 }

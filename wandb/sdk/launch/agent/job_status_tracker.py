@@ -2,14 +2,17 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from wandb.apis.internal import Api
 from wandb.errors import CommError
 from wandb.sdk.launch._project_spec import LaunchProject
 
 from ..runner.abstract import AbstractRun
 from ..utils import event_loop_thread_exec
 from .run_queue_item_file_saver import RunQueueItemFileSaver
+
+if TYPE_CHECKING:
+    from wandb.sdk.launch.api import LaunchApi
 
 _logger = logging.getLogger(__name__)
 
@@ -40,7 +43,7 @@ class JobAndRunStatusTracker:
     def set_err_stage(self, stage: str) -> None:
         self.err_stage = stage
 
-    async def check_wandb_run_stopped(self, api: Api) -> bool:
+    async def check_wandb_run_stopped(self, api: LaunchApi) -> bool:
         assert (
             self.run_id is not None
             and self.project is not None
@@ -48,7 +51,7 @@ class JobAndRunStatusTracker:
         ), (
             "Job tracker does not contain run info. Update with run info before checking if run stopped"
         )
-        check_stop = event_loop_thread_exec(api.api.check_stop_requested)
+        check_stop = event_loop_thread_exec(api.check_stop_requested)
         try:
             return bool(await check_stop(self.project, self.entity, self.run_id))
         except CommError:

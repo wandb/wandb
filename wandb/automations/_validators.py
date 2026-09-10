@@ -112,10 +112,12 @@ def parse_saved_action(v: Any) -> Any:
     """If necessary (and possible), convert the object to a saved action."""
     from .actions import (
         DoNothing,
+        SavedAriaAction,
         SavedNoOpAction,
         SavedNotificationAction,
         SavedWebhookAction,
         SendNotification,
+        SendPromptToAria,
         SendWebhook,
     )
 
@@ -126,6 +128,8 @@ def parse_saved_action(v: Any) -> Any:
             return SavedWebhookAction(integration={"id": id_}, **v.model_dump())
         case DoNothing():
             return SavedNoOpAction(**v.model_dump())
+        case SendPromptToAria():
+            return SavedAriaAction(**v.model_dump())
         case _:
             return v
 
@@ -134,10 +138,12 @@ def parse_input_action(v: Any) -> Any:
     """If necessary (and possible), convert the object to an input action."""
     from .actions import (
         DoNothing,
+        SavedAriaAction,
         SavedNoOpAction,
         SavedNotificationAction,
         SavedWebhookAction,
         SendNotification,
+        SendPromptToAria,
         SendWebhook,
     )
 
@@ -148,6 +154,8 @@ def parse_input_action(v: Any) -> Any:
             return SendWebhook(integration_id=integration.id, **v.model_dump())
         case SavedNoOpAction():
             return DoNothing(**v.model_dump())
+        case SavedAriaAction():
+            return SendPromptToAria(**v.model_dump())
         case _:
             return v
 

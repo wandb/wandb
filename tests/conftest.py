@@ -173,7 +173,7 @@ def patch_apikey(dummy_api_key: str, monkeypatch: pytest.MonkeyPatch) -> None:
     """Use a fake API key and W&B server URL in a test."""
     dummy_url = "https://dummy"
 
-    # Both are needed because of the way InternalApi gets the base URL.
+    # wandb.Api() reads the environment; everything else reads the singleton.
     monkeypatch.setenv("WANDB_BASE_URL", dummy_url)
     wandb_setup.singleton().settings.base_url = dummy_url
 

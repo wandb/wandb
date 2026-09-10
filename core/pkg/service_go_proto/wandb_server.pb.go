@@ -876,6 +876,9 @@ type ServerRequest struct {
 	//	*ServerRequest_ApiInitRequest
 	//	*ServerRequest_ApiCleanupRequest
 	//	*ServerRequest_ApiRequest
+	//	*ServerRequest_SweepSchedulerInit
+	//	*ServerRequest_SweepSchedulerNextTask
+	//	*ServerRequest_SweepSchedulerStop
 	ServerRequestType isServerRequest_ServerRequestType `protobuf_oneof:"server_request_type"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
@@ -1060,6 +1063,33 @@ func (x *ServerRequest) GetApiRequest() *ApiRequest {
 	return nil
 }
 
+func (x *ServerRequest) GetSweepSchedulerInit() *SweepSchedulerClientInitRequest {
+	if x != nil {
+		if x, ok := x.ServerRequestType.(*ServerRequest_SweepSchedulerInit); ok {
+			return x.SweepSchedulerInit
+		}
+	}
+	return nil
+}
+
+func (x *ServerRequest) GetSweepSchedulerNextTask() *SweepSchedulerClientNextTaskRequest {
+	if x != nil {
+		if x, ok := x.ServerRequestType.(*ServerRequest_SweepSchedulerNextTask); ok {
+			return x.SweepSchedulerNextTask
+		}
+	}
+	return nil
+}
+
+func (x *ServerRequest) GetSweepSchedulerStop() *SweepSchedulerClientStopRequest {
+	if x != nil {
+		if x, ok := x.ServerRequestType.(*ServerRequest_SweepSchedulerStop); ok {
+			return x.SweepSchedulerStop
+		}
+	}
+	return nil
+}
+
 type isServerRequest_ServerRequestType interface {
 	isServerRequest_ServerRequestType()
 }
@@ -1124,6 +1154,18 @@ type ServerRequest_ApiRequest struct {
 	ApiRequest *ApiRequest `protobuf:"bytes,15,opt,name=api_request,json=apiRequest,proto3,oneof"`
 }
 
+type ServerRequest_SweepSchedulerInit struct {
+	SweepSchedulerInit *SweepSchedulerClientInitRequest `protobuf:"bytes,18,opt,name=sweep_scheduler_init,json=sweepSchedulerInit,proto3,oneof"`
+}
+
+type ServerRequest_SweepSchedulerNextTask struct {
+	SweepSchedulerNextTask *SweepSchedulerClientNextTaskRequest `protobuf:"bytes,19,opt,name=sweep_scheduler_next_task,json=sweepSchedulerNextTask,proto3,oneof"`
+}
+
+type ServerRequest_SweepSchedulerStop struct {
+	SweepSchedulerStop *SweepSchedulerClientStopRequest `protobuf:"bytes,20,opt,name=sweep_scheduler_stop,json=sweepSchedulerStop,proto3,oneof"`
+}
+
 func (*ServerRequest_Cancel) isServerRequest_ServerRequestType() {}
 
 func (*ServerRequest_RecordPublish) isServerRequest_ServerRequestType() {}
@@ -1154,6 +1196,12 @@ func (*ServerRequest_ApiCleanupRequest) isServerRequest_ServerRequestType() {}
 
 func (*ServerRequest_ApiRequest) isServerRequest_ServerRequestType() {}
 
+func (*ServerRequest_SweepSchedulerInit) isServerRequest_ServerRequestType() {}
+
+func (*ServerRequest_SweepSchedulerNextTask) isServerRequest_ServerRequestType() {}
+
+func (*ServerRequest_SweepSchedulerStop) isServerRequest_ServerRequestType() {}
+
 type ServerResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The ID of the request this is a response to.
@@ -1175,6 +1223,8 @@ type ServerResponse struct {
 	//	*ServerResponse_SyncStatusResponse
 	//	*ServerResponse_ApiInitResponse
 	//	*ServerResponse_ApiResponse
+	//	*ServerResponse_SweepSchedulerInitResponse
+	//	*ServerResponse_SweepSchedulerNextTaskResponse
 	//	*ServerResponse_ErrorResponse
 	ServerResponseType isServerResponse_ServerResponseType `protobuf_oneof:"server_response_type"`
 	unknownFields      protoimpl.UnknownFields
@@ -1333,6 +1383,24 @@ func (x *ServerResponse) GetApiResponse() *ApiResponse {
 	return nil
 }
 
+func (x *ServerResponse) GetSweepSchedulerInitResponse() *SweepSchedulerServerInitResponse {
+	if x != nil {
+		if x, ok := x.ServerResponseType.(*ServerResponse_SweepSchedulerInitResponse); ok {
+			return x.SweepSchedulerInitResponse
+		}
+	}
+	return nil
+}
+
+func (x *ServerResponse) GetSweepSchedulerNextTaskResponse() *SweepSchedulerServerNextTaskResponse {
+	if x != nil {
+		if x, ok := x.ServerResponseType.(*ServerResponse_SweepSchedulerNextTaskResponse); ok {
+			return x.SweepSchedulerNextTaskResponse
+		}
+	}
+	return nil
+}
+
 func (x *ServerResponse) GetErrorResponse() *ServerErrorResponse {
 	if x != nil {
 		if x, ok := x.ServerResponseType.(*ServerResponse_ErrorResponse); ok {
@@ -1394,6 +1462,14 @@ type ServerResponse_ApiResponse struct {
 	ApiResponse *ApiResponse `protobuf:"bytes,16,opt,name=api_response,json=apiResponse,proto3,oneof"`
 }
 
+type ServerResponse_SweepSchedulerInitResponse struct {
+	SweepSchedulerInitResponse *SweepSchedulerServerInitResponse `protobuf:"bytes,17,opt,name=sweep_scheduler_init_response,json=sweepSchedulerInitResponse,proto3,oneof"`
+}
+
+type ServerResponse_SweepSchedulerNextTaskResponse struct {
+	SweepSchedulerNextTaskResponse *SweepSchedulerServerNextTaskResponse `protobuf:"bytes,18,opt,name=sweep_scheduler_next_task_response,json=sweepSchedulerNextTaskResponse,proto3,oneof"`
+}
+
 type ServerResponse_ErrorResponse struct {
 	ErrorResponse *ServerErrorResponse `protobuf:"bytes,200,opt,name=error_response,json=errorResponse,proto3,oneof"`
 }
@@ -1422,13 +1498,17 @@ func (*ServerResponse_ApiInitResponse) isServerResponse_ServerResponseType() {}
 
 func (*ServerResponse_ApiResponse) isServerResponse_ServerResponseType() {}
 
+func (*ServerResponse_SweepSchedulerInitResponse) isServerResponse_ServerResponseType() {}
+
+func (*ServerResponse_SweepSchedulerNextTaskResponse) isServerResponse_ServerResponseType() {}
+
 func (*ServerResponse_ErrorResponse) isServerResponse_ServerResponseType() {}
 
 var File_wandb_proto_wandb_server_proto protoreflect.FileDescriptor
 
 const file_wandb_proto_wandb_server_proto_rawDesc = "" +
 	"\n" +
-	"\x1ewandb/proto/wandb_server.proto\x12\x0ewandb_internal\x1a\x1bwandb/proto/wandb_api.proto\x1a\x1cwandb/proto/wandb_base.proto\x1a wandb/proto/wandb_internal.proto\x1a wandb/proto/wandb_settings.proto\x1a\x1cwandb/proto/wandb_sync.proto\"\x82\x01\n" +
+	"\x1ewandb/proto/wandb_server.proto\x12\x0ewandb_internal\x1a\x1bwandb/proto/wandb_api.proto\x1a\x1cwandb/proto/wandb_base.proto\x1a wandb/proto/wandb_internal.proto\x1a wandb/proto/wandb_settings.proto\x1a'wandb/proto/wandb_sweep_scheduler.proto\x1a\x1cwandb/proto/wandb_sync.proto\"\x82\x01\n" +
 	"\x19ServerAuthenticateRequest\x12\x17\n" +
 	"\aapi_key\x18\x01 \x01(\tR\x06apiKey\x12\x19\n" +
 	"\bbase_url\x18\x02 \x01(\tR\abaseUrl\x121\n" +
@@ -1466,7 +1546,7 @@ const file_wandb_proto_wandb_server_proto_rawDesc = "" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tR\trequestId\"/\n" +
 	"\x13ServerErrorResponse\x12\x18\n" +
-	"\amessage\x18\x01 \x01(\tR\amessage\"\xb6\t\n" +
+	"\amessage\x18\x01 \x01(\tR\amessage\"\xf2\v\n" +
 	"\rServerRequest\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\n" +
@@ -1488,8 +1568,11 @@ const file_wandb_proto_wandb_server_proto_rawDesc = "" +
 	"\x10api_init_request\x18\x0e \x01(\v2$.wandb_internal.ServerApiInitRequestH\x00R\x0eapiInitRequest\x12Y\n" +
 	"\x13api_cleanup_request\x18\x11 \x01(\v2'.wandb_internal.ServerApiCleanupRequestH\x00R\x11apiCleanupRequest\x12=\n" +
 	"\vapi_request\x18\x0f \x01(\v2\x1a.wandb_internal.ApiRequestH\x00R\n" +
-	"apiRequestB\x15\n" +
-	"\x13server_request_typeJ\x04\b\b\x10\t\"\xd4\t\n" +
+	"apiRequest\x12c\n" +
+	"\x14sweep_scheduler_init\x18\x12 \x01(\v2/.wandb_internal.SweepSchedulerClientInitRequestH\x00R\x12sweepSchedulerInit\x12p\n" +
+	"\x19sweep_scheduler_next_task\x18\x13 \x01(\v23.wandb_internal.SweepSchedulerClientNextTaskRequestH\x00R\x16sweepSchedulerNextTask\x12c\n" +
+	"\x14sweep_scheduler_stop\x18\x14 \x01(\v2/.wandb_internal.SweepSchedulerClientStopRequestH\x00R\x12sweepSchedulerStopB\x15\n" +
+	"\x13server_request_typeJ\x04\b\b\x10\t\"\xd0\v\n" +
 	"\x0eServerResponse\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\n" +
@@ -1505,7 +1588,9 @@ const file_wandb_proto_wandb_server_proto_rawDesc = "" +
 	"\rsync_response\x18\f \x01(\v2\".wandb_internal.ServerSyncResponseH\x00R\fsyncResponse\x12\\\n" +
 	"\x14sync_status_response\x18\r \x01(\v2(.wandb_internal.ServerSyncStatusResponseH\x00R\x12syncStatusResponse\x12S\n" +
 	"\x11api_init_response\x18\x0e \x01(\v2%.wandb_internal.ServerApiInitResponseH\x00R\x0fapiInitResponse\x12@\n" +
-	"\fapi_response\x18\x10 \x01(\v2\x1b.wandb_internal.ApiResponseH\x00R\vapiResponse\x12M\n" +
+	"\fapi_response\x18\x10 \x01(\v2\x1b.wandb_internal.ApiResponseH\x00R\vapiResponse\x12u\n" +
+	"\x1dsweep_scheduler_init_response\x18\x11 \x01(\v20.wandb_internal.SweepSchedulerServerInitResponseH\x00R\x1asweepSchedulerInitResponse\x12\x82\x01\n" +
+	"\"sweep_scheduler_next_task_response\x18\x12 \x01(\v24.wandb_internal.SweepSchedulerServerNextTaskResponseH\x00R\x1esweepSchedulerNextTaskResponse\x12M\n" +
 	"\x0eerror_response\x18\xc8\x01 \x01(\v2#.wandb_internal.ServerErrorResponseH\x00R\rerrorResponseB\x16\n" +
 	"\x14server_response_typeJ\x04\b\b\x10\tB\x1bZ\x19core/pkg/service_go_protob\x06proto3"
 
@@ -1523,41 +1608,46 @@ func file_wandb_proto_wandb_server_proto_rawDescGZIP() []byte {
 
 var file_wandb_proto_wandb_server_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_wandb_proto_wandb_server_proto_goTypes = []any{
-	(*ServerAuthenticateRequest)(nil),    // 0: wandb_internal.ServerAuthenticateRequest
-	(*ServerAuthenticateResponse)(nil),   // 1: wandb_internal.ServerAuthenticateResponse
-	(*ServerShutdownRequest)(nil),        // 2: wandb_internal.ServerShutdownRequest
-	(*ServerShutdownResponse)(nil),       // 3: wandb_internal.ServerShutdownResponse
-	(*ServerStatusRequest)(nil),          // 4: wandb_internal.ServerStatusRequest
-	(*ServerStatusResponse)(nil),         // 5: wandb_internal.ServerStatusResponse
-	(*ServerInformInitRequest)(nil),      // 6: wandb_internal.ServerInformInitRequest
-	(*ServerInformInitResponse)(nil),     // 7: wandb_internal.ServerInformInitResponse
-	(*ServerInformFinishRequest)(nil),    // 8: wandb_internal.ServerInformFinishRequest
-	(*ServerInformFinishResponse)(nil),   // 9: wandb_internal.ServerInformFinishResponse
-	(*ServerInformAttachRequest)(nil),    // 10: wandb_internal.ServerInformAttachRequest
-	(*ServerInformAttachResponse)(nil),   // 11: wandb_internal.ServerInformAttachResponse
-	(*ServerInformDetachRequest)(nil),    // 12: wandb_internal.ServerInformDetachRequest
-	(*ServerInformDetachResponse)(nil),   // 13: wandb_internal.ServerInformDetachResponse
-	(*ServerInformTeardownRequest)(nil),  // 14: wandb_internal.ServerInformTeardownRequest
-	(*ServerInformTeardownResponse)(nil), // 15: wandb_internal.ServerInformTeardownResponse
-	(*ServerCancelRequest)(nil),          // 16: wandb_internal.ServerCancelRequest
-	(*ServerErrorResponse)(nil),          // 17: wandb_internal.ServerErrorResponse
-	(*ServerRequest)(nil),                // 18: wandb_internal.ServerRequest
-	(*ServerResponse)(nil),               // 19: wandb_internal.ServerResponse
-	(*XRecordInfo)(nil),                  // 20: wandb_internal._RecordInfo
-	(*Settings)(nil),                     // 21: wandb_internal.Settings
-	(*Record)(nil),                       // 22: wandb_internal.Record
-	(*ServerInitSyncRequest)(nil),        // 23: wandb_internal.ServerInitSyncRequest
-	(*ServerSyncRequest)(nil),            // 24: wandb_internal.ServerSyncRequest
-	(*ServerSyncStatusRequest)(nil),      // 25: wandb_internal.ServerSyncStatusRequest
-	(*ServerApiInitRequest)(nil),         // 26: wandb_internal.ServerApiInitRequest
-	(*ServerApiCleanupRequest)(nil),      // 27: wandb_internal.ServerApiCleanupRequest
-	(*ApiRequest)(nil),                   // 28: wandb_internal.ApiRequest
-	(*Result)(nil),                       // 29: wandb_internal.Result
-	(*ServerInitSyncResponse)(nil),       // 30: wandb_internal.ServerInitSyncResponse
-	(*ServerSyncResponse)(nil),           // 31: wandb_internal.ServerSyncResponse
-	(*ServerSyncStatusResponse)(nil),     // 32: wandb_internal.ServerSyncStatusResponse
-	(*ServerApiInitResponse)(nil),        // 33: wandb_internal.ServerApiInitResponse
-	(*ApiResponse)(nil),                  // 34: wandb_internal.ApiResponse
+	(*ServerAuthenticateRequest)(nil),            // 0: wandb_internal.ServerAuthenticateRequest
+	(*ServerAuthenticateResponse)(nil),           // 1: wandb_internal.ServerAuthenticateResponse
+	(*ServerShutdownRequest)(nil),                // 2: wandb_internal.ServerShutdownRequest
+	(*ServerShutdownResponse)(nil),               // 3: wandb_internal.ServerShutdownResponse
+	(*ServerStatusRequest)(nil),                  // 4: wandb_internal.ServerStatusRequest
+	(*ServerStatusResponse)(nil),                 // 5: wandb_internal.ServerStatusResponse
+	(*ServerInformInitRequest)(nil),              // 6: wandb_internal.ServerInformInitRequest
+	(*ServerInformInitResponse)(nil),             // 7: wandb_internal.ServerInformInitResponse
+	(*ServerInformFinishRequest)(nil),            // 8: wandb_internal.ServerInformFinishRequest
+	(*ServerInformFinishResponse)(nil),           // 9: wandb_internal.ServerInformFinishResponse
+	(*ServerInformAttachRequest)(nil),            // 10: wandb_internal.ServerInformAttachRequest
+	(*ServerInformAttachResponse)(nil),           // 11: wandb_internal.ServerInformAttachResponse
+	(*ServerInformDetachRequest)(nil),            // 12: wandb_internal.ServerInformDetachRequest
+	(*ServerInformDetachResponse)(nil),           // 13: wandb_internal.ServerInformDetachResponse
+	(*ServerInformTeardownRequest)(nil),          // 14: wandb_internal.ServerInformTeardownRequest
+	(*ServerInformTeardownResponse)(nil),         // 15: wandb_internal.ServerInformTeardownResponse
+	(*ServerCancelRequest)(nil),                  // 16: wandb_internal.ServerCancelRequest
+	(*ServerErrorResponse)(nil),                  // 17: wandb_internal.ServerErrorResponse
+	(*ServerRequest)(nil),                        // 18: wandb_internal.ServerRequest
+	(*ServerResponse)(nil),                       // 19: wandb_internal.ServerResponse
+	(*XRecordInfo)(nil),                          // 20: wandb_internal._RecordInfo
+	(*Settings)(nil),                             // 21: wandb_internal.Settings
+	(*Record)(nil),                               // 22: wandb_internal.Record
+	(*ServerInitSyncRequest)(nil),                // 23: wandb_internal.ServerInitSyncRequest
+	(*ServerSyncRequest)(nil),                    // 24: wandb_internal.ServerSyncRequest
+	(*ServerSyncStatusRequest)(nil),              // 25: wandb_internal.ServerSyncStatusRequest
+	(*ServerApiInitRequest)(nil),                 // 26: wandb_internal.ServerApiInitRequest
+	(*ServerApiCleanupRequest)(nil),              // 27: wandb_internal.ServerApiCleanupRequest
+	(*ApiRequest)(nil),                           // 28: wandb_internal.ApiRequest
+	(*SweepSchedulerClientInitRequest)(nil),      // 29: wandb_internal.SweepSchedulerClientInitRequest
+	(*SweepSchedulerClientNextTaskRequest)(nil),  // 30: wandb_internal.SweepSchedulerClientNextTaskRequest
+	(*SweepSchedulerClientStopRequest)(nil),      // 31: wandb_internal.SweepSchedulerClientStopRequest
+	(*Result)(nil),                               // 32: wandb_internal.Result
+	(*ServerInitSyncResponse)(nil),               // 33: wandb_internal.ServerInitSyncResponse
+	(*ServerSyncResponse)(nil),                   // 34: wandb_internal.ServerSyncResponse
+	(*ServerSyncStatusResponse)(nil),             // 35: wandb_internal.ServerSyncStatusResponse
+	(*ServerApiInitResponse)(nil),                // 36: wandb_internal.ServerApiInitResponse
+	(*ApiResponse)(nil),                          // 37: wandb_internal.ApiResponse
+	(*SweepSchedulerServerInitResponse)(nil),     // 38: wandb_internal.SweepSchedulerServerInitResponse
+	(*SweepSchedulerServerNextTaskResponse)(nil), // 39: wandb_internal.SweepSchedulerServerNextTaskResponse
 }
 var file_wandb_proto_wandb_server_proto_depIdxs = []int32{
 	20, // 0: wandb_internal.ServerAuthenticateRequest._info:type_name -> wandb_internal._RecordInfo
@@ -1587,24 +1677,29 @@ var file_wandb_proto_wandb_server_proto_depIdxs = []int32{
 	26, // 24: wandb_internal.ServerRequest.api_init_request:type_name -> wandb_internal.ServerApiInitRequest
 	27, // 25: wandb_internal.ServerRequest.api_cleanup_request:type_name -> wandb_internal.ServerApiCleanupRequest
 	28, // 26: wandb_internal.ServerRequest.api_request:type_name -> wandb_internal.ApiRequest
-	29, // 27: wandb_internal.ServerResponse.result_communicate:type_name -> wandb_internal.Result
-	7,  // 28: wandb_internal.ServerResponse.inform_init_response:type_name -> wandb_internal.ServerInformInitResponse
-	9,  // 29: wandb_internal.ServerResponse.inform_finish_response:type_name -> wandb_internal.ServerInformFinishResponse
-	11, // 30: wandb_internal.ServerResponse.inform_attach_response:type_name -> wandb_internal.ServerInformAttachResponse
-	13, // 31: wandb_internal.ServerResponse.inform_detach_response:type_name -> wandb_internal.ServerInformDetachResponse
-	15, // 32: wandb_internal.ServerResponse.inform_teardown_response:type_name -> wandb_internal.ServerInformTeardownResponse
-	1,  // 33: wandb_internal.ServerResponse.authenticate_response:type_name -> wandb_internal.ServerAuthenticateResponse
-	30, // 34: wandb_internal.ServerResponse.init_sync_response:type_name -> wandb_internal.ServerInitSyncResponse
-	31, // 35: wandb_internal.ServerResponse.sync_response:type_name -> wandb_internal.ServerSyncResponse
-	32, // 36: wandb_internal.ServerResponse.sync_status_response:type_name -> wandb_internal.ServerSyncStatusResponse
-	33, // 37: wandb_internal.ServerResponse.api_init_response:type_name -> wandb_internal.ServerApiInitResponse
-	34, // 38: wandb_internal.ServerResponse.api_response:type_name -> wandb_internal.ApiResponse
-	17, // 39: wandb_internal.ServerResponse.error_response:type_name -> wandb_internal.ServerErrorResponse
-	40, // [40:40] is the sub-list for method output_type
-	40, // [40:40] is the sub-list for method input_type
-	40, // [40:40] is the sub-list for extension type_name
-	40, // [40:40] is the sub-list for extension extendee
-	0,  // [0:40] is the sub-list for field type_name
+	29, // 27: wandb_internal.ServerRequest.sweep_scheduler_init:type_name -> wandb_internal.SweepSchedulerClientInitRequest
+	30, // 28: wandb_internal.ServerRequest.sweep_scheduler_next_task:type_name -> wandb_internal.SweepSchedulerClientNextTaskRequest
+	31, // 29: wandb_internal.ServerRequest.sweep_scheduler_stop:type_name -> wandb_internal.SweepSchedulerClientStopRequest
+	32, // 30: wandb_internal.ServerResponse.result_communicate:type_name -> wandb_internal.Result
+	7,  // 31: wandb_internal.ServerResponse.inform_init_response:type_name -> wandb_internal.ServerInformInitResponse
+	9,  // 32: wandb_internal.ServerResponse.inform_finish_response:type_name -> wandb_internal.ServerInformFinishResponse
+	11, // 33: wandb_internal.ServerResponse.inform_attach_response:type_name -> wandb_internal.ServerInformAttachResponse
+	13, // 34: wandb_internal.ServerResponse.inform_detach_response:type_name -> wandb_internal.ServerInformDetachResponse
+	15, // 35: wandb_internal.ServerResponse.inform_teardown_response:type_name -> wandb_internal.ServerInformTeardownResponse
+	1,  // 36: wandb_internal.ServerResponse.authenticate_response:type_name -> wandb_internal.ServerAuthenticateResponse
+	33, // 37: wandb_internal.ServerResponse.init_sync_response:type_name -> wandb_internal.ServerInitSyncResponse
+	34, // 38: wandb_internal.ServerResponse.sync_response:type_name -> wandb_internal.ServerSyncResponse
+	35, // 39: wandb_internal.ServerResponse.sync_status_response:type_name -> wandb_internal.ServerSyncStatusResponse
+	36, // 40: wandb_internal.ServerResponse.api_init_response:type_name -> wandb_internal.ServerApiInitResponse
+	37, // 41: wandb_internal.ServerResponse.api_response:type_name -> wandb_internal.ApiResponse
+	38, // 42: wandb_internal.ServerResponse.sweep_scheduler_init_response:type_name -> wandb_internal.SweepSchedulerServerInitResponse
+	39, // 43: wandb_internal.ServerResponse.sweep_scheduler_next_task_response:type_name -> wandb_internal.SweepSchedulerServerNextTaskResponse
+	17, // 44: wandb_internal.ServerResponse.error_response:type_name -> wandb_internal.ServerErrorResponse
+	45, // [45:45] is the sub-list for method output_type
+	45, // [45:45] is the sub-list for method input_type
+	45, // [45:45] is the sub-list for extension type_name
+	45, // [45:45] is the sub-list for extension extendee
+	0,  // [0:45] is the sub-list for field type_name
 }
 
 func init() { file_wandb_proto_wandb_server_proto_init() }
@@ -1616,6 +1711,7 @@ func file_wandb_proto_wandb_server_proto_init() {
 	file_wandb_proto_wandb_base_proto_init()
 	file_wandb_proto_wandb_internal_proto_init()
 	file_wandb_proto_wandb_settings_proto_init()
+	file_wandb_proto_wandb_sweep_scheduler_proto_init()
 	file_wandb_proto_wandb_sync_proto_init()
 	file_wandb_proto_wandb_server_proto_msgTypes[18].OneofWrappers = []any{
 		(*ServerRequest_Cancel)(nil),
@@ -1633,6 +1729,9 @@ func file_wandb_proto_wandb_server_proto_init() {
 		(*ServerRequest_ApiInitRequest)(nil),
 		(*ServerRequest_ApiCleanupRequest)(nil),
 		(*ServerRequest_ApiRequest)(nil),
+		(*ServerRequest_SweepSchedulerInit)(nil),
+		(*ServerRequest_SweepSchedulerNextTask)(nil),
+		(*ServerRequest_SweepSchedulerStop)(nil),
 	}
 	file_wandb_proto_wandb_server_proto_msgTypes[19].OneofWrappers = []any{
 		(*ServerResponse_ResultCommunicate)(nil),
@@ -1647,6 +1746,8 @@ func file_wandb_proto_wandb_server_proto_init() {
 		(*ServerResponse_SyncStatusResponse)(nil),
 		(*ServerResponse_ApiInitResponse)(nil),
 		(*ServerResponse_ApiResponse)(nil),
+		(*ServerResponse_SweepSchedulerInitResponse)(nil),
+		(*ServerResponse_SweepSchedulerNextTaskResponse)(nil),
 		(*ServerResponse_ErrorResponse)(nil),
 	}
 	type x struct{}
