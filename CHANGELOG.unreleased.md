@@ -14,6 +14,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ## Unreleased
 
+### Added
+
+- `wandb.beta.LocalApi` reads runs from a local wandb directory without a W&B server, API key or network: list the runs with their state, and read a run's config, summary, history rows and console logs, including while the run is still writing. It is experimental and may change in any release (@dmitryduev in https://github.com/wandb/wandb/pull/12745)
+
 ### Changed
 
 - Runs now write data to disk every 15 seconds, so that wandb leet updates sooner for runs that don't log a lot of data (@dmitryduev in https://github.com/wandb/wandb/pull/12742)
