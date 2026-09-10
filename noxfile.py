@@ -207,6 +207,29 @@ def run_pytest(
     )
 
 
+def install_unit_test_dependencies(
+    session: nox.Session, *, skip_wandb: bool = False
+) -> None:
+    requirements_args = [
+        "-r",
+        _requirements_file(session.python),
+    ]
+    if skip_wandb:
+        # The compiled requirements contain the complete dependency closure.
+        # Skip the local project referenced by its extras to avoid building the SDK.
+        excludes = pathlib.Path(session.create_tmp(), "requirements-excludes.txt")
+        excludes.write_text("wandb\n")
+        requirements_args[:0] = ["--no-deps", "--excludes", str(excludes)]
+    install_timed(session, *requirements_args)
+    install_timed(session, "polyfactory")  # For test_reports.
+
+
+@nox.session(python=["3.10", "3.13"], default=False)
+def unit_test_dependencies(session: nox.Session) -> None:
+    """Prepares the unit-test dependency cache without building the SDK."""
+    install_unit_test_dependencies(session, skip_wandb=True)
+
+
 @nox.session(python=_SUPPORTED_PYTHONS)
 def unit_tests(session: nox.Session) -> None:
     """Runs Python unit tests.
@@ -223,20 +246,9 @@ def unit_tests(session: nox.Session) -> None:
         session.env["WANDB_BUILD_SKIP_WANDB_XPU"] = "true"
 
     install_wandb(session, dev=not is_windows)
-
-    requirements_args = [
-        "-r",
-        _requirements_file(session.python),
-    ]
-    if os.environ.get("WANDB_TEST_WHEEL"):
-        # The compiled requirements contain the complete dependency closure.
-        # Avoid resolving the local project referenced by its extras and
-        # rebuilding it after installing the prebuilt wheel.
-        excludes = pathlib.Path(session.create_tmp(), "requirements-excludes.txt")
-        excludes.write_text("wandb\n")
-        requirements_args[:0] = ["--no-deps", "--excludes", str(excludes)]
-    install_timed(session, *requirements_args)
-    install_timed(session, "polyfactory")  # For test_reports.
+    install_unit_test_dependencies(
+        session, skip_wandb=bool(os.environ.get("WANDB_TEST_WHEEL"))
+    )
 
     paths = session.posargs or ["tests/unit_tests"]
 
