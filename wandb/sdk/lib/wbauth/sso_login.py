@@ -25,6 +25,14 @@ from .identity_token_file import Account
 _DEFAULT_SCOPES = ("openid", "profile", "email", "offline_access")
 _LOGIN_TIMEOUT_SECONDS = 300.0
 
+# The device flow gets longer than the PKCE flow because the user may be
+# walking over to another device to approve it.
+_DEVICE_LOGIN_TIMEOUT_SECONDS = 900.0
+_DEVICE_POLL_INTERVAL_SECONDS = 5.0
+_MIN_DEVICE_POLL_INTERVAL_SECONDS = 1.0
+_DEVICE_SLOW_DOWN_INCREMENT_SECONDS = 5.0
+_DEVICE_CODE_GRANT = "urn:ietf:params:oauth:grant-type:device_code"
+
 
 @dataclasses.dataclass(frozen=True)
 class IdpConfig:
@@ -48,6 +56,7 @@ class OidcDiscovery:
 
     authorization_endpoint: str
     token_endpoint: str
+    device_authorization_endpoint: str | None = None
 
 
 def _parse_idp_config(body: object) -> IdpConfig:
@@ -106,12 +115,20 @@ def _parse_discovery(body: object, *, issuer: str) -> OidcDiscovery:
         raise ValueError(
             f"discovery issuer {discovered_issuer!r} does not match {issuer!r}"
         )
+    # Only IdPs that enable the device grant publish this endpoint, so its
+    # absence is not an error until a device-code login asks for it.
+    device_endpoint = body.get("device_authorization_endpoint")
+    if device_endpoint is not None:
+        device_endpoint = _secure_url(
+            device_endpoint, name="device_authorization_endpoint"
+        )
 
     return OidcDiscovery(
         authorization_endpoint=_secure_url(
             body["authorization_endpoint"], name="authorization_endpoint"
         ),
         token_endpoint=_secure_url(body["token_endpoint"], name="token_endpoint"),
+        device_authorization_endpoint=device_endpoint,
     )
 
 
@@ -191,7 +208,7 @@ def login_with_pkce(host: HostUrl, *, org: str | None = None) -> Account:
     _check_auth_method(
         idp_config,
         "pkce",
-        f"{host} does not offer browser login.",
+        f"{host} does not offer browser login. Add --use-device-code to your command.",
     )
 
     discovery = discover_oidc(idp_config.issuer)
@@ -201,6 +218,24 @@ def login_with_pkce(host: HostUrl, *, org: str | None = None) -> Account:
             discovery,
             success_redirect_url=f"{host.url}/cli-login-success",
         ),
+        host=host.url,
+        org=org,
+    )
+
+
+def login_with_device_code(host: HostUrl, *, org: str | None = None) -> Account:
+    """Runs discovery and a device authorization login."""
+    idp_config = fetch_idp_config(host, org=org)
+    _check_auth_method(
+        idp_config,
+        "device_code",
+        f"{host} does not offer device code login. Remove --use-device-code"
+        " and try again.",
+    )
+
+    discovery = discover_oidc(idp_config.issuer)
+    return dataclasses.replace(
+        device_code_login(idp_config, discovery),
         host=host.url,
         org=org,
     )
@@ -266,6 +301,230 @@ def pkce_login(
         code_verifier=code_verifier,
         nonce=nonce,
     )
+
+
+def device_code_login(
+    idp_config: IdpConfig,
+    discovery: OidcDiscovery,
+    *,
+    timeout: float = _DEVICE_LOGIN_TIMEOUT_SECONDS,
+) -> Account:
+    """Performs a device authorization login, per RFC 8628.
+
+    This prints the IdP's verification URL and user code, and opens the URL
+    in a local browser if there is one. The flow works headless either way:
+    it exists for machines with no browser at all, and for users who prefer
+    to approve the login from a phone or another computer.
+    """
+    if not discovery.device_authorization_endpoint:
+        raise AuthenticationError(
+            f"The identity provider at {idp_config.issuer} does not support"
+            " device code login. Ask a W&B admin to enable the device"
+            " authorization grant on the CLI's OAuth client, or remove"
+            " --use-device-code and try again."
+        )
+
+    # Keycloak (and possibly other IdPs) requires PKCE on the device
+    # authorization request whenever the client has PKCE enforced, even
+    # though RFC 8628 itself doesn't mention PKCE.
+    code_verifier, code_challenge = _new_pkce_pair()
+
+    authorization = _request_device_code(
+        discovery.device_authorization_endpoint,
+        client_id=idp_config.client_id,
+        scopes=idp_config.scopes,
+        code_challenge=code_challenge,
+    )
+
+    prefilled = authorization.verification_uri_complete
+    url = prefilled or authorization.verification_uri
+
+    term.termlog(
+        (
+            f"Opened {url} in your browser."
+            if _try_open_browser(url)
+            else f"Open this URL to log in:\n{url}"
+        )
+        + (
+            f"\nIt should show the code {authorization.user_code}."
+            if prefilled
+            else f"\nThen enter the code {authorization.user_code}."
+        )
+    )
+
+    return _poll_for_device_token(
+        discovery.token_endpoint,
+        client_id=idp_config.client_id,
+        authorization=authorization,
+        code_verifier=code_verifier,
+        timeout=timeout,
+    )
+
+
+@dataclasses.dataclass(frozen=True)
+class _DeviceAuthorization:
+    """A device authorization response, per RFC 8628 section 3.2."""
+
+    device_code: str
+    user_code: str
+    verification_uri: str
+    verification_uri_complete: str | None
+    expires_in: float
+    interval: float
+
+
+def _parse_device_authorization(body: object) -> _DeviceAuthorization:
+    if not isinstance(body, dict):
+        raise TypeError("response must be an object")
+
+    device_code = body["device_code"]
+    user_code = body["user_code"]
+    if not isinstance(device_code, str) or not device_code:
+        raise TypeError("device_code must be a non-empty string")
+    if not isinstance(user_code, str) or not user_code:
+        raise TypeError("user_code must be a non-empty string")
+
+    complete = body.get("verification_uri_complete")
+    if complete is not None:
+        complete = _secure_url(complete, name="verification_uri_complete")
+
+    return _DeviceAuthorization(
+        device_code=device_code,
+        user_code=user_code,
+        verification_uri=_secure_url(
+            body["verification_uri"],
+            name="verification_uri",
+        ),
+        verification_uri_complete=complete,
+        expires_in=_seconds(
+            body.get("expires_in"),
+            name="expires_in",
+            default=_DEVICE_LOGIN_TIMEOUT_SECONDS,
+        ),
+        # Floored so that an IdP reporting 0 doesn't turn the poll loop
+        # into a hot loop against its own token endpoint.
+        interval=max(
+            _seconds(
+                body.get("interval"),
+                name="interval",
+                default=_DEVICE_POLL_INTERVAL_SECONDS,
+            ),
+            _MIN_DEVICE_POLL_INTERVAL_SECONDS,
+        ),
+    )
+
+
+def _seconds(value: object, *, name: str, default: float) -> float:
+    """Reads an optional duration in seconds from a device-flow response."""
+    if value is None:
+        return default
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
+        raise TypeError(f"{name} must be a non-negative number")
+    return float(value)
+
+
+def _request_device_code(
+    endpoint: str,
+    *,
+    client_id: str,
+    scopes: Sequence[str],
+    code_challenge: str,
+) -> _DeviceAuthorization:
+    """Requests a device code and user code (RFC 8628 section 3.1)."""
+    try:
+        response = requests.post(
+            endpoint,
+            data={
+                "client_id": client_id,
+                "scope": " ".join(scopes),
+                "code_challenge": code_challenge,
+                "code_challenge_method": "S256",
+            },
+            timeout=env.get_http_timeout(10),
+            allow_redirects=False,
+        )
+    except requests.RequestException as e:
+        raise AuthenticationError(
+            f"Failed to reach the identity provider at {endpoint}: {e}"
+        ) from None
+
+    if response.status_code != 200:
+        raise AuthenticationError(
+            "The identity provider rejected the device login request:"
+            f" {_token_error_detail(response)}"
+        )
+
+    try:
+        return _parse_device_authorization(response.json())
+    except (ValueError, KeyError, TypeError) as e:
+        raise AuthenticationError(
+            f"{endpoint} returned an invalid device authorization response: {e}"
+        ) from None
+
+
+def _poll_for_device_token(
+    token_endpoint: str,
+    *,
+    client_id: str,
+    authorization: _DeviceAuthorization,
+    code_verifier: str,
+    timeout: float,
+) -> Account:
+    """Polls for the user's approval (RFC 8628 sections 3.4 and 3.5)."""
+    interval = authorization.interval
+    deadline = time.monotonic() + min(authorization.expires_in, timeout)
+
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise AuthenticationError(
+                "Timed out waiting for the SSO login to be approved. Run the"
+                " command again to start over."
+            )
+        # Sleeping before the first poll avoids a request that is certain to
+        # be pending, since the user has not opened the URL yet.
+        time.sleep(min(interval, remaining))
+
+        try:
+            response = requests.post(
+                token_endpoint,
+                data={
+                    "grant_type": _DEVICE_CODE_GRANT,
+                    "client_id": client_id,
+                    "device_code": authorization.device_code,
+                    "code_verifier": code_verifier,
+                },
+                timeout=env.get_http_timeout(10),
+                allow_redirects=False,
+            )
+        except requests.RequestException as e:
+            raise AuthenticationError(
+                f"Failed to reach the identity provider at {token_endpoint}: {e}"
+            ) from None
+
+        if response.status_code == 200:
+            return _token_set(
+                response,
+                token_endpoint=token_endpoint,
+                client_id=client_id,
+            )
+
+        error = _oauth_error_code(response)
+        if error == "authorization_pending":
+            continue
+        if error == "slow_down":
+            interval += _DEVICE_SLOW_DOWN_INCREMENT_SECONDS
+            continue
+        if error == "access_denied":
+            raise AuthenticationError("SSO login failed: the request was denied.")
+        if error == "expired_token":
+            raise AuthenticationError(
+                "SSO login failed: the code expired before the login was"
+                " approved. Run the command again to start over."
+            )
+        raise AuthenticationError(
+            f"The identity provider rejected the login: {_token_error_detail(response)}"
+        )
 
 
 def _try_open_browser(url: str) -> bool:
@@ -517,6 +776,15 @@ def _jwt_claims(token: str) -> dict[str, object]:
     except (ValueError, TypeError):
         return {}
     return claims if isinstance(claims, dict) else {}
+
+
+def _oauth_error_code(response: requests.Response) -> str | None:
+    """Returns the OAuth `error` code from a failed token response."""
+    try:
+        error = response.json().get("error")
+    except (ValueError, TypeError, AttributeError):
+        return None
+    return error if isinstance(error, str) else None
 
 
 def _token_error_detail(response: requests.Response) -> str:

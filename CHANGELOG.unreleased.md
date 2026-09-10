@@ -16,7 +16,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Added
 
-- `wandb login sso` logs in through your organization's identity provider in a browser, instead of an API key. Pass `--org` for a multi-tenant SaaS organization or `--host` for a dedicated or self-hosted instance. The resulting credentials are saved to `identity_token.json` in the W&B config directory, one entry per account, and wandb-core refreshes them as they expire.
+- `wandb login sso` logs in through your organization's identity provider in a browser, instead of an API key. Pass `--org` for a multi-tenant SaaS organization or `--host` for a dedicated or self-hosted instance. On a machine with no browser, `--use-device-code` prints a URL and a code to approve from a phone or another computer. The resulting credentials are saved to `identity_token.json` in the W&B config directory, one entry per account, and wandb-core refreshes them as they expire.
 
 ### Changed
 

@@ -44,7 +44,7 @@ def test_fetch_idp_config(mock_responses: RequestsMock):
             "issuer": "https://idp.example.com/realms/acme",
             "client_id": "wandb-cli",
             "scopes": ["openid", "offline_access"],
-            "auth_methods": ["pkce"],
+            "auth_methods": ["pkce", "device_code"],
         },
     )
 
@@ -54,7 +54,7 @@ def test_fetch_idp_config(mock_responses: RequestsMock):
         issuer="https://idp.example.com/realms/acme",
         client_id="wandb-cli",
         scopes=("openid", "offline_access"),
-        auth_methods=("pkce",),
+        auth_methods=("pkce", "device_code"),
     )
 
 
@@ -203,7 +203,7 @@ def test_login_with_pkce_requires_server_support(mock_responses: RequestsMock):
         json={
             "issuer": "https://idp.example.com",
             "client_id": "wandb-cli",
-            "auth_methods": ["unsupported"],
+            "auth_methods": ["device_code"],
         },
     )
 
@@ -228,6 +228,22 @@ def test_discover_oidc(mock_responses: RequestsMock):
         authorization_endpoint="https://idp.example.com/authorize",
         token_endpoint="https://idp.example.com/token",
     )
+
+
+def test_discover_oidc_rejects_insecure_device_endpoint(mock_responses: RequestsMock):
+    mock_responses.add(
+        "GET",
+        "https://idp.example.com/.well-known/openid-configuration",
+        json={
+            "issuer": "https://idp.example.com",
+            "authorization_endpoint": "https://idp.example.com/authorize",
+            "token_endpoint": "https://idp.example.com/token",
+            "device_authorization_endpoint": "http://idp.example.com/device",
+        },
+    )
+
+    with pytest.raises(AuthenticationError, match="must use HTTPS"):
+        sso_login.discover_oidc("https://idp.example.com")
 
 
 def test_discover_oidc_missing_endpoint(mock_responses: RequestsMock):
@@ -553,3 +569,304 @@ def test_pkce_login_times_out_without_a_callback():
 
     with pytest.raises(TimeoutError):
         sso_login.pkce_login(idp_config, discovery, timeout=0.2)
+
+
+@pytest.fixture
+def device_idp_config() -> sso_login.IdpConfig:
+    return sso_login.IdpConfig(
+        issuer="https://idp.example.com",
+        client_id="wandb-cli",
+        scopes=("openid", "offline_access"),
+        auth_methods=("pkce", "device_code"),
+    )
+
+
+@pytest.fixture
+def device_discovery() -> sso_login.OidcDiscovery:
+    return sso_login.OidcDiscovery(
+        authorization_endpoint="https://idp.example.com/authorize",
+        token_endpoint="https://idp.example.com/token",
+        device_authorization_endpoint="https://idp.example.com/device",
+    )
+
+
+@pytest.fixture
+def slept(monkeypatch: pytest.MonkeyPatch) -> list[float]:
+    """Records poll waits instead of actually sleeping through them."""
+    waits: list[float] = []
+    monkeypatch.setattr(sso_login.time, "sleep", waits.append)
+    return waits
+
+
+def _add_device_authorization(
+    mock_responses: RequestsMock,
+    **overrides: object,
+) -> None:
+    mock_responses.add(
+        "POST",
+        "https://idp.example.com/device",
+        json={
+            "device_code": "fake-device-code",
+            "user_code": "WDBX-1234",
+            "verification_uri": "https://idp.example.com/activate",
+            "expires_in": 600,
+            "interval": 5,
+            **overrides,
+        },
+    )
+
+
+def test_device_code_login_full_flow(
+    mock_responses: RequestsMock,
+    device_idp_config: sso_login.IdpConfig,
+    device_discovery: sso_login.OidcDiscovery,
+    slept: list[float],
+    capsys: pytest.CaptureFixture,
+):
+    _add_device_authorization(mock_responses)
+    mock_responses.add(
+        "POST",
+        "https://idp.example.com/token",
+        json={"error": "authorization_pending"},
+        status=400,
+    )
+    mock_responses.add(
+        "POST",
+        "https://idp.example.com/token",
+        json={"id_token": "fake-id-token", "refresh_token": "fake-refresh-token"},
+    )
+
+    result = sso_login.device_code_login(device_idp_config, device_discovery)
+
+    assert result == Account(
+        id_token="fake-id-token",
+        refresh_token="fake-refresh-token",
+        token_endpoint="https://idp.example.com/token",
+        client_id="wandb-cli",
+    )
+    assert slept == [5.0, 5.0]
+
+    output = capsys.readouterr().err
+    assert "https://idp.example.com/activate" in output
+    assert "WDBX-1234" in output
+
+    device_request = urllib.parse.parse_qs(mock_responses.calls[0].request.body)
+    assert device_request["client_id"] == ["wandb-cli"]
+    assert device_request["scope"] == ["openid offline_access"]
+
+    poll_request = urllib.parse.parse_qs(mock_responses.calls[1].request.body)
+    assert poll_request["grant_type"] == [
+        "urn:ietf:params:oauth:grant-type:device_code"
+    ]
+    assert poll_request["device_code"] == ["fake-device-code"]
+    assert poll_request["client_id"] == ["wandb-cli"]
+
+
+def test_device_code_login_opens_browser_to_complete_uri(
+    mock_responses: RequestsMock,
+    device_idp_config: sso_login.IdpConfig,
+    device_discovery: sso_login.OidcDiscovery,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+):
+    _add_device_authorization(
+        mock_responses,
+        verification_uri_complete="https://idp.example.com/activate?user_code=WDBX-1234",
+    )
+    mock_responses.add(
+        "POST",
+        "https://idp.example.com/token",
+        json={"id_token": "fake-id-token", "refresh_token": "fake-refresh-token"},
+    )
+
+    opened_urls: list[str] = []
+    monkeypatch.setattr(
+        sso_login.webbrowser, "open", lambda url: opened_urls.append(url) or True
+    )
+
+    sso_login.device_code_login(device_idp_config, device_discovery)
+
+    assert opened_urls == ["https://idp.example.com/activate?user_code=WDBX-1234"]
+    output = capsys.readouterr().err
+    assert "Opened https://idp.example.com/activate?user_code=WDBX-1234" in output
+    assert "WDBX-1234" in output
+
+
+def test_device_code_login_falls_back_when_browser_fails_to_open(
+    mock_responses: RequestsMock,
+    device_idp_config: sso_login.IdpConfig,
+    device_discovery: sso_login.OidcDiscovery,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+):
+    _add_device_authorization(mock_responses)
+    mock_responses.add(
+        "POST",
+        "https://idp.example.com/token",
+        json={"id_token": "fake-id-token", "refresh_token": "fake-refresh-token"},
+    )
+
+    def fake_open(url: str) -> bool:
+        raise sso_login.webbrowser.Error("no browser found")
+
+    monkeypatch.setattr(sso_login.webbrowser, "open", fake_open)
+
+    sso_login.device_code_login(device_idp_config, device_discovery)
+
+    output = capsys.readouterr().err
+    assert "Open this URL to log in:" in output
+    assert "https://idp.example.com/activate" in output
+    assert "WDBX-1234" in output
+
+
+def test_device_code_login_backs_off_on_slow_down(
+    mock_responses: RequestsMock,
+    device_idp_config: sso_login.IdpConfig,
+    device_discovery: sso_login.OidcDiscovery,
+    slept: list[float],
+):
+    _add_device_authorization(mock_responses)
+    mock_responses.add(
+        "POST",
+        "https://idp.example.com/token",
+        json={"error": "slow_down"},
+        status=400,
+    )
+    mock_responses.add(
+        "POST",
+        "https://idp.example.com/token",
+        json={"id_token": "fake-id-token", "refresh_token": "fake-refresh-token"},
+    )
+
+    sso_login.device_code_login(device_idp_config, device_discovery)
+
+    assert slept == [5.0, 10.0]
+
+
+@pytest.mark.parametrize(
+    ("error", "message"),
+    [
+        ("access_denied", "the request was denied"),
+        ("expired_token", "the code expired"),
+        ("invalid_client", "HTTP 400"),
+    ],
+)
+def test_device_code_login_surfaces_idp_errors(
+    mock_responses: RequestsMock,
+    device_idp_config: sso_login.IdpConfig,
+    device_discovery: sso_login.OidcDiscovery,
+    slept: list[float],
+    error: str,
+    message: str,
+):
+    _add_device_authorization(mock_responses)
+    mock_responses.add(
+        "POST",
+        "https://idp.example.com/token",
+        json={"error": error},
+        status=400,
+    )
+
+    with pytest.raises(AuthenticationError, match=message):
+        sso_login.device_code_login(device_idp_config, device_discovery)
+
+
+def test_device_code_login_times_out(
+    mock_responses: RequestsMock,
+    device_idp_config: sso_login.IdpConfig,
+    device_discovery: sso_login.OidcDiscovery,
+    slept: list[float],
+):
+    _add_device_authorization(mock_responses, expires_in=0)
+
+    with pytest.raises(AuthenticationError, match="Timed out"):
+        sso_login.device_code_login(device_idp_config, device_discovery)
+
+    # The code was already expired, so it never polled.
+    assert len(mock_responses.calls) == 1
+
+
+def test_device_code_login_requires_a_device_endpoint(
+    device_idp_config: sso_login.IdpConfig,
+):
+    discovery = sso_login.OidcDiscovery(
+        authorization_endpoint="https://idp.example.com/authorize",
+        token_endpoint="https://idp.example.com/token",
+    )
+
+    with pytest.raises(AuthenticationError, match="does not support device code"):
+        sso_login.device_code_login(device_idp_config, discovery)
+
+
+def test_device_code_login_rejects_malformed_authorization(
+    mock_responses: RequestsMock,
+    device_idp_config: sso_login.IdpConfig,
+    device_discovery: sso_login.OidcDiscovery,
+):
+    mock_responses.add(
+        "POST",
+        "https://idp.example.com/device",
+        json={"device_code": "fake-device-code"},  # missing user_code
+    )
+
+    with pytest.raises(
+        AuthenticationError, match="invalid device authorization response"
+    ):
+        sso_login.device_code_login(device_idp_config, device_discovery)
+
+
+def test_login_with_device_code_requires_server_support(
+    mock_responses: RequestsMock,
+):
+    mock_responses.add(
+        "GET",
+        "https://my-wandb.example.com/oidc/cli_config",
+        json={
+            "issuer": "https://idp.example.com",
+            "client_id": "wandb-cli",
+            "auth_methods": ["pkce"],
+        },
+    )
+
+    with pytest.raises(AuthenticationError, match="does not offer device code login"):
+        sso_login.login_with_device_code(HostUrl("https://my-wandb.example.com"))
+
+
+def test_login_with_device_code_records_host_and_org(
+    mock_responses: RequestsMock,
+    slept: list[float],
+):
+    mock_responses.add(
+        "GET",
+        "https://my-wandb.example.com/oidc/cli_config",
+        json={
+            "issuer": "https://idp.example.com",
+            "client_id": "wandb-cli",
+            "auth_methods": ["pkce", "device_code"],
+        },
+    )
+    mock_responses.add(
+        "GET",
+        "https://idp.example.com/.well-known/openid-configuration",
+        json={
+            "issuer": "https://idp.example.com",
+            "authorization_endpoint": "https://idp.example.com/authorize",
+            "token_endpoint": "https://idp.example.com/token",
+            "device_authorization_endpoint": "https://idp.example.com/device",
+        },
+    )
+    _add_device_authorization(mock_responses)
+    mock_responses.add(
+        "POST",
+        "https://idp.example.com/token",
+        json={"id_token": "fake-id-token", "refresh_token": "fake-refresh-token"},
+    )
+
+    result = sso_login.login_with_device_code(
+        HostUrl("https://my-wandb.example.com"),
+        org="acme",
+    )
+
+    assert result.host == "https://my-wandb.example.com"
+    assert result.org == "acme"
+    assert result.id_token == "fake-id-token"
