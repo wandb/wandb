@@ -998,17 +998,6 @@ func TestMustResumeInvalidConfig(t *testing.T) {
 
 			err = resumeState.UpdateForResume(&runbranch.RunParams{}, runconfig.New())
 			assert.NotNil(t, err, "GetUpdates should return an error")
-			// assert.IsType(
-			// 	t,
-			// 	&runbranch.BranchError{},
-			// 	err,
-			// 	"GetUpdates should return a BranchError",
-			// )
-			// assert.NotNil(
-			// 	t,
-			// 	err.(*runbranch.BranchError).Response,
-			// 	"BranchError should have a response",
-			// )
 		})
 	}
 }

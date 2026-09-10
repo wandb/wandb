@@ -118,18 +118,6 @@ func (rb *ResumeBranch) runDoesNotExistError(runID string) error {
 	return &BranchError{Err: err, Response: info}
 }
 
-func (rb *ResumeBranch) resumeFailedOnMustError(runID string, err error) error {
-	info := &spb.ErrorInfo{
-		Code: spb.ErrorInfo_USAGE,
-		Message: fmt.Sprintf(
-			"The run (%s) failed to resume, and the `resume` argument is set to 'must'.",
-			runID,
-		),
-	}
-	err = fmt.Errorf("could not resume run: %s", err)
-	return &BranchError{Err: err, Response: info}
-}
-
 func (rb *ResumeBranch) resumeNotAllowedError(runID string) error {
 	info := &spb.ErrorInfo{
 		Code: spb.ErrorInfo_USAGE,
