@@ -288,94 +288,55 @@ jobs:
       artifact-name: unit-windows-3-13
 
   system-linux-3-10:
-    name: System tests · Python 3.10 · ${{ matrix.group }} of 8
+    name: System tests · Python 3.10
     needs: build-linux-wheel
     if: >-
       (vars.GHA_SHADOW_SERVER_TESTS == 'true' || inputs.server-tests == true) && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     permissions:
       contents: read
       id-token: write
-    runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        group: [1, 2, 3, 4, 5, 6, 7, 8]
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/run-cluster-tests
-        with:
-          python: "3.10"
-          wheel-artifact: linux-x64-wheel
-          session: system_tests
-          artifact-name: system-linux-3-10-${{ matrix.group }}
-          test-group: ${{ matrix.group }}
-          test-groups: "8"
-          server-image: ${{ inputs.server-image || 'us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:master' }}
-          gcp-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          gcp-service-account: ${{ secrets.GCP_REGISTRY_SA }}
+    uses: ./.github/workflows/sdk-server-tests.yml
+    secrets: inherit
+    with:
+      python: "3.10"
+      session: system_tests
+      artifact-name: system-linux-3-10
+      server-image: ${{ inputs.server-image || 'us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:master' }}
+      groups: 8
 
   system-linux-3-13:
-    name: System tests · Python 3.13 · ${{ matrix.group }} of 8
+    name: System tests · Python 3.13
     needs: build-linux-wheel
     if: >-
       (vars.GHA_SHADOW_SERVER_TESTS == 'true' || inputs.server-tests == true) && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     permissions:
       contents: read
       id-token: write
-    runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        group: [1, 2, 3, 4, 5, 6, 7, 8]
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/run-cluster-tests
-        with:
-          python: "3.13"
-          wheel-artifact: linux-x64-wheel
-          session: system_tests
-          artifact-name: system-linux-3-13-${{ matrix.group }}
-          test-group: ${{ matrix.group }}
-          test-groups: "8"
-          server-image: ${{ inputs.server-image || 'us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:master' }}
-          gcp-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          gcp-service-account: ${{ secrets.GCP_REGISTRY_SA }}
+    uses: ./.github/workflows/sdk-server-tests.yml
+    secrets: inherit
+    with:
+      python: "3.13"
+      session: system_tests
+      artifact-name: system-linux-3-13
+      server-image: ${{ inputs.server-image || 'us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:master' }}
+      groups: 8
 
   system-min-server-linux-3-13:
-    name: System tests · Server 0.70 · Python 3.13 · ${{ matrix.group }} of 8
+    name: System tests · Server 0.70 · Python 3.13
     needs: build-linux-wheel
     if: >-
       (vars.GHA_SHADOW_SERVER_TESTS == 'true' || inputs.server-tests == true) && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     permissions:
       contents: read
       id-token: write
-    runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        group: [1, 2, 3, 4, 5, 6, 7, 8]
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/run-cluster-tests
-        with:
-          python: "3.13"
-          wheel-artifact: linux-x64-wheel
-          session: system_tests
-          artifact-name: system-min-server-linux-3-13-${{ matrix.group }}
-          test-group: ${{ matrix.group }}
-          test-groups: "8"
-          server-image: us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer:0.70.0
-          gcp-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          gcp-service-account: ${{ secrets.GCP_REGISTRY_SA }}
+    uses: ./.github/workflows/sdk-server-tests.yml
+    secrets: inherit
+    with:
+      python: "3.13"
+      session: system_tests
+      artifact-name: system-min-server-linux-3-13
+      server-image: us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer:0.70.0
+      groups: 8
 
   notebook-linux-3-10:
     name: Notebooks · Python 3.10
@@ -385,21 +346,13 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/run-cluster-tests
-        with:
-          python: "3.10"
-          wheel-artifact: linux-x64-wheel
-          session: notebook_tests
-          artifact-name: notebook-linux-3-10
-          server-image: ${{ inputs.server-image || 'us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:master' }}
-          gcp-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          gcp-service-account: ${{ secrets.GCP_REGISTRY_SA }}
+    uses: ./.github/workflows/sdk-server-tests.yml
+    secrets: inherit
+    with:
+      python: "3.10"
+      session: notebook_tests
+      artifact-name: notebook-linux-3-10
+      server-image: ${{ inputs.server-image || 'us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:master' }}
 
   notebook-linux-3-13:
     name: Notebooks · Python 3.13
@@ -409,21 +362,13 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/run-cluster-tests
-        with:
-          python: "3.13"
-          wheel-artifact: linux-x64-wheel
-          session: notebook_tests
-          artifact-name: notebook-linux-3-13
-          server-image: ${{ inputs.server-image || 'us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:master' }}
-          gcp-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          gcp-service-account: ${{ secrets.GCP_REGISTRY_SA }}
+    uses: ./.github/workflows/sdk-server-tests.yml
+    secrets: inherit
+    with:
+      python: "3.13"
+      session: notebook_tests
+      artifact-name: notebook-linux-3-13
+      server-image: ${{ inputs.server-image || 'us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:master' }}
 
   functional-linux-3-13:
     name: Functional tests · Python 3.13
@@ -433,21 +378,13 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/run-cluster-tests
-        with:
-          python: "3.13"
-          wheel-artifact: linux-x64-wheel
-          session: functional_tests
-          artifact-name: functional-linux-3-13
-          server-image: ${{ inputs.server-image || 'us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:master' }}
-          gcp-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          gcp-service-account: ${{ secrets.GCP_REGISTRY_SA }}
+    uses: ./.github/workflows/sdk-server-tests.yml
+    secrets: inherit
+    with:
+      python: "3.13"
+      session: functional_tests
+      artifact-name: functional-linux-3-13
+      server-image: ${{ inputs.server-image || 'us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:master' }}
 
   experimental-linux-3-13:
     name: Experimental clients · Python 3.13
@@ -457,21 +394,13 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/run-cluster-tests
-        with:
-          python: "3.13"
-          wheel-artifact: linux-x64-wheel
-          session: experimental_tests
-          artifact-name: experimental-linux-3-13
-          server-image: ${{ inputs.server-image || 'us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:master' }}
-          gcp-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          gcp-service-account: ${{ secrets.GCP_REGISTRY_SA }}
+    uses: ./.github/workflows/sdk-server-tests.yml
+    secrets: inherit
+    with:
+      python: "3.13"
+      session: experimental_tests
+      artifact-name: experimental-linux-3-13
+      server-image: ${{ inputs.server-image || 'us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:master' }}
 
   result:
     name: SDK CI

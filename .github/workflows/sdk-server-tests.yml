@@ -1,0 +1,45 @@
+name: SDK server tests
+
+on:
+  workflow_call:
+    inputs:
+      python:
+        type: string
+        required: true
+      session:
+        type: string
+        required: true
+      artifact-name:
+        type: string
+        required: true
+      server-image:
+        type: string
+        required: true
+      groups:
+        type: number
+        default: 1
+
+jobs:
+  test:
+    name: ${{ inputs.groups == 8 && format('{0} of 8', matrix.group) || 'Run tests' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        group: ${{ fromJSON(inputs.groups == 8 && '[1,2,3,4,5,6,7,8]' || '[1]') }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/run-cluster-tests
+        with:
+          python: ${{ inputs.python }}
+          session: ${{ inputs.session }}
+          wheel-artifact: linux-x64-wheel
+          artifact-name: ${{ inputs.groups == 8 && format('{0}-{1}', inputs.artifact-name, matrix.group) || inputs.artifact-name }}
+          test-group: ${{ matrix.group }}
+          test-groups: ${{ inputs.groups == 8 && '8' || '1' }}
+          server-image: ${{ inputs.server-image }}
+          gcp-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          gcp-service-account: ${{ secrets.GCP_REGISTRY_SA }}
