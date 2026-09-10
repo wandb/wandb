@@ -94,6 +94,7 @@ func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceM
 		RunHandle:    runHandle,
 		Settings:     settings2,
 	}
+	historyStepTracker := NewHistoryStepTracker(coreLogger, runHandle)
 	senderFactory := &SenderFactory{
 		BaseURL:                 wbBaseURL,
 		ClientID:                clientID,
@@ -112,6 +113,7 @@ func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceM
 		Printer:                 printer,
 		RunHandle:               runHandle,
 		Mailbox:                 mailboxMailbox,
+		HistoryStepTracker:      historyStepTracker,
 	}
 	tbHandlerFactory := &tensorboard.TBHandlerFactory{
 		Logger:   coreLogger,

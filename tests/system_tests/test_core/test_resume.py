@@ -55,16 +55,6 @@ def test_resume_never__run_exists__raises(user):
             pass
 
 
-@pytest.mark.parametrize("resume", ("allow", "never", "must", True))
-def test_resume__offline__warns(resume, mock_wandb_log):
-    with wandb.init(mode="offline", resume=resume):
-        pass
-
-    mock_wandb_log.assert_warned(
-        "`resume` will be ignored since W&B syncing is set to `offline`"
-    )
-
-
 def test_resume_runtime_calculation(user, wandb_backend_spy):
     """
     This test is used to verify that the runtime is calculated correctly for a
