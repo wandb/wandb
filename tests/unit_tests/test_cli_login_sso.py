@@ -14,8 +14,8 @@ from wandb.sdk.lib.wbauth import identity_token_file
 def fake_pkce_login(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
     calls: list[dict] = []
 
-    def fake_login_with_pkce(host, *, org=None):
-        calls.append({"host": host, "org": org})
+    def fake_login_with_pkce(host, *, org=None, expected=None):
+        calls.append({"host": host, "org": org, "expected": expected})
         return identity_token_file.Account(
             id_token="fake-id-token",
             refresh_token="fake-refresh-token",
@@ -38,8 +38,8 @@ def fake_pkce_login(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
 def fake_device_code_login(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
     calls: list[dict] = []
 
-    def fake_login_with_device_code(host, *, org=None):
-        calls.append({"host": host, "org": org})
+    def fake_login_with_device_code(host, *, org=None, expected=None):
+        calls.append({"host": host, "org": org, "expected": expected})
         return identity_token_file.Account(
             id_token="fake-device-id-token",
             refresh_token="fake-device-refresh-token",
@@ -62,6 +62,28 @@ def fake_device_code_login(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
     return calls
 
 
+@pytest.fixture
+def fake_org_picker(monkeypatch: pytest.MonkeyPatch) -> list:
+    """Stands in for the W&B page that lists the user's organizations."""
+    calls = []
+
+    def fake_select_organization(host):
+        calls.append(host)
+        return "picked-org"
+
+    monkeypatch.setattr(cli.sso_login, "select_organization", fake_select_organization)
+    return calls
+
+
+@pytest.fixture
+def saas_base_url(local_settings):
+    """Points the CLI at multi-tenant SaaS, as a fresh install would be."""
+    system_settings = cli.wandb_setup.singleton().settings.read_system_settings()
+    system_settings.set("base_url", "https://api.wandb.ai", globally=True)
+    system_settings.save()
+    cli.wandb_setup.singleton().settings.update_from_system_settings()
+
+
 def _read_system_settings(path: pathlib.Path) -> dict[str, str]:
     parser = configparser.ConfigParser()
     parser.read(path)
@@ -75,6 +97,8 @@ def test_sso_login_help(runner):
     assert "identity provider" in result.output
     assert "--host" in result.output
     assert "--org" in result.output
+    assert "--issuer" in result.output
+    assert "--client-id" in result.output
     assert "--use-device-code" in result.output
 
 
@@ -167,42 +191,133 @@ def test_sso_login_uses_device_code(
     assert fake_device_code_login[0]["host"].is_same_url("https://my-wandb.example.com")
 
 
-def test_sso_login_requires_org_for_saas(runner, local_settings):
+def test_sso_login_rejects_saas_as_a_host(runner, local_settings):
     result = runner.invoke(
         cli.cli,
         ["login", "sso", "--host", "https://api.wandb.ai"],
     )
 
     assert result.exit_code == 2
-    assert "Pass --org instead of --host" in result.output
+    assert "serves many organizations" in result.output
 
 
-def test_sso_login_rejects_host_and_org_together(runner, local_settings):
+@pytest.mark.parametrize(
+    "extra",
+    [
+        ["--org", "acme"],
+        ["--issuer", "https://idp.example.com"],
+        ["--client-id", "wandb-cli"],
+    ],
+)
+def test_sso_login_rejects_host_with_org_flags(runner, local_settings, extra):
     result = runner.invoke(
         cli.cli,
-        ["login", "sso", "--host", "https://my-wandb.example.com", "--org", "acme"],
+        ["login", "sso", "--host", "https://my-wandb.example.com", *extra],
     )
 
     assert result.exit_code == 2
-    assert "but not both" in result.output
+    assert "resolves its own identity provider" in result.output
 
 
-def test_sso_login_requires_org_or_host(runner, local_settings):
-    result = runner.invoke(cli.cli, ["login", "sso"])
+@pytest.mark.parametrize(
+    ("flags", "missing"),
+    [
+        (["--org", "acme"], "--issuer, --client-id"),
+        (["--org", "acme", "--issuer", "https://idp.example.com"], "--client-id"),
+        (["--org", "acme", "--client-id", "wandb-cli"], "--issuer"),
+        (["--issuer", "https://idp.example.com", "--client-id", "wandb-cli"], "--org"),
+    ],
+)
+def test_sso_login_org_requires_its_identity_provider(
+    runner,
+    saas_base_url,
+    fake_pkce_login: list[dict],
+    fake_org_picker: list,
+    flags,
+    missing,
+):
+    result = runner.invoke(cli.cli, ["login", "sso", *flags])
 
     assert result.exit_code == 2
-    assert "--org" in result.output
-    assert "--host" in result.output
+    assert f"Add {missing}" in result.output
+    assert fake_pkce_login == []
+    assert fake_org_picker == []
 
 
-def test_sso_login_org_only_uses_configured_base_url(
+def test_sso_login_with_explicit_org_checks_the_named_provider(
+    runner,
+    saas_base_url,
+    tmp_path: pathlib.Path,
+    fake_pkce_login: list[dict],
+    fake_org_picker: list,
+):
+    result = runner.invoke(
+        cli.cli,
+        [
+            "login",
+            "sso",
+            "--org",
+            "acme",
+            "--issuer",
+            "https://idp.example.com",
+            "--client-id",
+            "wandb-cli",
+            "--identity-token-file",
+            str(tmp_path / "identity_token.json"),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert fake_org_picker == []
+    assert len(fake_pkce_login) == 1
+    assert fake_pkce_login[0]["host"].is_same_url("https://api.wandb.ai")
+    assert fake_pkce_login[0]["org"] == "acme"
+    assert fake_pkce_login[0]["expected"] == cli.sso_login.ExpectedIdp(
+        issuer="https://idp.example.com",
+        client_id="wandb-cli",
+    )
+
+    # The default host is left implicit rather than pinned in the settings.
+    system_settings_path = pathlib.Path(
+        cli.wandb_setup.singleton().settings.settings_system
+    )
+    assert "base_url" not in _read_system_settings(system_settings_path)
+
+
+def test_sso_login_without_flags_picks_an_org_on_saas(
+    runner,
+    saas_base_url,
+    tmp_path: pathlib.Path,
+    fake_pkce_login: list[dict],
+    fake_org_picker: list,
+):
+    result = runner.invoke(
+        cli.cli,
+        [
+            "login",
+            "sso",
+            "--identity-token-file",
+            str(tmp_path / "identity_token.json"),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert len(fake_org_picker) == 1
+    assert fake_org_picker[0].is_same_url("https://api.wandb.ai")
+    assert len(fake_pkce_login) == 1
+    assert fake_pkce_login[0]["org"] == "picked-org"
+    assert fake_pkce_login[0]["expected"] is None
+
+
+def test_sso_login_without_flags_skips_the_picker_on_a_dedicated_instance(
     runner,
     local_settings,
     tmp_path: pathlib.Path,
     fake_pkce_login: list[dict],
+    fake_org_picker: list,
 ):
     system_settings = cli.wandb_setup.singleton().settings.read_system_settings()
-    system_settings.set("base_url", "https://api.wandb.ai", globally=True)
+    system_settings.set("base_url", "https://my-wandb.example.com", globally=True)
     system_settings.save()
     cli.wandb_setup.singleton().settings.update_from_system_settings()
 
@@ -211,23 +326,41 @@ def test_sso_login_org_only_uses_configured_base_url(
         [
             "login",
             "sso",
-            "--org",
-            "acme",
             "--identity-token-file",
             str(tmp_path / "identity_token.json"),
         ],
     )
 
     assert result.exit_code == 0, result.output
+    assert fake_org_picker == []
     assert len(fake_pkce_login) == 1
-    assert fake_pkce_login[0]["host"].is_same_url("https://api.wandb.ai")
-    assert fake_pkce_login[0]["org"] == "acme"
+    assert fake_pkce_login[0]["org"] is None
 
-    # The default host is left implicit rather than pinned in the settings.
-    system_settings_path = pathlib.Path(
-        cli.wandb_setup.singleton().settings.settings_system
+
+def test_sso_login_uses_device_code_after_the_picker(
+    runner,
+    saas_base_url,
+    tmp_path: pathlib.Path,
+    fake_device_code_login: list[dict],
+    fake_pkce_login: list[dict],
+    fake_org_picker: list,
+):
+    result = runner.invoke(
+        cli.cli,
+        [
+            "login",
+            "sso",
+            "--use-device-code",
+            "--identity-token-file",
+            str(tmp_path / "identity_token.json"),
+        ],
     )
-    assert "base_url" not in _read_system_settings(system_settings_path)
+
+    assert result.exit_code == 0, result.output
+    assert fake_pkce_login == []
+    assert len(fake_org_picker) == 1
+    assert len(fake_device_code_login) == 1
+    assert fake_device_code_login[0]["org"] == "picked-org"
 
 
 def test_sso_login_replaces_unreadable_credentials(

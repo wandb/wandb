@@ -414,14 +414,29 @@ def _login_with_key(key, host, cloud, relogin, anonymously, verify, no_offline=F
     default=None,
     help="""Log in to a dedicated or self-hosted W&B instance by URL
     (e.g. https://my-wandb.example.com). Such an instance serves a single
-    organization and resolves it automatically. Mutually exclusive
-    with --org.""",
+    organization and resolves its own identity provider, so it cannot be
+    combined with --org, --issuer or --client-id.""",
 )
 @click.option(
     "--org",
     default=None,
-    help="""Log in to an organization on multi-tenant SaaS, whose identity
-    provider is used for the login. Mutually exclusive with --host.""",
+    help="""Log in to a named organization on multi-tenant SaaS. Requires
+    --issuer and --client-id, which are checked against the identity
+    provider the organization has registered. Omit all three to choose
+    your organization from a list instead.""",
+)
+@click.option(
+    "--issuer",
+    default=None,
+    help="""The OIDC issuer URL of the organization's identity provider.
+    Used with --org and --client-id.""",
+)
+@click.option(
+    "--client-id",
+    "client_id",
+    default=None,
+    help="""The OAuth client ID the organization registered for CLI login.
+    Used with --org and --issuer.""",
 )
 @click.option(
     "--identity-token-file",
@@ -440,12 +455,18 @@ def _login_with_key(key, host, cloud, relogin, anonymously, verify, no_offline=F
     be opened on another device.""",
 )
 @display_error
-def _login_sso(host, org, token_file, use_device_code):
+def _login_sso(host, org, issuer, client_id, token_file, use_device_code):
     """Log in via your organization's identity provider (SSO).
 
-    For W&B SaaS, select your organization:
+    For W&B SaaS, pick your organization from a list in the browser:
 
-        $ wandb login sso --org my-org
+        $ wandb login sso
+
+    To name it on the command line instead, say which identity provider it
+    should be, so W&B can check that against the one your organization
+    registered:
+
+        $ wandb login sso --org ORG --issuer URL --client-id ID
 
     For a dedicated or self-hosted instance, pass its URL:
 
@@ -453,19 +474,37 @@ def _login_sso(host, org, token_file, use_device_code):
 
     On a machine without a browser, approve the login on another device:
 
-        $ wandb login sso --org my-org --use-device-code
+        $ wandb login sso --use-device-code
     """
     settings = wandb_setup.singleton().settings
-    if bool(host) == bool(org):
+    if host and (org or issuer or client_id):
         raise click.UsageError(
-            "Pass --host for a dedicated or self-hosted instance, or --org"
-            " for a multi-tenant SaaS organization, but not both."
+            "--host names a dedicated or self-hosted instance, which serves a"
+            " single organization and resolves its own identity provider."
+            " Drop --org, --issuer and --client-id."
         )
     if host and saas.is_wandb_domain(host):
         raise click.UsageError(
             f"{host} is multi-tenant SaaS, which serves many organizations."
-            " Pass --org instead of --host to choose one."
+            " Run `wandb login sso` with no flags to choose one."
         )
+    if (org or issuer or client_id) and not (org and issuer and client_id):
+        missing = ", ".join(
+            name
+            for name, value in (
+                ("--org", org),
+                ("--issuer", issuer),
+                ("--client-id", client_id),
+            )
+            if not value
+        )
+        raise click.UsageError(
+            "Naming an organization means naming its identity provider too,"
+            " so that W&B can check it against the one the organization"
+            f" registered. Add {missing}, or run `wandb login sso` with no"
+            " flags to choose your organization from a list."
+        )
+
     host_url = (
         wbauth.HostUrl(host)
         if host
@@ -476,10 +515,19 @@ def _login_sso(host, org, token_file, use_device_code):
     ).expanduser()
 
     wandb.termlog(f"Logging in to {host_url} via SSO...")
+
+    expected = (
+        sso_login.ExpectedIdp(issuer=issuer, client_id=client_id) if org else None
+    )
+    if not org and saas.is_wandb_domain(host_url.url):
+        # Only multi-tenant SaaS needs an organization; a single-tenant
+        # instance has exactly one and resolves it server-side.
+        org = sso_login.select_organization(host_url)
+
     account = (
-        sso_login.login_with_device_code(host_url, org=org)
+        sso_login.login_with_device_code(host_url, org=org, expected=expected)
         if use_device_code
-        else sso_login.login_with_pkce(host_url, org=org)
+        else sso_login.login_with_pkce(host_url, org=org, expected=expected)
     )
 
     # Verify using a staging file holding only the new account, so that a

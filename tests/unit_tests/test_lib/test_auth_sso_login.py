@@ -2,6 +2,7 @@ import base64
 import hashlib
 import http.client
 import json
+import re
 import threading
 import urllib.parse
 import urllib.request
@@ -209,6 +210,107 @@ def test_login_with_pkce_requires_server_support(mock_responses: RequestsMock):
 
     with pytest.raises(AuthenticationError, match="does not offer browser login"):
         sso_login.login_with_pkce(HostUrl("https://my-wandb.example.com"))
+
+
+def _add_cli_config(mock_responses: RequestsMock, **overrides: object) -> None:
+    mock_responses.add(
+        "GET",
+        "https://api.wandb.ai/oidc/cli_config",
+        json={
+            "issuer": "https://idp.example.com",
+            "client_id": "wandb-cli",
+            **overrides,
+        },
+    )
+
+
+@pytest.mark.parametrize(
+    ("registered", "named", "message"),
+    [
+        (
+            {"issuer": "https://idp.example.com"},
+            {"issuer": "https://acme-login.example"},
+            "its issuer is 'https://idp.example.com'",
+        ),
+        (
+            {"client_id": "wandb-cli"},
+            {"client_id": "attacker-cli"},
+            "its client ID is 'wandb-cli'",
+        ),
+    ],
+)
+def test_login_with_pkce_aborts_on_a_provider_the_org_did_not_register(
+    mock_responses: RequestsMock,
+    registered: dict,
+    named: dict,
+    message: str,
+):
+    _add_cli_config(mock_responses, **registered)
+    expected = sso_login.ExpectedIdp(
+        **{"issuer": "https://idp.example.com", "client_id": "wandb-cli", **named}
+    )
+
+    with pytest.raises(AuthenticationError, match=re.escape(message)):
+        sso_login.login_with_pkce(
+            HostUrl("https://api.wandb.ai"),
+            org="acme",
+            expected=expected,
+        )
+
+    # Nothing beyond the W&B discovery call was attempted.
+    assert len(mock_responses.calls) == 1
+
+
+def test_login_with_device_code_aborts_on_an_unregistered_provider(
+    mock_responses: RequestsMock,
+):
+    _add_cli_config(mock_responses)
+
+    with pytest.raises(AuthenticationError, match="phishing"):
+        sso_login.login_with_device_code(
+            HostUrl("https://api.wandb.ai"),
+            org="acme",
+            expected=sso_login.ExpectedIdp(
+                issuer="https://acme-login.example",
+                client_id="wandb-cli",
+            ),
+        )
+
+    assert len(mock_responses.calls) == 1
+
+
+def test_check_expected_idp_ignores_a_trailing_slash():
+    sso_login.check_expected_idp(
+        sso_login.IdpConfig(
+            issuer="https://idp.example.com/",
+            client_id="wandb-cli",
+            scopes=("openid",),
+        ),
+        sso_login.ExpectedIdp(
+            issuer="https://idp.example.com",
+            client_id="wandb-cli",
+        ),
+        org="acme",
+    )
+
+
+def test_check_expected_idp_names_both_mismatched_fields():
+    with pytest.raises(AuthenticationError) as excinfo:
+        sso_login.check_expected_idp(
+            sso_login.IdpConfig(
+                issuer="https://idp.example.com",
+                client_id="wandb-cli",
+                scopes=("openid",),
+            ),
+            sso_login.ExpectedIdp(
+                issuer="https://acme-login.example",
+                client_id="attacker-cli",
+            ),
+            org="acme",
+        )
+
+    assert "issuer" in str(excinfo.value)
+    assert "client ID" in str(excinfo.value)
 
 
 def test_discover_oidc(mock_responses: RequestsMock):
@@ -763,6 +865,94 @@ def slept(monkeypatch: pytest.MonkeyPatch) -> list[float]:
     waits: list[float] = []
     monkeypatch.setattr(sso_login.time, "sleep", waits.append)
     return waits
+
+
+def _simulate_browser_picking_an_org(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    organization: str | None = "acme",
+    state: str | None = None,
+    error: str | None = None,
+) -> list[str]:
+    """Makes webbrowser.open() answer the picker from the loopback port."""
+    opened_urls: list[str] = []
+
+    def fake_open(picker_url: str) -> bool:
+        opened_urls.append(picker_url)
+        query = urllib.parse.parse_qs(urllib.parse.urlparse(picker_url).query)
+        # The page derives the callback from the state, not from a
+        # redirect URL handed to it in the query string.
+        port = query["state"][0].split(".")[0]
+
+        params = {"state": state if state is not None else query["state"][0]}
+        if organization is not None:
+            params["organization"] = organization
+        if error is not None:
+            params["error"] = error
+
+        def hit_callback() -> None:
+            url = f"http://127.0.0.1:{port}/callback?{urllib.parse.urlencode(params)}"
+            urllib.request.urlopen(url, timeout=5)
+
+        threading.Thread(target=hit_callback, daemon=True).start()
+        return True
+
+    monkeypatch.setattr(sso_login.webbrowser, "open", fake_open)
+    return opened_urls
+
+
+def test_select_organization_returns_the_clicked_org(monkeypatch: pytest.MonkeyPatch):
+    opened_urls = _simulate_browser_picking_an_org(monkeypatch, organization="acme")
+
+    org = sso_login.select_organization(HostUrl("https://api.wandb.ai"), timeout=10)
+
+    assert org == "acme"
+    parsed = urllib.parse.urlparse(opened_urls[0])
+    assert parsed.netloc == "wandb.ai"
+    assert parsed.path == "/cli-login"
+    state = urllib.parse.parse_qs(parsed.query)["state"][0]
+    port, _, nonce = state.partition(".")
+    assert 0 < int(port) < 65536
+    assert nonce
+
+
+def test_select_organization_rejects_a_foreign_state(monkeypatch: pytest.MonkeyPatch):
+    _simulate_browser_picking_an_org(monkeypatch, state="12345.not-our-nonce")
+
+    with pytest.raises(AuthenticationError, match="a different login"):
+        sso_login.select_organization(HostUrl("https://api.wandb.ai"), timeout=10)
+
+
+def test_select_organization_requires_an_organization(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    _simulate_browser_picking_an_org(monkeypatch, organization=None)
+
+    with pytest.raises(AuthenticationError, match="which organization"):
+        sso_login.select_organization(HostUrl("https://api.wandb.ai"), timeout=10)
+
+
+def test_select_organization_rejects_a_malformed_name(monkeypatch: pytest.MonkeyPatch):
+    _simulate_browser_picking_an_org(monkeypatch, organization="acme corp")
+
+    with pytest.raises(AuthenticationError, match="not a valid organization name"):
+        sso_login.select_organization(HostUrl("https://api.wandb.ai"), timeout=10)
+
+
+def test_select_organization_surfaces_a_page_error(monkeypatch: pytest.MonkeyPatch):
+    _simulate_browser_picking_an_org(
+        monkeypatch,
+        organization=None,
+        error="no_organizations",
+    )
+
+    with pytest.raises(AuthenticationError, match="no_organizations"):
+        sso_login.select_organization(HostUrl("https://api.wandb.ai"), timeout=10)
+
+
+def test_select_organization_times_out_without_a_choice():
+    with pytest.raises(TimeoutError):
+        sso_login.select_organization(HostUrl("https://api.wandb.ai"), timeout=0.2)
 
 
 def _add_device_authorization(

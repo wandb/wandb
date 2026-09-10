@@ -25,6 +25,9 @@ from .identity_token_file import Account
 _DEFAULT_SCOPES = ("openid", "profile", "email", "offline_access")
 _LOGIN_TIMEOUT_SECONDS = 300.0
 
+# The W&B app page that lists the signed-in user's organizations.
+_PICKER_PATH = "/cli-login"
+
 # The device flow gets longer than the PKCE flow because the user may be
 # walking over to another device to approve it.
 _DEVICE_LOGIN_TIMEOUT_SECONDS = 900.0
@@ -48,6 +51,14 @@ class IdpConfig:
     None if the server did not say, in which case the CLI attempts whichever
     flow the user asked for and lets the IdP reject it.
     """
+
+
+@dataclasses.dataclass(frozen=True)
+class ExpectedIdp:
+    """The identity provider a user named on the command line."""
+
+    issuer: str
+    client_id: str
 
 
 @dataclasses.dataclass(frozen=True)
@@ -217,9 +228,90 @@ def discover_oidc(issuer: str) -> OidcDiscovery:
         ) from None
 
 
-def login_with_pkce(host: HostUrl, *, org: str | None = None) -> Account:
+def select_organization(
+    host: HostUrl,
+    *,
+    timeout: float = _LOGIN_TIMEOUT_SECONDS,
+) -> str:
+    """Asks the W&B app which organization to log in to.
+
+    Opens a page that lists the organizations the signed-in user actually
+    belongs to, and returns the one they click. The name therefore comes
+    back from the server instead of from something the user was told to
+    type, which is what makes it safe to hand to discovery.
+    """
+    server = _callback_server(response_html=_PICKER_HTML)
+    try:
+        state = _picker_state(server.server_address[1])
+        server.expected_state = state  # type: ignore[attr-defined]
+
+        url = f"{host.app_url}{_PICKER_PATH}?" + urllib.parse.urlencode(
+            {"state": state}
+        )
+        if _try_open_browser(url):
+            term.termlog(f"Opened {url} in your browser.")
+        else:
+            term.termlog(f"Open this URL to choose your organization:\n{url}")
+
+        params = _wait_for_callback(server, timeout=timeout)
+    finally:
+        server.server_close()
+
+    return _selected_organization(params, expected_state=state)
+
+
+def _picker_state(port: int) -> str:
+    """Builds the picker's state, which also carries the callback's port.
+
+    The page derives `http://127.0.0.1:<port>/callback` from the state
+    rather than reading a redirect target out of its query string, so the
+    only thing a crafted link can steer is which port on the user's own
+    machine hears the answer (RFC 9700 section 4.11).
+    """
+    return f"{port}.{secrets.token_urlsafe(24)}"
+
+
+def _selected_organization(
+    params: dict[str, list[str]],
+    *,
+    expected_state: str,
+) -> str:
+    """Reads the organization the user clicked out of the page's callback."""
+    if error := params.get("error", [None])[0]:
+        description = params.get("error_description", [error])[0]
+        raise AuthenticationError(f"SSO login failed: {description}")
+
+    state = params.get("state", [""])[0]
+    if not secrets.compare_digest(state, expected_state):
+        raise AuthenticationError(
+            "SSO login failed: the organization was chosen for a different"
+            " login. Please run the command again."
+        )
+
+    org = params.get("organization", [""])[0]
+    if not org:
+        raise AuthenticationError(
+            "SSO login failed: the page did not say which organization was"
+            " chosen. Please run the command again."
+        )
+    if any(char.isspace() or not char.isprintable() for char in org):
+        raise AuthenticationError(
+            f"SSO login failed: {org!r} is not a valid organization name."
+        )
+
+    return org
+
+
+def login_with_pkce(
+    host: HostUrl,
+    *,
+    org: str | None = None,
+    expected: ExpectedIdp | None = None,
+) -> Account:
     """Runs discovery and an Authorization Code + PKCE login."""
     idp_config = fetch_idp_config(host, org=org)
+    if expected:
+        check_expected_idp(idp_config, expected, org=org)
     _check_auth_method(
         idp_config,
         "pkce",
@@ -238,9 +330,16 @@ def login_with_pkce(host: HostUrl, *, org: str | None = None) -> Account:
     )
 
 
-def login_with_device_code(host: HostUrl, *, org: str | None = None) -> Account:
+def login_with_device_code(
+    host: HostUrl,
+    *,
+    org: str | None = None,
+    expected: ExpectedIdp | None = None,
+) -> Account:
     """Runs discovery and a device authorization login."""
     idp_config = fetch_idp_config(host, org=org)
+    if expected:
+        check_expected_idp(idp_config, expected, org=org)
     _check_auth_method(
         idp_config,
         "device_code",
@@ -262,6 +361,38 @@ def _check_auth_method(idp_config: IdpConfig, method: str, message: str) -> None
         raise AuthenticationError(message)
 
 
+def check_expected_idp(
+    idp_config: IdpConfig,
+    expected: ExpectedIdp,
+    *,
+    org: str | None,
+) -> None:
+    """Aborts unless the organization's registered IdP is the one named.
+
+    This runs before any browser opens or any device code is printed. It
+    catches the phish that keeps a real organization name and swaps in a
+    lookalike issuer, which is the half of a pasted command that a user
+    has no way to recognize as wrong.
+    """
+    mismatched = [
+        f"its {name} is {actual!r}, not {wanted!r}"
+        for name, actual, wanted in (
+            ("issuer", idp_config.issuer.rstrip("/"), expected.issuer.rstrip("/")),
+            ("client ID", idp_config.client_id, expected.client_id),
+        )
+        if actual != wanted
+    ]
+    if not mismatched:
+        return
+
+    raise AuthenticationError(
+        f"The identity provider registered for organization {org!r} is not the"
+        f" one you named: {'; '.join(mismatched)}. Nothing was sent to either"
+        " provider. If you did not write this command yourself, treat it as a"
+        " phishing attempt."
+    )
+
+
 def pkce_login(
     idp_config: IdpConfig,
     discovery: OidcDiscovery,
@@ -279,10 +410,10 @@ def pkce_login(
     state = secrets.token_urlsafe(24)
     nonce = secrets.token_urlsafe(24)
 
-    server = http.server.HTTPServer(("127.0.0.1", 0), _CallbackHandler)
-    server.callback_params = None  # type: ignore[attr-defined]
-    server.success_redirect_url = success_redirect_url  # type: ignore[attr-defined]
-    server.expected_state = state  # type: ignore[attr-defined]
+    server = _callback_server(
+        expected_state=state,
+        success_redirect_url=success_redirect_url,
+    )
     try:
         port = server.server_address[1]
         redirect_uri = f"http://127.0.0.1:{port}/callback"
@@ -600,6 +731,30 @@ _CALLBACK_HTML = """\
 </body>
 """
 
+_PICKER_HTML = """\
+<!DOCTYPE html>
+<title>W&B SSO login</title>
+<body style="font-family: sans-serif; text-align: center; margin-top: 15%">
+<h2>Organization selected.</h2>
+<p>Return to the terminal to finish logging in.</p>
+</body>
+"""
+
+
+def _callback_server(
+    *,
+    expected_state: str | None = None,
+    success_redirect_url: str | None = None,
+    response_html: str = _CALLBACK_HTML,
+) -> http.server.HTTPServer:
+    """Binds a loopback server to receive one callback from the browser."""
+    server = http.server.HTTPServer(("127.0.0.1", 0), _CallbackHandler)
+    server.callback_params = None  # type: ignore[attr-defined]
+    server.expected_state = expected_state  # type: ignore[attr-defined]
+    server.success_redirect_url = success_redirect_url  # type: ignore[attr-defined]
+    server.response_html = response_html  # type: ignore[attr-defined]
+    return server
+
 
 class _CallbackHandler(http.server.BaseHTTPRequestHandler):
     """Handles the IdP's redirect to the PKCE loopback server."""
@@ -631,7 +786,7 @@ class _CallbackHandler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
             return
 
-        body = _CALLBACK_HTML.encode()
+        body = getattr(self.server, "response_html", _CALLBACK_HTML).encode()
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
