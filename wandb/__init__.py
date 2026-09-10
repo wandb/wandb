@@ -53,10 +53,6 @@ from wandb.sdk.lib import deprecated_api as _deprecated_api
 
 from wandb.integration.torch import wandb_torch
 
-from wandb.sdk.data_types._private import _cleanup_media_tmp_dir
-
-_cleanup_media_tmp_dir()
-
 from wandb.data_types import Graph
 from wandb.data_types import Image
 from wandb.data_types import Plotly
