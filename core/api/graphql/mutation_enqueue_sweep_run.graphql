@@ -1,0 +1,20 @@
+# The returned id names a run that is guaranteed to appear in the
+# sweep as pending; the scheduler sets no display name. The arguments
+# mirror the public API's EnqueueSweepRun operation in
+# wandb/apis/public/sweeps.py.
+mutation EnqueueSweepRun(
+    $id: ID!,
+    $config: JSONString!,
+    $displayName: String,
+) {
+    enqueueSweepRun(
+        input: {
+            id: $id,
+            config: $config,
+            displayName: $displayName,
+        }
+    ) {
+        id
+        runQueueItemId
+    }
+}
