@@ -35,6 +35,34 @@ def fake_pkce_login(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
 
 
 @pytest.fixture
+def fake_device_code_login(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
+    calls: list[dict] = []
+
+    def fake_login_with_device_code(host, *, org=None, expected=None):
+        calls.append({"host": host, "org": org, "expected": expected})
+        return identity_token_file.Account(
+            id_token="fake-device-id-token",
+            refresh_token="fake-device-refresh-token",
+            token_endpoint="https://idp.example.com/token",
+            client_id="wandb-cli",
+            host=host.url,
+            org=org,
+        )
+
+    monkeypatch.setattr(
+        cli.sso_login,
+        "login_with_device_code",
+        fake_login_with_device_code,
+    )
+    monkeypatch.setattr(
+        ServiceApi,
+        "authenticate",
+        lambda self: AuthenticateResponse(),
+    )
+    return calls
+
+
+@pytest.fixture
 def saas_base_url(local_settings):
     """Points the CLI at multi-tenant SaaS, as a fresh install would be."""
     system_settings = cli.wandb_setup.singleton().settings.read_system_settings()
@@ -58,6 +86,7 @@ def test_sso_login_help(runner):
     assert "--org" in result.output
     assert "--issuer" in result.output
     assert "--client-id" in result.output
+    assert "--use-device-code" in result.output
 
 
 def test_login_help_keeps_api_key_options(runner):
@@ -119,6 +148,34 @@ def test_sso_login_writes_identity_token_file(
     assert "api_key" not in settings
     assert settings["identity_token_file"] == str(token_path)
     assert settings["base_url"] == "https://my-wandb.example.com"
+
+
+def test_sso_login_uses_device_code(
+    runner,
+    local_settings,
+    tmp_path: pathlib.Path,
+    fake_device_code_login: list[dict],
+    fake_pkce_login: list[dict],
+):
+    token_path = tmp_path / "identity_token.json"
+
+    result = runner.invoke(
+        cli.cli,
+        [
+            "login",
+            "sso",
+            "--host",
+            "https://my-wandb.example.com",
+            "--use-device-code",
+            "--identity-token-file",
+            str(token_path),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert fake_pkce_login == []
+    assert len(fake_device_code_login) == 1
+    assert fake_device_code_login[0]["host"].is_same_url("https://my-wandb.example.com")
 
 
 def test_sso_login_host_names_saas_explicitly(
@@ -267,6 +324,36 @@ def test_sso_login_without_flags_skips_org_checks_on_a_dedicated_instance(
     assert result.exit_code == 0, result.output
     assert len(fake_pkce_login) == 1
     assert fake_pkce_login[0]["org"] is None
+
+
+def test_sso_login_uses_device_code_with_an_explicit_org(
+    runner,
+    saas_base_url,
+    tmp_path: pathlib.Path,
+    fake_device_code_login: list[dict],
+    fake_pkce_login: list[dict],
+):
+    result = runner.invoke(
+        cli.cli,
+        [
+            "login",
+            "sso",
+            "--org",
+            "acme",
+            "--issuer",
+            "https://idp.example.com",
+            "--client-id",
+            "wandb-cli",
+            "--use-device-code",
+            "--identity-token-file",
+            str(tmp_path / "identity_token.json"),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert fake_pkce_login == []
+    assert len(fake_device_code_login) == 1
+    assert fake_device_code_login[0]["org"] == "acme"
 
 
 def test_sso_login_replaces_unreadable_credentials(

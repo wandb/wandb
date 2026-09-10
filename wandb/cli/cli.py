@@ -446,8 +446,17 @@ def _login_with_key(key, host, cloud, relogin, anonymously, verify, no_offline=F
     help="""Where to save the credentials obtained from the login.
     Defaults to identity_token.json in the W&B config directory.""",
 )
+@click.option(
+    "--use-device-code",
+    "use_device_code",
+    is_flag=True,
+    default=False,
+    help="""Use device authorization. Choose this over SSH, in a container,
+    or anywhere else without a browser; W&B prints a URL and code that can
+    be opened on another device.""",
+)
 @display_error
-def _login_sso(host, org, issuer, client_id, token_file):
+def _login_sso(host, org, issuer, client_id, token_file, use_device_code):
     """Log in via your organization's identity provider (SSO).
 
     For W&B SaaS, name your organization and its identity provider, so W&B
@@ -458,6 +467,10 @@ def _login_sso(host, org, issuer, client_id, token_file):
     For a dedicated or self-hosted instance, pass its URL:
 
         $ wandb login sso --host https://my-wandb-server.example.com
+
+    On a machine without a browser, approve the login on another device:
+
+        $ wandb login sso --use-device-code
     """
     settings = wandb_setup.singleton().settings
     host_url = (
@@ -502,7 +515,11 @@ def _login_sso(host, org, issuer, client_id, token_file):
     expected = (
         sso_login.ExpectedIdp(issuer=issuer, client_id=client_id) if org else None
     )
-    account = sso_login.login_with_pkce(host_url, org=org, expected=expected)
+    account = (
+        sso_login.login_with_device_code(host_url, org=org, expected=expected)
+        if use_device_code
+        else sso_login.login_with_pkce(host_url, org=org, expected=expected)
+    )
 
     # Verify using a staging file holding only the new account, so that a
     # login that turns out to be unusable leaves saved accounts in place.
