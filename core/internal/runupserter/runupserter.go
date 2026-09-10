@@ -202,6 +202,10 @@ func InitRun(
 	// UpsertBucket request.
 	branchPoint := runRecord.BranchPoint
 	switch {
+	case runParams.Resume || params.Settings.GetResume() != "":
+		if err := upserter.updateMetadataForResume(ctx, params.Settings.GetResume()); err != nil {
+			return nil, ToRunUpdateError(err)
+		}
 	case branchPoint != nil && branchPoint.GetRun() == runRecord.RunId:
 		// Branching a run from an earlier point in its history is rewinding.
 		err := upserter.updateMetadataForRewind(ctx, branchPoint)
@@ -215,11 +219,6 @@ func InitRun(
 		err := upserter.updateMetadataForFork(branchPoint)
 
 		if err != nil {
-			return nil, ToRunUpdateError(err)
-		}
-
-	case runParams.Resume || params.Settings.GetResume() != "":
-		if err := upserter.updateMetadataForResume(ctx, params.Settings.GetResume()); err != nil {
 			return nil, ToRunUpdateError(err)
 		}
 	}
