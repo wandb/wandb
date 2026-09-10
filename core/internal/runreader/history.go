@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"sort"
-	"strconv"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -44,10 +43,10 @@ type HistoryQuery struct {
 
 // HistoryPage is one page of matching rows.
 type HistoryPage struct {
-	// Rows holds one JSON object per row, each ending in a newline. Nested
-	// keys are joined with dots and system metrics are prefixed with
-	// "system.", as the W&B UI names them; values are as logged.
-	Rows []byte
+	// Chunks hold the page's rows in order, each a run of consecutive rows
+	// stored by column. Nested keys are joined with dots and system metrics
+	// are prefixed with "system.", as the W&B UI names them.
+	Chunks []*Chunk
 
 	// NextOffset is the Offset for the next page, or 0 when the scan is
 	// complete.
@@ -90,8 +89,15 @@ func (r *Run) History(ctx context.Context, query HistoryQuery) (HistoryPage, err
 			return HistoryPage{}, err
 		}
 	}
-	rows, _, next, err := scan.read(nil, query.Limit, 0)
-	return HistoryPage{Rows: rows, NextOffset: next}, err
+	chunk, next, err := scan.read(query.Limit, 0)
+	if err != nil {
+		return HistoryPage{}, err
+	}
+	page := HistoryPage{NextOffset: next}
+	if chunk.Rows > 0 {
+		page.Chunks = []*Chunk{chunk}
+	}
+	return page, nil
 }
 
 // offsetForStep returns the offset of the last index entry at or before
@@ -111,57 +117,113 @@ type historyScan struct {
 	keys   map[string]struct{}
 }
 
-// read appends matching rows to dst until the record at offset end (when
-// positive), the end of the file, a step past MaxStep, or limit rows (when
-// positive). It returns the rows, how many were appended, and the offset to
-// continue from, which is 0 once the scan is complete.
-func (s *historyScan) read(dst []byte, limit int, end int64) ([]byte, int, int64, error) {
-	count := 0
+// read decodes matching rows into a chunk until the record at offset end
+// (when positive), the end of the file, a step past MaxStep, or limit rows
+// (when positive). It returns the chunk and the offset to continue from,
+// which is 0 once the scan is complete.
+func (s *historyScan) read(limit int, end int64) (*Chunk, int64, error) {
+	chunk := &Chunk{}
 	for {
 		if err := s.ctx.Err(); err != nil {
-			return dst, count, 0, err
+			return nil, 0, err
 		}
-		if limit > 0 && count == limit || end > 0 && s.cursor.Offset() >= end {
-			return dst, count, s.cursor.Offset(), nil
+		if limit > 0 && chunk.Rows == limit || end > 0 && s.cursor.Offset() >= end {
+			chunk.finish()
+			return chunk, s.cursor.Offset(), nil
 		}
 		record, _, err := s.cursor.Next()
 		if errors.Is(err, io.EOF) {
-			return dst, count, 0, nil
+			chunk.finish()
+			return chunk, 0, nil
 		}
 		if err != nil {
-			return dst, count, 0, err
+			return nil, 0, err
 		}
-		var ok bool
 		if s.query.SystemMetrics {
-			stats := record.GetStats()
-			if stats == nil {
-				continue
+			if stats := record.GetStats(); stats != nil {
+				s.addStatsRow(chunk, stats)
 			}
-			dst, ok = appendStatsRow(dst, stats, s.keys)
-		} else {
-			history := record.GetHistory()
-			if history == nil {
-				continue
-			}
-			step := HistoryStep(history)
-			if s.query.MinStep != nil && step < *s.query.MinStep {
-				continue
-			}
-			if s.query.MaxStep != nil && step > *s.query.MaxStep {
-				return dst, count, 0, nil
-			}
-			dst, ok = appendRow(dst, history, s.keys)
+			continue
 		}
-		if ok {
-			count++
+		history := record.GetHistory()
+		if history == nil {
+			continue
+		}
+		step := HistoryStep(history)
+		if s.query.MinStep != nil && step < *s.query.MinStep {
+			continue
+		}
+		if s.query.MaxStep != nil && step > *s.query.MaxStep {
+			chunk.finish()
+			return chunk, 0, nil
+		}
+		s.addHistoryRow(chunk, history, step)
+	}
+}
+
+// addHistoryRow adds the record's items as a row, with _step from the
+// record's step when it has one. Under a keys filter only those keys and
+// _step are kept, and a row with none of the keys is skipped.
+func (s *historyScan) addHistoryRow(chunk *Chunk, history *spb.HistoryRecord, step int64) {
+	items := history.GetItem()
+	if s.keys != nil && !anyKey(s.keys, items, HistoryItemKey) {
+		return
+	}
+	row := chunk.Rows
+	if history.Step != nil {
+		chunk.addInt(row, "_step", step)
+	}
+	for _, item := range items {
+		key := HistoryItemKey(item)
+		if key == "_step" && history.Step != nil {
+			continue
+		}
+		if _, wanted := s.keys[key]; s.keys != nil && !wanted && key != "_step" {
+			continue
+		}
+		chunk.add(row, key, item.GetValueJson())
+	}
+	chunk.Rows = row + 1
+}
+
+// addStatsRow adds the record's metrics as a row with _timestamp in seconds
+// and each metric under "system.". A keys filter works as for history rows.
+func (s *historyScan) addStatsRow(chunk *Chunk, stats *spb.StatsRecord) {
+	items := stats.GetItem()
+	if s.keys != nil && !anyKey(s.keys, items, statsItemKey) {
+		return
+	}
+	row := chunk.Rows
+	if ts := stats.GetTimestamp(); ts != nil {
+		chunk.addFloat(row, "_timestamp", float64(ts.GetSeconds())+float64(ts.GetNanos())/1e9)
+	}
+	for _, item := range items {
+		key := statsItemKey(item)
+		if _, wanted := s.keys[key]; s.keys != nil && !wanted {
+			continue
+		}
+		chunk.add(row, key, item.GetValueJson())
+	}
+	chunk.Rows = row + 1
+}
+
+func anyKey[T any](keys map[string]struct{}, items []T, key func(T) string) bool {
+	for _, item := range items {
+		if _, ok := keys[key(item)]; ok {
+			return true
 		}
 	}
+	return false
+}
+
+func statsItemKey(item *spb.StatsItem) string {
+	return "system." + item.GetKey()
 }
 
 // last returns the last query.Last matching rows by scanning the file
 // backwards one index granule at a time.
 func (s *historyScan) last(index []indexEntry) (HistoryPage, error) {
-	var rows []byte
+	var chunks []*Chunk
 	count := 0
 	for g := len(index) - 1; g >= 0 && count < s.query.Last; g-- {
 		if err := s.cursor.SeekRecord(index[g].offset); err != nil {
@@ -171,120 +233,26 @@ func (s *historyScan) last(index []indexEntry) (HistoryPage, error) {
 		if g+1 < len(index) {
 			end = index[g+1].offset
 		}
-		granule, n, _, err := s.read(nil, 0, end)
+		chunk, _, err := s.read(0, end)
 		if err != nil {
 			return HistoryPage{}, err
 		}
-		rows = append(granule, rows...)
-		count += n
+		if chunk.Rows > 0 {
+			chunks = append([]*Chunk{chunk}, chunks...)
+			count += chunk.Rows
+		}
 		if s.query.MinStep != nil && index[g].step < *s.query.MinStep {
 			break
 		}
 	}
-	for ; count > s.query.Last; count-- {
-		rows = rows[indexByteAfterNewline(rows):]
-	}
-	return HistoryPage{Rows: rows}, nil
-}
-
-func indexByteAfterNewline(rows []byte) int {
-	for i, c := range rows {
-		if c == '\n' {
-			return i + 1
-		}
-	}
-	return len(rows)
-}
-
-// appendRow appends the record's items as a JSON object line, with _step
-// from the record's step when it has one. When keys is non-nil, only those
-// keys and _step are included, and the row is skipped (dst is returned
-// unchanged with false) if none of the keys is present.
-func appendRow(dst []byte, history *spb.HistoryRecord, keys map[string]struct{}) ([]byte, bool) {
-	start := len(dst)
-	dst = append(dst, '{')
-	if history.Step != nil {
-		dst = append(dst, `"_step":`...)
-		dst = strconv.AppendInt(dst, history.Step.GetNum(), 10)
-	}
-	matched := keys == nil
-	for _, item := range history.GetItem() {
-		key := HistoryItemKey(item)
-		if key == "_step" && history.Step != nil {
+	for excess := count - s.query.Last; excess > 0; {
+		if chunks[0].Rows <= excess {
+			excess -= chunks[0].Rows
+			chunks = chunks[1:]
 			continue
 		}
-		if keys != nil {
-			if _, wanted := keys[key]; wanted {
-				matched = true
-			} else if key != "_step" {
-				continue
-			}
-		}
-		dst = appendField(dst, start, key, item.GetValueJson())
+		chunks[0].dropFront(excess)
+		excess = 0
 	}
-	if !matched {
-		return dst[:start], false
-	}
-	return append(dst, '}', '\n'), true
-}
-
-// appendStatsRow appends the record's metrics as a JSON object line with
-// _timestamp in seconds and each metric under "system.". When keys is
-// non-nil, only those metrics are included, and the row is skipped (dst is
-// returned unchanged with false) if none of them is present.
-func appendStatsRow(dst []byte, stats *spb.StatsRecord, keys map[string]struct{}) ([]byte, bool) {
-	start := len(dst)
-	dst = append(dst, '{')
-	if ts := stats.GetTimestamp(); ts != nil {
-		dst = append(dst, `"_timestamp":`...)
-		dst = strconv.AppendFloat(dst,
-			float64(ts.GetSeconds())+float64(ts.GetNanos())/1e9, 'f', -1, 64)
-	}
-	matched := keys == nil
-	for _, item := range stats.GetItem() {
-		key := "system." + item.GetKey()
-		if keys != nil {
-			if _, wanted := keys[key]; !wanted {
-				continue
-			}
-			matched = true
-		}
-		dst = appendField(dst, start, key, item.GetValueJson())
-	}
-	if !matched {
-		return dst[:start], false
-	}
-	return append(dst, '}', '\n'), true
-}
-
-// appendField appends a field to the JSON object that begins at start,
-// writing null for an empty value.
-func appendField(dst []byte, start int, key, value string) []byte {
-	if len(dst) > start+1 {
-		dst = append(dst, ',')
-	}
-	dst = appendJSONString(dst, key)
-	dst = append(dst, ':')
-	if value == "" {
-		return append(dst, "null"...)
-	}
-	return append(dst, value...)
-}
-
-const hexDigits = "0123456789abcdef"
-
-// appendJSONString appends s as a quoted JSON string.
-func appendJSONString(dst []byte, s string) []byte {
-	dst = append(dst, '"')
-	for i := 0; i < len(s); i++ {
-		switch c := s[i]; {
-		case c == '"' || c == '\\':
-			dst = append(dst, '\\', c)
-		case c < 0x20:
-			dst = append(dst, '\\', 'u', '0', '0', hexDigits[c>>4], hexDigits[c&0xf])
-		default:
-			dst = append(dst, c)
-		}
-	}
-	return append(dst, '"')
+	return HistoryPage{Chunks: chunks}, nil
 }

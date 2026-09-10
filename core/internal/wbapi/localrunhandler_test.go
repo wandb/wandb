@@ -2,6 +2,8 @@ package wbapi
 
 import (
 	"context"
+	"encoding/binary"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -103,7 +105,12 @@ func TestLocalRunHandler(t *testing.T) {
 	history := h.HandleReadLocalRunHistory(ctx, &spb.ReadLocalRunHistoryRequest{
 		WandbFile: path, Keys: []string{"loss"}, Last: &last,
 	}).GetReadLocalRunHistoryResponse()
-	assert.Equal(t, "{\"_step\":1,\"loss\":0.5}\n", string(history.GetRows()))
+	require.Len(t, history.GetChunks(), 1)
+	assert.Equal(t, int64(1), history.Chunks[0].GetRows())
+	assert.Equal(t, "_step", history.Chunks[0].Columns[0].GetKey())
+	assert.Equal(t, []byte{1, 0, 0, 0, 0, 0, 0, 0}, history.Chunks[0].Columns[0].GetInts())
+	assert.Equal(t, "loss", history.Chunks[0].Columns[1].GetKey())
+	assert.Equal(t, 0.5, math.Float64frombits(binary.LittleEndian.Uint64(history.Chunks[0].Columns[1].GetFloats())))
 	assert.Zero(t, history.GetNextOffset())
 
 	tail := h.HandleReadLocalRunConsoleLogs(ctx, &spb.ReadLocalRunConsoleLogsRequest{

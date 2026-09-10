@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import math
 import pathlib
+import struct
 from datetime import datetime, timezone
 from unittest import mock
 
@@ -99,18 +101,48 @@ def test_run_details_are_read_once_until_refresh(tmp_path):
     assert service_api.send_api_request.call_count == 2
 
 
+def _column(key, *, ints=None, floats=None, json=None, rows=None):
+    col = apb.LocalHistoryColumn(key=key)
+    if ints is not None:
+        col.ints = struct.pack(f"<{len(ints)}q", *ints)
+    if floats is not None:
+        col.floats = struct.pack(f"<{len(floats)}d", *floats)
+    if json is not None:
+        col.json.extend(json)
+    if rows is not None:
+        col.rows = struct.pack(f"<{len(rows)}I", *rows)
+    return col
+
+
+def _page(*chunks, next_offset=0):
+    return apb.ApiResponse(
+        read_local_run_history_response=apb.ReadLocalRunHistoryResponse(
+            chunks=chunks, next_offset=next_offset
+        )
+    )
+
+
 def test_history_follows_pages(tmp_path):
     service_api = mock.MagicMock()
     service_api.send_api_request.side_effect = [
-        apb.ApiResponse(
-            read_local_run_history_response=apb.ReadLocalRunHistoryResponse(
-                rows=b'{"_step":3,"loss":0.25}\n{"_step":4,"a.b":"x"}\n',
-                next_offset=512,
-            )
+        _page(
+            apb.LocalHistoryChunk(
+                rows=2,
+                columns=[
+                    _column("_step", ints=[3, 4]),
+                    _column("loss", floats=[0.25], rows=[0]),
+                    _column("a.b", json=['"x"'], rows=[1]),
+                ],
+            ),
+            next_offset=512,
         ),
-        apb.ApiResponse(
-            read_local_run_history_response=apb.ReadLocalRunHistoryResponse(
-                rows=b'{"_step":5,"loss":NaN}\n'
+        _page(
+            apb.LocalHistoryChunk(
+                rows=1,
+                columns=[
+                    _column("_step", ints=[5]),
+                    _column("loss", floats=[math.nan]),
+                ],
             )
         ),
     ]
@@ -119,7 +151,7 @@ def test_history_follows_pages(tmp_path):
     rows = list(run.history(keys=["loss", "a.b"], min_step=3))
 
     assert rows[:2] == [{"_step": 3, "loss": 0.25}, {"_step": 4, "a.b": "x"}]
-    assert rows[2]["loss"] != rows[2]["loss"]
+    assert math.isnan(rows[2]["loss"])
     first, second = (
         call.args[0].read_local_run_history_request
         for call in service_api.send_api_request.call_args_list
@@ -132,24 +164,35 @@ def test_history_follows_pages(tmp_path):
 def test_history_dataframes(tmp_path):
     pl = pytest.importorskip("polars")
     service_api = mock.MagicMock()
-    service_api.send_api_request.return_value = apb.ApiResponse(
-        read_local_run_history_response=apb.ReadLocalRunHistoryResponse(
-            rows=b'{"_step":0,"loss":1.0}\n{"_step":1,"loss":NaN,"acc":0.5}\n'
+    service_api.send_api_request.return_value = _page(
+        apb.LocalHistoryChunk(
+            rows=2,
+            columns=[
+                _column("_step", ints=[0, 1]),
+                _column("loss", floats=[1.0, math.nan]),
+                _column("acc", floats=[0.5], rows=[1]),
+                _column("epoch", ints=[2], rows=[0]),
+            ],
         )
     )
     history = LocalRun(service_api, info=_info(tmp_path)).history()
 
     pandas_df = history.to_pandas()
-    assert list(pandas_df.columns) == ["_step", "loss", "acc"]
+    assert list(pandas_df.columns) == ["_step", "loss", "acc", "epoch"]
     assert pandas_df["acc"].isna().tolist() == [True, False]
+    assert pandas_df["epoch"].tolist()[0] == 2 and pandas_df[
+        "epoch"
+    ].isna().tolist() == [False, True]
 
     polars_df = history.to_polars()
     assert polars_df.schema == {
         "_step": pl.Int64,
         "loss": pl.Float64,
         "acc": pl.Float64,
+        "epoch": pl.Int64,
     }
     assert polars_df["acc"].to_list() == [None, 0.5]
+    assert polars_df["epoch"].to_list() == [2, None]
 
 
 def test_console_logs(tmp_path):
