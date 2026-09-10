@@ -68,6 +68,22 @@ func TestAllowResumeEmptyResponse(t *testing.T) {
 	assert.Nil(t, err, "GetUpdates should not return an error")
 }
 
+func TestEmptyResumeModeEmptyResponse(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("RunResumeStatus"),
+		`{}`,
+	)
+	resumeState := runbranch.NewResumeBranch(
+		context.Background(),
+		mockGQL,
+		"",
+		observability.NewNoOpLogger(),
+	)
+	err := resumeState.UpdateForResume(&runbranch.RunParams{}, runconfig.New())
+	assert.Nil(t, err, "GetUpdates should not return an error")
+}
+
 func TestMustResumeEmptyResponse(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
 	mockGQL.StubMatchOnce(
@@ -83,7 +99,13 @@ func TestMustResumeEmptyResponse(t *testing.T) {
 	err := resumeState.UpdateForResume(&runbranch.RunParams{}, runconfig.New())
 	assert.NotNil(t, err, "GetUpdates should return an error")
 	assert.IsType(t, &runbranch.BranchError{}, err, "GetUpdates should return a BranchError")
-	assert.NotNil(t, err.(*runbranch.BranchError).Response, "BranchError should have a response")
+	branchErr := err.(*runbranch.BranchError)
+	assert.NotNil(t, branchErr.Response, "BranchError should have a response")
+	assert.Contains(
+		t,
+		branchErr.Response.Message,
+		"requires an existing run to resume",
+	)
 }
 
 func TestMustResumeNilResponse(t *testing.T) {
@@ -105,7 +127,7 @@ func TestMustResumeNilResponse(t *testing.T) {
 	assert.NotNil(t, err.(*runbranch.BranchError).Response, "BranchError should have a response")
 }
 
-func TestNeverResumeNoneEmptyResponse(t *testing.T) {
+func TestNeverResumeNonEmptyResponse(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
 	history := "[]"
 	config := "{}"
@@ -176,7 +198,7 @@ func TestMustResumeNoTelemetryInConfig(t *testing.T) {
 	assert.IsType(t, &runbranch.BranchError{}, err, "GetUpdates should return a BranchError")
 }
 
-func TestAllowResumeNoneEmptyResponse(t *testing.T) {
+func TestAllowResumeNonEmptyResponse(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
 
 	historyLineCount := 0
@@ -218,7 +240,7 @@ func TestAllowResumeNoneEmptyResponse(t *testing.T) {
 	assert.Nil(t, err, "GetUpdates should not return an error")
 }
 
-func TestMustResumeNoneEmptyResponse(t *testing.T) {
+func TestMustResumeNonEmptyResponse(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
 
 	historyLineCount := 0
