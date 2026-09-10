@@ -15,14 +15,14 @@ on:
       artifact-name:
         type: string
         required: true
-
-permissions:
-  contents: read
+      cluster-tests:
+        type: boolean
+        default: false
 
 jobs:
   test:
     name: ${{ matrix.group }} of 4
-    runs-on: ${{ inputs.runs-on }}
+    runs-on: ${{ inputs.cluster-tests && 'ubuntu-24.04' || inputs.runs-on }}
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -33,6 +33,15 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/run-nox-tests
+        if: ${{ !inputs.cluster-tests }}
+        with:
+          python: ${{ inputs.python }}
+          wheel-artifact: ${{ inputs.wheel-artifact }}
+          test-group: ${{ matrix.group }}
+          test-groups: "4"
+          artifact-name: ${{ inputs.artifact-name }}-${{ matrix.group }}
+      - uses: ./.github/actions/run-cluster-tests
+        if: inputs.cluster-tests
         with:
           python: ${{ inputs.python }}
           session: unit_tests
@@ -40,3 +49,5 @@ jobs:
           test-group: ${{ matrix.group }}
           test-groups: "4"
           artifact-name: ${{ inputs.artifact-name }}-${{ matrix.group }}
+          gcp-provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          gcp-service-account: ${{ secrets.GCP_REGISTRY_SA }}

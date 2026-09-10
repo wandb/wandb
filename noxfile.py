@@ -207,27 +207,31 @@ def run_pytest(
     )
 
 
-def install_unit_test_dependencies(
-    session: nox.Session, *, skip_wandb: bool = False
+def install_test_dependencies(
+    session: nox.Session, *packages: str, skip_wandb: bool = False
 ) -> None:
     requirements_args = [
         "-r",
         _requirements_file(session.python),
     ]
-    if skip_wandb:
+    if skip_wandb or os.environ.get("WANDB_TEST_WHEEL"):
         # The compiled requirements contain the complete dependency closure.
         # Skip the local project referenced by its extras to avoid building the SDK.
         excludes = pathlib.Path(session.create_tmp(), "requirements-excludes.txt")
         excludes.write_text("wandb\n")
         requirements_args[:0] = ["--no-deps", "--excludes", str(excludes)]
-    install_timed(session, *requirements_args)
-    install_timed(session, "polyfactory")  # For test_reports.
+        install_timed(session, *requirements_args)
+        if packages:
+            # Additional packages still need their transitive dependencies.
+            install_timed(session, *packages)
+    else:
+        install_timed(session, *requirements_args, *packages)
 
 
 @nox.session(python=["3.10", "3.13"], default=False)
 def unit_test_dependencies(session: nox.Session) -> None:
     """Prepares the unit-test dependency cache without building the SDK."""
-    install_unit_test_dependencies(session, skip_wandb=True)
+    install_test_dependencies(session, "polyfactory", skip_wandb=True)
 
 
 @nox.session(python=_SUPPORTED_PYTHONS)
@@ -246,9 +250,8 @@ def unit_tests(session: nox.Session) -> None:
         session.env["WANDB_BUILD_SKIP_WANDB_XPU"] = "true"
 
     install_wandb(session, dev=not is_windows)
-    install_unit_test_dependencies(
-        session, skip_wandb=bool(os.environ.get("WANDB_TEST_WHEEL"))
-    )
+    install_test_dependencies(session)
+    install_timed(session, "polyfactory")  # For test_reports.
 
     paths = session.posargs or ["tests/unit_tests"]
 
@@ -268,10 +271,8 @@ def unit_tests(session: nox.Session) -> None:
 @nox.session(python=_SUPPORTED_PYTHONS)
 def system_tests(session: nox.Session) -> None:
     install_wandb(session)
-    install_timed(
+    install_test_dependencies(
         session,
-        "-r",
-        _requirements_file(session.python),
         "annotated-types",  # for test_reports
     )
 
@@ -293,10 +294,8 @@ def system_tests(session: nox.Session) -> None:
 @nox.session(python=_SUPPORTED_PYTHONS)
 def notebook_tests(session: nox.Session) -> None:
     install_wandb(session)
-    install_timed(
+    install_test_dependencies(
         session,
-        "-r",
-        _requirements_file(session.python),
         "nbclient",
         "nbconvert",
         "nbformat",
@@ -328,11 +327,7 @@ def notebook_tests(session: nox.Session) -> None:
 def functional_tests(session: nox.Session):
     """Runs functional tests using pytest."""
     install_wandb(session)
-    install_timed(
-        session,
-        "-r",
-        _requirements_file(session.python),
-    )
+    install_test_dependencies(session)
 
     run_pytest(
         session,
@@ -356,11 +351,7 @@ def functional_tests(session: nox.Session):
 def experimental_tests(session: nox.Session):
     """Runs functional tests of experimental clients in different languages using pytest."""
     install_wandb(session)
-    install_timed(
-        session,
-        "-r",
-        _requirements_file(session.python),
-    )
+    install_test_dependencies(session)
 
     run_pytest(
         session,
