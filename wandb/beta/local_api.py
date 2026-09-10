@@ -74,8 +74,10 @@ class LocalApi:
     def runs(self) -> list[LocalRun]:
         """Returns the runs in the directory, newest first.
 
-        Reads each run's log to recover its latest metadata. Up to 32 runs
-        are cached; later reads of cached runs process only appended records.
+        Each run's identity and state come from the first and last records
+        of its log, so listing costs the same for runs of any size. A name,
+        tags or notes change in the middle of a run shows once the run's
+        details are read.
         """
         request = apb.ApiRequest(
             list_local_runs_request=apb.ListLocalRunsRequest(wandb_dir=self.wandb_dir)
