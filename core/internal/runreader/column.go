@@ -129,6 +129,22 @@ func (c *Chunk) dropFront(n int) {
 	c.Columns = slices.DeleteFunc(c.Columns, func(col *Column) bool { return col.len() == 0 })
 }
 
+// truncate keeps the first n rows of a finished chunk.
+func (c *Chunk) truncate(n int) {
+	for _, col := range c.Columns {
+		k := n
+		if col.RowIndex != nil {
+			k = sort.Search(len(col.RowIndex), func(i int) bool { return int(col.RowIndex[i]) >= n })
+			col.RowIndex = col.RowIndex[:k]
+		}
+		col.Ints = col.Ints[:min(k, len(col.Ints))]
+		col.Floats = col.Floats[:min(k, len(col.Floats))]
+		col.JSON = col.JSON[:min(k, len(col.JSON))]
+	}
+	c.Rows = n
+	c.Columns = slices.DeleteFunc(c.Columns, func(col *Column) bool { return col.len() == 0 })
+}
+
 func (col *Column) len() int {
 	return len(col.Ints) + len(col.Floats) + len(col.JSON)
 }

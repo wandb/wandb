@@ -38,21 +38,45 @@ func OpenCursor(path string, logger *observability.CoreLogger) (*Cursor, error) 
 // so Next can be retried after the file grows. Any other error is terminal:
 // the file is not a transaction log this version can read.
 func (c *Cursor) Next() (*spb.Record, int64, error) {
+	var record *spb.Record
+	offset, err := c.next(func() (err error) {
+		record, err = c.reader.Read()
+		return err
+	})
+	return record, offset, err
+}
+
+// NextRaw appends the next record's serialized bytes to dst and returns the
+// result with the record's offset. Errors are as for Next.
+func (c *Cursor) NextRaw(dst []byte) ([]byte, int64, error) {
+	offset, err := c.next(func() (err error) {
+		dst, err = c.reader.ReadRaw(dst)
+		return err
+	})
+	if err != nil {
+		return nil, 0, err
+	}
+	return dst, offset, nil
+}
+
+// next runs read at the cursor, skipping corrupt data, and returns the
+// offset the record was read from.
+func (c *Cursor) next(read func() error) (int64, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.reader == nil {
-		return nil, 0, ErrClosed
+		return 0, ErrClosed
 	}
 	for {
 		before := c.reader.NextRecordOffset()
-		record, err := c.reader.Read()
+		err := read()
 		switch {
 		case err == nil:
-			return record, before, nil
+			return before, nil
 		case errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF):
-			return nil, 0, errors.Join(io.EOF, c.reader.ResetLastRead())
+			return 0, errors.Join(io.EOF, c.reader.ResetLastRead())
 		case c.reader.NextRecordOffset() <= before:
-			return nil, 0, err
+			return 0, err
 		}
 		c.skipped++
 	}

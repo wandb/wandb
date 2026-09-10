@@ -371,7 +371,7 @@ class LocalHistory:
     build their frames without touching values one at a time.
     """
 
-    _PAGE_ROWS = 10_000
+    _PAGE_ROWS = 100_000
 
     def __init__(
         self,
