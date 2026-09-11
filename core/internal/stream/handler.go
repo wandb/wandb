@@ -91,12 +91,6 @@ type Handler struct {
 	// pollExitLogRateLimit limits log messages when handling PollExit requests
 	pollExitLogRateLimit *rate.Limiter
 
-	// runHistorySampler tracks samples of all metrics in the run's history.
-	//
-	// This is used to display the sparkline in the terminal at the end of
-	// the run.
-	runHistorySampler *runhistory.RunHistorySampler
-
 	// runRecord is the runRecord record received from the server
 	runRecord *spb.RunRecord
 
@@ -137,7 +131,6 @@ func (f *HandlerFactory) New(extraWork runwork.ExtraWork) *Handler {
 		metricHandler:        runmetric.New(),
 		operations:           f.Operations,
 		pollExitLogRateLimit: rate.NewLimiter(rate.Every(time.Minute), 1),
-		runHistorySampler:    runhistory.NewRunHistorySampler(),
 		runSummary:           runsummary.New(),
 		runHandle:            f.RunHandle,
 		settings:             f.Settings,
@@ -1070,8 +1063,6 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 	}
 	h.metricHandler.InsertStepMetrics(h.partialHistory)
 
-	h.runHistorySampler.SampleNext(h.partialHistory)
-
 	// Update the summary if server-side derived summaries are disabled.
 	if !h.settings.IsEnableServerSideDerivedSummary() {
 		h.updateRunTiming()
@@ -1148,11 +1139,5 @@ func (h *Handler) handleRequestSampledHistory(
 	record *spb.Record,
 	request *runwork.Request,
 ) {
-	h.respond(request, &spb.Response{
-		ResponseType: &spb.Response_SampledHistoryResponse{
-			SampledHistoryResponse: &spb.SampledHistoryResponse{
-				Item: h.runHistorySampler.Get(),
-			},
-		},
-	})
+	h.fwdRecord(record, request)
 }

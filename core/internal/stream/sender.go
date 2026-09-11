@@ -26,6 +26,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runconsolelogs"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runhandle"
+	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -116,6 +117,12 @@ type Sender struct {
 
 	// stepTracker assigns increasing _step values and updates summary _step.
 	stepTracker *HistoryStepTracker
+
+	// runHistorySampler tracks samples of all metrics in the run's history.
+	//
+	// This is used to display the sparkline in the terminal at the end of
+	// the run.
+	runHistorySampler *runhistory.RunHistorySampler
 
 	// receivedExit is true once the Sender receives an Exit record.
 	receivedExit bool
@@ -231,8 +238,9 @@ func (f *SenderFactory) NewWithFileStream(
 		graphqlClient:     f.GraphqlClient,
 		mailbox:           f.Mailbox,
 		runHandle:         f.RunHandle,
-		stepTracker:       f.HistoryStepTracker,
 		runSummary:        runsummary.New(),
+		stepTracker:       f.HistoryStepTracker,
+		runHistorySampler: runhistory.NewRunHistorySampler(),
 		consoleLogsSender: runconsolelogs.New(consoleLogsSenderParams),
 	}
 
@@ -400,26 +408,34 @@ func (s *Sender) sendRequest(
 	request *runwork.Request,
 ) {
 	switch x := requestRecord.RequestType.(type) {
+	// These requests were removed from the client, so we don't need to
+	// handle them. Keep for now, remove in the future:
 	case *spb.Request_ServerInfo:
 	case *spb.Request_CheckVersion:
-		// These requests were removed from the client, so we don't need to
-		// handle them. Keep for now should be removed in the future
+
 	case *spb.Request_RunStart:
 		s.sendRequestRunStart(x.RunStart)
 	case *spb.Request_NetworkStatus:
 		s.sendRequestNetworkStatus(x.NetworkStatus, request)
+
+	case *spb.Request_SampledHistory:
+		s.sendRequestSampledHistory(x.SampledHistory, request)
+
 	case *spb.Request_LogArtifact:
 		s.sendRequestLogArtifact(x.LogArtifact, request)
 	case *spb.Request_LinkArtifact:
 		s.sendLinkArtifact(x.LinkArtifact, request)
 	case *spb.Request_DownloadArtifact:
 		s.sendRequestDownloadArtifact(x.DownloadArtifact, request)
+
 	case *spb.Request_SenderRead:
 		// TODO: implement this
+
 	case *spb.Request_StopStatus:
 		s.sendRequestStopStatus(request)
 	case *spb.Request_JobInput:
 		s.sendRequestJobInput(x.JobInput)
+
 	case nil:
 		s.logger.CaptureFatalAndPanic(
 			"stream",
@@ -509,6 +525,19 @@ func (s *Sender) sendRequestNetworkStatus(
 			},
 		)
 	}
+}
+
+func (s *Sender) sendRequestSampledHistory(
+	record *spb.SampledHistoryRequest,
+	request *runwork.Request,
+) {
+	s.respond(request, &spb.Response{
+		ResponseType: &spb.Response_SampledHistoryResponse{
+			SampledHistoryResponse: &spb.SampledHistoryResponse{
+				Item: s.runHistorySampler.Get(),
+			},
+		},
+	})
 }
 
 func (s *Sender) sendJobFlush() {
@@ -840,6 +869,8 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 		s.logCalledAfterExit("sendHistory")
 		return
 	}
+
+	s.runHistorySampler.SampleNext(record)
 
 	step, err := s.stepTracker.ApplyHistoryStep(record)
 	if err != nil {
