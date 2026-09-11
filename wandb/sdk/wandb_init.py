@@ -932,11 +932,6 @@ class _WandbInit:
         if not (settings.disable_git or settings.x_disable_machine_info):
             run._populate_git_info()
 
-        if settings._offline and settings.resume:
-            wandb.termwarn(
-                "`resume` will be ignored since W&B syncing is set to `offline`. "
-                f"Starting a new run with run id {run.id}."
-            )
         error: wandb.Error | None = None
 
         timeout = settings.init_timeout

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -21,6 +22,7 @@ import (
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
+	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runconsolelogs"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runhandle"
@@ -38,6 +40,7 @@ import (
 
 var SenderProviders = wire.NewSet(
 	wire.Struct(new(SenderFactory), "*"),
+	NewHistoryStepTracker,
 )
 
 // SenderFactory constructs a Sender.
@@ -59,6 +62,7 @@ type SenderFactory struct {
 	Printer                 *observability.Printer
 	RunHandle               *runhandle.RunHandle
 	Mailbox                 *mailbox.Mailbox
+	HistoryStepTracker      *HistoryStepTracker
 }
 
 // Sender performs blocking operations to process Work, such as uploading data.
@@ -110,6 +114,9 @@ type Sender struct {
 	// runSummary is the full summary for the run
 	runSummary *runsummary.RunSummary
 
+	// stepTracker assigns increasing _step values and updates summary _step.
+	stepTracker *HistoryStepTracker
+
 	// receivedExit is true once the Sender receives an Exit record.
 	receivedExit bool
 
@@ -145,7 +152,16 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 			f.Settings,
 		)
 	}
+	return f.NewWithFileStream(runWork, fileStream)
+}
 
+// NewWithFileStream returns a new Sender that uses the given FileStream.
+//
+// Tests use this to inject a fake FileStream. Production code should use New.
+func (f *SenderFactory) NewWithFileStream(
+	runWork runwork.RunWork,
+	fileStream fs.FileStream,
+) *Sender {
 	var runfilesUploader runfiles.Uploader
 	if !f.Settings.IsOffline() {
 		runfilesUploader = f.RunfilesUploaderFactory.New(
@@ -215,6 +231,7 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 		graphqlClient:     f.GraphqlClient,
 		mailbox:           f.Mailbox,
 		runHandle:         f.RunHandle,
+		stepTracker:       f.HistoryStepTracker,
 		runSummary:        runsummary.New(),
 		consoleLogsSender: runconsolelogs.New(consoleLogsSenderParams),
 	}
@@ -814,11 +831,22 @@ func (s *Sender) sendUseArtifact(record *spb.Record) {
 	s.jobBuilder.HandleUseArtifactRecord(record)
 }
 
-// sendHistory sends a history record to the file stream,
-// which will then send it to the server
+// sendHistory queues a history record for uploading to the server.
+//
+// If the history record does not contain a _step value, this method will
+// auto-assign one. It will also update the run summary's _step value.
 func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 	if s.receivedExit {
 		s.logCalledAfterExit("sendHistory")
+		return
+	}
+
+	step, err := s.stepTracker.ApplyHistoryStep(record)
+	if err != nil {
+		s.logger.CaptureError(
+			"stream",
+			fmt.Errorf("sender: error applying history step: %v", err),
+		)
 		return
 	}
 
@@ -827,6 +855,18 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 	}
 
 	s.fileStream.StreamUpdate(&fs.HistoryUpdate{Record: record})
+	if !s.settings.IsSharedMode() || !s.settings.IsEnableServerSideDerivedSummary() {
+		s.updateSummaryStep(step)
+	}
+}
+
+func (s *Sender) updateSummaryStep(step int64) {
+	s.runSummary.Set(pathtree.PathOf("_step"), step)
+	updates := runsummary.FromProto(&spb.SummaryRecord{Update: []*spb.SummaryItem{{
+		Key:       "_step",
+		ValueJson: strconv.FormatInt(step, 10),
+	}}})
+	s.fileStream.StreamUpdate(&fs.SummaryUpdate{Updates: updates})
 }
 
 func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {
@@ -836,6 +876,10 @@ func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {
 	}
 
 	updates := runsummary.FromProto(summary)
+
+	// Summary should always use the step from history records.
+	updates.IgnoreStep()
+
 	if err := updates.Apply(s.runSummary); err != nil {
 		s.logger.CaptureError(
 			"stream",

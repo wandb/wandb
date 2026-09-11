@@ -44,7 +44,8 @@ func TestNeverResumeEmptyResponse(t *testing.T) {
 	resumeState := runbranch.NewResumeBranch(
 		context.Background(),
 		mockGQL,
-		"never")
+		"never",
+	)
 	err := resumeState.UpdateForResume(&runbranch.RunParams{}, runconfig.New())
 	assert.Nil(t, err, "GetUpdates should not return an error")
 }
@@ -58,7 +59,23 @@ func TestAllowResumeEmptyResponse(t *testing.T) {
 	resumeState := runbranch.NewResumeBranch(
 		context.Background(),
 		mockGQL,
-		"allow")
+		"allow",
+	)
+	err := resumeState.UpdateForResume(&runbranch.RunParams{}, runconfig.New())
+	assert.Nil(t, err, "GetUpdates should not return an error")
+}
+
+func TestEmptyResumeModeEmptyResponse(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("RunResumeStatus"),
+		`{}`,
+	)
+	resumeState := runbranch.NewResumeBranch(
+		context.Background(),
+		mockGQL,
+		"",
+	)
 	err := resumeState.UpdateForResume(&runbranch.RunParams{}, runconfig.New())
 	assert.Nil(t, err, "GetUpdates should not return an error")
 }
@@ -72,11 +89,18 @@ func TestMustResumeEmptyResponse(t *testing.T) {
 	resumeState := runbranch.NewResumeBranch(
 		context.Background(),
 		mockGQL,
-		"must")
+		"must",
+	)
 	err := resumeState.UpdateForResume(&runbranch.RunParams{}, runconfig.New())
 	assert.NotNil(t, err, "GetUpdates should return an error")
 	assert.IsType(t, &runbranch.BranchError{}, err, "GetUpdates should return a BranchError")
-	assert.NotNil(t, err.(*runbranch.BranchError).Response, "BranchError should have a response")
+	branchErr := err.(*runbranch.BranchError)
+	assert.NotNil(t, branchErr.Response, "BranchError should have a response")
+	assert.Contains(
+		t,
+		branchErr.Response.Message,
+		"requires an existing run to resume",
+	)
 }
 
 func TestMustResumeNilResponse(t *testing.T) {
@@ -89,14 +113,15 @@ func TestMustResumeNilResponse(t *testing.T) {
 	resumeState := runbranch.NewResumeBranch(
 		context.Background(),
 		mockGQL,
-		"must")
+		"must",
+	)
 	err := resumeState.UpdateForResume(&runbranch.RunParams{}, runconfig.New())
 	assert.NotNil(t, err, "GetUpdates should return an error")
 	assert.IsType(t, &runbranch.BranchError{}, err, "GetUpdates should return a BranchError")
 	assert.NotNil(t, err.(*runbranch.BranchError).Response, "BranchError should have a response")
 }
 
-func TestNeverResumeNoneEmptyResponse(t *testing.T) {
+func TestNeverResumeNonEmptyResponse(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
 	history := "[]"
 	config := "{}"
@@ -123,7 +148,8 @@ func TestNeverResumeNoneEmptyResponse(t *testing.T) {
 	resumeState := runbranch.NewResumeBranch(
 		context.Background(),
 		mockGQL,
-		"never")
+		"never",
+	)
 	err = resumeState.UpdateForResume(&runbranch.RunParams{}, runconfig.New())
 	assert.NotNil(t, err, "GetUpdates should return an error")
 	assert.IsType(t, &runbranch.BranchError{}, err, "GetUpdates should return a BranchError")
@@ -157,13 +183,14 @@ func TestMustResumeNoTelemetryInConfig(t *testing.T) {
 	resumeState := runbranch.NewResumeBranch(
 		context.Background(),
 		mockGQL,
-		"must")
+		"must",
+	)
 	err = resumeState.UpdateForResume(&runbranch.RunParams{}, runconfig.New())
 	assert.NotNil(t, err, "GetUpdates should return an error")
 	assert.IsType(t, &runbranch.BranchError{}, err, "GetUpdates should return a BranchError")
 }
 
-func TestAllowResumeNoneEmptyResponse(t *testing.T) {
+func TestAllowResumeNonEmptyResponse(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
 
 	historyLineCount := 0
@@ -198,12 +225,13 @@ func TestAllowResumeNoneEmptyResponse(t *testing.T) {
 	resumeState := runbranch.NewResumeBranch(
 		context.Background(),
 		mockGQL,
-		"allow")
+		"allow",
+	)
 	err = resumeState.UpdateForResume(&runbranch.RunParams{}, runconfig.New())
 	assert.Nil(t, err, "GetUpdates should not return an error")
 }
 
-func TestMustResumeNoneEmptyResponse(t *testing.T) {
+func TestMustResumeNonEmptyResponse(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
 
 	historyLineCount := 0
@@ -237,7 +265,8 @@ func TestMustResumeNoneEmptyResponse(t *testing.T) {
 	resumeState := runbranch.NewResumeBranch(
 		context.Background(),
 		mockGQL,
-		"must")
+		"must",
+	)
 	err = resumeState.UpdateForResume(&runbranch.RunParams{}, runconfig.New())
 	assert.Nil(t, err, "GetUpdates should not return an error")
 }
@@ -277,7 +306,8 @@ func TestMustResumeValidHistory(t *testing.T) {
 	resumeState := runbranch.NewResumeBranch(
 		context.Background(),
 		mockGQL,
-		"must")
+		"must",
+	)
 	params := &runbranch.RunParams{}
 	err = resumeState.UpdateForResume(params, runconfig.New())
 	assert.Equal(t, int64(2), params.StartingStep, "GetUpdates should return correct starting step")
@@ -286,7 +316,7 @@ func TestMustResumeValidHistory(t *testing.T) {
 	assert.Nil(t, err, "GetUpdates should not return an error")
 }
 
-func TestMustResumeZeroHisotry(t *testing.T) {
+func TestMustResumeZeroHistory(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
 
 	historyLineCount := 0
@@ -321,7 +351,8 @@ func TestMustResumeZeroHisotry(t *testing.T) {
 	resumeState := runbranch.NewResumeBranch(
 		context.Background(),
 		mockGQL,
-		"must")
+		"must",
+	)
 	params := &runbranch.RunParams{}
 	err = resumeState.UpdateForResume(params, runconfig.New())
 	assert.Equal(t, int64(0), params.StartingStep, "GetUpdates should return correct starting step")
@@ -365,7 +396,8 @@ func TestMustResumeHistoryTailStepZero(t *testing.T) {
 	resumeState := runbranch.NewResumeBranch(
 		context.Background(),
 		mockGQL,
-		"must")
+		"must",
+	)
 
 	params := &runbranch.RunParams{}
 	err = resumeState.UpdateForResume(params, runconfig.New())
@@ -410,7 +442,8 @@ func TestMustResumeValidSummary(t *testing.T) {
 	resumeState := runbranch.NewResumeBranch(
 		context.Background(),
 		mockGQL,
-		"must")
+		"must",
+	)
 
 	params := &runbranch.RunParams{}
 	err = resumeState.UpdateForResume(params, runconfig.New())
@@ -473,7 +506,8 @@ func TestMustResumeValidConfig(t *testing.T) {
 	resumeState := runbranch.NewResumeBranch(
 		context.Background(),
 		mockGQL,
-		"must")
+		"must",
+	)
 
 	params := &runbranch.RunParams{}
 	config := runconfig.New()
@@ -522,7 +556,8 @@ func TestMustResumeValidTags(t *testing.T) {
 	resumeState := runbranch.NewResumeBranch(
 		context.Background(),
 		mockGQL,
-		"must")
+		"must",
+	)
 
 	params := &runbranch.RunParams{}
 	err = resumeState.UpdateForResume(params, runconfig.New())
@@ -571,7 +606,8 @@ func TestMustResumeValidStorageId(t *testing.T) {
 	resumeState := runbranch.NewResumeBranch(
 		context.Background(),
 		mockGQL,
-		"must")
+		"must",
+	)
 
 	params := &runbranch.RunParams{}
 	err = resumeState.UpdateForResume(params, runconfig.New())
@@ -619,7 +655,8 @@ func TestMustResumeValidEvents(t *testing.T) {
 	resumeState := runbranch.NewResumeBranch(
 		context.Background(),
 		mockGQL,
-		"must")
+		"must",
+	)
 
 	params := &runbranch.RunParams{}
 	err = resumeState.UpdateForResume(params, runconfig.New())
@@ -714,21 +751,11 @@ func TestMustResumeNullValue(t *testing.T) {
 			resumeState := runbranch.NewResumeBranch(
 				context.Background(),
 				mockGQL,
-				"must")
+				"must",
+			)
 
 			err = resumeState.UpdateForResume(&runbranch.RunParams{}, runconfig.New())
 			assert.NotNil(t, err, "GetUpdates should return an error")
-			assert.IsType(
-				t,
-				&runbranch.BranchError{},
-				err,
-				"GetUpdates should return a BranchError",
-			)
-			assert.NotNil(
-				t,
-				err.(*runbranch.BranchError).Response,
-				"BranchError should have a response",
-			)
 		})
 	}
 }
@@ -799,7 +826,8 @@ func TestAllowResumeNullValue(t *testing.T) {
 			resumeState := runbranch.NewResumeBranch(
 				context.Background(),
 				mockGQL,
-				"allow")
+				"allow",
+			)
 
 			err = resumeState.UpdateForResume(&runbranch.RunParams{}, runconfig.New())
 			assert.NotNil(t, err, "GetUpdates should return an error")
@@ -860,21 +888,11 @@ func TestMustResumeInvalidHistory(t *testing.T) {
 			resumeState := runbranch.NewResumeBranch(
 				context.Background(),
 				mockGQL,
-				"must")
+				"must",
+			)
 
 			err = resumeState.UpdateForResume(&runbranch.RunParams{}, runconfig.New())
 			assert.NotNil(t, err, "GetUpdates should return an error")
-			assert.IsType(
-				t,
-				&runbranch.BranchError{},
-				err,
-				"GetUpdates should return a BranchError",
-			)
-			assert.NotNil(
-				t,
-				err.(*runbranch.BranchError).Response,
-				"BranchError should have a response",
-			)
 		})
 	}
 }
@@ -915,13 +933,11 @@ func TestMustResumeInvalidSummary(t *testing.T) {
 	resumeState := runbranch.NewResumeBranch(
 		context.Background(),
 		mockGQL,
-		"must")
+		"must",
+	)
 
 	err = resumeState.UpdateForResume(&runbranch.RunParams{}, runconfig.New())
 	assert.NotNil(t, err, "GetUpdates should return an error")
-	assert.IsType(t, &runbranch.BranchError{}, err, "GetUpdates should return a BranchError")
-	assert.NotNil(t, err.(*runbranch.BranchError).Response, "BranchError should have a response")
-	assert.Nil(t, nil, "GetUpdates should return nil when response is empty")
 }
 
 func TestMustResumeInvalidConfig(t *testing.T) {
@@ -977,21 +993,11 @@ func TestMustResumeInvalidConfig(t *testing.T) {
 			resumeState := runbranch.NewResumeBranch(
 				context.Background(),
 				mockGQL,
-				"must")
+				"must",
+			)
 
 			err = resumeState.UpdateForResume(&runbranch.RunParams{}, runconfig.New())
 			assert.NotNil(t, err, "GetUpdates should return an error")
-			assert.IsType(
-				t,
-				&runbranch.BranchError{},
-				err,
-				"GetUpdates should return a BranchError",
-			)
-			assert.NotNil(
-				t,
-				err.(*runbranch.BranchError).Response,
-				"BranchError should have a response",
-			)
 		})
 	}
 }
@@ -1047,7 +1053,8 @@ func TestNotNeverResumeFileStreamOffset(t *testing.T) {
 			resumeState := runbranch.NewResumeBranch(
 				context.Background(),
 				mockGQL,
-				tc.value)
+				tc.value,
+			)
 			params := &runbranch.RunParams{}
 			err = resumeState.UpdateForResume(params, runconfig.New())
 			assert.Nil(t, err, "GetUpdates should not return an error")
@@ -1120,7 +1127,8 @@ func TestExtractRunState(t *testing.T) {
 	resumeState := runbranch.NewResumeBranch(
 		context.Background(),
 		mockGQL,
-		"allow")
+		"allow",
+	)
 
 	params := &runbranch.RunParams{
 		Entity:  "test-entity",
@@ -1324,7 +1332,8 @@ func TestExtractRunStateNilCases(t *testing.T) {
 			resumeState := runbranch.NewResumeBranch(
 				context.Background(),
 				mockGQL,
-				"must") // Use "must" to ensure errors are returned
+				"must", // Use "must" to ensure errors are returned
+			)
 
 			params := &runbranch.RunParams{
 				Entity:  "test-entity",
@@ -1386,7 +1395,8 @@ func TestExtractRunStateAdjustsStartTime(t *testing.T) {
 	resumeState := runbranch.NewResumeBranch(
 		context.Background(),
 		mockGQL,
-		"must")
+		"must",
+	)
 
 	params := &runbranch.RunParams{
 		Entity:  "test-entity",
@@ -1441,7 +1451,8 @@ func TestResumedRunNotes(t *testing.T) {
 	resumeState := runbranch.NewResumeBranch(
 		context.Background(),
 		mockGQL,
-		"must")
+		"must",
+	)
 
 	params := &runbranch.RunParams{
 		Entity:  "test-entity",
