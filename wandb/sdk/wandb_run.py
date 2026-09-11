@@ -3444,10 +3444,10 @@ class Run:
         from wandb.sdk.artifacts.artifact import Artifact
 
         if isinstance(artifact_or_path, (str, os.PathLike)):
-            name = (
-                name
-                or f"run-{self._settings.run_id}-{os.path.basename(artifact_or_path)}"
-            )
+            if not name:
+                name = wandb.util.make_artifact_name_safe(
+                    f"run-{self._settings.run_id}-{os.path.basename(artifact_or_path)}"
+                )
             artifact = Artifact(name, type or "unspecified")
             if os.path.isfile(artifact_or_path):
                 artifact.add_file(str(artifact_or_path))
