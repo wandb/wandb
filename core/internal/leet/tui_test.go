@@ -66,12 +66,6 @@ func newTestModel(
 	return tm
 }
 
-// writeRecord writes a single protobuf record to the transaction log.
-func writeRecord(t *testing.T, w *transactionlog.Writer, rec *spb.Record) {
-	t.Helper()
-	require.NoError(t, w.Write(rec))
-}
-
 // forceRepaint nudges Bubble Tea to produce a fresh frame.
 // Why needed: teatest.WaitFor consumes tm.Output(). Without a new render, a second
 // WaitFor may time out even if the content is already on-screen. Sending a slightly
@@ -298,7 +292,7 @@ func writeWorkspaceRunWandbFile(
 	require.NoError(t, err)
 
 	// Minimal Run record (powers run overview preload + nicer UI).
-	writeRecord(t, writer, &spb.Record{
+	require.NoError(t, writer.Write(&spb.Record{
 		RecordType: &spb.Record_Run{
 			Run: &spb.RunRecord{
 				RunId:       runID,
@@ -306,10 +300,10 @@ func writeWorkspaceRunWandbFile(
 				Project:     "test-project",
 			},
 		},
-	})
+	}))
 
 	// Minimal History record with a single metric ("loss") so the MetricsGrid renders.
-	writeRecord(t, writer, &spb.Record{
+	require.NoError(t, writer.Write(&spb.Record{
 		RecordType: &spb.Record_History{
 			History: &spb.HistoryRecord{
 				Step: &spb.HistoryStep{Num: 1},
@@ -319,7 +313,7 @@ func writeWorkspaceRunWandbFile(
 				},
 			},
 		},
-	})
+	}))
 
 	require.NoError(t, writer.Flush())
 	require.NoError(t, writer.Close())
@@ -489,7 +483,7 @@ func TestConsoleLogsPanel_ToggleAppendAndNavigate(t *testing.T) {
 	t.Cleanup(func() { _ = writer.Close() })
 
 	// Minimal Run record (avoid loading screen).
-	writeRecord(t, writer, &spb.Record{
+	require.NoError(t, writer.Write(&spb.Record{
 		RecordType: &spb.Record_Run{
 			Run: &spb.RunRecord{
 				RunId:       "test-run",
@@ -497,10 +491,10 @@ func TestConsoleLogsPanel_ToggleAppendAndNavigate(t *testing.T) {
 				Project:     "test-project",
 			},
 		},
-	})
+	}))
 
 	// Minimal History record so the MetricsGrid renders ("loss").
-	writeRecord(t, writer, &spb.Record{
+	require.NoError(t, writer.Write(&spb.Record{
 		RecordType: &spb.Record_History{
 			History: &spb.HistoryRecord{
 				Step: &spb.HistoryStep{Num: 1},
@@ -510,7 +504,7 @@ func TestConsoleLogsPanel_ToggleAppendAndNavigate(t *testing.T) {
 				},
 			},
 		},
-	})
+	}))
 	require.NoError(t, writer.Flush())
 
 	// Height chosen so ConsoleLogsPane expands to 4 lines (ratio * (H-1) => 4),
@@ -550,7 +544,7 @@ func TestConsoleLogsPanel_ToggleAppendAndNavigate(t *testing.T) {
 	const numLogs = 10
 	baseTS := time.Now().Unix()
 	for i := 1; i <= numLogs; i++ {
-		writeRecord(t, writer, &spb.Record{
+		require.NoError(t, writer.Write(&spb.Record{
 			RecordType: &spb.Record_OutputRaw{
 				OutputRaw: &spb.OutputRawRecord{
 					Line:       fmt.Sprintf("log %02d\n", i),
@@ -558,7 +552,7 @@ func TestConsoleLogsPanel_ToggleAppendAndNavigate(t *testing.T) {
 					Timestamp:  &timestamppb.Timestamp{Seconds: baseTS + int64(i)},
 				},
 			},
-		})
+		}))
 	}
 	require.NoError(t, writer.Flush())
 
@@ -625,7 +619,7 @@ func writeWorkspaceRunWandbFileWithStatsAndLogs(
 	require.NoError(t, err)
 
 	// Run record.
-	writeRecord(t, writer, &spb.Record{
+	require.NoError(t, writer.Write(&spb.Record{
 		RecordType: &spb.Record_Run{
 			Run: &spb.RunRecord{
 				RunId:       runID,
@@ -633,10 +627,10 @@ func writeWorkspaceRunWandbFileWithStatsAndLogs(
 				Project:     "test-project",
 			},
 		},
-	})
+	}))
 
 	// History record.
-	writeRecord(t, writer, &spb.Record{
+	require.NoError(t, writer.Write(&spb.Record{
 		RecordType: &spb.Record_History{
 			History: &spb.HistoryRecord{
 				Step: &spb.HistoryStep{Num: 1},
@@ -646,11 +640,11 @@ func writeWorkspaceRunWandbFileWithStatsAndLogs(
 				},
 			},
 		},
-	})
+	}))
 
 	// Stats records (two timestamps -> chart can render).
 	ts := time.Now().Unix()
-	writeRecord(t, writer, &spb.Record{
+	require.NoError(t, writer.Write(&spb.Record{
 		RecordType: &spb.Record_Stats{
 			Stats: &spb.StatsRecord{
 				Timestamp: &timestamppb.Timestamp{Seconds: ts},
@@ -660,8 +654,8 @@ func writeWorkspaceRunWandbFileWithStatsAndLogs(
 				},
 			},
 		},
-	})
-	writeRecord(t, writer, &spb.Record{
+	}))
+	require.NoError(t, writer.Write(&spb.Record{
 		RecordType: &spb.Record_Stats{
 			Stats: &spb.StatsRecord{
 				Timestamp: &timestamppb.Timestamp{Seconds: ts + 1},
@@ -671,10 +665,10 @@ func writeWorkspaceRunWandbFileWithStatsAndLogs(
 				},
 			},
 		},
-	})
+	}))
 
 	// Console log record.
-	writeRecord(t, writer, &spb.Record{
+	require.NoError(t, writer.Write(&spb.Record{
 		RecordType: &spb.Record_OutputRaw{
 			OutputRaw: &spb.OutputRawRecord{
 				Line:       "epoch 1 complete\n",
@@ -682,14 +676,14 @@ func writeWorkspaceRunWandbFileWithStatsAndLogs(
 				Timestamp:  &timestamppb.Timestamp{Seconds: ts},
 			},
 		},
-	})
+	}))
 
 	// Exit record so the reader processes everything.
-	writeRecord(t, writer, &spb.Record{
+	require.NoError(t, writer.Write(&spb.Record{
 		RecordType: &spb.Record_Exit{
 			Exit: &spb.RunExitRecord{ExitCode: 0},
 		},
-	})
+	}))
 
 	require.NoError(t, writer.Flush())
 	require.NoError(t, writer.Close())
