@@ -137,6 +137,9 @@ def filesystem_isolate(tmp_path, monkeypatch):
     print(f"Setting COVERAGE_FILE to {new_covfile}", file=sys.stderr)
     monkeypatch.setenv("COVERAGE_FILE", new_covfile)
 
+    # Keep developer settings out of tests, like the isolated netrc fixture.
+    monkeypatch.setenv("WANDB_CONFIG_DIR", str(tmp_path / "wandb-config"))
+
     with CliRunner().isolated_filesystem(temp_dir=tmp_path):
         yield
 
