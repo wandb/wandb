@@ -188,6 +188,24 @@ func TestRemoteWorkspaceBackend_PreloadOverviewCmd_ReturnsRunOverview(t *testing
 	assert.Equal(t, "run-abc", preloaded.Run.ID)
 	assert.Equal(t, "test-project", preloaded.Run.Project)
 	assert.Equal(t, "First Run", preloaded.Run.DisplayName)
+	assert.Equal(t, leet.RunStateFinished, preloaded.State)
+}
+
+func TestRemoteWorkspaceBackend_PreloadOverviewCmd_CarriesRunningState(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+	backend := newTestRemoteBackend(mockGQL)
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("QueryProjectRuns"),
+		mockRunQueryResponse,
+	)
+
+	backend.DiscoverRunsCmd(0)()
+	msg := backend.PreloadOverviewCmd("run-def")()
+
+	preloaded, ok := msg.(leet.WorkspaceRunOverviewPreloadedMsg)
+	require.True(t, ok)
+	require.NoError(t, preloaded.Err)
+	assert.Equal(t, leet.RunStateRunning, preloaded.State)
 }
 
 func TestRemoteWorkspaceBackend_PreloadOverviewCmd_UnknownRun(t *testing.T) {
@@ -256,11 +274,4 @@ func TestRemoteWorkspaceBackend_DisplayLabel(t *testing.T) {
 	backend := newTestRemoteBackend(mockGQL)
 
 	assert.Equal(t, "test-entity/test-project", backend.DisplayLabel())
-}
-
-func TestRemoteWorkspaceBackend_SupportsLiveStreaming(t *testing.T) {
-	mockGQL := gqlmock.NewMockClient()
-	backend := newTestRemoteBackend(mockGQL)
-
-	assert.False(t, backend.SupportsLiveStreaming())
 }

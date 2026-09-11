@@ -116,7 +116,7 @@ func NewModel(params ModelParams) *Model {
 		workspace: NewWorkspace(params.Backend, params.Config, params.Logger),
 		help:      NewHelp(),
 		config:    params.Config,
-		filters:   loadDirFilters(params.WandbDir, params.Logger),
+		filters:   loadDirFilters(params.Backend.DisplayLabel(), params.Logger),
 		logger:    params.Logger,
 	}
 	m.workspace.attachFilters(m.filters)

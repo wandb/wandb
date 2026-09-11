@@ -250,8 +250,7 @@ func (w *Workspace) handleWorkspaceRunOverviewPreloaded(
 		if w.filter.Query() != "" {
 			w.applyRunFilter()
 		}
-		// We don't know the final state of this run after a pre-load.
-		ro.SetRunState(RunStateUnknown)
+		ro.SetRunState(msg.State)
 
 	case msg.Err != nil && !errors.Is(msg.Err, errRunRecordNotFound) && !os.IsNotExist(msg.Err):
 		// Truncated or partially written .wandb files fail here on every
@@ -261,7 +260,7 @@ func (w *Workspace) handleWorkspaceRunOverviewPreloaded(
 	}
 
 	// Keep draining the queue.
-	return w.startRunOverviewPreloadsCmd()
+	return batchCmds(w.startRunOverviewPreloadsCmd(), w.ensureLivePulseCmd())
 }
 
 func (w *Workspace) runKeysEqual(runKeys []string) bool {

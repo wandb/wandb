@@ -32,7 +32,7 @@ func (r *Run) handleRecordMsg(msg tea.Msg) tea.Cmd {
 		sessionRuns.observe(msg, true)
 		r.runOverview.ProcessRunMsg(msg)
 		r.leftSidebar.Sync()
-		r.runState = RunStateRunning
+		r.runState = msg.runState()
 		r.syncLiveRunning()
 		r.isLoading = false
 		return r.ensureLivePulseCmd()
@@ -908,11 +908,11 @@ func (r *Run) ReadLiveBatchCmd(source HistorySource) tea.Cmd {
 		if !ok {
 			return msg
 		}
-		if len(batch.Msgs) == 0 {
-			return nil
-		}
 
-		return BatchedRecordsMsg{Msgs: batch.Msgs}
+		return BatchedRecordsMsg{
+			Msgs:    batch.Msgs,
+			HasMore: batch.HasMore,
+		}
 	}
 }
 
@@ -994,6 +994,14 @@ func (r *Run) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 			cmds = append(cmds, r.watcherMgr.WaitForMsg)
 		}
 	}
+
+	if cmd := r.historySource.NextLiveReadCmd(
+		r.ReadLiveBatchCmd(r.historySource),
+		false,
+	); cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+
 	return cmds
 }
 
@@ -1001,13 +1009,14 @@ func (r *Run) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 func (r *Run) handleBatched(msg BatchedRecordsMsg) []tea.Cmd {
 	r.logger.Debug(fmt.Sprintf("model: BatchedRecordsMsg received with %d messages", len(msg.Msgs)))
 	cmds := r.handleRecordsBatch(msg.Msgs, false)
-	if r.runState != RunStateRunning {
-		return cmds
-	}
-	cmds = append(
-		cmds,
+
+	if cmd := r.historySource.NextLiveReadCmd(
 		r.ReadLiveBatchCmd(r.historySource),
-	)
+		msg.HasMore,
+	); cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+
 	return cmds
 }
 

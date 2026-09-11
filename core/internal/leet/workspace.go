@@ -222,9 +222,8 @@ func (w *Workspace) Init() tea.Cmd {
 	// Start polling immediately; subsequent pools are scheduled by the backend.
 	cmds = append(cmds, w.backend.DiscoverRunsCmd(0))
 
-	// Start listening; the heartbeat manager will decide when to emit.
-	if w.backend.SupportsLiveStreaming() && w.heartbeatMgr != nil && w.liveChan != nil {
-		cmds = append(cmds, w.waitForLiveMsg)
+	if cmd := w.backend.InitLiveUpdatesCmd(w); cmd != nil {
+		cmds = append(cmds, cmd)
 	}
 	cmds = append(cmds, w.mediaPane.Init())
 
@@ -904,6 +903,22 @@ func (w *Workspace) anyRunRunning() bool {
 	return false
 }
 
+// anyPulseRunRunning reports whether any visible run needs a redraw for its
+// live indicator.
+func (w *Workspace) anyPulseRunRunning() bool {
+	if w.anyRunRunning() {
+		return true
+	}
+
+	for _, item := range w.runs.FilteredItems {
+		if w.backend.RunState(w, item.Key) == RunStateRunning {
+			return true
+		}
+	}
+
+	return false
+}
+
 // shouldResetRunHeartbeat reports whether new data for the run should re-arm
 // the workspace heartbeat safety net.
 //
@@ -1194,19 +1209,20 @@ func (w *Workspace) renderStatusBar() string {
 }
 
 // cursorRunState returns the known state of the run under the cursor.
-//
-// Only streaming (selected) runs have live state. For others, fall back to
-// the preloaded overview, never trusting a stale Running claim from a run
-// that is no longer streaming.
 func (w *Workspace) cursorRunState() RunState {
 	cur, ok := w.runs.CurrentItem()
 	if !ok {
 		return RunStateUnknown
 	}
-	if run := w.runsByKey[cur.Key]; run != nil {
+
+	return w.backend.RunState(w, cur.Key)
+}
+
+func (w *Workspace) runStateForKey(runKey string) RunState {
+	if run := w.runsByKey[runKey]; run != nil {
 		return run.state
 	}
-	if ro := w.runOverview[cur.Key]; ro != nil && ro.State() != RunStateRunning {
+	if ro := w.runOverview[runKey]; ro != nil {
 		return ro.State()
 	}
 	return RunStateUnknown
@@ -1556,7 +1572,7 @@ func (w *Workspace) renderRunLines(contentWidth int) []string {
 		// A live run's mark breathes: its color fades all the way to the
 		// terminal background ("not filled") and back to the run color.
 		prefixStyle := lipgloss.NewStyle().Foreground(runColor)
-		if run := w.runsByKey[runKey]; run != nil && run.state == RunStateRunning {
+		if w.backend.RunState(w, runKey) == RunStateRunning {
 			prefixStyle = prefixStyle.Foreground(runMarkPulseColor(runColor, time.Now()))
 		}
 

@@ -262,6 +262,18 @@ func TestWorkspace_RemoteBackend_DiscoveryAndPreload(t *testing.T) {
 	require.True(t, w.TestRunOverviewPreloadsInFlight() > 0,
 		"expected at least one preload in flight")
 
+	// The selected remote run has no local reader yet, so the status bar must
+	// use the authoritative preloaded backend state.
+	w.Update(leet.WorkspaceRunOverviewPreloadedMsg{
+		RunKey: run1,
+		Run: &leet.RunMsg{
+			ID:      run1,
+			Project: "test-project",
+		},
+		State: leet.RunStateFinished,
+	})
+	require.Equal(t, leet.RunStateFinished, backend.RunState(w, run1))
+
 	// Complete the preload for run2.
 	w.Update(leet.WorkspaceRunOverviewPreloadedMsg{
 		RunKey: run2,
@@ -270,9 +282,11 @@ func TestWorkspace_RemoteBackend_DiscoveryAndPreload(t *testing.T) {
 			Project:     "test-project",
 			DisplayName: "Second Run",
 		},
+		State: leet.RunStateRunning,
 	})
 
 	assert.Equal(t, run2, w.TestRunOverviewID(run2))
+	assert.Equal(t, leet.RunStateRunning, w.TestGetRunOverviewByRunKey(run2).State())
 	params := backend.RunParams(run1)
 	require.NotNil(t, params)
 	require.NotNil(t, params.Remote)

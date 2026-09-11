@@ -63,9 +63,9 @@ func TestModel_FiltersPersistPerWandbDir(t *testing.T) {
 	open := func() tea.Model {
 		cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 		var model tea.Model = leet.NewModel(leet.ModelParams{
-			WandbDir: wandbDir,
-			Config:   cfg,
-			Logger:   logger,
+			Backend: leet.NewLocalWorkspaceBackend(wandbDir, logger),
+			Config:  cfg,
+			Logger:  logger,
 		})
 		model, _ = model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 		return model
@@ -206,7 +206,11 @@ func TestWorkspace_NarrowTerminalKeepsMainColumnUsable(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	_ = cfg.SetWorkspaceOverviewVisible(true)
-	w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+	w := leet.NewWorkspace(
+		leet.NewLocalWorkspaceBackend(t.TempDir(), logger),
+		cfg,
+		logger,
+	)
 
 	w.Update(tea.WindowSizeMsg{Width: 80, Height: 24})
 

@@ -25,7 +25,7 @@ from pydantic import ValidationError
 from typing_extensions import Unpack, overload
 
 import wandb
-from wandb import env
+from wandb import env, util
 from wandb._analytics import tracked
 from wandb._iterutils import one
 from wandb.apis import public

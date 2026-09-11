@@ -30,6 +30,16 @@ func (s *stubHistorySource) Read(chunkSize int, maxTime time.Duration) (tea.Msg,
 	return s.msg, s.err
 }
 
+func (s *stubHistorySource) NextLiveReadCmd(
+	readCmd tea.Cmd,
+	hasMore bool,
+) tea.Cmd {
+	if hasMore {
+		return readCmd
+	}
+	return nil
+}
+
 func (s *stubHistorySource) Close() {}
 
 func TestReadRecords_PassesThroughArguments(t *testing.T) {
@@ -69,7 +79,7 @@ func TestRun_ReadLiveBatchCmd_WrapsChunkedBatchAndUsesLiveLimits(t *testing.T) {
 	require.Equal(t, leet.LiveMonitorMaxTime, src.maxTime)
 }
 
-func TestRun_ReadLiveBatchCmd_DropsEmptyChunk(t *testing.T) {
+func TestRun_ReadLiveBatchCmd_WrapsEmptyChunk(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	r := leet.NewRun(&leet.RunParams{
@@ -77,7 +87,7 @@ func TestRun_ReadLiveBatchCmd_DropsEmptyChunk(t *testing.T) {
 	}, cfg, logger)
 
 	src := &stubHistorySource{msg: leet.ChunkedBatchMsg{}}
-	require.Nil(t, r.ReadLiveBatchCmd(src)())
+	require.IsType(t, leet.BatchedRecordsMsg{}, r.ReadLiveBatchCmd(src)())
 }
 
 func TestWorkspace_ReadAvailableCmd_WrapsChunkedBatch(t *testing.T) {
@@ -108,13 +118,13 @@ func TestWorkspace_ReadAvailableCmd_WrapsChunkedBatch(t *testing.T) {
 	require.Equal(t, leet.LiveMonitorMaxTime, src.maxTime)
 }
 
-func TestWorkspace_ReadAvailableCmd_DropsEmptyChunk(t *testing.T) {
+func TestWorkspace_ReadAvailableCmd_WrapsEmptyChunk(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(t.TempDir(), logger), cfg, logger)
 
 	run := &leet.WorkspaceRun{Key: "run-1", Reader: &stubHistorySource{msg: leet.ChunkedBatchMsg{}}}
-	require.Nil(t, w.ReadAvailableCmd(run)())
+	require.IsType(t, leet.WorkspaceBatchedRecordsMsg{}, w.ReadAvailableCmd(run)())
 }
 
 func TestRun_ReadErrorDrawsPendingHistory(t *testing.T) {
@@ -122,6 +132,7 @@ func TestRun_ReadErrorDrawsPendingHistory(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		r, _ := newTestRun(t, 160, 50, nil)
 		defer r.Cleanup()
+		r.Update(leet.InitMsg{Source: &stubHistorySource{}})
 		r.Update(leet.ChunkedBatchMsg{HasMore: true, Msgs: []tea.Msg{
 			leet.RunMsg{ID: "run-1"},
 			leet.HistoryMsg{Metrics: map[string]leet.MetricData{
@@ -150,10 +161,17 @@ func TestWorkspace_ReadErrorDrawsPendingHistory(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		logger := observability.NewNoOpLogger()
 		cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-		w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+		w := leet.NewWorkspace(
+			leet.NewLocalWorkspaceBackend(t.TempDir(), logger),
+			cfg,
+			logger,
+		)
 		defer w.Cleanup()
 		w.Update(tea.WindowSizeMsg{Width: 160, Height: 50})
-		w.TestAttachRun(&leet.WorkspaceRun{Key: "run-1"}, true)
+		w.TestAttachRun(&leet.WorkspaceRun{
+			Key:    "run-1",
+			Reader: &stubHistorySource{},
+		}, true)
 		w.Update(leet.WorkspaceChunkedBatchMsg{RunKey: "run-1", Batch: leet.ChunkedBatchMsg{
 			HasMore: true,
 			Msgs: []tea.Msg{leet.HistoryMsg{Metrics: map[string]leet.MetricData{

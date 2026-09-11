@@ -166,6 +166,7 @@ func (b *RemoteWorkspaceBackend) DiscoverRunsCmd(delay time.Duration) tea.Cmd {
 				runId:       runKey,
 				runSummary:  runSummary,
 				displayName: displayName,
+				runState:    remoteRunState(node.State),
 			}
 		}
 
@@ -223,13 +224,22 @@ func (b *RemoteWorkspaceBackend) InitReaderCmd(runKey string) tea.Cmd {
 				Err:    err,
 			}
 		}
+		liveReader := runhistoryreader.NewLiveDataReader(
+			entity,
+			project,
+			runKey,
+			graphqlClient,
+			nil,
+		)
 		return WorkspaceRunInitMsg{
 			RunKey: runKey,
 			Reader: newParquetHistorySource(
 				context.Background(),
 				info,
 				reader,
+				liveReader,
 				logger,
+				graphqlClient,
 			),
 		}
 	}
@@ -251,6 +261,7 @@ func (b *RemoteWorkspaceBackend) PreloadOverviewCmd(runKey string) tea.Cmd {
 				Project:     info.project,
 				DisplayName: info.displayName,
 			},
+			State: info.runState,
 		}
 	}
 }
@@ -274,6 +285,31 @@ func (b *RemoteWorkspaceBackend) DisplayLabel() string {
 	return b.entity + "/" + b.project
 }
 
-func (b *RemoteWorkspaceBackend) SupportsLiveStreaming() bool {
-	return false
+// InitLiveUpdatesCmd implements WorkspaceBackend.InitLiveUpdatesCmd.
+func (b *RemoteWorkspaceBackend) InitLiveUpdatesCmd(*Workspace) tea.Cmd {
+	// Remote workspaces do not have any special machinery for live updates.
+	return nil
+}
+
+// LiveUpdatesCmd implements WorkspaceBackend.LiveUpdatesCmd.
+func (b *RemoteWorkspaceBackend) LiveUpdatesCmd(
+	w *Workspace,
+	run *WorkspaceRun,
+) tea.Cmd {
+	if w == nil || run == nil {
+		return nil
+	}
+
+	return run.Reader.NextLiveReadCmd(
+		w.ReadAvailableCmd(run),
+		false,
+	)
+}
+
+// RunState implements WorkspaceBackend.RunState.
+func (b *RemoteWorkspaceBackend) RunState(
+	w *Workspace,
+	runKey string,
+) RunState {
+	return w.runStateForKey(runKey)
 }

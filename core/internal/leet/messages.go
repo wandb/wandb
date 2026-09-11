@@ -35,6 +35,15 @@ type RunMsg struct {
 	Config      *spb.ConfigRecord
 	StartTime   time.Time
 	Telemetry   *spb.TelemetryRecord
+	State       *RunState
+}
+
+func (m RunMsg) runState() RunState {
+	if m.State != nil {
+		return *m.State
+	}
+
+	return RunStateRunning
 }
 
 // SummaryMsg contains summary data from the wandb run.
@@ -85,7 +94,8 @@ type InitMsg struct {
 
 // BatchedRecordsMsg contains all messages read during a batch read.
 type BatchedRecordsMsg struct {
-	Msgs []tea.Msg
+	Msgs    []tea.Msg
+	HasMore bool
 }
 
 // ChunkedBatchMsg contains a chunk of messages with progress info.
@@ -171,6 +181,7 @@ type WorkspaceRunDiscoveryMsg struct {
 type WorkspaceRunOverviewPreloadedMsg struct {
 	RunKey string
 	Run    *RunMsg
+	State  RunState
 	Err    error
 }
 

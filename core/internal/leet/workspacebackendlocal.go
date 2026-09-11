@@ -2,7 +2,9 @@ package leet
 
 import (
 	"errors"
+	"fmt"
 	"io"
+	"os"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -116,6 +118,67 @@ func (b *LocalWorkspaceBackend) DisplayLabel() string {
 	return b.wandbDir
 }
 
-func (b *LocalWorkspaceBackend) SupportsLiveStreaming() bool {
-	return true
+// InitLiveUpdatesCmd implements WorkspaceBackend.InitLiveUpdatesCmd.
+func (b *LocalWorkspaceBackend) InitLiveUpdatesCmd(w *Workspace) tea.Cmd {
+	if w == nil || w.heartbeatMgr == nil || w.liveChan == nil {
+		return nil
+	}
+	return w.waitForLiveMsg
+}
+
+// LiveUpdatesCmd implements WorkspaceBackend.LiveUpdatesCmd.
+func (b *LocalWorkspaceBackend) LiveUpdatesCmd(
+	w *Workspace,
+	run *WorkspaceRun,
+) tea.Cmd {
+	if w == nil || run == nil || !run.state.mayBeLive() {
+		return nil
+	}
+
+	var watcherCmd tea.Cmd
+	if run.watcher == nil {
+		ch := make(chan tea.Msg, 1) // coalesce notifications for this run
+		run.watcher = NewWatcherManager(ch, w.logger)
+
+		if err := run.watcher.Start(run.wandbPath); err != nil {
+			w.logger.CaptureError(
+				"leet",
+				fmt.Errorf(
+					"workspace: failed to start watcher for %s: %v",
+					run.Key,
+					err,
+				),
+			)
+			run.watcher = nil
+		} else {
+			// Seed the staleness clock from the file so a run that died
+			// before LEET started is caught on the first heartbeat rather
+			// than a full RunCrashTimeout later.
+			if info, err := os.Stat(run.wandbPath); err == nil {
+				run.lastUpdateAt = info.ModTime()
+			}
+			watcherCmd = w.waitForWatcher(run.Key)
+		}
+	}
+
+	w.syncLiveRunState()
+	if w.heartbeatMgr != nil && w.hasLiveRuns.Load() {
+		w.heartbeatMgr.Start(w.hasLiveRuns.Load)
+	}
+
+	return watcherCmd
+}
+
+// RunState implements WorkspaceBackend.RunState.
+func (b *LocalWorkspaceBackend) RunState(
+	w *Workspace,
+	runKey string,
+) RunState {
+	state := w.runStateForKey(runKey)
+	if state == RunStateRunning && w.runsByKey[runKey] == nil {
+		// A local overview can be stale while its transaction log is no
+		// longer being streamed.
+		return RunStateUnknown
+	}
+	return state
 }

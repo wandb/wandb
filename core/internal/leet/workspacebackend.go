@@ -41,7 +41,12 @@ type WorkspaceBackend interface {
 	// DisplayLabel returns the label shown in the status bar.
 	DisplayLabel() string
 
-	// SupportsLiveStreaming reports whether runs from this backend
-	// can be live-streamed via file watcher + heartbeat.
-	SupportsLiveStreaming() bool
+	// InitLiveUpdatesCmd initializes backend-specific live update handling.
+	InitLiveUpdatesCmd(workspace *Workspace) tea.Cmd
+
+	// LiveUpdatesCmd starts backend-specific live updates for a run.
+	LiveUpdatesCmd(workspace *Workspace, run *WorkspaceRun) tea.Cmd
+
+	// RunState returns the state to display for a workspace run.
+	RunState(workspace *Workspace, runKey string) RunState
 }
