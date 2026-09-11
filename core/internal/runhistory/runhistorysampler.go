@@ -2,8 +2,8 @@ package runhistory
 
 import (
 	"math/rand/v2"
+	"strconv"
 
-	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/sampler"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -24,26 +24,32 @@ func NewRunHistorySampler() *RunHistorySampler {
 // SampleNext updates all samples with the next history row.
 //
 // This must be called on history rows in order.
-func (s *RunHistorySampler) SampleNext(history *RunHistory) {
-	// TODO: Support sampling nested metrics.
-	history.ForEachNumber(
-		func(path pathtree.TreePath, value float64) bool {
-			if path.Len() != 1 {
-				return true
-			}
+func (s *RunHistorySampler) SampleNext(history *spb.HistoryRecord) {
+	for _, item := range history.Item {
+		var key string
+		if len(item.GetNestedKey()) == 1 {
+			// TODO: Support sampling nested metrics.
+			key = item.GetNestedKey()[0]
+		} else {
+			key = item.GetKey()
+		}
 
-			key := path.Labels()[0]
+		if key == "" {
+			continue // Ignore invalid records.
+		}
 
-			sample, ok := s.samples[key]
-			if !ok {
-				sample = sampler.NewReservoirSampler[float32](s.rand, 48)
-				s.samples[key] = sample
-			}
-			sample.Add(float32(value))
+		value, err := strconv.ParseFloat(item.GetValueJson(), 32)
+		if err != nil {
+			continue // Only sample numeric metrics.
+		}
 
-			return true
-		},
-	)
+		sample, ok := s.samples[key]
+		if !ok {
+			sample = sampler.NewReservoirSampler[float32](s.rand, 48)
+			s.samples[key] = sample
+		}
+		sample.Add(float32(value))
+	}
 }
 
 // Get returns all the samples.
