@@ -1,0 +1,56 @@
+name: Build SDK wheel
+description: Build the native SDK artifacts once for the runner platform.
+
+inputs:
+  artifact-name:
+    description: Name for the wheel artifact
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Select Xcode 16.4
+      if: runner.os == 'macOS'
+      shell: bash
+      run: sudo xcode-select --switch /Applications/Xcode_16.4.app/Contents/Developer
+    - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      with:
+        version: "0.12.11"
+        python-version: "3.13"
+    - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+      with:
+        go-version-file: core/go.mod
+        # Native builds and Go unit tests use different compiler flags.
+        cache-dependency-path: |
+          core/go.sum
+          .github/actions/build-sdk-wheel/action.yml
+    - name: Install Rust
+      id: rust
+      uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+    - name: Restore Cargo cache
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: |
+          ~/.cargo/git/db
+          ~/.cargo/registry/cache
+          ~/.cargo/registry/index
+          parquet-rust-wrapper/target
+          xpu/target
+        key: ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('parquet-rust-wrapper/Cargo.lock', 'xpu/Cargo.lock') }}-${{ steps.rust.outputs.cachekey }}-${{ hashFiles('parquet-rust-wrapper/**', '!parquet-rust-wrapper/target/**', 'xpu/**', '!xpu/target/**', 'hatch_build.py', '.github/actions/build-sdk-wheel/action.yml') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('parquet-rust-wrapper/Cargo.lock', 'xpu/Cargo.lock') }}-${{ steps.rust.outputs.cachekey }}-
+          ${{ runner.os }}-${{ runner.arch }}-cargo-${{ hashFiles('parquet-rust-wrapper/Cargo.lock', 'xpu/Cargo.lock') }}-
+    - name: Build wheel
+      shell: bash
+      env:
+        WANDB_BUILD_COVERAGE: ${{ runner.os != 'Windows' && 'true' || 'false' }}
+        WANDB_BUILD_GORACEDETECT: ${{ runner.os != 'Windows' && 'true' || 'false' }}
+        WANDB_BUILD_SKIP_WANDB_XPU: ${{ runner.os == 'Windows' && 'true' || 'false' }}
+      run: uv build --wheel
+    - name: Upload wheel
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: dist/*.whl
+        if-no-files-found: error
+        retention-days: 1

@@ -1,0 +1,99 @@
+name: Run SDK tests on the CI cluster
+description: Run a nox session in the same cluster and Python images as CircleCI.
+
+inputs:
+  python:
+    description: Python version
+    required: true
+  session:
+    description: Nox session
+    required: true
+  artifact-name:
+    description: Test results artifact
+    required: true
+  wheel-artifact:
+    description: Prebuilt Linux wheel artifact
+    default: linux-x64-wheel
+  test-group:
+    description: One-based test group
+    default: ""
+  test-groups:
+    description: Total number of test groups
+    default: ""
+  server-image:
+    description: Optional local-testcontainer image
+    default: ""
+  gcp-provider:
+    description: SDK workload identity provider
+    required: true
+  gcp-service-account:
+    description: SDK service account with access to the test namespace
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      with:
+        name: ${{ inputs.wheel-artifact }}
+        path: dist
+    - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+      with:
+        project_id: wandb-ci
+        workload_identity_provider: ${{ inputs.gcp-provider }}
+        service_account: ${{ inputs.gcp-service-account }}
+    - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3
+      with:
+        install_components: gke-gcloud-auth-plugin,kubectl
+    - name: Connect to the CI cluster
+      shell: bash
+      run: |
+        export KUBECONFIG="$RUNNER_TEMP/sdk-ci-kubeconfig"
+        echo "KUBECONFIG=$KUBECONFIG" >> "$GITHUB_ENV"
+        gcloud container clusters get-credentials ci-cluster --region us-central1 --project wandb-ci
+    - name: Run tests
+      shell: bash
+      env:
+        PYTHON_VERSION: ${{ inputs.python }}
+        NOX_SESSION: ${{ inputs.session }}
+        TEST_GROUP: ${{ inputs.test-group }}
+        TEST_GROUPS: ${{ inputs.test-groups }}
+        SERVER_IMAGE: ${{ inputs.server-image }}
+      run: |
+        shopt -s nullglob
+        wheels=(dist/*.whl)
+        [[ ${#wheels[@]} -eq 1 ]]
+        timeout=3000
+        if [[ "$NOX_SESSION" == unit_tests ]]; then timeout=900; fi
+        python .github/scripts/run_cluster_tests.py \
+          --commit "$GITHUB_SHA" \
+          --script .github/scripts/cluster_test_entrypoint.sh \
+          --wheel "${wheels[0]}" \
+          --image "python:$PYTHON_VERSION" \
+          --python "$PYTHON_VERSION" \
+          --session "$NOX_SESSION" \
+          --test-group "$TEST_GROUP" \
+          --test-groups "$TEST_GROUPS" \
+          --server-image "$SERVER_IMAGE" \
+          --timeout-seconds "$timeout" \
+          --namespace wandb-sdk-ci
+    - name: Summarize test results
+      if: always()
+      shell: bash
+      run: |
+        python .github/scripts/summarize_test_results.py
+        if [[ -f timing.txt ]]; then cat timing.txt >> "$GITHUB_STEP_SUMMARY"; fi
+    - name: Upload test results and coverage
+      if: always()
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: |
+          test-results/
+          coverage.xml
+          coverage.txt
+          timing.txt
+          source-commit.txt
+          exit-code
+        if-no-files-found: warn
+        retention-days: 7

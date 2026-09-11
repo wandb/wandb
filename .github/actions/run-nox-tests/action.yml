@@ -1,0 +1,103 @@
+name: Run SDK unit tests
+description: Install a prebuilt wheel, run unit tests, and save their results.
+
+inputs:
+  python:
+    description: Python version
+    required: true
+  artifact-name:
+    description: Name for the test results
+    required: true
+  wheel-artifact:
+    description: Prebuilt wheel artifact
+    required: true
+  test-group:
+    description: One-based test group
+    default: ""
+  test-groups:
+    description: Total number of test groups
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+      with:
+        python-version: ${{ inputs.python }}
+    - uses: ./.github/actions/restore-linux-dependencies
+      if: runner.os == 'Linux'
+    - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      with:
+        version: "0.12.11"
+        enable-cache: ${{ runner.os == 'macOS' }}
+        save-cache: ${{ inputs.test-group == '' || inputs.test-group == '1' }}
+        cache-local-path: ${{ runner.temp }}/setup-uv-cache
+        cache-dependency-glob: requirements/requirements_dev.${{ inputs.python }}.*.txt
+        cache-suffix: ${{ inputs.python }}
+    - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+      with:
+        go-version-file: core/go.mod
+        cache: false
+    - name: Install Linux dependencies
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install --no-install-recommends -y ffmpeg libsndfile1
+    - name: Install macOS dependencies
+      if: runner.os == 'macOS'
+      shell: bash
+      env:
+        HOMEBREW_NO_AUTO_UPDATE: "1"
+      run: |
+        sudo xcode-select --switch /Applications/Xcode_16.4.app/Contents/Developer
+        brew install ffmpeg
+        echo "TMPDIR=/tmp" >> "$GITHUB_ENV"
+    - name: Install Windows dependencies
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        choco install -y ffmpeg
+    - name: Install nox
+      shell: bash
+      run: python -m pip install --upgrade nox pip
+    - name: Download wheel
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      with:
+        name: ${{ inputs.wheel-artifact }}
+        path: dist
+    - name: Run tests
+      shell: bash
+      env:
+        PYTHON_VERSION: ${{ inputs.python }}
+        WANDB_TEST_GROUP: ${{ inputs.test-group }}
+        WANDB_TEST_GROUPS: ${{ inputs.test-groups }}
+        WANDB_TEST_MAX_WORKERS: ${{ runner.os == 'Windows' && '4' || '8' }}
+      run: |
+        shopt -s nullglob
+        wheels=(dist/*.whl)
+        if [[ ${#wheels[@]} -ne 1 ]]; then
+          echo "Expected one wheel, found ${#wheels[@]}" >&2
+          exit 1
+        fi
+        export WANDB_TEST_WHEEL="${wheels[0]}"
+        started=$SECONDS
+        status=0
+        nox -s unit_tests --python "$PYTHON_VERSION" --verbose || status=$?
+        echo "Nox session: $((SECONDS - started)) seconds, including package installation." >> "$GITHUB_STEP_SUMMARY"
+        exit "$status"
+    - name: Summarize test results
+      if: always()
+      shell: bash
+      run: python .github/scripts/summarize_test_results.py
+    - name: Upload test results and coverage
+      if: always()
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: |
+          test-results/
+          coverage.xml
+          coverage.txt
+        if-no-files-found: warn
+        retention-days: 7
