@@ -1,3 +1,11 @@
+"""Unit tests of Optimizer implementations, in pure Python.
+
+No wandb-core process, IPC connection or backend is involved: each
+Optimizer is exercised directly through its ask/tell interface. For the
+Python-and-Go integration tests, see
+tests/system_tests/test_sweep/test_sweep_scheduler_e2e.py.
+"""
+
 from __future__ import annotations
 
 import abc
@@ -201,6 +209,130 @@ class OptimizerAcceptanceTests(abc.ABC):
         assert set(repruned) <= set(run_ids)
 
 
+class TestSweepSchedulerCli:
+    """Tests for the `wandb sweep-scheduler` command's option handling."""
+
+    @pytest.fixture
+    def run_scheduler_mock(self, monkeypatch):
+        from unittest.mock import MagicMock
+
+        from wandb.proto import wandb_sweep_scheduler_pb2 as sspb
+        from wandb.sdk.sweeps.scheduler import client
+
+        mock = MagicMock(
+            return_value=(
+                sspb.SweepSchedulerServerDoneTask(
+                    reason=sspb.SweepSchedulerServerDoneTask.REASON_EXHAUSTED
+                ),
+                False,
+            )
+        )
+        monkeypatch.setattr(client, "run_scheduler", mock)
+        return mock
+
+    @pytest.fixture
+    def api(self, monkeypatch):
+        """An API with no default entity or project of its own."""
+        from unittest.mock import MagicMock
+
+        import wandb
+
+        api = MagicMock()
+        api.settings = {"entity": None, "project": None}
+        monkeypatch.setattr(wandb, "Api", lambda *a, **k: api)
+        return api
+
+    def invoke(self, *args: str):
+        from click.testing import CliRunner
+        from wandb.cli import cli
+
+        return CliRunner().invoke(cli.sweep_scheduler, args, catch_exceptions=False)
+
+    def test_rejects_nonpositive_batch_size(self, api, run_scheduler_mock):
+        result = self.invoke("--batch-size", "0", "e/p/s")
+
+        assert result.exit_code == 1
+        run_scheduler_mock.assert_not_called()
+
+    def test_malformed_sweep_id_exits_nonzero(self, api, run_scheduler_mock):
+        """A bad sweep path must fail loudly, like the other validations."""
+        result = self.invoke("a/b/c/d")
+
+        assert result.exit_code != 0
+        run_scheduler_mock.assert_not_called()
+
+    def test_requires_entity_and_project(self, api, run_scheduler_mock):
+        result = self.invoke("bare-sweep-id")
+
+        assert result.exit_code != 0
+        assert "--entity and --project" in result.output
+        run_scheduler_mock.assert_not_called()
+
+    def test_forwards_options_to_host(self, api, run_scheduler_mock):
+        result = self.invoke("--batch-size", "4", "--poll-interval", "7", "e/p/s")
+
+        assert result.exit_code == 0
+        kwargs = run_scheduler_mock.call_args.kwargs
+        assert kwargs["entity"] == "e"
+        assert kwargs["project"] == "p"
+        assert kwargs["sweep_id"] == "s"
+        assert kwargs["batch_size"] == 4
+        assert kwargs["poll_interval"] == 7.0
+
+    def test_wandb_engine_builds_wandb_optimizer(self, api, run_scheduler_mock):
+        from wandb.sdk.sweeps.scheduler.wandb import WandbOptimizer
+
+        result = self.invoke("e/p/s")
+        assert result.exit_code == 0
+
+        make_optimizer = run_scheduler_mock.call_args.kwargs["make_optimizer"]
+        wandb_engine = SweepInfo(
+            id="s",
+            name="s",
+            entity="e",
+            project="p",
+            config={
+                **SCHEDULER_GRID_SWEEP_CONFIG,
+                "scheduler": {"engine": "wandb"},
+            },
+        )
+        optimizer = make_optimizer(wandb_engine)
+        assert isinstance(optimizer, WandbOptimizer)
+
+    def test_engine_is_required(self, api, run_scheduler_mock):
+        result = self.invoke("e/p/s")
+        assert result.exit_code == 0
+
+        make_optimizer = run_scheduler_mock.call_args.kwargs["make_optimizer"]
+        no_engine = SweepInfo(id="s", name="s", entity="e", project="p", config={})
+        with pytest.raises(Exception, match="engine"):
+            make_optimizer(no_engine)
+
+    def test_unsupported_engine_rejected(self, api, run_scheduler_mock):
+        result = self.invoke("e/p/s")
+        assert result.exit_code == 0
+
+        make_optimizer = run_scheduler_mock.call_args.kwargs["make_optimizer"]
+        other_engine = SweepInfo(
+            id="s",
+            name="s",
+            entity="e",
+            project="p",
+            config={"scheduler": {"engine": "genetic"}},
+        )
+        with pytest.raises(Exception, match="Unsupported engine"):
+            make_optimizer(other_engine)
+
+    def test_scheduler_failure_exits_nonzero(self, api, run_scheduler_mock):
+        import wandb
+
+        run_scheduler_mock.side_effect = wandb.Error("the sweep was deleted")
+
+        result = self.invoke("e/p/s")
+
+        assert result.exit_code == 1
+
+
 class TestWandbOptimizerAcceptance(OptimizerAcceptanceTests):
     @pytest.fixture
     def optimizer(self, sweep: SweepInfo) -> Optimizer:
@@ -215,3 +347,55 @@ class TestWandbOptimizerAcceptance(OptimizerAcceptanceTests):
         optimizer.forget_run(first_run.run_id)
         again = next(iter(optimizer.ask_n_runs(1)))
         assert again.config["param1"].value == first_value
+
+
+class TestRunSchedulerInit:
+    def test_server_response_error_becomes_wandb_error(self, monkeypatch):
+        """A raw ServerResponseError must not escape `run_scheduler`.
+
+        The CLI only knows to report `wandb.Error` failures cleanly, so
+        errors from wandb-core's init round trip must be wrapped.
+        """
+        from unittest.mock import MagicMock
+
+        import wandb
+        from wandb.sdk.mailbox.mailbox_handle import ServerResponseError
+        from wandb.sdk.sweeps.scheduler import client
+
+        monkeypatch.setattr(
+            client.wbauth, "authenticate_session", lambda **kwargs: True
+        )
+
+        singleton = MagicMock()
+        singleton.asyncer.run.side_effect = ServerResponseError("sweep not found")
+        monkeypatch.setattr(client.wandb_setup, "singleton", lambda: singleton)
+
+        with pytest.raises(wandb.Error, match="failed to initialize"):
+            client.run_scheduler(
+                entity="e",
+                project="p",
+                sweep_id="s",
+                make_optimizer=lambda sweep: None,
+                batch_size=1,
+                poll_interval=10,
+            )
+
+
+class TestSchedulerHostOffMainThread:
+    def test_sigint_handler_is_optional(self) -> None:
+        """The host must work off the main thread, where signal cannot.
+
+        Only the main thread may install a signal handler, and
+        `run_scheduler` is an ordinary function a caller may run in a
+        worker.
+        """
+        import concurrent.futures
+
+        from wandb.sdk.sweeps.scheduler.client import _install_sigint_handler
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            handler = pool.submit(
+                _install_sigint_handler, None, None, "scheduler-0"
+            ).result()
+
+        assert handler is None

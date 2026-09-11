@@ -26,3 +26,6 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Fixed
 
 - Changing system metrics grid rows or columns in LEET, including `wandb leet symon`, no longer crashes and takes effect immediately without waiting for new data (@dmitryduev in https://github.com/wandb/wandb/pull/12763)
+
+### Added
+- Added `wandb sweep-scheduler`, which runs a sweep's search locally while wandb-core drives the runs, so you can plug in your own optimizer (@kmikowicz in https://github.com/wandb/wandb/pull/12560)
