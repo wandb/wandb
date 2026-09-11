@@ -3964,8 +3964,8 @@ mutation EnqueueSweepRun ($id: ID!, $config: JSONString!, $displayName: String) 
 }
 `
 
-// The scheduler joins the minted run back to its suggestion by the
-// returned id at the next poll; it sets no display name. The arguments
+// The returned id names a run that is guaranteed to appear in the
+// sweep as pending; the scheduler sets no display name. The arguments
 // mirror the public API's EnqueueSweepRun operation in
 // wandb/apis/public/sweeps.py.
 func EnqueueSweepRun(
