@@ -30,7 +30,10 @@ const (
 	MetricsBatch_KIND_INT    MetricsBatch_Kind = 2
 	MetricsBatch_KIND_BOOL   MetricsBatch_Kind = 3
 	MetricsBatch_KIND_STRING MetricsBatch_Kind = 4
-	MetricsBatch_KIND_JSON   MetricsBatch_Kind = 5
+	// Anything not representable in the other five kinds, kept as JSON text.
+	// Nested values are represented as `KIND_JSON` cells under their
+	// top-level key.
+	MetricsBatch_KIND_JSON MetricsBatch_Kind = 5
 )
 
 // Enum value maps for MetricsBatch_Kind.
@@ -243,8 +246,11 @@ func (x *FileStreamChunk) GetContent() []string {
 type MetricsBatchChunk struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The history line number of the first row in `batch`.
-	Offset        int64         `protobuf:"varint,1,opt,name=offset,proto3" json:"offset,omitempty"`
-	Batch         *MetricsBatch `protobuf:"bytes,2,opt,name=batch,proto3" json:"batch,omitempty"`
+	Offset int64 `protobuf:"varint,1,opt,name=offset,proto3" json:"offset,omitempty"`
+	// The count of rows in the batch. Used to validate the batch.
+	RowCount int64 `protobuf:"varint,2,opt,name=row_count,json=rowCount,proto3" json:"row_count,omitempty"`
+	// The batch of rows.
+	Batch         *MetricsBatch `protobuf:"bytes,3,opt,name=batch,proto3" json:"batch,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -282,6 +288,13 @@ func (*MetricsBatchChunk) Descriptor() ([]byte, []int) {
 func (x *MetricsBatchChunk) GetOffset() int64 {
 	if x != nil {
 		return x.Offset
+	}
+	return 0
+}
+
+func (x *MetricsBatchChunk) GetRowCount() int64 {
+	if x != nil {
+		return x.RowCount
 	}
 	return 0
 }
@@ -337,9 +350,9 @@ type MetricsBatch struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The key dictionary. `cell_keys` index into it.
 	//
-	// Keys are top-level metric names. A nested value is one KIND_JSON
-	// cell under its top-level key. The sequence key (`seq_key`) is not in
-	// `keys`. It has its own column, `seqs`.
+	// Keys are top-level metric names. A nested value is one `KIND_JSON` cell
+	// under its top-level key. The sequence key (`seq_key`) is not in `keys`.
+	// It has its own column, `seqs`.
 	Keys []string `protobuf:"bytes,1,rep,name=keys,proto3" json:"keys,omitempty"`
 	// row_ends[i] is the cumulative cell count through row i, so row i
 	// spans cells [row_ends[i-1], row_ends[i]). The row count is the
@@ -356,18 +369,12 @@ type MetricsBatch struct {
 	Bools   []bool    `protobuf:"varint,7,rep,packed,name=bools,proto3" json:"bools,omitempty"`
 	Strings []string  `protobuf:"bytes,8,rep,name=strings,proto3" json:"strings,omitempty"`
 	Jsons   []string  `protobuf:"bytes,9,rep,name=jsons,proto3" json:"jsons,omitempty"`
-	// Dense sequence column: empty, or one entry per row. `has_seq` holds
-	// one presence byte per row, because 0 is a valid sequence value and
-	// presence needs its own encoding. A row with presence 0 has no
-	// sequence value, and the server assigns one.
-	//
-	// This is a dense column because every consumer reads it, and the
-	// server rewrites it for shared-mode runs.
-	Seqs   []int64 `protobuf:"zigzag64,10,rep,packed,name=seqs,proto3" json:"seqs,omitempty"`
-	HasSeq []byte  `protobuf:"bytes,11,opt,name=has_seq,json=hasSeq,proto3" json:"has_seq,omitempty"`
-	// The metric key the sequence column represents: "_step" for history
-	// (the default when empty), "_timestamp" for events, "_offset" for
-	// logs. All are int64.
+	// Dense column of sequence values, one entry per row.
+	Seqs []int64 `protobuf:"zigzag64,10,rep,packed,name=seqs,proto3" json:"seqs,omitempty"`
+	// Presence of seq values, one byte per row (0 = not present, 1 = present).
+	HasSeq []byte `protobuf:"bytes,11,opt,name=has_seq,json=hasSeq,proto3" json:"has_seq,omitempty"`
+	// The metric key for the `seqs` column: `"_step"` for history,
+	// `"_timestamp"` for events, `"_offset"` for logs. Must be non-empty.
 	SeqKey        string `protobuf:"bytes,12,opt,name=seq_key,json=seqKey,proto3" json:"seq_key,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -507,10 +514,11 @@ const file_wandb_proto_wandb_filestream_v1_proto_rawDesc = "" +
 	"\x0fFileStreamChunk\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x16\n" +
 	"\x06offset\x18\x02 \x01(\x03R\x06offset\x12\x18\n" +
-	"\acontent\x18\x03 \x03(\tR\acontent\"d\n" +
+	"\acontent\x18\x03 \x03(\tR\acontent\"\x81\x01\n" +
 	"\x11MetricsBatchChunk\x12\x16\n" +
-	"\x06offset\x18\x01 \x01(\x03R\x06offset\x127\n" +
-	"\x05batch\x18\x02 \x01(\v2!.wandb.filestream.v1.MetricsBatchR\x05batch\"\x95\x03\n" +
+	"\x06offset\x18\x01 \x01(\x03R\x06offset\x12\x1b\n" +
+	"\trow_count\x18\x02 \x01(\x03R\browCount\x127\n" +
+	"\x05batch\x18\x03 \x01(\v2!.wandb.filestream.v1.MetricsBatchR\x05batch\"\x95\x03\n" +
 	"\fMetricsBatch\x12\x12\n" +
 	"\x04keys\x18\x01 \x03(\tR\x04keys\x12\x19\n" +
 	"\brow_ends\x18\x02 \x03(\rR\arowEnds\x12\x1b\n" +

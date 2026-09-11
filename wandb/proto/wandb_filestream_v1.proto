@@ -76,7 +76,11 @@ message MetricsBatchChunk {
   // The history line number of the first row in `batch`.
   int64 offset = 1;
 
-  MetricsBatch batch = 2;
+  // The count of rows in the batch. Used to validate the batch.
+  int64 row_count = 2;
+
+  // The batch of rows.
+  MetricsBatch batch = 3;
 }
 
 // MetricsBatch is a columnar set of metric rows.
@@ -126,14 +130,18 @@ message MetricsBatch {
     KIND_INT = 2;
     KIND_BOOL = 3;
     KIND_STRING = 4;
+
+    // Anything not representable in the other five kinds, kept as JSON text.
+    // Nested values are represented as `KIND_JSON` cells under their
+    // top-level key.
     KIND_JSON = 5;
   }
 
   // The key dictionary. `cell_keys` index into it.
   //
-  // Keys are top-level metric names. A nested value is one KIND_JSON
-  // cell under its top-level key. The sequence key (`seq_key`) is not in
-  // `keys`. It has its own column, `seqs`.
+  // Keys are top-level metric names. A nested value is one `KIND_JSON` cell
+  // under its top-level key. The sequence key (`seq_key`) is not in `keys`.
+  // It has its own column, `seqs`.
   repeated string keys = 1;
 
   // row_ends[i] is the cumulative cell count through row i, so row i
@@ -155,18 +163,12 @@ message MetricsBatch {
   repeated string strings = 8;
   repeated string jsons = 9;
 
-  // Dense sequence column: empty, or one entry per row. `has_seq` holds
-  // one presence byte per row, because 0 is a valid sequence value and
-  // presence needs its own encoding. A row with presence 0 has no
-  // sequence value, and the server assigns one.
-  //
-  // This is a dense column because every consumer reads it, and the
-  // server rewrites it for shared-mode runs.
+  // Dense column of sequence values, one entry per row.
   repeated sint64 seqs = 10;
+  // Presence of seq values, one byte per row (0 = not present, 1 = present).
   bytes has_seq = 11;
 
-  // The metric key the sequence column represents: "_step" for history
-  // (the default when empty), "_timestamp" for events, "_offset" for
-  // logs. All are int64.
+  // The metric key for the `seqs` column: `"_step"` for history,
+  // `"_timestamp"` for events, `"_offset"` for logs. Must be non-empty.
   string seq_key = 12;
 }
