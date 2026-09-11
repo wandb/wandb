@@ -1,0 +1,63 @@
+name: SDK test server startup
+
+on:
+  push:
+    branches: [dmitryduev/local-testcontainer-startup]
+    paths: [.github/workflows/sdk-server-startup.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  server:
+    name: Start local-testcontainer
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      SERVER_IMAGE: us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:master
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Authenticate to Artifact Registry
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          project_id: ${{ secrets.GCP_REGISTRY_PROJECT_NAME }}
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_REGISTRY_SA }}
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3
+      - name: Pull latest local-testcontainer
+        run: |
+          gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+          docker pull --platform linux/amd64 "$SERVER_IMAGE"
+          docker image inspect "$SERVER_IMAGE" --format '{{json .RepoDigests}}'
+      - name: Start server beside Python test container
+        run: |
+          docker run --detach --name wandb-local-testcontainer --platform linux/amd64 \
+            --env CI=1 --env WANDB_ENABLE_TEST_CONTAINER=true "$SERVER_IMAGE"
+          docker run --rm --name wandb-test-client --platform linux/amd64 \
+            --network container:wandb-local-testcontainer \
+            --mount "type=bind,src=$GITHUB_WORKSPACE/tools/local_wandb_server.py,dst=/workspace/tools/local_wandb_server.py,readonly" \
+            python:3.13 bash -ec '
+              python -m pip install click filelock pydantic requests
+              python /workspace/tools/local_wandb_server.py start --hostname localhost --base-port 8080 --fixture-port 9015
+              python /workspace/tools/local_wandb_server.py connect
+            '
+      - name: Collect server logs
+        if: always()
+        run: |
+          mkdir -p server-logs
+          docker logs wandb-local-testcontainer > server-logs/server.log 2>&1 || true
+          docker inspect wandb-local-testcontainer > server-logs/server.json 2>&1 || true
+      - name: Upload server logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: local-testcontainer-startup
+          path: server-logs/
+          retention-days: 7
+      - name: Stop containers
+        if: always()
+        run: docker rm --force wandb-test-client wandb-local-testcontainer || true
