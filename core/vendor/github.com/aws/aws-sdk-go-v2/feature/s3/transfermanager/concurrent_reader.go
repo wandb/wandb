@@ -225,7 +225,10 @@ func (r *concurrentReader) partRead(p []byte) (int, error) {
 		}
 
 		if written >= cap(p) {
-			return written, nil
+			// don't return yet, parts already dispatched up to capacity may
+			// still be downloading or sitting in r.ch, and the receive loop
+			// below is what drains them
+			break
 		}
 
 		c, ok := r.buf[i]
