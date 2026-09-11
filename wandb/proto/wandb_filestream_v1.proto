@@ -9,10 +9,10 @@ option go_package = "core/pkg/filestream_proto/v1;filestreamv1";
  *
  * The SDK sends a FileStreamUpload as the body of `POST .../file_stream`
  * with the content type `application/vnd.wandb.filestream.v1+protobuf`.
- * The JSON body on the same route, content type `application/json`,
- * stays supported. The SDK sends the protobuf body only when the server
- * reports the matching ServerFeature flag. If the server rejects the
- * body, the SDK re-sends the chunk as JSON.
+ *
+ * The legacy JSON body is also supported on the same route, with
+ * content type `application/json`. See `FileStreamUploadJSON` for the
+ * schema.
  *
  * This file is the source of truth. wandb/core mirrors it, and a CI
  * check compares the compiled descriptors.
@@ -34,15 +34,10 @@ option go_package = "core/pkg/filestream_proto/v1;filestreamv1";
  *     deterministic, so the server can byte-compare a re-encode.
  */
 
-// FileStreamUpload is one filestream request.
-//
-// It is the protobuf form of the JSON request body. Every field except
-// `history` has the same meaning as its JSON counterpart.
+// FileStreamUpload is data that can be sent via filestream.
 message FileStreamUpload {
-  // Line-oriented file updates: events, summary, and console output.
-  //
-  // A request may also send history here as JSON lines, but not in the
-  // same request as `history`.
+  // Line-oriented file updates: history, events, and console output.
+  // This is the legacy format.
   repeated FileStreamChunk files = 1;
 
   // Typed history rows. Replaces the "wandb-history.jsonl" entry in `files`.
@@ -51,39 +46,32 @@ message FileStreamUpload {
   // Names of files that finished uploading.
   repeated string uploaded = 3;
 
-  // The run is about to be preempted and will not send heartbeats for
-  // a while. It is not dead.
+  // The run is about to be preempted. It will not send heartbeats for
+  // a while, but it may resume later.
   optional bool preempting = 4;
 
   // The run finished.
   optional bool complete = 5;
 
-  // The exit code of the run's script. Only meaningful when `complete` is set.
+  // The exit code of the run's source script. Only meaningful when `complete` is set.
   optional int32 exitcode = 6;
 }
 
 // FileStreamChunk appends or overwrites lines in one filestream file.
 message FileStreamChunk {
   // The filestream file name, for example "wandb-events.jsonl".
-  //
-  // A request must not repeat a name.
   string name = 1;
 
   // The line number of the first line in `content`.
   int64 offset = 2;
 
-  // The lines to write, in order. Each line is a complete JSON object,
-  // or a line of console output.
+  // The lines to write, in order.
   repeated string content = 3;
 }
 
-// MetricsBatchChunk appends typed history rows at a line offset.
+// MetricsBatchChunk appends typed history rows at a stream row offset.
 //
-// Each row counts as one history line. The server must count rows in
-// the same counter it reports as `historyLineCount`, so that a run can
-// mix typed and JSON-lines requests and resume from either. The `_step`
-// of each row is in the batch's sequence column, so `seq_key` is empty
-// or "_step".
+// Row offset is the same as the legacy "line" offset.
 message MetricsBatchChunk {
   // The history line number of the first row in `batch`.
   int64 offset = 1;
@@ -95,9 +83,8 @@ message MetricsBatchChunk {
 //
 // Keys are dictionary-encoded once per batch. Cells are stored in row
 // order as (key id, kind) coordinates, and payloads are packed into one
-// array per kind. Metric names are data, not schema, so a fixed message
-// carries arbitrary keys. One metric, named by `seq_key`, is a dense
-// per-row column instead of a cell. For history it is `_step`.
+// array per kind. One metric, named by `seq_key`, is a dense per-row
+// column instead of a cell. For history, it is `_step`.
 //
 // Example:
 //
@@ -118,8 +105,8 @@ message MetricsBatchChunk {
 //     has_seq:    [1, 1, 1]
 //     seq_key:    ""            (empty means "_step")
 //
-// This layout matches the server's internal batch field for field, but
-// the two schemas are independent and evolve separately.
+// This layout is very similar to the server's internal batch, but the two
+// schemas are independent and evolve separately.
 //
 // A decoder must reject a batch when any of these conditions is false:
 //   - `row_ends` is non-decreasing, and its last entry equals the cell count.
@@ -133,37 +120,13 @@ message MetricsBatchChunk {
 // The cell count is the length of `cell_kinds`.
 message MetricsBatch {
   // Kind is the type tag of one cell. It selects the payload array.
-  //
-  // Integer and float are separate kinds, so an int64 above 2^53 keeps
-  // its exact value. Nested objects and arrays stay as verbatim JSON
-  // text, because no ingest consumer reads inside them.
-  //
-  // Values match `HistoryValue.Kind` in the transaction log, so the
-  // map between the two is the identity. This is a convenience, not a
-  // requirement.
   enum Kind {
-    // Invalid. A decoder rejects it. A zero byte in `cell_kinds` is a
-    // producer bug.
-    KIND_UNSPECIFIED = 0;
-
-    // JSON null. No payload.
-    KIND_NULL = 1;
-
-    // Payload in `bools`.
-    KIND_BOOL = 2;
-
-    // Payload in `ints`. Exact int64.
-    KIND_INT = 3;
-
-    // Payload in `floats`. NaN, Infinity and -Infinity are ordinary IEEE
-    // values, not sentinel strings.
-    KIND_FLOAT = 4;
-
-    // Payload in `strings`.
-    KIND_STRING = 5;
-
-    // Payload in `jsons`. Verbatim JSON text for an object or an array.
-    KIND_JSON = 6;
+    KIND_NULL = 0;
+    KIND_FLOAT = 1;
+    KIND_INT = 2;
+    KIND_BOOL = 3;
+    KIND_STRING = 4;
+    KIND_JSON = 5;
   }
 
   // The key dictionary. `cell_keys` index into it.
