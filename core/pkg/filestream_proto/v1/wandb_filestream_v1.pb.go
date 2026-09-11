@@ -22,54 +22,34 @@ const (
 )
 
 // Kind is the type tag of one cell. It selects the payload array.
-//
-// Integer and float are separate kinds, so an int64 above 2^53 keeps
-// its exact value. Nested objects and arrays stay as verbatim JSON
-// text, because no ingest consumer reads inside them.
-//
-// Values match `HistoryValue.Kind` in the transaction log, so the
-// map between the two is the identity. This is a convenience, not a
-// requirement.
 type MetricsBatch_Kind int32
 
 const (
-	// Invalid. A decoder rejects it. A zero byte in `cell_kinds` is a
-	// producer bug.
-	MetricsBatch_KIND_UNSPECIFIED MetricsBatch_Kind = 0
-	// JSON null. No payload.
-	MetricsBatch_KIND_NULL MetricsBatch_Kind = 1
-	// Payload in `bools`.
-	MetricsBatch_KIND_BOOL MetricsBatch_Kind = 2
-	// Payload in `ints`. Exact int64.
-	MetricsBatch_KIND_INT MetricsBatch_Kind = 3
-	// Payload in `floats`. NaN, Infinity and -Infinity are ordinary IEEE
-	// values, not sentinel strings.
-	MetricsBatch_KIND_FLOAT MetricsBatch_Kind = 4
-	// Payload in `strings`.
-	MetricsBatch_KIND_STRING MetricsBatch_Kind = 5
-	// Payload in `jsons`. Verbatim JSON text for an object or an array.
-	MetricsBatch_KIND_JSON MetricsBatch_Kind = 6
+	MetricsBatch_KIND_NULL   MetricsBatch_Kind = 0
+	MetricsBatch_KIND_FLOAT  MetricsBatch_Kind = 1
+	MetricsBatch_KIND_INT    MetricsBatch_Kind = 2
+	MetricsBatch_KIND_BOOL   MetricsBatch_Kind = 3
+	MetricsBatch_KIND_STRING MetricsBatch_Kind = 4
+	MetricsBatch_KIND_JSON   MetricsBatch_Kind = 5
 )
 
 // Enum value maps for MetricsBatch_Kind.
 var (
 	MetricsBatch_Kind_name = map[int32]string{
-		0: "KIND_UNSPECIFIED",
-		1: "KIND_NULL",
-		2: "KIND_BOOL",
-		3: "KIND_INT",
-		4: "KIND_FLOAT",
-		5: "KIND_STRING",
-		6: "KIND_JSON",
+		0: "KIND_NULL",
+		1: "KIND_FLOAT",
+		2: "KIND_INT",
+		3: "KIND_BOOL",
+		4: "KIND_STRING",
+		5: "KIND_JSON",
 	}
 	MetricsBatch_Kind_value = map[string]int32{
-		"KIND_UNSPECIFIED": 0,
-		"KIND_NULL":        1,
-		"KIND_BOOL":        2,
-		"KIND_INT":         3,
-		"KIND_FLOAT":       4,
-		"KIND_STRING":      5,
-		"KIND_JSON":        6,
+		"KIND_NULL":   0,
+		"KIND_FLOAT":  1,
+		"KIND_INT":    2,
+		"KIND_BOOL":   3,
+		"KIND_STRING": 4,
+		"KIND_JSON":   5,
 	}
 )
 
@@ -100,27 +80,22 @@ func (MetricsBatch_Kind) EnumDescriptor() ([]byte, []int) {
 	return file_wandb_proto_wandb_filestream_v1_proto_rawDescGZIP(), []int{3, 0}
 }
 
-// FileStreamUpload is one filestream request.
-//
-// It is the protobuf form of the JSON request body. Every field except
-// `history` has the same meaning as its JSON counterpart.
+// FileStreamUpload is data that can be sent via filestream.
 type FileStreamUpload struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Line-oriented file updates: events, summary, and console output.
-	//
-	// A request may also send history here as JSON lines, but not in the
-	// same request as `history`.
+	// Line-oriented file updates: history, events, and console output.
+	// This is the legacy format.
 	Files []*FileStreamChunk `protobuf:"bytes,1,rep,name=files,proto3" json:"files,omitempty"`
 	// Typed history rows. Replaces the "wandb-history.jsonl" entry in `files`.
 	History *MetricsBatchChunk `protobuf:"bytes,2,opt,name=history,proto3" json:"history,omitempty"`
 	// Names of files that finished uploading.
 	Uploaded []string `protobuf:"bytes,3,rep,name=uploaded,proto3" json:"uploaded,omitempty"`
-	// The run is about to be preempted and will not send heartbeats for
-	// a while. It is not dead.
+	// The run is about to be preempted. It will not send heartbeats for
+	// a while, but it may resume later.
 	Preempting *bool `protobuf:"varint,4,opt,name=preempting,proto3,oneof" json:"preempting,omitempty"`
 	// The run finished.
 	Complete *bool `protobuf:"varint,5,opt,name=complete,proto3,oneof" json:"complete,omitempty"`
-	// The exit code of the run's script. Only meaningful when `complete` is set.
+	// The exit code of the run's source script. Only meaningful when `complete` is set.
 	Exitcode      *int32 `protobuf:"varint,6,opt,name=exitcode,proto3,oneof" json:"exitcode,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -202,13 +177,10 @@ func (x *FileStreamUpload) GetExitcode() int32 {
 type FileStreamChunk struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The filestream file name, for example "wandb-events.jsonl".
-	//
-	// A request must not repeat a name.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// The line number of the first line in `content`.
 	Offset int64 `protobuf:"varint,2,opt,name=offset,proto3" json:"offset,omitempty"`
-	// The lines to write, in order. Each line is a complete JSON object,
-	// or a line of console output.
+	// The lines to write, in order.
 	Content       []string `protobuf:"bytes,3,rep,name=content,proto3" json:"content,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -265,13 +237,9 @@ func (x *FileStreamChunk) GetContent() []string {
 	return nil
 }
 
-// MetricsBatchChunk appends typed history rows at a line offset.
+// MetricsBatchChunk appends typed history rows at a stream row offset.
 //
-// Each row counts as one history line. The server must count rows in
-// the same counter it reports as `historyLineCount`, so that a run can
-// mix typed and JSON-lines requests and resume from either. The `_step`
-// of each row is in the batch's sequence column, so `seq_key` is empty
-// or "_step".
+// Row offset is the same as the legacy "line" offset.
 type MetricsBatchChunk struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The history line number of the first row in `batch`.
@@ -329,9 +297,8 @@ func (x *MetricsBatchChunk) GetBatch() *MetricsBatch {
 //
 // Keys are dictionary-encoded once per batch. Cells are stored in row
 // order as (key id, kind) coordinates, and payloads are packed into one
-// array per kind. Metric names are data, not schema, so a fixed message
-// carries arbitrary keys. One metric, named by `seq_key`, is a dense
-// per-row column instead of a cell. For history it is `_step`.
+// array per kind. One metric, named by `seq_key`, is a dense per-row
+// column instead of a cell. For history, it is `_step`.
 //
 // Example:
 //
@@ -352,8 +319,8 @@ func (x *MetricsBatchChunk) GetBatch() *MetricsBatch {
 //	  has_seq:    [1, 1, 1]
 //	  seq_key:    ""            (empty means "_step")
 //
-// This layout matches the server's internal batch field for field, but
-// the two schemas are independent and evolve separately.
+// This layout is very similar to the server's internal batch, but the two
+// schemas are independent and evolve separately.
 //
 // A decoder must reject a batch when any of these conditions is false:
 //   - `row_ends` is non-decreasing, and its last entry equals the cell count.
@@ -543,7 +510,7 @@ const file_wandb_proto_wandb_filestream_v1_proto_rawDesc = "" +
 	"\acontent\x18\x03 \x03(\tR\acontent\"d\n" +
 	"\x11MetricsBatchChunk\x12\x16\n" +
 	"\x06offset\x18\x01 \x01(\x03R\x06offset\x127\n" +
-	"\x05batch\x18\x02 \x01(\v2!.wandb.filestream.v1.MetricsBatchR\x05batch\"\xab\x03\n" +
+	"\x05batch\x18\x02 \x01(\v2!.wandb.filestream.v1.MetricsBatchR\x05batch\"\x95\x03\n" +
 	"\fMetricsBatch\x12\x12\n" +
 	"\x04keys\x18\x01 \x03(\tR\x04keys\x12\x19\n" +
 	"\brow_ends\x18\x02 \x03(\rR\arowEnds\x12\x1b\n" +
@@ -558,16 +525,15 @@ const file_wandb_proto_wandb_filestream_v1_proto_rawDesc = "" +
 	"\x04seqs\x18\n" +
 	" \x03(\x12R\x04seqs\x12\x17\n" +
 	"\ahas_seq\x18\v \x01(\fR\x06hasSeq\x12\x17\n" +
-	"\aseq_key\x18\f \x01(\tR\x06seqKey\"x\n" +
-	"\x04Kind\x12\x14\n" +
-	"\x10KIND_UNSPECIFIED\x10\x00\x12\r\n" +
-	"\tKIND_NULL\x10\x01\x12\r\n" +
-	"\tKIND_BOOL\x10\x02\x12\f\n" +
-	"\bKIND_INT\x10\x03\x12\x0e\n" +
+	"\aseq_key\x18\f \x01(\tR\x06seqKey\"b\n" +
+	"\x04Kind\x12\r\n" +
+	"\tKIND_NULL\x10\x00\x12\x0e\n" +
 	"\n" +
-	"KIND_FLOAT\x10\x04\x12\x0f\n" +
-	"\vKIND_STRING\x10\x05\x12\r\n" +
-	"\tKIND_JSON\x10\x06B+Z)core/pkg/filestream_proto/v1;filestreamv1b\x06proto3"
+	"KIND_FLOAT\x10\x01\x12\f\n" +
+	"\bKIND_INT\x10\x02\x12\r\n" +
+	"\tKIND_BOOL\x10\x03\x12\x0f\n" +
+	"\vKIND_STRING\x10\x04\x12\r\n" +
+	"\tKIND_JSON\x10\x05B+Z)core/pkg/filestream_proto/v1;filestreamv1b\x06proto3"
 
 var (
 	file_wandb_proto_wandb_filestream_v1_proto_rawDescOnce sync.Once
