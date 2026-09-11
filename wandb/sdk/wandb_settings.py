@@ -607,6 +607,16 @@ class Settings(BaseModel, validate_assignment=True):
     <!-- lazydoc-ignore -->
     """
 
+    x_console_complete_lines: bool = False
+    """Whether to stream captured console output only as complete lines.
+
+    Text after a line's last newline is held back until the rest of the
+    line arrives, so a backend that appends console updates instead of
+    overwriting them by offset never records a partial line twice.
+
+    <!-- lazydoc-ignore -->
+    """
+
     x_disable_meta: bool = False
     """Flag to disable the collection of system metadata."""
 
