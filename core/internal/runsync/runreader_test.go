@@ -138,11 +138,18 @@ func isExitRecord(code int32) gomock.Matcher {
 	)
 }
 
-func Test_Extract_FindsRunRecord(t *testing.T) {
+func Test_Extract_FindsInformation(t *testing.T) {
 	x := setup(t)
 	startTime := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
 	wandbFileWithRecords(t,
 		x.TransactionLog,
+		&spb.Record{RecordType: &spb.Record_Header{
+			Header: &spb.HeaderRecord{
+				VersionInfo: &spb.VersionInfo{
+					Producer: "1.2.3dev+deadbeef",
+				},
+			},
+		}},
 		&spb.Record{RecordType: &spb.Record_Run{
 			Run: &spb.RunRecord{
 				Entity:    "test entity",
@@ -156,10 +163,11 @@ func Test_Extract_FindsRunRecord(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, &runsync.RunInfo{
-		Entity:    "test entity",
-		Project:   "test project",
-		RunID:     "test run ID",
-		StartTime: startTime,
+		SDKVersion: "1.2.3dev+deadbeef",
+		Entity:     "test entity",
+		Project:    "test project",
+		RunID:      "test run ID",
+		StartTime:  startTime,
 	}, runInfo)
 }
 
