@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime
 import hashlib
 import json
+import logging
 import math
 import os
 from dataclasses import dataclass
@@ -17,6 +18,8 @@ from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
 if TYPE_CHECKING:
     from wandb.sdk.wandb_run import Run as LocalRun
 
+
+_logger = logging.getLogger(__name__)
 
 EVAL_TABLE_MARKER = {"wandb_eval_table": True}
 
@@ -281,6 +284,11 @@ class CoreWeaveEvalTableWriter:
             )
         finally:
             client.close()
+
+        _logger.debug(
+            "CoreWeave EvalTable recorded evaluation_version_id=%s",
+            version.evaluation_version_id,
+        )
 
         return EvalTableWriteResult(
             marker={

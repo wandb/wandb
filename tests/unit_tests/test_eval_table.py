@@ -108,7 +108,13 @@ def test_eval_table_public_imports():
 def test_coreweave_eval_table_writes_columns_rows_and_version(
     mock_coreweave_client,
     run,
+    monkeypatch,
 ):
+    debug = MagicMock()
+    monkeypatch.setattr(
+        "wandb.sdk.data_types._eval_table_writer._logger.debug",
+        debug,
+    )
     et = wandb.EvalTable(
         columns=["prompt", "truth", "answer", "confidence", "correct"],
         data=[
@@ -172,6 +178,10 @@ def test_coreweave_eval_table_writes_columns_rows_and_version(
         idempotency_key=ANY,
     )
     mock_coreweave_client.close.assert_called_once_with()
+    debug.assert_called_once_with(
+        "CoreWeave EvalTable recorded evaluation_version_id=%s",
+        "evaluation-version-1",
+    )
 
     marker = et.to_json(run)
     assert marker == {
