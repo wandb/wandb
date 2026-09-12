@@ -295,6 +295,61 @@ message HistoryRecord {
   _RecordInfo _info = 200;
 }
 
+// HistoryValue is one logged value with its type.
+//
+// It is the typed form of `HistoryItem.value_json`. A writer sets one,
+// or both, depending on the `x_history_value_encoding` setting. A reader
+// prefers `value` and falls back to `value_json`.
+//
+// The two forms must carry the same value. Rollback from the typed form
+// to the JSON form depends on that equivalence.
+message HistoryValue {
+  // Kind is the type of the value. It selects the value field.
+  //
+  // Integer and float are separate kinds, so an int64 above 2^53 keeps
+  // its exact value. A single numeric kind backed by a double would
+  // narrow it. Nested objects and arrays stay as verbatim JSON text,
+  // because no consumer on the upload path reads inside them.
+  //
+  // Kinds are frozen. Each kind maps onto a Kind in the filestream wire
+  // schema, and each declares a lossless conversion to JSON. A kind with
+  // no lossless JSON form does not enter the map.
+  enum Kind {
+    // Invalid. A reader rejects it. It means the writer left the kind
+    // unset, which is a bug.
+    KIND_UNSPECIFIED = 0;
+
+    // JSON null. No value field is set.
+    KIND_NULL = 1;
+
+    // Value in `bool_value`.
+    KIND_BOOL = 2;
+
+    // Value in `int_value`. Exact int64.
+    KIND_INT = 3;
+
+    // Value in `float_value`. NaN, Infinity and -Infinity are ordinary
+    // IEEE values, not sentinel strings.
+    KIND_FLOAT = 4;
+
+    // Value in `string_value`.
+    KIND_STRING = 5;
+
+    // Value in `json_value`. Verbatim JSON text for an object or an array.
+    KIND_JSON = 6;
+  }
+
+  Kind kind = 1;
+
+  // Exactly one of these is set, and `kind` selects which one. KIND_NULL
+  // sets none of them.
+  bool bool_value = 2;
+  int64 int_value = 3;
+  double float_value = 4;
+  string string_value = 5;
+  string json_value = 6;
+}
+
 /*
  * HistoryItem:
  *
@@ -305,6 +360,13 @@ message HistoryRecord {
 message HistoryItem {
   string key = 1;
   repeated string nested_key = 2;
+
+  // The typed value. Unset means the writer sent JSON only.
+  //
+  // A reader must keep reading `value_json` when this is unset, because
+  // an older SDK wrote the transaction log.
+  HistoryValue value = 3;
+
   string value_json = 16;
 }
 
