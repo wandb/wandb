@@ -11,7 +11,7 @@ option go_package = "core/pkg/filestream_proto/v1;filestreamv1";
  * with the content type `application/vnd.wandb.filestream.v1+protobuf`.
  *
  * The legacy JSON body is also supported on the same route, with
- * content type `application/json`. See `FileStreamUploadJSON` for the
+ * content type `application/json`. See `FileStreamRequestJSON` for the
  * schema.
  *
  * This file is the source of truth. wandb/core mirrors it, and a CI
@@ -41,6 +41,8 @@ message FileStreamUpload {
   repeated FileStreamChunk files = 1;
 
   // Typed history rows. Replaces the "wandb-history.jsonl" entry in `files`.
+  // If `history` is set and `files` contains "wandb-history.jsonl", the server
+  // will reject the request with a bad request (400) error.
   MetricsBatchChunk history = 2;
 
   // Names of files that finished uploading.
@@ -107,7 +109,7 @@ message MetricsBatchChunk {
 //     strings:    ["spike"]
 //     seqs:       [0, 1, 2]
 //     has_seq:    [1, 1, 1]
-//     seq_key:    ""            (empty means "_step")
+//     seq_key:    "_step"
 //
 // This layout is very similar to the server's internal batch, but the two
 // schemas are independent and evolve separately.
@@ -120,7 +122,7 @@ message MetricsBatchChunk {
 //     of its kind.
 //   - `keys` are unique and non-empty, and no row repeats a key.
 //   - `seqs` and `has_seq` are both empty, or both have one entry per row.
-//   - `seq_key` is empty or a key the route supports.
+//   - `seq_key` is non-empty and a key the route supports.
 // The cell count is the length of `cell_kinds`.
 message MetricsBatch {
   // Kind is the type tag of one cell. It selects the payload array.

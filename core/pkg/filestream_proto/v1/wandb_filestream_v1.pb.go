@@ -90,6 +90,8 @@ type FileStreamUpload struct {
 	// This is the legacy format.
 	Files []*FileStreamChunk `protobuf:"bytes,1,rep,name=files,proto3" json:"files,omitempty"`
 	// Typed history rows. Replaces the "wandb-history.jsonl" entry in `files`.
+	// If `history` is set and `files` contains "wandb-history.jsonl", the server
+	// will reject the request with a bad request (400) error.
 	History *MetricsBatchChunk `protobuf:"bytes,2,opt,name=history,proto3" json:"history,omitempty"`
 	// Names of files that finished uploading.
 	Uploaded []string `protobuf:"bytes,3,rep,name=uploaded,proto3" json:"uploaded,omitempty"`
@@ -330,7 +332,7 @@ func (x *MetricsBatchChunk) GetBatch() *MetricsBatch {
 //	  strings:    ["spike"]
 //	  seqs:       [0, 1, 2]
 //	  has_seq:    [1, 1, 1]
-//	  seq_key:    ""            (empty means "_step")
+//	  seq_key:    "_step"
 //
 // This layout is very similar to the server's internal batch, but the two
 // schemas are independent and evolve separately.
@@ -343,7 +345,7 @@ func (x *MetricsBatchChunk) GetBatch() *MetricsBatch {
 //     of its kind.
 //   - `keys` are unique and non-empty, and no row repeats a key.
 //   - `seqs` and `has_seq` are both empty, or both have one entry per row.
-//   - `seq_key` is empty or a key the route supports.
+//   - `seq_key` is non-empty and a key the route supports.
 //
 // The cell count is the length of `cell_kinds`.
 type MetricsBatch struct {
