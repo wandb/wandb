@@ -1,0 +1,184 @@
+syntax = "proto3";
+
+package wandb.filestream.v1;
+
+option go_package = "core/pkg/filestream_proto/v1;filestreamv1";
+
+/*
+ * Wire schema for typed filestream uploads.
+ *
+ * The SDK sends a FileStreamUpload as the body of `POST .../file_stream`
+ * with the content type `application/vnd.wandb.filestream.v1+protobuf`.
+ *
+ * The legacy JSON body is also supported on the same route, with
+ * content type `application/json`. See `FileStreamRequestJSON` for the
+ * schema.
+ *
+ * This file is the source of truth. wandb/core mirrors it, and a CI
+ * check compares the compiled descriptors.
+ *
+ * Compatibility rules:
+ *   - Field numbers are frozen. Never renumber or reuse them.
+ *   - A change that adds a field keeps the content type
+ *     `application/vnd.wandb.filestream.v1+protobuf`. The SDK sends the
+ *     new field only when a ServerFeature flag is on.
+ *   - A change that alters how the server reads an existing field
+ *     requires a new content type version, for example
+ *     `application/vnd.wandb.filestream.v2+protobuf`. A new version is a
+ *     new proto package and a new file, `wandb.filestream.v2` in
+ *     `wandb_filestream_v2.proto`, so that a server can decode both
+ *     versions in one binary. The content type and the package always
+ *     change together.
+ *   - Kinds are frozen. The server rejects an unknown kind.
+ *   - The messages must stay free of map fields. This keeps the encoding
+ *     deterministic, so the server can byte-compare a re-encode.
+ */
+
+// FileStreamUpload is data that can be sent via filestream.
+message FileStreamUpload {
+  // Line-oriented file updates: history, events, and console output.
+  // This is the legacy format.
+  repeated FileStreamChunk files = 1;
+
+  // Typed history rows. Replaces the "wandb-history.jsonl" entry in `files`.
+  // If `history` is set and `files` contains "wandb-history.jsonl", the server
+  // will reject the request with a bad request (400) error.
+  MetricsBatchChunk history = 2;
+
+  // Names of files that finished uploading.
+  repeated string uploaded = 3;
+
+  // The run is about to be preempted. It will not send heartbeats for
+  // a while, but it may resume later.
+  optional bool preempting = 4;
+
+  // The run finished.
+  optional bool complete = 5;
+
+  // The exit code of the run's source script. Only meaningful when `complete` is set.
+  optional int32 exitcode = 6;
+}
+
+// FileStreamChunk appends or overwrites lines in one filestream file.
+message FileStreamChunk {
+  // The filestream file name, for example "wandb-events.jsonl".
+  string name = 1;
+
+  // The line number of the first line in `content`.
+  int64 offset = 2;
+
+  // The lines to write, in order.
+  repeated string content = 3;
+}
+
+// MetricsBatchChunk appends typed history rows at a stream row offset.
+//
+// Row offset is the same as the legacy "line" offset.
+//
+// A decoder must reject the chunk when `row_count` does not equal the
+// length of `batch.row_ends`.
+message MetricsBatchChunk {
+  // The history line number of the first row in `batch`.
+  int64 offset = 1;
+
+  // The number of rows in `batch`. It repeats the length of
+  // `batch.row_ends` so a decoder can detect a truncated batch.
+  int64 row_count = 2;
+
+  // The batch of rows.
+  MetricsBatch batch = 3;
+}
+
+// MetricsBatch is a columnar set of metric rows.
+//
+// Keys are dictionary-encoded once per batch. Cells are stored in row
+// order as (key id, kind) coordinates, and payloads are packed into one
+// array per kind. One metric, named by `seq_key`, is a dense per-row
+// column instead of a cell. For history, it is `_step`.
+//
+// Example:
+//
+//   rows:
+//     {"_step": 0, "loss": 0.5}
+//     {"_step": 1, "loss": NaN, "note": "spike"}
+//     {"_step": 2, "big": 9007199254740993}
+//
+//   batch:
+//     keys:       ["loss", "note", "big"]
+//     row_ends:   [1, 3, 4]
+//     cell_keys:  [0, 0, 1, 2]
+//     cell_kinds: [FLOAT, FLOAT, STRING, INT]
+//     floats:     [0.5, NaN]
+//     ints:       [9007199254740993]
+//     strings:    ["spike"]
+//     seqs:       [0, 1, 2]
+//     has_seq:    [1, 1, 1]
+//     seq_key:    "_step"
+//
+// This layout is very similar to the server's internal batch, but the two
+// schemas are independent and evolve separately.
+//
+// A decoder must reject a batch when any of these conditions is false:
+//   - `row_ends` is non-decreasing, and its last entry equals the cell count.
+//   - `cell_keys` has one entry per cell, and every entry indexes into `keys`.
+//   - `cell_kinds` has one entry per cell, and every entry is a known Kind.
+//   - Each payload array has exactly as many entries as there are cells
+//     of its kind.
+//   - `keys` are unique and non-empty, and no row repeats a key.
+//   - `seqs` and `has_seq` are both empty, or both have one entry per row.
+//   - `seq_key` is non-empty and a key the route supports.
+// The cell count is the length of `cell_kinds`.
+message MetricsBatch {
+  // Kind is the type tag of one cell. It selects the payload array.
+  enum Kind {
+    KIND_NULL = 0;
+    KIND_FLOAT = 1;
+    KIND_INT = 2;
+    KIND_BOOL = 3;
+    KIND_STRING = 4;
+
+    // Anything not representable in the other five kinds, kept as JSON text.
+    // Nested values are represented as `KIND_JSON` cells under their
+    // top-level key.
+    KIND_JSON = 5;
+  }
+
+  // The key dictionary. `cell_keys` index into it.
+  //
+  // Keys are top-level metric names. A nested value is one `KIND_JSON` cell
+  // under its top-level key. The sequence key (`seq_key`) is not in `keys`.
+  // It has its own column, `seqs`.
+  repeated string keys = 1;
+
+  // row_ends[i] is the cumulative cell count through row i, so row i
+  // spans cells [row_ends[i-1], row_ends[i]). The row count is the
+  // length of this array. A row may have zero cells.
+  repeated uint32 row_ends = 2;
+
+  // The key id of each cell, in row order.
+  repeated uint32 cell_keys = 3;
+
+  // The Kind of each cell, in row order. One byte per cell.
+  bytes cell_kinds = 4;
+
+  // Payload arrays. The cells of one kind take payloads from that kind's
+  // array in cell order. A KIND_NULL cell has no payload.
+  repeated double floats = 5;
+  repeated sint64 ints = 6;
+  repeated bool bools = 7;
+  repeated string strings = 8;
+  repeated string jsons = 9;
+
+  // Dense column of sequence values. It is empty, or it holds one entry
+  // per row.
+  repeated sint64 seqs = 10;
+  // Presence of each `seqs` entry: 0 for absent, 1 for present. It is
+  // empty when `seqs` is empty, and one byte per row otherwise.
+  bytes has_seq = 11;
+
+  // The metric key for the `seqs` column: `"_step"` for history,
+  // `"_timestamp"` for events, `"_offset"` for logs. Must be non-empty,
+  // including when `seqs` is empty. It names the sequence the stream
+  // uses, not the values present in this batch.
+  string seq_key = 12;
+}

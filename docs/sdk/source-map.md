@@ -61,6 +61,7 @@ This page maps concepts to code. It is meant for navigation, not exhaustive owne
 | [`wandb/proto/wandb_settings.proto`](../../wandb/proto/wandb_settings.proto) | Settings shared with core. |
 | [`wandb/proto/wandb_api.proto`](../../wandb/proto/wandb_api.proto) | Public API routing through core. |
 | [`wandb/proto/wandb_sync.proto`](../../wandb/proto/wandb_sync.proto) | `wandb beta sync` messages. |
+| [`wandb/proto/wandb_filestream_v1.proto`](../../wandb/proto/wandb_filestream_v1.proto) | Typed filestream upload wire schema, versioned with the content type: `FileStreamUpload` and the columnar `MetricsBatch`. Generated Go stubs live in `core/pkg/filestream_proto/v1`. |
 | [`core/pkg/service_go_proto`](../../core/pkg/service_go_proto) | Generated Go protobuf stubs. |
 
 ## Code snippets worth knowing
