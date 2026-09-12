@@ -5,7 +5,8 @@ from __future__ import annotations
 import datetime
 import sys
 import types
-from unittest.mock import MagicMock
+from types import SimpleNamespace
+from unittest.mock import ANY, MagicMock
 
 import pytest
 import wandb
@@ -66,6 +67,29 @@ def run(mock_run):
     return mock_run(settings={"entity": "e", "project": "p", "mode": "online"})
 
 
+@pytest.fixture
+def mock_coreweave_client(monkeypatch):
+    client = MagicMock()
+    client.eval_tables.create.return_value = SimpleNamespace(
+        dataset_id="dataset-1",
+        evaluation_id="evaluation-1",
+    )
+    client.eval_tables.create_version.return_value = SimpleNamespace(
+        dataset_version_id="dataset-version-1",
+        evaluation_version_id="evaluation-version-1",
+    )
+    monkeypatch.setenv(
+        "COREWEAVE_EVALUATIONS_BASE_URL",
+        "https://evaluations.example.test",
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.data_types._eval_table_writer."
+        "CoreWeaveEvalTableWriter._create_client",
+        lambda self, base_url: client,
+    )
+    return client
+
+
 def _install_fake_weave(monkeypatch, **attrs):
     module = types.ModuleType("weave")
     module.__path__ = []
@@ -79,6 +103,213 @@ def _install_fake_weave(monkeypatch, **attrs):
 def test_eval_table_public_imports():
     assert wandb.EvalTable is eval_table_module.EvalTable
     assert wandb_data_types.EvalTable is eval_table_module.EvalTable
+
+
+def test_coreweave_eval_table_writes_columns_rows_and_version(
+    mock_coreweave_client,
+    run,
+):
+    et = wandb.EvalTable(
+        columns=["prompt", "truth", "answer", "confidence", "correct"],
+        data=[
+            ["2+2", "4", "4", 1, True],
+            ["2+3", "5", "4", 0.25, False],
+        ],
+        input_columns=["prompt", "truth"],
+        output_columns=["answer", "confidence"],
+        score_columns=["correct"],
+        backend="coreweave",
+    )
+
+    run.log({"math_eval": et})
+
+    api = mock_coreweave_client.eval_tables
+    assert [call[0] for call in api.method_calls] == [
+        "create",
+        "create_columns",
+        "add_rows",
+        "create_version",
+    ]
+    api.create.assert_called_once_with(
+        "p",
+        name="math_eval",
+        idempotency_key=ANY,
+    )
+    api.create_columns.assert_called_once_with(
+        "evaluation-1",
+        project_id="p",
+        dataset_fields=[
+            {"source": "input", "name": "prompt", "value_type": "string"},
+            {"source": "input", "name": "truth", "value_type": "string"},
+            {"source": "output", "name": "answer", "value_type": "string"},
+            {"source": "output", "name": "confidence", "value_type": "number"},
+        ],
+        scorers=[
+            {"name": "correct", "value_type": "boolean"},
+        ],
+        idempotency_key=ANY,
+    )
+    api.add_rows.assert_called_once_with(
+        "evaluation-1",
+        project_id="p",
+        rows=[
+            {
+                "input": {"prompt": "2+2", "truth": "4"},
+                "output": {"answer": "4", "confidence": 1},
+                "scores": {"correct": True},
+            },
+            {
+                "input": {"prompt": "2+3", "truth": "5"},
+                "output": {"answer": "4", "confidence": 0.25},
+                "scores": {"correct": False},
+            },
+        ],
+        idempotency_key=ANY,
+    )
+    api.create_version.assert_called_once_with(
+        "evaluation-1",
+        project_id="p",
+        idempotency_key=ANY,
+    )
+    mock_coreweave_client.close.assert_called_once_with()
+
+    marker = et.to_json(run)
+    assert marker == {
+        "_type": "eval-table",
+        "backend": "coreweave",
+        "schema_version": 1,
+        "ncols": 5,
+        "nrows": 2,
+        "log_mode": "IMMUTABLE",
+        "evaluation_id": "evaluation-1",
+        "evaluation_version_id": "evaluation-version-1",
+        "dataset_id": "dataset-1",
+        "dataset_version_id": "dataset-version-1",
+    }
+    assert "evaluate_call_id" not in marker
+
+
+def test_coreweave_eval_table_infers_python_and_numpy_integers(
+    mock_coreweave_client,
+    run,
+):
+    np = pytest.importorskip("numpy")
+    et = wandb.EvalTable(
+        columns=["python_int", "numpy_int", "numeric"],
+        data=[[1, np.int64(2), np.int64(3)], [4, np.int32(5), np.float64(6.5)]],
+        output_columns=["python_int", "numpy_int", "numeric"],
+        backend="coreweave",
+    )
+
+    run.log({"typed_eval": et})
+
+    fields = mock_coreweave_client.eval_tables.create_columns.call_args.kwargs[
+        "dataset_fields"
+    ]
+    assert fields == [
+        {"source": "input", "name": "row", "value_type": "integer"},
+        {"source": "output", "name": "python_int", "value_type": "integer"},
+        {"source": "output", "name": "numpy_int", "value_type": "integer"},
+        {"source": "output", "name": "numeric", "value_type": "number"},
+    ]
+
+
+@pytest.mark.parametrize(
+    ("data", "message"),
+    [
+        ([[None], [None]], "all-null"),
+        ([[float("inf")]], "non-finite"),
+        ([[{"nested": True}]], "only primitive values"),
+    ],
+)
+def test_coreweave_eval_table_rejects_invalid_columns_before_network(
+    mock_coreweave_client,
+    run,
+    data,
+    message,
+):
+    if message in {"non-finite", "only primitive values"}:
+        with pytest.raises(UsageError, match=message):
+            wandb.EvalTable(
+                columns=["value"],
+                data=data,
+                backend="coreweave",
+            )
+    else:
+        et = wandb.EvalTable(
+            columns=["value"],
+            data=data,
+            backend="coreweave",
+        )
+        with pytest.raises(UsageError, match=message):
+            run.log({"invalid_eval": et})
+
+    mock_coreweave_client.eval_tables.create.assert_not_called()
+
+
+def test_coreweave_eval_table_rejects_mixed_column_types_before_network(
+    mock_coreweave_client,
+):
+    with pytest.raises(TypeError, match="incompatible types"):
+        wandb.EvalTable(
+            columns=["value"],
+            data=[["x"], [1]],
+            backend="coreweave",
+        )
+
+    mock_coreweave_client.eval_tables.create.assert_not_called()
+
+
+def test_coreweave_eval_table_requires_base_url(monkeypatch, mock_run):
+    monkeypatch.delenv("COREWEAVE_EVALUATIONS_BASE_URL", raising=False)
+    run = mock_run(settings={"entity": "e", "project": "p", "mode": "online"})
+    et = wandb.EvalTable(
+        columns=["value"],
+        data=[[1]],
+        backend="coreweave",
+    )
+
+    with pytest.raises(UsageError, match="COREWEAVE_EVALUATIONS_BASE_URL"):
+        run.log({"eval": et})
+
+
+def test_coreweave_eval_table_retries_with_stable_idempotency_keys(
+    mock_coreweave_client,
+    run,
+):
+    version = SimpleNamespace(
+        dataset_version_id="dataset-version-1",
+        evaluation_version_id="evaluation-version-1",
+    )
+    mock_coreweave_client.eval_tables.create_version.side_effect = [
+        RuntimeError("temporary failure"),
+        version,
+    ]
+    et = wandb.EvalTable(
+        columns=["value"],
+        data=[[1]],
+        backend="coreweave",
+    )
+    et.bind_to_run(run, "eval", 0)
+
+    with pytest.raises(RuntimeError, match="temporary failure"):
+        et.to_json(run)
+    et.to_json(run)
+
+    for method_name in ("create", "create_columns", "add_rows", "create_version"):
+        calls = getattr(mock_coreweave_client.eval_tables, method_name).call_args_list
+        assert len(calls) == 2
+        assert calls[0].kwargs["idempotency_key"] == calls[1].kwargs["idempotency_key"]
+
+
+def test_coreweave_eval_table_rejects_mixed_type_mode():
+    with pytest.raises(UsageError, match="allow_mixed_types=False"):
+        wandb.EvalTable(
+            columns=["value"],
+            data=[[1]],
+            allow_mixed_types=True,
+            backend="coreweave",
+        )
 
 
 def test_eval_table_offline_run_fails_fast(monkeypatch, mock_eval_logger, mock_run):
