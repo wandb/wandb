@@ -475,7 +475,7 @@ class CoreWeaveEvalTableWriter:
         except ImportError as exc:
             raise UsageError(
                 "CoreWeave EvalTable logging requires the local Evaluations Python "
-                "SDK. Install the 'eval-table-coreweave' extra with uv."
+                "SDK. Install requirements-eval-table-coreweave-local.txt with uv."
             ) from exc
 
         return CoreWeaveEvaluations(base_url=base_url)
