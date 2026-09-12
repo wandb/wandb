@@ -32,7 +32,7 @@ func (r *Run) handleRecordMsg(msg tea.Msg) tea.Cmd {
 		sessionRuns.observe(msg, true)
 		r.runOverview.ProcessRunMsg(msg)
 		r.leftSidebar.Sync()
-		r.runState = RunStateRunning
+		r.runState = msg.runState()
 		r.syncLiveRunning()
 		r.isLoading = false
 		return r.ensureLivePulseCmd()
@@ -908,11 +908,11 @@ func (r *Run) ReadLiveBatchCmd(source HistorySource) tea.Cmd {
 		if !ok {
 			return msg
 		}
-		if len(batch.Msgs) == 0 {
-			return nil
-		}
 
-		return BatchedRecordsMsg{Msgs: batch.Msgs}
+		return BatchedRecordsMsg{
+			Msgs:    batch.Msgs,
+			HasMore: batch.HasMore,
+		}
 	}
 }
 
@@ -994,6 +994,14 @@ func (r *Run) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 			cmds = append(cmds, r.watcherMgr.WaitForMsg)
 		}
 	}
+
+	if cmd := r.historySource.NextLiveReadCmd(
+		r.ReadLiveBatchCmd(r.historySource),
+		false,
+	); cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+
 	return cmds
 }
 
@@ -1001,13 +1009,14 @@ func (r *Run) handleChunkedBatch(msg ChunkedBatchMsg) []tea.Cmd {
 func (r *Run) handleBatched(msg BatchedRecordsMsg) []tea.Cmd {
 	r.logger.Debug(fmt.Sprintf("model: BatchedRecordsMsg received with %d messages", len(msg.Msgs)))
 	cmds := r.handleRecordsBatch(msg.Msgs, false)
-	if r.runState != RunStateRunning {
-		return cmds
-	}
-	cmds = append(
-		cmds,
+
+	if cmd := r.historySource.NextLiveReadCmd(
 		r.ReadLiveBatchCmd(r.historySource),
-	)
+		msg.HasMore,
+	); cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+
 	return cmds
 }
 
@@ -1073,10 +1082,15 @@ func (r *Run) livePulseCmd() tea.Cmd {
 	})
 }
 
+func (r *Run) shouldAnimateLiveUI() bool {
+	return r.runState == RunStateRunning ||
+		(r.runState == RunStateUnknown && r.metricsGrid.ChartCount() == 0)
+}
+
 // ensureLivePulseCmd starts the live-indicator redraw loop for a live run.
 // Returns nil if the loop is already ticking or the run is not live.
 func (r *Run) ensureLivePulseCmd() tea.Cmd {
-	if r.pulseTicking || r.runState != RunStateRunning {
+	if r.pulseTicking || !r.shouldAnimateLiveUI() {
 		return nil
 	}
 	r.pulseTicking = true
@@ -1085,7 +1099,7 @@ func (r *Run) ensureLivePulseCmd() tea.Cmd {
 
 // handleLivePulse keeps the live indicator animating while the run is live.
 func (r *Run) handleLivePulse() []tea.Cmd {
-	if r.runState != RunStateRunning {
+	if !r.shouldAnimateLiveUI() {
 		r.pulseTicking = false
 		return nil
 	}

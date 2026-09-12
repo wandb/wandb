@@ -40,7 +40,7 @@ type LevelDBHistorySource struct {
 func NewLevelDBHistorySource(
 	runPath string,
 	logger *observability.CoreLogger,
-) (*LevelDBHistorySource, error) {
+) (HistorySource, error) {
 	store, err := NewLiveStore(runPath, logger)
 	if err != nil {
 		return nil, err
@@ -169,6 +169,7 @@ func (hs *LevelDBHistorySource) Read(
 func (hs *LevelDBHistorySource) recordToMsg(record *spb.Record) tea.Msg {
 	switch rec := record.RecordType.(type) {
 	case *spb.Record_Run:
+		state := RunStateRunning
 		msg := RunMsg{
 			RunPath:     hs.runPath,
 			ID:          rec.Run.GetRunId(),
@@ -179,6 +180,7 @@ func (hs *LevelDBHistorySource) recordToMsg(record *spb.Record) tea.Msg {
 			Tags:        slices.Clone(rec.Run.GetTags()),
 			Config:      rec.Run.GetConfig(),
 			Telemetry:   rec.Run.GetTelemetry(),
+			State:       &state,
 		}
 		if ts := rec.Run.GetStartTime(); ts != nil {
 			msg.StartTime = ts.AsTime()
@@ -198,6 +200,17 @@ func (hs *LevelDBHistorySource) recordToMsg(record *spb.Record) tea.Msg {
 	default:
 		return nil
 	}
+}
+
+func (hs *LevelDBHistorySource) NextLiveReadCmd(
+	readCmd tea.Cmd,
+	hasMore bool,
+) tea.Cmd {
+	if hasMore {
+		return readCmd
+	}
+
+	return nil
 }
 
 func (hs *LevelDBHistorySource) Close() {

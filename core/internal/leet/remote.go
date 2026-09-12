@@ -6,10 +6,11 @@ import (
 	"strings"
 )
 
-// ParseRemoteURL parses a W&B run URL into RemoteRunParams.
+// ParseRemoteURL parses a W&B project or run URL into RemoteRunParams.
 //
 // Accepted shapes:
 //
+//	https://<host>/<entity>/<project>
 //	https://<host>/<entity>/<project>/<run-id>
 //	https://<host>/<entity>/<project>/runs/<run-id>
 //
@@ -31,17 +32,31 @@ func ParseRemoteURL(s string) (*RemoteRunParams, error) {
 	if len(parts) == 4 && parts[2] == "runs" {
 		parts = []string{parts[0], parts[1], parts[3]}
 	}
-	if len(parts) != 3 || parts[0] == "" || parts[1] == "" || parts[2] == "" {
+	if len(parts) != 2 && len(parts) != 3 {
 		return nil, fmt.Errorf(
-			"remote URL must be https://<host>/<entity>/<project>/runs/<run-id>, got %q",
+			"remote URL must be https://<host>/<entity>/<project> or "+
+				"https://<host>/<entity>/<project>/runs/<run-id>, got %q",
 			s,
 		)
+	}
+
+	if parts[0] == "" || parts[1] == "" || (len(parts) == 3 && parts[2] == "") {
+		return nil, fmt.Errorf(
+			"remote URL must be https://<host>/<entity>/<project> or "+
+				"https://<host>/<entity>/<project>/runs/<run-id>, got %q",
+			s,
+		)
+	}
+
+	var runID string
+	if len(parts) == 3 {
+		runID = parts[2]
 	}
 
 	return &RemoteRunParams{
 		BaseURL: u.Scheme + "://" + u.Host,
 		Entity:  parts[0],
 		Project: parts[1],
-		RunID:   parts[2],
+		RunID:   runID,
 	}, nil
 }
