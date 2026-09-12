@@ -296,8 +296,14 @@ def test_coreweave_eval_table_retries_with_stable_idempotency_keys(
         et.to_json(run)
     et.to_json(run)
 
-    for method_name in ("create", "create_columns", "add_rows", "create_version"):
-        calls = getattr(mock_coreweave_client.eval_tables, method_name).call_args_list
+    methods = (
+        mock_coreweave_client.eval_tables.create,
+        mock_coreweave_client.eval_tables.create_columns,
+        mock_coreweave_client.eval_tables.add_rows,
+        mock_coreweave_client.eval_tables.create_version,
+    )
+    for method in methods:
+        calls = method.call_args_list
         assert len(calls) == 2
         assert calls[0].kwargs["idempotency_key"] == calls[1].kwargs["idempotency_key"]
 
@@ -322,8 +328,14 @@ def test_coreweave_eval_table_run_location_stabilizes_idempotency_keys(
     first.to_json(run)
     second.to_json(run)
 
-    for method_name in ("create", "create_columns", "add_rows", "create_version"):
-        calls = getattr(mock_coreweave_client.eval_tables, method_name).call_args_list
+    methods = (
+        mock_coreweave_client.eval_tables.create,
+        mock_coreweave_client.eval_tables.create_columns,
+        mock_coreweave_client.eval_tables.add_rows,
+        mock_coreweave_client.eval_tables.create_version,
+    )
+    for method in methods:
+        calls = method.call_args_list
         assert len(calls) == 2
         assert calls[0].kwargs["idempotency_key"] == calls[1].kwargs["idempotency_key"]
 
