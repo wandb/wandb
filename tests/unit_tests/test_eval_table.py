@@ -302,6 +302,32 @@ def test_coreweave_eval_table_retries_with_stable_idempotency_keys(
         assert calls[0].kwargs["idempotency_key"] == calls[1].kwargs["idempotency_key"]
 
 
+def test_coreweave_eval_table_run_location_stabilizes_idempotency_keys(
+    mock_coreweave_client,
+    run,
+):
+    first = wandb.EvalTable(
+        columns=["value"],
+        data=[[1]],
+        backend="coreweave",
+    )
+    second = wandb.EvalTable(
+        columns=["value"],
+        data=[[1]],
+        backend="coreweave",
+    )
+    first.bind_to_run(run, "eval", 7)
+    second.bind_to_run(run, "eval", 7)
+
+    first.to_json(run)
+    second.to_json(run)
+
+    for method_name in ("create", "create_columns", "add_rows", "create_version"):
+        calls = getattr(mock_coreweave_client.eval_tables, method_name).call_args_list
+        assert len(calls) == 2
+        assert calls[0].kwargs["idempotency_key"] == calls[1].kwargs["idempotency_key"]
+
+
 def test_coreweave_eval_table_rejects_mixed_type_mode():
     with pytest.raises(UsageError, match="allow_mixed_types=False"):
         wandb.EvalTable(

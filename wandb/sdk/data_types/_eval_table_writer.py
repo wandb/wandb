@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import datetime
+import hashlib
 import json
 import math
 import os
-import uuid
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, Protocol
 
@@ -220,13 +220,24 @@ class CoreWeaveEvalTableWriter:
 
     def __init__(self) -> None:
         self._project_id: str | None = None
-        self._idempotency_scope = uuid.uuid4().hex
+        self._idempotency_scope: str | None = None
 
     def bind(self, run: LocalRun, key: str, step: int | str) -> None:
-        del key, step
         if not run.project:
             raise UsageError("CoreWeave EvalTable logging requires a W&B project.")
         self._project_id = run.project
+        identity = json.dumps(
+            {
+                "entity": run.entity,
+                "project": run.project,
+                "run_id": run.id,
+                "history_key": key,
+                "step": str(step),
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        self._idempotency_scope = hashlib.sha256(identity.encode()).hexdigest()
 
     def validate_cell_value(self, value: Any, column: str | int) -> None:
         self._normalize_primitive(value, str(column))
@@ -467,6 +478,8 @@ class CoreWeaveEvalTableWriter:
             )
 
     def _idempotency_key(self, operation: str) -> str:
+        if self._idempotency_scope is None:
+            raise UsageError("EvalTable must be logged with run.log().")
         return f"wandb-eval-table-v1-{self._idempotency_scope}-{operation}"
 
     def _create_client(self, base_url: str) -> Any:
