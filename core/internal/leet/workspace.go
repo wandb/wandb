@@ -903,10 +903,22 @@ func (w *Workspace) anyRunRunning() bool {
 	return false
 }
 
-// anyPulseRunRunning reports whether any visible run needs a redraw for its
-// live indicator.
-func (w *Workspace) anyPulseRunRunning() bool {
+// anySelectedRunMayBeLive reports whether a selected run may still produce data.
+func (w *Workspace) anySelectedRunMayBeLive() bool {
+	for key, run := range w.runsByKey {
+		if run != nil && run.state.mayBeLive() && w.selectedRuns[key] {
+			return true
+		}
+	}
+	return false
+}
+
+// needsLiveAnimation reports whether any visible live UI needs a redraw.
+func (w *Workspace) needsLiveAnimation() bool {
 	if w.anyRunRunning() {
+		return true
+	}
+	if w.metricsGrid.ChartCount() == 0 && w.anySelectedRunMayBeLive() {
 		return true
 	}
 
@@ -1136,7 +1148,11 @@ func (w *Workspace) renderMetrics(layout Layout) string {
 
 	// Runs selected but no charts: show empty state.
 	if w.metricsGrid.ChartCount() == 0 {
-		return renderMetricsEmptyState(contentWidth, contentHeight, "No scalar metrics logged.")
+		hint := "No scalar metrics logged."
+		if w.anySelectedRunMayBeLive() {
+			hint = liveDataLoadingHint(time.Now())
+		}
+		return renderMetricsEmptyState(contentWidth, contentHeight, hint)
 	}
 
 	// When we have selected runs, render the metrics grid, padded to its

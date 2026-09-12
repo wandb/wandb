@@ -845,7 +845,7 @@ func (w *Workspace) livePulseCmd() tea.Cmd {
 // ensureLivePulseCmd starts the live-indicator redraw loop when a live run is
 // visible. Returns nil if the loop is already ticking or nothing is live.
 func (w *Workspace) ensureLivePulseCmd() tea.Cmd {
-	if w.pulseTicking || !w.anyPulseRunRunning() {
+	if w.pulseTicking || !w.needsLiveAnimation() {
 		return nil
 	}
 	w.pulseTicking = true
@@ -855,7 +855,7 @@ func (w *Workspace) ensureLivePulseCmd() tea.Cmd {
 // handleLivePulse keeps the live indicators animating while any visible run
 // is live.
 func (w *Workspace) handleLivePulse() tea.Cmd {
-	if !w.anyPulseRunRunning() {
+	if !w.needsLiveAnimation() {
 		w.pulseTicking = false
 		return nil
 	}

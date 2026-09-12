@@ -399,8 +399,12 @@ func (r *Run) renderMainView() string {
 
 		if r.metricsGridAnimState.IsVisible() && layout.height > 0 {
 			if r.metricsGrid.ChartCount() == 0 {
+				hint := "No scalar metrics logged."
+				if r.runState.mayBeLive() {
+					hint = liveDataLoadingHint(time.Now())
+				}
 				sections = append(sections,
-					renderMetricsEmptyState(w, layout.height, "No scalar metrics logged."))
+					renderMetricsEmptyState(w, layout.height, hint))
 			} else {
 				dims := r.metricsGrid.CalculateChartDimensions(w, layout.height)
 				// Pad the grid (header + rows*cellHeight lines, short of
@@ -443,6 +447,16 @@ func (r *Run) renderMainView() string {
 
 	fullView := lipgloss.JoinVertical(lipgloss.Left, mainView, statusBar)
 	return lipgloss.Place(r.width, r.height, lipgloss.Left, lipgloss.Top, fullView)
+}
+
+var liveDataSpinnerFrames = [...]string{
+	"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏",
+}
+
+func liveDataLoadingHint(now time.Time) string {
+	frame := now.UnixNano() / LivePulseFrame.Nanoseconds()
+	return liveDataSpinnerFrames[frame%int64(len(liveDataSpinnerFrames))] +
+		" Waiting for data..."
 }
 
 // buildMainViewWithSidebars builds the main view with sidebars.

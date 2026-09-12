@@ -519,6 +519,45 @@ func TestRun_StackSectionsAlignWithReservedRows(t *testing.T) {
 	}
 }
 
+func TestRun_EmptyMetricsStateReflectsRunLiveness(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		state          leet.RunState
+		want           string
+		doesNotContain string
+	}{
+		{
+			name:           "live run waits for data",
+			state:          leet.RunStateRunning,
+			want:           "Waiting for data...",
+			doesNotContain: "No scalar metrics logged.",
+		},
+		{
+			name:           "finished run has no metrics",
+			state:          leet.RunStateFinished,
+			want:           "No scalar metrics logged.",
+			doesNotContain: "Waiting for data...",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r, _ := newTestRun(t, 120, 40, nil)
+			state := tc.state
+			r.TestHandleRecordMsg(leet.RunMsg{
+				ID:    "abc123",
+				State: &state,
+			})
+
+			view := stripANSI(r.View().Content)
+			require.Contains(t, view, tc.want)
+			require.NotContains(t, view, tc.doesNotContain)
+			if tc.state == leet.RunStateRunning {
+				require.True(t, strings.ContainsAny(view, "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"),
+					"live empty state should include a spinner frame")
+			}
+		})
+	}
+}
+
 // Regression: Tab while the media pane was fullscreen used to move focus away
 // with fullscreen left on; Esc then cleared the invisible focus once and every
 // further press was captured by the fullscreen guard with no way out.

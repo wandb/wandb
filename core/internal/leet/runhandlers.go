@@ -1082,10 +1082,15 @@ func (r *Run) livePulseCmd() tea.Cmd {
 	})
 }
 
+func (r *Run) shouldAnimateLiveUI() bool {
+	return r.runState == RunStateRunning ||
+		(r.runState == RunStateUnknown && r.metricsGrid.ChartCount() == 0)
+}
+
 // ensureLivePulseCmd starts the live-indicator redraw loop for a live run.
 // Returns nil if the loop is already ticking or the run is not live.
 func (r *Run) ensureLivePulseCmd() tea.Cmd {
-	if r.pulseTicking || r.runState != RunStateRunning {
+	if r.pulseTicking || !r.shouldAnimateLiveUI() {
 		return nil
 	}
 	r.pulseTicking = true
@@ -1094,7 +1099,7 @@ func (r *Run) ensureLivePulseCmd() tea.Cmd {
 
 // handleLivePulse keeps the live indicator animating while the run is live.
 func (r *Run) handleLivePulse() []tea.Cmd {
-	if r.runState != RunStateRunning {
+	if !r.shouldAnimateLiveUI() {
 		r.pulseTicking = false
 		return nil
 	}
