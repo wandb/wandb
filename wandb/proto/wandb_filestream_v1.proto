@@ -74,11 +74,15 @@ message FileStreamChunk {
 // MetricsBatchChunk appends typed history rows at a stream row offset.
 //
 // Row offset is the same as the legacy "line" offset.
+//
+// A decoder must reject the chunk when `row_count` does not equal the
+// length of `batch.row_ends`.
 message MetricsBatchChunk {
   // The history line number of the first row in `batch`.
   int64 offset = 1;
 
-  // The count of rows in the batch. Used to validate the batch.
+  // The number of rows in `batch`. It repeats the length of
+  // `batch.row_ends` so a decoder can detect a truncated batch.
   int64 row_count = 2;
 
   // The batch of rows.
@@ -165,12 +169,16 @@ message MetricsBatch {
   repeated string strings = 8;
   repeated string jsons = 9;
 
-  // Dense column of sequence values, one entry per row.
+  // Dense column of sequence values. It is empty, or it holds one entry
+  // per row.
   repeated sint64 seqs = 10;
-  // Presence of seq values, one byte per row (0 = not present, 1 = present).
+  // Presence of each `seqs` entry: 0 for absent, 1 for present. It is
+  // empty when `seqs` is empty, and one byte per row otherwise.
   bytes has_seq = 11;
 
   // The metric key for the `seqs` column: `"_step"` for history,
-  // `"_timestamp"` for events, `"_offset"` for logs. Must be non-empty.
+  // `"_timestamp"` for events, `"_offset"` for logs. Must be non-empty,
+  // including when `seqs` is empty. It names the sequence the stream
+  // uses, not the values present in this batch.
   string seq_key = 12;
 }

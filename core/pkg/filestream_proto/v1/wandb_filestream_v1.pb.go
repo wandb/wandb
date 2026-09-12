@@ -245,11 +245,15 @@ func (x *FileStreamChunk) GetContent() []string {
 // MetricsBatchChunk appends typed history rows at a stream row offset.
 //
 // Row offset is the same as the legacy "line" offset.
+//
+// A decoder must reject the chunk when `row_count` does not equal the
+// length of `batch.row_ends`.
 type MetricsBatchChunk struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The history line number of the first row in `batch`.
 	Offset int64 `protobuf:"varint,1,opt,name=offset,proto3" json:"offset,omitempty"`
-	// The count of rows in the batch. Used to validate the batch.
+	// The number of rows in `batch`. It repeats the length of
+	// `batch.row_ends` so a decoder can detect a truncated batch.
 	RowCount int64 `protobuf:"varint,2,opt,name=row_count,json=rowCount,proto3" json:"row_count,omitempty"`
 	// The batch of rows.
 	Batch         *MetricsBatch `protobuf:"bytes,3,opt,name=batch,proto3" json:"batch,omitempty"`
@@ -371,12 +375,16 @@ type MetricsBatch struct {
 	Bools   []bool    `protobuf:"varint,7,rep,packed,name=bools,proto3" json:"bools,omitempty"`
 	Strings []string  `protobuf:"bytes,8,rep,name=strings,proto3" json:"strings,omitempty"`
 	Jsons   []string  `protobuf:"bytes,9,rep,name=jsons,proto3" json:"jsons,omitempty"`
-	// Dense column of sequence values, one entry per row.
+	// Dense column of sequence values. It is empty, or it holds one entry
+	// per row.
 	Seqs []int64 `protobuf:"zigzag64,10,rep,packed,name=seqs,proto3" json:"seqs,omitempty"`
-	// Presence of seq values, one byte per row (0 = not present, 1 = present).
+	// Presence of each `seqs` entry: 0 for absent, 1 for present. It is
+	// empty when `seqs` is empty, and one byte per row otherwise.
 	HasSeq []byte `protobuf:"bytes,11,opt,name=has_seq,json=hasSeq,proto3" json:"has_seq,omitempty"`
 	// The metric key for the `seqs` column: `"_step"` for history,
-	// `"_timestamp"` for events, `"_offset"` for logs. Must be non-empty.
+	// `"_timestamp"` for events, `"_offset"` for logs. Must be non-empty,
+	// including when `seqs` is empty. It names the sequence the stream
+	// uses, not the values present in this batch.
 	SeqKey        string `protobuf:"bytes,12,opt,name=seq_key,json=seqKey,proto3" json:"seq_key,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
