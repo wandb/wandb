@@ -1,11 +1,56 @@
 import json
+from copy import deepcopy
 from unittest import mock
 
 import pytest
 import wandb
-from wandb.apis.public.runs import Run, RunNotFoundError
+from wandb.apis.public.runs import Run, RunNotFoundError, Runs
 from wandb.apis.public.sweeps import Sweep
 from wandb.proto import wandb_api_pb2 as apb
+
+
+def test_runs_reject_nested_tag_list() -> None:
+    service_api = mock.MagicMock()
+    filters = {"tags": {"$all": [["sgd"], "test"]}}
+    original_filters = deepcopy(filters)
+
+    with pytest.raises(
+        ValueError,
+        match=r"filters\.tags\.\$all\[0\]: expected a tag string",
+    ):
+        Runs(service_api, "entity", "project", filters=filters)
+
+    service_api.execute_graphql.assert_not_called()
+    assert filters == original_filters
+
+
+@pytest.mark.parametrize(
+    "filters",
+    [
+        None,
+        {},
+        {"tags": {"$all": ["sgd"], "$nin": ["test-2"]}},
+    ],
+)
+def test_runs_preserve_valid_filters(filters: dict | None) -> None:
+    service_api = mock.MagicMock()
+    service_api.execute_graphql.return_value = {
+        "project": {
+            "runCount": 0,
+            "runs": {"edges": [], "pageInfo": {"hasNextPage": False}},
+        }
+    }
+    original_filters = deepcopy(filters)
+
+    runs = Runs(service_api, "entity", "project", filters=filters)
+
+    assert list(runs) == []
+    service_api.execute_graphql.assert_called_once()
+    variables = service_api.execute_graphql.call_args.args[1]
+    assert variables["filters"] == json.dumps(
+        {} if original_filters is None else original_filters
+    )
+    assert filters == original_filters
 
 
 def _make_upload_run(mocker, *, feature_enabled: bool):

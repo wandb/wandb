@@ -1,5 +1,6 @@
 import json
 import sys
+from copy import deepcopy
 from types import SimpleNamespace
 from unittest import mock
 from unittest.mock import MagicMock
@@ -152,6 +153,46 @@ def test_parse_project_path_proj():
         entity, project = Api()._parse_project_path("proj")
         assert entity == "mock_entity"
         assert project == "proj"
+
+
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
+def test_api_runs_validate_before_path_resolution_and_cache() -> None:
+    api = Api()
+    api._service_api = MagicMock()
+    filters = {"tags": {"$all": [["sgd"], "test"]}}
+    path = "entity/project"
+    api._runs[path + str(filters) + "+created_at"] = MagicMock()
+
+    with mock.patch.object(api, "_parse_project_path") as parse_project_path:
+        parse_project_path.side_effect = AssertionError(
+            "Invalid filters must be rejected before resolving the project"
+        )
+        with pytest.raises(ValueError, match=r"filters\.tags\.\$all\[0\]"):
+            api.runs(path, filters=filters)
+
+    parse_project_path.assert_not_called()
+    api._service_api.execute_graphql.assert_not_called()
+
+
+@pytest.mark.usefixtures("patch_apikey", "skip_verify_login")
+def test_api_runs_preserve_valid_filters() -> None:
+    api = Api()
+    api._service_api = MagicMock()
+    api._service_api.execute_graphql.return_value = {
+        "project": {
+            "runCount": 0,
+            "runs": {"edges": [], "pageInfo": {"hasNextPage": False}},
+        }
+    }
+    filters = {"tags": {"$all": ("sgd", "test"), "$nin": ["test-2"]}}
+    original_filters = deepcopy(filters)
+
+    runs = api.runs("entity/project", filters=filters)
+
+    assert list(runs) == []
+    variables = api._service_api.execute_graphql.call_args.args[1]
+    assert variables["filters"] == json.dumps(original_filters)
+    assert filters == original_filters
 
 
 @pytest.mark.usefixtures("patch_apikey", "skip_verify_login")

@@ -1,9 +1,13 @@
 import json
+from copy import deepcopy
+from functools import partial
 from unittest.mock import Mock
 
 import pytest
+from wandb.apis.public.projects import Project
 from wandb.apis.public.sweeps import (
     Sweep,
+    Sweeps,
     _agent_heartbeat,
     _sweep_with_runs,
     _upsert_sweep,
@@ -13,6 +17,59 @@ from wandb.proto import wandb_api_pb2 as apb
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 from wandb.sdk.sweeps import SweepNotFoundError
+
+
+@pytest.fixture
+def make_sweeps(mocker):
+    service_api = mocker.Mock()
+    service_api.feature_enabled.return_value = True
+    return partial(Sweeps, service_api, "entity", "project"), service_api
+
+
+def test_sweeps_reject_invalid_filters_before_requests(make_sweeps):
+    create_sweeps, service_api = make_sweeps
+    filters = {"tags": {"$all": [["sgd"], "test"]}}
+    original_filters = deepcopy(filters)
+
+    with pytest.raises(ValueError, match=r"filters\.tags\.\$all\[0\]"):
+        create_sweeps(filters=filters)
+
+    assert filters == original_filters
+    service_api.feature_enabled.assert_not_called()
+    service_api.execute_graphql.assert_not_called()
+
+
+def test_sweeps_preserve_valid_filters(mocker):
+    service_api = mocker.Mock()
+    service_api.feature_enabled.return_value = True
+    project = Project(service_api, "entity", "project", attrs={})
+    filters = {"tags": {"$all": ["sgd"], "$nin": ["test-2"]}}
+
+    sweeps = project.sweeps(filters=filters)
+
+    assert sweeps.variables["filters"] == json.dumps(filters)
+
+
+def test_sweeps_reject_filters_on_unsupported_server(make_sweeps):
+    create_sweeps, service_api = make_sweeps
+    service_api.feature_enabled.return_value = False
+
+    with pytest.raises(UnsupportedError, match="Filtering sweeps is not supported"):
+        create_sweeps(filters={"tags": {"$all": ["sgd"]}})
+
+    service_api.feature_enabled.assert_called_once_with(pb.SWEEPS_QUERY_FILTERING)
+    service_api.execute_graphql.assert_not_called()
+
+
+def test_sweeps_allow_empty_filters_on_unsupported_server(make_sweeps):
+    create_sweeps, service_api = make_sweeps
+    service_api.feature_enabled.return_value = False
+
+    sweeps = create_sweeps(filters=None)
+
+    assert sweeps.variables["filters"] == "{}"
+    service_api.feature_enabled.assert_called_once_with(pb.SWEEPS_QUERY_FILTERING)
+    service_api.execute_graphql.assert_not_called()
 
 
 def _make_sweep(

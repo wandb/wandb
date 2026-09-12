@@ -26,3 +26,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Fixed
 
 - Changing system metrics grid rows or columns in LEET, including `wandb leet symon`, no longer crashes and takes effect immediately without waiting for new data (@dmitryduev in https://github.com/wandb/wandb/pull/12763)
+- `Api.runs()` and `Project.sweeps()` now reject malformed tag lists, logical groups, and misplaced membership operators with descriptive errors before sending a request. The `filters` argument must be a dictionary or `None`; values such as `0`, `False`, `""`, and `[]` are no longer treated as empty filters.
