@@ -286,7 +286,8 @@ class CoreWeaveEvalTableWriter:
             client.close()
 
         _logger.debug(
-            "CoreWeave EvalTable recorded evaluation_version_id=%s",
+            "CoreWeave EvalTable recorded project_id=%s evaluation_version_id=%s",
+            self._project_id,
             version.evaluation_version_id,
         )
 

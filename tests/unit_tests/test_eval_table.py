@@ -179,7 +179,8 @@ def test_coreweave_eval_table_writes_columns_rows_and_version(
     )
     mock_coreweave_client.close.assert_called_once_with()
     debug.assert_called_once_with(
-        "CoreWeave EvalTable recorded evaluation_version_id=%s",
+        "CoreWeave EvalTable recorded project_id=%s evaluation_version_id=%s",
+        "p",
         "evaluation-version-1",
     )
 
