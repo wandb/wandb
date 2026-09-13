@@ -1,0 +1,5 @@
+# =============================================================================
+# DO NOT MERGE: this reaches into a sibling wandb/core checkout. Replace it with
+# a published Evaluations SDK dependency before merging or releasing this code.
+# =============================================================================
+-e ../core/services/evaluations/generated/python

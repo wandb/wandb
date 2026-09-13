@@ -8,11 +8,12 @@ import wandb
 import wandb.integration.weave.media_adapters as media_adapters
 from wandb.errors import UsageError
 from wandb.sdk.data_types._eval_table_writer import (
+    EvalTableBackend,
     EvalTableWriteInput,
     EvalTableWriter,
     EvalTableWriteResult,
     EvalTableWriteRow,
-    WeaveEvalTableWriter,
+    create_eval_table_writer,
 )
 from wandb.sdk.data_types.table import ColumnKey, InputRow, LogMode, Table
 from wandb.sdk.lib import telemetry
@@ -30,9 +31,8 @@ EVAL_TABLE_ROW_INDEX_KEY = "row"
 class EvalTable(Table):
     """A Table subclass that routes run.log() to the new Eval Tables experience.
 
-    When logged via run.log(), an EvalTable is logged as a Weave Eval via
-    weave.EvaluationLogger instead of being uploaded as a regular wandb Table
-    artifact.
+    When logged via run.log(), an EvalTable writes to its selected evaluation
+    backend instead of being uploaded as a regular wandb Table artifact.
 
     Note: EvalTable is a work-in-progress and is NOT yet officially released or
     supported.
@@ -54,6 +54,7 @@ class EvalTable(Table):
         input_columns: list[str] | None = None,
         output_columns: list[str] | None = None,
         score_columns: list[str] | None = None,
+        backend: EvalTableBackend = "weave",
         unsupported_media_mode: media_adapters.UnsupportedMediaMode = "stub",
     ) -> None:
         """Initializes an EvalTable object.
@@ -82,6 +83,8 @@ class EvalTable(Table):
             score_columns: Names of the score columns.
                 These represent derived scores for the outputs. By default, we will
                 auto-summarize any numeric and boolean scores.
+            backend: Storage backend used when the EvalTable is logged. The default is
+                "weave". Use "coreweave" to write through the Evaluations service.
             unsupported_media_mode: How to handle unsupported wandb media/value types.
                 - "stub" (default): log unsupported values as short placeholder strings
                   like "[wandb.Html not yet supported]". (This is a temporary flag
@@ -122,8 +125,13 @@ class EvalTable(Table):
         """
         if log_mode != "IMMUTABLE":
             raise UsageError("EvalTable currently only supports log_mode='IMMUTABLE'.")
+        if backend == "coreweave" and allow_mixed_types:
+            raise UsageError(
+                "CoreWeave EvalTable logging requires allow_mixed_types=False."
+            )
 
-        self._writer: EvalTableWriter = WeaveEvalTableWriter(
+        self._writer: EvalTableWriter = create_eval_table_writer(
+            backend,
             unsupported_media_mode=unsupported_media_mode,
         )
 
