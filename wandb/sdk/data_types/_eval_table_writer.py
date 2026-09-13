@@ -6,6 +6,7 @@ import json
 import logging
 import math
 import os
+from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, Protocol
 
@@ -26,9 +27,14 @@ EVAL_TABLE_MARKER = {"wandb_eval_table": True}
 _MIN_WEAVE_VERSION = "0.52.41"
 _COREWEAVE_BASE_URL_ENV = "COREWEAVE_EVALUATIONS_BASE_URL"
 _MAX_BATCH_BODY_BYTES = 16 << 20
+# Leave headroom below the server limit and keep failed retries bounded.
+_TARGET_ROW_BATCH_BODY_BYTES = 8 << 20
 _MAX_DATASET_FIELDS = 10_000
-_MAX_ROWS = 10_000
+_MAX_ROWS_PER_BATCH = 10_000
 _MAX_SCORERS = 256
+
+_ROW_BATCH_PREFIX_BYTES = len(b'{"rows":[')
+_ROW_BATCH_SUFFIX_BYTES = len(b"]}")
 
 EvalTableBackend = Literal["weave", "coreweave"]
 PrimitiveValueType = Literal["boolean", "integer", "number", "string"]
@@ -215,7 +221,7 @@ class WeaveEvalTableWriter:
 class _PreparedCoreWeaveWrite:
     dataset_fields: list[dict[str, str]]
     scorers: list[dict[str, str]]
-    rows: list[dict[str, Any]]
+    row_batches: list[list[dict[str, Any]]]
 
 
 class CoreWeaveEvalTableWriter:
@@ -271,12 +277,13 @@ class CoreWeaveEvalTableWriter:
                 scorers=prepared.scorers,
                 idempotency_key=self._idempotency_key("columns"),
             )
-            client.eval_tables.add_rows(
-                created.evaluation_id,
-                project_id=self._project_id,
-                rows=prepared.rows,
-                idempotency_key=self._idempotency_key("rows"),
-            )
+            for batch_index, rows in enumerate(prepared.row_batches):
+                client.eval_tables.add_rows(
+                    created.evaluation_id,
+                    project_id=self._project_id,
+                    rows=rows,
+                    idempotency_key=self._idempotency_key(f"rows-{batch_index}"),
+                )
             version = client.eval_tables.create_version(
                 created.evaluation_id,
                 project_id=self._project_id,
@@ -310,11 +317,6 @@ class CoreWeaveEvalTableWriter:
     def _prepare(self, value: EvalTableWriteInput) -> _PreparedCoreWeaveWrite:
         if not value.rows:
             raise UsageError("CoreWeave EvalTable logging requires at least one row.")
-        if len(value.rows) > _MAX_ROWS:
-            raise UsageError(
-                f"CoreWeave EvalTable logging currently supports at most {_MAX_ROWS} "
-                "rows per table."
-            )
 
         dataset_field_types: dict[tuple[str, str], PrimitiveValueType] = {}
         dataset_field_order: list[tuple[str, str]] = []
@@ -384,12 +386,45 @@ class CoreWeaveEvalTableWriter:
         self._validate_body_size(
             "columns", {"dataset_fields": dataset_fields, "scorers": scorers}
         )
-        self._validate_body_size("rows", {"rows": rows})
         return _PreparedCoreWeaveWrite(
             dataset_fields=dataset_fields,
             scorers=scorers,
-            rows=rows,
+            row_batches=list(self._iter_row_batches(rows)),
         )
+
+    def _iter_row_batches(
+        self,
+        rows: list[dict[str, Any]],
+    ) -> Iterator[list[dict[str, Any]]]:
+        batch: list[dict[str, Any]] = []
+        batch_size = _ROW_BATCH_PREFIX_BYTES + _ROW_BATCH_SUFFIX_BYTES
+
+        for row in rows:
+            row_size = len(self._encode_json(row))
+            single_row_body_size = (
+                _ROW_BATCH_PREFIX_BYTES + row_size + _ROW_BATCH_SUFFIX_BYTES
+            )
+            if single_row_body_size >= _MAX_BATCH_BODY_BYTES:
+                raise UsageError(
+                    "CoreWeave EvalTable rows payload contains a row whose encoded "
+                    "request must be smaller than 16 MiB."
+                )
+
+            separator_size = 1 if batch else 0
+            if batch and (
+                len(batch) >= _MAX_ROWS_PER_BATCH
+                or batch_size + separator_size + row_size > _TARGET_ROW_BATCH_BODY_BYTES
+            ):
+                yield batch
+                batch = []
+                batch_size = _ROW_BATCH_PREFIX_BYTES + _ROW_BATCH_SUFFIX_BYTES
+                separator_size = 0
+
+            batch.append(row)
+            batch_size += separator_size + row_size
+
+        if batch:
+            yield batch
 
     def _prepare_mapping(
         self,
@@ -475,16 +510,18 @@ class CoreWeaveEvalTableWriter:
         )
 
     def _validate_body_size(self, operation: str, body: dict[str, Any]) -> None:
-        encoded = json.dumps(
-            body,
+        if len(self._encode_json(body)) >= _MAX_BATCH_BODY_BYTES:
+            raise UsageError(
+                f"CoreWeave EvalTable {operation} payload must be smaller than 16 MiB."
+            )
+
+    def _encode_json(self, value: Any) -> bytes:
+        return json.dumps(
+            value,
             allow_nan=False,
             ensure_ascii=False,
             separators=(",", ":"),
         ).encode()
-        if len(encoded) >= _MAX_BATCH_BODY_BYTES:
-            raise UsageError(
-                f"CoreWeave EvalTable {operation} payload must be smaller than 16 MiB."
-            )
 
     def _idempotency_key(self, operation: str) -> str:
         if self._idempotency_scope is None:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import json
 import sys
 import types
 from types import SimpleNamespace
@@ -12,6 +13,7 @@ import pytest
 import wandb
 import wandb.data_types as wandb_data_types
 from wandb.errors import UsageError
+from wandb.sdk.data_types import _eval_table_writer
 from wandb.sdk.data_types import eval_table as eval_table_module
 
 
@@ -200,6 +202,131 @@ def test_coreweave_eval_table_writes_columns_rows_and_version(
     assert "evaluate_call_id" not in marker
 
 
+def test_coreweave_eval_table_batches_rows_by_encoded_bytes(
+    mock_coreweave_client,
+    run,
+    monkeypatch,
+):
+    row = {
+        "input": {"prompt": "é" * 40},
+        "output": {"answer": "yes"},
+        "scores": {},
+    }
+    single_row_body_size = len(
+        json.dumps(
+            {"rows": [row]},
+            allow_nan=False,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ).encode()
+    )
+    monkeypatch.setattr(
+        _eval_table_writer,
+        "_TARGET_ROW_BATCH_BODY_BYTES",
+        single_row_body_size - 1,
+    )
+    et = wandb.EvalTable(
+        columns=["prompt", "answer"],
+        data=[["é" * 40, "yes"], ["é" * 40, "yes"]],
+        input_columns=["prompt"],
+        output_columns=["answer"],
+        backend="coreweave",
+    )
+
+    run.log({"eval": et})
+
+    calls = mock_coreweave_client.eval_tables.add_rows.call_args_list
+    assert [call.kwargs["rows"] for call in calls] == [[row], [row]]
+    keys = [call.kwargs["idempotency_key"] for call in calls]
+    assert len(set(keys)) == 2
+    assert keys[0].endswith("-rows-0")
+    assert keys[1].endswith("-rows-1")
+
+
+def test_coreweave_eval_table_batches_rows_by_count(
+    mock_coreweave_client,
+    run,
+    monkeypatch,
+):
+    monkeypatch.setattr(_eval_table_writer, "_MAX_ROWS_PER_BATCH", 2)
+    et = wandb.EvalTable(
+        columns=["value"],
+        data=[[index] for index in range(5)],
+        output_columns=["value"],
+        backend="coreweave",
+    )
+
+    run.log({"eval": et})
+
+    calls = mock_coreweave_client.eval_tables.add_rows.call_args_list
+    assert [len(call.kwargs["rows"]) for call in calls] == [2, 2, 1]
+    assert [call[0] for call in mock_coreweave_client.eval_tables.method_calls] == [
+        "create",
+        "create_columns",
+        "add_rows",
+        "add_rows",
+        "add_rows",
+        "create_version",
+    ]
+
+
+def test_coreweave_eval_table_rejects_oversized_row_before_network(
+    mock_coreweave_client,
+    run,
+    monkeypatch,
+):
+    value = "large" * 100
+    row = {
+        "input": {"row": 0},
+        "output": {"value": value},
+        "scores": {},
+    }
+    body_size = len(
+        json.dumps(
+            {"rows": [row]},
+            allow_nan=False,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ).encode()
+    )
+    monkeypatch.setattr(_eval_table_writer, "_MAX_BATCH_BODY_BYTES", body_size)
+    et = wandb.EvalTable(
+        columns=["value"],
+        data=[[value]],
+        output_columns=["value"],
+        backend="coreweave",
+    )
+
+    with pytest.raises(UsageError, match="contains a row"):
+        run.log({"eval": et})
+
+    mock_coreweave_client.eval_tables.create.assert_not_called()
+
+
+def test_coreweave_eval_table_does_not_cut_version_after_batch_failure(
+    mock_coreweave_client,
+    run,
+    monkeypatch,
+):
+    monkeypatch.setattr(_eval_table_writer, "_MAX_ROWS_PER_BATCH", 1)
+    mock_coreweave_client.eval_tables.add_rows.side_effect = [
+        None,
+        RuntimeError("batch failed"),
+    ]
+    et = wandb.EvalTable(
+        columns=["value"],
+        data=[[1], [2]],
+        output_columns=["value"],
+        backend="coreweave",
+    )
+
+    with pytest.raises(RuntimeError, match="batch failed"):
+        run.log({"eval": et})
+
+    mock_coreweave_client.eval_tables.create_version.assert_not_called()
+    mock_coreweave_client.close.assert_called_once_with()
+
+
 def test_coreweave_eval_table_infers_python_and_numpy_integers(
     mock_coreweave_client,
     run,
@@ -287,7 +414,9 @@ def test_coreweave_eval_table_requires_base_url(monkeypatch, mock_run):
 def test_coreweave_eval_table_retries_with_stable_idempotency_keys(
     mock_coreweave_client,
     run,
+    monkeypatch,
 ):
+    monkeypatch.setattr(_eval_table_writer, "_MAX_ROWS_PER_BATCH", 1)
     version = SimpleNamespace(
         dataset_version_id="dataset-version-1",
         evaluation_version_id="evaluation-version-1",
@@ -298,7 +427,8 @@ def test_coreweave_eval_table_retries_with_stable_idempotency_keys(
     ]
     et = wandb.EvalTable(
         columns=["value"],
-        data=[[1]],
+        data=[[1], [2]],
+        output_columns=["value"],
         backend="coreweave",
     )
     et.bind_to_run(run, "eval", 0)
@@ -310,13 +440,19 @@ def test_coreweave_eval_table_retries_with_stable_idempotency_keys(
     methods = (
         mock_coreweave_client.eval_tables.create,
         mock_coreweave_client.eval_tables.create_columns,
-        mock_coreweave_client.eval_tables.add_rows,
         mock_coreweave_client.eval_tables.create_version,
     )
     for method in methods:
         calls = method.call_args_list
         assert len(calls) == 2
         assert calls[0].kwargs["idempotency_key"] == calls[1].kwargs["idempotency_key"]
+
+    row_calls = mock_coreweave_client.eval_tables.add_rows.call_args_list
+    assert len(row_calls) == 4
+    first_attempt_keys = [call.kwargs["idempotency_key"] for call in row_calls[:2]]
+    retry_keys = [call.kwargs["idempotency_key"] for call in row_calls[2:]]
+    assert first_attempt_keys == retry_keys
+    assert len(set(first_attempt_keys)) == 2
 
 
 def test_coreweave_eval_table_run_location_stabilizes_idempotency_keys(
