@@ -280,9 +280,7 @@ func (ErrorInfo_ErrorCode) EnumDescriptor() ([]byte, []int) {
 // Kind is the type of the value. It selects the value field.
 //
 // Integer and float are separate kinds, so an int64 above 2^53 keeps
-// its exact value. A single numeric kind backed by a double would
-// narrow it. Nested objects and arrays stay as verbatim JSON text,
-// because no consumer on the upload path reads inside them.
+// its exact value. Nested objects and arrays stay as verbatim JSON text.
 //
 // Kinds are frozen. Each kind maps onto a Kind in the filestream wire
 // schema, and each declares a lossless conversion to JSON. A kind with
@@ -290,22 +288,14 @@ func (ErrorInfo_ErrorCode) EnumDescriptor() ([]byte, []int) {
 type HistoryValue_Kind int32
 
 const (
-	// Invalid. A reader rejects it. It means the writer left the kind
-	// unset, which is a bug.
+	// Invalid. A reader rejects it.
 	HistoryValue_KIND_UNSPECIFIED HistoryValue_Kind = 0
-	// JSON null. No value field is set.
-	HistoryValue_KIND_NULL HistoryValue_Kind = 1
-	// Value in `bool_value`.
-	HistoryValue_KIND_BOOL HistoryValue_Kind = 2
-	// Value in `int_value`. Exact int64.
-	HistoryValue_KIND_INT HistoryValue_Kind = 3
-	// Value in `float_value`. NaN, Infinity and -Infinity are ordinary
-	// IEEE values, not sentinel strings.
-	HistoryValue_KIND_FLOAT HistoryValue_Kind = 4
-	// Value in `string_value`.
-	HistoryValue_KIND_STRING HistoryValue_Kind = 5
-	// Value in `json_value`. Verbatim JSON text for an object or an array.
-	HistoryValue_KIND_JSON HistoryValue_Kind = 6
+	HistoryValue_KIND_NULL        HistoryValue_Kind = 1
+	HistoryValue_KIND_FLOAT       HistoryValue_Kind = 2
+	HistoryValue_KIND_INT         HistoryValue_Kind = 3
+	HistoryValue_KIND_BOOL        HistoryValue_Kind = 4
+	HistoryValue_KIND_STRING      HistoryValue_Kind = 5
+	HistoryValue_KIND_JSON        HistoryValue_Kind = 6
 )
 
 // Enum value maps for HistoryValue_Kind.
@@ -313,18 +303,18 @@ var (
 	HistoryValue_Kind_name = map[int32]string{
 		0: "KIND_UNSPECIFIED",
 		1: "KIND_NULL",
-		2: "KIND_BOOL",
+		2: "KIND_FLOAT",
 		3: "KIND_INT",
-		4: "KIND_FLOAT",
+		4: "KIND_BOOL",
 		5: "KIND_STRING",
 		6: "KIND_JSON",
 	}
 	HistoryValue_Kind_value = map[string]int32{
 		"KIND_UNSPECIFIED": 0,
 		"KIND_NULL":        1,
-		"KIND_BOOL":        2,
+		"KIND_FLOAT":       2,
 		"KIND_INT":         3,
-		"KIND_FLOAT":       4,
+		"KIND_BOOL":        4,
 		"KIND_STRING":      5,
 		"KIND_JSON":        6,
 	}
@@ -2646,13 +2636,13 @@ func (x *HistoryRecord) GetXInfo() *XRecordInfo {
 type HistoryValue struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	Kind  HistoryValue_Kind      `protobuf:"varint,1,opt,name=kind,proto3,enum=wandb_internal.HistoryValue_Kind" json:"kind,omitempty"`
-	// Exactly one of these is set, and `kind` selects which one. KIND_NULL
-	// sets none of them.
-	BoolValue     bool    `protobuf:"varint,2,opt,name=bool_value,json=boolValue,proto3" json:"bool_value,omitempty"`
-	IntValue      int64   `protobuf:"varint,3,opt,name=int_value,json=intValue,proto3" json:"int_value,omitempty"`
-	FloatValue    float64 `protobuf:"fixed64,4,opt,name=float_value,json=floatValue,proto3" json:"float_value,omitempty"`
-	StringValue   string  `protobuf:"bytes,5,opt,name=string_value,json=stringValue,proto3" json:"string_value,omitempty"`
-	JsonValue     string  `protobuf:"bytes,6,opt,name=json_value,json=jsonValue,proto3" json:"json_value,omitempty"`
+	// NaN, Infinity and -Infinity are ordinary IEEE values, not sentinel strings.
+	FloatValue  float64 `protobuf:"fixed64,2,opt,name=float_value,json=floatValue,proto3" json:"float_value,omitempty"`
+	IntValue    int64   `protobuf:"varint,3,opt,name=int_value,json=intValue,proto3" json:"int_value,omitempty"`
+	BoolValue   bool    `protobuf:"varint,4,opt,name=bool_value,json=boolValue,proto3" json:"bool_value,omitempty"`
+	StringValue string  `protobuf:"bytes,5,opt,name=string_value,json=stringValue,proto3" json:"string_value,omitempty"`
+	// Verbatim JSON text for an object or an array.
+	JsonValue     string `protobuf:"bytes,6,opt,name=json_value,json=jsonValue,proto3" json:"json_value,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2694,11 +2684,11 @@ func (x *HistoryValue) GetKind() HistoryValue_Kind {
 	return HistoryValue_KIND_UNSPECIFIED
 }
 
-func (x *HistoryValue) GetBoolValue() bool {
+func (x *HistoryValue) GetFloatValue() float64 {
 	if x != nil {
-		return x.BoolValue
+		return x.FloatValue
 	}
-	return false
+	return 0
 }
 
 func (x *HistoryValue) GetIntValue() int64 {
@@ -2708,11 +2698,11 @@ func (x *HistoryValue) GetIntValue() int64 {
 	return 0
 }
 
-func (x *HistoryValue) GetFloatValue() float64 {
+func (x *HistoryValue) GetBoolValue() bool {
 	if x != nil {
-		return x.FloatValue
+		return x.BoolValue
 	}
-	return 0
+	return false
 }
 
 func (x *HistoryValue) GetStringValue() string {
@@ -12199,22 +12189,22 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x04step\x18\x02 \x01(\v2\x1b.wandb_internal.HistoryStepR\x04step\x121\n" +
 	"\x05_info\x18\xc8\x01 \x01(\v2\x1b.wandb_internal._RecordInfoR\x04Info\"\xde\x02\n" +
 	"\fHistoryValue\x125\n" +
-	"\x04kind\x18\x01 \x01(\x0e2!.wandb_internal.HistoryValue.KindR\x04kind\x12\x1d\n" +
+	"\x04kind\x18\x01 \x01(\x0e2!.wandb_internal.HistoryValue.KindR\x04kind\x12\x1f\n" +
+	"\vfloat_value\x18\x02 \x01(\x01R\n" +
+	"floatValue\x12\x1b\n" +
+	"\tint_value\x18\x03 \x01(\x03R\bintValue\x12\x1d\n" +
 	"\n" +
-	"bool_value\x18\x02 \x01(\bR\tboolValue\x12\x1b\n" +
-	"\tint_value\x18\x03 \x01(\x03R\bintValue\x12\x1f\n" +
-	"\vfloat_value\x18\x04 \x01(\x01R\n" +
-	"floatValue\x12!\n" +
+	"bool_value\x18\x04 \x01(\bR\tboolValue\x12!\n" +
 	"\fstring_value\x18\x05 \x01(\tR\vstringValue\x12\x1d\n" +
 	"\n" +
 	"json_value\x18\x06 \x01(\tR\tjsonValue\"x\n" +
 	"\x04Kind\x12\x14\n" +
 	"\x10KIND_UNSPECIFIED\x10\x00\x12\r\n" +
-	"\tKIND_NULL\x10\x01\x12\r\n" +
-	"\tKIND_BOOL\x10\x02\x12\f\n" +
-	"\bKIND_INT\x10\x03\x12\x0e\n" +
+	"\tKIND_NULL\x10\x01\x12\x0e\n" +
 	"\n" +
-	"KIND_FLOAT\x10\x04\x12\x0f\n" +
+	"KIND_FLOAT\x10\x02\x12\f\n" +
+	"\bKIND_INT\x10\x03\x12\r\n" +
+	"\tKIND_BOOL\x10\x04\x12\x0f\n" +
 	"\vKIND_STRING\x10\x05\x12\r\n" +
 	"\tKIND_JSON\x10\x06\"\x91\x01\n" +
 	"\vHistoryItem\x12\x10\n" +
