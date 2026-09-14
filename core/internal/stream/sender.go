@@ -26,6 +26,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runconsolelogs"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runhandle"
+	"github.com/wandb/wandb/core/internal/runlogs"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -135,6 +136,9 @@ type Sender struct {
 
 	// consoleLogsSender uploads captured console output.
 	consoleLogsSender *runconsolelogs.Sender
+
+	// runLogsSender uploads log lines the client writes directly.
+	runLogsSender *runlogs.Sender
 }
 
 // New returns a new Sender.
@@ -208,6 +212,12 @@ func (f *SenderFactory) NewWithFileStream(
 		Structured:            structuredConsoleLogs,
 	}
 
+	runLogsSenderParams := runlogs.Params{
+		Label:           f.Settings.GetLabel(),
+		FileStreamOrNil: fileStream,
+		Structured:      structuredConsoleLogs,
+	}
+
 	s := &Sender{
 		runWork:             runWork,
 		logger:              f.Logger,
@@ -234,6 +244,7 @@ func (f *SenderFactory) NewWithFileStream(
 		stepTracker:       f.HistoryStepTracker,
 		runSummary:        runsummary.New(),
 		consoleLogsSender: runconsolelogs.New(consoleLogsSenderParams),
+		runLogsSender:     runlogs.New(runLogsSenderParams),
 	}
 
 	if !s.settings.IsOffline() && !s.settings.IsJobCreationDisabled() {
@@ -420,6 +431,8 @@ func (s *Sender) sendRequest(
 		s.sendRequestStopStatus(request)
 	case *spb.Request_JobInput:
 		s.sendRequestJobInput(x.JobInput)
+	case *spb.Request_RunLog:
+		s.sendRequestRunLog(x.RunLog)
 	case nil:
 		s.logger.CaptureFatalAndPanic(
 			"stream",
@@ -431,6 +444,16 @@ func (s *Sender) sendRequest(
 			fmt.Errorf("sender: sendRequest: unexpected type %T", x),
 		)
 	}
+}
+
+// sendRequestRunLog appends a client-written line to the run's logs.
+func (s *Sender) sendRequestRunLog(runLog *spb.RunLogRequest) {
+	if s.receivedExit {
+		s.logCalledAfterExit("sendRequestRunLog")
+		return
+	}
+
+	s.runLogsSender.StreamLine(runLog)
 }
 
 // updateSettings updates the settings from the run record upon a run start
@@ -626,8 +649,9 @@ func (s *Sender) finishRunSync(
 		defer cancelAbortOnRequestFinish()
 	}
 
-	// Finish uploading captured console logs.
+	// Finish uploading the run's logs.
 	s.consoleLogsSender.Finish()
+	s.runLogsSender.Finish()
 
 	// Upload the run's finalized summary and config.
 	s.mu.Lock()

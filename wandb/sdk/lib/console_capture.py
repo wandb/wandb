@@ -128,6 +128,21 @@ def capture_stdout(callback: _WriteCallback) -> Callable[[], None]:
         )
 
 
+@contextlib.contextmanager
+def uncaptured() -> Generator[None]:
+    """Suppress capture callbacks for writes made inside the context.
+
+    The text still reaches the underlying stream; it is only hidden from
+    the callbacks. For output that reaches a run by other means and would
+    otherwise be recorded twice.
+    """
+    token = _is_caused_by_callback.set(True)
+    try:
+        yield
+    finally:
+        _is_caused_by_callback.reset(token)
+
+
 def capture_stderr(callback: _WriteCallback) -> Callable[[], None]:
     """Install a callback that runs after every write to sys.sdterr.
 

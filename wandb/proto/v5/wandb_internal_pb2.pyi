@@ -806,7 +806,7 @@ class AlertResult(_message.Message):
     def __init__(self) -> None: ...
 
 class Request(_message.Message):
-    __slots__ = ("stop_status", "network_status", "defer", "get_summary", "login", "pause", "resume", "poll_exit", "sampled_history", "partial_history", "history_step", "run_start", "check_version", "log_artifact", "download_artifact", "keepalive", "run_status", "cancel", "internal_messages", "python_packages", "shutdown", "attach", "status", "server_info", "sender_mark", "sender_read", "status_report", "summary_record", "telemetry_record", "job_info", "get_system_metrics", "job_input", "link_artifact", "sync_finish", "operations", "probe_system_info", "test_inject")
+    __slots__ = ("stop_status", "network_status", "defer", "get_summary", "login", "pause", "resume", "poll_exit", "sampled_history", "partial_history", "history_step", "run_start", "check_version", "log_artifact", "download_artifact", "keepalive", "run_status", "cancel", "internal_messages", "python_packages", "shutdown", "attach", "status", "server_info", "sender_mark", "sender_read", "status_report", "summary_record", "telemetry_record", "job_info", "get_system_metrics", "job_input", "link_artifact", "sync_finish", "run_log", "operations", "probe_system_info", "test_inject")
     STOP_STATUS_FIELD_NUMBER: _ClassVar[int]
     NETWORK_STATUS_FIELD_NUMBER: _ClassVar[int]
     DEFER_FIELD_NUMBER: _ClassVar[int]
@@ -841,6 +841,7 @@ class Request(_message.Message):
     JOB_INPUT_FIELD_NUMBER: _ClassVar[int]
     LINK_ARTIFACT_FIELD_NUMBER: _ClassVar[int]
     SYNC_FINISH_FIELD_NUMBER: _ClassVar[int]
+    RUN_LOG_FIELD_NUMBER: _ClassVar[int]
     OPERATIONS_FIELD_NUMBER: _ClassVar[int]
     PROBE_SYSTEM_INFO_FIELD_NUMBER: _ClassVar[int]
     TEST_INJECT_FIELD_NUMBER: _ClassVar[int]
@@ -878,10 +879,11 @@ class Request(_message.Message):
     job_input: JobInputRequest
     link_artifact: LinkArtifactRequest
     sync_finish: SyncFinishRequest
+    run_log: RunLogRequest
     operations: OperationStatsRequest
     probe_system_info: ProbeSystemInfoRequest
     test_inject: TestInjectRequest
-    def __init__(self, stop_status: _Optional[_Union[StopStatusRequest, _Mapping]] = ..., network_status: _Optional[_Union[NetworkStatusRequest, _Mapping]] = ..., defer: _Optional[_Union[DeferRequest, _Mapping]] = ..., get_summary: _Optional[_Union[GetSummaryRequest, _Mapping]] = ..., login: _Optional[_Union[LoginRequest, _Mapping]] = ..., pause: _Optional[_Union[PauseRequest, _Mapping]] = ..., resume: _Optional[_Union[ResumeRequest, _Mapping]] = ..., poll_exit: _Optional[_Union[PollExitRequest, _Mapping]] = ..., sampled_history: _Optional[_Union[SampledHistoryRequest, _Mapping]] = ..., partial_history: _Optional[_Union[PartialHistoryRequest, _Mapping]] = ..., history_step: _Optional[_Union[HistoryStepRequest, _Mapping]] = ..., run_start: _Optional[_Union[RunStartRequest, _Mapping]] = ..., check_version: _Optional[_Union[CheckVersionRequest, _Mapping]] = ..., log_artifact: _Optional[_Union[LogArtifactRequest, _Mapping]] = ..., download_artifact: _Optional[_Union[DownloadArtifactRequest, _Mapping]] = ..., keepalive: _Optional[_Union[KeepaliveRequest, _Mapping]] = ..., run_status: _Optional[_Union[RunStatusRequest, _Mapping]] = ..., cancel: _Optional[_Union[CancelRequest, _Mapping]] = ..., internal_messages: _Optional[_Union[InternalMessagesRequest, _Mapping]] = ..., python_packages: _Optional[_Union[PythonPackagesRequest, _Mapping]] = ..., shutdown: _Optional[_Union[ShutdownRequest, _Mapping]] = ..., attach: _Optional[_Union[AttachRequest, _Mapping]] = ..., status: _Optional[_Union[StatusRequest, _Mapping]] = ..., server_info: _Optional[_Union[ServerInfoRequest, _Mapping]] = ..., sender_mark: _Optional[_Union[SenderMarkRequest, _Mapping]] = ..., sender_read: _Optional[_Union[SenderReadRequest, _Mapping]] = ..., status_report: _Optional[_Union[StatusReportRequest, _Mapping]] = ..., summary_record: _Optional[_Union[SummaryRecordRequest, _Mapping]] = ..., telemetry_record: _Optional[_Union[TelemetryRecordRequest, _Mapping]] = ..., job_info: _Optional[_Union[JobInfoRequest, _Mapping]] = ..., get_system_metrics: _Optional[_Union[GetSystemMetricsRequest, _Mapping]] = ..., job_input: _Optional[_Union[JobInputRequest, _Mapping]] = ..., link_artifact: _Optional[_Union[LinkArtifactRequest, _Mapping]] = ..., sync_finish: _Optional[_Union[SyncFinishRequest, _Mapping]] = ..., operations: _Optional[_Union[OperationStatsRequest, _Mapping]] = ..., probe_system_info: _Optional[_Union[ProbeSystemInfoRequest, _Mapping]] = ..., test_inject: _Optional[_Union[TestInjectRequest, _Mapping]] = ...) -> None: ...
+    def __init__(self, stop_status: _Optional[_Union[StopStatusRequest, _Mapping]] = ..., network_status: _Optional[_Union[NetworkStatusRequest, _Mapping]] = ..., defer: _Optional[_Union[DeferRequest, _Mapping]] = ..., get_summary: _Optional[_Union[GetSummaryRequest, _Mapping]] = ..., login: _Optional[_Union[LoginRequest, _Mapping]] = ..., pause: _Optional[_Union[PauseRequest, _Mapping]] = ..., resume: _Optional[_Union[ResumeRequest, _Mapping]] = ..., poll_exit: _Optional[_Union[PollExitRequest, _Mapping]] = ..., sampled_history: _Optional[_Union[SampledHistoryRequest, _Mapping]] = ..., partial_history: _Optional[_Union[PartialHistoryRequest, _Mapping]] = ..., history_step: _Optional[_Union[HistoryStepRequest, _Mapping]] = ..., run_start: _Optional[_Union[RunStartRequest, _Mapping]] = ..., check_version: _Optional[_Union[CheckVersionRequest, _Mapping]] = ..., log_artifact: _Optional[_Union[LogArtifactRequest, _Mapping]] = ..., download_artifact: _Optional[_Union[DownloadArtifactRequest, _Mapping]] = ..., keepalive: _Optional[_Union[KeepaliveRequest, _Mapping]] = ..., run_status: _Optional[_Union[RunStatusRequest, _Mapping]] = ..., cancel: _Optional[_Union[CancelRequest, _Mapping]] = ..., internal_messages: _Optional[_Union[InternalMessagesRequest, _Mapping]] = ..., python_packages: _Optional[_Union[PythonPackagesRequest, _Mapping]] = ..., shutdown: _Optional[_Union[ShutdownRequest, _Mapping]] = ..., attach: _Optional[_Union[AttachRequest, _Mapping]] = ..., status: _Optional[_Union[StatusRequest, _Mapping]] = ..., server_info: _Optional[_Union[ServerInfoRequest, _Mapping]] = ..., sender_mark: _Optional[_Union[SenderMarkRequest, _Mapping]] = ..., sender_read: _Optional[_Union[SenderReadRequest, _Mapping]] = ..., status_report: _Optional[_Union[StatusReportRequest, _Mapping]] = ..., summary_record: _Optional[_Union[SummaryRecordRequest, _Mapping]] = ..., telemetry_record: _Optional[_Union[TelemetryRecordRequest, _Mapping]] = ..., job_info: _Optional[_Union[JobInfoRequest, _Mapping]] = ..., get_system_metrics: _Optional[_Union[GetSystemMetricsRequest, _Mapping]] = ..., job_input: _Optional[_Union[JobInputRequest, _Mapping]] = ..., link_artifact: _Optional[_Union[LinkArtifactRequest, _Mapping]] = ..., sync_finish: _Optional[_Union[SyncFinishRequest, _Mapping]] = ..., run_log: _Optional[_Union[RunLogRequest, _Mapping]] = ..., operations: _Optional[_Union[OperationStatsRequest, _Mapping]] = ..., probe_system_info: _Optional[_Union[ProbeSystemInfoRequest, _Mapping]] = ..., test_inject: _Optional[_Union[TestInjectRequest, _Mapping]] = ...) -> None: ...
 
 class Response(_message.Message):
     __slots__ = ("keepalive_response", "stop_status_response", "network_status_response", "login_response", "get_summary_response", "poll_exit_response", "sampled_history_response", "history_step_response", "run_start_response", "check_version_response", "log_artifact_response", "download_artifact_response", "run_status_response", "cancel_response", "internal_messages_response", "shutdown_response", "attach_response", "status_response", "server_info_response", "job_info_response", "get_system_metrics_response", "link_artifact_response", "sync_response", "operations_response", "test_inject_response")
@@ -1397,6 +1399,24 @@ class PartialHistoryRequest(_message.Message):
 class PartialHistoryResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
+
+class RunLogRequest(_message.Message):
+    __slots__ = ("line", "label", "level", "_info")
+    class Level(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+        __slots__ = ()
+        INFO: _ClassVar[RunLogRequest.Level]
+        ERROR: _ClassVar[RunLogRequest.Level]
+    INFO: RunLogRequest.Level
+    ERROR: RunLogRequest.Level
+    LINE_FIELD_NUMBER: _ClassVar[int]
+    LABEL_FIELD_NUMBER: _ClassVar[int]
+    LEVEL_FIELD_NUMBER: _ClassVar[int]
+    _INFO_FIELD_NUMBER: _ClassVar[int]
+    line: str
+    label: str
+    level: RunLogRequest.Level
+    _info: _wandb_base_pb2._RequestInfo
+    def __init__(self, line: _Optional[str] = ..., label: _Optional[str] = ..., level: _Optional[_Union[RunLogRequest.Level, str]] = ..., _info: _Optional[_Union[_wandb_base_pb2._RequestInfo, _Mapping]] = ...) -> None: ...
 
 class HistoryStepRequest(_message.Message):
     __slots__ = ()

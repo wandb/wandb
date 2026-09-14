@@ -89,6 +89,16 @@ class InterfaceShared(InterfaceBase, abc.ABC):
         rec.output_logger.CopyFrom(outdata)
         self._publish(rec, nowait=nowait)
 
+    @override
+    def _publish_run_log(
+        self,
+        run_log: pb.RunLogRequest,
+        *,
+        nowait: bool = False,
+    ) -> None:
+        rec = self._make_request(run_log=run_log)
+        self._publish(rec, nowait=nowait)
+
     def _publish_cancel(self, cancel: pb.CancelRequest) -> None:
         rec = self._make_request(cancel=cancel)
         self._publish(rec)
@@ -172,6 +182,7 @@ class InterfaceShared(InterfaceBase, abc.ABC):
         python_packages: pb.PythonPackagesRequest | None = None,
         job_input: pb.JobInputRequest | None = None,
         probe_system_info: pb.ProbeSystemInfoRequest | None = None,
+        run_log: pb.RunLogRequest | None = None,
     ) -> pb.Record:
         request = pb.Request()
         if get_summary:
@@ -232,6 +243,8 @@ class InterfaceShared(InterfaceBase, abc.ABC):
             request.job_input.CopyFrom(job_input)
         elif probe_system_info:
             request.probe_system_info.CopyFrom(probe_system_info)
+        elif run_log:
+            request.run_log.CopyFrom(run_log)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)
