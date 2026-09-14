@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import base64
 import datetime
 import hashlib
 import json
@@ -26,7 +25,7 @@ _logger = logging.getLogger(__name__)
 EVAL_TABLE_MARKER = {"wandb_eval_table": True}
 
 _MIN_WEAVE_VERSION = "0.52.41"
-_COREWEAVE_BASE_URL_ENV = "COREWEAVE_EVALUATIONS_BASE_URL"
+_COREWEAVE_BASE_URL_ENV = "CES_BASE_URL"
 _WANDB_SCOPE_NAMESPACE = "wandb"
 _PROJECT_SCOPE_QUERY = """
 query EvalTableProjectScope($entity: String!, $project: String!) {
@@ -231,7 +230,8 @@ class _PreparedCoreWeaveWrite:
 @dataclass(frozen=True)
 class _CoreWeaveScopeContext:
     scope_ref: str
-    authorization: str
+    api_key: str | None
+    access_token: str | None
 
 
 class CoreWeaveEvalTableWriter:
@@ -282,7 +282,7 @@ class CoreWeaveEvalTableWriter:
             )
 
         scope = self._resolve_scope_context()
-        client = self._create_client(base_url, scope.authorization)
+        client = self._create_client(base_url, scope)
         try:
             created = client.eval_tables.create(
                 scope.scope_ref,
@@ -537,31 +537,33 @@ class CoreWeaveEvalTableWriter:
                 f"Unable to resolve W&B project {self._entity}/{self._project}."
             )
 
-        if api_key := self._service_api.api_key:
-            credentials = base64.b64encode(f"api:{api_key}".encode()).decode()
-            authorization = f"Basic {credentials}"
-        elif access_token := self._service_api.access_token():
-            authorization = f"Bearer {access_token}"
-        else:
+        api_key = self._service_api.api_key
+        access_token = None if api_key else self._service_api.access_token()
+        if not api_key and not access_token:
             raise UsageError(
                 "CoreWeave EvalTable logging requires authenticated W&B credentials."
             )
 
         return _CoreWeaveScopeContext(
             scope_ref=scope_ref,
-            authorization=authorization,
+            api_key=api_key,
+            access_token=access_token,
         )
 
-    def _create_client(self, base_url: str, authorization: str) -> Any:
+    def _create_client(self, base_url: str, scope: _CoreWeaveScopeContext) -> Any:
         try:
-            from coreweave_evaluations import CoreWeaveEvaluations, DefaultHttpxClient
+            from coreweave_evaluations import CoreWeaveEvaluations
         except ImportError as exc:
             raise UsageError(
                 "CoreWeave EvalTable logging requires the local Evaluations Python "
                 "SDK. Install requirements-eval-table-coreweave-local.txt with uv."
             ) from exc
 
-        http_client = DefaultHttpxClient(
-            headers={"Authorization": authorization},
+        # The client builds the Authorization header from these and rejects a
+        # request that reaches it without one, so a header set on an httpx
+        # client would arrive too late to satisfy it.
+        return CoreWeaveEvaluations(
+            base_url=base_url,
+            api_key=scope.api_key,
+            bearer_token=scope.access_token,
         )
-        return CoreWeaveEvaluations(base_url=base_url, http_client=http_client)
