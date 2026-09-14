@@ -12,6 +12,7 @@ import pytest
 import wandb
 import wandb.data_types as wandb_data_types
 from wandb.errors import UsageError
+from wandb.sdk.data_types import _eval_table_writer
 from wandb.sdk.data_types import eval_table as eval_table_module
 
 
@@ -84,8 +85,16 @@ def mock_coreweave_client(monkeypatch):
     )
     monkeypatch.setattr(
         "wandb.sdk.data_types._eval_table_writer."
+        "CoreWeaveEvalTableWriter._resolve_scope_context",
+        lambda self: _eval_table_writer._CoreWeaveScopeContext(
+            scope_ref="scope-ref",
+            authorization="Bearer token",
+        ),
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.data_types._eval_table_writer."
         "CoreWeaveEvalTableWriter._create_client",
-        lambda self, base_url: client,
+        lambda self, base_url, authorization: client,
     )
     return client
 
@@ -137,13 +146,15 @@ def test_coreweave_eval_table_writes_columns_rows_and_version(
         "create_version",
     ]
     api.create.assert_called_once_with(
-        "p",
+        "scope-ref",
+        namespace="wandb",
         name="math_eval",
         idempotency_key=ANY,
     )
     api.create_columns.assert_called_once_with(
         "evaluation-1",
-        project_id="p",
+        namespace="wandb",
+        scope_ref="scope-ref",
         dataset_fields=[
             {"source": "input", "name": "prompt", "value_type": "string"},
             {"source": "input", "name": "truth", "value_type": "string"},
@@ -157,7 +168,8 @@ def test_coreweave_eval_table_writes_columns_rows_and_version(
     )
     api.add_rows.assert_called_once_with(
         "evaluation-1",
-        project_id="p",
+        namespace="wandb",
+        scope_ref="scope-ref",
         rows=[
             {
                 "input": {"prompt": "2+2", "truth": "4"},
@@ -174,13 +186,16 @@ def test_coreweave_eval_table_writes_columns_rows_and_version(
     )
     api.create_version.assert_called_once_with(
         "evaluation-1",
-        project_id="p",
+        namespace="wandb",
+        scope_ref="scope-ref",
         idempotency_key=ANY,
     )
     mock_coreweave_client.close.assert_called_once_with()
     debug.assert_called_once_with(
-        "CoreWeave EvalTable recorded project_id=%s evaluation_version_id=%s",
-        "p",
+        "CoreWeave EvalTable recorded namespace=%s scope_ref=%s "
+        "evaluation_version_id=%s",
+        "wandb",
+        "scope-ref",
         "evaluation-version-1",
     )
 
@@ -282,6 +297,44 @@ def test_coreweave_eval_table_requires_base_url(monkeypatch, mock_run):
 
     with pytest.raises(UsageError, match="COREWEAVE_EVALUATIONS_BASE_URL"):
         run.log({"eval": et})
+
+
+def test_coreweave_eval_table_resolves_project_scope_with_api_key(run):
+    writer = _eval_table_writer.CoreWeaveEvalTableWriter()
+    writer.bind(run, "eval", 0)
+    writer._service_api = SimpleNamespace(
+        api_key="secret",
+        access_token=MagicMock(),
+        execute_graphql=MagicMock(
+            return_value={"project": {"internalId": "opaque-project-id"}}
+        ),
+    )
+
+    scope = writer._resolve_scope_context()
+
+    assert scope.scope_ref == "opaque-project-id"
+    assert scope.authorization == "Basic YXBpOnNlY3JldA=="
+    writer._service_api.execute_graphql.assert_called_once_with(
+        _eval_table_writer._PROJECT_SCOPE_QUERY,
+        variables={"entity": "e", "project": "p"},
+    )
+    writer._service_api.access_token.assert_not_called()
+
+
+def test_coreweave_eval_table_uses_federated_access_token(run):
+    writer = _eval_table_writer.CoreWeaveEvalTableWriter()
+    writer.bind(run, "eval", 0)
+    writer._service_api = SimpleNamespace(
+        api_key=None,
+        access_token=MagicMock(return_value="access-token"),
+        execute_graphql=MagicMock(
+            return_value={"project": {"internalId": "opaque-project-id"}}
+        ),
+    )
+
+    scope = writer._resolve_scope_context()
+
+    assert scope.authorization == "Bearer access-token"
 
 
 def test_coreweave_eval_table_retries_with_stable_idempotency_keys(
