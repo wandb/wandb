@@ -84,13 +84,19 @@ type Sender struct {
 	// settings is the settings for the sender
 	settings *settings.Settings
 
-	// graphqlClient is the graphql client
+	// graphqlClient makes GraphQL requests to the backend.
+	//
+	// It is nil in offline mode.
 	graphqlClient graphql.Client
 
-	// fileStream is the file stream
+	// fileStream uploads data to the backend.
+	//
+	// It is nil in offline mode.
 	fileStream fs.FileStream
 
-	// fileTransferManager is the file uploader/downloader
+	// fileTransferManager uploads and downloads files.
+	//
+	// It is nil in offline mode.
 	fileTransferManager filetransfer.FileTransferManager
 
 	// fileTransferStats tracks file upload progress
@@ -99,7 +105,9 @@ type Sender struct {
 	// fileWatcher notifies when files in the file system are changed
 	fileWatcher watcher.Watcher
 
-	// runfilesUploader manages uploading a run's files
+	// runfilesUploader uploads a run's files, implementing `run.save()`.
+	//
+	// It is nil in offline mode.
 	runfilesUploader runfiles.Uploader
 
 	// artifactsSaver manages artifact uploads
@@ -120,8 +128,10 @@ type Sender struct {
 	// receivedExit is true once the Sender receives an Exit record.
 	receivedExit bool
 
-	// jobBuilder is the job builder for creating jobs from the run
-	// that allow users to re-run the run with different configurations
+	// jobBuilder creates "jobs" from the run, which allow users to re-run it
+	// with different configurations.
+	//
+	// It is nil when offline or if job creation is disabled.
 	jobBuilder *launch.JobBuilder
 
 	// networkPeeker is a helper for peeking into network responses
@@ -463,9 +473,12 @@ func (s *Sender) updateSettings() {
 	}
 }
 
-// sendRequestRunStart sends a run start request to start all the stream
-// components that need to be started and to update the settings
+// sendRequestRunStart begins uploading data for the run.
 func (s *Sender) sendRequestRunStart(_ *spb.RunStartRequest) {
+	if s.settings.IsOffline() {
+		return
+	}
+
 	upserter, err := s.runHandle.Upserter()
 	if err != nil {
 		s.logger.CaptureError(
@@ -493,23 +506,17 @@ func (s *Sender) sendRequestNetworkStatus(
 	_ *spb.NetworkStatusRequest,
 	request *runwork.Request,
 ) {
-	// in case of network peeker is not set, we don't need to do anything
-	if s.networkPeeker == nil {
-		return
-	}
+	response := s.networkPeeker.Read()
 
-	// send the network status response if there is any
-	if response := s.networkPeeker.Read(); len(response) > 0 {
-		s.respond(request,
-			&spb.Response{
-				ResponseType: &spb.Response_NetworkStatusResponse{
-					NetworkStatusResponse: &spb.NetworkStatusResponse{
-						NetworkResponses: response,
-					},
+	s.respond(request,
+		&spb.Response{
+			ResponseType: &spb.Response_NetworkStatusResponse{
+				NetworkStatusResponse: &spb.NetworkStatusResponse{
+					NetworkResponses: response,
 				},
 			},
-		)
-	}
+		},
+	)
 }
 
 func (s *Sender) sendJobFlush() {
@@ -705,6 +712,10 @@ func (s *Sender) respondExit(
 }
 
 func (s *Sender) sendTelemetry(_ *spb.Record, telemetry *spb.TelemetryRecord) {
+	if s.settings.IsOffline() {
+		return
+	}
+
 	upserter, err := s.runHandle.Upserter()
 	if err != nil {
 		s.logger.CaptureError(
@@ -718,6 +729,10 @@ func (s *Sender) sendTelemetry(_ *spb.Record, telemetry *spb.TelemetryRecord) {
 }
 
 func (s *Sender) sendEnvironment(environment *spb.EnvironmentRecord) {
+	if s.settings.IsOffline() {
+		return
+	}
+
 	upserter, err := s.runHandle.Upserter()
 	if err != nil {
 		s.logger.CaptureError(
@@ -797,6 +812,11 @@ func (s *Sender) sendLinkArtifact(
 	msg *spb.LinkArtifactRequest,
 	request *runwork.Request,
 ) {
+	if s.settings.IsOffline() {
+		request.WillNotRespond()
+		return
+	}
+
 	var response spb.LinkArtifactResponse
 	linker := artifacts.ArtifactLinker{
 		Ctx:           s.runWork.BeforeEndCtx(),
@@ -825,10 +845,15 @@ func (s *Sender) sendLinkArtifact(
 }
 
 func (s *Sender) sendUseArtifact(record *spb.Record) {
+	if s.settings.IsOffline() {
+		return
+	}
+
 	if s.jobBuilder == nil {
 		s.logger.Warn("sender: sendUseArtifact: job builder disabled, skipping")
 		return
 	}
+
 	s.jobBuilder.HandleUseArtifactRecord(record)
 }
 
@@ -998,6 +1023,10 @@ func (s *Sender) scheduleFileUpload(
 
 // sendConfig updates the run's config and schedules an upload.
 func (s *Sender) sendConfig(_ *spb.Record, configRecord *spb.ConfigRecord) {
+	if s.settings.IsOffline() {
+		return
+	}
+
 	upserter, err := s.runHandle.Upserter()
 	if err != nil {
 		s.logger.CaptureError(
@@ -1141,6 +1170,10 @@ func (s *Sender) sendExit(
 
 // sendMetric updates the metrics in the run config.
 func (s *Sender) sendMetric(_ *spb.Record, metrics *spb.MetricRecord) {
+	if s.settings.IsOffline() {
+		return
+	}
+
 	upserter, err := s.runHandle.Upserter()
 	if err != nil {
 		s.logger.CaptureError(
@@ -1156,9 +1189,6 @@ func (s *Sender) sendMetric(_ *spb.Record, metrics *spb.MetricRecord) {
 // sendFiles uploads files according to a FilesRecord
 func (s *Sender) sendFiles(_ *spb.Record, filesRecord *spb.FilesRecord) {
 	if s.runfilesUploader == nil {
-		s.logger.CaptureWarn(
-			"sender: tried to sendFiles, but runfiles uploader is nil",
-		)
 		return
 	}
 
@@ -1166,6 +1196,10 @@ func (s *Sender) sendFiles(_ *spb.Record, filesRecord *spb.FilesRecord) {
 }
 
 func (s *Sender) sendArtifact(_ *spb.Record, msg *spb.ArtifactRecord) {
+	if s.settings.IsOffline() {
+		return
+	}
+
 	op := s.operations.New(
 		fmt.Sprintf(
 			"uploading artifact %s",
@@ -1197,6 +1231,11 @@ func (s *Sender) sendRequestLogArtifact(
 	msg *spb.LogArtifactRequest,
 	request *runwork.Request,
 ) {
+	if s.settings.IsOffline() {
+		request.WillNotRespond()
+		return
+	}
+
 	op := s.operations.New(
 		fmt.Sprintf(
 			"uploading artifact %s",

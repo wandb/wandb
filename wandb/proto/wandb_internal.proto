@@ -69,11 +69,12 @@ message Record {
 }
 
 message Control {
+  reserved 5;
+
   bool req_resp = 1;         // record is expecting a result
   bool local = 2;            // should not be persisted or synchronized
   string relay_id = 3;       // used by service transport to identify correct stream
   string mailbox_slot = 4;   // mailbox slot
-  bool always_send = 5;      // message to sender
   bool flow_control = 6;     // message should be passed to flow control
   int64 end_offset = 7;      // end of message offset of this written message
   string connection_id = 8;  // connection id

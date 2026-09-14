@@ -728,13 +728,6 @@ func (h *Handler) handleExit(
 	} else {
 		h.flushPartialHistory(true, h.partialHistoryStep+1)
 	}
-
-	if record.Control == nil {
-		record.Control = &spb.Control{}
-	}
-	record.Control.AlwaysSend = true
-
-	h.fwdRecord(record, request)
 }
 
 func (h *Handler) handleRequestGetSummary(

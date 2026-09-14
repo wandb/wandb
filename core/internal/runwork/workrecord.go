@@ -32,10 +32,6 @@ func (wr WorkRecord) Accept(
 	fn(wr.Record, request)
 
 	switch wr.Record.RecordType.(type) {
-	case *spb.Record_Exit:
-		// The Runtime field is updated on the record before forwarding,
-		// and it is forwarded with AlwaysSend and if syncing Local.
-		return false
 	case *spb.Record_Final:
 		// Deprecated.
 		return false
@@ -62,10 +58,6 @@ func (wr WorkRecord) Accept(
 // ToRecord implements WorkImpl.ToRecord.
 func (wr WorkRecord) ToRecord() *spb.Record {
 	return wr.Record
-}
-
-func (wr WorkRecord) BypassOfflineMode() bool {
-	return wr.Record.GetControl().GetAlwaysSend()
 }
 
 func (wr WorkRecord) Process(
