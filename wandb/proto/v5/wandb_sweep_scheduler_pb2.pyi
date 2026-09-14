@@ -135,7 +135,6 @@ class SweepSchedulerServerDoneTask(_message.Message):
     class Reason(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
         REASON_UNSPECIFIED: _ClassVar[SweepSchedulerServerDoneTask.Reason]
-        REASON_EXHAUSTED: _ClassVar[SweepSchedulerServerDoneTask.Reason]
         REASON_TERMINATED: _ClassVar[SweepSchedulerServerDoneTask.Reason]
         REASON_SWEEP_FINISHED: _ClassVar[SweepSchedulerServerDoneTask.Reason]
         REASON_SWEEP_NOT_FOUND: _ClassVar[SweepSchedulerServerDoneTask.Reason]
@@ -143,7 +142,6 @@ class SweepSchedulerServerDoneTask(_message.Message):
         REASON_OPTIMIZER_ERROR: _ClassVar[SweepSchedulerServerDoneTask.Reason]
         REASON_SHUTDOWN: _ClassVar[SweepSchedulerServerDoneTask.Reason]
     REASON_UNSPECIFIED: SweepSchedulerServerDoneTask.Reason
-    REASON_EXHAUSTED: SweepSchedulerServerDoneTask.Reason
     REASON_TERMINATED: SweepSchedulerServerDoneTask.Reason
     REASON_SWEEP_FINISHED: SweepSchedulerServerDoneTask.Reason
     REASON_SWEEP_NOT_FOUND: SweepSchedulerServerDoneTask.Reason
