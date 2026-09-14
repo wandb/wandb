@@ -55,6 +55,7 @@ from wandb.apis._generated.get_agent_runs import GetAgentRuns
 from wandb.apis.attrs import Attrs
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import SizedPaginator
+from wandb.apis.public.run_filters import validate_run_filters
 from wandb.apis.public.service_api import ServiceApi
 from wandb.errors import CommError
 from wandb.proto import wandb_api_pb2 as apb
@@ -206,6 +207,9 @@ class Runs(SizedPaginator["Run"]):
             Defaults to True.
         lazy: Whether to defer loading heavy fields (config, summaryMetrics,
             systemMetrics) until they are accessed. Defaults to True.
+
+    Raises:
+        ValueError: If a query or tag membership predicate is malformed.
     """
 
     def __init__(
@@ -220,6 +224,7 @@ class Runs(SizedPaginator["Run"]):
         lazy: bool = True,
         api_key: str | None = None,
     ):
+        filters = validate_run_filters(filters)
         if not order:
             order = "+created_at"
 
@@ -228,7 +233,7 @@ class Runs(SizedPaginator["Run"]):
         self.entity = entity
         self.project = project
         self._project_internal_id = None
-        self.filters = filters or {}
+        self.filters = filters
         self.order = order
         self._sweeps: dict[str, public.Sweep] = {}
         self._include_sweeps = include_sweeps

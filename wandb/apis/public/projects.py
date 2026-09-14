@@ -261,7 +261,9 @@ class Project(Attrs):
             per_page=per_page,
         )
 
-    @normalize_exceptions
+    # Intentionally not wrapped in `normalize_exceptions`: it rewrites the
+    # `ValueError` raised for a malformed filter into a `CommError`, which is
+    # the opaque error that validating filters is meant to replace.
     def sweeps(
         self,
         per_page: int = 50,
@@ -277,6 +279,9 @@ class Project(Attrs):
 
         Returns:
             A `Sweeps` object, which is an iterable collection of `Sweep` objects.
+
+        Raises:
+            ValueError: If a checked filter is malformed.
         """
         return Sweeps(
             self._service_api,
