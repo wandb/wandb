@@ -232,7 +232,12 @@ class ValidatedUpdateInput(GQLInput, extra="ignore", frozen=True):
 
     @computed_field
     def triggered_action_type(self) -> ActionType:
-        return self.action.action_type
+        if (action_type := self.action.action_type) is None:
+            raise UnsupportedError(
+                "Cannot update an automation with an unsupported action type. "
+                "Upgrade wandb to a version that supports it."
+            )
+        return action_type
 
     @computed_field
     def triggered_action_config(self) -> dict[str, Any]:
