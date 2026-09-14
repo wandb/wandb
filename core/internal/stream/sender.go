@@ -235,6 +235,7 @@ func (f *SenderFactory) NewWithFileStream(
 		runSummary:        runsummary.New(),
 		consoleLogsSender: runconsolelogs.New(consoleLogsSenderParams),
 	}
+	s.stepTracker = NewHistoryStepTracker(s.logger, s.runHandle)
 
 	if !s.settings.IsOffline() && !s.settings.IsJobCreationDisabled() {
 		s.jobBuilder = launch.NewJobBuilder(s.settings, s.logger, false)
