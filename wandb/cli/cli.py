@@ -1851,9 +1851,26 @@ def launch_agent(
     /SIGTERM) to force-kill child runs which have not finished since receiving
     the initial forwarded signal. Does nothing if --forward-signals is not set.""",
 )
+@click.option(
+    "--max-consecutive-failed-runs",
+    default=None,
+    type=click.IntRange(min=1),
+    help="""Shut the agent down once this many runs have failed back to back.
+    A run counts as failed if it exits non-zero or is killed by a signal, such
+    as by the OOM killer. Runs stopped by the sweep itself do not count.""",
+)
 @click.argument("sweep_id")
 @display_error
-def agent(ctx, project, entity, count, forward_signals, term_timeout, sweep_id):
+def agent(
+    ctx,
+    project,
+    entity,
+    count,
+    forward_signals,
+    term_timeout,
+    max_consecutive_failed_runs,
+    sweep_id,
+):
     """Start a sweep agent.
 
     Poll the W&B server for hyperparameter configurations from
@@ -1884,6 +1901,10 @@ def agent(ctx, project, entity, count, forward_signals, term_timeout, sweep_id):
     To forward signals to child runs for clean shutdown:
 
         $ wandb agent --forward-signals wbyz9876
+
+    To stop the agent after 5 runs fail back to back:
+
+        $ wandb agent --max-consecutive-failed-runs 5 wbyz9876
     """
     wandb.termlog("Starting wandb agent 🕵️")
     try:
@@ -1894,6 +1915,7 @@ def agent(ctx, project, entity, count, forward_signals, term_timeout, sweep_id):
             count=count,
             forward_signals=forward_signals,
             term_timeout=term_timeout,
+            max_consecutive_failed_runs=max_consecutive_failed_runs,
         )
     # TODO: handle other errors with correct exit codes
     except SweepNotFoundError:
