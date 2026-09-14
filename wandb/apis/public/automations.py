@@ -28,7 +28,9 @@ _NodeT = TypeVar("_NodeT")
 class _AutomationsPaginator(RelayPaginator[_NodeT, "Automation"]):
     @override
     def _load_page(self) -> bool:
-        # Filtering can remove a whole page without exhausting the server results.
+        # The parent returns True even when a fetched page adds no objects.
+        # Filtering can empty a page, so keep fetching until results are added
+        # or the server reports hasNextPage=False.
         count = len(self.objects)
         while super()._load_page():
             if len(self.objects) > count:
