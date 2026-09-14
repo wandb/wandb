@@ -316,8 +316,8 @@ class Agent:
                     logger.debug(f"Spawning new thread for run {run_id}.")
                     thread = threading.Thread(target=self._run_job, args=(job,))
                     self._run_threads[run_id] = thread
-                    thread.start()
                     self._run_status[run_id] = RunStatus.RUNNING
+                    thread.start()
                     thread.join()
                     logger.debug(f"Thread joined for run {run_id}.")
                     if self._run_status[run_id] == RunStatus.RUNNING:
