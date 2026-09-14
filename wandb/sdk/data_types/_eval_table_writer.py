@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import datetime
 import hashlib
 import json
@@ -17,6 +18,7 @@ from wandb.errors import UsageError
 from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
 
 if TYPE_CHECKING:
+    from wandb.apis.public.service_api import ServiceApi
     from wandb.sdk.wandb_run import Run as LocalRun
 
 
@@ -26,6 +28,14 @@ EVAL_TABLE_MARKER = {"wandb_eval_table": True}
 
 _MIN_WEAVE_VERSION = "0.52.41"
 _COREWEAVE_BASE_URL_ENV = "COREWEAVE_EVALUATIONS_BASE_URL"
+_WANDB_SCOPE_NAMESPACE = "wandb"
+_PROJECT_SCOPE_QUERY = """
+query EvalTableProjectScope($entity: String!, $project: String!) {
+  project(entityName: $entity, name: $project) {
+    internalId
+  }
+}
+"""
 _MAX_BATCH_BODY_BYTES = 16 << 20
 # Leave headroom below the server limit and keep failed retries bounded.
 _TARGET_ROW_BATCH_BODY_BYTES = 8 << 20
@@ -224,17 +234,31 @@ class _PreparedCoreWeaveWrite:
     row_batches: list[list[dict[str, Any]]]
 
 
+@dataclass(frozen=True)
+class _CoreWeaveScopeContext:
+    scope_ref: str
+    authorization: str
+
+
 class CoreWeaveEvalTableWriter:
     """Write an immutable EvalTable through the Evaluations service."""
 
     def __init__(self) -> None:
-        self._project_id: str | None = None
+        self._entity: str | None = None
+        self._project: str | None = None
+        self._service_api: ServiceApi | None = None
         self._idempotency_scope: str | None = None
 
     def bind(self, run: LocalRun, key: str, step: int | str) -> None:
-        if not run.project:
-            raise UsageError("CoreWeave EvalTable logging requires a W&B project.")
-        self._project_id = run.project
+        from wandb.apis.public.service_api import ServiceApi
+
+        if not run.entity or not run.project:
+            raise UsageError(
+                "CoreWeave EvalTable logging requires a W&B entity and project."
+            )
+        self._entity = run.entity
+        self._project = run.project
+        self._service_api = ServiceApi(run._settings)
         identity = json.dumps(
             {
                 "entity": run.entity,
@@ -252,7 +276,7 @@ class CoreWeaveEvalTableWriter:
         self._normalize_primitive(value, str(column))
 
     def write(self, value: EvalTableWriteInput) -> EvalTableWriteResult:
-        if self._project_id is None:
+        if self._entity is None or self._project is None or self._service_api is None:
             raise UsageError("EvalTable must be logged with run.log().")
 
         prepared = self._prepare(value)
@@ -263,16 +287,19 @@ class CoreWeaveEvalTableWriter:
                 "before logging a CoreWeave EvalTable."
             )
 
-        client = self._create_client(base_url)
+        scope = self._resolve_scope_context()
+        client = self._create_client(base_url, scope.authorization)
         try:
             created = client.eval_tables.create(
-                self._project_id,
+                scope.scope_ref,
+                namespace=_WANDB_SCOPE_NAMESPACE,
                 name=value.name,
                 idempotency_key=self._idempotency_key("create"),
             )
             client.eval_tables.create_columns(
                 created.evaluation_id,
-                project_id=self._project_id,
+                namespace=_WANDB_SCOPE_NAMESPACE,
+                scope_ref=scope.scope_ref,
                 dataset_fields=prepared.dataset_fields,
                 scorers=prepared.scorers,
                 idempotency_key=self._idempotency_key("columns"),
@@ -280,21 +307,25 @@ class CoreWeaveEvalTableWriter:
             for batch_index, rows in enumerate(prepared.row_batches):
                 client.eval_tables.add_rows(
                     created.evaluation_id,
-                    project_id=self._project_id,
+                    namespace=_WANDB_SCOPE_NAMESPACE,
+                    scope_ref=scope.scope_ref,
                     rows=rows,
                     idempotency_key=self._idempotency_key(f"rows-{batch_index}"),
                 )
             version = client.eval_tables.create_version(
                 created.evaluation_id,
-                project_id=self._project_id,
+                namespace=_WANDB_SCOPE_NAMESPACE,
+                scope_ref=scope.scope_ref,
                 idempotency_key=self._idempotency_key("version"),
             )
         finally:
             client.close()
 
         _logger.debug(
-            "CoreWeave EvalTable recorded project_id=%s evaluation_version_id=%s",
-            self._project_id,
+            "CoreWeave EvalTable recorded namespace=%s scope_ref=%s "
+            "evaluation_version_id=%s",
+            _WANDB_SCOPE_NAMESPACE,
+            scope.scope_ref,
             version.evaluation_version_id,
         )
 
@@ -528,13 +559,46 @@ class CoreWeaveEvalTableWriter:
             raise UsageError("EvalTable must be logged with run.log().")
         return f"wandb-eval-table-v1-{self._idempotency_scope}-{operation}"
 
-    def _create_client(self, base_url: str) -> Any:
+    def _resolve_scope_context(self) -> _CoreWeaveScopeContext:
+        if self._entity is None or self._project is None or self._service_api is None:
+            raise UsageError("EvalTable must be logged with run.log().")
+
+        response = self._service_api.execute_graphql(
+            _PROJECT_SCOPE_QUERY,
+            variables={"entity": self._entity, "project": self._project},
+        )
+        project = response.get("project") if isinstance(response, dict) else None
+        scope_ref = project.get("internalId") if isinstance(project, dict) else None
+        if not isinstance(scope_ref, str) or not scope_ref:
+            raise UsageError(
+                f"Unable to resolve W&B project {self._entity}/{self._project}."
+            )
+
+        if api_key := self._service_api.api_key:
+            credentials = base64.b64encode(f"api:{api_key}".encode()).decode()
+            authorization = f"Basic {credentials}"
+        elif access_token := self._service_api.access_token():
+            authorization = f"Bearer {access_token}"
+        else:
+            raise UsageError(
+                "CoreWeave EvalTable logging requires authenticated W&B credentials."
+            )
+
+        return _CoreWeaveScopeContext(
+            scope_ref=scope_ref,
+            authorization=authorization,
+        )
+
+    def _create_client(self, base_url: str, authorization: str) -> Any:
         try:
-            from coreweave_evaluations import CoreWeaveEvaluations
+            from coreweave_evaluations import CoreWeaveEvaluations, DefaultHttpxClient
         except ImportError as exc:
             raise UsageError(
                 "CoreWeave EvalTable logging requires the local Evaluations Python "
                 "SDK. Install requirements-eval-table-coreweave-local.txt with uv."
             ) from exc
 
-        return CoreWeaveEvaluations(base_url=base_url)
+        http_client = DefaultHttpxClient(
+            headers={"Authorization": authorization},
+        )
+        return CoreWeaveEvaluations(base_url=base_url, http_client=http_client)
