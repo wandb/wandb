@@ -257,10 +257,6 @@ def describe_done(done: sspb.SweepSchedulerServerDoneTask) -> tuple[str, bool]:
     """
     reason = done.reason
     messages: dict[int, tuple[str, bool]] = {
-        sspb.SweepSchedulerServerDoneTask.REASON_EXHAUSTED: (
-            "the search space is exhausted; the sweep is finished",
-            False,
-        ),
         sspb.SweepSchedulerServerDoneTask.REASON_TERMINATED: (
             "the optimizer terminated the sweep",
             False,
