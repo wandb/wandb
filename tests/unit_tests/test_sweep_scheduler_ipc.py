@@ -123,7 +123,7 @@ def generation_task(
 
 def done_task(
     seq: int,
-    reason=sspb.SweepSchedulerServerDoneTask.REASON_EXHAUSTED,
+    reason=sspb.SweepSchedulerServerDoneTask.REASON_SWEEP_FINISHED,
     discarded: Sequence[str] = (),
 ) -> sspb.SweepSchedulerServerNextTaskResponse:
     return sspb.SweepSchedulerServerNextTaskResponse(
@@ -354,12 +354,12 @@ def test_describe_done_marks_errors():
     )
     message, clean = describe_done(
         sspb.SweepSchedulerServerDoneTask(
-            reason=sspb.SweepSchedulerServerDoneTask.REASON_EXHAUSTED,
+            reason=sspb.SweepSchedulerServerDoneTask.REASON_SWEEP_FINISHED,
             message="42 runs",
         )
     )
 
     assert fatal
     assert not clean
-    assert "exhausted" in message
+    assert "finished" in message
     assert "42 runs" in message
