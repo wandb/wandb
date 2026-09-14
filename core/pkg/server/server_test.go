@@ -121,7 +121,7 @@ func addTestConnection(t *testing.T, s *Server) net.Conn {
 	return clientConn
 }
 
-func TestServe_ForceStopWithActiveConnectionReturnsForcedShutdown(t *testing.T) {
+func TestServe_ForceStopReturnsWithoutWaitingForConnections(t *testing.T) {
 	tempRoot := t.TempDir()
 	t.Setenv("TMPDIR", tempRoot)
 
@@ -139,7 +139,7 @@ func TestServe_ForceStopWithActiveConnectionReturnsForcedShutdown(t *testing.T) 
 
 	select {
 	case err := <-srvCh:
-		require.ErrorIs(t, err, ErrForcedShutdown)
+		require.NoError(t, err)
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for Serve() to return")
 	}
