@@ -990,17 +990,111 @@ pub struct HistoryRecord {
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }
+/// HistoryValue is one logged value with its type.
+///
+/// It is the typed form of `HistoryItem.value_json`. A writer sets one,
+/// or both, depending on the `x_history_value_encoding` setting. A reader
+/// prefers `value` and falls back to `value_json`.
+///
+/// The two forms must carry the same value. Rollback from the typed form
+/// to the JSON form depends on that equivalence.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct HistoryValue {
+    #[prost(enumeration = "history_value::Kind", tag = "1")]
+    pub kind: i32,
+    /// NaN, Infinity and -Infinity are ordinary IEEE values, not sentinel strings.
+    #[prost(double, tag = "2")]
+    pub float_value: f64,
+    #[prost(int64, tag = "3")]
+    pub int_value: i64,
+    #[prost(bool, tag = "4")]
+    pub bool_value: bool,
+    #[prost(string, tag = "5")]
+    pub string_value: ::prost::alloc::string::String,
+    /// Verbatim JSON text for an object or an array.
+    #[prost(string, tag = "6")]
+    pub json_value: ::prost::alloc::string::String,
+}
+/// Nested message and enum types in `HistoryValue`.
+pub mod history_value {
+    /// Kind is the type of the value. It selects the value field.
+    ///
+    /// Integer and float are separate kinds, so an int64 above 2^53 keeps
+    /// its exact value. Nested objects and arrays stay as verbatim JSON text.
+    ///
+    /// Kinds are frozen. Each kind maps onto a Kind in the filestream wire
+    /// schema, and each declares a lossless conversion to JSON. A kind with
+    /// no lossless JSON form does not enter the map.
+    #[derive(
+        Clone,
+        Copy,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash,
+        PartialOrd,
+        Ord,
+        ::prost::Enumeration
+    )]
+    #[repr(i32)]
+    pub enum Kind {
+        /// Invalid. A reader rejects it.
+        Unspecified = 0,
+        Null = 1,
+        Float = 2,
+        Int = 3,
+        Bool = 4,
+        String = 5,
+        Json = 6,
+    }
+    impl Kind {
+        /// String value of the enum field names used in the ProtoBuf definition.
+        ///
+        /// The values are not transformed in any way and thus are considered stable
+        /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+        pub fn as_str_name(&self) -> &'static str {
+            match self {
+                Self::Unspecified => "KIND_UNSPECIFIED",
+                Self::Null => "KIND_NULL",
+                Self::Float => "KIND_FLOAT",
+                Self::Int => "KIND_INT",
+                Self::Bool => "KIND_BOOL",
+                Self::String => "KIND_STRING",
+                Self::Json => "KIND_JSON",
+            }
+        }
+        /// Creates an enum from field names used in the ProtoBuf definition.
+        pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+            match value {
+                "KIND_UNSPECIFIED" => Some(Self::Unspecified),
+                "KIND_NULL" => Some(Self::Null),
+                "KIND_FLOAT" => Some(Self::Float),
+                "KIND_INT" => Some(Self::Int),
+                "KIND_BOOL" => Some(Self::Bool),
+                "KIND_STRING" => Some(Self::String),
+                "KIND_JSON" => Some(Self::Json),
+                _ => None,
+            }
+        }
+    }
+}
 /// HistoryItem:
 ///
 /// key and nested_key are mutually exclusive. Only one of them should be set.
 /// key is supposedly more performant than nested_key, so nested_key should be
 /// only used for nested keys.
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct HistoryItem {
     #[prost(string, tag = "1")]
     pub key: ::prost::alloc::string::String,
     #[prost(string, repeated, tag = "2")]
     pub nested_key: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    /// The typed value. Unset means the writer sent JSON only.
+    ///
+    /// A reader must keep reading `value_json` when this is unset, because
+    /// an older SDK wrote the transaction log.
+    #[prost(message, optional, tag = "3")]
+    pub value: ::core::option::Option<HistoryValue>,
     #[prost(string, tag = "16")]
     pub value_json: ::prost::alloc::string::String,
 }
