@@ -81,7 +81,7 @@ def mock_coreweave_client(monkeypatch):
         evaluation_version_id="evaluation-version-1",
     )
     monkeypatch.setenv(
-        "COREWEAVE_EVALUATIONS_BASE_URL",
+        "CES_BASE_URL",
         "https://evaluations.example.test",
     )
     monkeypatch.setattr(
@@ -89,13 +89,14 @@ def mock_coreweave_client(monkeypatch):
         "CoreWeaveEvalTableWriter._resolve_scope_context",
         lambda self: _eval_table_writer._CoreWeaveScopeContext(
             scope_ref="scope-ref",
-            authorization="Bearer token",
+            api_key=None,
+            access_token="token",
         ),
     )
     monkeypatch.setattr(
         "wandb.sdk.data_types._eval_table_writer."
         "CoreWeaveEvalTableWriter._create_client",
-        lambda self, base_url, authorization: client,
+        lambda self, base_url, scope: client,
     )
     return client
 
@@ -413,7 +414,7 @@ def test_coreweave_eval_table_rejects_mixed_column_types_before_network(
 
 
 def test_coreweave_eval_table_requires_base_url(monkeypatch, mock_run):
-    monkeypatch.delenv("COREWEAVE_EVALUATIONS_BASE_URL", raising=False)
+    monkeypatch.delenv("CES_BASE_URL", raising=False)
     run = mock_run(settings={"entity": "e", "project": "p", "mode": "online"})
     et = wandb.EvalTable(
         columns=["value"],
@@ -421,7 +422,7 @@ def test_coreweave_eval_table_requires_base_url(monkeypatch, mock_run):
         backend="coreweave",
     )
 
-    with pytest.raises(UsageError, match="COREWEAVE_EVALUATIONS_BASE_URL"):
+    with pytest.raises(UsageError, match="CES_BASE_URL"):
         run.log({"eval": et})
 
 
@@ -439,7 +440,8 @@ def test_coreweave_eval_table_resolves_project_scope_with_api_key(run):
     scope = writer._resolve_scope_context()
 
     assert scope.scope_ref == "opaque-project-id"
-    assert scope.authorization == "Basic YXBpOnNlY3JldA=="
+    assert scope.api_key == "secret"
+    assert scope.access_token is None
     writer._service_api.execute_graphql.assert_called_once_with(
         _eval_table_writer._PROJECT_SCOPE_QUERY,
         variables={"entity": "e", "project": "p"},
@@ -460,7 +462,8 @@ def test_coreweave_eval_table_uses_federated_access_token(run):
 
     scope = writer._resolve_scope_context()
 
-    assert scope.authorization == "Bearer access-token"
+    assert scope.api_key is None
+    assert scope.access_token == "access-token"
 
 
 def test_coreweave_eval_table_retries_with_stable_idempotency_keys(
