@@ -25,4 +25,5 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Fixed
 
+- `wandb.init` no longer derives a malformed project name (e.g. `repo-.._repo2`) when the program lives in a sibling directory that shares a path prefix with the repository (@betacatsling in https://github.com/wandb/wandb/issues/12817)
 - Changing system metrics grid rows or columns in LEET, including `wandb leet symon`, no longer crashes and takes effect immediately without waiting for new data (@dmitryduev in https://github.com/wandb/wandb/pull/12763)
