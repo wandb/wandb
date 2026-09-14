@@ -74,7 +74,7 @@ type Scheduler struct {
 	warmCursor *string
 	warmDone   bool
 
-	runCap int
+	runCap           int
 	finishedRunCount int
 
 	// runs is keyed by optimizer run id. Records are never removed, so
@@ -296,7 +296,6 @@ type SchedulerParams struct {
 
 	SweepNodeID string
 	MetricKey   string
-	RunCap      int
 
 	BatchSize    int
 	PollInterval time.Duration
