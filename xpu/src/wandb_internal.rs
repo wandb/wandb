@@ -999,16 +999,16 @@ pub struct HistoryRecord {
 pub struct HistoryValue {
     #[prost(enumeration = "history_value::Kind", tag = "1")]
     pub kind: i32,
-    /// Exactly one of these is set, and `kind` selects which one. KIND_NULL
-    /// sets none of them.
-    #[prost(bool, tag = "2")]
-    pub bool_value: bool,
+    /// NaN, Infinity and -Infinity are ordinary IEEE values, not sentinel strings.
+    #[prost(double, tag = "2")]
+    pub float_value: f64,
     #[prost(int64, tag = "3")]
     pub int_value: i64,
-    #[prost(double, tag = "4")]
-    pub float_value: f64,
+    #[prost(bool, tag = "4")]
+    pub bool_value: bool,
     #[prost(string, tag = "5")]
     pub string_value: ::prost::alloc::string::String,
+    /// Verbatim JSON text for an object or an array.
     #[prost(string, tag = "6")]
     pub json_value: ::prost::alloc::string::String,
 }
@@ -1017,9 +1017,7 @@ pub mod history_value {
     /// Kind is the type of the value. It selects the value field.
     ///
     /// Integer and float are separate kinds, so an int64 above 2^53 keeps
-    /// its exact value. A single numeric kind backed by a double would
-    /// narrow it. Nested objects and arrays stay as verbatim JSON text,
-    /// because no consumer on the upload path reads inside them.
+    /// its exact value. Nested objects and arrays stay as verbatim JSON text.
     ///
     /// Kinds are frozen. Each kind maps onto a Kind in the filestream wire
     /// schema, and each declares a lossless conversion to JSON. A kind with
@@ -1037,21 +1035,13 @@ pub mod history_value {
     )]
     #[repr(i32)]
     pub enum Kind {
-        /// Invalid. A reader rejects it. It means the writer left the kind
-        /// unset, which is a bug.
+        /// Invalid. A reader rejects it.
         Unspecified = 0,
-        /// JSON null. No value field is set.
         Null = 1,
-        /// Value in `bool_value`.
-        Bool = 2,
-        /// Value in `int_value`. Exact int64.
+        Float = 2,
         Int = 3,
-        /// Value in `float_value`. NaN, Infinity and -Infinity are ordinary
-        /// IEEE values, not sentinel strings.
-        Float = 4,
-        /// Value in `string_value`.
+        Bool = 4,
         String = 5,
-        /// Value in `json_value`. Verbatim JSON text for an object or an array.
         Json = 6,
     }
     impl Kind {
@@ -1063,9 +1053,9 @@ pub mod history_value {
             match self {
                 Self::Unspecified => "KIND_UNSPECIFIED",
                 Self::Null => "KIND_NULL",
-                Self::Bool => "KIND_BOOL",
-                Self::Int => "KIND_INT",
                 Self::Float => "KIND_FLOAT",
+                Self::Int => "KIND_INT",
+                Self::Bool => "KIND_BOOL",
                 Self::String => "KIND_STRING",
                 Self::Json => "KIND_JSON",
             }
@@ -1075,9 +1065,9 @@ pub mod history_value {
             match value {
                 "KIND_UNSPECIFIED" => Some(Self::Unspecified),
                 "KIND_NULL" => Some(Self::Null),
-                "KIND_BOOL" => Some(Self::Bool),
-                "KIND_INT" => Some(Self::Int),
                 "KIND_FLOAT" => Some(Self::Float),
+                "KIND_INT" => Some(Self::Int),
+                "KIND_BOOL" => Some(Self::Bool),
                 "KIND_STRING" => Some(Self::String),
                 "KIND_JSON" => Some(Self::Json),
                 _ => None,
