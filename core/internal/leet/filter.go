@@ -34,6 +34,10 @@ type Filter struct {
 	draft       string          // what the user is typing (preview)
 	applied     string          // committed pattern
 	mode        FilterMatchMode // current match mode
+
+	// onChange, when set, runs after the applied pattern or the match mode
+	// settles: on commit, cancel and clear.
+	onChange func()
 }
 
 func NewFilter() *Filter {
@@ -51,12 +55,14 @@ func (f *Filter) Commit() {
 	f.applied = f.draft
 	f.draft = ""
 	f.inputActive = false
+	f.changed()
 }
 
 // Cancel discards the draft and exits input mode without changing the applied pattern.
 func (f *Filter) Cancel() {
 	f.draft = ""
 	f.inputActive = false
+	f.changed()
 }
 
 // Clear removes any applied filter and exits input mode.
@@ -64,6 +70,19 @@ func (f *Filter) Clear() {
 	f.applied = ""
 	f.draft = ""
 	f.inputActive = false
+	f.changed()
+}
+
+// restore sets the applied pattern and match mode without reporting a change.
+func (f *Filter) restore(query string, mode FilterMatchMode) {
+	f.applied = query
+	f.mode = mode
+}
+
+func (f *Filter) changed() {
+	if f.onChange != nil {
+		f.onChange()
+	}
 }
 
 func (f *Filter) ToggleMode() {

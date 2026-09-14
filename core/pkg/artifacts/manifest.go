@@ -214,7 +214,7 @@ func (m *Manifest) GetManifestEntryFromArtifactFilePath(path string) (ManifestEn
 	return manifestEntry, nil
 }
 
-// HashContentsWithMd5 hashes the contents of the manifest with MD5.
+// HashContentsWithMd5 converts local XXH128 entries to MD5.
 func (m *Manifest) HashContentsWithMd5(ctx context.Context) error {
 	var mu sync.Mutex
 
@@ -222,6 +222,10 @@ func (m *Manifest) HashContentsWithMd5(ctx context.Context) error {
 	g.SetLimit(maxSimultaneousHashes)
 	for path, entry := range maps.Clone(m.Contents) {
 		if entry.LocalPath == nil || entry.Ref != nil {
+			continue
+		}
+		// Untagged entries already have MD5 digests. Their staged files may be gone.
+		if entry.Extra[digestAlgorithmExtraKey] != "XXH128" {
 			continue
 		}
 		g.Go(func() error {

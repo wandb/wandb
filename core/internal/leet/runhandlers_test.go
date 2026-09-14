@@ -186,6 +186,52 @@ func TestRun_InitialFocus_PicksFirstAvailablePane(t *testing.T) {
 		"collapsed overview should not appear focused")
 }
 
+// ---- Console filter ----
+
+func TestRun_SlashFiltersConsoleLogsWhenLogsPaneFocused(t *testing.T) {
+	r := newRunForHandlerTest(t)
+	r.TestForceExpandConsoleLogsPane(10)
+	seedConsoleLog(r)
+	r.TestSetFocusTarget(int(leet.FocusTargetConsoleLogs))
+
+	r.Update(keyPressMsg('/'))
+	require.Contains(t, stripANSI(r.View().Content), "Console filter (regex):")
+	require.True(t, r.IsFiltering())
+
+	r.Update(keyPressMsg('x'))
+	r.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	require.Contains(t, stripANSI(r.View().Content), `Console filter (regex): "x" [0/1]`)
+}
+
+func TestRun_ConsoleFilterRematchesChangedLines(t *testing.T) {
+	for _, tt := range []struct {
+		name, initial, next string
+		wantCounts          string
+	}{
+		{"partial line becomes matching", "err", "or", "[1/1]"},
+		{"carriage return removes match", "error", "\rokay ", "[0/1]"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			r := newRunForHandlerTest(t)
+			r.TestForceExpandConsoleLogsPane(10)
+			r.Update(leet.ConsoleLogMsg{Text: tt.initial, Time: time.Now()})
+			r.TestSetFocusTarget(int(leet.FocusTargetConsoleLogs))
+			r.Update(keyPressMsg('/'))
+			for _, ch := range "error" {
+				r.Update(keyPressMsg(ch))
+			}
+			r.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+			_ = r.View()
+
+			r.Update(leet.ConsoleLogMsg{Text: tt.next, Time: time.Now()})
+			for range 2 {
+				view := stripANSI(r.View().Content)
+				require.Contains(t, view, `Console filter (regex): "error" `+tt.wantCounts)
+			}
+		})
+	}
+}
+
 // ---- Mouse drag-resize ----
 
 func TestRun_DragResizesRightSidebarAndPersists(t *testing.T) {

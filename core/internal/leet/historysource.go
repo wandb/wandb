@@ -15,6 +15,12 @@ const (
 	BootLoadChunkSize = 1000
 	BootLoadMaxTime   = 100 * time.Millisecond
 
+	// bootRedrawInterval bounds how often the visible charts are redrawn
+	// while chunks are still arriving. A redraw rasterizes every point of
+	// every visible chart, so drawing after each chunk made loading
+	// quadratic in the run's length.
+	bootRedrawInterval = 100 * time.Millisecond
+
 	// Live monitoring parameters
 	LiveMonitorChunkSize = 2000
 	LiveMonitorMaxTime   = 50 * time.Millisecond

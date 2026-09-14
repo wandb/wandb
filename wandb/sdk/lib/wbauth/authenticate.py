@@ -75,14 +75,16 @@ def authenticate_session(
     referrer: str = "models",
     relogin: bool = False,
     verify: bool = False,
+    prompt: bool = True,
 ) -> Auth | None:
     """Returns or configures the session credentials.
 
     If the session credentials are already configured for the given host,
     returns them. Otherwise, uses system credentials or prompts interactively.
 
-    The return value is only None if the user selected offline mode in
-    the interactive prompt.
+    The return value is None if the user selected offline mode in the
+    interactive prompt, or if `prompt` is False and no credentials are
+    configured.
 
     Args:
         host: The W&B server URL.
@@ -95,6 +97,7 @@ def authenticate_session(
         referrer: Referrer parameter to add to printed URLs for analytics.
         relogin: If true, forces an interactive prompt.
         verify: If true, verifies the credentials against the W&B server.
+        prompt: Whether to prompt interactively when no credentials are found.
 
     Raises:
         TimeoutError: If an interactive prompt is shown and input_timeout expires.
@@ -115,6 +118,9 @@ def authenticate_session(
         )
     ):
         return auth
+
+    if not prompt:
+        return None
 
     try:
         return _use_prompted_auth(
@@ -164,7 +170,7 @@ def _use_system_auth(
 ) -> Auth | None:
     """Load (or reload) session credentials from external sources.
 
-    Loads credentials from environment variables or the .netrc file.
+    Loads credentials from environment variables, .netrc, or global settings.
     If no credentials are found, the session credentials are unchanged.
 
     Args:
@@ -184,6 +190,13 @@ def _use_system_auth(
         _try_env_auth(host=host)  #
         or wbnetrc.read_netrc_auth_with_source(host=host)
     )
+    if auth is None:
+        settings = wandb_setup.singleton().settings
+        if settings.api_key and host.is_same_url(settings.base_url):
+            auth = AuthWithSource(
+                auth=AuthApiKey(host=host, api_key=settings.api_key),
+                source="settings",
+            )
 
     if verify and auth:
         auth.auth.verify()

@@ -134,7 +134,7 @@ func RunKeyBindings() []BindingCategory[Run] {
 				},
 				{
 					Keys:        []string{"/"},
-					Description: "Filter metrics by pattern",
+					Description: "Filter metrics by pattern (console logs when the logs pane is focused)",
 					Handler:     (*Run).handleEnterMetricsFilter,
 				},
 				{
@@ -144,7 +144,7 @@ func RunKeyBindings() []BindingCategory[Run] {
 				},
 				{
 					Keys:        []string{"ctrl+/", "ctrl+l"},
-					Description: "Clear metrics filter",
+					Description: "Clear metrics filter (console filter when the logs pane is focused)",
 					Handler:     (*Run).handleClearMetricsFilter,
 				},
 				{
@@ -361,7 +361,7 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 				},
 				{
 					Keys:        []string{"/"},
-					Description: "Filter metrics by pattern",
+					Description: "Filter metrics by pattern (console logs when the logs pane is focused)",
 					Handler:     (*Workspace).handleEnterMetricsFilter,
 				},
 				{
@@ -372,7 +372,7 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 				{
 					// TODO: remove ctrl+l.
 					Keys:        []string{"ctrl+/", "ctrl+l"},
-					Description: "Clear metrics filter",
+					Description: "Clear metrics filter (console filter when the logs pane is focused)",
 					Handler:     (*Workspace).handleClearMetricsFilter,
 				},
 				{

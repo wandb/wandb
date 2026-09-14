@@ -44,7 +44,6 @@ from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto.wandb_telemetry_pb2 import Deprecated
 from wandb.sdk import wandb_login, wandb_setup
 from wandb.sdk.artifacts._gqlutils import resolve_org_entity_name
-from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 from wandb.sdk.lib import json_util, runid, wbauth
 from wandb.sdk.lib.deprecation import warn_and_record_deprecation
@@ -130,7 +129,13 @@ class Api:
                 Prompts for an API key if none is provided
                 or configured in the environment.
         """
-        self.settings = InternalApi().settings()
+        global_settings = wandb_setup.singleton().settings
+        self.settings: dict[str, Any] = {
+            "base_url": env.get_base_url(global_settings.base_url),
+            "entity": env.get_entity(global_settings.entity),
+            "project": env.get_project(global_settings.project),
+            "organization": env.get_organization(global_settings.organization),
+        }
         self.settings.update(overrides or {})
         self.settings["base_url"] = self.settings["base_url"].rstrip("/")
 
@@ -2019,7 +2024,7 @@ class Api:
             )
 
         organization = organization or fetch_org_from_settings_or_entity(
-            self.settings, self.default_entity
+            self._service_api, self.settings, self.default_entity
         )
         return Registries(
             self._service_api,
@@ -2064,7 +2069,7 @@ class Api:
                 + " at support@wandb.com."
             )
         organization = organization or fetch_org_from_settings_or_entity(
-            self.settings, self.default_entity
+            self._service_api, self.settings, self.default_entity
         )
         registry = Registry(
             self._service_api,
@@ -2129,7 +2134,7 @@ class Api:
             )
 
         organization = organization or fetch_org_from_settings_or_entity(
-            self.settings, self.default_entity
+            self._service_api, self.settings, self.default_entity
         )
 
         try:

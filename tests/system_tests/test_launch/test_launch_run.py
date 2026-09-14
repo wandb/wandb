@@ -2,10 +2,11 @@ import json
 from unittest import mock
 
 import wandb
-from wandb.apis import internal, public
+from wandb.apis import public
 from wandb.sdk.artifacts._internal_artifact import InternalArtifact
 from wandb.sdk.internal import job_builder
 from wandb.sdk.launch._project_spec import _inject_wandb_config_env_vars
+from wandb.sdk.launch.api import LaunchApi
 from wandb.util import make_artifact_name_safe
 
 
@@ -124,7 +125,7 @@ def test_container_job_creation(user):
 
 def test_get_run_state(user):
     run = wandb.init(entity=user, project="test")
-    _api = internal.Api()
+    _api = LaunchApi()
     res = _api.get_run_state(user, "test", run.id)
     run.finish()
     assert res == "running", "Test run must have state running"

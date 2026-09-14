@@ -80,6 +80,12 @@ func (s *Settings) IsSkipTransactionLog() bool {
 	return s.Proto.XSkipTransactionLog.GetValue()
 }
 
+// Interval at which to flush the transaction log, or zero to write it only
+// when a buffer fills or the run finishes.
+func (s *Settings) GetTransactionLogFlushInterval() time.Duration {
+	return time.Duration(s.Proto.XTransactionLogFlushInterval.GetValue() * float64(time.Second))
+}
+
 // Whether we are in shared mode.
 //
 // In "shared" mode, multiple processes can write to the same run,

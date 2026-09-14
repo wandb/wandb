@@ -202,6 +202,10 @@ func InitRun(
 	// UpsertBucket request.
 	branchPoint := runRecord.BranchPoint
 	switch {
+	case runParams.Resume || params.Settings.GetResume() != "":
+		if err := upserter.updateMetadataForResume(ctx, params.Settings.GetResume()); err != nil {
+			return nil, ToRunUpdateError(err)
+		}
 	case branchPoint != nil && branchPoint.GetRun() == runRecord.RunId:
 		// Branching a run from an earlier point in its history is rewinding.
 		err := upserter.updateMetadataForRewind(ctx, branchPoint)
@@ -217,14 +221,12 @@ func InitRun(
 		if err != nil {
 			return nil, ToRunUpdateError(err)
 		}
+	}
 
-	default:
-		resumeSetting := params.Settings.GetResume()
-		if runParams.Resume || resumeSetting != "" {
-			if err := upserter.updateMetadataForResume(ctx, resumeSetting); err != nil {
-				return nil, ToRunUpdateError(err)
-			}
-		}
+	// If we're offline, skip upserting and leave the sync state to
+	// when we actually sync.
+	if upserter.graphqlClientOrNil == nil {
+		return upserter, nil
 	}
 
 	// If we're offline, skip upserting and leave the sync state to

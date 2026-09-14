@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -845,12 +846,21 @@ func (as *ArtifactSaver) commitArtifact(artifactID string) error {
 }
 
 func (as *ArtifactSaver) deleteStagingFiles(manifest *Manifest) {
+	if as.stagingDir == "" {
+		return
+	}
+
 	for _, entry := range manifest.Contents {
-		if entry.LocalPath != nil && strings.HasPrefix(*entry.LocalPath, as.stagingDir) {
-			// We intentionally ignore errors below.
-			_ = os.Chmod(*entry.LocalPath, 0o600)
-			_ = os.Remove(*entry.LocalPath)
+		if entry.LocalPath == nil {
+			continue
 		}
+		rel, err := filepath.Rel(as.stagingDir, *entry.LocalPath)
+		if err != nil || !filepath.IsLocal(rel) {
+			continue
+		}
+		// We intentionally ignore errors below.
+		_ = os.Chmod(*entry.LocalPath, 0o600)
+		_ = os.Remove(*entry.LocalPath)
 	}
 }
 
@@ -860,8 +870,6 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 	if err != nil {
 		return "", err
 	}
-
-	defer as.deleteStagingFiles(&manifest)
 
 	artifactAttrs, err := as.createArtifact(&manifest)
 	if err != nil {
@@ -910,6 +918,7 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 				"Artifact %q already exists with the same content. No new version will be created.",
 				as.artifact.Name,
 			)
+		as.deleteStagingFiles(&manifest)
 		return artifactID, nil
 	}
 	// DELETED is for old servers, see https://github.com/wandb/wandb/pull/6190
@@ -984,5 +993,7 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 		}
 	}
 
+	// Keep inputs available for a later sync if the save fails.
+	as.deleteStagingFiles(&manifest)
 	return artifactID, nil
 }

@@ -573,7 +573,12 @@ func (g *SystemMetricsGrid) Resize(width, height int) {
 		return
 	}
 	if g.width == width && g.height == height {
-		return
+		// Grid configuration can change without a terminal resize. Only skip
+		// rebuilding when the current page still matches the effective grid.
+		size := g.effectiveGridSize()
+		if len(g.currentPage) == size.Rows && len(g.currentPage[0]) == size.Cols {
+			return
+		}
 	}
 
 	g.width = width

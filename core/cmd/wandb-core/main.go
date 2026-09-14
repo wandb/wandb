@@ -233,7 +233,7 @@ func leetMain(args []string) int {
 
 	logger, closeLogger, err := newLeetLogger(opts.logLevel, recorder)
 	if err != nil {
-		fmt.Println("fatal:", err)
+		fmt.Fprintln(os.Stderr, "Error:", err)
 		return exitCodeErrorInternal
 	}
 	defer closeLogger()
@@ -305,7 +305,8 @@ func bindLeetFlags(fs *flag.FlagSet, opts *leetOptions) {
 		&opts.logLevel,
 		"log-level",
 		0,
-		"Specifies the log level to use for logging. -4: debug, 0: info, 4: warn, 8: error.",
+		"Specifies the log level to use for logging. -4: debug, 0: info, 4: warn, 8: error."+
+			" Debug logs are written to wandb-leet.debug.log next to the LEET config file.",
 	)
 	fs.BoolVar(
 		&opts.disableAnalytics,
@@ -460,7 +461,7 @@ func newLeetLogger(
 	// TODO: Create a log file not only if debug logging is requested.
 	if logLevel == -4 {
 		loggerFile, err := os.OpenFile(
-			"wandb-leet.debug.log",
+			leet.DebugLogPath(),
 			os.O_WRONLY|os.O_CREATE|os.O_TRUNC,
 			0o644,
 		)
@@ -515,6 +516,7 @@ func runLeetInspector(opts *leetOptions, logger *observability.CoreLogger) int {
 	_, err := program.Run()
 	m.Cleanup()
 	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error:", err)
 		logger.CaptureError(
 			"main",
 			fmt.Errorf("wandb-leet-inspect: %v", err),
@@ -534,7 +536,7 @@ func runLeetConfigEditor(logger *observability.CoreLogger) int {
 	editor := leet.NewConfigEditor(leet.ConfigEditorParams{Logger: logger})
 	program := tea.NewProgram(editor)
 	if _, err := program.Run(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintln(os.Stderr, "Error:", err)
 		return exitCodeErrorInternal
 	}
 	return exitCodeSuccess
@@ -551,6 +553,7 @@ func runSymon(opts *leetOptions, logger *observability.CoreLogger) int {
 		finalModel, err := program.Run()
 		m.Cleanup()
 		if err != nil {
+			fmt.Fprintln(os.Stderr, "Error:", err)
 			logger.CaptureError(
 				"main",
 				fmt.Errorf("wandb-symon: %v", err),
@@ -583,6 +586,7 @@ func runLeetWorkspace(opts *leetOptions, logger *observability.CoreLogger) int {
 
 		finalModel, err := program.Run()
 		if err != nil {
+			fmt.Fprintln(os.Stderr, "Error:", err)
 			logger.CaptureError(
 				"main",
 				fmt.Errorf("wandb-leet: %v", err),

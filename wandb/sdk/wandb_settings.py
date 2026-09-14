@@ -1010,6 +1010,16 @@ class Settings(BaseModel, validate_assignment=True):
     If set, it is joined to the default name with a dash.
     """
 
+    x_transaction_log_flush_interval: float = 15.0
+    """Interval in seconds between flushes of run data to the run's `.wandb` file.
+
+    Tools that read the file, such as `wandb leet`, see a running run's
+    progress after each flush. Set to 0 to write data only when a buffer
+    fills or the run finishes.
+
+    <!-- lazydoc-ignore -->
+    """
+
     x_update_finish_state: bool = True
     """Flag to indicate whether this process can update the run's final state on the server.
 

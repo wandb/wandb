@@ -3,6 +3,7 @@ package runsync_test
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -137,11 +138,18 @@ func isExitRecord(code int32) gomock.Matcher {
 	)
 }
 
-func Test_Extract_FindsRunRecord(t *testing.T) {
+func Test_Extract_FindsInformation(t *testing.T) {
 	x := setup(t)
 	startTime := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
 	wandbFileWithRecords(t,
 		x.TransactionLog,
+		&spb.Record{RecordType: &spb.Record_Header{
+			Header: &spb.HeaderRecord{
+				VersionInfo: &spb.VersionInfo{
+					Producer: "1.2.3dev+deadbeef",
+				},
+			},
+		}},
 		&spb.Record{RecordType: &spb.Record_Run{
 			Run: &spb.RunRecord{
 				Entity:    "test entity",
@@ -155,10 +163,11 @@ func Test_Extract_FindsRunRecord(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, &runsync.RunInfo{
-		Entity:    "test entity",
-		Project:   "test project",
-		RunID:     "test run ID",
-		StartTime: startTime,
+		SDKVersion: "1.2.3dev+deadbeef",
+		Entity:     "test entity",
+		Project:    "test project",
+		RunID:      "test run ID",
+		StartTime:  startTime,
 	}, runInfo)
 }
 
@@ -380,6 +389,25 @@ func Test_FilePermissionError(t *testing.T) {
 			x.TransactionLog),
 		syncErr.UserText,
 	)
+}
+
+func Test_IncompleteRecordError(t *testing.T) {
+	x := setup(t)
+	wandbFileWithRecords(t, x.TransactionLog, &spb.Record{Num: 1})
+	x.FakeRunWork.QueueResponse(&spb.ServerResponse{}) // for the exit record
+	x.MockRecordParser.EXPECT().Parse(isExitRecord(1)).Return(&testWork{})
+
+	// Cut off the end of the only record.
+	info, err := os.Stat(x.TransactionLog)
+	require.NoError(t, err)
+	require.NoError(t, os.Truncate(x.TransactionLog, info.Size()-1))
+
+	err = x.RunReader.ProcessTransactionLog(t.Context())
+
+	var syncErr *runsync.SyncError
+	require.ErrorAs(t, err, &syncErr)
+	assert.ErrorIs(t, syncErr.Err, io.ErrUnexpectedEOF)
+	assert.Contains(t, syncErr.UserText, x.TransactionLog)
 }
 
 func Test_CorruptFileError(t *testing.T) {

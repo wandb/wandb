@@ -11,6 +11,13 @@ from wandb.proto import wandb_api_pb2 as apb
 def _make_upload_run(mocker, *, feature_enabled: bool):
     service_api = mocker.MagicMock()
     service_api.feature_enabled.return_value = feature_enabled
+    service_api.execute_graphql.return_value = {
+        "createRunFiles": {
+            "runID": "run-node-id",
+            "uploadHeaders": ["X-Test:test"],
+            "files": [{"name": "model.bin", "uploadUrl": "https://storage/model.bin"}],
+        }
+    }
     run = Run(
         service_api=service_api,
         entity="entity",
@@ -18,8 +25,6 @@ def _make_upload_run(mocker, *, feature_enabled: bool):
         run_id="run-id",
         attrs={"name": "run-id", "state": "finished"},
     )
-    # Stub the byte-upload (InternalApi.push) and the returned File lookup.
-    mocker.patch("wandb.apis.public.runs.InternalApi")
     mocker.patch("wandb.apis.public.runs.public.Files", return_value=["file-obj"])
     return service_api, run
 
@@ -32,10 +37,13 @@ def test_upload_file_marks_file_uploaded_when_supported(mocker, tmp_path):
     f.write_text("hello")
     run.upload_file(str(f), root=str(tmp_path))
 
-    service_api.send_api_request.assert_called_once()
-    request = service_api.send_api_request.call_args.args[0]
-    assert request.WhichOneof("request") == "mark_run_files_uploaded_request"
-    notify = request.mark_run_files_uploaded_request
+    upload, notify = [c.args[0] for c in service_api.send_api_request.call_args_list]
+    assert upload.WhichOneof("request") == "upload_file_request"
+    assert upload.upload_file_request.url == "https://storage/model.bin"
+    assert upload.upload_file_request.path == str(f)
+    assert upload.upload_file_request.headers["X-Test"] == "test"
+    assert notify.WhichOneof("request") == "mark_run_files_uploaded_request"
+    notify = notify.mark_run_files_uploaded_request
     assert notify.entity == "entity"
     assert notify.project == "project"
     assert notify.run_id == "run-id"
@@ -50,7 +58,9 @@ def test_upload_file_skips_notification_when_unsupported(mocker, tmp_path):
     f.write_text("hello")
     run.upload_file(str(f), root=str(tmp_path))
 
-    service_api.send_api_request.assert_not_called()
+    service_api.send_api_request.assert_called_once()
+    request = service_api.send_api_request.call_args.args[0]
+    assert request.WhichOneof("request") == "upload_file_request"
 
 
 def test_stop_sends_stop_run_request(mocker):

@@ -602,7 +602,7 @@ func (w *Workspace) TestSeedConsoleLogs(runKey string, lines ...string) {
 	for _, line := range lines {
 		cl.ProcessRaw(line, false, time.Now())
 	}
-	w.consoleLogsPane.SetConsoleLogs(cl.Items())
+	w.consoleLogsPane.SetConsoleLogs(cl.takeChanges())
 }
 
 // TestRunOverviewSidebarHasActiveSection reports whether the overview sidebar

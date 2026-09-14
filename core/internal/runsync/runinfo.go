@@ -8,6 +8,9 @@ import (
 // RunInfo is basic information about a run that can be extracted from
 // its transaction log.
 type RunInfo struct {
+	// SDKVersion is the version of the SDK that produced the run.
+	SDKVersion string
+
 	// Components of the run's path.
 	//
 	// Entity and Project may be empty to indicate that the user's defaults

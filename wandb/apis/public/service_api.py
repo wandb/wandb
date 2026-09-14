@@ -60,6 +60,10 @@ class ServiceApi:
         return self._settings.base_url
 
     @property
+    def api_key(self) -> str | None:
+        return self._settings.api_key
+
+    @property
     def initialized(self) -> bool:
         """Returns whether the lazy connection to wandb-core has been made.
 

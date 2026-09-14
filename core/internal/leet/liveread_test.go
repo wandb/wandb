@@ -1,8 +1,10 @@
 package leet_test
 
 import (
+	"errors"
 	"path/filepath"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -113,6 +115,71 @@ func TestWorkspace_ReadAvailableCmd_DropsEmptyChunk(t *testing.T) {
 
 	run := &leet.WorkspaceRun{Key: "run-1", Reader: &stubHistorySource{msg: leet.ChunkedBatchMsg{}}}
 	require.Nil(t, w.ReadAvailableCmd(run)())
+}
+
+func TestRun_ReadErrorDrawsPendingHistory(t *testing.T) {
+	// Keep both boot chunks inside the redraw interval.
+	synctest.Test(t, func(t *testing.T) {
+		r, _ := newTestRun(t, 160, 50, nil)
+		defer r.Cleanup()
+		r.Update(leet.ChunkedBatchMsg{HasMore: true, Msgs: []tea.Msg{
+			leet.RunMsg{ID: "run-1"},
+			leet.HistoryMsg{Metrics: map[string]leet.MetricData{
+				"loss": {X: []float64{0, 1}, Y: []float64{0, 1}},
+			}},
+		}})
+		r.Update(leet.ChunkedBatchMsg{HasMore: true, Msgs: []tea.Msg{
+			leet.HistoryMsg{Metrics: map[string]leet.MetricData{
+				"loss": {X: []float64{2, 3}, Y: []float64{5, 10}},
+			}},
+		}})
+
+		r.Update(leet.ErrorMsg{Err: errors.New("truncated transaction log")})
+		view := r.View().Content
+		require.Contains(t, stripANSI(view), "loss")
+		require.Contains(t, stripANSI(view), "Error: truncated transaction log")
+
+		// Forcing a redraw must not reveal history omitted by the error handler.
+		r.Update(tea.WindowSizeMsg{Width: 160, Height: 50})
+		require.Equal(t, r.View().Content, view)
+	})
+}
+
+func TestWorkspace_ReadErrorDrawsPendingHistory(t *testing.T) {
+	// Keep both boot chunks inside the redraw interval.
+	synctest.Test(t, func(t *testing.T) {
+		logger := observability.NewNoOpLogger()
+		cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+		w := leet.NewWorkspace(t.TempDir(), cfg, logger)
+		defer w.Cleanup()
+		w.Update(tea.WindowSizeMsg{Width: 160, Height: 50})
+		w.TestAttachRun(&leet.WorkspaceRun{Key: "run-1"}, true)
+		w.Update(leet.WorkspaceChunkedBatchMsg{RunKey: "run-1", Batch: leet.ChunkedBatchMsg{
+			HasMore: true,
+			Msgs: []tea.Msg{leet.HistoryMsg{Metrics: map[string]leet.MetricData{
+				"loss": {X: []float64{0, 1}, Y: []float64{0, 1}},
+			}}},
+		}})
+		w.Update(leet.WorkspaceChunkedBatchMsg{RunKey: "run-1", Batch: leet.ChunkedBatchMsg{
+			HasMore: true,
+			Msgs: []tea.Msg{leet.HistoryMsg{Metrics: map[string]leet.MetricData{
+				"loss": {X: []float64{2, 3}, Y: []float64{5, 10}},
+			}}},
+		}})
+
+		w.Update(
+			leet.WorkspaceRunReadErrMsg{
+				RunKey: "run-1",
+				Err:    errors.New("truncated transaction log"),
+			},
+		)
+		view := w.View().Content
+		require.Contains(t, stripANSI(view), "loss")
+
+		// Forcing a redraw must not reveal history omitted by the error handler.
+		w.Update(tea.WindowSizeMsg{Width: 160, Height: 50})
+		require.Equal(t, w.View().Content, view)
+	})
 }
 
 func TestParseHistory_UsesHistoryStepFallback(t *testing.T) {

@@ -7,6 +7,23 @@ import pytest
 from wandb import wandb_agent
 
 
+@pytest.fixture(autouse=True)
+def _sweep_helpers_call_the_mock_api(monkeypatch):
+    """Route the sweep helpers to the methods of the mock API they receive."""
+    for helper, method in [
+        ("_sweep_with_runs", "sweep"),
+        ("_register_agent", "register_agent"),
+        ("_agent_heartbeat", "agent_heartbeat"),
+    ]:
+        monkeypatch.setattr(
+            wandb_agent,
+            helper,
+            lambda api, *args, _method=method, **kwargs: getattr(api, _method)(
+                *args, **kwargs
+            ),
+        )
+
+
 class _DummyPopen:
     def __init__(self, *args, **kwargs):
         self.stdin = mock.Mock()

@@ -6,16 +6,8 @@ import (
 
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runhandle"
-	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
-
-// HistoryStepTrackerFactory constructs a HistoryStepTracker.
-type HistoryStepTrackerFactory struct {
-	Logger    *observability.CoreLogger
-	Settings  *settings.Settings
-	RunHandle *runhandle.RunHandle
-}
 
 // HistoryStepTracker assigns increasing _step values to history rows.
 type HistoryStepTracker struct {
@@ -27,11 +19,13 @@ type HistoryStepTracker struct {
 	initialized bool
 }
 
-// New returns a tracker that owns history step assignment.
-func (f *HistoryStepTrackerFactory) New() *HistoryStepTracker {
+func NewHistoryStepTracker(
+	logger *observability.CoreLogger,
+	runHandle *runhandle.RunHandle,
+) *HistoryStepTracker {
 	return &HistoryStepTracker{
-		logger:    f.Logger,
-		runHandle: f.RunHandle,
+		logger:    logger,
+		runHandle: runHandle,
 	}
 }
 

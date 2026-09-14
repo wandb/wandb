@@ -2,15 +2,30 @@ package monitor_test
 
 import (
 	"context"
+	"os"
+	"os/exec"
 	"reflect"
 	"testing"
 
 	"github.com/shirou/gopsutil/v4/disk"
+	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/monitor"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
+
+func TestSystemSample_ExitedProcess(t *testing.T) {
+	child := exec.Command(os.Args[0], "-test.run=^$")
+	require.NoError(t, child.Run())
+
+	system := monitor.NewSystem(monitor.SystemParams{
+		Pid: int32(child.Process.Pid),
+	})
+	_, err := system.Sample()
+	require.ErrorIs(t, err, process.ErrorProcessNotRunning)
+	require.False(t, monitor.ShouldCaptureSamplingError(err))
+}
 
 func TestSLURMProbe(t *testing.T) {
 	tests := []struct {

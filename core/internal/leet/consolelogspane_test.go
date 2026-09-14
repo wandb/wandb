@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/leet"
@@ -35,11 +37,50 @@ func makeLogs(n int) []leet.KeyValuePair {
 	return logs
 }
 
+func TestConsoleLogsPane_FilterNarrowsAndFollowsNewLines(t *testing.T) {
+	clp := leet.NewConsoleLogsPane(leet.NewAnimatedValue(false, leet.ConsoleLogsPaneMinHeight))
+	expandConsoleLogsPane(t, clp, 12)
+	logs := append(make([]leet.KeyValuePair, 0, 12), makeLogs(10)...)
+	clp.SetConsoleLogs(logs, 0)
+
+	clp.EnterFilterMode()
+	clp.HandleFilterKey(keyPressMsg('3'))
+	clp.HandleFilterKey(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	view := stripANSI(clp.View(120, "", ""))
+	require.Contains(t, view, "log 03")
+	require.NotContains(t, view, "log 02")
+	require.Contains(t, view, "[1-1 of 1]")
+
+	logs = append(logs,
+		leet.KeyValuePair{Key: "t11", Value: "log 13"},
+		leet.KeyValuePair{Key: "t12", Value: "log 12"})
+	clp.SetConsoleLogs(logs, 10)
+
+	view = stripANSI(clp.View(120, "", ""))
+	require.Contains(t, view, "log 13")
+	require.NotContains(t, view, "log 12")
+	require.Contains(t, view, "[1-2 of 2]")
+
+	// Switching sources must scan every entry even if that source has no
+	// changes since it was last displayed.
+	other := makeLogs(12)
+	other[0].Value = "other 3"
+	clp.SetConsoleLogs(other, len(other))
+	view = stripANSI(clp.View(120, "", ""))
+	require.Contains(t, view, "other 3")
+	require.NotContains(t, view, "log 13")
+	require.Contains(t, view, "[1-2 of 2]")
+
+	clp.ClearFilter()
+	require.Contains(t, stripANSI(clp.View(120, "", "")), "of 12]")
+}
+
 func TestConsoleLogsPane_AutoScrollFreezesWhenUserScrollsUp(t *testing.T) {
 	clp := leet.NewConsoleLogsPane(leet.NewAnimatedValue(false, leet.ConsoleLogsPaneMinHeight))
 	expandConsoleLogsPane(t, clp, 5) // header + padding + 3 content lines
 
-	clp.SetConsoleLogs(makeLogs(10))
+	clp.SetConsoleLogs(makeLogs(10), 0)
 	out := stripANSI(clp.View(80, "", ""))
 	require.Contains(t, out, "[8-10 of 10]", "should auto-scroll to the end initially")
 
@@ -47,7 +88,7 @@ func TestConsoleLogsPane_AutoScrollFreezesWhenUserScrollsUp(t *testing.T) {
 	clp.Up()
 
 	// New logs arrive: view should NOT jump to show the new end.
-	clp.SetConsoleLogs(makeLogs(11))
+	clp.SetConsoleLogs(makeLogs(11), 0)
 	out = stripANSI(clp.View(80, "", ""))
 	require.Contains(t, out, "[8-10 of 11]", "should not jump to end when autoScroll is disabled")
 
@@ -61,7 +102,7 @@ func TestConsoleLogsPane_ScrollToStart_JumpsToFirstAndFreezesAutoscroll(t *testi
 	clp := leet.NewConsoleLogsPane(leet.NewAnimatedValue(false, leet.ConsoleLogsPaneMinHeight))
 	expandConsoleLogsPane(t, clp, 4) // header + padding + 2 content lines
 
-	clp.SetConsoleLogs(makeLogs(5))
+	clp.SetConsoleLogs(makeLogs(5), 0)
 	out := stripANSI(clp.View(80, "", ""))
 	require.Contains(t, out, "[4-5 of 5]", "auto-scroll lands at the end initially")
 
@@ -70,7 +111,7 @@ func TestConsoleLogsPane_ScrollToStart_JumpsToFirstAndFreezesAutoscroll(t *testi
 	require.Contains(t, out, "[1-2 of 5]", "ScrollToStart should show first logs")
 
 	// New logs arriving must not jump to the end — autoscroll is off.
-	clp.SetConsoleLogs(makeLogs(8))
+	clp.SetConsoleLogs(makeLogs(8), 0)
 	out = stripANSI(clp.View(80, "", ""))
 	require.Contains(t, out, "[1-2 of 8]", "autoscroll stays disabled after ScrollToStart")
 }
@@ -79,7 +120,7 @@ func TestConsoleLogsPane_PageUpDown_WrapsAround(t *testing.T) {
 	clp := leet.NewConsoleLogsPane(leet.NewAnimatedValue(false, leet.ConsoleLogsPaneMinHeight))
 	expandConsoleLogsPane(t, clp, 4) // header + padding + 2 content lines
 
-	clp.SetConsoleLogs(makeLogs(5))
+	clp.SetConsoleLogs(makeLogs(5), 0)
 	out := stripANSI(clp.View(80, "", ""))
 	require.Contains(t, out, "[4-5 of 5]", "should start at end when auto-scroll is on")
 
@@ -192,7 +233,7 @@ func TestConsoleLogsPane_Down_CyclesAndWraps(t *testing.T) {
 	clp := leet.NewConsoleLogsPane(leet.NewAnimatedValue(false, leet.ConsoleLogsPaneMinHeight))
 	expandConsoleLogsPane(t, clp, 5) // border + header + 3 content lines
 
-	clp.SetConsoleLogs(makeLogs(5))
+	clp.SetConsoleLogs(makeLogs(5), 0)
 	out := stripANSI(clp.View(80, "", ""))
 	require.Contains(t, out, "[3-5 of 5]", "initial view should auto-scroll to end")
 
@@ -255,7 +296,7 @@ func TestConsoleLogsPane_TimestampAdaptsToAvailableWidth(t *testing.T) {
 
 			clp.SetConsoleLogs([]leet.KeyValuePair{
 				{Key: "10:11:12", Value: "hello"},
-			})
+			}, 0)
 
 			out := stripANSI(clp.View(tt.width, "", ""))
 			require.Contains(t, out, "hello", "log content should still render")

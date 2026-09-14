@@ -544,7 +544,12 @@ async def test_agent_fails_sweep_state(mocker, clean_agent):
         assert sweep == "test-sweep-id"
         assert state == "CANCELED"
 
-    mocker.api.set_sweep_state = mock_set_sweep_state
+    mocker.patch(
+        "wandb.apis.public.sweeps._set_sweep_state",
+        lambda api, sweep, state, *, entity, project: mock_set_sweep_state(
+            sweep, entity, project, state
+        ),
+    )
 
     agent = LaunchAgent(
         api=mocker.api,
@@ -734,7 +739,7 @@ async def test_inner_thread_run_job(mocker, clean_agent):
         "project": "test",
     }
 
-    mocker.api.check_stop_requested = True
+    mocker.api.check_stop_requested.return_value = True
 
     def _side_effect(*args, **kwargs):
         job.completed_status = True

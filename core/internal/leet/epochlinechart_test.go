@@ -445,3 +445,34 @@ func TestTimeSeriesLineChart_LogY_FormatsTicksWithMetricUnits(t *testing.T) {
 	require.True(t, ch.TestIsLogY())
 	require.Equal(t, "10%", ch.TestFormatYTick(1))
 }
+
+func TestEpochLineChart_YLabelsFitTopTick(t *testing.T) {
+	c := leet.NewEpochLineChart("norm")
+	c.AddData("run", leet.MetricData{X: []float64{0, 1, 2}, Y: []float64{0, 500, 1090}})
+
+	// Height 10 adds a top tick whose label is wider than the stepped ones.
+	c.Resize(30, 10)
+	c.Draw()
+	require.Contains(t, stripANSI(c.View()), "1.2e+03│")
+
+	// Height 8 has no top tick, so the column stays as wide as "999".
+	c.Resize(30, 8)
+	c.Draw()
+	require.Contains(t, stripANSI(c.View()), "\n  0└")
+}
+
+func TestEpochLineChart_OneXAxisPerChart(t *testing.T) {
+	c := leet.NewEpochLineChart("train/loss")
+	c.Resize(80, 12)
+	c.AddData("step-run", leet.MetricData{X: []float64{0, 1}, Y: []float64{1, 2}})
+	c.HandleZoom("in", 40)
+	c.AddData("tokens-run", leet.MetricData{
+		X: []float64{4096, 8192}, Y: []float64{3, 4}, XAxisMetric: "custom/tokens",
+	})
+	c.AddData("step-run", leet.MetricData{X: []float64{2}, Y: []float64{5}})
+
+	require.Equal(t, "custom/tokens", c.XAxisMetric())
+	require.Equal(t, []string{"tokens-run"}, c.DrawOrder())
+	require.Equal(t, 4096.0, c.MinX())
+	require.Equal(t, 4096.0, c.ViewMinX())
+}

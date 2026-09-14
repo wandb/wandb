@@ -63,58 +63,51 @@ func (rb *ResumeBranch) UpdateForResume(
 		return &BranchError{Err: err, Response: info}
 	}
 
-	data, runExists := runDataFromResponse(response)
-	if !runExists {
+	data := runDataFromResponse(response)
+	switch {
+	case data == nil && rb.mode != "must":
+		return nil
+	case data == nil && rb.mode == "must":
 		return rb.runDoesNotExistError(params.RunID)
-	}
-
-	if !rb.allowResume() {
+	case data != nil && rb.mode == "never":
 		return rb.resumeNotAllowedError(params.RunID)
+	default:
+		return processResponse(params, config, data, rb.logger)
 	}
-
-	err = processResponse(params, config, data)
-	if err != nil && rb.mustResume() {
-		return rb.resumeFailedError(params.RunID, err)
-	}
-
-	return err
 }
 
 // runDataFromResponse checks if the run exists based on the response we get from the server
 func runDataFromResponse(
 	response *gql.RunResumeStatusResponse,
-) (*gql.RunResumeStatusModelProjectBucketRun, bool) {
+) *gql.RunResumeStatusModelProjectBucketRun {
 	// If response is nil, run doesn't exist yet
 	if response == nil {
-		return nil, false
+		return nil
 	}
 
 	// if response doesn't have a model, or the model doesn't have a bucket, the run doesn't exist
 	// or the backend is not returning the expected data
 	if response.GetModel() == nil || response.GetModel().GetBucket() == nil {
-		return nil, false
+		return nil
 	}
 
 	// If bucket is non-nil but WandbConfig has no "t" key, the run exists but hasn't started
 	// (e.g. a sweep run that was created ahead of time)
 	bucket := response.GetModel().GetBucket()
 	if bucket.GetWandbConfig() == nil {
-		return nil, false
+		return nil
 	}
 	var cfg map[string]any
 	if err := json.Unmarshal([]byte(*bucket.GetWandbConfig()), &cfg); err != nil {
-		return nil, false
+		return nil
 	}
 	if _, ok := cfg["t"]; !ok {
-		return nil, false
+		return nil
 	}
-	return bucket, true
+	return bucket
 }
 
 func (rb *ResumeBranch) runDoesNotExistError(runID string) error {
-	if !rb.mustResume() {
-		return nil
-	}
 
 	// A strict resume requires the run to exist.
 	info := &spb.ErrorInfo{
@@ -129,26 +122,6 @@ func (rb *ResumeBranch) runDoesNotExistError(runID string) error {
 		),
 	}
 	err := errors.New("run does not exist")
-	return &BranchError{Err: err, Response: info}
-}
-
-func (rb *ResumeBranch) allowResume() bool {
-	return rb.mode != "never"
-}
-
-func (rb *ResumeBranch) mustResume() bool {
-	return rb.mode == "must"
-}
-
-func (rb *ResumeBranch) resumeFailedError(runID string, err error) error {
-	info := &spb.ErrorInfo{
-		Code: spb.ErrorInfo_USAGE,
-		Message: fmt.Sprintf(
-			"The run (%s) failed to resume, and the `resume` argument is set to 'must'.",
-			runID,
-		),
-	}
-	err = fmt.Errorf("could not resume run: %s", err)
 	return &BranchError{Err: err, Response: info}
 }
 
@@ -176,6 +149,7 @@ func processResponse(
 	params *RunParams,
 	config *runconfig.RunConfig,
 	data *gql.RunResumeStatusModelProjectBucketRun,
+	logger *observability.CoreLogger,
 ) error {
 	// Get Config information
 	if oldConfig, err := processConfigResume(data.GetConfig()); err != nil {
@@ -207,6 +181,10 @@ func processResponse(
 		}
 	}
 
+	// The highest explicit _step reported by the summary or the history
+	// tail, or -1 if neither reports one.
+	lastStep := int64(-1)
+
 	// Get Summary information
 	if summary, err := processSummary(data.GetSummaryMetrics()); err != nil {
 		return err
@@ -218,10 +196,8 @@ func processResponse(
 		}
 
 		if step, ok := summary["_step"]; ok {
-			// if we are resuming, we need to update the starting step
-			// to be the next step after the last step we ran
 			if x, ok := step.(int64); ok {
-				params.StartingStep = x
+				lastStep = max(lastStep, x)
 			}
 		}
 
@@ -251,10 +227,8 @@ func processResponse(
 		return err
 	} else if history != nil {
 		if step, ok := history["_step"]; ok {
-			// if we are resuming, we need to update the starting step
-			// to be the next step after the last step we ran
 			if x, ok := step.(int64); ok {
-				params.StartingStep = x
+				lastStep = max(lastStep, x)
 			}
 		}
 
@@ -266,10 +240,26 @@ func processResponse(
 		}
 	}
 
-	// if we are resuming, we need to update the starting step
-	if params.FileStreamOffset[filestream.HistoryChunk] > 0 {
-		params.StartingStep += 1
+	// The number of history rows in the file stream.
+	historyRowCount := int64(params.FileStreamOffset[filestream.HistoryChunk])
+
+	// If the summary and history tail step are less than the history row
+	// count, then they must be stale, so use the history row count - 1 as a
+	// lower bound.
+	// Note that this may still not be accurate if the run was logged at
+	// sparse steps, so we warn the user.
+	if lastStep >= 0 && historyRowCount > lastStep+1 {
+		logger.Warn(
+			"runbranch: resume: history row count exceeds the last "+
+				"reported step + 1; the reported step is stale, using "+
+				"the row count as the starting step",
+			"historyRowCount", historyRowCount,
+			"lastStep", lastStep,
+		)
 	}
+
+	lastStep = max(lastStep, historyRowCount-1)
+	params.StartingStep = lastStep + 1 // next step after the last reported step
 
 	// If the user provided tags when initializing, use them. Otherwise,
 	// initialize to the previous run's tags.

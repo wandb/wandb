@@ -2,9 +2,11 @@ package leet
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
 	"github.com/mattn/go-runewidth"
@@ -65,7 +67,12 @@ func consoleLogKeyForWidth(
 type ConsoleLogsPane struct {
 	animState *AnimatedValue
 
-	logs []KeyValuePair
+	// all is every log entry. matched indexes the entries that pass the
+	// filter, in order; scanned is how many entries of all it covers.
+	all     []KeyValuePair
+	matched []int
+	scanned int
+	filter  *Filter
 
 	// cursor is the selected log index (logical row).
 	cursor int
@@ -86,6 +93,7 @@ type ConsoleLogsPane struct {
 func NewConsoleLogsPane(animState *AnimatedValue) *ConsoleLogsPane {
 	return &ConsoleLogsPane{
 		animState:  animState,
+		filter:     NewFilter(),
 		autoScroll: true,
 	}
 }
@@ -126,26 +134,117 @@ func (c *ConsoleLogsPane) UpdateExpandedHeight(maxTerminalHeight int) {
 	c.SetExpandedHeight(maxHeight)
 }
 
-// SetConsoleLogs replaces the displayed log entries and adjusts the
-// viewport. If auto-scroll is enabled, the view snaps to the tail.
-func (c *ConsoleLogsPane) SetConsoleLogs(items []KeyValuePair) {
-	c.logs = items
+// SetConsoleLogs replaces the log entries and adjusts the viewport. If
+// auto-scroll is enabled, the view snaps to the tail.
+//
+// changedFrom is the first entry that may have changed. Earlier matches
+// are retained unless the source was swapped for another run or shrank.
+func (c *ConsoleLogsPane) SetConsoleLogs(items []KeyValuePair, changedFrom int) {
+	if len(items) < c.scanned || (c.scanned > 0 && &items[0] != &c.all[0]) {
+		c.scanned, c.matched = 0, c.matched[:0]
+	}
+	if changedFrom < c.scanned {
+		c.scanned = changedFrom
+		c.matched = c.matched[:sort.SearchInts(c.matched, changedFrom)]
+	}
+	c.all = items
+	c.scanFilter()
+	c.fitViewport()
+}
 
-	if len(c.logs) == 0 {
+// scanFilter matches the entries not yet tested against the filter.
+func (c *ConsoleLogsPane) scanFilter() {
+	if c.filter.Query() == "" {
+		c.matched, c.scanned = c.matched[:0], len(c.all)
+		return
+	}
+	matcher := c.filter.Matcher()
+	for i := c.scanned; i < len(c.all); i++ {
+		if matcher(c.all[i].Value) {
+			c.matched = append(c.matched, i)
+		}
+	}
+	c.scanned = len(c.all)
+}
+
+// rescan matches every entry against the filter again.
+func (c *ConsoleLogsPane) rescan() {
+	c.scanned, c.matched = 0, c.matched[:0]
+	c.scanFilter()
+	c.fitViewport()
+}
+
+// fitViewport keeps the cursor and the viewport within the shown entries.
+func (c *ConsoleLogsPane) fitViewport() {
+	if c.count() == 0 {
 		c.cursor = 0
 		c.top = 0
 		c.autoScroll = true
 		return
 	}
 
-	c.cursor = clamp(c.cursor, 0, len(c.logs)-1)
-	c.top = clamp(c.top, 0, len(c.logs)-1)
+	c.cursor = clamp(c.cursor, 0, c.count()-1)
+	c.top = clamp(c.top, 0, c.count()-1)
 
 	if c.autoScroll {
 		c.scrollToEnd()
 	} else {
 		c.ensureCursorVisible()
 	}
+}
+
+// count returns the number of shown entries: all of them, or the matches
+// while a filter is set.
+func (c *ConsoleLogsPane) count() int {
+	if c.filter.Query() == "" {
+		return len(c.all)
+	}
+	return len(c.matched)
+}
+
+// entry returns the i-th shown entry.
+func (c *ConsoleLogsPane) entry(i int) KeyValuePair {
+	if c.filter.Query() == "" {
+		return c.all[i]
+	}
+	return c.all[c.matched[i]]
+}
+
+// ---- Filter ----
+
+// EnterFilterMode starts editing the filter pattern.
+func (c *ConsoleLogsPane) EnterFilterMode() { c.filter.Activate() }
+
+// IsFilterMode reports whether the filter pattern is being edited.
+func (c *ConsoleLogsPane) IsFilterMode() bool { return c.filter.IsActive() }
+
+// IsFiltering reports whether an applied filter narrows the entries.
+func (c *ConsoleLogsPane) IsFiltering() bool {
+	return !c.filter.IsActive() && c.filter.Query() != ""
+}
+
+// FilterQuery returns the filter pattern (the draft while editing).
+func (c *ConsoleLogsPane) FilterQuery() string { return c.filter.Query() }
+
+// FilterMode returns the filter's match mode.
+func (c *ConsoleLogsPane) FilterMode() FilterMatchMode { return c.filter.Mode() }
+
+// FilterCounts returns the shown and total numbers of entries.
+func (c *ConsoleLogsPane) FilterCounts() (shown, total int) {
+	return c.count(), len(c.all)
+}
+
+// HandleFilterKey edits the filter pattern; the entries follow live.
+func (c *ConsoleLogsPane) HandleFilterKey(msg tea.KeyPressMsg) {
+	if c.filter.HandleKey(msg) {
+		c.rescan()
+	}
+}
+
+// ClearFilter shows every entry again.
+func (c *ConsoleLogsPane) ClearFilter() {
+	c.filter.Clear()
+	c.rescan()
 }
 
 // View renders the console logs pane at the given width.
@@ -180,7 +279,7 @@ func (c *ConsoleLogsPane) View(width int, runLabel, hint string) string {
 
 	end := c.visibleEnd(c.top, maxValueWidth, contentLines)
 
-	header := c.renderHeader(contentW, runLabel, c.top, end, len(c.logs))
+	header := c.renderHeader(contentW, runLabel, c.top, end, c.count())
 	content := c.renderContent(maxKeyWidth, maxValueWidth, contentLines, c.top, end, hint)
 
 	body := lipgloss.JoinVertical(lipgloss.Left, header, content)
@@ -188,7 +287,7 @@ func (c *ConsoleLogsPane) View(width int, runLabel, hint string) string {
 }
 
 // HasData reports whether the pane has any log entries to display.
-func (c *ConsoleLogsPane) HasData() bool { return len(c.logs) > 0 }
+func (c *ConsoleLogsPane) HasData() bool { return len(c.all) > 0 }
 
 // renderHeader returns the "Console Logs • <runLabel>     [X-Y of N]" line,
 func (c *ConsoleLogsPane) renderHeader(
@@ -231,7 +330,7 @@ func (c *ConsoleLogsPane) renderContent(
 	if contentLines <= 0 {
 		return ""
 	}
-	if len(c.logs) == 0 {
+	if c.count() == 0 {
 		if hint == "" {
 			hint = "No data."
 		}
@@ -242,8 +341,8 @@ func (c *ConsoleLogsPane) renderContent(
 			hint + strings.Repeat("\n", contentLines-1))
 	}
 
-	startIdx = clamp(startIdx, 0, len(c.logs)-1)
-	endIdx = clamp(endIdx, startIdx, len(c.logs))
+	startIdx = clamp(startIdx, 0, c.count()-1)
+	endIdx = clamp(endIdx, startIdx, c.count())
 
 	var out []string
 	used := 0
@@ -251,7 +350,7 @@ func (c *ConsoleLogsPane) renderContent(
 	for i := startIdx; i < endIdx && used < contentLines; i++ {
 		remaining := contentLines - used
 		entry, lines := c.renderEntry(
-			c.logs[i], i == c.cursor && c.active, maxKeyWidth, maxValueWidth, remaining)
+			c.entry(i), i == c.cursor && c.active, maxKeyWidth, maxValueWidth, remaining)
 		out = append(out, entry)
 		used += lines
 	}
@@ -318,11 +417,11 @@ func (c *ConsoleLogsPane) renderEntry(
 // Up moves the cursor one entry toward the top, wrapping to the last
 // entry when at the beginning.
 func (c *ConsoleLogsPane) Up() {
-	if len(c.logs) == 0 {
+	if c.count() == 0 {
 		return
 	}
 	if c.cursor == 0 {
-		c.cursor = len(c.logs) - 1
+		c.cursor = c.count() - 1
 		c.scrollToEnd()
 	} else {
 		c.cursor--
@@ -334,10 +433,10 @@ func (c *ConsoleLogsPane) Up() {
 // Down moves the cursor one entry toward the bottom, wrapping to the
 // first entry when at the end.
 func (c *ConsoleLogsPane) Down() {
-	if len(c.logs) == 0 {
+	if c.count() == 0 {
 		return
 	}
-	if c.cursor == len(c.logs)-1 {
+	if c.cursor == c.count()-1 {
 		c.cursor = 0
 		c.top = 0
 	} else {
@@ -350,7 +449,7 @@ func (c *ConsoleLogsPane) Down() {
 // PageDown advances the viewport by one screenful, wrapping to the top
 // when past the end.
 func (c *ConsoleLogsPane) PageDown() {
-	if len(c.logs) == 0 {
+	if c.count() == 0 {
 		return
 	}
 	if c.lastContentLines <= 0 || c.lastValueWidth <= 0 {
@@ -359,7 +458,7 @@ func (c *ConsoleLogsPane) PageDown() {
 	}
 
 	end := c.visibleEnd(c.top, c.lastValueWidth, c.lastContentLines)
-	if end >= len(c.logs) {
+	if end >= c.count() {
 		c.cursor = 0
 		c.top = 0
 		c.updateAutoScroll()
@@ -375,7 +474,7 @@ func (c *ConsoleLogsPane) PageDown() {
 // PageUp moves the viewport back by one screenful, wrapping to the end
 // when before the start.
 func (c *ConsoleLogsPane) PageUp() {
-	if len(c.logs) == 0 {
+	if c.count() == 0 {
 		return
 	}
 	if c.lastContentLines <= 0 || c.lastValueWidth <= 0 {
@@ -384,7 +483,7 @@ func (c *ConsoleLogsPane) PageUp() {
 	}
 
 	if c.top == 0 {
-		c.cursor = len(c.logs) - 1
+		c.cursor = c.count() - 1
 		c.scrollToEnd()
 		c.updateAutoScroll()
 		return
@@ -394,7 +493,7 @@ func (c *ConsoleLogsPane) PageUp() {
 	used := 0
 	for newTop > 0 && used < c.lastContentLines {
 		prev := newTop - 1
-		h := wrappedLineCount(c.logs[prev].Value, c.lastValueWidth)
+		h := wrappedLineCount(c.entry(prev).Value, c.lastValueWidth)
 		if used+h > c.lastContentLines && used > 0 {
 			break
 		}
@@ -420,7 +519,7 @@ func (c *ConsoleLogsPane) ScrollToEnd() {
 func (c *ConsoleLogsPane) ScrollToStart() {
 	c.cursor = 0
 	c.top = 0
-	c.autoScroll = len(c.logs) == 0
+	c.autoScroll = c.count() == 0
 }
 
 // ---- Internal scrolling ----
@@ -428,11 +527,11 @@ func (c *ConsoleLogsPane) ScrollToStart() {
 // updateAutoScroll enables auto-scroll when the cursor is on the last
 // entry, and disables it otherwise.
 func (c *ConsoleLogsPane) updateAutoScroll() {
-	if len(c.logs) == 0 {
+	if c.count() == 0 {
 		c.autoScroll = true
 		return
 	}
-	if c.cursor == len(c.logs)-1 {
+	if c.cursor == c.count()-1 {
 		c.autoScroll = true
 		c.scrollToEnd()
 		return
@@ -443,14 +542,14 @@ func (c *ConsoleLogsPane) updateAutoScroll() {
 // ensureCursorVisible adjusts top so that the cursor entry is within the
 // visible window.
 func (c *ConsoleLogsPane) ensureCursorVisible() {
-	if len(c.logs) == 0 {
+	if c.count() == 0 {
 		c.cursor = 0
 		c.top = 0
 		return
 	}
 
-	c.cursor = clamp(c.cursor, 0, len(c.logs)-1)
-	c.top = clamp(c.top, 0, len(c.logs)-1)
+	c.cursor = clamp(c.cursor, 0, c.count()-1)
+	c.top = clamp(c.top, 0, c.count()-1)
 
 	if c.cursor < c.top {
 		c.top = c.cursor
@@ -458,19 +557,19 @@ func (c *ConsoleLogsPane) ensureCursorVisible() {
 	}
 
 	for c.cursor >= c.visibleEnd(
-		c.top, c.lastValueWidth, c.lastContentLines) && c.top < len(c.logs)-1 {
+		c.top, c.lastValueWidth, c.lastContentLines) && c.top < c.count()-1 {
 		c.top++
 	}
 }
 
 // scrollToEnd positions the viewport so the last entry is at the bottom.
 func (c *ConsoleLogsPane) scrollToEnd() {
-	if len(c.logs) == 0 {
+	if c.count() == 0 {
 		c.cursor = 0
 		c.top = 0
 		return
 	}
-	c.cursor = len(c.logs) - 1
+	c.cursor = c.count() - 1
 
 	if c.lastContentLines <= 0 || c.lastValueWidth <= 0 {
 		c.top = c.cursor
@@ -478,11 +577,11 @@ func (c *ConsoleLogsPane) scrollToEnd() {
 	}
 
 	top := c.cursor
-	used := min(wrappedLineCount(c.logs[top].Value, c.lastValueWidth), c.lastContentLines)
+	used := min(wrappedLineCount(c.entry(top).Value, c.lastValueWidth), c.lastContentLines)
 
 	for top > 0 && used < c.lastContentLines {
 		prev := top - 1
-		h := wrappedLineCount(c.logs[prev].Value, c.lastValueWidth)
+		h := wrappedLineCount(c.entry(prev).Value, c.lastValueWidth)
 		if used+h > c.lastContentLines {
 			break
 		}
@@ -497,16 +596,16 @@ func (c *ConsoleLogsPane) scrollToEnd() {
 // within contentLines screen rows starting from startIdx, accounting
 // for line wrapping.
 func (c *ConsoleLogsPane) visibleEnd(startIdx, maxValueWidth, contentLines int) int {
-	if len(c.logs) == 0 {
+	if c.count() == 0 {
 		return 0
 	}
-	startIdx = clamp(startIdx, 0, len(c.logs)-1)
+	startIdx = clamp(startIdx, 0, c.count()-1)
 
 	used := 0
 	i := startIdx
-	for i < len(c.logs) && used < contentLines {
+	for i < c.count() && used < contentLines {
 		remaining := contentLines - used
-		h := wrappedLineCount(c.logs[i].Value, maxValueWidth)
+		h := wrappedLineCount(c.entry(i).Value, maxValueWidth)
 		used += min(h, remaining)
 		i++
 	}

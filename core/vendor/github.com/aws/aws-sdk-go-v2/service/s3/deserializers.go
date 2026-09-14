@@ -6974,6 +6974,29 @@ func awsRestxml_deserializeOpHttpBindingsGetObjectOutput(v *GetObjectOutput, res
 		v.MissingMeta = ptr.Int32(int32(vv))
 	}
 
+	if headerValues := response.Header.Values("x-amz-object-lock-event-hold"); len(headerValues) != 0 {
+		headerValues[0] = strings.TrimSpace(headerValues[0])
+		v.ObjectLockEventHold = types.ObjectLockEventHold(headerValues[0])
+	}
+
+	if headerValues := response.Header.Values("x-amz-object-lock-event-hold-duration-days"); len(headerValues) != 0 {
+		headerValues[0] = strings.TrimSpace(headerValues[0])
+		vv, err := strconv.ParseInt(headerValues[0], 0, 32)
+		if err != nil {
+			return err
+		}
+		v.ObjectLockEventHoldDurationDays = ptr.Int32(int32(vv))
+	}
+
+	if headerValues := response.Header.Values("x-amz-object-lock-event-hold-duration-years"); len(headerValues) != 0 {
+		headerValues[0] = strings.TrimSpace(headerValues[0])
+		vv, err := strconv.ParseInt(headerValues[0], 0, 32)
+		if err != nil {
+			return err
+		}
+		v.ObjectLockEventHoldDurationYears = ptr.Int32(int32(vv))
+	}
+
 	if headerValues := response.Header.Values("x-amz-object-lock-legal-hold"); len(headerValues) != 0 {
 		headerValues[0] = strings.TrimSpace(headerValues[0])
 		v.ObjectLockLegalHoldStatus = types.ObjectLockLegalHoldStatus(headerValues[0])
@@ -8935,6 +8958,29 @@ func awsRestxml_deserializeOpHttpBindingsHeadObjectOutput(v *HeadObjectOutput, r
 			return err
 		}
 		v.MissingMeta = ptr.Int32(int32(vv))
+	}
+
+	if headerValues := response.Header.Values("x-amz-object-lock-event-hold"); len(headerValues) != 0 {
+		headerValues[0] = strings.TrimSpace(headerValues[0])
+		v.ObjectLockEventHold = types.ObjectLockEventHold(headerValues[0])
+	}
+
+	if headerValues := response.Header.Values("x-amz-object-lock-event-hold-duration-days"); len(headerValues) != 0 {
+		headerValues[0] = strings.TrimSpace(headerValues[0])
+		vv, err := strconv.ParseInt(headerValues[0], 0, 32)
+		if err != nil {
+			return err
+		}
+		v.ObjectLockEventHoldDurationDays = ptr.Int32(int32(vv))
+	}
+
+	if headerValues := response.Header.Values("x-amz-object-lock-event-hold-duration-years"); len(headerValues) != 0 {
+		headerValues[0] = strings.TrimSpace(headerValues[0])
+		vv, err := strconv.ParseInt(headerValues[0], 0, 32)
+		if err != nil {
+			return err
+		}
+		v.ObjectLockEventHoldDurationYears = ptr.Int32(int32(vv))
 	}
 
 	if headerValues := response.Header.Values("x-amz-object-lock-legal-hold"); len(headerValues) != 0 {
@@ -19414,6 +19460,12 @@ func awsRestxml_deserializeDocumentDefaultRetention(v **types.DefaultRetention, 
 				sv.Days = ptr.Int32(int32(i64))
 			}
 
+		case strings.EqualFold("DefaultEventHold", t.Name.Local):
+			nodeDecoder := smithyxml.WrapNodeDecoder(decoder.Decoder, t)
+			if err := awsRestxml_deserializeDocumentEventHoldDuration(&sv.DefaultEventHold, nodeDecoder); err != nil {
+				return err
+			}
+
 		case strings.EqualFold("Mode", t.Name.Local):
 			val, err := decoder.Value()
 			if err != nil {
@@ -20476,6 +20528,76 @@ func awsRestxml_deserializeDocumentEventBridgeConfiguration(v **types.EventBridg
 		originalDecoder := decoder
 		decoder = smithyxml.WrapNodeDecoder(originalDecoder.Decoder, t)
 		switch {
+		default:
+			// Do nothing and ignore the unexpected tag element
+			err = decoder.Decoder.Skip()
+			if err != nil {
+				return err
+			}
+
+		}
+		decoder = originalDecoder
+	}
+	*v = sv
+	return nil
+}
+
+func awsRestxml_deserializeDocumentEventHoldDuration(v **types.EventHoldDuration, decoder smithyxml.NodeDecoder) error {
+	if v == nil {
+		return fmt.Errorf("unexpected nil of type %T", v)
+	}
+	var sv *types.EventHoldDuration
+	if *v == nil {
+		sv = &types.EventHoldDuration{}
+	} else {
+		sv = *v
+	}
+
+	for {
+		t, done, err := decoder.Token()
+		if err != nil {
+			return err
+		}
+		if done {
+			break
+		}
+		originalDecoder := decoder
+		decoder = smithyxml.WrapNodeDecoder(originalDecoder.Decoder, t)
+		switch {
+		case strings.EqualFold("Days", t.Name.Local):
+			val, err := decoder.Value()
+			if err != nil {
+				return err
+			}
+			if val == nil {
+				break
+			}
+			{
+				xtv := string(val)
+				i64, err := strconv.ParseInt(xtv, 10, 64)
+				if err != nil {
+					return err
+				}
+				sv.Days = ptr.Int32(int32(i64))
+			}
+
+		case strings.EqualFold("Years", t.Name.Local):
+			val, err := decoder.Value()
+			if err != nil {
+				return err
+			}
+			if val == nil {
+				break
+			}
+			{
+				xtv := string(val)
+				i64, err := strconv.ParseInt(xtv, 10, 64)
+				if err != nil {
+					return err
+				}
+				sv.Years = ptr.Int32(int32(i64))
+			}
+
 		default:
 			// Do nothing and ignore the unexpected tag element
 			err = decoder.Decoder.Skip()
@@ -24867,6 +24989,25 @@ func awsRestxml_deserializeDocumentObjectLockRetention(v **types.ObjectLockReten
 		originalDecoder := decoder
 		decoder = smithyxml.WrapNodeDecoder(originalDecoder.Decoder, t)
 		switch {
+		case strings.EqualFold("EventHold", t.Name.Local):
+			val, err := decoder.Value()
+			if err != nil {
+				return err
+			}
+			if val == nil {
+				break
+			}
+			{
+				xtv := string(val)
+				sv.EventHold = types.ObjectLockEventHold(xtv)
+			}
+
+		case strings.EqualFold("EventHoldDuration", t.Name.Local):
+			nodeDecoder := smithyxml.WrapNodeDecoder(decoder.Decoder, t)
+			if err := awsRestxml_deserializeDocumentEventHoldDuration(&sv.EventHoldDuration, nodeDecoder); err != nil {
+				return err
+			}
+
 		case strings.EqualFold("Mode", t.Name.Local):
 			val, err := decoder.Value()
 			if err != nil {

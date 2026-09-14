@@ -393,9 +393,6 @@ func (c *Client) addCommonMiddlewares(stack *middleware.Stack, options Options, 
 	if err := addRawResponseToMetadata(stack); err != nil {
 		return err
 	}
-	if err := addSpanRetryLoop(stack, options); err != nil {
-		return err
-	}
 	if err := addClientUserAgent(stack, options); err != nil {
 		return err
 	}
@@ -679,30 +676,6 @@ func addRecordResponseTiming(stack *middleware.Stack, options Options) error {
 	return stack.Deserialize.Add(&awsmiddleware.RecordResponseTiming{
 		DisableClockSkewCorrection: options.DisableClockSkewCorrection,
 	}, middleware.After)
-}
-
-func addSpanRetryLoop(stack *middleware.Stack, options Options) error {
-	return stack.Finalize.Insert(&spanRetryLoop{options: options}, "Retry", middleware.Before)
-}
-
-type spanRetryLoop struct {
-	options Options
-}
-
-func (*spanRetryLoop) ID() string {
-	return "spanRetryLoop"
-}
-
-func (m *spanRetryLoop) HandleFinalize(
-	ctx context.Context, in middleware.FinalizeInput, next middleware.FinalizeHandler,
-) (
-	middleware.FinalizeOutput, middleware.Metadata, error,
-) {
-	tracer := operationTracer(m.options.TracerProvider)
-	ctx, span := tracer.StartSpan(ctx, "RetryLoop")
-	defer span.End()
-
-	return next.HandleFinalize(ctx, in)
 }
 func addStreamingEventsPayload(stack *middleware.Stack) error {
 	return stack.Finalize.Add(&v4.StreamingEventsPayload{}, middleware.Before)

@@ -117,6 +117,7 @@ type Run struct {
 
 	// Coalesce expensive redraws during batch processing.
 	suppressDraw bool
+	lastDrawAt   time.Time
 
 	// Logger.
 	logger *observability.CoreLogger
@@ -418,7 +419,7 @@ func (r *Run) renderMainView() string {
 			r.mediaPane.Park()
 		}
 		if layout.consoleLogsHeight > 0 {
-			r.consoleLogsPane.SetConsoleLogs(r.consoleLogs.Items())
+			r.consoleLogsPane.SetConsoleLogs(r.consoleLogs.takeChanges())
 			sections = append(sections, r.consoleLogsPane.View(w, "", ""))
 		}
 
@@ -551,6 +552,9 @@ func (r *Run) buildStatusText() string {
 	if r.rightSidebar.IsFilterMode() {
 		return r.buildSystemMetricsFilterStatus()
 	}
+	if r.consoleLogsPane.IsFilterMode() {
+		return r.buildConsoleFilterStatus()
+	}
 	if r.config.IsAwaitingGridConfig() {
 		return r.config.GridConfigStatus()
 	}
@@ -605,6 +609,18 @@ func (r *Run) buildSystemMetricsFilterStatus() string {
 	)
 }
 
+func (r *Run) buildConsoleFilterStatus() string {
+	shown, total := r.consoleLogsPane.FilterCounts()
+	return fmt.Sprintf(
+		"Console filter (%s): %s%s [%d/%d] (Enter to apply • Tab to toggle mode)",
+		r.consoleLogsPane.FilterMode().String(),
+		r.consoleLogsPane.FilterQuery(),
+		string(mediumShadeBlock),
+		shown,
+		total,
+	)
+}
+
 // buildLoadingStatus builds status for loading mode.
 func (r *Run) buildLoadingStatus() string {
 	if r.recordsLoaded > 0 {
@@ -621,7 +637,7 @@ func (r *Run) buildActiveStatus() string {
 	// Add filter info if active.
 	if r.metricsGrid.IsFiltering() {
 		parts = append(parts, fmt.Sprintf(
-			"Filter (%s): %q [%d/%d] (/ to change, Ctrl+L to clear)",
+			"Filter (%s): %q [%d/%d] (/ to change, ctrl+/ to clear)",
 			r.metricsGrid.FilterMode().String(),
 			r.metricsGrid.FilterQuery(),
 			r.metricsGrid.FilteredChartCount(), r.metricsGrid.ChartCount()))
@@ -629,7 +645,7 @@ func (r *Run) buildActiveStatus() string {
 
 	// Add overview filter info if active.
 	if r.leftSidebar.IsFiltering() {
-		parts = append(parts, fmt.Sprintf("Overview: %q [%s] (o to change, Ctrl+K to clear)",
+		parts = append(parts, fmt.Sprintf("Overview: %q [%s] (o to change, ctrl+o to clear)",
 			r.leftSidebar.FilterQuery(),
 			r.leftSidebar.FilterInfo(),
 		))
@@ -638,11 +654,22 @@ func (r *Run) buildActiveStatus() string {
 	if r.rightSidebar.IsFiltering() {
 		grid := r.rightSidebar.metricsGrid
 		parts = append(parts, fmt.Sprintf(
-			"System filter (%s): %q [%d/%d] (\\ to change, Ctrl+\\ to clear)",
+			"System filter (%s): %q [%d/%d] (\\ to change, ctrl+\\ to clear)",
 			grid.FilterMode().String(),
 			grid.FilterQuery(),
 			grid.FilteredChartCount(),
 			grid.ChartCount(),
+		))
+	}
+
+	if r.consoleLogsPane.IsFiltering() {
+		shown, total := r.consoleLogsPane.FilterCounts()
+		parts = append(parts, fmt.Sprintf(
+			"Console filter (%s): %q [%d/%d] (focus logs, / to change, ctrl+/ to clear)",
+			r.consoleLogsPane.FilterMode().String(),
+			r.consoleLogsPane.FilterQuery(),
+			shown,
+			total,
 		))
 	}
 
@@ -689,9 +716,7 @@ func (r *Run) buildActiveStatus() string {
 
 // buildHelpText builds the help text for the status bar.
 func (r *Run) buildHelpText() string {
-	if r.metricsGrid.IsFilterMode() ||
-		r.leftSidebar.IsFilterMode() ||
-		r.rightSidebar.IsFilterMode() {
+	if r.IsFiltering() {
 		return ""
 	}
 	return "h: help"
@@ -700,7 +725,8 @@ func (r *Run) buildHelpText() string {
 func (r *Run) IsFiltering() bool {
 	return r.metricsGrid.IsFilterMode() ||
 		r.leftSidebar.IsFilterMode() ||
-		r.rightSidebar.IsFilterMode()
+		r.rightSidebar.IsFilterMode() ||
+		r.consoleLogsPane.IsFilterMode()
 }
 
 func (r *Run) MediaFullscreen() bool {
@@ -798,35 +824,17 @@ type Layout struct {
 	consoleLogsHeight      int
 }
 
-// effectiveSidebarWidths returns the widths that can actually be rendered
-// without starving the main content area.
-//
-// The visibility preferences remain unchanged: this method only clamps the
-// current render/layout pass and does not mutate animation state.
-func (r *Run) effectiveSidebarWidths() (leftW, rightW int) {
-	const minRunMainContentWidth = 10
-
-	leftW = r.leftSidebar.Width()
-	rightW = r.rightSidebar.Width()
-
-	if leftW+rightW < r.width-minRunMainContentWidth {
-		return leftW, rightW
-	}
-	if rightW > 0 {
-		rightW = 0
-	}
-	if leftW+rightW < r.width-minRunMainContentWidth {
-		return leftW, rightW
-	}
-	if leftW > 0 {
-		leftW = 0
-	}
-	return leftW, rightW
+// attachFilters restores the filters remembered for the run's wandb
+// directory and keeps them saved.
+func (r *Run) attachFilters(df *dirFilters) {
+	df.bind(&df.Metrics, r.metricsGrid.filter, r.metricsGrid.ApplyFilter)
+	df.bind(&df.SystemMetrics,
+		r.rightSidebar.metricsGrid.filter, r.rightSidebar.metricsGrid.ApplyFilter)
 }
 
 // computeViewports returns (leftW, contentW, rightW, contentH).
 func (r *Run) computeViewports() Layout {
-	leftW, rightW := r.effectiveSidebarWidths()
+	leftW, rightW := fitSidebarWidths(r.width, r.leftSidebar.Width(), r.rightSidebar.Width())
 	contentW := max(r.width-leftW-rightW, 1)
 	totalH := max(r.height-StatusBarHeight, 0)
 

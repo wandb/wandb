@@ -426,7 +426,7 @@ class Labels(_message.Message):
     def __init__(self, code_string: _Optional[str] = ..., repo_string: _Optional[str] = ..., code_version: _Optional[str] = ...) -> None: ...
 
 class Deprecated(_message.Message):
-    __slots__ = ("plots", "init__config_include_keys", "init__config_exclude_keys", "artifact__get_path", "artifactmanifestentry__name", "api__artifact_versions", "artifact_collection__change_type", "run__define_metric_copy", "run_disabled", "run__reinit_bool", "run__use_artifact_use_as", "artifact__use_as", "artifact__init_use_as", "kfp_v1_wandb_log")
+    __slots__ = ("plots", "init__config_include_keys", "init__config_exclude_keys", "artifact__get_path", "artifactmanifestentry__name", "api__artifact_versions", "artifact_collection__change_type", "run__define_metric_copy", "run_disabled", "run__reinit_bool", "run__use_artifact_use_as", "artifact__use_as", "artifact__init_use_as", "kfp_v1_wandb_log", "wandb_api")
     PLOTS_FIELD_NUMBER: _ClassVar[int]
     INIT__CONFIG_INCLUDE_KEYS_FIELD_NUMBER: _ClassVar[int]
     INIT__CONFIG_EXCLUDE_KEYS_FIELD_NUMBER: _ClassVar[int]
@@ -441,6 +441,7 @@ class Deprecated(_message.Message):
     ARTIFACT__USE_AS_FIELD_NUMBER: _ClassVar[int]
     ARTIFACT__INIT_USE_AS_FIELD_NUMBER: _ClassVar[int]
     KFP_V1_WANDB_LOG_FIELD_NUMBER: _ClassVar[int]
+    WANDB_API_FIELD_NUMBER: _ClassVar[int]
     plots: bool
     init__config_include_keys: bool
     init__config_exclude_keys: bool
@@ -455,4 +456,5 @@ class Deprecated(_message.Message):
     artifact__use_as: bool
     artifact__init_use_as: bool
     kfp_v1_wandb_log: bool
-    def __init__(self, plots: bool = ..., init__config_include_keys: bool = ..., init__config_exclude_keys: bool = ..., artifact__get_path: bool = ..., artifactmanifestentry__name: bool = ..., api__artifact_versions: bool = ..., artifact_collection__change_type: bool = ..., run__define_metric_copy: bool = ..., run_disabled: bool = ..., run__reinit_bool: bool = ..., run__use_artifact_use_as: bool = ..., artifact__use_as: bool = ..., artifact__init_use_as: bool = ..., kfp_v1_wandb_log: bool = ...) -> None: ...
+    wandb_api: bool
+    def __init__(self, plots: bool = ..., init__config_include_keys: bool = ..., init__config_exclude_keys: bool = ..., artifact__get_path: bool = ..., artifactmanifestentry__name: bool = ..., api__artifact_versions: bool = ..., artifact_collection__change_type: bool = ..., run__define_metric_copy: bool = ..., run_disabled: bool = ..., run__reinit_bool: bool = ..., run__use_artifact_use_as: bool = ..., artifact__use_as: bool = ..., artifact__init_use_as: bool = ..., kfp_v1_wandb_log: bool = ..., wandb_api: bool = ...) -> None: ...

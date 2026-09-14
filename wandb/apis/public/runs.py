@@ -53,14 +53,14 @@ from wandb.apis import public
 from wandb.apis._generated import GET_AGENT_RUNS_GQL
 from wandb.apis._generated.get_agent_runs import GetAgentRuns
 from wandb.apis.attrs import Attrs
-from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import SizedPaginator
-from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.apis.public.service_api import ServiceApi
+from wandb.errors import CommError
 from wandb.proto import wandb_api_pb2 as apb
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk import wandb_setup
+from wandb.sdk.artifacts._gqlutils import create_artifact_version, record_artifact_use
 from wandb.sdk.lib import ipython, json_util
 from wandb.sdk.lib.paths import LogicalPath
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
@@ -1240,16 +1240,50 @@ class Run(Attrs):
         Returns:
             A `File` object representing the uploaded file.
         """
-        api = InternalApi(
-            default_settings={"entity": self.entity, "project": self.project},
-            retry_timedelta=RETRY_TIMEDELTA,
-        )
-        api.set_current_run_id(self.id)
         root = os.path.abspath(root)
         name = os.path.relpath(path, root)
-        upload_path = util.make_file_path_upload_safe(name)
-        with open(os.path.join(root, name), "rb") as f:
-            api.push({LogicalPath(upload_path): f})
+        upload_path = str(LogicalPath(util.make_file_path_upload_safe(name)))
+        mutation = """
+        mutation CreateRunFiles($entity: String!, $project: String!, $run: String!, $files: [String!]!) {
+            createRunFiles(input: {entityName: $entity, projectName: $project, runName: $run, files: $files}) {
+                runID
+                uploadHeaders
+                files {
+                    name
+                    uploadUrl
+                }
+            }
+        }
+        """
+        result = self._service_api.execute_graphql(
+            mutation,
+            {
+                "entity": self.entity,
+                "project": self.project,
+                "run": self.id,
+                "files": [upload_path],
+            },
+        )["createRunFiles"]
+        if not result["runID"]:
+            raise CommError(
+                f"Error uploading files to {self.entity}/{self.project}/{self.id}. "
+                "Check that this project exists and you have access to this entity and project"
+            )
+        (file_info,) = result["files"]
+        upload_url = file_info["uploadUrl"]
+        if upload_url.startswith("/"):
+            upload_url = f"{self._service_api.base_url}{upload_url}"
+        self._service_api.send_api_request(
+            apb.ApiRequest(
+                upload_file_request=apb.UploadFileRequest(
+                    url=upload_url,
+                    path=os.path.join(root, name),
+                    headers=dict(
+                        header.split(":", 1) for header in result["uploadHeaders"]
+                    ),
+                )
+            )
+        )
 
         # Uploading the bytes to the (presigned) destination URL doesn't notify
         # the backend that the file is committed. SaaS finalizes it via native
@@ -1268,7 +1302,7 @@ class Run(Attrs):
                         entity=self.entity,
                         project=self.project,
                         run_id=self.id,
-                        files=[str(upload_path)],
+                        files=[upload_path],
                     )
                 )
             )
@@ -1471,18 +1505,16 @@ class Run(Attrs):
         Returns:
             An `Artifact` object.
         """
-        api = InternalApi(
-            default_settings={"entity": self.entity, "project": self.project},
-            retry_timedelta=RETRY_TIMEDELTA,
-        )
-        api.set_current_run_id(self.id)
-
         if isinstance(artifact, wandb.Artifact) and not artifact.is_draft():
-            api.use_artifact(
-                artifact.id,
-                use_as=use_as or artifact.name,
+            record_artifact_use(
+                self._service_api,
+                artifact_id=artifact.id,
+                entity_name=self.entity,
+                project_name=self.project,
+                run_name=self.id,
                 artifact_entity_name=artifact.entity,
                 artifact_project_name=artifact.project,
+                use_as=use_as or artifact.name,
             )
             return artifact
         elif isinstance(artifact, wandb.Artifact) and artifact.is_draft():
@@ -1511,12 +1543,6 @@ class Run(Attrs):
         Returns:
             A `Artifact` object.
         """
-        api = InternalApi(
-            default_settings={"entity": self.entity, "project": self.project},
-            retry_timedelta=RETRY_TIMEDELTA,
-        )
-        api.set_current_run_id(self.id)
-
         if not isinstance(artifact, wandb.Artifact):
             raise TypeError("You must pass a wandb.Api().artifact() to use_artifact")
         if artifact.is_draft():
@@ -1531,15 +1557,20 @@ class Run(Attrs):
             raise ValueError("A run can't log an artifact to a different project.")
 
         artifact_collection_name = artifact.source_name.split(":")[0]
-        api.create_artifact(
-            artifact.type,
-            artifact_collection_name,
-            artifact.digest,
+        create_artifact_version(
+            self._service_api,
+            artifact_type_name=artifact.type,
+            artifact_collection_name=artifact_collection_name,
+            digest=artifact.digest,
+            digest_algorithm=artifact.digest_algorithm,
             entity_name=self.entity,
             project_name=self.project,
-            aliases=aliases,
-            tags=tags,
-            digest_algorithm=artifact.digest_algorithm,
+            run_name=self.id,
+            aliases=[
+                {"artifactCollectionName": artifact_collection_name, "alias": alias}
+                for alias in aliases or []
+            ],
+            tags=[{"tagName": tag} for tag in tags or []],
         )
         return artifact
 

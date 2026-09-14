@@ -22,6 +22,7 @@ import (
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
+	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runconsolelogs"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runhandle"
@@ -39,6 +40,7 @@ import (
 
 var SenderProviders = wire.NewSet(
 	wire.Struct(new(SenderFactory), "*"),
+	NewHistoryStepTracker,
 )
 
 // SenderFactory constructs a Sender.
@@ -60,6 +62,7 @@ type SenderFactory struct {
 	Printer                 *observability.Printer
 	RunHandle               *runhandle.RunHandle
 	Mailbox                 *mailbox.Mailbox
+	HistoryStepTracker      *HistoryStepTracker
 }
 
 // Sender performs blocking operations to process Work, such as uploading data.
@@ -228,14 +231,11 @@ func (f *SenderFactory) NewWithFileStream(
 		graphqlClient:     f.GraphqlClient,
 		mailbox:           f.Mailbox,
 		runHandle:         f.RunHandle,
+		stepTracker:       f.HistoryStepTracker,
 		runSummary:        runsummary.New(),
 		consoleLogsSender: runconsolelogs.New(consoleLogsSenderParams),
 	}
-	s.stepTracker = (&HistoryStepTrackerFactory{
-		Logger:    s.logger,
-		Settings:  s.settings,
-		RunHandle: s.runHandle,
-	}).New()
+	s.stepTracker = NewHistoryStepTracker(s.logger, s.runHandle)
 
 	if !s.settings.IsOffline() && !s.settings.IsJobCreationDisabled() {
 		s.jobBuilder = launch.NewJobBuilder(s.settings, s.logger, false)
@@ -632,13 +632,13 @@ func (s *Sender) finishRunSync(
 
 	// Upload the run's finalized summary and config.
 	s.mu.Lock()
-	s.uploadSummaryFile()
-
+	// Sync can stop before receiving a run record, for example on an empty file.
 	upserter, _ := s.runHandle.Upserter()
 	if upserter != nil {
+		s.uploadSummaryFile()
 		upserter.Finish()
+		s.uploadConfigFile()
 	}
-	s.uploadConfigFile()
 	s.mu.Unlock()
 
 	// Wait for artifacts operations to complete here to detect
@@ -646,7 +646,9 @@ func (s *Sender) finishRunSync(
 	s.artifactWG.Wait()
 
 	s.mu.Lock()
-	s.sendJobFlush()
+	if upserter != nil {
+		s.sendJobFlush()
+	}
 	s.mu.Unlock()
 
 	// Finish uploading non-artifact files.
@@ -854,27 +856,17 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 	}
 
 	s.fileStream.StreamUpdate(&fs.HistoryUpdate{Record: record})
-	if !s.settings.IsSharedMode() || s.settings.IsEnableServerSideDerivedSummary() {
+	if !s.settings.IsSharedMode() || !s.settings.IsEnableServerSideDerivedSummary() {
 		s.updateSummaryStep(step)
 	}
 }
 
 func (s *Sender) updateSummaryStep(step int64) {
-	if s.settings.IsEnableServerSideDerivedSummary() {
-		return
-	}
-
+	s.runSummary.Set(pathtree.PathOf("_step"), step)
 	updates := runsummary.FromProto(&spb.SummaryRecord{Update: []*spb.SummaryItem{{
 		Key:       "_step",
 		ValueJson: strconv.FormatInt(step, 10),
 	}}})
-	if err := updates.Apply(s.runSummary); err != nil {
-		s.logger.CaptureError(
-			"stream",
-			fmt.Errorf("historystep: error updating summary step: %v", err))
-		return
-	}
-
 	s.fileStream.StreamUpdate(&fs.SummaryUpdate{Updates: updates})
 }
 

@@ -515,6 +515,22 @@ type PutObjectInput struct {
 	// A map of metadata to store with the object in S3.
 	Metadata map[string]string
 
+	// Specifies the event hold status to apply to this object. Set to ON to enable or
+	// OFF to disable.
+	//
+	// This functionality is not supported for directory buckets.
+	ObjectLockEventHold types.ObjectLockEventHold
+
+	// Specifies the event hold duration in days to apply to this object.
+	//
+	// This functionality is not supported for directory buckets.
+	ObjectLockEventHoldDurationDays *int32
+
+	// Specifies the event hold duration in years to apply to this object.
+	//
+	// This functionality is not supported for directory buckets.
+	ObjectLockEventHoldDurationYears *int32
+
 	// Specifies whether a legal hold will be applied to this object. For more
 	// information about S3 Object Lock, see [Object Lock]in the Amazon S3 User Guide.
 	//

@@ -444,7 +444,7 @@ type GetObjectOutput struct {
 	CacheControl *string
 
 	// The Base64 encoded, 32-bit CRC32 checksum of the object. This checksum is only
-	// present if the object was uploaded with the object. For more information, see [Checking object integrity]
+	// present if the checksum was uploaded with the object. For more information, see [Checking object integrity]
 	// in the Amazon S3 User Guide.
 	//
 	// [Checking object integrity]: https://docs.aws.amazon.com/AmazonS3/latest/userguide/checking-object-integrity.html
@@ -596,6 +596,24 @@ type GetObjectOutput struct {
 	//
 	// This functionality is not supported for directory buckets.
 	MissingMeta *int32
+
+	// The event hold status for this object. This header is only returned if the
+	// requester has the s3:GetObjectRetention permission.
+	//
+	// This functionality is not supported for directory buckets.
+	ObjectLockEventHold types.ObjectLockEventHold
+
+	// The event hold duration in days for this object. Only returned when the event
+	// hold is enabled.
+	//
+	// This functionality is not supported for directory buckets.
+	ObjectLockEventHoldDurationDays *int32
+
+	// The event hold duration in years for this object. Only returned when the event
+	// hold is enabled.
+	//
+	// This functionality is not supported for directory buckets.
+	ObjectLockEventHoldDurationYears *int32
 
 	// Indicates whether this object has an active legal hold. This field is only
 	// returned if you have permission to view an object's legal hold status.

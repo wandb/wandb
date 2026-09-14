@@ -116,7 +116,7 @@ def test_validate_registry_uri(registry_uri, valid):
         validate_registry_uri(registry_uri)
 
 
-def test_resolve_agent_config(monkeypatch, runner):
+def test_resolve_agent_config(monkeypatch, runner, patch_apikey, skip_verify_login):
     monkeypatch.setattr(
         "wandb.sdk.launch._launch.LAUNCH_CONFIG_FILE",
         "./config/wandb/launch-config.yaml",

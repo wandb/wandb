@@ -263,7 +263,7 @@ func TestInitRun_InitializesSyncStartState(t *testing.T) {
 		GetOrInitStartState(runsyncstate.StartState{})
 	assert.NoError(t, err)
 	assert.EqualValues(t, runsyncstate.StartState{
-		StartStep:    5,
+		StartStep:    6,
 		StartRuntime: 3500 * time.Millisecond,
 	}, startState)
 }
@@ -297,49 +297,32 @@ func TestInitRun_ReusesSyncStartState(t *testing.T) {
 	assert.EqualValues(t, 5, run.Runtime)
 }
 
-func TestInitRun_ResumeSettingNever_RejectsExistingRun(t *testing.T) {
+func TestInitRun_RunRecordResumeTrue_ReconcilesWithBackend(t *testing.T) {
+	// RunRecord.Resume is a trigger into the resume path; resume policy comes
+	// from Settings.GetResume(), which is empty here.
 	mockClient := gqlmock.NewMockClient()
 	runupsertertest.StubRunResumeStatusWithStep(t, mockClient, 0)
-
-	params := testParams(t)
-	params.GraphqlClientOrNil = mockClient
-	params.Settings = settings.From(&spb.Settings{
-		Resume: wrapperspb.String("never"),
-	})
-
-	_, err := runupserter.InitRun(
-		runRecord(&spb.RunRecord{RunId: "run", Resume: true}),
-		params,
-	)
-	require.Error(t, err)
-
-	message := runUpdateErrorMessage(err)
-	assert.Contains(t, message, "does not allow resuming an existing run")
-	assert.True(t, mockClient.AllStubsUsed())
-}
-
-func TestResume_ResumeSettingNever_AllowsMissingRun(t *testing.T) {
-	mockClient := gqlmock.NewMockClient()
-	params := testParams(t)
-	params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("never")})
-	params.GraphqlClientOrNil = mockClient
-	mockClient.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{}`)
 	runupsertertest.StubUpsertBucket(t, mockClient)
 
-	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{}), params)
+	params := testParams(t)
+	params.GraphqlClientOrNil = mockClient
+
+	upserter, err := runupserter.InitRun(
+		runRecord(&spb.RunRecord{Resume: true}),
+		params,
+	)
 	require.NoError(t, err)
 	defer upserter.Finish()
 
 	run := &spb.RunRecord{}
 	upserter.FillRunRecord(run)
-	assert.False(t, run.Resume)
+	assert.True(t, run.Resume)
 	assert.True(t, mockClient.AllStubsUsed())
 }
 
-func TestResume_Offline_Succeeds(t *testing.T) {
+func TestResume_Offline_RunRecordResumeTrue_Succeeds(t *testing.T) {
 	params := testParams(t)
 	params.GraphqlClientOrNil = nil
-	params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("must")})
 
 	upserter, err := runupserter.InitRun(
 		runRecord(&spb.RunRecord{Resume: true}),

@@ -65,8 +65,6 @@ SYMBOLS_ROOT_OTHER = {
     "CommError",
     "Config",
     "Error",
-    "InternalApi",
-    "PublicApi",
     "Settings",
     "UsageError",
     "absolute_import",
