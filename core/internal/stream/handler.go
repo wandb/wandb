@@ -502,7 +502,6 @@ func (h *Handler) handleRequestRunStart(
 			errors.New("handleRunStart: failed to clone run"),
 		)
 	}
-	h.fwdRecord(record, request)
 
 	// TODO: Move computation of git state to wandb-core.
 	var git *spb.GitRepoRecord
@@ -523,6 +522,7 @@ func (h *Handler) handleRequestRunStart(
 	}
 
 	h.respond(request, &spb.Response{})
+	h.fwdRecord(record, request)
 }
 
 func (h *Handler) handleRequestProbeSystemInfo(record *spb.Record) {
