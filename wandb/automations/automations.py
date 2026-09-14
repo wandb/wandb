@@ -1,17 +1,16 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated
 
-from pydantic import BeforeValidator, Field
+from pydantic import Field
 
-from wandb._pydantic import Connection, GQLId, GQLInput, GQLResult, Typename
+from wandb._pydantic import GQLId, GQLInput
 
 from ._generated import TriggerFields
-from ._validators import parse_saved_action
 from .actions import InputAction, SavedAction
-from .events import InputEvent, SavedTriggerEvent
-from .scopes import AutomationScope, SavedTriggerScope
+from .events import InputEvent, SavedEvent
+from .scopes import AutomationScope
 
 
 # ------------------------------------------------------------------------------
@@ -39,13 +38,13 @@ class Automation(TriggerFields, frozen=False):
     enabled: bool
     """Whether this automation is enabled.  Only enabled automations will trigger."""
 
-    event: SavedTriggerEvent
+    event: SavedEvent
     """The event that will trigger this automation."""
 
-    scope: SavedTriggerScope
+    scope: AutomationScope
     """The scope in which the triggering event must occur."""
 
-    action: Annotated[SavedAction, BeforeValidator(parse_saved_action)]
+    action: SavedAction
     """The action that will execute when this automation is triggered."""
 
 
@@ -78,40 +77,6 @@ class NewAutomation(GQLInput, extra="forbid", validate_default=False):
 
     action: InputAction | None = None
     """The action that will execute when this automation is triggered."""
-
-
-class EntityAutomationsPage(GQLResult):
-    """Entity.triggers listing envelope parsed as public `Automation` nodes."""
-
-    scope: EntityAutomationsPageScope | None
-
-
-class EntityAutomationsPageScope(GQLResult):
-    triggers: Connection[Automation]
-
-
-class ProjectAutomations(GQLResult):
-    """Project.triggers listing node parsed as public `Automation` objects."""
-
-    typename__: Typename[Literal["Project"]] = "Project"
-    triggers: list[Automation]
-
-
-class LegacyAutomationsPage(GQLResult):
-    """Legacy project-walking listing envelope parsed as public `Automation` nodes."""
-
-    scope: LegacyAutomationsPageScope | None
-
-
-class LegacyAutomationsPageScope(GQLResult):
-    projects: Connection[ProjectAutomations] | None
-
-
-EntityAutomationsPage.model_rebuild()
-EntityAutomationsPageScope.model_rebuild()
-ProjectAutomations.model_rebuild()
-LegacyAutomationsPage.model_rebuild()
-LegacyAutomationsPageScope.model_rebuild()
 
 
 __all__ = [

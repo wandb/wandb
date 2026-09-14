@@ -25,6 +25,6 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Fixed
 
-- Listing automations no longer fails when the server returns an action, event, or scope type unsupported by the installed SDK. (@gdecarvalhovaz-lgtm in https://github.com/wandb/wandb/pull/12595)
+- Listing automations skips unsupported action, event, and scope types instead of failing, and continues pagination through pages with no supported results. (@gdecarvalhovaz-lgtm in https://github.com/wandb/wandb/pull/12595)
 
 - Changing system metrics grid rows or columns in LEET, including `wandb leet symon`, no longer crashes and takes effect immediately without waiting for new data (@dmitryduev in https://github.com/wandb/wandb/pull/12763)
