@@ -417,7 +417,7 @@ func TestMustResumeHistoryTailStepWithZeroLineCount(t *testing.T) {
 	params := &runbranch.RunParams{}
 	err = resumeState.UpdateForResume(params, runconfig.New())
 	assert.Equal(t, int64(2), params.StartingStep, "GetUpdates should return correct starting step")
-	assert.Equal(t, int32(0), params.Runtime, "GetUpdates should return correct runtime")
+	assert.EqualValues(t, 0, params.Runtime, "GetUpdates should return correct runtime")
 	assert.True(t, params.Resumed, "GetUpdates should return correct resumed state")
 	assert.Nil(t, err, "GetUpdates should not return an error")
 }

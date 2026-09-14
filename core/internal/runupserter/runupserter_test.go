@@ -263,7 +263,7 @@ func TestInitRun_InitializesSyncStartState(t *testing.T) {
 		GetOrInitStartState(runsyncstate.StartState{})
 	assert.NoError(t, err)
 	assert.EqualValues(t, runsyncstate.StartState{
-		StartStep:    5,
+		StartStep:    6,
 		StartRuntime: 3500 * time.Millisecond,
 	}, startState)
 }
@@ -302,6 +302,7 @@ func TestInitRun_RunRecordResumeTrue_ReconcilesWithBackend(t *testing.T) {
 	// from Settings.GetResume(), which is empty here.
 	mockClient := gqlmock.NewMockClient()
 	runupsertertest.StubRunResumeStatusWithStep(t, mockClient, 0)
+	runupsertertest.StubUpsertBucket(t, mockClient)
 
 	params := testParams(t)
 	params.GraphqlClientOrNil = mockClient
