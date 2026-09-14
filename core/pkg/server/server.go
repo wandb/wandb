@@ -211,6 +211,10 @@ func (s *Server) Serve(portFile string) error {
 		slog.Info("server: forced shutdown")
 		return ErrForcedShutdown
 	case <-s.waitForConnectionsToFinish():
+		if s.forceStopCtx.Err() != nil {
+			slog.Info("server: forced shutdown")
+			return ErrForcedShutdown
+		}
 		slog.Info("server: all connections closed")
 		return nil
 	}
