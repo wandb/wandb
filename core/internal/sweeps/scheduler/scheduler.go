@@ -331,7 +331,6 @@ type SchedulerParams struct {
 
 	SweepNodeID string
 	MetricKey   string
-	RunCap      int
 
 	BatchSize    int
 	PollInterval time.Duration
