@@ -222,7 +222,7 @@ class TestSweepSchedulerCli:
         mock = MagicMock(
             return_value=(
                 sspb.SweepSchedulerServerDoneTask(
-                    reason=sspb.SweepSchedulerServerDoneTask.REASON_EXHAUSTED
+                    reason=sspb.SweepSchedulerServerDoneTask.REASON_SWEEP_FINISHED
                 ),
                 False,
             )
