@@ -370,6 +370,7 @@ func NewTaskResolverFactory(logger *observability.CoreLogger) TaskResolverFactor
 			SweepNodeID:  facts.NodeID,
 			MetricKey:    cfg.Metric.Name,
 			BatchSize:    int(req.BatchSize),
+			RunCap:       cfg.RunCap,
 			PollInterval: secondsToDuration(req.PollIntervalSeconds),
 			RunCap:       cfg.RunCap,
 		})
