@@ -287,7 +287,6 @@ def _run_died_unexpectedly(run_process, poll_result) -> bool:
     Runs which are killed intentionally by the agent (say due to hyperband
     stopping), count as a successful run.
     """
-
     # check if the run was stopped by the agent first. If not, check for
     # non-zero exit codes
     if run_process.last_sigterm_time is not None:
