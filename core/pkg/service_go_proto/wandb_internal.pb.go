@@ -1166,7 +1166,6 @@ type Control struct {
 	Local         bool                   `protobuf:"varint,2,opt,name=local,proto3" json:"local,omitempty"`                                  // should not be persisted or synchronized
 	RelayId       string                 `protobuf:"bytes,3,opt,name=relay_id,json=relayId,proto3" json:"relay_id,omitempty"`                // used by service transport to identify correct stream
 	MailboxSlot   string                 `protobuf:"bytes,4,opt,name=mailbox_slot,json=mailboxSlot,proto3" json:"mailbox_slot,omitempty"`    // mailbox slot
-	AlwaysSend    bool                   `protobuf:"varint,5,opt,name=always_send,json=alwaysSend,proto3" json:"always_send,omitempty"`      // message to sender
 	FlowControl   bool                   `protobuf:"varint,6,opt,name=flow_control,json=flowControl,proto3" json:"flow_control,omitempty"`   // message should be passed to flow control
 	EndOffset     int64                  `protobuf:"varint,7,opt,name=end_offset,json=endOffset,proto3" json:"end_offset,omitempty"`         // end of message offset of this written message
 	ConnectionId  string                 `protobuf:"bytes,8,opt,name=connection_id,json=connectionId,proto3" json:"connection_id,omitempty"` // connection id
@@ -1230,13 +1229,6 @@ func (x *Control) GetMailboxSlot() string {
 		return x.MailboxSlot
 	}
 	return ""
-}
-
-func (x *Control) GetAlwaysSend() bool {
-	if x != nil {
-		return x.AlwaysSend
-	}
-	return false
 }
 
 func (x *Control) GetFlowControl() bool {
@@ -11903,18 +11895,16 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\acontrol\x18\x10 \x01(\v2\x17.wandb_internal.ControlR\acontrol\x12\x12\n" +
 	"\x04uuid\x18\x13 \x01(\tR\x04uuid\x121\n" +
 	"\x05_info\x18\xc8\x01 \x01(\v2\x1b.wandb_internal._RecordInfoR\x04InfoB\r\n" +
-	"\vrecord_type\"\x80\x02\n" +
+	"\vrecord_type\"\xe5\x01\n" +
 	"\aControl\x12\x19\n" +
 	"\breq_resp\x18\x01 \x01(\bR\areqResp\x12\x14\n" +
 	"\x05local\x18\x02 \x01(\bR\x05local\x12\x19\n" +
 	"\brelay_id\x18\x03 \x01(\tR\arelayId\x12!\n" +
-	"\fmailbox_slot\x18\x04 \x01(\tR\vmailboxSlot\x12\x1f\n" +
-	"\valways_send\x18\x05 \x01(\bR\n" +
-	"alwaysSend\x12!\n" +
+	"\fmailbox_slot\x18\x04 \x01(\tR\vmailboxSlot\x12!\n" +
 	"\fflow_control\x18\x06 \x01(\bR\vflowControl\x12\x1d\n" +
 	"\n" +
 	"end_offset\x18\a \x01(\x03R\tendOffset\x12#\n" +
-	"\rconnection_id\x18\b \x01(\tR\fconnectionId\"\xdf\x04\n" +
+	"\rconnection_id\x18\b \x01(\tR\fconnectionIdJ\x04\b\x05\x10\x06\"\xdf\x04\n" +
 	"\x06Result\x12@\n" +
 	"\n" +
 	"run_result\x18\x11 \x01(\v2\x1f.wandb_internal.RunUpdateResultH\x00R\trunResult\x12@\n" +
