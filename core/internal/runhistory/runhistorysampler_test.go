@@ -5,35 +5,32 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	. "github.com/wandb/wandb/core/internal/runhistory"
-	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+	"github.com/wandb/wandb/core/internal/pathtree"
+	"github.com/wandb/wandb/core/internal/runhistory"
 )
 
 func TestRunHistorySampler(t *testing.T) {
-	sampler := NewRunHistorySampler()
-	data := &spb.HistoryRecord{
-		Item: []*spb.HistoryItem{
-			// Should go to the same key.
-			{NestedKey: []string{"a"}, ValueJson: "1.1"},
-			{Key: "a", ValueJson: "2.2"},
-			{Key: "a", ValueJson: "3"},
+	sampler := runhistory.NewRunHistorySampler()
 
-			// Should ignore empty keys and nested metrics.
-			{ValueJson: "13"},
-			{NestedKey: []string{"a", "b"}, ValueJson: "14"},
+	row1 := runhistory.New()
+	row1.SetFloat(pathtree.PathOf("a"), 1.1)
+	row1.SetFloat(pathtree.PathOf("x", "y"), 1.2) // nested keys are ignored
 
-			// Should ignore non-numeric values.
-			{Key: "b", ValueJson: `"5"`},
-			{Key: "b", ValueJson: "6"},
-		},
-	}
+	row2 := runhistory.New()
+	row2.SetString(pathtree.PathOf("a"), "test") // non-numbers are ignored
+	row2.SetFloat(pathtree.PathOf("b"), 8)
 
-	sampler.SampleNext(data)
+	row3 := runhistory.New()
+	row3.SetInt(pathtree.PathOf("a"), 2)
+
+	sampler.SampleNext(row1)
+	sampler.SampleNext(row2)
+	sampler.SampleNext(row3)
 
 	result := sampler.Get()
 	assert.Len(t, result, 2)
 	assert.Equal(t, "a", result[0].Key)
-	assert.Equal(t, []float32{1.1, 2.2, 3}, result[0].ValuesFloat)
+	assert.Equal(t, []float32{1.1, 2}, result[0].ValuesFloat)
 	assert.Equal(t, "b", result[1].Key)
-	assert.Equal(t, []float32{6}, result[1].ValuesFloat)
+	assert.Equal(t, []float32{8}, result[1].ValuesFloat)
 }

@@ -896,9 +896,21 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 		return
 	}
 
-	s.runHistorySampler.SampleNext(record)
+	history := runhistory.New()
+	for _, item := range record.GetItem() {
+		if err := history.SetFromRecord(item); err != nil {
+			s.logger.CaptureError(
+				"stream",
+				fmt.Errorf("sender: failed to parse history item: %v", err),
+				"key", item.GetKey(),
+				"nested_key", item.GetNestedKey(),
+			)
+		}
+	}
 
-	step, err := s.stepTracker.ApplyHistoryStep(record)
+	s.runHistorySampler.SampleNext(history)
+
+	step, err := s.stepTracker.ApplyHistoryStep(history)
 	if err != nil {
 		s.logger.CaptureError(
 			"stream",
@@ -911,7 +923,7 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 		return
 	}
 
-	s.fileStream.StreamUpdate(&fs.HistoryUpdate{Record: record})
+	s.fileStream.StreamUpdate(&fs.HistoryUpdate{Row: history})
 	if !s.settings.IsSharedMode() || !s.settings.IsEnableServerSideDerivedSummary() {
 		s.updateSummaryStep(step)
 	}
