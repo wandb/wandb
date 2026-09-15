@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator, Mapping
-from typing import TYPE_CHECKING, Any, ClassVar, TypeAlias
+from typing import TYPE_CHECKING, Any, ClassVar, TypeAlias, TypeVar
 
 from pydantic import ValidationError
 from typing_extensions import override
@@ -22,9 +22,23 @@ if TYPE_CHECKING:
     )
 
 
-class _LegacyAutomationsPaginator(
-    RelayPaginator["ProjectTriggersFields", "Automation"]
-):
+_NodeT = TypeVar("_NodeT")
+
+
+class _AutomationsPaginator(RelayPaginator[_NodeT, "Automation"]):
+    @override
+    def _load_page(self) -> bool:
+        # The parent returns True even when a fetched page adds no objects.
+        # Filtering can empty a page, so keep fetching until results are added
+        # or the server reports hasNextPage=False.
+        count = len(self.objects)
+        while super()._load_page():
+            if len(self.objects) > count:
+                return True
+        return False
+
+
+class _LegacyAutomationsPaginator(_AutomationsPaginator["ProjectTriggersFields"]):
     """A lazy iterator of `Automation` objects for older servers.
 
     For older servers that don't support direct queries for automations, this
@@ -65,12 +79,21 @@ class _LegacyAutomationsPaginator(
     def _update_response(self) -> None:
         """Fetch the raw response data for the current page."""
         from wandb._pydantic import Connection
+        from wandb.automations._compat import is_supported_automation
         from wandb.automations._generated import ProjectTriggersFields
 
         try:
-            res = self._execute_query(parse=self._response_cls().model_validate_json)
+            data = self._execute_query()
+            for edge in data["scope"]["projects"]["edges"]:
+                if (project := edge["node"]) is not None:
+                    project["triggers"] = [
+                        node
+                        for node in project["triggers"]
+                        if is_supported_automation(node)
+                    ]
+            res = self._response_cls().model_validate(data)
             conn = Connection[ProjectTriggersFields].model_validate(res.scope.projects)  # type: ignore[attr-defined]
-        except (LookupError, AttributeError, ValidationError) as e:
+        except (LookupError, AttributeError, TypeError, ValidationError) as e:
             raise ValueError("Unexpected response data") from e
         else:
             self.last_response = conn
@@ -155,7 +178,7 @@ class LegacyEntityAutomations(_LegacyAutomationsPaginator):
         return GetEntityAutomationsLegacy
 
 
-class EntityAutomations(RelayPaginator["TriggerFields", "Automation"]):
+class EntityAutomations(_AutomationsPaginator["TriggerFields"]):
     """A lazy iterator of `Automation` objects from an entity."""
 
     QUERY: ClassVar[str | None] = None  # type: ignore[misc]
@@ -193,12 +216,20 @@ class EntityAutomations(RelayPaginator["TriggerFields", "Automation"]):
     def _update_response(self) -> None:
         """Fetch the raw response data for the current page."""
         from wandb._pydantic import Connection
+        from wandb.automations._compat import is_supported_automation
         from wandb.automations._generated import GetEntityAutomations, TriggerFields
 
         try:
-            res = self._execute_query(parse=GetEntityAutomations.model_validate_json)
+            data = self._execute_query()
+            triggers = data["scope"]["triggers"]
+            triggers["edges"] = [
+                edge
+                for edge in triggers["edges"]
+                if is_supported_automation(edge["node"])
+            ]
+            res = GetEntityAutomations.model_validate(data)
             conn = Connection[TriggerFields].model_validate(res.scope.triggers)  # type: ignore[union-attr]
-        except (LookupError, AttributeError, ValidationError) as e:
+        except (LookupError, AttributeError, TypeError, ValidationError) as e:
             raise ValueError("Unexpected response data") from e
         else:
             self.last_response = conn
