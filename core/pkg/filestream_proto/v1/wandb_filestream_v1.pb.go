@@ -84,6 +84,37 @@ func (MetricsBatch_Kind) EnumDescriptor() ([]byte, []int) {
 }
 
 // FileStreamUpload is data that can be sent via filestream.
+//
+// Wire schema for typed filestream uploads.
+//
+// The SDK sends a FileStreamUpload as the body of `POST .../file_stream`
+// with the content type `application/vnd.wandb.filestream.v1+protobuf`.
+//
+// The legacy JSON body is also supported on the same route, with
+// content type `application/json`. See `FileStreamRequestJSON` for the
+// schema.
+//
+// This file is the source of truth. The backend mirrors it, and a CI
+// check compares the protobuf file and the generated code.
+//
+// Compatibility rules:
+//   - Field numbers are frozen. Never renumber or reuse them.
+//   - Existing Kinds are frozen at their current numbers. New kinds
+//     must not reuse numbers. The server rejects an unknown kind.
+//   - A change that adds a field keeps the content type
+//     `application/vnd.wandb.filestream.v1+protobuf`.
+//   - A change that alters how a field is interpreted should be avoided.
+//     Instead, add a new field with the a new number. (Protobuf allows existing
+//     fields to be renamed if the number is the same.)
+//   - If significant changes in the schema are required that would
+//     break compatibility, add a new content type version, for example
+//     type version, for example `wandb.filestream.v2` in
+//     `wandb_filestream_v2.proto`, and
+//     `application/vnd.wandb.filestream.v2+protobuf`.
+//     This should be avoided if possible.
+//   - Use repeated fields instead of map fields. A map resolves a duplicate
+//     key silently and the last write wins. This happens before any validation
+//     code could run.
 type FileStreamUpload struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Line-oriented file updates: history, events, and console output.
