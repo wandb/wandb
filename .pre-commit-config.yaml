@@ -21,13 +21,8 @@ repos:
       - id: ty
         args: ["--isolated", "--no-install-project"] # --isolated stops `uv check` from writing a uv.lock.
         stages: [pre-commit, pre-push]
-        # Matches [tool.ty.environment] python-version in pyproject.toml, and
-        # keeps the hook off free-threaded interpreters. The entry is `uv check`,
-        # which installs the locked dependencies before type checking, and rdkit
-        # publishes no free-threaded wheels and no sdist. Left unpinned, uv
-        # selects the newest interpreter it manages, so a contributor with a
-        # free-threaded 3.14 gets `rdkit ... doesn't have a source distribution
-        # or wheel for the current platform` on every commit and push.
+        # Keep this in sync with [tool.ty.environment] python-version in pyproject.toml.
+        # Keeps the hook off free-threaded interpreters.
         language_version: python3.10
   - repo: https://github.com/pre-commit/mirrors-clang-format
     rev: v22.1.8
