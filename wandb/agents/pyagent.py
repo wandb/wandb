@@ -6,6 +6,7 @@ Manage wandb agent.
 
 import ctypes
 import logging
+import math
 import os
 import queue
 import socket
@@ -107,7 +108,11 @@ class Agent:
         self._max_initial_failures = wandb.env.get_agent_max_initial_failures(
             self.MAX_INITIAL_FAILURES
         )
-        self._max_consecutive_failed_runs = max_consecutive_failed_runs
+        self._max_consecutive_failed_runs = (
+            math.inf
+            if max_consecutive_failed_runs is None
+            else max_consecutive_failed_runs
+        )
         # if the directory to log to is not set, set it
         if os.environ.get(wandb.env.DIR) is None:
             os.environ[wandb.env.DIR] = os.path.abspath(os.getcwd())
@@ -177,8 +182,8 @@ class Agent:
         """True while an in-process trial thread is still running."""
         return any(t.is_alive() for t in self._run_threads.values())
 
-    def _should_stop_after_errored_run(self, run_id, count) -> bool:
-        """Report the errored run and decide whether the agent should stop."""
+    def _handle_errored_run(self, run_id, count) -> bool:
+        """Record errored run, emit logs if checks fail, and return whether we should stop the agent."""
         exc = self._exceptions[run_id]
 
         log_str, term_str = _get_exception_logger_and_term_strs(exc)
@@ -187,7 +192,7 @@ class Agent:
 
         self._consecutive_failed_runs += 1
         if self._has_too_many_consecutive_failed_runs():
-            msg = f"Detected {self._max_consecutive_failed_runs} consecutive failed runs, killing sweep."
+            msg = f"Detected {self._consecutive_failed_runs} consecutive failed runs, killing sweep."
             logger.error(msg)
             wandb.termerror(msg)
             return True
@@ -218,8 +223,6 @@ class Agent:
 
     def _has_too_many_consecutive_failed_runs(self) -> bool:
         """True once max_consecutive_failed_runs runs have failed back to back."""
-        if not self._max_consecutive_failed_runs:
-            return False
         return self._consecutive_failed_runs >= self._max_consecutive_failed_runs
 
     def _heartbeat_commands(self, run_status: dict) -> list[dict[str, Any]]:
@@ -324,7 +327,7 @@ class Agent:
                         self._run_status[run_id] = RunStatus.DONE
                         self._consecutive_failed_runs = 0
                     elif self._run_status[run_id] == RunStatus.ERRORED:
-                        if self._should_stop_after_errored_run(run_id, count):
+                        if self._handle_errored_run(run_id, count):
                             self._exit_flag = True
                             return
                     if self._count and self._count == count:
@@ -425,8 +428,8 @@ def pyagent(
         entity (str, optional): W&B Entity
         project (str, optional): W&B Project
         count (int, optional): the number of trials to run.
-        max_consecutive_failed_runs: Shut the agent down once this many runs
-            have failed back to back.
+        max_consecutive_failed_runs (int, optional): Shut the agent down once this
+            many runs have failed back to back.
     """
     if not callable(function):
         raise TypeError("function parameter must be callable!")
