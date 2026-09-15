@@ -5,12 +5,14 @@ from __future__ import annotations
 import datetime
 import sys
 import types
-from unittest.mock import MagicMock
+from types import SimpleNamespace
+from unittest.mock import ANY, MagicMock
 
 import pytest
 import wandb
 import wandb.data_types as wandb_data_types
 from wandb.errors import UsageError
+from wandb.sdk.data_types import _eval_table_writer
 from wandb.sdk.data_types import eval_table as eval_table_module
 
 
@@ -66,6 +68,37 @@ def run(mock_run):
     return mock_run(settings={"entity": "e", "project": "p", "mode": "online"})
 
 
+@pytest.fixture
+def mock_ces_client(monkeypatch):
+    client = MagicMock()
+    client.eval_tables.create.return_value = SimpleNamespace(
+        dataset_id="dataset-1",
+        evaluation_id="evaluation-1",
+    )
+    client.eval_tables.create_version.return_value = SimpleNamespace(
+        dataset_version_id="dataset-version-1",
+        evaluation_version_id="evaluation-version-1",
+    )
+    monkeypatch.setenv(
+        "CES_BASE_URL",
+        "https://evaluations.example.test",
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.data_types._eval_table_writer."
+        "CESEvalTableWriter._resolve_scope_context",
+        lambda self: _eval_table_writer._CESScopeContext(
+            scope_ref="scope-ref",
+            api_key=None,
+            access_token="token",
+        ),
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.data_types._eval_table_writer.CESEvalTableWriter._create_client",
+        lambda self, base_url, scope: client,
+    )
+    return client
+
+
 def _install_fake_weave(monkeypatch, **attrs):
     module = types.ModuleType("weave")
     module.__path__ = []
@@ -79,6 +112,307 @@ def _install_fake_weave(monkeypatch, **attrs):
 def test_eval_table_public_imports():
     assert wandb.EvalTable is eval_table_module.EvalTable
     assert wandb_data_types.EvalTable is eval_table_module.EvalTable
+
+
+def test_ces_eval_table_writes_columns_rows_and_version(
+    mock_ces_client,
+    run,
+    monkeypatch,
+):
+    debug = MagicMock()
+    monkeypatch.setattr(
+        "wandb.sdk.data_types._eval_table_writer._logger.debug",
+        debug,
+    )
+    et = wandb.EvalTable(
+        columns=["prompt", "truth", "answer", "confidence", "correct"],
+        data=[
+            ["2+2", "4", "4", 1, True],
+            ["2+3", "5", "4", 0.25, False],
+        ],
+        input_columns=["prompt", "truth"],
+        output_columns=["answer", "confidence"],
+        score_columns=["correct"],
+        backend="ces",
+    )
+
+    run.log({"math_eval": et})
+
+    api = mock_ces_client.eval_tables
+    assert [call[0] for call in api.method_calls] == [
+        "create",
+        "create_columns",
+        "add_rows",
+        "create_version",
+    ]
+    api.create.assert_called_once_with(
+        "scope-ref",
+        namespace="wandb",
+        name="math_eval",
+        idempotency_key=ANY,
+    )
+    api.create_columns.assert_called_once_with(
+        "evaluation-1",
+        namespace="wandb",
+        scope_ref="scope-ref",
+        dataset_fields=[
+            {"source": "input", "name": "prompt", "value_type": "string"},
+            {"source": "input", "name": "truth", "value_type": "string"},
+            {"source": "output", "name": "answer", "value_type": "string"},
+            {"source": "output", "name": "confidence", "value_type": "number"},
+        ],
+        scorers=[
+            {"name": "correct", "value_type": "boolean"},
+        ],
+        idempotency_key=ANY,
+    )
+    api.add_rows.assert_called_once_with(
+        "evaluation-1",
+        namespace="wandb",
+        scope_ref="scope-ref",
+        rows=[
+            {
+                "input": {"prompt": "2+2", "truth": "4"},
+                "output": {"answer": "4", "confidence": 1},
+                "scores": {"correct": True},
+            },
+            {
+                "input": {"prompt": "2+3", "truth": "5"},
+                "output": {"answer": "4", "confidence": 0.25},
+                "scores": {"correct": False},
+            },
+        ],
+        idempotency_key=ANY,
+    )
+    api.create_version.assert_called_once_with(
+        "evaluation-1",
+        namespace="wandb",
+        scope_ref="scope-ref",
+        idempotency_key=ANY,
+    )
+    mock_ces_client.close.assert_called_once_with()
+    debug.assert_called_once_with(
+        "CES EvalTable recorded namespace=%s scope_ref=%s evaluation_version_id=%s",
+        "wandb",
+        "scope-ref",
+        "evaluation-version-1",
+    )
+
+    marker = et.to_json(run)
+    assert marker == {
+        "_type": "eval-table",
+        "backend": "ces",
+        "schema_version": 1,
+        "ncols": 5,
+        "nrows": 2,
+        "log_mode": "IMMUTABLE",
+        "evaluation_id": "evaluation-1",
+        "evaluation_version_id": "evaluation-version-1",
+        "dataset_id": "dataset-1",
+        "dataset_version_id": "dataset-version-1",
+    }
+    assert "evaluate_call_id" not in marker
+
+
+def test_ces_eval_table_infers_python_and_numpy_integers(
+    mock_ces_client,
+    run,
+):
+    np = pytest.importorskip("numpy")
+    et = wandb.EvalTable(
+        columns=["python_int", "numpy_int", "numeric"],
+        data=[[1, np.int64(2), np.int64(3)], [4, np.int32(5), np.float64(6.5)]],
+        output_columns=["python_int", "numpy_int", "numeric"],
+        backend="ces",
+    )
+
+    run.log({"typed_eval": et})
+
+    fields = mock_ces_client.eval_tables.create_columns.call_args.kwargs[
+        "dataset_fields"
+    ]
+    assert fields == [
+        {"source": "input", "name": "row", "value_type": "integer"},
+        {"source": "output", "name": "python_int", "value_type": "integer"},
+        {"source": "output", "name": "numpy_int", "value_type": "integer"},
+        {"source": "output", "name": "numeric", "value_type": "number"},
+    ]
+
+
+@pytest.mark.parametrize(
+    ("data", "message"),
+    [
+        ([[None], [None]], "all-null"),
+        ([[float("inf")]], "non-finite"),
+        ([[{"nested": True}]], "only primitive values"),
+    ],
+)
+def test_ces_eval_table_rejects_invalid_columns_before_network(
+    mock_ces_client,
+    run,
+    data,
+    message,
+):
+    if message in {"non-finite", "only primitive values"}:
+        with pytest.raises(UsageError, match=message):
+            wandb.EvalTable(
+                columns=["value"],
+                data=data,
+                backend="ces",
+            )
+    else:
+        et = wandb.EvalTable(
+            columns=["value"],
+            data=data,
+            backend="ces",
+        )
+        with pytest.raises(UsageError, match=message):
+            run.log({"invalid_eval": et})
+
+    mock_ces_client.eval_tables.create.assert_not_called()
+
+
+def test_ces_eval_table_rejects_mixed_column_types_before_network(
+    mock_ces_client,
+):
+    with pytest.raises(TypeError, match="incompatible types"):
+        wandb.EvalTable(
+            columns=["value"],
+            data=[["x"], [1]],
+            backend="ces",
+        )
+
+    mock_ces_client.eval_tables.create.assert_not_called()
+
+
+def test_ces_eval_table_requires_base_url(monkeypatch, mock_run):
+    monkeypatch.delenv("CES_BASE_URL", raising=False)
+    run = mock_run(settings={"entity": "e", "project": "p", "mode": "online"})
+    et = wandb.EvalTable(
+        columns=["value"],
+        data=[[1]],
+        backend="ces",
+    )
+
+    with pytest.raises(UsageError, match="CES_BASE_URL"):
+        run.log({"eval": et})
+
+
+def test_ces_eval_table_resolves_project_scope_with_api_key(run):
+    writer = _eval_table_writer.CESEvalTableWriter()
+    writer.bind(run, "eval", 0)
+    writer._service_api = SimpleNamespace(
+        api_key="secret",
+        access_token=MagicMock(),
+        execute_graphql=MagicMock(
+            return_value={"project": {"internalId": "opaque-project-id"}}
+        ),
+    )
+
+    scope = writer._resolve_scope_context()
+
+    assert scope.scope_ref == "opaque-project-id"
+    assert scope.api_key == "secret"
+    assert scope.access_token is None
+    writer._service_api.execute_graphql.assert_called_once_with(
+        _eval_table_writer._PROJECT_SCOPE_QUERY,
+        variables={"entity": "e", "project": "p"},
+    )
+    writer._service_api.access_token.assert_not_called()
+
+
+def test_ces_eval_table_uses_federated_access_token(run):
+    writer = _eval_table_writer.CESEvalTableWriter()
+    writer.bind(run, "eval", 0)
+    writer._service_api = SimpleNamespace(
+        api_key=None,
+        access_token=MagicMock(return_value="access-token"),
+        execute_graphql=MagicMock(
+            return_value={"project": {"internalId": "opaque-project-id"}}
+        ),
+    )
+
+    scope = writer._resolve_scope_context()
+
+    assert scope.api_key is None
+    assert scope.access_token == "access-token"
+
+
+def test_ces_eval_table_retries_with_stable_idempotency_keys(
+    mock_ces_client,
+    run,
+):
+    version = SimpleNamespace(
+        dataset_version_id="dataset-version-1",
+        evaluation_version_id="evaluation-version-1",
+    )
+    mock_ces_client.eval_tables.create_version.side_effect = [
+        RuntimeError("temporary failure"),
+        version,
+    ]
+    et = wandb.EvalTable(
+        columns=["value"],
+        data=[[1]],
+        backend="ces",
+    )
+    et.bind_to_run(run, "eval", 0)
+
+    with pytest.raises(RuntimeError, match="temporary failure"):
+        et.to_json(run)
+    et.to_json(run)
+
+    methods = (
+        mock_ces_client.eval_tables.create,
+        mock_ces_client.eval_tables.create_columns,
+        mock_ces_client.eval_tables.add_rows,
+        mock_ces_client.eval_tables.create_version,
+    )
+    for method in methods:
+        calls = method.call_args_list
+        assert len(calls) == 2
+        assert calls[0].kwargs["idempotency_key"] == calls[1].kwargs["idempotency_key"]
+
+
+def test_ces_eval_table_run_location_stabilizes_idempotency_keys(
+    mock_ces_client,
+    run,
+):
+    first = wandb.EvalTable(
+        columns=["value"],
+        data=[[1]],
+        backend="ces",
+    )
+    second = wandb.EvalTable(
+        columns=["value"],
+        data=[[1]],
+        backend="ces",
+    )
+    first.bind_to_run(run, "eval", 7)
+    second.bind_to_run(run, "eval", 7)
+
+    first.to_json(run)
+    second.to_json(run)
+
+    methods = (
+        mock_ces_client.eval_tables.create,
+        mock_ces_client.eval_tables.create_columns,
+        mock_ces_client.eval_tables.add_rows,
+        mock_ces_client.eval_tables.create_version,
+    )
+    for method in methods:
+        calls = method.call_args_list
+        assert len(calls) == 2
+        assert calls[0].kwargs["idempotency_key"] == calls[1].kwargs["idempotency_key"]
+
+
+def test_ces_eval_table_rejects_mixed_type_mode():
+    with pytest.raises(UsageError, match="allow_mixed_types=False"):
+        wandb.EvalTable(
+            columns=["value"],
+            data=[[1]],
+            allow_mixed_types=True,
+            backend="ces",
+        )
 
 
 def test_eval_table_offline_run_fails_fast(monkeypatch, mock_eval_logger, mock_run):
