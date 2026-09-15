@@ -70,7 +70,7 @@ def run(mock_run):
 
 
 @pytest.fixture
-def mock_coreweave_client(monkeypatch):
+def mock_ces_client(monkeypatch):
     client = MagicMock()
     client.eval_tables.create.return_value = SimpleNamespace(
         dataset_id="dataset-1",
@@ -86,16 +86,15 @@ def mock_coreweave_client(monkeypatch):
     )
     monkeypatch.setattr(
         "wandb.sdk.data_types._eval_table_writer."
-        "CoreWeaveEvalTableWriter._resolve_scope_context",
-        lambda self: _eval_table_writer._CoreWeaveScopeContext(
+        "CESEvalTableWriter._resolve_scope_context",
+        lambda self: _eval_table_writer._CESScopeContext(
             scope_ref="scope-ref",
             api_key=None,
             access_token="token",
         ),
     )
     monkeypatch.setattr(
-        "wandb.sdk.data_types._eval_table_writer."
-        "CoreWeaveEvalTableWriter._create_client",
+        "wandb.sdk.data_types._eval_table_writer.CESEvalTableWriter._create_client",
         lambda self, base_url, scope: client,
     )
     return client
@@ -116,8 +115,8 @@ def test_eval_table_public_imports():
     assert wandb_data_types.EvalTable is eval_table_module.EvalTable
 
 
-def test_coreweave_eval_table_writes_columns_rows_and_version(
-    mock_coreweave_client,
+def test_ces_eval_table_writes_columns_rows_and_version(
+    mock_ces_client,
     run,
     monkeypatch,
 ):
@@ -135,12 +134,12 @@ def test_coreweave_eval_table_writes_columns_rows_and_version(
         input_columns=["prompt", "truth"],
         output_columns=["answer", "confidence"],
         score_columns=["correct"],
-        backend="coreweave",
+        backend="ces",
     )
 
     run.log({"math_eval": et})
 
-    api = mock_coreweave_client.eval_tables
+    api = mock_ces_client.eval_tables
     assert [call[0] for call in api.method_calls] == [
         "create",
         "create_columns",
@@ -192,10 +191,9 @@ def test_coreweave_eval_table_writes_columns_rows_and_version(
         scope_ref="scope-ref",
         idempotency_key=ANY,
     )
-    mock_coreweave_client.close.assert_called_once_with()
+    mock_ces_client.close.assert_called_once_with()
     debug.assert_called_once_with(
-        "CoreWeave EvalTable recorded namespace=%s scope_ref=%s "
-        "evaluation_version_id=%s",
+        "CES EvalTable recorded namespace=%s scope_ref=%s evaluation_version_id=%s",
         "wandb",
         "scope-ref",
         "evaluation-version-1",
@@ -204,7 +202,7 @@ def test_coreweave_eval_table_writes_columns_rows_and_version(
     marker = et.to_json(run)
     assert marker == {
         "_type": "eval-table",
-        "backend": "coreweave",
+        "backend": "ces",
         "schema_version": 1,
         "ncols": 5,
         "nrows": 2,
@@ -217,8 +215,8 @@ def test_coreweave_eval_table_writes_columns_rows_and_version(
     assert "evaluate_call_id" not in marker
 
 
-def test_coreweave_eval_table_batches_rows_by_encoded_bytes(
-    mock_coreweave_client,
+def test_ces_eval_table_batches_rows_by_encoded_bytes(
+    mock_ces_client,
     run,
     monkeypatch,
 ):
@@ -245,12 +243,12 @@ def test_coreweave_eval_table_batches_rows_by_encoded_bytes(
         data=[["é" * 40, "yes"], ["é" * 40, "yes"]],
         input_columns=["prompt"],
         output_columns=["answer"],
-        backend="coreweave",
+        backend="ces",
     )
 
     run.log({"eval": et})
 
-    calls = mock_coreweave_client.eval_tables.add_rows.call_args_list
+    calls = mock_ces_client.eval_tables.add_rows.call_args_list
     assert [call.kwargs["rows"] for call in calls] == [[row], [row]]
     keys = [call.kwargs["idempotency_key"] for call in calls]
     assert len(set(keys)) == 2
@@ -258,8 +256,8 @@ def test_coreweave_eval_table_batches_rows_by_encoded_bytes(
     assert keys[1].endswith("-rows-1")
 
 
-def test_coreweave_eval_table_batches_rows_by_count(
-    mock_coreweave_client,
+def test_ces_eval_table_batches_rows_by_count(
+    mock_ces_client,
     run,
     monkeypatch,
 ):
@@ -268,14 +266,14 @@ def test_coreweave_eval_table_batches_rows_by_count(
         columns=["value"],
         data=[[index] for index in range(5)],
         output_columns=["value"],
-        backend="coreweave",
+        backend="ces",
     )
 
     run.log({"eval": et})
 
-    calls = mock_coreweave_client.eval_tables.add_rows.call_args_list
+    calls = mock_ces_client.eval_tables.add_rows.call_args_list
     assert [len(call.kwargs["rows"]) for call in calls] == [2, 2, 1]
-    assert [call[0] for call in mock_coreweave_client.eval_tables.method_calls] == [
+    assert [call[0] for call in mock_ces_client.eval_tables.method_calls] == [
         "create",
         "create_columns",
         "add_rows",
@@ -285,8 +283,8 @@ def test_coreweave_eval_table_batches_rows_by_count(
     ]
 
 
-def test_coreweave_eval_table_rejects_oversized_row_before_network(
-    mock_coreweave_client,
+def test_ces_eval_table_rejects_oversized_row_before_network(
+    mock_ces_client,
     run,
     monkeypatch,
 ):
@@ -309,22 +307,22 @@ def test_coreweave_eval_table_rejects_oversized_row_before_network(
         columns=["value"],
         data=[[value]],
         output_columns=["value"],
-        backend="coreweave",
+        backend="ces",
     )
 
     with pytest.raises(UsageError, match="contains a row"):
         run.log({"eval": et})
 
-    mock_coreweave_client.eval_tables.create.assert_not_called()
+    mock_ces_client.eval_tables.create.assert_not_called()
 
 
-def test_coreweave_eval_table_does_not_cut_version_after_batch_failure(
-    mock_coreweave_client,
+def test_ces_eval_table_does_not_cut_version_after_batch_failure(
+    mock_ces_client,
     run,
     monkeypatch,
 ):
     monkeypatch.setattr(_eval_table_writer, "_MAX_ROWS_PER_BATCH", 1)
-    mock_coreweave_client.eval_tables.add_rows.side_effect = [
+    mock_ces_client.eval_tables.add_rows.side_effect = [
         None,
         RuntimeError("batch failed"),
     ]
@@ -332,18 +330,18 @@ def test_coreweave_eval_table_does_not_cut_version_after_batch_failure(
         columns=["value"],
         data=[[1], [2]],
         output_columns=["value"],
-        backend="coreweave",
+        backend="ces",
     )
 
     with pytest.raises(RuntimeError, match="batch failed"):
         run.log({"eval": et})
 
-    mock_coreweave_client.eval_tables.create_version.assert_not_called()
-    mock_coreweave_client.close.assert_called_once_with()
+    mock_ces_client.eval_tables.create_version.assert_not_called()
+    mock_ces_client.close.assert_called_once_with()
 
 
-def test_coreweave_eval_table_infers_python_and_numpy_integers(
-    mock_coreweave_client,
+def test_ces_eval_table_infers_python_and_numpy_integers(
+    mock_ces_client,
     run,
 ):
     np = pytest.importorskip("numpy")
@@ -351,12 +349,12 @@ def test_coreweave_eval_table_infers_python_and_numpy_integers(
         columns=["python_int", "numpy_int", "numeric"],
         data=[[1, np.int64(2), np.int64(3)], [4, np.int32(5), np.float64(6.5)]],
         output_columns=["python_int", "numpy_int", "numeric"],
-        backend="coreweave",
+        backend="ces",
     )
 
     run.log({"typed_eval": et})
 
-    fields = mock_coreweave_client.eval_tables.create_columns.call_args.kwargs[
+    fields = mock_ces_client.eval_tables.create_columns.call_args.kwargs[
         "dataset_fields"
     ]
     assert fields == [
@@ -375,8 +373,8 @@ def test_coreweave_eval_table_infers_python_and_numpy_integers(
         ([[{"nested": True}]], "only primitive values"),
     ],
 )
-def test_coreweave_eval_table_rejects_invalid_columns_before_network(
-    mock_coreweave_client,
+def test_ces_eval_table_rejects_invalid_columns_before_network(
+    mock_ces_client,
     run,
     data,
     message,
@@ -386,48 +384,48 @@ def test_coreweave_eval_table_rejects_invalid_columns_before_network(
             wandb.EvalTable(
                 columns=["value"],
                 data=data,
-                backend="coreweave",
+                backend="ces",
             )
     else:
         et = wandb.EvalTable(
             columns=["value"],
             data=data,
-            backend="coreweave",
+            backend="ces",
         )
         with pytest.raises(UsageError, match=message):
             run.log({"invalid_eval": et})
 
-    mock_coreweave_client.eval_tables.create.assert_not_called()
+    mock_ces_client.eval_tables.create.assert_not_called()
 
 
-def test_coreweave_eval_table_rejects_mixed_column_types_before_network(
-    mock_coreweave_client,
+def test_ces_eval_table_rejects_mixed_column_types_before_network(
+    mock_ces_client,
 ):
     with pytest.raises(TypeError, match="incompatible types"):
         wandb.EvalTable(
             columns=["value"],
             data=[["x"], [1]],
-            backend="coreweave",
+            backend="ces",
         )
 
-    mock_coreweave_client.eval_tables.create.assert_not_called()
+    mock_ces_client.eval_tables.create.assert_not_called()
 
 
-def test_coreweave_eval_table_requires_base_url(monkeypatch, mock_run):
+def test_ces_eval_table_requires_base_url(monkeypatch, mock_run):
     monkeypatch.delenv("CES_BASE_URL", raising=False)
     run = mock_run(settings={"entity": "e", "project": "p", "mode": "online"})
     et = wandb.EvalTable(
         columns=["value"],
         data=[[1]],
-        backend="coreweave",
+        backend="ces",
     )
 
     with pytest.raises(UsageError, match="CES_BASE_URL"):
         run.log({"eval": et})
 
 
-def test_coreweave_eval_table_resolves_project_scope_with_api_key(run):
-    writer = _eval_table_writer.CoreWeaveEvalTableWriter()
+def test_ces_eval_table_resolves_project_scope_with_api_key(run):
+    writer = _eval_table_writer.CESEvalTableWriter()
     writer.bind(run, "eval", 0)
     writer._service_api = SimpleNamespace(
         api_key="secret",
@@ -449,8 +447,8 @@ def test_coreweave_eval_table_resolves_project_scope_with_api_key(run):
     writer._service_api.access_token.assert_not_called()
 
 
-def test_coreweave_eval_table_uses_federated_access_token(run):
-    writer = _eval_table_writer.CoreWeaveEvalTableWriter()
+def test_ces_eval_table_uses_federated_access_token(run):
+    writer = _eval_table_writer.CESEvalTableWriter()
     writer.bind(run, "eval", 0)
     writer._service_api = SimpleNamespace(
         api_key=None,
@@ -466,8 +464,8 @@ def test_coreweave_eval_table_uses_federated_access_token(run):
     assert scope.access_token == "access-token"
 
 
-def test_coreweave_eval_table_retries_with_stable_idempotency_keys(
-    mock_coreweave_client,
+def test_ces_eval_table_retries_with_stable_idempotency_keys(
+    mock_ces_client,
     run,
     monkeypatch,
 ):
@@ -476,7 +474,7 @@ def test_coreweave_eval_table_retries_with_stable_idempotency_keys(
         dataset_version_id="dataset-version-1",
         evaluation_version_id="evaluation-version-1",
     )
-    mock_coreweave_client.eval_tables.create_version.side_effect = [
+    mock_ces_client.eval_tables.create_version.side_effect = [
         RuntimeError("temporary failure"),
         version,
     ]
@@ -484,7 +482,7 @@ def test_coreweave_eval_table_retries_with_stable_idempotency_keys(
         columns=["value"],
         data=[[1], [2]],
         output_columns=["value"],
-        backend="coreweave",
+        backend="ces",
     )
     et.bind_to_run(run, "eval", 0)
 
@@ -493,16 +491,16 @@ def test_coreweave_eval_table_retries_with_stable_idempotency_keys(
     et.to_json(run)
 
     methods = (
-        mock_coreweave_client.eval_tables.create,
-        mock_coreweave_client.eval_tables.create_columns,
-        mock_coreweave_client.eval_tables.create_version,
+        mock_ces_client.eval_tables.create,
+        mock_ces_client.eval_tables.create_columns,
+        mock_ces_client.eval_tables.create_version,
     )
     for method in methods:
         calls = method.call_args_list
         assert len(calls) == 2
         assert calls[0].kwargs["idempotency_key"] == calls[1].kwargs["idempotency_key"]
 
-    row_calls = mock_coreweave_client.eval_tables.add_rows.call_args_list
+    row_calls = mock_ces_client.eval_tables.add_rows.call_args_list
     assert len(row_calls) == 4
     first_attempt_keys = [call.kwargs["idempotency_key"] for call in row_calls[:2]]
     retry_keys = [call.kwargs["idempotency_key"] for call in row_calls[2:]]
@@ -510,19 +508,19 @@ def test_coreweave_eval_table_retries_with_stable_idempotency_keys(
     assert len(set(first_attempt_keys)) == 2
 
 
-def test_coreweave_eval_table_run_location_stabilizes_idempotency_keys(
-    mock_coreweave_client,
+def test_ces_eval_table_run_location_stabilizes_idempotency_keys(
+    mock_ces_client,
     run,
 ):
     first = wandb.EvalTable(
         columns=["value"],
         data=[[1]],
-        backend="coreweave",
+        backend="ces",
     )
     second = wandb.EvalTable(
         columns=["value"],
         data=[[1]],
-        backend="coreweave",
+        backend="ces",
     )
     first.bind_to_run(run, "eval", 7)
     second.bind_to_run(run, "eval", 7)
@@ -531,10 +529,10 @@ def test_coreweave_eval_table_run_location_stabilizes_idempotency_keys(
     second.to_json(run)
 
     methods = (
-        mock_coreweave_client.eval_tables.create,
-        mock_coreweave_client.eval_tables.create_columns,
-        mock_coreweave_client.eval_tables.add_rows,
-        mock_coreweave_client.eval_tables.create_version,
+        mock_ces_client.eval_tables.create,
+        mock_ces_client.eval_tables.create_columns,
+        mock_ces_client.eval_tables.add_rows,
+        mock_ces_client.eval_tables.create_version,
     )
     for method in methods:
         calls = method.call_args_list
@@ -542,13 +540,13 @@ def test_coreweave_eval_table_run_location_stabilizes_idempotency_keys(
         assert calls[0].kwargs["idempotency_key"] == calls[1].kwargs["idempotency_key"]
 
 
-def test_coreweave_eval_table_rejects_mixed_type_mode():
+def test_ces_eval_table_rejects_mixed_type_mode():
     with pytest.raises(UsageError, match="allow_mixed_types=False"):
         wandb.EvalTable(
             columns=["value"],
             data=[[1]],
             allow_mixed_types=True,
-            backend="coreweave",
+            backend="ces",
         )
 
 

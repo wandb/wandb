@@ -84,7 +84,7 @@ class EvalTable(Table):
                 These represent derived scores for the outputs. By default, we will
                 auto-summarize any numeric and boolean scores.
             backend: Storage backend used when the EvalTable is logged. The default is
-                "weave". Use "coreweave" to write through the Evaluations service.
+                "weave". Use "ces" to write through the Evaluations service.
             unsupported_media_mode: How to handle unsupported wandb media/value types.
                 - "stub" (default): log unsupported values as short placeholder strings
                   like "[wandb.Html not yet supported]". (This is a temporary flag
@@ -125,10 +125,8 @@ class EvalTable(Table):
         """
         if log_mode != "IMMUTABLE":
             raise UsageError("EvalTable currently only supports log_mode='IMMUTABLE'.")
-        if backend == "coreweave" and allow_mixed_types:
-            raise UsageError(
-                "CoreWeave EvalTable logging requires allow_mixed_types=False."
-            )
+        if backend == "ces" and allow_mixed_types:
+            raise UsageError("CES EvalTable logging requires allow_mixed_types=False.")
 
         self._writer: EvalTableWriter = create_eval_table_writer(
             backend,
