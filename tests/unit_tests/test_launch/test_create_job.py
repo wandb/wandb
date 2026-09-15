@@ -1,6 +1,7 @@
 import json
 import os
 import pathlib
+import sys
 import tempfile
 from unittest.mock import MagicMock
 
@@ -107,6 +108,26 @@ def test_dump_metadata_and_requirements():
 
     m = json.load(open(os.path.join(path, "wandb-metadata.json")))
     assert metadata == m
+
+
+@pytest.mark.parametrize("executable", ["python", "python3", "python.exe"])
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        {"python": "3.10.13", "codePathLocal": "main.py", "_partial": "v0"},
+        {"python": "3.10", "codePath": "main.py", "_partial": "v0"},
+        {"codePath": "main.py"},
+    ],
+)
+def test_get_entrypoint(monkeypatch, tmp_path, executable, metadata):
+    monkeypatch.setattr(sys, "executable", str(tmp_path / "bin" / executable))
+    job_source = "artifact"
+    builder = _configure_job_builder_for_partial(str(tmp_path), job_source)
+
+    program_relpath = builder._get_program_relpath(job_source, metadata)
+    entrypoint = builder._get_entrypoint(program_relpath, metadata)
+
+    assert entrypoint == [executable, "main.py"]
 
 
 @pytest.mark.parametrize(
