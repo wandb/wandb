@@ -484,6 +484,7 @@ func (upserter *RunUpserter) updateMetadataForResume(
 		ctx,
 		upserter.graphqlClientOrNil,
 		resumeSetting,
+		upserter.logger,
 	).UpdateForResume(
 		upserter.params,
 		upserter.config,
