@@ -346,7 +346,11 @@ class Agent:
         self._max_initial_failures = wandb.env.get_agent_max_initial_failures(
             self.MAX_INITIAL_FAILURES
         )
-        self._max_consecutive_failed_runs = max_consecutive_failed_runs
+        self._max_consecutive_failed_runs = (
+            math.inf
+            if max_consecutive_failed_runs is None
+            else max_consecutive_failed_runs
+        )
         self._forward_signals = forward_signals
         self._term_timeout = term_timeout
         self._sweep_not_found = False
@@ -377,8 +381,6 @@ class Agent:
 
     def has_too_many_consecutive_failed_runs(self):
         """Determine if too many runs have failed back to back."""
-        if not self._max_consecutive_failed_runs:
-            return False
         return self._consecutive_failed_runs >= self._max_consecutive_failed_runs
 
     def _wait_for_processes_with_term_timeout(self):
@@ -429,7 +431,7 @@ class Agent:
                     if self.has_too_many_consecutive_failed_runs():
                         logger.error(
                             "Detected %i consecutive failed runs, shutting down.",
-                            self._max_consecutive_failed_runs,
+                            self._consecutive_failed_runs,
                         )
                         self._running = False
                         break
