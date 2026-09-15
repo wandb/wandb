@@ -675,9 +675,6 @@ pub struct Control {
     /// mailbox slot
     #[prost(string, tag = "4")]
     pub mailbox_slot: ::prost::alloc::string::String,
-    /// message to sender
-    #[prost(bool, tag = "5")]
-    pub always_send: bool,
     /// message should be passed to flow control
     #[prost(bool, tag = "6")]
     pub flow_control: bool,
