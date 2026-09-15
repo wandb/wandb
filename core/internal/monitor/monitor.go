@@ -507,7 +507,6 @@ func (sm *SystemMonitor) sample() {
 				RecordType: &spb.Record_Stats{
 					Stats: metrics,
 				},
-				Control: &spb.Control{AlwaysSend: true},
 			}
 			sm.extraWork.AddWorkOrCancel(
 				sm.ctx.Done(),
