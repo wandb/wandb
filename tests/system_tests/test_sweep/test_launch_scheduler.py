@@ -107,8 +107,9 @@ def test_sweep_scheduler_start_failed(user, monkeypatch):
 def test_sweep_scheduler_runcap(user, monkeypatch):
     launch_config = {"launch": {}}
     _patch_wandb_run(monkeypatch, launch_config)
-    sweep_config = SWEEP_CONFIG_RANDOM  # 3 total runs
-    sweep_config["run_cap"] = 2
+    # SWEEP_CONFIG_RANDOM has 3 total runs. Copy it, because the tests share
+    # one module-level dict.
+    sweep_config = {**SWEEP_CONFIG_RANDOM, "run_cap": 2}
     _entity = user
     _project = "test-project"
 
@@ -189,13 +190,13 @@ def test_sweep_scheduler_sweep_id_no_job(user, monkeypatch):
 
 def test_sweep_scheduler_sweep_id_with_job(user, monkeypatch):
     _patch_wandb_run(monkeypatch)
-    sweep_config = SWEEP_CONFIG_RANDOM
 
     # make a job
     run = wandb.init()
     job_artifact = run._log_job_artifact_with_image("ljadnfakehbbr", args=[])
     job_name = job_artifact.wait().name
-    sweep_config["job"] = job_name
+    # Copy the config, because the tests share one module-level dict.
+    sweep_config = {**SWEEP_CONFIG_RANDOM, "job": job_name}
     run.finish()
 
     def mock_run_complete_scheduler(self, *args, **kwargs):
