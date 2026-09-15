@@ -21,6 +21,9 @@ repos:
       - id: ty
         args: ["--isolated", "--no-install-project"] # --isolated stops `uv check` from writing a uv.lock.
         stages: [pre-commit, pre-push]
+        # Keep this in sync with [tool.ty.environment] python-version in pyproject.toml.
+        # Keeps the hook off free-threaded interpreters.
+        language_version: python3.10
   - repo: https://github.com/pre-commit/mirrors-clang-format
     rev: v22.1.8
     hooks:
