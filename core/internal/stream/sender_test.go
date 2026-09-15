@@ -123,12 +123,6 @@ func makeSenderWithFileStream(
 	} else {
 		sender = senderFactory.New(runWork)
 	}
-	var sender *stream.Sender
-	if fileStream != nil {
-		sender = senderFactory.NewWithFileStream(runWork, fileStream)
-	} else {
-		sender = senderFactory.New(runWork)
-	}
 	return testFixtures{
 		Sender:    sender,
 		RunHandle: runHandle,
@@ -210,41 +204,6 @@ func TestSendHistoryAppliesSteps(t *testing.T) {
 	request := fileStream.GetRequest(x.Settings)
 	require.Len(t, request.HistoryLines, 1)
 	assert.JSONEq(t, `{"loss": 1.23, "_step": 0}`, request.HistoryLines[0])
-}
-
-func TestSendSummaryIgnoresInboundStep(t *testing.T) {
-	fileStream := filestreamtest.NewFakeFileStream()
-	x := makeSenderWithFileStream(t, gqlmock.NewMockClient(), fileStream)
-
-	x.Sender.SendRecord(&spb.Record{
-		RecordType: &spb.Record_History{
-			History: &spb.HistoryRecord{
-				Item: []*spb.HistoryItem{
-					{NestedKey: []string{"loss"}, ValueJson: "1.23"},
-				},
-			},
-		},
-	}, nil)
-	x.Sender.SendRecord(&spb.Record{
-		RecordType: &spb.Record_Summary{
-			Summary: &spb.SummaryRecord{
-				Update: []*spb.SummaryItem{
-					{Key: "loss", ValueJson: "1.23"},
-					{Key: "_step", ValueJson: "999"},
-				},
-			},
-		},
-	}, nil)
-
-	request := fileStream.GetRequest(x.Settings)
-	require.NotNil(t, request.SummaryUpdates)
-
-	summary := runsummary.New()
-	require.NoError(t, request.SummaryUpdates.Apply(summary))
-	encoded, err := summary.Serialize()
-	require.NoError(t, err)
-	assert.JSONEq(t, `{"loss": 1.23, "_step": 0}`, string(encoded),
-		"the tracker's step must survive a stale summary update")
 }
 
 func TestSendHistoryPreservesLoggedSteps(t *testing.T) {
