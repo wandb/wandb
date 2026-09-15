@@ -299,3 +299,44 @@ func TestS3FileTransfer_Download(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, file2.Content, content)
 }
+
+// mockS3ClientWithTraversal embeds the normal mock but returns a malicious
+// key containing path traversal sequences from ListObjectsV2.
+type mockS3ClientWithTraversal struct {
+	mockS3Client
+}
+
+func (m mockS3ClientWithTraversal) ListObjectsV2(
+	ctx context.Context,
+	params *s3.ListObjectsV2Input,
+	optFns ...func(*s3.Options),
+) (*s3.ListObjectsV2Output, error) {
+	maliciousKey := *params.Prefix + "../../../etc/malicious.txt"
+	isTruncated := false
+	return &s3.ListObjectsV2Output{
+		Contents: []types.Object{
+			{Key: &maliciousKey},
+		},
+		IsTruncated: &isTruncated,
+	}, nil
+}
+
+func TestS3FileTransfer_Download_RejectsPathTraversal(t *testing.T) {
+	ft := filetransfer.NewS3FileTransfer(
+		&mockS3ClientWithTraversal{},
+		observabilitytest.NewTestLogger(t),
+		filetransfer.NewFileTransferStats(),
+	)
+
+	task := &filetransfer.ReferenceArtifactDownloadTask{
+		FileKind:     filetransfer.RunFileKindArtifact,
+		PathOrPrefix: t.TempDir(),
+		Reference:    "s3://bucket/prefix/",
+		Digest:       "s3://bucket/prefix/",
+		Size:         100,
+	}
+
+	err := ft.Download(task)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "path traversal detected")
+}
