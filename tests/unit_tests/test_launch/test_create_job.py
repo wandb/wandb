@@ -1,5 +1,6 @@
 import json
 import os
+import pathlib
 import sys
 import tempfile
 from unittest.mock import MagicMock
@@ -127,6 +128,33 @@ def test_get_entrypoint(monkeypatch, tmp_path, executable, metadata):
     entrypoint = builder._get_entrypoint(program_relpath, metadata)
 
     assert entrypoint == [executable, "main.py"]
+
+
+@pytest.mark.parametrize(
+    "job_source,source_type,code_path_local,code_path",
+    (
+        ("artifact", "unknown", "correct.py", "wrong.py"),
+        ("repo", "artifact", "correct.py", "wrong.py"),
+        ("repo", "unknown", "wrong.py", "correct.py"),
+    ),
+)
+def test_get_program_relpath(
+    tmp_path: pathlib.Path,
+    job_source: str,
+    source_type: str,
+    code_path_local: str,
+    code_path: str,
+):
+    builder = _configure_job_builder_for_partial(str(tmp_path), job_source)
+
+    path = builder._get_program_relpath(
+        source_type,
+        {
+            "codePathLocal": code_path_local,
+            "codePath": code_path,
+        },
+    )
+    assert path == "correct.py"
 
 
 def test_create_repo_metadata_entrypoint_traversal():

@@ -127,11 +127,6 @@ func (w *Writer) process(work runwork.Work) {
 		}
 	}
 
-	if w.settings.IsOffline() && !work.BypassOfflineMode() {
-		work.Request.WillNotRespond()
-		return
-	}
-
 	w.out <- savedWork
 }
 
