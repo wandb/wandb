@@ -1,0 +1,315 @@
+package leet
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"os"
+	"time"
+
+	tea "charm.land/bubbletea/v2"
+	"github.com/Khan/genqlient/graphql"
+	"google.golang.org/protobuf/types/known/wrapperspb"
+
+	"github.com/wandb/simplejsonext"
+
+	"github.com/wandb/wandb/core/internal/api"
+	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/httplayers"
+
+	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runhistoryreader"
+	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/ffi"
+	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/stream"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+)
+
+const (
+	defaultRemoteRunLimit = 100
+)
+
+var ErrRunNotFound = errors.New("run not found")
+
+// RemoteWorkspaceBackend discovers runs via GraphQL and reads history
+// from parquet files hosted on the W&B backend.
+type RemoteWorkspaceBackend struct {
+	baseURL string
+	entity  string
+	project string
+
+	graphqlClient graphql.Client
+	httpClient    api.RetryableClient
+
+	// runInfos stores metadata fetched from the discovery query, keyed by run ID.
+	runInfos map[string]*RunInfo
+
+	// runIds stores the run IDs in the order they were returned from the backend.
+	runIds []string
+
+	logger *observability.CoreLogger
+
+	hasMore bool
+	cursor  *string
+}
+
+// NewRemoteWorkspaceBackend creates a backend for a remote W&B project.
+// Clients are initialized lazily on the first DiscoverRunsCmd call.
+func NewRemoteWorkspaceBackend(
+	baseURL string,
+	entity string,
+	project string,
+	logger *observability.CoreLogger,
+) (*RemoteWorkspaceBackend, error) {
+	apiKey := os.Getenv("WANDB_API_KEY")
+	if apiKey == "" {
+		return nil, fmt.Errorf("API key not found")
+	}
+
+	settingsProto := &spb.Settings{
+		ApiKey:  wrapperspb.String(apiKey),
+		BaseUrl: wrapperspb.String(baseURL),
+	}
+	s := settings.From(settingsProto)
+	apiBaseURL := stream.BaseURLFromSettings(logger, s)
+	credentialProvider := stream.CredentialsFromSettings(logger, s)
+
+	graphqlClient := stream.NewGraphQLClient(
+		apiBaseURL,
+		"", /*clientID*/
+		credentialProvider,
+		logger,
+		&observability.Peeker{},
+		s,
+	)
+	httpClient := api.NewClient(api.ClientOptions{
+		RetryMax:        3,
+		RetryWaitMin:    1 * time.Second,
+		RetryWaitMax:    10 * time.Second,
+		NonRetryTimeout: 10 * time.Second,
+		Logger:          logger.Logger,
+		PreRetryLayers:  httplayers.LimitTo(apiBaseURL, credentialProvider),
+	})
+
+	return &RemoteWorkspaceBackend{
+		baseURL:       baseURL,
+		entity:        entity,
+		project:       project,
+		runInfos:      make(map[string]*RunInfo),
+		runIds:        []string{},
+		logger:        logger,
+		hasMore:       false,
+		graphqlClient: graphqlClient,
+		httpClient:    httpClient,
+	}, nil
+}
+
+func (b *RemoteWorkspaceBackend) DiscoverRunsCmd(delay time.Duration) tea.Cmd {
+	if delay < 0 {
+		delay = 0
+	}
+
+	entity := b.entity
+	project := b.project
+	logger := b.logger
+
+	return tea.Tick(delay, func(time.Time) tea.Msg {
+		first := defaultRemoteRunLimit
+		order := "-created_at"
+		response, err := gql.QueryProjectRuns(
+			context.Background(),
+			b.graphqlClient,
+			entity,
+			project,
+			&first,
+			&order,
+			b.cursor,
+		)
+		if err != nil {
+			return WorkspaceRunDiscoveryMsg{Err: err}
+		}
+
+		if response.Project == nil || response.Project.Runs == nil {
+			return WorkspaceRunDiscoveryMsg{
+				Err: fmt.Errorf("project %s/%s not found", entity, project),
+			}
+		}
+
+		b.hasMore = response.Project.Runs.PageInfo.HasNextPage
+		b.cursor = response.Project.Runs.PageInfo.EndCursor
+
+		edges := response.Project.Runs.Edges
+		for _, edge := range edges {
+			node := edge.Node
+			runKey := node.Name
+
+			var displayName string
+			if node.DisplayName != nil {
+				displayName = *node.DisplayName
+			}
+
+			var runSummary map[string]any
+			if node.SummaryMetrics != nil {
+				parsed, parseErr := simplejsonext.UnmarshalObjectString(*node.SummaryMetrics)
+				if parseErr != nil {
+					logger.Warn("remote workspace: failed to parse summary metrics",
+						"run", runKey, "error", parseErr)
+				} else {
+					runSummary = parsed
+				}
+			}
+
+			b.runIds = append(b.runIds, runKey)
+			b.runInfos[runKey] = &RunInfo{
+				entity:      entity,
+				project:     project,
+				runId:       runKey,
+				runSummary:  runSummary,
+				displayName: displayName,
+				runState:    remoteRunState(node.State),
+			}
+		}
+
+		return WorkspaceRunDiscoveryMsg{RunKeys: b.runIds}
+	})
+}
+
+func (b *RemoteWorkspaceBackend) NextDiscoveryCmd() tea.Cmd {
+	// Remote workspaces only poll once during startup.
+	if !b.hasMore {
+		return nil
+	}
+
+	return b.DiscoverRunsCmd(0)
+}
+
+func (b *RemoteWorkspaceBackend) InitReaderCmd(runKey string) tea.Cmd {
+	info := b.runInfos[runKey]
+	logger := b.logger
+	graphqlClient := b.graphqlClient
+	httpClient := b.httpClient
+	entity := b.entity
+	project := b.project
+
+	return func() tea.Msg {
+		if info == nil {
+			return WorkspaceInitErrMsg{
+				RunKey: runKey,
+				Err:    ErrRunNotFound,
+			}
+		}
+
+		rustArrowWrapper, err := ffi.NewRustArrowWrapper()
+		if err != nil {
+			return WorkspaceInitErrMsg{
+				RunKey: runKey,
+				Err:    fmt.Errorf("failed to create rust arrow wrapper: %w", err),
+			}
+		}
+
+		reader, err := runhistoryreader.New(
+			context.Background(),
+			entity,
+			project,
+			runKey,
+			graphqlClient,
+			httpClient,
+			[]string{}, // keys
+			false,      // useCache
+			rustArrowWrapper,
+		)
+		if err != nil {
+			return WorkspaceInitErrMsg{
+				RunKey: runKey,
+				Err:    err,
+			}
+		}
+		liveReader := runhistoryreader.NewLiveDataReader(
+			entity,
+			project,
+			runKey,
+			graphqlClient,
+			nil,
+		)
+		return WorkspaceRunInitMsg{
+			RunKey: runKey,
+			Reader: newParquetHistorySource(
+				context.Background(),
+				info,
+				reader,
+				liveReader,
+				logger,
+				graphqlClient,
+			),
+		}
+	}
+}
+
+func (b *RemoteWorkspaceBackend) PreloadOverviewCmd(runKey string) tea.Cmd {
+	info := b.runInfos[runKey]
+	return func() tea.Msg {
+		if info == nil {
+			return WorkspaceRunOverviewPreloadedMsg{
+				RunKey: runKey,
+				Err:    ErrRunNotFound,
+			}
+		}
+		return WorkspaceRunOverviewPreloadedMsg{
+			RunKey: runKey,
+			Run: &RunMsg{
+				ID:          info.runId,
+				Project:     info.project,
+				DisplayName: info.displayName,
+			},
+			State: info.runState,
+		}
+	}
+}
+
+func (b *RemoteWorkspaceBackend) RunParams(runKey string) *RunParams {
+	return &RunParams{
+		Remote: &RemoteRunParams{
+			BaseURL: b.baseURL,
+			Entity:  b.entity,
+			Project: b.project,
+			RunID:   runKey,
+		},
+	}
+}
+
+func (b *RemoteWorkspaceBackend) SeriesKey(runKey string) string {
+	return b.entity + "/" + b.project + "/" + runKey
+}
+
+func (b *RemoteWorkspaceBackend) DisplayLabel() string {
+	return b.entity + "/" + b.project
+}
+
+// InitLiveUpdatesCmd implements WorkspaceBackend.InitLiveUpdatesCmd.
+func (b *RemoteWorkspaceBackend) InitLiveUpdatesCmd(*Workspace) tea.Cmd {
+	// Remote workspaces do not have any special machinery for live updates.
+	return nil
+}
+
+// LiveUpdatesCmd implements WorkspaceBackend.LiveUpdatesCmd.
+func (b *RemoteWorkspaceBackend) LiveUpdatesCmd(
+	w *Workspace,
+	run *WorkspaceRun,
+) tea.Cmd {
+	if w == nil || run == nil {
+		return nil
+	}
+
+	return run.Reader.NextLiveReadCmd(
+		w.ReadAvailableCmd(run),
+		false,
+	)
+}
+
+// RunState implements WorkspaceBackend.RunState.
+func (b *RemoteWorkspaceBackend) RunState(
+	w *Workspace,
+	runKey string,
+) RunState {
+	return w.runStateForKey(runKey)
+}

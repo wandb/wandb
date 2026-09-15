@@ -464,25 +464,6 @@ func (w *Workspace) handleToggleSystemMetricsPane(tea.KeyPressMsg) tea.Cmd {
 
 // ---- Reader / Watcher Commands ----
 
-// initReaderCmd initializes a WandbReader for the given run asynchronously.
-func (w *Workspace) initReaderCmd(runKey, runPath string) tea.Cmd {
-	return func() tea.Msg {
-		reader, err := NewLevelDBHistorySource(runPath, w.logger)
-		if err != nil {
-			return WorkspaceInitErrMsg{
-				RunKey:  runKey,
-				RunPath: runPath,
-				Err:     err,
-			}
-		}
-		return WorkspaceRunInitMsg{
-			RunKey:  runKey,
-			RunPath: runPath,
-			Reader:  reader,
-		}
-	}
-}
-
 // readAllChunkCmd reads a bounded chunk of records for the given workspace run.
 func (w *Workspace) readAllChunkCmd(run *WorkspaceRun) tea.Cmd {
 	if run == nil || run.Reader == nil {
@@ -531,14 +512,12 @@ func (w *Workspace) ReadAvailableCmd(run *WorkspaceRun) tea.Cmd {
 		if !ok {
 			return msg
 		}
-		if len(batch.Msgs) == 0 {
-			return nil
-		}
 
 		return WorkspaceBatchedRecordsMsg{
 			RunKey: runKey,
 			Batch: BatchedRecordsMsg{
-				Msgs: batch.Msgs,
+				Msgs:    batch.Msgs,
+				HasMore: batch.HasMore,
 			},
 		}
 	}
@@ -552,52 +531,20 @@ func (w *Workspace) waitForLiveMsg() tea.Msg {
 	return <-w.liveChan
 }
 
-// ensureLiveStreaming wires up watcher + heartbeat for a selected run that
-// may still be live (see RunState.mayBeLive).
+// ensureLiveUpdates wires up backend-specific updates for a selected run.
 //
-// It is a no-op if the run is nil, already in a terminal state, or its
-// reader is not initialized. When a watcher is started it also returns a
-// command that waits for the first change notification so that subsequent
-// updates are driven primarily by filesystem events, with the heartbeat as
-// a safety net.
-func (w *Workspace) ensureLiveStreaming(run *WorkspaceRun) tea.Cmd {
-	if run == nil || run.Reader == nil || !run.state.mayBeLive() {
+// It is a no-op if the run or its reader is not initialized. The backend
+// chooses how updates are delivered; all backends receive the live-indicator
+// pulse.
+func (w *Workspace) ensureLiveUpdates(run *WorkspaceRun) tea.Cmd {
+	if run == nil || run.Reader == nil {
 		return nil
 	}
 
-	var watcherCmd tea.Cmd
-
-	if run.watcher == nil {
-		ch := make(chan tea.Msg, 1) // coalesce notifications for this run
-		run.watcher = NewWatcherManager(ch, w.logger)
-
-		if err := run.watcher.Start(run.wandbPath); err != nil {
-			w.logger.CaptureError(
-				"leet",
-				fmt.Errorf(
-					"workspace: failed to start watcher for %s: %v",
-					run.Key,
-					err,
-				),
-			)
-			run.watcher = nil
-		} else {
-			// Seed the staleness clock from the file so a run that died
-			// before LEET started is caught on the first heartbeat rather
-			// than a full RunCrashTimeout later.
-			if info, err := os.Stat(run.wandbPath); err == nil {
-				run.lastUpdateAt = info.ModTime()
-			}
-			watcherCmd = w.waitForWatcher(run.Key)
-		}
-	}
-
-	w.syncLiveRunState()
-	if w.heartbeatMgr != nil && w.hasLiveRuns.Load() {
-		w.heartbeatMgr.Start(w.hasLiveRuns.Load)
-	}
-
-	return batchCmds(watcherCmd, w.ensureLivePulseCmd())
+	return batchCmds(
+		w.backend.LiveUpdatesCmd(w, run),
+		w.ensureLivePulseCmd(),
+	)
 }
 
 // waitForWatcher blocks until the watcher for the given run emits a change
@@ -700,8 +647,8 @@ func (w *Workspace) handleWorkspaceChunkedBatch(msg WorkspaceChunkedBatchMsg) te
 		return w.readAllChunkCmd(run)
 	}
 
-	// Initial load complete; if this run is live, wire up watcher + heartbeat.
-	return w.ensureLiveStreaming(run)
+	// Initial load complete; wire up live updates if the run may still be live.
+	return w.ensureLiveUpdates(run)
 }
 
 // handleWorkspaceBatchedRecords processes incremental updates for a run.
@@ -719,16 +666,13 @@ func (w *Workspace) handleWorkspaceBatchedRecords(msg WorkspaceBatchedRecordsMsg
 		g.drawVisible()
 	}
 
-	// Continue draining while the run is still live.
-	if run.state == RunStateRunning {
-		return batchCmds(w.ReadAvailableCmd(run), w.ensureLivePulseCmd())
-	}
-
-	if !w.anyRunRunning() {
-		w.heartbeatMgr.Stop()
-	}
-
-	return nil
+	return batchCmds(
+		run.Reader.NextLiveReadCmd(
+			w.ReadAvailableCmd(run),
+			msg.Batch.HasMore,
+		),
+		w.ensureLivePulseCmd(),
+	)
 }
 
 // handleWorkspaceRecord updates per‑run and metrics state for an individual record.
@@ -746,7 +690,7 @@ func (w *Workspace) handleWorkspaceRecord(run *WorkspaceRun, msg tea.Msg) {
 		if w.filter.Query() != "" {
 			w.applyRunFilter()
 		}
-		run.state = RunStateRunning
+		run.state = m.runState()
 		w.syncLiveRunState()
 
 	case HistoryMsg:
@@ -898,20 +842,20 @@ func (w *Workspace) livePulseCmd() tea.Cmd {
 	})
 }
 
-// ensureLivePulseCmd starts the live-indicator redraw loop when a selected
-// run is live. Returns nil if the loop is already ticking or nothing is live.
+// ensureLivePulseCmd starts the live-indicator redraw loop when a live run is
+// visible. Returns nil if the loop is already ticking or nothing is live.
 func (w *Workspace) ensureLivePulseCmd() tea.Cmd {
-	if w.pulseTicking || !w.anyRunRunning() {
+	if w.pulseTicking || !w.needsLiveAnimation() {
 		return nil
 	}
 	w.pulseTicking = true
 	return w.livePulseCmd()
 }
 
-// handleLivePulse keeps the live indicators animating while any selected
-// run is live.
+// handleLivePulse keeps the live indicators animating while any visible run
+// is live.
 func (w *Workspace) handleLivePulse() tea.Cmd {
-	if !w.anyRunRunning() {
+	if !w.needsLiveAnimation() {
 		w.pulseTicking = false
 		return nil
 	}
@@ -1233,14 +1177,11 @@ func (w *Workspace) toggleRunSelected(runKey string) tea.Cmd {
 		return nil
 	}
 
-	// Resolve the run file before mutating selection state so we don't end up
-	// "selected but unloadable" if the key can't be mapped to a .wandb file.
-	wandbFile := runWandbFile(w.wandbDir, runKey)
-	if wandbFile == "" {
-		err := fmt.Errorf("workspace: unable to resolve .wandb file for run key %q", runKey)
+	cmd := w.backend.InitReaderCmd(runKey)
+	if cmd == nil {
 		w.logger.CaptureError(
 			"leet",
-			err,
+			fmt.Errorf("workspace: unable to initialize reader for run key %q", runKey),
 		)
 		return nil
 	}
@@ -1250,7 +1191,7 @@ func (w *Workspace) toggleRunSelected(runKey string) tea.Cmd {
 		w.pinnedRun = runKey
 	}
 
-	return w.initReaderCmd(runKey, wandbFile)
+	return cmd
 }
 
 func (w *Workspace) handleToggleRunSelectedKey(msg tea.KeyPressMsg) tea.Cmd {

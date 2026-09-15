@@ -269,8 +269,9 @@ type leetOptions struct {
 	inspect          bool
 	wandbDir         string
 
-	// remoteURL is the W&B URL of the run to open
-	// (e.g. https://api.wandb.ai/<entity>/<project>/runs/<run-id>).
+	// remoteURL is the W&B URL of the project or run to open
+	// (e.g. https://api.wandb.ai/<entity>/<project> or
+	// https://api.wandb.ai/<entity>/<project>/runs/<run-id>).
 	// Non-empty means we are in remote mode.
 	remoteURL string
 
@@ -350,8 +351,9 @@ func bindLeetFlags(fs *flag.FlagSet, opts *leetOptions) {
 		&opts.remoteURL,
 		"remote-url",
 		"",
-		"URL of a W&B run to open"+
-			" (e.g. https://api.wandb.ai/<entity>/<project>/runs/<run-id>).",
+		"URL of a W&B project or run to open"+
+			" (e.g. https://api.wandb.ai/<entity>/<project> or"+
+			" https://api.wandb.ai/<entity>/<project>/runs/<run-id>).",
 	)
 }
 
@@ -362,10 +364,11 @@ A terminal UI for viewing your W&B runs locally.
 Usage:
   wandb-core leet [flags] <wandb-directory>
   wandb-core leet --run-file <wandb-file> <wandb-directory>
-  wandb-core leet --remote-url <wandb-run-url>
+  wandb-core leet --remote-url <wandb-project-or-run-url>
   wandb-core leet --inspect [--run-file <wandb-file>] [<wandb-directory>]
   wandb-core leet --config
   wandb-core leet --symon [flags]
+  wandb-core leet [flags] <wandb-file/wandb-run-path>
 
 Arguments:
   <wandb-directory>  Path to the wandb directory containing run folders.
@@ -567,19 +570,14 @@ func runSymon(opts *leetOptions, logger *observability.CoreLogger) int {
 }
 
 func runLeetWorkspace(opts *leetOptions, logger *observability.CoreLogger) int {
-	var runParams *leet.RunParams
-	if opts.remoteRun != nil {
-		runParams = &leet.RunParams{Remote: opts.remoteRun}
-	} else if opts.runFile != "" {
-		runParams = &leet.RunParams{RunFile: opts.runFile}
+	modelParams, err := createModelParams(opts, logger)
+	if err != nil {
+		logger.Error("main: failed to create model params", "error", err)
+		return exitCodeErrorArgs
 	}
 
 	for {
-		m := leet.NewModel(leet.ModelParams{
-			WandbDir:  opts.wandbDir,
-			RunParams: runParams,
-			Logger:    logger,
-		})
+		m := leet.NewModel(*modelParams)
 		program := tea.NewProgram(m)
 
 		finalModel, err := program.Run()
@@ -597,4 +595,52 @@ func runLeetWorkspace(opts *leetOptions, logger *observability.CoreLogger) int {
 		}
 		return exitCodeSuccess
 	}
+}
+
+func createModelParams(
+	opts *leetOptions,
+	logger *observability.CoreLogger,
+) (*leet.ModelParams, error) {
+	if opts.remoteRun != nil {
+		backend, err := leet.NewRemoteWorkspaceBackend(
+			opts.remoteRun.BaseURL,
+			opts.remoteRun.Entity,
+			opts.remoteRun.Project,
+			logger,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		var runParams *leet.RunParams
+		if opts.remoteRun.RunID != "" {
+			runParams = &leet.RunParams{
+				Remote: opts.remoteRun,
+			}
+		}
+
+		return &leet.ModelParams{
+			Backend:   backend,
+			RunParams: runParams,
+			Logger:    logger,
+		}, nil
+	}
+
+	backend := leet.NewLocalWorkspaceBackend(
+		opts.wandbDir,
+		logger,
+	)
+
+	var runParams *leet.RunParams
+	if opts.runFile != "" {
+		runParams = &leet.RunParams{
+			RunFile: opts.runFile,
+		}
+	}
+
+	return &leet.ModelParams{
+		Backend:   backend,
+		RunParams: runParams,
+		Logger:    logger,
+	}, nil
 }
