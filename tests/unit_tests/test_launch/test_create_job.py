@@ -1,7 +1,6 @@
 import json
 import os
-import platform
-import sys
+import pathlib
 import tempfile
 from unittest.mock import MagicMock
 
@@ -110,31 +109,31 @@ def test_dump_metadata_and_requirements():
     assert metadata == m
 
 
-@pytest.mark.skipif(
-    platform.system() == "Windows",
-    reason="python exec name is different on windows",
+@pytest.mark.parametrize(
+    "job_source,source_type,code_path_local,code_path",
+    (
+        ("artifact", "unknown", "correct.py", "wrong.py"),
+        ("repo", "artifact", "correct.py", "wrong.py"),
+        ("repo", "unknown", "wrong.py", "correct.py"),
+    ),
 )
-def test_get_entrypoint():
-    dir = tempfile.TemporaryDirectory().name
-    job_source = "artifact"
-    builder = _configure_job_builder_for_partial(dir, job_source)
+def test_get_program_relpath(
+    tmp_path: pathlib.Path,
+    job_source: str,
+    source_type: str,
+    code_path_local: str,
+    code_path: str,
+):
+    builder = _configure_job_builder_for_partial(str(tmp_path), job_source)
 
-    metadata = {"python": "3.10.13", "codePathLocal": "main.py", "_partial": "v0"}
-
-    program_relpath = builder._get_program_relpath(job_source, metadata)
-    entrypoint = builder._get_entrypoint(program_relpath, metadata)
-    assert entrypoint == ["python3", "main.py"]
-
-    metadata = {"python": "3.10", "codePath": "main.py", "_partial": "v0"}
-    program_relpath = builder._get_program_relpath(job_source, metadata)
-    entrypoint = builder._get_entrypoint(program_relpath, metadata)
-    assert entrypoint == ["python3", "main.py"]
-
-    metadata = {"codePath": "main.py"}
-    program_relpath = builder._get_program_relpath(job_source, metadata)
-    entrypoint = builder._get_entrypoint(program_relpath, metadata)
-
-    assert entrypoint == [os.path.basename(sys.executable), "main.py"]
+    path = builder._get_program_relpath(
+        source_type,
+        {
+            "codePathLocal": code_path_local,
+            "codePath": code_path,
+        },
+    )
+    assert path == "correct.py"
 
 
 def test_create_repo_metadata_entrypoint_traversal():
