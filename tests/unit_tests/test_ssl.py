@@ -49,7 +49,10 @@ def ssl_server(ssl_creds: SSLCredPaths) -> Generator[http.server.HTTPServer]:
             self.wfile.write(body)
             self.wfile.flush()
 
-    httpd = http.server.HTTPServer(("localhost", 0), MyServer)
+    # The known loopback name avoids slow reverse DNS on macOS runners.
+    # https://github.com/actions/runner-images/issues/14409
+    with patch("socket.getfqdn", return_value="localhost"):
+        httpd = http.server.HTTPServer(("localhost", 0), MyServer)
 
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.load_cert_chain(certfile=str(ssl_creds.cert), keyfile=str(ssl_creds.key))
