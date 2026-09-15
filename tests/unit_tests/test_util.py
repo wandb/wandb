@@ -41,6 +41,12 @@ def nested_list(*shape):
 
 
 def assert_deep_lists_equal(a, b, indices=None):
+    # A tensor/array containing a single element is converted by
+    # `json_friendly` into a bare scalar rather than a (possibly deeply
+    # nested) singleton list, so unwrap `a` accordingly before comparing.
+    if not isinstance(b, (list, tuple)):
+        while isinstance(a, (list, tuple)) and len(a) == 1:
+            a = a[0]
     try:
         assert a == b
     except ValueError:
@@ -102,6 +108,30 @@ def test_pytorch_json_nd(array_shape):
     a = nested_list(*array_shape)
     json_friendly_test(a, torch.Tensor(a))
     json_friendly_test(a, pt_variable(a))
+
+
+def test_pytorch_single_element_tensor_converts_to_native_python_type():
+    """Regression test for https://github.com/wandb/wandb/issues/8951.
+
+    A single-element tensor used to be converted to a numpy scalar (e.g.
+    ``numpy.float32``) instead of a native Python type, unlike every other
+    tensor size which is converted to a native ``list``. That inconsistency
+    meant downstream YAML serialization (e.g. writing ``wandb.config``)
+    would fail or silently stringify the value.
+    """
+    pytest.importorskip("torch")
+    import torch
+
+    single, converted = util.json_friendly(torch.Tensor([1]))
+    assert converted
+    assert single == 1.0
+    assert isinstance(single, float)
+    assert not isinstance(single, np.generic)
+
+    multi, converted = util.json_friendly(torch.Tensor([1, 2]))
+    assert converted
+    assert multi == [1.0, 2.0]
+    assert isinstance(multi, list)
 
 
 @pytest.mark.parametrize(
