@@ -17,6 +17,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Added
 
 - It is now possible to use resume="must" for offline runs. Syncing will fail if there's no run to resume. (@geoffhardy in https://github.com/wandb/wandb/pull/12110)
+- W&B LEET now supports custom x-axes for remote runs configured with `define_metric(step_metric=...)` and uploaded to the W&B backend (@jacobromero in https://github.com/wandb/wandb/pull/12824)
 
 
 ### Changed
