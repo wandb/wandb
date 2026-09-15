@@ -26,6 +26,7 @@ class HostUrl:
                 comparisons.
         """
         urls.validate_url(url)
+        urls.validate_forge_base_url(url)
 
         # Checks for wandb.ai.
         if re.match(r".*wandb\.ai[^\.]*$", url):

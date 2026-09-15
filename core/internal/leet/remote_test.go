@@ -55,6 +55,36 @@ func TestParseRemoteURL(t *testing.T) {
 				RunID:   "abc123",
 			},
 		},
+		{
+			name: "Forge API path",
+			url:  "https://forge.coreweave.com/api/wandb/my-entity/my-project/runs/abc123?view=history#chart",
+			want: &leet.RemoteRunParams{
+				BaseURL: "https://forge.coreweave.com/api/wandb",
+				Entity:  "my-entity",
+				Project: "my-project",
+				RunID:   "abc123",
+			},
+		},
+		{
+			name: "Forge QA API path without runs segment",
+			url:  "https://qa.forge.coreweave.com/api/wandb/my-entity/my-project/abc123/",
+			want: &leet.RemoteRunParams{
+				BaseURL: "https://qa.forge.coreweave.com/api/wandb",
+				Entity:  "my-entity",
+				Project: "my-project",
+				RunID:   "abc123",
+			},
+		},
+		{
+			name: "self managed entity named wandb",
+			url:  "http://localhost:8080/wandb/my-project/runs/abc123",
+			want: &leet.RemoteRunParams{
+				BaseURL: "http://localhost:8080",
+				Entity:  "wandb",
+				Project: "my-project",
+				RunID:   "abc123",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -74,6 +104,17 @@ func TestParseRemoteURL_Errors(t *testing.T) {
 		"https://wandb.ai/entity/project/sweeps/abc123",
 		"https://wandb.ai/entity/project/runs/abc123/extra",
 		"https://wandb.ai",
+		"https://forge.coreweave.com/entity/project/runs/abc123",
+		"https://forge.coreweave.com/wandb/entity/project/runs/abc123",
+		"https://forge.coreweave.com/api/wandb/entity/project/sweeps/abc123",
+		"https://forge.coreweave.com/api/wandb/entity/project/runs/abc123/extra",
+		"https://forge.coreweave.com/api/wandb/entity//runs/abc123",
+		"https://forge.coreweave.com/api/wandb-other/entity/project/runs/abc123",
+		"http://forge.coreweave.com/api/wandb/entity/project/runs/abc123",
+		"https://forge.coreweave.com:8443/api/wandb/entity/project/runs/abc123",
+		"https://user@forge.coreweave.com/api/wandb/entity/project/runs/abc123",
+		"https://forge.coreweave.com.example.com/api/wandb/entity/project/runs/abc123",
+		"https://example.com/api/wandb/entity/project/runs/abc123",
 	}
 	for _, url := range urls {
 		t.Run(url, func(t *testing.T) {

@@ -330,6 +330,31 @@ def test_image_from_docker_args_sha():
 ###############################################################################
 
 
+@pytest.mark.parametrize(
+    "api_url,expected",
+    [
+        ("https://forge.coreweave.com/api/wandb", "https://forge.coreweave.com/wandb"),
+        (
+            "https://qa.forge.coreweave.com/api/wandb/",
+            "https://qa.forge.coreweave.com/wandb",
+        ),
+        ("https://api.wandb.ai", "https://wandb.ai"),
+        ("https://api.wandb.io", "https://wandb.io"),
+        ("https://api.customer.example", "https://app.customer.example"),
+        (
+            "https://forge.coreweave.com.example/api/wandb",
+            "https://forge.coreweave.com.example/api/wandb",
+        ),
+        (
+            "https://myforge.coreweave.com/api/wandb",
+            "https://myforge.coreweave.com/api/wandb",
+        ),
+    ],
+)
+def test_api_to_app_url(api_url, expected):
+    assert util.api_to_app_url(api_url) == expected
+
+
 def test_app_url():
     with mock.patch.dict("os.environ", {"WANDB_APP_URL": "https://foo.com/bar/"}):
         assert util.app_url("https://api.foo.com") == "https://foo.com/bar"

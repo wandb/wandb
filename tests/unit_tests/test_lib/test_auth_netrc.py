@@ -35,6 +35,24 @@ def test_read_host_not_found(fake_netrc_path: pathlib.Path):
     assert result is None
 
 
+def test_forge_credentials_are_host_scoped(fake_netrc_path: pathlib.Path):
+    legacy_key = "old1" * 10
+    forge_key = "new2" * 10
+    fake_netrc_path.write_text(
+        f"machine api.wandb.ai login user password {legacy_key}\n"
+    )
+    forge_url = "https://forge.coreweave.com/api/wandb"
+
+    assert wbnetrc.read_netrc_auth(host=forge_url) is None
+    wbnetrc.write_netrc_auth(host=forge_url, api_key=forge_key)
+
+    assert wbnetrc.read_netrc_auth(host=forge_url) == forge_key
+    assert wbnetrc.read_netrc_auth(host="https://api.wandb.ai") == legacy_key
+    assert (
+        wbnetrc.read_netrc_auth(host="https://qa.forge.coreweave.com/api/wandb") is None
+    )
+
+
 def test_read_file_not_found(fake_netrc_path: pathlib.Path):
     _ = fake_netrc_path  # don't create the file
 

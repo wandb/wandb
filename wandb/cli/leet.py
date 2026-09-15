@@ -21,7 +21,7 @@ from wandb.analytics import get_telemetry_recorder
 from wandb.env import error_reporting_enabled, is_debug
 from wandb.errors import WandbCoreNotAvailableError
 from wandb.sdk import wandb_setup
-from wandb.sdk.lib import wbauth
+from wandb.sdk.lib import urls, wbauth
 from wandb.util import get_core_path
 
 
@@ -337,7 +337,7 @@ def _create_remote_launch_config(path: str) -> RemoteLaunchConfig:
 def _parse_remote_url(path: str) -> tuple[str, str]:
     """Validate a W&B run URL and return (base_url, canonical_url).
 
-    Canonicalization rewrites the wandb.ai host to api.wandb.ai and drops
+    Canonicalization maps hosted UI URLs to their API base URLs and drops
     any query string or fragment.
     """
     parsed_url = urllib.parse.urlparse(path)
@@ -347,7 +347,24 @@ def _parse_remote_url(path: str) -> tuple[str, str]:
             " Expected format: https://<host>/<entity>/<project>/runs/<run_id>"
         )
 
-    parts = parsed_url.path.strip("/").split("/")
+    netloc = "api.wandb.ai" if parsed_url.netloc == "wandb.ai" else parsed_url.netloc
+    base_url = f"{parsed_url.scheme}://{netloc}"
+    run_path = parsed_url.path
+    if urls.is_forge_host(path):
+        if parsed_url.scheme != "https":
+            _fatal("Forge remote URLs must use https.")
+        for prefix in (urls.FORGE_APP_PATH, urls.FORGE_API_PATH):
+            if run_path.startswith(prefix + "/"):
+                run_path = run_path[len(prefix) :]
+                break
+        else:
+            _fatal(
+                f"Invalid Forge remote URL: {path!r}."
+                " Expected format: https://<host>/wandb/<entity>/<project>/runs/<run_id>"
+            )
+        base_url += urls.FORGE_API_PATH
+
+    parts = run_path.strip("/").split("/")
     if len(parts) == 4 and parts[2] == "runs":
         parts = [parts[0], parts[1], parts[3]]
     if len(parts) != 3 or not all(parts):
@@ -356,6 +373,4 @@ def _parse_remote_url(path: str) -> tuple[str, str]:
             " Expected format: https://<host>/<entity>/<project>/runs/<run_id>"
         )
 
-    netloc = "api.wandb.ai" if parsed_url.netloc == "wandb.ai" else parsed_url.netloc
-    base_url = f"{parsed_url.scheme}://{netloc}"
-    return base_url, f"{base_url}{parsed_url.path}"
+    return base_url, f"{base_url}{run_path}"

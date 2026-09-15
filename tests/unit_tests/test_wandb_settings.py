@@ -29,9 +29,21 @@ def test_mapping_interface():
         pass
 
 
-def test_is_local():
-    s = Settings(base_url="https://api.wandb.ai")
-    assert s.is_local is False
+@pytest.mark.parametrize(
+    "base_url, is_local",
+    [
+        ("https://api.wandb.ai", False),
+        ("https://forge.coreweave.com/api/wandb", False),
+        ("https://forge.coreweave.com:443/api/wandb/", False),
+        ("https://qa.forge.coreweave.com/api/wandb", True),
+        ("https://api.wandb.io", True),
+        ("http://localhost:8080", True),
+    ],
+)
+def test_is_local(base_url, is_local):
+    s = Settings(base_url=base_url)
+    assert s.is_local is is_local
+    assert s.deployment == ("local" if is_local else "cloud")
 
 
 def test_invalid_field_type():
@@ -115,6 +127,36 @@ def test_run_urls():
     )
     assert s.project_url == f"{base_url}/{entity}/{project}"
     assert s.run_url == f"{base_url}/{entity}/{project}/runs/{run_id}"
+
+
+@pytest.mark.parametrize("host", ["forge.coreweave.com", "qa.forge.coreweave.com"])
+@pytest.mark.parametrize("app_url_override", [None, "https://custom.example/ui"])
+def test_forge_run_urls(host, app_url_override):
+    s = Settings(
+        base_url=f"https://{host}/api/wandb",
+        app_url_override=app_url_override,
+        entity="my-team",
+        project="my project",
+        run_id="run-id",
+        sweep_id="sweep-id",
+    )
+    app_url = app_url_override or f"https://{host}/wandb"
+    assert s.app_url == app_url
+    assert s.project_url == f"{app_url}/my-team/my%20project"
+    assert s.run_url == f"{app_url}/my-team/my%20project/runs/run-id"
+    assert s.sweep_url == f"{app_url}/my-team/my%20project/sweeps/sweep-id"
+
+
+def test_forge_urls_from_environment():
+    s = Settings()
+    s.update_from_env_vars({"WANDB_BASE_URL": "https://forge.coreweave.com/api/wandb/"})
+
+    assert s.base_url == "https://forge.coreweave.com/api/wandb"
+    assert s.app_url == "https://forge.coreweave.com/wandb"
+
+    s.update_from_env_vars({"WANDB_APP_URL": "https://custom.example/ui"})
+
+    assert s.app_url == "https://custom.example/ui"
 
 
 def test_offline():
@@ -295,6 +337,8 @@ def test_validate_mode():
     "url",
     [
         "https://api.wandb.ai",
+        "https://forge.coreweave.com/api/wandb",
+        "https://qa.forge.coreweave.com/api/wandb",
         "https://wandb.ai.other.crazy.domain.com",
         "https://127.0.0.1",
         "https://localhost",
@@ -328,6 +372,15 @@ def test_validate_invalid_base_url(url):
     s = Settings()
     with pytest.raises(ValueError):
         s.base_url = url
+
+
+@pytest.mark.parametrize("host", ["forge.coreweave.com", "qa.forge.coreweave.com"])
+@pytest.mark.parametrize(
+    "scheme, path", [("https", ""), ("https", "/wandb"), ("http", "/api/wandb")]
+)
+def test_validate_invalid_forge_base_url(host, scheme, path):
+    with pytest.raises(ValueError, match=f"https://{host}/api/wandb"):
+        Settings(base_url=f"{scheme}://{host}{path}")
 
 
 @pytest.mark.parametrize(

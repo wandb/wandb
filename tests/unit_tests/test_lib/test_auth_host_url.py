@@ -43,3 +43,23 @@ def test_app_url_default():
     url = HostUrl("https://api.wandb.ai")
 
     assert url.app_url == "https://wandb.ai"
+
+
+@pytest.mark.parametrize("host", ["forge.coreweave.com", "qa.forge.coreweave.com"])
+def test_forge_api_url(host):
+    url = HostUrl(f"https://{host}/api/wandb/")
+
+    assert url.url == f"https://{host}/api/wandb"
+    assert not url.is_same_url("https://api.wandb.ai")
+
+
+@pytest.mark.parametrize("host", ["forge.coreweave.com", "qa.forge.coreweave.com"])
+@pytest.mark.parametrize("path", ["", "/", "/wandb", "/graphql"])
+def test_forge_ui_url_is_not_an_api_url(host, path):
+    with pytest.raises(ValueError, match=f"https://{host}/api/wandb"):
+        HostUrl(f"https://{host}{path}")
+
+
+def test_forge_api_requires_https():
+    with pytest.raises(ValueError, match="https://forge.coreweave.com/api/wandb"):
+        HostUrl("http://forge.coreweave.com/api/wandb")

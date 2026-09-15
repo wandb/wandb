@@ -179,3 +179,55 @@ def test_beta_leet_is_an_alias(runner, core_calls, tmp_path: pathlib.Path):
     assert core_calls == [
         ["wandb-core", "leet", "--base-url", _BASE_URL, str(wandb_dir.resolve())]
     ]
+
+
+@pytest.mark.parametrize("host", ["forge.coreweave.com", "qa.forge.coreweave.com"])
+@pytest.mark.parametrize("prefix", ["/wandb", "/api/wandb"])
+@pytest.mark.parametrize("run_path", ["/entity/project/runs/id", "/entity/project/id/"])
+def test_parse_forge_remote_url(host, prefix, run_path):
+    base_url = f"https://{host}/api/wandb"
+
+    assert leet._parse_remote_url(
+        f"https://{host}{prefix}{run_path}?view=history#chart"
+    ) == (base_url, base_url + run_path)
+
+
+@pytest.mark.parametrize(
+    "url,expected",
+    [
+        (
+            "https://wandb.ai/entity/project/runs/id?view=history#chart",
+            ("https://api.wandb.ai", "https://api.wandb.ai/entity/project/runs/id"),
+        ),
+        (
+            "https://api.wandb.ai/entity/project/id",
+            ("https://api.wandb.ai", "https://api.wandb.ai/entity/project/id"),
+        ),
+        (
+            "http://localhost:8080/wandb/project/runs/id",
+            ("http://localhost:8080", "http://localhost:8080/wandb/project/runs/id"),
+        ),
+    ],
+)
+def test_parse_remote_url_preserves_legacy_hosts(url, expected):
+    assert leet._parse_remote_url(url) == expected
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://forge.coreweave.com/entity/project/runs/id",
+        "https://forge.coreweave.com/wandb/entity/project/sweeps/id",
+        "https://forge.coreweave.com/wandb/entity/project/runs/id/extra",
+        "https://forge.coreweave.com/wandb/entity//runs/id",
+        "https://forge.coreweave.com/wandb-other/entity/project/runs/id",
+        "https://forge.coreweave.com/api/wandb-other/entity/project/runs/id",
+        "http://forge.coreweave.com/wandb/entity/project/runs/id",
+        "https://forge.coreweave.com:8443/wandb/entity/project/runs/id",
+        "https://forge.coreweave.com.example.com/wandb/entity/project/runs/id",
+        "https://example.com/api/wandb/entity/project/runs/id",
+    ],
+)
+def test_parse_remote_url_rejects_invalid_forge_routes(url):
+    with pytest.raises(SystemExit):
+        leet._parse_remote_url(url)

@@ -13,7 +13,7 @@ import traceback
 from collections.abc import Callable, Sequence
 from datetime import datetime
 from typing import Any, Literal
-from urllib.parse import quote, unquote
+from urllib.parse import quote, unquote, urlsplit
 
 from google.protobuf.wrappers_pb2 import BoolValue, DoubleValue, Int32Value, StringValue
 from pydantic import BaseModel, ConfigDict, Field
@@ -1104,6 +1104,7 @@ class Settings(BaseModel, validate_assignment=True):
         <!-- lazydoc-ignore -->
         """
         urls.validate_url(value)
+        urls.validate_forge_base_url(value)
         # wandb.ai-specific checks
         if re.match(r".*wandb\.ai[^\.]*$", value) and "api." not in value:
             # user might guess app.wandb.ai or wandb.ai is the default cloud server
@@ -1711,7 +1712,13 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def is_local(self) -> bool:
-        return str(self.base_url) != "https://api.wandb.ai"
+        if self.base_url == "https://api.wandb.ai":
+            return False
+        # QA deployments retain the existing non-production classification.
+        return not (
+            urls.is_forge_host(self.base_url)
+            and urlsplit(self.base_url).hostname == "forge.coreweave.com"
+        )
 
     @computed_field  # type: ignore[prop-decorator]
     @property

@@ -23,6 +23,23 @@ def test_check_host():
     assert wandb_verify.check_host("http://localhost:8000")
 
 
+@pytest.mark.parametrize(
+    "host",
+    [
+        "forge.coreweave.com",
+        "https://forge.coreweave.com/api/wandb",
+        "https://forge.coreweave.com/api/wandb/",
+        "https://qa.forge.coreweave.com/api/wandb",
+    ],
+)
+def test_check_host_rejects_forge(host):
+    assert not wandb_verify.check_host(host)
+
+
+def test_check_host_allows_custom_server():
+    assert wandb_verify.check_host("https://forge.coreweave.com.example/api/wandb")
+
+
 def test_check_secure_requests(capsys):
     wandb_verify.check_secure_requests(
         "https://wandb.rules",

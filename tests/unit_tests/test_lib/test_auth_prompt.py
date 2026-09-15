@@ -27,6 +27,29 @@ def test_authorize_url_uses_app_url():
     assert result == "https://my-ui/authorize"
 
 
+@pytest.mark.parametrize("hostname", ["forge.coreweave.com", "qa.forge.coreweave.com"])
+@pytest.mark.parametrize("signup", [False, True])
+def test_authorize_url_preserves_forge_mount(hostname, signup):
+    result = prompt._authorize_url(
+        host_url.HostUrl(f"https://{hostname}/api/wandb"),
+        signup=signup,
+        referrer="models",
+    )
+
+    query = "signup=true&ref=models" if signup else "ref=models"
+    assert result == f"https://{hostname}/wandb/authorize?{query}"
+
+
+def test_authorize_url_preserves_app_url_override():
+    result = prompt._authorize_url(
+        host_url.HostUrl("https://my-api", app_url="https://my-ui/custom/"),
+        signup=False,
+        referrer="",
+    )
+
+    assert result == "https://my-ui/custom/authorize"
+
+
 def test_timeout(emulated_terminal: EmulatedTerminal):
     _ = emulated_terminal  # select nothing, allow a timeout
 
