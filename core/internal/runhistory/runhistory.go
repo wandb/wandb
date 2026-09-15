@@ -57,6 +57,32 @@ func (rh *RunHistory) ToRecords() ([]*spb.HistoryItem, error) {
 	return records, errors.Join(errs...)
 }
 
+// ForEachNumber runs a callback on every numeric metric.
+//
+// All numbers are converted to float64, which may lose precision.
+//
+// The callbacks must not modify the history. The callbacks return true
+// to continue iteration, or false to stop early.
+func (rh *RunHistory) ForEachNumber(
+	fn func(path pathtree.TreePath, value float64) bool,
+) {
+	rh.metrics.ForEachLeaf(func(path pathtree.TreePath, value any) bool {
+		switch x := value.(type) {
+
+		// Numeric metrics are always float64 or int64 because all our JSON
+		// libraries decode numbers as float64/int64 and because the only
+		// allowed setters are for float64/int64.
+		case float64:
+			return fn(path, x)
+		case int64:
+			return fn(path, float64(x))
+
+		default:
+			return true
+		}
+	})
+}
+
 // ForEachKey runs a callback on the key of each metric that has a value.
 //
 // Iteration stops if the callback returns false.
@@ -119,6 +145,24 @@ func (rh *RunHistory) GetNumber(path pathtree.TreePath) (float64, bool) {
 	case float64:
 		return x, true
 	default:
+		return 0, false
+	}
+}
+
+// GetInt returns the value of a integer-valued metric.
+//
+// When this RunHistory was created from a HistoryRecord, a metric is
+// integer-valued if and only if it was encoded as a JSON integer.
+// "10" is an integer, but "10.0" is not.
+func (rh *RunHistory) GetInt(path pathtree.TreePath) (int64, bool) {
+	value, exists := rh.metrics.GetLeaf(path)
+	if !exists {
+		return 0, false
+	}
+
+	if asInt, ok := value.(int64); ok {
+		return asInt, true
+	} else {
 		return 0, false
 	}
 }
