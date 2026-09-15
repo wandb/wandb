@@ -555,8 +555,11 @@ class CoreWeaveEvalTableWriter:
             from coreweave_evaluations import CoreWeaveEvaluations
         except ImportError as exc:
             raise UsageError(
-                "CoreWeave EvalTable logging requires the local Evaluations Python "
-                "SDK. Install requirements-eval-table-coreweave-local.txt with uv."
+                "CoreWeave EvalTable logging requires the coreweave_evaluations "
+                "package, which wandb/core generates and does not publish. Install "
+                "it from core/services/evaluations/generated/python; the venv-dev "
+                "target in examples-dev/evals-for-models builds an environment "
+                "with it."
             ) from exc
 
         # The client builds the Authorization header from these and rejects a
