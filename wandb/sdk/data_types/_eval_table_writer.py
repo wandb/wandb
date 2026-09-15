@@ -25,7 +25,7 @@ _logger = logging.getLogger(__name__)
 EVAL_TABLE_MARKER = {"wandb_eval_table": True}
 
 _MIN_WEAVE_VERSION = "0.52.41"
-_COREWEAVE_BASE_URL_ENV = "CES_BASE_URL"
+_CES_BASE_URL_ENV = "CES_BASE_URL"
 _WANDB_SCOPE_NAMESPACE = "wandb"
 _PROJECT_SCOPE_QUERY = """
 query EvalTableProjectScope($entity: String!, $project: String!) {
@@ -39,7 +39,7 @@ _MAX_DATASET_FIELDS = 10_000
 _MAX_ROWS = 10_000
 _MAX_SCORERS = 256
 
-EvalTableBackend = Literal["weave", "coreweave"]
+EvalTableBackend = Literal["weave", "ces"]
 PrimitiveValueType = Literal["boolean", "integer", "number", "string"]
 
 
@@ -81,10 +81,10 @@ def create_eval_table_writer(
         return WeaveEvalTableWriter(
             unsupported_media_mode=unsupported_media_mode,
         )
-    if backend == "coreweave":
-        return CoreWeaveEvalTableWriter()
+    if backend == "ces":
+        return CESEvalTableWriter()
     raise UsageError(
-        f"Unsupported EvalTable backend {backend!r}; expected 'weave' or 'coreweave'."
+        f"Unsupported EvalTable backend {backend!r}; expected 'weave' or 'ces'."
     )
 
 
@@ -221,20 +221,20 @@ class WeaveEvalTableWriter:
 
 
 @dataclass(frozen=True)
-class _PreparedCoreWeaveWrite:
+class _PreparedCESWrite:
     dataset_fields: list[dict[str, str]]
     scorers: list[dict[str, str]]
     rows: list[dict[str, Any]]
 
 
 @dataclass(frozen=True)
-class _CoreWeaveScopeContext:
+class _CESScopeContext:
     scope_ref: str
     api_key: str | None
     access_token: str | None
 
 
-class CoreWeaveEvalTableWriter:
+class CESEvalTableWriter:
     """Write an immutable EvalTable through the Evaluations service."""
 
     def __init__(self) -> None:
@@ -247,9 +247,7 @@ class CoreWeaveEvalTableWriter:
         from wandb.apis.public.service_api import ServiceApi
 
         if not run.entity or not run.project:
-            raise UsageError(
-                "CoreWeave EvalTable logging requires a W&B entity and project."
-            )
+            raise UsageError("CES EvalTable logging requires a W&B entity and project.")
         self._entity = run.entity
         self._project = run.project
         self._service_api = ServiceApi(run._settings)
@@ -274,11 +272,11 @@ class CoreWeaveEvalTableWriter:
             raise UsageError("EvalTable must be logged with run.log().")
 
         prepared = self._prepare(value)
-        base_url = os.environ.get(_COREWEAVE_BASE_URL_ENV)
+        base_url = os.environ.get(_CES_BASE_URL_ENV)
         if not base_url:
             raise UsageError(
-                f"Set {_COREWEAVE_BASE_URL_ENV} to the Evaluations service URL "
-                "before logging a CoreWeave EvalTable."
+                f"Set {_CES_BASE_URL_ENV} to the Evaluations service URL "
+                "before logging a CES EvalTable."
             )
 
         scope = self._resolve_scope_context()
@@ -315,8 +313,7 @@ class CoreWeaveEvalTableWriter:
             client.close()
 
         _logger.debug(
-            "CoreWeave EvalTable recorded namespace=%s scope_ref=%s "
-            "evaluation_version_id=%s",
+            "CES EvalTable recorded namespace=%s scope_ref=%s evaluation_version_id=%s",
             _WANDB_SCOPE_NAMESPACE,
             scope.scope_ref,
             version.evaluation_version_id,
@@ -325,7 +322,7 @@ class CoreWeaveEvalTableWriter:
         return EvalTableWriteResult(
             marker={
                 "_type": "eval-table",
-                "backend": "coreweave",
+                "backend": "ces",
                 "schema_version": 1,
                 "ncols": value.ncols,
                 "nrows": len(value.rows),
@@ -338,12 +335,12 @@ class CoreWeaveEvalTableWriter:
             logged_id=version.evaluation_version_id,
         )
 
-    def _prepare(self, value: EvalTableWriteInput) -> _PreparedCoreWeaveWrite:
+    def _prepare(self, value: EvalTableWriteInput) -> _PreparedCESWrite:
         if not value.rows:
-            raise UsageError("CoreWeave EvalTable logging requires at least one row.")
+            raise UsageError("CES EvalTable logging requires at least one row.")
         if len(value.rows) > _MAX_ROWS:
             raise UsageError(
-                f"CoreWeave EvalTable logging currently supports at most {_MAX_ROWS} "
+                f"CES EvalTable logging currently supports at most {_MAX_ROWS} "
                 "rows per table."
             )
 
@@ -392,13 +389,12 @@ class CoreWeaveEvalTableWriter:
 
         if len(dataset_field_order) > _MAX_DATASET_FIELDS:
             raise UsageError(
-                "CoreWeave EvalTable logging supports at most "
+                "CES EvalTable logging supports at most "
                 f"{_MAX_DATASET_FIELDS} Dataset fields."
             )
         if len(scorer_order) > _MAX_SCORERS:
             raise UsageError(
-                f"CoreWeave EvalTable logging supports at most {_MAX_SCORERS} "
-                "score columns."
+                f"CES EvalTable logging supports at most {_MAX_SCORERS} score columns."
             )
 
         dataset_fields = [
@@ -416,7 +412,7 @@ class CoreWeaveEvalTableWriter:
             "columns", {"dataset_fields": dataset_fields, "scorers": scorers}
         )
         self._validate_body_size("rows", {"rows": rows})
-        return _PreparedCoreWeaveWrite(
+        return _PreparedCESWrite(
             dataset_fields=dataset_fields,
             scorers=scorers,
             rows=rows,
@@ -479,14 +475,14 @@ class CoreWeaveEvalTableWriter:
                 return None, None
             if not math.isfinite(normalized):
                 raise UsageError(
-                    f"CoreWeave EvalTable column {column!r} contains a non-finite number."
+                    f"CES EvalTable column {column!r} contains a non-finite number."
                 )
             return normalized, "number"
         if isinstance(value, str) or (np is not None and isinstance(value, np.str_)):
             return str(value), "string"
 
         raise UsageError(
-            f"CoreWeave EvalTable column {column!r} contains unsupported value "
+            f"CES EvalTable column {column!r} contains unsupported value "
             f"type {type(value).__name__!r}; only primitive values are supported."
         )
 
@@ -501,7 +497,7 @@ class CoreWeaveEvalTableWriter:
         if {existing, observed} == {"integer", "number"}:
             return "number"
         raise UsageError(
-            f"CoreWeave EvalTable column {column!r} mixes {existing!r} and "
+            f"CES EvalTable column {column!r} mixes {existing!r} and "
             f"{observed!r} values."
         )
 
@@ -514,7 +510,7 @@ class CoreWeaveEvalTableWriter:
         ).encode()
         if len(encoded) >= _MAX_BATCH_BODY_BYTES:
             raise UsageError(
-                f"CoreWeave EvalTable {operation} payload must be smaller than 16 MiB."
+                f"CES EvalTable {operation} payload must be smaller than 16 MiB."
             )
 
     def _idempotency_key(self, operation: str) -> str:
@@ -522,7 +518,7 @@ class CoreWeaveEvalTableWriter:
             raise UsageError("EvalTable must be logged with run.log().")
         return f"wandb-eval-table-v1-{self._idempotency_scope}-{operation}"
 
-    def _resolve_scope_context(self) -> _CoreWeaveScopeContext:
+    def _resolve_scope_context(self) -> _CESScopeContext:
         if self._entity is None or self._project is None or self._service_api is None:
             raise UsageError("EvalTable must be logged with run.log().")
 
@@ -541,21 +537,21 @@ class CoreWeaveEvalTableWriter:
         access_token = None if api_key else self._service_api.access_token()
         if not api_key and not access_token:
             raise UsageError(
-                "CoreWeave EvalTable logging requires authenticated W&B credentials."
+                "CES EvalTable logging requires authenticated W&B credentials."
             )
 
-        return _CoreWeaveScopeContext(
+        return _CESScopeContext(
             scope_ref=scope_ref,
             api_key=api_key,
             access_token=access_token,
         )
 
-    def _create_client(self, base_url: str, scope: _CoreWeaveScopeContext) -> Any:
+    def _create_client(self, base_url: str, scope: _CESScopeContext) -> Any:
         try:
             from coreweave_evaluations import CoreWeaveEvaluations
         except ImportError as exc:
             raise UsageError(
-                "CoreWeave EvalTable logging requires the coreweave_evaluations "
+                "CES EvalTable logging requires the coreweave_evaluations "
                 "package, which wandb/core generates and does not publish. Install "
                 "it from core/services/evaluations/generated/python; the venv-dev "
                 "target in examples-dev/evals-for-models builds an environment "
