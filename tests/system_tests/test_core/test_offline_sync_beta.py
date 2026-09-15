@@ -291,12 +291,7 @@ def test_syncs_resumed_offline_run(
     runner: CliRunner,
     resume: str,
 ):
-    """A resumed offline run appends to the run it resumes.
-
-    The resume intent is recorded in the .wandb file when the run starts,
-    and is the only signal available at sync time since `wandb beta sync`
-    does not pass a `resume` setting of its own.
-    """
+    """A resumed offline run appends to the run it resumes."""
     with wandb.init(mode="offline") as run1:
         run1.log({"x": "a"})
     with wandb.init(mode="offline", id=run1.id, resume=resume) as run2:

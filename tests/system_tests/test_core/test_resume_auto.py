@@ -41,7 +41,7 @@ def test_explicit_id_overrides_autoresume(wandb_backend_spy, mock_wandb_log):
     assert run2.id == "auto-id"
     mock_wandb_log.assert_warned(
         f"Ignoring ID {run1.id} loaded due to resume='auto'"
-        f" because the run ID is set to auto-id."
+        + " because the run ID is set to auto-id."
     )
 
 

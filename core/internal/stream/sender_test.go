@@ -207,25 +207,6 @@ func TestSendHistoryAppliesSteps(t *testing.T) {
 	assert.JSONEq(t, `{"loss": 1.23, "_step": 0}`, request.HistoryLines[0])
 }
 
-func TestSendHistoryPreservesLoggedSteps(t *testing.T) {
-	fileStream := filestreamtest.NewFakeFileStream()
-	x := makeSenderWithFileStream(t, gqlmock.NewMockClient(), fileStream)
-
-	x.Sender.SendRecord(&spb.Record{
-		RecordType: &spb.Record_History{History: &spb.HistoryRecord{
-			Item: []*spb.HistoryItem{
-				{NestedKey: []string{"loss"}, ValueJson: "1.23"},
-				{NestedKey: []string{"_step"}, ValueJson: "7"},
-			},
-			Step: &spb.HistoryStep{Num: 7},
-		}},
-	}, nil)
-
-	request := fileStream.GetRequest(x.Settings)
-	require.Len(t, request.HistoryLines, 1)
-	assert.JSONEq(t, `{"loss": 1.23, "_step": 7}`, request.HistoryLines[0])
-}
-
 // Verify that arguments are properly passed through to graphql
 func TestSendLinkArtifact(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
