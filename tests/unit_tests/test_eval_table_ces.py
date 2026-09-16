@@ -230,6 +230,46 @@ def test_ces_eval_table_stubs_media_until_native_support_exists(
     )
 
 
+@pytest.mark.parametrize(
+    ("oversized_media_cells", "expected_metrics"),
+    [
+        (0, ["eval_table_ces_media_write"]),
+        (
+            1,
+            [
+                "eval_table_ces_media_write",
+                "eval_table_ces_media_write_with_oversized_cells",
+            ],
+        ),
+    ],
+)
+def test_ces_eval_table_media_telemetry_counts_affected_writes(
+    monkeypatch,
+    oversized_media_cells,
+    expected_metrics,
+):
+    recorder = MagicMock()
+    monkeypatch.setattr(
+        "wandb.analytics.get_telemetry_recorder",
+        lambda: recorder,
+    )
+    prepared = ces_writer._CESWritePayloads(
+        dataset_fields=[],
+        scorers=[],
+        row_batches=[],
+        media_cells_examined=1,
+        oversized_media_cells=oversized_media_cells,
+        oversized_locations=(),
+    )
+
+    ces_writer.CESEvalTableWriter()._record_media_telemetry(prepared)
+
+    assert [
+        call.args[0] for call in recorder.increment_counter.call_args_list
+    ] == expected_metrics
+    recorder.log.assert_not_called()
+
+
 def test_ces_eval_table_raises_for_media_in_raise_mode(mock_ces_client):
     from PIL import Image as PILImage
 
