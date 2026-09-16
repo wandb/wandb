@@ -67,7 +67,7 @@ type RunUpserter struct {
 	params      *runbranch.RunParams
 	config      *runconfig.RunConfig
 	telemetry   *spb.TelemetryRecord
-	metrics     *runmetric.RunConfigMetrics
+	metrics     *runmetric.MetricHandler
 	environment *runenvironment.RunEnvironment
 }
 
@@ -159,9 +159,6 @@ func InitRun(
 		defer cancel()
 	}
 
-	// Initialize the run metrics.
-	metrics := runmetric.NewRunConfigMetrics()
-
 	upserter := &RunUpserter{
 		debounceDelay: params.DebounceDelay,
 
@@ -178,7 +175,7 @@ func InitRun(
 		params:      runParams,
 		config:      config,
 		telemetry:   telemetry,
-		metrics:     metrics,
+		metrics:     runmetric.New(),
 		environment: environment,
 	}
 
