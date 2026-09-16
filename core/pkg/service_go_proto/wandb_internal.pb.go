@@ -47,8 +47,6 @@ const (
 	ServerFeature_ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER ServerFeature = 6
 	// Indicates that the server supports passing the artifact's entity and project to the useArtifact mutation.
 	ServerFeature_USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION ServerFeature = 7
-	// Indicates that the server supports expanding defined metric globs on the server side.
-	ServerFeature_EXPAND_DEFINED_METRIC_GLOBS ServerFeature = 8
 	// Indicates that the server supports automation event RUN_METRIC.
 	ServerFeature_AUTOMATION_EVENT_RUN_METRIC ServerFeature = 9
 	// Indicates that the server supports automation event RUN_METRIC_CHANGE.
@@ -123,7 +121,6 @@ var (
 		5:  "ARTIFACT_COLLECTION_MEMBERSHIP_FILES",
 		6:  "ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER",
 		7:  "USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION",
-		8:  "EXPAND_DEFINED_METRIC_GLOBS",
 		9:  "AUTOMATION_EVENT_RUN_METRIC",
 		10: "AUTOMATION_EVENT_RUN_METRIC_CHANGE",
 		11: "AUTOMATION_ACTION_NO_OP",
@@ -163,7 +160,6 @@ var (
 		"ARTIFACT_COLLECTION_MEMBERSHIP_FILES":                 5,
 		"ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER": 6,
 		"USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION":     7,
-		"EXPAND_DEFINED_METRIC_GLOBS":                          8,
 		"AUTOMATION_EVENT_RUN_METRIC":                          9,
 		"AUTOMATION_EVENT_RUN_METRIC_CHANGE":                   10,
 		"AUTOMATION_ACTION_NO_OP":                              11,
@@ -12726,7 +12722,7 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\finput_source\x18\x01 \x01(\v2\x1e.wandb_internal.JobInputSourceR\vinputSource\x12A\n" +
 	"\rinclude_paths\x18\x02 \x03(\v2\x1c.wandb_internal.JobInputPathR\fincludePaths\x12A\n" +
 	"\rexclude_paths\x18\x03 \x03(\v2\x1c.wandb_internal.JobInputPathR\fexcludePaths\x12!\n" +
-	"\finput_schema\x18\x04 \x01(\tR\vinputSchema*\xd5\n" +
+	"\finput_schema\x18\x04 \x01(\tR\vinputSchema*\xba\n" +
 	"\n" +
 	"\rServerFeature\x12\x1e\n" +
 	"\x1aSERVER_FEATURE_UNSPECIFIED\x10\x00\x12\x13\n" +
@@ -12739,7 +12735,6 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"$ARTIFACT_COLLECTION_MEMBERSHIP_FILES\x10\x05\x128\n" +
 	"4ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER\x10\x06\x124\n" +
 	"0USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION\x10\a\x12\x1f\n" +
-	"\x1bEXPAND_DEFINED_METRIC_GLOBS\x10\b\x12\x1f\n" +
 	"\x1bAUTOMATION_EVENT_RUN_METRIC\x10\t\x12&\n" +
 	"\"AUTOMATION_EVENT_RUN_METRIC_CHANGE\x10\n" +
 	"\x12\x1b\n" +
@@ -12768,7 +12763,7 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x0fFILESTREAM_GZIP\x10\"\x12\x1a\n" +
 	"\x16SWEEPS_LOCAL_SCHEDULER\x10#\x12\x1d\n" +
 	"\x19ARTIFACT_DIGEST_ALGORITHM\x10$\x12\x1a\n" +
-	"\x16AUTOMATION_ACTION_ARIA\x10%B\x1bZ\x19core/pkg/service_go_protob\x06proto3"
+	"\x16AUTOMATION_ACTION_ARIA\x10%\"\x04\b\b\x10\bB\x1bZ\x19core/pkg/service_go_protob\x06proto3"
 
 var (
 	file_wandb_proto_wandb_internal_proto_rawDescOnce sync.Once

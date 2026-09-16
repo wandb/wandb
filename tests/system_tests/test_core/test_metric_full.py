@@ -3,6 +3,8 @@ import math
 import pytest
 import wandb
 
+from tests.fixtures.wandb_backend_spy import WandbBackendSpy
+
 
 @pytest.mark.parametrize("summary_type", [None, "copy"])
 def test_default_summary_type_is_last(wandb_backend_spy, summary_type):
@@ -181,17 +183,15 @@ def test_metric_sync_step(wandb_backend_spy):
         assert telemetry and 7 in telemetry.get("3", [])
 
 
-def test_metric_mult(wandb_backend_spy):
-    with wandb.init(
-        settings=wandb.Settings(x_server_side_expand_glob_metrics=False),
-    ) as run:
+def test_metric_mult(wandb_backend_spy: WandbBackendSpy):
+    with wandb.init() as run:
         run.define_metric("mystep", hidden=True)
         run.define_metric("*", step_metric="mystep")
         _gen_metric_sync_step(run)
 
     with wandb_backend_spy.freeze() as snapshot:
         metrics = snapshot.metrics(run_id=run.id)
-        assert metrics and len(metrics) == 3
+        assert len(metrics) == 2  # "mystep" and "*"
 
 
 def test_metric_nan_mean(wandb_backend_spy):
@@ -310,10 +310,8 @@ def test_metric_nested_glob(wandb_backend_spy):
 
 
 @pytest.mark.parametrize("name", ["m", "*"])
-def test_metric_overwrite_false(wandb_backend_spy, name):
-    with wandb.init(
-        settings=wandb.Settings(x_server_side_expand_glob_metrics=False),
-    ) as run:
+def test_metric_overwrite_false(wandb_backend_spy: WandbBackendSpy, name: str):
+    with wandb.init() as run:
         run.define_metric(name, summary="min")
         run.define_metric(name, summary="max", overwrite=False)
         run.log({"m": 1})
@@ -321,15 +319,14 @@ def test_metric_overwrite_false(wandb_backend_spy, name):
     with wandb_backend_spy.freeze() as snapshot:
         metrics = snapshot.metrics(run_id=run.id)
 
-        assert metrics[0]["1"] == "m"  # name
+        uploaded_name = metrics[0].get("1") or metrics[0].get("2")
+        assert uploaded_name == name
         assert set(metrics[0]["7"]) == {1, 2}  # summary; 1=min, 2=max
 
 
 @pytest.mark.parametrize("name", ["m", "*"])
-def test_metric_overwrite_true(wandb_backend_spy, name):
-    with wandb.init(
-        settings=wandb.Settings(x_server_side_expand_glob_metrics=False),
-    ) as run:
+def test_metric_overwrite_true(wandb_backend_spy: WandbBackendSpy, name: str):
+    with wandb.init() as run:
         run.define_metric(name, summary="min")
         run.define_metric(name, summary="max", overwrite=True)
         run.log({"m": 1})
@@ -337,86 +334,6 @@ def test_metric_overwrite_true(wandb_backend_spy, name):
     with wandb_backend_spy.freeze() as snapshot:
         metrics = snapshot.metrics(run_id=run.id)
 
-        assert metrics[0]["1"] == "m"  # name
+        uploaded_name = metrics[0].get("1") or metrics[0].get("2")
+        assert uploaded_name == name
         assert metrics[0]["7"] == [2]  # summary; 2=max
-
-
-@pytest.mark.parametrize(
-    "enable_expand_glob_metrics,server_supports_expand_glob_metrics,expected_metrics",
-    [
-        (
-            True,
-            True,
-            [
-                {"2": "*", "6": [], "7": [1]},
-            ],
-        ),
-        (
-            True,
-            False,
-            [
-                {"1": "m", "6": [3], "7": [1]},
-            ],
-        ),
-        (
-            False,
-            True,
-            [
-                {"1": "m", "6": [3], "7": [1]},
-            ],
-        ),
-        (
-            False,
-            False,
-            [
-                {"1": "m", "6": [3], "7": [1]},
-            ],
-        ),
-    ],
-)
-def test_metric_expand_glob(
-    wandb_backend_spy,
-    enable_expand_glob_metrics,
-    server_supports_expand_glob_metrics,
-    expected_metrics,
-):
-    """Test that the server expands glob metrics when the server supports it.
-
-    All cases when the server does not support expanding glob metrics or when
-    the clientdoes not request it should default to the legacy behavior of
-    expanding glob metrics on the client side.
-    """
-    # stub the server features query to return that the server supports expanding
-    # glob metrics
-    gql = wandb_backend_spy.gql
-    wandb_backend_spy.stub_gql(
-        gql.Matcher(operation="ServerFeaturesQuery"),
-        gql.once(
-            content={
-                "data": {
-                    "serverInfo": {
-                        "features": [
-                            {
-                                "name": "EXPAND_DEFINED_METRIC_GLOBS",
-                                "isEnabled": server_supports_expand_glob_metrics,
-                            },
-                        ],
-                    },
-                },
-            },
-            status=200,
-        ),
-    )
-
-    with wandb.init(
-        settings=wandb.Settings(
-            x_server_side_expand_glob_metrics=enable_expand_glob_metrics,
-        )
-    ) as run:
-        run.define_metric("*", summary="min")
-        run.log({"m": 1})
-
-    with wandb_backend_spy.freeze() as snapshot:
-        metrics = snapshot.metrics(run_id=run.id)
-        assert len(metrics) == len(expected_metrics)
-        assert metrics == expected_metrics

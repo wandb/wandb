@@ -10,7 +10,7 @@ import (
 )
 
 func TestMetricSelfStep(t *testing.T) {
-	rcm := runmetric.NewRunConfigMetrics(false)
+	rcm := runmetric.NewRunConfigMetrics()
 
 	_ = rcm.ProcessRecord(&spb.MetricRecord{
 		Name:       "x",
@@ -32,9 +32,8 @@ func TestMetricSelfStep(t *testing.T) {
 	assert.Equal(t, config[yidx]["5"], 1+int64(xidx))
 }
 
-// TestMetricGlob tests the case where server-side glob expansion is enabled.
 func TestMetricGlob(t *testing.T) {
-	rcm := runmetric.NewRunConfigMetrics(true)
+	rcm := runmetric.NewRunConfigMetrics()
 
 	_ = rcm.ProcessRecord(&spb.MetricRecord{
 		GlobName:   "x/*",

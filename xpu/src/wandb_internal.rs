@@ -2949,8 +2949,6 @@ pub enum ServerFeature {
     ArtifactCollectionMembershipFileDownloadHandler = 6,
     /// Indicates that the server supports passing the artifact's entity and project to the useArtifact mutation.
     UseArtifactWithEntityAndProjectInformation = 7,
-    /// Indicates that the server supports expanding defined metric globs on the server side.
-    ExpandDefinedMetricGlobs = 8,
     /// Indicates that the server supports automation event RUN_METRIC.
     AutomationEventRunMetric = 9,
     /// Indicates that the server supports automation event RUN_METRIC_CHANGE.
@@ -3034,7 +3032,6 @@ impl ServerFeature {
             Self::UseArtifactWithEntityAndProjectInformation => {
                 "USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION"
             }
-            Self::ExpandDefinedMetricGlobs => "EXPAND_DEFINED_METRIC_GLOBS",
             Self::AutomationEventRunMetric => "AUTOMATION_EVENT_RUN_METRIC",
             Self::AutomationEventRunMetricChange => "AUTOMATION_EVENT_RUN_METRIC_CHANGE",
             Self::AutomationActionNoOp => "AUTOMATION_ACTION_NO_OP",
@@ -3101,7 +3098,6 @@ impl ServerFeature {
             "USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION" => {
                 Some(Self::UseArtifactWithEntityAndProjectInformation)
             }
-            "EXPAND_DEFINED_METRIC_GLOBS" => Some(Self::ExpandDefinedMetricGlobs),
             "AUTOMATION_EVENT_RUN_METRIC" => Some(Self::AutomationEventRunMetric),
             "AUTOMATION_EVENT_RUN_METRIC_CHANGE" => {
                 Some(Self::AutomationEventRunMetricChange)

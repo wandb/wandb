@@ -9,21 +9,10 @@ import (
 type RunConfigMetrics struct {
 	// handler parses MetricRecords.
 	handler *MetricHandler
-
-	// serverExpandGlobMetrics indicates that server-side expansion is supported,
-	// so expanded metrics don't need to be added to the config.
-	serverExpandGlobMetrics bool
 }
 
-func NewRunConfigMetrics(serverExpandGlobMetrics bool) *RunConfigMetrics {
-	return &RunConfigMetrics{
-		handler:                 New(),
-		serverExpandGlobMetrics: serverExpandGlobMetrics,
-	}
-}
-
-func (rcm *RunConfigMetrics) IsServerExpandGlobMetrics() bool {
-	return rcm.serverExpandGlobMetrics
+func NewRunConfigMetrics() *RunConfigMetrics {
+	return &RunConfigMetrics{handler: New()}
 }
 
 // ProcessRecord updates metric definitions.
@@ -47,16 +36,14 @@ func (rcm *RunConfigMetrics) ToRunConfigData() []map[string]any {
 		)
 	}
 
-	if rcm.serverExpandGlobMetrics {
-		for name, metric := range rcm.handler.globMetrics {
-			encodedMetrics = rcm.encodeToRunConfigData(
-				name,
-				metric,
-				encodedMetrics,
-				indexByName,
-				true,
-			)
-		}
+	for name, metric := range rcm.handler.globMetrics {
+		encodedMetrics = rcm.encodeToRunConfigData(
+			name,
+			metric,
+			encodedMetrics,
+			indexByName,
+			true,
+		)
 	}
 
 	return encodedMetrics
