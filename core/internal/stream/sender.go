@@ -27,6 +27,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runhistory"
+	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -122,6 +123,9 @@ type Sender struct {
 
 	// runSummary is the full summary for the run
 	runSummary *runsummary.RunSummary
+
+	// runDefinedMetrics keeps track of `define_metric()` definitions.
+	runDefinedMetrics *runmetric.MetricHandler
 
 	// stepTracker assigns increasing _step values and updates summary _step.
 	stepTracker *HistoryStepTracker
@@ -249,6 +253,7 @@ func (f *SenderFactory) NewWithFileStream(
 		mailbox:           f.Mailbox,
 		runHandle:         f.RunHandle,
 		runSummary:        runsummary.New(),
+		runDefinedMetrics: runmetric.New(),
 		stepTracker:       f.HistoryStepTracker,
 		runHistorySampler: runhistory.NewRunHistorySampler(),
 		consoleLogsSender: runconsolelogs.New(consoleLogsSenderParams),
@@ -431,6 +436,8 @@ func (s *Sender) sendRequest(
 
 	case *spb.Request_SampledHistory:
 		s.sendRequestSampledHistory(x.SampledHistory, request)
+	case *spb.Request_GetSummary:
+		s.sendRequestGetSummary(x.GetSummary, request)
 
 	case *spb.Request_LogArtifact:
 		s.sendRequestLogArtifact(x.LogArtifact, request)
@@ -543,6 +550,31 @@ func (s *Sender) sendRequestSampledHistory(
 		ResponseType: &spb.Response_SampledHistoryResponse{
 			SampledHistoryResponse: &spb.SampledHistoryResponse{
 				Item: s.runHistorySampler.Get(),
+			},
+		},
+	})
+}
+
+func (s *Sender) sendRequestGetSummary(
+	record *spb.GetSummaryRequest,
+	request *runwork.Request,
+) {
+	items, err := s.runSummary.ToRecords()
+
+	if err != nil {
+		s.logger.CaptureError(
+			"stream",
+			fmt.Errorf("sender: sendRequestGetSummary: %v", err),
+		)
+
+		// Partial success is possible, so we log errors and respond with
+		// whatever we were able to produce.
+	}
+
+	s.respond(request, &spb.Response{
+		ResponseType: &spb.Response_GetSummaryResponse{
+			GetSummaryResponse: &spb.GetSummaryResponse{
+				Item: items,
 			},
 		},
 	})
@@ -908,8 +940,6 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 		}
 	}
 
-	s.runHistorySampler.SampleNext(history)
-
 	step, err := s.stepTracker.ApplyHistoryStep(history)
 	if err != nil {
 		s.logger.CaptureError(
@@ -918,6 +948,22 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 		)
 		return
 	}
+
+	s.runHistorySampler.SampleNext(history)
+
+	// Expand any new metrics that match a `define_metric()` glob.
+	newMetrics := s.runDefinedMetrics.UpdateMetrics(history)
+	for _, newMetric := range newMetrics {
+		_ = s.runDefinedMetrics.ProcessRecord(newMetric)
+		s.runDefinedMetrics.UpdateSummary(newMetric.Name, s.runSummary)
+	}
+
+	// For any metric that has an associated "step" metric, ensure the "step"
+	// metric is in the history.
+	s.runDefinedMetrics.InsertStepMetrics(history)
+
+	// Update the run's summary.
+	_, _ = s.runSummary.UpdateSummaries(history)
 
 	if s.fileStream == nil {
 		return
@@ -1212,7 +1258,22 @@ func (s *Sender) sendExit(
 }
 
 // sendMetric updates the metrics in the run config.
-func (s *Sender) sendMetric(_ *spb.Record, metrics *spb.MetricRecord) {
+func (s *Sender) sendMetric(_ *spb.Record, metric *spb.MetricRecord) {
+	// These exist in legacy transaction logs and can be skipped because
+	// the server expands glob definitions.
+	if metric.ExpandedFromGlob {
+		return
+	}
+
+	err := s.runDefinedMetrics.ProcessRecord(metric)
+	if err != nil {
+		s.logger.CaptureError(
+			"stream", fmt.Errorf("sender: sendMetric: %v", err),
+			"metric", metric,
+		)
+		return // an error means an invalid metric record
+	}
+
 	if s.settings.IsOffline() {
 		return
 	}
@@ -1226,7 +1287,7 @@ func (s *Sender) sendMetric(_ *spb.Record, metrics *spb.MetricRecord) {
 		return
 	}
 
-	upserter.UpdateMetrics(metrics)
+	upserter.UpdateMetrics(s.runDefinedMetrics.ToRunConfigData())
 }
 
 // sendFiles uploads files according to a FilesRecord
