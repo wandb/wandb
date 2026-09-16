@@ -113,7 +113,7 @@ message MetricsBatchChunk {
 //     ints:       [9007199254740993]
 //     strings:    ["spike"]
 //     seqs:       [0, 1, 2]
-//     has_seq:    [1, 1, 1]
+//     has_seq:    [true, true, true]
 //     seq_key:    "_step"
 //
 // This layout is very similar to the server's internal batch, but the two
@@ -159,8 +159,8 @@ message MetricsBatch {
   // The key id of each cell, in row order.
   repeated uint32 cell_keys = 3;
 
-  // The Kind of each cell, in row order. One byte per cell.
-  bytes cell_kinds = 4;
+  // The Kind of each cell, in row order.
+  repeated Kind cell_kinds = 4;
 
   // Payload arrays. The cells of one kind take payloads from that kind's
   // array in cell order. A KIND_NULL cell has no payload.
@@ -173,9 +173,9 @@ message MetricsBatch {
   // Dense column of sequence values. It is empty, or it holds one entry
   // per row.
   repeated sint64 seqs = 10;
-  // Presence of each `seqs` entry: 0 for absent, 1 for present. It is
-  // empty when `seqs` is empty, and one byte per row otherwise.
-  bytes has_seq = 11;
+  // Presence of each `seqs` entry. It is empty when `seqs` is empty,
+  // and it holds one entry per row otherwise.
+  repeated bool has_seq = 11;
 
   // The metric key for the `seqs` column: `"_step"` for history,
   // `"_timestamp"` for events, `"_offset"` for logs. Must be non-empty,
