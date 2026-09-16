@@ -42,6 +42,34 @@ func TestParseHistory_StepAndMetrics(t *testing.T) {
 	require.NotContains(t, msg.Metrics, "_runtime")
 }
 
+func TestParseHistory_HiddenMetricIsNotRendered(t *testing.T) {
+	handler := runmetric.New()
+	require.NoError(t, handler.ProcessRecord(&spb.MetricRecord{
+		Name: "custom_step",
+		Options: &spb.MetricOptions{
+			Hidden: true,
+		},
+	}))
+	require.NoError(t, handler.ProcessRecord(&spb.MetricRecord{
+		Name:       "loss",
+		StepMetric: "custom_step",
+	}))
+
+	h := &spb.HistoryRecord{Item: []*spb.HistoryItem{
+		{NestedKey: []string{"_step"}, ValueJson: "0"},
+		{NestedKey: []string{"loss"}, ValueJson: "1"},
+		{NestedKey: []string{"custom_step"}, ValueJson: "10"},
+	}}
+	msg := leet.ParseHistory("/some/run/path", h, handler).(leet.HistoryMsg)
+
+	require.Len(t, msg.Metrics, 1)
+	require.Contains(t, msg.Metrics, "loss")
+	assert.Equal(t, []float64{10}, msg.Metrics["loss"].X)
+	assert.Equal(t, []float64{1}, msg.Metrics["loss"].Y)
+	assert.Equal(t, "custom_step", msg.Metrics["loss"].XAxisMetric)
+	assert.NotContains(t, msg.Metrics, "custom_step")
+}
+
 func TestReadAllRecordsChunked_HistoryThenExit(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "chunky.wandb")
 
