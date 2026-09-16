@@ -112,18 +112,13 @@ func (a *SweepAPI) FetchSweep(ctx context.Context) (*SweepFacts, error) {
 
 // WarmStartPage fetches one page of every run in the sweep, with the
 // sweep's state.
-//
-// metricKey selects the metric whose sampled history each run carries;
-// pass "" to skip history. Returns ErrSweepNotFound if the sweep (or
-// its project) does not exist.
 func (a *SweepAPI) WarmStartPage(
 	ctx context.Context,
 	pageSize int,
 	cursor *string,
-	metricKey string,
+	metricKeys []string,
 ) (*PollPage, error) {
-	specs := historySpecs(metricKey)
-
+	specs := historySpecs(metricKeys)
 	data, err := gql.SweepRunsWithHistory(
 		ctx, a.gqlClient,
 		a.entity, a.project, a.sweepID,
@@ -142,18 +137,14 @@ func (a *SweepAPI) WarmStartPage(
 
 // FetchWatchedRuns fetches one page of the named runs, with the sweep's
 // state. Names absent from the result do not exist in the project.
-//
-// metricKey selects the metric whose sampled history each run carries;
-// pass "" to skip history. Returns ErrSweepNotFound if the sweep (or
-// its project) does not exist.
 func (a *SweepAPI) FetchWatchedRuns(
 	ctx context.Context,
 	names []string,
 	pageSize int,
 	cursor *string,
-	metricKey string,
+	metricKeys []string,
 ) (*PollPage, error) {
-	specs := historySpecs(metricKey)
+	specs := historySpecs(metricKeys)
 	filters := nameFilter(names)
 
 	data, err := gql.SweepWatchedRuns(
@@ -236,11 +227,10 @@ func pollRunFrom(node gql.SweepPollRunsEdgesRunEdgeNodeRun) PollRun {
 	}
 }
 
-// historySpecs builds the sampledHistory spec for the sweep's metric,
-// or nil to skip history entirely.
-func historySpecs(metricKey string) []string {
+// historySpecs builds the sampledHistory spec supporting MOO
+func historySpecs(metricKeys []string) []string {
 	spec, _ := json.Marshal(map[string]any{
-		"keys":    []string{metricKey, stepKey},
+		"keys":    append(metricKeys, stepKey),
 		"samples": historySampleCount,
 	})
 	return []string{string(spec)}
