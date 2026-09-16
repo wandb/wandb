@@ -366,7 +366,7 @@ func (x *MetricsBatchChunk) GetBatch() *MetricsBatch {
 //	  ints:       [9007199254740993]
 //	  strings:    ["spike"]
 //	  seqs:       [0, 1, 2]
-//	  has_seq:    [1, 1, 1]
+//	  has_seq:    [true, true, true]
 //	  seq_key:    "_step"
 //
 // This layout is very similar to the server's internal batch, but the two
@@ -397,8 +397,8 @@ type MetricsBatch struct {
 	RowEnds []uint32 `protobuf:"varint,2,rep,packed,name=row_ends,json=rowEnds,proto3" json:"row_ends,omitempty"`
 	// The key id of each cell, in row order.
 	CellKeys []uint32 `protobuf:"varint,3,rep,packed,name=cell_keys,json=cellKeys,proto3" json:"cell_keys,omitempty"`
-	// The Kind of each cell, in row order. One byte per cell.
-	CellKinds []byte `protobuf:"bytes,4,opt,name=cell_kinds,json=cellKinds,proto3" json:"cell_kinds,omitempty"`
+	// The Kind of each cell, in row order.
+	CellKinds []MetricsBatch_Kind `protobuf:"varint,4,rep,packed,name=cell_kinds,json=cellKinds,proto3,enum=wandb.filestream.v1.MetricsBatch_Kind" json:"cell_kinds,omitempty"`
 	// Payload arrays. The cells of one kind take payloads from that kind's
 	// array in cell order. A KIND_NULL cell has no payload.
 	Floats  []float64 `protobuf:"fixed64,5,rep,packed,name=floats,proto3" json:"floats,omitempty"`
@@ -409,9 +409,9 @@ type MetricsBatch struct {
 	// Dense column of sequence values. It is empty, or it holds one entry
 	// per row.
 	Seqs []int64 `protobuf:"zigzag64,10,rep,packed,name=seqs,proto3" json:"seqs,omitempty"`
-	// Presence of each `seqs` entry: 0 for absent, 1 for present. It is
-	// empty when `seqs` is empty, and one byte per row otherwise.
-	HasSeq []byte `protobuf:"bytes,11,opt,name=has_seq,json=hasSeq,proto3" json:"has_seq,omitempty"`
+	// Presence of each `seqs` entry. It is empty when `seqs` is empty,
+	// and it holds one entry per row otherwise.
+	HasSeq []bool `protobuf:"varint,11,rep,packed,name=has_seq,json=hasSeq,proto3" json:"has_seq,omitempty"`
 	// The metric key for the `seqs` column: `"_step"` for history,
 	// `"_timestamp"` for events, `"_offset"` for logs. Must be non-empty,
 	// including when `seqs` is empty. It names the sequence the stream
@@ -472,7 +472,7 @@ func (x *MetricsBatch) GetCellKeys() []uint32 {
 	return nil
 }
 
-func (x *MetricsBatch) GetCellKinds() []byte {
+func (x *MetricsBatch) GetCellKinds() []MetricsBatch_Kind {
 	if x != nil {
 		return x.CellKinds
 	}
@@ -521,7 +521,7 @@ func (x *MetricsBatch) GetSeqs() []int64 {
 	return nil
 }
 
-func (x *MetricsBatch) GetHasSeq() []byte {
+func (x *MetricsBatch) GetHasSeq() []bool {
 	if x != nil {
 		return x.HasSeq
 	}
@@ -559,13 +559,13 @@ const file_wandb_proto_wandb_filestream_v1_proto_rawDesc = "" +
 	"\x11MetricsBatchChunk\x12\x16\n" +
 	"\x06offset\x18\x01 \x01(\x03R\x06offset\x12\x1b\n" +
 	"\trow_count\x18\x02 \x01(\x03R\browCount\x127\n" +
-	"\x05batch\x18\x03 \x01(\v2!.wandb.filestream.v1.MetricsBatchR\x05batch\"\x95\x03\n" +
+	"\x05batch\x18\x03 \x01(\v2!.wandb.filestream.v1.MetricsBatchR\x05batch\"\xbd\x03\n" +
 	"\fMetricsBatch\x12\x12\n" +
 	"\x04keys\x18\x01 \x03(\tR\x04keys\x12\x19\n" +
 	"\brow_ends\x18\x02 \x03(\rR\arowEnds\x12\x1b\n" +
-	"\tcell_keys\x18\x03 \x03(\rR\bcellKeys\x12\x1d\n" +
+	"\tcell_keys\x18\x03 \x03(\rR\bcellKeys\x12E\n" +
 	"\n" +
-	"cell_kinds\x18\x04 \x01(\fR\tcellKinds\x12\x16\n" +
+	"cell_kinds\x18\x04 \x03(\x0e2&.wandb.filestream.v1.MetricsBatch.KindR\tcellKinds\x12\x16\n" +
 	"\x06floats\x18\x05 \x03(\x01R\x06floats\x12\x12\n" +
 	"\x04ints\x18\x06 \x03(\x12R\x04ints\x12\x14\n" +
 	"\x05bools\x18\a \x03(\bR\x05bools\x12\x18\n" +
@@ -573,7 +573,7 @@ const file_wandb_proto_wandb_filestream_v1_proto_rawDesc = "" +
 	"\x05jsons\x18\t \x03(\tR\x05jsons\x12\x12\n" +
 	"\x04seqs\x18\n" +
 	" \x03(\x12R\x04seqs\x12\x17\n" +
-	"\ahas_seq\x18\v \x01(\fR\x06hasSeq\x12\x17\n" +
+	"\ahas_seq\x18\v \x03(\bR\x06hasSeq\x12\x17\n" +
 	"\aseq_key\x18\f \x01(\tR\x06seqKey\"b\n" +
 	"\x04Kind\x12\r\n" +
 	"\tKIND_NULL\x10\x00\x12\x0e\n" +
@@ -609,11 +609,12 @@ var file_wandb_proto_wandb_filestream_v1_proto_depIdxs = []int32{
 	2, // 0: wandb.filestream.v1.FileStreamUpload.files:type_name -> wandb.filestream.v1.FileStreamChunk
 	3, // 1: wandb.filestream.v1.FileStreamUpload.history:type_name -> wandb.filestream.v1.MetricsBatchChunk
 	4, // 2: wandb.filestream.v1.MetricsBatchChunk.batch:type_name -> wandb.filestream.v1.MetricsBatch
-	3, // [3:3] is the sub-list for method output_type
-	3, // [3:3] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	0, // 3: wandb.filestream.v1.MetricsBatch.cell_kinds:type_name -> wandb.filestream.v1.MetricsBatch.Kind
+	4, // [4:4] is the sub-list for method output_type
+	4, // [4:4] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_wandb_proto_wandb_filestream_v1_proto_init() }
