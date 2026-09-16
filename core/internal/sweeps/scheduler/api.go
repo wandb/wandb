@@ -122,10 +122,7 @@ func (a *SweepAPI) WarmStartPage(
 	cursor *string,
 	metricKey string,
 ) (*PollPage, error) {
-	specs, err := historySpecs(metricKey)
-	if err != nil {
-		return nil, err
-	}
+	specs := historySpecs(metricKey)
 
 	data, err := gql.SweepRunsWithHistory(
 		ctx, a.gqlClient,
@@ -136,14 +133,11 @@ func (a *SweepAPI) WarmStartPage(
 		return nil, err
 	}
 
-	project := data.GetProject()
-	if project == nil || project.GetSweep() == nil {
-		return nil, ErrSweepNotFound
+	state, runs, err := warmStartPollResult(data)
+	if err != nil {
+		return nil, err
 	}
-	sweep := project.GetSweep()
-	runs := sweep.GetRuns()
-
-	return buildPollPage(sweep.GetState(), &runs), nil
+	return buildPollPage(state, runs), nil
 }
 
 // FetchWatchedRuns fetches one page of the named runs, with the sweep's
@@ -159,14 +153,8 @@ func (a *SweepAPI) FetchWatchedRuns(
 	cursor *string,
 	metricKey string,
 ) (*PollPage, error) {
-	specs, err := historySpecs(metricKey)
-	if err != nil {
-		return nil, err
-	}
-	filters, err := nameFilter(names)
-	if err != nil {
-		return nil, err
-	}
+	specs := historySpecs(metricKey)
+	filters := nameFilter(names)
 
 	data, err := gql.SweepWatchedRuns(
 		ctx, a.gqlClient,
@@ -177,15 +165,9 @@ func (a *SweepAPI) FetchWatchedRuns(
 		return nil, err
 	}
 
-	project := data.GetProject()
-	if project == nil || project.GetSweep() == nil {
-		return nil, ErrSweepNotFound
-	}
-
-	state := project.GetSweep().GetState()
-	runs := project.GetRuns()
-	if runs == nil {
-		return &PollPage{SweepState: state}, nil
+	state, runs, err := watchedRunsPollResult(data)
+	if err != nil {
+		return nil, err
 	}
 	return buildPollPage(state, runs), nil
 }
@@ -197,8 +179,42 @@ type pollRuns interface {
 	GetEdges() []gql.SweepPollRunsEdgesRunEdge
 }
 
+// warmStartPollResult extracts the sweep state and run page from a
+// SweepRunsWithHistory response, which nests the run connection under
+// the sweep itself.
+func warmStartPollResult(
+	data *gql.SweepRunsWithHistoryResponse,
+) (state string, runs pollRuns, err error) {
+	project := data.GetProject()
+	if project == nil || project.GetSweep() == nil {
+		return "", nil, ErrSweepNotFound
+	}
+	sweep := project.GetSweep()
+	sweepRuns := sweep.GetRuns()
+	return sweep.GetState(), &sweepRuns, nil
+}
+
+// watchedRunsPollResult extracts the sweep state and run page from a
+// SweepWatchedRuns response, which selects the run connection as a
+// sibling of the sweep, independently filtered by name.
+func watchedRunsPollResult(
+	data *gql.SweepWatchedRunsResponse,
+) (state string, runs pollRuns, err error) {
+	project := data.GetProject()
+	if project == nil || project.GetSweep() == nil {
+		return "", nil, ErrSweepNotFound
+	}
+	if projectRuns := project.GetRuns(); projectRuns != nil {
+		runs = projectRuns
+	}
+	return project.GetSweep().GetState(), runs, nil
+}
+
 func buildPollPage(sweepState string, runs pollRuns) *PollPage {
 	page := &PollPage{SweepState: sweepState}
+	if runs == nil {
+		return page
+	}
 	for _, edge := range runs.GetEdges() {
 		page.Runs = append(page.Runs, pollRunFrom(edge.GetNode()))
 	}
@@ -222,32 +238,22 @@ func pollRunFrom(node gql.SweepPollRunsEdgesRunEdgeNodeRun) PollRun {
 
 // historySpecs builds the sampledHistory spec for the sweep's metric,
 // or nil to skip history entirely.
-func historySpecs(metricKey string) ([]string, error) {
-	if metricKey == "" {
-		return nil, nil
-	}
-
-	spec, err := json.Marshal(map[string]any{
+func historySpecs(metricKey string) []string {
+	spec, _ := json.Marshal(map[string]any{
 		"keys":    []string{metricKey, stepKey},
 		"samples": historySampleCount,
 	})
-	if err != nil {
-		return nil, fmt.Errorf("scheduler: building history spec: %v", err)
-	}
-	return []string{string(spec)}, nil
+	return []string{string(spec)}
 }
 
 // nameFilter selects exactly the named runs. It deliberately does not
 // also constrain the sweep, so a run moved out of one still reads back
 // rather than looking deleted.
-func nameFilter(names []string) (string, error) {
-	encoded, err := json.Marshal(map[string]any{
+func nameFilter(names []string) string {
+	encoded, _ := json.Marshal(map[string]any{
 		"name": map[string]any{"$in": names},
 	})
-	if err != nil {
-		return "", fmt.Errorf("scheduler: building run name filter: %v", err)
-	}
-	return string(encoded), nil
+	return string(encoded)
 }
 
 // historyJSON re-encodes the first spec's sampled rows as a JSON array.
