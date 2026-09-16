@@ -45,8 +45,42 @@ query SweepRunsWithHistory(
     }
 }
 
-# Confirms a tracked run still exists before it is reaped as deleted:
-# a run can be missing from a paginated walk without being gone.
+# Fetches the sweep's state together with just the runs the scheduler is
+# still watching, selected by name; the whole sweep is far larger.
+query SweepWatchedRuns(
+    $entity: String!,
+    $project: String!,
+    $sweep: String!,
+    $filters: JSONString!,
+    $first: Int!,
+    $cursor: String,
+    $historySpecs: [JSONString!]!,
+) {
+    project(name: $project, entityName: $entity) {
+        sweep(sweepName: $sweep) {
+            state
+        }
+        runs(filters: $filters, first: $first, after: $cursor) {
+            pageInfo {
+                hasNextPage
+                endCursor
+            }
+            edges {
+                node {
+                    id
+                    name
+                    state
+                    config
+                    summaryMetrics
+                    sampledHistory(specs: $historySpecs)
+                }
+            }
+        }
+    }
+}
+
+# Confirms a tracked run still exists before it is reaped as deleted.
+# The run listing lags writes; this read is strongly consistent.
 query RunState(
     $entity: String!,
     $project: String!,
