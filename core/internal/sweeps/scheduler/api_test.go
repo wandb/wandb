@@ -10,7 +10,9 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/wandb/wandb/core/internal/featurechecker"
+	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/gqlmock"
+	"github.com/wandb/wandb/core/internal/nullify"
 	"github.com/wandb/wandb/core/internal/sweeps/scheduler"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -34,6 +36,16 @@ func supported() map[spb.ServerFeature]bool {
 	}
 }
 
+// mustJSON marshals a gql response struct for use as a StubMatchOnce
+// payload, so stubbed responses stay structurally valid against the
+// generated GraphQL types instead of drifting hand-typed JSON strings.
+func mustJSON(t *testing.T, v any) string {
+	t.Helper()
+	encoded, err := json.Marshal(v)
+	require.NoError(t, err)
+	return string(encoded)
+}
+
 func TestCheckLocalSchedulerSupported(t *testing.T) {
 	api := newTestAPI(gqlmock.NewMockClient(), supported())
 
@@ -52,17 +64,17 @@ func TestFetchSweep(t *testing.T) {
 	client := gqlmock.NewMockClient()
 	client.StubMatchOnce(
 		gqlmock.WithOpName("SweepConfig"),
-		`{
-			"project": {
-				"sweep": {
-					"id": "U3dlZXA6MQ==",
-					"state": "RUNNING",
-					"config": "method: grid",
-					"displayName": "my-sweep",
-					"controllerRunName": "controller-run-1"
-				}
-			}
-		}`,
+		mustJSON(t, gql.SweepConfigResponse{
+			Project: &gql.SweepConfigProject{
+				Sweep: &gql.SweepConfigProjectSweep{
+					Id:                "U3dlZXA6MQ==",
+					State:             "RUNNING",
+					Config:            "method: grid",
+					DisplayName:       nullify.NilIfZero("my-sweep"),
+					ControllerRunName: "controller-run-1",
+				},
+			},
+		}),
 	)
 	api := newTestAPI(client, supported())
 
@@ -81,7 +93,9 @@ func TestFetchSweepNotFound(t *testing.T) {
 	client := gqlmock.NewMockClient()
 	client.StubMatchOnce(
 		gqlmock.WithOpName("SweepConfig"),
-		`{"project": {"sweep": null}}`,
+		mustJSON(t, gql.SweepConfigResponse{
+			Project: &gql.SweepConfigProject{Sweep: nil},
+		}),
 	)
 	api := newTestAPI(client, supported())
 
@@ -94,28 +108,38 @@ func TestWarmStartPage(t *testing.T) {
 	client := gqlmock.NewMockClient()
 	client.StubMatchOnce(
 		gqlmock.WithOpName("SweepRunsWithHistory"),
-		`{
-			"project": {
-				"sweep": {
-					"state": "RUNNING",
-					"runs": {
-						"pageInfo": {"hasNextPage": true, "endCursor": "abc"},
-						"edges": [
-							{
-								"node": {
-									"id": "UnVuOjE=",
-									"name": "run-1",
-									"state": "running",
-									"config": "{\"param1\": {\"value\": 1}}",
-									"summaryMetrics": "{\"loss\": 0.5}",
-									"sampledHistory": [[{"loss": 1.0, "_step": 0}, {"loss": 0.5, "_step": 1}]]
-								}
-							}
-						]
-					}
-				}
-			}
-		}`,
+		mustJSON(t, gql.SweepRunsWithHistoryResponse{
+			Project: &gql.SweepRunsWithHistoryProject{
+				Sweep: &gql.SweepRunsWithHistoryProjectSweep{
+					State: "RUNNING",
+					Runs: gql.SweepRunsWithHistoryProjectSweepRunsRunConnection{
+						SweepPollRuns: gql.SweepPollRuns{
+							PageInfo: gql.SweepPollRunsPageInfo{
+								HasNextPage: true,
+								EndCursor:   nullify.NilIfZero("abc"),
+							},
+							Edges: []gql.SweepPollRunsEdgesRunEdge{
+								{
+									Node: gql.SweepPollRunsEdgesRunEdgeNodeRun{
+										Id:             "UnVuOjE=",
+										Name:           "run-1",
+										State:          nullify.NilIfZero("running"),
+										Config:         nullify.NilIfZero(`{"param1": {"value": 1}}`),
+										SummaryMetrics: nullify.NilIfZero(`{"loss": 0.5}`),
+										SampledHistory: []interface{}{
+											[]interface{}{
+												map[string]interface{}{"loss": 1.0, "_step": 0},
+												map[string]interface{}{"loss": 0.5, "_step": 1},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}),
 	)
 	api := newTestAPI(client, supported())
 
@@ -155,28 +179,41 @@ func TestWarmStartPageMultipleMetrics(t *testing.T) {
 	client := gqlmock.NewMockClient()
 	client.StubMatchOnce(
 		gqlmock.WithOpName("SweepRunsWithHistory"),
-		`{
-			"project": {
-				"sweep": {
-					"state": "RUNNING",
-					"runs": {
-						"pageInfo": {"hasNextPage": false, "endCursor": null},
-						"edges": [
-							{
-								"node": {
-									"id": "UnVuOjE=",
-									"name": "run-1",
-									"state": "running",
-									"config": "{}",
-									"summaryMetrics": "{}",
-									"sampledHistory": [[{"loss": 1.0, "accuracy": 0.9, "_step": 0}]]
-								}
-							}
-						]
-					}
-				}
-			}
-		}`,
+		mustJSON(t, gql.SweepRunsWithHistoryResponse{
+			Project: &gql.SweepRunsWithHistoryProject{
+				Sweep: &gql.SweepRunsWithHistoryProjectSweep{
+					State: "RUNNING",
+					Runs: gql.SweepRunsWithHistoryProjectSweepRunsRunConnection{
+						SweepPollRuns: gql.SweepPollRuns{
+							PageInfo: gql.SweepPollRunsPageInfo{
+								HasNextPage: false,
+								EndCursor:   nil,
+							},
+							Edges: []gql.SweepPollRunsEdgesRunEdge{
+								{
+									Node: gql.SweepPollRunsEdgesRunEdgeNodeRun{
+										Id:             "UnVuOjE=",
+										Name:           "run-1",
+										State:          nullify.NilIfZero("running"),
+										Config:         nullify.NilIfZero("{}"),
+										SummaryMetrics: nullify.NilIfZero("{}"),
+										SampledHistory: []interface{}{
+											[]interface{}{
+												map[string]interface{}{
+													"loss":     1.0,
+													"accuracy": 0.9,
+													"_step":    0,
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}),
 	)
 	api := newTestAPI(client, supported())
 
@@ -204,28 +241,33 @@ func TestWarmStartPageWithoutMetricSkipsHistory(t *testing.T) {
 	client := gqlmock.NewMockClient()
 	client.StubMatchOnce(
 		gqlmock.WithOpName("SweepRunsWithHistory"),
-		`{
-			"project": {
-				"sweep": {
-					"state": "RUNNING",
-					"runs": {
-						"pageInfo": {"hasNextPage": false, "endCursor": null},
-						"edges": [
-							{
-								"node": {
-									"id": "UnVuOjE=",
-									"name": "run-1",
-									"state": "finished",
-									"config": "{}",
-									"summaryMetrics": "{}",
-									"sampledHistory": []
-								}
-							}
-						]
-					}
-				}
-			}
-		}`,
+		mustJSON(t, gql.SweepRunsWithHistoryResponse{
+			Project: &gql.SweepRunsWithHistoryProject{
+				Sweep: &gql.SweepRunsWithHistoryProjectSweep{
+					State: "RUNNING",
+					Runs: gql.SweepRunsWithHistoryProjectSweepRunsRunConnection{
+						SweepPollRuns: gql.SweepPollRuns{
+							PageInfo: gql.SweepPollRunsPageInfo{
+								HasNextPage: false,
+								EndCursor:   nil,
+							},
+							Edges: []gql.SweepPollRunsEdgesRunEdge{
+								{
+									Node: gql.SweepPollRunsEdgesRunEdgeNodeRun{
+										Id:             "UnVuOjE=",
+										Name:           "run-1",
+										State:          nullify.NilIfZero("finished"),
+										Config:         nullify.NilIfZero("{}"),
+										SummaryMetrics: nullify.NilIfZero("{}"),
+										SampledHistory: []interface{}{},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}),
 	)
 	api := newTestAPI(client, supported())
 
@@ -241,7 +283,7 @@ func TestWarmStartPageSweepNotFound(t *testing.T) {
 	client := gqlmock.NewMockClient()
 	client.StubMatchOnce(
 		gqlmock.WithOpName("SweepRunsWithHistory"),
-		`{"project": null}`,
+		mustJSON(t, gql.SweepRunsWithHistoryResponse{Project: nil}),
 	)
 	api := newTestAPI(client, supported())
 
@@ -254,26 +296,35 @@ func TestFetchWatchedRuns(t *testing.T) {
 	client := gqlmock.NewMockClient()
 	client.StubMatchOnce(
 		gqlmock.WithOpName("SweepWatchedRuns"),
-		`{
-			"project": {
-				"sweep": {"state": "RUNNING"},
-				"runs": {
-					"pageInfo": {"hasNextPage": true, "endCursor": "abc"},
-					"edges": [
-						{
-							"node": {
-								"id": "UnVuOjE=",
-								"name": "run-1",
-								"state": "running",
-								"config": "{\"param1\": {\"value\": 1}}",
-								"summaryMetrics": "{\"loss\": 0.5}",
-								"sampledHistory": [[{"loss": 1.0, "_step": 0}]]
-							}
-						}
-					]
-				}
-			}
-		}`,
+		mustJSON(t, gql.SweepWatchedRunsResponse{
+			Project: &gql.SweepWatchedRunsProject{
+				Sweep: &gql.SweepWatchedRunsProjectSweep{State: "RUNNING"},
+				Runs: &gql.SweepWatchedRunsProjectRunsRunConnection{
+					SweepPollRuns: gql.SweepPollRuns{
+						PageInfo: gql.SweepPollRunsPageInfo{
+							HasNextPage: true,
+							EndCursor:   nullify.NilIfZero("abc"),
+						},
+						Edges: []gql.SweepPollRunsEdgesRunEdge{
+							{
+								Node: gql.SweepPollRunsEdgesRunEdgeNodeRun{
+									Id:             "UnVuOjE=",
+									Name:           "run-1",
+									State:          nullify.NilIfZero("running"),
+									Config:         nullify.NilIfZero(`{"param1": {"value": 1}}`),
+									SummaryMetrics: nullify.NilIfZero(`{"loss": 0.5}`),
+									SampledHistory: []interface{}{
+										[]interface{}{
+											map[string]interface{}{"loss": 1.0, "_step": 0},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		}),
 	)
 	api := newTestAPI(client, supported())
 
@@ -305,7 +356,9 @@ func TestFetchWatchedRunsSweepNotFound(t *testing.T) {
 	client := gqlmock.NewMockClient()
 	client.StubMatchOnce(
 		gqlmock.WithOpName("SweepWatchedRuns"),
-		`{"project": {"sweep": null, "runs": null}}`,
+		mustJSON(t, gql.SweepWatchedRunsResponse{
+			Project: &gql.SweepWatchedRunsProject{Sweep: nil, Runs: nil},
+		}),
 	)
 	api := newTestAPI(client, supported())
 
