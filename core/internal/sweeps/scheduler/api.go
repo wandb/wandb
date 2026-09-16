@@ -117,10 +117,9 @@ func (a *SweepAPI) WarmStartPage(
 	ctx context.Context,
 	pageSize int,
 	cursor *string,
-	metricKey string,
+	metricKeys []string,
 ) (*PollPage, error) {
-	specs := historySpecs(metricKey)
-
+	specs := historySpecs(metricKeys)
 	data, err := gql.SweepRunsWithHistory(
 		ctx, a.gqlClient,
 		a.entity, a.project, a.sweepID,
@@ -145,9 +144,9 @@ func (a *SweepAPI) FetchWatchedRuns(
 	names []string,
 	pageSize int,
 	cursor *string,
-	metricKey string,
+	metricKeys []string,
 ) (*PollPage, error) {
-	specs := historySpecs(metricKey)
+	specs := historySpecs(metricKeys)
 	filters := nameFilter(names)
 
 	data, err := gql.SweepWatchedRuns(
@@ -230,10 +229,11 @@ func pollRunFrom(node gql.SweepPollRunsEdgesRunEdgeNodeRun) PollRun {
 	}
 }
 
-// historySpecs builds the sampledHistory spec for the sweep's metric.
-func historySpecs(metricKey string) []string {
+// historySpecs builds the sampledHistory spec for the given metrics
+func historySpecs(metricKeys []string) []string {
+	keys := append(append([]string{}, metricKeys...), stepKey)
 	spec, _ := json.Marshal(map[string]any{
-		"keys":    []string{metricKey, stepKey},
+		"keys":    keys,
 		"samples": historySampleCount,
 	})
 	return []string{string(spec)}
