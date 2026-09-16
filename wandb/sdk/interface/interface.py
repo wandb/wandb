@@ -823,6 +823,38 @@ class InterfaceBase(abc.ABC):
     ) -> None:
         raise NotImplementedError
 
+    def publish_run_log(
+        self,
+        line: str,
+        *,
+        label: str = "",
+        is_error: bool = False,
+        nowait: bool = False,
+    ) -> None:
+        """Append one finished line to the run's log.
+
+        Args:
+            line: The line's text, without a trailing newline.
+            label: Identifies the writer of the line, displayed beside it.
+            is_error: Whether to record the line as an error.
+            nowait: Whether to drop the line instead of blocking when the
+                outgoing queue is full.
+        """
+        level = pb.RunLogRequest.ERROR if is_error else pb.RunLogRequest.INFO
+        self._publish_run_log(
+            pb.RunLogRequest(line=line, label=label, level=level),
+            nowait=nowait,
+        )
+
+    @abc.abstractmethod
+    def _publish_run_log(
+        self,
+        run_log: pb.RunLogRequest,
+        *,
+        nowait: bool,
+    ) -> None:
+        raise NotImplementedError
+
     def publish_pause(self) -> None:
         pause = pb.PauseRequest()
         self._publish_pause(pause)
