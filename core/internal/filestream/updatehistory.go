@@ -13,7 +13,10 @@ type HistoryUpdate struct {
 }
 
 func (u *HistoryUpdate) Apply(ctx UpdateContext) error {
+	cells := u.Row.NumMetrics()
+	renderStart := time.Now()
 	line, err := u.Row.ToExtendedJSON()
+	renderTime := time.Since(renderStart)
 	if err != nil {
 		return fmt.Errorf(
 			"filestream: failed to serialize history: %v", err)
@@ -42,7 +45,9 @@ func (u *HistoryUpdate) Apply(ctx UpdateContext) error {
 				len(line),
 				maxLineBytes,
 			)
+		ctx.EncodeStats.AddSkippedOversizeRow()
 	} else {
+		ctx.EncodeStats.AddHistoryRow(cells, len(line), renderTime)
 		ctx.MakeRequest(&FileStreamRequest{
 			HistoryLines: []string{string(line)},
 		})

@@ -24,6 +24,7 @@ import (
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runconsolelogs"
+	"github.com/wandb/wandb/core/internal/runencodestats"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runhistory"
@@ -64,6 +65,7 @@ type SenderFactory struct {
 	RunHandle               *runhandle.RunHandle
 	Mailbox                 *mailbox.Mailbox
 	HistoryStepTracker      *HistoryStepTracker
+	EncodeStats             *runencodestats.Stats
 }
 
 // Sender performs blocking operations to process Work, such as uploading data.
@@ -152,6 +154,9 @@ type Sender struct {
 
 	// consoleLogsSender uploads captured console output.
 	consoleLogsSender *runconsolelogs.Sender
+
+	// encodeStats accumulates the cost of encoding history for this run.
+	encodeStats *runencodestats.Stats
 }
 
 // New returns a new Sender.
@@ -250,6 +255,7 @@ func (f *SenderFactory) NewWithFileStream(
 		runHandle:         f.RunHandle,
 		runSummary:        runsummary.New(),
 		stepTracker:       f.HistoryStepTracker,
+		encodeStats:       f.EncodeStats,
 		runHistorySampler: runhistory.NewRunHistorySampler(),
 		consoleLogsSender: runconsolelogs.New(consoleLogsSenderParams),
 	}
@@ -897,6 +903,7 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 	}
 
 	history := runhistory.New()
+	parseStart := time.Now()
 	for _, item := range record.GetItem() {
 		if err := history.SetFromRecord(item); err != nil {
 			s.logger.CaptureError(
@@ -907,6 +914,7 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 			)
 		}
 	}
+	s.encodeStats.AddSenderParse(time.Since(parseStart))
 
 	s.runHistorySampler.SampleNext(history)
 

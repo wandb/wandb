@@ -16,6 +16,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Added
 
+- wandb-core now reports how long it spends encoding run history, along with row, cell and request byte counts, once per run. No metric names or values are included. This is disabled for offline runs and honors the existing `WANDB_ERROR_REPORTING` and `--no-observability` opt-outs (@geoffhardy in https://github.com/wandb/wandb/pull/12843)
 - It is now possible to use resume="must" for offline runs. Syncing will fail if there's no run to resume. (@geoffhardy in https://github.com/wandb/wandb/pull/12110)
 
 
