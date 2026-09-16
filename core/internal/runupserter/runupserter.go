@@ -160,18 +160,7 @@ func InitRun(
 	}
 
 	// Initialize the run metrics.
-	enableServerExpandedMetrics := params.Settings.IsEnableServerSideExpandGlobMetrics()
-	if enableServerExpandedMetrics && !params.FeatureProvider.Enabled(
-		ctx,
-		spb.ServerFeature_EXPAND_DEFINED_METRIC_GLOBS,
-	) {
-		params.Logger.Warn(
-			"runupserter: server does not expand metric globs" +
-				" but the x_server_side_expand_glob_metrics setting is set;" +
-				" ignoring")
-		enableServerExpandedMetrics = false
-	}
-	metrics := runmetric.NewRunConfigMetrics(enableServerExpandedMetrics)
+	metrics := runmetric.NewRunConfigMetrics()
 
 	upserter := &RunUpserter{
 		debounceDelay: params.DebounceDelay,
@@ -337,8 +326,7 @@ func (upserter *RunUpserter) UpdateMetrics(metric *spb.MetricRecord) {
 	defer upserter.mu.Unlock()
 
 	// Skip uploading expanded metrics if the server expands them itself.
-	if upserter.metrics.IsServerExpandGlobMetrics() &&
-		metric.GetExpandedFromGlob() {
+	if metric.GetExpandedFromGlob() {
 		return
 	}
 
