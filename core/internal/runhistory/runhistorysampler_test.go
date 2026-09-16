@@ -27,10 +27,19 @@ func TestRunHistorySampler(t *testing.T) {
 	sampler.SampleNext(row2)
 	sampler.SampleNext(row3)
 
-	result := sampler.Get()
-	assert.Len(t, result, 2)
-	assert.Equal(t, "a", result[0].Key)
-	assert.Equal(t, []float32{1.1, 2}, result[0].ValuesFloat)
-	assert.Equal(t, "b", result[1].Key)
-	assert.Equal(t, []float32{8}, result[1].ValuesFloat)
+	// Get() iterates a map, so it does not return the items in a
+	// guaranteed order. Index by key to make the assertion order-independent.
+	valuesByKey := make(map[string][]float32)
+	for _, item := range sampler.Get() {
+		valuesByKey[item.Key] = item.ValuesFloat
+	}
+
+	// The reservoir holds up to 48 values per metric, so all the values
+	// in this test are kept.
+	assert.Equal(t,
+		map[string][]float32{
+			"a": {1.1, 2},
+			"b": {8},
+		},
+		valuesByKey)
 }
