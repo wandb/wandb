@@ -29,8 +29,13 @@ func TestRunHistorySampler(t *testing.T) {
 
 	result := sampler.Get()
 	assert.Len(t, result, 2)
-	assert.Equal(t, "a", result[0].Key)
-	assert.Equal(t, []float32{1.1, 2}, result[0].ValuesFloat)
-	assert.Equal(t, "b", result[1].Key)
-	assert.Equal(t, []float32{8}, result[1].ValuesFloat)
+	assert.Equal(t,
+		map[string][]float32{
+			"a": {1.1, 2},
+			"b": {8},
+		},
+		map[string][]float32{
+			result[0].Key: result[0].ValuesFloat,
+			result[1].Key: result[1].ValuesFloat,
+		})
 }
