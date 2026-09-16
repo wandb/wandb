@@ -326,6 +326,48 @@ func TestParseParquetHistorySteps_WithMetricConfig(t *testing.T) {
 	}
 }
 
+func TestParseParquetHistorySteps_HiddenMetricHandling(t *testing.T) {
+	handler := decodeWandbConfigMetrics(
+		`{"m":[
+			{"1":"custom_step","6":[2]},
+			{"1":"loss","5":1}
+		]}`,
+	)
+	result := parseParquetHistorySteps(
+		[]parquet.KeyValueList{{
+			{Key: parquet.StepKey, Value: int64(0)},
+			{Key: "loss", Value: float64(1)},
+			{Key: "custom_step", Value: float64(10)},
+		}},
+		observability.NewNoOpLogger(),
+		handler,
+	)
+
+	// Expect only the non-hidden metric.
+	require.Len(t, result.Metrics, 1)
+	require.Contains(t, result.Metrics, "loss")
+	assert.Equal(t, []float64{10}, result.Metrics["loss"].X)
+	assert.Equal(t, []float64{1}, result.Metrics["loss"].Y)
+	assert.Equal(t, "custom_step", result.Metrics["loss"].XAxisMetric)
+	assert.NotContains(t, result.Metrics, "custom_step")
+}
+
+func TestParseParquetHistorySteps_HiddenGlobMetricIsOmitted(t *testing.T) {
+	handler := decodeWandbConfigMetrics(
+		`{"m":[{"2":"train/*","6":[2]}]}`,
+	)
+	result := parseParquetHistorySteps(
+		[]parquet.KeyValueList{{
+			{Key: parquet.StepKey, Value: int64(0)},
+			{Key: "train/loss", Value: float64(1)},
+		}},
+		observability.NewNoOpLogger(),
+		handler,
+	)
+
+	assert.NotContains(t, result.Metrics, "train/loss")
+}
+
 func TestLoadWandbConfigMetrics(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
 	mockGQL.StubMatchOnce(

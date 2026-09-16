@@ -368,7 +368,12 @@ func parseParquetHistorySteps(
 				continue
 			}
 
-			x, xAxisMetric := currentStep, metricHandler.StepMetric(key)
+			xAxisMetric := metricHandler.StepMetric(key)
+			if metricHandler.IsHidden(key) {
+				continue
+			}
+
+			x := currentStep
 			switch xAxisMetric {
 			case "", parquet.StepKey:
 				xAxisMetric = ""
@@ -464,8 +469,8 @@ func (s *ParquetHistorySource) summaryMsg() SummaryMsg {
 
 // decodeWandbConfigMetrics decodes persisted metric definitions from the
 // run's private wandb config. The config uses numeric protobuf field names:
-// 1 is name, 2 is glob_name, 4 is step_metric, and 5 is a one-based index
-// into the metric list for step_metric.
+// 1 is name, 2 is glob_name, 4 is step_metric, 5 is a one-based index
+// into the metric list for step_metric, and 6 contains metric options.
 //
 // Invalid definitions are ignored so remote runs retain the default _step
 // axis, matching the local history reader's best-effort processing.
@@ -564,6 +569,30 @@ func decodeWandbMetricRecord(
 			return nil, false
 		}
 		record.StepMetric = stepMetric
+	}
+
+	if rawOptions, exists := fields["6"]; exists {
+		options, ok := rawOptions.([]any)
+		if !ok {
+			return nil, false
+		}
+		for _, rawOption := range options {
+			var option float64
+			switch rawOption := rawOption.(type) {
+			case int64:
+				option = float64(rawOption)
+			// Defensive check if JSON deserialization ever converts to float64.
+			case float64:
+				option = rawOption
+			default:
+				continue
+			}
+
+			if option == 2 {
+				record.Options = &spb.MetricOptions{Hidden: true}
+				break
+			}
+		}
 	}
 
 	return record, true
