@@ -224,7 +224,7 @@ func (h *Handler) handleRecord(record *spb.Record, request *runwork.Request) {
 	case *spb.Record_Header:
 		h.handleHeader(record)
 	case *spb.Record_Metric:
-		h.handleMetric(record)
+		h.handleMetric(x.Metric)
 	case *spb.Record_Request:
 		h.handleRequest(record, request)
 	case *spb.Record_Summary:
@@ -368,16 +368,7 @@ func (h *Handler) handleRequestShutdown(
 	h.respond(request, &spb.Response{})
 }
 
-func (h *Handler) handleMetric(record *spb.Record) {
-	metric := record.GetMetric()
-	if metric == nil {
-		h.logger.CaptureError(
-			"stream",
-			errors.New("handler: bad record type for handleMetric"),
-		)
-		return
-	}
-
+func (h *Handler) handleMetric(metric *spb.MetricRecord) {
 	if err := h.metricHandler.ProcessRecord(metric); err != nil {
 		h.logger.CaptureError(
 			"stream",
@@ -1043,17 +1034,14 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 		)
 	}
 
+	// Expand any new metrics that match a `define_metric()` glob.
 	newMetricDefs := h.metricHandler.UpdateMetrics(h.partialHistory)
 	for _, newMetric := range newMetricDefs {
-		// We don't mark the record 'Local' because partial history updates
-		// are not already written to the transaction log.
 		newMetric.ExpandedFromGlob = true
-		rec := &spb.Record{
-			RecordType: &spb.Record_Metric{Metric: newMetric},
-		}
-		h.handleMetric(rec)
-		h.fwdRecord(rec, nil)
+		_ = h.metricHandler.ProcessRecord(newMetric)
+		h.metricHandler.UpdateSummary(newMetric.Name, h.runSummary)
 	}
+
 	h.metricHandler.InsertStepMetrics(h.partialHistory)
 
 	// Update the summary if server-side derived summaries are disabled.
