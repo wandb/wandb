@@ -14,6 +14,25 @@ query SweepConfig(
     }
 }
 
+# Shared by SweepRunsWithHistory and SweepWatchedRuns, which fetch the
+# same per-run fields for different sets of runs.
+fragment SweepPollRuns on RunConnection {
+    pageInfo {
+        hasNextPage
+        endCursor
+    }
+    edges {
+        node {
+            id
+            name
+            state
+            config
+            summaryMetrics
+            sampledHistory(specs: $historySpecs)
+        }
+    }
+}
+
 query SweepRunsWithHistory(
     $entity: String!,
     $project: String!,
@@ -26,20 +45,7 @@ query SweepRunsWithHistory(
         sweep(sweepName: $sweep) {
             state
             runs(first: $first, after: $cursor) {
-                pageInfo {
-                    hasNextPage
-                    endCursor
-                }
-                edges {
-                    node {
-                        id
-                        name
-                        state
-                        config
-                        summaryMetrics
-                        sampledHistory(specs: $historySpecs)
-                    }
-                }
+                ...SweepPollRuns
             }
         }
     }
@@ -61,20 +67,7 @@ query SweepWatchedRuns(
             state
         }
         runs(filters: $filters, first: $first, after: $cursor) {
-            pageInfo {
-                hasNextPage
-                endCursor
-            }
-            edges {
-                node {
-                    id
-                    name
-                    state
-                    config
-                    summaryMetrics
-                    sampledHistory(specs: $historySpecs)
-                }
-            }
+            ...SweepPollRuns
         }
     }
 }
