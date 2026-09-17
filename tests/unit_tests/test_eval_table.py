@@ -627,6 +627,28 @@ def test_eval_table_records_telemetry(mock_eval_logger, run):
     assert run._telemetry_obj.feature.eval_table is True
 
 
+def test_telemetry_failure_does_not_repeat_immutable_write(
+    monkeypatch, mock_eval_logger, run
+):
+    telemetry_context = MagicMock()
+    telemetry_context.__enter__.return_value = MagicMock()
+    telemetry_context.__exit__.side_effect = RuntimeError("telemetry failed")
+    monkeypatch.setattr(
+        eval_table_module.telemetry,
+        "context",
+        MagicMock(return_value=telemetry_context),
+    )
+    et = wandb.EvalTable(columns=["output"], data=[["value"]])
+    et.bind_to_run(run, "eval", 0)
+
+    with pytest.raises(RuntimeError, match="telemetry failed"):
+        et.to_json(run)
+
+    assert et.has_been_logged()
+    assert et.to_json(run)["evaluate_call_id"] == "eval-1"
+    mock_eval_logger._create_with_meta.assert_called_once()
+
+
 def test_immutable_mutation_after_log_warns_and_still_noops(
     mock_eval_logger, mock_wandb_log, run
 ):
@@ -1265,6 +1287,20 @@ def test_external_image_reference_stubbed_on_log(
         output={"label": "ok"},
         scores={},
     )
+
+
+def test_weave_media_error_uses_original_integer_column(mock_eval_logger, run):
+    image = wandb.Image("https://example.com/image.png")
+    et = wandb.EvalTable(
+        columns=[1],
+        data=[[image]],
+        unsupported_media_mode="raise",
+    )
+
+    with pytest.raises(TypeError, match="column 1") as exc_info:
+        run.log({"my_eval": et})
+
+    assert "column '1'" not in str(exc_info.value)
 
 
 def test_unsupported_wandb_value_without_natural_hash_stubbed_on_log(
