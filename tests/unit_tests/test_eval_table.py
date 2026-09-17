@@ -14,6 +14,7 @@ import wandb.data_types as wandb_data_types
 from wandb.errors import UsageError
 from wandb.sdk.data_types import _eval_table_writer
 from wandb.sdk.data_types import eval_table as eval_table_module
+from wandb.sdk.data_types._dtypes import AnyType
 from wandb.sdk.data_types.utils import history_dict_to_json
 
 
@@ -94,8 +95,12 @@ def mock_ces_client(monkeypatch):
         ),
     )
     monkeypatch.setattr(
+        "wandb.sdk.data_types._eval_table_writer._load_ces_client_type",
+        lambda: MagicMock,
+    )
+    monkeypatch.setattr(
         "wandb.sdk.data_types._eval_table_writer.CESEvalTableWriter._create_client",
-        lambda self, base_url, scope: client,
+        lambda self, client_type, base_url, scope: client,
     )
     return client
 
@@ -213,7 +218,8 @@ def test_ces_eval_table_writes_columns_rows_and_version(
         "dataset_version_id": "dataset-version-1",
     }
     assert "evaluate_call_id" not in marker
-    assert et._immutable_evaluate_call_id == "evaluation-version-1"
+    assert et._immutable_write_result is not None
+    assert et._immutable_write_result.logged_id == "evaluation-version-1"
 
 
 def test_ces_eval_table_stubs_media_until_native_support_exists(
@@ -286,6 +292,27 @@ def test_ces_eval_table_infers_python_and_numpy_integers(
     ]
 
 
+def test_ces_eval_table_serializes_nan_as_typed_null(mock_ces_client, run):
+    et = wandb.EvalTable(
+        columns=["value"],
+        data=[[float("nan")]],
+        output_columns=["value"],
+        backend="ces",
+    )
+
+    run.log({"nan_eval": et})
+
+    assert mock_ces_client.eval_tables.create_columns.call_args.kwargs[
+        "dataset_fields"
+    ] == [
+        {"source": "input", "name": "row", "value_type": "integer"},
+        {"source": "output", "name": "value", "value_type": "number"},
+    ]
+    assert mock_ces_client.eval_tables.add_rows.call_args.kwargs["rows"][0][
+        "output"
+    ] == {"value": None}
+
+
 @pytest.mark.parametrize(
     ("data", "message"),
     [
@@ -332,6 +359,62 @@ def test_ces_eval_table_rejects_mixed_column_types_before_network(
     mock_ces_client.eval_tables.create.assert_not_called()
 
 
+def test_ces_eval_table_rejects_mixed_types_with_permissive_dtype_before_network(
+    mock_ces_client,
+    run,
+):
+    et = wandb.EvalTable(
+        columns=["value"],
+        data=[[True], [1]],
+        dtype=AnyType,
+        backend="ces",
+    )
+
+    with pytest.raises(UsageError, match="mixes 'boolean' and 'integer'"):
+        run.log({"mixed_eval": et})
+
+    mock_ces_client.eval_tables.create.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("columns", "score_columns", "message"),
+    [
+        (["x" * 513], None, "Dataset field names"),
+        (["x" * 257], ["x" * 257], "Scorer names"),
+    ],
+)
+def test_ces_eval_table_rejects_invalid_column_name_lengths_before_network(
+    mock_ces_client,
+    run,
+    columns,
+    score_columns,
+    message,
+):
+    et = wandb.EvalTable(
+        columns=columns,
+        data=[[1]],
+        score_columns=score_columns,
+        backend="ces",
+    )
+
+    with pytest.raises(UsageError, match=message):
+        run.log({"invalid_eval": et})
+
+    mock_ces_client.eval_tables.create.assert_not_called()
+
+
+def test_ces_eval_table_rejects_invalid_table_name_length_before_network(
+    mock_ces_client,
+    run,
+):
+    et = wandb.EvalTable(columns=["value"], data=[[1]], backend="ces")
+
+    with pytest.raises(UsageError, match="EvalTable names"):
+        run.log({"x" * 257: et})
+
+    mock_ces_client.eval_tables.create.assert_not_called()
+
+
 def test_ces_error_uses_original_integer_column(mock_ces_client):
     with pytest.raises(UsageError, match="column 3") as exc_info:
         wandb.EvalTable(
@@ -357,6 +440,30 @@ def test_ces_eval_table_requires_base_url(monkeypatch, mock_run):
         run.log({"eval": et})
 
 
+def test_ces_eval_table_requires_client_before_scope_lookup(monkeypatch, run):
+    monkeypatch.setenv("CES_BASE_URL", "https://evaluations.example.test")
+    et = wandb.EvalTable(columns=["value"], data=[[1]], backend="ces")
+    et.bind_to_run(run, "eval", 0)
+    writer = et._writer
+    assert isinstance(writer, _eval_table_writer.CESEvalTableWriter)
+    execute_graphql = MagicMock()
+    writer._service_api = SimpleNamespace(
+        api_key="secret",
+        access_token=MagicMock(),
+        execute_graphql=execute_graphql,
+    )
+
+    def missing_client():
+        raise UsageError("missing generated client")
+
+    monkeypatch.setattr(_eval_table_writer, "_load_ces_client_type", missing_client)
+
+    with pytest.raises(UsageError, match="missing generated client"):
+        et.to_json(run)
+
+    execute_graphql.assert_not_called()
+
+
 def test_ces_eval_table_resolves_project_scope_with_api_key(run):
     writer = _eval_table_writer.CESEvalTableWriter()
     writer.bind(run, "eval", 0)
@@ -378,6 +485,16 @@ def test_ces_eval_table_resolves_project_scope_with_api_key(run):
         variables={"entity": "e", "project": "p"},
     )
     writer._service_api.access_token.assert_not_called()
+
+
+def test_ces_scope_context_repr_redacts_credentials():
+    scope = _eval_table_writer._CESScopeContext(
+        scope_ref="scope-ref",
+        api_key="api-secret",
+        access_token="token-secret",
+    )
+
+    assert repr(scope) == "_CESScopeContext(scope_ref='scope-ref')"
 
 
 def test_ces_eval_table_uses_federated_access_token(run):
@@ -443,7 +560,7 @@ def test_ces_eval_table_run_location_stabilizes_idempotency_keys(
     )
     second = wandb.EvalTable(
         columns=["value"],
-        data=[[1]],
+        data=[[2]],
         backend="ces",
     )
     first.bind_to_run(run, "eval", 7)
@@ -461,6 +578,7 @@ def test_ces_eval_table_run_location_stabilizes_idempotency_keys(
     for method in methods:
         calls = method.call_args_list
         assert len(calls) == 2
+        # Content is not part of request identity; CES detects body mismatches.
         assert calls[0].kwargs["idempotency_key"] == calls[1].kwargs["idempotency_key"]
 
 

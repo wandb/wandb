@@ -7,7 +7,7 @@ import logging
 import math
 import os
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 import wandb
@@ -38,13 +38,33 @@ query EvalTableProjectScope($entity: String!, $project: String!) {
   }
 }
 """
+# These match the service request-schema limits.
 _MAX_BATCH_BODY_BYTES = 16 << 20
 _MAX_DATASET_FIELDS = 10_000
+_MAX_DATASET_FIELD_NAME_LENGTH = 512
+_MAX_EVAL_TABLE_NAME_LENGTH = 256
 _MAX_ROWS = 10_000
 _MAX_SCORERS = 256
+_MAX_SCORER_NAME_LENGTH = 256
 
 EvalTableBackend = Literal["weave", "ces"]
 PrimitiveValueType = Literal["boolean", "integer", "number", "string"]
+
+
+def _load_ces_client_type() -> Any:
+    # This generated optional dependency is absent from the SDK type-check env.
+    try:
+        from coreweave_evaluations import CoreWeaveEvaluations
+    except ImportError as exc:
+        raise UsageError(
+            "CES EvalTable logging requires the coreweave_evaluations "
+            "package, which wandb/core generates and does not publish. Install "
+            "it from core/services/evaluations/generated/python; the venv-dev "
+            "target in examples-dev/evals-for-models builds an environment "
+            "with it."
+        ) from exc
+
+    return CoreWeaveEvaluations
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -272,8 +292,8 @@ class _PreparedCESWrite:
 @dataclass(frozen=True)
 class _CESScopeContext:
     scope_ref: str
-    api_key: str | None
-    access_token: str | None
+    api_key: str | None = field(repr=False)
+    access_token: str | None = field(repr=False)
 
 
 class CESEvalTableWriter:
@@ -299,6 +319,8 @@ class CESEvalTableWriter:
         self._entity = run.entity
         self._project = run.project
         self._service_api = ServiceApi(run._settings)
+        # CES replays the same key and body, but rejects a reused key whose body
+        # differs, so a logging location is a stable retry identity, not an update.
         identity = json.dumps(
             {
                 "entity": run.entity,
@@ -312,17 +334,17 @@ class CESEvalTableWriter:
         )
         self._idempotency_scope = hashlib.sha256(identity.encode()).hexdigest()
 
-    def validate_cell_value(self, value: Any, column: str | int) -> None:
+    def validate_cell_value(self, value: Any, column: ColumnKey) -> None:
         if isinstance(value, WBValue):
             self._validate_wandb_value(value, column)
             return
+        # Normalize here only for its construction-time validation errors.
         self._normalize_primitive(value, column)
 
     def write(self, payload: EvalTableWriteInput) -> EvalTableWriteResult:
         if self._entity is None or self._project is None or self._service_api is None:
             raise UsageError("EvalTable must be logged with run.log().")
 
-        prepared = self._prepare(payload)
         base_url = os.environ.get(_CES_BASE_URL_ENV)
         if not base_url:
             raise UsageError(
@@ -330,8 +352,10 @@ class CESEvalTableWriter:
                 "before logging a CES EvalTable."
             )
 
+        client_type = _load_ces_client_type()
+        prepared = self._prepare(payload)
         scope = self._resolve_scope_context()
-        client = self._create_client(base_url, scope)
+        client = self._create_client(client_type, base_url, scope)
         try:
             created = client.eval_tables.create(
                 scope.scope_ref,
@@ -372,6 +396,7 @@ class CESEvalTableWriter:
 
         return EvalTableWriteResult(
             marker={
+                # Frontend dispatches on `_type` and validates backend/schema.
                 "_type": "eval-table-ces",
                 "backend": "ces",
                 "schema_version": 1,
@@ -387,6 +412,11 @@ class CESEvalTableWriter:
         )
 
     def _prepare(self, value: EvalTableWriteInput) -> _PreparedCESWrite:
+        self._validate_name(
+            "EvalTable",
+            value.name,
+            max_length=_MAX_EVAL_TABLE_NAME_LENGTH,
+        )
         if not value.rows:
             raise UsageError("CES EvalTable logging requires at least one row.")
         if len(value.rows) > _MAX_ROWS:
@@ -396,9 +426,9 @@ class CESEvalTableWriter:
             )
 
         dataset_field_types: dict[tuple[str, str], PrimitiveValueType] = {}
-        dataset_field_order: list[tuple[str, str]] = []
+        dataset_field_order: dict[tuple[str, str], None] = {}
         scorer_types: dict[str, PrimitiveValueType] = {}
-        scorer_order: list[str] = []
+        scorer_order: dict[str, None] = {}
         rows: list[dict[str, Any]] = []
 
         for row in value.rows:
@@ -474,18 +504,23 @@ class CESEvalTableWriter:
 
     def _prepare_mapping(
         self,
-        values: dict[str, Any],
+        values: Mapping[str, Any],
         *,
         source: Literal["input", "output"],
-        column_keys: dict[str, str | int],
+        column_keys: Mapping[str, ColumnKey],
         types: dict[tuple[str, str], PrimitiveValueType],
-        order: list[tuple[str, str]],
+        order: dict[tuple[str, str], None],
     ) -> dict[str, Any]:
         prepared: dict[str, Any] = {}
         for name, value in values.items():
             key = (source, name)
             if key not in order:
-                order.append(key)
+                self._validate_name(
+                    "Dataset field",
+                    name,
+                    max_length=_MAX_DATASET_FIELD_NAME_LENGTH,
+                )
+                order[key] = None
             column = column_keys.get(name, name)
             normalized, value_type = self._normalize_primitive(value, column)
             if value_type is not None:
@@ -495,16 +530,21 @@ class CESEvalTableWriter:
 
     def _prepare_scores(
         self,
-        values: dict[str, Any],
+        values: Mapping[str, Any],
         *,
-        column_keys: dict[str, str | int],
+        column_keys: Mapping[str, ColumnKey],
         types: dict[str, PrimitiveValueType],
-        order: list[str],
+        order: dict[str, None],
     ) -> dict[str, Any]:
         prepared: dict[str, Any] = {}
         for name, value in values.items():
             if name not in order:
-                order.append(name)
+                self._validate_name(
+                    "Scorer",
+                    name,
+                    max_length=_MAX_SCORER_NAME_LENGTH,
+                )
+                order[name] = None
             column = column_keys.get(name, name)
             normalized, value_type = self._normalize_primitive(value, column)
             if value_type is not None:
@@ -515,7 +555,7 @@ class CESEvalTableWriter:
     def _normalize_primitive(
         self,
         value: Any,
-        column: str | int,
+        column: ColumnKey,
     ) -> tuple[Any, PrimitiveValueType | None]:
         if isinstance(value, WBValue):
             value = self._normalize_wandb_value(value, column)
@@ -532,7 +572,8 @@ class CESEvalTableWriter:
         ):
             normalized = float(value)
             if math.isnan(normalized):
-                return None, None
+                # JSON has no NaN literal; send null while retaining numeric schema.
+                return None, "number"
             if not math.isfinite(normalized):
                 raise UsageError(
                     f"CES EvalTable column {column!r} contains a non-finite number."
@@ -546,7 +587,14 @@ class CESEvalTableWriter:
             f"type {type(value).__name__!r}; only primitive values are supported."
         )
 
-    def _validate_wandb_value(self, value: WBValue, column: str | int) -> None:
+    def _validate_name(self, kind: str, name: str, *, max_length: int) -> None:
+        if not name or len(name) > max_length:
+            raise UsageError(
+                f"CES {kind} names must contain between 1 and {max_length} "
+                f"characters; got {name!r}."
+            )
+
+    def _validate_wandb_value(self, value: WBValue, column: ColumnKey) -> None:
         if isinstance(value, Table):
             raise TypeError(
                 f"Column {column!r} contains a {type(value).__name__}; "
@@ -561,7 +609,7 @@ class CESEvalTableWriter:
                 "to log a placeholder string instead."
             )
 
-    def _normalize_wandb_value(self, value: WBValue, column: str | int) -> str:
+    def _normalize_wandb_value(self, value: WBValue, column: ColumnKey) -> str:
         # Keep media adaptation behind one hook so CES-native media can replace
         # the unsupported fallback as its schemas and upload paths are added.
         self._validate_wandb_value(value, column)
@@ -574,7 +622,7 @@ class CESEvalTableWriter:
 
     def _merge_type(
         self,
-        column: str | int,
+        column: ColumnKey,
         existing: PrimitiveValueType | None,
         observed: PrimitiveValueType,
     ) -> PrimitiveValueType:
@@ -582,6 +630,7 @@ class CESEvalTableWriter:
             return observed
         if {existing, observed} == {"integer", "number"}:
             return "number"
+        # An explicit permissive dtype can bypass Table's usual type check.
         raise UsageError(
             f"CES EvalTable column {column!r} mixes {existing!r} and "
             f"{observed!r} values."
@@ -632,22 +681,17 @@ class CESEvalTableWriter:
             access_token=access_token,
         )
 
-    def _create_client(self, base_url: str, scope: _CESScopeContext) -> Any:
-        try:
-            from coreweave_evaluations import CoreWeaveEvaluations
-        except ImportError as exc:
-            raise UsageError(
-                "CES EvalTable logging requires the coreweave_evaluations "
-                "package, which wandb/core generates and does not publish. Install "
-                "it from core/services/evaluations/generated/python; the venv-dev "
-                "target in examples-dev/evals-for-models builds an environment "
-                "with it."
-            ) from exc
-
+    def _create_client(
+        self,
+        client_type: Any,
+        base_url: str,
+        scope: _CESScopeContext,
+    ) -> Any:
         # The client builds the Authorization header from these and rejects a
         # request that reaches it without one, so a header set on an httpx
-        # client would arrive too late to satisfy it.
-        return CoreWeaveEvaluations(
+        # client would arrive too late to satisfy it. A None credential may be
+        # filled from the client's environment; bearer auth wins if both exist.
+        return client_type(
             base_url=base_url,
             api_key=scope.api_key,
             bearer_token=scope.access_token,
