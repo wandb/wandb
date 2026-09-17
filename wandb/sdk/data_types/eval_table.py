@@ -38,6 +38,7 @@ class EvalTable(Table):
     supported.
     """
 
+    # SDK-side WBValue discriminator. Backend writers own the run-history `_type`.
     _log_type = "eval-table"
 
     def __init__(
@@ -231,12 +232,6 @@ class EvalTable(Table):
     @override
     def has_been_logged(self) -> bool:
         return self._immutable_write_result is not None
-
-    @property
-    def _immutable_evaluate_call_id(self) -> str | None:
-        if self._immutable_write_result is None:
-            return None
-        return self._immutable_write_result.logged_id
 
     def _validate_cell_value(self, val: Any, col: ColumnKey) -> None:
         self._writer.validate_cell_value(val, col)

@@ -6,6 +6,7 @@ import json
 import logging
 import math
 import os
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, Protocol
 
@@ -19,6 +20,7 @@ from wandb.sdk.data_types.table import Table
 
 if TYPE_CHECKING:
     from wandb.apis.public.service_api import ServiceApi
+    from wandb.sdk.data_types.table import ColumnKey, LogMode
     from wandb.sdk.wandb_run import Run as LocalRun
 
 
@@ -45,34 +47,49 @@ EvalTableBackend = Literal["weave", "ces"]
 PrimitiveValueType = Literal["boolean", "integer", "number", "string"]
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class EvalTableWriteRow:
-    inputs: dict[str, Any]
-    output: dict[str, Any] | None
-    scores: dict[str, Any]
+    inputs: Mapping[str, Any]
+    output: Mapping[str, Any] | None
+    scores: Mapping[str, Any]
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class EvalTableWriteInput:
     name: str
-    rows: list[EvalTableWriteRow]
-    column_keys: dict[str, str | int]
+    rows: Sequence[EvalTableWriteRow]
+    column_keys: Mapping[str, ColumnKey]
     ncols: int
-    log_mode: str
+    log_mode: LogMode
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class EvalTableWriteResult:
-    marker: dict[str, Any]
+    """Backend-owned run-history marker and its backend-specific identifier.
+
+    Writers return complete, intentionally separate marker formats rather than
+    sharing an envelope; for example, Weave uses `_type: "eval-table"` while
+    CES uses `_type: "eval-table-ces"`.
+    """
+
+    marker: Mapping[str, Any]
     logged_id: str
 
 
 class EvalTableWriter(Protocol):
+    """Persist one EvalTable and return its backend-owned history marker.
+
+    `validate_cell_value` may run before `bind` while Table constructs its rows.
+    `bind` establishes the run context and precedes `write`. A successful write
+    is cached, while a failed write may be retried. `logged_id` identifies the
+    evaluation written by the selected backend.
+    """
+
     def bind(self, run: LocalRun, key: str, step: int | str) -> None: ...
 
-    def validate_cell_value(self, value: Any, column: str | int) -> None: ...
+    def validate_cell_value(self, value: Any, column: ColumnKey) -> None: ...
 
-    def write(self, value: EvalTableWriteInput) -> EvalTableWriteResult: ...
+    def write(self, payload: EvalTableWriteInput) -> EvalTableWriteResult: ...
 
 
 def create_eval_table_writer(
@@ -177,29 +194,29 @@ class WeaveEvalTableWriter:
         del key, step
         weave_integration.init_weave(run.entity, run.project)
 
-    def validate_cell_value(self, value: Any, column: str | int) -> None:
+    def validate_cell_value(self, value: Any, column: ColumnKey) -> None:
         media_adapters.validate_supported_value(
             value,
             column,
             unsupported_media_mode=self._unsupported_media_mode,
         )
 
-    def write(self, value: EvalTableWriteInput) -> EvalTableWriteResult:
+    def write(self, payload: EvalTableWriteInput) -> EvalTableWriteResult:
         from weave.evaluation.eval_imperative import EvaluationLogger
 
         evaluation = EvaluationLogger._create_with_meta(
             EVAL_TABLE_MARKER,
-            name=value.name,
+            name=payload.name,
         )
-        for row in value.rows:
+        for row in payload.rows:
             evaluation.log_example(
-                inputs=self._normalize_mapping(row.inputs, value.column_keys),
+                inputs=self._normalize_mapping(row.inputs, payload.column_keys),
                 output=(
-                    self._normalize_mapping(row.output, value.column_keys)
+                    self._normalize_mapping(row.output, payload.column_keys)
                     if row.output is not None
                     else None
                 ),
-                scores=self._normalize_mapping(row.scores, value.column_keys),
+                scores=self._normalize_mapping(row.scores, payload.column_keys),
             )
 
         evaluation.log_summary()
@@ -209,9 +226,9 @@ class WeaveEvalTableWriter:
         return EvalTableWriteResult(
             marker={
                 "_type": "eval-table",
-                "ncols": value.ncols,
-                "nrows": len(value.rows),
-                "log_mode": value.log_mode,
+                "ncols": payload.ncols,
+                "nrows": len(payload.rows),
+                "log_mode": payload.log_mode,
                 "evaluate_call_id": evaluate_call_id,
             },
             logged_id=evaluate_call_id,
@@ -219,15 +236,15 @@ class WeaveEvalTableWriter:
 
     def _normalize_mapping(
         self,
-        values: dict[str, Any],
-        column_keys: dict[str, str | int],
+        values: Mapping[str, Any],
+        column_keys: Mapping[str, ColumnKey],
     ) -> dict[str, Any]:
         return {
             column: self._normalize_value(item, column_keys.get(column, column))
             for column, item in values.items()
         }
 
-    def _normalize_value(self, value: Any, column: str | int) -> Any:
+    def _normalize_value(self, value: Any, column: ColumnKey) -> Any:
         """Adapt media, then apply Table-like normalization for plain values.
 
         TODO: Media stubbing is temporary until every backend supports these values.
@@ -301,11 +318,11 @@ class CESEvalTableWriter:
             return
         self._normalize_primitive(value, column)
 
-    def write(self, value: EvalTableWriteInput) -> EvalTableWriteResult:
+    def write(self, payload: EvalTableWriteInput) -> EvalTableWriteResult:
         if self._entity is None or self._project is None or self._service_api is None:
             raise UsageError("EvalTable must be logged with run.log().")
 
-        prepared = self._prepare(value)
+        prepared = self._prepare(payload)
         base_url = os.environ.get(_CES_BASE_URL_ENV)
         if not base_url:
             raise UsageError(
@@ -319,7 +336,7 @@ class CESEvalTableWriter:
             created = client.eval_tables.create(
                 scope.scope_ref,
                 namespace=_WANDB_SCOPE_NAMESPACE,
-                name=value.name,
+                name=payload.name,
                 idempotency_key=self._idempotency_key("create"),
             )
             client.eval_tables.create_columns(
@@ -358,9 +375,9 @@ class CESEvalTableWriter:
                 "_type": "eval-table-ces",
                 "backend": "ces",
                 "schema_version": 1,
-                "ncols": value.ncols,
-                "nrows": len(value.rows),
-                "log_mode": value.log_mode,
+                "ncols": payload.ncols,
+                "nrows": len(payload.rows),
+                "log_mode": payload.log_mode,
                 "evaluation_id": created.evaluation_id,
                 "evaluation_version_id": version.evaluation_version_id,
                 "dataset_id": created.dataset_id,
