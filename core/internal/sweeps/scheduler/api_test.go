@@ -91,7 +91,7 @@ func TestFetchSweepNotFound(t *testing.T) {
 	assert.ErrorIs(t, err, scheduler.ErrSweepNotFound)
 }
 
-func TestPollPage(t *testing.T) {
+func TestWarmStartPage(t *testing.T) {
 	client := gqlmock.NewMockClient()
 	client.StubMatchOnce(
 		gqlmock.WithOpName("SweepRunsWithHistory"),
@@ -120,7 +120,7 @@ func TestPollPage(t *testing.T) {
 	)
 	api := newTestAPI(client, supported())
 
-	page, err := api.PollPage(context.Background(), 200, nil, "loss")
+	page, err := api.WarmStartPage(context.Background(), 200, nil, "loss")
 
 	require.NoError(t, err)
 	assert.Equal(t, "RUNNING", page.SweepState)
@@ -149,7 +149,7 @@ func TestPollPage(t *testing.T) {
 	)
 }
 
-func TestPollPageWithoutMetricSkipsHistory(t *testing.T) {
+func TestWarmStartPageWithoutMetricSkipsHistory(t *testing.T) {
 	client := gqlmock.NewMockClient()
 	client.StubMatchOnce(
 		gqlmock.WithOpName("SweepRunsWithHistory"),
@@ -178,7 +178,7 @@ func TestPollPageWithoutMetricSkipsHistory(t *testing.T) {
 	)
 	api := newTestAPI(client, supported())
 
-	page, err := api.PollPage(context.Background(), 200, nil, "")
+	page, err := api.WarmStartPage(context.Background(), 200, nil, "")
 
 	require.NoError(t, err)
 	assert.Nil(t, page.NextCursor)
@@ -186,7 +186,7 @@ func TestPollPageWithoutMetricSkipsHistory(t *testing.T) {
 	assert.Equal(t, "", page.Runs[0].HistoryJSON)
 }
 
-func TestPollPageSweepNotFound(t *testing.T) {
+func TestWarmStartPageSweepNotFound(t *testing.T) {
 	client := gqlmock.NewMockClient()
 	client.StubMatchOnce(
 		gqlmock.WithOpName("SweepRunsWithHistory"),
@@ -194,7 +194,72 @@ func TestPollPageSweepNotFound(t *testing.T) {
 	)
 	api := newTestAPI(client, supported())
 
-	_, err := api.PollPage(context.Background(), 200, nil, "loss")
+	_, err := api.WarmStartPage(context.Background(), 200, nil, "loss")
+
+	assert.ErrorIs(t, err, scheduler.ErrSweepNotFound)
+}
+
+func TestFetchWatchedRuns(t *testing.T) {
+	client := gqlmock.NewMockClient()
+	client.StubMatchOnce(
+		gqlmock.WithOpName("SweepWatchedRuns"),
+		`{
+			"project": {
+				"sweep": {"state": "RUNNING"},
+				"runs": {
+					"pageInfo": {"hasNextPage": true, "endCursor": "abc"},
+					"edges": [
+						{
+							"node": {
+								"id": "UnVuOjE=",
+								"name": "run-1",
+								"state": "running",
+								"config": "{\"param1\": {\"value\": 1}}",
+								"summaryMetrics": "{\"loss\": 0.5}",
+								"sampledHistory": [[{"loss": 1.0, "_step": 0}]]
+							}
+						}
+					]
+				}
+			}
+		}`,
+	)
+	api := newTestAPI(client, supported())
+
+	page, err := api.FetchWatchedRuns(
+		context.Background(), []string{"run-1", "run-2"}, 200, nil, "loss")
+
+	require.NoError(t, err)
+	assert.Equal(t, "RUNNING", page.SweepState)
+	require.NotNil(t, page.NextCursor)
+	assert.Equal(t, "abc", *page.NextCursor)
+	require.Len(t, page.Runs, 1)
+	run := page.Runs[0]
+	assert.Equal(t, "UnVuOjE=", run.StorageID)
+	assert.Equal(t, "run-1", run.Name)
+	assert.Equal(t, "running", run.State)
+	assert.Equal(t, `{"param1": {"value": 1}}`, run.ConfigJSON)
+	assert.JSONEq(t, `[{"loss": 1.0, "_step": 0}]`, run.HistoryJSON)
+
+	// The whole point of the query: the backend is asked for exactly the
+	// named runs rather than the whole sweep.
+	gqlmock.AssertVariables(
+		t,
+		client.AllRequests()[0],
+		gqlmock.GQLVar("filters", gomock.Eq(`{"name":{"$in":["run-1","run-2"]}}`)),
+	)
+}
+
+func TestFetchWatchedRunsSweepNotFound(t *testing.T) {
+	client := gqlmock.NewMockClient()
+	client.StubMatchOnce(
+		gqlmock.WithOpName("SweepWatchedRuns"),
+		`{"project": {"sweep": null, "runs": null}}`,
+	)
+	api := newTestAPI(client, supported())
+
+	_, err := api.FetchWatchedRuns(
+		context.Background(), []string{"run-1"}, 200, nil, "")
 
 	assert.ErrorIs(t, err, scheduler.ErrSweepNotFound)
 }

@@ -110,28 +110,16 @@ func (a *SweepAPI) FetchSweep(ctx context.Context) (*SweepFacts, error) {
 	}, nil
 }
 
-// PollPage fetches one page of the sweep's runs with the sweep's state.
-//
-// metricKey selects the metric whose sampled history each run carries;
-// pass "" to skip history. Returns ErrSweepNotFound if the sweep (or
-// its project) does not exist.
-func (a *SweepAPI) PollPage(
+// WarmStartPage fetches one page of every run in the sweep, with the
+// sweep's state. Returns ErrSweepNotFound if the sweep (or its project)
+// does not exist.
+func (a *SweepAPI) WarmStartPage(
 	ctx context.Context,
 	pageSize int,
 	cursor *string,
 	metricKey string,
 ) (*PollPage, error) {
-	var specs []string
-	if metricKey != "" {
-		spec, err := json.Marshal(map[string]any{
-			"keys":    []string{metricKey, stepKey},
-			"samples": historySampleCount,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("scheduler: building history spec: %v", err)
-		}
-		specs = []string{string(spec)}
-	}
+	specs := historySpecs(metricKey)
 
 	data, err := gql.SweepRunsWithHistory(
 		ctx, a.gqlClient,
@@ -142,30 +130,123 @@ func (a *SweepAPI) PollPage(
 		return nil, err
 	}
 
+	state, runs, err := warmStartPollResult(data)
+	if err != nil {
+		return nil, err
+	}
+	return buildPollPage(state, runs), nil
+}
+
+// FetchWatchedRuns fetches one page of the named runs, with the sweep's
+// state. Names absent from the result do not exist in the project.
+// Returns ErrSweepNotFound if the sweep (or its project) does not exist.
+func (a *SweepAPI) FetchWatchedRuns(
+	ctx context.Context,
+	names []string,
+	pageSize int,
+	cursor *string,
+	metricKey string,
+) (*PollPage, error) {
+	specs := historySpecs(metricKey)
+	filters := nameFilter(names)
+
+	data, err := gql.SweepWatchedRuns(
+		ctx, a.gqlClient,
+		a.entity, a.project, a.sweepID,
+		filters, pageSize, cursor, specs,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	state, runs, err := watchedRunsPollResult(data)
+	if err != nil {
+		return nil, err
+	}
+	return buildPollPage(state, runs), nil
+}
+
+// pollRuns is the run page shape shared by SweepRunsWithHistory and
+// SweepWatchedRuns, via the SweepPollRuns GraphQL fragment.
+type pollRuns interface {
+	GetPageInfo() gql.SweepPollRunsPageInfo
+	GetEdges() []gql.SweepPollRunsEdgesRunEdge
+}
+
+// warmStartPollResult extracts the sweep state and run page from a
+// SweepRunsWithHistory response, which nests the run connection under
+// the sweep itself.
+func warmStartPollResult(
+	data *gql.SweepRunsWithHistoryResponse,
+) (state string, runs pollRuns, err error) {
 	project := data.GetProject()
 	if project == nil || project.GetSweep() == nil {
-		return nil, ErrSweepNotFound
+		return "", nil, ErrSweepNotFound
 	}
 	sweep := project.GetSweep()
+	sweepRuns := sweep.GetRuns()
+	return sweep.GetState(), &sweepRuns, nil
+}
 
-	page := &PollPage{SweepState: sweep.GetState()}
-	runs := sweep.GetRuns()
+// watchedRunsPollResult extracts the sweep state and run page from a
+// SweepWatchedRuns response, which selects the run connection as a
+// sibling of the sweep, independently filtered by name.
+func watchedRunsPollResult(
+	data *gql.SweepWatchedRunsResponse,
+) (state string, runs pollRuns, err error) {
+	project := data.GetProject()
+	if project == nil || project.GetSweep() == nil {
+		return "", nil, ErrSweepNotFound
+	}
+	if projectRuns := project.GetRuns(); projectRuns != nil {
+		runs = projectRuns
+	}
+	return project.GetSweep().GetState(), runs, nil
+}
+
+func buildPollPage(sweepState string, runs pollRuns) *PollPage {
+	page := &PollPage{SweepState: sweepState}
+	if runs == nil {
+		return page
+	}
 	for _, edge := range runs.GetEdges() {
-		node := edge.GetNode()
-		page.Runs = append(page.Runs, PollRun{
-			StorageID:   node.GetId(),
-			Name:        node.GetName(),
-			State:       nullify.ZeroIfNil(node.GetState()),
-			ConfigJSON:  nullify.ZeroIfNil(node.GetConfig()),
-			SummaryJSON: nullify.ZeroIfNil(node.GetSummaryMetrics()),
-			HistoryJSON: historyJSON(node.GetSampledHistory()),
-		})
+		page.Runs = append(page.Runs, pollRunFrom(edge.GetNode()))
 	}
 	pageInfo := runs.GetPageInfo()
 	if pageInfo.GetHasNextPage() {
 		page.NextCursor = pageInfo.GetEndCursor()
 	}
-	return page, nil
+	return page
+}
+
+func pollRunFrom(node gql.SweepPollRunsEdgesRunEdgeNodeRun) PollRun {
+	return PollRun{
+		StorageID:   node.Id,
+		Name:        node.Name,
+		State:       nullify.ZeroIfNil(node.State),
+		ConfigJSON:  nullify.ZeroIfNil(node.Config),
+		SummaryJSON: nullify.ZeroIfNil(node.SummaryMetrics),
+		HistoryJSON: historyJSON(node.SampledHistory),
+	}
+}
+
+// historySpecs builds the sampledHistory spec for the sweep's metric.
+func historySpecs(metricKey string) []string {
+	spec, _ := json.Marshal(map[string]any{
+		"keys":    []string{metricKey, stepKey},
+		"samples": historySampleCount,
+	})
+	return []string{string(spec)}
+}
+
+// nameFilter selects exactly the named runs. It deliberately does not
+// also constrain the sweep, so a run moved out of one still reads back
+// rather than looking deleted.
+func nameFilter(names []string) string {
+	encoded, _ := json.Marshal(map[string]any{
+		"name": map[string]any{"$in": names},
+	})
+	return string(encoded)
 }
 
 // historyJSON re-encodes the first spec's sampled rows as a JSON array.
@@ -180,8 +261,9 @@ func historyJSON(sampled []any) string {
 	return string(encoded)
 }
 
-// ConfirmRunExists reports whether the named run still exists: a run
-// can be missing from a paginated poll without being gone.
+// ConfirmRunExists reports whether the named run still exists. The run
+// listing lags writes, so absence from it proves nothing; this read is
+// strongly consistent.
 func (a *SweepAPI) ConfirmRunExists(
 	ctx context.Context,
 	runName string,
