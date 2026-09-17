@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Protocol
 
@@ -10,6 +11,7 @@ import wandb.integration.weave.media_adapters as media_adapters
 from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
 
 if TYPE_CHECKING:
+    from wandb.sdk.data_types.table import ColumnKey, LogMode
     from wandb.sdk.wandb_run import Run as LocalRun
 
 
@@ -18,34 +20,49 @@ EVAL_TABLE_MARKER = {"wandb_eval_table": True}
 _MIN_WEAVE_VERSION = "0.52.41"
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class EvalTableWriteRow:
-    inputs: dict[str, Any]
-    output: dict[str, Any] | None
-    scores: dict[str, Any]
+    inputs: Mapping[str, Any]
+    output: Mapping[str, Any] | None
+    scores: Mapping[str, Any]
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class EvalTableWriteInput:
     name: str
-    rows: list[EvalTableWriteRow]
-    column_keys: dict[str, str | int]
+    rows: Sequence[EvalTableWriteRow]
+    column_keys: Mapping[str, ColumnKey]
     ncols: int
-    log_mode: str
+    log_mode: LogMode
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class EvalTableWriteResult:
-    marker: dict[str, Any]
+    """Backend-owned run-history marker and its backend-specific identifier.
+
+    Writers return complete, intentionally separate marker formats rather than
+    sharing an envelope; for example, Weave uses `_type: "eval-table"` while
+    CES uses `_type: "eval-table-ces"`.
+    """
+
+    marker: Mapping[str, Any]
     logged_id: str
 
 
 class EvalTableWriter(Protocol):
+    """Persist one EvalTable and return its backend-owned history marker.
+
+    `validate_cell_value` may run before `bind` while Table constructs its rows.
+    `bind` establishes the run context and precedes `write`. A successful write
+    is cached, while a failed write may be retried. `logged_id` identifies the
+    evaluation written by the selected backend.
+    """
+
     def bind(self, run: LocalRun, key: str, step: int | str) -> None: ...
 
-    def validate_cell_value(self, value: Any, column: str | int) -> None: ...
+    def validate_cell_value(self, value: Any, column: ColumnKey) -> None: ...
 
-    def write(self, value: EvalTableWriteInput) -> EvalTableWriteResult: ...
+    def write(self, payload: EvalTableWriteInput) -> EvalTableWriteResult: ...
 
 
 def _is_numpy_datetime64(value: Any) -> bool:
@@ -129,29 +146,29 @@ class WeaveEvalTableWriter:
         del key, step
         weave_integration.init_weave(run.entity, run.project)
 
-    def validate_cell_value(self, value: Any, column: str | int) -> None:
+    def validate_cell_value(self, value: Any, column: ColumnKey) -> None:
         media_adapters.validate_supported_value(
             value,
             column,
             unsupported_media_mode=self._unsupported_media_mode,
         )
 
-    def write(self, value: EvalTableWriteInput) -> EvalTableWriteResult:
+    def write(self, payload: EvalTableWriteInput) -> EvalTableWriteResult:
         from weave.evaluation.eval_imperative import EvaluationLogger
 
         evaluation = EvaluationLogger._create_with_meta(
             EVAL_TABLE_MARKER,
-            name=value.name,
+            name=payload.name,
         )
-        for row in value.rows:
+        for row in payload.rows:
             evaluation.log_example(
-                inputs=self._normalize_mapping(row.inputs, value.column_keys),
+                inputs=self._normalize_mapping(row.inputs, payload.column_keys),
                 output=(
-                    self._normalize_mapping(row.output, value.column_keys)
+                    self._normalize_mapping(row.output, payload.column_keys)
                     if row.output is not None
                     else None
                 ),
-                scores=self._normalize_mapping(row.scores, value.column_keys),
+                scores=self._normalize_mapping(row.scores, payload.column_keys),
             )
 
         evaluation.log_summary()
@@ -161,9 +178,9 @@ class WeaveEvalTableWriter:
         return EvalTableWriteResult(
             marker={
                 "_type": "eval-table",
-                "ncols": value.ncols,
-                "nrows": len(value.rows),
-                "log_mode": value.log_mode,
+                "ncols": payload.ncols,
+                "nrows": len(payload.rows),
+                "log_mode": payload.log_mode,
                 "evaluate_call_id": evaluate_call_id,
             },
             logged_id=evaluate_call_id,
@@ -171,15 +188,15 @@ class WeaveEvalTableWriter:
 
     def _normalize_mapping(
         self,
-        values: dict[str, Any],
-        column_keys: dict[str, str | int],
+        values: Mapping[str, Any],
+        column_keys: Mapping[str, ColumnKey],
     ) -> dict[str, Any]:
         return {
             column: self._normalize_value(item, column_keys.get(column, column))
             for column, item in values.items()
         }
 
-    def _normalize_value(self, value: Any, column: str | int) -> Any:
+    def _normalize_value(self, value: Any, column: ColumnKey) -> Any:
         """Adapt media, then apply Table-like normalization for plain values.
 
         TODO: Media stubbing is temporary until every backend supports these values.
