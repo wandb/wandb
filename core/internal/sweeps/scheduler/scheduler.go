@@ -105,6 +105,11 @@ var _ TaskResolver = (*Scheduler)(nil)
 
 // NewScheduler builds a Scheduler from explicit parameters.
 func NewScheduler(params SchedulerParams) *Scheduler {
+	params.BatchSize = ignoreIfNegative(
+		params.Logger, "batch size", params.BatchSize)
+	params.RunCap = ignoreIfNegative(
+		params.Logger, "run cap", params.RunCap)
+
 	if params.BatchSize <= 0 {
 		params.BatchSize = defaultBatchSize
 	}
@@ -138,6 +143,26 @@ func NewScheduler(params SchedulerParams) *Scheduler {
 		runsByName:         make(map[string]*trackedRun),
 		warnedUnrecognized: make(map[string]bool),
 	}
+}
+
+// ignoreIfNegative drops a negative bound and returns zero, which every
+// bound reads as unset: a negative one is a mistake in the sweep config,
+// and guessing what it meant would silently cap or uncap the sweep.
+func ignoreIfNegative(
+	logger *observability.CoreLogger,
+	name string,
+	value int,
+) int {
+	if value >= 0 {
+		return value
+	}
+
+	if logger != nil {
+		logger.Warn(
+			"scheduler: ignoring an invalid negative value",
+			"setting", name, "value", value)
+	}
+	return 0
 }
 
 // TrackingState is where a run stands in its lifecycle.
