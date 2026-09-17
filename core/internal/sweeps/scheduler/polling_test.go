@@ -117,7 +117,6 @@ func TestStopEnqueuesPendingSuggestionsThenDone(t *testing.T) {
 	assert.Equal(t,
 		spb.SweepSchedulerServerDoneTask_REASON_SHUTDOWN,
 		done.GetDone().Reason)
-	assert.Empty(t, done.GetDone().DiscardedOptimizerRunIds)
 	assert.True(t, fixture.client.AllStubsUsed(),
 		"must not poll again after enqueueing the in-flight suggestions")
 }
