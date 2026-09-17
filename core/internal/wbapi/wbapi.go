@@ -36,6 +36,7 @@ type WandbAPI struct {
 
 	authHandler          *AuthHandler
 	customChartHandler   *CustomChartHandler
+	evalTableHandler     *EvalTableHandler
 	featuresHandler      *FeaturesHandler
 	fileTransferHandler  *FileTransferHandler
 	graphqlHandler       *GraphQLHandler
@@ -99,6 +100,7 @@ func New(
 		settings:  s,
 
 		authHandler:          NewAuthHandler(graphqlClient, credentialProvider),
+		evalTableHandler:     NewEvalTableHandler(credentialProvider, s),
 		featuresHandler:      NewFeaturesHandler(featureProvider),
 		fileTransferHandler:  NewFileTransferHandler(fileTransferManager),
 		graphqlHandler:       NewGraphQLHandler(graphqlClient),
@@ -184,6 +186,8 @@ func (p *WandbAPI) HandleRequest(
 		return p.authHandler.HandleRequest(ctx, req.AuthRequest)
 	case *spb.ApiRequest_FeaturesRequest:
 		return p.featuresHandler.HandleRequest(ctx, req.FeaturesRequest)
+	case *spb.ApiRequest_EvalTableRequest:
+		return p.evalTableHandler.HandleRequest(ctx, req.EvalTableRequest)
 	case *spb.ApiRequest_DownloadFileRequest:
 		return p.fileTransferHandler.HandleDownloadFile(ctx, req.DownloadFileRequest)
 	case *spb.ApiRequest_UploadFileRequest:

@@ -36,6 +36,7 @@ require (
 	github.com/spf13/afero v1.15.0
 	github.com/stretchr/testify v1.12.1
 	github.com/vektah/gqlparser/v2 v2.5.37
+	github.com/wandb/core/services/evaluations/generated/go v0.0.0
 	github.com/wandb/simplejsonext v0.0.0-20260707165459-87e0408255a5
 	github.com/zeebo/xxh3 v1.1.0
 	go.opentelemetry.io/otel v1.46.0
@@ -56,6 +57,12 @@ require (
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/yaml.v3 v3.0.1
 )
+
+// MERGE BLOCKER: The CES Go SDK is not published yet. This local replacement
+// exists only so the experimental EvalTable transport can be built and tested
+// against the sibling wandb/core checkout. Replace it with a published module
+// version before this PR is merged.
+replace github.com/wandb/core/services/evaluations/generated/go => ../../core/services/evaluations/generated/go
 
 require (
 	cel.dev/expr v0.25.3 // indirect
@@ -153,6 +160,10 @@ require (
 	github.com/sergi/go-diff v1.4.0 // indirect
 	github.com/skeema/knownhosts v1.3.3 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.8.1 // indirect
+	github.com/tidwall/gjson v1.14.4 // indirect
+	github.com/tidwall/match v1.1.1 // indirect
+	github.com/tidwall/pretty v1.2.1 // indirect
+	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
 	github.com/tklauser/numcpus v0.12.0 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect

@@ -196,6 +196,7 @@ type ApiRequest struct {
 	//	*ApiRequest_RunQueueOperationRequest
 	//	*ApiRequest_OpenTelemetryRequest
 	//	*ApiRequest_ReadRunConsoleLogsRequest
+	//	*ApiRequest_EvalTableRequest
 	Request       isApiRequest_Request `protobuf_oneof:"request"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -353,6 +354,15 @@ func (x *ApiRequest) GetReadRunConsoleLogsRequest() *ReadRunConsoleLogsRequest {
 	return nil
 }
 
+func (x *ApiRequest) GetEvalTableRequest() *EvalTableRequest {
+	if x != nil {
+		if x, ok := x.Request.(*ApiRequest_EvalTableRequest); ok {
+			return x.EvalTableRequest
+		}
+	}
+	return nil
+}
+
 type isApiRequest_Request interface {
 	isApiRequest_Request()
 }
@@ -405,6 +415,10 @@ type ApiRequest_ReadRunConsoleLogsRequest struct {
 	ReadRunConsoleLogsRequest *ReadRunConsoleLogsRequest `protobuf:"bytes,13,opt,name=read_run_console_logs_request,json=readRunConsoleLogsRequest,proto3,oneof"`
 }
 
+type ApiRequest_EvalTableRequest struct {
+	EvalTableRequest *EvalTableRequest `protobuf:"bytes,14,opt,name=eval_table_request,json=evalTableRequest,proto3,oneof"`
+}
+
 func (*ApiRequest_ReadRunHistoryRequest) isApiRequest_Request() {}
 
 func (*ApiRequest_FeaturesRequest) isApiRequest_Request() {}
@@ -429,6 +443,8 @@ func (*ApiRequest_OpenTelemetryRequest) isApiRequest_Request() {}
 
 func (*ApiRequest_ReadRunConsoleLogsRequest) isApiRequest_Request() {}
 
+func (*ApiRequest_EvalTableRequest) isApiRequest_Request() {}
+
 type ApiResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Response:
@@ -444,6 +460,7 @@ type ApiResponse struct {
 	//	*ApiResponse_CreateCustomChartResponse
 	//	*ApiResponse_RunQueueOperationResponse
 	//	*ApiResponse_ReadRunConsoleLogsResponse
+	//	*ApiResponse_EvalTableResponse
 	//	*ApiResponse_ApiErrorResponse
 	Response      isApiResponse_Response `protobuf_oneof:"response"`
 	unknownFields protoimpl.UnknownFields
@@ -586,6 +603,15 @@ func (x *ApiResponse) GetReadRunConsoleLogsResponse() *ReadRunConsoleLogsRespons
 	return nil
 }
 
+func (x *ApiResponse) GetEvalTableResponse() *EvalTableResponse {
+	if x != nil {
+		if x, ok := x.Response.(*ApiResponse_EvalTableResponse); ok {
+			return x.EvalTableResponse
+		}
+	}
+	return nil
+}
+
 func (x *ApiResponse) GetApiErrorResponse() *ApiErrorResponse {
 	if x != nil {
 		if x, ok := x.Response.(*ApiResponse_ApiErrorResponse); ok {
@@ -643,6 +669,10 @@ type ApiResponse_ReadRunConsoleLogsResponse struct {
 	ReadRunConsoleLogsResponse *ReadRunConsoleLogsResponse `protobuf:"bytes,12,opt,name=read_run_console_logs_response,json=readRunConsoleLogsResponse,proto3,oneof"`
 }
 
+type ApiResponse_EvalTableResponse struct {
+	EvalTableResponse *EvalTableResponse `protobuf:"bytes,13,opt,name=eval_table_response,json=evalTableResponse,proto3,oneof"`
+}
+
 type ApiResponse_ApiErrorResponse struct {
 	ApiErrorResponse *ApiErrorResponse `protobuf:"bytes,2,opt,name=api_error_response,json=apiErrorResponse,proto3,oneof"`
 }
@@ -668,6 +698,8 @@ func (*ApiResponse_CreateCustomChartResponse) isApiResponse_Response() {}
 func (*ApiResponse_RunQueueOperationResponse) isApiResponse_Response() {}
 
 func (*ApiResponse_ReadRunConsoleLogsResponse) isApiResponse_Response() {}
+
+func (*ApiResponse_EvalTableResponse) isApiResponse_Response() {}
 
 func (*ApiResponse_ApiErrorResponse) isApiResponse_Response() {}
 
@@ -4217,6 +4249,411 @@ func (x *DownloadRunHistoryStatusResponse) GetOperationStats() *OperationStats {
 	return nil
 }
 
+// Performs one operation in the CES EvalTable write pipeline.
+//
+// Column and row bodies remain JSON to preserve the exact JSON number model
+// across the Python-to-Go boundary. In particular, google.protobuf.Value would
+// coerce every number to a double and lose precision for large integers.
+type EvalTableRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// The CES endpoint is supplied by the caller because it is not part of the
+	// W&B settings while the service is private.
+	BaseUrl        string `protobuf:"bytes,1,opt,name=base_url,json=baseUrl,proto3" json:"base_url,omitempty"`
+	ScopeRef       string `protobuf:"bytes,2,opt,name=scope_ref,json=scopeRef,proto3" json:"scope_ref,omitempty"`
+	IdempotencyKey string `protobuf:"bytes,3,opt,name=idempotency_key,json=idempotencyKey,proto3" json:"idempotency_key,omitempty"`
+	// Types that are valid to be assigned to Operation:
+	//
+	//	*EvalTableRequest_Create
+	//	*EvalTableRequest_CreateColumns
+	//	*EvalTableRequest_AddRows
+	//	*EvalTableRequest_CreateVersion
+	Operation     isEvalTableRequest_Operation `protobuf_oneof:"operation"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EvalTableRequest) Reset() {
+	*x = EvalTableRequest{}
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[58]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EvalTableRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EvalTableRequest) ProtoMessage() {}
+
+func (x *EvalTableRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[58]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EvalTableRequest.ProtoReflect.Descriptor instead.
+func (*EvalTableRequest) Descriptor() ([]byte, []int) {
+	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{58}
+}
+
+func (x *EvalTableRequest) GetBaseUrl() string {
+	if x != nil {
+		return x.BaseUrl
+	}
+	return ""
+}
+
+func (x *EvalTableRequest) GetScopeRef() string {
+	if x != nil {
+		return x.ScopeRef
+	}
+	return ""
+}
+
+func (x *EvalTableRequest) GetIdempotencyKey() string {
+	if x != nil {
+		return x.IdempotencyKey
+	}
+	return ""
+}
+
+func (x *EvalTableRequest) GetOperation() isEvalTableRequest_Operation {
+	if x != nil {
+		return x.Operation
+	}
+	return nil
+}
+
+func (x *EvalTableRequest) GetCreate() *EvalTableCreateRequest {
+	if x != nil {
+		if x, ok := x.Operation.(*EvalTableRequest_Create); ok {
+			return x.Create
+		}
+	}
+	return nil
+}
+
+func (x *EvalTableRequest) GetCreateColumns() *EvalTableCreateColumnsRequest {
+	if x != nil {
+		if x, ok := x.Operation.(*EvalTableRequest_CreateColumns); ok {
+			return x.CreateColumns
+		}
+	}
+	return nil
+}
+
+func (x *EvalTableRequest) GetAddRows() *EvalTableAddRowsRequest {
+	if x != nil {
+		if x, ok := x.Operation.(*EvalTableRequest_AddRows); ok {
+			return x.AddRows
+		}
+	}
+	return nil
+}
+
+func (x *EvalTableRequest) GetCreateVersion() *EvalTableCreateVersionRequest {
+	if x != nil {
+		if x, ok := x.Operation.(*EvalTableRequest_CreateVersion); ok {
+			return x.CreateVersion
+		}
+	}
+	return nil
+}
+
+type isEvalTableRequest_Operation interface {
+	isEvalTableRequest_Operation()
+}
+
+type EvalTableRequest_Create struct {
+	Create *EvalTableCreateRequest `protobuf:"bytes,4,opt,name=create,proto3,oneof"`
+}
+
+type EvalTableRequest_CreateColumns struct {
+	CreateColumns *EvalTableCreateColumnsRequest `protobuf:"bytes,5,opt,name=create_columns,json=createColumns,proto3,oneof"`
+}
+
+type EvalTableRequest_AddRows struct {
+	AddRows *EvalTableAddRowsRequest `protobuf:"bytes,6,opt,name=add_rows,json=addRows,proto3,oneof"`
+}
+
+type EvalTableRequest_CreateVersion struct {
+	CreateVersion *EvalTableCreateVersionRequest `protobuf:"bytes,7,opt,name=create_version,json=createVersion,proto3,oneof"`
+}
+
+func (*EvalTableRequest_Create) isEvalTableRequest_Operation() {}
+
+func (*EvalTableRequest_CreateColumns) isEvalTableRequest_Operation() {}
+
+func (*EvalTableRequest_AddRows) isEvalTableRequest_Operation() {}
+
+func (*EvalTableRequest_CreateVersion) isEvalTableRequest_Operation() {}
+
+type EvalTableCreateRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EvalTableCreateRequest) Reset() {
+	*x = EvalTableCreateRequest{}
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[59]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EvalTableCreateRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EvalTableCreateRequest) ProtoMessage() {}
+
+func (x *EvalTableCreateRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[59]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EvalTableCreateRequest.ProtoReflect.Descriptor instead.
+func (*EvalTableCreateRequest) Descriptor() ([]byte, []int) {
+	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{59}
+}
+
+func (x *EvalTableCreateRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+type EvalTableCreateColumnsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	EvaluationId  string                 `protobuf:"bytes,1,opt,name=evaluation_id,json=evaluationId,proto3" json:"evaluation_id,omitempty"`
+	BodyJson      []byte                 `protobuf:"bytes,2,opt,name=body_json,json=bodyJson,proto3" json:"body_json,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EvalTableCreateColumnsRequest) Reset() {
+	*x = EvalTableCreateColumnsRequest{}
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[60]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EvalTableCreateColumnsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EvalTableCreateColumnsRequest) ProtoMessage() {}
+
+func (x *EvalTableCreateColumnsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[60]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EvalTableCreateColumnsRequest.ProtoReflect.Descriptor instead.
+func (*EvalTableCreateColumnsRequest) Descriptor() ([]byte, []int) {
+	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{60}
+}
+
+func (x *EvalTableCreateColumnsRequest) GetEvaluationId() string {
+	if x != nil {
+		return x.EvaluationId
+	}
+	return ""
+}
+
+func (x *EvalTableCreateColumnsRequest) GetBodyJson() []byte {
+	if x != nil {
+		return x.BodyJson
+	}
+	return nil
+}
+
+type EvalTableAddRowsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	EvaluationId  string                 `protobuf:"bytes,1,opt,name=evaluation_id,json=evaluationId,proto3" json:"evaluation_id,omitempty"`
+	BodyJson      []byte                 `protobuf:"bytes,2,opt,name=body_json,json=bodyJson,proto3" json:"body_json,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EvalTableAddRowsRequest) Reset() {
+	*x = EvalTableAddRowsRequest{}
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[61]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EvalTableAddRowsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EvalTableAddRowsRequest) ProtoMessage() {}
+
+func (x *EvalTableAddRowsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[61]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EvalTableAddRowsRequest.ProtoReflect.Descriptor instead.
+func (*EvalTableAddRowsRequest) Descriptor() ([]byte, []int) {
+	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{61}
+}
+
+func (x *EvalTableAddRowsRequest) GetEvaluationId() string {
+	if x != nil {
+		return x.EvaluationId
+	}
+	return ""
+}
+
+func (x *EvalTableAddRowsRequest) GetBodyJson() []byte {
+	if x != nil {
+		return x.BodyJson
+	}
+	return nil
+}
+
+type EvalTableCreateVersionRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	EvaluationId  string                 `protobuf:"bytes,1,opt,name=evaluation_id,json=evaluationId,proto3" json:"evaluation_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EvalTableCreateVersionRequest) Reset() {
+	*x = EvalTableCreateVersionRequest{}
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[62]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EvalTableCreateVersionRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EvalTableCreateVersionRequest) ProtoMessage() {}
+
+func (x *EvalTableCreateVersionRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[62]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EvalTableCreateVersionRequest.ProtoReflect.Descriptor instead.
+func (*EvalTableCreateVersionRequest) Descriptor() ([]byte, []int) {
+	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{62}
+}
+
+func (x *EvalTableCreateVersionRequest) GetEvaluationId() string {
+	if x != nil {
+		return x.EvaluationId
+	}
+	return ""
+}
+
+type EvalTableResponse struct {
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	EvaluationId        string                 `protobuf:"bytes,1,opt,name=evaluation_id,json=evaluationId,proto3" json:"evaluation_id,omitempty"`
+	DatasetId           string                 `protobuf:"bytes,2,opt,name=dataset_id,json=datasetId,proto3" json:"dataset_id,omitempty"`
+	EvaluationVersionId string                 `protobuf:"bytes,3,opt,name=evaluation_version_id,json=evaluationVersionId,proto3" json:"evaluation_version_id,omitempty"`
+	DatasetVersionId    string                 `protobuf:"bytes,4,opt,name=dataset_version_id,json=datasetVersionId,proto3" json:"dataset_version_id,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *EvalTableResponse) Reset() {
+	*x = EvalTableResponse{}
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[63]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EvalTableResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EvalTableResponse) ProtoMessage() {}
+
+func (x *EvalTableResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_wandb_proto_wandb_api_proto_msgTypes[63]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EvalTableResponse.ProtoReflect.Descriptor instead.
+func (*EvalTableResponse) Descriptor() ([]byte, []int) {
+	return file_wandb_proto_wandb_api_proto_rawDescGZIP(), []int{63}
+}
+
+func (x *EvalTableResponse) GetEvaluationId() string {
+	if x != nil {
+		return x.EvaluationId
+	}
+	return ""
+}
+
+func (x *EvalTableResponse) GetDatasetId() string {
+	if x != nil {
+		return x.DatasetId
+	}
+	return ""
+}
+
+func (x *EvalTableResponse) GetEvaluationVersionId() string {
+	if x != nil {
+		return x.EvaluationVersionId
+	}
+	return ""
+}
+
+func (x *EvalTableResponse) GetDatasetVersionId() string {
+	if x != nil {
+		return x.DatasetVersionId
+	}
+	return ""
+}
+
 var File_wandb_proto_wandb_api_proto protoreflect.FileDescriptor
 
 const file_wandb_proto_wandb_api_proto_rawDesc = "" +
@@ -4227,7 +4664,7 @@ const file_wandb_proto_wandb_api_proto_rawDesc = "" +
 	"\fservice_name\x18\x02 \x01(\tR\vserviceName\"S\n" +
 	"\x15ServerApiInitResponse\x12#\n" +
 	"\rerror_message\x18\x01 \x01(\tR\ferrorMessage\x12\x15\n" +
-	"\x06api_id\x18\x02 \x01(\tR\x05apiId\"\xff\b\n" +
+	"\x06api_id\x18\x02 \x01(\tR\x05apiId\"\xd1\t\n" +
 	"\n" +
 	"ApiRequest\x12\x15\n" +
 	"\x06api_id\x18\x01 \x01(\tR\x05apiId\x12`\n" +
@@ -4243,8 +4680,9 @@ const file_wandb_proto_wandb_api_proto_rawDesc = "" +
 	" \x01(\v2(.wandb_internal.CreateCustomChartRequestH\x00R\x18createCustomChartRequest\x12i\n" +
 	"\x1brun_queue_operation_request\x18\v \x01(\v2(.wandb_internal.RunQueueOperationRequestH\x00R\x18runQueueOperationRequest\x12\\\n" +
 	"\x16open_telemetry_request\x18\f \x01(\v2$.wandb_internal.OpenTelemetryRequestH\x00R\x14openTelemetryRequest\x12m\n" +
-	"\x1dread_run_console_logs_request\x18\r \x01(\v2).wandb_internal.ReadRunConsoleLogsRequestH\x00R\x19readRunConsoleLogsRequestB\t\n" +
-	"\arequest\"\xff\b\n" +
+	"\x1dread_run_console_logs_request\x18\r \x01(\v2).wandb_internal.ReadRunConsoleLogsRequestH\x00R\x19readRunConsoleLogsRequest\x12P\n" +
+	"\x12eval_table_request\x18\x0e \x01(\v2 .wandb_internal.EvalTableRequestH\x00R\x10evalTableRequestB\t\n" +
+	"\arequest\"\xd4\t\n" +
 	"\vApiResponse\x12c\n" +
 	"\x19read_run_history_response\x18\x01 \x01(\v2&.wandb_internal.ReadRunHistoryResponseH\x00R\x16readRunHistoryResponse\x12O\n" +
 	"\x11features_response\x18\x03 \x01(\v2 .wandb_internal.FeaturesResponseH\x00R\x10featuresResponse\x12L\n" +
@@ -4257,7 +4695,8 @@ const file_wandb_proto_wandb_api_proto_rawDesc = "" +
 	"\x1ccreate_custom_chart_response\x18\n" +
 	" \x01(\v2).wandb_internal.CreateCustomChartResponseH\x00R\x19createCustomChartResponse\x12l\n" +
 	"\x1crun_queue_operation_response\x18\v \x01(\v2).wandb_internal.RunQueueOperationResponseH\x00R\x19runQueueOperationResponse\x12p\n" +
-	"\x1eread_run_console_logs_response\x18\f \x01(\v2*.wandb_internal.ReadRunConsoleLogsResponseH\x00R\x1areadRunConsoleLogsResponse\x12P\n" +
+	"\x1eread_run_console_logs_response\x18\f \x01(\v2*.wandb_internal.ReadRunConsoleLogsResponseH\x00R\x1areadRunConsoleLogsResponse\x12S\n" +
+	"\x13eval_table_response\x18\r \x01(\v2!.wandb_internal.EvalTableResponseH\x00R\x11evalTableResponse\x12P\n" +
 	"\x12api_error_response\x18\x02 \x01(\v2 .wandb_internal.ApiErrorResponseH\x00R\x10apiErrorResponseB\n" +
 	"\n" +
 	"\bresponse\"\x9b\x01\n" +
@@ -4500,7 +4939,32 @@ const file_wandb_proto_wandb_api_proto_rawDesc = "" +
 	"\n" +
 	"request_id\x18\x01 \x01(\x05R\trequestId\"k\n" +
 	" DownloadRunHistoryStatusResponse\x12G\n" +
-	"\x0foperation_stats\x18\x01 \x01(\v2\x1e.wandb_internal.OperationStatsR\x0eoperationStats*@\n" +
+	"\x0foperation_stats\x18\x01 \x01(\v2\x1e.wandb_internal.OperationStatsR\x0eoperationStats\"\xb8\x03\n" +
+	"\x10EvalTableRequest\x12\x19\n" +
+	"\bbase_url\x18\x01 \x01(\tR\abaseUrl\x12\x1b\n" +
+	"\tscope_ref\x18\x02 \x01(\tR\bscopeRef\x12'\n" +
+	"\x0fidempotency_key\x18\x03 \x01(\tR\x0eidempotencyKey\x12@\n" +
+	"\x06create\x18\x04 \x01(\v2&.wandb_internal.EvalTableCreateRequestH\x00R\x06create\x12V\n" +
+	"\x0ecreate_columns\x18\x05 \x01(\v2-.wandb_internal.EvalTableCreateColumnsRequestH\x00R\rcreateColumns\x12D\n" +
+	"\badd_rows\x18\x06 \x01(\v2'.wandb_internal.EvalTableAddRowsRequestH\x00R\aaddRows\x12V\n" +
+	"\x0ecreate_version\x18\a \x01(\v2-.wandb_internal.EvalTableCreateVersionRequestH\x00R\rcreateVersionB\v\n" +
+	"\toperation\",\n" +
+	"\x16EvalTableCreateRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"a\n" +
+	"\x1dEvalTableCreateColumnsRequest\x12#\n" +
+	"\revaluation_id\x18\x01 \x01(\tR\fevaluationId\x12\x1b\n" +
+	"\tbody_json\x18\x02 \x01(\fR\bbodyJson\"[\n" +
+	"\x17EvalTableAddRowsRequest\x12#\n" +
+	"\revaluation_id\x18\x01 \x01(\tR\fevaluationId\x12\x1b\n" +
+	"\tbody_json\x18\x02 \x01(\fR\bbodyJson\"D\n" +
+	"\x1dEvalTableCreateVersionRequest\x12#\n" +
+	"\revaluation_id\x18\x01 \x01(\tR\fevaluationId\"\xb9\x01\n" +
+	"\x11EvalTableResponse\x12#\n" +
+	"\revaluation_id\x18\x01 \x01(\tR\fevaluationId\x12\x1d\n" +
+	"\n" +
+	"dataset_id\x18\x02 \x01(\tR\tdatasetId\x122\n" +
+	"\x15evaluation_version_id\x18\x03 \x01(\tR\x13evaluationVersionId\x12,\n" +
+	"\x12dataset_version_id\x18\x04 \x01(\tR\x10datasetVersionId*@\n" +
 	"\tErrorType\x12\x11\n" +
 	"\rUNKNOWN_ERROR\x10\x00\x12 \n" +
 	"\x1cINCOMPLETE_RUN_HISTORY_ERROR\x10\x01B\x1bZ\x19core/pkg/service_go_protob\x06proto3"
@@ -4518,7 +4982,7 @@ func file_wandb_proto_wandb_api_proto_rawDescGZIP() []byte {
 }
 
 var file_wandb_proto_wandb_api_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_wandb_proto_wandb_api_proto_msgTypes = make([]protoimpl.MessageInfo, 62)
+var file_wandb_proto_wandb_api_proto_msgTypes = make([]protoimpl.MessageInfo, 68)
 var file_wandb_proto_wandb_api_proto_goTypes = []any{
 	(ErrorType)(0),                              // 0: wandb_internal.ErrorType
 	(*ServerApiInitRequest)(nil),                // 1: wandb_internal.ServerApiInitRequest
@@ -4579,17 +5043,23 @@ var file_wandb_proto_wandb_api_proto_goTypes = []any{
 	(*IncompleteRunHistoryError)(nil),           // 56: wandb_internal.IncompleteRunHistoryError
 	(*DownloadRunHistoryStatus)(nil),            // 57: wandb_internal.DownloadRunHistoryStatus
 	(*DownloadRunHistoryStatusResponse)(nil),    // 58: wandb_internal.DownloadRunHistoryStatusResponse
-	nil,                                         // 59: wandb_internal.OrgFeaturesResponse.FeaturesEntry
-	nil,                                         // 60: wandb_internal.GraphQLRequest.RenameFieldsEntry
-	nil,                                         // 61: wandb_internal.UploadFileRequest.HeadersEntry
-	nil,                                         // 62: wandb_internal.DownloadRunHistoryResponse.ErrorsEntry
-	(*Settings)(nil),                            // 63: wandb_internal.Settings
-	(*OpenTelemetryRequest)(nil),                // 64: wandb_internal.OpenTelemetryRequest
-	(ServerFeature)(0),                          // 65: wandb_internal.ServerFeature
-	(*OperationStats)(nil),                      // 66: wandb_internal.OperationStats
+	(*EvalTableRequest)(nil),                    // 59: wandb_internal.EvalTableRequest
+	(*EvalTableCreateRequest)(nil),              // 60: wandb_internal.EvalTableCreateRequest
+	(*EvalTableCreateColumnsRequest)(nil),       // 61: wandb_internal.EvalTableCreateColumnsRequest
+	(*EvalTableAddRowsRequest)(nil),             // 62: wandb_internal.EvalTableAddRowsRequest
+	(*EvalTableCreateVersionRequest)(nil),       // 63: wandb_internal.EvalTableCreateVersionRequest
+	(*EvalTableResponse)(nil),                   // 64: wandb_internal.EvalTableResponse
+	nil,                                         // 65: wandb_internal.OrgFeaturesResponse.FeaturesEntry
+	nil,                                         // 66: wandb_internal.GraphQLRequest.RenameFieldsEntry
+	nil,                                         // 67: wandb_internal.UploadFileRequest.HeadersEntry
+	nil,                                         // 68: wandb_internal.DownloadRunHistoryResponse.ErrorsEntry
+	(*Settings)(nil),                            // 69: wandb_internal.Settings
+	(*OpenTelemetryRequest)(nil),                // 70: wandb_internal.OpenTelemetryRequest
+	(ServerFeature)(0),                          // 71: wandb_internal.ServerFeature
+	(*OperationStats)(nil),                      // 72: wandb_internal.OperationStats
 }
 var file_wandb_proto_wandb_api_proto_depIdxs = []int32{
-	63, // 0: wandb_internal.ServerApiInitRequest.settings:type_name -> wandb_internal.Settings
+	69, // 0: wandb_internal.ServerApiInitRequest.settings:type_name -> wandb_internal.Settings
 	42, // 1: wandb_internal.ApiRequest.read_run_history_request:type_name -> wandb_internal.ReadRunHistoryRequest
 	7,  // 2: wandb_internal.ApiRequest.features_request:type_name -> wandb_internal.FeaturesRequest
 	13, // 3: wandb_internal.ApiRequest.graphql_request:type_name -> wandb_internal.GraphQLRequest
@@ -4600,62 +5070,68 @@ var file_wandb_proto_wandb_api_proto_depIdxs = []int32{
 	21, // 8: wandb_internal.ApiRequest.auth_request:type_name -> wandb_internal.AuthRequest
 	32, // 9: wandb_internal.ApiRequest.create_custom_chart_request:type_name -> wandb_internal.CreateCustomChartRequest
 	34, // 10: wandb_internal.ApiRequest.run_queue_operation_request:type_name -> wandb_internal.RunQueueOperationRequest
-	64, // 11: wandb_internal.ApiRequest.open_telemetry_request:type_name -> wandb_internal.OpenTelemetryRequest
+	70, // 11: wandb_internal.ApiRequest.open_telemetry_request:type_name -> wandb_internal.OpenTelemetryRequest
 	29, // 12: wandb_internal.ApiRequest.read_run_console_logs_request:type_name -> wandb_internal.ReadRunConsoleLogsRequest
-	43, // 13: wandb_internal.ApiResponse.read_run_history_response:type_name -> wandb_internal.ReadRunHistoryResponse
-	8,  // 14: wandb_internal.ApiResponse.features_response:type_name -> wandb_internal.FeaturesResponse
-	14, // 15: wandb_internal.ApiResponse.graphql_response:type_name -> wandb_internal.GraphQLResponse
-	16, // 16: wandb_internal.ApiResponse.download_file_response:type_name -> wandb_internal.DownloadFileResponse
-	18, // 17: wandb_internal.ApiResponse.upload_file_response:type_name -> wandb_internal.UploadFileResponse
-	20, // 18: wandb_internal.ApiResponse.mark_run_files_uploaded_response:type_name -> wandb_internal.MarkRunFilesUploadedResponse
-	28, // 19: wandb_internal.ApiResponse.stop_run_response:type_name -> wandb_internal.StopRunResponse
-	22, // 20: wandb_internal.ApiResponse.auth_response:type_name -> wandb_internal.AuthResponse
-	33, // 21: wandb_internal.ApiResponse.create_custom_chart_response:type_name -> wandb_internal.CreateCustomChartResponse
-	35, // 22: wandb_internal.ApiResponse.run_queue_operation_response:type_name -> wandb_internal.RunQueueOperationResponse
-	30, // 23: wandb_internal.ApiResponse.read_run_console_logs_response:type_name -> wandb_internal.ReadRunConsoleLogsResponse
-	5,  // 24: wandb_internal.ApiResponse.api_error_response:type_name -> wandb_internal.ApiErrorResponse
-	0,  // 25: wandb_internal.ApiErrorResponse.error_type:type_name -> wandb_internal.ErrorType
-	9,  // 26: wandb_internal.FeaturesRequest.server:type_name -> wandb_internal.ServerFeaturesRequest
-	11, // 27: wandb_internal.FeaturesRequest.org:type_name -> wandb_internal.OrgFeaturesRequest
-	10, // 28: wandb_internal.FeaturesResponse.server:type_name -> wandb_internal.ServerFeaturesResponse
-	12, // 29: wandb_internal.FeaturesResponse.org:type_name -> wandb_internal.OrgFeaturesResponse
-	65, // 30: wandb_internal.ServerFeaturesRequest.features:type_name -> wandb_internal.ServerFeature
-	65, // 31: wandb_internal.ServerFeaturesResponse.enabled:type_name -> wandb_internal.ServerFeature
-	59, // 32: wandb_internal.OrgFeaturesResponse.features:type_name -> wandb_internal.OrgFeaturesResponse.FeaturesEntry
-	60, // 33: wandb_internal.GraphQLRequest.rename_fields:type_name -> wandb_internal.GraphQLRequest.RenameFieldsEntry
-	61, // 34: wandb_internal.UploadFileRequest.headers:type_name -> wandb_internal.UploadFileRequest.HeadersEntry
-	23, // 35: wandb_internal.AuthRequest.authenticate_request:type_name -> wandb_internal.AuthenticateRequest
-	25, // 36: wandb_internal.AuthRequest.get_access_token_request:type_name -> wandb_internal.GetAccessTokenRequest
-	24, // 37: wandb_internal.AuthResponse.authenticate_response:type_name -> wandb_internal.AuthenticateResponse
-	26, // 38: wandb_internal.AuthResponse.get_access_token_response:type_name -> wandb_internal.GetAccessTokenResponse
-	31, // 39: wandb_internal.ReadRunConsoleLogsResponse.lines:type_name -> wandb_internal.RunConsoleLogLine
-	36, // 40: wandb_internal.RunQueueOperationRequest.create_default_resource_config_request:type_name -> wandb_internal.CreateDefaultResourceConfigRequest
-	38, // 41: wandb_internal.RunQueueOperationRequest.create_run_queue_request:type_name -> wandb_internal.CreateRunQueueRequest
-	40, // 42: wandb_internal.RunQueueOperationRequest.upsert_run_queue_request:type_name -> wandb_internal.UpsertRunQueueRequest
-	37, // 43: wandb_internal.RunQueueOperationResponse.create_default_resource_config_response:type_name -> wandb_internal.CreateDefaultResourceConfigResponse
-	39, // 44: wandb_internal.RunQueueOperationResponse.create_run_queue_response:type_name -> wandb_internal.CreateRunQueueResponse
-	41, // 45: wandb_internal.RunQueueOperationResponse.upsert_run_queue_response:type_name -> wandb_internal.UpsertRunQueueResponse
-	44, // 46: wandb_internal.ReadRunHistoryRequest.scan_run_history_init:type_name -> wandb_internal.ScanRunHistoryInit
-	46, // 47: wandb_internal.ReadRunHistoryRequest.scan_run_history:type_name -> wandb_internal.ScanRunHistory
-	50, // 48: wandb_internal.ReadRunHistoryRequest.scan_run_history_cleanup:type_name -> wandb_internal.ScanRunHistoryCleanup
-	52, // 49: wandb_internal.ReadRunHistoryRequest.download_run_history_init:type_name -> wandb_internal.DownloadRunHistoryInit
-	54, // 50: wandb_internal.ReadRunHistoryRequest.download_run_history:type_name -> wandb_internal.DownloadRunHistory
-	57, // 51: wandb_internal.ReadRunHistoryRequest.download_run_history_status:type_name -> wandb_internal.DownloadRunHistoryStatus
-	45, // 52: wandb_internal.ReadRunHistoryResponse.scan_run_history_init:type_name -> wandb_internal.ScanRunHistoryInitResponse
-	47, // 53: wandb_internal.ReadRunHistoryResponse.run_history:type_name -> wandb_internal.RunHistoryResponse
-	51, // 54: wandb_internal.ReadRunHistoryResponse.scan_run_history_cleanup:type_name -> wandb_internal.ScanRunHistoryCleanupResponse
-	53, // 55: wandb_internal.ReadRunHistoryResponse.download_run_history_init:type_name -> wandb_internal.DownloadRunHistoryInitResponse
-	55, // 56: wandb_internal.ReadRunHistoryResponse.download_run_history:type_name -> wandb_internal.DownloadRunHistoryResponse
-	58, // 57: wandb_internal.ReadRunHistoryResponse.download_run_history_status:type_name -> wandb_internal.DownloadRunHistoryStatusResponse
-	48, // 58: wandb_internal.RunHistoryResponse.history_rows:type_name -> wandb_internal.HistoryRow
-	49, // 59: wandb_internal.HistoryRow.history_items:type_name -> wandb_internal.ParquetHistoryItem
-	62, // 60: wandb_internal.DownloadRunHistoryResponse.errors:type_name -> wandb_internal.DownloadRunHistoryResponse.ErrorsEntry
-	66, // 61: wandb_internal.DownloadRunHistoryStatusResponse.operation_stats:type_name -> wandb_internal.OperationStats
-	62, // [62:62] is the sub-list for method output_type
-	62, // [62:62] is the sub-list for method input_type
-	62, // [62:62] is the sub-list for extension type_name
-	62, // [62:62] is the sub-list for extension extendee
-	0,  // [0:62] is the sub-list for field type_name
+	59, // 13: wandb_internal.ApiRequest.eval_table_request:type_name -> wandb_internal.EvalTableRequest
+	43, // 14: wandb_internal.ApiResponse.read_run_history_response:type_name -> wandb_internal.ReadRunHistoryResponse
+	8,  // 15: wandb_internal.ApiResponse.features_response:type_name -> wandb_internal.FeaturesResponse
+	14, // 16: wandb_internal.ApiResponse.graphql_response:type_name -> wandb_internal.GraphQLResponse
+	16, // 17: wandb_internal.ApiResponse.download_file_response:type_name -> wandb_internal.DownloadFileResponse
+	18, // 18: wandb_internal.ApiResponse.upload_file_response:type_name -> wandb_internal.UploadFileResponse
+	20, // 19: wandb_internal.ApiResponse.mark_run_files_uploaded_response:type_name -> wandb_internal.MarkRunFilesUploadedResponse
+	28, // 20: wandb_internal.ApiResponse.stop_run_response:type_name -> wandb_internal.StopRunResponse
+	22, // 21: wandb_internal.ApiResponse.auth_response:type_name -> wandb_internal.AuthResponse
+	33, // 22: wandb_internal.ApiResponse.create_custom_chart_response:type_name -> wandb_internal.CreateCustomChartResponse
+	35, // 23: wandb_internal.ApiResponse.run_queue_operation_response:type_name -> wandb_internal.RunQueueOperationResponse
+	30, // 24: wandb_internal.ApiResponse.read_run_console_logs_response:type_name -> wandb_internal.ReadRunConsoleLogsResponse
+	64, // 25: wandb_internal.ApiResponse.eval_table_response:type_name -> wandb_internal.EvalTableResponse
+	5,  // 26: wandb_internal.ApiResponse.api_error_response:type_name -> wandb_internal.ApiErrorResponse
+	0,  // 27: wandb_internal.ApiErrorResponse.error_type:type_name -> wandb_internal.ErrorType
+	9,  // 28: wandb_internal.FeaturesRequest.server:type_name -> wandb_internal.ServerFeaturesRequest
+	11, // 29: wandb_internal.FeaturesRequest.org:type_name -> wandb_internal.OrgFeaturesRequest
+	10, // 30: wandb_internal.FeaturesResponse.server:type_name -> wandb_internal.ServerFeaturesResponse
+	12, // 31: wandb_internal.FeaturesResponse.org:type_name -> wandb_internal.OrgFeaturesResponse
+	71, // 32: wandb_internal.ServerFeaturesRequest.features:type_name -> wandb_internal.ServerFeature
+	71, // 33: wandb_internal.ServerFeaturesResponse.enabled:type_name -> wandb_internal.ServerFeature
+	65, // 34: wandb_internal.OrgFeaturesResponse.features:type_name -> wandb_internal.OrgFeaturesResponse.FeaturesEntry
+	66, // 35: wandb_internal.GraphQLRequest.rename_fields:type_name -> wandb_internal.GraphQLRequest.RenameFieldsEntry
+	67, // 36: wandb_internal.UploadFileRequest.headers:type_name -> wandb_internal.UploadFileRequest.HeadersEntry
+	23, // 37: wandb_internal.AuthRequest.authenticate_request:type_name -> wandb_internal.AuthenticateRequest
+	25, // 38: wandb_internal.AuthRequest.get_access_token_request:type_name -> wandb_internal.GetAccessTokenRequest
+	24, // 39: wandb_internal.AuthResponse.authenticate_response:type_name -> wandb_internal.AuthenticateResponse
+	26, // 40: wandb_internal.AuthResponse.get_access_token_response:type_name -> wandb_internal.GetAccessTokenResponse
+	31, // 41: wandb_internal.ReadRunConsoleLogsResponse.lines:type_name -> wandb_internal.RunConsoleLogLine
+	36, // 42: wandb_internal.RunQueueOperationRequest.create_default_resource_config_request:type_name -> wandb_internal.CreateDefaultResourceConfigRequest
+	38, // 43: wandb_internal.RunQueueOperationRequest.create_run_queue_request:type_name -> wandb_internal.CreateRunQueueRequest
+	40, // 44: wandb_internal.RunQueueOperationRequest.upsert_run_queue_request:type_name -> wandb_internal.UpsertRunQueueRequest
+	37, // 45: wandb_internal.RunQueueOperationResponse.create_default_resource_config_response:type_name -> wandb_internal.CreateDefaultResourceConfigResponse
+	39, // 46: wandb_internal.RunQueueOperationResponse.create_run_queue_response:type_name -> wandb_internal.CreateRunQueueResponse
+	41, // 47: wandb_internal.RunQueueOperationResponse.upsert_run_queue_response:type_name -> wandb_internal.UpsertRunQueueResponse
+	44, // 48: wandb_internal.ReadRunHistoryRequest.scan_run_history_init:type_name -> wandb_internal.ScanRunHistoryInit
+	46, // 49: wandb_internal.ReadRunHistoryRequest.scan_run_history:type_name -> wandb_internal.ScanRunHistory
+	50, // 50: wandb_internal.ReadRunHistoryRequest.scan_run_history_cleanup:type_name -> wandb_internal.ScanRunHistoryCleanup
+	52, // 51: wandb_internal.ReadRunHistoryRequest.download_run_history_init:type_name -> wandb_internal.DownloadRunHistoryInit
+	54, // 52: wandb_internal.ReadRunHistoryRequest.download_run_history:type_name -> wandb_internal.DownloadRunHistory
+	57, // 53: wandb_internal.ReadRunHistoryRequest.download_run_history_status:type_name -> wandb_internal.DownloadRunHistoryStatus
+	45, // 54: wandb_internal.ReadRunHistoryResponse.scan_run_history_init:type_name -> wandb_internal.ScanRunHistoryInitResponse
+	47, // 55: wandb_internal.ReadRunHistoryResponse.run_history:type_name -> wandb_internal.RunHistoryResponse
+	51, // 56: wandb_internal.ReadRunHistoryResponse.scan_run_history_cleanup:type_name -> wandb_internal.ScanRunHistoryCleanupResponse
+	53, // 57: wandb_internal.ReadRunHistoryResponse.download_run_history_init:type_name -> wandb_internal.DownloadRunHistoryInitResponse
+	55, // 58: wandb_internal.ReadRunHistoryResponse.download_run_history:type_name -> wandb_internal.DownloadRunHistoryResponse
+	58, // 59: wandb_internal.ReadRunHistoryResponse.download_run_history_status:type_name -> wandb_internal.DownloadRunHistoryStatusResponse
+	48, // 60: wandb_internal.RunHistoryResponse.history_rows:type_name -> wandb_internal.HistoryRow
+	49, // 61: wandb_internal.HistoryRow.history_items:type_name -> wandb_internal.ParquetHistoryItem
+	68, // 62: wandb_internal.DownloadRunHistoryResponse.errors:type_name -> wandb_internal.DownloadRunHistoryResponse.ErrorsEntry
+	72, // 63: wandb_internal.DownloadRunHistoryStatusResponse.operation_stats:type_name -> wandb_internal.OperationStats
+	60, // 64: wandb_internal.EvalTableRequest.create:type_name -> wandb_internal.EvalTableCreateRequest
+	61, // 65: wandb_internal.EvalTableRequest.create_columns:type_name -> wandb_internal.EvalTableCreateColumnsRequest
+	62, // 66: wandb_internal.EvalTableRequest.add_rows:type_name -> wandb_internal.EvalTableAddRowsRequest
+	63, // 67: wandb_internal.EvalTableRequest.create_version:type_name -> wandb_internal.EvalTableCreateVersionRequest
+	68, // [68:68] is the sub-list for method output_type
+	68, // [68:68] is the sub-list for method input_type
+	68, // [68:68] is the sub-list for extension type_name
+	68, // [68:68] is the sub-list for extension extendee
+	0,  // [0:68] is the sub-list for field type_name
 }
 
 func init() { file_wandb_proto_wandb_api_proto_init() }
@@ -4679,6 +5155,7 @@ func file_wandb_proto_wandb_api_proto_init() {
 		(*ApiRequest_RunQueueOperationRequest)(nil),
 		(*ApiRequest_OpenTelemetryRequest)(nil),
 		(*ApiRequest_ReadRunConsoleLogsRequest)(nil),
+		(*ApiRequest_EvalTableRequest)(nil),
 	}
 	file_wandb_proto_wandb_api_proto_msgTypes[3].OneofWrappers = []any{
 		(*ApiResponse_ReadRunHistoryResponse)(nil),
@@ -4692,6 +5169,7 @@ func file_wandb_proto_wandb_api_proto_init() {
 		(*ApiResponse_CreateCustomChartResponse)(nil),
 		(*ApiResponse_RunQueueOperationResponse)(nil),
 		(*ApiResponse_ReadRunConsoleLogsResponse)(nil),
+		(*ApiResponse_EvalTableResponse)(nil),
 		(*ApiResponse_ApiErrorResponse)(nil),
 	}
 	file_wandb_proto_wandb_api_proto_msgTypes[4].OneofWrappers = []any{}
@@ -4741,13 +5219,19 @@ func file_wandb_proto_wandb_api_proto_init() {
 		(*ReadRunHistoryResponse_DownloadRunHistory)(nil),
 		(*ReadRunHistoryResponse_DownloadRunHistoryStatus)(nil),
 	}
+	file_wandb_proto_wandb_api_proto_msgTypes[58].OneofWrappers = []any{
+		(*EvalTableRequest_Create)(nil),
+		(*EvalTableRequest_CreateColumns)(nil),
+		(*EvalTableRequest_AddRows)(nil),
+		(*EvalTableRequest_CreateVersion)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_wandb_proto_wandb_api_proto_rawDesc), len(file_wandb_proto_wandb_api_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   62,
+			NumMessages:   68,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

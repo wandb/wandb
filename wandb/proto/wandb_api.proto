@@ -44,6 +44,7 @@ message ApiRequest {
     RunQueueOperationRequest run_queue_operation_request = 11;
     OpenTelemetryRequest open_telemetry_request = 12;
     ReadRunConsoleLogsRequest read_run_console_logs_request = 13;
+    EvalTableRequest eval_table_request = 14;
   }
 }
 
@@ -60,6 +61,7 @@ message ApiResponse {
     CreateCustomChartResponse create_custom_chart_response = 10;
     RunQueueOperationResponse run_queue_operation_response = 11;
     ReadRunConsoleLogsResponse read_run_console_logs_response = 12;
+    EvalTableResponse eval_table_response = 13;
 
     ApiErrorResponse api_error_response = 2;
   }
@@ -637,4 +639,49 @@ message DownloadRunHistoryStatus {
 message DownloadRunHistoryStatusResponse {
   // Operation stats for progress display.
   wandb_internal.OperationStats operation_stats = 1;
+}
+
+// Performs one operation in the CES EvalTable write pipeline.
+//
+// Column and row bodies remain JSON to preserve the exact JSON number model
+// across the Python-to-Go boundary. In particular, google.protobuf.Value would
+// coerce every number to a double and lose precision for large integers.
+message EvalTableRequest {
+  // The CES endpoint is supplied by the caller because it is not part of the
+  // W&B settings while the service is private.
+  string base_url = 1;
+  string scope_ref = 2;
+  string idempotency_key = 3;
+
+  oneof operation {
+    EvalTableCreateRequest create = 4;
+    EvalTableCreateColumnsRequest create_columns = 5;
+    EvalTableAddRowsRequest add_rows = 6;
+    EvalTableCreateVersionRequest create_version = 7;
+  }
+}
+
+message EvalTableCreateRequest {
+  string name = 1;
+}
+
+message EvalTableCreateColumnsRequest {
+  string evaluation_id = 1;
+  bytes body_json = 2;
+}
+
+message EvalTableAddRowsRequest {
+  string evaluation_id = 1;
+  bytes body_json = 2;
+}
+
+message EvalTableCreateVersionRequest {
+  string evaluation_id = 1;
+}
+
+message EvalTableResponse {
+  string evaluation_id = 1;
+  string dataset_id = 2;
+  string evaluation_version_id = 3;
+  string dataset_version_id = 4;
 }

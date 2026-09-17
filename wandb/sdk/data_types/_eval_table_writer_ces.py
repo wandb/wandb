@@ -6,13 +6,14 @@ import logging
 import math
 import os
 from collections.abc import Iterator, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
 import wandb
 import wandb.integration.weave.media_adapters as media_adapters
 from wandb.apis.public.service_api import ServiceApi
 from wandb.errors import UsageError
+from wandb.proto import wandb_api_pb2 as apb
 from wandb.sdk.data_types._eval_table_writer import (
     EvalTableWriteInput,
     EvalTableWriteResult,
@@ -22,8 +23,6 @@ from wandb.sdk.data_types.base_types.wb_value import WBValue
 from wandb.sdk.data_types.table import Table
 
 if TYPE_CHECKING:
-    from coreweave_evaluations import CoreWeaveEvaluations as CoreWeaveEvaluationsT
-
     from wandb.sdk.data_types.table import ColumnKey
     from wandb.sdk.wandb_run import Run as LocalRun
 
@@ -114,18 +113,105 @@ class _PreparedCESWrite:
 
 
 @dataclass(frozen=True)
-class _CESScopeContext:
-    scope_ref: str
-    api_key: str | None = field(repr=False)
-    access_token: str | None = field(repr=False)
-
-
-@dataclass(frozen=True)
 class _BoundRun:
     entity: str
     project: str
     service_api: ServiceApi
     idempotency_scope: str
+
+
+class _CoreEvalTableClient:
+    """Send CES operations through the wandb-core API socket."""
+
+    def __init__(self, service_api: ServiceApi, base_url: str) -> None:
+        self._service_api = service_api
+        self._base_url = base_url
+
+    def create(
+        self,
+        scope_ref: str,
+        *,
+        name: str,
+        idempotency_key: str,
+    ) -> apb.EvalTableResponse:
+        return self._send(
+            apb.EvalTableRequest(
+                base_url=self._base_url,
+                scope_ref=scope_ref,
+                idempotency_key=idempotency_key,
+                create=apb.EvalTableCreateRequest(name=name),
+            )
+        )
+
+    def create_columns(
+        self,
+        evaluation_id: str,
+        *,
+        scope_ref: str,
+        dataset_fields: Sequence[Mapping[str, str]],
+        scorers: Sequence[Mapping[str, str]],
+        idempotency_key: str,
+    ) -> apb.EvalTableResponse:
+        return self._send(
+            apb.EvalTableRequest(
+                base_url=self._base_url,
+                scope_ref=scope_ref,
+                idempotency_key=idempotency_key,
+                create_columns=apb.EvalTableCreateColumnsRequest(
+                    evaluation_id=evaluation_id,
+                    body_json=_encode_json(
+                        {
+                            "dataset_fields": dataset_fields,
+                            "scorers": scorers,
+                        }
+                    ),
+                ),
+            )
+        )
+
+    def add_rows(
+        self,
+        evaluation_id: str,
+        *,
+        scope_ref: str,
+        rows: Sequence[_CESRow],
+        idempotency_key: str,
+    ) -> apb.EvalTableResponse:
+        return self._send(
+            apb.EvalTableRequest(
+                base_url=self._base_url,
+                scope_ref=scope_ref,
+                idempotency_key=idempotency_key,
+                add_rows=apb.EvalTableAddRowsRequest(
+                    evaluation_id=evaluation_id,
+                    body_json=_encode_json({"rows": rows}),
+                ),
+            )
+        )
+
+    def create_version(
+        self,
+        evaluation_id: str,
+        *,
+        scope_ref: str,
+        idempotency_key: str,
+    ) -> apb.EvalTableResponse:
+        return self._send(
+            apb.EvalTableRequest(
+                base_url=self._base_url,
+                scope_ref=scope_ref,
+                idempotency_key=idempotency_key,
+                create_version=apb.EvalTableCreateVersionRequest(
+                    evaluation_id=evaluation_id,
+                ),
+            )
+        )
+
+    def _send(self, request: apb.EvalTableRequest) -> apb.EvalTableResponse:
+        response = self._service_api.send_api_request(
+            apb.ApiRequest(eval_table_request=request)
+        )
+        return response.eval_table_response
 
 
 class CESEvalTableWriter:
@@ -179,56 +265,38 @@ class CESEvalTableWriter:
                 "before logging a CES EvalTable."
             )
 
-        try:
-            from coreweave_evaluations import CoreWeaveEvaluations
-        except ImportError as exc:
-            raise UsageError(
-                "CES EvalTable logging requires the coreweave_evaluations "
-                "package, which wandb/core generates and does not publish. Install "
-                "it from core/services/evaluations/generated/python; the venv-dev "
-                "target in examples-dev/evals-for-models builds an environment "
-                "with it."
-            ) from exc
-
         prepared = self._prepare(payload)
-        scope = self._resolve_scope_context(bound)
-        client = self._create_client(CoreWeaveEvaluations, base_url, scope)
-        try:
-            created = client.eval_tables.create(
-                scope.scope_ref,
-                namespace=_WANDB_SCOPE_NAMESPACE,
-                name=payload.name,
-                idempotency_key=self._idempotency_key(bound, "create"),
-            )
-            client.eval_tables.create_columns(
+        scope_ref = self._resolve_scope_ref(bound)
+        client = self._create_client(bound.service_api, base_url)
+        created = client.create(
+            scope_ref,
+            name=payload.name,
+            idempotency_key=self._idempotency_key(bound, "create"),
+        )
+        client.create_columns(
+            created.evaluation_id,
+            scope_ref=scope_ref,
+            dataset_fields=prepared.dataset_fields,
+            scorers=prepared.scorers,
+            idempotency_key=self._idempotency_key(bound, "columns"),
+        )
+        for batch_index, rows in enumerate(prepared.row_batches):
+            client.add_rows(
                 created.evaluation_id,
-                namespace=_WANDB_SCOPE_NAMESPACE,
-                scope_ref=scope.scope_ref,
-                dataset_fields=prepared.dataset_fields,
-                scorers=prepared.scorers,
-                idempotency_key=self._idempotency_key(bound, "columns"),
+                scope_ref=scope_ref,
+                rows=rows,
+                idempotency_key=self._idempotency_key(bound, f"rows-{batch_index}"),
             )
-            for batch_index, rows in enumerate(prepared.row_batches):
-                client.eval_tables.add_rows(
-                    created.evaluation_id,
-                    namespace=_WANDB_SCOPE_NAMESPACE,
-                    scope_ref=scope.scope_ref,
-                    rows=rows,
-                    idempotency_key=self._idempotency_key(bound, f"rows-{batch_index}"),
-                )
-            version = client.eval_tables.create_version(
-                created.evaluation_id,
-                namespace=_WANDB_SCOPE_NAMESPACE,
-                scope_ref=scope.scope_ref,
-                idempotency_key=self._idempotency_key(bound, "version"),
-            )
-        finally:
-            client.close()
+        version = client.create_version(
+            created.evaluation_id,
+            scope_ref=scope_ref,
+            idempotency_key=self._idempotency_key(bound, "version"),
+        )
 
         _logger.debug(
             "CES EvalTable recorded namespace=%s scope_ref=%s evaluation_version_id=%s",
             _WANDB_SCOPE_NAMESPACE,
-            scope.scope_ref,
+            scope_ref,
             version.evaluation_version_id,
         )
 
@@ -495,7 +563,7 @@ class CESEvalTableWriter:
     def _idempotency_key(self, bound: _BoundRun, operation: str) -> str:
         return f"wandb-eval-table-v1-{bound.idempotency_scope}-{operation}"
 
-    def _resolve_scope_context(self, bound: _BoundRun) -> _CESScopeContext:
+    def _resolve_scope_ref(self, bound: _BoundRun) -> str:
         response = bound.service_api.execute_graphql(
             _PROJECT_SCOPE_QUERY,
             variables={"entity": bound.entity, "project": bound.project},
@@ -507,35 +575,11 @@ class CESEvalTableWriter:
                 f"Unable to resolve W&B project {bound.entity}/{bound.project}."
             )
 
-        api_key = bound.service_api.api_key
-        access_token = None if api_key else bound.service_api.access_token()
-        if not api_key and not access_token:
-            raise UsageError(
-                "CES EvalTable logging requires authenticated W&B credentials."
-            )
-
-        return _CESScopeContext(
-            scope_ref=scope_ref,
-            api_key=api_key,
-            access_token=access_token,
-        )
+        return scope_ref
 
     def _create_client(
         self,
-        client_type: type[CoreWeaveEvaluationsT],
+        service_api: ServiceApi,
         base_url: str,
-        scope: _CESScopeContext,
-    ) -> CoreWeaveEvaluationsT:
-        # The client builds the Authorization header from these and rejects a
-        # request that reaches it without one, so a header set on an httpx
-        # client would arrive too late to satisfy it.
-        client = client_type(
-            base_url=base_url,
-            api_key=scope.api_key,
-            bearer_token=scope.access_token,
-        )
-        # The generated constructor fills None credentials from the environment.
-        # Keep the run's resolved choice authoritative when both are present.
-        client.api_key = scope.api_key
-        client.bearer_token = scope.access_token
-        return client
+    ) -> _CoreEvalTableClient:
+        return _CoreEvalTableClient(service_api, base_url)

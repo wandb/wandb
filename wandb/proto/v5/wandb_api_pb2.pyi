@@ -33,7 +33,7 @@ class ServerApiInitResponse(_message.Message):
     def __init__(self, error_message: _Optional[str] = ..., api_id: _Optional[str] = ...) -> None: ...
 
 class ApiRequest(_message.Message):
-    __slots__ = ("api_id", "read_run_history_request", "features_request", "graphql_request", "download_file_request", "upload_file_request", "mark_run_files_uploaded_request", "stop_run_request", "auth_request", "create_custom_chart_request", "run_queue_operation_request", "open_telemetry_request", "read_run_console_logs_request")
+    __slots__ = ("api_id", "read_run_history_request", "features_request", "graphql_request", "download_file_request", "upload_file_request", "mark_run_files_uploaded_request", "stop_run_request", "auth_request", "create_custom_chart_request", "run_queue_operation_request", "open_telemetry_request", "read_run_console_logs_request", "eval_table_request")
     API_ID_FIELD_NUMBER: _ClassVar[int]
     READ_RUN_HISTORY_REQUEST_FIELD_NUMBER: _ClassVar[int]
     FEATURES_REQUEST_FIELD_NUMBER: _ClassVar[int]
@@ -47,6 +47,7 @@ class ApiRequest(_message.Message):
     RUN_QUEUE_OPERATION_REQUEST_FIELD_NUMBER: _ClassVar[int]
     OPEN_TELEMETRY_REQUEST_FIELD_NUMBER: _ClassVar[int]
     READ_RUN_CONSOLE_LOGS_REQUEST_FIELD_NUMBER: _ClassVar[int]
+    EVAL_TABLE_REQUEST_FIELD_NUMBER: _ClassVar[int]
     api_id: str
     read_run_history_request: ReadRunHistoryRequest
     features_request: FeaturesRequest
@@ -60,10 +61,11 @@ class ApiRequest(_message.Message):
     run_queue_operation_request: RunQueueOperationRequest
     open_telemetry_request: _wandb_otel_pb2.OpenTelemetryRequest
     read_run_console_logs_request: ReadRunConsoleLogsRequest
-    def __init__(self, api_id: _Optional[str] = ..., read_run_history_request: _Optional[_Union[ReadRunHistoryRequest, _Mapping]] = ..., features_request: _Optional[_Union[FeaturesRequest, _Mapping]] = ..., graphql_request: _Optional[_Union[GraphQLRequest, _Mapping]] = ..., download_file_request: _Optional[_Union[DownloadFileRequest, _Mapping]] = ..., upload_file_request: _Optional[_Union[UploadFileRequest, _Mapping]] = ..., mark_run_files_uploaded_request: _Optional[_Union[MarkRunFilesUploadedRequest, _Mapping]] = ..., stop_run_request: _Optional[_Union[StopRunRequest, _Mapping]] = ..., auth_request: _Optional[_Union[AuthRequest, _Mapping]] = ..., create_custom_chart_request: _Optional[_Union[CreateCustomChartRequest, _Mapping]] = ..., run_queue_operation_request: _Optional[_Union[RunQueueOperationRequest, _Mapping]] = ..., open_telemetry_request: _Optional[_Union[_wandb_otel_pb2.OpenTelemetryRequest, _Mapping]] = ..., read_run_console_logs_request: _Optional[_Union[ReadRunConsoleLogsRequest, _Mapping]] = ...) -> None: ...
+    eval_table_request: EvalTableRequest
+    def __init__(self, api_id: _Optional[str] = ..., read_run_history_request: _Optional[_Union[ReadRunHistoryRequest, _Mapping]] = ..., features_request: _Optional[_Union[FeaturesRequest, _Mapping]] = ..., graphql_request: _Optional[_Union[GraphQLRequest, _Mapping]] = ..., download_file_request: _Optional[_Union[DownloadFileRequest, _Mapping]] = ..., upload_file_request: _Optional[_Union[UploadFileRequest, _Mapping]] = ..., mark_run_files_uploaded_request: _Optional[_Union[MarkRunFilesUploadedRequest, _Mapping]] = ..., stop_run_request: _Optional[_Union[StopRunRequest, _Mapping]] = ..., auth_request: _Optional[_Union[AuthRequest, _Mapping]] = ..., create_custom_chart_request: _Optional[_Union[CreateCustomChartRequest, _Mapping]] = ..., run_queue_operation_request: _Optional[_Union[RunQueueOperationRequest, _Mapping]] = ..., open_telemetry_request: _Optional[_Union[_wandb_otel_pb2.OpenTelemetryRequest, _Mapping]] = ..., read_run_console_logs_request: _Optional[_Union[ReadRunConsoleLogsRequest, _Mapping]] = ..., eval_table_request: _Optional[_Union[EvalTableRequest, _Mapping]] = ...) -> None: ...
 
 class ApiResponse(_message.Message):
-    __slots__ = ("read_run_history_response", "features_response", "graphql_response", "download_file_response", "upload_file_response", "mark_run_files_uploaded_response", "stop_run_response", "auth_response", "create_custom_chart_response", "run_queue_operation_response", "read_run_console_logs_response", "api_error_response")
+    __slots__ = ("read_run_history_response", "features_response", "graphql_response", "download_file_response", "upload_file_response", "mark_run_files_uploaded_response", "stop_run_response", "auth_response", "create_custom_chart_response", "run_queue_operation_response", "read_run_console_logs_response", "eval_table_response", "api_error_response")
     READ_RUN_HISTORY_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     FEATURES_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     GRAPHQL_RESPONSE_FIELD_NUMBER: _ClassVar[int]
@@ -75,6 +77,7 @@ class ApiResponse(_message.Message):
     CREATE_CUSTOM_CHART_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     RUN_QUEUE_OPERATION_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     READ_RUN_CONSOLE_LOGS_RESPONSE_FIELD_NUMBER: _ClassVar[int]
+    EVAL_TABLE_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     API_ERROR_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     read_run_history_response: ReadRunHistoryResponse
     features_response: FeaturesResponse
@@ -87,8 +90,9 @@ class ApiResponse(_message.Message):
     create_custom_chart_response: CreateCustomChartResponse
     run_queue_operation_response: RunQueueOperationResponse
     read_run_console_logs_response: ReadRunConsoleLogsResponse
+    eval_table_response: EvalTableResponse
     api_error_response: ApiErrorResponse
-    def __init__(self, read_run_history_response: _Optional[_Union[ReadRunHistoryResponse, _Mapping]] = ..., features_response: _Optional[_Union[FeaturesResponse, _Mapping]] = ..., graphql_response: _Optional[_Union[GraphQLResponse, _Mapping]] = ..., download_file_response: _Optional[_Union[DownloadFileResponse, _Mapping]] = ..., upload_file_response: _Optional[_Union[UploadFileResponse, _Mapping]] = ..., mark_run_files_uploaded_response: _Optional[_Union[MarkRunFilesUploadedResponse, _Mapping]] = ..., stop_run_response: _Optional[_Union[StopRunResponse, _Mapping]] = ..., auth_response: _Optional[_Union[AuthResponse, _Mapping]] = ..., create_custom_chart_response: _Optional[_Union[CreateCustomChartResponse, _Mapping]] = ..., run_queue_operation_response: _Optional[_Union[RunQueueOperationResponse, _Mapping]] = ..., read_run_console_logs_response: _Optional[_Union[ReadRunConsoleLogsResponse, _Mapping]] = ..., api_error_response: _Optional[_Union[ApiErrorResponse, _Mapping]] = ...) -> None: ...
+    def __init__(self, read_run_history_response: _Optional[_Union[ReadRunHistoryResponse, _Mapping]] = ..., features_response: _Optional[_Union[FeaturesResponse, _Mapping]] = ..., graphql_response: _Optional[_Union[GraphQLResponse, _Mapping]] = ..., download_file_response: _Optional[_Union[DownloadFileResponse, _Mapping]] = ..., upload_file_response: _Optional[_Union[UploadFileResponse, _Mapping]] = ..., mark_run_files_uploaded_response: _Optional[_Union[MarkRunFilesUploadedResponse, _Mapping]] = ..., stop_run_response: _Optional[_Union[StopRunResponse, _Mapping]] = ..., auth_response: _Optional[_Union[AuthResponse, _Mapping]] = ..., create_custom_chart_response: _Optional[_Union[CreateCustomChartResponse, _Mapping]] = ..., run_queue_operation_response: _Optional[_Union[RunQueueOperationResponse, _Mapping]] = ..., read_run_console_logs_response: _Optional[_Union[ReadRunConsoleLogsResponse, _Mapping]] = ..., eval_table_response: _Optional[_Union[EvalTableResponse, _Mapping]] = ..., api_error_response: _Optional[_Union[ApiErrorResponse, _Mapping]] = ...) -> None: ...
 
 class ApiErrorResponse(_message.Message):
     __slots__ = ("message", "error_type", "http_status")
@@ -597,3 +601,61 @@ class DownloadRunHistoryStatusResponse(_message.Message):
     OPERATION_STATS_FIELD_NUMBER: _ClassVar[int]
     operation_stats: _wandb_internal_pb2.OperationStats
     def __init__(self, operation_stats: _Optional[_Union[_wandb_internal_pb2.OperationStats, _Mapping]] = ...) -> None: ...
+
+class EvalTableRequest(_message.Message):
+    __slots__ = ("base_url", "scope_ref", "idempotency_key", "create", "create_columns", "add_rows", "create_version")
+    BASE_URL_FIELD_NUMBER: _ClassVar[int]
+    SCOPE_REF_FIELD_NUMBER: _ClassVar[int]
+    IDEMPOTENCY_KEY_FIELD_NUMBER: _ClassVar[int]
+    CREATE_FIELD_NUMBER: _ClassVar[int]
+    CREATE_COLUMNS_FIELD_NUMBER: _ClassVar[int]
+    ADD_ROWS_FIELD_NUMBER: _ClassVar[int]
+    CREATE_VERSION_FIELD_NUMBER: _ClassVar[int]
+    base_url: str
+    scope_ref: str
+    idempotency_key: str
+    create: EvalTableCreateRequest
+    create_columns: EvalTableCreateColumnsRequest
+    add_rows: EvalTableAddRowsRequest
+    create_version: EvalTableCreateVersionRequest
+    def __init__(self, base_url: _Optional[str] = ..., scope_ref: _Optional[str] = ..., idempotency_key: _Optional[str] = ..., create: _Optional[_Union[EvalTableCreateRequest, _Mapping]] = ..., create_columns: _Optional[_Union[EvalTableCreateColumnsRequest, _Mapping]] = ..., add_rows: _Optional[_Union[EvalTableAddRowsRequest, _Mapping]] = ..., create_version: _Optional[_Union[EvalTableCreateVersionRequest, _Mapping]] = ...) -> None: ...
+
+class EvalTableCreateRequest(_message.Message):
+    __slots__ = ("name",)
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    name: str
+    def __init__(self, name: _Optional[str] = ...) -> None: ...
+
+class EvalTableCreateColumnsRequest(_message.Message):
+    __slots__ = ("evaluation_id", "body_json")
+    EVALUATION_ID_FIELD_NUMBER: _ClassVar[int]
+    BODY_JSON_FIELD_NUMBER: _ClassVar[int]
+    evaluation_id: str
+    body_json: bytes
+    def __init__(self, evaluation_id: _Optional[str] = ..., body_json: _Optional[bytes] = ...) -> None: ...
+
+class EvalTableAddRowsRequest(_message.Message):
+    __slots__ = ("evaluation_id", "body_json")
+    EVALUATION_ID_FIELD_NUMBER: _ClassVar[int]
+    BODY_JSON_FIELD_NUMBER: _ClassVar[int]
+    evaluation_id: str
+    body_json: bytes
+    def __init__(self, evaluation_id: _Optional[str] = ..., body_json: _Optional[bytes] = ...) -> None: ...
+
+class EvalTableCreateVersionRequest(_message.Message):
+    __slots__ = ("evaluation_id",)
+    EVALUATION_ID_FIELD_NUMBER: _ClassVar[int]
+    evaluation_id: str
+    def __init__(self, evaluation_id: _Optional[str] = ...) -> None: ...
+
+class EvalTableResponse(_message.Message):
+    __slots__ = ("evaluation_id", "dataset_id", "evaluation_version_id", "dataset_version_id")
+    EVALUATION_ID_FIELD_NUMBER: _ClassVar[int]
+    DATASET_ID_FIELD_NUMBER: _ClassVar[int]
+    EVALUATION_VERSION_ID_FIELD_NUMBER: _ClassVar[int]
+    DATASET_VERSION_ID_FIELD_NUMBER: _ClassVar[int]
+    evaluation_id: str
+    dataset_id: str
+    evaluation_version_id: str
+    dataset_version_id: str
+    def __init__(self, evaluation_id: _Optional[str] = ..., dataset_id: _Optional[str] = ..., evaluation_version_id: _Optional[str] = ..., dataset_version_id: _Optional[str] = ...) -> None: ...
