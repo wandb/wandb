@@ -20,12 +20,12 @@ type Clock interface {
 	NewTimer(d time.Duration) (<-chan time.Time, func())
 }
 
-// realClock is the production Clock.
-type realClock struct{}
+// RealClock is the production Clock.
+type RealClock struct{}
 
-func (realClock) Now() time.Time { return time.Now() }
+func (RealClock) Now() time.Time { return time.Now() }
 
-func (realClock) NewTimer(d time.Duration) (<-chan time.Time, func()) {
+func (RealClock) NewTimer(d time.Duration) (<-chan time.Time, func()) {
 	timer := time.NewTimer(d)
 	return timer.C, func() { timer.Stop() }
 }
