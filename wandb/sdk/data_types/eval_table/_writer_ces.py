@@ -458,6 +458,8 @@ class CESWriter:
                 normalized, value_type, oversized_size = self._normalize_media(
                     value,
                     bound_run,
+                    source=source,
+                    column_name=name,
                 )
                 if oversized_size is not None:
                     oversized_cells += 1
@@ -511,13 +513,20 @@ class CESWriter:
         self,
         value: Media,
         bound_run: _BoundRun,
+        *,
+        source: _CESFieldSource,
+        column_name: str,
     ) -> tuple[Any, _CESFieldType, int | None]:
         """Return a CES extension value, its field type, and oversized byte count."""
         try:
             media_cell = _media_ces.prepare_media(
                 value,
                 bound_run.run,
-                bound_run.eval_table_key,
+                _media_ces.EvalTableMediaField(
+                    eval_table_key=bound_run.eval_table_key,
+                    source="inputs" if source == "input" else "outputs",
+                    column_name=column_name,
+                ),
             )
         except _media_ces.UnsupportedMediaVariantError as error:
             if self._unsupported_media_mode == "raise":

@@ -5,7 +5,7 @@ import os
 import sys
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
-from unittest.mock import ANY, MagicMock
+from unittest.mock import ANY, MagicMock, call
 
 import pytest
 import wandb
@@ -50,6 +50,7 @@ def run_factory(mock_run, tmp_path):
             }
         )
         run._publish_file = MagicMock()
+        run._add_singleton = MagicMock()
         return run
 
     return make
@@ -102,12 +103,76 @@ def _image_write_rows(image):
     ]
 
 
-def _image_from_external_reference_artifact(
-    tmp_path,
-    monkeypatch,
-    **image_kwargs,
-):
-    image = wandb.Image(_png(tmp_path), **image_kwargs)
+@pytest.fixture
+def artifact_image_factory(tmp_path, monkeypatch):
+    def make(
+        *,
+        name,
+        class_labels,
+        boxes=None,
+        mask_keys=(),
+    ):
+        image_entry_name = f"media/images/{name}.png"
+        image_path = _png(tmp_path, f"{name}.png")
+        entries = {
+            image_entry_name: SimpleNamespace(
+                download=lambda: str(image_path),
+                ref=None,
+            )
+        }
+        local_paths = {str(image_path): image_entry_name}
+        masks = {}
+        for key in mask_keys:
+            mask_entry_name = f"media/images/{name}-{key}.png"
+            mask_path = _png(tmp_path, f"{name}-{key}.png")
+            entries[mask_entry_name] = SimpleNamespace(
+                download=lambda path=mask_path: str(path),
+                ref=None,
+            )
+            local_paths[str(mask_path)] = mask_entry_name
+            masks[key] = {"path": mask_entry_name}
+
+        source_artifact = MagicMock()
+        source_artifact.get.return_value = wandb.Classes(
+            [
+                {"id": class_id, "name": label}
+                for class_id, label in class_labels.items()
+            ]
+        )
+        source_artifact.get_entry.side_effect = entries.__getitem__
+        source_artifact._local_path_to_name.side_effect = local_paths.get
+
+        image_json = {
+            "path": image_entry_name,
+            "format": "png",
+            "classes": {"path": f"media/classes/{name}.classes.json"},
+        }
+        if boxes is not None:
+            image_json["boxes"] = boxes
+        if masks:
+            image_json["masks"] = masks
+
+        # Run metrics use this same artifact rehydration boundary before serialization.
+        image = wandb.Image.from_json(image_json, source_artifact)
+        artifact_uri = f"wandb-artifact://abc123/{image_entry_name}"
+        monkeypatch.setattr(
+            image,
+            "_get_artifact_entry_ref_url",
+            lambda: artifact_uri,
+        )
+        return image, artifact_uri
+
+    return make
+
+_IMAGE_FIELD = _media_ces.EvalTableMediaField(
+    eval_table_key="eval",
+    source="inputs",
+    column_name="image",
+)
+
+
+def _image_from_external_reference_artifact(tmp_path, monkeypatch):
+    image = wandb.Image(_png(tmp_path))
     source_artifact = MagicMock()
     source_artifact._local_path_to_name.return_value = "media/images/image.png"
     source_artifact.get_entry.return_value.ref = "s3://private-bucket/image.png"
@@ -244,7 +309,7 @@ def test_prepare_image_creates_ces_extension_value(run_factory, tmp_path):
     image = wandb.Image(path, grouping=7)
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
 
-    prepared = _media_ces.prepare_image(image, run, "eval")
+    prepared = _media_ces.prepare_image(image, run, _IMAGE_FIELD)
 
     assert prepared.value == {
         "sha256": digest,
@@ -275,7 +340,7 @@ def test_committed_artifact_image_preserves_artifact_ref_url(
     artifact_uri = "wandb-artifact://abc123/media/images/image.png"
     monkeypatch.setattr(image, "_get_artifact_entry_ref_url", lambda: artifact_uri)
 
-    prepared = _media_ces.prepare_image(image, run, "eval")
+    prepared = _media_ces.prepare_image(image, run, _IMAGE_FIELD)
 
     assert prepared.value["uri"] == artifact_uri
     assert image._run is None
@@ -329,30 +394,206 @@ def test_external_reference_artifact_image_raises_in_raise_mode(
         )
 
 
-def test_external_reference_artifact_image_overlays_are_null_by_default(
+def test_artifact_rehydrated_image_mask_registers_parent_class_labels(
     run_factory,
-    tmp_path,
-    monkeypatch,
+    artifact_image_factory,
 ):
     run = run_factory("run-one")
-    image = _image_from_external_reference_artifact(
-        tmp_path,
-        monkeypatch,
-        boxes={"predictions": {"box_data": [], "class_labels": {}}},
-    )
-    warning = MagicMock()
-    monkeypatch.setattr(wandb, "termwarn", warning)
-    writer = _writer_ces.CESWriter()
-    writer.bind_to_run(run, "eval", 0)
-
-    prepared = writer._build_write_payloads(
-        name="eval",
-        rows=_image_write_rows(image),
+    class_labels = {1: "truth region: Coat", 2: "prediction region: Trouser"}
+    image, artifact_uri = artifact_image_factory(
+        name="image",
+        class_labels=class_labels,
+        mask_keys=("predictions",),
     )
 
-    assert prepared.row_batches[0][0]["input"]["image"] is None
-    assert prepared.dataset_fields[0]["extension_type"] == "wandb-image"
-    warning.assert_called_once()
+    prepared = _media_ces.prepare_image(image, run, _IMAGE_FIELD)
+
+    assert prepared.value["uri"] == artifact_uri
+    mask = prepared.value["masks"]["predictions"]
+    assert mask["uri"].startswith("wandb-run-file://entity/project/run-one/")
+    assert run._add_singleton.call_args == call(
+        "mask/class_labels",
+        "eval/inputs/image_wandb_delimeter_predictions",
+        class_labels,
+    )
+    assert "mask_data" not in mask
+
+
+def test_artifact_rehydrated_image_boxes_register_parent_class_labels(
+    run_factory,
+    artifact_image_factory,
+):
+    run = run_factory("run-one")
+    class_labels = {1: "truth region: Coat", 2: "prediction region: Trouser"}
+    image, artifact_uri = artifact_image_factory(
+        name="image",
+        class_labels=class_labels,
+        boxes={
+            "predictions": [
+                {
+                    "position": {
+                        "minX": 0.1,
+                        "minY": 0.2,
+                        "maxX": 0.3,
+                        "maxY": 0.4,
+                    },
+                    "class_id": 2,
+                }
+            ]
+        },
+    )
+
+    prepared = _media_ces.prepare_image(image, run, _IMAGE_FIELD)
+
+    assert prepared.value["uri"] == artifact_uri
+    boxes = prepared.value["boxes"]["predictions"]
+    assert boxes["uri"].startswith("wandb-run-file://entity/project/run-one/")
+    assert run._add_singleton.call_args == call(
+        "bounding_box/class_labels",
+        "eval/inputs/image_wandb_delimeter_predictions",
+        {2: class_labels[2]},
+    )
+
+
+def test_image_with_masks_and_boxes_uses_run_file_uris(run_factory, tmp_path):
+    np = pytest.importorskip("numpy")
+    run = run_factory("run-one")
+    image = wandb.Image(
+        _png(tmp_path),
+        boxes={
+            "predictions": {
+                "box_data": [
+                    {
+                        "position": {
+                            "minX": 0.1,
+                            "minY": 0.2,
+                            "maxX": 0.3,
+                            "maxY": 0.4,
+                        },
+                        "class_id": 1,
+                    }
+                ],
+                "class_labels": {1: "cat"},
+            }
+        },
+        masks={
+            "predictions": {
+                "mask_data": np.zeros((2, 2), dtype=np.uint8),
+                "class_labels": {0: "background"},
+            }
+        },
+    )
+    box_media = image._boxes["predictions"]
+    mask_media = image._masks["predictions"]
+    image_path = image._path
+    box_path = box_media._path
+    mask_path = mask_media._path
+
+    prepared = _media_ces.prepare_image(image, run, _IMAGE_FIELD)
+
+    box = prepared.value["boxes"]["predictions"]
+    mask = prepared.value["masks"]["predictions"]
+    assert box["uri"].startswith(
+        "wandb-run-file://entity/project/run-one/media/eval_tables/metadata/boxes2D/eval/"
+    )
+    assert "path" not in box
+    assert mask["uri"].startswith(
+        "wandb-run-file://entity/project/run-one/media/eval_tables/images/mask/eval/"
+    )
+    assert "path" not in mask
+    assert run._publish_file.call_count == 3
+    assert run._add_singleton.call_count == 2
+    assert image._run is None
+    assert image._path == image_path
+    assert box_media._run is None
+    assert box_media._path == box_path
+    assert mask_media._run is None
+    assert mask_media._path == mask_path
+
+
+def test_image_columns_register_distinct_overlay_class_labels(
+    run_factory,
+    mock_ces_client,
+    tmp_path,
+    artifact_image_factory,
+):
+    np = pytest.importorskip("numpy")
+    run = run_factory("run-one")
+    local_image = wandb.Image(
+        _png(tmp_path, "local.png"),
+        boxes={
+            "comparison": {
+                "box_data": [
+                    {
+                        "position": {
+                            "minX": 0.1,
+                            "minY": 0.2,
+                            "maxX": 0.3,
+                            "maxY": 0.4,
+                        },
+                        "class_id": 1,
+                    }
+                ],
+                "class_labels": {1: "local"},
+            }
+        },
+        masks={
+            "comparison": {
+                "mask_data": np.ones((2, 2), dtype=np.uint8),
+                "class_labels": {1: "local"},
+            }
+        },
+    )
+
+    artifact_image, _ = artifact_image_factory(
+        name="artifact",
+        class_labels={2: "artifact"},
+        boxes={
+            "comparison": [
+                {
+                    "position": {
+                        "minX": 0.2,
+                        "minY": 0.3,
+                        "maxX": 0.4,
+                        "maxY": 0.5,
+                    },
+                    "class_id": 2,
+                }
+            ]
+        },
+        mask_keys=("comparison",),
+    )
+    table = wandb.EvalTable(
+        columns=["local_image", "artifact_image"],
+        data=[[local_image, artifact_image]],
+        input_columns=["local_image", "artifact_image"],
+        backend="ces",
+    )
+
+    run.log({"eval": table})
+
+    assert run._add_singleton.call_args_list == [
+        call(
+            "bounding_box/class_labels",
+            "eval/inputs/local_image_wandb_delimeter_comparison",
+            {1: "local"},
+        ),
+        call(
+            "mask/class_labels",
+            "eval/inputs/local_image_wandb_delimeter_comparison",
+            {1: "local"},
+        ),
+        call(
+            "bounding_box/class_labels",
+            "eval/inputs/artifact_image_wandb_delimeter_comparison",
+            {2: "artifact"},
+        ),
+        call(
+            "mask/class_labels",
+            "eval/inputs/artifact_image_wandb_delimeter_comparison",
+            {2: "artifact"},
+        ),
+    ]
 
 
 def test_external_reference_artifact_image_overlays_raise_in_raise_mode(
@@ -379,7 +620,7 @@ def test_external_reference_artifact_image_overlays_raise_in_raise_mode(
 def test_cell_at_size_limit_becomes_null(run_factory, tmp_path, monkeypatch):
     run = run_factory("run-one")
     first = wandb.Image(_png(tmp_path, "first.png"), caption="caption")
-    first_result = _media_ces.prepare_image(first, run, "eval")
+    first_result = _media_ces.prepare_image(first, run, _IMAGE_FIELD)
     second_path = tmp_path / "second.png"
     second_path.write_bytes(Path(first._path).read_bytes())
     second = wandb.Image(second_path, caption="caption")
@@ -389,7 +630,7 @@ def test_cell_at_size_limit_becomes_null(run_factory, tmp_path, monkeypatch):
         first_result.encoded_size,
     )
 
-    result = _media_ces.prepare_image(second, run, "eval")
+    result = _media_ces.prepare_image(second, run, _IMAGE_FIELD)
 
     assert result.encoded_size == first_result.encoded_size
     assert result.value is None
