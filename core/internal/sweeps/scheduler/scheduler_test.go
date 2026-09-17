@@ -7,14 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Khan/genqlient/graphql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/wandb/wandb/core/internal/sweeps/scheduler"
 
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/sweeps/scheduler"
 	"github.com/wandb/wandb/core/internal/sweeps/schedulertest"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -221,33 +220,12 @@ func (f *loopFixture) stubSweepConfig(sweepState string) {
 	)
 }
 
-// stubEnqueue answers one enqueue by minting a run named runName.
-func (f *loopFixture) stubEnqueue(runName string) {
-	f.client.StubMatchOnce(
-		gqlmock.WithOpName("EnqueueSweepRun"),
-		fmt.Sprintf(
-			`{"enqueueSweepRun": {"id": %q, "runQueueItemId": "rqi"}}`,
-			runName),
-	)
-}
-
 // stubFinishSweep answers the loop's request to finish the sweep.
 func (f *loopFixture) stubFinishSweep() {
 	f.client.StubMatchOnce(
 		gqlmock.WithOpName("UpsertSweepState"),
 		`{"upsertSweep": {"sweep": {"state": "FINISHED"}}}`,
 	)
-}
-
-// requestsFor returns every request made for the named operation.
-func (f *loopFixture) requestsFor(opName string) []*graphql.Request {
-	var found []*graphql.Request
-	for _, req := range f.client.AllRequests() {
-		if req.OpName == opName {
-			found = append(found, req)
-		}
-	}
-	return found
 }
 
 // step drives one Step with a timeout guard.
@@ -293,20 +271,6 @@ func generationResult(
 			Generation: generation,
 		},
 	}
-}
-
-func suggest(ids ...string) *spb.SweepSchedulerClientGenerationResult {
-	result := &spb.SweepSchedulerClientGenerationResult{
-		AskOutcome: spb.SweepSchedulerClientGenerationResult_ASK_OUTCOME_SUGGESTED,
-	}
-	for _, id := range ids {
-		result.Suggestions = append(result.Suggestions,
-			&spb.SweepSchedulerClientRunSuggestion{
-				OptimizerRunId: id,
-				ConfigJson:     `{"param1": 1}`,
-			})
-	}
-	return result
 }
 
 func emptyIterResult() *spb.SweepSchedulerClientTaskResult {
