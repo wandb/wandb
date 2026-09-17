@@ -892,7 +892,8 @@ def test_standard_immutable_log(mock_eval_logger, mock_wandb_log, run, monkeypat
         scores={"score1": 0.6, "score2": 0.8},
     )
     ev.log_summary.assert_called_once_with()
-    assert et._immutable_evaluate_call_id == "eval-1"
+    assert et._immutable_write_result is not None
+    assert et._immutable_write_result.logged_id == "eval-1"
 
     # Second log on IMMUTABLE table is a no-op.
     run.log({"my_eval": et})
