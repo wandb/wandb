@@ -191,7 +191,7 @@ class Agent:
         wandb.termerror(f"Run {run_id} errored:{term_str}")
 
         self._consecutive_failed_runs += 1
-        if self._has_too_many_consecutive_failed_runs():
+        if self._consecutive_failed_runs >= self._max_consecutive_failed_runs:
             msg = f"Detected {self._consecutive_failed_runs} consecutive failed runs, killing sweep."
             logger.error(msg)
             wandb.termerror(msg)
@@ -220,10 +220,6 @@ class Agent:
             return True
 
         return False
-
-    def _has_too_many_consecutive_failed_runs(self) -> bool:
-        """True once max_consecutive_failed_runs runs have failed back to back."""
-        return self._consecutive_failed_runs >= self._max_consecutive_failed_runs
 
     def _heartbeat_commands(self, run_status: dict) -> list[dict[str, Any]]:
         """Fetch the next batch of agent commands from the server."""

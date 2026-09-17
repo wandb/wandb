@@ -1855,9 +1855,7 @@ def launch_agent(
     "--max-consecutive-failed-runs",
     default=None,
     type=click.IntRange(min=1),
-    help="""Shut the agent down once this many runs have failed back to back.
-    A run counts as failed if it exits non-zero or is killed by a signal, such
-    as by the OOM killer. Runs stopped by the sweep itself do not count.""",
+    help="""Shut the agent down once this many runs have failed back to back.""",
 )
 @click.argument("sweep_id")
 @display_error
