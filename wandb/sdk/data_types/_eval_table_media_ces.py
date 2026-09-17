@@ -14,27 +14,31 @@ semantics:
 from __future__ import annotations
 
 import copy
+import json
 import os
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any, Literal, TypeVar, cast
 from urllib.parse import quote
 
 from wandb import util
 from wandb.errors import UsageError
 from wandb.sdk.data_types.base_types.media import Media
+from wandb.sdk.data_types.image import Image
 from wandb.sdk.lib.paths import LogicalPath
 
 if TYPE_CHECKING:
+    from coreweave_evaluations.types.wandb_image_v1_param import WandbImageV1Param
+
     from wandb.sdk.wandb_run import Run
+
+    _CESMediaExtensionValue = WandbImageV1Param
 
 
 CES_MAX_CELL_BYTES = 3_500_000
-_CESMediaExtensionValue = dict[str, Any]
-_CESExtensionType = str
+_CESExtensionType = Literal["wandb-image"]
 _DIGEST_PATH_LENGTH = 30
 _MediaT = TypeVar("_MediaT", bound=Media)
-# Intentionally empty in this foundational layer. Later PRs add supported types.
-SUPPORTED_WANDB_MEDIA_TYPES: tuple[type[Media], ...] = ()
+SUPPORTED_WANDB_MEDIA_TYPES: tuple[type[Media], ...] = (Image,)
 
 
 @dataclass(frozen=True)
@@ -52,6 +56,15 @@ class PreparedMediaCell:
     oversized: bool
 
 
+class _UnsupportedMediaVariantError(TypeError):
+    """Raised when EvalTable supports a media type but not its backing data."""
+
+    def __init__(self, message: str, *, stub_warning: str, stub_value: str) -> None:
+        super().__init__(message)
+        self.stub_warning = stub_warning
+        self.stub_value = stub_value
+
+
 def is_supported_wandb_media(value: Any) -> bool:
     return isinstance(value, SUPPORTED_WANDB_MEDIA_TYPES)
 
@@ -63,8 +76,28 @@ def prepare_media(
 ) -> PreparedMediaCell:
     """Prepare supported media for one EvalTable cell in the active run."""
 
+    if isinstance(media, Image):
+        return prepare_image(media, run, eval_table_key)
     raise UsageError(
         f"CES EvalTable does not support media type {type(media).__name__!r}."
+    )
+
+
+def prepare_image(image: Image, run: Run, eval_table_key: str) -> PreparedMediaCell:
+    working_image = _media_for_run(image, run)
+    if _committed_artifact_ref_url(working_image) is None:
+        _bind_eval_table_media_to_run(working_image, run, eval_table_key)
+
+    image_json = _image_json_without_overlays(working_image, run)
+    extension_value = _image_ces_extension_value(image_json, run)
+    encoded_size = len(_encode_json(extension_value))
+    oversized = encoded_size >= CES_MAX_CELL_BYTES
+    return PreparedMediaCell(
+        value=None if oversized else extension_value,
+        extension_type="wandb-image",
+        extension_schema_version=1,
+        encoded_size=encoded_size,
+        oversized=oversized,
     )
 
 
@@ -82,7 +115,47 @@ def _unbound_copy(media: _MediaT) -> _MediaT:
 
 def _committed_artifact_ref_url(media: Media) -> str | None:
     ref_url = media._get_artifact_entry_ref_url()
-    return ref_url if util._is_artifact_string(ref_url) else None
+    if util._is_artifact_string(ref_url):
+        _check_external_reference_artifact(media)
+        return ref_url
+    return None
+
+
+def _check_external_reference_artifact(media: Media) -> None:
+    source = media._artifact_source
+    if source is None:
+        return
+
+    # A W&B artifact URI can wrap external storage that the EvalTable service
+    # cannot access.
+    artifact = source.artifact
+    entry_names = []
+    if source.name is not None:
+        entry_names.append(media.with_suffix(source.name))
+    if media._path is not None:
+        media_entry_name = artifact._local_path_to_name(media._path)
+        if media_entry_name is not None:
+            entry_names.append(media_entry_name)
+
+    for entry_name in entry_names:
+        entry = artifact.get_entry(entry_name)
+        is_external_reference = (
+            entry.ref is not None and not entry._is_artifact_reference()
+        )
+        if is_external_reference:
+            raise _UnsupportedMediaVariantError(
+                "EvalTable does not support wandb.Image values backed by "
+                "external reference artifacts. Pass unsupported_media_mode='stub' "
+                "to log a placeholder string instead.",
+                stub_warning=(
+                    "wandb.Image values backed by external reference artifacts "
+                    "are not supported by EvalTable. They will be logged as "
+                    "placeholder strings."
+                ),
+                stub_value=(
+                    "[wandb.Image external reference artifact not supported]"
+                ),
+            )
 
 
 # Only unbound media may enter the EvalTable run-file namespace. Callers preserve
@@ -99,6 +172,8 @@ def _bind_eval_table_media_to_run(
         raise UsageError(
             f"Cannot rebind {type(media).__name__} from a different run in place."
         )
+
+    _check_external_reference_artifact(media)
 
     if media.path_is_reference(media._path):
         raise ValueError(
@@ -147,3 +222,56 @@ def _run_file_uri(run: Run, logical_path: str) -> str:
         quote(str(part), safe="") for part in (*components, *path_components)
     )
     return f"wandb-run-file://{encoded}"
+def _image_ces_extension_value(
+    image_json: dict[str, Any],
+    run: Run,
+) -> WandbImageV1Param:
+    uri = _uri_from_media_json(image_json, run)
+    extension_value = {
+        key: value
+        for key, value in image_json.items()
+        if key not in {"_type", "path", "artifact_path", "_latest_artifact_path"}
+    }
+    extension_value.update(
+        {
+            "extension_type": "wandb-image",
+            "schema_version": 1,
+            "wb_media_type": "image-file",
+            "uri": uri,
+        }
+    )
+    return cast("WandbImageV1Param", extension_value)
+
+
+def _image_json_without_overlays(image: Image, run: Run) -> dict[str, Any]:
+    if not image._boxes and not image._masks:
+        return image.to_json(run)
+
+    base_image = copy.copy(image)
+    base_image._boxes = None
+    base_image._masks = None
+    return base_image.to_json(run)
+
+
+def _uri_from_media_json(value: dict[str, Any], run: Run) -> str:
+    artifact_path = value.get("artifact_path")
+    if util._is_artifact_string(artifact_path):
+        return artifact_path
+    path = value.get("path")
+    if not isinstance(path, str):
+        raise UsageError("EvalTable media JSON has no durable file reference.")
+    return _run_file_uri(run, path)
+
+
+def _file_sha256(path: str) -> str:
+    with open(path, "rb") as file:
+        return hashlib.sha256(file.read()).hexdigest()
+
+
+def _encode_json(value: Any) -> bytes:
+    return json.dumps(
+        value,
+        allow_nan=False,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode()

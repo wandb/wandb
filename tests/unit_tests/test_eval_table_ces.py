@@ -207,6 +207,24 @@ def test_ces_eval_table_stubs_media_until_native_support_exists(
     mock_wandb_log,
     run,
 ):
+    histogram = wandb.Histogram([1, 2, 3])
+    table = wandb.EvalTable(
+        columns=["histogram"],
+        data=[[histogram]],
+        backend="ces",
+    )
+
+    run.log({"media_eval": table})
+
+    rows = mock_ces_client.eval_tables.add_rows.call_args.kwargs["rows"]
+    assert rows[0]["output"]["histogram"] == "[wandb.Histogram not yet supported]"
+    mock_wandb_log.assert_warned("wandb.Histogram values are not yet supported")
+
+
+def test_ces_eval_table_writes_supported_media(
+    mock_ces_client,
+    run,
+):
     from PIL import Image as PILImage
 
     image = wandb.Image(PILImage.new("RGB", (2, 2), color="red"))
@@ -219,16 +237,9 @@ def test_ces_eval_table_stubs_media_until_native_support_exists(
     run.log({"media_eval": et})
 
     rows = mock_ces_client.eval_tables.add_rows.call_args.kwargs["rows"]
-    assert rows == [
-        {
-            "input": {"row": 1},
-            "output": {"image": "[wandb.Image not yet supported]"},
-            "scores": {},
-        }
-    ]
-    mock_wandb_log.assert_warned(
-        "wandb.Image values are not yet supported by CES EvalTable logging"
-    )
+    image_value = rows[0]["output"]["image"]
+    assert image_value["extension_type"] == "wandb-image"
+    assert image_value["uri"].startswith("wandb-run-file://")
 
 
 @pytest.mark.parametrize(
@@ -268,20 +279,21 @@ def test_ces_eval_table_media_telemetry_counts_affected_writes(
     recorder.log.assert_not_called()
 
 
-def test_ces_eval_table_raises_for_media_in_raise_mode(mock_ces_client):
+def test_ces_eval_table_writes_supported_media_in_raise_mode(mock_ces_client, run):
     from PIL import Image as PILImage
 
     image = wandb.Image(PILImage.new("RGB", (2, 2), color="red"))
 
-    with pytest.raises(TypeError, match="unsupported wandb media type 'Image'"):
-        wandb.EvalTable(
-            columns=["image"],
-            data=[[image]],
-            backend="ces",
-            unsupported_media_mode="raise",
-        )
+    table = wandb.EvalTable(
+        columns=["image"],
+        data=[[image]],
+        backend="ces",
+        unsupported_media_mode="raise",
+    )
+    run.log({"media_eval": table})
 
-    mock_ces_client.eval_tables.create.assert_not_called()
+    rows = mock_ces_client.eval_tables.add_rows.call_args.kwargs["rows"]
+    assert rows[0]["output"]["image"]["extension_type"] == "wandb-image"
 
 
 def test_ces_eval_table_batches_rows_by_encoded_bytes(
