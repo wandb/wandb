@@ -149,13 +149,13 @@ func newSweepAPIFromSettings(
 
 	baseURL, err := url.Parse(clientSettings.GetBaseURL())
 	if err != nil {
-		return nil, fmt.Errorf("scheduler: parsing base URL: %v", err)
+		return nil, fmt.Errorf("scheduler: parsing base URL: %w", err)
 	}
 
 	credentialProvider, err := api.NewCredentialProvider(
 		clientSettings, logger.Logger)
 	if err != nil {
-		return nil, fmt.Errorf("scheduler: reading credentials: %v", err)
+		return nil, fmt.Errorf("scheduler: reading credentials: %w", err)
 	}
 
 	gqlClient := api.NewGQLClient(
@@ -207,7 +207,7 @@ type sweepConfig struct {
 func parseSweepConfig(configYAML string) (*sweepConfig, error) {
 	var cfg sweepConfig
 	if err := yaml.Unmarshal([]byte(configYAML), &cfg); err != nil {
-		return nil, fmt.Errorf("scheduler: parsing sweep config: %v", err)
+		return nil, fmt.Errorf("scheduler: parsing sweep config: %w", err)
 	}
 
 	for i, metric := range cfg.Metrics {
