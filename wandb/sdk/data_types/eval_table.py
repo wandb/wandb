@@ -5,13 +5,14 @@ from typing import TYPE_CHECKING, Any
 from typing_extensions import override
 
 import wandb
-import wandb.integration.weave.media_adapters as media_adapters
 from wandb.errors import UsageError
 from wandb.sdk.data_types._eval_table_writer import (
     EvalTableWriteInput,
     EvalTableWriter,
     EvalTableWriteResult,
     EvalTableWriteRow,
+    UnsupportedMediaMode,
+    validate_unsupported_media_mode,
 )
 from wandb.sdk.data_types._eval_table_writer_factory import (
     EvalTableBackend,
@@ -41,7 +42,8 @@ class EvalTable(Table):
     supported.
     """
 
-    # SDK-side WBValue discriminator. Backend writers own the run-history `_type`.
+    # SDK-side WBValue discriminator, not to be confused by `_type` written to the run
+    # history entry.
     _log_type = "eval-table"
 
     def __init__(
@@ -59,7 +61,7 @@ class EvalTable(Table):
         output_columns: list[str] | None = None,
         score_columns: list[str] | None = None,
         backend: EvalTableBackend | None = None,
-        unsupported_media_mode: media_adapters.UnsupportedMediaMode = "stub",
+        unsupported_media_mode: UnsupportedMediaMode = "stub",
     ) -> None:
         """Initializes an EvalTable object.
 
@@ -131,7 +133,7 @@ class EvalTable(Table):
         if log_mode != "IMMUTABLE":
             raise UsageError("EvalTable currently only supports log_mode='IMMUTABLE'.")
 
-        media_adapters.validate_unsupported_media_mode(unsupported_media_mode)
+        validate_unsupported_media_mode(unsupported_media_mode)
         self._writer: EvalTableWriter | None = (
             create_eval_table_writer(
                 backend,
@@ -190,7 +192,7 @@ class EvalTable(Table):
 
         <!-- lazydoc-ignore -->
         """
-        # TODO: Remove when weave adds support for offline mode
+        # TODO: Remove when we add support for offline mode
         if run.offline:
             raise UsageError(
                 "EvalTable does not support offline mode yet. "
@@ -206,9 +208,9 @@ class EvalTable(Table):
             )
             self._validate_cells_for_writer(writer)
 
-        # Backend binding initializes run context while intentionally skipping
-        # the file-copy behavior in Table.bind_to_run().
-        writer.bind(run, str(key), step)
+        # Initialize writer with run context while intentionally
+        # skipping the file-copy behavior in Table.bind_to_run().
+        writer.bind_to_run(run, str(key), step)
         self._writer = writer
         self._run = run
         self._run_log_key = str(key)
@@ -242,8 +244,6 @@ class EvalTable(Table):
             return dict(self._immutable_write_result.marker)
 
         result = writer.write(self._prepare_write_input(self._run_log_key))
-        # Commit the immutable write before telemetry so a telemetry failure cannot
-        # cause the backend write to run again on a later serialization attempt.
         self._immutable_write_result = result
 
         with telemetry.context(run=run) as tel:
@@ -258,13 +258,10 @@ class EvalTable(Table):
     def _validate_cell_value(self, val: Any, col: ColumnKey) -> None:
         if self._writer is not None:
             self._writer.validate_cell_value(val, col)
-        else:
-            # Until a run is bound, apply the backend-neutral validation shared
-            # by the existing writers. The selected writer revalidates at bind.
-            media_adapters.validate_supported_value(
-                val,
-                col,
-                unsupported_media_mode=self._unsupported_media_mode,
+        elif isinstance(val, Table):
+            raise TypeError(
+                f"Column {col!r} contains a {type(val).__name__}; "
+                "EvalTable does not support nested Tables (or EvalTables) as cell values."
             )
 
     def _validate_cells_for_writer(self, writer: EvalTableWriter) -> None:
