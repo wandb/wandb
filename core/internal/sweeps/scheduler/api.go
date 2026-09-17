@@ -25,7 +25,6 @@ type SweepAPI interface {
 		ctx context.Context,
 		pageSize int,
 		cursor *string,
-		metricKeys []string,
 	) (*PollPage, error)
 
 	FetchWatchedRuns(
@@ -103,6 +102,9 @@ type PollRun struct {
 	// {param: {"value": v}}, as a JSON object string.
 	ConfigJSON  string
 	SummaryJSON string
+
+	// HistoryJSON is empty on a warm-start page, which does not sample
+	// history.
 	HistoryJSON string
 }
 
@@ -152,29 +154,39 @@ func (a *sweepApi) FetchSweep(ctx context.Context) (*SweepFacts, error) {
 }
 
 // WarmStartPage fetches one page of every run in the sweep, with the
-// sweep's state. Returns ErrSweepNotFound if the sweep (or its project)
-// does not exist.
+// sweep's state. The runs carry no history: a prior run is replayed
+// from its final result. Returns ErrSweepNotFound if the sweep (or its
+// project) does not exist.
 func (a *sweepApi) WarmStartPage(
 	ctx context.Context,
 	pageSize int,
 	cursor *string,
-	metricKeys []string,
 ) (*PollPage, error) {
-	specs := historySpecs(metricKeys)
-	data, err := gql.SweepRunsWithHistory(
+	data, err := gql.SweepPriorRuns(
 		ctx, a.gqlClient,
 		a.entity, a.project, a.sweepID,
-		pageSize, cursor, specs,
+		pageSize, cursor,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	state, runs, err := warmStartPollResult(data)
-	if err != nil {
-		return nil, err
+	// The query nests the run connection under the sweep itself.
+	project := data.GetProject()
+	if project == nil || project.GetSweep() == nil {
+		return nil, ErrSweepNotFound
 	}
-	return buildPollPage(state, runs), nil
+
+	sweep := project.GetSweep()
+	runs := sweep.GetRuns()
+	page := &PollPage{SweepState: sweep.GetState()}
+	for _, edge := range runs.GetEdges() {
+		node := edge.GetNode()
+		page.Runs = append(page.Runs, pollRunFrom(&node))
+	}
+	pageInfo := runs.GetPageInfo()
+	page.NextCursor = nextCursor(&pageInfo)
+	return page, nil
 }
 
 // FetchWatchedRuns fetches one page of the named runs, with the sweep's
@@ -199,75 +211,64 @@ func (a *sweepApi) FetchWatchedRuns(
 		return nil, err
 	}
 
-	state, runs, err := watchedRunsPollResult(data)
-	if err != nil {
-		return nil, err
-	}
-	return buildPollPage(state, runs), nil
-}
-
-// pollRuns is the run page shape shared by SweepRunsWithHistory and
-// SweepWatchedRuns, via the SweepPollRuns GraphQL fragment.
-type pollRuns interface {
-	GetPageInfo() gql.SweepPollRunsPageInfo
-	GetEdges() []gql.SweepPollRunsEdgesRunEdge
-}
-
-// warmStartPollResult extracts the sweep state and run page from a
-// SweepRunsWithHistory response, which nests the run connection under
-// the sweep itself.
-func warmStartPollResult(
-	data *gql.SweepRunsWithHistoryResponse,
-) (state string, runs pollRuns, err error) {
+	// The query selects the run connection as a sibling of the sweep,
+	// independently filtered by name.
 	project := data.GetProject()
 	if project == nil || project.GetSweep() == nil {
-		return "", nil, ErrSweepNotFound
+		return nil, ErrSweepNotFound
 	}
-	sweep := project.GetSweep()
-	sweepRuns := sweep.GetRuns()
-	return sweep.GetState(), &sweepRuns, nil
-}
 
-// watchedRunsPollResult extracts the sweep state and run page from a
-// SweepWatchedRuns response, which selects the run connection as a
-// sibling of the sweep, independently filtered by name.
-func watchedRunsPollResult(
-	data *gql.SweepWatchedRunsResponse,
-) (state string, runs pollRuns, err error) {
-	project := data.GetProject()
-	if project == nil || project.GetSweep() == nil {
-		return "", nil, ErrSweepNotFound
-	}
-	if projectRuns := project.GetRuns(); projectRuns != nil {
-		runs = projectRuns
-	}
-	return project.GetSweep().GetState(), runs, nil
-}
-
-func buildPollPage(sweepState string, runs pollRuns) *PollPage {
-	page := &PollPage{SweepState: sweepState}
+	page := &PollPage{SweepState: project.GetSweep().GetState()}
+	runs := project.GetRuns()
 	if runs == nil {
-		return page
+		return page, nil
 	}
+
 	for _, edge := range runs.GetEdges() {
-		page.Runs = append(page.Runs, pollRunFrom(edge.GetNode()))
+		node := edge.GetNode()
+		row := pollRunFrom(&node)
+		row.HistoryJSON = historyJSON(node.GetSampledHistory())
+		page.Runs = append(page.Runs, row)
 	}
 	pageInfo := runs.GetPageInfo()
-	if pageInfo.GetHasNextPage() {
-		page.NextCursor = pageInfo.GetEndCursor()
-	}
-	return page
+	page.NextCursor = nextCursor(&pageInfo)
+	return page, nil
 }
 
-func pollRunFrom(node gql.SweepPollRunsEdgesRunEdgeNodeRun) PollRun {
+// runNode is the per-run result both run queries read, via the
+// SweepRunResult GraphQL fragment. Only the poll query also samples
+// history, so that field is read off the node itself.
+type runNode interface {
+	GetId() string
+	GetName() string
+	GetState() *string
+	GetConfig() *string
+	GetSummaryMetrics() *string
+}
+
+// runPageInfo is the pagination shape both run queries read.
+type runPageInfo interface {
+	GetHasNextPage() bool
+	GetEndCursor() *string
+}
+
+func pollRunFrom(node runNode) PollRun {
 	return PollRun{
-		StorageID:   node.Id,
-		Name:        node.Name,
-		State:       nullify.ZeroIfNil(node.State),
-		ConfigJSON:  nullify.ZeroIfNil(node.Config),
-		SummaryJSON: nullify.ZeroIfNil(node.SummaryMetrics),
-		HistoryJSON: historyJSON(node.SampledHistory),
+		StorageID:   node.GetId(),
+		Name:        node.GetName(),
+		State:       nullify.ZeroIfNil(node.GetState()),
+		ConfigJSON:  nullify.ZeroIfNil(node.GetConfig()),
+		SummaryJSON: nullify.ZeroIfNil(node.GetSummaryMetrics()),
 	}
+}
+
+// nextCursor is the cursor to resume the walk from, or nil if the page
+// just read was the last.
+func nextCursor(info runPageInfo) *string {
+	if !info.GetHasNextPage() {
+		return nil
+	}
+	return info.GetEndCursor()
 }
 
 // historySpecs builds the sampledHistory spec for the given metrics.

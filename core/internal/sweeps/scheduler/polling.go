@@ -11,8 +11,7 @@ import (
 func (s *Scheduler) warmStartStep(
 	ctx context.Context,
 ) *spb.SweepSchedulerServerNextTaskResponse {
-	page, err := s.api.WarmStartPage(
-		ctx, warmStartPageSize, s.warmCursor, s.metricKeys)
+	page, err := s.api.WarmStartPage(ctx, warmStartPageSize, s.warmCursor)
 	if err != nil {
 		if !retryable(ctx, err) {
 			return s.doneFromError(ctx, phaseWarmStart, err)
@@ -79,8 +78,9 @@ func (s *Scheduler) appendWarmRun(
 		return
 	}
 
+	// No HistoryJson: a prior run is replayed from its final result, so
+	// the warm-start page never sampled its curve.
 	data.SummaryJson = row.SummaryJSON
-	data.HistoryJson = row.HistoryJSON
 	task.FinishedRuns = append(task.FinishedRuns, data)
 }
 
