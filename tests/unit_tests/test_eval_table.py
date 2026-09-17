@@ -511,6 +511,36 @@ def test_ces_eval_table_uses_federated_access_token(run):
     assert scope.access_token == "access-token"
 
 
+@pytest.mark.parametrize(
+    ("api_key", "access_token"),
+    [("run-api-key", None), (None, "run-access-token")],
+)
+def test_ces_client_uses_only_the_run_credentials(api_key, access_token):
+    class EnvironmentDefaultingClient:
+        def __init__(self, *, base_url, api_key, bearer_token):
+            self.base_url = base_url
+            self.api_key = api_key if api_key is not None else "environment-api-key"
+            self.bearer_token = (
+                bearer_token if bearer_token is not None else "environment-access-token"
+            )
+
+    writer = ces_writer.CESEvalTableWriter()
+    scope = ces_writer._CESScopeContext(
+        scope_ref="scope-ref",
+        api_key=api_key,
+        access_token=access_token,
+    )
+
+    client = writer._create_client(
+        EnvironmentDefaultingClient,
+        "https://evaluations.example.test",
+        scope,
+    )
+
+    assert client.api_key == api_key
+    assert client.bearer_token == access_token
+
+
 def test_ces_eval_table_retries_with_stable_idempotency_keys(
     mock_ces_client,
     run,

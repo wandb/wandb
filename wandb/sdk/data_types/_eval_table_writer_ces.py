@@ -469,10 +469,14 @@ class CESEvalTableWriter:
     ) -> CoreWeaveEvaluationsT:
         # The client builds the Authorization header from these and rejects a
         # request that reaches it without one, so a header set on an httpx
-        # client would arrive too late to satisfy it. A None credential may be
-        # filled from the client's environment; bearer auth wins if both exist.
-        return client_type(
+        # client would arrive too late to satisfy it.
+        client = client_type(
             base_url=base_url,
             api_key=scope.api_key,
             bearer_token=scope.access_token,
         )
+        # The generated constructor fills None credentials from the environment.
+        # Keep the run's resolved choice authoritative when both are present.
+        client.api_key = scope.api_key
+        client.bearer_token = scope.access_token
+        return client
