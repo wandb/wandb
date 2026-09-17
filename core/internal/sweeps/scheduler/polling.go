@@ -38,35 +38,7 @@ func (s *Scheduler) warmStartStep(
 		HasMore: page.NextCursor != nil,
 	}
 	for _, row := range page.Runs {
-		if s.runsByName[row.Name] == nil {
-			s.runsByName[row.Name] = &trackedRun{
-				state: TrackingRetired,
-				name:  row.Name,
-			}
-		}
-
-		state := s.stateOrFailed(row.State)
-		if state == spb.SweepRunState_SWEEP_RUN_STATE_FINISHED &&
-			len(s.metricKeys) > 0 &&
-			!summaryHasAllMetrics(row.SummaryJSON, s.metricKeys) {
-			// As in the poll path: a prior run without the objective
-			// is a failure, not a sample.
-			state = spb.SweepRunState_SWEEP_RUN_STATE_FAILED
-		}
-		s.noteFinished(s.runsByName[row.Name], state)
-
-		data := &spb.SweepSchedulerServerRunData{
-			WandbRunId: row.Name,
-			State:      state,
-			ConfigJson: flattenWireConfig(row.ConfigJSON),
-		}
-		if runStateIsTerminal(state) {
-			data.SummaryJson = row.SummaryJSON
-			data.HistoryJson = row.HistoryJSON
-			task.FinishedRuns = append(task.FinishedRuns, data)
-		} else {
-			task.ActiveRuns = append(task.ActiveRuns, data)
-		}
+		s.appendWarmRun(task, row)
 	}
 
 	s.warmCursor = page.NextCursor
@@ -79,6 +51,54 @@ func (s *Scheduler) warmStartStep(
 			WarmStart: task,
 		},
 	}
+}
+
+// appendWarmRun records one prior run and files it under the bucket its
+// state puts it in: finished runs carry a result to learn from, active
+// ones are still producing theirs.
+func (s *Scheduler) appendWarmRun(
+	task *spb.SweepSchedulerServerWarmStartTask,
+	row PollRun,
+) {
+	run := s.runsByName[row.Name]
+	if run == nil {
+		run = &trackedRun{state: TrackingRetired, name: row.Name}
+		s.runsByName[row.Name] = run
+	}
+
+	state := s.warmRunState(row)
+	s.noteFinished(run, state)
+
+	data := &spb.SweepSchedulerServerRunData{
+		WandbRunId: row.Name,
+		State:      state,
+		ConfigJson: flattenWireConfig(row.ConfigJSON),
+	}
+	if !runStateIsTerminal(state) {
+		task.ActiveRuns = append(task.ActiveRuns, data)
+		return
+	}
+
+	data.SummaryJson = row.SummaryJSON
+	data.HistoryJson = row.HistoryJSON
+	task.FinishedRuns = append(task.FinishedRuns, data)
+}
+
+// warmRunState classifies a prior run, demoting one that finished
+// without every objective in its summary.
+func (s *Scheduler) warmRunState(row PollRun) spb.SweepRunState {
+	state := s.stateOrFailed(row.State)
+	if state != spb.SweepRunState_SWEEP_RUN_STATE_FINISHED ||
+		len(s.metricKeys) == 0 {
+		return state
+	}
+
+	if !summaryHasAllMetrics(row.SummaryJSON, s.metricKeys) {
+		// As in the poll path: a prior run without the objective is a
+		// failure, not a sample.
+		return spb.SweepRunState_SWEEP_RUN_STATE_FAILED
+	}
+	return state
 }
 
 // emptyWarmStartTask reports no prior runs, keeping the client in the
