@@ -68,7 +68,14 @@ class EvalTableWriteResult:
 
 
 class EvalTableWriter(Protocol):
-    def bind(self, run: LocalRun, key: str, step: int | str) -> None: ...
+    def bind(
+        self,
+        run: LocalRun,
+        key: str,
+        step: int | str,
+        *,
+        history_path: tuple[str | int, ...] | None = None,
+    ) -> None: ...
 
     def validate_cell_value(self, value: Any, column: str | int) -> None: ...
 
@@ -171,10 +178,17 @@ class WeaveEvalTableWriter:
         media_adapters.validate_unsupported_media_mode(unsupported_media_mode)
         self._unsupported_media_mode = unsupported_media_mode
 
-    def bind(self, run: LocalRun, key: str, step: int | str) -> None:
-        # Other writers use run/key/step to derive stable idempotency keys, so
-        # keep the full logging location in the shared protocol.
-        del key, step
+    def bind(
+        self,
+        run: LocalRun,
+        key: str,
+        step: int | str,
+        *,
+        history_path: tuple[str | int, ...] | None = None,
+    ) -> None:
+        # Other writers derive stable idempotency keys from the full history
+        # location, so keep key, step, and nested path in the shared protocol.
+        del key, step, history_path
         weave_integration.init_weave(run.entity, run.project)
 
     def validate_cell_value(self, value: Any, column: str | int) -> None:
@@ -274,7 +288,14 @@ class CESEvalTableWriter:
         self._service_api: ServiceApi | None = None
         self._idempotency_scope: str | None = None
 
-    def bind(self, run: LocalRun, key: str, step: int | str) -> None:
+    def bind(
+        self,
+        run: LocalRun,
+        key: str,
+        step: int | str,
+        *,
+        history_path: tuple[str | int, ...] | None = None,
+    ) -> None:
         from wandb.apis.public.service_api import ServiceApi
 
         if not run.entity or not run.project:
@@ -288,6 +309,11 @@ class CESEvalTableWriter:
                 "project": run.project,
                 "run_id": run.id,
                 "history_key": key,
+                **(
+                    {"history_path": history_path}
+                    if history_path is not None and len(history_path) > 1
+                    else {}
+                ),
                 "step": str(step),
             },
             sort_keys=True,

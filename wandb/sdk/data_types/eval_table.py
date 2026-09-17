@@ -173,6 +173,8 @@ class EvalTable(Table):
         step: int | str,
         id_: int | str | None = None,
         ignore_copy_err: bool | None = None,
+        *,
+        history_path: tuple[str | int, ...] | None = None,
     ) -> None:
         """Bind this object to a run.
 
@@ -187,7 +189,12 @@ class EvalTable(Table):
 
         # Backend binding initializes run context while intentionally skipping
         # the file-copy behavior in Table.bind_to_run().
-        self._writer.bind(run, str(key), step)
+        self._writer.bind(
+            run,
+            str(key),
+            step,
+            history_path=history_path,
+        )
         self._run = run
         self._run_log_key = str(key)
 
