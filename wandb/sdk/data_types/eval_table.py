@@ -8,11 +8,13 @@ import wandb
 import wandb.integration.weave.media_adapters as media_adapters
 from wandb.errors import UsageError
 from wandb.sdk.data_types._eval_table_writer import (
-    EvalTableBackend,
     EvalTableWriteInput,
     EvalTableWriter,
     EvalTableWriteResult,
     EvalTableWriteRow,
+)
+from wandb.sdk.data_types._eval_table_writer_factory import (
+    EvalTableBackend,
     create_eval_table_writer,
 )
 from wandb.sdk.data_types.table import ColumnKey, InputRow, LogMode, Table
