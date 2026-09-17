@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, get_args
+from typing import TYPE_CHECKING, Any, get_args
 
 import wandb
+from wandb.sdk.data_types._eval_table_writer import UnsupportedMediaMode
 from wandb.sdk.data_types.audio import Audio
 from wandb.sdk.data_types.base_types.media import Media
 from wandb.sdk.data_types.base_types.wb_value import WBValue
@@ -17,7 +18,6 @@ from wandb.sdk.data_types.video import Video
 if TYPE_CHECKING:
     from PIL.Image import Image as PILImage
 
-UnsupportedMediaMode = Literal["stub", "raise"]
 _UNSUPPORTED_MEDIA_MODES = get_args(UnsupportedMediaMode)
 _UnwrapValueFn = Callable[[Any, str | int], Any]
 _SupportedValueAdapter = tuple[str, _UnwrapValueFn]
