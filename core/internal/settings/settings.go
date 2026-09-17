@@ -667,13 +667,6 @@ func (s *Settings) GetLabel() string {
 //
 // These are used to update the settings in the proto.
 
-// Updates the start time of the run.
-func (s *Settings) UpdateStartTime(startTime time.Time) {
-	s.Proto.XStartTime = &wrapperspb.DoubleValue{
-		Value: float64(startTime.UnixNano()) / 1e9,
-	}
-}
-
 // Updates the run's entity name.
 func (s *Settings) UpdateEntity(entity string) {
 	s.mu.Lock()
