@@ -779,8 +779,7 @@ class Settings(BaseModel, validate_assignment=True):
 
     A comma-separated list of "json" and "typed", in any order. "json"
     writes the JSON text of the value. "typed" writes the value and its
-    type. Writing both keeps a run readable by a tool that only
-    understands the JSON form.
+    type.
 
     An unrecognized value falls back to the default with a warning.
     <!-- lazydoc-ignore -->
