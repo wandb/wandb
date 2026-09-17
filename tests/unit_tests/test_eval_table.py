@@ -662,38 +662,35 @@ def test_ces_eval_table_run_location_stabilizes_idempotency_keys(
         assert calls[0].kwargs["idempotency_key"] == calls[1].kwargs["idempotency_key"]
 
 
-def test_ces_nested_history_paths_have_distinct_idempotency_keys(
+@pytest.mark.parametrize("backend", ["weave", "ces"])
+@pytest.mark.parametrize("container", ["dict", "list"])
+def test_eval_table_must_be_a_direct_history_value(
+    backend,
+    container,
+    mock_eval_logger,
     mock_ces_client,
     run,
 ):
-    first = wandb.EvalTable(columns=["value"], data=[[1]], backend="ces")
-    second = wandb.EvalTable(columns=["value"], data=[[2]], backend="ces")
+    table = wandb.EvalTable(columns=["value"], data=[[1]], backend=backend)
+    nested = {"eval": table} if container == "dict" else [table]
+
+    with pytest.raises(UsageError, match="must be logged directly"):
+        run.log({"nested": nested})
+
+    mock_eval_logger._create_with_meta.assert_not_called()
+    mock_ces_client.eval_tables.create.assert_not_called()
+
+
+def test_nested_scalar_history_values_remain_supported(run):
     payload = {
-        "left": {"eval": first},
-        "right": {"eval": second},
+        "nested": {"integer": 1, "string": "value", "list": [2, 3]},
         "_step": 7,
     }
 
-    history_dict_to_json(run, payload)
-
-    calls = mock_ces_client.eval_tables.create.call_args_list
-    assert [call.kwargs["name"] for call in calls] == ["eval", "eval"]
-    assert calls[0].kwargs["idempotency_key"] != calls[1].kwargs["idempotency_key"]
-
-
-def test_ces_history_list_indices_have_distinct_idempotency_keys(
-    mock_ces_client,
-    run,
-):
-    first = wandb.EvalTable(columns=["value"], data=[[1]], backend="ces")
-    second = wandb.EvalTable(columns=["value"], data=[[2]], backend="ces")
-    payload = {"evals": [first, second], "_step": 7}
-
-    history_dict_to_json(run, payload)
-
-    calls = mock_ces_client.eval_tables.create.call_args_list
-    assert [call.kwargs["name"] for call in calls] == ["evals", "evals"]
-    assert calls[0].kwargs["idempotency_key"] != calls[1].kwargs["idempotency_key"]
+    assert history_dict_to_json(run, payload) == {
+        "nested": {"integer": 1, "string": "value", "list": [2, 3]},
+        "_step": 7,
+    }
 
 
 def test_ces_eval_table_rejects_mixed_type_mode():
