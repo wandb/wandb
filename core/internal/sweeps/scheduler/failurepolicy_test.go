@@ -208,3 +208,7 @@ func TestTrackedAPIIgnoresACanceledContext(t *testing.T) {
 	require.Error(t, err)
 	assert.Zero(t, tracked.Slowdown())
 }
+
+func TestDefaultPollIntervalMeetsFloor(t *testing.T) {
+	assert.GreaterOrEqual(t, defaultPollInterval, minPollInterval)
+}
