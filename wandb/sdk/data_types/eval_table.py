@@ -12,8 +12,8 @@ from wandb.sdk.data_types._eval_table_writer import (
     EvalTableWriter,
     EvalTableWriteResult,
     EvalTableWriteRow,
-    WeaveEvalTableWriter,
 )
+from wandb.sdk.data_types._eval_table_writer_weave import WeaveEvalTableWriter
 from wandb.sdk.data_types.table import ColumnKey, InputRow, LogMode, Table
 from wandb.sdk.lib import telemetry
 
