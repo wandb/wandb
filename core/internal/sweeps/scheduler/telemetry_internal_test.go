@@ -1,29 +1,38 @@
-package scheduler
+package scheduler_test
 
 import (
 	"context"
-	"errors"
 	"io"
 	"log/slog"
 	"testing"
 
+	"github.com/Khan/genqlient/graphql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/analyticstest"
+	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/sweeps/scheduler"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// newTelemetryScheduler returns a Scheduler whose logger exports to a
-// test OTLP collector, plus the collector to read the events back from.
-func newTelemetryScheduler(
+// telemetryFixture is a loopFixture whose logger exports to a test OTLP
+// collector.
+type telemetryFixture struct {
+	*loopFixture
+	proxy *analyticstest.OpenTelemetryProxyTest
+}
+
+func newTelemetryFixture(
 	t *testing.T,
-) (*Scheduler, *analyticstest.OpenTelemetryProxyTest) {
+	params scheduler.SchedulerParams,
+) *telemetryFixture {
 	t.Helper()
 
 	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
-	logger := observability.NewCoreLogger(
+	params.Logger = observability.NewCoreLogger(
 		slog.New(slog.NewJSONHandler(io.Discard, nil)),
 		analytics.NewTelemetryRecorder(
 			proxy.OpenTelemetryProxy,
@@ -31,86 +40,177 @@ func newTelemetryScheduler(
 		),
 	)
 
-	return NewScheduler(SchedulerParams{Logger: logger}), proxy
-}
-
-// event flushes the exporter's batch and returns the named event's
-// counter and log record.
-func event(
-	t *testing.T,
-	proxy *analyticstest.OpenTelemetryProxyTest,
-	name string,
-) (analyticstest.Metric, analyticstest.Log) {
-	t.Helper()
-	require.NoError(t, proxy.Shutdown(context.Background()))
-
-	counter, ok := proxy.FindMetric(name)
-	require.True(t, ok, "expected a counter for %q", name)
-	log, ok := proxy.FindLog(name)
-	require.True(t, ok, "expected an event for %q", name)
-	return counter, log
-}
-
-func TestRecordFatalErrorCountsThePhaseAndError(t *testing.T) {
-	scheduler, proxy := newTelemetryScheduler(t)
-
-	scheduler.recordFatalError(phasePoll, "the backend said 403")
-
-	counter, log := event(t, proxy, eventFatalError)
-	assert.EqualValues(t, 1, counter.Value)
-	assert.Equal(t, "poll", log.Attributes["phase"])
-	// Keyed "error", not "message": a log record's body is already its
-	// message, so a second one would be ambiguous to query.
-	assert.Equal(t, "the backend said 403", log.Attributes["error"])
-}
-
-func TestRecordStepAbandonedCountsThePhaseAndError(t *testing.T) {
-	scheduler, proxy := newTelemetryScheduler(t)
-
-	scheduler.recordStepAbandoned(phaseWarmStart, errors.New("rate limited"))
-
-	counter, log := event(t, proxy, eventStepAbandoned)
-	assert.EqualValues(t, 1, counter.Value)
-	assert.Equal(t, "warm_start", log.Attributes["phase"])
-	assert.Equal(t, "rate limited", log.Attributes["error"])
-}
-
-func TestRecordRunDiscardedCountsTheCauseAndRun(t *testing.T) {
-	scheduler, proxy := newTelemetryScheduler(t)
-
-	scheduler.recordRunDiscarded(discardCauseBadConfig, "opt-1")
-
-	counter, log := event(t, proxy, eventRunDiscarded)
-	assert.EqualValues(t, 1, counter.Value)
-	assert.Equal(t, "bad_config", log.Attributes["cause"])
-	assert.Equal(t, "opt-1", log.Attributes["id"])
-}
-
-// Repeated failures of one kind add up, since the counter is what says
-// whether a sweep is failing occasionally or constantly.
-func TestRepeatedEventsAccumulateOnOneCounter(t *testing.T) {
-	scheduler, proxy := newTelemetryScheduler(t)
-
-	scheduler.recordRunDiscarded(discardCauseEnqueueFailed, "opt-1")
-	scheduler.recordRunDiscarded(discardCauseEnqueueFailed, "opt-2")
-
-	counter, _ := event(t, proxy, eventRunDiscarded)
-	assert.EqualValues(t, 2, counter.Value)
-}
-
-// Every phase reaches telemetry under its config-facing name, so a
-// rename cannot silently break the dashboards querying them.
-func TestEveryPhaseIsRecordedUnderItsName(t *testing.T) {
-	for _, phase := range []loopPhase{
-		phaseWarmStart, phasePoll, phaseEnqueue, phaseOptimizer,
-	} {
-		t.Run(string(phase), func(t *testing.T) {
-			scheduler, proxy := newTelemetryScheduler(t)
-
-			scheduler.recordFatalError(phase, "failed")
-
-			_, log := event(t, proxy, eventFatalError)
-			assert.Equal(t, string(phase), log.Attributes["phase"])
-		})
+	return &telemetryFixture{
+		loopFixture: newLoopFixture(t, params),
+		proxy:       proxy,
 	}
+}
+
+// metric flushes the exporter's batch and returns one counter.
+func (f *telemetryFixture) metric(
+	t *testing.T,
+	name string,
+) (analyticstest.Metric, bool) {
+	t.Helper()
+	require.NoError(t, f.proxy.Shutdown(context.Background()))
+	return f.proxy.FindMetric(name)
+}
+
+func TestFatalPollErrorIsCounted(t *testing.T) {
+	fixture := newTelemetryFixture(t, scheduler.SchedulerParams{})
+	fixture.warmTo(t)
+
+	fixture.client.StubMatchWithError(
+		gqlmock.WithOpName("SweepConfig"),
+		&graphql.HTTPError{StatusCode: 403},
+	)
+	require.NotNil(t, fixture.step(t, warmResult(nil)).GetDone())
+
+	counter, ok := fixture.metric(t, "sweep_scheduler_fatal_error")
+	require.True(t, ok, "expected a fatal-error counter")
+	assert.EqualValues(t, 1, counter.Value)
+
+	event, ok := fixture.proxy.FindLog("sweep_scheduler_fatal_error")
+	require.True(t, ok, "expected a fatal-error event")
+	assert.Equal(t, "poll", event.Attributes["phase"])
+}
+
+func TestOptimizerErrorIsCountedAsFatal(t *testing.T) {
+	fixture := newTelemetryFixture(t, scheduler.SchedulerParams{})
+	fixture.warmTo(t)
+
+	done := fixture.step(t, &spb.SweepSchedulerClientTaskResult{
+		Result: &spb.SweepSchedulerClientTaskResult_Error{
+			Error: &spb.SweepSchedulerClientTaskError{
+				Message: "the optimizer exploded",
+			},
+		},
+	})
+	require.NotNil(t, done.GetDone())
+
+	counter, ok := fixture.metric(t, "sweep_scheduler_fatal_error")
+	require.True(t, ok, "expected a fatal-error counter")
+	assert.EqualValues(t, 1, counter.Value)
+
+	event, ok := fixture.proxy.FindLog("sweep_scheduler_fatal_error")
+	require.True(t, ok, "expected a fatal-error event")
+	assert.Equal(t, "optimizer", event.Attributes["phase"])
+}
+
+func TestRateLimitedPollCountsAnAbandonedStep(t *testing.T) {
+	fixture := newTelemetryFixture(t, scheduler.SchedulerParams{})
+	fixture.warmTo(t)
+	fixture.stubIdlePoll("RUNNING")
+	fixture.step(t, warmResult(nil))
+
+	fixture.client.StubMatchWithError(
+		gqlmock.WithOpName("SweepConfig"),
+		&graphql.HTTPError{StatusCode: 429},
+	)
+	require.NotNil(t, fixture.step(t, emptyIterResult()).GetGeneration())
+
+	counter, ok := fixture.metric(t, "sweep_scheduler_step_abandoned")
+	require.True(t, ok, "expected an abandoned-step counter")
+	assert.EqualValues(t, 1, counter.Value)
+
+	event, ok := fixture.proxy.FindLog("sweep_scheduler_step_abandoned")
+	require.True(t, ok, "expected an abandoned-step event")
+	assert.Equal(t, "poll", event.Attributes["phase"])
+}
+
+func TestRateLimitedWarmStartPageCountsAnAbandonedStep(t *testing.T) {
+	fixture := newTelemetryFixture(t, scheduler.SchedulerParams{})
+
+	fixture.client.StubMatchWithError(
+		gqlmock.WithOpName("SweepRunsWithHistory"),
+		&graphql.HTTPError{StatusCode: 429},
+	)
+	task := fixture.step(t, nil)
+	require.True(t, task.GetWarmStart().HasMore)
+
+	counter, ok := fixture.metric(t, "sweep_scheduler_step_abandoned")
+	require.True(t, ok, "expected an abandoned-step counter")
+	assert.EqualValues(t, 1, counter.Value)
+
+	event, ok := fixture.proxy.FindLog("sweep_scheduler_step_abandoned")
+	require.True(t, ok, "expected an abandoned-step event")
+	assert.Equal(t, "warm_start", event.Attributes["phase"])
+}
+
+func TestRateLimitedEnqueueCountsADiscardedRun(t *testing.T) {
+	fixture := newTelemetryFixture(t,
+		scheduler.SchedulerParams{BatchSize: 2})
+	fixture.warmTo(t)
+	fixture.stubIdlePoll("RUNNING")
+	fixture.step(t, warmResult(nil))
+
+	fixture.stubSweepConfig("RUNNING")
+	fixture.client.StubMatchWithError(
+		gqlmock.WithOpName("EnqueueSweepRun"),
+		&graphql.HTTPError{StatusCode: 429},
+	)
+	fixture.stubIdlePoll("RUNNING")
+	require.NotNil(t,
+		fixture.step(t, generationResult(suggest("opt-lost"))).GetGeneration())
+
+	counter, ok := fixture.metric(t, "sweep_scheduler_run_discarded")
+	require.True(t, ok, "expected a discarded-run counter")
+	assert.EqualValues(t, 1, counter.Value)
+
+	event, ok := fixture.proxy.FindLog("sweep_scheduler_run_discarded")
+	require.True(t, ok, "expected a discarded-run event")
+	assert.Equal(t, "enqueue_failed", event.Attributes["cause"])
+	assert.Equal(t, "opt-lost", event.Attributes["id"])
+}
+
+func TestUnusableConfigCountsADiscardedRun(t *testing.T) {
+	fixture := newTelemetryFixture(t,
+		scheduler.SchedulerParams{BatchSize: 2})
+	fixture.warmTo(t)
+	fixture.stubIdlePoll("RUNNING")
+	fixture.step(t, warmResult(nil))
+
+	fixture.stubSweepConfig("RUNNING")
+	fixture.stubIdlePoll("RUNNING")
+	require.NotNil(t, fixture.step(t, generationResult(
+		&spb.SweepSchedulerClientGenerationResult{
+			AskOutcome: spb.SweepSchedulerClientGenerationResult_ASK_OUTCOME_SUGGESTED,
+			Suggestions: []*spb.SweepSchedulerClientRunSuggestion{{
+				OptimizerRunId: "opt-bad",
+				ConfigJson:     "not json",
+			}},
+		})).GetGeneration())
+
+	counter, ok := fixture.metric(t, "sweep_scheduler_run_discarded")
+	require.True(t, ok, "expected a discarded-run counter")
+	assert.EqualValues(t, 1, counter.Value)
+
+	event, ok := fixture.proxy.FindLog("sweep_scheduler_run_discarded")
+	require.True(t, ok, "expected a discarded-run event")
+	assert.Equal(t, "bad_config", event.Attributes["cause"])
+}
+
+func TestFatalEnqueueFailureIsNotCountedAsADiscardedRun(t *testing.T) {
+	fixture := newTelemetryFixture(t,
+		scheduler.SchedulerParams{BatchSize: 2})
+	fixture.warmTo(t)
+	fixture.stubIdlePoll("RUNNING")
+	fixture.step(t, warmResult(nil))
+
+	// The suggestion is discarded, but the loop ends with it: only the
+	// fatal-error metric applies.
+	fixture.stubSweepConfig("RUNNING")
+	fixture.client.StubMatchWithError(
+		gqlmock.WithOpName("EnqueueSweepRun"),
+		&graphql.HTTPError{StatusCode: 400},
+	)
+	require.NotNil(t,
+		fixture.step(t, generationResult(suggest("opt-lost"))).GetDone())
+
+	_, ok := fixture.metric(t, "sweep_scheduler_run_discarded")
+	assert.False(t, ok, "expected no discarded-run counter")
+
+	counter, ok := fixture.proxy.FindMetric("sweep_scheduler_fatal_error")
+	require.True(t, ok, "expected a fatal-error counter")
+	assert.EqualValues(t, 1, counter.Value)
 }
