@@ -201,7 +201,7 @@ def test_ces_eval_table_writes_columns_rows_and_version(
 
     marker = et.to_json(run)
     assert marker == {
-        "_type": "eval-table",
+        "_type": "eval-table-ces",
         "backend": "ces",
         "schema_version": 1,
         "ncols": 5,
@@ -213,6 +213,52 @@ def test_ces_eval_table_writes_columns_rows_and_version(
         "dataset_version_id": "dataset-version-1",
     }
     assert "evaluate_call_id" not in marker
+    assert et._immutable_evaluate_call_id == "evaluation-version-1"
+
+
+def test_ces_eval_table_stubs_media_until_native_support_exists(
+    mock_ces_client,
+    mock_wandb_log,
+    run,
+):
+    from PIL import Image as PILImage
+
+    image = wandb.Image(PILImage.new("RGB", (2, 2), color="red"))
+    et = wandb.EvalTable(
+        columns=["image"],
+        data=[[image]],
+        backend="ces",
+    )
+
+    run.log({"media_eval": et})
+
+    rows = mock_ces_client.eval_tables.add_rows.call_args.kwargs["rows"]
+    assert rows == [
+        {
+            "input": {"row": 1},
+            "output": {"image": "[wandb.Image not yet supported]"},
+            "scores": {},
+        }
+    ]
+    mock_wandb_log.assert_warned(
+        "wandb.Image values are not yet supported by CES EvalTable logging"
+    )
+
+
+def test_ces_eval_table_raises_for_media_in_raise_mode(mock_ces_client):
+    from PIL import Image as PILImage
+
+    image = wandb.Image(PILImage.new("RGB", (2, 2), color="red"))
+
+    with pytest.raises(TypeError, match="unsupported wandb media type 'Image'"):
+        wandb.EvalTable(
+            columns=["image"],
+            data=[[image]],
+            backend="ces",
+            unsupported_media_mode="raise",
+        )
+
+    mock_ces_client.eval_tables.create.assert_not_called()
 
 
 def test_ces_eval_table_batches_rows_by_encoded_bytes(
@@ -408,6 +454,18 @@ def test_ces_eval_table_rejects_mixed_column_types_before_network(
             backend="ces",
         )
 
+    mock_ces_client.eval_tables.create.assert_not_called()
+
+
+def test_ces_error_uses_original_integer_column(mock_ces_client):
+    with pytest.raises(UsageError, match="column 3") as exc_info:
+        wandb.EvalTable(
+            columns=[3],
+            data=[[float("inf")]],
+            backend="ces",
+        )
+
+    assert "column '3'" not in str(exc_info.value)
     mock_ces_client.eval_tables.create.assert_not_called()
 
 
@@ -1360,10 +1418,15 @@ def test_add_data_unsupported_wandb_value_cell_raises_in_raise_mode():
     assert et.data == []
 
 
+@pytest.mark.parametrize("backend", ["weave", "ces"])
 @pytest.mark.usefixtures("mock_eval_logger")
-def test_unsupported_media_mode_rejects_unknown_mode():
+def test_unsupported_media_mode_rejects_unknown_mode(backend):
     with pytest.raises(ValueError, match="unsupported_media_mode"):
-        wandb.EvalTable(columns=["x"], unsupported_media_mode="ignore")
+        wandb.EvalTable(
+            columns=["x"],
+            backend=backend,
+            unsupported_media_mode="ignore",
+        )
 
 
 def test_unsupported_wandb_media_stubbed_on_log(

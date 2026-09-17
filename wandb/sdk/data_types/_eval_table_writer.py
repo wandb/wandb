@@ -14,7 +14,9 @@ import wandb
 import wandb.integration.weave as weave_integration
 import wandb.integration.weave.media_adapters as media_adapters
 from wandb.errors import UsageError
-from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
+from wandb.sdk.data_types.base_types.media import Media, _numpy_arrays_to_lists
+from wandb.sdk.data_types.base_types.wb_value import WBValue
+from wandb.sdk.data_types.table import Table
 
 if TYPE_CHECKING:
     from wandb.apis.public.service_api import ServiceApi
@@ -82,6 +84,7 @@ class EvalTableWriter(Protocol):
 def create_eval_table_writer(
     backend: EvalTableBackend,
     *,
+    allow_mixed_types: bool,
     unsupported_media_mode: media_adapters.UnsupportedMediaMode,
 ) -> EvalTableWriter:
     if backend == "weave":
@@ -89,7 +92,11 @@ def create_eval_table_writer(
             unsupported_media_mode=unsupported_media_mode,
         )
     if backend == "ces":
-        return CESEvalTableWriter()
+        if allow_mixed_types:
+            raise UsageError("CES EvalTable logging requires allow_mixed_types=False.")
+        return CESEvalTableWriter(
+            unsupported_media_mode=unsupported_media_mode,
+        )
     raise UsageError(
         f"Unsupported EvalTable backend {backend!r}; expected 'weave' or 'ces'."
     )
@@ -261,7 +268,13 @@ class _CESScopeContext:
 class CESEvalTableWriter:
     """Write an immutable EvalTable through the Evaluations service."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        unsupported_media_mode: media_adapters.UnsupportedMediaMode = "stub",
+    ) -> None:
+        media_adapters.validate_unsupported_media_mode(unsupported_media_mode)
+        self._unsupported_media_mode = unsupported_media_mode
         self._entity: str | None = None
         self._project: str | None = None
         self._service_api: ServiceApi | None = None
@@ -289,7 +302,10 @@ class CESEvalTableWriter:
         self._idempotency_scope = hashlib.sha256(identity.encode()).hexdigest()
 
     def validate_cell_value(self, value: Any, column: str | int) -> None:
-        self._normalize_primitive(value, str(column))
+        if isinstance(value, WBValue):
+            self._validate_wandb_value(value, column)
+            return
+        self._normalize_primitive(value, column)
 
     def write(self, value: EvalTableWriteInput) -> EvalTableWriteResult:
         if self._entity is None or self._project is None or self._service_api is None:
@@ -346,7 +362,7 @@ class CESEvalTableWriter:
 
         return EvalTableWriteResult(
             marker={
-                "_type": "eval-table",
+                "_type": "eval-table-ces",
                 "backend": "ces",
                 "schema_version": 1,
                 "ncols": value.ncols,
@@ -374,6 +390,7 @@ class CESEvalTableWriter:
             inputs = self._prepare_mapping(
                 row.inputs,
                 source="input",
+                column_keys=value.column_keys,
                 types=dataset_field_types,
                 order=dataset_field_order,
             )
@@ -381,6 +398,7 @@ class CESEvalTableWriter:
                 self._prepare_mapping(
                     row.output,
                     source="output",
+                    column_keys=value.column_keys,
                     types=dataset_field_types,
                     order=dataset_field_order,
                 )
@@ -389,6 +407,7 @@ class CESEvalTableWriter:
             )
             scores = self._prepare_scores(
                 row.scores,
+                column_keys=value.column_keys,
                 types=scorer_types,
                 order=scorer_order,
             )
@@ -476,6 +495,7 @@ class CESEvalTableWriter:
         values: dict[str, Any],
         *,
         source: Literal["input", "output"],
+        column_keys: dict[str, str | int],
         types: dict[tuple[str, str], PrimitiveValueType],
         order: list[tuple[str, str]],
     ) -> dict[str, Any]:
@@ -484,9 +504,10 @@ class CESEvalTableWriter:
             key = (source, name)
             if key not in order:
                 order.append(key)
-            normalized, value_type = self._normalize_primitive(value, name)
+            column = column_keys.get(name, name)
+            normalized, value_type = self._normalize_primitive(value, column)
             if value_type is not None:
-                types[key] = self._merge_type(name, types.get(key), value_type)
+                types[key] = self._merge_type(column, types.get(key), value_type)
             prepared[name] = normalized
         return prepared
 
@@ -494,6 +515,7 @@ class CESEvalTableWriter:
         self,
         values: dict[str, Any],
         *,
+        column_keys: dict[str, str | int],
         types: dict[str, PrimitiveValueType],
         order: list[str],
     ) -> dict[str, Any]:
@@ -501,17 +523,20 @@ class CESEvalTableWriter:
         for name, value in values.items():
             if name not in order:
                 order.append(name)
-            normalized, value_type = self._normalize_primitive(value, name)
+            column = column_keys.get(name, name)
+            normalized, value_type = self._normalize_primitive(value, column)
             if value_type is not None:
-                types[name] = self._merge_type(name, types.get(name), value_type)
+                types[name] = self._merge_type(column, types.get(name), value_type)
             prepared[name] = normalized
         return prepared
 
     def _normalize_primitive(
         self,
         value: Any,
-        column: str,
+        column: str | int,
     ) -> tuple[Any, PrimitiveValueType | None]:
+        if isinstance(value, WBValue):
+            value = self._normalize_wandb_value(value, column)
         if value is None:
             return None, None
 
@@ -539,9 +564,35 @@ class CESEvalTableWriter:
             f"type {type(value).__name__!r}; only primitive values are supported."
         )
 
+    def _validate_wandb_value(self, value: WBValue, column: str | int) -> None:
+        if isinstance(value, Table):
+            raise TypeError(
+                f"Column {column!r} contains a {type(value).__name__}; "
+                "CES EvalTable logging does not support nested Tables."
+            )
+        if self._unsupported_media_mode == "raise":
+            value_kind = "media" if isinstance(value, Media) else "value"
+            raise TypeError(
+                f"Column {column!r} contains unsupported wandb {value_kind} type "
+                f"{type(value).__name__!r}. CES EvalTable logging does not support "
+                "wandb media/value types yet. Pass unsupported_media_mode='stub' "
+                "to log a placeholder string instead."
+            )
+
+    def _normalize_wandb_value(self, value: WBValue, column: str | int) -> str:
+        # Keep media adaptation behind one hook so CES-native media can replace
+        # the unsupported fallback as its schemas and upload paths are added.
+        self._validate_wandb_value(value, column)
+        wandb.termwarn(
+            f"wandb.{type(value).__name__} values are not yet supported by CES "
+            "EvalTable logging. They will be logged as placeholder strings.",
+            repeat=False,
+        )
+        return f"[wandb.{type(value).__name__} not yet supported]"
+
     def _merge_type(
         self,
-        column: str,
+        column: str | int,
         existing: PrimitiveValueType | None,
         observed: PrimitiveValueType,
     ) -> PrimitiveValueType:

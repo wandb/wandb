@@ -125,11 +125,10 @@ class EvalTable(Table):
         """
         if log_mode != "IMMUTABLE":
             raise UsageError("EvalTable currently only supports log_mode='IMMUTABLE'.")
-        if backend == "ces" and allow_mixed_types:
-            raise UsageError("CES EvalTable logging requires allow_mixed_types=False.")
 
         self._writer: EvalTableWriter = create_eval_table_writer(
             backend,
+            allow_mixed_types=allow_mixed_types,
             unsupported_media_mode=unsupported_media_mode,
         )
 
