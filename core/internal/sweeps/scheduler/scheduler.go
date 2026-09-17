@@ -64,6 +64,7 @@ type Scheduler struct {
 }
 
 var _ TaskResolver = (*Scheduler)(nil)
+var _ TaskResolverFactory = NewTaskResolverFactory(nil)
 
 // NewScheduler constructs a Scheduler from params.
 func NewScheduler(params SchedulerParams) *Scheduler {
