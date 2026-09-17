@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, TypeAlias, cast
 
 import wandb
 from wandb import util
+from wandb.errors import UsageError
 
 from ..internal import incremental_table_util
 from .base_types.media import BatchableMedia, Media
@@ -32,12 +33,21 @@ if TYPE_CHECKING:  # pragma: no cover
     )
 
 
+def _contains_eval_table(value: Any) -> bool:
+    if isinstance(value, wandb.EvalTable):
+        return True
+    if isinstance(value, dict):
+        return any(_contains_eval_table(item) for item in value.values())
+    if isinstance(value, (list, tuple)):
+        return any(_contains_eval_table(item) for item in value)
+    return False
+
+
 def history_dict_to_json(
     run: LocalRun | None,
     payload: dict,
     step: int | None = None,
     ignore_copy_err: bool | None = None,
-    _history_path: tuple[str | int, ...] = (),
 ) -> dict:
     # Converts a History row dict's elements so they're friendly for JSON serialization.
 
@@ -45,26 +55,23 @@ def history_dict_to_json(
         # We should be at the top level of the History row; assume this key is set.
         step = payload["_step"]
 
+    for value in payload.values():
+        if not isinstance(value, wandb.EvalTable) and _contains_eval_table(value):
+            raise UsageError(
+                "EvalTable values must be logged directly under a run.log() key; "
+                "nesting them inside dictionaries or sequences is not supported."
+            )
+
     # We use list here because we were still seeing cases of RuntimeError dict changed size
     for key in list(payload):
         val = payload[key]
-        history_path = (*_history_path, key)
         if isinstance(val, dict):
             payload[key] = history_dict_to_json(
-                run,
-                val,
-                step=step,
-                ignore_copy_err=ignore_copy_err,
-                _history_path=history_path,
+                run, val, step=step, ignore_copy_err=ignore_copy_err
             )
         else:
             payload[key] = val_to_json(
-                run,
-                key,
-                val,
-                namespace=step,
-                ignore_copy_err=ignore_copy_err,
-                _history_path=history_path,
+                run, key, val, namespace=step, ignore_copy_err=ignore_copy_err
             )
 
     return payload
@@ -77,7 +84,6 @@ def val_to_json(
     val: ValToJsonType,
     namespace: str | int | None = None,
     ignore_copy_err: bool | None = None,
-    _history_path: tuple[str | int, ...] | None = None,
 ) -> Any:
     # Converts a wandb datatype to its JSON representation.
     if namespace is None:
@@ -133,17 +139,11 @@ def val_to_json(
             # This used to happen. The frontend doesn't handle heterogeneous arrays
             # raise ValueError(
             #    "Mixed media types in the same list aren't supported")
-            history_path = _history_path or (key,)
             return [
                 val_to_json(
-                    run,
-                    key,
-                    v,
-                    namespace=namespace,
-                    ignore_copy_err=ignore_copy_err,
-                    _history_path=(*history_path, index),
+                    run, key, v, namespace=namespace, ignore_copy_err=ignore_copy_err
                 )
-                for index, v in enumerate(val)
+                for v in val
             ]
 
     if isinstance(val, WBValue):
@@ -161,15 +161,7 @@ def val_to_json(
                 hasattr(val, "_log_type")
                 and val._log_type in ["partitioned-table", "joined-table"]
             ):
-                if isinstance(val, wandb.EvalTable):
-                    val.bind_to_run(
-                        run,
-                        key,
-                        namespace,
-                        history_path=_history_path or (key,),
-                    )
-                else:
-                    val.bind_to_run(run, key, namespace)
+                val.bind_to_run(run, key, namespace)
 
         res = val.to_json(run)
 
