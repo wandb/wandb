@@ -776,3 +776,45 @@ func runStateIsTerminal(state spb.SweepRunState) bool {
 func runStateOccupiesSlot(state spb.SweepRunState) bool {
 	return !runStateIsTerminal(state)
 }
+
+// applyPrunes stops the runs the optimizer pruned.
+//
+// Ids outside the candidates offered with the task are ignored. Once
+// the backend accepts the stop, the run is retired immediately
+// failure to stop a run can be retried again by the optimizer
+func (s *Scheduler) applyPrunes(ctx context.Context, pruneIDs []string) {
+	if len(pruneIDs) == 0 {
+		return
+	}
+
+	for _, id := range pruneIDs {
+		if !s.lastPruneCandidates[id] {
+			continue
+		}
+		run := s.runs[id]
+		if run == nil || !run.isTracked() || runStateIsTerminal(run.runState) {
+			continue
+		}
+
+		stopped, err := s.api.StopRun(ctx, run.storageID)
+		if err != nil {
+			// Leave the run a candidate; the optimizer may prune it
+			// again and must tolerate the repeat.
+			s.logger.Error(
+				"scheduler: failed to stop a pruned run",
+				"run", run.name, "error", err)
+			continue
+		}
+		if !stopped {
+			s.logger.Warn(
+				"scheduler: the backend refused to stop a pruned run; "+
+					"it may have already stopped",
+				"run", run.name)
+			continue
+		}
+
+		s.logger.Info(
+			"scheduler: stopped pruned run; retiring it", "run", run.name)
+		run.state = TrackingRetired
+	}
+}
