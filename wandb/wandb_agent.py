@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import enum
 import logging
+import math
 import multiprocessing
 import os
 import platform
@@ -278,24 +279,6 @@ def _exited_non_zero(poll_result) -> bool:
     )
 
 
-def _run_died_unexpectedly(run_process, poll_result) -> bool:
-    """True if a run finishes unexpectedly.
-
-    By unexpectedly, we mean non-zero exit codes, or deaths due to a signal,
-    such as a SIGKILL/SIGTERM/etc.
-
-    Runs which are killed intentionally by the agent (say due to hyperband
-    stopping), count as a successful run.
-    """
-    # check if the run was stopped by the agent first. If not, check for
-    # non-zero exit codes
-    if run_process.last_sigterm_time is not None:
-        return False
-    if isinstance(poll_result, bool) or not isinstance(poll_result, int):
-        return False
-    return poll_result != 0
-
-
 class Agent:
     POLL_INTERVAL = 5
     REPORT_INTERVAL = 0
@@ -379,10 +362,6 @@ class Agent:
             and self._max_initial_failures <= self._failed
         )
 
-    def has_too_many_consecutive_failed_runs(self):
-        """Determine if too many runs have failed back to back."""
-        return self._consecutive_failed_runs >= self._max_consecutive_failed_runs
-
     def _wait_for_processes_with_term_timeout(self):
         start_time = time.monotonic()
 
@@ -423,16 +402,21 @@ class Agent:
                     if exited_non_zero:
                         self._failed += 1
 
-                    if _run_died_unexpectedly(run_process, poll_result):
+                    if exited_non_zero:
                         self._consecutive_failed_runs += 1
                     else:
                         self._consecutive_failed_runs = 0
 
-                    if self.has_too_many_consecutive_failed_runs():
-                        logger.error(
-                            "Detected %i consecutive failed runs, shutting down.",
-                            self._consecutive_failed_runs,
+                    if (
+                        self._consecutive_failed_runs
+                        >= self._max_consecutive_failed_runs
+                    ):
+                        msg = (
+                            f"Detected {self._consecutive_failed_runs} consecutive "
+                            "failed runs, shutting down."
                         )
+                        logger.error(msg)
+                        wandb.termerror(msg)
                         self._running = False
                         break
 
@@ -848,9 +832,7 @@ def agent(
         forward_signals: Whether to forward signals the agent receives
             to the child processes. Only supported by CLI agent.
         max_consecutive_failed_runs: Shut the agent down once this many runs
-            have failed back to back. A run counts as failed if it exits
-            non-zero or is killed by a signal, such as by the OOM killer.
-            Runs stopped by the sweep itself do not count.
+            have failed back to back.
     """
     from wandb.agents.pyagent import pyagent
 

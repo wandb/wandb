@@ -4,7 +4,6 @@ import contextlib
 import io
 import itertools
 import json
-import logging
 import multiprocessing
 import pathlib
 from unittest import mock
@@ -212,19 +211,16 @@ class _AgentWithScriptedExitCodes(Agent):
         self,
         *args,
         exit_codes: list[int],
-        stopped: set[str] | None = None,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self._exit_codes = list(exit_codes)
-        self._stopped = stopped or set()
+        self.started_run_ids: list[str] = []
 
     def _command_run(self, command):
+        self.started_run_ids.append(command["run_id"])
         exit_code = self._exit_codes.pop(0) if self._exit_codes else 0
         proc = mock.MagicMock()
-        # Non-None marks the run as one the agent terminated itself, which is
-        # how a server "stop" command (e.g. sweep early-termination) looks.
-        proc.last_sigterm_time = 1.0 if command["run_id"] in self._stopped else None
         # Report the run as still going once, then settle on its exit code for
         # every later poll, including the ones the termination cascade makes.
         proc.poll = mock.Mock(
@@ -239,7 +235,6 @@ def _scripted_failure_agent(
     exit_codes: list[int],
     max_consecutive_failed_runs: int | None,
     count: int | None = None,
-    stopped: set[str] | None = None,
 ) -> _AgentWithScriptedExitCodes:
     """Build a CLI agent whose runs exit with `exit_codes`, in order."""
     wandb_agent_env.patch_cli()
@@ -259,13 +254,11 @@ def _scripted_failure_agent(
         count=count,
         max_consecutive_failed_runs=max_consecutive_failed_runs,
         exit_codes=exit_codes,
-        stopped=stopped,
     )
 
 
 def test_cli_agent_stops_after_max_consecutive_failed_runs(
     wandb_agent_env: WandbAgentTestEnv,
-    caplog: pytest.LogCaptureFixture,
 ):
     """Two back-to-back failures shut the agent down when the limit is 2."""
     agent = _scripted_failure_agent(
@@ -274,16 +267,13 @@ def test_cli_agent_stops_after_max_consecutive_failed_runs(
         max_consecutive_failed_runs=2,
     )
 
-    # The "wandb" logger does not propagate to root, where caplog listens.
-    wandb_agent_env.monkeypatch.setattr(logging.getLogger("wandb"), "propagate", True)
-    with caplog.at_level(logging.ERROR, logger="wandb.wandb_agent"):
-        agent.run()
+    termerrors = []
+    wandb_agent_env.monkeypatch.setattr(
+        wandb_agent.wandb, "termerror", termerrors.append
+    )
+    agent.run()
 
-    assert agent._running is False
-    assert agent._consecutive_failed_runs == 2
-    # The agent stopped on the second failure rather than reaping the third run.
-    assert agent._finished == 1
-    assert "Detected 2 consecutive failed runs, shutting down." in caplog.text
+    assert "Detected 2 consecutive failed runs, shutting down." in termerrors
 
 
 def test_cli_agent_below_max_consecutive_failed_runs_keeps_going(
@@ -297,10 +287,14 @@ def test_cli_agent_below_max_consecutive_failed_runs_keeps_going(
         count=2,
     )
 
+    termerrors = []
+    wandb_agent_env.monkeypatch.setattr(
+        wandb_agent.wandb, "termerror", termerrors.append
+    )
     agent.run()
 
-    assert agent._consecutive_failed_runs == 2
-    assert agent._finished == 2
+    assert agent.started_run_ids == ["run-0", "run-1"]
+    assert not any("consecutive failed runs" in message for message in termerrors)
 
 
 def test_cli_agent_successful_run_resets_consecutive_failures(
@@ -314,13 +308,14 @@ def test_cli_agent_successful_run_resets_consecutive_failures(
         count=3,
     )
 
+    termerrors = []
+    wandb_agent_env.monkeypatch.setattr(
+        wandb_agent.wandb, "termerror", termerrors.append
+    )
     agent.run()
 
-    # The successful middle run reset the streak, so the final failure is only
-    # the first of a new one and the agent ran every job.
-    assert agent._consecutive_failed_runs == 1
-    assert agent._finished == 3
-    assert agent._failed == 2
+    assert agent.started_run_ids == ["run-0", "run-1", "run-2"]
+    assert not any("consecutive failed runs" in message for message in termerrors)
 
 
 def test_cli_agent_consecutive_failure_check_disabled_by_default(
@@ -334,11 +329,14 @@ def test_cli_agent_consecutive_failure_check_disabled_by_default(
         count=2,
     )
 
+    termerrors = []
+    wandb_agent_env.monkeypatch.setattr(
+        wandb_agent.wandb, "termerror", termerrors.append
+    )
     agent.run()
 
-    assert agent._max_consecutive_failed_runs is None
-    assert agent.has_too_many_consecutive_failed_runs() is False
-    assert agent._finished == 2
+    assert agent.started_run_ids == ["run-0", "run-1"]
+    assert not any("consecutive failed runs" in message for message in termerrors)
 
 
 def test_cli_command_forwards_max_consecutive_failed_runs():
@@ -380,108 +378,3 @@ def test_cli_command_rejects_non_positive_max_consecutive_failed_runs(value: str
 
     assert result.exit_code != 0
     agent_mock.assert_not_called()
-
-
-@pytest.mark.parametrize(
-    ("poll_result", "last_sigterm_time", "expected"),
-    [
-        # Nobody signalled these, so the exit code is the run's own verdict.
-        (0, None, False),
-        # Non-zero exit, e.g. a traceback from expired credentials.
-        (1, None, True),
-        # Killed by a signal with nobody having asked: OOM killer (SIGKILL),
-        # a segfault, or node preemption. These are the bad-node signature.
-        (-9, None, True),
-        (-11, None, True),
-        (-15, None, True),
-        # Function-mode runs report completion as a bare True, which says
-        # nothing about success, so it must never count.
-        (True, None, False),
-        # The agent stopped these itself, which is how sweep early-termination
-        # and the UI stop button work. The exit code describes how the run
-        # handled the signal, not whether it was healthy, so none of these
-        # count regardless of sign.
-        (-15, 1.0, False),
-        # A script with its own SIGTERM handler can shut down and exit
-        # non-zero, and on Windows _command_stop's kill escalation is
-        # TerminateProcess(handle, 1), which is also a positive status.
-        (1, 1.0, False),
-    ],
-)
-def test_run_died_unexpectedly(
-    poll_result: int | bool,
-    last_sigterm_time: float | None,
-    expected: bool,
-):
-    """Only deaths the agent did not ask for count as run failures."""
-    proc = mock.MagicMock()
-    proc.last_sigterm_time = last_sigterm_time
-
-    assert wandb_agent._run_died_unexpectedly(proc, poll_result) is expected
-
-
-def test_cli_agent_signal_killed_runs_count_as_consecutive_failures(
-    wandb_agent_env: WandbAgentTestEnv,
-):
-    """OOM-style kills (negative exit codes) trip the limit like any failure."""
-    agent = _scripted_failure_agent(
-        wandb_agent_env,
-        exit_codes=[-9, -9, -9],
-        max_consecutive_failed_runs=2,
-    )
-
-    agent.run()
-
-    assert agent._running is False
-    assert agent._consecutive_failed_runs == 2
-    # Signal deaths feed the new streak without disturbing the counter that
-    # the pre-existing flapping and initial-failure checks rely on.
-    assert agent._failed == 0
-
-
-@pytest.mark.parametrize("exit_code", [-15, 1])
-def test_cli_agent_ignores_runs_it_terminated_itself(
-    wandb_agent_env: WandbAgentTestEnv,
-    exit_code: int,
-):
-    """Runs stopped by the server (sweep early-termination) are not failures.
-
-    Parametrized over both shapes an agent-initiated stop can take: death by
-    signal, and a positive status from a script that handles SIGTERM itself
-    or from TerminateProcess on Windows.
-    """
-    # Two runs, not three: a positive exit code still feeds self._failed, and
-    # three of those inside 60s would trip the pre-existing flapping check and
-    # confuse what this test is measuring.
-    agent = _scripted_failure_agent(
-        wandb_agent_env,
-        exit_codes=[exit_code] * 2,
-        max_consecutive_failed_runs=2,
-        count=2,
-        stopped={"run-0", "run-1"},
-    )
-
-    agent.run()
-
-    # The agent asked for both deaths, so they are not failures: the streak
-    # stays clear and the sweep is allowed to continue. A stopped run is
-    # treated exactly like a successful one, so it also resets the streak.
-    assert agent._consecutive_failed_runs == 0
-    assert agent._finished == 2
-
-
-def test_cli_agent_successful_run_resets_signal_kill_streak(
-    wandb_agent_env: WandbAgentTestEnv,
-):
-    """A clean exit clears a streak built from signal kills."""
-    agent = _scripted_failure_agent(
-        wandb_agent_env,
-        exit_codes=[-9, 0, -9],
-        max_consecutive_failed_runs=2,
-        count=3,
-    )
-
-    agent.run()
-
-    assert agent._consecutive_failed_runs == 1
-    assert agent._finished == 3

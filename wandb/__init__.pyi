@@ -934,9 +934,7 @@ def agent(
         forward_signals: Whether to forward signals the agent receives
             to the child processes. Only supported by CLI agent.
         max_consecutive_failed_runs: Shut the agent down once this many runs
-            have failed back to back. A run counts as failed if it exits
-            non-zero or is killed by a signal, such as by the OOM killer.
-            Runs stopped by the sweep itself do not count.
+            have failed back to back.
     """
     ...
 
