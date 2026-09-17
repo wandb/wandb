@@ -19,11 +19,13 @@ var ErrAlreadyScheduled = errors.New(
 	"scheduler: this sweep already has a running scheduler in this" +
 		" wandb-core process; stop it before starting another")
 
-// TaskResolverFactory builds the resolver for a new scheduler session.
+// TaskResolverFactory builds the resolver for a new scheduler session
+// over the API the broker opened for the session's sweep.
 type TaskResolverFactory func(
 	schedCtx context.Context,
 	reqCtx context.Context,
 	req *spb.SweepSchedulerClientInitRequest,
+	sweepAPI SweepAPI,
 ) (TaskResolver, *spb.SweepSchedulerServerInitResponse, error)
 
 // IPCSessionBroker tracks the scheduler sessions of one server process.
@@ -83,9 +85,20 @@ func (b *IPCSessionBroker) InitScheduler(
 		return nil, err
 	}
 
+	// The session's own API: it talks to the backend the client's
+	// settings name, with the client's credentials.
+	sweepAPI, err := newSweepAPIFromSettings(req, b.logger)
+	if err != nil {
+		b.logger.Error(
+			"scheduler: init failed",
+			"sweep", sweepKey,
+			"error", err)
+		return nil, err
+	}
+
 	schedCtx, cancel := context.WithCancelCause(connCtx)
 
-	resolver, response, err := b.factory(schedCtx, reqCtx, req)
+	resolver, response, err := b.factory(schedCtx, reqCtx, req, sweepAPI)
 	if err != nil {
 		b.logger.Error(
 			"scheduler: init failed",
