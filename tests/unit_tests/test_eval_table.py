@@ -1544,6 +1544,11 @@ def test_eval_table_only_supports_immutable_log_mode(log_mode):
         wandb.EvalTable(columns=["out"], data=[["x"]], log_mode=log_mode)
 
 
+def test_eval_table_rejects_unknown_backend():
+    with pytest.raises(UsageError, match="Unsupported EvalTable backend"):
+        wandb.EvalTable(columns=["x"], backend="unknown")
+
+
 # Column-role mismatch: column listed in input/output/score but not in columns.
 @pytest.mark.usefixtures("mock_eval_logger")
 def test_column_role_mismatch_raises(run):
