@@ -14,7 +14,47 @@ import (
 )
 
 // SweepAPI is the scheduler's typed view of the W&B backend.
-type SweepAPI struct {
+//
+// Every call is scoped to the one sweep the API was opened for.
+type SweepAPI interface {
+	CheckLocalSchedulerSupported(ctx context.Context) error
+
+	FetchSweep(ctx context.Context) (*SweepFacts, error)
+
+	WarmStartPage(
+		ctx context.Context,
+		pageSize int,
+		cursor *string,
+		metricKeys []string,
+	) (*PollPage, error)
+
+	FetchWatchedRuns(
+		ctx context.Context,
+		names []string,
+		pageSize int,
+		cursor *string,
+		metricKeys []string,
+	) (*PollPage, error)
+
+	ConfirmRunExists(ctx context.Context, runName string) (bool, error)
+
+	EnqueueRun(
+		ctx context.Context,
+		sweepNodeID string,
+		configWireJSON string,
+	) (string, error)
+
+	StopRun(ctx context.Context, storageID string) (bool, error)
+
+	UpsertSweepState(
+		ctx context.Context,
+		sweepNodeID string,
+		state string,
+	) error
+}
+
+// sweepApi implements SweepAPI over the W&B GraphQL API.
+type sweepApi struct {
 	gqlClient graphql.Client
 	features  *featurechecker.FeatureProvider
 
@@ -23,14 +63,17 @@ type SweepAPI struct {
 	sweepID string
 }
 
+var _ SweepAPI = (*sweepApi)(nil)
+
+// NewSweepAPI opens the API for one sweep.
 func NewSweepAPI(
 	gqlClient graphql.Client,
 	features *featurechecker.FeatureProvider,
 	entity string,
 	project string,
 	sweepID string,
-) *SweepAPI {
-	return &SweepAPI{
+) *sweepApi {
+	return &sweepApi{
 		gqlClient: gqlClient,
 		features:  features,
 		entity:    entity,
@@ -72,7 +115,7 @@ type PollPage struct {
 
 // CheckLocalSchedulerSupported returns ErrUnsupportedServer if the W&B
 // server cannot schedule runs enqueued by a local scheduler.
-func (a *SweepAPI) CheckLocalSchedulerSupported(ctx context.Context) error {
+func (a *sweepApi) CheckLocalSchedulerSupported(ctx context.Context) error {
 	enabled := a.features.Enabled(
 		ctx,
 		spb.ServerFeature_SWEEPS_LOCAL_SCHEDULER,
@@ -84,9 +127,7 @@ func (a *SweepAPI) CheckLocalSchedulerSupported(ctx context.Context) error {
 }
 
 // FetchSweep fetches the sweep's facts.
-//
-// Returns ErrSweepNotFound if the sweep (or its project) does not exist.
-func (a *SweepAPI) FetchSweep(ctx context.Context) (*SweepFacts, error) {
+func (a *sweepApi) FetchSweep(ctx context.Context) (*SweepFacts, error) {
 	data, err := gql.SweepConfig(
 		ctx, a.gqlClient,
 		a.entity, a.project, a.sweepID,
@@ -113,7 +154,7 @@ func (a *SweepAPI) FetchSweep(ctx context.Context) (*SweepFacts, error) {
 // WarmStartPage fetches one page of every run in the sweep, with the
 // sweep's state. Returns ErrSweepNotFound if the sweep (or its project)
 // does not exist.
-func (a *SweepAPI) WarmStartPage(
+func (a *sweepApi) WarmStartPage(
 	ctx context.Context,
 	pageSize int,
 	cursor *string,
@@ -139,7 +180,7 @@ func (a *SweepAPI) WarmStartPage(
 // FetchWatchedRuns fetches one page of the named runs, with the sweep's
 // state. Names absent from the result do not exist in the project.
 // Returns ErrSweepNotFound if the sweep (or its project) does not exist.
-func (a *SweepAPI) FetchWatchedRuns(
+func (a *sweepApi) FetchWatchedRuns(
 	ctx context.Context,
 	names []string,
 	pageSize int,
@@ -229,7 +270,7 @@ func pollRunFrom(node gql.SweepPollRunsEdgesRunEdgeNodeRun) PollRun {
 	}
 }
 
-// historySpecs builds the sampledHistory spec for the given metrics
+// historySpecs builds the sampledHistory spec for the given metrics.
 func historySpecs(metricKeys []string) []string {
 	keys := append(append([]string{}, metricKeys...), stepKey)
 	spec, _ := json.Marshal(map[string]any{
@@ -264,7 +305,7 @@ func historyJSON(sampled []any) string {
 // ConfirmRunExists reports whether the named run still exists. The run
 // listing lags writes, so absence from it proves nothing; this read is
 // strongly consistent.
-func (a *SweepAPI) ConfirmRunExists(
+func (a *sweepApi) ConfirmRunExists(
 	ctx context.Context,
 	runName string,
 ) (bool, error) {
@@ -283,7 +324,7 @@ func (a *SweepAPI) ConfirmRunExists(
 // EnqueueRun queues a run with the given wire-form config and returns
 // the id the backend minted: the name of a run guaranteed to appear in
 // the sweep as pending.
-func (a *SweepAPI) EnqueueRun(
+func (a *sweepApi) EnqueueRun(
 	ctx context.Context,
 	sweepNodeID string,
 	configWireJSON string,
@@ -307,7 +348,7 @@ func (a *SweepAPI) EnqueueRun(
 // StopRun asks the backend to stop the run with the given node id.
 //
 // Returns false when the backend refused, e.g. an already-stopped run.
-func (a *SweepAPI) StopRun(ctx context.Context, storageID string) (bool, error) {
+func (a *sweepApi) StopRun(ctx context.Context, storageID string) (bool, error) {
 	data, err := gql.StopRun(ctx, a.gqlClient, storageID)
 	if err != nil {
 		return false, err
@@ -321,7 +362,7 @@ func (a *SweepAPI) StopRun(ctx context.Context, storageID string) (bool, error) 
 }
 
 // UpsertSweepState sets the sweep's state, e.g. "FINISHED".
-func (a *SweepAPI) UpsertSweepState(
+func (a *sweepApi) UpsertSweepState(
 	ctx context.Context,
 	sweepNodeID string,
 	state string,

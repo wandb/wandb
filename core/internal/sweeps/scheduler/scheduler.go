@@ -32,7 +32,7 @@ func (RealClock) NewTimer(d time.Duration) (<-chan time.Time, func()) {
 
 // SchedulerParams configures a new Scheduler.
 type SchedulerParams struct {
-	API    *SweepAPI
+	API    SweepAPI
 	Logger *observability.CoreLogger
 
 	SweepNodeID string
