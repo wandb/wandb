@@ -106,6 +106,26 @@ var _ TaskResolverFactory = NewTaskResolverFactory(nil)
 
 // NewScheduler builds a Scheduler from explicit parameters.
 func NewScheduler(params SchedulerParams) *Scheduler {
+	// A negative bound is a mistake in the sweep config; guessing what it
+	// meant would silently cap or uncap the sweep, so it's dropped to
+	// zero, which every bound reads as unset.
+	if params.BatchSize < 0 {
+		if params.Logger != nil {
+			params.Logger.Warn(
+				"scheduler: ignoring an invalid negative value",
+				"setting", "batch size", "value", params.BatchSize)
+		}
+		params.BatchSize = 0
+	}
+	if params.RunCap < 0 {
+		if params.Logger != nil {
+			params.Logger.Warn(
+				"scheduler: ignoring an invalid negative value",
+				"setting", "run cap", "value", params.RunCap)
+		}
+		params.RunCap = 0
+	}
+
 	if params.BatchSize <= 0 {
 		params.BatchSize = defaultBatchSize
 	}

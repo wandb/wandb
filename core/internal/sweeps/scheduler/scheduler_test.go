@@ -15,6 +15,7 @@ import (
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/sweeps/scheduler"
 	"github.com/wandb/wandb/core/internal/sweeps/schedulertest"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -375,6 +376,32 @@ func TestSessionCancelReturnsShutdown(t *testing.T) {
 	assert.Equal(t,
 		spb.SweepSchedulerServerDoneTask_REASON_SHUTDOWN,
 		task.GetDone().Reason)
+}
+
+// A negative bound cannot be honoured, and guessing what it meant would
+// silently cap or uncap the sweep, so it is dropped with a warning and
+// the scheduler carries on with the bound unset.
+func TestNegativeBoundsAreIgnoredWithAWarning(t *testing.T) {
+	for name, params := range map[string]scheduler.SchedulerParams{
+		"batch size": {BatchSize: -4},
+		"run cap":    {RunCap: -10},
+	} {
+		t.Run("a negative "+name, func(t *testing.T) {
+			logger, logs := observabilitytest.NewRecordingTestLogger(t)
+			params.Logger = logger
+			fixture := newLoopFixture(t, params)
+			fixture.stubWarmStart(warmJSON("RUNNING", false, "",
+				testRun{name: "run-1", state: "running"},
+			))
+
+			task := fixture.step(t, nil)
+
+			assert.Contains(t, logs.String(), `"level":"WARN"`)
+			assert.Contains(t, logs.String(), name)
+			require.NotNil(t, task.GetWarmStart(),
+				"the scheduler must still run with the bound unset")
+		})
+	}
 }
 
 // byRunID indexes a warm-start bucket for assertions that name a run.
