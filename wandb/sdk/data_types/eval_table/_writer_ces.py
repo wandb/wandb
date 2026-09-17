@@ -505,6 +505,11 @@ class CESWriter:
                     max_length=_MAX_SCORER_NAME_LENGTH,
                 )
                 order[name] = None
+            if _media_ces.is_supported_wandb_media(value):
+                raise UsageError(
+                    f"EvalTable score column {column!r} contains unsupported value "
+                    f"type {type(value).__name__!r}; only primitive values are supported."
+                )
             normalized, value_type = self._normalize_primitive(value, column)
             if value_type is not None:
                 types[name] = self._merge_type(column, types.get(name), value_type)
@@ -517,11 +522,17 @@ class CESWriter:
         bound_run: _BoundRun,
     ) -> tuple[Any, _CESFieldType, int | None]:
         """Return a CES extension value, its field type, and oversized byte count."""
-        media_cell = _media_ces.prepare_media(
-            value,
-            bound_run.run,
-            bound_run.eval_table_key,
-        )
+        try:
+            media_cell = _media_ces.prepare_media(
+                value,
+                bound_run.run,
+                bound_run.eval_table_key,
+            )
+        except _media_ces._UnsupportedMediaVariantError as error:
+            if self._unsupported_media_mode == "raise":
+                raise
+            wandb.termwarn(error.stub_warning, repeat=False)
+            return error.stub_value, _CESFieldType("string"), None
         field_type = _CESFieldType(
             value_type="json",
             extension_type=media_cell.extension_type,

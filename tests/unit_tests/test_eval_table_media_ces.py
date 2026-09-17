@@ -2,14 +2,17 @@ from __future__ import annotations
 
 import hashlib
 import os
+import sys
+import types
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import ANY, MagicMock
 
 import pytest
 import wandb
 from PIL import Image as PILImage
-from wandb.sdk.data_types.eval_table import _media_ces
+from wandb.errors import UsageError
+from wandb.sdk.data_types.eval_table import _media_ces, _writer, _writer_ces
 
 
 @pytest.fixture
@@ -30,16 +33,71 @@ def run_factory(mock_run, tmp_path):
     return make
 
 
+@pytest.fixture
+def mock_ces_client(monkeypatch):
+    client = MagicMock()
+    client.eval_tables.create.return_value = SimpleNamespace(
+        dataset_id="dataset-1",
+        evaluation_id="evaluation-1",
+    )
+    client.eval_tables.versions.create.return_value = SimpleNamespace(
+        dataset_version_id="dataset-version-1",
+        evaluation_version_id="evaluation-version-1",
+    )
+    monkeypatch.setenv("CES_BASE_URL", "https://evaluations.example.test")
+    client_module = pytest.importorskip("coreweave_evaluations")
+    monkeypatch.setattr(client_module, "Client", MagicMock)
+    monkeypatch.setattr(
+        _writer_ces.CESEvalTableWriter,
+        "_resolve_scope_context",
+        lambda self, bound: _writer_ces._CESScopeContext(
+            scope_ref="scope-ref",
+            api_key=None,
+            access_token="token",
+        ),
+    )
+    monkeypatch.setattr(
+        _writer_ces.CESEvalTableWriter,
+        "_create_client",
+        lambda self, client_type, base_url, scope: client,
+    )
+    return client
+
+
 def _png(tmp_path, name="image.png", color=(10, 20, 30)):
     path = tmp_path / name
     PILImage.new("RGB", (2, 2), color=color).save(path)
     return path
 
 
-def test_ces_eval_table_has_no_supported_media_types():
-    image = wandb.Image(PILImage.new("RGB", (1, 1)))
+def _image_write_input(image):
+    return _writer.WriteInput(
+        name="eval",
+        rows=[
+            _writer.WriteRow(
+                inputs={"image": image},
+                output=None,
+                scores={},
+            )
+        ],
+        column_keys={"image": "image"},
+        ncols=1,
+        log_mode="IMMUTABLE",
+    )
 
-    assert not _media_ces.is_supported_wandb_media(image)
+def _image_from_external_reference_artifact(tmp_path, monkeypatch):
+    image = wandb.Image(_png(tmp_path))
+    source_artifact = MagicMock()
+    source_artifact._local_path_to_name.return_value = "media/images/image.png"
+    source_artifact.get_entry.return_value.ref = "s3://private-bucket/image.png"
+    source_artifact.get_entry.return_value._is_artifact_reference.return_value = False
+    image._artifact_source = SimpleNamespace(artifact=source_artifact, name=None)
+    monkeypatch.setattr(
+        image,
+        "_get_artifact_entry_ref_url",
+        lambda: "wandb-artifact://abc123/media/images/image.png",
+    )
+    return image
 
 
 def test_run_file_uri_preserves_eval_table_key_path():
@@ -153,3 +211,176 @@ def test_media_for_another_run_is_copied_before_binding(run_factory, tmp_path):
     assert working_image is not image
     assert uri.startswith("wandb-run-file://entity/project/destination-run/")
     destination_run._publish_file.assert_called_once()
+
+
+def test_ces_eval_table_supports_images():
+    assert _media_ces.SUPPORTED_WANDB_MEDIA_TYPES == (wandb.Image,)
+
+
+def test_prepare_image_creates_ces_extension_value(run_factory, tmp_path):
+    run = run_factory("run-one")
+    path = _png(tmp_path)
+    image = wandb.Image(path)
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+
+    prepared = _media_ces.prepare_image(image, run, "eval")
+
+    assert prepared.value == {
+        "sha256": digest,
+        "size": path.stat().st_size,
+        "format": "png",
+        "width": 2,
+        "height": 2,
+        "extension_type": "wandb-image",
+        "schema_version": 1,
+        "wb_media_type": "image-file",
+        "uri": (
+            "wandb-run-file://entity/project/run-one/"
+            f"media/eval_tables/images/eval/{digest[:20]}.png"
+        ),
+    }
+
+
+def test_committed_artifact_image_preserves_artifact_ref_url(
+    run_factory,
+    tmp_path,
+    monkeypatch,
+):
+    run = run_factory("run-one")
+    image = wandb.Image(_png(tmp_path))
+    artifact_uri = "wandb-artifact://abc123/media/images/image.png"
+    monkeypatch.setattr(image, "_get_artifact_entry_ref_url", lambda: artifact_uri)
+
+    prepared = _media_ces.prepare_image(image, run, "eval")
+
+    assert prepared.value["uri"] == artifact_uri
+    assert image._run is None
+    run._publish_file.assert_not_called()
+
+
+def test_external_reference_artifact_image_is_stubbed_by_default(
+    run_factory,
+    tmp_path,
+    monkeypatch,
+):
+    run = run_factory("run-one")
+    image = _image_from_external_reference_artifact(tmp_path, monkeypatch)
+    warning = MagicMock()
+    monkeypatch.setattr(wandb, "termwarn", warning)
+    writer = _writer_ces.CESEvalTableWriter()
+    writer.bind(run, "eval", 0)
+
+    prepared = writer._prepare(_image_write_input(image))
+
+    assert prepared.row_batches[0][0]["input"]["image"] == (
+        "[wandb.Image external reference artifact not supported]"
+    )
+    assert prepared.dataset_fields == [
+        {"source": "input", "name": "image", "value_type": "string"}
+    ]
+    warning.assert_called_once()
+
+
+def test_external_reference_artifact_image_raises_in_raise_mode(
+    run_factory,
+    tmp_path,
+    monkeypatch,
+):
+    run = run_factory("run-one")
+    image = _image_from_external_reference_artifact(tmp_path, monkeypatch)
+    writer = _writer_ces.CESEvalTableWriter(unsupported_media_mode="raise")
+    writer.bind(run, "eval", 0)
+
+    with pytest.raises(TypeError, match="external reference artifacts"):
+        writer._prepare(_image_write_input(image))
+
+
+def test_image_overlays_are_omitted_until_overlay_support(run_factory, tmp_path):
+    run = run_factory("run-one")
+    image = wandb.Image(
+        _png(tmp_path),
+        boxes={"predictions": {"box_data": [], "class_labels": {}}},
+    )
+    prepared = _media_ces.prepare_image(image, run, "eval")
+
+    assert prepared.value is not None
+    assert "boxes" not in prepared.value
+    assert "masks" not in prepared.value
+    assert image._boxes is not None
+
+
+def test_cell_at_size_limit_becomes_null(run_factory, tmp_path, monkeypatch):
+    run = run_factory("run-one")
+    first = wandb.Image(_png(tmp_path, "first.png"), caption="caption")
+    first_result = _media_ces.prepare_image(first, run, "eval")
+    second_path = tmp_path / "second.png"
+    second_path.write_bytes(Path(first._path).read_bytes())
+    second = wandb.Image(second_path, caption="caption")
+    monkeypatch.setattr(
+        _media_ces,
+        "CES_MAX_CELL_BYTES",
+        first_result.encoded_size,
+    )
+
+    result = _media_ces.prepare_image(second, run, "eval")
+
+    assert result.encoded_size == first_result.encoded_size
+    assert result.value is None
+    assert result.oversized
+
+
+def test_eval_table_writes_image_extension_to_ces(
+    run_factory,
+    mock_ces_client,
+    tmp_path,
+):
+    run = run_factory("run-one")
+    image = wandb.Image(_png(tmp_path))
+    table = wandb.EvalTable(
+        columns=["image"],
+        data=[[image]],
+        input_columns=["image"],
+        backend="ces",
+    )
+
+    run.log({"eval": table})
+
+    mock_ces_client.eval_tables.columns.create.assert_called_once_with(
+        "evaluation-1",
+        namespace="wandb",
+        scope_id="scope-ref",
+        dataset_fields=[
+            {
+                "source": "input",
+                "name": "image",
+                "value_type": "json",
+                "extension_type": "wandb-image",
+                "extension_schema_version": 1,
+            }
+        ],
+        scorers=[],
+        idempotency_key=ANY,
+    )
+
+
+def test_image_score_is_rejected_as_non_primitive(run_factory, tmp_path):
+    run = run_factory("run-one")
+    image = wandb.Image(_png(tmp_path))
+    writer = _writer_ces.CESEvalTableWriter()
+    writer.bind(run, "eval", 0)
+    value = _writer.WriteInput(
+        name="eval",
+        rows=[
+            _writer.WriteRow(
+                inputs={"value": "x"},
+                output=None,
+                scores={"image": image},
+            )
+        ],
+        column_keys={"value": "value", "image": "image"},
+        ncols=2,
+        log_mode="IMMUTABLE",
+    )
+
+    with pytest.raises(UsageError, match="only primitive values"):
+        writer._prepare(value)
