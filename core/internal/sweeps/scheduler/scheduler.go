@@ -73,7 +73,7 @@ type SchedulerParams struct {
 // no field except the stop channel needs synchronization. Every run it
 // touches is one trackedRun; see TrackingState for the lifecycle.
 type Scheduler struct {
-	api    SweepAPI
+	api    *trackedAPI
 	logger *observability.CoreLogger
 
 	sweepNodeID  string
@@ -144,7 +144,7 @@ func NewScheduler(params SchedulerParams) *Scheduler {
 	}
 
 	return &Scheduler{
-		api:    params.API,
+		api:    newTrackedAPI(params.API),
 		logger: params.Logger,
 
 		sweepNodeID:  params.SweepNodeID,
@@ -260,8 +260,8 @@ func (s *Scheduler) Step(
 	return unimplementedDoneTask()
 }
 
-// sleep waits one poll interval, returning a Done task if ctx is
-// cancelled (session end or Stop) while waiting.
+// sleep waits one poll interval plus the failure slowdown, returning a
+// Done task if ctx is cancelled (session end or Stop) while waiting.
 func (s *Scheduler) sleep(
 	ctx context.Context,
 ) *spb.SweepSchedulerServerNextTaskResponse {
@@ -270,7 +270,7 @@ func (s *Scheduler) sleep(
 			spb.SweepSchedulerServerDoneTask_REASON_SHUTDOWN, "")
 	}
 
-	fire, stopTimer := s.clock.NewTimer(s.pollInterval)
+	fire, stopTimer := s.clock.NewTimer(s.pollInterval + s.api.Slowdown())
 	defer stopTimer()
 
 	select {
