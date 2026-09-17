@@ -401,8 +401,6 @@ class Agent:
                     exited_non_zero = _exited_non_zero(poll_result)
                     if exited_non_zero:
                         self._failed += 1
-
-                    if exited_non_zero:
                         self._consecutive_failed_runs += 1
                     else:
                         self._consecutive_failed_runs = 0
