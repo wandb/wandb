@@ -82,6 +82,9 @@ type Sender struct {
 
 	operations *wboperation.WandbOperations
 
+	// receivedExitCh is closed once the Sender receives an Exit record.
+	receivedExitCh chan struct{}
+
 	// settings is the settings for the sender
 	settings *settings.Settings
 
@@ -131,9 +134,6 @@ type Sender struct {
 	// This is used to display the sparkline in the terminal at the end of
 	// the run.
 	runHistorySampler *runhistory.RunHistorySampler
-
-	// receivedExit is true once the Sender receives an Exit record.
-	receivedExit bool
 
 	// jobBuilder creates "jobs" from the run, which allow users to re-run it
 	// with different configurations.
@@ -229,6 +229,7 @@ func (f *SenderFactory) NewWithFileStream(
 		runWork:             runWork,
 		logger:              f.Logger,
 		operations:          f.Operations,
+		receivedExitCh:      make(chan struct{}),
 		settings:            f.Settings,
 		fileStream:          fileStream,
 		fileTransferManager: f.FileTransferManager,
@@ -267,6 +268,9 @@ func (s *Sender) Do(allWork <-chan runwork.Work) {
 	defer s.logger.Reraise("stream")
 	s.logger.Info("sender: started")
 
+	var wg sync.WaitGroup
+	s.startFileStreamAfterRunInit(&wg)
+
 	hangDetectionInChan := make(chan runwork.Work, 32)
 	hangDetectionOutChan := make(chan struct{}, 32)
 	go s.warnOnLongOperations(hangDetectionInChan, hangDetectionOutChan)
@@ -285,6 +289,8 @@ func (s *Sender) Do(allWork <-chan runwork.Work) {
 
 	close(hangDetectionInChan)
 	close(hangDetectionOutChan)
+
+	wg.Wait()
 
 	s.logger.Info("sender: closed")
 }
@@ -424,8 +430,6 @@ func (s *Sender) sendRequest(
 	case *spb.Request_ServerInfo:
 	case *spb.Request_CheckVersion:
 
-	case *spb.Request_RunStart:
-		s.sendRequestRunStart(x.RunStart)
 	case *spb.Request_NetworkStatus:
 		s.sendRequestNetworkStatus(x.NetworkStatus, request)
 
@@ -460,31 +464,41 @@ func (s *Sender) sendRequest(
 	}
 }
 
-// sendRequestRunStart begins uploading data for the run.
-func (s *Sender) sendRequestRunStart(_ *spb.RunStartRequest) {
-	if s.settings.IsOffline() {
+// startFileStreamAfterRunInit schedules a goroutine that waits for the run
+// to finish initializing, then calls FileStream.Start().
+//
+// The goroutine returns early if the exit record is received before the run
+// initializes.
+func (s *Sender) startFileStreamAfterRunInit(wg *sync.WaitGroup) {
+	if s.fileStream == nil {
 		return
 	}
 
-	upserter, err := s.runHandle.Upserter()
-	if err != nil {
-		s.logger.CaptureError(
-			"stream",
-			fmt.Errorf("sender: sendRequestRunStart: %v", err),
-		)
-		return
-	}
+	wg.Go(func() {
+		select {
+		case <-s.receivedExitCh:
+			return
+		case <-s.runHandle.Ready():
+		}
 
-	runPath := upserter.RunPath()
+		upserter, err := s.runHandle.Upserter()
+		if err != nil {
+			s.logger.CaptureError(
+				"stream",
+				fmt.Errorf("sender: sendRequestRunStart: %v", err),
+			)
+			return
+		}
 
-	if s.fileStream != nil {
+		runPath := upserter.RunPath()
+
 		s.fileStream.Start(
 			runPath.Entity,
 			runPath.Project,
 			runPath.RunID,
 			upserter.FileStreamOffsets(),
 		)
-	}
+	})
 }
 
 func (s *Sender) sendRequestNetworkStatus(
@@ -795,7 +809,7 @@ func (s *Sender) uploadMetadataFile() {
 }
 
 func (s *Sender) sendPreempting(record *spb.RunPreemptingRecord) {
-	if s.receivedExit {
+	if s.receivedExit() {
 		s.logCalledAfterExit("sendPreempting")
 		return
 	}
@@ -861,7 +875,7 @@ func (s *Sender) sendUseArtifact(record *spb.Record) {
 // If the history record does not contain a _step value, this method will
 // auto-assign one. It will also update the run summary's _step value.
 func (s *Sender) sendHistory(record *spb.HistoryRecord) {
-	if s.receivedExit {
+	if s.receivedExit() {
 		s.logCalledAfterExit("sendHistory")
 		return
 	}
@@ -909,7 +923,7 @@ func (s *Sender) updateSummaryStep(step int64) {
 }
 
 func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {
-	if s.receivedExit {
+	if s.receivedExit() {
 		s.logCalledAfterExit("sendSummary")
 		return
 	}
@@ -1054,7 +1068,7 @@ func (s *Sender) sendConfig(_ *spb.Record, configRecord *spb.ConfigRecord) {
 
 // sendSystemMetrics sends a system metrics record via the file stream
 func (s *Sender) sendSystemMetrics(record *spb.StatsRecord) {
-	if s.receivedExit {
+	if s.receivedExit() {
 		s.logCalledAfterExit("sendSystemMetrics")
 		return
 	}
@@ -1092,7 +1106,7 @@ func (s *Sender) sendSystemMetrics(record *spb.StatsRecord) {
 }
 
 func (s *Sender) sendOutput(_ *spb.Record, _ *spb.OutputRecord) {
-	if s.receivedExit {
+	if s.receivedExit() {
 		s.logCalledAfterExit("sendOutput")
 		return
 	}
@@ -1101,7 +1115,7 @@ func (s *Sender) sendOutput(_ *spb.Record, _ *spb.OutputRecord) {
 }
 
 func (s *Sender) sendOutputRaw(_ *spb.Record, outputRaw *spb.OutputRawRecord) {
-	if s.receivedExit {
+	if s.receivedExit() {
 		s.logCalledAfterExit("sendOutputRaw")
 		return
 	}
@@ -1110,7 +1124,7 @@ func (s *Sender) sendOutputRaw(_ *spb.Record, outputRaw *spb.OutputRawRecord) {
 }
 
 func (s *Sender) sendOutputLogger(_ *spb.Record, outputLogger *spb.OutputLoggerRecord) {
-	if s.receivedExit {
+	if s.receivedExit() {
 		s.logCalledAfterExit("sendOutputLogger")
 		return
 	}
@@ -1167,17 +1181,18 @@ func (s *Sender) sendExit(
 	record *spb.RunExitRecord,
 	request *runwork.Request,
 ) {
-	if s.receivedExit {
+	select {
+	case <-s.receivedExitCh:
 		s.logger.CaptureError(
 			"stream",
 			errors.New("sender: received exit more than once, ignoring"),
 		)
 		request.WillNotRespond()
 		return
+	default:
 	}
 
-	s.receivedExit = true
-
+	close(s.receivedExitCh)
 	s.startFinishRun(record, request)
 }
 
@@ -1353,6 +1368,16 @@ func (s *Sender) sendRequestJobInput(request *spb.JobInputRequest) {
 		return
 	}
 	s.jobBuilder.HandleJobInputRequest(request)
+}
+
+// receivedExit returns true if an Exit record has been received.
+func (s *Sender) receivedExit() bool {
+	select {
+	case <-s.receivedExitCh:
+		return true
+	default:
+		return false
+	}
 }
 
 // logCalledAfterExit logs an error for a method wrongly called after an Exit
