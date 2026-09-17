@@ -286,7 +286,7 @@ func (h *Handler) handleRequest(
 	case *spb.Request_PollExit:
 		h.handleRequestPollExit(record, request)
 	case *spb.Request_RunStart:
-		h.handleRequestRunStart(record, x.RunStart, request)
+		h.handleRequestRunStart(x.RunStart, request)
 	case *spb.Request_SampledHistory:
 		h.handleRequestSampledHistory(record, request)
 	case *spb.Request_PythonPackages:
@@ -473,7 +473,6 @@ func (h *Handler) handleHeader(record *spb.Record) {
 }
 
 func (h *Handler) handleRequestRunStart(
-	record *spb.Record,
 	req *spb.RunStartRequest,
 	request *runwork.Request,
 ) {
@@ -506,7 +505,6 @@ func (h *Handler) handleRequestRunStart(
 	}
 
 	h.respond(request, &spb.Response{})
-	h.fwdRecord(record, request)
 }
 
 func (h *Handler) handleRequestProbeSystemInfo(record *spb.Record) {
