@@ -460,25 +460,6 @@ func (s *Sender) sendRequest(
 	}
 }
 
-// updateSettings updates the settings from the run record upon a run start
-// with the information from the server
-func (s *Sender) updateSettings() {
-	upserter, _ := s.runHandle.Upserter()
-	if s.settings == nil || upserter == nil {
-		return
-	}
-
-	runPath := upserter.RunPath()
-
-	// TODO: verify that this is the correct update logic
-	if runPath.Entity != "" {
-		s.settings.UpdateEntity(runPath.Entity)
-	}
-	if runPath.Project != "" {
-		s.settings.UpdateProject(runPath.Project)
-	}
-}
-
 // sendRequestRunStart begins uploading data for the run.
 func (s *Sender) sendRequestRunStart(_ *spb.RunStartRequest) {
 	if s.settings.IsOffline() {
@@ -493,8 +474,6 @@ func (s *Sender) sendRequestRunStart(_ *spb.RunStartRequest) {
 		)
 		return
 	}
-
-	s.updateSettings()
 
 	runPath := upserter.RunPath()
 
@@ -561,6 +540,7 @@ func (s *Sender) sendJobFlush() {
 		op.Context(s.runWork.BeforeEndCtx()),
 		s.graphqlClient,
 		upserter.ConfigMap(),
+		upserter.RunPath(),
 		output,
 	)
 	if err != nil {

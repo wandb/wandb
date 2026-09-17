@@ -106,20 +106,6 @@ func (s *Settings) GetRunURL() string {
 	return s.Proto.RunUrl.GetValue()
 }
 
-// The W&B project ID.
-func (s *Settings) GetProject() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.Proto.Project.GetValue()
-}
-
-// The W&B entity, like a user or a team.
-func (s *Settings) GetEntity() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.Proto.Entity.GetValue()
-}
-
 // The timeout for finishing a run after receiving an exit record.
 //
 // If not positive, there is no timeout.
@@ -659,20 +645,6 @@ func (s *Settings) GetLabel() string {
 // Update methods.
 //
 // These are used to update the settings in the proto.
-
-// Updates the run's entity name.
-func (s *Settings) UpdateEntity(entity string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.Proto.Entity = &wrapperspb.StringValue{Value: entity}
-}
-
-// Updates the run's project name.
-func (s *Settings) UpdateProject(project string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.Proto.Project = &wrapperspb.StringValue{Value: project}
-}
 
 // Updates the run ID.
 func (s *Settings) UpdateRunID(runID string) {
