@@ -10,11 +10,11 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wandb/wandb/core/internal/sweeps/scheduler"
 
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/observability"
-	"github.com/wandb/wandb/core/internal/sweeps/scheduler"
 	"github.com/wandb/wandb/core/internal/sweeps/schedulertest"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -33,7 +33,42 @@ func (c *fakeClock) NewTimer(time.Duration) (<-chan time.Time, func()) {
 	return fire, func() {}
 }
 
-var _ scheduler.Clock = (*fakeClock)(nil)
+var (
+	_ scheduler.Clock = (*fakeClock)(nil)
+)
+
+func TestRealClockNowIsWallClockTime(t *testing.T) {
+	before := time.Now()
+	now := scheduler.RealClock{}.Now()
+	after := time.Now()
+
+	assert.False(t, now.Before(before))
+	assert.False(t, now.After(after))
+}
+
+func TestRealClockNewTimerFiresAfterTheDuration(t *testing.T) {
+	fire, stop := scheduler.RealClock{}.NewTimer(10 * time.Millisecond)
+	defer stop()
+
+	select {
+	case <-fire:
+	case <-time.After(time.Second):
+		t.Fatal("timer did not fire")
+	}
+}
+
+func TestFakeClockNewTimerFiresImmediately(t *testing.T) {
+	clock := &fakeClock{now: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
+
+	fire, stop := clock.NewTimer(time.Hour)
+	defer stop()
+
+	select {
+	case <-fire:
+	default:
+		t.Fatal("expected the fake timer to have already fired")
+	}
+}
 
 // testRun scripts one poll row.
 type testRun struct {
