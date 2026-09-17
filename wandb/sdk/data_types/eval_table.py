@@ -13,7 +13,10 @@ from wandb.sdk.data_types._eval_table_writer import (
     EvalTableWriteResult,
     EvalTableWriteRow,
 )
-from wandb.sdk.data_types._eval_table_writer_weave import WeaveEvalTableWriter
+from wandb.sdk.data_types._eval_table_writer_factory import (
+    EvalTableBackend,
+    create_eval_table_writer,
+)
 from wandb.sdk.data_types.table import ColumnKey, InputRow, LogMode, Table
 from wandb.sdk.lib import telemetry
 
@@ -55,6 +58,7 @@ class EvalTable(Table):
         input_columns: list[str] | None = None,
         output_columns: list[str] | None = None,
         score_columns: list[str] | None = None,
+        backend: EvalTableBackend = "weave",
         unsupported_media_mode: media_adapters.UnsupportedMediaMode = "stub",
     ) -> None:
         """Initializes an EvalTable object.
@@ -83,6 +87,8 @@ class EvalTable(Table):
             score_columns: Names of the score columns.
                 These represent derived scores for the outputs. By default, we will
                 auto-summarize any numeric and boolean scores.
+            backend: Storage backend used when the EvalTable is logged. Currently only
+                "weave" is supported.
             unsupported_media_mode: How to handle unsupported wandb media/value types.
                 - "stub" (default): log unsupported values as short placeholder strings
                   like "[wandb.Html not yet supported]". (This is a temporary flag
@@ -124,7 +130,8 @@ class EvalTable(Table):
         if log_mode != "IMMUTABLE":
             raise UsageError("EvalTable currently only supports log_mode='IMMUTABLE'.")
 
-        self._writer: EvalTableWriter = WeaveEvalTableWriter(
+        self._writer: EvalTableWriter = create_eval_table_writer(
+            backend,
             unsupported_media_mode=unsupported_media_mode,
         )
 
