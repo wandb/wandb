@@ -38,23 +38,39 @@ query EvalTableProjectScope($entity: String!, $project: String!) {
   }
 }
 """
-# These match the service request-schema limits.
-_MAX_BATCH_BODY_BYTES = 16 << 20
-# Leave headroom below the server limit and keep failed retries bounded.
+
+
+def _encode_json(value: Any) -> bytes:
+    return json.dumps(
+        value,
+        allow_nan=False,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode()
+
+
+# Server request-body limit.
+_MAX_REQUEST_BODY_BYTES = 16 << 20
+# These two shape each `rows-{i}` body. If either changes, bump the idempotency-key
+# version so retries of partially uploaded tables cannot reuse keys across layouts.
+# The byte target leaves headroom below the hard request limit.
 _TARGET_ROW_BATCH_BODY_BYTES = 8 << 20
+_MAX_ROWS_PER_BATCH = 10_000
+# Evaluations request-schema limits.
 _MAX_DATASET_FIELDS = 10_000
 _MAX_DATASET_FIELD_NAME_LENGTH = 512
 _MAX_EVAL_TABLE_NAME_LENGTH = 256
-_MAX_ROWS_PER_BATCH = 10_000
-_MAX_ROWS = 100_000
+# Allow ten count-limited batches while failing fast on runaway tables.
+_MAX_ROWS_PER_TABLE = 100_000
 _MAX_SCORERS = 256
 _MAX_SCORER_NAME_LENGTH = 256
 
-_ROW_BATCH_PREFIX_BYTES = len(b'{"rows":[')
-_ROW_BATCH_SUFFIX_BYTES = len(b"]}")
+# Bytes in an add_rows body other than encoded rows and their separating commas.
+_ROW_BATCH_ENVELOPE_BYTES = len(_encode_json({"rows": []}))
 
 EvalTableBackend = Literal["weave", "ces"]
 PrimitiveValueType = Literal["boolean", "integer", "number", "string"]
+_CESRow = dict[str, Any]
 
 
 def _load_ces_client_type() -> Any:
@@ -71,6 +87,39 @@ def _load_ces_client_type() -> Any:
         ) from exc
 
     return CoreWeaveEvaluations
+
+
+def _iter_row_batches(
+    rows: Sequence[_CESRow],
+    *,
+    max_body_bytes: int,
+    target_body_bytes: int,
+    max_rows: int,
+) -> Iterator[list[_CESRow]]:
+    batch: list[_CESRow] = []
+    batch_size = _ROW_BATCH_ENVELOPE_BYTES
+
+    for row_index, row in enumerate(rows):
+        row_size = len(_encode_json(row))
+        if _ROW_BATCH_ENVELOPE_BYTES + row_size >= max_body_bytes:
+            raise UsageError(
+                "CES EvalTable rows payload contains a row at index "
+                f"{row_index} whose encoded request must be smaller than 16 MiB."
+            )
+
+        # An above-target batch contains exactly one row, which already passed
+        # the hard request-size check; the next row flushes it here.
+        if batch and (
+            len(batch) >= max_rows or batch_size + 1 + row_size > target_body_bytes
+        ):
+            yield batch
+            batch, batch_size = [], _ROW_BATCH_ENVELOPE_BYTES
+
+        batch_size += row_size + (1 if batch else 0)
+        batch.append(row)
+
+    if batch:
+        yield batch
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -292,7 +341,7 @@ class WeaveEvalTableWriter:
 class _PreparedCESWrite:
     dataset_fields: list[dict[str, str]]
     scorers: list[dict[str, str]]
-    row_batches: list[list[dict[str, Any]]]
+    row_batches: list[list[_CESRow]]
 
 
 @dataclass(frozen=True)
@@ -426,17 +475,17 @@ class CESEvalTableWriter:
         )
         if not value.rows:
             raise UsageError("CES EvalTable logging requires at least one row.")
-        if len(value.rows) > _MAX_ROWS:
+        if len(value.rows) > _MAX_ROWS_PER_TABLE:
             raise UsageError(
-                f"CES EvalTable logging currently supports at most {_MAX_ROWS} "
-                "rows per table."
+                f"CES EvalTable logging currently supports at most "
+                f"{_MAX_ROWS_PER_TABLE} rows per table."
             )
 
         dataset_field_types: dict[tuple[str, str], PrimitiveValueType] = {}
         dataset_field_order: dict[tuple[str, str], None] = {}
         scorer_types: dict[str, PrimitiveValueType] = {}
         scorer_order: dict[str, None] = {}
-        rows: list[dict[str, Any]] = []
+        rows: list[_CESRow] = []
 
         for row in value.rows:
             inputs = self._prepare_mapping(
@@ -505,44 +554,16 @@ class CESEvalTableWriter:
         return _PreparedCESWrite(
             dataset_fields=dataset_fields,
             scorers=scorers,
-            row_batches=list(self._iter_row_batches(rows)),
-        )
-
-    def _iter_row_batches(
-        self,
-        rows: list[dict[str, Any]],
-    ) -> Iterator[list[dict[str, Any]]]:
-        batch: list[dict[str, Any]] = []
-        batch_size = _ROW_BATCH_PREFIX_BYTES + _ROW_BATCH_SUFFIX_BYTES
-
-        for row_index, row in enumerate(rows):
-            row_size = len(self._encode_json(row))
-            single_row_body_size = (
-                _ROW_BATCH_PREFIX_BYTES + row_size + _ROW_BATCH_SUFFIX_BYTES
-            )
-            if single_row_body_size >= _MAX_BATCH_BODY_BYTES:
-                raise UsageError(
-                    "CES EvalTable rows payload contains a row at index "
-                    f"{row_index} whose encoded request must be smaller than 16 MiB."
+            # Materialize batches so every size error precedes the first request.
+            row_batches=list(
+                _iter_row_batches(
+                    rows,
+                    max_body_bytes=_MAX_REQUEST_BODY_BYTES,
+                    target_body_bytes=_TARGET_ROW_BATCH_BODY_BYTES,
+                    max_rows=_MAX_ROWS_PER_BATCH,
                 )
-
-            separator_size = 1 if batch else 0
-            # An above-target batch can only contain one row, which already passed
-            # the hard 16 MiB check; later rows flush it before they are appended.
-            if batch and (
-                len(batch) >= _MAX_ROWS_PER_BATCH
-                or batch_size + separator_size + row_size > _TARGET_ROW_BATCH_BODY_BYTES
-            ):
-                yield batch
-                batch = []
-                batch_size = _ROW_BATCH_PREFIX_BYTES + _ROW_BATCH_SUFFIX_BYTES
-                separator_size = 0
-
-            batch.append(row)
-            batch_size += separator_size + row_size
-
-        if batch:
-            yield batch
+            ),
+        )
 
     def _prepare_mapping(
         self,
@@ -679,18 +700,10 @@ class CESEvalTableWriter:
         )
 
     def _validate_body_size(self, operation: str, body: dict[str, Any]) -> None:
-        if len(self._encode_json(body)) >= _MAX_BATCH_BODY_BYTES:
+        if len(_encode_json(body)) >= _MAX_REQUEST_BODY_BYTES:
             raise UsageError(
                 f"CES EvalTable {operation} payload must be smaller than 16 MiB."
             )
-
-    def _encode_json(self, value: Any) -> bytes:
-        return json.dumps(
-            value,
-            allow_nan=False,
-            ensure_ascii=False,
-            separators=(",", ":"),
-        ).encode()
 
     def _idempotency_key(self, operation: str) -> str:
         if self._idempotency_scope is None:

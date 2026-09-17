@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import datetime
-import json
 import sys
 import types
 from types import SimpleNamespace
@@ -278,14 +277,7 @@ def test_ces_eval_table_batches_rows_by_encoded_bytes(
         "output": {"answer": "yes"},
         "scores": {},
     }
-    single_row_body_size = len(
-        json.dumps(
-            {"rows": [row]},
-            allow_nan=False,
-            ensure_ascii=False,
-            separators=(",", ":"),
-        ).encode()
-    )
+    single_row_body_size = len(_eval_table_writer._encode_json({"rows": [row]}))
     monkeypatch.setattr(
         _eval_table_writer,
         "_TARGET_ROW_BATCH_BODY_BYTES",
@@ -314,43 +306,24 @@ def test_ces_eval_table_batches_rows_by_encoded_bytes(
     [(1, [2, 1]), (0, [1, 1, 1])],
 )
 def test_ces_eval_table_batch_size_counts_row_separators(
-    mock_ces_client,
-    run,
-    monkeypatch,
     separator_bytes,
     expected_batch_sizes,
 ):
     row = {"input": {"value": "same"}, "output": None, "scores": {}}
-    row_size = len(
-        json.dumps(
-            row,
-            allow_nan=False,
-            ensure_ascii=False,
-            separators=(",", ":"),
-        ).encode()
-    )
+    row_size = len(_eval_table_writer._encode_json(row))
     target_size = (
-        _eval_table_writer._ROW_BATCH_PREFIX_BYTES
-        + 2 * row_size
-        + separator_bytes
-        + _eval_table_writer._ROW_BATCH_SUFFIX_BYTES
+        _eval_table_writer._ROW_BATCH_ENVELOPE_BYTES + 2 * row_size + separator_bytes
     )
-    monkeypatch.setattr(
-        _eval_table_writer,
-        "_TARGET_ROW_BATCH_BODY_BYTES",
-        target_size,
-    )
-    et = wandb.EvalTable(
-        columns=["value"],
-        data=[["same"], ["same"], ["same"]],
-        input_columns=["value"],
-        backend="ces",
+    batches = list(
+        _eval_table_writer._iter_row_batches(
+            [row, row, row],
+            max_body_bytes=16 << 20,
+            target_body_bytes=target_size,
+            max_rows=10_000,
+        )
     )
 
-    run.log({"eval": et})
-
-    calls = mock_ces_client.eval_tables.add_rows.call_args_list
-    assert [len(call.kwargs["rows"]) for call in calls] == expected_batch_sizes
+    assert [len(batch) for batch in batches] == expected_batch_sizes
 
 
 def test_ces_eval_table_batches_rows_by_count(
@@ -391,15 +364,8 @@ def test_ces_eval_table_rejects_oversized_row_before_network(
         "output": {"value": value},
         "scores": {},
     }
-    body_size = len(
-        json.dumps(
-            {"rows": [row]},
-            allow_nan=False,
-            ensure_ascii=False,
-            separators=(",", ":"),
-        ).encode()
-    )
-    monkeypatch.setattr(_eval_table_writer, "_MAX_BATCH_BODY_BYTES", body_size)
+    body_size = len(_eval_table_writer._encode_json({"rows": [row]}))
+    monkeypatch.setattr(_eval_table_writer, "_MAX_REQUEST_BODY_BYTES", body_size)
     et = wandb.EvalTable(
         columns=["value"],
         data=[[value]],
@@ -418,7 +384,7 @@ def test_ces_eval_table_rejects_total_row_count_before_network(
     run,
     monkeypatch,
 ):
-    monkeypatch.setattr(_eval_table_writer, "_MAX_ROWS", 2)
+    monkeypatch.setattr(_eval_table_writer, "_MAX_ROWS_PER_TABLE", 2)
     et = wandb.EvalTable(
         columns=["value"],
         data=[[1], [2], [3]],
