@@ -21,6 +21,7 @@ from wandb.sdk.data_types._eval_table_writer import (
 from wandb.sdk.data_types.base_types.media import Media
 from wandb.sdk.data_types.base_types.wb_value import WBValue
 from wandb.sdk.data_types.table import Table
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 if TYPE_CHECKING:
     from wandb.sdk.data_types.table import ColumnKey
@@ -208,9 +209,18 @@ class _CoreEvalTableClient:
         )
 
     def _send(self, request: apb.EvalTableRequest) -> apb.EvalTableResponse:
-        response = self._service_api.send_api_request(
-            apb.ApiRequest(eval_table_request=request)
-        )
+        try:
+            response = self._service_api.send_api_request(
+                apb.ApiRequest(eval_table_request=request)
+            )
+        except WandbApiFailedError as error:
+            if str(error) == "unsupported API request type: <nil>":
+                raise UsageError(
+                    "The running wandb-core binary does not support CES EvalTable "
+                    "requests. Install matching W&B SDK artifacts or rebuild "
+                    "wandb/bin/wandb-core from this checkout."
+                ) from None
+            raise
         return response.eval_table_response
 
 

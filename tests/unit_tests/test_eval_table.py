@@ -19,6 +19,7 @@ from wandb.sdk.data_types import _eval_table_writer_ces as ces_writer
 from wandb.sdk.data_types import eval_table as eval_table_module
 from wandb.sdk.data_types._dtypes import AnyType
 from wandb.sdk.data_types.utils import history_dict_to_json
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 
 @pytest.fixture
@@ -750,6 +751,43 @@ def test_ces_core_client_sends_operation_specific_requests():
         ]
     }
     assert version.evaluation_version_id == "evaluation-version-1"
+
+
+def test_ces_core_client_explains_incompatible_core_binary():
+    service_api = MagicMock()
+    service_api.send_api_request.side_effect = WandbApiFailedError(
+        "unsupported API request type: <nil>"
+    )
+    client = ces_writer._CoreEvalTableClient(
+        service_api,
+        "https://evaluations.example.test",
+    )
+
+    with pytest.raises(UsageError, match="does not support CES EvalTable requests"):
+        client.create(
+            "scope-ref",
+            name="eval",
+            idempotency_key="create-key",
+        )
+
+
+def test_ces_core_client_preserves_other_core_errors():
+    service_api = MagicMock()
+    expected = WandbApiFailedError("CES unavailable")
+    service_api.send_api_request.side_effect = expected
+    client = ces_writer._CoreEvalTableClient(
+        service_api,
+        "https://evaluations.example.test",
+    )
+
+    with pytest.raises(WandbApiFailedError, match="CES unavailable") as exc_info:
+        client.create(
+            "scope-ref",
+            name="eval",
+            idempotency_key="create-key",
+        )
+
+    assert exc_info.value is expected
 
 
 def test_ces_eval_table_retries_with_stable_idempotency_keys(
