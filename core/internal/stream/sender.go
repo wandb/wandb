@@ -477,9 +477,6 @@ func (s *Sender) updateSettings() {
 	if runPath.Project != "" {
 		s.settings.UpdateProject(runPath.Project)
 	}
-	if displayName := upserter.DisplayName(); displayName != "" {
-		s.settings.UpdateDisplayName(displayName)
-	}
 }
 
 // sendRequestRunStart begins uploading data for the run.
