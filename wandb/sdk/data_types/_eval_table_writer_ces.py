@@ -79,9 +79,11 @@ class CESEvalTableWriter:
     def __init__(
         self,
         *,
+        service_api: ServiceApi | None = None,
         unsupported_media_mode: media_adapters.UnsupportedMediaMode = "stub",
     ) -> None:
         media_adapters.validate_unsupported_media_mode(unsupported_media_mode)
+        self._service_api = service_api
         self._unsupported_media_mode = unsupported_media_mode
         self._bound: _BoundRun | None = None
 
@@ -104,7 +106,7 @@ class CESEvalTableWriter:
         self._bound = _BoundRun(
             entity=run.entity,
             project=run.project,
-            service_api=ServiceApi(run._settings),
+            service_api=self._service_api or ServiceApi(run._settings),
             idempotency_scope=hashlib.sha256(identity.encode()).hexdigest(),
         )
 

@@ -15,6 +15,7 @@ from wandb.sdk.data_types._eval_table_writer import (
 )
 from wandb.sdk.data_types._eval_table_writer_factory import (
     EvalTableBackend,
+    create_default_eval_table_writer,
     create_eval_table_writer,
 )
 from wandb.sdk.data_types.table import ColumnKey, InputRow, LogMode, Table
@@ -57,7 +58,7 @@ class EvalTable(Table):
         input_columns: list[str] | None = None,
         output_columns: list[str] | None = None,
         score_columns: list[str] | None = None,
-        backend: EvalTableBackend = "weave",
+        backend: EvalTableBackend | None = None,
         unsupported_media_mode: media_adapters.UnsupportedMediaMode = "stub",
     ) -> None:
         """Initializes an EvalTable object.
@@ -86,8 +87,9 @@ class EvalTable(Table):
             score_columns: Names of the score columns.
                 These represent derived scores for the outputs. By default, we will
                 auto-summarize any numeric and boolean scores.
-            backend: Storage backend used when the EvalTable is logged. The default is
-                "weave". Use "ces" to write through the Evaluations service.
+            backend: Optional storage-backend override. If omitted, CES is used when
+                the bound run's server advertises support; otherwise Weave is used.
+                Pass "weave" or "ces" to override that server-selected default.
             unsupported_media_mode: How to handle unsupported wandb media/value types.
                 - "stub" (default): log unsupported values as short placeholder strings
                   like "[wandb.Html not yet supported]". (This is a temporary flag
@@ -130,18 +132,17 @@ class EvalTable(Table):
             raise UsageError("EvalTable currently only supports log_mode='IMMUTABLE'.")
 
         media_adapters.validate_unsupported_media_mode(unsupported_media_mode)
-        self._backend = backend
-        self._allow_mixed_types = allow_mixed_types
-        self._unsupported_media_mode = unsupported_media_mode
         self._writer: EvalTableWriter | None = (
-            None
-            if backend == "weave"
-            else create_eval_table_writer(
+            create_eval_table_writer(
                 backend,
                 allow_mixed_types=allow_mixed_types,
                 unsupported_media_mode=unsupported_media_mode,
             )
+            if backend is not None
+            else None
         )
+        self._allow_mixed_types = allow_mixed_types
+        self._unsupported_media_mode = unsupported_media_mode
 
         self._input_columns = list(input_columns or [])
         self._output_columns = list(output_columns or [])
@@ -198,13 +199,12 @@ class EvalTable(Table):
 
         writer = self._writer
         if writer is None:
-            # Select the default writer at bind time, where a future backend
-            # default can depend on capabilities advertised for this run.
-            writer = create_eval_table_writer(
-                self._backend,
+            writer = create_default_eval_table_writer(
+                run,
                 allow_mixed_types=self._allow_mixed_types,
                 unsupported_media_mode=self._unsupported_media_mode,
             )
+            self._validate_cells_for_writer(writer)
 
         # Backend binding initializes run context while intentionally skipping
         # the file-copy behavior in Table.bind_to_run().
@@ -259,11 +259,18 @@ class EvalTable(Table):
         if self._writer is not None:
             self._writer.validate_cell_value(val, col)
         else:
+            # Until a run is bound, apply the backend-neutral validation shared
+            # by the existing writers. The selected writer revalidates at bind.
             media_adapters.validate_supported_value(
                 val,
                 col,
                 unsupported_media_mode=self._unsupported_media_mode,
             )
+
+    def _validate_cells_for_writer(self, writer: EvalTableWriter) -> None:
+        for row in self.data:
+            for column, value in zip(self.columns, row, strict=True):
+                writer.validate_cell_value(value, column)
 
     @override
     def add_data(self, *data: Any) -> None:
