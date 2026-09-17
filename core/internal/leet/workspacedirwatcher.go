@@ -175,12 +175,10 @@ func (w *Workspace) handleWorkspaceRunDirs(msg WorkspaceRunDirsMsg) tea.Cmd {
 		return pollCmd
 	}
 
-	var selectLatestCmd tea.Cmd
+	var restoreCmd tea.Cmd
 	if !w.runKeysEqual(msg.RunKeys) {
 		w.applyRunKeys(msg.RunKeys)
-		// Auto-select the latest run on initial workspace load.
-		w.autoSelectLatestRunOnLoad.Do(
-			func() { selectLatestCmd = w.toggleRunSelected(msg.RunKeys[0]) })
+		w.restoreRunsOnLoad.Do(func() { restoreCmd = w.restoreRuns(msg.RunKeys) })
 	}
 	// Enqueue missing run overviews (even if the run list is unchanged).
 	// This makes new run overviews eventually consistent even if the .wandb file
@@ -188,7 +186,28 @@ func (w *Workspace) handleWorkspaceRunDirs(msg WorkspaceRunDirsMsg) tea.Cmd {
 	w.enqueueMissingRunOverviews(msg.RunKeys)
 
 	startCmd := w.startRunOverviewPreloadsCmd()
-	return batchCmds(pollCmd, startCmd, selectLatestCmd)
+	return batchCmds(pollCmd, startCmd, restoreCmd)
+}
+
+// restoreRuns selects the runs remembered for the directory that still
+// exist. The newest run is selected too when it appeared since the last
+// session, or when nothing else is selected.
+func (w *Workspace) restoreRuns(runKeys []string) tea.Cmd {
+	var cmds []tea.Cmd
+	for _, key := range w.dirState.SelectedRuns {
+		if slices.Contains(runKeys, key) {
+			cmds = append(cmds, w.selectRun(key))
+		}
+	}
+	if w.selectedRuns[w.dirState.PinnedRun] {
+		w.pinnedRun = w.dirState.PinnedRun
+	}
+	newest := runKeys[0]
+	if (newest != w.dirState.LatestRun || len(w.selectedRuns) == 0) && !w.selectedRuns[newest] {
+		cmds = append(cmds, w.selectRun(newest))
+	}
+	w.rememberRuns()
+	return batchCmds(cmds...)
 }
 
 // enqueueMissingRunOverviews queues runs that don't yet have overview state and

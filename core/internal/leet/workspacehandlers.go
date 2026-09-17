@@ -4,7 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
+	"slices"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -1228,11 +1230,19 @@ func (w *Workspace) toggleRunSelected(runKey string) tea.Cmd {
 		return nil
 	}
 
-	if _, selected := w.selectedRuns[runKey]; selected {
+	if w.selectedRuns[runKey] {
 		w.dropRun(runKey)
 		return nil
 	}
 
+	cmd := w.selectRun(runKey)
+	w.rememberRuns()
+	return cmd
+}
+
+// selectRun selects the run and starts loading it. The first selected run
+// is pinned.
+func (w *Workspace) selectRun(runKey string) tea.Cmd {
 	// Resolve the run file before mutating selection state so we don't end up
 	// "selected but unloadable" if the key can't be mapped to a .wandb file.
 	wandbFile := runWandbFile(w.wandbDir, runKey)
@@ -1251,6 +1261,17 @@ func (w *Workspace) toggleRunSelected(runKey string) tea.Cmd {
 	}
 
 	return w.initReaderCmd(runKey, wandbFile)
+}
+
+// rememberRuns saves the selection for the next time the directory is
+// opened, with the newest run so a run that starts later shows up as new.
+func (w *Workspace) rememberRuns() {
+	w.dirState.SelectedRuns = slices.Sorted(maps.Keys(w.selectedRuns))
+	w.dirState.PinnedRun = w.pinnedRun
+	if len(w.runs.Items) > 0 {
+		w.dirState.LatestRun = w.runs.Items[0].Key
+	}
+	w.dirState.save()
 }
 
 func (w *Workspace) handleToggleRunSelectedKey(msg tea.KeyPressMsg) tea.Cmd {
@@ -1272,13 +1293,12 @@ func (w *Workspace) togglePin(runKey string) {
 	if w.pinnedRun == runKey {
 		// Unpin but keep selection unchanged.
 		w.pinnedRun = ""
-		w.metricsGrid.drawVisible()
-		return
+	} else {
+		w.pinnedRun = runKey
+		w.refreshPinnedRun()
 	}
-
-	w.pinnedRun = runKey
-	w.refreshPinnedRun()
 	w.metricsGrid.drawVisible()
+	w.rememberRuns()
 }
 
 func (w *Workspace) handlePinRunKey(msg tea.KeyPressMsg) tea.Cmd {

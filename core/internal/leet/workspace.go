@@ -60,9 +60,11 @@ type Workspace struct {
 	// Run overview preload pipeline for unselected runs.
 	overviewPreloader runOverviewPreloader
 
-	// autoSelectLatestRunOnLoad is triggered when at least one run
-	// appears in the workspace.
-	autoSelectLatestRunOnLoad sync.Once
+	// restoreRunsOnLoad selects runs once the first directory scan lists them.
+	restoreRunsOnLoad sync.Once
+
+	// dirState is what is remembered about wandbDir across sessions.
+	dirState *dirState
 
 	// TODO: mark live runs upon selection.
 
@@ -164,6 +166,7 @@ func NewWorkspace(
 		runsAnimState:        NewAnimatedValue(true, SidebarMinWidth),
 		metricsGridAnimState: metricsGridAnimState,
 		wandbDir:             wandbDir,
+		dirState:             loadDirState(wandbDir, logger),
 		config:               cfg,
 		keyMap:               buildKeyMap(WorkspaceKeyBindings()),
 		logger:               logger,
@@ -200,6 +203,12 @@ func NewWorkspace(
 	w.runOverviewSidebar.overridesSource = w.layoutOverrides
 	// The runs list starts focused by default.
 	w.focusMgr.SetTarget(FocusTargetRunsList, 1)
+
+	// System metrics grids are created per run and pick up the shared
+	// filter as their charts arrive.
+	w.dirState.bind(&w.dirState.Metrics, w.metricsGrid.filter, w.metricsGrid.ApplyFilter)
+	w.dirState.bind(&w.dirState.SystemMetrics, w.systemMetricsFilter, nil)
+	w.dirState.bind(&w.dirState.Runs, w.filter, w.applyRunFilter)
 	return w
 }
 
@@ -536,15 +545,6 @@ func (w *Workspace) recalculateLayout() {
 	layout := w.computeViewports()
 	w.metricsGrid.UpdateDimensions(layout.mainContentAreaWidth, layout.height)
 	w.focusMgr.Resolve()
-}
-
-// attachFilters restores the filters remembered for the wandb directory and
-// keeps them saved. System metrics grids are created per run and pick up the
-// shared filter as their charts arrive.
-func (w *Workspace) attachFilters(df *dirFilters) {
-	df.bind(&df.Metrics, w.metricsGrid.filter, w.metricsGrid.ApplyFilter)
-	df.bind(&df.SystemMetrics, w.systemMetricsFilter, nil)
-	df.bind(&df.Runs, w.filter, w.applyRunFilter)
 }
 
 // computeViewports returns the computed layout dimensions.
@@ -954,6 +954,7 @@ func (w *Workspace) dropRun(runKey string) {
 		delete(w.media, runKey)
 		delete(w.mediaPaneStates, runKey)
 	}
+	w.rememberRuns()
 
 	w.syncLiveRunState()
 
