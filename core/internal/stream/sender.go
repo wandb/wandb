@@ -468,13 +468,6 @@ func (s *Sender) updateSettings() {
 		return
 	}
 
-	// StartTime should be generally thought of as the Run last modified time
-	// as it gets updated at a run branching point, such as resume, fork, or rewind
-	startTime := upserter.StartTime()
-	if s.settings.GetStartTime().IsZero() && !startTime.IsZero() {
-		s.settings.UpdateStartTime(startTime)
-	}
-
 	runPath := upserter.RunPath()
 
 	// TODO: verify that this is the correct update logic
