@@ -129,10 +129,18 @@ class EvalTable(Table):
         if log_mode != "IMMUTABLE":
             raise UsageError("EvalTable currently only supports log_mode='IMMUTABLE'.")
 
-        self._writer: EvalTableWriter = create_eval_table_writer(
-            backend,
-            allow_mixed_types=allow_mixed_types,
-            unsupported_media_mode=unsupported_media_mode,
+        media_adapters.validate_unsupported_media_mode(unsupported_media_mode)
+        self._backend = backend
+        self._allow_mixed_types = allow_mixed_types
+        self._unsupported_media_mode = unsupported_media_mode
+        self._writer: EvalTableWriter | None = (
+            None
+            if backend == "weave"
+            else create_eval_table_writer(
+                backend,
+                allow_mixed_types=allow_mixed_types,
+                unsupported_media_mode=unsupported_media_mode,
+            )
         )
 
         self._input_columns = list(input_columns or [])
@@ -188,9 +196,20 @@ class EvalTable(Table):
                 "Use wandb.init(mode='online') or unset WANDB_MODE."
             )
 
+        writer = self._writer
+        if writer is None:
+            # Select the default writer at bind time, where a future backend
+            # default can depend on capabilities advertised for this run.
+            writer = create_eval_table_writer(
+                self._backend,
+                allow_mixed_types=self._allow_mixed_types,
+                unsupported_media_mode=self._unsupported_media_mode,
+            )
+
         # Backend binding initializes run context while intentionally skipping
         # the file-copy behavior in Table.bind_to_run().
-        self._writer.bind(run, str(key), step)
+        writer.bind(run, str(key), step)
+        self._writer = writer
         self._run = run
         self._run_log_key = str(key)
 
@@ -207,7 +226,8 @@ class EvalTable(Table):
 
         run = run_or_artifact
 
-        if self._run_log_key is None:
+        writer = self._writer
+        if writer is None or self._run_log_key is None:
             raise UsageError("EvalTable must be logged with run.log().")
 
         # This check also ensures that we've initialized Weave via bind_to_run.
@@ -221,7 +241,7 @@ class EvalTable(Table):
             self._warn_immutable_already_logged()
             return dict(self._immutable_write_result.marker)
 
-        result = self._writer.write(self._prepare_write_input(self._run_log_key))
+        result = writer.write(self._prepare_write_input(self._run_log_key))
         # Commit the immutable write before telemetry so a telemetry failure cannot
         # cause the backend write to run again on a later serialization attempt.
         self._immutable_write_result = result
@@ -236,7 +256,14 @@ class EvalTable(Table):
         return self._immutable_write_result is not None
 
     def _validate_cell_value(self, val: Any, col: ColumnKey) -> None:
-        self._writer.validate_cell_value(val, col)
+        if self._writer is not None:
+            self._writer.validate_cell_value(val, col)
+        else:
+            media_adapters.validate_supported_value(
+                val,
+                col,
+                unsupported_media_mode=self._unsupported_media_mode,
+            )
 
     @override
     def add_data(self, *data: Any) -> None:
