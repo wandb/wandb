@@ -13,6 +13,7 @@ import pytest
 import wandb
 import wandb.data_types as wandb_data_types
 from wandb.errors import UsageError
+from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.data_types import _eval_table_writer_ces as ces_writer
 from wandb.sdk.data_types import eval_table as eval_table_module
 from wandb.sdk.data_types._dtypes import AnyType
@@ -71,6 +72,14 @@ def run(mock_run):
     return mock_run(settings={"entity": "e", "project": "p", "mode": "online"})
 
 
+@pytest.fixture(autouse=True)
+def default_eval_table_server_feature_disabled(monkeypatch):
+    monkeypatch.setattr(
+        "wandb.sdk.data_types._eval_table_writer_factory.ServiceApi.feature_enabled",
+        lambda self, feature: False,
+    )
+
+
 @pytest.fixture
 def mock_ces_client(monkeypatch):
     client = MagicMock()
@@ -118,6 +127,84 @@ def _install_fake_weave(monkeypatch, **attrs):
 def test_eval_table_public_imports():
     assert wandb.EvalTable is eval_table_module.EvalTable
     assert wandb_data_types.EvalTable is eval_table_module.EvalTable
+
+
+@pytest.mark.parametrize(
+    ("server_feature_enabled", "expected_marker_type"),
+    [(False, "eval-table"), (True, "eval-table-ces")],
+)
+def test_eval_table_defaults_backend_from_server_feature(
+    server_feature_enabled,
+    expected_marker_type,
+    monkeypatch,
+    mock_eval_logger,
+    mock_ces_client,
+    run,
+):
+    feature_enabled = MagicMock(return_value=server_feature_enabled)
+    monkeypatch.setattr(
+        "wandb.sdk.data_types._eval_table_writer_factory.ServiceApi.feature_enabled",
+        feature_enabled,
+    )
+    table = wandb.EvalTable(columns=["value"], data=[[1]])
+
+    run.log({"eval": table})
+
+    assert table.to_json(run)["_type"] == expected_marker_type
+    feature_enabled.assert_called_once_with(pb.ServerFeature.EVAL_TABLES_CES)
+    if server_feature_enabled:
+        mock_ces_client.eval_tables.create.assert_called_once()
+        mock_eval_logger._create_with_meta.assert_not_called()
+    else:
+        mock_eval_logger._create_with_meta.assert_called_once()
+        mock_ces_client.eval_tables.create.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("backend", "server_feature_enabled", "expected_marker_type"),
+    [
+        ("weave", True, "eval-table"),
+        ("ces", False, "eval-table-ces"),
+    ],
+)
+def test_eval_table_backend_overrides_server_default(
+    backend,
+    server_feature_enabled,
+    expected_marker_type,
+    monkeypatch,
+    mock_eval_logger,
+    mock_ces_client,
+    run,
+):
+    feature_enabled = MagicMock(return_value=server_feature_enabled)
+    monkeypatch.setattr(
+        "wandb.sdk.data_types._eval_table_writer_factory.ServiceApi.feature_enabled",
+        feature_enabled,
+    )
+    table = wandb.EvalTable(columns=["value"], data=[[1]], backend=backend)
+
+    run.log({"eval": table})
+
+    assert table.to_json(run)["_type"] == expected_marker_type
+    feature_enabled.assert_not_called()
+
+
+def test_eval_table_default_ces_does_not_require_weave(
+    monkeypatch,
+    mock_ces_client,
+    run,
+):
+    monkeypatch.setitem(sys.modules, "weave", None)
+    monkeypatch.setattr(
+        "wandb.sdk.data_types._eval_table_writer_factory.ServiceApi.feature_enabled",
+        lambda self, feature: True,
+    )
+    table = wandb.EvalTable(columns=["value"], data=[[1]])
+
+    run.log({"eval": table})
+
+    assert table.to_json(run)["_type"] == "eval-table-ces"
+    mock_ces_client.eval_tables.create.assert_called_once()
 
 
 def test_ces_eval_table_writes_columns_rows_and_version(
@@ -840,11 +927,12 @@ def test_eval_table_offline_run_fails_fast(monkeypatch, mock_eval_logger, mock_r
     mock_eval_logger._create_with_meta.assert_not_called()
 
 
-def test_eval_table_rewrites_weave_import_error(monkeypatch):
+def test_eval_table_rewrites_weave_import_error(monkeypatch, run):
     monkeypatch.setitem(sys.modules, "weave", None)
+    table = wandb.EvalTable(columns=["input", "output"], data=[["x", "y"]])
 
     with pytest.raises(ImportError) as exc_info:
-        wandb.EvalTable(columns=["input", "output"], data=[["x", "y"]])
+        run.log({"eval": table})
 
     message = str(exc_info.value)
     assert "EvalTable dependency error" in message
@@ -962,12 +1050,13 @@ def test_eval_table_rejects_rebind_to_different_project(monkeypatch, mock_run):
         et.bind_to_run(run2, "eval", 0)
 
 
-def test_eval_table_version_mismatch_error_includes_actual_version(monkeypatch):
+def test_eval_table_version_mismatch_error_includes_actual_version(monkeypatch, run):
     monkeypatch.delitem(sys.modules, "weave", raising=False)
     _install_fake_weave(monkeypatch, __version__="0.1.0")
+    table = wandb.EvalTable(columns=["input", "output"], data=[["x", "y"]])
 
     with pytest.raises(ImportError) as exc_info:
-        wandb.EvalTable(columns=["input", "output"], data=[["x", "y"]])
+        run.log({"eval": table})
 
     message = str(exc_info.value)
     assert message.startswith("EvalTable dependency error")
@@ -1138,6 +1227,13 @@ def test_to_json_rejects_different_run_after_first_log(mock_eval_logger, mock_ru
         et.to_json(other_run)
 
     assert mock_eval_logger._create_with_meta.call_count == 1
+
+
+def test_to_json_requires_bind_for_default_backend(run):
+    table = wandb.EvalTable(columns=["out"], data=[["x"]])
+
+    with pytest.raises(UsageError, match="must be logged with run.log"):
+        table.to_json(run)
 
 
 # No input/output/score categorization: row index injected, all default to output.
@@ -1640,7 +1736,7 @@ def test_add_data_unsupported_wandb_value_cell_raises_in_raise_mode():
     assert et.data == []
 
 
-@pytest.mark.parametrize("backend", ["weave", "ces"])
+@pytest.mark.parametrize("backend", [None, "weave", "ces"])
 @pytest.mark.usefixtures("mock_eval_logger")
 def test_unsupported_media_mode_rejects_unknown_mode(backend):
     with pytest.raises(ValueError, match="unsupported_media_mode"):
