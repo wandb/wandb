@@ -2,8 +2,10 @@ package scheduler
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/url"
+	"sync"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -13,6 +15,17 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+)
+
+const (
+	// defaultPollInterval is used when the client chooses no interval.
+	defaultPollInterval = 5 * time.Second
+
+	// minPollInterval is the floor below which a chosen interval is clamped.
+	minPollInterval = 5 * time.Second
+
+	// defaultBatchSize is used when the client chooses no batch size.
+	defaultBatchSize = 1
 )
 
 // Clock abstracts time so tests can control it directly instead of
@@ -56,21 +69,142 @@ type SchedulerParams struct {
 
 // Scheduler drives one sweep; it implements TaskResolver.
 //
-// Step and Stop are unimplemented placeholders: the polling and
-// optimizer loop that gives them a real body lands on top of this
-// contract in a later change.
+// All state is mutated in Step, which the state machine serializes, so
+// no field except the stop channel needs synchronization. Every run it
+// touches is one trackedRun; see TrackingState for the lifecycle.
 type Scheduler struct {
-	params SchedulerParams
+	api    SweepAPI
+	logger *observability.CoreLogger
+
+	sweepNodeID  string
+	metricKeys   []string
+	batchSize    int
+	pollInterval time.Duration
+
+	stopOnce sync.Once
+	stop     chan struct{}
+
+	// clock is real time in production; tests substitute a fake so
+	// poll waits do not depend on the wall clock.
+	clock Clock
+
+	warmCursor *string
+	warmDone   bool
+
+	runCap           int
+	finishedRunCount int
+
+	// runsByName indexes the prior runs warm start walked, so an adoption
+	// can find the record that already counted toward the run cap.
+	runsByName map[string]*trackedRun
+
+	warnedUnrecognized map[string]bool
 }
 
 var _ TaskResolver = (*Scheduler)(nil)
 
-// NewScheduler constructs a Scheduler from params.
+// NewScheduler builds a Scheduler from explicit parameters.
 func NewScheduler(params SchedulerParams) *Scheduler {
-	return &Scheduler{params: params}
+	if params.BatchSize <= 0 {
+		params.BatchSize = defaultBatchSize
+	}
+	if params.PollInterval <= 0 {
+		params.PollInterval = defaultPollInterval
+	} else if params.PollInterval < minPollInterval {
+		if params.Logger != nil {
+			params.Logger.Warn(
+				"scheduler: poll interval below the floor, clamping",
+				"requested", params.PollInterval, "floor", minPollInterval)
+		}
+		params.PollInterval = minPollInterval
+	}
+	if params.Clock == nil {
+		params.Clock = RealClock{}
+	}
+
+	return &Scheduler{
+		api:    params.API,
+		logger: params.Logger,
+
+		sweepNodeID:  params.SweepNodeID,
+		metricKeys:   params.MetricKeys,
+		batchSize:    params.BatchSize,
+		pollInterval: params.PollInterval,
+		runCap:       params.RunCap,
+
+		stop:  make(chan struct{}),
+		clock: params.Clock,
+
+		runsByName:         make(map[string]*trackedRun),
+		warnedUnrecognized: make(map[string]bool),
+	}
 }
 
-// unimplementedDoneTask is what Step returns until it has a real body.
+// TrackingState is where a run stands in its lifecycle.
+//
+// A prior run walked by warm start starts out TrackingRetired: nothing
+// adopts it until the optimizer says it did, which is the next slice.
+type TrackingState int
+
+const (
+	TrackingInFlight TrackingState = iota
+
+	// TrackingTerminalDelivered: the run's final update was delivered
+	// but not acked yet.
+	TrackingTerminalDelivered
+
+	// TrackingDormant: the run ended without succeeding. It is still
+	// polled, so a resume can be reported to the user, but it gets no
+	// further updates and holds no batch slot.
+	TrackingDormant
+
+	// TrackingRetired: the scheduler will ignore this run.
+	TrackingRetired
+)
+
+type trackedRun struct {
+	state TrackingState
+
+	// name is the run's W&B name.
+	name string
+
+	// finishedCounted means this run already counted toward finishedRunCount
+	finishedCounted bool
+}
+
+// Stop asks Step to return a Done task
+func (s *Scheduler) Stop() {
+	s.stopOnce.Do(func() { close(s.stop) })
+}
+
+func (s *Scheduler) withStopCancel(
+	ctx context.Context,
+) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(ctx)
+	s.cancelOnStop(ctx, cancel)
+	return ctx, cancel
+}
+
+// cancelOnStop cancels immediately if Stop was already requested;
+// otherwise a goroutine waits for Stop or ctx to end.
+func (s *Scheduler) cancelOnStop(ctx context.Context, cancel context.CancelFunc) {
+	wait := func() {
+		select {
+		case <-s.stop:
+			cancel()
+		case <-ctx.Done():
+		}
+	}
+	select {
+	case <-s.stop:
+		cancel()
+	default:
+		go wait()
+	}
+}
+
+// unimplementedDoneTask is what the generation phase returns until it
+// has a real body.
 func unimplementedDoneTask() *spb.SweepSchedulerServerNextTaskResponse {
 	return &spb.SweepSchedulerServerNextTaskResponse{
 		Task: &spb.SweepSchedulerServerNextTaskResponse_Done{
@@ -82,16 +216,114 @@ func unimplementedDoneTask() *spb.SweepSchedulerServerNextTaskResponse {
 	}
 }
 
-// Step is unimplemented; it always returns a Done task.
+// Step implements TaskResolver: apply the previous task's result, wait one
+// poll interval, and compute the next task.
+//
+// Results are ignored and the generation phase is unimplemented until
+// the slices that add them land; warm start is the phase this change
+// implements.
 func (s *Scheduler) Step(
-	context.Context,
-	*spb.SweepSchedulerClientTaskResult,
+	ctx context.Context,
+	result *spb.SweepSchedulerClientTaskResult,
 ) *spb.SweepSchedulerServerNextTaskResponse {
+	ctx, cancel := s.withStopCancel(ctx)
+	defer cancel()
+
+	if !s.warmDone {
+		return s.warmStartStep(ctx)
+	}
+
+	if done := s.sleep(ctx); done != nil {
+		return done
+	}
 	return unimplementedDoneTask()
 }
 
-// Stop is unimplemented; Step never blocks long enough to need one.
-func (s *Scheduler) Stop() {}
+// sleep waits one poll interval, returning a Done task if ctx is
+// cancelled (session end or Stop) while waiting.
+func (s *Scheduler) sleep(
+	ctx context.Context,
+) *spb.SweepSchedulerServerNextTaskResponse {
+	if ctx.Err() != nil {
+		return s.doneTask(
+			spb.SweepSchedulerServerDoneTask_REASON_SHUTDOWN, "")
+	}
+
+	fire, stopTimer := s.clock.NewTimer(s.pollInterval)
+	defer stopTimer()
+
+	select {
+	case <-fire:
+		return nil
+	case <-ctx.Done():
+		return s.doneTask(
+			spb.SweepSchedulerServerDoneTask_REASON_SHUTDOWN, "")
+	}
+}
+
+// doneTask builds a Done task.
+func (s *Scheduler) doneTask(
+	reason spb.SweepSchedulerServerDoneTask_Reason,
+	message string,
+) *spb.SweepSchedulerServerNextTaskResponse {
+	return &spb.SweepSchedulerServerNextTaskResponse{
+		Task: &spb.SweepSchedulerServerNextTaskResponse_Done{
+			Done: &spb.SweepSchedulerServerDoneTask{
+				Reason:  reason,
+				Message: message,
+			},
+		},
+	}
+}
+
+// flattenWireConfig converts the backend's {param: {"value": v}}
+// config form into the flat {param: v} form the protocol carries.
+func flattenWireConfig(wireJSON string) string {
+	if wireJSON == "" {
+		return "{}"
+	}
+
+	var wire map[string]any
+	if err := json.Unmarshal([]byte(wireJSON), &wire); err != nil {
+		return "{}"
+	}
+
+	flat := make(map[string]any, len(wire))
+	for name, param := range wire {
+		if wrapped, ok := param.(map[string]any); ok {
+			if value, ok := wrapped["value"]; ok {
+				flat[name] = value
+				continue
+			}
+		}
+		flat[name] = param
+	}
+
+	encoded, err := json.Marshal(flat)
+	if err != nil {
+		return "{}"
+	}
+	return string(encoded)
+}
+
+// summaryHasAllMetrics reports whether summaryJSON carries every one of
+// metricKeys: a multi-objective sweep needs all its objectives to score
+// a run, same as one objective for a single-objective sweep.
+func summaryHasAllMetrics(summaryJSON string, metricKeys []string) bool {
+	if summaryJSON == "" {
+		return false
+	}
+	var summary map[string]any
+	if err := json.Unmarshal([]byte(summaryJSON), &summary); err != nil {
+		return false
+	}
+	for _, key := range metricKeys {
+		if value, ok := summary[key]; !ok || value == nil {
+			return false
+		}
+	}
+	return true
+}
 
 // NewTaskResolverFactory returns the factory the session broker uses
 // to start scheduler sessions.
