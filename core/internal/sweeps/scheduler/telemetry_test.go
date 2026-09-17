@@ -73,3 +73,43 @@ func TestRateLimitedWarmStartPageCountsAnAbandonedStep(t *testing.T) {
 	require.True(t, ok, "expected an abandoned-step event")
 	assert.Equal(t, "warm_start", event.Attributes["phase"])
 }
+
+func TestFatalPollErrorIsCounted(t *testing.T) {
+	fixture := newTelemetryFixture(t, scheduler.SchedulerParams{})
+	fixture.warmTo(t)
+
+	fixture.client.StubMatchWithError(
+		gqlmock.WithOpName("SweepConfig"),
+		&graphql.HTTPError{StatusCode: 403},
+	)
+	require.NotNil(t, fixture.step(t, warmResult(nil)).GetDone())
+
+	counter, ok := fixture.metric(t, "sweep_scheduler_fatal_error")
+	require.True(t, ok, "expected a fatal-error counter")
+	assert.EqualValues(t, 1, counter.Value)
+
+	event, ok := fixture.proxy.FindLog("sweep_scheduler_fatal_error")
+	require.True(t, ok, "expected a fatal-error event")
+	assert.Equal(t, "poll", event.Attributes["phase"])
+}
+
+func TestRateLimitedPollCountsAnAbandonedStep(t *testing.T) {
+	fixture := newTelemetryFixture(t, scheduler.SchedulerParams{})
+	fixture.warmTo(t)
+	fixture.stubIdlePoll("RUNNING")
+	fixture.step(t, warmResult(nil))
+
+	fixture.client.StubMatchWithError(
+		gqlmock.WithOpName("SweepConfig"),
+		&graphql.HTTPError{StatusCode: 429},
+	)
+	require.NotNil(t, fixture.step(t, emptyIterResult()).GetGeneration())
+
+	counter, ok := fixture.metric(t, "sweep_scheduler_step_abandoned")
+	require.True(t, ok, "expected an abandoned-step counter")
+	assert.EqualValues(t, 1, counter.Value)
+
+	event, ok := fixture.proxy.FindLog("sweep_scheduler_step_abandoned")
+	require.True(t, ok, "expected an abandoned-step event")
+	assert.Equal(t, "poll", event.Attributes["phase"])
+}
