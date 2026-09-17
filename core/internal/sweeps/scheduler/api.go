@@ -111,11 +111,8 @@ func (a *SweepAPI) FetchSweep(ctx context.Context) (*SweepFacts, error) {
 }
 
 // WarmStartPage fetches one page of every run in the sweep, with the
-// sweep's state.
-//
-// metricKey selects the metric whose sampled history each run carries;
-// pass "" to skip history. Returns ErrSweepNotFound if the sweep (or
-// its project) does not exist.
+// sweep's state. Returns ErrSweepNotFound if the sweep (or its project)
+// does not exist.
 func (a *SweepAPI) WarmStartPage(
 	ctx context.Context,
 	pageSize int,
@@ -142,10 +139,7 @@ func (a *SweepAPI) WarmStartPage(
 
 // FetchWatchedRuns fetches one page of the named runs, with the sweep's
 // state. Names absent from the result do not exist in the project.
-//
-// metricKey selects the metric whose sampled history each run carries;
-// pass "" to skip history. Returns ErrSweepNotFound if the sweep (or
-// its project) does not exist.
+// Returns ErrSweepNotFound if the sweep (or its project) does not exist.
 func (a *SweepAPI) FetchWatchedRuns(
 	ctx context.Context,
 	names []string,
@@ -236,8 +230,7 @@ func pollRunFrom(node gql.SweepPollRunsEdgesRunEdgeNodeRun) PollRun {
 	}
 }
 
-// historySpecs builds the sampledHistory spec for the sweep's metric,
-// or nil to skip history entirely.
+// historySpecs builds the sampledHistory spec for the sweep's metric.
 func historySpecs(metricKey string) []string {
 	spec, _ := json.Marshal(map[string]any{
 		"keys":    []string{metricKey, stepKey},
