@@ -27,6 +27,13 @@ query GetTeamEntity($name: String!) {
   }
 }
 
+query CanWriteEntity($entity: String!) {
+  entity(name: $entity) {
+    available
+    readOnly
+  }
+}
+
 mutation CreateTeam($teamName: String!, $teamAdminUserName: String) {
   result: createTeam(input: { teamName: $teamName, teamAdminUserName: $teamAdminUserName }) {
     entity {

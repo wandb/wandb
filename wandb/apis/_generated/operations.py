@@ -2,6 +2,7 @@
 # Source: tools/graphql_codegen/api/
 
 __all__ = [
+    "CAN_WRITE_ENTITY_GQL",
     "CREATE_INVITE_GQL",
     "CREATE_PROJECT_GQL",
     "CREATE_SERVICE_ACCOUNT_GQL",
@@ -381,6 +382,15 @@ query GetTeamEntity($name: String!) {
       accountType
       apiKey
     }
+  }
+}
+"""
+
+CAN_WRITE_ENTITY_GQL = """
+query CanWriteEntity($entity: String!) {
+  entity(name: $entity) {
+    available
+    readOnly
   }
 }
 """

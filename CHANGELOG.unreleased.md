@@ -16,6 +16,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Added
 
+- `Api.can_write(entity, project)` returns whether the current user has write access to a team or project, so scripts can exit before `wandb.init()` instead of creating a throwaway run to find out (@dmitryduev in https://github.com/wandb/wandb/pull/12878)
 - It is now possible to use resume="must" for offline runs. Syncing will fail if there's no run to resume. (@geoffhardy in https://github.com/wandb/wandb/pull/12110)
 
 
