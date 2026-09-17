@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/url"
+	"slices"
 	"sync"
 	"time"
 
@@ -193,8 +195,10 @@ func NewScheduler(params SchedulerParams) *Scheduler {
 
 // TrackingState is where a run stands in its lifecycle.
 //
-// A prior run walked by warm start starts out TrackingRetired: nothing
-// adopts it until the optimizer says it did, which is the next slice.
+// A suggestion passes through TrackingInFlight and
+// TrackingTerminalDelivered, then settles in TrackingDormant or
+// TrackingRetired; before the scheduler has a record for it, it is
+// merely proposed.
 type TrackingState int
 
 const (
@@ -206,7 +210,8 @@ const (
 
 	// TrackingDormant: the run ended without succeeding. It is still
 	// polled, so a resume can be reported to the user, but it gets no
-	// further updates and holds no batch slot.
+	// further updates and holds no batch slot. See noteResumed for why
+	// it cannot simply be told again.
 	TrackingDormant
 
 	// TrackingRetired: the scheduler will ignore this run.
@@ -279,14 +284,16 @@ func (s *Scheduler) cancelOnStop(ctx context.Context, cancel context.CancelFunc)
 
 // Step implements TaskResolver: apply the previous task's result, wait one
 // poll interval, and compute the next task.
-//
-// Task results are still ignored: applying them lands in the slice on
-// top of this one, so nothing adopts or schedules a run yet and every
-// poll reads a sweep the scheduler watches no runs of.
 func (s *Scheduler) Step(
 	ctx context.Context,
 	result *spb.SweepSchedulerClientTaskResult,
 ) *spb.SweepSchedulerServerNextTaskResponse {
+	if result != nil {
+		if done := s.applyResult(ctx, result); done != nil {
+			return done
+		}
+	}
+
 	ctx, cancel := s.withStopCancel(ctx)
 	defer cancel()
 
@@ -342,6 +349,13 @@ func (s *Scheduler) takeDiscards() []string {
 	discards := s.discards
 	s.discards = nil
 	return discards
+}
+
+// track registers a run under its optimizer id, keeping runOrder in
+// step with runs.
+func (s *Scheduler) track(run *trackedRun) {
+	s.runs[run.optimizerRunID] = run
+	s.runOrder = append(s.runOrder, run.optimizerRunID)
 }
 
 // watchedRuns are the runs read on the next poll, in creation order.
@@ -523,6 +537,178 @@ func newSweepAPIFromSettings(
 
 func secondsToDuration(seconds float64) time.Duration {
 	return time.Duration(seconds * float64(time.Second))
+}
+
+// applyResult applies an acknowledged task result. A non-nil return ends
+// the scheduler with that Done task.
+func (s *Scheduler) applyResult(
+	ctx context.Context,
+	result *spb.SweepSchedulerClientTaskResult,
+) *spb.SweepSchedulerServerNextTaskResponse {
+	switch r := result.Result.(type) {
+	case *spb.SweepSchedulerClientTaskResult_Error:
+		s.recordFatalError(phaseOptimizer, r.Error.Message)
+		s.logger.Error(
+			"scheduler: the optimizer failed",
+			"error", r.Error.Message,
+			"traceback", r.Error.Traceback)
+		// The sweep is left as-is so a fixed client can resume it.
+		return s.doneTask(
+			spb.SweepSchedulerServerDoneTask_REASON_OPTIMIZER_ERROR,
+			r.Error.Message)
+
+	case *spb.SweepSchedulerClientTaskResult_WarmStart:
+		s.applyWarmStartResult(r.WarmStart)
+		return nil
+
+	case *spb.SweepSchedulerClientTaskResult_Generation:
+		return s.applyGenerationResult(ctx, r.Generation)
+
+	default:
+		// A result with no payload answers a task with nothing to
+		// report, such as an empty heartbeat generation.
+		return nil
+	}
+}
+
+// applyWarmStartResult merges one warm-start page's adoptions.
+func (s *Scheduler) applyWarmStartResult(
+	result *spb.SweepSchedulerClientWarmStartResult,
+) {
+	// Sorted so that runOrder, and with it the order of every later
+	// poll and task, does not depend on map iteration.
+	for _, wandbRunID := range slices.Sorted(maps.Keys(result.Adoptions)) {
+		optimizerRunID := result.Adoptions[wandbRunID]
+
+		// Neither bad adoption is reported as a discard. An empty id
+		// names no run to forget, and a colliding one names a run this
+		// scheduler already tracks: the client forgets discarded ids
+		// before applying the task's updates, so reporting it would
+		// drop that run from the optimizer and make its own update in
+		// the same task fail.
+		if optimizerRunID == "" {
+			s.logger.Warn(
+				"scheduler: dropping an adoption with an empty "+
+					"optimizer run id",
+				"run", wandbRunID)
+			continue
+		}
+		if s.runs[optimizerRunID] != nil {
+			s.logger.Warn(
+				"scheduler: dropping an adoption whose optimizer run id "+
+					"is already in use",
+				"run", wandbRunID, "id", optimizerRunID)
+			continue
+		}
+		if run := s.runsByName[wandbRunID]; run != nil && run.isTracked() {
+			// Already tracked: adopted on an earlier page, or scheduled
+			// by this scheduler.
+			continue
+		}
+
+		run := &trackedRun{
+			state:          TrackingInFlight,
+			name:           wandbRunID,
+			optimizerRunID: optimizerRunID,
+			// Placeholder until the next poll; UNKNOWN is not terminal.
+			runState: spb.SweepRunState_SWEEP_RUN_STATE_UNKNOWN,
+		}
+		s.track(run)
+		s.runsByName[wandbRunID] = run
+	}
+
+	for _, skipped := range result.Skipped {
+		run := s.runsByName[skipped.WandbRunId]
+		if run == nil {
+			run = &trackedRun{name: skipped.WandbRunId}
+			s.runsByName[skipped.WandbRunId] = run
+		}
+		run.state = TrackingRetired
+		s.logger.Warn(
+			"scheduler: the optimizer could not ingest a prior run; "+
+				"excluding it",
+			"run", skipped.WandbRunId, "error", skipped.Error)
+	}
+}
+
+// applyGenerationResult applies tells, prunes and suggestions. A non-nil
+// return ends the scheduler with that Done task.
+func (s *Scheduler) applyGenerationResult(
+	ctx context.Context,
+	result *spb.SweepSchedulerClientGenerationResult,
+) *spb.SweepSchedulerServerNextTaskResponse {
+	s.popDeliveredTerminals()
+	s.popTellErrors(result.TellErrors)
+	s.applyPrunes(ctx, result.Prune)
+
+	if result.Terminate {
+		s.finishSweep(ctx)
+		return s.doneTask(
+			spb.SweepSchedulerServerDoneTask_REASON_SWEEP_FINISHED,
+			"the optimizer ended the sweep")
+	}
+
+	switch result.AskOutcome {
+	case spb.SweepSchedulerClientGenerationResult_ASK_OUTCOME_EXHAUSTED:
+		// Finishing the sweep now would stop the backend handing the
+		// scheduled runs to agents, so wait for them.
+		s.exhausted = true
+		if remaining := s.trackedRunCount(); remaining > 0 {
+			s.logger.Info(
+				"scheduler: search space exhausted; waiting for runs",
+				"runs", remaining)
+			return nil
+		}
+		return s.finishExhausted(ctx)
+
+	case spb.SweepSchedulerClientGenerationResult_ASK_OUTCOME_SUGGESTED:
+		return s.enqueueSuggestions(ctx, result.Suggestions)
+
+	default:
+		// Declined or not asked; nothing to schedule this generation.
+		return nil
+	}
+}
+
+// popDeliveredTerminals settles runs whose terminal update the client
+// acknowledged. Only one that finished successfully is done with for
+// good, since its result cannot improve; any other ending goes dormant,
+// where a resume is still worth reporting to the user.
+func (s *Scheduler) popDeliveredTerminals() {
+	for _, run := range s.runs {
+		if run.state != TrackingTerminalDelivered {
+			continue
+		}
+		if run.runState == spb.SweepRunState_SWEEP_RUN_STATE_FINISHED {
+			run.state = TrackingRetired
+		} else {
+			run.state = TrackingDormant
+		}
+	}
+}
+
+// popTellErrors stops tracking runs the optimizer failed to ingest, so
+// one poison run cannot fail the sweep on every poll.
+func (s *Scheduler) popTellErrors(
+	tellErrors []*spb.SweepSchedulerClientTellError,
+) {
+	if len(tellErrors) == 0 {
+		return
+	}
+
+	for _, tellError := range tellErrors {
+		run := s.runs[tellError.OptimizerRunId]
+		if run == nil || !run.isTracked() {
+			continue
+		}
+		s.logger.Warn(
+			"scheduler: the optimizer could not ingest a run's "+
+				"update; excluding the run",
+			"run", run.name, "error", tellError.Message)
+		// Retired without reported: unlike a reported run that resumes,
+		// this frees the batch slot so the search can replace it.
+		run.state = TrackingRetired
+	}
 }
 
 // sweepConfig is the subset of a sweep's config the loop itself reads;

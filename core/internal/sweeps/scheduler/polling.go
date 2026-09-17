@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -530,6 +531,196 @@ func (s *Scheduler) askBudget() int {
 		}
 	}
 	return s.batchSize - occupied
+}
+
+// enqueueSuggestions schedules the optimizer's new runs. A non-nil
+// return ends the scheduler with that Done task.
+//
+// Every suggestion not durably enqueued is discarded so the optimizer
+// releases it instead of counting a run that will never happen.
+//
+// A pending Stop does not skip this: shutdown still enqueues the batch
+// the client just produced, and Step returns Done on its next wait.
+func (s *Scheduler) enqueueSuggestions(
+	ctx context.Context,
+	suggestions []*spb.SweepSchedulerClientRunSuggestion,
+) *spb.SweepSchedulerServerNextTaskResponse {
+	if len(suggestions) == 0 {
+		return nil
+	}
+
+	// The sweep may have finished while the optimizer was thinking.
+	facts, err := s.api.FetchSweep(ctx)
+	switch {
+	case err != nil && Classify(err) == DispositionNotFound:
+		s.discardAll(suggestions)
+		return s.doneTask(
+			spb.SweepSchedulerServerDoneTask_REASON_SWEEP_NOT_FOUND,
+			"the sweep was deleted")
+	case err != nil:
+		// Let the enqueues themselves surface a persistent problem.
+		s.logger.Error(
+			"scheduler: could not re-check the sweep before "+
+				"enqueueing", "error", err)
+	case sweepIsDone(facts.State):
+		s.discardAll(suggestions)
+		return s.doneForSweepState(facts.State)
+	case facts.State == sweepStatePaused:
+		// Pausing is not terminal, but new runs must not start; the
+		// optimizer gets these back as discards.
+		s.discardAll(suggestions)
+		return nil
+	}
+
+	for i, suggestion := range suggestions {
+		end := s.enqueueOne(ctx, suggestion)
+		if end == nil {
+			continue
+		}
+		// Discard the suggestions this scheduler will never reach before
+		// building the Done, which drains the discard list. enqueueOne
+		// has already discarded the one it failed on.
+		s.discardAll(suggestions[i+1:])
+		return s.doneTask(end.reason, end.message)
+	}
+	return nil
+}
+
+// enqueueOne schedules a single suggestion, discarding it if that
+// fails. A non-nil return ends the scheduler for that reason.
+func (s *Scheduler) enqueueOne(
+	ctx context.Context,
+	suggestion *spb.SweepSchedulerClientRunSuggestion,
+) *endReason {
+	id := suggestion.OptimizerRunId
+	if id == "" {
+		// Ids key run tracking, so this one cannot be tracked. It is not
+		// reported as a discard: an empty id names no run to forget.
+		s.logger.Warn("scheduler: dropping suggestion with an empty id")
+		return nil
+	}
+	if s.runs[id] != nil {
+		// Not reported as a discard either. The id belongs to a run this
+		// scheduler already tracks, and the client forgets discarded ids
+		// before applying the task's updates, so reporting it would
+		// retire that run instead of this bogus suggestion.
+		s.logger.Warn(
+			"scheduler: dropping suggestion with a duplicate "+
+				"optimizer run id", "id", id)
+		return nil
+	}
+
+	// Retired until the enqueue proves otherwise; the record also
+	// reserves the id for the scheduler's lifetime.
+	run := &trackedRun{state: TrackingRetired, optimizerRunID: id}
+	s.track(run)
+
+	wireConfig, err := wrapFlatConfig(suggestion.ConfigJson)
+	if err != nil {
+		s.logger.Warn(
+			"scheduler: dropping suggestion with an unusable config",
+			"id", id, "error", err)
+		s.discards = append(s.discards, id)
+		s.recordRunDiscarded(discardCauseBadConfig, id)
+		return nil
+	}
+
+	mintedID, err := s.api.EnqueueRun(ctx, s.sweepNodeID, wireConfig)
+	if err != nil {
+		// The discard rides the next task, Done or not, so the optimizer
+		// forgets a suggestion that will never run.
+		s.discards = append(s.discards, id)
+		s.logger.Error(
+			"scheduler: failed to enqueue a suggestion",
+			"id", id, "error", err)
+		// A rate limit costs only this suggestion; anything else has
+		// already outlived the client's retries and ends the scheduler.
+		end := s.endFromError(ctx, phaseEnqueue, err)
+		if end == nil {
+			s.recordRunDiscarded(discardCauseEnqueueFailed, id)
+		}
+		return end
+	}
+
+	s.logger.Info("scheduler: enqueued run", "id", id)
+	// The minted run is guaranteed to appear in the sweep as pending;
+	// one that never does was deleted and is reaped like any other
+	// missing tracked run.
+	run.state = TrackingInFlight
+	run.name = mintedID
+	run.runState = spb.SweepRunState_SWEEP_RUN_STATE_PENDING
+	return nil
+}
+
+// discardAll routes suggestions to the discard channel.
+func (s *Scheduler) discardAll(
+	suggestions []*spb.SweepSchedulerClientRunSuggestion,
+) {
+	for _, suggestion := range suggestions {
+		s.discards = append(s.discards, suggestion.OptimizerRunId)
+	}
+}
+
+// wrapFlatConfig converts the protocol's flat {param: v} config form
+// into the backend's {param: {"value": v}} wire form.
+func wrapFlatConfig(flatJSON string) (string, error) {
+	var flat map[string]any
+	if err := json.Unmarshal([]byte(flatJSON), &flat); err != nil {
+		return "", fmt.Errorf("scheduler: parsing suggestion config: %w", err)
+	}
+
+	wire := make(map[string]any, len(flat))
+	for name, value := range flat {
+		wire[name] = map[string]any{"value": value}
+	}
+
+	encoded, err := json.Marshal(wire)
+	if err != nil {
+		return "", fmt.Errorf("scheduler: encoding wire config: %w", err)
+	}
+	return string(encoded), nil
+}
+
+// applyPrunes stops the runs the optimizer pruned.
+//
+// Ids outside the candidates offered with the task are ignored. Once
+// the backend accepts the stop, the run is retired immediately
+// failure to stop a run can be retried again by the optimizer
+func (s *Scheduler) applyPrunes(ctx context.Context, pruneIDs []string) {
+	if len(pruneIDs) == 0 {
+		return
+	}
+
+	for _, id := range pruneIDs {
+		if !s.lastPruneCandidates[id] {
+			continue
+		}
+		run := s.runs[id]
+		if run == nil || !run.isTracked() || runStateIsTerminal(run.runState) {
+			continue
+		}
+
+		stopped, err := s.api.StopRun(ctx, run.storageID)
+		if err != nil {
+			// Leave the run a candidate; the optimizer may prune it
+			// again and must tolerate the repeat.
+			s.logger.Error(
+				"scheduler: failed to stop a pruned run",
+				"run", run.name, "error", err)
+			continue
+		}
+		if !stopped {
+			s.logger.Warn(
+				"scheduler: the backend refused to stop a pruned run; "+
+					"it may have already stopped",
+				"run", run.name)
+			continue
+		}
+
+		s.logger.Info(
+			"scheduler: stopped pruned run; retiring it", "run", run.name)
+		run.state = TrackingRetired
+	}
 }
 
 // The sweep states the backend defines. upsertSweep stores whatever
