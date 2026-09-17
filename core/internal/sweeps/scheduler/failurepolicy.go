@@ -134,11 +134,11 @@ func (b *Backoff) OnError() {
 // trackedAPI wraps SweepAPI with Backoff, widening the scheduler's poll
 // interval after a failed call and resetting it after a successful one.
 type trackedAPI struct {
-	api     *SweepAPI
+	api     SweepAPI
 	backoff Backoff
 }
 
-func newTrackedAPI(api *SweepAPI) *trackedAPI {
+func newTrackedAPI(api SweepAPI) *trackedAPI {
 	return &trackedAPI{api: api}
 }
 
