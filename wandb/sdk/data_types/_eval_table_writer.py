@@ -29,6 +29,7 @@ class EvalTableWriteRow:
 class EvalTableWriteInput:
     name: str
     rows: list[EvalTableWriteRow]
+    column_keys: dict[str, str | int]
     ncols: int
     log_mode: str
 
@@ -48,6 +49,7 @@ class EvalTableWriter(Protocol):
 
 
 def _is_numpy_datetime64(value: Any) -> bool:
+    # Optional import: only imports NumPy if it is already installed.
     np = wandb.util.np
     return np is not None and isinstance(value, np.datetime64)
 
@@ -57,6 +59,8 @@ def _is_datetime_like(value: Any) -> bool:
 
 
 def _normalize_numpy_datetime64(value: Any) -> datetime.datetime | None:
+    # NumPy only converts to Python datetime at microsecond resolution; ns and
+    # finer units otherwise become raw integer offsets.
     py_value = value.astype("datetime64[us]").tolist()
     if py_value is None:
         return None
@@ -74,9 +78,11 @@ def _normalize_numpy_datetime64(value: Any) -> datetime.datetime | None:
 
 
 def _normalize_datetime(value: Any) -> datetime.datetime | None:
+    """Normalize datetime-like values for Weave; NumPy NaT becomes None."""
     if isinstance(value, datetime.datetime):
         return value
     if isinstance(value, datetime.date):
+        # Weave handles datetime.datetime but not datetime.date.
         return datetime.datetime(
             value.year,
             value.month,
@@ -92,6 +98,8 @@ def _normalize_non_media_value(value: Any) -> Any:
         return _normalize_datetime(value)
 
     value = _numpy_arrays_to_lists(value)
+
+    # Normalize scalar NumPy values and other simple values like Table does.
     value, _ = wandb.util.json_friendly(value)
 
     if isinstance(value, dict):
@@ -116,6 +124,8 @@ class WeaveEvalTableWriter:
         self._unsupported_media_mode = unsupported_media_mode
 
     def bind(self, run: LocalRun, key: str, step: int | str) -> None:
+        # Other writers use run/key/step to derive stable idempotency keys, so
+        # keep the full logging location in the shared protocol.
         del key, step
         weave_integration.init_weave(run.entity, run.project)
 
@@ -135,13 +145,13 @@ class WeaveEvalTableWriter:
         )
         for row in value.rows:
             evaluation.log_example(
-                inputs=self._normalize_mapping(row.inputs),
+                inputs=self._normalize_mapping(row.inputs, value.column_keys),
                 output=(
-                    self._normalize_mapping(row.output)
+                    self._normalize_mapping(row.output, value.column_keys)
                     if row.output is not None
                     else None
                 ),
-                scores=self._normalize_mapping(row.scores),
+                scores=self._normalize_mapping(row.scores, value.column_keys),
             )
 
         evaluation.log_summary()
@@ -159,13 +169,21 @@ class WeaveEvalTableWriter:
             logged_id=evaluate_call_id,
         )
 
-    def _normalize_mapping(self, values: dict[str, Any]) -> dict[str, Any]:
+    def _normalize_mapping(
+        self,
+        values: dict[str, Any],
+        column_keys: dict[str, str | int],
+    ) -> dict[str, Any]:
         return {
-            column: self._normalize_value(item, column)
+            column: self._normalize_value(item, column_keys.get(column, column))
             for column, item in values.items()
         }
 
-    def _normalize_value(self, value: Any, column: str) -> Any:
+    def _normalize_value(self, value: Any, column: str | int) -> Any:
+        """Adapt media, then apply Table-like normalization for plain values.
+
+        TODO: Media stubbing is temporary until every backend supports these values.
+        """
         value = media_adapters.unwrap_value(
             value,
             column,

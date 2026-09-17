@@ -180,6 +180,8 @@ class EvalTable(Table):
                 "Use wandb.init(mode='online') or unset WANDB_MODE."
             )
 
+        # Backend binding initializes run context while intentionally skipping
+        # the file-copy behavior in Table.bind_to_run().
         self._writer.bind(run, str(key), step)
         self._run = run
         self._run_log_key = str(key)
@@ -212,11 +214,13 @@ class EvalTable(Table):
             return dict(self._immutable_write_result.marker)
 
         result = self._writer.write(self._prepare_write_input(self._run_log_key))
+        # Commit the immutable write before telemetry so a telemetry failure cannot
+        # cause the backend write to run again on a later serialization attempt.
+        self._immutable_write_result = result
 
         with telemetry.context(run=run) as tel:
             tel.feature.eval_table = True
 
-        self._immutable_write_result = result
         return dict(result.marker)
 
     @override
@@ -227,8 +231,7 @@ class EvalTable(Table):
     def _immutable_evaluate_call_id(self) -> str | None:
         if self._immutable_write_result is None:
             return None
-        evaluate_call_id = self._immutable_write_result.marker.get("evaluate_call_id")
-        return evaluate_call_id if isinstance(evaluate_call_id, str) else None
+        return self._immutable_write_result.logged_id
 
     def _validate_cell_value(self, val: Any, col: ColumnKey) -> None:
         self._writer.validate_cell_value(val, col)
@@ -299,22 +302,27 @@ class EvalTable(Table):
             self._score_columns,
         )
         str_columns = self._string_columns()
+        column_keys = dict(zip(str_columns, self.columns, strict=True))
         assigned = (
             set(self._input_columns)
             | set(self._output_columns)
             | set(self._score_columns)
         )
+        # Any column without an explicit role defaults to output.
         output_columns = self._output_columns + [
             column for column in str_columns if column not in assigned
         ]
         rows: list[EvalTableWriteRow] = []
         for row_index, row in enumerate(self.data, start=1):
             values = dict(zip(str_columns, row, strict=True))
+            # A synthetic row input gives otherwise input-less rows distinct digests.
+            # Real inputs omit it so row position does not affect input equality.
             inputs = (
                 {column: values[column] for column in self._input_columns}
                 if self._input_columns
                 else {EVAL_TABLE_ROW_INDEX_KEY: row_index}
             )
+            # Keep a stable column-keyed shape even for a single output.
             output = (
                 {column: values[column] for column in output_columns}
                 if output_columns
@@ -326,6 +334,7 @@ class EvalTable(Table):
         return EvalTableWriteInput(
             name=name,
             rows=rows,
+            column_keys=column_keys,
             ncols=len(self.columns),
             log_mode=self.log_mode,
         )
