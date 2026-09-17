@@ -308,7 +308,6 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 			Exit: &spb.RunExitRecord{
 				ExitCode: exitCode,
 			}},
-		Control: &spb.Control{AlwaysSend: true},
 	}, exitRequest)
 
 	// Wait until all uploads complete (or, if this is a duplicate exit,
