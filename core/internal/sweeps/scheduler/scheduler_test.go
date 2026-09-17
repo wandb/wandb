@@ -72,7 +72,8 @@ func TestFakeClockNewTimerFiresImmediately(t *testing.T) {
 	}
 }
 
-// testRun scripts one poll row.
+// testRun scripts one poll row. history is ignored by warmJSON, whose
+// query does not select it.
 type testRun struct {
 	name    string
 	state   string
@@ -81,8 +82,14 @@ type testRun struct {
 	history string
 }
 
-// runConnection builds the runs connection both run queries return.
-func runConnection(hasNext bool, cursor string, runs []testRun) map[string]any {
+// runConnection builds the runs connection both run queries return,
+// sampling history only for the poll query that selects it.
+func runConnection(
+	hasNext bool,
+	cursor string,
+	runs []testRun,
+	withHistory bool,
+) map[string]any {
 	edges := make([]map[string]any, 0, len(runs))
 	for _, run := range runs {
 		config := run.config
@@ -93,24 +100,25 @@ func runConnection(hasNext bool, cursor string, runs []testRun) map[string]any {
 		if summary == "" {
 			summary = "{}"
 		}
-		var history []any
-		if run.history != "" {
-			var rows any
-			if err := json.Unmarshal([]byte(run.history), &rows); err != nil {
-				panic(err)
-			}
-			history = []any{rows}
+		node := map[string]any{
+			"id":             fmt.Sprintf("node-%s", run.name),
+			"name":           run.name,
+			"state":          orNil(run.state),
+			"config":         config,
+			"summaryMetrics": summary,
 		}
-		edges = append(edges, map[string]any{
-			"node": map[string]any{
-				"id":             fmt.Sprintf("node-%s", run.name),
-				"name":           run.name,
-				"state":          orNil(run.state),
-				"config":         config,
-				"summaryMetrics": summary,
-				"sampledHistory": history,
-			},
-		})
+		if withHistory {
+			var history []any
+			if run.history != "" {
+				var rows any
+				if err := json.Unmarshal([]byte(run.history), &rows); err != nil {
+					panic(err)
+				}
+				history = []any{rows}
+			}
+			node["sampledHistory"] = history
+		}
+		edges = append(edges, map[string]any{"node": node})
 	}
 
 	return map[string]any{
@@ -130,14 +138,14 @@ func encodeJSON(response map[string]any) string {
 	return string(encoded)
 }
 
-// warmJSON builds a SweepRunsWithHistory response: one page of every
-// run in the sweep.
+// warmJSON builds a SweepPriorRuns response: one page of every run in
+// the sweep, without their history.
 func warmJSON(sweepState string, hasNext bool, cursor string, runs ...testRun) string {
 	return encodeJSON(map[string]any{
 		"project": map[string]any{
 			"sweep": map[string]any{
 				"state": sweepState,
-				"runs":  runConnection(hasNext, cursor, runs),
+				"runs":  runConnection(hasNext, cursor, runs, false),
 			},
 		},
 	})
@@ -149,7 +157,7 @@ func pollJSON(sweepState string, hasNext bool, cursor string, runs ...testRun) s
 	return encodeJSON(map[string]any{
 		"project": map[string]any{
 			"sweep": map[string]any{"state": sweepState},
-			"runs":  runConnection(hasNext, cursor, runs),
+			"runs":  runConnection(hasNext, cursor, runs, true),
 		},
 	})
 }
@@ -211,7 +219,7 @@ func (f *loopFixture) stubIdlePoll(sweepState string) {
 
 // stubWarmStart answers one warm-start page.
 func (f *loopFixture) stubWarmStart(response string) {
-	f.client.StubMatchOnce(gqlmock.WithOpName("SweepRunsWithHistory"), response)
+	f.client.StubMatchOnce(gqlmock.WithOpName("SweepPriorRuns"), response)
 }
 
 // stubSweepConfig answers the sweep re-check an enqueue performs.
@@ -423,8 +431,7 @@ func TestWarmStartPageClassifiesEveryPriorRun(t *testing.T) {
 	fixture.stubWarmStart(warmJSON("RUNNING", false, "",
 		testRun{name: "scored", state: "finished",
 			config:  `{"lr": {"value": 0.1}}`,
-			summary: `{"loss": 0.5}`,
-			history: `[{"loss": 0.9, "_step": 1}]`},
+			summary: `{"loss": 0.5}`},
 		testRun{name: "unscored", state: "finished",
 			config:  `{"lr": {"value": 0.2}}`,
 			summary: `{}`},
@@ -440,12 +447,14 @@ func TestWarmStartPageClassifiesEveryPriorRun(t *testing.T) {
 	finished := byRunID(warmStart.FinishedRuns)
 	active := byRunID(warmStart.ActiveRuns)
 
-	t.Run("a scored run carries its summary and sampled history", func(t *testing.T) {
+	t.Run("a scored run carries its summary but no history", func(t *testing.T) {
 		run := finished["scored"]
 		require.NotNil(t, run)
 		assert.Equal(t, spb.SweepRunState_SWEEP_RUN_STATE_FINISHED, run.State)
 		assert.JSONEq(t, `{"loss": 0.5}`, run.SummaryJson)
-		assert.JSONEq(t, `[{"loss": 0.9, "_step": 1}]`, run.HistoryJson)
+		// A prior run is replayed from its final result; sampling the
+		// curve of every run in the sweep is what warm start avoids.
+		assert.Empty(t, run.HistoryJson)
 	})
 
 	t.Run("the wire config is flattened", func(t *testing.T) {
@@ -514,7 +523,7 @@ func TestWarmStartWalksEveryPage(t *testing.T) {
 func TestRateLimitedWarmPageRetriesThePage(t *testing.T) {
 	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
 	fixture.client.StubMatchWithError(
-		gqlmock.WithOpName("SweepRunsWithHistory"),
+		gqlmock.WithOpName("SweepPriorRuns"),
 		&graphql.HTTPError{StatusCode: 429},
 	)
 
@@ -583,7 +592,7 @@ func TestWarmPageErrorEndsTheScheduler(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			fixture := newLoopFixture(t, scheduler.SchedulerParams{})
 			fixture.client.StubMatchWithError(
-				gqlmock.WithOpName("SweepRunsWithHistory"), err)
+				gqlmock.WithOpName("SweepPriorRuns"), err)
 
 			task := fixture.step(t, nil)
 

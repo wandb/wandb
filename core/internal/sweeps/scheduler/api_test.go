@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/Khan/genqlient/graphql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -90,10 +91,12 @@ func TestFetchSweepNotFound(t *testing.T) {
 	assert.ErrorIs(t, err, scheduler.ErrSweepNotFound)
 }
 
+// One warm-start page, read once and asserted from every angle: its
+// rows, its cursor and the variables the request carried.
 func TestWarmStartPage(t *testing.T) {
 	client := gqlmock.NewMockClient()
 	client.StubMatchOnce(
-		gqlmock.WithOpName("SweepRunsWithHistory"),
+		gqlmock.WithOpName("SweepPriorRuns"),
 		`{
 			"project": {
 				"sweep": {
@@ -107,8 +110,7 @@ func TestWarmStartPage(t *testing.T) {
 									"name": "run-1",
 									"state": "running",
 									"config": "{\"param1\": {\"value\": 1}}",
-									"summaryMetrics": "{\"loss\": 0.5}",
-									"sampledHistory": [[{"loss": 1.0, "_step": 0}, {"loss": 0.5, "_step": 1}]]
+									"summaryMetrics": "{\"loss\": 0.5}"
 								}
 							}
 						]
@@ -119,60 +121,48 @@ func TestWarmStartPage(t *testing.T) {
 	)
 	api := newTestAPI(client, supported())
 
-	page, err := api.WarmStartPage(context.Background(), 200, nil, []string{"loss"})
+	page, err := api.WarmStartPage(context.Background(), 200, nil)
 
 	require.NoError(t, err)
-	assert.Equal(t, "RUNNING", page.SweepState)
-	require.NotNil(t, page.NextCursor)
-	assert.Equal(t, "abc", *page.NextCursor)
 	require.Len(t, page.Runs, 1)
 	run := page.Runs[0]
-	assert.Equal(t, "UnVuOjE=", run.StorageID)
-	assert.Equal(t, "run-1", run.Name)
-	assert.Equal(t, "running", run.State)
-	assert.Equal(t, `{"param1": {"value": 1}}`, run.ConfigJSON)
-	assert.Equal(t, `{"loss": 0.5}`, run.SummaryJSON)
-	assert.JSONEq(
-		t,
-		`[{"loss": 1.0, "_step": 0}, {"loss": 0.5, "_step": 1}]`,
-		run.HistoryJSON,
-	)
 
-	// The optimizer's early-terminate/prune policies plot the metric
-	// against _step, so the sampled-history spec must request both
-	// keys or the backend silently omits _step from every row.
-	gqlmock.AssertVariables(
-		t,
-		client.AllRequests()[0],
-		gqlmock.GQLVar("historySpecs", historySpecsWantKeys("loss", "_step")),
-	)
+	t.Run("the run's result reaches the caller", func(t *testing.T) {
+		assert.Equal(t, "UnVuOjE=", run.StorageID)
+		assert.Equal(t, "run-1", run.Name)
+		assert.Equal(t, "running", run.State)
+		assert.Equal(t, `{"param1": {"value": 1}}`, run.ConfigJSON)
+		assert.Equal(t, `{"loss": 0.5}`, run.SummaryJSON)
+	})
+
+	t.Run("no history is requested or reported", func(t *testing.T) {
+		// A prior run is replayed from its summary, and an empty spec
+		// list would not spare the backend: it resolves sampledHistory
+		// once per run regardless. So the field must not be selected.
+		assert.Empty(t, run.HistoryJSON)
+		request := client.AllRequests()[0]
+		assert.NotContains(t, request.Query, "sampledHistory")
+		assert.NotContains(t, requestVariables(t, request), "historySpecs")
+	})
+
+	t.Run("the sweep's state and cursor come back with the page", func(t *testing.T) {
+		assert.Equal(t, "RUNNING", page.SweepState)
+		require.NotNil(t, page.NextCursor)
+		assert.Equal(t, "abc", *page.NextCursor)
+	})
 }
 
-// TestWarmStartPageMultipleMetrics covers multi-objective sweeps, which
-// track more than one metric and need every metric sampled at the same
-// steps to compare runs against each other.
-func TestWarmStartPageMultipleMetrics(t *testing.T) {
+func TestWarmStartPageLastPageHasNoCursor(t *testing.T) {
 	client := gqlmock.NewMockClient()
 	client.StubMatchOnce(
-		gqlmock.WithOpName("SweepRunsWithHistory"),
+		gqlmock.WithOpName("SweepPriorRuns"),
 		`{
 			"project": {
 				"sweep": {
 					"state": "RUNNING",
 					"runs": {
-						"pageInfo": {"hasNextPage": false, "endCursor": null},
-						"edges": [
-							{
-								"node": {
-									"id": "UnVuOjE=",
-									"name": "run-1",
-									"state": "running",
-									"config": "{}",
-									"summaryMetrics": "{}",
-									"sampledHistory": [[{"loss": 1.0, "accuracy": 0.9, "_step": 0}]]
-								}
-							}
-						]
+						"pageInfo": {"hasNextPage": false, "endCursor": "abc"},
+						"edges": []
 					}
 				}
 			}
@@ -180,72 +170,22 @@ func TestWarmStartPageMultipleMetrics(t *testing.T) {
 	)
 	api := newTestAPI(client, supported())
 
-	page, err := api.WarmStartPage(
-		context.Background(), 200, nil, []string{"loss", "accuracy"})
-
-	require.NoError(t, err)
-	require.Len(t, page.Runs, 1)
-	assert.JSONEq(
-		t,
-		`[{"loss": 1.0, "accuracy": 0.9, "_step": 0}]`,
-		page.Runs[0].HistoryJSON,
-	)
-
-	gqlmock.AssertVariables(
-		t,
-		client.AllRequests()[0],
-		gqlmock.GQLVar(
-			"historySpecs", historySpecsWantKeys("loss", "accuracy", "_step"),
-		),
-	)
-}
-
-func TestWarmStartPageWithoutMetricSkipsHistory(t *testing.T) {
-	client := gqlmock.NewMockClient()
-	client.StubMatchOnce(
-		gqlmock.WithOpName("SweepRunsWithHistory"),
-		`{
-			"project": {
-				"sweep": {
-					"state": "RUNNING",
-					"runs": {
-						"pageInfo": {"hasNextPage": false, "endCursor": null},
-						"edges": [
-							{
-								"node": {
-									"id": "UnVuOjE=",
-									"name": "run-1",
-									"state": "finished",
-									"config": "{}",
-									"summaryMetrics": "{}",
-									"sampledHistory": []
-								}
-							}
-						]
-					}
-				}
-			}
-		}`,
-	)
-	api := newTestAPI(client, supported())
-
-	page, err := api.WarmStartPage(context.Background(), 200, nil, nil)
+	page, err := api.WarmStartPage(context.Background(), 200, nil)
 
 	require.NoError(t, err)
 	assert.Nil(t, page.NextCursor)
-	require.Len(t, page.Runs, 1)
-	assert.Equal(t, "", page.Runs[0].HistoryJSON)
+	assert.Empty(t, page.Runs)
 }
 
 func TestWarmStartPageSweepNotFound(t *testing.T) {
 	client := gqlmock.NewMockClient()
 	client.StubMatchOnce(
-		gqlmock.WithOpName("SweepRunsWithHistory"),
+		gqlmock.WithOpName("SweepPriorRuns"),
 		`{"project": null}`,
 	)
 	api := newTestAPI(client, supported())
 
-	_, err := api.WarmStartPage(context.Background(), 200, nil, []string{"loss"})
+	_, err := api.WarmStartPage(context.Background(), 200, nil)
 
 	assert.ErrorIs(t, err, scheduler.ErrSweepNotFound)
 }
@@ -298,7 +238,64 @@ func TestFetchWatchedRuns(t *testing.T) {
 		t,
 		client.AllRequests()[0],
 		gqlmock.GQLVar("filters", gomock.Eq(`{"name":{"$in":["run-1","run-2"]}}`)),
+		gqlmock.GQLVar("historySpecs", historySpecsWantKeys("loss", "_step")),
 	)
+}
+
+// The optimizer's early-terminate/prune policies plot each metric
+// against _step, so the sampled-history spec must request _step
+// alongside the metrics or the backend omits it from every row.
+func TestFetchWatchedRunsSamplesEveryMetricAgainstStep(t *testing.T) {
+	for name, testCase := range map[string]struct {
+		metricKeys []string
+		wantKeys   []string
+	}{
+		"one objective": {
+			metricKeys: []string{"loss"},
+			wantKeys:   []string{"loss", "_step"},
+		},
+		// Multi-objective sweeps compare runs against each other, so
+		// every metric has to be sampled at the same steps.
+		"several objectives": {
+			metricKeys: []string{"loss", "accuracy"},
+			wantKeys:   []string{"loss", "accuracy", "_step"},
+		},
+		"no objective": {
+			metricKeys: nil,
+			wantKeys:   []string{"_step"},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			client := gqlmock.NewMockClient()
+			client.StubMatchOnce(
+				gqlmock.WithOpName("SweepWatchedRuns"),
+				`{
+					"project": {
+						"sweep": {"state": "RUNNING"},
+						"runs": {
+							"pageInfo": {"hasNextPage": false, "endCursor": null},
+							"edges": []
+						}
+					}
+				}`,
+			)
+			api := newTestAPI(client, supported())
+
+			_, err := api.FetchWatchedRuns(
+				context.Background(), []string{"run-1"}, 200, nil,
+				testCase.metricKeys)
+
+			require.NoError(t, err)
+			gqlmock.AssertVariables(
+				t,
+				client.AllRequests()[0],
+				gqlmock.GQLVar(
+					"historySpecs",
+					historySpecsWantKeys(testCase.wantKeys...),
+				),
+			)
+		})
+	}
 }
 
 func TestFetchWatchedRunsSweepNotFound(t *testing.T) {
@@ -313,6 +310,17 @@ func TestFetchWatchedRunsSweepNotFound(t *testing.T) {
 		context.Background(), []string{"run-1"}, 200, nil, nil)
 
 	assert.ErrorIs(t, err, scheduler.ErrSweepNotFound)
+}
+
+// requestVariables decodes the variables a GraphQL request carried.
+func requestVariables(t *testing.T, req *graphql.Request) map[string]any {
+	t.Helper()
+
+	encoded, err := json.Marshal(req.Variables)
+	require.NoError(t, err)
+	var vars map[string]any
+	require.NoError(t, json.Unmarshal(encoded, &vars))
+	return vars
 }
 
 // historySpecsWantKeys matches a historySpecs variable whose first spec

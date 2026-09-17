@@ -171,10 +171,9 @@ func (a *trackedAPI) WarmStartPage(
 	ctx context.Context,
 	pageSize int,
 	cursor *string,
-	metricKeys []string,
 ) (*PollPage, error) {
 	ctx = withSchedulerRetryPolicy(ctx)
-	page, err := a.api.WarmStartPage(ctx, pageSize, cursor, metricKeys)
+	page, err := a.api.WarmStartPage(ctx, pageSize, cursor)
 	a.record(ctx, err)
 	return page, err
 }

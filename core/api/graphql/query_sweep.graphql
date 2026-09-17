@@ -14,8 +14,49 @@ query SweepConfig(
     }
 }
 
-# Shared by SweepRunsWithHistory and SweepWatchedRuns, which fetch the
-# same per-run fields for different sets of runs.
+# The per-run result both run queries read, for different sets of runs.
+fragment SweepRunResult on Run {
+    id
+    name
+    state
+    config
+    summaryMetrics
+}
+
+# Warm start replays prior runs from their final result alone, so it
+# must not select sampledHistory: an empty spec list would not spare
+# the backend, which still resolves the field once per run.
+fragment SweepPriorRunsPage on RunConnection {
+    pageInfo {
+        hasNextPage
+        endCursor
+    }
+    edges {
+        node {
+            ...SweepRunResult
+        }
+    }
+}
+
+query SweepPriorRuns(
+    $entity: String!,
+    $project: String!,
+    $sweep: String!,
+    $first: Int!,
+    $cursor: String,
+) {
+    project(name: $project, entityName: $entity) {
+        sweep(sweepName: $sweep) {
+            state
+            runs(first: $first, after: $cursor) {
+                ...SweepPriorRunsPage
+            }
+        }
+    }
+}
+
+# The poll path also samples history: early stopping reads the
+# in-flight runs' curves, not just their summaries.
 fragment SweepPollRuns on RunConnection {
     pageInfo {
         hasNextPage
@@ -23,30 +64,8 @@ fragment SweepPollRuns on RunConnection {
     }
     edges {
         node {
-            id
-            name
-            state
-            config
-            summaryMetrics
+            ...SweepRunResult
             sampledHistory(specs: $historySpecs)
-        }
-    }
-}
-
-query SweepRunsWithHistory(
-    $entity: String!,
-    $project: String!,
-    $sweep: String!,
-    $first: Int!,
-    $cursor: String,
-    $historySpecs: [JSONString!]!,
-) {
-    project(name: $project, entityName: $entity) {
-        sweep(sweepName: $sweep) {
-            state
-            runs(first: $first, after: $cursor) {
-                ...SweepPollRuns
-            }
         }
     }
 }
