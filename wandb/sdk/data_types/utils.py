@@ -37,6 +37,7 @@ def history_dict_to_json(
     payload: dict,
     step: int | None = None,
     ignore_copy_err: bool | None = None,
+    _history_path: tuple[str | int, ...] = (),
 ) -> dict:
     # Converts a History row dict's elements so they're friendly for JSON serialization.
 
@@ -47,13 +48,23 @@ def history_dict_to_json(
     # We use list here because we were still seeing cases of RuntimeError dict changed size
     for key in list(payload):
         val = payload[key]
+        history_path = (*_history_path, key)
         if isinstance(val, dict):
             payload[key] = history_dict_to_json(
-                run, val, step=step, ignore_copy_err=ignore_copy_err
+                run,
+                val,
+                step=step,
+                ignore_copy_err=ignore_copy_err,
+                _history_path=history_path,
             )
         else:
             payload[key] = val_to_json(
-                run, key, val, namespace=step, ignore_copy_err=ignore_copy_err
+                run,
+                key,
+                val,
+                namespace=step,
+                ignore_copy_err=ignore_copy_err,
+                _history_path=history_path,
             )
 
     return payload
@@ -66,6 +77,7 @@ def val_to_json(
     val: ValToJsonType,
     namespace: str | int | None = None,
     ignore_copy_err: bool | None = None,
+    _history_path: tuple[str | int, ...] | None = None,
 ) -> Any:
     # Converts a wandb datatype to its JSON representation.
     if namespace is None:
@@ -121,11 +133,17 @@ def val_to_json(
             # This used to happen. The frontend doesn't handle heterogeneous arrays
             # raise ValueError(
             #    "Mixed media types in the same list aren't supported")
+            history_path = _history_path or (key,)
             return [
                 val_to_json(
-                    run, key, v, namespace=namespace, ignore_copy_err=ignore_copy_err
+                    run,
+                    key,
+                    v,
+                    namespace=namespace,
+                    ignore_copy_err=ignore_copy_err,
+                    _history_path=(*history_path, index),
                 )
-                for v in val
+                for index, v in enumerate(val)
             ]
 
     if isinstance(val, WBValue):
@@ -143,7 +161,15 @@ def val_to_json(
                 hasattr(val, "_log_type")
                 and val._log_type in ["partitioned-table", "joined-table"]
             ):
-                val.bind_to_run(run, key, namespace)
+                if isinstance(val, wandb.EvalTable):
+                    val.bind_to_run(
+                        run,
+                        key,
+                        namespace,
+                        history_path=_history_path or (key,),
+                    )
+                else:
+                    val.bind_to_run(run, key, namespace)
 
         res = val.to_json(run)
 

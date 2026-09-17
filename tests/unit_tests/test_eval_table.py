@@ -15,6 +15,7 @@ import wandb.data_types as wandb_data_types
 from wandb.errors import UsageError
 from wandb.sdk.data_types import _eval_table_writer
 from wandb.sdk.data_types import eval_table as eval_table_module
+from wandb.sdk.data_types.utils import history_dict_to_json
 
 
 @pytest.fixture
@@ -659,6 +660,40 @@ def test_ces_eval_table_run_location_stabilizes_idempotency_keys(
         calls = method.call_args_list
         assert len(calls) == 2
         assert calls[0].kwargs["idempotency_key"] == calls[1].kwargs["idempotency_key"]
+
+
+def test_ces_nested_history_paths_have_distinct_idempotency_keys(
+    mock_ces_client,
+    run,
+):
+    first = wandb.EvalTable(columns=["value"], data=[[1]], backend="ces")
+    second = wandb.EvalTable(columns=["value"], data=[[2]], backend="ces")
+    payload = {
+        "left": {"eval": first},
+        "right": {"eval": second},
+        "_step": 7,
+    }
+
+    history_dict_to_json(run, payload)
+
+    calls = mock_ces_client.eval_tables.create.call_args_list
+    assert [call.kwargs["name"] for call in calls] == ["eval", "eval"]
+    assert calls[0].kwargs["idempotency_key"] != calls[1].kwargs["idempotency_key"]
+
+
+def test_ces_history_list_indices_have_distinct_idempotency_keys(
+    mock_ces_client,
+    run,
+):
+    first = wandb.EvalTable(columns=["value"], data=[[1]], backend="ces")
+    second = wandb.EvalTable(columns=["value"], data=[[2]], backend="ces")
+    payload = {"evals": [first, second], "_step": 7}
+
+    history_dict_to_json(run, payload)
+
+    calls = mock_ces_client.eval_tables.create.call_args_list
+    assert [call.kwargs["name"] for call in calls] == ["evals", "evals"]
+    assert calls[0].kwargs["idempotency_key"] != calls[1].kwargs["idempotency_key"]
 
 
 def test_ces_eval_table_rejects_mixed_type_mode():
