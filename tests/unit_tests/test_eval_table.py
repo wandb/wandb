@@ -302,6 +302,50 @@ def test_ces_eval_table_batches_rows_by_encoded_bytes(
     assert keys[1].endswith("-rows-1")
 
 
+@pytest.mark.parametrize(
+    ("separator_bytes", "expected_batch_sizes"),
+    [(1, [2, 1]), (0, [1, 1, 1])],
+)
+def test_ces_eval_table_batch_size_counts_row_separators(
+    mock_ces_client,
+    run,
+    monkeypatch,
+    separator_bytes,
+    expected_batch_sizes,
+):
+    row = {"input": {"value": "same"}, "output": None, "scores": {}}
+    row_size = len(
+        json.dumps(
+            row,
+            allow_nan=False,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ).encode()
+    )
+    target_size = (
+        _eval_table_writer._ROW_BATCH_PREFIX_BYTES
+        + 2 * row_size
+        + separator_bytes
+        + _eval_table_writer._ROW_BATCH_SUFFIX_BYTES
+    )
+    monkeypatch.setattr(
+        _eval_table_writer,
+        "_TARGET_ROW_BATCH_BODY_BYTES",
+        target_size,
+    )
+    et = wandb.EvalTable(
+        columns=["value"],
+        data=[["same"], ["same"], ["same"]],
+        input_columns=["value"],
+        backend="ces",
+    )
+
+    run.log({"eval": et})
+
+    calls = mock_ces_client.eval_tables.add_rows.call_args_list
+    assert [len(call.kwargs["rows"]) for call in calls] == expected_batch_sizes
+
+
 def test_ces_eval_table_batches_rows_by_count(
     mock_ces_client,
     run,
@@ -356,7 +400,26 @@ def test_ces_eval_table_rejects_oversized_row_before_network(
         backend="ces",
     )
 
-    with pytest.raises(UsageError, match="contains a row"):
+    with pytest.raises(UsageError, match="row at index 0"):
+        run.log({"eval": et})
+
+    mock_ces_client.eval_tables.create.assert_not_called()
+
+
+def test_ces_eval_table_rejects_total_row_count_before_network(
+    mock_ces_client,
+    run,
+    monkeypatch,
+):
+    monkeypatch.setattr(_eval_table_writer, "_MAX_ROWS", 2)
+    et = wandb.EvalTable(
+        columns=["value"],
+        data=[[1], [2], [3]],
+        output_columns=["value"],
+        backend="ces",
+    )
+
+    with pytest.raises(UsageError, match="at most 2 rows per table"):
         run.log({"eval": et})
 
     mock_ces_client.eval_tables.create.assert_not_called()

@@ -42,6 +42,7 @@ _MAX_BATCH_BODY_BYTES = 16 << 20
 _TARGET_ROW_BATCH_BODY_BYTES = 8 << 20
 _MAX_DATASET_FIELDS = 10_000
 _MAX_ROWS_PER_BATCH = 10_000
+_MAX_ROWS = 100_000
 _MAX_SCORERS = 256
 
 _ROW_BATCH_PREFIX_BYTES = len(b'{"rows":[')
@@ -379,6 +380,11 @@ class CESEvalTableWriter:
     def _prepare(self, value: EvalTableWriteInput) -> _PreparedCESWrite:
         if not value.rows:
             raise UsageError("CES EvalTable logging requires at least one row.")
+        if len(value.rows) > _MAX_ROWS:
+            raise UsageError(
+                f"CES EvalTable logging currently supports at most {_MAX_ROWS} "
+                "rows per table."
+            )
 
         dataset_field_types: dict[tuple[str, str], PrimitiveValueType] = {}
         dataset_field_order: list[tuple[str, str]] = []
@@ -463,18 +469,20 @@ class CESEvalTableWriter:
         batch: list[dict[str, Any]] = []
         batch_size = _ROW_BATCH_PREFIX_BYTES + _ROW_BATCH_SUFFIX_BYTES
 
-        for row in rows:
+        for row_index, row in enumerate(rows):
             row_size = len(self._encode_json(row))
             single_row_body_size = (
                 _ROW_BATCH_PREFIX_BYTES + row_size + _ROW_BATCH_SUFFIX_BYTES
             )
             if single_row_body_size >= _MAX_BATCH_BODY_BYTES:
                 raise UsageError(
-                    "CES EvalTable rows payload contains a row whose encoded "
-                    "request must be smaller than 16 MiB."
+                    "CES EvalTable rows payload contains a row at index "
+                    f"{row_index} whose encoded request must be smaller than 16 MiB."
                 )
 
             separator_size = 1 if batch else 0
+            # An above-target batch can only contain one row, which already passed
+            # the hard 16 MiB check; later rows flush it before they are appended.
             if batch and (
                 len(batch) >= _MAX_ROWS_PER_BATCH
                 or batch_size + separator_size + row_size > _TARGET_ROW_BATCH_BODY_BYTES
