@@ -15,6 +15,7 @@ import (
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/sweeps/scheduler"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // telemetryFixture is a loopFixture whose logger exports to a test OTLP
@@ -112,4 +113,36 @@ func TestRateLimitedPollCountsAnAbandonedStep(t *testing.T) {
 	event, ok := fixture.proxy.FindLog("sweep_scheduler_step_abandoned")
 	require.True(t, ok, "expected an abandoned-step event")
 	assert.Equal(t, "poll", event.Attributes["phase"])
+}
+
+// The fatal-error metric is an internal signal about this scheduler,
+// so counting one must not change what the sweep or the client sees:
+// the client is told OPTIMIZER_ERROR, which names whose fault it was,
+// and the sweep itself is left alone.
+func TestOptimizerErrorIsCountedAsFatal(t *testing.T) {
+	fixture := newTelemetryFixture(t, scheduler.SchedulerParams{})
+	fixture.warmTo(t)
+
+	done := fixture.step(t, &spb.SweepSchedulerClientTaskResult{
+		Result: &spb.SweepSchedulerClientTaskResult_Error{
+			Error: &spb.SweepSchedulerClientTaskError{
+				Message: "the optimizer exploded",
+			},
+		},
+	})
+	require.NotNil(t, done.GetDone())
+	assert.Equal(t,
+		spb.SweepSchedulerServerDoneTask_REASON_OPTIMIZER_ERROR,
+		done.GetDone().Reason,
+		"an internal fatal count must not become a FATAL_ERROR reason")
+	assert.Empty(t, fixture.requestsFor("UpsertSweepState"),
+		"counting a fatal error must not transition the sweep")
+
+	counter, ok := fixture.metric(t, "sweep_scheduler_fatal_error")
+	require.True(t, ok, "expected a fatal-error counter")
+	assert.EqualValues(t, 1, counter.Value)
+
+	event, ok := fixture.proxy.FindLog("sweep_scheduler_fatal_error")
+	require.True(t, ok, "expected a fatal-error event")
+	assert.Equal(t, "optimizer", event.Attributes["phase"])
 }
