@@ -720,3 +720,100 @@ func TestSuggestionsDiscardedWhenSweepPaused(t *testing.T) {
 		[]string{"opt-a", "opt-b"}, generation.DiscardedOptimizerRunIds)
 	assert.Empty(t, fixture.requestsFor("EnqueueSweepRun"))
 }
+
+// A prune stops a run the optimizer gave up on, and only ever one it
+// was offered as a candidate.
+func TestPrune(t *testing.T) {
+	t.Run("stops the run and frees its slot at once", func(t *testing.T) {
+		fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 2})
+		fixture.warmTo(t)
+
+		// Adopt a running run so there is a prune candidate.
+		fixture.stubPoll(pollJSON("RUNNING", false, "",
+			testRun{name: "victim", state: "running"},
+		))
+		first := fixture.step(t, warmResult(map[string]string{"victim": "opt-v"}))
+		require.Equal(t, []string{"opt-v"}, first.GetGeneration().PruneCandidates)
+
+		// The prune stops the run by its storage id; once the backend
+		// accepts the stop, the run is retired immediately, freeing its
+		// batch slot right away with no grace period.
+		fixture.client.StubMatchOnce(
+			gqlmock.WithOpName("StopRun"),
+			`{"stopRun": {"success": true}}`,
+		)
+		fixture.stubIdlePoll("RUNNING")
+		second := fixture.step(t, generationResult(
+			&spb.SweepSchedulerClientGenerationResult{Prune: []string{"opt-v"}}))
+
+		require.NotNil(t, second.GetGeneration())
+		assert.Empty(t, second.GetGeneration().Updates)
+		assert.Empty(t, second.GetGeneration().PruneCandidates)
+		assert.EqualValues(t, 2, second.GetGeneration().AskUpTo)
+
+		// The run is retired for good: it drops out of the watched set, so
+		// the scheduler stops reading it at all rather than reading it and
+		// discarding the row.
+		fixture.stubIdlePoll("RUNNING")
+		third := fixture.step(t, emptyIterResult())
+		assert.Empty(t, third.GetGeneration().Updates)
+		assert.True(t, fixture.client.AllStubsUsed())
+	})
+
+	t.Run("ignores a tracked run that was never a candidate", func(t *testing.T) {
+		fixture := newLoopFixture(t, scheduler.SchedulerParams{})
+		fixture.warmTo(t)
+
+		// Only a run polled as running or pending is offered, so this
+		// one is tracked but never a candidate.
+		fixture.stubPoll(pollJSON("RUNNING", false, "",
+			testRun{name: "leaving", state: "preempting"},
+		))
+		first := fixture.step(t, warmResult(map[string]string{"leaving": "opt-l"}))
+		require.Empty(t, first.GetGeneration().PruneCandidates)
+
+		// No StopRun stub: pruning it anyway must not reach the backend.
+		fixture.stubPoll(pollJSON("RUNNING", false, "",
+			testRun{name: "leaving", state: "preempting"},
+		))
+		task := fixture.step(t, generationResult(
+			&spb.SweepSchedulerClientGenerationResult{
+				Prune: []string{"opt-l"},
+			}))
+
+		require.NotNil(t, task.GetGeneration())
+		// Asserted rather than left to an unstubbed call: a failed stop
+		// is logged and tolerated, so it would not fail this test.
+		assert.Empty(t, fixture.requestsFor("StopRun"),
+			"a run that was never a candidate must not be stopped")
+	})
+
+	t.Run("a refused stop is not fatal", func(t *testing.T) {
+		fixture := newLoopFixture(t, scheduler.SchedulerParams{})
+		fixture.warmTo(t)
+		fixture.stubPoll(pollJSON("RUNNING", false, "",
+			testRun{name: "victim", state: "running"},
+		))
+		fixture.step(t, warmResult(map[string]string{"victim": "opt-v"}))
+
+		fixture.client.StubMatchWithError(
+			gqlmock.WithOpName("StopRun"),
+			&graphql.HTTPError{StatusCode: 409},
+		)
+		// The run stays tracked and its real terminal state is delivered.
+		fixture.stubPoll(pollJSON("RUNNING", false, "",
+			testRun{name: "victim", state: "finished",
+				summary: `{"loss": 0.1}`},
+		))
+		task := fixture.step(t, generationResult(
+			&spb.SweepSchedulerClientGenerationResult{Prune: []string{"opt-v"}}))
+
+		generation := task.GetGeneration()
+		require.NotNil(t, generation)
+		require.Len(t, generation.Updates, 1)
+		assert.Equal(t,
+			spb.SweepRunState_SWEEP_RUN_STATE_FINISHED,
+			generation.Updates[0].Run.State)
+		assert.False(t, generation.Updates[0].Pruned)
+	})
+}

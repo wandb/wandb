@@ -623,17 +623,15 @@ func (s *Scheduler) applyWarmStartResult(
 	}
 }
 
-// applyGenerationResult applies tells and suggestions. A non-nil return
-// ends the scheduler with that Done task.
-//
-// result.Prune is still ignored: stopping a pruned run lands in the
-// slice on top of this one.
+// applyGenerationResult applies tells, prunes and suggestions. A non-nil
+// return ends the scheduler with that Done task.
 func (s *Scheduler) applyGenerationResult(
 	ctx context.Context,
 	result *spb.SweepSchedulerClientGenerationResult,
 ) *spb.SweepSchedulerServerNextTaskResponse {
 	s.popDeliveredTerminals()
 	s.popTellErrors(result.TellErrors)
+	s.applyPrunes(ctx, result.Prune)
 
 	if result.Terminate {
 		s.finishSweep(ctx)
