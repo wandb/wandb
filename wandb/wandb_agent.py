@@ -270,7 +270,7 @@ class AgentProcess:
         return self._proc.terminate()
 
 
-def _exited_non_zero(poll_result) -> bool:
+def _exited_non_zero(poll_result: int | bool | None) -> bool:
     """True if a finished run reported a non-zero exit code."""
     return (
         not isinstance(poll_result, bool)
