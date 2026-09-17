@@ -1,12 +1,15 @@
 package api
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"log/slog"
 	"maps"
 	"net/http"
 
 	"github.com/Khan/genqlient/graphql"
+	"github.com/hashicorp/go-retryablehttp"
 
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/httplayers"
@@ -71,5 +74,40 @@ func NewGQLClient(
 	httpClient := NewClient(opts)
 	endpoint := fmt.Sprintf("%s/graphql", s.GetBaseURL())
 
-	return graphql.NewClient(endpoint, AsStandardClient(httpClient))
+	return graphql.NewClient(endpoint, &gqlHTTPClient{client: httpClient})
+}
+
+// gqlHTTPClient includes reading the response body in each retry attempt.
+// Otherwise, genqlient reads it after the retry loop has finished, and a
+// timeout or broken connection during that read fails the entire operation.
+// Only GraphQL responses are buffered; other HTTP clients may stream files.
+type gqlHTTPClient struct{ client RetryableClient }
+
+func (c *gqlHTTPClient) Do(req *http.Request) (*http.Response, error) {
+	retryingReq, err := retryablehttp.FromRequest(req)
+	if err != nil {
+		return nil, fmt.Errorf("api: GraphQL request: %w", err)
+	}
+	retryingReq.SetResponseHandler(bufferGQLResponse)
+	return c.client.Do(retryingReq)
+}
+
+func bufferGQLResponse(resp *http.Response) error {
+	// Preserve status-based handling of non-200 responses. In particular,
+	// a body read failure must not cause a permanent HTTP error to be retried.
+	if resp.StatusCode != http.StatusOK {
+		return nil
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	resp.Body = http.NoBody
+	if err != nil {
+		return fmt.Errorf("api: reading GraphQL response body: %w", err)
+	}
+
+	// Leave JSON decoding and GraphQL errors to genqlient, so complete but
+	// invalid responses do not become retryable transport errors.
+	resp.Body = io.NopCloser(bytes.NewReader(body))
+	return nil
 }

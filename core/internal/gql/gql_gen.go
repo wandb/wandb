@@ -2266,7 +2266,6 @@ type UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun struct {
 	Name             string                                                       `json:"name"`
 	DisplayName      *string                                                      `json:"displayName"`
 	Description      *string                                                      `json:"description"`
-	Config           *string                                                      `json:"config"`
 	SweepName        *string                                                      `json:"sweepName"`
 	Project          *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRunProject `json:"project"`
 	HistoryLineCount *int                                                         `json:"historyLineCount"`
@@ -2287,9 +2286,6 @@ func (v *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun) GetDisplayName() 
 func (v *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun) GetDescription() *string {
 	return v.Description
 }
-
-// GetConfig returns UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun.Config, and is useful for accessing the field via an interface.
-func (v *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun) GetConfig() *string { return v.Config }
 
 // GetSweepName returns UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun.SweepName, and is useful for accessing the field via an interface.
 func (v *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun) GetSweepName() *string {
@@ -5088,7 +5084,6 @@ mutation UpsertBucket ($id: String, $name: String, $project: String, $entity: St
 			name
 			displayName
 			description
-			config
 			sweepName
 			project {
 				id

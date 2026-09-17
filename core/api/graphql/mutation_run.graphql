@@ -45,7 +45,6 @@ mutation UpsertBucket(
                     name
                     displayName
                     description
-                    config
                     sweepName
                     project {
                         id
