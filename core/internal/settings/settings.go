@@ -120,13 +120,6 @@ func (s *Settings) GetEntity() string {
 	return s.Proto.Entity.GetValue()
 }
 
-// The name of the run.
-func (s *Settings) GetDisplayName() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.Proto.RunName.GetValue()
-}
-
 // The timeout for finishing a run after receiving an exit record.
 //
 // If not positive, there is no timeout.
@@ -679,13 +672,6 @@ func (s *Settings) UpdateProject(project string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.Proto.Project = &wrapperspb.StringValue{Value: project}
-}
-
-// Updates the run's display name.
-func (s *Settings) UpdateDisplayName(displayName string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.Proto.RunName = &wrapperspb.StringValue{Value: displayName}
 }
 
 // Updates the run ID.
