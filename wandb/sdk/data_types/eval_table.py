@@ -5,13 +5,13 @@ from typing import TYPE_CHECKING, Any
 from typing_extensions import override
 
 import wandb
-import wandb.integration.weave.media_adapters as media_adapters
 from wandb.errors import UsageError
 from wandb.sdk.data_types._eval_table_writer import (
     EvalTableWriteInput,
     EvalTableWriter,
     EvalTableWriteResult,
     EvalTableWriteRow,
+    UnsupportedMediaMode,
 )
 from wandb.sdk.data_types._eval_table_writer_factory import (
     EvalTableBackend,
@@ -40,7 +40,8 @@ class EvalTable(Table):
     supported.
     """
 
-    # SDK-side WBValue discriminator. Backend writers own the run-history `_type`.
+    # SDK-side WBValue discriminator, not to be confused by `_type` written to the run
+    # history entry.
     _log_type = "eval-table"
 
     def __init__(
@@ -58,7 +59,7 @@ class EvalTable(Table):
         output_columns: list[str] | None = None,
         score_columns: list[str] | None = None,
         backend: EvalTableBackend = "weave",
-        unsupported_media_mode: media_adapters.UnsupportedMediaMode = "stub",
+        unsupported_media_mode: UnsupportedMediaMode = "stub",
     ) -> None:
         """Initializes an EvalTable object.
 
@@ -189,7 +190,7 @@ class EvalTable(Table):
 
         <!-- lazydoc-ignore -->
         """
-        # TODO: Remove when weave adds support for offline mode
+        # TODO: Remove when we add support for offline mode
         if run.offline:
             raise UsageError(
                 "EvalTable does not support offline mode yet. "
@@ -206,9 +207,9 @@ class EvalTable(Table):
                 unsupported_media_mode=self._unsupported_media_mode,
             )
 
-        # Backend binding initializes run context while intentionally skipping
-        # the file-copy behavior in Table.bind_to_run().
-        writer.bind(run, str(key), step)
+        # Initialize writer with run context while intentionally
+        # skipping the file-copy behavior in Table.bind_to_run().
+        writer.bind_to_run(run, str(key), step)
         self._writer = writer
         self._run = run
         self._run_log_key = str(key)
@@ -242,8 +243,6 @@ class EvalTable(Table):
             return dict(self._immutable_write_result.marker)
 
         result = writer.write(self._prepare_write_input(self._run_log_key))
-        # Commit the immutable write before telemetry so a telemetry failure cannot
-        # cause the backend write to run again on a later serialization attempt.
         self._immutable_write_result = result
 
         with telemetry.context(run=run) as tel:
