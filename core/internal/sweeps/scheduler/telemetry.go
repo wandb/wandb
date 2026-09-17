@@ -29,7 +29,7 @@ const (
 // The detail is keyed "error", not "message": a log record's body is
 // already its message, and a second one is ambiguous to query.
 func (s *Scheduler) recordFatalError(phase loopPhase, detail string) {
-	s.params.Logger.RecordTelemetry(eventFatalError, map[string]string{
+	s.logger.RecordTelemetry(eventFatalError, map[string]string{
 		"phase": string(phase),
 		"error": detail,
 	})
@@ -37,7 +37,7 @@ func (s *Scheduler) recordFatalError(phase loopPhase, detail string) {
 
 // recordStepAbandoned counts a step dropped whole to be retried.
 func (s *Scheduler) recordStepAbandoned(phase loopPhase, err error) {
-	s.params.Logger.RecordTelemetry(eventStepAbandoned, map[string]string{
+	s.logger.RecordTelemetry(eventStepAbandoned, map[string]string{
 		"phase": string(phase),
 		"error": err.Error(),
 	})
@@ -46,7 +46,7 @@ func (s *Scheduler) recordStepAbandoned(phase loopPhase, err error) {
 // recordRunDiscarded counts a suggestion given up on by a loop that
 // keeps scheduling.
 func (s *Scheduler) recordRunDiscarded(cause, id string) {
-	s.params.Logger.RecordTelemetry(eventRunDiscarded, map[string]string{
+	s.logger.RecordTelemetry(eventRunDiscarded, map[string]string{
 		"cause": cause,
 		"id":    id,
 	})
