@@ -185,7 +185,7 @@ func (rh *RunHistory) SetString(path pathtree.TreePath, value string) {
 // SetFromRecord records one or more metrics specified in a history proto.
 //
 // It prefers the typed value and falls back to ValueJson, which is what an
-// older SDK wrote. The two forms carry the same value.
+// older SDK wrote.
 //
 // If the history item contains multiple metrics, such as if its ValueJson is
 // a JSON-encoded dictionary, then metrics are set on a best-effort basis,
