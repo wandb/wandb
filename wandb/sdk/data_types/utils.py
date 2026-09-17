@@ -33,21 +33,13 @@ if TYPE_CHECKING:  # pragma: no cover
     )
 
 
-def _contains_eval_table(value: Any) -> bool:
-    if isinstance(value, wandb.EvalTable):
-        return True
-    if isinstance(value, dict):
-        return any(_contains_eval_table(item) for item in value.values())
-    if isinstance(value, (list, tuple)):
-        return any(_contains_eval_table(item) for item in value)
-    return False
-
-
 def history_dict_to_json(
     run: LocalRun | None,
     payload: dict,
     step: int | None = None,
     ignore_copy_err: bool | None = None,
+    *,
+    _nested: bool = False,
 ) -> dict:
     # Converts a History row dict's elements so they're friendly for JSON serialization.
 
@@ -55,23 +47,25 @@ def history_dict_to_json(
         # We should be at the top level of the History row; assume this key is set.
         step = payload["_step"]
 
-    for value in payload.values():
-        if not isinstance(value, wandb.EvalTable) and _contains_eval_table(value):
-            raise UsageError(
-                "EvalTable values must be logged directly under a run.log() key; "
-                "nesting them inside dictionaries or sequences is not supported."
-            )
-
     # We use list here because we were still seeing cases of RuntimeError dict changed size
     for key in list(payload):
         val = payload[key]
         if isinstance(val, dict):
             payload[key] = history_dict_to_json(
-                run, val, step=step, ignore_copy_err=ignore_copy_err
+                run,
+                val,
+                step=step,
+                ignore_copy_err=ignore_copy_err,
+                _nested=True,
             )
         else:
             payload[key] = val_to_json(
-                run, key, val, namespace=step, ignore_copy_err=ignore_copy_err
+                run,
+                key,
+                val,
+                namespace=step,
+                ignore_copy_err=ignore_copy_err,
+                _is_direct_history_value=not _nested,
             )
 
     return payload
@@ -84,6 +78,8 @@ def val_to_json(
     val: ValToJsonType,
     namespace: str | int | None = None,
     ignore_copy_err: bool | None = None,
+    *,
+    _is_direct_history_value: bool = False,
 ) -> Any:
     # Converts a wandb datatype to its JSON representation.
     if namespace is None:
@@ -97,6 +93,16 @@ def val_to_json(
         # These are already JSON-serializable,
         # no need to do the expensive checks below.
         return converted
+
+    if (
+        isinstance(val, WBValue)
+        and val._log_type == "eval-table"
+        and not _is_direct_history_value
+    ):
+        raise UsageError(
+            "EvalTable values must be logged directly under a run.log() key; "
+            "nesting them inside dictionaries or sequences is not supported."
+        )
 
     typename = util.get_full_typename(val)
 
@@ -141,7 +147,11 @@ def val_to_json(
             #    "Mixed media types in the same list aren't supported")
             return [
                 val_to_json(
-                    run, key, v, namespace=namespace, ignore_copy_err=ignore_copy_err
+                    run,
+                    key,
+                    v,
+                    namespace=namespace,
+                    ignore_copy_err=ignore_copy_err,
                 )
                 for v in val
             ]

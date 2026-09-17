@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime
 import sys
 import types
+from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import ANY, MagicMock
 
@@ -12,7 +13,7 @@ import pytest
 import wandb
 import wandb.data_types as wandb_data_types
 from wandb.errors import UsageError
-from wandb.sdk.data_types import _eval_table_writer
+from wandb.sdk.data_types import _eval_table_writer_ces as ces_writer
 from wandb.sdk.data_types import eval_table as eval_table_module
 from wandb.sdk.data_types._dtypes import AnyType
 from wandb.sdk.data_types.utils import history_dict_to_json
@@ -59,7 +60,7 @@ def mock_eval_logger(monkeypatch):
         eval_imperative_module,
     )
     monkeypatch.setattr(
-        "wandb.sdk.data_types._eval_table_writer.weave_integration.init_weave",
+        "wandb.sdk.data_types._eval_table_writer_weave.weave_integration.init_weave",
         lambda entity, project: None,
     )
     return mock_evaluation_logger_cls
@@ -85,21 +86,20 @@ def mock_ces_client(monkeypatch):
         "CES_BASE_URL",
         "https://evaluations.example.test",
     )
+    client_module = types.ModuleType("coreweave_evaluations")
+    client_module.CoreWeaveEvaluations = MagicMock
+    monkeypatch.setitem(sys.modules, "coreweave_evaluations", client_module)
     monkeypatch.setattr(
-        "wandb.sdk.data_types._eval_table_writer."
+        "wandb.sdk.data_types._eval_table_writer_ces."
         "CESEvalTableWriter._resolve_scope_context",
-        lambda self: _eval_table_writer._CESScopeContext(
+        lambda self, bound: ces_writer._CESScopeContext(
             scope_ref="scope-ref",
             api_key=None,
             access_token="token",
         ),
     )
     monkeypatch.setattr(
-        "wandb.sdk.data_types._eval_table_writer._load_ces_client_type",
-        lambda: MagicMock,
-    )
-    monkeypatch.setattr(
-        "wandb.sdk.data_types._eval_table_writer.CESEvalTableWriter._create_client",
+        "wandb.sdk.data_types._eval_table_writer_ces.CESEvalTableWriter._create_client",
         lambda self, client_type, base_url, scope: client,
     )
     return client
@@ -127,7 +127,7 @@ def test_ces_eval_table_writes_columns_rows_and_version(
 ):
     debug = MagicMock()
     monkeypatch.setattr(
-        "wandb.sdk.data_types._eval_table_writer._logger.debug",
+        "wandb.sdk.data_types._eval_table_writer_ces._logger.debug",
         debug,
     )
     et = wandb.EvalTable(
@@ -277,9 +277,9 @@ def test_ces_eval_table_batches_rows_by_encoded_bytes(
         "output": {"answer": "yes"},
         "scores": {},
     }
-    single_row_body_size = len(_eval_table_writer._encode_json({"rows": [row]}))
+    single_row_body_size = len(ces_writer._encode_json({"rows": [row]}))
     monkeypatch.setattr(
-        _eval_table_writer,
+        ces_writer,
         "_TARGET_ROW_BATCH_BODY_BYTES",
         single_row_body_size - 1,
     )
@@ -310,12 +310,10 @@ def test_ces_eval_table_batch_size_counts_row_separators(
     expected_batch_sizes,
 ):
     row = {"input": {"value": "same"}, "output": None, "scores": {}}
-    row_size = len(_eval_table_writer._encode_json(row))
-    target_size = (
-        _eval_table_writer._ROW_BATCH_ENVELOPE_BYTES + 2 * row_size + separator_bytes
-    )
+    row_size = len(ces_writer._encode_json(row))
+    target_size = ces_writer._ROW_BATCH_ENVELOPE_BYTES + 2 * row_size + separator_bytes
     batches = list(
-        _eval_table_writer._iter_row_batches(
+        ces_writer._iter_row_batches(
             [row, row, row],
             max_body_bytes=16 << 20,
             target_body_bytes=target_size,
@@ -331,7 +329,7 @@ def test_ces_eval_table_batches_rows_by_count(
     run,
     monkeypatch,
 ):
-    monkeypatch.setattr(_eval_table_writer, "_MAX_ROWS_PER_BATCH", 2)
+    monkeypatch.setattr(ces_writer, "_MAX_ROWS_PER_BATCH", 2)
     et = wandb.EvalTable(
         columns=["value"],
         data=[[index] for index in range(5)],
@@ -364,8 +362,8 @@ def test_ces_eval_table_rejects_oversized_row_before_network(
         "output": {"value": value},
         "scores": {},
     }
-    body_size = len(_eval_table_writer._encode_json({"rows": [row]}))
-    monkeypatch.setattr(_eval_table_writer, "_MAX_REQUEST_BODY_BYTES", body_size)
+    body_size = len(ces_writer._encode_json({"rows": [row]}))
+    monkeypatch.setattr(ces_writer, "_MAX_REQUEST_BODY_BYTES", body_size)
     et = wandb.EvalTable(
         columns=["value"],
         data=[[value]],
@@ -384,7 +382,7 @@ def test_ces_eval_table_rejects_total_row_count_before_network(
     run,
     monkeypatch,
 ):
-    monkeypatch.setattr(_eval_table_writer, "_MAX_ROWS_PER_TABLE", 2)
+    monkeypatch.setattr(ces_writer, "_MAX_ROWS_PER_TABLE", 2)
     et = wandb.EvalTable(
         columns=["value"],
         data=[[1], [2], [3]],
@@ -403,7 +401,7 @@ def test_ces_eval_table_does_not_cut_version_after_batch_failure(
     run,
     monkeypatch,
 ):
-    monkeypatch.setattr(_eval_table_writer, "_MAX_ROWS_PER_BATCH", 1)
+    monkeypatch.setattr(ces_writer, "_MAX_ROWS_PER_BATCH", 1)
     mock_ces_client.eval_tables.add_rows.side_effect = [
         None,
         RuntimeError("batch failed"),
@@ -482,21 +480,13 @@ def test_ces_eval_table_rejects_invalid_columns_before_network(
     data,
     message,
 ):
-    if message in {"non-finite", "only primitive values"}:
-        with pytest.raises(UsageError, match=message):
-            wandb.EvalTable(
-                columns=["value"],
-                data=data,
-                backend="ces",
-            )
-    else:
-        et = wandb.EvalTable(
-            columns=["value"],
-            data=data,
-            backend="ces",
-        )
-        with pytest.raises(UsageError, match=message):
-            run.log({"invalid_eval": et})
+    et = wandb.EvalTable(
+        columns=["value"],
+        data=data,
+        backend="ces",
+    )
+    with pytest.raises(UsageError, match=message):
+        run.log({"invalid_eval": et})
 
     mock_ces_client.eval_tables.create.assert_not_called()
 
@@ -570,13 +560,15 @@ def test_ces_eval_table_rejects_invalid_table_name_length_before_network(
     mock_ces_client.eval_tables.create.assert_not_called()
 
 
-def test_ces_error_uses_original_integer_column(mock_ces_client):
+def test_ces_error_uses_original_integer_column(mock_ces_client, run):
+    et = wandb.EvalTable(
+        columns=[3],
+        data=[[float("inf")]],
+        backend="ces",
+    )
+
     with pytest.raises(UsageError, match="column 3") as exc_info:
-        wandb.EvalTable(
-            columns=[3],
-            data=[[float("inf")]],
-            backend="ces",
-        )
+        run.log({"invalid_eval": et})
 
     assert "column '3'" not in str(exc_info.value)
     mock_ces_client.eval_tables.create.assert_not_called()
@@ -600,50 +592,50 @@ def test_ces_eval_table_requires_client_before_scope_lookup(monkeypatch, run):
     et = wandb.EvalTable(columns=["value"], data=[[1]], backend="ces")
     et.bind_to_run(run, "eval", 0)
     writer = et._writer
-    assert isinstance(writer, _eval_table_writer.CESEvalTableWriter)
+    assert isinstance(writer, ces_writer.CESEvalTableWriter)
     execute_graphql = MagicMock()
-    writer._service_api = SimpleNamespace(
-        api_key="secret",
-        access_token=MagicMock(),
-        execute_graphql=execute_graphql,
+    writer._bound = replace(
+        writer._require_bound(),
+        service_api=SimpleNamespace(
+            api_key="secret",
+            access_token=MagicMock(),
+            execute_graphql=execute_graphql,
+        ),
     )
+    monkeypatch.setitem(sys.modules, "coreweave_evaluations", None)
 
-    def missing_client():
-        raise UsageError("missing generated client")
-
-    monkeypatch.setattr(_eval_table_writer, "_load_ces_client_type", missing_client)
-
-    with pytest.raises(UsageError, match="missing generated client"):
+    with pytest.raises(UsageError, match="coreweave_evaluations"):
         et.to_json(run)
 
     execute_graphql.assert_not_called()
 
 
 def test_ces_eval_table_resolves_project_scope_with_api_key(run):
-    writer = _eval_table_writer.CESEvalTableWriter()
+    writer = ces_writer.CESEvalTableWriter()
     writer.bind(run, "eval", 0)
-    writer._service_api = SimpleNamespace(
+    service_api = SimpleNamespace(
         api_key="secret",
         access_token=MagicMock(),
         execute_graphql=MagicMock(
             return_value={"project": {"internalId": "opaque-project-id"}}
         ),
     )
+    writer._bound = replace(writer._require_bound(), service_api=service_api)
 
-    scope = writer._resolve_scope_context()
+    scope = writer._resolve_scope_context(writer._require_bound())
 
     assert scope.scope_ref == "opaque-project-id"
     assert scope.api_key == "secret"
     assert scope.access_token is None
-    writer._service_api.execute_graphql.assert_called_once_with(
-        _eval_table_writer._PROJECT_SCOPE_QUERY,
+    service_api.execute_graphql.assert_called_once_with(
+        ces_writer._PROJECT_SCOPE_QUERY,
         variables={"entity": "e", "project": "p"},
     )
-    writer._service_api.access_token.assert_not_called()
+    service_api.access_token.assert_not_called()
 
 
 def test_ces_scope_context_repr_redacts_credentials():
-    scope = _eval_table_writer._CESScopeContext(
+    scope = ces_writer._CESScopeContext(
         scope_ref="scope-ref",
         api_key="api-secret",
         access_token="token-secret",
@@ -653,17 +645,20 @@ def test_ces_scope_context_repr_redacts_credentials():
 
 
 def test_ces_eval_table_uses_federated_access_token(run):
-    writer = _eval_table_writer.CESEvalTableWriter()
+    writer = ces_writer.CESEvalTableWriter()
     writer.bind(run, "eval", 0)
-    writer._service_api = SimpleNamespace(
-        api_key=None,
-        access_token=MagicMock(return_value="access-token"),
-        execute_graphql=MagicMock(
-            return_value={"project": {"internalId": "opaque-project-id"}}
+    writer._bound = replace(
+        writer._require_bound(),
+        service_api=SimpleNamespace(
+            api_key=None,
+            access_token=MagicMock(return_value="access-token"),
+            execute_graphql=MagicMock(
+                return_value={"project": {"internalId": "opaque-project-id"}}
+            ),
         ),
     )
 
-    scope = writer._resolve_scope_context()
+    scope = writer._resolve_scope_context(writer._require_bound())
 
     assert scope.api_key is None
     assert scope.access_token == "access-token"
@@ -674,7 +669,7 @@ def test_ces_eval_table_retries_with_stable_idempotency_keys(
     run,
     monkeypatch,
 ):
-    monkeypatch.setattr(_eval_table_writer, "_MAX_ROWS_PER_BATCH", 1)
+    monkeypatch.setattr(ces_writer, "_MAX_ROWS_PER_BATCH", 1)
     version = SimpleNamespace(
         dataset_version_id="dataset-version-1",
         evaluation_version_id="evaluation-version-1",
@@ -777,6 +772,18 @@ def test_nested_scalar_history_values_remain_supported(run):
     }
 
 
+def test_scalar_sequence_history_does_not_get_fully_pre_walked(run):
+    class FirstScalarThenFail(list):
+        def __iter__(self):
+            yield 1
+            raise AssertionError("history conversion walked the whole sequence")
+
+    values = FirstScalarThenFail([1, 2])
+    payload = {"values": values, "_step": 7}
+
+    assert history_dict_to_json(run, payload)["values"] is values
+
+
 def test_ces_eval_table_rejects_mixed_type_mode():
     with pytest.raises(UsageError, match="allow_mixed_types=False"):
         wandb.EvalTable(
@@ -792,7 +799,7 @@ def test_eval_table_offline_run_fails_fast(monkeypatch, mock_eval_logger, mock_r
     et = wandb.EvalTable(columns=["input", "output"], data=[["x", "y"]])
     init_weave_for_run = MagicMock()
     monkeypatch.setattr(
-        "wandb.sdk.data_types._eval_table_writer.weave_integration.init_weave",
+        "wandb.sdk.data_types._eval_table_writer_weave.weave_integration.init_weave",
         init_weave_for_run,
     )
 
@@ -873,7 +880,7 @@ def test_eval_table_imports_evaluation_logger_after_weave_init(monkeypatch, run)
         order.append("init")
 
     monkeypatch.setattr(
-        "wandb.sdk.data_types._eval_table_writer.weave_integration.init_weave",
+        "wandb.sdk.data_types._eval_table_writer_weave.weave_integration.init_weave",
         init_weave,
     )
 
@@ -888,7 +895,7 @@ def test_eval_table_bind_initializes_weave_for_run(monkeypatch, mock_run):
     _install_fake_weave(monkeypatch)
     init_weave = MagicMock()
     monkeypatch.setattr(
-        "wandb.sdk.data_types._eval_table_writer.weave_integration.init_weave",
+        "wandb.sdk.data_types._eval_table_writer_weave.weave_integration.init_weave",
         init_weave,
     )
     run = mock_run(
@@ -912,7 +919,7 @@ def test_eval_table_rejects_rebind_to_different_project(monkeypatch, mock_run):
             )
 
     monkeypatch.setattr(
-        "wandb.sdk.data_types._eval_table_writer.weave_integration.init_weave",
+        "wandb.sdk.data_types._eval_table_writer_weave.weave_integration.init_weave",
         init_weave,
     )
     run1 = mock_run(settings={"entity": "e", "project": "p1", "mode": "online"})
@@ -941,7 +948,7 @@ def test_eval_table_version_mismatch_error_includes_actual_version(monkeypatch):
 def test_standard_immutable_log(mock_eval_logger, mock_wandb_log, run, monkeypatch):
     init_weave = MagicMock()
     monkeypatch.setattr(
-        "wandb.sdk.data_types._eval_table_writer.weave_integration.init_weave",
+        "wandb.sdk.data_types._eval_table_writer_weave.weave_integration.init_weave",
         init_weave,
     )
 
@@ -1055,7 +1062,7 @@ def test_mutation_after_failed_log_does_not_warn_as_already_logged(
         raise ImportError("weave is not installed")
 
     monkeypatch.setattr(
-        "wandb.sdk.data_types._eval_table_writer.weave_integration.init_weave",
+        "wandb.sdk.data_types._eval_table_writer_weave.weave_integration.init_weave",
         fail_init_weave,
     )
 
