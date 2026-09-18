@@ -385,6 +385,58 @@ class TestWandbOptimizerAcceptance(OptimizerAcceptanceTests):
         assert again.config["param1"].value == first_value
 
 
+class TestRunSchedulerInit:
+    def test_server_response_error_becomes_wandb_error(self, monkeypatch):
+        """A raw ServerResponseError must not escape `run_scheduler`.
+
+        The CLI only knows to report `wandb.Error` failures cleanly, so
+        errors from wandb-core's init round trip must be wrapped.
+        """
+        from unittest.mock import MagicMock
+
+        import wandb
+        from wandb.sdk.mailbox.mailbox_handle import ServerResponseError
+        from wandb.sdk.sweeps.scheduler import client
+
+        monkeypatch.setattr(
+            client.wbauth, "authenticate_session", lambda **kwargs: True
+        )
+
+        singleton = MagicMock()
+        singleton.asyncer.run.side_effect = ServerResponseError("sweep not found")
+        monkeypatch.setattr(client.wandb_setup, "singleton", lambda: singleton)
+
+        with pytest.raises(wandb.Error, match="failed to initialize"):
+            client.run_scheduler(
+                entity="e",
+                project="p",
+                sweep_id="s",
+                make_optimizer=lambda sweep: None,
+                batch_size=1,
+                poll_interval=10,
+            )
+
+
+class TestSchedulerHostOffMainThread:
+    def test_sigint_handler_is_optional(self) -> None:
+        """The host must work off the main thread, where signal cannot.
+
+        Only the main thread may install a signal handler, and
+        `run_scheduler` is an ordinary function a caller may run in a
+        worker.
+        """
+        import concurrent.futures
+
+        from wandb.sdk.sweeps.scheduler.client import _install_sigint_handler
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            handler = pool.submit(
+                _install_sigint_handler, None, None, "scheduler-0"
+            ).result()
+
+        assert handler is None
+
+
 def _make_sequential_sampler(optuna_module: Any) -> Any:
     """A deterministic sampler cycling a categorical param's choices in order.
 
