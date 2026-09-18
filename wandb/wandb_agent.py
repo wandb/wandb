@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import enum
 import logging
+import math
 import multiprocessing
 import os
 import platform
@@ -269,6 +270,15 @@ class AgentProcess:
         return self._proc.terminate()
 
 
+def _exited_non_zero(poll_result: int | bool | None) -> bool:
+    """True if a finished run reported a non-zero exit code."""
+    return (
+        not isinstance(poll_result, bool)
+        and isinstance(poll_result, int)
+        and poll_result > 0
+    )
+
+
 class Agent:
     POLL_INTERVAL = 5
     REPORT_INTERVAL = 0
@@ -294,6 +304,7 @@ class Agent:
         count=None,
         forward_signals=False,
         term_timeout: int | None = None,
+        max_consecutive_failed_runs: int | None = None,
     ):
         self._api = api
         self._queue = queue
@@ -312,10 +323,16 @@ class Agent:
         self._kill_delay = wandb.env.get_agent_kill_delay(self.KILL_DELAY)
         self._finished = 0
         self._failed = 0
+        self._consecutive_failed_runs = 0
         self._count = count
         self._sweep_command = []
         self._max_initial_failures = wandb.env.get_agent_max_initial_failures(
             self.MAX_INITIAL_FAILURES
+        )
+        self._max_consecutive_failed_runs = (
+            math.inf
+            if max_consecutive_failed_runs is None
+            else max_consecutive_failed_runs
         )
         self._forward_signals = forward_signals
         self._term_timeout = term_timeout
@@ -380,12 +397,30 @@ class Agent:
                     if poll_result is None:
                         run_status[run_id] = True
                         continue
-                    elif (
-                        not isinstance(poll_result, bool)
-                        and isinstance(poll_result, int)
-                        and poll_result > 0
-                    ):
+
+                    exited_non_zero = _exited_non_zero(poll_result)
+                    if exited_non_zero:
                         self._failed += 1
+
+                    if exited_non_zero:
+                        self._consecutive_failed_runs += 1
+                    else:
+                        self._consecutive_failed_runs = 0
+
+                    if (
+                        self._consecutive_failed_runs
+                        >= self._max_consecutive_failed_runs
+                    ):
+                        msg = (
+                            f"Detected {self._consecutive_failed_runs} consecutive "
+                            "failed runs, shutting down."
+                        )
+                        logger.error(msg)
+                        wandb.termerror(msg)
+                        self._running = False
+                        break
+
+                    if exited_non_zero:
                         # TODO: raise an exception
                         if self.is_flapping():
                             logger.error(
@@ -694,6 +729,7 @@ class Agent:
     def _command_exit(self, command):
         logger.info("Received exit command. Killing runs and quitting.")
         for _, proc in self._run_processes.items():
+            proc.last_sigterm_time = time.monotonic()
             try:
                 proc.kill()
             except OSError:
@@ -711,6 +747,7 @@ def run_agent(
     count=None,
     forward_signals=False,
     term_timeout: int | None = None,
+    max_consecutive_failed_runs: int | None = None,
 ):
     from wandb.sdk.launch.sweeps import utils as sweep_utils
 
@@ -754,6 +791,7 @@ def run_agent(
             count=count,
             forward_signals=forward_signals,
             term_timeout=term_timeout,
+            max_consecutive_failed_runs=max_consecutive_failed_runs,
         )
         agent.run()
     finally:
@@ -769,6 +807,7 @@ def agent(
     count: int | None = None,
     forward_signals: bool = False,
     term_timeout: int | None = None,
+    max_consecutive_failed_runs: int | None = None,
 ) -> None:
     """Start one or more sweep agents.
 
@@ -792,9 +831,18 @@ def agent(
         count: The number of sweep config trials to try.
         forward_signals: Whether to forward signals the agent receives
             to the child processes. Only supported by CLI agent.
-
+        max_consecutive_failed_runs: Shut the agent down once this many runs
+            have failed back to back.
     """
     from wandb.agents.pyagent import pyagent
+
+    if max_consecutive_failed_runs is not None:
+        if isinstance(max_consecutive_failed_runs, bool) or not isinstance(
+            max_consecutive_failed_runs, int
+        ):
+            raise TypeError("max_consecutive_failed_runs must be an integer or None")
+        if max_consecutive_failed_runs < 1:
+            raise ValueError("max_consecutive_failed_runs must be at least 1")
 
     global _INSTANCES
     _INSTANCES += 1
@@ -802,7 +850,14 @@ def agent(
         # make sure we are logged in
         wandb_login._login(_silent=True)
         if function:
-            return pyagent(sweep_id, function, entity, project, count)
+            return pyagent(
+                sweep_id,
+                function,
+                entity,
+                project,
+                count,
+                max_consecutive_failed_runs=max_consecutive_failed_runs,
+            )
         return run_agent(
             sweep_id,
             function=function,
@@ -812,6 +867,7 @@ def agent(
             count=count,
             forward_signals=forward_signals,
             term_timeout=term_timeout,
+            max_consecutive_failed_runs=max_consecutive_failed_runs,
         )
     finally:
         _INSTANCES -= 1
