@@ -574,10 +574,10 @@ func TestWarmPageErrorEndsTheScheduler(t *testing.T) {
 	// else has already outlived the HTTP client's retries. An empty
 	// warm-start task would tell the optimizer this page held no prior
 	// runs, so it must never stand in for one of these.
+	//
+	// Which statuses are fatal is TestClassify's contract.
 	for name, err := range map[string]error{
 		"server error":    &graphql.HTTPError{StatusCode: 500},
-		"forbidden":       &graphql.HTTPError{StatusCode: 403},
-		"bad request":     &graphql.HTTPError{StatusCode: 400},
 		"retries used up": errors.New("giving up after 20 attempt(s)"),
 	} {
 		t.Run(name, func(t *testing.T) {

@@ -19,9 +19,6 @@ import (
 
 // telemetryFixture is a loopFixture whose logger exports to a test OTLP
 // collector.
-
-// telemetryFixture is a loopFixture whose logger exports to a test OTLP
-// collector.
 type telemetryFixture struct {
 	*loopFixture
 	proxy *analyticstest.OpenTelemetryProxyTest
