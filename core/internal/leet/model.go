@@ -64,9 +64,6 @@ type Model struct {
 	// schemes, sidebar visibility, etc.).
 	config *ConfigManager
 
-	// filters are the filters remembered for the wandb directory.
-	filters *dirFilters
-
 	logger *observability.CoreLogger
 }
 
@@ -92,8 +89,8 @@ type ModelParams struct {
 //   - RunFile is empty + StartupModeSingleRunLatest → resolve the "latest-run"
 //     symlink and start in single-run view.
 //   - RunFile is empty + StartupModeWorkspaceLatest (default) → start in
-//     workspace view; the workspace will auto-select the latest run once
-//     the directory poll completes.
+//     workspace view; once the directory poll completes, the workspace
+//     selects the runs selected last time and the latest run if it is new.
 func NewModel(params ModelParams) *Model {
 	if params.Config == nil {
 		params.Config = NewConfigManager(leetConfigPath(), params.Logger)
@@ -114,14 +111,12 @@ func NewModel(params ModelParams) *Model {
 		workspace: NewWorkspace(params.WandbDir, params.Config, params.Logger),
 		help:      NewHelp(),
 		config:    params.Config,
-		filters:   loadDirFilters(params.WandbDir, params.Logger),
 		logger:    params.Logger,
 	}
-	m.workspace.attachFilters(m.filters)
 
 	if params.RunParams != nil {
 		m.run = NewRun(params.RunParams, params.Config, params.Logger)
-		m.run.attachFilters(m.filters)
+		m.run.attachFilters(m.workspace.dirState)
 		m.mode = viewModeRun
 	}
 
@@ -438,7 +433,7 @@ func (m *Model) enterRunView() tea.Cmd {
 	}
 
 	m.run = NewRun(&RunParams{RunFile: wandbFile}, m.config, m.logger)
-	m.run.attachFilters(m.filters)
+	m.run.attachFilters(m.workspace.dirState)
 	m.mode = viewModeRun
 
 	// Share the workspace's media store so data persists across transitions.

@@ -16,6 +16,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Added
 
+- LEET remembers which runs were selected and pinned in each wandb directory and selects them again the next time you open it, skipping runs that have since been deleted. A run that started since the last session is selected as well, so a fresh `wandb leet` still shows the run you just launched (@dmitryduev in https://github.com/wandb/wandb/pull/12887)
 - It is now possible to use resume="must" for offline runs. Syncing will fail if there's no run to resume. (@geoffhardy in https://github.com/wandb/wandb/pull/12110)
 
 
