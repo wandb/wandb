@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -140,6 +140,57 @@ class TestCreateDefaultClient:
     def test_metric_without_a_name_is_rejected(self) -> None:
         with pytest.raises(ValueError, match="no metric name"):
             create_default_client({"metric": {"goal": "minimize"}, "parameters": {}})
+
+
+class TestBuildAxSchedulerOptimizer:
+    def test_builds_a_default_client(self) -> None:
+        from wandb.cli import cli
+
+        config = {
+            "metric": {"name": "loss", "goal": "minimize"},
+            "parameters": {"x": {"distribution": "uniform", "min": 0.0, "max": 1.0}},
+            "scheduler": {"engine": "ax"},
+        }
+        sweep = make_scheduler_grid_sweep(config=config)
+
+        optimizer = cli._build_ax_scheduler_optimizer(sweep, config["scheduler"])
+
+        assert isinstance(optimizer, AxOptimizer)
+        assert optimizer.should_terminate_sweep() is False
+
+    def test_optimizer_config_returns_client(
+        self, monkeypatch, client: Client, sweep: SweepInfo
+    ) -> None:
+        from wandb.cli import cli
+
+        configure = MagicMock(return_value=client)
+        monkeypatch.setattr(cli, "_load_source_object", lambda *_: configure)
+
+        optimizer = cli._build_ax_scheduler_optimizer(
+            sweep,
+            {"engine": "ax", "source": "optimizer.py", "optimizer": "configure"},
+        )
+
+        assert optimizer.client is client
+        assert optimizer.should_terminate_sweep() is False
+
+    def test_optimizer_config_returns_client_and_terminator(
+        self, monkeypatch, client: Client, sweep: SweepInfo
+    ) -> None:
+        from wandb.cli import cli
+
+        terminator = MagicMock(return_value=True)
+        configure = MagicMock(return_value=(client, terminator))
+        monkeypatch.setattr(cli, "_load_source_object", lambda *_: configure)
+
+        optimizer = cli._build_ax_scheduler_optimizer(
+            sweep,
+            {"engine": "ax", "source": "optimizer.py", "optimizer": "configure"},
+        )
+
+        assert optimizer.client is client
+        assert optimizer.should_terminate_sweep() is True
+        terminator.assert_called_once_with(client)
 
 
 class TestUnparseableMetricName:
