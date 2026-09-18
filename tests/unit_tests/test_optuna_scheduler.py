@@ -137,61 +137,52 @@ class TestQLogUniformValues:
 
 
 class TestCreateStudyFromSweepConfig:
-    def test_creates_single_objective_study_from_metric(self) -> None:
-        study = create_study_from_sweep_config(
-            {"metric": {"name": "loss", "goal": "maximize"}}
-        )
-
-        assert study.direction == optuna.study.StudyDirection.MAXIMIZE
-
-    def test_creates_multi_objective_study_from_metrics(self) -> None:
-        study = create_study_from_sweep_config(
-            {
-                "metrics": [
-                    {"name": "loss", "goal": "minimize"},
-                    {"name": "accuracy", "goal": "maximize"},
-                ]
-            }
-        )
-
-        assert [d.name.lower() for d in study.directions] == ["minimize", "maximize"]
-
-    def test_hyperband_pruner_maps_max_iter_s_and_eta(self) -> None:
-        study = create_study_from_sweep_config(
-            {
-                "metric": {"name": "loss"},
-                "early_terminate": {
-                    "type": "hyperband",
-                    "max_iter": 27,
-                    "s": 2,
-                    "eta": 3,
+    @pytest.mark.parametrize(
+        ("objective", "directions"),
+        [
+            ({"metric": {"name": "loss", "goal": "maximize"}}, ["maximize"]),
+            (
+                {
+                    "metrics": [
+                        {"name": "loss", "goal": "minimize"},
+                        {"name": "accuracy", "goal": "maximize"},
+                    ]
                 },
-            }
+                ["minimize", "maximize"],
+            ),
+        ],
+        ids=["metric", "metrics"],
+    )
+    def test_creates_a_direction_per_declared_objective(
+        self, objective: dict[str, Any], directions: list[str]
+    ) -> None:
+        study = create_study_from_sweep_config(objective)
+
+        assert [d.name.lower() for d in study.directions] == directions
+
+    @pytest.mark.parametrize(
+        ("early_terminate", "min_resource", "max_resource"),
+        [
+            ({"type": "hyperband", "max_iter": 27, "s": 2, "eta": 3}, 3, 27),
+            ({"type": "hyperband", "min_iter": 3, "eta": 3}, 3, "auto"),
+        ],
+        ids=["max_iter_s_and_eta", "min_iter"],
+    )
+    def test_hyperband_pruner_maps_the_early_terminate_keys(
+        self,
+        early_terminate: dict[str, Any],
+        min_resource: int,
+        max_resource: int | str,
+    ) -> None:
+        study = create_study_from_sweep_config(
+            {"metric": {"name": "loss"}, "early_terminate": early_terminate}
         )
 
         pruner = study.pruner
         assert isinstance(pruner, optuna.pruners.HyperbandPruner)
-        assert pruner._min_resource == 3
-        assert pruner._max_resource == 27
-        assert pruner._reduction_factor == 3
-
-    def test_hyperband_pruner_maps_min_iter(self) -> None:
-        study = create_study_from_sweep_config(
-            {
-                "metric": {"name": "loss"},
-                "early_terminate": {
-                    "type": "hyperband",
-                    "min_iter": 3,
-                    "eta": 3,
-                },
-            }
-        )
-
-        pruner = study.pruner
-        assert isinstance(pruner, optuna.pruners.HyperbandPruner)
-        assert pruner._min_resource == 3
-        assert pruner._max_resource == "auto"
-        assert pruner._reduction_factor == 3
+        assert pruner._min_resource == min_resource
+        assert pruner._max_resource == max_resource
+        assert pruner._reduction_factor == early_terminate["eta"]
 
     def test_no_early_terminate_uses_nop_pruner(self) -> None:
         study = create_study_from_sweep_config({"metric": {"name": "loss"}})
@@ -233,22 +224,17 @@ class TestGridExhaustion:
             ),
         )
 
-    def test_tell_on_the_final_grid_point_records_the_trial(self, optimizer) -> None:
+    def test_the_spent_grid_records_its_trials_then_asks_for_nothing(
+        self, optimizer
+    ) -> None:
         """The sampler's stop request must not fail the run's tell."""
-        suggestions = optimizer.ask_n_runs(2)
-
-        for suggestion in suggestions:
+        for suggestion in optimizer.ask_n_runs(2):
             self.finish(optimizer, suggestion)
 
         trials = optimizer.study.get_trials(deepcopy=False)
         assert [trial.state for trial in trials] == [
             optuna.trial.TrialState.COMPLETE
         ] * 2
-
-    def test_ask_returns_nothing_once_the_grid_is_spent(self, optimizer) -> None:
-        for suggestion in optimizer.ask_n_runs(2):
-            self.finish(optimizer, suggestion)
-
         assert optimizer.ask_n_runs(2) == []
 
     def test_ask_still_suggests_while_the_grid_is_in_flight(self, optimizer) -> None:
@@ -322,26 +308,33 @@ class TestMultiObjective:
             history_metrics=[{"loss": 2.0, "accuracy": 0.5, "_step": 1}],
         )
 
-    def test_tell_run_records_every_objective(self, optimizer) -> None:
+    @pytest.mark.parametrize(
+        ("summary", "state", "values"),
+        [
+            (
+                {"loss": 1.5, "accuracy": 0.75},
+                optuna.trial.TrialState.COMPLETE,
+                [1.5, 0.75],
+            ),
+            ({"loss": 1.5}, optuna.trial.TrialState.FAIL, None),
+        ],
+        ids=["every_objective", "missing_an_objective"],
+    )
+    def test_tell_run_records_a_trial_only_for_every_objective(
+        self,
+        optimizer,
+        summary: dict[str, Any],
+        state: optuna.trial.TrialState,
+        values: list[float] | None,
+    ) -> None:
         suggestion = next(iter(optimizer.ask_n_runs(1)))
 
-        optimizer.tell_run(
-            suggestion.run_id,
-            self.make_run(suggestion, {"loss": 1.5, "accuracy": 0.75}),
-        )
+        optimizer.tell_run(suggestion.run_id, self.make_run(suggestion, summary))
 
         trials = optimizer.study.get_trials(deepcopy=False)
         assert len(trials) == 1
-        assert trials[0].state == optuna.trial.TrialState.COMPLETE
-        assert trials[0].values == [1.5, 0.75]
-
-    def test_tell_run_fails_a_run_missing_an_objective(self, optimizer) -> None:
-        suggestion = next(iter(optimizer.ask_n_runs(1)))
-
-        optimizer.tell_run(suggestion.run_id, self.make_run(suggestion, {"loss": 1.5}))
-
-        trials = optimizer.study.get_trials(deepcopy=False)
-        assert trials[0].state == optuna.trial.TrialState.FAIL
+        assert trials[0].state == state
+        assert trials[0].values == values
 
     def test_prune_run_is_never_pruned(self, optimizer) -> None:
         """optuna's pruners rank one value, so they cannot judge these."""
