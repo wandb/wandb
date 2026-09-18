@@ -43,7 +43,7 @@ The Bun-style differential harness (oracle frames diffed cell by cell) covers th
 | wheel and right-drag on charts | `on_scroll_wheel` on the cell; the chart applies the pending zoom on its next paint, when it knows its plot bounds |
 | `lipgloss` styles | `Styled` builder methods; colors in `theme.rs` |
 | ntcharts braille canvas | `canvas(prepaint, paint)` with `PathBuilder::stroke` and `window.paint_path` |
-| `AnimatedValue` | not ported yet (`Animation` in gpui when needed) |
+| `AnimatedValue` (150 ms ease-out cubic) | `anim::Animated` scaling each pane's size in `geometry`; `request_animation_frame` while any pane animates |
 
 ## Conventions
 
