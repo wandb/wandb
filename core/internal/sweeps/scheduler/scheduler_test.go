@@ -317,20 +317,43 @@ func TestDeclinedAskAsksAgain(t *testing.T) {
 	assert.EqualValues(t, 1, second.GetGeneration().AskUpTo)
 }
 
-func TestTerminateFinishesSweep(t *testing.T) {
-	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
-	fixture.warmTo(t)
-	fixture.stubIdlePoll("RUNNING")
-	fixture.step(t, warmResult(nil))
+// Both ways the optimizer ends a sweep mark it FINISHED and report why.
+// Exhaustion with runs in flight waits: TestExhaustedSearchSpaceWaitsForRunsInFlight.
+func TestOptimizerFinishesTheSweep(t *testing.T) {
+	for name, ended := range map[string]struct {
+		result  *spb.SweepSchedulerClientGenerationResult
+		message string
+	}{
+		"the optimizer terminates the sweep": {
+			result:  &spb.SweepSchedulerClientGenerationResult{Terminate: true},
+			message: "the optimizer ended the sweep",
+		},
 
-	fixture.stubFinishSweep()
-	done := fixture.step(t, generationResult(
-		&spb.SweepSchedulerClientGenerationResult{Terminate: true}))
+		"the search space is exhausted": {
+			result: &spb.SweepSchedulerClientGenerationResult{
+				AskOutcome: spb.SweepSchedulerClientGenerationResult_ASK_OUTCOME_EXHAUSTED,
+			},
+			message: "the search space is exhausted",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			fixture := newLoopFixture(t, scheduler.SchedulerParams{})
+			fixture.warmTo(t)
+			fixture.stubIdlePoll("RUNNING")
+			fixture.step(t, warmResult(nil))
 
-	require.NotNil(t, done.GetDone())
-	assert.Equal(t,
-		spb.SweepSchedulerServerDoneTask_REASON_SWEEP_FINISHED,
-		done.GetDone().Reason)
+			fixture.stubFinishSweep()
+			done := fixture.step(t, generationResult(ended.result))
+
+			require.NotNil(t, done.GetDone())
+			assert.Equal(t,
+				spb.SweepSchedulerServerDoneTask_REASON_SWEEP_FINISHED,
+				done.GetDone().Reason)
+			assert.Contains(t, done.GetDone().Message, ended.message)
+			// An unused finishSweep stub would leave it schedulable.
+			assert.True(t, fixture.client.AllStubsUsed())
+		})
+	}
 }
 
 // A broken optimizer is the client's problem, not the sweep's: the
