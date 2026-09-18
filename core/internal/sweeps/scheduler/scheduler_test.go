@@ -391,6 +391,174 @@ func TestTellErrorPopsRunAndContinues(t *testing.T) {
 	assertUnimplemented(t, task)
 }
 
+// factoryFixture hands the session factory a SweepAPI over a mock
+// backend, so a session starts without a real client.
+type factoryFixture struct {
+	client                *gqlmock.MockClient
+	localSchedulerEnabled bool
+}
+
+func newFactoryFixture() *factoryFixture {
+	return &factoryFixture{
+		client:                gqlmock.NewMockClient(),
+		localSchedulerEnabled: true,
+	}
+}
+
+// stubSweep answers the sweep fetch with a sweep carrying configYAML.
+func (f *factoryFixture) stubSweep(configYAML string) {
+	f.client.StubMatchOnce(
+		gqlmock.WithOpName("SweepConfig"),
+		encodeJSON(map[string]any{
+			"project": map[string]any{
+				"sweep": map[string]any{
+					"id":                "sweep-node-id",
+					"state":             "RUNNING",
+					"config":            configYAML,
+					"displayName":       "loss-sweep",
+					"controllerRunName": "sweep-controller-run",
+				},
+			},
+		}))
+}
+
+// stubMissingSweep answers the sweep fetch as the backend does for a
+// sweep that does not exist.
+func (f *factoryFixture) stubMissingSweep() {
+	f.client.StubMatchOnce(
+		gqlmock.WithOpName("SweepConfig"),
+		encodeJSON(map[string]any{"project": nil}))
+}
+
+// startSession runs the factory over a SweepAPI on the mock backend,
+// as the session broker does with the one it opens per sweep.
+func (f *factoryFixture) startSession(t *testing.T) (
+	scheduler.TaskResolver,
+	*spb.SweepSchedulerServerInitResponse,
+	error,
+) {
+	t.Helper()
+
+	sweepAPI := scheduler.NewSweepAPI(
+		f.client,
+		featurechecker.NewPreloaded(map[spb.ServerFeature]bool{
+			spb.ServerFeature_SWEEPS_LOCAL_SCHEDULER: f.localSchedulerEnabled,
+		}),
+		"test-entity", "test-project", "test-sweep",
+	)
+
+	factory := scheduler.NewTaskResolverFactory(observability.NewNoOpLogger())
+	return factory(
+		context.Background(),
+		t.Context(),
+		&spb.SweepSchedulerClientInitRequest{
+			Entity:              "test-entity",
+			Project:             "test-project",
+			SweepId:             "test-sweep",
+			BatchSize:           2,
+			PollIntervalSeconds: 5,
+		},
+		sweepAPI)
+}
+
+func TestFactoryStartsASession(t *testing.T) {
+	t.Run("single objective", func(t *testing.T) {
+		fixture := newFactoryFixture()
+		fixture.stubSweep("metric:\n  name: loss\nrun_cap: 10\n")
+
+		resolver, init, err := fixture.startSession(t)
+
+		require.NoError(t, err)
+		assert.NotNil(t, resolver)
+		assert.Equal(t, "metric:\n  name: loss\nrun_cap: 10\n", init.SweepConfig)
+		assert.Equal(t, "loss-sweep", init.DisplayName)
+		assert.Equal(t, "sweep-controller-run", init.ControllerRunName)
+	})
+
+	t.Run("multi objective", func(t *testing.T) {
+		fixture := newFactoryFixture()
+		fixture.stubSweep("metrics:\n  - name: loss\n  - name: latency\n")
+
+		resolver, _, err := fixture.startSession(t)
+
+		require.NoError(t, err)
+		assert.NotNil(t, resolver)
+	})
+}
+
+// TestFactoryRefuses covers the ways starting a session can fail, all of
+// which follow the same flow: stub the backend one way, start the
+// session, and check the error it reports.
+func TestFactoryRefuses(t *testing.T) {
+	tests := []struct {
+		name string
+
+		// setup stubs the fixture's backend. Defaults to a valid single-
+		// objective sweep when nil.
+		setup func(*factoryFixture)
+
+		wantErrIs       error
+		wantErrContains string
+	}{
+		{
+			name: "a server without local scheduler support",
+			setup: func(f *factoryFixture) {
+				f.localSchedulerEnabled = false
+				// No sweep stub: the support check must fail before the fetch.
+			},
+			wantErrIs: scheduler.ErrUnsupportedServer,
+		},
+		{
+			name:      "a sweep that does not exist",
+			setup:     func(f *factoryFixture) { f.stubMissingSweep() },
+			wantErrIs: scheduler.ErrSweepNotFound,
+		},
+		{
+			// An unnamed objective would leave the loop searching against
+			// fewer objectives than the sweep declares.
+			name: "an unnamed multi-objective metric",
+			setup: func(f *factoryFixture) {
+				f.stubSweep("metrics:\n  - name: loss\n  - goal: minimize\n")
+			},
+			wantErrContains: "metrics[1] has no name",
+		},
+		{
+			// Setting both would silently mask metric with metrics.
+			name: "both metric and metrics",
+			setup: func(f *factoryFixture) {
+				f.stubSweep("metric:\n  name: loss\nmetrics:\n  - name: latency\n")
+			},
+			wantErrContains: "sets both metric and metrics",
+		},
+		{
+			name:            "a sweep without an objective",
+			setup:           func(f *factoryFixture) { f.stubSweep("method: bayes\n") },
+			wantErrContains: "names no objective metric",
+		},
+		{
+			name:            "a malformed sweep config",
+			setup:           func(f *factoryFixture) { f.stubSweep("metric: [unterminated\n") },
+			wantErrContains: "parsing sweep config",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fixture := newFactoryFixture()
+			test.setup(fixture)
+
+			_, _, err := fixture.startSession(t)
+
+			if test.wantErrIs != nil {
+				assert.ErrorIs(t, err, test.wantErrIs)
+			}
+			if test.wantErrContains != "" {
+				assert.ErrorContains(t, err, test.wantErrContains)
+			}
+		})
+	}
+}
+
 func TestDuplicateAdoptionDroppedWithoutDiscarding(t *testing.T) {
 	fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 3})
 	fixture.stubWarmStart(warmJSON("RUNNING", false, "",
