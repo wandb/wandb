@@ -48,7 +48,7 @@ def mock_ces_client(monkeypatch):
     client_module = pytest.importorskip("coreweave_evaluations")
     monkeypatch.setattr(client_module, "Client", MagicMock)
     monkeypatch.setattr(
-        _writer_ces.CESEvalTableWriter,
+        _writer_ces.CESWriter,
         "_resolve_scope_context",
         lambda self, bound: _writer_ces._CESScopeContext(
             scope_ref="scope-ref",
@@ -57,7 +57,7 @@ def mock_ces_client(monkeypatch):
         ),
     )
     monkeypatch.setattr(
-        _writer_ces.CESEvalTableWriter,
+        _writer_ces.CESWriter,
         "_create_client",
         lambda self, client_type, base_url, scope: client,
     )
@@ -267,16 +267,20 @@ def test_external_reference_artifact_image_is_stubbed_by_default(
     image = _image_from_external_reference_artifact(tmp_path, monkeypatch)
     warning = MagicMock()
     monkeypatch.setattr(wandb, "termwarn", warning)
-    writer = _writer_ces.CESEvalTableWriter()
-    writer.bind(run, "eval", 0)
+    writer = _writer_ces.CESWriter()
+    writer.bind_to_run(run, "eval", 0)
 
     prepared = writer._prepare(_image_write_input(image))
 
-    assert prepared.row_batches[0][0]["input"]["image"] == (
-        "[wandb.Image external reference artifact not supported]"
-    )
+    assert prepared.row_batches[0][0]["input"]["image"] is None
     assert prepared.dataset_fields == [
-        {"source": "input", "name": "image", "value_type": "string"}
+        {
+            "source": "input",
+            "name": "image",
+            "value_type": "json",
+            "extension_type": "wandb-image",
+            "extension_schema_version": 1,
+        }
     ]
     warning.assert_called_once()
 
@@ -288,25 +292,33 @@ def test_external_reference_artifact_image_raises_in_raise_mode(
 ):
     run = run_factory("run-one")
     image = _image_from_external_reference_artifact(tmp_path, monkeypatch)
-    writer = _writer_ces.CESEvalTableWriter(unsupported_media_mode="raise")
-    writer.bind(run, "eval", 0)
+    writer = _writer_ces.CESWriter(unsupported_media_mode="raise")
+    writer.bind_to_run(run, "eval", 0)
 
     with pytest.raises(TypeError, match="external reference artifacts"):
         writer._prepare(_image_write_input(image))
 
 
-def test_image_overlays_are_omitted_until_overlay_support(run_factory, tmp_path):
+def test_image_overlays_are_null_until_overlay_support(
+    run_factory,
+    tmp_path,
+    monkeypatch,
+):
     run = run_factory("run-one")
     image = wandb.Image(
         _png(tmp_path),
         boxes={"predictions": {"box_data": [], "class_labels": {}}},
     )
-    prepared = _media_ces.prepare_image(image, run, "eval")
+    warning = MagicMock()
+    monkeypatch.setattr(wandb, "termwarn", warning)
+    writer = _writer_ces.CESWriter()
+    writer.bind_to_run(run, "eval", 0)
 
-    assert prepared.value is not None
-    assert "boxes" not in prepared.value
-    assert "masks" not in prepared.value
-    assert image._boxes is not None
+    prepared = writer._prepare(_image_write_input(image))
+
+    assert prepared.row_batches[0][0]["input"]["image"] is None
+    assert prepared.dataset_fields[0]["extension_type"] == "wandb-image"
+    warning.assert_called_once()
 
 
 def test_cell_at_size_limit_becomes_null(run_factory, tmp_path, monkeypatch):
@@ -366,8 +378,8 @@ def test_eval_table_writes_image_extension_to_ces(
 def test_image_score_is_rejected_as_non_primitive(run_factory, tmp_path):
     run = run_factory("run-one")
     image = wandb.Image(_png(tmp_path))
-    writer = _writer_ces.CESEvalTableWriter()
-    writer.bind(run, "eval", 0)
+    writer = _writer_ces.CESWriter()
+    writer.bind_to_run(run, "eval", 0)
     value = _writer.WriteInput(
         name="eval",
         rows=[
