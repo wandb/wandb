@@ -128,8 +128,6 @@ class Media(WBValue):
         assert isinstance(self._sha256, str)
 
         assert run is not None, 'Argument "run" must not be None.'
-        self._run = run
-
         if self._extension is None:
             _, extension = os.path.splitext(os.path.basename(self._path))
         else:
@@ -140,9 +138,28 @@ class Media(WBValue):
 
         file_path = _wb_filename(key, step, id_, extension)
         media_path = os.path.join(self.get_media_subdir(), file_path)
-        new_path = os.path.join(self._run.dir, media_path)
+        self._bind_to_run_path(
+            run,
+            media_path,
+            ignore_copy_err=ignore_copy_err,
+        )
+
+    def _bind_to_run_path(
+        self,
+        run: wandb.Run,
+        media_path: str,
+        *,
+        ignore_copy_err: bool | None = None,
+    ) -> None:
+        """Bind this media to an explicit logical path within a run."""
+
+        assert self.file_is_set(), "_bind_to_run_path called before _set_file"
+        assert isinstance(self._path, str)
+
+        new_path = os.path.join(run.dir, media_path)
         filesystem.mkdir_exists_ok(os.path.dirname(new_path))
 
+        self._run = run
         if self._is_tmp:
             shutil.move(self._path, new_path)
             self._path = new_path
