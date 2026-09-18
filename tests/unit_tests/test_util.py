@@ -223,6 +223,24 @@ def test_nested_dataclasses_containing_real_class():
     assert converted == {"test_real_class": "TestRealClass(test=True)"}
 
 
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (np.array([2.0], dtype=np.float32), 2.0),
+        (np.array([2], dtype=np.int32), 2),
+        (np.array([True], dtype=np.bool_), True),
+        (np.array([np.nan], dtype=np.float32), None),
+    ],
+)
+def test_json_friendly_val_converts_single_element_numpy_array_to_native_scalar(
+    value, expected
+):
+    converted = util.json_friendly_val(value)
+
+    assert converted == expected
+    assert type(converted) is type(expected)
+
+
 ###############################################################################
 # Test util.make_json_if_not_number
 ###############################################################################
