@@ -13,6 +13,7 @@ import pytest
 import wandb
 import wandb.data_types as wandb_data_types
 from wandb.errors import UsageError
+from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.data_types import _eval_table_writer_ces as ces_writer
 from wandb.sdk.data_types import eval_table as eval_table_module
 from wandb.sdk.data_types._dtypes import AnyType
@@ -71,6 +72,14 @@ def run(mock_run):
     return mock_run(settings={"entity": "e", "project": "p", "mode": "online"})
 
 
+@pytest.fixture(autouse=True)
+def default_eval_table_server_feature_disabled(monkeypatch):
+    monkeypatch.setattr(
+        "wandb.sdk.data_types._eval_table_writer_factory.ServiceApi.feature_enabled",
+        lambda self, feature: False,
+    )
+
+
 @pytest.fixture
 def mock_ces_client(monkeypatch):
     client = MagicMock()
@@ -118,6 +127,84 @@ def _install_fake_weave(monkeypatch, **attrs):
 def test_eval_table_public_imports():
     assert wandb.EvalTable is eval_table_module.EvalTable
     assert wandb_data_types.EvalTable is eval_table_module.EvalTable
+
+
+@pytest.mark.parametrize(
+    ("server_feature_enabled", "expected_marker_type"),
+    [(False, "eval-table"), (True, "eval-table-ces")],
+)
+def test_eval_table_defaults_backend_from_server_feature(
+    server_feature_enabled,
+    expected_marker_type,
+    monkeypatch,
+    mock_eval_logger,
+    mock_ces_client,
+    run,
+):
+    feature_enabled = MagicMock(return_value=server_feature_enabled)
+    monkeypatch.setattr(
+        "wandb.sdk.data_types._eval_table_writer_factory.ServiceApi.feature_enabled",
+        feature_enabled,
+    )
+    table = wandb.EvalTable(columns=["value"], data=[[1]])
+
+    run.log({"eval": table})
+
+    assert table.to_json(run)["_type"] == expected_marker_type
+    feature_enabled.assert_called_once_with(pb.ServerFeature.EVAL_TABLES_CES)
+    if server_feature_enabled:
+        mock_ces_client.eval_tables.create.assert_called_once()
+        mock_eval_logger._create_with_meta.assert_not_called()
+    else:
+        mock_eval_logger._create_with_meta.assert_called_once()
+        mock_ces_client.eval_tables.create.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("backend", "server_feature_enabled", "expected_marker_type"),
+    [
+        ("weave", True, "eval-table"),
+        ("ces", False, "eval-table-ces"),
+    ],
+)
+def test_eval_table_backend_overrides_server_default(
+    backend,
+    server_feature_enabled,
+    expected_marker_type,
+    monkeypatch,
+    mock_eval_logger,
+    mock_ces_client,
+    run,
+):
+    feature_enabled = MagicMock(return_value=server_feature_enabled)
+    monkeypatch.setattr(
+        "wandb.sdk.data_types._eval_table_writer_factory.ServiceApi.feature_enabled",
+        feature_enabled,
+    )
+    table = wandb.EvalTable(columns=["value"], data=[[1]], backend=backend)
+
+    run.log({"eval": table})
+
+    assert table.to_json(run)["_type"] == expected_marker_type
+    feature_enabled.assert_not_called()
+
+
+def test_eval_table_default_ces_does_not_require_weave(
+    monkeypatch,
+    mock_ces_client,
+    run,
+):
+    monkeypatch.setitem(sys.modules, "weave", None)
+    monkeypatch.setattr(
+        "wandb.sdk.data_types._eval_table_writer_factory.ServiceApi.feature_enabled",
+        lambda self, feature: True,
+    )
+    table = wandb.EvalTable(columns=["value"], data=[[1]])
+
+    run.log({"eval": table})
+
+    assert table.to_json(run)["_type"] == "eval-table-ces"
+    mock_ces_client.eval_tables.create.assert_called_once()
 
 
 def test_ces_eval_table_writes_columns_rows_and_version(
@@ -1630,6 +1717,7 @@ def test_unsupported_wandb_media_cell_raises_in_raise_mode():
         wandb.EvalTable(
             columns=["html"],
             data=[[html]],
+            backend="weave",
             unsupported_media_mode="raise",
         )
     assert "unsupported wandb media type 'Html'" in str(exc_info.value)
@@ -1639,7 +1727,11 @@ def test_unsupported_wandb_media_cell_raises_in_raise_mode():
 @pytest.mark.usefixtures("mock_eval_logger")
 def test_add_data_unsupported_wandb_value_cell_raises_in_raise_mode():
     histogram = wandb.Histogram([1, 2, 3])
-    et = wandb.EvalTable(columns=["histogram"], unsupported_media_mode="raise")
+    et = wandb.EvalTable(
+        columns=["histogram"],
+        backend="weave",
+        unsupported_media_mode="raise",
+    )
 
     with pytest.raises(TypeError) as exc_info:
         et.add_data(histogram)
@@ -1649,7 +1741,7 @@ def test_add_data_unsupported_wandb_value_cell_raises_in_raise_mode():
     assert et.data == []
 
 
-@pytest.mark.parametrize("backend", ["weave", "ces"])
+@pytest.mark.parametrize("backend", [None, "weave", "ces"])
 @pytest.mark.usefixtures("mock_eval_logger")
 def test_unsupported_media_mode_rejects_unknown_mode(backend):
     with pytest.raises(ValueError, match="unsupported_media_mode"):
