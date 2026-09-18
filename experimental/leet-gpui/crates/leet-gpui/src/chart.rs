@@ -172,6 +172,10 @@ fn paint(
         XAxis::Step => format_tick(x),
         XAxis::Time => format_duration_tick(x - x_offset),
     };
+    let at_label = |x: f64| match spec.x_axis {
+        XAxis::Step => format!("step {}", format_value(x)),
+        XAxis::Time => format!("+{}", format_duration_tick(x - x_offset)),
+    };
     let shifted = Range {
         min: frame.x_range.min - x_offset,
         max: frame.x_range.max - x_offset,
@@ -231,21 +235,22 @@ fn paint(
             )
             .corner_radii(Corners::all(px(3.))),
         );
+        let mut legend = format!("{}  {}", s.name, format_value(y));
+        if x != hovered_x {
+            legend.push_str(&format!("  at {}", at_label(x)));
+        }
         paint_text(
             window,
             cx,
-            &format!("{}  {}", s.name, format_value(y)),
+            &legend,
             point(plot.origin.x + px(6.), row_y),
             s.color,
             Align::Left,
         );
         row_y += px(14.);
     }
-    let label = match spec.x_axis {
-        XAxis::Step => format!("step {}", format_tick(hovered_x)),
-        XAxis::Time => format!("+{}", format_duration_tick(hovered_x - x_offset)),
-    };
     let anchor = point(hover_px, plot.origin.y + plot.size.height - px(14.));
+    let label = at_label(hovered_x);
     paint_text(window, cx, &label, anchor, theme::text(), Align::Center);
 }
 

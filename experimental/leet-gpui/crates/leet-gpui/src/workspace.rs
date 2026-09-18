@@ -752,18 +752,31 @@ impl Workspace {
         }
         let zoomed = x_range != full;
 
-        let hover_x = match hover_t {
-            Some(t) => {
-                let x = Scale::Linear.denormalize(x_range, t);
-                self.inspect_next = Some((spec.x_axis, x));
-                Some(x)
-            }
+        let pointer_x = match hover_t {
+            Some(t) => Some(Scale::Linear.denormalize(x_range, t)),
             None if self.linked_inspect => self
                 .inspect
                 .filter(|(axis, x)| *axis == spec.x_axis && *x >= x_range.min && *x <= x_range.max)
                 .map(|(_, x)| x),
             None => None,
         };
+        // The crosshair sits on a logged x, the one nearest to the pointer
+        // across the chart's series, never on an interpolated position.
+        let hover_x = pointer_x.and_then(|pointer| {
+            spec.series
+                .iter()
+                .filter_map(|r| {
+                    series_mut(&mut self.runs, r)?
+                        .nearest(weight, pointer)
+                        .map(|(x, _)| x)
+                })
+                .min_by(|a, b| (a - pointer).abs().total_cmp(&(b - pointer).abs()))
+        });
+        if hover_t.is_some()
+            && let Some(x) = hover_x
+        {
+            self.inspect_next = Some((spec.x_axis, x));
+        }
 
         let series: Vec<SeriesDraw> = spec
             .series
