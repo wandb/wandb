@@ -308,7 +308,6 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 			Exit: &spb.RunExitRecord{
 				ExitCode: exitCode,
 			}},
-		Control: &spb.Control{AlwaysSend: true},
 	}, exitRequest)
 
 	// Wait until all uploads complete (or, if this is a duplicate exit,
@@ -338,7 +337,7 @@ func (s *Stream) printFooter() {
 				pfxout.Bold,
 			),
 		)
-	} else if runURL, err := s.runURL(); err != nil {
+	} else if runURL, displayName, err := s.runURLAndName(); err != nil {
 		s.logger.CaptureError(
 			"stream",
 			fmt.Errorf("stream: runURL: %v", err),
@@ -347,7 +346,7 @@ func (s *Stream) printFooter() {
 		formatter.Println(
 			fmt.Sprintf(
 				"🚀 View run %v at: %v",
-				pfxout.WithColor(s.settings.GetDisplayName(), pfxout.Yellow),
+				pfxout.WithColor(displayName, pfxout.Yellow),
 				pfxout.WithColor(runURL, pfxout.Blue),
 			),
 		)
@@ -369,12 +368,17 @@ func (s *Stream) printFooter() {
 	)
 }
 
-// runURL returns the URL for the run if available, or else an error.
-func (s *Stream) runURL() (string, error) {
+// runURLAndName returns the run's URL and display name if available.
+func (s *Stream) runURLAndName() (string, string, error) {
 	upserter, err := s.runHandle.Upserter()
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	return upserter.RunPath().URL(s.settings.GetAppURL())
+	url, err := upserter.RunPath().URL(s.settings.GetAppURL())
+	if err != nil {
+		return "", "", err
+	}
+
+	return url, upserter.DisplayName(), nil
 }

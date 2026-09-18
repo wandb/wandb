@@ -26,6 +26,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runconsolelogs"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runhandle"
+	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -81,16 +82,25 @@ type Sender struct {
 
 	operations *wboperation.WandbOperations
 
+	// receivedExitCh is closed once the Sender receives an Exit record.
+	receivedExitCh chan struct{}
+
 	// settings is the settings for the sender
 	settings *settings.Settings
 
-	// graphqlClient is the graphql client
+	// graphqlClient makes GraphQL requests to the backend.
+	//
+	// It is nil in offline mode.
 	graphqlClient graphql.Client
 
-	// fileStream is the file stream
+	// fileStream uploads data to the backend.
+	//
+	// It is nil in offline mode.
 	fileStream fs.FileStream
 
-	// fileTransferManager is the file uploader/downloader
+	// fileTransferManager uploads and downloads files.
+	//
+	// It is nil in offline mode.
 	fileTransferManager filetransfer.FileTransferManager
 
 	// fileTransferStats tracks file upload progress
@@ -99,7 +109,9 @@ type Sender struct {
 	// fileWatcher notifies when files in the file system are changed
 	fileWatcher watcher.Watcher
 
-	// runfilesUploader manages uploading a run's files
+	// runfilesUploader uploads a run's files, implementing `run.save()`.
+	//
+	// It is nil in offline mode.
 	runfilesUploader runfiles.Uploader
 
 	// artifactsSaver manages artifact uploads
@@ -117,11 +129,16 @@ type Sender struct {
 	// stepTracker assigns increasing _step values and updates summary _step.
 	stepTracker *HistoryStepTracker
 
-	// receivedExit is true once the Sender receives an Exit record.
-	receivedExit bool
+	// runHistorySampler tracks samples of all metrics in the run's history.
+	//
+	// This is used to display the sparkline in the terminal at the end of
+	// the run.
+	runHistorySampler *runhistory.RunHistorySampler
 
-	// jobBuilder is the job builder for creating jobs from the run
-	// that allow users to re-run the run with different configurations
+	// jobBuilder creates "jobs" from the run, which allow users to re-run it
+	// with different configurations.
+	//
+	// It is nil when offline or if job creation is disabled.
 	jobBuilder *launch.JobBuilder
 
 	// networkPeeker is a helper for peeking into network responses
@@ -212,6 +229,7 @@ func (f *SenderFactory) NewWithFileStream(
 		runWork:             runWork,
 		logger:              f.Logger,
 		operations:          f.Operations,
+		receivedExitCh:      make(chan struct{}),
 		settings:            f.Settings,
 		fileStream:          fileStream,
 		fileTransferManager: f.FileTransferManager,
@@ -231,8 +249,9 @@ func (f *SenderFactory) NewWithFileStream(
 		graphqlClient:     f.GraphqlClient,
 		mailbox:           f.Mailbox,
 		runHandle:         f.RunHandle,
-		stepTracker:       f.HistoryStepTracker,
 		runSummary:        runsummary.New(),
+		stepTracker:       f.HistoryStepTracker,
+		runHistorySampler: runhistory.NewRunHistorySampler(),
 		consoleLogsSender: runconsolelogs.New(consoleLogsSenderParams),
 	}
 	s.stepTracker = NewHistoryStepTracker(s.logger, s.runHandle)
@@ -248,6 +267,9 @@ func (f *SenderFactory) NewWithFileStream(
 func (s *Sender) Do(allWork <-chan runwork.Work) {
 	defer s.logger.Reraise("stream")
 	s.logger.Info("sender: started")
+
+	var wg sync.WaitGroup
+	s.startFileStreamAfterRunInit(&wg)
 
 	hangDetectionInChan := make(chan runwork.Work, 32)
 	hangDetectionOutChan := make(chan struct{}, 32)
@@ -267,6 +289,8 @@ func (s *Sender) Do(allWork <-chan runwork.Work) {
 
 	close(hangDetectionInChan)
 	close(hangDetectionOutChan)
+
+	wg.Wait()
 
 	s.logger.Info("sender: closed")
 }
@@ -401,26 +425,32 @@ func (s *Sender) sendRequest(
 	request *runwork.Request,
 ) {
 	switch x := requestRecord.RequestType.(type) {
+	// These requests were removed from the client, so we don't need to
+	// handle them. Keep for now, remove in the future:
 	case *spb.Request_ServerInfo:
 	case *spb.Request_CheckVersion:
-		// These requests were removed from the client, so we don't need to
-		// handle them. Keep for now should be removed in the future
-	case *spb.Request_RunStart:
-		s.sendRequestRunStart(x.RunStart)
+
 	case *spb.Request_NetworkStatus:
 		s.sendRequestNetworkStatus(x.NetworkStatus, request)
+
+	case *spb.Request_SampledHistory:
+		s.sendRequestSampledHistory(x.SampledHistory, request)
+
 	case *spb.Request_LogArtifact:
 		s.sendRequestLogArtifact(x.LogArtifact, request)
 	case *spb.Request_LinkArtifact:
 		s.sendLinkArtifact(x.LinkArtifact, request)
 	case *spb.Request_DownloadArtifact:
 		s.sendRequestDownloadArtifact(x.DownloadArtifact, request)
+
 	case *spb.Request_SenderRead:
 		// TODO: implement this
+
 	case *spb.Request_StopStatus:
 		s.sendRequestStopStatus(request)
 	case *spb.Request_JobInput:
 		s.sendRequestJobInput(x.JobInput)
+
 	case nil:
 		s.logger.CaptureFatalAndPanic(
 			"stream",
@@ -434,82 +464,71 @@ func (s *Sender) sendRequest(
 	}
 }
 
-// updateSettings updates the settings from the run record upon a run start
-// with the information from the server
-func (s *Sender) updateSettings() {
-	upserter, _ := s.runHandle.Upserter()
-	if s.settings == nil || upserter == nil {
+// startFileStreamAfterRunInit schedules a goroutine that waits for the run
+// to finish initializing, then calls FileStream.Start().
+//
+// The goroutine returns early if the exit record is received before the run
+// initializes.
+func (s *Sender) startFileStreamAfterRunInit(wg *sync.WaitGroup) {
+	if s.fileStream == nil {
 		return
 	}
 
-	// StartTime should be generally thought of as the Run last modified time
-	// as it gets updated at a run branching point, such as resume, fork, or rewind
-	startTime := upserter.StartTime()
-	if s.settings.GetStartTime().IsZero() && !startTime.IsZero() {
-		s.settings.UpdateStartTime(startTime)
-	}
+	wg.Go(func() {
+		select {
+		case <-s.receivedExitCh:
+			return
+		case <-s.runHandle.Ready():
+		}
 
-	runPath := upserter.RunPath()
+		upserter, err := s.runHandle.Upserter()
+		if err != nil {
+			s.logger.CaptureError(
+				"stream",
+				fmt.Errorf("sender: sendRequestRunStart: %v", err),
+			)
+			return
+		}
 
-	// TODO: verify that this is the correct update logic
-	if runPath.Entity != "" {
-		s.settings.UpdateEntity(runPath.Entity)
-	}
-	if runPath.Project != "" {
-		s.settings.UpdateProject(runPath.Project)
-	}
-	if displayName := upserter.DisplayName(); displayName != "" {
-		s.settings.UpdateDisplayName(displayName)
-	}
-}
+		runPath := upserter.RunPath()
 
-// sendRequestRunStart sends a run start request to start all the stream
-// components that need to be started and to update the settings
-func (s *Sender) sendRequestRunStart(_ *spb.RunStartRequest) {
-	upserter, err := s.runHandle.Upserter()
-	if err != nil {
-		s.logger.CaptureError(
-			"stream",
-			fmt.Errorf("sender: sendRequestRunStart: %v", err),
-		)
-		return
-	}
-
-	s.updateSettings()
-
-	runPath := upserter.RunPath()
-
-	if s.fileStream != nil {
 		s.fileStream.Start(
 			runPath.Entity,
 			runPath.Project,
 			runPath.RunID,
 			upserter.FileStreamOffsets(),
 		)
-	}
+	})
 }
 
 func (s *Sender) sendRequestNetworkStatus(
 	_ *spb.NetworkStatusRequest,
 	request *runwork.Request,
 ) {
-	// in case of network peeker is not set, we don't need to do anything
-	if s.networkPeeker == nil {
-		return
-	}
+	response := s.networkPeeker.Read()
 
-	// send the network status response if there is any
-	if response := s.networkPeeker.Read(); len(response) > 0 {
-		s.respond(request,
-			&spb.Response{
-				ResponseType: &spb.Response_NetworkStatusResponse{
-					NetworkStatusResponse: &spb.NetworkStatusResponse{
-						NetworkResponses: response,
-					},
+	s.respond(request,
+		&spb.Response{
+			ResponseType: &spb.Response_NetworkStatusResponse{
+				NetworkStatusResponse: &spb.NetworkStatusResponse{
+					NetworkResponses: response,
 				},
 			},
-		)
-	}
+		},
+	)
+}
+
+func (s *Sender) sendRequestSampledHistory(
+	record *spb.SampledHistoryRequest,
+	request *runwork.Request,
+) {
+	s.respond(request, &spb.Response{
+		ResponseType: &spb.Response_SampledHistoryResponse{
+			SampledHistoryResponse: &spb.SampledHistoryResponse{
+				Item: s.runHistorySampler.Get(),
+			},
+		},
+	})
 }
 
 func (s *Sender) sendJobFlush() {
@@ -535,6 +554,7 @@ func (s *Sender) sendJobFlush() {
 		op.Context(s.runWork.BeforeEndCtx()),
 		s.graphqlClient,
 		upserter.ConfigMap(),
+		upserter.RunPath(),
 		output,
 	)
 	if err != nil {
@@ -705,6 +725,10 @@ func (s *Sender) respondExit(
 }
 
 func (s *Sender) sendTelemetry(_ *spb.Record, telemetry *spb.TelemetryRecord) {
+	if s.settings.IsOffline() {
+		return
+	}
+
 	upserter, err := s.runHandle.Upserter()
 	if err != nil {
 		s.logger.CaptureError(
@@ -718,6 +742,10 @@ func (s *Sender) sendTelemetry(_ *spb.Record, telemetry *spb.TelemetryRecord) {
 }
 
 func (s *Sender) sendEnvironment(environment *spb.EnvironmentRecord) {
+	if s.settings.IsOffline() {
+		return
+	}
+
 	upserter, err := s.runHandle.Upserter()
 	if err != nil {
 		s.logger.CaptureError(
@@ -781,7 +809,7 @@ func (s *Sender) uploadMetadataFile() {
 }
 
 func (s *Sender) sendPreempting(record *spb.RunPreemptingRecord) {
-	if s.receivedExit {
+	if s.receivedExit() {
 		s.logCalledAfterExit("sendPreempting")
 		return
 	}
@@ -797,6 +825,11 @@ func (s *Sender) sendLinkArtifact(
 	msg *spb.LinkArtifactRequest,
 	request *runwork.Request,
 ) {
+	if s.settings.IsOffline() {
+		request.WillNotRespond()
+		return
+	}
+
 	var response spb.LinkArtifactResponse
 	linker := artifacts.ArtifactLinker{
 		Ctx:           s.runWork.BeforeEndCtx(),
@@ -825,10 +858,15 @@ func (s *Sender) sendLinkArtifact(
 }
 
 func (s *Sender) sendUseArtifact(record *spb.Record) {
+	if s.settings.IsOffline() {
+		return
+	}
+
 	if s.jobBuilder == nil {
 		s.logger.Warn("sender: sendUseArtifact: job builder disabled, skipping")
 		return
 	}
+
 	s.jobBuilder.HandleUseArtifactRecord(record)
 }
 
@@ -837,12 +875,26 @@ func (s *Sender) sendUseArtifact(record *spb.Record) {
 // If the history record does not contain a _step value, this method will
 // auto-assign one. It will also update the run summary's _step value.
 func (s *Sender) sendHistory(record *spb.HistoryRecord) {
-	if s.receivedExit {
+	if s.receivedExit() {
 		s.logCalledAfterExit("sendHistory")
 		return
 	}
 
-	step, err := s.stepTracker.ApplyHistoryStep(record)
+	history := runhistory.New()
+	for _, item := range record.GetItem() {
+		if err := history.SetFromRecord(item); err != nil {
+			s.logger.CaptureError(
+				"stream",
+				fmt.Errorf("sender: failed to parse history item: %v", err),
+				"key", item.GetKey(),
+				"nested_key", item.GetNestedKey(),
+			)
+		}
+	}
+
+	s.runHistorySampler.SampleNext(history)
+
+	step, err := s.stepTracker.ApplyHistoryStep(history)
 	if err != nil {
 		s.logger.CaptureError(
 			"stream",
@@ -855,7 +907,7 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 		return
 	}
 
-	s.fileStream.StreamUpdate(&fs.HistoryUpdate{Record: record})
+	s.fileStream.StreamUpdate(&fs.HistoryUpdate{Row: history})
 	if !s.settings.IsSharedMode() || !s.settings.IsEnableServerSideDerivedSummary() {
 		s.updateSummaryStep(step)
 	}
@@ -871,7 +923,7 @@ func (s *Sender) updateSummaryStep(step int64) {
 }
 
 func (s *Sender) sendSummary(_ *spb.Record, summary *spb.SummaryRecord) {
-	if s.receivedExit {
+	if s.receivedExit() {
 		s.logCalledAfterExit("sendSummary")
 		return
 	}
@@ -998,6 +1050,10 @@ func (s *Sender) scheduleFileUpload(
 
 // sendConfig updates the run's config and schedules an upload.
 func (s *Sender) sendConfig(_ *spb.Record, configRecord *spb.ConfigRecord) {
+	if s.settings.IsOffline() {
+		return
+	}
+
 	upserter, err := s.runHandle.Upserter()
 	if err != nil {
 		s.logger.CaptureError(
@@ -1012,7 +1068,7 @@ func (s *Sender) sendConfig(_ *spb.Record, configRecord *spb.ConfigRecord) {
 
 // sendSystemMetrics sends a system metrics record via the file stream
 func (s *Sender) sendSystemMetrics(record *spb.StatsRecord) {
-	if s.receivedExit {
+	if s.receivedExit() {
 		s.logCalledAfterExit("sendSystemMetrics")
 		return
 	}
@@ -1050,7 +1106,7 @@ func (s *Sender) sendSystemMetrics(record *spb.StatsRecord) {
 }
 
 func (s *Sender) sendOutput(_ *spb.Record, _ *spb.OutputRecord) {
-	if s.receivedExit {
+	if s.receivedExit() {
 		s.logCalledAfterExit("sendOutput")
 		return
 	}
@@ -1059,7 +1115,7 @@ func (s *Sender) sendOutput(_ *spb.Record, _ *spb.OutputRecord) {
 }
 
 func (s *Sender) sendOutputRaw(_ *spb.Record, outputRaw *spb.OutputRawRecord) {
-	if s.receivedExit {
+	if s.receivedExit() {
 		s.logCalledAfterExit("sendOutputRaw")
 		return
 	}
@@ -1068,7 +1124,7 @@ func (s *Sender) sendOutputRaw(_ *spb.Record, outputRaw *spb.OutputRawRecord) {
 }
 
 func (s *Sender) sendOutputLogger(_ *spb.Record, outputLogger *spb.OutputLoggerRecord) {
-	if s.receivedExit {
+	if s.receivedExit() {
 		s.logCalledAfterExit("sendOutputLogger")
 		return
 	}
@@ -1125,22 +1181,27 @@ func (s *Sender) sendExit(
 	record *spb.RunExitRecord,
 	request *runwork.Request,
 ) {
-	if s.receivedExit {
+	select {
+	case <-s.receivedExitCh:
 		s.logger.CaptureError(
 			"stream",
 			errors.New("sender: received exit more than once, ignoring"),
 		)
 		request.WillNotRespond()
 		return
+	default:
 	}
 
-	s.receivedExit = true
-
+	close(s.receivedExitCh)
 	s.startFinishRun(record, request)
 }
 
 // sendMetric updates the metrics in the run config.
 func (s *Sender) sendMetric(_ *spb.Record, metrics *spb.MetricRecord) {
+	if s.settings.IsOffline() {
+		return
+	}
+
 	upserter, err := s.runHandle.Upserter()
 	if err != nil {
 		s.logger.CaptureError(
@@ -1156,9 +1217,6 @@ func (s *Sender) sendMetric(_ *spb.Record, metrics *spb.MetricRecord) {
 // sendFiles uploads files according to a FilesRecord
 func (s *Sender) sendFiles(_ *spb.Record, filesRecord *spb.FilesRecord) {
 	if s.runfilesUploader == nil {
-		s.logger.CaptureWarn(
-			"sender: tried to sendFiles, but runfiles uploader is nil",
-		)
 		return
 	}
 
@@ -1166,6 +1224,10 @@ func (s *Sender) sendFiles(_ *spb.Record, filesRecord *spb.FilesRecord) {
 }
 
 func (s *Sender) sendArtifact(_ *spb.Record, msg *spb.ArtifactRecord) {
+	if s.settings.IsOffline() {
+		return
+	}
+
 	op := s.operations.New(
 		fmt.Sprintf(
 			"uploading artifact %s",
@@ -1197,6 +1259,11 @@ func (s *Sender) sendRequestLogArtifact(
 	msg *spb.LogArtifactRequest,
 	request *runwork.Request,
 ) {
+	if s.settings.IsOffline() {
+		request.WillNotRespond()
+		return
+	}
+
 	op := s.operations.New(
 		fmt.Sprintf(
 			"uploading artifact %s",
@@ -1301,6 +1368,16 @@ func (s *Sender) sendRequestJobInput(request *spb.JobInputRequest) {
 		return
 	}
 	s.jobBuilder.HandleJobInputRequest(request)
+}
+
+// receivedExit returns true if an Exit record has been received.
+func (s *Sender) receivedExit() bool {
+	select {
+	case <-s.receivedExitCh:
+		return true
+	default:
+		return false
+	}
 }
 
 // logCalledAfterExit logs an error for a method wrongly called after an Exit

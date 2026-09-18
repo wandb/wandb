@@ -8,9 +8,12 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 
 	"github.com/wandb/wandb/core/internal/clients"
+	"github.com/wandb/wandb/core/internal/featurechecker"
+	"github.com/wandb/wandb/core/internal/gqlmock"
 )
 
 func httpError(status int) error {
@@ -132,4 +135,76 @@ func TestBackoffResetsOnSuccess(t *testing.T) {
 	backoff.OnSuccess()
 
 	assert.Equal(t, 0.0, backoff.Slowdown().Seconds())
+}
+
+func newTrackedTestAPI(client *gqlmock.MockClient) *trackedAPI {
+	api := NewSweepAPI(
+		client,
+		featurechecker.NewPreloaded(nil),
+		"test-entity",
+		"test-project",
+		"test-sweep",
+	)
+	return newTrackedAPI(api)
+}
+
+func TestTrackedAPISlowsDownAfterAnError(t *testing.T) {
+	client := gqlmock.NewMockClient()
+	client.StubMatchOnce(
+		gqlmock.WithOpName("SweepConfig"),
+		`{"project": {"sweep": null}}`,
+	)
+	tracked := newTrackedTestAPI(client)
+
+	_, err := tracked.FetchSweep(context.Background())
+
+	require.Error(t, err)
+	assert.Positive(t, tracked.Slowdown())
+}
+
+func TestTrackedAPIResetsAfterASuccess(t *testing.T) {
+	client := gqlmock.NewMockClient()
+	client.StubMatchOnce(
+		gqlmock.WithOpName("SweepConfig"),
+		`{"project": {"sweep": null}}`,
+	)
+	client.StubMatchOnce(
+		gqlmock.WithOpName("SweepConfig"),
+		`{
+			"project": {
+				"sweep": {
+					"id": "U3dlZXA6MQ==",
+					"state": "RUNNING",
+					"config": "method: grid",
+					"displayName": "my-sweep",
+					"controllerRunName": "controller-run-1"
+				}
+			}
+		}`,
+	)
+	tracked := newTrackedTestAPI(client)
+
+	_, err := tracked.FetchSweep(context.Background())
+	require.Error(t, err)
+	require.Positive(t, tracked.Slowdown())
+
+	_, err = tracked.FetchSweep(context.Background())
+	require.NoError(t, err)
+	assert.Zero(t, tracked.Slowdown())
+}
+
+// A canceled context means the scheduler is shutting down, not that the
+// backend failed, so it must not slow future polls down.
+func TestTrackedAPIIgnoresACanceledContext(t *testing.T) {
+	client := gqlmock.NewMockClient()
+	client.StubAnyHang()
+	tracked := newTrackedTestAPI(client)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := tracked.FetchSweep(ctx)
+
+	require.Error(t, err)
+	assert.Zero(t, tracked.Slowdown())
 }

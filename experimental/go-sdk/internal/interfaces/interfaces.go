@@ -178,8 +178,7 @@ func (r *IRun) DeliverShutdownRecord() *mailbox.MailboxHandle {
 			},
 		},
 		Control: &spb.Control{
-			AlwaysSend: true,
-			ReqResp:    true,
+			ReqResp: true,
 		},
 		XInfo: &spb.XRecordInfo{
 			StreamId: r.StreamID,
