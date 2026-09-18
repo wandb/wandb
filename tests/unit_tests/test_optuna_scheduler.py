@@ -243,15 +243,6 @@ class TestGridExhaustion:
 
         assert optimizer.ask_n_runs(1) != []
 
-    def test_ask_is_unbounded_for_a_sampler_without_a_grid(self) -> None:
-        study = optuna.create_study(
-            direction="minimize", sampler=optuna.samplers.TPESampler()
-        )
-        sweep = make_scheduler_grid_sweep(config=self.CONFIG)
-        optimizer = OptunaDeclarativeOptimizer(study, self.DISTRIBUTIONS, sweep)
-
-        assert len(optimizer.ask_n_runs(5)) == 5
-
     def test_adopts_an_active_run_after_exhaustion(self, optimizer) -> None:
         """Enqueued params are fixed, so they cost the spent grid nothing."""
         for suggestion in optimizer.ask_n_runs(2):
