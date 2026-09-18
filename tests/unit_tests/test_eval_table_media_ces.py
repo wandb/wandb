@@ -366,7 +366,7 @@ def test_prepare_audio_and_video_creates_ces_extension_value(
         subdir,
         "eval",
         "key",
-        f"{digest[:30]}{path.suffix}",
+        f"{digest[: _eval_table_media_ces._DIGEST_PATH_LENGTH]}{path.suffix}",
     )
     assert prepared.value == {
         "caption": caption,
@@ -379,6 +379,8 @@ def test_prepare_audio_and_video_creates_ces_extension_value(
         + expected_path.replace(os.sep, "/"),
         **extra,
     }
+    assert media._run is None
+    assert media._path == str(path)
 
 
 def test_committed_artifact_image_preserves_artifact_ref_url(

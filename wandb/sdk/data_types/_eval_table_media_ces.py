@@ -31,20 +31,22 @@ from wandb.sdk.data_types.video import Video
 from wandb.sdk.lib.paths import LogicalPath
 
 if TYPE_CHECKING:
+    from coreweave_evaluations.types.wandb_audio_v1_param import WandbAudioV1Param
     from coreweave_evaluations.types.wandb_image_v1_param import WandbImageV1Param
+    from coreweave_evaluations.types.wandb_video_v1_param import WandbVideoV1Param
 
     from wandb.sdk.data_types.helper_types.classes import Classes
     from wandb.sdk.wandb_run import Run
 
-    _CESMediaExtensionValue = WandbImageV1Param
+    _CESMediaExtensionValue = WandbImageV1Param | WandbAudioV1Param | WandbVideoV1Param
 
 
 CES_MAX_CELL_BYTES = 3_500_000
-_CESExtensionType = Literal["wandb-image"]
+_CESExtensionType = Literal["wandb-image", "wandb-audio", "wandb-video"]
+_WBMediaType = Literal["image-file", "audio-file", "video-file"]
 _MediaFieldSource = Literal["inputs", "outputs"]
 _DIGEST_PATH_LENGTH = 30
 _MediaT = TypeVar("_MediaT", bound=Media)
-SUPPORTED_WANDB_MEDIA_TYPES: tuple[type[Media], ...] = (Image, Audio, Video)
 
 
 @dataclass(frozen=True)
@@ -90,18 +92,34 @@ class _UnsupportedMediaVariantError(TypeError):
         self.extension_type = extension_type
 
 
+@dataclass(frozen=True)
+class _MediaSpec:
+    """Describe the CES extension metadata for one supported media type."""
+
+    media_type: type[Media]
+    extension_type: _CESExtensionType
+    wb_media_type: _WBMediaType
+
+
+_MEDIA_SPECS = (
+    _MediaSpec(Image, "wandb-image", "image-file"),
+    _MediaSpec(Audio, "wandb-audio", "audio-file"),
+    _MediaSpec(Video, "wandb-video", "video-file"),
+)
+SUPPORTED_WANDB_MEDIA_TYPES: tuple[type[Media], ...] = tuple(
+    spec.media_type for spec in _MEDIA_SPECS
+)
+
+
+def _media_spec(media: Media) -> _MediaSpec | None:
+    return next(
+        (spec for spec in _MEDIA_SPECS if isinstance(media, spec.media_type)),
+        None,
+    )
+
+
 def is_supported_wandb_media(value: Any) -> bool:
     return isinstance(value, SUPPORTED_WANDB_MEDIA_TYPES)
-
-
-def _extension_type_for_media(media: Media) -> _CESExtensionType:
-    if isinstance(media, Image):
-        return "wandb-image"
-    if isinstance(media, Audio):
-        return "wandb-audio"
-    if isinstance(media, Video):
-        return "wandb-video"
-    raise TypeError(f"Unsupported EvalTable media type {type(media).__name__!r}.")
 
 
 def prepare_media(
@@ -113,13 +131,13 @@ def prepare_media(
 
     if isinstance(media, Image):
         return prepare_image(media, run, field)
-    if isinstance(media, Audio):
-        return prepare_audio(media, run, field)
-    if isinstance(media, Video):
-        return prepare_video(media, run, field)
-    raise UsageError(
-        f"CES EvalTable does not support media type {type(media).__name__!r}."
-    )
+
+    spec = _media_spec(media)
+    if spec is None:
+        raise UsageError(
+            f"CES EvalTable does not support media type {type(media).__name__!r}."
+        )
+    return _prepare_file_media(media, run, field, spec)
 
 
 def prepare_image(
@@ -127,82 +145,50 @@ def prepare_image(
     run: Run,
     field: EvalTableMediaField,
 ) -> PreparedMediaCell:
-    return _prepare_media(
-        image,
-        run,
-        field,
-        extension_type="wandb-image",
-        wb_media_type="image-file",
-    )
+    working_image = _image_for_run(image, run)
+    if _committed_artifact_ref_url(working_image) is None:
+        _bind_eval_table_media_to_run(working_image, run, field.eval_table_key)
+
+    for overlay in _image_overlays(working_image):
+        _bind_eval_table_media_to_run(overlay, run, field.eval_table_key)
+        _register_class_labels(
+            overlay,
+            run,
+            field,
+            _overlay_class_labels(overlay, working_image._classes),
+        )
+
+    image_json = working_image.to_json(run)
+    extension_value = _image_ces_extension_value(image_json, run)
+    _rewrite_image_overlay_references(extension_value, run)
+    return _prepared_media_cell(extension_value, extension_type="wandb-image")
 
 
-def prepare_audio(
-    audio: Audio,
-    run: Run,
-    field: EvalTableMediaField,
-) -> PreparedMediaCell:
-    return _prepare_media(
-        audio,
-        run,
-        field,
-        extension_type="wandb-audio",
-        wb_media_type="audio-file",
-    )
-
-
-def prepare_video(
-    video: Video,
-    run: Run,
-    field: EvalTableMediaField,
-) -> PreparedMediaCell:
-    return _prepare_media(
-        video,
-        run,
-        field,
-        extension_type="wandb-video",
-        wb_media_type="video-file",
-    )
-
-
-def _prepare_media(
+def _prepare_file_media(
     media: Media,
     run: Run,
     field: EvalTableMediaField,
-    *,
-    extension_type: _CESExtensionType,
-    wb_media_type: Literal["image-file", "audio-file", "video-file"],
+    spec: _MediaSpec,
 ) -> PreparedMediaCell:
-    working_media = (
-        _image_for_run(media, run)
-        if isinstance(media, Image)
-        else _media_for_run(media, run)
-    )
+    working_media = _media_for_run(media, run)
     if _committed_artifact_ref_url(working_media) is None:
         _bind_eval_table_media_to_run(working_media, run, field.eval_table_key)
 
-    if isinstance(working_media, Image):
-        for overlay in _image_overlays(working_media):
-            _bind_eval_table_media_to_run(overlay, run, field.eval_table_key)
-            _register_class_labels(
-                overlay,
-                run,
-                field,
-                _overlay_class_labels(overlay, working_media._classes),
-            )
-
     media_json = working_media.to_json(run)
-    extension_value = _ces_extension_value(
+    extension_value = _base_ces_extension_value(
         media_json,
         run,
-        extension_type=extension_type,
-        wb_media_type=wb_media_type,
+        extension_type=spec.extension_type,
+        wb_media_type=spec.wb_media_type,
     )
-    if isinstance(working_media, Image):
-        _rewrite_image_overlay_references(
-            cast("WandbImageV1Param", extension_value),
-            run,
-        )
+    return _prepared_media_cell(extension_value, extension_type=spec.extension_type)
 
+
+def _prepared_media_cell(
+    extension_value: _CESMediaExtensionValue,
+    *,
+    extension_type: _CESExtensionType,
+) -> PreparedMediaCell:
     encoded_size = len(_encode_json(extension_value))
     oversized = encoded_size >= CES_MAX_CELL_BYTES
     return PreparedMediaCell(
@@ -281,6 +267,7 @@ def _check_external_reference_artifact(media: Media) -> None:
         )
         if is_external_reference:
             type_name = type(media).__name__
+            spec = _media_spec(media)
             raise _UnsupportedMediaVariantError(
                 f"EvalTable does not support wandb.{type_name} values backed by "
                 "external reference artifacts. Pass unsupported_media_mode='stub' "
@@ -289,7 +276,9 @@ def _check_external_reference_artifact(media: Media) -> None:
                     f"wandb.{type_name} values backed by external reference artifacts "
                     "are not supported by EvalTable. They will be logged as null."
                 ),
-                extension_type=_extension_type_for_media(media),
+                extension_type=(
+                    spec.extension_type if spec is not None else "wandb-image"
+                ),
             )
 
 
@@ -396,12 +385,12 @@ def _rewrite_image_overlay_references(
             }
 
 
-def _ces_extension_value(
+def _base_ces_extension_value(
     media_json: dict[str, Any],
     run: Run,
     *,
     extension_type: _CESExtensionType,
-    wb_media_type: Literal["image-file", "audio-file", "video-file"],
+    wb_media_type: _WBMediaType,
 ) -> _CESMediaExtensionValue:
     extension_value = {
         key: value
@@ -417,6 +406,21 @@ def _ces_extension_value(
         }
     )
     return cast("_CESMediaExtensionValue", extension_value)
+
+
+def _image_ces_extension_value(
+    media_json: dict[str, Any],
+    run: Run,
+) -> WandbImageV1Param:
+    return cast(
+        "WandbImageV1Param",
+        _base_ces_extension_value(
+            media_json,
+            run,
+            extension_type="wandb-image",
+            wb_media_type="image-file",
+        ),
+    )
 
 
 def _overlay_class_labels(
