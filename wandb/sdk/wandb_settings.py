@@ -57,6 +57,18 @@ CLIENT_ONLY_SETTINGS = (
 )
 """Python-only keys that are not fields on the settings proto."""
 
+HISTORY_VALUE_ENCODING_JSON = "json"
+HISTORY_VALUE_ENCODING_TYPED = "typed"
+
+HISTORY_VALUE_ENCODINGS = (
+    HISTORY_VALUE_ENCODING_JSON,
+    HISTORY_VALUE_ENCODING_TYPED,
+)
+"""The forms `x_history_value_encoding` accepts."""
+
+HISTORY_VALUE_ENCODING_DEFAULT = HISTORY_VALUE_ENCODING_JSON
+"""The form written when `x_history_value_encoding` is unset or unrecognized."""
+
 
 class Settings(BaseModel, validate_assignment=True):
     """Settings for the W&B SDK.
@@ -762,6 +774,17 @@ class Settings(BaseModel, validate_assignment=True):
     <!-- lazydoc-ignore -->
     """
 
+    x_history_value_encoding: str = HISTORY_VALUE_ENCODING_DEFAULT
+    """Which forms of each logged history value the SDK writes.
+
+    A comma-separated list of "json" and "typed", in any order. "json"
+    writes the JSON text of the value. "typed" writes the value and its
+    type.
+
+    An unrecognized value falls back to the default with a warning.
+    <!-- lazydoc-ignore -->
+    """
+
     x_internal_check_process: float = 8.0
     """Interval for internal process health checks in seconds.
 
@@ -1219,6 +1242,27 @@ class Settings(BaseModel, validate_assignment=True):
                 "If you want to rewind the current run, please use `resume_from` instead."
             )
         return run_moment
+
+    @field_validator("x_history_value_encoding", mode="after")
+    @classmethod
+    def validate_x_history_value_encoding(cls, value: str) -> str:
+        """Normalize the history value encoding, or fall back to the default.
+
+        <!-- lazydoc-ignore -->
+        """
+        forms = [form.strip().lower() for form in value.split(",")]
+
+        if any(form not in HISTORY_VALUE_ENCODINGS for form in forms):
+            wandb.termwarn(
+                f"Ignoring unsupported x_history_value_encoding {value!r}."
+                f" Writing {HISTORY_VALUE_ENCODING_DEFAULT!r} history values.",
+                repeat=False,
+            )
+            return HISTORY_VALUE_ENCODING_DEFAULT
+
+        # Store the stripped, lowercased forms so that a reader can split
+        # on "," and compare without parsing again.
+        return ",".join(forms)
 
     @field_validator("http_proxy", mode="after")
     @classmethod
