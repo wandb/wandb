@@ -814,4 +814,35 @@ func TestPrune(t *testing.T) {
 			generation.Updates[0].Run.State)
 		assert.False(t, generation.Updates[0].Pruned)
 	})
+
+	t.Run("a refused stop keeps the run", func(t *testing.T) {
+		fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 2})
+		fixture.warmTo(t)
+		fixture.stubPoll(pollJSON("RUNNING", false, "",
+			testRun{name: "victim", state: "running"},
+		))
+		fixture.step(t, warmResult(map[string]string{"victim": "opt-v"}))
+
+		// The backend answers without stopping it, so nothing changed and
+		// the run must keep both its slot and its place in the poll.
+		fixture.client.StubMatchOnce(
+			gqlmock.WithOpName("StopRun"),
+			`{"stopRun": {"success": false}}`,
+		)
+		fixture.stubPoll(pollJSON("RUNNING", false, "",
+			testRun{name: "victim", state: "running"},
+		))
+		task := fixture.step(t, generationResult(
+			&spb.SweepSchedulerClientGenerationResult{Prune: []string{"opt-v"}}))
+
+		generation := task.GetGeneration()
+		require.NotNil(t, generation)
+		assert.Len(t, fixture.requestsFor("StopRun"), 1)
+		assert.EqualValues(t, 1, generation.AskUpTo,
+			"a run the backend refused to stop still holds its slot")
+		assert.Equal(t,
+			[]string{"opt-v"}, generation.PruneCandidates,
+			"it is still running, so it may be pruned again")
+		assert.True(t, fixture.client.AllStubsUsed())
+	})
 }
