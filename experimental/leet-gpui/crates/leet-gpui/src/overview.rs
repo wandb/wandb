@@ -1,14 +1,12 @@
 //! The run overview sidebar: run info, environment, config, and summary of
 //! the context run as one filterable list with section headers.
 
-use std::ops::Range;
-
 use gpui::prelude::*;
-use gpui::{Context, Div, ScrollStrategy, Stateful, div, px, uniform_list};
+use gpui::{Context, Div, Stateful, div, px};
 use leet_data::run_overview::KeyValuePair;
 
 use crate::theme;
-use crate::workspace::{Pane, Workspace, pane_header};
+use crate::workspace::{Pane, Workspace, pane_header, wheel_lines};
 
 pub struct Row {
     pub key: String,
@@ -71,6 +69,8 @@ pub fn rows(workspace: &Workspace) -> Vec<Row> {
     rows
 }
 
+pub const ROW_HEIGHT: f32 = 20.;
+
 pub fn render_overview(
     workspace: &Workspace,
     width: gpui::Pixels,
@@ -78,12 +78,10 @@ pub fn render_overview(
 ) -> Stateful<Div> {
     let focused = workspace.focus == Pane::Overview;
     let rows = workspace.overview_rows();
-    if !rows.is_empty() {
-        workspace.overview_scroll.scroll_to_item(
-            workspace.overview_cursor.min(rows.len() - 1),
-            ScrollStrategy::Center,
-        );
-    }
+    let paged = &workspace.overview_paged;
+    let cursor = workspace.overview_cursor.min(rows.len().saturating_sub(1));
+    let header = format!("overview  {}", paged.label(cursor, rows.len()));
+    let range = paged.range(cursor, rows.len());
     div()
         .id("overview")
         .w(width)
@@ -97,46 +95,42 @@ pub fn render_overview(
         } else {
             theme::border()
         })
-        .child(pane_header(
-            "overview".to_string(),
-            &workspace.filters.overview,
-            focused,
-        ))
+        .child(pane_header(header, &workspace.filters.overview, focused))
         .child(
-            uniform_list(
-                "overview-rows",
-                rows.len(),
-                cx.processor(move |workspace, range: Range<usize>, _, _| {
-                    range
-                        .map(|pos| {
-                            let row = &rows[pos];
-                            let at_cursor = focused && pos == workspace.overview_cursor;
-                            div()
-                                .id(pos)
-                                .h(px(20.))
-                                .px_2()
-                                .flex()
-                                .gap_2()
-                                .whitespace_nowrap()
-                                .when(at_cursor, |r| r.bg(theme::cursor()))
-                                .when(row.header, |r| {
-                                    r.mt_1().text_color(theme::accent()).child(row.key.clone())
-                                })
-                                .when(!row.header, |r| {
-                                    r.child(div().text_color(theme::muted()).child(row.key.clone()))
-                                        .child(
-                                            div()
-                                                .flex_1()
-                                                .overflow_hidden()
-                                                .text_ellipsis()
-                                                .child(row.value.clone()),
-                                        )
-                                })
+            div()
+                .flex_1()
+                .flex()
+                .flex_col()
+                .on_scroll_wheel(cx.listener(|workspace, event, _, cx| {
+                    if let Some(delta) = wheel_lines(event) {
+                        workspace.turn_list_page(Pane::Overview, delta);
+                        cx.notify();
+                    }
+                }))
+                .children(range.map(|pos| {
+                    let row = &rows[pos];
+                    div()
+                        .id(pos)
+                        .w_full()
+                        .h(px(ROW_HEIGHT))
+                        .px_2()
+                        .flex()
+                        .gap_2()
+                        .whitespace_nowrap()
+                        .when(focused && pos == cursor, |r| r.bg(theme::cursor()))
+                        .when(row.header, |r| {
+                            r.text_color(theme::accent()).child(row.key.clone())
                         })
-                        .collect()
-                }),
-            )
-            .flex_1()
-            .track_scroll(workspace.overview_scroll.clone()),
+                        .when(!row.header, |r| {
+                            r.child(div().text_color(theme::muted()).child(row.key.clone()))
+                                .child(
+                                    div()
+                                        .flex_1()
+                                        .overflow_hidden()
+                                        .text_ellipsis()
+                                        .child(row.value.clone()),
+                                )
+                        })
+                })),
         )
 }

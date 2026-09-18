@@ -2,14 +2,12 @@
 //! metrics: `rows x cols` cells per page, one focused cell.
 
 use gpui::prelude::*;
-use gpui::{
-    Context, Div, Entity, Pixels, ScrollDelta, ScrollWheelEvent, SharedString, Stateful, div, px,
-};
+use gpui::{Context, Div, Entity, Pixels, ScrollWheelEvent, SharedString, Stateful, div, px};
 
 use crate::chart::{self, ChartSpec};
 use crate::config::GridConfig;
 use crate::theme;
-use crate::workspace::{Filter, Workspace, pane_header};
+use crate::workspace::{Filter, Workspace, pane_header, wheel_lines};
 
 /// Cells shorter than this lose their axes, so a short pane shows fewer rows.
 pub const MIN_CELL_HEIGHT: f32 = 90.;
@@ -191,11 +189,7 @@ pub fn render_grid(
                             .flex_col()
                             .on_scroll_wheel(cx.listener(
                                 move |workspace, event: &ScrollWheelEvent, _, cx| {
-                                    let lines = match event.delta {
-                                        ScrollDelta::Lines(delta) => delta.y,
-                                        ScrollDelta::Pixels(delta) => f32::from(delta.y) / 40.,
-                                    };
-                                    if lines != 0. {
+                                    if let Some(lines) = wheel_lines(event) {
                                         workspace.request_zoom(
                                             key.clone(),
                                             1.25f64.powf(f64::from(-lines)),

@@ -15,7 +15,7 @@ use futures::channel::mpsc;
 use gpui::prelude::*;
 use gpui::{
     Context, CursorStyle, Div, FocusHandle, KeyDownEvent, MouseButton, MouseMoveEvent, Pixels,
-    Point, ScrollStrategy, SharedString, Size, UniformListScrollHandle, Window, div, hsla, px,
+    Point, ScrollDelta, ScrollWheelEvent, SharedString, Size, Window, div, hsla, px,
 };
 use leet_data::system_metrics::{
     MetricDef, extract_base_key, extract_series_name, match_metric_def,
@@ -26,18 +26,18 @@ use crate::actions::{self, *};
 use crate::anim::Animated;
 use crate::chart::{ChartData, ChartSpec, SeriesDraw, SeriesRef, Table, XAxis};
 use crate::config::{Config, ConfigFile};
-use crate::console::render_console;
+use crate::console::{self, render_console};
 use crate::dir_state::DirState;
 use crate::grid::{Cell, Grid, GridView, render_grid};
 use crate::overview::{self, render_overview};
+use crate::paged::Paged;
 use crate::run::{Run, RunState, Series};
-use crate::runs_list::{render_runs, state_glyph};
+use crate::runs_list::{self, render_runs, state_glyph};
 use crate::source::{self, RunDir};
 use crate::theme;
 
 const SMOOTHING: [f64; 4] = [0.0, 0.6, 0.9, 0.99];
 const RESCAN_INTERVAL: Duration = Duration::from_secs(5);
-const LIST_PAGE: usize = 20;
 /// Batches applied per frame before yielding so a load stays visible.
 const APPLY_BUDGET: Duration = Duration::from_millis(6);
 const FRAME_YIELD: Duration = Duration::from_millis(1);
@@ -158,9 +158,9 @@ pub struct Workspace {
     pub pinned: Option<String>,
     pub focus: Pane,
     pub filters: Filters,
-    pub runs_scroll: UniformListScrollHandle,
-    pub console_scroll: UniformListScrollHandle,
-    pub overview_scroll: UniformListScrollHandle,
+    pub runs_paged: Paged,
+    pub console_paged: Paged,
+    pub overview_paged: Paged,
     /// `None` follows new output.
     pub console_cursor: Option<usize>,
     pub overview_cursor: usize,
@@ -227,9 +227,9 @@ impl Workspace {
             pinned: None,
             focus: Pane::Runs,
             filters,
-            runs_scroll: UniformListScrollHandle::new(),
-            console_scroll: UniformListScrollHandle::new(),
-            overview_scroll: UniformListScrollHandle::new(),
+            runs_paged: Paged::new(),
+            console_paged: Paged::new(),
+            overview_paged: Paged::new(),
             console_cursor: None,
             overview_cursor: 0,
             wandb_dir,
@@ -846,8 +846,21 @@ impl Workspace {
     pub fn set_cursor(&mut self, cursor: usize) {
         let count = self.visible().len();
         self.cursor = cursor.min(count.saturating_sub(1));
-        self.runs_scroll
-            .scroll_to_item(self.cursor, ScrollStrategy::Center);
+    }
+
+    /// Turns a list's page: `lines` is a wheel delta, positive for up.
+    pub fn turn_list_page(&mut self, pane: Pane, lines: f32) {
+        let pages: isize = if lines > 0. { -1 } else { 1 };
+        let rows = match pane {
+            Pane::Runs => self.runs_paged.rows,
+            Pane::Console => self.console_paged.rows,
+            Pane::Overview => self.overview_paged.rows,
+            Pane::Metrics | Pane::System => return,
+        } as isize;
+        let focus = self.focus;
+        self.focus = pane;
+        self.step_list(pages * rows);
+        self.focus = focus;
     }
 
     fn console_len(&self) -> usize {
@@ -958,12 +971,8 @@ impl Workspace {
     }
 
     fn move_by(&mut self, drow: isize, dcol: isize, cx: &mut Context<Self>) {
+        self.step_list(drow);
         match self.focus {
-            Pane::Runs => {
-                if drow != 0 {
-                    self.set_cursor(self.cursor.saturating_add_signed(drow));
-                }
-            }
             Pane::Metrics => {
                 self.refresh_caches();
                 let on_page = self.metrics_grid.cells_on_page(self.metric_names().len());
@@ -975,6 +984,19 @@ impl Workspace {
                     .system_grid
                     .cells_on_page(self.cache.system_groups.len());
                 self.system_grid.move_focus(drow, dcol, on_page);
+            }
+            _ => {}
+        }
+        cx.notify();
+    }
+
+    /// Moves the focused list's cursor by `drow` rows.
+    fn step_list(&mut self, drow: isize) {
+        match self.focus {
+            Pane::Runs => {
+                if drow != 0 {
+                    self.set_cursor(self.cursor.saturating_add_signed(drow));
+                }
             }
             Pane::Console => {
                 let last = self.console_len().saturating_sub(1);
@@ -990,16 +1012,16 @@ impl Workspace {
                 let last = self.cache.overview_rows.len().saturating_sub(1);
                 self.overview_cursor = self.overview_cursor.saturating_add_signed(drow).min(last);
             }
+            Pane::Metrics | Pane::System => {}
         }
-        cx.notify();
     }
 
     fn turn_page(&mut self, delta: isize, cx: &mut Context<Self>) {
         match self.focus {
-            Pane::Runs => self.set_cursor(
-                self.cursor
-                    .saturating_add_signed(delta * LIST_PAGE as isize),
-            ),
+            Pane::Runs => {
+                let rows = self.runs_paged.rows as isize;
+                self.set_cursor(self.cursor.saturating_add_signed(delta * rows));
+            }
             Pane::Metrics => {
                 self.refresh_caches();
                 let total = self.metric_names().len();
@@ -1010,7 +1032,14 @@ impl Workspace {
                 let total = self.cache.system_groups.len();
                 self.system_grid.turn_page(delta, total);
             }
-            Pane::Console | Pane::Overview => self.move_by(delta * LIST_PAGE as isize, 0, cx),
+            Pane::Console => {
+                let rows = self.console_paged.rows as isize;
+                self.move_by(delta * rows, 0, cx);
+            }
+            Pane::Overview => {
+                let rows = self.overview_paged.rows as isize;
+                self.move_by(delta * rows, 0, cx);
+            }
         }
         cx.notify();
     }
@@ -1058,6 +1087,9 @@ impl Workspace {
     }
 
     fn toggle_select(&mut self, _: &ToggleSelect, _: &mut Window, cx: &mut Context<Self>) {
+        if self.focus != Pane::Runs {
+            return;
+        }
         let Some(&ix) = self.visible().get(self.cursor) else {
             return;
         };
@@ -1070,6 +1102,9 @@ impl Workspace {
     }
 
     fn pin_run(&mut self, _: &PinRun, _: &mut Window, cx: &mut Context<Self>) {
+        if self.focus != Pane::Runs {
+            return;
+        }
         let Some(&ix) = self.visible().get(self.cursor) else {
             return;
         };
@@ -1481,6 +1516,15 @@ fn merge(acc: Option<Range>, next: Option<Range>) -> Option<Range> {
     }
 }
 
+/// A wheel event's vertical movement in lines, positive for up.
+pub fn wheel_lines(event: &ScrollWheelEvent) -> Option<f32> {
+    let lines = match event.delta {
+        ScrollDelta::Lines(delta) => delta.y,
+        ScrollDelta::Pixels(delta) => f32::from(delta.y) / 40.,
+    };
+    (lines != 0.).then_some(lines)
+}
+
 pub fn pane_header(title: String, filter: &Filter, focused: bool) -> Div {
     let filter_text = match (filter.editing, filter.text.is_empty()) {
         (true, _) => format!("filter: {}▏", filter.text),
@@ -1543,6 +1587,14 @@ impl Render for Workspace {
         self.metrics_grid
             .fit(f32::from(geometry.metrics_h - header));
         self.system_grid.fit(f32::from(geometry.system_h - header));
+        self.runs_paged.fit(
+            f32::from(geometry.content_h - header),
+            runs_list::ROW_HEIGHT,
+        );
+        self.overview_paged
+            .fit(f32::from(geometry.content_h - header), overview::ROW_HEIGHT);
+        self.console_paged
+            .fit(f32::from(geometry.logs_h - header), console::ROW_HEIGHT);
         let workspace = cx.entity();
         let system_above = show_metrics;
         let console_above = show_metrics || show_system;

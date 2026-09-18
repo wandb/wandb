@@ -9,6 +9,7 @@ mod console;
 mod dir_state;
 mod grid;
 mod overview;
+mod paged;
 mod run;
 mod runs_list;
 mod source;

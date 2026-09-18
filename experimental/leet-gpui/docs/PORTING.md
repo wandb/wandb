@@ -38,7 +38,7 @@ The Bun-style differential harness (oracle frames diffed cell by cell) covers th
 | `Filter` text box reading keys | `on_key_down` appending `keystroke.key_char` when a filter is editing |
 | `tea.Tick` heartbeat | `cx.background_executor().timer(...)` in a `cx.spawn` loop |
 | `computeViewports` and flex fractions | `div().flex()` with `flex_1` and pixel widths from the viewport size (taffy) |
-| `PagedList`, viewport scrolling | `uniform_list` with a `UniformListScrollHandle` |
+| `PagedList` | `paged::Paged`: rows fitted to the pane height, the page derived from the cursor, plain rows for the current page |
 | drag state machine in `dragresize.go` | `on_mouse_down` on a separator div, `on_mouse_move` and `on_mouse_up` on the root |
 | wheel and right-drag on charts | `on_scroll_wheel` on the cell; the chart applies the pending zoom on its next paint, when it knows its plot bounds |
 | `lipgloss` styles | `Styled` builder methods; colors in `theme.rs` |

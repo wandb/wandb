@@ -1,14 +1,14 @@
-//! The runs sidebar: every run in the directory, newest first, with its
-//! selection mark, pin, and state.
-
-use std::ops::Range;
+//! The runs sidebar: every run in the directory, newest first, one page at
+//! a time, with its selection mark, pin, and state.
 
 use gpui::prelude::*;
-use gpui::{Context, Div, Stateful, div, px, uniform_list};
+use gpui::{Context, Div, Stateful, div, px};
 
 use crate::run::RunState;
 use crate::theme;
-use crate::workspace::{Pane, Workspace, pane_header};
+use crate::workspace::{Pane, Workspace, pane_header, wheel_lines};
+
+pub const ROW_HEIGHT: f32 = 22.;
 
 pub fn render_runs(
     workspace: &Workspace,
@@ -17,7 +17,14 @@ pub fn render_runs(
 ) -> Stateful<Div> {
     let visible = workspace.visible();
     let focused = workspace.focus == Pane::Runs;
-    let header = format!("runs {}/{}", visible.len(), workspace.runs.len());
+    let paged = &workspace.runs_paged;
+    let header = format!(
+        "runs {}/{}  {}",
+        visible.len(),
+        workspace.runs.len(),
+        paged.label(workspace.cursor, visible.len())
+    );
+    let range = paged.range(workspace.cursor, visible.len());
     div()
         .id("runs")
         .w(width)
@@ -33,17 +40,17 @@ pub fn render_runs(
         })
         .child(pane_header(header, &workspace.filters.runs, focused))
         .child(
-            uniform_list(
-                "runs-list",
-                visible.len(),
-                cx.processor(move |workspace, range: Range<usize>, _, cx| {
-                    range
-                        .map(|pos| render_run_row(workspace, visible[pos], pos, cx))
-                        .collect()
-                }),
-            )
-            .flex_1()
-            .track_scroll(workspace.runs_scroll.clone()),
+            div()
+                .flex_1()
+                .flex()
+                .flex_col()
+                .on_scroll_wheel(cx.listener(|workspace, event, _, cx| {
+                    if let Some(delta) = wheel_lines(event) {
+                        workspace.turn_list_page(Pane::Runs, delta);
+                        cx.notify();
+                    }
+                }))
+                .children(range.map(|pos| render_run_row(workspace, visible[pos], pos, cx))),
         )
 }
 
@@ -79,7 +86,8 @@ fn render_run_row(
     let (state, state_color) = state_glyph(run.state);
     div()
         .id(pos)
-        .h(px(22.))
+        .w_full()
+        .h(px(ROW_HEIGHT))
         .px_2()
         .flex()
         .items_center()
