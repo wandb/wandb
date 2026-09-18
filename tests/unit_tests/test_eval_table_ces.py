@@ -63,9 +63,11 @@ def mock_eval_logger(monkeypatch):
     )
     return mock_evaluation_logger_cls
 
+
 @pytest.fixture
 def run(mock_run):
     return mock_run(settings={"entity": "e", "project": "p", "mode": "online"})
+
 
 @pytest.fixture(autouse=True)
 def default_eval_table_server_feature_disabled(monkeypatch):
@@ -73,6 +75,7 @@ def default_eval_table_server_feature_disabled(monkeypatch):
         "wandb.sdk.data_types._eval_table_writer_factory.ServiceApi.feature_enabled",
         lambda self, feature: False,
     )
+
 
 @pytest.fixture
 def mock_ces_client(monkeypatch):
@@ -107,6 +110,7 @@ def mock_ces_client(monkeypatch):
     )
     return client
 
+
 @pytest.mark.parametrize(
     ("server_feature_enabled", "expected_marker_type"),
     [(False, "eval-table"), (True, "eval-table-ces")],
@@ -137,6 +141,7 @@ def test_eval_table_defaults_backend_from_server_feature(
         mock_eval_logger._create_with_meta.assert_called_once()
         mock_ces_client.eval_tables.create.assert_not_called()
 
+
 @pytest.mark.parametrize(
     ("backend", "server_feature_enabled", "expected_marker_type"),
     [
@@ -165,6 +170,7 @@ def test_eval_table_backend_overrides_server_default(
     assert table.to_json(run)["_type"] == expected_marker_type
     feature_enabled.assert_not_called()
 
+
 def test_eval_table_default_ces_does_not_require_weave(
     monkeypatch,
     mock_ces_client,
@@ -181,6 +187,7 @@ def test_eval_table_default_ces_does_not_require_weave(
 
     assert table.to_json(run)["_type"] == "eval-table-ces"
     mock_ces_client.eval_tables.create.assert_called_once()
+
 
 def test_ces_eval_table_writes_columns_rows_and_version(
     mock_ces_client,
@@ -283,6 +290,7 @@ def test_ces_eval_table_writes_columns_rows_and_version(
     assert et._immutable_write_result is not None
     assert et._immutable_write_result.logged_id == "evaluation-version-1"
 
+
 def test_ces_eval_table_stubs_media_until_native_support_exists(
     mock_ces_client,
     mock_wandb_log,
@@ -311,6 +319,7 @@ def test_ces_eval_table_stubs_media_until_native_support_exists(
         "wandb.Image values are not yet supported by CES EvalTable logging"
     )
 
+
 def test_ces_eval_table_raises_for_media_in_raise_mode(mock_ces_client):
     from PIL import Image as PILImage
 
@@ -325,6 +334,7 @@ def test_ces_eval_table_raises_for_media_in_raise_mode(mock_ces_client):
         )
 
     mock_ces_client.eval_tables.create.assert_not_called()
+
 
 def test_ces_eval_table_batches_rows_by_encoded_bytes(
     mock_ces_client,
@@ -359,6 +369,7 @@ def test_ces_eval_table_batches_rows_by_encoded_bytes(
     assert keys[0].endswith("-rows-0")
     assert keys[1].endswith("-rows-1")
 
+
 @pytest.mark.parametrize(
     ("separator_bytes", "expected_batch_sizes"),
     [(1, [2, 1]), (0, [1, 1, 1])],
@@ -380,6 +391,7 @@ def test_ces_eval_table_batch_size_counts_row_separators(
     )
 
     assert [len(batch) for batch in batches] == expected_batch_sizes
+
 
 def test_ces_eval_table_batches_rows_by_count(
     mock_ces_client,
@@ -407,6 +419,7 @@ def test_ces_eval_table_batches_rows_by_count(
         "create_version",
     ]
 
+
 def test_ces_eval_table_rejects_oversized_row_before_network(
     mock_ces_client,
     run,
@@ -432,6 +445,7 @@ def test_ces_eval_table_rejects_oversized_row_before_network(
 
     mock_ces_client.eval_tables.create.assert_not_called()
 
+
 def test_ces_eval_table_rejects_total_row_count_before_network(
     mock_ces_client,
     run,
@@ -449,6 +463,7 @@ def test_ces_eval_table_rejects_total_row_count_before_network(
         run.log({"eval": et})
 
     mock_ces_client.eval_tables.create.assert_not_called()
+
 
 def test_ces_eval_table_does_not_cut_version_after_batch_failure(
     mock_ces_client,
@@ -472,6 +487,7 @@ def test_ces_eval_table_does_not_cut_version_after_batch_failure(
 
     mock_ces_client.eval_tables.create_version.assert_not_called()
     mock_ces_client.close.assert_called_once_with()
+
 
 def test_ces_eval_table_infers_python_and_numpy_integers(
     mock_ces_client,
@@ -497,6 +513,7 @@ def test_ces_eval_table_infers_python_and_numpy_integers(
         {"source": "output", "name": "numeric", "value_type": "number"},
     ]
 
+
 def test_ces_eval_table_serializes_nan_as_typed_null(mock_ces_client, run):
     et = wandb.EvalTable(
         columns=["value"],
@@ -516,6 +533,7 @@ def test_ces_eval_table_serializes_nan_as_typed_null(mock_ces_client, run):
     assert mock_ces_client.eval_tables.add_rows.call_args.kwargs["rows"][0][
         "output"
     ] == {"value": None}
+
 
 @pytest.mark.parametrize(
     ("data", "message"),
@@ -541,6 +559,7 @@ def test_ces_eval_table_rejects_invalid_columns_before_network(
 
     mock_ces_client.eval_tables.create.assert_not_called()
 
+
 def test_ces_eval_table_rejects_mixed_column_types_before_network(
     mock_ces_client,
 ):
@@ -552,6 +571,7 @@ def test_ces_eval_table_rejects_mixed_column_types_before_network(
         )
 
     mock_ces_client.eval_tables.create.assert_not_called()
+
 
 def test_ces_eval_table_rejects_mixed_types_with_permissive_dtype_before_network(
     mock_ces_client,
@@ -568,6 +588,7 @@ def test_ces_eval_table_rejects_mixed_types_with_permissive_dtype_before_network
         run.log({"mixed_eval": et})
 
     mock_ces_client.eval_tables.create.assert_not_called()
+
 
 @pytest.mark.parametrize(
     ("columns", "score_columns", "message"),
@@ -595,6 +616,7 @@ def test_ces_eval_table_rejects_invalid_column_name_lengths_before_network(
 
     mock_ces_client.eval_tables.create.assert_not_called()
 
+
 def test_ces_eval_table_rejects_invalid_table_name_length_before_network(
     mock_ces_client,
     run,
@@ -605,6 +627,7 @@ def test_ces_eval_table_rejects_invalid_table_name_length_before_network(
         run.log({"x" * 257: et})
 
     mock_ces_client.eval_tables.create.assert_not_called()
+
 
 def test_ces_error_uses_original_integer_column(mock_ces_client, run):
     et = wandb.EvalTable(
@@ -619,6 +642,7 @@ def test_ces_error_uses_original_integer_column(mock_ces_client, run):
     assert "column '3'" not in str(exc_info.value)
     mock_ces_client.eval_tables.create.assert_not_called()
 
+
 def test_ces_eval_table_requires_base_url(monkeypatch, mock_run):
     monkeypatch.delenv("CES_BASE_URL", raising=False)
     run = mock_run(settings={"entity": "e", "project": "p", "mode": "online"})
@@ -630,6 +654,7 @@ def test_ces_eval_table_requires_base_url(monkeypatch, mock_run):
 
     with pytest.raises(UsageError, match="CES_BASE_URL"):
         run.log({"eval": et})
+
 
 def test_ces_eval_table_requires_client_before_scope_lookup(monkeypatch, run):
     monkeypatch.setenv("CES_BASE_URL", "https://evaluations.example.test")
@@ -652,6 +677,7 @@ def test_ces_eval_table_requires_client_before_scope_lookup(monkeypatch, run):
         et.to_json(run)
 
     execute_graphql.assert_not_called()
+
 
 def test_ces_eval_table_resolves_project_scope_with_api_key(run):
     writer = ces_writer.CESEvalTableWriter()
@@ -676,6 +702,7 @@ def test_ces_eval_table_resolves_project_scope_with_api_key(run):
     )
     service_api.access_token.assert_not_called()
 
+
 def test_ces_scope_context_repr_redacts_credentials():
     scope = ces_writer._CESScopeContext(
         scope_ref="scope-ref",
@@ -684,6 +711,7 @@ def test_ces_scope_context_repr_redacts_credentials():
     )
 
     assert repr(scope) == "_CESScopeContext(scope_ref='scope-ref')"
+
 
 def test_ces_eval_table_uses_federated_access_token(run):
     writer = ces_writer.CESEvalTableWriter()
@@ -703,6 +731,7 @@ def test_ces_eval_table_uses_federated_access_token(run):
 
     assert scope.api_key is None
     assert scope.access_token == "access-token"
+
 
 @pytest.mark.parametrize(
     ("api_key", "access_token"),
@@ -732,6 +761,7 @@ def test_ces_client_uses_only_the_run_credentials(api_key, access_token):
 
     assert client.api_key == api_key
     assert client.bearer_token == access_token
+
 
 def test_ces_eval_table_retries_with_stable_idempotency_keys(
     mock_ces_client,
@@ -776,6 +806,7 @@ def test_ces_eval_table_retries_with_stable_idempotency_keys(
     assert first_attempt_keys == retry_keys
     assert len(set(first_attempt_keys)) == 2
 
+
 def test_ces_eval_table_run_location_stabilizes_idempotency_keys(
     mock_ces_client,
     run,
@@ -808,6 +839,7 @@ def test_ces_eval_table_run_location_stabilizes_idempotency_keys(
         # Content is not part of request identity; CES detects body mismatches.
         assert calls[0].kwargs["idempotency_key"] == calls[1].kwargs["idempotency_key"]
 
+
 @pytest.mark.parametrize("backend", ["weave", "ces"])
 @pytest.mark.parametrize("container", ["dict", "list"])
 def test_eval_table_must_be_a_direct_history_value(
@@ -826,6 +858,7 @@ def test_eval_table_must_be_a_direct_history_value(
     mock_eval_logger._create_with_meta.assert_not_called()
     mock_ces_client.eval_tables.create.assert_not_called()
 
+
 def test_nested_scalar_history_values_remain_supported(run):
     payload = {
         "nested": {"integer": 1, "string": "value", "list": [2, 3]},
@@ -836,6 +869,7 @@ def test_nested_scalar_history_values_remain_supported(run):
         "nested": {"integer": 1, "string": "value", "list": [2, 3]},
         "_step": 7,
     }
+
 
 def test_scalar_sequence_history_does_not_get_fully_pre_walked(run):
     class FirstScalarThenFail(list):
@@ -848,6 +882,7 @@ def test_scalar_sequence_history_does_not_get_fully_pre_walked(run):
 
     assert history_dict_to_json(run, payload)["values"] is values
 
+
 def test_ces_eval_table_rejects_mixed_type_mode():
     with pytest.raises(UsageError, match="allow_mixed_types=False"):
         wandb.EvalTable(
@@ -856,6 +891,7 @@ def test_ces_eval_table_rejects_mixed_type_mode():
             allow_mixed_types=True,
             backend="ces",
         )
+
 
 def test_to_json_requires_bind_for_default_backend(run):
     table = wandb.EvalTable(columns=["out"], data=[["x"]])

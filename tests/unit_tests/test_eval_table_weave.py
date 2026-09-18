@@ -59,9 +59,11 @@ def mock_eval_logger(monkeypatch):
     )
     return mock_evaluation_logger_cls
 
+
 @pytest.fixture
 def run(mock_run):
     return mock_run(settings={"entity": "e", "project": "p", "mode": "online"})
+
 
 @pytest.fixture(autouse=True)
 def default_eval_table_server_feature_disabled(monkeypatch):
@@ -69,6 +71,7 @@ def default_eval_table_server_feature_disabled(monkeypatch):
         "wandb.sdk.data_types._eval_table_writer_factory.ServiceApi.feature_enabled",
         lambda self, feature: False,
     )
+
 
 def _install_fake_weave(monkeypatch, **attrs):
     module = types.ModuleType("weave")
@@ -78,6 +81,7 @@ def _install_fake_weave(monkeypatch, **attrs):
         setattr(module, name, value)
     monkeypatch.setitem(sys.modules, "weave", module)
     return module
+
 
 def test_eval_table_offline_run_fails_fast(monkeypatch, mock_eval_logger, mock_run):
     run = mock_run(settings={"entity": "e", "project": "p", "mode": "offline"})
@@ -94,6 +98,7 @@ def test_eval_table_offline_run_fails_fast(monkeypatch, mock_eval_logger, mock_r
     init_weave_for_run.assert_not_called()
     mock_eval_logger._create_with_meta.assert_not_called()
 
+
 def test_eval_table_rewrites_weave_import_error(monkeypatch, run):
     monkeypatch.setitem(sys.modules, "weave", None)
     table = wandb.EvalTable(columns=["input", "output"], data=[["x", "y"]])
@@ -106,6 +111,7 @@ def test_eval_table_rewrites_weave_import_error(monkeypatch, run):
     assert "pip install" in message
     assert isinstance(exc_info.value.__cause__, ModuleNotFoundError)
 
+
 def test_eval_table_disabled_weave_raises(monkeypatch, mock_run):
     run = mock_run(settings={"entity": "e", "project": "p", "mode": "online"})
     _install_fake_weave(monkeypatch, __version__="999.0.0")
@@ -115,6 +121,7 @@ def test_eval_table_disabled_weave_raises(monkeypatch, mock_run):
 
     with pytest.raises(UsageError, match="WANDB_DISABLE_WEAVE"):
         run.log({"my_eval": et})
+
 
 def test_eval_table_imports_evaluation_logger_after_weave_init(monkeypatch, run):
     for module_name in (
@@ -173,6 +180,7 @@ def test_eval_table_imports_evaluation_logger_after_weave_init(monkeypatch, run)
     assert et.to_json(run)["evaluate_call_id"] == "eval-1"
     assert order == ["init", "evaluation_logger_import", "create_with_meta"]
 
+
 def test_eval_table_bind_initializes_weave_for_run(monkeypatch, mock_run):
     _install_fake_weave(monkeypatch)
     init_weave = MagicMock()
@@ -188,6 +196,7 @@ def test_eval_table_bind_initializes_weave_for_run(monkeypatch, mock_run):
     et.bind_to_run(run, "eval", 0)
 
     init_weave.assert_called_once_with("entity", "project")
+
 
 def test_eval_table_rejects_rebind_to_different_project(monkeypatch, mock_run):
     _install_fake_weave(monkeypatch)
@@ -212,6 +221,7 @@ def test_eval_table_rejects_rebind_to_different_project(monkeypatch, mock_run):
     with pytest.raises(UsageError, match="already initialized"):
         et.bind_to_run(run2, "eval", 0)
 
+
 def test_eval_table_version_mismatch_error_includes_actual_version(monkeypatch, run):
     monkeypatch.delitem(sys.modules, "weave", raising=False)
     _install_fake_weave(monkeypatch, __version__="0.1.0")
@@ -223,6 +233,7 @@ def test_eval_table_version_mismatch_error_includes_actual_version(monkeypatch, 
     message = str(exc_info.value)
     assert message.startswith("EvalTable dependency error")
     assert "found weave==0.1.0" in message
+
 
 # Standard case: 6 columns, 2 each of input/output/score; second log no-op.
 def test_standard_immutable_log(mock_eval_logger, mock_wandb_log, run, monkeypatch):
@@ -276,6 +287,7 @@ def test_standard_immutable_log(mock_eval_logger, mock_wandb_log, run, monkeypat
         "EvalTable with log_mode='IMMUTABLE' has already been logged"
     )
 
+
 def test_eval_table_records_telemetry(mock_eval_logger, run):
     """Logging an EvalTable marks the run-level eval_table telemetry feature."""
     assert not run._telemetry_obj.feature.eval_table
@@ -284,6 +296,7 @@ def test_eval_table_records_telemetry(mock_eval_logger, run):
     run.log({"eval": et})
 
     assert run._telemetry_obj.feature.eval_table is True
+
 
 def test_telemetry_failure_does_not_repeat_immutable_write(
     monkeypatch, mock_eval_logger, run
@@ -306,6 +319,7 @@ def test_telemetry_failure_does_not_repeat_immutable_write(
     assert et.to_json(run)["evaluate_call_id"] == "eval-1"
     mock_eval_logger._create_with_meta.assert_called_once()
 
+
 def test_immutable_mutation_after_log_warns_and_still_noops(
     mock_eval_logger, mock_wandb_log, run
 ):
@@ -327,6 +341,7 @@ def test_immutable_mutation_after_log_warns_and_still_noops(
     mock_wandb_log.assert_warned(
         "EvalTable with log_mode='IMMUTABLE' has already been logged"
     )
+
 
 def test_mutation_after_failed_log_does_not_warn_as_already_logged(
     monkeypatch, mock_wandb_log, mock_run
@@ -354,6 +369,7 @@ def test_mutation_after_failed_log_does_not_warn_as_already_logged(
         for msg in mock_wandb_log._logs(mock_wandb_log._termwarn)
     )
 
+
 def test_immutable_relog_returns_original_json_after_mutation(
     mock_eval_logger, mock_wandb_log, run
 ):
@@ -373,6 +389,7 @@ def test_immutable_relog_returns_original_json_after_mutation(
         "EvalTable with log_mode='IMMUTABLE' has already been logged"
     )
 
+
 def test_to_json_rejects_different_run_after_first_log(mock_eval_logger, mock_run, run):
     other_run = mock_run(settings={"entity": "e", "project": "other", "mode": "online"})
     et = wandb.EvalTable(columns=["out"], data=[["x"]])
@@ -382,6 +399,7 @@ def test_to_json_rejects_different_run_after_first_log(mock_eval_logger, mock_ru
         et.to_json(other_run)
 
     assert mock_eval_logger._create_with_meta.call_count == 1
+
 
 # No input/output/score categorization: row index injected, all default to output.
 def test_no_categorization_injects_row_index(mock_eval_logger, run):
@@ -404,6 +422,7 @@ def test_no_categorization_injects_row_index(mock_eval_logger, run):
         scores={},
     )
 
+
 # No input columns but score columns: row injected, unspecified default to output.
 def test_no_input_with_score_columns(mock_eval_logger, run):
     et = wandb.EvalTable(
@@ -419,6 +438,7 @@ def test_no_input_with_score_columns(mock_eval_logger, run):
         output={"out1": "x", "out2": 1},
         scores={"score": 0.9},
     )
+
 
 def test_int_columns_match_role_columns_as_strings(mock_eval_logger, run):
     et = wandb.EvalTable(
@@ -437,6 +457,7 @@ def test_int_columns_match_role_columns_as_strings(mock_eval_logger, run):
         scores={"3": 0.9},
     )
 
+
 def test_int_columns_default_to_string_output_columns(mock_eval_logger, run):
     et = wandb.EvalTable(
         columns=[1, 2],
@@ -451,6 +472,7 @@ def test_int_columns_default_to_string_output_columns(mock_eval_logger, run):
         scores={},
     )
 
+
 @pytest.mark.usefixtures("mock_eval_logger")
 def test_stringified_duplicate_columns_raise(run):
     et = wandb.EvalTable(
@@ -460,6 +482,7 @@ def test_stringified_duplicate_columns_raise(run):
 
     with pytest.raises(ValueError, match="unique after converting to strings"):
         run.log({"my_eval": et})
+
 
 # All columns assigned to input/score roles: no output payload is logged.
 def test_no_output_columns_logs_none_output(mock_eval_logger, run):
@@ -477,6 +500,7 @@ def test_no_output_columns_logs_none_output(mock_eval_logger, run):
         output=None,
         scores={"score": 0.9},
     )
+
 
 # columns=None but role lists provided → columns derived from role lists.
 def test_columns_derived_from_role_lists(mock_eval_logger, run):
@@ -497,6 +521,7 @@ def test_columns_derived_from_role_lists(mock_eval_logger, run):
         scores={"score": 0.5},
     )
 
+
 # Derived columns count mismatched against data: parent Table raises.
 @pytest.mark.usefixtures("mock_eval_logger")
 def test_derived_columns_count_mismatch_raises():
@@ -508,6 +533,7 @@ def test_derived_columns_count_mismatch_raises():
             output_columns=["out"],
             score_columns=["score"],
         )
+
 
 def _fake_dataframe(monkeypatch, columns, rows):
     class _FakeSeries:
@@ -538,6 +564,7 @@ def _fake_dataframe(monkeypatch, columns, rows):
 
     return FakeDataFrame(columns=columns, rows=rows)
 
+
 # DataFrame input: parent Table populates columns/data from the frame.
 def test_dataframe_input(mock_eval_logger, run, monkeypatch):
     df = _fake_dataframe(
@@ -565,6 +592,7 @@ def test_dataframe_input(mock_eval_logger, run, monkeypatch):
         inputs={"in": "in2"}, output={"out": "out2"}, scores={"score": 0.6}
     )
 
+
 def test_dataframe_numpy_values_normalized_for_weave(
     mock_eval_logger, run, monkeypatch
 ):
@@ -590,6 +618,7 @@ def test_dataframe_numpy_values_normalized_for_weave(
         scores={"score": True},
     )
 
+
 def test_numpy_array_values_normalized_for_weave(mock_eval_logger, run):
     np = pytest.importorskip("numpy")
     array_value = np.arange(40)
@@ -607,6 +636,7 @@ def test_numpy_array_values_normalized_for_weave(mock_eval_logger, run):
         output=None,
         scores={},
     )
+
 
 def test_python_datetime_values_preserved_for_weave(mock_eval_logger, run):
     py_datetime = datetime.datetime(
@@ -642,6 +672,7 @@ def test_python_datetime_values_preserved_for_weave(mock_eval_logger, run):
         output=None,
         scores={},
     )
+
 
 def test_numpy_datetime_values_preserved_for_weave(mock_eval_logger, run):
     np = pytest.importorskip("numpy")
@@ -707,6 +738,7 @@ def test_numpy_datetime_values_preserved_for_weave(mock_eval_logger, run):
         scores={},
     )
 
+
 def test_list_dict_and_tuple_values_normalized_for_weave(mock_eval_logger, run):
     et = wandb.EvalTable(
         columns=["list_value", "dict_value", "tuple_value"],
@@ -733,6 +765,7 @@ def test_list_dict_and_tuple_values_normalized_for_weave(mock_eval_logger, run):
         scores={},
     )
 
+
 def test_wandb_media_in_dict_unwrapped_on_log(
     mock_eval_logger,
     mock_wandb_log,
@@ -756,6 +789,7 @@ def test_wandb_media_in_dict_unwrapped_on_log(
     assert isinstance(inputs["metadata"]["image"], PILImage.Image)
     assert inputs["metadata"]["image"].size == (2, 2)
 
+
 @pytest.mark.usefixtures("mock_eval_logger")
 def test_dataframe_nested_table_cell_raises(monkeypatch):
     inner = wandb.Table(columns=["x"], data=[["v"]])
@@ -763,6 +797,7 @@ def test_dataframe_nested_table_cell_raises(monkeypatch):
 
     with pytest.raises(TypeError, match="does not support nested Tables"):
         wandb.EvalTable(dataframe=df)
+
 
 # Column-role mismatch: column listed in input/output/score but not in columns.
 @pytest.mark.usefixtures("mock_eval_logger")
@@ -774,6 +809,7 @@ def test_column_role_mismatch_raises(run):
     )
     with pytest.raises(ValueError, match="do not exist in the table"):
         run.log({"my_eval": et})
+
 
 def test_duplicate_role_columns_warn(mock_eval_logger, mock_wandb_log, run):
     et = wandb.EvalTable(
@@ -794,6 +830,7 @@ def test_duplicate_role_columns_warn(mock_eval_logger, mock_wandb_log, run):
         scores={"score": 0.9},
     )
 
+
 # Nested Table inside an EvalTable cell: rejected at insertion time.
 @pytest.mark.usefixtures("mock_eval_logger")
 def test_nested_table_cell_raises_from_constructor():
@@ -801,6 +838,7 @@ def test_nested_table_cell_raises_from_constructor():
 
     with pytest.raises(TypeError, match="does not support nested Tables"):
         wandb.EvalTable(columns=["t", "n"], data=[[inner, 1]])
+
 
 @pytest.mark.usefixtures("mock_eval_logger")
 def test_add_data_nested_table_cell_raises():
@@ -812,6 +850,7 @@ def test_add_data_nested_table_cell_raises():
 
     assert et.data == []
 
+
 @pytest.mark.usefixtures("mock_eval_logger")
 def test_add_column_nested_table_cell_raises():
     inner = wandb.Table(columns=["x"], data=[["v"]])
@@ -822,6 +861,7 @@ def test_add_column_nested_table_cell_raises():
 
     assert et.columns == ["n"]
     assert et.data == [[1]]
+
 
 @pytest.mark.usefixtures("mock_eval_logger")
 def test_unsupported_wandb_media_cell_raises_in_raise_mode():
@@ -836,6 +876,7 @@ def test_unsupported_wandb_media_cell_raises_in_raise_mode():
         )
     assert "unsupported wandb media type 'Html'" in str(exc_info.value)
     assert "unsupported_media_mode='stub'" in str(exc_info.value)
+
 
 @pytest.mark.usefixtures("mock_eval_logger")
 def test_add_data_unsupported_wandb_value_cell_raises_in_raise_mode():
@@ -853,6 +894,7 @@ def test_add_data_unsupported_wandb_value_cell_raises_in_raise_mode():
 
     assert et.data == []
 
+
 @pytest.mark.parametrize("backend", [None, "weave", "ces"])
 @pytest.mark.usefixtures("mock_eval_logger")
 def test_unsupported_media_mode_rejects_unknown_mode(backend):
@@ -862,6 +904,7 @@ def test_unsupported_media_mode_rejects_unknown_mode(backend):
             backend=backend,
             unsupported_media_mode="ignore",
         )
+
 
 def test_unsupported_wandb_media_stubbed_on_log(
     mock_eval_logger,
@@ -889,6 +932,7 @@ def test_unsupported_wandb_media_stubbed_on_log(
         output={"label": "ok"},
         scores={},
     )
+
 
 def test_external_image_reference_stubbed_on_log(
     mock_eval_logger,
@@ -919,6 +963,7 @@ def test_external_image_reference_stubbed_on_log(
         scores={},
     )
 
+
 def test_weave_media_error_uses_original_integer_column(mock_eval_logger, run):
     image = wandb.Image("https://example.com/image.png")
     et = wandb.EvalTable(
@@ -931,6 +976,7 @@ def test_weave_media_error_uses_original_integer_column(mock_eval_logger, run):
         run.log({"my_eval": et})
 
     assert "column '1'" not in str(exc_info.value)
+
 
 def test_unsupported_wandb_value_without_natural_hash_stubbed_on_log(
     mock_eval_logger,
@@ -951,6 +997,7 @@ def test_unsupported_wandb_value_without_natural_hash_stubbed_on_log(
     stub = output["histogram"]
     assert stub == "[wandb.Histogram not yet supported]"
 
+
 # Logging an EvalTable to an Artifact: rejected.
 @pytest.mark.usefixtures("mock_eval_logger")
 def test_artifact_path_raises():
@@ -959,6 +1006,7 @@ def test_artifact_path_raises():
 
     with pytest.raises(TypeError, match="cannot be logged to a wandb.Artifact"):
         et.to_json(fake_artifact)
+
 
 # Parent wandb.Table rejects EvalTable cells through artifact serialization.
 @pytest.mark.usefixtures("mock_eval_logger")
@@ -969,6 +1017,7 @@ def test_parent_table_rejects_evaltable_cell():
 
     with pytest.raises(TypeError, match="cannot be logged to a wandb.Artifact"):
         parent.to_json(fake_artifact)
+
 
 # wandb.Image cell values are unwrapped to PIL.Image before being
 # passed to log_example, so weave can use its image type handler.
@@ -998,6 +1047,7 @@ def test_wandb_image_cell_unwrapped_to_pil(mock_eval_logger, run):
     # And it's the same image content (round-tripped through wandb.Image).
     assert img.size == (2, 2)
     assert call_kwargs["inputs"] == {"row": 1}
+
 
 def test_wandb_image_with_int_column_unwrapped_to_pil(mock_eval_logger, run):
     from PIL import Image as PILImage
