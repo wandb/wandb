@@ -1,8 +1,11 @@
 package scheduler_test
 
 import (
+	"fmt"
 	"testing"
 	"time"
+
+	"github.com/Khan/genqlient/graphql"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -12,6 +15,185 @@ import (
 	"github.com/wandb/wandb/core/internal/sweeps/scheduler"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
+
+// stubEnqueue answers one enqueue by minting a run named runName.
+func (f *loopFixture) stubEnqueue(runName string) {
+	f.client.StubMatchOnce(
+		gqlmock.WithOpName("EnqueueSweepRun"),
+		fmt.Sprintf(
+			`{"enqueueSweepRun": {"id": %q, "runQueueItemId": "rqi"}}`,
+			runName),
+	)
+}
+
+func suggest(ids ...string) *spb.SweepSchedulerClientGenerationResult {
+	result := &spb.SweepSchedulerClientGenerationResult{
+		AskOutcome: spb.SweepSchedulerClientGenerationResult_ASK_OUTCOME_SUGGESTED,
+	}
+	for _, id := range ids {
+		result.Suggestions = append(result.Suggestions,
+			&spb.SweepSchedulerClientRunSuggestion{
+				OptimizerRunId: id,
+				ConfigJson:     `{"param1": 1}`,
+			})
+	}
+	return result
+}
+
+func TestSuggestionsEnqueueAndAppear(t *testing.T) {
+	fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 2})
+	fixture.warmTo(t)
+
+	fixture.stubIdlePoll("RUNNING")
+	first := fixture.step(t, warmResult(nil))
+	require.NotNil(t, first.GetGeneration())
+	assert.EqualValues(t, 2, first.GetGeneration().AskUpTo)
+
+	// The suggestion triggers a sweep re-check and an enqueue.
+	fixture.stubSweepConfig("RUNNING")
+	fixture.stubEnqueue("backend-name-1")
+	// The minted run appears in the next poll under the enqueued id.
+	fixture.stubPoll(pollJSON("RUNNING", false, "",
+		testRun{name: "backend-name-1", state: "pending"},
+	))
+	second := fixture.step(t, generationResult(suggest("opt-1")))
+
+	task := second.GetGeneration()
+	require.NotNil(t, task)
+	require.Len(t, task.Updates, 1)
+	assert.Equal(t, "backend-name-1", task.Updates[0].Run.WandbRunId)
+	assert.Equal(t, "opt-1", task.Updates[0].Run.OptimizerRunId)
+	// One slot occupied by the joined run.
+	assert.EqualValues(t, 1, task.AskUpTo)
+	assert.True(t, fixture.client.AllStubsUsed())
+}
+
+func TestEnqueuedRunDeletedBeforeAppearingIsReaped(t *testing.T) {
+	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
+	fixture.warmTo(t)
+	fixture.stubIdlePoll("RUNNING")
+	fixture.step(t, warmResult(nil))
+
+	fixture.stubSweepConfig("RUNNING")
+	fixture.stubEnqueue("minted-1")
+
+	// The minted run never shows up: it was deleted before appearing.
+	// Two missing polls plus a confirming query reap it as failed.
+	fixture.stubPoll(pollJSON("RUNNING", false, ""))
+	first := fixture.step(t, generationResult(suggest("opt-1")))
+	assert.Empty(t, first.GetGeneration().Updates)
+
+	fixture.client.StubMatchOnce(
+		gqlmock.WithOpName("RunState"),
+		`{"project": {"run": null}}`,
+	)
+	fixture.stubPoll(pollJSON("RUNNING", false, ""))
+	second := fixture.step(t, emptyIterResult())
+
+	updates := second.GetGeneration().Updates
+	require.Len(t, updates, 1)
+	assert.Equal(t, "minted-1", updates[0].Run.WandbRunId)
+	assert.Equal(t, "opt-1", updates[0].Run.OptimizerRunId)
+	assert.Equal(t,
+		spb.SweepRunState_SWEEP_RUN_STATE_FAILED, updates[0].Run.State)
+}
+
+func TestStopEnqueuesPendingSuggestionsThenDone(t *testing.T) {
+	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
+	fixture.warmTo(t)
+	fixture.stubIdlePoll("RUNNING")
+	fixture.step(t, warmResult(nil))
+
+	fixture.scheduler.Stop()
+
+	// Graceful shutdown enqueues the batch the client already produced,
+	// then returns Done without another poll or ask.
+	fixture.stubSweepConfig("RUNNING")
+	fixture.stubEnqueue("minted-a")
+	fixture.stubEnqueue("minted-b")
+	done := fixture.step(t, generationResult(suggest("opt-a", "opt-b")))
+
+	require.NotNil(t, done.GetDone())
+	assert.Equal(t,
+		spb.SweepSchedulerServerDoneTask_REASON_SHUTDOWN,
+		done.GetDone().Reason)
+	assert.Empty(t, done.GetDone().DiscardedOptimizerRunIds)
+	assert.True(t, fixture.client.AllStubsUsed(),
+		"must not poll again after enqueueing the in-flight suggestions")
+}
+
+// An enqueue that failed scheduled no run. Only a rate limit is worth
+// another pass; anything else has already outlived the client's
+// retries.
+func TestEnqueueFailures(t *testing.T) {
+	t.Run("a rate limit costs only that suggestion", func(t *testing.T) {
+		fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 2})
+		fixture.warmTo(t)
+		fixture.stubIdlePoll("RUNNING")
+		fixture.step(t, warmResult(nil))
+
+		// A rate limit costs only this suggestion; the loop slows down and
+		// carries on.
+		fixture.stubSweepConfig("RUNNING")
+		fixture.client.StubMatchWithError(
+			gqlmock.WithOpName("EnqueueSweepRun"),
+			&graphql.HTTPError{StatusCode: 429},
+		)
+		// The suggestion never became a run, so there is nothing to watch.
+		fixture.stubIdlePoll("RUNNING")
+		task := fixture.step(t, generationResult(suggest("opt-lost")))
+
+		require.NotNil(t, task.GetGeneration(),
+			"expected the loop to keep iterating")
+		assert.True(t, fixture.client.AllStubsUsed())
+	})
+
+	t.Run("a fatal failure ends the scheduler", func(t *testing.T) {
+		fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 2})
+		fixture.warmTo(t)
+		fixture.stubIdlePoll("RUNNING")
+		fixture.step(t, warmResult(nil))
+
+		// A 400 is never retried, so polling again cannot help.
+		fixture.stubSweepConfig("RUNNING")
+		fixture.client.StubMatchWithError(
+			gqlmock.WithOpName("EnqueueSweepRun"),
+			&graphql.HTTPError{StatusCode: 400},
+		)
+		// Stubbed so a loop that wrongly carried on would poll cleanly
+		// and answer with a generation instead of this Done.
+		fixture.stubIdlePoll("RUNNING")
+		task := fixture.step(t, generationResult(suggest("opt-lost")))
+
+		done := task.GetDone()
+		require.NotNil(t, done)
+		assert.Equal(t,
+			spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR, done.Reason)
+		assert.Contains(t, done.Message, "400",
+			"the Done must carry the enqueue failure, not a later one")
+	})
+}
+
+// The optimizer thinks between tasks, so the sweep it was asked about
+// may be over by the time its suggestions arrive.
+func TestLateSuggestionsWhenSweepFinished(t *testing.T) {
+	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
+	fixture.warmTo(t)
+	fixture.stubIdlePoll("RUNNING")
+	fixture.step(t, warmResult(nil))
+
+	// No enqueue stub: the re-check must stop the suggestion before it
+	// reaches the backend.
+	fixture.stubSweepConfig("FINISHED")
+	done := fixture.step(t, generationResult(suggest("opt-late")))
+
+	require.NotNil(t, done.GetDone())
+	assert.Equal(t,
+		spb.SweepSchedulerServerDoneTask_REASON_SWEEP_FINISHED,
+		done.GetDone().Reason)
+	assert.Empty(t, fixture.requestsFor("EnqueueSweepRun"),
+		"a finished sweep must not have runs enqueued into it")
+}
 
 // Once the search space is exhausted the sweep still has to wait out
 // the runs already scheduled: finishing it early would stop the
@@ -62,6 +244,33 @@ func TestExhaustedSearchSpaceWaitsForRunsInFlight(t *testing.T) {
 	assert.Equal(t,
 		spb.SweepSchedulerServerDoneTask_REASON_SWEEP_FINISHED, done.GetDone().Reason)
 	assert.True(t, fixture.client.AllStubsUsed())
+}
+
+// A run the scheduler minted but no poll has confirmed still counts
+// as in flight, so an exhausted search space must wait for it too.
+func TestExhaustedSearchSpaceWaitsForAnUnseenEnqueuedRun(t *testing.T) {
+	fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 1})
+	fixture.warmTo(t)
+	fixture.stubIdlePoll("RUNNING")
+	fixture.step(t, warmResult(nil))
+
+	// A suggestion is enqueued but its run has not appeared yet.
+	fixture.stubSweepConfig("RUNNING")
+	fixture.stubEnqueue("backend-1")
+	fixture.stubPoll(pollJSON("RUNNING", false, ""))
+	fixture.step(t, generationResult(suggest("opt-1")))
+
+	// Exhausted while that run has not appeared yet: no finish yet.
+	fixture.stubPoll(pollJSON("RUNNING", false, "",
+		testRun{name: "backend-1", state: "pending"},
+	))
+	draining := fixture.step(t, generationResult(
+		&spb.SweepSchedulerClientGenerationResult{
+			AskOutcome: spb.SweepSchedulerClientGenerationResult_ASK_OUTCOME_EXHAUSTED,
+		}))
+
+	require.NotNil(t, draining.GetGeneration())
+	assert.Zero(t, draining.GetGeneration().AskUpTo)
 }
 
 func TestSucceededRunIsDroppedFromTheWatchedSet(t *testing.T) {
