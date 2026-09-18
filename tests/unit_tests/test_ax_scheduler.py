@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -10,6 +11,8 @@ pytest.importorskip("ax")
 
 import ax as ax_module
 from ax.api.client import Client
+from ax.exceptions.core import DataRequiredError, OptimizationComplete
+from ax.exceptions.generation_strategy import MaxParallelismReachedException
 from wandb.sdk.sweeps.run_state import RunState
 from wandb.sdk.sweeps.scheduler.ax import (
     AxOptimizer,
@@ -50,40 +53,28 @@ def sweep() -> SweepInfo:
 class TestAskNRuns:
     """How `ask_n_runs` maps Ax's generation failures onto the contract."""
 
-    def test_declines_with_none_when_ax_needs_more_data(
-        self, client: Client, sweep: SweepInfo
+    @pytest.mark.parametrize(
+        ("error", "expected"),
+        [
+            pytest.param(DataRequiredError("need data"), None, id="needs-more-data"),
+            pytest.param(
+                MaxParallelismReachedException(num_running=2),
+                None,
+                id="parallelism-cap",
+            ),
+            pytest.param(OptimizationComplete("done"), [], id="optimization-complete"),
+        ],
+    )
+    def test_generation_failure_declines_or_finishes(
+        self,
+        client: Client,
+        sweep: SweepInfo,
+        error: Exception,
+        expected: list[Any] | None,
     ) -> None:
-        from ax.exceptions.core import DataRequiredError
-
         optimizer = AxOptimizer(client, sweep)
-        with patch.object(
-            client, "get_next_trials", side_effect=DataRequiredError("need data")
-        ):
-            assert optimizer.ask_n_runs(2) is None
-
-    def test_declines_with_none_when_parallelism_cap_is_hit(
-        self, client: Client, sweep: SweepInfo
-    ) -> None:
-        from ax.exceptions.generation_strategy import MaxParallelismReachedException
-
-        optimizer = AxOptimizer(client, sweep)
-        with patch.object(
-            client,
-            "get_next_trials",
-            side_effect=MaxParallelismReachedException(num_running=2),
-        ):
-            assert optimizer.ask_n_runs(2) is None
-
-    def test_finishes_with_empty_when_optimization_complete(
-        self, client: Client, sweep: SweepInfo
-    ) -> None:
-        from ax.exceptions.core import OptimizationComplete
-
-        optimizer = AxOptimizer(client, sweep)
-        with patch.object(
-            client, "get_next_trials", side_effect=OptimizationComplete("done")
-        ):
-            assert optimizer.ask_n_runs(2) == []
+        with patch.object(client, "get_next_trials", side_effect=error):
+            assert optimizer.ask_n_runs(2) == expected
 
     def test_propagates_unexpected_errors(
         self, client: Client, sweep: SweepInfo
@@ -123,26 +114,27 @@ class TestCreateDefaultClient:
         assert list(metric_names) == ["loss"]
         assert experiment.optimization_config.objective.minimize is True
 
-    def test_maximize_goal_sets_minimize_false(self) -> None:
-        config = {
-            "metric": {"name": "accuracy", "goal": "maximize"},
-            "parameters": {},
-        }
-
-        client = create_default_client(config)
-
-        assert _experiment(client).optimization_config.objective.minimize is False
-
-    @pytest.mark.parametrize("name", ["val-loss", "top 1 acc", "1_loss", "acc %"])
-    def test_metric_name_ax_cannot_parse_is_kept_whole(self, name: str) -> None:
+    @pytest.mark.parametrize(
+        ("name", "goal", "minimize"),
+        [
+            ("val-loss", "minimize", True),
+            ("top 1 acc", "minimize", True),
+            ("1_loss", "minimize", True),
+            ("acc %", "minimize", True),
+            ("accuracy", "maximize", False),
+        ],
+    )
+    def test_objective_keeps_the_metric_name_and_goal(
+        self, name: str, goal: str, minimize: bool
+    ) -> None:
         """Names Ax's objective parser mangles or rejects survive verbatim."""
-        config = {"metric": {"name": name, "goal": "minimize"}, "parameters": {}}
+        config = {"metric": {"name": name, "goal": goal}, "parameters": {}}
 
         client = create_default_client(config)
 
         objective = _experiment(client).optimization_config.objective
         assert list(objective.metric_names) == [name]
-        assert objective.minimize is True
+        assert objective.minimize is minimize
 
     def test_metric_without_a_name_is_rejected(self) -> None:
         with pytest.raises(ValueError, match="no metric name"):
