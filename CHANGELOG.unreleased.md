@@ -16,6 +16,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Added
 
+- In LEET, `ctrl+a` selects every run matching the runs filter after you confirm how many it will load with `y`, and `x` deselects all runs except the pinned one, so comparing a new batch of runs no longer means selecting or deselecting them one by one (@dmitryduev in https://github.com/wandb/wandb/pull/12904)
 - It is now possible to use resume="must" for offline runs. Syncing will fail if there's no run to resume. (@geoffhardy in https://github.com/wandb/wandb/pull/12110)
 - Added a `--max-consecutive-failed-runs` flag to `wandb agent`, which shuts an agent down once that many runs have failed consecutively at any point in the agent's life. (@nathancy-wandb in https://github.com/wandb/wandb/pull/12821)
 

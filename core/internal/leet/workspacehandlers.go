@@ -82,6 +82,10 @@ func (w *Workspace) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 		return nil
 	}
 
+	if w.pendingSelectAll != nil {
+		return w.confirmSelectAll(msg)
+	}
+
 	// Grid config capture takes priority.
 	if w.config.IsAwaitingGridConfig() {
 		w.metricsGrid.handleGridConfigNumberKey(msg, w.computeViewports())
@@ -1233,6 +1237,11 @@ func (w *Workspace) toggleRunSelected(runKey string) tea.Cmd {
 		return nil
 	}
 
+	return w.selectRun(runKey)
+}
+
+// selectRun selects the run, pins it if no run is pinned, and starts loading it.
+func (w *Workspace) selectRun(runKey string) tea.Cmd {
 	// Resolve the run file before mutating selection state so we don't end up
 	// "selected but unloadable" if the key can't be mapped to a .wandb file.
 	wandbFile := runWandbFile(w.wandbDir, runKey)
@@ -1308,6 +1317,47 @@ func (w *Workspace) handlePinRunKey(msg tea.KeyPressMsg) tea.Cmd {
 	}
 
 	w.togglePin(runKey)
+	return nil
+}
+
+// handleSelectAllRunsKey asks to confirm selecting every run matching the
+// runs filter, since that loads all of them.
+func (w *Workspace) handleSelectAllRunsKey(tea.KeyPressMsg) tea.Cmd {
+	if !w.runSelectorActive() {
+		return nil
+	}
+	for _, item := range w.runs.FilteredItems {
+		if !w.selectedRuns[item.Key] {
+			w.pendingSelectAll = append(w.pendingSelectAll, item.Key)
+		}
+	}
+	return nil
+}
+
+// confirmSelectAll selects the pending runs on y; any other key cancels.
+func (w *Workspace) confirmSelectAll(msg tea.KeyPressMsg) tea.Cmd {
+	keys := w.pendingSelectAll
+	w.pendingSelectAll = nil
+	if msg.String() != "y" {
+		return nil
+	}
+	var cmds []tea.Cmd
+	for _, key := range keys {
+		cmds = append(cmds, w.selectRun(key))
+	}
+	return batchCmds(cmds...)
+}
+
+// handleDeselectAllRunsKey deselects every run except the pinned one.
+func (w *Workspace) handleDeselectAllRunsKey(tea.KeyPressMsg) tea.Cmd {
+	if !w.runSelectorActive() {
+		return nil
+	}
+	for key := range w.selectedRuns {
+		if key != w.pinnedRun {
+			w.dropRun(key)
+		}
+	}
 	return nil
 }
 
