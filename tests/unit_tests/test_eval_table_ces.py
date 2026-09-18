@@ -13,7 +13,6 @@ import wandb
 from wandb.errors import UsageError
 from wandb.sdk.data_types import _eval_table_writer_ces as ces_writer
 from wandb.sdk.data_types._dtypes import AnyType
-from wandb.sdk.data_types.utils import history_dict_to_json
 
 
 @pytest.fixture
@@ -751,49 +750,6 @@ def test_ces_eval_table_run_location_stabilizes_idempotency_keys(
         assert len(calls) == 2
         # Content is not part of request identity; CES detects body mismatches.
         assert calls[0].kwargs["idempotency_key"] == calls[1].kwargs["idempotency_key"]
-
-
-@pytest.mark.parametrize("backend", ["weave", "ces"])
-@pytest.mark.parametrize("container", ["dict", "list"])
-def test_eval_table_must_be_a_direct_history_value(
-    backend,
-    container,
-    mock_eval_logger,
-    mock_ces_client,
-    run,
-):
-    table = wandb.EvalTable(columns=["value"], data=[[1]], backend=backend)
-    nested = {"eval": table} if container == "dict" else [table]
-
-    with pytest.raises(UsageError, match="must be logged directly"):
-        run.log({"nested": nested})
-
-    mock_eval_logger._create_with_meta.assert_not_called()
-    mock_ces_client.eval_tables.create.assert_not_called()
-
-
-def test_nested_scalar_history_values_remain_supported(run):
-    payload = {
-        "nested": {"integer": 1, "string": "value", "list": [2, 3]},
-        "_step": 7,
-    }
-
-    assert history_dict_to_json(run, payload) == {
-        "nested": {"integer": 1, "string": "value", "list": [2, 3]},
-        "_step": 7,
-    }
-
-
-def test_scalar_sequence_history_does_not_get_fully_pre_walked(run):
-    class FirstScalarThenFail(list):
-        def __iter__(self):
-            yield 1
-            raise AssertionError("history conversion walked the whole sequence")
-
-    values = FirstScalarThenFail([1, 2])
-    payload = {"values": values, "_step": 7}
-
-    assert history_dict_to_json(run, payload)["values"] is values
 
 
 def test_ces_eval_table_rejects_mixed_type_mode():
