@@ -665,7 +665,7 @@ def test_ces_eval_table_resolves_project_scope(run):
         "project": {"internalId": "opaque-project-id"}
     }
     writer = ces_writer.CESEvalTableWriter(service_api=service_api)
-    writer.bind(run, "eval", 0)
+    writer.bind_to_run(run, "eval", 0)
 
     scope_ref = writer._resolve_scope_ref(writer._require_bound())
 
@@ -1726,6 +1726,7 @@ def test_unsupported_wandb_media_cell_raises_in_raise_mode():
         wandb.EvalTable(
             columns=["html"],
             data=[[html]],
+            backend="weave",
             unsupported_media_mode="raise",
         )
     assert "unsupported wandb media type 'Html'" in str(exc_info.value)
@@ -1735,7 +1736,11 @@ def test_unsupported_wandb_media_cell_raises_in_raise_mode():
 @pytest.mark.usefixtures("mock_eval_logger")
 def test_add_data_unsupported_wandb_value_cell_raises_in_raise_mode():
     histogram = wandb.Histogram([1, 2, 3])
-    et = wandb.EvalTable(columns=["histogram"], unsupported_media_mode="raise")
+    et = wandb.EvalTable(
+        columns=["histogram"],
+        backend="weave",
+        unsupported_media_mode="raise",
+    )
 
     with pytest.raises(TypeError) as exc_info:
         et.add_data(histogram)

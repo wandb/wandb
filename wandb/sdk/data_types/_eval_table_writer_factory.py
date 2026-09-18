@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal
 
-import wandb.integration.weave.media_adapters as media_adapters
 from wandb.apis.public.service_api import ServiceApi
 from wandb.errors import UsageError
 from wandb.proto import wandb_internal_pb2 as pb
-from wandb.sdk.data_types._eval_table_writer import EvalTableWriter
+from wandb.sdk.data_types._eval_table_writer import (
+    EvalTableWriter,
+    UnsupportedMediaMode,
+)
 from wandb.sdk.data_types._eval_table_writer_ces import CESEvalTableWriter
 from wandb.sdk.data_types._eval_table_writer_weave import WeaveEvalTableWriter
 
@@ -21,7 +23,7 @@ def create_eval_table_writer(
     backend: EvalTableBackend,
     *,
     allow_mixed_types: bool,
-    unsupported_media_mode: media_adapters.UnsupportedMediaMode,
+    unsupported_media_mode: UnsupportedMediaMode,
     service_api: ServiceApi | None = None,
 ) -> EvalTableWriter:
     if backend == "weave":
@@ -44,7 +46,7 @@ def create_default_eval_table_writer(
     run: LocalRun,
     *,
     allow_mixed_types: bool,
-    unsupported_media_mode: media_adapters.UnsupportedMediaMode,
+    unsupported_media_mode: UnsupportedMediaMode,
 ) -> EvalTableWriter:
     """Create the writer advertised as the default by the bound run's server."""
     service_api = ServiceApi(run._settings)
