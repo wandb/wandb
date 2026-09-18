@@ -188,7 +188,6 @@ def test_ces_eval_table_writes_columns_rows_and_version(
     marker = et.to_json(run)
     assert marker == {
         "_type": "eval-table-ces",
-        "backend": "ces",
         "schema_version": 1,
         "ncols": 5,
         "nrows": 2,
@@ -503,27 +502,61 @@ def test_ces_eval_table_rejects_mixed_types_with_permissive_dtype_before_network
 
 
 @pytest.mark.parametrize(
-    ("columns", "score_columns", "message"),
+    (
+        "columns",
+        "input_columns",
+        "output_columns",
+        "score_columns",
+        "message",
+    ),
     [
-        (["x" * 513], None, "Dataset field names"),
-        (["x" * 257], ["x" * 257], "Scorer names"),
+        (["x" * 513], ["x" * 513], None, None, "input column names"),
+        (["x" * 513], None, ["x" * 513], None, "output column names"),
+        (["x" * 257], None, None, ["x" * 257], "score column names"),
     ],
 )
 def test_ces_eval_table_rejects_invalid_column_name_lengths_before_network(
     mock_ces_client,
     run,
     columns,
+    input_columns,
+    output_columns,
     score_columns,
     message,
 ):
     et = wandb.EvalTable(
         columns=columns,
         data=[[1]],
+        input_columns=input_columns,
+        output_columns=output_columns,
         score_columns=score_columns,
         backend="ces",
     )
 
     with pytest.raises(UsageError, match=message):
+        run.log({"invalid_eval": et})
+
+    mock_ces_client.eval_tables.create.assert_not_called()
+
+
+def test_ces_eval_table_describes_field_limit_as_input_and_output_columns(
+    monkeypatch,
+    mock_ces_client,
+    run,
+):
+    monkeypatch.setattr(ces_writer, "_MAX_DATASET_FIELDS", 1)
+    et = wandb.EvalTable(
+        columns=["prompt", "answer"],
+        data=[["question", "response"]],
+        input_columns=["prompt"],
+        output_columns=["answer"],
+        backend="ces",
+    )
+
+    with pytest.raises(
+        UsageError,
+        match="at most 1 input and output columns combined",
+    ):
         run.log({"invalid_eval": et})
 
     mock_ces_client.eval_tables.create.assert_not_called()

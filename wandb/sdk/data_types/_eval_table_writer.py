@@ -2,29 +2,17 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal, Protocol, get_args
+from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
     from wandb.sdk.data_types.table import ColumnKey, LogMode
     from wandb.sdk.wandb_run import Run as LocalRun
 
 
-UnsupportedMediaMode = Literal["stub", "raise"]
-_UNSUPPORTED_MEDIA_MODES = get_args(UnsupportedMediaMode)
-
-
-def validate_unsupported_media_mode(mode: str) -> None:
-    if mode not in _UNSUPPORTED_MEDIA_MODES:
-        raise ValueError(
-            "unsupported_media_mode must be one of "
-            f"{_UNSUPPORTED_MEDIA_MODES}, got {mode!r}."
-        )
-
-
 @dataclass(frozen=True, kw_only=True)
 class EvalTableWriteRow:
     inputs: Mapping[str, Any]
-    output: Mapping[str, Any] | None
+    outputs: Mapping[str, Any] | None
     scores: Mapping[str, Any]
 
 
