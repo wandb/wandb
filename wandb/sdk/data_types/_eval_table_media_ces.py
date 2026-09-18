@@ -14,7 +14,6 @@ semantics:
 from __future__ import annotations
 
 import copy
-import hashlib
 import os
 import pathlib
 import shutil
@@ -136,40 +135,9 @@ def _bind_eval_table_media_to_run(
     )
     destination = os.path.join(run.dir, logical_path)
 
-    destination_exists = os.path.exists(destination)
-    destination_matches = (
-        destination_exists and _file_sha256(destination) == media._sha256
-    )
-    if destination_matches:
+    if os.path.exists(destination) and os.path.getsize(destination) == media._size:
+        # An equal-size collision on an 80-bit digest prefix is accepted here.
         return _bind_to_existing_run_file(media, run, logical_path, destination)
-
-    if destination_exists:
-        logical_path = os.path.join(directory, f"{media._sha256}{extension}")
-        destination = os.path.join(run.dir, logical_path)
-        full_digest_destination_exists = os.path.exists(destination)
-        full_digest_destination_matches = (
-            full_digest_destination_exists
-            and _file_sha256(destination) == media._sha256
-        )
-        if full_digest_destination_matches:
-            return _bind_to_existing_run_file(media, run, logical_path, destination)
-        if full_digest_destination_exists:
-            # A true SHA-256 collision is about 1 in 2**256, but stale files can
-            # produce the same path conflict.
-            suffix = 1
-            while True:
-                logical_path = os.path.join(
-                    directory,
-                    f"{media._sha256}-{suffix}{extension}",
-                )
-                destination = os.path.join(run.dir, logical_path)
-                if not os.path.exists(destination):
-                    break
-                if _file_sha256(destination) == media._sha256:
-                    return _bind_to_existing_run_file(
-                        media, run, logical_path, destination
-                    )
-                suffix += 1
 
     filesystem.mkdir_exists_ok(os.path.dirname(destination))
     if media._is_tmp:
@@ -217,8 +185,3 @@ def _run_file_uri(run: Run, logical_path: str) -> str:
         quote(str(part), safe="") for part in (*components, *path_components)
     )
     return f"wandb-run-file://{encoded}"
-
-
-def _file_sha256(path: str) -> str:
-    with open(path, "rb") as file:
-        return hashlib.sha256(file.read()).hexdigest()

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import os
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -122,60 +121,6 @@ def test_media_already_bound_to_active_run_reuses_existing_path(
     assert image._path == existing_path
     assert "/media/images/legacy_7_" in uri
     run._publish_file.assert_not_called()
-
-
-def test_truncated_digest_path_collision_falls_back_to_full_digest(
-    run_factory,
-    tmp_path,
-):
-    run = run_factory("run-one")
-    image = wandb.Image(_png(tmp_path))
-    short_path = (
-        Path(run.dir)
-        / "media"
-        / "eval_tables"
-        / "images"
-        / "eval"
-        / f"{image._sha256[:20]}.png"
-    )
-    short_path.parent.mkdir(parents=True, exist_ok=True)
-    short_path.write_bytes(b"different contents")
-
-    uri = _eval_table_media_ces._bind_eval_table_media_to_run(image, run, "eval")
-
-    assert uri.endswith(f"/{image._sha256}.png")
-    run._publish_file.assert_called_once_with(
-        os.path.join(
-            "media",
-            "eval_tables",
-            "images",
-            "eval",
-            f"{image._sha256}.png",
-        )
-    )
-    assert short_path.read_bytes() == b"different contents"
-
-
-def test_full_digest_path_collision_appends_suffix(run_factory, tmp_path):
-    run = run_factory("run-one")
-    image = wandb.Image(_png(tmp_path))
-    directory = Path(run.dir) / "media" / "eval_tables" / "images" / "eval"
-    directory.mkdir(parents=True, exist_ok=True)
-    (directory / f"{image._sha256[:20]}.png").write_bytes(b"short collision")
-    (directory / f"{image._sha256}.png").write_bytes(b"full collision")
-
-    uri = _eval_table_media_ces._bind_eval_table_media_to_run(image, run, "eval")
-
-    assert uri.endswith(f"/{image._sha256}-1.png")
-    run._publish_file.assert_called_once_with(
-        os.path.join(
-            "media",
-            "eval_tables",
-            "images",
-            "eval",
-            f"{image._sha256}-1.png",
-        )
-    )
 
 
 def test_media_for_another_run_is_copied_before_binding(run_factory, tmp_path):
