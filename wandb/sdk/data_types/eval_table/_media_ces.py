@@ -14,25 +14,18 @@ semantics:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
 
 from wandb.errors import UsageError
 from wandb.sdk.data_types.base_types.media import Media
 
 if TYPE_CHECKING:
-    from coreweave_evaluations.types.wandb_audio_v1_param import WandbAudioV1Param
-    from coreweave_evaluations.types.wandb_image_v1_param import WandbImageV1Param
-    from coreweave_evaluations.types.wandb_video_v1_param import WandbVideoV1Param
-
     from wandb.sdk.wandb_run import Run
-
-    _CESMediaExtensionValue = (
-        WandbImageV1Param | WandbAudioV1Param | WandbVideoV1Param
-    )
 
 
 CES_MAX_CELL_BYTES = 3_500_000
-_CESExtensionType = Literal["wandb-image", "wandb-audio", "wandb-video"]
+_CESMediaExtensionValue = dict[str, Any]
+_CESExtensionType = str
 # Intentionally empty in this foundational layer. Later PRs add supported types.
 SUPPORTED_WANDB_MEDIA_TYPES: tuple[type[Media], ...] = ()
 
