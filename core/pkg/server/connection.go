@@ -697,19 +697,15 @@ func (nc *Connection) handleSyncStatus(
 	})
 }
 
-// handleSweepSchedulerInit asynchronously starts a sweep scheduler.
+// handleSweepSchedulerInit asynchronously starts a sweep scheduler
 //
-// Async because initialization talks to the W&B backend; the serial
-// request drain must not block on the network.
+// This makes a network call, so it is async.
 func (nc *Connection) handleSweepSchedulerInit(
 	wg *sync.WaitGroup,
 	id string,
 	request *spb.SweepSchedulerClientInitRequest,
 ) {
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-
+	wg.Go(func() {
 		ctx, cancel := nc.requestCanceller.Context(id)
 		defer cancel()
 
@@ -733,24 +729,16 @@ func (nc *Connection) handleSweepSchedulerInit(
 				SweepSchedulerInitResponse: response,
 			},
 		})
-	}()
+	})
 }
 
-// handleSweepSchedulerNextTask asynchronously answers a scheduler's
-// long poll.
-//
-// Async because the response is only ready after up to one poll
-// interval; handling it inline would stall every other request on the
-// connection.
+// handleSweepSchedulerNextTask generates the next scheduler task async
 func (nc *Connection) handleSweepSchedulerNextTask(
 	wg *sync.WaitGroup,
 	id string,
 	request *spb.SweepSchedulerClientNextTaskRequest,
 ) {
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-
+	wg.Go(func() {
 		ctx, cancel := nc.requestCanceller.Context(id)
 		defer cancel()
 
@@ -766,7 +754,7 @@ func (nc *Connection) handleSweepSchedulerNextTask(
 				SweepSchedulerNextTaskResponse: response,
 			},
 		})
-	}()
+	})
 }
 
 // handleSweepSchedulerStop forwards a fire-and-forget stop request.

@@ -50,6 +50,7 @@ flowchart TD
     Router --> Record["handleInformRecord"]
     Router --> Sync["handleSync"]
     Router --> API["handleApi"]
+    Router --> Sweep["handleSweepScheduler*"]
     Router --> Other["attach, authenticate, cancel, finish, teardown, ..."]
     Init --> StreamMux["StreamMux.AddStream"]
     Record --> StreamMux
@@ -61,6 +62,7 @@ The diagram shows the main routes; the full `switch` in `handleIncomingRequests`
 
 - `StreamMux`: stream ID to per-run stream.
 - `RunSyncManager`: `wandb beta sync` operations.
+- `IPCSessionBroker`: sweep scheduler session mux.
 - `XPUResourceManager`: expensive accelerator metric resources.
 - Listener and connection lifetime.
 
@@ -230,6 +232,24 @@ Primary code:
 - `handleApiInit`, `handleApi`, and `handleApiCleanup` in [`core/pkg/server/connection.go`](../../core/pkg/server/connection.go)
 
 API failures surface as `WandbApiFailedError` rather than raw `requests` exceptions.
+
+## Sweep scheduler
+
+The sweep scheduler state machine is driven by Step() calls from the NextTask() handler on the server connection.
+Each scheduler is a session held by the server's `IPCSessionBroker`. Sessions provide uniqueness on locally running
+schedulers, but cannot prevent a separate machine starting a scheduler for the same sweep.
+
+The scheduler adds 3 requests to the server IPC definition:
+
+- `sweep_scheduler_init` (`SweepSchedulerClientInitRequest`) opens a session for the sweep.
+- `sweep_scheduler_next_task` (`SweepSchedulerClientNextTaskRequest`) syncs state with the backend
+  and waits for updates to any of the run states.
+- `sweep_scheduler_stop` (`SweepSchedulerClientStopRequest`) gracefully closes the session.
+
+Primary code:
+
+- [`core/internal/sweeps/scheduler`](../../core/internal/sweeps/scheduler): `ipcsessionbroker.go`, `scheduler.go`
+- `handleSweepScheduler*` in [`core/pkg/server/connection.go`](../../core/pkg/server/connection.go)
 
 ## Debugging checklist
 
