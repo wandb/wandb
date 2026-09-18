@@ -127,8 +127,7 @@ def _bind_eval_table_media_to_run(
         directory,
         f"{media._sha256[:_DIGEST_PATH_LENGTH]}{extension}",
     )
-    # Reusing by 80-bit prefix and size accepts equal-size prefix collisions.
-    media._bind_to_run_path(run, logical_path, reuse_existing_by_size=True)
+    media._bind_to_run_path(run, logical_path)
     return _run_file_uri(run, logical_path)
 
 
