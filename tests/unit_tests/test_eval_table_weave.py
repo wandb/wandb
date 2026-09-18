@@ -91,11 +91,12 @@ def test_eval_table_offline_run_fails_fast(monkeypatch, mock_eval_logger, mock_r
     mock_eval_logger._create_with_meta.assert_not_called()
 
 
-def test_eval_table_rewrites_weave_import_error(monkeypatch):
+def test_eval_table_rewrites_weave_import_error(monkeypatch, run):
     monkeypatch.setitem(sys.modules, "weave", None)
+    table = wandb.EvalTable(columns=["input", "output"], data=[["x", "y"]])
 
     with pytest.raises(ImportError) as exc_info:
-        wandb.EvalTable(columns=["input", "output"], data=[["x", "y"]])
+        run.log({"eval": table})
 
     message = str(exc_info.value)
     assert "EvalTable dependency error" in message
@@ -213,12 +214,13 @@ def test_eval_table_rejects_rebind_to_different_project(monkeypatch, mock_run):
         et.bind_to_run(run2, "eval", 0)
 
 
-def test_eval_table_version_mismatch_error_includes_actual_version(monkeypatch):
+def test_eval_table_version_mismatch_error_includes_actual_version(monkeypatch, run):
     monkeypatch.delitem(sys.modules, "weave", raising=False)
     _install_fake_weave(monkeypatch, __version__="0.1.0")
+    table = wandb.EvalTable(columns=["input", "output"], data=[["x", "y"]])
 
     with pytest.raises(ImportError) as exc_info:
-        wandb.EvalTable(columns=["input", "output"], data=[["x", "y"]])
+        run.log({"eval": table})
 
     message = str(exc_info.value)
     assert message.startswith("EvalTable dependency error")
