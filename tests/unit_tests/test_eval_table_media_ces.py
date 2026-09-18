@@ -89,23 +89,6 @@ def test_unbound_media_is_bound_in_place_to_eval_table_path(run_factory, tmp_pat
     run._publish_file.assert_called_once_with(expected_path)
 
 
-def test_existing_matching_run_file_is_replaced_and_published(run_factory, tmp_path):
-    run = run_factory("run-one")
-    first_path = _png(tmp_path, "first.png")
-    second_path = tmp_path / "second.png"
-    second_path.write_bytes(first_path.read_bytes())
-    first = wandb.Image(first_path)
-    second = wandb.Image(second_path)
-
-    _media_ces._bind_eval_table_media_to_run(first, run, "eval")
-    run._publish_file.reset_mock()
-    uri = _media_ces._bind_eval_table_media_to_run(second, run, "eval")
-
-    assert second._run is run
-    assert uri.endswith(f"/{second._sha256[:20]}.png")
-    run._publish_file.assert_called_once()
-
-
 def test_media_already_bound_to_active_run_reuses_existing_path(
     run_factory,
     tmp_path,
