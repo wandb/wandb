@@ -79,9 +79,8 @@ def warm_task(
     *,
     finished: Sequence[str] = (),
     active: Sequence[str] = (),
-    has_more: bool = False,
 ) -> sspb.SweepSchedulerServerNextTaskResponse:
-    task = sspb.SweepSchedulerServerWarmStartTask(has_more=has_more)
+    task = sspb.SweepSchedulerServerWarmStartTask()
     for name in finished:
         task.finished_runs.append(
             sspb.SweepSchedulerServerRunData(
@@ -184,9 +183,6 @@ def test_warm_start_adoptions_and_skips():
 
 def test_generation_orders_tell_prune_terminate_ask():
     optimizer = make_optimizer()
-    optimizer.ask_n_runs.return_value = [
-        RunSuggestion(config=RunConfig.from_values({"param1": 3}), run_id="s1")
-    ]
     service = make_service(
         [
             generation_task(
@@ -209,37 +205,36 @@ def test_generation_orders_tell_prune_terminate_ask():
         "ask_n_runs",
     ]
 
-    generation = sent_results(service)[1].generation
-    assert (
-        generation.ask_outcome
-        == sspb.SweepSchedulerClientGenerationResult.ASK_OUTCOME_SUGGESTED
-    )
-    assert generation.suggestions[0].optimizer_run_id == "s1"
-    assert json.loads(generation.suggestions[0].config_json) == {"param1": 3}
+
+_ASK = sspb.SweepSchedulerClientGenerationResult
 
 
-def test_ask_outcomes_encode_exhausted_and_declined():
+@pytest.mark.parametrize(
+    ("suggestions", "outcome", "encoded"),
+    [
+        (None, _ASK.ASK_OUTCOME_DECLINED, []),
+        ([], _ASK.ASK_OUTCOME_EXHAUSTED, []),
+        (
+            [RunSuggestion(config=RunConfig.from_values({"param1": 3}), run_id="s1")],
+            _ASK.ASK_OUTCOME_SUGGESTED,
+            [("s1", {"param1": 3})],
+        ),
+    ],
+    ids=["declined", "exhausted", "suggested"],
+)
+def test_ask_outcome_encodes_what_the_optimizer_answered(suggestions, outcome, encoded):
     optimizer = make_optimizer()
-    optimizer.ask_n_runs.side_effect = [None, []]
-    service = make_service(
-        [
-            generation_task(1, ask_up_to=1),
-            generation_task(2, ask_up_to=1),
-            done_task(3),
-        ]
-    )
+    optimizer.ask_n_runs.return_value = suggestions
+    service = make_service([generation_task(1, ask_up_to=2), done_task(2)])
 
     run_exchange(service, optimizer)
 
-    results = sent_results(service)
-    assert (
-        results[1].generation.ask_outcome
-        == sspb.SweepSchedulerClientGenerationResult.ASK_OUTCOME_DECLINED
-    )
-    assert (
-        results[2].generation.ask_outcome
-        == sspb.SweepSchedulerClientGenerationResult.ASK_OUTCOME_EXHAUSTED
-    )
+    optimizer.ask_n_runs.assert_called_once_with(2)
+    generation = sent_results(service)[1].generation
+    assert generation.ask_outcome == outcome
+    assert [
+        (s.optimizer_run_id, json.loads(s.config_json)) for s in generation.suggestions
+    ] == encoded
 
 
 def test_optimizer_exception_becomes_task_error():
@@ -340,23 +335,29 @@ def test_unknown_run_state_maps_to_unknown():
     assert set(told_states) == {RunState.UNKNOWN, RunState.FINISHED}
 
 
-def test_describe_done_marks_errors():
-    _, fatal = describe_done(
-        sspb.SweepSchedulerServerDoneTask(
-            reason=sspb.SweepSchedulerServerDoneTask.REASON_FATAL_ERROR
-        )
-    )
-    message, clean = describe_done(
-        sspb.SweepSchedulerServerDoneTask(
-            reason=sspb.SweepSchedulerServerDoneTask.REASON_SWEEP_FINISHED,
-            message="42 runs",
-        )
-    )
+_DONE = sspb.SweepSchedulerServerDoneTask
 
-    assert fatal
-    assert not clean
-    assert "finished" in message
-    assert "42 runs" in message
+
+@pytest.mark.parametrize(
+    ("reason", "summary", "is_error"),
+    [
+        # An unset reason is not an error: the sweep may simply be over.
+        (_DONE.REASON_UNSPECIFIED, "stopped", False),
+        (_DONE.REASON_TERMINATED, "terminated the sweep", False),
+        (_DONE.REASON_SWEEP_FINISHED, "finished", False),
+        (_DONE.REASON_SWEEP_NOT_FOUND, "deleted", True),
+        (_DONE.REASON_FATAL_ERROR, "fatal error", True),
+        (_DONE.REASON_OPTIMIZER_ERROR, "optimizer failed", True),
+        (_DONE.REASON_SHUTDOWN, "was stopped", False),
+    ],
+)
+def test_describe_done_marks_errors(reason, summary, is_error):
+    message, error = describe_done(_DONE(reason=reason))
+    detailed, _ = describe_done(_DONE(reason=reason, message="42 runs"))
+
+    assert summary in message
+    assert error is is_error
+    assert detailed == f"{message} (42 runs)"
 
 
 # --- ServiceConnection's scheduler requests -------------------------------
