@@ -97,7 +97,7 @@ def mock_ces_client(monkeypatch):
     monkeypatch.setattr(
         "wandb.sdk.data_types._eval_table_writer_ces."
         "CESEvalTableWriter._resolve_scope_context",
-        lambda self, bound: ces_writer._CESScopeContext(
+        lambda self, bound_run: ces_writer._CESScopeContext(
             scope_ref="scope-ref",
             api_key=None,
             access_token="token",
@@ -509,6 +509,27 @@ def test_ces_eval_table_infers_python_and_numpy_integers(
         {"source": "output", "name": "python_int", "value_type": "integer"},
         {"source": "output", "name": "numpy_int", "value_type": "integer"},
         {"source": "output", "name": "numeric", "value_type": "number"},
+    ]
+
+
+def test_ces_eval_table_classifies_integer_valued_floats_as_numbers(
+    mock_ces_client,
+    run,
+):
+    et = wandb.EvalTable(
+        columns=["value"],
+        data=[[1.0], [2.0], [3.0]],
+        output_columns=["value"],
+        backend="ces",
+    )
+
+    run.log({"typed_eval": et})
+
+    assert mock_ces_client.eval_tables.create_columns.call_args.kwargs[
+        "dataset_fields"
+    ] == [
+        {"source": "input", "name": "row", "value_type": "integer"},
+        {"source": "output", "name": "value", "value_type": "number"},
     ]
 
 
