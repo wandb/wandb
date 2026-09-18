@@ -114,18 +114,6 @@ def _normalize_value(
     return _normalize_non_media_value(val)
 
 
-def validate_weave_cell_value(
-    val: Any,
-    col: ColumnKey,
-    unsupported_media_mode: UnsupportedMediaMode,
-) -> None:
-    media_adapters.validate_supported_value(
-        val,
-        col,
-        unsupported_media_mode=unsupported_media_mode,
-    )
-
-
 class WeaveEvalTableWriter:
     def __init__(
         self,
@@ -148,10 +136,10 @@ class WeaveEvalTableWriter:
         weave_integration.init_weave(run.entity, run.project)
 
     def validate_cell_value(self, value: Any, column: ColumnKey) -> None:
-        validate_weave_cell_value(
+        media_adapters.validate_supported_value(
             value,
             column,
-            self._unsupported_media_mode,
+            unsupported_media_mode=self._unsupported_media_mode,
         )
 
     def _normalize_mapping(
