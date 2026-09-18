@@ -150,25 +150,13 @@ class Media(WBValue):
         media_path: str,
         *,
         ignore_copy_err: bool | None = None,
-        reuse_existing_by_size: bool = False,
     ) -> None:
         """Bind this media to an explicit logical path within a run."""
 
         assert self.file_is_set(), "_bind_to_run_path called before _set_file"
         assert isinstance(self._path, str)
-        assert self._size is not None
 
         new_path = os.path.join(run.dir, media_path)
-        if (
-            reuse_existing_by_size
-            and os.path.exists(new_path)
-            and os.path.getsize(new_path) == self._size
-        ):
-            self._run = run
-            self._path = new_path
-            self._is_tmp = False
-            return
-
         filesystem.mkdir_exists_ok(os.path.dirname(new_path))
 
         self._run = run
