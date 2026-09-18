@@ -16,8 +16,11 @@ import (
 func TestDebouncesAndInvokesCallback(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		var flushes []*sparselist.SparseList[*RunLogsLine]
+		limiter := rate.NewLimiter(rate.Every(time.Second), 1)
+		// Consume the initial burst token so the first write is debounced.
+		require.True(t, limiter.Allow())
 		writer := NewDebouncedWriter(
-			rate.NewLimiter(rate.Every(time.Second), 1),
+			limiter,
 			func(lines *sparselist.SparseList[*RunLogsLine]) {
 				flushes = append(flushes, lines)
 			},
