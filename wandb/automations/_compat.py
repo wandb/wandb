@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Collection
-from typing import TYPE_CHECKING, Final
+from typing import TYPE_CHECKING, Any, Final, get_args
 
 from wandb._strutils import nameof
 from wandb.proto.wandb_internal_pb2 import ServerFeature
@@ -9,12 +9,14 @@ from wandb.proto.wandb_internal_pb2 import ServerFeature
 from ._generated import (
     AriaActionFields,
     EntityScopeFields,
+    FilterEventFields,
     GenericWebhookActionFields,
     NoOpActionFields,
     NotificationActionFields,
     QueueJobActionFields,
+    TriggerFields,
 )
-from .actions import ActionType
+from .actions import ActionType, SavedActionTypes
 from .events import EventType
 from .scopes import ScopeType
 
@@ -164,3 +166,34 @@ def omit_automation_fragments(service_api: ServiceApi) -> set[str]:
         and (name := ACTION_FRAGMENT_NAMES.get(action))
     )
     return omit_scope_fragments | omit_action_fragments
+
+
+_SUPPORTED_TYPENAMES = {
+    "action": frozenset(
+        cls.model_fields["typename__"].default for cls in SavedActionTypes
+    ),
+    "scope": frozenset(
+        cls.model_fields["typename__"].default
+        for cls in get_args(TriggerFields.model_fields["scope"].annotation)
+    ),
+    "event": frozenset({FilterEventFields.model_fields["typename__"].default}),
+}
+_SUPPORTED_EVENT_TYPES = frozenset(e.value for e in EventType)
+
+
+def is_supported_automation(node: Any) -> bool:
+    """Exclude explicitly unsupported types, leaving malformed data for validation."""
+    if not isinstance(node, dict):
+        return True
+    for field, typenames in _SUPPORTED_TYPENAMES.items():
+        component = node.get(field)
+        if not isinstance(component, dict):
+            continue
+        typename = component.get("__typename")
+        if isinstance(typename, str) and typename not in typenames:
+            return False
+        if field == "event":
+            event_type = component.get("eventType")
+            if isinstance(event_type, str) and event_type not in _SUPPORTED_EVENT_TYPES:
+                return False
+    return True
