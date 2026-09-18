@@ -22,6 +22,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Changed
 
 - Runs now write data to disk every 15 seconds, so that wandb leet updates sooner for runs that don't log a lot of data (@dmitryduev in https://github.com/wandb/wandb/pull/12742)
+- The writer ID that keys per-writer environment info in the run config (`_wandb.e`) is now a UUIDv7, so the entries for multiple writers or resumed sessions of a run sort by start time (@dmitryduev in https://github.com/wandb/wandb/pull/12906)
 
 ### Fixed
 
