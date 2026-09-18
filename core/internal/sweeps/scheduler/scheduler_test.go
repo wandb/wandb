@@ -415,7 +415,13 @@ func TestGenerationWithNothingToWatchReadsOnlyTheSweepState(t *testing.T) {
 
 // What a poll finds the sweep in decides whether the loop keeps
 // scheduling, idles, or ends — and with which reason.
-func TestGenerationFollowsTheSweepState(t *testing.T) {
+//
+// Whatever a poll finds, the scheduler reports it without writing it
+// back. Only its own decisions -- an exhausted search space, the run
+// cap, a terminate -- finish a sweep; a sweep the user cancelled or a
+// backend failure must be left exactly as found, so nothing overwrites
+// the state that explains what happened.
+func TestGenerationFollowsTheSweepStateWithoutWritingItBack(t *testing.T) {
 	// nil reason means the loop keeps going with a generation task.
 	done := func(
 		reason spb.SweepSchedulerServerDoneTask_Reason,
@@ -450,30 +456,10 @@ func TestGenerationFollowsTheSweepState(t *testing.T) {
 				} else {
 					assert.EqualValues(t, 1, generation.AskUpTo)
 				}
-				return
+			} else {
+				require.NotNil(t, task.GetDone())
+				assert.Equal(t, *reason, task.GetDone().Reason)
 			}
-			require.NotNil(t, task.GetDone())
-			assert.Equal(t, *reason, task.GetDone().Reason)
-		})
-	}
-}
-
-// Whatever a poll finds, the scheduler reports it without writing it
-// back. Only its own decisions -- an exhausted search space, the run
-// cap, a terminate -- finish a sweep; a sweep the user cancelled or a
-// backend failure must be left exactly as found, so nothing overwrites
-// the state that explains what happened.
-func TestGenerationNeverWritesBackTheSweepState(t *testing.T) {
-	for _, state := range []string{
-		"RUNNING", "PAUSED", "GARBLED",
-		"FINISHED", "CANCELED", "ERROR", "FLAPPING", "CRASHED",
-	} {
-		t.Run(state, func(t *testing.T) {
-			fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 1})
-			fixture.warmTo(t)
-
-			fixture.stubIdlePoll(state)
-			require.NotNil(t, fixture.step(t, warmResult(nil)))
 
 			// Asserted rather than left to an unstubbed call: finishSweep
 			// only warns on failure, so a stray transition would be

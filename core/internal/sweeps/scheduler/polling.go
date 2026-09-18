@@ -298,6 +298,10 @@ func (s *Scheduler) pollWatched(ctx context.Context) (*pollSnapshot, error) {
 func (s *Scheduler) generationStep(
 	ctx context.Context,
 ) *spb.SweepSchedulerServerNextTaskResponse {
+	if done := s.doneFromError(ctx, phaseWarmStart, nil); done != nil {
+		return done
+	}
+
 	snapshot, err := s.pollWatched(ctx)
 	if err != nil {
 		if done := s.doneFromError(ctx, phasePoll, err); done != nil {
