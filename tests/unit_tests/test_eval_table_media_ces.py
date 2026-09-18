@@ -81,7 +81,7 @@ def test_unbound_media_is_bound_in_place_to_eval_table_path(run_factory, tmp_pat
         "images",
         "eval",
         "key",
-        f"{digest[:20]}.png",
+        f"{digest[:30]}.png",
     )
     assert image._run is run
     assert image._path == os.path.join(run.dir, expected_path)
