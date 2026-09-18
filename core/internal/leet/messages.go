@@ -35,6 +35,15 @@ type RunMsg struct {
 	Config      *spb.ConfigRecord
 	StartTime   time.Time
 	Telemetry   *spb.TelemetryRecord
+	State       *RunState
+}
+
+func (m RunMsg) runState() RunState {
+	if m.State != nil {
+		return *m.State
+	}
+
+	return RunStateRunning
 }
 
 // SummaryMsg contains summary data from the wandb run.
@@ -85,7 +94,8 @@ type InitMsg struct {
 
 // BatchedRecordsMsg contains all messages read during a batch read.
 type BatchedRecordsMsg struct {
-	Msgs []tea.Msg
+	Msgs    []tea.Msg
+	HasMore bool
 }
 
 // ChunkedBatchMsg contains a chunk of messages with progress info.
@@ -152,12 +162,15 @@ type WorkspaceFileChangedMsg struct {
 	RunKey string
 }
 
-// WorkspaceRunDirsMsg is emitted after polling the wandb directory.
+// WorkspaceRunDiscoveryMsg is emitted after discovering available runs
+// (either by polling the filesystem or querying the backend).
 //
-// RunKeys contains the set of run directory names (e.g. "run-..." / "offline-run-...").
+// RunKeys contains run identifiers: which is either a directory name for local workspace,
+// or a run ID for remote workspace.
+//
 // If Err is non-nil, RunKeys may be nil and callers should treat the snapshot
 // as unusable.
-type WorkspaceRunDirsMsg struct {
+type WorkspaceRunDiscoveryMsg struct {
 	RunKeys []string
 	Err     error
 }
@@ -168,6 +181,7 @@ type WorkspaceRunDirsMsg struct {
 type WorkspaceRunOverviewPreloadedMsg struct {
 	RunKey string
 	Run    *RunMsg
+	State  RunState
 	Err    error
 }
 
