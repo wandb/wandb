@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import wandb
-from wandb.sdk.data_types._eval_table_writer import UnsupportedMediaMode
 from wandb.sdk.data_types.audio import Audio
 from wandb.sdk.data_types.base_types.media import Media
 from wandb.sdk.data_types.base_types.wb_value import WBValue
@@ -159,7 +158,7 @@ def _unsupported_media_mode_hint() -> str:
 def validate_supported_value(
     val: Any,
     column: str | int,
-    unsupported_media_mode: UnsupportedMediaMode,
+    unsupported_media_mode: str,
 ) -> None:
     """Raise if a wandb value is not supported by EvalTable's Weave adapter."""
     if isinstance(val, _SUPPORTED_WANDB_VALUE_TYPES):
@@ -236,7 +235,7 @@ def _stub_unsupported_media_variant(
 def handle_nested_wandb_values(
     val: Any,
     column: str | int,
-    unsupported_media_mode: UnsupportedMediaMode,
+    unsupported_media_mode: str,
     *,
     nested: bool = False,
     inside_sequence: bool = False,
@@ -290,7 +289,7 @@ def handle_nested_wandb_values(
 def unwrap_value(
     val: Any,
     column: str | int,
-    unsupported_media_mode: UnsupportedMediaMode,
+    unsupported_media_mode: str,
 ) -> Any:
     """Convert a wandb media cell value to an appropriate type for Weave logging.
 
