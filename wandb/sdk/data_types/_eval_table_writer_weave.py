@@ -10,7 +10,6 @@ import wandb.integration.weave.media_adapters as media_adapters
 from wandb.sdk.data_types._eval_table_writer import (
     EvalTableWriteInput,
     EvalTableWriteResult,
-    UnsupportedMediaMode,
 )
 from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
 
@@ -90,7 +89,7 @@ def _normalize_value(
     val: Any,
     col: str | int,
     *,
-    unsupported_media_mode: UnsupportedMediaMode,
+    unsupported_media_mode: str,
 ) -> Any:
     """Normalize a cell value into the Python value passed to Weave.
 
@@ -113,14 +112,10 @@ def _normalize_value(
     return _normalize_non_media_value(val)
 
 
-def validate_weave_unsupported_media_mode(mode: str) -> None:
-    media_adapters.validate_unsupported_media_mode(mode)
-
-
 def validate_weave_cell_value(
     val: Any,
     col: ColumnKey,
-    unsupported_media_mode: UnsupportedMediaMode,
+    unsupported_media_mode: str,
 ) -> None:
     media_adapters.validate_supported_value(
         val,
@@ -133,13 +128,12 @@ class WeaveEvalTableWriter:
     def __init__(
         self,
         *,
-        unsupported_media_mode: UnsupportedMediaMode,
+        unsupported_media_mode: str,
     ) -> None:
         weave_integration.ensure_version(
             _MIN_WEAVE_VERSION,
             'EvalTable dependency error. Fix with: `pip install wandb["eval-table"]`.',
         )
-        validate_weave_unsupported_media_mode(unsupported_media_mode)
         self._unsupported_media_mode = unsupported_media_mode
 
     def bind_to_run(self, run: LocalRun, key: str, step: int | str) -> None:
