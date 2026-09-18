@@ -612,6 +612,8 @@ class CESEvalTableWriter:
         if prepared.media_cells_examined == 0:
             return
 
+        # Measure whether media above the 3.5 MB cell limit needs separate
+        # extended-metadata storage.
         recorder = get_telemetry_recorder()
         recorder.increment_counter(
             "eval_table_ces_media_write",
