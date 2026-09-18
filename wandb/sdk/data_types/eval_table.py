@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal, get_args
 
 from typing_extensions import override
 
@@ -11,8 +11,6 @@ from wandb.sdk.data_types._eval_table_writer import (
     EvalTableWriter,
     EvalTableWriteResult,
     EvalTableWriteRow,
-    UnsupportedMediaMode,
-    validate_unsupported_media_mode,
 )
 from wandb.sdk.data_types._eval_table_writer_factory import (
     EvalTableBackend,
@@ -31,6 +29,16 @@ if TYPE_CHECKING:
 
 
 EVAL_TABLE_ROW_INDEX_KEY = "row"
+UnsupportedMediaMode = Literal["stub", "raise"]
+_UNSUPPORTED_MEDIA_MODES = get_args(UnsupportedMediaMode)
+
+
+def validate_unsupported_media_mode(mode: str) -> None:
+    if mode not in _UNSUPPORTED_MEDIA_MODES:
+        raise ValueError(
+            "unsupported_media_mode must be one of "
+            f"{_UNSUPPORTED_MEDIA_MODES}, got {mode!r}."
+        )
 
 
 class EvalTable(Table):

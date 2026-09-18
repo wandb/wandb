@@ -15,8 +15,6 @@ from wandb.errors import UsageError
 from wandb.sdk.data_types._eval_table_writer import (
     EvalTableWriteInput,
     EvalTableWriteResult,
-    UnsupportedMediaMode,
-    validate_unsupported_media_mode,
 )
 from wandb.sdk.data_types.base_types.media import Media
 from wandb.sdk.data_types.base_types.wb_value import WBValue
@@ -80,9 +78,8 @@ class CESEvalTableWriter:
     def __init__(
         self,
         *,
-        unsupported_media_mode: UnsupportedMediaMode = "stub",
+        unsupported_media_mode: str = "stub",
     ) -> None:
-        validate_unsupported_media_mode(unsupported_media_mode)
         self._unsupported_media_mode = unsupported_media_mode
         self._bound: _BoundRun | None = None
 
