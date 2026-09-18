@@ -10,7 +10,7 @@ publish.workspace = true
 
 [dependencies]
 leet-proto.workspace = true
-leet-wire.workspace = true
+regex.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 

@@ -1,8 +1,12 @@
-//! History parsing for the leet Rust port: the `HistorySource` trait and its
-//! transaction-log implementation. Mechanical port of the corresponding files
-//! in `core/internal/leet`; see `leet/docs/PORTING.md` in the leet-rs port.
+//! Run metadata and system metric definitions for the leet Rust port: config,
+//! summary, and environment trees flattened for the overview sidebar, and the
+//! table that groups system metric keys into charts. Mechanical port of the
+//! corresponding files in `core/internal/leet`.
 
-pub mod history_source;
-pub mod leveldb_history_source;
-pub mod media;
-pub mod test_mode;
+pub mod go_fmt;
+pub mod run_config;
+pub mod run_environment;
+pub mod run_overview;
+pub mod run_summary;
+pub mod system_metrics;
+pub mod units;
