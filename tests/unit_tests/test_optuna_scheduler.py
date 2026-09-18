@@ -211,7 +211,8 @@ class TestBuildOptunaSchedulerOptimizer:
         ("factory", "expected_terminate"),
         [
             (
-                "def configure():\n    return optuna.create_study(direction='minimize')\n",
+                "def configure():\n"
+                "    return optuna.create_study(direction='minimize')\n",
                 False,
             ),
             (

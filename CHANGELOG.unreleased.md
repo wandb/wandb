@@ -29,6 +29,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 - `wandb beta sync` no longer overwrites the earlier history of a resumed run when the backend reports a stale step. The starting step is now reconciled against the summary `_step`, the history tail `_step`, and the history row count (@geoffhardy in https://github.com/wandb/wandb/pull/12668)
 
 ### Added
-- Added `wandb sweep-scheduler`, which runs a sweep's search locally while wandb-core drives the runs, so you can plug in your own optimizer (@kmikowicz in https://github.com/wandb/wandb/pull/12900)
-- `wandb sweep-scheduler` can search a sweep with Optuna, including its pruners and any stopping rule you supply (@kmikowicz in https://github.com/wandb/wandb/pull/12896)
-- `wandb sweep-scheduler` can search a sweep with Ax, including its early stopping and any stopping rule you supply. Requires Python 3.11 or newer (@kmikowicz in https://github.com/wandb/wandb/pull/12897)
+- Added `wandb sweep-scheduler`, which runs a sweep's search locally with support for Optuna and Ax as the sampler (@kmikowicz in https://github.com/wandb/wandb/pull/12900)
