@@ -40,6 +40,7 @@ cover-results/
 
 # Build output in xpu.
 xpu/target/
+experimental/leet-gpui/target/
 
 # Outputs of tools/local_wandb_server.py.
 tools/local_wandb_server.state.lock

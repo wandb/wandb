@@ -1,0 +1,42 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.92"
+license = "MIT"
+repository = "https://github.com/wandb/wandb"
+authors = ["Weights & Biases <support@wandb.com>"]
+publish = false
+
+[workspace.dependencies]
+leet-proto = { path = "crates/leet-proto" }
+leet-wire = { path = "crates/leet-wire" }
+leet-data = { path = "crates/leet-data" }
+leet-plot = { path = "crates/leet-plot" }
+
+gpui = { version = "0.2.2", features = ["runtime_shaders"] }
+futures = "0.3"
+
+prost = "0.13"
+prost-types = "0.13"
+crc32c = "0.6"
+thiserror = "2"
+tracing = "0.1"
+serde_json = "1"
+
+pretty_assertions = "1"
+proptest = "1"
+tempfile = "3"
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+undocumented_unsafe_blocks = "deny"
+
+[profile.release]
+lto = "thin"
+strip = true
