@@ -139,6 +139,25 @@ def artifact_image_factory(tmp_path, monkeypatch):
     return make
 
 
+def _write_bytes(tmp_path, name, contents):
+    path = tmp_path / name
+    path.write_bytes(contents)
+    return path
+
+
+def _audio_or_video_with_local_file(tmp_path, media_kind, *, caption=None):
+    if media_kind == "audio":
+        path = _write_bytes(tmp_path, "sound.wav", b"audio contents")
+        return wandb.Audio(path, caption=caption), path
+    if media_kind == "video":
+        path = _write_bytes(tmp_path, "clip.mp4", b"video contents")
+        video = wandb.Video(path, caption=caption)
+        video._width = 640
+        video._height = 480
+        return video, path
+    raise ValueError(f"Unknown media kind: {media_kind}")
+
+
 def _image_write_input(image):
     return _eval_table_writer.EvalTableWriteInput(
         name="eval",
@@ -292,6 +311,76 @@ def test_prepare_image_creates_ces_extension_value(run_factory, tmp_path):
     }
     assert image._run is None
     assert image._path == str(path)
+
+
+@pytest.mark.parametrize(
+    ("media_kind", "caption", "subdir", "extension_type", "wb_media_type", "extra"),
+    [
+        pytest.param(
+            "audio",
+            "a sound",
+            "audio",
+            "wandb-audio",
+            "audio-file",
+            {},
+            id="audio",
+        ),
+        pytest.param(
+            "video",
+            "a clip",
+            "videos",
+            "wandb-video",
+            "video-file",
+            {"width": 640, "height": 480},
+            id="video",
+        ),
+    ],
+)
+def test_prepare_audio_and_video_creates_ces_extension_value(
+    media_kind,
+    caption,
+    subdir,
+    extension_type,
+    wb_media_type,
+    extra,
+    run_factory,
+    tmp_path,
+):
+    run = run_factory("run-one")
+    media, path = _audio_or_video_with_local_file(tmp_path, media_kind, caption=caption)
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+
+    prepared = _eval_table_media_ces.prepare_media(
+        media,
+        run,
+        _eval_table_media_ces.EvalTableMediaField(
+            eval_table_key="eval/key",
+            source="inputs",
+            column_name="media",
+        ),
+    )
+
+    expected_path = os.path.join(
+        "media",
+        "eval_tables",
+        subdir,
+        "eval",
+        "key",
+        f"{digest[: _eval_table_media_ces._DIGEST_PATH_LENGTH]}{path.suffix}",
+    )
+    assert prepared.value == {
+        "caption": caption,
+        "sha256": digest,
+        "size": path.stat().st_size,
+        "extension_type": extension_type,
+        "schema_version": 1,
+        "wb_media_type": wb_media_type,
+        "uri": "wandb-run-file://entity/project/run-one/"
+        + expected_path.replace(os.sep, "/"),
+        **extra,
+    }
+    assert media._run is None
+    assert media._path == str(path)
 
 
 def test_committed_artifact_image_preserves_artifact_ref_url(
@@ -574,17 +663,19 @@ def test_cell_at_size_limit_becomes_null(run_factory, tmp_path, monkeypatch):
     assert result.oversized
 
 
-def test_eval_table_writes_image_extension_to_ces(
+def test_eval_table_writes_supported_media_extensions_to_ces(
     run_factory,
     mock_ces_client,
     tmp_path,
 ):
     run = run_factory("run-one")
     image = wandb.Image(_png(tmp_path))
+    audio, _ = _audio_or_video_with_local_file(tmp_path, "audio")
+    video, _ = _audio_or_video_with_local_file(tmp_path, "video")
     table = wandb.EvalTable(
-        columns=["image"],
-        data=[[image]],
-        input_columns=["image"],
+        columns=["image", "audio", "video"],
+        data=[[image, audio, video]],
+        input_columns=["image", "audio", "video"],
         backend="ces",
     )
 
@@ -601,11 +692,30 @@ def test_eval_table_writes_image_extension_to_ces(
                 "value_type": "json",
                 "extension_type": "wandb-image",
                 "extension_schema_version": 1,
-            }
+            },
+            {
+                "source": "input",
+                "name": "audio",
+                "value_type": "json",
+                "extension_type": "wandb-audio",
+                "extension_schema_version": 1,
+            },
+            {
+                "source": "input",
+                "name": "video",
+                "value_type": "json",
+                "extension_type": "wandb-video",
+                "extension_schema_version": 1,
+            },
         ],
         scorers=[],
         idempotency_key=ANY,
     )
+    inputs = mock_ces_client.eval_tables.add_rows.call_args.kwargs["rows"][0]["input"]
+    assert inputs["image"]["extension_type"] == "wandb-image"
+    assert inputs["image"]["format"] == "png"
+    assert inputs["audio"]["extension_type"] == "wandb-audio"
+    assert inputs["video"]["extension_type"] == "wandb-video"
 
 
 def test_image_score_is_rejected_as_non_primitive(run_factory, tmp_path):
