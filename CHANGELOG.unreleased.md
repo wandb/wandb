@@ -22,6 +22,9 @@ Section headings should be at level 3 (e.g. `### Added`).
 - In W&B LEET TUI, selected and pinned runs are remembered per wandb directory and selected again the next time you open it, skipping runs that have since been deleted. The newest run is selected as well if it started since the last session (@dmitryduev in https://github.com/wandb/wandb/pull/12887)
 - It is now possible to use resume="must" for offline runs. Syncing will fail if there's no run to resume (@geoffhardy in https://github.com/wandb/wandb/pull/12110)
 - Added a `--max-consecutive-failed-runs` flag to `wandb agent`, which shuts an agent down once that many runs have failed consecutively at any point in the agent's life (@nathancy-wandb in https://github.com/wandb/wandb/pull/12821)
+- Added `wandb sweep-scheduler`, which runs a sweep's search locally while wandb-core drives the runs, so you can plug in your own optimizer (@kmikowicz in https://github.com/wandb/wandb/pull/12900)
+- `wandb sweep-scheduler` can search a sweep with Optuna, including its pruners and any stopping rule you supply (@kmikowicz in https://github.com/wandb/wandb/pull/12896)
+- `wandb sweep-scheduler` can search a sweep with Ax, including its early stopping and any stopping rule you supply. Requires Python 3.11 or newer (@kmikowicz in https://github.com/wandb/wandb/pull/12897)
 
 ### Changed
 
