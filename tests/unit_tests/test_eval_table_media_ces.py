@@ -213,7 +213,7 @@ def test_prepare_image_creates_ces_extension_value(run_factory, tmp_path):
         "wb_media_type": "image-file",
         "uri": (
             "wandb-run-file://entity/project/run-one/"
-            f"media/eval_tables/images/eval/{digest[:20]}.png"
+            f"media/eval_tables/images/eval/{digest[:30]}.png"
         ),
     }
 
