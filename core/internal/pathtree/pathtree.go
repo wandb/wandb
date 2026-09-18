@@ -225,6 +225,26 @@ func (pt *PathTree[T]) HasNode(path TreePath) bool {
 	return exists
 }
 
+// NumLeaves returns the number of leaf values in the tree.
+//
+// This walks the whole tree. Unlike ForEachLeaf it builds no paths, so it
+// allocates nothing, which matters because it runs at run.log() rate.
+func (pt *PathTree[T]) NumLeaves() int {
+	return numLeaves(pt.tree)
+}
+
+func numLeaves[T any](tree treeData[T]) int {
+	count := 0
+	for _, node := range tree {
+		if node.IsLeaf() {
+			count++
+		} else {
+			count += numLeaves(node.Subtree)
+		}
+	}
+	return count
+}
+
 // ForEachLeaf runs a callback on each leaf value in the tree.
 //
 // The order is unspecified and non-deterministic.

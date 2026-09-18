@@ -131,3 +131,49 @@ func TestFlatten(t *testing.T) {
 			Value: 3,
 		})
 }
+
+func TestNumLeaves_Empty(t *testing.T) {
+	tree := pathtree.New[int]()
+
+	assert.Equal(t, 0, tree.NumLeaves())
+}
+
+func TestNumLeaves_FlatTree(t *testing.T) {
+	tree := pathtree.New[int]()
+
+	tree.Set(pathtree.PathOf("a"), 1)
+	tree.Set(pathtree.PathOf("b"), 2)
+	tree.Set(pathtree.PathOf("c"), 3)
+
+	assert.Equal(t, 3, tree.NumLeaves())
+}
+
+func TestNumLeaves_NestedTree(t *testing.T) {
+	tree := pathtree.New[int]()
+
+	tree.Set(pathtree.PathOf("a"), 1)
+	tree.Set(pathtree.PathOf("b", "c"), 2)
+	tree.Set(pathtree.PathOf("b", "d", "e"), 3)
+
+	// Only leaves count. "b" and "b/d" are subtrees.
+	assert.Equal(t, 3, tree.NumLeaves())
+}
+
+func TestNumLeaves_OverwrittenLeaf(t *testing.T) {
+	tree := pathtree.New[int]()
+
+	tree.Set(pathtree.PathOf("a"), 1)
+	tree.Set(pathtree.PathOf("a"), 2)
+
+	assert.Equal(t, 1, tree.NumLeaves())
+}
+
+func TestNumLeaves_LeafReplacedBySubtree(t *testing.T) {
+	tree := pathtree.New[int]()
+
+	tree.Set(pathtree.PathOf("a"), 1)
+	tree.Set(pathtree.PathOf("a", "b"), 2)
+	tree.Set(pathtree.PathOf("a", "c"), 3)
+
+	assert.Equal(t, 2, tree.NumLeaves())
+}

@@ -8,6 +8,7 @@ import (
 	"github.com/google/wire"
 
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runencodestats"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/transactionlog"
@@ -19,8 +20,9 @@ var WriterProviders = wire.NewSet(
 )
 
 type WriterFactory struct {
-	Logger   *observability.CoreLogger
-	Settings *settings.Settings
+	Logger      *observability.CoreLogger
+	Settings    *settings.Settings
+	EncodeStats *runencodestats.Stats
 }
 
 // Writer saves work to the transaction log.
@@ -48,15 +50,19 @@ type Writer struct {
 
 	// recordNum the number of records we've attempted to save.
 	recordNum int64
+
+	// encodeStats accumulates the cost of encoding history for this run.
+	encodeStats *runencodestats.Stats
 }
 
 // New returns a new Writer.
 func (f *WriterFactory) New(writer *transactionlog.Writer) *Writer {
 	return &Writer{
-		logger:   f.Logger,
-		settings: f.Settings,
-		out:      make(chan runwork.MaybeSavedWork),
-		writer:   writer,
+		logger:      f.Logger,
+		settings:    f.Settings,
+		out:         make(chan runwork.MaybeSavedWork),
+		writer:      writer,
+		encodeStats: f.EncodeStats,
 	}
 }
 
@@ -135,6 +141,10 @@ func (w *Writer) finish() {
 	w.writerMu.Lock()
 	defer w.writerMu.Unlock()
 	w.finished = true
+
+	// Read the counter before Close, which discards the underlying writer.
+	w.encodeStats.AddTxLogMarshal(
+		time.Duration(w.writer.MarshalNanos()))
 
 	if err := w.writer.Close(); err != nil {
 		w.logger.CaptureError(

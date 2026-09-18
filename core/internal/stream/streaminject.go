@@ -13,6 +13,7 @@ import (
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runencodestats"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -52,6 +53,7 @@ var streamProviders = wire.NewSet(
 	provideFileWatcher,
 	providePrinter,
 	RecordParserProviders,
+	runencodestats.New,
 	runfiles.UploaderProviders,
 	runhandle.New,
 	SenderProviders,

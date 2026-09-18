@@ -102,3 +102,48 @@ func TestForEachNumber(t *testing.T) {
 	assert.Equal(t, math.Inf(-1), numbers["x.d"])
 	assert.True(t, math.IsNaN(numbers["x.e"])) // NaN != NaN
 }
+
+func TestNumMetrics_CountsLeaves(t *testing.T) {
+	rh := runhistory.New()
+
+	require.NoError(t, rh.SetFromRecord(&spb.HistoryItem{
+		Key:       "loss",
+		ValueJson: "1.5",
+	}))
+	require.NoError(t, rh.SetFromRecord(&spb.HistoryItem{
+		NestedKey: []string{"train", "acc"},
+		ValueJson: "0.9",
+	}))
+
+	assert.Equal(t, 2, rh.NumMetrics())
+}
+
+func TestNumMetrics_FlattensNestedObject(t *testing.T) {
+	rh := runhistory.New()
+
+	// SetFromRecord recurses into JSON objects, so each scalar inside becomes
+	// its own metric. The count therefore matches the number of key/value
+	// pairs on the rendered JSONL line.
+	require.NoError(t, rh.SetFromRecord(&spb.HistoryItem{
+		Key:       "stats",
+		ValueJson: `{"a": 1, "b": 2}`,
+	}))
+
+	assert.Equal(t, 2, rh.NumMetrics())
+}
+
+func TestNumMetrics_ArrayIsOneMetric(t *testing.T) {
+	rh := runhistory.New()
+
+	// Arrays are not recursed into, unlike objects.
+	require.NoError(t, rh.SetFromRecord(&spb.HistoryItem{
+		Key:       "values",
+		ValueJson: `[1, 2, 3]`,
+	}))
+
+	assert.Equal(t, 1, rh.NumMetrics())
+}
+
+func TestNumMetrics_Empty(t *testing.T) {
+	assert.Equal(t, 0, runhistory.New().NumMetrics())
+}

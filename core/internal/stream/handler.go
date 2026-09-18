@@ -20,6 +20,7 @@ import (
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pathtree"
+	"github.com/wandb/wandb/core/internal/runencodestats"
 	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/runmetric"
@@ -57,6 +58,7 @@ type HandlerFactory struct {
 	Settings             *settings.Settings
 	SystemMonitorFactory *monitor.SystemMonitorFactory
 	TerminalPrinter      *observability.Printer
+	EncodeStats          *runencodestats.Stats
 }
 
 // Handler performs non-blocking operations to preprocess incoming Work.
@@ -111,6 +113,9 @@ type Handler struct {
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
 
+	// encodeStats accumulates the cost of encoding history for this run.
+	encodeStats *runencodestats.Stats
+
 	// terminalPrinter gathers terminal messages to send back to the user process
 	terminalPrinter *observability.Printer
 }
@@ -136,6 +141,7 @@ func (f *HandlerFactory) New(extraWork runwork.ExtraWork) *Handler {
 		settings:             f.Settings,
 		systemMonitor:        systemMonitor,
 		terminalPrinter:      f.TerminalPrinter,
+		encodeStats:          f.EncodeStats,
 	}
 }
 
@@ -928,6 +934,7 @@ func (h *Handler) handlePartialHistoryAsync(request *spb.PartialHistoryRequest) 
 	//
 	// We do this on a best-effort basis: errors are logged and problematic
 	// metrics are ignored.
+	parseStart := time.Now()
 	for _, item := range request.GetItem() {
 		err := h.partialHistory.SetFromRecord(item)
 
@@ -939,6 +946,7 @@ func (h *Handler) handlePartialHistoryAsync(request *spb.PartialHistoryRequest) 
 			)
 		}
 	}
+	h.encodeStats.AddHandlerParse(time.Since(parseStart))
 
 	if request.GetAction() == nil || request.Action.GetFlush() {
 		h.flushPartialHistory(false, 0)
@@ -980,6 +988,7 @@ func (h *Handler) handlePartialHistorySync(request *spb.PartialHistoryRequest) {
 		}
 	}
 
+	parseStart := time.Now()
 	for _, item := range request.GetItem() {
 		err := h.partialHistory.SetFromRecord(item)
 		if err != nil {
@@ -990,6 +999,7 @@ func (h *Handler) handlePartialHistorySync(request *spb.PartialHistoryRequest) {
 			)
 		}
 	}
+	h.encodeStats.AddHandlerParse(time.Since(parseStart))
 
 	var shouldFlush bool
 	if request.GetAction() != nil {
@@ -1048,7 +1058,9 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 		h.updateSummary()
 	}
 
+	recordsStart := time.Now()
 	items, err := h.partialHistory.ToRecords()
+	h.encodeStats.AddHandlerRecords(time.Since(recordsStart))
 	currentStep := h.partialHistoryStep
 
 	h.partialHistory = runhistory.New()

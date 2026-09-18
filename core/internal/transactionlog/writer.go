@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 
 	"google.golang.org/protobuf/proto"
 
@@ -17,6 +18,12 @@ import (
 type Writer struct {
 	writer *leveldb.Writer // nil when closed
 	file   *os.File
+
+	// marshalNanos is the total time spent in proto.Marshal.
+	//
+	// The Typed History project measures this hop. Accumulating it here avoids
+	// a dependency from this package on the telemetry counters.
+	marshalNanos int64
 }
 
 // OpenWriter opens a .wandb file for writing.
@@ -59,7 +66,9 @@ func (w *Writer) Write(msg *spb.Record) error {
 		return errors.New("transactionlog: writer is closed")
 	}
 
+	marshalStart := time.Now()
 	msgBytes, err := proto.Marshal(msg)
+	w.marshalNanos += int64(time.Since(marshalStart))
 	if err != nil {
 		return fmt.Errorf("transactionlog: error marshaling: %v", err)
 	}
@@ -81,6 +90,11 @@ func (w *Writer) Write(msg *spb.Record) error {
 // Flush flushes the in-memory store to disk.
 func (w *Writer) Flush() error {
 	return w.writer.Flush()
+}
+
+// MarshalNanos returns the total time spent marshaling records to protobuf.
+func (w *Writer) MarshalNanos() int64 {
+	return w.marshalNanos
 }
 
 // LastRecordOffset returns the offset where the last record was written.

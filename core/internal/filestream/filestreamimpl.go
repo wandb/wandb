@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
 
@@ -37,8 +38,9 @@ func (fs *fileStream) startProcessingUpdates(
 
 				Settings: fs.settings,
 
-				Logger:  fs.logger,
-				Printer: fs.printer,
+				Logger:      fs.logger,
+				Printer:     fs.printer,
+				EncodeStats: fs.encodeStats,
 			})
 
 			if err != nil {
@@ -131,7 +133,9 @@ func (fs *fileStream) send(
 		return fmt.Errorf("filestream: can't send because I am dead")
 	}
 
+	encodeStart := time.Now()
 	jsonData, err := json.Marshal(data)
+	encodeTime := time.Since(encodeStart)
 	if err != nil {
 		return fmt.Errorf("filestream: json marshal error in send(): %v", err)
 	}
@@ -144,7 +148,9 @@ func (fs *fileStream) send(
 		)
 
 	requestBody := jsonData
+	var compressTime time.Duration
 	if useGzip {
+		compressStart := time.Now()
 		var compressed bytes.Buffer
 		gzipWriter := gzip.NewWriter(&compressed)
 		if _, err := gzipWriter.Write(jsonData); err != nil {
@@ -154,6 +160,21 @@ func (fs *fileStream) send(
 			return fmt.Errorf("filestream: gzip close error in send(): %v", err)
 		}
 		requestBody = compressed.Bytes()
+		compressTime = time.Since(compressStart)
+	}
+
+	// Record the encode cost whether or not the request succeeds. The work has
+	// already happened, and excluding failures would bias the population.
+	if data.IsHeartbeat() {
+		fs.encodeStats.AddHeartbeat()
+	} else {
+		fs.encodeStats.AddRequest(
+			len(jsonData),
+			len(requestBody),
+			useGzip,
+			encodeTime,
+			compressTime,
+		)
 	}
 
 	op := fs.trackUploadOperation(data)

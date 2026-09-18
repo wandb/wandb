@@ -27,6 +27,13 @@ func (rh *RunHistory) ToExtendedJSON() ([]byte, error) {
 	return rh.metrics.ToExtendedJSON()
 }
 
+// NumMetrics returns the number of metrics in this step.
+//
+// This is the "cell" count for one history row.
+func (rh *RunHistory) NumMetrics() int {
+	return rh.metrics.NumLeaves()
+}
+
 // ToRecords returns the history as a slice of records.
 //
 // Metrics that cannot be marshalled to JSON are skipped without affecting

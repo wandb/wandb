@@ -14,6 +14,7 @@ import (
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pfxout"
+	"github.com/wandb/wandb/core/internal/runencodestats"
 	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/runsyncstate"
 	"github.com/wandb/wandb/core/internal/runwork"
@@ -68,6 +69,11 @@ type Stream struct {
 	// otelProxy records open telemetry analytics for the run.
 	otelProxy *analytics.OpenTelemetryProxy
 
+	// encodeStats accumulates the cost of encoding history for this run.
+	//
+	// It is reported once in Close.
+	encodeStats *runencodestats.Stats
+
 	// wg is the WaitGroup for the stream
 	wg sync.WaitGroup
 
@@ -114,6 +120,7 @@ func NewStream(
 	runHandle *runhandle.RunHandle,
 	tbHandlerFactory *tensorboard.TBHandlerFactory,
 	writerFactory *WriterFactory,
+	encodeStats *runencodestats.Stats,
 ) *Stream {
 	symlinkDebugCore(s, string(debugCorePath))
 
@@ -148,6 +155,7 @@ func NewStream(
 		flowControlFactory: flowControlFactory,
 		sender:             senderFactory.New(runWork),
 		clientID:           clientID,
+		encodeStats:        encodeStats,
 	}
 
 	logger.Info("stream: created new stream", "id", stream.settings.GetRunID())
@@ -261,6 +269,12 @@ func (s *Stream) Close() {
 	s.runWork.Close()
 	s.wg.Wait()
 	s.logger.Info("stream: all finished")
+
+	// All of the stream's goroutines have finished, so the counters are
+	// stable and this is the last chance to report them.
+	if attrs := s.encodeStats.Attributes(); attrs != nil {
+		s.logger.RecordTelemetry("history_encode_summary", attrs)
+	}
 
 	// All of the stream's goroutines have finished, so no more analytics
 	// will be recorded; flush what's pending.

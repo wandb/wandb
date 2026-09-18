@@ -2,6 +2,7 @@ package filestream
 
 import (
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runencodestats"
 	"github.com/wandb/wandb/core/internal/settings"
 )
 
@@ -19,4 +20,9 @@ type UpdateContext struct {
 
 	Logger  *observability.CoreLogger
 	Printer *observability.Printer
+
+	// EncodeStats accumulates the cost of encoding history.
+	//
+	// It may be nil, in which case nothing is recorded.
+	EncodeStats *runencodestats.Stats
 }

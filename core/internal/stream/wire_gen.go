@@ -15,6 +15,7 @@ import (
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runencodestats"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runhandle"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -55,6 +56,7 @@ func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceM
 		WriterID:           clientID,
 	}
 	printer := providePrinter()
+	stats := runencodestats.New()
 	handlerFactory := &HandlerFactory{
 		Commit:               commit,
 		FileTransferStats:    fileTransferStats,
@@ -65,6 +67,7 @@ func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceM
 		Settings:             settings2,
 		SystemMonitorFactory: systemMonitorFactory,
 		TerminalPrinter:      printer,
+		EncodeStats:          stats,
 	}
 	recordParserFactory := &RecordParserFactory{
 		FeatureProvider:    featureProvider,
@@ -82,6 +85,7 @@ func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceM
 		Operations:      wandbOperations,
 		Printer:         printer,
 		Settings:        settings2,
+		EncodeStats:     stats,
 	}
 	fileTransferManager := NewFileTransferManager(wbBaseURL, fileTransferStats, coreLogger, settings2)
 	watcher := provideFileWatcher(coreLogger)
@@ -114,16 +118,18 @@ func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceM
 		RunHandle:               runHandle,
 		Mailbox:                 mailboxMailbox,
 		HistoryStepTracker:      historyStepTracker,
+		EncodeStats:             stats,
 	}
 	tbHandlerFactory := &tensorboard.TBHandlerFactory{
 		Logger:   coreLogger,
 		Settings: settings2,
 	}
 	writerFactory := &WriterFactory{
-		Logger:   coreLogger,
-		Settings: settings2,
+		Logger:      coreLogger,
+		Settings:    settings2,
+		EncodeStats: stats,
 	}
-	stream := NewStream(clientID, debugCorePath, featureProvider, flowControlFactory, client, handlerFactory, streamStreamLoggerFile, coreLogger, openTelemetryProxy, wandbOperations, recordParserFactory, senderFactory, settings2, runHandle, tbHandlerFactory, writerFactory)
+	stream := NewStream(clientID, debugCorePath, featureProvider, flowControlFactory, client, handlerFactory, streamStreamLoggerFile, coreLogger, openTelemetryProxy, wandbOperations, recordParserFactory, senderFactory, settings2, runHandle, tbHandlerFactory, writerFactory, stats)
 	return stream
 }
 
@@ -136,7 +142,7 @@ var streamProviders = wire.NewSet(
 	NewGraphQLClient,
 	provideFileWatcher,
 	providePrinter,
-	RecordParserProviders, runfiles.UploaderProviders, runhandle.New, SenderProviders, sharedmode.RandomClientID, streamLoggerProviders, tensorboard.TBHandlerProviders, wboperation.NewOperations, WriterProviders,
+	RecordParserProviders, runencodestats.New, runfiles.UploaderProviders, runhandle.New, SenderProviders, sharedmode.RandomClientID, streamLoggerProviders, tensorboard.TBHandlerProviders, wboperation.NewOperations, WriterProviders,
 )
 
 func providePrinter() *observability.Printer {
