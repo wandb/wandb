@@ -44,9 +44,8 @@ def validate_unsupported_media_mode(mode: str) -> None:
 class EvalTable(Table):
     """A Table subclass that routes run.log() to the new Eval Tables experience.
 
-    When logged via run.log(), an EvalTable is logged as a Weave Eval via
-    weave.EvaluationLogger instead of being uploaded as a regular wandb Table
-    artifact.
+    When logged via run.log(), an EvalTable writes to its selected evaluation
+    backend instead of being uploaded as a regular wandb Table artifact.
 
     Note: EvalTable is a work-in-progress and is NOT yet officially released or
     supported.
@@ -100,7 +99,7 @@ class EvalTable(Table):
                 These represent derived scores for the outputs. By default, we will
                 auto-summarize any numeric and boolean scores.
             backend: Optional storage-backend override. If omitted, the default is
-                "weave", which is currently the only supported backend.
+                "weave". Use "ces" to write through the Evaluations service.
             unsupported_media_mode: How to handle unsupported wandb media/value types.
                 - "stub" (default): log unsupported values as short placeholder strings
                   like "[wandb.Html not yet supported]". (This is a temporary flag
@@ -143,9 +142,11 @@ class EvalTable(Table):
             raise UsageError("EvalTable currently only supports log_mode='IMMUTABLE'.")
 
         validate_unsupported_media_mode(unsupported_media_mode)
+        self._allow_mixed_types = allow_mixed_types
         self._writer: EvalTableWriter | None = (
             create_eval_table_writer(
                 backend,
+                allow_mixed_types=allow_mixed_types,
                 unsupported_media_mode=unsupported_media_mode,
             )
             if backend is not None
@@ -211,6 +212,7 @@ class EvalTable(Table):
             # Select the default writer here so its choice can depend on the run.
             writer = create_default_eval_table_writer(
                 run,
+                allow_mixed_types=self._allow_mixed_types,
                 unsupported_media_mode=self._unsupported_media_mode,
             )
 
@@ -373,14 +375,16 @@ class EvalTable(Table):
             # Always use a dict so backends see a stable column-keyed shape;
             # single-output is no exception.
             if output_cols:
-                output: dict[str, Any] | None = {
+                outputs: dict[str, Any] | None = {
                     col: values[col] for col in output_cols
                 }
             else:
-                output = None
+                outputs = None
 
             scores = {col: values[col] for col in self._score_columns}
-            rows.append(EvalTableWriteRow(inputs=inputs, output=output, scores=scores))
+            rows.append(
+                EvalTableWriteRow(inputs=inputs, outputs=outputs, scores=scores)
+            )
 
         return EvalTableWriteInput(
             name=name,

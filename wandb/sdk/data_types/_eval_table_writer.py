@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 @dataclass(frozen=True, kw_only=True)
 class EvalTableWriteRow:
     inputs: Mapping[str, Any]
-    output: Mapping[str, Any] | None
+    outputs: Mapping[str, Any] | None
     scores: Mapping[str, Any]
 
 
