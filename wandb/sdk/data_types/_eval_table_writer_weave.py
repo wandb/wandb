@@ -11,6 +11,7 @@ from wandb.sdk.data_types._eval_table_writer import (
     EvalTableWriteInput,
     EvalTableWriteResult,
     UnsupportedMediaMode,
+    validate_unsupported_media_mode,
 )
 from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
 
@@ -123,7 +124,7 @@ class WeaveEvalTableWriter:
             _MIN_WEAVE_VERSION,
             'EvalTable dependency error. Fix with: `pip install wandb["eval-table"]`.',
         )
-        media_adapters.validate_unsupported_media_mode(unsupported_media_mode)
+        validate_unsupported_media_mode(unsupported_media_mode)
         self._unsupported_media_mode = unsupported_media_mode
 
     def bind_to_run(self, run: LocalRun, key: str, step: int | str) -> None:

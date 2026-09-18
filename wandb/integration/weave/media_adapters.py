@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, get_args
+from typing import TYPE_CHECKING, Any
 
 import wandb
 from wandb.sdk.data_types._eval_table_writer import UnsupportedMediaMode
@@ -18,7 +18,6 @@ from wandb.sdk.data_types.video import Video
 if TYPE_CHECKING:
     from PIL.Image import Image as PILImage
 
-_UNSUPPORTED_MEDIA_MODES = get_args(UnsupportedMediaMode)
 _UnwrapValueFn = Callable[[Any, str | int], Any]
 _SupportedValueAdapter = tuple[str, _UnwrapValueFn]
 _MOVIEPY_EDITOR_INSTALL_HINT = (
@@ -155,14 +154,6 @@ def _unsupported_media_mode_hint() -> str:
         "To temporarily log placeholder strings instead, pass "
         "unsupported_media_mode='stub' to wandb.EvalTable constructor"
     )
-
-
-def validate_unsupported_media_mode(mode: str) -> None:
-    if mode not in _UNSUPPORTED_MEDIA_MODES:
-        raise ValueError(
-            "unsupported_media_mode must be one of "
-            f"{_UNSUPPORTED_MEDIA_MODES}, got {mode!r}."
-        )
 
 
 def validate_supported_value(
