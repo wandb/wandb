@@ -11,6 +11,10 @@ import (
 func (s *Scheduler) warmStartStep(
 	ctx context.Context,
 ) *spb.SweepSchedulerServerNextTaskResponse {
+	if done := s.doneFromError(ctx, phaseWarmStart, nil); done != nil {
+		return done
+	}
+
 	page, err := s.api.WarmStartPage(
 		ctx, warmStartPageSize, s.warmCursor, s.metricKeys)
 	if err != nil {
@@ -148,6 +152,10 @@ func (s *Scheduler) endFromError(
 		return &endReason{
 			reason: spb.SweepSchedulerServerDoneTask_REASON_SHUTDOWN,
 		}
+	}
+
+	if err == nil {
+		return nil
 	}
 
 	switch Classify(err) {
