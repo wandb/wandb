@@ -255,6 +255,7 @@ def test_standard_immutable_log(mock_eval_logger, mock_wandb_log, run, monkeypat
     mock_eval_logger._create_with_meta.assert_called_once_with(
         {"wandb_eval_table": True},
         name="my_eval",
+        trace_scores=False,
     )
 
     ev = mock_eval_logger.created_loggers[0]
@@ -1026,3 +1027,16 @@ def test_wandb_image_with_int_column_unwrapped_to_pil(mock_eval_logger, run):
     assert isinstance(output["1"], PILImage.Image)
     assert output["1"].size == (2, 2)
     assert call_kwargs["inputs"] == {"row": 1}
+
+
+def test_eval_table_can_enable_score_tracing(mock_eval_logger):
+    et = wandb.EvalTable(
+        columns=["a"], data=[[1]], score_columns=["a"], trace_scores=True
+    )
+    et._create_weave_eval_logger("key")
+
+    mock_eval_logger._create_with_meta.assert_called_once_with(
+        {"wandb_eval_table": True},
+        name="key",
+        trace_scores=True,
+    )

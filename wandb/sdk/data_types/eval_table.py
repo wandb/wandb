@@ -25,7 +25,7 @@ EVAL_TABLE_MARKER = {"wandb_eval_table": True}
 
 EVAL_TABLE_ROW_INDEX_KEY = "row"
 
-_MIN_WEAVE_VERSION = "0.52.41"
+_MIN_WEAVE_VERSION = "0.53.7"
 
 
 def _is_numpy_datetime64(val: Any) -> bool:
@@ -145,6 +145,7 @@ class EvalTable(Table):
         output_columns: list[str] | None = None,
         score_columns: list[str] | None = None,
         unsupported_media_mode: media_adapters.UnsupportedMediaMode = "stub",
+        trace_scores: bool = False,
     ) -> None:
         """Initializes an EvalTable object.
 
@@ -177,6 +178,13 @@ class EvalTable(Table):
                   like "[wandb.Html not yet supported]". (This is a temporary flag
                   for use during development.)
                 - "raise": fail fast when unsupported wandb value types are added.
+            trace_scores: Whether each score also gets its own Weave scorer call.
+                Defaults to False, because an EvalTable's scores are values already
+                in the table rather than the result of scoring code: the call would
+                record nothing that isn't already on the prediction, at a traced
+                call per row per score column. Skipping them is substantially
+                faster on wide tables and changes neither rendering nor
+                aggregation. Pass True to make each score inspectable in Weave.
 
         Examples:
             et1 = wandb.EvalTable(
@@ -227,6 +235,7 @@ class EvalTable(Table):
 
         media_adapters.validate_unsupported_media_mode(unsupported_media_mode)
         self._unsupported_media_mode = unsupported_media_mode
+        self._trace_scores = trace_scores
 
         # Derive columns from role lists if columns arg omitted, so users
         # don't have to double-name columns when they've already listed
@@ -420,6 +429,7 @@ class EvalTable(Table):
         return EvaluationLogger._create_with_meta(
             EVAL_TABLE_MARKER,
             name=eval_name,
+            trace_scores=self._trace_scores,
         )
 
     def _warn_immutable_already_logged(self) -> None:
