@@ -10,12 +10,13 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
 import wandb
-import wandb.integration.weave.media_adapters as media_adapters
 from wandb.apis.public.service_api import ServiceApi
 from wandb.errors import UsageError
 from wandb.sdk.data_types._eval_table_writer import (
     EvalTableWriteInput,
     EvalTableWriteResult,
+    UnsupportedMediaMode,
+    validate_unsupported_media_mode,
 )
 from wandb.sdk.data_types.base_types.media import Media
 from wandb.sdk.data_types.base_types.wb_value import WBValue
@@ -79,13 +80,13 @@ class CESEvalTableWriter:
     def __init__(
         self,
         *,
-        unsupported_media_mode: media_adapters.UnsupportedMediaMode = "stub",
+        unsupported_media_mode: UnsupportedMediaMode = "stub",
     ) -> None:
-        media_adapters.validate_unsupported_media_mode(unsupported_media_mode)
+        validate_unsupported_media_mode(unsupported_media_mode)
         self._unsupported_media_mode = unsupported_media_mode
         self._bound: _BoundRun | None = None
 
-    def bind(self, run: LocalRun, key: str, step: int | str) -> None:
+    def bind_to_run(self, run: LocalRun, key: str, step: int | str) -> None:
         if not run.entity or not run.project:
             raise UsageError("CES EvalTable logging requires a W&B entity and project.")
         # CES replays the same key and body, but rejects a reused key whose body

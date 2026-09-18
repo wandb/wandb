@@ -459,7 +459,7 @@ def test_ces_eval_table_requires_client_before_scope_lookup(monkeypatch, run):
 
 def test_ces_eval_table_resolves_project_scope_with_api_key(run):
     writer = ces_writer.CESEvalTableWriter()
-    writer.bind(run, "eval", 0)
+    writer.bind_to_run(run, "eval", 0)
     service_api = SimpleNamespace(
         api_key="secret",
         access_token=MagicMock(),
@@ -493,7 +493,7 @@ def test_ces_scope_context_repr_redacts_credentials():
 
 def test_ces_eval_table_uses_federated_access_token(run):
     writer = ces_writer.CESEvalTableWriter()
-    writer.bind(run, "eval", 0)
+    writer.bind_to_run(run, "eval", 0)
     writer._bound = replace(
         writer._require_bound(),
         service_api=SimpleNamespace(
