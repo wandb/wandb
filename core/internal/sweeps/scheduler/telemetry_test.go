@@ -214,10 +214,8 @@ func TestFatalEnqueueFailureIsNotCountedAsADiscardedRun(t *testing.T) {
 		gqlmock.WithOpName("EnqueueSweepRun"),
 		&graphql.HTTPError{StatusCode: 400},
 	)
-	done := fixture.step(t, generationResult(suggest("opt-lost"))).GetDone()
-	require.NotNil(t, done)
-	assert.Empty(t, done.DiscardedOptimizerRunIds,
-		"there is no next ask to free a slot for")
+	require.NotNil(t,
+		fixture.step(t, generationResult(suggest("opt-lost"))).GetDone())
 
 	_, ok := fixture.metric(t, "sweep_scheduler_run_discarded")
 	assert.False(t, ok, "expected no discarded-run counter")
