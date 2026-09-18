@@ -113,6 +113,22 @@ def _normalize_value(
     return _normalize_non_media_value(val)
 
 
+def validate_weave_unsupported_media_mode(mode: str) -> None:
+    media_adapters.validate_unsupported_media_mode(mode)
+
+
+def validate_weave_cell_value(
+    val: Any,
+    col: ColumnKey,
+    unsupported_media_mode: UnsupportedMediaMode,
+) -> None:
+    media_adapters.validate_supported_value(
+        val,
+        col,
+        unsupported_media_mode=unsupported_media_mode,
+    )
+
+
 class WeaveEvalTableWriter:
     def __init__(
         self,
@@ -123,7 +139,7 @@ class WeaveEvalTableWriter:
             _MIN_WEAVE_VERSION,
             'EvalTable dependency error. Fix with: `pip install wandb["eval-table"]`.',
         )
-        media_adapters.validate_unsupported_media_mode(unsupported_media_mode)
+        validate_weave_unsupported_media_mode(unsupported_media_mode)
         self._unsupported_media_mode = unsupported_media_mode
 
     def bind_to_run(self, run: LocalRun, key: str, step: int | str) -> None:
@@ -135,10 +151,10 @@ class WeaveEvalTableWriter:
         weave_integration.init_weave(run.entity, run.project)
 
     def validate_cell_value(self, value: Any, column: ColumnKey) -> None:
-        media_adapters.validate_supported_value(
+        validate_weave_cell_value(
             value,
             column,
-            unsupported_media_mode=self._unsupported_media_mode,
+            self._unsupported_media_mode,
         )
 
     def _normalize_mapping(
