@@ -7,6 +7,7 @@ use chrono::{DateTime, Local};
 use gpui::prelude::*;
 use gpui::{Context, Div, ScrollStrategy, SharedString, Stateful, div, px, uniform_list};
 
+use crate::run::RunState;
 use crate::theme;
 use crate::workspace::{Pane, Workspace, pane_header};
 
@@ -42,10 +43,20 @@ pub fn render_console(
             .scroll_to_item(target, ScrollStrategy::Bottom);
     }
     let hint: Option<SharedString> = match run {
-        Some(ix) if workspace.runs[ix].console.is_empty() && !workspace.runs[ix].reading => {
-            Some("select the run (space) to load its console".into())
+        _ if !lines.is_empty() => None,
+        None => Some("no run".into()),
+        Some(ix) => {
+            let run = &workspace.runs[ix];
+            Some(if !run.reading {
+                format!("select {} (space) to load its console", run.name).into()
+            } else if !run.console.is_empty() {
+                format!("no lines match \"{}\"", workspace.filters.console.text).into()
+            } else if matches!(run.state, RunState::Unknown | RunState::Loading) {
+                "loading".into()
+            } else {
+                "no console output".into()
+            })
         }
-        _ => None,
     };
     div()
         .id("console")
@@ -60,53 +71,63 @@ pub fn render_console(
             theme::border()
         })
         .child(pane_header(title, &workspace.filters.console, focused))
-        .when_some(hint, |pane, hint| {
-            pane.child(div().p_2().text_color(theme::muted()).child(hint))
-        })
-        .child(
-            uniform_list(
-                "console-lines",
-                lines.len(),
-                cx.processor(move |workspace, range: Range<usize>, _, _| {
-                    let Some(ix) = workspace.context_run() else {
-                        return Vec::new();
-                    };
-                    let run = &workspace.runs[ix];
-                    range
-                        .map(|pos| {
-                            let line = &run.console[lines[pos]];
-                            let time = line
-                                .time
-                                .and_then(|t| DateTime::from_timestamp(t, 0))
-                                .map(|t| t.with_timezone(&Local).format("%H:%M:%S").to_string())
-                                .unwrap_or_default();
-                            div()
-                                .id(pos)
-                                .h(px(18.))
-                                .px_2()
-                                .flex()
-                                .gap_3()
-                                .whitespace_nowrap()
-                                .when(Some(pos) == workspace.console_cursor, |row| {
-                                    row.bg(theme::cursor())
-                                })
-                                .child(div().w(px(64.)).text_color(theme::muted()).child(time))
-                                .child(
-                                    div()
-                                        .flex_1()
-                                        .overflow_hidden()
-                                        .text_color(if line.stderr {
-                                            theme::failed()
-                                        } else {
-                                            theme::text()
-                                        })
-                                        .child(line.text.clone()),
-                                )
-                        })
-                        .collect()
-                }),
+        .when_some(hint.clone(), |pane, hint| {
+            pane.child(
+                div()
+                    .flex_1()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .text_color(theme::muted())
+                    .child(hint),
             )
-            .flex_1()
-            .track_scroll(workspace.console_scroll.clone()),
-        )
+        })
+        .when(hint.is_none(), |pane| {
+            pane.child(
+                uniform_list(
+                    "console-lines",
+                    lines.len(),
+                    cx.processor(move |workspace, range: Range<usize>, _, _| {
+                        let Some(ix) = workspace.context_run() else {
+                            return Vec::new();
+                        };
+                        let run = &workspace.runs[ix];
+                        range
+                            .map(|pos| {
+                                let line = &run.console[lines[pos]];
+                                let time = line
+                                    .time
+                                    .and_then(|t| DateTime::from_timestamp(t, 0))
+                                    .map(|t| t.with_timezone(&Local).format("%H:%M:%S").to_string())
+                                    .unwrap_or_default();
+                                div()
+                                    .id(pos)
+                                    .h(px(18.))
+                                    .px_2()
+                                    .flex()
+                                    .gap_3()
+                                    .whitespace_nowrap()
+                                    .when(Some(pos) == workspace.console_cursor, |row| {
+                                        row.bg(theme::cursor())
+                                    })
+                                    .child(div().w(px(64.)).text_color(theme::muted()).child(time))
+                                    .child(
+                                        div()
+                                            .flex_1()
+                                            .overflow_hidden()
+                                            .text_color(if line.stderr {
+                                                theme::failed()
+                                            } else {
+                                                theme::text()
+                                            })
+                                            .child(line.text.clone()),
+                                    )
+                            })
+                            .collect()
+                    }),
+                )
+                .flex_1()
+                .track_scroll(workspace.console_scroll.clone()),
+            )
+        })
 }

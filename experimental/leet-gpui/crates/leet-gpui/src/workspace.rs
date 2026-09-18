@@ -642,6 +642,41 @@ impl Workspace {
         (groups.len(), cells)
     }
 
+    /// Why the metrics grid is empty.
+    fn metrics_empty(&self) -> SharedString {
+        if self.selected.is_empty() {
+            return "select runs with space to chart their metrics".into();
+        }
+        let loading = self
+            .selected_runs()
+            .all(|(_, run)| matches!(run.state, RunState::Unknown | RunState::Loading));
+        if loading {
+            return "loading".into();
+        }
+        if !self.filters.metrics.text.is_empty() {
+            return format!("no metrics match \"{}\"", self.filters.metrics.text).into();
+        }
+        "no metrics logged".into()
+    }
+
+    /// Why the system metrics grid is empty.
+    fn system_empty(&self) -> SharedString {
+        let Some(ix) = self.context_run() else {
+            return "no run".into();
+        };
+        let run = &self.runs[ix];
+        if !run.reading {
+            return format!("select {} (space) to load its system metrics", run.name).into();
+        }
+        if run.system.series.is_empty() {
+            return match run.state {
+                RunState::Unknown | RunState::Loading => "loading".into(),
+                _ => format!("no system metrics logged for {}", run.name).into(),
+            };
+        }
+        format!("no system metrics match \"{}\"", self.filters.system.text).into()
+    }
+
     /// The key of the chart under the grid focus.
     fn focused_chart_key(&mut self) -> Option<String> {
         self.refresh_caches();
@@ -916,8 +951,18 @@ impl Workspace {
                     self.set_cursor(self.cursor.saturating_add_signed(drow));
                 }
             }
-            Pane::Metrics => self.metrics_grid.move_focus(drow, dcol),
-            Pane::System => self.system_grid.move_focus(drow, dcol),
+            Pane::Metrics => {
+                self.refresh_caches();
+                let on_page = self.metrics_grid.cells_on_page(self.metric_names().len());
+                self.metrics_grid.move_focus(drow, dcol, on_page);
+            }
+            Pane::System => {
+                self.refresh_caches();
+                let on_page = self
+                    .system_grid
+                    .cells_on_page(self.cache.system_groups.len());
+                self.system_grid.move_focus(drow, dcol, on_page);
+            }
             Pane::Console => {
                 let last = self.console_len().saturating_sub(1);
                 let cursor = self
@@ -1576,6 +1621,7 @@ impl Render for Workspace {
                                         cells,
                                         total,
                                         height: None,
+                                        empty: self.metrics_empty(),
                                     },
                                     workspace.clone(),
                                     cx,
@@ -1603,6 +1649,7 @@ impl Render for Workspace {
                                             cells,
                                             total,
                                             height: Some(height),
+                                            empty: self.system_empty(),
                                         },
                                         workspace.clone(),
                                         cx,

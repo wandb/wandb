@@ -52,14 +52,27 @@ impl Grid {
 
     /// The index into the full cell list of the focused cell.
     pub fn focused_index(&self, cells: usize) -> usize {
-        self.page.min(self.pages(cells) - 1) * self.per_page() + self.focused
+        let page = self.page.min(self.pages(cells) - 1);
+        page * self.per_page()
+            + self
+                .focused
+                .min(self.cells_on_page(cells).saturating_sub(1))
     }
 
-    pub fn move_focus(&mut self, drow: isize, dcol: isize) {
+    /// Moves the focus within the page, never onto an empty trailing cell.
+    pub fn move_focus(&mut self, drow: isize, dcol: isize, cells_on_page: usize) {
         let cols = self.cols as isize;
         let row = (self.focused as isize / cols + drow).clamp(0, self.visible_rows as isize - 1);
         let col = (self.focused as isize % cols + dcol).clamp(0, cols - 1);
-        self.focused = (row * cols + col) as usize;
+        self.focused = ((row * cols + col) as usize).min(cells_on_page.saturating_sub(1));
+    }
+
+    /// How many of `total` cells the current page holds.
+    pub fn cells_on_page(&self, total: usize) -> usize {
+        let page = self.page.min(self.pages(total) - 1);
+        total
+            .saturating_sub(page * self.per_page())
+            .min(self.per_page())
     }
 
     pub fn turn_page(&mut self, delta: isize, cells: usize) {
@@ -85,8 +98,13 @@ pub struct GridView<'a> {
     pub total: usize,
     /// A fixed height for a lower-tier pane; the metrics grid takes the rest.
     pub height: Option<Pixels>,
+    /// Why the grid has no cells, shown in place of them.
+    pub empty: SharedString,
 }
 
+/// Cells keep the size the full grid gives them, so charts do not move
+/// between pages; trailing slots on a short page stay blank. A grid whose
+/// charts all fit on one page uses only the rows it needs.
 pub fn render_grid(
     view: GridView<'_>,
     workspace: Entity<Workspace>,
@@ -101,12 +119,20 @@ pub fn render_grid(
         cells,
         total,
         height,
+        empty,
     } = view;
     let pages = grid.pages(total);
     let page = grid.page.min(pages - 1);
     let header = format!("{title}  page {}/{pages}", page + 1);
+    let on_page = cells.len();
+    let rows_used = if total <= grid.per_page() {
+        total.div_ceil(grid.cols).max(1)
+    } else {
+        grid.visible_rows
+    };
+    let focused_cell = grid.focused.min(on_page.saturating_sub(1));
     let mut cells = cells.into_iter().map(Some).collect::<Vec<_>>();
-    cells.resize_with(grid.per_page(), || None);
+    cells.resize_with(rows_used * grid.cols, || None);
     let mut cells = cells.into_iter();
 
     div()
@@ -121,35 +147,49 @@ pub fn render_grid(
         })
         .min_h_0()
         .min_w_0()
+        .overflow_hidden()
         .flex()
         .flex_col()
         .child(pane_header(header, filter, focused))
-        .children((0..grid.visible_rows).map(|row| {
-            div()
-                .flex_1()
-                .min_h_0()
-                .flex()
-                .flex_row()
-                .children((0..grid.cols).map(|col| {
-                    let cell = cells.next().flatten();
-                    let is_focused = focused && row * grid.cols + col == grid.focused;
-                    let key = cell.as_ref().map(|cell| cell.spec.key.clone());
-                    div()
-                        .flex_1()
-                        .min_w_0()
-                        .m(px(3.))
-                        .rounded(px(4.))
-                        .border_1()
-                        .border_color(if is_focused {
-                            theme::focus()
-                        } else {
-                            theme::border()
-                        })
-                        .bg(theme::panel())
-                        .flex()
-                        .flex_col()
-                        .when_some(key, |cell_div, key| {
-                            cell_div.on_scroll_wheel(cx.listener(
+        .when(total == 0, |pane| {
+            pane.child(
+                div()
+                    .flex_1()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .text_color(theme::muted())
+                    .child(empty),
+            )
+        })
+        .when(total > 0, |pane| {
+            pane.children((0..rows_used).map(|row| {
+                div()
+                    .flex_1()
+                    .min_h_0()
+                    .flex()
+                    .flex_row()
+                    .children((0..grid.cols).map(|col| {
+                        let Some(cell) = cells.next().flatten() else {
+                            return div().flex_1().m(px(3.));
+                        };
+                        let is_focused = focused && row * grid.cols + col == focused_cell;
+                        let key = cell.spec.key.clone();
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .m(px(3.))
+                            .rounded(px(4.))
+                            .border_1()
+                            .border_color(if is_focused {
+                                theme::focus()
+                            } else {
+                                theme::border()
+                            })
+                            .bg(theme::panel())
+                            .flex()
+                            .flex_col()
+                            .on_scroll_wheel(cx.listener(
                                 move |workspace, event: &ScrollWheelEvent, _, cx| {
                                     let lines = match event.delta {
                                         ScrollDelta::Lines(delta) => delta.y,
@@ -165,38 +205,33 @@ pub fn render_grid(
                                     }
                                 },
                             ))
-                        })
-                        .when_some(cell, |cell_div, cell| {
-                            cell_div
-                                .child(
-                                    div()
-                                        .h(px(22.))
-                                        .px_2()
-                                        .flex()
-                                        .items_center()
-                                        .gap_2()
-                                        .text_color(theme::text())
-                                        .child(
-                                            div()
-                                                .flex_1()
-                                                .overflow_hidden()
-                                                .whitespace_nowrap()
-                                                .text_ellipsis()
-                                                .child(cell.title),
-                                        )
-                                        .when_some(cell.badge, |title, badge| {
-                                            title.child(
-                                                div().text_color(theme::muted()).child(badge),
-                                            )
-                                        }),
-                                )
-                                .child(
-                                    div()
-                                        .flex_1()
-                                        .min_h_0()
-                                        .child(chart::chart(workspace.clone(), cell.spec)),
-                                )
-                        })
-                }))
-        }))
+                            .child(
+                                div()
+                                    .h(px(22.))
+                                    .px_2()
+                                    .flex()
+                                    .items_center()
+                                    .gap_2()
+                                    .text_color(theme::text())
+                                    .child(
+                                        div()
+                                            .flex_1()
+                                            .overflow_hidden()
+                                            .whitespace_nowrap()
+                                            .text_ellipsis()
+                                            .child(cell.title),
+                                    )
+                                    .when_some(cell.badge, |title, badge| {
+                                        title.child(div().text_color(theme::muted()).child(badge))
+                                    }),
+                            )
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .min_h_0()
+                                    .child(chart::chart(workspace.clone(), cell.spec)),
+                            )
+                    }))
+            }))
+        })
 }
