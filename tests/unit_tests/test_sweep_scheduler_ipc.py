@@ -82,22 +82,35 @@ async def test_init_sends_the_sweep_and_reads_the_init_response(
     )
 
 
+@pytest.mark.parametrize(
+    "result",
+    [
+        None,
+        sspb.SweepSchedulerClientTaskResult(
+            warm_start=sspb.SweepSchedulerClientWarmStartResult(
+                adoptions={"run-1": "opt-1"}
+            )
+        ),
+    ],
+    ids=["no result", "a result"],
+)
 async def test_next_task_sends_the_result_and_reads_the_task_response(
     scheduler_service,
+    result,
 ):
     service, client = scheduler_service
-    result = sspb.SweepSchedulerClientTaskResult(
-        warm_start=sspb.SweepSchedulerClientWarmStartResult(
-            adoptions={"run-1": "opt-1"}
-        )
-    )
 
     await service.sweep_scheduler_next_task("session-1", result)
 
     request = delivered(client)
     assert request.WhichOneof("server_request_type") == "sweep_scheduler_next_task"
-    assert request.sweep_scheduler_next_task.session_id == "session-1"
-    assert request.sweep_scheduler_next_task.result == result
+    next_task = request.sweep_scheduler_next_task
+    # The first task of a session answers no previous one.
+    assert next_task.HasField("result") == (result is not None)
+    assert next_task == sspb.SweepSchedulerClientNextTaskRequest(
+        session_id="session-1",
+        result=result,
+    )
 
     expected = sspb.SweepSchedulerServerNextTaskResponse(
         warm_start=sspb.SweepSchedulerServerWarmStartTask(has_more=True)
@@ -108,16 +121,6 @@ async def test_next_task_sends_the_result_and_reads_the_task_response(
         )
         == expected
     )
-
-
-async def test_next_task_omits_a_missing_result(scheduler_service):
-    service, client = scheduler_service
-
-    # The first task of a session answers no previous one.
-    await service.sweep_scheduler_next_task("session-1", None)
-
-    next_task = delivered(client).sweep_scheduler_next_task
-    assert not next_task.HasField("result")
 
 
 async def test_stop_is_published_without_waiting_for_a_reply(scheduler_service):
