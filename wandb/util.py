@@ -588,7 +588,9 @@ def json_friendly(  # noqa: C901
 
     if is_numpy_array(obj):
         if obj.size == 1:
-            obj = obj.flatten()[0]
+            obj = _numpy_generic_convert(
+                obj.flatten()[0], preserve_nan=preserve_numpy_nan
+            )
         elif obj.size <= 32:
             obj = obj.tolist()
     elif np and isinstance(obj, np.generic):
