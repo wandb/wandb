@@ -16,6 +16,7 @@ from wandb.sdk.data_types._eval_table_writer import (
 )
 from wandb.sdk.data_types._eval_table_writer_factory import (
     EvalTableBackend,
+    create_default_eval_table_writer,
     create_eval_table_writer,
 )
 from wandb.sdk.data_types._eval_table_writer_weave import validate_weave_cell_value
@@ -60,7 +61,7 @@ class EvalTable(Table):
         input_columns: list[str] | None = None,
         output_columns: list[str] | None = None,
         score_columns: list[str] | None = None,
-        backend: EvalTableBackend = "weave",
+        backend: EvalTableBackend | None = None,
         unsupported_media_mode: UnsupportedMediaMode = "stub",
     ) -> None:
         """Initializes an EvalTable object.
@@ -89,7 +90,7 @@ class EvalTable(Table):
             score_columns: Names of the score columns.
                 These represent derived scores for the outputs. By default, we will
                 auto-summarize any numeric and boolean scores.
-            backend: Storage backend used when the EvalTable is logged. The default is
+            backend: Optional storage-backend override. If omitted, the default is
                 "weave". Use "ces" to write through the Evaluations service.
             unsupported_media_mode: How to handle unsupported wandb media/value types.
                 - "stub" (default): log unsupported values as short placeholder strings
@@ -133,18 +134,17 @@ class EvalTable(Table):
             raise UsageError("EvalTable currently only supports log_mode='IMMUTABLE'.")
 
         validate_unsupported_media_mode(unsupported_media_mode)
-        self._backend = backend
         self._allow_mixed_types = allow_mixed_types
-        self._unsupported_media_mode = unsupported_media_mode
         self._writer: EvalTableWriter | None = (
-            None
-            if backend == "weave"
-            else create_eval_table_writer(
+            create_eval_table_writer(
                 backend,
                 allow_mixed_types=allow_mixed_types,
                 unsupported_media_mode=unsupported_media_mode,
             )
+            if backend is not None
+            else None
         )
+        self._unsupported_media_mode = unsupported_media_mode
 
         self._input_columns = list(input_columns or [])
         self._output_columns = list(output_columns or [])
@@ -201,10 +201,9 @@ class EvalTable(Table):
 
         writer = self._writer
         if writer is None:
-            # Select the default writer at bind time, where a future backend
-            # default can depend on capabilities advertised for this run.
-            writer = create_eval_table_writer(
-                self._backend,
+            # Select the default writer here so its choice can depend on the run.
+            writer = create_default_eval_table_writer(
+                run,
                 allow_mixed_types=self._allow_mixed_types,
                 unsupported_media_mode=self._unsupported_media_mode,
             )
@@ -325,12 +324,21 @@ class EvalTable(Table):
             )
         return columns
 
+    def _warn_immutable_already_logged(self) -> None:
+        wandb.termwarn(
+            "EvalTable with log_mode='IMMUTABLE' has already been logged. "
+            "Subsequent run.log() calls have no effect.",
+            repeat=False,
+        )
+
     def _prepare_write_input(self, name: str) -> EvalTableWriteInput:
         self._validate_column_mappings(
             self._input_columns,
             self._output_columns,
             self._score_columns,
         )
+
+        # Any column not listed in a role defaults to an output column.
         str_columns = self._string_columns()
         column_keys = dict(zip(str_columns, self.columns, strict=True))
         assigned = (
@@ -338,27 +346,34 @@ class EvalTable(Table):
             | set(self._output_columns)
             | set(self._score_columns)
         )
-        # Any column without an explicit role defaults to output.
-        output_columns = self._output_columns + [
-            column for column in str_columns if column not in assigned
+        output_cols = self._output_columns + [
+            col for col in str_columns if col not in assigned
         ]
+
+        # When no input columns are designated, inject a synthetic 1-indexed `row`
+        # input so each row has a distinct digest for comparison. We avoid
+        # injecting when input columns exist so row-index matching doesn't
+        # leak into the input-equality criteria.
+        inject_row_index = not self._input_columns
+
         rows: list[EvalTableWriteRow] = []
-        for row_index, row in enumerate(self.data, start=1):
+        for row_idx, row in enumerate(self.data, start=1):
             values = dict(zip(str_columns, row, strict=True))
-            # A synthetic row input gives otherwise input-less rows distinct digests.
-            # Real inputs omit it so row position does not affect input equality.
-            inputs = (
-                {column: values[column] for column in self._input_columns}
-                if self._input_columns
-                else {EVAL_TABLE_ROW_INDEX_KEY: row_index}
-            )
-            # Keep a stable column-keyed shape even for a single output.
-            output = (
-                {column: values[column] for column in output_columns}
-                if output_columns
-                else None
-            )
-            scores = {column: values[column] for column in self._score_columns}
+            if inject_row_index:
+                inputs: dict[str, Any] = {EVAL_TABLE_ROW_INDEX_KEY: row_idx}
+            else:
+                inputs = {col: values[col] for col in self._input_columns}
+
+            # Always use a dict so backends see a stable column-keyed shape;
+            # single-output is no exception.
+            if output_cols:
+                output: dict[str, Any] | None = {
+                    col: values[col] for col in output_cols
+                }
+            else:
+                output = None
+
+            scores = {col: values[col] for col in self._score_columns}
             rows.append(EvalTableWriteRow(inputs=inputs, output=output, scores=scores))
 
         return EvalTableWriteInput(
@@ -367,11 +382,4 @@ class EvalTable(Table):
             column_keys=column_keys,
             ncols=len(self.columns),
             log_mode=self.log_mode,
-        )
-
-    def _warn_immutable_already_logged(self) -> None:
-        wandb.termwarn(
-            "EvalTable with log_mode='IMMUTABLE' has already been logged. "
-            "Subsequent run.log() calls have no effect.",
-            repeat=False,
         )
