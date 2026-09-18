@@ -16,6 +16,7 @@ def default_eval_table_server_feature_disabled(monkeypatch):
         lambda self, feature: False,
     )
 
+
 def test_eval_table_public_imports():
     assert wandb.EvalTable is eval_table_module.EvalTable
     assert wandb_data_types.EvalTable is eval_table_module.EvalTable
