@@ -3009,6 +3009,8 @@ pub enum ServerFeature {
     ArtifactDigestAlgorithm = 36,
     /// Indicates that the server supports automation action ARIA.
     AutomationActionAria = 37,
+    /// Indicates that the server supports CoreWeave Evaluation Service.
+    EvalTablesCes = 38,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -3078,6 +3080,7 @@ impl ServerFeature {
             Self::SweepsLocalScheduler => "SWEEPS_LOCAL_SCHEDULER",
             Self::ArtifactDigestAlgorithm => "ARTIFACT_DIGEST_ALGORITHM",
             Self::AutomationActionAria => "AUTOMATION_ACTION_ARIA",
+            Self::EvalTablesCes => "EVAL_TABLES_CES",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -3152,6 +3155,7 @@ impl ServerFeature {
             "SWEEPS_LOCAL_SCHEDULER" => Some(Self::SweepsLocalScheduler),
             "ARTIFACT_DIGEST_ALGORITHM" => Some(Self::ArtifactDigestAlgorithm),
             "AUTOMATION_ACTION_ARIA" => Some(Self::AutomationActionAria),
+            "EVAL_TABLES_CES" => Some(Self::EvalTablesCes),
             _ => None,
         }
     }

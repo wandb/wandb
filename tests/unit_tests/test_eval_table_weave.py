@@ -65,6 +65,14 @@ def run(mock_run):
     return mock_run(settings={"entity": "e", "project": "p", "mode": "online"})
 
 
+@pytest.fixture(autouse=True)
+def default_eval_table_server_feature_disabled(monkeypatch):
+    monkeypatch.setattr(
+        "wandb.sdk.data_types._eval_table_writer_factory.ServiceApi.feature_enabled",
+        lambda self, feature: False,
+    )
+
+
 def _install_fake_weave(monkeypatch, **attrs):
     module = types.ModuleType("weave")
     module.__path__ = []
@@ -863,6 +871,7 @@ def test_unsupported_wandb_media_cell_raises_in_raise_mode():
         wandb.EvalTable(
             columns=["html"],
             data=[[html]],
+            backend="weave",
             unsupported_media_mode="raise",
         )
     assert "unsupported wandb media type 'Html'" in str(exc_info.value)
@@ -872,7 +881,11 @@ def test_unsupported_wandb_media_cell_raises_in_raise_mode():
 @pytest.mark.usefixtures("mock_eval_logger")
 def test_add_data_unsupported_wandb_value_cell_raises_in_raise_mode():
     histogram = wandb.Histogram([1, 2, 3])
-    et = wandb.EvalTable(columns=["histogram"], unsupported_media_mode="raise")
+    et = wandb.EvalTable(
+        columns=["histogram"],
+        backend="weave",
+        unsupported_media_mode="raise",
+    )
 
     with pytest.raises(TypeError) as exc_info:
         et.add_data(histogram)
@@ -882,7 +895,7 @@ def test_add_data_unsupported_wandb_value_cell_raises_in_raise_mode():
     assert et.data == []
 
 
-@pytest.mark.parametrize("backend", ["weave", "ces"])
+@pytest.mark.parametrize("backend", [None, "weave", "ces"])
 @pytest.mark.usefixtures("mock_eval_logger")
 def test_unsupported_media_mode_rejects_unknown_mode(backend):
     with pytest.raises(ValueError, match="unsupported_media_mode"):

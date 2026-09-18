@@ -9,6 +9,14 @@ from wandb.errors import UsageError
 from wandb.sdk.data_types import eval_table as eval_table_module
 
 
+@pytest.fixture(autouse=True)
+def default_eval_table_server_feature_disabled(monkeypatch):
+    monkeypatch.setattr(
+        "wandb.sdk.data_types._eval_table_writer_factory.ServiceApi.feature_enabled",
+        lambda self, feature: False,
+    )
+
+
 def test_eval_table_public_imports():
     assert wandb.EvalTable is eval_table_module.EvalTable
     assert wandb_data_types.EvalTable is eval_table_module.EvalTable
