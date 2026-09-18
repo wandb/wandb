@@ -451,6 +451,16 @@ func WorkspaceKeyBindings() []BindingCategory[Workspace] {
 					Handler:     (*Workspace).handlePinRunKey,
 				},
 				{
+					Keys:        []string{"ctrl+a"},
+					Description: "Select all runs matching the runs filter",
+					Handler:     (*Workspace).handleSelectAllRunsKey,
+				},
+				{
+					Keys:        []string{"x"},
+					Description: "Deselect all runs except the pinned one",
+					Handler:     (*Workspace).handleDeselectAllRunsKey,
+				},
+				{
 					Keys:        []string{"l"},
 					Description: "Link scrubbing: arrow keys scrub all media series in sync (media pane focused)",
 				},
