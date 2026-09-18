@@ -169,7 +169,7 @@ class CESEvalTableWriter:
 
     def write(self, payload: EvalTableWriteInput) -> EvalTableWriteResult:
         """Prepare and persist the CES resources, then return their history marker."""
-        bound = self._require_bound()
+        bound_run = self._require_bound()
 
         base_url = os.environ.get(_CES_BASE_URL_ENV)
         if not base_url:
@@ -188,14 +188,14 @@ class CESEvalTableWriter:
             ) from exc
 
         write_payloads = self._build_write_payloads(payload)
-        scope = self._resolve_scope_context(bound)
+        scope = self._resolve_scope_context(bound_run)
         client = self._create_client(CoreWeaveEvaluations, base_url, scope)
         try:
             created = client.eval_tables.create(
                 scope.scope_ref,
                 namespace=_WANDB_SCOPE_NAMESPACE,
                 name=payload.name,
-                idempotency_key=self._idempotency_key(bound, "create"),
+                idempotency_key=self._idempotency_key(bound_run, "create"),
             )
             client.eval_tables.create_columns(
                 created.evaluation_id,
@@ -203,7 +203,7 @@ class CESEvalTableWriter:
                 scope_ref=scope.scope_ref,
                 dataset_fields=write_payloads.dataset_fields,
                 scorers=write_payloads.scorers,
-                idempotency_key=self._idempotency_key(bound, "columns"),
+                idempotency_key=self._idempotency_key(bound_run, "columns"),
             )
             for batch_index, rows in enumerate(write_payloads.row_batches):
                 client.eval_tables.add_rows(
@@ -211,13 +211,15 @@ class CESEvalTableWriter:
                     namespace=_WANDB_SCOPE_NAMESPACE,
                     scope_ref=scope.scope_ref,
                     rows=rows,
-                    idempotency_key=self._idempotency_key(bound, f"rows-{batch_index}"),
+                    idempotency_key=self._idempotency_key(
+                        bound_run, f"rows-{batch_index}"
+                    ),
                 )
             version = client.eval_tables.create_version(
                 created.evaluation_id,
                 namespace=_WANDB_SCOPE_NAMESPACE,
                 scope_ref=scope.scope_ref,
-                idempotency_key=self._idempotency_key(bound, "version"),
+                idempotency_key=self._idempotency_key(bound_run, "version"),
             )
         finally:
             client.close()
@@ -495,25 +497,25 @@ class CESEvalTableWriter:
             raise UsageError("EvalTable must be logged with run.log().")
         return self._bound
 
-    def _idempotency_key(self, bound: _BoundRun, operation: str) -> str:
+    def _idempotency_key(self, bound_run: _BoundRun, operation: str) -> str:
         """Derive an operation-specific retry key from the bound log location."""
-        return f"wandb-eval-table-v1-{bound.idempotency_scope}-{operation}"
+        return f"wandb-eval-table-v1-{bound_run.idempotency_scope}-{operation}"
 
-    def _resolve_scope_context(self, bound: _BoundRun) -> _CESScopeContext:
+    def _resolve_scope_context(self, bound_run: _BoundRun) -> _CESScopeContext:
         """Resolve the project scope and preferred run credential for CES."""
-        response = bound.service_api.execute_graphql(
+        response = bound_run.service_api.execute_graphql(
             _PROJECT_SCOPE_QUERY,
-            variables={"entity": bound.entity, "project": bound.project},
+            variables={"entity": bound_run.entity, "project": bound_run.project},
         )
         project = response.get("project") if isinstance(response, dict) else None
         scope_ref = project.get("internalId") if isinstance(project, dict) else None
         if not isinstance(scope_ref, str) or not scope_ref:
             raise UsageError(
-                f"Unable to resolve W&B project {bound.entity}/{bound.project}."
+                f"Unable to resolve W&B project {bound_run.entity}/{bound_run.project}."
             )
 
-        api_key = bound.service_api.api_key
-        access_token = None if api_key else bound.service_api.access_token()
+        api_key = bound_run.service_api.api_key
+        access_token = None if api_key else bound_run.service_api.access_token()
         if not api_key and not access_token:
             raise UsageError(
                 "CES EvalTable logging requires authenticated W&B credentials."
