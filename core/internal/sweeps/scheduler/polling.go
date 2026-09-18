@@ -536,6 +536,12 @@ func (s *Scheduler) askBudget() int {
 // enqueueSuggestions schedules the optimizer's new runs. A non-nil
 // return ends the scheduler with that Done task.
 //
+// A suggestion the loop carries on without having scheduled is
+// discarded, so the optimizer releases it instead of counting a run
+// that will never happen. One that ends the scheduler is not: the
+// client only forgets discarded ids to free the trial's slot for
+// another ask, and there is no next ask after a Done.
+//
 // A pending Stop does not skip this: shutdown still enqueues the batch
 // the client just produced, and Step returns Done on its next wait.
 func (s *Scheduler) enqueueSuggestions(
@@ -561,7 +567,9 @@ func (s *Scheduler) enqueueSuggestions(
 	case sweepIsDone(facts.State):
 		return s.doneForSweepState(facts.State)
 	case facts.State == sweepStatePaused:
-		// Pausing is not terminal, but new runs must not start.
+		// Pausing is not terminal, but new runs must not start; the
+		// optimizer gets these back as discards.
+		s.discardAll(suggestions)
 		return nil
 	}
 
@@ -573,13 +581,24 @@ func (s *Scheduler) enqueueSuggestions(
 	return nil
 }
 
-// enqueueOne schedules a single suggestion. A non-nil return ends the
-// scheduler for that reason.
+// enqueueOne schedules a single suggestion, discarding it if the loop
+// carries on without it. A non-nil return ends the scheduler for that
+// reason.
 func (s *Scheduler) enqueueOne(
 	ctx context.Context,
 	suggestion *spb.SweepSchedulerClientRunSuggestion,
 ) *endReason {
 	id := suggestion.OptimizerRunId
+	if s.runs[id] != nil {
+		// Dropped, but never reported as a discard: the id belongs to a
+		// run this scheduler already tracks, and the client forgets
+		// discarded ids before applying the task's updates, so reporting
+		// it would retire that run instead of this bogus suggestion.
+		s.logger.Warn(
+			"scheduler: dropping suggestion with a duplicate "+
+				"optimizer run id", "id", id)
+		return nil
+	}
 
 	// Retired until the enqueue proves otherwise; the record also
 	// reserves the id for the scheduler's lifetime.
@@ -591,6 +610,8 @@ func (s *Scheduler) enqueueOne(
 		s.logger.Warn(
 			"scheduler: dropping suggestion with an unusable config",
 			"id", id, "error", err)
+		s.discards = append(s.discards, id)
+		s.recordRunDiscarded(discardCauseBadConfig, id)
 		return nil
 	}
 
@@ -601,7 +622,14 @@ func (s *Scheduler) enqueueOne(
 			"id", id, "error", err)
 		// A rate limit costs only this suggestion; anything else has
 		// already outlived the client's retries and ends the scheduler.
-		return s.endFromError(ctx, phaseEnqueue, err)
+		end := s.endFromError(ctx, phaseEnqueue, err)
+		if end == nil {
+			// The discard rides the next task so the optimizer can reuse
+			// the slot on the ask that follows.
+			s.discards = append(s.discards, id)
+			s.recordRunDiscarded(discardCauseEnqueueFailed, id)
+		}
+		return end
 	}
 
 	s.logger.Info("scheduler: enqueued run", "id", id)
@@ -612,6 +640,15 @@ func (s *Scheduler) enqueueOne(
 	run.name = mintedID
 	run.runState = spb.SweepRunState_SWEEP_RUN_STATE_PENDING
 	return nil
+}
+
+// discardAll routes suggestions to the discard channel.
+func (s *Scheduler) discardAll(
+	suggestions []*spb.SweepSchedulerClientRunSuggestion,
+) {
+	for _, suggestion := range suggestions {
+		s.discards = append(s.discards, suggestion.OptimizerRunId)
+	}
 }
 
 // wrapFlatConfig converts the protocol's flat {param: v} config form
