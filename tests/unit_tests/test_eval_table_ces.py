@@ -249,8 +249,8 @@ def test_ces_eval_table_media_telemetry_counts_affected_writes(
     expected_metrics,
 ):
     recorder = MagicMock()
-    monkeypatch.setattr(ces_writer, "get_telemetry_recorder", lambda: recorder)
-    prepared = ces_writer._CESWritePayloads(
+    monkeypatch.setattr(ces, "get_telemetry_recorder", lambda: recorder)
+    prepared = ces._CESWritePayloads(
         dataset_fields=[],
         scorers=[],
         row_batches=[],
@@ -259,7 +259,7 @@ def test_ces_eval_table_media_telemetry_counts_affected_writes(
         oversized_locations=(),
     )
 
-    ces_writer.CESEvalTableWriter()._record_media_telemetry(prepared)
+    ces.CESWriter()._record_media_telemetry(prepared)
 
     assert [
         call.args[0] for call in recorder.increment_counter.call_args_list

@@ -441,23 +441,16 @@ class CESWriter:
             column = column_keys.get(name, name)
             if _media_ces.is_supported_wandb_media(value):
                 media_cells += 1
-                media_cell = _media_ces.prepare_media(
+                normalized, value_type, oversized_size = self._normalize_media(
                     value,
-                    bound_run.run,
-                    bound_run.eval_table_key,
+                    bound_run,
                 )
-                normalized = media_cell.value
-                value_type = _CESFieldType(
-                    value_type="json",
-                    extension_type=media_cell.extension_type,
-                    extension_schema_version=media_cell.extension_schema_version,
-                )
-                if media_cell.oversized:
+                if oversized_size is not None:
                     oversized_cells += 1
                     if len(oversized_locations) < 5:
                         oversized_locations.append(
                             f"row {row_index}, {source} column {name!r} "
-                            f"({media_cell.encoded_size} bytes)"
+                            f"({oversized_size} bytes)"
                         )
             else:
                 normalized, primitive_type = self._normalize_primitive(value, column)
@@ -495,6 +488,25 @@ class CESWriter:
                 types[name] = self._merge_type(column, types.get(name), value_type)
             normalized_values[name] = normalized
         return normalized_values
+
+    def _normalize_media(
+        self,
+        value: Media,
+        bound_run: _BoundRun,
+    ) -> tuple[Any, _CESFieldType, int | None]:
+        """Return a CES extension value, its field type, and oversized byte count."""
+        media_cell = _media_ces.prepare_media(
+            value,
+            bound_run.run,
+            bound_run.eval_table_key,
+        )
+        field_type = _CESFieldType(
+            value_type="json",
+            extension_type=media_cell.extension_type,
+            extension_schema_version=media_cell.extension_schema_version,
+        )
+        oversized_size = media_cell.encoded_size if media_cell.oversized else None
+        return media_cell.value, field_type, oversized_size
 
     def _normalize_primitive(
         self,
