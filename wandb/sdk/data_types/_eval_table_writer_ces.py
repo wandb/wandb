@@ -75,6 +75,8 @@ _MAX_EVAL_TABLE_NAME_LENGTH = 256
 _MAX_ROWS_PER_TABLE = 100_000
 _MAX_SCORERS = 256
 _MAX_SCORER_NAME_LENGTH = 256
+# Keep oversized-media warnings bounded on large tables.
+_MAX_OVERSIZED_MEDIA_LOCATIONS = 5
 
 # Bytes in an add_rows body other than encoded rows and their separating commas.
 _ROW_BATCH_ENVELOPE_BYTES = len(_encode_json({"rows": []}))
@@ -450,7 +452,7 @@ class CESEvalTableWriter:
                 )
                 if oversized_size is not None:
                     oversized_cells += 1
-                    if len(oversized_locations) < 5:
+                    if len(oversized_locations) < _MAX_OVERSIZED_MEDIA_LOCATIONS:
                         oversized_locations.append(
                             f"row {row_index}, {source} column {name!r} "
                             f"({oversized_size} bytes)"
