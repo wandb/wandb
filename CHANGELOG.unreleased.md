@@ -24,6 +24,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Added a `--max-consecutive-failed-runs` flag to `wandb agent`, which shuts an agent down once that many runs have failed consecutively at any point in the agent's life (@nathancy-wandb in https://github.com/wandb/wandb/pull/12821)
 - System metrics now include PCIe throughput (`gpu.N.pcieTxBytes`, `gpu.N.pcieRxBytes`) for NVIDIA GPUs older than Hopper (@dmitryduev in https://github.com/wandb/wandb/pull/12989)
 - System metrics now include each GPU's cumulative energy consumption in joules as `gpu.N.energyJoules`, for NVIDIA and AMD GPUs (@dmitryduev in https://github.com/wandb/wandb/pull/12991)
+- Added `wandb sweep-scheduler`, which runs a sweep's search locally with support for Optuna and Ax as the sampler (@kmikowicz-wandb in https://github.com/wandb/wandb/pull/12900)
 
 ### Changed
 
