@@ -190,6 +190,71 @@ class TestCreateStudyFromSweepConfig:
         assert isinstance(study.pruner, optuna.pruners.NopPruner)
 
 
+class TestBuildOptunaSchedulerOptimizer:
+    def test_creates_multi_objective_study_from_metrics_config(self) -> None:
+        from wandb.cli import cli
+
+        config = {
+            "metrics": [
+                {"name": "loss", "goal": "minimize"},
+                {"name": "accuracy", "goal": "maximize"},
+            ],
+            "parameters": {"lr": {"min": 0.0, "max": 1.0}},
+            "scheduler": {"engine": "optuna"},
+        }
+        sweep = make_scheduler_grid_sweep(config=config)
+
+        optimizer = cli._build_optuna_scheduler_optimizer(sweep, config["scheduler"])
+
+        assert isinstance(optimizer, OptunaDeclarativeOptimizer)
+        assert [d.name.lower() for d in optimizer.study.directions] == [
+            "minimize",
+            "maximize",
+        ]
+
+    @pytest.mark.parametrize(
+        ("factory", "expected_terminate"),
+        [
+            (
+                "def configure():\n"
+                "    return optuna.create_study(direction='minimize')\n",
+                False,
+            ),
+            (
+                "def should_stop(study):\n"
+                "    return True\n\n"
+                "def configure():\n"
+                "    study = optuna.create_study(direction='minimize')\n"
+                "    return study, should_stop\n",
+                True,
+            ),
+        ],
+        ids=["study", "study_and_terminator"],
+    )
+    def test_optimizer_config_builds_the_configured_study(
+        self, tmp_path, factory: str, expected_terminate: bool
+    ) -> None:
+        from wandb.cli import cli
+
+        source = tmp_path / "optimizer.py"
+        source.write_text(f"import optuna\n\n{factory}", encoding="utf-8")
+        config = {
+            "metric": {"name": "loss", "goal": "minimize"},
+            "parameters": {"lr": {"min": 0.0, "max": 1.0}},
+            "scheduler": {
+                "engine": "optuna",
+                "source": str(source),
+                "optimizer": "configure",
+            },
+        }
+        sweep = make_scheduler_grid_sweep(config=config)
+
+        optimizer = cli._build_optuna_scheduler_optimizer(sweep, config["scheduler"])
+
+        assert isinstance(optimizer.study, optuna.Study)
+        assert optimizer.should_terminate_sweep() is expected_terminate
+
+
 class TestGridExhaustion:
     """A finite sampler must finish the sweep instead of re-running the grid.
 
