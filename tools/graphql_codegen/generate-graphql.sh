@@ -26,16 +26,16 @@ if [ ! -f "$SCHEMA_PATH" ]; then
     (
         # Fetch the schema
         # Create a temporary directory to clone into, but ensure it's cleaned up on exit
-        TEMP_DIR=$(mktemp -d)
+        temp_dir=$(mktemp -d)
         function cleanup() {
-            rm -rf $TEMP_DIR
+            rm -rf $temp_dir
         }
         trap cleanup EXIT SIGINT SIGQUIT SIGTERM
-        cd $TEMP_DIR
+        cd $temp_dir
 
         # download the latest schemaa
-        repo_dir=core
-        repo_schema_path=services/gorilla/schema.graphql
+        repo_dir="${temp_dir}/core"
+        repo_schema_path="services/gorilla/schema.graphql"
         echo "[INFO] Downloading latest schema for commit hash: $SCHEMA_COMMIT"
         git clone -n --depth=1 --filter=tree:0 https://github.com/wandb/core "$repo_dir"
         (
