@@ -47,8 +47,6 @@ const (
 	ServerFeature_ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER ServerFeature = 6
 	// Indicates that the server supports passing the artifact's entity and project to the useArtifact mutation.
 	ServerFeature_USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION ServerFeature = 7
-	// Indicates that the server supports expanding defined metric globs on the server side.
-	ServerFeature_EXPAND_DEFINED_METRIC_GLOBS ServerFeature = 8
 	// Indicates that the server supports automation event RUN_METRIC.
 	ServerFeature_AUTOMATION_EVENT_RUN_METRIC ServerFeature = 9
 	// Indicates that the server supports automation event RUN_METRIC_CHANGE.
@@ -123,7 +121,6 @@ var (
 		5:  "ARTIFACT_COLLECTION_MEMBERSHIP_FILES",
 		6:  "ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER",
 		7:  "USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION",
-		8:  "EXPAND_DEFINED_METRIC_GLOBS",
 		9:  "AUTOMATION_EVENT_RUN_METRIC",
 		10: "AUTOMATION_EVENT_RUN_METRIC_CHANGE",
 		11: "AUTOMATION_ACTION_NO_OP",
@@ -163,7 +160,6 @@ var (
 		"ARTIFACT_COLLECTION_MEMBERSHIP_FILES":                 5,
 		"ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER": 6,
 		"USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION":     7,
-		"EXPAND_DEFINED_METRIC_GLOBS":                          8,
 		"AUTOMATION_EVENT_RUN_METRIC":                          9,
 		"AUTOMATION_EVENT_RUN_METRIC_CHANGE":                   10,
 		"AUTOMATION_ACTION_NO_OP":                              11,
@@ -1166,7 +1162,6 @@ type Control struct {
 	Local         bool                   `protobuf:"varint,2,opt,name=local,proto3" json:"local,omitempty"`                                  // should not be persisted or synchronized
 	RelayId       string                 `protobuf:"bytes,3,opt,name=relay_id,json=relayId,proto3" json:"relay_id,omitempty"`                // used by service transport to identify correct stream
 	MailboxSlot   string                 `protobuf:"bytes,4,opt,name=mailbox_slot,json=mailboxSlot,proto3" json:"mailbox_slot,omitempty"`    // mailbox slot
-	AlwaysSend    bool                   `protobuf:"varint,5,opt,name=always_send,json=alwaysSend,proto3" json:"always_send,omitempty"`      // message to sender
 	FlowControl   bool                   `protobuf:"varint,6,opt,name=flow_control,json=flowControl,proto3" json:"flow_control,omitempty"`   // message should be passed to flow control
 	EndOffset     int64                  `protobuf:"varint,7,opt,name=end_offset,json=endOffset,proto3" json:"end_offset,omitempty"`         // end of message offset of this written message
 	ConnectionId  string                 `protobuf:"bytes,8,opt,name=connection_id,json=connectionId,proto3" json:"connection_id,omitempty"` // connection id
@@ -1230,13 +1225,6 @@ func (x *Control) GetMailboxSlot() string {
 		return x.MailboxSlot
 	}
 	return ""
-}
-
-func (x *Control) GetAlwaysSend() bool {
-	if x != nil {
-		return x.AlwaysSend
-	}
-	return false
 }
 
 func (x *Control) GetFlowControl() bool {
@@ -11903,18 +11891,16 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\acontrol\x18\x10 \x01(\v2\x17.wandb_internal.ControlR\acontrol\x12\x12\n" +
 	"\x04uuid\x18\x13 \x01(\tR\x04uuid\x121\n" +
 	"\x05_info\x18\xc8\x01 \x01(\v2\x1b.wandb_internal._RecordInfoR\x04InfoB\r\n" +
-	"\vrecord_type\"\x80\x02\n" +
+	"\vrecord_type\"\xe5\x01\n" +
 	"\aControl\x12\x19\n" +
 	"\breq_resp\x18\x01 \x01(\bR\areqResp\x12\x14\n" +
 	"\x05local\x18\x02 \x01(\bR\x05local\x12\x19\n" +
 	"\brelay_id\x18\x03 \x01(\tR\arelayId\x12!\n" +
-	"\fmailbox_slot\x18\x04 \x01(\tR\vmailboxSlot\x12\x1f\n" +
-	"\valways_send\x18\x05 \x01(\bR\n" +
-	"alwaysSend\x12!\n" +
+	"\fmailbox_slot\x18\x04 \x01(\tR\vmailboxSlot\x12!\n" +
 	"\fflow_control\x18\x06 \x01(\bR\vflowControl\x12\x1d\n" +
 	"\n" +
 	"end_offset\x18\a \x01(\x03R\tendOffset\x12#\n" +
-	"\rconnection_id\x18\b \x01(\tR\fconnectionId\"\xdf\x04\n" +
+	"\rconnection_id\x18\b \x01(\tR\fconnectionIdJ\x04\b\x05\x10\x06\"\xdf\x04\n" +
 	"\x06Result\x12@\n" +
 	"\n" +
 	"run_result\x18\x11 \x01(\v2\x1f.wandb_internal.RunUpdateResultH\x00R\trunResult\x12@\n" +
@@ -12736,7 +12722,7 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\finput_source\x18\x01 \x01(\v2\x1e.wandb_internal.JobInputSourceR\vinputSource\x12A\n" +
 	"\rinclude_paths\x18\x02 \x03(\v2\x1c.wandb_internal.JobInputPathR\fincludePaths\x12A\n" +
 	"\rexclude_paths\x18\x03 \x03(\v2\x1c.wandb_internal.JobInputPathR\fexcludePaths\x12!\n" +
-	"\finput_schema\x18\x04 \x01(\tR\vinputSchema*\xd5\n" +
+	"\finput_schema\x18\x04 \x01(\tR\vinputSchema*\xba\n" +
 	"\n" +
 	"\rServerFeature\x12\x1e\n" +
 	"\x1aSERVER_FEATURE_UNSPECIFIED\x10\x00\x12\x13\n" +
@@ -12749,7 +12735,6 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"$ARTIFACT_COLLECTION_MEMBERSHIP_FILES\x10\x05\x128\n" +
 	"4ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER\x10\x06\x124\n" +
 	"0USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION\x10\a\x12\x1f\n" +
-	"\x1bEXPAND_DEFINED_METRIC_GLOBS\x10\b\x12\x1f\n" +
 	"\x1bAUTOMATION_EVENT_RUN_METRIC\x10\t\x12&\n" +
 	"\"AUTOMATION_EVENT_RUN_METRIC_CHANGE\x10\n" +
 	"\x12\x1b\n" +
@@ -12778,7 +12763,7 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x0fFILESTREAM_GZIP\x10\"\x12\x1a\n" +
 	"\x16SWEEPS_LOCAL_SCHEDULER\x10#\x12\x1d\n" +
 	"\x19ARTIFACT_DIGEST_ALGORITHM\x10$\x12\x1a\n" +
-	"\x16AUTOMATION_ACTION_ARIA\x10%B\x1bZ\x19core/pkg/service_go_protob\x06proto3"
+	"\x16AUTOMATION_ACTION_ARIA\x10%\"\x04\b\b\x10\bB\x1bZ\x19core/pkg/service_go_protob\x06proto3"
 
 var (
 	file_wandb_proto_wandb_internal_proto_rawDescOnce sync.Once

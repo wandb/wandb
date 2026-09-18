@@ -149,6 +149,24 @@ func (rh *RunHistory) GetNumber(path pathtree.TreePath) (float64, bool) {
 	}
 }
 
+// GetInt returns the value of a integer-valued metric.
+//
+// When this RunHistory was created from a HistoryRecord, a metric is
+// integer-valued if and only if it was encoded as a JSON integer.
+// "10" is an integer, but "10.0" is not.
+func (rh *RunHistory) GetInt(path pathtree.TreePath) (int64, bool) {
+	value, exists := rh.metrics.GetLeaf(path)
+	if !exists {
+		return 0, false
+	}
+
+	if asInt, ok := value.(int64); ok {
+		return asInt, true
+	} else {
+		return 0, false
+	}
+}
+
 // SetFloat sets the value of a float-valued metric.
 func (rh *RunHistory) SetFloat(path pathtree.TreePath, value float64) {
 	rh.metrics.Set(path, value)

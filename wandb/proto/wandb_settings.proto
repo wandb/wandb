@@ -52,7 +52,7 @@ message RunMoment {
 //
 // Next ID: 210
 message Settings {
-  reserved 3, 6, 8, 9, 12, 19, 36, 43, 44, 45, 50, 51, 54, 70, 91, 94, 100, 124, 136, 137, 173, 176, 180;
+  reserved 3, 6, 8, 9, 12, 19, 36, 43, 44, 45, 50, 51, 54, 70, 91, 94, 100, 124, 136, 137, 173, 176, 180, 190;
 
   // The W&B API key.
   //
@@ -431,9 +431,6 @@ message Settings {
 
   // Whether to delegate automatic computation of summary from history to the server.
   google.protobuf.BoolValue x_server_side_derived_summary = 189;
-
-  // Whether to delegate glob matching of metrics in define_metric to the server.
-  google.protobuf.BoolValue x_server_side_expand_glob_metrics = 190;
 
   // Whether to skip saving the run events to the transaction log.
   //
