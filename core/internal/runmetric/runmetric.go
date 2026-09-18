@@ -49,6 +49,22 @@ func (mh *MetricHandler) StepMetric(key string) string {
 	return metric.Step
 }
 
+// IsHidden reports whether a metric is hidden in the UI.
+//
+// A metric matching a glob is defined on first lookup.
+func (mh *MetricHandler) IsHidden(key string) bool {
+	if metric, ok := mh.definedMetrics[key]; ok {
+		return metric.IsHidden
+	}
+
+	metric, ok := mh.matchGlobMetric(key)
+	if !ok {
+		return false
+	}
+	mh.definedMetrics[key] = metric
+	return metric.IsHidden
+}
+
 // ProcessRecord updates metric definitions.
 func (mh *MetricHandler) ProcessRecord(record *spb.MetricRecord) error {
 	if record.StepMetric != "" {

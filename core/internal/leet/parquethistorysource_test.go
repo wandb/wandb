@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet"
+	"github.com/wandb/wandb/core/internal/runmetric"
 )
 
 // fakeStepReader is an in-memory historyStepReader.
@@ -70,6 +72,7 @@ func TestParquetHistorySource_Read(t *testing.T) {
 		testRunInfo(map[string]any{"_step": int64(1000), "loss": 0.1}),
 		reader,
 		observability.NewNoOpLogger(),
+		nil,
 	)
 
 	msg, err := source.Read(100, 10*time.Second)
@@ -118,6 +121,7 @@ func TestParquetHistorySource_Read_WithoutSummaryStepStopsAtEmptyWindow(t *testi
 		testRunInfo(map[string]any{"loss": 0.1}), // no "_step" bound
 		reader,
 		observability.NewNoOpLogger(),
+		nil,
 	)
 
 	msg, err := source.Read(100, 10*time.Second)
@@ -140,6 +144,7 @@ func TestParquetHistorySource_Close(t *testing.T) {
 		testRunInfo(nil),
 		reader,
 		observability.NewNoOpLogger(),
+		nil,
 	)
 
 	source.Close()
@@ -170,7 +175,7 @@ func TestParseParquetHistorySteps(t *testing.T) {
 		},
 	}
 
-	result := parseParquetHistorySteps(historySteps, logger)
+	result := parseParquetHistorySteps(historySteps, logger, runmetric.New())
 
 	require.NotNil(t, result.Metrics)
 	assert.Len(t, result.Metrics, 2)
@@ -178,6 +183,289 @@ func TestParseParquetHistorySteps(t *testing.T) {
 	assert.Equal(t, []float64{1.0, 0.8, 0.6}, result.Metrics["loss"].Y)
 	assert.Equal(t, []float64{2}, result.Metrics["tokens"].X)
 	assert.Equal(t, []float64{42}, result.Metrics["tokens"].Y)
+}
+
+func TestParseParquetHistorySteps_WithMetricConfig(t *testing.T) {
+	tests := []struct {
+		name         string
+		config       string
+		metric       string
+		historySteps []parquet.KeyValueList
+		wantX        []float64
+		wantY        []float64
+		wantXAxis    string
+	}{
+		{
+			name:   "indexed custom axis",
+			config: `{"m":[{"1":"custom_step"},{"1":"loss","5":1}]}`,
+			metric: "loss",
+			historySteps: []parquet.KeyValueList{
+				{
+					{Key: parquet.StepKey, Value: int64(0)},
+					{Key: "loss", Value: float64(1.0)},
+					{Key: "custom_step", Value: float64(10)},
+				},
+				{
+					{Key: parquet.StepKey, Value: int64(1)},
+					{Key: "loss", Value: float64(0.8)},
+				},
+				{
+					{Key: parquet.StepKey, Value: int64(2)},
+					{Key: "loss", Value: float64(0.6)},
+					{Key: "custom_step", Value: math.NaN()},
+				},
+				{
+					{Key: parquet.StepKey, Value: int64(3)},
+					{Key: "custom_step", Value: float64(30)},
+					{Key: "loss", Value: float64(0.4)},
+				},
+			},
+			wantX:     []float64{10, 30},
+			wantY:     []float64{1.0, 0.4},
+			wantXAxis: "custom_step",
+		},
+		{
+			name:   "direct custom axis",
+			config: `{"m":[{"1":"custom_step"},{"1":"loss","4":"custom_step"}]}`,
+			metric: "loss",
+			historySteps: []parquet.KeyValueList{{
+				{Key: parquet.StepKey, Value: int64(0)},
+				{Key: "loss", Value: float64(1.0)},
+				{Key: "custom_step", Value: float64(10)},
+			}},
+			wantX:     []float64{10},
+			wantY:     []float64{1.0},
+			wantXAxis: "custom_step",
+		},
+		{
+			name:   "glob custom axis",
+			config: `{"m":[{"1":"custom_step"},{"2":"train/*","5":1}]}`,
+			metric: "train/loss",
+			historySteps: []parquet.KeyValueList{{
+				{Key: parquet.StepKey, Value: int64(0)},
+				{Key: "train/loss", Value: float64(1.0)},
+				{Key: "custom_step", Value: float64(10)},
+			}},
+			wantX:     []float64{10},
+			wantY:     []float64{1.0},
+			wantXAxis: "custom_step",
+		},
+		{
+			name:   "internal custom axis",
+			config: `{"m":[{"1":"_runtime"},{"1":"loss","4":"_runtime"}]}`,
+			metric: "loss",
+			historySteps: []parquet.KeyValueList{{
+				{Key: parquet.StepKey, Value: int64(0)},
+				{Key: "loss", Value: float64(1.0)},
+				{Key: "_runtime", Value: float64(2.5)},
+			}},
+			wantX:     []float64{2.5},
+			wantY:     []float64{1.0},
+			wantXAxis: "_runtime",
+		},
+		{
+			name:   "missing metrics",
+			config: `{}`,
+			metric: "loss",
+			historySteps: []parquet.KeyValueList{{
+				{Key: parquet.StepKey, Value: int64(4)},
+				{Key: "loss", Value: float64(0.5)},
+			}},
+			wantX: []float64{4},
+			wantY: []float64{0.5},
+		},
+		{
+			name:   "malformed config",
+			config: `not-json`,
+			metric: "loss",
+			historySteps: []parquet.KeyValueList{{
+				{Key: parquet.StepKey, Value: int64(4)},
+				{Key: "loss", Value: float64(0.5)},
+			}},
+			wantX: []float64{4},
+			wantY: []float64{0.5},
+		},
+		{
+			name:   "invalid index",
+			config: `{"m":[{"1":"step"},{"1":"loss","5":3}]}`,
+			metric: "loss",
+			historySteps: []parquet.KeyValueList{{
+				{Key: parquet.StepKey, Value: int64(4)},
+				{Key: "loss", Value: float64(0.5)},
+			}},
+			wantX: []float64{4},
+			wantY: []float64{0.5},
+		},
+		{
+			name:   "invalid metric entry",
+			config: `{"m":[{"1":"step"},{"1":12,"4":"step"}]}`,
+			metric: "loss",
+			historySteps: []parquet.KeyValueList{{
+				{Key: parquet.StepKey, Value: int64(4)},
+				{Key: "loss", Value: float64(0.5)},
+			}},
+			wantX: []float64{4},
+			wantY: []float64{0.5},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := decodeWandbConfigMetrics(tt.config)
+			result := parseParquetHistorySteps(
+				tt.historySteps,
+				observability.NewNoOpLogger(),
+				handler,
+			)
+
+			require.Contains(t, result.Metrics, tt.metric)
+			assert.Equal(t, tt.wantX, result.Metrics[tt.metric].X)
+			assert.Equal(t, tt.wantY, result.Metrics[tt.metric].Y)
+			assert.Equal(t, tt.wantXAxis, result.Metrics[tt.metric].XAxisMetric)
+		})
+	}
+}
+
+func TestParseParquetHistorySteps_HiddenMetricHandling(t *testing.T) {
+	handler := decodeWandbConfigMetrics(
+		`{"m":[
+			{"1":"custom_step","6":[2]},
+			{"1":"loss","5":1}
+		]}`,
+	)
+	result := parseParquetHistorySteps(
+		[]parquet.KeyValueList{{
+			{Key: parquet.StepKey, Value: int64(0)},
+			{Key: "loss", Value: float64(1)},
+			{Key: "custom_step", Value: float64(10)},
+		}},
+		observability.NewNoOpLogger(),
+		handler,
+	)
+
+	// Expect only the non-hidden metric.
+	require.Len(t, result.Metrics, 1)
+	require.Contains(t, result.Metrics, "loss")
+	assert.Equal(t, []float64{10}, result.Metrics["loss"].X)
+	assert.Equal(t, []float64{1}, result.Metrics["loss"].Y)
+	assert.Equal(t, "custom_step", result.Metrics["loss"].XAxisMetric)
+	assert.NotContains(t, result.Metrics, "custom_step")
+}
+
+func TestParseParquetHistorySteps_HiddenGlobMetricIsOmitted(t *testing.T) {
+	handler := decodeWandbConfigMetrics(
+		`{"m":[{"2":"train/*","6":[2]}]}`,
+	)
+	result := parseParquetHistorySteps(
+		[]parquet.KeyValueList{{
+			{Key: parquet.StepKey, Value: int64(0)},
+			{Key: "train/loss", Value: float64(1)},
+		}},
+		observability.NewNoOpLogger(),
+		handler,
+	)
+
+	assert.NotContains(t, result.Metrics, "train/loss")
+}
+
+func TestLoadWandbConfigMetrics(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("QueryRunWandbConfig"),
+		`{
+			"project": {
+				"run": {
+					"wandbConfig": "{\"m\":[{\"1\":\"step\"},{\"1\":\"loss\",\"5\":1}]}"
+				}
+			}
+		}`,
+	)
+
+	handler := loadWandbConfigMetrics(
+		t.Context(),
+		mockGQL,
+		"entity",
+		"project",
+		"run-id",
+		observability.NewNoOpLogger(),
+	)
+
+	assert.Equal(t, "step", handler.StepMetric("loss"))
+	assert.True(t, mockGQL.AllStubsUsed())
+}
+
+func TestLoadWandbConfigMetrics_QueryErrorFallsBackToDefault(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchWithError(
+		gqlmock.WithOpName("QueryRunWandbConfig"),
+		fmt.Errorf("config unavailable"),
+	)
+
+	handler := loadWandbConfigMetrics(
+		t.Context(),
+		mockGQL,
+		"entity",
+		"project",
+		"run-id",
+		observability.NewNoOpLogger(),
+	)
+
+	assert.Empty(t, handler.StepMetric("loss"))
+	assert.True(t, mockGQL.AllStubsUsed())
+}
+
+func TestNewParquetHistorySource_UsesMetricHandler(t *testing.T) {
+	handler := runmetric.New()
+	source := newParquetHistorySource(
+		t.Context(),
+		testRunInfo(nil),
+		&fakeStepReader{},
+		observability.NewNoOpLogger(),
+		handler,
+	)
+
+	assert.Same(t, handler, source.metricHandler)
+}
+
+func TestParquetHistorySource_Read_ConfigQueryFailureUsesDefaultXAxis(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchWithError(
+		gqlmock.WithOpName("QueryRunWandbConfig"),
+		fmt.Errorf("config unavailable"),
+	)
+	handler := loadWandbConfigMetrics(
+		t.Context(),
+		mockGQL,
+		"entity",
+		"project",
+		"run-id",
+		observability.NewNoOpLogger(),
+	)
+	source := newParquetHistorySource(
+		t.Context(),
+		testRunInfo(map[string]any{"_step": int64(1)}),
+		&fakeStepReader{steps: []parquet.KeyValueList{
+			lossRow(0, 1),
+			lossRow(1, 0.5),
+		}},
+		observability.NewNoOpLogger(),
+		handler,
+	)
+	defer source.Close()
+
+	msg, err := source.Read(100, 10*time.Second)
+	require.NoError(t, err)
+	batch, ok := msg.(ChunkedBatchMsg)
+	require.True(t, ok)
+	require.Len(t, batch.Msgs, 4)
+
+	history, ok := batch.Msgs[2].(HistoryMsg)
+	require.True(t, ok)
+	loss := history.Metrics["loss"]
+	assert.Empty(t, loss.XAxisMetric)
+	assert.Equal(t, []float64{0, 1}, loss.X)
+	assert.Equal(t, []float64{1, 0.5}, loss.Y)
+	assert.True(t, mockGQL.AllStubsUsed())
 }
 
 func TestLoadRunInfo(t *testing.T) {

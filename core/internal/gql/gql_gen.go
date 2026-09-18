@@ -1368,6 +1368,30 @@ type QueryRunInfoResponse struct {
 // GetProject returns QueryRunInfoResponse.Project, and is useful for accessing the field via an interface.
 func (v *QueryRunInfoResponse) GetProject() *QueryRunInfoProject { return v.Project }
 
+// QueryRunWandbConfigProject includes the requested fields of the GraphQL type Project.
+type QueryRunWandbConfigProject struct {
+	Run *QueryRunWandbConfigProjectRun `json:"run"`
+}
+
+// GetRun returns QueryRunWandbConfigProject.Run, and is useful for accessing the field via an interface.
+func (v *QueryRunWandbConfigProject) GetRun() *QueryRunWandbConfigProjectRun { return v.Run }
+
+// QueryRunWandbConfigProjectRun includes the requested fields of the GraphQL type Run.
+type QueryRunWandbConfigProjectRun struct {
+	WandbConfig *string `json:"wandbConfig"`
+}
+
+// GetWandbConfig returns QueryRunWandbConfigProjectRun.WandbConfig, and is useful for accessing the field via an interface.
+func (v *QueryRunWandbConfigProjectRun) GetWandbConfig() *string { return v.WandbConfig }
+
+// QueryRunWandbConfigResponse is returned by QueryRunWandbConfig on success.
+type QueryRunWandbConfigResponse struct {
+	Project *QueryRunWandbConfigProject `json:"project"`
+}
+
+// GetProject returns QueryRunWandbConfigResponse.Project, and is useful for accessing the field via an interface.
+func (v *QueryRunWandbConfigResponse) GetProject() *QueryRunWandbConfigProject { return v.Project }
+
 // RewindRunResponse is returned by RewindRun on success.
 type RewindRunResponse struct {
 	RewindRun *RewindRunRewindRunRewindRunPayload `json:"rewindRun"`
@@ -3108,6 +3132,22 @@ func (v *__QueryRunInfoInput) GetProject() string { return v.Project }
 // GetRun returns __QueryRunInfoInput.Run, and is useful for accessing the field via an interface.
 func (v *__QueryRunInfoInput) GetRun() string { return v.Run }
 
+// __QueryRunWandbConfigInput is used internally by genqlient
+type __QueryRunWandbConfigInput struct {
+	Entity  string `json:"entity"`
+	Project string `json:"project"`
+	Run     string `json:"run"`
+}
+
+// GetEntity returns __QueryRunWandbConfigInput.Entity, and is useful for accessing the field via an interface.
+func (v *__QueryRunWandbConfigInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __QueryRunWandbConfigInput.Project, and is useful for accessing the field via an interface.
+func (v *__QueryRunWandbConfigInput) GetProject() string { return v.Project }
+
+// GetRun returns __QueryRunWandbConfigInput.Run, and is useful for accessing the field via an interface.
+func (v *__QueryRunWandbConfigInput) GetRun() string { return v.Run }
+
 // __RewindRunInput is used internally by genqlient
 type __RewindRunInput struct {
 	RunName     string  `json:"runName"`
@@ -4526,6 +4566,46 @@ func QueryRunInfo(
 	}
 
 	data_ = &QueryRunInfoResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by QueryRunWandbConfig.
+const QueryRunWandbConfig_Operation = `
+query QueryRunWandbConfig ($entity: String!, $project: String!, $run: String!) {
+	project(name: $project, entityName: $entity) {
+		run(name: $run) {
+			wandbConfig(keys: ["m"])
+		}
+	}
+}
+`
+
+func QueryRunWandbConfig(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+	run string,
+) (data_ *QueryRunWandbConfigResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "QueryRunWandbConfig",
+		Query:  QueryRunWandbConfig_Operation,
+		Variables: &__QueryRunWandbConfigInput{
+			Entity:  entity,
+			Project: project,
+			Run:     run,
+		},
+	}
+
+	data_ = &QueryRunWandbConfigResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(

@@ -266,7 +266,12 @@ func (acc *historyAccumulator) addRecord(runPath string, history *spb.HistoryRec
 		if strings.HasPrefix(key, "_") {
 			continue
 		}
-		x, xAxisMetric := float64(step), acc.metricHandler.StepMetric(key)
+		xAxisMetric := acc.metricHandler.StepMetric(key)
+		if acc.metricHandler.IsHidden(key) {
+			continue
+		}
+
+		x := float64(step)
 		switch xAxisMetric {
 		case "", "_step":
 			xAxisMetric = ""
