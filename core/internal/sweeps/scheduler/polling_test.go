@@ -746,17 +746,13 @@ func TestPrune(t *testing.T) {
 		second := fixture.step(t, generationResult(
 			&spb.SweepSchedulerClientGenerationResult{Prune: []string{"opt-v"}}))
 
+		// Only the idle poll is stubbed, so answering it at all proves the
+		// run dropped out of the watched set rather than being read and
+		// discarded.
 		require.NotNil(t, second.GetGeneration())
 		assert.Empty(t, second.GetGeneration().Updates)
 		assert.Empty(t, second.GetGeneration().PruneCandidates)
 		assert.EqualValues(t, 2, second.GetGeneration().AskUpTo)
-
-		// The run is retired for good: it drops out of the watched set, so
-		// the scheduler stops reading it at all rather than reading it and
-		// discarding the row.
-		fixture.stubIdlePoll("RUNNING")
-		third := fixture.step(t, emptyIterResult())
-		assert.Empty(t, third.GetGeneration().Updates)
 		assert.True(t, fixture.client.AllStubsUsed())
 	})
 
@@ -788,7 +784,7 @@ func TestPrune(t *testing.T) {
 			"a run that was never a candidate must not be stopped")
 	})
 
-	t.Run("a refused stop is not fatal", func(t *testing.T) {
+	t.Run("a failed stop is not fatal", func(t *testing.T) {
 		fixture := newLoopFixture(t, scheduler.SchedulerParams{})
 		fixture.warmTo(t)
 		fixture.stubPoll(pollJSON("RUNNING", false, "",
@@ -810,6 +806,8 @@ func TestPrune(t *testing.T) {
 
 		generation := task.GetGeneration()
 		require.NotNil(t, generation)
+		// Asserted so the rest cannot pass on a prune that never tried.
+		assert.Len(t, fixture.requestsFor("StopRun"), 1)
 		require.Len(t, generation.Updates, 1)
 		assert.Equal(t,
 			spb.SweepRunState_SWEEP_RUN_STATE_FINISHED,
