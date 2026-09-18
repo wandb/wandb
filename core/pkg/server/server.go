@@ -12,7 +12,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runsync"
@@ -118,13 +117,7 @@ type ServerParams struct {
 func NewServer(params ServerParams) *Server {
 	serverLifetimeCtx, stopServer := context.WithCancel(context.Background())
 
-	sweepSchedLogger := observability.NewCoreLogger(
-		slog.Default(),
-		analytics.NewTelemetryRecorder(
-			nil,
-			analytics.NewTelemetryContext(),
-		),
-	)
+	sweepSchedLogger := observability.NewCoreLogger(slog.Default(), nil)
 
 	return &Server{
 		serverLifetimeCtx: serverLifetimeCtx,
@@ -208,10 +201,6 @@ func (s *Server) Serve(portFile string) error {
 	// Wait for the signal to shut down.
 	<-s.serverLifetimeCtx.Done()
 	slog.Info("server: is shutting down")
-
-	// Scheduler sessions die with their connections, but cancelling them
-	// here as well lets in-flight polls return promptly during shutdown.
-	s.sweepSchedBroker.Shutdown()
 
 	s.stopIdleTimer()
 
