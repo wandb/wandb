@@ -126,7 +126,7 @@ func TestStopEnqueuesPendingSuggestionsThenDone(t *testing.T) {
 // another pass; anything else has already outlived the client's
 // retries.
 func TestEnqueueFailures(t *testing.T) {
-	t.Run("a rate limit costs only that suggestion", func(t *testing.T) {
+	t.Run("a rate limit discards the suggestion and keeps going", func(t *testing.T) {
 		fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 2})
 		fixture.warmTo(t)
 		fixture.stubIdlePoll("RUNNING")
@@ -143,8 +143,12 @@ func TestEnqueueFailures(t *testing.T) {
 		fixture.stubIdlePoll("RUNNING")
 		task := fixture.step(t, generationResult(suggest("opt-lost")))
 
-		require.NotNil(t, task.GetGeneration(),
-			"expected the loop to keep iterating")
+		generation := task.GetGeneration()
+		require.NotNil(t, generation, "expected the loop to keep iterating")
+		// The discard rides the next task so the optimizer still forgets
+		// the suggestion.
+		assert.Equal(t,
+			[]string{"opt-lost"}, generation.DiscardedOptimizerRunIds)
 		assert.True(t, fixture.client.AllStubsUsed())
 	})
 
@@ -665,4 +669,54 @@ func TestRunCapAccountsForRunsFinishedDuringPolling(t *testing.T) {
 		spb.SweepSchedulerServerDoneTask_REASON_SWEEP_FINISHED,
 		done.GetDone().Reason)
 	assert.Contains(t, done.GetDone().Message, "run cap")
+}
+
+// A suggestion whose id names a run the scheduler already tracks is
+// dropped, but never reported as a discard: the client forgets
+// discarded ids before applying the task, so reporting one would cost
+// it a run it still has to update.
+func TestSuggestionWithAnIdInUseIsDroppedWithoutDiscarding(t *testing.T) {
+	fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 2})
+	fixture.warmTo(t)
+	fixture.stubPoll(pollJSON("RUNNING", false, "",
+		testRun{name: "run-1", state: "running"},
+	))
+	fixture.step(t, warmResult(map[string]string{"run-1": "opt-1"}))
+
+	// "opt-1" collides with the adoption; only the backend re-check
+	// runs, no enqueue.
+	fixture.stubSweepConfig("RUNNING")
+	fixture.stubPoll(pollJSON("RUNNING", false, "",
+		testRun{name: "run-1", state: "running"},
+	))
+	task := fixture.step(t, generationResult(suggest("opt-1")))
+
+	generation := task.GetGeneration()
+	require.NotNil(t, generation)
+	// Reporting the id would make the client forget the run that owns
+	// it, and its update in this very task would then fail.
+	assert.Empty(t, generation.DiscardedOptimizerRunIds)
+	require.Len(t, generation.Updates, 1)
+	assert.Equal(t, "opt-1", generation.Updates[0].Run.OptimizerRunId)
+}
+
+// A sweep paused while the optimizer was thinking is not over, so the
+// loop carries on — which is exactly why its batch has to go back: the
+// optimizer would otherwise hold those slots against every later ask.
+func TestSuggestionsDiscardedWhenSweepPaused(t *testing.T) {
+	fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 2})
+	fixture.warmTo(t)
+	fixture.stubIdlePoll("RUNNING")
+	fixture.step(t, warmResult(nil))
+
+	// No enqueue stub: a paused sweep starts no new runs.
+	fixture.stubSweepConfig("PAUSED")
+	fixture.stubIdlePoll("PAUSED")
+	task := fixture.step(t, generationResult(suggest("opt-a", "opt-b")))
+
+	generation := task.GetGeneration()
+	require.NotNil(t, generation, "pausing is not terminal")
+	assert.Equal(t,
+		[]string{"opt-a", "opt-b"}, generation.DiscardedOptimizerRunIds)
+	assert.Empty(t, fixture.requestsFor("EnqueueSweepRun"))
 }
