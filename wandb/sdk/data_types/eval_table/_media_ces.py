@@ -33,7 +33,7 @@ if TYPE_CHECKING:
 CES_MAX_CELL_BYTES = 3_500_000
 _CESMediaExtensionValue = dict[str, Any]
 CESExtensionType = str
-_DIGEST_PATH_LENGTH = 20
+_DIGEST_PATH_LENGTH = 30
 _MediaT = TypeVar("_MediaT", bound=Media)
 # Intentionally empty in this foundational layer. Later PRs add supported types.
 SUPPORTED_WANDB_MEDIA_TYPES: tuple[type[Media], ...] = ()
@@ -123,7 +123,7 @@ def _bind_eval_table_media_to_run(
     directory = os.path.join(
         "media", "eval_tables", relative_subdir, safe_eval_table_key
     )
-    # An 80-bit prefix has about a 1 in 2.4 million collision chance at one
+    # A 120-bit prefix has about a 1 in 2.7 quintillion collision chance at one
     # billion files. We accept that risk to keep run-file names short.
     logical_path = os.path.join(
         directory,
