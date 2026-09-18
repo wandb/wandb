@@ -75,6 +75,8 @@ _MAX_EVAL_TABLE_NAME_LENGTH = 256
 _MAX_ROWS_PER_TABLE = 100_000
 _MAX_SCORERS = 256
 _MAX_SCORER_NAME_LENGTH = 256
+# Keep oversized-media warnings bounded on large tables.
+_MAX_OVERSIZED_MEDIA_LOCATIONS = 5
 
 # Bytes in an add_rows body other than encoded rows and their separating commas.
 _ROW_BATCH_ENVELOPE_BYTES = len(_encode_json({"rows": []}))
@@ -450,7 +452,7 @@ class CESEvalTableWriter:
                 )
                 if oversized_size is not None:
                     oversized_cells += 1
-                    if len(oversized_locations) < 5:
+                    if len(oversized_locations) < _MAX_OVERSIZED_MEDIA_LOCATIONS:
                         oversized_locations.append(
                             f"row {row_index}, {source} column {name!r} "
                             f"({oversized_size} bytes)"
@@ -486,6 +488,11 @@ class CESEvalTableWriter:
                 )
                 order[name] = None
             column = column_keys.get(name, name)
+            if _eval_table_media_ces.is_supported_wandb_media(value):
+                raise UsageError(
+                    f"EvalTable score column {column!r} contains unsupported value "
+                    f"type {type(value).__name__!r}; only primitive values are supported."
+                )
             normalized, value_type = self._normalize_primitive(value, column)
             if value_type is not None:
                 types[name] = self._merge_type(column, types.get(name), value_type)
@@ -498,11 +505,26 @@ class CESEvalTableWriter:
         bound_run: _BoundRun,
     ) -> tuple[Any, _CESFieldType, int | None]:
         """Return a CES extension value, its field type, and oversized byte count."""
-        media_cell = _eval_table_media_ces.prepare_media(
-            value,
-            bound_run.run,
-            bound_run.eval_table_key,
-        )
+        try:
+            media_cell = _eval_table_media_ces.prepare_media(
+                value,
+                bound_run.run,
+                bound_run.eval_table_key,
+            )
+        except _eval_table_media_ces._UnsupportedMediaVariantError as error:
+            if self._unsupported_media_mode == "raise":
+                raise
+            wandb.termwarn(error.stub_warning, repeat=False)
+            return (
+                None,
+                _CESFieldType(
+                    value_type="json",
+                    extension_type=error.extension_type,
+                    extension_schema_version=1,
+                ),
+                None,
+            )
+
         field_type = _CESFieldType(
             value_type="json",
             extension_type=media_cell.extension_type,
