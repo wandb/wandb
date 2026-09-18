@@ -31,3 +31,10 @@ def test_eval_table_only_supports_immutable_log_mode(log_mode):
 def test_eval_table_rejects_unknown_backend():
     with pytest.raises(UsageError, match="Unsupported EvalTable backend"):
         wandb.EvalTable(columns=["x"], backend="unknown")
+
+
+def test_to_json_requires_bind_for_default_backend(run):
+    table = wandb.EvalTable(columns=["out"], data=[["x"]])
+
+    with pytest.raises(UsageError, match="must be logged with run.log"):
+        table.to_json(run)

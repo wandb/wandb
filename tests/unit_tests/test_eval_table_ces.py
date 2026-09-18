@@ -847,10 +847,3 @@ def test_ces_eval_table_rejects_mixed_type_mode():
             allow_mixed_types=True,
             backend="ces",
         )
-
-
-def test_to_json_requires_bind_for_default_backend(run):
-    table = wandb.EvalTable(columns=["out"], data=[["x"]])
-
-    with pytest.raises(UsageError, match="must be logged with run.log"):
-        table.to_json(run)

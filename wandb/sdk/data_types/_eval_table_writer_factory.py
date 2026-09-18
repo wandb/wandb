@@ -12,11 +12,11 @@ from wandb.sdk.data_types._eval_table_writer import (
 from wandb.sdk.data_types._eval_table_writer_ces import CESEvalTableWriter
 from wandb.sdk.data_types._eval_table_writer_weave import WeaveEvalTableWriter
 
+EvalTableBackend = Literal["weave", "ces"]
+
+
 if TYPE_CHECKING:
     from wandb.sdk.wandb_run import Run as LocalRun
-
-
-EvalTableBackend = Literal["weave", "ces"]
 
 
 def create_eval_table_writer(
