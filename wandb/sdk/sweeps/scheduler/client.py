@@ -11,7 +11,8 @@ from __future__ import annotations
 
 import signal
 from collections.abc import Callable
-from typing import Any
+from types import FrameType
+from typing import TYPE_CHECKING, Any
 
 import yaml
 
@@ -24,12 +25,19 @@ from wandb.sdk.sweeps.scheduler.ipc import SchedulerTaskExchange, describe_done
 from wandb.sdk.sweeps.scheduler.optimizer import Optimizer
 from wandb.sdk.sweeps.sweep_info import SweepInfo
 
+if TYPE_CHECKING:
+    from wandb.sdk.lib import asyncio_manager
+    from wandb.sdk.lib.service.service_connection import ServiceConnection
+
 # Init is one wandb-core round trip to the W&B backend, registering the
 # scheduler and fetching the sweep's config, so allow for a slow network.
 _INIT_TIMEOUT_SECONDS = 30
 
 OptimizerFactory = Callable[[SweepInfo], Optimizer]
 """Builds the optimizer once the sweep's config is known."""
+
+# matches return type of signal.signal
+_SignalHandler = Callable[[int, FrameType | None], Any] | int | signal.Handlers | None
 
 
 def run_scheduler(
@@ -125,10 +133,10 @@ def run_scheduler(
 
 
 def _install_sigint_handler(
-    asyncer: Any,
-    service: Any,
+    asyncer: asyncio_manager.AsyncioManager,
+    service: ServiceConnection,
     scheduler_id: str,
-) -> Any:
+) -> _SignalHandler:
     """Translate the first ctrl-c into a graceful stop.
 
     The scheduler finishes its current step and answers the outstanding
@@ -145,7 +153,7 @@ def _install_sigint_handler(
     """
     state = {"interrupted": False}
 
-    def on_sigint(signum: int, frame: Any) -> None:
+    def on_sigint(_s: int, _f: FrameType | None) -> None:
         if state["interrupted"]:
             raise KeyboardInterrupt
         state["interrupted"] = True
