@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -530,6 +531,107 @@ func (s *Scheduler) askBudget() int {
 		}
 	}
 	return s.batchSize - occupied
+}
+
+// enqueueSuggestions schedules the optimizer's new runs. A non-nil
+// return ends the scheduler with that Done task.
+//
+// A pending Stop does not skip this: shutdown still enqueues the batch
+// the client just produced, and Step returns Done on its next wait.
+func (s *Scheduler) enqueueSuggestions(
+	ctx context.Context,
+	suggestions []*spb.SweepSchedulerClientRunSuggestion,
+) *spb.SweepSchedulerServerNextTaskResponse {
+	if len(suggestions) == 0 {
+		return nil
+	}
+
+	// The sweep may have finished while the optimizer was thinking.
+	facts, err := s.api.FetchSweep(ctx)
+	switch {
+	case err != nil && Classify(err) == DispositionNotFound:
+		return s.doneTask(
+			spb.SweepSchedulerServerDoneTask_REASON_SWEEP_NOT_FOUND,
+			"the sweep was deleted")
+	case err != nil:
+		// Let the enqueues themselves surface a persistent problem.
+		s.logger.Error(
+			"scheduler: could not re-check the sweep before "+
+				"enqueueing", "error", err)
+	case sweepIsDone(facts.State):
+		return s.doneForSweepState(facts.State)
+	case facts.State == sweepStatePaused:
+		// Pausing is not terminal, but new runs must not start.
+		return nil
+	}
+
+	for _, suggestion := range suggestions {
+		if end := s.enqueueOne(ctx, suggestion); end != nil {
+			return s.doneTask(end.reason, end.message)
+		}
+	}
+	return nil
+}
+
+// enqueueOne schedules a single suggestion. A non-nil return ends the
+// scheduler for that reason.
+func (s *Scheduler) enqueueOne(
+	ctx context.Context,
+	suggestion *spb.SweepSchedulerClientRunSuggestion,
+) *endReason {
+	id := suggestion.OptimizerRunId
+
+	// Retired until the enqueue proves otherwise; the record also
+	// reserves the id for the scheduler's lifetime.
+	run := &trackedRun{state: TrackingRetired, optimizerRunID: id}
+	s.track(run)
+
+	wireConfig, err := wrapFlatConfig(suggestion.ConfigJson)
+	if err != nil {
+		s.logger.Warn(
+			"scheduler: dropping suggestion with an unusable config",
+			"id", id, "error", err)
+		return nil
+	}
+
+	mintedID, err := s.api.EnqueueRun(ctx, s.sweepNodeID, wireConfig)
+	if err != nil {
+		s.logger.Error(
+			"scheduler: failed to enqueue a suggestion",
+			"id", id, "error", err)
+		// A rate limit costs only this suggestion; anything else has
+		// already outlived the client's retries and ends the scheduler.
+		return s.endFromError(ctx, phaseEnqueue, err)
+	}
+
+	s.logger.Info("scheduler: enqueued run", "id", id)
+	// The minted run is guaranteed to appear in the sweep as pending;
+	// one that never does was deleted and is reaped like any other
+	// missing tracked run.
+	run.state = TrackingInFlight
+	run.name = mintedID
+	run.runState = spb.SweepRunState_SWEEP_RUN_STATE_PENDING
+	return nil
+}
+
+// wrapFlatConfig converts the protocol's flat {param: v} config form
+// into the backend's {param: {"value": v}} wire form.
+func wrapFlatConfig(flatJSON string) (string, error) {
+	var flat map[string]any
+	if err := json.Unmarshal([]byte(flatJSON), &flat); err != nil {
+		return "", fmt.Errorf("scheduler: parsing suggestion config: %w", err)
+	}
+
+	wire := make(map[string]any, len(flat))
+	for name, value := range flat {
+		wire[name] = map[string]any{"value": value}
+	}
+
+	encoded, err := json.Marshal(wire)
+	if err != nil {
+		return "", fmt.Errorf("scheduler: encoding wire config: %w", err)
+	}
+	return string(encoded), nil
 }
 
 // The sweep states the backend defines. upsertSweep stores whatever
