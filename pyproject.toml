@@ -345,7 +345,7 @@ ignore-decorators = [
 # Generated code names may not respect PEP8.
 "wandb/**/_generated/**/*.py" = ["N8"]
 
-# Keep this in sync with ty-pre-commit language_version in .pre-commit-config.yaml
+# Keep this in sync with ty-pre-commit the python version in .pre-commit-config.yaml
 [tool.ty.environment]
 python-version = "3.10"
 
