@@ -18,7 +18,7 @@ from wandb.proto import wandb_sweep_scheduler_pb2 as sspb
 from wandb.sdk.lib.service import service_connection
 from wandb.sdk.lib.service.service_client import ServiceClient
 from wandb.sdk.lib.service.service_connection import ServiceConnection
-from wandb.sdk.mailbox import HandleAbandonedError, MailboxHandle
+from wandb.sdk.mailbox import HandleAbandonedError, MailboxClosedError, MailboxHandle
 from wandb.sdk.sweeps.run_state import RunState
 from wandb.sdk.sweeps.scheduler.ipc import (
     SchedulerServiceExitedError,
@@ -45,11 +45,13 @@ def make_optimizer() -> Mock:
 
 def make_service(
     tasks: list[sspb.SweepSchedulerServerNextTaskResponse | None],
+    *,
+    exit_error: type[BaseException] = HandleAbandonedError,
 ) -> Mock:
     """A Mock(spec=ServiceConnection) that scripts next-task responses.
 
     A None entry in the script simulates wandb-core dying: the handle
-    for that poll is abandoned.
+    for that poll raises `exit_error`.
     """
     tasks = list(tasks)
     service = Mock(spec=ServiceConnection)
@@ -58,7 +60,7 @@ def make_service(
         handle = Mock(spec=MailboxHandle)
         response = tasks.pop(0)
         if response is None:
-            handle.wait_async.side_effect = HandleAbandonedError
+            handle.wait_async.side_effect = exit_error
         else:
             handle.wait_async.return_value = response
         return handle
@@ -144,7 +146,9 @@ def run_exchange(
     service: Mock,
     optimizer: Mock,
 ) -> sspb.SweepSchedulerServerDoneTask:
-    exchange = SchedulerTaskExchange(service, "scheduler-0", optimizer)  # type: ignore[arg-type]
+    exchange = SchedulerTaskExchange(  # type: ignore[arg-type]
+        service, "scheduler-0", optimizer
+    )
     return asyncio.run(exchange.run())
 
 
@@ -155,13 +159,20 @@ def test_warm_start_adoptions_and_skips():
         if data.wandb_run_id == "poison":
             raise RuntimeError("cannot ingest poison")
 
+    def tell_existing_active_run(data):
+        if data.wandb_run_id == "poison-active":
+            raise RuntimeError("cannot adopt poison")
+        return f"adopted-{data.wandb_run_id}"
+
     optimizer.tell_existing_finished_run.side_effect = tell_existing_finished_run
-    optimizer.tell_existing_active_run.side_effect = lambda data: (
-        f"adopted-{data.wandb_run_id}"
-    )
+    optimizer.tell_existing_active_run.side_effect = tell_existing_active_run
     service = make_service(
         [
-            warm_task(1, finished=["good", "poison"], active=["running"]),
+            warm_task(
+                1,
+                finished=["good", "poison"],
+                active=["running", "poison-active"],
+            ),
             done_task(2),
         ]
     )
@@ -172,7 +183,8 @@ def test_warm_start_adoptions_and_skips():
     assert result.task_seq == 1
     warm = result.warm_start
     assert dict(warm.adoptions) == {"running": "adopted-running"}
-    assert [s.wandb_run_id for s in warm.skipped] == ["poison"]
+    # A failed adopt is skipped like a failed tell, and never adopted.
+    assert [s.wandb_run_id for s in warm.skipped] == ["poison", "poison-active"]
     # The good run was ingested despite the poison one.
     told_finished = [
         c.args[0].wandb_run_id
@@ -302,9 +314,14 @@ def test_discarded_suggestions_are_forgotten():
     assert forgets == ["lost-1", "lost-2"]
 
 
-def test_abandoned_handle_raises_service_exited():
+@pytest.mark.parametrize(
+    "exit_error",
+    [HandleAbandonedError, MailboxClosedError],
+    ids=["abandoned", "closed"],
+)
+def test_a_lost_mailbox_raises_service_exited(exit_error):
     optimizer = make_optimizer()
-    service = make_service([None])
+    service = make_service([None], exit_error=exit_error)
 
     with pytest.raises(SchedulerServiceExitedError):
         run_exchange(service, optimizer)
@@ -313,18 +330,78 @@ def test_abandoned_handle_raises_service_exited():
     assert optimizer.mock_calls == []
 
 
-def test_unknown_run_state_maps_to_unknown():
+def test_cancelling_the_exchange_cancels_the_outstanding_poll():
+    """A cancelled scheduler releases its long poll instead of dropping it."""
     optimizer = make_optimizer()
-    told_states: list[RunState] = []
-    optimizer.tell_run.side_effect = lambda run_id, data: told_states.append(data.state)
+    handle = Mock(spec=MailboxHandle)
+    polling = asyncio.Event()
+
+    async def wait_async(timeout=None):
+        polling.set()
+        # Held open, so the cancel provably lands inside the poll.
+        await asyncio.Event().wait()
+
+    handle.wait_async.side_effect = wait_async
+    service = Mock(spec=ServiceConnection)
+    service.sweep_scheduler_next_task.return_value = handle
+    exchange = SchedulerTaskExchange(  # type: ignore[arg-type]
+        service, "scheduler-0", optimizer
+    )
+
+    async def cancel_while_polling():
+        task = asyncio.ensure_future(exchange.run())
+        await polling.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    asyncio.run(cancel_while_polling())
+
+    handle.cancel.assert_called_once_with()
+    assert optimizer.mock_calls == []
+
+
+def test_every_run_state_reaches_the_optimizer_unswapped():
+    """Each update carries its own state, so a swapped pair must fail."""
+    wire_to_state = {
+        sspb.SWEEP_RUN_STATE_RUNNING: RunState.RUNNING,
+        sspb.SWEEP_RUN_STATE_PENDING: RunState.PENDING,
+        sspb.SWEEP_RUN_STATE_PREEMPTING: RunState.PREEMPTING,
+        sspb.SWEEP_RUN_STATE_PREEMPTED: RunState.PREEMPTED,
+        sspb.SWEEP_RUN_STATE_FINISHED: RunState.FINISHED,
+        sspb.SWEEP_RUN_STATE_FAILED: RunState.FAILED,
+        sspb.SWEEP_RUN_STATE_CRASHED: RunState.CRASHED,
+        sspb.SWEEP_RUN_STATE_KILLED: RunState.KILLED,
+        # Unrecognized by this client version, read as alive.
+        sspb.SWEEP_RUN_STATE_UNKNOWN: RunState.UNKNOWN,
+    }
+    updates = {f"r{wire}": wire for wire in wire_to_state}
+    expected = {f"r{wire}": state for wire, state in wire_to_state.items()}
+
+    optimizer = make_optimizer()
+    told: dict[str, RunState] = {}
+    optimizer.tell_run.side_effect = lambda run_id, data: told.update(
+        {run_id: data.state}
+    )
+    service = make_service([generation_task(1, updates=updates), done_task(2)])
+
+    run_exchange(service, optimizer)
+
+    assert told == expected
+
+
+def test_a_terminating_optimizer_is_not_asked_for_more_runs():
+    """Terminate wins over the ask, so the sweep stops at its own word."""
+    optimizer = make_optimizer()
+    optimizer.should_terminate_sweep.return_value = True
+    optimizer.prune_runs.return_value = ["r1"]
     service = make_service(
         [
             generation_task(
                 1,
-                updates={
-                    "r1": sspb.SWEEP_RUN_STATE_UNKNOWN,
-                    "r2": sspb.SWEEP_RUN_STATE_FINISHED,
-                },
+                updates={"r1": sspb.SWEEP_RUN_STATE_RUNNING},
+                ask_up_to=3,
+                prune_candidates=["r1"],
             ),
             done_task(2),
         ]
@@ -332,7 +409,13 @@ def test_unknown_run_state_maps_to_unknown():
 
     run_exchange(service, optimizer)
 
-    assert set(told_states) == {RunState.UNKNOWN, RunState.FINISHED}
+    generation = sent_results(service)[1].generation
+    assert generation.terminate is True
+    assert list(generation.prune) == ["r1"]
+    optimizer.ask_n_runs.assert_not_called()
+    assert generation.ask_outcome == (
+        sspb.SweepSchedulerClientGenerationResult.ASK_OUTCOME_UNSPECIFIED
+    )
 
 
 _DONE = sspb.SweepSchedulerServerDoneTask
