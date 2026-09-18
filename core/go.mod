@@ -20,6 +20,7 @@ require (
 	github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20260913004009-c615ff2f7805
 	github.com/ebitengine/purego v0.11.0
 	github.com/go-git/go-git/v5 v5.19.2
+	github.com/google/uuid v1.6.0
 	github.com/google/wire v0.7.0
 	github.com/googleapis/gax-go/v2 v2.24.1
 	github.com/hashicorp/go-cleanhttp v0.5.2
@@ -127,7 +128,6 @@ require (
 	github.com/google/flatbuffers v25.12.19+incompatible // indirect
 	github.com/google/s2a-go v0.1.10 // indirect
 	github.com/google/subcommands v1.2.0 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.22 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
