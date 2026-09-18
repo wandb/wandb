@@ -48,6 +48,14 @@ def _wb_filename(key: str | int, step: str | int, id: str | int, extension: str)
     return f"{str(key)}_{str(step)}_{str(id)}{extension}"
 
 
+def _file_sha256(path: str) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as file:
+        for chunk in iter(lambda: file.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 class Media(WBValue):
     """A WBValue stored as a file outside JSON that can be rendered in a media panel.
 
@@ -83,8 +91,7 @@ class Media(WBValue):
             f'Media file extension "{extension}" must occur at the end of path "{path}".'
         )
 
-        with open(self._path, "rb") as f:
-            self._sha256 = hashlib.sha256(f.read()).hexdigest()
+        self._sha256 = _file_sha256(self._path)
         self._size = os.path.getsize(self._path)
 
     @classmethod
@@ -128,8 +135,6 @@ class Media(WBValue):
         assert isinstance(self._sha256, str)
 
         assert run is not None, 'Argument "run" must not be None.'
-        self._run = run
-
         if self._extension is None:
             _, extension = os.path.splitext(os.path.basename(self._path))
         else:
@@ -140,9 +145,40 @@ class Media(WBValue):
 
         file_path = _wb_filename(key, step, id_, extension)
         media_path = os.path.join(self.get_media_subdir(), file_path)
-        new_path = os.path.join(self._run.dir, media_path)
+        self._bind_to_run_path(
+            run,
+            media_path,
+            ignore_copy_err=ignore_copy_err,
+        )
+
+    def _bind_to_run_path(
+        self,
+        run: wandb.Run,
+        media_path: str,
+        *,
+        ignore_copy_err: bool | None = None,
+        reuse_existing_by_size: bool = False,
+    ) -> None:
+        """Bind this media to an explicit logical path within a run."""
+
+        assert self.file_is_set(), "_bind_to_run_path called before _set_file"
+        assert isinstance(self._path, str)
+        assert self._size is not None
+
+        new_path = os.path.join(run.dir, media_path)
+        if (
+            reuse_existing_by_size
+            and os.path.exists(new_path)
+            and os.path.getsize(new_path) == self._size
+        ):
+            self._run = run
+            self._path = new_path
+            self._is_tmp = False
+            return
+
         filesystem.mkdir_exists_ok(os.path.dirname(new_path))
 
+        self._run = run
         if self._is_tmp:
             shutil.move(self._path, new_path)
             self._path = new_path
