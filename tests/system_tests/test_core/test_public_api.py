@@ -1075,6 +1075,17 @@ def test_query_team(user, api):
     assert repr(t.members[0]) == f"<Member {user} (USER)>"
 
 
+def test_can_write(user, api, backend_fixture_factory):
+    other = backend_fixture_factory.make_user()
+    api.create_project("existing", user)
+
+    assert api.can_write(user)
+    assert api.can_write(user, "existing")
+    assert api.can_write(user, "new")
+    assert not api.can_write(other)
+    assert not api.can_write("no-such-entity")
+
+
 def test_viewer(user: str, api: wandb.Api):
     v = api.viewer
     assert v.admin is False
