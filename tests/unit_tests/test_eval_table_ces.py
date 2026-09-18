@@ -249,10 +249,7 @@ def test_ces_eval_table_media_telemetry_counts_affected_writes(
     expected_metrics,
 ):
     recorder = MagicMock()
-    monkeypatch.setattr(
-        "wandb.analytics.get_telemetry_recorder",
-        lambda: recorder,
-    )
+    monkeypatch.setattr(ces_writer, "get_telemetry_recorder", lambda: recorder)
     prepared = ces_writer._CESWritePayloads(
         dataset_fields=[],
         scorers=[],
