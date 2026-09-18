@@ -976,16 +976,6 @@ class InterfaceBase(abc.ABC):
     def _deliver_run(self, run: pb.RunRecord) -> MailboxHandle[pb.Result]:
         raise NotImplementedError
 
-    def deliver_run_start(self, run: Run) -> MailboxHandle[pb.Result]:
-        run_start = pb.RunStartRequest(run=self._make_run(run))
-        return self._deliver_run_start(run_start)
-
-    @abc.abstractmethod
-    def _deliver_run_start(
-        self, run_start: pb.RunStartRequest
-    ) -> MailboxHandle[pb.Result]:
-        raise NotImplementedError
-
     def deliver_attach(self, attach_id: str) -> MailboxHandle[pb.Result]:
         attach = pb.AttachRequest(attach_id=attach_id)
         return self._deliver_attach(attach)

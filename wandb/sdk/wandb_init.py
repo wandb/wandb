@@ -973,15 +973,7 @@ class _WandbInit:
                 tel.feature.resumed = result.run_result.run.resumed
         run._set_run_obj(result.run_result.run)
 
-        self._logger.info("starting run threads in backend")
-
-        run_start_handle = interface.deliver_run_start(run)
-        try:
-            # TODO: add progress to let user know we are doing something
-            run_start_handle.wait_or(timeout=30)
-        except TimeoutError:
-            pass
-
+        # TODO: Probe environment automatically after initializing the run.
         interface.publish_probe_system_info()
 
         assert self._wl is not None

@@ -115,34 +115,6 @@ func (r *IRun) DeliverRunRecord(settings *settings.Settings, config *runconfig.C
 	return handle
 }
 
-func (r *IRun) DeliverRunStartRequest(settings *settings.Settings) *mailbox.MailboxHandle {
-	record := spb.Record{
-		RecordType: &spb.Record_Request{
-			Request: &spb.Request{
-				RequestType: &spb.Request_RunStart{
-					RunStart: &spb.RunStartRequest{
-						Run: &spb.RunRecord{
-							RunId:     r.StreamID,
-							StartTime: timestamppb.New(settings.GetStartTime()),
-						},
-					},
-				},
-			},
-		},
-		Control: &spb.Control{Local: true},
-		XInfo: &spb.XRecordInfo{
-			StreamId: r.StreamID,
-		},
-	}
-	handle := r.Conn.Mailbox.Deliver(&record)
-	r.Conn.Send(&spb.ServerRequest{
-		ServerRequestType: &spb.ServerRequest_RecordCommunicate{
-			RecordCommunicate: &record,
-		},
-	})
-	return handle
-}
-
 // DeliverExitRecord sends an exit message to the server.
 func (r *IRun) DeliverExitRecord() *mailbox.MailboxHandle {
 	record := spb.Record{

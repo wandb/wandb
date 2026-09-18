@@ -117,13 +117,6 @@ namespace Wandb
 
             StartingStep = (int)runResult.Run.StartingStep;
 
-            Result result = await _interface.DeliverRunStart(this, 30000).ConfigureAwait(false);
-
-            if (result.Response == null)
-            {
-                throw new Exception("Failed to deliver run start");
-            }
-
             _logger?.LogInformation("View run {DisplayName} at {RunURL}", Settings.DisplayName, Settings.RunURL);
         }
 

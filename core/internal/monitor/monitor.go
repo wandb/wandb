@@ -102,9 +102,6 @@ type SystemMonitor struct {
 
 	// Unique identifier of the writer to the run.
 	writerID sharedmode.ClientID
-
-	// Information about the Git repository, if applicable.
-	git *spb.GitRepoRecord
 }
 
 // SystemMonitorFactory constructs a SystemMonitor.
@@ -279,7 +276,9 @@ func (sm *SystemMonitor) GetState() int32 {
 }
 
 // probeExecutionContext collects information about the compute environment.
-func (sm *SystemMonitor) probeExecutionContext() *spb.Record {
+func (sm *SystemMonitor) probeExecutionContext(
+	git *spb.GitRepoRecord,
+) *spb.Record {
 	sm.logger.Debug("monitor: probing execution environment")
 
 	return &spb.Record{RecordType: &spb.Record_Environment{Environment: &spb.EnvironmentRecord{
@@ -297,7 +296,7 @@ func (sm *SystemMonitor) probeExecutionContext() *spb.Record {
 		Args:          sm.settings.GetArgs(),
 		Colab:         sm.settings.GetColabURL(),
 		StartedAt:     timestamppb.New(sm.settings.GetStartTime()),
-		Git:           sm.git,
+		Git:           git,
 
 		WriterId: string(sm.writerID),
 	}}}
@@ -359,7 +358,7 @@ func (sm *SystemMonitor) probeResources() *spb.Record {
 // Start begins resource monitoring.
 //
 // It is safe to call Start multiple times; only a stopped monitor will initiate.
-func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
+func (sm *SystemMonitor) Start() {
 	if sm == nil {
 		return
 	}
@@ -367,8 +366,6 @@ func (sm *SystemMonitor) Start(git *spb.GitRepoRecord) {
 	if !sm.state.CompareAndSwap(StateStopped, StateRunning) {
 		return // Already started or paused
 	}
-
-	sm.git = git
 
 	if sm.settings.IsDisableStats() || sm.settings.IsDisableMachineInfo() {
 		return
@@ -398,10 +395,25 @@ func (sm *SystemMonitor) Probe() {
 		go func() {
 			sm.logger.Debug("monitor: collecting the environment and resource information")
 
+			select {
+			case <-sm.ctx.Done():
+				return
+			case <-sm.runHandle.Ready():
+			}
+
+			upserter, err := sm.runHandle.Upserter()
+			if err != nil {
+				sm.logger.CaptureError("monitor",
+					fmt.Errorf("monitor: Probe: %v", err))
+				return
+			}
+
 			sm.extraWork.AddWorkOrCancel(
 				sm.ctx.Done(),
 				runwork.NoRequest(
-					runwork.WorkFromRecord(sm.probeExecutionContext()),
+					runwork.WorkFromRecord(
+						sm.probeExecutionContext(upserter.GitInfo()),
+					),
 				),
 			)
 

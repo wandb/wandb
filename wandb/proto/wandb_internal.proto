@@ -155,11 +155,6 @@ message BranchPoint {
 // the backend returns when creating a new online run), and some fields may be
 // updated (like `entity` and `project`, which are determined through a query
 // if not given).
-//
-// After creating a run, the values in RunUpdateResult must be propagated to
-// the RunStartRequest. This is a legacy pattern that wandb-core uses to
-// communicate with itself. The updated run record may be returned to another
-// process that "attaches" to the run via the AttachResponse.
 message RunRecord {
   string run_id = 1;
   string entity = 2;
@@ -692,7 +687,7 @@ message AlertResult {}
 //
 // Next ID: 85
 message Request {
-  reserved 18, 22, 75, 76, 79, 80;
+  reserved 11, 18, 22, 75, 76, 79, 80;
 
   oneof request_type {
     StopStatusRequest stop_status = 1;
@@ -708,7 +703,6 @@ message Request {
     PartialHistoryRequest partial_history = 10;
     HistoryStepRequest history_step = 84;
 
-    RunStartRequest run_start = 11;
     CheckVersionRequest check_version = 12;
     LogArtifactRequest log_artifact = 13;
     DownloadArtifactRequest download_artifact = 14;
@@ -748,7 +742,7 @@ message Request {
  * Next ID: 75
  */
 message Response {
-  reserved 32, 72, 73;
+  reserved 28, 32, 72, 73;
 
   oneof response_type {
     KeepaliveResponse keepalive_response = 18;
@@ -761,7 +755,6 @@ message Response {
     SampledHistoryResponse sampled_history_response = 27;
     HistoryStepResponse history_step_response = 75;
 
-    RunStartResponse run_start_response = 28;
     CheckVersionResponse check_version_response = 29;
     LogArtifactResponse log_artifact_response = 30;
     DownloadArtifactResponse download_artifact_response = 31;
@@ -1222,16 +1215,6 @@ message RunStatusResponse {
   // int64 sync_history_step = 3;
   // google.protobuf.Timestamp sync_history_time = 4;
 }
-
-/*
- * RunStartRequest: start the run
- */
-message RunStartRequest {
-  RunRecord run = 1;
-  _RequestInfo _info = 200;
-}
-
-message RunStartResponse {}
 
 /*
  * CheckVersion:
