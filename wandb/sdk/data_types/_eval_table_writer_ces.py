@@ -51,6 +51,7 @@ def _encode_json(value: Any) -> bytes:
 
 # Server request-body limit.
 _MAX_REQUEST_BODY_BYTES = 16 << 20
+_MAX_REQUEST_BODY_SIZE = "16 MiB"
 # These two shape each `rows-{i}` body. If either changes, bump the idempotency-key
 # version so retries of partially uploaded tables cannot reuse keys across layouts.
 # The byte target leaves headroom below the hard request limit.
@@ -87,7 +88,8 @@ def _iter_row_batches(
         if _ROW_BATCH_ENVELOPE_BYTES + row_size >= max_body_bytes:
             raise UsageError(
                 "CES EvalTable rows payload contains a row at index "
-                f"{row_index} whose encoded request must be smaller than 16 MiB."
+                f"{row_index} whose encoded request must be smaller than "
+                f"{_MAX_REQUEST_BODY_SIZE}."
             )
 
         # An above-target batch contains exactly one row, which already passed
@@ -488,10 +490,11 @@ class CESEvalTableWriter:
         )
 
     def _validate_body_size(self, operation: str, body: dict[str, Any]) -> None:
-        """Reject a request body at or above the CES 16 MiB limit."""
+        """Reject a request body at or above the CES hard limit."""
         if len(_encode_json(body)) >= _MAX_REQUEST_BODY_BYTES:
             raise UsageError(
-                f"CES EvalTable {operation} payload must be smaller than 16 MiB."
+                f"CES EvalTable {operation} payload must be smaller than "
+                f"{_MAX_REQUEST_BODY_SIZE}."
             )
 
     def _require_bound(self) -> _BoundRun:
