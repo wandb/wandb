@@ -2,6 +2,7 @@
 //! directory with keyboard-first navigation.
 
 mod actions;
+mod anim;
 mod chart;
 mod config;
 mod console;

@@ -50,6 +50,7 @@ pub fn render_console(
     div()
         .id("console")
         .h(height)
+        .overflow_hidden()
         .flex()
         .flex_col()
         .border_t_1()

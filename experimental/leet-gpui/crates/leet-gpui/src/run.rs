@@ -218,6 +218,8 @@ pub struct Run {
     pub system: Table,
     pub console: Vec<ConsoleLine>,
     pub overview: RunOverview,
+    /// Bumped whenever the overview's inputs change, so views can cache.
+    pub overview_version: u64,
     pub reading: bool,
 }
 
@@ -232,11 +234,13 @@ impl Run {
             system: Table::default(),
             console: Vec::new(),
             overview: RunOverview::new(),
+            overview_version: 0,
             reading: false,
         }
     }
 
     pub fn apply_info(&mut self, info: RunInfo) {
+        self.overview_version += 1;
         if !info.display_name.is_empty() {
             self.name = info.display_name.clone();
         }
@@ -256,9 +260,11 @@ impl Run {
             self.apply_info(info);
         }
         if let Some(environment) = &batch.environment {
+            self.overview_version += 1;
             self.overview.process_system_info_msg(Some(environment));
         }
         if !batch.summary.is_empty() {
+            self.overview_version += 1;
             self.overview
                 .process_summary_msg(&std::mem::take(&mut batch.summary));
         }

@@ -22,6 +22,7 @@ pub fn render_runs(
         .id("runs")
         .w(width)
         .h_full()
+        .overflow_hidden()
         .flex()
         .flex_col()
         .border_r_1()

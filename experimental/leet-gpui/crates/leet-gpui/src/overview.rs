@@ -77,7 +77,7 @@ pub fn render_overview(
     cx: &mut Context<Workspace>,
 ) -> Stateful<Div> {
     let focused = workspace.focus == Pane::Overview;
-    let rows = rows(workspace);
+    let rows = workspace.overview_rows();
     if !rows.is_empty() {
         workspace.overview_scroll.scroll_to_item(
             workspace.overview_cursor.min(rows.len() - 1),
@@ -88,6 +88,7 @@ pub fn render_overview(
         .id("overview")
         .w(width)
         .h_full()
+        .overflow_hidden()
         .flex()
         .flex_col()
         .border_l_1()

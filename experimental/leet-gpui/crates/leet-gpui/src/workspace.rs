@@ -5,7 +5,9 @@
 //! and a status bar. Pane borders drag, as in leet's `dragresize.go`.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::PathBuf;
+use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use futures::StreamExt;
@@ -21,6 +23,7 @@ use leet_data::system_metrics::{
 use leet_plot::{Range, Scale};
 
 use crate::actions::{self, *};
+use crate::anim::Animated;
 use crate::chart::{ChartData, ChartSpec, SeriesDraw, SeriesRef, Table, XAxis};
 use crate::config::{Config, ConfigFile};
 use crate::console::render_console;
@@ -36,7 +39,7 @@ const SMOOTHING: [f64; 4] = [0.0, 0.6, 0.9, 0.99];
 const RESCAN_INTERVAL: Duration = Duration::from_secs(5);
 const LIST_PAGE: usize = 20;
 /// Batches applied per frame before yielding so a load stays visible.
-const APPLY_BUDGET: Duration = Duration::from_millis(10);
+const APPLY_BUDGET: Duration = Duration::from_millis(6);
 const FRAME_YIELD: Duration = Duration::from_millis(1);
 const STATUS_BAR_HEIGHT: f32 = 24.;
 const HEADER_HEIGHT: f32 = 26.;
@@ -97,6 +100,26 @@ struct SystemGroup {
     base: String,
     def: &'static MetricDef,
     series: Vec<(String, usize)>,
+}
+
+/// Per-frame derived lists, rebuilt only when their inputs change.
+#[derive(Default)]
+struct Cache {
+    names_key: u64,
+    metric_names: Rc<Vec<String>>,
+    groups_key: u64,
+    system_groups: Rc<Vec<SystemGroup>>,
+    rows_key: u64,
+    overview_rows: Rc<Vec<overview::Row>>,
+}
+
+/// Show and hide animations, one per pane.
+struct Anim {
+    runs: Animated,
+    metrics: Animated,
+    system: Animated,
+    console: Animated,
+    overview: Animated,
 }
 
 #[derive(Default)]
@@ -161,6 +184,11 @@ pub struct Workspace {
     inspect_next: Option<(XAxis, f64)>,
     zoom: HashMap<SharedString, Range>,
     pending_zoom: Option<(SharedString, f64, Pixels)>,
+    cache: Cache,
+    anim: Anim,
+    /// When the last frame started; batch application yields once a frame's
+    /// budget is spent so loads stay visible.
+    last_render: Instant,
 }
 
 impl Workspace {
@@ -183,6 +211,14 @@ impl Workspace {
             .iter()
             .position(|w| *w == config.config.smoothing)
             .unwrap_or(0);
+        let shown = &config.config;
+        let anim = Anim {
+            runs: Animated::new(true),
+            metrics: Animated::new(shown.workspace_metrics_grid_visible),
+            system: Animated::new(shown.workspace_system_metrics_visible),
+            console: Animated::new(shown.workspace_console_logs_visible),
+            overview: Animated::new(shown.workspace_overview_visible),
+        };
         let mut workspace = Self {
             focus_handle: cx.focus_handle(),
             runs: Vec::new(),
@@ -214,6 +250,9 @@ impl Workspace {
             inspect_next: None,
             zoom: HashMap::new(),
             pending_zoom: None,
+            cache: Cache::default(),
+            anim,
+            last_render: Instant::now(),
         };
         workspace.rescan(cx);
 
@@ -373,21 +412,24 @@ impl Workspace {
         let dir_name = dir_name.to_string();
         cx.spawn(async move |this, cx| {
             while let Some(mut batch) = rx.next().await {
-                let frame = Instant::now();
                 loop {
-                    let applied = this.update(cx, |workspace, cx| {
+                    let frame_used = this.update(cx, |workspace, cx| {
                         if let Some(ix) = workspace.run_index(&dir_name) {
                             workspace.runs[ix].apply(&mut batch);
                         }
                         cx.notify();
+                        workspace.last_render.elapsed()
                     });
                     batch.recycle();
-                    if applied.is_err() {
+                    let Ok(frame_used) = frame_used else {
                         return;
+                    };
+                    if frame_used >= APPLY_BUDGET {
+                        break;
                     }
                     match rx.try_recv() {
-                        Ok(next) if frame.elapsed() < APPLY_BUDGET => batch = next,
-                        _ => break,
+                        Ok(next) => batch = next,
+                        Err(_) => break,
                     }
                 }
                 cx.background_executor().timer(FRAME_YIELD).await;
@@ -418,19 +460,64 @@ impl Workspace {
             .collect()
     }
 
-    /// Metric names charted for the selected runs, after the metrics filter.
-    fn metric_names(&self) -> Vec<&str> {
-        let mut names = BTreeSet::new();
-        for (_, run) in self.selected_runs() {
-            names.extend(
-                run.metrics
-                    .by_name
-                    .keys()
-                    .map(String::as_str)
-                    .filter(|k| self.filters.metrics.matches(k)),
-            );
+    /// Rebuilds the derived lists whose inputs changed since the last frame.
+    fn refresh_caches(&mut self) {
+        let mut hasher = DefaultHasher::new();
+        self.filters.metrics.text.hash(&mut hasher);
+        for (ix, run) in self.selected_runs() {
+            (ix, run.metrics.series.len()).hash(&mut hasher);
         }
-        names.into_iter().collect()
+        let names_key = hasher.finish();
+        if names_key != self.cache.names_key {
+            let mut names = BTreeSet::new();
+            for (_, run) in self.selected_runs() {
+                names.extend(
+                    run.metrics
+                        .by_name
+                        .keys()
+                        .filter(|k| self.filters.metrics.matches(k))
+                        .cloned(),
+                );
+            }
+            self.cache.metric_names = Rc::new(names.into_iter().collect());
+            self.cache.names_key = names_key;
+        }
+
+        let context = self.context_run();
+        let mut hasher = DefaultHasher::new();
+        (
+            context,
+            self.filters.system.text.as_str(),
+            context.map(|ix| self.runs[ix].system.series.len()),
+        )
+            .hash(&mut hasher);
+        let groups_key = hasher.finish();
+        if groups_key != self.cache.groups_key {
+            self.cache.system_groups = Rc::new(self.system_groups());
+            self.cache.groups_key = groups_key;
+        }
+
+        let mut hasher = DefaultHasher::new();
+        (
+            context,
+            self.filters.overview.text.as_str(),
+            context.map(|ix| self.runs[ix].overview_version),
+        )
+            .hash(&mut hasher);
+        let rows_key = hasher.finish();
+        if rows_key != self.cache.rows_key {
+            self.cache.overview_rows = Rc::new(overview::rows(self));
+            self.cache.rows_key = rows_key;
+        }
+    }
+
+    /// Metric names charted for the selected runs, after the metrics filter.
+    fn metric_names(&self) -> &[String] {
+        &self.cache.metric_names
+    }
+
+    pub fn overview_rows(&self) -> Rc<Vec<overview::Row>> {
+        Rc::clone(&self.cache.overview_rows)
     }
 
     fn metric_cells(&self) -> (usize, Vec<Cell>) {
@@ -446,20 +533,20 @@ impl Workspace {
             .skip(start)
             .take(per_page)
             .map(|name| {
-                let log = self.metrics_log.contains(*name);
+                let log = self.metrics_log.contains(name.as_str());
                 let series = self
                     .selected_runs()
                     .filter_map(|(ix, run)| {
                         Some(SeriesRef {
                             run: ix,
                             table: Table::Metrics,
-                            series: *run.metrics.by_name.get(*name)?,
+                            series: *run.metrics.by_name.get(name)?,
                             name: run.name.clone().into(),
                             color: theme::run_color(run.color),
                         })
                     })
                     .collect();
-                let key = SharedString::from(name.to_string());
+                let key = SharedString::from(name.clone());
                 Cell {
                     title: key.clone(),
                     badge: log.then_some("log"),
@@ -511,7 +598,7 @@ impl Workspace {
         let Some(ix) = self.context_run() else {
             return (0, Vec::new());
         };
-        let groups = self.system_groups();
+        let groups = Rc::clone(&self.cache.system_groups);
         let per_page = self.system_grid.per_page();
         let start = self
             .system_grid
@@ -556,16 +643,17 @@ impl Workspace {
     }
 
     /// The key of the chart under the grid focus.
-    fn focused_chart_key(&self) -> Option<String> {
+    fn focused_chart_key(&mut self) -> Option<String> {
+        self.refresh_caches();
         match self.focus {
             Pane::Metrics => {
                 let names = self.metric_names();
                 names
                     .get(self.metrics_grid.focused_index(names.len()))
-                    .map(|n| n.to_string())
+                    .cloned()
             }
             Pane::System => {
-                let groups = self.system_groups();
+                let groups = &self.cache.system_groups;
                 groups
                     .get(self.system_grid.focused_index(groups.len()))
                     .map(|g| g.base.clone())
@@ -720,43 +808,46 @@ impl Workspace {
     }
 
     /// Pane sizes for a window of `viewport` size: configured fractions, else
-    /// leet's defaults, with the lower tier shared by the panes in it.
+    /// leet's defaults, scaled by each pane's show animation. The lower tier
+    /// takes the whole column while the metrics grid is hidden.
     fn geometry(&self, viewport: Size<Pixels>) -> Geometry {
         let cfg = self.cfg();
         let layout = cfg.workspace_layout;
         let content_h = viewport.height - px(STATUS_BAR_HEIGHT);
         let fraction = |value: f64, default: f32| if value > 0.0 { value as f32 } else { default };
-        let left_w = if self.show_runs {
-            viewport.width * fraction(layout.left_sidebar, LEFT_SIDEBAR)
+        let (runs, metrics, system, console, overview) = (
+            self.anim.runs.value(),
+            self.anim.metrics.value(),
+            self.anim.system.value(),
+            self.anim.console.value(),
+            self.anim.overview.value(),
+        );
+        let left_w = viewport.width * fraction(layout.left_sidebar, LEFT_SIDEBAR) * runs;
+        let right_w = viewport.width * fraction(layout.right_sidebar, RIGHT_SIDEBAR) * overview;
+        let lower_weight = system + console;
+        let lower_total = if lower_weight > 0.0 {
+            content_h * (LOWER_TIER * metrics + (1.0 - metrics))
         } else {
             px(0.)
         };
-        let right_w = if cfg.workspace_overview_visible {
-            viewport.width * fraction(layout.right_sidebar, RIGHT_SIDEBAR)
-        } else {
-            px(0.)
+        let pane_height = |factor: f32, configured: f64| {
+            if factor <= 0.0 {
+                px(0.)
+            } else if configured > 0.0 {
+                viewport.height * configured as f32 * factor
+            } else {
+                lower_total * (factor / lower_weight)
+            }
         };
-        let lower_panes = cfg.workspace_system_metrics_visible as usize
-            + cfg.workspace_console_logs_visible as usize;
-        let lower_total = if cfg.workspace_metrics_grid_visible {
-            content_h * LOWER_TIER
-        } else {
-            content_h
-        };
-        let each = if lower_panes > 0 {
-            lower_total / lower_panes as f32
-        } else {
-            px(0.)
-        };
-        let pane_height = |visible: bool, fraction: f64| match (visible, fraction > 0.0) {
-            (false, _) => px(0.),
-            (true, true) => viewport.height * fraction as f32,
-            (true, false) => each,
-        };
-        let system_h = pane_height(cfg.workspace_system_metrics_visible, layout.system);
-        let logs_h = pane_height(cfg.workspace_console_logs_visible, layout.logs);
-        let metrics_h = if cfg.workspace_metrics_grid_visible {
-            content_h - system_h - logs_h
+        let system_h = pane_height(system, layout.system);
+        let logs_h = pane_height(console, layout.logs);
+        let metrics_h = if metrics > 0.0 {
+            let room = content_h - system_h - logs_h;
+            if lower_weight > 0.0 {
+                room
+            } else {
+                room * metrics
+            }
         } else {
             px(0.)
         };
@@ -837,7 +928,8 @@ impl Workspace {
                 self.console_cursor = (cursor < last).then_some(cursor);
             }
             Pane::Overview => {
-                let last = overview::rows(self).len().saturating_sub(1);
+                self.refresh_caches();
+                let last = self.cache.overview_rows.len().saturating_sub(1);
                 self.overview_cursor = self.overview_cursor.saturating_add_signed(drow).min(last);
             }
         }
@@ -851,11 +943,13 @@ impl Workspace {
                     .saturating_add_signed(delta * LIST_PAGE as isize),
             ),
             Pane::Metrics => {
+                self.refresh_caches();
                 let total = self.metric_names().len();
                 self.metrics_grid.turn_page(delta, total);
             }
             Pane::System => {
-                let total = self.system_groups().len();
+                self.refresh_caches();
+                let total = self.cache.system_groups.len();
                 self.system_grid.turn_page(delta, total);
             }
             Pane::Console | Pane::Overview => self.move_by(delta * LIST_PAGE as isize, 0, cx),
@@ -967,6 +1061,14 @@ impl Workspace {
             Pane::Overview => &mut config.workspace_overview_visible,
         };
         *flag = !*flag;
+        let shown = *flag;
+        match pane {
+            Pane::Runs => self.anim.runs.set(shown),
+            Pane::Metrics => self.anim.metrics.set(shown),
+            Pane::System => self.anim.system.set(shown),
+            Pane::Console => self.anim.console.set(shown),
+            Pane::Overview => self.anim.overview.set(shown),
+        }
         if pane != Pane::Runs {
             self.save_config();
         }
@@ -1348,7 +1450,22 @@ pub fn pane_header(title: String, filter: &Filter, focused: bool) -> Div {
 
 impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.last_render = Instant::now();
+        self.refresh_caches();
         self.inspect = self.inspect_next.take();
+        let anim = &self.anim;
+        if [
+            &anim.runs,
+            &anim.metrics,
+            &anim.system,
+            &anim.console,
+            &anim.overview,
+        ]
+        .iter()
+        .any(|a| a.animating())
+        {
+            window.request_animation_frame();
+        }
         let context = if self.pending_grid.is_some() {
             PROMPT
         } else if self.editing() {
@@ -1358,13 +1475,12 @@ impl Render for Workspace {
         };
         let geometry = self.geometry(window.viewport_size());
         let cfg = self.cfg();
-        let (show_metrics, show_system, show_console, show_overview) = (
-            cfg.workspace_metrics_grid_visible,
-            cfg.workspace_system_metrics_visible,
-            cfg.workspace_console_logs_visible,
-            cfg.workspace_overview_visible,
-        );
-        let show_runs = self.show_runs;
+        let _ = cfg;
+        let show_runs = geometry.left_w > px(0.);
+        let show_metrics = geometry.metrics_h > px(0.);
+        let show_system = geometry.system_h > px(0.);
+        let show_console = geometry.logs_h > px(0.);
+        let show_overview = geometry.right_w > px(0.);
         let header = px(HEADER_HEIGHT);
         self.metrics_grid
             .fit(f32::from(geometry.metrics_h - header));

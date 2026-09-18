@@ -217,21 +217,21 @@ pub struct Point {
 
 /// Reduces `(xs, ys)` to at most two points per pixel column over `x_range`:
 /// the minimum and the maximum of each column, in x order, so spikes survive.
-/// Only the points inside `x_range` and their nearest neighbours outside it
-/// are considered, taking `xs` as ascending. Non-finite values are dropped.
-/// Series shorter than the budget pass through.
+/// Points outside `x_range` are dropped except the immediate neighbours of
+/// points inside it, which keep the line reaching the edges; no ordering of
+/// `xs` is assumed. Non-finite values are dropped. Series shorter than the
+/// budget pass through.
 pub fn decimate(xs: &[f64], ys: &[f64], x_range: Range, columns: usize) -> Vec<Point> {
     let n = xs.len().min(ys.len());
-    let lo = xs[..n]
-        .partition_point(|&x| x < x_range.min)
-        .saturating_sub(1);
-    let hi = (xs[..n].partition_point(|&x| x <= x_range.max) + 1).min(n);
-    let (xs, ys) = (&xs[lo..hi], &ys[lo..hi]);
-    let n = xs.len();
-    let finite = |i: usize| xs[i].is_finite() && ys[i].is_finite();
+    let inside = |i: usize| xs[i] >= x_range.min && xs[i] <= x_range.max;
+    let keep = |i: usize| {
+        xs[i].is_finite()
+            && ys[i].is_finite()
+            && (inside(i) || (i > 0 && inside(i - 1)) || (i + 1 < n && inside(i + 1)))
+    };
     if n <= columns * 2 || x_range.span() <= 0.0 {
         return (0..n)
-            .filter(|&i| finite(i))
+            .filter(|&i| keep(i))
             .map(|i| Point { x: xs[i], y: ys[i] })
             .collect();
     }
@@ -246,7 +246,7 @@ pub fn decimate(xs: &[f64], ys: &[f64], x_range: Range, columns: usize) -> Vec<P
             out.push(Point { x: xs[b], y: ys[b] });
         }
     };
-    for i in (0..n).filter(|&i| finite(i)) {
+    for i in (0..n).filter(|&i| keep(i)) {
         let c = (((xs[i] - x_range.min) / x_range.span()) * columns as f64).floor() as usize;
         if c != column {
             if column != usize::MAX {
@@ -425,6 +425,13 @@ mod tests {
         );
         assert_eq!(points.first().map(|p| p.x), Some(39.0));
         assert_eq!(points.last().map(|p| p.x), Some(51.0));
+    }
+
+    #[test]
+    fn decimation_does_not_assume_ascending_x() {
+        let restarted = [0.0, 1.0, 2.0, 0.0, 1.0, 2.0];
+        let points = decimate(&restarted, &restarted, Range { min: 0.0, max: 2.0 }, 500);
+        assert_eq!(points.len(), 6);
     }
 
     #[test]
