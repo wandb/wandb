@@ -411,24 +411,23 @@ class TestSweepSchedulerCli:
 
         return CliRunner().invoke(cli.sweep_scheduler, args, catch_exceptions=False)
 
-    def test_rejects_nonpositive_batch_size(self, api, run_scheduler_mock):
-        result = self.invoke("--batch-size", "0", "e/p/s")
+    @pytest.mark.parametrize(
+        ("argv", "expected_error"),
+        [
+            (("--batch-size", "0", "e/p/s"), "--batch-size must be at least 1"),
+            # A bad sweep path must fail loudly, like the other validations.
+            (("a/b/c/d",), "Expected sweep_id in form of"),
+            (("bare-sweep-id",), "--entity and --project"),
+        ],
+        ids=["nonpositive_batch_size", "malformed_sweep_id", "no_entity_or_project"],
+    )
+    def test_bad_arguments_are_rejected(
+        self, api, run_scheduler_mock, argv, expected_error
+    ):
+        result = self.invoke(*argv)
 
         assert result.exit_code == 1
-        run_scheduler_mock.assert_not_called()
-
-    def test_malformed_sweep_id_exits_nonzero(self, api, run_scheduler_mock):
-        """A bad sweep path must fail loudly, like the other validations."""
-        result = self.invoke("a/b/c/d")
-
-        assert result.exit_code != 0
-        run_scheduler_mock.assert_not_called()
-
-    def test_requires_entity_and_project(self, api, run_scheduler_mock):
-        result = self.invoke("bare-sweep-id")
-
-        assert result.exit_code != 0
-        assert "--entity and --project" in result.output
+        assert expected_error in result.output
         run_scheduler_mock.assert_not_called()
 
     def test_forwards_options_to_host(self, api, run_scheduler_mock):
@@ -462,29 +461,24 @@ class TestSweepSchedulerCli:
         optimizer = make_optimizer(wandb_engine)
         assert isinstance(optimizer, WandbOptimizer)
 
-    def test_engine_is_required(self, api, run_scheduler_mock):
+    @pytest.mark.parametrize(
+        ("config", "expected_error"),
+        [
+            ({}, "Unsupported engine: None"),
+            ({"scheduler": {"engine": "genetic"}}, "Unsupported engine: genetic"),
+        ],
+        ids=["no_engine", "unknown_engine"],
+    )
+    def test_unsupported_engine_rejected(
+        self, api, run_scheduler_mock, config, expected_error
+    ):
         result = self.invoke("e/p/s")
         assert result.exit_code == 0
 
         make_optimizer = run_scheduler_mock.call_args.kwargs["make_optimizer"]
-        no_engine = SweepInfo(id="s", name="s", entity="e", project="p", config={})
-        with pytest.raises(Exception, match="engine"):
-            make_optimizer(no_engine)
-
-    def test_unsupported_engine_rejected(self, api, run_scheduler_mock):
-        result = self.invoke("e/p/s")
-        assert result.exit_code == 0
-
-        make_optimizer = run_scheduler_mock.call_args.kwargs["make_optimizer"]
-        other_engine = SweepInfo(
-            id="s",
-            name="s",
-            entity="e",
-            project="p",
-            config={"scheduler": {"engine": "genetic"}},
-        )
-        with pytest.raises(Exception, match="Unsupported engine"):
-            make_optimizer(other_engine)
+        sweep = SweepInfo(id="s", name="s", entity="e", project="p", config=config)
+        with pytest.raises(Exception, match=expected_error):
+            make_optimizer(sweep)
 
     def test_scheduler_failure_exits_nonzero(self, api, run_scheduler_mock):
         import wandb
