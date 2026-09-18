@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Any
 from typing_extensions import override
 
 import wandb
-import wandb.integration.weave.media_adapters as media_adapters
 from wandb.errors import UsageError
 from wandb.sdk.data_types._eval_table_writer import (
     EvalTableWriteInput,
@@ -19,6 +18,7 @@ from wandb.sdk.data_types._eval_table_writer_factory import (
     EvalTableBackend,
     create_eval_table_writer,
 )
+from wandb.sdk.data_types._eval_table_writer_weave import validate_weave_cell_value
 from wandb.sdk.data_types.table import ColumnKey, InputRow, LogMode, Table
 from wandb.sdk.lib import telemetry
 
@@ -260,10 +260,10 @@ class EvalTable(Table):
         if self._writer is not None:
             self._writer.validate_cell_value(val, col)
         else:
-            media_adapters.validate_supported_value(
+            validate_weave_cell_value(
                 val,
                 col,
-                unsupported_media_mode=self._unsupported_media_mode,
+                self._unsupported_media_mode,
             )
 
     @override
