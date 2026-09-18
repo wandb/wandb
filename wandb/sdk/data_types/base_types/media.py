@@ -83,8 +83,8 @@ class Media(WBValue):
             f'Media file extension "{extension}" must occur at the end of path "{path}".'
         )
 
-        with open(self._path, "rb") as file:
-            self._sha256 = hashlib.sha256(file.read()).hexdigest()
+        with open(self._path, "rb") as f:
+            self._sha256 = hashlib.sha256(f.read()).hexdigest()
         self._size = os.path.getsize(self._path)
 
     @classmethod
