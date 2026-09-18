@@ -1062,3 +1062,33 @@ func TestFactoryRefuses(t *testing.T) {
 		})
 	}
 }
+
+func TestDuplicateAdoptionDroppedWithoutDiscarding(t *testing.T) {
+	fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 3})
+	fixture.stubWarmStart(warmJSON("RUNNING", false, "",
+		testRun{name: "run-1", state: "running"},
+		testRun{name: "run-2", state: "running"},
+	))
+	fixture.step(t, nil)
+
+	// Both runs claim the same optimizer id, so the second adoption is
+	// dropped.
+	fixture.stubPoll(pollJSON("RUNNING", false, "",
+		testRun{name: "run-1", state: "running"},
+		testRun{name: "run-2", state: "running"},
+	))
+	task := fixture.step(t, warmResult(map[string]string{
+		"run-1": "opt-dup",
+		"run-2": "opt-dup",
+	}))
+
+	generation := task.GetGeneration()
+	require.NotNil(t, generation)
+	// The id is not reported: the client forgets discarded ids before
+	// applying updates, so reporting it would drop the run that owns it
+	// and then fail that run's update in this same task.
+	assert.Empty(t, generation.DiscardedOptimizerRunIds)
+	// Exactly one of the two runs is tracked.
+	require.Len(t, generation.Updates, 1)
+	assert.Equal(t, "opt-dup", generation.Updates[0].Run.OptimizerRunId)
+}

@@ -146,3 +146,83 @@ func TestOptimizerErrorIsCountedAsFatal(t *testing.T) {
 	require.True(t, ok, "expected a fatal-error event")
 	assert.Equal(t, "optimizer", event.Attributes["phase"])
 }
+
+func TestRateLimitedEnqueueCountsADiscardedRun(t *testing.T) {
+	fixture := newTelemetryFixture(t,
+		scheduler.SchedulerParams{BatchSize: 2})
+	fixture.warmTo(t)
+	fixture.stubIdlePoll("RUNNING")
+	fixture.step(t, warmResult(nil))
+
+	fixture.stubSweepConfig("RUNNING")
+	fixture.client.StubMatchWithError(
+		gqlmock.WithOpName("EnqueueSweepRun"),
+		&graphql.HTTPError{StatusCode: 429},
+	)
+	fixture.stubIdlePoll("RUNNING")
+	require.NotNil(t,
+		fixture.step(t, generationResult(suggest("opt-lost"))).GetGeneration())
+
+	counter, ok := fixture.metric(t, "sweep_scheduler_run_discarded")
+	require.True(t, ok, "expected a discarded-run counter")
+	assert.EqualValues(t, 1, counter.Value)
+
+	event, ok := fixture.proxy.FindLog("sweep_scheduler_run_discarded")
+	require.True(t, ok, "expected a discarded-run event")
+	assert.Equal(t, "enqueue_failed", event.Attributes["cause"])
+	assert.Equal(t, "opt-lost", event.Attributes["id"])
+}
+
+func TestUnusableConfigCountsADiscardedRun(t *testing.T) {
+	fixture := newTelemetryFixture(t,
+		scheduler.SchedulerParams{BatchSize: 2})
+	fixture.warmTo(t)
+	fixture.stubIdlePoll("RUNNING")
+	fixture.step(t, warmResult(nil))
+
+	fixture.stubSweepConfig("RUNNING")
+	fixture.stubIdlePoll("RUNNING")
+	require.NotNil(t, fixture.step(t, generationResult(
+		&spb.SweepSchedulerClientGenerationResult{
+			AskOutcome: spb.SweepSchedulerClientGenerationResult_ASK_OUTCOME_SUGGESTED,
+			Suggestions: []*spb.SweepSchedulerClientRunSuggestion{{
+				OptimizerRunId: "opt-bad",
+				ConfigJson:     "not json",
+			}},
+		})).GetGeneration())
+
+	counter, ok := fixture.metric(t, "sweep_scheduler_run_discarded")
+	require.True(t, ok, "expected a discarded-run counter")
+	assert.EqualValues(t, 1, counter.Value)
+
+	event, ok := fixture.proxy.FindLog("sweep_scheduler_run_discarded")
+	require.True(t, ok, "expected a discarded-run event")
+	assert.Equal(t, "bad_config", event.Attributes["cause"])
+}
+
+func TestFatalEnqueueFailureIsNotCountedAsADiscardedRun(t *testing.T) {
+	fixture := newTelemetryFixture(t,
+		scheduler.SchedulerParams{BatchSize: 2})
+	fixture.warmTo(t)
+	fixture.stubIdlePoll("RUNNING")
+	fixture.step(t, warmResult(nil))
+
+	// The loop ends with the suggestion, so it is neither counted nor
+	// reported: only the fatal-error metric applies.
+	fixture.stubSweepConfig("RUNNING")
+	fixture.client.StubMatchWithError(
+		gqlmock.WithOpName("EnqueueSweepRun"),
+		&graphql.HTTPError{StatusCode: 400},
+	)
+	done := fixture.step(t, generationResult(suggest("opt-lost"))).GetDone()
+	require.NotNil(t, done)
+	assert.Empty(t, done.DiscardedOptimizerRunIds,
+		"there is no next ask to free a slot for")
+
+	_, ok := fixture.metric(t, "sweep_scheduler_run_discarded")
+	assert.False(t, ok, "expected no discarded-run counter")
+
+	counter, ok := fixture.proxy.FindMetric("sweep_scheduler_fatal_error")
+	require.True(t, ok, "expected a fatal-error counter")
+	assert.EqualValues(t, 1, counter.Value)
+}
