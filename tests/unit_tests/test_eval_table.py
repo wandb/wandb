@@ -25,7 +25,8 @@ def test_eval_table_rejects_unknown_backend():
         wandb.EvalTable(columns=["x"], backend="unknown")
 
 
-def test_to_json_requires_bind_for_default_backend(run):
+def test_to_json_requires_bind_for_default_backend(mock_run):
+    run = mock_run(settings={"entity": "e", "project": "p", "mode": "online"})
     table = wandb.EvalTable(columns=["out"], data=[["x"]])
 
     with pytest.raises(UsageError, match="must be logged with run.log"):
