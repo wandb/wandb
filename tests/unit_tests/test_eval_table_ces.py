@@ -16,6 +16,7 @@ from wandb.sdk.data_types import _eval_table_writer_ces as ces_writer
 from wandb.sdk.data_types._dtypes import AnyType
 from wandb.sdk.data_types.utils import history_dict_to_json
 
+
 @pytest.fixture
 def mock_eval_logger(monkeypatch):
     """Mock weave's EvaluationLogger.

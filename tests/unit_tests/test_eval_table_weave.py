@@ -12,6 +12,7 @@ import wandb
 from wandb.errors import UsageError
 from wandb.sdk.data_types import eval_table as eval_table_module
 
+
 @pytest.fixture
 def mock_eval_logger(monkeypatch):
     """Mock weave's EvaluationLogger.
