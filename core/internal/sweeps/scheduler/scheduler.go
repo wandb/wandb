@@ -26,6 +26,9 @@ const (
 
 	// defaultBatchSize is used when the client chooses no batch size.
 	defaultBatchSize = 1
+
+	// stagnantLogInterval is how often unchanged polls are logged.
+	stagnantLogInterval = time.Minute
 )
 
 // Clock abstracts time so tests can control it directly instead of
@@ -94,11 +97,37 @@ type Scheduler struct {
 	runCap           int
 	finishedRunCount int
 
+	// runs is keyed by optimizer run id. Records are never removed, so
+	// an id stays reserved for the scheduler's lifetime.
+	runs map[string]*trackedRun
+
+	// runOrder lists the ids in runs in the order they were created, so
+	// polls and updates are assembled deterministically.
+	runOrder []string
+
 	// runsByName indexes the prior runs warm start walked, so an adoption
 	// can find the record that already counted toward the run cap.
+	// Generation polls key off runs instead.
 	runsByName map[string]*trackedRun
 
+	// discards holds ids of suggestions accepted but never durably
+	// scheduled; reported on the next task.
+	discards []string
+
+	// lastPruneCandidates is the candidate set offered by the latest
+	// generation task; prune ids outside it are ignored.
+	lastPruneCandidates map[string]bool
+
+	// exhausted stops further asks; the loop waits out the runs already
+	// scheduled.
+	exhausted bool
+
 	warnedUnrecognized map[string]bool
+
+	// Stagnation heartbeat; see noteBackendState.
+	lastFingerprint string
+	lastChange      time.Time
+	lastStagnantLog time.Time
 }
 
 var _ TaskResolver = (*Scheduler)(nil)
@@ -156,6 +185,7 @@ func NewScheduler(params SchedulerParams) *Scheduler {
 		stop:  make(chan struct{}),
 		clock: params.Clock,
 
+		runs:               make(map[string]*trackedRun),
 		runsByName:         make(map[string]*trackedRun),
 		warnedUnrecognized: make(map[string]bool),
 	}
@@ -186,11 +216,34 @@ const (
 type trackedRun struct {
 	state TrackingState
 
+	// optimizerRunID is the id the optimizer tracks the run by.
+	optimizerRunID string
+
 	// name is the run's W&B name.
 	name string
 
+	// storageID is the run's GraphQL node id
+	storageID string
+
+	runState spb.SweepRunState
+
 	// finishedCounted means this run already counted toward finishedRunCount
 	finishedCounted bool
+
+	// warnedResumed means the resume warning was already logged for it
+	warnedResumed bool
+}
+
+// isTracked reports whether the run is reported to the optimizer: its
+// terminal update has not been acknowledged yet.
+func (r *trackedRun) isTracked() bool {
+	return r.state == TrackingInFlight ||
+		r.state == TrackingTerminalDelivered
+}
+
+// isWatched reports whether the run is read on every poll.
+func (r *trackedRun) isWatched() bool {
+	return r.state != TrackingRetired
 }
 
 // Stop asks Step to return a Done task
@@ -224,25 +277,12 @@ func (s *Scheduler) cancelOnStop(ctx context.Context, cancel context.CancelFunc)
 	}
 }
 
-// unimplementedDoneTask is what the generation phase returns until it
-// has a real body.
-func unimplementedDoneTask() *spb.SweepSchedulerServerNextTaskResponse {
-	return &spb.SweepSchedulerServerNextTaskResponse{
-		Task: &spb.SweepSchedulerServerNextTaskResponse_Done{
-			Done: &spb.SweepSchedulerServerDoneTask{
-				Reason:  spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR,
-				Message: "scheduler: Step is not implemented",
-			},
-		},
-	}
-}
-
 // Step implements TaskResolver: apply the previous task's result, wait one
 // poll interval, and compute the next task.
 //
-// Results are ignored and the generation phase is unimplemented until
-// the slices that add them land; warm start is the phase this change
-// implements.
+// Task results are still ignored: applying them lands in the slice on
+// top of this one, so nothing adopts or schedules a run yet and every
+// poll reads a sweep the scheduler watches no runs of.
 func (s *Scheduler) Step(
 	ctx context.Context,
 	result *spb.SweepSchedulerClientTaskResult,
@@ -257,7 +297,7 @@ func (s *Scheduler) Step(
 	if done := s.sleep(ctx); done != nil {
 		return done
 	}
-	return unimplementedDoneTask()
+	return s.generationStep(ctx)
 }
 
 // sleep waits one poll interval plus the failure slowdown, returning a
@@ -282,7 +322,7 @@ func (s *Scheduler) sleep(
 	}
 }
 
-// doneTask builds a Done task.
+// doneTask builds a Done task carrying any unreported discards.
 func (s *Scheduler) doneTask(
 	reason spb.SweepSchedulerServerDoneTask_Reason,
 	message string,
@@ -290,8 +330,59 @@ func (s *Scheduler) doneTask(
 	return &spb.SweepSchedulerServerNextTaskResponse{
 		Task: &spb.SweepSchedulerServerNextTaskResponse_Done{
 			Done: &spb.SweepSchedulerServerDoneTask{
-				Reason:  reason,
-				Message: message,
+				Reason:                   reason,
+				Message:                  message,
+				DiscardedOptimizerRunIds: s.takeDiscards(),
+			},
+		},
+	}
+}
+
+func (s *Scheduler) takeDiscards() []string {
+	discards := s.discards
+	s.discards = nil
+	return discards
+}
+
+// watchedRuns are the runs read on the next poll, in creation order.
+func (s *Scheduler) watchedRuns() []*trackedRun {
+	var watched []*trackedRun
+	for _, id := range s.runOrder {
+		if run := s.runs[id]; run.isWatched() {
+			watched = append(watched, run)
+		}
+	}
+	return watched
+}
+
+func (s *Scheduler) trackedRunCount() int {
+	count := 0
+	for _, run := range s.runs {
+		if run.isTracked() {
+			count++
+		}
+	}
+	return count
+}
+
+// generationTask assembles a generation task with any discards.
+func (s *Scheduler) generationTask(
+	updates []*spb.SweepSchedulerServerRunUpdate,
+	pruneCandidates []string,
+	askUpTo int,
+) *spb.SweepSchedulerServerNextTaskResponse {
+	s.lastPruneCandidates = make(map[string]bool, len(pruneCandidates))
+	for _, id := range pruneCandidates {
+		s.lastPruneCandidates[id] = true
+	}
+
+	return &spb.SweepSchedulerServerNextTaskResponse{
+		Task: &spb.SweepSchedulerServerNextTaskResponse_Generation{
+			Generation: &spb.SweepSchedulerServerGenerationTask{
+				Updates:                  updates,
+				AskUpTo:                  uint32(max(0, askUpTo)),
+				PruneCandidates:          pruneCandidates,
+				DiscardedOptimizerRunIds: s.takeDiscards(),
 			},
 		},
 	}
