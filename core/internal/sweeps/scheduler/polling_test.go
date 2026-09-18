@@ -276,6 +276,9 @@ func TestReapDeletedRequiresConfirmedAbsence(t *testing.T) {
 		`{"project": {"run": {"id": "node-ghost", "state": "running"}}}`,
 	)
 	first := fixture.step(t, emptyIterResult())
+	// Required, not asserted: a Done here would nil-panic the deref below
+	// and take the whole test binary with it.
+	require.NotNil(t, first.GetGeneration())
 	assert.Empty(t, first.GetGeneration().Updates)
 
 	// Absent again, and this time confirmed gone: reaped as FAILED on
