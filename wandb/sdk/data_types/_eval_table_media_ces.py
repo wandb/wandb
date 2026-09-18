@@ -122,8 +122,8 @@ def _bind_eval_table_media_to_run(
     directory = os.path.join(
         "media", "eval_tables", relative_subdir, safe_eval_table_key
     )
-    # A 120-bit prefix has about a 1 in 2.7 quintillion collision chance at one
-    # billion files. We accept that risk to keep run-file names short.
+    # A 120-bit prefix has about a 1 in 2.7 quintillion collision chance among
+    # one billion files.
     logical_path = os.path.join(
         directory,
         f"{media._sha256[:_DIGEST_PATH_LENGTH]}{extension}",
