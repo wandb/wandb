@@ -1,7 +1,14 @@
 """Prepare W&B media values for CES-backed EvalTable writes.
 
 This module converts supported media into CES extension values backed by durable
-artifact or run-file references.
+artifact or run-file references. Supported implementations preserve these source
+semantics:
+
+* Newly created media is bound to the active run and stored as a run file.
+* Media already bound to the active run reuses its run file. Media bound to a
+  different run is copied before binding, leaving the original object unchanged.
+* Artifact-backed media preserves its committed W&B artifact URI. External
+  reference artifacts are unsupported because CES cannot authenticate to them.
 """
 
 from __future__ import annotations
@@ -26,6 +33,7 @@ if TYPE_CHECKING:
 
 CES_MAX_CELL_BYTES = 3_500_000
 _CESExtensionType = Literal["wandb-image", "wandb-audio", "wandb-video"]
+# Intentionally empty in this foundational layer. Later PRs add supported types.
 SUPPORTED_WANDB_MEDIA_TYPES: tuple[type[Media], ...] = ()
 
 
