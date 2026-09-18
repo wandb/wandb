@@ -22,6 +22,9 @@ pub struct Layout {
     pub right_sidebar: f64,
     pub system: f64,
     pub logs: f64,
+    pub overview_env: f64,
+    pub overview_config: f64,
+    pub overview_summary: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

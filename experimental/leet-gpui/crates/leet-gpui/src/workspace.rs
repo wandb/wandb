@@ -71,11 +71,13 @@ const PANES: [Pane; 5] = [
 
 /// A draggable pane border, named after the pane whose size it sets.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Separator {
+pub enum Separator {
     Left,
     Right,
     System,
     Console,
+    /// The border below this overview section.
+    Overview(usize),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -110,7 +112,7 @@ struct Cache {
     groups_key: u64,
     system_groups: Rc<Vec<SystemGroup>>,
     rows_key: u64,
-    overview_rows: Rc<Vec<overview::Row>>,
+    overview_sections: Rc<Vec<overview::Section>>,
 }
 
 /// Show and hide animations, one per pane.
@@ -160,7 +162,9 @@ pub struct Workspace {
     pub filters: Filters,
     pub runs_paged: Paged,
     pub console_paged: Paged,
-    pub overview_paged: Paged,
+    pub overview_paged: [Paged; 4],
+    /// The row each overview section showed when the cursor last left it.
+    pub overview_memory: [usize; 4],
     /// `None` follows new output.
     pub console_cursor: Option<usize>,
     pub overview_cursor: usize,
@@ -229,7 +233,8 @@ impl Workspace {
             filters,
             runs_paged: Paged::new(),
             console_paged: Paged::new(),
-            overview_paged: Paged::new(),
+            overview_paged: [Paged::new(), Paged::new(), Paged::new(), Paged::new()],
+            overview_memory: [0; 4],
             console_cursor: None,
             overview_cursor: 0,
             wandb_dir,
@@ -272,13 +277,6 @@ impl Workspace {
             && workspace.dir_state.latest_run().as_deref() != Some(latest)
         {
             initial.push(latest.clone());
-        }
-        if let Some(pinned) = workspace
-            .dir_state
-            .pinned_run()
-            .filter(|p| names.contains(p))
-        {
-            workspace.pinned = Some(pinned);
         }
         if let Some(run) = &run {
             initial.push(run.clone());
@@ -441,7 +439,7 @@ impl Workspace {
     fn save_selection(&mut self) {
         let latest = self.runs.first().map(|run| run.dir.dir_name.clone());
         self.dir_state
-            .set_selection(&self.selected, self.pinned.as_deref(), latest.as_deref());
+            .set_selection(&self.selected, latest.as_deref());
     }
 
     fn save_config(&self) {
@@ -506,7 +504,7 @@ impl Workspace {
             .hash(&mut hasher);
         let rows_key = hasher.finish();
         if rows_key != self.cache.rows_key {
-            self.cache.overview_rows = Rc::new(overview::rows(self));
+            self.cache.overview_sections = Rc::new(overview::sections(self));
             self.cache.rows_key = rows_key;
         }
     }
@@ -516,8 +514,74 @@ impl Workspace {
         &self.cache.metric_names
     }
 
-    pub fn overview_rows(&self) -> Rc<Vec<overview::Row>> {
-        Rc::clone(&self.cache.overview_rows)
+    pub fn overview_sections(&self) -> Rc<Vec<overview::Section>> {
+        Rc::clone(&self.cache.overview_sections)
+    }
+
+    fn overview_len(&self) -> usize {
+        self.cache
+            .overview_sections
+            .iter()
+            .map(|s| s.rows.len())
+            .sum()
+    }
+
+    /// The section kind and row within it of a flat overview cursor.
+    pub fn overview_locate(&self, cursor: usize) -> Option<(usize, usize)> {
+        let mut start = 0;
+        for section in self.cache.overview_sections.iter() {
+            if cursor < start + section.rows.len() {
+                return Some((section.kind, cursor - start));
+            }
+            start += section.rows.len();
+        }
+        None
+    }
+
+    fn overview_section_start(&self, kind: usize) -> usize {
+        self.cache
+            .overview_sections
+            .iter()
+            .take_while(|s| s.kind != kind)
+            .map(|s| s.rows.len())
+            .sum()
+    }
+
+    pub fn set_overview_cursor(&mut self, cursor: usize) {
+        self.overview_cursor = cursor.min(self.overview_len().saturating_sub(1));
+        if let Some((kind, row)) = self.overview_locate(self.overview_cursor) {
+            self.overview_memory[kind] = row;
+        }
+    }
+
+    /// Relative heights of the paged overview sections, `1` unless dragged.
+    pub fn overview_weights(&self) -> [f32; 4] {
+        let layout = self.cfg().workspace_layout;
+        let weight = |value: f64| if value > 0.0 { value as f32 } else { 1.0 };
+        [
+            1.0,
+            weight(layout.overview_env),
+            weight(layout.overview_config),
+            weight(layout.overview_summary),
+        ]
+    }
+
+    pub fn dragging_separator(&self) -> Option<Separator> {
+        self.dragging
+    }
+
+    pub fn start_drag(&mut self, separator: Separator) {
+        self.dragging = Some(separator);
+    }
+
+    /// Focuses a grid pane and the cell clicked in it.
+    pub fn focus_cell(&mut self, pane: Pane, index: usize) {
+        self.focus = pane;
+        match pane {
+            Pane::Metrics => self.metrics_grid.focused = index,
+            Pane::System => self.system_grid.focused = index,
+            _ => {}
+        }
     }
 
     fn metric_cells(&self) -> (usize, Vec<Cell>) {
@@ -851,15 +915,29 @@ impl Workspace {
     /// Turns a list's page: `lines` is a wheel delta, positive for up.
     pub fn turn_list_page(&mut self, pane: Pane, lines: f32) {
         let pages: isize = if lines > 0. { -1 } else { 1 };
-        let rows = match pane {
-            Pane::Runs => self.runs_paged.rows,
-            Pane::Console => self.console_paged.rows,
-            Pane::Overview => self.overview_paged.rows,
-            Pane::Metrics | Pane::System => return,
-        } as isize;
         let focus = self.focus;
         self.focus = pane;
-        self.step_list(pages * rows);
+        match pane {
+            Pane::Runs => self.step_list(pages * self.runs_paged.rows as isize),
+            Pane::Console => self.step_list(pages * self.console_paged.rows as isize),
+            Pane::Overview => {
+                self.refresh_caches();
+                if let Some((kind, row)) = self.overview_locate(self.overview_cursor) {
+                    let len = self
+                        .cache
+                        .overview_sections
+                        .iter()
+                        .find(|s| s.kind == kind)
+                        .map_or(0, |s| s.rows.len());
+                    let rows = self.overview_paged[kind].rows as isize;
+                    let row = row
+                        .saturating_add_signed(pages * rows)
+                        .min(len.saturating_sub(1));
+                    self.set_overview_cursor(self.overview_section_start(kind) + row);
+                }
+            }
+            Pane::Metrics | Pane::System => {}
+        }
         self.focus = focus;
     }
 
@@ -953,6 +1031,34 @@ impl Workspace {
                 let layout = &mut self.config.config.workspace_layout;
                 layout.system = clamp((bottom - y).min(max).max(MIN_PANE) / height);
             }
+            Separator::Overview(kind) => {
+                let sections = self.overview_sections();
+                let sidebar_h = f32::from(geometry.content_h) - HEADER_HEIGHT;
+                let boxes = overview::layout(&sections, self.overview_weights(), sidebar_h);
+                let Some(at) = boxes.iter().position(|b| b.kind == kind) else {
+                    return;
+                };
+                let Some(below) = boxes.get(at + 1) else {
+                    return;
+                };
+                let above = &boxes[at];
+                let pair = above.height + below.height;
+                let min = overview::SECTION_HEADER + overview::ROW_HEIGHT;
+                let new_above = (y - HEADER_HEIGHT - above.top).clamp(min, (pair - min).max(min));
+                let weights = self.overview_weights();
+                let total = weights[above.kind] + weights[below.kind];
+                let (above_kind, below_kind) = (above.kind, below.kind);
+                let layout = &mut self.config.config.workspace_layout;
+                let mut set = |kind: usize, value: f32| match kind {
+                    overview::ENVIRONMENT => layout.overview_env = f64::from(value),
+                    overview::CONFIG => layout.overview_config = f64::from(value),
+                    overview::SUMMARY => layout.overview_summary = f64::from(value),
+                    _ => {}
+                };
+                let share = (total * new_above / pair).max(0.05);
+                set(above_kind, share);
+                set(below_kind, (total - share).max(0.05));
+            }
             Separator::Console => {
                 let above = if self.cfg().workspace_metrics_grid_visible {
                     MIN_PANE
@@ -971,21 +1077,23 @@ impl Workspace {
     }
 
     fn move_by(&mut self, drow: isize, dcol: isize, cx: &mut Context<Self>) {
-        self.step_list(drow);
         match self.focus {
             Pane::Metrics => {
                 self.refresh_caches();
-                let on_page = self.metrics_grid.cells_on_page(self.metric_names().len());
-                self.metrics_grid.move_focus(drow, dcol, on_page);
+                let total = self.metric_names().len();
+                self.metrics_grid.move_focus(drow, dcol, total);
             }
             Pane::System => {
                 self.refresh_caches();
-                let on_page = self
-                    .system_grid
-                    .cells_on_page(self.cache.system_groups.len());
-                self.system_grid.move_focus(drow, dcol, on_page);
+                let total = self.cache.system_groups.len();
+                self.system_grid.move_focus(drow, dcol, total);
             }
-            _ => {}
+            Pane::Runs | Pane::Console | Pane::Overview => {
+                self.step_list(drow);
+                if dcol != 0 {
+                    self.turn_list_page(self.focus, -dcol as f32);
+                }
+            }
         }
         cx.notify();
     }
@@ -1009,8 +1117,7 @@ impl Workspace {
             }
             Pane::Overview => {
                 self.refresh_caches();
-                let last = self.cache.overview_rows.len().saturating_sub(1);
-                self.overview_cursor = self.overview_cursor.saturating_add_signed(drow).min(last);
+                self.set_overview_cursor(self.overview_cursor.saturating_add_signed(drow));
             }
             Pane::Metrics | Pane::System => {}
         }
@@ -1036,10 +1143,7 @@ impl Workspace {
                 let rows = self.console_paged.rows as isize;
                 self.move_by(delta * rows, 0, cx);
             }
-            Pane::Overview => {
-                let rows = self.overview_paged.rows as isize;
-                self.move_by(delta * rows, 0, cx);
-            }
+            Pane::Overview => self.turn_list_page(Pane::Overview, -delta as f32),
         }
         cx.notify();
     }
@@ -1094,7 +1198,10 @@ impl Workspace {
             return;
         };
         let dir_name = self.runs[ix].dir.dir_name.clone();
-        if !self.selected.remove(&dir_name) {
+        if self.pinned.as_deref() == Some(dir_name.as_str()) {
+            self.pinned = None;
+            self.selected.remove(&dir_name);
+        } else if !self.selected.remove(&dir_name) {
             self.select(&dir_name, cx);
         }
         self.save_selection();
@@ -1591,8 +1698,19 @@ impl Render for Workspace {
             f32::from(geometry.content_h - header),
             runs_list::ROW_HEIGHT,
         );
-        self.overview_paged
-            .fit(f32::from(geometry.content_h - header), overview::ROW_HEIGHT);
+        let sidebar_h = f32::from(geometry.content_h) - HEADER_HEIGHT;
+        for section in overview::layout(
+            &self.overview_sections(),
+            self.overview_weights(),
+            sidebar_h,
+        ) {
+            if section.kind != overview::RUN {
+                self.overview_paged[section.kind].fit(
+                    section.height - overview::SECTION_HEADER,
+                    overview::ROW_HEIGHT,
+                );
+            }
+        }
         self.console_paged
             .fit(f32::from(geometry.logs_h - header), console::ROW_HEIGHT);
         let workspace = cx.entity();
@@ -1676,6 +1794,7 @@ impl Render for Workspace {
                                 column.child(render_grid(
                                     GridView {
                                         id: "metrics",
+                                        pane: Pane::Metrics,
                                         title: format!(
                                             "metrics {total}  smoothing {}",
                                             self.smoothing_weight()
@@ -1707,6 +1826,7 @@ impl Render for Workspace {
                                     .child(render_grid(
                                         GridView {
                                             id: "system",
+                                            pane: Pane::System,
                                             title: format!("system  {run}  {total} charts"),
                                             filter: &self.filters.system,
                                             focused: self.focus == Pane::System,
@@ -1732,7 +1852,12 @@ impl Render for Workspace {
                     )
                     .when(show_overview, |main| {
                         main.child(self.separator(Separator::Right, cx))
-                            .child(render_overview(self, geometry.right_w - px(SEPARATOR), cx))
+                            .child(render_overview(
+                                self,
+                                geometry.right_w - px(SEPARATOR),
+                                geometry.content_h - px(HEADER_HEIGHT),
+                                cx,
+                            ))
                     }),
             )
             .child(self.render_status())

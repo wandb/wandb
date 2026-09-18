@@ -3,7 +3,7 @@
 
 use chrono::{DateTime, Local};
 use gpui::prelude::*;
-use gpui::{Context, Div, SharedString, Stateful, div, px};
+use gpui::{Context, Div, MouseButton, SharedString, Stateful, div, px};
 
 use crate::run::RunState;
 use crate::theme;
@@ -68,6 +68,13 @@ pub fn render_console(
         } else {
             theme::border()
         })
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(|workspace, _, _, cx| {
+                workspace.focus = Pane::Console;
+                cx.notify();
+            }),
+        )
         .child(pane_header(title, &workspace.filters.console, focused))
         .when_some(hint, |pane, hint| {
             pane.child(

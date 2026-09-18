@@ -1,7 +1,7 @@
 //! Per-directory memory shared with the terminal LEET: `.wandb-leet.json`
-//! inside the wandb directory remembers the filters, the selected and pinned
-//! runs, and the newest run at the time of saving. Keys this app does not
-//! know are kept as they are.
+//! inside the wandb directory remembers the filters, the selected runs, and
+//! the newest run at the time of saving. Keys this app does not know, such
+//! as the terminal's pinned run, are kept as they are.
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -33,10 +33,6 @@ impl DirState {
         strings(self.value.get("selected_runs"))
     }
 
-    pub fn pinned_run(&self) -> Option<String> {
-        string(self.value.get("pinned_run"))
-    }
-
     pub fn latest_run(&self) -> Option<String> {
         string(self.value.get("latest_run"))
     }
@@ -58,17 +54,11 @@ impl DirState {
         self.save();
     }
 
-    pub fn set_selection(
-        &mut self,
-        selected: &BTreeSet<String>,
-        pinned: Option<&str>,
-        latest: Option<&str>,
-    ) {
+    pub fn set_selection(&mut self, selected: &BTreeSet<String>, latest: Option<&str>) {
         self.set_or_remove(
             "selected_runs",
             (!selected.is_empty()).then(|| json!(selected)),
         );
-        self.set_or_remove("pinned_run", pinned.map(|run| json!(run)));
         self.set_or_remove("latest_run", latest.map(|run| json!(run)));
         self.save();
     }

@@ -2,7 +2,7 @@
 //! a time, with its selection mark, pin, and state.
 
 use gpui::prelude::*;
-use gpui::{Context, Div, Stateful, div, px};
+use gpui::{Context, Div, MouseButton, Stateful, div, px};
 
 use crate::run::RunState;
 use crate::theme;
@@ -38,6 +38,13 @@ pub fn render_runs(
         } else {
             theme::border()
         })
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(|workspace, _, _, cx| {
+                workspace.focus = Pane::Runs;
+                cx.notify();
+            }),
+        )
         .child(pane_header(header, &workspace.filters.runs, focused))
         .child(
             div()

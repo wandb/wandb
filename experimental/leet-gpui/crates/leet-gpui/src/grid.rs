@@ -2,12 +2,14 @@
 //! metrics: `rows x cols` cells per page, one focused cell.
 
 use gpui::prelude::*;
-use gpui::{Context, Div, Entity, Pixels, ScrollWheelEvent, SharedString, Stateful, div, px};
+use gpui::{
+    Context, Div, Entity, MouseButton, Pixels, ScrollWheelEvent, SharedString, Stateful, div, px,
+};
 
 use crate::chart::{self, ChartSpec};
 use crate::config::GridConfig;
 use crate::theme;
-use crate::workspace::{Filter, Workspace, pane_header, wheel_lines};
+use crate::workspace::{Filter, Pane, Workspace, pane_header, wheel_lines};
 
 /// Cells shorter than this lose their axes, so a short pane shows fewer rows.
 pub const MIN_CELL_HEIGHT: f32 = 90.;
@@ -57,12 +59,44 @@ impl Grid {
                 .min(self.cells_on_page(cells).saturating_sub(1))
     }
 
-    /// Moves the focus within the page, never onto an empty trailing cell.
-    pub fn move_focus(&mut self, drow: isize, dcol: isize, cells_on_page: usize) {
+    /// Moves the focus; leaving the page's edge turns the page, and the focus
+    /// never lands on an empty trailing cell.
+    pub fn move_focus(&mut self, drow: isize, dcol: isize, total: usize) {
         let cols = self.cols as isize;
-        let row = (self.focused as isize / cols + drow).clamp(0, self.visible_rows as isize - 1);
-        let col = (self.focused as isize % cols + dcol).clamp(0, cols - 1);
-        self.focused = ((row * cols + col) as usize).min(cells_on_page.saturating_sub(1));
+        let rows = self.visible_rows as isize;
+        let pages = self.pages(total) as isize;
+        let mut page = self.page.min(self.pages(total) - 1) as isize;
+        let mut row = self.focused as isize / cols + drow;
+        let mut col = self.focused as isize % cols + dcol;
+        if col >= cols {
+            (page, col) = if page + 1 < pages {
+                (page + 1, 0)
+            } else {
+                (page, cols - 1)
+            };
+        } else if col < 0 {
+            (page, col) = if page > 0 {
+                (page - 1, cols - 1)
+            } else {
+                (page, 0)
+            };
+        }
+        if row >= rows {
+            (page, row) = if page + 1 < pages {
+                (page + 1, 0)
+            } else {
+                (page, rows - 1)
+            };
+        } else if row < 0 {
+            (page, row) = if page > 0 {
+                (page - 1, rows - 1)
+            } else {
+                (page, 0)
+            };
+        }
+        self.page = page as usize;
+        let on_page = self.cells_on_page(total);
+        self.focused = ((row * cols + col) as usize).min(on_page.saturating_sub(1));
     }
 
     /// How many of `total` cells the current page holds.
@@ -87,6 +121,7 @@ pub struct Cell {
 
 pub struct GridView<'a> {
     pub id: &'static str,
+    pub pane: Pane,
     pub title: String,
     pub filter: &'a Filter,
     pub focused: bool,
@@ -110,6 +145,7 @@ pub fn render_grid(
 ) -> Stateful<Div> {
     let GridView {
         id,
+        pane: grid_pane,
         title,
         filter,
         focused,
@@ -148,6 +184,13 @@ pub fn render_grid(
         .overflow_hidden()
         .flex()
         .flex_col()
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(move |workspace, _, _, cx| {
+                workspace.focus = grid_pane;
+                cx.notify();
+            }),
+        )
         .child(pane_header(header, filter, focused))
         .when(total == 0, |pane| {
             pane.child(
@@ -171,7 +214,8 @@ pub fn render_grid(
                         let Some(cell) = cells.next().flatten() else {
                             return div().flex_1().m(px(3.));
                         };
-                        let is_focused = focused && row * grid.cols + col == focused_cell;
+                        let index = row * grid.cols + col;
+                        let is_focused = focused && index == focused_cell;
                         let key = cell.spec.key.clone();
                         div()
                             .flex_1()
@@ -187,6 +231,13 @@ pub fn render_grid(
                             .bg(theme::panel())
                             .flex()
                             .flex_col()
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(move |workspace, _, _, cx| {
+                                    workspace.focus_cell(grid_pane, index);
+                                    cx.notify();
+                                }),
+                            )
                             .on_scroll_wheel(cx.listener(
                                 move |workspace, event: &ScrollWheelEvent, _, cx| {
                                     if let Some(lines) = wheel_lines(event) {

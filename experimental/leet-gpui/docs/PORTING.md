@@ -19,7 +19,8 @@ The Go LEET in `core/internal/leet` is the behavioral spec for this app. This do
 | Inspect | right-drag, alt+right-drag for all charts | hover, linked by default (`i` toggles) | Adapted: a pointer has hover, a terminal does not |
 | Zoom | wheel on the focused chart | wheel on the chart under the pointer, `z` resets | Adapted: the y range follows the visible window |
 | Keymap | `keybindings.go`, `nav.go` | `leet-gpui/src/actions.rs` | Same keys and descriptions, expressed as gpui actions and key contexts |
-| Per-directory state | `dirstate.go` (branch `09-17-leet-remember-selected-runs`) | `leet-gpui/src/dir_state.rs` | Same file and keys, read and written through a JSON map so unknown keys survive |
+| Per-directory state | `dirstate.go` (branch `09-17-leet-remember-selected-runs`) | `leet-gpui/src/dir_state.rs` | Same file for filters, selected runs, and the newest-run marker, read and written through a JSON map so unknown keys survive; the pinned run is left to the terminal and not restored here |
+| Overview sections | `runoverviewsidebar.go` weighted flex sections with draggable separators | `overview::layout`, `Separator::Overview` | Same shape: run info at its natural height, environment, config, and summary sharing the rest by dragged weights, each paged on its own |
 | Config | `config.go` | `leet-gpui/src/config.rs` | Same key names where the meaning matches, in a separate file (`wandb-leet-gpui.json`) |
 | Chart math | `epochlinechart.go` ranges and ticks | `leet-plot` | New: the terminal chart's braille geometry does not apply to pixels |
 | Rendering | `styles.go`, lipgloss, ntcharts | `leet-gpui/src/chart.rs`, panes, `theme.rs` | New |
