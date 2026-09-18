@@ -35,6 +35,11 @@ actions!(
         FilterSystem,
         FilterOverview,
         ClearFilter,
+        ResetLayout,
+        ResetZoom,
+        ToggleLinkedInspect,
+        GridCols,
+        GridRows,
     ]
 );
 
@@ -42,6 +47,8 @@ actions!(
 pub const WORKSPACE: &str = "Workspace";
 /// Key context while a filter is being typed.
 pub const FILTER: &str = "Filter";
+/// Key context while a grid size digit is awaited.
+pub const PROMPT: &str = "Prompt";
 
 /// Human-readable key list and description, one per action.
 pub type Help = Vec<(&'static str, &'static str)>;
@@ -87,6 +94,12 @@ pub fn bind(cx: &mut App) -> Help {
         ["ctrl-f", "ctrl-/", "ctrl-l", "ctrl-\\", "ctrl-o"] WORKSPACE => ClearFilter, "Clear the filter of the focused pane";
         ["y"] WORKSPACE => ToggleLogY, "Toggle log Y on the focused chart";
         ["m"] WORKSPACE => CycleSmoothing, "Cycle smoothing (off / 0.6 / 0.9 / 0.99)";
+        ["z"] WORKSPACE => ResetZoom, "Reset the focused chart's zoom (mouse wheel zooms)";
+        ["i"] WORKSPACE => ToggleLinkedInspect, "Link the hover crosshair across charts";
+        ["c"] WORKSPACE => GridCols, "Set grid columns (focused pane), then a digit";
+        ["r"] WORKSPACE => GridRows, "Set grid rows (focused pane), then a digit";
+        ["0"] WORKSPACE => ResetLayout, "Reset pane sizes (drag borders to resize)";
+        ["escape"] PROMPT => Escape, "Cancel the grid size prompt";
         ["escape"] FILTER => Escape, "Stop editing the filter";
         ["enter"] FILTER => Confirm, "Apply the filter";
         ["backspace"] FILTER => Backspace, "Delete the last character";

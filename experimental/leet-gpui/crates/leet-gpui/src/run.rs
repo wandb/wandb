@@ -5,7 +5,7 @@
 use std::collections::BTreeMap;
 
 use leet_data::run_overview::{self, RunOverview};
-use leet_ingest::{Batch, Column, ConsoleLine, RunInfo};
+use leet_ingest::{Batch, ColumnSet, ConsoleLine, RunInfo};
 use leet_plot::{Point, Range, decimate, nearest};
 
 use crate::source::RunDir;
@@ -197,15 +197,15 @@ pub struct Table {
 }
 
 impl Table {
-    fn add_keys(&mut self, keys: Vec<String>) {
-        for key in keys {
+    fn extend(&mut self, set: &ColumnSet) {
+        for key in set.new_keys.iter().cloned() {
             self.by_name.insert(key, self.series.len());
             self.series.push(Series::default());
         }
-    }
-
-    fn extend(&mut self, column: Column) {
-        self.series[column.key].extend(&column.x, &column.y);
+        for column in &set.columns {
+            let (x, y) = set.slices(column);
+            self.series[column.key].extend(x, y);
+        }
     }
 }
 
@@ -251,27 +251,20 @@ impl Run {
         });
     }
 
-    pub fn apply(&mut self, batch: Batch) {
-        if let Some(info) = batch.run {
+    pub fn apply(&mut self, batch: &mut Batch) {
+        if let Some(info) = batch.run.take() {
             self.apply_info(info);
         }
         if let Some(environment) = &batch.environment {
             self.overview.process_system_info_msg(Some(environment));
         }
         if !batch.summary.is_empty() {
-            self.overview.process_summary_msg(&batch.summary);
+            self.overview
+                .process_summary_msg(&std::mem::take(&mut batch.summary));
         }
-        self.metrics.add_keys(batch.metric_keys);
-        batch
-            .metrics
-            .into_iter()
-            .for_each(|column| self.metrics.extend(column));
-        self.system.add_keys(batch.system_keys);
-        batch
-            .system
-            .into_iter()
-            .for_each(|column| self.system.extend(column));
-        self.console.extend(batch.console);
+        self.metrics.extend(&batch.metrics);
+        self.system.extend(&batch.system);
+        self.console.append(&mut batch.console);
 
         self.state = match (self.state, batch.exit_code, batch.caught_up) {
             (_, Some(0), _) => RunState::Finished,

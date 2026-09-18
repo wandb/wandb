@@ -2,7 +2,9 @@
 //! metrics: `rows x cols` cells per page, one focused cell.
 
 use gpui::prelude::*;
-use gpui::{Context, Div, Entity, Pixels, SharedString, Stateful, div, px};
+use gpui::{
+    Context, Div, Entity, Pixels, ScrollDelta, ScrollWheelEvent, SharedString, Stateful, div, px,
+};
 
 use crate::chart::{self, ChartSpec};
 use crate::config::GridConfig;
@@ -121,7 +123,6 @@ pub fn render_grid(
         .min_w_0()
         .flex()
         .flex_col()
-        .on_mouse_move(cx.listener(|_, _, _, cx| cx.notify()))
         .child(pane_header(header, filter, focused))
         .children((0..grid.visible_rows).map(|row| {
             div()
@@ -132,6 +133,7 @@ pub fn render_grid(
                 .children((0..grid.cols).map(|col| {
                     let cell = cells.next().flatten();
                     let is_focused = focused && row * grid.cols + col == grid.focused;
+                    let key = cell.as_ref().map(|cell| cell.spec.key.clone());
                     div()
                         .flex_1()
                         .min_w_0()
@@ -146,6 +148,24 @@ pub fn render_grid(
                         .bg(theme::panel())
                         .flex()
                         .flex_col()
+                        .when_some(key, |cell_div, key| {
+                            cell_div.on_scroll_wheel(cx.listener(
+                                move |workspace, event: &ScrollWheelEvent, _, cx| {
+                                    let lines = match event.delta {
+                                        ScrollDelta::Lines(delta) => delta.y,
+                                        ScrollDelta::Pixels(delta) => f32::from(delta.y) / 40.,
+                                    };
+                                    if lines != 0. {
+                                        workspace.request_zoom(
+                                            key.clone(),
+                                            1.25f64.powf(f64::from(-lines)),
+                                            event.position.x,
+                                        );
+                                        cx.notify();
+                                    }
+                                },
+                            ))
+                        })
                         .when_some(cell, |cell_div, cell| {
                             cell_div
                                 .child(

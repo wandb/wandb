@@ -2,18 +2,18 @@
 //! `core/internal/leet/workspace.go` and `workspacehandlers.go`; the layout
 //! follows its `computeViewports`: runs sidebar, a central column of metrics
 //! over a lower tier of system metrics and console logs, the overview sidebar,
-//! and a status bar.
+//! and a status bar. Pane borders drag, as in leet's `dragresize.go`.
 
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::PathBuf;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use futures::StreamExt;
 use futures::channel::mpsc;
 use gpui::prelude::*;
 use gpui::{
-    Context, Div, FocusHandle, KeyDownEvent, ScrollStrategy, UniformListScrollHandle, Window, div,
-    hsla, px,
+    Context, CursorStyle, Div, FocusHandle, KeyDownEvent, MouseButton, MouseMoveEvent, Pixels,
+    Point, ScrollStrategy, SharedString, Size, UniformListScrollHandle, Window, div, hsla, px,
 };
 use leet_data::system_metrics::{
     MetricDef, extract_base_key, extract_series_name, match_metric_def,
@@ -35,11 +35,19 @@ use crate::theme;
 const SMOOTHING: [f64; 4] = [0.0, 0.6, 0.9, 0.99];
 const RESCAN_INTERVAL: Duration = Duration::from_secs(5);
 const LIST_PAGE: usize = 20;
+/// Batches applied per frame before yielding so a load stays visible.
+const APPLY_BUDGET: Duration = Duration::from_millis(10);
+const FRAME_YIELD: Duration = Duration::from_millis(1);
 const STATUS_BAR_HEIGHT: f32 = 24.;
+const HEADER_HEIGHT: f32 = 26.;
+const SEPARATOR: f32 = 6.;
 /// Share of the central column below the metrics grid (`LowerTierRatio`).
 const LOWER_TIER: f32 = 0.382;
 const LEFT_SIDEBAR: f32 = 0.2;
 const RIGHT_SIDEBAR: f32 = 0.22;
+const MIN_FRACTION: f64 = 0.05;
+const MAX_FRACTION: f64 = 0.9;
+const MIN_PANE: f32 = 100.;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Pane {
@@ -57,6 +65,31 @@ const PANES: [Pane; 5] = [
     Pane::Console,
     Pane::Overview,
 ];
+
+/// A draggable pane border, named after the pane whose size it sets.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Separator {
+    Left,
+    Right,
+    System,
+    Console,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GridDim {
+    Rows,
+    Cols,
+}
+
+/// Pane sizes for one frame, in pixels.
+struct Geometry {
+    content_h: Pixels,
+    left_w: Pixels,
+    right_w: Pixels,
+    metrics_h: Pixels,
+    system_h: Pixels,
+    logs_h: Pixels,
+}
 
 /// One system chart: a base key such as `gpu.memory`, its definition, and
 /// the `(series name, series index)` pairs of the devices reporting it.
@@ -119,6 +152,15 @@ pub struct Workspace {
     system_log: BTreeSet<String>,
     smoothing: usize,
     show_help: bool,
+    dragging: Option<Separator>,
+    pending_grid: Option<GridDim>,
+    linked_inspect: bool,
+    /// The crosshair position charts share this frame, set by the hovered
+    /// chart during the previous frame's paint.
+    inspect: Option<(XAxis, f64)>,
+    inspect_next: Option<(XAxis, f64)>,
+    zoom: HashMap<SharedString, Range>,
+    pending_zoom: Option<(SharedString, f64, Pixels)>,
 }
 
 impl Workspace {
@@ -165,6 +207,13 @@ impl Workspace {
             system_log: BTreeSet::new(),
             smoothing,
             show_help: false,
+            dragging: None,
+            pending_grid: None,
+            linked_inspect: true,
+            inspect: None,
+            inspect_next: None,
+            zoom: HashMap::new(),
+            pending_zoom: None,
         };
         workspace.rescan(cx);
 
@@ -323,16 +372,25 @@ impl Workspace {
         source::spawn_follow(&run.dir, tx);
         let dir_name = dir_name.to_string();
         cx.spawn(async move |this, cx| {
-            while let Some(batch) = rx.next().await {
-                let applied = this.update(cx, |workspace, cx| {
-                    if let Some(ix) = workspace.run_index(&dir_name) {
-                        workspace.runs[ix].apply(batch);
+            while let Some(mut batch) = rx.next().await {
+                let frame = Instant::now();
+                loop {
+                    let applied = this.update(cx, |workspace, cx| {
+                        if let Some(ix) = workspace.run_index(&dir_name) {
+                            workspace.runs[ix].apply(&mut batch);
+                        }
+                        cx.notify();
+                    });
+                    batch.recycle();
+                    if applied.is_err() {
+                        return;
                     }
-                    cx.notify();
-                });
-                if applied.is_err() {
-                    return;
+                    match rx.try_recv() {
+                        Ok(next) if frame.elapsed() < APPLY_BUDGET => batch = next,
+                        _ => break,
+                    }
                 }
+                cx.background_executor().timer(FRAME_YIELD).await;
             }
         })
         .detach();
@@ -401,10 +459,12 @@ impl Workspace {
                         })
                     })
                     .collect();
+                let key = SharedString::from(name.to_string());
                 Cell {
-                    title: name.to_string().into(),
+                    title: key.clone(),
                     badge: log.then_some("log"),
                     spec: ChartSpec {
+                        key,
                         x_axis: XAxis::Step,
                         log,
                         fixed_y: None,
@@ -483,6 +543,7 @@ impl Workspace {
                     title: def.title().into(),
                     badge: log.then_some("log"),
                     spec: ChartSpec {
+                        key: base.clone().into(),
                         x_axis: XAxis::Time,
                         log,
                         fixed_y,
@@ -494,31 +555,94 @@ impl Workspace {
         (groups.len(), cells)
     }
 
-    /// Everything a chart paints, from the series caches.
+    /// The key of the chart under the grid focus.
+    fn focused_chart_key(&self) -> Option<String> {
+        match self.focus {
+            Pane::Metrics => {
+                let names = self.metric_names();
+                names
+                    .get(self.metrics_grid.focused_index(names.len()))
+                    .map(|n| n.to_string())
+            }
+            Pane::System => {
+                let groups = self.system_groups();
+                groups
+                    .get(self.system_grid.focused_index(groups.len()))
+                    .map(|g| g.base.clone())
+            }
+            _ => None,
+        }
+    }
+
+    pub fn request_zoom(&mut self, key: SharedString, factor: f64, x: Pixels) {
+        self.pending_zoom = Some((key, factor, x));
+    }
+
+    /// The zoom requested on `key` by the wheel, once.
+    pub fn take_zoom(&mut self, key: &SharedString) -> Option<(f64, Pixels)> {
+        let (_, factor, x) = self
+            .pending_zoom
+            .take_if(|(pending, _, _)| pending == key)?;
+        Some((factor, x))
+    }
+
+    /// Everything a chart paints, from the series caches. `hover_t` is the
+    /// mouse position across the plot when it is over this chart; `zoom` is a
+    /// wheel step as `(position, factor)`.
     pub fn chart_data(
         &mut self,
         spec: &ChartSpec,
         columns: usize,
         hover_t: Option<f64>,
+        zoom: Option<(f64, f64)>,
     ) -> Option<ChartData> {
         let weight = self.smoothing_weight();
-        let mut x_range: Option<Range> = None;
+        let mut full: Option<Range> = None;
         let mut y_range: Option<Range> = None;
         for r in &spec.series {
             let Some(series) = series_mut(&mut self.runs, r) else {
                 continue;
             };
-            x_range = merge(x_range, series.x_extent.range(false));
+            full = merge(full, series.x_extent.range(false));
             y_range = merge(y_range, series.y_extent(weight).range(spec.log));
         }
-        let x_range = x_range?.non_degenerate();
-        let y_range = match (spec.fixed_y, spec.log) {
-            (Some(fixed), false) => y_range.map_or(fixed, |r| r.union(fixed)),
-            (_, false) => y_range?.non_degenerate().padded(0.05),
-            (_, true) => y_range?.non_degenerate(),
+        let full = full?.non_degenerate();
+        let mut x_range = match self.zoom.get(&spec.key) {
+            Some(zoomed) => Range {
+                min: zoomed.min.max(full.min),
+                max: zoomed.max.min(full.max),
+            }
+            .non_degenerate(),
+            None => full,
         };
-        let hover_x = hover_t.map(|t| Scale::Linear.denormalize(x_range, t));
-        let series = spec
+        if let Some((t, factor)) = zoom {
+            match leet_plot::zoom(x_range, full, t, factor) {
+                Some(zoomed) => {
+                    self.zoom.insert(spec.key.clone(), zoomed);
+                    x_range = zoomed;
+                }
+                None => {
+                    self.zoom.remove(&spec.key);
+                    x_range = full;
+                }
+            }
+        }
+        let zoomed = x_range != full;
+
+        let hover_x = match hover_t {
+            Some(t) => {
+                let x = Scale::Linear.denormalize(x_range, t);
+                self.inspect_next = Some((spec.x_axis, x));
+                Some(x)
+            }
+            None if self.linked_inspect => self
+                .inspect
+                .filter(|(axis, x)| *axis == spec.x_axis && *x >= x_range.min && *x <= x_range.max)
+                .map(|(_, x)| x),
+            None => None,
+        };
+
+        let series: Vec<SeriesDraw> = spec
             .series
             .iter()
             .filter_map(|r| {
@@ -532,9 +656,22 @@ impl Workspace {
                 })
             })
             .collect();
+        if zoomed {
+            let visible = series
+                .iter()
+                .flat_map(|s| s.line.iter().map(|p| p.y))
+                .filter(|y| !spec.log || *y > 0.0);
+            y_range = Range::of(visible);
+        }
+        let y_range = match (spec.fixed_y, spec.log) {
+            (Some(fixed), false) => y_range.map_or(fixed, |r| r.union(fixed)),
+            (_, false) => y_range?.non_degenerate().padded(0.05),
+            (_, true) => y_range?.non_degenerate(),
+        };
         Some(ChartData {
             x_range,
             y_range,
+            hover_x,
             series,
         })
     }
@@ -580,6 +717,105 @@ impl Workspace {
     fn console_len(&self) -> usize {
         self.context_run()
             .map_or(0, |ix| self.runs[ix].console.len())
+    }
+
+    /// Pane sizes for a window of `viewport` size: configured fractions, else
+    /// leet's defaults, with the lower tier shared by the panes in it.
+    fn geometry(&self, viewport: Size<Pixels>) -> Geometry {
+        let cfg = self.cfg();
+        let layout = cfg.workspace_layout;
+        let content_h = viewport.height - px(STATUS_BAR_HEIGHT);
+        let fraction = |value: f64, default: f32| if value > 0.0 { value as f32 } else { default };
+        let left_w = if self.show_runs {
+            viewport.width * fraction(layout.left_sidebar, LEFT_SIDEBAR)
+        } else {
+            px(0.)
+        };
+        let right_w = if cfg.workspace_overview_visible {
+            viewport.width * fraction(layout.right_sidebar, RIGHT_SIDEBAR)
+        } else {
+            px(0.)
+        };
+        let lower_panes = cfg.workspace_system_metrics_visible as usize
+            + cfg.workspace_console_logs_visible as usize;
+        let lower_total = if cfg.workspace_metrics_grid_visible {
+            content_h * LOWER_TIER
+        } else {
+            content_h
+        };
+        let each = if lower_panes > 0 {
+            lower_total / lower_panes as f32
+        } else {
+            px(0.)
+        };
+        let pane_height = |visible: bool, fraction: f64| match (visible, fraction > 0.0) {
+            (false, _) => px(0.),
+            (true, true) => viewport.height * fraction as f32,
+            (true, false) => each,
+        };
+        let system_h = pane_height(cfg.workspace_system_metrics_visible, layout.system);
+        let logs_h = pane_height(cfg.workspace_console_logs_visible, layout.logs);
+        let metrics_h = if cfg.workspace_metrics_grid_visible {
+            content_h - system_h - logs_h
+        } else {
+            px(0.)
+        };
+        Geometry {
+            content_h,
+            left_w,
+            right_w,
+            metrics_h,
+            system_h,
+            logs_h,
+        }
+    }
+
+    /// Moves the dragged border to the mouse, as a fraction of the window.
+    fn drag_to(&mut self, position: Point<Pixels>, viewport: Size<Pixels>) {
+        let Some(separator) = self.dragging else {
+            return;
+        };
+        let geometry = self.geometry(viewport);
+        let (width, height) = (f32::from(viewport.width), f32::from(viewport.height));
+        let (x, y) = (f32::from(position.x), f32::from(position.y));
+        let content_bottom = f32::from(geometry.content_h);
+        let clamp = |fraction: f32| f64::from(fraction).clamp(MIN_FRACTION, MAX_FRACTION);
+        let layout = &mut self.config.config.workspace_layout;
+        match separator {
+            Separator::Left => {
+                let max = width - f32::from(geometry.right_w) - MIN_PANE;
+                layout.left_sidebar = clamp(x.min(max) / width);
+            }
+            Separator::Right => {
+                let max = width - f32::from(geometry.left_w) - MIN_PANE;
+                layout.right_sidebar = clamp((width - x).min(max) / width);
+            }
+            Separator::System => {
+                let bottom = content_bottom - f32::from(geometry.logs_h);
+                let max = bottom
+                    - if self.cfg().workspace_metrics_grid_visible {
+                        MIN_PANE
+                    } else {
+                        0.
+                    };
+                let layout = &mut self.config.config.workspace_layout;
+                layout.system = clamp((bottom - y).min(max).max(MIN_PANE) / height);
+            }
+            Separator::Console => {
+                let above = if self.cfg().workspace_metrics_grid_visible {
+                    MIN_PANE
+                } else {
+                    0.
+                } + f32::from(geometry.system_h);
+                let layout = &mut self.config.config.workspace_layout;
+                layout.logs = clamp(
+                    (content_bottom - y)
+                        .min(content_bottom - above)
+                        .max(MIN_PANE)
+                        / height,
+                );
+            }
+        }
     }
 
     fn move_by(&mut self, drow: isize, dcol: isize, cx: &mut Context<Self>) {
@@ -766,31 +1002,39 @@ impl Workspace {
     }
 
     fn toggle_log_y(&mut self, _: &ToggleLogY, _: &mut Window, cx: &mut Context<Self>) {
-        match self.focus {
-            Pane::Metrics => {
-                let names = self.metric_names();
-                let Some(name) = names
-                    .get(self.metrics_grid.focused_index(names.len()))
-                    .map(|n| n.to_string())
-                else {
-                    return;
-                };
-                if !self.metrics_log.remove(&name) {
-                    self.metrics_log.insert(name);
-                }
-            }
-            Pane::System => {
-                let groups = self.system_groups();
-                let Some(group) = groups.get(self.system_grid.focused_index(groups.len())) else {
-                    return;
-                };
-                let base = group.base.clone();
-                if !self.system_log.remove(&base) {
-                    self.system_log.insert(base);
-                }
-            }
-            _ => return,
+        let Some(key) = self.focused_chart_key() else {
+            return;
+        };
+        let set = match self.focus {
+            Pane::Metrics => &mut self.metrics_log,
+            _ => &mut self.system_log,
+        };
+        if !set.remove(&key) {
+            set.insert(key);
         }
+        cx.notify();
+    }
+
+    fn reset_zoom(&mut self, _: &ResetZoom, _: &mut Window, cx: &mut Context<Self>) {
+        if let Some(key) = self.focused_chart_key() {
+            self.zoom.remove(key.as_str());
+            cx.notify();
+        }
+    }
+
+    fn toggle_linked_inspect(
+        &mut self,
+        _: &ToggleLinkedInspect,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.linked_inspect = !self.linked_inspect;
+        cx.notify();
+    }
+
+    fn reset_layout(&mut self, _: &ResetLayout, _: &mut Window, cx: &mut Context<Self>) {
+        self.config.config.workspace_layout = Default::default();
+        self.save_config();
         cx.notify();
     }
 
@@ -799,6 +1043,49 @@ impl Workspace {
         self.config.config.smoothing = self.smoothing_weight();
         self.save_config();
         cx.notify();
+    }
+
+    fn grid_cols(&mut self, _: &GridCols, _: &mut Window, cx: &mut Context<Self>) {
+        self.prompt_grid(GridDim::Cols, cx);
+    }
+
+    fn grid_rows(&mut self, _: &GridRows, _: &mut Window, cx: &mut Context<Self>) {
+        self.prompt_grid(GridDim::Rows, cx);
+    }
+
+    fn prompt_grid(&mut self, dim: GridDim, cx: &mut Context<Self>) {
+        if matches!(self.focus, Pane::Metrics | Pane::System) {
+            self.pending_grid = Some(dim);
+            cx.notify();
+        }
+    }
+
+    /// Applies a digit typed after `c` or `r` to the focused grid.
+    fn set_grid_size(&mut self, dim: GridDim, size: usize) {
+        let (grid, config) = match self.focus {
+            Pane::System => (
+                &mut self.system_grid,
+                &mut self.config.config.workspace_system_grid,
+            ),
+            _ => (
+                &mut self.metrics_grid,
+                &mut self.config.config.workspace_metrics_grid,
+            ),
+        };
+        match dim {
+            GridDim::Rows => {
+                grid.rows = size;
+                grid.visible_rows = size;
+                config.rows = size;
+            }
+            GridDim::Cols => {
+                grid.cols = size;
+                config.cols = size;
+            }
+        }
+        grid.page = 0;
+        grid.focused = 0;
+        self.save_config();
     }
 
     fn start_filter(&mut self, pane: Pane, cx: &mut Context<Self>) {
@@ -842,6 +1129,7 @@ impl Workspace {
     fn escape(&mut self, _: &Escape, _: &mut Window, cx: &mut Context<Self>) {
         if self.show_help {
             self.show_help = false;
+        } else if self.pending_grid.take().is_some() {
         } else if self.editing() {
             self.stop_editing();
         } else {
@@ -862,10 +1150,19 @@ impl Workspace {
 
     fn key_down(&mut self, event: &KeyDownEvent, _: &mut Window, cx: &mut Context<Self>) {
         let modifiers = event.keystroke.modifiers;
-        if !self.editing() || modifiers.control || modifiers.platform || modifiers.alt {
+        if modifiers.control || modifiers.platform || modifiers.alt {
             return;
         }
-        if let Some(text) = &event.keystroke.key_char {
+        let Some(text) = &event.keystroke.key_char else {
+            return;
+        };
+        if let Some(dim) = self.pending_grid {
+            if let Some(size) = text.parse::<usize>().ok().filter(|n| (1..=9).contains(n)) {
+                self.pending_grid = None;
+                self.set_grid_size(dim, size);
+                cx.notify();
+            }
+        } else if self.editing() {
             self.filter_for(self.focus).0.text.push_str(text);
             self.filter_changed(cx);
         }
@@ -888,6 +1185,51 @@ impl Workspace {
         cx.notify();
     }
 
+    fn mouse_move(&mut self, event: &MouseMoveEvent, window: &mut Window, cx: &mut Context<Self>) {
+        if self.dragging.is_some() {
+            self.drag_to(event.position, window.viewport_size());
+        }
+        cx.notify();
+    }
+
+    fn mouse_up(&mut self, cx: &mut Context<Self>) {
+        if self.dragging.take().is_some() {
+            self.save_config();
+            cx.notify();
+        }
+    }
+
+    fn separator(&self, which: Separator, cx: &mut Context<Self>) -> Div {
+        let vertical = matches!(which, Separator::Left | Separator::Right);
+        let active = self.dragging == Some(which);
+        div()
+            .flex_shrink_0()
+            .map(|sep| {
+                if vertical {
+                    sep.w(px(SEPARATOR)).h_full()
+                } else {
+                    sep.h(px(SEPARATOR)).w_full()
+                }
+            })
+            .bg(if active {
+                theme::focus()
+            } else {
+                theme::border()
+            })
+            .cursor(if vertical {
+                CursorStyle::ResizeLeftRight
+            } else {
+                CursorStyle::ResizeUpDown
+            })
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(move |workspace, _, _, cx| {
+                    workspace.dragging = Some(which);
+                    cx.notify();
+                }),
+            )
+    }
+
     fn render_status(&self) -> Div {
         let (state, state_color) = self.context_run().map(|ix| self.runs[ix].state).map_or(
             ("○", theme::muted()),
@@ -901,6 +1243,10 @@ impl Workspace {
             .as_ref()
             .and_then(|p| self.run_index(p))
             .map(|ix| format!("pinned {}", self.runs[ix].name));
+        let prompt = self.pending_grid.map(|dim| match dim {
+            GridDim::Rows => "rows (1-9)?",
+            GridDim::Cols => "columns (1-9)?",
+        });
         div()
             .h(px(STATUS_BAR_HEIGHT))
             .px_2()
@@ -916,8 +1262,10 @@ impl Workspace {
             .child(self.wandb_dir.to_string_lossy().into_owned())
             .child(format!("{} selected", self.selected.len()))
             .when_some(pinned, |bar, pinned| bar.child(pinned))
+            .when_some(prompt, |bar, prompt| bar.child(div().text_color(theme::accent()).child(prompt)))
+            .when(!self.linked_inspect, |bar| bar.child("inspect unlinked"))
             .child(div().flex_1())
-            .child("space select  p pin  f / \\ o filter  n/N page  y log  m smooth  1 2 4 [ ] panes  ? help  q quit")
+            .child("space select  p pin  f / \\ o filter  n/N page  y log  m smooth  c/r grid  wheel zoom  z reset  ? help  q quit")
     }
 
     fn render_help(&self) -> Div {
@@ -980,7 +1328,7 @@ pub fn pane_header(title: String, filter: &Filter, focused: bool) -> Div {
         (false, true) => String::new(),
     };
     div()
-        .h(px(26.))
+        .h(px(HEADER_HEIGHT))
         .px_2()
         .flex()
         .items_center()
@@ -1000,36 +1348,16 @@ pub fn pane_header(title: String, filter: &Filter, focused: bool) -> Div {
 
 impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let context = if self.editing() { FILTER } else { WORKSPACE };
+        self.inspect = self.inspect_next.take();
+        let context = if self.pending_grid.is_some() {
+            PROMPT
+        } else if self.editing() {
+            FILTER
+        } else {
+            WORKSPACE
+        };
+        let geometry = self.geometry(window.viewport_size());
         let cfg = self.cfg();
-        let layout = cfg.workspace_layout;
-        let viewport = window.viewport_size();
-        let content_h = viewport.height - px(STATUS_BAR_HEIGHT);
-        let fraction = |value: f64, default: f32| if value > 0.0 { value as f32 } else { default };
-        let left_w = viewport.width * fraction(layout.left_sidebar, LEFT_SIDEBAR);
-        let right_w = viewport.width * fraction(layout.right_sidebar, RIGHT_SIDEBAR);
-        let lower_panes = cfg.workspace_system_metrics_visible as usize
-            + cfg.workspace_console_logs_visible as usize;
-        let lower_total = if cfg.workspace_metrics_grid_visible {
-            content_h * LOWER_TIER
-        } else {
-            content_h
-        };
-        let each = if lower_panes > 0 {
-            lower_total / lower_panes as f32
-        } else {
-            px(0.)
-        };
-        let system_h = if layout.system > 0.0 {
-            viewport.height * layout.system as f32
-        } else {
-            each
-        };
-        let logs_h = if layout.logs > 0.0 {
-            viewport.height * layout.logs as f32
-        } else {
-            each
-        };
         let (show_metrics, show_system, show_console, show_overview) = (
             cfg.workspace_metrics_grid_visible,
             cfg.workspace_system_metrics_visible,
@@ -1037,13 +1365,13 @@ impl Render for Workspace {
             cfg.workspace_overview_visible,
         );
         let show_runs = self.show_runs;
-        let header = px(26.);
-        let metrics_h = content_h
-            - if show_system { system_h } else { px(0.) }
-            - if show_console { logs_h } else { px(0.) };
-        self.metrics_grid.fit(f32::from(metrics_h - header));
-        self.system_grid.fit(f32::from(system_h - header));
+        let header = px(HEADER_HEIGHT);
+        self.metrics_grid
+            .fit(f32::from(geometry.metrics_h - header));
+        self.system_grid.fit(f32::from(geometry.system_h - header));
         let workspace = cx.entity();
+        let system_above = show_metrics;
+        let console_above = show_metrics || show_system;
 
         div()
             .id("workspace")
@@ -1071,13 +1399,27 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::toggle_console))
             .on_action(cx.listener(Self::toggle_overview))
             .on_action(cx.listener(Self::toggle_log_y))
+            .on_action(cx.listener(Self::reset_zoom))
+            .on_action(cx.listener(Self::toggle_linked_inspect))
+            .on_action(cx.listener(Self::reset_layout))
             .on_action(cx.listener(Self::cycle_smoothing))
+            .on_action(cx.listener(Self::grid_cols))
+            .on_action(cx.listener(Self::grid_rows))
             .on_action(cx.listener(Self::filter_runs))
             .on_action(cx.listener(Self::filter_metrics))
             .on_action(cx.listener(Self::filter_system))
             .on_action(cx.listener(Self::filter_overview))
             .on_action(cx.listener(Self::clear_filter))
             .on_key_down(cx.listener(Self::key_down))
+            .on_mouse_move(cx.listener(Self::mouse_move))
+            .on_mouse_up(
+                MouseButton::Left,
+                cx.listener(|workspace, _, _, cx| workspace.mouse_up(cx)),
+            )
+            .on_mouse_up_out(
+                MouseButton::Left,
+                cx.listener(|workspace, _, _, cx| workspace.mouse_up(cx)),
+            )
             .relative()
             .size_full()
             .flex()
@@ -1092,7 +1434,10 @@ impl Render for Workspace {
                     .min_h_0()
                     .flex()
                     .flex_row()
-                    .when(show_runs, |main| main.child(render_runs(self, left_w, cx)))
+                    .when(show_runs, |main| {
+                        main.child(render_runs(self, geometry.left_w - px(SEPARATOR), cx))
+                            .child(self.separator(Separator::Left, cx))
+                    })
                     .child(
                         div()
                             .flex_1()
@@ -1126,27 +1471,40 @@ impl Render for Workspace {
                                     .context_run()
                                     .map(|ix| self.runs[ix].name.clone())
                                     .unwrap_or_default();
-                                column.child(render_grid(
-                                    GridView {
-                                        id: "system",
-                                        title: format!("system  {run}  {total} charts"),
-                                        filter: &self.filters.system,
-                                        focused: self.focus == Pane::System,
-                                        grid: &self.system_grid,
-                                        cells,
-                                        total,
-                                        height: Some(system_h),
-                                    },
-                                    workspace.clone(),
-                                    cx,
-                                ))
+                                let height = geometry.system_h
+                                    - if system_above { px(SEPARATOR) } else { px(0.) };
+                                column
+                                    .when(system_above, |column| {
+                                        column.child(self.separator(Separator::System, cx))
+                                    })
+                                    .child(render_grid(
+                                        GridView {
+                                            id: "system",
+                                            title: format!("system  {run}  {total} charts"),
+                                            filter: &self.filters.system,
+                                            focused: self.focus == Pane::System,
+                                            grid: &self.system_grid,
+                                            cells,
+                                            total,
+                                            height: Some(height),
+                                        },
+                                        workspace.clone(),
+                                        cx,
+                                    ))
                             })
                             .when(show_console, |column| {
-                                column.child(render_console(self, logs_h, cx))
+                                let height = geometry.logs_h
+                                    - if console_above { px(SEPARATOR) } else { px(0.) };
+                                column
+                                    .when(console_above, |column| {
+                                        column.child(self.separator(Separator::Console, cx))
+                                    })
+                                    .child(render_console(self, height, cx))
                             }),
                     )
                     .when(show_overview, |main| {
-                        main.child(render_overview(self, right_w, cx))
+                        main.child(self.separator(Separator::Right, cx))
+                            .child(render_overview(self, geometry.right_w - px(SEPARATOR), cx))
                     }),
             )
             .child(self.render_status())

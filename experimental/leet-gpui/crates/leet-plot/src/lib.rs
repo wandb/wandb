@@ -217,9 +217,17 @@ pub struct Point {
 
 /// Reduces `(xs, ys)` to at most two points per pixel column over `x_range`:
 /// the minimum and the maximum of each column, in x order, so spikes survive.
-/// Non-finite values are dropped. Series shorter than the budget pass through.
+/// Only the points inside `x_range` and their nearest neighbours outside it
+/// are considered, taking `xs` as ascending. Non-finite values are dropped.
+/// Series shorter than the budget pass through.
 pub fn decimate(xs: &[f64], ys: &[f64], x_range: Range, columns: usize) -> Vec<Point> {
     let n = xs.len().min(ys.len());
+    let lo = xs[..n]
+        .partition_point(|&x| x < x_range.min)
+        .saturating_sub(1);
+    let hi = (xs[..n].partition_point(|&x| x <= x_range.max) + 1).min(n);
+    let (xs, ys) = (&xs[lo..hi], &ys[lo..hi]);
+    let n = xs.len();
     let finite = |i: usize| xs[i].is_finite() && ys[i].is_finite();
     if n <= columns * 2 || x_range.span() <= 0.0 {
         return (0..n)
@@ -260,6 +268,22 @@ pub fn decimate(xs: &[f64], ys: &[f64], x_range: Range, columns: usize) -> Vec<P
         flush(&mut out, lo, hi);
     }
     out
+}
+
+/// The x range after scaling `current` by `factor` around the point at
+/// fraction `t` of its span, kept inside `full`. `None` once the result would
+/// cover all of `full`, which is the cue to drop the zoom.
+pub fn zoom(current: Range, full: Range, t: f64, factor: f64) -> Option<Range> {
+    let span = current.span() * factor;
+    if span >= full.span() || span <= 0.0 || !span.is_finite() {
+        return None;
+    }
+    let anchor = current.min + t * current.span();
+    let min = (anchor - t * span).clamp(full.min, full.max - span);
+    Some(Range {
+        min,
+        max: min + span,
+    })
 }
 
 /// The index of the point whose x is nearest to `x` in an ascending `xs`.
@@ -384,6 +408,36 @@ mod tests {
         assert!(points.len() <= 20);
         assert!(points.windows(2).all(|w| w[0].x <= w[1].x));
         assert!(points.iter().any(|p| p.y == 100.0) && points.iter().any(|p| p.y == -100.0));
+    }
+
+    #[test]
+    fn decimation_keeps_the_visible_window_and_its_neighbors() {
+        let xs: Vec<f64> = (0..100).map(f64::from).collect();
+        let ys = xs.clone();
+        let points = decimate(
+            &xs,
+            &ys,
+            Range {
+                min: 40.0,
+                max: 50.0,
+            },
+            500,
+        );
+        assert_eq!(points.first().map(|p| p.x), Some(39.0));
+        assert_eq!(points.last().map(|p| p.x), Some(51.0));
+    }
+
+    #[test]
+    fn zoom_scales_around_the_anchor_and_clears_at_full_range() {
+        let full = Range {
+            min: 0.0,
+            max: 100.0,
+        };
+        let zoomed = zoom(full, full, 0.5, 0.5).unwrap();
+        assert_eq!((zoomed.min, zoomed.max), (25.0, 75.0));
+        let edge = zoom(zoomed, full, 0.0, 0.5).unwrap();
+        assert_eq!((edge.min, edge.max), (25.0, 50.0));
+        assert_eq!(zoom(zoomed, full, 0.5, 3.0), None);
     }
 
     #[test]

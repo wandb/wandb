@@ -41,6 +41,8 @@ pub struct SeriesRef {
 
 #[derive(Debug, Clone)]
 pub struct ChartSpec {
+    /// The metric name or system base key; zoom and focus are keyed by it.
+    pub key: SharedString,
     pub x_axis: XAxis,
     pub log: bool,
     /// A y range to show even when the data spans less, as for percentages.
@@ -59,6 +61,8 @@ pub struct SeriesDraw {
 pub struct ChartData {
     pub x_range: Range,
     pub y_range: Range,
+    /// Where the crosshair sits, from this chart's mouse or a linked one.
+    pub hover_x: Option<f64>,
     pub series: Vec<SeriesDraw>,
 }
 
@@ -106,13 +110,15 @@ fn paint(
         return;
     }
     let mouse = window.mouse_position();
-    let hover_x = plot.contains(&mouse).then_some(mouse.x);
-    let hover_t =
-        hover_x.map(|x| (f32::from(x - plot.origin.x) / f32::from(plot.size.width)) as f64);
+    let plot_t = |x: Pixels| (f32::from(x - plot.origin.x) / f32::from(plot.size.width)) as f64;
+    let hover_t = plot.contains(&mouse).then(|| plot_t(mouse.x));
     let columns = f32::from(plot.size.width) as usize;
 
     let data = workspace.update(cx, |workspace, _| {
-        workspace.chart_data(spec, columns, hover_t)
+        let zoom = workspace
+            .take_zoom(&spec.key)
+            .map(|(factor, x)| (plot_t(x), factor));
+        workspace.chart_data(spec, columns, hover_t, zoom)
     });
     let Some(data) = data else {
         paint_text(
@@ -198,23 +204,22 @@ fn paint(
         }
     });
 
-    let Some(hover_x) = hover_x else {
+    let Some(hovered_x) = data.hover_x else {
         return;
     };
+    let hover_px = frame.to_px(hovered_x, frame.y_range.min).x;
     window.paint_quad(fill(
         Bounds {
-            origin: point(hover_x, plot.origin.y),
+            origin: point(hover_px, plot.origin.y),
             size: size(px(1.), plot.size.height),
         },
         theme::muted().opacity(0.6),
     ));
     let mut row_y = plot.origin.y + px(4.);
-    let mut hovered_x: Option<f64> = None;
     for s in &data.series {
         let Some((x, y)) = s.hover else {
             continue;
         };
-        hovered_x.get_or_insert(x);
         let p = frame.to_px(x, y);
         window.paint_quad(
             fill(
@@ -236,14 +241,12 @@ fn paint(
         );
         row_y += px(14.);
     }
-    if let Some(x) = hovered_x {
-        let label = match spec.x_axis {
-            XAxis::Step => format!("step {}", format_tick(x)),
-            XAxis::Time => format!("+{}", format_duration_tick(x - x_offset)),
-        };
-        let anchor = point(hover_x, plot.origin.y + plot.size.height - px(14.));
-        paint_text(window, cx, &label, anchor, theme::text(), Align::Center);
-    }
+    let label = match spec.x_axis {
+        XAxis::Step => format!("step {}", format_tick(hovered_x)),
+        XAxis::Time => format!("+{}", format_duration_tick(hovered_x - x_offset)),
+    };
+    let anchor = point(hover_px, plot.origin.y + plot.size.height - px(14.));
+    paint_text(window, cx, &label, anchor, theme::text(), Align::Center);
 }
 
 fn stroke(
