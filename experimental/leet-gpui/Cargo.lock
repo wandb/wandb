@@ -2992,6 +2992,7 @@ dependencies = [
  "leet-wire",
  "prost-types",
  "regex",
+ "tempfile",
 ]
 
 [[package]]

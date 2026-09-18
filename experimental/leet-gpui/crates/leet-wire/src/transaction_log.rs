@@ -274,6 +274,27 @@ impl<R: Read> Reader<R> {
         Ok(self.buf.clone())
     }
 
+    /// Like [`Reader::read_raw`] without the copy: the payload is valid until
+    /// the next read.
+    pub fn read_raw_ref(&mut self) -> Result<&[u8], TransactionLogError> {
+        self.read_into_buf()?;
+        Ok(&self.buf)
+    }
+
+    /// The file offset the next read starts at; usable with
+    /// [`Reader::seek_record`] on another reader of the same file.
+    pub fn next_offset(&self) -> i64 {
+        self.reader
+            .as_ref()
+            .map_or(0, |reader| reader.next_offset())
+    }
+
+    /// The file offset the last read started at, which is where a read that
+    /// failed on a partial record must be retried from.
+    pub fn last_read_offset(&self) -> i64 {
+        self.last_read_offset
+    }
+
     /// The shared body of [`Reader::read`] and [`Reader::read_raw`]: reads the
     /// next record's payload into `self.buf`.
     fn read_into_buf(&mut self) -> Result<(), TransactionLogError> {
