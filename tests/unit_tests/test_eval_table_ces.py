@@ -247,6 +247,159 @@ def test_ces_eval_table_raises_for_media_in_raise_mode(mock_ces_client):
     mock_ces_client.eval_tables.create.assert_not_called()
 
 
+def test_ces_eval_table_batches_rows_by_encoded_bytes(
+    mock_ces_client,
+    run,
+    monkeypatch,
+):
+    row = {
+        "input": {"prompt": "é" * 40},
+        "output": {"answer": "yes"},
+        "scores": {},
+    }
+    single_row_body_size = len(ces_writer._encode_json({"rows": [row]}))
+    monkeypatch.setattr(
+        ces_writer,
+        "_TARGET_ROW_BATCH_BODY_BYTES",
+        single_row_body_size - 1,
+    )
+    et = wandb.EvalTable(
+        columns=["prompt", "answer"],
+        data=[["é" * 40, "yes"], ["é" * 40, "yes"]],
+        input_columns=["prompt"],
+        output_columns=["answer"],
+        backend="ces",
+    )
+
+    run.log({"eval": et})
+
+    calls = mock_ces_client.eval_tables.add_rows.call_args_list
+    assert [call.kwargs["rows"] for call in calls] == [[row], [row]]
+    keys = [call.kwargs["idempotency_key"] for call in calls]
+    assert len(set(keys)) == 2
+    assert keys[0].endswith("-rows-0")
+    assert keys[1].endswith("-rows-1")
+
+
+@pytest.mark.parametrize(
+    ("separator_bytes", "expected_batch_sizes"),
+    [(1, [2, 1]), (0, [1, 1, 1])],
+)
+def test_ces_eval_table_batch_size_counts_row_separators(
+    separator_bytes,
+    expected_batch_sizes,
+):
+    row = {"input": {"value": "same"}, "output": None, "scores": {}}
+    row_size = len(ces_writer._encode_json(row))
+    target_size = ces_writer._ROW_BATCH_ENVELOPE_BYTES + 2 * row_size + separator_bytes
+    batches = list(
+        ces_writer._iter_row_batches(
+            [row, row, row],
+            max_body_bytes=16 << 20,
+            target_body_bytes=target_size,
+            max_rows=10_000,
+        )
+    )
+
+    assert [len(batch) for batch in batches] == expected_batch_sizes
+
+
+def test_ces_eval_table_batches_rows_by_count(
+    mock_ces_client,
+    run,
+    monkeypatch,
+):
+    monkeypatch.setattr(ces_writer, "_MAX_ROWS_PER_BATCH", 2)
+    et = wandb.EvalTable(
+        columns=["value"],
+        data=[[index] for index in range(5)],
+        output_columns=["value"],
+        backend="ces",
+    )
+
+    run.log({"eval": et})
+
+    calls = mock_ces_client.eval_tables.add_rows.call_args_list
+    assert [len(call.kwargs["rows"]) for call in calls] == [2, 2, 1]
+    assert [call[0] for call in mock_ces_client.eval_tables.method_calls] == [
+        "create",
+        "create_columns",
+        "add_rows",
+        "add_rows",
+        "add_rows",
+        "create_version",
+    ]
+
+
+def test_ces_eval_table_rejects_oversized_row_before_network(
+    mock_ces_client,
+    run,
+    monkeypatch,
+):
+    value = "large" * 100
+    row = {
+        "input": {"row": 0},
+        "output": {"value": value},
+        "scores": {},
+    }
+    body_size = len(ces_writer._encode_json({"rows": [row]}))
+    monkeypatch.setattr(ces_writer, "_MAX_REQUEST_BODY_BYTES", body_size)
+    et = wandb.EvalTable(
+        columns=["value"],
+        data=[[value]],
+        output_columns=["value"],
+        backend="ces",
+    )
+
+    with pytest.raises(UsageError, match="row at index 0"):
+        run.log({"eval": et})
+
+    mock_ces_client.eval_tables.create.assert_not_called()
+
+
+def test_ces_eval_table_rejects_total_row_count_before_network(
+    mock_ces_client,
+    run,
+    monkeypatch,
+):
+    monkeypatch.setattr(ces_writer, "_MAX_ROWS_PER_TABLE", 2)
+    et = wandb.EvalTable(
+        columns=["value"],
+        data=[[1], [2], [3]],
+        output_columns=["value"],
+        backend="ces",
+    )
+
+    with pytest.raises(UsageError, match="at most 2 rows per table"):
+        run.log({"eval": et})
+
+    mock_ces_client.eval_tables.create.assert_not_called()
+
+
+def test_ces_eval_table_does_not_cut_version_after_batch_failure(
+    mock_ces_client,
+    run,
+    monkeypatch,
+):
+    monkeypatch.setattr(ces_writer, "_MAX_ROWS_PER_BATCH", 1)
+    mock_ces_client.eval_tables.add_rows.side_effect = [
+        None,
+        RuntimeError("batch failed"),
+    ]
+    et = wandb.EvalTable(
+        columns=["value"],
+        data=[[1], [2]],
+        output_columns=["value"],
+        backend="ces",
+    )
+
+    with pytest.raises(RuntimeError, match="batch failed"):
+        run.log({"eval": et})
+
+    mock_ces_client.eval_tables.create_version.assert_not_called()
+    mock_ces_client.close.assert_called_once_with()
+
+
 def test_ces_eval_table_infers_python_and_numpy_integers(
     mock_ces_client,
     run,
@@ -579,7 +732,9 @@ def test_ces_client_uses_only_the_run_credentials(api_key, access_token):
 def test_ces_eval_table_retries_with_stable_idempotency_keys(
     mock_ces_client,
     run,
+    monkeypatch,
 ):
+    monkeypatch.setattr(ces_writer, "_MAX_ROWS_PER_BATCH", 1)
     version = SimpleNamespace(
         dataset_version_id="dataset-version-1",
         evaluation_version_id="evaluation-version-1",
@@ -590,7 +745,8 @@ def test_ces_eval_table_retries_with_stable_idempotency_keys(
     ]
     et = wandb.EvalTable(
         columns=["value"],
-        data=[[1]],
+        data=[[1], [2]],
+        output_columns=["value"],
         backend="ces",
     )
     et.bind_to_run(run, "eval", 0)
@@ -602,13 +758,19 @@ def test_ces_eval_table_retries_with_stable_idempotency_keys(
     methods = (
         mock_ces_client.eval_tables.create,
         mock_ces_client.eval_tables.create_columns,
-        mock_ces_client.eval_tables.add_rows,
         mock_ces_client.eval_tables.create_version,
     )
     for method in methods:
         calls = method.call_args_list
         assert len(calls) == 2
         assert calls[0].kwargs["idempotency_key"] == calls[1].kwargs["idempotency_key"]
+
+    row_calls = mock_ces_client.eval_tables.add_rows.call_args_list
+    assert len(row_calls) == 4
+    first_attempt_keys = [call.kwargs["idempotency_key"] for call in row_calls[:2]]
+    retry_keys = [call.kwargs["idempotency_key"] for call in row_calls[2:]]
+    assert first_attempt_keys == retry_keys
+    assert len(set(first_attempt_keys)) == 2
 
 
 def test_ces_eval_table_run_location_stabilizes_idempotency_keys(
