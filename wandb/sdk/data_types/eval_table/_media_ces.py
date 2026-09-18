@@ -69,19 +69,15 @@ def prepare_media(
     )
 
 
-def _media_for_run(media: _MediaT, run: Run) -> _MediaT:
-    if _is_bound_to_another_run(media, run):
-        return _unbound_copy(media)
-    return media
-
-
-def _is_bound_to_another_run(media: Media, run: Run) -> bool:
-    return media._run is not None and media._run is not run
+def _media_for_run(media: _MediaT, _run: Run) -> _MediaT:
+    return _unbound_copy(media)
 
 
 def _unbound_copy(media: _MediaT) -> _MediaT:
     cloned = copy.copy(media)
     cloned._run = None
+    # The original retains ownership of temporary files, so preparation copies them.
+    cloned._is_tmp = False
     return cloned
 
 
