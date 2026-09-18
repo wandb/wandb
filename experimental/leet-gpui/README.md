@@ -17,7 +17,9 @@ macOS builds compile the Metal shaders at runtime (`runtime_shaders`), so Xcode 
 
 ## What it shows
 
-The layout is leet's workspace: a runs sidebar on the left, a central column with the metrics grid over a lower tier of system metrics and console logs, the run overview on the right, and a status bar. `1`, `2`, `4`, `[`, `]` toggle panes, `tab` cycles focus, `n`/`N` page a grid, `space` selects runs to chart, `p` pins the run the overview, system, and console panes follow. Grids show fewer rows when their pane is short rather than charts without axes.
+The layout is leet's workspace: a runs sidebar on the left, a central column with the metrics grid over a lower tier of system metrics and console logs, the run overview on the right, and a status bar. `1`, `2`, `4`, `[`, `]` toggle panes, `tab` cycles focus, `n`/`N` page a grid, `space` selects runs to chart, `p` pins the run the overview, system, and console panes follow. Pane borders drag; `0` resets them. `c` or `r` followed by a digit sets the focused grid's columns or rows. Grids show fewer rows when their pane is short rather than charts without axes.
+
+Hovering a chart shows every series' value at that x, and the crosshair is linked across charts of the same axis so the same step can be read off all of them; `i` unlinks it. The mouse wheel zooms the x axis of the chart under it around the pointer, the y axis follows the visible window, and `z` resets the focused chart.
 
 Two files persist state, both in leet's format. `~/.config/wandb/wandb-leet-gpui.json` (or under `WANDB_CONFIG_DIR`) holds pane visibility, grid sizes, layout fractions, and smoothing. `.wandb-leet.json` inside the wandb directory is the file the terminal LEET writes: filters, selected and pinned runs, and the newest run at the time of saving, so a new run since the last visit is selected on open. Both apps read and write the same keys and leave each other's alone.
 
@@ -37,16 +39,18 @@ crates/
 
 ## Performance
 
-Loading is columnar end to end. A reader thread per opened run decodes the transaction log and flushes batches every 100 ms (50 ms once live) with one column per metric touched, so the UI thread appends slices instead of walking records. Each series keeps its extent, an incrementally extended smoothed copy, and its last decimated polyline keyed by length, smoothing, x range, and pixel width, so a hover repaint costs one lookup per series rather than a pass over the points.
+A run that already exists on disk is loaded by every core. `leet-ingest` splits the file into block-aligned ranges (a few small ones first so the first batch lands within milliseconds), frames and decodes each range on a worker, and hands the ranges to the consumer in file order as batches of packed per-metric columns. Hot record types are read with a small protobuf wire walker rather than prost, so history items cost a byte compare against the previous record's key at the same position and a float parse, with no string allocation. Summary records, which a wide run writes at every step, are folded to the latest value per key as bytes and reach the consumer once. Batch buffers go back to a pool after use because freeing a buffer another thread filled costs milliseconds on macOS. After the file has been read once, a single thread follows its tail.
+
+In the app each batch is appended to per-series columns that keep a running extent, an incrementally extended smoothed copy, and the last decimated polyline keyed by length, smoothing, x range, and pixel width; batches are applied for at most 10 ms per frame so a large load stays visible as it comes in.
 
 Measured on an M4 Max with `cargo run --release -p leet-ingest --example bench -- run.wandb`:
 
 | File | Decode | In the app |
 |---|---|---|
-| 300 MB, 5000 metrics, 5 M points | 1.5 s, 202 MB/s | drawn within 3 s of launch |
-| 6.7 MB, 62 metrics, 57 k points | 0.02 s | immediate |
+| 300 MB, 5000 metrics, 5 M points | 0.073 s, 4.1 GB/s | first batch drawn 80 ms after selecting the run, all of it within 0.2 s |
+| 6.7 MB, 62 metrics, 57 k points | 0.008 s | immediate |
 
-Decode is single-threaded and bound by protobuf parsing. The next steps, if a run needs them, are decoding raw record chunks on several threads and a hand-rolled field walker that skips string allocation for history items.
+The first version of the pipeline decoded with prost into one message per record and took 1.5 s for the same file; the sequential single-thread walker takes 0.95 s.
 
 ## Charts
 
