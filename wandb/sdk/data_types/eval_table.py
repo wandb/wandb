@@ -367,14 +367,16 @@ class EvalTable(Table):
             # Always use a dict so backends see a stable column-keyed shape;
             # single-output is no exception.
             if output_cols:
-                output: dict[str, Any] | None = {
+                outputs: dict[str, Any] | None = {
                     col: values[col] for col in output_cols
                 }
             else:
-                output = None
+                outputs = None
 
             scores = {col: values[col] for col in self._score_columns}
-            rows.append(EvalTableWriteRow(inputs=inputs, output=output, scores=scores))
+            rows.append(
+                EvalTableWriteRow(inputs=inputs, outputs=outputs, scores=scores)
+            )
 
         return EvalTableWriteInput(
             name=name,

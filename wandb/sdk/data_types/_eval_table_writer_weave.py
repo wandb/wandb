@@ -184,8 +184,8 @@ class WeaveEvalTableWriter:
             ev.log_example(
                 inputs=self._normalize_mapping(row.inputs, payload.column_keys),
                 output=(
-                    self._normalize_mapping(row.output, payload.column_keys)
-                    if row.output is not None
+                    self._normalize_mapping(row.outputs, payload.column_keys)
+                    if row.outputs is not None
                     else None
                 ),
                 scores=self._normalize_mapping(row.scores, payload.column_keys),

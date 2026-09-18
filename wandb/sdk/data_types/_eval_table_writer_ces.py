@@ -53,7 +53,7 @@ PrimitiveValueType = Literal["boolean", "integer", "number", "string"]
 
 
 @dataclass(frozen=True)
-class _PreparedCESWrite:
+class _CESWritePayloads:
     dataset_fields: list[dict[str, str]]
     scorers: list[dict[str, str]]
     rows: list[dict[str, Any]]
@@ -87,6 +87,7 @@ class CESEvalTableWriter:
         self._bound: _BoundRun | None = None
 
     def bind_to_run(self, run: LocalRun, key: str, step: int | str) -> None:
+        """Bind the run and derive a stable retry identity for this log location."""
         if not run.entity or not run.project:
             raise UsageError("CES EvalTable logging requires a W&B entity and project.")
         # CES replays the same key and body, but rejects a reused key whose body
@@ -110,10 +111,12 @@ class CESEvalTableWriter:
         )
 
     def validate_cell_value(self, value: Any, column: ColumnKey) -> None:
+        """Reject unsupported W&B values before the table is bound or written."""
         if isinstance(value, WBValue):
             self._validate_wandb_value(value, column)
 
     def write(self, payload: EvalTableWriteInput) -> EvalTableWriteResult:
+        """Prepare and persist the CES resources, then return their history marker."""
         bound = self._require_bound()
 
         base_url = os.environ.get(_CES_BASE_URL_ENV)
@@ -123,18 +126,16 @@ class CESEvalTableWriter:
                 "before logging a CES EvalTable."
             )
 
+        # TODO: coreweave_evaluations is new and under development. This will become
+        # obsolete once we actually publish the package and add it to wandb deps.
         try:
             from coreweave_evaluations import CoreWeaveEvaluations
         except ImportError as exc:
             raise UsageError(
-                "CES EvalTable logging requires the coreweave_evaluations "
-                "package, which wandb/core generates and does not publish. Install "
-                "it from core/services/evaluations/generated/python; the venv-dev "
-                "target in examples-dev/evals-for-models builds an environment "
-                "with it."
+                "CES EvalTable logging requires the coreweave_evaluations package."
             ) from exc
 
-        prepared = self._prepare(payload)
+        write_payloads = self._build_write_payloads(payload)
         scope = self._resolve_scope_context(bound)
         client = self._create_client(CoreWeaveEvaluations, base_url, scope)
         try:
@@ -148,15 +149,15 @@ class CESEvalTableWriter:
                 created.evaluation_id,
                 namespace=_WANDB_SCOPE_NAMESPACE,
                 scope_ref=scope.scope_ref,
-                dataset_fields=prepared.dataset_fields,
-                scorers=prepared.scorers,
+                dataset_fields=write_payloads.dataset_fields,
+                scorers=write_payloads.scorers,
                 idempotency_key=self._idempotency_key(bound, "columns"),
             )
             client.eval_tables.add_rows(
                 created.evaluation_id,
                 namespace=_WANDB_SCOPE_NAMESPACE,
                 scope_ref=scope.scope_ref,
-                rows=prepared.rows,
+                rows=write_payloads.rows,
                 idempotency_key=self._idempotency_key(bound, "rows"),
             )
             version = client.eval_tables.create_version(
@@ -177,9 +178,8 @@ class CESEvalTableWriter:
 
         return EvalTableWriteResult(
             marker={
-                # Frontend dispatches on `_type` and validates backend/schema.
+                # Frontend dispatches on `_type` and validates the schema version.
                 "_type": "eval-table-ces",
-                "backend": "ces",
                 "schema_version": 1,
                 "ncols": payload.ncols,
                 "nrows": len(payload.rows),
@@ -192,7 +192,8 @@ class CESEvalTableWriter:
             logged_id=version.evaluation_version_id,
         )
 
-    def _prepare(self, value: EvalTableWriteInput) -> _PreparedCESWrite:
+    def _build_write_payloads(self, value: EvalTableWriteInput) -> _CESWritePayloads:
+        """Normalize rows and infer ordered column schemas."""
         self._validate_name(
             "EvalTable",
             value.name,
@@ -213,31 +214,31 @@ class CESEvalTableWriter:
         rows: list[dict[str, Any]] = []
 
         for row in value.rows:
-            inputs = self._prepare_mapping(
+            inputs = self._normalize_row_input_or_output_values(
                 row.inputs,
                 source="input",
                 column_keys=value.column_keys,
                 types=dataset_field_types,
                 order=dataset_field_order,
             )
-            output = (
-                self._prepare_mapping(
-                    row.output,
+            outputs = (
+                self._normalize_row_input_or_output_values(
+                    row.outputs,
                     source="output",
                     column_keys=value.column_keys,
                     types=dataset_field_types,
                     order=dataset_field_order,
                 )
-                if row.output is not None
+                if row.outputs is not None
                 else None
             )
-            scores = self._prepare_scores(
+            scores = self._normalize_row_score_values(
                 row.scores,
                 column_keys=value.column_keys,
                 types=scorer_types,
                 order=scorer_order,
             )
-            rows.append({"input": inputs, "output": output, "scores": scores})
+            rows.append({"input": inputs, "output": outputs, "scores": scores})
 
         missing_fields = [
             name
@@ -255,7 +256,7 @@ class CESEvalTableWriter:
         if len(dataset_field_order) > _MAX_DATASET_FIELDS:
             raise UsageError(
                 "CES EvalTable logging supports at most "
-                f"{_MAX_DATASET_FIELDS} Dataset fields."
+                f"{_MAX_DATASET_FIELDS} input and output columns combined."
             )
         if len(scorer_order) > _MAX_SCORERS:
             raise UsageError(
@@ -277,13 +278,13 @@ class CESEvalTableWriter:
             "columns", {"dataset_fields": dataset_fields, "scorers": scorers}
         )
         self._validate_body_size("rows", {"rows": rows})
-        return _PreparedCESWrite(
+        return _CESWritePayloads(
             dataset_fields=dataset_fields,
             scorers=scorers,
             rows=rows,
         )
 
-    def _prepare_mapping(
+    def _normalize_row_input_or_output_values(
         self,
         values: Mapping[str, Any],
         *,
@@ -292,12 +293,13 @@ class CESEvalTableWriter:
         types: dict[tuple[str, str], PrimitiveValueType],
         order: dict[tuple[str, str], None],
     ) -> dict[str, Any]:
-        prepared: dict[str, Any] = {}
+        """Normalize one input/output mapping and accumulate its inferred types."""
+        normalized_values: dict[str, Any] = {}
         for name, value in values.items():
             key = (source, name)
             if key not in order:
                 self._validate_name(
-                    "Dataset field",
+                    f"{source} column",
                     name,
                     max_length=_MAX_DATASET_FIELD_NAME_LENGTH,
                 )
@@ -306,10 +308,10 @@ class CESEvalTableWriter:
             normalized, value_type = self._normalize_primitive(value, column)
             if value_type is not None:
                 types[key] = self._merge_type(column, types.get(key), value_type)
-            prepared[name] = normalized
-        return prepared
+            normalized_values[name] = normalized
+        return normalized_values
 
-    def _prepare_scores(
+    def _normalize_row_score_values(
         self,
         values: Mapping[str, Any],
         *,
@@ -317,11 +319,12 @@ class CESEvalTableWriter:
         types: dict[str, PrimitiveValueType],
         order: dict[str, None],
     ) -> dict[str, Any]:
-        prepared: dict[str, Any] = {}
+        """Normalize one score mapping and accumulate its inferred types."""
+        normalized_values: dict[str, Any] = {}
         for name, value in values.items():
             if name not in order:
                 self._validate_name(
-                    "Scorer",
+                    "score column",
                     name,
                     max_length=_MAX_SCORER_NAME_LENGTH,
                 )
@@ -330,14 +333,15 @@ class CESEvalTableWriter:
             normalized, value_type = self._normalize_primitive(value, column)
             if value_type is not None:
                 types[name] = self._merge_type(column, types.get(name), value_type)
-            prepared[name] = normalized
-        return prepared
+            normalized_values[name] = normalized
+        return normalized_values
 
     def _normalize_primitive(
         self,
         value: Any,
         column: ColumnKey,
     ) -> tuple[Any, PrimitiveValueType | None]:
+        """Return a JSON-safe value and its observed CES primitive type."""
         if isinstance(value, WBValue):
             value = self._normalize_wandb_value(value, column)
         if value is None:
@@ -391,6 +395,7 @@ class CESEvalTableWriter:
             )
 
     def _normalize_wandb_value(self, value: WBValue, column: ColumnKey) -> str:
+        """Validate or replace an unsupported W&B value with a placeholder."""
         # Keep media adaptation behind one hook so CES-native media can replace
         # the unsupported fallback as its schemas and upload paths are added.
         self._validate_wandb_value(value, column)
@@ -407,6 +412,7 @@ class CESEvalTableWriter:
         existing: PrimitiveValueType | None,
         observed: PrimitiveValueType,
     ) -> PrimitiveValueType:
+        """Merge observed types, widening integer and number columns to number."""
         if existing is None or existing == observed:
             return observed
         if {existing, observed} == {"integer", "number"}:
@@ -418,6 +424,7 @@ class CESEvalTableWriter:
         )
 
     def _validate_body_size(self, operation: str, body: dict[str, Any]) -> None:
+        """Reject a request body at or above the CES 16 MiB limit."""
         encoded = json.dumps(
             body,
             allow_nan=False,
@@ -435,9 +442,11 @@ class CESEvalTableWriter:
         return self._bound
 
     def _idempotency_key(self, bound: _BoundRun, operation: str) -> str:
+        """Derive an operation-specific retry key from the bound log location."""
         return f"wandb-eval-table-v1-{bound.idempotency_scope}-{operation}"
 
     def _resolve_scope_context(self, bound: _BoundRun) -> _CESScopeContext:
+        """Resolve the project scope and preferred run credential for CES."""
         response = bound.service_api.execute_graphql(
             _PROJECT_SCOPE_QUERY,
             variables={"entity": bound.entity, "project": bound.project},
@@ -468,6 +477,7 @@ class CESEvalTableWriter:
         base_url: str,
         scope: _CESScopeContext,
     ) -> CoreWeaveEvaluationsT:
+        """Create a client while keeping the run's credentials authoritative."""
         # The client builds the Authorization header from these and rejects a
         # request that reaches it without one, so a header set on an httpx
         # client would arrive too late to satisfy it.
