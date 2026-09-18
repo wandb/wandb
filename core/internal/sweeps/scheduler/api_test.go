@@ -18,7 +18,7 @@ import (
 func newTestAPI(
 	client *gqlmock.MockClient,
 	features map[spb.ServerFeature]bool,
-) *scheduler.SweepAPI {
+) scheduler.SweepAPI {
 	return scheduler.NewSweepAPI(
 		client,
 		featurechecker.NewPreloaded(features),
