@@ -513,7 +513,15 @@ class CESEvalTableWriter:
             if self._unsupported_media_mode == "raise":
                 raise
             wandb.termwarn(error.stub_warning, repeat=False)
-            return error.stub_value, _CESFieldType("string"), None
+            return (
+                None,
+                _CESFieldType(
+                    value_type="json",
+                    extension_type=error.extension_type,
+                    extension_schema_version=1,
+                ),
+                None,
+            )
 
         field_type = _CESFieldType(
             value_type="json",

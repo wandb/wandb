@@ -59,10 +59,16 @@ class PreparedMediaCell:
 class _UnsupportedMediaVariantError(TypeError):
     """Raised when EvalTable supports a media type but not its backing data."""
 
-    def __init__(self, message: str, *, stub_warning: str, stub_value: str) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        stub_warning: str,
+        extension_type: _CESExtensionType,
+    ) -> None:
         super().__init__(message)
         self.stub_warning = stub_warning
-        self.stub_value = stub_value
+        self.extension_type = extension_type
 
 
 def is_supported_wandb_media(value: Any) -> bool:
@@ -84,11 +90,22 @@ def prepare_media(
 
 
 def prepare_image(image: Image, run: Run, eval_table_key: str) -> PreparedMediaCell:
+    if image._boxes or image._masks:
+        raise _UnsupportedMediaVariantError(
+            "EvalTable does not support wandb.Image masks or boxes yet. Pass "
+            "unsupported_media_mode='stub' to log null instead.",
+            stub_warning=(
+                "wandb.Image values with masks or boxes are not supported by "
+                "EvalTable yet. They will be logged as null."
+            ),
+            extension_type="wandb-image",
+        )
+
     working_image = _media_for_run(image, run)
     if _committed_artifact_ref_url(working_image) is None:
         _bind_eval_table_media_to_run(working_image, run, eval_table_key)
 
-    image_json = _image_json_without_overlays(working_image, run)
+    image_json = working_image.to_json(run)
     extension_value = _image_ces_extension_value(image_json, run)
     encoded_size = len(_encode_json(extension_value))
     oversized = encoded_size >= CES_MAX_CELL_BYTES
@@ -146,15 +163,12 @@ def _check_external_reference_artifact(media: Media) -> None:
             raise _UnsupportedMediaVariantError(
                 "EvalTable does not support wandb.Image values backed by "
                 "external reference artifacts. Pass unsupported_media_mode='stub' "
-                "to log a placeholder string instead.",
+                "to log null instead.",
                 stub_warning=(
                     "wandb.Image values backed by external reference artifacts "
-                    "are not supported by EvalTable. They will be logged as "
-                    "placeholder strings."
+                    "are not supported by EvalTable. They will be logged as null."
                 ),
-                stub_value=(
-                    "[wandb.Image external reference artifact not supported]"
-                ),
+                extension_type="wandb-image",
             )
 
 
@@ -243,16 +257,6 @@ def _image_ces_extension_value(
     return cast("WandbImageV1Param", extension_value)
 
 
-def _image_json_without_overlays(image: Image, run: Run) -> dict[str, Any]:
-    if not image._boxes and not image._masks:
-        return image.to_json(run)
-
-    base_image = copy.copy(image)
-    base_image._boxes = None
-    base_image._masks = None
-    return base_image.to_json(run)
-
-
 def _uri_from_media_json(value: dict[str, Any], run: Run) -> str:
     artifact_path = value.get("artifact_path")
     if util._is_artifact_string(artifact_path):
@@ -261,13 +265,6 @@ def _uri_from_media_json(value: dict[str, Any], run: Run) -> str:
     if not isinstance(path, str):
         raise UsageError("EvalTable media JSON has no durable file reference.")
     return _run_file_uri(run, path)
-
-
-def _file_sha256(path: str) -> str:
-    with open(path, "rb") as file:
-        return hashlib.sha256(file.read()).hexdigest()
-
-
 def _encode_json(value: Any) -> bytes:
     return json.dumps(
         value,
