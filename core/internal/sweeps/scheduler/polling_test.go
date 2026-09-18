@@ -16,72 +16,52 @@ import (
 // Once the search space is exhausted the sweep still has to wait out
 // the runs already scheduled: finishing it early would stop the
 // backend handing them to agents.
-func TestExhaustedSearchSpace(t *testing.T) {
-	t.Run("finishes the sweep with nothing in flight", func(t *testing.T) {
-		fixture := newLoopFixture(t, scheduler.SchedulerParams{})
-		fixture.warmTo(t)
-		fixture.stubIdlePoll("RUNNING")
-		fixture.step(t, warmResult(nil))
+// With nothing in flight it finishes at once: see TestOptimizerFinishesTheSweep.
+func TestExhaustedSearchSpaceWaitsForRunsInFlight(t *testing.T) {
+	fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 2})
+	fixture.warmTo(t)
 
-		fixture.stubFinishSweep()
-		done := fixture.step(t, generationResult(
-			&spb.SweepSchedulerClientGenerationResult{
-				AskOutcome: spb.SweepSchedulerClientGenerationResult_ASK_OUTCOME_EXHAUSTED,
-			}))
+	// Adopt a running run so a scheduled run is outstanding when the
+	// search space runs out.
+	fixture.stubPoll(pollJSON("RUNNING", false, "",
+		testRun{name: "run-1", state: "running"},
+	))
+	fixture.step(t, warmResult(map[string]string{"run-1": "opt-1"}))
 
-		require.NotNil(t, done.GetDone())
-		assert.Equal(t,
-			spb.SweepSchedulerServerDoneTask_REASON_SWEEP_FINISHED,
-			done.GetDone().Reason)
-		assert.True(t, fixture.client.AllStubsUsed())
-	})
+	// Exhausted, but the run is still going: finishing the sweep now
+	// would strand it, so the loop keeps polling without asking.
+	fixture.stubPoll(pollJSON("RUNNING", false, "",
+		testRun{name: "run-1", state: "running"},
+	))
+	draining := fixture.step(t, generationResult(
+		&spb.SweepSchedulerClientGenerationResult{
+			AskOutcome: spb.SweepSchedulerClientGenerationResult_ASK_OUTCOME_EXHAUSTED,
+		}))
 
-	t.Run("waits for the runs already scheduled", func(t *testing.T) {
-		fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 2})
-		fixture.warmTo(t)
+	generation := draining.GetGeneration()
+	require.NotNil(t, generation, "expected the loop to keep iterating")
+	assert.Zero(t, generation.AskUpTo, "must not ask once exhausted")
+	require.Len(t, generation.Updates, 1)
 
-		// Adopt a running run so a scheduled run is outstanding when the
-		// search space runs out.
-		fixture.stubPoll(pollJSON("RUNNING", false, "",
-			testRun{name: "run-1", state: "running"},
-		))
-		fixture.step(t, warmResult(map[string]string{"run-1": "opt-1"}))
+	// The run finishes: its terminal update is delivered first.
+	fixture.stubPoll(pollJSON("RUNNING", false, "",
+		testRun{name: "run-1", state: "finished", summary: `{"loss": 1}`},
+	))
+	terminal := fixture.step(t, emptyIterResult())
+	require.Len(t, terminal.GetGeneration().Updates, 1)
+	assert.Equal(t,
+		spb.SweepRunState_SWEEP_RUN_STATE_FINISHED,
+		terminal.GetGeneration().Updates[0].Run.State)
 
-		// Exhausted, but the run is still going: finishing the sweep now
-		// would strand it, so the loop keeps polling without asking.
-		fixture.stubPoll(pollJSON("RUNNING", false, "",
-			testRun{name: "run-1", state: "running"},
-		))
-		draining := fixture.step(t, generationResult(
-			&spb.SweepSchedulerClientGenerationResult{
-				AskOutcome: spb.SweepSchedulerClientGenerationResult_ASK_OUTCOME_EXHAUSTED,
-			}))
+	// With nothing left in flight, the sweep is finished for real.
+	fixture.stubFinishSweep()
+	fixture.stubIdlePoll("RUNNING")
+	done := fixture.step(t, emptyIterResult())
 
-		generation := draining.GetGeneration()
-		require.NotNil(t, generation, "expected the loop to keep iterating")
-		assert.Zero(t, generation.AskUpTo, "must not ask once exhausted")
-		require.Len(t, generation.Updates, 1)
-
-		// The run finishes: its terminal update is delivered first.
-		fixture.stubPoll(pollJSON("RUNNING", false, "",
-			testRun{name: "run-1", state: "finished", summary: `{"loss": 1}`},
-		))
-		terminal := fixture.step(t, emptyIterResult())
-		require.Len(t, terminal.GetGeneration().Updates, 1)
-		assert.Equal(t,
-			spb.SweepRunState_SWEEP_RUN_STATE_FINISHED,
-			terminal.GetGeneration().Updates[0].Run.State)
-
-		// With nothing left in flight, the sweep is finished for real.
-		fixture.stubFinishSweep()
-		fixture.stubIdlePoll("RUNNING")
-		done := fixture.step(t, emptyIterResult())
-
-		require.NotNil(t, done.GetDone())
-		assert.Equal(t,
-			spb.SweepSchedulerServerDoneTask_REASON_SWEEP_FINISHED, done.GetDone().Reason)
-		assert.True(t, fixture.client.AllStubsUsed())
-	})
+	require.NotNil(t, done.GetDone())
+	assert.Equal(t,
+		spb.SweepSchedulerServerDoneTask_REASON_SWEEP_FINISHED, done.GetDone().Reason)
+	assert.True(t, fixture.client.AllStubsUsed())
 }
 
 func TestSucceededRunIsDroppedFromTheWatchedSet(t *testing.T) {
@@ -245,30 +225,6 @@ func TestPollWalksEveryPageOfTheWatchedRuns(t *testing.T) {
 	assert.True(t, fixture.client.AllStubsUsed())
 }
 
-func TestUnreadableRowReusesLastKnownState(t *testing.T) {
-	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
-	fixture.warmTo(t)
-	fixture.stubPoll(pollJSON("RUNNING", false, "",
-		testRun{name: "run-1", state: "running"},
-	))
-	fixture.step(t, warmResult(map[string]string{"run-1": "opt-1"}))
-
-	// A row present but with an unreadable (empty) state usually means
-	// the backend and SDK have mismatched GQL schemas, not that this
-	// one run is broken; the run keeps its last known state (RUNNING)
-	// rather than being failed, with no confirming read needed.
-	fixture.stubPoll(pollJSON("RUNNING", false, "",
-		testRun{name: "run-1", state: ""},
-	))
-	task := fixture.step(t, emptyIterResult())
-
-	updates := task.GetGeneration().Updates
-	require.Len(t, updates, 1)
-	assert.Equal(t,
-		spb.SweepRunState_SWEEP_RUN_STATE_RUNNING, updates[0].Run.State)
-	assert.True(t, fixture.client.AllStubsUsed())
-}
-
 // A dormant run that turns out to be deleted stops being read, rather
 // than costing a confirming query on every later poll.
 func TestDeletedDormantRunStopsBeingWatched(t *testing.T) {
@@ -394,68 +350,70 @@ func TestPreemptedRunIsTerminalAndFreesItsSlot(t *testing.T) {
 	assert.EqualValues(t, 1, next.GetGeneration().AskUpTo)
 }
 
-func TestFinishedWithoutMetricReclassified(t *testing.T) {
-	fixture := newLoopFixture(t,
-		scheduler.SchedulerParams{MetricKeys: []string{"loss"}})
-	fixture.warmTo(t)
-	fixture.stubPoll(pollJSON("RUNNING", false, "",
-		testRun{name: "run-1", state: "running"},
-	))
-	fixture.step(t, warmResult(map[string]string{"run-1": "opt-1"}))
+// Every classification of a polled row, against one shared flow.
+func TestPolledRowClassification(t *testing.T) {
+	for name, polled := range map[string]struct {
+		metricKeys  []string
+		row         testRun
+		wantState   spb.SweepRunState
+		wantAskUpTo int
+	}{
+		// A row present but with an unreadable (empty) state usually means
+		// the backend and SDK have mismatched GQL schemas, not that this
+		// one run is broken; the run keeps its last known state (RUNNING)
+		// rather than being failed, with no confirming read needed.
+		"an unreadable row reuses the last known state": {
+			row:         testRun{name: "run-1", state: ""},
+			wantState:   spb.SweepRunState_SWEEP_RUN_STATE_RUNNING,
+			wantAskUpTo: 0,
+		},
 
-	fixture.stubPoll(pollJSON("RUNNING", false, "",
-		testRun{name: "run-1", state: "finished", summary: `{"other": 1}`},
-	))
-	task := fixture.step(t, emptyIterResult())
+		"a finish without the sweep metric is failed": {
+			metricKeys: []string{"loss"},
+			row: testRun{name: "run-1", state: "finished",
+				summary: `{"other": 1}`},
+			wantState:   spb.SweepRunState_SWEEP_RUN_STATE_FAILED,
+			wantAskUpTo: 1,
+		},
 
-	updates := task.GetGeneration().Updates
-	require.Len(t, updates, 1)
-	assert.Equal(t,
-		spb.SweepRunState_SWEEP_RUN_STATE_FAILED, updates[0].Run.State)
-}
+		"a sweep with no metric keeps the finish": {
+			row:         testRun{name: "run-1", state: "finished", summary: `{}`},
+			wantState:   spb.SweepRunState_SWEEP_RUN_STATE_FINISHED,
+			wantAskUpTo: 1,
+		},
 
-func TestNoMetricSweepSkipsReclassification(t *testing.T) {
-	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
-	fixture.warmTo(t)
-	fixture.stubPoll(pollJSON("RUNNING", false, "",
-		testRun{name: "run-1", state: "running"},
-	))
-	fixture.step(t, warmResult(map[string]string{"run-1": "opt-1"}))
+		// The states this build knows already cover every live one, so an
+		// unrecognized value is almost certainly a terminal state added
+		// since: the run is failed and frees its slot rather than being
+		// waited on for the rest of the sweep.
+		"an unrecognized state fails the run": {
+			row:         testRun{name: "run-1", state: "hibernating"},
+			wantState:   spb.SweepRunState_SWEEP_RUN_STATE_FAILED,
+			wantAskUpTo: 1,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			fixture := newLoopFixture(t, scheduler.SchedulerParams{
+				MetricKeys: polled.metricKeys,
+			})
+			fixture.warmTo(t)
+			fixture.stubPoll(pollJSON("RUNNING", false, "",
+				testRun{name: "run-1", state: "running"},
+			))
+			fixture.step(t, warmResult(map[string]string{"run-1": "opt-1"}))
 
-	fixture.stubPoll(pollJSON("RUNNING", false, "",
-		testRun{name: "run-1", state: "finished", summary: `{}`},
-	))
-	task := fixture.step(t, emptyIterResult())
+			fixture.stubPoll(pollJSON("RUNNING", false, "", polled.row))
+			task := fixture.step(t, emptyIterResult())
 
-	updates := task.GetGeneration().Updates
-	require.Len(t, updates, 1)
-	assert.Equal(t,
-		spb.SweepRunState_SWEEP_RUN_STATE_FINISHED, updates[0].Run.State)
-}
-
-func TestNovelStateFailsTheRun(t *testing.T) {
-	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
-	fixture.warmTo(t)
-	fixture.stubPoll(pollJSON("RUNNING", false, "",
-		testRun{name: "run-1", state: "running"},
-	))
-	fixture.step(t, warmResult(map[string]string{"run-1": "opt-1"}))
-
-	// The states this build knows already cover every live one, so an
-	// unrecognized value is almost certainly a terminal state added
-	// since: the run is failed and frees its slot rather than being
-	// waited on for the rest of the sweep.
-	fixture.stubPoll(pollJSON("RUNNING", false, "",
-		testRun{name: "run-1", state: "hibernating"},
-	))
-	task := fixture.step(t, emptyIterResult())
-
-	generation := task.GetGeneration()
-	updates := generation.Updates
-	require.Len(t, updates, 1)
-	assert.Equal(t,
-		spb.SweepRunState_SWEEP_RUN_STATE_FAILED, updates[0].Run.State)
-	assert.EqualValues(t, 1, generation.AskUpTo)
+			generation := task.GetGeneration()
+			require.NotNil(t, generation)
+			require.Len(t, generation.Updates, 1)
+			assert.Equal(t,
+				polled.wantState, generation.Updates[0].Run.State)
+			assert.EqualValues(t, polled.wantAskUpTo, generation.AskUpTo)
+			assert.True(t, fixture.client.AllStubsUsed())
+		})
+	}
 }
 
 func TestRunCapAccountsForRunsFinishedDuringPolling(t *testing.T) {
