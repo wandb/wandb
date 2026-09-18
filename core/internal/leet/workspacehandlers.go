@@ -1311,6 +1311,33 @@ func (w *Workspace) handlePinRunKey(msg tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
+// handleSelectAllRunsKey selects every run matching the runs filter.
+func (w *Workspace) handleSelectAllRunsKey(tea.KeyPressMsg) tea.Cmd {
+	if !w.runSelectorActive() {
+		return nil
+	}
+	var cmds []tea.Cmd
+	for _, item := range w.runs.FilteredItems {
+		if !w.selectedRuns[item.Key] {
+			cmds = append(cmds, w.toggleRunSelected(item.Key))
+		}
+	}
+	return batchCmds(cmds...)
+}
+
+// handleDeselectAllRunsKey deselects every run except the pinned one.
+func (w *Workspace) handleDeselectAllRunsKey(tea.KeyPressMsg) tea.Cmd {
+	if !w.runSelectorActive() {
+		return nil
+	}
+	for key := range w.selectedRuns {
+		if key != w.pinnedRun {
+			w.dropRun(key)
+		}
+	}
+	return nil
+}
+
 // ---- Sidebar Navigation ----
 
 func (w *Workspace) handleRunsVerticalNav(msg tea.KeyPressMsg) tea.Cmd {

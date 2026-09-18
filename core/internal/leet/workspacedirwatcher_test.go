@@ -88,6 +88,15 @@ func TestWorkspace_SelectAndPinRuns_StateTransitions(t *testing.T) {
 	require.Equal(t, 1, w.TestSelectedRunCount())
 	require.False(t, w.TestIsRunSelected(run2))
 	require.Equal(t, "", w.TestPinnedRun())
+
+	// Select all runs, then deselect all but the pinned one.
+	w.Update(tea.KeyPressMsg{Code: 'a', Mod: tea.ModCtrl})
+	require.Equal(t, 2, w.TestSelectedRunCount())
+	require.Equal(t, run2, w.TestPinnedRun(), "auto-pin lands on the newly selected run")
+
+	w.Update(tea.KeyPressMsg{Code: 'x'})
+	require.Equal(t, 1, w.TestSelectedRunCount())
+	require.True(t, w.TestIsRunSelected(run2))
 }
 
 func TestWorkspace_RunOverviewPreloads_BoundedConcurrency(t *testing.T) {
