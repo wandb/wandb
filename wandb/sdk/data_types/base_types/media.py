@@ -48,14 +48,6 @@ def _wb_filename(key: str | int, step: str | int, id: str | int, extension: str)
     return f"{str(key)}_{str(step)}_{str(id)}{extension}"
 
 
-def _file_sha256(path: str) -> str:
-    digest = hashlib.sha256()
-    with open(path, "rb") as file:
-        for chunk in iter(lambda: file.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 class Media(WBValue):
     """A WBValue stored as a file outside JSON that can be rendered in a media panel.
 
@@ -91,7 +83,8 @@ class Media(WBValue):
             f'Media file extension "{extension}" must occur at the end of path "{path}".'
         )
 
-        self._sha256 = _file_sha256(self._path)
+        with open(self._path, "rb") as file:
+            self._sha256 = hashlib.sha256(file.read()).hexdigest()
         self._size = os.path.getsize(self._path)
 
     @classmethod
