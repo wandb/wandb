@@ -188,6 +188,19 @@ pub fn format_tick(v: f64) -> String {
     trim_zeros(&format!("{v:.*}", digits.max(0) as usize))
 }
 
+/// Formats a duration in seconds for a time axis: `45s`, `12m30s`, `3h05m`.
+pub fn format_duration_tick(seconds: f64) -> String {
+    let total = seconds.round().max(0.0) as u64;
+    let (h, m, s) = (total / 3600, total % 3600 / 60, total % 60);
+    if h > 0 {
+        format!("{h}h{m:02}m")
+    } else if m > 0 {
+        format!("{m}m{s:02}s")
+    } else {
+        format!("{s}s")
+    }
+}
+
 fn trim_zeros(s: &str) -> String {
     if !s.contains('.') {
         return s.to_string();
@@ -344,6 +357,13 @@ mod tests {
         assert_eq!(format_tick(0.25), "0.25");
         assert_eq!(format_tick(3.0), "3");
         assert_eq!(format_tick(0.00004), "4.0e-5");
+    }
+
+    #[test]
+    fn duration_ticks_pick_the_largest_unit() {
+        assert_eq!(format_duration_tick(45.0), "45s");
+        assert_eq!(format_duration_tick(750.0), "12m30s");
+        assert_eq!(format_duration_tick(10_980.0), "3h03m");
     }
 
     #[test]

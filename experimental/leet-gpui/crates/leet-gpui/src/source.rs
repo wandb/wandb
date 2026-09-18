@@ -1,16 +1,10 @@
-//! Run discovery and background readers. Each reader owns a
-//! `LevelDBHistorySource` on its own thread and forwards message batches
-//! over a channel; the workspace applies them on the UI thread.
+//! Run discovery and the threads that feed runs into the workspace.
 
 use std::path::{Path, PathBuf};
 use std::thread;
-use std::time::Duration;
 
 use futures::channel::mpsc::UnboundedSender;
-use leet_data::history_source::{
-    BOOT_LOAD_CHUNK_SIZE, BOOT_LOAD_MAX_TIME, HistorySource, RunMsg, SourceMsg,
-};
-use leet_data::leveldb_history_source::LevelDBHistorySource;
+use leet_ingest::{Batch, RunInfo};
 
 /// A run directory inside a wandb directory.
 #[derive(Debug, Clone)]
@@ -83,70 +77,22 @@ pub fn scan(wandb_dir: &Path) -> Vec<RunDir> {
     runs
 }
 
-/// Streams the records of `run` as batches until the run's exit record has
-/// been read. A file that is still being written is polled once a second; an
-/// empty batch marks the moment the reader first catches up with the writer.
-pub fn spawn_reader(run: &RunDir, tx: UnboundedSender<Vec<SourceMsg>>) {
-    let path = run.wandb_file.to_string_lossy().into_owned();
-    thread::spawn(move || {
-        let mut source = match LevelDBHistorySource::new(&path) {
-            Ok(source) => source,
-            Err(err) => {
-                let _ = tx.unbounded_send(vec![SourceMsg::Error(
-                    leet_data::history_source::ErrorMsg { err: Box::new(err) },
-                )]);
-                return;
-            }
-        };
-        let mut caught_up = false;
-        loop {
-            let (msg, err) = source.read(BOOT_LOAD_CHUNK_SIZE, BOOT_LOAD_MAX_TIME);
-            let mut has_more = false;
-            let mut batch = Vec::new();
-            if let Some(msg) = msg {
-                batch = match msg {
-                    SourceMsg::ChunkedBatch(batch) => {
-                        has_more = batch.has_more;
-                        batch.msgs
-                    }
-                    other => vec![other],
-                };
-            }
-            if err.is_some_and(|e| e.is_eof()) {
-                let _ = tx.unbounded_send(batch);
-                return;
-            }
-            let send = !batch.is_empty() || (!has_more && !caught_up);
-            caught_up = !has_more;
-            if send && tx.unbounded_send(batch).is_err() {
-                return;
-            }
-            if !has_more {
-                thread::sleep(Duration::from_secs(1));
-            }
-        }
-    });
+/// Follows a run's transaction log on its own thread, sending batches until
+/// the run exits or the receiver is dropped.
+pub fn spawn_follow(run: &RunDir, tx: UnboundedSender<Batch>) {
+    let path = run.wandb_file.clone();
+    thread::spawn(move || leet_ingest::follow(&path, |batch| tx.unbounded_send(batch).is_ok()));
 }
 
-/// Reads the leading run record of every file so the list shows display names
-/// before a run is opened.
-pub fn spawn_probe(runs: Vec<(String, PathBuf)>, tx: UnboundedSender<(String, RunMsg)>) {
+/// Reads the run record of every file so the list shows display names and
+/// config before a run is opened.
+pub fn spawn_probe(runs: Vec<(String, PathBuf)>, tx: UnboundedSender<(String, RunInfo)>) {
     thread::spawn(move || {
         for (name, path) in runs {
-            let Ok(mut source) = LevelDBHistorySource::new(&path.to_string_lossy()) else {
-                continue;
-            };
-            let (msg, _) = source.read(64, Duration::from_millis(50));
-            let Some(SourceMsg::ChunkedBatch(batch)) = msg else {
-                continue;
-            };
-            for msg in batch.msgs {
-                if let SourceMsg::Run(run) = msg {
-                    if tx.unbounded_send((name, run)).is_err() {
-                        return;
-                    }
-                    break;
-                }
+            if let Some(info) = leet_ingest::probe(&path)
+                && tx.unbounded_send((name, info)).is_err()
+            {
+                return;
             }
         }
     });

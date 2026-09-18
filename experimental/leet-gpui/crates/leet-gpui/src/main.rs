@@ -3,6 +3,13 @@
 
 mod actions;
 mod chart;
+mod config;
+mod console;
+mod dir_state;
+mod grid;
+mod overview;
+mod run;
+mod runs_list;
 mod source;
 mod theme;
 mod workspace;
@@ -23,6 +30,7 @@ fn main() {
 
     Application::new().run(move |cx: &mut App| {
         let help = actions::bind(cx);
+        let config = config::ConfigFile::load();
         cx.on_action(|_: &actions::Quit, cx| cx.quit());
 
         let bounds = Bounds::centered(None, size(px(1440.), px(900.)), cx);
@@ -36,7 +44,7 @@ fn main() {
                 ..Default::default()
             },
             |window, cx| {
-                let workspace = cx.new(|cx| Workspace::new(wandb_dir, run, help, cx));
+                let workspace = cx.new(|cx| Workspace::new(wandb_dir, run, help, config, cx));
                 let focus = workspace.read(cx).focus_handle.clone();
                 window.focus(&focus);
                 workspace

@@ -30,6 +30,9 @@ pub fn accent() -> Hsla {
 pub fn focus() -> Hsla {
     rgb(0x58D3DB).into()
 }
+pub fn failed() -> Hsla {
+    rgb(0xFF7A88).into()
+}
 
 const RUN_PALETTE: [u32; 9] = [
     0x58D3DB, 0x5ED6A4, 0xFCA36F, 0xFF7A88, 0x7DB1FA, 0xBBE06B, 0xFFCF4D, 0xE180FF, 0xB199FF,

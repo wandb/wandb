@@ -10,9 +10,13 @@ publish.workspace = true
 
 [dependencies]
 leet-data.workspace = true
+leet-ingest.workspace = true
 leet-plot.workspace = true
 gpui.workspace = true
 futures.workspace = true
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true
 
 [lints]
 workspace = true
