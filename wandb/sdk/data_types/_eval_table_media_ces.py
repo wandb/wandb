@@ -15,8 +15,6 @@ from __future__ import annotations
 
 import copy
 import os
-import pathlib
-import shutil
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, TypeVar
 from urllib.parse import quote
@@ -24,7 +22,6 @@ from urllib.parse import quote
 from wandb import util
 from wandb.errors import UsageError
 from wandb.sdk.data_types.base_types.media import Media
-from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.paths import LogicalPath
 
 if TYPE_CHECKING:
@@ -133,40 +130,8 @@ def _bind_eval_table_media_to_run(
         directory,
         f"{media._sha256[:_DIGEST_PATH_LENGTH]}{extension}",
     )
-    destination = os.path.join(run.dir, logical_path)
-
-    if os.path.exists(destination) and os.path.getsize(destination) == media._size:
-        # An equal-size collision on an 80-bit digest prefix is accepted here.
-        return _bind_to_existing_run_file(media, run, logical_path, destination)
-
-    filesystem.mkdir_exists_ok(os.path.dirname(destination))
-    if media._is_tmp:
-        shutil.move(media._path, destination)
-        media._is_tmp = False
-    elif run._settings.allow_media_symlink:
-        filesystem.link_or_copy(
-            run._settings,
-            pathlib.Path(media._path).resolve(),
-            pathlib.Path(destination),
-        )
-    else:
-        shutil.copy(media._path, destination)
-
-    media._run = run
-    media._path = destination
-    run._publish_file(logical_path)
-    return _run_file_uri(run, logical_path)
-
-
-def _bind_to_existing_run_file(
-    media: Media,
-    run: Run,
-    logical_path: str,
-    destination: str,
-) -> str:
-    media._run = run
-    media._path = destination
-    media._is_tmp = False
+    # Reusing by 80-bit prefix and size accepts equal-size prefix collisions.
+    media._bind_to_run_path(run, logical_path, reuse_existing_by_size=True)
     return _run_file_uri(run, logical_path)
 
 
