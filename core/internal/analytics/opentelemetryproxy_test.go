@@ -463,3 +463,218 @@ func TestTelemetryRecorder_RecordAfterShutdown_IsNoop(t *testing.T) {
 	_, ok := proxy.FindLog("after")
 	assert.False(t, ok, "expected no log to be exported after shutdown")
 }
+
+func TestTelemetryRecorder_RecordDuration_ResolvesSubSecond(t *testing.T) {
+	// The OpenTelemetry default boundaries are 0, 5, 10 ... 10000. Recording
+	// in seconds against those puts every encode duration in one bucket, so
+	// this asserts the duration view replaced them.
+	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+
+	for _, d := range []time.Duration{
+		200 * time.Microsecond,
+		3 * time.Millisecond,
+		40 * time.Millisecond,
+		700 * time.Millisecond,
+	} {
+		recorder.RecordDuration(
+			t.Context(),
+			"encode_duration",
+			d,
+			analytics.LowCardinalityAttributes{},
+		)
+	}
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	metric, ok := proxy.FindMetric("encode_duration")
+	require.True(t, ok)
+	require.NotEmpty(t, metric.HistogramBounds)
+	assert.Less(t, metric.HistogramBounds[0], 0.001,
+		"the lowest boundary must be below a millisecond")
+
+	// Each of the four durations belongs to a different bucket.
+	populated := 0
+	for _, count := range metric.HistogramBucketCounts {
+		if count > 0 {
+			populated++
+		}
+	}
+	assert.Equal(t, 4, populated,
+		"four durations an order of magnitude apart must land in four buckets")
+}
+
+func TestTelemetryRecorder_AddCounter(t *testing.T) {
+	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+
+	recorder.AddToCounter(
+		t.Context(),
+		"request_count",
+		1,
+		analytics.LowCardinalityAttributes{Result: "ok"},
+	)
+	recorder.AddToCounter(
+		t.Context(),
+		"request_count",
+		4,
+		analytics.LowCardinalityAttributes{Result: "ok"},
+	)
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	metric, ok := proxy.FindMetric("request_count")
+	require.True(t, ok)
+	assert.Equal(t, int64(5), metric.Value)
+	assert.Equal(t, "ok", metric.Attributes["result"])
+}
+
+func TestTelemetryRecorder_DefineHistogram(t *testing.T) {
+	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+
+	bounds := []float64{1024, 1048576, 16777216}
+	require.NoError(t, recorder.DefineHistogram(
+		"request_size",
+		analytics.UnitBytes,
+		"Size of one request body.",
+		bounds,
+	))
+
+	recorder.RecordHistogram(
+		t.Context(),
+		"request_size",
+		2*1024*1024,
+		analytics.LowCardinalityAttributes{ContentEncoding: "gzip"},
+	)
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	metric, ok := proxy.FindMetric("request_size")
+	require.True(t, ok)
+	assert.Equal(t, "By", metric.Unit)
+	assert.InDelta(t, float64(2*1024*1024), metric.HistogramSum, 1)
+	assert.Equal(t, "gzip", metric.Attributes["content_encoding"])
+	assert.Equal(t, bounds, metric.HistogramBounds,
+		"the declared boundaries must reach the exporter")
+}
+
+// A definition must be able to cover a range the default boundaries do not.
+// The default stops at 10 seconds.
+func TestTelemetryRecorder_DefineHistogram_WideRange(t *testing.T) {
+	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+
+	bounds := []float64{0.01, 1, 60, 3600, 86400}
+	require.NoError(t, recorder.DefineHistogram(
+		"upload_latency",
+		analytics.UnitSeconds,
+		"",
+		bounds,
+	))
+
+	// Two hours: far outside the default boundaries.
+	recorder.RecordHistogram(
+		t.Context(),
+		"upload_latency",
+		7200,
+		analytics.LowCardinalityAttributes{Segment: "http"},
+	)
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	metric, ok := proxy.FindMetric("upload_latency")
+	require.True(t, ok)
+	require.Len(t, metric.HistogramBucketCounts, len(bounds)+1)
+	assert.Equal(t, uint64(1), metric.HistogramBucketCounts[4],
+		"two hours belongs in the 3600-86400 bucket, not the overflow")
+	assert.Zero(t, metric.HistogramBucketCounts[5],
+		"nothing should reach the overflow bucket")
+}
+
+// A name that was never defined still records, with the default timing
+// boundaries. That is what RecordDuration relies on.
+func TestTelemetryRecorder_RecordHistogram_UndefinedUsesDefaults(t *testing.T) {
+	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+
+	recorder.RecordHistogram(
+		t.Context(),
+		"undeclared",
+		0.003,
+		analytics.LowCardinalityAttributes{},
+	)
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	metric, ok := proxy.FindMetric("undeclared")
+	require.True(t, ok)
+	assert.Equal(t, "s", metric.Unit)
+	require.NotEmpty(t, metric.HistogramBounds)
+	assert.Less(t, metric.HistogramBounds[0], 0.001,
+		"the default timing boundaries resolve below a millisecond")
+}
+
+func TestTelemetryRecorder_DefineHistogram_RejectsBadDefinitions(t *testing.T) {
+	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+
+	assert.Error(t, recorder.DefineHistogram(
+		"", analytics.UnitSeconds, "", []float64{1}), "no name")
+	assert.Error(t, recorder.DefineHistogram(
+		"a", "", "", []float64{1}), "no unit")
+	assert.Error(t, recorder.DefineHistogram(
+		"a", analytics.UnitSeconds, "", nil), "no boundaries")
+	assert.Error(t, recorder.DefineHistogram(
+		"a", analytics.UnitSeconds, "", []float64{1, 3, 2}),
+		"non-monotonic boundaries are dropped by the SDK")
+
+	require.NoError(t, recorder.DefineHistogram(
+		"a", analytics.UnitSeconds, "", []float64{1, 2, 3}))
+	assert.Error(t, recorder.DefineHistogram(
+		"a", analytics.UnitSeconds, "", []float64{4, 5, 6}),
+		"a second definition would be silently ignored by the SDK")
+}
+
+func TestOpenTelemetryProxyTest_FindMetricsPerSeries(t *testing.T) {
+	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+
+	for _, segment := range []string{"handler_ingest", "upload_render"} {
+		recorder.RecordDuration(
+			t.Context(),
+			"encode_duration",
+			10*time.Millisecond,
+			analytics.LowCardinalityAttributes{
+				Segment: segment,
+				Scope:   "occurrence",
+			},
+		)
+	}
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	assert.Len(t, proxy.FindMetrics("encode_duration"), 2,
+		"each distinct attribute set is its own data point")
+
+	render, ok := proxy.FindMetricWith("encode_duration", map[string]string{
+		"segment": "upload_render",
+	})
+	require.True(t, ok)
+	assert.Equal(t, "occurrence", render.Attributes["scope"])
+}

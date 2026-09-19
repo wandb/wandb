@@ -6,6 +6,7 @@ import (
 	"cmp"
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -49,7 +50,20 @@ const (
 
 	metricsPath = "/sdk/otel/v1/metrics"
 	logsPath    = "/sdk/otel/v1/logs"
+
+	// unitSeconds, unitBytes and unitCount are the UCUM unit strings for the
+	// histogram instruments.
+	UnitSeconds = "s"
+	UnitBytes   = "By"
+	UnitCount   = "1"
 )
+
+// defaultDurationBoundaries for RecordDuration, assumes unit is seconds.
+//
+// These match the OpenTelemetry defaults.
+var defaultDurationBoundaries = []float64{
+	0, 5, 10, 25, 50, 75, 100, 250, 500, 750, 1000, 2500, 5000, 7500, 10000,
+}
 
 // ConfigureOTelErrorHandler routes OpenTelemetry SDK errors to the logger.
 //
@@ -249,17 +263,93 @@ func (r *TelemetryRecorder) IncrementCounter(
 	name string,
 	lowCardinalityAttributes LowCardinalityAttributes,
 ) {
+	r.AddToCounter(ctx, name, 1, lowCardinalityAttributes)
+}
+
+// AddCounter increases a counter metric by delta with the telemetry
+// context's low-cardinality attributes.
+func (r *TelemetryRecorder) AddToCounter(
+	ctx context.Context,
+	name string,
+	delta int64,
+	lowCardinalityAttributes LowCardinalityAttributes,
+) {
 	if r == nil {
 		return
 	}
 
 	mergedLowCardinalityAttributes := r.telemetryContext.lowCardinalityAttributes
 	mergedLowCardinalityAttributes.merge(lowCardinalityAttributes)
-	r.root.incrementCounter(ctx, name, mergedLowCardinalityAttributes)
+	r.root.addToCounter(ctx, name, delta, mergedLowCardinalityAttributes)
+}
+
+// DefineHistogram creates the histogram instrument named `name`, with the
+// given `unit`, `description` and `boundaries`.
+//
+// Define each `name` once, before the first record call. If this is called
+// again for the same `name`, it returns an error.
+func (r *TelemetryRecorder) DefineHistogram(
+	name string,
+	unit string,
+	description string,
+	boundaries []float64,
+) error {
+	if r == nil {
+		return nil
+	}
+
+	switch {
+	case name == "":
+		return errors.New("analytics: histogram with no name")
+	case unit == "":
+		return fmt.Errorf("analytics: %q has no unit", name)
+	case len(boundaries) == 0:
+		return fmt.Errorf("analytics: %q has no boundaries", name)
+	}
+
+	for i, boundary := range boundaries[1:] {
+		if boundaries[i] >= boundary {
+			return fmt.Errorf(
+				"analytics: %q boundaries are not increasing: %v",
+				name,
+				boundaries,
+			)
+		}
+	}
+
+	return r.root.defineHistogram(name, unit, description, boundaries)
+}
+
+// RecordHistogram records a value on the histogram named name, with the
+// telemetry context's low-cardinality attributes.
+//
+// Returns an error if the histogram is not defined.
+func (r *TelemetryRecorder) RecordHistogram(
+	ctx context.Context,
+	name string,
+	value float64,
+	lowCardinalityAttributes LowCardinalityAttributes,
+) error {
+	if r == nil {
+		return nil
+	}
+
+	mergedLowCardinalityAttributes := r.telemetryContext.lowCardinalityAttributes
+	mergedLowCardinalityAttributes.merge(lowCardinalityAttributes)
+
+	return r.root.recordHistogram(
+		ctx,
+		name,
+		value,
+		mergedLowCardinalityAttributes,
+	)
 }
 
 // RecordDuration records a duration histogram metric in seconds with the
 // telemetry context's low-cardinality attributes.
+//
+// Unless the name was defined with DefineHistogram, it uses the default
+// duration boundaries, which match the OpenTelemetry defaults.
 func (r *TelemetryRecorder) RecordDuration(
 	ctx context.Context,
 	name string,
@@ -270,13 +360,18 @@ func (r *TelemetryRecorder) RecordDuration(
 		return
 	}
 
-	mergedLowCardinalityAttributes := r.telemetryContext.lowCardinalityAttributes
-	mergedLowCardinalityAttributes.merge(lowCardinalityAttributes)
-	r.root.recordDuration(
+	if _, ok := r.root.histogram(name); !ok {
+		if err := r.root.defineHistogram(name, UnitSeconds, "", defaultDurationBoundaries); err != nil {
+			slog.Debug("analytics: failed to define histogram", "error", err)
+			return
+		}
+	}
+
+	r.RecordHistogram(
 		ctx,
 		name,
-		duration,
-		mergedLowCardinalityAttributes,
+		duration.Seconds(),
+		lowCardinalityAttributes,
 	)
 }
 
@@ -292,11 +387,21 @@ func (r *TelemetryRecorder) IncrementCounterAndLogEvent(
 	attributes map[string]string,
 	lowCardinalityAttributes LowCardinalityAttributes,
 ) {
+	r.AddToCounterAndLogEvent(ctx, name, 1, attributes, lowCardinalityAttributes)
+}
+
+func (r *TelemetryRecorder) AddToCounterAndLogEvent(
+	ctx context.Context,
+	name string,
+	delta int64,
+	attributes map[string]string,
+	lowCardinalityAttributes LowCardinalityAttributes,
+) {
 	if r == nil {
 		return
 	}
 
-	r.IncrementCounter(ctx, name, lowCardinalityAttributes)
+	r.AddToCounter(ctx, name, delta, lowCardinalityAttributes)
 
 	recordAttributes := make(map[string]string)
 	maps.Copy(recordAttributes, r.telemetryContext.highCardinalityAttributes)
@@ -430,6 +535,23 @@ type OpenTelemetryProxy struct {
 
 	// shutdown guards Shutdown so the providers are only shut down once.
 	shutdown atomic.Bool
+
+	// counters and histograms cache resolved instruments.
+	//
+	// Resolving an instrument costs about 180 ns and four allocations, which
+	// is more than recording the measurement itself. The upload pipeline
+	// records several measurements per logged step from four goroutines, so
+	// the resolution is cached and the maps are read-mostly.
+	//
+	// Both are keyed by name. A name has one instrument: its unit and
+	// bucket boundaries are fixed by the first definition, so a second one
+	// under the same name would be ignored by OpenTelemetry anyway.
+	//
+	// Two goroutines may resolve the same instrument at once. That is
+	// harmless, because resolving twice returns the same underlying
+	// instrument.
+	counters   sync.Map // map[string]otelmetric.Int64Counter
+	histograms sync.Map // map[string]otelmetric.Float64Histogram
 }
 
 // NewOpenTelemetryProxy returns an OpenTelemetryProxy for the given endpoint.
@@ -679,50 +801,105 @@ func (o *OpenTelemetryProxy) Shutdown(ctx context.Context) error {
 	return shutdownTelemetryProviders(ctx, o.meterProvider, o.logProvider)
 }
 
-// incrementCounter increments a counter metric by 1.
-func (o *OpenTelemetryProxy) incrementCounter(
-	ctx context.Context,
-	name string,
-	lowCardinalityAttributes LowCardinalityAttributes,
-) {
-	if o == nil {
-		return
+// counter returns the counter instrument for name, resolving it once.
+//
+// The second return value is false if the instrument could not be created,
+// in which case the caller drops the measurement.
+func (o *OpenTelemetryProxy) counter(name string) (otelmetric.Int64Counter, bool) {
+	if cached, ok := o.counters.Load(name); ok {
+		return cached.(otelmetric.Int64Counter), true
 	}
 
-	meter := o.meterProvider.Meter(o.serviceName)
-	counter, err := meter.Int64Counter(name)
+	counter, err := o.meterProvider.Meter(o.serviceName).Int64Counter(name)
 	if err != nil {
-		return
+		return nil, false
 	}
 
-	counter.Add(ctx, 1, toOTelAttrs(lowCardinalityAttributes.toMap()))
+	cached, _ := o.counters.LoadOrStore(name, counter)
+	return cached.(otelmetric.Int64Counter), true
 }
 
-// recordDuration records a duration histogram metric in seconds.
-func (o *OpenTelemetryProxy) recordDuration(
+func (o *OpenTelemetryProxy) defineHistogram(
+	name string,
+	unit string,
+	description string,
+	boundaries []float64,
+) error {
+	if o == nil {
+		return nil
+	}
+
+	if _, defined := o.histograms.Load(name); defined {
+		return fmt.Errorf("analytics: %q is already defined", name)
+	}
+
+	histogram, err := o.meterProvider.Meter(o.serviceName).Float64Histogram(
+		name,
+		otelmetric.WithUnit(unit),
+		otelmetric.WithDescription(description),
+		otelmetric.WithExplicitBucketBoundaries(boundaries...),
+	)
+	if err != nil {
+		return fmt.Errorf("analytics: defining %q: %w", name, err)
+	}
+
+	o.histograms.Store(name, histogram)
+	return nil
+}
+
+// histogram returns the instrument for name and unit, or nil if it does not
+// exist.
+func (o *OpenTelemetryProxy) histogram(
+	name string,
+) (otelmetric.Float64Histogram, bool) {
+	if cached, ok := o.histograms.Load(name); ok {
+		return cached.(otelmetric.Float64Histogram), true
+	}
+
+	return nil, false
+}
+
+// addCounter increases a counter metric by delta.
+func (o *OpenTelemetryProxy) addToCounter(
 	ctx context.Context,
 	name string,
-	duration time.Duration,
+	delta int64,
 	lowCardinalityAttributes LowCardinalityAttributes,
 ) {
 	if o == nil {
 		return
 	}
 
-	meter := o.meterProvider.Meter(o.serviceName)
-	histogram, err := meter.Float64Histogram(
-		name,
-		otelmetric.WithUnit("s"),
-	)
-	if err != nil {
+	counter, ok := o.counter(name)
+	if !ok {
 		return
+	}
+
+	counter.Add(ctx, delta, toOTelAttrs(lowCardinalityAttributes.toMap()))
+}
+
+// recordHistogram records a value on the histogram named name.
+func (o *OpenTelemetryProxy) recordHistogram(
+	ctx context.Context,
+	name string,
+	value float64,
+	lowCardinalityAttributes LowCardinalityAttributes,
+) error {
+	if o == nil {
+		return nil
+	}
+
+	histogram, ok := o.histogram(name)
+	if !ok {
+		return fmt.Errorf("analytics: %q is not defined", name)
 	}
 
 	histogram.Record(
 		ctx,
-		duration.Seconds(),
+		value,
 		toOTelAttrs(lowCardinalityAttributes.toMap()),
 	)
+	return nil
 }
 
 // log emits an OpenTelemetry log record with the supplied attributes

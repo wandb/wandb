@@ -7,13 +7,13 @@ import os
 import platform
 import threading
 import traceback
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, fields
 from typing import TYPE_CHECKING, Any, Concatenate
 
 import requests
 from opentelemetry._logs import SeverityNumber
-from opentelemetry.metrics import Counter
+from opentelemetry.metrics import Counter, Histogram
 from opentelemetry.sdk.metrics.export import AggregationTemporality
 from typing_extensions import Never, ParamSpec
 
@@ -46,6 +46,35 @@ _METRICS_PATH = "/sdk/otel/v1/metrics"
 _LOGS_PATH = "/sdk/otel/v1/logs"
 
 _DEFAULT_SERVICE_NAME = "sdk-wandb"
+
+# Default bucket boundaries for duration histograms, in seconds.
+#
+# Any histogram that was not declared with `define_histogram` gets these. The
+# OpenTelemetry defaults are 0, 5, 10 ... 10000, which are shaped for
+# milliseconds: recording seconds against them puts every duration this SDK
+# measures into one bucket and no percentile survives. These resolve 100
+# microseconds to 10 seconds.
+_DEFAULT_DURATION_BUCKET_BOUNDARIES = (
+    0.0001,
+    0.00025,
+    0.0005,
+    0.001,
+    0.0025,
+    0.005,
+    0.01,
+    0.025,
+    0.05,
+    0.1,
+    0.25,
+    0.5,
+    1.0,
+    2.5,
+    5.0,
+    10.0,
+)
+
+# UCUM unit strings.
+_UNIT_SECONDS = "s"
 
 # _disabled gates OpenTelemetryProxy for the whole process. Once set, no new
 # proxy is created and telemetry becomes a no-op.
@@ -329,6 +358,53 @@ class TelemetryRecorder:
         )
 
     @guard
+    def define_histogram(
+        self,
+        name: str,
+        unit: str,
+        description: str,
+        boundaries: Sequence[float],
+    ) -> None:
+        """Create the histogram `name` with the given bucket boundaries.
+
+        Declare a histogram whose range the default timing boundaries do not
+        cover, before anything records to it. An instrument's boundaries are
+        fixed when it is created, so a later declaration is ignored.
+        """
+        assert self._open_telemetry_proxy is not None
+
+        self._open_telemetry_proxy.define_histogram(
+            name,
+            unit,
+            description,
+            boundaries,
+        )
+
+    @guard
+    def record_duration(
+        self,
+        name: str,
+        seconds: float,
+        low_cardinality_attributes: LowCardinalityAttributes,
+    ) -> None:
+        """Record a duration in seconds on an OpenTelemetry histogram metric.
+
+        The histogram contains the low-cardinality attributes from the current
+        context plus the low-cardinality attributes passed when this method is
+        called.
+        """
+        assert self._open_telemetry_proxy is not None
+
+        merged_attributes = low_cardinality_attributes.merge(
+            self._context.low_cardinality_attributes
+        )
+        self._open_telemetry_proxy.record_duration(
+            name,
+            seconds,
+            merged_attributes.as_dict(),
+        )
+
+    @guard
     def log(
         self,
         message: str,
@@ -462,6 +538,8 @@ class OpenTelemetryProxy:
         # calls, avoiding duplicate-instrument warnings from the SDK.
         self._counters: dict[str, Counter] = {}
         self._counters_lock = threading.Lock()
+        self._histograms: dict[str, Histogram] = {}
+        self._histograms_lock = threading.Lock()
 
         # _lock guards the providers and the shutdown flag, so the providers
         # are built at most once and shut down at most once.
@@ -585,6 +663,69 @@ class OpenTelemetryProxy:
 
         meter_provider, _ = providers
         self._counter(meter_provider, name).add(1, attributes or {})
+
+    def record_duration(
+        self,
+        name: str,
+        seconds: float,
+        attributes: dict[str, str] | None = None,
+    ) -> None:
+        """Record `seconds` on the duration histogram `name`."""
+        providers = self._providers()
+        if providers is None:
+            return
+
+        meter_provider, _ = providers
+        self._histogram(meter_provider, name).record(seconds, attributes or {})
+
+    def define_histogram(
+        self,
+        name: str,
+        unit: str,
+        description: str,
+        boundaries: Sequence[float],
+    ) -> None:
+        """Create the histogram instrument `name` with the given boundaries.
+
+        The boundaries can only be set when the instrument is created, and
+        they are not part of its identity, so a later creation under the same
+        name is ignored and keeps the first set of buckets.
+        """
+        providers = self._providers()
+        if providers is None:
+            return
+
+        meter_provider, _ = providers
+        with self._histograms_lock:
+            if name in self._histograms:
+                return
+            meter = meter_provider.get_meter(_DEFAULT_SERVICE_NAME)
+            self._histograms[name] = meter.create_histogram(
+                name,
+                unit=unit,
+                description=description,
+                explicit_bucket_boundaries_advisory=list(boundaries),
+            )
+
+    def _histogram(self, meter_provider: MeterProvider, name: str) -> Histogram:
+        """Return the instrument for `name`, creating a default one if needed.
+
+        A name that was not declared gets the default timing boundaries,
+        which suits a plain duration and nothing else.
+        """
+        with self._histograms_lock:
+            histogram = self._histograms.get(name)
+            if histogram is None:
+                meter = meter_provider.get_meter(_DEFAULT_SERVICE_NAME)
+                histogram = meter.create_histogram(
+                    name,
+                    unit=_UNIT_SECONDS,
+                    explicit_bucket_boundaries_advisory=list(
+                        _DEFAULT_DURATION_BUCKET_BOUNDARIES
+                    ),
+                )
+                self._histograms[name] = histogram
+            return histogram
 
     def _counter(self, meter_provider: MeterProvider, name: str) -> Counter:
         with self._counters_lock:
