@@ -1,0 +1,33 @@
+name: Restore Linux dependencies
+description: Share the uv cache for both supported Linux Python versions.
+
+inputs:
+  lookup-only:
+    description: Check whether the cache exists without downloading it
+    default: "false"
+
+outputs:
+  cache-hit:
+    description: Whether the dependency cache exists
+    value: ${{ steps.restore.outputs.cache-hit }}
+  cache-key:
+    description: Key for saving the dependency cache
+    value: ${{ steps.restore.outputs.cache-primary-key }}
+  cache-path:
+    description: Local uv cache directory
+    value: ${{ steps.directory.outputs.path }}
+
+runs:
+  using: composite
+  steps:
+    - id: directory
+      shell: bash
+      run: |
+        echo "UV_CACHE_DIR=$RUNNER_TEMP/setup-uv-cache" >> "$GITHUB_ENV"
+        echo "path=$RUNNER_TEMP/setup-uv-cache" >> "$GITHUB_OUTPUT"
+    - id: restore
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      with:
+        path: ${{ steps.directory.outputs.path }}
+        key: linux-ubuntu24-${{ runner.arch }}-uv-0.12.11-${{ hashFiles('requirements/requirements_dev.3.10.linux.txt', 'requirements/requirements_dev.3.13.linux.txt', 'noxfile.py') }}
+        lookup-only: ${{ inputs.lookup-only }}

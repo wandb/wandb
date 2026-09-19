@@ -688,6 +688,7 @@ def test_purge_cache_subdirectories(runner, monkeypatch, tmp_path):
     monkeypatch.setattr(env, "get_cache_dir", lambda: cache_dir)
     file = subdir / "old_file.txt"
     file.write_text("old content in subdir")
+    os.utime(file, (0, 0))
 
     result = runner.invoke(cli.purge_cache, ["--force"])
 

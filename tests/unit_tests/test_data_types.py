@@ -4,6 +4,7 @@ import platform
 from pathlib import Path
 from unittest import mock
 
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -20,6 +21,8 @@ from wandb.sdk.data_types import utils as data_types_utils
 from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
 from wandb.sdk.data_types.helper_types.image_mask import ImageMask
 from wandb.sdk.wandb_settings import Settings
+
+matplotlib.use("Agg")
 
 
 def subdict(d, expected_dict):
