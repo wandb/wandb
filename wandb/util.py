@@ -1228,7 +1228,14 @@ def auto_project_name(program: str | None) -> str:
     if not os.path.isabs(program):
         program = os.path.join(os.curdir, program)
     prog_dir = os.path.dirname(os.path.abspath(program))
-    if not prog_dir.startswith(root_dir):
+    try:
+        is_inside_repo = os.path.commonpath((prog_dir, root_dir)) == os.path.normpath(
+            root_dir
+        )
+    except ValueError:
+        # Raised for paths on different drives on Windows.
+        is_inside_repo = False
+    if not is_inside_repo:
         return str(repo_name)
     project = repo_name
     sub_path = os.path.relpath(prog_dir, root_dir)

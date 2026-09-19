@@ -3,6 +3,7 @@ import json
 import os
 import platform
 import random
+import subprocess
 import sys
 import tarfile
 import tempfile
@@ -698,3 +699,21 @@ def test_has_internet(internet_state):
         mock_create_connection = mock.MagicMock(side_effect=OSError)
     with mock.patch("socket.create_connection", new=mock_create_connection):
         assert util._has_internet() is internet_state
+
+
+def test_auto_project_name_with_program_outside_repo(tmp_path, monkeypatch):
+    """A program outside the repo must not produce a ``..`` project name.
+
+    A sibling directory that shares a string prefix with the repo directory
+    (e.g. ``repo2`` next to ``repo``) is not inside the repo.
+    """
+    repo = tmp_path / "repo"
+    sibling = tmp_path / "repo2"
+    (repo / "pkg").mkdir(parents=True)
+    sibling.mkdir()
+    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+    monkeypatch.chdir(repo)
+
+    assert util.auto_project_name(str(repo / "train.py")) == "repo"
+    assert util.auto_project_name(str(repo / "pkg" / "train.py")) == "repo-pkg"
+    assert util.auto_project_name(str(sibling / "train.py")) == "repo"
