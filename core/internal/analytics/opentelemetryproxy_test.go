@@ -464,15 +464,26 @@ func TestTelemetryRecorder_RecordAfterShutdown_IsNoop(t *testing.T) {
 	assert.False(t, ok, "expected no log to be exported after shutdown")
 }
 
-func TestTelemetryRecorder_RecordDuration_ResolvesSubSecond(t *testing.T) {
+func TestTelemetryRecorder_RecordDuration_ResolvesSubSecondBoundaries(t *testing.T) {
 	// The OpenTelemetry default boundaries are 0, 5, 10 ... 10000. Recording
 	// in seconds against those puts every encode duration in one bucket, so
-	// this asserts the duration view replaced them.
+	// this asserts that explicit boundaries are used instead.
 	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
 	recorder := analytics.NewTelemetryRecorder(
 		proxy.OpenTelemetryProxy,
 		analytics.NewTelemetryContext(),
 	)
+
+	err := recorder.DefineHistogram(
+		"encode_duration",
+		analytics.UnitSeconds,
+		"Duration of one encode operation.",
+		[]float64{
+			0.0001, 0.00025, 0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025,
+			0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10,
+		},
+	)
+	require.NoError(t, err)
 
 	for _, d := range []time.Duration{
 		200 * time.Microsecond,
@@ -506,7 +517,57 @@ func TestTelemetryRecorder_RecordDuration_ResolvesSubSecond(t *testing.T) {
 		"four durations an order of magnitude apart must land in four buckets")
 }
 
-func TestTelemetryRecorder_AddCounter(t *testing.T) {
+func TestTelemetryRecorder_RecordDuration_ResolvesWhenUnitIsNotSeconds(t *testing.T) {
+	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+
+	err := recorder.DefineHistogram(
+		"encode_duration",
+		analytics.UnitMilliseconds,
+		"Duration of one encode operation in milliseconds.",
+		[]float64{
+			0, 5, 10, 25, 50, 75, 100, 250, 500, 750,
+			1000, 2500, 5000, 7500, 10000,
+		},
+	)
+	require.NoError(t, err)
+
+	for _, d := range []time.Duration{
+		1 * time.Millisecond,
+		7 * time.Millisecond,
+		40 * time.Millisecond,
+		700 * time.Millisecond,
+	} {
+		recorder.RecordDuration(
+			t.Context(),
+			"encode_duration",
+			d,
+			analytics.LowCardinalityAttributes{},
+		)
+	}
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	metric, ok := proxy.FindMetric("encode_duration")
+	require.True(t, ok)
+	require.NotEmpty(t, metric.HistogramBounds)
+	assert.Less(t, metric.HistogramBounds[0], 5.0,
+		"the lowest boundary must be below a millisecond")
+
+	// Each of the four durations belongs to a different bucket.
+	populated := 0
+	for _, count := range metric.HistogramBucketCounts {
+		if count > 0 {
+			populated++
+		}
+	}
+	assert.Equal(t, 4, populated,
+		"four durations an order of magnitude apart must land in four buckets")
+}
+
+func TestTelemetryRecorder_AddToCounter(t *testing.T) {
 	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
 	recorder := analytics.NewTelemetryRecorder(
 		proxy.OpenTelemetryProxy,
@@ -517,20 +578,19 @@ func TestTelemetryRecorder_AddCounter(t *testing.T) {
 		t.Context(),
 		"request_count",
 		1,
-		analytics.LowCardinalityAttributes{Result: "ok"},
+		analytics.LowCardinalityAttributes{},
 	)
 	recorder.AddToCounter(
 		t.Context(),
 		"request_count",
 		4,
-		analytics.LowCardinalityAttributes{Result: "ok"},
+		analytics.LowCardinalityAttributes{},
 	)
 	require.NoError(t, proxy.Shutdown(context.Background()))
 
 	metric, ok := proxy.FindMetric("request_count")
 	require.True(t, ok)
 	assert.Equal(t, int64(5), metric.Value)
-	assert.Equal(t, "ok", metric.Attributes["result"])
 }
 
 func TestTelemetryRecorder_DefineHistogram(t *testing.T) {
@@ -552,7 +612,7 @@ func TestTelemetryRecorder_DefineHistogram(t *testing.T) {
 		t.Context(),
 		"request_size",
 		2*1024*1024,
-		analytics.LowCardinalityAttributes{ContentEncoding: "gzip"},
+		analytics.LowCardinalityAttributes{ExecutionContext: "ssh"},
 	)
 	require.NoError(t, proxy.Shutdown(context.Background()))
 
@@ -560,7 +620,7 @@ func TestTelemetryRecorder_DefineHistogram(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "By", metric.Unit)
 	assert.InDelta(t, float64(2*1024*1024), metric.HistogramSum, 1)
-	assert.Equal(t, "gzip", metric.Attributes["content_encoding"])
+	assert.Equal(t, "ssh", metric.Attributes["execution_context"])
 	assert.Equal(t, bounds, metric.HistogramBounds,
 		"the declared boundaries must reach the exporter")
 }
@@ -587,7 +647,7 @@ func TestTelemetryRecorder_DefineHistogram_WideRange(t *testing.T) {
 		t.Context(),
 		"upload_latency",
 		7200,
-		analytics.LowCardinalityAttributes{Segment: "http"},
+		analytics.LowCardinalityAttributes{ExecutionContext: "ssh"},
 	)
 	require.NoError(t, proxy.Shutdown(context.Background()))
 
@@ -602,17 +662,17 @@ func TestTelemetryRecorder_DefineHistogram_WideRange(t *testing.T) {
 
 // A name that was never defined still records, with the default timing
 // boundaries. That is what RecordDuration relies on.
-func TestTelemetryRecorder_RecordHistogram_UndefinedUsesDefaults(t *testing.T) {
+func TestTelemetryRecorder_RecordDuration_UndefinedUsesDefaults(t *testing.T) {
 	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
 	recorder := analytics.NewTelemetryRecorder(
 		proxy.OpenTelemetryProxy,
 		analytics.NewTelemetryContext(),
 	)
 
-	recorder.RecordHistogram(
+	recorder.RecordDuration(
 		t.Context(),
 		"undeclared",
-		0.003,
+		3*time.Millisecond,
 		analytics.LowCardinalityAttributes{},
 	)
 	require.NoError(t, proxy.Shutdown(context.Background()))
@@ -621,7 +681,7 @@ func TestTelemetryRecorder_RecordHistogram_UndefinedUsesDefaults(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "s", metric.Unit)
 	require.NotEmpty(t, metric.HistogramBounds)
-	assert.Less(t, metric.HistogramBounds[0], 0.001,
+	assert.Less(t, metric.HistogramBounds[0], 5.0,
 		"the default timing boundaries resolve below a millisecond")
 }
 
@@ -656,14 +716,13 @@ func TestOpenTelemetryProxyTest_FindMetricsPerSeries(t *testing.T) {
 		analytics.NewTelemetryContext(),
 	)
 
-	for _, segment := range []string{"handler_ingest", "upload_render"} {
+	for _, executionContext := range []string{"local", "ssh"} {
 		recorder.RecordDuration(
 			t.Context(),
 			"encode_duration",
 			10*time.Millisecond,
 			analytics.LowCardinalityAttributes{
-				Segment: segment,
-				Scope:   "occurrence",
+				ExecutionContext: executionContext,
 			},
 		)
 	}
@@ -673,8 +732,8 @@ func TestOpenTelemetryProxyTest_FindMetricsPerSeries(t *testing.T) {
 		"each distinct attribute set is its own data point")
 
 	render, ok := proxy.FindMetricWith("encode_duration", map[string]string{
-		"segment": "upload_render",
+		"execution_context": "ssh",
 	})
 	require.True(t, ok)
-	assert.Equal(t, "occurrence", render.Attributes["scope"])
+	assert.Equal(t, "ssh", render.Attributes["execution_context"])
 }

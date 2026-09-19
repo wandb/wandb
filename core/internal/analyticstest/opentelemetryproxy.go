@@ -46,9 +46,7 @@ type Metric struct {
 	HistogramSum   float64
 
 	// HistogramBounds are the explicit bucket boundaries the exporter sent.
-	// Use it to assert that a histogram resolves the range it measures: the
-	// OpenTelemetry defaults are 0, 5, 10 ... 10000, which put every
-	// sub-second duration in one bucket.
+	// Use it to assert that a histogram resolves the range it measures.
 	HistogramBounds []float64
 
 	// HistogramBucketCounts is the count in each bucket. It has one more
@@ -149,7 +147,7 @@ func (s *OpenTelemetryProxyTest) FindMetricWith(
 	return Metric{}, false
 }
 
-func hasAll(attributes map[string]string, want map[string]string) bool {
+func hasAll(attributes, want map[string]string) bool {
 	for key, value := range want {
 		if attributes[key] != value {
 			return false

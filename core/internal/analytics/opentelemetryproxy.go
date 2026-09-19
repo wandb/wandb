@@ -53,9 +53,12 @@ const (
 
 	// unitSeconds, unitBytes and unitCount are the UCUM unit strings for the
 	// histogram instruments.
-	UnitSeconds = "s"
-	UnitBytes   = "By"
-	UnitCount   = "1"
+	UnitSeconds      = "s"
+	UnitMilliseconds = "ms"
+	UnitMicroseconds = "us"
+	UnitNanoseconds  = "ns"
+	UnitBytes        = "By"
+	UnitCount        = "1"
 )
 
 // defaultDurationBoundaries for RecordDuration, assumes unit is seconds.
@@ -329,27 +332,32 @@ func (r *TelemetryRecorder) RecordHistogram(
 	name string,
 	value float64,
 	lowCardinalityAttributes LowCardinalityAttributes,
-) error {
+) {
 	if r == nil {
-		return nil
+		return
 	}
 
 	mergedLowCardinalityAttributes := r.telemetryContext.lowCardinalityAttributes
 	mergedLowCardinalityAttributes.merge(lowCardinalityAttributes)
 
-	return r.root.recordHistogram(
+	err := r.root.recordHistogram(
 		ctx,
 		name,
 		value,
 		mergedLowCardinalityAttributes,
 	)
+	if err != nil {
+		slog.Debug("analytics: failed to record histogram", "error", err)
+		return
+	}
 }
 
-// RecordDuration records a duration histogram metric in seconds with the
-// telemetry context's low-cardinality attributes.
+// RecordDuration records a duration histogram metric in the units specified by
+// the histogram definition, and includes the telemetry context's
+// low-cardinality attributes.
 //
-// Unless the name was defined with DefineHistogram, it uses the default
-// duration boundaries, which match the OpenTelemetry defaults.
+// If the histogram is not defined, it uses the default unit of seconds,
+// and the default duration boundaries, which match the OpenTelemetry defaults.
 func (r *TelemetryRecorder) RecordDuration(
 	ctx context.Context,
 	name string,
@@ -360,17 +368,40 @@ func (r *TelemetryRecorder) RecordDuration(
 		return
 	}
 
-	if _, ok := r.root.histogram(name); !ok {
-		if err := r.root.defineHistogram(name, UnitSeconds, "", defaultDurationBoundaries); err != nil {
-			slog.Debug("analytics: failed to define histogram", "error", err)
+	var unit string
+	var value float64
+	if _, unitFromCache, ok := r.root.histogram(name); !ok {
+		unit = UnitSeconds
+		if err := r.root.defineHistogram(
+			name,
+			unit,
+			"",
+			defaultDurationBoundaries,
+		); err != nil {
+			slog.Error("analytics: failed to define histogram", "error", err)
 			return
 		}
+	} else {
+		unit = unitFromCache
+	}
+	switch unit {
+	case UnitSeconds:
+		value = duration.Seconds()
+	case UnitMilliseconds:
+		value = float64(duration.Milliseconds())
+	case UnitMicroseconds:
+		value = float64(duration.Microseconds())
+	case UnitNanoseconds:
+		value = float64(duration.Nanoseconds())
+	default:
+		slog.Error("analytics: unknown duration unit", "unit", unit)
+		return
 	}
 
 	r.RecordHistogram(
 		ctx,
 		name,
-		duration.Seconds(),
+		value,
 		lowCardinalityAttributes,
 	)
 }
@@ -819,6 +850,11 @@ func (o *OpenTelemetryProxy) counter(name string) (otelmetric.Int64Counter, bool
 	return cached.(otelmetric.Int64Counter), true
 }
 
+type histogramCacheEntry struct {
+	histogram otelmetric.Float64Histogram
+	unit      string
+}
+
 func (o *OpenTelemetryProxy) defineHistogram(
 	name string,
 	unit string,
@@ -843,7 +879,7 @@ func (o *OpenTelemetryProxy) defineHistogram(
 		return fmt.Errorf("analytics: defining %q: %w", name, err)
 	}
 
-	o.histograms.Store(name, histogram)
+	o.histograms.Store(name, histogramCacheEntry{histogram, unit})
 	return nil
 }
 
@@ -851,12 +887,12 @@ func (o *OpenTelemetryProxy) defineHistogram(
 // exist.
 func (o *OpenTelemetryProxy) histogram(
 	name string,
-) (otelmetric.Float64Histogram, bool) {
+) (otelmetric.Float64Histogram, string, bool) {
 	if cached, ok := o.histograms.Load(name); ok {
-		return cached.(otelmetric.Float64Histogram), true
+		return cached.(histogramCacheEntry).histogram, cached.(histogramCacheEntry).unit, true
 	}
 
-	return nil, false
+	return nil, "", false
 }
 
 // addCounter increases a counter metric by delta.
@@ -889,7 +925,7 @@ func (o *OpenTelemetryProxy) recordHistogram(
 		return nil
 	}
 
-	histogram, ok := o.histogram(name)
+	histogram, _, ok := o.histogram(name)
 	if !ok {
 		return fmt.Errorf("analytics: %q is not defined", name)
 	}
