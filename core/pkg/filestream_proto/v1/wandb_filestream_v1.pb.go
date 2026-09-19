@@ -25,34 +25,37 @@ const (
 type MetricsBatch_Kind int32
 
 const (
-	MetricsBatch_KIND_NULL   MetricsBatch_Kind = 0
-	MetricsBatch_KIND_FLOAT  MetricsBatch_Kind = 1
-	MetricsBatch_KIND_INT    MetricsBatch_Kind = 2
-	MetricsBatch_KIND_BOOL   MetricsBatch_Kind = 3
-	MetricsBatch_KIND_STRING MetricsBatch_Kind = 4
+	MetricsBatch_KIND_UNSPECIFIED MetricsBatch_Kind = 0
+	MetricsBatch_KIND_NULL        MetricsBatch_Kind = 1
+	MetricsBatch_KIND_FLOAT       MetricsBatch_Kind = 2
+	MetricsBatch_KIND_INT         MetricsBatch_Kind = 3
+	MetricsBatch_KIND_BOOL        MetricsBatch_Kind = 4
+	MetricsBatch_KIND_STRING      MetricsBatch_Kind = 5
 	// Anything not representable in the other five kinds, kept as JSON text.
 	// Nested values are represented as `KIND_JSON` cells under their
 	// top-level key.
-	MetricsBatch_KIND_JSON MetricsBatch_Kind = 5
+	MetricsBatch_KIND_JSON MetricsBatch_Kind = 6
 )
 
 // Enum value maps for MetricsBatch_Kind.
 var (
 	MetricsBatch_Kind_name = map[int32]string{
-		0: "KIND_NULL",
-		1: "KIND_FLOAT",
-		2: "KIND_INT",
-		3: "KIND_BOOL",
-		4: "KIND_STRING",
-		5: "KIND_JSON",
+		0: "KIND_UNSPECIFIED",
+		1: "KIND_NULL",
+		2: "KIND_FLOAT",
+		3: "KIND_INT",
+		4: "KIND_BOOL",
+		5: "KIND_STRING",
+		6: "KIND_JSON",
 	}
 	MetricsBatch_Kind_value = map[string]int32{
-		"KIND_NULL":   0,
-		"KIND_FLOAT":  1,
-		"KIND_INT":    2,
-		"KIND_BOOL":   3,
-		"KIND_STRING": 4,
-		"KIND_JSON":   5,
+		"KIND_UNSPECIFIED": 0,
+		"KIND_NULL":        1,
+		"KIND_FLOAT":       2,
+		"KIND_INT":         3,
+		"KIND_BOOL":        4,
+		"KIND_STRING":      5,
+		"KIND_JSON":        6,
 	}
 )
 
@@ -83,7 +86,7 @@ func (MetricsBatch_Kind) EnumDescriptor() ([]byte, []int) {
 	return file_wandb_proto_wandb_filestream_v1_proto_rawDescGZIP(), []int{3, 0}
 }
 
-// FileStreamUpload is data that can be sent via filestream.
+// Data that can be sent via filestream.
 //
 // Wire schema for typed filestream uploads.
 //
@@ -93,28 +96,6 @@ func (MetricsBatch_Kind) EnumDescriptor() ([]byte, []int) {
 // The legacy JSON body is also supported on the same route, with
 // content type `application/json`. See `FileStreamRequestJSON` for the
 // schema.
-//
-// This file is the source of truth. The backend mirrors it, and a CI
-// check compares the protobuf file and the generated code.
-//
-// Compatibility rules:
-//   - Field numbers are frozen. Never renumber or reuse them.
-//   - Existing Kinds are frozen at their current numbers. New kinds
-//     must not reuse numbers. The server rejects an unknown kind.
-//   - A change that adds a field keeps the content type
-//     `application/vnd.wandb.filestream.v1+protobuf`.
-//   - A change that alters how a field is interpreted should be avoided.
-//     Instead, add a new field with the a new number. (Protobuf allows existing
-//     fields to be renamed if the number is the same.)
-//   - If significant changes in the schema are required that would
-//     break compatibility, add a new content type version, for example
-//     type version, for example `wandb.filestream.v2` in
-//     `wandb_filestream_v2.proto`, and
-//     `application/vnd.wandb.filestream.v2+protobuf`.
-//     This should be avoided if possible.
-//   - Use repeated fields instead of map fields. A map resolves a duplicate
-//     key silently and the last write wins. This happens before any validation
-//     code could run.
 type FileStreamUpload struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Line-oriented file updates: history, events, and console output.
@@ -132,7 +113,7 @@ type FileStreamUpload struct {
 	// The run finished.
 	Complete *bool `protobuf:"varint,5,opt,name=complete,proto3,oneof" json:"complete,omitempty"`
 	// The exit code of the run's source script. Only meaningful when `complete` is set.
-	Exitcode      *int32 `protobuf:"varint,6,opt,name=exitcode,proto3,oneof" json:"exitcode,omitempty"`
+	ExitCode      *int32 `protobuf:"varint,6,opt,name=exit_code,json=exitCode,proto3,oneof" json:"exit_code,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -202,14 +183,14 @@ func (x *FileStreamUpload) GetComplete() bool {
 	return false
 }
 
-func (x *FileStreamUpload) GetExitcode() int32 {
-	if x != nil && x.Exitcode != nil {
-		return *x.Exitcode
+func (x *FileStreamUpload) GetExitCode() int32 {
+	if x != nil && x.ExitCode != nil {
+		return *x.ExitCode
 	}
 	return 0
 }
 
-// FileStreamChunk appends or overwrites lines in one filestream file.
+// A range of lines to write to a filestream file.
 type FileStreamChunk struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The filestream file name, for example "wandb-events.jsonl".
@@ -273,7 +254,7 @@ func (x *FileStreamChunk) GetContent() []string {
 	return nil
 }
 
-// MetricsBatchChunk appends typed history rows at a stream row offset.
+// A batch of typed history rows to write to a stream at a row offset.
 //
 // Row offset is the same as the legacy "line" offset.
 //
@@ -281,7 +262,7 @@ func (x *FileStreamChunk) GetContent() []string {
 // length of `batch.row_ends`.
 type MetricsBatchChunk struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The history line number of the first row in `batch`.
+	// The batch's initial row offset.
 	Offset int64 `protobuf:"varint,1,opt,name=offset,proto3" json:"offset,omitempty"`
 	// The number of rows in `batch`. It repeats the length of
 	// `batch.row_ends` so a decoder can detect a truncated batch.
@@ -343,7 +324,7 @@ func (x *MetricsBatchChunk) GetBatch() *MetricsBatch {
 	return nil
 }
 
-// MetricsBatch is a columnar set of metric rows.
+// A columnar batch of metric rows.
 //
 // Keys are dictionary-encoded once per batch. Cells are stored in row
 // order as (key id, kind) coordinates, and payloads are packed into one
@@ -413,9 +394,9 @@ type MetricsBatch struct {
 	// and it holds one entry per row otherwise.
 	HasSeq []bool `protobuf:"varint,11,rep,packed,name=has_seq,json=hasSeq,proto3" json:"has_seq,omitempty"`
 	// The metric key for the `seqs` column: `"_step"` for history,
-	// `"_timestamp"` for events, `"_offset"` for logs. Must be non-empty,
-	// including when `seqs` is empty. It names the sequence the stream
-	// uses, not the values present in this batch.
+	// `"_timestamp"` for events. Must be non-empty, including when `seqs` is
+	// empty. It names the sequence the stream uses, not the values present in
+	// this batch.
 	SeqKey        string `protobuf:"bytes,12,opt,name=seq_key,json=seqKey,proto3" json:"seq_key,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -539,7 +520,7 @@ var File_wandb_proto_wandb_filestream_v1_proto protoreflect.FileDescriptor
 
 const file_wandb_proto_wandb_filestream_v1_proto_rawDesc = "" +
 	"\n" +
-	"%wandb/proto/wandb_filestream_v1.proto\x12\x13wandb.filestream.v1\"\xbc\x02\n" +
+	"%wandb/proto/wandb_filestream_v1.proto\x12\x13wandb.filestream.v1\"\xbe\x02\n" +
 	"\x10FileStreamUpload\x12:\n" +
 	"\x05files\x18\x01 \x03(\v2$.wandb.filestream.v1.FileStreamChunkR\x05files\x12@\n" +
 	"\ahistory\x18\x02 \x01(\v2&.wandb.filestream.v1.MetricsBatchChunkR\ahistory\x12\x1a\n" +
@@ -547,11 +528,12 @@ const file_wandb_proto_wandb_filestream_v1_proto_rawDesc = "" +
 	"\n" +
 	"preempting\x18\x04 \x01(\bH\x00R\n" +
 	"preempting\x88\x01\x01\x12\x1f\n" +
-	"\bcomplete\x18\x05 \x01(\bH\x01R\bcomplete\x88\x01\x01\x12\x1f\n" +
-	"\bexitcode\x18\x06 \x01(\x05H\x02R\bexitcode\x88\x01\x01B\r\n" +
+	"\bcomplete\x18\x05 \x01(\bH\x01R\bcomplete\x88\x01\x01\x12 \n" +
+	"\texit_code\x18\x06 \x01(\x05H\x02R\bexitCode\x88\x01\x01B\r\n" +
 	"\v_preemptingB\v\n" +
-	"\t_completeB\v\n" +
-	"\t_exitcode\"W\n" +
+	"\t_completeB\f\n" +
+	"\n" +
+	"_exit_code\"W\n" +
 	"\x0fFileStreamChunk\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x16\n" +
 	"\x06offset\x18\x02 \x01(\x03R\x06offset\x12\x18\n" +
@@ -559,7 +541,7 @@ const file_wandb_proto_wandb_filestream_v1_proto_rawDesc = "" +
 	"\x11MetricsBatchChunk\x12\x16\n" +
 	"\x06offset\x18\x01 \x01(\x03R\x06offset\x12\x1b\n" +
 	"\trow_count\x18\x02 \x01(\x03R\browCount\x127\n" +
-	"\x05batch\x18\x03 \x01(\v2!.wandb.filestream.v1.MetricsBatchR\x05batch\"\xbd\x03\n" +
+	"\x05batch\x18\x03 \x01(\v2!.wandb.filestream.v1.MetricsBatchR\x05batch\"\xd3\x03\n" +
 	"\fMetricsBatch\x12\x12\n" +
 	"\x04keys\x18\x01 \x03(\tR\x04keys\x12\x19\n" +
 	"\brow_ends\x18\x02 \x03(\rR\arowEnds\x12\x1b\n" +
@@ -574,15 +556,16 @@ const file_wandb_proto_wandb_filestream_v1_proto_rawDesc = "" +
 	"\x04seqs\x18\n" +
 	" \x03(\x12R\x04seqs\x12\x17\n" +
 	"\ahas_seq\x18\v \x03(\bR\x06hasSeq\x12\x17\n" +
-	"\aseq_key\x18\f \x01(\tR\x06seqKey\"b\n" +
-	"\x04Kind\x12\r\n" +
-	"\tKIND_NULL\x10\x00\x12\x0e\n" +
+	"\aseq_key\x18\f \x01(\tR\x06seqKey\"x\n" +
+	"\x04Kind\x12\x14\n" +
+	"\x10KIND_UNSPECIFIED\x10\x00\x12\r\n" +
+	"\tKIND_NULL\x10\x01\x12\x0e\n" +
 	"\n" +
-	"KIND_FLOAT\x10\x01\x12\f\n" +
-	"\bKIND_INT\x10\x02\x12\r\n" +
-	"\tKIND_BOOL\x10\x03\x12\x0f\n" +
-	"\vKIND_STRING\x10\x04\x12\r\n" +
-	"\tKIND_JSON\x10\x05B+Z)core/pkg/filestream_proto/v1;filestreamv1b\x06proto3"
+	"KIND_FLOAT\x10\x02\x12\f\n" +
+	"\bKIND_INT\x10\x03\x12\r\n" +
+	"\tKIND_BOOL\x10\x04\x12\x0f\n" +
+	"\vKIND_STRING\x10\x05\x12\r\n" +
+	"\tKIND_JSON\x10\x06B+Z)core/pkg/filestream_proto/v1;filestreamv1b\x06proto3"
 
 var (
 	file_wandb_proto_wandb_filestream_v1_proto_rawDescOnce sync.Once
