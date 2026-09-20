@@ -11,6 +11,7 @@ from wandb.analytics.opentelemetry.opentelemetry_proxy import (
     LowCardinalityAttributes,
     OpenTelemetryProxy,
     TelemetryRecorder,
+    _UNIT_MILLISECONDS,
     disable,
 )
 from wandb.sdk.lib import telemetry
@@ -39,7 +40,7 @@ def test_no_error_reporting_telemetry_does_not_publish(monkeypatch):
     recorder.increment_counter_and_log_event("test")
     recorder.exception(Exception("test"))
 
-    open_telemetry_proxy.increment_counter.assert_not_called()
+    open_telemetry_proxy.add_to_counter.assert_not_called()
     open_telemetry_proxy.log.assert_not_called()
 
 
@@ -94,7 +95,7 @@ def test_telemetry_without_proxy_does_not_publish():
     recorder.increment_counter_and_log_event("test event")
     recorder.exception(Exception("test exception"))
 
-    open_telemetry_proxy.increment_counter.assert_not_called()
+    open_telemetry_proxy.add_to_counter.assert_not_called()
     open_telemetry_proxy.log.assert_not_called()
 
 
@@ -102,7 +103,7 @@ def test_errors_do_not_propagate_from_telemetry(monkeypatch):
     monkeypatch.setattr(env, "error_reporting_enabled", lambda: True)
     # _pretend_service_connected(monkeypatch)
     open_telemetry_proxy = MagicMock()
-    open_telemetry_proxy.increment_counter.side_effect = RuntimeError()
+    open_telemetry_proxy.add_to_counter.side_effect = RuntimeError()
     recorder = TelemetryRecorder(open_telemetry_proxy=open_telemetry_proxy)
 
     recorder.increment_counter(
@@ -111,7 +112,7 @@ def test_errors_do_not_propagate_from_telemetry(monkeypatch):
     )
     recorder.log("test log")
 
-    assert open_telemetry_proxy.increment_counter.call_count == 1
+    assert open_telemetry_proxy.add_to_counter.call_count == 1
     assert open_telemetry_proxy.log.call_count == 1
 
 
@@ -178,3 +179,77 @@ def test_proxy_noop_after_disable(monkeypatch):
     proxy.log("test log")
     meter_provider.get_meter.assert_not_called()
     logger_provider.get_logger.assert_not_called()
+
+
+def test_add_to_counter(monkeypatch):
+    monkeypatch.setattr(env, "error_reporting_enabled", lambda: True)
+    open_telemetry_proxy = MagicMock()
+    recorder = TelemetryRecorder(open_telemetry_proxy=open_telemetry_proxy)
+
+    recorder.add_to_counter("request_count", 4, LowCardinalityAttributes())
+
+    open_telemetry_proxy.add_to_counter.assert_called_once()
+    assert open_telemetry_proxy.add_to_counter.call_args.args[0] == "request_count"
+    assert open_telemetry_proxy.add_to_counter.call_args.args[1] == 4
+
+
+def test_add_to_counter_and_log_event(monkeypatch):
+    monkeypatch.setattr(env, "error_reporting_enabled", lambda: True)
+    open_telemetry_proxy = MagicMock()
+    recorder = TelemetryRecorder(open_telemetry_proxy=open_telemetry_proxy)
+
+    recorder.add_to_counter_and_log_event(
+        "an_event",
+        3,
+        attributes={"custom": "value"},
+    )
+
+    open_telemetry_proxy.add_to_counter.assert_called_once()
+    assert open_telemetry_proxy.add_to_counter.call_args.args[0] == "an_event"
+    assert open_telemetry_proxy.add_to_counter.call_args.args[1] == 3
+    open_telemetry_proxy.log.assert_called_once()
+    assert open_telemetry_proxy.log.call_args.args[0] == "an_event"
+    assert open_telemetry_proxy.log.call_args.args[1]["custom"] == "value"
+
+
+def test_record_histogram(monkeypatch):
+    monkeypatch.setattr(env, "error_reporting_enabled", lambda: True)
+    open_telemetry_proxy = MagicMock()
+    recorder = TelemetryRecorder(open_telemetry_proxy=open_telemetry_proxy)
+
+    recorder.record_histogram("request_size", 2048.0, LowCardinalityAttributes())
+
+    open_telemetry_proxy.record_histogram.assert_called_once()
+    assert open_telemetry_proxy.record_histogram.call_args.args[0] == "request_size"
+    assert open_telemetry_proxy.record_histogram.call_args.args[1] == 2048.0
+
+
+def test_record_duration_converts_milliseconds(monkeypatch):
+    monkeypatch.setattr(env, "error_reporting_enabled", lambda: True)
+    open_telemetry_proxy = MagicMock()
+    open_telemetry_proxy._histogram.return_value = MagicMock(
+        unit=_UNIT_MILLISECONDS,
+    )
+    recorder = TelemetryRecorder(open_telemetry_proxy=open_telemetry_proxy)
+
+    recorder.record_duration("encode_duration", 1.5, LowCardinalityAttributes())
+
+    open_telemetry_proxy.define_histogram.assert_not_called()
+    open_telemetry_proxy.record_histogram.assert_called_once()
+    assert open_telemetry_proxy.record_histogram.call_args.args[0] == "encode_duration"
+    assert open_telemetry_proxy.record_histogram.call_args.args[1] == 1500.0
+
+
+def test_record_duration_defines_default_when_missing(monkeypatch):
+    monkeypatch.setattr(env, "error_reporting_enabled", lambda: True)
+    open_telemetry_proxy = MagicMock()
+    open_telemetry_proxy._histogram.return_value = None
+    recorder = TelemetryRecorder(open_telemetry_proxy=open_telemetry_proxy)
+
+    recorder.record_duration("undeclared", 0.003, LowCardinalityAttributes())
+
+    open_telemetry_proxy.define_histogram.assert_called_once()
+    assert open_telemetry_proxy.define_histogram.call_args.args[0] == "undeclared"
+    assert open_telemetry_proxy.define_histogram.call_args.args[1] == "s"
+    open_telemetry_proxy.record_histogram.assert_called_once()
+    assert open_telemetry_proxy.record_histogram.call_args.args[1] == 0.003

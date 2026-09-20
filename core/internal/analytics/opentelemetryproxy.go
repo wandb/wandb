@@ -323,35 +323,6 @@ func (r *TelemetryRecorder) DefineHistogram(
 	return r.root.defineHistogram(name, unit, description, boundaries)
 }
 
-// RecordHistogram records a value on the histogram named name, with the
-// telemetry context's low-cardinality attributes.
-//
-// Returns an error if the histogram is not defined.
-func (r *TelemetryRecorder) RecordHistogram(
-	ctx context.Context,
-	name string,
-	value float64,
-	lowCardinalityAttributes LowCardinalityAttributes,
-) {
-	if r == nil {
-		return
-	}
-
-	mergedLowCardinalityAttributes := r.telemetryContext.lowCardinalityAttributes
-	mergedLowCardinalityAttributes.merge(lowCardinalityAttributes)
-
-	err := r.root.recordHistogram(
-		ctx,
-		name,
-		value,
-		mergedLowCardinalityAttributes,
-	)
-	if err != nil {
-		slog.Debug("analytics: failed to record histogram", "error", err)
-		return
-	}
-}
-
 // RecordDuration records a duration histogram metric in the units specified by
 // the histogram definition, and includes the telemetry context's
 // low-cardinality attributes.
@@ -404,6 +375,35 @@ func (r *TelemetryRecorder) RecordDuration(
 		value,
 		lowCardinalityAttributes,
 	)
+}
+
+// RecordHistogram records a value on the histogram named name, with the
+// telemetry context's low-cardinality attributes.
+//
+// Returns an error if the histogram is not defined.
+func (r *TelemetryRecorder) RecordHistogram(
+	ctx context.Context,
+	name string,
+	value float64,
+	lowCardinalityAttributes LowCardinalityAttributes,
+) {
+	if r == nil {
+		return
+	}
+
+	mergedLowCardinalityAttributes := r.telemetryContext.lowCardinalityAttributes
+	mergedLowCardinalityAttributes.merge(lowCardinalityAttributes)
+
+	err := r.root.recordHistogram(
+		ctx,
+		name,
+		value,
+		mergedLowCardinalityAttributes,
+	)
+	if err != nil {
+		slog.Debug("analytics: failed to record histogram", "error", err)
+		return
+	}
 }
 
 // IncrementCounterAndLogEvent increments a counter metric by 1

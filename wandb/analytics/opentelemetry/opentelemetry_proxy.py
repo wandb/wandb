@@ -9,7 +9,7 @@ import threading
 import traceback
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, fields
-from typing import TYPE_CHECKING, Any, Concatenate
+from typing import TYPE_CHECKING, Any, Concatenate, NamedTuple
 
 import requests
 from opentelemetry._logs import SeverityNumber
@@ -75,6 +75,14 @@ _DEFAULT_DURATION_BUCKET_BOUNDARIES = (
 
 # UCUM unit strings.
 _UNIT_SECONDS = "s"
+_UNIT_MILLISECONDS = "ms"
+_UNIT_MICROSECONDS = "us"
+_UNIT_NANOSECONDS = "ns"
+
+
+class _HistogramCacheEntry(NamedTuple):
+    histogram: Histogram
+    unit: str
 
 # _disabled gates OpenTelemetryProxy for the whole process. Once set, no new
 # proxy is created and telemetry becomes a no-op.
@@ -347,13 +355,29 @@ class TelemetryRecorder:
         from the current context plus the low-cardinality attributes
         passed when this method is called.
         """
+        self.add_to_counter(name, 1, low_cardinality_attributes)
+
+    @guard
+    def add_to_counter(
+        self,
+        name: str,
+        delta: int,
+        low_cardinality_attributes: LowCardinalityAttributes,
+    ) -> None:
+        """Increase an OpenTelemetry counter metric by `delta`.
+
+        The counter metric contains the low-cardinality attributes
+        from the current context plus the low-cardinality attributes
+        passed when this method is called.
+        """
         assert self._open_telemetry_proxy is not None
 
         merged_attributes = low_cardinality_attributes.merge(
             self._context.low_cardinality_attributes
         )
-        self._open_telemetry_proxy.increment_counter(
+        self._open_telemetry_proxy.add_to_counter(
             name,
+            delta,
             merged_attributes.as_dict(),
         )
 
@@ -387,7 +411,11 @@ class TelemetryRecorder:
         seconds: float,
         low_cardinality_attributes: LowCardinalityAttributes,
     ) -> None:
-        """Record a duration in seconds on an OpenTelemetry histogram metric.
+        """Record a duration on an OpenTelemetry histogram metric.
+
+        Converts `seconds` into the unit stored on the histogram definition.
+        If the histogram is not defined, creates one with unit seconds and
+        the default duration boundaries.
 
         The histogram contains the low-cardinality attributes from the current
         context plus the low-cardinality attributes passed when this method is
@@ -395,12 +423,52 @@ class TelemetryRecorder:
         """
         assert self._open_telemetry_proxy is not None
 
+        cached = self._open_telemetry_proxy._histogram(name)
+        if cached is None:
+            unit = _UNIT_SECONDS
+            self._open_telemetry_proxy.define_histogram(
+                name,
+                unit,
+                "",
+                _DEFAULT_DURATION_BUCKET_BOUNDARIES,
+            )
+        else:
+            unit = cached.unit
+
+        if unit == _UNIT_SECONDS:
+            value = seconds
+        elif unit == _UNIT_MILLISECONDS:
+            value = seconds * 1_000
+        elif unit == _UNIT_MICROSECONDS:
+            value = seconds * 1_000_000
+        elif unit == _UNIT_NANOSECONDS:
+            value = seconds * 1_000_000_000
+        else:
+            return
+
+        self.record_histogram(name, value, low_cardinality_attributes)
+
+    @guard
+    def record_histogram(
+        self,
+        name: str,
+        value: float,
+        low_cardinality_attributes: LowCardinalityAttributes,
+    ) -> None:
+        """Record a value on the histogram named `name`.
+
+        The histogram must already be defined. The record contains the
+        low-cardinality attributes from the current context plus the
+        low-cardinality attributes passed when this method is called.
+        """
+        assert self._open_telemetry_proxy is not None
+
         merged_attributes = low_cardinality_attributes.merge(
             self._context.low_cardinality_attributes
         )
-        self._open_telemetry_proxy.record_duration(
+        self._open_telemetry_proxy.record_histogram(
             name,
-            seconds,
+            value,
             merged_attributes.as_dict(),
         )
 
@@ -436,7 +504,17 @@ class TelemetryRecorder:
         attributes: dict[str, str] | None = None,
     ) -> None:
         """Increment a counter metric by 1 and log an event with the given name."""
-        self.increment_counter(name, self._context.low_cardinality_attributes)
+        self.add_to_counter_and_log_event(name, 1, attributes)
+
+    @guard
+    def add_to_counter_and_log_event(
+        self,
+        name: str,
+        delta: int,
+        attributes: dict[str, str] | None = None,
+    ) -> None:
+        """Increase a counter by `delta` and log an event with the given name."""
+        self.add_to_counter(name, delta, self._context.low_cardinality_attributes)
         self.log(name, attributes=attributes, severity=SeverityNumber.INFO)
 
     @guard
@@ -538,7 +616,7 @@ class OpenTelemetryProxy:
         # calls, avoiding duplicate-instrument warnings from the SDK.
         self._counters: dict[str, Counter] = {}
         self._counters_lock = threading.Lock()
-        self._histograms: dict[str, Histogram] = {}
+        self._histograms: dict[str, _HistogramCacheEntry] = {}
         self._histograms_lock = threading.Lock()
 
         # _lock guards the providers and the shutdown flag, so the providers
@@ -657,26 +735,21 @@ class OpenTelemetryProxy:
         attributes: dict[str, str] | None = None,
     ) -> None:
         """Increment the counter metric `name` by 1 with the given attributes."""
-        providers = self._providers()
-        if providers is None:
-            return
+        self.add_to_counter(name, 1, attributes)
 
-        meter_provider, _ = providers
-        self._counter(meter_provider, name).add(1, attributes or {})
-
-    def record_duration(
+    def add_to_counter(
         self,
         name: str,
-        seconds: float,
+        delta: int,
         attributes: dict[str, str] | None = None,
     ) -> None:
-        """Record `seconds` on the duration histogram `name`."""
+        """Increase the counter metric `name` by `delta` with the given attributes."""
         providers = self._providers()
         if providers is None:
             return
 
         meter_provider, _ = providers
-        self._histogram(meter_provider, name).record(seconds, attributes or {})
+        self._counter(meter_provider, name).add(delta, attributes or {})
 
     def define_histogram(
         self,
@@ -685,12 +758,7 @@ class OpenTelemetryProxy:
         description: str,
         boundaries: Sequence[float],
     ) -> None:
-        """Create the histogram instrument `name` with the given boundaries.
-
-        The boundaries can only be set when the instrument is created, and
-        they are not part of its identity, so a later creation under the same
-        name is ignored and keeps the first set of buckets.
-        """
+        """Create the histogram instrument `name` with the given boundaries."""
         providers = self._providers()
         if providers is None:
             return
@@ -700,32 +768,34 @@ class OpenTelemetryProxy:
             if name in self._histograms:
                 return
             meter = meter_provider.get_meter(_DEFAULT_SERVICE_NAME)
-            self._histograms[name] = meter.create_histogram(
+            histogram = meter.create_histogram(
                 name,
                 unit=unit,
                 description=description,
                 explicit_bucket_boundaries_advisory=list(boundaries),
             )
+            self._histograms[name] = _HistogramCacheEntry(histogram, unit)
 
-    def _histogram(self, meter_provider: MeterProvider, name: str) -> Histogram:
-        """Return the instrument for `name`, creating a default one if needed.
+    def record_histogram(
+        self,
+        name: str,
+        value: float,
+        attributes: dict[str, str] | None = None,
+    ) -> None:
+        """Record `value` on the histogram `name` if it is defined."""
+        providers = self._providers()
+        if providers is None:
+            return
 
-        A name that was not declared gets the default timing boundaries,
-        which suits a plain duration and nothing else.
-        """
+        cached = self._histogram(name)
+        if cached is None:
+            return
+        cached.histogram.record(value, attributes or {})
+
+    def _histogram(self, name: str) -> _HistogramCacheEntry | None:
+        """Return the cached histogram for `name`, or None if it is not defined."""
         with self._histograms_lock:
-            histogram = self._histograms.get(name)
-            if histogram is None:
-                meter = meter_provider.get_meter(_DEFAULT_SERVICE_NAME)
-                histogram = meter.create_histogram(
-                    name,
-                    unit=_UNIT_SECONDS,
-                    explicit_bucket_boundaries_advisory=list(
-                        _DEFAULT_DURATION_BUCKET_BOUNDARIES
-                    ),
-                )
-                self._histograms[name] = histogram
-            return histogram
+            return self._histograms.get(name)
 
     def _counter(self, meter_provider: MeterProvider, name: str) -> Counter:
         with self._counters_lock:
