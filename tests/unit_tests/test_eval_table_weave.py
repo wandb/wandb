@@ -10,7 +10,7 @@ from unittest.mock import MagicMock
 import pytest
 import wandb
 from wandb.errors import UsageError
-from wandb.sdk.data_types import eval_table as eval_table_module
+from wandb.sdk.lib import telemetry
 
 
 @pytest.fixture
@@ -305,7 +305,7 @@ def test_telemetry_failure_does_not_repeat_immutable_write(
     telemetry_context.__enter__.return_value = MagicMock()
     telemetry_context.__exit__.side_effect = RuntimeError("telemetry failed")
     monkeypatch.setattr(
-        eval_table_module.telemetry,
+        telemetry,
         "context",
         MagicMock(return_value=telemetry_context),
     )

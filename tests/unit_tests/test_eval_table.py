@@ -7,6 +7,7 @@ import wandb
 import wandb.data_types as wandb_data_types
 from wandb.errors import UsageError
 from wandb.sdk.data_types import eval_table as eval_table_module
+from wandb.sdk.data_types.eval_table import UnsupportedMediaMode
 
 
 @pytest.fixture(autouse=True)
@@ -20,6 +21,7 @@ def default_eval_table_server_feature_disabled(monkeypatch):
 def test_eval_table_public_imports():
     assert wandb.EvalTable is eval_table_module.EvalTable
     assert wandb_data_types.EvalTable is eval_table_module.EvalTable
+    assert UnsupportedMediaMode is eval_table_module.UnsupportedMediaMode
 
 
 @pytest.mark.parametrize("log_mode", ["MUTABLE", "INCREMENTAL"])
