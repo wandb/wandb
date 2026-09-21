@@ -343,9 +343,9 @@ def test_ces_eval_table_batches_rows_by_encoded_bytes(
         "output": {"answer": "yes"},
         "scores": {},
     }
-    single_row_body_size = len(ces._encode_json({"rows": [row]}))
+    single_row_body_size = len(ces_writer._encode_json({"rows": [row]}))
     monkeypatch.setattr(
-        ces,
+        ces_writer,
         "_TARGET_ROW_BATCH_BODY_BYTES",
         single_row_body_size - 1,
     )
@@ -376,10 +376,12 @@ def test_ces_eval_table_batch_size_counts_row_separators(
     expected_batch_sizes,
 ):
     row = {"input": {"value": "same"}, "output": None, "scores": {}}
-    row_size = len(ces._encode_json(row))
-    target_size = ces._ROW_BATCH_ENVELOPE_BYTES + 2 * row_size + separator_bytes
+    row_size = len(ces_writer._encode_json(row))
+    target_size = (
+        ces_writer._ROW_BATCH_ENVELOPE_BYTES + 2 * row_size + separator_bytes
+    )
     batches = list(
-        ces._iter_row_batches(
+        ces_writer._iter_row_batches(
             [row, row, row],
             max_body_bytes=16 << 20,
             target_body_bytes=target_size,
@@ -395,7 +397,7 @@ def test_ces_eval_table_batches_rows_by_count(
     run,
     monkeypatch,
 ):
-    monkeypatch.setattr(ces, "_MAX_ROWS_PER_BATCH", 2)
+    monkeypatch.setattr(ces_writer, "_MAX_ROWS_PER_BATCH", 2)
     et = wandb.EvalTable(
         columns=["value"],
         data=[[index] for index in range(5)],
@@ -428,8 +430,8 @@ def test_ces_eval_table_rejects_oversized_row_before_network(
         "output": {"value": value},
         "scores": {},
     }
-    body_size = len(ces._encode_json({"rows": [row]}))
-    monkeypatch.setattr(ces, "_MAX_REQUEST_BODY_BYTES", body_size)
+    body_size = len(ces_writer._encode_json({"rows": [row]}))
+    monkeypatch.setattr(ces_writer, "_MAX_REQUEST_BODY_BYTES", body_size)
     et = wandb.EvalTable(
         columns=["value"],
         data=[[value]],
@@ -448,7 +450,7 @@ def test_ces_eval_table_rejects_total_row_count_before_network(
     run,
     monkeypatch,
 ):
-    monkeypatch.setattr(ces, "_MAX_ROWS_PER_TABLE", 2)
+    monkeypatch.setattr(ces_writer, "_MAX_ROWS_PER_TABLE", 2)
     et = wandb.EvalTable(
         columns=["value"],
         data=[[1], [2], [3]],
@@ -467,7 +469,7 @@ def test_ces_eval_table_does_not_cut_version_after_batch_failure(
     run,
     monkeypatch,
 ):
-    monkeypatch.setattr(ces, "_MAX_ROWS_PER_BATCH", 1)
+    monkeypatch.setattr(ces_writer, "_MAX_ROWS_PER_BATCH", 1)
     mock_ces_client.eval_tables.add_rows.side_effect = [
         None,
         RuntimeError("batch failed"),
@@ -820,7 +822,7 @@ def test_ces_eval_table_retries_with_stable_idempotency_keys(
     run,
     monkeypatch,
 ):
-    monkeypatch.setattr(ces, "_MAX_ROWS_PER_BATCH", 1)
+    monkeypatch.setattr(ces_writer, "_MAX_ROWS_PER_BATCH", 1)
     version = SimpleNamespace(
         dataset_version_id="dataset-version-1",
         evaluation_version_id="evaluation-version-1",
