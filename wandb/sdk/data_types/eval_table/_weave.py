@@ -7,9 +7,9 @@ from typing import TYPE_CHECKING, Any
 import wandb
 import wandb.integration.weave as weave_integration
 import wandb.integration.weave.media_adapters as media_adapters
-from wandb.sdk.data_types._eval_table_writer import (
-    EvalTableWriteInput,
-    EvalTableWriteResult,
+from wandb.sdk.data_types.eval_table._writer import (
+    WriteInput,
+    WriteResult,
 )
 from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
 
@@ -124,7 +124,7 @@ def validate_weave_cell_value(
     )
 
 
-class WeaveEvalTableWriter:
+class WeaveWriter:
     def __init__(
         self,
         *,
@@ -173,7 +173,7 @@ class WeaveEvalTableWriter:
             name=eval_name,
         )
 
-    def write(self, payload: EvalTableWriteInput) -> EvalTableWriteResult:
+    def write(self, payload: WriteInput) -> WriteResult:
         # Import after bind initializes Weave for the intended run project.
         ev = self._create_weave_eval_logger(payload.name)
 
@@ -192,7 +192,7 @@ class WeaveEvalTableWriter:
         # TODO: We should work with Weave on exposing a public evaluate_call_id()
         # instead of relying on this private field.
         evaluate_call_id = ev._evaluate_call.id
-        return EvalTableWriteResult(
+        return WriteResult(
             marker={
                 "_type": "eval-table",
                 "ncols": payload.ncols,
