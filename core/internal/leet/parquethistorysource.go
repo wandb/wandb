@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"reflect"
 	"strings"
@@ -23,6 +24,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runhistoryreader"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet"
 	"github.com/wandb/wandb/core/internal/runhistoryreader/parquet/ffi"
+	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -62,10 +64,6 @@ type historyStepReader interface {
 // ParquetHistorySource reads a remote run's history from its parquet
 // exports on the W&B backend.
 //
-// TODO: resolve custom x-axes like LevelDBHistorySource does for
-// Record_Metric. For remote runs the define_metric definitions live in
-// the run config under _wandb.m, which is not fetched yet.
-//
 // Implements HistorySource.
 type ParquetHistorySource struct {
 	logger *observability.CoreLogger
@@ -94,6 +92,9 @@ type ParquetHistorySource struct {
 	// summary did not provide a bound.
 	maxKnownStep int64
 
+	// metricHandler contains the remote run's persisted metric definitions.
+	metricHandler *runmetric.MetricHandler
+
 	// runInfo is the information about the run. Never nil.
 	runInfo *RunInfo
 }
@@ -106,17 +107,22 @@ func newParquetHistorySource(
 	runInfo *RunInfo,
 	reader historyStepReader,
 	logger *observability.CoreLogger,
+	metricHandler *runmetric.MetricHandler,
 ) *ParquetHistorySource {
 	ctx, cancel := context.WithCancel(ctx)
+	if metricHandler == nil {
+		metricHandler = runmetric.New()
+	}
 
 	return &ParquetHistorySource{
-		logger:       logger,
-		ctx:          ctx,
-		cancel:       cancel,
-		runPath:      fmt.Sprintf("%s/%s/%s", runInfo.entity, runInfo.project, runInfo.runId),
-		maxKnownStep: maxStepFromSummary(runInfo.runSummary),
-		runInfo:      runInfo,
-		reader:       reader,
+		logger:        logger,
+		ctx:           ctx,
+		cancel:        cancel,
+		runPath:       fmt.Sprintf("%s/%s/%s", runInfo.entity, runInfo.project, runInfo.runId),
+		maxKnownStep:  maxStepFromSummary(runInfo.runSummary),
+		metricHandler: metricHandler,
+		runInfo:       runInfo,
+		reader:        reader,
 	}
 }
 
@@ -169,6 +175,15 @@ func InitializeParquetHistorySource(
 			return ErrorMsg{Err: err}
 		}
 
+		metricHandler := loadWandbConfigMetrics(
+			ctx,
+			graphqlClient,
+			runParams.Entity,
+			runParams.Project,
+			runParams.RunID,
+			logger,
+		)
+
 		rustArrowWrapper, err := ffi.NewRustArrowWrapper()
 		if err != nil {
 			return ErrorMsg{Err: err}
@@ -190,7 +205,13 @@ func InitializeParquetHistorySource(
 		}
 
 		return InitMsg{
-			Source: newParquetHistorySource(ctx, runInfo, reader, logger),
+			Source: newParquetHistorySource(
+				ctx,
+				runInfo,
+				reader,
+				logger,
+				metricHandler,
+			),
 		}
 	}
 }
@@ -256,7 +277,10 @@ func (s *ParquetHistorySource) Read(
 		} else {
 			s.currentStep = maxStep + 1
 		}
-		histories = append(histories, parseParquetHistorySteps(historySteps, s.logger))
+		histories = append(
+			histories,
+			parseParquetHistorySteps(historySteps, s.logger, s.metricHandler),
+		)
 		numMsgs += len(historySteps)
 
 		if s.maxKnownStep >= 0 && s.currentStep > s.maxKnownStep {
@@ -293,6 +317,7 @@ func (s *ParquetHistorySource) Close() {
 func parseParquetHistorySteps(
 	historySteps []parquet.KeyValueList,
 	logger *observability.CoreLogger,
+	metricHandler *runmetric.MetricHandler,
 ) HistoryMsg {
 	h := HistoryMsg{
 		Metrics: make(map[string]MetricData),
@@ -309,12 +334,14 @@ func parseParquetHistorySteps(
 			continue
 		}
 
+		// Collect the whole row before resolving axes, since a custom step
+		// metric may appear later in the row than the metric that uses it.
+		values := make(map[string]float64)
 		for _, keyValue := range historyStep {
-			if keyValue.Key == parquet.StepKey || strings.HasPrefix(keyValue.Key, "_") {
+			if keyValue.Key == parquet.StepKey {
 				continue
 			}
 
-			existing := h.Metrics[keyValue.Key]
 			var value float64
 			switch v := keyValue.Value.(type) {
 			case float64:
@@ -324,17 +351,50 @@ func parseParquetHistorySteps(
 			case uint64:
 				value = float64(v)
 			default:
-				logger.Warn(
-					"parquet history source: got unexpected value type",
-					"type",
-					reflect.TypeOf(keyValue.Value),
-				)
+				if !strings.HasPrefix(keyValue.Key, "_") {
+					logger.Warn(
+						"parquet history source: got unexpected value type",
+						"type",
+						reflect.TypeOf(keyValue.Value),
+					)
+				}
+				continue
+			}
+			values[keyValue.Key] = value
+		}
+
+		for key, value := range values {
+			if strings.HasPrefix(key, "_") {
 				continue
 			}
 
-			existing.X = append(existing.X, currentStep)
+			xAxisMetric := metricHandler.StepMetric(key)
+			if metricHandler.IsHidden(key) {
+				continue
+			}
+
+			x := currentStep
+			switch xAxisMetric {
+			case "", parquet.StepKey:
+				xAxisMetric = ""
+			default:
+				customStep, ok := values[xAxisMetric]
+				if !ok || !isFinite(customStep) {
+					continue
+				}
+				x = customStep
+			}
+
+			existing := h.Metrics[key]
+			if existing.XAxisMetric != xAxisMetric {
+				if existing.XAxisMetric != "" {
+					continue
+				}
+				existing = MetricData{XAxisMetric: xAxisMetric}
+			}
+			existing.X = append(existing.X, x)
 			existing.Y = append(existing.Y, value)
-			h.Metrics[keyValue.Key] = existing
+			h.Metrics[key] = existing
 		}
 	}
 	return h
@@ -405,6 +465,209 @@ func (s *ParquetHistorySource) summaryMsg() SummaryMsg {
 			},
 		},
 	}
+}
+
+// decodeWandbConfigMetrics decodes persisted metric definitions from the
+// run's private wandb config. The config uses numeric protobuf field names:
+// 1 is name, 2 is glob_name, 4 is step_metric, 5 is a one-based index
+// into the metric list for step_metric, and 6 contains metric options.
+//
+// Invalid definitions are ignored so remote runs retain the default _step
+// axis, matching the local history reader's best-effort processing.
+func decodeWandbConfigMetrics(wandbConfigJSON string) *runmetric.MetricHandler {
+	handler := runmetric.New()
+	config, err := simplejsonext.UnmarshalObjectString(wandbConfigJSON)
+	if err != nil {
+		return handler
+	}
+
+	rawMetrics, ok := config["m"].([]any)
+	if !ok {
+		return handler
+	}
+
+	// Decode all metrics into records.
+	records := make([]*spb.MetricRecord, len(rawMetrics))
+	for i, rawMetric := range rawMetrics {
+		fields, ok := rawMetric.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		record, ok := decodeWandbMetricRecord(fields)
+		if !ok {
+			continue
+		}
+		records[i] = record
+	}
+
+	// Resolve references after every record is available, then register
+	// the completed definitions with the same handler used for local runs.
+	for i, rawMetric := range rawMetrics {
+		record := records[i]
+		if record == nil {
+			continue
+		}
+
+		fields, ok := rawMetric.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		if rawIndex, exists := fields["5"]; exists {
+			index, ok := persistedMetricIndex(rawIndex, len(records))
+			if !ok || records[index-1] == nil {
+				continue
+			}
+			switch {
+			case records[index-1].Name != "":
+				record.StepMetric = records[index-1].Name
+			case records[index-1].GlobName != "":
+				record.StepMetric = records[index-1].GlobName
+			default:
+				continue
+			}
+		}
+
+		_ = handler.ProcessRecord(record)
+	}
+
+	return handler
+}
+
+// decodeWandbMetricRecord decodes the fields needed to resolve a metric's
+// custom x-axis. It returns false for malformed entries or entries that
+// incorrectly specify both an explicit name and a glob name.
+func decodeWandbMetricRecord(
+	fields map[string]any,
+) (*spb.MetricRecord, bool) {
+	record := &spb.MetricRecord{}
+
+	if rawName, exists := fields["1"]; exists {
+		name, ok := rawName.(string)
+		if !ok {
+			return nil, false
+		}
+		record.Name = name
+	}
+
+	if rawGlobName, exists := fields["2"]; exists {
+		globName, ok := rawGlobName.(string)
+		if !ok {
+			return nil, false
+		}
+		record.GlobName = globName
+	}
+
+	if record.Name != "" && record.GlobName != "" {
+		return nil, false
+	}
+
+	if rawStepMetric, exists := fields["4"]; exists {
+		stepMetric, ok := rawStepMetric.(string)
+		if !ok {
+			return nil, false
+		}
+		record.StepMetric = stepMetric
+	}
+
+	if rawOptions, exists := fields["6"]; exists {
+		options, ok := rawOptions.([]any)
+		if !ok {
+			return nil, false
+		}
+		for _, rawOption := range options {
+			var option float64
+			switch rawOption := rawOption.(type) {
+			case int64:
+				option = float64(rawOption)
+			// Defensive check if JSON deserialization ever converts to float64.
+			case float64:
+				option = rawOption
+			default:
+				continue
+			}
+
+			if option == 2 {
+				record.Options = &spb.MetricOptions{Hidden: true}
+				break
+			}
+		}
+	}
+
+	return record, true
+}
+
+// persistedMetricIndex converts a JSON number into a valid one-based index
+// into a persisted metric list.
+func persistedMetricIndex(value any, metricCount int) (int, bool) {
+	var index int64
+	switch value := value.(type) {
+	case int:
+		index = int64(value)
+	case int64:
+		index = value
+	case uint64:
+		if value > math.MaxInt64 {
+			return 0, false
+		}
+		index = int64(value)
+	case float64:
+		if value != math.Trunc(value) || value > math.MaxInt64 {
+			return 0, false
+		}
+		index = int64(value)
+	default:
+		return 0, false
+	}
+
+	if index < 1 || index > int64(metricCount) {
+		return 0, false
+	}
+	return int(index), true
+}
+
+// loadWandbConfigMetrics loads persisted metric definitions for a remote run.
+//
+// Metric metadata is optional for remote history rendering. If the config
+// query fails or returns an unusable response, return an empty handler so
+// callers retain the default _step behavior.
+func loadWandbConfigMetrics(
+	ctx context.Context,
+	graphqlClient graphql.Client,
+	entity string,
+	project string,
+	runId string,
+	logger *observability.CoreLogger,
+) *runmetric.MetricHandler {
+	handler := runmetric.New()
+	response, err := gql.QueryRunWandbConfig(
+		ctx,
+		graphqlClient,
+		entity,
+		project,
+		runId,
+	)
+	if err != nil {
+		logger.Warn(
+			"parquet history source: failed to load metric definitions",
+			"error", err,
+		)
+		return handler
+	}
+
+	if response == nil || response.Project == nil || response.Project.Run == nil {
+		logger.Warn(
+			"parquet history source: metric definition response missing run",
+		)
+		return handler
+	}
+
+	configJSON := response.Project.Run.WandbConfig
+	if configJSON == nil {
+		return handler
+	}
+	return decodeWandbConfigMetrics(*configJSON)
 }
 
 // loadRunInfo loads information about the run from the backend.

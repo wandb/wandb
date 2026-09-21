@@ -1,0 +1,11 @@
+query QueryRunWandbConfig(
+    $entity: String!,
+    $project: String!,
+    $run: String!,
+) {
+    project(name: $project, entityName: $entity) {
+        run(name: $run) {
+            wandbConfig(keys: ["m"])
+        }
+    }
+}
