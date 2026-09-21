@@ -11,8 +11,8 @@ from unittest.mock import ANY, MagicMock
 import pytest
 import wandb
 from wandb.errors import UsageError
-from wandb.sdk.data_types.eval_table import _writer_ces as ces
 from wandb.sdk.data_types._dtypes import AnyType
+from wandb.sdk.data_types.eval_table import _writer_ces as ces
 
 
 @pytest.fixture
