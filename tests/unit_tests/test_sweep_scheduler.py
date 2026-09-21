@@ -603,6 +603,35 @@ class TestAxOptimizerAcceptance(OptimizerAcceptanceTests):
 
 
 @requires_ax
+class TestAxMultiObjectiveAcceptance(MultiObjectiveOptimizerAcceptanceTests):
+    @pytest.fixture
+    def optimizer(self, sweep: SweepInfo) -> Optimizer:
+        from wandb.sdk.sweeps.scheduler.ax import AxOptimizer, create_default_client
+
+        return AxOptimizer(create_default_client(MULTI_OBJECTIVE_SWEEP_CONFIG), sweep)
+
+    def recorded_objectives(self, optimizer: Optimizer) -> list[list[Any] | None]:
+        """Ax scores a completed trial only; a failed one holds no result."""
+        from wandb.sdk.sweeps.scheduler.ax import _experiment
+
+        experiment = _experiment(optimizer.client)
+        data = experiment.lookup_data().df
+        recorded: list[list[Any] | None] = []
+        for trial_index, trial in sorted(experiment.trials.items()):
+            if not trial.status.is_completed:
+                recorded.append(None)
+                continue
+            rows = data[data["trial_index"] == trial_index]
+            recorded.append(
+                [
+                    rows[rows["metric_name"] == name]["mean"].iloc[-1]
+                    for name in optimizer.metric_names()
+                ]
+            )
+        return recorded
+
+
+@requires_ax
 class TestAxOptimizerTermination(TerminatorContractTests):
     def make_optimizer(self, terminator: Any = None) -> tuple[Optimizer, Any]:
         from wandb.sdk.sweeps.scheduler.ax import AxOptimizer, create_default_client

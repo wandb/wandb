@@ -17,6 +17,7 @@ from wandb.sdk.sweeps.run_state import RunState
 from wandb.sdk.sweeps.scheduler.ax import (
     AxOptimizer,
     _experiment,
+    _experiment_objectives,
     create_default_client,
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
@@ -163,17 +164,58 @@ class TestUnparseableMetricName:
         assert optimizer.client.summarize()["val-loss"].tolist() == [0.5]
 
 
-class TestMultiObjectiveRejected:
-    def test_multi_objective_sweep_is_rejected_clearly(self, client: Client) -> None:
-        """Ax optimizes one scalar objective; say so up front."""
-        metrics_config = {
-            "metrics": [
-                {"name": "loss", "goal": "minimize"},
-                {"name": "accuracy", "goal": "maximize"},
-            ],
-            "parameters": {"x": {"min": 0.0, "max": 1.0}},
-        }
-        sweep = make_scheduler_grid_sweep(config=metrics_config)
+MULTI_OBJECTIVE_CONFIG = {
+    "metrics": [
+        {"name": "loss", "goal": "minimize"},
+        {"name": "accuracy", "goal": "maximize"},
+    ],
+    "parameters": {"x": {"min": 0.0, "max": 1.0}},
+}
 
-        with pytest.raises(ValueError, match="single-objective"):
+
+class TestMultiObjective:
+    """What Ax makes of a sweep that declares its objectives in `metrics`."""
+
+    @pytest.fixture
+    def optimizer(self) -> AxOptimizer:
+        return AxOptimizer(
+            create_default_client(MULTI_OBJECTIVE_CONFIG),
+            make_scheduler_grid_sweep(config=MULTI_OBJECTIVE_CONFIG),
+        )
+
+    def test_creates_an_objective_per_declared_metric(
+        self, optimizer: AxOptimizer
+    ) -> None:
+        objective = _experiment(optimizer.client).optimization_config.objective
+
+        assert objective.is_multi_objective
+        assert _experiment_objectives(optimizer.client) == [
+            ("loss", True),
+            ("accuracy", False),
+        ]
+
+    def test_intermediate_values_attach_every_objective(
+        self, optimizer: AxOptimizer
+    ) -> None:
+        """Ax rejects partial data, so every objective is attached together."""
+        suggestion = next(iter(optimizer.ask_n_runs(1)))
+
+        optimizer.tell_run(
+            suggestion.run_id,
+            make_run(
+                suggestion,
+                state=RunState.RUNNING,
+                summary={},
+                history=[{"loss": 1.0, "accuracy": 0.3, "_step": 0}],
+            ),
+        )
+
+        attached = _experiment(optimizer.client).lookup_data().df
+        assert sorted(attached["metric_name"].unique()) == ["accuracy", "loss"]
+
+    def test_a_mismatched_objective_count_is_rejected(self, client: Client) -> None:
+        """A single-objective Ax client cannot serve a two-metric sweep."""
+        sweep = make_scheduler_grid_sweep(config=MULTI_OBJECTIVE_CONFIG)
+
+        with pytest.raises(ValueError, match="disagree on the objectives"):
             AxOptimizer(client, sweep)
