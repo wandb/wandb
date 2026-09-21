@@ -74,7 +74,7 @@ func (fs *fileStream) warnMetricLimit(response map[string]any) {
 	fs.metricLimitWarned = true
 	fs.printer.Warnf(
 		"Run is approaching its metric limit: %.0f of %.0f distinct metric"+
-			" names reserved. Exceeding the limit stops further filestream"+
+			" names observed so far. Exceeding the limit stops further filestream"+
 			" uploads for this run.",
 		count, limit,
 	)
