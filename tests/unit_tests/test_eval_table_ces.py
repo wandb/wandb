@@ -11,7 +11,7 @@ from unittest.mock import ANY, MagicMock
 import pytest
 import wandb
 from wandb.errors import UsageError
-from wandb.sdk.data_types.eval_table import _ces as ces
+from wandb.sdk.data_types.eval_table import _writer_ces as ces
 from wandb.sdk.data_types._dtypes import AnyType
 
 
@@ -56,7 +56,7 @@ def mock_eval_logger(monkeypatch):
         eval_imperative_module,
     )
     monkeypatch.setattr(
-        "wandb.sdk.data_types.eval_table._weave.weave_integration.init_weave",
+        "wandb.sdk.data_types.eval_table._writer_weave.weave_integration.init_weave",
         lambda entity, project: None,
     )
     return mock_evaluation_logger_cls
@@ -86,7 +86,7 @@ def mock_ces_client(monkeypatch):
     client_module.CoreWeaveEvaluations = MagicMock
     monkeypatch.setitem(sys.modules, "coreweave_evaluations", client_module)
     monkeypatch.setattr(
-        "wandb.sdk.data_types.eval_table._ces.CESWriter._resolve_scope_context",
+        "wandb.sdk.data_types.eval_table._writer_ces.CESWriter._resolve_scope_context",
         lambda self, bound_run: ces._CESScopeContext(
             scope_ref="scope-ref",
             api_key=None,
@@ -94,7 +94,7 @@ def mock_ces_client(monkeypatch):
         ),
     )
     monkeypatch.setattr(
-        "wandb.sdk.data_types.eval_table._ces.CESWriter._create_client",
+        "wandb.sdk.data_types.eval_table._writer_ces.CESWriter._create_client",
         lambda self, client_type, base_url, scope: client,
     )
     return client
@@ -107,7 +107,7 @@ def test_ces_eval_table_writes_columns_rows_and_version(
 ):
     debug = MagicMock()
     monkeypatch.setattr(
-        "wandb.sdk.data_types.eval_table._ces._logger.debug",
+        "wandb.sdk.data_types.eval_table._writer_ces._logger.debug",
         debug,
     )
     et = wandb.EvalTable(

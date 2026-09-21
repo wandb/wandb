@@ -6,12 +6,12 @@ from typing_extensions import override
 
 import wandb
 from wandb.errors import UsageError
-from wandb.sdk.data_types.eval_table._factory import (
+from wandb.sdk.data_types.eval_table._writer_factory import (
     Backend,
     create_default_writer,
     create_writer,
 )
-from wandb.sdk.data_types.eval_table._weave import validate_weave_cell_value
+from wandb.sdk.data_types.eval_table._writer_weave import validate_weave_cell_value
 from wandb.sdk.data_types.eval_table._writer import (
     Writer,
     WriteInput,
