@@ -297,28 +297,6 @@ class OptunaOptimizer(Optimizer):
             suggestions.append(self._ask_suggestion())
         return suggestions
 
-    def metric_names(self) -> list[str]:
-        """Return the sweep's objective metric names, in the study's order.
-
-        A multi-objective sweep names them in `metrics`; a single-objective
-        one in `metric`.
-        """
-        metrics = self._sweep.config.get("metrics")
-        if metrics is not None:
-            return [metric["name"] for metric in metrics if "name" in metric]
-        return [self.metric_key()]
-
-    def _objective_values(self, metrics: dict[str, Any]) -> list[Any] | None:
-        """Return a run's objective values, or None if any is missing.
-
-        Args:
-            metrics: The run's summary metrics.
-        """
-        values = [metrics.get(name) for name in self.metric_names()]
-        if any(value is None for value in values):
-            return None
-        return values
-
     @override
     def should_terminate_sweep(self) -> bool:
         """Return True once the caller's `terminator` says the search is done.
@@ -445,7 +423,7 @@ class OptunaOptimizer(Optimizer):
 
         state = self.trial_state(data.state)
         if state == optuna.trial.TrialState.COMPLETE:
-            values = self._objective_values(data.summary_metrics)
+            values = self.objective_values(data.summary_metrics)
             if values is None:
                 # A run that finished without every objective taught the
                 # search nothing; record a failure rather than telling the
@@ -558,7 +536,7 @@ class OptunaDeclarativeOptimizer(OptunaOptimizer):
         trial_state = self.trial_state(data.state)  # COMPLETE or FAIL
         values = None
         if trial_state == optuna.trial.TrialState.COMPLETE:
-            values = self._objective_values(data.summary_metrics)
+            values = self.objective_values(data.summary_metrics)
             if values is None:
                 return  # finished but never logged every objective metric
         config = data.config.flat_dict()
@@ -615,7 +593,7 @@ class OptunaImperativeOptimizer(OptunaOptimizer):
         # to a COMPLETE study.tell(), so skip it.
         if (
             data.state == RunState.FINISHED
-            and self._objective_values(data.summary_metrics) is None
+            and self.objective_values(data.summary_metrics) is None
         ):
             return
         # Never skip_if_exists: two prior runs can share a config, and a

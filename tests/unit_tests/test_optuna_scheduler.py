@@ -6,12 +6,7 @@ from unittest.mock import MagicMock
 import optuna
 import pytest
 from wandb.sdk.sweeps.run_state import RunState
-from wandb.sdk.sweeps.scheduler.optimizer import (
-    Run,
-    RunConfig,
-    RunSuggestion,
-    RunWithMetrics,
-)
+from wandb.sdk.sweeps.scheduler.optimizer import Run, RunConfig, RunWithMetrics
 from wandb.sdk.sweeps.scheduler.optuna import (
     OptunaDeclarativeOptimizer,
     OptunaImperativeOptimizer,
@@ -275,83 +270,6 @@ class TestExhaustibleSampler:
 
         with pytest.raises(RuntimeError, match="genuine sampler bug"):
             self.finish(optimizer, suggestion)
-
-
-class TestMultiObjective:
-    """Multi-objective sweeps declare their objectives in `metrics`."""
-
-    METRICS_CONFIG = {
-        "metrics": [
-            {"name": "loss", "goal": "minimize"},
-            {"name": "accuracy", "goal": "maximize"},
-        ],
-        "parameters": {"x": {"min": 0.0, "max": 1.0}},
-    }
-
-    @pytest.fixture
-    def optimizer(self) -> OptunaDeclarativeOptimizer:
-        study = create_study_from_sweep_config(self.METRICS_CONFIG)
-        sweep = make_scheduler_grid_sweep(config=self.METRICS_CONFIG)
-        distributions = {"x": optuna.distributions.FloatDistribution(0.0, 1.0)}
-        return OptunaDeclarativeOptimizer(study, distributions, sweep)
-
-    def make_run(self, suggestion, summary, state=RunState.FINISHED):
-        return RunWithMetrics(
-            config=suggestion.config,
-            state=state,
-            wandb_run_id="wandb-run-id",
-            summary_metrics=summary,
-            history_metrics=[{"loss": 2.0, "accuracy": 0.5, "_step": 1}],
-        )
-
-    @pytest.mark.parametrize(
-        ("summary", "state", "values"),
-        [
-            (
-                {"loss": 1.5, "accuracy": 0.75},
-                optuna.trial.TrialState.COMPLETE,
-                [1.5, 0.75],
-            ),
-            ({"loss": 1.5}, optuna.trial.TrialState.FAIL, None),
-        ],
-        ids=["every_objective", "missing_an_objective"],
-    )
-    def test_tell_run_records_a_trial_only_for_every_objective(
-        self,
-        optimizer,
-        summary: dict[str, Any],
-        state: optuna.trial.TrialState,
-        values: list[float] | None,
-    ) -> None:
-        suggestion = next(iter(optimizer.ask_n_runs(1)))
-
-        optimizer.tell_run(suggestion.run_id, self.make_run(suggestion, summary))
-
-        trials = optimizer.study.get_trials(deepcopy=False)
-        assert len(trials) == 1
-        assert trials[0].state == state
-        assert trials[0].values == values
-
-    def test_prune_run_is_never_pruned(self, optimizer) -> None:
-        """optuna's pruners rank one value, so they cannot judge these."""
-        suggestion = next(iter(optimizer.ask_n_runs(1)))
-        run = self.make_run(suggestion, {"loss": 9.0}, state=RunState.RUNNING)
-        optimizer.tell_run(suggestion.run_id, run)
-
-        assert optimizer.prune_runs([suggestion.run_id], [run]) == []
-
-    def test_warm_start_records_every_objective(self, optimizer) -> None:
-        existing = RunSuggestion(
-            config=RunConfig.from_values({"x": 0.25}), run_id="prior"
-        )
-
-        optimizer.tell_existing_finished_run(
-            self.make_run(existing, {"loss": 0.5, "accuracy": 0.9})
-        )
-
-        trials = optimizer.study.get_trials(deepcopy=False)
-        assert len(trials) == 1
-        assert trials[0].values == [0.5, 0.9]
 
 
 class TestImperativeWarmStart:

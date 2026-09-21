@@ -457,6 +457,28 @@ class TestOptunaImperativeOptimizerAcceptance(OptunaOptimizerAcceptanceTests):
         return OptunaImperativeOptimizer(study, trial_constructor, sweep)
 
 
+class TestOptunaMultiObjectiveAcceptance(MultiObjectiveOptimizerAcceptanceTests):
+    @pytest.fixture
+    def optimizer(self, sweep: SweepInfo) -> Optimizer:
+        import optuna
+        from wandb.sdk.sweeps.scheduler.optuna import (
+            OptunaDeclarativeOptimizer,
+            create_study_from_sweep_config,
+        )
+
+        optuna.logging.set_verbosity(optuna.logging.WARNING)
+        study = create_study_from_sweep_config(MULTI_OBJECTIVE_SWEEP_CONFIG)
+        distributions = {"x": optuna.distributions.FloatDistribution(0.0, 1.0)}
+        return OptunaDeclarativeOptimizer(study, distributions, sweep)
+
+    def recorded_objectives(self, optimizer: Optimizer) -> list[list[Any] | None]:
+        """A trial optuna was told nothing for has no values of its own."""
+        return [
+            list(trial.values) if trial.values is not None else None
+            for trial in optimizer.study.get_trials(deepcopy=False)
+        ]
+
+
 class TerminatorContractTests(abc.ABC):
     """`should_terminate_sweep` must delegate to the caller's terminator."""
 
