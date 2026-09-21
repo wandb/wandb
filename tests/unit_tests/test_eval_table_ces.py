@@ -56,7 +56,7 @@ def mock_eval_logger(monkeypatch):
         eval_imperative_module,
     )
     monkeypatch.setattr(
-        "wandb.sdk.data_types.eval_table._weave.weave_integration.init_weave",
+        "wandb.sdk.data_types.eval_table._writer_weave.weave_integration.init_weave",
         lambda entity, project: None,
     )
     return mock_evaluation_logger_cls

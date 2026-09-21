@@ -3,9 +3,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Literal
 
 from wandb.errors import UsageError
-from wandb.sdk.data_types.eval_table._writer_ces import CESWriter
-from wandb.sdk.data_types.eval_table._weave import WeaveWriter
 from wandb.sdk.data_types.eval_table._writer import Writer
+from wandb.sdk.data_types.eval_table._writer_ces import CESWriter
+from wandb.sdk.data_types.eval_table._writer_weave import WeaveWriter
 
 if TYPE_CHECKING:
     from wandb.sdk.wandb_run import Run as LocalRun
