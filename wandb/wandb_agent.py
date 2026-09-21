@@ -7,7 +7,6 @@ import math
 import multiprocessing
 import os
 import platform
-import queue
 import re
 import signal
 import socket
@@ -97,8 +96,6 @@ class AgentProcess:
     ):
         self._popen = None
         self._proc = None
-        self._finished_q = multiprocessing.Queue()
-        self._proc_killed = False
 
         # Store original handlers
         self._original_handlers = {}
@@ -161,7 +158,7 @@ class AgentProcess:
         elif function:
             self._proc = multiprocessing.Process(
                 target=self._start,
-                args=(self._finished_q, env, function, run_id, in_jupyter),
+                args=(env, function, run_id, in_jupyter),
             )
             self._proc.start()
         else:
@@ -191,7 +188,7 @@ class AgentProcess:
         elif signum in _TERMINATING_SIGNALS:
             raise ShutdownSignal(signum)
 
-    def _start(self, finished_q, env, function, run_id, in_jupyter):
+    def _start(self, env, function, run_id, in_jupyter):
         if env:
             for k, v in env.items():
                 os.environ[k] = v
@@ -207,23 +204,14 @@ class AgentProcess:
         if run:
             wandb.join()
 
-        # signal that the process is finished
-        finished_q.put(True)
-
-    def poll(self):
+    def poll(self) -> int | None:
         if self._popen:
             return self._popen.poll()
-        if self._proc_killed:
-            # we need to join process to prevent zombies
+
+        exit_code = self._proc.exitcode
+        if exit_code is not None:
             self._proc.join()
-            return True
-        try:
-            finished = self._finished_q.get(False, 0)
-            if finished:
-                return True
-        except queue.Empty:
-            pass
-        return
+        return exit_code
 
     def wait(self, timeout: float | None = None):
         """Wait for process or function to finish running.
@@ -254,12 +242,7 @@ class AgentProcess:
     def kill(self):
         if self._popen:
             return self._popen.kill()
-        pid = self._proc.pid
-        if pid:
-            ret = os.kill(pid, signal.SIGKILL)
-            self._proc_killed = True
-            return ret
-        return
+        return self._proc.kill()
 
     def terminate(self):
         if self._popen:
@@ -268,15 +251,6 @@ class AgentProcess:
                 return self._popen.send_signal(signal.CTRL_C_EVENT)
             return self._popen.terminate()
         return self._proc.terminate()
-
-
-def _exited_non_zero(poll_result: int | bool | None) -> bool:
-    """True if a finished run reported a non-zero exit code."""
-    return (
-        not isinstance(poll_result, bool)
-        and isinstance(poll_result, int)
-        and poll_result > 0
-    )
 
 
 class Agent:
@@ -398,8 +372,8 @@ class Agent:
                         run_status[run_id] = True
                         continue
 
-                    exited_non_zero = _exited_non_zero(poll_result)
-                    if exited_non_zero:
+                    exited_with_error = poll_result > 0
+                    if exited_with_error:
                         self._failed += 1
                         self._consecutive_failed_runs += 1
                     else:
@@ -418,7 +392,7 @@ class Agent:
                         self._running = False
                         break
 
-                    if exited_non_zero:
+                    if exited_with_error:
                         # TODO: raise an exception
                         if self.is_flapping():
                             logger.error(
@@ -451,12 +425,7 @@ class Agent:
                     # service process open for all the agent instances and inform_finish when
                     # the run should be marked complete.  This however could require
                     # inform_finish on every run created by this process.
-                    exit_code = 0
-                    if isinstance(poll_result, int):
-                        exit_code = poll_result
-                    elif isinstance(poll_result, bool):
-                        exit_code = -1
-                    wandb.teardown(exit_code)
+                    wandb.teardown(poll_result)
                     # The agent outlives user jobs, but teardown closes
                     # the service-backed API resources used for the
                     # subsequent heartbeats.
