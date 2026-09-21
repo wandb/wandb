@@ -106,6 +106,7 @@ def sweep_parameter_to_distribution(
     - `log_uniform_values` -> `FloatDistribution(min, max, log=True)`
     - `q_uniform` -> `IntDistribution(min, max, step=q)` when `min`, `max`,
       and `q` are all integers, else `FloatDistribution(min, max, step=q)`
+      (`q` defaults to 1)
     - `q_log_uniform_values` -> `IntDistribution(min, max, log=True, step=q)`
       (`q` defaults to 1), or `FloatDistribution(min, max, log=True)` with a
       `termwarn` (dropping `q`) when optuna can't represent it as a
@@ -144,7 +145,7 @@ def sweep_parameter_to_distribution(
         )
 
     if dist == "q_uniform":
-        lo, hi, q = parameter["min"], parameter["max"], parameter["q"]
+        lo, hi, q = parameter["min"], parameter["max"], parameter.get("q", 1)
         # q_uniform is produced from both Int and Float stepped distributions;
         # pick the int variant only when every bound is integral.
         if _is_int(lo) and _is_int(hi) and _is_int(q):
@@ -297,28 +298,6 @@ class OptunaOptimizer(Optimizer):
             suggestions.append(self._ask_suggestion())
         return suggestions
 
-    def metric_names(self) -> list[str]:
-        """Return the sweep's objective metric names, in the study's order.
-
-        A multi-objective sweep names them in `metrics`; a single-objective
-        one in `metric`.
-        """
-        metrics = self._sweep.config.get("metrics")
-        if metrics is not None:
-            return [metric["name"] for metric in metrics if "name" in metric]
-        return [self.metric_key()]
-
-    def _objective_values(self, metrics: dict[str, Any]) -> list[Any] | None:
-        """Return a run's objective values, or None if any is missing.
-
-        Args:
-            metrics: The run's summary metrics.
-        """
-        values = [metrics.get(name) for name in self.metric_names()]
-        if any(value is None for value in values):
-            return None
-        return values
-
     @override
     def should_terminate_sweep(self) -> bool:
         """Return True once the caller's `terminator` says the search is done.
@@ -445,7 +424,7 @@ class OptunaOptimizer(Optimizer):
 
         state = self.trial_state(data.state)
         if state == optuna.trial.TrialState.COMPLETE:
-            values = self._objective_values(data.summary_metrics)
+            values = self.objective_values(data.summary_metrics)
             if values is None:
                 # A run that finished without every objective taught the
                 # search nothing; record a failure rather than telling the
@@ -558,7 +537,7 @@ class OptunaDeclarativeOptimizer(OptunaOptimizer):
         trial_state = self.trial_state(data.state)  # COMPLETE or FAIL
         values = None
         if trial_state == optuna.trial.TrialState.COMPLETE:
-            values = self._objective_values(data.summary_metrics)
+            values = self.objective_values(data.summary_metrics)
             if values is None:
                 return  # finished but never logged every objective metric
         config = data.config.flat_dict()
@@ -615,7 +594,7 @@ class OptunaImperativeOptimizer(OptunaOptimizer):
         # to a COMPLETE study.tell(), so skip it.
         if (
             data.state == RunState.FINISHED
-            and self._objective_values(data.summary_metrics) is None
+            and self.objective_values(data.summary_metrics) is None
         ):
             return
         # Never skip_if_exists: two prior runs can share a config, and a
@@ -649,8 +628,20 @@ def _hyperband_resources_from_config(
     Optuna's `"auto"` because the sweep config does not cap iterations.
 
     `max_iter` takes precedence when both `max_iter` and `min_iter` are set.
+
+    A W&B band of `B` means "prune once a run has logged `B` points"; W&B's
+    own hyperband scheduler checks this against `len(history) >= B`. Optuna's
+    pruners instead check `step >= min_resource` against the `step` passed to
+    `report()`, which is W&B's 0-indexed `_step` -- i.e. a run has logged
+    `step + 1` points. Passing the band straight through as `min_resource`
+    would delay the first bracket by one extra logged point, so it is
+    converted to the equivalent 0-indexed step here (`B - 1`, floored at `1`
+    since Optuna requires `min_resource >= 1`).
     """
     eta = prune_cfg.get("eta", 3)
+
+    def _band_to_min_resource(band: int) -> int:
+        return max(band - 1, 1)
 
     if "max_iter" in prune_cfg:
         max_iter = prune_cfg["max_iter"]
@@ -666,10 +657,10 @@ def _hyperband_resources_from_config(
                 "Hyperband early_terminate produced no brackets; try increasing "
                 "s, decreasing eta, or increasing max_iter."
             )
-        return min(bands), max_iter
+        return _band_to_min_resource(min(bands)), max_iter
 
     # min_iter is guaranteed by Sweep validation
-    return prune_cfg.get("min_iter", 1), "auto"
+    return _band_to_min_resource(prune_cfg.get("min_iter", 1)), "auto"
 
 
 def create_study_from_sweep_config(config: dict[str, Any]) -> optuna.Study:
