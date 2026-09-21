@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Literal
 
 from wandb.errors import UsageError
-from wandb.sdk.data_types.eval_table._ces import CESWriter
+from wandb.sdk.data_types.eval_table._writer_ces import CESWriter
 from wandb.sdk.data_types.eval_table._weave import WeaveWriter
 from wandb.sdk.data_types.eval_table._writer import Writer
 
