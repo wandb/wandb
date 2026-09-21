@@ -128,7 +128,7 @@ def sweep_parameter_to_parameter(name: str, parameter: dict[str, Any]) -> Any:
         )
 
     if dist == "q_uniform":
-        lo, hi, q = parameter["min"], parameter["max"], parameter["q"]
+        lo, hi, q = parameter["min"], parameter["max"], parameter.get("q", 1)
         parameter_type: Literal["int", "float"] = (
             "int" if _is_int(lo) and _is_int(hi) and _is_int(q) else "float"
         )
@@ -184,10 +184,16 @@ def sweep_parameters_to_search_space(
     ]
 
 
-def sweep_config_to_metric(config: dict[str, Any]) -> Any:
-    """Return the Ax metric to optimize for a sweep config's metric."""
-    # TODO(kmikowicz): multi objective support
-    return sweep_objective_to_metric(config.get("metric", {}))
+def sweep_config_to_metrics(config: dict[str, Any]) -> list[Any]:
+    """Return the Ax metrics to optimize for a sweep config's objectives.
+
+    A multi-objective sweep declares its objectives in `metrics`, a
+    single-objective one in `metric`.
+    """
+    metrics = config.get("metrics")
+    if metrics is not None:
+        return [sweep_objective_to_metric(objective) for objective in metrics]
+    return [sweep_objective_to_metric(config.get("metric", {}))]
 
 
 def sweep_objective_to_metric(objective: dict[str, Any]) -> Any:
@@ -229,11 +235,12 @@ def _experiment(client: ax.Client) -> Any:
     )
 
 
-def _single_objective(client: ax.Client) -> tuple[str, bool]:
-    """Return `(metric_name, minimize)` for the client's single objective.
+def _experiment_objectives(client: ax.Client) -> list[tuple[str, bool]]:
+    """Return `(metric_name, minimize)` for each objective the client optimizes.
 
-    Raises ValueError when the experiment has no objective or optimizes more
-    than one metric — this scheduler drives a single sweep metric only.
+    Raises ValueError when the experiment has no objective, or optimizes a
+    scalarized one — a weighted sum of metrics has no per-metric goal to check
+    a sweep's `metrics` against.
     """
     optimization_config = _experiment(client).optimization_config
     if optimization_config is None:
@@ -241,18 +248,18 @@ def _single_objective(client: ax.Client) -> tuple[str, bool]:
             "The Ax client has no optimization config; call configure_optimization "
             "first."
         )
-    if getattr(optimization_config, "is_moo_problem", False):
+    objective = optimization_config.objective
+    if getattr(objective, "is_scalarized_objective", False):
         raise ValueError(
-            "AxOptimizer only supports single-objective experiments; the Ax "
-            "experiment defines multiple objectives."
+            "AxOptimizer does not support a scalarized Ax objective; declare one "
+            "objective per sweep metric instead."
         )
-    metric_names = optimization_config.objective.metric_names
-    if not metric_names or len(metric_names) != 1:
-        raise ValueError(
-            "AxOptimizer only supports a single scalar objective; the Ax "
-            f"experiment's objective covers {list(metric_names)}."
-        )
-    return metric_names[0], bool(optimization_config.objective.minimize)
+    # Ax encodes a minimized objective as a negative metric weight, for both
+    # single- and multi-objective configs.
+    weights = list(objective.metric_weights)
+    if not weights:
+        raise ValueError("The Ax experiment's objective covers no metric.")
+    return [(name, weight < 0) for name, weight in weights]
 
 
 class AxOptimizer(Optimizer):
@@ -291,33 +298,32 @@ class AxOptimizer(Optimizer):
 
     @override
     def validate_sweep_objective(self) -> None:
-        """Fail fast if experiment and sweep disagree on the objective."""
-        if self._sweep.config.get("metrics") is not None:
-            # Ax's ask/tell client optimizes one scalar objective, so say so
-            # rather than failing later on the sweep's missing `metric`.
+        """Fail fast if experiment and sweep disagree on the objectives."""
+        objectives = _experiment_objectives(self.client)
+        sweep_names = self.metric_names()
+        sweep_goals = self.metric_goals()
+        if len(objectives) != len(sweep_names):
             raise ValueError(
-                "AxOptimizer only supports single-objective sweeps; this "
-                "sweep declares multiple metrics. Use a sweep config with a "
-                "single `metric` instead."
+                "The Ax experiment and the sweep config disagree on the "
+                f"objectives: Ax optimizes {len(objectives)}, the sweep declares "
+                f"{len(sweep_names)}."
             )
 
-        metric_name, minimize = _single_objective(self.client)
-        goal = "minimize" if minimize else "maximize"
-
-        sweep_metric = self._sweep.config.get("metric") or {}
-        sweep_goal = str(sweep_metric.get("goal", "minimize")).lower()
-        if goal != sweep_goal:
-            raise ValueError(
-                f"Ax objective direction {goal!r} does not match the sweep metric "
-                f"goal {sweep_goal!r}; set the experiment objective to {sweep_goal!r}."
-            )
-
-        sweep_metric_name = self.metric_key()
-        if metric_name != sweep_metric_name:
-            raise ValueError(
-                f"Ax objective metric {metric_name!r} does not match the sweep "
-                f"metric name {sweep_metric_name!r}."
-            )
+        for (metric_name, minimize), sweep_name, sweep_goal in zip(
+            objectives, sweep_names, sweep_goals, strict=True
+        ):
+            goal = "minimize" if minimize else "maximize"
+            if goal != sweep_goal:
+                raise ValueError(
+                    f"Ax objective direction {goal!r} for {metric_name!r} does not "
+                    f"match the sweep metric goal {sweep_goal!r}; set the experiment "
+                    f"objective to {sweep_goal!r}."
+                )
+            if metric_name != sweep_name:
+                raise ValueError(
+                    f"Ax objective metric {metric_name!r} does not match the sweep "
+                    f"metric name {sweep_name!r}."
+                )
 
     @override
     def ask_n_runs(self, n: int) -> Sequence[RunSuggestion] | None:
@@ -370,15 +376,15 @@ class AxOptimizer(Optimizer):
             self._attach_latest_progression(trial_index, data)
             return
         if data.state == RunState.FINISHED:
-            value = self.metric_value(data.summary_metrics)
-            if value is None:
-                # Finished but never logged the objective metric — record a
+            values = self.objective_values(data.summary_metrics)
+            if values is None:
+                # Finished but never logged every objective metric — record a
                 # failure so Ax stops tracking it as in flight.
                 self.client.mark_trial_failed(trial_index=trial_index)
                 self._finalized.add(trial_index)
                 return
             self.client.complete_trial(
-                trial_index=trial_index, raw_data={self.metric_key(): value}
+                trial_index=trial_index, raw_data=self._raw_data(values)
             )
         else:  # FAILED / CRASHED / KILLED / PREEMPTED
             self.client.mark_trial_failed(trial_index=trial_index)
@@ -403,13 +409,13 @@ class AxOptimizer(Optimizer):
         if not data.history_metrics:
             return
         row = data.history_metrics[-1]
-        value = self.metric_value(row)
-        if value is None:
+        values = self.objective_values(row)
+        if values is None:
             return
         try:
             self.client.attach_data(
                 trial_index=trial_index,
-                raw_data={self.metric_key(): value},
+                raw_data=self._raw_data(values),
                 progression=row["_step"],
             )
         except Exception:
@@ -417,6 +423,10 @@ class AxOptimizer(Optimizer):
             # the last poll); should_stop_trial_early just judges on what's
             # already attached.
             pass
+
+    def _raw_data(self, values: Sequence[Any]) -> dict[str, Any]:
+        """Pair the sweep's objective values with the names Ax knows them by."""
+        return dict(zip(self.metric_names(), values, strict=True))
 
     @override
     def prune_run(self, run_id: Any, data: RunWithMetrics) -> bool:
@@ -451,7 +461,7 @@ class AxOptimizer(Optimizer):
             return
         if (
             data.state == RunState.FINISHED
-            and self.metric_value(data.summary_metrics) is None
+            and self.objective_values(data.summary_metrics) is None
         ):
             return
         params = self._search_space_params(data.config.flat_dict())
@@ -503,7 +513,7 @@ class AxOptimizer(Optimizer):
 
 
 def configure_sweep_objective(client: ax.Client, config: dict[str, Any]) -> None:
-    """Set a client's optimization config from a sweep config's metric.
+    """Set a client's optimization config from a sweep config's metric(s).
 
     Use this rather than Ax's `Client.configure_optimization`, which takes an
     objective expression that Ax parses with sympy: it only escapes `.`, `/`,
@@ -513,17 +523,33 @@ def configure_sweep_objective(client: ax.Client, config: dict[str, Any]) -> None
 
     Args:
         client: An Ax client whose experiment is already configured.
-        config: A sweep config, whose `metric` block names the objective.
+        config: A sweep config, whose `metric` or `metrics` block names the
+            objective(s).
     """
-    from ax.core.objective import Objective
-    from ax.core.optimization_config import OptimizationConfig
+    from ax.core.objective import MultiObjective, Objective
+    from ax.core.optimization_config import (
+        MultiObjectiveOptimizationConfig,
+        OptimizationConfig,
+    )
 
-    metric = sweep_config_to_metric(config)
-    # Ax validates an optimization config against the experiment's metrics.
-    _experiment(client).add_metric(metric)
-    # Ax deprecated `metric` for `expression`, but only it skips the parser.
+    metrics = sweep_config_to_metrics(config)
+    experiment = _experiment(client)
+    for metric in metrics:
+        # Ax validates an optimization config against the experiment's metrics.
+        experiment.add_metric(metric)
+    # Ax deprecated `metric` for `expression`, but only it skips the parser;
+    # each objective's direction comes from its metric's `lower_is_better`.
+    if len(metrics) == 1:
+        client.set_optimization_config(
+            OptimizationConfig(objective=Objective(metric=metrics[0]))
+        )
+        return
     client.set_optimization_config(
-        OptimizationConfig(objective=Objective(metric=metric))
+        MultiObjectiveOptimizationConfig(
+            objective=MultiObjective(
+                objectives=[Objective(metric=metric) for metric in metrics]
+            )
+        )
     )
 
 
