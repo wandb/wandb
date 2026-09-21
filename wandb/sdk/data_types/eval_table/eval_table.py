@@ -13,7 +13,7 @@ from wandb.sdk.data_types.eval_table._writer_factory import (
 )
 from wandb.sdk.data_types.eval_table._writer_weave import validate_weave_cell_value
 from wandb.sdk.data_types.eval_table._writer import (
-    Writer,
+    EvalTableWriter,
     WriteInput,
     WriteResult,
     WriteRow,
@@ -144,7 +144,7 @@ class EvalTable(Table):
 
         validate_unsupported_media_mode(unsupported_media_mode)
         self._allow_mixed_types = allow_mixed_types
-        self._writer: Writer | None = (
+        self._writer: EvalTableWriter | None = (
             create_writer(
                 backend,
                 allow_mixed_types=allow_mixed_types,
@@ -274,7 +274,7 @@ class EvalTable(Table):
                 "EvalTable does not support nested Tables (or EvalTables) as cell values."
             )
 
-    def _validate_cells_for_writer(self, writer: Writer) -> None:
+    def _validate_cells_for_writer(self, writer: EvalTableWriter) -> None:
         for row in self.data:
             for column, value in zip(self.columns, row, strict=True):
                 writer.validate_cell_value(value, column)

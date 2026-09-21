@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Literal
 from wandb.apis.public.service_api import ServiceApi
 from wandb.errors import UsageError
 from wandb.proto import wandb_internal_pb2 as pb
-from wandb.sdk.data_types.eval_table._writer import Writer
+from wandb.sdk.data_types.eval_table._writer import EvalTableWriter
 from wandb.sdk.data_types.eval_table._writer_ces import CESWriter
 from wandb.sdk.data_types.eval_table._writer_weave import WeaveWriter
 
@@ -21,7 +21,7 @@ def create_writer(
     allow_mixed_types: bool,
     unsupported_media_mode: str,
     service_api: ServiceApi | None = None,
-) -> Writer:
+) -> EvalTableWriter:
     if backend == "weave":
         return WeaveWriter(
             unsupported_media_mode=unsupported_media_mode,
@@ -43,7 +43,7 @@ def create_default_writer(
     *,
     allow_mixed_types: bool,
     unsupported_media_mode: str,
-) -> Writer:
+) -> EvalTableWriter:
     """Create the writer advertised as the default by the bound run's server."""
     service_api = ServiceApi(run._settings)
     backend: Backend = (
