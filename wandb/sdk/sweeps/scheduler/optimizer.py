@@ -213,6 +213,35 @@ class Optimizer(ABC):
             )
         return metric["name"]
 
+    def metric_names(self) -> list[str]:
+        """Return the sweep's objective metric names, in declaration order.
+
+        A multi-objective sweep names them in `metrics`; a single-objective one
+        in `metric`.
+        """
+        metrics = self._sweep.config.get("metrics")
+        if metrics is not None:
+            return [metric["name"] for metric in metrics if "name" in metric]
+        return [self.metric_key()]
+
+    def metric_goals(self) -> list[str]:
+        """Return the sweep's objective goals, ordered as `metric_names`."""
+        metrics = self._sweep.config.get("metrics")
+        if metrics is None:
+            metrics = [self._sweep.config.get("metric") or {}]
+        return [str(metric.get("goal", "minimize")).lower() for metric in metrics]
+
+    def objective_values(self, metrics: dict[str, Any]) -> list[Any] | None:
+        """Return a run's objective values, or None if any of them is missing.
+
+        Args:
+            metrics: One run's metrics, keyed by metric name.
+        """
+        values = [metrics.get(name) for name in self.metric_names()]
+        if any(value is None for value in values):
+            return None
+        return values
+
     @property
     def sweep_name(self) -> str:
         """The name of the sweep this optimizer searches."""
