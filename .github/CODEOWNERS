@@ -104,3 +104,9 @@
 /wandb/proto/wandb_sweep_scheduler.proto               @wandb/sweeps-launch-team @wandb/sdk-team
 /wandb/proto/**/wandb_sweep_scheduler_pb2.py           @wandb/sweeps-launch-team @wandb/sdk-team
 /wandb/proto/**/wandb_sweep_scheduler_pb2.pyi          @wandb/sweeps-launch-team @wandb/sdk-team
+
+# Tables
+/wandb/sdk/data_types/_eval_table* @wandb/tables-reviewers @wandb/sdk-team
+/wandb/sdk/data_types/eval_table.py @wandb/tables-reviewers @wandb/sdk-team
+/tests/unit_tests/test_eval_table* @wandb/tables-reviewers @wandb/sdk-team
+/wandb/integration/weave/media_adapters.py @wandb/tables-reviewers @wandb/sdk-team
