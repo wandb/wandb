@@ -49,28 +49,23 @@ _DEFAULT_SERVICE_NAME = "sdk-wandb"
 
 # Default bucket boundaries for duration histograms, in seconds.
 #
-# Any histogram that was not declared with `define_histogram` gets these. The
-# OpenTelemetry defaults are 0, 5, 10 ... 10000, which are shaped for
-# milliseconds: recording seconds against them puts every duration this SDK
-# measures into one bucket and no percentile survives. These resolve 100
-# microseconds to 10 seconds.
+# These match the OpenTelemetry defaults.
 _DEFAULT_DURATION_BUCKET_BOUNDARIES = (
-    0.0001,
-    0.00025,
-    0.0005,
-    0.001,
-    0.0025,
-    0.005,
-    0.01,
-    0.025,
-    0.05,
-    0.1,
-    0.25,
-    0.5,
-    1.0,
-    2.5,
-    5.0,
-    10.0,
+    0,
+    5,
+    10,
+    25,
+    50,
+    75,
+    100,
+    250,
+    500,
+    750,
+    1000,
+    2500,
+    5000,
+    7500,
+    10000,
 )
 
 # UCUM unit strings.
@@ -83,6 +78,7 @@ _UNIT_NANOSECONDS = "ns"
 class _HistogramCacheEntry(NamedTuple):
     histogram: Histogram
     unit: str
+
 
 # _disabled gates OpenTelemetryProxy for the whole process. Once set, no new
 # proxy is created and telemetry becomes a no-op.

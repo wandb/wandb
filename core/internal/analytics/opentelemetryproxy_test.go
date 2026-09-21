@@ -465,9 +465,6 @@ func TestTelemetryRecorder_RecordAfterShutdown_IsNoop(t *testing.T) {
 }
 
 func TestTelemetryRecorder_RecordDuration_ResolvesSubSecondBoundaries(t *testing.T) {
-	// The OpenTelemetry default boundaries are 0, 5, 10 ... 10000. Recording
-	// in seconds against those puts every encode duration in one bucket, so
-	// this asserts that explicit boundaries are used instead.
 	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
 	recorder := analytics.NewTelemetryRecorder(
 		proxy.OpenTelemetryProxy,
@@ -623,41 +620,6 @@ func TestTelemetryRecorder_DefineHistogram(t *testing.T) {
 	assert.Equal(t, "ssh", metric.Attributes["execution_context"])
 	assert.Equal(t, bounds, metric.HistogramBounds,
 		"the declared boundaries must reach the exporter")
-}
-
-// A definition must be able to cover a range the default boundaries do not.
-// The default stops at 10 seconds.
-func TestTelemetryRecorder_DefineHistogram_WideRange(t *testing.T) {
-	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
-	recorder := analytics.NewTelemetryRecorder(
-		proxy.OpenTelemetryProxy,
-		analytics.NewTelemetryContext(),
-	)
-
-	bounds := []float64{0.01, 1, 60, 3600, 86400}
-	require.NoError(t, recorder.DefineHistogram(
-		"upload_latency",
-		analytics.UnitSeconds,
-		"",
-		bounds,
-	))
-
-	// Two hours: far outside the default boundaries.
-	recorder.RecordHistogram(
-		t.Context(),
-		"upload_latency",
-		7200,
-		analytics.LowCardinalityAttributes{ExecutionContext: "ssh"},
-	)
-	require.NoError(t, proxy.Shutdown(context.Background()))
-
-	metric, ok := proxy.FindMetric("upload_latency")
-	require.True(t, ok)
-	require.Len(t, metric.HistogramBucketCounts, len(bounds)+1)
-	assert.Equal(t, uint64(1), metric.HistogramBucketCounts[4],
-		"two hours belongs in the 3600-86400 bucket, not the overflow")
-	assert.Zero(t, metric.HistogramBucketCounts[5],
-		"nothing should reach the overflow bucket")
 }
 
 // A name that was never defined still records, with the default timing

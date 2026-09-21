@@ -567,22 +567,10 @@ type OpenTelemetryProxy struct {
 	// shutdown guards Shutdown so the providers are only shut down once.
 	shutdown atomic.Bool
 
-	// counters and histograms cache resolved instruments.
-	//
-	// Resolving an instrument costs about 180 ns and four allocations, which
-	// is more than recording the measurement itself. The upload pipeline
-	// records several measurements per logged step from four goroutines, so
-	// the resolution is cached and the maps are read-mostly.
-	//
-	// Both are keyed by name. A name has one instrument: its unit and
-	// bucket boundaries are fixed by the first definition, so a second one
-	// under the same name would be ignored by OpenTelemetry anyway.
-	//
-	// Two goroutines may resolve the same instrument at once. That is
-	// harmless, because resolving twice returns the same underlying
-	// instrument.
-	counters   sync.Map // map[string]otelmetric.Int64Counter
-	histograms sync.Map // map[string]otelmetric.Float64Histogram
+	// counters cache resolved counter instruments.
+	counters sync.Map
+	// histograms cache resolved histogram instruments.
+	histograms sync.Map
 }
 
 // NewOpenTelemetryProxy returns an OpenTelemetryProxy for the given endpoint.
