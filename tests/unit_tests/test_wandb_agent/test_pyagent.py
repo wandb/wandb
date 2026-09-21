@@ -235,10 +235,11 @@ def _failing_heartbeats(api, count: int) -> None:
 
 def test_pyagent_stops_after_max_consecutive_failed_runs(wandb_agent_env):
     """Two back-to-back failures kill the sweep when the limit is 2."""
-    runs = []
+    run_count = 0
 
     def train():
-        runs.append(len(runs))
+        nonlocal run_count
+        run_count += 1
         raise Exception("Unexpected error")
 
     api = wandb_agent_env.mock_api()
@@ -254,7 +255,7 @@ def test_pyagent_stops_after_max_consecutive_failed_runs(wandb_agent_env):
         ).run()
 
     # The agent quit on the second failure instead of running the third job.
-    assert len(runs) == 2
+    assert run_count == 2
     assert (
         "Detected 2 consecutive failed runs, killing sweep."
         in captured_stderr.getvalue()
@@ -263,12 +264,13 @@ def test_pyagent_stops_after_max_consecutive_failed_runs(wandb_agent_env):
 
 def test_pyagent_successful_run_resets_consecutive_failures(wandb_agent_env):
     """A run that finishes cleanly clears the streak, so fail/succeed/fail is safe."""
-    runs = []
+    run_count = 0
 
     def train():
-        runs.append(len(runs))
+        nonlocal run_count
+        run_count += 1
         # The second of three runs succeeds.
-        if len(runs) == 2:
+        if run_count == 2:
             return
         raise Exception("Unexpected error")
 
@@ -284,16 +286,17 @@ def test_pyagent_successful_run_resets_consecutive_failures(wandb_agent_env):
             train, count=3, max_consecutive_failed_runs=2
         ).run()
 
-    assert len(runs) == 3
+    assert run_count == 3
     assert "consecutive failed runs" not in captured_stderr.getvalue()
 
 
 def test_pyagent_consecutive_failure_check_disabled_by_default(wandb_agent_env):
     """Without the argument, consecutive failures never kill the sweep."""
-    runs = []
+    run_count = 0
 
     def train():
-        runs.append(len(runs))
+        nonlocal run_count
+        run_count += 1
         raise Exception("Unexpected error")
 
     api = wandb_agent_env.mock_api()
@@ -306,5 +309,5 @@ def test_pyagent_consecutive_failure_check_disabled_by_default(wandb_agent_env):
     ):
         wandb_agent_env.make_pyagent(train, count=2).run()
 
-    assert len(runs) == 2
+    assert run_count == 2
     assert "consecutive failed runs" not in captured_stderr.getvalue()
