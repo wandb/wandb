@@ -12,12 +12,9 @@ from typing import TYPE_CHECKING, Any, Literal
 import wandb
 from wandb.apis.public.service_api import ServiceApi
 from wandb.errors import UsageError
-from wandb.sdk.data_types.eval_table._writer import (
-    WriteInput,
-    WriteResult,
-)
 from wandb.sdk.data_types.base_types.media import Media
 from wandb.sdk.data_types.base_types.wb_value import WBValue
+from wandb.sdk.data_types.eval_table._writer import WriteInput, WriteResult
 from wandb.sdk.data_types.table import Table
 
 if TYPE_CHECKING:
