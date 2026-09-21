@@ -24,6 +24,7 @@ import time
 from collections.abc import Generator, Iterable, Sequence
 from typing import TYPE_CHECKING, Literal
 
+from opentelemetry._logs import SeverityNumber
 from typing_extensions import Any, Protocol
 
 import wandb
@@ -1543,6 +1544,12 @@ def init(  # noqa: C901
         if wl:
             wl._get_logger().warning("interrupted", exc_info=e)
 
+        raise
+
+    except UsageError as e:
+        if wl:
+            wl._get_logger().exception("error in wandb.init()", exc_info=e)
+        telemetry_recorder.log(str(e), severity=SeverityNumber.WARN)
         raise
 
     except Exception as e:
