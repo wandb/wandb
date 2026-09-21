@@ -12,8 +12,8 @@ import pytest
 import wandb
 from wandb.errors import UsageError
 from wandb.proto import wandb_internal_pb2 as pb
-from wandb.sdk.data_types import _eval_table_writer_ces as ces_writer
 from wandb.sdk.data_types._dtypes import AnyType
+from wandb.sdk.data_types.eval_table import _writer_ces as ces_writer
 
 
 @pytest.fixture
@@ -57,7 +57,7 @@ def mock_eval_logger(monkeypatch):
         eval_imperative_module,
     )
     monkeypatch.setattr(
-        "wandb.sdk.data_types._eval_table_writer_weave.weave_integration.init_weave",
+        "wandb.sdk.data_types.eval_table._writer_weave.weave_integration.init_weave",
         lambda entity, project: None,
     )
     return mock_evaluation_logger_cls
@@ -71,7 +71,7 @@ def run(mock_run):
 @pytest.fixture(autouse=True)
 def default_eval_table_server_feature_disabled(monkeypatch):
     monkeypatch.setattr(
-        "wandb.sdk.data_types._eval_table_writer_factory.ServiceApi.feature_enabled",
+        "wandb.sdk.data_types.eval_table._writer_factory.ServiceApi.feature_enabled",
         lambda self, feature: False,
     )
 
@@ -95,8 +95,7 @@ def mock_ces_client(monkeypatch):
     client_module.CoreWeaveEvaluations = MagicMock
     monkeypatch.setitem(sys.modules, "coreweave_evaluations", client_module)
     monkeypatch.setattr(
-        "wandb.sdk.data_types._eval_table_writer_ces."
-        "CESEvalTableWriter._resolve_scope_context",
+        "wandb.sdk.data_types.eval_table._writer_ces.CESWriter._resolve_scope_context",
         lambda self, bound_run: ces_writer._CESScopeContext(
             scope_ref="scope-ref",
             api_key=None,
@@ -104,7 +103,7 @@ def mock_ces_client(monkeypatch):
         ),
     )
     monkeypatch.setattr(
-        "wandb.sdk.data_types._eval_table_writer_ces.CESEvalTableWriter._create_client",
+        "wandb.sdk.data_types.eval_table._writer_ces.CESWriter._create_client",
         lambda self, client_type, base_url, scope: client,
     )
     return client
@@ -124,7 +123,7 @@ def test_eval_table_defaults_backend_from_server_feature(
 ):
     feature_enabled = MagicMock(return_value=server_feature_enabled)
     monkeypatch.setattr(
-        "wandb.sdk.data_types._eval_table_writer_factory.ServiceApi.feature_enabled",
+        "wandb.sdk.data_types.eval_table._writer_factory.ServiceApi.feature_enabled",
         feature_enabled,
     )
     table = wandb.EvalTable(columns=["value"], data=[[1]])
@@ -159,7 +158,7 @@ def test_eval_table_backend_overrides_server_default(
 ):
     feature_enabled = MagicMock(return_value=server_feature_enabled)
     monkeypatch.setattr(
-        "wandb.sdk.data_types._eval_table_writer_factory.ServiceApi.feature_enabled",
+        "wandb.sdk.data_types.eval_table._writer_factory.ServiceApi.feature_enabled",
         feature_enabled,
     )
     table = wandb.EvalTable(columns=["value"], data=[[1]], backend=backend)
@@ -177,7 +176,7 @@ def test_eval_table_default_ces_does_not_require_weave(
 ):
     monkeypatch.setitem(sys.modules, "weave", None)
     monkeypatch.setattr(
-        "wandb.sdk.data_types._eval_table_writer_factory.ServiceApi.feature_enabled",
+        "wandb.sdk.data_types.eval_table._writer_factory.ServiceApi.feature_enabled",
         lambda self, feature: True,
     )
     table = wandb.EvalTable(columns=["value"], data=[[1]])
@@ -195,7 +194,7 @@ def test_ces_eval_table_writes_columns_rows_and_version(
 ):
     debug = MagicMock()
     monkeypatch.setattr(
-        "wandb.sdk.data_types._eval_table_writer_ces._logger.debug",
+        "wandb.sdk.data_types.eval_table._writer_ces._logger.debug",
         debug,
     )
     et = wandb.EvalTable(
@@ -714,7 +713,7 @@ def test_ces_eval_table_requires_client_before_scope_lookup(monkeypatch, run):
     et = wandb.EvalTable(columns=["value"], data=[[1]], backend="ces")
     et.bind_to_run(run, "eval", 0)
     writer = et._writer
-    assert isinstance(writer, ces_writer.CESEvalTableWriter)
+    assert isinstance(writer, ces_writer.CESWriter)
     execute_graphql = MagicMock()
     writer._bound = replace(
         writer._require_bound(),
@@ -733,7 +732,7 @@ def test_ces_eval_table_requires_client_before_scope_lookup(monkeypatch, run):
 
 
 def test_ces_eval_table_resolves_project_scope_with_api_key(run):
-    writer = ces_writer.CESEvalTableWriter()
+    writer = ces_writer.CESWriter()
     writer.bind_to_run(run, "eval", 0)
     service_api = SimpleNamespace(
         api_key="secret",
@@ -767,7 +766,7 @@ def test_ces_scope_context_repr_redacts_credentials():
 
 
 def test_ces_eval_table_uses_federated_access_token(run):
-    writer = ces_writer.CESEvalTableWriter()
+    writer = ces_writer.CESWriter()
     writer.bind_to_run(run, "eval", 0)
     writer._bound = replace(
         writer._require_bound(),
@@ -799,7 +798,7 @@ def test_ces_client_uses_only_the_run_credentials(api_key, access_token):
                 bearer_token if bearer_token is not None else "environment-access-token"
             )
 
-    writer = ces_writer.CESEvalTableWriter()
+    writer = ces_writer.CESWriter()
     scope = ces_writer._CESScopeContext(
         scope_ref="scope-ref",
         api_key=api_key,

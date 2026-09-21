@@ -6,16 +6,17 @@ from typing_extensions import override
 
 import wandb
 from wandb.errors import UsageError
-from wandb.sdk.data_types._eval_table_writer import (
-    EvalTableWriteInput,
-    EvalTableWriter,
-    EvalTableWriteResult,
-    EvalTableWriteRow,
+from wandb.sdk.data_types.eval_table._writer_factory import (
+    Backend,
+    create_default_writer,
+    create_writer,
 )
-from wandb.sdk.data_types._eval_table_writer_factory import (
-    EvalTableBackend,
-    create_default_eval_table_writer,
-    create_eval_table_writer,
+from wandb.sdk.data_types.eval_table._writer_weave import validate_weave_cell_value
+from wandb.sdk.data_types.eval_table._writer import (
+    Writer,
+    WriteInput,
+    WriteResult,
+    WriteRow,
 )
 from wandb.sdk.data_types.table import ColumnKey, InputRow, LogMode, Table
 from wandb.sdk.lib import telemetry
@@ -68,7 +69,7 @@ class EvalTable(Table):
         input_columns: list[str] | None = None,
         output_columns: list[str] | None = None,
         score_columns: list[str] | None = None,
-        backend: EvalTableBackend | None = None,
+        backend: Backend | None = None,
         unsupported_media_mode: UnsupportedMediaMode = "stub",
     ) -> None:
         """Initializes an EvalTable object.
@@ -143,8 +144,8 @@ class EvalTable(Table):
 
         validate_unsupported_media_mode(unsupported_media_mode)
         self._allow_mixed_types = allow_mixed_types
-        self._writer: EvalTableWriter | None = (
-            create_eval_table_writer(
+        self._writer: Writer | None = (
+            create_writer(
                 backend,
                 allow_mixed_types=allow_mixed_types,
                 unsupported_media_mode=unsupported_media_mode,
@@ -157,7 +158,7 @@ class EvalTable(Table):
         self._input_columns = list(input_columns or [])
         self._output_columns = list(output_columns or [])
         self._score_columns = list(score_columns or [])
-        self._immutable_write_result: EvalTableWriteResult | None = None
+        self._immutable_write_result: WriteResult | None = None
         self._run_log_key: str | None = None
 
         # Derive columns from role lists if columns arg omitted, so users
@@ -210,7 +211,7 @@ class EvalTable(Table):
         writer = self._writer
         if writer is None:
             # Select the default writer here so its choice can depend on the run.
-            writer = create_default_eval_table_writer(
+            writer = create_default_writer(
                 run,
                 allow_mixed_types=self._allow_mixed_types,
                 unsupported_media_mode=self._unsupported_media_mode,
@@ -273,7 +274,7 @@ class EvalTable(Table):
                 "EvalTable does not support nested Tables (or EvalTables) as cell values."
             )
 
-    def _validate_cells_for_writer(self, writer: EvalTableWriter) -> None:
+    def _validate_cells_for_writer(self, writer: Writer) -> None:
         for row in self.data:
             for column, value in zip(self.columns, row, strict=True):
                 writer.validate_cell_value(value, column)
@@ -344,7 +345,7 @@ class EvalTable(Table):
             repeat=False,
         )
 
-    def _prepare_write_input(self, name: str) -> EvalTableWriteInput:
+    def _prepare_write_input(self, name: str) -> WriteInput:
         self._validate_column_mappings(
             self._input_columns,
             self._output_columns,
@@ -369,7 +370,7 @@ class EvalTable(Table):
         # leak into the input-equality criteria.
         inject_row_index = not self._input_columns
 
-        rows: list[EvalTableWriteRow] = []
+        rows: list[WriteRow] = []
         for row_idx, row in enumerate(self.data, start=1):
             values = dict(zip(str_columns, row, strict=True))
             if inject_row_index:
@@ -387,11 +388,9 @@ class EvalTable(Table):
                 outputs = None
 
             scores = {col: values[col] for col in self._score_columns}
-            rows.append(
-                EvalTableWriteRow(inputs=inputs, outputs=outputs, scores=scores)
-            )
+            rows.append(WriteRow(inputs=inputs, outputs=outputs, scores=scores))
 
-        return EvalTableWriteInput(
+        return WriteInput(
             name=name,
             rows=rows,
             column_keys=column_keys,

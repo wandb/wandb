@@ -12,7 +12,7 @@ from wandb.sdk.data_types import eval_table as eval_table_module
 @pytest.fixture(autouse=True)
 def default_eval_table_server_feature_disabled(monkeypatch):
     monkeypatch.setattr(
-        "wandb.sdk.data_types._eval_table_writer_factory.ServiceApi.feature_enabled",
+        "wandb.sdk.data_types.eval_table._writer_factory.ServiceApi.feature_enabled",
         lambda self, feature: False,
     )
 
