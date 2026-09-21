@@ -337,7 +337,7 @@ github.com/aws/aws-sdk-go-v2/service/ssooidc/types
 github.com/aws/aws-sdk-go-v2/service/sts
 github.com/aws/aws-sdk-go-v2/service/sts/internal/endpoints
 github.com/aws/aws-sdk-go-v2/service/sts/types
-# github.com/aws/smithy-go v1.28.1
+# github.com/aws/smithy-go v1.28.2
 ## explicit; go 1.24
 github.com/aws/smithy-go
 github.com/aws/smithy-go/auth
@@ -376,7 +376,7 @@ github.com/aymanbagabas/go-udiff/lcs
 # github.com/beorn7/perks v1.0.1
 ## explicit; go 1.11
 github.com/beorn7/perks/quantile
-# github.com/bmatcuk/doublestar/v4 v4.10.0
+# github.com/bmatcuk/doublestar/v4 v4.10.2
 ## explicit; go 1.16
 github.com/bmatcuk/doublestar/v4
 # github.com/cenkalti/backoff/v5 v5.0.3
@@ -396,10 +396,10 @@ github.com/charmbracelet/ultraviolet
 github.com/charmbracelet/x/ansi
 github.com/charmbracelet/x/ansi/kitty
 github.com/charmbracelet/x/ansi/parser
-# github.com/charmbracelet/x/exp/golden v0.0.0-20260913004009-c615ff2f7805
+# github.com/charmbracelet/x/exp/golden v0.0.0-20260920004010-53e2afe73ae5
 ## explicit; go 1.24.0
 github.com/charmbracelet/x/exp/golden
-# github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20260913004009-c615ff2f7805
+# github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20260920004010-53e2afe73ae5
 ## explicit; go 1.24.2
 github.com/charmbracelet/x/exp/teatest/v2
 # github.com/charmbracelet/x/term v0.2.2
@@ -448,7 +448,7 @@ github.com/cyphar/filepath-securejoin/internal/consts
 # github.com/disintegration/imaging v1.6.2
 ## explicit
 github.com/disintegration/imaging
-# github.com/ebitengine/purego v0.11.0
+# github.com/ebitengine/purego v0.11.1
 ## explicit; go 1.25.0
 github.com/ebitengine/purego
 github.com/ebitengine/purego/internal/cgo
@@ -652,8 +652,8 @@ github.com/google/wire/internal/wire
 ## explicit; go 1.25.0
 github.com/googleapis/enterprise-certificate-proxy/client
 github.com/googleapis/enterprise-certificate-proxy/client/util
-# github.com/googleapis/gax-go/v2 v2.24.1
-## explicit; go 1.25.0
+# github.com/googleapis/gax-go/v2 v2.25.0
+## explicit; go 1.26.0
 github.com/googleapis/gax-go/v2
 github.com/googleapis/gax-go/v2/apierror
 github.com/googleapis/gax-go/v2/apierror/internal/proto
@@ -822,7 +822,7 @@ github.com/skeema/knownhosts
 github.com/spf13/afero
 github.com/spf13/afero/internal/common
 github.com/spf13/afero/mem
-# github.com/spiffe/go-spiffe/v2 v2.8.1
+# github.com/spiffe/go-spiffe/v2 v2.8.2
 ## explicit; go 1.24.0
 github.com/spiffe/go-spiffe/v2/bundle/jwtbundle
 github.com/spiffe/go-spiffe/v2/bundle/spiffebundle
@@ -1141,13 +1141,13 @@ google.golang.org/api/storage/v1
 google.golang.org/api/transport
 google.golang.org/api/transport/grpc
 google.golang.org/api/transport/http
-# google.golang.org/genproto v0.0.0-20260918162117-cecb64721679
+# google.golang.org/genproto v0.0.0-20260921155816-b14227669459
 ## explicit; go 1.26.0
 google.golang.org/genproto/googleapis/type/calendarperiod
 google.golang.org/genproto/googleapis/type/date
 google.golang.org/genproto/googleapis/type/expr
 google.golang.org/genproto/googleapis/type/timeofday
-# google.golang.org/genproto/googleapis/api v0.0.0-20260918162117-cecb64721679
+# google.golang.org/genproto/googleapis/api v0.0.0-20260921155816-b14227669459
 ## explicit; go 1.26.0
 google.golang.org/genproto/googleapis/api
 google.golang.org/genproto/googleapis/api/annotations
@@ -1157,7 +1157,7 @@ google.golang.org/genproto/googleapis/api/httpbody
 google.golang.org/genproto/googleapis/api/label
 google.golang.org/genproto/googleapis/api/metric
 google.golang.org/genproto/googleapis/api/monitoredres
-# google.golang.org/genproto/googleapis/rpc v0.0.0-20260918162117-cecb64721679
+# google.golang.org/genproto/googleapis/rpc v0.0.0-20260921155816-b14227669459
 ## explicit; go 1.26.0
 google.golang.org/genproto/googleapis/rpc/code
 google.golang.org/genproto/googleapis/rpc/errdetails
