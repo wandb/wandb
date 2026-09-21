@@ -190,11 +190,16 @@ class TestCreateStudyFromSweepConfig:
         assert isinstance(study.pruner, optuna.pruners.NopPruner)
 
 
-class TestGridExhaustion:
+class TestExhaustibleSampler:
     """A finite sampler must finish the sweep instead of re-running the grid.
 
     optuna's GridSampler stops the study from `after_trial` once the grid is
     spent, and hands out duplicate grid points rather than refusing an ask.
+
+    `OptunaOptimizerAcceptanceTests` cannot host these: its sampler never
+    reports exhaustion, and the `Optimizer` contract does not require one to,
+    so this builds its own GridSampler study rather than reusing that suite's
+    `study` fixture.
     """
 
     CONFIG = {
