@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Literal
 
 from wandb.errors import UsageError
-from wandb.sdk.data_types.eval_table._writer import Writer
+from wandb.sdk.data_types.eval_table._writer import EvalTableWriter
 from wandb.sdk.data_types.eval_table._writer_ces import CESWriter
 from wandb.sdk.data_types.eval_table._writer_weave import WeaveWriter
 
@@ -18,7 +18,7 @@ def create_writer(
     *,
     allow_mixed_types: bool,
     unsupported_media_mode: str,
-) -> Writer:
+) -> EvalTableWriter:
     if backend == "weave":
         return WeaveWriter(
             unsupported_media_mode=unsupported_media_mode,
@@ -39,7 +39,7 @@ def create_default_writer(
     *,
     allow_mixed_types: bool,
     unsupported_media_mode: str,
-) -> Writer:
+) -> EvalTableWriter:
     """Create the default writer after a run is available."""
     # The default is always Weave for now. Keeping selection at bind time lets
     # it later depend on capabilities advertised for this run.

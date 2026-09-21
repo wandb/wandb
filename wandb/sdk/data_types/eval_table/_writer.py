@@ -33,7 +33,7 @@ class WriteResult:
     logged_id: str
 
 
-class Writer(Protocol):
+class EvalTableWriter(Protocol):
     """Backend client for writing an EvalTable.
 
     `validate_cell_value` may run before `bind` while Table constructs its rows.
