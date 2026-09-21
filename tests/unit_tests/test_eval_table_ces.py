@@ -11,7 +11,7 @@ from unittest.mock import ANY, MagicMock
 import pytest
 import wandb
 from wandb.errors import UsageError
-from wandb.sdk.data_types import _eval_table_writer_ces as ces_writer
+from wandb.sdk.data_types.eval_table import _ces as ces
 from wandb.sdk.data_types._dtypes import AnyType
 
 
@@ -56,7 +56,7 @@ def mock_eval_logger(monkeypatch):
         eval_imperative_module,
     )
     monkeypatch.setattr(
-        "wandb.sdk.data_types._eval_table_writer_weave.weave_integration.init_weave",
+        "wandb.sdk.data_types.eval_table._weave.weave_integration.init_weave",
         lambda entity, project: None,
     )
     return mock_evaluation_logger_cls
@@ -86,16 +86,15 @@ def mock_ces_client(monkeypatch):
     client_module.CoreWeaveEvaluations = MagicMock
     monkeypatch.setitem(sys.modules, "coreweave_evaluations", client_module)
     monkeypatch.setattr(
-        "wandb.sdk.data_types._eval_table_writer_ces."
-        "CESEvalTableWriter._resolve_scope_context",
-        lambda self, bound_run: ces_writer._CESScopeContext(
+        "wandb.sdk.data_types.eval_table._ces.CESWriter._resolve_scope_context",
+        lambda self, bound_run: ces._CESScopeContext(
             scope_ref="scope-ref",
             api_key=None,
             access_token="token",
         ),
     )
     monkeypatch.setattr(
-        "wandb.sdk.data_types._eval_table_writer_ces.CESEvalTableWriter._create_client",
+        "wandb.sdk.data_types.eval_table._ces.CESWriter._create_client",
         lambda self, client_type, base_url, scope: client,
     )
     return client
@@ -108,7 +107,7 @@ def test_ces_eval_table_writes_columns_rows_and_version(
 ):
     debug = MagicMock()
     monkeypatch.setattr(
-        "wandb.sdk.data_types._eval_table_writer_ces._logger.debug",
+        "wandb.sdk.data_types.eval_table._ces._logger.debug",
         debug,
     )
     et = wandb.EvalTable(
@@ -565,7 +564,7 @@ def test_ces_eval_table_describes_field_limit_as_input_and_output_columns(
     mock_ces_client,
     run,
 ):
-    monkeypatch.setattr(ces_writer, "_MAX_DATASET_FIELDS", 1)
+    monkeypatch.setattr(ces, "_MAX_DATASET_FIELDS", 1)
     et = wandb.EvalTable(
         columns=["prompt", "answer"],
         data=[["question", "response"]],
@@ -627,7 +626,7 @@ def test_ces_eval_table_requires_client_before_scope_lookup(monkeypatch, run):
     et = wandb.EvalTable(columns=["value"], data=[[1]], backend="ces")
     et.bind_to_run(run, "eval", 0)
     writer = et._writer
-    assert isinstance(writer, ces_writer.CESEvalTableWriter)
+    assert isinstance(writer, ces.CESWriter)
     execute_graphql = MagicMock()
     writer._bound = replace(
         writer._require_bound(),
@@ -646,7 +645,7 @@ def test_ces_eval_table_requires_client_before_scope_lookup(monkeypatch, run):
 
 
 def test_ces_eval_table_resolves_project_scope_with_api_key(run):
-    writer = ces_writer.CESEvalTableWriter()
+    writer = ces.CESWriter()
     writer.bind_to_run(run, "eval", 0)
     service_api = SimpleNamespace(
         api_key="secret",
@@ -663,14 +662,14 @@ def test_ces_eval_table_resolves_project_scope_with_api_key(run):
     assert scope.api_key == "secret"
     assert scope.access_token is None
     service_api.execute_graphql.assert_called_once_with(
-        ces_writer._PROJECT_SCOPE_QUERY,
+        ces._PROJECT_SCOPE_QUERY,
         variables={"entity": "e", "project": "p"},
     )
     service_api.access_token.assert_not_called()
 
 
 def test_ces_scope_context_repr_redacts_credentials():
-    scope = ces_writer._CESScopeContext(
+    scope = ces._CESScopeContext(
         scope_ref="scope-ref",
         api_key="api-secret",
         access_token="token-secret",
@@ -680,7 +679,7 @@ def test_ces_scope_context_repr_redacts_credentials():
 
 
 def test_ces_eval_table_uses_federated_access_token(run):
-    writer = ces_writer.CESEvalTableWriter()
+    writer = ces.CESWriter()
     writer.bind_to_run(run, "eval", 0)
     writer._bound = replace(
         writer._require_bound(),
@@ -712,8 +711,8 @@ def test_ces_client_uses_only_the_run_credentials(api_key, access_token):
                 bearer_token if bearer_token is not None else "environment-access-token"
             )
 
-    writer = ces_writer.CESEvalTableWriter()
-    scope = ces_writer._CESScopeContext(
+    writer = ces.CESWriter()
+    scope = ces._CESScopeContext(
         scope_ref="scope-ref",
         api_key=api_key,
         access_token=access_token,

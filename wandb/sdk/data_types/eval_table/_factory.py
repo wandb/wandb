@@ -3,31 +3,30 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Literal
 
 from wandb.errors import UsageError
-from wandb.sdk.data_types._eval_table_writer import EvalTableWriter
-from wandb.sdk.data_types._eval_table_writer_ces import CESEvalTableWriter
-from wandb.sdk.data_types._eval_table_writer_weave import WeaveEvalTableWriter
-
-EvalTableBackend = Literal["weave", "ces"]
-
+from wandb.sdk.data_types.eval_table._ces import CESWriter
+from wandb.sdk.data_types.eval_table._weave import WeaveWriter
+from wandb.sdk.data_types.eval_table._writer import Writer
 
 if TYPE_CHECKING:
     from wandb.sdk.wandb_run import Run as LocalRun
 
+Backend = Literal["weave", "ces"]
 
-def create_eval_table_writer(
-    backend: EvalTableBackend,
+
+def create_writer(
+    backend: Backend,
     *,
     allow_mixed_types: bool,
     unsupported_media_mode: str,
-) -> EvalTableWriter:
+) -> Writer:
     if backend == "weave":
-        return WeaveEvalTableWriter(
+        return WeaveWriter(
             unsupported_media_mode=unsupported_media_mode,
         )
     if backend == "ces":
         if allow_mixed_types:
             raise UsageError("CES EvalTable logging requires allow_mixed_types=False.")
-        return CESEvalTableWriter(
+        return CESWriter(
             unsupported_media_mode=unsupported_media_mode,
         )
     raise UsageError(
@@ -35,16 +34,16 @@ def create_eval_table_writer(
     )
 
 
-def create_default_eval_table_writer(
+def create_default_writer(
     run: LocalRun,
     *,
     allow_mixed_types: bool,
     unsupported_media_mode: str,
-) -> EvalTableWriter:
+) -> Writer:
     """Create the default writer after a run is available."""
     # The default is always Weave for now. Keeping selection at bind time lets
     # it later depend on capabilities advertised for this run.
-    return create_eval_table_writer(
+    return create_writer(
         "weave",
         allow_mixed_types=allow_mixed_types,
         unsupported_media_mode=unsupported_media_mode,

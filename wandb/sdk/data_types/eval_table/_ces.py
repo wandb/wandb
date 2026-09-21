@@ -12,9 +12,9 @@ from typing import TYPE_CHECKING, Any, Literal
 import wandb
 from wandb.apis.public.service_api import ServiceApi
 from wandb.errors import UsageError
-from wandb.sdk.data_types._eval_table_writer import (
-    EvalTableWriteInput,
-    EvalTableWriteResult,
+from wandb.sdk.data_types.eval_table._writer import (
+    WriteInput,
+    WriteResult,
 )
 from wandb.sdk.data_types.base_types.media import Media
 from wandb.sdk.data_types.base_types.wb_value import WBValue
@@ -129,7 +129,7 @@ class _BoundRun:
     idempotency_scope: str
 
 
-class CESEvalTableWriter:
+class CESWriter:
     """Write an immutable EvalTable through the Evaluations service."""
 
     def __init__(
@@ -169,7 +169,7 @@ class CESEvalTableWriter:
         if isinstance(value, WBValue):
             self._validate_wandb_value(value, column)
 
-    def write(self, payload: EvalTableWriteInput) -> EvalTableWriteResult:
+    def write(self, payload: WriteInput) -> WriteResult:
         """Prepare and persist the CES resources, then return their history marker."""
         bound_run = self._require_bound()
 
@@ -233,7 +233,7 @@ class CESEvalTableWriter:
             version.evaluation_version_id,
         )
 
-        return EvalTableWriteResult(
+        return WriteResult(
             marker={
                 # Frontend dispatches on `_type` and validates the schema version.
                 "_type": "eval-table-ces",
@@ -249,7 +249,7 @@ class CESEvalTableWriter:
             logged_id=version.evaluation_version_id,
         )
 
-    def _build_write_payloads(self, value: EvalTableWriteInput) -> _CESWritePayloads:
+    def _build_write_payloads(self, value: WriteInput) -> _CESWritePayloads:
         """Normalize rows and infer ordered column schemas."""
         self._validate_name(
             "EvalTable",
