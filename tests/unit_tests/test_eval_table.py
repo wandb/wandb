@@ -12,6 +12,8 @@ import wandb
 import wandb.data_types as wandb_data_types
 from wandb.errors import UsageError
 from wandb.sdk.data_types import eval_table as eval_table_module
+from wandb.sdk.data_types.eval_table import UnsupportedMediaMode
+from wandb.sdk.lib import telemetry
 
 
 @pytest.fixture
@@ -79,6 +81,7 @@ def _install_fake_weave(monkeypatch, **attrs):
 def test_eval_table_public_imports():
     assert wandb.EvalTable is eval_table_module.EvalTable
     assert wandb_data_types.EvalTable is eval_table_module.EvalTable
+    assert UnsupportedMediaMode is eval_table_module.UnsupportedMediaMode
 
 
 def test_eval_table_offline_run_fails_fast(monkeypatch, mock_eval_logger, mock_run):
@@ -303,7 +306,7 @@ def test_telemetry_failure_does_not_repeat_immutable_write(
     telemetry_context.__enter__.return_value = MagicMock()
     telemetry_context.__exit__.side_effect = RuntimeError("telemetry failed")
     monkeypatch.setattr(
-        eval_table_module.telemetry,
+        telemetry,
         "context",
         MagicMock(return_value=telemetry_context),
     )
