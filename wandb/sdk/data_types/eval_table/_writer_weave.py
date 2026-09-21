@@ -7,11 +7,8 @@ from typing import TYPE_CHECKING, Any
 import wandb
 import wandb.integration.weave as weave_integration
 import wandb.integration.weave.media_adapters as media_adapters
-from wandb.sdk.data_types.eval_table._writer import (
-    WriteInput,
-    WriteResult,
-)
 from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
+from wandb.sdk.data_types.eval_table._writer import WriteInput, WriteResult
 
 if TYPE_CHECKING:
     from wandb.sdk.data_types.table import ColumnKey
