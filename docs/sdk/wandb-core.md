@@ -185,6 +185,16 @@ flowchart LR
 
 Filestream requests retry for a long window because experiments may run for days and users may have transient network failures.
 
+When the server returns `metric_limit.warning` with a count and limit, the SDK
+prints a near-limit warning once per run. HTTP 400 with
+`X-Wandb-Error-Code: run_metric_limit_exceeded` stops further filestream data
+uploads and prints an actionable error once. Local recording continues. The
+transmit loop stays alive so `FinishWithExit` can send only `complete` and
+`exitcode`; if completion was batched with rejected data, it retries once without
+that data. Unrelated upload errors keep their existing behavior. Direct file
+transfers and artifacts are separate from filestream and are not stopped by this
+handling.
+
 ## Run files and file transfer
 
 `run.save()` and internal files use the run files path, separate from artifacts. The Python side materializes files into the run directory and sends `FilesRecord`s. Core's `runfiles.Uploader` handles policies and uses `FileTransferManager` for actual transfers.

@@ -16,6 +16,8 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Added
 
+- Warn when a run approaches its metric-name limit and report when the server blocks further filestream uploads, while still allowing the run to finish.
+
 - It is now possible to use resume="must" for offline runs. Syncing will fail if there's no run to resume. (@geoffhardy in https://github.com/wandb/wandb/pull/12110)
 
 

@@ -131,6 +131,13 @@ func (fs *fileStream) send(
 		return fmt.Errorf("filestream: can't send because I am dead")
 	}
 
+	if fs.metricLimitBlocked {
+		data = completionOnly(data)
+		if data == nil {
+			return nil
+		}
+	}
+
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("filestream: json marshal error in send(): %v", err)
@@ -188,17 +195,7 @@ func (fs *fileStream) send(
 			resp,
 		)
 	case resp.StatusCode < 200 || resp.StatusCode > 300:
-		// If we reach here, that means all retries were exhausted. This could
-		// mean, for instance, that the user's internet connection broke.
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<10))
-		_ = resp.Body.Close()
-
-		return fmt.Errorf(
-			"filestream: failed to upload: %v url=%v: %s",
-			resp.Status,
-			req.URL,
-			string(body),
-		)
+		return fs.handleUploadError(data, feedbackChan, resp, req.URL.String())
 
 	default:
 		if shouldLogStartAndEnd {
@@ -225,6 +222,7 @@ func (fs *fileStream) send(
 			fmt.Errorf("filestream: json decode error: %v", err),
 		)
 	}
+	fs.warnMetricLimit(res)
 	feedbackChan <- res
 	fs.logger.Debug("filestream: post response", "response", res)
 	return nil

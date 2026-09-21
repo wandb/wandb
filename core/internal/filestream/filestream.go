@@ -92,6 +92,10 @@ type FileStream interface {
 
 // fileStream is a stream of data to the server
 type fileStream struct {
+	// Accessed only by the transmit loop.
+	metricLimitBlocked bool
+	metricLimitWarned  bool
+
 	// The relative path on the server to which to make requests.
 	//
 	// This must not include the schema and hostname prefix.
