@@ -613,12 +613,11 @@ func (s *Scheduler) applyWarmStartResult(
 	}
 }
 
-// applyGenerationResult applies the optimizer's tells. A non-nil return
+// applyGenerationResult applies tells and suggestions. A non-nil return
 // ends the scheduler with that Done task.
 //
-// result.Suggestions and result.Prune are still ignored: enqueueing a
-// suggested run, and stopping a pruned one, land in the slices on top
-// of this one.
+// result.Prune is still ignored: stopping a pruned run lands in the
+// slice on top of this one.
 func (s *Scheduler) applyGenerationResult(
 	ctx context.Context,
 	result *spb.SweepSchedulerClientGenerationResult,
@@ -647,9 +646,7 @@ func (s *Scheduler) applyGenerationResult(
 		return s.finishExhausted(ctx)
 
 	case spb.SweepSchedulerClientGenerationResult_ASK_OUTCOME_SUGGESTED:
-		// Scheduling them is the next slice; until then an ask that
-		// suggested runs is as good as one that declined.
-		return nil
+		return s.enqueueSuggestions(ctx, result.Suggestions)
 
 	default:
 		// Declined or not asked; nothing to schedule this generation.
