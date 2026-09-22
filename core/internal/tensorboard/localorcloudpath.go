@@ -9,15 +9,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gocloud.dev/blob"
 	"gocloud.dev/blob/fileblob"
 
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
-
-	// Imported for the side-effect of registering blob.OpenBucket() providers.
-	_ "gocloud.dev/blob/azureblob"
-	_ "gocloud.dev/blob/gcsblob"
-	_ "gocloud.dev/blob/s3blob"
 )
 
 // LocalOrCloudPath is a path to a local or cloud file.
@@ -178,21 +173,13 @@ func (p *LocalOrCloudPath) ToSlashPath() string {
 //
 // For local paths, this may return an error if the directory does not exist.
 // For cloud paths, this may do network operations and return an error.
-func (p *LocalOrCloudPath) Bucket(ctx context.Context) (*blob.Bucket, error) {
+func (p *LocalOrCloudPath) Bucket(
+	ctx context.Context,
+	logger *observability.CoreLogger,
+) (eventBucket, error) {
 	switch {
 	case p.CloudPath != nil:
-		bucket, err := blob.OpenBucket(ctx,
-			fmt.Sprintf("%s://%s", p.CloudPath.Scheme, p.CloudPath.BucketName))
-
-		if err != nil {
-			return nil, fmt.Errorf("failed to open bucket: %v", err)
-		}
-
-		if p.CloudPath.Path == "" {
-			return bucket, nil
-		} else {
-			return blob.PrefixedBucket(bucket, p.CloudPath.Path+"/"), nil
-		}
+		return openCloudEventBucket(ctx, p.CloudPath, logger)
 
 	case p.LocalPath != nil:
 		bucket, err := fileblob.OpenBucket(string(*p.LocalPath), nil)
@@ -201,7 +188,7 @@ func (p *LocalOrCloudPath) Bucket(ctx context.Context) (*blob.Bucket, error) {
 			return nil, fmt.Errorf("failed to open bucket: %v", err)
 		}
 
-		return bucket, nil
+		return &blobEventBucket{bucket: bucket}, nil
 
 	default:
 		return nil, errors.New("invalid LocalOrCloudPath")

@@ -1,45 +1,57 @@
-//go:build !cloud_http
+//go:build cloud_http
 
 package filetransfer
 
 import (
 	"context"
 	"fmt"
+	"io"
 	"path/filepath"
 	"strings"
 	"sync"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
+// S3Object identifies an object, optionally at a specific version.
+type S3Object struct {
+	Bucket    string
+	Key       string
+	VersionID string
+}
+
+// S3ObjectPage contains one page of object keys.
+type S3ObjectPage struct {
+	Keys      []string
+	Truncated bool
+	NextToken string
+}
+
+// S3ObjectVersion identifies an object's version and content digest.
+type S3ObjectVersion struct {
+	Key       string
+	VersionID string
+	ETag      string
+}
+
+// S3VersionPage contains one page of versions. Both markers identify the next page.
+type S3VersionPage struct {
+	Versions            []S3ObjectVersion
+	Truncated           bool
+	NextKeyMarker       string
+	NextVersionIDMarker string
+}
+
+// S3Client provides the object reads needed by reference artifacts.
 type S3Client interface {
-	GetObject(
-		ctx context.Context,
-		params *s3.GetObjectInput,
-		optFns ...func(*s3.Options),
-	) (*s3.GetObjectOutput, error)
-	GetObjectAttributes(
-		ctx context.Context,
-		params *s3.GetObjectAttributesInput,
-		optFns ...func(*s3.Options),
-	) (*s3.GetObjectAttributesOutput, error)
-	ListObjectsV2(
-		ctx context.Context,
-		params *s3.ListObjectsV2Input,
-		optFns ...func(*s3.Options),
-	) (*s3.ListObjectsV2Output, error)
-	ListObjectVersions(
-		ctx context.Context,
-		params *s3.ListObjectVersionsInput,
-		optFns ...func(*s3.Options),
-	) (*s3.ListObjectVersionsOutput, error)
+	GetObject(context.Context, S3Object) (io.ReadCloser, error)
+	GetObjectETag(context.Context, S3Object) (string, error)
+	ListObjects(context.Context, string, string, string) (S3ObjectPage, error)
+	ListVersions(context.Context, string, string, string, string) (S3VersionPage, error)
 }
 
 const maxS3Workers int = 500
@@ -90,7 +102,11 @@ func (ft *S3FileTransfer) SetupClient() {
 			ft.logger.Error("Unable to load config to set up S3 client", "err", err)
 			return
 		}
-		client := s3.NewFromConfig(cfg)
+		client, err := newS3HTTPClient(ft.ctx, &cfg)
+		if err != nil {
+			ft.logger.Error("Unable to set up S3 HTTP client", "err", err)
+			return
+		}
 		ft.client = client
 	})
 }
@@ -121,13 +137,13 @@ func (ft *S3FileTransfer) Download(task *ReferenceArtifactDownloadTask) error {
 		return ft.formatDownloadError("error parsing reference", err)
 	}
 
-	var getObjectInputs []*s3.GetObjectInput
+	var getObjectInputs []S3Object
 	if task.HasSingleFile() {
 		getObjInput, err := ft.findObjectFromTask(bucketName, rootObjectName, task)
 		if err != nil {
 			return ft.formatDownloadError("error constructing object input", err)
 		}
-		getObjectInputs = []*s3.GetObjectInput{getObjInput}
+		getObjectInputs = []S3Object{getObjInput}
 	} else {
 		getObjectInputs, err = ft.listObjectsWithPrefix(bucketName, rootObjectName)
 		if err != nil {
@@ -154,124 +170,87 @@ func (ft *S3FileTransfer) findObjectFromTask(
 	bucketName string,
 	objectName string,
 	task *ReferenceArtifactDownloadTask,
-) (*s3.GetObjectInput, error) {
-	var getObjInput = &s3.GetObjectInput{
-		Bucket: aws.String(bucketName),
-		Key:    aws.String(objectName),
+) (S3Object, error) {
+	object := S3Object{Bucket: bucketName, Key: objectName}
+	if versionID, ok := task.VersionIDString(); ok {
+		object.VersionID = versionID
 	}
-	var getObjAttrsInput = &s3.GetObjectAttributesInput{
-		Bucket:           aws.String(bucketName),
-		Key:              aws.String(objectName),
-		ObjectAttributes: []types.ObjectAttributes{types.ObjectAttributesEtag},
-	}
-
-	versionId, ok := task.VersionIDString()
-	if ok {
-		getObjAttrsInput.VersionId = &versionId
-		getObjInput.VersionId = &versionId
-	}
-
-	objAttrs, err := ft.client.GetObjectAttributes(ft.ctx, getObjAttrsInput)
+	etag, err := ft.client.GetObjectETag(ft.ctx, object)
 	if err != nil {
-		return nil, err
+		return S3Object{}, err
 	}
+	if strings.Trim(etag, "\"") == task.Digest {
+		return object, nil
+	}
+	if task.VersionId != nil {
+		return S3Object{}, fmt.Errorf(
+			"digest/etag mismatch: etag %s does not match expected digest %s",
+			etag,
+			task.Digest,
+		)
+	}
+	return ft.getCorrectObjectVersion(object, task.Digest)
+}
 
-	// If the ETag doesn't match what we have stored, try to find the correct version
-	if strings.Trim(*objAttrs.ETag, "\"") != task.Digest {
-		if task.VersionId != nil {
+// listObjectsWithPrefix returns every object matching the prefix.
+func (ft *S3FileTransfer) listObjectsWithPrefix(bucket, prefix string) ([]S3Object, error) {
+	var objects []S3Object
+	var token string
+	for {
+		page, err := ft.client.ListObjects(ft.ctx, bucket, prefix, token)
+		if err != nil {
+			return nil, err
+		}
+		for _, key := range page.Keys {
+			objects = append(objects, S3Object{Bucket: bucket, Key: key})
+		}
+		if !page.Truncated {
+			return objects, nil
+		}
+		if page.NextToken == "" || page.NextToken == token {
 			return nil, fmt.Errorf(
-				"digest/etag mismatch: etag %s does not match expected digest %s",
-				*objAttrs.ETag,
-				task.Digest,
+				"S3 listing returned a truncated page without a new continuation token",
 			)
 		}
-		getObjInput, err = ft.getCorrectObjectVersion(
-			bucketName,
-			objectName,
-			task.Digest,
-			getObjInput,
+		token = page.NextToken
+	}
+}
+
+// getCorrectObjectVersion finds an exact key and ETag, following both version markers.
+func (ft *S3FileTransfer) getCorrectObjectVersion(
+	object S3Object,
+	digest string,
+) (S3Object, error) {
+	var keyMarker, versionMarker string
+	for {
+		page, err := ft.client.ListVersions(
+			ft.ctx,
+			object.Bucket,
+			object.Key,
+			keyMarker,
+			versionMarker,
 		)
 		if err != nil {
-			return nil, err
+			return S3Object{}, err
 		}
-	}
-	return getObjInput, nil
-}
-
-// listObjectsWithPrefix returns a list of all objects in the specified bucket
-// that begin with the given prefix.
-func (ft *S3FileTransfer) listObjectsWithPrefix(
-	bucketName string,
-	prefix string,
-) ([]*s3.GetObjectInput, error) {
-	var objects []*s3.GetObjectInput
-	params := &s3.ListObjectsV2Input{
-		Bucket: aws.String(bucketName),
-		Prefix: aws.String(prefix),
-	}
-	isTruncated := true
-	for isTruncated {
-		output, err := ft.client.ListObjectsV2(ft.ctx, params)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, object := range output.Contents {
-			objects = append(objects, &s3.GetObjectInput{
-				Bucket: aws.String(bucketName),
-				Key:    object.Key,
-			})
-		}
-
-		if output.IsTruncated != nil {
-			isTruncated = *output.IsTruncated
-		} else {
-			isTruncated = false
-		}
-		if isTruncated {
-			params.ContinuationToken = output.NextContinuationToken
-		}
-	}
-	return objects, nil
-}
-
-// getCorrectObjectVersion attempts to find the version of an object with
-// an ETag that matches the specified digest, and returns the input to
-// retrieve that object.
-func (ft *S3FileTransfer) getCorrectObjectVersion(
-	bucketName string,
-	objectName string,
-	digest string,
-	getObjInput *s3.GetObjectInput,
-) (*s3.GetObjectInput, error) {
-	params := &s3.ListObjectVersionsInput{
-		Bucket: aws.String(bucketName),
-		Prefix: aws.String(objectName),
-	}
-	isTruncated := true
-	for isTruncated {
-		versions, err := ft.client.ListObjectVersions(ft.ctx, params)
-		if err != nil {
-			return nil, err
-		}
-		for i := range versions.Versions {
-			version := &versions.Versions[i]
-			if strings.Trim(*version.ETag, "\"") == digest {
-				getObjInput.Key = aws.String(*version.Key)
-				getObjInput.VersionId = version.VersionId
-				return getObjInput, nil
+		for _, version := range page.Versions {
+			if version.Key == object.Key && strings.Trim(version.ETag, "\"") == digest {
+				object.VersionID = version.VersionID
+				return object, nil
 			}
 		}
-		if versions.IsTruncated != nil {
-			isTruncated = *versions.IsTruncated
-		} else {
-			isTruncated = false
+		if !page.Truncated {
+			break
 		}
-		if isTruncated {
-			params.KeyMarker = versions.NextKeyMarker
+		if page.NextKeyMarker == "" ||
+			(page.NextKeyMarker == keyMarker && page.NextVersionIDMarker == versionMarker) {
+			return S3Object{}, fmt.Errorf(
+				"S3 version listing returned a truncated page without new markers",
+			)
 		}
+		keyMarker, versionMarker = page.NextKeyMarker, page.NextVersionIDMarker
 	}
-	return nil, fmt.Errorf(
+	return S3Object{}, fmt.Errorf(
 		"digest/etag mismatch: unable to find version with expected digest %s",
 		digest,
 	)
@@ -280,15 +259,23 @@ func (ft *S3FileTransfer) getCorrectObjectVersion(
 // downloadFiles downloads all of the objects in the specified bucket.
 func (ft *S3FileTransfer) downloadFiles(
 	rootObjectName string,
-	getObjectInputs []*s3.GetObjectInput,
+	getObjectInputs []S3Object,
 	basePath string,
 ) error {
 	g := new(errgroup.Group)
 	g.SetLimit(maxS3Workers)
 	for _, input := range getObjectInputs {
 		g.Go(func() error {
-			objectRelativePath, _ := strings.CutPrefix(*input.Key, rootObjectName)
-			localPath := filepath.Join(basePath, filepath.FromSlash(objectRelativePath))
+			objectRelativePath, matches := strings.CutPrefix(input.Key, rootObjectName)
+			if !matches {
+				return fmt.Errorf("S3 listing returned an object outside the requested prefix")
+			}
+			objectRelativePath = strings.TrimLeft(objectRelativePath, "/")
+			relativePath := filepath.FromSlash(objectRelativePath)
+			if relativePath != "" && !filepath.IsLocal(relativePath) {
+				return fmt.Errorf("S3 object path escapes the download directory")
+			}
+			localPath := filepath.Join(basePath, relativePath)
 			return ft.downloadFile(input, localPath)
 		})
 	}
@@ -298,7 +285,7 @@ func (ft *S3FileTransfer) downloadFiles(
 
 // downloadFile downloads the content of an object to the specified path.
 func (ft *S3FileTransfer) downloadFile(
-	getObjInput *s3.GetObjectInput,
+	getObjInput S3Object,
 	localPath string,
 ) error {
 	object, err := ft.client.GetObject(ft.ctx, getObjInput)
@@ -306,10 +293,10 @@ func (ft *S3FileTransfer) downloadFile(
 		return err
 	}
 	defer func() {
-		_ = object.Body.Close()
+		_ = object.Close()
 	}()
 
-	return fileutil.CopyReaderToFile(object.Body, localPath)
+	return fileutil.CopyReaderToFile(object, localPath)
 }
 
 func (ft *S3FileTransfer) formatDownloadError(ctx string, err error) error {

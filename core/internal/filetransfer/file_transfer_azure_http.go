@@ -1,10 +1,9 @@
-//go:build !cloud_http
+//go:build cloud_http
 
 package filetransfer
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,16 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
-	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
-	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
-	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/wandb/wandb/core/internal/observability"
@@ -34,39 +25,36 @@ const (
 	azureScheme = "https"
 )
 
+// AzureBlobProperties is the subset of blob metadata needed for artifact downloads.
+type AzureBlobProperties struct {
+	ETag          string
+	ContentLength int64
+}
+
+type AzureBlobItem struct {
+	Name      string `xml:"Name"`
+	VersionID string `xml:"VersionId"`
+}
+
+type AzureBlobPage struct {
+	Items      []AzureBlobItem `xml:"Blobs>Blob"`
+	NextMarker string          `xml:"NextMarker"`
+}
+
 type AzureBlobClient interface {
-	DownloadFile(
-		ctx context.Context,
-		destination *os.File,
-		options *blob.DownloadFileOptions,
-	) (int64, error)
-	GetProperties(
-		ctx context.Context,
-		options *blob.GetPropertiesOptions,
-	) (blob.GetPropertiesResponse, error)
-	WithVersionID(versionId string) (*blob.Client, error)
+	DownloadFile(context.Context, *os.File) (int64, error)
+	GetProperties(context.Context) (AzureBlobProperties, error)
+	WithVersionID(string) (AzureBlobClient, error)
 }
 
 type AzureAccountClient interface {
-	DownloadFile(
-		ctx context.Context,
-		containerName string,
-		blobName string,
-		destination *os.File,
-		options *azblob.DownloadFileOptions,
-	) (int64, error)
-	NewListBlobsFlatPager(
-		containerName string,
-		options *azblob.ListBlobsFlatOptions,
-	) *runtime.Pager[azblob.ListBlobsFlatResponse]
+	DownloadFile(context.Context, string, string, *os.File) (int64, error)
+	ListBlobs(context.Context, string, string, string, bool) (AzureBlobPage, error)
+	NewBlobClient(string, string) AzureBlobClient
 }
 
 type AzureBlockBlobClient interface {
-	UploadStream(
-		ctx context.Context,
-		body io.Reader,
-		options *blockblob.UploadStreamOptions,
-	) (blockblob.UploadStreamResponse, error)
+	UploadStream(context.Context, io.Reader, http.Header) (*http.Response, error)
 }
 
 // AzureClientsMap is a map of account URLs/container names to client objects.
@@ -79,6 +67,11 @@ type AzureClientsMap[T any] struct {
 	// once is a map of account URLs/container names to sync.Once objects to
 	// ensure that we only set up each client once
 	once sync.Map
+}
+
+type azureClientInit struct {
+	once sync.Once
+	err  error
 }
 
 func NewAzureClientsMap[T any]() *AzureClientsMap[T] {
@@ -102,24 +95,18 @@ func setupAccountClient(
 	accountUrl string,
 	cred *azidentity.DefaultAzureCredential,
 ) (AzureAccountClient, error) {
-	return azblob.NewClient(accountUrl, cred, nil)
-}
-
-func setupContainerClient(
-	containerName string,
-	cred *azidentity.DefaultAzureCredential,
-) (*container.Client, error) {
-	return container.NewClient(containerName, cred, nil)
+	return newAzureAccountHTTPClient(accountUrl, cred, nil)
 }
 
 func (am *AzureClientsMap[T]) LoadOrStore(
 	key string,
 	setup func(key string, cred *azidentity.DefaultAzureCredential) (T, error),
 ) (T, error) {
-	onceVal, _ := am.once.LoadOrStore(key, &sync.Once{})
-	once := onceVal.(*sync.Once)
-	var err error
-	once.Do(func() {
+	onceVal, _ := am.once.LoadOrStore(key, &azureClientInit{})
+	init := onceVal.(*azureClientInit)
+	init.once.Do(func() {
+		var err error
+		defer func() { init.err = err }()
 		var cred *azidentity.DefaultAzureCredential
 		cred, err = azidentity.NewDefaultAzureCredential(nil)
 		if err != nil {
@@ -132,9 +119,9 @@ func (am *AzureClientsMap[T]) LoadOrStore(
 		}
 		am.clients.Store(key, client)
 	})
-	if err != nil {
+	if init.err != nil {
 		var zero T
-		return zero, err
+		return zero, init.err
 	}
 	return am.GetClient(key)
 }
@@ -150,11 +137,8 @@ type AzureFileTransfer struct {
 	// background context is used to create a reader and get the client
 	ctx context.Context
 
-	// clients is a map of account URLs to azblob.Client objects
+	// clients caches an authenticated HTTP client for each account URL
 	clients *AzureClientsMap[AzureAccountClient]
-
-	// containerClients is a map of container names to container.Client objects
-	containerClients *AzureClientsMap[*container.Client]
 
 	// blobClient is a client for a specific blob
 	blobClient AzureBlobClient
@@ -181,7 +165,6 @@ func NewAzureFileTransfer(
 		fileTransferStats: fileTransferStats,
 		ctx:               ctx,
 		clients:           NewAzureClientsMap[AzureAccountClient](),
-		containerClients:  NewAzureClientsMap[*container.Client](),
 		blobClient:        nil,
 		blockBlobClient:   nil,
 	}
@@ -203,16 +186,13 @@ func setupBlobClient(
 	if err != nil {
 		return nil, err
 	}
-	client, err := blob.NewClient(task.Reference, cred, nil)
+	client, err := newAzureBlobHTTPClient(task.Reference, cred, nil)
 	if err != nil {
 		return nil, err
 	}
 	versionId, ok := task.VersionIDString()
 	if ok {
-		client, err = client.WithVersionID(versionId)
-		if err != nil {
-			return nil, err
-		}
+		return client.WithVersionID(versionId)
 	}
 	return client, nil
 }
@@ -248,6 +228,11 @@ func (ft *AzureFileTransfer) Upload(task *DefaultUploadTask) error {
 	if err != nil {
 		return err
 	}
+	// The upload result is consumed for its status and headers, as with the SDK.
+	if resp.Body != nil {
+		resp.Body.Close()
+		resp.Body = http.NoBody
+	}
 	task.Response = resp
 
 	return nil
@@ -258,70 +243,19 @@ func (ft *AzureFileTransfer) uploadBlob(
 	task *DefaultUploadTask,
 	requestBody io.Reader,
 ) (*http.Response, error) {
-	clientOptions := blockblob.ClientOptions{
-		ClientOptions: azcore.ClientOptions{
-			Retry: policy.RetryOptions{
-				MaxRetries: 0,
-			},
-		},
-	}
-	blockBlobClient := ft.blockBlobClient
-	if blockBlobClient == nil {
-		client, err := blockblob.NewClientWithNoCredential(task.Url, &clientOptions)
+	client := ft.blockBlobClient
+	if client == nil {
+		var err error
+		client, err = newAzureBlobHTTPClient(task.Url, nil, nil)
 		if err != nil {
 			return nil, err
 		}
-		blockBlobClient = client
 	}
-
-	uploadOptions := blockblob.UploadStreamOptions{
-		Concurrency: 4,
-		BlockSize:   4 * 1024,
-		HTTPHeaders: &blob.HTTPHeaders{},
+	ctx := task.Context
+	if ctx == nil {
+		ctx = context.Background()
 	}
-
-	if md5b64 := task.Headers.Get("Content-MD5"); md5b64 != "" {
-		md5, err := base64.StdEncoding.DecodeString(md5b64)
-		if err != nil {
-			return nil, err
-		}
-		uploadOptions.HTTPHeaders.BlobContentMD5 = md5
-	}
-	if contentType := task.Headers.Get("Content-Type"); contentType != "" {
-		uploadOptions.HTTPHeaders.BlobContentType = &contentType
-	}
-
-	resp, err := blockBlobClient.UploadStream(context.Background(), requestBody, &uploadOptions)
-	if err != nil {
-		return nil, err
-	}
-	return &http.Response{
-		StatusCode: 200,
-		Status:     "OK",
-		Header:     getHeadersFromResponse(resp),
-	}, nil
-}
-
-// getHeadersFromResponse gets the relevant headers from the upload response.
-func getHeadersFromResponse(resp blockblob.UploadStreamResponse) http.Header {
-	header := http.Header{}
-	if resp.ETag != nil {
-		header.Set("ETag", string(*resp.ETag))
-	}
-	if resp.ClientRequestID != nil {
-		header.Set("Client-Request-ID", *resp.ClientRequestID)
-	}
-	if resp.RequestID != nil {
-		header.Set("Request-ID", *resp.RequestID)
-	}
-	if resp.Date != nil {
-		header.Set("Date", resp.Date.Format(time.UnixDate))
-	}
-	if resp.LastModified != nil {
-		header.Set("Last-Modified", resp.LastModified.Format(time.UnixDate))
-	}
-	header.Set("Content-MD5", base64.StdEncoding.EncodeToString(resp.ContentMD5))
-	return header
+	return client.UploadStream(ctx, requestBody, task.Headers)
 }
 
 type ParsedBlobInfo struct {
@@ -344,6 +278,12 @@ func (ft *AzureFileTransfer) Download(task *ReferenceArtifactDownloadTask) error
 		return ft.formatDownloadError("error parsing reference", err)
 	}
 	pathSplit := strings.SplitN(fullBlobPath, "/", 2)
+	if len(pathSplit) != 2 || pathSplit[0] == "" {
+		return ft.formatDownloadError(
+			"error parsing reference",
+			fmt.Errorf("missing container or blob path"),
+		)
+	}
 	fullAccountUrl := fmt.Sprintf("%s://%s", azureScheme, accountUrl)
 	blobInfo := ParsedBlobInfo{
 		AccountUrl: fullAccountUrl,
@@ -356,7 +296,7 @@ func (ft *AzureFileTransfer) Download(task *ReferenceArtifactDownloadTask) error
 	if err != nil {
 		return ft.formatDownloadError(
 			"error setting up Azure account client",
-			fmt.Errorf("client not found"),
+			err,
 		)
 	}
 
@@ -444,29 +384,23 @@ func (ft *AzureFileTransfer) getCorrectBlobVersion(
 	blobInfo ParsedBlobInfo,
 	task *ReferenceArtifactDownloadTask,
 ) (blobName, versionId string, err error) {
-	containerUrl := fmt.Sprintf("%s/%s", blobInfo.AccountUrl, blobInfo.Container)
-	containerClient, err := ft.containerClients.LoadOrStore(containerUrl, setupContainerClient)
+	client, err := ft.clients.GetClient(blobInfo.AccountUrl)
 	if err != nil {
 		return "", "", err
 	}
-
-	// Get all of the possible versions of the blob to check the digest against
-	pager := containerClient.NewListBlobsFlatPager(&container.ListBlobsFlatOptions{
-		Prefix: &blobInfo.BlobPrefix,
-		Include: container.ListBlobsInclude{
-			Versions: true,
-		},
-	})
-
-	for pager.More() {
-		resp, err := pager.NextPage(ft.ctx)
+	marker := ""
+	seenMarkers := map[string]bool{}
+	for {
+		page, err := client.ListBlobs(ft.ctx, blobInfo.Container, blobInfo.BlobPrefix, marker, true)
 		if err != nil {
 			return "", "", err
 		}
-
-		for _, blob := range resp.Segment.BlobItems {
-			blobClient, err := containerClient.NewBlobClient(*blob.Name).
-				WithVersionID(*blob.VersionID)
+		for _, item := range page.Items {
+			if item.Name != blobInfo.BlobPrefix || item.VersionID == "" {
+				continue
+			}
+			blobClient, err := client.NewBlobClient(blobInfo.Container, item.Name).
+				WithVersionID(item.VersionID)
 			if err != nil {
 				return "", "", err
 			}
@@ -475,10 +409,19 @@ func (ft *AzureFileTransfer) getCorrectBlobVersion(
 				return "", "", err
 			}
 			if matches {
-				return *blob.Name, *blob.VersionID, nil
+				return item.Name, item.VersionID, nil
 			}
 		}
+		if page.NextMarker == "" {
+			break
+		}
+		if seenMarkers[page.NextMarker] {
+			return "", "", fmt.Errorf("azure returned a repeated listing marker")
+		}
+		seenMarkers[page.NextMarker] = true
+		marker = page.NextMarker
 	}
+
 	return "", "", fmt.Errorf(
 		"digest/etag mismatch: unable to find version with expected digest %s for reference %s",
 		task.Digest,
@@ -491,12 +434,12 @@ func (ft *AzureFileTransfer) checkVersionIDMatches(
 	client AzureBlobClient,
 	digest string,
 ) (bool, error) {
-	properties, err := client.GetProperties(ft.ctx, nil)
+	properties, err := client.GetProperties(ft.ctx)
 	if err != nil {
 		return false, err
 	}
-	if properties.ETag != nil &&
-		strings.Trim(string(*properties.ETag), "\"") == digest {
+	if properties.ETag != "" &&
+		strings.Trim(properties.ETag, "\"") == digest {
 		return true, nil
 	}
 	return false, nil
@@ -511,24 +454,31 @@ func (ft *AzureFileTransfer) listBlobsWithPrefix(
 		return nil, err
 	}
 
-	// List the blobs in the container
-	pager := client.NewListBlobsFlatPager(
-		blobInfo.Container,
-		&azblob.ListBlobsFlatOptions{
-			Prefix: &blobInfo.BlobPrefix,
-		},
-	)
-
 	blobNames := []string{}
-	for pager.More() {
-		resp, err := pager.NextPage(ft.ctx)
+	marker := ""
+	seenMarkers := map[string]bool{}
+	for {
+		page, err := client.ListBlobs(
+			ft.ctx,
+			blobInfo.Container,
+			blobInfo.BlobPrefix,
+			marker,
+			false,
+		)
 		if err != nil {
 			return nil, err
 		}
-
-		for _, blob := range resp.Segment.BlobItems {
-			blobNames = append(blobNames, *blob.Name)
+		for _, item := range page.Items {
+			blobNames = append(blobNames, item.Name)
 		}
+		if page.NextMarker == "" {
+			break
+		}
+		if seenMarkers[page.NextMarker] {
+			return nil, fmt.Errorf("azure returned a repeated listing marker")
+		}
+		seenMarkers[page.NextMarker] = true
+		marker = page.NextMarker
 	}
 
 	return blobNames, nil
@@ -544,8 +494,16 @@ func (ft *AzureFileTransfer) downloadFiles(
 	g.SetLimit(maxAzureWorkers)
 	for _, blobName := range blobNames {
 		g.Go(func() error {
-			objectRelativePath, _ := strings.CutPrefix(blobName, blobInfo.BlobPrefix)
-			localPath := filepath.Join(task.PathOrPrefix, filepath.FromSlash(objectRelativePath))
+			objectRelativePath, found := strings.CutPrefix(blobName, blobInfo.BlobPrefix)
+			if !found {
+				return fmt.Errorf("azure returned blob outside requested prefix: %q", blobName)
+			}
+			objectRelativePath = strings.TrimPrefix(objectRelativePath, "/")
+			relativePath := filepath.FromSlash(objectRelativePath)
+			if relativePath != "" && !filepath.IsLocal(relativePath) {
+				return fmt.Errorf("azure blob path escapes download directory: %q", blobName)
+			}
+			localPath := filepath.Join(task.PathOrPrefix, relativePath)
 			return ft.downloadBlobToFile(blobInfo, blobName, task, localPath)
 		})
 	}
@@ -574,6 +532,8 @@ func (ft *AzureFileTransfer) downloadBlobToFile(
 		return fmt.Errorf("unable to create destination file %s: %w", localPath, err)
 	}
 
+	defer destination.Close()
+
 	// If version ID is specified, use the blob client to download the blob
 	_, ok := task.VersionIDString()
 	if ok {
@@ -585,14 +545,14 @@ func (ft *AzureFileTransfer) downloadBlobToFile(
 			}
 			blobClient = client
 		}
-		_, err = blobClient.DownloadFile(ft.ctx, destination, nil)
+		_, err = blobClient.DownloadFile(ft.ctx, destination)
 		return err
 	} else {
 		client, err := ft.clients.GetClient(blobInfo.AccountUrl)
 		if err != nil {
 			return err
 		}
-		_, err = client.DownloadFile(ft.ctx, blobInfo.Container, blobName, destination, nil)
+		_, err = client.DownloadFile(ft.ctx, blobInfo.Container, blobName, destination)
 		return err
 	}
 }

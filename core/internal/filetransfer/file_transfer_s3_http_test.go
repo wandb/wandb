@@ -1,4 +1,4 @@
-//go:build !cloud_http
+//go:build cloud_http
 
 package filetransfer_test
 
@@ -11,8 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/wandb/wandb/core/internal/filetransfer"
@@ -65,103 +63,74 @@ var mockS3Files = []mockS3File{file1v0, file1Latest, file2}
 
 func (m mockS3Client) GetObject(
 	ctx context.Context,
-	params *s3.GetObjectInput,
-	optFns ...func(*s3.Options),
-) (*s3.GetObjectOutput, error) {
-	if params.Bucket == nil || params.Key == nil {
-		return nil, errors.New("expect key and bucket to not be nil")
-	}
-	if params.VersionId == nil {
-		latest := "latest"
-		params.VersionId = &latest
+	object filetransfer.S3Object,
+) (io.ReadCloser, error) {
+	if object.VersionID == "" {
+		object.VersionID = "latest"
 	}
 	for _, file := range mockS3Files {
-		if file.Bucket == *params.Bucket &&
-			file.Key == *params.Key &&
-			file.VersionId == *params.VersionId {
-			return &s3.GetObjectOutput{Body: io.NopCloser(bytes.NewReader(file.Content))}, nil
+		if file.Bucket == object.Bucket && file.Key == object.Key &&
+			file.VersionId == object.VersionID {
+			return io.NopCloser(bytes.NewReader(file.Content)), nil
 		}
 	}
 	return nil, errors.New("object does not exist")
 }
 
-func (m mockS3Client) GetObjectAttributes(
+func (m mockS3Client) GetObjectETag(
 	ctx context.Context,
-	params *s3.GetObjectAttributesInput,
-	optFns ...func(*s3.Options),
-) (*s3.GetObjectAttributesOutput, error) {
-	if params.Bucket == nil || params.Key == nil {
-		return nil, errors.New("expect key and bucket to not be nil")
-	}
-	if params.VersionId == nil {
-		latest := "latest"
-		params.VersionId = &latest
+	object filetransfer.S3Object,
+) (string, error) {
+	if object.VersionID == "" {
+		object.VersionID = "latest"
 	}
 	for _, file := range mockS3Files {
-		if file.Bucket == *params.Bucket &&
-			file.Key == *params.Key &&
-			file.VersionId == *params.VersionId {
-			return &s3.GetObjectAttributesOutput{ETag: &file.ETag}, nil
+		if file.Bucket == object.Bucket && file.Key == object.Key &&
+			file.VersionId == object.VersionID {
+			return file.ETag, nil
 		}
 	}
-	return nil, errors.New("object does not exist")
+	return "", errors.New("object does not exist")
 }
 
-func (m mockS3Client) ListObjectsV2(
+func (m mockS3Client) ListObjects(
 	ctx context.Context,
-	params *s3.ListObjectsV2Input,
-	optFns ...func(*s3.Options),
-) (*s3.ListObjectsV2Output, error) {
-	if params.Bucket == nil {
-		return nil, errors.New("expect bucket to not be nil")
+	bucket, prefix, token string,
+) (filetransfer.S3ObjectPage, error) {
+	if bucket != "bucket" {
+		return filetransfer.S3ObjectPage{}, errors.New("bucket does not exist")
 	}
-	if *params.Bucket != "bucket" {
-		return nil, errors.New("bucket does not exist")
-	}
-	var objects []types.Object
+	var page filetransfer.S3ObjectPage
 	for _, file := range mockS3Files {
-		if file.Bucket == *params.Bucket &&
-			strings.HasPrefix(file.Key, *params.Prefix) &&
+		if file.Bucket == bucket && strings.HasPrefix(file.Key, prefix) &&
 			file.VersionId == "latest" {
-			objects = append(objects, types.Object{Key: &file.Key})
+			page.Keys = append(page.Keys, file.Key)
 		}
 	}
-
-	isTruncated := false
-	return &s3.ListObjectsV2Output{
-		Contents:    objects,
-		IsTruncated: &isTruncated,
-	}, nil
+	return page, nil
 }
 
-func (m mockS3Client) ListObjectVersions(
+func (m mockS3Client) ListVersions(
 	ctx context.Context,
-	params *s3.ListObjectVersionsInput,
-	optFns ...func(*s3.Options),
-) (*s3.ListObjectVersionsOutput, error) {
-	if params.Bucket == nil {
-		return nil, errors.New("expect bucket to not be nil")
+	bucket, prefix, keyMarker, versionMarker string,
+) (filetransfer.S3VersionPage, error) {
+	if bucket != "bucket" {
+		return filetransfer.S3VersionPage{}, errors.New("bucket does not exist")
 	}
-	if *params.Bucket != "bucket" {
-		return nil, errors.New("bucket does not exist")
-	}
-	var versions []types.ObjectVersion
+	var page filetransfer.S3VersionPage
 	for _, file := range mockS3Files {
-		if file.Bucket == *params.Bucket && strings.HasPrefix(file.Key, *params.Prefix) {
-			version := types.ObjectVersion{
-				Key:       &file.Key,
-				VersionId: &file.VersionId,
-				ETag:      &file.ETag,
-			}
-			versions = append(versions, version)
+		if file.Bucket == bucket && strings.HasPrefix(file.Key, prefix) {
+			page.Versions = append(
+				page.Versions,
+				filetransfer.S3ObjectVersion{
+					Key:       file.Key,
+					VersionID: file.VersionId,
+					ETag:      file.ETag,
+				},
+			)
 		}
 	}
-
-	isTruncated := false
-	return &s3.ListObjectVersionsOutput{
-		Versions:    versions,
-		IsTruncated: &isTruncated,
-	}, nil
+	return page, nil
 }
 
 func TestS3FileTransfer_Download(t *testing.T) {

@@ -1,3 +1,5 @@
+//go:build !cloud_http
+
 package filetransfer_test
 
 import (

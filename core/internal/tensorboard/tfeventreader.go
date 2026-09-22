@@ -9,7 +9,6 @@ import (
 	"slices"
 	"time"
 
-	"gocloud.dev/blob"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/core/internal/observability"
@@ -27,7 +26,7 @@ type TFEventReader struct {
 	fileFilter TFEventsFileFilter
 
 	tfeventsPath   *LocalOrCloudPath
-	tfeventsBucket *blob.Bucket
+	tfeventsBucket eventBucket
 
 	getNow func() time.Time // allows stubbing time.Now for testing
 	logger *observability.CoreLogger
@@ -43,7 +42,7 @@ type TFEventReader struct {
 	// files as that can be expensive on distributed filesystems like NFS.
 	//
 	// It may be nil. It must be closed to release resources.
-	currentReader *blob.Reader
+	currentReader io.ReadCloser
 
 	lastUnexpectedChecksumTime time.Time
 }
@@ -68,6 +67,10 @@ func (s *TFEventReader) Close() {
 	if s.currentReader != nil {
 		_ = s.currentReader.Close()
 		s.currentReader = nil
+	}
+	if s.tfeventsBucket != nil {
+		_ = s.tfeventsBucket.Close()
+		s.tfeventsBucket = nil
 	}
 }
 
@@ -295,7 +298,7 @@ func (s *TFEventReader) emitCurrentFile(onNewFile func(*LocalOrCloudPath)) {
 func (s *TFEventReader) nextTFEventsFile(ctx context.Context) string {
 	if s.tfeventsBucket == nil {
 		var err error
-		s.tfeventsBucket, err = s.tfeventsPath.Bucket(ctx)
+		s.tfeventsBucket, err = s.tfeventsPath.Bucket(ctx, s.logger)
 		if err != nil {
 			s.logger.Warn(
 				"tensorboard: failed to open tfevents logging directory",
@@ -353,8 +356,6 @@ func (s *TFEventReader) readFromCurrent(
 			ctx,
 			s.currentFile,
 			s.currentOffset,
-			-1, // read to end of blob
-			nil,
 		)
 
 		if err != nil {
@@ -373,9 +374,10 @@ func (s *TFEventReader) readFromCurrent(
 		s.currentOffset += int64(nRead)
 
 		if err != nil {
-			// Remake the reader after non-EOF errors in case the reader
-			// stores the error or has broken state.
-			if !errors.Is(err, io.EOF) {
+			// Remake the reader after errors in case it stores the error or
+			// has broken state. Cloud readers also need reopening at EOF to
+			// see appended data; local readers can keep their file descriptor.
+			if !errors.Is(err, io.EOF) || s.tfeventsPath.CloudPath != nil {
 				_ = s.currentReader.Close()
 				s.currentReader = nil
 			}
@@ -415,7 +417,13 @@ func (s *TFEventReader) rewindBuffer() {
 	s.currentOffset = s.bufferStartOffset
 
 	if s.currentReader != nil {
-		_, err := s.currentReader.Seek(s.currentOffset, io.SeekStart)
+		seeker, ok := s.currentReader.(io.Seeker)
+		if !ok {
+			_ = s.currentReader.Close()
+			s.currentReader = nil
+			return
+		}
+		_, err := seeker.Seek(s.currentOffset, io.SeekStart)
 
 		if err != nil {
 			s.logger.Error(

@@ -8,8 +8,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-
-	"gocloud.dev/blob"
 )
 
 // nextTFEventsFile returns the tfevents file that comes after the given one.
@@ -30,7 +28,7 @@ import (
 // prevents iterating over it.
 func nextTFEventsFile(
 	ctx context.Context,
-	bucket *blob.Bucket,
+	bucket eventBucket,
 	lastFile string,
 	filter TFEventsFileFilter,
 ) (string, error) {
@@ -47,10 +45,10 @@ func nextTFEventsFile(
 	//
 	// Lexicographically sorting UTF-32 strings (i.e. Unicode code points)
 	// and UTF-8 strings produces the same result, so these are the same.
-	sortedEntries := bucket.List(nil)
+	sortedEntries := bucket.List()
 
 	for {
-		obj, err := sortedEntries.Next(ctx)
+		key, err := sortedEntries.Next(ctx)
 
 		if err == io.EOF {
 			return "", nil
@@ -67,9 +65,9 @@ func nextTFEventsFile(
 		// In practice it's not clear this will matter, since tfevents file
 		// names are probably ASCII other than the "hostname" portion which
 		// could be arbitrary.
-		if slices.Compare([]rune(obj.Key), lastFileRunes) > 0 &&
-			filter.Matches(obj.Key) {
-			return obj.Key, nil
+		if slices.Compare([]rune(key), lastFileRunes) > 0 &&
+			filter.Matches(key) {
+			return key, nil
 		}
 	}
 }

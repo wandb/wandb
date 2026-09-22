@@ -1,4 +1,4 @@
-//go:build !cloud_http
+//go:build cloud_http
 
 package filetransfer_test
 
@@ -9,18 +9,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
-	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
-	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
-	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/wandb/wandb/core/internal/filetransfer"
@@ -76,79 +70,65 @@ type mockAzureBlobClient struct {
 func (m mockAzureBlobClient) DownloadFile(
 	ctx context.Context,
 	destination *os.File,
-	options *blob.DownloadFileOptions,
 ) (int64, error) {
 	return io.Copy(destination, bytes.NewReader(m.blob.Content))
 }
 
 func (m mockAzureBlobClient) GetProperties(
 	ctx context.Context,
-	options *blob.GetPropertiesOptions,
-) (blob.GetPropertiesResponse, error) {
-	etag := azcore.ETag(fmt.Sprintf("%q", m.blob.ETag))
-	return blob.GetPropertiesResponse{
-		ETag: &etag,
+) (filetransfer.AzureBlobProperties, error) {
+	return filetransfer.AzureBlobProperties{
+		ETag:          fmt.Sprintf("%q", m.blob.ETag),
+		ContentLength: int64(len(m.blob.Content)),
 	}, nil
 }
 
-// WithVersionID returns an empty blob client when the versionId matches because we are not testing this path
-func (m mockAzureBlobClient) WithVersionID(versionId string) (*blob.Client, error) {
-	return &blob.Client{}, nil
-}
-
-func mockMore(r container.ListBlobsFlatResponse) bool {
-	return false
-}
-
-func mockAzureAccountFetcher(
-	_ context.Context,
-	_ *azblob.ListBlobsFlatResponse,
-) (azblob.ListBlobsFlatResponse, error) {
-	response := azblob.ListBlobsFlatResponse{
-		ListBlobsFlatSegmentResponse: azblob.ListBlobsFlatSegmentResponse{
-			Segment: &container.BlobFlatListSegment{
-				BlobItems: []*container.BlobItem{
-					{
-						Name:      &azureFile1Latest.Name,
-						VersionID: &azureFile1Latest.VersionId,
-					},
-					{
-						Name:      &azureFile2.Name,
-						VersionID: &azureFile2.VersionId,
-					},
-				},
-			},
-		},
+func (m mockAzureBlobClient) WithVersionID(versionID string) (filetransfer.AzureBlobClient, error) {
+	for _, b := range mockAzureBlobs {
+		if b.Name == m.blob.Name && b.VersionId == versionID {
+			return &mockAzureBlobClient{b}, nil
+		}
 	}
-	return response, nil
+	return nil, fmt.Errorf("version %s not found", versionID)
 }
 
 type mockAzureAccountClient struct{}
 
 func (m mockAzureAccountClient) DownloadFile(
 	ctx context.Context,
-	containerName string,
-	blobName string,
+	containerName, blobName string,
 	destination *os.File,
-	options *azblob.DownloadFileOptions,
 ) (int64, error) {
-	for _, b := range mockAzureBlobs {
-		if b.Name == blobName && b.Container == containerName && b.VersionId == "latest" {
-			return io.Copy(destination, bytes.NewReader(b.Content))
-		}
-	}
-	return 0, fmt.Errorf("blob %s not found", blobName)
+	return m.NewBlobClient(containerName, blobName).DownloadFile(ctx, destination)
 }
 
-func (m mockAzureAccountClient) NewListBlobsFlatPager(
-	containerName string,
-	options *azblob.ListBlobsFlatOptions,
-) *runtime.Pager[azblob.ListBlobsFlatResponse] {
-	pager := runtime.NewPager(runtime.PagingHandler[azblob.ListBlobsFlatResponse]{
-		More:    mockMore,
-		Fetcher: mockAzureAccountFetcher,
-	})
-	return pager
+func (m mockAzureAccountClient) NewBlobClient(
+	containerName, blobName string,
+) filetransfer.AzureBlobClient {
+	for _, b := range mockAzureBlobs {
+		if b.Name == blobName && b.Container == containerName && b.VersionId == "latest" {
+			return &mockAzureBlobClient{b}
+		}
+	}
+	return &mockAzureBlobClient{}
+}
+
+func (m mockAzureAccountClient) ListBlobs(
+	ctx context.Context,
+	containerName, prefix, marker string,
+	versions bool,
+) (filetransfer.AzureBlobPage, error) {
+	page := filetransfer.AzureBlobPage{}
+	for _, b := range mockAzureBlobs {
+		if b.Container == containerName && strings.HasPrefix(b.Name, prefix) &&
+			(versions || b.VersionId == "latest") {
+			page.Items = append(
+				page.Items,
+				filetransfer.AzureBlobItem{Name: b.Name, VersionID: b.VersionId},
+			)
+		}
+	}
+	return page, nil
 }
 
 func mockSetupAccountClient(
@@ -304,19 +284,17 @@ type mockAzureBlockBlobClient struct {
 func (m mockAzureBlockBlobClient) UploadStream(
 	ctx context.Context,
 	body io.Reader,
-	options *blockblob.UploadStreamOptions,
-) (blockblob.UploadStreamResponse, error) {
+	headers http.Header,
+) (*http.Response, error) {
 	if m.shouldFail {
-		return blockblob.UploadStreamResponse{}, fmt.Errorf("upload failed")
+		return nil, fmt.Errorf("upload failed")
 	}
 	bodyBytes, err := io.ReadAll(body)
 	assert.NoError(m.t, err)
 	assert.Equal(m.t, m.contentExpected, bodyBytes)
-	assert.Equal(m.t, *options.HTTPHeaders.BlobContentType, m.headers["Content-Type"])
-	md5 := base64.StdEncoding.EncodeToString(options.HTTPHeaders.BlobContentMD5)
-	assert.Equal(m.t, md5, m.headers["Content-MD5"])
-
-	return blockblob.UploadStreamResponse{}, nil
+	assert.Equal(m.t, headers.Get("Content-Type"), m.headers["Content-Type"])
+	assert.Equal(m.t, headers.Get("Content-MD5"), m.headers["Content-MD5"])
+	return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
 }
 
 func TestAzureFileTransfer_Upload(t *testing.T) {
@@ -372,10 +350,6 @@ func TestAzureFileTransfer_Upload(t *testing.T) {
 func TestAzureFileTransfer_UploadOffsetChunkOverlong(t *testing.T) {
 	entireContent := []byte("test content for upload")
 
-	chunkCheckHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-	})
-	server := httptest.NewServer(chunkCheckHandler)
-
 	ft := filetransfer.NewAzureFileTransfer(
 		&filetransfer.AzureClientOverrides{
 			BlockBlobClient: &mockAzureBlockBlobClient{},
@@ -395,7 +369,7 @@ func TestAzureFileTransfer_UploadOffsetChunkOverlong(t *testing.T) {
 
 	task := &filetransfer.DefaultUploadTask{
 		Path:   tempFile.Name(),
-		Url:    server.URL,
+		Url:    "https://account.blob.core.windows.net/container/blob",
 		Offset: 17,
 		Size:   1000,
 	}
