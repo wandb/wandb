@@ -115,38 +115,36 @@ func TestSetFromRecord_TypedValueKinds(t *testing.T) {
 	}{
 		{
 			"null",
-			&spb.HistoryValue{Kind: spb.HistoryValue_KIND_NULL},
+			&spb.HistoryValue{
+				Value: &spb.HistoryValue_NullValue{},
+			},
 			`{"a": null}`,
 		},
 		{
 			"float",
 			&spb.HistoryValue{
-				Kind:       spb.HistoryValue_KIND_FLOAT,
-				FloatValue: 2.5,
+				Value: &spb.HistoryValue_FloatValue{FloatValue: 2.5},
 			},
 			`{"a": 2.5}`,
 		},
 		{
 			"int",
 			&spb.HistoryValue{
-				Kind:     spb.HistoryValue_KIND_INT,
-				IntValue: -7,
+				Value: &spb.HistoryValue_IntValue{IntValue: -7},
 			},
 			`{"a": -7}`,
 		},
 		{
 			"bool",
 			&spb.HistoryValue{
-				Kind:      spb.HistoryValue_KIND_BOOL,
-				BoolValue: true,
+				Value: &spb.HistoryValue_BoolValue{BoolValue: true},
 			},
 			`{"a": true}`,
 		},
 		{
 			"string",
 			&spb.HistoryValue{
-				Kind:        spb.HistoryValue_KIND_STRING,
-				StringValue: "hi",
+				Value: &spb.HistoryValue_StringValue{StringValue: "hi"},
 			},
 			`{"a": "hi"}`,
 		},
@@ -155,16 +153,18 @@ func TestSetFromRecord_TypedValueKinds(t *testing.T) {
 			// reads the same through either form.
 			"json object",
 			&spb.HistoryValue{
-				Kind:      spb.HistoryValue_KIND_JSON,
-				JsonValue: `{"b": 1, "c": {"d": 2.5}}`,
+				Value: &spb.HistoryValue_JsonValue{
+					JsonValue: []byte(`{"b": 1, "c": {"d": 2.5}}`),
+				},
 			},
 			`{"a": {"b": 1, "c": {"d": 2.5}}}`,
 		},
 		{
 			"json array",
 			&spb.HistoryValue{
-				Kind:      spb.HistoryValue_KIND_JSON,
-				JsonValue: `[1, 2]`,
+				Value: &spb.HistoryValue_JsonValue{
+					JsonValue: []byte(`[1, 2]`),
+				},
 			},
 			`{"a": [1, 2]}`,
 		},
@@ -189,8 +189,7 @@ func TestSetFromRecord_TypedValuePreferredOverValueJson(t *testing.T) {
 	err := rh.SetFromRecord(&spb.HistoryItem{
 		Key: "a",
 		Value: &spb.HistoryValue{
-			Kind:     spb.HistoryValue_KIND_INT,
-			IntValue: 1,
+			Value: &spb.HistoryValue_IntValue{IntValue: 1},
 		},
 		ValueJson: "2",
 	})
@@ -219,8 +218,7 @@ func TestSetFromRecord_TypedNestedKey(t *testing.T) {
 	err := rh.SetFromRecord(&spb.HistoryItem{
 		NestedKey: []string{"a", "b"},
 		Value: &spb.HistoryValue{
-			Kind:     spb.HistoryValue_KIND_INT,
-			IntValue: 1,
+			Value: &spb.HistoryValue_IntValue{IntValue: 1},
 		},
 	})
 
@@ -235,8 +233,7 @@ func TestSetFromRecord_TypedIntKeepsExactValueAbove2To53(t *testing.T) {
 
 	const exact = int64(1)<<53 + 1
 	err := rh.SetFromRecord(typedItem("a", &spb.HistoryValue{
-		Kind:     spb.HistoryValue_KIND_INT,
-		IntValue: exact,
+		Value: &spb.HistoryValue_IntValue{IntValue: exact},
 	}))
 
 	require.NoError(t, err)
@@ -254,8 +251,7 @@ func TestSetFromRecord_TypedNonFiniteFloats(t *testing.T) {
 		"nan":  math.NaN(),
 	} {
 		require.NoError(t, rh.SetFromRecord(typedItem(key, &spb.HistoryValue{
-			Kind:       spb.HistoryValue_KIND_FLOAT,
-			FloatValue: value,
+			Value: &spb.HistoryValue_FloatValue{FloatValue: value},
 		})))
 	}
 
@@ -268,22 +264,19 @@ func TestSetFromRecord_TypedNonFiniteFloats(t *testing.T) {
 	assert.True(t, math.IsNaN(asMap["nan"].(float64))) // NaN != NaN
 }
 
-func TestSetFromRecord_TypedUnknownKind(t *testing.T) {
+func TestSetFromRecord_TypedUnsetValue(t *testing.T) {
 	rh := runhistory.New()
 
-	err := rh.SetFromRecord(typedItem("a", &spb.HistoryValue{
-		Kind: spb.HistoryValue_KIND_UNSPECIFIED,
-	}))
+	err := rh.SetFromRecord(typedItem("a", &spb.HistoryValue{}))
 
-	assert.ErrorContains(t, err, "unknown history value kind")
+	assert.ErrorContains(t, err, "unknown history value type")
 }
 
 func TestSetFromRecord_TypedJsonUnmarshalError(t *testing.T) {
 	rh := runhistory.New()
 
 	err := rh.SetFromRecord(typedItem("a", &spb.HistoryValue{
-		Kind:      spb.HistoryValue_KIND_JSON,
-		JsonValue: "invalid",
+		Value: &spb.HistoryValue_JsonValue{JsonValue: []byte("invalid")},
 	}))
 
 	assert.ErrorContains(t, err, "failed to unmarshal typed history item value")
@@ -293,7 +286,7 @@ func TestSetFromRecord_TypedEmptyKey(t *testing.T) {
 	rh := runhistory.New()
 
 	err := rh.SetFromRecord(typedItem("", &spb.HistoryValue{
-		Kind: spb.HistoryValue_KIND_NULL,
+		Value: &spb.HistoryValue_NullValue{},
 	}))
 
 	assert.ErrorContains(t, err, "empty history item key")
