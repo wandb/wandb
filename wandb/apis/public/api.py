@@ -1034,6 +1034,56 @@ class Api:
 
         return Team(self._service_api, team)
 
+    def can_write(self, entity: str | None = None, project: str | None = None) -> bool:
+        """Return whether the current user has write access to an entity or project.
+
+        Use this to exit before `wandb.init()` when the user cannot log to the
+        target team or project, instead of creating a throwaway run.
+
+        Args:
+            entity: The entity (user or team) name. Defaults to the default
+                entity of the `Api`.
+            project: The project name. If the project does not exist, the
+                entity is checked instead, since that is what it takes to
+                create the project.
+
+        Returns:
+            `True` if the user can write to the project, or to the entity when
+            no project is given or it does not exist. `False` otherwise,
+            including when the entity does not exist.
+
+        Examples:
+        ```python
+        import wandb
+
+        api = wandb.Api()
+        if not api.can_write("my-team", "my-project"):
+            raise SystemExit("No write access to my-team/my-project")
+        ```
+        """
+        from wandb.apis._generated import CAN_WRITE_ENTITY_GQL, CanWriteEntity
+        from wandb.sdk.artifacts._gqlutils import is_project_read_only
+
+        if entity is None:
+            entity = self.settings["entity"] or self.default_entity
+
+        if project is not None:
+            read_only = is_project_read_only(self._service_api, entity, project)
+            if read_only is not None:
+                return not read_only
+
+        result = self._service_api.execute_graphql(
+            CAN_WRITE_ENTITY_GQL,
+            variables={"entity": entity},
+            parse=CanWriteEntity.model_validate_json,
+        )
+        # An unknown entity name resolves to a placeholder whose name is available.
+        return (
+            (found := result.entity) is not None
+            and not found.available
+            and not found.read_only
+        )
+
     @normalize_exceptions
     def organization(self, name: str | None = None) -> Organization:
         """Return the matching `Organization`.
