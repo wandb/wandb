@@ -1007,8 +1007,8 @@ pub mod history_value {
         FloatValue(f64),
         #[prost(string, tag = "5")]
         StringValue(::prost::alloc::string::String),
-        #[prost(bytes, tag = "6")]
-        JsonValue(::prost::alloc::vec::Vec<u8>),
+        #[prost(string, tag = "6")]
+        JsonValue(::prost::alloc::string::String),
     }
 }
 /// HistoryItem:

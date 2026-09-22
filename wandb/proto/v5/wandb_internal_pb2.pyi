@@ -389,8 +389,8 @@ class HistoryValue(_message.Message):
     int_value: int
     float_value: float
     string_value: str
-    json_value: bytes
-    def __init__(self, null_value: _Optional[_Union[_struct_pb2.NullValue, str]] = ..., bool_value: bool = ..., int_value: _Optional[int] = ..., float_value: _Optional[float] = ..., string_value: _Optional[str] = ..., json_value: _Optional[bytes] = ...) -> None: ...
+    json_value: str
+    def __init__(self, null_value: _Optional[_Union[_struct_pb2.NullValue, str]] = ..., bool_value: bool = ..., int_value: _Optional[int] = ..., float_value: _Optional[float] = ..., string_value: _Optional[str] = ..., json_value: _Optional[str] = ...) -> None: ...
 
 class HistoryItem(_message.Message):
     __slots__ = ("key", "nested_key", "value", "value_json")

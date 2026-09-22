@@ -305,7 +305,7 @@ message HistoryValue {
     sint64 int_value = 3;
     double float_value = 4;
     string string_value = 5;
-    bytes json_value = 6;
+    string json_value = 6;
   }
 }
 

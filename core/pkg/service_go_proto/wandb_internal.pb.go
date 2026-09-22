@@ -2642,13 +2642,13 @@ func (x *HistoryValue) GetStringValue() string {
 	return ""
 }
 
-func (x *HistoryValue) GetJsonValue() []byte {
+func (x *HistoryValue) GetJsonValue() string {
 	if x != nil {
 		if x, ok := x.Value.(*HistoryValue_JsonValue); ok {
 			return x.JsonValue
 		}
 	}
-	return nil
+	return ""
 }
 
 type isHistoryValue_Value interface {
@@ -2676,7 +2676,7 @@ type HistoryValue_StringValue struct {
 }
 
 type HistoryValue_JsonValue struct {
-	JsonValue []byte `protobuf:"bytes,6,opt,name=json_value,json=jsonValue,proto3,oneof"`
+	JsonValue string `protobuf:"bytes,6,opt,name=json_value,json=jsonValue,proto3,oneof"`
 }
 
 func (*HistoryValue_NullValue) isHistoryValue_Value() {}
@@ -12166,7 +12166,7 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"floatValue\x12#\n" +
 	"\fstring_value\x18\x05 \x01(\tH\x00R\vstringValue\x12\x1f\n" +
 	"\n" +
-	"json_value\x18\x06 \x01(\fH\x00R\tjsonValueB\a\n" +
+	"json_value\x18\x06 \x01(\tH\x00R\tjsonValueB\a\n" +
 	"\x05value\"\x91\x01\n" +
 	"\vHistoryItem\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x1d\n" +
