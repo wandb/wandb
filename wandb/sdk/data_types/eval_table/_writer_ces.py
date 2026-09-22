@@ -7,7 +7,7 @@ import math
 import os
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal
 
 import wandb
 from wandb.analytics import get_telemetry_recorder
@@ -603,12 +603,17 @@ class CESWriter:
     ) -> _CESFieldType:
         if existing is None or existing == observed:
             return observed
-        if existing.extension_type is None and observed.extension_type is None:
+        if (
+            existing.extension_type is None
+            and observed.extension_type is None
+            and existing.value_type != "json"
+            and observed.value_type != "json"
+        ):
             return _CESFieldType(
                 self._merge_type(
                     column,
-                    cast(PrimitiveValueType, existing.value_type),
-                    cast(PrimitiveValueType, observed.value_type),
+                    existing.value_type,
+                    observed.value_type,
                 )
             )
         raise UsageError(
