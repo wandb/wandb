@@ -4,7 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
+	"slices"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -644,6 +646,7 @@ func (w *Workspace) handleWorkspaceInitErr(msg WorkspaceInitErrMsg) tea.Cmd {
 	// Revert selection state so we don't get stuck with "selected but never loads".
 	if msg.RunKey != "" {
 		w.dropRun(msg.RunKey)
+		w.rememberRuns()
 	}
 
 	if msg.Err != nil && !os.IsNotExist(msg.Err) {
@@ -1234,10 +1237,13 @@ func (w *Workspace) toggleRunSelected(runKey string) tea.Cmd {
 
 	if _, selected := w.selectedRuns[runKey]; selected {
 		w.dropRun(runKey)
+		w.rememberRuns()
 		return nil
 	}
 
-	return w.selectRun(runKey)
+	cmd := w.selectRun(runKey)
+	w.rememberRuns()
+	return cmd
 }
 
 // selectRun selects the run, pins it if no run is pinned, and starts loading it.
@@ -1262,6 +1268,17 @@ func (w *Workspace) selectRun(runKey string) tea.Cmd {
 	return w.initReaderCmd(runKey, wandbFile)
 }
 
+// rememberRuns saves the selection for the next time the directory is
+// opened, with the newest run so a run that starts later shows up as new.
+func (w *Workspace) rememberRuns() {
+	w.dirState.SelectedRuns = slices.Sorted(maps.Keys(w.selectedRuns))
+	w.dirState.PinnedRun = w.pinnedRun
+	if len(w.runs.Items) > 0 {
+		w.dirState.LatestRun = w.runs.Items[0].Key
+	}
+	w.dirState.save()
+}
+
 func (w *Workspace) handleToggleRunSelectedKey(msg tea.KeyPressMsg) tea.Cmd {
 	if !w.runSelectorActive() {
 		return nil
@@ -1281,13 +1298,12 @@ func (w *Workspace) togglePin(runKey string) {
 	if w.pinnedRun == runKey {
 		// Unpin but keep selection unchanged.
 		w.pinnedRun = ""
-		w.metricsGrid.drawVisible()
-		return
+	} else {
+		w.pinnedRun = runKey
+		w.refreshPinnedRun()
 	}
-
-	w.pinnedRun = runKey
-	w.refreshPinnedRun()
 	w.metricsGrid.drawVisible()
+	w.rememberRuns()
 }
 
 func (w *Workspace) handlePinRunKey(msg tea.KeyPressMsg) tea.Cmd {
@@ -1345,6 +1361,7 @@ func (w *Workspace) confirmSelectAll(msg tea.KeyPressMsg) tea.Cmd {
 	for _, key := range keys {
 		cmds = append(cmds, w.selectRun(key))
 	}
+	w.rememberRuns()
 	return batchCmds(cmds...)
 }
 
@@ -1358,6 +1375,7 @@ func (w *Workspace) handleDeselectAllRunsKey(tea.KeyPressMsg) tea.Cmd {
 			w.dropRun(key)
 		}
 	}
+	w.rememberRuns()
 	return nil
 }
 

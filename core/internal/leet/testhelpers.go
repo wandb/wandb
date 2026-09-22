@@ -110,6 +110,8 @@ func (m *Model) TestInRunMode() bool { return m.mode == viewModeRun }
 // TestRunModel returns the single-run sub-model (nil in workspace mode).
 func (m *Model) TestRunModel() *Run { return m.run }
 
+func (m *Model) TestWorkspace() *Workspace { return m.workspace }
+
 func (s *Symon) TestGrid() *SystemMetricsGrid {
 	return s.grid
 }
