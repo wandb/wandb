@@ -54,7 +54,7 @@ def install_timed(session: nox.Session, *args, **kwargs):
 
 
 def install_wandb(session: nox.Session, dev: bool = True):
-    """Builds and installs wandb.
+    """Installs wandb from the WANDB_TEST_WHEEL file, or builds it from source.
 
     Args:
         dev: Whether to set dev build flags. Note that this
@@ -64,10 +64,20 @@ def install_wandb(session: nox.Session, dev: bool = True):
         session.env["WANDB_BUILD_COVERAGE"] = "true"
         session.env["WANDB_BUILD_GORACEDETECT"] = "true"
 
+    wheel = os.environ.get("WANDB_TEST_WHEEL")
+    package = wheel or "."
     if session.venv_backend == "uv":
-        install_timed(session, "--reinstall", "--refresh-package", "wandb", ".")
+        install_timed(session, "--reinstall", "--refresh-package", "wandb", package)
     else:
-        install_timed(session, "--force-reinstall", ".")
+        install_timed(session, "--force-reinstall", package)
+
+    if wheel:
+        # Tests import wandb from the source tree, which needs the wheel's binaries.
+        shutil.copytree(
+            site_packages_dir(session) / "wandb" / "bin",
+            pathlib.Path("wandb", "bin"),
+            dirs_exist_ok=True,
+        )
 
 
 def get_session_file_name(session: nox.Session) -> str:
@@ -681,7 +691,7 @@ def wandb_core_size_check(session: nox.Session) -> None:
     main_size = main_binary.stat().st_size
 
     # Build and install current branch version.
-    session.run("git", "switch", "-", external=True)
+    session.run("git", "checkout", "-", external=True)
     install_wandb(session, dev=False)
 
     current_binary = list(
@@ -747,7 +757,7 @@ def wandb_import_time_check(session: nox.Session) -> None:
     install_wandb(session, dev=False)
     main_time = measure_import_time()
 
-    session.run("git", "switch", "-", external=True)
+    session.run("git", "checkout", "-", external=True)
     install_wandb(session, dev=False)
     current_time = measure_import_time()
 
