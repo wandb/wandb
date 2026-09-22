@@ -27,6 +27,7 @@ concurrency:
 
 env:
   SERVER_IMAGE: ${{ inputs.server-image || 'us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:master' }}
+  MIN_SERVER_IMAGE: us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer:0.70.0
 
 jobs:
   build-wheel:
@@ -88,7 +89,7 @@ jobs:
           artifact-name: unit-tests-${{ matrix.os }}-${{ matrix.python }}-${{ matrix.group }}
 
   unit-tests-windows:
-    name: Unit tests · Windows · Python ${{ matrix.python }} · ${{ matrix.group }} of 4
+    name: Unit tests · Windows
     needs: build-wheel-windows
     runs-on: windows-2022
     timeout-minutes: 20
@@ -200,7 +201,7 @@ jobs:
           nox -s wandb-import-time-check
 
   system-tests:
-    name: System tests · Python ${{ matrix.python }} · Server ${{ matrix.server }} · ${{ matrix.group }} of 8
+    name: System tests
     needs: build-wheel
     # The server image is private; pulling it needs this repository's GCP identity.
     if: (vars.GHA_SHADOW_SERVER_TESTS == 'true' || inputs.server-tests) && !github.event.pull_request.head.repo.fork
@@ -213,14 +214,11 @@ jobs:
       fail-fast: false
       matrix:
         python: ["3.10", "3.13"]
-        server: [current, "0.70.0"]
+        server: [current, minimum]
         group: [1, 2, 3, 4, 5, 6, 7, 8]
         exclude:
           - python: "3.10"
-            server: "0.70.0"
-        include:
-          - server: "0.70.0"
-            server-image: us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer:0.70.0
+            server: minimum
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -233,13 +231,13 @@ jobs:
         with:
           session: system_tests
           python: ${{ matrix.python }}
-          server-image: ${{ matrix.server-image || env.SERVER_IMAGE }}
+          server-image: ${{ matrix.server == 'current' && env.SERVER_IMAGE || env.MIN_SERVER_IMAGE }}
           test-group: ${{ matrix.group }}
           test-groups: 8
           artifact-name: system-tests-${{ matrix.python }}-${{ matrix.server }}-${{ matrix.group }}
 
   server-tests:
-    name: ${{ matrix.name }} · Python ${{ matrix.python }}
+    name: Server tests
     needs: build-wheel
     if: (vars.GHA_SHADOW_SERVER_TESTS == 'true' || inputs.server-tests) && !github.event.pull_request.head.repo.fork
     runs-on: ubuntu-latest-8-cores
@@ -251,10 +249,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: Notebook tests, session: notebook_tests, python: "3.10" }
-          - { name: Notebook tests, session: notebook_tests, python: "3.13" }
-          - { name: Functional tests, session: functional_tests, python: "3.13" }
-          - { name: Experimental client tests, session: experimental_tests, python: "3.13" }
+          - { session: notebook_tests, python: "3.10" }
+          - { session: notebook_tests, python: "3.13" }
+          - { session: functional_tests, python: "3.13" }
+          - { session: experimental_tests, python: "3.13" }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
