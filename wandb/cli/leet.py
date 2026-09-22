@@ -64,6 +64,7 @@ def leet() -> None:
     Examples:
         wandb leet                    View the latest run
         wandb leet ./wandb            Browse runs in a wandb directory
+        wandb leet <project-url>      Browse a remote W&B project
         wandb leet <run-url>          View a remote W&B run
         wandb leet symon              View live local system metrics
         wandb leet inspect [PATH]     Browse the raw records in a .wandb log
@@ -85,7 +86,7 @@ def run(path: str | None = None, pprof: str = "") -> None:
     LEET is a terminal UI for viewing a W&B run specified by an optional PATH.
 
     PATH can include a .wandb file, a run directory containing a .wandb file,
-    or a W&B run URL.
+    or a W&B project/run URL.
     If PATH is not provided, the command will look for the latest run.
     """
     launch(path, pprof)
@@ -148,11 +149,11 @@ class LocalLaunchConfig(LaunchConfig):
 
 @dataclasses.dataclass(frozen=True)
 class RemoteLaunchConfig(LaunchConfig):
-    """Configuration for launching LEET against a remote run.
+    """Configuration for launching LEET against a remote workspace or run.
 
     The URL is the single source of truth: it is parsed here for early
     validation and host canonicalization, and again by wandb-core to
-    derive the entity, project, and run ID.
+    derive the entity, project, and optional run ID.
     """
 
     remote_url: str
@@ -319,7 +320,7 @@ def _get_remote_launch_args(config: RemoteLaunchConfig) -> list[str]:
 
 
 def _create_remote_launch_config(path: str) -> RemoteLaunchConfig:
-    """Create a LEET launch configuration for a remote run."""
+    """Create a LEET launch configuration for a remote workspace or run."""
     base_url, remote_url = _parse_remote_url(path)
 
     auth = wbauth.authenticate_session(
@@ -335,7 +336,7 @@ def _create_remote_launch_config(path: str) -> RemoteLaunchConfig:
 
 
 def _parse_remote_url(path: str) -> tuple[str, str]:
-    """Validate a W&B run URL and return (base_url, canonical_url).
+    """Validate a W&B project/run URL and return (base_url, canonical_url).
 
     Canonicalization rewrites the wandb.ai host to api.wandb.ai and drops
     any query string or fragment.
@@ -344,16 +345,18 @@ def _parse_remote_url(path: str) -> tuple[str, str]:
     if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
         _fatal(
             f"Invalid remote URL: {path!r}."
-            " Expected format: https://<host>/<entity>/<project>/runs/<run_id>"
+            " Expected format: https://<host>/<entity>/<project>"
+            " or https://<host>/<entity>/<project>/runs/<run_id>"
         )
 
     parts = parsed_url.path.strip("/").split("/")
     if len(parts) == 4 and parts[2] == "runs":
         parts = [parts[0], parts[1], parts[3]]
-    if len(parts) != 3 or not all(parts):
+    if len(parts) not in {2, 3} or not all(parts):
         _fatal(
             f"Invalid remote URL: {path!r}."
-            " Expected format: https://<host>/<entity>/<project>/runs/<run_id>"
+            " Expected format: https://<host>/<entity>/<project>"
+            " or https://<host>/<entity>/<project>/runs/<run_id>"
         )
 
     netloc = "api.wandb.ai" if parsed_url.netloc == "wandb.ai" else parsed_url.netloc
