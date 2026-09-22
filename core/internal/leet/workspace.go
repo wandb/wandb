@@ -47,6 +47,9 @@ type Workspace struct {
 	selectedRuns map[string]bool // runDirName -> selected
 	pinnedRun    string          // runDirName or ""
 
+	// pendingSelectAll lists the runs ctrl+a will select once y confirms.
+	pendingSelectAll []string
+
 	// hasLiveRuns caches whether any selected run is in RunStateRunning.
 	hasLiveRuns atomic.Bool
 
@@ -410,6 +413,13 @@ func (w *Workspace) IsFiltering() bool {
 		return true
 	}
 	return false
+}
+
+// isAwaitingUserInput reports whether a filter or a prompt owns keyboard input.
+func (w *Workspace) isAwaitingUserInput() bool {
+	return w.IsFiltering() ||
+		w.config.IsAwaitingGridConfig() ||
+		w.pendingSelectAll != nil
 }
 
 // SelectedRunWandbFile returns the full path to the .wandb file for the selected run.
@@ -1239,6 +1249,12 @@ func (w *Workspace) buildStatusText() string {
 		return w.config.GridConfigStatus()
 	}
 
+	if w.pendingSelectAll != nil {
+		return fmt.Sprintf(
+			"Select all matching runs (%d to load)? Press y to confirm (ESC to cancel)",
+			len(w.pendingSelectAll))
+	}
+
 	return w.buildActiveStatus()
 }
 
@@ -1424,8 +1440,8 @@ func (w *Workspace) activeFocusStatus() []string {
 
 // buildHelpText builds the help text for the status bar.
 func (w *Workspace) buildHelpText() string {
-	// Hide help hint while any workspace-level filter / grid config is active.
-	if w.IsFiltering() || w.config.IsAwaitingGridConfig() {
+	// Hide help hint while any workspace-level filter or prompt is active.
+	if w.isAwaitingUserInput() {
 		return ""
 	}
 	return "h: help"
