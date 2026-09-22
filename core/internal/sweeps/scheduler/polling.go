@@ -3,6 +3,11 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"fmt"
+	"hash/fnv"
+	"maps"
+	"slices"
+	"time"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -140,7 +145,8 @@ func (s *Scheduler) doneFromError(
 }
 
 // endFromError maps a failed call onto the reason the loop should end
-// with, or nil if it should keep going.
+// with, or nil if it should keep going. The API layer already recorded
+// the failure in the backoff.
 //
 // phase names the call for the fatal-error metric.
 func (s *Scheduler) endFromError(
@@ -165,6 +171,7 @@ func (s *Scheduler) endFromError(
 			message: "the sweep was deleted",
 		}
 	case DispositionRateLimited:
+		// The backoff has already widened the next wait.
 		s.logger.Warn("scheduler: rate limited by the backend", "error", err)
 		return nil
 	default:
@@ -189,6 +196,26 @@ func retryable(ctx context.Context, err error) bool {
 		Classify(err) == DispositionRateLimited
 }
 
+// finishExhausted ends the sweep because the search space ran out.
+func (s *Scheduler) finishExhausted(
+	ctx context.Context,
+) *spb.SweepSchedulerServerNextTaskResponse {
+	s.finishSweep(ctx)
+	return s.doneTask(
+		spb.SweepSchedulerServerDoneTask_REASON_SWEEP_FINISHED,
+		"the search space is exhausted")
+}
+
+// finishRunCap ends the sweep because the run cap was hit
+func (s *Scheduler) finishRunCap(
+	ctx context.Context,
+) *spb.SweepSchedulerServerNextTaskResponse {
+	s.finishSweep(ctx)
+	return s.doneTask(
+		spb.SweepSchedulerServerDoneTask_REASON_SWEEP_FINISHED,
+		"the run cap was hit")
+}
+
 // doneForSweepState ends the scheduler for a state it cannot schedule
 // under, reporting whether the sweep completed, the user stopped it or
 // it failed.
@@ -207,6 +234,266 @@ func (s *Scheduler) doneForSweepState(
 	return s.doneTask(reason, "the sweep is "+state)
 }
 
+// finishSweep marks the sweep FINISHED, best-effort: a failed upsert
+// only costs the state label.
+func (s *Scheduler) finishSweep(ctx context.Context) {
+	err := s.api.UpsertSweepState(ctx, s.sweepNodeID, sweepStateFinished)
+	if err != nil {
+		s.logger.Warn(
+			"scheduler: failed to mark the sweep finished", "error", err)
+	}
+}
+
+// pollSnapshot is one read of the runs the scheduler is watching.
+type pollSnapshot struct {
+	sweepState string
+
+	// rows is keyed by run name. A watched name absent from it was not
+	// returned by the backend.
+	rows map[string]PollRun
+}
+
+// pollWatched reads the sweep's state and the runs the scheduler is
+// still watching. The rest of the sweep can run to thousands of runs
+// this scheduler neither owns nor acts on, so it is not read.
+func (s *Scheduler) pollWatched(ctx context.Context) (*pollSnapshot, error) {
+	snapshot := &pollSnapshot{rows: make(map[string]PollRun)}
+
+	watched := s.watchedRuns()
+	if len(watched) == 0 {
+		facts, err := s.api.FetchSweep(ctx)
+		if err != nil {
+			return nil, err
+		}
+		snapshot.sweepState = facts.State
+		return snapshot, nil
+	}
+
+	names := make([]string, 0, len(watched))
+	for _, run := range watched {
+		names = append(names, run.name)
+	}
+
+	var cursor *string
+	for {
+		page, err := s.api.FetchWatchedRuns(
+			ctx, names, runsPageSize, cursor, s.metricKeys)
+		if err != nil {
+			return nil, err
+		}
+
+		snapshot.sweepState = page.SweepState
+		for _, run := range page.Runs {
+			snapshot.rows[run.Name] = run
+		}
+
+		if page.NextCursor == nil {
+			return snapshot, nil
+		}
+		cursor = page.NextCursor
+	}
+}
+
+// generationStep polls the sweep and assembles the next generation task.
+func (s *Scheduler) generationStep(
+	ctx context.Context,
+) *spb.SweepSchedulerServerNextTaskResponse {
+	if done := s.doneFromError(ctx, phaseWarmStart, nil); done != nil {
+		return done
+	}
+
+	snapshot, err := s.pollWatched(ctx)
+	if err != nil {
+		if done := s.doneFromError(ctx, phasePoll, err); done != nil {
+			return done
+		}
+		// Rate limited: deliver an empty task and try again next poll.
+		s.recordStepAbandoned(phasePoll, err)
+		return s.generationTask(nil, nil, 0)
+	}
+	s.noteBackendState(snapshot)
+
+	if sweepIsDone(snapshot.sweepState) {
+		return s.doneForSweepState(snapshot.sweepState)
+	}
+	if snapshot.sweepState == sweepStatePaused {
+		return s.generationTask(nil, nil, 0)
+	}
+
+	if s.runCap > 0 && s.finishedRunCount >= s.runCap {
+		return s.finishRunCap(ctx)
+	}
+
+	updates, candidates := s.buildUpdates(ctx, snapshot)
+
+	if s.exhausted {
+		// Every scheduled run has reported, so the sweep is done.
+		if s.trackedRunCount() == 0 {
+			return s.finishExhausted(ctx)
+		}
+		return s.generationTask(updates, candidates, 0)
+	}
+	return s.generationTask(updates, candidates, s.askBudget())
+}
+
+// noteBackendState logs, every stagnantLogInterval, that the sweep's
+// state and every watched row's name, state and summary are as the
+// previous poll saw them, giving a stuck sweep a heartbeat to debug
+// from.
+func (s *Scheduler) noteBackendState(snapshot *pollSnapshot) {
+	fingerprint := snapshotFingerprint(snapshot)
+	now := s.clock.Now()
+
+	if fingerprint != s.lastFingerprint {
+		s.lastFingerprint = fingerprint
+		s.lastChange = now
+		s.lastStagnantLog = now
+		return
+	}
+
+	if now.Sub(s.lastStagnantLog) < stagnantLogInterval {
+		return
+	}
+	s.lastStagnantLog = now
+	s.logger.Info(
+		"scheduler: no change in the sweep detected by polling",
+		"since", now.Sub(s.lastChange).Round(time.Second).String(),
+		"runs", len(snapshot.rows))
+}
+
+// snapshotFingerprint condenses a poll's observable state. Rows are
+// hashed in name order so backend ordering cannot look like change.
+func snapshotFingerprint(snapshot *pollSnapshot) string {
+	names := slices.Sorted(maps.Keys(snapshot.rows))
+
+	digest := fnv.New64a()
+	writeField := func(field string) {
+		_, _ = digest.Write([]byte(field))
+		_, _ = digest.Write([]byte{0})
+	}
+	writeField(snapshot.sweepState)
+	for _, name := range names {
+		row := snapshot.rows[name]
+		writeField(name)
+		writeField(row.State)
+		writeField(row.SummaryJSON)
+	}
+	return string(digest.Sum(nil))
+}
+
+// buildUpdates turns the poll snapshot into run updates for the
+// optimizer and the list of prune candidates.
+func (s *Scheduler) buildUpdates(
+	ctx context.Context,
+	snapshot *pollSnapshot,
+) ([]*spb.SweepSchedulerServerRunUpdate, []string) {
+	var updates []*spb.SweepSchedulerServerRunUpdate
+	var candidates []string
+
+	for _, run := range s.watchedRuns() {
+		wasReportedAs := run.runState
+
+		row, present := snapshot.rows[run.name]
+		switch {
+		case present && row.State != "":
+			s.updateTrackedRunFromPoll(run, row)
+
+		case present:
+			// The row exists but its state came back empty.
+			// The backend and this SDK have mismatched GQL schemas
+			// Report this for tracking
+			run.storageID = row.StorageID
+			s.logger.CaptureError(
+				"scheduler",
+				fmt.Errorf(
+					"scheduler: run %q returned no readable state; "+
+						"likely a backend/SDK GQL schema mismatch",
+					run.name),
+				"run", run.name)
+
+		default:
+			if !s.reapIfGone(ctx, run) {
+				// Missing, but confirmed to still exist: no update
+				// this poll.
+				continue
+			}
+			if run.state == TrackingDormant {
+				// It had already ended badly and is now deleted, so it
+				// will never resume. Stop reading it.
+				run.state = TrackingRetired
+				continue
+			}
+		}
+
+		if run.state == TrackingDormant {
+			s.noteResumed(run, wasReportedAs)
+			continue
+		}
+
+		terminal := runStateIsTerminal(run.runState)
+		updates = append(updates, &spb.SweepSchedulerServerRunUpdate{
+			Run: &spb.SweepSchedulerServerRunData{
+				WandbRunId:     run.name,
+				OptimizerRunId: run.optimizerRunID,
+				State:          run.runState,
+				ConfigJson:     flattenWireConfig(row.ConfigJSON),
+				SummaryJson:    row.SummaryJSON,
+				HistoryJson:    row.HistoryJSON,
+			},
+		})
+
+		if terminal {
+			run.state = TrackingTerminalDelivered
+		} else if run.runState == spb.SweepRunState_SWEEP_RUN_STATE_RUNNING ||
+			run.runState == spb.SweepRunState_SWEEP_RUN_STATE_PENDING {
+			candidates = append(candidates, run.optimizerRunID)
+		}
+	}
+	return updates, candidates
+}
+
+// noteResumed warns once that a dormant run moved on from the state the
+// optimizer was told it ended in.
+//
+// The run stays dormant and is not told again. Both optimizers finalize
+// a trial on its terminal tell and silently ignore every later one
+// (Ax guards on _finalized, Optuna drops the trial handle), so re-telling
+// would buy nothing while costing the run a batch slot.
+func (s *Scheduler) noteResumed(run *trackedRun, wasReportedAs spb.SweepRunState) {
+	if run.runState == wasReportedAs || run.warnedResumed {
+		return
+	}
+
+	run.warnedResumed = true
+	s.logger.Warn(
+		"scheduler: run changed state after its result was reported; "+
+			"the optimizer will not receive further updates for it",
+		"run", run.name,
+		"reported", wasReportedAs.String(),
+		"now", run.runState.String())
+}
+
+// updateTrackedRunFromPoll applies one readable poll row to a tracked
+// run, including the state reclassifications.
+func (s *Scheduler) updateTrackedRunFromPoll(run *trackedRun, row PollRun) {
+	run.storageID = row.StorageID
+
+	state := s.stateOrFailed(row.State)
+
+	if state == spb.SweepRunState_SWEEP_RUN_STATE_FINISHED &&
+		len(s.metricKeys) > 0 && !summaryHasAllMetrics(row.SummaryJSON, s.metricKeys) {
+		// Report it failed so strategies do not treat a missing
+		// objective as a great one.
+		s.logger.Warn(
+			"scheduler: run finished without the sweep metric; "+
+				"reporting it as failed",
+			"run", run.name, "metrics", s.metricKeys)
+		state = spb.SweepRunState_SWEEP_RUN_STATE_FAILED
+	}
+	run.runState = state
+	s.noteFinished(run, state)
+}
+
 // noteFinished counts a run toward finishedRunCount the first time it
 // is observed to have completed successfully; a run counts once even
 // if it is later adopted and polled again.
@@ -219,9 +506,50 @@ func (s *Scheduler) noteFinished(run *trackedRun, state spb.SweepRunState) {
 	s.finishedRunCount++
 }
 
+// reapIfGone confirms with a strongly consistent read whether a run
+// absent from the poll still exists, and reports whether it was
+// confirmed gone and failed. The listing lags writes, so absence alone
+// would fail runs that were only just enqueued.
+func (s *Scheduler) reapIfGone(
+	ctx context.Context,
+	run *trackedRun,
+) bool {
+	exists, err := s.api.ConfirmRunExists(ctx, run.name)
+	if err != nil {
+		s.logger.Warn(
+			"scheduler: could not confirm a missing run's deletion",
+			"run", run.name, "error", err)
+		return false
+	}
+	if exists {
+		// A pagination hiccup, not a deletion.
+		return false
+	}
+
+	s.logger.Warn(
+		"scheduler: run was deleted; reporting it as failed",
+		"run", run.name)
+	run.runState = spb.SweepRunState_SWEEP_RUN_STATE_FAILED
+	return true
+}
+
+// askBudget is how many new suggestions the next ask may return.
+func (s *Scheduler) askBudget() int {
+	occupied := 0
+	for _, run := range s.runs {
+		if run.isTracked() && runStateOccupiesSlot(run.runState) {
+			occupied++
+		}
+	}
+	return s.batchSize - occupied
+}
+
 // The sweep states the backend defines. upsertSweep stores whatever
 // state a client sends without validating it, so others are possible.
 const (
+	// sweepStatePaused keeps running runs alive but starts no new ones.
+	sweepStatePaused = "PAUSED"
+
 	// sweepStateFinished lets running runs finish; no new ones start.
 	sweepStateFinished = "FINISHED"
 
@@ -314,4 +642,10 @@ func runStateIsTerminal(state spb.SweepRunState) bool {
 	default:
 		return false
 	}
+}
+
+// runStateOccupiesSlot reports whether the run counts toward the
+// scheduler's batch of in-flight runs.
+func runStateOccupiesSlot(state spb.SweepRunState) bool {
+	return !runStateIsTerminal(state)
 }
