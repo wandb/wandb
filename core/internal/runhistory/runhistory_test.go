@@ -154,7 +154,7 @@ func TestSetFromRecord_TypedValueKinds(t *testing.T) {
 			"json object",
 			&spb.HistoryValue{
 				Value: &spb.HistoryValue_JsonValue{
-					JsonValue: []byte(`{"b": 1, "c": {"d": 2.5}}`),
+					JsonValue: `{"b": 1, "c": {"d": 2.5}}`,
 				},
 			},
 			`{"a": {"b": 1, "c": {"d": 2.5}}}`,
@@ -163,7 +163,7 @@ func TestSetFromRecord_TypedValueKinds(t *testing.T) {
 			"json array",
 			&spb.HistoryValue{
 				Value: &spb.HistoryValue_JsonValue{
-					JsonValue: []byte(`[1, 2]`),
+					JsonValue: `[1, 2]`,
 				},
 			},
 			`{"a": [1, 2]}`,
@@ -276,7 +276,7 @@ func TestSetFromRecord_TypedJsonUnmarshalError(t *testing.T) {
 	rh := runhistory.New()
 
 	err := rh.SetFromRecord(typedItem("a", &spb.HistoryValue{
-		Value: &spb.HistoryValue_JsonValue{JsonValue: []byte("invalid")},
+		Value: &spb.HistoryValue_JsonValue{JsonValue: "invalid"},
 	}))
 
 	assert.ErrorContains(t, err, "failed to unmarshal typed history item value")

@@ -238,7 +238,7 @@ func (rh *RunHistory) setFromTypedValue(
 
 	case *spb.HistoryValue_JsonValue:
 		// An object keeps its tree structure, the same as the JSON form.
-		decoded, err := simplejsonext.Unmarshal(value.JsonValue)
+		decoded, err := simplejsonext.UnmarshalString(value.JsonValue)
 		if err != nil {
 			return fmt.Errorf(
 				"failed to unmarshal typed history item value: %v", err)
