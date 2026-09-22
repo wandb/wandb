@@ -27,6 +27,16 @@ def test_authorize_url_uses_app_url():
     assert result == "https://my-ui/authorize"
 
 
+def test_authorize_url_keeps_app_url_path():
+    result = prompt._authorize_url(
+        host_url.HostUrl("https://my-api", app_url="https://my-ui/custom/"),
+        signup=False,
+        referrer="",
+    )
+
+    assert result == "https://my-ui/custom/authorize"
+
+
 def test_timeout(emulated_terminal: EmulatedTerminal):
     _ = emulated_terminal  # select nothing, allow a timeout
 
