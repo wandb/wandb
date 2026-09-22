@@ -443,8 +443,7 @@ type Settings struct {
 	XFileStreamMaxLineBytes *wrapperspb.Int32Value `protobuf:"bytes,178,opt,name=x_file_stream_max_line_bytes,json=xFileStreamMaxLineBytes,proto3" json:"x_file_stream_max_line_bytes,omitempty"`
 	// Which forms of each logged history value the SDK writes.
 	//
-	// A comma-separated list of "json" and "typed", in any order. "json"
-	// writes `HistoryItem.value_json`. "typed" writes `HistoryItem.value`.
+	// A comma-separated list of "json" and "typed", in any order.
 	// The default is "json".
 	XHistoryValueEncoding *wrapperspb.StringValue `protobuf:"bytes,210,opt,name=x_history_value_encoding,json=xHistoryValueEncoding,proto3" json:"x_history_value_encoding,omitempty"`
 	// Maximum number of retries for file upload/download operations.

@@ -169,8 +169,7 @@ message Settings {
 
   // Which forms of each logged history value the SDK writes.
   //
-  // A comma-separated list of "json" and "typed", in any order. "json"
-  // writes `HistoryItem.value_json`. "typed" writes `HistoryItem.value`.
+  // A comma-separated list of "json" and "typed", in any order.
   // The default is "json".
   google.protobuf.StringValue x_history_value_encoding = 210;
 
