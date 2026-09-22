@@ -446,10 +446,6 @@ type Settings struct {
 	// A comma-separated list of "json" and "typed", in any order. "json"
 	// writes `HistoryItem.value_json`. "typed" writes `HistoryItem.value`.
 	// The default is "json".
-	//
-	// The value is a string so that a new form can be added without a
-	// settings migration. A reader that does not recognize a form falls
-	// back to the default.
 	XHistoryValueEncoding *wrapperspb.StringValue `protobuf:"bytes,210,opt,name=x_history_value_encoding,json=xHistoryValueEncoding,proto3" json:"x_history_value_encoding,omitempty"`
 	// Maximum number of retries for file upload/download operations.
 	XFileTransferRetryMax *wrapperspb.Int32Value `protobuf:"bytes,150,opt,name=x_file_transfer_retry_max,json=xFileTransferRetryMax,proto3" json:"x_file_transfer_retry_max,omitempty"`
