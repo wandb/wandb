@@ -184,8 +184,7 @@ func (rh *RunHistory) SetString(path pathtree.TreePath, value string) {
 
 // SetFromRecord records one or more metrics specified in a history proto.
 //
-// It prefers the typed value and falls back to ValueJson, which is what an
-// older SDK wrote.
+// It prefers the typed `Value` and falls back to `ValueJson`.
 //
 // If the history item contains multiple metrics, such as if its ValueJson is
 // a JSON-encoded dictionary, then metrics are set on a best-effort basis,
@@ -215,7 +214,6 @@ func (rh *RunHistory) SetFromRecord(record *spb.HistoryItem) error {
 	return nil
 }
 
-// setFromTypedValue sets one metric from the typed form of its value.
 func (rh *RunHistory) setFromTypedValue(
 	path pathtree.TreePath,
 	typed *spb.HistoryValue,
@@ -246,8 +244,7 @@ func (rh *RunHistory) setFromTypedValue(
 		rh.setFromUnmarshalledJSON(path, decoded)
 
 	default:
-		// The set of values is frozen. An unset or unknown value is
-		// a writer bug.
+		// An unknown value may have been written by a newer SDK. Ignore it.
 		return fmt.Errorf("unknown history value type %T", typed.Value)
 	}
 
