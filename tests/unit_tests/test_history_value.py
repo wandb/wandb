@@ -1,8 +1,4 @@
-"""Tests for `wandb.sdk.interface.history_value`.
-
-The tests at the end cover the wiring in `publish_partial_history()`,
-which picks the forms from the `x_history_value_encoding` setting.
-"""
+"""Tests for `wandb.sdk.interface.history_value`."""
 
 from __future__ import annotations
 
@@ -12,8 +8,6 @@ from typing import Any
 import pytest
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.interface.history_value import set_history_value
-
-Kind = pb.HistoryValue.Kind
 
 INT64_MAX = 2**63 - 1
 INT64_MIN = -(2**63)
@@ -27,36 +21,35 @@ def typed(value: Any) -> pb.HistoryValue:
 
 
 @pytest.mark.parametrize(
-    "value, kind, field, expected",
+    "value, field, expected",
     [
-        (None, Kind.KIND_NULL, None, None),
-        (True, Kind.KIND_BOOL, "bool_value", True),
-        (False, Kind.KIND_BOOL, "bool_value", False),
-        (0, Kind.KIND_INT, "int_value", 0),
-        (-7, Kind.KIND_INT, "int_value", -7),
-        (0.0, Kind.KIND_FLOAT, "float_value", 0.0),
-        (1.0, Kind.KIND_FLOAT, "float_value", 1.0),
-        ("", Kind.KIND_STRING, "string_value", ""),
-        ("hi", Kind.KIND_STRING, "string_value", "hi"),
+        (None, "null_value", 0),
+        (True, "bool_value", True),
+        (False, "bool_value", False),
+        (0, "int_value", 0),
+        (-7, "int_value", -7),
+        (0.0, "float_value", 0.0),
+        (1.0, "float_value", 1.0),
+        ("", "string_value", ""),
+        ("hi", "string_value", "hi"),
         # An int64 above 2^53 keeps its exact value.
-        (2**53 + 1, Kind.KIND_INT, "int_value", 2**53 + 1),
-        (INT64_MAX, Kind.KIND_INT, "int_value", INT64_MAX),
-        (INT64_MIN, Kind.KIND_INT, "int_value", INT64_MIN),
+        (2**53 + 1, "int_value", 2**53 + 1),
+        (INT64_MAX, "int_value", INT64_MAX),
+        (INT64_MIN, "int_value", INT64_MIN),
         # Nested values stay as verbatim JSON text.
-        ({"a": 1}, Kind.KIND_JSON, "json_value", '{"a":1}'),
-        ([1, 2], Kind.KIND_JSON, "json_value", "[1,2]"),
-        # An int too wide for int64 has no kind, so it falls back to JSON
-        # text, which still carries the exact value.
-        (INT64_MAX + 1, Kind.KIND_JSON, "json_value", str(INT64_MAX + 1)),
-        (INT64_MIN - 1, Kind.KIND_JSON, "json_value", str(INT64_MIN - 1)),
+        ({"a": 1}, "json_value", '{"a":1}'),
+        ([1, 2], "json_value", "[1,2]"),
+        # An int too wide for int64 has no scalar case, so it falls back
+        # to JSON text, which still carries the exact value.
+        (INT64_MAX + 1, "json_value", str(INT64_MAX + 1)),
+        (INT64_MIN - 1, "json_value", str(INT64_MIN - 1)),
     ],
 )
-def test_typed_value_kinds(value, kind, field, expected):
+def test_typed_value_cases(value, field, expected):
     value_pb = typed(value)
 
-    assert value_pb.kind == kind
-    if field is not None:
-        assert getattr(value_pb, field) == expected
+    assert value_pb.WhichOneof("value") == field
+    assert getattr(value_pb, field) == expected
 
 
 def test_typed_value_logged_float_stays_a_float():
@@ -65,22 +58,22 @@ def test_typed_value_logged_float_stays_a_float():
     The JSON form cannot express this, so the two forms diverge here by
     design. See the design doc's "Handling numeric Kinds consistently".
     """
-    assert typed(1.0).kind == Kind.KIND_FLOAT
-    assert typed(1).kind == Kind.KIND_INT
+    assert typed(1.0).WhichOneof("value") == "float_value"
+    assert typed(1).WhichOneof("value") == "int_value"
 
 
 @pytest.mark.parametrize("value", [float("inf"), float("-inf")])
 def test_typed_value_infinities(value):
     value_pb = typed(value)
 
-    assert value_pb.kind == Kind.KIND_FLOAT
+    assert value_pb.WhichOneof("value") == "float_value"
     assert value_pb.float_value == value
 
 
 def test_typed_value_nan():
     value_pb = typed(float("nan"))
 
-    assert value_pb.kind == Kind.KIND_FLOAT
+    assert value_pb.WhichOneof("value") == "float_value"
     assert math.isnan(value_pb.float_value)
 
 
@@ -88,11 +81,11 @@ def test_typed_value_numpy_scalars():
     np = pytest.importorskip("numpy")
 
     assert typed(np.float32(1.5)).float_value == 1.5
-    assert typed(np.float32(1.5)).kind == Kind.KIND_FLOAT
-    assert typed(np.float64(2.5)).kind == Kind.KIND_FLOAT
-    assert typed(np.int64(7)).kind == Kind.KIND_INT
+    assert typed(np.float32(1.5)).WhichOneof("value") == "float_value"
+    assert typed(np.float64(2.5)).WhichOneof("value") == "float_value"
+    assert typed(np.int64(7)).WhichOneof("value") == "int_value"
     assert typed(np.int64(7)).int_value == 7
-    assert typed(np.bool_(True)).kind == Kind.KIND_BOOL
+    assert typed(np.bool_(True)).WhichOneof("value") == "bool_value"
     assert typed(np.bool_(True)).bool_value is True
     assert math.isnan(typed(np.float32("nan")).float_value)
 
@@ -102,7 +95,7 @@ def test_typed_value_numpy_array_is_json():
 
     value_pb = typed(np.array([1, 2, 3]))
 
-    assert value_pb.kind == Kind.KIND_JSON
+    assert value_pb.WhichOneof("value") == "json_value"
     assert value_pb.json_value == "[1,2,3]"
 
 
@@ -121,8 +114,8 @@ def test_json_form_is_unchanged_by_the_typed_form(value):
     assert both.value_json == json_only.value_json
 
 
-def test_json_form_is_shared_with_the_json_kind():
-    """A JSON-kind value does not encode its JSON text twice."""
+def test_json_form_is_shared_with_the_json_case():
+    """A json_value case does not encode its JSON text twice."""
     item = pb.HistoryItem(key="k")
     set_history_value(item, {"a": 1}, json_form=True, typed_form=True)
 
@@ -150,7 +143,7 @@ def test_typed_form_only_does_not_set_the_json_value():
     set_history_value(item, 1, json_form=False, typed_form=True)
 
     assert item.value_json == ""
-    assert item.value.kind == Kind.KIND_INT
+    assert item.value.WhichOneof("value") == "int_value"
 
 
 def partial_history_items(record_q) -> dict[str, pb.HistoryItem]:
@@ -184,7 +177,7 @@ def test_publish_partial_history_honors_the_setting(
     assert bool(item.value_json) is want_json
     assert item.HasField("value") is want_typed
     if want_typed:
-        assert item.value.kind == Kind.KIND_FLOAT
+        assert item.value.WhichOneof("value") == "float_value"
         assert item.value.float_value == 0.5
 
 
