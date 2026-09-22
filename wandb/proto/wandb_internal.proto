@@ -312,12 +312,7 @@ message HistoryValue {
 
   Kind kind = 1;
 
-  // Exactly one of these is set, and `kind` selects which one.
-  // KIND_NULL sets none of them.
-
-  // NaN, Infinity and -Infinity are ordinary IEEE values, not sentinel strings.
   double float_value = 2;
-
   int64 int_value = 3;
   bool bool_value = 4;
   string string_value = 5;
