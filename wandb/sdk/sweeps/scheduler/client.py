@@ -9,6 +9,7 @@ translated into a graceful stop request and the second one force-quits.
 
 from __future__ import annotations
 
+import re
 import signal
 from collections.abc import Callable
 from typing import Any
@@ -34,6 +35,23 @@ _INIT_TIMEOUT_SECONDS = 30
 
 OptimizerFactory = Callable[[SweepInfo], Optimizer]
 """Builds the optimizer once the sweep's config is known."""
+
+
+class _SweepConfigLoader(yaml.SafeLoader):
+    """A SafeLoader that also reads YAML 1.2 floats like `1e-5` as floats."""
+
+
+# PyYAML follows YAML 1.1, whose floats need a dot and a signed exponent.
+_SweepConfigLoader.add_implicit_resolver(
+    "tag:yaml.org,2002:float",
+    re.compile(r"^[-+]?(?:[0-9][0-9_]*)(?:\.[0-9_]*)?[eE][-+]?[0-9]+$"),
+    list("-+0123456789"),
+)
+
+
+def load_sweep_config(config_yaml: str) -> dict[str, Any]:
+    """Parse the sweep config wandb-core returns, keeping numbers numeric."""
+    return yaml.load(config_yaml, Loader=_SweepConfigLoader) or {}
 
 
 def run_scheduler(
@@ -105,7 +123,7 @@ def run_scheduler(
         name=init_response.display_name or sweep_id,
         entity=entity,
         project=project,
-        config=yaml.safe_load(init_response.sweep_config) or {},
+        config=load_sweep_config(init_response.sweep_config),
     )
     optimizer = make_optimizer(sweep)
     exchange = SchedulerTaskExchange(service, init_response.session_id, optimizer)

@@ -5,7 +5,9 @@ from unittest.mock import MagicMock
 
 import optuna
 import pytest
+import yaml
 from wandb.sdk.sweeps.run_state import RunState
+from wandb.sdk.sweeps.scheduler.client import load_sweep_config
 from wandb.sdk.sweeps.scheduler.optimizer import (
     Run,
     RunConfig,
@@ -18,6 +20,7 @@ from wandb.sdk.sweeps.scheduler.optuna import (
     OptunaOptions,
     create_study_from_sweep_config,
     make_optimizer,
+    search_space_from_sweep_config,
     sweep_parameter_to_distribution,
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
@@ -134,6 +137,55 @@ class TestQLogUniformValues:
             parameter["min"], parameter["max"], log=True
         )
         mock_wandb_log.assert_warned("Converting to a FloatDistribution(log=True)")
+
+
+class TestScientificNotationRoundTrip:
+    """Bounds like `1e-5` survive `wandb sweep` upload and scheduler startup."""
+
+    @staticmethod
+    def round_trip(sweep_yaml: str) -> dict[str, Any]:
+        # `wandb sweep` safe_loads the user's file, then yaml.dumps it upstream.
+        uploaded = yaml.dump(yaml.safe_load(sweep_yaml))
+        return load_sweep_config(uploaded)
+
+    @pytest.mark.parametrize(
+        "text, value",
+        [
+            ("1e-5", 1e-5),
+            ("1E5", 1e5),
+            ("-2.5e-3", -2.5e-3),
+            ("+1.0e5", 1e5),
+            ("1.0e-05", 1e-5),
+        ],
+    )
+    def test_reads_scientific_notation_as_float(self, text: str, value: float) -> None:
+        config = self.round_trip(f"parameters:\n  lr:\n    min: {text}\n")
+
+        assert config["parameters"]["lr"]["min"] == value
+        assert isinstance(config["parameters"]["lr"]["min"], float)
+
+    def test_keeps_quoted_scientific_notation_a_string(self) -> None:
+        config = load_sweep_config("parameters:\n  tag:\n    value: '1e-5'\n")
+
+        assert config["parameters"]["tag"]["value"] == "1e-5"
+
+    def test_builds_optuna_search_space(self) -> None:
+        config = self.round_trip(
+            "parameters:\n"
+            "  lr:\n"
+            "    distribution: log_uniform_values\n"
+            "    min: 1e-5\n"
+            "    max: 1e-1\n"
+            "  wd:\n"
+            "    values: [1e-4, 1e-3]\n"
+        )
+
+        space = search_space_from_sweep_config(config["parameters"])
+
+        assert space == {
+            "lr": optuna.distributions.FloatDistribution(1e-5, 1e-1, log=True),
+            "wd": optuna.distributions.CategoricalDistribution([1e-4, 1e-3]),
+        }
 
 
 class TestCreateStudyFromSweepConfig:
