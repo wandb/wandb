@@ -19,7 +19,7 @@ import os
 import pathlib
 import shutil
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Literal, TypeVar
 from urllib.parse import quote
 
 from wandb import util
@@ -277,21 +277,33 @@ def _image_ces_extension_value(
     image_json: dict[str, Any],
     run: Run,
 ) -> WandbImageV1Param:
-    uri = _uri_from_media_json(image_json, run)
-    extension_value = {
+    # Keep the generated CES client optional until CES media is serialized.
+    from coreweave_evaluations.types.wandb_image_v1_param import WandbImageV1Param
+
+    optional_fields = {
         key: value
         for key, value in image_json.items()
-        if key not in {"_type", "path", "artifact_path", "_latest_artifact_path"}
-    }
-    extension_value.update(
-        {
-            "extension_type": "wandb-image",
-            "schema_version": 1,
-            "wb_media_type": "image-file",
-            "uri": uri,
+        if key
+        not in {
+            "_type",
+            "path",
+            "artifact_path",
+            "_latest_artifact_path",
+            "format",
+            "sha256",
+            "size",
         }
+    }
+    return WandbImageV1Param(
+        extension_type="wandb-image",
+        format=image_json["format"],
+        schema_version=1,
+        sha256=image_json["sha256"],
+        size=image_json["size"],
+        uri=_uri_from_media_json(image_json, run),
+        wb_media_type="image-file",
+        **optional_fields,
     )
-    return cast("WandbImageV1Param", extension_value)
 
 
 def _uri_from_media_json(value: dict[str, Any], run: Run) -> str:

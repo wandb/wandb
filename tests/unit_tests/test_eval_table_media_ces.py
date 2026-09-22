@@ -238,7 +238,7 @@ def test_prepare_image_creates_ces_extension_value(run_factory, tmp_path):
         "uri": (
             "wandb-run-file://entity/project/run-one/"
             "media/eval_tables/images/eval/"
-            f"{digest[: _eval_table_media_ces._DIGEST_PATH_LENGTH]}.png"
+            f"{digest[: _media_ces._DIGEST_PATH_LENGTH]}.png"
         ),
     }
     assert image._run is None
