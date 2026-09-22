@@ -3,6 +3,7 @@ syntax = "proto3";
 package wandb_internal;
 
 import "google/protobuf/empty.proto";
+import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "wandb/proto/wandb_base.proto";
 import "wandb/proto/wandb_telemetry.proto";
@@ -298,27 +299,14 @@ message HistoryRecord {
 
 // A logged value with its type.
 message HistoryValue {
-  // Kind selects which of the other fields is set.
-  enum Kind {
-    // Invalid. A reader rejects it.
-    KIND_UNSPECIFIED = 0;
-    KIND_NULL = 1;
-    KIND_FLOAT = 2;
-    KIND_INT = 3;
-    KIND_BOOL = 4;
-    KIND_STRING = 5;
-    KIND_JSON = 6;
+  oneof value {
+    google.protobuf.NullValue null_value = 1;
+    bool bool_value = 2;
+    sint64 int_value = 3;
+    double float_value = 4;
+    string string_value = 5;
+    bytes json_value = 6;
   }
-
-  Kind kind = 1;
-
-  double float_value = 2;
-  int64 int_value = 3;
-  bool bool_value = 4;
-  string string_value = 5;
-
-  // Verbatim JSON text for an object or an array.
-  string json_value = 6;
 }
 
 /*

@@ -1,6 +1,7 @@
 import datetime
 
 from google.protobuf import empty_pb2 as _empty_pb2
+from google.protobuf import struct_pb2 as _struct_pb2
 from google.protobuf import timestamp_pb2 as _timestamp_pb2
 from wandb.proto import wandb_base_pb2 as _wandb_base_pb2
 from wandb.proto import wandb_telemetry_pb2 as _wandb_telemetry_pb2
@@ -379,36 +380,20 @@ class HistoryRecord(_message.Message):
     def __init__(self, item: _Optional[_Iterable[_Union[HistoryItem, _Mapping]]] = ..., step: _Optional[_Union[HistoryStep, _Mapping]] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
 
 class HistoryValue(_message.Message):
-    __slots__ = ("kind", "float_value", "int_value", "bool_value", "string_value", "json_value")
-    class Kind(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-        __slots__ = ()
-        KIND_UNSPECIFIED: _ClassVar[HistoryValue.Kind]
-        KIND_NULL: _ClassVar[HistoryValue.Kind]
-        KIND_FLOAT: _ClassVar[HistoryValue.Kind]
-        KIND_INT: _ClassVar[HistoryValue.Kind]
-        KIND_BOOL: _ClassVar[HistoryValue.Kind]
-        KIND_STRING: _ClassVar[HistoryValue.Kind]
-        KIND_JSON: _ClassVar[HistoryValue.Kind]
-    KIND_UNSPECIFIED: HistoryValue.Kind
-    KIND_NULL: HistoryValue.Kind
-    KIND_FLOAT: HistoryValue.Kind
-    KIND_INT: HistoryValue.Kind
-    KIND_BOOL: HistoryValue.Kind
-    KIND_STRING: HistoryValue.Kind
-    KIND_JSON: HistoryValue.Kind
-    KIND_FIELD_NUMBER: _ClassVar[int]
-    FLOAT_VALUE_FIELD_NUMBER: _ClassVar[int]
-    INT_VALUE_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("null_value", "bool_value", "int_value", "float_value", "string_value", "json_value")
+    NULL_VALUE_FIELD_NUMBER: _ClassVar[int]
     BOOL_VALUE_FIELD_NUMBER: _ClassVar[int]
+    INT_VALUE_FIELD_NUMBER: _ClassVar[int]
+    FLOAT_VALUE_FIELD_NUMBER: _ClassVar[int]
     STRING_VALUE_FIELD_NUMBER: _ClassVar[int]
     JSON_VALUE_FIELD_NUMBER: _ClassVar[int]
-    kind: HistoryValue.Kind
-    float_value: float
-    int_value: int
+    null_value: _struct_pb2.NullValue
     bool_value: bool
+    int_value: int
+    float_value: float
     string_value: str
-    json_value: str
-    def __init__(self, kind: _Optional[_Union[HistoryValue.Kind, str]] = ..., float_value: _Optional[float] = ..., int_value: _Optional[int] = ..., bool_value: _Optional[bool] = ..., string_value: _Optional[str] = ..., json_value: _Optional[str] = ...) -> None: ...
+    json_value: bytes
+    def __init__(self, null_value: _Optional[_Union[_struct_pb2.NullValue, str]] = ..., bool_value: _Optional[bool] = ..., int_value: _Optional[int] = ..., float_value: _Optional[float] = ..., string_value: _Optional[str] = ..., json_value: _Optional[bytes] = ...) -> None: ...
 
 class HistoryItem(_message.Message):
     __slots__ = ("key", "nested_key", "value", "value_json")
