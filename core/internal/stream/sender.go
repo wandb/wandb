@@ -17,6 +17,7 @@ import (
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	fs "github.com/wandb/wandb/core/internal/filestream"
+	"github.com/wandb/wandb/core/internal/filestreamstats"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/mailbox"
@@ -64,6 +65,7 @@ type SenderFactory struct {
 	RunHandle               *runhandle.RunHandle
 	Mailbox                 *mailbox.Mailbox
 	HistoryStepTracker      *HistoryStepTracker
+	Stats                   *filestreamstats.Stats
 }
 
 // Sender performs blocking operations to process Work, such as uploading data.
@@ -152,6 +154,9 @@ type Sender struct {
 
 	// consoleLogsSender uploads captured console output.
 	consoleLogsSender *runconsolelogs.Sender
+
+	// stats measures the cost of the upload pipeline. It may be nil.
+	stats *filestreamstats.Stats
 }
 
 // New returns a new Sender.
@@ -253,6 +258,7 @@ func (f *SenderFactory) NewWithFileStream(
 		stepTracker:       f.HistoryStepTracker,
 		runHistorySampler: runhistory.NewRunHistorySampler(),
 		consoleLogsSender: runconsolelogs.New(consoleLogsSenderParams),
+		stats:             f.Stats,
 	}
 	s.stepTracker = NewHistoryStepTracker(s.logger, s.runHandle)
 
@@ -684,6 +690,9 @@ func (s *Sender) finishRunSync(
 		s.fileTransferManager.Close()
 	}
 
+	// Report the run's telemetry metrics.
+	s.stats.RecordRun(context.Background())
+
 	// Mark the run finished.
 	if s.fileStream != nil {
 		if exitRecord.NotComplete || !s.settings.ShouldUpdateFinishState() {
@@ -880,6 +889,11 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 		return
 	}
 
+	// The sender re-reads the items the handler just produced. This is a
+	// distinct segment from handler_ingest even though it runs the same
+	// code: it is a second pass over the same values, and Stage 1 is what
+	// removes it.
+	ingestStart := time.Now()
 	history := runhistory.New()
 	for _, item := range record.GetItem() {
 		if err := history.SetFromRecord(item); err != nil {
@@ -891,6 +905,13 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 			)
 		}
 	}
+	ingestDuration := time.Since(ingestStart)
+	s.stats.RecordSegment(
+		context.Background(),
+		filestreamstats.SegmentUploadIngest,
+		filestreamstats.StreamHistory,
+		ingestDuration,
+	)
 
 	s.runHistorySampler.SampleNext(history)
 
@@ -907,7 +928,13 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 		return
 	}
 
-	s.fileStream.StreamUpdate(&fs.HistoryUpdate{Row: history})
+	// The cell count comes from the record the sender already holds, so
+	// filestream does not walk the row again only to measure it. The time
+	// this read took was already reported above.
+	s.fileStream.StreamUpdate(&fs.HistoryUpdate{
+		Row:   history,
+		Cells: len(record.GetItem()),
+	})
 	if !s.settings.IsSharedMode() || !s.settings.IsEnableServerSideDerivedSummary() {
 		s.updateSummaryStep(step)
 	}

@@ -93,25 +93,62 @@ type LowCardinalityAttributes struct {
 	// ExecutionContext classifies where the process runs:
 	// kubernetes, container, slurm, ci, ssh or local.
 	ExecutionContext string
+
+	// Stream is one of the filestream uploader streams: history, events
+	Stream string
+
+	// Segment is a unit of work done by the filestream uploader.
+	// See `filestreamstats` for possible values.
+	Segment string
+
+	// ValueEncoding is the history value encoding actually written:
+	// json, typed or json_typed.
+	ValueEncoding string
+
+	// WireEncoding is the upload payload format actually sent, jsonl or
+	// proto_v1. May change mid-run due to a downgrade.
+	WireEncoding string
+
+	// ContentEncoding is the request body encoding, raw or gzip.
+	ContentEncoding string
 }
 
-// merge overwrites attrs with the non-empty fields of other.
-func (attrs *LowCardinalityAttributes) merge(other LowCardinalityAttributes) {
-	attrs.GoVersion = cmp.Or(other.GoVersion, attrs.GoVersion)
-	attrs.WandbVersion = cmp.Or(other.WandbVersion, attrs.WandbVersion)
-	attrs.OperatingSystem = cmp.Or(other.OperatingSystem, attrs.OperatingSystem)
-	attrs.Architecture = cmp.Or(other.Architecture, attrs.Architecture)
-	attrs.ErrorOriginator = cmp.Or(other.ErrorOriginator, attrs.ErrorOriginator)
+// merge returns a copy of attrs with the non-empty fields of other
+// written over it.
+func (attrs *LowCardinalityAttributes) merge(
+	other *LowCardinalityAttributes,
+) *LowCardinalityAttributes {
+	var merged LowCardinalityAttributes
+	if attrs != nil {
+		merged = *attrs
+	}
+	if other == nil {
+		return &merged
+	}
 
-	attrs.PythonVersion = cmp.Or(other.PythonVersion, attrs.PythonVersion)
-	attrs.PythonRuntime = cmp.Or(other.PythonRuntime, attrs.PythonRuntime)
-	attrs.ExceptionType = cmp.Or(other.ExceptionType, attrs.ExceptionType)
+	merged.GoVersion = cmp.Or(other.GoVersion, merged.GoVersion)
+	merged.WandbVersion = cmp.Or(other.WandbVersion, merged.WandbVersion)
+	merged.OperatingSystem = cmp.Or(other.OperatingSystem, merged.OperatingSystem)
+	merged.Architecture = cmp.Or(other.Architecture, merged.Architecture)
+	merged.ErrorOriginator = cmp.Or(other.ErrorOriginator, merged.ErrorOriginator)
 
-	attrs.LeetMode = cmp.Or(other.LeetMode, attrs.LeetMode)
-	attrs.ExecutionContext = cmp.Or(other.ExecutionContext, attrs.ExecutionContext)
+	merged.PythonVersion = cmp.Or(other.PythonVersion, merged.PythonVersion)
+	merged.PythonRuntime = cmp.Or(other.PythonRuntime, merged.PythonRuntime)
+	merged.ExceptionType = cmp.Or(other.ExceptionType, merged.ExceptionType)
+
+	merged.LeetMode = cmp.Or(other.LeetMode, merged.LeetMode)
+	merged.ExecutionContext = cmp.Or(other.ExecutionContext, merged.ExecutionContext)
+
+	merged.Stream = cmp.Or(other.Stream, merged.Stream)
+	merged.Segment = cmp.Or(other.Segment, merged.Segment)
+	merged.ValueEncoding = cmp.Or(other.ValueEncoding, merged.ValueEncoding)
+	merged.WireEncoding = cmp.Or(other.WireEncoding, merged.WireEncoding)
+	merged.ContentEncoding = cmp.Or(other.ContentEncoding, merged.ContentEncoding)
+
+	return &merged
 }
 
-func (attrs LowCardinalityAttributes) toMap() map[string]string {
+func (attrs *LowCardinalityAttributes) toMap() map[string]string {
 	out := map[string]string{
 		"go_version":        attrs.GoVersion,
 		"operating_system":  attrs.OperatingSystem,
@@ -123,6 +160,11 @@ func (attrs LowCardinalityAttributes) toMap() map[string]string {
 		"wandb_version":     attrs.WandbVersion,
 		"leet_mode":         attrs.LeetMode,
 		"execution_context": attrs.ExecutionContext,
+		"stream":            attrs.Stream,
+		"segment":           attrs.Segment,
+		"value_encoding":    attrs.ValueEncoding,
+		"wire_encoding":     attrs.WireEncoding,
+		"content_encoding":  attrs.ContentEncoding,
 	}
 	maps.DeleteFunc(out, func(_ string, value string) bool {
 		return value == ""
@@ -153,7 +195,7 @@ func Disable() {
 type TelemetryContext struct {
 	// lowCardinalityAttributes is a bounded set of attributes.
 	// These attributes are added to all telemetry records.
-	lowCardinalityAttributes LowCardinalityAttributes
+	lowCardinalityAttributes *LowCardinalityAttributes
 
 	// highCardinalityAttributes is an unbounded set of attributes.
 	// These attributes are added to telemetry records
@@ -170,7 +212,7 @@ func NewTelemetryContext() TelemetryContext {
 	}
 
 	return TelemetryContext{
-		lowCardinalityAttributes:  lowCardinalityAttributes,
+		lowCardinalityAttributes:  &lowCardinalityAttributes,
 		highCardinalityAttributes: map[string]string{},
 	}
 }
@@ -181,12 +223,11 @@ func NewTelemetryContext() TelemetryContext {
 // Non-empty low-cardinality fields and high-cardinality keys in the
 // arguments take precedence over the parent's attributes.
 
-func (s *TelemetryContext) with(
-	lowCardinalityAttributes LowCardinalityAttributes,
+func (s TelemetryContext) with(
+	lowCardinalityAttributes *LowCardinalityAttributes,
 	highCardinalityAttributes map[string]string,
 ) TelemetryContext {
-	low := s.lowCardinalityAttributes
-	low.merge(lowCardinalityAttributes)
+	low := s.lowCardinalityAttributes.merge(lowCardinalityAttributes)
 
 	high := make(map[string]string, len(s.highCardinalityAttributes))
 	maps.Copy(high, s.highCardinalityAttributes)
@@ -236,7 +277,7 @@ func NewTelemetryRecorder(
 // If the receiver is nil, a nil pointer is returned.
 // A nil TelemetryRecorder is a no-op, as if telemetry is disabled.
 func (r *TelemetryRecorder) With(
-	lowCardinalityAttributes LowCardinalityAttributes,
+	lowCardinalityAttributes *LowCardinalityAttributes,
 	highCardinalityAttributes map[string]string,
 ) *TelemetryRecorder {
 	if r == nil {
@@ -257,7 +298,7 @@ func (r *TelemetryRecorder) With(
 func (r *TelemetryRecorder) IncrementCounter(
 	ctx context.Context,
 	name string,
-	lowCardinalityAttributes LowCardinalityAttributes,
+	lowCardinalityAttributes *LowCardinalityAttributes,
 ) {
 	r.AddToCounter(ctx, name, 1, lowCardinalityAttributes)
 }
@@ -268,14 +309,15 @@ func (r *TelemetryRecorder) AddToCounter(
 	ctx context.Context,
 	name string,
 	delta int64,
-	lowCardinalityAttributes LowCardinalityAttributes,
+	lowCardinalityAttributes *LowCardinalityAttributes,
 ) {
 	if r == nil {
 		return
 	}
 
-	mergedLowCardinalityAttributes := r.telemetryContext.lowCardinalityAttributes
-	mergedLowCardinalityAttributes.merge(lowCardinalityAttributes)
+	mergedLowCardinalityAttributes := r.telemetryContext.
+		lowCardinalityAttributes.
+		merge(lowCardinalityAttributes)
 	r.root.addToCounter(ctx, name, delta, mergedLowCardinalityAttributes)
 }
 
@@ -324,14 +366,15 @@ func (r *TelemetryRecorder) RecordHistogram(
 	ctx context.Context,
 	name string,
 	value float64,
-	lowCardinalityAttributes LowCardinalityAttributes,
+	lowCardinalityAttributes *LowCardinalityAttributes,
 ) {
 	if r == nil {
 		return
 	}
 
-	mergedLowCardinalityAttributes := r.telemetryContext.lowCardinalityAttributes
-	mergedLowCardinalityAttributes.merge(lowCardinalityAttributes)
+	mergedLowCardinalityAttributes := r.telemetryContext.
+		lowCardinalityAttributes.
+		merge(lowCardinalityAttributes)
 
 	err := r.root.recordHistogram(
 		ctx,
@@ -355,7 +398,7 @@ func (r *TelemetryRecorder) IncrementCounterAndLogEvent(
 	ctx context.Context,
 	name string,
 	attributes map[string]string,
-	lowCardinalityAttributes LowCardinalityAttributes,
+	lowCardinalityAttributes *LowCardinalityAttributes,
 ) {
 	r.AddToCounterAndLogEvent(ctx, name, 1, attributes, lowCardinalityAttributes)
 }
@@ -371,7 +414,7 @@ func (r *TelemetryRecorder) AddToCounterAndLogEvent(
 	name string,
 	delta int64,
 	attributes map[string]string,
-	lowCardinalityAttributes LowCardinalityAttributes,
+	lowCardinalityAttributes *LowCardinalityAttributes,
 ) {
 	if r == nil {
 		return
@@ -408,8 +451,7 @@ func (r *TelemetryRecorder) Log(
 	// Copy attributes in order of precedence:
 	// 1. Context's high-cardinality attributes
 	// 2. Context's low-cardinality attributes
-	// 3. Per-record low-cardinality attributes
-	// 4. Per-record attributes
+	// 3. Per-record attributes
 	logAttributes := make(map[string]string)
 	maps.Copy(logAttributes, r.telemetryContext.highCardinalityAttributes)
 	maps.Copy(logAttributes, r.telemetryContext.lowCardinalityAttributes.toMap())
@@ -436,7 +478,7 @@ func (r *TelemetryRecorder) ErrorMetric(
 	r.IncrementCounter(
 		ctx,
 		"error",
-		LowCardinalityAttributes{
+		&LowCardinalityAttributes{
 			ErrorOriginator: errorOriginator,
 		},
 	)
@@ -460,10 +502,11 @@ func (r *TelemetryRecorder) ErrorLog(
 		return
 	}
 
-	mergedLowCardinalityAttributes := r.telemetryContext.lowCardinalityAttributes
-	mergedLowCardinalityAttributes.merge(LowCardinalityAttributes{
-		ErrorOriginator: errorOriginator,
-	})
+	mergedLowCardinalityAttributes := r.telemetryContext.
+		lowCardinalityAttributes.
+		merge(&LowCardinalityAttributes{
+			ErrorOriginator: errorOriginator,
+		})
 
 	errorMessage := ""
 	if err != nil {
@@ -833,7 +876,7 @@ func (o *OpenTelemetryProxy) addToCounter(
 	ctx context.Context,
 	name string,
 	delta int64,
-	lowCardinalityAttributes LowCardinalityAttributes,
+	lowCardinalityAttributes *LowCardinalityAttributes,
 ) {
 	if o == nil {
 		return
@@ -852,7 +895,7 @@ func (o *OpenTelemetryProxy) recordHistogram(
 	ctx context.Context,
 	name string,
 	value float64,
-	lowCardinalityAttributes LowCardinalityAttributes,
+	lowCardinalityAttributes *LowCardinalityAttributes,
 ) error {
 	if o == nil {
 		return nil

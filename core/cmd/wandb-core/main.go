@@ -246,7 +246,7 @@ func leetMain(args []string) int {
 		context.Background(),
 		"leet_session_duration",
 		float64(duration.Seconds()),
-		analytics.LowCardinalityAttributes{},
+		&analytics.LowCardinalityAttributes{},
 	)
 
 	sessionAttributes := leet.SessionAttributes()
