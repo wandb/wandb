@@ -511,6 +511,95 @@ def test_image_with_masks_and_boxes_uses_run_file_uris(run_factory, tmp_path):
     assert mask_media._path == mask_path
 
 
+def test_image_overlay_keys_register_distinct_class_labels(
+    run_factory,
+    mock_ces_client,
+    tmp_path,
+):
+    np = pytest.importorskip("numpy")
+    run = run_factory("run-one")
+    run._add_singleton = MagicMock(
+        wraps=wandb.Run._add_singleton.__get__(run, wandb.Run)
+    )
+    image = wandb.Image(
+        _png(tmp_path),
+        boxes={
+            "ground_truth": {
+                "box_data": [
+                    {
+                        "position": {
+                            "minX": 0.1,
+                            "minY": 0.2,
+                            "maxX": 0.3,
+                            "maxY": 0.4,
+                        },
+                        "class_id": 1,
+                    }
+                ],
+                "class_labels": {1: "truth"},
+            },
+            "predictions": {
+                "box_data": [
+                    {
+                        "position": {
+                            "minX": 0.2,
+                            "minY": 0.3,
+                            "maxX": 0.4,
+                            "maxY": 0.5,
+                        },
+                        "class_id": 1,
+                    }
+                ],
+                "class_labels": {1: "prediction"},
+            },
+        },
+        masks={
+            "ground_truth": {
+                "mask_data": np.ones((2, 2), dtype=np.uint8),
+                "class_labels": {1: "truth"},
+            },
+            "predictions": {
+                "mask_data": np.ones((2, 2), dtype=np.uint8),
+                "class_labels": {1: "prediction"},
+            },
+        },
+    )
+    table = wandb.EvalTable(
+        columns=["image"],
+        data=[[image]],
+        input_columns=["image"],
+        backend="ces",
+    )
+
+    run.log({"eval": table})
+
+    wandb_config = run._config["_wandb"]
+    assert wandb_config["bounding_box/class_labels"] == {
+        "eval/inputs/image_wandb_delimeter_ground_truth": {
+            "type": "bounding_box/class_labels",
+            "key": "eval/inputs/image_wandb_delimeter_ground_truth",
+            "value": {1: "truth"},
+        },
+        "eval/inputs/image_wandb_delimeter_predictions": {
+            "type": "bounding_box/class_labels",
+            "key": "eval/inputs/image_wandb_delimeter_predictions",
+            "value": {1: "prediction"},
+        },
+    }
+    assert wandb_config["mask/class_labels"] == {
+        "eval/inputs/image_wandb_delimeter_ground_truth": {
+            "type": "mask/class_labels",
+            "key": "eval/inputs/image_wandb_delimeter_ground_truth",
+            "value": {1: "truth"},
+        },
+        "eval/inputs/image_wandb_delimeter_predictions": {
+            "type": "mask/class_labels",
+            "key": "eval/inputs/image_wandb_delimeter_predictions",
+            "value": {1: "prediction"},
+        },
+    }
+
+
 def test_image_columns_register_distinct_overlay_class_labels(
     run_factory,
     mock_ces_client,
