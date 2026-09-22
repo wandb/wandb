@@ -107,7 +107,7 @@ func typedItem(key string, value *spb.HistoryValue) *spb.HistoryItem {
 	return &spb.HistoryItem{Key: key, Value: value}
 }
 
-func TestSetFromRecord_TypedValueKinds(t *testing.T) {
+func TestSetFromRecord_TypedValues(t *testing.T) {
 	tests := []struct {
 		name  string
 		value *spb.HistoryValue
