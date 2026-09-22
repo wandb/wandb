@@ -258,18 +258,6 @@ func (s *Stats) RecordSegment(
 	if total, ok := s.encodeNanos[segmentKey{segment, stream}]; ok {
 		total.Add(int64(duration))
 	}
-
-	s.recorder.RecordDuration(
-		ctx,
-		MetricEncodeDuration,
-		duration,
-		&analytics.LowCardinalityAttributes{
-			Segment:       segment,
-			Stream:        stream,
-			ValueEncoding: s.valueEncoding,
-			WireEncoding:  s.WireEncoding(),
-		},
-	)
 }
 
 // AddRow adds one history row to the run's totals.
@@ -354,11 +342,6 @@ func (s *Stats) RecordRun(ctx context.Context) {
 		return
 	}
 
-	cells := s.cells.Load()
-	if cells == 0 && s.requests.Load() == 0 {
-		return
-	}
-
 	wireEncoding := s.WireEncoding()
 	encodingAttrs := analytics.LowCardinalityAttributes{
 		ValueEncoding: s.valueEncoding,
@@ -381,6 +364,11 @@ func (s *Stats) RecordRun(ctx context.Context) {
 			time.Duration(nanos),
 			&attrs,
 		)
+	}
+
+	cells := s.cells.Load()
+	if cells == 0 && s.requests.Load() == 0 && totalNanos == 0 {
+		return
 	}
 
 	totalAttrs := encodingAttrs
