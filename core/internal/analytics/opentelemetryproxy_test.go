@@ -413,6 +413,56 @@ func TestOpenTelemetryProxy_Shutdown_CalledMultipleTimes(t *testing.T) {
 	require.NoError(t, proxy.Shutdown(context.Background()))
 }
 
+func TestOpenTelemetryProxy_PreservesBaseURLPath(t *testing.T) {
+	for _, basePath := range []string{"", "/proxy/wandb"} {
+		t.Run(basePath, func(t *testing.T) {
+			var probes, metrics, logs atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(
+				func(w http.ResponseWriter, r *http.Request) {
+					switch r.URL.Path {
+					case basePath + "/sdk/otel/v1/metrics":
+						if r.ContentLength == 0 {
+							probes.Add(1)
+						} else {
+							metrics.Add(1)
+						}
+					case basePath + "/sdk/otel/v1/logs":
+						logs.Add(1)
+					default:
+						t.Errorf("unexpected telemetry path: %s", r.URL.Path)
+						http.NotFound(w, r)
+					}
+				},
+			))
+			defer server.Close()
+
+			proxy := analytics.NewOpenTelemetryProxy(
+				t.Context(),
+				settings.From(&spb.Settings{
+					BaseUrl: wrapperspb.String(server.URL + basePath),
+				}),
+				"wandb-core",
+			)
+			require.NotNil(t, proxy)
+			recorder := analytics.NewTelemetryRecorder(
+				proxy,
+				analytics.NewTelemetryContext(),
+			)
+			recorder.IncrementCounterAndLogEvent(
+				t.Context(),
+				"path_prefix_event",
+				nil,
+				analytics.LowCardinalityAttributes{},
+			)
+			require.NoError(t, proxy.Shutdown(context.Background()))
+
+			assert.Equal(t, int32(1), probes.Load())
+			assert.Equal(t, int32(1), metrics.Load())
+			assert.Equal(t, int32(1), logs.Load())
+		})
+	}
+}
+
 func TestOpenTelemetryProxy_UnsupportedServer_DropsRecords(t *testing.T) {
 	var requests atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(

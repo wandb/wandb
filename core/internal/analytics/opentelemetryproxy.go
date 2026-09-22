@@ -560,8 +560,7 @@ func (o *OpenTelemetryProxy) setupMetrics(
 	}
 
 	exporter, err := otlpmetrichttp.New(ctx,
-		otlpmetrichttp.WithEndpointURL(o.endpoint),
-		otlpmetrichttp.WithURLPath(metricsPath),
+		otlpmetrichttp.WithEndpointURL(o.endpoint+metricsPath),
 		otlpmetrichttp.WithHTTPClient(o.httpClient),
 		otlpmetrichttp.WithTemporalitySelector(metric.DeltaTemporalitySelector),
 	)
@@ -607,8 +606,7 @@ func (o *OpenTelemetryProxy) setupLogs(
 	}
 
 	exporter, err := otlploghttp.New(ctx,
-		otlploghttp.WithEndpointURL(o.endpoint),
-		otlploghttp.WithURLPath(logsPath),
+		otlploghttp.WithEndpointURL(o.endpoint+logsPath),
 		otlploghttp.WithHTTPClient(o.httpClient),
 	)
 	if err != nil {
