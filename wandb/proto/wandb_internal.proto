@@ -296,23 +296,9 @@ message HistoryRecord {
   _RecordInfo _info = 200;
 }
 
-// HistoryValue is one logged value with its type.
-//
-// It is the typed form of `HistoryItem.value_json`. A writer sets one,
-// or both, depending on the `x_history_value_encoding` setting. A reader
-// prefers `value` and falls back to `value_json`.
-//
-// The two forms must carry the same value. Rollback from the typed form
-// to the JSON form depends on that equivalence.
+// A logged value with its type.
 message HistoryValue {
-  // Kind is the type of the value. It selects the value field.
-  //
-  // Integer and float are separate kinds, so an int64 above 2^53 keeps
-  // its exact value. Nested objects and arrays stay as verbatim JSON text.
-  //
-  // Kinds are frozen. Each kind maps onto a Kind in the filestream wire
-  // schema, and each declares a lossless conversion to JSON. A kind with
-  // no lossless JSON form does not enter the map.
+  // Kind selects which of the other fields is set.
   enum Kind {
     // Invalid. A reader rejects it.
     KIND_UNSPECIFIED = 0;
@@ -351,10 +337,8 @@ message HistoryItem {
   string key = 1;
   repeated string nested_key = 2;
 
-  // The typed value. Unset means the writer sent JSON only.
-  //
-  // A reader must keep reading `value_json` when this is unset, because
-  // an older SDK wrote the transaction log.
+  // The typed form of `value_json`. A writer may set one,
+  // or both. A reader prefers `value` and falls back to `value_json`.
   HistoryValue value = 3;
 
   string value_json = 16;
