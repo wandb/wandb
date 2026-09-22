@@ -22,6 +22,15 @@ tags. It reports executable bytes and writes `measurements.json`. The default
 target is Linux amd64; `--goos darwin --goarch arm64` selects another target.
 It does not change dependencies or the checkout.
 
+CI reports two separate comparisons. The existing Nox check compares the
+packaged default binary against main; it does not enable `cloud_http`, so this
+experiment should not produce a large reduction in that check. A separate
+CircleCI step runs the measurement script on the same revision with and without
+`cloud_http`, prints both sizes and the savings, and uploads `measurements.json`.
+Direct-build sizes can differ slightly from package sizes because packaging
+embeds the commit SHA and may strip additional ELF metadata. CI also runs the
+artifact and TensorBoard tests with the experimental build tag and race checks.
+
 From `core`, build or test the experimental variant explicitly:
 
 ```sh

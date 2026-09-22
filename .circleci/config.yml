@@ -457,8 +457,16 @@ jobs:
             uv pip install .
             python -c 'import wandb'
       - run:
-          name: Check wandb-core binary size vs main branch
+          name: Check packaged default wandb-core size vs main branch
           command: nox -s wandb-core-size-check
+      - run:
+          name: Compare same-commit SDK and opt-in cloud_http binary sizes
+          command: >
+            python core/scripts/measure-cloud-http-size.py
+            --output-dir /tmp/wandb-core-cloud-http-size
+      - store_artifacts:
+          path: /tmp/wandb-core-cloud-http-size/measurements.json
+          destination: wandb-core-cloud-http-size.json
       - run:
           name: Check wandb library import time vs main branch
           command: nox -s wandb-import-time-check
@@ -481,6 +489,13 @@ jobs:
           command: |
             cd core
             go test -count=1 -race -coverprofile=coverage.txt -covermode=atomic ./...
+      - run:
+          name: Test opt-in cloud_http artifact and TensorBoard clients
+          command: |
+            cd core
+            go test -count=1 -race \
+              -tags='disable_grpc_modules parquet_read_only cloud_http' \
+              ./internal/filetransfer ./internal/tensorboard ./pkg/artifacts
       - save-go-cache
       - store-coverage:
           flags: unit

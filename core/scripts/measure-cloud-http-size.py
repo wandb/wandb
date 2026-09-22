@@ -46,12 +46,14 @@ def main() -> None:
             check=True,
         )
         sizes[variant] = binary.stat().st_size
+    saved_bytes = sizes["sdk"] - sizes["http"]
     result = {
+        "comparison": "same-revision SDK default versus opt-in cloud_http",
         "toolchain": subprocess.check_output(["go", "version"], text=True).strip(),
         "goos": args.goos,
         "goarch": args.goarch,
         "bytes": sizes,
-        "saved_bytes": sizes["sdk"] - sizes["http"],
+        "saved_bytes": saved_bytes,
         "output_dir": str(output),
         "tensorboard_cloud_drivers": {
             "sdk": "Go CDK storage SDK drivers",
@@ -59,6 +61,14 @@ def main() -> None:
         },
     }
     (output / "measurements.json").write_text(json.dumps(result, indent=2) + "\n")
+    saved_percent = 100 * saved_bytes / sizes["sdk"]
+    sys.stderr.write(
+        f"wandb-core same-revision comparison ({args.goos}/{args.goarch})\n"
+        f"  SDK (default):       {sizes['sdk'] / 2**20:.2f} MiB ({sizes['sdk']:,} bytes)\n"
+        f"  HTTP (cloud_http):   {sizes['http'] / 2**20:.2f} MiB ({sizes['http']:,} bytes)\n"
+        f"  Saved:              {saved_bytes / 2**20:.2f} MiB ({saved_percent:.2f}%)\n"
+        "This compares two direct Go builds; it does not change the packaged default.\n"
+    )
     sys.stdout.write(json.dumps(result, indent=2) + "\n")
 
 
