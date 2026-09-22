@@ -220,34 +220,35 @@ func (rh *RunHistory) setFromTypedValue(
 	path pathtree.TreePath,
 	typed *spb.HistoryValue,
 ) error {
-	switch typed.Kind {
-	case spb.HistoryValue_KIND_NULL:
+	switch value := typed.Value.(type) {
+	case *spb.HistoryValue_NullValue:
 		rh.metrics.Set(path, nil)
 
-	case spb.HistoryValue_KIND_FLOAT:
-		rh.metrics.Set(path, typed.FloatValue)
+	case *spb.HistoryValue_FloatValue:
+		rh.metrics.Set(path, value.FloatValue)
 
-	case spb.HistoryValue_KIND_INT:
-		rh.metrics.Set(path, typed.IntValue)
+	case *spb.HistoryValue_IntValue:
+		rh.metrics.Set(path, value.IntValue)
 
-	case spb.HistoryValue_KIND_BOOL:
-		rh.metrics.Set(path, typed.BoolValue)
+	case *spb.HistoryValue_BoolValue:
+		rh.metrics.Set(path, value.BoolValue)
 
-	case spb.HistoryValue_KIND_STRING:
-		rh.metrics.Set(path, typed.StringValue)
+	case *spb.HistoryValue_StringValue:
+		rh.metrics.Set(path, value.StringValue)
 
-	case spb.HistoryValue_KIND_JSON:
+	case *spb.HistoryValue_JsonValue:
 		// An object keeps its tree structure, the same as the JSON form.
-		value, err := simplejsonext.UnmarshalString(typed.JsonValue)
+		decoded, err := simplejsonext.Unmarshal(value.JsonValue)
 		if err != nil {
 			return fmt.Errorf(
 				"failed to unmarshal typed history item value: %v", err)
 		}
-		rh.setFromUnmarshalledJSON(path, value)
+		rh.setFromUnmarshalledJSON(path, decoded)
 
 	default:
-		// Kinds are frozen. An unknown kind is a writer bug.
-		return fmt.Errorf("unknown history value kind %v", typed.Kind)
+		// The set of values is frozen. An unset or unknown value is
+		// a writer bug.
+		return fmt.Errorf("unknown history value type %T", typed.Value)
 	}
 
 	return nil
