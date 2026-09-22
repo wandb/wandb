@@ -47,6 +47,7 @@ function platform_python_name() {
 # Compiles requirements for a Python version ($1) and platform ($2).
 function compile() {
     uv pip compile "${PIP_COMPILE_ARGS[@]}" \
+        --no-emit-package wandb \
         --exclude-newer "1w" \
         --python-version "$1" \
         --python-platform "$(platform_python_name $2)" \
