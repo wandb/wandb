@@ -155,6 +155,16 @@ class LowCardinalityAttributes:
     python_version: str | None = None
     exception_type: str | None = None
 
+    # segment names an interval of work in the filestream upload pipeline.
+    segment: str | None = None
+
+    # stream is the filestream data stream: history, events.
+    stream: str | None = None
+
+    # value_encoding is what the run writes for a history value: json, typed
+    # or json_typed.
+    value_encoding: str | None = None
+
     def as_dict(self) -> dict[str, str]:
         """Return the set (non-`None`) attributes as a string-keyed mapping."""
         return {
@@ -169,6 +179,9 @@ class LowCardinalityAttributes:
             wandb_version=self.wandb_version or other.wandb_version,
             python_version=self.python_version or other.python_version,
             exception_type=self.exception_type or other.exception_type,
+            segment=self.segment or other.segment,
+            stream=self.stream or other.stream,
+            value_encoding=self.value_encoding or other.value_encoding,
         )
 
 
