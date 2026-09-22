@@ -777,11 +777,11 @@ class Settings(BaseModel, validate_assignment=True):
     x_history_value_encoding: str = HISTORY_VALUE_ENCODING_DEFAULT
     """Which forms of each logged history value the SDK writes.
 
-    A comma-separated list of "json" and "typed", in any order. "json"
-    writes the JSON text of the value. "typed" writes the value and its
-    type.
+    A comma-separated list of "json" and "typed", in any order. With
+    "json", the SDK writes the legacy JSON form of the value. With "typed",
+    it writes the typed form of the value. The default is "json". An
+    unrecognized value falls back to the default with a warning.
 
-    An unrecognized value falls back to the default with a warning.
     <!-- lazydoc-ignore -->
     """
 
