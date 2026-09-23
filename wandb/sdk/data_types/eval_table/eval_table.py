@@ -8,7 +8,6 @@ import wandb
 from wandb.errors import UsageError
 from wandb.sdk.data_types.eval_table._writer import (
     EvalTableWriter,
-    WriteInput,
     WriteResult,
     WriteRow,
 )
@@ -249,7 +248,7 @@ class EvalTable(Table):
             self._warn_immutable_already_logged()
             return dict(self._immutable_write_result.marker)
 
-        result = writer.write(self._prepare_write_input(self._run_log_key))
+        result = self._write_to_backend()
         self._immutable_write_result = result
 
         with telemetry.context(run=run) as tel:
@@ -337,7 +336,11 @@ class EvalTable(Table):
             repeat=False,
         )
 
-    def _prepare_write_input(self, name: str) -> WriteInput:
+    def _write_to_backend(self) -> WriteResult:
+        """Partition table rows by role and pass them to the bound writer."""
+        assert self._writer is not None
+        assert self._run_log_key is not None
+
         self._validate_column_mappings(
             self._input_columns,
             self._output_columns,
@@ -346,7 +349,7 @@ class EvalTable(Table):
 
         # Any column not listed in a role defaults to an output column.
         str_columns = self._string_columns()
-        column_keys = dict(zip(str_columns, self.columns, strict=True))
+        columns_by_name = dict(zip(str_columns, self.columns, strict=True))
         assigned = (
             set(self._input_columns)
             | set(self._output_columns)
@@ -366,25 +369,31 @@ class EvalTable(Table):
         for row_idx, row in enumerate(self.data, start=1):
             values = dict(zip(str_columns, row, strict=True))
             if inject_row_index:
-                inputs: dict[str, Any] = {EVAL_TABLE_ROW_INDEX_KEY: row_idx}
+                inputs: dict[ColumnKey, Any] = {
+                    EVAL_TABLE_ROW_INDEX_KEY: row_idx
+                }
             else:
-                inputs = {col: values[col] for col in self._input_columns}
+                inputs = {
+                    columns_by_name[col]: values[col] for col in self._input_columns
+                }
 
             # Always use a dict so backends see a stable column-keyed shape;
             # single-output is no exception.
             if output_cols:
-                output: dict[str, Any] | None = {
-                    col: values[col] for col in output_cols
+                output: dict[ColumnKey, Any] | None = {
+                    columns_by_name[col]: values[col] for col in output_cols
                 }
             else:
                 output = None
 
-            scores = {col: values[col] for col in self._score_columns}
+            scores = {
+                columns_by_name[col]: values[col] for col in self._score_columns
+            }
             rows.append(WriteRow(inputs=inputs, output=output, scores=scores))
 
-        return WriteInput(
-            name=name,
+        return self._writer.write(
+            name=self._run_log_key,
             rows=rows,
-            column_keys=column_keys,
+            ncols=len(self.columns),
             log_mode=self.log_mode,
         )
