@@ -11,41 +11,51 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, kw_only=True)
 class WriteRow:
-    inputs: Mapping[str, Any]
-    outputs: Mapping[str, Any] | None
-    scores: Mapping[str, Any]
+    """One row partitioned by role and keyed by original Table columns."""
 
-
-@dataclass(frozen=True, kw_only=True)
-class WriteInput:
-    name: str
-    rows: Sequence[WriteRow]
-    column_keys: Mapping[str, ColumnKey]
-    ncols: int
-    log_mode: LogMode
+    inputs: Mapping[ColumnKey, Any]
+    output: Mapping[ColumnKey, Any] | None
+    scores: Mapping[ColumnKey, Any]
 
 
 @dataclass(frozen=True, kw_only=True)
 class WriteResult:
-    """Backend-owned run-history marker and its backend-specific identifier."""
+    """The run-history marker and backend ID produced by a write."""
 
     marker: Mapping[str, Any]
     logged_id: str
 
 
 class EvalTableWriter(Protocol):
-    """Backend client for writing an EvalTable.
+    """Backend-specific validation and persistence for an EvalTable.
 
-    `validate_cell_value` may run before `bind` while Table constructs its rows.
-    `bind` establishes the run context and precedes `write`. A successful write
-    is cached, while a failed write may be retried. `logged_id` identifies the
-    evaluation written by the selected backend.
+    `validate_cell_value` may run before `bind_to_run` while Table constructs
+    its rows. `bind_to_run` establishes the run context and precedes `write`.
+    A successful write is cached, while a failed write may be retried.
+    `logged_id` identifies the evaluation written by the selected backend.
     """
 
-    def bind_to_run(self, run: LocalRun, key: str, step: int | str) -> None:
-        """Bind this writer to a run."""
+    def validate_cell_value(self, value: Any, column: ColumnKey) -> None:
+        """Raise if the backend cannot represent a value from this column."""
         ...
 
-    def validate_cell_value(self, value: Any, column: ColumnKey) -> None: ...
+    def bind_to_run(self, run: LocalRun, key: str, step: int | str) -> None:
+        """Bind backend state to the run-history location for the write."""
+        ...
 
-    def write(self, payload: WriteInput) -> WriteResult: ...
+    def write(
+        self,
+        *,
+        name: str,
+        rows: Sequence[WriteRow],
+        ncols: int,
+        log_mode: LogMode,
+    ) -> WriteResult:
+        """Persist an EvalTable and return its backend-owned history marker.
+
+        Row mappings retain the Table's original string or integer column keys.
+        The backend converts those keys to its wire format while retaining the
+        originals for validation errors. `ncols` is the total Table column count,
+        including columns that may not appear in a particular role mapping.
+        """
+        ...
