@@ -123,20 +123,21 @@ class InterfaceBase(abc.ABC):
         The recorder is resolved once and cached: this runs on every
         `run.log()` call, and the process-wide lookup takes a lock.
         """
+        microseconds = seconds * 1_000_000.0
         if self._telemetry_recorder is None:
             self._telemetry_recorder = get_telemetry_recorder()
             # The boundaries can only be set when the instrument is created,
             # so declare the histogram before the first measurement.
             self._telemetry_recorder.define_histogram(
                 _ENCODE_DURATION_METRIC,
-                "s",
+                "us",
                 "Time spent encoding run data for upload.",
                 _ENCODE_DURATION_BOUNDARIES,
             )
 
-        self._telemetry_recorder.record_duration(
+        self._telemetry_recorder.record_histogram(
             _ENCODE_DURATION_METRIC,
-            seconds,
+            microseconds,
             LowCardinalityAttributes(
                 segment=_SEGMENT_CLIENT_ENCODE,
                 stream=_STREAM_HISTORY,

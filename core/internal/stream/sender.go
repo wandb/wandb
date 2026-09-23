@@ -889,10 +889,7 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 		return
 	}
 
-	// The sender re-reads the items the handler just produced. This is a
-	// distinct segment from handler_ingest even though it runs the same
-	// code: it is a second pass over the same values, and Stage 1 is what
-	// removes it.
+	// Measure re-reading the history items produced by the handler.
 	ingestStart := time.Now()
 	history := runhistory.New()
 	for _, item := range record.GetItem() {
@@ -928,9 +925,7 @@ func (s *Sender) sendHistory(record *spb.HistoryRecord) {
 		return
 	}
 
-	// The cell count comes from the record the sender already holds, so
-	// filestream does not walk the row again only to measure it. The time
-	// this read took was already reported above.
+	// Record the cell count as a denominator for other cost metrics.
 	s.fileStream.StreamUpdate(&fs.HistoryUpdate{
 		Row:   history,
 		Cells: len(record.GetItem()),

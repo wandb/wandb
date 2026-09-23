@@ -155,14 +155,13 @@ class LowCardinalityAttributes:
     python_version: str | None = None
     exception_type: str | None = None
 
-    # segment names an interval of work in the filestream upload pipeline.
+    # an interval of work in the filestream upload pipeline.
     segment: str | None = None
 
-    # stream is the filestream data stream: history, events.
+    # the filestream data stream: history or events.
     stream: str | None = None
 
-    # value_encoding is what the run writes for a history value: json, typed
-    # or json_typed.
+    # format for writing a history value: `json`, `typed` or `json_typed`.
     value_encoding: str | None = None
 
     def as_dict(self) -> dict[str, str]:
@@ -645,6 +644,7 @@ class OpenTelemetryProxy:
             OTLPMetricExporter,
         )
         from opentelemetry.sdk.metrics import Counter as SdkCounter
+        from opentelemetry.sdk.metrics import Histogram as SdkHistogram
         from opentelemetry.sdk.metrics import MeterProvider
         from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 
@@ -653,7 +653,10 @@ class OpenTelemetryProxy:
                 endpoint=endpoint.rstrip("/") + _METRICS_PATH,
                 session=session,
                 timeout=_HTTP_CLIENT_TIMEOUT_SECONDS,
-                preferred_temporality={SdkCounter: AggregationTemporality.DELTA},
+                preferred_temporality={
+                    SdkCounter: AggregationTemporality.DELTA,
+                    SdkHistogram: AggregationTemporality.DELTA,
+                },
             ),
             self._server_supported,
         )
