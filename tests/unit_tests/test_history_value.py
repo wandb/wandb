@@ -13,7 +13,7 @@ INT64_MAX = 2**63 - 1
 INT64_MIN = -(2**63)
 
 
-def typed(value: Any) -> pb.HistoryValue:
+def make_typed_value(value: Any) -> pb.HistoryValue:
     """Return the typed form of one logged value."""
     item = pb.HistoryItem(key="k")
     set_history_value(item, value, json_form=False, typed_form=True)
@@ -46,7 +46,7 @@ def typed(value: Any) -> pb.HistoryValue:
     ],
 )
 def test_typed_value_cases(value, field, expected):
-    value_pb = typed(value)
+    value_pb = make_typed_value(value)
 
     assert value_pb.WhichOneof("value") == field
     assert getattr(value_pb, field) == expected
@@ -58,20 +58,20 @@ def test_typed_value_logged_float_stays_a_float():
     The JSON form cannot express this, so the two forms diverge here by
     design. See the design doc's "Handling numeric Kinds consistently".
     """
-    assert typed(1.0).WhichOneof("value") == "float_value"
-    assert typed(1).WhichOneof("value") == "int_value"
+    assert make_typed_value(1.0).WhichOneof("value") == "float_value"
+    assert make_typed_value(1).WhichOneof("value") == "int_value"
 
 
 @pytest.mark.parametrize("value", [float("inf"), float("-inf")])
 def test_typed_value_infinities(value):
-    value_pb = typed(value)
+    value_pb = make_typed_value(value)
 
     assert value_pb.WhichOneof("value") == "float_value"
     assert value_pb.float_value == value
 
 
 def test_typed_value_nan():
-    value_pb = typed(float("nan"))
+    value_pb = make_typed_value(float("nan"))
 
     assert value_pb.WhichOneof("value") == "float_value"
     assert math.isnan(value_pb.float_value)
@@ -80,20 +80,20 @@ def test_typed_value_nan():
 def test_typed_value_numpy_scalars():
     np = pytest.importorskip("numpy")
 
-    assert typed(np.float32(1.5)).float_value == 1.5
-    assert typed(np.float32(1.5)).WhichOneof("value") == "float_value"
-    assert typed(np.float64(2.5)).WhichOneof("value") == "float_value"
-    assert typed(np.int64(7)).WhichOneof("value") == "int_value"
-    assert typed(np.int64(7)).int_value == 7
-    assert typed(np.bool_(True)).WhichOneof("value") == "bool_value"
-    assert typed(np.bool_(True)).bool_value is True
-    assert math.isnan(typed(np.float32("nan")).float_value)
+    assert make_typed_value(np.float32(1.5)).float_value == 1.5
+    assert make_typed_value(np.float32(1.5)).WhichOneof("value") == "float_value"
+    assert make_typed_value(np.float64(2.5)).WhichOneof("value") == "float_value"
+    assert make_typed_value(np.int64(7)).WhichOneof("value") == "int_value"
+    assert make_typed_value(np.int64(7)).int_value == 7
+    assert make_typed_value(np.bool_(True)).WhichOneof("value") == "bool_value"
+    assert make_typed_value(np.bool_(True)).bool_value is True
+    assert math.isnan(make_typed_value(np.float32("nan")).float_value)
 
 
 def test_typed_value_numpy_array_is_json():
     np = pytest.importorskip("numpy")
 
-    value_pb = typed(np.array([1, 2, 3]))
+    value_pb = make_typed_value(np.array([1, 2, 3]))
 
     assert value_pb.WhichOneof("value") == "json_value"
     assert value_pb.json_value == "[1,2,3]"
