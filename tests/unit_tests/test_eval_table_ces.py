@@ -16,53 +16,6 @@ from wandb.sdk.data_types.eval_table import _writer_ces as ces
 
 
 @pytest.fixture
-def mock_eval_logger(monkeypatch):
-    """Mock weave's EvaluationLogger.
-
-    Each `_create_with_meta(...)` call records a fresh MagicMock instance into
-    `mock_eval_logger.created_loggers` and returns it.
-    """
-    mock_evaluation_logger_cls = MagicMock()
-    created_loggers: list[MagicMock] = []
-
-    def _create_with_meta_side_effect(*args, **kwargs):
-        logger = MagicMock()
-        logger._evaluate_call.id = f"eval-{len(created_loggers) + 1}"
-        logger._init_args = args
-        logger._init_kwargs = kwargs
-        created_loggers.append(logger)
-        return logger
-
-    mock_evaluation_logger_cls._create_with_meta.side_effect = (
-        _create_with_meta_side_effect
-    )
-    mock_evaluation_logger_cls.created_loggers = created_loggers
-
-    weave_module = types.ModuleType("weave")
-    weave_module.__path__ = []
-    weave_module.__version__ = "999.0.0"
-    evaluation_module = types.ModuleType("weave.evaluation")
-    evaluation_module.__path__ = []
-    eval_imperative_module = types.ModuleType("weave.evaluation.eval_imperative")
-    eval_imperative_module.EvaluationLogger = mock_evaluation_logger_cls
-    weave_module.evaluation = evaluation_module
-    evaluation_module.eval_imperative = eval_imperative_module
-
-    monkeypatch.setitem(sys.modules, "weave", weave_module)
-    monkeypatch.setitem(sys.modules, "weave.evaluation", evaluation_module)
-    monkeypatch.setitem(
-        sys.modules,
-        "weave.evaluation.eval_imperative",
-        eval_imperative_module,
-    )
-    monkeypatch.setattr(
-        "wandb.sdk.data_types.eval_table._writer_weave.weave_integration.init_weave",
-        lambda entity, project: None,
-    )
-    return mock_evaluation_logger_cls
-
-
-@pytest.fixture
 def run(mock_run):
     return mock_run(settings={"entity": "e", "project": "p", "mode": "online"})
 
@@ -74,28 +27,35 @@ def mock_ces_client(monkeypatch):
         dataset_id="dataset-1",
         evaluation_id="evaluation-1",
     )
-    client.eval_tables.create_version.return_value = SimpleNamespace(
+    client.eval_tables.versions.create.return_value = SimpleNamespace(
         dataset_version_id="dataset-version-1",
         evaluation_version_id="evaluation-version-1",
     )
+    client.__enter__.return_value = client
+
+    def close_client(*_):
+        client.close()
+        return False
+
+    client.__exit__.side_effect = close_client
     monkeypatch.setenv(
         "CES_BASE_URL",
         "https://evaluations.example.test",
     )
     client_module = types.ModuleType("coreweave_evaluations")
-    client_module.CoreWeaveEvaluations = MagicMock
+    client_module.Client = MagicMock
     monkeypatch.setitem(sys.modules, "coreweave_evaluations", client_module)
     monkeypatch.setattr(
         "wandb.sdk.data_types.eval_table._writer_ces.CESWriter._resolve_scope_context",
         lambda self, bound_run: ces._CESScopeContext(
-            scope_ref="scope-ref",
+            scope_id="scope-id",
             api_key=None,
             access_token="token",
         ),
     )
     monkeypatch.setattr(
         "wandb.sdk.data_types.eval_table._writer_ces.CESWriter._create_client",
-        lambda self, client_type, base_url, scope: client,
+        lambda self, *, client_type, base_url, scope: client,
     )
     return client
 
@@ -127,20 +87,20 @@ def test_ces_eval_table_writes_columns_rows_and_version(
     api = mock_ces_client.eval_tables
     assert [call[0] for call in api.method_calls] == [
         "create",
-        "create_columns",
-        "add_rows",
-        "create_version",
+        "columns.create",
+        "rows.add",
+        "versions.create",
     ]
     api.create.assert_called_once_with(
-        "scope-ref",
         namespace="wandb",
+        scope_id="scope-id",
         name="math_eval",
         idempotency_key=ANY,
     )
-    api.create_columns.assert_called_once_with(
+    api.columns.create.assert_called_once_with(
         "evaluation-1",
         namespace="wandb",
-        scope_ref="scope-ref",
+        scope_id="scope-id",
         dataset_fields=[
             {"source": "input", "name": "prompt", "value_type": "string"},
             {"source": "input", "name": "truth", "value_type": "string"},
@@ -152,10 +112,10 @@ def test_ces_eval_table_writes_columns_rows_and_version(
         ],
         idempotency_key=ANY,
     )
-    api.add_rows.assert_called_once_with(
+    api.rows.add.assert_called_once_with(
         "evaluation-1",
         namespace="wandb",
-        scope_ref="scope-ref",
+        scope_id="scope-id",
         rows=[
             {
                 "input": {"prompt": "2+2", "truth": "4"},
@@ -170,17 +130,17 @@ def test_ces_eval_table_writes_columns_rows_and_version(
         ],
         idempotency_key=ANY,
     )
-    api.create_version.assert_called_once_with(
+    api.versions.create.assert_called_once_with(
         "evaluation-1",
         namespace="wandb",
-        scope_ref="scope-ref",
+        scope_id="scope-id",
         idempotency_key=ANY,
     )
     mock_ces_client.close.assert_called_once_with()
     debug.assert_called_once_with(
-        "CES EvalTable recorded namespace=%s scope_ref=%s evaluation_version_id=%s",
+        "CES EvalTable recorded namespace=%s scope_id=%s evaluation_version_id=%s",
         "wandb",
-        "scope-ref",
+        "scope-id",
         "evaluation-version-1",
     )
 
@@ -217,7 +177,7 @@ def test_ces_eval_table_stubs_media_until_native_support_exists(
 
     run.log({"media_eval": et})
 
-    rows = mock_ces_client.eval_tables.add_rows.call_args.kwargs["rows"]
+    rows = mock_ces_client.eval_tables.rows.add.call_args.kwargs["rows"]
     assert rows == [
         {
             "input": {"row": 1},
@@ -260,7 +220,7 @@ def test_ces_eval_table_infers_python_and_numpy_integers(
 
     run.log({"typed_eval": et})
 
-    fields = mock_ces_client.eval_tables.create_columns.call_args.kwargs[
+    fields = mock_ces_client.eval_tables.columns.create.call_args.kwargs[
         "dataset_fields"
     ]
     assert fields == [
@@ -284,7 +244,7 @@ def test_ces_eval_table_classifies_integer_valued_floats_as_numbers(
 
     run.log({"typed_eval": et})
 
-    assert mock_ces_client.eval_tables.create_columns.call_args.kwargs[
+    assert mock_ces_client.eval_tables.columns.create.call_args.kwargs[
         "dataset_fields"
     ] == [
         {"source": "input", "name": "row", "value_type": "integer"},
@@ -302,13 +262,13 @@ def test_ces_eval_table_serializes_nan_as_typed_null(mock_ces_client, run):
 
     run.log({"nan_eval": et})
 
-    assert mock_ces_client.eval_tables.create_columns.call_args.kwargs[
+    assert mock_ces_client.eval_tables.columns.create.call_args.kwargs[
         "dataset_fields"
     ] == [
         {"source": "input", "name": "row", "value_type": "integer"},
         {"source": "output", "name": "value", "value_type": "number"},
     ]
-    assert mock_ces_client.eval_tables.add_rows.call_args.kwargs["rows"][0][
+    assert mock_ces_client.eval_tables.rows.add.call_args.kwargs["rows"][0][
         "output"
     ] == {"value": None}
 
@@ -505,7 +465,7 @@ def test_ces_eval_table_resolves_project_scope_with_api_key(run):
 
     scope = writer._resolve_scope_context(writer._require_bound())
 
-    assert scope.scope_ref == "opaque-project-id"
+    assert scope.scope_id == "opaque-project-id"
     assert scope.api_key == "secret"
     assert scope.access_token is None
     service_api.execute_graphql.assert_called_once_with(
@@ -517,12 +477,12 @@ def test_ces_eval_table_resolves_project_scope_with_api_key(run):
 
 def test_ces_scope_context_repr_redacts_credentials():
     scope = ces._CESScopeContext(
-        scope_ref="scope-ref",
+        scope_id="scope-id",
         api_key="api-secret",
         access_token="token-secret",
     )
 
-    assert repr(scope) == "_CESScopeContext(scope_ref='scope-ref')"
+    assert repr(scope) == "_CESScopeContext(scope_id='scope-id')"
 
 
 def test_ces_eval_table_uses_federated_access_token(run):
@@ -560,15 +520,15 @@ def test_ces_client_uses_only_the_run_credentials(api_key, access_token):
 
     writer = ces.CESWriter()
     scope = ces._CESScopeContext(
-        scope_ref="scope-ref",
+        scope_id="scope-id",
         api_key=api_key,
         access_token=access_token,
     )
 
     client = writer._create_client(
-        EnvironmentDefaultingClient,
-        "https://evaluations.example.test",
-        scope,
+        client_type=EnvironmentDefaultingClient,
+        base_url="https://evaluations.example.test",
+        scope=scope,
     )
 
     assert client.api_key == api_key
@@ -583,7 +543,7 @@ def test_ces_eval_table_retries_with_stable_idempotency_keys(
         dataset_version_id="dataset-version-1",
         evaluation_version_id="evaluation-version-1",
     )
-    mock_ces_client.eval_tables.create_version.side_effect = [
+    mock_ces_client.eval_tables.versions.create.side_effect = [
         RuntimeError("temporary failure"),
         version,
     ]
@@ -600,9 +560,9 @@ def test_ces_eval_table_retries_with_stable_idempotency_keys(
 
     methods = (
         mock_ces_client.eval_tables.create,
-        mock_ces_client.eval_tables.create_columns,
-        mock_ces_client.eval_tables.add_rows,
-        mock_ces_client.eval_tables.create_version,
+        mock_ces_client.eval_tables.columns.create,
+        mock_ces_client.eval_tables.rows.add,
+        mock_ces_client.eval_tables.versions.create,
     )
     for method in methods:
         calls = method.call_args_list
@@ -632,9 +592,9 @@ def test_ces_eval_table_run_location_stabilizes_idempotency_keys(
 
     methods = (
         mock_ces_client.eval_tables.create,
-        mock_ces_client.eval_tables.create_columns,
-        mock_ces_client.eval_tables.add_rows,
-        mock_ces_client.eval_tables.create_version,
+        mock_ces_client.eval_tables.columns.create,
+        mock_ces_client.eval_tables.rows.add,
+        mock_ces_client.eval_tables.versions.create,
     )
     for method in methods:
         calls = method.call_args_list
