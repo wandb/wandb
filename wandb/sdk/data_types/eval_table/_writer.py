@@ -20,9 +20,9 @@ class WriteRow:
 
 @dataclass(frozen=True, kw_only=True)
 class WriteResult:
-    """The run-history marker and backend ID produced by a write."""
+    """The run-history value and backend ID produced by a write."""
 
-    marker: Mapping[str, Any]
+    history_value: Mapping[str, Any]
     logged_id: str
 
 
@@ -48,7 +48,7 @@ class EvalTableWriter(Protocol):
         ncols: int,
         log_mode: LogMode,
     ) -> WriteResult:
-        """Persist an EvalTable and return its backend-owned history marker.
+        """Persist an EvalTable and return its backend-owned run-history value.
 
         EvalTable caches a successful result; a failed call may be retried. The
         result's `logged_id` identifies the evaluation written by this backend.
