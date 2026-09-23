@@ -5,7 +5,7 @@ import json
 import logging
 import math
 import os
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -35,16 +35,25 @@ query EvalTableProjectScope($entity: String!, $project: String!) {
   }
 }
 """
-# These match the service request-schema limits.
-_MAX_BATCH_BODY_BYTES = 16 << 20
+# Server request-body limit.
+_MAX_REQUEST_BODY_BYTES = 16 << 20
+_MAX_REQUEST_BODY_SIZE = "16 MiB"
+# These two shape each `rows-{i}` body. If either changes, bump the idempotency-key
+# version so retries of partially uploaded tables cannot reuse keys across layouts.
+# The byte target leaves headroom below the hard request limit.
+_TARGET_ROW_BATCH_BODY_BYTES = 8 << 20
+_MAX_ROWS_PER_BATCH = 10_000
+# Evaluations request-schema limits.
 _MAX_DATASET_FIELDS = 10_000
 _MAX_DATASET_FIELD_NAME_LENGTH = 512
 _MAX_EVAL_TABLE_NAME_LENGTH = 256
-_MAX_ROWS = 10_000
+# Allow ten count-limited batches while failing fast on runaway tables.
+_MAX_ROWS_PER_TABLE = 100_000
 _MAX_SCORERS = 256
 _MAX_SCORER_NAME_LENGTH = 256
 
 PrimitiveValueType = Literal["boolean", "integer", "number", "string"]
+_CESRow = dict[str, Any]
 
 
 @dataclass(frozen=True)
@@ -59,7 +68,7 @@ class _BoundRun:
 class _CESWritePayloads:
     dataset_fields: list[dict[str, str]]
     scorers: list[dict[str, str]]
-    rows: list[dict[str, Any]]
+    row_batches: list[list[_CESRow]]
 
 
 @dataclass(frozen=True)
@@ -67,6 +76,56 @@ class _CESScopeContext:
     scope_id: str
     api_key: str | None = field(repr=False)
     access_token: str | None = field(repr=False)
+
+
+def _encode_json(value: Any) -> bytes:
+    """Encode JSON exactly as the CES client does for body-size checks."""
+    return json.dumps(
+        value,
+        allow_nan=False,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode()
+
+
+# Bytes in a row-add body other than encoded rows and their separating commas.
+_ROW_BATCH_ENVELOPE_BYTES = len(_encode_json({"rows": []}))
+
+
+def _iter_row_batches(
+    rows: Sequence[_CESRow],
+    *,
+    max_request_body_bytes: int,
+    target_batch_body_bytes: int,
+    max_rows_per_batch: int,
+) -> Iterator[list[_CESRow]]:
+    """Yield ordered row batches within encoded-byte and row-count limits."""
+    batch: list[_CESRow] = []
+    batch_size = _ROW_BATCH_ENVELOPE_BYTES
+
+    for row_index, row in enumerate(rows):
+        row_size = len(_encode_json(row))
+        if _ROW_BATCH_ENVELOPE_BYTES + row_size >= max_request_body_bytes:
+            raise UsageError(
+                "CES EvalTable rows payload contains a row at index "
+                f"{row_index} whose encoded request must be smaller than "
+                f"{_MAX_REQUEST_BODY_SIZE}."
+            )
+
+        # An above-target batch contains exactly one row, which already passed
+        # the hard request-size check; the next row flushes it here.
+        if batch and (
+            len(batch) >= max_rows_per_batch
+            or batch_size + 1 + row_size > target_batch_body_bytes
+        ):
+            yield batch
+            batch, batch_size = [], _ROW_BATCH_ENVELOPE_BYTES
+
+        batch_size += row_size + (1 if batch else 0)
+        batch.append(row)
+
+    if batch:
+        yield batch
 
 
 class CESWriter:
@@ -157,13 +216,16 @@ class CESWriter:
                 scorers=write_payloads.scorers,
                 idempotency_key=self._idempotency_key(bound_run, "columns"),
             )
-            client.eval_tables.rows.add(
-                created.evaluation_id,
-                namespace=_WANDB_SCOPE_NAMESPACE,
-                scope_id=scope.scope_id,
-                rows=write_payloads.rows,
-                idempotency_key=self._idempotency_key(bound_run, "rows"),
-            )
+            for batch_index, row_batch in enumerate(write_payloads.row_batches):
+                client.eval_tables.rows.add(
+                    created.evaluation_id,
+                    namespace=_WANDB_SCOPE_NAMESPACE,
+                    scope_id=scope.scope_id,
+                    rows=row_batch,
+                    idempotency_key=self._idempotency_key(
+                        bound_run, f"rows-{batch_index}"
+                    ),
+                )
             version = client.eval_tables.versions.create(
                 created.evaluation_id,
                 namespace=_WANDB_SCOPE_NAMESPACE,
@@ -205,7 +267,7 @@ class CESWriter:
         name: str,
         rows: Sequence[WriteRow],
     ) -> _CESWritePayloads:
-        """Normalize rows and infer ordered column schemas."""
+        """Validate and normalize rows, infer schemas, and build request batches."""
         self._validate_name(
             "EvalTable",
             name,
@@ -213,17 +275,17 @@ class CESWriter:
         )
         if not rows:
             raise UsageError("CES EvalTable logging requires at least one row.")
-        if len(rows) > _MAX_ROWS:
+        if len(rows) > _MAX_ROWS_PER_TABLE:
             raise UsageError(
-                f"CES EvalTable logging currently supports at most {_MAX_ROWS} "
-                "rows per table."
+                "CES EvalTable logging currently supports at most "
+                f"{_MAX_ROWS_PER_TABLE} rows per table."
             )
 
         dataset_field_types: dict[tuple[str, str], PrimitiveValueType] = {}
         dataset_field_order: dict[tuple[str, str], None] = {}
         scorer_types: dict[str, PrimitiveValueType] = {}
         scorer_order: dict[str, None] = {}
-        normalized_rows: list[dict[str, Any]] = []
+        normalized_rows: list[_CESRow] = []
 
         for row in rows:
             inputs = self._normalize_row_input_or_output_values(
@@ -293,11 +355,18 @@ class CESWriter:
         self._validate_body_size(
             "columns", {"dataset_fields": dataset_fields, "scorers": scorers}
         )
-        self._validate_body_size("rows", {"rows": normalized_rows})
         return _CESWritePayloads(
             dataset_fields=dataset_fields,
             scorers=scorers,
-            rows=normalized_rows,
+            # Materialize batches so every size error precedes the first request.
+            row_batches=list(
+                _iter_row_batches(
+                    normalized_rows,
+                    max_request_body_bytes=_MAX_REQUEST_BODY_BYTES,
+                    target_batch_body_bytes=_TARGET_ROW_BATCH_BODY_BYTES,
+                    max_rows_per_batch=_MAX_ROWS_PER_BATCH,
+                )
+            ),
         )
 
     def _normalize_row_input_or_output_values(
@@ -438,16 +507,11 @@ class CESWriter:
         )
 
     def _validate_body_size(self, operation: str, body: dict[str, Any]) -> None:
-        """Reject a request body at or above the CES 16 MiB limit."""
-        encoded = json.dumps(
-            body,
-            allow_nan=False,
-            ensure_ascii=False,
-            separators=(",", ":"),
-        ).encode()
-        if len(encoded) >= _MAX_BATCH_BODY_BYTES:
+        """Reject a request body at or above the CES hard limit."""
+        if len(_encode_json(body)) >= _MAX_REQUEST_BODY_BYTES:
             raise UsageError(
-                f"CES EvalTable {operation} payload must be smaller than 16 MiB."
+                f"CES EvalTable {operation} payload must be smaller than "
+                f"{_MAX_REQUEST_BODY_SIZE}."
             )
 
     def _resolve_scope_context(self, bound_run: _BoundRun) -> _CESScopeContext:
