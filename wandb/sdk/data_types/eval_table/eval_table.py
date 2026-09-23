@@ -250,7 +250,7 @@ class EvalTable(Table):
 
         if self._immutable_write_result is not None:
             self._warn_immutable_already_logged()
-            return dict(self._immutable_write_result.marker)
+            return dict(self._immutable_write_result.history_value)
 
         result = self._write_to_backend()
         self._immutable_write_result = result
@@ -258,7 +258,7 @@ class EvalTable(Table):
         with telemetry.context(run=run) as tel:
             tel.feature.eval_table = True
 
-        return dict(result.marker)
+        return dict(result.history_value)
 
     @override
     def has_been_logged(self) -> bool:
