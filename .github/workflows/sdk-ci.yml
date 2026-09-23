@@ -161,6 +161,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+          # The size check compares against the merge base with main.
+          fetch-depth: 0
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.13"
@@ -191,9 +193,9 @@ jobs:
           source .venv-deps/bin/activate
           uv pip install .
           python -c 'import wandb'
-      - name: Compare binary size and import time with main
+      - name: Compare binary sizes and import time with main
         run: |
-          nox -s wandb-core-size-check
+          nox -s binary-size-check
           nox -s wandb-import-time-check
 
   system-tests:
