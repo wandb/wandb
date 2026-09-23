@@ -10,7 +10,7 @@ redirect (RFC 8252):
 
 1. The CLI starts an HTTP server on an ephemeral loopback port.
 2. It opens `/cli-login` in the browser, which asks the user to approve and to
-   pick which organization the token should be scoped to.
+   pick which organization the token can access.
 3. The server redirects back to the loopback port with an authorization code.
 4. The CLI exchanges the code, plus the PKCE verifier, for an access token and
    a refresh token.
@@ -117,7 +117,7 @@ def login(
 
     Args:
         host: The W&B server to log in to.
-        organization: Scope the token to this organization. When omitted, the
+        organization: Restrict the token to this organization. When omitted, the
             consent page asks the user to choose from the organizations they
             belong to.
         client_id: The OAuth client to identify as. Deployments that registered
