@@ -30,7 +30,7 @@ class EvalTableWriter(Protocol):
     """Backend-specific validation and persistence for an EvalTable."""
 
     def validate_cell_value(self, value: Any, column: ColumnKey) -> None:
-        """Raise if the backend cannot represent a value from this column.
+        """Check if cell value type is supported by EvalTable.
 
         This may run before `bind_to_run` while Table constructs its rows.
         """
