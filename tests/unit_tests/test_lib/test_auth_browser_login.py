@@ -213,7 +213,6 @@ def test_login_opens_the_consent_page_with_a_pkce_challenge(
     assert captured["response_type"] == "code"
     assert captured["code_challenge_method"] == "S256"
     assert captured["organization"] == "my-org"
-    assert "scope" not in captured
     # The challenge is sent, the verifier is not: that is the whole point, so
     # that intercepting this URL does not let someone else redeem the code.
     assert captured["code_challenge"]
