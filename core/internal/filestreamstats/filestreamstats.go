@@ -358,10 +358,10 @@ func (s *Stats) RecordRun(ctx context.Context) {
 		attrs := encodingAttrs
 		attrs.Segment = key.segment
 		attrs.Stream = key.stream
-		s.recorder.RecordDuration(
+		s.recorder.RecordHistogram(
 			ctx,
 			MetricEncodeDuration,
-			time.Duration(nanos),
+			float64(time.Duration(nanos).Microseconds()),
 			&attrs,
 		)
 	}
@@ -372,10 +372,10 @@ func (s *Stats) RecordRun(ctx context.Context) {
 	}
 
 	totalAttrs := encodingAttrs
-	s.recorder.RecordDuration(
+	s.recorder.RecordHistogram(
 		ctx,
 		MetricEncodeDurationSum,
-		time.Duration(totalNanos),
+		float64(time.Duration(totalNanos).Microseconds()),
 		&totalAttrs,
 	)
 

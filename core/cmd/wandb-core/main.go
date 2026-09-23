@@ -245,7 +245,7 @@ func leetMain(args []string) int {
 	recorder.RecordHistogram(
 		context.Background(),
 		"leet_session_duration",
-		float64(duration.Seconds()),
+		duration.Seconds(),
 		&analytics.LowCardinalityAttributes{},
 	)
 

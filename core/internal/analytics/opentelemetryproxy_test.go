@@ -385,7 +385,7 @@ func TestTelemetryRecorder_RecordHistogram_ResolvesBoundaries(t *testing.T) {
 			t.Context(),
 			"encode_duration",
 			d.Seconds(),
-			analytics.LowCardinalityAttributes{},
+			&analytics.LowCardinalityAttributes{},
 		)
 	}
 	require.NoError(t, proxy.Shutdown(context.Background()))
