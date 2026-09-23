@@ -2,10 +2,12 @@ package monitor
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
-	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -13,11 +15,6 @@ import (
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-
-	"github.com/prometheus/client_golang/api"
-	v1 "github.com/prometheus/client_golang/api/prometheus/v1"
-	"github.com/prometheus/common/config"
-	"github.com/prometheus/common/model"
 )
 
 // DCGMExporter collects NVIDIA GPU metrics reported by the Data Center GPU Manager (DCGM)
@@ -27,23 +24,26 @@ import (
 // Prometheus / OpenMetrics instance that aggregates Nvidia DCGM Exporter metrics from
 // (potentially) multiple compute nodes (e.g. in SLURM jobs).
 type DCGMExporter struct {
-	// The full URL of the Prometheus API endpoint is parsed into the base URL and the query.
+	// The full URL of the Prometheus API endpoint is parsed into the query URL and the queries.
 	// For example:
 	// https://gateway:9400/api/v1/query?query=DCGM_FI_DEV_GPU_TEMP{node="l1337", cluster="globular"}
 	// will be parsed into:
-	// - baseUrl: http://prometheus-gateway:9400
+	// - queryURL: https://gateway:9400/api/v1/query
 	// - queries: ["DCGM_FI_DEV_GPU_TEMP{node=\"l1337\", cluster=\"globular\"}"]
 
-	// baseUrl is the base URL of the OpenMetrics API endpoint.
-	baseUrl string
+	// queryURL is the Prometheus instant query endpoint.
+	queryURL string
 
 	// queries are the PromQL queries to fetch the relevant metrics.
 	//
 	// PromQL is the Prometheus Query Language.
 	queries []string
 
-	// prometheusAPI is the Prometheus API client.
-	prometheusAPI v1.API
+	// headers are sent with every request, typically for authentication.
+	headers map[string]string
+
+	// client sends the requests to the Prometheus API.
+	client *retryablehttp.Client
 
 	// logger is the logger to log logs. ;)
 	logger *observability.CoreLogger
@@ -66,7 +66,7 @@ type DCGMExporterParams struct {
 	// Logger to use for logging.
 	Logger *observability.CoreLogger
 
-	// Client is the base retryable HTTP client to use for the Prometheus API client.
+	// Client is the retryable HTTP client to use for the Prometheus API requests.
 	Client *retryablehttp.Client
 }
 
@@ -90,59 +90,26 @@ func NewDCGMExporter(params DCGMExporterParams) *DCGMExporter {
 	}
 
 	// Case 2: Prometheus API (/api/v1/query) query.
-	var err error
-
-	// Split the URL into the base URL and the query.
-	baseUrl, queries, err := ParsePromQLURL(params.URL)
+	baseURL, queries, err := ParsePromQLURL(params.URL)
 	if err != nil {
 		params.Logger.Error("monitor: openmetrics: error parsing URL", "error", err)
 		return nil
 	}
-	params.Logger.Debug("monitor: openmetrics: parsed URL", "url", baseUrl, "queries", queries)
-
-	// Create headers config.
-	headersConfig := &config.Headers{
-		Headers: make(map[string]config.Header),
-	}
-	for key, value := range params.Headers {
-		headersConfig.Headers[key] = config.Header{
-			Values: []string{value},
-		}
-	}
-
-	// Create a chain of RoundTrippers: headers -> retryable client.
-	roundTripper := config.NewHeadersRoundTripper(
-		headersConfig,
-		params.Client.StandardClient().Transport,
-	)
-
-	apiClient, err := api.NewClient(api.Config{
-		Address:      baseUrl,
-		RoundTripper: roundTripper,
-	})
-	if err != nil {
-		params.Logger.Error(
-			"monitor: dcgm_exporter: error creating Prometheus API client",
-			"error", err,
-		)
-		return nil
-	}
-
-	// Create the Prometheus v1 API client.
-	prometheusAPI := v1.NewAPI(apiClient)
+	params.Logger.Debug("monitor: openmetrics: parsed URL", "url", baseURL, "queries", queries)
 
 	return &DCGMExporter{
-		baseUrl:       baseUrl,
-		queries:       queries,
-		logger:        params.Logger,
-		prometheusAPI: prometheusAPI,
+		queryURL: baseURL + "/api/v1/query",
+		queries:  queries,
+		headers:  params.Headers,
+		client:   params.Client,
+		logger:   params.Logger,
 	}
 }
 
 // ParsePromQLURL parses a Prometheus API URL to get the base URL and query parameters.
 //
 // The query is expected to be in the Prometheus Query Language (PromQL).
-// parsedURL.Path is omitted as Prometheus' api.Client() assumes /api/v1/query.
+// The URL's path is ignored: queries are sent to <baseURL>/api/v1/query.
 func ParsePromQLURL(fullURL string) (baseURL string, queries []string, err error) {
 	parsedURL, err := url.Parse(fullURL)
 	if err != nil {
@@ -173,6 +140,87 @@ func (de *DCGMExporter) Queries() []string {
 	return de.queries
 }
 
+// promSample is one element of the vector returned by a Prometheus instant query.
+//
+// Value holds the sample's timestamp followed by its value encoded as a string.
+type promSample struct {
+	Metric map[string]string `json:"metric"`
+	Value  []json.RawMessage `json:"value"`
+}
+
+// query runs a PromQL instant query and returns the resulting vector.
+func (de *DCGMExporter) query(ctx context.Context, query string) ([]promSample, error) {
+	reqURL := de.queryURL + "?" + url.Values{"query": {query}}.Encode()
+	req, err := retryablehttp.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	for key, value := range de.headers {
+		req.Header.Set(key, value)
+	}
+
+	resp, err := de.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	var body struct {
+		Status string `json:"status"`
+		Data   struct {
+			ResultType string       `json:"resultType"`
+			Result     []promSample `json:"result"`
+		} `json:"data"`
+		ErrorType string   `json:"errorType"`
+		Error     string   `json:"error"`
+		Warnings  []string `json:"warnings"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return nil, fmt.Errorf("HTTP %d: %w", resp.StatusCode, err)
+	}
+	if body.Status != "success" {
+		return nil, fmt.Errorf("HTTP %d: %s: %s", resp.StatusCode, body.ErrorType, body.Error)
+	}
+	if body.Data.ResultType != "vector" {
+		return nil, fmt.Errorf("unexpected result type %q", body.Data.ResultType)
+	}
+	if len(body.Warnings) > 0 {
+		de.logger.Warn(
+			"monitor: dcgm_exporter: warnings querying Prometheus API endpoint",
+			"warnings", body.Warnings,
+		)
+	}
+
+	return body.Data.Result, nil
+}
+
+// gpuMetrics runs all queries and parses the GPU metrics in their results.
+func (de *DCGMExporter) gpuMetrics(ctx context.Context) ([]*gpuMetric, error) {
+	var metrics []*gpuMetric
+
+	for _, query := range de.queries {
+		samples, err := de.query(ctx, query)
+		if err != nil {
+			de.logger.Error(
+				"monitor: dcgm_exporter: error querying Prometheus API endpoint",
+				"error", err,
+			)
+			return nil, err
+		}
+
+		for _, sample := range samples {
+			gm, err := newGPUMetric(sample)
+			if err != nil {
+				de.logger.Debug("monitor: dcgm_exporter: error parsing GPU metric", "error", err)
+				continue
+			}
+			metrics = append(metrics, gm)
+		}
+	}
+
+	return metrics, nil
+}
+
 // gpuMetric represents a GPU metric and metadata parsed from a Prometheus sample.
 type gpuMetric struct {
 	// name is the metric name.
@@ -192,49 +240,41 @@ type gpuMetric struct {
 }
 
 // newGPUMetric parses a GPU metric from a Prometheus sample.
-func newGPUMetric(sample *model.Sample) (*gpuMetric, error) {
-	labels := make(map[string]string)
-
-	for labelName, labelValue := range sample.Metric {
-		if labelName != "__name__" {
-			labels[string(labelName)] = string(labelValue)
-		}
-	}
+func newGPUMetric(sample promSample) (*gpuMetric, error) {
+	labels := sample.Metric
 
 	// Get GPU index from labels - usually in 'gpu' or 'device' label.
 	// If it is missing, we cannot identify the GPU and should ignore the metric.
-	gpuIndex := ""
-	if idx, ok := labels["gpu"]; ok {
-		gpuIndex = idx
-	} else if idx, ok := labels["device"]; ok {
+	gpuIndex := labels["gpu"]
+	if gpuIndex == "" {
 		// Strip "nvidia" prefix if present
-		gpuIndex = strings.TrimPrefix(idx, "nvidia")
+		gpuIndex = strings.TrimPrefix(labels["device"], "nvidia")
 	}
 	if gpuIndex == "" {
 		return nil, fmt.Errorf("missing GPU index")
 	}
 
-	gm := &gpuMetric{
-		name:  string(sample.Metric["__name__"]), // Prometheus stores it in the '__name__' label
-		value: float64(sample.Value),             // Safe ops as sample.Value is a float64
-		index: gpuIndex,
+	if len(sample.Value) != 2 {
+		return nil, fmt.Errorf("malformed sample value")
+	}
+	var text string
+	if err := json.Unmarshal(sample.Value[1], &text); err != nil {
+		return nil, err
+	}
+	value, err := strconv.ParseFloat(text, 64)
+	if err != nil {
+		return nil, err
 	}
 
-	// Extract metadata from labels
-	if uuid, ok := labels["uuid"]; ok {
-		gm.uuid = uuid
-	}
-	if modelName, ok := labels["modelName"]; ok {
-		gm.modelName = modelName
-	}
-	if node, ok := labels["node"]; ok {
-		gm.node = node
-	}
-	if hostname, ok := labels["hostname"]; ok {
-		gm.hostname = hostname
-	}
-
-	return gm, nil
+	return &gpuMetric{
+		name:      labels["__name__"], // Prometheus stores it in the '__name__' label
+		value:     value,
+		index:     gpuIndex,
+		uuid:      labels["uuid"],
+		modelName: labels["modelName"],
+		node:      labels["node"],
+		hostname:  labels["hostname"],
+	}, nil
 }
 
 // wandbName maps a GPU metric from DCGM to a WandB GPU metric name.
@@ -321,49 +361,14 @@ func (de *DCGMExporter) Sample() (*spb.StatsRecord, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), DefaultOpenMetricsTimeout)
 	defer cancel()
 
+	gpuMetrics, err := de.gpuMetrics(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	metrics := make(map[string]any)
-
-	for _, query := range de.queries {
-		result, warnings, err := de.prometheusAPI.Query(
-			ctx,
-			query,
-			time.Now(),
-			v1.WithTimeout(DefaultOpenMetricsTimeout),
-		)
-		if err != nil {
-			de.logger.Error(
-				"monitor: dcgm_exporter: error querying Prometheus API endpoint",
-				"error", err,
-			)
-			return nil, err
-		}
-		if len(warnings) > 0 {
-			de.logger.Warn(
-				"monitor: openmetrics: warnings querying Prometheus API endpoint",
-				"warnings", warnings,
-			)
-		}
-
-		// model.Vector is expected.
-		vector, ok := result.(model.Vector)
-		if !ok {
-			de.logger.Error(
-				"monitor: dcgm: unexpected result type",
-				"type", fmt.Sprintf("%T", result),
-			)
-			continue
-		}
-
-		// Process each sample in the vector.
-		for _, sample := range vector {
-			gm, err := newGPUMetric(sample)
-			if err != nil {
-				de.logger.Debug("monitor: dcgm_exporter: error parsing GPU metric", "error", err)
-				continue
-			}
-
-			metrics[gm.wandbName()] = gm.value
-		}
+	for _, gm := range gpuMetrics {
+		metrics[gm.wandbName()] = gm.value
 	}
 
 	if len(metrics) == 0 {
@@ -380,72 +385,26 @@ func (de *DCGMExporter) Probe(ctx context.Context) *spb.EnvironmentRecord {
 	ctx, cancel := context.WithTimeout(ctx, DefaultOpenMetricsTimeout)
 	defer cancel()
 
-	gpus := make(map[*spb.GpuNvidiaInfo]bool)
-
-	for _, query := range de.queries {
-		result, warnings, err := de.prometheusAPI.Query(
-			ctx,
-			query,
-			time.Now(),
-			v1.WithTimeout(DefaultOpenMetricsTimeout),
-		)
-		if err != nil {
-			de.logger.Error(
-				"monitor: dcgm_exporter: error querying Prometheus API endpoint",
-				"error", err,
-			)
-			return nil
-		}
-		if len(warnings) > 0 {
-			de.logger.Warn(
-				"monitor: openmetrics: warnings querying Prometheus API endpoint",
-				"warnings", warnings,
-			)
-		}
-
-		// Process the results based on type
-		vector, ok := result.(model.Vector)
-		if !ok {
-			de.logger.Error(
-				"monitor: dcgm: unexpected result type",
-				"type", fmt.Sprintf("%T", result),
-			)
-			continue
-		}
-
-		// Process each sample in the vector
-		for _, sample := range vector {
-			gm, err := newGPUMetric(sample)
-			if err != nil {
-				de.logger.Debug(
-					"monitor: dcgm_exporter: error parsing GPU metric",
-					"error", err,
-				)
-				continue
-			}
-
-			// GPU Model Name and UUID uniquely identify a GPU.
-			// Do not store the information if either is missing.
-			if gm.modelName == "" || gm.uuid == "" {
-				continue
-			}
-
-			gpuInfo := &spb.GpuNvidiaInfo{
-				Name: gm.modelName,
-				Uuid: gm.uuid,
-			}
-
-			gpus[gpuInfo] = true
-		}
-	}
-
-	if len(gpus) == 0 {
+	gpuMetrics, err := de.gpuMetrics(ctx)
+	if err != nil {
 		return nil
 	}
 
-	gpuNvidia := make([]*spb.GpuNvidiaInfo, 0, len(gpus))
-	for gpu := range gpus {
-		gpuNvidia = append(gpuNvidia, gpu)
+	var gpuNvidia []*spb.GpuNvidiaInfo
+	for _, gm := range gpuMetrics {
+		// GPU Model Name and UUID uniquely identify a GPU.
+		// Do not store the information if either is missing.
+		if gm.modelName == "" || gm.uuid == "" {
+			continue
+		}
+		gpuNvidia = append(gpuNvidia, &spb.GpuNvidiaInfo{
+			Name: gm.modelName,
+			Uuid: gm.uuid,
+		})
+	}
+
+	if len(gpuNvidia) == 0 {
+		return nil
 	}
 
 	return &spb.EnvironmentRecord{
