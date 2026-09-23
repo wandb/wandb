@@ -1,17 +1,17 @@
 from __future__ import annotations
 
 import datetime
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Any
 
 import wandb
 import wandb.integration.weave as weave_integration
 import wandb.integration.weave.media_adapters as media_adapters
 from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
-from wandb.sdk.data_types.eval_table._writer import WriteInput, WriteResult
+from wandb.sdk.data_types.eval_table._writer import WriteResult, WriteRow
 
 if TYPE_CHECKING:
-    from wandb.sdk.data_types.table import ColumnKey
+    from wandb.sdk.data_types.table import ColumnKey, LogMode
     from wandb.sdk.wandb_run import Run as LocalRun
 
 
@@ -150,13 +150,12 @@ class WeaveWriter:
 
     def _normalize_mapping(
         self,
-        values: Mapping[str, Any],
-        column_keys: Mapping[str, ColumnKey],
+        values: Mapping[ColumnKey, Any],
     ) -> dict[str, Any]:
         return {
-            column: _normalize_value(
+            str(column): _normalize_value(
                 item,
-                column_keys.get(column, column),
+                column,
                 unsupported_media_mode=self._unsupported_media_mode,
             )
             for column, item in values.items()
@@ -170,19 +169,24 @@ class WeaveWriter:
             name=eval_name,
         )
 
-    def write(self, payload: WriteInput) -> WriteResult:
+    def write(
+        self,
+        *,
+        name: str,
+        rows: Sequence[WriteRow],
+        ncols: int,
+        log_mode: LogMode,
+    ) -> WriteResult:
         # Import after bind initializes Weave for the intended run project.
-        ev = self._create_weave_eval_logger(payload.name)
+        ev = self._create_weave_eval_logger(name)
 
-        for row in payload.rows:
+        for row in rows:
             ev.log_example(
-                inputs=self._normalize_mapping(row.inputs, payload.column_keys),
+                inputs=self._normalize_mapping(row.inputs),
                 output=(
-                    self._normalize_mapping(row.outputs, payload.column_keys)
-                    if row.outputs is not None
-                    else None
+                    self._normalize_mapping(row.output) if row.output is not None else None
                 ),
-                scores=self._normalize_mapping(row.scores, payload.column_keys),
+                scores=self._normalize_mapping(row.scores),
             )
 
         ev.log_summary()
@@ -192,9 +196,9 @@ class WeaveWriter:
         return WriteResult(
             marker={
                 "_type": "eval-table",
-                "ncols": payload.ncols,
-                "nrows": len(payload.rows),
-                "log_mode": payload.log_mode,
+                "ncols": ncols,
+                "nrows": len(rows),
+                "log_mode": log_mode,
                 "evaluate_call_id": evaluate_call_id,
             },
             logged_id=evaluate_call_id,

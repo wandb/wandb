@@ -14,13 +14,13 @@ from wandb.apis.public.service_api import ServiceApi
 from wandb.errors import UsageError
 from wandb.sdk.data_types.base_types.media import Media
 from wandb.sdk.data_types.base_types.wb_value import WBValue
-from wandb.sdk.data_types.eval_table._writer import WriteInput, WriteResult
+from wandb.sdk.data_types.eval_table._writer import WriteResult, WriteRow
 from wandb.sdk.data_types.table import Table
 
 if TYPE_CHECKING:
     from coreweave_evaluations import CoreWeaveEvaluations as CoreWeaveEvaluationsT
 
-    from wandb.sdk.data_types.table import ColumnKey
+    from wandb.sdk.data_types.table import ColumnKey, LogMode
     from wandb.sdk.wandb_run import Run as LocalRun
 
 
@@ -166,7 +166,14 @@ class CESWriter:
         if isinstance(value, WBValue):
             self._validate_wandb_value(value, column)
 
-    def write(self, payload: WriteInput) -> WriteResult:
+    def write(
+        self,
+        *,
+        name: str,
+        rows: Sequence[WriteRow],
+        ncols: int,
+        log_mode: LogMode,
+    ) -> WriteResult:
         """Prepare and persist the CES resources, then return their history marker."""
         bound_run = self._require_bound()
 
@@ -186,14 +193,14 @@ class CESWriter:
                 "CES EvalTable logging requires the coreweave_evaluations package."
             ) from exc
 
-        write_payloads = self._build_write_payloads(payload)
+        write_payloads = self._build_write_payloads(name=name, rows=rows)
         scope = self._resolve_scope_context(bound_run)
         client = self._create_client(CoreWeaveEvaluations, base_url, scope)
         try:
             created = client.eval_tables.create(
                 scope.scope_ref,
                 namespace=_WANDB_SCOPE_NAMESPACE,
-                name=payload.name,
+                name=name,
                 idempotency_key=self._idempotency_key(bound_run, "create"),
             )
             client.eval_tables.create_columns(
@@ -204,12 +211,12 @@ class CESWriter:
                 scorers=write_payloads.scorers,
                 idempotency_key=self._idempotency_key(bound_run, "columns"),
             )
-            for batch_index, rows in enumerate(write_payloads.row_batches):
+            for batch_index, row_batch in enumerate(write_payloads.row_batches):
                 client.eval_tables.add_rows(
                     created.evaluation_id,
                     namespace=_WANDB_SCOPE_NAMESPACE,
                     scope_ref=scope.scope_ref,
-                    rows=rows,
+                    rows=row_batch,
                     idempotency_key=self._idempotency_key(
                         bound_run, f"rows-{batch_index}"
                     ),
@@ -235,9 +242,9 @@ class CESWriter:
                 # Frontend dispatches on `_type` and validates the schema version.
                 "_type": "eval-table-ces",
                 "schema_version": 1,
-                "ncols": payload.ncols,
-                "nrows": len(payload.rows),
-                "log_mode": payload.log_mode,
+                "ncols": ncols,
+                "nrows": len(rows),
+                "log_mode": log_mode,
                 "evaluation_id": created.evaluation_id,
                 "evaluation_version_id": version.evaluation_version_id,
                 "dataset_id": created.dataset_id,
@@ -246,16 +253,21 @@ class CESWriter:
             logged_id=version.evaluation_version_id,
         )
 
-    def _build_write_payloads(self, value: WriteInput) -> _CESWritePayloads:
+    def _build_write_payloads(
+        self,
+        *,
+        name: str,
+        rows: Sequence[WriteRow],
+    ) -> _CESWritePayloads:
         """Normalize rows and infer ordered column schemas."""
         self._validate_name(
             "EvalTable",
-            value.name,
+            name,
             max_length=_MAX_EVAL_TABLE_NAME_LENGTH,
         )
-        if not value.rows:
+        if not rows:
             raise UsageError("CES EvalTable logging requires at least one row.")
-        if len(value.rows) > _MAX_ROWS_PER_TABLE:
+        if len(rows) > _MAX_ROWS_PER_TABLE:
             raise UsageError(
                 "CES EvalTable logging currently supports at most "
                 f"{_MAX_ROWS_PER_TABLE} rows per table."
@@ -265,34 +277,33 @@ class CESWriter:
         dataset_field_order: dict[tuple[str, str], None] = {}
         scorer_types: dict[str, PrimitiveValueType] = {}
         scorer_order: dict[str, None] = {}
-        rows: list[_CESRow] = []
+        normalized_rows: list[_CESRow] = []
 
-        for row in value.rows:
+        for row in rows:
             inputs = self._normalize_row_input_or_output_values(
                 row.inputs,
                 source="input",
-                column_keys=value.column_keys,
                 types=dataset_field_types,
                 order=dataset_field_order,
             )
-            outputs = (
+            output = (
                 self._normalize_row_input_or_output_values(
-                    row.outputs,
+                    row.output,
                     source="output",
-                    column_keys=value.column_keys,
                     types=dataset_field_types,
                     order=dataset_field_order,
                 )
-                if row.outputs is not None
+                if row.output is not None
                 else None
             )
             scores = self._normalize_row_score_values(
                 row.scores,
-                column_keys=value.column_keys,
                 types=scorer_types,
                 order=scorer_order,
             )
-            rows.append({"input": inputs, "output": outputs, "scores": scores})
+            normalized_rows.append(
+                {"input": inputs, "output": output, "scores": scores}
+            )
 
         missing_fields = [
             name
@@ -337,7 +348,7 @@ class CESWriter:
             # Materialize batches so every size error precedes the first request.
             row_batches=list(
                 _iter_row_batches(
-                    rows,
+                    normalized_rows,
                     max_body_bytes=_MAX_REQUEST_BODY_BYTES,
                     target_body_bytes=_TARGET_ROW_BATCH_BODY_BYTES,
                     max_rows=_MAX_ROWS_PER_BATCH,
@@ -347,16 +358,16 @@ class CESWriter:
 
     def _normalize_row_input_or_output_values(
         self,
-        values: Mapping[str, Any],
+        values: Mapping[ColumnKey, Any],
         *,
         source: Literal["input", "output"],
-        column_keys: Mapping[str, ColumnKey],
         types: dict[tuple[str, str], PrimitiveValueType],
         order: dict[tuple[str, str], None],
     ) -> dict[str, Any]:
         """Normalize one input/output mapping and accumulate its inferred types."""
         normalized_values: dict[str, Any] = {}
-        for name, value in values.items():
+        for column, value in values.items():
+            name = str(column)
             key = (source, name)
             if key not in order:
                 self._validate_name(
@@ -365,7 +376,6 @@ class CESWriter:
                     max_length=_MAX_DATASET_FIELD_NAME_LENGTH,
                 )
                 order[key] = None
-            column = column_keys.get(name, name)
             normalized, value_type = self._normalize_primitive(value, column)
             if value_type is not None:
                 types[key] = self._merge_type(column, types.get(key), value_type)
@@ -374,15 +384,15 @@ class CESWriter:
 
     def _normalize_row_score_values(
         self,
-        values: Mapping[str, Any],
+        values: Mapping[ColumnKey, Any],
         *,
-        column_keys: Mapping[str, ColumnKey],
         types: dict[str, PrimitiveValueType],
         order: dict[str, None],
     ) -> dict[str, Any]:
         """Normalize one score mapping and accumulate its inferred types."""
         normalized_values: dict[str, Any] = {}
-        for name, value in values.items():
+        for column, value in values.items():
+            name = str(column)
             if name not in order:
                 self._validate_name(
                     "score column",
@@ -390,7 +400,6 @@ class CESWriter:
                     max_length=_MAX_SCORER_NAME_LENGTH,
                 )
                 order[name] = None
-            column = column_keys.get(name, name)
             normalized, value_type = self._normalize_primitive(value, column)
             if value_type is not None:
                 types[name] = self._merge_type(column, types.get(name), value_type)
