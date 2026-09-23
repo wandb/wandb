@@ -340,9 +340,8 @@ func (s *Scheduler) doneTask(
 	return &spb.SweepSchedulerServerNextTaskResponse{
 		Task: &spb.SweepSchedulerServerNextTaskResponse_Done{
 			Done: &spb.SweepSchedulerServerDoneTask{
-				Reason:                   reason,
-				Message:                  message,
-				DiscardedOptimizerRunIds: s.takeDiscards(),
+				Reason:  reason,
+				Message: message,
 			},
 		},
 	}
