@@ -153,6 +153,7 @@ class WandbAgentTestEnv:
         sweep_id: str | None = None,
         entity: str | None = None,
         project: str | None = None,
+        max_consecutive_failed_runs: int | None = None,
     ) -> pyagent.Agent:
         """Build an in-process sweep agent for unit tests."""
         return pyagent.Agent(
@@ -161,6 +162,7 @@ class WandbAgentTestEnv:
             entity=entity or self.entity,
             project=project or self.project,
             count=count,
+            max_consecutive_failed_runs=max_consecutive_failed_runs,
         )
 
     def make_cli_agent(

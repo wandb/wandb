@@ -909,6 +909,7 @@ def agent(
     count: int | None = None,
     forward_signals: bool = False,
     term_timeout: int | None = None,
+    max_consecutive_failed_runs: int | None = None,
 ) -> None:
     """Start one or more sweep agents.
 
@@ -932,6 +933,8 @@ def agent(
         count: The number of sweep config trials to try.
         forward_signals: Whether to forward signals the agent receives
             to the child processes. Only supported by CLI agent.
+        max_consecutive_failed_runs: Shut the agent down once this many runs
+            have failed back to back.
     """
     ...
 

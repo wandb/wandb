@@ -1,3 +1,7 @@
+# v1.113.2 (2026-09-21)
+
+* **Bug Fix**: Expand S3 operations that check for an error inside an HTTP 200 response (wave 4/4)
+
 # v1.113.1 (2026-09-11)
 
 * **Documentation**: Updated S3 Object Lock Default Retention documentation.

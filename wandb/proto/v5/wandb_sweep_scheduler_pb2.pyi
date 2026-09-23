@@ -131,11 +131,10 @@ class SweepSchedulerServerRunData(_message.Message):
     def __init__(self, wandb_run_id: _Optional[str] = ..., optimizer_run_id: _Optional[str] = ..., state: _Optional[_Union[SweepRunState, str]] = ..., config_json: _Optional[str] = ..., summary_json: _Optional[str] = ..., history_json: _Optional[str] = ...) -> None: ...
 
 class SweepSchedulerServerDoneTask(_message.Message):
-    __slots__ = ("reason", "message", "discarded_optimizer_run_ids")
+    __slots__ = ("reason", "message")
     class Reason(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
         REASON_UNSPECIFIED: _ClassVar[SweepSchedulerServerDoneTask.Reason]
-        REASON_EXHAUSTED: _ClassVar[SweepSchedulerServerDoneTask.Reason]
         REASON_TERMINATED: _ClassVar[SweepSchedulerServerDoneTask.Reason]
         REASON_SWEEP_FINISHED: _ClassVar[SweepSchedulerServerDoneTask.Reason]
         REASON_SWEEP_NOT_FOUND: _ClassVar[SweepSchedulerServerDoneTask.Reason]
@@ -143,7 +142,6 @@ class SweepSchedulerServerDoneTask(_message.Message):
         REASON_OPTIMIZER_ERROR: _ClassVar[SweepSchedulerServerDoneTask.Reason]
         REASON_SHUTDOWN: _ClassVar[SweepSchedulerServerDoneTask.Reason]
     REASON_UNSPECIFIED: SweepSchedulerServerDoneTask.Reason
-    REASON_EXHAUSTED: SweepSchedulerServerDoneTask.Reason
     REASON_TERMINATED: SweepSchedulerServerDoneTask.Reason
     REASON_SWEEP_FINISHED: SweepSchedulerServerDoneTask.Reason
     REASON_SWEEP_NOT_FOUND: SweepSchedulerServerDoneTask.Reason
@@ -152,11 +150,9 @@ class SweepSchedulerServerDoneTask(_message.Message):
     REASON_SHUTDOWN: SweepSchedulerServerDoneTask.Reason
     REASON_FIELD_NUMBER: _ClassVar[int]
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
-    DISCARDED_OPTIMIZER_RUN_IDS_FIELD_NUMBER: _ClassVar[int]
     reason: SweepSchedulerServerDoneTask.Reason
     message: str
-    discarded_optimizer_run_ids: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, reason: _Optional[_Union[SweepSchedulerServerDoneTask.Reason, str]] = ..., message: _Optional[str] = ..., discarded_optimizer_run_ids: _Optional[_Iterable[str]] = ...) -> None: ...
+    def __init__(self, reason: _Optional[_Union[SweepSchedulerServerDoneTask.Reason, str]] = ..., message: _Optional[str] = ...) -> None: ...
 
 class SweepSchedulerClientTaskResult(_message.Message):
     __slots__ = ("task_seq", "warm_start", "generation", "error")
