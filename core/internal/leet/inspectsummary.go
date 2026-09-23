@@ -31,9 +31,9 @@ const (
 
 // PrintSummary writes an overview of a run read from its .wandb file: its
 // name and ID, state, last step, the latest values of its metrics, its
-// config and the end of its console output. An empty runFile resolves to
-// the latest run in wandbDir.
-func PrintSummary(runFile, wandbDir string, w io.Writer) error {
+// config and the end of its console output, as text or as one JSON object.
+// An empty runFile resolves to the latest run in wandbDir.
+func PrintSummary(runFile, wandbDir string, w io.Writer, asJSON bool) error {
 	path, err := resolveWandbFile(runFile, wandbDir)
 	if err != nil {
 		return err
@@ -45,6 +45,9 @@ func PrintSummary(runFile, wandbDir string, w io.Writer) error {
 	}
 
 	sessionFeatures.mark("inspector.summary")
+	if asJSON {
+		return digest.writeJSON(w)
+	}
 	return digest.writeText(w)
 }
 
@@ -195,7 +198,7 @@ func (d *runDigest) writeText(w io.Writer) error {
 // W&B's internal "_wandb" entries.
 func writeTextSection(b *strings.Builder, title string, tree map[string]any) {
 	var items []KeyValuePair
-	flattenMap(compactValue(tree).(map[string]any), "", &items, nil)
+	flattenMap(compactValue(tree, true).(map[string]any), "", &items, nil)
 
 	var shown []KeyValuePair
 	width := 0
@@ -216,26 +219,89 @@ func writeTextSection(b *strings.Builder, title string, tree map[string]any) {
 	}
 }
 
+func (d *runDigest) writeJSON(w io.Writer) error {
+	state, _ := d.state()
+
+	summary := compactValue(d.overview.runSummary.ToNestedMaps(), false).(map[string]any)
+	delete(summary, "_wandb")
+	config := compactValue(d.overview.runConfig.CloneTree(), false).(map[string]any)
+	delete(config, "_wandb")
+
+	tail, total := d.consoleTail()
+	console := make([]map[string]any, 0, len(tail))
+	for _, line := range tail {
+		stream := "stdout"
+		if line.IsStderr {
+			stream = "stderr"
+		}
+		console = append(console, map[string]any{
+			"time":   line.Timestamp.UTC(),
+			"stream": stream,
+			"line":   line.Content,
+		})
+	}
+
+	out := map[string]any{
+		"file":          d.path,
+		"run_id":        d.run.ID,
+		"name":          d.run.DisplayName,
+		"entity":        d.run.Entity,
+		"project":       d.run.Project,
+		"notes":         d.run.Notes,
+		"tags":          append([]string{}, d.run.Tags...),
+		"state":         state,
+		"last_write":    d.lastWrite.UTC(),
+		"summary":       summary,
+		"config":        config,
+		"console":       console,
+		"console_lines": total,
+		"start_time":    nil,
+		"exit_code":     nil,
+		"step":          nil,
+	}
+	if !d.run.StartTime.IsZero() {
+		out["start_time"] = d.run.StartTime.UTC()
+	}
+	if d.exit != nil {
+		out["exit_code"] = d.exit.GetExitCode()
+	}
+	if d.lastStep >= 0 {
+		out["step"] = d.lastStep
+	}
+
+	return encodeJSON(w, out, "  ")
+}
+
 // compactValue replaces each W&B data type such as a histogram or an image,
-// which is a map with a "_type" key, with one "type path" string, and each
-// list with its JSON, truncated.
+// which is a map with a "_type" key, with its type and file path. For text,
+// that becomes one "type path" string, and each list becomes its JSON,
+// truncated.
 //
 // The result is a new tree: the summary can hold its values by reference.
-func compactValue(v any) any {
+func compactValue(v any, forText bool) any {
 	switch v := v.(type) {
 	case map[string]any:
-		if typ, ok := v["_type"].(string); ok {
-			path, _ := v["path"].(string)
+		typ, isTyped := v["_type"].(string)
+		path, hasPath := v["path"].(string)
+		switch {
+		case isTyped && forText:
 			return strings.TrimSpace(typ + " " + path)
+		case isTyped && hasPath:
+			return map[string]any{"_type": typ, "path": path}
+		case isTyped:
+			return map[string]any{"_type": typ}
 		}
+
 		out := make(map[string]any, len(v))
 		for k, e := range v {
-			out[k] = compactValue(e)
+			out[k] = compactValue(e, forText)
 		}
 		return out
 	case []any:
-		s, _ := simplejsonext.MarshalToString(v)
-		return truncateValue(s, summaryListWidth)
+		if forText {
+			s, _ := simplejsonext.MarshalToString(v)
+			return truncateValue(s, summaryListWidth)
+		}
 	}
 	return v
 }

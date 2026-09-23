@@ -269,6 +269,8 @@ type leetOptions struct {
 	symonInterval    time.Duration
 	inspect          bool
 	summary          bool
+	jsonOutput       bool
+	follow           bool
 	wandbDir         string
 
 	// remoteURL is the W&B URL of the run to open
@@ -349,6 +351,20 @@ func bindLeetFlags(fs *flag.FlagSet, opts *leetOptions) {
 		"With --inspect, print the run's state, latest metric values,"+
 			" config and console tail instead of its records.",
 	)
+	fs.BoolVar(
+		&opts.jsonOutput,
+		"json",
+		false,
+		"With --inspect, print JSON: one line per record, or one object"+
+			" with --summary.",
+	)
+	fs.BoolVar(
+		&opts.follow,
+		"follow",
+		false,
+		"With --inspect, keep printing records as the run writes them"+
+			" until it exits.",
+	)
 	fs.DurationVar(
 		&opts.symonInterval,
 		"interval",
@@ -372,7 +388,7 @@ Usage:
   wandb-core leet [flags] <wandb-directory>
   wandb-core leet --run-file <wandb-file> <wandb-directory>
   wandb-core leet --remote-url <wandb-run-url>
-  wandb-core leet --inspect [--summary] [--run-file <wandb-file>] [<wandb-directory>]
+  wandb-core leet --inspect [--summary] [--json] [--follow] [--run-file <wandb-file>] [<wandb-directory>]
   wandb-core leet --config
   wandb-core leet --symon [flags]
 
@@ -437,10 +453,14 @@ func validateLeetOptions(fs *flag.FlagSet, opts *leetOptions) error {
 }
 
 func validateInspectorOutputOptions(opts *leetOptions) error {
-	if opts.summary && !opts.inspect {
-		return errors.New("--summary requires --inspect")
+	switch {
+	case (opts.summary || opts.jsonOutput || opts.follow) && !opts.inspect:
+		return errors.New("--summary, --json and --follow require --inspect")
+	case opts.summary && opts.follow:
+		return errors.New("--summary cannot be used with --follow")
+	default:
+		return nil
 	}
-	return nil
 }
 
 func startLeetPprof(addr string) (func(context.Context) error, error) {
@@ -522,9 +542,10 @@ func runLeetInspector(opts *leetOptions, logger *observability.CoreLogger) int {
 	var err error
 	switch {
 	case opts.summary:
-		err = leet.PrintSummary(opts.runFile, opts.wandbDir, os.Stdout)
-	case !stdoutIsTerminal():
-		err = leet.DumpRecords(opts.runFile, opts.wandbDir, os.Stdout)
+		err = leet.PrintSummary(opts.runFile, opts.wandbDir, os.Stdout, opts.jsonOutput)
+	case opts.jsonOutput || opts.follow || !stdoutIsTerminal():
+		err = leet.DumpRecords(opts.runFile, opts.wandbDir, os.Stdout, os.Stderr,
+			leet.DumpOptions{JSON: opts.jsonOutput, Follow: opts.follow})
 	default:
 		return runLeetInspectorTUI(opts, logger)
 	}

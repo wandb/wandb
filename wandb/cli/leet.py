@@ -119,23 +119,42 @@ def symon(pprof: str = "", interval: str = "") -> None:
     help="Print the run's state, latest metric values, config and console"
     " tail instead of its records.",
 )
+@click.option(
+    "--json",
+    "json_output",
+    is_flag=True,
+    help="Print JSON: one line per record, or one object with --summary.",
+)
+@click.option(
+    "--follow",
+    is_flag=True,
+    help="Keep printing records as the run writes them until it exits.",
+)
 @click.help_option("-h", "--help")
-def inspect(path: str | None = None, summary: bool = False) -> None:
+def inspect(
+    path: str | None = None,
+    summary: bool = False,
+    json_output: bool = False,
+    follow: bool = False,
+) -> None:
     """Inspect a run's .wandb transaction log.
 
     Opens a browsable list of the records stored in the log next to a
-    text view of the selected record. When stdout is not a terminal,
-    prints the records instead.
+    text view of the selected record. When stdout is not a terminal, or
+    with --json or --follow, prints the records instead.
 
     \b
     Examples:
         wandb leet inspect --summary            State, latest metrics, console tail
+        wandb leet inspect --summary --json     The same as one JSON object
+        wandb leet inspect --json | grep '"type":"history"' | tail -n 5
+        wandb leet inspect --follow --json      Stream records as they are written
         wandb leet inspect run.wandb | less     Browse the records as text
 
     PATH can be a .wandb file, a run directory containing one, or a
     wandb directory. If PATH is not provided, the latest run is used.
     """  # noqa: D301 -- the \b escape is click's marker to not rewrap Examples.
-    launch_inspect(path, summary=summary)
+    launch_inspect(path, summary=summary, json_output=json_output, follow=follow)
 
 
 @leet.command()
@@ -279,7 +298,12 @@ def launch(path: str | None, pprof: str) -> Never:
     _run_core(args, env)
 
 
-def launch_inspect(path: str | None, summary: bool = False) -> Never:
+def launch_inspect(
+    path: str | None,
+    summary: bool = False,
+    json_output: bool = False,
+    follow: bool = False,
+) -> Never:
     """Launch the transaction log record inspector."""
     config = _resolve_path(path)
     if not isinstance(config, LocalLaunchConfig):
@@ -289,6 +313,10 @@ def launch_inspect(path: str | None, summary: bool = False) -> Never:
     args.append("--inspect")
     if summary:
         args.append("--summary")
+    if json_output:
+        args.append("--json")
+    if follow:
+        args.append("--follow")
     args.extend(_get_local_launch_args(config))
 
     _run_core(args)

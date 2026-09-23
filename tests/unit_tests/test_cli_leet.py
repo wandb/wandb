@@ -151,7 +151,9 @@ def test_leet_inspect_passes_output_flags(runner, core_calls, tmp_path: pathlib.
     wandb_dir = tmp_path / "wandb"
     wandb_dir.mkdir()
 
-    result = runner.invoke(cli.cli, ["leet", "inspect", "--summary", str(wandb_dir)])
+    result = runner.invoke(
+        cli.cli, ["leet", "inspect", "--summary", "--json", str(wandb_dir)]
+    )
 
     assert result.exit_code == 0
     assert core_calls == [
@@ -162,6 +164,7 @@ def test_leet_inspect_passes_output_flags(runner, core_calls, tmp_path: pathlib.
             _BASE_URL,
             "--inspect",
             "--summary",
+            "--json",
             str(wandb_dir.resolve()),
         ]
     ]
