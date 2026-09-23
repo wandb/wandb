@@ -1,0 +1,31 @@
+name: SDK unit tests
+
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: Runner label for the platform under test
+        type: string
+        required: true
+
+jobs:
+  test:
+    name: Python ${{ matrix.python }} · ${{ matrix.group }} of 4
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.13"]
+        group: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/run-tests
+        with:
+          session: unit_tests
+          python: ${{ matrix.python }}
+          group-index: ${{ matrix.group }}
+          group-count: 4
+          artifact-name: unit-tests-${{ runner.os }}-${{ matrix.python }}-${{ matrix.group }}

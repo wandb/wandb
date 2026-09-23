@@ -54,7 +54,7 @@ def install_timed(session: nox.Session, *args, **kwargs):
 
 
 def install_wandb(session: nox.Session, dev: bool = True):
-    """Builds and installs wandb.
+    """Installs wandb from the WANDB_TEST_WHEEL file, or builds it from source.
 
     Args:
         dev: Whether to set dev build flags. Note that this
@@ -64,10 +64,20 @@ def install_wandb(session: nox.Session, dev: bool = True):
         session.env["WANDB_BUILD_COVERAGE"] = "true"
         session.env["WANDB_BUILD_GORACEDETECT"] = "true"
 
+    wheel = os.environ.get("WANDB_TEST_WHEEL")
+    package = wheel or "."
     if session.venv_backend == "uv":
-        install_timed(session, "--reinstall", "--refresh-package", "wandb", ".")
+        install_timed(session, "--reinstall", "--refresh-package", "wandb", package)
     else:
-        install_timed(session, "--force-reinstall", ".")
+        install_timed(session, "--force-reinstall", package)
+
+    if wheel:
+        # Tests import wandb from the source tree, which needs the wheel's binaries.
+        shutil.copytree(
+            site_packages_dir(session) / "wandb" / "bin",
+            pathlib.Path("wandb", "bin"),
+            dirs_exist_ok=True,
+        )
 
 
 def get_session_file_name(session: nox.Session) -> str:
@@ -105,25 +115,6 @@ def _requirements_file(python_version: str) -> str:
         return name
 
     return "requirements/requirements_dev.txt"
-
-
-def get_circleci_splits() -> tuple[int, int]:
-    """Returns the test splitting arguments from our CircleCI config.
-
-    When using test splitting, CircleCI sets the CIRCLE_NODE_TOTAL and
-    CIRCLE_NODE_INDEX environment variables to indicate which group of
-    tests we should run.
-
-    This returns (index, total), with 0 <= index < total, if the variables
-    are set. Otherwise, returns (0, 0).
-    """
-    circle_node_total = os.environ.get("CIRCLE_NODE_TOTAL")
-    circle_node_index = os.environ.get("CIRCLE_NODE_INDEX")
-
-    if circle_node_total and circle_node_index:
-        return (int(circle_node_index), int(circle_node_total))
-
-    return (0, 0)
 
 
 def run_pytest(
@@ -165,11 +156,10 @@ def run_pytest(
     # time-dependent tests.
     pytest_opts.append("--maxprocesses=10")
 
-    # (pytest-split) Run a subset of tests only (for external parallelism).
-    (circle_node_index, circle_node_total) = get_circleci_splits()
-    if circle_node_total > 0:
-        pytest_opts.append(f"--splits={circle_node_total}")
-        pytest_opts.append(f"--group={int(circle_node_index) + 1}")
+    # (pytest-split) Run one group of tests only (for external parallelism).
+    if count := os.environ.get("WANDB_TEST_GROUP_COUNT"):
+        pytest_opts.append(f"--splits={count}")
+        pytest_opts.append(f"--group={os.environ['WANDB_TEST_GROUP_INDEX']}")
 
     # (pytest-cov) Enable Python code coverage collection.
     # We set "--cov-report=" to suppress terminal output.
@@ -708,7 +698,7 @@ def binary_size_check(session: nox.Session) -> None:
 
     session.run("git", "switch", "--detach", base, external=True)
     base_sizes = binary_sizes()
-    session.run("git", "switch", "-", external=True)
+    session.run("git", "checkout", "-", external=True)
     current_sizes = binary_sizes()
 
     def fmt_size(b: int) -> str:
@@ -772,7 +762,7 @@ def wandb_import_time_check(session: nox.Session) -> None:
     install_wandb(session, dev=False)
     main_time = measure_import_time()
 
-    session.run("git", "switch", "-", external=True)
+    session.run("git", "checkout", "-", external=True)
     install_wandb(session, dev=False)
     current_time = measure_import_time()
 
