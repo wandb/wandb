@@ -1,399 +1,162 @@
 package gitops_test
 
 import (
-	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
-	"github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/config"
-	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/gitops"
-	"github.com/wandb/wandb/core/internal/observabilitytest"
-
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 )
 
-func setupTestRepo() (string, *git.Repository, func(), error) {
-	repoPath, err := os.MkdirTemp("", "testrepo")
-	if err != nil {
-		return "", nil, nil, err
-	}
-	repo, err := git.PlainInit(repoPath, false)
-	if err != nil {
-		return "", nil, nil, err
-	}
-
-	worktree, err := repo.Worktree()
-	if err != nil {
-		return "", nil, nil, err
-	}
-	tempFile := filepath.Join(repoPath, "temp.txt")
-	err = os.WriteFile(tempFile, []byte("test content"), 0o644)
-	if err != nil {
-		return "", nil, nil, err
-	}
-
-	_, err = worktree.Add("temp.txt")
-	if err != nil {
-		return "", nil, nil, err
-	}
-
-	commit, err := worktree.Commit("Initial commit", &git.CommitOptions{
-		Author: &object.Signature{
-			Name:  "Test User",
-			Email: "test@example.com",
-		},
-	})
-	if err != nil {
-		return "", nil, nil, err
-	}
-	fmt.Printf("Commit created: %s\n", commit.String())
-
-	cleanup := func() {
-		_ = os.RemoveAll(repoPath)
-	}
-	return repoPath, repo, cleanup, nil
-}
-
-func initializeAndAddRemoteRepo(baseRepo *git.Repository) (string, *git.Repository, func(), error) {
-	// Create and initialize a bare remote repo
-	remoteRepoPath, err := os.MkdirTemp("", "remoterepo")
-	if err != nil {
-		_ = os.RemoveAll(remoteRepoPath)
-		return "", nil, nil, err
-	}
-
-	repo, err := git.PlainInit(remoteRepoPath, true)
-	if err != nil {
-		_ = os.RemoveAll(remoteRepoPath)
-		return "", nil, nil, err
-	}
-
-	_, _ = baseRepo.CreateRemote(&config.RemoteConfig{
-		Name: "origin",
-		URLs: []string{remoteRepoPath},
-	})
-
-	_ = baseRepo.Push(&git.PushOptions{
-		RemoteName: "origin",
-	})
-
-	_, err = baseRepo.Remote("origin")
-	if err != nil {
-		_ = os.RemoveAll(remoteRepoPath)
-		return "", nil, nil, err
-	}
-
-	cleanup := func() {
-		_ = os.RemoveAll(remoteRepoPath)
-	}
-	return remoteRepoPath, repo, cleanup, nil
-}
-
-func addAndCommitWithContent(
-	repo *git.Repository,
-	file string,
-	content string,
-) (string, error) {
-	worktree, err := repo.Worktree()
-	if err != nil {
-		return "", err
-	}
-
-	err = os.WriteFile(
-		filepath.Join(worktree.Filesystem.Root(), file),
-		[]byte(content),
-		0o644,
+// git runs a git command in dir and returns its trimmed output.
+func git(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(),
+		"GIT_CONFIG_GLOBAL=/dev/null",
+		"GIT_CONFIG_NOSYSTEM=1",
+		"GIT_AUTHOR_NAME=Test User",
+		"GIT_AUTHOR_EMAIL=test@example.com",
+		"GIT_COMMITTER_NAME=Test User",
+		"GIT_COMMITTER_EMAIL=test@example.com",
 	)
-	if err != nil {
-		return "", err
-	}
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, "git %s: %s", strings.Join(args, " "), out)
+	return strings.TrimSpace(string(out))
+}
 
-	_, err = worktree.Add(file)
-	if err != nil {
-		return "", err
-	}
+// commitFile writes a file, commits it, and returns the commit hash.
+func commitFile(t *testing.T, repoPath, name, content string) string {
+	t.Helper()
+	require.NoError(t, os.WriteFile(filepath.Join(repoPath, name), []byte(content), 0o644))
+	git(t, repoPath, "add", name)
+	git(t, repoPath, "commit", "-m", content)
+	return git(t, repoPath, "rev-parse", "HEAD")
+}
 
-	commit, err := worktree.Commit(content, &git.CommitOptions{
-		Author: &object.Signature{
-			Name:  "Test User",
-			Email: "test@example.com",
-		},
-	})
-	if err != nil {
-		return "", err
-	}
+// setupTestRepo creates a repository with one commit on master.
+func setupTestRepo(t *testing.T) string {
+	t.Helper()
+	repoPath := t.TempDir()
+	git(t, repoPath, "init", "-b", "master")
+	commitFile(t, repoPath, "temp.txt", "test content")
+	return repoPath
+}
 
-	return commit.String(), nil
+// addRemote adds a bare repository as origin and pushes master to it without tracking.
+func addRemote(t *testing.T, repoPath string) {
+	t.Helper()
+	remotePath := t.TempDir()
+	git(t, remotePath, "init", "--bare")
+	git(t, repoPath, "remote", "add", "origin", remotePath)
+	git(t, repoPath, "push", "origin", "master")
 }
 
 func TestIsAvailable(t *testing.T) {
-	repoPath, _, cleanup, err := setupTestRepo()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cleanup()
-
 	logger := observabilitytest.NewTestLogger(t)
-	g := gitops.New(repoPath, logger)
-	available := g.IsAvailable()
-	assert.True(t, available)
+
+	assert.True(t, gitops.New(setupTestRepo(t), logger).IsAvailable())
+	assert.False(t, gitops.New(t.TempDir(), logger).IsAvailable())
 }
 
 func TestLatestCommit(t *testing.T) {
-	repoPath, _, cleanup, err := setupTestRepo()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cleanup()
+	g := gitops.New(setupTestRepo(t), observabilitytest.NewTestLogger(t))
 
-	logger := observabilitytest.NewTestLogger(t)
-	g := gitops.New(repoPath, logger)
 	latest, err := g.LatestCommit("HEAD")
+
 	assert.NoError(t, err)
 	assert.Len(t, latest, 40)
 }
 
 func TestSavePatch(t *testing.T) {
-	repoPath, _, cleanup, err := setupTestRepo()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cleanup()
-
-	// append a line to the temp.txt file
+	repoPath := setupTestRepo(t)
 	tempFile := filepath.Join(repoPath, "temp.txt")
-	err = os.WriteFile(tempFile, []byte("test content\n"), 0o644)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, os.WriteFile(tempFile, []byte("test content\n"), 0o644))
+	outputPath := filepath.Join(t.TempDir(), "diff.patch")
+	g := gitops.New(repoPath, observabilitytest.NewTestLogger(t))
 
-	tempDir, err := os.MkdirTemp("", "temp_output")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		_ = os.RemoveAll(tempDir)
-	}()
-	outputPath := filepath.Join(tempDir, "diff.patch")
+	err := g.SavePatch("HEAD", outputPath)
 
-	logger := observabilitytest.NewTestLogger(t)
-	g := gitops.New(repoPath, logger)
-	err = g.SavePatch("HEAD", outputPath)
 	assert.NoError(t, err)
-	assert.FileExists(t, outputPath)
-	// check that the patch file contains the new line
 	patch, err := os.ReadFile(outputPath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	assert.Contains(t, string(patch), "+test content")
 }
 
 func TestGetUpstreamForkPoint_NoTrackingBranch(t *testing.T) {
-	repoPath, _, cleanup, err := setupTestRepo()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cleanup()
+	g := gitops.New(setupTestRepo(t), observability.NewNoOpLogger())
 
-	logger := observability.NewNoOpLogger()
-	gitOps := gitops.New(repoPath, logger)
-	forkPoint, err := gitOps.GetUpstreamForkPoint()
+	forkPoint, err := g.GetUpstreamForkPoint()
 
 	assert.NoError(t, err)
 	assert.Empty(t, forkPoint)
 }
 
 func TestGetUpstreamForkPoint_UpstreamSet(t *testing.T) {
-	baseRepoPath, baseRepo, baseRepoCleanup, err := setupTestRepo()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer baseRepoCleanup()
-	_, remoteRepo, remoteRepoCleanup, err := initializeAndAddRemoteRepo(baseRepo)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer remoteRepoCleanup()
+	repoPath := setupTestRepo(t)
+	addRemote(t, repoPath)
+	git(t, repoPath, "branch", "--set-upstream-to=origin/master")
+	remoteHead := git(t, repoPath, "rev-parse", "origin/master")
+	commit := commitFile(t, repoPath, "temp2.txt", "test content")
+	g := gitops.New(repoPath, observability.NewNoOpLogger())
 
-	// setup and push to remote repo
-	_ = baseRepo.CreateBranch(&config.Branch{
-		Name:   "master",
-		Remote: "origin",
-		Merge:  plumbing.ReferenceName("refs/heads/master"),
-	})
-	_ = baseRepo.Push(&git.PushOptions{
-		RemoteName: "origin",
-	})
-
-	remoteRepoHead, err := remoteRepo.Head()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Make a commit to the base repo not pushed to remote
-	commit, err := addAndCommitWithContent(baseRepo, "temp2.txt", "test content")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	logger := observability.NewNoOpLogger()
-	gitOps := gitops.New(baseRepoPath, logger)
-	forkPoint, err := gitOps.GetUpstreamForkPoint()
+	forkPoint, err := g.GetUpstreamForkPoint()
 
 	assert.NoError(t, err)
-	assert.NotEmpty(t, forkPoint)
-	assert.Equal(t, remoteRepoHead.Hash().String(), forkPoint)
+	assert.Equal(t, remoteHead, forkPoint)
 	assert.NotEqual(t, commit, forkPoint)
 }
 
 func TestGetUpstreamForkPoint_NoTrackingBranchFindsMostRecentAncestor(t *testing.T) {
-	repoPath, baseRepo, cleanup, err := setupTestRepo()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cleanup()
-	_, _, remoteRepoCleanup, err := initializeAndAddRemoteRepo(baseRepo)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer remoteRepoCleanup()
+	repoPath := setupTestRepo(t)
+	addRemote(t, repoPath)
+	git(t, repoPath, "branch", "--set-upstream-to=origin/master")
+	git(t, repoPath, "checkout", "--no-track", "-b", "feature")
+	commit := commitFile(t, repoPath, "feature.txt", "feature branch content")
+	g := gitops.New(repoPath, observability.NewNoOpLogger())
 
-	// Create master tracking branch
-	_ = baseRepo.CreateBranch(&config.Branch{
-		Name:   "master",
-		Remote: "origin",
-		Merge:  plumbing.ReferenceName("refs/heads/master"),
-	})
-	_ = baseRepo.Push(&git.PushOptions{
-		RemoteName: "origin",
-	})
+	forkPoint, err := g.GetUpstreamForkPoint()
 
-	// Checkout new branch with no tracking information
-	worktree, _ := baseRepo.Worktree()
-	_ = worktree.Checkout(&git.CheckoutOptions{
-		Branch: plumbing.NewBranchReferenceName("feature"),
-		Create: true,
-	})
-
-	// Add a commit on the feature branch
-	commit, err := addAndCommitWithContent(baseRepo, "feature.txt", "feature branch content")
-	require.NoError(t, err)
-
-	logger := observability.NewNoOpLogger()
-	gitOps := gitops.New(repoPath, logger)
-	forkPoint, err := gitOps.GetUpstreamForkPoint()
-
-	masterHead, _ := baseRepo.Reference(plumbing.ReferenceName("refs/remotes/origin/master"), true)
-	currentBranchHead, _ := baseRepo.Head()
 	assert.NoError(t, err)
-	assert.NotEmpty(t, forkPoint)
-	assert.Equal(t, masterHead.Hash().String(), forkPoint)
+	assert.Equal(t, git(t, repoPath, "rev-parse", "origin/master"), forkPoint)
 	assert.NotEqual(t, commit, forkPoint)
-	assert.NotEqual(t, currentBranchHead.Hash().String(), forkPoint)
 }
 
 func TestGetUpstreamForkPoint_DetachedHead(t *testing.T) {
-	repoPath, baseRepo, baseRepoCleanup, err := setupTestRepo()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer baseRepoCleanup()
-	_, _, remoteRepoCleanup, err := initializeAndAddRemoteRepo(baseRepo)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer remoteRepoCleanup()
+	repoPath := setupTestRepo(t)
+	addRemote(t, repoPath)
+	git(t, repoPath, "checkout", "--detach")
+	g := gitops.New(repoPath, observability.NewNoOpLogger())
 
-	// Checkout the HEAD commit in detached head state
-	head, _ := baseRepo.Head()
-	worktree, _ := baseRepo.Worktree()
-	err = worktree.Checkout(&git.CheckoutOptions{
-		Hash: head.Hash(),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	logger := observability.NewNoOpLogger()
-	gitOps := gitops.New(repoPath, logger)
-	forkPoint, err := gitOps.GetUpstreamForkPoint()
+	forkPoint, err := g.GetUpstreamForkPoint()
 
 	assert.NoError(t, err)
 	assert.Empty(t, forkPoint)
 }
 
 func TestGetUpstreamForkPoint_MultipleTrackingBranches(t *testing.T) {
-	repoPath, baseRepo, cleanup, err := setupTestRepo()
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer cleanup()
-	_, _, remoteRepoCleanup, err := initializeAndAddRemoteRepo(baseRepo)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer remoteRepoCleanup()
-
-	worktree, _ := baseRepo.Worktree()
-
-	// Create multiple branches with tracking information
+	repoPath := setupTestRepo(t)
+	addRemote(t, repoPath)
 	for _, branch := range []string{"feature1", "feature2", "feature3"} {
-		_ = worktree.Checkout(&git.CheckoutOptions{
-			Branch: plumbing.NewBranchReferenceName(branch),
-			Create: true,
-		})
-		_ = baseRepo.CreateBranch(&config.Branch{
-			Name:   branch,
-			Remote: "origin",
-			Merge:  plumbing.ReferenceName(fmt.Sprintf("refs/heads/%s", branch)),
-		})
-		_, _ = addAndCommitWithContent(baseRepo, branch+".txt", "feature content")
-		_ = baseRepo.Push(&git.PushOptions{
-			RemoteName: "origin",
-		})
-
+		git(t, repoPath, "checkout", "-b", branch)
+		commitFile(t, repoPath, branch+".txt", "feature content")
+		git(t, repoPath, "push", "-u", "origin", branch)
 	}
+	git(t, repoPath, "checkout", "--no-track", "-b", "feature4", "origin/feature2")
+	commit := commitFile(t, repoPath, "newbranch.txt", "new branch content")
+	g := gitops.New(repoPath, observability.NewNoOpLogger())
 
-	// Create a new branch based on feature2 branch HEAD
-	branch2Head, _ := baseRepo.Reference(
-		plumbing.ReferenceName("refs/remotes/origin/feature2"),
-		true,
-	)
-	err = worktree.Checkout(&git.CheckoutOptions{
-		Hash:   branch2Head.Hash(),
-		Branch: plumbing.NewBranchReferenceName("feature4"),
-		Create: true,
-	})
-	require.NoError(t, err)
-
-	// Add a commit on the new branch
-	commit, err := addAndCommitWithContent(baseRepo, "newbranch.txt", "new branch content")
-	require.NoError(t, err)
-
-	logger := observability.NewNoOpLogger()
-	gitOps := gitops.New(repoPath, logger)
-	forkPoint, err := gitOps.GetUpstreamForkPoint()
+	forkPoint, err := g.GetUpstreamForkPoint()
 
 	assert.NoError(t, err)
-	assert.NotEmpty(t, forkPoint)
+	assert.Equal(t, git(t, repoPath, "rev-parse", "origin/feature2"), forkPoint)
 	assert.NotEqual(t, commit, forkPoint)
-	assert.Equal(t, branch2Head.Hash().String(), forkPoint)
-	branch1Head, _ := baseRepo.Reference(
-		plumbing.ReferenceName("refs/remotes/origin/feature1"),
-		true,
-	)
-	branch3Head, _ := baseRepo.Reference(
-		plumbing.ReferenceName("refs/remotes/origin/feature3"),
-		true,
-	)
-	assert.NotEqual(t, branch1Head.Hash().String(), forkPoint)
-	assert.NotEqual(t, branch3Head.Hash().String(), forkPoint)
 }
