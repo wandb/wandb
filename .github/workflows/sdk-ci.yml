@@ -10,10 +10,6 @@ on:
         description: Run the Windows unit tests
         type: boolean
         default: true
-      server-tests:
-        description: Run the tests that need a W&B server
-        type: boolean
-        default: false
       server-image:
         description: local-testcontainer image for the server tests (defaults to the master build)
         type: string
@@ -203,8 +199,8 @@ jobs:
   system-tests:
     name: System tests
     needs: build-wheel
-    # The server image is private; pulling it needs this repository's GCP identity.
-    if: (vars.GHA_SHADOW_SERVER_TESTS == 'true' || inputs.server-tests) && !github.event.pull_request.head.repo.fork
+    # Pulling the private server image needs this repository's GCP identity.
+    if: ${{ !github.event.pull_request.head.repo.fork }}
     runs-on: ubuntu-latest-8-cores
     timeout-minutes: 30
     permissions:
@@ -239,7 +235,7 @@ jobs:
   server-tests:
     name: Server tests
     needs: build-wheel
-    if: (vars.GHA_SHADOW_SERVER_TESTS == 'true' || inputs.server-tests) && !github.event.pull_request.head.repo.fork
+    if: ${{ !github.event.pull_request.head.repo.fork }}
     runs-on: ubuntu-latest-8-cores
     timeout-minutes: 30
     permissions:
