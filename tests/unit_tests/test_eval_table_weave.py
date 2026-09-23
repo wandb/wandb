@@ -882,10 +882,15 @@ def test_add_data_unsupported_wandb_value_cell_raises_in_raise_mode():
     assert et.data == []
 
 
+@pytest.mark.parametrize("backend", ["weave", "ces"])
 @pytest.mark.usefixtures("mock_eval_logger")
-def test_unsupported_media_mode_rejects_unknown_mode():
+def test_unsupported_media_mode_rejects_unknown_mode(backend):
     with pytest.raises(ValueError, match="unsupported_media_mode"):
-        wandb.EvalTable(columns=["x"], unsupported_media_mode="ignore")
+        wandb.EvalTable(
+            columns=["x"],
+            backend=backend,
+            unsupported_media_mode="ignore",
+        )
 
 
 def test_unsupported_wandb_media_stubbed_on_log(
