@@ -1221,7 +1221,7 @@ def init(  # noqa: C901
     be tracked as a run in W&B.
 
     `wandb.init()` spawns a new background process to log data to a run, and it
-    also syncs data to https://wandb.ai by default, so you can see your results
+    also syncs data to https://forge.coreweave.com/wandb by default, so you can see your results
     in real-time. When you're done logging data, call `run.finish()` to
     end the run, or use the run as a context manager to call it automatically:
 

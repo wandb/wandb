@@ -27,3 +27,16 @@ def test_validate_url(url: str, is_valid: bool):
 def test_validate_url_requires_string():
     with pytest.raises(TypeError, match="Expected a string"):
         urls.validate_url(123)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://forge.coreweave.com",
+        "https://forge.coreweave.com/wandb",
+        "http://forge.coreweave.com/api/wandb",
+    ],
+)
+def test_validate_forge_base_url(url: str):
+    with pytest.raises(ValueError, match=urls.DEFAULT_BASE_URL):
+        urls.validate_forge_base_url(url)

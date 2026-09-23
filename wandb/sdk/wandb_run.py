@@ -1691,7 +1691,7 @@ class Run:
         The previous code snippet saves the loss and accuracy to the run's
         history and updates the summary values for these metrics.
 
-        Visualize logged data in a workspace at [wandb.ai](https://wandb.ai),
+        Visualize logged data in a workspace at [CoreWeave Forge](https://forge.coreweave.com/wandb),
         or locally on a [self-hosted instance](https://docs.wandb.ai/platform/hosting)
         of the W&B app, or export data to visualize and explore locally, such as in a
         Jupyter notebook, with the [Public API](https://docs.wandb.ai/models/track/public-api-guide).

@@ -19,7 +19,7 @@ def test_print_results(capsys):
 
 
 def test_check_host():
-    assert not wandb_verify.check_host("https://api.wandb.ai")
+    assert not wandb_verify.check_host("https://forge.coreweave.com/api/wandb")
     assert wandb_verify.check_host("http://localhost:8000")
 
 

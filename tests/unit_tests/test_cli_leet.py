@@ -179,3 +179,20 @@ def test_beta_leet_is_an_alias(runner, core_calls, tmp_path: pathlib.Path):
     assert core_calls == [
         ["wandb-core", "leet", "--base-url", _BASE_URL, str(wandb_dir.resolve())]
     ]
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://wandb.ai/entity/project/runs/id?workspace=user",
+        "https://forge.coreweave.com/wandb/entity/project/runs/id",
+        "https://forge.coreweave.com/api/wandb/entity/project/runs/id",
+    ],
+)
+def test_parse_remote_url_forge(url):
+    base_url = "https://forge.coreweave.com/api/wandb"
+
+    assert leet._parse_remote_url(url) == (
+        base_url,
+        f"{base_url}/entity/project/runs/id",
+    )

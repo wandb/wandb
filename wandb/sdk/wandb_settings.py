@@ -144,7 +144,7 @@ class Settings(BaseModel, validate_assignment=True):
     WANDB_APP_URL is the corresponding environment variable.
     """
 
-    base_url: str = "https://api.wandb.ai"
+    base_url: str = urls.DEFAULT_BASE_URL
     """The URL of the W&B backend for data synchronization."""
 
     code_dir: str | None = None
@@ -1097,14 +1097,16 @@ class Settings(BaseModel, validate_assignment=True):
         <!-- lazydoc-ignore -->
         """
         urls.validate_url(value)
+        urls.validate_forge_base_url(value)
         # wandb.ai-specific checks
         if re.match(r".*wandb\.ai[^\.]*$", value) and "api." not in value:
             # user might guess app.wandb.ai or wandb.ai is the default cloud server
             raise ValueError(
-                f"{value} is not a valid server address, did you mean https://api.wandb.ai?"
+                f"{value} is not a valid server address,"
+                f" did you mean {urls.DEFAULT_BASE_URL}?"
             )
         elif re.match(r".*wandb\.ai[^\.]*$", value) and not value.startswith("https"):
-            raise ValueError("http is not secure, please use https://api.wandb.ai")
+            raise ValueError(f"http is not secure, please use {urls.DEFAULT_BASE_URL}")
         return value.rstrip("/")
 
     @field_validator("code_dir", mode="before")
@@ -1671,10 +1673,10 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def app_url(self) -> str:
-        """The URL for the W&B UI, usually https://wandb.ai.
+        """The URL for the W&B UI, usually https://forge.coreweave.com/wandb.
 
-        This is different from `base_url` (like https://api.wandb.ai) which
-        is used to access W&B APIs programmatically.
+        This is different from `base_url` (like https://forge.coreweave.com/api/wandb)
+        which is used to access W&B APIs programmatically.
         """
         return self.app_url_override or util.api_to_app_url(self.base_url)
 
@@ -1704,7 +1706,7 @@ class Settings(BaseModel, validate_assignment=True):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def is_local(self) -> bool:
-        return str(self.base_url) != "https://api.wandb.ai"
+        return self.base_url != urls.DEFAULT_BASE_URL
 
     @computed_field  # type: ignore[prop-decorator]
     @property

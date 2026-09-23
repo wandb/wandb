@@ -23,11 +23,13 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Changed
 
+- The default W&B server is now CoreWeave Forge at `https://forge.coreweave.com/api/wandb`, and run, project, sweep and login links point to `https://forge.coreweave.com/wandb`. Existing API keys stored for `api.wandb.ai` keep working without logging in again, and an explicitly configured `base_url`, including `https://api.wandb.ai`, is used as before (@dmitryduev in https://github.com/wandb/wandb/pull/PRNUM)
 - Runs now write data to disk every 15 seconds, so that wandb leet updates sooner for runs that don't log a lot of data (@dmitryduev in https://github.com/wandb/wandb/pull/12742)
 - Reduced the size of the `wandb-core` binary by about a third, from 52 MB to 35 MB on Linux x86_64 (@dmitryduev in https://github.com/wandb/wandb/pull/12923)
 
 ### Fixed
 
+- Downloading run files with `File.download()` and `wandb.restore()`, and reading `Run.metadata`, no longer fail with a 404 when the W&B server URL includes a path (@dmitryduev in https://github.com/wandb/wandb/pull/PRNUM)
 - Changing system metrics grid rows or columns in LEET, including `wandb leet symon`, no longer crashes and takes effect immediately without waiting for new data (@dmitryduev in https://github.com/wandb/wandb/pull/12763)
 - `wandb beta sync` no longer overwrites the earlier history of a resumed run when the backend reports a stale step. The starting step is now reconciled against the summary `_step`, the history tail `_step`, and the history row count (@geoffhardy in https://github.com/wandb/wandb/pull/12668)
 - Fixed a memory leak where every `wandb.Api()` object permanently retained a few MiB in the background service process after it was garbage collected (@dmitryduev in https://github.com/wandb/wandb/pull/12920)

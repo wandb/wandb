@@ -26,6 +26,7 @@ class HostUrl:
                 comparisons.
         """
         urls.validate_url(url)
+        urls.validate_forge_base_url(url)
 
         # Checks for wandb.ai.
         if re.match(r".*wandb\.ai[^\.]*$", url):
@@ -33,10 +34,12 @@ class HostUrl:
                 # A user might guess that app.wandb.ai is the default cloud server.
                 raise ValueError(
                     f"{url!r} is not a valid server address,"
-                    + " did you mean https://api.wandb.ai?"
+                    + f" did you mean {urls.DEFAULT_BASE_URL}?"
                 )
             elif not url.startswith("https"):
-                raise ValueError("http is not secure, please use https://api.wandb.ai")
+                raise ValueError(
+                    f"http is not secure, please use {urls.DEFAULT_BASE_URL}"
+                )
 
         self._url = url.rstrip("/")
         self._app_url = (

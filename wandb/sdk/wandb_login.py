@@ -12,7 +12,7 @@ from wandb import env
 from wandb.apis.public.service_api import ServiceApi
 from wandb.errors import AuthenticationError, term
 from wandb.sdk import wandb_setup
-from wandb.sdk.lib import settings_file, wbauth
+from wandb.sdk.lib import settings_file, urls, wbauth
 from wandb.sdk.lib.deprecation import UNSET, DoNotSet
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
@@ -133,7 +133,7 @@ def _update_system_settings(
     system_settings.clear("anonymous", globally=True)
 
     if host:
-        if host == "https://api.wandb.ai":
+        if host == urls.DEFAULT_BASE_URL:
             system_settings.clear("base_url", globally=True)
         else:
             system_settings.set("base_url", host, globally=True)

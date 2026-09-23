@@ -156,7 +156,7 @@ def test_restore_config_can_be_loaded(runner, cli_run, tmp_path, monkeypatch):
 @pytest.mark.parametrize(
     "host, error",
     [
-        ("https://app.wandb.ai", "did you mean https://api.wandb.ai"),
+        ("https://app.wandb.ai", "did you mean https://forge.coreweave.com/api/wandb"),
         ("ftp://google.com", "URL scheme should be 'http' or 'https'"),
     ],
 )

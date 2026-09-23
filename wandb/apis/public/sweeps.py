@@ -122,7 +122,7 @@ class Sweeps(SizedPaginator["Sweep"]):
                 "Filtering sweeps is not supported on this W&B server version. "
                 "Please upgrade your server to release "
                 f"{_SWEEP_FILTERS_MIN_SERVER_VERSION} or later, or query sweeps "
-                "on https://wandb.ai."
+                "on https://forge.coreweave.com/wandb."
             )
 
         variables = {
@@ -402,7 +402,7 @@ class Sweep(Attrs):
         The sweep URL is generated from the entity, project, the term
         "sweeps", and the sweep ID.run_id. For
         SaaS users, it takes the form
-        of `https://wandb.ai/entity/project/sweeps/sweeps_ID`.
+        of `https://forge.coreweave.com/wandb/entity/project/sweeps/sweeps_ID`.
         """
         path = self.path
         path.insert(2, "sweeps")

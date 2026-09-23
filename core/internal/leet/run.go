@@ -29,7 +29,7 @@ type RunParams struct {
 
 // RemoteRunParams identifies a run stored on a W&B server.
 type RemoteRunParams struct {
-	// BaseURL is the W&B API base URL (e.g. https://api.wandb.ai).
+	// BaseURL is the W&B API base URL (e.g. https://forge.coreweave.com/api/wandb).
 	BaseURL string
 
 	Entity  string

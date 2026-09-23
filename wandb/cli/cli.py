@@ -39,7 +39,7 @@ from wandb.sdk.launch.api import LaunchApi
 from wandb.sdk.launch.errors import ExecutionError, LaunchError
 from wandb.sdk.launch.sweeps import utils as sweep_utils
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
-from wandb.sdk.lib import config_util, filesystem, settings_file, wbauth
+from wandb.sdk.lib import config_util, filesystem, settings_file, urls, wbauth
 from wandb.sdk.lib.filenames import DIFF_FNAME
 from wandb.sdk.lib.hashutil import md5_file_b64
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
@@ -280,7 +280,7 @@ def projects(entity, display=True):
     "--cloud",
     is_flag=True,
     help="""Log in to the W&B public cloud
-    (https://api.wandb.ai).
+    (https://forge.coreweave.com/api/wandb).
     Mutually exclusive with --host.""",
 )
 @click.option(
@@ -372,7 +372,7 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
         sys.exit(1)
 
     if cloud:
-        host = "https://api.wandb.ai"
+        host = urls.DEFAULT_BASE_URL
 
     # A change in click or the test harness means key can be none...
     key = key[0] if key is not None and len(key) > 0 else None
@@ -3386,7 +3386,7 @@ def verify(host):
 
     Validate that a self-hosted or dedicated cloud W&B deployment is configured
     and operating correctly. Do not run this command against the public W&B
-    cloud at api.wandb.ai.
+    cloud at forge.coreweave.com.
 
     Exits with `code 1` if any critical check fails.
 

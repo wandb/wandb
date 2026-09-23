@@ -41,6 +41,7 @@ import wandb
 import wandb.env
 from wandb.errors import UsageError, WandbCoreNotAvailableError
 from wandb.errors.term import terminput
+from wandb.sdk.lib import urls
 from wandb.sdk.lib.json_util import dump, dumps, load, loads
 from wandb.sdk.lib.paths import FilePathStr, StrPath
 
@@ -212,7 +213,9 @@ def api_to_app_url(api_url: str) -> str:
     Unlike the deprecated `app_url()`, this is a pure function: it does
     not consult environment variables.
     """
-    if "://api.wandb.test" in api_url:
+    if urls.is_forge_host(api_url):
+        return urllib.parse.urljoin(api_url, urls.FORGE_APP_PATH)
+    elif "://api.wandb.test" in api_url:
         # dev mode
         return api_url.replace("://api.", "://app.").strip("/")
     elif "://api.wandb." in api_url:

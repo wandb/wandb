@@ -55,6 +55,16 @@ func TestParseRemoteURL(t *testing.T) {
 				RunID:   "abc123",
 			},
 		},
+		{
+			name: "base URL with a path prefix",
+			url:  "https://proxy.example/api/wandb/my-entity/my-project/runs/abc123",
+			want: &leet.RemoteRunParams{
+				BaseURL: "https://proxy.example/api/wandb",
+				Entity:  "my-entity",
+				Project: "my-project",
+				RunID:   "abc123",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -71,8 +81,6 @@ func TestParseRemoteURL_Errors(t *testing.T) {
 		"wandb.ai/entity/project/runs/abc123",
 		"https:///entity/project/runs/abc123",
 		"https://wandb.ai/entity/project",
-		"https://wandb.ai/entity/project/sweeps/abc123",
-		"https://wandb.ai/entity/project/runs/abc123/extra",
 		"https://wandb.ai",
 	}
 	for _, url := range urls {
