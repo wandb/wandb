@@ -445,8 +445,9 @@ func (s *Scheduler) buildUpdates(
 
 		if terminal {
 			run.state = TrackingTerminalDelivered
-		} else if run.runState == spb.SweepRunState_SWEEP_RUN_STATE_RUNNING ||
-			run.runState == spb.SweepRunState_SWEEP_RUN_STATE_PENDING {
+		} else if !run.pruned &&
+			(run.runState == spb.SweepRunState_SWEEP_RUN_STATE_RUNNING ||
+				run.runState == spb.SweepRunState_SWEEP_RUN_STATE_PENDING) {
 			candidates = append(candidates, run.optimizerRunID)
 		}
 	}
@@ -787,4 +788,48 @@ func runStateIsTerminal(state spb.SweepRunState) bool {
 // scheduler's batch of in-flight runs.
 func runStateOccupiesSlot(state spb.SweepRunState) bool {
 	return !runStateIsTerminal(state)
+}
+
+// applyPrunes marks the offered candidates the optimizer pruned, then stops them.
+func (s *Scheduler) applyPrunes(ctx context.Context, pruneIDs []string) {
+	for _, id := range pruneIDs {
+		if !s.lastPruneCandidates[id] {
+			continue
+		}
+		run := s.runs[id]
+		if run == nil || !run.isTracked() || runStateIsTerminal(run.runState) {
+			continue
+		}
+		run.pruned = true
+	}
+	s.stopPrunedRuns(ctx)
+}
+
+// stopPrunedRuns retries every unstopped pruned run, since the optimizer never prunes one twice.
+func (s *Scheduler) stopPrunedRuns(ctx context.Context) {
+	for _, id := range s.runOrder {
+		run := s.runs[id]
+		if !run.pruned || !run.isTracked() || runStateIsTerminal(run.runState) {
+			continue
+		}
+
+		stopped, err := s.api.StopRun(ctx, run.storageID)
+		if err != nil {
+			s.logger.Error(
+				"scheduler: failed to stop a pruned run; will retry",
+				"run", run.name, "error", err)
+			continue
+		}
+		if !stopped {
+			s.logger.Warn(
+				"scheduler: the backend refused to stop a pruned run; "+
+					"will retry",
+				"run", run.name)
+			continue
+		}
+
+		s.logger.Info(
+			"scheduler: stopped pruned run; retiring it", "run", run.name)
+		run.state = TrackingRetired
+	}
 }

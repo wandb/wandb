@@ -198,7 +198,7 @@ func NewScheduler(params SchedulerParams) *Scheduler {
 // A suggestion passes through TrackingInFlight and
 // TrackingTerminalDelivered, then settles in TrackingDormant or
 // TrackingRetired; before the scheduler has a record for it, it is
-// merely proposed.
+// merely proposed. Stopped pruned runs and uningestible runs skip to TrackingRetired.
 type TrackingState int
 
 const (
@@ -237,6 +237,9 @@ type trackedRun struct {
 
 	// warnedResumed means the resume warning was already logged for it
 	warnedResumed bool
+
+	// pruned means StopRun is retried until accepted and the run is never a candidate again
+	pruned bool
 }
 
 // isTracked reports whether the run is reported to the optimizer: its
@@ -623,17 +626,15 @@ func (s *Scheduler) applyWarmStartResult(
 	}
 }
 
-// applyGenerationResult applies tells and suggestions. A non-nil return
-// ends the scheduler with that Done task.
-//
-// result.Prune is still ignored: stopping a pruned run lands in the
-// slice on top of this one.
+// applyGenerationResult applies tells, prunes and suggestions. A non-nil
+// return ends the scheduler with that Done task.
 func (s *Scheduler) applyGenerationResult(
 	ctx context.Context,
 	result *spb.SweepSchedulerClientGenerationResult,
 ) *spb.SweepSchedulerServerNextTaskResponse {
 	s.popDeliveredTerminals()
 	s.popTellErrors(result.TellErrors)
+	s.applyPrunes(ctx, result.Prune)
 
 	if result.Terminate {
 		s.finishSweep(ctx)
