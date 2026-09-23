@@ -702,7 +702,9 @@ def binary_size_check(session: nox.Session) -> None:
     def binary_sizes() -> dict[str, int]:
         install_wandb(session, dev=False)
         bin_dir = site_packages_dir(session) / "wandb" / "bin"
-        return {p.name: p.stat().st_size for p in sorted(bin_dir.iterdir()) if p.is_file()}
+        return {
+            p.name: p.stat().st_size for p in sorted(bin_dir.iterdir()) if p.is_file()
+        }
 
     session.run("git", "switch", "--detach", base, external=True)
     base_sizes = binary_sizes()
@@ -724,7 +726,9 @@ def binary_size_check(session: nox.Session) -> None:
             continue
         base_size = base_sizes[name]
         pct = (current - base_size) / base_size if base_size else 0
-        session.log(f"{name}: {fmt_size(base_size)} -> {fmt_size(current)} ({pct:+.0%})")
+        session.log(
+            f"{name}: {fmt_size(base_size)} -> {fmt_size(current)} ({pct:+.0%})"
+        )
         if pct > 0.10:
             over_threshold.append(name)
         elif pct > 0.05:
