@@ -4,8 +4,15 @@ version = "0.1.1"
 edition = "2021"
 
 [dependencies]
-parquet = "59.1.0"
-arrow = { version = "59.1.0" }
+parquet = { version = "59.1.0", default-features = false, features = [
+    "arrow",
+    "snap",
+    "zstd",
+    "flate2-zlib-rs",
+    "lz4",
+    "simdutf8",
+] }
+arrow = { version = "59.1.0", default-features = false }
 libc = "0.2.189"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0"
