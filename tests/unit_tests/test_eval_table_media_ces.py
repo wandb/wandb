@@ -895,7 +895,7 @@ def test_eval_table_writes_supported_media_extensions_to_ces(
         scorers=[],
         idempotency_key=ANY,
     )
-    inputs = mock_ces_client.eval_tables.add_rows.call_args.kwargs["rows"][0]["input"]
+    inputs = mock_ces_client.eval_tables.rows.add.call_args.kwargs["rows"][0]["input"]
     assert inputs["image"]["extension_type"] == "wandb-image"
     assert inputs["image"]["format"] == "png"
     assert inputs["audio"]["extension_type"] == "wandb-audio"
