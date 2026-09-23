@@ -271,8 +271,8 @@ def test_ces_eval_table_writes_columns_rows_and_version(
         "evaluation-version-1",
     )
 
-    marker = et.to_json(run)
-    assert marker == {
+    history_value = et.to_json(run)
+    assert history_value == {
         "_type": "eval-table-ces",
         "schema_version": 1,
         "ncols": 5,
@@ -283,7 +283,7 @@ def test_ces_eval_table_writes_columns_rows_and_version(
         "dataset_id": "dataset-1",
         "dataset_version_id": "dataset-version-1",
     }
-    assert "evaluate_call_id" not in marker
+    assert "evaluate_call_id" not in history_value
     assert et._immutable_write_result is not None
     assert et._immutable_write_result.logged_id == "evaluation-version-1"
 

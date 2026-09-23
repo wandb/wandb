@@ -176,7 +176,7 @@ class CESWriter:
         ncols: int,
         log_mode: LogMode,
     ) -> WriteResult:
-        """Prepare and persist the CES resources, then return their history marker."""
+        """Prepare and persist the CES resources, then return their history value."""
         bound_run = self._require_bound()
 
         base_url = os.environ.get(_CES_BASE_URL_ENV)
@@ -240,7 +240,7 @@ class CESWriter:
         )
 
         return WriteResult(
-            marker={
+            history_value={
                 # Frontend dispatches on `_type` and validates the schema version.
                 "_type": "eval-table-ces",
                 "schema_version": 1,
