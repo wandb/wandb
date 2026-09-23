@@ -61,13 +61,6 @@ const (
 	UnitCount        = "1"
 )
 
-// defaultDurationBoundaries for RecordDuration, assumes unit is seconds.
-//
-// These match the OpenTelemetry defaults.
-var defaultDurationBoundaries = []float64{
-	0, 5, 10, 25, 50, 75, 100, 250, 500, 750, 1000, 2500, 5000, 7500, 10000,
-}
-
 // ConfigureOTelErrorHandler routes OpenTelemetry SDK errors to the logger.
 //
 // Without this, the OpenTelemetry SDK prints errors to stderr, which
@@ -323,60 +316,6 @@ func (r *TelemetryRecorder) DefineHistogram(
 	return r.root.defineHistogram(name, unit, description, boundaries)
 }
 
-// RecordDuration records a duration histogram metric in the units specified by
-// the histogram definition, and includes the telemetry context's
-// low-cardinality attributes.
-//
-// If the histogram is not defined, it uses the default unit of seconds,
-// and the default duration boundaries, which match the OpenTelemetry defaults.
-func (r *TelemetryRecorder) RecordDuration(
-	ctx context.Context,
-	name string,
-	duration time.Duration,
-	lowCardinalityAttributes LowCardinalityAttributes,
-) {
-	if r == nil {
-		return
-	}
-
-	var unit string
-	var value float64
-	if _, unitFromCache, ok := r.root.histogram(name); !ok {
-		unit = UnitSeconds
-		if err := r.root.defineHistogram(
-			name,
-			unit,
-			"",
-			defaultDurationBoundaries,
-		); err != nil {
-			slog.Error("analytics: failed to define histogram", "error", err)
-			return
-		}
-	} else {
-		unit = unitFromCache
-	}
-	switch unit {
-	case UnitSeconds:
-		value = duration.Seconds()
-	case UnitMilliseconds:
-		value = float64(duration.Milliseconds())
-	case UnitMicroseconds:
-		value = float64(duration.Microseconds())
-	case UnitNanoseconds:
-		value = float64(duration.Nanoseconds())
-	default:
-		slog.Error("analytics: unknown duration unit", "unit", unit)
-		return
-	}
-
-	r.RecordHistogram(
-		ctx,
-		name,
-		value,
-		lowCardinalityAttributes,
-	)
-}
-
 // RecordHistogram records a value on the histogram named name, with the
 // telemetry context's low-cardinality attributes.
 //
@@ -407,11 +346,11 @@ func (r *TelemetryRecorder) RecordHistogram(
 }
 
 // IncrementCounterAndLogEvent increments a counter metric by 1
-// with the telemetry context's low-cardinality attributes
+// and a log record.
 //
-// It additionally records a log record with the telemetry
-// context's attributes plus the caller-supplied attributes under the same
-// name
+// Equivalent to:
+//
+//	r.AddToCounterAndLogEvent(ctx, name, 1, attributes, lowCardinalityAttributes)
 func (r *TelemetryRecorder) IncrementCounterAndLogEvent(
 	ctx context.Context,
 	name string,
@@ -421,6 +360,12 @@ func (r *TelemetryRecorder) IncrementCounterAndLogEvent(
 	r.AddToCounterAndLogEvent(ctx, name, 1, attributes, lowCardinalityAttributes)
 }
 
+// AddToCounterAndLogEvent adds specified amount to a counter metric and
+// records a log record with the same name.
+//
+// It includes the telemetry context's attributes plus the caller-supplied
+// attributes. Low-cardinality attributes are included with the metric, and
+// all attributes are included with the log record.
 func (r *TelemetryRecorder) AddToCounterAndLogEvent(
 	ctx context.Context,
 	name string,

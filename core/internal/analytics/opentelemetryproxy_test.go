@@ -318,7 +318,7 @@ func TestTelemetryRecorder_RecordMetricAndLogEvent(t *testing.T) {
 	assert.Equal(t, "value", log.Attributes["custom"])
 }
 
-func TestTelemetryRecorder_RecordDuration(t *testing.T) {
+func TestTelemetryRecorder_RecordHistogram(t *testing.T) {
 	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
 	recorder := analytics.NewTelemetryRecorder(
 		proxy.OpenTelemetryProxy,
@@ -327,11 +327,18 @@ func TestTelemetryRecorder_RecordDuration(t *testing.T) {
 		analytics.LowCardinalityAttributes{LeetMode: "inspect"},
 		nil,
 	)
+	err := recorder.DefineHistogram(
+		"session_duration",
+		analytics.UnitSeconds,
+		"Duration of one session.",
+		[]float64{0.0001, 0.00025, 0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10},
+	)
+	require.NoError(t, err)
 
-	recorder.RecordDuration(
+	recorder.RecordHistogram(
 		t.Context(),
 		"session_duration",
-		1500*time.Millisecond,
+		1.5,
 		analytics.LowCardinalityAttributes{
 			ExecutionContext: "local",
 		},
@@ -345,6 +352,49 @@ func TestTelemetryRecorder_RecordDuration(t *testing.T) {
 	assert.InDelta(t, 1.5, metric.HistogramSum, 0.0001)
 	assert.Equal(t, "inspect", metric.Attributes["leet_mode"])
 	assert.Equal(t, "local", metric.Attributes["execution_context"])
+}
+
+func TestTelemetryRecorder_RecordHistogram_ResolvesBoundaries(t *testing.T) {
+	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+
+	err := recorder.DefineHistogram(
+		"encode_duration",
+		analytics.UnitSeconds,
+		"Duration of one encode operation.",
+		[]float64{
+			0.0001, 0.00025, 0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025,
+			0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10,
+		},
+	)
+	require.NoError(t, err)
+
+	for _, d := range []time.Duration{
+		200 * time.Microsecond,
+		3 * time.Millisecond,
+		40 * time.Millisecond,
+		700 * time.Millisecond,
+	} {
+		recorder.RecordHistogram(
+			t.Context(),
+			"encode_duration",
+			d.Seconds(),
+			analytics.LowCardinalityAttributes{},
+		)
+	}
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	metric, ok := proxy.FindMetric("encode_duration")
+	require.True(t, ok)
+	require.NotEmpty(t, metric.HistogramBounds)
+	assert.Equal(t, metric.HistogramBounds[0], 0.0001,
+		"the lowest boundary must be 0.0001")
+
+	// Each of the four durations belongs to a different bucket.
+	assert.Equal(t, metric.HistogramBucketCounts, []uint64{0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0})
 }
 
 func TestTelemetryRecorder_ErrorLog(t *testing.T) {
@@ -464,106 +514,6 @@ func TestTelemetryRecorder_RecordAfterShutdown_IsNoop(t *testing.T) {
 	assert.False(t, ok, "expected no log to be exported after shutdown")
 }
 
-func TestTelemetryRecorder_RecordDuration_ResolvesSubSecondBoundaries(t *testing.T) {
-	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
-	recorder := analytics.NewTelemetryRecorder(
-		proxy.OpenTelemetryProxy,
-		analytics.NewTelemetryContext(),
-	)
-
-	err := recorder.DefineHistogram(
-		"encode_duration",
-		analytics.UnitSeconds,
-		"Duration of one encode operation.",
-		[]float64{
-			0.0001, 0.00025, 0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025,
-			0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10,
-		},
-	)
-	require.NoError(t, err)
-
-	for _, d := range []time.Duration{
-		200 * time.Microsecond,
-		3 * time.Millisecond,
-		40 * time.Millisecond,
-		700 * time.Millisecond,
-	} {
-		recorder.RecordDuration(
-			t.Context(),
-			"encode_duration",
-			d,
-			analytics.LowCardinalityAttributes{},
-		)
-	}
-	require.NoError(t, proxy.Shutdown(context.Background()))
-
-	metric, ok := proxy.FindMetric("encode_duration")
-	require.True(t, ok)
-	require.NotEmpty(t, metric.HistogramBounds)
-	assert.Less(t, metric.HistogramBounds[0], 0.001,
-		"the lowest boundary must be below a millisecond")
-
-	// Each of the four durations belongs to a different bucket.
-	populated := 0
-	for _, count := range metric.HistogramBucketCounts {
-		if count > 0 {
-			populated++
-		}
-	}
-	assert.Equal(t, 4, populated,
-		"four durations an order of magnitude apart must land in four buckets")
-}
-
-func TestTelemetryRecorder_RecordDuration_ResolvesWhenUnitIsNotSeconds(t *testing.T) {
-	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
-	recorder := analytics.NewTelemetryRecorder(
-		proxy.OpenTelemetryProxy,
-		analytics.NewTelemetryContext(),
-	)
-
-	err := recorder.DefineHistogram(
-		"encode_duration",
-		analytics.UnitMilliseconds,
-		"Duration of one encode operation in milliseconds.",
-		[]float64{
-			0, 5, 10, 25, 50, 75, 100, 250, 500, 750,
-			1000, 2500, 5000, 7500, 10000,
-		},
-	)
-	require.NoError(t, err)
-
-	for _, d := range []time.Duration{
-		1 * time.Millisecond,
-		7 * time.Millisecond,
-		40 * time.Millisecond,
-		700 * time.Millisecond,
-	} {
-		recorder.RecordDuration(
-			t.Context(),
-			"encode_duration",
-			d,
-			analytics.LowCardinalityAttributes{},
-		)
-	}
-	require.NoError(t, proxy.Shutdown(context.Background()))
-
-	metric, ok := proxy.FindMetric("encode_duration")
-	require.True(t, ok)
-	require.NotEmpty(t, metric.HistogramBounds)
-	assert.Less(t, metric.HistogramBounds[0], 5.0,
-		"the lowest boundary must be below a millisecond")
-
-	// Each of the four durations belongs to a different bucket.
-	populated := 0
-	for _, count := range metric.HistogramBucketCounts {
-		if count > 0 {
-			populated++
-		}
-	}
-	assert.Equal(t, 4, populated,
-		"four durations an order of magnitude apart must land in four buckets")
-}
-
 func TestTelemetryRecorder_AddToCounter(t *testing.T) {
 	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
 	recorder := analytics.NewTelemetryRecorder(
@@ -622,31 +572,6 @@ func TestTelemetryRecorder_DefineHistogram(t *testing.T) {
 		"the declared boundaries must reach the exporter")
 }
 
-// A name that was never defined still records, with the default timing
-// boundaries. That is what RecordDuration relies on.
-func TestTelemetryRecorder_RecordDuration_UndefinedUsesDefaults(t *testing.T) {
-	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
-	recorder := analytics.NewTelemetryRecorder(
-		proxy.OpenTelemetryProxy,
-		analytics.NewTelemetryContext(),
-	)
-
-	recorder.RecordDuration(
-		t.Context(),
-		"undeclared",
-		3*time.Millisecond,
-		analytics.LowCardinalityAttributes{},
-	)
-	require.NoError(t, proxy.Shutdown(context.Background()))
-
-	metric, ok := proxy.FindMetric("undeclared")
-	require.True(t, ok)
-	assert.Equal(t, "s", metric.Unit)
-	require.NotEmpty(t, metric.HistogramBounds)
-	assert.Less(t, metric.HistogramBounds[0], 5.0,
-		"the default timing boundaries resolve below a millisecond")
-}
-
 func TestTelemetryRecorder_DefineHistogram_RejectsBadDefinitions(t *testing.T) {
 	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
 	recorder := analytics.NewTelemetryRecorder(
@@ -677,12 +602,19 @@ func TestOpenTelemetryProxyTest_FindMetricsPerSeries(t *testing.T) {
 		proxy.OpenTelemetryProxy,
 		analytics.NewTelemetryContext(),
 	)
+	err := recorder.DefineHistogram(
+		"encode_duration",
+		analytics.UnitSeconds,
+		"Duration of one encode operation.",
+		[]float64{0.0001, 0.00025, 0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10},
+	)
+	require.NoError(t, err)
 
 	for _, executionContext := range []string{"local", "ssh"} {
-		recorder.RecordDuration(
+		recorder.RecordHistogram(
 			t.Context(),
 			"encode_duration",
-			10*time.Millisecond,
+			0.01,
 			analytics.LowCardinalityAttributes{
 				ExecutionContext: executionContext,
 			},
