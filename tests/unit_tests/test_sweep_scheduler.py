@@ -171,9 +171,8 @@ class OptimizerAcceptanceTests(abc.ABC):
     def test_terminal_tell_after_prune_is_noop(self, optimizer: Optimizer) -> None:
         """A pruned run's terminal tell (and a repeated prune) must not raise.
 
-        The scheduler stops a pruned run asynchronously, so the optimizer
-        sees the run's terminal state on a later poll — after it may have
-        already finalized the run at prune time.
+        The scheduler sends that tell if the run ends before its stop goes
+        through, after the optimizer may have finalized the run at prune time.
         """
         suggestions = optimizer.ask_n_runs(3)
         runs = []
@@ -215,3 +214,48 @@ class TestWandbOptimizerAcceptance(OptimizerAcceptanceTests):
         optimizer.forget_run(first_run.run_id)
         again = next(iter(optimizer.ask_n_runs(1)))
         assert again.config["param1"].value == first_value
+
+    def test_prune_records_the_run_as_killed(self, optimizer: Optimizer) -> None:
+        """A pruned run gets no more updates, so it must not stay in flight."""
+        import sweeps
+
+        suggestions = optimizer.ask_n_runs(3)
+        optimizer.tell_run(
+            suggestions[0].run_id,
+            make_run(
+                suggestions[0],
+                state=RunState.FINISHED,
+                summary={"loss": 6.0},
+                history=[{"loss": 10.0}, {"loss": 6.0}, {"loss": 6.0}],
+            ),
+        )
+        pruned_id = suggestions[1].run_id
+        worst_running = make_run(
+            suggestions[1],
+            state=RunState.RUNNING,
+            summary={"loss": 10.0},
+            history=[{"loss": 10.0}, {"loss": 10.0}],
+        )
+        better_running = make_run(
+            suggestions[2],
+            state=RunState.RUNNING,
+            summary={"loss": 7.0},
+            history=[{"loss": 10.0}, {"loss": 7.0}, {"loss": 7.0}],
+        )
+        optimizer.tell_run(pruned_id, worst_running)
+        optimizer.tell_run(suggestions[2].run_id, better_running)
+
+        pruned = optimizer.prune_runs(
+            [pruned_id, suggestions[2].run_id], [worst_running, better_running]
+        )
+
+        assert pruned == [pruned_id]
+        assert optimizer._runs[pruned_id].state == sweeps.RunState.killed
+
+        # A terminal tell from a run that ended before its stop changes nothing.
+        optimizer.tell_run(
+            pruned_id,
+            make_run(suggestions[1], state=RunState.FINISHED, summary={"loss": 0.0}),
+        )
+        assert optimizer._runs[pruned_id].state == sweeps.RunState.killed
+        assert optimizer._runs[pruned_id].summary_metrics == {"loss": 10.0}
