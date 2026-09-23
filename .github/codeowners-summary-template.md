@@ -7,8 +7,6 @@ Each section below groups changed files by the owners from `CODEOWNERS`. Approva
 
 Legend: ✅ approval acquired, 🟠 approval still required.
 
-Send a review request to a [team's channel](https://github.com/wandb/wandbot-3000/blob/master/team-channels.yaml) by adding a `notify:<team>` label to the PR.
-
 {{range .owner_groups}}
 ### {{if .approval_marker}}{{.approval_marker}} {{end}}{{.owners}}
 {{range .files}}- `{{.path}}`
