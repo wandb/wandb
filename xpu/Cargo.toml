@@ -48,3 +48,8 @@ libc = "0.2.189"
 
 [target.'cfg(unix)'.dependencies]
 nix = { version = "0.31.3", features = ["process"] }
+
+[profile.release]
+strip = "symbols"
+lto = "fat"
+codegen-units = 1
