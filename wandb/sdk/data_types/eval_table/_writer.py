@@ -27,20 +27,17 @@ class WriteResult:
 
 
 class EvalTableWriter(Protocol):
-    """Backend-specific validation and persistence for an EvalTable.
-
-    `validate_cell_value` may run before `bind_to_run` while Table constructs
-    its rows. `bind_to_run` establishes the run context and precedes `write`.
-    A successful write is cached, while a failed write may be retried.
-    `logged_id` identifies the evaluation written by the selected backend.
-    """
+    """Backend-specific validation and persistence for an EvalTable."""
 
     def validate_cell_value(self, value: Any, column: ColumnKey) -> None:
-        """Raise if the backend cannot represent a value from this column."""
+        """Raise if the backend cannot represent a value from this column.
+
+        This may run before `bind_to_run` while Table constructs its rows.
+        """
         ...
 
     def bind_to_run(self, run: LocalRun, key: str, step: int | str) -> None:
-        """Bind backend state to the run-history location for the write."""
+        """Bind backend state before `write` to this run-history location."""
         ...
 
     def write(
@@ -52,6 +49,9 @@ class EvalTableWriter(Protocol):
         log_mode: LogMode,
     ) -> WriteResult:
         """Persist an EvalTable and return its backend-owned history marker.
+
+        EvalTable caches a successful result; a failed call may be retried. The
+        result's `logged_id` identifies the evaluation written by this backend.
 
         Row mappings retain the Table's original string or integer column keys.
         The backend converts those keys to its wire format while retaining the
