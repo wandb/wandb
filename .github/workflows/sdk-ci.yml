@@ -56,55 +56,26 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/build-wheel
 
-  unit-tests:
-    name: Unit tests · ${{ matrix.os }} · Python ${{ matrix.python }} · ${{ matrix.group }} of 4
+  unit-tests-linux:
+    name: Unit tests · Linux
     needs: build-wheel
-    runs-on: ${{ matrix.runs-on }}
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [Linux, macOS]
-        python: ["3.10", "3.13"]
-        group: [1, 2, 3, 4]
-        include:
-          - os: Linux
-            runs-on: ubuntu-latest-8-cores
-          - os: macOS
-            runs-on: macos-15-xlarge
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/run-tests
-        with:
-          session: unit_tests
-          python: ${{ matrix.python }}
-          test-group: ${{ matrix.group }}
-          test-groups: 4
-          artifact-name: unit-tests-${{ matrix.os }}-${{ matrix.python }}-${{ matrix.group }}
+    uses: ./.github/workflows/sdk-unit-tests.yml
+    with:
+      runs-on: ubuntu-latest-8-cores
+
+  unit-tests-macos:
+    name: Unit tests · macOS
+    needs: build-wheel
+    uses: ./.github/workflows/sdk-unit-tests.yml
+    with:
+      runs-on: macos-15-xlarge
 
   unit-tests-windows:
     name: Unit tests · Windows
     needs: build-wheel-windows
-    runs-on: windows-2022
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        python: ["3.10", "3.13"]
-        group: [1, 2, 3, 4]
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/run-tests
-        with:
-          session: unit_tests
-          python: ${{ matrix.python }}
-          test-group: ${{ matrix.group }}
-          test-groups: 4
-          artifact-name: unit-tests-Windows-${{ matrix.python }}-${{ matrix.group }}
+    uses: ./.github/workflows/sdk-unit-tests.yml
+    with:
+      runs-on: windows-2022
 
   unit-tests-go:
     name: Unit tests · Go
@@ -272,7 +243,8 @@ jobs:
     needs:
       - build-wheel
       - build-wheel-windows
-      - unit-tests
+      - unit-tests-linux
+      - unit-tests-macos
       - unit-tests-windows
       - unit-tests-go
       - unit-tests-rust
