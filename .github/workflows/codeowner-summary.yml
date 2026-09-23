@@ -89,6 +89,15 @@ jobs:
           repositories: |
             wandb
 
+      - name: Remove stale CODEOWNER review requests
+        if: steps.owners.outcome == 'success'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const script = require('./.github/scripts/codeowner-summary-prune-reviewers.js');
+            await script({github, context, core});
+
       - name: Prepare template variables
         if: steps.owners.outcome == 'success'
         id: template-vars
