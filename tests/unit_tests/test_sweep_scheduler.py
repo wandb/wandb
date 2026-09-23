@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import abc
+from collections.abc import Sequence
 from typing import Any
 
 import pytest
@@ -131,9 +132,10 @@ class OptimizerAcceptanceTests(abc.ABC):
     # pruners.
     better_running_loss = 7.0
 
-    def test_prune_runs_hyperband_stops_worst_running_run(
+    def start_runs_to_prune(
         self, optimizer: Optimizer
-    ) -> None:
+    ) -> tuple[list[RunSuggestion], list[RunWithMetrics]]:
+        """Finish one run and return two running candidates, worst first."""
         suggestions = optimizer.ask_n_runs(3)
         assert len(suggestions) == 3
 
@@ -143,62 +145,65 @@ class OptimizerAcceptanceTests(abc.ABC):
                 suggestions[0],
                 state=RunState.FINISHED,
                 summary={"loss": 6.0},
-                history=[{"loss": 10.0}, {"loss": 6.0}, {"loss": 6.0}],
+                history=[
+                    {"loss": 10.0, "_step": 0},
+                    {"loss": 6.0, "_step": 1},
+                    {"loss": 6.0, "_step": 2},
+                ],
             ),
         )
         worst_running = make_run(
             suggestions[1],
             state=RunState.RUNNING,
             summary={"loss": 10.0},
-            history=[{"loss": 10.0}, {"loss": 10.0}],
+            history=[{"loss": 10.0, "_step": 0}, {"loss": 10.0, "_step": 1}],
         )
         loss = self.better_running_loss
         better_running = make_run(
             suggestions[2],
             state=RunState.RUNNING,
             summary={"loss": loss},
-            history=[{"loss": 10.0}, {"loss": loss}, {"loss": loss}],
+            history=[
+                {"loss": 10.0, "_step": 0},
+                {"loss": loss, "_step": 1},
+                {"loss": loss, "_step": 2},
+            ],
         )
         optimizer.tell_run(suggestions[1].run_id, worst_running)
         optimizer.tell_run(suggestions[2].run_id, better_running)
+        return suggestions[1:], [worst_running, better_running]
 
-        pruned = optimizer.prune_runs(
-            [suggestions[1].run_id, suggestions[2].run_id],
-            [worst_running, better_running],
-        )
-        assert pruned == [suggestions[1].run_id]
+    def prune(
+        self,
+        optimizer: Optimizer,
+        run_ids: Sequence[str],
+        runs: Sequence[RunWithMetrics],
+    ) -> Sequence[str]:
+        """Prune `runs`; a subclass may stub a statistical pruner's verdict."""
+        return optimizer.prune_runs(run_ids, runs)
 
-    def test_terminal_tell_after_prune_is_noop(self, optimizer: Optimizer) -> None:
-        """A pruned run's terminal tell (and a repeated prune) must not raise.
+    def test_prune_runs_stops_worst_running_run(self, optimizer: Optimizer) -> None:
+        candidates, runs = self.start_runs_to_prune(optimizer)
+        run_ids = [candidate.run_id for candidate in candidates]
 
-        The scheduler stops a pruned run asynchronously, so the optimizer
-        sees the run's terminal state on a later poll — after it may have
-        already finalized the run at prune time.
+        assert self.prune(optimizer, run_ids, runs) == [run_ids[0]]
+
+    def test_a_pruned_run_is_final(self, optimizer: Optimizer) -> None:
+        """Pruning finalizes the run, so later updates must not revive it.
+
+        The scheduler keeps reporting a pruned run until its stop goes
+        through, and never offers it for pruning again.
         """
-        suggestions = optimizer.ask_n_runs(3)
-        runs = []
-        for i, suggestion in enumerate(suggestions):
-            run = make_run(
-                suggestion,
-                state=RunState.RUNNING,
-                summary={"loss": float(10 * (i + 1))},
-                history=[{"loss": float(10 * (i + 1))}] * 2,
-            )
-            optimizer.tell_run(suggestion.run_id, run)
-            runs.append(run)
-        run_ids = [s.run_id for s in suggestions]
+        candidates, runs = self.start_runs_to_prune(optimizer)
+        pruned_id = candidates[0].run_id
+        assert self.prune(optimizer, [c.run_id for c in candidates], runs) == [
+            pruned_id
+        ]
 
-        pruned = list(optimizer.prune_runs(run_ids, runs))
-        for run_id, suggestion in zip(run_ids, suggestions, strict=True):
-            if run_id not in pruned:
-                continue
-            optimizer.tell_run(
-                run_id,
-                make_run(suggestion, state=RunState.KILLED, summary={}),
-            )
-        # Offering an already-pruned id again must be tolerated.
-        repruned = optimizer.prune_runs(run_ids, runs)
-        assert set(repruned) <= set(run_ids)
+        # Its stop failed, so it is still reported as running.
+        optimizer.tell_run(pruned_id, runs[0])
+
+        assert self.prune(optimizer, [pruned_id], [runs[0]]) == []
 
 
 class TestWandbOptimizerAcceptance(OptimizerAcceptanceTests):
