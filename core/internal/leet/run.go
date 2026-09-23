@@ -826,9 +826,9 @@ type Layout struct {
 
 // attachFilters restores the filters remembered for the run's wandb
 // directory and keeps them saved.
-func (r *Run) attachFilters(df *dirFilters) {
-	df.bind(&df.Metrics, r.metricsGrid.filter, r.metricsGrid.ApplyFilter)
-	df.bind(&df.SystemMetrics,
+func (r *Run) attachFilters(ds *dirState) {
+	ds.bind(&ds.Metrics, r.metricsGrid.filter, r.metricsGrid.ApplyFilter)
+	ds.bind(&ds.SystemMetrics,
 		r.rightSidebar.metricsGrid.filter, r.rightSidebar.metricsGrid.ApplyFilter)
 }
 

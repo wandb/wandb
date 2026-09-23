@@ -125,30 +125,6 @@ func extractStepValuesFromLiveData(liveData []any) ([]int64, error) {
 	return stepValues, nil
 }
 
-func GetFileSize(
-	ctx context.Context,
-	fileUrl string,
-	httpClient api.RetryableClient,
-) (int64, error) {
-	req, err := retryablehttp.NewRequestWithContext(
-		ctx,
-		http.MethodHead,
-		fileUrl,
-		nil,
-	)
-	if err != nil {
-		return 0, err
-	}
-
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return 0, err
-	}
-	defer resp.Body.Close()
-
-	return resp.ContentLength, nil
-}
-
 // RunHistoryDownloadOperation is a download operation
 // for managing and tracking the download of a run's history file(s).
 type RunHistoryDownloadOperation struct {
@@ -215,7 +191,6 @@ func (d *RunHistoryDownloadOperation) createDownloadTasks(
 	operation *wboperation.WandbOperation,
 ) ([]*filetransfer.DefaultDownloadTask, error) {
 	tasks := make([]*filetransfer.DefaultDownloadTask, 0, len(d.signedUrls))
-	totalBytes := int64(0)
 
 	for i, url := range d.signedUrls {
 		fileName := fmt.Sprintf(
@@ -226,19 +201,12 @@ func (d *RunHistoryDownloadOperation) createDownloadTasks(
 			i,
 		)
 		filePath := filepath.Join(d.downloadDir, fileName)
-		fileSize, err := GetFileSize(ctx, url, d.httpClient)
-		if err != nil {
-			return nil, err
-		}
-
-		totalBytes += fileSize
 
 		fileOp := operation.Subtask(fileName)
 		task := &filetransfer.DefaultDownloadTask{
 			FileKind: filetransfer.RunFileKindMedia,
 			Path:     filePath,
 			Url:      url,
-			Size:     fileSize,
 		}
 		task.Context = fileOp.Context(ctx)
 		task.OnComplete = func() {

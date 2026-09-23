@@ -36,6 +36,45 @@ class _DummyPopen:
         self.sent.append("kill")
 
 
+# lambdas can't contain raise statements, so we have to create a specific
+# function for this
+def _exit_with_status_7():
+    raise SystemExit(7)
+
+
+@pytest.mark.parametrize("exit_code", [None, 0, 1, -signal.SIGTERM])
+def test_agent_process_poll_returns_function_exit_code(exit_code):
+    child_process = mock.Mock(exitcode=exit_code)
+    with mock.patch.object(
+        wandb_agent.multiprocessing,
+        "Process",
+        return_value=child_process,
+    ):
+        proc = wandb_agent.AgentProcess(function=mock.Mock())
+
+    result = proc.poll()
+
+    assert result == exit_code
+    if exit_code is None:
+        child_process.join.assert_not_called()
+    else:
+        assert isinstance(result, int)
+        assert not isinstance(result, bool)
+        child_process.join.assert_called_once_with()
+
+
+def test_agent_process_poll_reports_function_system_exit():
+    proc = wandb_agent.AgentProcess(
+        env={},
+        function=_exit_with_status_7,
+        run_id="test-run",
+    )
+
+    proc.wait(timeout=10)
+
+    assert proc.poll() == 7
+
+
 def _capture_handlers(monkeypatch, valid_signals):
     installed = {}
 
