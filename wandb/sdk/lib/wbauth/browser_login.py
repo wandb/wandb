@@ -37,7 +37,7 @@ import tempfile
 import time
 import urllib.parse
 import webbrowser
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator
 from typing import Any
 
 import requests
@@ -72,13 +72,6 @@ on is the CLI's, not this browser tab's.
 
 _CANCELLED_PATH = "/cli-login-cancelled"
 """Where the browser lands when the user denies CLI login."""
-
-DEFAULT_SCOPES = (
-    "runs.read",
-    "runs.write",
-    "artifacts.read",
-    "artifacts.write",
-)
 
 LOGIN_TIMEOUT_SECONDS = 300.0
 """How long to wait for the browser half of the login.
@@ -117,7 +110,6 @@ def login(
     host: HostUrl,
     organization: str | None = None,
     client_id: str = CLI_CLIENT_ID,
-    scopes: Sequence[str] = DEFAULT_SCOPES,
     timeout: float = LOGIN_TIMEOUT_SECONDS,
     verify: bool | str = True,
 ) -> TokenSet:
@@ -130,7 +122,6 @@ def login(
             belong to.
         client_id: The OAuth client to identify as. Deployments that registered
             their own may override it.
-        scopes: The scopes to request.
         timeout: Seconds to wait for the browser to come back.
         verify: TLS verification for the token exchange, as requests takes it:
             False to skip it, or a path to a CA bundle.
@@ -149,7 +140,6 @@ def login(
             host,
             client_id=client_id,
             redirect_uri=redirect_uri,
-            scopes=scopes,
             state=state,
             challenge=challenge,
             organization=organization,
@@ -368,7 +358,6 @@ def _authorize_url(
     *,
     client_id: str,
     redirect_uri: str,
-    scopes: Sequence[str],
     state: str,
     challenge: str,
     organization: str | None,
@@ -383,7 +372,6 @@ def _authorize_url(
         "client_id": client_id,
         "response_type": "code",
         "redirect_uri": redirect_uri,
-        "scope": " ".join(scopes),
         "state": state,
         "code_challenge": challenge,
         "code_challenge_method": "S256",
