@@ -222,34 +222,3 @@ def test_record_histogram(monkeypatch):
     open_telemetry_proxy.record_histogram.assert_called_once()
     assert open_telemetry_proxy.record_histogram.call_args.args[0] == "request_size"
     assert open_telemetry_proxy.record_histogram.call_args.args[1] == 2048.0
-
-
-def test_record_duration_converts_milliseconds(monkeypatch):
-    monkeypatch.setattr(env, "error_reporting_enabled", lambda: True)
-    open_telemetry_proxy = MagicMock()
-    open_telemetry_proxy._histogram.return_value = MagicMock(
-        unit=_UNIT_MILLISECONDS,
-    )
-    recorder = TelemetryRecorder(open_telemetry_proxy=open_telemetry_proxy)
-
-    recorder.record_duration("encode_duration", 1.5, LowCardinalityAttributes())
-
-    open_telemetry_proxy.define_histogram.assert_not_called()
-    open_telemetry_proxy.record_histogram.assert_called_once()
-    assert open_telemetry_proxy.record_histogram.call_args.args[0] == "encode_duration"
-    assert open_telemetry_proxy.record_histogram.call_args.args[1] == 1500.0
-
-
-def test_record_duration_defines_default_when_missing(monkeypatch):
-    monkeypatch.setattr(env, "error_reporting_enabled", lambda: True)
-    open_telemetry_proxy = MagicMock()
-    open_telemetry_proxy._histogram.return_value = None
-    recorder = TelemetryRecorder(open_telemetry_proxy=open_telemetry_proxy)
-
-    recorder.record_duration("undeclared", 0.003, LowCardinalityAttributes())
-
-    open_telemetry_proxy.define_histogram.assert_called_once()
-    assert open_telemetry_proxy.define_histogram.call_args.args[0] == "undeclared"
-    assert open_telemetry_proxy.define_histogram.call_args.args[1] == "s"
-    open_telemetry_proxy.record_histogram.assert_called_once()
-    assert open_telemetry_proxy.record_histogram.call_args.args[1] == 0.003

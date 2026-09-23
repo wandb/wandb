@@ -401,50 +401,6 @@ class TelemetryRecorder:
         )
 
     @guard
-    def record_duration(
-        self,
-        name: str,
-        seconds: float,
-        low_cardinality_attributes: LowCardinalityAttributes,
-    ) -> None:
-        """Record a duration on an OpenTelemetry histogram metric.
-
-        Converts `seconds` into the unit stored on the histogram definition.
-        If the histogram is not defined, creates one with unit seconds and
-        the default duration boundaries.
-
-        The histogram contains the low-cardinality attributes from the current
-        context plus the low-cardinality attributes passed when this method is
-        called.
-        """
-        assert self._open_telemetry_proxy is not None
-
-        cached = self._open_telemetry_proxy._histogram(name)
-        if cached is None:
-            unit = _UNIT_SECONDS
-            self._open_telemetry_proxy.define_histogram(
-                name,
-                unit,
-                "",
-                _DEFAULT_DURATION_BUCKET_BOUNDARIES,
-            )
-        else:
-            unit = cached.unit
-
-        if unit == _UNIT_SECONDS:
-            value = seconds
-        elif unit == _UNIT_MILLISECONDS:
-            value = seconds * 1_000
-        elif unit == _UNIT_MICROSECONDS:
-            value = seconds * 1_000_000
-        elif unit == _UNIT_NANOSECONDS:
-            value = seconds * 1_000_000_000
-        else:
-            return
-
-        self.record_histogram(name, value, low_cardinality_attributes)
-
-    @guard
     def record_histogram(
         self,
         name: str,
