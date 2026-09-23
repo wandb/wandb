@@ -733,8 +733,6 @@ def test_infer_git_root_skips_if_disable_git(tmp_path):
         ("typed", "typed"),
         ("json,typed", "json,typed"),
         ("typed,json", "typed,json"),
-        # Whitespace and case are normalized, so that a reader can split
-        # on "," and compare without parsing again.
         (" JSON , Typed ", "json,typed"),
     ],
 )
