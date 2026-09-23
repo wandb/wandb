@@ -13,7 +13,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -197,8 +196,7 @@ func serviceMain() int {
 		case sig := <-signalCh:
 			slog.Info("main: received shutdown signal", "signal", sig)
 			srv.ForceStop()
-			err := <-srvCh
-			if err != nil && !errors.Is(err, server.ErrForcedShutdown) {
+			if err := <-srvCh; err != nil {
 				slog.Error("main: Serve() returned error", "error", err)
 			}
 			return exitCodeSignal

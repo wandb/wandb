@@ -99,6 +99,25 @@ func StubUpsertBucket(t *testing.T, mockGQL *gqlmock.MockClient) {
 	}`)
 }
 
+func StubRunResumeStatusWithStep(t *testing.T, mock *gqlmock.MockClient, step int64) {
+	mock.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), fmt.Sprintf(`{
+		"model": {
+			"bucket": {
+				"name": "run",
+				"id": "storage-id",
+				"historyLineCount": 0,
+				"eventsLineCount": 0,
+				"logLineCount": 0,
+				"historyTail": "[]",
+				"summaryMetrics": "{\"_step\": %d}",
+				"config": "{}",
+				"eventsTail": "[]",
+				"wandbConfig": "{\"t\": 1}"
+			}
+		}
+	}`, step))
+}
+
 func StubRunResumeStatusWithStepAndRuntime(
 	t *testing.T,
 	mock *gqlmock.MockClient,

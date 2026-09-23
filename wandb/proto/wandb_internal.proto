@@ -69,11 +69,12 @@ message Record {
 }
 
 message Control {
+  reserved 5;
+
   bool req_resp = 1;         // record is expecting a result
   bool local = 2;            // should not be persisted or synchronized
   string relay_id = 3;       // used by service transport to identify correct stream
   string mailbox_slot = 4;   // mailbox slot
-  bool always_send = 5;      // message to sender
   bool flow_control = 6;     // message should be passed to flow control
   int64 end_offset = 7;      // end of message offset of this written message
   string connection_id = 8;  // connection id
@@ -191,6 +192,7 @@ message RunRecord {
   // This stores pre-sync intention. Distinct from `resumed` which stores what
   // actually happened.
   bool resume = 24;
+
   _RecordInfo _info = 200;
 }
 
@@ -1587,6 +1589,8 @@ message JobInputRequest {
 //
 // Each enum's name matches the name used in the backend server.
 enum ServerFeature {
+  reserved 8;
+
   SERVER_FEATURE_UNSPECIFIED = 0;
 
   // Indicates that the server supports recieving an array of filenames as metadata.
@@ -1613,9 +1617,6 @@ enum ServerFeature {
 
   // Indicates that the server supports passing the artifact's entity and project to the useArtifact mutation.
   USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION = 7;
-
-  // Indicates that the server supports expanding defined metric globs on the server side.
-  EXPAND_DEFINED_METRIC_GLOBS = 8;
 
   // Indicates that the server supports automation event RUN_METRIC.
   AUTOMATION_EVENT_RUN_METRIC = 9;

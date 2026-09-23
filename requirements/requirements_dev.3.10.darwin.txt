@@ -12,11 +12,11 @@ aiohttp==3.13.5
     #   litellm
 aiosignal==1.4.0
     # via aiohttp
-alembic==1.19.1
+alembic==1.20.0
     # via optuna
 annotated-types==0.8.0
     # via pydantic
-anyio==4.14.2
+anyio==4.15.1
     # via
     #   dspy
     #   httpx
@@ -74,18 +74,18 @@ blinker==1.9.0
     # via flask
 bokeh==3.9.2
     # via -r requirements/requirements_dev.txt
-boto3==1.43.83
+boto3==1.43.93
     # via
     #   metaflow
     #   moto
     #   wandb
-botocore==1.43.83
+botocore==1.43.93
     # via
     #   boto3
     #   moto
     #   s3transfer
     #   wandb
-cachetools==7.1.7
+cachetools==7.1.8
     # via dspy
 catboost==1.2.10
     # via -r requirements/requirements_dev.txt
@@ -139,7 +139,7 @@ contourpy==1.3.2
     # via
     #   bokeh
     #   matplotlib
-coverage==7.16.0
+coverage==7.16.1
     # via
     #   -r requirements/requirements_test.txt
     #   pytest-cov
@@ -193,14 +193,14 @@ fastjsonschema==2.22.2
     # via nbformat
 fastuuid==0.14.0
     # via litellm
-filelock==3.32.4
+filelock==3.32.6
     # via
     #   -r requirements/requirements_dev.txt
     #   huggingface-hub
     #   torch
 flask==2.3.3
     # via -r requirements/requirements_test.txt
-fonttools==4.64.0
+fonttools==4.65.0
     # via matplotlib
 fqdn==1.5.1
     # via jsonschema
@@ -216,7 +216,7 @@ fsspec==2026.7.0
     #   torch
 gepa==0.1.4
     # via dspy
-google-api-core==2.34.0
+google-api-core==2.36.0
     # via
     #   google-cloud-aiplatform
     #   google-cloud-artifact-registry
@@ -245,9 +245,9 @@ google-cloud-aiplatform==1.115.0
     # via wandb
 google-cloud-artifact-registry==1.22.0
     # via wandb
-google-cloud-bigquery==3.44.0
+google-cloud-bigquery==3.45.0
     # via google-cloud-aiplatform
-google-cloud-compute==1.51.0
+google-cloud-compute==1.52.0
     # via wandb
 google-cloud-core==2.7.0
     # via
@@ -270,7 +270,7 @@ google-resumable-media==2.10.2
     # via
     #   google-cloud-bigquery
     #   google-cloud-storage
-googleapis-common-protos==1.75.2
+googleapis-common-protos==1.75.3
     # via
     #   google-api-core
     #   grpc-google-iam-v1
@@ -286,7 +286,7 @@ grpc-google-iam-v1==0.14.5
     # via
     #   google-cloud-artifact-registry
     #   google-cloud-resource-manager
-grpcio==1.83.1
+grpcio==1.84.0
     # via
     #   google-api-core
     #   google-cloud-artifact-registry
@@ -296,7 +296,7 @@ grpcio==1.83.1
     #   grpc-google-iam-v1
     #   grpcio-status
     #   tensorboard
-grpcio-status==1.83.1
+grpcio-status==1.84.0
     # via google-api-core
 gymnasium==1.3.0
     # via
@@ -311,7 +311,7 @@ hf-xet==1.6.0
     # via huggingface-hub
 httpcore==1.0.9
     # via httpx
-httpcore2==2.12.0
+httpcore2==2.13.0
     # via httpx2
 httpx==0.27.2
     # via
@@ -320,11 +320,11 @@ httpx==0.27.2
     #   huggingface-hub
     #   jupyterlab
     #   litellm
-httpx2==2.12.0
+httpx2==2.13.0
     # via openai
-huggingface-hub==1.29.0
+huggingface-hub==1.31.0
     # via tokenizers
-hypothesis==6.167.1
+hypothesis==6.168.0
     # via
     #   -r requirements/requirements_test.txt
     #   hypothesis-fspaths
@@ -392,7 +392,7 @@ jinja2==3.1.6
     #   litellm
     #   nbconvert
     #   torch
-jiter==0.16.0
+jiter==0.17.0
     # via openai
 jmespath==1.1.0
     # via
@@ -421,7 +421,7 @@ jsonschema-specifications==2025.9.1
     # via jsonschema
 jupyter==1.1.1
     # via -r requirements/requirements_dev.txt
-jupyter-builder==1.2.2
+jupyter-builder==1.2.3
     # via
     #   jupyterlab
     #   notebook
@@ -487,7 +487,7 @@ lark==1.3.1
     # via rfc3987-syntax
 lightgbm==4.7.0
     # via -r requirements/requirements_dev.txt
-lightning==2.6.5
+lightning==2.6.6
     # via -r requirements/requirements_dev.txt
 lightning-utilities==0.15.3
     # via
@@ -516,7 +516,7 @@ matplotlib-inline==0.2.2
     # via
     #   ipykernel
     #   ipython
-metaflow==2.19.38
+metaflow==2.19.39
     # via -r requirements/requirements_dev.txt
 mistune==3.3.4
     # via nbconvert
@@ -536,7 +536,7 @@ msal==1.38.0
     #   msal-extensions
 msal-extensions==1.3.1
     # via azure-identity
-multidict==6.7.1
+multidict==6.8.0
     # via
     #   aiohttp
     #   yarl
@@ -544,7 +544,7 @@ mypy-extensions==1.1.0
     # via
     #   black
     #   isort
-narwhals==2.25.0
+narwhals==2.26.0
     # via
     #   bokeh
     #   lightgbm
@@ -607,13 +607,14 @@ oauthlib==3.3.1
     # via
     #   kubernetes
     #   requests-oauthlib
-openai==3.6.0
+openai==3.13.0
     # via
     #   -r requirements/requirements_dev.txt
     #   dspy
     #   litellm
 opentelemetry-api==1.44.0
     # via
+    #   google-api-core
     #   opentelemetry-exporter-otlp-proto-http
     #   opentelemetry-sdk
     #   opentelemetry-semantic-conventions
@@ -634,7 +635,7 @@ opentelemetry-semantic-conventions==0.65b0
     # via opentelemetry-sdk
 opt-einsum==3.4.0
     # via jax
-optuna==4.9.0
+optuna==5.0.0
     # via wandb
 orjson==3.12.0
     # via dspy
@@ -687,7 +688,7 @@ pillow==12.3.0
     #   rdkit
     #   tensorboard
     #   torchvision
-platformdirs==4.11.5
+platformdirs==4.11.8
     # via
     #   black
     #   jupyter-core
@@ -750,7 +751,7 @@ ptyprocess==0.7.0
     # via
     #   pexpect
     #   terminado
-pure-eval==0.2.3
+pure-eval==0.2.4
     # via stack-data
 py-partiql-parser==0.6.3
     # via moto
@@ -787,7 +788,7 @@ pygments==2.21.0
     #   jupyter-console
     #   nbconvert
     #   pytest
-pyjwt==2.13.0
+pyjwt==2.14.0
     # via msal
 pyopenssl==26.2.0
     # via google-auth
@@ -837,7 +838,7 @@ python-json-logger==4.2.0
     # via jupyter-events
 pytokens==0.4.1
     # via black
-pytorch-lightning==2.6.5
+pytorch-lightning==2.6.6
     # via lightning
 pytz==2026.3.post1
     # via pandas
@@ -863,14 +864,14 @@ pyzmq==27.2.0
     #   jupyter-client
     #   jupyter-console
     #   jupyter-server
-rdkit==2026.3.5
+rdkit==2026.3.6
     # via -r requirements/requirements_dev.txt
 referencing==0.37.0
     # via
     #   jsonschema
     #   jsonschema-specifications
     #   jupyter-events
-regex==2026.8.31
+regex==2026.9.10
     # via
     #   dspy
     #   tiktoken
@@ -997,7 +998,7 @@ tiktoken==0.14.0
     # via litellm
 tinycss2==1.5.1
     # via bleach
-tokenizers==0.23.1
+tokenizers==0.23.2
     # via litellm
 toml==0.10.2
     # via ariadne-codegen
@@ -1035,7 +1036,7 @@ tornado==6.5.8
     #   notebook
     #   terminado
     #   wandb
-tqdm==4.70.0
+tqdm==4.70.1
     # via
     #   -r requirements/requirements_dev.txt
     #   dspy
@@ -1065,7 +1066,7 @@ truststore==0.10.4
     # via
     #   httpcore2
     #   httpx2
-types-pyyaml==6.0.12.20260815
+types-pyyaml==6.0.12.20260906
     # via responses
 typing-extensions==4.16.0
     # via
@@ -1114,7 +1115,7 @@ typing-extensions==4.16.0
     #   wandb
 typing-inspection==0.4.4
     # via pydantic
-tzdata==2026.3
+tzdata==2026.4
     # via arrow
 uri-template==1.3.0
     # via jsonschema
@@ -1165,7 +1166,7 @@ xmltodict==1.0.4
     # via moto
 xxhash==4.0.1
     # via wandb
-xyzservices==2026.3.0
+xyzservices==2026.9.1
     # via bokeh
 yarl==1.24.5
     # via aiohttp

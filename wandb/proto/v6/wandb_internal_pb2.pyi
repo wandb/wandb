@@ -22,7 +22,6 @@ class ServerFeature(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     ARTIFACT_COLLECTION_MEMBERSHIP_FILES: _ClassVar[ServerFeature]
     ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER: _ClassVar[ServerFeature]
     USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION: _ClassVar[ServerFeature]
-    EXPAND_DEFINED_METRIC_GLOBS: _ClassVar[ServerFeature]
     AUTOMATION_EVENT_RUN_METRIC: _ClassVar[ServerFeature]
     AUTOMATION_EVENT_RUN_METRIC_CHANGE: _ClassVar[ServerFeature]
     AUTOMATION_ACTION_NO_OP: _ClassVar[ServerFeature]
@@ -60,7 +59,6 @@ STRUCTURED_CONSOLE_LOGS: ServerFeature
 ARTIFACT_COLLECTION_MEMBERSHIP_FILES: ServerFeature
 ARTIFACT_COLLECTION_MEMBERSHIP_FILE_DOWNLOAD_HANDLER: ServerFeature
 USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION: ServerFeature
-EXPAND_DEFINED_METRIC_GLOBS: ServerFeature
 AUTOMATION_EVENT_RUN_METRIC: ServerFeature
 AUTOMATION_EVENT_RUN_METRIC_CHANGE: ServerFeature
 AUTOMATION_ACTION_NO_OP: ServerFeature
@@ -149,12 +147,11 @@ class Record(_message.Message):
     def __init__(self, num: _Optional[int] = ..., history: _Optional[_Union[HistoryRecord, _Mapping]] = ..., summary: _Optional[_Union[SummaryRecord, _Mapping]] = ..., output: _Optional[_Union[OutputRecord, _Mapping]] = ..., config: _Optional[_Union[ConfigRecord, _Mapping]] = ..., files: _Optional[_Union[FilesRecord, _Mapping]] = ..., stats: _Optional[_Union[StatsRecord, _Mapping]] = ..., artifact: _Optional[_Union[ArtifactRecord, _Mapping]] = ..., tbrecord: _Optional[_Union[TBRecord, _Mapping]] = ..., alert: _Optional[_Union[AlertRecord, _Mapping]] = ..., telemetry: _Optional[_Union[_wandb_telemetry_pb2.TelemetryRecord, _Mapping]] = ..., metric: _Optional[_Union[MetricRecord, _Mapping]] = ..., output_raw: _Optional[_Union[OutputRawRecord, _Mapping]] = ..., run: _Optional[_Union[RunRecord, _Mapping]] = ..., exit: _Optional[_Union[RunExitRecord, _Mapping]] = ..., final: _Optional[_Union[FinalRecord, _Mapping]] = ..., header: _Optional[_Union[HeaderRecord, _Mapping]] = ..., footer: _Optional[_Union[FooterRecord, _Mapping]] = ..., preempting: _Optional[_Union[RunPreemptingRecord, _Mapping]] = ..., noop_link_artifact: _Optional[_Union[_empty_pb2.Empty, _Mapping]] = ..., use_artifact: _Optional[_Union[UseArtifactRecord, _Mapping]] = ..., environment: _Optional[_Union[EnvironmentRecord, _Mapping]] = ..., output_logger: _Optional[_Union[OutputLoggerRecord, _Mapping]] = ..., request: _Optional[_Union[Request, _Mapping]] = ..., control: _Optional[_Union[Control, _Mapping]] = ..., uuid: _Optional[str] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
 
 class Control(_message.Message):
-    __slots__ = ("req_resp", "local", "relay_id", "mailbox_slot", "always_send", "flow_control", "end_offset", "connection_id")
+    __slots__ = ("req_resp", "local", "relay_id", "mailbox_slot", "flow_control", "end_offset", "connection_id")
     REQ_RESP_FIELD_NUMBER: _ClassVar[int]
     LOCAL_FIELD_NUMBER: _ClassVar[int]
     RELAY_ID_FIELD_NUMBER: _ClassVar[int]
     MAILBOX_SLOT_FIELD_NUMBER: _ClassVar[int]
-    ALWAYS_SEND_FIELD_NUMBER: _ClassVar[int]
     FLOW_CONTROL_FIELD_NUMBER: _ClassVar[int]
     END_OFFSET_FIELD_NUMBER: _ClassVar[int]
     CONNECTION_ID_FIELD_NUMBER: _ClassVar[int]
@@ -162,11 +159,10 @@ class Control(_message.Message):
     local: bool
     relay_id: str
     mailbox_slot: str
-    always_send: bool
     flow_control: bool
     end_offset: int
     connection_id: str
-    def __init__(self, req_resp: bool = ..., local: bool = ..., relay_id: _Optional[str] = ..., mailbox_slot: _Optional[str] = ..., always_send: bool = ..., flow_control: bool = ..., end_offset: _Optional[int] = ..., connection_id: _Optional[str] = ...) -> None: ...
+    def __init__(self, req_resp: bool = ..., local: bool = ..., relay_id: _Optional[str] = ..., mailbox_slot: _Optional[str] = ..., flow_control: bool = ..., end_offset: _Optional[int] = ..., connection_id: _Optional[str] = ...) -> None: ...
 
 class Result(_message.Message):
     __slots__ = ("run_result", "exit_result", "log_result", "summary_result", "output_result", "config_result", "response", "control", "uuid", "_info")

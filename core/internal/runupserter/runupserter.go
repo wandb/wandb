@@ -67,7 +67,7 @@ type RunUpserter struct {
 	params      *runbranch.RunParams
 	config      *runconfig.RunConfig
 	telemetry   *spb.TelemetryRecord
-	metrics     *runmetric.RunConfigMetrics
+	metrics     *runmetric.MetricHandler
 	environment *runenvironment.RunEnvironment
 }
 
@@ -159,20 +159,6 @@ func InitRun(
 		defer cancel()
 	}
 
-	// Initialize the run metrics.
-	enableServerExpandedMetrics := params.Settings.IsEnableServerSideExpandGlobMetrics()
-	if enableServerExpandedMetrics && !params.FeatureProvider.Enabled(
-		ctx,
-		spb.ServerFeature_EXPAND_DEFINED_METRIC_GLOBS,
-	) {
-		params.Logger.Warn(
-			"runupserter: server does not expand metric globs" +
-				" but the x_server_side_expand_glob_metrics setting is set;" +
-				" ignoring")
-		enableServerExpandedMetrics = false
-	}
-	metrics := runmetric.NewRunConfigMetrics(enableServerExpandedMetrics)
-
 	upserter := &RunUpserter{
 		debounceDelay: params.DebounceDelay,
 
@@ -189,7 +175,7 @@ func InitRun(
 		params:      runParams,
 		config:      config,
 		telemetry:   telemetry,
-		metrics:     metrics,
+		metrics:     runmetric.New(),
 		environment: environment,
 	}
 
@@ -202,13 +188,10 @@ func InitRun(
 	// UpsertBucket request.
 	branchPoint := runRecord.BranchPoint
 	switch {
-	case params.Settings.GetResume() != "":
-		err := upserter.updateMetadataForResume(ctx, params.Settings.GetResume())
-
-		if err != nil {
+	case runParams.Resume || params.Settings.GetResume() != "":
+		if err := upserter.updateMetadataForResume(ctx, params.Settings.GetResume()); err != nil {
 			return nil, ToRunUpdateError(err)
 		}
-
 	case branchPoint != nil && branchPoint.GetRun() == runRecord.RunId:
 		// Branching a run from an earlier point in its history is rewinding.
 		err := upserter.updateMetadataForRewind(ctx, branchPoint)
@@ -226,6 +209,12 @@ func InitRun(
 		}
 	}
 
+	// If we're offline, skip upserting and leave the sync state to
+	// when we actually sync.
+	if upserter.graphqlClientOrNil == nil {
+		return upserter, nil
+	}
+
 	startState, err := upserter.syncStateStore.GetOrInitStartState(
 		runsyncstate.StartState{
 			StartStep:    upserter.params.StartingStep,
@@ -238,11 +227,6 @@ func InitRun(
 	upserter.params.Runtime = startState.StartRuntime
 
 	upserter.startRuntime = time.Duration(upserter.params.Runtime) * time.Second
-
-	// If we're offline, skip upserting.
-	if upserter.graphqlClientOrNil == nil {
-		return upserter, nil
-	}
 
 	upserter.mu.Lock()
 	defer upserter.mu.Unlock()
@@ -339,8 +323,7 @@ func (upserter *RunUpserter) UpdateMetrics(metric *spb.MetricRecord) {
 	defer upserter.mu.Unlock()
 
 	// Skip uploading expanded metrics if the server expands them itself.
-	if upserter.metrics.IsServerExpandGlobMetrics() &&
-		metric.GetExpandedFromGlob() {
+	if metric.GetExpandedFromGlob() {
 		return
 	}
 
@@ -477,11 +460,8 @@ func (upserter *RunUpserter) updateMetadataForResume(
 	resumeSetting string,
 ) error {
 	if upserter.graphqlClientOrNil == nil {
-		// Ignore the resume mode when offline.
-		//
-		// A warning is printed by the client during wandb.init().
-		//
-		// resume="auto" is always OK and is handled by the client.
+		// When offline, we cannot query the backend to reconcile resume state,
+		// so resume reconciliation is deferred to `wandb sync`.
 		return nil
 	}
 
@@ -489,6 +469,7 @@ func (upserter *RunUpserter) updateMetadataForResume(
 		ctx,
 		upserter.graphqlClientOrNil,
 		resumeSetting,
+		upserter.logger,
 	).UpdateForResume(
 		upserter.params,
 		upserter.config,

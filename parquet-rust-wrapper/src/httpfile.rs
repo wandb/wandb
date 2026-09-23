@@ -21,7 +21,8 @@ struct ReadBuffer {
 
 impl HttpFileReader {
     /// Create a new HTTP file reader
-    /// Makes a HEAD request to get the file size
+    /// Makes a one-byte range GET request to get the file size,
+    /// because presigned URLs are signed for GET only and reject HEAD.
     pub fn new(url: String) -> IoResult<Self> {
         // Configure client for better performance
         let client = Arc::new(
@@ -35,25 +36,33 @@ impl HttpFileReader {
                 .map_err(|e| IoError::new(ErrorKind::Other, e))?,
         );
 
-        // Get file size with HEAD request
         let response = client
-            .head(&url)
+            .get(&url)
+            .header(reqwest::header::RANGE, "bytes=0-0")
             .send()
             .map_err(|e| IoError::new(ErrorKind::Other, e))?;
 
-        if !response.status().is_success() {
-            return Err(IoError::new(
-                ErrorKind::Other,
-                format!("Failed to get file size: status {}", response.status()),
-            ));
-        }
+        let headers = response.headers();
+        let size = match response.status() {
+            reqwest::StatusCode::PARTIAL_CONTENT => headers
+                .get(reqwest::header::CONTENT_RANGE)
+                .and_then(|v| v.to_str().ok())
+                .and_then(|s| s.rsplit_once('/'))
+                .map(|(_, size)| size),
+            reqwest::StatusCode::OK => headers
+                .get(reqwest::header::CONTENT_LENGTH)
+                .and_then(|v| v.to_str().ok()),
+            status => {
+                return Err(IoError::new(
+                    ErrorKind::Other,
+                    format!("Failed to get file size: status {}", status),
+                ));
+            }
+        };
 
-        let file_size = response
-            .headers()
-            .get(reqwest::header::CONTENT_LENGTH)
-            .and_then(|v| v.to_str().ok())
-            .and_then(|s| s.parse::<i64>().ok())
-            .ok_or_else(|| IoError::new(ErrorKind::Other, "Missing Content-Length header"))?;
+        let file_size = size.and_then(|s| s.parse::<i64>().ok()).ok_or_else(|| {
+            IoError::new(ErrorKind::Other, "Missing file size in response headers")
+        })?;
 
         Ok(HttpFileReader {
             client,

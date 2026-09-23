@@ -76,6 +76,8 @@ func (r *RunReader) ExtractRunInfo(ctx context.Context) (*RunInfo, error) {
 	}
 	defer reader.Close()
 
+	runInfo := &RunInfo{}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -97,13 +99,16 @@ func (r *RunReader) ExtractRunInfo(ctx context.Context) (*RunInfo, error) {
 			}
 		}
 
-		if run := record.GetRun(); run != nil {
-			return &RunInfo{
-				Entity:    run.Entity,
-				Project:   run.Project,
-				RunID:     run.RunId,
-				StartTime: run.StartTime.AsTime(),
-			}, nil
+		// The Header always appears before the RunRecord.
+		// When we've found the first RunRecord, we are done.
+		if header := record.GetHeader(); header != nil {
+			runInfo.SDKVersion = header.GetVersionInfo().GetProducer()
+		} else if run := record.GetRun(); run != nil {
+			runInfo.Entity = run.Entity
+			runInfo.Project = run.Project
+			runInfo.RunID = run.RunId
+			runInfo.StartTime = run.StartTime.AsTime()
+			return runInfo, nil
 		}
 	}
 }
@@ -175,16 +180,6 @@ func (r *RunReader) ProcessTransactionLog(ctx context.Context) (err error) {
 			if err != nil {
 				return err
 			}
-
-			// The RunStart request is required to come after a Run record,
-			// but its contents are irrelevant when syncing. It causes
-			// the Sender to start FileStream.
-			r.parseAndAddWork(
-				&spb.Record{RecordType: &spb.Record_Request{
-					Request: &spb.Request{RequestType: &spb.Request_RunStart{
-						RunStart: &spb.RunStartRequest{},
-					}},
-				}})
 		}
 	}
 }

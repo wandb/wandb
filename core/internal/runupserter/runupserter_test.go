@@ -263,7 +263,7 @@ func TestInitRun_InitializesSyncStartState(t *testing.T) {
 		GetOrInitStartState(runsyncstate.StartState{})
 	assert.NoError(t, err)
 	assert.EqualValues(t, runsyncstate.StartState{
-		StartStep:    5,
+		StartStep:    6,
 		StartRuntime: 3500 * time.Millisecond,
 	}, startState)
 }
@@ -297,28 +297,37 @@ func TestInitRun_ReusesSyncStartState(t *testing.T) {
 	assert.EqualValues(t, 5, run.Runtime)
 }
 
-func TestResume(t *testing.T) {
+func TestInitRun_RunRecordResumeTrue_ReconcilesWithBackend(t *testing.T) {
+	// RunRecord.Resume is a trigger into the resume path; resume policy comes
+	// from Settings.GetResume(), which is empty here.
 	mockClient := gqlmock.NewMockClient()
-	mockClient.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{}`)
+	runupsertertest.StubRunResumeStatusWithStep(t, mockClient, 0)
 	runupsertertest.StubUpsertBucket(t, mockClient)
 
 	params := testParams(t)
 	params.GraphqlClientOrNil = mockClient
-	params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("allow")})
 
-	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{}), params)
+	upserter, err := runupserter.InitRun(
+		runRecord(&spb.RunRecord{Resume: true}),
+		params,
+	)
+	require.NoError(t, err)
 	defer upserter.Finish()
 
-	assert.NoError(t, err)
+	run := &spb.RunRecord{}
+	upserter.FillRunRecord(run)
+	assert.True(t, run.Resume)
 	assert.True(t, mockClient.AllStubsUsed())
 }
 
-func TestResume_Offline_Succeeds(t *testing.T) {
+func TestResume_Offline_RunRecordResumeTrue_Succeeds(t *testing.T) {
 	params := testParams(t)
 	params.GraphqlClientOrNil = nil
-	params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("must")})
 
-	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{}), params)
+	upserter, err := runupserter.InitRun(
+		runRecord(&spb.RunRecord{Resume: true}),
+		params,
+	)
 	defer upserter.Finish()
 
 	assert.NoError(t, err)
@@ -362,7 +371,10 @@ func TestResume_KeepsEventsAndOutputFileStreamOffsets(t *testing.T) {
 	params.GraphqlClientOrNil = mockClient
 	params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("allow")})
 
-	upserter, err := runupserter.InitRun(runRecord(&spb.RunRecord{RunId: "run"}), params)
+	upserter, err := runupserter.InitRun(
+		runRecord(&spb.RunRecord{RunId: "run", Resume: true}),
+		params,
+	)
 	require.NoError(t, err)
 	defer upserter.Finish()
 
@@ -373,6 +385,87 @@ func TestResume_KeepsEventsAndOutputFileStreamOffsets(t *testing.T) {
 			filestream.OutputChunk:  15,
 		},
 		upserter.FileStreamOffsets())
+}
+
+func TestResume_ResumeModeTrue_SettingMust_RejectsMissingRun(t *testing.T) {
+	mockClient := gqlmock.NewMockClient()
+	mockClient.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{}`)
+	params := testParams(t)
+	params.GraphqlClientOrNil = mockClient
+	params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("must")})
+
+	_, err := runupserter.InitRun(
+		runRecord(&spb.RunRecord{Resume: true}),
+		params,
+	)
+	require.Error(t, err)
+	message := runUpdateErrorMessage(err)
+	assert.Contains(t, message, "requires an existing run to resume")
+	assert.True(t, mockClient.AllStubsUsed())
+}
+
+func TestResume_ResumeModeTrue_AllowsMissingRun(t *testing.T) {
+	mockClient := gqlmock.NewMockClient()
+	mockClient.StubMatchOnce(gqlmock.WithOpName("RunResumeStatus"), `{}`)
+	runupsertertest.StubUpsertBucket(t, mockClient)
+	params := testParams(t)
+	params.GraphqlClientOrNil = mockClient
+
+	_, err := runupserter.InitRun(
+		runRecord(&spb.RunRecord{Resume: true}),
+		params,
+	)
+	require.NoError(t, err)
+	assert.True(t, mockClient.AllStubsUsed())
+}
+
+func TestResume_Offline_PreservesRunRecordIntent(t *testing.T) {
+	params := testParams(t)
+	params.GraphqlClientOrNil = nil
+	params.Settings = settings.From(&spb.Settings{Resume: wrapperspb.String("must")})
+
+	upserter, err := runupserter.InitRun(
+		runRecord(&spb.RunRecord{Resume: true}),
+		params,
+	)
+	require.NoError(t, err)
+	defer upserter.Finish()
+
+	assert.NoError(t, err)
+	run := &spb.RunRecord{}
+	upserter.FillRunRecord(run)
+	assert.True(t, run.Resume)
+}
+
+type fakeSyncState struct {
+	Called bool
+}
+
+func (f *fakeSyncState) GetOrInitStartState(
+	initialState runsyncstate.StartState,
+) (runsyncstate.StartState, error) {
+	f.Called = true
+	return initialState, nil
+}
+
+func TestOfflineResume_DoesNotInitializeSyncStartState(t *testing.T) {
+	// An offline run cannot reconcile resume state with the backend, so it
+	// must not save a starting step: `wandb sync` computes the real one and
+	// would otherwise reuse the offline placeholder and re-upload the
+	// segment starting at step 0.
+	offlineParams := testParams(t)
+	offlineParams.Settings = settings.From(&spb.Settings{
+		Resume:   wrapperspb.String("must"),
+		XOffline: wrapperspb.Bool(true),
+	})
+	fakeSyncState := &fakeSyncState{}
+	offlineParams.SyncStateStore = fakeSyncState
+
+	offline, err := runupserter.InitRun(
+		runRecord(&spb.RunRecord{RunId: "run"}), offlineParams)
+	require.NoError(t, err)
+	offline.Finish()
+	assert.False(t, fakeSyncState.Called)
 }
 
 type variablesForUpdateTest struct {
@@ -532,4 +625,13 @@ func TestUpdateMetrics_Uploads(t *testing.T) {
 					}
 				`, version.Version))))
 	})
+}
+
+func runUpdateErrorMessage(err error) string {
+	switch err := err.(type) {
+	case *runupserter.RunUpdateError:
+		return err.UserMessage
+	default:
+		panic(fmt.Sprintf("unexpected error type: %T", err))
+	}
 }

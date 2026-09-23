@@ -79,7 +79,8 @@ const (
 // Config stores the application configuration.
 type Config struct {
 	// StartupMode controls what happens when LEET is launched without --run-file.
-	//  - workspace_latest: open workspace and auto-select the latest run
+	//  - workspace_latest: open workspace with the runs selected last time
+	//    and the latest run if it is new
 	//  - single_run_latest: open the latest run directly in single-run view
 	StartupMode string `json:"startup_mode" leet:"label=Startup mode,desc=Initial view when launched without a run path.,options=startupModes"`
 
