@@ -33,7 +33,7 @@ class ServerApiInitResponse(_message.Message):
     def __init__(self, error_message: _Optional[str] = ..., api_id: _Optional[str] = ...) -> None: ...
 
 class ApiRequest(_message.Message):
-    __slots__ = ("api_id", "read_run_history_request", "features_request", "graphql_request", "download_file_request", "upload_file_request", "mark_run_files_uploaded_request", "stop_run_request", "auth_request", "create_custom_chart_request", "run_queue_operation_request", "open_telemetry_request", "read_run_console_logs_request")
+    __slots__ = ("api_id", "read_run_history_request", "features_request", "graphql_request", "download_file_request", "upload_file_request", "mark_run_files_uploaded_request", "stop_run_request", "auth_request", "create_custom_chart_request", "run_queue_operation_request", "open_telemetry_request", "read_run_console_logs_request", "get_project_internal_id_request")
     API_ID_FIELD_NUMBER: _ClassVar[int]
     READ_RUN_HISTORY_REQUEST_FIELD_NUMBER: _ClassVar[int]
     FEATURES_REQUEST_FIELD_NUMBER: _ClassVar[int]
@@ -47,6 +47,7 @@ class ApiRequest(_message.Message):
     RUN_QUEUE_OPERATION_REQUEST_FIELD_NUMBER: _ClassVar[int]
     OPEN_TELEMETRY_REQUEST_FIELD_NUMBER: _ClassVar[int]
     READ_RUN_CONSOLE_LOGS_REQUEST_FIELD_NUMBER: _ClassVar[int]
+    GET_PROJECT_INTERNAL_ID_REQUEST_FIELD_NUMBER: _ClassVar[int]
     api_id: str
     read_run_history_request: ReadRunHistoryRequest
     features_request: FeaturesRequest
@@ -60,10 +61,11 @@ class ApiRequest(_message.Message):
     run_queue_operation_request: RunQueueOperationRequest
     open_telemetry_request: _wandb_otel_pb2.OpenTelemetryRequest
     read_run_console_logs_request: ReadRunConsoleLogsRequest
-    def __init__(self, api_id: _Optional[str] = ..., read_run_history_request: _Optional[_Union[ReadRunHistoryRequest, _Mapping]] = ..., features_request: _Optional[_Union[FeaturesRequest, _Mapping]] = ..., graphql_request: _Optional[_Union[GraphQLRequest, _Mapping]] = ..., download_file_request: _Optional[_Union[DownloadFileRequest, _Mapping]] = ..., upload_file_request: _Optional[_Union[UploadFileRequest, _Mapping]] = ..., mark_run_files_uploaded_request: _Optional[_Union[MarkRunFilesUploadedRequest, _Mapping]] = ..., stop_run_request: _Optional[_Union[StopRunRequest, _Mapping]] = ..., auth_request: _Optional[_Union[AuthRequest, _Mapping]] = ..., create_custom_chart_request: _Optional[_Union[CreateCustomChartRequest, _Mapping]] = ..., run_queue_operation_request: _Optional[_Union[RunQueueOperationRequest, _Mapping]] = ..., open_telemetry_request: _Optional[_Union[_wandb_otel_pb2.OpenTelemetryRequest, _Mapping]] = ..., read_run_console_logs_request: _Optional[_Union[ReadRunConsoleLogsRequest, _Mapping]] = ...) -> None: ...
+    get_project_internal_id_request: GetProjectInternalIdRequest
+    def __init__(self, api_id: _Optional[str] = ..., read_run_history_request: _Optional[_Union[ReadRunHistoryRequest, _Mapping]] = ..., features_request: _Optional[_Union[FeaturesRequest, _Mapping]] = ..., graphql_request: _Optional[_Union[GraphQLRequest, _Mapping]] = ..., download_file_request: _Optional[_Union[DownloadFileRequest, _Mapping]] = ..., upload_file_request: _Optional[_Union[UploadFileRequest, _Mapping]] = ..., mark_run_files_uploaded_request: _Optional[_Union[MarkRunFilesUploadedRequest, _Mapping]] = ..., stop_run_request: _Optional[_Union[StopRunRequest, _Mapping]] = ..., auth_request: _Optional[_Union[AuthRequest, _Mapping]] = ..., create_custom_chart_request: _Optional[_Union[CreateCustomChartRequest, _Mapping]] = ..., run_queue_operation_request: _Optional[_Union[RunQueueOperationRequest, _Mapping]] = ..., open_telemetry_request: _Optional[_Union[_wandb_otel_pb2.OpenTelemetryRequest, _Mapping]] = ..., read_run_console_logs_request: _Optional[_Union[ReadRunConsoleLogsRequest, _Mapping]] = ..., get_project_internal_id_request: _Optional[_Union[GetProjectInternalIdRequest, _Mapping]] = ...) -> None: ...
 
 class ApiResponse(_message.Message):
-    __slots__ = ("read_run_history_response", "features_response", "graphql_response", "download_file_response", "upload_file_response", "mark_run_files_uploaded_response", "stop_run_response", "auth_response", "create_custom_chart_response", "run_queue_operation_response", "read_run_console_logs_response", "api_error_response")
+    __slots__ = ("read_run_history_response", "features_response", "graphql_response", "download_file_response", "upload_file_response", "mark_run_files_uploaded_response", "stop_run_response", "auth_response", "create_custom_chart_response", "run_queue_operation_response", "read_run_console_logs_response", "get_project_internal_id_response", "api_error_response")
     READ_RUN_HISTORY_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     FEATURES_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     GRAPHQL_RESPONSE_FIELD_NUMBER: _ClassVar[int]
@@ -75,6 +77,7 @@ class ApiResponse(_message.Message):
     CREATE_CUSTOM_CHART_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     RUN_QUEUE_OPERATION_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     READ_RUN_CONSOLE_LOGS_RESPONSE_FIELD_NUMBER: _ClassVar[int]
+    GET_PROJECT_INTERNAL_ID_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     API_ERROR_RESPONSE_FIELD_NUMBER: _ClassVar[int]
     read_run_history_response: ReadRunHistoryResponse
     features_response: FeaturesResponse
@@ -87,8 +90,9 @@ class ApiResponse(_message.Message):
     create_custom_chart_response: CreateCustomChartResponse
     run_queue_operation_response: RunQueueOperationResponse
     read_run_console_logs_response: ReadRunConsoleLogsResponse
+    get_project_internal_id_response: GetProjectInternalIdResponse
     api_error_response: ApiErrorResponse
-    def __init__(self, read_run_history_response: _Optional[_Union[ReadRunHistoryResponse, _Mapping]] = ..., features_response: _Optional[_Union[FeaturesResponse, _Mapping]] = ..., graphql_response: _Optional[_Union[GraphQLResponse, _Mapping]] = ..., download_file_response: _Optional[_Union[DownloadFileResponse, _Mapping]] = ..., upload_file_response: _Optional[_Union[UploadFileResponse, _Mapping]] = ..., mark_run_files_uploaded_response: _Optional[_Union[MarkRunFilesUploadedResponse, _Mapping]] = ..., stop_run_response: _Optional[_Union[StopRunResponse, _Mapping]] = ..., auth_response: _Optional[_Union[AuthResponse, _Mapping]] = ..., create_custom_chart_response: _Optional[_Union[CreateCustomChartResponse, _Mapping]] = ..., run_queue_operation_response: _Optional[_Union[RunQueueOperationResponse, _Mapping]] = ..., read_run_console_logs_response: _Optional[_Union[ReadRunConsoleLogsResponse, _Mapping]] = ..., api_error_response: _Optional[_Union[ApiErrorResponse, _Mapping]] = ...) -> None: ...
+    def __init__(self, read_run_history_response: _Optional[_Union[ReadRunHistoryResponse, _Mapping]] = ..., features_response: _Optional[_Union[FeaturesResponse, _Mapping]] = ..., graphql_response: _Optional[_Union[GraphQLResponse, _Mapping]] = ..., download_file_response: _Optional[_Union[DownloadFileResponse, _Mapping]] = ..., upload_file_response: _Optional[_Union[UploadFileResponse, _Mapping]] = ..., mark_run_files_uploaded_response: _Optional[_Union[MarkRunFilesUploadedResponse, _Mapping]] = ..., stop_run_response: _Optional[_Union[StopRunResponse, _Mapping]] = ..., auth_response: _Optional[_Union[AuthResponse, _Mapping]] = ..., create_custom_chart_response: _Optional[_Union[CreateCustomChartResponse, _Mapping]] = ..., run_queue_operation_response: _Optional[_Union[RunQueueOperationResponse, _Mapping]] = ..., read_run_console_logs_response: _Optional[_Union[ReadRunConsoleLogsResponse, _Mapping]] = ..., get_project_internal_id_response: _Optional[_Union[GetProjectInternalIdResponse, _Mapping]] = ..., api_error_response: _Optional[_Union[ApiErrorResponse, _Mapping]] = ...) -> None: ...
 
 class ApiErrorResponse(_message.Message):
     __slots__ = ("message", "error_type", "http_status")
@@ -597,3 +601,17 @@ class DownloadRunHistoryStatusResponse(_message.Message):
     OPERATION_STATS_FIELD_NUMBER: _ClassVar[int]
     operation_stats: _wandb_internal_pb2.OperationStats
     def __init__(self, operation_stats: _Optional[_Union[_wandb_internal_pb2.OperationStats, _Mapping]] = ...) -> None: ...
+
+class GetProjectInternalIdRequest(_message.Message):
+    __slots__ = ("entity", "project")
+    ENTITY_FIELD_NUMBER: _ClassVar[int]
+    PROJECT_FIELD_NUMBER: _ClassVar[int]
+    entity: str
+    project: str
+    def __init__(self, entity: _Optional[str] = ..., project: _Optional[str] = ...) -> None: ...
+
+class GetProjectInternalIdResponse(_message.Message):
+    __slots__ = ("project_internal_id",)
+    PROJECT_INTERNAL_ID_FIELD_NUMBER: _ClassVar[int]
+    project_internal_id: str
+    def __init__(self, project_internal_id: _Optional[str] = ...) -> None: ...

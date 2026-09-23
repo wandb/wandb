@@ -44,6 +44,7 @@ type WandbAPI struct {
 	fileTransferHandler  *FileTransferHandler
 	graphqlHandler       *GraphQLHandler
 	opentelemetryHandler *OpenTelemetryHandler
+	projectHandler       *ProjectHandler
 	runFilesHandler      *RunFilesHandler
 	runHandler           *RunHandler
 	runQueueHandler      *RunQueueHandler
@@ -118,6 +119,7 @@ func New(s *settings.Settings, serviceName string) (*WandbAPI, error) {
 		graphqlHandler:       NewGraphQLHandler(graphqlClient),
 		customChartHandler:   NewCustomChartHandler(graphqlClient),
 		opentelemetryHandler: NewOpenTelemetryHandler(s, serviceName),
+		projectHandler:       NewProjectHandler(graphqlClient),
 		runFilesHandler:      NewRunFilesHandler(graphqlClient),
 		runHandler:           NewRunHandler(graphqlClient),
 		runQueueHandler:      NewRunQueueHandler(graphqlClient),
@@ -208,6 +210,8 @@ func (p *WandbAPI) HandleRequest(
 		return p.runHandler.HandleStopRun(ctx, req.StopRunRequest)
 	case *spb.ApiRequest_ReadRunConsoleLogsRequest:
 		return p.runHandler.HandleReadRunConsoleLogs(ctx, req.ReadRunConsoleLogsRequest)
+	case *spb.ApiRequest_GetProjectInternalIdRequest:
+		return p.projectHandler.HandleGetProjectInternalID(ctx, req.GetProjectInternalIdRequest)
 	case *spb.ApiRequest_CreateCustomChartRequest:
 		return p.customChartHandler.HandleCreateCustomChart(ctx, req.CreateCustomChartRequest)
 	case *spb.ApiRequest_RunQueueOperationRequest:

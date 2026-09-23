@@ -16,6 +16,7 @@ from wandb.proto.wandb_api_pb2 import (
     AuthRequest,
     FeaturesRequest,
     GetAccessTokenRequest,
+    GetProjectInternalIdRequest,
     GraphQLRequest,
     OrgFeaturesRequest,
     ServerFeaturesRequest,
@@ -264,6 +265,36 @@ class ServiceApi:
             timeout=self._timeout if timeout is None else timeout,
         )
         return resp.auth_response.get_access_token_response.access_token or None
+
+    def get_project_internal_id(
+        self,
+        *,
+        entity: str,
+        project: str,
+        timeout: float | None = None,
+    ) -> str:
+        """Return a project's opaque internal ID.
+
+        Args:
+            entity: The entity that owns the project.
+            project: The user-facing project name.
+            timeout: Optional timeout in seconds for waiting on wandb-core.
+                On timeout, the request is cancelled on a best-effort basis.
+
+        Raises:
+            WandbApiFailedError: If the project cannot be resolved or the
+                request fails for any other reason.
+        """
+        response = self.send_api_request(
+            ApiRequest(
+                get_project_internal_id_request=GetProjectInternalIdRequest(
+                    entity=entity,
+                    project=project,
+                )
+            ),
+            timeout=self._timeout if timeout is None else timeout,
+        )
+        return response.get_project_internal_id_response.project_internal_id
 
     async def send_api_request_async(
         self,

@@ -1,0 +1,5 @@
+query ProjectInternalID($entity: String!, $project: String!) {
+  project(entityName: $entity, name: $project) {
+    internalId
+  }
+}

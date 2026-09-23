@@ -48,3 +48,34 @@ def test_execute_graphql_propagates_core_api_error_response():
         api.execute_graphql("query Viewer { viewer { id } }")
 
     assert exc_info.value.response is error_response
+
+
+def test_get_project_internal_id_sends_typed_request_and_timeout():
+    api = ServiceApi(Settings())
+    sent: dict[str, Any] = {}
+
+    def send_api_request(
+        request: apb.ApiRequest,
+        timeout: float | None = None,
+    ) -> apb.ApiResponse:
+        sent["request"] = request
+        sent["timeout"] = timeout
+        return apb.ApiResponse(
+            get_project_internal_id_response=apb.GetProjectInternalIdResponse(
+                project_internal_id="opaque-project-id"
+            )
+        )
+
+    api.send_api_request = send_api_request
+
+    project_internal_id = api.get_project_internal_id(
+        entity="entity",
+        project="project",
+        timeout=3,
+    )
+
+    assert project_internal_id == "opaque-project-id"
+    assert sent["timeout"] == 3
+    request = sent["request"].get_project_internal_id_request
+    assert request.entity == "entity"
+    assert request.project == "project"

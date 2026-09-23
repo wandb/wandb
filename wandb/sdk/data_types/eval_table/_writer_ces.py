@@ -28,13 +28,6 @@ _logger = logging.getLogger(__name__)
 
 _CES_BASE_URL_ENV = "CES_BASE_URL"
 _WANDB_SCOPE_NAMESPACE = "wandb"
-_PROJECT_SCOPE_QUERY = """
-query EvalTableProjectScope($entity: String!, $project: String!) {
-  project(entityName: $entity, name: $project) {
-    internalId
-  }
-}
-"""
 # Server request-body limit.
 _MAX_REQUEST_BODY_BYTES = 16 << 20
 _MAX_REQUEST_BODY_SIZE = "16 MiB"
@@ -516,16 +509,10 @@ class CESWriter:
 
     def _resolve_scope_context(self, bound_run: _BoundRun) -> _CESScopeContext:
         """Resolve the project scope and preferred run credential for CES."""
-        response = bound_run.service_api.execute_graphql(
-            _PROJECT_SCOPE_QUERY,
-            variables={"entity": bound_run.entity, "project": bound_run.project},
+        scope_id = bound_run.service_api.get_project_internal_id(
+            entity=bound_run.entity,
+            project=bound_run.project,
         )
-        project = response.get("project") if isinstance(response, dict) else None
-        scope_id = project.get("internalId") if isinstance(project, dict) else None
-        if not isinstance(scope_id, str) or not scope_id:
-            raise UsageError(
-                f"Unable to resolve W&B project {bound_run.entity}/{bound_run.project}."
-            )
 
         api_key = bound_run.service_api.api_key
         access_token = None if api_key else bound_run.service_api.access_token()
