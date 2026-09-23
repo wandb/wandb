@@ -184,7 +184,9 @@ class WeaveWriter:
             ev.log_example(
                 inputs=self._normalize_mapping(row.inputs),
                 output=(
-                    self._normalize_mapping(row.output) if row.output is not None else None
+                    self._normalize_mapping(row.output)
+                    if row.output is not None
+                    else None
                 ),
                 scores=self._normalize_mapping(row.scores),
             )
