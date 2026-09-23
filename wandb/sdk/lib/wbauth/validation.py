@@ -132,6 +132,41 @@ def check_identity_token_validity(
     return check_service_api_auth_validity(service_api)
 
 
+def check_browser_login_validity(
+    *,
+    host: HostUrl,
+    credentials_file: pathlib.Path,
+) -> str | None:
+    """Verify that a stored browser login is valid with the server.
+
+    Args:
+        host: The host to verify the login with.
+        credentials_file: The path to the file holding the stored login.
+
+    Returns:
+        A string describing the problem if the login is invalid,
+        or None if it is valid.
+    """
+    from wandb import env
+    from wandb.apis.public.service_api import ServiceApi
+    from wandb.sdk import wandb_setup
+
+    from .settings import set_auth_settings_for_browser_login
+
+    settings = wandb_setup.singleton().settings.model_copy()
+    set_auth_settings_for_browser_login(
+        settings,
+        str(credentials_file),
+        str(host),
+    )
+    service_api = ServiceApi(
+        settings=settings,
+        timeout=env.get_http_timeout(10),
+    )
+
+    return check_service_api_auth_validity(service_api)
+
+
 def check_service_api_auth_validity(service_api: ServiceApi) -> str | None:
     """Verify the authentication with the server using pre-configured service API.
 

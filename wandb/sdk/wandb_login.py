@@ -32,7 +32,13 @@ def login(
 
     You generally don't have to use this because most W&B methods that need
     authentication can log in implicitly. This is the programmatic counterpart
-    to the `wandb login` CLI.
+    to the `wandb login` CLI, with one difference: `wandb login` opens a
+    browser, and this asks for an API key. Code calling this is usually running
+    somewhere the browser is not -- a hosted notebook, a remote kernel, a job --
+    and the browser flow needs the redirect to come back to a port on the same
+    machine, so it would hang there rather than fail. Run `wandb login` in a
+    terminal to set up a browser login; this picks it up like any other
+    credential.
 
     This updates global credentials for the session (affecting all wandb usage
     in the current Python process after this call) and possibly the .netrc file.
@@ -116,19 +122,25 @@ def login(
     if not logged_in and not prompt:
         return False
 
-    _update_system_settings(
+    update_system_settings(
         global_settings.read_system_settings(),
         host=host,
     )
     return logged_in
 
 
-def _update_system_settings(
+def update_system_settings(
     system_settings: settings_file.SettingsFiles,
     *,
     host: str | None,
 ) -> None:
-    """Update the user's system settings files."""
+    """Update the user's system settings files after a successful login.
+
+    Shared by the `wandb.login()` / `wandb login` code path and by
+    `wandb login sso`, so that logging in to a custom host always makes it
+    the default for later commands (like `wandb login --verify`) instead of
+    silently falling back to whatever host was previously configured.
+    """
     # 'anonymous' is deprecated; we clear it automatically for now.
     system_settings.clear("anonymous", globally=True)
 

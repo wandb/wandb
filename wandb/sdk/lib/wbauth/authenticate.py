@@ -7,8 +7,14 @@ from wandb import env
 from wandb.errors import AuthenticationError, UsageError, term
 from wandb.sdk import wandb_setup
 
-from . import prompt, wbnetrc
-from .auth import Auth, AuthApiKey, AuthIdentityTokenFile, AuthWithSource
+from . import browser_login, prompt, wbnetrc
+from .auth import (
+    Auth,
+    AuthApiKey,
+    AuthBrowserLogin,
+    AuthIdentityTokenFile,
+    AuthWithSource,
+)
 from .host_url import HostUrl
 from .settings import set_auth_settings
 
@@ -132,8 +138,14 @@ def authenticate_session(
             verify=verify,
         )
     except term.NotATerminalError:
+        # Reached with no terminal to ask on, so telling the user to run
+        # `wandb login` is no help -- that is one of the callers, and it lands
+        # here for the same reason. Point at the way in that does not need a
+        # terminal or a browser.
         raise UsageError(
-            "No API key configured. Use `wandb login` to log in."
+            "No API key configured, and no terminal to ask for one on."
+            " Set the WANDB_API_KEY environment variable, or run"
+            " `wandb login` somewhere interactive."
         ) from None
 
 
@@ -188,6 +200,7 @@ def _use_system_auth(
     """
     auth = (
         _try_env_auth(host=host)  #
+        or _try_browser_login_auth(host=host)
         or wbnetrc.read_netrc_auth_with_source(host=host)
     )
     if auth is None:
@@ -247,6 +260,24 @@ def _try_env_auth(*, host: HostUrl) -> AuthWithSource | None:
         )
 
     return None
+
+
+def _try_browser_login_auth(*, host: HostUrl) -> AuthWithSource | None:
+    """Returns the stored browser login for the host, if there is one.
+
+    Ranked above .netrc so that `wandb login` through the browser takes effect
+    even when an older API key is still on disk. Environment variables still
+    win, since those are how a CI job states which identity to use.
+    """
+    credentials_file = wandb_setup.singleton().settings.credentials_file
+
+    if not browser_login.load_credentials(credentials_file, host):
+        return None
+
+    return AuthWithSource(
+        auth=AuthBrowserLogin(host=host, credentials_file=credentials_file),
+        source=str(credentials_file),
+    )
 
 
 def _use_prompted_auth(

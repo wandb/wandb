@@ -136,6 +136,45 @@ class AuthIdentityTokenFile(Auth):
             raise AuthenticationError(problems)
 
 
+@final
+class AuthBrowserLogin(Auth):
+    """A browser login stored in the credentials file.
+
+    The credential itself is a refresh token rather than anything long-lived,
+    and wandb-core trades it for access tokens as they expire. This type only
+    names where to find it.
+    """
+
+    @override
+    def __init__(self, *, host: str | HostUrl, credentials_file: str) -> None:
+        """Initialize AuthBrowserLogin.
+
+        Args:
+            host: The W&B server URL.
+            credentials_file: Path to the file holding the stored login.
+        """
+        super().__init__(host=host)
+
+        # Absolute, because the file is also read and written by the
+        # wandb-core service process, whose working directory can differ
+        # from this process's.
+        self._credentials_path = pathlib.Path(credentials_file).absolute()
+
+    @property
+    def credentials_path(self) -> pathlib.Path:
+        """Path to the file holding the stored login."""
+        return self._credentials_path
+
+    @override
+    def verify(self) -> None:
+        """Verify the credentials against the W&B server."""
+        if problems := validation.check_browser_login_validity(
+            host=self.host,
+            credentials_file=self._credentials_path,
+        ):
+            raise AuthenticationError(problems)
+
+
 @dataclasses.dataclass(frozen=True)
 class AuthWithSource:
     """Credentials with information about where they came from."""
