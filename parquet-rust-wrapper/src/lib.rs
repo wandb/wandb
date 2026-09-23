@@ -9,9 +9,7 @@ use arrow::array::{Array, Int64Array, RecordBatch};
 use arrow::compute::cast;
 use arrow::datatypes::DataType;
 
-mod httpfile;
 pub mod serialize;
-pub use httpfile::HttpFileReader;  // Export for testing
 
 const STEP_COLUMN_NAME: &str = "_step";
 
@@ -38,13 +36,13 @@ pub struct ReaderHandle {
 /// This function is unsafe because it dereferences raw pointers
 #[no_mangle]
 pub unsafe extern "C" fn create_reader(
-    file_path_or_url: *const libc::c_char,
+    file_path: *const libc::c_char,
     column_names: *const *const libc::c_char,
     num_columns: usize,
     out_error: *mut *mut libc::c_char,
 ) -> *mut ReaderHandle {
     // Convert the file path from C string to Rust string
-    let file_path_cstr = unsafe { CStr::from_ptr(file_path_or_url) };
+    let file_path_cstr = unsafe { CStr::from_ptr(file_path) };
     let file_path_str = match file_path_cstr.to_str() {
         Ok(s) => s,
         Err(e) => {
@@ -90,45 +88,7 @@ fn create_reader_internal(
     file_path: &str,
     column_names: Option<&[String]>,
 ) -> Result<ReaderHandle, String> {
-    // Check if it's a URL or local file
-    let is_url = file_path.starts_with("http://") || file_path.starts_with("https://");
-
-    let reader = if is_url {
-        // HTTP reader
-        let http_reader = HttpFileReader::new(file_path.to_string())
-            .map_err(|e| format!("Failed to create HTTP reader: {}", e))?;
-
-        let builder = ParquetRecordBatchReaderBuilder::try_new(http_reader)
-            .map_err(|e| format!("Failed to create parquet reader builder: {}", e))?;
-
-        // Log schema information
-        let schema = builder.schema();
-
-        // Build projection mask from column names
-        let projection = if let Some(names) = column_names {
-            // Find column indices by name
-            let mut indices = Vec::new();
-            for name in names {
-                if let Ok(idx) = schema.index_of(name) {
-                    indices.push(idx);
-                }
-            }
-
-            if indices.is_empty() {
-                return Err(format!("None of the requested columns were found in the schema"));
-            }
-
-            ProjectionMask::roots(builder.parquet_schema(), indices.into_iter())
-        } else {
-            ProjectionMask::all()
-        };
-
-        builder
-            .with_projection(projection)
-            .with_batch_size(65536)
-            .build()
-            .map_err(|e| format!("Failed to build record batch reader: {}", e))?
-    } else {
+    let reader = {
         // Local file reader
         let file = File::open(file_path).map_err(|e| format!("Failed to open file: {}", e))?;
 

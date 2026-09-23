@@ -8,7 +8,6 @@ use std::fs::File;
 use std::sync::Arc;
 use tempfile::TempDir;
 
-mod common;
 
 const STEP_COLUMN_NAME: &str = "_step";
 
@@ -581,118 +580,6 @@ fn test_reader_scan_step_range_null_pointer() {
 
     unsafe {
         free_string(error as *mut libc::c_char);
-    }
-}
-
-#[test]
-fn test_reader_scan_step_range_http() {
-    let temp_dir = TempDir::new().unwrap();
-    let file_path = temp_dir.path().join("test.parquet");
-    create_test_parquet_file(file_path.to_str().unwrap(), 100).unwrap();
-    let (url, _counter) = common::start_http_server(file_path.to_str().unwrap());
-
-    let url_cstring = CString::new(url.clone()).unwrap();
-    let mut out_error: *mut libc::c_char = std::ptr::null_mut();
-    let reader_ptr = unsafe {
-        create_reader(url_cstring.as_ptr(), std::ptr::null(), 0, &mut out_error)
-    };
-    if reader_ptr.is_null() {
-        panic!(
-            "Failed to create reader for HTTP URL: {}. \
-             This may indicate an issue with HTTP range request handling.",
-            url
-        );
-    }
-
-    let mut result = StepScanResult {
-        vec_ptr: 0, data_ptr: 0, data_len: 0, num_rows_returned: 0,
-    };
-
-    let error = unsafe { reader_scan_step_range(reader_ptr, 25, 35, &mut result) };
-    assert!(error.is_null());
-    assert_eq!(result.num_rows_returned, 10);
-    assert!(result.data_len > 0);
-
-    let (step_values, int_values, string_values) = extract_all_columns(&parse_result(&result));
-    assert_eq!(step_values.len(), 10);
-    assert_eq!(step_values, vec![25, 26, 27, 28, 29, 30, 31, 32, 33, 34]);
-    assert_eq!(int_values, vec![250, 260, 270, 280, 290, 300, 310, 320, 330, 340]);
-    assert_eq!(
-        string_values,
-        vec!["odd", "even", "odd", "even", "odd", "even", "odd", "even", "odd", "even"]
-    );
-
-    let mut result2 = StepScanResult {
-        vec_ptr: 0, data_ptr: 0, data_len: 0, num_rows_returned: 0,
-    };
-    let error2 = unsafe { reader_scan_step_range(reader_ptr, 35, 45, &mut result2) };
-    assert!(error2.is_null());
-    assert_eq!(result2.num_rows_returned, 10);
-    let step_values_2 = extract_step_values(&parse_result(&result2));
-    assert_eq!(step_values_2, vec![35, 36, 37, 38, 39, 40, 41, 42, 43, 44]);
-
-    unsafe {
-        free_buffer(result.vec_ptr as *mut Vec<u8>);
-        free_buffer(result2.vec_ptr as *mut Vec<u8>);
-        free_reader(reader_ptr);
-    }
-}
-
-#[test]
-fn test_reader_scan_step_range_http_with_columns_subset() {
-    let temp_dir = TempDir::new().unwrap();
-    let file_path = temp_dir.path().join("test.parquet");
-    create_test_parquet_file(file_path.to_str().unwrap(), 100).unwrap();
-
-    let (url, _counter) = common::start_http_server(file_path.to_str().unwrap());
-    let url_cstring = CString::new(url.clone()).unwrap();
-    let col1 = CString::new(STEP_COLUMN_NAME).unwrap();
-    let col2 = CString::new("value").unwrap();
-    let col_ptrs = vec![col1.as_ptr(), col2.as_ptr()];
-
-    let mut out_error: *mut libc::c_char = std::ptr::null_mut();
-    let reader_ptr = unsafe {
-        create_reader(url_cstring.as_ptr(), col_ptrs.as_ptr(), 2, &mut out_error)
-    };
-    if reader_ptr.is_null() {
-        panic!(
-            "Failed to create reader for HTTP URL with columns: {}.",
-            url
-        );
-    }
-
-    let mut result = StepScanResult {
-        vec_ptr: 0, data_ptr: 0, data_len: 0, num_rows_returned: 0,
-    };
-    let error = unsafe { reader_scan_step_range(reader_ptr, 15, 25, &mut result) };
-    assert!(error.is_null());
-    assert_eq!(result.num_rows_returned, 10);
-    assert!(result.data_len > 0);
-
-    let rows = parse_result(&result);
-    assert_eq!(rows.len(), 10);
-    assert_eq!(rows[0].columns.len(), 2);
-    assert_eq!(rows[0].columns[0].0, "_step");
-    assert_eq!(rows[0].columns[1].0, "value");
-
-    let step_values = extract_step_values(&rows);
-    assert_eq!(step_values, vec![15, 16, 17, 18, 19, 20, 21, 22, 23, 24]);
-
-    let int_values: Vec<i64> = rows
-        .iter()
-        .map(|r| {
-            if let KvValue::Int64(v) = &r.columns[1].1 {
-                *v
-            } else {
-                panic!("expected int64")
-            }
-        })
-        .collect();
-    assert_eq!(int_values, vec![150, 160, 170, 180, 190, 200, 210, 220, 230, 240]);
-
-    unsafe {
-        free_buffer(result.vec_ptr as *mut Vec<u8>);
-        free_reader(reader_ptr);
     }
 }
 
