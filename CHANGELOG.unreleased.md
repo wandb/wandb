@@ -16,6 +16,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Added
 
+- `wandb logout` ends a browser login, revoking it at the server so that copies taken from this machine stop working. (@ckacal)
 - `wandb leet symon` now shows the utilization of every CPU core and, on Linux, the CPU temperature (@dmitryduev in https://github.com/wandb/wandb/pull/13012)
 - `wandb leet symon` now charts network and disk throughput in bytes per second instead of totals since it started (@dmitryduev in https://github.com/wandb/wandb/pull/13013)
 - In W&B LEET TUI, the `CPU Core (%)` chart opens as a heatmap with one row per core; `y` switches it back to lines (@dmitryduev in https://github.com/wandb/wandb/pull/13014)
@@ -38,6 +39,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Changed
 
+- `wandb login` with no arguments now logs in through your browser instead of asking for an API key. It uses the session you already have, so it works the same whether your organization signs in with SAML, OIDC, or a password, and the credentials it stores are scoped to one organization and renewed for you until the login expires. `wandb login --relogin` runs that browser login again. `wandb login <key>` still stores that key, credentials already on the machine are still reused, and where no browser is available, such as CI or a remote shell, it still asks for an API key. Use `--no-browser` to ask for one anyway. (@ckacal)
 - Runs now write data to disk every 15 seconds, so that wandb leet updates sooner for runs that don't log a lot of data (@dmitryduev in https://github.com/wandb/wandb/pull/12742)
 - Reduced the size of the `wandb-core` binary by about a third, from 52 MB to 35 MB on Linux x86_64 (@dmitryduev in https://github.com/wandb/wandb/pull/12923)
 - NVIDIA GPM system metrics such as `gpu.N.smActive` and `gpu.N.dramActive` are now averaged over the whole interval between samples instead of a 200 ms window (@dmitryduev in https://github.com/wandb/wandb/pull/12987)
