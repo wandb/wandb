@@ -687,9 +687,9 @@ def combine_test_results(session: nox.Session) -> None:
     shutil.rmtree(_NOX_PYTEST_RESULTS_DIR, ignore_errors=True)
 
 
-@nox.session(name="wandb-core-size-check", python="3.12")
-def wandb_core_size_check(session: nox.Session) -> None:
-    """Compare wandb-core binary size against the merge base with main."""
+@nox.session(name="binary-size-check", python="3.12")
+def binary_size_check(session: nox.Session) -> None:
+    """Compare the sizes of the binaries in wandb/bin against the merge base with main."""
     session.run("git", "fetch", "origin", "main", external=True)
     base = session.run(
         "git", "merge-base", "HEAD", "origin/main", external=True, silent=True
@@ -699,23 +699,15 @@ def wandb_core_size_check(session: nox.Session) -> None:
         session.log("HEAD is on main; nothing to compare.")
         return
 
-    # Build and install the base version.
+    def binary_sizes() -> dict[str, int]:
+        install_wandb(session, dev=False)
+        bin_dir = site_packages_dir(session) / "wandb" / "bin"
+        return {p.name: p.stat().st_size for p in sorted(bin_dir.iterdir()) if p.is_file()}
+
     session.run("git", "switch", "--detach", base, external=True)
-    install_wandb(session, dev=False)
-
-    base_binary = list(
-        (site_packages_dir(session) / "wandb" / "bin").glob("wandb-core*")
-    )[0]
-    base_size = base_binary.stat().st_size
-
-    # Build and install current branch version.
+    base_sizes = binary_sizes()
     session.run("git", "switch", "-", external=True)
-    install_wandb(session, dev=False)
-
-    current_binary = list(
-        (site_packages_dir(session) / "wandb" / "bin").glob("wandb-core*")
-    )[0]
-    current_size = current_binary.stat().st_size
+    current_sizes = binary_sizes()
 
     def fmt_size(b: int) -> str:
         for unit in ["B", "KB", "MB"]:
@@ -724,16 +716,22 @@ def wandb_core_size_check(session: nox.Session) -> None:
             b /= 1024
         return f"{b:.1f} GB"
 
-    diff = current_size - base_size
-    pct = (diff / base_size) if base_size else 0
-
+    over_threshold = []
     session.log("=" * 60)
-    session.log(f"Base:         {fmt_size(base_size)} ({base_size:,} bytes)")
-    session.log(f"Current:      {fmt_size(current_size)} ({current_size:,} bytes)")
-    session.log(f"Difference:   {fmt_size(abs(diff))} ({pct:+.0%})")
+    for name, current in current_sizes.items():
+        if name not in base_sizes:
+            session.log(f"{name}: {fmt_size(current)} (new)")
+            continue
+        base_size = base_sizes[name]
+        pct = (current - base_size) / base_size if base_size else 0
+        session.log(f"{name}: {fmt_size(base_size)} -> {fmt_size(current)} ({pct:+.0%})")
+        if pct > 0.10:
+            over_threshold.append(name)
+        elif pct > 0.05:
+            session.warn(f"{name} grew by {pct:+.0%}")
     session.log("=" * 60)
 
-    if pct > 0.10:
+    if over_threshold:
         session.log(
             textwrap.dedent("""\
 
@@ -744,9 +742,7 @@ def wandb_core_size_check(session: nox.Session) -> None:
                   2. Document the reason in your PR description.
             """)
         )
-        session.error(f"Binary size increased by {pct:+.0%} (>10% threshold)")
-    elif pct > 0.05:
-        session.warn(f"Binary size increased by {pct:+.0%}")
+        session.error(f"{', '.join(over_threshold)} grew by more than 10%")
 
 
 @nox.session(name="wandb-import-time-check", python="3.12")
