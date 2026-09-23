@@ -22,6 +22,7 @@ from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
 from wandb.sdk.data_types.helper_types.image_mask import ImageMask
 from wandb.sdk.wandb_settings import Settings
 
+# Render off-screen so that the tests do not need a display.
 matplotlib.use("Agg")
 
 

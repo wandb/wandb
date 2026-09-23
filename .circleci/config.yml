@@ -170,8 +170,8 @@ commands:
           name: "Run nox session: <<parameters.session>>"
           no_output_timeout: 10m
           command: >
-            WANDB_TEST_GROUP=$((CIRCLE_NODE_INDEX + 1))
-            WANDB_TEST_GROUPS=$CIRCLE_NODE_TOTAL
+            WANDB_TEST_GROUP_INDEX=$((CIRCLE_NODE_INDEX + 1))
+            WANDB_TEST_GROUP_COUNT=$CIRCLE_NODE_TOTAL
             nox -s "<<parameters.session>>" --python <<parameters.python>> --verbose
 
       - store-coverage: { flags: <<parameters.coverage_flags>> }

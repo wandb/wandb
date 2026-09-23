@@ -157,9 +157,9 @@ def run_pytest(
     pytest_opts.append("--maxprocesses=10")
 
     # (pytest-split) Run one group of tests only (for external parallelism).
-    if groups := os.environ.get("WANDB_TEST_GROUPS"):
-        pytest_opts.append(f"--splits={groups}")
-        pytest_opts.append(f"--group={os.environ['WANDB_TEST_GROUP']}")
+    if count := os.environ.get("WANDB_TEST_GROUP_COUNT"):
+        pytest_opts.append(f"--splits={count}")
+        pytest_opts.append(f"--group={os.environ['WANDB_TEST_GROUP_INDEX']}")
 
     # (pytest-cov) Enable Python code coverage collection.
     # We set "--cov-report=" to suppress terminal output.

@@ -1,5 +1,8 @@
 name: Build wheel
-description: Build the wandb wheel for this platform and upload it as the wheel-<OS> artifact.
+description: >-
+  Build a test wheel for this platform, with the Go race detector and Go coverage enabled
+  except on Windows, and upload it as the wheel-Linux, wheel-macOS, or wheel-Windows
+  artifact, named after runner.os. Release wheels are built by release-sdk.yml.
 
 runs:
   using: composite
@@ -16,15 +19,20 @@ runs:
           core/go.sum
           hatch_build.py
     - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+      with:
+        toolchain: stable
     - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       with:
         workspaces: |
           parquet-rust-wrapper
           xpu
         save-if: ${{ github.ref == 'refs/heads/main' }}
+
     - name: Build wheel
       shell: bash
       env:
+        # Linux already covers the race detector and Go coverage. Skipping them
+        # and the wandb-xpu binary keeps the Windows build short.
         WANDB_BUILD_COVERAGE: ${{ runner.os != 'Windows' }}
         WANDB_BUILD_GORACEDETECT: ${{ runner.os != 'Windows' }}
         WANDB_BUILD_SKIP_WANDB_XPU: ${{ runner.os == 'Windows' }}

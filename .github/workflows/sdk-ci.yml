@@ -93,7 +93,7 @@ jobs:
         working-directory: core
         run: go test -count=1 -race -coverprofile=coverage.txt -covermode=atomic ./...
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        if: always()
+        if: ${{ !cancelled() }}
         with:
           name: unit-tests-go
           path: core/coverage.txt
@@ -109,6 +109,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+        with:
+          toolchain: stable
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: |
@@ -146,18 +148,18 @@ jobs:
           go-version-file: core/go.mod
           cache-dependency-path: core/go.sum
       - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+        with:
+          toolchain: stable
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           workspaces: |
             parquet-rust-wrapper
             xpu
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Install nox
-        run: python -m pip install nox
       - name: Check generated files
         run: |
-          nox -vt proto-check
-          nox -vs codegen-check
+          uvx nox -vt proto-check
+          uvx nox -vs codegen-check
       - name: Check that the package imports
         run: |
           uv venv .venv-deps
@@ -166,11 +168,15 @@ jobs:
           python -c 'import wandb'
       - name: Compare binary sizes and import time with main
         run: |
-          nox -s binary-size-check
-          nox -s wandb-import-time-check
+          uvx nox -s binary-size-check
+          uvx nox -s wandb-import-time-check
 
   system-tests:
-    name: System tests · Python ${{ matrix.python }} · Server ${{ matrix.server }} · ${{ matrix.group }} of 8
+    name: >-
+      System tests
+      · Python ${{ matrix.python }}
+      · Server ${{ matrix.server }}
+      · ${{ matrix.group }} of 8
     needs: build-wheel
     # Pulling the private server image needs this repository's GCP identity.
     if: ${{ !github.event.pull_request.head.repo.fork }}
@@ -201,11 +207,11 @@ jobs:
           session: system_tests
           python: ${{ matrix.python }}
           server-image: ${{ matrix.server == 'current' && env.SERVER_IMAGE || env.MIN_SERVER_IMAGE }}
-          test-group: ${{ matrix.group }}
-          test-groups: 8
+          group-index: ${{ matrix.group }}
+          group-count: 8
           artifact-name: system-tests-${{ matrix.python }}-${{ matrix.server }}-${{ matrix.group }}
 
-  server-tests:
+  extra-tests:
     name: ${{ matrix.name }} · Python ${{ matrix.python }}
     needs: build-wheel
     if: ${{ !github.event.pull_request.head.repo.fork }}
@@ -239,7 +245,7 @@ jobs:
 
   result:
     name: SDK CI
-    if: always()
+    if: ${{ !cancelled() }}
     needs:
       - build-wheel
       - build-wheel-windows
@@ -250,7 +256,7 @@ jobs:
       - unit-tests-rust
       - code-check
       - system-tests
-      - server-tests
+      - extra-tests
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

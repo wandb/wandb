@@ -26,6 +26,6 @@ jobs:
         with:
           session: unit_tests
           python: ${{ matrix.python }}
-          test-group: ${{ matrix.group }}
-          test-groups: 4
+          group-index: ${{ matrix.group }}
+          group-count: 4
           artifact-name: unit-tests-${{ runner.os }}-${{ matrix.python }}-${{ matrix.group }}
