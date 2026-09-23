@@ -40,7 +40,7 @@ type LevelDBHistorySource struct {
 func NewLevelDBHistorySource(
 	runPath string,
 	logger *observability.CoreLogger,
-) (*LevelDBHistorySource, error) {
+) (HistorySource, error) {
 	store, err := NewLiveStore(runPath, logger)
 	if err != nil {
 		return nil, err
@@ -202,6 +202,17 @@ func runMsgFromRecord(runPath string, run *spb.RunRecord) RunMsg {
 		msg.StartTime = ts.AsTime()
 	}
 	return msg
+}
+
+func (hs *LevelDBHistorySource) NextLiveReadCmd(
+	readCmd tea.Cmd,
+	hasMore bool,
+) tea.Cmd {
+	if hasMore {
+		return readCmd
+	}
+
+	return nil
 }
 
 func (hs *LevelDBHistorySource) Close() {

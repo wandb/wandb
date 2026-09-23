@@ -16,6 +16,15 @@ func TestParseRemoteURL(t *testing.T) {
 		want *leet.RemoteRunParams
 	}{
 		{
+			name: "project URL",
+			url:  "https://wandb.ai/my-entity/my-project/",
+			want: &leet.RemoteRunParams{
+				BaseURL: "https://wandb.ai",
+				Entity:  "my-entity",
+				Project: "my-project",
+			},
+		},
+		{
 			name: "run URL with runs segment",
 			url:  "https://wandb.ai/my-entity/my-project/runs/abc123",
 			want: &leet.RemoteRunParams{
@@ -70,7 +79,6 @@ func TestParseRemoteURL_Errors(t *testing.T) {
 		"ftp://wandb.ai/entity/project/runs/abc123",
 		"wandb.ai/entity/project/runs/abc123",
 		"https:///entity/project/runs/abc123",
-		"https://wandb.ai/entity/project",
 		"https://wandb.ai/entity/project/sweeps/abc123",
 		"https://wandb.ai/entity/project/runs/abc123/extra",
 		"https://wandb.ai",

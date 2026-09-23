@@ -68,9 +68,9 @@ type Model struct {
 }
 
 type ModelParams struct {
-	// WandbDir is the path to the wandb directory (typically "./wandb")
-	// that contains run directories and the "latest-run" symlink.
-	WandbDir string
+	// Backend is the workspace backend (local or remote).
+	// If nil, a LocalWorkspaceBackend for an empty dir is used as a fallback.
+	Backend WorkspaceBackend
 
 	// RunParams contains information about the run to load.
 	//
@@ -85,10 +85,10 @@ type ModelParams struct {
 //
 // Startup behavior depends on the combination of RunFile and Config.StartupMode:
 //
-//   - RunFile is set → start in single-run view for that file.
-//   - RunFile is empty + StartupModeSingleRunLatest → resolve the "latest-run"
+//   - RunParams is set → start in single-run view for that run.
+//   - RunParams is nil + StartupModeSingleRunLatest → resolve the "latest-run"
 //     symlink and start in single-run view.
-//   - RunFile is empty + StartupModeWorkspaceLatest (default) → start in
+//   - RunParams is nil + StartupModeWorkspaceLatest (default) → start in
 //     workspace view; once the directory poll completes, the workspace
 //     selects the runs selected last time and the latest run if it is new.
 func NewModel(params ModelParams) *Model {
@@ -96,8 +96,12 @@ func NewModel(params ModelParams) *Model {
 		params.Config = NewConfigManager(leetConfigPath(), params.Logger)
 	}
 
+	if params.Backend == nil {
+		params.Backend = NewLocalWorkspaceBackend("", params.Logger)
+	}
+
 	if params.RunParams == nil && params.Config.StartupMode() == StartupModeSingleRunLatest {
-		latest, err := wandbFileFromLatestRunLink(params.WandbDir)
+		latest, err := wandbFileFromLatestRunLink(params.Backend.DisplayLabel())
 		if err != nil {
 			params.Logger.Error(fmt.Sprintf("model: failed to find latest run: %v", err))
 		}
@@ -105,10 +109,9 @@ func NewModel(params ModelParams) *Model {
 			params.RunParams = &RunParams{RunFile: latest}
 		}
 	}
-
 	m := &Model{
 		mode:      viewModeWorkspace,
-		workspace: NewWorkspace(params.WandbDir, params.Config, params.Logger),
+		workspace: NewWorkspace(params.Backend, params.Config, params.Logger),
 		help:      NewHelp(),
 		config:    params.Config,
 		logger:    params.Logger,
@@ -427,12 +430,12 @@ func (m *Model) renderHelpScreen() string {
 
 // enterRunView switches to single-run view for the selected run.
 func (m *Model) enterRunView() tea.Cmd {
-	wandbFile := m.workspace.SelectedRunWandbFile()
-	if wandbFile == "" {
+	runParams := m.workspace.SelectedRunParams()
+	if runParams == nil {
 		return nil
 	}
 
-	m.run = NewRun(&RunParams{RunFile: wandbFile}, m.config, m.logger)
+	m.run = NewRun(runParams, m.config, m.logger)
 	m.run.attachFilters(m.workspace.dirState)
 	m.mode = viewModeRun
 
@@ -490,11 +493,6 @@ func (m *Model) exitInspectView() tea.Cmd {
 
 // exitRunView returns to the workspace view.
 func (m *Model) exitRunView() tea.Cmd {
-	// Do not exit to workspace view for remote projects.
-	if m.run != nil && m.run.IsRemote() {
-		return nil
-	}
-
 	if m.run != nil {
 		// Save media pane view state for later restoration.
 		runKey := m.workspace.SelectedRunKey()

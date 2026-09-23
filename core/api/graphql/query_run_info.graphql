@@ -6,6 +6,7 @@ query QueryRunInfo(
     project(name: $project, entityName: $entity) {
         run(name: $run) {
             displayName
+            state
             summaryMetrics
         }
     }
