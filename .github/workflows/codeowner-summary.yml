@@ -1,0 +1,146 @@
+# Manage a comment that summarizes changed files and their owners.
+name: Code Owner Summary
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+  pull_request_review:
+    types:
+      - submitted
+      - dismissed
+
+permissions:
+  pull-requests: write
+  contents: read
+
+env:
+  # https://github.com/hmarr/codeowners/releases
+  CODEOWNERS_VER: "1.2.1"
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  codeowner-summary:
+    # GitHub withholds the app credentials from fork pull request workflows.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 2
+
+      - name: Checkout default branch CODEOWNERS
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: codeowners-default
+          fetch-depth: 1
+          sparse-checkout: .github
+
+      - name: Cache codeowners
+        id: codeowners
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: /tmp/codeowners-bin
+          key: "codeowners-${{ env.CODEOWNERS_VER }}"
+
+      - name: Download codeowners
+        if: steps.codeowners.outputs.cache-hit != 'true'
+        run: |-
+          curl -sfSL https://github.com/hmarr/codeowners/releases/download/v${{ env.CODEOWNERS_VER }}/codeowners_${{ env.CODEOWNERS_VER }}_linux_amd64.tar.gz \
+          | tar -xvz -C /tmp
+          mv /tmp/codeowners /tmp/codeowners-bin
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@24d32ffd492484c1d75e0c0b894501ddb9d30d62 # v47
+        with:
+          write_output_files: true
+
+      - name: Get owners for files
+        id: owners
+        if: steps.changed-files.outputs.all_modified_files_count > 0
+        run: |-
+          echo "::group::all_changed_and_modified_files.txt"
+          cat .github/outputs/all_changed_and_modified_files.txt
+          echo
+          echo "::endgroup::"
+
+          echo "::group::matched CODEOWNERS (from default branch)"
+          xargs /tmp/codeowners-bin --file codeowners-default/.github/CODEOWNERS < .github/outputs/all_changed_and_modified_files.txt \
+          | tee codeowners_required.txt
+          echo
+          echo "::endgroup::"
+
+      - name: Create GitHub App Token
+        if: steps.owners.outcome == 'success'
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
+        with:
+          app-id: ${{ vars.WANDBOT_3000_APP_ID }}
+          private-key: ${{ secrets.WANDBOT_3000_PRIVATE_KEY }}
+          owner: wandb
+          repositories: |
+            wandb
+
+      - name: Prepare template variables
+        if: steps.owners.outcome == 'success'
+        id: template-vars
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const script = require('./.github/scripts/codeowner-summary-prepare-vars.js');
+            await script({github, context, core});
+
+      - name: Render template
+        if: steps.template-vars.outcome == 'success'
+        id: render
+        uses: chuhlomin/render-template@a7c644e341797d050d1cb24332d83791b9a46dae # v1.12
+        with:
+          template: .github/codeowners-summary-template.md
+          vars_path: template-vars.json
+          result_path: rendered-comment.md
+
+      - name: Create or update comment
+        if: steps.render.outcome == 'success'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const fs = require('fs');
+            const commentBody = fs.readFileSync('rendered-comment.md', 'utf8');
+
+            const {data: comments} = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botLogins = new Set(['wandbot-3000[bot]', 'github-actions[bot]']);
+            const existingComment = comments.find(
+              comment => botLogins.has(comment.user.login) &&
+                         comment.body.includes('CODEOWNER SUMMARY')
+            );
+
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: commentBody,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: commentBody,
+              });
+            }
