@@ -41,13 +41,12 @@ def validate_unsupported_media_mode(mode: str) -> None:
 
 
 class EvalTable(Table):
-    """A Table subclass that routes run.log() to the new Eval Tables experience.
+    """The EvalTable class provides a new experience analyzing tabular data.
 
     When logged via run.log(), an EvalTable writes to its selected evaluation
     backend instead of being uploaded as a regular wandb Table artifact.
 
-    Note: EvalTable is a work-in-progress and is NOT yet officially released or
-    supported.
+    Note: EvalTable is currently in PREVIEW and still a work-in-progress.
     """
 
     # SDK-side WBValue discriminator, not to be confused by `_type` written to the run
@@ -77,6 +76,8 @@ class EvalTable(Table):
 
         Warning: Media suport is only partially implemented. We may not save all
         metadata, and media types not yet supported will be replaced with stubs for now.
+        Use unsupported_media_mode=raise if you want to fail fast on unsupported media
+        instead.
 
         Args:
             columns: Names of the columns in the table.
