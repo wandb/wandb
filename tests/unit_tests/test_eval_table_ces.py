@@ -17,6 +17,46 @@ from wandb.sdk.data_types.eval_table import _writer_ces as ces_writer
 
 
 @pytest.fixture
+def mock_eval_logger(monkeypatch):
+    mock_evaluation_logger_cls = MagicMock()
+    created_loggers: list[MagicMock] = []
+
+    def create_logger(*args, **kwargs):
+        logger = MagicMock()
+        logger._evaluate_call.id = f"eval-{len(created_loggers) + 1}"
+        logger._init_args = args
+        logger._init_kwargs = kwargs
+        created_loggers.append(logger)
+        return logger
+
+    mock_evaluation_logger_cls._create_with_meta.side_effect = create_logger
+    mock_evaluation_logger_cls.created_loggers = created_loggers
+
+    weave_module = types.ModuleType("weave")
+    weave_module.__path__ = []
+    weave_module.__version__ = "999.0.0"
+    evaluation_module = types.ModuleType("weave.evaluation")
+    evaluation_module.__path__ = []
+    eval_imperative_module = types.ModuleType("weave.evaluation.eval_imperative")
+    eval_imperative_module.EvaluationLogger = mock_evaluation_logger_cls
+    weave_module.evaluation = evaluation_module
+    evaluation_module.eval_imperative = eval_imperative_module
+
+    monkeypatch.setitem(sys.modules, "weave", weave_module)
+    monkeypatch.setitem(sys.modules, "weave.evaluation", evaluation_module)
+    monkeypatch.setitem(
+        sys.modules,
+        "weave.evaluation.eval_imperative",
+        eval_imperative_module,
+    )
+    monkeypatch.setattr(
+        "wandb.sdk.data_types.eval_table._writer_weave.weave_integration.init_weave",
+        lambda entity, project: None,
+    )
+    return mock_evaluation_logger_cls
+
+
+@pytest.fixture
 def run(mock_run):
     return mock_run(settings={"entity": "e", "project": "p", "mode": "online"})
 
