@@ -18,7 +18,7 @@ from wandb.sdk.data_types.eval_table._writer import WriteResult, WriteRow
 from wandb.sdk.data_types.table import Table
 
 if TYPE_CHECKING:
-    from coreweave_evaluations import CoreWeaveEvaluations as CoreWeaveEvaluationsT
+    from coreweave_evaluations import Client as EvaluationsClientT
 
     from wandb.sdk.data_types.table import ColumnKey, LogMode
     from wandb.sdk.wandb_run import Run as LocalRun
@@ -105,6 +105,14 @@ def _iter_row_batches(
 
 
 @dataclass(frozen=True)
+class _BoundRun:
+    entity: str
+    project: str
+    service_api: ServiceApi
+    idempotency_scope: str
+
+
+@dataclass(frozen=True)
 class _CESWritePayloads:
     dataset_fields: list[dict[str, str]]
     scorers: list[dict[str, str]]
@@ -113,17 +121,9 @@ class _CESWritePayloads:
 
 @dataclass(frozen=True)
 class _CESScopeContext:
-    scope_ref: str
+    scope_id: str
     api_key: str | None = field(repr=False)
     access_token: str | None = field(repr=False)
-
-
-@dataclass(frozen=True)
-class _BoundRun:
-    entity: str
-    project: str
-    service_api: ServiceApi
-    idempotency_scope: str
 
 
 class CESWriter:
@@ -138,6 +138,11 @@ class CESWriter:
         self._service_api = service_api
         self._unsupported_media_mode = unsupported_media_mode
         self._bound: _BoundRun | None = None
+
+    def validate_cell_value(self, value: Any, column: ColumnKey) -> None:
+        """Validate W&B values before the table is bound or written."""
+        if isinstance(value, WBValue):
+            self._validate_wandb_value(value, column)
 
     def bind_to_run(self, run: LocalRun, key: str, step: int | str) -> None:
         """Bind the run and derive a stable retry identity for this log location."""
@@ -163,11 +168,6 @@ class CESWriter:
             idempotency_scope=hashlib.sha256(identity.encode()).hexdigest(),
         )
 
-    def validate_cell_value(self, value: Any, column: ColumnKey) -> None:
-        """Reject unsupported W&B values before the table is bound or written."""
-        if isinstance(value, WBValue):
-            self._validate_wandb_value(value, column)
-
     def write(
         self,
         *,
@@ -189,7 +189,7 @@ class CESWriter:
         # TODO: coreweave_evaluations is new and under development. This will become
         # obsolete once we actually publish the package and add it to wandb deps.
         try:
-            from coreweave_evaluations import CoreWeaveEvaluations
+            from coreweave_evaluations import Client
         except ImportError as exc:
             raise UsageError(
                 "CES EvalTable logging requires the coreweave_evaluations package."
@@ -197,45 +197,46 @@ class CESWriter:
 
         write_payloads = self._build_write_payloads(name=name, rows=rows)
         scope = self._resolve_scope_context(bound_run)
-        client = self._create_client(CoreWeaveEvaluations, base_url, scope)
-        try:
+        with self._create_client(
+            client_type=Client,
+            base_url=base_url,
+            scope=scope,
+        ) as client:
             created = client.eval_tables.create(
-                scope.scope_ref,
                 namespace=_WANDB_SCOPE_NAMESPACE,
+                scope_id=scope.scope_id,
                 name=name,
                 idempotency_key=self._idempotency_key(bound_run, "create"),
             )
-            client.eval_tables.create_columns(
+            client.eval_tables.columns.create(
                 created.evaluation_id,
                 namespace=_WANDB_SCOPE_NAMESPACE,
-                scope_ref=scope.scope_ref,
+                scope_id=scope.scope_id,
                 dataset_fields=write_payloads.dataset_fields,
                 scorers=write_payloads.scorers,
                 idempotency_key=self._idempotency_key(bound_run, "columns"),
             )
             for batch_index, row_batch in enumerate(write_payloads.row_batches):
-                client.eval_tables.add_rows(
+                client.eval_tables.rows.add(
                     created.evaluation_id,
                     namespace=_WANDB_SCOPE_NAMESPACE,
-                    scope_ref=scope.scope_ref,
+                    scope_id=scope.scope_id,
                     rows=row_batch,
                     idempotency_key=self._idempotency_key(
                         bound_run, f"rows-{batch_index}"
                     ),
                 )
-            version = client.eval_tables.create_version(
+            version = client.eval_tables.versions.create(
                 created.evaluation_id,
                 namespace=_WANDB_SCOPE_NAMESPACE,
-                scope_ref=scope.scope_ref,
+                scope_id=scope.scope_id,
                 idempotency_key=self._idempotency_key(bound_run, "version"),
             )
-        finally:
-            client.close()
 
         _logger.debug(
-            "CES EvalTable recorded namespace=%s scope_ref=%s evaluation_version_id=%s",
+            "CES EvalTable recorded namespace=%s scope_id=%s evaluation_version_id=%s",
             _WANDB_SCOPE_NAMESPACE,
-            scope.scope_ref,
+            scope.scope_id,
             version.evaluation_version_id,
         )
 
@@ -254,6 +255,11 @@ class CESWriter:
             },
             logged_id=version.evaluation_version_id,
         )
+
+    def _require_bound(self) -> _BoundRun:
+        if self._bound is None:
+            raise UsageError("EvalTable must be logged with run.log().")
+        return self._bound
 
     def _build_write_payloads(
         self,
@@ -308,11 +314,15 @@ class CESWriter:
             )
 
         missing_fields = [
-            name
-            for source, name in dataset_field_order
-            if (source, name) not in dataset_field_types
+            column_name
+            for source, column_name in dataset_field_order
+            if (source, column_name) not in dataset_field_types
         ]
-        missing_scorers = [name for name in scorer_order if name not in scorer_types]
+        missing_scorers = [
+            column_name
+            for column_name in scorer_order
+            if column_name not in scorer_types
+        ]
         if missing_fields or missing_scorers:
             missing = sorted({*missing_fields, *missing_scorers})
             raise UsageError(
@@ -333,13 +343,14 @@ class CESWriter:
         dataset_fields = [
             {
                 "source": source,
-                "name": name,
-                "value_type": dataset_field_types[(source, name)],
+                "name": column_name,
+                "value_type": dataset_field_types[(source, column_name)],
             }
-            for source, name in dataset_field_order
+            for source, column_name in dataset_field_order
         ]
         scorers = [
-            {"name": name, "value_type": scorer_types[name]} for name in scorer_order
+            {"name": column_name, "value_type": scorer_types[column_name]}
+            for column_name in scorer_order
         ]
         self._validate_body_size(
             "columns", {"dataset_fields": dataset_fields, "scorers": scorers}
@@ -503,15 +514,6 @@ class CESWriter:
                 f"{_MAX_REQUEST_BODY_SIZE}."
             )
 
-    def _require_bound(self) -> _BoundRun:
-        if self._bound is None:
-            raise UsageError("EvalTable must be logged with run.log().")
-        return self._bound
-
-    def _idempotency_key(self, bound_run: _BoundRun, operation: str) -> str:
-        """Derive an operation-specific retry key from the bound log location."""
-        return f"wandb-eval-table-v1-{bound_run.idempotency_scope}-{operation}"
-
     def _resolve_scope_context(self, bound_run: _BoundRun) -> _CESScopeContext:
         """Resolve the project scope and preferred run credential for CES."""
         response = bound_run.service_api.execute_graphql(
@@ -519,8 +521,8 @@ class CESWriter:
             variables={"entity": bound_run.entity, "project": bound_run.project},
         )
         project = response.get("project") if isinstance(response, dict) else None
-        scope_ref = project.get("internalId") if isinstance(project, dict) else None
-        if not isinstance(scope_ref, str) or not scope_ref:
+        scope_id = project.get("internalId") if isinstance(project, dict) else None
+        if not isinstance(scope_id, str) or not scope_id:
             raise UsageError(
                 f"Unable to resolve W&B project {bound_run.entity}/{bound_run.project}."
             )
@@ -533,17 +535,18 @@ class CESWriter:
             )
 
         return _CESScopeContext(
-            scope_ref=scope_ref,
+            scope_id=scope_id,
             api_key=api_key,
             access_token=access_token,
         )
 
     def _create_client(
         self,
-        client_type: type[CoreWeaveEvaluationsT],
+        *,
+        client_type: type[EvaluationsClientT],
         base_url: str,
         scope: _CESScopeContext,
-    ) -> CoreWeaveEvaluationsT:
+    ) -> EvaluationsClientT:
         """Create a client while keeping the run's credentials authoritative."""
         # The client builds the Authorization header from these and rejects a
         # request that reaches it without one, so a header set on an httpx
@@ -558,3 +561,7 @@ class CESWriter:
         client.api_key = scope.api_key
         client.bearer_token = scope.access_token
         return client
+
+    def _idempotency_key(self, bound_run: _BoundRun, operation: str) -> str:
+        """Derive an operation-specific retry key from the bound log location."""
+        return f"wandb-eval-table-v1-{bound_run.idempotency_scope}-{operation}"
