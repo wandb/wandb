@@ -95,7 +95,9 @@ class WandbOptimizer(Optimizer):
         """Merge in-memory runs with the scheduler's latest poll snapshot."""
         sweep_runs_by_name = {run.name: run for run in self._runs.values()}
         for run_id, data in zip(run_ids, runs, strict=True):
-            sweep_runs_by_name[run_id] = self._to_sweep_run(run_id, data)
+            # A pruned run stays killed so hyperband never stops it twice.
+            if run_id not in self._pruned:
+                sweep_runs_by_name[run_id] = self._to_sweep_run(run_id, data)
         return list(sweep_runs_by_name.values())
 
     @override

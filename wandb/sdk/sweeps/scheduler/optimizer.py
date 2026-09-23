@@ -135,10 +135,10 @@ class Optimizer(ABC):
         """Report the latest state and metrics of a run this optimizer proposed.
 
         Called on each poll while the run is in flight, and once more when it
-        reaches a terminal state. A run returned from `prune_runs` gets that
-        terminal call only if it ends before the scheduler manages to stop
-        it, so implementations that finalize a run at prune time must treat
-        it as a no-op rather than raise.
+        reaches a terminal state. A run returned from `prune_runs` keeps
+        getting these calls until the scheduler manages to stop it, so
+        implementations that finalize a run at prune time must treat them as
+        no-ops rather than raise.
 
         Args:
             run_id: The `RunSuggestion.run_id` this optimizer handed out.
