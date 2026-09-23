@@ -185,9 +185,11 @@ flowchart LR
 
 Filestream requests retry for a long window because experiments may run for days and users may have transient network failures.
 
-When the server returns `metric_limit.warning` with a count and limit, the SDK
-prints a near-limit warning once per run. HTTP 400 with
-`X-Wandb-Error-Code: run_metric_limit_exceeded` stops further filestream data
+When the server returns an available `limit_statuses.distinct_metrics_per_run`
+entry with `warning: true`, `usage`, and `limit`, the SDK prints a near-limit
+warning once per run. Unavailable state and unknown controls are ignored.
+HTTP 400 with JSON `extensions.code: "USAGE_LIMIT_EXCEEDED"` and
+`extensions.limit_key: "distinct_metrics_per_run"` stops further filestream data
 uploads and prints an actionable error once. Local recording continues. The
 transmit loop stays alive so `FinishWithExit` can send only `complete` and
 `exitcode`; if completion was batched with rejected data, it retries once without

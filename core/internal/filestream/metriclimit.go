@@ -1,6 +1,7 @@
 package filestream
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"math"
@@ -24,11 +25,19 @@ func (fs *fileStream) handleUploadError(
 	resp *http.Response,
 	requestURL string,
 ) error {
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<10))
+	body, readErr := io.ReadAll(io.LimitReader(resp.Body, (64<<10)+1))
 	_ = resp.Body.Close()
 
-	if resp.StatusCode != http.StatusBadRequest ||
-		resp.Header.Get("X-Wandb-Error-Code") != "run_metric_limit_exceeded" ||
+	var response struct {
+		Extensions struct {
+			Code     string `json:"code"`
+			LimitKey string `json:"limit_key"`
+		} `json:"extensions"`
+	}
+	if resp.StatusCode != http.StatusBadRequest || readErr != nil || len(body) > 64<<10 ||
+		json.Unmarshal(body, &response) != nil ||
+		response.Extensions.Code != "USAGE_LIMIT_EXCEEDED" ||
+		response.Extensions.LimitKey != "distinct_metrics_per_run" ||
 		fs.metricLimitBlocked {
 		return fmt.Errorf(
 			"filestream: failed to upload: %v url=%v: %s",
@@ -60,14 +69,19 @@ func (fs *fileStream) warnMetricLimit(response map[string]any) {
 	if fs.metricLimitWarned {
 		return
 	}
-	status, ok := response["metric_limit"].(map[string]any)
+	statuses, ok := response["limit_statuses"].(map[string]any)
 	if !ok {
 		return
 	}
+	status, ok := statuses["distinct_metrics_per_run"].(map[string]any)
+	if !ok {
+		return
+	}
+	available, _ := status["available"].(bool)
 	warning, _ := status["warning"].(bool)
-	count, countOK := status["count"].(float64)
+	count, countOK := status["usage"].(float64)
 	limit, limitOK := status["limit"].(float64)
-	if !warning || !countOK || !limitOK || count < 0 || limit <= 0 ||
+	if !available || !warning || !countOK || !limitOK || count < 0 || limit <= 0 ||
 		math.Trunc(count) != count || math.Trunc(limit) != limit {
 		return
 	}

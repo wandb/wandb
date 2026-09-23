@@ -28,6 +28,8 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
+const metricLimitErrorBody = `{"error":"limit exceeded","extensions":{"code":"USAGE_LIMIT_EXCEEDED","limit_key":"distinct_metrics_per_run"}}`
+
 type metricLimitHTTPFunc func(*retryablehttp.Request) (*http.Response, error)
 
 func (fn metricLimitHTTPFunc) Do(r *retryablehttp.Request) (*http.Response, error) {
@@ -49,14 +51,13 @@ func newMetricLimitTestStream(t *testing.T, client api.RetryableClient) *fileStr
 	return factory.New(client, t.Context(), time.Hour, rate.NewLimiter(rate.Inf, 1)).(*fileStream)
 }
 
-func metricLimitResponse(code int, body, errorCode string) *http.Response {
+func metricLimitResponse(code int, body string) *http.Response {
 	response := &http.Response{
 		StatusCode: code,
 		Status:     http.StatusText(code),
 		Header:     make(http.Header),
 		Body:       io.NopCloser(strings.NewReader(body)),
 	}
-	response.Header.Set("X-Wandb-Error-Code", errorCode)
 	return response
 }
 
@@ -75,9 +76,9 @@ func TestMetricLimitRejectionPreservesCompletion(t *testing.T) {
 						require.NoError(t, json.Unmarshal(body, &data))
 						requests = append(requests, data)
 						if len(requests) == 1 {
-							return metricLimitResponse(400, `{}`, "run_metric_limit_exceeded"), nil
+							return metricLimitResponse(400, metricLimitErrorBody), nil
 						}
-						return metricLimitResponse(200, `{}`, ""), nil
+						return metricLimitResponse(200, `{}`), nil
 					}),
 				)
 				fs.settings = settings.From(
@@ -139,9 +140,9 @@ func TestMetricLimitMixedCompletionRetriesOnce(t *testing.T) {
 							require.True(t, *data.Complete)
 						}
 						if calls == 1 || rejectCompletion {
-							return metricLimitResponse(400, `{}`, "run_metric_limit_exceeded"), nil
+							return metricLimitResponse(400, metricLimitErrorBody), nil
 						}
-						return metricLimitResponse(200, `{}`, ""), nil
+						return metricLimitResponse(200, `{}`), nil
 					}),
 				)
 				complete := true
@@ -165,26 +166,32 @@ func TestMetricLimitMixedCompletionRetriesOnce(t *testing.T) {
 func TestMetricLimitWarnings(t *testing.T) {
 	for _, response := range []string{
 		`{}`,
-		`{"metric_limit":null}`,
-		`{"metric_limit":"invalid"}`,
-		`{"metric_limit":{"count":9,"limit":10,"warning":false}}`,
-		`{"metric_limit":{"count":"9","limit":10,"warning":true}}`,
-		`{"metric_limit":{"count":9,"limit":0,"warning":true}}`,
-		`{"metric_limit":{"count":-1,"limit":10,"warning":true}}`,
-		`{"metric_limit":{"count":9.5,"limit":10,"warning":true}}`,
+		`{"limit_statuses":null}`,
+		`{"limit_statuses":"invalid"}`,
+		`{"limit_statuses":{"distinct_metrics_per_run":null}}`,
+		`{"limit_statuses":{"distinct_metrics_per_run":"invalid"}}`,
+		`{"limit_statuses":{"distinct_metrics_per_run":{"available":false,"limit":10}}}`,
+		`{"limit_statuses":{"distinct_metrics_per_run":{"available":false,"usage":9,"limit":10,"warning":true}}}`,
+		`{"limit_statuses":{"distinct_metrics_per_run":{"usage":9,"limit":10,"warning":true}}}`,
+		`{"limit_statuses":{"other_control":{"available":true,"usage":9,"limit":10,"warning":true}}}`,
+		`{"limit_statuses":{"distinct_metrics_per_run":{"available":true,"usage":9,"limit":10,"warning":false}}}`,
+		`{"limit_statuses":{"distinct_metrics_per_run":{"available":true,"usage":"9","limit":10,"warning":true}}}`,
+		`{"limit_statuses":{"distinct_metrics_per_run":{"available":true,"usage":9,"limit":0,"warning":true}}}`,
+		`{"limit_statuses":{"distinct_metrics_per_run":{"available":true,"usage":-1,"limit":10,"warning":true}}}`,
+		`{"limit_statuses":{"distinct_metrics_per_run":{"available":true,"usage":9.5,"limit":10,"warning":true}}}`,
 	} {
 		t.Run(response, func(t *testing.T) {
 			body := response
 			fs := newMetricLimitTestStream(
 				t,
 				metricLimitHTTPFunc(func(*retryablehttp.Request) (*http.Response, error) {
-					return metricLimitResponse(200, body, ""), nil
+					return metricLimitResponse(200, body), nil
 				}),
 			)
 			feedback := make(chan map[string]any, 3)
 			require.NoError(t, fs.send(&FileStreamRequestJSON{}, feedback))
 			require.Empty(t, fs.printer.Read())
-			body = `{"metric_limit":{"count":9,"limit":10,"warning":true},"stopped":true}`
+			body = `{"limit_statuses":{"distinct_metrics_per_run":{"available":true,"usage":9,"limit":10,"warning":true,"blocked":false}},"stopped":true}`
 			require.NoError(t, fs.send(&FileStreamRequestJSON{}, feedback))
 			require.NoError(t, fs.send(&FileStreamRequestJSON{}, feedback))
 			messages := fs.printer.Read()
@@ -199,21 +206,26 @@ func TestMetricLimitWarnings(t *testing.T) {
 
 func TestMetricLimitUnrelatedErrorsStillFail(t *testing.T) {
 	for _, tc := range []struct {
-		name   string
-		code   int
-		header string
+		name string
+		code int
+		body string
 	}{
-		{"legacy bad request", 400, ""},
-		{"other error code", 400, "invalid_request"},
-		{"unauthorized", 401, "run_metric_limit_exceeded"},
-		{"rate limited", 429, "run_metric_limit_exceeded"},
-		{"server error", 500, "run_metric_limit_exceeded"},
+		{"legacy bad request", 400, `{"error":"bad request"}`},
+		{"message alone", 400, `{"error":"run_metric_limit_exceeded"}`},
+		{"other error code", 400, `{"extensions":{"code":"INVALID_REQUEST","limit_key":"distinct_metrics_per_run"}}`},
+		{"other usage limit", 400, `{"extensions":{"code":"USAGE_LIMIT_EXCEEDED","limit_key":"total_runs"}}`},
+		{"missing limit key", 400, `{"extensions":{"code":"USAGE_LIMIT_EXCEEDED"}}`},
+		{"malformed JSON", 400, metricLimitErrorBody[:len(metricLimitErrorBody)-1]},
+		{"oversized body", 400, metricLimitErrorBody + strings.Repeat(" ", 64<<10)},
+		{"unauthorized", 401, metricLimitErrorBody},
+		{"rate limited", 429, metricLimitErrorBody},
+		{"server error", 500, metricLimitErrorBody},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			fs := newMetricLimitTestStream(
 				t,
 				metricLimitHTTPFunc(func(*retryablehttp.Request) (*http.Response, error) {
-					return metricLimitResponse(tc.code, `{}`, tc.header), nil
+					return metricLimitResponse(tc.code, tc.body), nil
 				}),
 			)
 			require.Error(t, fs.send(&FileStreamRequestJSON{}, make(chan map[string]any, 1)))
@@ -247,8 +259,9 @@ func TestMetricLimitFinishWithExit(t *testing.T) {
 					}
 					requests <- data
 					if len(data.Files) > 0 || len(data.Uploaded) > 0 {
-						w.Header().Set("X-Wandb-Error-Code", "run_metric_limit_exceeded")
 						w.WriteHeader(http.StatusBadRequest)
+						_, _ = io.WriteString(w, metricLimitErrorBody)
+						return
 					}
 					_, _ = io.WriteString(w, `{}`)
 				}),
