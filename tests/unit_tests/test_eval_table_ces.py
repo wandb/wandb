@@ -110,12 +110,12 @@ def mock_ces_client(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    ("server_feature_enabled", "expected_marker_type"),
+    ("server_feature_enabled", "expected_history_type"),
     [(False, "eval-table"), (True, "eval-table-ces")],
 )
 def test_eval_table_defaults_backend_from_server_feature(
     server_feature_enabled,
-    expected_marker_type,
+    expected_history_type,
     monkeypatch,
     mock_eval_logger,
     mock_ces_client,
@@ -130,7 +130,7 @@ def test_eval_table_defaults_backend_from_server_feature(
 
     run.log({"eval": table})
 
-    assert table.to_json(run)["_type"] == expected_marker_type
+    assert table.to_json(run)["_type"] == expected_history_type
     feature_enabled.assert_called_once_with(pb.ServerFeature.EVAL_TABLES_CES)
     if server_feature_enabled:
         mock_ces_client.eval_tables.create.assert_called_once()
@@ -141,7 +141,7 @@ def test_eval_table_defaults_backend_from_server_feature(
 
 
 @pytest.mark.parametrize(
-    ("backend", "server_feature_enabled", "expected_marker_type"),
+    ("backend", "server_feature_enabled", "expected_history_type"),
     [
         ("weave", True, "eval-table"),
         ("ces", False, "eval-table-ces"),
@@ -150,7 +150,7 @@ def test_eval_table_defaults_backend_from_server_feature(
 def test_eval_table_backend_overrides_server_default(
     backend,
     server_feature_enabled,
-    expected_marker_type,
+    expected_history_type,
     monkeypatch,
     mock_eval_logger,
     mock_ces_client,
@@ -165,7 +165,7 @@ def test_eval_table_backend_overrides_server_default(
 
     run.log({"eval": table})
 
-    assert table.to_json(run)["_type"] == expected_marker_type
+    assert table.to_json(run)["_type"] == expected_history_type
     feature_enabled.assert_not_called()
 
 
