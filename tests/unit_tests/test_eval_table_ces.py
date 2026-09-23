@@ -558,6 +558,17 @@ def test_ces_eval_table_rejects_mixed_types_with_permissive_dtype_before_network
     mock_ces_client.eval_tables.create.assert_not_called()
 
 
+def test_ces_eval_table_reports_extension_types_in_mixed_column_error():
+    writer = ces.CESWriter()
+
+    with pytest.raises(UsageError, match="mixes 'wandb-image' and 'wandb-audio'"):
+        writer._merge_field_type(
+            "media",
+            ces._CESFieldType("json", "wandb-image", 1),
+            ces._CESFieldType("json", "wandb-audio", 1),
+        )
+
+
 @pytest.mark.parametrize(
     (
         "columns",
