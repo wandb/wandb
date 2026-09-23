@@ -600,6 +600,65 @@ def test_image_overlay_keys_register_distinct_class_labels(
     }
 
 
+def test_image_rows_merge_overlay_class_labels(
+    run_factory,
+    mock_ces_client,
+    tmp_path,
+):
+    np = pytest.importorskip("numpy")
+    run = run_factory("run-one")
+    run._add_singleton = MagicMock(
+        wraps=wandb.Run._add_singleton.__get__(run, wandb.Run)
+    )
+
+    def image(name, class_labels):
+        return wandb.Image(
+            _png(tmp_path, name),
+            boxes={
+                "comparison": {
+                    "box_data": [
+                        {
+                            "position": {
+                                "minX": 0.1,
+                                "minY": 0.2,
+                                "maxX": 0.3,
+                                "maxY": 0.4,
+                            },
+                            "class_id": 1,
+                        }
+                    ],
+                    "class_labels": class_labels,
+                }
+            },
+            masks={
+                "comparison": {
+                    "mask_data": np.ones((2, 2), dtype=np.uint8),
+                    "class_labels": class_labels,
+                }
+            },
+        )
+
+    table = wandb.EvalTable(
+        columns=["image"],
+        data=[
+            [image("first.png", {1: "A", 2: "B"})],
+            [image("second.png", {2: "different B", 3: "C"})],
+        ],
+        input_columns=["image"],
+        backend="ces",
+    )
+
+    run.log({"eval": table})
+
+    singleton_key = "eval/inputs/image_wandb_delimeter_comparison"
+    expected_labels = {1: "A", 2: "B", 3: "C"}
+    wandb_config = run._config["_wandb"]
+    assert wandb_config["bounding_box/class_labels"][singleton_key]["value"] == (
+        expected_labels
+    )
+    assert wandb_config["mask/class_labels"][singleton_key]["value"] == expected_labels
+
+
 def test_image_columns_register_distinct_overlay_class_labels(
     run_factory,
     mock_ces_client,

@@ -315,17 +315,22 @@ def _register_class_labels(
 
     singleton_key = field.singleton_key(media._key)
     if isinstance(media, BoundingBoxes2D):
-        run._add_singleton(
-            "bounding_box/class_labels",
-            singleton_key,
-            class_labels,
-        )
+        singleton_type = "bounding_box/class_labels"
     elif isinstance(media, ImageMask):
-        run._add_singleton(
-            "mask/class_labels",
-            singleton_key,
-            class_labels,
-        )
+        singleton_type = "mask/class_labels"
+    else:
+        return
+
+    existing_entry = run._config["_wandb"].get(singleton_type, {}).get(singleton_key)
+    existing_labels = (
+        existing_entry.get("value") if isinstance(existing_entry, dict) else None
+    )
+    merged_labels = dict(class_labels)
+    if isinstance(existing_labels, dict):
+        # Preserve the established name on ID collisions, matching Table schemas.
+        merged_labels.update(existing_labels)
+
+    run._add_singleton(singleton_type, singleton_key, merged_labels)
 
 
 def _logical_run_file_path(media: Media, run: Run) -> LogicalPath:
