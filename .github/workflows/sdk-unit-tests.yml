@@ -28,4 +28,4 @@ jobs:
           python: ${{ matrix.python }}
           group-index: ${{ matrix.group }}
           group-count: 4
-          artifact-name: unit-tests-${{ runner.os }}-${{ matrix.python }}-${{ matrix.group }}
+          artifact-name: unit-${{ runner.os }}-${{ matrix.python }}-${{ matrix.group }}
