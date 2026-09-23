@@ -343,9 +343,9 @@ def test_ces_eval_table_batch_size_counts_row_separators(
     batches = list(
         ces_writer._iter_row_batches(
             [row, row, row],
-            max_body_bytes=16 << 20,
-            target_body_bytes=target_size,
-            max_rows=10_000,
+            max_request_body_bytes=16 << 20,
+            target_batch_body_bytes=target_size,
+            max_rows_per_batch=10_000,
         )
     )
 
