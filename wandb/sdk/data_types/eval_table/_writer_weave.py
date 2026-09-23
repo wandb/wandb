@@ -192,7 +192,7 @@ class WeaveWriter:
         return WriteResult(
             marker={
                 "_type": "eval-table",
-                "ncols": payload.ncols,
+                "ncols": len(payload.column_keys),
                 "nrows": len(payload.rows),
                 "log_mode": payload.log_mode,
                 "evaluate_call_id": evaluate_call_id,

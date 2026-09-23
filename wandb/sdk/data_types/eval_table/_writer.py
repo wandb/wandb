@@ -21,13 +21,12 @@ class WriteInput:
     name: str
     rows: Sequence[WriteRow]
     column_keys: Mapping[str, ColumnKey]
-    ncols: int
     log_mode: LogMode
 
 
 @dataclass(frozen=True, kw_only=True)
 class WriteResult:
-    """Backend-owned run-history marker and its backend-specific identifier."""
+    """Writes eval table data reference to run history."""
 
     marker: Mapping[str, Any]
     logged_id: str
@@ -42,10 +41,10 @@ class EvalTableWriter(Protocol):
     evaluation written by the selected backend.
     """
 
+    def validate_cell_value(self, value: Any, column: ColumnKey) -> None: ...
+
     def bind_to_run(self, run: LocalRun, key: str, step: int | str) -> None:
         """Bind this writer to a run."""
         ...
-
-    def validate_cell_value(self, value: Any, column: ColumnKey) -> None: ...
 
     def write(self, payload: WriteInput) -> WriteResult: ...

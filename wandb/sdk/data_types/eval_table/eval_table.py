@@ -386,6 +386,5 @@ class EvalTable(Table):
             name=name,
             rows=rows,
             column_keys=column_keys,
-            ncols=len(self.columns),
             log_mode=self.log_mode,
         )
