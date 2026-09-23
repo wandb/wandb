@@ -35,17 +35,6 @@ query EvalTableProjectScope($entity: String!, $project: String!) {
   }
 }
 """
-
-
-def _encode_json(value: Any) -> bytes:
-    return json.dumps(
-        value,
-        allow_nan=False,
-        ensure_ascii=False,
-        separators=(",", ":"),
-    ).encode()
-
-
 # Server request-body limit.
 _MAX_REQUEST_BODY_BYTES = 16 << 20
 _MAX_REQUEST_BODY_SIZE = "16 MiB"
@@ -63,45 +52,8 @@ _MAX_ROWS_PER_TABLE = 100_000
 _MAX_SCORERS = 256
 _MAX_SCORER_NAME_LENGTH = 256
 
-# Bytes in an add_rows body other than encoded rows and their separating commas.
-_ROW_BATCH_ENVELOPE_BYTES = len(_encode_json({"rows": []}))
-
 PrimitiveValueType = Literal["boolean", "integer", "number", "string"]
 _CESRow = dict[str, Any]
-
-
-def _iter_row_batches(
-    rows: Sequence[_CESRow],
-    *,
-    max_body_bytes: int,
-    target_body_bytes: int,
-    max_rows: int,
-) -> Iterator[list[_CESRow]]:
-    batch: list[_CESRow] = []
-    batch_size = _ROW_BATCH_ENVELOPE_BYTES
-
-    for row_index, row in enumerate(rows):
-        row_size = len(_encode_json(row))
-        if _ROW_BATCH_ENVELOPE_BYTES + row_size >= max_body_bytes:
-            raise UsageError(
-                "CES EvalTable rows payload contains a row at index "
-                f"{row_index} whose encoded request must be smaller than "
-                f"{_MAX_REQUEST_BODY_SIZE}."
-            )
-
-        # An above-target batch contains exactly one row, which already passed
-        # the hard request-size check; the next row flushes it here.
-        if batch and (
-            len(batch) >= max_rows or batch_size + 1 + row_size > target_body_bytes
-        ):
-            yield batch
-            batch, batch_size = [], _ROW_BATCH_ENVELOPE_BYTES
-
-        batch_size += row_size + (1 if batch else 0)
-        batch.append(row)
-
-    if batch:
-        yield batch
 
 
 @dataclass(frozen=True)
@@ -124,6 +76,56 @@ class _CESScopeContext:
     scope_id: str
     api_key: str | None = field(repr=False)
     access_token: str | None = field(repr=False)
+
+
+def _encode_json(value: Any) -> bytes:
+    """Encode JSON exactly as the CES client does for body-size checks."""
+    return json.dumps(
+        value,
+        allow_nan=False,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode()
+
+
+# Bytes in a row-add body other than encoded rows and their separating commas.
+_ROW_BATCH_ENVELOPE_BYTES = len(_encode_json({"rows": []}))
+
+
+def _iter_row_batches(
+    rows: Sequence[_CESRow],
+    *,
+    max_request_body_bytes: int,
+    target_batch_body_bytes: int,
+    max_rows_per_batch: int,
+) -> Iterator[list[_CESRow]]:
+    """Yield ordered row batches within encoded-byte and row-count limits."""
+    batch: list[_CESRow] = []
+    batch_size = _ROW_BATCH_ENVELOPE_BYTES
+
+    for row_index, row in enumerate(rows):
+        row_size = len(_encode_json(row))
+        if _ROW_BATCH_ENVELOPE_BYTES + row_size >= max_request_body_bytes:
+            raise UsageError(
+                "CES EvalTable rows payload contains a row at index "
+                f"{row_index} whose encoded request must be smaller than "
+                f"{_MAX_REQUEST_BODY_SIZE}."
+            )
+
+        # An above-target batch contains exactly one row, which already passed
+        # the hard request-size check; the next row flushes it here.
+        if batch and (
+            len(batch) >= max_rows_per_batch
+            or batch_size + 1 + row_size > target_batch_body_bytes
+        ):
+            yield batch
+            batch, batch_size = [], _ROW_BATCH_ENVELOPE_BYTES
+
+        batch_size += row_size + (1 if batch else 0)
+        batch.append(row)
+
+    if batch:
+        yield batch
 
 
 class CESWriter:
@@ -265,7 +267,7 @@ class CESWriter:
         name: str,
         rows: Sequence[WriteRow],
     ) -> _CESWritePayloads:
-        """Normalize rows and infer ordered column schemas."""
+        """Validate and normalize rows, infer schemas, and build request batches."""
         self._validate_name(
             "EvalTable",
             name,
@@ -360,9 +362,9 @@ class CESWriter:
             row_batches=list(
                 _iter_row_batches(
                     normalized_rows,
-                    max_body_bytes=_MAX_REQUEST_BODY_BYTES,
-                    target_body_bytes=_TARGET_ROW_BATCH_BODY_BYTES,
-                    max_rows=_MAX_ROWS_PER_BATCH,
+                    max_request_body_bytes=_MAX_REQUEST_BODY_BYTES,
+                    target_batch_body_bytes=_TARGET_ROW_BATCH_BODY_BYTES,
+                    max_rows_per_batch=_MAX_ROWS_PER_BATCH,
                 )
             ),
         )
