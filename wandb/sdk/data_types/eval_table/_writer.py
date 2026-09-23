@@ -20,9 +20,9 @@ class WriteRow:
 
 @dataclass(frozen=True, kw_only=True)
 class WriteResult:
-    """The run-history marker and backend ID produced by a write."""
+    """The run-history value and backend ID produced by a write."""
 
-    marker: Mapping[str, Any]
+    history_value: Mapping[str, Any]
     logged_id: str
 
 
@@ -30,7 +30,7 @@ class EvalTableWriter(Protocol):
     """Backend-specific validation and persistence for an EvalTable."""
 
     def validate_cell_value(self, value: Any, column: ColumnKey) -> None:
-        """Raise if the backend cannot represent a value from this column.
+        """Check if cell value type is supported by EvalTable.
 
         This may run before `bind_to_run` while Table constructs its rows.
         """
@@ -48,7 +48,7 @@ class EvalTableWriter(Protocol):
         ncols: int,
         log_mode: LogMode,
     ) -> WriteResult:
-        """Persist an EvalTable and return its backend-owned history marker.
+        """Persist an EvalTable and return its backend-owned run-history value.
 
         EvalTable caches a successful result; a failed call may be retried. The
         result's `logged_id` identifies the evaluation written by this backend.

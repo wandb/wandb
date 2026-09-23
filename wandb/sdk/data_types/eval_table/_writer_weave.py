@@ -196,7 +196,7 @@ class WeaveWriter:
         # instead of relying on this private field.
         evaluate_call_id = ev._evaluate_call.id
         return WriteResult(
-            marker={
+            history_value={
                 "_type": "eval-table",
                 "ncols": ncols,
                 "nrows": len(rows),
