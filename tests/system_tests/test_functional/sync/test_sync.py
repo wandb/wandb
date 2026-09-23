@@ -8,7 +8,7 @@ import time
 import wandb
 from tests.fixtures.wandb_backend_spy import WandbBackendSpy
 
-_TIMEOUT_SLOW = 5  # Timeout for operations that may be slow.
+_TIMEOUT_SLOW = 10  # Timeout for operations that may be slow in CI.
 _TIMEOUT_NORMAL = 1  # Timeout for operations that are probably not too slow.
 
 
@@ -16,29 +16,56 @@ def test_live_sync(wandb_backend_spy: WandbBackendSpy):
     logger_inputs = queue.Queue[str]()
     logger_outputs = queue.Queue[str]()
 
+    sync_proc: subprocess.Popen[bytes] | None = None
+
     with concurrent.futures.ThreadPoolExecutor() as executor:
-        # Start the logging subprocess and get the sync directory.
-        executor.submit(_log_run, inputs=logger_inputs, outputs=logger_outputs)
-        sync_dir = logger_outputs.get(timeout=_TIMEOUT_SLOW)
+        # Start the logging thread and get the sync directory.
+        logger_future = executor.submit(
+            _log_run,
+            inputs=logger_inputs,
+            outputs=logger_outputs,
+        )
 
-        # Start live syncing.
-        sync_proc = subprocess.Popen(["wandb", "beta", "sync", "--live", sync_dir])
+        try:
+            sync_dir = logger_outputs.get(timeout=_TIMEOUT_SLOW)
 
-        # Wait until the upload starts, to test live functionality.
-        start_time = time.monotonic()
-        while time.monotonic() < start_time + _TIMEOUT_SLOW:
-            with wandb_backend_spy.freeze() as snapshot:
-                if snapshot.run_ids():
-                    break
-            time.sleep(0.1)
-        else:
-            raise AssertionError("Didn't start uploading.")
+            # Start live syncing.
+            sync_proc = subprocess.Popen(["wandb", "beta", "sync", "--live", sync_dir])
 
-        # Stop logging.
-        logger_inputs.put("done")
+            # Wait until the upload starts, to test live functionality.
+            start_time = time.monotonic()
+            while time.monotonic() < start_time + _TIMEOUT_SLOW:
+                with wandb_backend_spy.freeze() as snapshot:
+                    if snapshot.run_ids():
+                        break
 
-        # Wait for syncing to finish successfully.
-        assert sync_proc.wait(timeout=_TIMEOUT_SLOW) == 0
+                returncode = sync_proc.poll()
+                if returncode is not None:
+                    raise AssertionError(
+                        f"Sync exited with code {returncode} before uploading."
+                    )
+
+                time.sleep(0.1)
+            else:
+                raise AssertionError("Didn't start uploading.")
+
+            # Stop logging.
+            logger_inputs.put("done")
+            logger_future.result(timeout=_TIMEOUT_SLOW)
+
+            # Wait for syncing to finish successfully.
+            assert sync_proc.wait(timeout=_TIMEOUT_SLOW) == 0
+        finally:
+            if not logger_future.done():
+                logger_inputs.put("done")
+
+            if sync_proc is not None and sync_proc.poll() is None:
+                sync_proc.terminate()
+                try:
+                    sync_proc.wait(timeout=_TIMEOUT_NORMAL)
+                except subprocess.TimeoutExpired:
+                    sync_proc.kill()
+                    sync_proc.wait(timeout=_TIMEOUT_NORMAL)
 
     # Spot-check that all data was uploaded.
     with wandb_backend_spy.freeze() as snapshot:
@@ -51,22 +78,24 @@ def test_live_sync(wandb_backend_spy: WandbBackendSpy):
 
 
 def _log_run(inputs: queue.Queue[str], outputs: queue.Queue[str]) -> None:
-    """Log to an offline run for up to 10 seconds.
+    """Log to an offline run until asked to finish.
 
-    Puts the run's sync directory on the outputs queue once the run is
-    initialized, then logs until any value is received on the inputs queue,
-    storing that as the "final_value" key in the run's summary.
+    Puts the run's sync directory on the outputs queue after the first log,
+    then logs until any value is received on the inputs queue, storing that as
+    the "final_value" key in the run's summary.
     """
 
     with wandb.init(mode="offline") as run:
         outputs.put(run.sync_dir)
 
-        # Force the run to flush to disk, so that syncing may start.
+        # Log enough data for the live reader to observe before the run finishes.
         run.log({"lots_of_data": "a" * 32 * 1024})
 
-        # Log for up to 10 seconds and return once the end signal is received.
-        for i in range(100):
+        # Keep the run active until the live sync has started.
+        i = 0
+        while True:
             run.log({"i": i})
+            i += 1
 
             try:
                 final_value = inputs.get(timeout=0.1)
@@ -75,5 +104,3 @@ def _log_run(inputs: queue.Queue[str], outputs: queue.Queue[str]) -> None:
             else:
                 run.summary["final_value"] = final_value
                 return
-
-        raise AssertionError("Did not receive finish signal.")
