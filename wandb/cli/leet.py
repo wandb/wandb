@@ -149,7 +149,7 @@ class LocalLaunchConfig(LaunchConfig):
 
 @dataclasses.dataclass(frozen=True)
 class RemoteLaunchConfig(LaunchConfig):
-    """Configuration for launching LEET against a remote workspace or run.
+    """Configuration for launching LEET against a remote project or run.
 
     The URL is the single source of truth: it is parsed here for early
     validation and host canonicalization, and again by wandb-core to
@@ -320,7 +320,7 @@ def _get_remote_launch_args(config: RemoteLaunchConfig) -> list[str]:
 
 
 def _create_remote_launch_config(path: str) -> RemoteLaunchConfig:
-    """Create a LEET launch configuration for a remote workspace or run."""
+    """Create a LEET launch configuration for a remote project or run."""
     base_url, remote_url = _parse_remote_url(path)
 
     auth = wbauth.authenticate_session(
@@ -350,9 +350,7 @@ def _parse_remote_url(path: str) -> tuple[str, str]:
         )
 
     parts = parsed_url.path.strip("/").split("/")
-    if len(parts) == 4 and parts[2] == "runs":
-        parts = [parts[0], parts[1], parts[3]]
-    if len(parts) not in {2, 3} or not all(parts):
+    if len(parts) < 2 or not all(parts[:2]):
         _fatal(
             f"Invalid remote URL: {path!r}."
             " Expected format: https://<host>/<entity>/<project>"

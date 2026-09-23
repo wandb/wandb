@@ -537,20 +537,60 @@ func (w *Workspace) waitForLiveMsg() tea.Msg {
 	return <-w.liveChan
 }
 
-// ensureLiveUpdates wires up backend-specific updates for a selected run.
+// ensureLiveStreaming wires up watcher + heartbeat for a selected run that
+// may still be live (see RunState.mayBeLive).
 //
-// It is a no-op if the run or its reader is not initialized. The backend
-// chooses how updates are delivered; all backends receive the live-indicator
-// pulse.
-func (w *Workspace) ensureLiveUpdates(run *WorkspaceRun) tea.Cmd {
-	if run == nil || run.Reader == nil {
+// It is a no-op if the run is nil, already in a terminal state, or its
+// reader is not initialized. When a watcher is started it also returns a
+// command that waits for the first change notification so that subsequent
+// updates are driven primarily by filesystem events, with the heartbeat as
+// a safety net.
+func (w *Workspace) ensureLiveStreaming(run *WorkspaceRun) tea.Cmd {
+	if run == nil || run.Reader == nil || !run.state.mayBeLive() {
 		return nil
 	}
 
-	return batchCmds(
-		w.backend.LiveUpdatesCmd(w, run),
-		w.ensureLivePulseCmd(),
-	)
+	// A remote run has no transaction log to watch; its source polls.
+	if run.wandbPath == "" {
+		return batchCmds(
+			run.Reader.NextLiveReadCmd(w.ReadAvailableCmd(run), false),
+			w.ensureLivePulseCmd(),
+		)
+	}
+
+	var watcherCmd tea.Cmd
+
+	if run.watcher == nil {
+		ch := make(chan tea.Msg, 1) // coalesce notifications for this run
+		run.watcher = NewWatcherManager(ch, w.logger)
+
+		if err := run.watcher.Start(run.wandbPath); err != nil {
+			w.logger.CaptureError(
+				"leet",
+				fmt.Errorf(
+					"workspace: failed to start watcher for %s: %v",
+					run.Key,
+					err,
+				),
+			)
+			run.watcher = nil
+		} else {
+			// Seed the staleness clock from the file so a run that died
+			// before LEET started is caught on the first heartbeat rather
+			// than a full RunCrashTimeout later.
+			if info, err := os.Stat(run.wandbPath); err == nil {
+				run.lastUpdateAt = info.ModTime()
+			}
+			watcherCmd = w.waitForWatcher(run.Key)
+		}
+	}
+
+	w.syncLiveRunState()
+	if w.heartbeatMgr != nil && w.hasLiveRuns.Load() {
+		w.heartbeatMgr.Start(w.hasLiveRuns.Load)
+	}
+
+	return batchCmds(watcherCmd, w.ensureLivePulseCmd())
 }
 
 // waitForWatcher blocks until the watcher for the given run emits a change
@@ -654,8 +694,8 @@ func (w *Workspace) handleWorkspaceChunkedBatch(msg WorkspaceChunkedBatchMsg) te
 		return w.readAllChunkCmd(run)
 	}
 
-	// Initial load complete; wire up live updates if the run may still be live.
-	return w.ensureLiveUpdates(run)
+	// Initial load complete; if this run is live, wire up watcher + heartbeat.
+	return w.ensureLiveStreaming(run)
 }
 
 // handleWorkspaceBatchedRecords processes incremental updates for a run.

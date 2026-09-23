@@ -161,11 +161,7 @@ func TestWorkspace_ReadErrorDrawsPendingHistory(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		logger := observability.NewNoOpLogger()
 		cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-		w := leet.NewWorkspace(
-			leet.NewLocalWorkspaceBackend(t.TempDir(), logger),
-			cfg,
-			logger,
-		)
+		w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(t.TempDir(), logger), cfg, logger)
 		defer w.Cleanup()
 		w.Update(tea.WindowSizeMsg{Width: 160, Height: 50})
 		w.TestAttachRun(&leet.WorkspaceRun{

@@ -102,28 +102,6 @@ func TestRemoteRun_DoesNotStartLocalWatcherAfterBootLoad(t *testing.T) {
 	require.Equal(t, leet.RunStateRunning, m.(*leet.Run).TestRunState())
 }
 
-func TestRemoteRun_AppliesBackendState(t *testing.T) {
-	logger := observability.NewNoOpLogger()
-	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	runParams := &leet.RunParams{
-		Remote: &leet.RemoteRunParams{
-			BaseURL: "https://api.wandb.ai",
-			Entity:  "entity",
-			Project: "project",
-			RunID:   "run-id",
-		},
-	}
-	var m tea.Model = leet.NewRun(runParams, cfg, logger)
-	m, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
-
-	model := m.(*leet.Run)
-	model.TestHandleRecordMsg(leet.RunMsg{ID: "run-id"})
-	state := leet.RunStateCrashed
-	model.TestHandleRecordMsg(leet.RunMsg{ID: "run-id", State: &state})
-
-	require.Equal(t, leet.RunStateCrashed, model.TestRunState())
-}
-
 func TestFocus_Clicks_SetClear(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
@@ -323,7 +301,7 @@ func TestHeartbeat_LiveRun(t *testing.T) {
 
 	// Process initial reader
 	model, _ = model.Update(leet.InitMsg{
-		Source: func() leet.HistorySource {
+		Source: func() *leet.LevelDBHistorySource {
 			s, _ := leet.NewLevelDBHistorySource(path, logger)
 			return s
 		}(),
@@ -445,7 +423,7 @@ func TestHeartbeat_ResetsOnDataReceived(t *testing.T) {
 
 	// Initialize
 	model, _ = model.Update(leet.InitMsg{
-		Source: func() leet.HistorySource {
+		Source: func() *leet.LevelDBHistorySource {
 			s, _ := leet.NewLevelDBHistorySource(path, logger)
 			return s
 		}(),

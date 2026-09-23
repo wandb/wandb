@@ -519,43 +519,14 @@ func TestRun_StackSectionsAlignWithReservedRows(t *testing.T) {
 	}
 }
 
-func TestRun_EmptyMetricsStateReflectsRunLiveness(t *testing.T) {
-	for _, tc := range []struct {
-		name           string
-		state          leet.RunState
-		want           string
-		doesNotContain string
-	}{
-		{
-			name:           "live run waits for data",
-			state:          leet.RunStateRunning,
-			want:           "Waiting for data...",
-			doesNotContain: "No scalar metrics logged.",
-		},
-		{
-			name:           "finished run has no metrics",
-			state:          leet.RunStateFinished,
-			want:           "No scalar metrics logged.",
-			doesNotContain: "Waiting for data...",
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			r, _ := newTestRun(t, 120, 40, nil)
-			state := tc.state
-			r.TestHandleRecordMsg(leet.RunMsg{
-				ID:    "abc123",
-				State: &state,
-			})
+func TestRun_EmptyMetricsWaitForDataWhileRunIsLive(t *testing.T) {
+	r, _ := newTestRun(t, 120, 40, nil)
+	r.TestHandleRecordMsg(leet.RunMsg{ID: "abc123"})
+	require.Contains(t, stripANSI(r.View().Content), "Waiting for data...")
 
-			view := stripANSI(r.View().Content)
-			require.Contains(t, view, tc.want)
-			require.NotContains(t, view, tc.doesNotContain)
-			if tc.state == leet.RunStateRunning {
-				require.True(t, strings.ContainsAny(view, "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"),
-					"live empty state should include a spinner frame")
-			}
-		})
-	}
+	finished := leet.RunStateFinished
+	r.TestHandleRecordMsg(leet.RunMsg{ID: "abc123", State: &finished})
+	require.Contains(t, stripANSI(r.View().Content), "No scalar metrics logged.")
 }
 
 // Regression: Tab while the media pane was fullscreen used to move focus away

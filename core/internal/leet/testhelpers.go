@@ -10,7 +10,6 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 
-	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -748,20 +747,17 @@ func (w *Workspace) TestRunByKey(key string) *WorkspaceRun {
 	return w.runsByKey[key]
 }
 
-// TestRemoteWorkspaceBackend creates a RemoteWorkspaceBackend for testing.
+// TestRemoteWorkspaceBackend creates a RemoteWorkspaceBackend that talks
+// to graphqlClient.
 func TestRemoteWorkspaceBackend(
-	baseURL, entity, project string,
+	entity, project string,
 	graphqlClient graphql.Client,
-	httpClient api.RetryableClient,
 	logger *observability.CoreLogger,
 ) *RemoteWorkspaceBackend {
 	return &RemoteWorkspaceBackend{
-		baseURL:       baseURL,
-		entity:        entity,
-		project:       project,
-		runInfos:      make(map[string]*RunInfo),
-		logger:        logger,
-		graphqlClient: graphqlClient,
-		httpClient:    httpClient,
+		entity:  entity,
+		project: project,
+		clients: &remoteClients{graphql: graphqlClient},
+		logger:  logger,
 	}
 }

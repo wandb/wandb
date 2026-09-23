@@ -33,11 +33,7 @@ func TestWorkspace_KeyHandling_FilterModeConsumesQuit(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
-	w := leet.NewWorkspace(
-		leet.NewLocalWorkspaceBackend(t.TempDir(), logger),
-		cfg,
-		logger,
-	)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(t.TempDir(), logger), cfg, logger)
 	_ = w.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 
 	// Enter metrics filter input mode ("/").
@@ -875,11 +871,7 @@ func TestWorkspace_RunsFilter_ProjectAndConfig(t *testing.T) {
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
 	wandbDir := t.TempDir()
-	w := leet.NewWorkspace(
-		leet.NewLocalWorkspaceBackend(wandbDir, logger),
-		cfg,
-		logger,
-	)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(wandbDir, logger), cfg, logger)
 	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
 
 	run1 := "run-20260209_010101-vision01"
@@ -928,10 +920,7 @@ func TestWorkspace_RunsFilter_UpdatesWhenMetadataPreloadsArrive(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 
-	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(
-		t.TempDir(),
-		logger,
-	), cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(t.TempDir(), logger), cfg, logger)
 	_ = w.Update(tea.WindowSizeMsg{Width: 160, Height: 50})
 
 	runKey := "run-20260209_010101-vision01"
@@ -968,10 +957,7 @@ func TestWorkspace_RunsFilter_PriorityOverMetricsFilter(t *testing.T) {
 func TestWorkspace_RunsFilter_Clear(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(
-		t.TempDir(),
-		logger,
-	), cfg, logger)
+	w := leet.NewWorkspace(leet.NewLocalWorkspaceBackend(t.TempDir(), logger), cfg, logger)
 	_ = w.Update(tea.WindowSizeMsg{Width: 160, Height: 50})
 
 	run1 := "run-20260209_010101-vision01"

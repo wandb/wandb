@@ -185,12 +185,12 @@ def test_beta_leet_is_an_alias(runner, core_calls, tmp_path: pathlib.Path):
     ("url", "expected_remote_url"),
     [
         (
-            "https://wandb.ai/jacobromerotest/continous/",
-            "https://api.wandb.ai/jacobromerotest/continous/",
+            "https://wandb.ai/my-entity/my-project/workspace?nw=abc",
+            "https://api.wandb.ai/my-entity/my-project/workspace",
         ),
         (
-            "https://wandb.ai/jacobromerotest/continous/runs/abc123?workspace=user",
-            "https://api.wandb.ai/jacobromerotest/continous/runs/abc123",
+            "https://wandb.ai/my-entity/my-project/runs/abc123?workspace=user",
+            "https://api.wandb.ai/my-entity/my-project/runs/abc123",
         ),
     ],
 )
@@ -204,6 +204,6 @@ def test_leet_parse_remote_url_accepts_projects_and_runs(
     assert remote_url == expected_remote_url
 
 
-def test_leet_parse_remote_url_rejects_invalid_shape():
+def test_leet_parse_remote_url_requires_entity_and_project():
     with pytest.raises(SystemExit):
-        leet._parse_remote_url("https://wandb.ai/entity/project/sweeps/abc123")
+        leet._parse_remote_url("https://wandb.ai/my-entity")

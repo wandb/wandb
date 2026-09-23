@@ -162,16 +162,18 @@ type WorkspaceFileChangedMsg struct {
 	RunKey string
 }
 
-// WorkspaceRunDiscoveryMsg is emitted after discovering available runs
-// (either by polling the filesystem or querying the backend).
+// WorkspaceRunDiscoveryMsg is emitted after listing the runs of a wandb
+// directory or a W&B project.
 //
-// RunKeys contains run identifiers: which is either a directory name for local workspace,
-// or a run ID for remote workspace.
+// RunKeys are run directory names for a wandb directory and run IDs for a
+// project, newest first. Runs has the metadata of the runs a project listing
+// returned, keyed by run ID.
 //
 // If Err is non-nil, RunKeys may be nil and callers should treat the snapshot
 // as unusable.
 type WorkspaceRunDiscoveryMsg struct {
 	RunKeys []string
+	Runs    map[string]RunMsg
 	Err     error
 }
 
@@ -181,7 +183,6 @@ type WorkspaceRunDiscoveryMsg struct {
 type WorkspaceRunOverviewPreloadedMsg struct {
 	RunKey string
 	Run    *RunMsg
-	State  RunState
 	Err    error
 }
 

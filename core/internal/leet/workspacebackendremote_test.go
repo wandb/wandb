@@ -1,277 +1,85 @@
 package leet_test
 
 import (
-	"errors"
+	"fmt"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
-func newTestRemoteBackend(
-	mockGQL *gqlmock.MockClient,
-) *leet.RemoteWorkspaceBackend {
-	return leet.TestRemoteWorkspaceBackend(
-		"https://api.wandb.ai",
-		"test-entity",
-		"test-project",
-		mockGQL,
-		nil, // httpClient not needed for discovery/preload tests
-		observability.NewNoOpLogger(),
-	)
-}
-
-const mockRunQueryResponse = `{
-	"project": {
-		"runs": {
-			"edges": [
-				{
-					"node": {
-						"name": "run-abc",
-						"displayName": "First Run",
-						"state": "finished",
-						"createdAt": "2026-01-01T00:00:00Z",
-						"summaryMetrics": "{\"loss\": 0.5}"
-					}
-				},
-				{
-					"node": {
-						"name": "run-def",
-						"displayName": "Second Run",
-						"state": "running",
-						"createdAt": "2026-01-02T00:00:00Z",
-						"summaryMetrics": "{\"loss\": 0.3, \"acc\": 0.9}"
-					}
-				}
-			],
-			"pageInfo": {
-				"endCursor": null,
-				"hasNextPage": false
-			}
-		}
+// projectRunsPage is a QueryProjectRuns response with runs given as
+// {ID, display name, state}.
+func projectRunsPage(hasNextPage bool, runs ...[3]string) string {
+	edges := make([]string, 0, len(runs))
+	for _, run := range runs {
+		edges = append(edges, fmt.Sprintf(
+			`{"node": {"name": %q, "displayName": %q, "state": %q}}`,
+			run[0], run[1], run[2]))
 	}
-}`
-
-func TestRemoteWorkspaceBackend_DiscoverRunsCmd_Success(t *testing.T) {
-	mockGQL := gqlmock.NewMockClient()
-	backend := newTestRemoteBackend(mockGQL)
-	mockGQL.StubMatchOnce(
-		gqlmock.WithOpName("QueryProjectRuns"),
-		mockRunQueryResponse,
-	)
-
-	cmd := backend.DiscoverRunsCmd(0)
-	require.NotNil(t, cmd)
-
-	msg := cmd()
-	discovery, ok := msg.(leet.WorkspaceRunDiscoveryMsg)
-	require.True(t, ok, "expected WorkspaceRunDiscoveryMsg, got %T", msg)
-	require.NoError(t, discovery.Err)
-	assert.Len(t, discovery.RunKeys, 2)
-	assert.Contains(t, discovery.RunKeys, "run-abc")
-	assert.Contains(t, discovery.RunKeys, "run-def")
+	return fmt.Sprintf(`{"project": {"runs": {
+		"edges": [%s],
+		"pageInfo": {"endCursor": "cursor", "hasNextPage": %t}
+	}}}`, strings.Join(edges, ","), hasNextPage)
 }
 
-func TestRemoteWorkspaceBackend_DiscoverRunsCmd_Error(t *testing.T) {
-	mockGQL := gqlmock.NewMockClient()
-	backend := newTestRemoteBackend(mockGQL)
-	mockGQL.StubMatchWithError(
-		gqlmock.WithOpName("QueryProjectRuns"),
-		errors.New("network timeout"),
-	)
-
-	cmd := backend.DiscoverRunsCmd(0)
-	msg := cmd()
-	discovery, ok := msg.(leet.WorkspaceRunDiscoveryMsg)
-	require.True(t, ok)
-	require.Error(t, discovery.Err)
-	assert.Contains(t, discovery.Err.Error(), "network timeout")
-}
-
-func TestRemoteWorkspaceBackend_DiscoverRunsCmd_ProjectNotFound(t *testing.T) {
-	mockGQL := gqlmock.NewMockClient()
-	backend := newTestRemoteBackend(mockGQL)
-	mockGQL.StubMatchOnce(
-		gqlmock.WithOpName("QueryProjectRuns"),
-		`{"project": null}`,
-	)
-
-	cmd := backend.DiscoverRunsCmd(0)
-	msg := cmd()
-	discovery, ok := msg.(leet.WorkspaceRunDiscoveryMsg)
-	require.True(t, ok)
-	require.Error(t, discovery.Err)
-	assert.Contains(
-		t,
-		discovery.Err.Error(),
-		"project test-entity/test-project not found",
-	)
-}
-
-func TestRemoteWorkspaceBackend_NextDiscoveryCmd_NoMore(t *testing.T) {
-	mockGQL := gqlmock.NewMockClient()
-	backend := newTestRemoteBackend(mockGQL)
-	mockGQL.StubMatchOnce(
-		gqlmock.WithOpName("QueryProjectRuns"),
-		mockRunQueryResponse,
-	)
-
-	// Run initial discovery (initial response has hasNextPage=false).
-	cmd := backend.DiscoverRunsCmd(0)
-	cmd()
-
-	// Next discovery response is nil because hasNextPage is false.
-	assert.Nil(t, backend.NextDiscoveryCmd())
-}
-
-func TestRemoteWorkspaceBackend_NextDiscoveryCmd_HasMore(t *testing.T) {
-	mockGQL := gqlmock.NewMockClient()
-	backend := newTestRemoteBackend(mockGQL)
-	mockGQL.StubMatchOnce(
-		gqlmock.WithOpName("QueryProjectRuns"),
-		`{
-			"project": {
-				"runs": {
-					"edges": [
-						{
-							"node": {
-								"name": "run-page1",
-								"displayName": "Page 1 Run",
-								"state": "finished",
-								"createdAt": "2026-01-01T00:00:00Z",
-								"summaryMetrics": null
-							}
-						}
-					],
-					"pageInfo": {
-						"endCursor": "cursor-abc",
-						"hasNextPage": true
-					}
-				}
-			}
-		}`,
-	)
-
-	cmd := backend.DiscoverRunsCmd(0)
-	cmd()
-
-	// HasMore is true, so NextDiscoveryCmd should return a command.
-	assert.NotNil(t, backend.NextDiscoveryCmd())
-}
-
-func TestRemoteWorkspaceBackend_PreloadOverviewCmd_ReturnsRunOverview(t *testing.T) {
-	mockGQL := gqlmock.NewMockClient()
-	backend := newTestRemoteBackend(mockGQL)
-	mockGQL.StubMatchOnce(
-		gqlmock.WithOpName("QueryProjectRuns"),
-		mockRunQueryResponse,
-	)
-
-	// Populate runInfos via discovery.
-	cmd := backend.DiscoverRunsCmd(0)
-	cmd()
-
-	preloadCmd := backend.PreloadOverviewCmd("run-abc")
-	require.NotNil(t, preloadCmd)
-
-	msg := preloadCmd()
-
-	preloaded, ok := msg.(leet.WorkspaceRunOverviewPreloadedMsg)
-	require.True(t, ok, "expected WorkspaceRunOverviewPreloadedMsg, got %T", msg)
-	require.NoError(t, preloaded.Err)
-	assert.Equal(t, "run-abc", preloaded.RunKey)
-	assert.Equal(t, "run-abc", preloaded.Run.ID)
-	assert.Equal(t, "test-project", preloaded.Run.Project)
-	assert.Equal(t, "First Run", preloaded.Run.DisplayName)
-	assert.Equal(t, leet.RunStateFinished, preloaded.State)
-}
-
-func TestRemoteWorkspaceBackend_PreloadOverviewCmd_CarriesRunningState(t *testing.T) {
-	mockGQL := gqlmock.NewMockClient()
-	backend := newTestRemoteBackend(mockGQL)
-	mockGQL.StubMatchOnce(
-		gqlmock.WithOpName("QueryProjectRuns"),
-		mockRunQueryResponse,
-	)
-
-	backend.DiscoverRunsCmd(0)()
-	msg := backend.PreloadOverviewCmd("run-def")()
-
-	preloaded, ok := msg.(leet.WorkspaceRunOverviewPreloadedMsg)
-	require.True(t, ok)
-	require.NoError(t, preloaded.Err)
-	assert.Equal(t, leet.RunStateRunning, preloaded.State)
-}
-
-func TestRemoteWorkspaceBackend_PreloadOverviewCmd_UnknownRun(t *testing.T) {
-	mockGQL := gqlmock.NewMockClient()
-	backend := newTestRemoteBackend(mockGQL)
-
-	preloadCmd := backend.PreloadOverviewCmd("nonexistent-run")
-	require.NotNil(t, preloadCmd)
-
-	msg := preloadCmd()
-	preloaded, ok := msg.(leet.WorkspaceRunOverviewPreloadedMsg)
-	require.True(t, ok)
-	assert.Equal(t, "nonexistent-run", preloaded.RunKey)
-	assert.ErrorIs(t, preloaded.Err, leet.ErrRunNotFound)
-}
-
-func TestRemoteWorkspaceBackend_RunParams(t *testing.T) {
-	mockGQL := gqlmock.NewMockClient()
-	backend := newTestRemoteBackend(mockGQL)
-
-	params := backend.RunParams("run-xyz")
-
-	require.NotNil(t, params)
-	require.NotNil(t, params.Remote)
-	assert.Equal(t, "https://api.wandb.ai", params.Remote.BaseURL)
-	assert.Equal(t, "test-entity", params.Remote.Entity)
-	assert.Equal(t, "test-project", params.Remote.Project)
-	assert.Equal(t, "run-xyz", params.Remote.RunID)
-	assert.Equal(t, "test-entity/test-project/run-xyz", backend.SeriesKey("run-xyz"))
-}
-
-func TestRemoteWorkspaceBackend_DeselectRemovesRemoteSeriesKey(t *testing.T) {
+func TestRemoteWorkspace_ListsProjectRuns(t *testing.T) {
 	logger := observability.NewNoOpLogger()
-	cfg := leet.NewConfigManager(t.TempDir()+"/config.json", logger)
-	backend := newTestRemoteBackend(gqlmock.NewMockClient())
+	first := [3]string{"run1", "first", "finished"}
+	second := [3]string{"run2", "second", "running"}
+	third := [3]string{"run3", "third", "running"}
+	mockGQL := gqlmock.NewMockClient()
+	projectRuns := gqlmock.WithOpName("QueryProjectRuns")
+	mockGQL.StubMatchOnce(projectRuns, `{"project": null}`)
+	mockGQL.StubMatchOnce(projectRuns, projectRunsPage(true, second))
+	// A run created while paging repeats the previous page's last run.
+	mockGQL.StubMatchOnce(projectRuns, projectRunsPage(false, second, first))
+	mockGQL.StubMatchOnce(projectRuns, projectRunsPage(false,
+		third, [3]string{"run2", "second", "finished"}, first))
+
+	backend := leet.TestRemoteWorkspaceBackend("entity", "project", mockGQL, logger)
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
 	w := leet.NewWorkspace(backend, cfg, logger)
-	_ = w.Update(tea.WindowSizeMsg{Width: 200, Height: 60})
+	w.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	discover := func() string {
+		w.Update(backend.DiscoverRunsCmd(0)())
+		return stripANSI(w.View().Content)
+	}
 
-	runKey := "run-abc"
-	_ = w.Update(leet.WorkspaceRunDiscoveryMsg{RunKeys: []string{runKey}})
-	require.True(t, w.TestIsRunSelected(runKey))
+	assert.Contains(t, discover(), "Error: project entity/project not found")
+	discover()
+	view := discover()
+	assert.NotContains(t, view, "Error")
+	assert.Contains(t, view, "State: Running")
+	assert.Equal(t, []string{"run2", "run1"}, w.TestFilteredRunKeys())
 
-	run := leet.TestNewWorkspaceRun(runKey)
-	w.TestAttachRun(run, true)
-	w.TestHandleWorkspaceRecord(run, leet.HistoryMsg{
-		RunPath: backend.SeriesKey(runKey),
-		Metrics: map[string]leet.MetricData{
-			"loss": {X: []float64{1}, Y: []float64{0.5}},
-		},
-	})
-	require.Equal(t, 1, w.TestMetricsGrid().ChartCount())
-
-	_ = w.Update(tea.KeyPressMsg{Code: tea.KeySpace})
-
-	require.False(t, w.TestIsRunSelected(runKey))
-	require.Equal(
-		t,
-		0,
-		w.TestMetricsGrid().ChartCount(),
-		"deselect should remove remote history series from the graph",
-	)
+	view = discover()
+	assert.Contains(t, view, "third")
+	assert.Contains(t, view, "State: Finished")
+	assert.Equal(t, []string{"run3", "run2", "run1"}, w.TestFilteredRunKeys())
 }
 
-func TestRemoteWorkspaceBackend_DisplayLabel(t *testing.T) {
-	mockGQL := gqlmock.NewMockClient()
-	backend := newTestRemoteBackend(mockGQL)
+func TestModel_EscFromRemoteRunOpensProjectWorkspace(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	backend := leet.TestRemoteWorkspaceBackend("entity", "project", gqlmock.NewMockClient(), logger)
+	var model tea.Model = leet.NewModel(leet.ModelParams{
+		Backend: backend,
+		RunParams: &leet.RunParams{Remote: &leet.RemoteRunParams{
+			Entity: "entity", Project: "project", RunID: "run1",
+		}},
+		Config: cfg,
+		Logger: logger,
+	})
+	model, _ = model.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
 
-	assert.Equal(t, "test-entity/test-project", backend.DisplayLabel())
+	model, _ = model.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+
+	assert.Contains(t, stripANSI(model.View().Content), "Runs")
 }

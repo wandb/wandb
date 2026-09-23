@@ -368,7 +368,6 @@ Usage:
   wandb-core leet --inspect [--run-file <wandb-file>] [<wandb-directory>]
   wandb-core leet --config
   wandb-core leet --symon [flags]
-  wandb-core leet [flags] <wandb-file/wandb-run-path>
 
 Arguments:
   <wandb-directory>  Path to the wandb directory containing run folders.
@@ -570,14 +569,13 @@ func runSymon(opts *leetOptions, logger *observability.CoreLogger) int {
 }
 
 func runLeetWorkspace(opts *leetOptions, logger *observability.CoreLogger) int {
-	modelParams, err := createModelParams(opts, logger)
-	if err != nil {
-		logger.Error("main: failed to create model params", "error", err)
-		return exitCodeErrorArgs
-	}
-
 	for {
-		m := leet.NewModel(*modelParams)
+		params, err := newModelParams(opts, logger)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Error:", err)
+			return exitCodeErrorArgs
+		}
+		m := leet.NewModel(params)
 		program := tea.NewProgram(m)
 
 		finalModel, err := program.Run()
@@ -597,50 +595,32 @@ func runLeetWorkspace(opts *leetOptions, logger *observability.CoreLogger) int {
 	}
 }
 
-func createModelParams(
+func newModelParams(
 	opts *leetOptions,
 	logger *observability.CoreLogger,
-) (*leet.ModelParams, error) {
-	if opts.remoteRun != nil {
-		backend, err := leet.NewRemoteWorkspaceBackend(
-			opts.remoteRun.BaseURL,
-			opts.remoteRun.Entity,
-			opts.remoteRun.Project,
-			logger,
-		)
-		if err != nil {
-			return nil, err
-		}
+) (leet.ModelParams, error) {
+	params := leet.ModelParams{Logger: logger}
 
-		var runParams *leet.RunParams
-		if opts.remoteRun.RunID != "" {
-			runParams = &leet.RunParams{
-				Remote: opts.remoteRun,
-			}
+	if opts.remoteRun == nil {
+		params.Backend = leet.NewLocalWorkspaceBackend(opts.wandbDir, logger)
+		if opts.runFile != "" {
+			params.RunParams = &leet.RunParams{RunFile: opts.runFile}
 		}
-
-		return &leet.ModelParams{
-			Backend:   backend,
-			RunParams: runParams,
-			Logger:    logger,
-		}, nil
+		return params, nil
 	}
 
-	backend := leet.NewLocalWorkspaceBackend(
-		opts.wandbDir,
+	backend, err := leet.NewRemoteWorkspaceBackend(
+		opts.remoteRun.BaseURL,
+		opts.remoteRun.Entity,
+		opts.remoteRun.Project,
 		logger,
 	)
-
-	var runParams *leet.RunParams
-	if opts.runFile != "" {
-		runParams = &leet.RunParams{
-			RunFile: opts.runFile,
-		}
+	if err != nil {
+		return params, err
 	}
-
-	return &leet.ModelParams{
-		Backend:   backend,
-		RunParams: runParams,
-		Logger:    logger,
-	}, nil
+	params.Backend = backend
+	if opts.remoteRun.RunID != "" {
+		params.RunParams = &leet.RunParams{Remote: opts.remoteRun}
+	}
+	return params, nil
 }

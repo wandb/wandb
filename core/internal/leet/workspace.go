@@ -24,8 +24,11 @@ const (
 //
 // Implements tea.Model.
 type Workspace struct {
-	// backend delegates mode-specific operations to the local or remote workspace.
+	// backend is where the runs come from.
 	backend WorkspaceBackend
+
+	// discoveryErr is the error of the last failed attempt to list the runs.
+	discoveryErr error
 
 	// focusMgr is the single source of truth for UI focus state.
 	focusMgr *FocusManager
@@ -231,11 +234,12 @@ func (w *Workspace) SetSize(width, height int) {
 func (w *Workspace) Init() tea.Cmd {
 	var cmds []tea.Cmd
 
-	// Start polling immediately; subsequent pools are scheduled by the backend.
+	// Start polling immediately; subsequent polls are scheduled by the handler.
 	cmds = append(cmds, w.backend.DiscoverRunsCmd(0))
 
-	if cmd := w.backend.InitLiveUpdatesCmd(w); cmd != nil {
-		cmds = append(cmds, cmd)
+	// Start listening; the heartbeat manager will decide when to emit.
+	if w.heartbeatMgr != nil && w.liveChan != nil {
+		cmds = append(cmds, w.waitForLiveMsg)
 	}
 	cmds = append(cmds, w.mediaPane.Init())
 
@@ -913,10 +917,11 @@ func (w *Workspace) anyRunRunning() bool {
 	return false
 }
 
-// anySelectedRunMayBeLive reports whether a selected run may still produce data.
+// anySelectedRunMayBeLive reports whether a selected run is still loading
+// or may produce data.
 func (w *Workspace) anySelectedRunMayBeLive() bool {
-	for key, run := range w.runsByKey {
-		if run != nil && run.state.mayBeLive() && w.selectedRuns[key] {
+	for key := range w.selectedRuns {
+		if run := w.runsByKey[key]; run == nil || run.state.mayBeLive() {
 			return true
 		}
 	}
@@ -933,7 +938,7 @@ func (w *Workspace) needsLiveAnimation() bool {
 	}
 
 	for _, item := range w.runs.FilteredItems {
-		if w.backend.RunState(w, item.Key) == RunStateRunning {
+		if w.runState(item.Key) == RunStateRunning {
 			return true
 		}
 	}
@@ -974,8 +979,8 @@ func (w *Workspace) dropRun(runKey string) {
 
 	run, ok := w.runsByKey[runKey]
 	if ok && run != nil {
-		if w.backend.SeriesKey(runKey) != "" {
-			w.metricsGrid.RemoveSeries(w.backend.SeriesKey(runKey))
+		if seriesKey := w.runPathForKey(runKey); seriesKey != "" {
+			w.metricsGrid.RemoveSeries(seriesKey)
 		}
 		w.stopWatcher(run)
 		if run.Reader != nil {
@@ -1053,10 +1058,10 @@ func (w *Workspace) refreshPinnedRun() {
 		return
 	}
 	run, ok := w.runsByKey[w.pinnedRun]
-	if !ok || run == nil || w.backend.SeriesKey(run.Key) == "" {
+	if !ok || run == nil {
 		return
 	}
-	w.metricsGrid.PromoteSeriesToTop(w.backend.SeriesKey(run.Key))
+	w.metricsGrid.PromoteSeriesToTop(w.runPathForKey(run.Key))
 }
 
 // ---- Focus Query Helpers ----
@@ -1240,18 +1245,39 @@ func (w *Workspace) cursorRunState() RunState {
 	if !ok {
 		return RunStateUnknown
 	}
-
-	return w.backend.RunState(w, cur.Key)
+	return w.runState(cur.Key)
 }
 
-func (w *Workspace) runStateForKey(runKey string) RunState {
+// runState returns the known state of a run.
+//
+// Only streaming (selected) runs have live state. For others, fall back to
+// the overview. Discovery keeps remote overviews current, but a local one
+// may claim Running for a run that is no longer streaming, so that claim is
+// never trusted.
+func (w *Workspace) runState(runKey string) RunState {
 	if run := w.runsByKey[runKey]; run != nil {
 		return run.state
 	}
-	if ro := w.runOverview[runKey]; ro != nil {
-		return ro.State()
+	ro := w.runOverview[runKey]
+	if ro == nil {
+		return RunStateUnknown
 	}
-	return RunStateUnknown
+	if _, remote := w.backend.(*RemoteWorkspaceBackend); !remote && ro.State() == RunStateRunning {
+		return RunStateUnknown
+	}
+	return ro.State()
+}
+
+// runLabel names a run in the runs list: by its directory in a wandb
+// directory, and by its display name in a W&B project, whose run IDs are
+// opaque.
+func (w *Workspace) runLabel(runKey string) string {
+	if _, remote := w.backend.(*RemoteWorkspaceBackend); remote {
+		if ro := w.runOverview[runKey]; ro != nil && ro.DisplayName() != "" {
+			return ro.DisplayName()
+		}
+	}
+	return runKey
 }
 
 func (w *Workspace) buildStatusText() string {
@@ -1281,6 +1307,10 @@ func (w *Workspace) buildStatusText() string {
 		return fmt.Sprintf(
 			"Select all matching runs (%d to load)? Press y to confirm (ESC to cancel)",
 			len(w.pendingSelectAll))
+	}
+
+	if w.discoveryErr != nil {
+		return "Error: " + w.discoveryErr.Error()
 	}
 
 	return w.buildActiveStatus()
@@ -1342,8 +1372,9 @@ func (w *Workspace) buildOverviewFilterStatus() string {
 func (w *Workspace) buildActiveStatus() string {
 	var parts []string
 
-	// The backend label answers "which runs am I browsing?", so it belongs to
-	// the run list; other panes put their own context in the status bar.
+	// The wandb dir or project answers "which runs am I browsing?", so it
+	// belongs to the run list; other panes put their own context in the
+	// status bar.
 	if w.focusMgr.IsTarget(FocusTargetRunsList) {
 		parts = append(parts, w.backend.DisplayLabel())
 	}
@@ -1604,7 +1635,7 @@ func (w *Workspace) renderRunLines(contentWidth int) []string {
 		// A live run's mark breathes: its color fades all the way to the
 		// terminal background ("not filled") and back to the run color.
 		prefixStyle := lipgloss.NewStyle().Foreground(runColor)
-		if w.backend.RunState(w, runKey) == RunStateRunning {
+		if w.runState(runKey) == RunStateRunning {
 			prefixStyle = prefixStyle.Foreground(runMarkPulseColor(runColor, time.Now()))
 		}
 
@@ -1623,7 +1654,7 @@ func (w *Workspace) renderRunLines(contentWidth int) []string {
 
 		// Render name with background and optional muting
 		nameWidth := max(contentWidth-prefixWidth, 1)
-		name := nameStyle.Render(truncateValue(runKey, nameWidth))
+		name := nameStyle.Render(truncateValue(w.runLabel(runKey), nameWidth))
 
 		// Pad the styled name to fill remaining width
 		paddingNeeded := contentWidth - prefixWidth - lipgloss.Width(name)

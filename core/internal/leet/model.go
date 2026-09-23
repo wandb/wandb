@@ -57,6 +57,10 @@ type Model struct {
 	// help is the full-screen help overlay, shared across both modes.
 	help *HelpModel
 
+	// workspaceStarted reports whether the workspace has started discovering
+	// runs. A remote run opened by its URL defers it until the user leaves.
+	workspaceStarted bool
+
 	// shouldRestart is the restart flag.
 	shouldRestart bool
 
@@ -68,8 +72,8 @@ type Model struct {
 }
 
 type ModelParams struct {
-	// Backend is the workspace backend (local or remote).
-	// If nil, a LocalWorkspaceBackend for an empty dir is used as a fallback.
+	// Backend is where the workspace finds runs: a wandb directory (typically
+	// "./wandb") or a W&B project. Nil means no wandb directory.
 	Backend WorkspaceBackend
 
 	// RunParams contains information about the run to load.
@@ -101,7 +105,7 @@ func NewModel(params ModelParams) *Model {
 	}
 
 	if params.RunParams == nil && params.Config.StartupMode() == StartupModeSingleRunLatest {
-		latest, err := wandbFileFromLatestRunLink(params.Backend.DisplayLabel())
+		latest, err := wandbFileFromLatestRunLink(localWandbDir(params.Backend))
 		if err != nil {
 			params.Logger.Error(fmt.Sprintf("model: failed to find latest run: %v", err))
 		}
@@ -109,6 +113,7 @@ func NewModel(params ModelParams) *Model {
 			params.RunParams = &RunParams{RunFile: latest}
 		}
 	}
+
 	m := &Model{
 		mode:      viewModeWorkspace,
 		workspace: NewWorkspace(params.Backend, params.Config, params.Logger),
@@ -128,17 +133,14 @@ func NewModel(params ModelParams) *Model {
 
 // Init returns the initial commands for the top-level model.
 //
-// The workspace is initialized unless LEET starts in remote single-run mode.
+// The workspace is started unless LEET opens a remote run by its URL.
 // If starting in single-run mode, the run's reader and watcher commands are
 // also started.
 func (m *Model) Init() tea.Cmd {
 	cmds := []tea.Cmd{tea.RequestBackgroundColor}
 
-	// Workspace always exists; initialize its long‑running commands.
-	if m.workspace != nil && !m.isRemoteRunMode() {
-		if cmd := m.workspace.Init(); cmd != nil {
-			cmds = append(cmds, cmd)
-		}
+	if m.run == nil || !m.run.IsRemote() {
+		cmds = append(cmds, m.startWorkspace())
 	}
 
 	if m.mode == viewModeRun && m.run != nil {
@@ -199,7 +201,7 @@ func (m *Model) updateSubComponents(msg tea.Msg) []tea.Cmd {
 	case viewModeRun:
 		// Keep the workspace's background tasks (watchers/heartbeats) alive
 		// while we're in the single-run view while omitting user input.
-		if !m.run.IsRemote() && !isUserInputMsg(msg) {
+		if !isUserInputMsg(msg) {
 			if cmd := m.workspace.Update(msg); cmd != nil {
 				cmds = append(cmds, cmd)
 			}
@@ -211,10 +213,8 @@ func (m *Model) updateSubComponents(msg tea.Msg) []tea.Cmd {
 		// Keep the underlying run and workspace streaming in the background
 		// so the run view is current when the user returns.
 		if !isUserInputMsg(msg) {
-			if m.run != nil && !m.run.IsRemote() {
-				if cmd := m.workspace.Update(msg); cmd != nil {
-					cmds = append(cmds, cmd)
-				}
+			if cmd := m.workspace.Update(msg); cmd != nil {
+				cmds = append(cmds, cmd)
 			}
 			if m.run != nil {
 				if _, cmd := m.run.Update(msg); cmd != nil {
@@ -322,8 +322,13 @@ func (m *Model) Cleanup() {
 	}
 }
 
-func (m *Model) isRemoteRunMode() bool {
-	return m.mode == viewModeRun && m.run != nil && m.run.IsRemote()
+// startWorkspace starts the workspace's long-running commands once.
+func (m *Model) startWorkspace() tea.Cmd {
+	if m.workspaceStarted {
+		return nil
+	}
+	m.workspaceStarted = true
+	return m.workspace.Init()
 }
 
 // --------------------------------------------------------------------
@@ -506,7 +511,7 @@ func (m *Model) exitRunView() tea.Cmd {
 	}
 
 	m.mode = viewModeWorkspace
-	return nil
+	return m.startWorkspace()
 }
 
 // --------------------------------------------------------------------
