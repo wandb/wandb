@@ -369,9 +369,7 @@ class EvalTable(Table):
         for row_idx, row in enumerate(self.data, start=1):
             values = dict(zip(str_columns, row, strict=True))
             if inject_row_index:
-                inputs: dict[ColumnKey, Any] = {
-                    EVAL_TABLE_ROW_INDEX_KEY: row_idx
-                }
+                inputs: dict[ColumnKey, Any] = {EVAL_TABLE_ROW_INDEX_KEY: row_idx}
             else:
                 inputs = {
                     columns_by_name[col]: values[col] for col in self._input_columns
@@ -386,9 +384,7 @@ class EvalTable(Table):
             else:
                 output = None
 
-            scores = {
-                columns_by_name[col]: values[col] for col in self._score_columns
-            }
+            scores = {columns_by_name[col]: values[col] for col in self._score_columns}
             rows.append(WriteRow(inputs=inputs, output=output, scores=scores))
 
         return self._writer.write(
