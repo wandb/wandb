@@ -10,6 +10,26 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
+// Git exports these variables to hooks, where they override cmd.Dir.
+var gitLocalEnvVars = map[string]struct{}{
+	"GIT_ALTERNATE_OBJECT_DIRECTORIES": {},
+	"GIT_COMMON_DIR":                   {},
+	"GIT_CONFIG":                       {},
+	"GIT_CONFIG_COUNT":                 {},
+	"GIT_CONFIG_PARAMETERS":            {},
+	"GIT_DIR":                          {},
+	"GIT_GRAFT_FILE":                   {},
+	"GIT_IMPLICIT_WORK_TREE":           {},
+	"GIT_INDEX_FILE":                   {},
+	"GIT_INTERNAL_SUPER_PREFIX":        {},
+	"GIT_NO_REPLACE_OBJECTS":           {},
+	"GIT_OBJECT_DIRECTORY":             {},
+	"GIT_PREFIX":                       {},
+	"GIT_REPLACE_REF_BASE":             {},
+	"GIT_SHALLOW_FILE":                 {},
+	"GIT_WORK_TREE":                    {},
+}
+
 func runCommand(command []string, dir, outFile string) error {
 	output, err := runCommandWithOutput(command, dir)
 	if err != nil {
@@ -34,7 +54,19 @@ func runCommand(command []string, dir, outFile string) error {
 func runCommandWithOutput(command []string, dir string) ([]byte, error) {
 	cmd := exec.Command(command[0], command[1:]...)
 	cmd.Dir = dir
+	cmd.Env = gitEnv()
 	return cmd.CombinedOutput()
+}
+
+func gitEnv() []string {
+	env := make([]string, 0, len(os.Environ()))
+	for _, value := range os.Environ() {
+		name, _, _ := strings.Cut(value, "=")
+		if _, isLocal := gitLocalEnvVars[name]; !isLocal {
+			env = append(env, value)
+		}
+	}
+	return env
 }
 
 type Git struct {
