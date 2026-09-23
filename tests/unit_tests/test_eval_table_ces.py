@@ -74,7 +74,7 @@ def mock_ces_client(monkeypatch):
         dataset_id="dataset-1",
         evaluation_id="evaluation-1",
     )
-    client.eval_tables.create_version.return_value = SimpleNamespace(
+    client.eval_tables.versions.create.return_value = SimpleNamespace(
         dataset_version_id="dataset-version-1",
         evaluation_version_id="evaluation-version-1",
     )
@@ -83,7 +83,7 @@ def mock_ces_client(monkeypatch):
         "https://evaluations.example.test",
     )
     client_module = types.ModuleType("coreweave_evaluations")
-    client_module.CoreWeaveEvaluations = MagicMock
+    client_module.Client = MagicMock
     monkeypatch.setitem(sys.modules, "coreweave_evaluations", client_module)
     monkeypatch.setattr(
         "wandb.sdk.data_types.eval_table._writer_ces.CESWriter._resolve_scope_context",
@@ -127,20 +127,20 @@ def test_ces_eval_table_writes_columns_rows_and_version(
     api = mock_ces_client.eval_tables
     assert [call[0] for call in api.method_calls] == [
         "create",
-        "create_columns",
-        "add_rows",
-        "create_version",
+        "columns.create",
+        "rows.add",
+        "versions.create",
     ]
     api.create.assert_called_once_with(
-        "scope-ref",
         namespace="wandb",
+        scope_id="scope-ref",
         name="math_eval",
         idempotency_key=ANY,
     )
-    api.create_columns.assert_called_once_with(
+    api.columns.create.assert_called_once_with(
         "evaluation-1",
         namespace="wandb",
-        scope_ref="scope-ref",
+        scope_id="scope-ref",
         dataset_fields=[
             {"source": "input", "name": "prompt", "value_type": "string"},
             {"source": "input", "name": "truth", "value_type": "string"},
@@ -152,10 +152,10 @@ def test_ces_eval_table_writes_columns_rows_and_version(
         ],
         idempotency_key=ANY,
     )
-    api.add_rows.assert_called_once_with(
+    api.rows.add.assert_called_once_with(
         "evaluation-1",
         namespace="wandb",
-        scope_ref="scope-ref",
+        scope_id="scope-ref",
         rows=[
             {
                 "input": {"prompt": "2+2", "truth": "4"},
@@ -170,10 +170,10 @@ def test_ces_eval_table_writes_columns_rows_and_version(
         ],
         idempotency_key=ANY,
     )
-    api.create_version.assert_called_once_with(
+    api.versions.create.assert_called_once_with(
         "evaluation-1",
         namespace="wandb",
-        scope_ref="scope-ref",
+        scope_id="scope-ref",
         idempotency_key=ANY,
     )
     mock_ces_client.close.assert_called_once_with()
@@ -217,7 +217,7 @@ def test_ces_eval_table_stubs_media_until_native_support_exists(
 
     run.log({"media_eval": et})
 
-    rows = mock_ces_client.eval_tables.add_rows.call_args.kwargs["rows"]
+    rows = mock_ces_client.eval_tables.rows.add.call_args.kwargs["rows"]
     assert rows == [
         {
             "input": {"row": 1},
@@ -309,7 +309,7 @@ def test_ces_eval_table_batches_rows_by_encoded_bytes(
 
     run.log({"eval": et})
 
-    calls = mock_ces_client.eval_tables.add_rows.call_args_list
+    calls = mock_ces_client.eval_tables.rows.add.call_args_list
     assert [call.kwargs["rows"] for call in calls] == [[row], [row]]
     keys = [call.kwargs["idempotency_key"] for call in calls]
     assert len(set(keys)) == 2
@@ -355,15 +355,15 @@ def test_ces_eval_table_batches_rows_by_count(
 
     run.log({"eval": et})
 
-    calls = mock_ces_client.eval_tables.add_rows.call_args_list
+    calls = mock_ces_client.eval_tables.rows.add.call_args_list
     assert [len(call.kwargs["rows"]) for call in calls] == [2, 2, 1]
     assert [call[0] for call in mock_ces_client.eval_tables.method_calls] == [
         "create",
-        "create_columns",
-        "add_rows",
-        "add_rows",
-        "add_rows",
-        "create_version",
+        "columns.create",
+        "rows.add",
+        "rows.add",
+        "rows.add",
+        "versions.create",
     ]
 
 
@@ -418,7 +418,7 @@ def test_ces_eval_table_does_not_cut_version_after_batch_failure(
     monkeypatch,
 ):
     monkeypatch.setattr(ces, "_MAX_ROWS_PER_BATCH", 1)
-    mock_ces_client.eval_tables.add_rows.side_effect = [
+    mock_ces_client.eval_tables.rows.add.side_effect = [
         None,
         RuntimeError("batch failed"),
     ]
@@ -432,7 +432,7 @@ def test_ces_eval_table_does_not_cut_version_after_batch_failure(
     with pytest.raises(RuntimeError, match="batch failed"):
         run.log({"eval": et})
 
-    mock_ces_client.eval_tables.create_version.assert_not_called()
+    mock_ces_client.eval_tables.versions.create.assert_not_called()
     mock_ces_client.close.assert_called_once_with()
 
 
@@ -450,7 +450,7 @@ def test_ces_eval_table_infers_python_and_numpy_integers(
 
     run.log({"typed_eval": et})
 
-    fields = mock_ces_client.eval_tables.create_columns.call_args.kwargs[
+    fields = mock_ces_client.eval_tables.columns.create.call_args.kwargs[
         "dataset_fields"
     ]
     assert fields == [
@@ -474,7 +474,7 @@ def test_ces_eval_table_classifies_integer_valued_floats_as_numbers(
 
     run.log({"typed_eval": et})
 
-    assert mock_ces_client.eval_tables.create_columns.call_args.kwargs[
+    assert mock_ces_client.eval_tables.columns.create.call_args.kwargs[
         "dataset_fields"
     ] == [
         {"source": "input", "name": "row", "value_type": "integer"},
@@ -492,13 +492,13 @@ def test_ces_eval_table_serializes_nan_as_typed_null(mock_ces_client, run):
 
     run.log({"nan_eval": et})
 
-    assert mock_ces_client.eval_tables.create_columns.call_args.kwargs[
+    assert mock_ces_client.eval_tables.columns.create.call_args.kwargs[
         "dataset_fields"
     ] == [
         {"source": "input", "name": "row", "value_type": "integer"},
         {"source": "output", "name": "value", "value_type": "number"},
     ]
-    assert mock_ces_client.eval_tables.add_rows.call_args.kwargs["rows"][0][
+    assert mock_ces_client.eval_tables.rows.add.call_args.kwargs["rows"][0][
         "output"
     ] == {"value": None}
 
@@ -775,7 +775,7 @@ def test_ces_eval_table_retries_with_stable_idempotency_keys(
         dataset_version_id="dataset-version-1",
         evaluation_version_id="evaluation-version-1",
     )
-    mock_ces_client.eval_tables.create_version.side_effect = [
+    mock_ces_client.eval_tables.versions.create.side_effect = [
         RuntimeError("temporary failure"),
         version,
     ]
@@ -793,15 +793,15 @@ def test_ces_eval_table_retries_with_stable_idempotency_keys(
 
     methods = (
         mock_ces_client.eval_tables.create,
-        mock_ces_client.eval_tables.create_columns,
-        mock_ces_client.eval_tables.create_version,
+        mock_ces_client.eval_tables.columns.create,
+        mock_ces_client.eval_tables.versions.create,
     )
     for method in methods:
         calls = method.call_args_list
         assert len(calls) == 2
         assert calls[0].kwargs["idempotency_key"] == calls[1].kwargs["idempotency_key"]
 
-    row_calls = mock_ces_client.eval_tables.add_rows.call_args_list
+    row_calls = mock_ces_client.eval_tables.rows.add.call_args_list
     assert len(row_calls) == 4
     first_attempt_keys = [call.kwargs["idempotency_key"] for call in row_calls[:2]]
     retry_keys = [call.kwargs["idempotency_key"] for call in row_calls[2:]]
@@ -831,9 +831,9 @@ def test_ces_eval_table_run_location_stabilizes_idempotency_keys(
 
     methods = (
         mock_ces_client.eval_tables.create,
-        mock_ces_client.eval_tables.create_columns,
-        mock_ces_client.eval_tables.add_rows,
-        mock_ces_client.eval_tables.create_version,
+        mock_ces_client.eval_tables.columns.create,
+        mock_ces_client.eval_tables.rows.add,
+        mock_ces_client.eval_tables.versions.create,
     )
     for method in methods:
         calls = method.call_args_list

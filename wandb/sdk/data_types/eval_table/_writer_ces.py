@@ -23,12 +23,12 @@ from wandb.sdk.data_types.eval_table._writer import WriteInput, WriteResult
 from wandb.sdk.data_types.table import Table
 
 if TYPE_CHECKING:
-    from coreweave_evaluations import CoreWeaveEvaluations as CoreWeaveEvaluationsT
-    from coreweave_evaluations.types.eval_table_add_rows_params import Row as _CESRow
-    from coreweave_evaluations.types.eval_table_create_columns_params import (
+    from coreweave_evaluations import Client as EvaluationsClient
+    from coreweave_evaluations.types.eval_tables.column_create_params import (
         DatasetField as _CESDatasetField,
         Scorer as _CESScorer,
     )
+    from coreweave_evaluations.types.eval_tables.row_add_params import Row as _CESRow
 
     from wandb.sdk.data_types.table import ColumnKey
     from wandb.sdk.wandb_run import Run as LocalRun
@@ -222,7 +222,7 @@ class CESWriter:
         # TODO: coreweave_evaluations is new and under development. This will become
         # obsolete once we actually publish the package and add it to wandb deps.
         try:
-            from coreweave_evaluations import CoreWeaveEvaluations
+            from coreweave_evaluations import Client
         except ImportError as exc:
             raise UsageError(
                 "CES EvalTable logging requires the coreweave_evaluations package."
@@ -241,36 +241,36 @@ class CESWriter:
                 f"First affected: {locations}.",
             )
         scope = self._resolve_scope_context(bound_run)
-        client = self._create_client(CoreWeaveEvaluations, base_url, scope)
+        client = self._create_client(Client, base_url, scope)
         try:
             created = client.eval_tables.create(
-                scope.scope_ref,
                 namespace=_WANDB_SCOPE_NAMESPACE,
+                scope_id=scope.scope_ref,
                 name=payload.name,
                 idempotency_key=self._idempotency_key(bound_run, "create"),
             )
-            client.eval_tables.create_columns(
+            client.eval_tables.columns.create(
                 created.evaluation_id,
                 namespace=_WANDB_SCOPE_NAMESPACE,
-                scope_ref=scope.scope_ref,
+                scope_id=scope.scope_ref,
                 dataset_fields=write_payloads.dataset_fields,
                 scorers=write_payloads.scorers,
                 idempotency_key=self._idempotency_key(bound_run, "columns"),
             )
             for batch_index, rows in enumerate(write_payloads.row_batches):
-                client.eval_tables.add_rows(
+                client.eval_tables.rows.add(
                     created.evaluation_id,
                     namespace=_WANDB_SCOPE_NAMESPACE,
-                    scope_ref=scope.scope_ref,
+                    scope_id=scope.scope_ref,
                     rows=rows,
                     idempotency_key=self._idempotency_key(
                         bound_run, f"rows-{batch_index}"
                     ),
                 )
-            version = client.eval_tables.create_version(
+            version = client.eval_tables.versions.create(
                 created.evaluation_id,
                 namespace=_WANDB_SCOPE_NAMESPACE,
-                scope_ref=scope.scope_ref,
+                scope_id=scope.scope_ref,
                 idempotency_key=self._idempotency_key(bound_run, "version"),
             )
         finally:
@@ -684,10 +684,10 @@ class CESWriter:
 
     def _create_client(
         self,
-        client_type: type[CoreWeaveEvaluationsT],
+        client_type: type[EvaluationsClient],
         base_url: str,
         scope: _CESScopeContext,
-    ) -> CoreWeaveEvaluationsT:
+    ) -> EvaluationsClient:
         """Create a client while keeping the run's credentials authoritative."""
         # The client builds the Authorization header from these and rejects a
         # request that reaches it without one, so a header set on an httpx
