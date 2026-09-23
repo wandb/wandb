@@ -50,7 +50,7 @@ def test_public_api_sweep_agent_retrieves_running_agent(user):
 
 
 def test_public_api_sweep_agent_runs_lists_finished_run(user):
-    """After three sweep runs finish, Agent.runs(per_page=2) returns all three (paginated)."""
+    """After a sweep run finishes, Agent.runs() returns it."""
     project = "test-public-api-sweep-agent-runs-lists-finished-run"
     sweep_id = wandb.sweep(SWEEP_CONFIG_GRID, entity=user, project=project)
 
@@ -62,7 +62,7 @@ def test_public_api_sweep_agent_runs_lists_finished_run(user):
     wandb.agent(
         sweep_id,
         function=train,
-        count=3,
+        count=1,
         project=project,
         entity=user,
     )
@@ -72,8 +72,8 @@ def test_public_api_sweep_agent_runs_lists_finished_run(user):
     agents = sweep.agents()
     assert len(agents) >= 1
     public_agent = agents[0]
-    runs_list = list(public_agent.runs(per_page=2))
-    assert len(runs_list) == 3
+    runs_list = list(public_agent.runs())
+    assert len(runs_list) == 1
     assert {r.state for r in runs_list} == {"finished"}
 
 

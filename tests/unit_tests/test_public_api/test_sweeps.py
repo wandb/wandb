@@ -3,6 +3,7 @@ from unittest.mock import Mock
 
 import pytest
 from wandb.apis.public.sweeps import (
+    Agent,
     Sweep,
     _agent_heartbeat,
     _sweep_with_runs,
@@ -129,6 +130,88 @@ def test_agent_heartbeat_raises_sweep_not_found_on_404():
 
 def test_agent_heartbeat_returns_empty_on_non_404_error():
     assert _agent_heartbeat(_api_failing_with(500), "test-agent-id", {}, {}) == []
+
+
+def _agent_runs_response(
+    run_names: list[str], *, has_next_page: bool
+) -> dict[str, object]:
+    return {
+        "project": {
+            "sweep": {
+                "agent": {
+                    "runs": {
+                        "pageInfo": {
+                            "__typename": "PageInfo",
+                            "endCursor": f"cursor-{run_names[-1]}",
+                            "hasNextPage": has_next_page,
+                        },
+                        "edges": [
+                            {
+                                "cursor": f"cursor-{name}",
+                                "node": {
+                                    "id": f"storage-{name}",
+                                    "tags": None,
+                                    "name": name,
+                                    "displayName": None,
+                                    "sweepName": "sweep-name",
+                                    "state": "finished",
+                                    "group": None,
+                                    "jobType": None,
+                                    "commit": None,
+                                    "readOnly": False,
+                                    "createdAt": "2026-01-01T00:00:00Z",
+                                    "heartbeatAt": None,
+                                    "description": None,
+                                    "notes": None,
+                                    "historyLineCount": 1,
+                                    "user": {
+                                        "name": "test-user",
+                                        "username": "test-user",
+                                    },
+                                },
+                            }
+                            for name in run_names
+                        ],
+                    }
+                }
+            }
+        }
+    }
+
+
+def test_agent_runs_paginates(mocker):
+    service_api = mocker.MagicMock()
+    responses = iter(
+        [
+            _agent_runs_response(["run-1", "run-2"], has_next_page=True),
+            _agent_runs_response(["run-3"], has_next_page=False),
+        ]
+    )
+    requests = []
+
+    def execute_graphql(_query, variables):
+        requests.append(dict(variables))
+        return next(responses)
+
+    service_api.execute_graphql.side_effect = execute_graphql
+    agent = Agent(
+        service_api,
+        attrs={"id": "agent-id", "name": "agent-name", "totalRuns": 3},
+        entity="entity",
+        project="project",
+        sweep_id="sweep-name",
+    )
+
+    runs = list(agent.runs(per_page=2))
+
+    assert [run.id for run in runs] == ["run-1", "run-2", "run-3"]
+    assert {run.state for run in runs} == {"finished"}
+    assert service_api.execute_graphql.call_count == 2
+    first_variables, second_variables = requests
+    assert first_variables["first"] == 2
+    assert first_variables["after"] is None
+    assert second_variables["first"] == 2
+    assert second_variables["after"] == "cursor-run-2"
 
 
 def test_upsert_sweep():
