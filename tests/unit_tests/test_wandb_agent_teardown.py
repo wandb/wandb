@@ -14,6 +14,32 @@ from wandb import env, wandb_agent
 from wandb.sdk import wandb_setup
 
 
+@pytest.mark.parametrize("value", [0, -1])
+def test_agent_rejects_non_positive_max_consecutive_failed_runs(value):
+    with pytest.raises(
+        ValueError, match="max_consecutive_failed_runs must be at least 1"
+    ):
+        wandb_agent.agent(
+            "entity/project/sweep-id",
+            max_consecutive_failed_runs=value,
+        )
+
+    assert wandb_agent._is_running() is False
+
+
+@pytest.mark.parametrize("value", [True, False, 1.5, "2"])
+def test_agent_rejects_non_integer_max_consecutive_failed_runs(value):
+    with pytest.raises(
+        TypeError, match="max_consecutive_failed_runs must be an integer or None"
+    ):
+        wandb_agent.agent(
+            "entity/project/sweep-id",
+            max_consecutive_failed_runs=value,
+        )
+
+    assert wandb_agent._is_running() is False
+
+
 def test_agent_teardown_clears_sweep_id_on_exception(runner, monkeypatch):
     with runner.isolated_filesystem():
         """When agent() raises, the finally block must clear settings.sweep_id."""
