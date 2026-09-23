@@ -3,16 +3,19 @@ package scheduler_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
+	"github.com/Khan/genqlient/graphql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/observabilitytest"
 	"github.com/wandb/wandb/core/internal/sweeps/scheduler"
 	"github.com/wandb/wandb/core/internal/sweeps/schedulertest"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -22,17 +25,27 @@ import (
 // every timer immediately so failure slowdowns cost no test time.
 type fakeClock struct {
 	now time.Time
+
+	// waiting, when non-nil, holds every timer open and announces it
+	// here, so a test can act while the loop is inside its wait.
+	waiting chan struct{}
 }
 
 func (c *fakeClock) Now() time.Time { return c.now }
 
 func (c *fakeClock) NewTimer(time.Duration) (<-chan time.Time, func()) {
+	if c.waiting != nil {
+		c.waiting <- struct{}{}
+		return make(chan time.Time), func() {}
+	}
+
 	fire := make(chan time.Time, 1)
 	fire <- time.Time{}
 	return fire, func() {}
 }
 
 var (
+	_ scheduler.Clock = scheduler.RealClock{}
 	_ scheduler.Clock = (*fakeClock)(nil)
 )
 
@@ -228,6 +241,17 @@ func (f *loopFixture) stubFinishSweep() {
 	)
 }
 
+// requestsFor returns every request made for the named operation.
+func (f *loopFixture) requestsFor(opName string) []*graphql.Request {
+	var found []*graphql.Request
+	for _, req := range f.client.AllRequests() {
+		if req.OpName == opName {
+			found = append(found, req)
+		}
+	}
+	return found
+}
+
 // step drives one Step with a timeout guard.
 func (f *loopFixture) step(
 	t *testing.T,
@@ -240,17 +264,14 @@ func (f *loopFixture) step(
 	return schedulertest.Receive(t, done)
 }
 
-// warmTo drives one Step with no prior result, to set up the scheduler
-// for a test's own step(s).
-//
-// Red until Step is implemented: it no longer asserts a warm-start task
-// came back, since the stub Step returns a fixed Done task regardless of
-// input. Once Step is implemented, restore the
-// require.NotNil(t, task.GetWarmStart(), ...) assertion this replaced.
+// warmTo drains warm start with no prior runs, leaving the scheduler
+// iterating. The caller stubs subsequent polls.
 func (f *loopFixture) warmTo(t *testing.T) {
 	t.Helper()
 	f.stubWarmStart(warmJSON("RUNNING", false, ""))
-	f.step(t, nil)
+	task := f.step(t, nil)
+	require.NotNil(t, task.GetWarmStart(), "expected a warm-start task")
+	require.False(t, task.GetWarmStart().HasMore)
 }
 
 func warmResult(adoptions map[string]string) *spb.SweepSchedulerClientTaskResult {
@@ -277,60 +298,74 @@ func emptyIterResult() *spb.SweepSchedulerClientTaskResult {
 	return generationResult(&spb.SweepSchedulerClientGenerationResult{})
 }
 
-// assertUnimplemented asserts that task is the fixed Done task the
-// stub Scheduler.Step returns.
-//
-// Red until Step is implemented: this is the standing assertion every
-// test below ends with. As each behavior is implemented, replace the
-// call to this helper with the real assertions it stands in for.
-func assertUnimplemented(
-	t *testing.T,
-	task *spb.SweepSchedulerServerNextTaskResponse,
-) {
-	t.Helper()
-	require.NotNil(t, task.GetDone())
-	assert.Equal(t,
-		spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR,
-		task.GetDone().Reason)
-}
-
 func TestDeclinedAskAsksAgain(t *testing.T) {
 	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
 	fixture.warmTo(t)
 
 	fixture.stubIdlePoll("RUNNING")
 	first := fixture.step(t, warmResult(nil))
-	assertUnimplemented(t, first)
+	require.EqualValues(t, 1, first.GetGeneration().AskUpTo)
 
 	fixture.stubIdlePoll("RUNNING")
 	second := fixture.step(t, generationResult(
 		&spb.SweepSchedulerClientGenerationResult{
 			AskOutcome: spb.SweepSchedulerClientGenerationResult_ASK_OUTCOME_DECLINED,
 		}))
-	assertUnimplemented(t, second)
+
+	// Nothing was suggested, so nothing is scheduled and the ask repeats.
+	require.NotNil(t, second.GetGeneration())
+	assert.EqualValues(t, 1, second.GetGeneration().AskUpTo)
 }
 
-func TestTerminateFinishesSweep(t *testing.T) {
-	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
-	fixture.warmTo(t)
-	fixture.stubIdlePoll("RUNNING")
-	fixture.step(t, warmResult(nil))
+// Both ways the optimizer ends a sweep mark it FINISHED and report why.
+// Exhaustion with runs in flight waits: TestExhaustedSearchSpaceWaitsForRunsInFlight.
+func TestOptimizerFinishesTheSweep(t *testing.T) {
+	for name, ended := range map[string]struct {
+		result  *spb.SweepSchedulerClientGenerationResult
+		message string
+	}{
+		"the optimizer terminates the sweep": {
+			result:  &spb.SweepSchedulerClientGenerationResult{Terminate: true},
+			message: "the optimizer ended the sweep",
+		},
 
-	fixture.stubFinishSweep()
-	done := fixture.step(t, generationResult(
-		&spb.SweepSchedulerClientGenerationResult{Terminate: true}))
+		"the search space is exhausted": {
+			result: &spb.SweepSchedulerClientGenerationResult{
+				AskOutcome: spb.SweepSchedulerClientGenerationResult_ASK_OUTCOME_EXHAUSTED,
+			},
+			message: "the search space is exhausted",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			fixture := newLoopFixture(t, scheduler.SchedulerParams{})
+			fixture.warmTo(t)
+			fixture.stubIdlePoll("RUNNING")
+			fixture.step(t, warmResult(nil))
 
-	assertUnimplemented(t, done)
+			fixture.stubFinishSweep()
+			done := fixture.step(t, generationResult(ended.result))
+
+			require.NotNil(t, done.GetDone())
+			assert.Equal(t,
+				spb.SweepSchedulerServerDoneTask_REASON_SWEEP_FINISHED,
+				done.GetDone().Reason)
+			assert.Contains(t, done.GetDone().Message, ended.message)
+			// An unused finishSweep stub would leave it schedulable.
+			assert.True(t, fixture.client.AllStubsUsed())
+		})
+	}
 }
 
+// A broken optimizer is the client's problem, not the sweep's: the
+// scheduler ends its own session but leaves the sweep in whatever
+// state it found it, so a fixed client can pick the sweep back up.
+// Contrast an exhausted search space, which does finish the sweep.
 func TestOptimizerErrorEndsLoopWithoutFinishingSweep(t *testing.T) {
 	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
 	fixture.warmTo(t)
 	fixture.stubIdlePoll("RUNNING")
 	fixture.step(t, warmResult(nil))
 
-	// No UpsertSweepState stub: finishing the sweep here would fail the
-	// test via an unstubbed call.
 	done := fixture.step(t, &spb.SweepSchedulerClientTaskResult{
 		Result: &spb.SweepSchedulerClientTaskResult_Error{
 			Error: &spb.SweepSchedulerClientTaskError{
@@ -339,7 +374,15 @@ func TestOptimizerErrorEndsLoopWithoutFinishingSweep(t *testing.T) {
 		},
 	})
 
-	assertUnimplemented(t, done)
+	require.NotNil(t, done.GetDone())
+	assert.Equal(t,
+		spb.SweepSchedulerServerDoneTask_REASON_OPTIMIZER_ERROR,
+		done.GetDone().Reason)
+	assert.Contains(t, done.GetDone().Message, "exploded")
+	// Asserted rather than left to an unstubbed call: finishSweep only
+	// warns on failure, so a wrong transition would go unnoticed here.
+	assert.Empty(t, fixture.requestsFor("UpsertSweepState"),
+		"a broken optimizer must leave the sweep resumable")
 }
 
 func TestStopDuringPollExitsWithoutAsking(t *testing.T) {
@@ -350,15 +393,57 @@ func TestStopDuringPollExitsWithoutAsking(t *testing.T) {
 
 	fixture.client.StubMatchHang(gqlmock.WithOpName("SweepConfig"))
 
+	pollsBefore := len(fixture.requestsFor("SweepConfig"))
 	done := make(chan *spb.SweepSchedulerServerNextTaskResponse, 1)
 	go func() {
 		done <- fixture.scheduler.Step(context.Background(), emptyIterResult())
 	}()
 
+	require.Eventually(t, func() bool {
+		return len(fixture.requestsFor("SweepConfig")) > pollsBefore
+	}, 2*time.Second, 10*time.Millisecond)
+
 	fixture.scheduler.Stop()
 
 	task := schedulertest.Receive(t, done)
-	assertUnimplemented(t, task)
+	require.NotNil(t, task.GetDone())
+	assert.Equal(t,
+		spb.SweepSchedulerServerDoneTask_REASON_SHUTDOWN,
+		task.GetDone().Reason)
+	// Asserted rather than left to an unstubbed call: finishSweep only
+	// warns on failure, so a stop that wrongly finished the sweep would
+	// go unnoticed here. A stopped sweep has to stay resumable.
+	assert.Empty(t, fixture.requestsFor("UpsertSweepState"),
+		"a stop must not transition the sweep")
+}
+
+// A stop can also land while the loop is waiting out its poll
+// interval, which leaves sleep by its other exit. It must end the
+// session just as cleanly, and leave the sweep just as resumable.
+func TestStopDuringTheWaitExitsWithoutTransitioningTheSweep(t *testing.T) {
+	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
+	fixture.warmTo(t)
+
+	// Held open, so the loop is provably inside the wait when it stops.
+	fixture.clock.waiting = make(chan struct{}, 1)
+
+	done := make(chan *spb.SweepSchedulerServerNextTaskResponse, 1)
+	go func() {
+		done <- fixture.scheduler.Step(context.Background(), warmResult(nil))
+	}()
+
+	<-fixture.clock.waiting
+	fixture.scheduler.Stop()
+
+	task := schedulertest.Receive(t, done)
+	require.NotNil(t, task.GetDone())
+	assert.Equal(t,
+		spb.SweepSchedulerServerDoneTask_REASON_SHUTDOWN,
+		task.GetDone().Reason)
+	assert.Empty(t, fixture.requestsFor("SweepConfig"),
+		"a stop during the wait must not go on to poll")
+	assert.Empty(t, fixture.requestsFor("UpsertSweepState"),
+		"a stop must not transition the sweep")
 }
 
 func TestSessionCancelReturnsShutdown(t *testing.T) {
@@ -369,7 +454,421 @@ func TestSessionCancelReturnsShutdown(t *testing.T) {
 	fixture.stubWarmStart(warmJSON("RUNNING", false, ""))
 	task := fixture.scheduler.Step(ctx, nil)
 
-	assertUnimplemented(t, task)
+	// The warm-start page may complete, but the following generation's
+	// sleep observes the cancelled context.
+	if task.GetWarmStart() != nil {
+		task = fixture.scheduler.Step(ctx, warmResult(nil))
+	}
+	require.NotNil(t, task.GetDone())
+	assert.Equal(t,
+		spb.SweepSchedulerServerDoneTask_REASON_SHUTDOWN,
+		task.GetDone().Reason)
+	// Asserted rather than left to an unstubbed call: finishSweep only
+	// warns on failure, so a shutdown that wrongly finished the sweep
+	// would go unnoticed. A sweep whose scheduler went away has to stay
+	// resumable.
+	assert.Empty(t, fixture.requestsFor("UpsertSweepState"),
+		"a shutdown must not transition the sweep")
+}
+
+// A negative bound cannot be honoured, and guessing what it meant would
+// silently cap or uncap the sweep, so it is dropped with a warning and
+// the scheduler carries on with the bound unset.
+func TestNegativeBoundsAreIgnoredWithAWarning(t *testing.T) {
+	for name, params := range map[string]scheduler.SchedulerParams{
+		"batch size": {BatchSize: -4},
+		"run cap":    {RunCap: -10},
+	} {
+		t.Run("a negative "+name, func(t *testing.T) {
+			logger, logs := observabilitytest.NewRecordingTestLogger(t)
+			params.Logger = logger
+			fixture := newLoopFixture(t, params)
+			fixture.stubWarmStart(warmJSON("RUNNING", false, "",
+				testRun{name: "run-1", state: "running"},
+			))
+
+			task := fixture.step(t, nil)
+
+			assert.Contains(t, logs.String(), `"level":"WARN"`)
+			assert.Contains(t, logs.String(), name)
+			require.NotNil(t, task.GetWarmStart(),
+				"the scheduler must still run with the bound unset")
+		})
+	}
+}
+
+// The sweep can hold thousands of runs this scheduler neither owns nor
+// acts on, so a generation that watches none of them reads only the
+// sweep's state.
+func TestGenerationWithNothingToWatchReadsOnlyTheSweepState(t *testing.T) {
+	fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 2})
+	fixture.warmTo(t)
+
+	fixture.stubIdlePoll("RUNNING")
+	task := fixture.step(t, warmResult(nil))
+
+	generation := task.GetGeneration()
+	require.NotNil(t, generation)
+	assert.Empty(t, generation.Updates)
+	assert.EqualValues(t, 2, generation.AskUpTo,
+		"the whole batch is free, so the ask is the batch size")
+	assert.Empty(t, fixture.requestsFor("SweepWatchedRuns"),
+		"a scheduler with no runs to watch must not read any")
+	assert.True(t, fixture.client.AllStubsUsed())
+}
+
+// What a poll finds the sweep in decides whether the loop keeps
+// scheduling, idles, or ends — and with which reason.
+//
+// Whatever a poll finds, the scheduler reports it without writing it
+// back. Only its own decisions -- an exhausted search space, the run
+// cap, a terminate -- finish a sweep; a sweep the user cancelled or a
+// backend failure must be left exactly as found, so nothing overwrites
+// the state that explains what happened.
+func TestGenerationFollowsTheSweepStateWithoutWritingItBack(t *testing.T) {
+	// nil reason means the loop keeps going with a generation task.
+	done := func(
+		reason spb.SweepSchedulerServerDoneTask_Reason,
+	) *spb.SweepSchedulerServerDoneTask_Reason {
+		return &reason
+	}
+	for state, reason := range map[string]*spb.SweepSchedulerServerDoneTask_Reason{
+		"RUNNING":  nil,
+		"PAUSED":   nil,
+		"PENDING":  nil,
+		"GARBLED":  nil, // a state this build does not know
+		"FINISHED": done(spb.SweepSchedulerServerDoneTask_REASON_SWEEP_FINISHED),
+		"CANCELED": done(spb.SweepSchedulerServerDoneTask_REASON_TERMINATED),
+		"ERROR":    done(spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR),
+		"FLAPPING": done(spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR),
+		"CRASHED":  done(spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR),
+	} {
+		t.Run(state, func(t *testing.T) {
+			fixture := newLoopFixture(t, scheduler.SchedulerParams{BatchSize: 1})
+			fixture.warmTo(t)
+
+			fixture.stubIdlePoll(state)
+			task := fixture.step(t, warmResult(nil))
+
+			if reason == nil {
+				generation := task.GetGeneration()
+				require.NotNil(t, generation,
+					"the loop must keep scheduling under %q", state)
+				if state == "PAUSED" {
+					// Running runs stay alive, but nothing new starts.
+					assert.Zero(t, generation.AskUpTo)
+				} else {
+					assert.EqualValues(t, 1, generation.AskUpTo)
+				}
+			} else {
+				require.NotNil(t, task.GetDone())
+				assert.Equal(t, *reason, task.GetDone().Reason)
+			}
+
+			// Asserted rather than left to an unstubbed call: finishSweep
+			// only warns on failure, so a stray transition would be
+			// invisible here.
+			assert.Empty(t, fixture.requestsFor("UpsertSweepState"),
+				"a polled state must not be written back")
+		})
+	}
+}
+
+// A poll that fails ends the sweep unless polling again is what would
+// fix it: the HTTP client has already retried by the time the loop sees
+// the error, so only a rate limit is worth another pass.
+func TestGenerationPollFailures(t *testing.T) {
+	fixture := func(t *testing.T) *loopFixture {
+		t.Helper()
+		f := newLoopFixture(t, scheduler.SchedulerParams{})
+		f.warmTo(t)
+		return f
+	}
+
+	t.Run("a deleted sweep ends the loop", func(t *testing.T) {
+		f := fixture(t)
+		f.client.StubMatchOnce(
+			gqlmock.WithOpName("SweepConfig"),
+			`{"project": {"sweep": null}}`,
+		)
+
+		task := f.step(t, warmResult(nil))
+
+		require.NotNil(t, task.GetDone())
+		assert.Equal(t,
+			spb.SweepSchedulerServerDoneTask_REASON_SWEEP_NOT_FOUND,
+			task.GetDone().Reason)
+	})
+
+	for name, err := range map[string]error{
+		"forbidden":       &graphql.HTTPError{StatusCode: 403},
+		"bad gateway":     &graphql.HTTPError{StatusCode: 502},
+		"retries used up": errors.New("giving up after 20 attempt(s)"),
+	} {
+		t.Run(name+" ends the loop", func(t *testing.T) {
+			f := fixture(t)
+			f.client.StubMatchWithError(gqlmock.WithOpName("SweepConfig"), err)
+
+			task := f.step(t, warmResult(nil))
+
+			require.NotNil(t, task.GetDone())
+			assert.Equal(t,
+				spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR,
+				task.GetDone().Reason)
+		})
+	}
+
+	t.Run("a rate limit keeps the loop going", func(t *testing.T) {
+		f := fixture(t)
+		f.client.StubMatchWithError(
+			gqlmock.WithOpName("SweepConfig"),
+			&graphql.HTTPError{StatusCode: 429},
+		)
+
+		task := f.step(t, warmResult(nil))
+
+		// An empty task while the backend asks for a slower pace.
+		generation := task.GetGeneration()
+		require.NotNil(t, generation)
+		assert.Empty(t, generation.Updates)
+		assert.Zero(t, generation.AskUpTo)
+	})
+}
+
+// The run cap counts the sweep's successes, including the ones warm
+// start replayed, and ends the sweep once it is reached.
+func TestGenerationEndsTheSweepAtTheRunCap(t *testing.T) {
+	for _, prior := range []struct {
+		state   string
+		summary string
+		capHit  bool
+	}{
+		{state: "finished", summary: `{"loss": 1}`, capHit: true},
+		{state: "failed", capHit: false},
+		{state: "crashed", capHit: false},
+	} {
+		t.Run(prior.state, func(t *testing.T) {
+			fixture := newLoopFixture(t, scheduler.SchedulerParams{RunCap: 1})
+			fixture.stubWarmStart(warmJSON("RUNNING", false, "",
+				testRun{name: "old", state: prior.state, summary: prior.summary},
+			))
+			warm := fixture.step(t, nil)
+			require.Len(t, warm.GetWarmStart().FinishedRuns, 1)
+
+			fixture.stubIdlePoll("RUNNING")
+			if prior.capHit {
+				// Finishing the sweep is what hitting the cap does.
+				fixture.stubFinishSweep()
+			}
+			task := fixture.step(t, warmResult(nil))
+
+			if !prior.capHit {
+				require.NotNil(t, task.GetGeneration(),
+					"a run that did not succeed must not count")
+				return
+			}
+			require.NotNil(t, task.GetDone())
+			assert.Equal(t,
+				spb.SweepSchedulerServerDoneTask_REASON_SWEEP_FINISHED,
+				task.GetDone().Reason)
+			assert.Contains(t, task.GetDone().Message, "run cap")
+			assert.True(t, fixture.client.AllStubsUsed())
+		})
+	}
+}
+
+// byRunID indexes a warm-start bucket for assertions that name a run.
+func byRunID(
+	runs []*spb.SweepSchedulerServerRunData,
+) map[string]*spb.SweepSchedulerServerRunData {
+	byID := make(map[string]*spb.SweepSchedulerServerRunData, len(runs))
+	for _, run := range runs {
+		byID[run.WandbRunId] = run
+	}
+	return byID
+}
+
+// One page carrying every kind of prior run, so each classification is
+// asserted against the same read.
+func TestWarmStartPageClassifiesEveryPriorRun(t *testing.T) {
+	fixture := newLoopFixture(t,
+		scheduler.SchedulerParams{MetricKeys: []string{"loss"}})
+	fixture.stubWarmStart(warmJSON("RUNNING", false, "",
+		testRun{name: "scored", state: "finished",
+			config:  `{"lr": {"value": 0.1}}`,
+			summary: `{"loss": 0.5}`,
+			history: `[{"loss": 0.9, "_step": 1}]`},
+		testRun{name: "unscored", state: "finished",
+			config:  `{"lr": {"value": 0.2}}`,
+			summary: `{}`},
+		testRun{name: "live", state: "running",
+			config: `{"lr": {"value": 0.3}}`},
+		testRun{name: "mystery", state: "teleporting"},
+	))
+
+	task := fixture.step(t, nil)
+
+	warmStart := task.GetWarmStart()
+	require.NotNil(t, warmStart)
+	finished := byRunID(warmStart.FinishedRuns)
+	active := byRunID(warmStart.ActiveRuns)
+
+	t.Run("a scored run carries its summary and sampled history", func(t *testing.T) {
+		run := finished["scored"]
+		require.NotNil(t, run)
+		assert.Equal(t, spb.SweepRunState_SWEEP_RUN_STATE_FINISHED, run.State)
+		assert.JSONEq(t, `{"loss": 0.5}`, run.SummaryJson)
+		assert.JSONEq(t, `[{"loss": 0.9, "_step": 1}]`, run.HistoryJson)
+	})
+
+	t.Run("the wire config is flattened", func(t *testing.T) {
+		require.NotNil(t, finished["scored"])
+		assert.JSONEq(t, `{"lr": 0.1}`, finished["scored"].ConfigJson)
+		require.NotNil(t, active["live"])
+		assert.JSONEq(t, `{"lr": 0.3}`, active["live"].ConfigJson)
+	})
+
+	t.Run("a run that finished without the objective is failed", func(t *testing.T) {
+		run := finished["unscored"]
+		require.NotNil(t, run, "a reclassified run belongs with the finished runs")
+		assert.Equal(t, spb.SweepRunState_SWEEP_RUN_STATE_FAILED, run.State)
+	})
+
+	t.Run("an unrecognized state is failed", func(t *testing.T) {
+		run := finished["mystery"]
+		require.NotNil(t, run)
+		assert.Equal(t, spb.SweepRunState_SWEEP_RUN_STATE_FAILED, run.State)
+	})
+
+	t.Run("a live run is active and unscored", func(t *testing.T) {
+		run := active["live"]
+		require.NotNil(t, run)
+		assert.Equal(t, spb.SweepRunState_SWEEP_RUN_STATE_RUNNING, run.State)
+		// A run still going has no result to report.
+		assert.Empty(t, run.SummaryJson)
+		assert.Empty(t, run.HistoryJson)
+	})
+
+	t.Run("one page with no next cursor is the whole walk", func(t *testing.T) {
+		assert.False(t, warmStart.HasMore)
+		assert.True(t, fixture.client.AllStubsUsed())
+	})
+}
+
+// Both pages of one walk, driven in order against the same scheduler.
+func TestWarmStartWalksEveryPage(t *testing.T) {
+	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
+	fixture.stubWarmStart(warmJSON("RUNNING", true, "cursor-1",
+		testRun{name: "old-finished", state: "finished",
+			summary: `{"loss": 0.5}`},
+	))
+	fixture.stubWarmStart(warmJSON("RUNNING", false, "",
+		testRun{name: "old-running", state: "running"},
+	))
+
+	t.Run("the first page reports more to come", func(t *testing.T) {
+		pageOne := fixture.step(t, nil).GetWarmStart()
+		require.NotNil(t, pageOne)
+		assert.True(t, pageOne.HasMore)
+		require.Len(t, pageOne.FinishedRuns, 1)
+		assert.Equal(t, "old-finished", pageOne.FinishedRuns[0].WandbRunId)
+	})
+
+	t.Run("the next page resumes from the cursor and ends the walk", func(t *testing.T) {
+		pageTwo := fixture.step(t, warmResult(nil)).GetWarmStart()
+		require.NotNil(t, pageTwo)
+		assert.False(t, pageTwo.HasMore)
+		require.Len(t, pageTwo.ActiveRuns, 1)
+		assert.Equal(t, "old-running", pageTwo.ActiveRuns[0].WandbRunId)
+		assert.True(t, fixture.client.AllStubsUsed())
+	})
+}
+
+func TestRateLimitedWarmPageRetriesThePage(t *testing.T) {
+	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
+	fixture.client.StubMatchWithError(
+		gqlmock.WithOpName("SweepRunsWithHistory"),
+		&graphql.HTTPError{StatusCode: 429},
+	)
+
+	t.Run("the rate-limited page reports no prior runs", func(t *testing.T) {
+		// Still warm-starting: skipping the page would start the search
+		// cold over the runs it covers.
+		warmStart := fixture.step(t, nil).GetWarmStart()
+		require.NotNil(t, warmStart)
+		assert.Empty(t, warmStart.FinishedRuns)
+		assert.Empty(t, warmStart.ActiveRuns)
+		assert.True(t, warmStart.HasMore)
+	})
+
+	t.Run("the retry re-reads it and its runs reach the optimizer", func(t *testing.T) {
+		fixture.stubWarmStart(warmJSON("RUNNING", false, "",
+			testRun{name: "prior-1", state: "finished"},
+		))
+
+		warmStart := fixture.step(t, warmResult(nil)).GetWarmStart()
+		require.NotNil(t, warmStart)
+		require.Len(t, warmStart.FinishedRuns, 1)
+		assert.Equal(t, "prior-1", warmStart.FinishedRuns[0].WandbRunId)
+		assert.False(t, warmStart.HasMore)
+		assert.True(t, fixture.client.AllStubsUsed())
+	})
+}
+
+func TestWarmStartEndsForASweepThatIsDone(t *testing.T) {
+	// How the sweep ended is what the Done task reports, so each state
+	// the scheduler cannot schedule under maps to its own reason.
+	for state, reason := range map[string]spb.SweepSchedulerServerDoneTask_Reason{
+		"FINISHED": spb.SweepSchedulerServerDoneTask_REASON_SWEEP_FINISHED,
+		"CANCELED": spb.SweepSchedulerServerDoneTask_REASON_TERMINATED,
+		"ERROR":    spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR,
+		"FLAPPING": spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR,
+		"CRASHED":  spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR,
+	} {
+		t.Run(state, func(t *testing.T) {
+			fixture := newLoopFixture(t, scheduler.SchedulerParams{})
+			fixture.stubWarmStart(warmJSON(state, false, "",
+				testRun{name: "prior-1", state: "finished"},
+			))
+
+			task := fixture.step(t, nil)
+
+			require.Nil(t, task.GetWarmStart(),
+				"a sweep that is done must not be replayed")
+			require.NotNil(t, task.GetDone())
+			assert.Equal(t, reason, task.GetDone().Reason)
+			assert.Contains(t, task.GetDone().Message, state)
+		})
+	}
+}
+
+func TestWarmPageErrorEndsTheScheduler(t *testing.T) {
+	// Only a rate limit leaves the page worth re-reading; everything
+	// else has already outlived the HTTP client's retries. An empty
+	// warm-start task would tell the optimizer this page held no prior
+	// runs, so it must never stand in for one of these.
+	//
+	// Which statuses are fatal is TestClassify's contract.
+	for name, err := range map[string]error{
+		"server error":    &graphql.HTTPError{StatusCode: 500},
+		"retries used up": errors.New("giving up after 20 attempt(s)"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			fixture := newLoopFixture(t, scheduler.SchedulerParams{})
+			fixture.client.StubMatchWithError(
+				gqlmock.WithOpName("SweepRunsWithHistory"), err)
+
+			task := fixture.step(t, nil)
+
+			require.Nil(t, task.GetWarmStart(),
+				"warm start reported an empty page for an unretryable error")
+			done := task.GetDone()
+			require.NotNil(t, done, "warm start retried an unretryable page")
+			assert.Equal(t,
+				spb.SweepSchedulerServerDoneTask_REASON_FATAL_ERROR,
+				done.Reason)
+		})
+	}
 }
 
 func TestTellErrorPopsRunAndContinues(t *testing.T) {
@@ -380,6 +879,8 @@ func TestTellErrorPopsRunAndContinues(t *testing.T) {
 	))
 	fixture.step(t, warmResult(map[string]string{"poison": "opt-p"}))
 
+	// The optimizer failed to ingest the run; it is retired, so it frees
+	// its slot and drops out of the watched set entirely.
 	fixture.stubIdlePoll("RUNNING")
 	task := fixture.step(t, generationResult(
 		&spb.SweepSchedulerClientGenerationResult{
@@ -388,7 +889,10 @@ func TestTellErrorPopsRunAndContinues(t *testing.T) {
 			},
 		}))
 
-	assertUnimplemented(t, task)
+	generation := task.GetGeneration()
+	require.NotNil(t, generation)
+	assert.Empty(t, generation.Updates)
+	assert.EqualValues(t, 2, generation.AskUpTo)
 }
 
 // factoryFixture hands the session factory a SweepAPI over a mock
@@ -567,6 +1071,8 @@ func TestDuplicateAdoptionDroppedWithoutDiscarding(t *testing.T) {
 	))
 	fixture.step(t, nil)
 
+	// Both runs claim the same optimizer id, so the second adoption is
+	// dropped.
 	fixture.stubPoll(pollJSON("RUNNING", false, "",
 		testRun{name: "run-1", state: "running"},
 		testRun{name: "run-2", state: "running"},
@@ -576,5 +1082,13 @@ func TestDuplicateAdoptionDroppedWithoutDiscarding(t *testing.T) {
 		"run-2": "opt-dup",
 	}))
 
-	assertUnimplemented(t, task)
+	generation := task.GetGeneration()
+	require.NotNil(t, generation)
+	// The id is not reported: the client forgets discarded ids before
+	// applying updates, so reporting it would drop the run that owns it
+	// and then fail that run's update in this same task.
+	assert.Empty(t, generation.DiscardedOptimizerRunIds)
+	// Exactly one of the two runs is tracked.
+	require.Len(t, generation.Updates, 1)
+	assert.Equal(t, "opt-dup", generation.Updates[0].Run.OptimizerRunId)
 }

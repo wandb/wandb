@@ -150,7 +150,7 @@ fn test_http_file_reader_read_buffering() {
 
     let mut reader = HttpFileReader::new(url).unwrap();
 
-    // Reset counter after HEAD request
+    // Reset counter after the file size request
     *counter.lock().unwrap() = 0;
 
     // Read 10 bytes - should fetch buffer and cache it

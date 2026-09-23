@@ -36,7 +36,7 @@ func doneTask() *spb.SweepSchedulerServerNextTaskResponse {
 	return &spb.SweepSchedulerServerNextTaskResponse{
 		Task: &spb.SweepSchedulerServerNextTaskResponse_Done{
 			Done: &spb.SweepSchedulerServerDoneTask{
-				Reason: spb.SweepSchedulerServerDoneTask_REASON_EXHAUSTED,
+				Reason: spb.SweepSchedulerServerDoneTask_REASON_SWEEP_FINISHED,
 			},
 		},
 	}
