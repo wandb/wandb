@@ -113,7 +113,7 @@ def test_media_for_another_run_is_copied_before_binding(run_factory, tmp_path):
     image.bind_to_run(source_run, "legacy", 0)
     original_path = image._path
 
-    working_image = _media_ces._media_for_run(image, destination_run)
+    working_image = _media_ces._media_for_run(image)
     uri = _media_ces._bind_eval_table_media_to_run(
         working_image, destination_run, "eval"
     )
