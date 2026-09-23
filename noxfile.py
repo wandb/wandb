@@ -64,10 +64,26 @@ def install_wandb(session: nox.Session, dev: bool = True):
         session.env["WANDB_BUILD_COVERAGE"] = "true"
         session.env["WANDB_BUILD_GORACEDETECT"] = "true"
 
+    package = os.environ.get("WANDB_TEST_WHEEL", ".")
     if session.venv_backend == "uv":
-        install_timed(session, "--reinstall", "--refresh-package", "wandb", ".")
+        install_timed(
+            session,
+            "--reinstall",
+            "--refresh-package",
+            "wandb",
+            package,
+        )
     else:
-        install_timed(session, "--force-reinstall", ".")
+        install_timed(session, "--force-reinstall", package)
+
+    if package != ".":
+        # Pytest imports Python modules from the source tree, so make the
+        # prebuilt wheel's native artifacts available there too.
+        shutil.copytree(
+            site_packages_dir(session) / "wandb" / "bin",
+            pathlib.Path("wandb", "bin"),
+            dirs_exist_ok=True,
+        )
 
 
 def get_session_file_name(session: nox.Session) -> str:
@@ -143,6 +159,7 @@ def run_pytest(
         # which uses auth information from the home directory.
         "HOME": os.environ.get("HOME"),
         "CI": os.environ.get("CI"),
+        "TMPDIR": os.environ.get("TMPDIR"),
     }
 
     # Print 20 slowest tests.
@@ -205,13 +222,20 @@ def unit_tests(session: nox.Session) -> None:
 
     install_wandb(session, dev=not is_windows)
 
-    install_timed(
-        session,
+    requirements_args = [
         "-r",
         _requirements_file(session.python),
         # For test_reports:
         "polyfactory",
-    )
+    ]
+    if os.environ.get("WANDB_TEST_WHEEL"):
+        # The compiled requirements contain the complete dependency closure.
+        # Avoid resolving the local project referenced by its extras and
+        # rebuilding it after installing the prebuilt wheel.
+        excludes = pathlib.Path(session.create_tmp(), "requirements-excludes.txt")
+        excludes.write_text("wandb\n")
+        requirements_args[:0] = ["--no-deps", "--excludes", str(excludes)]
+    install_timed(session, *requirements_args)
 
     paths = session.posargs or ["tests/unit_tests"]
 
@@ -219,7 +243,12 @@ def unit_tests(session: nox.Session) -> None:
         session,
         paths=paths,
         # TODO: consider relaxing this once the test memory usage is under control.
-        opts={"n": "4" if is_windows else "8"},
+        opts={
+            "n": os.environ.get(
+                "WANDB_TEST_MAX_WORKERS",
+                "4" if is_windows else "8",
+            ),
+        },
     )
 
 
@@ -690,6 +719,10 @@ def combine_test_results(session: nox.Session) -> None:
 @nox.session(name="wandb-core-size-check", python="3.12")
 def wandb_core_size_check(session: nox.Session) -> None:
     """Compare wandb-core binary size against main branch."""
+    current_revision = session.run(
+        "git", "rev-parse", "HEAD", external=True, silent=True
+    ).strip()
+
     # Build and install main branch version.
     session.run("git", "fetch", "origin", "main", external=True)
     session.run("git", "switch", "--detach", "origin/main", external=True)
@@ -700,8 +733,8 @@ def wandb_core_size_check(session: nox.Session) -> None:
     )[0]
     main_size = main_binary.stat().st_size
 
-    # Build and install current branch version.
-    session.run("git", "switch", "-", external=True)
+    # Build and install the original revision. It may be detached in CI.
+    session.run("git", "switch", "--detach", current_revision, external=True)
     install_wandb(session, dev=False)
 
     current_binary = list(
@@ -747,6 +780,9 @@ def wandb_core_size_check(session: nox.Session) -> None:
 @nox.session(name="wandb-import-time-check", python="3.12")
 def wandb_import_time_check(session: nox.Session) -> None:
     """Compare wandb import time against main branch."""
+    current_revision = session.run(
+        "git", "rev-parse", "HEAD", external=True, silent=True
+    ).strip()
 
     def measure_import_time(num_samples: int = 5) -> float:
         """Measure the average time to import wandb across multiple samples."""
@@ -767,7 +803,7 @@ def wandb_import_time_check(session: nox.Session) -> None:
     install_wandb(session, dev=False)
     main_time = measure_import_time()
 
-    session.run("git", "switch", "-", external=True)
+    session.run("git", "switch", "--detach", current_revision, external=True)
     install_wandb(session, dev=False)
     current_time = measure_import_time()
 
