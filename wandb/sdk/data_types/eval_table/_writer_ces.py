@@ -61,6 +61,7 @@ _MAX_EVAL_TABLE_NAME_LENGTH = 256
 _MAX_ROWS_PER_TABLE = 100_000
 _MAX_SCORERS = 256
 _MAX_SCORER_NAME_LENGTH = 256
+_MAX_OVERSIZED_MEDIA_LOCATIONS = 5
 
 PrimitiveValueType = Literal["boolean", "integer", "number", "string"]
 _CESFieldSource = Literal["input", "output"]
@@ -472,7 +473,7 @@ class CESWriter:
                 )
                 if oversized_size is not None:
                     oversized_cells += 1
-                    if len(oversized_locations) < 5:
+                    if len(oversized_locations) < _MAX_OVERSIZED_MEDIA_LOCATIONS:
                         oversized_locations.append(
                             f"row {row_index}, {source} column {name!r} "
                             f"({oversized_size} bytes)"
@@ -640,9 +641,11 @@ class CESWriter:
                     observed.value_type,
                 )
             )
+        existing_type = existing.extension_type or existing.value_type
+        observed_type = observed.extension_type or observed.value_type
         raise UsageError(
-            f"EvalTable column {column!r} mixes {existing.value_type!r} and "
-            f"{observed.value_type!r} values."
+            f"EvalTable column {column!r} mixes {existing_type!r} and "
+            f"{observed_type!r} values."
         )
 
     def _record_media_telemetry(self, prepared: _CESWritePayloads) -> None:
