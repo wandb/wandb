@@ -135,9 +135,10 @@ class Optimizer(ABC):
         """Report the latest state and metrics of a run this optimizer proposed.
 
         Called on each poll while the run is in flight, and once more when it
-        reaches a terminal state. The terminal call also happens for runs
-        returned from `prune_runs`, so implementations that finalize a run at
-        prune time must treat it as a no-op rather than raise.
+        reaches a terminal state. A run returned from `prune_runs` gets that
+        terminal call only if it ends before the scheduler manages to stop
+        it, so implementations that finalize a run at prune time must treat
+        it as a no-op rather than raise.
 
         Args:
             run_id: The `RunSuggestion.run_id` this optimizer handed out.
@@ -222,7 +223,8 @@ class Optimizer(ABC):
         """Return True if the run should be pruned.
 
         Called by the default `prune_runs` for each polled run. Override to
-        stop single runs early; the default prunes nothing.
+        stop single runs early; the default prunes nothing. Returning True is
+        final, as described in `prune_runs`.
 
         Args:
             run_id: The `RunSuggestion.run_id` the optimizer handed out.
@@ -236,8 +238,9 @@ class Optimizer(ABC):
         """Return the optimizer run ids that should be pruned.
 
         Override to decide early stopping as a batch; the default delegates to
-        `prune_run`. An already-returned id may be offered again while its run
-        has not stopped, and implementations must tolerate that.
+        `prune_run`. Returning an id is final: the scheduler keeps trying to
+        stop the run until the backend accepts, and never offers the id
+        again, so implementations should finalize the run's trial here.
 
         Args:
             run_ids: Optimizer run ids to consider for pruning.

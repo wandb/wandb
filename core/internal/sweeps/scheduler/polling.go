@@ -445,8 +445,9 @@ func (s *Scheduler) buildUpdates(
 
 		if terminal {
 			run.state = TrackingTerminalDelivered
-		} else if run.runState == spb.SweepRunState_SWEEP_RUN_STATE_RUNNING ||
-			run.runState == spb.SweepRunState_SWEEP_RUN_STATE_PENDING {
+		} else if !run.pruned &&
+			(run.runState == spb.SweepRunState_SWEEP_RUN_STATE_RUNNING ||
+				run.runState == spb.SweepRunState_SWEEP_RUN_STATE_PENDING) {
 			candidates = append(candidates, run.optimizerRunID)
 		}
 	}
@@ -789,16 +790,8 @@ func runStateOccupiesSlot(state spb.SweepRunState) bool {
 	return !runStateIsTerminal(state)
 }
 
-// applyPrunes stops the runs the optimizer pruned.
-//
-// Ids outside the candidates offered with the task are ignored. Once
-// the backend accepts the stop, the run is retired immediately
-// failure to stop a run can be retried again by the optimizer
+// applyPrunes marks the offered candidates the optimizer pruned, then stops them.
 func (s *Scheduler) applyPrunes(ctx context.Context, pruneIDs []string) {
-	if len(pruneIDs) == 0 {
-		return
-	}
-
 	for _, id := range pruneIDs {
 		if !s.lastPruneCandidates[id] {
 			continue
@@ -807,20 +800,30 @@ func (s *Scheduler) applyPrunes(ctx context.Context, pruneIDs []string) {
 		if run == nil || !run.isTracked() || runStateIsTerminal(run.runState) {
 			continue
 		}
+		run.pruned = true
+	}
+	s.stopPrunedRuns(ctx)
+}
+
+// stopPrunedRuns retries every unstopped pruned run, since the optimizer never prunes one twice.
+func (s *Scheduler) stopPrunedRuns(ctx context.Context) {
+	for _, id := range s.runOrder {
+		run := s.runs[id]
+		if !run.pruned || !run.isTracked() || runStateIsTerminal(run.runState) {
+			continue
+		}
 
 		stopped, err := s.api.StopRun(ctx, run.storageID)
 		if err != nil {
-			// Leave the run a candidate; the optimizer may prune it
-			// again and must tolerate the repeat.
 			s.logger.Error(
-				"scheduler: failed to stop a pruned run",
+				"scheduler: failed to stop a pruned run; will retry",
 				"run", run.name, "error", err)
 			continue
 		}
 		if !stopped {
 			s.logger.Warn(
 				"scheduler: the backend refused to stop a pruned run; "+
-					"it may have already stopped",
+					"will retry",
 				"run", run.name)
 			continue
 		}
