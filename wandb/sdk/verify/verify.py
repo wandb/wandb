@@ -19,7 +19,7 @@ import requests
 import wandb
 from wandb.apis.public import Api
 from wandb.sdk.artifacts.artifact import Artifact
-from wandb.sdk.lib import runid
+from wandb.sdk.lib import runid, urls
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 PROJECT_NAME = "verify"
@@ -54,8 +54,8 @@ def print_results(failed_test_or_tests: str | list[str] | None, warning: bool) -
 
 
 def check_host(host: str) -> bool:
-    if host in ("api.wandb.ai", "http://api.wandb.ai", "https://api.wandb.ai"):
-        print_results("Cannot run wandb verify against api.wandb.ai", False)
+    if urls.is_forge_host(host if "://" in host else f"https://{host}"):
+        print_results("Cannot run wandb verify against CoreWeave Forge", False)
         return False
     return True
 

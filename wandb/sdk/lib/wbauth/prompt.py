@@ -33,7 +33,7 @@ def prompt_and_save_api_key(
     """Prompt for an API key and save it to the .netrc file.
 
     Args:
-        host: The URL to the W&B server, like 'https://api.wandb.ai'.
+        host: The URL to the W&B server, like 'https://forge.coreweave.com/api/wandb'.
         no_offline: If true, do not show an option to skip logging in.
         no_create: If true, do not show an option to create a new account.
         referrer: A referrer string to tack on as a query parameter to
@@ -189,7 +189,7 @@ def _authorize_url(host: HostUrl, *, signup: bool, referrer: str) -> str:
         signup: If true, shows a signup page.
         referrer: The referrer to add to the URL, if any.
     """
-    scheme, netloc, *_ = urlsplit(host.app_url, scheme="https")
+    scheme, netloc, path, _, _ = urlsplit(host.app_url, scheme="https")
 
     query_parts: list[str] = []
     if signup:
@@ -198,4 +198,4 @@ def _authorize_url(host: HostUrl, *, signup: bool, referrer: str) -> str:
         query_parts.append(f"ref={referrer}")
     query = "&".join(query_parts)
 
-    return urlunsplit((scheme, netloc, "authorize", query, ""))
+    return urlunsplit((scheme, netloc, f"{path.rstrip('/')}/authorize", query, ""))

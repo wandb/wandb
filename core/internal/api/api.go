@@ -33,7 +33,7 @@ const (
 	DefaultNonRetryTimeout = 30 * time.Second
 )
 
-// WBBaseURL is the address of the W&B backend, like https://api.wandb.ai.
+// WBBaseURL is the address of the W&B backend, like https://forge.coreweave.com/api/wandb.
 type WBBaseURL *url.URL
 
 // RetryableClient is an HTTP client with retries and special handling for W&B.
