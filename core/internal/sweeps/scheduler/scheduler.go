@@ -580,8 +580,18 @@ func (s *Scheduler) applyWarmStartResult(
 	for _, wandbRunID := range slices.Sorted(maps.Keys(result.Adoptions)) {
 		optimizerRunID := result.Adoptions[wandbRunID]
 
-		// Rejecting an adoption the scheduler cannot use lands in a
-		// later slice; every id here is taken at face value.
+		// Dropped, but never reported as a discard: the id names a run
+		// this scheduler already tracks, and the client forgets
+		// discarded ids before applying the task's updates, so
+		// reporting it would drop that run from the optimizer and make
+		// its own update in the same task fail.
+		if s.runs[optimizerRunID] != nil {
+			s.logger.Warn(
+				"scheduler: dropping an adoption whose optimizer run id "+
+					"is already in use",
+				"run", wandbRunID, "id", optimizerRunID)
+			continue
+		}
 		if run := s.runsByName[wandbRunID]; run != nil && run.isTracked() {
 			// Already tracked: adopted on an earlier page, or scheduled
 			// by this scheduler.
