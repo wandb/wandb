@@ -15,32 +15,12 @@ import (
 	"github.com/wandb/wandb/core/internal/observabilitytest"
 )
 
-// Keep fixture repositories isolated from an invoking Git hook.
-var gitLocalEnvVars = map[string]struct{}{
-	"GIT_ALTERNATE_OBJECT_DIRECTORIES": {},
-	"GIT_COMMON_DIR":                   {},
-	"GIT_CONFIG":                       {},
-	"GIT_CONFIG_COUNT":                 {},
-	"GIT_CONFIG_PARAMETERS":            {},
-	"GIT_DIR":                          {},
-	"GIT_GRAFT_FILE":                   {},
-	"GIT_IMPLICIT_WORK_TREE":           {},
-	"GIT_INDEX_FILE":                   {},
-	"GIT_INTERNAL_SUPER_PREFIX":        {},
-	"GIT_NO_REPLACE_OBJECTS":           {},
-	"GIT_OBJECT_DIRECTORY":             {},
-	"GIT_PREFIX":                       {},
-	"GIT_REPLACE_REF_BASE":             {},
-	"GIT_SHALLOW_FILE":                 {},
-	"GIT_WORK_TREE":                    {},
-}
-
 // git runs a git command in dir and returns its trimmed output.
 func git(t *testing.T, dir string, args ...string) string {
 	t.Helper()
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
-	cmd.Env = append(gitEnv(),
+	cmd.Env = append(gitops.GitEnv(),
 		"GIT_CONFIG_GLOBAL=/dev/null",
 		"GIT_CONFIG_NOSYSTEM=1",
 		"GIT_AUTHOR_NAME=Test User",
@@ -51,17 +31,6 @@ func git(t *testing.T, dir string, args ...string) string {
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, "git %s: %s", strings.Join(args, " "), out)
 	return strings.TrimSpace(string(out))
-}
-
-func gitEnv() []string {
-	env := make([]string, 0, len(os.Environ()))
-	for _, value := range os.Environ() {
-		name, _, _ := strings.Cut(value, "=")
-		if _, isLocal := gitLocalEnvVars[name]; !isLocal {
-			env = append(env, value)
-		}
-	}
-	return env
 }
 
 // commitFile writes a file, commits it, and returns the commit hash.
@@ -100,14 +69,19 @@ func TestIsAvailable(t *testing.T) {
 
 func TestIsAvailableIgnoresInheritedRepositoryEnvironment(t *testing.T) {
 	repoPath := setupTestRepo(t)
+	expectedHead := git(t, repoPath, "rev-parse", "HEAD")
 	outerRepo := t.TempDir()
 	git(t, outerRepo, "init", "-b", "master")
 	t.Setenv("GIT_DIR", filepath.Join(outerRepo, ".git"))
 	t.Setenv("GIT_WORK_TREE", outerRepo)
 	logger := observabilitytest.NewTestLogger(t)
+	g := gitops.New(repoPath, logger)
 
-	assert.True(t, gitops.New(repoPath, logger).IsAvailable())
+	assert.True(t, g.IsAvailable())
 	assert.False(t, gitops.New(t.TempDir(), logger).IsAvailable())
+	latest, err := g.LatestCommit("HEAD")
+	require.NoError(t, err)
+	assert.Equal(t, expectedHead, latest)
 }
 
 func TestLatestCommit(t *testing.T) {

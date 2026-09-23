@@ -10,24 +10,12 @@ import (
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
-// Git exports these variables to hooks, where they override cmd.Dir.
-var gitLocalEnvVars = map[string]struct{}{
-	"GIT_ALTERNATE_OBJECT_DIRECTORIES": {},
-	"GIT_COMMON_DIR":                   {},
-	"GIT_CONFIG":                       {},
-	"GIT_CONFIG_COUNT":                 {},
-	"GIT_CONFIG_PARAMETERS":            {},
-	"GIT_DIR":                          {},
-	"GIT_GRAFT_FILE":                   {},
-	"GIT_IMPLICIT_WORK_TREE":           {},
-	"GIT_INDEX_FILE":                   {},
-	"GIT_INTERNAL_SUPER_PREFIX":        {},
-	"GIT_NO_REPLACE_OBJECTS":           {},
-	"GIT_OBJECT_DIRECTORY":             {},
-	"GIT_PREFIX":                       {},
-	"GIT_REPLACE_REF_BASE":             {},
-	"GIT_SHALLOW_FILE":                 {},
-	"GIT_WORK_TREE":                    {},
+// Repository overrides that take precedence over cmd.Dir. Keep this in sync
+// with _GIT_REPO_OVERRIDE_ENV in wandb/sdk/lib/gitlib.py.
+var gitRepoOverrideEnv = map[string]struct{}{
+	"GIT_DIR":        {},
+	"GIT_INDEX_FILE": {},
+	"GIT_WORK_TREE":  {},
 }
 
 func runCommand(command []string, dir, outFile string) error {
@@ -59,10 +47,11 @@ func runCommandWithOutput(command []string, dir string) ([]byte, error) {
 }
 
 func gitEnv() []string {
-	env := make([]string, 0, len(os.Environ()))
-	for _, value := range os.Environ() {
+	environ := os.Environ()
+	env := make([]string, 0, len(environ))
+	for _, value := range environ {
 		name, _, _ := strings.Cut(value, "=")
-		if _, isLocal := gitLocalEnvVars[name]; !isLocal {
+		if _, isOverride := gitRepoOverrideEnv[name]; !isOverride {
 			env = append(env, value)
 		}
 	}
