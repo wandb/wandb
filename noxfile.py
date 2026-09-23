@@ -689,16 +689,24 @@ def combine_test_results(session: nox.Session) -> None:
 
 @nox.session(name="wandb-core-size-check", python="3.12")
 def wandb_core_size_check(session: nox.Session) -> None:
-    """Compare wandb-core binary size against main branch."""
-    # Build and install main branch version.
+    """Compare wandb-core binary size against the merge base with main."""
     session.run("git", "fetch", "origin", "main", external=True)
-    session.run("git", "switch", "--detach", "origin/main", external=True)
+    base = session.run(
+        "git", "merge-base", "HEAD", "origin/main", external=True, silent=True
+    ).strip()
+    head = session.run("git", "rev-parse", "HEAD", external=True, silent=True).strip()
+    if base == head:
+        session.log("HEAD is on main; nothing to compare.")
+        return
+
+    # Build and install the base version.
+    session.run("git", "switch", "--detach", base, external=True)
     install_wandb(session, dev=False)
 
-    main_binary = list(
+    base_binary = list(
         (site_packages_dir(session) / "wandb" / "bin").glob("wandb-core*")
     )[0]
-    main_size = main_binary.stat().st_size
+    base_size = base_binary.stat().st_size
 
     # Build and install current branch version.
     session.run("git", "switch", "-", external=True)
@@ -716,11 +724,11 @@ def wandb_core_size_check(session: nox.Session) -> None:
             b /= 1024
         return f"{b:.1f} GB"
 
-    diff = current_size - main_size
-    pct = (diff / main_size) if main_size else 0
+    diff = current_size - base_size
+    pct = (diff / base_size) if base_size else 0
 
     session.log("=" * 60)
-    session.log(f"Main branch:  {fmt_size(main_size)} ({main_size:,} bytes)")
+    session.log(f"Base:         {fmt_size(base_size)} ({base_size:,} bytes)")
     session.log(f"Current:      {fmt_size(current_size)} ({current_size:,} bytes)")
     session.log(f"Difference:   {fmt_size(abs(diff))} ({pct:+.0%})")
     session.log("=" * 60)
@@ -737,9 +745,6 @@ def wandb_core_size_check(session: nox.Session) -> None:
             """)
         )
         session.error(f"Binary size increased by {pct:+.0%} (>10% threshold)")
-    # If the binary size has increased due to lib upgrades
-    # It maybe related to some locally modified changes in the vendored arrow-go code.
-    # See: https://github.com/wandb/wandb/pull/10712 for the files that were modified.
     elif pct > 0.05:
         session.warn(f"Binary size increased by {pct:+.0%}")
 
