@@ -15,7 +15,7 @@ inputs:
     description: Number of pytest-split groups
     default: ""
   server-image:
-    description: local-testcontainer image to run the tests against
+    description: "local-testcontainer image to run the tests against, like us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:master"
     default: ""
   artifact-name:
     description: Name of the uploaded test results

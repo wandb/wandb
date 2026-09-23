@@ -199,7 +199,7 @@ jobs:
           nox -s wandb-import-time-check
 
   system-tests:
-    name: System tests
+    name: System tests · Python ${{ matrix.python }} · Server ${{ matrix.server }} · ${{ matrix.group }} of 8
     needs: build-wheel
     # Pulling the private server image needs this repository's GCP identity.
     if: ${{ !github.event.pull_request.head.repo.fork }}
@@ -235,7 +235,7 @@ jobs:
           artifact-name: system-tests-${{ matrix.python }}-${{ matrix.server }}-${{ matrix.group }}
 
   server-tests:
-    name: Server tests
+    name: ${{ matrix.name }} · Python ${{ matrix.python }}
     needs: build-wheel
     if: ${{ !github.event.pull_request.head.repo.fork }}
     runs-on: ubuntu-latest-8-cores
@@ -247,10 +247,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { session: notebook_tests, python: "3.10" }
-          - { session: notebook_tests, python: "3.13" }
-          - { session: functional_tests, python: "3.13" }
-          - { session: experimental_tests, python: "3.13" }
+          - { name: Notebook tests, session: notebook_tests, python: "3.10" }
+          - { name: Notebook tests, session: notebook_tests, python: "3.13" }
+          - { name: Functional tests, session: functional_tests, python: "3.13" }
+          - { name: Experimental client tests, session: experimental_tests, python: "3.13" }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
