@@ -9,6 +9,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/transactionlog"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // DumpRecords writes every record in a .wandb file to w as prototext,
@@ -33,7 +34,7 @@ func DumpRecords(runFile, wandbDir string, w io.Writer) error {
 	marshal := prototext.MarshalOptions{Multiline: true, Indent: "  "}
 
 	for num := 1; ; {
-		record, err := reader.Read()
+		record, err := readRecord(reader)
 
 		switch {
 		case errors.Is(err, io.EOF):
@@ -43,12 +44,13 @@ func DumpRecords(runFile, wandbDir string, w io.Writer) error {
 				"# reached the end of an incomplete .wandb file"+
 					" (the run may still be active or was interrupted)")
 			return err
-		case err != nil:
-			if _, err := fmt.Fprintf(w,
-				"# skipped corrupt data: %v\n", err); err != nil {
+		case errors.Is(err, errCorruptSkipped):
+			if _, err := fmt.Fprintf(w, "# %v\n", err); err != nil {
 				return err
 			}
 			continue
+		case err != nil:
+			return err
 		}
 
 		_, err = fmt.Fprintf(w, "# record %d: %s\n%s\n",
@@ -58,4 +60,25 @@ func DumpRecords(runFile, wandbDir string, w io.Writer) error {
 		}
 		num++
 	}
+}
+
+// errCorruptSkipped wraps a read error after which reading continues past
+// the corrupt data.
+var errCorruptSkipped = errors.New("skipped corrupt data")
+
+// readRecord reads the next record.
+//
+// An error wrapping errCorruptSkipped means corrupt data was skipped and
+// reading can go on. Any other error besides EOF would repeat on every
+// call, as for a file that is not a transaction log.
+func readRecord(reader *transactionlog.Reader) (*spb.Record, error) {
+	before := reader.NextRecordOffset()
+	record, err := reader.Read()
+	if err != nil &&
+		!errors.Is(err, io.EOF) &&
+		!errors.Is(err, io.ErrUnexpectedEOF) &&
+		reader.NextRecordOffset() > before {
+		return nil, fmt.Errorf("%w: %v", errCorruptSkipped, err)
+	}
+	return record, err
 }
