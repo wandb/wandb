@@ -398,6 +398,23 @@ func (upserter *RunUpserter) EnvironmentJSON() ([]byte, error) {
 	return upserter.environment.ToJSON()
 }
 
+// GitInfo returns the git commit and remote URL for this run.
+//
+// Returns nil if neither the commit nor the URL are available.
+func (upserter *RunUpserter) GitInfo() *spb.GitRepoRecord {
+	upserter.mu.Lock()
+	defer upserter.mu.Unlock()
+
+	if upserter.params.Commit == "" && upserter.params.RemoteURL == "" {
+		return nil
+	}
+
+	return &spb.GitRepoRecord{
+		Commit:    upserter.params.Commit,
+		RemoteUrl: upserter.params.RemoteURL,
+	}
+}
+
 func (upserter *RunUpserter) StartingStep() int64 {
 	upserter.mu.Lock()
 	defer upserter.mu.Unlock()

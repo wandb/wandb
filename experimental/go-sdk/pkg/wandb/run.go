@@ -83,7 +83,6 @@ func (r *Run) start() {
 		Entity:  result.GetRunResult().GetRun().GetEntity(),
 		RunName: result.GetRunResult().GetRun().GetDisplayName(),
 	})
-	result = r.interfaces.DeliverRunStartRequest(r.settings).Wait()
 	// print the header
 	r.printRunURL()
 }

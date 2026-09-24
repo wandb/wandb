@@ -32,7 +32,7 @@ func TestSystemMonitor_BasicStateTransitions(t *testing.T) {
 
 	assert.Equal(t, monitor.StateStopped, sm.GetState())
 
-	sm.Start(nil)
+	sm.Start()
 	assert.Equal(t, monitor.StateRunning, sm.GetState())
 
 	sm.Pause()
@@ -49,8 +49,8 @@ func TestSystemMonitor_RepeatedCalls(t *testing.T) {
 	sm := newTestSystemMonitor(t)
 
 	// Multiple starts
-	sm.Start(nil)
-	sm.Start(nil)
+	sm.Start()
+	sm.Start()
 	assert.Equal(t, monitor.StateRunning, sm.GetState())
 
 	// Multiple pauses
@@ -91,10 +91,10 @@ func TestSystemMonitor_UnexpectedTransitions(t *testing.T) {
 	)
 
 	// Start and then unexpected transitions
-	sm.Start(nil)
+	sm.Start()
 	assert.Equal(t, monitor.StateRunning, sm.GetState(), "Start should change state to running")
 
-	sm.Start(nil) // Start when already running
+	sm.Start() // Start when already running
 	assert.Equal(
 		t,
 		monitor.StateRunning,
@@ -122,7 +122,7 @@ func TestSystemMonitor_UnexpectedTransitions(t *testing.T) {
 		"Pause should not change state when already paused",
 	)
 
-	sm.Start(nil) // Start when paused
+	sm.Start() // Start when paused
 	assert.Equal(t, monitor.StatePaused, sm.GetState(), "Start should not change state when paused")
 
 	// Finish from any state
@@ -134,7 +134,7 @@ func TestSystemMonitor_UnexpectedTransitions(t *testing.T) {
 		"Finish should change state to stopped from paused",
 	)
 
-	sm.Start(nil)
+	sm.Start()
 	sm.Finish()
 	assert.Equal(
 		t,
@@ -148,7 +148,7 @@ func TestSystemMonitor_FullCycle(t *testing.T) {
 	sm := newTestSystemMonitor(t)
 
 	// Full cycle of operations
-	sm.Start(nil)
+	sm.Start()
 	assert.Equal(t, monitor.StateRunning, sm.GetState())
 
 	sm.Pause()
@@ -167,7 +167,7 @@ func TestSystemMonitor_FullCycle(t *testing.T) {
 	assert.Equal(t, monitor.StateStopped, sm.GetState())
 
 	// Start again after finishing
-	sm.Start(nil)
+	sm.Start()
 	assert.Equal(t, monitor.StateRunning, sm.GetState())
 
 	sm.Finish()

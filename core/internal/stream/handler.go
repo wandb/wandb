@@ -7,10 +7,10 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"sync"
 	"time"
 
 	"golang.org/x/time/rate"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/google/wire"
 
@@ -73,8 +73,16 @@ type Handler struct {
 	// fwdChan is the channel for forwarding messages to the next component
 	fwdChan chan runwork.Work
 
+	// receivedExitCh is closed once the Handler receives an Exit record.
+	//
+	// This happens before the Handler's input channel is closed.
+	receivedExitCh chan struct{}
+
 	// logger is the logger for the handler
 	logger *observability.CoreLogger
+
+	// beforeExitWG has to complete before the Exit record can be processed.
+	beforeExitWG sync.WaitGroup
 
 	mailbox *mailbox.Mailbox
 
@@ -93,9 +101,6 @@ type Handler struct {
 
 	// pollExitLogRateLimit limits log messages when handling PollExit requests
 	pollExitLogRateLimit *rate.Limiter
-
-	// runRecord is the runRecord record received from the server
-	runRecord *spb.RunRecord
 
 	// runSummary contains summaries of the run's metrics.
 	//
@@ -132,6 +137,7 @@ func (f *HandlerFactory) New(extraWork runwork.ExtraWork) *Handler {
 		commit:               f.Commit,
 		fileTransferStats:    f.FileTransferStats,
 		fwdChan:              make(chan runwork.Work, BufferSize),
+		receivedExitCh:       make(chan struct{}),
 		logger:               f.Logger,
 		mailbox:              f.Mailbox,
 		metricHandler:        runmetric.New(),
@@ -153,10 +159,29 @@ func (h *Handler) OutChan() <-chan runwork.Work {
 
 // Do processes all work on the input channel.
 //
+// An Exit record must be pushed to the channel before it is closed.
+//
 //gocyclo:ignore
 func (h *Handler) Do(allWork <-chan runwork.Work) {
 	defer h.logger.Reraise("stream")
 	h.logger.Info("handler: started")
+
+	// Start the system monitor and generate the code/patch records after
+	// the run initializes.
+	h.beforeExitWG.Go(func() {
+		select {
+		case <-h.receivedExitCh:
+			return
+		case <-h.runHandle.Ready():
+		}
+
+		h.systemMonitor.Start()
+		if h.settings.IsSaveCode() && !h.settings.IsDisableMachineInfo() {
+			h.handleCodeSave()
+			h.handlePatchSave()
+		}
+	})
+
 	for work := range allWork {
 		h.logger.Debug("handler: got work", "work", work)
 
@@ -164,6 +189,15 @@ func (h *Handler) Do(allWork <-chan runwork.Work) {
 			h.fwdWork(work)
 		}
 	}
+
+	select {
+	case <-h.receivedExitCh: // OK
+	default:
+		close(h.receivedExitCh)
+		h.beforeExitWG.Wait()
+		h.logger.CaptureError("stream", errors.New("handler: no exit"))
+	}
+
 	h.Close()
 }
 
@@ -292,8 +326,6 @@ func (h *Handler) handleRequest(
 		h.handleRequestPartialHistory(record, x.PartialHistory)
 	case *spb.Request_PollExit:
 		h.handleRequestPollExit(record, request)
-	case *spb.Request_RunStart:
-		h.handleRequestRunStart(x.RunStart, request)
 	case *spb.Request_SampledHistory:
 		h.handleRequestSampledHistory(record, request)
 	case *spb.Request_PythonPackages:
@@ -479,41 +511,6 @@ func (h *Handler) handleHeader(record *spb.Record) {
 	h.fwdRecord(record, nil)
 }
 
-func (h *Handler) handleRequestRunStart(
-	req *spb.RunStartRequest,
-	request *runwork.Request,
-) {
-	var ok bool
-	run := req.Run
-
-	if h.runRecord, ok = proto.Clone(run).(*spb.RunRecord); !ok {
-		h.logger.CaptureFatalAndPanic(
-			"stream",
-			errors.New("handleRunStart: failed to clone run"),
-		)
-	}
-
-	// TODO: Move computation of git state to wandb-core.
-	var git *spb.GitRepoRecord
-	if run.GetGit().GetRemoteUrl() != "" || run.GetGit().GetCommit() != "" {
-		git = &spb.GitRepoRecord{
-			RemoteUrl: run.GetGit().GetRemoteUrl(),
-			Commit:    run.GetGit().GetCommit(),
-		}
-	}
-
-	// start the system monitor
-	h.systemMonitor.Start(git)
-
-	// save code and patch
-	if h.settings.IsSaveCode() && !h.settings.IsDisableMachineInfo() {
-		h.handleCodeSave()
-		h.handlePatchSave()
-	}
-
-	h.respond(request, &spb.Response{})
-}
-
 func (h *Handler) handleRequestProbeSystemInfo(record *spb.Record) {
 	h.systemMonitor.Probe()
 }
@@ -669,12 +666,32 @@ func (h *Handler) handleRequestAttach(
 	record *spb.Record,
 	request *runwork.Request,
 ) {
-	h.respond(request, &spb.Response{
-		ResponseType: &spb.Response_AttachResponse{
-			AttachResponse: &spb.AttachResponse{
-				Run: h.runRecord,
+	h.beforeExitWG.Go(func() {
+		select {
+		case <-h.receivedExitCh:
+			request.WillNotRespond()
+			return
+
+		case <-h.runHandle.Ready():
+		}
+
+		upserter, err := h.runHandle.Upserter()
+		if err != nil {
+			request.WillNotRespond()
+			h.logger.CaptureError("stream",
+				fmt.Errorf("handler: handleRequestAttach: %v", err))
+			return
+		}
+
+		runRecord := &spb.RunRecord{}
+		upserter.FillRunRecord(runRecord)
+		h.respond(request, &spb.Response{
+			ResponseType: &spb.Response_AttachResponse{
+				AttachResponse: &spb.AttachResponse{
+					Run: runRecord,
+				},
 			},
-		},
+		})
 	})
 }
 
@@ -701,6 +718,17 @@ func (h *Handler) handleExit(
 	exit *spb.RunExitRecord,
 	request *runwork.Request,
 ) {
+	select {
+	case <-h.receivedExitCh:
+		h.logger.CaptureError("stream", errors.New("handler: already got exit"))
+		request.WillNotRespond()
+		return
+	default:
+	}
+
+	close(h.receivedExitCh)
+	h.beforeExitWG.Wait()
+
 	exit.Runtime = int32(h.runHandle.Runtime().Seconds())
 
 	if !h.settings.IsEnableServerSideDerivedSummary() {
@@ -967,7 +995,20 @@ func (h *Handler) handlePartialHistoryAsync(request *spb.PartialHistoryRequest) 
 func (h *Handler) handlePartialHistorySync(request *spb.PartialHistoryRequest) {
 	if h.partialHistory == nil {
 		h.partialHistory = runhistory.New()
-		h.partialHistoryStep = h.runRecord.GetStartingStep()
+
+		// TODO: Remove this when we don't need steps in the transaction log.
+		//
+		// This sets up the initial step for resumed/forked/rewound runs.
+		upserter, err := h.runHandle.Upserter()
+		if err != nil {
+			h.logger.CaptureError(
+				"stream",
+				fmt.Errorf("handler: got history before run initialized"),
+			)
+			h.partialHistoryStep = 0
+		} else {
+			h.partialHistoryStep = upserter.StartingStep()
+		}
 	}
 
 	if request.GetStep() != nil {

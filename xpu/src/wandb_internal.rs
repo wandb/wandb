@@ -774,11 +774,6 @@ pub struct BranchPoint {
 /// the backend returns when creating a new online run), and some fields may be
 /// updated (like `entity` and `project`, which are determined through a query
 /// if not given).
-///
-/// After creating a run, the values in RunUpdateResult must be propagated to
-/// the RunStartRequest. This is a legacy pattern that wandb-core uses to
-/// communicate with itself. The updated run record may be returned to another
-/// process that "attaches" to the run via the AttachResponse.
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RunRecord {
     #[prost(string, tag = "1")]
@@ -1672,7 +1667,7 @@ pub struct AlertResult {}
 pub struct Request {
     #[prost(
         oneof = "request::RequestType",
-        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 84, 11, 12, 13, 14, 17, 20, 21, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 81, 82, 83, 1000"
+        tags = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 84, 12, 13, 14, 17, 20, 21, 23, 24, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 77, 78, 81, 82, 83, 1000"
     )]
     pub request_type: ::core::option::Option<request::RequestType>,
 }
@@ -1702,8 +1697,6 @@ pub mod request {
         PartialHistory(super::PartialHistoryRequest),
         #[prost(message, tag = "84")]
         HistoryStep(super::HistoryStepRequest),
-        #[prost(message, tag = "11")]
-        RunStart(super::RunStartRequest),
         #[prost(message, tag = "12")]
         CheckVersion(super::CheckVersionRequest),
         #[prost(message, tag = "13")]
@@ -1765,7 +1758,7 @@ pub mod request {
 pub struct Response {
     #[prost(
         oneof = "response::ResponseType",
-        tags = "18, 19, 20, 24, 25, 26, 27, 75, 28, 29, 30, 31, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 74, 1000"
+        tags = "18, 19, 20, 24, 25, 26, 27, 75, 29, 30, 31, 35, 36, 37, 64, 65, 66, 67, 68, 69, 71, 70, 74, 1000"
     )]
     pub response_type: ::core::option::Option<response::ResponseType>,
 }
@@ -1789,8 +1782,6 @@ pub mod response {
         SampledHistoryResponse(super::SampledHistoryResponse),
         #[prost(message, tag = "75")]
         HistoryStepResponse(super::HistoryStepResponse),
-        #[prost(message, tag = "28")]
-        RunStartResponse(super::RunStartResponse),
         #[prost(message, tag = "29")]
         CheckVersionResponse(super::CheckVersionResponse),
         #[prost(message, tag = "30")]
@@ -2434,16 +2425,6 @@ pub struct RunStatusResponse {
     #[prost(message, optional, tag = "3")]
     pub sync_time: ::core::option::Option<::prost_types::Timestamp>,
 }
-/// RunStartRequest: start the run
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct RunStartRequest {
-    #[prost(message, optional, tag = "1")]
-    pub run: ::core::option::Option<RunRecord>,
-    #[prost(message, optional, tag = "200")]
-    pub info: ::core::option::Option<RequestInfo>,
-}
-#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct RunStartResponse {}
 /// CheckVersion:
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct CheckVersionRequest {

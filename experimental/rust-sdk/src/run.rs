@@ -172,38 +172,6 @@ impl Run {
             }
         }
 
-        let mut server_publish_run_start = wandb_internal::Record {
-            record_type: Some(wandb_internal::record::RecordType::Request(
-                wandb_internal::Request {
-                    request_type: Some(wandb_internal::request::RequestType::RunStart(
-                        wandb_internal::RunStartRequest {
-                            run: Some(wandb_internal::RunRecord {
-                                run_id: self.id(),
-                                ..Default::default()
-                            }),
-                            info: Some(wandb_internal::RequestInfo {
-                                stream_id: self.id(),
-                                ..Default::default()
-                            }),
-                        },
-                    )),
-                },
-            )),
-            control: Some(wandb_internal::Control {
-                local: true,
-                ..Default::default()
-            }),
-            info: Some(wandb_internal::RecordInfo {
-                stream_id: self.id(),
-                ..Default::default()
-            }),
-            ..Default::default()
-        };
-        let result = self
-            .interface
-            .conn
-            .send_and_recv_message(&mut server_publish_run_start, &mut self.interface.handles);
-
         tracing::debug!("Result: {:?}", result);
 
         if self.settings.offline() {
