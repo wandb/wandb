@@ -164,6 +164,7 @@ def artifact_image_factory(tmp_path, monkeypatch):
 
     return make
 
+
 _IMAGE_FIELD = _media_ces.EvalTableMediaField(
     eval_table_key="eval",
     source="inputs",
@@ -661,6 +662,10 @@ def test_image_rows_merge_overlay_class_labels(
         expected_labels
     )
     assert wandb_config["mask/class_labels"][singleton_key]["value"] == expected_labels
+    assert run._add_singleton.call_args_list == [
+        call("bounding_box/class_labels", singleton_key, expected_labels),
+        call("mask/class_labels", singleton_key, expected_labels),
+    ]
 
 
 def test_image_columns_register_distinct_overlay_class_labels(

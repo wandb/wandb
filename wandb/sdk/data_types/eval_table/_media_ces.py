@@ -78,6 +78,51 @@ class EvalTableMediaField:
         return f"{media_key}_wandb_delimeter_{overlay_key}"
 
 
+class _ClassLabelAccumulator:
+    def __init__(self) -> None:
+        self._labels: dict[
+            tuple[str, str],
+            dict[int | str, str],
+        ] = {}
+
+    def add(
+        self,
+        media: Media,
+        field: EvalTableMediaField,
+        class_labels: dict[int | str, str] | None,
+    ) -> None:
+        if class_labels is None:
+            return
+
+        if isinstance(media, BoundingBoxes2D):
+            singleton_type = "bounding_box/class_labels"
+        elif isinstance(media, ImageMask):
+            singleton_type = "mask/class_labels"
+        else:
+            return
+
+        key = (singleton_type, field.singleton_key(media._key))
+        merged_labels = self._labels.setdefault(key, {})
+        for class_id, name in class_labels.items():
+            merged_labels.setdefault(class_id, name)
+
+    def flush(self, run: Run) -> None:
+        for (singleton_type, singleton_key), class_labels in self._labels.items():
+            existing_entry = (
+                run._config["_wandb"].get(singleton_type, {}).get(singleton_key)
+            )
+            existing_labels = (
+                existing_entry.get("value")
+                if isinstance(existing_entry, dict)
+                else None
+            )
+            merged_labels = dict(class_labels)
+            if isinstance(existing_labels, dict):
+                # Preserve established names on ID collisions, matching Table schemas.
+                merged_labels.update(existing_labels)
+            run._add_singleton(singleton_type, singleton_key, merged_labels)
+
+
 class UnsupportedMediaVariantError(TypeError):
     """Raised when EvalTable supports a media type but not its backing data."""
 
@@ -101,31 +146,37 @@ def prepare_media(
     media: Media,
     run: Run,
     field: EvalTableMediaField,
+    class_label_accumulator: _ClassLabelAccumulator | None = None,
 ) -> PreparedMediaCell:
     """Prepare supported media for one EvalTable cell in the active run."""
     if isinstance(media, Image):
-        return prepare_image(media, run, field)
+        return prepare_image(media, run, field, class_label_accumulator)
     raise UsageError(
         f"CES EvalTable does not support media type {type(media).__name__!r}."
     )
+
 
 def prepare_image(
     image: Image,
     run: Run,
     field: EvalTableMediaField,
+    class_label_accumulator: _ClassLabelAccumulator | None = None,
 ) -> PreparedMediaCell:
+    accumulated_labels = class_label_accumulator or _ClassLabelAccumulator()
     working_image = _image_for_run(image, run)
     if _committed_artifact_ref_url(working_image) is None:
         _ensure_eval_table_run_file(working_image, run, field.eval_table_key)
 
     for overlay in _image_overlays(working_image):
         _ensure_eval_table_run_file(overlay, run, field.eval_table_key)
-        _register_class_labels(
+        accumulated_labels.add(
             overlay,
-            run,
             field,
             _overlay_class_labels(overlay, working_image._classes),
         )
+
+    if class_label_accumulator is None:
+        accumulated_labels.flush(run)
 
     image_json = working_image.to_json(run)
     extension_value = _image_ces_extension_value(image_json, run)
@@ -302,35 +353,6 @@ def _place_media_file_in_run(media: Media, run: Run, logical_path: str) -> None:
     media._path = new_path
     media._run = run
     run._publish_file(logical_path)
-
-
-def _register_class_labels(
-    media: Media,
-    run: Run,
-    field: EvalTableMediaField,
-    class_labels: dict[int | str, str] | None,
-) -> None:
-    if class_labels is None:
-        return
-
-    singleton_key = field.singleton_key(media._key)
-    if isinstance(media, BoundingBoxes2D):
-        singleton_type = "bounding_box/class_labels"
-    elif isinstance(media, ImageMask):
-        singleton_type = "mask/class_labels"
-    else:
-        return
-
-    existing_entry = run._config["_wandb"].get(singleton_type, {}).get(singleton_key)
-    existing_labels = (
-        existing_entry.get("value") if isinstance(existing_entry, dict) else None
-    )
-    merged_labels = dict(class_labels)
-    if isinstance(existing_labels, dict):
-        # Preserve the established name on ID collisions, matching Table schemas.
-        merged_labels.update(existing_labels)
-
-    run._add_singleton(singleton_type, singleton_key, merged_labels)
 
 
 def _logical_run_file_path(media: Media, run: Run) -> LogicalPath:
