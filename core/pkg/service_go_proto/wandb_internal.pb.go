@@ -2549,7 +2549,7 @@ type HistoryValue struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Value:
 	//
-	//	*HistoryValue_NullValue
+	//	*HistoryValue_None
 	//	*HistoryValue_Boolean
 	//	*HistoryValue_Integer
 	//	*HistoryValue_Number
@@ -2597,10 +2597,10 @@ func (x *HistoryValue) GetValue() isHistoryValue_Value {
 	return nil
 }
 
-func (x *HistoryValue) GetNullValue() structpb.NullValue {
+func (x *HistoryValue) GetNone() structpb.NullValue {
 	if x != nil {
-		if x, ok := x.Value.(*HistoryValue_NullValue); ok {
-			return x.NullValue
+		if x, ok := x.Value.(*HistoryValue_None); ok {
+			return x.None
 		}
 	}
 	return structpb.NullValue(0)
@@ -2655,8 +2655,8 @@ type isHistoryValue_Value interface {
 	isHistoryValue_Value()
 }
 
-type HistoryValue_NullValue struct {
-	NullValue structpb.NullValue `protobuf:"varint,1,opt,name=null_value,json=nullValue,proto3,enum=google.protobuf.NullValue,oneof"`
+type HistoryValue_None struct {
+	None structpb.NullValue `protobuf:"varint,1,opt,name=none,proto3,enum=google.protobuf.NullValue,oneof"`
 }
 
 type HistoryValue_Boolean struct {
@@ -2679,7 +2679,7 @@ type HistoryValue_Json struct {
 	Json string `protobuf:"bytes,6,opt,name=json,proto3,oneof"`
 }
 
-func (*HistoryValue_NullValue) isHistoryValue_Value() {}
+func (*HistoryValue_None) isHistoryValue_Value() {}
 
 func (*HistoryValue_Boolean) isHistoryValue_Value() {}
 
@@ -12155,10 +12155,9 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\rHistoryRecord\x12/\n" +
 	"\x04item\x18\x01 \x03(\v2\x1b.wandb_internal.HistoryItemR\x04item\x12/\n" +
 	"\x04step\x18\x02 \x01(\v2\x1b.wandb_internal.HistoryStepR\x04step\x121\n" +
-	"\x05_info\x18\xc8\x01 \x01(\v2\x1b.wandb_internal._RecordInfoR\x04Info\"\xd2\x01\n" +
-	"\fHistoryValue\x12;\n" +
-	"\n" +
-	"null_value\x18\x01 \x01(\x0e2\x1a.google.protobuf.NullValueH\x00R\tnullValue\x12\x1a\n" +
+	"\x05_info\x18\xc8\x01 \x01(\v2\x1b.wandb_internal._RecordInfoR\x04Info\"\xc7\x01\n" +
+	"\fHistoryValue\x120\n" +
+	"\x04none\x18\x01 \x01(\x0e2\x1a.google.protobuf.NullValueH\x00R\x04none\x12\x1a\n" +
 	"\aboolean\x18\x02 \x01(\bH\x00R\aboolean\x12\x1a\n" +
 	"\ainteger\x18\x03 \x01(\x12H\x00R\ainteger\x12\x18\n" +
 	"\x06number\x18\x04 \x01(\x01H\x00R\x06number\x12\x14\n" +
@@ -13188,7 +13187,7 @@ var file_wandb_proto_wandb_internal_proto_depIdxs = []int32{
 	31,  // 54: wandb_internal.HistoryRecord.item:type_name -> wandb_internal.HistoryItem
 	28,  // 55: wandb_internal.HistoryRecord.step:type_name -> wandb_internal.HistoryStep
 	176, // 56: wandb_internal.HistoryRecord._info:type_name -> wandb_internal._RecordInfo
-	179, // 57: wandb_internal.HistoryValue.null_value:type_name -> google.protobuf.NullValue
+	179, // 57: wandb_internal.HistoryValue.none:type_name -> google.protobuf.NullValue
 	30,  // 58: wandb_internal.HistoryItem.value:type_name -> wandb_internal.HistoryValue
 	2,   // 59: wandb_internal.OutputRecord.output_type:type_name -> wandb_internal.OutputRecord.OutputType
 	178, // 60: wandb_internal.OutputRecord.timestamp:type_name -> google.protobuf.Timestamp
@@ -13420,7 +13419,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 		(*Result_Response)(nil),
 	}
 	file_wandb_proto_wandb_internal_proto_msgTypes[20].OneofWrappers = []any{
-		(*HistoryValue_NullValue)(nil),
+		(*HistoryValue_None)(nil),
 		(*HistoryValue_Boolean)(nil),
 		(*HistoryValue_Integer)(nil),
 		(*HistoryValue_Number)(nil),

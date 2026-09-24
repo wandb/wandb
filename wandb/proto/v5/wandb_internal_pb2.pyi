@@ -377,20 +377,20 @@ class HistoryRecord(_message.Message):
     def __init__(self, item: _Optional[_Iterable[_Union[HistoryItem, _Mapping]]] = ..., step: _Optional[_Union[HistoryStep, _Mapping]] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
 
 class HistoryValue(_message.Message):
-    __slots__ = ("null_value", "boolean", "integer", "number", "text", "json")
-    NULL_VALUE_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("none", "boolean", "integer", "number", "text", "json")
+    NONE_FIELD_NUMBER: _ClassVar[int]
     BOOLEAN_FIELD_NUMBER: _ClassVar[int]
     INTEGER_FIELD_NUMBER: _ClassVar[int]
     NUMBER_FIELD_NUMBER: _ClassVar[int]
     TEXT_FIELD_NUMBER: _ClassVar[int]
     JSON_FIELD_NUMBER: _ClassVar[int]
-    null_value: _struct_pb2.NullValue
+    none: _struct_pb2.NullValue
     boolean: bool
     integer: int
     number: float
     text: str
     json: str
-    def __init__(self, null_value: _Optional[_Union[_struct_pb2.NullValue, str]] = ..., boolean: bool = ..., integer: _Optional[int] = ..., number: _Optional[float] = ..., text: _Optional[str] = ..., json: _Optional[str] = ...) -> None: ...
+    def __init__(self, none: _Optional[_Union[_struct_pb2.NullValue, str]] = ..., boolean: bool = ..., integer: _Optional[int] = ..., number: _Optional[float] = ..., text: _Optional[str] = ..., json: _Optional[str] = ...) -> None: ...
 
 class HistoryItem(_message.Message):
     __slots__ = ("key", "nested_key", "value", "value_json")

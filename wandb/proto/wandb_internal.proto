@@ -300,7 +300,7 @@ message HistoryRecord {
 // A logged value with its type.
 message HistoryValue {
   oneof value {
-    google.protobuf.NullValue null_value = 1;
+    google.protobuf.NullValue none = 1;
     bool boolean = 2;
     sint64 integer = 3;
     double number = 4;

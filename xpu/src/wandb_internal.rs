@@ -998,7 +998,7 @@ pub mod history_value {
     #[derive(Clone, PartialEq, ::prost::Oneof)]
     pub enum Value {
         #[prost(enumeration = "::prost_types::NullValue", tag = "1")]
-        NullValue(i32),
+        None(i32),
         #[prost(bool, tag = "2")]
         Boolean(bool),
         #[prost(sint64, tag = "3")]
