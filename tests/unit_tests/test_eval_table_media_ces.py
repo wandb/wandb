@@ -2,37 +2,17 @@ from __future__ import annotations
 
 import hashlib
 import os
-import sys
 from pathlib import Path
-from types import ModuleType, SimpleNamespace
+from types import SimpleNamespace
 from unittest.mock import ANY, MagicMock
 
 import pytest
-from PIL import Image as PILImage
-
 import wandb
+from PIL import Image as PILImage
 from wandb.errors import UsageError
 from wandb.sdk.data_types.eval_table import _media_ces, _writer, _writer_ces
 
-
-@pytest.fixture(autouse=True)
-def coreweave_evaluations_module(monkeypatch):
-    client_module = ModuleType("coreweave_evaluations")
-    client_module.__path__ = []
-    client_module.Client = MagicMock
-
-    types_module = ModuleType("coreweave_evaluations.types")
-    types_module.__path__ = []
-    image_module = ModuleType("coreweave_evaluations.types.wandb_image_v1_param")
-    image_module.WandbImageV1Param = dict
-
-    monkeypatch.setitem(sys.modules, "coreweave_evaluations", client_module)
-    monkeypatch.setitem(sys.modules, "coreweave_evaluations.types", types_module)
-    monkeypatch.setitem(
-        sys.modules,
-        "coreweave_evaluations.types.wandb_image_v1_param",
-        image_module,
-    )
+pytestmark = pytest.mark.usefixtures("coreweave_evaluations_module")
 
 
 @pytest.fixture
@@ -54,7 +34,7 @@ def run_factory(mock_run, tmp_path):
 
 
 @pytest.fixture
-def mock_ces_client(monkeypatch):
+def mock_ces_client(monkeypatch, coreweave_evaluations_module):
     client = MagicMock()
     client.__enter__.return_value = client
     client.eval_tables.create.return_value = SimpleNamespace(
@@ -66,8 +46,7 @@ def mock_ces_client(monkeypatch):
         evaluation_version_id="evaluation-version-1",
     )
     monkeypatch.setenv("CES_BASE_URL", "https://evaluations.example.test")
-    client_module = pytest.importorskip("coreweave_evaluations")
-    monkeypatch.setattr(client_module, "Client", MagicMock)
+    monkeypatch.setattr(coreweave_evaluations_module, "Client", MagicMock)
     monkeypatch.setattr(
         _writer_ces.CESWriter,
         "_resolve_scope_context",
@@ -240,7 +219,7 @@ def test_ces_eval_table_supports_images():
 def test_prepare_image_creates_ces_extension_value(run_factory, tmp_path):
     run = run_factory("run-one")
     path = _png(tmp_path)
-    image = wandb.Image(path)
+    image = wandb.Image(path, grouping=7)
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
 
     prepared = _media_ces.prepare_image(image, run, "eval")

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import sys
-import types
 from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import ANY, MagicMock
@@ -21,7 +20,7 @@ def run(mock_run):
 
 
 @pytest.fixture
-def mock_ces_client(monkeypatch):
+def mock_ces_client(monkeypatch, coreweave_evaluations_module):
     client = MagicMock()
     client.eval_tables.create.return_value = SimpleNamespace(
         dataset_id="dataset-1",
@@ -42,8 +41,7 @@ def mock_ces_client(monkeypatch):
         "CES_BASE_URL",
         "https://evaluations.example.test",
     )
-    client_module = pytest.importorskip("coreweave_evaluations")
-    monkeypatch.setattr(client_module, "Client", MagicMock)
+    monkeypatch.setattr(coreweave_evaluations_module, "Client", MagicMock)
     monkeypatch.setattr(
         "wandb.sdk.data_types.eval_table._writer_ces.CESWriter._resolve_scope_context",
         lambda self, bound_run: ces._CESScopeContext(

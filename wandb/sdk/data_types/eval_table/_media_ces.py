@@ -105,7 +105,7 @@ def prepare_image(image: Image, run: Run, eval_table_key: str) -> PreparedMediaC
             extension_type="wandb-image",
         )
 
-    working_image = _media_for_run(image)
+    working_image = _media_for_run(image, run)
     if _committed_artifact_ref_url(working_image) is None:
         _bind_eval_table_media_to_run(working_image, run, eval_table_key)
 
@@ -273,6 +273,8 @@ def _run_file_uri(run: Run, logical_path: str) -> str:
         quote(str(part), safe="") for part in (*components, *path_components)
     )
     return f"wandb-run-file://{encoded}"
+
+
 def _image_ces_extension_value(
     image_json: dict[str, Any],
     run: Run,
@@ -280,21 +282,7 @@ def _image_ces_extension_value(
     # Keep the generated CES client optional until CES media is serialized.
     from coreweave_evaluations.types.wandb_image_v1_param import WandbImageV1Param
 
-    optional_fields = {
-        key: value
-        for key, value in image_json.items()
-        if key
-        not in {
-            "_type",
-            "path",
-            "artifact_path",
-            "_latest_artifact_path",
-            "format",
-            "sha256",
-            "size",
-        }
-    }
-    return WandbImageV1Param(
+    extension_value = WandbImageV1Param(
         extension_type="wandb-image",
         format=image_json["format"],
         schema_version=1,
@@ -302,8 +290,18 @@ def _image_ces_extension_value(
         size=image_json["size"],
         uri=_uri_from_media_json(image_json, run),
         wb_media_type="image-file",
-        **optional_fields,
     )
+    if "caption" in image_json:
+        extension_value["caption"] = image_json["caption"]
+    if "width" in image_json:
+        extension_value["width"] = image_json["width"]
+    if "height" in image_json:
+        extension_value["height"] = image_json["height"]
+    if "boxes" in image_json:
+        extension_value["boxes"] = image_json["boxes"]
+    if "masks" in image_json:
+        extension_value["masks"] = image_json["masks"]
+    return extension_value
 
 
 def _uri_from_media_json(value: dict[str, Any], run: Run) -> str:
@@ -314,6 +312,8 @@ def _uri_from_media_json(value: dict[str, Any], run: Run) -> str:
     if not isinstance(path, str):
         raise UsageError("EvalTable media JSON has no durable file reference.")
     return _run_file_uri(run, path)
+
+
 def _encode_json(value: Any) -> bytes:
     return json.dumps(
         value,
