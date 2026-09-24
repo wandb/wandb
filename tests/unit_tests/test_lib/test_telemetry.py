@@ -8,7 +8,6 @@ import requests
 from wandb import env
 from wandb.analytics.opentelemetry import opentelemetry_proxy
 from wandb.analytics.opentelemetry.opentelemetry_proxy import (
-    _UNIT_MILLISECONDS,
     LowCardinalityAttributes,
     OpenTelemetryProxy,
     TelemetryRecorder,

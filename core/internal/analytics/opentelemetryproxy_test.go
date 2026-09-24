@@ -331,7 +331,10 @@ func TestTelemetryRecorder_RecordHistogram(t *testing.T) {
 		"session_duration",
 		analytics.UnitSeconds,
 		"Duration of one session.",
-		[]float64{0.0001, 0.00025, 0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10},
+		[]float64{
+			0.0001, 0.00025, 0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025,
+			0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10,
+		},
 	)
 	require.NoError(t, err)
 
@@ -394,7 +397,9 @@ func TestTelemetryRecorder_RecordHistogram_ResolvesBoundaries(t *testing.T) {
 		"the lowest boundary must be 0.0001")
 
 	// Each of the four durations belongs to a different bucket.
-	assert.Equal(t, metric.HistogramBucketCounts, []uint64{0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0})
+	assert.Equal(t, metric.HistogramBucketCounts, []uint64{
+		0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0,
+	})
 }
 
 func TestTelemetryRecorder_ErrorLog(t *testing.T) {
@@ -606,7 +611,10 @@ func TestOpenTelemetryProxyTest_FindMetricsPerSeries(t *testing.T) {
 		"encode_duration",
 		analytics.UnitSeconds,
 		"Duration of one encode operation.",
-		[]float64{0.0001, 0.00025, 0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10},
+		[]float64{
+			0.0001, 0.00025, 0.0005, 0.001, 0.0025, 0.005, 0.01,
+			0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10,
+		},
 	)
 	require.NoError(t, err)
 
