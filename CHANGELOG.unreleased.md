@@ -32,4 +32,3 @@ Section headings should be at level 3 (e.g. `### Added`).
 - `wandb beta sync` no longer overwrites the earlier history of a resumed run when the backend reports a stale step. The starting step is now reconciled against the summary `_step`, the history tail `_step`, and the history row count (@geoffhardy in https://github.com/wandb/wandb/pull/12668)
 - Fixed a memory leak where every `wandb.Api()` object permanently retained a few MiB in the background service process after it was garbage collected (@dmitryduev in https://github.com/wandb/wandb/pull/12920)
 - `Run.scan_history(keys=...)` no longer fails with `403 Forbidden` on W&B deployments that store run history in Amazon S3 (@dmitryduev in https://github.com/wandb/wandb/pull/12930)
-- Runs that print thousands of lines per second no longer fall behind uploading console output, which could make `run.finish()` wait minutes for the backlog (@dmitryduev in https://github.com/wandb/wandb/pull/12405)
