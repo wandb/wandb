@@ -45,6 +45,11 @@ TerminatorCallback: TypeAlias = Callable[["optuna.Study"], bool]
 # https://github.com/optuna/optuna/issues/4121.
 _STOP_OUTSIDE_OPTIMIZE_LOOP = "`Study.stop` is supposed to be invoked inside"
 
+# Trial user attrs linking a study's trials to the sweep, so a study the
+# caller persisted and reloaded is resumed on warm start instead of refilled.
+_SWEEP_ATTR = "wandb_sweep"
+_WANDB_RUN_ID_ATTR = "wandb_run_id"
+
 
 @dataclass
 class OptunaOptions:
@@ -53,6 +58,12 @@ class OptunaOptions:
     `study` is the optuna study to sample from. Pass exactly one of
     `distributions` (define-and-run) or `search_space` (define-by-run) to
     choose how it samples.
+
+    A study reloaded from the caller's own storage may already hold this
+    sweep's trials: each trial records its W&B run id as the
+    `wandb_run_id` user attr. Warm start resumes those trials rather than
+    adding the sweep's runs again, and adopts in-flight runs onto their
+    still-running trials.
 
     `terminator` decides when the search itself is exhausted -- e.g.
     wrapping optuna's or OptunaHub's `Terminator.should_terminate`, or any
@@ -212,8 +223,69 @@ class OptunaOptimizer(Optimizer):
         self._last_reported_step: dict[str, int] = {}
         # Set when a sampler asks the study to stop; see `_tell_study`.
         self._stop_requested = False
+        # Live trials already stamped with their W&B run id.
+        self._linked: set[str] = set()
 
         super().__init__(sweep)
+
+        self._sweep_path = f"{sweep.entity}/{sweep.project}/{sweep.id}"
+        self._index_persisted_trials()
+
+    def _index_persisted_trials(self) -> None:
+        """Index the trials a caller's study already holds for this sweep.
+
+        Linked trials are keyed by W&B run id. Trials this sweep asked for
+        but never saw polled carry no run id; running ones are kept so warm
+        start can still match them to their run by params.
+        """
+        self._persisted_by_run: dict[str, optuna.trial.FrozenTrial] = {}
+        self._unlinked_running: list[optuna.trial.FrozenTrial] = []
+        for trial in self.study.get_trials(deepcopy=False):
+            run_id = trial.user_attrs.get(_WANDB_RUN_ID_ATTR)
+            if run_id is not None:
+                self._persisted_by_run[run_id] = trial
+            elif (
+                trial.state == optuna.trial.TrialState.RUNNING
+                and trial.user_attrs.get(_SWEEP_ATTR) == self._sweep_path
+            ):
+                self._unlinked_running.append(trial)
+
+    def _claim_persisted_trial(self, data: Run) -> optuna.trial.FrozenTrial | None:
+        """Take the study's existing trial for a warm-start run, if any."""
+        trial = self._persisted_by_run.pop(data.wandb_run_id, None)
+        if trial is not None:
+            return trial
+        config = data.config.flat_dict()
+        for i, candidate in enumerate(self._unlinked_running):
+            if candidate.params and all(
+                name in config and config[name] == value
+                for name, value in candidate.params.items()
+            ):
+                return self._unlinked_running.pop(i)
+        return None
+
+    def _resume_trial(self, frozen: optuna.trial.FrozenTrial, wandb_run_id: str) -> str:
+        """Track a persisted running trial as live again; return its run id."""
+        run_id = str(frozen.number)
+        # optuna exposes no public trial id on FrozenTrial; Trial needs it.
+        self.trials[run_id] = optuna.trial.Trial(self.study, frozen._trial_id)
+        if frozen.intermediate_values:
+            self._last_reported_step[run_id] = max(frozen.intermediate_values)
+        self._link(run_id, wandb_run_id)
+        return run_id
+
+    def _link(self, run_id: str, wandb_run_id: str) -> None:
+        """Record a live trial's W&B run id in the study, once."""
+        if run_id in self._linked or not wandb_run_id:
+            return
+        self.trials[run_id].set_user_attr(_WANDB_RUN_ID_ATTR, wandb_run_id)
+        self._linked.add(run_id)
+
+    def _release(self, run_id: str) -> optuna.Trial | None:
+        """Stop tracking a live trial, returning it if it was tracked."""
+        self._last_reported_step.pop(run_id, None)
+        self._linked.discard(run_id)
+        return self.trials.pop(run_id, None)
 
     @property
     def _is_multi_objective(self) -> bool:
@@ -279,6 +351,7 @@ class OptunaOptimizer(Optimizer):
         """
         run_id = str(trial.number)
         self.trials[run_id] = trial
+        trial.set_user_attr(_SWEEP_ATTR, self._sweep_path)
         return RunSuggestion(config=RunConfig.from_values(params), run_id=run_id)
 
     @override
@@ -403,6 +476,7 @@ class OptunaOptimizer(Optimizer):
         trial = self.trials.get(run_id)
         if trial is None:
             return
+        self._link(run_id, data.wandb_run_id)
         # optuna's intermediate values feed its pruners, which are
         # single-objective only, so a multi-objective study rejects them.
         if not self._is_multi_objective:
@@ -442,8 +516,7 @@ class OptunaOptimizer(Optimizer):
             return
         # The study now owns the trial's outcome; drop the live handle so a
         # repeated terminal tell cannot finalize it twice.
-        del self.trials[run_id]
-        self._last_reported_step.pop(run_id, None)
+        self._release(run_id)
 
     @override
     def forget_run(self, run_id: Any) -> None:
@@ -452,8 +525,7 @@ class OptunaOptimizer(Optimizer):
         Failing (rather than leaving it running) frees the trial's slot in
         samplers that limit concurrency.
         """
-        trial = self.trials.pop(run_id, None)
-        self._last_reported_step.pop(run_id, None)
+        trial = self._release(run_id)
         if trial is None:
             return
         self._tell_study(trial, state=optuna.trial.TrialState.FAIL)
@@ -476,28 +548,62 @@ class OptunaOptimizer(Optimizer):
         if not trial.should_prune():
             return False
         self._tell_study(trial, state=optuna.trial.TrialState.PRUNED)
-        del self.trials[run_id]
-        self._last_reported_step.pop(run_id, None)
+        self._release(run_id)
         return True
 
     @override
     def tell_existing_active_run(self, data: Run) -> Any:
-        """Adopt an in-flight run by recreating a live trial for its params.
+        """Adopt an in-flight run, resuming its trial if the study has one.
 
-        Enqueuing the run's params makes the next ask() (via _ask_suggestion,
-        which also handles the imperative conditional branch) return a trial
-        fixed to them. The trial is left RUNNING — not told — so the loop
-        reports its intermediate values for pruning and finalizes it via
-        tell_run when the run completes.
+        A study the caller persisted may already hold the run's trial. A
+        running one is tracked as live again, keeping its reported values;
+        a finished one already records the run's outcome, so the run is left
+        untracked rather than duplicated.
+
+        Otherwise, enqueuing the run's params makes the next ask() (via
+        _ask_suggestion, which also handles the imperative conditional
+        branch) return a trial fixed to them. The trial is left RUNNING —
+        not told — so the loop reports its intermediate values for pruning
+        and finalizes it via tell_run when the run completes.
 
         Returns:
-            The trial number to track the run by.
+            The trial number to track the run by, or None if the study
+            already finished the run's trial.
         """
+        frozen = self._claim_persisted_trial(data)
+        if frozen is not None:
+            if frozen.state.is_finished():
+                return None
+            return self._resume_trial(frozen, data.wandb_run_id)
         self.study.enqueue_trial(data.config.flat_dict())
         # Asks directly rather than through ask_n_runs: the enqueued params
         # are fixed, so they cost the search nothing and an exhausted space
         # must still adopt the run rather than leave it untracked.
-        return self._ask_suggestion().run_id
+        run_id = self._ask_suggestion().run_id
+        self._link(run_id, data.wandb_run_id)
+        return run_id
+
+    @override
+    def tell_existing_finished_run(self, data: RunWithMetrics) -> None:
+        """Warm-start the study with a run that already stopped.
+
+        A study the caller persisted may already hold the run's trial. A
+        finished one is left as is; a running one -- the run ended while no
+        scheduler watched it -- is finalized with the run's result. Only a
+        run the study has never seen becomes a new trial.
+        """
+        if not is_terminal_state(data.state):
+            return
+        frozen = self._claim_persisted_trial(data)
+        if frozen is None:
+            self._add_finished_trial(data)
+        elif frozen.state == optuna.trial.TrialState.RUNNING:
+            self.tell_run(self._resume_trial(frozen, data.wandb_run_id), data)
+
+    @abstractmethod
+    def _add_finished_trial(self, data: RunWithMetrics) -> None:
+        """Record a terminal run the study has no trial for as a new trial."""
+        ...
 
 
 class OptunaDeclarativeOptimizer(OptunaOptimizer):
@@ -525,15 +631,13 @@ class OptunaDeclarativeOptimizer(OptunaOptimizer):
         return self._track(trial, trial.params)
 
     @override
-    def tell_existing_finished_run(self, data: RunWithMetrics) -> None:
-        """Warm-start the study by recording a run as a historical trial.
+    def _add_finished_trial(self, data: RunWithMetrics) -> None:
+        """Record a run as a historical trial.
 
         The flat search space is known up front, so add_trial() is the lightest
         faithful path — no extra ask(). Runs whose config doesn't cover the
         search space are skipped (create_trial requires an exact param match).
         """
-        if not is_terminal_state(data.state):
-            return
         trial_state = self.trial_state(data.state)  # COMPLETE or FAIL
         values = None
         if trial_state == optuna.trial.TrialState.COMPLETE:
@@ -550,6 +654,10 @@ class OptunaDeclarativeOptimizer(OptunaOptimizer):
                 distributions=self.distributions,
                 values=values,
                 state=trial_state,
+                user_attrs={
+                    _SWEEP_ATTR: self._sweep_path,
+                    _WANDB_RUN_ID_ATTR: data.wandb_run_id,
+                },
             )
         )
 
@@ -581,15 +689,13 @@ class OptunaImperativeOptimizer(OptunaOptimizer):
         return self._track(trial, self.trial_constructor(trial))
 
     @override
-    def tell_existing_finished_run(self, data: RunWithMetrics) -> None:
-        """Warm-start the study by replaying a run through the constructor.
+    def _add_finished_trial(self, data: RunWithMetrics) -> None:
+        """Replay a run through the constructor.
 
         Enqueuing the run's params makes the next ask() take the same (possibly
         conditional) branch, so the recreated trial's distributions match the
         run; tell_run then finalizes it on the study.
         """
-        if not is_terminal_state(data.state):
-            return
         # A finished run with no objective value would make tell_run pass None
         # to a COMPLETE study.tell(), so skip it.
         if (
