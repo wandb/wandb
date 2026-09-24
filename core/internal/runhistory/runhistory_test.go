@@ -116,7 +116,7 @@ func TestSetFromRecord_TypedValues(t *testing.T) {
 		{
 			"null",
 			&spb.HistoryValue{
-				Value: &spb.HistoryValue_NullValue{},
+				Value: &spb.HistoryValue_None{},
 			},
 			`{"a": null}`,
 		},
@@ -286,7 +286,7 @@ func TestSetFromRecord_TypedEmptyKey(t *testing.T) {
 	rh := runhistory.New()
 
 	err := rh.SetFromRecord(typedItem("", &spb.HistoryValue{
-		Value: &spb.HistoryValue_NullValue{},
+		Value: &spb.HistoryValue_None{},
 	}))
 
 	assert.ErrorContains(t, err, "empty history item key")
