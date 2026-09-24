@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 from dataclasses import replace
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 from unittest.mock import ANY, MagicMock
 
 import pytest
@@ -17,6 +17,27 @@ from wandb.sdk.data_types.eval_table import _writer_ces as ces
 @pytest.fixture
 def run(mock_run):
     return mock_run(settings={"entity": "e", "project": "p", "mode": "online"})
+
+
+@pytest.fixture
+def coreweave_evaluations_module(monkeypatch):
+    client_module = ModuleType("coreweave_evaluations")
+    client_module.__path__ = []
+    client_module.Client = MagicMock
+
+    types_module = ModuleType("coreweave_evaluations.types")
+    types_module.__path__ = []
+    image_module = ModuleType("coreweave_evaluations.types.wandb_image_v1_param")
+    image_module.WandbImageV1Param = dict
+
+    monkeypatch.setitem(sys.modules, "coreweave_evaluations", client_module)
+    monkeypatch.setitem(sys.modules, "coreweave_evaluations.types", types_module)
+    monkeypatch.setitem(
+        sys.modules,
+        "coreweave_evaluations.types.wandb_image_v1_param",
+        image_module,
+    )
+    return client_module
 
 
 @pytest.fixture
