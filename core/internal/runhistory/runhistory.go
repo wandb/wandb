@@ -222,21 +222,21 @@ func (rh *RunHistory) setFromTypedValue(
 	case *spb.HistoryValue_NullValue:
 		rh.metrics.Set(path, nil)
 
-	case *spb.HistoryValue_FloatValue:
-		rh.metrics.Set(path, value.FloatValue)
+	case *spb.HistoryValue_Number:
+		rh.metrics.Set(path, value.Number)
 
-	case *spb.HistoryValue_IntValue:
-		rh.metrics.Set(path, value.IntValue)
+	case *spb.HistoryValue_Integer:
+		rh.metrics.Set(path, value.Integer)
 
-	case *spb.HistoryValue_BoolValue:
-		rh.metrics.Set(path, value.BoolValue)
+	case *spb.HistoryValue_Boolean:
+		rh.metrics.Set(path, value.Boolean)
 
-	case *spb.HistoryValue_StringValue:
-		rh.metrics.Set(path, value.StringValue)
+	case *spb.HistoryValue_Text:
+		rh.metrics.Set(path, value.Text)
 
-	case *spb.HistoryValue_JsonValue:
+	case *spb.HistoryValue_Json:
 		// An object keeps its tree structure, the same as the JSON form.
-		decoded, err := simplejsonext.UnmarshalString(value.JsonValue)
+		decoded, err := simplejsonext.UnmarshalString(value.Json)
 		if err != nil {
 			return fmt.Errorf(
 				"failed to unmarshal typed history item value: %v", err)
