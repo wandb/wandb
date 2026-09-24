@@ -641,10 +641,8 @@ def coverage(session: nox.Session) -> None:
     )
     shutil.rmtree(_NOX_GO_COVERAGE_DIR, ignore_errors=True)
 
-    # The output directory won't be created if there was no Go coverage
-    # collected. This can happen if only a subset of tests was run that
-    # didn't spin up wandb-core.
-    if go_combined.exists():
+    # There is no Go coverage if none of the tests spun up wandb-core.
+    if any(go_combined.iterdir()):
         session.run(
             "go",
             "tool",

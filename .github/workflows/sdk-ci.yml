@@ -95,7 +95,7 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: ${{ !cancelled() }}
         with:
-          name: unit-tests-go
+          name: unit-go
           path: core/coverage.txt
           if-no-files-found: warn
           retention-days: 7
@@ -209,7 +209,7 @@ jobs:
           server-image: ${{ matrix.server == 'current' && env.SERVER_IMAGE || env.MIN_SERVER_IMAGE }}
           group-index: ${{ matrix.group }}
           group-count: 8
-          artifact-name: system-tests-${{ matrix.python }}-${{ matrix.server }}-${{ matrix.group }}
+          artifact-name: system-${{ matrix.python }}-${{ matrix.server }}-${{ matrix.group }}
 
   extra-tests:
     name: ${{ matrix.name }} · Python ${{ matrix.python }}
@@ -224,10 +224,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: Notebook tests, session: notebook_tests, python: "3.10" }
-          - { name: Notebook tests, session: notebook_tests, python: "3.13" }
-          - { name: Functional tests, session: functional_tests, python: "3.13" }
-          - { name: Experimental client tests, session: experimental_tests, python: "3.13" }
+          - { name: Notebook tests, session: notebook_tests, python: "3.10", coverage: system }
+          - { name: Notebook tests, session: notebook_tests, python: "3.13", coverage: system }
+          - { name: Functional tests, session: functional_tests, python: "3.13", coverage: func }
+          - { name: Experimental client tests, session: experimental_tests, python: "3.13", coverage: func }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -241,7 +241,39 @@ jobs:
           session: ${{ matrix.session }}
           python: ${{ matrix.python }}
           server-image: ${{ env.SERVER_IMAGE }}
-          artifact-name: ${{ matrix.session }}-${{ matrix.python }}
+          artifact-name: ${{ matrix.coverage }}-${{ matrix.session }}-${{ matrix.python }}
+
+  coverage:
+    name: Upload coverage · ${{ matrix.flags }}
+    needs:
+      - build-wheel
+      - unit-tests-linux
+      - unit-tests-macos
+      - unit-tests-windows
+      - unit-tests-go
+      - system-tests
+      - extra-tests
+    # Uploads the reports of every test job that ran, passed or failed. Forks cannot read the Datadog key.
+    if: ${{ !cancelled() && needs.build-wheel.result == 'success' && !github.event.pull_request.head.repo.fork }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        flags: [unit, system, func]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: ${{ matrix.flags }}-*
+          path: coverage-reports
+      - uses: DataDog/coverage-upload-github-action@d9548b1c3c4ab639d5d3ab29a1508af188975f77 # v1.0.5
+        with:
+          api_key: ${{ secrets.DD_API_KEY }}
+          site: us5.datadoghq.com
+          files: coverage-reports/*/coverage.*
+          flags: ${{ matrix.flags }}
 
   result:
     name: SDK CI
