@@ -22,7 +22,7 @@ from wandb.sdk.sweeps.scheduler.optuna import (
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
 
-from tests.unit_tests.test_sweep_scheduler import make_scheduler_grid_sweep
+from tests.unit_tests.test_sweep_scheduler import make_scheduler_grid_sweep, warm_start
 
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
@@ -425,7 +425,7 @@ class TestPersistedStudyWarmStart:
         first.tell_run(suggestion.run_id, finished)
 
         second = make_optimizer()
-        second.tell_existing_finished_run(finished)
+        warm_start(second, finished=[finished])
 
         assert len(second.study.get_trials(deepcopy=False)) == 1
 
@@ -434,10 +434,10 @@ class TestPersistedStudyWarmStart:
             config=RunConfig.from_values({"x": 0.5}), run_id="unused"
         )
         finished = self.run(suggestion, RunState.FINISHED, [{"loss": 1.0, "_step": 0}])
-        make_optimizer().tell_existing_finished_run(finished)
+        warm_start(make_optimizer(), finished=[finished])
 
         second = make_optimizer()
-        second.tell_existing_finished_run(finished)
+        warm_start(second, finished=[finished])
 
         assert len(second.study.get_trials(deepcopy=False)) == 1
 
@@ -450,11 +450,11 @@ class TestPersistedStudyWarmStart:
         )
 
         second = make_optimizer()
-        run_id = second.tell_existing_active_run(
-            self.run(suggestion, RunState.RUNNING, [])
+        adoptions = warm_start(
+            second, active=[self.run(suggestion, RunState.RUNNING, [])]
         )
         second.tell_run(
-            run_id,
+            adoptions["run-a"],
             self.run(
                 suggestion,
                 RunState.FINISHED,
@@ -463,7 +463,7 @@ class TestPersistedStudyWarmStart:
         )
 
         (trial,) = second.study.get_trials(deepcopy=False)
-        assert run_id == suggestion.run_id
+        assert adoptions == {"run-a": suggestion.run_id}
         assert trial.state == optuna.trial.TrialState.COMPLETE
         assert trial.value == 2.0
         assert trial.intermediate_values == {0: 3.0, 1: 2.0}
@@ -476,11 +476,11 @@ class TestPersistedStudyWarmStart:
         suggestion = next(iter(first.ask_n_runs(1)))
 
         second = make_optimizer()
-        run_id = second.tell_existing_active_run(
-            self.run(suggestion, RunState.RUNNING, [])
+        adoptions = warm_start(
+            second, active=[self.run(suggestion, RunState.RUNNING, [])]
         )
 
-        assert run_id == suggestion.run_id
+        assert adoptions == {"run-a": suggestion.run_id}
         assert len(second.study.get_trials(deepcopy=False)) == 1
 
     def test_a_run_that_finished_unwatched_finalizes_its_trial(
@@ -494,8 +494,11 @@ class TestPersistedStudyWarmStart:
         )
 
         second = make_optimizer()
-        second.tell_existing_finished_run(
-            self.run(suggestion, RunState.FINISHED, [{"loss": 2.0, "_step": 1}])
+        warm_start(
+            second,
+            finished=[
+                self.run(suggestion, RunState.FINISHED, [{"loss": 2.0, "_step": 1}])
+            ],
         )
 
         (trial,) = second.study.get_trials(deepcopy=False)
@@ -513,7 +516,7 @@ class TestPersistedStudyWarmStart:
 
         second = make_optimizer()
 
-        assert second.tell_existing_active_run(running) is None
+        assert warm_start(second, active=[running]) == {}
         assert len(second.study.get_trials(deepcopy=False)) == 1
 
     def test_another_sweeps_running_trial_is_not_adopted(self) -> None:
@@ -523,12 +526,15 @@ class TestPersistedStudyWarmStart:
         sweep = make_scheduler_grid_sweep(config=self.CONFIG)
         optimizer = OptunaDeclarativeOptimizer(study, self.DISTRIBUTIONS, sweep)
 
-        run_id = optimizer.tell_existing_active_run(
-            Run(
-                config=RunConfig.from_values(foreign.params),
-                state=RunState.RUNNING,
-                wandb_run_id="run-a",
-            )
+        adoptions = warm_start(
+            optimizer,
+            active=[
+                Run(
+                    config=RunConfig.from_values(foreign.params),
+                    state=RunState.RUNNING,
+                    wandb_run_id="run-a",
+                )
+            ],
         )
 
-        assert run_id != str(foreign.number)
+        assert adoptions["run-a"] != str(foreign.number)

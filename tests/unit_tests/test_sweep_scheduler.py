@@ -20,6 +20,7 @@ from wandb.sdk.sweeps.run_state import RunState
 from wandb.sdk.sweeps.scheduler import client as scheduler_client
 from wandb.sdk.sweeps.scheduler.optimizer import (
     Optimizer,
+    Run,
     RunConfig,
     RunSuggestion,
     RunWithMetrics,
@@ -78,6 +79,30 @@ def make_run(
         summary_metrics=summary,
         history_metrics=history or [],
     )
+
+
+def warm_start(
+    optimizer: Optimizer,
+    *,
+    finished: Sequence[RunWithMetrics] = (),
+    active: Sequence[Run] = (),
+) -> dict[str, Any]:
+    """Warm-start an optimizer from one page of a sweep's existing runs.
+
+    Replays `SchedulerTaskExchange`'s warm-start task: every finished run is
+    told first, then every active run is offered for adoption.
+
+    Returns:
+        The adopted runs, as W&B run id to optimizer run id.
+    """
+    for data in finished:
+        optimizer.tell_existing_finished_run(data)
+    adoptions: dict[str, Any] = {}
+    for data in active:
+        run_id = optimizer.tell_existing_active_run(data)
+        if run_id is not None:
+            adoptions[data.wandb_run_id] = str(run_id)
+    return adoptions
 
 
 class OptimizerAcceptanceTests(abc.ABC):
