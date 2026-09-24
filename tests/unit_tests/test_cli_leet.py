@@ -80,7 +80,7 @@ def test_leet_defaults_to_run_command(runner, core_calls, tmp_path: pathlib.Path
 
     assert result.exit_code == 0
     assert core_calls == [
-        ["wandb-core", "leet", "--base-url", _BASE_URL, str(wandb_dir.resolve())]
+        ["wandb-core", "leet", "run", "--base-url", _BASE_URL, str(wandb_dir.resolve())]
     ]
 
 
@@ -96,7 +96,7 @@ def test_leet_offline_disables_telemetry(
 
     assert result.exit_code == 0
     assert core_calls == [
-        ["wandb-core", "leet", "--no-observability", str(wandb_dir.resolve())]
+        ["wandb-core", "leet", "run", "--no-observability", str(wandb_dir.resolve())]
     ]
 
 
@@ -113,6 +113,7 @@ def test_leet_resolves_run_directory(runner, core_calls, tmp_path: pathlib.Path)
         [
             "wandb-core",
             "leet",
+            "run",
             "--base-url",
             _BASE_URL,
             "--run-file",
@@ -137,9 +138,9 @@ def test_leet_inspect_resolves_run_directory(
         [
             "wandb-core",
             "leet",
+            "inspect",
             "--base-url",
             _BASE_URL,
-            "--inspect",
             "--run-file",
             str(run_file.resolve()),
             str((tmp_path / "wandb").resolve()),
@@ -167,9 +168,9 @@ def test_leet_inspect_passes_output_flags(
         [
             "wandb-core",
             "leet",
+            "inspect",
             "--base-url",
             _BASE_URL,
-            "--inspect",
             *core_flags,
             str(wandb_dir.resolve()),
         ]
@@ -189,9 +190,9 @@ def test_leet_inspect_wandb_dir_uses_latest_run(
         [
             "wandb-core",
             "leet",
+            "inspect",
             "--base-url",
             _BASE_URL,
-            "--inspect",
             str(wandb_dir.resolve()),
         ]
     ]
@@ -206,5 +207,5 @@ def test_beta_leet_is_an_alias(runner, core_calls, tmp_path: pathlib.Path):
     assert result.exit_code == 0
     assert "generally available as `wandb leet`" in result.stderr
     assert core_calls == [
-        ["wandb-core", "leet", "--base-url", _BASE_URL, str(wandb_dir.resolve())]
+        ["wandb-core", "leet", "run", "--base-url", _BASE_URL, str(wandb_dir.resolve())]
     ]
