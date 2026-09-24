@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from collections.abc import Callable, Iterator, Sequence
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, TypeAlias
 
 from typing_extensions import override
@@ -49,6 +49,22 @@ _STOP_OUTSIDE_OPTIMIZE_LOOP = "`Study.stop` is supposed to be invoked inside"
 # caller persisted and reloaded is resumed on warm start instead of refilled.
 _SWEEP_ATTR = "wandb_sweep"
 _WANDB_RUN_ID_ATTR = "wandb_run_id"
+
+# A claimed persisted trial that already finished, so its run has nothing
+# left to tell.
+_FINISHED = object()
+
+
+@dataclass
+class _PersistedIndex:
+    """Run ids of the trials a reloaded study holds for the sweep."""
+
+    # W&B run id to the run id of its still-running trial.
+    running_by_run: dict[str, str] = field(default_factory=dict)
+    # W&B run ids whose trial already finished.
+    finished_runs: set[str] = field(default_factory=set)
+    # Run ids of the sweep's running trials no run was seen for yet.
+    unlinked_running: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -229,48 +245,90 @@ class OptunaOptimizer(Optimizer):
         super().__init__(sweep)
 
         self._sweep_path = f"{sweep.entity}/{sweep.project}/{sweep.id}"
-        self._index_persisted_trials()
+        # Built on the first warm-start call and dropped once generation
+        # starts; see `_index_persisted_trials`.
+        self._warm_start_over = False
+        self._persisted_index: _PersistedIndex | None = None
 
-    def _index_persisted_trials(self) -> None:
+    def _persisted_trials(self) -> Iterator[optuna.trial.FrozenTrial]:
+        """Yield the study's trials one at a time, uncopied."""
+        # Every storage's cache holds these once the study is first asked
+        # for a trial; deepcopy=False hands them over as they are.
+        yield from self.study.get_trials(deepcopy=False)
+
+    def _index_persisted_trials(self) -> _PersistedIndex:
         """Index the trials a caller's study already holds for this sweep.
 
-        Linked trials are keyed by W&B run id. Trials this sweep asked for
-        but never saw polled carry no run id; running ones are kept so warm
-        start can still match them to their run by params.
+        Only run ids are kept, never the trials: linked trials by W&B run
+        id, and running trials this sweep asked for but never saw polled,
+        which carry no run id yet and are matched to their run by params.
         """
-        self._persisted_by_run: dict[str, optuna.trial.FrozenTrial] = {}
-        self._unlinked_running: list[optuna.trial.FrozenTrial] = []
-        for trial in self.study.get_trials(deepcopy=False):
-            run_id = trial.user_attrs.get(_WANDB_RUN_ID_ATTR)
-            if run_id is not None:
-                self._persisted_by_run[run_id] = trial
-            elif (
-                trial.state == optuna.trial.TrialState.RUNNING
-                and trial.user_attrs.get(_SWEEP_ATTR) == self._sweep_path
-            ):
-                self._unlinked_running.append(trial)
+        if self._persisted_index is not None:
+            return self._persisted_index
+        index = _PersistedIndex()
+        for trial in self._persisted_trials():
+            wandb_run_id = trial.user_attrs.get(_WANDB_RUN_ID_ATTR)
+            running = trial.state == optuna.trial.TrialState.RUNNING
+            if wandb_run_id is not None:
+                if running:
+                    index.running_by_run[wandb_run_id] = str(trial.number)
+                else:
+                    index.finished_runs.add(wandb_run_id)
+            elif running and trial.user_attrs.get(_SWEEP_ATTR) == self._sweep_path:
+                index.unlinked_running.append(str(trial.number))
+        self._persisted_index = index
+        return index
 
-    def _claim_persisted_trial(self, data: Run) -> optuna.trial.FrozenTrial | None:
-        """Take the study's existing trial for a warm-start run, if any."""
-        trial = self._persisted_by_run.pop(data.wandb_run_id, None)
-        if trial is not None:
-            return trial
+    def _claim_persisted_trial(self, data: Run) -> Any:
+        """Take the study's existing trial for a warm-start run.
+
+        Returns:
+            The run id of the run's still-running trial, `_FINISHED` if its
+            trial already finished, or None if the study has none.
+        """
+        if self._warm_start_over:
+            return None
+        index = self._index_persisted_trials()
+        if data.wandb_run_id in index.finished_runs:
+            index.finished_runs.discard(data.wandb_run_id)
+            return _FINISHED
+        run_id = index.running_by_run.pop(data.wandb_run_id, None)
+        if run_id is not None or not index.unlinked_running:
+            return run_id
         config = data.config.flat_dict()
-        for i, candidate in enumerate(self._unlinked_running):
-            if candidate.params and all(
+        for i, candidate in enumerate(index.unlinked_running):
+            params = self._stored_trial(self._trial_id(candidate)).params
+            if params and all(
                 name in config and config[name] == value
-                for name, value in candidate.params.items()
+                for name, value in params.items()
             ):
-                return self._unlinked_running.pop(i)
+                return index.unlinked_running.pop(i)
         return None
 
-    def _resume_trial(self, frozen: optuna.trial.FrozenTrial, wandb_run_id: str) -> str:
+    def _end_warm_start(self) -> None:
+        """Drop the warm-start index; later runs are the scheduler's own."""
+        self._warm_start_over = True
+        self._persisted_index = None
+
+    def _trial_id(self, run_id: str) -> int:
+        """Return the storage id of the study's trial with this run id."""
+        # optuna has no public lookup by trial number short of listing
+        # every trial; the storage resolves one number directly.
+        return self.study._storage.get_trial_id_from_study_id_trial_number(
+            self.study._study_id, int(run_id)
+        )
+
+    def _stored_trial(self, trial_id: int) -> optuna.trial.FrozenTrial:
+        """Return one trial as the storage holds it, uncopied."""
+        return self.study._storage.get_trial(trial_id)
+
+    def _resume_trial(self, run_id: str, wandb_run_id: str) -> str:
         """Track a persisted running trial as live again; return its run id."""
-        run_id = str(frozen.number)
-        # optuna exposes no public trial id on FrozenTrial; Trial needs it.
-        self.trials[run_id] = optuna.trial.Trial(self.study, frozen._trial_id)
-        if frozen.intermediate_values:
-            self._last_reported_step[run_id] = max(frozen.intermediate_values)
+        trial_id = self._trial_id(run_id)
+        steps = self._stored_trial(trial_id).intermediate_values
+        self.trials[run_id] = optuna.trial.Trial(self.study, trial_id)
+        if steps:
+            self._last_reported_step[run_id] = max(steps)
         self._link(run_id, wandb_run_id)
         return run_id
 
@@ -364,6 +422,8 @@ class OptunaOptimizer(Optimizer):
         Args:
             n: The maximum number of runs to propose.
         """
+        # Warm start is over once the scheduler asks for new runs.
+        self._end_warm_start()
         suggestions = []
         for _ in range(n):
             if self._search_is_exhausted():
@@ -570,11 +630,11 @@ class OptunaOptimizer(Optimizer):
             The trial number to track the run by, or None if the study
             already finished the run's trial.
         """
-        frozen = self._claim_persisted_trial(data)
-        if frozen is not None:
-            if frozen.state.is_finished():
-                return None
-            return self._resume_trial(frozen, data.wandb_run_id)
+        claimed = self._claim_persisted_trial(data)
+        if claimed is _FINISHED:
+            return None
+        if claimed is not None:
+            return self._resume_trial(claimed, data.wandb_run_id)
         self.study.enqueue_trial(data.config.flat_dict())
         # Asks directly rather than through ask_n_runs: the enqueued params
         # are fixed, so they cost the search nothing and an exhausted space
@@ -594,11 +654,11 @@ class OptunaOptimizer(Optimizer):
         """
         if not is_terminal_state(data.state):
             return
-        frozen = self._claim_persisted_trial(data)
-        if frozen is None:
+        claimed = self._claim_persisted_trial(data)
+        if claimed is None:
             self._add_finished_trial(data)
-        elif frozen.state == optuna.trial.TrialState.RUNNING:
-            self.tell_run(self._resume_trial(frozen, data.wandb_run_id), data)
+        elif claimed is not _FINISHED:
+            self.tell_run(self._resume_trial(claimed, data.wandb_run_id), data)
 
     @abstractmethod
     def _add_finished_trial(self, data: RunWithMetrics) -> None:
