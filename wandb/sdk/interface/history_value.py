@@ -45,7 +45,7 @@ def set_history_value(
 
     # Objects, arrays, wide ints, and everything else with no scalar case
     # stay as verbatim JSON text.
-    item.value.json_value = (
+    item.value.json = (
         json_text if json_text is not None else json_dumps_safer_history(value)
     )
 
@@ -64,22 +64,22 @@ def _set_scalar(typed: pb.HistoryValue, value: Any) -> bool:
 
     elif isinstance(value, bool):
         # bool is a subclass of int, so it must be tested first.
-        typed.bool_value = value
+        typed.boolean = value
 
     elif isinstance(value, int):
         # A wider int has no scalar case. It falls back to JSON text, which
         # keeps the exact value.
         if not _INT64_MIN <= value <= _INT64_MAX:
             return False
-        typed.int_value = value
+        typed.integer = value
 
     elif isinstance(value, float):
         # NaN and +-Infinity are ordinary IEEE doubles here. The JSON
         # form spells them "NaN", "Infinity" and "-Infinity".
-        typed.float_value = value
+        typed.number = value
 
     elif isinstance(value, str):
-        typed.string_value = value
+        typed.text = value
 
     else:
         return False
