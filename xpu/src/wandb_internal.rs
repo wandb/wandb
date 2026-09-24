@@ -1000,15 +1000,15 @@ pub mod history_value {
         #[prost(enumeration = "::prost_types::NullValue", tag = "1")]
         NullValue(i32),
         #[prost(bool, tag = "2")]
-        BoolValue(bool),
+        Boolean(bool),
         #[prost(sint64, tag = "3")]
-        IntValue(i64),
+        Integer(i64),
         #[prost(double, tag = "4")]
-        FloatValue(f64),
+        Number(f64),
         #[prost(string, tag = "5")]
-        StringValue(::prost::alloc::string::String),
+        Text(::prost::alloc::string::String),
         #[prost(string, tag = "6")]
-        JsonValue(::prost::alloc::string::String),
+        Json(::prost::alloc::string::String),
     }
 }
 /// HistoryItem:

@@ -2550,11 +2550,11 @@ type HistoryValue struct {
 	// Types that are valid to be assigned to Value:
 	//
 	//	*HistoryValue_NullValue
-	//	*HistoryValue_BoolValue
-	//	*HistoryValue_IntValue
-	//	*HistoryValue_FloatValue
-	//	*HistoryValue_StringValue
-	//	*HistoryValue_JsonValue
+	//	*HistoryValue_Boolean
+	//	*HistoryValue_Integer
+	//	*HistoryValue_Number
+	//	*HistoryValue_Text
+	//	*HistoryValue_Json
 	Value         isHistoryValue_Value `protobuf_oneof:"value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2606,46 +2606,46 @@ func (x *HistoryValue) GetNullValue() structpb.NullValue {
 	return structpb.NullValue(0)
 }
 
-func (x *HistoryValue) GetBoolValue() bool {
+func (x *HistoryValue) GetBoolean() bool {
 	if x != nil {
-		if x, ok := x.Value.(*HistoryValue_BoolValue); ok {
-			return x.BoolValue
+		if x, ok := x.Value.(*HistoryValue_Boolean); ok {
+			return x.Boolean
 		}
 	}
 	return false
 }
 
-func (x *HistoryValue) GetIntValue() int64 {
+func (x *HistoryValue) GetInteger() int64 {
 	if x != nil {
-		if x, ok := x.Value.(*HistoryValue_IntValue); ok {
-			return x.IntValue
+		if x, ok := x.Value.(*HistoryValue_Integer); ok {
+			return x.Integer
 		}
 	}
 	return 0
 }
 
-func (x *HistoryValue) GetFloatValue() float64 {
+func (x *HistoryValue) GetNumber() float64 {
 	if x != nil {
-		if x, ok := x.Value.(*HistoryValue_FloatValue); ok {
-			return x.FloatValue
+		if x, ok := x.Value.(*HistoryValue_Number); ok {
+			return x.Number
 		}
 	}
 	return 0
 }
 
-func (x *HistoryValue) GetStringValue() string {
+func (x *HistoryValue) GetText() string {
 	if x != nil {
-		if x, ok := x.Value.(*HistoryValue_StringValue); ok {
-			return x.StringValue
+		if x, ok := x.Value.(*HistoryValue_Text); ok {
+			return x.Text
 		}
 	}
 	return ""
 }
 
-func (x *HistoryValue) GetJsonValue() string {
+func (x *HistoryValue) GetJson() string {
 	if x != nil {
-		if x, ok := x.Value.(*HistoryValue_JsonValue); ok {
-			return x.JsonValue
+		if x, ok := x.Value.(*HistoryValue_Json); ok {
+			return x.Json
 		}
 	}
 	return ""
@@ -2659,37 +2659,37 @@ type HistoryValue_NullValue struct {
 	NullValue structpb.NullValue `protobuf:"varint,1,opt,name=null_value,json=nullValue,proto3,enum=google.protobuf.NullValue,oneof"`
 }
 
-type HistoryValue_BoolValue struct {
-	BoolValue bool `protobuf:"varint,2,opt,name=bool_value,json=boolValue,proto3,oneof"`
+type HistoryValue_Boolean struct {
+	Boolean bool `protobuf:"varint,2,opt,name=boolean,proto3,oneof"`
 }
 
-type HistoryValue_IntValue struct {
-	IntValue int64 `protobuf:"zigzag64,3,opt,name=int_value,json=intValue,proto3,oneof"`
+type HistoryValue_Integer struct {
+	Integer int64 `protobuf:"zigzag64,3,opt,name=integer,proto3,oneof"`
 }
 
-type HistoryValue_FloatValue struct {
-	FloatValue float64 `protobuf:"fixed64,4,opt,name=float_value,json=floatValue,proto3,oneof"`
+type HistoryValue_Number struct {
+	Number float64 `protobuf:"fixed64,4,opt,name=number,proto3,oneof"`
 }
 
-type HistoryValue_StringValue struct {
-	StringValue string `protobuf:"bytes,5,opt,name=string_value,json=stringValue,proto3,oneof"`
+type HistoryValue_Text struct {
+	Text string `protobuf:"bytes,5,opt,name=text,proto3,oneof"`
 }
 
-type HistoryValue_JsonValue struct {
-	JsonValue string `protobuf:"bytes,6,opt,name=json_value,json=jsonValue,proto3,oneof"`
+type HistoryValue_Json struct {
+	Json string `protobuf:"bytes,6,opt,name=json,proto3,oneof"`
 }
 
 func (*HistoryValue_NullValue) isHistoryValue_Value() {}
 
-func (*HistoryValue_BoolValue) isHistoryValue_Value() {}
+func (*HistoryValue_Boolean) isHistoryValue_Value() {}
 
-func (*HistoryValue_IntValue) isHistoryValue_Value() {}
+func (*HistoryValue_Integer) isHistoryValue_Value() {}
 
-func (*HistoryValue_FloatValue) isHistoryValue_Value() {}
+func (*HistoryValue_Number) isHistoryValue_Value() {}
 
-func (*HistoryValue_StringValue) isHistoryValue_Value() {}
+func (*HistoryValue_Text) isHistoryValue_Value() {}
 
-func (*HistoryValue_JsonValue) isHistoryValue_Value() {}
+func (*HistoryValue_Json) isHistoryValue_Value() {}
 
 // HistoryItem:
 //
@@ -12155,18 +12155,15 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\rHistoryRecord\x12/\n" +
 	"\x04item\x18\x01 \x03(\v2\x1b.wandb_internal.HistoryItemR\x04item\x12/\n" +
 	"\x04step\x18\x02 \x01(\v2\x1b.wandb_internal.HistoryStepR\x04step\x121\n" +
-	"\x05_info\x18\xc8\x01 \x01(\v2\x1b.wandb_internal._RecordInfoR\x04Info\"\xfd\x01\n" +
+	"\x05_info\x18\xc8\x01 \x01(\v2\x1b.wandb_internal._RecordInfoR\x04Info\"\xd2\x01\n" +
 	"\fHistoryValue\x12;\n" +
 	"\n" +
-	"null_value\x18\x01 \x01(\x0e2\x1a.google.protobuf.NullValueH\x00R\tnullValue\x12\x1f\n" +
-	"\n" +
-	"bool_value\x18\x02 \x01(\bH\x00R\tboolValue\x12\x1d\n" +
-	"\tint_value\x18\x03 \x01(\x12H\x00R\bintValue\x12!\n" +
-	"\vfloat_value\x18\x04 \x01(\x01H\x00R\n" +
-	"floatValue\x12#\n" +
-	"\fstring_value\x18\x05 \x01(\tH\x00R\vstringValue\x12\x1f\n" +
-	"\n" +
-	"json_value\x18\x06 \x01(\tH\x00R\tjsonValueB\a\n" +
+	"null_value\x18\x01 \x01(\x0e2\x1a.google.protobuf.NullValueH\x00R\tnullValue\x12\x1a\n" +
+	"\aboolean\x18\x02 \x01(\bH\x00R\aboolean\x12\x1a\n" +
+	"\ainteger\x18\x03 \x01(\x12H\x00R\ainteger\x12\x18\n" +
+	"\x06number\x18\x04 \x01(\x01H\x00R\x06number\x12\x14\n" +
+	"\x04text\x18\x05 \x01(\tH\x00R\x04text\x12\x14\n" +
+	"\x04json\x18\x06 \x01(\tH\x00R\x04jsonB\a\n" +
 	"\x05value\"\x91\x01\n" +
 	"\vHistoryItem\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x1d\n" +
@@ -13424,11 +13421,11 @@ func file_wandb_proto_wandb_internal_proto_init() {
 	}
 	file_wandb_proto_wandb_internal_proto_msgTypes[20].OneofWrappers = []any{
 		(*HistoryValue_NullValue)(nil),
-		(*HistoryValue_BoolValue)(nil),
-		(*HistoryValue_IntValue)(nil),
-		(*HistoryValue_FloatValue)(nil),
-		(*HistoryValue_StringValue)(nil),
-		(*HistoryValue_JsonValue)(nil),
+		(*HistoryValue_Boolean)(nil),
+		(*HistoryValue_Integer)(nil),
+		(*HistoryValue_Number)(nil),
+		(*HistoryValue_Text)(nil),
+		(*HistoryValue_Json)(nil),
 	}
 	file_wandb_proto_wandb_internal_proto_msgTypes[52].OneofWrappers = []any{}
 	file_wandb_proto_wandb_internal_proto_msgTypes[53].OneofWrappers = []any{}

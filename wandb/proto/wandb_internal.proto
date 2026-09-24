@@ -301,11 +301,11 @@ message HistoryRecord {
 message HistoryValue {
   oneof value {
     google.protobuf.NullValue null_value = 1;
-    bool bool_value = 2;
-    sint64 int_value = 3;
-    double float_value = 4;
-    string string_value = 5;
-    string json_value = 6;
+    bool boolean = 2;
+    sint64 integer = 3;
+    double number = 4;
+    string text = 5;
+    string json = 6;
   }
 }
 
