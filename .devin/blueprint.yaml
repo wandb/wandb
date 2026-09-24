@@ -1,8 +1,9 @@
 # One-time setup (e.g., install system tools, global CLIs).
 initialize: |
-  # Install Go 1.26.2 (needed to build wandb-core).
-  if ! /usr/local/go/bin/go version 2>/dev/null | grep -q "go1.26.2"; then
-    curl -fsSL https://go.dev/dl/go1.26.2.linux-amd64.tar.gz -o /tmp/go.tgz
+  # Install the Go version declared in core/go.mod (needed to build wandb-core).
+  GO_VERSION=$(awk '$1 == "go" {print $2}' core/go.mod)
+  if ! /usr/local/go/bin/go version 2>/dev/null | grep -q "go${GO_VERSION}"; then
+    curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" -o /tmp/go.tgz
     sudo rm -rf /usr/local/go
     sudo tar -C /usr/local -xzf /tmp/go.tgz
     rm -f /tmp/go.tgz
@@ -23,8 +24,8 @@ maintenance: |
   export WANDB_BUILD_SKIP_WANDB_XPU=true
   export WANDB_BUILD_SKIP_ORJSON=true
   # $ENVRC PATH entries can be clobbered by later blueprints, so don't rely on
-  # the one `initialize` writes for Go.
-  export PATH=/usr/local/go/bin:$PATH
+  # the ones `initialize` writes for Go and prek.
+  export PATH=/usr/local/go/bin:$HOME/.local/bin:$PATH
   # Pin the interpreter: the dev requirements don't resolve on 3.14 (no
   # TensorFlow cp314 wheel), and uv otherwise picks the newest it finds.
   uv venv --python 3.12
