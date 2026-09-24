@@ -41,14 +41,12 @@ def validate_unsupported_media_mode(mode: str) -> None:
 
 
 class EvalTable(Table):
-    """A Table subclass that routes run.log() to the new Eval Tables experience.
+    """The EvalTable class provides a new experience analyzing tabular data.
 
-    When logged via run.log(), an EvalTable is logged as a Weave Eval via
-    weave.EvaluationLogger instead of being uploaded as a regular wandb Table
-    artifact.
+    When logged via run.log(), an EvalTable writes to its selected evaluation
+    backend instead of being uploaded as a regular wandb Table artifact.
 
-    Note: EvalTable is a work-in-progress and is NOT yet officially released or
-    supported.
+    Note: EvalTable is currently in PREVIEW and still a work-in-progress.
     """
 
     # SDK-side WBValue discriminator, not to be confused by `_type` written to the run
@@ -78,6 +76,8 @@ class EvalTable(Table):
 
         Warning: Media suport is only partially implemented. We may not save all
         metadata, and media types not yet supported will be replaced with stubs for now.
+        Use unsupported_media_mode=raise if you want to fail fast on unsupported media
+        instead.
 
         Args:
             columns: Names of the columns in the table.
@@ -99,7 +99,7 @@ class EvalTable(Table):
                 These represent derived scores for the outputs. By default, we will
                 auto-summarize any numeric and boolean scores.
             backend: Optional storage-backend override. If omitted, the default is
-                "weave", which is currently the only supported backend.
+                "weave". Use "ces" to write through the Evaluations service.
             unsupported_media_mode: How to handle unsupported wandb media/value types.
                 - "stub" (default): log unsupported values as short placeholder strings
                   like "[wandb.Html not yet supported]". (This is a temporary flag
@@ -142,9 +142,11 @@ class EvalTable(Table):
             raise UsageError("EvalTable currently only supports log_mode='IMMUTABLE'.")
 
         validate_unsupported_media_mode(unsupported_media_mode)
+        self._allow_mixed_types = allow_mixed_types
         self._writer: EvalTableWriter | None = (
             create_writer(
                 backend,
+                allow_mixed_types=allow_mixed_types,
                 unsupported_media_mode=unsupported_media_mode,
             )
             if backend is not None
@@ -210,6 +212,7 @@ class EvalTable(Table):
             # Select the default writer here so its choice can depend on the run.
             writer = create_default_writer(
                 run,
+                allow_mixed_types=self._allow_mixed_types,
                 unsupported_media_mode=self._unsupported_media_mode,
             )
 
