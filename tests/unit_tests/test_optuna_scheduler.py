@@ -6,7 +6,12 @@ from unittest.mock import MagicMock
 import optuna
 import pytest
 from wandb.sdk.sweeps.run_state import RunState
-from wandb.sdk.sweeps.scheduler.optimizer import Run, RunConfig, RunWithMetrics
+from wandb.sdk.sweeps.scheduler.optimizer import (
+    Run,
+    RunConfig,
+    RunSuggestion,
+    RunWithMetrics,
+)
 from wandb.sdk.sweeps.scheduler.optuna import (
     OptunaDeclarativeOptimizer,
     OptunaImperativeOptimizer,
@@ -367,3 +372,163 @@ class TestIntermediateReporting:
 
         with pytest.raises(ValueError, match="_step"):
             optimizer.tell_run(suggestion.run_id, run)
+
+
+class TestPersistedStudyWarmStart:
+    """A reloaded study already holding the sweep's trials is resumed.
+
+    Each test drives one optimizer, then rebuilds a second on a study loaded
+    from the same storage, as a restarted scheduler would.
+    """
+
+    CONFIG = {
+        "metric": {"name": "loss", "goal": "minimize"},
+        "parameters": {"x": {"min": 0.0, "max": 1.0}},
+    }
+    DISTRIBUTIONS = {"x": optuna.distributions.FloatDistribution(0.0, 1.0)}
+
+    @pytest.fixture(params=["declarative", "imperative"])
+    def make_optimizer(self, request: pytest.FixtureRequest):
+        storage = optuna.storages.InMemoryStorage()
+        optuna.create_study(study_name="study", storage=storage, direction="minimize")
+        sweep = make_scheduler_grid_sweep(config=self.CONFIG)
+
+        def make():
+            study = optuna.load_study(study_name="study", storage=storage)
+            if request.param == "declarative":
+                return OptunaDeclarativeOptimizer(study, self.DISTRIBUTIONS, sweep)
+            return OptunaImperativeOptimizer(
+                study, lambda trial: {"x": trial.suggest_float("x", 0.0, 1.0)}, sweep
+            )
+
+        return make
+
+    def run(
+        self,
+        suggestion,
+        state: RunState,
+        history: list[dict[str, Any]],
+        wandb_run_id: str = "run-a",
+    ) -> RunWithMetrics:
+        return RunWithMetrics(
+            config=suggestion.config,
+            state=state,
+            wandb_run_id=wandb_run_id,
+            summary_metrics=history[-1] if history else {},
+            history_metrics=history,
+        )
+
+    def test_a_recorded_finished_run_is_not_added_again(self, make_optimizer) -> None:
+        first = make_optimizer()
+        suggestion = next(iter(first.ask_n_runs(1)))
+        finished = self.run(suggestion, RunState.FINISHED, [{"loss": 1.0, "_step": 0}])
+        first.tell_run(suggestion.run_id, finished)
+
+        second = make_optimizer()
+        second.tell_existing_finished_run(finished)
+
+        assert len(second.study.get_trials(deepcopy=False)) == 1
+
+    def test_a_warm_started_run_is_not_added_again(self, make_optimizer) -> None:
+        suggestion = RunSuggestion(
+            config=RunConfig.from_values({"x": 0.5}), run_id="unused"
+        )
+        finished = self.run(suggestion, RunState.FINISHED, [{"loss": 1.0, "_step": 0}])
+        make_optimizer().tell_existing_finished_run(finished)
+
+        second = make_optimizer()
+        second.tell_existing_finished_run(finished)
+
+        assert len(second.study.get_trials(deepcopy=False)) == 1
+
+    def test_an_active_run_resumes_its_running_trial(self, make_optimizer) -> None:
+        first = make_optimizer()
+        suggestion = next(iter(first.ask_n_runs(1)))
+        first.tell_run(
+            suggestion.run_id,
+            self.run(suggestion, RunState.RUNNING, [{"loss": 3.0, "_step": 0}]),
+        )
+
+        second = make_optimizer()
+        run_id = second.tell_existing_active_run(
+            self.run(suggestion, RunState.RUNNING, [])
+        )
+        second.tell_run(
+            run_id,
+            self.run(
+                suggestion,
+                RunState.FINISHED,
+                [{"loss": 3.0, "_step": 0}, {"loss": 2.0, "_step": 1}],
+            ),
+        )
+
+        (trial,) = second.study.get_trials(deepcopy=False)
+        assert run_id == suggestion.run_id
+        assert trial.state == optuna.trial.TrialState.COMPLETE
+        assert trial.value == 2.0
+        assert trial.intermediate_values == {0: 3.0, 1: 2.0}
+
+    def test_an_unpolled_trial_is_matched_to_its_run_by_params(
+        self, make_optimizer
+    ) -> None:
+        """A scheduler that stopped before the first poll never saw the run id."""
+        first = make_optimizer()
+        suggestion = next(iter(first.ask_n_runs(1)))
+
+        second = make_optimizer()
+        run_id = second.tell_existing_active_run(
+            self.run(suggestion, RunState.RUNNING, [])
+        )
+
+        assert run_id == suggestion.run_id
+        assert len(second.study.get_trials(deepcopy=False)) == 1
+
+    def test_a_run_that_finished_unwatched_finalizes_its_trial(
+        self, make_optimizer
+    ) -> None:
+        first = make_optimizer()
+        suggestion = next(iter(first.ask_n_runs(1)))
+        first.tell_run(
+            suggestion.run_id,
+            self.run(suggestion, RunState.RUNNING, [{"loss": 3.0, "_step": 0}]),
+        )
+
+        second = make_optimizer()
+        second.tell_existing_finished_run(
+            self.run(suggestion, RunState.FINISHED, [{"loss": 2.0, "_step": 1}])
+        )
+
+        (trial,) = second.study.get_trials(deepcopy=False)
+        assert trial.state == optuna.trial.TrialState.COMPLETE
+        assert trial.value == 2.0
+
+    def test_an_active_run_whose_trial_finished_is_not_adopted(
+        self, make_optimizer
+    ) -> None:
+        first = make_optimizer()
+        suggestion = next(iter(first.ask_n_runs(1)))
+        running = self.run(suggestion, RunState.RUNNING, [{"loss": 3.0, "_step": 0}])
+        first.tell_run(suggestion.run_id, running)
+        first.forget_run(suggestion.run_id)
+
+        second = make_optimizer()
+
+        assert second.tell_existing_active_run(running) is None
+        assert len(second.study.get_trials(deepcopy=False)) == 1
+
+    def test_another_sweeps_running_trial_is_not_adopted(self) -> None:
+        storage = optuna.storages.InMemoryStorage()
+        study = optuna.create_study(storage=storage, direction="minimize")
+        foreign = study.ask(self.DISTRIBUTIONS)
+        sweep = make_scheduler_grid_sweep(config=self.CONFIG)
+        optimizer = OptunaDeclarativeOptimizer(study, self.DISTRIBUTIONS, sweep)
+
+        run_id = optimizer.tell_existing_active_run(
+            Run(
+                config=RunConfig.from_values(foreign.params),
+                state=RunState.RUNNING,
+                wandb_run_id="run-a",
+            )
+        )
+
+        assert run_id != str(foreign.number)
