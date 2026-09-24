@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import optuna
 import pytest
@@ -417,6 +417,47 @@ class TestPersistedStudyWarmStart:
             summary_metrics=history[-1] if history else {},
             history_metrics=history,
         )
+
+    @pytest.fixture
+    def get_trials(self):
+        """Spy on the only call that lists every trial in a study."""
+        with patch.object(
+            optuna.Study,
+            "get_trials",
+            autospec=True,
+            side_effect=optuna.Study.get_trials,
+        ) as get_trials:
+            yield get_trials
+
+    def test_the_study_is_listed_once_and_only_by_warm_start(
+        self, make_optimizer, get_trials
+    ) -> None:
+        """A large study is not listed for a sweep with nothing to resume."""
+        first = make_optimizer()
+        suggestions = first.ask_n_runs(2)
+        runs = [
+            self.run(suggestion, RunState.RUNNING, [], wandb_run_id=f"run-{i}")
+            for i, suggestion in enumerate(suggestions)
+        ]
+        for suggestion, run in zip(suggestions, runs, strict=True):
+            first.tell_run(suggestion.run_id, run)
+        get_trials.reset_mock()
+
+        second = make_optimizer()
+        assert get_trials.call_count == 0
+
+        warm_start(second, active=runs)
+        assert get_trials.call_count == 1
+
+    def test_a_warm_start_after_generation_does_not_list_the_study(
+        self, make_optimizer, get_trials
+    ) -> None:
+        optimizer = make_optimizer()
+        suggestion = next(iter(optimizer.ask_n_runs(1)))
+
+        warm_start(optimizer, active=[self.run(suggestion, RunState.RUNNING, [])])
+
+        assert get_trials.call_count == 0
 
     def test_a_recorded_finished_run_is_not_added_again(self, make_optimizer) -> None:
         first = make_optimizer()
