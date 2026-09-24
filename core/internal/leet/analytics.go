@@ -84,7 +84,7 @@ func ConfigureTelemetry(
 		proxy,
 		analytics.NewTelemetryContext(),
 	).With(
-		analytics.LowCardinalityAttributes{
+		&analytics.LowCardinalityAttributes{
 			LeetMode:         params.Mode,
 			ExecutionContext: detectExecutionContext(),
 		},

@@ -6,6 +6,7 @@ import (
 	"cmp"
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -49,6 +50,15 @@ const (
 
 	metricsPath = "/sdk/otel/v1/metrics"
 	logsPath    = "/sdk/otel/v1/logs"
+
+	// unitSeconds, unitBytes and unitCount are the UCUM unit strings for the
+	// histogram instruments.
+	UnitSeconds      = "s"
+	UnitMilliseconds = "ms"
+	UnitMicroseconds = "us"
+	UnitNanoseconds  = "ns"
+	UnitBytes        = "By"
+	UnitCount        = "1"
 )
 
 // ConfigureOTelErrorHandler routes OpenTelemetry SDK errors to the logger.
@@ -83,25 +93,62 @@ type LowCardinalityAttributes struct {
 	// ExecutionContext classifies where the process runs:
 	// kubernetes, container, slurm, ci, ssh or local.
 	ExecutionContext string
+
+	// Stream is one of the filestream uploader streams: history, events
+	Stream string
+
+	// Segment is a unit of work done by the filestream uploader.
+	// See `filestreamstats` for possible values.
+	Segment string
+
+	// ValueEncoding is the history value encoding actually written:
+	// json, typed or json_typed.
+	ValueEncoding string
+
+	// WireEncoding is the upload payload format actually sent, jsonl or
+	// proto_v1. May change mid-run due to a downgrade.
+	WireEncoding string
+
+	// ContentEncoding is the request body encoding, raw or gzip.
+	ContentEncoding string
 }
 
-// merge overwrites attrs with the non-empty fields of other.
-func (attrs *LowCardinalityAttributes) merge(other LowCardinalityAttributes) {
-	attrs.GoVersion = cmp.Or(other.GoVersion, attrs.GoVersion)
-	attrs.WandbVersion = cmp.Or(other.WandbVersion, attrs.WandbVersion)
-	attrs.OperatingSystem = cmp.Or(other.OperatingSystem, attrs.OperatingSystem)
-	attrs.Architecture = cmp.Or(other.Architecture, attrs.Architecture)
-	attrs.ErrorOriginator = cmp.Or(other.ErrorOriginator, attrs.ErrorOriginator)
+// merge returns a copy of attrs with the non-empty fields of other
+// written over it.
+func (attrs *LowCardinalityAttributes) merge(
+	other *LowCardinalityAttributes,
+) *LowCardinalityAttributes {
+	var merged LowCardinalityAttributes
+	if attrs != nil {
+		merged = *attrs
+	}
+	if other == nil {
+		return &merged
+	}
 
-	attrs.PythonVersion = cmp.Or(other.PythonVersion, attrs.PythonVersion)
-	attrs.PythonRuntime = cmp.Or(other.PythonRuntime, attrs.PythonRuntime)
-	attrs.ExceptionType = cmp.Or(other.ExceptionType, attrs.ExceptionType)
+	merged.GoVersion = cmp.Or(other.GoVersion, merged.GoVersion)
+	merged.WandbVersion = cmp.Or(other.WandbVersion, merged.WandbVersion)
+	merged.OperatingSystem = cmp.Or(other.OperatingSystem, merged.OperatingSystem)
+	merged.Architecture = cmp.Or(other.Architecture, merged.Architecture)
+	merged.ErrorOriginator = cmp.Or(other.ErrorOriginator, merged.ErrorOriginator)
 
-	attrs.LeetMode = cmp.Or(other.LeetMode, attrs.LeetMode)
-	attrs.ExecutionContext = cmp.Or(other.ExecutionContext, attrs.ExecutionContext)
+	merged.PythonVersion = cmp.Or(other.PythonVersion, merged.PythonVersion)
+	merged.PythonRuntime = cmp.Or(other.PythonRuntime, merged.PythonRuntime)
+	merged.ExceptionType = cmp.Or(other.ExceptionType, merged.ExceptionType)
+
+	merged.LeetMode = cmp.Or(other.LeetMode, merged.LeetMode)
+	merged.ExecutionContext = cmp.Or(other.ExecutionContext, merged.ExecutionContext)
+
+	merged.Stream = cmp.Or(other.Stream, merged.Stream)
+	merged.Segment = cmp.Or(other.Segment, merged.Segment)
+	merged.ValueEncoding = cmp.Or(other.ValueEncoding, merged.ValueEncoding)
+	merged.WireEncoding = cmp.Or(other.WireEncoding, merged.WireEncoding)
+	merged.ContentEncoding = cmp.Or(other.ContentEncoding, merged.ContentEncoding)
+
+	return &merged
 }
 
-func (attrs LowCardinalityAttributes) toMap() map[string]string {
+func (attrs *LowCardinalityAttributes) toMap() map[string]string {
 	out := map[string]string{
 		"go_version":        attrs.GoVersion,
 		"operating_system":  attrs.OperatingSystem,
@@ -113,6 +160,11 @@ func (attrs LowCardinalityAttributes) toMap() map[string]string {
 		"wandb_version":     attrs.WandbVersion,
 		"leet_mode":         attrs.LeetMode,
 		"execution_context": attrs.ExecutionContext,
+		"stream":            attrs.Stream,
+		"segment":           attrs.Segment,
+		"value_encoding":    attrs.ValueEncoding,
+		"wire_encoding":     attrs.WireEncoding,
+		"content_encoding":  attrs.ContentEncoding,
 	}
 	maps.DeleteFunc(out, func(_ string, value string) bool {
 		return value == ""
@@ -143,7 +195,7 @@ func Disable() {
 type TelemetryContext struct {
 	// lowCardinalityAttributes is a bounded set of attributes.
 	// These attributes are added to all telemetry records.
-	lowCardinalityAttributes LowCardinalityAttributes
+	lowCardinalityAttributes *LowCardinalityAttributes
 
 	// highCardinalityAttributes is an unbounded set of attributes.
 	// These attributes are added to telemetry records
@@ -160,7 +212,7 @@ func NewTelemetryContext() TelemetryContext {
 	}
 
 	return TelemetryContext{
-		lowCardinalityAttributes:  lowCardinalityAttributes,
+		lowCardinalityAttributes:  &lowCardinalityAttributes,
 		highCardinalityAttributes: map[string]string{},
 	}
 }
@@ -171,12 +223,11 @@ func NewTelemetryContext() TelemetryContext {
 // Non-empty low-cardinality fields and high-cardinality keys in the
 // arguments take precedence over the parent's attributes.
 
-func (s *TelemetryContext) with(
-	lowCardinalityAttributes LowCardinalityAttributes,
+func (s TelemetryContext) with(
+	lowCardinalityAttributes *LowCardinalityAttributes,
 	highCardinalityAttributes map[string]string,
 ) TelemetryContext {
-	low := s.lowCardinalityAttributes
-	low.merge(lowCardinalityAttributes)
+	low := s.lowCardinalityAttributes.merge(lowCardinalityAttributes)
 
 	high := make(map[string]string, len(s.highCardinalityAttributes))
 	maps.Copy(high, s.highCardinalityAttributes)
@@ -226,7 +277,7 @@ func NewTelemetryRecorder(
 // If the receiver is nil, a nil pointer is returned.
 // A nil TelemetryRecorder is a no-op, as if telemetry is disabled.
 func (r *TelemetryRecorder) With(
-	lowCardinalityAttributes LowCardinalityAttributes,
+	lowCardinalityAttributes *LowCardinalityAttributes,
 	highCardinalityAttributes map[string]string,
 ) *TelemetryRecorder {
 	if r == nil {
@@ -247,56 +298,129 @@ func (r *TelemetryRecorder) With(
 func (r *TelemetryRecorder) IncrementCounter(
 	ctx context.Context,
 	name string,
-	lowCardinalityAttributes LowCardinalityAttributes,
+	lowCardinalityAttributes *LowCardinalityAttributes,
 ) {
-	if r == nil {
-		return
-	}
-
-	mergedLowCardinalityAttributes := r.telemetryContext.lowCardinalityAttributes
-	mergedLowCardinalityAttributes.merge(lowCardinalityAttributes)
-	r.root.incrementCounter(ctx, name, mergedLowCardinalityAttributes)
+	r.AddToCounter(ctx, name, 1, lowCardinalityAttributes)
 }
 
-// RecordDuration records a duration histogram metric in seconds with the
-// telemetry context's low-cardinality attributes.
-func (r *TelemetryRecorder) RecordDuration(
+// AddCounter increases a counter metric by delta with the telemetry
+// context's low-cardinality attributes.
+func (r *TelemetryRecorder) AddToCounter(
 	ctx context.Context,
 	name string,
-	duration time.Duration,
-	lowCardinalityAttributes LowCardinalityAttributes,
+	delta int64,
+	lowCardinalityAttributes *LowCardinalityAttributes,
 ) {
 	if r == nil {
 		return
 	}
 
-	mergedLowCardinalityAttributes := r.telemetryContext.lowCardinalityAttributes
-	mergedLowCardinalityAttributes.merge(lowCardinalityAttributes)
-	r.root.recordDuration(
+	mergedLowCardinalityAttributes := r.telemetryContext.
+		lowCardinalityAttributes.
+		merge(lowCardinalityAttributes)
+	r.root.addToCounter(ctx, name, delta, mergedLowCardinalityAttributes)
+}
+
+// DefineHistogram creates the histogram instrument named `name`, with the
+// given `unit`, `description` and `boundaries`.
+//
+// Define each `name` once, before the first record call. If this is called
+// again for the same `name`, it returns an error.
+func (r *TelemetryRecorder) DefineHistogram(
+	name string,
+	unit string,
+	description string,
+	boundaries []float64,
+) error {
+	if r == nil {
+		return nil
+	}
+
+	switch {
+	case name == "":
+		return errors.New("analytics: histogram with no name")
+	case unit == "":
+		return fmt.Errorf("analytics: %q has no unit", name)
+	case len(boundaries) == 0:
+		return fmt.Errorf("analytics: %q has no boundaries", name)
+	}
+
+	for i, boundary := range boundaries[1:] {
+		if boundaries[i] >= boundary {
+			return fmt.Errorf(
+				"analytics: %q boundaries are not increasing: %v",
+				name,
+				boundaries,
+			)
+		}
+	}
+
+	return r.root.defineHistogram(name, unit, description, boundaries)
+}
+
+// RecordHistogram records a value on the histogram named name, with the
+// telemetry context's low-cardinality attributes.
+//
+// Returns an error if the histogram is not defined.
+func (r *TelemetryRecorder) RecordHistogram(
+	ctx context.Context,
+	name string,
+	value float64,
+	lowCardinalityAttributes *LowCardinalityAttributes,
+) {
+	if r == nil {
+		return
+	}
+
+	mergedLowCardinalityAttributes := r.telemetryContext.
+		lowCardinalityAttributes.
+		merge(lowCardinalityAttributes)
+
+	err := r.root.recordHistogram(
 		ctx,
 		name,
-		duration,
+		value,
 		mergedLowCardinalityAttributes,
 	)
+	if err != nil {
+		slog.Debug("analytics: failed to record histogram", "error", err)
+		return
+	}
 }
 
 // IncrementCounterAndLogEvent increments a counter metric by 1
-// with the telemetry context's low-cardinality attributes
+// and a log record.
 //
-// It additionally records a log record with the telemetry
-// context's attributes plus the caller-supplied attributes under the same
-// name
+// Equivalent to:
+//
+//	r.AddToCounterAndLogEvent(ctx, name, 1, attributes, lowCardinalityAttributes)
 func (r *TelemetryRecorder) IncrementCounterAndLogEvent(
 	ctx context.Context,
 	name string,
 	attributes map[string]string,
-	lowCardinalityAttributes LowCardinalityAttributes,
+	lowCardinalityAttributes *LowCardinalityAttributes,
+) {
+	r.AddToCounterAndLogEvent(ctx, name, 1, attributes, lowCardinalityAttributes)
+}
+
+// AddToCounterAndLogEvent adds specified amount to a counter metric and
+// records a log record with the same name.
+//
+// It includes the telemetry context's attributes plus the caller-supplied
+// attributes. Low-cardinality attributes are included with the metric, and
+// all attributes are included with the log record.
+func (r *TelemetryRecorder) AddToCounterAndLogEvent(
+	ctx context.Context,
+	name string,
+	delta int64,
+	attributes map[string]string,
+	lowCardinalityAttributes *LowCardinalityAttributes,
 ) {
 	if r == nil {
 		return
 	}
 
-	r.IncrementCounter(ctx, name, lowCardinalityAttributes)
+	r.AddToCounter(ctx, name, delta, lowCardinalityAttributes)
 
 	recordAttributes := make(map[string]string)
 	maps.Copy(recordAttributes, r.telemetryContext.highCardinalityAttributes)
@@ -327,8 +451,7 @@ func (r *TelemetryRecorder) Log(
 	// Copy attributes in order of precedence:
 	// 1. Context's high-cardinality attributes
 	// 2. Context's low-cardinality attributes
-	// 3. Per-record low-cardinality attributes
-	// 4. Per-record attributes
+	// 3. Per-record attributes
 	logAttributes := make(map[string]string)
 	maps.Copy(logAttributes, r.telemetryContext.highCardinalityAttributes)
 	maps.Copy(logAttributes, r.telemetryContext.lowCardinalityAttributes.toMap())
@@ -355,7 +478,7 @@ func (r *TelemetryRecorder) ErrorMetric(
 	r.IncrementCounter(
 		ctx,
 		"error",
-		LowCardinalityAttributes{
+		&LowCardinalityAttributes{
 			ErrorOriginator: errorOriginator,
 		},
 	)
@@ -379,10 +502,11 @@ func (r *TelemetryRecorder) ErrorLog(
 		return
 	}
 
-	mergedLowCardinalityAttributes := r.telemetryContext.lowCardinalityAttributes
-	mergedLowCardinalityAttributes.merge(LowCardinalityAttributes{
-		ErrorOriginator: errorOriginator,
-	})
+	mergedLowCardinalityAttributes := r.telemetryContext.
+		lowCardinalityAttributes.
+		merge(&LowCardinalityAttributes{
+			ErrorOriginator: errorOriginator,
+		})
 
 	errorMessage := ""
 	if err != nil {
@@ -430,6 +554,11 @@ type OpenTelemetryProxy struct {
 
 	// shutdown guards Shutdown so the providers are only shut down once.
 	shutdown atomic.Bool
+
+	// counters cache resolved counter instruments.
+	counters sync.Map
+	// histograms cache resolved histogram instruments.
+	histograms sync.Map
 }
 
 // NewOpenTelemetryProxy returns an OpenTelemetryProxy for the given endpoint.
@@ -679,50 +808,110 @@ func (o *OpenTelemetryProxy) Shutdown(ctx context.Context) error {
 	return shutdownTelemetryProviders(ctx, o.meterProvider, o.logProvider)
 }
 
-// incrementCounter increments a counter metric by 1.
-func (o *OpenTelemetryProxy) incrementCounter(
-	ctx context.Context,
-	name string,
-	lowCardinalityAttributes LowCardinalityAttributes,
-) {
-	if o == nil {
-		return
+// counter returns the counter instrument for name, resolving it once.
+//
+// The second return value is false if the instrument could not be created,
+// in which case the caller drops the measurement.
+func (o *OpenTelemetryProxy) counter(name string) (otelmetric.Int64Counter, bool) {
+	if cached, ok := o.counters.Load(name); ok {
+		return cached.(otelmetric.Int64Counter), true
 	}
 
-	meter := o.meterProvider.Meter(o.serviceName)
-	counter, err := meter.Int64Counter(name)
+	counter, err := o.meterProvider.Meter(o.serviceName).Int64Counter(name)
 	if err != nil {
-		return
+		return nil, false
 	}
 
-	counter.Add(ctx, 1, toOTelAttrs(lowCardinalityAttributes.toMap()))
+	cached, _ := o.counters.LoadOrStore(name, counter)
+	return cached.(otelmetric.Int64Counter), true
 }
 
-// recordDuration records a duration histogram metric in seconds.
-func (o *OpenTelemetryProxy) recordDuration(
+type histogramCacheEntry struct {
+	histogram otelmetric.Float64Histogram
+	unit      string
+}
+
+func (o *OpenTelemetryProxy) defineHistogram(
+	name string,
+	unit string,
+	description string,
+	boundaries []float64,
+) error {
+	if o == nil {
+		return nil
+	}
+
+	if _, defined := o.histograms.Load(name); defined {
+		return fmt.Errorf("analytics: %q is already defined", name)
+	}
+
+	histogram, err := o.meterProvider.Meter(o.serviceName).Float64Histogram(
+		name,
+		otelmetric.WithUnit(unit),
+		otelmetric.WithDescription(description),
+		otelmetric.WithExplicitBucketBoundaries(boundaries...),
+	)
+	if err != nil {
+		return fmt.Errorf("analytics: defining %q: %w", name, err)
+	}
+
+	o.histograms.Store(name, histogramCacheEntry{histogram, unit})
+	return nil
+}
+
+// histogram returns the instrument for name and unit, or nil if it does not
+// exist.
+func (o *OpenTelemetryProxy) histogram(
+	name string,
+) (otelmetric.Float64Histogram, string, bool) {
+	if cached, ok := o.histograms.Load(name); ok {
+		return cached.(histogramCacheEntry).histogram, cached.(histogramCacheEntry).unit, true
+	}
+
+	return nil, "", false
+}
+
+// addCounter increases a counter metric by delta.
+func (o *OpenTelemetryProxy) addToCounter(
 	ctx context.Context,
 	name string,
-	duration time.Duration,
-	lowCardinalityAttributes LowCardinalityAttributes,
+	delta int64,
+	lowCardinalityAttributes *LowCardinalityAttributes,
 ) {
 	if o == nil {
 		return
 	}
 
-	meter := o.meterProvider.Meter(o.serviceName)
-	histogram, err := meter.Float64Histogram(
-		name,
-		otelmetric.WithUnit("s"),
-	)
-	if err != nil {
+	counter, ok := o.counter(name)
+	if !ok {
 		return
+	}
+
+	counter.Add(ctx, delta, toOTelAttrs(lowCardinalityAttributes.toMap()))
+}
+
+// recordHistogram records a value on the histogram named name.
+func (o *OpenTelemetryProxy) recordHistogram(
+	ctx context.Context,
+	name string,
+	value float64,
+	lowCardinalityAttributes *LowCardinalityAttributes,
+) error {
+	if o == nil {
+		return nil
+	}
+
+	histogram, _, ok := o.histogram(name)
+	if !ok {
+		return fmt.Errorf("analytics: %q is not defined", name)
 	}
 
 	histogram.Record(
 		ctx,
-		duration.Seconds(),
+		value,
 		toOTelAttrs(lowCardinalityAttributes.toMap()),
 	)
+	return nil
 }
 
 // log emits an OpenTelemetry log record with the supplied attributes
