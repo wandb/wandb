@@ -23,7 +23,7 @@ def make_typed_value(value: Any) -> pb.HistoryValue:
 @pytest.mark.parametrize(
     "value, field, expected",
     [
-        (None, "null_value", 0),
+        (None, "none", 0),
         (True, "boolean", True),
         (False, "boolean", False),
         (0, "integer", 0),
