@@ -1,0 +1,117 @@
+name: Run tests
+description: >-
+  Run a nox test session against the wheel-<runner.os> artifact uploaded by the
+  build-wheel action, then upload the test results and coverage reports.
+
+inputs:
+  session:
+    description: Nox session to run.
+    required: true
+  python:
+    description: Python version to test with.
+    required: true
+  group-index:
+    description: One-based index of the pytest-split group to run. Runs every test when empty.
+    default: ""
+  group-count:
+    description: Number of pytest-split groups.
+    default: ""
+  server-image:
+    description: >-
+      local-testcontainer image to start for the tests, like
+      us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:master.
+      No server is started when empty.
+    default: ""
+  artifact-name:
+    description: Name for the test result artifact.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    # The server boots while the tools install.
+    - name: Start the W&B server
+      if: inputs.server-image != ''
+      shell: bash
+      env:
+        SERVER_IMAGE: ${{ inputs.server-image }}
+      run: |
+        gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+        docker run --detach --name wandb-server \
+          --env CI=1 \
+          --env WANDB_ENABLE_TEST_CONTAINER=true \
+          --publish 8080:8080 \
+          --publish 9015:9015 \
+          "$SERVER_IMAGE"
+
+    - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+      with:
+        python-version: ${{ inputs.python }}
+    - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      with:
+        version: "0.12.11"
+        enable-cache: false
+    - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+      with:
+        go-version-file: core/go.mod
+        cache: false
+    - name: Install system dependencies
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install --no-install-recommends -y ffmpeg libsndfile1
+    - name: Install system dependencies
+      if: runner.os == 'macOS'
+      shell: bash
+      env:
+        HOMEBREW_NO_AUTO_UPDATE: "1"
+      run: brew install ffmpeg
+    - name: Install system dependencies
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: choco install -y ffmpeg
+    - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+      with:
+        name: wheel-${{ runner.os }}
+        path: dist
+
+    - name: Connect to the W&B server
+      if: inputs.server-image != ''
+      shell: bash
+      run: |
+        uv run --no-project --with click --with filelock --with pydantic --with requests \
+          tools/local_wandb_server.py start \
+            --hostname localhost \
+            --base-port 8080 \
+            --fixture-port 9015
+    - name: Run tests
+      shell: bash
+      env:
+        NOX_SESSION: ${{ inputs.session }}
+        PYTHON_VERSION: ${{ inputs.python }}
+        WANDB_TEST_GROUP_INDEX: ${{ inputs.group-index }}
+        WANDB_TEST_GROUP_COUNT: ${{ inputs.group-count }}
+      run: WANDB_TEST_WHEEL=$(ls dist/*.whl) uvx nox -s "$NOX_SESSION" --python "$PYTHON_VERSION" --verbose
+
+    # Report the results whether the tests passed or failed.
+    - name: Summarize test results
+      if: ${{ !cancelled() }}
+      shell: bash
+      run: python .github/scripts/summarize_test_results.py
+    - name: Save server logs
+      if: ${{ !cancelled() && inputs.server-image != '' }}
+      shell: bash
+      run: |
+        mkdir -p test-results
+        docker logs wandb-server > test-results/server.log 2>&1
+    - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      if: ${{ !cancelled() }}
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: |
+          test-results/
+          coverage.xml
+          coverage.txt
+        if-no-files-found: warn
+        retention-days: 7

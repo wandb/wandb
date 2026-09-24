@@ -135,7 +135,10 @@ def federated_identity(
                 "apiKeys": {"edges": []},
             }
 
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    # The known loopback name avoids slow reverse DNS on macOS runners.
+    # https://github.com/actions/runner-images/issues/14409
+    with unittest.mock.patch("socket.getfqdn", return_value="localhost"):
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     backend.base_url = f"http://127.0.0.1:{server.server_address[1]}"
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
