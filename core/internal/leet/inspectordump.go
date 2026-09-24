@@ -28,8 +28,12 @@ type DumpOptions struct {
 	JSON bool
 
 	// Follow keeps printing records as the run writes them, until it exits
-	// or its file goes unchanged for RunCrashTimeout.
+	// or its file goes unchanged for IdleTimeout.
 	Follow bool
+
+	// IdleTimeout is how long Follow waits for a write before giving up.
+	// Zero waits forever.
+	IdleTimeout time.Duration
 }
 
 // DumpRecords writes the records in a .wandb file to stdout. An empty
@@ -93,7 +97,8 @@ func DumpRecords(
 			if err != nil {
 				return err
 			}
-			if idle := time.Since(info.ModTime()); idle > RunCrashTimeout {
+			idle := time.Since(info.ModTime())
+			if opts.IdleTimeout > 0 && idle > opts.IdleTimeout {
 				return note(fmt.Sprintf(
 					"no writes for %v; the run may have crashed",
 					idle.Round(time.Second)))

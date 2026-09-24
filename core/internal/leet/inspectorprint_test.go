@@ -108,7 +108,7 @@ func TestDumpRecords_FollowStopsForDeadRun(t *testing.T) {
 	done := make(chan error, 1)
 	go func() {
 		done <- leet.DumpRecords(path, "", io.Discard, io.Discard,
-			leet.DumpOptions{JSON: true, Follow: true})
+			leet.DumpOptions{JSON: true, Follow: true, IdleTimeout: time.Minute})
 	}()
 
 	select {

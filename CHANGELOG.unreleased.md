@@ -17,7 +17,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 ### Added
 
 - `wandb leet inspect --summary` prints a run's state, latest metric values, config and last console lines from its local `.wandb` file, a quick way for a script or a coding agent to check on a run (@dmitryduev in https://github.com/wandb/wandb/pull/12951)
-- `wandb leet inspect --json` prints a run's records, one JSON object per line, or its `--summary` as one JSON object, and `--follow` keeps printing records as a running run writes them until it exits (@dmitryduev in https://github.com/wandb/wandb/pull/12952)
+- `wandb leet inspect --json` prints a run's records, one JSON object per line, or its `--summary` as one JSON object, and `--follow` (`-f`) keeps printing records as a running run writes them until it exits or its file goes `--idle-timeout` (10 minutes by default) without a write (@dmitryduev in https://github.com/wandb/wandb/pull/12952)
 - In W&B LEET TUI, `ctrl+a` selects every run matching the runs filter after you confirm with `y`, and `x` deselects all runs except the pinned one (@dmitryduev in https://github.com/wandb/wandb/pull/12904)
 - In W&B LEET TUI, selected and pinned runs are remembered per wandb directory and selected again the next time you open it, skipping runs that have since been deleted. The newest run is selected as well if it started since the last session (@dmitryduev in https://github.com/wandb/wandb/pull/12887)
 - It is now possible to use resume="must" for offline runs. Syncing will fail if there's no run to resume (@geoffhardy in https://github.com/wandb/wandb/pull/12110)

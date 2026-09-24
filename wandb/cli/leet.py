@@ -127,8 +127,16 @@ def symon(pprof: str = "", interval: str = "") -> None:
 )
 @click.option(
     "--follow",
+    "-f",
     is_flag=True,
     help="Keep printing records as the run writes them until it exits.",
+)
+@click.option(
+    "--idle-timeout",
+    default="",
+    metavar="DURATION",
+    help="With --follow, stop once the run's file has gone this long without"
+    " a write (e.g. 30s, 1h; 0 waits forever). Defaults to 10m.",
 )
 @click.help_option("-h", "--help")
 def inspect(
@@ -136,6 +144,7 @@ def inspect(
     summary: bool = False,
     json_output: bool = False,
     follow: bool = False,
+    idle_timeout: str = "",
 ) -> None:
     """Inspect a run's .wandb transaction log.
 
@@ -154,7 +163,13 @@ def inspect(
     PATH can be a .wandb file, a run directory containing one, or a
     wandb directory. If PATH is not provided, the latest run is used.
     """  # noqa: D301 -- the \b escape is click's marker to not rewrap Examples.
-    launch_inspect(path, summary=summary, json_output=json_output, follow=follow)
+    launch_inspect(
+        path,
+        summary=summary,
+        json_output=json_output,
+        follow=follow,
+        idle_timeout=idle_timeout,
+    )
 
 
 @leet.command()
@@ -303,6 +318,7 @@ def launch_inspect(
     summary: bool = False,
     json_output: bool = False,
     follow: bool = False,
+    idle_timeout: str = "",
 ) -> Never:
     """Launch the transaction log record inspector."""
     config = _resolve_path(path)
@@ -317,6 +333,8 @@ def launch_inspect(
         args.append("--json")
     if follow:
         args.append("--follow")
+    if idle_timeout:
+        args.extend(["--idle-timeout", idle_timeout])
     args.extend(_get_local_launch_args(config))
 
     _run_core(args)

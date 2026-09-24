@@ -271,6 +271,7 @@ type leetOptions struct {
 	summary          bool
 	jsonOutput       bool
 	follow           bool
+	idleTimeout      time.Duration
 	wandbDir         string
 
 	// remoteURL is the W&B URL of the run to open
@@ -366,6 +367,13 @@ func bindLeetFlags(fs *flag.FlagSet, opts *leetOptions) {
 			" until it exits.",
 	)
 	fs.DurationVar(
+		&opts.idleTimeout,
+		"idle-timeout",
+		leet.RunCrashTimeout,
+		"With --follow, stop once the run's file has gone this long without"+
+			" a write. 0 waits forever.",
+	)
+	fs.DurationVar(
 		&opts.symonInterval,
 		"interval",
 		leet.DefaultSymonSamplingInterval,
@@ -388,7 +396,7 @@ Usage:
   wandb-core leet [flags] <wandb-directory>
   wandb-core leet --run-file <wandb-file> <wandb-directory>
   wandb-core leet --remote-url <wandb-run-url>
-  wandb-core leet --inspect [--summary] [--json] [--follow] [--run-file <wandb-file>] [<wandb-directory>]
+  wandb-core leet --inspect [--summary] [--json] [--follow [--idle-timeout <duration>]] [--run-file <wandb-file>] [<wandb-directory>]
   wandb-core leet --config
   wandb-core leet --symon [flags]
 
@@ -458,6 +466,8 @@ func validateInspectorOutputOptions(opts *leetOptions) error {
 		return errors.New("--summary, --json and --follow require --inspect")
 	case opts.summary && opts.follow:
 		return errors.New("--summary cannot be used with --follow")
+	case opts.idleTimeout < 0:
+		return errors.New("--idle-timeout must be >= 0")
 	default:
 		return nil
 	}
@@ -545,7 +555,11 @@ func runLeetInspector(opts *leetOptions, logger *observability.CoreLogger) int {
 		err = leet.PrintSummary(opts.runFile, opts.wandbDir, os.Stdout, opts.jsonOutput)
 	case opts.jsonOutput || opts.follow || !stdoutIsTerminal():
 		err = leet.DumpRecords(opts.runFile, opts.wandbDir, os.Stdout, os.Stderr,
-			leet.DumpOptions{JSON: opts.jsonOutput, Follow: opts.follow})
+			leet.DumpOptions{
+				JSON:        opts.jsonOutput,
+				Follow:      opts.follow,
+				IdleTimeout: opts.idleTimeout,
+			})
 	default:
 		return runLeetInspectorTUI(opts, logger)
 	}
