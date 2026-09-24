@@ -42,6 +42,7 @@ var streamProviders = wire.NewSet(
 	CredentialsFromSettings,
 	featurechecker.New,
 	filestream.FileStreamProviders,
+	fileStreamStatsProviders,
 	filetransfer.NewFileTransferStats,
 	flowControlProviders,
 	handlerProviders,

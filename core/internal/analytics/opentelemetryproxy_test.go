@@ -32,7 +32,7 @@ func TestTelemetryRecorder_RecordsDefaultAttributes(t *testing.T) {
 		t.Context(),
 		"default_attrs_event",
 		nil,
-		analytics.LowCardinalityAttributes{},
+		&analytics.LowCardinalityAttributes{},
 	)
 	require.NoError(t, proxy.Shutdown(context.Background()))
 
@@ -56,14 +56,14 @@ func TestTelemetryRecorder_With_OnlyProvidedLowCardinalityAttributes(t *testing.
 	)
 
 	derived := recorder.With(
-		analytics.LowCardinalityAttributes{ErrorOriginator: "MyFunction"},
+		&analytics.LowCardinalityAttributes{ErrorOriginator: "MyFunction"},
 		nil,
 	)
 	derived.IncrementCounterAndLogEvent(
 		t.Context(),
 		"low_card_event",
 		nil,
-		analytics.LowCardinalityAttributes{},
+		&analytics.LowCardinalityAttributes{},
 	)
 	require.NoError(t, proxy.Shutdown(context.Background()))
 
@@ -96,12 +96,12 @@ func TestTelemetryRecorder_With_InheritsAndIgnoresEmptyFields(
 	// Chained derivation: each child inherits its parent's attributes,
 	// and empty fields must not overwrite inherited or default values.
 	derived := recorder.With(
-		analytics.LowCardinalityAttributes{WandbVersion: "custom-version"},
+		&analytics.LowCardinalityAttributes{WandbVersion: "custom-version"},
 		nil,
 	)
-	derived = derived.With(analytics.LowCardinalityAttributes{}, nil)
+	derived = derived.With(&analytics.LowCardinalityAttributes{}, nil)
 	derived = derived.With(
-		analytics.LowCardinalityAttributes{ErrorOriginator: "MyFunction"},
+		&analytics.LowCardinalityAttributes{ErrorOriginator: "MyFunction"},
 		nil,
 	)
 	derived.Log(
@@ -129,14 +129,14 @@ func TestTelemetryRecorder_With_HighCardinalityLogsOnly(
 	)
 
 	derived := recorder.With(
-		analytics.LowCardinalityAttributes{},
+		&analytics.LowCardinalityAttributes{},
 		map[string]string{"arbitrary_key": "value"},
 	)
 	derived.IncrementCounterAndLogEvent(
 		t.Context(),
 		"high_card_event",
 		nil,
-		analytics.LowCardinalityAttributes{},
+		&analytics.LowCardinalityAttributes{},
 	)
 	require.NoError(t, proxy.Shutdown(context.Background()))
 
@@ -159,14 +159,14 @@ func TestTelemetryRecorder_With_DoesNotAffectParent(t *testing.T) {
 	)
 
 	recorder.With(
-		analytics.LowCardinalityAttributes{ErrorOriginator: "ChildFunction"},
+		&analytics.LowCardinalityAttributes{ErrorOriginator: "ChildFunction"},
 		map[string]string{"child_key": "child-value"},
 	)
 	recorder.IncrementCounterAndLogEvent(
 		t.Context(),
 		"parent_event",
 		nil,
-		analytics.LowCardinalityAttributes{},
+		&analytics.LowCardinalityAttributes{},
 	)
 	require.NoError(t, proxy.Shutdown(context.Background()))
 
@@ -189,7 +189,7 @@ func TestTelemetryRecorder_With_SharesShutdown(t *testing.T) {
 		analytics.NewTelemetryContext(),
 	)
 
-	derived := recorder.With(analytics.LowCardinalityAttributes{}, nil)
+	derived := recorder.With(&analytics.LowCardinalityAttributes{}, nil)
 	require.NoError(t, proxy.Shutdown(context.Background()))
 
 	// After the root proxy shuts down, derived recorders are no-ops.
@@ -214,14 +214,14 @@ func TestTelemetryRecorder_PerRecordAttributesOverrideContext(
 	)
 
 	derived := recorder.With(
-		analytics.LowCardinalityAttributes{WandbVersion: "from-context"},
+		&analytics.LowCardinalityAttributes{WandbVersion: "from-context"},
 		map[string]string{"test_key": "from-context"},
 	)
 	derived.IncrementCounterAndLogEvent(
 		t.Context(),
 		"override_event",
 		map[string]string{"test_key": "from-argument"},
-		analytics.LowCardinalityAttributes{WandbVersion: "from-argument"},
+		&analytics.LowCardinalityAttributes{WandbVersion: "from-argument"},
 	)
 	require.NoError(t, proxy.Shutdown(context.Background()))
 
@@ -248,7 +248,7 @@ func TestTelemetryRecorder_PerRecordAttributesDoNotPersist(
 		t.Context(),
 		"with_overrides",
 		map[string]string{"test_key": "per-record"},
-		analytics.LowCardinalityAttributes{WandbVersion: "per-record"},
+		&analytics.LowCardinalityAttributes{WandbVersion: "per-record"},
 	)
 	recorder.Log(
 		t.Context(),
@@ -301,7 +301,7 @@ func TestTelemetryRecorder_RecordMetricAndLogEvent(t *testing.T) {
 		map[string]string{
 			"custom": "value",
 		},
-		analytics.LowCardinalityAttributes{ErrorOriginator: "X"},
+		&analytics.LowCardinalityAttributes{ErrorOriginator: "X"},
 	)
 	require.NoError(t, proxy.Shutdown(context.Background()))
 
@@ -324,7 +324,7 @@ func TestTelemetryRecorder_RecordHistogram(t *testing.T) {
 		proxy.OpenTelemetryProxy,
 		analytics.NewTelemetryContext(),
 	).With(
-		analytics.LowCardinalityAttributes{LeetMode: "inspect"},
+		&analytics.LowCardinalityAttributes{LeetMode: "inspect"},
 		nil,
 	)
 	err := recorder.DefineHistogram(
@@ -342,7 +342,7 @@ func TestTelemetryRecorder_RecordHistogram(t *testing.T) {
 		t.Context(),
 		"session_duration",
 		1.5,
-		analytics.LowCardinalityAttributes{
+		&analytics.LowCardinalityAttributes{
 			ExecutionContext: "local",
 		},
 	)
@@ -385,7 +385,7 @@ func TestTelemetryRecorder_RecordHistogram_ResolvesBoundaries(t *testing.T) {
 			t.Context(),
 			"encode_duration",
 			d.Seconds(),
-			analytics.LowCardinalityAttributes{},
+			&analytics.LowCardinalityAttributes{},
 		)
 	}
 	require.NoError(t, proxy.Shutdown(context.Background()))
@@ -409,7 +409,7 @@ func TestTelemetryRecorder_ErrorLog(t *testing.T) {
 		analytics.NewTelemetryContext(),
 	)
 	recorder = recorder.With(
-		analytics.LowCardinalityAttributes{WandbVersion: "custom-version"},
+		&analytics.LowCardinalityAttributes{WandbVersion: "custom-version"},
 		map[string]string{"request_id": "test-request"},
 	)
 
@@ -530,13 +530,13 @@ func TestTelemetryRecorder_AddToCounter(t *testing.T) {
 		t.Context(),
 		"request_count",
 		1,
-		analytics.LowCardinalityAttributes{},
+		&analytics.LowCardinalityAttributes{},
 	)
 	recorder.AddToCounter(
 		t.Context(),
 		"request_count",
 		4,
-		analytics.LowCardinalityAttributes{},
+		&analytics.LowCardinalityAttributes{},
 	)
 	require.NoError(t, proxy.Shutdown(context.Background()))
 
@@ -564,7 +564,7 @@ func TestTelemetryRecorder_DefineHistogram(t *testing.T) {
 		t.Context(),
 		"request_size",
 		2*1024*1024,
-		analytics.LowCardinalityAttributes{ExecutionContext: "ssh"},
+		&analytics.LowCardinalityAttributes{ExecutionContext: "ssh"},
 	)
 	require.NoError(t, proxy.Shutdown(context.Background()))
 
@@ -623,7 +623,7 @@ func TestOpenTelemetryProxyTest_FindMetricsPerSeries(t *testing.T) {
 			t.Context(),
 			"encode_duration",
 			0.01,
-			analytics.LowCardinalityAttributes{
+			&analytics.LowCardinalityAttributes{
 				ExecutionContext: executionContext,
 			},
 		)

@@ -1,6 +1,7 @@
 package filestream
 
 import (
+	"github.com/wandb/wandb/core/internal/filestreamstats"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
 )
@@ -19,4 +20,6 @@ type UpdateContext struct {
 
 	Logger  *observability.CoreLogger
 	Printer *observability.Printer
+
+	Stats *filestreamstats.Stats
 }

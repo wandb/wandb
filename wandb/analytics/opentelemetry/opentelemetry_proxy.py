@@ -155,6 +155,15 @@ class LowCardinalityAttributes:
     python_version: str | None = None
     exception_type: str | None = None
 
+    # an interval of work in the filestream upload pipeline.
+    segment: str | None = None
+
+    # the filestream data stream: history or events.
+    stream: str | None = None
+
+    # format for writing a history value: `json`, `typed` or `json_typed`.
+    value_encoding: str | None = None
+
     def as_dict(self) -> dict[str, str]:
         """Return the set (non-`None`) attributes as a string-keyed mapping."""
         return {
@@ -169,6 +178,9 @@ class LowCardinalityAttributes:
             wandb_version=self.wandb_version or other.wandb_version,
             python_version=self.python_version or other.python_version,
             exception_type=self.exception_type or other.exception_type,
+            segment=self.segment or other.segment,
+            stream=self.stream or other.stream,
+            value_encoding=self.value_encoding or other.value_encoding,
         )
 
 
@@ -632,6 +644,7 @@ class OpenTelemetryProxy:
             OTLPMetricExporter,
         )
         from opentelemetry.sdk.metrics import Counter as SdkCounter
+        from opentelemetry.sdk.metrics import Histogram as SdkHistogram
         from opentelemetry.sdk.metrics import MeterProvider
         from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 
@@ -640,7 +653,10 @@ class OpenTelemetryProxy:
                 endpoint=endpoint.rstrip("/") + _METRICS_PATH,
                 session=session,
                 timeout=_HTTP_CLIENT_TIMEOUT_SECONDS,
-                preferred_temporality={SdkCounter: AggregationTemporality.DELTA},
+                preferred_temporality={
+                    SdkCounter: AggregationTemporality.DELTA,
+                    SdkHistogram: AggregationTemporality.DELTA,
+                },
             ),
             self._server_supported,
         )

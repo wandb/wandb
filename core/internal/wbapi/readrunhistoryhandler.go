@@ -219,7 +219,7 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryRead(
 		ctx,
 		"scan_run_history_read",
 		getHistoryStepsEnd.Sub(getHistoryStepsStart).Seconds(),
-		analytics.LowCardinalityAttributes{},
+		&analytics.LowCardinalityAttributes{},
 	)
 
 	historyRows := make([]*spb.HistoryRow, 0, len(historySteps))
