@@ -24,15 +24,29 @@ def coreweave_evaluations_module(monkeypatch):
 
     types_module = ModuleType("coreweave_evaluations.types")
     types_module.__path__ = []
+    audio_module = ModuleType("coreweave_evaluations.types.wandb_audio_v1_param")
+    audio_module.WandbAudioV1Param = dict
     image_module = ModuleType("coreweave_evaluations.types.wandb_image_v1_param")
     image_module.WandbImageV1Param = dict
+    video_module = ModuleType("coreweave_evaluations.types.wandb_video_v1_param")
+    video_module.WandbVideoV1Param = dict
 
     monkeypatch.setitem(sys.modules, "coreweave_evaluations", client_module)
     monkeypatch.setitem(sys.modules, "coreweave_evaluations.types", types_module)
     monkeypatch.setitem(
         sys.modules,
+        "coreweave_evaluations.types.wandb_audio_v1_param",
+        audio_module,
+    )
+    monkeypatch.setitem(
+        sys.modules,
         "coreweave_evaluations.types.wandb_image_v1_param",
         image_module,
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "coreweave_evaluations.types.wandb_video_v1_param",
+        video_module,
     )
     return client_module
 
@@ -183,6 +197,7 @@ def artifact_image_factory(tmp_path, monkeypatch):
 
     return make
 
+
 def _write_bytes(tmp_path, name, contents):
     path = tmp_path / name
     path.write_bytes(contents)
@@ -251,7 +266,13 @@ def test_committed_artifact_media_returns_artifact_ref_url(tmp_path, monkeypatch
         lambda: artifact_ref_url,
     )
 
-    assert _media_ces._committed_artifact_ref_url(image) == artifact_ref_url
+    assert (
+        _media_ces._committed_artifact_ref_url(
+            image,
+            parent_extension_type="wandb-image",
+        )
+        == artifact_ref_url
+    )
 
 
 def test_media_binds_to_explicit_run_path(run_factory, tmp_path):
@@ -275,7 +296,12 @@ def test_unbound_media_is_bound_in_place_to_eval_table_path(run_factory, tmp_pat
     image = wandb.Image(path)
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
 
-    uri = _media_ces._ensure_eval_table_run_file(image, run, "eval/key")
+    uri = _media_ces._ensure_eval_table_run_file(
+        image,
+        run,
+        "eval/key",
+        parent_extension_type="wandb-image",
+    )
 
     expected_path = os.path.join(
         "media",
@@ -297,8 +323,18 @@ def test_repeated_media_content_is_placed_once(run_factory, tmp_path):
     first = wandb.Image(path)
     second = wandb.Image(path)
 
-    _media_ces._ensure_eval_table_run_file(first, run, "eval")
-    _media_ces._ensure_eval_table_run_file(second, run, "eval")
+    _media_ces._ensure_eval_table_run_file(
+        first,
+        run,
+        "eval",
+        parent_extension_type="wandb-image",
+    )
+    _media_ces._ensure_eval_table_run_file(
+        second,
+        run,
+        "eval",
+        parent_extension_type="wandb-image",
+    )
 
     assert second._run is run
     assert second._path == first._path
@@ -316,7 +352,12 @@ def test_media_already_bound_to_active_run_reuses_existing_path(
     run._publish_file.reset_mock()
 
     working_image = _media_ces._media_for_run(image, run)
-    uri = _media_ces._ensure_eval_table_run_file(working_image, run, "eval")
+    uri = _media_ces._ensure_eval_table_run_file(
+        working_image,
+        run,
+        "eval",
+        parent_extension_type="wandb-image",
+    )
 
     assert working_image is image
     assert image._path == existing_path
@@ -332,7 +373,12 @@ def test_media_for_another_run_is_copied_before_binding(run_factory, tmp_path):
     original_path = image._path
 
     working_image = _media_ces._media_for_run(image, destination_run)
-    uri = _media_ces._ensure_eval_table_run_file(working_image, destination_run, "eval")
+    uri = _media_ces._ensure_eval_table_run_file(
+        working_image,
+        destination_run,
+        "eval",
+        parent_extension_type="wandb-image",
+    )
 
     assert image._run is source_run
     assert image._path == original_path
