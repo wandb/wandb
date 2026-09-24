@@ -100,8 +100,13 @@ def _image_write_rows(image):
         )
     ]
 
-def _image_from_external_reference_artifact(tmp_path, monkeypatch):
-    image = wandb.Image(_png(tmp_path))
+
+def _image_from_external_reference_artifact(
+    tmp_path,
+    monkeypatch,
+    **image_kwargs,
+):
+    image = wandb.Image(_png(tmp_path), **image_kwargs)
     source_artifact = MagicMock()
     source_artifact._local_path_to_name.return_value = "media/images/image.png"
     source_artifact.get_entry.return_value.ref = "s3://private-bucket/image.png"
@@ -323,14 +328,15 @@ def test_external_reference_artifact_image_raises_in_raise_mode(
         )
 
 
-def test_image_overlays_are_null_until_overlay_support(
+def test_external_reference_artifact_image_overlays_are_null_by_default(
     run_factory,
     tmp_path,
     monkeypatch,
 ):
     run = run_factory("run-one")
-    image = wandb.Image(
-        _png(tmp_path),
+    image = _image_from_external_reference_artifact(
+        tmp_path,
+        monkeypatch,
         boxes={"predictions": {"box_data": [], "class_labels": {}}},
     )
     warning = MagicMock()
@@ -346,6 +352,27 @@ def test_image_overlays_are_null_until_overlay_support(
     assert prepared.row_batches[0][0]["input"]["image"] is None
     assert prepared.dataset_fields[0]["extension_type"] == "wandb-image"
     warning.assert_called_once()
+
+
+def test_external_reference_artifact_image_overlays_raise_in_raise_mode(
+    run_factory,
+    tmp_path,
+    monkeypatch,
+):
+    run = run_factory("run-one")
+    image = _image_from_external_reference_artifact(
+        tmp_path,
+        monkeypatch,
+        boxes={"predictions": {"box_data": [], "class_labels": {}}},
+    )
+    writer = _writer_ces.CESWriter(unsupported_media_mode="raise")
+    writer.bind_to_run(run, "eval", 0)
+
+    with pytest.raises(TypeError, match="masks or boxes"):
+        writer._build_write_payloads(
+            name="eval",
+            rows=_image_write_rows(image),
+        )
 
 
 def test_cell_at_size_limit_becomes_null(run_factory, tmp_path, monkeypatch):
