@@ -1,20 +1,22 @@
-"""Federated identity (OIDC) regression tests for gh-11722.
+"""Regression tests for https://github.com/wandb/wandb/issues/11722.
 
 wandb-core exchanges the identity token for an access token and authenticates
 with it as a Bearer token, so these tests observe that traffic with a fake W&B
 server instead of the local-testcontainer.
 """
 
+import asyncio
 import dataclasses
-import json
 import threading
+import time
 import urllib.parse
 from collections.abc import Generator
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from unittest import mock
 
+import fastapi
+import fastapi.responses
 import pytest
+import uvicorn
 import wandb
 
 
@@ -27,7 +29,6 @@ class FederatedIdentityBackend:
     access token with Bearer authentication.
     """
 
-    base_url: str
     access_token: str
     identity_token: str
 
@@ -40,13 +41,69 @@ class FederatedIdentityBackend:
     token_exchanges: int = 0
     graphql_auth_headers: list[str] = dataclasses.field(default_factory=list)
 
+    def to_fast_api(self) -> fastapi.FastAPI:
+        """Returns an ASGI app implemented by this backend."""
+        app = fastapi.FastAPI()
+        app.post("/oidc/token")(self._post_oidc_token)
+        app.post("/graphql")(self._post_graphql)
+        return app
+
+    async def _post_oidc_token(
+        self, request: fastapi.Request
+    ) -> fastapi.responses.JSONResponse:
+        self.token_exchanges += 1
+
+        # Require the exact token: surrounding whitespace (like the
+        # trailing newline in the token file) must be stripped.
+        params = urllib.parse.parse_qs((await request.body()).decode())
+        if params.get("assertion", [""])[0] != self.identity_token:
+            return fastapi.responses.JSONResponse(
+                {"error": "invalid_grant"},
+                status_code=400,
+            )
+
+        return fastapi.responses.JSONResponse(
+            {"access_token": self.access_token, "expires_in": 3600},
+        )
+
+    async def _post_graphql(
+        self, request: fastapi.Request
+    ) -> fastapi.responses.JSONResponse:
+        auth = request.headers.get("Authorization", "")
+        self.graphql_auth_headers.append(auth)
+
+        if not (self.valid and auth == f"Bearer {self.access_token}"):
+            return fastapi.responses.JSONResponse(
+                {"errors": [{"message": "unauthorized"}]},
+                status_code=401,
+            )
+
+        return fastapi.responses.JSONResponse(
+            {
+                "data": {
+                    "viewer": {
+                        "id": "VXNlcjox",
+                        "name": self.username,
+                        "deletedAt": None,
+                        "entity": self.entity,
+                        "username": self.username,
+                        "email": f"{self.username}@example.com",
+                        "admin": False,
+                        "flags": "{}",
+                        "teams": {"edges": []},
+                        "apiKeys": {"edges": []},
+                    }
+                }
+            },
+        )
+
 
 @pytest.fixture
 def federated_identity(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> Generator[FederatedIdentityBackend, None, None]:
-    """Configure the environment for federated identity (gh-11722).
+    """Configure the environment for federated identity.
 
     Starts a fake W&B server and sets WANDB_IDENTITY_TOKEN_FILE,
     WANDB_CREDENTIALS_FILE and WANDB_BASE_URL. All wandb-core network
@@ -54,80 +111,25 @@ def federated_identity(
     token-exchange flow with Bearer authentication.
     """
     backend = FederatedIdentityBackend(
-        base_url="",  # Filled in after the server picks a free port.
         access_token="test-access-token",
         identity_token="eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJmZWQifQ.c2ln",
     )
 
-    class Handler(BaseHTTPRequestHandler):
-        def log_message(self, *args):
-            pass
-
-        def _json(self, obj, status=200):
-            payload = json.dumps(obj).encode()
-            self.send_response(status)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(payload)))
-            self.end_headers()
-            self.wfile.write(payload)
-
-        def do_POST(self):
-            body = self.rfile.read(int(self.headers.get("Content-Length", 0))).decode()
-
-            if self.path == "/oidc/token":
-                backend.token_exchanges += 1
-
-                # Require the exact token: surrounding whitespace (like the
-                # trailing newline in the token file) must be stripped.
-                params = urllib.parse.parse_qs(body)
-                assertion = params.get("assertion", [""])[0]
-                if assertion != backend.identity_token:
-                    self._json({"error": "invalid_grant"}, status=400)
-                    return
-
-                self._json({"access_token": backend.access_token, "expires_in": 3600})
-                return
-
-            if self.path == "/graphql":
-                auth = self.headers.get("Authorization", "")
-                backend.graphql_auth_headers.append(auth)
-
-                authorized = auth == f"Bearer {backend.access_token}"
-                if not (authorized and backend.valid):
-                    self._json(
-                        {"errors": [{"message": "unauthorized"}]},
-                        status=401,
-                    )
-                    return
-
-                self._json({"data": {"viewer": self._viewer()}})
-                return
-
-            self.send_response(404)
-            self.end_headers()
-
-        @staticmethod
-        def _viewer():
-            return {
-                "id": "VXNlcjox",
-                "name": backend.username,
-                "deletedAt": None,
-                "entity": backend.entity,
-                "username": backend.username,
-                "email": f"{backend.username}@example.com",
-                "admin": False,
-                "flags": "{}",
-                "teams": {"edges": []},
-                "apiKeys": {"edges": []},
-            }
-
-    # The known loopback name avoids slow reverse DNS on macOS runners.
-    # https://github.com/actions/runner-images/issues/14409
-    with mock.patch("socket.getfqdn", return_value="localhost"):
-        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    backend.base_url = f"http://127.0.0.1:{server.server_address[1]}"
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    server = uvicorn.Server(
+        uvicorn.Config(
+            backend.to_fast_api(),
+            host="127.0.0.1",
+            port=0,
+            log_level="warning",
+        )
+    )
+    thread = threading.Thread(target=asyncio.run, args=[server.serve()])
     thread.start()
+    deadline = time.monotonic() + 10
+    while not server.started:
+        assert time.monotonic() < deadline, "The fake W&B server failed to start."
+        time.sleep(0.1)
+    port = server.servers[0].sockets[0].getsockname()[1]
 
     token_file = tmp_path / "identity-token.jwt"
     # The trailing newline is typical of token files created with `echo`
@@ -137,19 +139,17 @@ def federated_identity(
     monkeypatch.delenv("WANDB_API_KEY", raising=False)
     monkeypatch.setenv("WANDB_IDENTITY_TOKEN_FILE", str(token_file))
     monkeypatch.setenv("WANDB_CREDENTIALS_FILE", str(tmp_path / "credentials.json"))
-    monkeypatch.setenv("WANDB_BASE_URL", backend.base_url)
+    monkeypatch.setenv("WANDB_BASE_URL", f"http://127.0.0.1:{port}")
 
     try:
         yield backend
     finally:
-        server.shutdown()
-        server.server_close()
+        server.should_exit = True
+        thread.join(timeout=30)
 
 
 def test_login_verify_with_token_file(federated_identity):
-    """Regression test for gh-11722: federated identity in wandb.login().
-
-    Verification goes through wandb-core, which exchanges the identity
+    """Verification goes through wandb-core, which exchanges the identity
     token for an access token and authenticates with it as a Bearer token.
     """
     logged_in = wandb.login(verify=True)
@@ -171,9 +171,7 @@ def test_login_verify_with_token_file_rejected(federated_identity):
 
 
 def test_initialize_api_with_federated_identity(federated_identity):
-    """Regression test for gh-11722: federated identity in wandb.Api().
-
-    With WANDB_IDENTITY_TOKEN_FILE set and no API key configured, all
+    """With WANDB_IDENTITY_TOKEN_FILE set and no API key configured, all
     network traffic goes through wandb-core, which exchanges the identity
     token for an access token and authenticates with it as a Bearer token.
     """
