@@ -11,9 +11,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import wandb
 from wandb.analytics import get_telemetry_recorder
-from wandb.analytics.opentelemetry.opentelemetry_proxy import (
-    LowCardinalityAttributes,
-)
+from wandb.analytics.opentelemetry.opentelemetry_proxy import LowCardinalityAttributes
 from wandb.apis.public.service_api import ServiceApi
 from wandb.errors import UsageError
 from wandb.sdk.data_types.base_types.media import Media
@@ -26,6 +24,8 @@ if TYPE_CHECKING:
     from coreweave_evaluations import Client as EvaluationsClientT
     from coreweave_evaluations.types.eval_tables.column_create_params import (
         DatasetField as _CESDatasetField,
+    )
+    from coreweave_evaluations.types.eval_tables.column_create_params import (
         Scorer as _CESScorer,
     )
     from coreweave_evaluations.types.eval_tables.row_add_params import Row as _CESRow
@@ -77,7 +77,6 @@ class _CESFieldType:
 
     def declaration(self, source: _CESFieldSource, name: str) -> _CESDatasetField:
         """Build the CES client field declaration for this observed column type."""
-
         result: _CESDatasetField = {
             "source": source,
             "name": name,
@@ -411,9 +410,7 @@ class CESWriter:
             )
 
         dataset_fields: list[_CESDatasetField] = [
-            dataset_field_types[(source, column_name)].declaration(
-                source, column_name
-            )
+            dataset_field_types[(source, column_name)].declaration(source, column_name)
             for source, column_name in dataset_field_order
         ]
         scorers: list[_CESScorer] = [
@@ -653,8 +650,6 @@ class CESWriter:
         if prepared.media_cells_examined == 0:
             return
 
-        # Measure whether media above the 3.5 MB cell limit needs separate
-        # extended-metadata storage.
         recorder = get_telemetry_recorder()
         recorder.increment_counter(
             "eval_table_ces_media_write",

@@ -55,7 +55,6 @@ def prepare_media(
     eval_table_key: str,
 ) -> PreparedMediaCell:
     """Prepare supported media for one EvalTable cell in the active run."""
-
     raise UsageError(
         f"CES EvalTable does not support media type {type(media).__name__!r}."
     )
