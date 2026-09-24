@@ -242,10 +242,10 @@ func leetMain(args []string) int {
 	started := time.Now()
 	exitCode := runLeetCommand(&opts, logger)
 	duration := time.Since(started)
-	recorder.RecordDuration(
+	recorder.RecordHistogram(
 		context.Background(),
 		"leet_session_duration",
-		duration,
+		float64(duration.Seconds()),
 		analytics.LowCardinalityAttributes{},
 	)
 

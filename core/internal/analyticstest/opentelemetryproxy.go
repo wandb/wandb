@@ -33,12 +33,27 @@ type Log struct {
 // Metric is a OTLP metric data point received by an OpenTelemetryProxyTest,
 // with its name, value, and attributes extracted.
 type Metric struct {
-	Name           string
-	Unit           string
-	Value          int64
+	Name string
+	Unit string
+
+	// Value is the data point of an integer counter.
+	Value int64
+
+	// ValueFloat is the data point of a floating-point counter.
+	ValueFloat float64
+
 	HistogramCount uint64
 	HistogramSum   float64
-	Attributes     map[string]string
+
+	// HistogramBounds are the explicit bucket boundaries the exporter sent.
+	// Use it to assert that a histogram resolves the range it measures.
+	HistogramBounds []float64
+
+	// HistogramBucketCounts is the count in each bucket. It has one more
+	// element than HistogramBounds, for the overflow bucket.
+	HistogramBucketCounts []uint64
+
+	Attributes map[string]string
 }
 
 // Request is an HTTP request received by an OpenTelemetryProxyTest.
@@ -91,6 +106,54 @@ func (s *OpenTelemetryProxyTest) FindMetric(name string) (Metric, bool) {
 		}
 	}
 	return Metric{}, false
+}
+
+// FindMetrics returns every received metric with the given name.
+//
+// A metric recorded with a distinguishing attribute, such as a pipeline
+// segment, arrives as one data point per attribute set. FindMetric returns
+// only the first of them.
+func (s *OpenTelemetryProxyTest) FindMetrics(name string) []Metric {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var found []Metric
+	for _, metric := range s.metrics {
+		if metric.Name == name {
+			found = append(found, metric)
+		}
+	}
+	return found
+}
+
+// FindMetricWith returns the first received metric with the given name whose
+// attributes contain every key and value in attributes.
+//
+// Other attributes on the data point are ignored, so a caller can select a
+// series by the one attribute it cares about.
+func (s *OpenTelemetryProxyTest) FindMetricWith(
+	name string,
+	attributes map[string]string,
+) (Metric, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, metric := range s.metrics {
+		if metric.Name != name {
+			continue
+		}
+		if hasAll(metric.Attributes, attributes) {
+			return metric, true
+		}
+	}
+	return Metric{}, false
+}
+
+func hasAll(attributes, want map[string]string) bool {
+	for key, value := range want {
+		if attributes[key] != value {
+			return false
+		}
+	}
+	return true
 }
 
 // NewOpenTelemetryProxyTest creates an OpenTelemetry proxy backed by an OTLP
@@ -182,16 +245,20 @@ func (s *OpenTelemetryProxyTest) addMetrics(body []byte) error {
 				for _, dataPoint := range metric.GetSum().GetDataPoints() {
 					s.metrics = append(s.metrics, Metric{
 						Name:       metric.GetName(),
+						Unit:       metric.GetUnit(),
 						Value:      dataPoint.GetAsInt(),
+						ValueFloat: dataPoint.GetAsDouble(),
 						Attributes: keyValuesToMap(dataPoint.GetAttributes()),
 					})
 				}
 				for _, dataPoint := range metric.GetHistogram().GetDataPoints() {
 					s.metrics = append(s.metrics, Metric{
-						Name:           metric.GetName(),
-						Unit:           metric.GetUnit(),
-						HistogramCount: dataPoint.GetCount(),
-						HistogramSum:   dataPoint.GetSum(),
+						Name:                  metric.GetName(),
+						Unit:                  metric.GetUnit(),
+						HistogramCount:        dataPoint.GetCount(),
+						HistogramSum:          dataPoint.GetSum(),
+						HistogramBounds:       dataPoint.GetExplicitBounds(),
+						HistogramBucketCounts: dataPoint.GetBucketCounts(),
 						Attributes: keyValuesToMap(
 							dataPoint.GetAttributes()),
 					})

@@ -6,6 +6,7 @@ into Datadog.
 """
 
 __all__ = (
+    "LowCardinalityAttributes",
     "OpenTelemetryProxy",
     "TelemetryContext",
     "TelemetryRecorder",
@@ -13,6 +14,7 @@ __all__ = (
 )
 
 from .opentelemetry_proxy import (
+    LowCardinalityAttributes,
     OpenTelemetryProxy,
     TelemetryContext,
     TelemetryRecorder,
