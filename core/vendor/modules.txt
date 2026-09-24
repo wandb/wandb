@@ -5,8 +5,8 @@ cel.dev/expr
 ## explicit; go 1.25.0
 charm.land/bubbles/v2/key
 charm.land/bubbles/v2/viewport
-# charm.land/bubbletea/v2 v2.0.9
-## explicit; go 1.25.0
+# charm.land/bubbletea/v2 v2.0.10
+## explicit; go 1.26.0
 charm.land/bubbletea/v2
 # charm.land/lipgloss/v2 v2.0.6
 ## explicit; go 1.25.0
@@ -247,7 +247,7 @@ github.com/aws/aws-sdk-go-v2/credentials/stscreds
 ## explicit; go 1.24
 github.com/aws/aws-sdk-go-v2/feature/ec2/imds
 github.com/aws/aws-sdk-go-v2/feature/ec2/imds/internal/config
-# github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager v0.4.8
+# github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager v0.4.9
 ## explicit; go 1.24
 github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager
 github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager/types
@@ -265,7 +265,7 @@ github.com/aws/aws-sdk-go-v2/internal/v4a/internal/v4
 # github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.19
 ## explicit; go 1.24
 github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding
-# github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.11.3
+# github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.11.4
 ## explicit; go 1.24
 github.com/aws/aws-sdk-go-v2/service/internal/checksum
 # github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.3
@@ -276,7 +276,7 @@ github.com/aws/aws-sdk-go-v2/service/internal/presigned-url
 github.com/aws/aws-sdk-go-v2/service/internal/s3shared
 github.com/aws/aws-sdk-go-v2/service/internal/s3shared/arn
 github.com/aws/aws-sdk-go-v2/service/internal/s3shared/config
-# github.com/aws/aws-sdk-go-v2/service/s3 v1.113.2
+# github.com/aws/aws-sdk-go-v2/service/s3 v1.113.3
 ## explicit; go 1.24
 github.com/aws/aws-sdk-go-v2/service/s3
 github.com/aws/aws-sdk-go-v2/service/s3/internal/arn
@@ -359,10 +359,10 @@ github.com/charmbracelet/ultraviolet
 github.com/charmbracelet/x/ansi
 github.com/charmbracelet/x/ansi/kitty
 github.com/charmbracelet/x/ansi/parser
-# github.com/charmbracelet/x/exp/golden v0.0.0-20260920004010-53e2afe73ae5
+# github.com/charmbracelet/x/exp/golden v0.1.0
 ## explicit; go 1.24.0
 github.com/charmbracelet/x/exp/golden
-# github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20260920004010-53e2afe73ae5
+# github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20260924144451-d676b019604b
 ## explicit; go 1.24.2
 github.com/charmbracelet/x/exp/teatest/v2
 # github.com/charmbracelet/x/term v0.2.2
@@ -523,7 +523,7 @@ github.com/google/wire/internal/wire
 ## explicit; go 1.25.0
 github.com/googleapis/enterprise-certificate-proxy/client
 github.com/googleapis/enterprise-certificate-proxy/client/util
-# github.com/googleapis/gax-go/v2 v2.25.0
+# github.com/googleapis/gax-go/v2 v2.26.0
 ## explicit; go 1.26.0
 github.com/googleapis/gax-go/v2
 github.com/googleapis/gax-go/v2/apierror
@@ -676,7 +676,7 @@ github.com/tklauser/go-sysconf
 # github.com/tklauser/numcpus v0.12.0
 ## explicit; go 1.25.0
 github.com/tklauser/numcpus
-# github.com/vektah/gqlparser/v2 v2.5.37
+# github.com/vektah/gqlparser/v2 v2.5.58
 ## explicit; go 1.22
 github.com/vektah/gqlparser/v2/ast
 github.com/vektah/gqlparser/v2/formatter
