@@ -24,25 +24,25 @@ def make_typed_value(value: Any) -> pb.HistoryValue:
     "value, field, expected",
     [
         (None, "null_value", 0),
-        (True, "bool_value", True),
-        (False, "bool_value", False),
-        (0, "int_value", 0),
-        (-7, "int_value", -7),
-        (0.0, "float_value", 0.0),
-        (1.0, "float_value", 1.0),
-        ("", "string_value", ""),
-        ("hi", "string_value", "hi"),
+        (True, "boolean", True),
+        (False, "boolean", False),
+        (0, "integer", 0),
+        (-7, "integer", -7),
+        (0.0, "number", 0.0),
+        (1.0, "number", 1.0),
+        ("", "text", ""),
+        ("hi", "text", "hi"),
         # An int64 above 2^53 keeps its exact value.
-        (2**53 + 1, "int_value", 2**53 + 1),
-        (INT64_MAX, "int_value", INT64_MAX),
-        (INT64_MIN, "int_value", INT64_MIN),
+        (2**53 + 1, "integer", 2**53 + 1),
+        (INT64_MAX, "integer", INT64_MAX),
+        (INT64_MIN, "integer", INT64_MIN),
         # Nested values stay as verbatim JSON text.
-        ({"a": 1}, "json_value", '{"a":1}'),
-        ([1, 2], "json_value", "[1,2]"),
+        ({"a": 1}, "json", '{"a":1}'),
+        ([1, 2], "json", "[1,2]"),
         # An int too wide for int64 has no scalar case, so it falls back
         # to JSON text, which still carries the exact value.
-        (INT64_MAX + 1, "json_value", str(INT64_MAX + 1)),
-        (INT64_MIN - 1, "json_value", str(INT64_MIN - 1)),
+        (INT64_MAX + 1, "json", str(INT64_MAX + 1)),
+        (INT64_MIN - 1, "json", str(INT64_MIN - 1)),
     ],
 )
 def test_typed_value_cases(value, field, expected):
@@ -58,36 +58,36 @@ def test_typed_value_logged_float_stays_a_float():
     The JSON form cannot express this, so the two forms diverge here by
     design. See the design doc's "Handling numeric Kinds consistently".
     """
-    assert make_typed_value(1.0).WhichOneof("value") == "float_value"
-    assert make_typed_value(1).WhichOneof("value") == "int_value"
+    assert make_typed_value(1.0).WhichOneof("value") == "number"
+    assert make_typed_value(1).WhichOneof("value") == "integer"
 
 
 @pytest.mark.parametrize("value", [float("inf"), float("-inf")])
 def test_typed_value_infinities(value):
     value_pb = make_typed_value(value)
 
-    assert value_pb.WhichOneof("value") == "float_value"
-    assert value_pb.float_value == value
+    assert value_pb.WhichOneof("value") == "number"
+    assert value_pb.number == value
 
 
 def test_typed_value_nan():
     value_pb = make_typed_value(float("nan"))
 
-    assert value_pb.WhichOneof("value") == "float_value"
-    assert math.isnan(value_pb.float_value)
+    assert value_pb.WhichOneof("value") == "number"
+    assert math.isnan(value_pb.number)
 
 
 def test_typed_value_numpy_scalars():
     np = pytest.importorskip("numpy")
 
-    assert make_typed_value(np.float32(1.5)).float_value == 1.5
-    assert make_typed_value(np.float32(1.5)).WhichOneof("value") == "float_value"
-    assert make_typed_value(np.float64(2.5)).WhichOneof("value") == "float_value"
-    assert make_typed_value(np.int64(7)).WhichOneof("value") == "int_value"
-    assert make_typed_value(np.int64(7)).int_value == 7
-    assert make_typed_value(np.bool_(True)).WhichOneof("value") == "bool_value"
-    assert make_typed_value(np.bool_(True)).bool_value is True
-    assert math.isnan(make_typed_value(np.float32("nan")).float_value)
+    assert make_typed_value(np.float32(1.5)).number == 1.5
+    assert make_typed_value(np.float32(1.5)).WhichOneof("value") == "number"
+    assert make_typed_value(np.float64(2.5)).WhichOneof("value") == "number"
+    assert make_typed_value(np.int64(7)).WhichOneof("value") == "integer"
+    assert make_typed_value(np.int64(7)).integer == 7
+    assert make_typed_value(np.bool_(True)).WhichOneof("value") == "boolean"
+    assert make_typed_value(np.bool_(True)).boolean is True
+    assert math.isnan(make_typed_value(np.float32("nan")).number)
 
 
 def test_typed_value_numpy_array_is_json():
@@ -95,8 +95,8 @@ def test_typed_value_numpy_array_is_json():
 
     value_pb = make_typed_value(np.array([1, 2, 3]))
 
-    assert value_pb.WhichOneof("value") == "json_value"
-    assert value_pb.json_value == "[1,2,3]"
+    assert value_pb.WhichOneof("value") == "json"
+    assert value_pb.json == "[1,2,3]"
 
 
 @pytest.mark.parametrize(
@@ -119,7 +119,7 @@ def test_json_form_is_shared_with_the_json_case():
     item = pb.HistoryItem(key="k")
     set_history_value(item, {"a": 1}, json_form=True, typed_form=True)
 
-    assert item.value.json_value == item.value_json
+    assert item.value.json == item.value_json
 
 
 def test_neither_form_leaves_the_item_empty():
@@ -143,7 +143,7 @@ def test_typed_form_only_does_not_set_the_json_value():
     set_history_value(item, 1, json_form=False, typed_form=True)
 
     assert item.value_json == ""
-    assert item.value.WhichOneof("value") == "int_value"
+    assert item.value.WhichOneof("value") == "integer"
 
 
 def partial_history_items(record_q) -> dict[str, pb.HistoryItem]:
@@ -177,8 +177,8 @@ def test_publish_partial_history_honors_the_setting(
     assert bool(item.value_json) is want_json
     assert item.HasField("value") is want_typed
     if want_typed:
-        assert item.value.WhichOneof("value") == "float_value"
-        assert item.value.float_value == 0.5
+        assert item.value.WhichOneof("value") == "number"
+        assert item.value.number == 0.5
 
 
 def test_publish_partial_history_defaults_to_json_only(mock_run, record_q):
