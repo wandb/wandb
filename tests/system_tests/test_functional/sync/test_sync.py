@@ -10,6 +10,7 @@ from tests.fixtures.wandb_backend_spy import WandbBackendSpy
 
 _TIMEOUT_SLOW = 10  # Timeout for operations that may be slow in CI.
 _TIMEOUT_NORMAL = 1  # Timeout for operations that are probably not too slow.
+_TIMEOUT_LOGGER = 3 * _TIMEOUT_SLOW  # Covers setup, sync start, and cleanup.
 
 
 def test_live_sync(wandb_backend_spy: WandbBackendSpy):
@@ -92,15 +93,24 @@ def _log_run(inputs: queue.Queue[str], outputs: queue.Queue[str]) -> None:
         run.log({"lots_of_data": "a" * 32 * 1024})
 
         # Keep the run active until the live sync has started.
+        deadline = time.monotonic() + _TIMEOUT_LOGGER
         i = 0
-        while True:
+        while time.monotonic() < deadline:
             run.log({"i": i})
             i += 1
 
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+
             try:
-                final_value = inputs.get(timeout=0.1)
+                final_value = inputs.get(timeout=min(0.1, remaining))
             except queue.Empty:
                 continue
             else:
                 run.summary["final_value"] = final_value
                 return
+
+        raise AssertionError(
+            f"Didn't receive finish signal within {_TIMEOUT_LOGGER} seconds."
+        )
