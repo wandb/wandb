@@ -298,17 +298,58 @@ class TestPersistedClientWarmStart:
         suggestion: RunSuggestion,
         state: RunState,
         history: list[dict[str, Any]],
+        wandb_run_id: str = "run-a",
     ) -> RunWithMetrics:
         return RunWithMetrics(
             config=suggestion.config,
             state=state,
-            wandb_run_id="run-a",
+            wandb_run_id=wandb_run_id,
             summary_metrics=history[-1] if history else {},
             history_metrics=history,
         )
 
     def trials(self, optimizer: AxOptimizer) -> dict[int, Any]:
         return _experiment(optimizer.client).trials
+
+    @pytest.fixture
+    def persisted_trials(self):
+        """Spy on the optimizer listing every trial in its experiment."""
+        with patch.object(
+            AxOptimizer,
+            "_persisted_trials",
+            autospec=True,
+            side_effect=AxOptimizer._persisted_trials,
+        ) as persisted_trials:
+            yield persisted_trials
+
+    def test_the_experiment_is_listed_once_and_only_by_warm_start(
+        self, client: Client, sweep: SweepInfo, reload, persisted_trials
+    ) -> None:
+        """A large experiment is not listed for a sweep with nothing to resume."""
+        first = AxOptimizer(client, sweep)
+        suggestions = first.ask_n_runs(2)
+        runs = [
+            self.run(suggestion, RunState.RUNNING, [], wandb_run_id=f"run-{i}")
+            for i, suggestion in enumerate(suggestions)
+        ]
+        for suggestion, run in zip(suggestions, runs, strict=True):
+            first.tell_run(suggestion.run_id, run)
+
+        second = reload(first)
+        assert persisted_trials.call_count == 0
+
+        warm_start(second, active=runs)
+        assert persisted_trials.call_count == 1
+
+    def test_a_warm_start_after_generation_does_not_list_the_experiment(
+        self, client: Client, sweep: SweepInfo, persisted_trials
+    ) -> None:
+        optimizer = AxOptimizer(client, sweep)
+        suggestion = next(iter(optimizer.ask_n_runs(1)))
+
+        warm_start(optimizer, active=[self.run(suggestion, RunState.RUNNING, [])])
+
+        assert persisted_trials.call_count == 0
 
     def test_a_recorded_finished_run_is_not_attached_again(
         self, client: Client, sweep: SweepInfo, reload
