@@ -69,7 +69,9 @@ def prepare_media(
     )
 
 
-def _media_for_run(media: _MediaT) -> _MediaT:
+def _media_for_run(media: _MediaT, run: Run) -> _MediaT:
+    if media._run is run:
+        return media
     return _unbound_copy(media)
 
 

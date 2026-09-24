@@ -99,8 +99,10 @@ def test_media_already_bound_to_active_run_reuses_existing_path(
     existing_path = image._path
     run._publish_file.reset_mock()
 
-    uri = _media_ces._bind_eval_table_media_to_run(image, run, "eval")
+    working_image = _media_ces._media_for_run(image, run)
+    uri = _media_ces._bind_eval_table_media_to_run(working_image, run, "eval")
 
+    assert working_image is image
     assert image._path == existing_path
     assert "/media/images/legacy_7_" in uri
     run._publish_file.assert_not_called()
@@ -113,7 +115,7 @@ def test_media_for_another_run_is_copied_before_binding(run_factory, tmp_path):
     image.bind_to_run(source_run, "legacy", 0)
     original_path = image._path
 
-    working_image = _media_ces._media_for_run(image)
+    working_image = _media_ces._media_for_run(image, destination_run)
     uri = _media_ces._bind_eval_table_media_to_run(
         working_image, destination_run, "eval"
     )
