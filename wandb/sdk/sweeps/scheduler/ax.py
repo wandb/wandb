@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, TypeAlias
 
 from typing_extensions import override
@@ -35,6 +36,22 @@ TerminatorCallback: TypeAlias = Callable[["ax.Client"], bool]
 # the caller persisted and reloaded is resumed on warm start, not refilled.
 _SWEEP_KEY = "wandb_sweep"
 _WANDB_RUN_ID_KEY = "wandb_run_id"
+
+# A claimed persisted trial that already finished, so its run has nothing
+# left to tell.
+_FINISHED = object()
+
+
+@dataclass
+class _PersistedIndex:
+    """Trial indices of the trials a reloaded client holds for the sweep."""
+
+    # W&B run id to the index of its still-running trial.
+    running_by_run: dict[str, int] = field(default_factory=dict)
+    # W&B run ids whose trial already finished.
+    finished_runs: set[str] = field(default_factory=set)
+    # Indices of the sweep's running trials no run was seen for yet.
+    unlinked_running: list[int] = field(default_factory=list)
 
 
 def _is_int(value: Any) -> bool:
@@ -302,42 +319,73 @@ class AxOptimizer(Optimizer):
         super().__init__(sweep)
 
         self._sweep_path = f"{sweep.entity}/{sweep.project}/{sweep.id}"
-        self._index_persisted_trials()
+        # Built on the first warm-start call and dropped once generation
+        # starts; see `_index_persisted_trials`.
+        self._warm_start_over = False
+        self._persisted_index: _PersistedIndex | None = None
 
-    def _index_persisted_trials(self) -> None:
+    def _persisted_trials(self) -> Iterator[Any]:
+        """Yield the experiment's trials one at a time, uncopied."""
+        # The client holds its whole experiment in memory; the trials are
+        # handed over from it as they are.
+        yield from _experiment(self.client).trials.values()
+
+    def _index_persisted_trials(self) -> _PersistedIndex:
         """Index the trials a caller's client already holds for this sweep.
 
-        Linked trials are keyed by W&B run id. Trials this sweep asked for
-        but never saw polled carry no run id; running ones are kept so warm
-        start can still match them to their run by params.
+        Only trial indices are kept, never the trials: linked trials by W&B
+        run id, and running trials this sweep asked for but never saw
+        polled, which carry no run id yet and are matched to their run by
+        params.
         """
         from ax.core.base_trial import TrialStatus
 
-        self._persisted_by_run: dict[str, Any] = {}
-        self._unlinked_running: list[Any] = []
-        for trial in _experiment(self.client).trials.values():
-            run_id = trial.run_metadata.get(_WANDB_RUN_ID_KEY)
-            if run_id is not None:
-                self._persisted_by_run[run_id] = trial
-            elif (
-                trial.status == TrialStatus.RUNNING
-                and trial.run_metadata.get(_SWEEP_KEY) == self._sweep_path
-            ):
-                self._unlinked_running.append(trial)
+        if self._persisted_index is not None:
+            return self._persisted_index
+        index = _PersistedIndex()
+        for trial in self._persisted_trials():
+            wandb_run_id = trial.run_metadata.get(_WANDB_RUN_ID_KEY)
+            running = trial.status == TrialStatus.RUNNING
+            if wandb_run_id is not None:
+                if running:
+                    index.running_by_run[wandb_run_id] = trial.index
+                else:
+                    index.finished_runs.add(wandb_run_id)
+            elif running and trial.run_metadata.get(_SWEEP_KEY) == self._sweep_path:
+                index.unlinked_running.append(trial.index)
+        self._persisted_index = index
+        return index
 
     def _claim_persisted_trial(self, data: Run) -> Any:
-        """Take the client's existing trial for a warm-start run, if any."""
-        trial = self._persisted_by_run.pop(data.wandb_run_id, None)
-        if trial is not None:
-            return trial
+        """Take the client's existing trial for a warm-start run.
+
+        Returns:
+            The index of the run's still-running trial, `_FINISHED` if its
+            trial already finished, or None if the client has none.
+        """
+        if self._warm_start_over:
+            return None
+        index = self._index_persisted_trials()
+        if data.wandb_run_id in index.finished_runs:
+            index.finished_runs.discard(data.wandb_run_id)
+            return _FINISHED
+        trial_index = index.running_by_run.pop(data.wandb_run_id, None)
+        if trial_index is not None or not index.unlinked_running:
+            return trial_index
         params = self._search_space_params(data.config.flat_dict())
         if params is None:
             return None
-        for i, candidate in enumerate(self._unlinked_running):
-            arm = getattr(candidate, "arm", None)
+        trials = _experiment(self.client).trials
+        for i, candidate in enumerate(index.unlinked_running):
+            arm = getattr(trials[candidate], "arm", None)
             if arm is not None and arm.parameters == params:
-                return self._unlinked_running.pop(i)
+                return index.unlinked_running.pop(i)
         return None
+
+    def _end_warm_start(self) -> None:
+        """Drop the warm-start index; later runs are the scheduler's own."""
+        self._warm_start_over = True
+        self._persisted_index = None
 
     def _stamp(self, trial_index: int, metadata: dict[str, Any]) -> None:
         """Merge sweep bookkeeping into a trial's run metadata."""
@@ -349,6 +397,11 @@ class AxOptimizer(Optimizer):
             return
         self._stamp(trial_index, {_WANDB_RUN_ID_KEY: wandb_run_id})
         self._linked.add(trial_index)
+
+    def _finalize(self, trial_index: int) -> None:
+        """Record that a trial got its outcome and is no longer tracked."""
+        self._finalized.add(trial_index)
+        self._linked.discard(trial_index)
 
     def _attach(self, params: dict[str, Any]) -> int:
         """Attach a run's params as a new trial owned by this sweep."""
@@ -407,6 +460,8 @@ class AxOptimizer(Optimizer):
         from ax.exceptions.core import DataRequiredError, OptimizationComplete
         from ax.exceptions.generation_strategy import MaxParallelismReachedException
 
+        # Warm start is over once the scheduler asks for new runs.
+        self._end_warm_start()
         try:
             trials = self.client.get_next_trials(max_trials=n)
         except (DataRequiredError, MaxParallelismReachedException):
@@ -453,14 +508,14 @@ class AxOptimizer(Optimizer):
                 # Finished but never logged every objective metric — record a
                 # failure so Ax stops tracking it as in flight.
                 self.client.mark_trial_failed(trial_index=trial_index)
-                self._finalized.add(trial_index)
+                self._finalize(trial_index)
                 return
             self.client.complete_trial(
                 trial_index=trial_index, raw_data=self._raw_data(values)
             )
         else:  # FAILED / CRASHED / KILLED / PREEMPTED
             self.client.mark_trial_failed(trial_index=trial_index)
-        self._finalized.add(trial_index)
+        self._finalize(trial_index)
 
     @override
     def forget_run(self, run_id: Any) -> None:
@@ -472,7 +527,7 @@ class AxOptimizer(Optimizer):
         trial_index = int(run_id)
         if trial_index in self._finalized:
             return
-        self._finalized.add(trial_index)
+        self._finalize(trial_index)
         self.client.mark_trial_failed(trial_index=trial_index)
 
     def _attach_latest_progression(
@@ -517,7 +572,7 @@ class AxOptimizer(Optimizer):
                 return False
         except Exception:
             return False
-        self._finalized.add(trial_index)
+        self._finalize(trial_index)
         self.client.mark_trial_early_stopped(trial_index=trial_index)
         return True
 
@@ -534,14 +589,12 @@ class AxOptimizer(Optimizer):
         experiment's search space, or finished runs that never logged the
         objective, are skipped.
         """
-        from ax.core.base_trial import TrialStatus
-
         if not is_terminal_state(data.state):
             return
-        trial = self._claim_persisted_trial(data)
-        if trial is not None:
-            if trial.status == TrialStatus.RUNNING:
-                self.tell_run(trial.index, data)
+        claimed = self._claim_persisted_trial(data)
+        if claimed is not None:
+            if claimed is not _FINISHED:
+                self.tell_run(claimed, data)
             return
         if (
             data.state == RunState.FINISHED
@@ -571,14 +624,12 @@ class AxOptimizer(Optimizer):
             already finished the run's trial or the run's config doesn't
             cover the search space.
         """
-        from ax.core.base_trial import TrialStatus
-
-        trial = self._claim_persisted_trial(data)
-        if trial is not None:
-            if trial.status != TrialStatus.RUNNING:
-                return None
-            self._link(trial.index, data.wandb_run_id)
-            return trial.index
+        claimed = self._claim_persisted_trial(data)
+        if claimed is _FINISHED:
+            return None
+        if claimed is not None:
+            self._link(claimed, data.wandb_run_id)
+            return claimed
         params = self._search_space_params(data.config.flat_dict())
         if params is None:
             return None
