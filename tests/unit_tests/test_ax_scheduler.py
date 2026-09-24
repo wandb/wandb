@@ -29,7 +29,11 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
 )
 from wandb.sdk.sweeps.sweep_info import SweepInfo
 
-from tests.unit_tests.test_sweep_scheduler import make_run, make_scheduler_grid_sweep
+from tests.unit_tests.test_sweep_scheduler import (
+    make_run,
+    make_scheduler_grid_sweep,
+    warm_start,
+)
 
 DEFAULT_CONFIG = {"metric": {"name": "loss", "goal": "minimize"}, "parameters": {}}
 
@@ -315,7 +319,7 @@ class TestPersistedClientWarmStart:
         first.tell_run(suggestion.run_id, finished)
 
         second = reload(first)
-        second.tell_existing_finished_run(finished)
+        warm_start(second, finished=[finished])
 
         assert len(self.trials(second)) == 1
 
@@ -327,10 +331,10 @@ class TestPersistedClientWarmStart:
         )
         finished = self.run(suggestion, RunState.FINISHED, [{"loss": 1.0, "_step": 0}])
         first = AxOptimizer(client, sweep)
-        first.tell_existing_finished_run(finished)
+        warm_start(first, finished=[finished])
 
         second = reload(first)
-        second.tell_existing_finished_run(finished)
+        warm_start(second, finished=[finished])
 
         assert len(self.trials(second)) == 1
 
@@ -345,11 +349,11 @@ class TestPersistedClientWarmStart:
         )
 
         second = reload(first)
-        run_id = second.tell_existing_active_run(
-            self.run(suggestion, RunState.RUNNING, [])
+        adoptions = warm_start(
+            second, active=[self.run(suggestion, RunState.RUNNING, [])]
         )
         second.tell_run(
-            run_id,
+            adoptions["run-a"],
             self.run(
                 suggestion,
                 RunState.FINISHED,
@@ -358,7 +362,7 @@ class TestPersistedClientWarmStart:
         )
 
         (trial,) = self.trials(second).values()
-        assert str(run_id) == suggestion.run_id
+        assert adoptions == {"run-a": suggestion.run_id}
         assert trial.status.is_completed
 
     def test_an_unpolled_trial_is_matched_to_its_run_by_params(
@@ -369,11 +373,11 @@ class TestPersistedClientWarmStart:
         suggestion = next(iter(first.ask_n_runs(1)))
 
         second = reload(first)
-        run_id = second.tell_existing_active_run(
-            self.run(suggestion, RunState.RUNNING, [])
+        adoptions = warm_start(
+            second, active=[self.run(suggestion, RunState.RUNNING, [])]
         )
 
-        assert str(run_id) == suggestion.run_id
+        assert adoptions == {"run-a": suggestion.run_id}
         assert len(self.trials(second)) == 1
 
     def test_a_run_that_finished_unwatched_completes_its_trial(
@@ -387,8 +391,11 @@ class TestPersistedClientWarmStart:
         )
 
         second = reload(first)
-        second.tell_existing_finished_run(
-            self.run(suggestion, RunState.FINISHED, [{"loss": 2.0, "_step": 1}])
+        warm_start(
+            second,
+            finished=[
+                self.run(suggestion, RunState.FINISHED, [{"loss": 2.0, "_step": 1}])
+            ],
         )
 
         (trial,) = self.trials(second).values()
@@ -405,7 +412,7 @@ class TestPersistedClientWarmStart:
 
         second = reload(first)
 
-        assert second.tell_existing_active_run(running) is None
+        assert warm_start(second, active=[running]) == {}
         assert len(self.trials(second)) == 1
 
     def test_another_sweeps_running_trial_is_not_adopted(
@@ -414,12 +421,15 @@ class TestPersistedClientWarmStart:
         foreign = client.attach_trial(parameters={"x": 0.5})
         optimizer = AxOptimizer(client, sweep)
 
-        run_id = optimizer.tell_existing_active_run(
-            Run(
-                config=RunConfig.from_values({"x": 0.5}),
-                state=RunState.RUNNING,
-                wandb_run_id="run-a",
-            )
+        adoptions = warm_start(
+            optimizer,
+            active=[
+                Run(
+                    config=RunConfig.from_values({"x": 0.5}),
+                    state=RunState.RUNNING,
+                    wandb_run_id="run-a",
+                )
+            ],
         )
 
-        assert run_id != foreign
+        assert adoptions["run-a"] != str(foreign)
