@@ -171,8 +171,12 @@ _IMAGE_FIELD = _media_ces.EvalTableMediaField(
 )
 
 
-def _image_from_external_reference_artifact(tmp_path, monkeypatch):
-    image = wandb.Image(_png(tmp_path))
+def _image_from_external_reference_artifact(
+    tmp_path,
+    monkeypatch,
+    **image_kwargs,
+):
+    image = wandb.Image(_png(tmp_path), **image_kwargs)
     source_artifact = MagicMock()
     source_artifact._local_path_to_name.return_value = "media/images/image.png"
     source_artifact.get_entry.return_value.ref = "s3://private-bucket/image.png"
@@ -744,6 +748,32 @@ def test_image_columns_register_distinct_overlay_class_labels(
     ]
 
 
+def test_external_reference_artifact_image_overlays_are_null_by_default(
+    run_factory,
+    tmp_path,
+    monkeypatch,
+):
+    run = run_factory("run-one")
+    image = _image_from_external_reference_artifact(
+        tmp_path,
+        monkeypatch,
+        boxes={"predictions": {"box_data": [], "class_labels": {}}},
+    )
+    warning = MagicMock()
+    monkeypatch.setattr(wandb, "termwarn", warning)
+    writer = _writer_ces.CESWriter()
+    writer.bind_to_run(run, "eval", 0)
+
+    prepared = writer._build_write_payloads(
+        name="eval",
+        rows=_image_write_rows(image),
+    )
+
+    assert prepared.row_batches[0][0]["input"]["image"] is None
+    assert prepared.dataset_fields[0]["extension_type"] == "wandb-image"
+    warning.assert_called_once()
+
+
 def test_external_reference_artifact_image_overlays_raise_in_raise_mode(
     run_factory,
     tmp_path,
@@ -758,7 +788,7 @@ def test_external_reference_artifact_image_overlays_raise_in_raise_mode(
     writer = _writer_ces.CESWriter(unsupported_media_mode="raise")
     writer.bind_to_run(run, "eval", 0)
 
-    with pytest.raises(TypeError, match="masks or boxes"):
+    with pytest.raises(TypeError, match="external reference artifacts"):
         writer._build_write_payloads(
             name="eval",
             rows=_image_write_rows(image),
