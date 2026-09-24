@@ -2,7 +2,6 @@
 
 import queue
 import threading
-import time
 from concurrent.futures import ThreadPoolExecutor
 
 import wandb
@@ -80,9 +79,9 @@ def test_public_api_sweep_agent_runs_lists_finished_run(user):
 def test_normal_run_after_agent_does_not_overwrite_sweep_run(user, runner, monkeypatch):
     """After running a sweep agent, a normal wandb.init() creates a separate run.
 
-    Matches WB-8766: create sweep, run agent (1 run), then create a normal run
-    with an explicit id. The normal run must be separate and must not overwrite
-    the sweep run.
+    Matches WB-8766 and WB-38827: create sweep, run agent (1 run), then create
+    a normal run without an explicit id. The normal run must be separate and
+    must not overwrite the sweep run.
     """
 
     with runner.isolated_filesystem():
@@ -110,18 +109,13 @@ def test_normal_run_after_agent_does_not_overwrite_sweep_run(user, runner, monke
         assert len(sweep_run_ids) == 1, "Agent should have run 1 sweep run"
         sweep_run_id = sweep_run_ids[0]
 
-        # Create a normal run (not part of the sweep) with an explicit id.
-        normal_run_id = f"normal-run-{hash(time.time())}"
-        run = wandb.init(
-            project=project_name,
-            entity=user,
-            config={"a": 1},
-            id=normal_run_id,
-        )
+        run = wandb.init(project=project_name, entity=user)
         try:
             run.log({"accuracy": 4})
-            assert run.id == normal_run_id, "Normal run should keep the explicit id"
+            normal_run_id = run.id
+            assert normal_run_id != sweep_run_id
             assert run.sweep_id is None, "Normal run must not be part of the sweep"
+            assert "a" not in run.config, "Normal run must not get the sweep config"
             # Sweep run must still exist and be unchanged (not overwritten).
             # The agent's internal wandb.teardown() between jobs invalidates
             # any wandb.Api() held from before, so create a fresh one here.

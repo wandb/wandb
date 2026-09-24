@@ -176,7 +176,6 @@ class Agent:
     def _exit(self):
         self._stop_all_runs()
         self._exit_flag = True
-        # _terminate_thread(self._main_thread)
 
     def _has_running_thread(self) -> bool:
         """True while an in-process trial thread is still running."""
@@ -230,6 +229,9 @@ class Agent:
 
         try:
             with self._api_lock:
+                # run() may have torn down the API while we waited for the lock.
+                if self._exit_flag:
+                    return []
                 return _agent_heartbeat(self._api, self._agent_id, {}, run_status)
         except SweepNotFoundError:
             self._sweep_not_found = True
@@ -254,8 +256,6 @@ class Agent:
         while True:
             if self._exit_flag:
                 return
-            # if not self._main_thread.is_alive():
-            #     return
             run_status = {
                 run: True
                 for run, status in self._run_status.items()
@@ -398,14 +398,29 @@ class Agent:
         logger.info(
             f"Starting sweep agent: entity={self._entity}, project={self._project}, count={self._count}"
         )
-        self._setup()
-        # self._main_thread = threading.Thread(target=self._run_jobs_from_queue)
-        self._heartbeat_thread = threading.Thread(target=self._heartbeat)
-        self._heartbeat_thread.daemon = True
-        # self._main_thread.start()
-        self._heartbeat_thread.start()
-        # self._main_thread.join()
-        self._run_jobs_from_queue()
+        try:
+            self._setup()
+            self._heartbeat_thread = threading.Thread(target=self._heartbeat)
+            self._heartbeat_thread.daemon = True
+            self._heartbeat_thread.start()
+            self._run_jobs_from_queue()
+        finally:
+            # SWEEP_ID is exported by self._setup, so we should clear that too
+            os.environ.pop(wandb.env.SWEEP_ID, None)
+            self._teardown_last_job_session()
+
+    def _teardown_last_job_session(self):
+        if not self._run_threads:
+            return
+        self._exit_flag = True
+
+        # After Ctrl-C the job thread is still unwinding. Tearing down first
+        # would close its run with exit code 0 instead of 1.
+        for thread in self._run_threads.values():
+            thread.join()
+
+        with self._api_lock:
+            wandb.teardown()
 
 
 def pyagent(

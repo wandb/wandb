@@ -27,3 +27,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 - Changing system metrics grid rows or columns in LEET, including `wandb leet symon`, no longer crashes and takes effect immediately without waiting for new data (@dmitryduev in https://github.com/wandb/wandb/pull/12763)
 - `wandb beta sync` no longer overwrites the earlier history of a resumed run when the backend reports a stale step. The starting step is now reconciled against the summary `_step`, the history tail `_step`, and the history row count (@geoffhardy in https://github.com/wandb/wandb/pull/12668)
+- Calling `wandb.init()` after `wandb.agent(sweep_id, function=...)` returns now creates a new run instead of reusing and overwriting the last sweep run (@nathancy-wandb in https://github.com/wandb/wandb/pull/XXXXX)
