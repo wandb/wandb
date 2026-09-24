@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -65,6 +66,21 @@ def test_committed_artifact_media_returns_artifact_ref_url(tmp_path, monkeypatch
     )
 
     assert _media_ces._committed_artifact_ref_url(image) == artifact_ref_url
+
+
+def test_media_binds_to_explicit_run_path(run_factory, tmp_path):
+    run = run_factory("run-one")
+    source = _png(tmp_path)
+    image = wandb.Image(source)
+    logical_path = os.path.join("media", "eval_tables", "images", "custom.png")
+
+    image._bind_to_run_path(run, logical_path)
+
+    destination = os.path.join(run.dir, logical_path)
+    assert image._run is run
+    assert image._path == destination
+    assert Path(destination).read_bytes() == source.read_bytes()
+    run._publish_file.assert_called_once_with(logical_path)
 
 
 def test_unbound_media_is_bound_in_place_to_eval_table_path(run_factory, tmp_path):
