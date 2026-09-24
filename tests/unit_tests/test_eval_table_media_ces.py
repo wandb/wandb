@@ -56,6 +56,7 @@ def run_factory(mock_run, tmp_path):
 @pytest.fixture
 def mock_ces_client(monkeypatch):
     client = MagicMock()
+    client.__enter__.return_value = client
     client.eval_tables.create.return_value = SimpleNamespace(
         dataset_id="dataset-1",
         evaluation_id="evaluation-1",
@@ -71,7 +72,7 @@ def mock_ces_client(monkeypatch):
         _writer_ces.CESWriter,
         "_resolve_scope_context",
         lambda self, bound: _writer_ces._CESScopeContext(
-            scope_ref="scope-ref",
+            scope_id="scope-ref",
             api_key=None,
             access_token="token",
         ),
@@ -90,20 +91,14 @@ def _png(tmp_path, name="image.png", color=(10, 20, 30)):
     return path
 
 
-def _image_write_input(image):
-    return _writer.WriteInput(
-        name="eval",
-        rows=[
-            _writer.WriteRow(
-                inputs={"image": image},
-                outputs=None,
-                scores={},
-            )
-        ],
-        column_keys={"image": "image"},
-        ncols=1,
-        log_mode="IMMUTABLE",
-    )
+def _image_write_rows(image):
+    return [
+        _writer.WriteRow(
+            inputs={"image": image},
+            output=None,
+            scores={},
+        )
+    ]
 
 def _image_from_external_reference_artifact(tmp_path, monkeypatch):
     image = wandb.Image(_png(tmp_path))
@@ -293,7 +288,10 @@ def test_external_reference_artifact_image_is_null_by_default(
     writer = _writer_ces.CESWriter()
     writer.bind_to_run(run, "eval", 0)
 
-    prepared = writer._build_write_payloads(_image_write_input(image))
+    prepared = writer._build_write_payloads(
+        name="eval",
+        rows=_image_write_rows(image),
+    )
 
     assert prepared.row_batches[0][0]["input"]["image"] is None
     assert prepared.dataset_fields == [
@@ -319,7 +317,10 @@ def test_external_reference_artifact_image_raises_in_raise_mode(
     writer.bind_to_run(run, "eval", 0)
 
     with pytest.raises(TypeError, match="external reference artifacts"):
-        writer._build_write_payloads(_image_write_input(image))
+        writer._build_write_payloads(
+            name="eval",
+            rows=_image_write_rows(image),
+        )
 
 
 def test_image_overlays_are_null_until_overlay_support(
@@ -337,7 +338,10 @@ def test_image_overlays_are_null_until_overlay_support(
     writer = _writer_ces.CESWriter()
     writer.bind_to_run(run, "eval", 0)
 
-    prepared = writer._build_write_payloads(_image_write_input(image))
+    prepared = writer._build_write_payloads(
+        name="eval",
+        rows=_image_write_rows(image),
+    )
 
     assert prepared.row_batches[0][0]["input"]["image"] is None
     assert prepared.dataset_fields[0]["extension_type"] == "wandb-image"
@@ -403,19 +407,13 @@ def test_image_score_is_rejected_as_non_primitive(run_factory, tmp_path):
     image = wandb.Image(_png(tmp_path))
     writer = _writer_ces.CESWriter()
     writer.bind_to_run(run, "eval", 0)
-    value = _writer.WriteInput(
-        name="eval",
-        rows=[
-            _writer.WriteRow(
-                inputs={"value": "x"},
-                outputs=None,
-                scores={"image": image},
-            )
-        ],
-        column_keys={"value": "value", "image": "image"},
-        ncols=2,
-        log_mode="IMMUTABLE",
-    )
+    rows = [
+        _writer.WriteRow(
+            inputs={"value": "x"},
+            output=None,
+            scores={"image": image},
+        )
+    ]
 
     with pytest.raises(UsageError, match="only primitive values"):
-        writer._build_write_payloads(value)
+        writer._build_write_payloads(name="eval", rows=rows)
