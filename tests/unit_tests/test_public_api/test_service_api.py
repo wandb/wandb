@@ -50,7 +50,7 @@ def test_execute_graphql_propagates_core_api_error_response():
     assert exc_info.value.response is error_response
 
 
-def test_get_project_internal_id_sends_typed_request_and_timeout():
+def test_project_internal_id_sends_typed_request_and_timeout():
     api = ServiceApi(Settings())
     sent: dict[str, Any] = {}
 
@@ -68,7 +68,7 @@ def test_get_project_internal_id_sends_typed_request_and_timeout():
 
     api.send_api_request = send_api_request
 
-    project_internal_id = api.get_project_internal_id(
+    project_internal_id = api.project_internal_id(
         entity="entity",
         project="project",
         timeout=3,
@@ -79,3 +79,19 @@ def test_get_project_internal_id_sends_typed_request_and_timeout():
     request = sent["request"].get_project_internal_id_request
     assert request.entity == "entity"
     assert request.project == "project"
+
+
+def test_project_internal_id_returns_none_when_project_is_missing():
+    api = ServiceApi(Settings())
+
+    def send_api_request(
+        request: apb.ApiRequest,
+        timeout: float | None = None,
+    ) -> apb.ApiResponse:
+        return apb.ApiResponse(
+            get_project_internal_id_response=apb.GetProjectInternalIdResponse()
+        )
+
+    api.send_api_request = send_api_request
+
+    assert api.project_internal_id(entity="entity", project="project") is None

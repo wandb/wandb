@@ -55,7 +55,7 @@ func TestGetProjectInternalIDReturnsQueryError(t *testing.T) {
 	assert.Contains(t, apiError.GetMessage(), assert.AnError.Error())
 }
 
-func TestGetProjectInternalIDReturnsErrorWhenProjectIsMissing(t *testing.T) {
+func TestGetProjectInternalIDProjectNotFound(t *testing.T) {
 	handler := wbapi.NewProjectHandler(&fakeGQLClient{})
 
 	response := handler.HandleGetProjectInternalID(
@@ -66,11 +66,7 @@ func TestGetProjectInternalIDReturnsErrorWhenProjectIsMissing(t *testing.T) {
 		},
 	)
 
-	apiError := response.GetApiErrorResponse()
-	require.NotNil(t, apiError)
-	assert.Equal(
-		t,
-		"Unable to resolve W&B project entity/project.",
-		apiError.GetMessage(),
-	)
+	projectResponse := response.GetGetProjectInternalIdResponse()
+	require.NotNil(t, projectResponse)
+	assert.Nil(t, projectResponse.ProjectInternalId)
 }

@@ -509,10 +509,14 @@ class CESWriter:
 
     def _resolve_scope_context(self, bound_run: _BoundRun) -> _CESScopeContext:
         """Resolve the project scope and preferred run credential for CES."""
-        scope_id = bound_run.service_api.get_project_internal_id(
+        scope_id = bound_run.service_api.project_internal_id(
             entity=bound_run.entity,
             project=bound_run.project,
         )
+        if not scope_id:
+            raise UsageError(
+                f"Unable to resolve W&B project {bound_run.entity}/{bound_run.project}."
+            )
 
         api_key = bound_run.service_api.api_key
         access_token = None if api_key else bound_run.service_api.access_token()

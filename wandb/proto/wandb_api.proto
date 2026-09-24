@@ -641,10 +641,18 @@ message DownloadRunHistoryStatusResponse {
   wandb_internal.OperationStats operation_stats = 1;
 }
 
+// End of Download run history
+
+// Project metadata
+
 // Resolve a project's opaque internal ID.
 //
 // The W&B backend uses this ID to identify the project as a scope in APIs
 // where the user-facing entity and project names are not accepted.
+//
+// A successful request returns GetProjectInternalIdResponse. If the project
+// does not exist or is not readable, project_internal_id is unset. Other
+// failures return ApiErrorResponse.
 message GetProjectInternalIdRequest {
   // The entity that owns the project.
   string entity = 1;
@@ -654,6 +662,6 @@ message GetProjectInternalIdRequest {
 }
 
 message GetProjectInternalIdResponse {
-  // The project's opaque internal ID.
-  string project_internal_id = 1;
+  // The project's opaque internal ID, if the project exists and is readable.
+  optional string project_internal_id = 1;
 }

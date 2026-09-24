@@ -4253,6 +4253,10 @@ func (x *DownloadRunHistoryStatusResponse) GetOperationStats() *OperationStats {
 //
 // The W&B backend uses this ID to identify the project as a scope in APIs
 // where the user-facing entity and project names are not accepted.
+//
+// A successful request returns GetProjectInternalIdResponse. If the project
+// does not exist or is not readable, project_internal_id is unset. Other
+// failures return ApiErrorResponse.
 type GetProjectInternalIdRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The entity that owns the project.
@@ -4309,8 +4313,8 @@ func (x *GetProjectInternalIdRequest) GetProject() string {
 
 type GetProjectInternalIdResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// The project's opaque internal ID.
-	ProjectInternalId string `protobuf:"bytes,1,opt,name=project_internal_id,json=projectInternalId,proto3" json:"project_internal_id,omitempty"`
+	// The project's opaque internal ID, if the project exists and is readable.
+	ProjectInternalId *string `protobuf:"bytes,1,opt,name=project_internal_id,json=projectInternalId,proto3,oneof" json:"project_internal_id,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -4346,8 +4350,8 @@ func (*GetProjectInternalIdResponse) Descriptor() ([]byte, []int) {
 }
 
 func (x *GetProjectInternalIdResponse) GetProjectInternalId() string {
-	if x != nil {
-		return x.ProjectInternalId
+	if x != nil && x.ProjectInternalId != nil {
+		return *x.ProjectInternalId
 	}
 	return ""
 }
@@ -4640,9 +4644,10 @@ const file_wandb_proto_wandb_api_proto_rawDesc = "" +
 	"\x0foperation_stats\x18\x01 \x01(\v2\x1e.wandb_internal.OperationStatsR\x0eoperationStats\"O\n" +
 	"\x1bGetProjectInternalIdRequest\x12\x16\n" +
 	"\x06entity\x18\x01 \x01(\tR\x06entity\x12\x18\n" +
-	"\aproject\x18\x02 \x01(\tR\aproject\"N\n" +
-	"\x1cGetProjectInternalIdResponse\x12.\n" +
-	"\x13project_internal_id\x18\x01 \x01(\tR\x11projectInternalId*@\n" +
+	"\aproject\x18\x02 \x01(\tR\aproject\"k\n" +
+	"\x1cGetProjectInternalIdResponse\x123\n" +
+	"\x13project_internal_id\x18\x01 \x01(\tH\x00R\x11projectInternalId\x88\x01\x01B\x16\n" +
+	"\x14_project_internal_id*@\n" +
 	"\tErrorType\x12\x11\n" +
 	"\rUNKNOWN_ERROR\x10\x00\x12 \n" +
 	"\x1cINCOMPLETE_RUN_HISTORY_ERROR\x10\x01B\x1bZ\x19core/pkg/service_go_protob\x06proto3"
@@ -4889,6 +4894,7 @@ func file_wandb_proto_wandb_api_proto_init() {
 		(*ReadRunHistoryResponse_DownloadRunHistory)(nil),
 		(*ReadRunHistoryResponse_DownloadRunHistoryStatus)(nil),
 	}
+	file_wandb_proto_wandb_api_proto_msgTypes[59].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{

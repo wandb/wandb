@@ -2,9 +2,9 @@ package wbapi
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/Khan/genqlient/graphql"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/core/internal/gql"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -36,23 +36,17 @@ func (h *ProjectHandler) HandleGetProjectInternalID(
 		return apiErrorResponse(message, status)
 	}
 
-	project := data.GetProject()
-	if project == nil {
-		return apiErrorResponse(
-			fmt.Sprintf(
-				"Unable to resolve W&B project %s/%s.",
-				request.GetEntity(),
-				request.GetProject(),
-			),
-			0,
-		)
+	response := &spb.GetProjectInternalIdResponse{}
+	// The project is null when it does not exist or the credentials cannot
+	// read it. Leave the optional ID unset so the caller can distinguish this
+	// expected lookup result from a request failure.
+	if project := data.GetProject(); project != nil {
+		response.ProjectInternalId = proto.String(project.GetInternalId())
 	}
 
 	return &spb.ApiResponse{
 		Response: &spb.ApiResponse_GetProjectInternalIdResponse{
-			GetProjectInternalIdResponse: &spb.GetProjectInternalIdResponse{
-				ProjectInternalId: project.GetInternalId(),
-			},
+			GetProjectInternalIdResponse: response,
 		},
 	}
 }

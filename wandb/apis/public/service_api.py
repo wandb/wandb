@@ -266,13 +266,13 @@ class ServiceApi:
         )
         return resp.auth_response.get_access_token_response.access_token or None
 
-    def get_project_internal_id(
+    def project_internal_id(
         self,
         *,
         entity: str,
         project: str,
         timeout: float | None = None,
-    ) -> str:
+    ) -> str | None:
         """Return a project's opaque internal ID.
 
         Args:
@@ -281,20 +281,30 @@ class ServiceApi:
             timeout: Optional timeout in seconds for waiting on wandb-core.
                 On timeout, the request is cancelled on a best-effort basis.
 
+        Returns:
+            The project's internal ID, for APIs that identify the project by
+            an opaque scope ID instead of its entity and name. Returns None if
+            the project does not exist or is not readable with the session
+            credentials.
+
         Raises:
-            WandbApiFailedError: If the project cannot be resolved or the
-                request fails for any other reason.
+            WandbApiFailedError: If the request fails, including timeouts while
+                waiting on wandb-core and transport errors.
         """
-        response = self.send_api_request(
-            ApiRequest(
-                get_project_internal_id_request=GetProjectInternalIdRequest(
-                    entity=entity,
-                    project=project,
-                )
-            ),
+        req = ApiRequest(
+            get_project_internal_id_request=GetProjectInternalIdRequest(
+                entity=entity,
+                project=project,
+            )
+        )
+        resp = self.send_api_request(
+            req,
             timeout=self._timeout if timeout is None else timeout,
         )
-        return response.get_project_internal_id_response.project_internal_id
+        project_response = resp.get_project_internal_id_response
+        if not project_response.HasField("project_internal_id"):
+            return None
+        return project_response.project_internal_id
 
     async def send_api_request_async(
         self,
