@@ -219,7 +219,7 @@ func (rh *RunHistory) setFromTypedValue(
 	typed *spb.HistoryValue,
 ) error {
 	switch value := typed.Value.(type) {
-	case *spb.HistoryValue_NullValue:
+	case *spb.HistoryValue_None:
 		rh.metrics.Set(path, nil)
 
 	case *spb.HistoryValue_Number:
