@@ -60,7 +60,7 @@ def _set_scalar(typed: pb.HistoryValue, value: Any) -> bool:
     scalar case.
     """
     if value is None:
-        typed.null_value = NULL_VALUE
+        typed.none = NULL_VALUE
 
     elif isinstance(value, bool):
         # bool is a subclass of int, so it must be tested first.
