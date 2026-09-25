@@ -370,6 +370,7 @@ class AxOptimizer(Optimizer):
         self._finalized: set[int] = set()
         super().__init__(sweep)
 
+        # Always on: labels add only ~6% memory; JSON saves can't be detected.
         self._resumer = TrialResumer(sweep, _ExperimentTrials(self), self.tell_run)
 
     def _finalize(self, trial_index: int) -> None:

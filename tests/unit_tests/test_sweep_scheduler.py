@@ -1096,6 +1096,23 @@ class OptunaResumableAcceptanceTests(ResumableOptimizerAcceptanceTests):
         assert trial.value == 2.0
         assert trial.intermediate_values == {0: 3.0, 1: 2.0}
 
+    def test_an_in_memory_study_is_neither_labeled_nor_listed(
+        self, sweep: SweepInfo, listed
+    ) -> None:
+        """An in-memory study can't be reloaded, so there is nothing to resume."""
+        import optuna
+
+        study = optuna.create_study(direction="minimize")
+        first = self.make_optimizer(study, sweep)
+        suggestion = next(iter(first.ask_n_runs(1)))
+        running = make_run(suggestion, state=RunState.RUNNING, summary={})
+        first.tell_run(suggestion.run_id, running)
+
+        warm_start(self.make_optimizer(study, sweep), active=[running])
+
+        assert listed.call_count == 0
+        assert [t.user_attrs for t in study.get_trials(deepcopy=False)] == [{}, {}]
+
 
 class TestOptunaDeclarativeResumableAcceptance(OptunaResumableAcceptanceTests):
     def make_optimizer(self, study: Any, sweep: SweepInfo) -> Optimizer:
