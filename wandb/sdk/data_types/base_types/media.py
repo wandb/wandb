@@ -140,25 +140,7 @@ class Media(WBValue):
 
         file_path = _wb_filename(key, step, id_, extension)
         media_path = os.path.join(self.get_media_subdir(), file_path)
-        self._bind_to_run_path(
-            run,
-            media_path,
-            ignore_copy_err=ignore_copy_err,
-        )
-
-    def _bind_to_run_path(
-        self,
-        run: wandb.Run,
-        media_path: str,
-        *,
-        ignore_copy_err: bool | None = None,
-    ) -> None:
-        """Bind this media to an explicit logical path within a run."""
-        assert self.file_is_set(), "_bind_to_run_path called before _set_file"
-        assert isinstance(self._path, str)
-
-        self._run = run
-        new_path = os.path.join(run.dir, media_path)
+        new_path = os.path.join(self._run.dir, media_path)
         filesystem.mkdir_exists_ok(os.path.dirname(new_path))
 
         if self._is_tmp:

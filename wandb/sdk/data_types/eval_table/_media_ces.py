@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import copy
 import os
+import pathlib
+import shutil
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, TypeVar
 from urllib.parse import quote
@@ -22,6 +24,7 @@ from urllib.parse import quote
 from wandb import util
 from wandb.errors import UsageError
 from wandb.sdk.data_types.base_types.media import Media
+from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.paths import LogicalPath
 
 if TYPE_CHECKING:
@@ -131,8 +134,32 @@ def _bind_eval_table_media_to_run(
         directory,
         f"{media._sha256[:_DIGEST_PATH_LENGTH]}{extension}",
     )
-    media._bind_to_run_path(run, logical_path)
+    _place_media_file_in_run(media, run, logical_path)
     return _run_file_uri(run, logical_path)
+
+
+# Mirrors the file placement in `Media.bind_to_run`, which only supports its own
+# key/step/id naming, so EvalTables can keep content-addressed paths for dedupe.
+def _place_media_file_in_run(media: Media, run: Run, logical_path: str) -> None:
+    assert media._path is not None
+    new_path = os.path.join(run.dir, logical_path)
+    filesystem.mkdir_exists_ok(os.path.dirname(new_path))
+
+    if media._is_tmp:
+        shutil.move(media._path, new_path)
+        media._is_tmp = False
+    elif run._settings.allow_media_symlink:
+        filesystem.link_or_copy(
+            run._settings,
+            pathlib.Path(media._path).resolve(),
+            pathlib.Path(new_path),
+        )
+    else:
+        shutil.copy(media._path, new_path)
+
+    media._path = new_path
+    media._run = run
+    run._publish_file(logical_path)
 
 
 def _logical_run_file_path(media: Media, run: Run) -> LogicalPath:

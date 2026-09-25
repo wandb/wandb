@@ -74,7 +74,7 @@ def test_media_binds_to_explicit_run_path(run_factory, tmp_path):
     image = wandb.Image(source)
     logical_path = os.path.join("media", "eval_tables", "images", "custom.png")
 
-    image._bind_to_run_path(run, logical_path)
+    _media_ces._place_media_file_in_run(image, run, logical_path)
 
     destination = os.path.join(run.dir, logical_path)
     assert image._run is run
