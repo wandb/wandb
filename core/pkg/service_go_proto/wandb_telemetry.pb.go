@@ -1092,6 +1092,7 @@ type Feature struct {
 	EvalTable                bool `protobuf:"varint,77,opt,name=eval_table,json=evalTable,proto3" json:"eval_table,omitempty"`                                                  // User logged an EvalTable via run.log()
 	Table                    bool `protobuf:"varint,78,opt,name=table,proto3" json:"table,omitempty"`                                                                           // User logged a regular (non-incremental) wandb.Table via run.log()
 	IncrementalTable         bool `protobuf:"varint,79,opt,name=incremental_table,json=incrementalTable,proto3" json:"incremental_table,omitempty"`                             // User logged an incremental wandb.Table via run.log()
+	ProvenanceLogs           bool `protobuf:"varint,80,opt,name=provenance_logs,json=provenanceLogs,proto3" json:"provenance_logs,omitempty"`                                   // x_provenance_logs wrote rank telemetry to the run logs
 	unknownFields            protoimpl.UnknownFields
 	sizeCache                protoimpl.SizeCache
 }
@@ -1651,6 +1652,13 @@ func (x *Feature) GetIncrementalTable() bool {
 	return false
 }
 
+func (x *Feature) GetProvenanceLogs() bool {
+	if x != nil {
+		return x.ProvenanceLogs
+	}
+	return false
+}
+
 type Env struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Jupyter       bool                   `protobuf:"varint,1,opt,name=jupyter,proto3" json:"jupyter,omitempty"`                       // jupyter env detected
@@ -2120,7 +2128,7 @@ const file_wandb_proto_wandb_telemetry_proto_rawDesc = "" +
 	"\x14curated_transformers\x18h \x01(\bR\x13curatedTransformers\x12\x16\n" +
 	"\x06orjson\x18i \x01(\bR\x06orjson\x12\x1c\n" +
 	"\tlightning\x18j \x01(\bR\tlightning\x12\x12\n" +
-	"\x04dspy\x18k \x01(\bR\x04dspyJ\x04\b\x11\x10\x12J\x04\b\x13\x10\x14J\x04\b\x14\x10\x15J\x04\b\x17\x10\x18J\x04\b\x18\x10\x19J\x04\b\x19\x10\x1aJ\x04\b\x1a\x10\x1bJ\x04\b\x1b\x10\x1cJ\x04\b7\x108\"\xe5\x16\n" +
+	"\x04dspy\x18k \x01(\bR\x04dspyJ\x04\b\x11\x10\x12J\x04\b\x13\x10\x14J\x04\b\x14\x10\x15J\x04\b\x17\x10\x18J\x04\b\x18\x10\x19J\x04\b\x19\x10\x1aJ\x04\b\x1a\x10\x1bJ\x04\b\x1b\x10\x1cJ\x04\b7\x108\"\x8e\x17\n" +
 	"\aFeature\x12\x14\n" +
 	"\x05watch\x18\x01 \x01(\bR\x05watch\x12\x16\n" +
 	"\x06finish\x18\x02 \x01(\bR\x06finish\x12%\n" +
@@ -2205,7 +2213,8 @@ const file_wandb_proto_wandb_telemetry_proto_rawDesc = "" +
 	"\n" +
 	"eval_table\x18M \x01(\bR\tevalTable\x12\x14\n" +
 	"\x05table\x18N \x01(\bR\x05table\x12+\n" +
-	"\x11incremental_table\x18O \x01(\bR\x10incrementalTableJ\x04\b\x17\x10\x18J\x04\b-\x10.J\x04\b0\x101J\x04\b7\x108\"\x9c\x02\n" +
+	"\x11incremental_table\x18O \x01(\bR\x10incrementalTable\x12'\n" +
+	"\x0fprovenance_logs\x18P \x01(\bR\x0eprovenanceLogsJ\x04\b\x17\x10\x18J\x04\b-\x10.J\x04\b0\x101J\x04\b7\x108\"\x9c\x02\n" +
 	"\x03Env\x12\x18\n" +
 	"\ajupyter\x18\x01 \x01(\bR\ajupyter\x12\x16\n" +
 	"\x06kaggle\x18\x02 \x01(\bR\x06kaggle\x12\x18\n" +

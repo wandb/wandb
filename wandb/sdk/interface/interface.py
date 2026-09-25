@@ -4,7 +4,7 @@ import abc
 import gzip
 import logging
 import time
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 from secrets import token_hex
 from typing import TYPE_CHECKING, Any
@@ -77,6 +77,7 @@ _ENCODE_DURATION_BOUNDARIES = (
 if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
     from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
+    from wandb.sdk.lib.comm_stats import CollectiveSummary
 
     from ..wandb_run import Run
 
@@ -901,6 +902,49 @@ class InterfaceBase(abc.ABC):
         *,
         nowait: bool,
     ) -> None:
+        raise NotImplementedError
+
+    def publish_device_binding(
+        self,
+        *,
+        uuid: str,
+        pci_bus_id: str,
+        cuda_index: int,
+        source: str,
+    ) -> None:
+        binding = pb.DeviceBindingRecord(
+            uuid=uuid,
+            pci_bus_id=pci_bus_id,
+            cuda_index=cuda_index,
+            source=source,
+        )
+        self._publish_device_binding(binding)
+
+    @abc.abstractmethod
+    def _publish_device_binding(self, binding: pb.DeviceBindingRecord) -> None:
+        raise NotImplementedError
+
+    def publish_comm_stats(
+        self,
+        *,
+        status: str,
+        collectives: Sequence[CollectiveSummary],
+    ) -> None:
+        stats = pb.CommStatsRecord(status=status)
+        for c in collectives:
+            stats.collectives.add(
+                name=c.name,
+                count=c.count,
+                p50_ms=c.p50_ms,
+                p99_ms=c.p99_ms,
+                max_ms=c.max_ms,
+                total_ms=c.total_ms,
+                bytes=c.bytes,
+            )
+        self._publish_comm_stats(stats)
+
+    @abc.abstractmethod
+    def _publish_comm_stats(self, stats: pb.CommStatsRecord) -> None:
         raise NotImplementedError
 
     def publish_pause(self) -> None:

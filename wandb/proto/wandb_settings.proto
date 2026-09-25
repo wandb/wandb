@@ -50,7 +50,7 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 210
+// Next ID: 215
 message Settings {
   reserved 3, 6, 8, 9, 12, 19, 36, 43, 44, 45, 50, 51, 54, 70, 91, 94, 100, 124, 136, 137, 173, 176, 180, 190;
 
@@ -451,6 +451,18 @@ message Settings {
   // Zero disables periodic flushing: data is then written only when a
   // buffer fills or the run finishes.
   google.protobuf.DoubleValue x_transaction_log_flush_interval = 209;
+
+  // Whether to write rank-to-GPU provenance and bound-GPU samples to the run's logs.
+  google.protobuf.BoolValue x_provenance_logs = 211;
+
+  // History key whose latest value is attached as `step` to provenance log lines.
+  google.protobuf.StringValue x_provenance_step_metric = 212;
+
+  // Seconds of ticks (paced by x_stats_sampling_interval) packed into one window log line; <= 0 flushes every tick.
+  google.protobuf.DoubleValue x_provenance_flush_interval = 213;
+
+  // Whether to attach NCCL flight recorder collective timings to provenance window lines.
+  google.protobuf.BoolValue x_provenance_comm = 214;
 
   // The scheme and hostname for contacting the CoreWeave metadata server.
   google.protobuf.StringValue x_stats_coreweave_metadata_base_url = 192;

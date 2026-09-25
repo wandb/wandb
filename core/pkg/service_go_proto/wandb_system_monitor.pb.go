@@ -30,9 +30,11 @@ type GetStatsRequest struct {
 	//
 	// Should be 0-indexed and match those reported by the CUDA/ROCm runtime environment.
 	// If not set, metrics for all GPUs will be captured.
-	GpuDeviceIds  []int32 `protobuf:"varint,2,rep,packed,name=gpu_device_ids,json=gpuDeviceIds,proto3" json:"gpu_device_ids,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	GpuDeviceIds []int32 `protobuf:"varint,2,rep,packed,name=gpu_device_ids,json=gpuDeviceIds,proto3" json:"gpu_device_ids,omitempty"`
+	// Also sample clock throttle reasons; used only by provenance logs.
+	IncludeThrottleReasons bool `protobuf:"varint,3,opt,name=include_throttle_reasons,json=includeThrottleReasons,proto3" json:"include_throttle_reasons,omitempty"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *GetStatsRequest) Reset() {
@@ -77,6 +79,13 @@ func (x *GetStatsRequest) GetGpuDeviceIds() []int32 {
 		return x.GpuDeviceIds
 	}
 	return nil
+}
+
+func (x *GetStatsRequest) GetIncludeThrottleReasons() bool {
+	if x != nil {
+		return x.IncludeThrottleReasons
+	}
+	return false
 }
 
 type GetStatsResponse struct {
@@ -281,10 +290,11 @@ var File_wandb_proto_wandb_system_monitor_proto protoreflect.FileDescriptor
 
 const file_wandb_proto_wandb_system_monitor_proto_rawDesc = "" +
 	"\n" +
-	"&wandb/proto/wandb_system_monitor.proto\x12\x0ewandb_internal\x1a wandb/proto/wandb_internal.proto\"I\n" +
+	"&wandb/proto/wandb_system_monitor.proto\x12\x0ewandb_internal\x1a wandb/proto/wandb_internal.proto\"\x83\x01\n" +
 	"\x0fGetStatsRequest\x12\x10\n" +
 	"\x03pid\x18\x01 \x01(\x05R\x03pid\x12$\n" +
-	"\x0egpu_device_ids\x18\x02 \x03(\x05R\fgpuDeviceIds\"B\n" +
+	"\x0egpu_device_ids\x18\x02 \x03(\x05R\fgpuDeviceIds\x128\n" +
+	"\x18include_throttle_reasons\x18\x03 \x01(\bR\x16includeThrottleReasons\"B\n" +
 	"\x10GetStatsResponse\x12.\n" +
 	"\x06record\x18\x01 \x01(\v2\x16.wandb_internal.RecordR\x06record\"\x14\n" +
 	"\x12GetMetadataRequest\"E\n" +

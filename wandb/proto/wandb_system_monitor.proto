@@ -30,6 +30,9 @@ message GetStatsRequest {
   // Should be 0-indexed and match those reported by the CUDA/ROCm runtime environment.
   // If not set, metrics for all GPUs will be captured.
   repeated int32 gpu_device_ids = 2;
+
+  // Also sample clock throttle reasons; used only by provenance logs.
+  bool include_throttle_reasons = 3;
 }
 
 message GetStatsResponse {
