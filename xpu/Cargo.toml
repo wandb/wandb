@@ -40,7 +40,6 @@ nvml-wrapper = "0.13.0"
 [target.'cfg(target_os = "linux")'.dependencies]
 glob = "0.3.4"
 libloading = "0.9"
-which = "8.0.5"
 
 [target.'cfg(all(target_os = "macos", target_arch = "aarch64"))'.dependencies]
 core-foundation = "0.10.1"
