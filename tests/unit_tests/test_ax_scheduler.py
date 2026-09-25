@@ -220,6 +220,21 @@ class TestBuildAxSchedulerOptimizer:
         assert optimizer.should_terminate_sweep() is True
         terminator.assert_called_once_with(client)
 
+    def test_a_malformed_optimizer_config_names_the_client_type(
+        self, monkeypatch, client: Client, sweep: SweepInfo
+    ) -> None:
+        from click.exceptions import ClickException
+        from wandb.cli import cli
+
+        configure = MagicMock(return_value=(client,))
+        monkeypatch.setattr(cli, "_load_source_object", lambda *_: configure)
+
+        with pytest.raises(ClickException, match="instance of ax.api.client.Client"):
+            cli._build_ax_scheduler_optimizer(
+                sweep,
+                {"engine": "ax", "source": "optimizer.py", "optimizer": "configure"},
+            )
+
 
 class TestUnparseableMetricName:
     def test_hyphenated_metric_completes_its_trial(self) -> None:
