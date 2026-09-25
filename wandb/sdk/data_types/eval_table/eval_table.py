@@ -154,6 +154,7 @@ class EvalTable(Table):
             if backend is not None
             else None
         )
+        self._needs_writer_validation = self._writer is None
         self._unsupported_media_mode = unsupported_media_mode
 
         self._input_columns = list(input_columns or [])
@@ -217,7 +218,6 @@ class EvalTable(Table):
                 allow_mixed_types=self._allow_mixed_types,
                 unsupported_media_mode=self._unsupported_media_mode,
             )
-            self._validate_cells_for_writer(writer)
         else:
             require_eval_table_server_feature(run)
 
@@ -251,6 +251,10 @@ class EvalTable(Table):
                 "EvalTable cannot be serialized for a different run than it was "
                 "bound to."
             )
+
+        if self._needs_writer_validation:
+            self._validate_cells_for_writer(writer)
+            self._needs_writer_validation = False
 
         if self._immutable_write_result is not None:
             self._warn_immutable_already_logged()

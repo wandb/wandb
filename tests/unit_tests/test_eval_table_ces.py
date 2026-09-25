@@ -378,6 +378,24 @@ def test_ces_eval_table_raises_for_media_in_raise_mode(mock_ces_client):
     mock_ces_client.eval_tables.create.assert_not_called()
 
 
+def test_default_writer_validates_cells_during_serialization(mock_ces_client, run):
+    from PIL import Image as PILImage
+
+    image = wandb.Image(PILImage.new("RGB", (2, 2), color="red"))
+    table = wandb.EvalTable(
+        columns=["image"],
+        data=[[image]],
+        unsupported_media_mode="raise",
+    )
+
+    table.bind_to_run(run, "eval", 0)
+
+    with pytest.raises(TypeError, match="unsupported wandb media type 'Image'"):
+        table.to_json(run)
+
+    mock_ces_client.eval_tables.create.assert_not_called()
+
+
 def test_ces_eval_table_batches_rows_by_encoded_bytes(
     mock_ces_client,
     run,
