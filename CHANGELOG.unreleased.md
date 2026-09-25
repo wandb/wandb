@@ -27,6 +27,10 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Runs now write data to disk every 15 seconds, so that wandb leet updates sooner for runs that don't log a lot of data (@dmitryduev in https://github.com/wandb/wandb/pull/12742)
 - Reduced the size of the `wandb-core` binary by about a third, from 52 MB to 35 MB on Linux x86_64 (@dmitryduev in https://github.com/wandb/wandb/pull/12923)
 
+### Removed
+
+- Removed the undocumented `wandb.set_trace()`. Use Python's built-in `breakpoint()` instead (@dmitryduev in https://github.com/wandb/wandb/pull/PRNUM)
+
 ### Fixed
 
 - `wandb leet inspect` no longer prints "skipped corrupt data" forever when its output is piped and the file is not a `.wandb` log it can read; it now exits with an error (@dmitryduev in https://github.com/wandb/wandb/pull/12950)
