@@ -1,10 +1,13 @@
 package runfiles_test
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"syscall"
 	"testing"
 	"time"
@@ -555,4 +558,138 @@ func TestUploader(t *testing.T) {
 			uploader.Finish()
 		},
 	)
+
+	runTest("failed CreateRunFiles is retried at finish",
+		func() {},
+		func(t *testing.T) {
+			writeEmptyFile(t, filepath.Join(filesDir, "chunk.gz"))
+			mockGQLClient.StubMatchWithError(
+				gqlmock.WithOpName("CreateRunFiles"),
+				errors.New("transient"),
+			)
+			uploader.Process(&spb.FilesRecord{
+				Files: []*spb.FilesItem{{Path: "chunk.gz", Policy: spb.FilesItem_NOW}},
+			})
+			uploader.(UploaderTesting).FlushSchedulingForTest()
+			require.Empty(t, fakeFileTransfer.Tasks())
+
+			stubCreateRunFilesOneFile(mockGQLClient, "chunk.gz")
+			uploader.UploadRemaining()
+			uploader.Finish()
+
+			require.Len(t, fakeFileTransfer.Tasks(), 1)
+			assert.Equal(t, "chunk.gz",
+				fakeFileTransfer.Tasks()[0].(*filetransfer.DefaultUploadTask).Name)
+		})
+
+	runTest("failed upload task is retried at finish",
+		func() {},
+		func(t *testing.T) {
+			fakeFileTransfer.ShouldCompleteImmediately = false
+			writeEmptyFile(t, filepath.Join(filesDir, "chunk.gz"))
+			stubCreateRunFilesOneFile(mockGQLClient, "chunk.gz")
+			uploader.Process(&spb.FilesRecord{
+				Files: []*spb.FilesItem{{Path: "chunk.gz", Policy: spb.FilesItem_NOW}},
+			})
+			uploader.(UploaderTesting).FlushSchedulingForTest()
+			require.Len(t, fakeFileTransfer.Tasks(), 1)
+			failed := fakeFileTransfer.Tasks()[0]
+			failed.SetError(errors.New("upload failed"))
+			fakeFileTransfer.CompleteTasks()
+
+			fakeFileTransfer.ShouldCompleteImmediately = true
+			stubCreateRunFilesOneFile(mockGQLClient, "chunk.gz")
+			uploader.UploadRemaining()
+			uploader.Finish()
+
+			assert.Len(t, fakeFileTransfer.Tasks(), 2)
+		})
+
+	runTest("uploaded NOW files add no names at finish",
+		func() {},
+		func(t *testing.T) {
+			for i := range 500 {
+				name := fmt.Sprintf("chunk-%03d.gz", i)
+				writeEmptyFile(t, filepath.Join(filesDir, name))
+				mockGQLClient.StubMatchOnce(
+					gomock.All(
+						gqlmock.WithOpName("CreateRunFiles"),
+						gqlmock.WithVariables(gqlmock.GQLVar("files", gomock.Eq([]any{name}))),
+					),
+					fmt.Sprintf(`{"createRunFiles": {"runID": "test-run", "files": [
+						{"name": "%s", "uploadUrl": "https://example.com/%s"}]}}`, name, name),
+				)
+				uploader.Process(&spb.FilesRecord{
+					Files: []*spb.FilesItem{{Path: name, Policy: spb.FilesItem_NOW}},
+				})
+			}
+			writeEmptyFile(t, filepath.Join(filesDir, "rank.jsonl"))
+			uploader.Process(&spb.FilesRecord{
+				Files: []*spb.FilesItem{{Path: "rank.jsonl", Policy: spb.FilesItem_END}},
+			})
+			uploader.(UploaderTesting).FlushSchedulingForTest()
+			before := len(mockGQLClient.AllRequests())
+
+			stubCreateRunFilesOneFile(mockGQLClient, "rank.jsonl")
+			uploader.UploadRemaining()
+			uploader.Finish()
+
+			var names []string
+			for _, req := range mockGQLClient.AllRequests()[before:] {
+				b, err := json.Marshal(req.Variables)
+				require.NoError(t, err)
+				var vars struct {
+					Files []string `json:"files"`
+				}
+				require.NoError(t, json.Unmarshal(b, &vars))
+				names = append(names, vars.Files...)
+			}
+			assert.Equal(t, []string{"rank.jsonl"}, names)
+			assert.Len(t, fakeFileTransfer.Tasks(), 501)
+		})
+
+	for _, tc := range []struct {
+		glob     string
+		excluded []string
+	}{
+		{"*.gz", nil},
+		{"wandb-telemetry/*/*/*", []string{"wandb-telemetry/v1/rank/w1.jsonl"}},
+		{"wandb-telemetry/*/*/*/*", []string{"wandb-telemetry/v1/chunks/20260923T1000/w1-000000.jsonl.gz"}},
+	} {
+		runTest(fmt.Sprintf("ignore glob %q on telemetry paths", tc.glob),
+			func() { ignoreGlobs = []string{tc.glob} },
+			func(t *testing.T) {
+				all := []string{
+					"wandb-telemetry/v1/rank/w1.jsonl",
+					"wandb-telemetry/v1/chunks/20260923T1000/w1-000000.jsonl.gz",
+				}
+				for _, name := range all {
+					writeEmptyFile(t, filepath.Join(filesDir, filepath.FromSlash(name)))
+					mockGQLClient.StubMatchOnce(
+						gomock.All(
+							gqlmock.WithOpName("CreateRunFiles"),
+							gqlmock.WithVariables(gqlmock.GQLVar("files", gomock.Eq([]any{name}))),
+						),
+						fmt.Sprintf(`{"createRunFiles": {"runID": "test-run", "files": [
+							{"name": "%s", "uploadUrl": "https://example.com/x"}]}}`, name),
+					)
+					uploader.Process(&spb.FilesRecord{
+						Files: []*spb.FilesItem{{Path: filepath.FromSlash(name)}},
+					})
+				}
+				uploader.Finish()
+
+				var uploaded []string
+				for _, task := range fakeFileTransfer.Tasks() {
+					uploaded = append(uploaded, task.(*filetransfer.DefaultUploadTask).Name)
+				}
+				for _, name := range all {
+					if slices.Contains(tc.excluded, name) {
+						assert.NotContains(t, uploaded, filepath.FromSlash(name))
+					} else {
+						assert.Contains(t, uploaded, filepath.FromSlash(name))
+					}
+				}
+			})
+	}
 }

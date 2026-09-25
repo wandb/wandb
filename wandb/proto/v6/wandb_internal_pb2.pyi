@@ -92,7 +92,7 @@ AUTOMATION_ACTION_ARIA: ServerFeature
 EVAL_TABLES_CES: ServerFeature
 
 class Record(_message.Message):
-    __slots__ = ("num", "history", "summary", "output", "config", "files", "stats", "artifact", "tbrecord", "alert", "telemetry", "metric", "output_raw", "run", "exit", "final", "header", "footer", "preempting", "noop_link_artifact", "use_artifact", "environment", "output_logger", "request", "control", "uuid", "_info")
+    __slots__ = ("num", "history", "summary", "output", "config", "files", "stats", "artifact", "tbrecord", "alert", "telemetry", "metric", "output_raw", "run", "exit", "final", "header", "footer", "preempting", "noop_link_artifact", "use_artifact", "environment", "output_logger", "device_binding", "comm_stats", "request", "control", "uuid", "_info")
     NUM_FIELD_NUMBER: _ClassVar[int]
     HISTORY_FIELD_NUMBER: _ClassVar[int]
     SUMMARY_FIELD_NUMBER: _ClassVar[int]
@@ -116,6 +116,8 @@ class Record(_message.Message):
     USE_ARTIFACT_FIELD_NUMBER: _ClassVar[int]
     ENVIRONMENT_FIELD_NUMBER: _ClassVar[int]
     OUTPUT_LOGGER_FIELD_NUMBER: _ClassVar[int]
+    DEVICE_BINDING_FIELD_NUMBER: _ClassVar[int]
+    COMM_STATS_FIELD_NUMBER: _ClassVar[int]
     REQUEST_FIELD_NUMBER: _ClassVar[int]
     CONTROL_FIELD_NUMBER: _ClassVar[int]
     UUID_FIELD_NUMBER: _ClassVar[int]
@@ -143,11 +145,13 @@ class Record(_message.Message):
     use_artifact: UseArtifactRecord
     environment: EnvironmentRecord
     output_logger: OutputLoggerRecord
+    device_binding: DeviceBindingRecord
+    comm_stats: CommStatsRecord
     request: Request
     control: Control
     uuid: str
     _info: _wandb_base_pb2._RecordInfo
-    def __init__(self, num: _Optional[int] = ..., history: _Optional[_Union[HistoryRecord, _Mapping]] = ..., summary: _Optional[_Union[SummaryRecord, _Mapping]] = ..., output: _Optional[_Union[OutputRecord, _Mapping]] = ..., config: _Optional[_Union[ConfigRecord, _Mapping]] = ..., files: _Optional[_Union[FilesRecord, _Mapping]] = ..., stats: _Optional[_Union[StatsRecord, _Mapping]] = ..., artifact: _Optional[_Union[ArtifactRecord, _Mapping]] = ..., tbrecord: _Optional[_Union[TBRecord, _Mapping]] = ..., alert: _Optional[_Union[AlertRecord, _Mapping]] = ..., telemetry: _Optional[_Union[_wandb_telemetry_pb2.TelemetryRecord, _Mapping]] = ..., metric: _Optional[_Union[MetricRecord, _Mapping]] = ..., output_raw: _Optional[_Union[OutputRawRecord, _Mapping]] = ..., run: _Optional[_Union[RunRecord, _Mapping]] = ..., exit: _Optional[_Union[RunExitRecord, _Mapping]] = ..., final: _Optional[_Union[FinalRecord, _Mapping]] = ..., header: _Optional[_Union[HeaderRecord, _Mapping]] = ..., footer: _Optional[_Union[FooterRecord, _Mapping]] = ..., preempting: _Optional[_Union[RunPreemptingRecord, _Mapping]] = ..., noop_link_artifact: _Optional[_Union[_empty_pb2.Empty, _Mapping]] = ..., use_artifact: _Optional[_Union[UseArtifactRecord, _Mapping]] = ..., environment: _Optional[_Union[EnvironmentRecord, _Mapping]] = ..., output_logger: _Optional[_Union[OutputLoggerRecord, _Mapping]] = ..., request: _Optional[_Union[Request, _Mapping]] = ..., control: _Optional[_Union[Control, _Mapping]] = ..., uuid: _Optional[str] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
+    def __init__(self, num: _Optional[int] = ..., history: _Optional[_Union[HistoryRecord, _Mapping]] = ..., summary: _Optional[_Union[SummaryRecord, _Mapping]] = ..., output: _Optional[_Union[OutputRecord, _Mapping]] = ..., config: _Optional[_Union[ConfigRecord, _Mapping]] = ..., files: _Optional[_Union[FilesRecord, _Mapping]] = ..., stats: _Optional[_Union[StatsRecord, _Mapping]] = ..., artifact: _Optional[_Union[ArtifactRecord, _Mapping]] = ..., tbrecord: _Optional[_Union[TBRecord, _Mapping]] = ..., alert: _Optional[_Union[AlertRecord, _Mapping]] = ..., telemetry: _Optional[_Union[_wandb_telemetry_pb2.TelemetryRecord, _Mapping]] = ..., metric: _Optional[_Union[MetricRecord, _Mapping]] = ..., output_raw: _Optional[_Union[OutputRawRecord, _Mapping]] = ..., run: _Optional[_Union[RunRecord, _Mapping]] = ..., exit: _Optional[_Union[RunExitRecord, _Mapping]] = ..., final: _Optional[_Union[FinalRecord, _Mapping]] = ..., header: _Optional[_Union[HeaderRecord, _Mapping]] = ..., footer: _Optional[_Union[FooterRecord, _Mapping]] = ..., preempting: _Optional[_Union[RunPreemptingRecord, _Mapping]] = ..., noop_link_artifact: _Optional[_Union[_empty_pb2.Empty, _Mapping]] = ..., use_artifact: _Optional[_Union[UseArtifactRecord, _Mapping]] = ..., environment: _Optional[_Union[EnvironmentRecord, _Mapping]] = ..., output_logger: _Optional[_Union[OutputLoggerRecord, _Mapping]] = ..., device_binding: _Optional[_Union[DeviceBindingRecord, _Mapping]] = ..., comm_stats: _Optional[_Union[CommStatsRecord, _Mapping]] = ..., request: _Optional[_Union[Request, _Mapping]] = ..., control: _Optional[_Union[Control, _Mapping]] = ..., uuid: _Optional[str] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
 
 class Control(_message.Message):
     __slots__ = ("req_resp", "local", "relay_id", "mailbox_slot", "flow_control", "end_offset", "connection_id")
@@ -454,6 +458,52 @@ class OutputLoggerRecord(_message.Message):
     LINE_FIELD_NUMBER: _ClassVar[int]
     line: str
     def __init__(self, line: _Optional[str] = ...) -> None: ...
+
+class DeviceBindingRecord(_message.Message):
+    __slots__ = ("uuid", "pci_bus_id", "source", "cuda_index", "_info")
+    UUID_FIELD_NUMBER: _ClassVar[int]
+    PCI_BUS_ID_FIELD_NUMBER: _ClassVar[int]
+    SOURCE_FIELD_NUMBER: _ClassVar[int]
+    CUDA_INDEX_FIELD_NUMBER: _ClassVar[int]
+    _INFO_FIELD_NUMBER: _ClassVar[int]
+    uuid: str
+    pci_bus_id: str
+    source: str
+    cuda_index: int
+    _info: _wandb_base_pb2._RecordInfo
+    def __init__(self, uuid: _Optional[str] = ..., pci_bus_id: _Optional[str] = ..., source: _Optional[str] = ..., cuda_index: _Optional[int] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
+
+class CollectiveStats(_message.Message):
+    __slots__ = ("name", "count", "p50_ms", "p99_ms", "max_ms", "total_ms", "bytes", "n_timed")
+    NAME_FIELD_NUMBER: _ClassVar[int]
+    COUNT_FIELD_NUMBER: _ClassVar[int]
+    P50_MS_FIELD_NUMBER: _ClassVar[int]
+    P99_MS_FIELD_NUMBER: _ClassVar[int]
+    MAX_MS_FIELD_NUMBER: _ClassVar[int]
+    TOTAL_MS_FIELD_NUMBER: _ClassVar[int]
+    BYTES_FIELD_NUMBER: _ClassVar[int]
+    N_TIMED_FIELD_NUMBER: _ClassVar[int]
+    name: str
+    count: int
+    p50_ms: float
+    p99_ms: float
+    max_ms: float
+    total_ms: float
+    bytes: int
+    n_timed: int
+    def __init__(self, name: _Optional[str] = ..., count: _Optional[int] = ..., p50_ms: _Optional[float] = ..., p99_ms: _Optional[float] = ..., max_ms: _Optional[float] = ..., total_ms: _Optional[float] = ..., bytes: _Optional[int] = ..., n_timed: _Optional[int] = ...) -> None: ...
+
+class CommStatsRecord(_message.Message):
+    __slots__ = ("status", "collectives", "n_lost", "_info")
+    STATUS_FIELD_NUMBER: _ClassVar[int]
+    COLLECTIVES_FIELD_NUMBER: _ClassVar[int]
+    N_LOST_FIELD_NUMBER: _ClassVar[int]
+    _INFO_FIELD_NUMBER: _ClassVar[int]
+    status: str
+    collectives: _containers.RepeatedCompositeFieldContainer[CollectiveStats]
+    n_lost: int
+    _info: _wandb_base_pb2._RecordInfo
+    def __init__(self, status: _Optional[str] = ..., collectives: _Optional[_Iterable[_Union[CollectiveStats, _Mapping]]] = ..., n_lost: _Optional[int] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
 
 class MetricRecord(_message.Message):
     __slots__ = ("name", "glob_name", "step_metric", "step_metric_index", "options", "summary", "goal", "_control", "expanded_from_glob", "_info")
@@ -1705,7 +1755,7 @@ class AppleInfo(_message.Message):
     def __init__(self, name: _Optional[str] = ..., ecpu_cores: _Optional[int] = ..., pcpu_cores: _Optional[int] = ..., gpu_cores: _Optional[int] = ..., memory_gb: _Optional[int] = ..., swap_total_bytes: _Optional[int] = ..., ram_total_bytes: _Optional[int] = ..., mac_model: _Optional[str] = ...) -> None: ...
 
 class GpuNvidiaInfo(_message.Message):
-    __slots__ = ("name", "memory_total", "cuda_cores", "architecture", "uuid", "pci_bus_id", "numa_node")
+    __slots__ = ("name", "memory_total", "cuda_cores", "architecture", "uuid", "pci_bus_id", "numa_node", "serial")
     NAME_FIELD_NUMBER: _ClassVar[int]
     MEMORY_TOTAL_FIELD_NUMBER: _ClassVar[int]
     CUDA_CORES_FIELD_NUMBER: _ClassVar[int]
@@ -1713,6 +1763,7 @@ class GpuNvidiaInfo(_message.Message):
     UUID_FIELD_NUMBER: _ClassVar[int]
     PCI_BUS_ID_FIELD_NUMBER: _ClassVar[int]
     NUMA_NODE_FIELD_NUMBER: _ClassVar[int]
+    SERIAL_FIELD_NUMBER: _ClassVar[int]
     name: str
     memory_total: int
     cuda_cores: int
@@ -1720,7 +1771,8 @@ class GpuNvidiaInfo(_message.Message):
     uuid: str
     pci_bus_id: str
     numa_node: int
-    def __init__(self, name: _Optional[str] = ..., memory_total: _Optional[int] = ..., cuda_cores: _Optional[int] = ..., architecture: _Optional[str] = ..., uuid: _Optional[str] = ..., pci_bus_id: _Optional[str] = ..., numa_node: _Optional[int] = ...) -> None: ...
+    serial: str
+    def __init__(self, name: _Optional[str] = ..., memory_total: _Optional[int] = ..., cuda_cores: _Optional[int] = ..., architecture: _Optional[str] = ..., uuid: _Optional[str] = ..., pci_bus_id: _Optional[str] = ..., numa_node: _Optional[int] = ..., serial: _Optional[str] = ...) -> None: ...
 
 class GpuAmdInfo(_message.Message):
     __slots__ = ("id", "unique_id", "vbios_version", "performance_level", "gpu_overdrive", "gpu_memory_overdrive", "max_power", "series", "model", "vendor", "sku", "sclk_range", "mclk_range")

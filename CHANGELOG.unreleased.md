@@ -30,6 +30,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - System metrics can include the CPU and memory used by W&B's own background processes, as `wandb.cpu` and `wandb.memory.rssMB`. They are on by default in development and release-candidate versions and off otherwise; turn them on with the `x_stats_self_usage` setting (@dmitryduev in https://github.com/wandb/wandb/pull/13004, https://github.com/wandb/wandb/pull/13038)
 - Run metadata now records each NVIDIA GPU's PCI bus ID and, on Linux, the NUMA node it is attached to (@dmitryduev in https://github.com/wandb/wandb/pull/13005)
 - `EvalTable` backed by the new CoreWeave Evaluation Service is now in public preview. See: https://docs.wandb.ai/models/evaltables (@kelu-wandb in https://github.com/wandb/wandb/pull/12979)
+- With the experimental `x_provenance` setting on, run metadata includes each NVIDIA GPU's serial number; with it off, serials are not read (@kr-igor in https://github.com/wandb/wandb/pull/12977)
 
 ### Changed
 

@@ -828,6 +828,60 @@ class Settings(BaseModel, validate_assignment=True):
     as the primary process handles the main logging.
     """
 
+    x_provenance: bool = False
+    """Write rank-to-GPU provenance and bound-GPU telemetry as run files.
+
+    Each writer publishes `wandb-telemetry/v1/rank/<writer_id>.jsonl` and gzip
+    chunks of window records under `wandb-telemetry/v1/chunks/<slot>/`. They are
+    ordinary run files: they count toward storage, anyone who can read the run
+    can download them, `api.run(path).files()` (50 per page by default) and
+    `wandb pull` include them, they are deleted only with the run and stay in
+    the local sync dir, and the finish footer counts them as other files.
+    `ignore_globs` match the full path, so `*.gz` does not exclude them;
+    `wandb-telemetry/*/*/*/*` excludes chunks and `wandb-telemetry/*/*/*`
+    excludes rank objects.
+    It also adds NVIDIA GPU serial numbers to run metadata and rank objects,
+    which also hold hostnames, the cgroup path, and launcher environment such
+    as `MASTER_ADDR` and the Slurm node list.
+
+    <!-- lazydoc-ignore -->
+    """
+
+    x_provenance_chunk_interval: float | None = None
+    """Seconds a telemetry chunk stays open before it is sealed and uploaded.
+
+    Defaults to 1200 seconds in wandb-core, which also clamps it to 300-3600
+    seconds; a chunk is also sealed at 4 MB and at run exit.
+
+    <!-- lazydoc-ignore -->
+    """
+
+    x_provenance_comm: bool = False
+    """Attach NCCL flight recorder collective timings to provenance window records.
+
+    Needs `x_provenance` and torch launched with `TORCH_NCCL_TRACE_BUFFER_SIZE` set.
+    The recommended size is 2000. Each read (once per `x_provenance_flush_interval`)
+    unpickles the whole buffer while holding the GIL, which stalls the training
+    thread for about 2 ms at 2,000 entries and about 22-29 ms at 20,000.
+    Sizes above 5000 log a warning.
+    Collectives evicted from the buffer before a read are counted in the
+    window's `comm_n_lost`, so a larger buffer or shorter interval may be needed.
+
+    <!-- lazydoc-ignore -->
+    """
+
+    x_provenance_flush_interval: float = 60.0
+    """Seconds of ticks (paced by x_stats_sampling_interval) packed into one window record; <= 0 flushes every tick.
+
+    <!-- lazydoc-ignore -->
+    """
+
+    x_provenance_step_metric: str | None = None
+    """History key whose latest value is attached as `step` to provenance records.
+
+    <!-- lazydoc-ignore -->
+    """
+
     x_proxies: dict[str, str] | None = None
     """Custom proxy servers for requests to W&B.
 

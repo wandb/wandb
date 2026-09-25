@@ -158,11 +158,12 @@ func Test_AddWorkOrCancel_CancelledBefore(t *testing.T) {
 	closedCh := make(chan struct{})
 	close(closedCh)
 
-	rw.AddWorkOrCancel(closedCh, runwork.Work{
+	queued := rw.AddWorkOrCancel(closedCh, runwork.Work{
 		WorkImpl: runwork.WorkFromRecord(&spb.Record{}),
 		Request:  req,
 	})
 
+	assert.False(t, queued)
 	assertCancelled(t, req.Context())
 }
 
@@ -172,14 +173,40 @@ func Test_AddWorkOrCancel_CancelledDuring(t *testing.T) {
 		req := newTestRequest(t)
 		doneCh := make(chan struct{})
 
-		go rw.AddWorkOrCancel(doneCh, runwork.Work{
-			WorkImpl: runwork.WorkFromRecord(&spb.Record{}),
-			Request:  req,
-		})
+		queued := make(chan bool, 1)
+		go func() {
+			queued <- rw.AddWorkOrCancel(doneCh, runwork.Work{
+				WorkImpl: runwork.WorkFromRecord(&spb.Record{}),
+				Request:  req,
+			})
+		}()
 		synctest.Wait() // wait for AddWorkOrCancel to block
 		close(doneCh)
 		synctest.Wait() // wait for AddWorkOrCancel to react
 
+		assert.False(t, <-queued)
 		assertCancelled(t, req.Context())
 	})
+}
+
+func Test_AddWorkOrCancel_ReportsQueued(t *testing.T) {
+	rw := runwork.New(1, observabilitytest.NewTestLogger(t))
+
+	queued := rw.AddWorkOrCancel(make(chan struct{}), runwork.NoRequest(
+		runwork.WorkFromRecord(&spb.Record{}),
+	))
+
+	assert.True(t, queued)
+	<-rw.Chan()
+}
+
+func Test_AddWorkOrCancel_AfterCloseReportsNotQueued(t *testing.T) {
+	rw := runwork.New(1, observabilitytest.NewTestLogger(t))
+	rw.Close()
+
+	queued := rw.AddWorkOrCancel(make(chan struct{}), runwork.NoRequest(
+		runwork.WorkFromRecord(&spb.Record{}),
+	))
+
+	assert.False(t, queued)
 }

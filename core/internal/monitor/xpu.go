@@ -22,6 +22,9 @@ type XPU struct {
 	pid          int32
 	gpuDeviceIds []int32
 
+	// provenance also requests provenance-only fields: throttle reasons and GPU serials.
+	provenance bool
+
 	startOnce        sync.Once
 	startErrReported atomic.Bool
 
@@ -39,12 +42,14 @@ func NewXPU(
 	resourceManager *XPUResourceManager,
 	pid int32,
 	gpuDeviceIds []int32,
+	provenance bool,
 ) *XPU {
 	return &XPU{
 		ctx:             ctx,
 		resourceManager: resourceManager,
 		pid:             pid,
 		gpuDeviceIds:    gpuDeviceIds,
+		provenance:      provenance,
 	}
 }
 
@@ -63,10 +68,11 @@ func (a *XPU) Sample() (*spb.StatsRecord, error) {
 		return nil, err
 	}
 
-	stats, err := client.GetStats(
-		ctx,
-		&spb.GetStatsRequest{Pid: a.pid, GpuDeviceIds: a.gpuDeviceIds},
-	)
+	stats, err := client.GetStats(ctx, &spb.GetStatsRequest{
+		Pid:                    a.pid,
+		GpuDeviceIds:           a.gpuDeviceIds,
+		IncludeThrottleReasons: a.provenance,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +89,7 @@ func (a *XPU) Probe(ctx context.Context) *spb.EnvironmentRecord {
 		return nil
 	}
 
-	e, err := client.GetMetadata(ctx, &spb.GetMetadataRequest{})
+	e, err := client.GetMetadata(ctx, &spb.GetMetadataRequest{IncludeSerial: a.provenance})
 	if err != nil {
 		return nil
 	}

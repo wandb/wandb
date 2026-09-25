@@ -353,7 +353,7 @@ func (x *RunMoment) GetMetric() string {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 210
+// Next ID: 217
 type Settings struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The W&B API key.
@@ -667,6 +667,16 @@ type Settings struct {
 	// Zero disables periodic flushing: data is then written only when a
 	// buffer fills or the run finishes.
 	XTransactionLogFlushInterval *wrapperspb.DoubleValue `protobuf:"bytes,209,opt,name=x_transaction_log_flush_interval,json=xTransactionLogFlushInterval,proto3" json:"x_transaction_log_flush_interval,omitempty"`
+	// Whether to write rank-to-GPU provenance and bound-GPU telemetry as run files under wandb-telemetry/.
+	XProvenance *wrapperspb.BoolValue `protobuf:"bytes,212,opt,name=x_provenance,json=xProvenance,proto3" json:"x_provenance,omitempty"`
+	// History key whose latest value is attached as `step` to provenance records.
+	XProvenanceStepMetric *wrapperspb.StringValue `protobuf:"bytes,213,opt,name=x_provenance_step_metric,json=xProvenanceStepMetric,proto3" json:"x_provenance_step_metric,omitempty"`
+	// Seconds of ticks (paced by x_stats_sampling_interval) packed into one window record; <= 0 flushes every tick.
+	XProvenanceFlushInterval *wrapperspb.DoubleValue `protobuf:"bytes,214,opt,name=x_provenance_flush_interval,json=xProvenanceFlushInterval,proto3" json:"x_provenance_flush_interval,omitempty"`
+	// Whether to attach NCCL flight recorder collective timings to provenance window records.
+	XProvenanceComm *wrapperspb.BoolValue `protobuf:"bytes,215,opt,name=x_provenance_comm,json=xProvenanceComm,proto3" json:"x_provenance_comm,omitempty"`
+	// Seconds a provenance chunk stays open before it is sealed; wandb-core clamps it to 300-3600.
+	XProvenanceChunkInterval *wrapperspb.DoubleValue `protobuf:"bytes,216,opt,name=x_provenance_chunk_interval,json=xProvenanceChunkInterval,proto3" json:"x_provenance_chunk_interval,omitempty"`
 	// The scheme and hostname for contacting the CoreWeave metadata server.
 	XStatsCoreweaveMetadataBaseUrl *wrapperspb.StringValue `protobuf:"bytes,192,opt,name=x_stats_coreweave_metadata_base_url,json=xStatsCoreweaveMetadataBaseUrl,proto3" json:"x_stats_coreweave_metadata_base_url,omitempty"`
 	// The relative path on the CoreWeave metadata server to which to make requests.
@@ -1471,6 +1481,41 @@ func (x *Settings) GetXTransactionLogFlushInterval() *wrapperspb.DoubleValue {
 	return nil
 }
 
+func (x *Settings) GetXProvenance() *wrapperspb.BoolValue {
+	if x != nil {
+		return x.XProvenance
+	}
+	return nil
+}
+
+func (x *Settings) GetXProvenanceStepMetric() *wrapperspb.StringValue {
+	if x != nil {
+		return x.XProvenanceStepMetric
+	}
+	return nil
+}
+
+func (x *Settings) GetXProvenanceFlushInterval() *wrapperspb.DoubleValue {
+	if x != nil {
+		return x.XProvenanceFlushInterval
+	}
+	return nil
+}
+
+func (x *Settings) GetXProvenanceComm() *wrapperspb.BoolValue {
+	if x != nil {
+		return x.XProvenanceComm
+	}
+	return nil
+}
+
+func (x *Settings) GetXProvenanceChunkInterval() *wrapperspb.DoubleValue {
+	if x != nil {
+		return x.XProvenanceChunkInterval
+	}
+	return nil
+}
+
 func (x *Settings) GetXStatsCoreweaveMetadataBaseUrl() *wrapperspb.StringValue {
 	if x != nil {
 		return x.XStatsCoreweaveMetadataBaseUrl
@@ -2122,7 +2167,7 @@ const file_wandb_proto_wandb_settings_proto_rawDesc = "" +
 	"\tRunMoment\x12\x10\n" +
 	"\x03run\x18\x01 \x01(\tR\x03run\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x01R\x05value\x12\x16\n" +
-	"\x06metric\x18\x03 \x01(\tR\x06metric\"\xc5g\n" +
+	"\x06metric\x18\x03 \x01(\tR\x06metric\"\xe2j\n" +
 	"\bSettings\x125\n" +
 	"\aapi_key\x187 \x01(\v2\x1c.google.protobuf.StringValueR\x06apiKey\x12M\n" +
 	"\x13identity_token_file\x18\xaa\x01 \x01(\v2\x1c.google.protobuf.StringValueR\x11identityTokenFile\x12H\n" +
@@ -2226,7 +2271,12 @@ const file_wandb_proto_wandb_settings_proto_rawDesc = "" +
 	"\x10sync_tensorboard\x18\xb3\x01 \x01(\v2\x1a.google.protobuf.BoolValueR\x0fsyncTensorboard\x12]\n" +
 	"\x1dx_server_side_derived_summary\x18\xbd\x01 \x01(\v2\x1a.google.protobuf.BoolValueR\x19xServerSideDerivedSummary\x12P\n" +
 	"\x16x_skip_transaction_log\x18\xbf\x01 \x01(\v2\x1a.google.protobuf.BoolValueR\x13xSkipTransactionLog\x12e\n" +
-	" x_transaction_log_flush_interval\x18\xd1\x01 \x01(\v2\x1c.google.protobuf.DoubleValueR\x1cxTransactionLogFlushInterval\x12j\n" +
+	" x_transaction_log_flush_interval\x18\xd1\x01 \x01(\v2\x1c.google.protobuf.DoubleValueR\x1cxTransactionLogFlushInterval\x12>\n" +
+	"\fx_provenance\x18\xd4\x01 \x01(\v2\x1a.google.protobuf.BoolValueR\vxProvenance\x12V\n" +
+	"\x18x_provenance_step_metric\x18\xd5\x01 \x01(\v2\x1c.google.protobuf.StringValueR\x15xProvenanceStepMetric\x12\\\n" +
+	"\x1bx_provenance_flush_interval\x18\xd6\x01 \x01(\v2\x1c.google.protobuf.DoubleValueR\x18xProvenanceFlushInterval\x12G\n" +
+	"\x11x_provenance_comm\x18\xd7\x01 \x01(\v2\x1a.google.protobuf.BoolValueR\x0fxProvenanceComm\x12\\\n" +
+	"\x1bx_provenance_chunk_interval\x18\xd8\x01 \x01(\v2\x1c.google.protobuf.DoubleValueR\x18xProvenanceChunkInterval\x12j\n" +
 	"#x_stats_coreweave_metadata_base_url\x18\xc0\x01 \x01(\v2\x1c.google.protobuf.StringValueR\x1exStatsCoreweaveMetadataBaseUrl\x12k\n" +
 	"#x_stats_coreweave_metadata_endpoint\x18\xc1\x01 \x01(\v2\x1c.google.protobuf.StringValueR\x1fxStatsCoreweaveMetadataEndpoint\x12:\n" +
 	"\v_aws_lambda\x18\x02 \x01(\v2\x1a.google.protobuf.BoolValueR\tAwsLambda\x12A\n" +
@@ -2459,101 +2509,106 @@ var file_wandb_proto_wandb_settings_proto_depIdxs = []int32{
 	10,  // 98: wandb_internal.Settings.x_server_side_derived_summary:type_name -> google.protobuf.BoolValue
 	10,  // 99: wandb_internal.Settings.x_skip_transaction_log:type_name -> google.protobuf.BoolValue
 	11,  // 100: wandb_internal.Settings.x_transaction_log_flush_interval:type_name -> google.protobuf.DoubleValue
-	9,   // 101: wandb_internal.Settings.x_stats_coreweave_metadata_base_url:type_name -> google.protobuf.StringValue
-	9,   // 102: wandb_internal.Settings.x_stats_coreweave_metadata_endpoint:type_name -> google.protobuf.StringValue
-	10,  // 103: wandb_internal.Settings._aws_lambda:type_name -> google.protobuf.BoolValue
-	10,  // 104: wandb_internal.Settings.x_cli_only_mode:type_name -> google.protobuf.BoolValue
-	10,  // 105: wandb_internal.Settings._colab:type_name -> google.protobuf.BoolValue
-	10,  // 106: wandb_internal.Settings.x_disable_viewer:type_name -> google.protobuf.BoolValue
-	10,  // 107: wandb_internal.Settings.x_flow_control_custom:type_name -> google.protobuf.BoolValue
-	10,  // 108: wandb_internal.Settings.x_flow_control_disabled:type_name -> google.protobuf.BoolValue
-	11,  // 109: wandb_internal.Settings.x_internal_check_process:type_name -> google.protobuf.DoubleValue
-	10,  // 110: wandb_internal.Settings._ipython:type_name -> google.protobuf.BoolValue
-	10,  // 111: wandb_internal.Settings._jupyter:type_name -> google.protobuf.BoolValue
-	9,   // 112: wandb_internal.Settings.x_jupyter_root:type_name -> google.protobuf.StringValue
-	10,  // 113: wandb_internal.Settings._kaggle:type_name -> google.protobuf.BoolValue
-	12,  // 114: wandb_internal.Settings.x_live_policy_rate_limit:type_name -> google.protobuf.Int32Value
-	12,  // 115: wandb_internal.Settings.x_live_policy_wait_time:type_name -> google.protobuf.Int32Value
-	12,  // 116: wandb_internal.Settings.x_log_level:type_name -> google.protobuf.Int32Value
-	12,  // 117: wandb_internal.Settings.x_network_buffer:type_name -> google.protobuf.Int32Value
-	10,  // 118: wandb_internal.Settings._noop:type_name -> google.protobuf.BoolValue
-	10,  // 119: wandb_internal.Settings._notebook:type_name -> google.protobuf.BoolValue
-	9,   // 120: wandb_internal.Settings._platform:type_name -> google.protobuf.StringValue
-	9,   // 121: wandb_internal.Settings.x_runqueue_item_id:type_name -> google.protobuf.StringValue
-	10,  // 122: wandb_internal.Settings.x_save_requirements:type_name -> google.protobuf.BoolValue
-	9,   // 123: wandb_internal.Settings.x_service_transport:type_name -> google.protobuf.StringValue
-	11,  // 124: wandb_internal.Settings.x_service_wait:type_name -> google.protobuf.DoubleValue
-	9,   // 125: wandb_internal.Settings._start_datetime:type_name -> google.protobuf.StringValue
-	9,   // 126: wandb_internal.Settings._tmp_code_dir:type_name -> google.protobuf.StringValue
-	10,  // 127: wandb_internal.Settings._windows:type_name -> google.protobuf.BoolValue
-	10,  // 128: wandb_internal.Settings.allow_media_symlink:type_name -> google.protobuf.BoolValue
-	10,  // 129: wandb_internal.Settings.allow_val_change:type_name -> google.protobuf.BoolValue
-	2,   // 130: wandb_internal.Settings.azure_account_url_to_access_key:type_name -> wandb_internal.MapStringKeyStringValue
-	9,   // 131: wandb_internal.Settings.code_dir:type_name -> google.protobuf.StringValue
-	0,   // 132: wandb_internal.Settings.config_paths:type_name -> wandb_internal.ListStringValue
-	9,   // 133: wandb_internal.Settings.deployment:type_name -> google.protobuf.StringValue
-	10,  // 134: wandb_internal.Settings.disable_code:type_name -> google.protobuf.BoolValue
-	10,  // 135: wandb_internal.Settings.disable_hints:type_name -> google.protobuf.BoolValue
-	10,  // 136: wandb_internal.Settings.disabled:type_name -> google.protobuf.BoolValue
-	10,  // 137: wandb_internal.Settings.force:type_name -> google.protobuf.BoolValue
-	9,   // 138: wandb_internal.Settings.git_commit:type_name -> google.protobuf.StringValue
-	9,   // 139: wandb_internal.Settings.git_remote:type_name -> google.protobuf.StringValue
-	9,   // 140: wandb_internal.Settings.git_remote_url:type_name -> google.protobuf.StringValue
-	9,   // 141: wandb_internal.Settings.git_root:type_name -> google.protobuf.StringValue
-	12,  // 142: wandb_internal.Settings.heartbeat_seconds:type_name -> google.protobuf.Int32Value
-	11,  // 143: wandb_internal.Settings.init_timeout:type_name -> google.protobuf.DoubleValue
-	10,  // 144: wandb_internal.Settings.is_local:type_name -> google.protobuf.BoolValue
-	9,   // 145: wandb_internal.Settings.job_source:type_name -> google.protobuf.StringValue
-	10,  // 146: wandb_internal.Settings.label_disable:type_name -> google.protobuf.BoolValue
-	10,  // 147: wandb_internal.Settings.launch:type_name -> google.protobuf.BoolValue
-	9,   // 148: wandb_internal.Settings.launch_config_path:type_name -> google.protobuf.StringValue
-	9,   // 149: wandb_internal.Settings.log_symlink_internal:type_name -> google.protobuf.StringValue
-	9,   // 150: wandb_internal.Settings.log_symlink_user:type_name -> google.protobuf.StringValue
-	9,   // 151: wandb_internal.Settings.log_user:type_name -> google.protobuf.StringValue
-	11,  // 152: wandb_internal.Settings.login_timeout:type_name -> google.protobuf.DoubleValue
-	9,   // 153: wandb_internal.Settings.mode:type_name -> google.protobuf.StringValue
-	9,   // 154: wandb_internal.Settings.notebook_name:type_name -> google.protobuf.StringValue
-	9,   // 155: wandb_internal.Settings.project_url:type_name -> google.protobuf.StringValue
-	10,  // 156: wandb_internal.Settings.quiet:type_name -> google.protobuf.BoolValue
-	10,  // 157: wandb_internal.Settings.relogin:type_name -> google.protobuf.BoolValue
-	9,   // 158: wandb_internal.Settings.resume_fname:type_name -> google.protobuf.StringValue
-	10,  // 159: wandb_internal.Settings.resumed:type_name -> google.protobuf.BoolValue
-	9,   // 160: wandb_internal.Settings.run_group:type_name -> google.protobuf.StringValue
-	9,   // 161: wandb_internal.Settings.run_job_type:type_name -> google.protobuf.StringValue
-	9,   // 162: wandb_internal.Settings.run_mode:type_name -> google.protobuf.StringValue
-	9,   // 163: wandb_internal.Settings.run_name:type_name -> google.protobuf.StringValue
-	9,   // 164: wandb_internal.Settings.run_notes:type_name -> google.protobuf.StringValue
-	0,   // 165: wandb_internal.Settings.run_tags:type_name -> wandb_internal.ListStringValue
-	10,  // 166: wandb_internal.Settings.sagemaker_disable:type_name -> google.protobuf.BoolValue
-	9,   // 167: wandb_internal.Settings.settings_system:type_name -> google.protobuf.StringValue
-	9,   // 168: wandb_internal.Settings.settings_workspace:type_name -> google.protobuf.StringValue
-	10,  // 169: wandb_internal.Settings.show_colors:type_name -> google.protobuf.BoolValue
-	10,  // 170: wandb_internal.Settings.show_emoji:type_name -> google.protobuf.BoolValue
-	10,  // 171: wandb_internal.Settings.show_errors:type_name -> google.protobuf.BoolValue
-	10,  // 172: wandb_internal.Settings.show_info:type_name -> google.protobuf.BoolValue
-	10,  // 173: wandb_internal.Settings.show_warnings:type_name -> google.protobuf.BoolValue
-	10,  // 174: wandb_internal.Settings.silent:type_name -> google.protobuf.BoolValue
-	10,  // 175: wandb_internal.Settings.strict:type_name -> google.protobuf.BoolValue
-	12,  // 176: wandb_internal.Settings.summary_errors:type_name -> google.protobuf.Int32Value
-	12,  // 177: wandb_internal.Settings.summary_timeout:type_name -> google.protobuf.Int32Value
-	12,  // 178: wandb_internal.Settings.summary_warnings:type_name -> google.protobuf.Int32Value
-	9,   // 179: wandb_internal.Settings.sweep_id:type_name -> google.protobuf.StringValue
-	9,   // 180: wandb_internal.Settings.sweep_param_path:type_name -> google.protobuf.StringValue
-	10,  // 181: wandb_internal.Settings.symlink:type_name -> google.protobuf.BoolValue
-	9,   // 182: wandb_internal.Settings.sync_dir:type_name -> google.protobuf.StringValue
-	9,   // 183: wandb_internal.Settings.sync_symlink_latest:type_name -> google.protobuf.StringValue
-	10,  // 184: wandb_internal.Settings.table_raise_on_max_row_limit_exceeded:type_name -> google.protobuf.BoolValue
-	9,   // 185: wandb_internal.Settings.timespec:type_name -> google.protobuf.StringValue
-	9,   // 186: wandb_internal.Settings.tmp_dir:type_name -> google.protobuf.StringValue
-	9,   // 187: wandb_internal.Settings.x_jupyter_name:type_name -> google.protobuf.StringValue
-	9,   // 188: wandb_internal.Settings.x_jupyter_path:type_name -> google.protobuf.StringValue
-	9,   // 189: wandb_internal.Settings.job_name:type_name -> google.protobuf.StringValue
-	2,   // 190: wandb_internal.MapStringKeyMapStringKeyStringValue.ValueEntry.value:type_name -> wandb_internal.MapStringKeyStringValue
-	191, // [191:191] is the sub-list for method output_type
-	191, // [191:191] is the sub-list for method input_type
-	191, // [191:191] is the sub-list for extension type_name
-	191, // [191:191] is the sub-list for extension extendee
-	0,   // [0:191] is the sub-list for field type_name
+	10,  // 101: wandb_internal.Settings.x_provenance:type_name -> google.protobuf.BoolValue
+	9,   // 102: wandb_internal.Settings.x_provenance_step_metric:type_name -> google.protobuf.StringValue
+	11,  // 103: wandb_internal.Settings.x_provenance_flush_interval:type_name -> google.protobuf.DoubleValue
+	10,  // 104: wandb_internal.Settings.x_provenance_comm:type_name -> google.protobuf.BoolValue
+	11,  // 105: wandb_internal.Settings.x_provenance_chunk_interval:type_name -> google.protobuf.DoubleValue
+	9,   // 106: wandb_internal.Settings.x_stats_coreweave_metadata_base_url:type_name -> google.protobuf.StringValue
+	9,   // 107: wandb_internal.Settings.x_stats_coreweave_metadata_endpoint:type_name -> google.protobuf.StringValue
+	10,  // 108: wandb_internal.Settings._aws_lambda:type_name -> google.protobuf.BoolValue
+	10,  // 109: wandb_internal.Settings.x_cli_only_mode:type_name -> google.protobuf.BoolValue
+	10,  // 110: wandb_internal.Settings._colab:type_name -> google.protobuf.BoolValue
+	10,  // 111: wandb_internal.Settings.x_disable_viewer:type_name -> google.protobuf.BoolValue
+	10,  // 112: wandb_internal.Settings.x_flow_control_custom:type_name -> google.protobuf.BoolValue
+	10,  // 113: wandb_internal.Settings.x_flow_control_disabled:type_name -> google.protobuf.BoolValue
+	11,  // 114: wandb_internal.Settings.x_internal_check_process:type_name -> google.protobuf.DoubleValue
+	10,  // 115: wandb_internal.Settings._ipython:type_name -> google.protobuf.BoolValue
+	10,  // 116: wandb_internal.Settings._jupyter:type_name -> google.protobuf.BoolValue
+	9,   // 117: wandb_internal.Settings.x_jupyter_root:type_name -> google.protobuf.StringValue
+	10,  // 118: wandb_internal.Settings._kaggle:type_name -> google.protobuf.BoolValue
+	12,  // 119: wandb_internal.Settings.x_live_policy_rate_limit:type_name -> google.protobuf.Int32Value
+	12,  // 120: wandb_internal.Settings.x_live_policy_wait_time:type_name -> google.protobuf.Int32Value
+	12,  // 121: wandb_internal.Settings.x_log_level:type_name -> google.protobuf.Int32Value
+	12,  // 122: wandb_internal.Settings.x_network_buffer:type_name -> google.protobuf.Int32Value
+	10,  // 123: wandb_internal.Settings._noop:type_name -> google.protobuf.BoolValue
+	10,  // 124: wandb_internal.Settings._notebook:type_name -> google.protobuf.BoolValue
+	9,   // 125: wandb_internal.Settings._platform:type_name -> google.protobuf.StringValue
+	9,   // 126: wandb_internal.Settings.x_runqueue_item_id:type_name -> google.protobuf.StringValue
+	10,  // 127: wandb_internal.Settings.x_save_requirements:type_name -> google.protobuf.BoolValue
+	9,   // 128: wandb_internal.Settings.x_service_transport:type_name -> google.protobuf.StringValue
+	11,  // 129: wandb_internal.Settings.x_service_wait:type_name -> google.protobuf.DoubleValue
+	9,   // 130: wandb_internal.Settings._start_datetime:type_name -> google.protobuf.StringValue
+	9,   // 131: wandb_internal.Settings._tmp_code_dir:type_name -> google.protobuf.StringValue
+	10,  // 132: wandb_internal.Settings._windows:type_name -> google.protobuf.BoolValue
+	10,  // 133: wandb_internal.Settings.allow_media_symlink:type_name -> google.protobuf.BoolValue
+	10,  // 134: wandb_internal.Settings.allow_val_change:type_name -> google.protobuf.BoolValue
+	2,   // 135: wandb_internal.Settings.azure_account_url_to_access_key:type_name -> wandb_internal.MapStringKeyStringValue
+	9,   // 136: wandb_internal.Settings.code_dir:type_name -> google.protobuf.StringValue
+	0,   // 137: wandb_internal.Settings.config_paths:type_name -> wandb_internal.ListStringValue
+	9,   // 138: wandb_internal.Settings.deployment:type_name -> google.protobuf.StringValue
+	10,  // 139: wandb_internal.Settings.disable_code:type_name -> google.protobuf.BoolValue
+	10,  // 140: wandb_internal.Settings.disable_hints:type_name -> google.protobuf.BoolValue
+	10,  // 141: wandb_internal.Settings.disabled:type_name -> google.protobuf.BoolValue
+	10,  // 142: wandb_internal.Settings.force:type_name -> google.protobuf.BoolValue
+	9,   // 143: wandb_internal.Settings.git_commit:type_name -> google.protobuf.StringValue
+	9,   // 144: wandb_internal.Settings.git_remote:type_name -> google.protobuf.StringValue
+	9,   // 145: wandb_internal.Settings.git_remote_url:type_name -> google.protobuf.StringValue
+	9,   // 146: wandb_internal.Settings.git_root:type_name -> google.protobuf.StringValue
+	12,  // 147: wandb_internal.Settings.heartbeat_seconds:type_name -> google.protobuf.Int32Value
+	11,  // 148: wandb_internal.Settings.init_timeout:type_name -> google.protobuf.DoubleValue
+	10,  // 149: wandb_internal.Settings.is_local:type_name -> google.protobuf.BoolValue
+	9,   // 150: wandb_internal.Settings.job_source:type_name -> google.protobuf.StringValue
+	10,  // 151: wandb_internal.Settings.label_disable:type_name -> google.protobuf.BoolValue
+	10,  // 152: wandb_internal.Settings.launch:type_name -> google.protobuf.BoolValue
+	9,   // 153: wandb_internal.Settings.launch_config_path:type_name -> google.protobuf.StringValue
+	9,   // 154: wandb_internal.Settings.log_symlink_internal:type_name -> google.protobuf.StringValue
+	9,   // 155: wandb_internal.Settings.log_symlink_user:type_name -> google.protobuf.StringValue
+	9,   // 156: wandb_internal.Settings.log_user:type_name -> google.protobuf.StringValue
+	11,  // 157: wandb_internal.Settings.login_timeout:type_name -> google.protobuf.DoubleValue
+	9,   // 158: wandb_internal.Settings.mode:type_name -> google.protobuf.StringValue
+	9,   // 159: wandb_internal.Settings.notebook_name:type_name -> google.protobuf.StringValue
+	9,   // 160: wandb_internal.Settings.project_url:type_name -> google.protobuf.StringValue
+	10,  // 161: wandb_internal.Settings.quiet:type_name -> google.protobuf.BoolValue
+	10,  // 162: wandb_internal.Settings.relogin:type_name -> google.protobuf.BoolValue
+	9,   // 163: wandb_internal.Settings.resume_fname:type_name -> google.protobuf.StringValue
+	10,  // 164: wandb_internal.Settings.resumed:type_name -> google.protobuf.BoolValue
+	9,   // 165: wandb_internal.Settings.run_group:type_name -> google.protobuf.StringValue
+	9,   // 166: wandb_internal.Settings.run_job_type:type_name -> google.protobuf.StringValue
+	9,   // 167: wandb_internal.Settings.run_mode:type_name -> google.protobuf.StringValue
+	9,   // 168: wandb_internal.Settings.run_name:type_name -> google.protobuf.StringValue
+	9,   // 169: wandb_internal.Settings.run_notes:type_name -> google.protobuf.StringValue
+	0,   // 170: wandb_internal.Settings.run_tags:type_name -> wandb_internal.ListStringValue
+	10,  // 171: wandb_internal.Settings.sagemaker_disable:type_name -> google.protobuf.BoolValue
+	9,   // 172: wandb_internal.Settings.settings_system:type_name -> google.protobuf.StringValue
+	9,   // 173: wandb_internal.Settings.settings_workspace:type_name -> google.protobuf.StringValue
+	10,  // 174: wandb_internal.Settings.show_colors:type_name -> google.protobuf.BoolValue
+	10,  // 175: wandb_internal.Settings.show_emoji:type_name -> google.protobuf.BoolValue
+	10,  // 176: wandb_internal.Settings.show_errors:type_name -> google.protobuf.BoolValue
+	10,  // 177: wandb_internal.Settings.show_info:type_name -> google.protobuf.BoolValue
+	10,  // 178: wandb_internal.Settings.show_warnings:type_name -> google.protobuf.BoolValue
+	10,  // 179: wandb_internal.Settings.silent:type_name -> google.protobuf.BoolValue
+	10,  // 180: wandb_internal.Settings.strict:type_name -> google.protobuf.BoolValue
+	12,  // 181: wandb_internal.Settings.summary_errors:type_name -> google.protobuf.Int32Value
+	12,  // 182: wandb_internal.Settings.summary_timeout:type_name -> google.protobuf.Int32Value
+	12,  // 183: wandb_internal.Settings.summary_warnings:type_name -> google.protobuf.Int32Value
+	9,   // 184: wandb_internal.Settings.sweep_id:type_name -> google.protobuf.StringValue
+	9,   // 185: wandb_internal.Settings.sweep_param_path:type_name -> google.protobuf.StringValue
+	10,  // 186: wandb_internal.Settings.symlink:type_name -> google.protobuf.BoolValue
+	9,   // 187: wandb_internal.Settings.sync_dir:type_name -> google.protobuf.StringValue
+	9,   // 188: wandb_internal.Settings.sync_symlink_latest:type_name -> google.protobuf.StringValue
+	10,  // 189: wandb_internal.Settings.table_raise_on_max_row_limit_exceeded:type_name -> google.protobuf.BoolValue
+	9,   // 190: wandb_internal.Settings.timespec:type_name -> google.protobuf.StringValue
+	9,   // 191: wandb_internal.Settings.tmp_dir:type_name -> google.protobuf.StringValue
+	9,   // 192: wandb_internal.Settings.x_jupyter_name:type_name -> google.protobuf.StringValue
+	9,   // 193: wandb_internal.Settings.x_jupyter_path:type_name -> google.protobuf.StringValue
+	9,   // 194: wandb_internal.Settings.job_name:type_name -> google.protobuf.StringValue
+	2,   // 195: wandb_internal.MapStringKeyMapStringKeyStringValue.ValueEntry.value:type_name -> wandb_internal.MapStringKeyStringValue
+	196, // [196:196] is the sub-list for method output_type
+	196, // [196:196] is the sub-list for method input_type
+	196, // [196:196] is the sub-list for extension type_name
+	196, // [196:196] is the sub-list for extension extendee
+	0,   // [0:196] is the sub-list for field type_name
 }
 
 func init() { file_wandb_proto_wandb_settings_proto_init() }

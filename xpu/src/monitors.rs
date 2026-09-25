@@ -12,11 +12,13 @@ pub trait GpuMonitor: Send + Sync {
         &self,
         pid: i32,
         gpu_device_ids: Option<Vec<i32>>,
+        include_throttle_reasons: bool,
     ) -> Result<Vec<(String, metrics::MetricValue)>, Box<dyn std::error::Error>>;
 
     async fn collect_metadata(
         &self,
         samples: &HashMap<String, &metrics::MetricValue>,
+        include_serial: bool,
     ) -> EnvironmentRecord;
 
     fn shutdown(&self) {}
@@ -24,7 +26,7 @@ pub trait GpuMonitor: Send + Sync {
 
 /// Container for all GPU monitors
 pub struct GpuMonitors {
-    monitors: Vec<Box<dyn GpuMonitor>>,
+    pub(crate) monitors: Vec<Box<dyn GpuMonitor>>,
 }
 
 impl GpuMonitors {
@@ -71,11 +73,15 @@ impl GpuMonitors {
         &self,
         pid: i32,
         gpu_device_ids: Option<Vec<i32>>,
+        include_throttle_reasons: bool,
     ) -> Vec<(String, metrics::MetricValue)> {
         let mut all_metrics = Vec::new();
 
         for monitor in &self.monitors {
-            match monitor.collect_metrics(pid, gpu_device_ids.clone()).await {
+            match monitor
+                .collect_metrics(pid, gpu_device_ids.clone(), include_throttle_reasons)
+                .await
+            {
                 Ok(metrics) => all_metrics.extend(metrics),
                 Err(e) => warn!("Failed to collect metrics: {}", e),
             }
@@ -87,11 +93,12 @@ impl GpuMonitors {
     pub async fn collect_metadata(
         &self,
         samples: &HashMap<String, &metrics::MetricValue>,
+        include_serial: bool,
     ) -> EnvironmentRecord {
         let mut metadata = EnvironmentRecord::default();
 
         for monitor in &self.monitors {
-            let monitor_metadata = monitor.collect_metadata(samples).await;
+            let monitor_metadata = monitor.collect_metadata(samples, include_serial).await;
             if monitor_metadata.gpu_count > 0 {
                 metadata.gpu_count = monitor_metadata.gpu_count;
                 metadata.gpu_type = monitor_metadata.gpu_type.clone();
@@ -149,6 +156,7 @@ impl GpuMonitor for AppleGpuMonitor {
         &self,
         _pid: i32,
         _gpu_device_ids: Option<Vec<i32>>,
+        _include_throttle_reasons: bool,
     ) -> Result<Vec<(String, metrics::MetricValue)>, Box<dyn std::error::Error>> {
         let stats = self.sampler.get_metrics().await?;
         let soc_info = self.sampler.get_soc_info().await?;
@@ -158,6 +166,7 @@ impl GpuMonitor for AppleGpuMonitor {
     async fn collect_metadata(
         &self,
         samples: &HashMap<String, &metrics::MetricValue>,
+        _include_serial: bool,
     ) -> EnvironmentRecord {
         self.sampler.get_metadata(samples)
     }
@@ -208,16 +217,22 @@ impl GpuMonitor for NvidiaGpuMonitor {
         &self,
         pid: i32,
         gpu_device_ids: Option<Vec<i32>>,
+        include_throttle_reasons: bool,
     ) -> Result<Vec<(String, metrics::MetricValue)>, Box<dyn std::error::Error>> {
-        Ok(self.gpu.lock().await.get_metrics(pid, gpu_device_ids)?)
+        Ok(self
+            .gpu
+            .lock()
+            .await
+            .get_metrics(pid, gpu_device_ids, include_throttle_reasons)?)
     }
 
     async fn collect_metadata(
         &self,
         samples: &HashMap<String, &metrics::MetricValue>,
+        include_serial: bool,
     ) -> EnvironmentRecord {
         let mut metadata = EnvironmentRecord::default();
-        let nvidia_metadata = self.gpu.lock().await.get_metadata(samples);
+        let nvidia_metadata = self.gpu.lock().await.get_metadata(samples, include_serial);
 
         if nvidia_metadata.gpu_count > 0 {
             metadata.gpu_count = nvidia_metadata.gpu_count;
@@ -262,6 +277,7 @@ impl GpuMonitor for DcgmGpuMonitor {
         &self,
         _pid: i32,
         _gpu_device_ids: Option<Vec<i32>>,
+        _include_throttle_reasons: bool,
     ) -> Result<Vec<(String, metrics::MetricValue)>, Box<dyn std::error::Error>> {
         Ok(self.client.get_metrics().await?)
     }
@@ -269,6 +285,7 @@ impl GpuMonitor for DcgmGpuMonitor {
     async fn collect_metadata(
         &self,
         _samples: &HashMap<String, &metrics::MetricValue>,
+        _include_serial: bool,
     ) -> EnvironmentRecord {
         EnvironmentRecord::default()
     }
@@ -311,6 +328,7 @@ impl GpuMonitor for AmdGpuMonitor {
         &self,
         _pid: i32,
         _gpu_device_ids: Option<Vec<i32>>,
+        _include_throttle_reasons: bool,
     ) -> Result<Vec<(String, metrics::MetricValue)>, Box<dyn std::error::Error>> {
         Ok(self.gpu.lock().await.get_metrics())
     }
@@ -318,6 +336,7 @@ impl GpuMonitor for AmdGpuMonitor {
     async fn collect_metadata(
         &self,
         _samples: &HashMap<String, &metrics::MetricValue>,
+        _include_serial: bool,
     ) -> EnvironmentRecord {
         self.gpu.lock().await.get_metadata()
     }
