@@ -291,16 +291,9 @@ def _image_ces_extension_value(
         uri=_uri_from_media_json(image_json, run),
         wb_media_type="image-file",
     )
-    if "caption" in image_json:
-        extension_value["caption"] = image_json["caption"]
-    if "width" in image_json:
-        extension_value["width"] = image_json["width"]
-    if "height" in image_json:
-        extension_value["height"] = image_json["height"]
-    if "boxes" in image_json:
-        extension_value["boxes"] = image_json["boxes"]
-    if "masks" in image_json:
-        extension_value["masks"] = image_json["masks"]
+    for key in ("caption", "width", "height", "boxes", "masks"):
+        if key in image_json:
+            extension_value[key] = image_json[key]
     return extension_value
 
 
