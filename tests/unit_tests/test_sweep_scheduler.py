@@ -954,7 +954,7 @@ class ResumableOptimizerAcceptanceTests(abc.ABC):
     def test_an_unpolled_trial_is_matched_to_its_run_by_params(
         self, optimizer: Optimizer, reload
     ) -> None:
-        """A scheduler that stopped before the first poll never saw the run id."""
+        """A scheduler that stopped before a poll reported the run."""
         suggestion = next(iter(optimizer.ask_n_runs(1)))
 
         second = reload(optimizer)
@@ -1099,7 +1099,7 @@ class OptunaResumableAcceptanceTests(ResumableOptimizerAcceptanceTests):
     def test_an_in_memory_study_is_neither_labeled_nor_listed(
         self, sweep: SweepInfo, listed
     ) -> None:
-        """An in-memory study can't be reloaded, so there is nothing to resume."""
+        """An in-memory study can't be reloaded, so it has nothing to resume."""
         import optuna
 
         study = optuna.create_study(direction="minimize")
