@@ -617,52 +617,6 @@ class OptunaImperativeOptimizer(OptunaOptimizer):
 # ---------------------------------------------------------------------------
 
 
-def _hyperband_resources_from_config(
-    prune_cfg: dict[str, Any],
-) -> tuple[int, str | int]:
-    """Map W&B hyperband `early_terminate` keys onto HyperbandPruner resources.
-
-    W&B brackets grow from `min_iter` or shrink from `max_iter` and `s`; Optuna
-    needs the smallest bracket step as `min_resource` and the iteration budget
-    as `max_resource`. When only `min_iter` is set, `max_resource` is left to
-    Optuna's `"auto"` because the sweep config does not cap iterations.
-
-    `max_iter` takes precedence when both `max_iter` and `min_iter` are set.
-
-    A W&B band of `B` means "prune once a run has logged `B` points"; W&B's
-    own hyperband scheduler checks this against `len(history) >= B`. Optuna's
-    pruners instead check `step >= min_resource` against the `step` passed to
-    `report()`, which is W&B's 0-indexed `_step` -- i.e. a run has logged
-    `step + 1` points. Passing the band straight through as `min_resource`
-    would delay the first bracket by one extra logged point, so it is
-    converted to the equivalent 0-indexed step here (`B - 1`, floored at `1`
-    since Optuna requires `min_resource >= 1`).
-    """
-    eta = prune_cfg.get("eta", 3)
-
-    def _band_to_min_resource(band: int) -> int:
-        return max(band - 1, 1)
-
-    if "max_iter" in prune_cfg:
-        max_iter = prune_cfg["max_iter"]
-        band = max_iter
-        bands: list[int] = []
-        for _ in range(prune_cfg["s"]):
-            band /= eta
-            if band < 1:
-                break
-            bands.append(int(band))
-        if not bands:
-            raise ValueError(
-                "Hyperband early_terminate produced no brackets; try increasing "
-                "s, decreasing eta, or increasing max_iter."
-            )
-        return _band_to_min_resource(min(bands)), max_iter
-
-    # min_iter is guaranteed by Sweep validation
-    return _band_to_min_resource(prune_cfg.get("min_iter", 1)), "auto"
-
-
 def create_study_from_sweep_config(config: dict[str, Any]) -> optuna.Study:
     """Build an optuna study from a sweep config's metric objective(s).
 
@@ -672,16 +626,7 @@ def create_study_from_sweep_config(config: dict[str, Any]) -> optuna.Study:
     `config["metric"]["goal"]`.
     """
     metrics = config.get("metrics")
-    prune_cfg = config.get("early_terminate")
-    if prune_cfg is not None and prune_cfg.get("type", "hyperband") == "hyperband":
-        min_resource, max_resource = _hyperband_resources_from_config(prune_cfg)
-        pruner = optuna.pruners.HyperbandPruner(
-            min_resource=min_resource,
-            max_resource=max_resource,
-            reduction_factor=prune_cfg.get("eta", 3),
-        )
-    else:
-        pruner = optuna.pruners.NopPruner()
+    pruner = optuna.pruners.NopPruner()
     if metrics is not None:
         directions = [str(metric.get("goal", "minimize")).lower() for metric in metrics]
         return optuna.create_study(directions=directions, pruner=pruner)
