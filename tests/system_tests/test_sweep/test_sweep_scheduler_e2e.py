@@ -73,7 +73,7 @@ def _start_scheduler(
     *,
     batch_size: int = 1,
 ) -> tuple[_SpyOptimizer, str, threading.Thread, list]:
-    """Start a real scheduler session against wandb-core, in a background thread.
+    """Start a real scheduler session against wandb-core in a background thread.
 
     Returns the optimizer (to observe hook calls), the session id (to send
     a stop), the driving thread, and a one-element list that the thread
@@ -131,9 +131,7 @@ def _stop_and_join(session_id: str, thread: threading.Thread, done_box: list):
 @pytest.fixture
 def skip_if_server_does_not_support_local_scheduler(api: wandb.Api) -> None:
     """Skips the test for server versions without the local sweep scheduler."""
-    if not server_supports(
-        api._service_api, pb.ServerFeature.SWEEPS_LOCAL_SCHEDULER
-    ):
+    if not server_supports(api._service_api, pb.ServerFeature.SWEEPS_LOCAL_SCHEDULER):
         pytest.skip("This server does not support the local sweep scheduler.")
 
 
@@ -166,7 +164,7 @@ def test_warm_start_adopts_prior_runs(
 def test_generation_step_reports_a_finished_run(
     user, skip_if_server_does_not_support_local_scheduler
 ):
-    """A run the scheduler enqueues is told back to the optimizer once it finishes."""
+    """A run the scheduler enqueues is told to the optimizer when it ends."""
     entity, project = user, "sweep-scheduler-e2e-finish"
     sweep_id = wandb.sweep(SWEEP_CONFIG, entity=entity, project=project)
 
@@ -202,7 +200,7 @@ def test_generation_step_reports_a_finished_run(
 def test_stop_request_ends_the_exchange_with_shutdown(
     user, skip_if_server_does_not_support_local_scheduler
 ):
-    """Requesting a stop answers the outstanding poll with a shutdown Done task."""
+    """A stop request answers the outstanding poll with a shutdown Done task."""
     entity, project = user, "sweep-scheduler-e2e-stop"
     sweep_id = wandb.sweep(SWEEP_CONFIG, entity=entity, project=project)
 
