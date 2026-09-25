@@ -518,7 +518,7 @@ class TestPersistedStudyWarmStart:
     def test_an_unpolled_trial_is_matched_to_its_run_by_params(
         self, make_optimizer
     ) -> None:
-        """A scheduler that stopped before the first poll never saw the run id."""
+        """A scheduler that stopped before a poll reported the run."""
         first = make_optimizer()
         suggestion = next(iter(first.ask_n_runs(1)))
 
@@ -587,7 +587,7 @@ class TestPersistedStudyWarmStart:
         assert adoptions["run-a"] != str(foreign.number)
 
     def test_an_in_memory_study_is_neither_labeled_nor_listed(self, get_trials) -> None:
-        """An in-memory study cannot be reloaded, so there is nothing to resume."""
+        """An in-memory study can't be reloaded, so it has nothing to resume."""
         study = optuna.create_study(direction="minimize")
         sweep = make_scheduler_grid_sweep(config=self.CONFIG)
         optimizer = OptunaDeclarativeOptimizer(study, self.DISTRIBUTIONS, sweep)
