@@ -119,23 +119,57 @@ def symon(pprof: str = "", interval: str = "") -> None:
     help="Print the run's state, latest metric values, config and console"
     " tail instead of its records.",
 )
+@click.option(
+    "--json",
+    "json_output",
+    is_flag=True,
+    help="Print JSON: one line per record, or one object with --summary.",
+)
+@click.option(
+    "--follow",
+    "-f",
+    is_flag=True,
+    help="Keep printing records as the run writes them until it exits.",
+)
+@click.option(
+    "--idle-timeout",
+    default="",
+    metavar="DURATION",
+    help="With --follow, stop once the run's file has gone this long without"
+    " a write (e.g. 30s, 1h; 0 waits forever). Defaults to 10m.",
+)
 @click.help_option("-h", "--help")
-def inspect(path: str | None = None, summary: bool = False) -> None:
+def inspect(
+    path: str | None = None,
+    summary: bool = False,
+    json_output: bool = False,
+    follow: bool = False,
+    idle_timeout: str = "",
+) -> None:
     """Inspect a run's .wandb transaction log.
 
     Opens a browsable list of the records stored in the log next to a
-    text view of the selected record. When stdout is not a terminal,
-    prints the records instead.
+    text view of the selected record. When stdout is not a terminal, or
+    with --json or --follow, prints the records instead.
 
     \b
     Examples:
         wandb leet inspect --summary            State, latest metrics, console tail
+        wandb leet inspect --summary --json     The same as one JSON object
+        wandb leet inspect --json | grep '"type":"history"' | tail -n 5
+        wandb leet inspect --follow --json      Stream records as they are written
         wandb leet inspect run.wandb | less     Browse the records as text
 
     PATH can be a .wandb file, a run directory containing one, or a
     wandb directory. If PATH is not provided, the latest run is used.
     """  # noqa: D301 -- the \b escape is click's marker to not rewrap Examples.
-    launch_inspect(path, summary=summary)
+    launch_inspect(
+        path,
+        summary=summary,
+        json_output=json_output,
+        follow=follow,
+        idle_timeout=idle_timeout,
+    )
 
 
 @leet.command()
@@ -220,8 +254,8 @@ def _resolve_path(path: str | None) -> LaunchConfig:
     _fatal(f"Path does not exist: {resolved}")
 
 
-def _base_args() -> list[str]:
-    """Build the common base arguments for wandb-core leet commands."""
+def _base_args(command: str) -> list[str]:
+    """Build the arguments for a wandb-core leet command and its common flags."""
     try:
         core_path = get_core_path()
     except WandbCoreNotAvailableError as e:
@@ -231,7 +265,7 @@ def _base_args() -> list[str]:
         )
         _fatal(str(e))
 
-    args = [core_path, "leet"]
+    args = [core_path, "leet", command]
 
     settings = wandb_setup.singleton().settings
     if settings._offline or settings._noop or not error_reporting_enabled():
@@ -262,7 +296,7 @@ def launch(path: str | None, pprof: str) -> Never:
     else:
         config = _resolve_path(path)
 
-    args = _base_args()
+    args = _base_args("run")
     env = os.environ.copy()
 
     if pprof:
@@ -279,16 +313,27 @@ def launch(path: str | None, pprof: str) -> Never:
     _run_core(args, env)
 
 
-def launch_inspect(path: str | None, summary: bool = False) -> Never:
+def launch_inspect(
+    path: str | None,
+    summary: bool = False,
+    json_output: bool = False,
+    follow: bool = False,
+    idle_timeout: str = "",
+) -> Never:
     """Launch the transaction log record inspector."""
     config = _resolve_path(path)
     if not isinstance(config, LocalLaunchConfig):
         _fatal("`wandb leet inspect` requires a local .wandb file.")
 
-    args = _base_args()
-    args.append("--inspect")
+    args = _base_args("inspect")
     if summary:
         args.append("--summary")
+    if json_output:
+        args.append("--json")
+    if follow:
+        args.append("--follow")
+    if idle_timeout:
+        args.extend(["--idle-timeout", idle_timeout])
     args.extend(_get_local_launch_args(config))
 
     _run_core(args)
@@ -296,16 +341,12 @@ def launch_inspect(path: str | None, summary: bool = False) -> Never:
 
 def launch_config() -> Never:
     """Launch the LEET configuration editor."""
-    args = _base_args()
-    args.append("--config")
-
-    _run_core(args)
+    _run_core(_base_args("config"))
 
 
 def launch_symon(pprof: str = "", interval: str = "") -> Never:
     """Launch the standalone system monitor."""
-    args = _base_args()
-    args.append("--symon")
+    args = _base_args("symon")
 
     if pprof:
         args.extend(["--pprof", pprof])
