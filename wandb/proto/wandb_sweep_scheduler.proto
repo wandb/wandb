@@ -163,6 +163,13 @@ message SweepSchedulerServerGenerationTask {
   // not durably schedule (the enqueue failed, the sweep finished).
   // Each id is reported exactly once and no update ever follows it.
   repeated string discarded_optimizer_run_ids = 4;
+
+  // Suggestions enqueued since the previous task, as optimizer_run_id
+  // to the W&B name of the run minted for it.
+  //
+  // Each is reported exactly once, before any update of the run, so an
+  // optimizer can link a trial to its run without waiting for a poll.
+  map<string, string> enqueued_runs = 5;
 }
 
 // A tracked run's latest state as the optimizer should see it.
@@ -240,6 +247,11 @@ message SweepSchedulerServerDoneTask {
 
   // Details for the terminal message shown to the user.
   string message = 2;
+
+  // Suggestions enqueued since the previous task, as in
+  // SweepSchedulerServerGenerationTask.enqueued_runs, so a stopping
+  // scheduler still links them.
+  map<string, string> enqueued_runs = 4;
 }
 
 // The optimizer's output for one task.

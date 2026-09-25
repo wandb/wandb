@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import Sequence
-from unittest.mock import Mock
+from unittest.mock import ANY, Mock, call
 
 import pytest
 from wandb.proto import wandb_server_pb2 as spb
@@ -110,11 +110,13 @@ def generation_task(
     ask_up_to: int = 0,
     prune_candidates: Sequence[str] = (),
     discarded: Sequence[str] = (),
+    enqueued: dict[str, str] | None = None,
 ) -> sspb.SweepSchedulerServerNextTaskResponse:
     task = sspb.SweepSchedulerServerGenerationTask(
         ask_up_to=ask_up_to,
         prune_candidates=prune_candidates,
         discarded_optimizer_run_ids=discarded,
+        enqueued_runs=enqueued,
     )
     for run_id, state in (updates or {}).items():
         task.updates.append(
@@ -135,10 +137,12 @@ def generation_task(
 def done_task(
     seq: int,
     reason=sspb.SweepSchedulerServerDoneTask.REASON_SWEEP_FINISHED,
+    *,
+    enqueued: dict[str, str] | None = None,
 ) -> sspb.SweepSchedulerServerNextTaskResponse:
     return sspb.SweepSchedulerServerNextTaskResponse(
         task_seq=seq,
-        done=sspb.SweepSchedulerServerDoneTask(reason=reason),
+        done=sspb.SweepSchedulerServerDoneTask(reason=reason, enqueued_runs=enqueued),
     )
 
 
@@ -312,6 +316,36 @@ def test_discarded_suggestions_are_forgotten():
 
     forgets = [c.args[0] for c in optimizer.forget_run.call_args_list]
     assert forgets == ["lost-1", "lost-2"]
+
+
+def test_enqueued_runs_are_told_before_their_updates():
+    optimizer = make_optimizer()
+    service = make_service(
+        [
+            generation_task(
+                1,
+                updates={"r1": sspb.SWEEP_RUN_STATE_PENDING},
+                enqueued={"r1": "wandb-r1"},
+            ),
+            done_task(2),
+        ]
+    )
+
+    run_exchange(service, optimizer)
+
+    assert optimizer.mock_calls[:2] == [
+        call.tell_enqueued_run("r1", "wandb-r1"),
+        call.tell_run("r1", ANY),
+    ]
+
+
+def test_runs_enqueued_before_done_are_told():
+    optimizer = make_optimizer()
+    service = make_service([done_task(1, enqueued={"r1": "wandb-r1"})])
+
+    run_exchange(service, optimizer)
+
+    optimizer.tell_enqueued_run.assert_called_once_with("r1", "wandb-r1")
 
 
 @pytest.mark.parametrize(

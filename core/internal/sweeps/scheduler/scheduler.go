@@ -116,6 +116,10 @@ type Scheduler struct {
 	// scheduled; reported on the next task.
 	discards []string
 
+	// enqueued maps the optimizer ids of suggestions enqueued since the
+	// last task to their minted run names; reported on the next task.
+	enqueued map[string]string
+
 	// lastPruneCandidates is the candidate set offered by the latest
 	// generation task; prune ids outside it are ignored.
 	lastPruneCandidates map[string]bool
@@ -332,7 +336,7 @@ func (s *Scheduler) sleep(
 	}
 }
 
-// doneTask builds a Done task carrying any unreported discards.
+// doneTask builds a Done task carrying any unreported enqueued runs.
 func (s *Scheduler) doneTask(
 	reason spb.SweepSchedulerServerDoneTask_Reason,
 	message string,
@@ -340,8 +344,9 @@ func (s *Scheduler) doneTask(
 	return &spb.SweepSchedulerServerNextTaskResponse{
 		Task: &spb.SweepSchedulerServerNextTaskResponse_Done{
 			Done: &spb.SweepSchedulerServerDoneTask{
-				Reason:  reason,
-				Message: message,
+				Reason:       reason,
+				Message:      message,
+				EnqueuedRuns: s.takeEnqueued(),
 			},
 		},
 	}
@@ -351,6 +356,12 @@ func (s *Scheduler) takeDiscards() []string {
 	discards := s.discards
 	s.discards = nil
 	return discards
+}
+
+func (s *Scheduler) takeEnqueued() map[string]string {
+	enqueued := s.enqueued
+	s.enqueued = nil
+	return enqueued
 }
 
 // track registers a run under its optimizer id, keeping runOrder in
@@ -381,7 +392,8 @@ func (s *Scheduler) trackedRunCount() int {
 	return count
 }
 
-// generationTask assembles a generation task with any discards.
+// generationTask assembles a generation task with any discards and
+// enqueued runs.
 func (s *Scheduler) generationTask(
 	updates []*spb.SweepSchedulerServerRunUpdate,
 	pruneCandidates []string,
@@ -399,6 +411,7 @@ func (s *Scheduler) generationTask(
 				AskUpTo:                  uint32(max(0, askUpTo)),
 				PruneCandidates:          pruneCandidates,
 				DiscardedOptimizerRunIds: s.takeDiscards(),
+				EnqueuedRuns:             s.takeEnqueued(),
 			},
 		},
 	}

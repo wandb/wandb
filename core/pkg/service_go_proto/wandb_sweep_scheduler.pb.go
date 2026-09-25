@@ -712,8 +712,14 @@ type SweepSchedulerServerGenerationTask struct {
 	// not durably schedule (the enqueue failed, the sweep finished).
 	// Each id is reported exactly once and no update ever follows it.
 	DiscardedOptimizerRunIds []string `protobuf:"bytes,4,rep,name=discarded_optimizer_run_ids,json=discardedOptimizerRunIds,proto3" json:"discarded_optimizer_run_ids,omitempty"`
-	unknownFields            protoimpl.UnknownFields
-	sizeCache                protoimpl.SizeCache
+	// Suggestions enqueued since the previous task, as optimizer_run_id
+	// to the W&B name of the run minted for it.
+	//
+	// Each is reported exactly once, before any update of the run, so an
+	// optimizer can link a trial to its run without waiting for a poll.
+	EnqueuedRuns  map[string]string `protobuf:"bytes,5,rep,name=enqueued_runs,json=enqueuedRuns,proto3" json:"enqueued_runs,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SweepSchedulerServerGenerationTask) Reset() {
@@ -770,6 +776,13 @@ func (x *SweepSchedulerServerGenerationTask) GetPruneCandidates() []string {
 func (x *SweepSchedulerServerGenerationTask) GetDiscardedOptimizerRunIds() []string {
 	if x != nil {
 		return x.DiscardedOptimizerRunIds
+	}
+	return nil
+}
+
+func (x *SweepSchedulerServerGenerationTask) GetEnqueuedRuns() map[string]string {
+	if x != nil {
+		return x.EnqueuedRuns
 	}
 	return nil
 }
@@ -927,7 +940,11 @@ type SweepSchedulerServerDoneTask struct {
 	state  protoimpl.MessageState              `protogen:"open.v1"`
 	Reason SweepSchedulerServerDoneTask_Reason `protobuf:"varint,1,opt,name=reason,proto3,enum=wandb_internal.SweepSchedulerServerDoneTask_Reason" json:"reason,omitempty"`
 	// Details for the terminal message shown to the user.
-	Message       string `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	Message string `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	// Suggestions enqueued since the previous task, as in
+	// SweepSchedulerServerGenerationTask.enqueued_runs, so a stopping
+	// scheduler still links them.
+	EnqueuedRuns  map[string]string `protobuf:"bytes,4,rep,name=enqueued_runs,json=enqueuedRuns,proto3" json:"enqueued_runs,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -974,6 +991,13 @@ func (x *SweepSchedulerServerDoneTask) GetMessage() string {
 		return x.Message
 	}
 	return ""
+}
+
+func (x *SweepSchedulerServerDoneTask) GetEnqueuedRuns() map[string]string {
+	if x != nil {
+		return x.EnqueuedRuns
+	}
+	return nil
 }
 
 // The optimizer's output for one task.
@@ -1484,12 +1508,16 @@ const file_wandb_proto_wandb_sweep_scheduler_proto_rawDesc = "" +
 	"\rfinished_runs\x18\x01 \x03(\v2+.wandb_internal.SweepSchedulerServerRunDataR\ffinishedRuns\x12L\n" +
 	"\vactive_runs\x18\x02 \x03(\v2+.wandb_internal.SweepSchedulerServerRunDataR\n" +
 	"activeRuns\x12\x19\n" +
-	"\bhas_more\x18\x03 \x01(\bR\ahasMore\"\xf3\x01\n" +
+	"\bhas_more\x18\x03 \x01(\bR\ahasMore\"\x9f\x03\n" +
 	"\"SweepSchedulerServerGenerationTask\x12G\n" +
 	"\aupdates\x18\x01 \x03(\v2-.wandb_internal.SweepSchedulerServerRunUpdateR\aupdates\x12\x1a\n" +
 	"\task_up_to\x18\x02 \x01(\rR\aaskUpTo\x12)\n" +
 	"\x10prune_candidates\x18\x03 \x03(\tR\x0fpruneCandidates\x12=\n" +
-	"\x1bdiscarded_optimizer_run_ids\x18\x04 \x03(\tR\x18discardedOptimizerRunIds\"v\n" +
+	"\x1bdiscarded_optimizer_run_ids\x18\x04 \x03(\tR\x18discardedOptimizerRunIds\x12i\n" +
+	"\renqueued_runs\x18\x05 \x03(\v2D.wandb_internal.SweepSchedulerServerGenerationTask.EnqueuedRunsEntryR\fenqueuedRuns\x1a?\n" +
+	"\x11EnqueuedRunsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"v\n" +
 	"\x1dSweepSchedulerServerRunUpdate\x12=\n" +
 	"\x03run\x18\x01 \x01(\v2+.wandb_internal.SweepSchedulerServerRunDataR\x03run\x12\x16\n" +
 	"\x06pruned\x18\x02 \x01(\bR\x06pruned\"\x85\x02\n" +
@@ -1501,10 +1529,14 @@ const file_wandb_proto_wandb_sweep_scheduler_proto_rawDesc = "" +
 	"\vconfig_json\x18\x04 \x01(\tR\n" +
 	"configJson\x12!\n" +
 	"\fsummary_json\x18\x05 \x01(\tR\vsummaryJson\x12!\n" +
-	"\fhistory_json\x18\x06 \x01(\tR\vhistoryJson\"\xfa\x02\n" +
+	"\fhistory_json\x18\x06 \x01(\tR\vhistoryJson\"\xa0\x04\n" +
 	"\x1cSweepSchedulerServerDoneTask\x12K\n" +
 	"\x06reason\x18\x01 \x01(\x0e23.wandb_internal.SweepSchedulerServerDoneTask.ReasonR\x06reason\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"\xcf\x01\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\x12c\n" +
+	"\renqueued_runs\x18\x04 \x03(\v2>.wandb_internal.SweepSchedulerServerDoneTask.EnqueuedRunsEntryR\fenqueuedRuns\x1a?\n" +
+	"\x11EnqueuedRunsEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xcf\x01\n" +
 	"\x06Reason\x12\x16\n" +
 	"\x12REASON_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11REASON_TERMINATED\x10\x02\x12\x19\n" +
@@ -1581,7 +1613,7 @@ func file_wandb_proto_wandb_sweep_scheduler_proto_rawDescGZIP() []byte {
 }
 
 var file_wandb_proto_wandb_sweep_scheduler_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
+var file_wandb_proto_wandb_sweep_scheduler_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_wandb_proto_wandb_sweep_scheduler_proto_goTypes = []any{
 	(SweepRunState)(0),                                   // 0: wandb_internal.SweepRunState
 	(SweepSchedulerServerDoneTask_Reason)(0),             // 1: wandb_internal.SweepSchedulerServerDoneTask.Reason
@@ -1603,11 +1635,13 @@ var file_wandb_proto_wandb_sweep_scheduler_proto_goTypes = []any{
 	(*SweepSchedulerClientRunSuggestion)(nil),            // 17: wandb_internal.SweepSchedulerClientRunSuggestion
 	(*SweepSchedulerClientTellError)(nil),                // 18: wandb_internal.SweepSchedulerClientTellError
 	(*SweepSchedulerClientTaskError)(nil),                // 19: wandb_internal.SweepSchedulerClientTaskError
-	nil,                                                  // 20: wandb_internal.SweepSchedulerClientWarmStartResult.AdoptionsEntry
-	(*Settings)(nil),                                     // 21: wandb_internal.Settings
+	nil,                                                  // 20: wandb_internal.SweepSchedulerServerGenerationTask.EnqueuedRunsEntry
+	nil,                                                  // 21: wandb_internal.SweepSchedulerServerDoneTask.EnqueuedRunsEntry
+	nil,                                                  // 22: wandb_internal.SweepSchedulerClientWarmStartResult.AdoptionsEntry
+	(*Settings)(nil),                                     // 23: wandb_internal.Settings
 }
 var file_wandb_proto_wandb_sweep_scheduler_proto_depIdxs = []int32{
-	21, // 0: wandb_internal.SweepSchedulerClientInitRequest.settings:type_name -> wandb_internal.Settings
+	23, // 0: wandb_internal.SweepSchedulerClientInitRequest.settings:type_name -> wandb_internal.Settings
 	13, // 1: wandb_internal.SweepSchedulerClientNextTaskRequest.result:type_name -> wandb_internal.SweepSchedulerClientTaskResult
 	8,  // 2: wandb_internal.SweepSchedulerServerNextTaskResponse.warm_start:type_name -> wandb_internal.SweepSchedulerServerWarmStartTask
 	9,  // 3: wandb_internal.SweepSchedulerServerNextTaskResponse.generation:type_name -> wandb_internal.SweepSchedulerServerGenerationTask
@@ -1615,22 +1649,24 @@ var file_wandb_proto_wandb_sweep_scheduler_proto_depIdxs = []int32{
 	11, // 5: wandb_internal.SweepSchedulerServerWarmStartTask.finished_runs:type_name -> wandb_internal.SweepSchedulerServerRunData
 	11, // 6: wandb_internal.SweepSchedulerServerWarmStartTask.active_runs:type_name -> wandb_internal.SweepSchedulerServerRunData
 	10, // 7: wandb_internal.SweepSchedulerServerGenerationTask.updates:type_name -> wandb_internal.SweepSchedulerServerRunUpdate
-	11, // 8: wandb_internal.SweepSchedulerServerRunUpdate.run:type_name -> wandb_internal.SweepSchedulerServerRunData
-	0,  // 9: wandb_internal.SweepSchedulerServerRunData.state:type_name -> wandb_internal.SweepRunState
-	1,  // 10: wandb_internal.SweepSchedulerServerDoneTask.reason:type_name -> wandb_internal.SweepSchedulerServerDoneTask.Reason
-	14, // 11: wandb_internal.SweepSchedulerClientTaskResult.warm_start:type_name -> wandb_internal.SweepSchedulerClientWarmStartResult
-	16, // 12: wandb_internal.SweepSchedulerClientTaskResult.generation:type_name -> wandb_internal.SweepSchedulerClientGenerationResult
-	19, // 13: wandb_internal.SweepSchedulerClientTaskResult.error:type_name -> wandb_internal.SweepSchedulerClientTaskError
-	20, // 14: wandb_internal.SweepSchedulerClientWarmStartResult.adoptions:type_name -> wandb_internal.SweepSchedulerClientWarmStartResult.AdoptionsEntry
-	15, // 15: wandb_internal.SweepSchedulerClientWarmStartResult.skipped:type_name -> wandb_internal.SweepSchedulerClientSkippedRun
-	2,  // 16: wandb_internal.SweepSchedulerClientGenerationResult.ask_outcome:type_name -> wandb_internal.SweepSchedulerClientGenerationResult.AskOutcome
-	17, // 17: wandb_internal.SweepSchedulerClientGenerationResult.suggestions:type_name -> wandb_internal.SweepSchedulerClientRunSuggestion
-	18, // 18: wandb_internal.SweepSchedulerClientGenerationResult.tell_errors:type_name -> wandb_internal.SweepSchedulerClientTellError
-	19, // [19:19] is the sub-list for method output_type
-	19, // [19:19] is the sub-list for method input_type
-	19, // [19:19] is the sub-list for extension type_name
-	19, // [19:19] is the sub-list for extension extendee
-	0,  // [0:19] is the sub-list for field type_name
+	20, // 8: wandb_internal.SweepSchedulerServerGenerationTask.enqueued_runs:type_name -> wandb_internal.SweepSchedulerServerGenerationTask.EnqueuedRunsEntry
+	11, // 9: wandb_internal.SweepSchedulerServerRunUpdate.run:type_name -> wandb_internal.SweepSchedulerServerRunData
+	0,  // 10: wandb_internal.SweepSchedulerServerRunData.state:type_name -> wandb_internal.SweepRunState
+	1,  // 11: wandb_internal.SweepSchedulerServerDoneTask.reason:type_name -> wandb_internal.SweepSchedulerServerDoneTask.Reason
+	21, // 12: wandb_internal.SweepSchedulerServerDoneTask.enqueued_runs:type_name -> wandb_internal.SweepSchedulerServerDoneTask.EnqueuedRunsEntry
+	14, // 13: wandb_internal.SweepSchedulerClientTaskResult.warm_start:type_name -> wandb_internal.SweepSchedulerClientWarmStartResult
+	16, // 14: wandb_internal.SweepSchedulerClientTaskResult.generation:type_name -> wandb_internal.SweepSchedulerClientGenerationResult
+	19, // 15: wandb_internal.SweepSchedulerClientTaskResult.error:type_name -> wandb_internal.SweepSchedulerClientTaskError
+	22, // 16: wandb_internal.SweepSchedulerClientWarmStartResult.adoptions:type_name -> wandb_internal.SweepSchedulerClientWarmStartResult.AdoptionsEntry
+	15, // 17: wandb_internal.SweepSchedulerClientWarmStartResult.skipped:type_name -> wandb_internal.SweepSchedulerClientSkippedRun
+	2,  // 18: wandb_internal.SweepSchedulerClientGenerationResult.ask_outcome:type_name -> wandb_internal.SweepSchedulerClientGenerationResult.AskOutcome
+	17, // 19: wandb_internal.SweepSchedulerClientGenerationResult.suggestions:type_name -> wandb_internal.SweepSchedulerClientRunSuggestion
+	18, // 20: wandb_internal.SweepSchedulerClientGenerationResult.tell_errors:type_name -> wandb_internal.SweepSchedulerClientTellError
+	21, // [21:21] is the sub-list for method output_type
+	21, // [21:21] is the sub-list for method input_type
+	21, // [21:21] is the sub-list for extension type_name
+	21, // [21:21] is the sub-list for extension extendee
+	0,  // [0:21] is the sub-list for field type_name
 }
 
 func init() { file_wandb_proto_wandb_sweep_scheduler_proto_init() }
@@ -1655,7 +1691,7 @@ func file_wandb_proto_wandb_sweep_scheduler_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_wandb_proto_wandb_sweep_scheduler_proto_rawDesc), len(file_wandb_proto_wandb_sweep_scheduler_proto_rawDesc)),
 			NumEnums:      3,
-			NumMessages:   18,
+			NumMessages:   20,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -322,7 +322,9 @@ class _ExperimentTrials(ResumableTrials[Any]):
         params = optimizer._search_space_params(data.config.flat_dict())
         if params is None:
             return
-        optimizer.tell_run(optimizer._attach(params), data)
+        trial_index = optimizer._attach(params)
+        optimizer._resumer.link(trial_index, data.wandb_run_id)
+        optimizer.tell_run(trial_index, data)
 
     @override
     def adopt_new(self, data: Run) -> int | None:
@@ -376,7 +378,6 @@ class AxOptimizer(Optimizer):
     def _finalize(self, trial_index: int) -> None:
         """Record that a trial got its outcome and is no longer tracked."""
         self._finalized.add(trial_index)
-        self._resumer.unlink(trial_index)
 
     def _attach(self, params: dict[str, Any]) -> int:
         """Attach a run's params as a new trial owned by this sweep."""
@@ -472,7 +473,6 @@ class AxOptimizer(Optimizer):
         trial_index = int(run_id)
         if trial_index in self._finalized:
             return
-        self._resumer.link(trial_index, data.wandb_run_id)
         if data.state.is_alive:
             # RUNNING/PENDING/PREEMPTING/UNKNOWN: still producing results.
             self._attach_latest_progression(trial_index, data)
@@ -560,6 +560,11 @@ class AxOptimizer(Optimizer):
         is attached as a manually-chosen arm and finalized via `tell_run`.
         """
         self._resumer.tell_existing_finished_run(data)
+
+    @override
+    def tell_enqueued_run(self, run_id: Any, wandb_run_id: str) -> None:
+        """Label the enqueued run's trial with its W&B run id."""
+        self._resumer.link(int(run_id), wandb_run_id)
 
     @override
     def tell_existing_active_run(self, data: Run) -> Any:
