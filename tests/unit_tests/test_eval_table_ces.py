@@ -13,6 +13,7 @@ import wandb
 from wandb.errors import UsageError
 from wandb.sdk.data_types._dtypes import AnyType
 from wandb.sdk.data_types.eval_table import _writer_ces as ces
+from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 
 
 @pytest.fixture
@@ -587,13 +588,13 @@ def test_ces_eval_table_requires_client_before_scope_lookup(monkeypatch, run):
     et.bind_to_run(run, "eval", 0)
     writer = et._writer
     assert isinstance(writer, ces.CESWriter)
-    execute_graphql = MagicMock()
+    project_internal_id = MagicMock()
     writer._bound = replace(
         writer._require_bound(),
         service_api=SimpleNamespace(
             api_key="secret",
             access_token=MagicMock(),
-            execute_graphql=execute_graphql,
+            project_internal_id=project_internal_id,
         ),
     )
     monkeypatch.setitem(sys.modules, "coreweave_evaluations", None)
@@ -601,7 +602,7 @@ def test_ces_eval_table_requires_client_before_scope_lookup(monkeypatch, run):
     with pytest.raises(UsageError, match="coreweave_evaluations"):
         et.to_json(run)
 
-    execute_graphql.assert_not_called()
+    project_internal_id.assert_not_called()
 
 
 def test_ces_eval_table_resolves_project_scope_with_api_key(run):
@@ -610,9 +611,7 @@ def test_ces_eval_table_resolves_project_scope_with_api_key(run):
     service_api = SimpleNamespace(
         api_key="secret",
         access_token=MagicMock(),
-        execute_graphql=MagicMock(
-            return_value={"project": {"internalId": "opaque-project-id"}}
-        ),
+        project_internal_id=MagicMock(return_value="opaque-project-id"),
     )
     writer._bound = replace(writer._require_bound(), service_api=service_api)
 
@@ -621,11 +620,42 @@ def test_ces_eval_table_resolves_project_scope_with_api_key(run):
     assert scope.scope_id == "opaque-project-id"
     assert scope.api_key == "secret"
     assert scope.access_token is None
-    service_api.execute_graphql.assert_called_once_with(
-        ces._PROJECT_SCOPE_QUERY,
-        variables={"entity": "e", "project": "p"},
-    )
+    service_api.project_internal_id.assert_called_once_with(entity="e", project="p")
     service_api.access_token.assert_not_called()
+
+
+def test_ces_eval_table_rejects_unresolvable_project(run):
+    writer = ces.CESWriter()
+    writer.bind_to_run(run, "eval", 0)
+    writer._bound = replace(
+        writer._require_bound(),
+        service_api=SimpleNamespace(
+            api_key="secret",
+            access_token=MagicMock(),
+            project_internal_id=MagicMock(return_value=None),
+        ),
+    )
+
+    with pytest.raises(UsageError, match="Unable to resolve W&B project e/p"):
+        writer._resolve_scope_context(writer._require_bound())
+
+
+def test_ces_eval_table_propagates_project_lookup_failures(run):
+    writer = ces.CESWriter()
+    writer.bind_to_run(run, "eval", 0)
+    writer._bound = replace(
+        writer._require_bound(),
+        service_api=SimpleNamespace(
+            api_key="secret",
+            access_token=MagicMock(),
+            project_internal_id=MagicMock(
+                side_effect=WandbApiFailedError("server unavailable")
+            ),
+        ),
+    )
+
+    with pytest.raises(WandbApiFailedError, match="server unavailable"):
+        writer._resolve_scope_context(writer._require_bound())
 
 
 def test_ces_scope_context_repr_redacts_credentials():
@@ -646,9 +676,7 @@ def test_ces_eval_table_uses_federated_access_token(run):
         service_api=SimpleNamespace(
             api_key=None,
             access_token=MagicMock(return_value="access-token"),
-            execute_graphql=MagicMock(
-                return_value={"project": {"internalId": "opaque-project-id"}}
-            ),
+            project_internal_id=MagicMock(return_value="opaque-project-id"),
         ),
     )
 

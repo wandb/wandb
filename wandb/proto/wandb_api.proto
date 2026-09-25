@@ -44,6 +44,7 @@ message ApiRequest {
     RunQueueOperationRequest run_queue_operation_request = 11;
     OpenTelemetryRequest open_telemetry_request = 12;
     ReadRunConsoleLogsRequest read_run_console_logs_request = 13;
+    GetProjectInternalIdRequest get_project_internal_id_request = 14;
   }
 }
 
@@ -60,6 +61,7 @@ message ApiResponse {
     CreateCustomChartResponse create_custom_chart_response = 10;
     RunQueueOperationResponse run_queue_operation_response = 11;
     ReadRunConsoleLogsResponse read_run_console_logs_response = 12;
+    GetProjectInternalIdResponse get_project_internal_id_response = 13;
 
     ApiErrorResponse api_error_response = 2;
   }
@@ -637,4 +639,29 @@ message DownloadRunHistoryStatus {
 message DownloadRunHistoryStatusResponse {
   // Operation stats for progress display.
   wandb_internal.OperationStats operation_stats = 1;
+}
+
+// End of Download run history
+
+// Project metadata
+
+// Resolve a project's opaque internal ID.
+//
+// The W&B backend uses this ID to identify the project as a scope in APIs
+// where the user-facing entity and project names are not accepted.
+//
+// A successful request returns GetProjectInternalIdResponse. If the project
+// does not exist or is not readable, project_internal_id is unset. Other
+// failures return ApiErrorResponse.
+message GetProjectInternalIdRequest {
+  // The entity that owns the project.
+  string entity = 1;
+
+  // The user-facing project name.
+  string project = 2;
+}
+
+message GetProjectInternalIdResponse {
+  // The project's opaque internal ID, if the project exists and is readable.
+  optional string project_internal_id = 1;
 }

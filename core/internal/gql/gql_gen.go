@@ -1340,6 +1340,22 @@ func (v *OrganizationCoreWeaveOrganizationIDResponse) GetEntity() *OrganizationC
 	return v.Entity
 }
 
+// ProjectInternalIDProject includes the requested fields of the GraphQL type Project.
+type ProjectInternalIDProject struct {
+	InternalId string `json:"internalId"`
+}
+
+// GetInternalId returns ProjectInternalIDProject.InternalId, and is useful for accessing the field via an interface.
+func (v *ProjectInternalIDProject) GetInternalId() string { return v.InternalId }
+
+// ProjectInternalIDResponse is returned by ProjectInternalID on success.
+type ProjectInternalIDResponse struct {
+	Project *ProjectInternalIDProject `json:"project"`
+}
+
+// GetProject returns ProjectInternalIDResponse.Project, and is useful for accessing the field via an interface.
+func (v *ProjectInternalIDResponse) GetProject() *ProjectInternalIDProject { return v.Project }
+
 // QueryRunInfoProject includes the requested fields of the GraphQL type Project.
 type QueryRunInfoProject struct {
 	Run *QueryRunInfoProjectRun `json:"run"`
@@ -3092,6 +3108,18 @@ type __OrganizationCoreWeaveOrganizationIDInput struct {
 // GetEntityName returns __OrganizationCoreWeaveOrganizationIDInput.EntityName, and is useful for accessing the field via an interface.
 func (v *__OrganizationCoreWeaveOrganizationIDInput) GetEntityName() string { return v.EntityName }
 
+// __ProjectInternalIDInput is used internally by genqlient
+type __ProjectInternalIDInput struct {
+	Entity  string `json:"entity"`
+	Project string `json:"project"`
+}
+
+// GetEntity returns __ProjectInternalIDInput.Entity, and is useful for accessing the field via an interface.
+func (v *__ProjectInternalIDInput) GetEntity() string { return v.Entity }
+
+// GetProject returns __ProjectInternalIDInput.Project, and is useful for accessing the field via an interface.
+func (v *__ProjectInternalIDInput) GetProject() string { return v.Project }
+
 // __QueryRunInfoInput is used internally by genqlient
 type __QueryRunInfoInput struct {
 	Entity  string `json:"entity"`
@@ -4485,6 +4513,42 @@ func OrganizationCoreWeaveOrganizationID(
 	}
 
 	data_ = &OrganizationCoreWeaveOrganizationIDResponse{}
+	resp_ := &graphql.Response{Data: data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return data_, err_
+}
+
+// The query executed by ProjectInternalID.
+const ProjectInternalID_Operation = `
+query ProjectInternalID ($entity: String!, $project: String!) {
+	project(entityName: $entity, name: $project) {
+		internalId
+	}
+}
+`
+
+func ProjectInternalID(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entity string,
+	project string,
+) (data_ *ProjectInternalIDResponse, err_ error) {
+	req_ := &graphql.Request{
+		OpName: "ProjectInternalID",
+		Query:  ProjectInternalID_Operation,
+		Variables: &__ProjectInternalIDInput{
+			Entity:  entity,
+			Project: project,
+		},
+	}
+
+	data_ = &ProjectInternalIDResponse{}
 	resp_ := &graphql.Response{Data: data_}
 
 	err_ = client_.MakeRequest(
