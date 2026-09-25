@@ -29,7 +29,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Removed
 
-- Removed the undocumented `wandb.set_trace()`. Use Python's built-in `breakpoint()` instead (@dmitryduev in https://github.com/wandb/wandb/pull/PRNUM)
+- Removed the undocumented `wandb.set_trace()`. Use Python's built-in `breakpoint()` instead (@dmitryduev in https://github.com/wandb/wandb/pull/12985)
 
 ### Fixed
 
