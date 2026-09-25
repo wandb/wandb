@@ -537,7 +537,7 @@ def _ensure_no_diff(
     saved = session.create_tmp()
     session.run("cp", "-r", in_directory, saved, external=True)
     after()
-    session.run("diff", in_directory, saved, external=True)
+    session.run("diff", "-r", in_directory, saved, external=True)
     session.run("rm", "-rf", saved, external=True)
 
 
@@ -562,7 +562,7 @@ def proto_check_go(session: nox.Session) -> None:
     """Regenerates Go protobuf files and ensures nothing changed."""
     for directory in (
         "core/pkg/service_go_proto/.",
-        "core/pkg/filestream_proto/v1/.",
+        "core/internal/filestream/proto/.",
     ):
         _ensure_no_diff(
             session,

@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package wandb.filestream.v1;
 
-option go_package = "core/pkg/filestream_proto/v1;filestreamv1";
+option go_package = "core/internal/filestream/proto;filestreamv1";
 
 // Data that can be sent via filestream.
 //

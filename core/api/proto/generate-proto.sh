@@ -18,3 +18,4 @@ echo "[INFO] generate-proto.sh: Generating protobuf files"
 export PATH="$HOME/.local/bin:$PATH"
 
 protoc --go_out=. --go-grpc_out=. --proto_path=. wandb/proto/*.proto
+cd core && go generate ./internal/filestream/...

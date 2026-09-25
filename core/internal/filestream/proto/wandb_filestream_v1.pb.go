@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v7.34.1
-// source: wandb/proto/wandb_filestream_v1.proto
+// source: core/internal/filestream/proto/wandb_filestream_v1.proto
 
 package filestreamv1
 
@@ -70,11 +70,11 @@ func (x MetricsBatch_Kind) String() string {
 }
 
 func (MetricsBatch_Kind) Descriptor() protoreflect.EnumDescriptor {
-	return file_wandb_proto_wandb_filestream_v1_proto_enumTypes[0].Descriptor()
+	return file_core_internal_filestream_proto_wandb_filestream_v1_proto_enumTypes[0].Descriptor()
 }
 
 func (MetricsBatch_Kind) Type() protoreflect.EnumType {
-	return &file_wandb_proto_wandb_filestream_v1_proto_enumTypes[0]
+	return &file_core_internal_filestream_proto_wandb_filestream_v1_proto_enumTypes[0]
 }
 
 func (x MetricsBatch_Kind) Number() protoreflect.EnumNumber {
@@ -83,7 +83,7 @@ func (x MetricsBatch_Kind) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use MetricsBatch_Kind.Descriptor instead.
 func (MetricsBatch_Kind) EnumDescriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_filestream_v1_proto_rawDescGZIP(), []int{3, 0}
+	return file_core_internal_filestream_proto_wandb_filestream_v1_proto_rawDescGZIP(), []int{3, 0}
 }
 
 // Data that can be sent via filestream.
@@ -120,7 +120,7 @@ type FileStreamUpload struct {
 
 func (x *FileStreamUpload) Reset() {
 	*x = FileStreamUpload{}
-	mi := &file_wandb_proto_wandb_filestream_v1_proto_msgTypes[0]
+	mi := &file_core_internal_filestream_proto_wandb_filestream_v1_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -132,7 +132,7 @@ func (x *FileStreamUpload) String() string {
 func (*FileStreamUpload) ProtoMessage() {}
 
 func (x *FileStreamUpload) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_filestream_v1_proto_msgTypes[0]
+	mi := &file_core_internal_filestream_proto_wandb_filestream_v1_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -145,7 +145,7 @@ func (x *FileStreamUpload) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileStreamUpload.ProtoReflect.Descriptor instead.
 func (*FileStreamUpload) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_filestream_v1_proto_rawDescGZIP(), []int{0}
+	return file_core_internal_filestream_proto_wandb_filestream_v1_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *FileStreamUpload) GetFiles() []*FileStreamChunk {
@@ -205,7 +205,7 @@ type FileStreamChunk struct {
 
 func (x *FileStreamChunk) Reset() {
 	*x = FileStreamChunk{}
-	mi := &file_wandb_proto_wandb_filestream_v1_proto_msgTypes[1]
+	mi := &file_core_internal_filestream_proto_wandb_filestream_v1_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -217,7 +217,7 @@ func (x *FileStreamChunk) String() string {
 func (*FileStreamChunk) ProtoMessage() {}
 
 func (x *FileStreamChunk) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_filestream_v1_proto_msgTypes[1]
+	mi := &file_core_internal_filestream_proto_wandb_filestream_v1_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -230,7 +230,7 @@ func (x *FileStreamChunk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FileStreamChunk.ProtoReflect.Descriptor instead.
 func (*FileStreamChunk) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_filestream_v1_proto_rawDescGZIP(), []int{1}
+	return file_core_internal_filestream_proto_wandb_filestream_v1_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *FileStreamChunk) GetName() string {
@@ -275,7 +275,7 @@ type MetricsBatchChunk struct {
 
 func (x *MetricsBatchChunk) Reset() {
 	*x = MetricsBatchChunk{}
-	mi := &file_wandb_proto_wandb_filestream_v1_proto_msgTypes[2]
+	mi := &file_core_internal_filestream_proto_wandb_filestream_v1_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -287,7 +287,7 @@ func (x *MetricsBatchChunk) String() string {
 func (*MetricsBatchChunk) ProtoMessage() {}
 
 func (x *MetricsBatchChunk) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_filestream_v1_proto_msgTypes[2]
+	mi := &file_core_internal_filestream_proto_wandb_filestream_v1_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -300,7 +300,7 @@ func (x *MetricsBatchChunk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MetricsBatchChunk.ProtoReflect.Descriptor instead.
 func (*MetricsBatchChunk) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_filestream_v1_proto_rawDescGZIP(), []int{2}
+	return file_core_internal_filestream_proto_wandb_filestream_v1_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *MetricsBatchChunk) GetOffset() int64 {
@@ -404,7 +404,7 @@ type MetricsBatch struct {
 
 func (x *MetricsBatch) Reset() {
 	*x = MetricsBatch{}
-	mi := &file_wandb_proto_wandb_filestream_v1_proto_msgTypes[3]
+	mi := &file_core_internal_filestream_proto_wandb_filestream_v1_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -416,7 +416,7 @@ func (x *MetricsBatch) String() string {
 func (*MetricsBatch) ProtoMessage() {}
 
 func (x *MetricsBatch) ProtoReflect() protoreflect.Message {
-	mi := &file_wandb_proto_wandb_filestream_v1_proto_msgTypes[3]
+	mi := &file_core_internal_filestream_proto_wandb_filestream_v1_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -429,7 +429,7 @@ func (x *MetricsBatch) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MetricsBatch.ProtoReflect.Descriptor instead.
 func (*MetricsBatch) Descriptor() ([]byte, []int) {
-	return file_wandb_proto_wandb_filestream_v1_proto_rawDescGZIP(), []int{3}
+	return file_core_internal_filestream_proto_wandb_filestream_v1_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *MetricsBatch) GetKeys() []string {
@@ -516,11 +516,11 @@ func (x *MetricsBatch) GetSeqKey() string {
 	return ""
 }
 
-var File_wandb_proto_wandb_filestream_v1_proto protoreflect.FileDescriptor
+var File_core_internal_filestream_proto_wandb_filestream_v1_proto protoreflect.FileDescriptor
 
-const file_wandb_proto_wandb_filestream_v1_proto_rawDesc = "" +
+const file_core_internal_filestream_proto_wandb_filestream_v1_proto_rawDesc = "" +
 	"\n" +
-	"%wandb/proto/wandb_filestream_v1.proto\x12\x13wandb.filestream.v1\"\xbe\x02\n" +
+	"8core/internal/filestream/proto/wandb_filestream_v1.proto\x12\x13wandb.filestream.v1\"\xbe\x02\n" +
 	"\x10FileStreamUpload\x12:\n" +
 	"\x05files\x18\x01 \x03(\v2$.wandb.filestream.v1.FileStreamChunkR\x05files\x12@\n" +
 	"\ahistory\x18\x02 \x01(\v2&.wandb.filestream.v1.MetricsBatchChunkR\ahistory\x12\x1a\n" +
@@ -565,30 +565,30 @@ const file_wandb_proto_wandb_filestream_v1_proto_rawDesc = "" +
 	"\bKIND_INT\x10\x03\x12\r\n" +
 	"\tKIND_BOOL\x10\x04\x12\x0f\n" +
 	"\vKIND_STRING\x10\x05\x12\r\n" +
-	"\tKIND_JSON\x10\x06B+Z)core/pkg/filestream_proto/v1;filestreamv1b\x06proto3"
+	"\tKIND_JSON\x10\x06B-Z+core/internal/filestream/proto;filestreamv1b\x06proto3"
 
 var (
-	file_wandb_proto_wandb_filestream_v1_proto_rawDescOnce sync.Once
-	file_wandb_proto_wandb_filestream_v1_proto_rawDescData []byte
+	file_core_internal_filestream_proto_wandb_filestream_v1_proto_rawDescOnce sync.Once
+	file_core_internal_filestream_proto_wandb_filestream_v1_proto_rawDescData []byte
 )
 
-func file_wandb_proto_wandb_filestream_v1_proto_rawDescGZIP() []byte {
-	file_wandb_proto_wandb_filestream_v1_proto_rawDescOnce.Do(func() {
-		file_wandb_proto_wandb_filestream_v1_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_wandb_proto_wandb_filestream_v1_proto_rawDesc), len(file_wandb_proto_wandb_filestream_v1_proto_rawDesc)))
+func file_core_internal_filestream_proto_wandb_filestream_v1_proto_rawDescGZIP() []byte {
+	file_core_internal_filestream_proto_wandb_filestream_v1_proto_rawDescOnce.Do(func() {
+		file_core_internal_filestream_proto_wandb_filestream_v1_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_core_internal_filestream_proto_wandb_filestream_v1_proto_rawDesc), len(file_core_internal_filestream_proto_wandb_filestream_v1_proto_rawDesc)))
 	})
-	return file_wandb_proto_wandb_filestream_v1_proto_rawDescData
+	return file_core_internal_filestream_proto_wandb_filestream_v1_proto_rawDescData
 }
 
-var file_wandb_proto_wandb_filestream_v1_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_wandb_proto_wandb_filestream_v1_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
-var file_wandb_proto_wandb_filestream_v1_proto_goTypes = []any{
+var file_core_internal_filestream_proto_wandb_filestream_v1_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_core_internal_filestream_proto_wandb_filestream_v1_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_core_internal_filestream_proto_wandb_filestream_v1_proto_goTypes = []any{
 	(MetricsBatch_Kind)(0),    // 0: wandb.filestream.v1.MetricsBatch.Kind
 	(*FileStreamUpload)(nil),  // 1: wandb.filestream.v1.FileStreamUpload
 	(*FileStreamChunk)(nil),   // 2: wandb.filestream.v1.FileStreamChunk
 	(*MetricsBatchChunk)(nil), // 3: wandb.filestream.v1.MetricsBatchChunk
 	(*MetricsBatch)(nil),      // 4: wandb.filestream.v1.MetricsBatch
 }
-var file_wandb_proto_wandb_filestream_v1_proto_depIdxs = []int32{
+var file_core_internal_filestream_proto_wandb_filestream_v1_proto_depIdxs = []int32{
 	2, // 0: wandb.filestream.v1.FileStreamUpload.files:type_name -> wandb.filestream.v1.FileStreamChunk
 	3, // 1: wandb.filestream.v1.FileStreamUpload.history:type_name -> wandb.filestream.v1.MetricsBatchChunk
 	4, // 2: wandb.filestream.v1.MetricsBatchChunk.batch:type_name -> wandb.filestream.v1.MetricsBatch
@@ -600,28 +600,28 @@ var file_wandb_proto_wandb_filestream_v1_proto_depIdxs = []int32{
 	0, // [0:4] is the sub-list for field type_name
 }
 
-func init() { file_wandb_proto_wandb_filestream_v1_proto_init() }
-func file_wandb_proto_wandb_filestream_v1_proto_init() {
-	if File_wandb_proto_wandb_filestream_v1_proto != nil {
+func init() { file_core_internal_filestream_proto_wandb_filestream_v1_proto_init() }
+func file_core_internal_filestream_proto_wandb_filestream_v1_proto_init() {
+	if File_core_internal_filestream_proto_wandb_filestream_v1_proto != nil {
 		return
 	}
-	file_wandb_proto_wandb_filestream_v1_proto_msgTypes[0].OneofWrappers = []any{}
+	file_core_internal_filestream_proto_wandb_filestream_v1_proto_msgTypes[0].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_wandb_proto_wandb_filestream_v1_proto_rawDesc), len(file_wandb_proto_wandb_filestream_v1_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_core_internal_filestream_proto_wandb_filestream_v1_proto_rawDesc), len(file_core_internal_filestream_proto_wandb_filestream_v1_proto_rawDesc)),
 			NumEnums:      1,
 			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_wandb_proto_wandb_filestream_v1_proto_goTypes,
-		DependencyIndexes: file_wandb_proto_wandb_filestream_v1_proto_depIdxs,
-		EnumInfos:         file_wandb_proto_wandb_filestream_v1_proto_enumTypes,
-		MessageInfos:      file_wandb_proto_wandb_filestream_v1_proto_msgTypes,
+		GoTypes:           file_core_internal_filestream_proto_wandb_filestream_v1_proto_goTypes,
+		DependencyIndexes: file_core_internal_filestream_proto_wandb_filestream_v1_proto_depIdxs,
+		EnumInfos:         file_core_internal_filestream_proto_wandb_filestream_v1_proto_enumTypes,
+		MessageInfos:      file_core_internal_filestream_proto_wandb_filestream_v1_proto_msgTypes,
 	}.Build()
-	File_wandb_proto_wandb_filestream_v1_proto = out.File
-	file_wandb_proto_wandb_filestream_v1_proto_goTypes = nil
-	file_wandb_proto_wandb_filestream_v1_proto_depIdxs = nil
+	File_core_internal_filestream_proto_wandb_filestream_v1_proto = out.File
+	file_core_internal_filestream_proto_wandb_filestream_v1_proto_goTypes = nil
+	file_core_internal_filestream_proto_wandb_filestream_v1_proto_depIdxs = nil
 }
