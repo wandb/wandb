@@ -5,17 +5,15 @@ from typing import TYPE_CHECKING, Any, Literal, get_args
 from typing_extensions import override
 
 import wandb
+from wandb.apis.public.service_api import ServiceApi
 from wandb.errors import UsageError
+from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.data_types.eval_table._writer import (
     EvalTableWriter,
     WriteResult,
     WriteRow,
 )
-from wandb.sdk.data_types.eval_table._writer_factory import (
-    Backend,
-    create_writer,
-    require_eval_table_server_feature,
-)
+from wandb.sdk.data_types.eval_table._writer_factory import Backend, create_writer
 from wandb.sdk.data_types.table import ColumnKey, InputRow, LogMode, Table
 from wandb.sdk.lib import telemetry
 
@@ -201,7 +199,9 @@ class EvalTable(Table):
                 "Use wandb.init(mode='online') or unset WANDB_MODE."
             )
 
-        require_eval_table_server_feature(run)
+        service_api = ServiceApi(run._settings)
+        if not service_api.feature_enabled(pb.ServerFeature.EVAL_TABLES_CES):
+            raise UsageError("This W&B server does not support EvalTable logging.")
 
         # Initialize writer with run context while intentionally
         # skipping the file-copy behavior in Table.bind_to_run().
