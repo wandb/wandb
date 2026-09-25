@@ -485,6 +485,9 @@ pub struct Feature {
     /// User logged an incremental wandb.Table via run.log()
     #[prost(bool, tag = "79")]
     pub incremental_table: bool,
+    /// x_provenance wrote rank telemetry to run files
+    #[prost(bool, tag = "80")]
+    pub provenance_logs: bool,
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Env {
@@ -588,7 +591,7 @@ pub struct Deprecated {
 /// sync an older transaction log, it is important to follow proper protobuf
 /// versioning practices: <https://protobuf.dev/best-practices/>
 ///
-/// Next ID: 28
+/// Next ID: 31
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Record {
     #[prost(int64, tag = "1")]
@@ -601,7 +604,7 @@ pub struct Record {
     pub info: ::core::option::Option<RecordInfo>,
     #[prost(
         oneof = "record::RecordType",
-        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 26, 27, 100"
+        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 26, 27, 29, 30, 100"
     )]
     pub record_type: ::core::option::Option<record::RecordType>,
 }
@@ -656,6 +659,10 @@ pub mod record {
         Environment(super::EnvironmentRecord),
         #[prost(message, tag = "27")]
         OutputLogger(super::OutputLoggerRecord),
+        #[prost(message, tag = "29")]
+        DeviceBinding(super::DeviceBindingRecord),
+        #[prost(message, tag = "30")]
+        CommStats(super::CommStatsRecord),
         /// request field does not belong here longterm
         #[prost(message, tag = "100")]
         Request(super::Request),
@@ -1138,6 +1145,55 @@ pub struct OutputRawResult {}
 pub struct OutputLoggerRecord {
     #[prost(string, tag = "1")]
     pub line: ::prost::alloc::string::String,
+}
+/// DeviceBindingRecord: the CUDA device a writer process reports it is bound to.
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct DeviceBindingRecord {
+    #[prost(string, tag = "1")]
+    pub uuid: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub pci_bus_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub source: ::prost::alloc::string::String,
+    #[prost(int32, tag = "4")]
+    pub cuda_index: i32,
+    #[prost(message, optional, tag = "200")]
+    pub info: ::core::option::Option<RecordInfo>,
+}
+/// CollectiveStats: timings of one collective kind from the NCCL flight recorder.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CollectiveStats {
+    #[prost(string, tag = "1")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(int64, tag = "2")]
+    pub count: i64,
+    /// Duration fields are unset when no collective in the group was timed.
+    #[prost(double, optional, tag = "3")]
+    pub p50_ms: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "4")]
+    pub p99_ms: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "5")]
+    pub max_ms: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "6")]
+    pub total_ms: ::core::option::Option<f64>,
+    #[prost(int64, optional, tag = "7")]
+    pub bytes: ::core::option::Option<i64>,
+    /// Number of collectives in the group that carried a duration.
+    #[prost(int64, tag = "8")]
+    pub n_timed: i64,
+}
+/// CommStatsRecord: collectives a writer process completed since its previous report.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CommStatsRecord {
+    #[prost(string, tag = "1")]
+    pub status: ::prost::alloc::string::String,
+    #[prost(message, repeated, tag = "2")]
+    pub collectives: ::prost::alloc::vec::Vec<CollectiveStats>,
+    /// Collectives evicted from the flight recorder ring before they were read; 0 when none were detected.
+    #[prost(int64, tag = "3")]
+    pub n_lost: i64,
+    #[prost(message, optional, tag = "200")]
+    pub info: ::core::option::Option<RecordInfo>,
 }
 /// MetricRecord: wandb/sdk/wandb_metric/Metric
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
@@ -2699,6 +2755,9 @@ pub struct GpuNvidiaInfo {
     /// NUMA node the GPU is attached to, when known.
     #[prost(uint32, optional, tag = "7")]
     pub numa_node: ::core::option::Option<u32>,
+    /// Board serial number as reported by NVML.
+    #[prost(string, tag = "8")]
+    pub serial: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct GpuAmdInfo {
@@ -3202,6 +3261,9 @@ pub struct GetStatsRequest {
     /// If not set, metrics for all GPUs will be captured.
     #[prost(int32, repeated, tag = "2")]
     pub gpu_device_ids: ::prost::alloc::vec::Vec<i32>,
+    /// Also sample clock throttle reasons; used only by provenance logs.
+    #[prost(bool, tag = "3")]
+    pub include_throttle_reasons: bool,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetStatsResponse {
@@ -3210,7 +3272,11 @@ pub struct GetStatsResponse {
     pub record: ::core::option::Option<Record>,
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
-pub struct GetMetadataRequest {}
+pub struct GetMetadataRequest {
+    /// Also read GPU serial numbers; used only by provenance logs.
+    #[prost(bool, tag = "1")]
+    pub include_serial: bool,
+}
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetMetadataResponse {
     /// Static metadata about the system.

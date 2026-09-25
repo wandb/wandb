@@ -27,12 +27,8 @@ type ExtraWork interface {
 	// logged and captured.
 	AddWork(work Work)
 
-	// AddWorkOrCancel is like AddWork but exits early if the 'done'
-	// channel is closed.
-	//
-	// If the work has a request and the done channel is closed,
-	// the request gets an error response.
-	AddWorkOrCancel(done <-chan struct{}, work Work)
+	// AddWorkOrCancel is like AddWork, but exits early and reports false if the 'done' channel closes first (the request, if any, gets an error response).
+	AddWorkOrCancel(done <-chan struct{}, work Work) bool
 
 	// BeforeEndCtx is cancelled when the run is finished or aborted.
 	//
@@ -121,7 +117,7 @@ func (rw *runWork) AddWork(work Work) {
 func (rw *runWork) AddWorkOrCancel(
 	cancel <-chan struct{},
 	work Work,
-) {
+) bool {
 	rw.incAddWork()
 	defer rw.decAddWork()
 
@@ -130,14 +126,14 @@ func (rw *runWork) AddWorkOrCancel(
 	select {
 	case <-cancel:
 		work.Request.WillNotRespond()
-		return
+		return false
 
 	case <-rw.closed:
 		// Here, internalWork is closed or about to be closed,
 		// so we should drop the record.
 		rw.logger.Warn(errRecordAfterClose.Error(), "work", work)
 		work.Request.WillNotRespond()
-		return
+		return false
 
 	default:
 	}
@@ -171,11 +167,11 @@ func (rw *runWork) AddWorkOrCancel(
 			// Here, Close() must have been called, so we should drop the record.
 			rw.logger.CaptureError("runwork", errRecordAfterClose, "work", work)
 			work.Request.WillNotRespond()
-			return
+			return false
 
 		case <-cancel:
 			work.Request.WillNotRespond()
-			return
+			return false
 
 		case rw.internalWork <- work:
 			if i > 0 {
@@ -186,7 +182,7 @@ func (rw *runWork) AddWorkOrCancel(
 				)
 			}
 
-			return
+			return true
 		}
 	}
 }

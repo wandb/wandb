@@ -86,6 +86,8 @@ from .lib import (
     redirect,
     telemetry,
 )
+from .lib.comm_stats import CollectiveSummary, CommStatsReporter
+from .lib.device_binding import DeviceBindingReporter
 from .lib.exit_hooks import ExitHooks
 from .mailbox import (
     HandleAbandonedError,
@@ -520,6 +522,14 @@ class Run:
         launch_config: dict[str, Any] | None = None,
     ) -> None:
         self._settings = settings
+
+        self._device_binding_reporter = DeviceBindingReporter(
+            self._publish_device_binding
+        )
+        self._comm_stats_reporter = CommStatsReporter(
+            self._publish_comm_stats,
+            interval=self._settings.x_provenance_flush_interval,
+        )
 
         self._config = wandb_config.Config()
         self._config._set_callback(self._config_callback)
@@ -1635,6 +1645,11 @@ class Run:
         if any(not isinstance(key, str) for key in data):
             raise TypeError("Key values passed to `wandb.log` must be strings.")
 
+        if self._settings.x_provenance:
+            self._device_binding_reporter.maybe_report()
+            if self._settings.x_provenance_comm:
+                self._comm_stats_reporter.maybe_start()
+
         self._partial_history_callback(data, step, commit)
 
         if step is not None:
@@ -1660,6 +1675,33 @@ class Run:
 
         if (step is None and commit is None) or commit:
             self._local_step += 1
+
+    def _publish_device_binding(
+        self,
+        uuid: str,
+        pci_bus_id: str,
+        cuda_index: int,
+    ) -> None:
+        if self._interface:
+            self._interface.publish_device_binding(
+                uuid=uuid,
+                pci_bus_id=pci_bus_id,
+                cuda_index=cuda_index,
+                source="cuda_runtime",
+            )
+
+    def _publish_comm_stats(
+        self,
+        status: str,
+        collectives: list[CollectiveSummary],
+        n_lost: int,
+    ) -> None:
+        if self._interface:
+            self._interface.publish_comm_stats(
+                status=status,
+                collectives=collectives,
+                n_lost=n_lost,
+            )
 
     @_log_to_run
     @_raise_if_finished
@@ -2755,6 +2797,8 @@ class Run:
 
         if self._run_status_checker is not None:
             self._run_status_checker.stop()
+
+        self._comm_stats_reporter.stop()
 
         self._console_stop()  # TODO: there's a race here with jupyter console logging
 

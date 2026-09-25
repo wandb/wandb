@@ -216,6 +216,7 @@ message Feature {
   bool eval_table = 77;                   // User logged an EvalTable via run.log()
   bool table = 78;                        // User logged a regular (non-incremental) wandb.Table via run.log()
   bool incremental_table = 79;            // User logged an incremental wandb.Table via run.log()
+  bool provenance_logs = 80;              // x_provenance wrote rank telemetry to run files
 }
 
 message Env {

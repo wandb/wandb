@@ -45,6 +45,12 @@ type uploader struct {
 	// Files explicitly requested to be uploaded at the end of the run.
 	uploadAtEnd map[paths.RelativePath]struct{}
 
+	// retryMu guards retryAtEnd; it is separate from stateMu because upload callbacks may run under stateMu.
+	retryMu sync.Mutex
+
+	// Files whose upload failed; UploadRemaining uploads them once more.
+	retryAtEnd map[paths.RelativePath]struct{}
+
 	// Whether 'Finish' was called.
 	isFinished bool
 
@@ -93,6 +99,7 @@ func newUploader(
 
 		knownFiles:  make(map[paths.RelativePath]*savedFile),
 		uploadAtEnd: make(map[paths.RelativePath]struct{}),
+		retryAtEnd:  make(map[paths.RelativePath]struct{}),
 
 		uploadWG: &sync.WaitGroup{},
 		stateMu:  &sync.Mutex{},
@@ -222,8 +229,33 @@ func (u *uploader) UploadRemaining() {
 	for k := range u.uploadAtEnd {
 		runPaths = append(runPaths, k)
 	}
+	u.retryMu.Lock()
+	for k := range u.retryAtEnd {
+		if _, ok := u.uploadAtEnd[k]; !ok {
+			runPaths = append(runPaths, k)
+		}
+	}
+	u.retryMu.Unlock()
 
 	u.uploadBatcher.Add(runPaths)
+}
+
+// retryAtFinish marks files whose upload failed so that UploadRemaining uploads them again.
+func (u *uploader) retryAtFinish(runPaths ...paths.RelativePath) {
+	u.retryMu.Lock()
+	defer u.retryMu.Unlock()
+	for _, p := range runPaths {
+		u.retryAtEnd[p] = struct{}{}
+	}
+}
+
+// clearRetry drops files from the retry set after they upload successfully.
+func (u *uploader) clearRetry(runPaths ...paths.RelativePath) {
+	u.retryMu.Lock()
+	defer u.retryMu.Unlock()
+	for _, p := range runPaths {
+		delete(u.retryAtEnd, p)
+	}
 }
 
 func (u *uploader) Finish() {
@@ -268,6 +300,8 @@ func (u *uploader) knownFile(runPath paths.RelativePath) *savedFile {
 			u.operations,
 			u.toRealPath(string(runPath)),
 			runPath,
+			u.retryAtFinish,
+			u.clearRetry,
 		)
 	}
 
@@ -332,6 +366,7 @@ func (u *uploader) upload(runPaths []paths.RelativePath) {
 				"runfiles",
 				fmt.Errorf("runfiles: CreateRunFiles returned error: %v", err),
 			)
+			u.retryAtFinish(runPaths...)
 			u.uploadWG.Add(-len(runPaths))
 			return
 		}
@@ -345,6 +380,7 @@ func (u *uploader) upload(runPaths []paths.RelativePath) {
 				"actual", len(createRunFilesResponse.CreateRunFiles.Files),
 				"expected", len(runPaths),
 			)
+			u.retryAtFinish(runPaths...)
 			u.uploadWG.Add(-len(runPaths))
 			return
 		}

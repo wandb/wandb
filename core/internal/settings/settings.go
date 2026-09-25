@@ -614,6 +614,31 @@ func (s *Settings) GetStatsTrackProcessTree() bool {
 	return s.Proto.XStatsTrackProcessTree.GetValue()
 }
 
+// Whether to write rank-to-GPU provenance and bound-GPU telemetry as run files.
+func (s *Settings) IsProvenance() bool {
+	return s.Proto.XProvenance.GetValue()
+}
+
+// Whether to attach NCCL flight recorder collective timings to provenance window records.
+func (s *Settings) IsProvenanceComm() bool {
+	return s.Proto.XProvenanceComm.GetValue()
+}
+
+// History key whose latest value is attached as `step` to provenance records.
+func (s *Settings) GetProvenanceStepMetric() string {
+	return s.Proto.XProvenanceStepMetric.GetValue()
+}
+
+// Seconds of ticks packed into one provenance window record; <= 0 flushes every tick.
+func (s *Settings) GetProvenanceFlushInterval() float64 {
+	return s.Proto.XProvenanceFlushInterval.GetValue()
+}
+
+// Seconds a provenance chunk stays open before it is sealed; 0 when unset.
+func (s *Settings) GetProvenanceChunkInterval() float64 {
+	return s.Proto.XProvenanceChunkInterval.GetValue()
+}
+
 // Whether to skip cgroup resource limits for system metric percentages.
 func (s *Settings) GetStatsNoCgroup() bool {
 	return s.Proto.XStatsNoCgroup.GetValue()

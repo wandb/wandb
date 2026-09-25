@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import gzip
+import json
 import pathlib
 import re
+import time
 from collections.abc import Callable
 from typing import cast
 
@@ -210,6 +213,60 @@ def test_syncs_run(
 
         files = snapshot.uploaded_files(run_id=run.id)
         assert "test_file.txt" in files
+
+
+def test_syncs_provenance_files(
+    wandb_backend_spy: WandbBackendSpy,
+    runner: CliRunner,
+):
+    _unauthenticate_for_test()
+
+    with wandb.init(
+        mode="offline",
+        settings=wandb.Settings(
+            console="wrap",
+            x_provenance=True,
+            x_provenance_comm=True,
+            x_provenance_flush_interval=0,
+        ),
+    ) as run:
+        # Publishes a comm status, so the exit seal writes a window even without /proc or a GPU.
+        run.log({"x": 1})
+        print("training output")
+        files_dir = pathlib.Path(run.settings.files_dir)
+        rank_dir = files_dir / "wandb-telemetry" / "v1" / "rank"
+        deadline = time.monotonic() + 60
+        while not any(rank_dir.glob("*.jsonl")):
+            assert time.monotonic() < deadline, "no rank object was written"
+            time.sleep(0.1)
+
+    written = {
+        p.relative_to(files_dir).as_posix()
+        for p in (files_dir / "wandb-telemetry").rglob("*")
+        if p.is_file()
+    }
+    result = runner.invoke(cli.beta, f"sync {run.sync_dir}")
+
+    assert result.exit_code == 0, result.output
+    with wandb_backend_spy.freeze() as snapshot:
+        uploaded = snapshot.uploaded_files(run_id=run.id)
+    assert written <= uploaded
+    assert not any(
+        "/chunks/" in name and not name.endswith(".jsonl.gz") for name in uploaded
+    )
+    chunks = sorted(p for p in written if "/chunks/" in p)
+    assert chunks, written
+    windows = [
+        json.loads(line)
+        for c in chunks
+        for line in gzip.decompress((files_dir / c).read_bytes()).splitlines()
+    ]
+    assert windows
+    assert all(w["kind"] == "window" for w in windows)
+    assert any("comm_status" in w for w in windows)
+    output_log = (files_dir / "output.log").read_text()
+    assert "training output" in output_log
+    assert '"kind":"window"' not in output_log
 
 
 def test_sync_reports_init_error(
