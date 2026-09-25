@@ -9,11 +9,12 @@ tests/system_tests/test_sweep/test_sweep_scheduler_e2e.py.
 from __future__ import annotations
 
 import abc
+import dataclasses
 import importlib.util
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from wandb.sdk.sweeps.run_state import RunState
@@ -765,8 +766,6 @@ class TestAxOptimizerAcceptance(OptimizerAcceptanceTests):
         runs: Sequence[RunWithMetrics],
     ) -> Sequence[str]:
         """Stub Ax's statistical early-stopping verdict to flag run one."""
-        from unittest.mock import patch
-
         with patch.object(
             optimizer.client,
             "should_stop_trial_early",
@@ -813,6 +812,349 @@ class TestAxOptimizerTermination(TerminatorContractTests):
         return AxOptimizer(client, make_scheduler_grid_sweep(), terminator), client
 
 
+RESUMABLE_SWEEP_CONFIG: dict[str, Any] = {
+    "metric": {"name": "loss", "goal": "minimize"},
+    "parameters": {"x": {"min": 0.0, "max": 1.0}},
+}
+
+
+class ResumableOptimizerAcceptanceTests(abc.ABC):
+    """Warm start resumes the trials a reloaded backend already holds.
+
+    Each test drives one optimizer, then rebuilds a second on the backend's
+    state reloaded from storage, as a restarted scheduler would.
+    """
+
+    @pytest.fixture
+    def sweep(self) -> SweepInfo:
+        return make_scheduler_grid_sweep(config=RESUMABLE_SWEEP_CONFIG)
+
+    @abc.abstractmethod
+    @pytest.fixture
+    def optimizer(self, sweep: SweepInfo) -> Optimizer:
+        """Return a fresh optimizer over `RESUMABLE_SWEEP_CONFIG`'s space."""
+        ...
+
+    @abc.abstractmethod
+    @pytest.fixture
+    def reload(self, sweep: SweepInfo) -> Callable[[Optimizer], Optimizer]:
+        """Return a callable rebuilding an optimizer from its stored state."""
+        ...
+
+    @abc.abstractmethod
+    def completed(self, optimizer: Optimizer) -> list[bool]:
+        """Return whether each of the backend's trials is complete."""
+        ...
+
+    @abc.abstractmethod
+    def add_foreign_running_trial(
+        self, optimizer: Optimizer, params: dict[str, Any]
+    ) -> str:
+        """Start a trial the sweep never asked for; return its run id."""
+        ...
+
+    @abc.abstractmethod
+    def trials_class(self) -> type:
+        """Return the class adapting the backend's trials for a resumer."""
+        ...
+
+    @pytest.fixture
+    def listed(self):
+        """Spy on the resumer listing every trial the backend holds."""
+        trials_class = self.trials_class()
+        with patch.object(
+            trials_class,
+            "existing",
+            autospec=True,
+            side_effect=trials_class.existing,
+        ) as existing:
+            yield existing
+
+    def test_the_backend_is_listed_once_and_only_by_warm_start(
+        self, optimizer: Optimizer, reload, listed
+    ) -> None:
+        """A large backend is not listed for a sweep with nothing to resume."""
+        suggestions = optimizer.ask_n_runs(2)
+        runs = [
+            dataclasses.replace(
+                make_run(suggestion, state=RunState.RUNNING, summary={}),
+                wandb_run_id=f"run-{i}",
+            )
+            for i, suggestion in enumerate(suggestions)
+        ]
+        for suggestion, run in zip(suggestions, runs, strict=True):
+            optimizer.tell_run(suggestion.run_id, run)
+
+        second = reload(optimizer)
+        assert listed.call_count == 0
+
+        warm_start(second, active=runs)
+        assert listed.call_count == 1
+
+    def test_a_warm_start_after_generation_does_not_list_the_backend(
+        self, optimizer: Optimizer, listed
+    ) -> None:
+        suggestion = next(iter(optimizer.ask_n_runs(1)))
+
+        warm_start(
+            optimizer,
+            active=[make_run(suggestion, state=RunState.RUNNING, summary={})],
+        )
+
+        assert listed.call_count == 0
+
+    def test_a_recorded_finished_run_is_not_added_again(
+        self, optimizer: Optimizer, reload
+    ) -> None:
+        suggestion = next(iter(optimizer.ask_n_runs(1)))
+        finished = make_run(suggestion, state=RunState.FINISHED, summary={"loss": 1.0})
+        optimizer.tell_run(suggestion.run_id, finished)
+
+        second = reload(optimizer)
+        warm_start(second, finished=[finished])
+
+        assert self.completed(second) == [True]
+
+    def test_a_warm_started_run_is_not_added_again(
+        self, optimizer: Optimizer, reload
+    ) -> None:
+        suggestion = RunSuggestion(
+            config=RunConfig.from_values({"x": 0.5}), run_id="unused"
+        )
+        finished = make_run(suggestion, state=RunState.FINISHED, summary={"loss": 1.0})
+        warm_start(optimizer, finished=[finished])
+
+        second = reload(optimizer)
+        warm_start(second, finished=[finished])
+
+        assert self.completed(second) == [True]
+
+    def test_an_active_run_resumes_its_running_trial(
+        self, optimizer: Optimizer, reload
+    ) -> None:
+        suggestion = next(iter(optimizer.ask_n_runs(1)))
+        running = make_run(
+            suggestion,
+            state=RunState.RUNNING,
+            summary={},
+            history=[{"loss": 3.0, "_step": 0}],
+        )
+        optimizer.tell_run(suggestion.run_id, running)
+
+        second = reload(optimizer)
+        adoptions = warm_start(second, active=[running])
+        second.tell_run(
+            adoptions[running.wandb_run_id],
+            make_run(suggestion, state=RunState.FINISHED, summary={"loss": 2.0}),
+        )
+
+        assert adoptions == {running.wandb_run_id: suggestion.run_id}
+        assert self.completed(second) == [True]
+
+    def test_an_unpolled_trial_is_matched_to_its_run_by_params(
+        self, optimizer: Optimizer, reload
+    ) -> None:
+        """A scheduler that stopped before the first poll never saw the run id."""
+        suggestion = next(iter(optimizer.ask_n_runs(1)))
+
+        second = reload(optimizer)
+        running = make_run(suggestion, state=RunState.RUNNING, summary={})
+        adoptions = warm_start(second, active=[running])
+
+        assert adoptions == {running.wandb_run_id: suggestion.run_id}
+        assert self.completed(second) == [False]
+
+    def test_a_run_that_finished_unwatched_completes_its_trial(
+        self, optimizer: Optimizer, reload
+    ) -> None:
+        suggestion = next(iter(optimizer.ask_n_runs(1)))
+        optimizer.tell_run(
+            suggestion.run_id,
+            make_run(suggestion, state=RunState.RUNNING, summary={}),
+        )
+
+        second = reload(optimizer)
+        warm_start(
+            second,
+            finished=[
+                make_run(suggestion, state=RunState.FINISHED, summary={"loss": 2.0})
+            ],
+        )
+
+        assert self.completed(second) == [True]
+
+    def test_an_active_run_whose_trial_finished_is_not_adopted(
+        self, optimizer: Optimizer, reload
+    ) -> None:
+        suggestion = next(iter(optimizer.ask_n_runs(1)))
+        running = make_run(suggestion, state=RunState.RUNNING, summary={})
+        optimizer.tell_run(suggestion.run_id, running)
+        optimizer.forget_run(suggestion.run_id)
+
+        second = reload(optimizer)
+
+        assert warm_start(second, active=[running]) == {}
+        assert self.completed(second) == [False]
+
+    def test_another_sources_running_trial_is_not_adopted(
+        self, optimizer: Optimizer, reload
+    ) -> None:
+        foreign_id = self.add_foreign_running_trial(optimizer, {"x": 0.5})
+
+        second = reload(optimizer)
+        running = make_run(
+            RunSuggestion(config=RunConfig.from_values({"x": 0.5}), run_id=""),
+            state=RunState.RUNNING,
+            summary={},
+        )
+        adoptions = warm_start(second, active=[running])
+
+        assert adoptions[running.wandb_run_id] != foreign_id
+
+
+class OptunaResumableAcceptanceTests(ResumableOptimizerAcceptanceTests):
+    """Stores the study in an optuna journal file, reloaded by study name."""
+
+    @pytest.fixture
+    def storage_path(self, tmp_path) -> str:
+        return str(tmp_path / "journal.log")
+
+    def load_study(self, storage_path: str) -> Any:
+        import optuna
+        from optuna.storages.journal import JournalFileBackend, JournalStorage
+
+        optuna.logging.set_verbosity(optuna.logging.WARNING)
+        storage = JournalStorage(JournalFileBackend(storage_path))
+        return optuna.create_study(
+            study_name="study",
+            storage=storage,
+            direction="minimize",
+            load_if_exists=True,
+        )
+
+    @abc.abstractmethod
+    def make_optimizer(self, study: Any, sweep: SweepInfo) -> Optimizer:
+        """Build this flavor's optimizer on `study`."""
+        ...
+
+    @pytest.fixture
+    def optimizer(self, sweep: SweepInfo, storage_path: str) -> Optimizer:
+        return self.make_optimizer(self.load_study(storage_path), sweep)
+
+    @pytest.fixture
+    def reload(self, sweep: SweepInfo, storage_path: str):
+        return lambda _: self.make_optimizer(self.load_study(storage_path), sweep)
+
+    def completed(self, optimizer: Optimizer) -> list[bool]:
+        import optuna
+
+        return [
+            trial.state == optuna.trial.TrialState.COMPLETE
+            for trial in optimizer.study.get_trials(deepcopy=False)
+        ]
+
+    def add_foreign_running_trial(
+        self, optimizer: Optimizer, params: dict[str, Any]
+    ) -> str:
+        import optuna
+
+        optimizer.study.enqueue_trial(params)
+        trial = optimizer.study.ask(
+            {"x": optuna.distributions.FloatDistribution(0.0, 1.0)}
+        )
+        return str(trial.number)
+
+    def trials_class(self) -> type:
+        from wandb.sdk.sweeps.scheduler.optuna import _StudyTrials
+
+        return _StudyTrials
+
+    def test_a_resumed_trial_keeps_its_reported_values(
+        self, optimizer: Optimizer, reload
+    ) -> None:
+        """A step reported before the restart is not reported again."""
+        suggestion = next(iter(optimizer.ask_n_runs(1)))
+        history = [{"loss": 3.0, "_step": 0}]
+        running = make_run(
+            suggestion, state=RunState.RUNNING, summary={}, history=history
+        )
+        optimizer.tell_run(suggestion.run_id, running)
+
+        second = reload(optimizer)
+        adoptions = warm_start(second, active=[running])
+        second.tell_run(
+            adoptions[running.wandb_run_id],
+            make_run(
+                suggestion,
+                state=RunState.FINISHED,
+                summary={"loss": 2.0},
+                history=[*history, {"loss": 2.0, "_step": 1}],
+            ),
+        )
+
+        (trial,) = second.study.get_trials(deepcopy=False)
+        assert trial.value == 2.0
+        assert trial.intermediate_values == {0: 3.0, 1: 2.0}
+
+
+class TestOptunaDeclarativeResumableAcceptance(OptunaResumableAcceptanceTests):
+    def make_optimizer(self, study: Any, sweep: SweepInfo) -> Optimizer:
+        import optuna
+        from wandb.sdk.sweeps.scheduler.optuna import OptunaDeclarativeOptimizer
+
+        distributions = {"x": optuna.distributions.FloatDistribution(0.0, 1.0)}
+        return OptunaDeclarativeOptimizer(study, distributions, sweep)
+
+
+class TestOptunaImperativeResumableAcceptance(OptunaResumableAcceptanceTests):
+    def make_optimizer(self, study: Any, sweep: SweepInfo) -> Optimizer:
+        from wandb.sdk.sweeps.scheduler.optuna import OptunaImperativeOptimizer
+
+        return OptunaImperativeOptimizer(
+            study, lambda trial: {"x": trial.suggest_float("x", 0.0, 1.0)}, sweep
+        )
+
+
+@requires_ax
+class TestAxResumableAcceptance(ResumableOptimizerAcceptanceTests):
+    """Saves the client to a JSON file, reloaded with `load_from_json_file`."""
+
+    @pytest.fixture
+    def optimizer(self, sweep: SweepInfo) -> Optimizer:
+        from wandb.sdk.sweeps.scheduler.ax import AxOptimizer, create_default_client
+
+        return AxOptimizer(create_default_client(RESUMABLE_SWEEP_CONFIG), sweep)
+
+    @pytest.fixture
+    def reload(self, sweep: SweepInfo, tmp_path):
+        from ax.api.client import Client
+        from wandb.sdk.sweeps.scheduler.ax import AxOptimizer
+
+        path = str(tmp_path / "client.json")
+
+        def reload(optimizer: Optimizer) -> Optimizer:
+            optimizer.client.save_to_json_file(path)
+            return AxOptimizer(Client.load_from_json_file(path), sweep)
+
+        return reload
+
+    def completed(self, optimizer: Optimizer) -> list[bool]:
+        from wandb.sdk.sweeps.scheduler.ax import _experiment
+
+        return [
+            trial.status.is_completed
+            for _, trial in sorted(_experiment(optimizer.client).trials.items())
+        ]
+
+    def add_foreign_running_trial(
+        self, optimizer: Optimizer, params: dict[str, Any]
+    ) -> str:
+        return str(optimizer.client.attach_trial(parameters=params))
+
+    def trials_class(self) -> type:
+        from wandb.sdk.sweeps.scheduler.ax import _ExperimentTrials
+
+        return _ExperimentTrials
 class TestLoadSourceObject:
     def test_loads_named_function(self, tmp_path: Path) -> None:
         source = tmp_path / "source.py"
