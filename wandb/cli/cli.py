@@ -16,8 +16,9 @@ import tempfile
 import textwrap
 import time
 import traceback
+from collections.abc import Callable
 from functools import wraps
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 import click
 import yaml
@@ -45,6 +46,13 @@ from wandb.sdk.lib.filenames import DIFF_FNAME
 from wandb.sdk.lib.hashutil import md5_file_b64
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 from wandb.sdk.sweeps import SweepNotFoundError
+
+if TYPE_CHECKING:
+    from wandb.sdk.sweeps.scheduler.ax import AxOptimizer
+    from wandb.sdk.sweeps.scheduler.optimizer import Optimizer
+    from wandb.sdk.sweeps.scheduler.optuna import OptunaOptimizer
+    from wandb.sdk.sweeps.scheduler.wandb import WandbOptimizer
+    from wandb.sdk.sweeps.sweep_info import SweepInfo
 
 from .beta import beta
 from .clean import clean
@@ -2004,45 +2012,52 @@ def _load_source_object(source: str, name: str) -> Any:
         raise ClickException(f"{source} has no attribute {name!r}") from None
 
 
-def _load_optimizer_config(source: str, name: str) -> tuple[Any, Any | None]:
+def _load_optimizer_config(
+    source: str, name: str
+) -> tuple[Any, Callable[[Any], bool] | None]:
     """Run a configured optimizer factory and normalize its return value.
 
     The factory may return either the engine's native optimizer object or an
     `(optimizer, terminator)` tuple. A terminator, when present, must be
     callable.
     """
-    configured = _load_source_object(source, name)()
+    configured: object = _load_source_object(source, name)()
     if not isinstance(configured, tuple):
         return configured, None
-    if len(configured) != 2:
+    parts = cast("tuple[object, ...]", configured)
+    if len(parts) != 2:
         raise ClickException(
             f"scheduler.optimizer {name!r} must return an optimizer object "
             "or an (optimizer, terminator) tuple."
         )
-    optimizer, terminator = configured
+    optimizer, terminator = parts
     if terminator is not None and not callable(terminator):
         raise ClickException(
             f"The terminator returned by scheduler.optimizer "
             f"{name!r} must be callable or None."
         )
-    return optimizer, terminator
+    # Only callability can be checked; the signature is the user's contract.
+    return optimizer, cast("Callable[[Any], bool] | None", terminator)
 
 
-def _build_optuna_scheduler_optimizer(sweep, scheduler_config: dict):
+def _build_optuna_scheduler_optimizer(
+    sweep: SweepInfo, scheduler_config: dict[str, Any]
+) -> OptunaOptimizer:
     """Build the optimizer for a sweep whose `scheduler.engine` is `optuna`.
 
     `scheduler.optimizer` names a zero-argument function in
     `scheduler.source`. The function may return either an Optuna `Study` or
-    a `(Study, terminator)` tuple. The optional terminator is called with the
-    study after each generation; returning `True` finishes the sweep.
+    a `(Study, terminator)` tuple. A terminator is a one-argument function
+    that receives the study after each generation and finishes the sweep by
+    returning `True`, such as `optuna.terminator.Terminator().should_terminate`.
     """
     # Importing the module lazily surfaces a helpful error when optuna isn't
     # installed, and keeps the wandb path free of that dependency.
     from wandb.sdk.sweeps.scheduler import optuna as optuna_scheduler
 
-    optimizer_name = scheduler_config.get("optimizer", "")
-    search_space_name = scheduler_config.get("search_space")
-    source = scheduler_config.get("source", "")
+    optimizer_name: str = scheduler_config.get("optimizer", "")
+    search_space_name: str | None = scheduler_config.get("search_space")
+    source: str = scheduler_config.get("source", "")
 
     # `search_space` picks how the parameter space is defined: when given,
     # the loaded function is the define-by-run trial constructor; otherwise
@@ -2075,20 +2090,23 @@ def _build_optuna_scheduler_optimizer(sweep, scheduler_config: dict):
     )
 
 
-def _build_ax_scheduler_optimizer(sweep, scheduler_config: dict):
+def _build_ax_scheduler_optimizer(
+    sweep: SweepInfo, scheduler_config: dict[str, Any]
+) -> AxOptimizer:
     """Build the optimizer for a sweep whose `scheduler.engine` is `ax`.
 
     `scheduler.optimizer` names a zero-argument function in
     `scheduler.source`. The function may return either an Ax `Client` or a
-    `(Client, terminator)` tuple. The optional terminator is called with the
-    client after each generation; returning `True` finishes the sweep.
+    `(Client, terminator)` tuple. A terminator is a one-argument function
+    that receives the client after each generation and finishes the sweep by
+    returning `True`.
     """
     # Importing the module lazily surfaces a helpful error when Ax isn't
     # installed, and keeps the wandb path free of that dependency.
     from wandb.sdk.sweeps.scheduler import ax as ax_scheduler
 
-    optimizer_name = scheduler_config.get("optimizer", "")
-    source = scheduler_config.get("source", "")
+    optimizer_name: str = scheduler_config.get("optimizer", "")
+    source: str = scheduler_config.get("source", "")
 
     if scheduler_config.get("search_space") is not None:
         wandb.termwarn("search_space config is not supported by the Ax engine.")
@@ -2101,7 +2119,9 @@ def _build_ax_scheduler_optimizer(sweep, scheduler_config: dict):
     return ax_scheduler.AxOptimizer(client, sweep, terminator)
 
 
-def _build_wandb_scheduler_optimizer(sweep, scheduler_config: dict):
+def _build_wandb_scheduler_optimizer(
+    sweep: SweepInfo, scheduler_config: dict[str, Any]
+) -> WandbOptimizer:
     """Build the optimizer for a sweep whose `scheduler.engine` is `wandb`."""
     search_space = scheduler_config.get("search_space")
     optimizer = scheduler_config.get("optimizer")
@@ -2109,8 +2129,6 @@ def _build_wandb_scheduler_optimizer(sweep, scheduler_config: dict):
         wandb.termwarn("optimizer config is not supported by the wandb engine.")
     if search_space is not None:
         wandb.termwarn("search_space config is not supported by the wandb engine.")
-    if scheduler_config.get("terminator") is not None:
-        wandb.termwarn("terminator config is not supported by the wandb engine.")
 
     from wandb.sdk.sweeps.scheduler import wandb as wandb_scheduler
 
@@ -2139,12 +2157,12 @@ def _build_wandb_scheduler_optimizer(sweep, scheduler_config: dict):
 @click.argument("sweep_id")
 @display_error
 def sweep_scheduler(
-    entity,
-    project,
-    batch_size,
-    poll_interval,
-    sweep_id,
-):
+    entity: str | None,
+    project: str | None,
+    batch_size: int,
+    poll_interval: float,
+    sweep_id: str,
+) -> None:
     """Drive an existing sweep with a locally chosen search strategy.
 
     Create the sweep first with `wandb sweep sweep.yaml`; its config must
@@ -2156,11 +2174,12 @@ def sweep_scheduler(
     For Optuna, `scheduler.source` names a Python file and
     `scheduler.optimizer` names a zero-argument function in that file. The
     function must return either an Optuna `Study` or a `(Study, terminator)`
-    tuple. A terminator receives the study after each generation and ends the
-    sweep by returning `True`.
+    tuple. A terminator is a one-argument function that receives the study
+    after each generation and ends the sweep by returning `True`, such as
+    `optuna.terminator.Terminator().should_terminate`.
 
     The Ax form is equivalent: its function returns either an Ax `Client` or
-    a `(Client, terminator)` tuple.
+    a `(Client, terminator)` tuple, and its terminator receives the client.
     """
     if batch_size < 1:
         wandb.termerror("--batch-size must be at least 1")
@@ -2185,11 +2204,11 @@ def sweep_scheduler(
 
     from wandb.sdk.sweeps.scheduler import client
 
-    def make_optimizer(sweep):
+    def make_optimizer(sweep: SweepInfo) -> Optimizer:
         # The local scheduler only drives sweeps that opted out of
         # server-side search, which the `scheduler.engine` block records.
-        scheduler_config = sweep.config.get("scheduler") or {}
-        engine = scheduler_config.get("engine")
+        scheduler_config: dict[str, Any] = sweep.config.get("scheduler") or {}
+        engine: str | None = scheduler_config.get("engine")
         if engine == "wandb":
             return _build_wandb_scheduler_optimizer(sweep, scheduler_config)
         if engine == "optuna":
