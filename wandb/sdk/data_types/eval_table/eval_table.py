@@ -154,7 +154,6 @@ class EvalTable(Table):
             if backend is not None
             else None
         )
-        self._needs_writer_validation = self._writer is None
         self._unsupported_media_mode = unsupported_media_mode
 
         self._input_columns = list(input_columns or [])
@@ -252,9 +251,7 @@ class EvalTable(Table):
                 "bound to."
             )
 
-        if self._needs_writer_validation:
-            self._validate_cells_for_writer(writer)
-            self._needs_writer_validation = False
+        self._validate_cells_for_writer(writer)
 
         if self._immutable_write_result is not None:
             self._warn_immutable_already_logged()
