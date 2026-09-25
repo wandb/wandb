@@ -1,0 +1,118 @@
+//! The runs sidebar: every run in the directory, newest first, one page at
+//! a time, with its selection mark, pin, and state.
+
+use gpui::prelude::*;
+use gpui::{Context, Div, MouseButton, Stateful, div, px};
+
+use crate::run::RunState;
+use crate::theme;
+use crate::workspace::{Pane, Workspace, pane_header, wheel_lines};
+
+pub const ROW_HEIGHT: f32 = 22.;
+
+pub fn render_runs(
+    workspace: &Workspace,
+    width: gpui::Pixels,
+    cx: &mut Context<Workspace>,
+) -> Stateful<Div> {
+    let visible = workspace.visible();
+    let focused = workspace.focus == Pane::Runs;
+    let paged = &workspace.runs_paged;
+    let header = format!(
+        "runs {}/{}  {}",
+        visible.len(),
+        workspace.runs.len(),
+        paged.label(workspace.cursor, visible.len())
+    );
+    let range = paged.range(workspace.cursor, visible.len());
+    div()
+        .id("runs")
+        .w(width)
+        .h_full()
+        .overflow_hidden()
+        .flex()
+        .flex_col()
+        .border_r_1()
+        .border_color(if focused {
+            theme::focus()
+        } else {
+            theme::border()
+        })
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(|workspace, _, _, cx| {
+                workspace.focus = Pane::Runs;
+                cx.notify();
+            }),
+        )
+        .child(pane_header(header, &workspace.filters.runs, focused))
+        .child(
+            div()
+                .flex_1()
+                .flex()
+                .flex_col()
+                .on_scroll_wheel(cx.listener(|workspace, event, _, cx| {
+                    if let Some(delta) = wheel_lines(event) {
+                        workspace.turn_list_page(Pane::Runs, delta);
+                        cx.notify();
+                    }
+                }))
+                .children(range.map(|pos| render_run_row(workspace, visible[pos], pos, cx))),
+        )
+}
+
+pub fn state_glyph(state: RunState) -> (&'static str, gpui::Hsla) {
+    match state {
+        RunState::Unknown => ("", theme::muted()),
+        RunState::Loading => ("…", theme::muted()),
+        RunState::Running => ("▶", theme::accent()),
+        RunState::Finished => ("✓", theme::muted()),
+        RunState::Failed => ("✗", theme::failed()),
+    }
+}
+
+fn render_run_row(
+    workspace: &Workspace,
+    ix: usize,
+    pos: usize,
+    cx: &mut Context<Workspace>,
+) -> Stateful<Div> {
+    let run = &workspace.runs[ix];
+    let selected = workspace.selected.contains(&run.dir.dir_name);
+    let pinned = workspace.pinned.as_deref() == Some(run.dir.dir_name.as_str());
+    let mark = match (pinned, selected) {
+        (true, _) => "▶",
+        (false, true) => "●",
+        (false, false) => "○",
+    };
+    let mark_color = if selected || pinned {
+        theme::run_color(run.color)
+    } else {
+        theme::muted()
+    };
+    let (state, state_color) = state_glyph(run.state);
+    div()
+        .id(pos)
+        .w_full()
+        .h(px(ROW_HEIGHT))
+        .px_2()
+        .flex()
+        .items_center()
+        .gap_2()
+        .when(pos == workspace.cursor, |row| row.bg(theme::cursor()))
+        .on_click(cx.listener(move |workspace, _, _, cx| {
+            workspace.focus = Pane::Runs;
+            workspace.set_cursor(pos);
+            cx.notify();
+        }))
+        .child(div().text_color(mark_color).child(mark))
+        .child(
+            div()
+                .flex_1()
+                .overflow_hidden()
+                .whitespace_nowrap()
+                .text_ellipsis()
+                .child(run.name.clone()),
+        )
+        .child(div().text_color(state_color).child(state))
+}
