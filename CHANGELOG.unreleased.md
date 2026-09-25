@@ -28,6 +28,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Fixed
 
+- `wandb.init` no longer derives a malformed project name (e.g. `repo-.._repo2`) when the program lives in a sibling directory that shares a path prefix with the repository (@betacatsling in https://github.com/wandb/wandb/issues/12817)
 - Changing system metrics grid rows or columns in LEET, including `wandb leet symon`, no longer crashes and takes effect immediately without waiting for new data (@dmitryduev in https://github.com/wandb/wandb/pull/12763)
 - `wandb beta sync` no longer overwrites the earlier history of a resumed run when the backend reports a stale step. The starting step is now reconciled against the summary `_step`, the history tail `_step`, and the history row count (@geoffhardy in https://github.com/wandb/wandb/pull/12668)
 - Fixed a memory leak where every `wandb.Api()` object permanently retained a few MiB in the background service process after it was garbage collected (@dmitryduev in https://github.com/wandb/wandb/pull/12920)
