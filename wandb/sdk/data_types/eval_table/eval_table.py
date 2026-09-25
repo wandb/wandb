@@ -98,9 +98,9 @@ class EvalTable(Table):
             score_columns: Names of the score columns.
                 These represent derived scores for the outputs. By default, we will
                 auto-summarize any numeric and boolean scores.
-            backend: Optional storage-backend override. If omitted, CES is used when
-                the bound run's server advertises EvalTable support. Pass "weave" to
-                use the Weave backend instead. All backends require server support.
+            backend: Optional storage-backend override. CES is the default. Pass "weave"
+                to use the Weave backend from the private preview phase which will be
+                removed soon.
             unsupported_media_mode: How to handle unsupported wandb media/value types.
                 - "stub" (default): log unsupported values as short placeholder strings
                   like "[wandb.Html not yet supported]". (This is a temporary flag
