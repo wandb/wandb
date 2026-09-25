@@ -16,6 +16,7 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
     RunConfig,
     RunSuggestion,
     RunWithMetrics,
+    is_terminal_state,
 )
 from wandb.sdk.sweeps.scheduler.resumable import ResumableTrials, TrialResumer
 from wandb.sdk.sweeps.sweep_info import SweepInfo
@@ -58,7 +59,8 @@ class OptunaOptions:
     sweep's trials: each trial records its W&B run id as the
     `wandb_run_id` user attr. Warm start resumes those trials rather than
     adding the sweep's runs again, and adopts in-flight runs onto their
-    still-running trials.
+    still-running trials. A study on `InMemoryStorage` can't be reloaded,
+    so its trials are neither labeled nor resumed.
 
     `terminator` decides when the search itself is exhausted -- e.g.
     wrapping optuna's or OptunaHub's `Terminator.should_terminate`, or any
@@ -257,18 +259,7 @@ class _StudyTrials(ResumableTrials["optuna.trial.FrozenTrial"]):
 
     @override
     def adopt_new(self, data: Run) -> str:
-        """Enqueue the run's params and ask for the trial fixed to them.
-
-        _ask_suggestion also handles the imperative conditional branch. The
-        trial is left RUNNING -- not told -- so the loop reports its
-        intermediate values for pruning and finalizes it via tell_run when
-        the run completes.
-        """
-        self._optimizer.study.enqueue_trial(data.config.flat_dict())
-        # Asks directly rather than through ask_n_runs: the enqueued params
-        # are fixed, so they cost the search nothing and an exhausted space
-        # must still adopt the run rather than leave it untracked.
-        return self._optimizer._ask_suggestion().run_id
+        return self._optimizer._adopt_new(data)
 
 
 class OptunaOptimizer(Optimizer):
@@ -301,12 +292,16 @@ class OptunaOptimizer(Optimizer):
 
         super().__init__(sweep)
 
-        self._resumer = TrialResumer(sweep, _StudyTrials(self), self.tell_run)
+        # An in-memory study can't be reloaded, so there is nothing to resume.
+        self._resumer: TrialResumer | None = None
+        if not isinstance(study._storage, optuna.storages.InMemoryStorage):
+            self._resumer = TrialResumer(sweep, _StudyTrials(self), self.tell_run)
 
     def _release(self, run_id: str) -> optuna.Trial | None:
         """Stop tracking a live trial, returning it if it was tracked."""
         self._last_reported_step.pop(run_id, None)
-        self._resumer.unlink(run_id)
+        if self._resumer is not None:
+            self._resumer.unlink(run_id)
         return self.trials.pop(run_id, None)
 
     @property
@@ -373,7 +368,8 @@ class OptunaOptimizer(Optimizer):
         """
         run_id = str(trial.number)
         self.trials[run_id] = trial
-        self._resumer.label_new(run_id)
+        if self._resumer is not None:
+            self._resumer.label_new(run_id)
         return RunSuggestion(config=RunConfig.from_values(params), run_id=run_id)
 
     @override
@@ -387,7 +383,8 @@ class OptunaOptimizer(Optimizer):
             n: The maximum number of runs to propose.
         """
         # Warm start is over once the scheduler asks for new runs.
-        self._resumer.end_warm_start()
+        if self._resumer is not None:
+            self._resumer.end_warm_start()
         suggestions = []
         for _ in range(n):
             if self._search_is_exhausted():
@@ -500,25 +497,12 @@ class OptunaOptimizer(Optimizer):
         trial = self.trials.get(run_id)
         if trial is None:
             return
-        self._resumer.link(run_id, data.wandb_run_id)
+        if self._resumer is not None:
+            self._resumer.link(run_id, data.wandb_run_id)
         # optuna's intermediate values feed its pruners, which are
         # single-objective only, so a multi-objective study rejects them.
         if not self._is_multi_objective:
-            last = self._last_reported_step.get(run_id, -1)
-            for row in data.history_metrics:
-                if "_step" not in row:
-                    raise ValueError(
-                        "Sampled history is missing '_step'; cannot report "
-                        "intermediate values for pruning/early-termination."
-                    )
-                step = row["_step"]
-                if step <= last:
-                    continue
-                value = self.metric_value(row)
-                if value is not None:
-                    trial.report(value, step=step)
-                    last = step
-            self._last_reported_step[run_id] = last
+            self._report_intermediate_values(run_id, trial, data)
 
         state = self.trial_state(data.state)
         if state == optuna.trial.TrialState.COMPLETE:
@@ -541,6 +525,26 @@ class OptunaOptimizer(Optimizer):
         # The study now owns the trial's outcome; drop the live handle so a
         # repeated terminal tell cannot finalize it twice.
         self._release(run_id)
+
+    def _report_intermediate_values(
+        self, run_id: str, trial: optuna.Trial, data: RunWithMetrics
+    ) -> None:
+        """Report the history steps past the trial's last reported step."""
+        last = self._last_reported_step.get(run_id, -1)
+        for row in data.history_metrics:
+            if "_step" not in row:
+                raise ValueError(
+                    "Sampled history is missing '_step'; cannot report "
+                    "intermediate values for pruning/early-termination."
+                )
+            step = row["_step"]
+            if step <= last:
+                continue
+            value = self.metric_value(row)
+            if value is not None:
+                trial.report(value, step=step)
+                last = step
+        self._last_reported_step[run_id] = last
 
     @override
     def forget_run(self, run_id: Any) -> None:
@@ -587,6 +591,8 @@ class OptunaOptimizer(Optimizer):
             The trial number to track the run by, or None if the study
             already finished the run's trial.
         """
+        if self._resumer is None:
+            return self._adopt_new(data)
         return self._resumer.tell_existing_active_run(data)
 
     @override
@@ -596,7 +602,25 @@ class OptunaOptimizer(Optimizer):
         A study the caller persisted may already hold the run's trial; see
         `TrialResumer.tell_existing_finished_run`.
         """
+        if self._resumer is None:
+            if is_terminal_state(data.state):
+                self._add_finished_trial(data)
+            return
         self._resumer.tell_existing_finished_run(data)
+
+    def _adopt_new(self, data: Run) -> str:
+        """Enqueue the run's params and ask for the trial fixed to them.
+
+        _ask_suggestion also handles the imperative conditional branch. The
+        trial is left RUNNING -- not told -- so the loop reports its
+        intermediate values for pruning and finalizes it via tell_run when
+        the run completes.
+        """
+        self.study.enqueue_trial(data.config.flat_dict())
+        # Asks directly rather than through ask_n_runs: the enqueued params
+        # are fixed, so they cost the search nothing and an exhausted space
+        # must still adopt the run rather than leave it untracked.
+        return self._ask_suggestion().run_id
 
     @abstractmethod
     def _add_finished_trial(self, data: RunWithMetrics) -> None:
@@ -652,7 +676,11 @@ class OptunaDeclarativeOptimizer(OptunaOptimizer):
                 distributions=self.distributions,
                 values=values,
                 state=trial_state,
-                user_attrs=self._resumer.run_labels(data.wandb_run_id),
+                user_attrs=(
+                    self._resumer.run_labels(data.wandb_run_id)
+                    if self._resumer is not None
+                    else None
+                ),
             )
         )
 
