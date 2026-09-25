@@ -478,7 +478,11 @@ class TerminatorContractTests(abc.ABC):
 
     @abc.abstractmethod
     def make_optimizer(self, terminator: Any = None) -> tuple[Optimizer, Any]:
-        """Return an optimizer built with `terminator` and the callback's arg."""
+        """Build an optimizer with `terminator`.
+
+        Returns:
+            The optimizer and the argument its terminator is called with.
+        """
         ...
 
     def test_no_terminator_never_terminates(self) -> None:
