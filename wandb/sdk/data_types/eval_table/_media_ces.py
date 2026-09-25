@@ -93,7 +93,7 @@ def _committed_artifact_ref_url(media: Media) -> str | None:
 
 # Only unbound media may enter the EvalTable run-file namespace. Callers preserve
 # committed artifact references and copy cross-run media before binding.
-def _bind_eval_table_media_to_run(
+def _ensure_eval_table_run_file(
     media: Media,
     run: Run,
     eval_table_key: str,
