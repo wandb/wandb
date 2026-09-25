@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
-from dataclasses import dataclass, field
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import TYPE_CHECKING, Any, Literal, TypeAlias
 
 from typing_extensions import override
@@ -14,8 +13,8 @@ from wandb.sdk.sweeps.scheduler.optimizer import (
     RunConfig,
     RunSuggestion,
     RunWithMetrics,
-    is_terminal_state,
 )
+from wandb.sdk.sweeps.scheduler.resumable import ResumableTrials, TrialResumer
 from wandb.sdk.sweeps.sweep_info import SweepInfo
 
 if TYPE_CHECKING:
@@ -31,28 +30,6 @@ else:
     )
 
 TerminatorCallback: TypeAlias = Callable[["ax.Client"], bool]
-
-# Trial run metadata linking an experiment's trials to the sweep, so a client
-# the caller persisted and reloaded is resumed on warm start, not refilled.
-# Always written, unlike Optuna's: they only add ~6% to a trial's memory.
-_SWEEP_KEY = "wandb_sweep"
-_WANDB_RUN_ID_KEY = "wandb_run_id"
-
-# A claimed persisted trial that already finished, so its run has nothing
-# left to tell.
-_FINISHED = object()
-
-
-@dataclass
-class _PersistedIndex:
-    """Trial indices of the trials a reloaded client holds for the sweep."""
-
-    # W&B run id to the index of its still-running trial.
-    running_by_run: dict[str, int] = field(default_factory=dict)
-    # W&B run ids whose trial already finished.
-    finished_runs: set[str] = field(default_factory=set)
-    # Indices of the sweep's running trials no run was seen for yet.
-    unlinked_running: list[int] = field(default_factory=list)
 
 
 def _is_int(value: Any) -> bool:
@@ -285,6 +262,82 @@ def _experiment_objectives(client: ax.Client) -> list[tuple[str, bool]]:
     return [(name, weight < 0) for name, weight in weights]
 
 
+class _ExperimentTrials(ResumableTrials[Any]):
+    """An Ax experiment's trials, keyed by the run id of their trial index."""
+
+    def __init__(self, optimizer: AxOptimizer):
+        self._optimizer = optimizer
+
+    def _trials(self) -> dict[int, Any]:
+        return _experiment(self._optimizer.client).trials
+
+    @override
+    def existing(self) -> Iterable[Any]:
+        # The client holds its whole experiment in memory; its trials are
+        # read in place, uncopied.
+        return self._trials().values()
+
+    @override
+    def run_id(self, trial: Any) -> int:
+        return trial.index
+
+    @override
+    def labels(self, trial: Any) -> Mapping[str, Any]:
+        return trial.run_metadata
+
+    @override
+    def is_running(self, trial: Any) -> bool:
+        from ax.core.base_trial import TrialStatus
+
+        return trial.status == TrialStatus.RUNNING
+
+    @override
+    def label(self, run_id: Any, labels: dict[str, Any]) -> None:
+        self._trials()[int(run_id)].update_run_metadata(labels)
+
+    @override
+    def matches(self, run_id: Any, config: dict[str, Any]) -> bool:
+        arm = getattr(self._trials()[int(run_id)], "arm", None)
+        params = self._optimizer._search_space_params(config)
+        return arm is not None and params is not None and arm.parameters == params
+
+    @override
+    def resume(self, run_id: Any) -> int:
+        """Track a running trial again; Ax keeps its attached data."""
+        return int(run_id)
+
+    @override
+    def add_finished(self, data: RunWithMetrics) -> None:
+        """Attach a run's config as a manually-chosen arm and finalize it.
+
+        Runs whose config doesn't cover the experiment's search space, or
+        finished runs that never logged the objective, are skipped.
+        """
+        optimizer = self._optimizer
+        if (
+            data.state == RunState.FINISHED
+            and optimizer.objective_values(data.summary_metrics) is None
+        ):
+            return
+        params = optimizer._search_space_params(data.config.flat_dict())
+        if params is None:
+            return
+        optimizer.tell_run(optimizer._attach(params), data)
+
+    @override
+    def adopt_new(self, data: Run) -> int | None:
+        """Attach a run's config as a new trial, left running.
+
+        The loop finalizes the trial via `tell_run` when the run reaches a
+        terminal state. A run whose config doesn't cover the search space is
+        left untracked.
+        """
+        params = self._optimizer._search_space_params(data.config.flat_dict())
+        if params is None:
+            return None
+        return self._optimizer._attach(params)
+
+
 class AxOptimizer(Optimizer):
     """`Optimizer` driven by an Ax experiment via its ask/tell `Client`.
 
@@ -315,94 +368,20 @@ class AxOptimizer(Optimizer):
         # trials this optimizer already completed, failed or stopped: the
         # scheduler may legitimately repeat a terminal tell or a prune.
         self._finalized: set[int] = set()
-        # Trials already stamped with their W&B run id.
-        self._linked: set[int] = set()
         super().__init__(sweep)
 
-        self._sweep_path = f"{sweep.entity}/{sweep.project}/{sweep.id}"
-        # Built on the first warm-start call and dropped once generation
-        # starts; see `_index_persisted_trials`.
-        self._warm_start_over = False
-        self._persisted_index: _PersistedIndex | None = None
-
-    def _index_persisted_trials(self) -> _PersistedIndex:
-        """Index the trials a caller's client already holds for this sweep.
-
-        Only trial indices are kept, never the trials: linked trials by W&B
-        run id, and running trials this sweep asked for but never saw
-        polled, which carry no run id yet and are matched to their run by
-        params.
-        """
-        from ax.core.base_trial import TrialStatus
-
-        index = _PersistedIndex()
-        # The client holds its whole experiment in memory; its trials are
-        # read in place, uncopied.
-        for trial in _experiment(self.client).trials.values():
-            wandb_run_id = trial.run_metadata.get(_WANDB_RUN_ID_KEY)
-            running = trial.status == TrialStatus.RUNNING
-            if wandb_run_id is not None:
-                if running:
-                    index.running_by_run[wandb_run_id] = trial.index
-                else:
-                    index.finished_runs.add(wandb_run_id)
-            elif running and trial.run_metadata.get(_SWEEP_KEY) == self._sweep_path:
-                index.unlinked_running.append(trial.index)
-        return index
-
-    def _claim_persisted_trial(self, data: Run) -> Any:
-        """Take the client's existing trial for a warm-start run.
-
-        Returns:
-            The index of the run's still-running trial, `_FINISHED` if its
-            trial already finished, or None if the client has none.
-        """
-        if self._warm_start_over:
-            return None
-        if self._persisted_index is None:
-            self._persisted_index = self._index_persisted_trials()
-        index = self._persisted_index
-        if data.wandb_run_id in index.finished_runs:
-            index.finished_runs.discard(data.wandb_run_id)
-            return _FINISHED
-        trial_index = index.running_by_run.pop(data.wandb_run_id, None)
-        if trial_index is not None or not index.unlinked_running:
-            return trial_index
-        params = self._search_space_params(data.config.flat_dict())
-        if params is None:
-            return None
-        trials = _experiment(self.client).trials
-        for i, candidate in enumerate(index.unlinked_running):
-            arm = getattr(trials[candidate], "arm", None)
-            if arm is not None and arm.parameters == params:
-                return index.unlinked_running.pop(i)
-        return None
-
-    def _end_warm_start(self) -> None:
-        """Drop the warm-start index; later runs are the scheduler's own."""
-        self._warm_start_over = True
-        self._persisted_index = None
-
-    def _stamp(self, trial_index: int, metadata: dict[str, Any]) -> None:
-        """Merge sweep bookkeeping into a trial's run metadata."""
-        _experiment(self.client).trials[trial_index].update_run_metadata(metadata)
-
-    def _link(self, trial_index: int, wandb_run_id: str) -> None:
-        """Record a trial's W&B run id in its run metadata, once."""
-        if trial_index in self._linked or not wandb_run_id:
-            return
-        self._stamp(trial_index, {_WANDB_RUN_ID_KEY: wandb_run_id})
-        self._linked.add(trial_index)
+        # Always on: labels add only ~6% memory; JSON saves can't be detected.
+        self._resumer = TrialResumer(sweep, _ExperimentTrials(self), self.tell_run)
 
     def _finalize(self, trial_index: int) -> None:
         """Record that a trial got its outcome and is no longer tracked."""
         self._finalized.add(trial_index)
-        self._linked.discard(trial_index)
+        self._resumer.unlink(trial_index)
 
     def _attach(self, params: dict[str, Any]) -> int:
         """Attach a run's params as a new trial owned by this sweep."""
         trial_index = self.client.attach_trial(parameters=params)
-        self._stamp(trial_index, {_SWEEP_KEY: self._sweep_path})
+        self._resumer.label_new(trial_index)
         return trial_index
 
     @override
@@ -457,7 +436,7 @@ class AxOptimizer(Optimizer):
         from ax.exceptions.generation_strategy import MaxParallelismReachedException
 
         # Warm start is over once the scheduler asks for new runs.
-        self._end_warm_start()
+        self._resumer.end_warm_start()
         try:
             trials = self.client.get_next_trials(max_trials=n)
         except (DataRequiredError, MaxParallelismReachedException):
@@ -470,7 +449,7 @@ class AxOptimizer(Optimizer):
             # strategy fired, or the generation strategy completed.
             return []
         for trial_index in trials:
-            self._stamp(trial_index, {_SWEEP_KEY: self._sweep_path})
+            self._resumer.label_new(trial_index)
         return [
             RunSuggestion(
                 config=RunConfig.from_values(dict(parameters)),
@@ -493,7 +472,7 @@ class AxOptimizer(Optimizer):
         trial_index = int(run_id)
         if trial_index in self._finalized:
             return
-        self._link(trial_index, data.wandb_run_id)
+        self._resumer.link(trial_index, data.wandb_run_id)
         if data.state.is_alive:
             # RUNNING/PENDING/PREEMPTING/UNKNOWN: still producing results.
             self._attach_latest_progression(trial_index, data)
@@ -574,64 +553,28 @@ class AxOptimizer(Optimizer):
 
     @override
     def tell_existing_finished_run(self, data: RunWithMetrics) -> None:
-        """Warm-start the experiment by attaching an existing run as a trial.
+        """Warm-start the experiment with a run that already stopped.
 
-        A client the caller persisted may already hold the run's trial. A
-        finished one is left as is; a running one -- the run ended while no
-        scheduler watched it -- is finalized with the run's result.
-
-        Otherwise the run's config is attached as a manually-chosen arm and
-        then finalized via `tell_run`. Runs whose config doesn't cover the
-        experiment's search space, or finished runs that never logged the
-        objective, are skipped.
+        A client the caller persisted may already hold the run's trial; see
+        `TrialResumer.tell_existing_finished_run`. Otherwise the run's config
+        is attached as a manually-chosen arm and finalized via `tell_run`.
         """
-        if not is_terminal_state(data.state):
-            return
-        claimed = self._claim_persisted_trial(data)
-        if claimed is not None:
-            if claimed is not _FINISHED:
-                self.tell_run(claimed, data)
-            return
-        if (
-            data.state == RunState.FINISHED
-            and self.objective_values(data.summary_metrics) is None
-        ):
-            return
-        params = self._search_space_params(data.config.flat_dict())
-        if params is None:
-            return
-        self.tell_run(self._attach(params), data)
+        self._resumer.tell_existing_finished_run(data)
 
     @override
     def tell_existing_active_run(self, data: Run) -> Any:
         """Adopt an in-flight run, resuming its trial if the client has one.
 
-        A client the caller persisted may already hold the run's trial. A
-        running one is tracked again under its own index; a finished one
-        already records the run's outcome, so the run is left untracked
-        rather than duplicated.
-
-        Otherwise the run's config is attached as a new trial. The trial is
-        left running — not completed — so the loop finalizes it via `tell_run`
-        when the run reaches a terminal state.
+        A client the caller persisted may already hold the run's trial; see
+        `TrialResumer.tell_existing_active_run`. Otherwise the run's config is
+        attached as a new trial, left running.
 
         Returns:
             The Ax trial index to track the run by, or None if the client
             already finished the run's trial or the run's config doesn't
             cover the search space.
         """
-        claimed = self._claim_persisted_trial(data)
-        if claimed is _FINISHED:
-            return None
-        if claimed is not None:
-            self._link(claimed, data.wandb_run_id)
-            return claimed
-        params = self._search_space_params(data.config.flat_dict())
-        if params is None:
-            return None
-        trial_index = self._attach(params)
-        self._link(trial_index, data.wandb_run_id)
-        return trial_index
+        return self._resumer.tell_existing_active_run(data)
 
     def _search_space_params(self, config: dict[str, Any]) -> dict[str, Any] | None:
         """Project a run's config onto the experiment's parameters.
