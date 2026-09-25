@@ -23,6 +23,8 @@ if TYPE_CHECKING:
     from wandb.sdk.wandb_run import Run
 
 
+# Stays under the 3.5 MiB ClickHouse single-row insert limit that Weave adopted
+# after larger rows failed in production (wandb/weave#2353, wandb/weave#5448).
 CES_MAX_CELL_BYTES = 3_500_000
 _CESMediaExtensionValue = dict[str, Any]
 _CESExtensionType = str
