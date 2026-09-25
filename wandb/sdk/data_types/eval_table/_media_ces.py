@@ -78,7 +78,7 @@ class EvalTableMediaField:
         return f"{media_key}_wandb_delimeter_{overlay_key}"
 
 
-class _ClassLabelAccumulator:
+class ClassLabelAccumulator:
     def __init__(self) -> None:
         self._labels: dict[
             tuple[str, str],
@@ -146,7 +146,7 @@ def prepare_media(
     media: Media,
     run: Run,
     field: EvalTableMediaField,
-    class_label_accumulator: _ClassLabelAccumulator | None = None,
+    class_label_accumulator: ClassLabelAccumulator | None = None,
 ) -> PreparedMediaCell:
     """Prepare supported media for one EvalTable cell in the active run."""
     if isinstance(media, Image):
@@ -160,9 +160,9 @@ def prepare_image(
     image: Image,
     run: Run,
     field: EvalTableMediaField,
-    class_label_accumulator: _ClassLabelAccumulator | None = None,
+    class_label_accumulator: ClassLabelAccumulator | None = None,
 ) -> PreparedMediaCell:
-    accumulated_labels = class_label_accumulator or _ClassLabelAccumulator()
+    accumulated_labels = class_label_accumulator or ClassLabelAccumulator()
     working_image = _image_for_run(image, run)
     if _committed_artifact_ref_url(working_image) is None:
         _ensure_eval_table_run_file(working_image, run, field.eval_table_key)

@@ -334,7 +334,7 @@ class CESWriter:
         media_cells_examined = 0
         oversized_media_cells = 0
         oversized_locations: list[str] = []
-        class_label_accumulator = _media_ces._ClassLabelAccumulator()
+        class_label_accumulator = _media_ces.ClassLabelAccumulator()
 
         for row_index, row in enumerate(rows):
             inputs, input_media, input_oversized = (
@@ -443,7 +443,7 @@ class CESWriter:
         bound_run: _BoundRun,
         row_index: int,
         oversized_locations: list[str],
-        class_label_accumulator: _media_ces._ClassLabelAccumulator,
+        class_label_accumulator: _media_ces.ClassLabelAccumulator,
     ) -> tuple[dict[str, Any], int, int]:
         """Normalize one input/output mapping and accumulate its inferred types."""
         normalized_values: dict[str, Any] = {}
@@ -523,7 +523,7 @@ class CESWriter:
         *,
         source: _CESFieldSource,
         column_name: str,
-        class_label_accumulator: _media_ces._ClassLabelAccumulator,
+        class_label_accumulator: _media_ces.ClassLabelAccumulator,
     ) -> tuple[Any, _CESFieldType, int | None]:
         """Return a CES extension value, its field type, and oversized byte count."""
         try:
