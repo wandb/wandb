@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import gc
 import weakref
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 from wandb.sdk.sweeps.run_state import RunState
@@ -35,8 +35,8 @@ class FakeTrials(ResumableTrials[FakeTrial]):
     def __init__(self, trials: dict[int, FakeTrial]):
         self.trials = trials
 
-    def existing(self) -> Iterator[FakeTrial]:
-        yield from self.trials.values()
+    def existing(self) -> Iterable[FakeTrial]:
+        return self.trials.values()
 
     def run_id(self, trial: FakeTrial) -> int:
         return next(i for i, t in self.trials.items() if t is trial)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, TypeAlias
 
@@ -198,10 +198,10 @@ class _StudyTrials(ResumableTrials["optuna.trial.FrozenTrial"]):
         self._optimizer = optimizer
 
     @override
-    def existing(self) -> Iterator[optuna.trial.FrozenTrial]:
+    def existing(self) -> list[optuna.trial.FrozenTrial]:
         # Every storage's cache holds these once the study is first asked
-        # for a trial; deepcopy=False hands them over as they are.
-        yield from self._optimizer.study.get_trials(deepcopy=False)
+        # for a trial; deepcopy=False lists them without copying.
+        return self._optimizer.study.get_trials(deepcopy=False)
 
     @override
     def run_id(self, trial: optuna.trial.FrozenTrial) -> str:
