@@ -12,7 +12,7 @@ import pytest
 import wandb
 from wandb.errors import UsageError
 from wandb.sdk.data_types._dtypes import AnyType
-from wandb.sdk.data_types.eval_table import _writer_ces as ces_writer
+from wandb.sdk.data_types.eval_table import _writer_ces as ces
 
 
 @pytest.fixture
@@ -55,7 +55,7 @@ def mock_ces_client(monkeypatch):
     monkeypatch.setitem(sys.modules, "coreweave_evaluations", client_module)
     monkeypatch.setattr(
         "wandb.sdk.data_types.eval_table._writer_ces.CESWriter._resolve_scope_context",
-        lambda self, bound_run: ces_writer._CESScopeContext(
+        lambda self, bound_run: ces._CESScopeContext(
             scope_id="scope-id",
             api_key=None,
             access_token="token",
@@ -234,9 +234,9 @@ def test_ces_eval_table_batches_rows_by_encoded_bytes(
         "output": {"answer": "yes"},
         "scores": {},
     }
-    single_row_body_size = len(ces_writer._encode_json({"rows": [row]}))
+    single_row_body_size = len(ces._encode_json({"rows": [row]}))
     monkeypatch.setattr(
-        ces_writer,
+        ces,
         "_TARGET_ROW_BATCH_BODY_BYTES",
         single_row_body_size - 1,
     )
@@ -267,10 +267,10 @@ def test_ces_eval_table_batch_size_counts_row_separators(
     expected_batch_sizes,
 ):
     row = {"input": {"value": "same"}, "output": None, "scores": {}}
-    row_size = len(ces_writer._encode_json(row))
-    target_size = ces_writer._ROW_BATCH_ENVELOPE_BYTES + 2 * row_size + separator_bytes
+    row_size = len(ces._encode_json(row))
+    target_size = ces._ROW_BATCH_ENVELOPE_BYTES + 2 * row_size + separator_bytes
     batches = list(
-        ces_writer._iter_row_batches(
+        ces._iter_row_batches(
             [row, row, row],
             max_request_body_bytes=16 << 20,
             target_batch_body_bytes=target_size,
@@ -286,7 +286,7 @@ def test_ces_eval_table_batches_rows_by_count(
     run,
     monkeypatch,
 ):
-    monkeypatch.setattr(ces_writer, "_MAX_ROWS_PER_BATCH", 2)
+    monkeypatch.setattr(ces, "_MAX_ROWS_PER_BATCH", 2)
     et = wandb.EvalTable(
         columns=["value"],
         data=[[index] for index in range(5)],
@@ -319,8 +319,8 @@ def test_ces_eval_table_rejects_oversized_row_before_network(
         "output": {"value": value},
         "scores": {},
     }
-    body_size = len(ces_writer._encode_json({"rows": [row]}))
-    monkeypatch.setattr(ces_writer, "_MAX_REQUEST_BODY_BYTES", body_size)
+    body_size = len(ces._encode_json({"rows": [row]}))
+    monkeypatch.setattr(ces, "_MAX_REQUEST_BODY_BYTES", body_size)
     et = wandb.EvalTable(
         columns=["value"],
         data=[[value]],
@@ -339,7 +339,7 @@ def test_ces_eval_table_rejects_total_row_count_before_network(
     run,
     monkeypatch,
 ):
-    monkeypatch.setattr(ces_writer, "_MAX_ROWS_PER_TABLE", 2)
+    monkeypatch.setattr(ces, "_MAX_ROWS_PER_TABLE", 2)
     et = wandb.EvalTable(
         columns=["value"],
         data=[[1], [2], [3]],
@@ -358,7 +358,7 @@ def test_ces_eval_table_does_not_cut_version_after_batch_failure(
     run,
     monkeypatch,
 ):
-    monkeypatch.setattr(ces_writer, "_MAX_ROWS_PER_BATCH", 1)
+    monkeypatch.setattr(ces, "_MAX_ROWS_PER_BATCH", 1)
     mock_ces_client.eval_tables.rows.add.side_effect = [
         None,
         RuntimeError("batch failed"),
@@ -542,7 +542,7 @@ def test_ces_eval_table_describes_field_limit_as_input_and_output_columns(
     mock_ces_client,
     run,
 ):
-    monkeypatch.setattr(ces_writer, "_MAX_DATASET_FIELDS", 1)
+    monkeypatch.setattr(ces, "_MAX_DATASET_FIELDS", 1)
     et = wandb.EvalTable(
         columns=["prompt", "answer"],
         data=[["question", "response"]],
@@ -604,7 +604,7 @@ def test_ces_eval_table_requires_client_before_scope_lookup(monkeypatch, run):
     et = wandb.EvalTable(columns=["value"], data=[[1]], backend="ces")
     et.bind_to_run(run, "eval", 0)
     writer = et._writer
-    assert isinstance(writer, ces_writer.CESWriter)
+    assert isinstance(writer, ces.CESWriter)
     execute_graphql = MagicMock()
     writer._bound = replace(
         writer._require_bound(),
@@ -623,7 +623,7 @@ def test_ces_eval_table_requires_client_before_scope_lookup(monkeypatch, run):
 
 
 def test_ces_eval_table_resolves_project_scope_with_api_key(run):
-    writer = ces_writer.CESWriter()
+    writer = ces.CESWriter()
     writer.bind_to_run(run, "eval", 0)
     service_api = SimpleNamespace(
         api_key="secret",
@@ -640,14 +640,14 @@ def test_ces_eval_table_resolves_project_scope_with_api_key(run):
     assert scope.api_key == "secret"
     assert scope.access_token is None
     service_api.execute_graphql.assert_called_once_with(
-        ces_writer._PROJECT_SCOPE_QUERY,
+        ces._PROJECT_SCOPE_QUERY,
         variables={"entity": "e", "project": "p"},
     )
     service_api.access_token.assert_not_called()
 
 
 def test_ces_scope_context_repr_redacts_credentials():
-    scope = ces_writer._CESScopeContext(
+    scope = ces._CESScopeContext(
         scope_id="scope-id",
         api_key="api-secret",
         access_token="token-secret",
@@ -657,7 +657,7 @@ def test_ces_scope_context_repr_redacts_credentials():
 
 
 def test_ces_eval_table_uses_federated_access_token(run):
-    writer = ces_writer.CESWriter()
+    writer = ces.CESWriter()
     writer.bind_to_run(run, "eval", 0)
     writer._bound = replace(
         writer._require_bound(),
@@ -689,8 +689,8 @@ def test_ces_client_uses_only_the_run_credentials(api_key, access_token):
                 bearer_token if bearer_token is not None else "environment-access-token"
             )
 
-    writer = ces_writer.CESWriter()
-    scope = ces_writer._CESScopeContext(
+    writer = ces.CESWriter()
+    scope = ces._CESScopeContext(
         scope_id="scope-id",
         api_key=api_key,
         access_token=access_token,
@@ -711,7 +711,7 @@ def test_ces_eval_table_retries_with_stable_idempotency_keys(
     run,
     monkeypatch,
 ):
-    monkeypatch.setattr(ces_writer, "_MAX_ROWS_PER_BATCH", 1)
+    monkeypatch.setattr(ces, "_MAX_ROWS_PER_BATCH", 1)
     version = SimpleNamespace(
         dataset_version_id="dataset-version-1",
         evaluation_version_id="evaluation-version-1",
