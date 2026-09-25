@@ -67,7 +67,7 @@ def run(mock_run):
 
 
 @pytest.fixture(autouse=True)
-def default_eval_table_writer_is_weave(monkeypatch):
+def use_weave_writer(monkeypatch):
     monkeypatch.setattr(
         "wandb.sdk.data_types.eval_table._writer_factory.ServiceApi.feature_enabled",
         lambda self, feature: True,
