@@ -160,6 +160,14 @@ func TestDumpRecords(t *testing.T) {
 	assert.Regexp(t, `exit_code:\s+7`, out)
 }
 
+func TestDumpRecords_NotATransactionLog(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "run-text.wandb")
+	require.NoError(t, os.WriteFile(path, []byte("not a transaction log\n"), 0o644))
+
+	var buf bytes.Buffer
+	assert.Error(t, leet.DumpRecords(path, "", &buf))
+}
+
 func TestDumpRecords_ResolvesLatestRun(t *testing.T) {
 	wandbDir := t.TempDir()
 	runDir := filepath.Join(wandbDir, "run-20260821_120000-abc123")
