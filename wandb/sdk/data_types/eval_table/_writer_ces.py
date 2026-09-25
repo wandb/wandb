@@ -528,7 +528,7 @@ class CESWriter:
                 bound_run.run,
                 bound_run.eval_table_key,
             )
-        except _media_ces._UnsupportedMediaVariantError as error:
+        except _media_ces.UnsupportedMediaVariantError as error:
             if self._unsupported_media_mode == "raise":
                 raise
             wandb.termwarn(error.stub_warning, repeat=False)

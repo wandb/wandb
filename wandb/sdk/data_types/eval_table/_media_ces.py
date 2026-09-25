@@ -61,7 +61,7 @@ class PreparedMediaCell:
     oversized: bool
 
 
-class _UnsupportedMediaVariantError(TypeError):
+class UnsupportedMediaVariantError(TypeError):
     """Raised when EvalTable supports a media type but not its backing data."""
 
     def __init__(
@@ -69,7 +69,7 @@ class _UnsupportedMediaVariantError(TypeError):
         message: str,
         *,
         stub_warning: str,
-        extension_type: _CESExtensionType,
+        extension_type: CESExtensionType,
     ) -> None:
         super().__init__(message)
         self.stub_warning = stub_warning
@@ -95,7 +95,7 @@ def prepare_media(
 
 def prepare_image(image: Image, run: Run, eval_table_key: str) -> PreparedMediaCell:
     if image._boxes or image._masks:
-        raise _UnsupportedMediaVariantError(
+        raise UnsupportedMediaVariantError(
             "EvalTable does not support wandb.Image masks or boxes yet. Pass "
             "unsupported_media_mode='stub' to log null instead.",
             stub_warning=(
@@ -166,7 +166,7 @@ def _check_external_reference_artifact(media: Media) -> None:
             entry.ref is not None and not entry._is_artifact_reference()
         )
         if is_external_reference:
-            raise _UnsupportedMediaVariantError(
+            raise UnsupportedMediaVariantError(
                 "EvalTable does not support wandb.Image values backed by "
                 "external reference artifacts. Pass unsupported_media_mode='stub' "
                 "to log null instead.",
