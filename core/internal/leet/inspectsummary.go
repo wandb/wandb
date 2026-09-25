@@ -31,9 +31,9 @@ const (
 
 // PrintSummary writes an overview of a run read from its .wandb file: its
 // name and ID, state, last step, the latest values of its metrics, its
-// config and the end of its console output. An empty runFile resolves to
-// the latest run in wandbDir.
-func PrintSummary(runFile, wandbDir string, w io.Writer) error {
+// config and the end of its console output, as text or as one JSON object.
+// An empty runFile resolves to the latest run in wandbDir.
+func PrintSummary(runFile, wandbDir string, w io.Writer, asJSON bool) error {
 	path, err := resolveWandbFile(runFile, wandbDir)
 	if err != nil {
 		return err
@@ -45,6 +45,9 @@ func PrintSummary(runFile, wandbDir string, w io.Writer) error {
 	}
 
 	sessionFeatures.mark("inspector.summary")
+	if asJSON {
+		return digest.writeJSON(w)
+	}
 	return digest.writeText(w)
 }
 
@@ -214,6 +217,59 @@ func writeTextSection(b *strings.Builder, title string, tree map[string]any) {
 	for _, kv := range shown {
 		fmt.Fprintf(b, "  %-*s  %s\n", width, kv.Key, kv.Value)
 	}
+}
+
+func (d *runDigest) writeJSON(w io.Writer) error {
+	state, _ := d.state()
+
+	summary := d.overview.runSummary.ToNestedMaps()
+	delete(summary, "_wandb")
+	config := d.overview.runConfig.CloneTree()
+	delete(config, "_wandb")
+
+	tail, total := d.consoleTail()
+	console := make([]map[string]any, 0, len(tail))
+	for _, line := range tail {
+		stream := "stdout"
+		if line.IsStderr {
+			stream = "stderr"
+		}
+		console = append(console, map[string]any{
+			"time":   line.Timestamp.UTC(),
+			"stream": stream,
+			"line":   line.Content,
+		})
+	}
+
+	out := map[string]any{
+		"file":          d.path,
+		"run_id":        d.run.ID,
+		"name":          d.run.DisplayName,
+		"entity":        d.run.Entity,
+		"project":       d.run.Project,
+		"notes":         d.run.Notes,
+		"tags":          append([]string{}, d.run.Tags...),
+		"state":         state,
+		"last_write":    d.lastWrite.UTC(),
+		"summary":       summary,
+		"config":        config,
+		"console":       console,
+		"console_lines": total,
+		"start_time":    nil,
+		"exit_code":     nil,
+		"step":          nil,
+	}
+	if !d.run.StartTime.IsZero() {
+		out["start_time"] = d.run.StartTime.UTC()
+	}
+	if d.exit != nil {
+		out["exit_code"] = d.exit.GetExitCode()
+	}
+	if d.lastStep >= 0 {
+		out["step"] = d.lastStep
+	}
+
+	return encodeJSON(w, out, "  ")
 }
 
 // compactValue replaces each W&B data type such as a histogram or an image,

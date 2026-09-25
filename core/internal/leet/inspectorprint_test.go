@@ -2,7 +2,12 @@ package leet_test
 
 import (
 	"bytes"
+	"encoding/json"
+	"io"
+	"os"
+	"path/filepath"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -10,8 +15,91 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/wandb/wandb/core/internal/leet"
+	"github.com/wandb/wandb/core/internal/transactionlog"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
+
+func TestDumpRecords_JSON(t *testing.T) {
+	records := append(inspectorTestRecords(), &spb.Record{
+		RecordType: &spb.Record_History{History: &spb.HistoryRecord{
+			Item: []*spb.HistoryItem{
+				{NestedKey: []string{"val", "acc"}, ValueJson: "NaN"},
+				{Key: "empty", ValueJson: "[]"},
+			},
+		}},
+	})
+	path := writeWandbFile(t, records...)
+
+	var out, notes bytes.Buffer
+	require.NoError(t, leet.DumpRecords(path, "", &out, &notes, leet.DumpOptions{JSON: true}))
+	assert.Empty(t, notes.String())
+
+	var lines []map[string]any
+	for line := range bytes.Lines(out.Bytes()) {
+		var record map[string]any
+		require.NoError(t, json.Unmarshal(line, &record), string(line))
+		lines = append(lines, record)
+	}
+	require.Len(t, lines, 6)
+
+	assert.Equal(t, "history", lines[1]["type"])
+	assert.EqualValues(t, 2, lines[1]["num"])
+	assert.Equal(t, map[string]any{
+		"item": map[string]any{"loss": 0.5},
+		"step": map[string]any{"num": 5.0},
+	}, lines[1]["history"])
+	assert.Equal(t, "STDERR", lines[2]["output_raw"].(map[string]any)["output_type"])
+	assert.Equal(t, "request/partial_history", lines[3]["type"])
+	assert.EqualValues(t, 7, lines[4]["exit"].(map[string]any)["exit_code"])
+	assert.Equal(t,
+		map[string]any{"val.acc": "NaN", "empty": []any{}},
+		lines[5]["history"].(map[string]any)["item"])
+}
+
+func TestDumpRecords_FollowPrintsAppendedRecords(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "run-follow.wandb")
+		w, err := transactionlog.OpenWriter(path)
+		require.NoError(t, err)
+		require.NoError(t, w.Write(&spb.Record{
+			RecordType: &spb.Record_Run{Run: &spb.RunRecord{RunId: "live"}},
+		}))
+		require.NoError(t, w.Flush())
+
+		var out bytes.Buffer
+		done := make(chan error, 1)
+		go func() {
+			done <- leet.DumpRecords(path, "", &out, io.Discard,
+				leet.DumpOptions{JSON: true, Follow: true})
+		}()
+
+		synctest.Wait() // until the follower has printed the run record and waits for more
+		assert.Contains(t, out.String(), `"type":"run"`)
+
+		require.NoError(t, w.Write(&spb.Record{
+			RecordType: &spb.Record_History{History: &spb.HistoryRecord{
+				Item: []*spb.HistoryItem{{Key: "loss", ValueJson: "0.5"}},
+			}},
+		}))
+		require.NoError(t, w.Write(&spb.Record{
+			RecordType: &spb.Record_Exit{Exit: &spb.RunExitRecord{ExitCode: 0}},
+		}))
+		require.NoError(t, w.Close())
+
+		require.NoError(t, <-done)
+		assert.Contains(t, out.String(), `"loss":0.5`)
+		assert.Contains(t, out.String(), `"exit_code":0`)
+	})
+}
+
+func TestDumpRecords_FollowStopsForDeadRun(t *testing.T) {
+	path := writeWandbFile(t, inspectorTestRecords()[:2]...)
+	hourAgo := time.Now().Add(-time.Hour)
+	require.NoError(t, os.Chtimes(path, hourAgo, hourAgo))
+
+	require.NoError(t, leet.DumpRecords(path, "", io.Discard, io.Discard,
+		leet.DumpOptions{JSON: true, Follow: true, IdleTimeout: time.Minute}))
+}
 
 func TestPrintSummary(t *testing.T) {
 	at := time.Date(2026, 9, 23, 12, 0, 0, 0, time.UTC)
@@ -47,7 +135,7 @@ func TestPrintSummary(t *testing.T) {
 	)
 
 	var text bytes.Buffer
-	require.NoError(t, leet.PrintSummary(path, "", &text))
+	require.NoError(t, leet.PrintSummary(path, "", &text, false))
 	assert.Contains(t, text.String(), "my-run (abc123)")
 	assert.Contains(t, text.String(), "failed (exit code 1)")
 	assert.Regexp(t, `step\s+4\n`, text.String())
@@ -56,4 +144,25 @@ func TestPrintSummary(t *testing.T) {
 	assert.Contains(t, text.String(), "[stderr] boom")
 	assert.NotContains(t, text.String(), "_wandb")
 
+	var out bytes.Buffer
+	require.NoError(t, leet.PrintSummary(path, "", &out, true))
+	var summary struct {
+		State    string         `json:"state"`
+		ExitCode int            `json:"exit_code"`
+		Step     int            `json:"step"`
+		Summary  map[string]any `json:"summary"`
+		Config   map[string]any `json:"config"`
+		Console  []struct {
+			Stream, Line string
+		} `json:"console"`
+	}
+	require.NoError(t, json.Unmarshal(out.Bytes(), &summary))
+	assert.Equal(t, "failed", summary.State)
+	assert.Equal(t, 1, summary.ExitCode)
+	assert.Equal(t, 4, summary.Step)
+	assert.Equal(t, map[string]any{"loss": 0.25}, summary.Summary)
+	assert.Equal(t, map[string]any{"lr": 0.1, "batch": 32.0}, summary.Config)
+	require.Len(t, summary.Console, 2)
+	assert.Equal(t, "stderr", summary.Console[1].Stream)
+	assert.Equal(t, "boom", summary.Console[1].Line)
 }

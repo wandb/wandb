@@ -149,7 +149,7 @@ func TestDumpRecords(t *testing.T) {
 	path := writeWandbFile(t, inspectorTestRecords()...)
 
 	var buf bytes.Buffer
-	require.NoError(t, leet.DumpRecords(path, "", &buf))
+	require.NoError(t, leet.DumpRecords(path, "", &buf, &buf, leet.DumpOptions{}))
 
 	out := buf.String()
 	assert.Contains(t, out, "# record 1: run")
@@ -165,7 +165,7 @@ func TestDumpRecords_NotATransactionLog(t *testing.T) {
 	require.NoError(t, os.WriteFile(path, []byte("not a transaction log\n"), 0o644))
 
 	var buf bytes.Buffer
-	assert.Error(t, leet.DumpRecords(path, "", &buf))
+	assert.Error(t, leet.DumpRecords(path, "", &buf, &buf, leet.DumpOptions{}))
 }
 
 func TestDumpRecords_ResolvesLatestRun(t *testing.T) {
@@ -183,6 +183,6 @@ func TestDumpRecords_ResolvesLatestRun(t *testing.T) {
 		"run-20260821_120000-abc123", filepath.Join(wandbDir, "latest-run")))
 
 	var buf bytes.Buffer
-	require.NoError(t, leet.DumpRecords("", wandbDir, &buf))
+	require.NoError(t, leet.DumpRecords("", wandbDir, &buf, &buf, leet.DumpOptions{}))
 	assert.Contains(t, buf.String(), "# record 1: run")
 }
