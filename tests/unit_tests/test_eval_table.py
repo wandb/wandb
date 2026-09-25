@@ -10,14 +10,6 @@ from wandb.sdk.data_types import eval_table as eval_table_module
 from wandb.sdk.data_types.eval_table import UnsupportedMediaMode
 
 
-@pytest.fixture(autouse=True)
-def default_eval_table_server_feature_disabled(monkeypatch):
-    monkeypatch.setattr(
-        "wandb.sdk.data_types.eval_table._writer_factory.ServiceApi.feature_enabled",
-        lambda self, feature: False,
-    )
-
-
 def test_eval_table_public_imports():
     assert wandb.EvalTable is eval_table_module.EvalTable
     assert wandb_data_types.EvalTable is eval_table_module.EvalTable
