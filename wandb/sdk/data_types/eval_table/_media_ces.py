@@ -107,7 +107,7 @@ def prepare_image(image: Image, run: Run, eval_table_key: str) -> PreparedMediaC
 
     working_image = _media_for_run(image, run)
     if _committed_artifact_ref_url(working_image) is None:
-        _bind_eval_table_media_to_run(working_image, run, eval_table_key)
+        _ensure_eval_table_run_file(working_image, run, eval_table_key)
 
     image_json = working_image.to_json(run)
     extension_value = _image_ces_extension_value(image_json, run)
