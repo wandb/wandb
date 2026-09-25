@@ -157,6 +157,7 @@ impl SystemMonitorServiceImpl {
         &self,
         pid: i32,
         gpu_device_ids: Option<Vec<i32>>,
+        include_throttle_reasons: bool,
     ) -> Vec<(String, metrics::MetricValue)> {
         let mut all_metrics = Vec::new();
 
@@ -171,7 +172,10 @@ impl SystemMonitorServiceImpl {
         ));
 
         // Collect metrics from all available GPU monitors
-        let gpu_metrics = self.gpu_monitors.collect_metrics(pid, gpu_device_ids).await;
+        let gpu_metrics = self
+            .gpu_monitors
+            .collect_metrics(pid, gpu_device_ids, include_throttle_reasons)
+            .await;
         all_metrics.extend(gpu_metrics);
 
         all_metrics
@@ -207,7 +211,7 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
     ) -> Result<Response<GetMetadataResponse>, Status> {
         debug!("Received a GetMetadata request: {:?}", request);
 
-        let all_metrics: Vec<(String, metrics::MetricValue)> = self.sample(0, None).await;
+        let all_metrics: Vec<(String, metrics::MetricValue)> = self.sample(0, None, false).await;
         let samples: HashMap<String, &metrics::MetricValue> = all_metrics
             .iter()
             .map(|(name, value)| (name.to_string(), value))
@@ -242,7 +246,9 @@ impl SystemMonitorService for SystemMonitorServiceImpl {
             Some(request.gpu_device_ids)
         };
 
-        let all_metrics = self.sample(pid, gpu_device_ids).await;
+        let all_metrics = self
+            .sample(pid, gpu_device_ids, request.include_throttle_reasons)
+            .await;
 
         let stats_items: Vec<StatsItem> = all_metrics
             .iter()

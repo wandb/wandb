@@ -5,7 +5,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -13,6 +15,7 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/google/wire"
+	"github.com/prometheus/procfs"
 	"github.com/shirou/gopsutil/v4/process"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
@@ -23,7 +26,10 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/pathtree"
+	"github.com/wandb/wandb/core/internal/provenance"
 	"github.com/wandb/wandb/core/internal/runhandle"
+	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
@@ -105,6 +111,15 @@ type SystemMonitor struct {
 
 	// Information about the Git repository, if applicable.
 	git *spb.GitRepoRecord
+
+	// xpu is the wandb-xpu resource; only its samples feed provenance.
+	xpu Resource
+
+	// provenance writes rank/GPU provenance log lines; nil when disabled.
+	provenance *provenance.Emitter
+
+	// provenanceLocalSteps counts observed history rows for shared-mode writer_local steps.
+	provenanceLocalSteps int64
 }
 
 // SystemMonitorFactory constructs a SystemMonitor.
@@ -193,7 +208,57 @@ func (sm *SystemMonitor) initializeResources(xpuResourceManager *XPUResourceMana
 		sm.addResource(system)
 	}
 
-	sm.addResource(NewXPU(sm.ctx, xpuResourceManager, pid, gpuDeviceIds))
+	sm.xpu = NewXPU(sm.ctx, xpuResourceManager, pid, gpuDeviceIds, sm.settings.IsProvenanceLogs())
+	sm.addResource(sm.xpu)
+
+	if sm.settings.IsProvenanceLogs() {
+		cgroupDir, _ := cgroupV2Dir(cgroupPaths{procRoot: procfs.DefaultMountPoint, pid: int(pid)})
+		env := make(map[string]string)
+		for _, kv := range os.Environ() {
+			if k, v, ok := strings.Cut(kv, "="); ok {
+				env[k] = v
+			}
+		}
+		hostname := sm.settings.GetHostname()
+		launch := provenance.ReadLaunch(env, hostname)
+		sm.provenance = provenance.NewEmitter(&provenance.EmitterParams{
+			Launch:   launch,
+			WriterID: string(sm.writerID),
+			Emit: func(line string) {
+				record := &spb.Record{RecordType: &spb.Record_OutputLogger{
+					OutputLogger: &spb.OutputLoggerRecord{Line: line},
+				}}
+				sm.extraWork.AddWorkOrCancel(
+					sm.ctx.Done(),
+					runwork.NoRequest(runwork.WorkFromRecord(record)),
+				)
+			},
+			Probe: func() *spb.EnvironmentRecord {
+				ctx, cancel := context.WithTimeout(sm.ctx, 30*time.Second)
+				defer cancel()
+				return sm.xpu.Probe(ctx)
+			},
+			Runtime: func() (time.Duration, bool) {
+				if sm.runHandle == nil {
+					return 0, false
+				}
+				if _, err := sm.runHandle.Upserter(); err != nil {
+					return 0, false
+				}
+				return sm.runHandle.Runtime(), true
+			},
+			FlushInterval: time.Duration(
+				sm.settings.GetProvenanceFlushInterval() * float64(time.Second),
+			),
+			Host: provenance.HostPaths{
+				ProcRoot:   procfs.DefaultMountPoint,
+				SysRoot:    "/sys",
+				CgroupDir:  cgroupDir,
+				Pid:        int(pid),
+				ExcludePid: os.Getpid(),
+			},
+		})
+	}
 
 	if trainium := NewTrainium(
 		sm.logger,
@@ -415,6 +480,54 @@ func (sm *SystemMonitor) Probe() {
 	}
 }
 
+// SetDeviceBinding passes the device a writer process reported to the provenance emitter.
+func (sm *SystemMonitor) SetDeviceBinding(r *spb.DeviceBindingRecord) {
+	if sm == nil || sm.provenance == nil {
+		return
+	}
+	sm.provenance.SetDeviceBinding(r)
+}
+
+// SetStep passes the writer's latest step to the provenance emitter.
+func (sm *SystemMonitor) SetStep(key string, value float64) {
+	if sm == nil || sm.provenance == nil {
+		return
+	}
+	sm.provenance.SetStep(key, value)
+}
+
+// ObserveHistoryRow picks the provenance step source for a flushed history row (spec section 4).
+func (sm *SystemMonitor) ObserveHistoryRow(row *runhistory.RunHistory, useStep bool, step int64) {
+	if sm == nil || sm.provenance == nil {
+		return
+	}
+	switch metric := sm.settings.GetProvenanceStepMetric(); {
+	case metric != "":
+		if v, ok := row.GetNumber(pathtree.PathOf(metric)); ok {
+			sm.provenance.SetStep(metric, v)
+		}
+	case !sm.settings.IsSharedMode() && useStep:
+		sm.provenance.SetStep("_step", float64(step))
+	case sm.settings.IsSharedMode():
+		sm.provenanceLocalSteps++
+		sm.provenance.SetStep("writer_local", float64(sm.provenanceLocalSteps))
+	}
+}
+
+// DrainProvenance returns the buffered provenance window as a record; call after Finish.
+func (sm *SystemMonitor) DrainProvenance() []*spb.Record {
+	if sm == nil || sm.provenance == nil {
+		return nil
+	}
+	line, ok := sm.provenance.Drain()
+	if !ok {
+		return nil
+	}
+	return []*spb.Record{{RecordType: &spb.Record_OutputLogger{
+		OutputLogger: &spb.OutputLoggerRecord{Line: line},
+	}}}
+}
+
 // Pause temporarily stops the monitoring process.
 //
 // Monitoring can be resumed later with the Resume method.
@@ -475,6 +588,10 @@ func (sm *SystemMonitor) sample() {
 				}
 			}()
 			metrics, err := r.Sample()
+			// Must run before labels are appended to keys below.
+			if sm.provenance != nil && r.Resource == sm.xpu && sm.ctx.Err() == nil {
+				sm.provenance.OnSample(metrics, err)
+			}
 			if err != nil {
 				if ShouldCaptureSamplingError(err) {
 					sm.logger.CaptureError(
@@ -484,6 +601,13 @@ func (sm *SystemMonitor) sample() {
 				} else {
 					sm.logger.Debug(fmt.Sprintf("monitor: benign sampling error: %v", err))
 				}
+			}
+
+			// clockThrottleReasons is logs-only: the emitter above already read it.
+			if r.Resource == sm.xpu && metrics != nil {
+				metrics.Item = slices.DeleteFunc(metrics.Item, func(item *spb.StatsItem) bool {
+					return strings.HasSuffix(item.Key, ".clockThrottleReasons")
+				})
 			}
 
 			if metrics == nil || len(metrics.Item) == 0 {

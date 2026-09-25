@@ -614,6 +614,21 @@ func (s *Settings) GetStatsTrackProcessTree() bool {
 	return s.Proto.XStatsTrackProcessTree.GetValue()
 }
 
+// Whether to write rank-to-GPU provenance and bound-GPU samples to the run's logs.
+func (s *Settings) IsProvenanceLogs() bool {
+	return s.Proto.XProvenanceLogs.GetValue()
+}
+
+// History key whose latest value is attached as `step` to provenance log lines.
+func (s *Settings) GetProvenanceStepMetric() string {
+	return s.Proto.XProvenanceStepMetric.GetValue()
+}
+
+// Seconds of ticks packed into one provenance window line; <= 0 flushes every tick.
+func (s *Settings) GetProvenanceFlushInterval() float64 {
+	return s.Proto.XProvenanceFlushInterval.GetValue()
+}
+
 // Whether to skip cgroup resource limits for system metric percentages.
 func (s *Settings) GetStatsNoCgroup() bool {
 	return s.Proto.XStatsNoCgroup.GetValue()

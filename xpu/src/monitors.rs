@@ -12,6 +12,7 @@ pub trait GpuMonitor: Send + Sync {
         &self,
         pid: i32,
         gpu_device_ids: Option<Vec<i32>>,
+        include_throttle_reasons: bool,
     ) -> Result<Vec<(String, metrics::MetricValue)>, Box<dyn std::error::Error>>;
 
     async fn collect_metadata(
@@ -71,11 +72,15 @@ impl GpuMonitors {
         &self,
         pid: i32,
         gpu_device_ids: Option<Vec<i32>>,
+        include_throttle_reasons: bool,
     ) -> Vec<(String, metrics::MetricValue)> {
         let mut all_metrics = Vec::new();
 
         for monitor in &self.monitors {
-            match monitor.collect_metrics(pid, gpu_device_ids.clone()).await {
+            match monitor
+                .collect_metrics(pid, gpu_device_ids.clone(), include_throttle_reasons)
+                .await
+            {
                 Ok(metrics) => all_metrics.extend(metrics),
                 Err(e) => warn!("Failed to collect metrics: {}", e),
             }
@@ -149,6 +154,7 @@ impl GpuMonitor for AppleGpuMonitor {
         &self,
         _pid: i32,
         _gpu_device_ids: Option<Vec<i32>>,
+        _include_throttle_reasons: bool,
     ) -> Result<Vec<(String, metrics::MetricValue)>, Box<dyn std::error::Error>> {
         let stats = self.sampler.get_metrics().await?;
         let soc_info = self.sampler.get_soc_info().await?;
@@ -197,8 +203,13 @@ impl GpuMonitor for NvidiaGpuMonitor {
         &self,
         pid: i32,
         gpu_device_ids: Option<Vec<i32>>,
+        include_throttle_reasons: bool,
     ) -> Result<Vec<(String, metrics::MetricValue)>, Box<dyn std::error::Error>> {
-        Ok(self.gpu.lock().await.get_metrics(pid, gpu_device_ids)?)
+        Ok(self
+            .gpu
+            .lock()
+            .await
+            .get_metrics(pid, gpu_device_ids, include_throttle_reasons)?)
     }
 
     async fn collect_metadata(
@@ -251,6 +262,7 @@ impl GpuMonitor for DcgmGpuMonitor {
         &self,
         _pid: i32,
         _gpu_device_ids: Option<Vec<i32>>,
+        _include_throttle_reasons: bool,
     ) -> Result<Vec<(String, metrics::MetricValue)>, Box<dyn std::error::Error>> {
         Ok(self.client.get_metrics().await?)
     }
@@ -298,6 +310,7 @@ impl GpuMonitor for AmdGpuMonitor {
         &self,
         _pid: i32,
         _gpu_device_ids: Option<Vec<i32>>,
+        _include_throttle_reasons: bool,
     ) -> Result<Vec<(String, metrics::MetricValue)>, Box<dyn std::error::Error>> {
         Ok(self.gpu.get_metrics()?)
     }

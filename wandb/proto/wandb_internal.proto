@@ -31,7 +31,7 @@ option go_package = "core/pkg/service_go_proto";
 // sync an older transaction log, it is important to follow proper protobuf
 // versioning practices: https://protobuf.dev/best-practices/
 //
-// Next ID: 28
+// Next ID: 29
 message Record {
   int64 num = 1;
   oneof record_type {
@@ -60,6 +60,7 @@ message Record {
     UseArtifactRecord use_artifact = 25;
     EnvironmentRecord environment = 26;
     OutputLoggerRecord output_logger = 27;
+    DeviceBindingRecord device_binding = 28;
 
     // request field does not belong here longterm
     Request request = 100;
@@ -366,6 +367,15 @@ message OutputRawResult {}
  */
 message OutputLoggerRecord {
   string line = 1;
+}
+
+// DeviceBindingRecord: the CUDA device a writer process reports it is bound to.
+message DeviceBindingRecord {
+  string uuid = 1;
+  string pci_bus_id = 2;
+  string source = 3;
+  int32 cuda_index = 4;
+  _RecordInfo _info = 200;
 }
 
 /*
@@ -1427,6 +1437,8 @@ message GpuNvidiaInfo {
   uint32 cuda_cores = 3;
   string architecture = 4;
   string uuid = 5;
+  string pci_bus_id = 6;
+  string serial = 7;
 }
 
 message GpuAmdInfo {

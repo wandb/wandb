@@ -828,6 +828,24 @@ class Settings(BaseModel, validate_assignment=True):
     as the primary process handles the main logging.
     """
 
+    x_provenance_flush_interval: float = 60.0
+    """Seconds of ticks (paced by x_stats_sampling_interval) packed into one line; <= 0 flushes every tick.
+
+    <!-- lazydoc-ignore -->
+    """
+
+    x_provenance_logs: bool = False
+    """Write rank-to-GPU provenance and bound-GPU samples to the run's logs.
+
+    <!-- lazydoc-ignore -->
+    """
+
+    x_provenance_step_metric: str | None = None
+    """History key whose latest value is attached as `step` to provenance log lines.
+
+    <!-- lazydoc-ignore -->
+    """
+
     x_proxies: dict[str, str] | None = None
     """Custom proxy servers for requests to W&B.
 

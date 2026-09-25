@@ -89,6 +89,14 @@ class InterfaceShared(InterfaceBase, abc.ABC):
         rec.output_logger.CopyFrom(outdata)
         self._publish(rec, nowait=nowait)
 
+    @override
+    def _publish_device_binding(self, binding: pb.DeviceBindingRecord) -> None:
+        rec = pb.Record()
+        rec.device_binding.CopyFrom(binding)
+        # Keeps it out of the transaction log, which older `wandb sync` can't parse.
+        rec.control.local = True
+        self._publish(rec, nowait=True)
+
     def _publish_cancel(self, cancel: pb.CancelRequest) -> None:
         rec = self._make_request(cancel=cancel)
         self._publish(rec)
