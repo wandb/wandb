@@ -11,6 +11,7 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"golang.org/x/time/rate"
 
+	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/filestream"
@@ -61,9 +62,21 @@ func CredentialsFromSettings(
 	return credentialProvider
 }
 
-// NewGraphQLClient creates a new GraphQL client.
+// NewOtelTraceStarter returns the httplayers.TraceStarter that roots spans
+// for outbound HTTP requests to the backend using the run's OpenTelemetry
+// proxy.
 //
-// If the offline setting is true, it returns nil.
+// It is not used to propagate tracing across the handler/sender pipeline.
+func NewOtelTraceStarter(
+	otelProxy *analytics.OpenTelemetryProxy,
+) httplayers.TraceStarter {
+	return analytics.NewTelemetryRecorder(
+		otelProxy,
+		analytics.NewTelemetryContext(),
+	)
+}
+
+// NewGraphQLClient creates a GraphQL client without tracing.
 func NewGraphQLClient(
 	baseURL api.WBBaseURL,
 	clientID sharedmode.ClientID,
@@ -71,6 +84,51 @@ func NewGraphQLClient(
 	logger *observability.CoreLogger,
 	peeker *observability.Peeker,
 	s *settings.Settings,
+) graphql.Client {
+	return newGraphQLClient(
+		baseURL,
+		clientID,
+		credentialProvider,
+		logger,
+		peeker,
+		s,
+		nil,
+	)
+}
+
+// NewTracedGraphQLClient creates a GraphQL client whose HTTP attempts are
+// children of the supplied W&B telemetry context.
+func NewTracedGraphQLClient(
+	baseURL api.WBBaseURL,
+	clientID sharedmode.ClientID,
+	credentialProvider api.CredentialProvider,
+	logger *observability.CoreLogger,
+	peeker *observability.Peeker,
+	s *settings.Settings,
+	otelProxy *analytics.OpenTelemetryProxy,
+) graphql.Client {
+	return newGraphQLClient(
+		baseURL,
+		clientID,
+		credentialProvider,
+		logger,
+		peeker,
+		s,
+		analytics.NewTelemetryRecorder(
+			otelProxy,
+			analytics.NewTelemetryContext(),
+		),
+	)
+}
+
+func newGraphQLClient(
+	baseURL api.WBBaseURL,
+	clientID sharedmode.ClientID,
+	credentialProvider api.CredentialProvider,
+	logger *observability.CoreLogger,
+	peeker *observability.Peeker,
+	s *settings.Settings,
+	traceStarter httplayers.TraceStarter,
 ) graphql.Client {
 	if s.IsOffline() {
 		return nil
@@ -100,6 +158,7 @@ func NewGraphQLClient(
 		peeker,
 		s,
 		extraHeaders,
+		traceStarter,
 	)
 }
 
@@ -112,6 +171,7 @@ func NewFileStream(
 	logger *observability.CoreLogger,
 	peeker api.Peeker,
 	s *settings.Settings,
+	traceStarter httplayers.TraceStarter,
 ) filestream.FileStream {
 	if s.IsOffline() {
 		return nil
@@ -133,6 +193,7 @@ func NewFileStream(
 		RetryWaitMin:       filestream.DefaultRetryWaitMin,
 		RetryWaitMax:       filestream.DefaultRetryWaitMax,
 		NonRetryTimeout:    filestream.DefaultNonRetryTimeout,
+		TraceStarter:       traceStarter,
 		Proxy:              s.GetProxyFn(),
 		ProxyConnectHeader: s.GetProxyConnectHeader(),
 		InsecureDisableSSL: s.IsInsecureDisableSSL(),

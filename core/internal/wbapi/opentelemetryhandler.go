@@ -33,6 +33,10 @@ func NewOpenTelemetryHandler(s *settings.Settings, serviceName string) *OpenTele
 	}
 }
 
+func (h *OpenTelemetryHandler) TelemetryRecorder() *analytics.TelemetryRecorder {
+	return h.telemetryRecorder
+}
+
 func (h *OpenTelemetryHandler) HandleRequest(
 	ctx context.Context,
 	request *spb.OpenTelemetryRequest,

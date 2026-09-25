@@ -19,6 +19,7 @@ import (
 	fs "github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/httplayers"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
@@ -64,6 +65,8 @@ type SenderFactory struct {
 	RunHandle               *runhandle.RunHandle
 	Mailbox                 *mailbox.Mailbox
 	HistoryStepTracker      *HistoryStepTracker
+
+	traceStarter httplayers.TraceStarter
 }
 
 // Sender performs blocking operations to process Work, such as uploading data.
@@ -167,6 +170,7 @@ func (f *SenderFactory) New(runWork runwork.RunWork) *Sender {
 			f.Logger,
 			f.Peeker,
 			f.Settings,
+			f.traceStarter,
 		)
 	}
 	return f.NewWithFileStream(runWork, fileStream)

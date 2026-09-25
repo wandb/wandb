@@ -1,5 +1,4 @@
-// Package analytics provides an OpenTelemetry proxy that sends metrics, logs
-// to the W&B backend's OpenTelemetry proxy API.
+// Package analytics provides an OpenTelemetry proxy for the W&B backend API.
 package analytics
 
 import (
@@ -20,13 +19,17 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	otellogapi "go.opentelemetry.io/otel/log"
 	otelmetric "go.opentelemetry.io/otel/metric"
 	otellog "go.opentelemetry.io/otel/sdk/log"
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	"go.opentelemetry.io/otel/sdk/resource"
+	oteltrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
+	traceapi "go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 
 	"github.com/wandb/wandb/core/internal/httplayers"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -49,7 +52,15 @@ const (
 
 	metricsPath = "/sdk/otel/v1/metrics"
 	logsPath    = "/sdk/otel/v1/logs"
+	tracesPath  = "/sdk/otel/v1/traces"
+
+	// rootTraceSampleRate is the fraction of spans that get sampled.
+	rootTraceSampleRate     = 0.01
+	traceMaxQueueSize       = 2048
+	traceMaxExportBatchSize = 512
 )
+
+var noopTracer = noop.NewTracerProvider().Tracer("wandb-analytics")
 
 // ConfigureOTelErrorHandler routes OpenTelemetry SDK errors to the logger.
 //
@@ -258,6 +269,19 @@ func (r *TelemetryRecorder) IncrementCounter(
 	r.root.incrementCounter(ctx, name, mergedLowCardinalityAttributes)
 }
 
+// StartSpan starts recording an OpenTelemetry span.
+func (r *TelemetryRecorder) StartSpan(
+	ctx context.Context,
+	name string,
+	options ...traceapi.SpanStartOption,
+) (context.Context, traceapi.Span) {
+	if r == nil {
+		return noopTracer.Start(ctx, name, options...)
+	}
+
+	return r.root.startSpan(ctx, name, options...)
+}
+
 // RecordDuration records a duration histogram metric in seconds with the
 // telemetry context's low-cardinality attributes.
 func (r *TelemetryRecorder) RecordDuration(
@@ -404,8 +428,7 @@ func (r *TelemetryRecorder) ErrorLog(
 	)
 }
 
-// OpenTelemetryProxyImpl sends metrics, logs events through the W&B
-// backend's OpenTelemetry proxy API.
+// OpenTelemetryProxy sends telemetry signals through the W&B backend proxy.
 type OpenTelemetryProxy struct {
 	// endpoint is the URL of the OpenTelemetry proxy API.
 	endpoint string
@@ -414,8 +437,10 @@ type OpenTelemetryProxy struct {
 	logProvider *otellog.LoggerProvider
 	// meterProvider is the OpenTelemetry meter provider.
 	meterProvider *metric.MeterProvider
+	// tracerProvider is the private OpenTelemetry trace provider.
+	tracerProvider *oteltrace.TracerProvider
 
-	// httpClient is the HTTP client used to send metrics and logs
+	// httpClient is the HTTP client used to send telemetry
 	// to the OpenTelemetry proxy API.
 	httpClient *http.Client
 
@@ -513,7 +538,7 @@ func newOTLPHTTPClient(
 	return client, nil
 }
 
-// initializeOTelResources initializes the OpenTelemetry meter and log providers.
+// initializeOTelResources initializes the OpenTelemetry signal providers.
 func (o *OpenTelemetryProxy) initializeOTelResources(
 	ctx context.Context,
 ) error {
@@ -539,6 +564,20 @@ func (o *OpenTelemetryProxy) initializeOTelResources(
 			context.Background(),
 			meterProvider,
 			nil,
+			nil,
+		); shutdownErr != nil {
+			return fmt.Errorf("%w; cleanup failed: %v", err, shutdownErr)
+		}
+		return err
+	}
+
+	tracerProvider, err := o.setupTraces(ctx, res)
+	if err != nil {
+		if shutdownErr := shutdownTelemetryProviders(
+			context.Background(),
+			meterProvider,
+			logProvider,
+			nil,
 		); shutdownErr != nil {
 			return fmt.Errorf("%w; cleanup failed: %v", err, shutdownErr)
 		}
@@ -547,6 +586,7 @@ func (o *OpenTelemetryProxy) initializeOTelResources(
 
 	o.meterProvider = meterProvider
 	o.logProvider = logProvider
+	o.tracerProvider = tracerProvider
 	return nil
 }
 
@@ -643,10 +683,66 @@ func (e probedLogExporter) Export(
 	return e.Exporter.Export(ctx, records)
 }
 
+// setupTraces sets up the OpenTelemetry tracer provider, used to record traces/spans.
+func (o *OpenTelemetryProxy) setupTraces(
+	ctx context.Context,
+	res *resource.Resource,
+) (*oteltrace.TracerProvider, error) {
+	if o == nil {
+		return nil, fmt.Errorf("OpenTelemetryProxy is nil")
+	}
+
+	exporter, err := otlptracehttp.New(
+		ctx,
+		otlptracehttp.WithEndpointURL(o.endpoint),
+		otlptracehttp.WithURLPath(tracesPath),
+		otlptracehttp.WithHTTPClient(o.httpClient),
+		otlptracehttp.WithCompression(otlptracehttp.GzipCompression),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create trace exporter: %w", err)
+	}
+
+	return oteltrace.NewTracerProvider(
+		oteltrace.WithResource(res),
+		oteltrace.WithSampler(
+			// ParentBased sampler always samples a span whose parent is sampled.
+			// Otherwise a span is sampled based on rootTraceSampleRate.
+			oteltrace.ParentBased(
+				oteltrace.TraceIDRatioBased(rootTraceSampleRate),
+			),
+		),
+		oteltrace.WithBatcher(
+			probedSpanExporter{exporter, o.serverSupported},
+			oteltrace.WithBatchTimeout(defaultExportInterval),
+			oteltrace.WithExportTimeout(defaultExportTimeout),
+			oteltrace.WithMaxQueueSize(traceMaxQueueSize),
+			oteltrace.WithMaxExportBatchSize(traceMaxExportBatchSize),
+		),
+	), nil
+}
+
+// probedSpanExporter drops exports bound for a server without the proxy API.
+type probedSpanExporter struct {
+	oteltrace.SpanExporter
+	serverSupported func() bool
+}
+
+func (e probedSpanExporter) ExportSpans(
+	ctx context.Context,
+	spans []oteltrace.ReadOnlySpan,
+) error {
+	if !e.serverSupported() {
+		return nil
+	}
+	return e.SpanExporter.ExportSpans(ctx, spans)
+}
+
 func shutdownTelemetryProviders(
 	ctx context.Context,
 	meterProvider *metric.MeterProvider,
 	logProvider *otellog.LoggerProvider,
+	tracerProvider *oteltrace.TracerProvider,
 ) error {
 	var errs []error
 	if meterProvider != nil {
@@ -656,6 +752,11 @@ func shutdownTelemetryProviders(
 	}
 	if logProvider != nil {
 		if err := logProvider.Shutdown(ctx); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if tracerProvider != nil {
+		if err := tracerProvider.Shutdown(ctx); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -676,7 +777,12 @@ func (o *OpenTelemetryProxy) Shutdown(ctx context.Context) error {
 		return nil
 	}
 
-	return shutdownTelemetryProviders(ctx, o.meterProvider, o.logProvider)
+	return shutdownTelemetryProviders(
+		ctx,
+		o.meterProvider,
+		o.logProvider,
+		o.tracerProvider,
+	)
 }
 
 // incrementCounter increments a counter metric by 1.
@@ -696,6 +802,18 @@ func (o *OpenTelemetryProxy) incrementCounter(
 	}
 
 	counter.Add(ctx, 1, toOTelAttrs(lowCardinalityAttributes.toMap()))
+}
+
+func (o *OpenTelemetryProxy) startSpan(
+	ctx context.Context,
+	name string,
+	options ...traceapi.SpanStartOption,
+) (context.Context, traceapi.Span) {
+	if o == nil || o.shutdown.Load() {
+		return noopTracer.Start(ctx, name, options...)
+	}
+
+	return o.tracerProvider.Tracer(o.serviceName).Start(ctx, name, options...)
 }
 
 // recordDuration records a duration histogram metric in seconds.

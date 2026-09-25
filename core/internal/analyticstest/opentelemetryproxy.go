@@ -1,6 +1,7 @@
 package analyticstest
 
 import (
+	"compress/gzip"
 	"context"
 	"io"
 	"net/http"
@@ -10,10 +11,14 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/codes"
 	otellogapi "go.opentelemetry.io/otel/log"
+	traceapi "go.opentelemetry.io/otel/trace"
 	collogspb "go.opentelemetry.io/proto/otlp/collector/logs/v1"
 	colmetricspb "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
+	coltracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	commonpb "go.opentelemetry.io/proto/otlp/common/v1"
+	tracepb "go.opentelemetry.io/proto/otlp/trace/v1"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
@@ -41,6 +46,18 @@ type Metric struct {
 	Attributes     map[string]string
 }
 
+// Span is an OTLP span received by an OpenTelemetryProxyTest.
+type Span struct {
+	Name         string
+	TraceID      traceapi.TraceID
+	SpanID       traceapi.SpanID
+	ParentSpanID traceapi.SpanID
+	Attributes   map[string]string
+	StatusCode   codes.Code
+	Status       string
+	EventNames   []string
+}
+
 // Request is an HTTP request received by an OpenTelemetryProxyTest.
 type Request struct {
 	Path          string
@@ -59,6 +76,7 @@ type OpenTelemetryProxyTest struct {
 	mu       sync.Mutex
 	logs     []Log
 	metrics  []Metric
+	spans    []Span
 	requests []Request
 }
 
@@ -93,6 +111,18 @@ func (s *OpenTelemetryProxyTest) FindMetric(name string) (Metric, bool) {
 	return Metric{}, false
 }
 
+// FindSpan returns the first received span with the given name.
+func (s *OpenTelemetryProxyTest) FindSpan(name string) (Span, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, span := range s.spans {
+		if span.Name == name {
+			return span, true
+		}
+	}
+	return Span{}, false
+}
+
 // NewOpenTelemetryProxyTest creates an OpenTelemetry proxy backed by an OTLP
 // test server.
 //
@@ -121,7 +151,18 @@ func NewOpenTelemetryProxyTest(
 
 func (s *OpenTelemetryProxyTest) handleExport(w http.ResponseWriter, r *http.Request) {
 	s.addRequest(r)
-	body, err := io.ReadAll(r.Body)
+	bodyReader := io.Reader(r.Body)
+	if r.Header.Get("Content-Encoding") == "gzip" {
+		gzipReader, err := gzip.NewReader(r.Body)
+		if err != nil {
+			http.Error(w, "decompress export body", http.StatusBadRequest)
+			return
+		}
+		defer gzipReader.Close()
+		bodyReader = gzipReader
+	}
+
+	body, err := io.ReadAll(bodyReader)
 	if err != nil {
 		http.Error(w, "read export body", http.StatusInternalServerError)
 		return
@@ -135,6 +176,11 @@ func (s *OpenTelemetryProxyTest) handleExport(w http.ResponseWriter, r *http.Req
 		}
 	case "/sdk/otel/v1/metrics":
 		if err := s.addMetrics(body); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	case "/sdk/otel/v1/traces":
+		if err := s.addTraces(body); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -166,6 +212,52 @@ func (s *OpenTelemetryProxyTest) addLogs(body []byte) error {
 		}
 	}
 	return nil
+}
+
+func (s *OpenTelemetryProxyTest) addTraces(body []byte) error {
+	var request coltracepb.ExportTraceServiceRequest
+	if err := proto.Unmarshal(body, &request); err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, resourceSpans := range request.GetResourceSpans() {
+		for _, scopeSpans := range resourceSpans.GetScopeSpans() {
+			for _, otlpSpan := range scopeSpans.GetSpans() {
+				eventNames := make([]string, 0, len(otlpSpan.GetEvents()))
+				for _, event := range otlpSpan.GetEvents() {
+					eventNames = append(eventNames, event.GetName())
+				}
+				var parentSpanID traceapi.SpanID
+				if parentBytes := otlpSpan.GetParentSpanId(); len(parentBytes) == len(parentSpanID) {
+					parentSpanID = traceapi.SpanID(parentBytes)
+				}
+				s.spans = append(s.spans, Span{
+					Name:         otlpSpan.GetName(),
+					TraceID:      traceapi.TraceID(otlpSpan.GetTraceId()),
+					SpanID:       traceapi.SpanID(otlpSpan.GetSpanId()),
+					ParentSpanID: parentSpanID,
+					Attributes:   keyValuesToMap(otlpSpan.GetAttributes()),
+					StatusCode:   statusCode(otlpSpan.GetStatus().GetCode()),
+					Status:       otlpSpan.GetStatus().GetMessage(),
+					EventNames:   eventNames,
+				})
+			}
+		}
+	}
+	return nil
+}
+
+func statusCode(code tracepb.Status_StatusCode) codes.Code {
+	switch code {
+	case tracepb.Status_STATUS_CODE_ERROR:
+		return codes.Error
+	case tracepb.Status_STATUS_CODE_OK:
+		return codes.Ok
+	default:
+		return codes.Unset
+	}
 }
 
 func (s *OpenTelemetryProxyTest) addMetrics(body []byte) error {

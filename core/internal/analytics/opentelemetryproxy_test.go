@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	otellogapi "go.opentelemetry.io/otel/log"
+	traceapi "go.opentelemetry.io/otel/trace"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/analytics"
@@ -345,6 +346,75 @@ func TestTelemetryRecorder_RecordDuration(t *testing.T) {
 	assert.InDelta(t, 1.5, metric.HistogramSum, 0.0001)
 	assert.Equal(t, "inspect", metric.Attributes["leet_mode"])
 	assert.Equal(t, "local", metric.Attributes["execution_context"])
+}
+
+func TestTelemetryRecorder_StartSpanContinuesSampledParent(t *testing.T) {
+	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+
+	traceID, err := traceapi.TraceIDFromHex("0102030405060708090a0b0c0d0e0f10")
+	require.NoError(t, err)
+	parentSpanID, err := traceapi.SpanIDFromHex("0102030405060708")
+	require.NoError(t, err)
+	parent := traceapi.NewSpanContext(traceapi.SpanContextConfig{
+		TraceID:    traceID,
+		SpanID:     parentSpanID,
+		TraceFlags: traceapi.FlagsSampled,
+		Remote:     true,
+	})
+
+	_, span := recorder.StartSpan(
+		traceapi.ContextWithRemoteSpanContext(t.Context(), parent),
+		"wandb.core.request",
+	)
+	span.End()
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	recordedSpan, ok := proxy.FindSpan("wandb.core.request")
+	require.True(t, ok, "expected the request span")
+	assert.Equal(t, traceID, recordedSpan.TraceID)
+	assert.Equal(t, parentSpanID, recordedSpan.ParentSpanID)
+}
+
+func TestTelemetryRecorder_StartSpanDropsUnsampledParent(t *testing.T) {
+	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+	parent := traceapi.NewSpanContext(traceapi.SpanContextConfig{
+		TraceID: traceapi.TraceID{1},
+		SpanID:  traceapi.SpanID{1},
+		Remote:  true,
+	})
+
+	_, span := recorder.StartSpan(
+		traceapi.ContextWithRemoteSpanContext(t.Context(), parent),
+		"wandb.core.request",
+	)
+	span.End()
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	_, ok := proxy.FindSpan("wandb.core.request")
+	assert.False(t, ok, "expected no span for an unsampled parent")
+}
+
+func TestTelemetryRecorder_StartSpanRootsNewTraceWithoutParent(t *testing.T) {
+	proxy := analyticstest.NewOpenTelemetryProxyTest(t)
+	recorder := analytics.NewTelemetryRecorder(
+		proxy.OpenTelemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+
+	_, span := recorder.StartSpan(context.Background(), "wandb.core.http")
+	span.End()
+	require.NoError(t, proxy.Shutdown(context.Background()))
+
+	_, ok := proxy.FindSpan("wandb.core.http")
+	assert.True(t, ok, "expected a parentless span to self-root and record")
 }
 
 func TestTelemetryRecorder_ErrorLog(t *testing.T) {

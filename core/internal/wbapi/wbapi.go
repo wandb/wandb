@@ -62,6 +62,8 @@ func New(
 		return nil, fmt.Errorf("error reading credentials: %v", err)
 	}
 
+	opentelemetryHandler := NewOpenTelemetryHandler(s, serviceName)
+
 	graphqlClient := api.NewGQLClient(
 		api.WBBaseURL(baseURL),
 		"", /*clientID*/
@@ -70,6 +72,7 @@ func New(
 		&observability.Peeker{},
 		s,
 		s.GetExtraHTTPHeaders(),
+		opentelemetryHandler.TelemetryRecorder(),
 	)
 
 	fileTransferClient := newFileTransferClient(
@@ -103,7 +106,7 @@ func New(
 		fileTransferHandler:  NewFileTransferHandler(fileTransferManager),
 		graphqlHandler:       NewGraphQLHandler(graphqlClient),
 		customChartHandler:   NewCustomChartHandler(graphqlClient),
-		opentelemetryHandler: NewOpenTelemetryHandler(s, serviceName),
+		opentelemetryHandler: opentelemetryHandler,
 		runFilesHandler:      NewRunFilesHandler(graphqlClient),
 		runHandler:           NewRunHandler(graphqlClient),
 		runQueueHandler:      NewRunQueueHandler(graphqlClient),
