@@ -9,16 +9,21 @@ tests/system_tests/test_sweep/test_sweep_scheduler_e2e.py.
 from __future__ import annotations
 
 import abc
+import asyncio
 import dataclasses
 import importlib.util
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, Mock, call, patch
 
 import pytest
+from wandb.proto import wandb_sweep_scheduler_pb2 as sspb
+from wandb.sdk.lib.service.service_connection import ServiceConnection
+from wandb.sdk.mailbox import MailboxHandle
 from wandb.sdk.sweeps.run_state import RunState
 from wandb.sdk.sweeps.scheduler import client as scheduler_client
+from wandb.sdk.sweeps.scheduler.ipc import SchedulerTaskExchange
 from wandb.sdk.sweeps.scheduler.optimizer import (
     Optimizer,
     Run,
@@ -883,6 +888,7 @@ class ResumableOptimizerAcceptanceTests(abc.ABC):
             for i, suggestion in enumerate(suggestions)
         ]
         for suggestion, run in zip(suggestions, runs, strict=True):
+            optimizer.tell_enqueued_run(suggestion.run_id, run.wandb_run_id)
             optimizer.tell_run(suggestion.run_id, run)
 
         second = reload(optimizer)
@@ -908,6 +914,7 @@ class ResumableOptimizerAcceptanceTests(abc.ABC):
     ) -> None:
         suggestion = next(iter(optimizer.ask_n_runs(1)))
         finished = make_run(suggestion, state=RunState.FINISHED, summary={"loss": 1.0})
+        optimizer.tell_enqueued_run(suggestion.run_id, finished.wandb_run_id)
         optimizer.tell_run(suggestion.run_id, finished)
 
         second = reload(optimizer)
@@ -939,6 +946,7 @@ class ResumableOptimizerAcceptanceTests(abc.ABC):
             summary={},
             history=[{"loss": 3.0, "_step": 0}],
         )
+        optimizer.tell_enqueued_run(suggestion.run_id, running.wandb_run_id)
         optimizer.tell_run(suggestion.run_id, running)
 
         second = reload(optimizer)
@@ -951,10 +959,10 @@ class ResumableOptimizerAcceptanceTests(abc.ABC):
         assert adoptions == {running.wandb_run_id: suggestion.run_id}
         assert self.completed(second) == [True]
 
-    def test_an_unpolled_trial_is_matched_to_its_run_by_params(
+    def test_an_unlinked_trial_is_matched_to_its_run_by_params(
         self, optimizer: Optimizer, reload
     ) -> None:
-        """A scheduler that stopped before a poll reported the run."""
+        """A scheduler that stopped before reporting the enqueued run."""
         suggestion = next(iter(optimizer.ask_n_runs(1)))
 
         second = reload(optimizer)
@@ -964,14 +972,40 @@ class ResumableOptimizerAcceptanceTests(abc.ABC):
         assert adoptions == {running.wandb_run_id: suggestion.run_id}
         assert self.completed(second) == [False]
 
+    def test_an_unlinked_trial_that_finished_is_not_added_again(
+        self, optimizer: Optimizer, reload
+    ) -> None:
+        suggestion = next(iter(optimizer.ask_n_runs(1)))
+        finished = make_run(suggestion, state=RunState.FINISHED, summary={"loss": 2.0})
+
+        second = reload(optimizer)
+        warm_start(second, finished=[finished])
+        third = reload(second)
+        warm_start(third, finished=[finished])
+
+        assert self.completed(third) == [True]
+
+    def test_an_enqueued_run_resumes_its_trial_by_run_id(
+        self, optimizer: Optimizer, reload
+    ) -> None:
+        suggestion = next(iter(optimizer.ask_n_runs(1)))
+        running = make_run(suggestion, state=RunState.RUNNING, summary={})
+        optimizer.tell_enqueued_run(suggestion.run_id, running.wandb_run_id)
+
+        second = reload(optimizer)
+        moved = dataclasses.replace(running, config=RunConfig.from_values({"x": 2}))
+        adoptions = warm_start(second, active=[moved])
+
+        assert adoptions == {running.wandb_run_id: suggestion.run_id}
+        assert self.completed(second) == [False]
+
     def test_a_run_that_finished_unwatched_completes_its_trial(
         self, optimizer: Optimizer, reload
     ) -> None:
         suggestion = next(iter(optimizer.ask_n_runs(1)))
-        optimizer.tell_run(
-            suggestion.run_id,
-            make_run(suggestion, state=RunState.RUNNING, summary={}),
-        )
+        running = make_run(suggestion, state=RunState.RUNNING, summary={})
+        optimizer.tell_enqueued_run(suggestion.run_id, running.wandb_run_id)
+        optimizer.tell_run(suggestion.run_id, running)
 
         second = reload(optimizer)
         warm_start(
@@ -988,6 +1022,7 @@ class ResumableOptimizerAcceptanceTests(abc.ABC):
     ) -> None:
         suggestion = next(iter(optimizer.ask_n_runs(1)))
         running = make_run(suggestion, state=RunState.RUNNING, summary={})
+        optimizer.tell_enqueued_run(suggestion.run_id, running.wandb_run_id)
         optimizer.tell_run(suggestion.run_id, running)
         optimizer.forget_run(suggestion.run_id)
 
@@ -1078,6 +1113,7 @@ class OptunaResumableAcceptanceTests(ResumableOptimizerAcceptanceTests):
         running = make_run(
             suggestion, state=RunState.RUNNING, summary={}, history=history
         )
+        optimizer.tell_enqueued_run(suggestion.run_id, running.wandb_run_id)
         optimizer.tell_run(suggestion.run_id, running)
 
         second = reload(optimizer)
@@ -1106,6 +1142,7 @@ class OptunaResumableAcceptanceTests(ResumableOptimizerAcceptanceTests):
         first = self.make_optimizer(study, sweep)
         suggestion = next(iter(first.ask_n_runs(1)))
         running = make_run(suggestion, state=RunState.RUNNING, summary={})
+        first.tell_enqueued_run(suggestion.run_id, running.wandb_run_id)
         first.tell_run(suggestion.run_id, running)
 
         warm_start(self.make_optimizer(study, sweep), active=[running])
@@ -1172,6 +1209,8 @@ class TestAxResumableAcceptance(ResumableOptimizerAcceptanceTests):
         from wandb.sdk.sweeps.scheduler.ax import _ExperimentTrials
 
         return _ExperimentTrials
+
+
 class TestLoadSourceObject:
     def test_loads_named_function(self, tmp_path: Path) -> None:
         source = tmp_path / "source.py"
@@ -1251,3 +1290,73 @@ class TestLoadOptimizerConfig:
             scheduler_client.load_optimizer_config(
                 "optimizer.py", "configure", "engine.Optimizer"
             )
+
+
+class TestSchedulerTaskExchangeEnqueuedRuns:
+    @staticmethod
+    def run_exchange(
+        tasks: list[sspb.SweepSchedulerServerNextTaskResponse],
+    ) -> Mock:
+        optimizer = Mock(spec=Optimizer)
+        optimizer.ask_n_runs.return_value = None
+        optimizer.prune_runs.return_value = []
+        optimizer.should_terminate_sweep.return_value = False
+        service = Mock(spec=ServiceConnection)
+
+        async def next_task(session_id, result):
+            handle = Mock(spec=MailboxHandle)
+            handle.wait_async.return_value = tasks.pop(0)
+            return handle
+
+        service.sweep_scheduler_next_task.side_effect = next_task
+        exchange = SchedulerTaskExchange(  # type: ignore[arg-type]
+            service, "scheduler-0", optimizer
+        )
+        asyncio.run(exchange.run())
+        return optimizer
+
+    @staticmethod
+    def done_task(
+        seq: int, enqueued: dict[str, str] | None = None
+    ) -> sspb.SweepSchedulerServerNextTaskResponse:
+        return sspb.SweepSchedulerServerNextTaskResponse(
+            task_seq=seq,
+            done=sspb.SweepSchedulerServerDoneTask(
+                reason=sspb.SweepSchedulerServerDoneTask.REASON_SWEEP_FINISHED,
+                enqueued_runs=enqueued,
+            ),
+        )
+
+    def test_enqueued_runs_are_told_before_their_updates(self) -> None:
+        generation = sspb.SweepSchedulerServerGenerationTask(
+            enqueued_runs={"r1": "wandb-r1"}
+        )
+        generation.updates.append(
+            sspb.SweepSchedulerServerRunUpdate(
+                run=sspb.SweepSchedulerServerRunData(
+                    wandb_run_id="wandb-r1",
+                    optimizer_run_id="r1",
+                    state=sspb.SWEEP_RUN_STATE_PENDING,
+                    config_json='{"param1": 1}',
+                )
+            )
+        )
+
+        optimizer = self.run_exchange(
+            [
+                sspb.SweepSchedulerServerNextTaskResponse(
+                    task_seq=1, generation=generation
+                ),
+                self.done_task(2),
+            ]
+        )
+
+        assert optimizer.mock_calls[:2] == [
+            call.tell_enqueued_run("r1", "wandb-r1"),
+            call.tell_run("r1", ANY),
+        ]
+
+    def test_runs_enqueued_before_done_are_told(self) -> None:
+        optimizer = self.run_exchange([self.done_task(1, {"r1": "wandb-r1"})])
+
+        optimizer.tell_enqueued_run.assert_called_once_with("r1", "wandb-r1")

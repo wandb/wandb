@@ -89,7 +89,7 @@ class _Index:
     running_by_run: dict[str, Any] = field(default_factory=dict)
     # W&B run ids whose trial already finished.
     finished_runs: set[str] = field(default_factory=set)
-    # Run ids of the sweep's running trials no run was seen for yet.
+    # Run ids of the sweep's running trials not yet linked to a run.
     unlinked_running: list[Any] = field(default_factory=list)
 
 
@@ -98,8 +98,8 @@ class TrialResumer(Generic[TrialT]):
 
     A caller can hand over optimizer state reloaded from their own storage.
     Each trial is labeled with its sweep when created and with its W&B run
-    id once a run is seen, so warm start resumes a run's own trial rather
-    than adding the run again.
+    id once the run is enqueued or adopted, so warm start resumes a run's
+    own trial rather than adding the run again.
 
     Only W&B run ids and run ids are kept, never trials. The library's
     trials are listed on the first warm-start call, not before, and the
@@ -121,17 +121,16 @@ class TrialResumer(Generic[TrialT]):
         self._trials = trials
         self._tell_run = tell_run
         self._sweep_path = f"{sweep.entity}/{sweep.project}/{sweep.id}"
-        # Run ids whose trial carries its W&B run id label while tracked.
-        self._linked: set[Any] = set()
         self._index: _Index | None = None
         self._warm_start_over = False
 
     def _build_index(self) -> _Index:
         """Index the trials the library already holds for this sweep.
 
-        Linked trials are keyed by W&B run id. Trials this sweep asked for
-        but never saw polled carry no run id; running ones are kept so warm
-        start can still match them to their run by params.
+        Linked trials are keyed by W&B run id. A trial whose scheduler
+        stopped before reporting its enqueued run carries no run id;
+        running ones are kept so warm start can still match them to their
+        run by params.
         """
         index = _Index()
         for trial in self._trials.existing():
@@ -161,15 +160,8 @@ class TrialResumer(Generic[TrialT]):
         self._trials.label(run_id, {SWEEP_LABEL: self._sweep_path})
 
     def link(self, run_id: Any, wandb_run_id: str) -> None:
-        """Label a tracked trial with its W&B run id, once."""
-        if run_id in self._linked or not wandb_run_id:
-            return
+        """Label a tracked trial with its W&B run id."""
         self._trials.label(run_id, {WANDB_RUN_ID_LABEL: wandb_run_id})
-        self._linked.add(run_id)
-
-    def unlink(self, run_id: Any) -> None:
-        """Forget a trial that is no longer tracked."""
-        self._linked.discard(run_id)
 
     def _claim(self, data: Run) -> Any:
         """Take the library's existing trial for a warm-start run.
@@ -212,7 +204,9 @@ class TrialResumer(Generic[TrialT]):
         if claimed is None:
             self._trials.add_finished(data)
         elif claimed is not _FINISHED:
-            self._tell_run(self._trials.resume(claimed), data)
+            run_id = self._trials.resume(claimed)
+            self.link(run_id, data.wandb_run_id)
+            self._tell_run(run_id, data)
 
     def tell_existing_active_run(self, data: Run) -> Any:
         """Adopt an in-flight run, resuming its trial if the library has one.

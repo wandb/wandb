@@ -168,6 +168,19 @@ class Optimizer(ABC):
             ),
         )
 
+    def tell_enqueued_run(self, run_id: Any, wandb_run_id: str) -> None:
+        """Report the W&B run the scheduler enqueued for a proposed run.
+
+        Called once per enqueued suggestion, before any `tell_run` for it,
+        so the optimizer learns the run's id without waiting for a poll to
+        see the run. The default is a no-op.
+
+        Args:
+            run_id: The `RunSuggestion.run_id` this optimizer handed out.
+            wandb_run_id: The W&B name of the run enqueued for it.
+        """
+        return None
+
     def tell_existing_finished_run(self, data: RunWithMetrics) -> None:
         """Report a *terminal* run that already existed in the sweep at startup.
 

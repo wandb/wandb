@@ -124,7 +124,7 @@ func emptyWarmStartTask() *spb.SweepSchedulerServerNextTaskResponse {
 // endReason is why the scheduler should stop.
 //
 // It is kept apart from the Done task itself so a caller can finish its
-// bookkeeping first: doneTask drains the pending discards, so anything
+// bookkeeping first: doneTask drains the enqueued runs, so anything
 // appended after it is built is never reported.
 type endReason struct {
 	reason  spb.SweepSchedulerServerDoneTask_Reason
@@ -652,6 +652,10 @@ func (s *Scheduler) enqueueOne(
 	run.state = TrackingInFlight
 	run.name = mintedID
 	run.runState = spb.SweepRunState_SWEEP_RUN_STATE_PENDING
+	if s.enqueued == nil {
+		s.enqueued = make(map[string]string)
+	}
+	s.enqueued[id] = mintedID
 	return nil
 }
 

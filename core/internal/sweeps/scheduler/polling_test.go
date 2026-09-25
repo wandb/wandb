@@ -68,6 +68,31 @@ func TestSuggestionsEnqueueAndAppear(t *testing.T) {
 	assert.True(t, fixture.client.AllStubsUsed())
 }
 
+func TestEnqueuedRunIsReportedOnceBeforeAnyPollSeesIt(t *testing.T) {
+	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
+	fixture.warmTo(t)
+	fixture.stubIdlePoll("RUNNING")
+	fixture.step(t, warmResult(nil))
+
+	fixture.stubSweepConfig("RUNNING")
+	fixture.stubEnqueue("minted-1")
+	fixture.stubPoll(pollJSON("RUNNING", false, ""))
+	first := fixture.step(t, generationResult(suggest("opt-1")))
+
+	assert.Equal(t,
+		map[string]string{"opt-1": "minted-1"},
+		first.GetGeneration().EnqueuedRuns)
+	assert.Empty(t, first.GetGeneration().Updates)
+
+	fixture.stubPoll(pollJSON("RUNNING", false, "",
+		testRun{name: "minted-1", state: "running"},
+	))
+	second := fixture.step(t, emptyIterResult())
+
+	assert.Empty(t, second.GetGeneration().EnqueuedRuns)
+	require.Len(t, second.GetGeneration().Updates, 1)
+}
+
 func TestEnqueuedRunDeletedBeforeAppearingIsReaped(t *testing.T) {
 	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
 	fixture.warmTo(t)
@@ -117,6 +142,9 @@ func TestStopEnqueuesPendingSuggestionsThenDone(t *testing.T) {
 	assert.Equal(t,
 		spb.SweepSchedulerServerDoneTask_REASON_SHUTDOWN,
 		done.GetDone().Reason)
+	assert.Equal(t,
+		map[string]string{"opt-a": "minted-a", "opt-b": "minted-b"},
+		done.GetDone().EnqueuedRuns)
 	assert.True(t, fixture.client.AllStubsUsed(),
 		"must not poll again after enqueueing the in-flight suggestions")
 }
@@ -148,6 +176,7 @@ func TestEnqueueFailures(t *testing.T) {
 		// the suggestion.
 		assert.Equal(t,
 			[]string{"opt-lost"}, generation.DiscardedOptimizerRunIds)
+		assert.Empty(t, generation.EnqueuedRuns)
 		assert.True(t, fixture.client.AllStubsUsed())
 	})
 

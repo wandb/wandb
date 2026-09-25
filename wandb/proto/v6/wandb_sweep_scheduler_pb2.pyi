@@ -96,16 +96,25 @@ class SweepSchedulerServerWarmStartTask(_message.Message):
     def __init__(self, finished_runs: _Optional[_Iterable[_Union[SweepSchedulerServerRunData, _Mapping]]] = ..., active_runs: _Optional[_Iterable[_Union[SweepSchedulerServerRunData, _Mapping]]] = ..., has_more: bool = ...) -> None: ...
 
 class SweepSchedulerServerGenerationTask(_message.Message):
-    __slots__ = ("updates", "ask_up_to", "prune_candidates", "discarded_optimizer_run_ids")
+    __slots__ = ("updates", "ask_up_to", "prune_candidates", "discarded_optimizer_run_ids", "enqueued_runs")
+    class EnqueuedRunsEntry(_message.Message):
+        __slots__ = ("key", "value")
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: str
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
     UPDATES_FIELD_NUMBER: _ClassVar[int]
     ASK_UP_TO_FIELD_NUMBER: _ClassVar[int]
     PRUNE_CANDIDATES_FIELD_NUMBER: _ClassVar[int]
     DISCARDED_OPTIMIZER_RUN_IDS_FIELD_NUMBER: _ClassVar[int]
+    ENQUEUED_RUNS_FIELD_NUMBER: _ClassVar[int]
     updates: _containers.RepeatedCompositeFieldContainer[SweepSchedulerServerRunUpdate]
     ask_up_to: int
     prune_candidates: _containers.RepeatedScalarFieldContainer[str]
     discarded_optimizer_run_ids: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, updates: _Optional[_Iterable[_Union[SweepSchedulerServerRunUpdate, _Mapping]]] = ..., ask_up_to: _Optional[int] = ..., prune_candidates: _Optional[_Iterable[str]] = ..., discarded_optimizer_run_ids: _Optional[_Iterable[str]] = ...) -> None: ...
+    enqueued_runs: _containers.ScalarMap[str, str]
+    def __init__(self, updates: _Optional[_Iterable[_Union[SweepSchedulerServerRunUpdate, _Mapping]]] = ..., ask_up_to: _Optional[int] = ..., prune_candidates: _Optional[_Iterable[str]] = ..., discarded_optimizer_run_ids: _Optional[_Iterable[str]] = ..., enqueued_runs: _Optional[_Mapping[str, str]] = ...) -> None: ...
 
 class SweepSchedulerServerRunUpdate(_message.Message):
     __slots__ = ("run", "pruned")
@@ -132,7 +141,7 @@ class SweepSchedulerServerRunData(_message.Message):
     def __init__(self, wandb_run_id: _Optional[str] = ..., optimizer_run_id: _Optional[str] = ..., state: _Optional[_Union[SweepRunState, str]] = ..., config_json: _Optional[str] = ..., summary_json: _Optional[str] = ..., history_json: _Optional[str] = ...) -> None: ...
 
 class SweepSchedulerServerDoneTask(_message.Message):
-    __slots__ = ("reason", "message")
+    __slots__ = ("reason", "message", "enqueued_runs")
     class Reason(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
         __slots__ = ()
         REASON_UNSPECIFIED: _ClassVar[SweepSchedulerServerDoneTask.Reason]
@@ -149,11 +158,20 @@ class SweepSchedulerServerDoneTask(_message.Message):
     REASON_FATAL_ERROR: SweepSchedulerServerDoneTask.Reason
     REASON_OPTIMIZER_ERROR: SweepSchedulerServerDoneTask.Reason
     REASON_SHUTDOWN: SweepSchedulerServerDoneTask.Reason
+    class EnqueuedRunsEntry(_message.Message):
+        __slots__ = ("key", "value")
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: str
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
     REASON_FIELD_NUMBER: _ClassVar[int]
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
+    ENQUEUED_RUNS_FIELD_NUMBER: _ClassVar[int]
     reason: SweepSchedulerServerDoneTask.Reason
     message: str
-    def __init__(self, reason: _Optional[_Union[SweepSchedulerServerDoneTask.Reason, str]] = ..., message: _Optional[str] = ...) -> None: ...
+    enqueued_runs: _containers.ScalarMap[str, str]
+    def __init__(self, reason: _Optional[_Union[SweepSchedulerServerDoneTask.Reason, str]] = ..., message: _Optional[str] = ..., enqueued_runs: _Optional[_Mapping[str, str]] = ...) -> None: ...
 
 class SweepSchedulerClientTaskResult(_message.Message):
     __slots__ = ("task_seq", "warm_start", "generation", "error")
