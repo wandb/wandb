@@ -45,15 +45,21 @@ def create_default_writer(
     unsupported_media_mode: str,
 ) -> EvalTableWriter:
     """Create the writer advertised as the default by the bound run's server."""
-    service_api = ServiceApi(run._settings)
-    backend: Backend = (
-        "ces"
-        if service_api.feature_enabled(pb.ServerFeature.EVAL_TABLES_CES)
-        else "weave"
-    )
+    service_api = require_ces_server_feature(run)
     return create_writer(
-        backend,
+        "ces",
         allow_mixed_types=allow_mixed_types,
         unsupported_media_mode=unsupported_media_mode,
         service_api=service_api,
     )
+
+
+def require_ces_server_feature(run: LocalRun) -> ServiceApi:
+    """Return a service API after verifying that the server supports CES."""
+    service_api = ServiceApi(run._settings)
+    if not service_api.feature_enabled(pb.ServerFeature.EVAL_TABLES_CES):
+        raise UsageError(
+            "This W&B server does not support CES EvalTable logging. "
+            "Pass backend='weave' to use the Weave backend."
+        )
+    return service_api

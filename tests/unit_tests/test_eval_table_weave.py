@@ -10,6 +10,7 @@ from unittest.mock import MagicMock
 import pytest
 import wandb
 from wandb.errors import UsageError
+from wandb.sdk.data_types.eval_table._writer_factory import create_writer
 from wandb.sdk.lib import telemetry
 
 
@@ -66,10 +67,22 @@ def run(mock_run):
 
 
 @pytest.fixture(autouse=True)
-def default_eval_table_server_feature_disabled(monkeypatch):
+def default_eval_table_writer_is_weave(monkeypatch):
+    def create_weave_writer(
+        _run,
+        *,
+        allow_mixed_types,
+        unsupported_media_mode,
+    ):
+        return create_writer(
+            "weave",
+            allow_mixed_types=allow_mixed_types,
+            unsupported_media_mode=unsupported_media_mode,
+        )
+
     monkeypatch.setattr(
-        "wandb.sdk.data_types.eval_table._writer_factory.ServiceApi.feature_enabled",
-        lambda self, feature: False,
+        "wandb.sdk.data_types.eval_table.eval_table.create_default_writer",
+        create_weave_writer,
     )
 
 

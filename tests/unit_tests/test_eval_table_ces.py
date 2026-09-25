@@ -62,10 +62,10 @@ def run(mock_run):
 
 
 @pytest.fixture(autouse=True)
-def default_eval_table_server_feature_disabled(monkeypatch):
+def default_eval_table_server_feature_enabled(monkeypatch):
     monkeypatch.setattr(
         "wandb.sdk.data_types.eval_table._writer_factory.ServiceApi.feature_enabled",
-        lambda self, feature: False,
+        lambda self, feature: True,
     )
 
 
@@ -109,19 +109,13 @@ def mock_ces_client(monkeypatch):
     return client
 
 
-@pytest.mark.parametrize(
-    ("server_feature_enabled", "expected_history_type"),
-    [(False, "eval-table"), (True, "eval-table-ces")],
-)
-def test_eval_table_defaults_backend_from_server_feature(
-    server_feature_enabled,
-    expected_history_type,
+def test_eval_table_defaults_to_ces_when_server_feature_enabled(
     monkeypatch,
     mock_eval_logger,
     mock_ces_client,
     run,
 ):
-    feature_enabled = MagicMock(return_value=server_feature_enabled)
+    feature_enabled = MagicMock(return_value=True)
     monkeypatch.setattr(
         "wandb.sdk.data_types.eval_table._writer_factory.ServiceApi.feature_enabled",
         feature_enabled,
@@ -130,27 +124,36 @@ def test_eval_table_defaults_backend_from_server_feature(
 
     run.log({"eval": table})
 
-    assert table.to_json(run)["_type"] == expected_history_type
+    assert table.to_json(run)["_type"] == "eval-table-ces"
     feature_enabled.assert_called_once_with(pb.ServerFeature.EVAL_TABLES_CES)
-    if server_feature_enabled:
-        mock_ces_client.eval_tables.create.assert_called_once()
-        mock_eval_logger._create_with_meta.assert_not_called()
-    else:
-        mock_eval_logger._create_with_meta.assert_called_once()
-        mock_ces_client.eval_tables.create.assert_not_called()
+    mock_ces_client.eval_tables.create.assert_called_once()
+    mock_eval_logger._create_with_meta.assert_not_called()
 
 
-@pytest.mark.parametrize(
-    ("backend", "server_feature_enabled", "expected_history_type"),
-    [
-        ("weave", True, "eval-table"),
-        ("ces", False, "eval-table-ces"),
-    ],
-)
-def test_eval_table_backend_overrides_server_default(
-    backend,
+def test_eval_table_default_fails_when_server_feature_disabled(
+    monkeypatch,
+    mock_eval_logger,
+    mock_ces_client,
+    run,
+):
+    feature_enabled = MagicMock(return_value=False)
+    monkeypatch.setattr(
+        "wandb.sdk.data_types.eval_table._writer_factory.ServiceApi.feature_enabled",
+        feature_enabled,
+    )
+    table = wandb.EvalTable(columns=["value"], data=[[1]])
+
+    with pytest.raises(UsageError, match="backend='weave'"):
+        run.log({"eval": table})
+
+    feature_enabled.assert_called_once_with(pb.ServerFeature.EVAL_TABLES_CES)
+    mock_ces_client.eval_tables.create.assert_not_called()
+    mock_eval_logger._create_with_meta.assert_not_called()
+
+
+@pytest.mark.parametrize("server_feature_enabled", [False, True])
+def test_eval_table_explicit_weave_skips_server_feature(
     server_feature_enabled,
-    expected_history_type,
     monkeypatch,
     mock_eval_logger,
     mock_ces_client,
@@ -161,12 +164,35 @@ def test_eval_table_backend_overrides_server_default(
         "wandb.sdk.data_types.eval_table._writer_factory.ServiceApi.feature_enabled",
         feature_enabled,
     )
-    table = wandb.EvalTable(columns=["value"], data=[[1]], backend=backend)
+    table = wandb.EvalTable(columns=["value"], data=[[1]], backend="weave")
 
     run.log({"eval": table})
 
-    assert table.to_json(run)["_type"] == expected_history_type
+    assert table.to_json(run)["_type"] == "eval-table"
     feature_enabled.assert_not_called()
+    mock_eval_logger._create_with_meta.assert_called_once()
+    mock_ces_client.eval_tables.create.assert_not_called()
+
+
+def test_eval_table_explicit_ces_requires_server_feature(
+    monkeypatch,
+    mock_eval_logger,
+    mock_ces_client,
+    run,
+):
+    feature_enabled = MagicMock(return_value=False)
+    monkeypatch.setattr(
+        "wandb.sdk.data_types.eval_table._writer_factory.ServiceApi.feature_enabled",
+        feature_enabled,
+    )
+    table = wandb.EvalTable(columns=["value"], data=[[1]], backend="ces")
+
+    with pytest.raises(UsageError, match="backend='weave'"):
+        run.log({"eval": table})
+
+    feature_enabled.assert_called_once_with(pb.ServerFeature.EVAL_TABLES_CES)
+    mock_eval_logger._create_with_meta.assert_not_called()
+    mock_ces_client.eval_tables.create.assert_not_called()
 
 
 def test_eval_table_default_ces_does_not_require_weave(
@@ -377,9 +403,7 @@ def test_ces_eval_table_batch_size_counts_row_separators(
 ):
     row = {"input": {"value": "same"}, "output": None, "scores": {}}
     row_size = len(ces_writer._encode_json(row))
-    target_size = (
-        ces_writer._ROW_BATCH_ENVELOPE_BYTES + 2 * row_size + separator_bytes
-    )
+    target_size = ces_writer._ROW_BATCH_ENVELOPE_BYTES + 2 * row_size + separator_bytes
     batches = list(
         ces_writer._iter_row_batches(
             [row, row, row],
