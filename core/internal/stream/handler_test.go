@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/observability"
@@ -27,9 +28,20 @@ func makeHandler(
 ) *stream.Handler {
 	t.Helper()
 
-	s := settings.From(&spb.Settings{
+	return makeHandlerWithSettings(t, inChan, commit, &spb.Settings{
 		XServerSideDerivedSummary: wrapperspb.Bool(skipDerivedSummary),
 	})
+}
+
+func makeHandlerWithSettings(
+	t *testing.T,
+	inChan chan runwork.Work,
+	commit string,
+	settingsProto *spb.Settings,
+) *stream.Handler {
+	t.Helper()
+
+	s := settings.From(settingsProto)
 
 	handlerFactory := stream.HandlerFactory{
 		Logger:          observabilitytest.NewTestLogger(t),
@@ -750,6 +762,55 @@ func TestHandlePartialHistory(t *testing.T) {
 			}
 		},
 		)
+	}
+}
+
+func TestHandlePartialHistory_HistoryValueEncoding(t *testing.T) {
+	tests := []struct {
+		name      string
+		encoding  string
+		wantTyped bool
+	}{
+		{"default", "", false},
+		{"json", "json", false},
+		{"typed", "typed", true},
+		{"dual write", "json,typed", true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			inChan := make(chan runwork.Work, stream.BufferSize)
+			handler := makeHandlerWithSettings(t, inChan, "", &spb.Settings{
+				XHistoryValueEncoding:     wrapperspb.String(test.encoding),
+				XServerSideDerivedSummary: wrapperspb.Bool(true),
+			})
+
+			inChan <- runwork.NoRequest(runwork.WorkRecord{Record: makePartialHistoryRecord(data{
+				items: map[string]string{"metric": "1.0"},
+				step:  7,
+				flush: true,
+			})})
+
+			record := (<-handler.OutChan()).WorkImpl.(runwork.WorkRecord).Record
+			history := record.GetHistory()
+			require.NotNil(t, history)
+
+			byKey := make(map[string]*spb.HistoryItem)
+			for _, item := range history.Item {
+				byKey[item.GetNestedKey()[0]] = item
+				require.NotEmpty(t, item.ValueJson)
+				if !test.wantTyped {
+					assert.Nil(t, item.Value)
+				}
+			}
+			if !test.wantTyped {
+				return
+			}
+
+			assert.IsType(t, &spb.HistoryValue_Number{}, byKey["metric"].Value.Value)
+			assert.IsType(t, &spb.HistoryValue_Integer{}, byKey["_step"].Value.Value)
+			assert.IsType(t, &spb.HistoryValue_Number{}, byKey["_runtime"].Value.Value)
+		})
 	}
 }
 
