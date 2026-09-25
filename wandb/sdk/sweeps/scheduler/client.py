@@ -9,10 +9,12 @@ translated into a graceful stop request and the second one force-quits.
 
 from __future__ import annotations
 
+import importlib.util
+import pathlib
 import signal
 from collections.abc import Callable
 from types import FrameType
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import yaml
 
@@ -174,3 +176,64 @@ def _install_sigint_handler(
         # scheduler still stops when its client exits, just without the
         # finish-this-step handshake.
         return None
+
+
+def load_source_object(source: str, name: str) -> Any:
+    """Import the python file at `source` and return its `name` attribute.
+
+    Used to load a user-defined `search_space` (define-by-run trial
+    constructor) or `optimizer` (engine object and optional terminator
+    factory) referenced by name from a sweep's scheduler config.
+    """
+    if not source:
+        raise ValueError(
+            f"scheduler.source must name the python file that defines "
+            f"{name!r}, but is missing or empty."
+        )
+    module_name = f"wandb_sweep_source_{pathlib.Path(source).stem}"
+    spec = importlib.util.spec_from_file_location(module_name, source)
+    if spec is None or spec.loader is None:
+        raise ValueError(f"Could not import source file: {source}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    try:
+        return getattr(module, name)
+    except AttributeError:
+        raise ValueError(f"{source} has no attribute {name!r}") from None
+
+
+def load_optimizer_config(
+    source: str, name: str, optimizer_type: str
+) -> tuple[Any, Callable[[Any], bool] | None]:
+    """Run a configured optimizer factory and normalize its return value.
+
+    The factory may return either the engine's native optimizer object or an
+    `(optimizer, terminator)` tuple. A terminator, when present, must be
+    callable.
+
+    Args:
+        source: The python file that defines the factory.
+        name: The factory's name in `source`.
+        optimizer_type: The full path of the engine's optimizer type, shown
+            in errors.
+    """
+    configured: object = load_source_object(source, name)()
+    if not isinstance(configured, tuple):
+        return configured, None
+    parts = cast("tuple[object, ...]", configured)
+    terminator_type = f"Callable[[{optimizer_type}], bool]"
+    if len(parts) != 2:
+        raise ValueError(
+            f"scheduler.optimizer {name!r} must return an instance of "
+            f"{optimizer_type} or a tuple of ({optimizer_type}, "
+            f"{terminator_type}), but returned a tuple of {len(parts)} items."
+        )
+    optimizer, terminator = parts
+    if terminator is not None and not callable(terminator):
+        raise ValueError(
+            f"The terminator returned by scheduler.optimizer {name!r} must be "
+            f"of type {terminator_type} or None, but is of type "
+            f"{type(terminator).__name__}."
+        )
+    # Only callability can be checked; the signature is the user's contract.
+    return optimizer, cast("Callable[[Any], bool] | None", terminator)
