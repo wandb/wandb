@@ -72,7 +72,7 @@ class _CESFieldType:
     """Track a column's value schema and build its CES field declaration."""
 
     value_type: PrimitiveValueType | Literal["json"]
-    extension_type: _media_ces._CESExtensionType | None = None
+    extension_type: _media_ces.CESExtensionType | None = None
     extension_schema_version: int | None = None
 
     def declaration(self, source: _CESFieldSource, name: str) -> _CESDatasetField:

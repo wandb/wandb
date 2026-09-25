@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 # after larger rows failed in production (wandb/weave#2353, wandb/weave#5448).
 CES_MAX_CELL_BYTES = 3_500_000
 _CESMediaExtensionValue = dict[str, Any]
-_CESExtensionType = str
+CESExtensionType = str
 # Intentionally empty in this foundational layer. Later PRs add supported types.
 SUPPORTED_WANDB_MEDIA_TYPES: tuple[type[Media], ...] = ()
 
@@ -41,7 +41,7 @@ class PreparedMediaCell:
     """
 
     value: _CESMediaExtensionValue | None
-    extension_type: _CESExtensionType
+    extension_type: CESExtensionType
     extension_schema_version: int
     encoded_size: int
     oversized: bool
