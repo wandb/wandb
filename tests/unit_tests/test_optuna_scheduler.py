@@ -171,34 +171,7 @@ class TestCreateStudyFromSweepConfig:
 
         assert [d.name.lower() for d in study.directions] == directions
 
-    @pytest.mark.parametrize(
-        ("early_terminate", "min_resource", "max_resource"),
-        [
-            ({"type": "hyperband", "max_iter": 27, "s": 2, "eta": 3}, 2, 27),
-            ({"type": "hyperband", "min_iter": 3, "eta": 3}, 2, "auto"),
-            # A band of 1 is already the smallest possible bracket, so there
-            # is no earlier 0-indexed step to fall back to.
-            ({"type": "hyperband", "min_iter": 1, "eta": 3}, 1, "auto"),
-        ],
-        ids=["max_iter_s_and_eta", "min_iter", "min_iter_floor"],
-    )
-    def test_hyperband_pruner_maps_the_early_terminate_keys(
-        self,
-        early_terminate: dict[str, Any],
-        min_resource: int,
-        max_resource: int | str,
-    ) -> None:
-        study = create_study_from_sweep_config(
-            {"metric": {"name": "loss"}, "early_terminate": early_terminate}
-        )
-
-        pruner = study.pruner
-        assert isinstance(pruner, optuna.pruners.HyperbandPruner)
-        assert pruner._min_resource == min_resource
-        assert pruner._max_resource == max_resource
-        assert pruner._reduction_factor == early_terminate["eta"]
-
-    def test_no_early_terminate_uses_nop_pruner(self) -> None:
+    def test_the_study_never_prunes(self) -> None:
         study = create_study_from_sweep_config({"metric": {"name": "loss"}})
 
         assert isinstance(study.pruner, optuna.pruners.NopPruner)
