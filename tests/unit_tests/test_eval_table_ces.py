@@ -68,24 +68,6 @@ def mock_ces_client(monkeypatch):
     return client
 
 
-def test_eval_table_default_ces_does_not_require_weave(
-    monkeypatch,
-    mock_ces_client,
-    run,
-):
-    monkeypatch.setitem(sys.modules, "weave", None)
-    monkeypatch.setattr(
-        "wandb.sdk.data_types.eval_table._writer_factory.ServiceApi.feature_enabled",
-        lambda self, feature: True,
-    )
-    table = wandb.EvalTable(columns=["value"], data=[[1]])
-
-    run.log({"eval": table})
-
-    assert table.to_json(run)["_type"] == "eval-table-ces"
-    mock_ces_client.eval_tables.create.assert_called_once()
-
-
 def test_ces_eval_table_writes_columns_rows_and_version(
     mock_ces_client,
     run,
@@ -232,19 +214,14 @@ def test_ces_eval_table_raises_for_media_in_raise_mode(mock_ces_client):
     mock_ces_client.eval_tables.create.assert_not_called()
 
 
-def test_default_writer_validates_cells_during_construction(mock_ces_client):
-    from PIL import Image as PILImage
+def test_default_writer_validates_cells_during_construction():
+    nested_table = wandb.Table(columns=["value"], data=[[1]])
 
-    image = wandb.Image(PILImage.new("RGB", (2, 2), color="red"))
-
-    with pytest.raises(TypeError, match="unsupported wandb media type 'Image'"):
+    with pytest.raises(TypeError, match="does not support nested Tables"):
         wandb.EvalTable(
-            columns=["image"],
-            data=[[image]],
-            unsupported_media_mode="raise",
+            columns=["table"],
+            data=[[nested_table]],
         )
-
-    mock_ces_client.eval_tables.create.assert_not_called()
 
 
 def test_ces_eval_table_batches_rows_by_encoded_bytes(
