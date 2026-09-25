@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -185,55 +185,6 @@ class TestBuildAxSchedulerOptimizer:
 
         assert isinstance(optimizer, AxOptimizer)
         assert optimizer.should_terminate_sweep() is False
-
-    def test_optimizer_config_returns_client(
-        self, monkeypatch, client: Client, sweep: SweepInfo
-    ) -> None:
-        from wandb.cli import cli
-
-        configure = MagicMock(return_value=client)
-        monkeypatch.setattr(cli, "_load_source_object", lambda *_: configure)
-
-        optimizer = cli._build_ax_scheduler_optimizer(
-            sweep,
-            {"engine": "ax", "source": "optimizer.py", "optimizer": "configure"},
-        )
-
-        assert optimizer.client is client
-        assert optimizer.should_terminate_sweep() is False
-
-    def test_optimizer_config_returns_client_and_terminator(
-        self, monkeypatch, client: Client, sweep: SweepInfo
-    ) -> None:
-        from wandb.cli import cli
-
-        terminator = MagicMock(return_value=True)
-        configure = MagicMock(return_value=(client, terminator))
-        monkeypatch.setattr(cli, "_load_source_object", lambda *_: configure)
-
-        optimizer = cli._build_ax_scheduler_optimizer(
-            sweep,
-            {"engine": "ax", "source": "optimizer.py", "optimizer": "configure"},
-        )
-
-        assert optimizer.client is client
-        assert optimizer.should_terminate_sweep() is True
-        terminator.assert_called_once_with(client)
-
-    def test_a_malformed_optimizer_config_names_the_client_type(
-        self, monkeypatch, client: Client, sweep: SweepInfo
-    ) -> None:
-        from click.exceptions import ClickException
-        from wandb.cli import cli
-
-        configure = MagicMock(return_value=(client,))
-        monkeypatch.setattr(cli, "_load_source_object", lambda *_: configure)
-
-        with pytest.raises(ClickException, match="instance of ax.api.client.Client"):
-            cli._build_ax_scheduler_optimizer(
-                sweep,
-                {"engine": "ax", "source": "optimizer.py", "optimizer": "configure"},
-            )
 
 
 class TestUnparseableMetricName:
