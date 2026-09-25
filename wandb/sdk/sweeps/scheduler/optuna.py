@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, TypeAlias
 
@@ -250,12 +250,6 @@ class OptunaOptimizer(Optimizer):
         self._warm_start_over = False
         self._persisted_index: _PersistedIndex | None = None
 
-    def _persisted_trials(self) -> Iterator[optuna.trial.FrozenTrial]:
-        """Yield the study's trials one at a time, uncopied."""
-        # Every storage's cache holds these once the study is first asked
-        # for a trial; deepcopy=False hands them over as they are.
-        yield from self.study.get_trials(deepcopy=False)
-
     def _index_persisted_trials(self) -> _PersistedIndex:
         """Index the trials a caller's study already holds for this sweep.
 
@@ -263,10 +257,10 @@ class OptunaOptimizer(Optimizer):
         id, and running trials this sweep asked for but never saw polled,
         which carry no run id yet and are matched to their run by params.
         """
-        if self._persisted_index is not None:
-            return self._persisted_index
         index = _PersistedIndex()
-        for trial in self._persisted_trials():
+        # Every storage's cache holds these once the study is first asked
+        # for a trial; deepcopy=False lists them without copying.
+        for trial in self.study.get_trials(deepcopy=False):
             wandb_run_id = trial.user_attrs.get(_WANDB_RUN_ID_ATTR)
             running = trial.state == optuna.trial.TrialState.RUNNING
             if wandb_run_id is not None:
@@ -276,7 +270,6 @@ class OptunaOptimizer(Optimizer):
                     index.finished_runs.add(wandb_run_id)
             elif running and trial.user_attrs.get(_SWEEP_ATTR) == self._sweep_path:
                 index.unlinked_running.append(str(trial.number))
-        self._persisted_index = index
         return index
 
     def _claim_persisted_trial(self, data: Run) -> Any:
@@ -288,7 +281,9 @@ class OptunaOptimizer(Optimizer):
         """
         if self._warm_start_over:
             return None
-        index = self._index_persisted_trials()
+        if self._persisted_index is None:
+            self._persisted_index = self._index_persisted_trials()
+        index = self._persisted_index
         if data.wandb_run_id in index.finished_runs:
             index.finished_runs.discard(data.wandb_run_id)
             return _FINISHED
