@@ -184,6 +184,8 @@ func (rh *RunHistory) SetString(path pathtree.TreePath, value string) {
 
 // SetFromRecord records one or more metrics specified in a history proto.
 //
+// It prefers the typed `Value` and falls back to `ValueJson`.
+//
 // If the history item contains multiple metrics, such as if its ValueJson is
 // a JSON-encoded dictionary, then metrics are set on a best-effort basis,
 // and any errors are joined and returned.
@@ -199,12 +201,53 @@ func (rh *RunHistory) SetFromRecord(record *spb.HistoryItem) error {
 		return errors.New("empty history item key")
 	}
 
+	if typed := record.GetValue(); typed != nil {
+		return rh.setFromTypedValue(path, typed)
+	}
+
 	value, err := simplejsonext.UnmarshalString(record.ValueJson)
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal history item value: %v", err)
 	}
 
 	rh.setFromUnmarshalledJSON(path, value)
+	return nil
+}
+
+func (rh *RunHistory) setFromTypedValue(
+	path pathtree.TreePath,
+	typed *spb.HistoryValue,
+) error {
+	switch value := typed.Value.(type) {
+	case *spb.HistoryValue_None:
+		rh.metrics.Set(path, nil)
+
+	case *spb.HistoryValue_Number:
+		rh.metrics.Set(path, value.Number)
+
+	case *spb.HistoryValue_Integer:
+		rh.metrics.Set(path, value.Integer)
+
+	case *spb.HistoryValue_Boolean:
+		rh.metrics.Set(path, value.Boolean)
+
+	case *spb.HistoryValue_Text:
+		rh.metrics.Set(path, value.Text)
+
+	case *spb.HistoryValue_Json:
+		// An object keeps its tree structure, the same as the JSON form.
+		decoded, err := simplejsonext.UnmarshalString(value.Json)
+		if err != nil {
+			return fmt.Errorf(
+				"failed to unmarshal typed history item value: %v", err)
+		}
+		rh.setFromUnmarshalledJSON(path, decoded)
+
+	default:
+		// An unknown value may have been written by a newer SDK. Ignore it.
+		return fmt.Errorf("unknown history value type %T", typed.Value)
+	}
+
 	return nil
 }
 
