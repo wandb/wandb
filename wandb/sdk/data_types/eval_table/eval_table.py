@@ -13,7 +13,6 @@ from wandb.sdk.data_types.eval_table._writer import (
 )
 from wandb.sdk.data_types.eval_table._writer_factory import (
     Backend,
-    create_default_writer,
     create_writer,
     require_eval_table_server_feature,
 )
@@ -143,18 +142,11 @@ class EvalTable(Table):
             raise UsageError("EvalTable currently only supports log_mode='IMMUTABLE'.")
 
         validate_unsupported_media_mode(unsupported_media_mode)
-        self._allow_mixed_types = allow_mixed_types
-        self._backend = backend
-        self._writer: EvalTableWriter | None = (
-            create_writer(
-                backend,
-                allow_mixed_types=allow_mixed_types,
-                unsupported_media_mode=unsupported_media_mode,
-            )
-            if backend is not None
-            else None
+        self._writer: EvalTableWriter = create_writer(
+            backend if backend is not None else "ces",
+            allow_mixed_types=allow_mixed_types,
+            unsupported_media_mode=unsupported_media_mode,
         )
-        self._unsupported_media_mode = unsupported_media_mode
 
         self._input_columns = list(input_columns or [])
         self._output_columns = list(output_columns or [])
@@ -209,21 +201,11 @@ class EvalTable(Table):
                 "Use wandb.init(mode='online') or unset WANDB_MODE."
             )
 
-        writer = self._writer
-        if writer is None:
-            # Select the default writer here so its choice can depend on the run.
-            writer = create_default_writer(
-                run,
-                allow_mixed_types=self._allow_mixed_types,
-                unsupported_media_mode=self._unsupported_media_mode,
-            )
-        else:
-            require_eval_table_server_feature(run)
+        require_eval_table_server_feature(run)
 
         # Initialize writer with run context while intentionally
         # skipping the file-copy behavior in Table.bind_to_run().
-        writer.bind_to_run(run, str(key), step)
-        self._writer = writer
+        self._writer.bind_to_run(run, str(key), step)
         self._run = run
         self._run_log_key = str(key)
 
@@ -240,8 +222,7 @@ class EvalTable(Table):
 
         run = run_or_artifact
 
-        writer = self._writer
-        if writer is None or self._run_log_key is None:
+        if self._run_log_key is None:
             raise UsageError("EvalTable must be logged with run.log().")
 
         # This check also ensures that we've initialized Weave via bind_to_run.
@@ -250,8 +231,6 @@ class EvalTable(Table):
                 "EvalTable cannot be serialized for a different run than it was "
                 "bound to."
             )
-
-        self._validate_cells_for_writer(writer)
 
         if self._immutable_write_result is not None:
             self._warn_immutable_already_logged()
@@ -270,18 +249,7 @@ class EvalTable(Table):
         return self._immutable_write_result is not None
 
     def _validate_cell_value(self, val: Any, col: ColumnKey) -> None:
-        if self._writer is not None:
-            self._writer.validate_cell_value(val, col)
-        elif isinstance(val, Table):
-            raise TypeError(
-                f"Column {col!r} contains a {type(val).__name__}; "
-                "EvalTable does not support nested Tables (or EvalTables) as cell values."
-            )
-
-    def _validate_cells_for_writer(self, writer: EvalTableWriter) -> None:
-        for row in self.data:
-            for column, value in zip(self.columns, row, strict=True):
-                writer.validate_cell_value(value, column)
+        self._writer.validate_cell_value(val, col)
 
     @override
     def add_data(self, *data: Any) -> None:
@@ -351,7 +319,6 @@ class EvalTable(Table):
 
     def _write_to_backend(self) -> WriteResult:
         """Partition table rows by role and pass them to the bound writer."""
-        assert self._writer is not None
         assert self._run_log_key is not None
 
         self._validate_column_mappings(

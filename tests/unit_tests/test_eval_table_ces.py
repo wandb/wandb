@@ -11,49 +11,8 @@ from unittest.mock import ANY, MagicMock
 import pytest
 import wandb
 from wandb.errors import UsageError
-from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.data_types._dtypes import AnyType
 from wandb.sdk.data_types.eval_table import _writer_ces as ces_writer
-
-
-@pytest.fixture
-def mock_eval_logger(monkeypatch):
-    mock_evaluation_logger_cls = MagicMock()
-    created_loggers: list[MagicMock] = []
-
-    def create_logger(*args, **kwargs):
-        logger = MagicMock()
-        logger._evaluate_call.id = f"eval-{len(created_loggers) + 1}"
-        logger._init_args = args
-        logger._init_kwargs = kwargs
-        created_loggers.append(logger)
-        return logger
-
-    mock_evaluation_logger_cls._create_with_meta.side_effect = create_logger
-    mock_evaluation_logger_cls.created_loggers = created_loggers
-
-    weave_module = types.ModuleType("weave")
-    weave_module.__path__ = []
-    weave_module.__version__ = "999.0.0"
-    evaluation_module = types.ModuleType("weave.evaluation")
-    evaluation_module.__path__ = []
-    eval_imperative_module = types.ModuleType("weave.evaluation.eval_imperative")
-    eval_imperative_module.EvaluationLogger = mock_evaluation_logger_cls
-    weave_module.evaluation = evaluation_module
-    evaluation_module.eval_imperative = eval_imperative_module
-
-    monkeypatch.setitem(sys.modules, "weave", weave_module)
-    monkeypatch.setitem(sys.modules, "weave.evaluation", evaluation_module)
-    monkeypatch.setitem(
-        sys.modules,
-        "weave.evaluation.eval_imperative",
-        eval_imperative_module,
-    )
-    monkeypatch.setattr(
-        "wandb.sdk.data_types.eval_table._writer_weave.weave_integration.init_weave",
-        lambda entity, project: None,
-    )
-    return mock_evaluation_logger_cls
 
 
 @pytest.fixture
@@ -107,111 +66,6 @@ def mock_ces_client(monkeypatch):
         lambda self, *, client_type, base_url, scope: client,
     )
     return client
-
-
-def test_eval_table_defaults_to_ces_when_server_feature_enabled(
-    monkeypatch,
-    mock_eval_logger,
-    mock_ces_client,
-    run,
-):
-    feature_enabled = MagicMock(return_value=True)
-    monkeypatch.setattr(
-        "wandb.sdk.data_types.eval_table._writer_factory.ServiceApi.feature_enabled",
-        feature_enabled,
-    )
-    table = wandb.EvalTable(columns=["value"], data=[[1]])
-
-    run.log({"eval": table})
-
-    assert table.to_json(run)["_type"] == "eval-table-ces"
-    feature_enabled.assert_called_once_with(pb.ServerFeature.EVAL_TABLES_CES)
-    mock_ces_client.eval_tables.create.assert_called_once()
-    mock_eval_logger._create_with_meta.assert_not_called()
-
-
-def test_eval_table_default_fails_when_server_feature_disabled(
-    monkeypatch,
-    mock_eval_logger,
-    mock_ces_client,
-    run,
-):
-    feature_enabled = MagicMock(return_value=False)
-    monkeypatch.setattr(
-        "wandb.sdk.data_types.eval_table._writer_factory.ServiceApi.feature_enabled",
-        feature_enabled,
-    )
-    table = wandb.EvalTable(columns=["value"], data=[[1]])
-
-    with pytest.raises(UsageError, match="does not support EvalTable logging"):
-        run.log({"eval": table})
-
-    feature_enabled.assert_called_once_with(pb.ServerFeature.EVAL_TABLES_CES)
-    mock_ces_client.eval_tables.create.assert_not_called()
-    mock_eval_logger._create_with_meta.assert_not_called()
-
-
-def test_eval_table_explicit_weave_requires_server_feature(
-    monkeypatch,
-    mock_eval_logger,
-    mock_ces_client,
-    run,
-):
-    feature_enabled = MagicMock(return_value=False)
-    monkeypatch.setattr(
-        "wandb.sdk.data_types.eval_table._writer_factory.ServiceApi.feature_enabled",
-        feature_enabled,
-    )
-    table = wandb.EvalTable(columns=["value"], data=[[1]], backend="weave")
-
-    with pytest.raises(UsageError, match="does not support EvalTable logging"):
-        run.log({"eval": table})
-
-    feature_enabled.assert_called_once_with(pb.ServerFeature.EVAL_TABLES_CES)
-    mock_eval_logger._create_with_meta.assert_not_called()
-    mock_ces_client.eval_tables.create.assert_not_called()
-
-
-def test_eval_table_explicit_weave_allowed_when_server_feature_enabled(
-    monkeypatch,
-    mock_eval_logger,
-    mock_ces_client,
-    run,
-):
-    feature_enabled = MagicMock(return_value=True)
-    monkeypatch.setattr(
-        "wandb.sdk.data_types.eval_table._writer_factory.ServiceApi.feature_enabled",
-        feature_enabled,
-    )
-    table = wandb.EvalTable(columns=["value"], data=[[1]], backend="weave")
-
-    run.log({"eval": table})
-
-    assert table.to_json(run)["_type"] == "eval-table"
-    feature_enabled.assert_called_once_with(pb.ServerFeature.EVAL_TABLES_CES)
-    mock_eval_logger._create_with_meta.assert_called_once()
-    mock_ces_client.eval_tables.create.assert_not_called()
-
-
-def test_eval_table_explicit_ces_requires_server_feature(
-    monkeypatch,
-    mock_eval_logger,
-    mock_ces_client,
-    run,
-):
-    feature_enabled = MagicMock(return_value=False)
-    monkeypatch.setattr(
-        "wandb.sdk.data_types.eval_table._writer_factory.ServiceApi.feature_enabled",
-        feature_enabled,
-    )
-    table = wandb.EvalTable(columns=["value"], data=[[1]], backend="ces")
-
-    with pytest.raises(UsageError, match="does not support EvalTable logging"):
-        run.log({"eval": table})
-
-    feature_enabled.assert_called_once_with(pb.ServerFeature.EVAL_TABLES_CES)
-    mock_eval_logger._create_with_meta.assert_not_called()
-    mock_ces_client.eval_tables.create.assert_not_called()
 
 
 def test_eval_table_default_ces_does_not_require_weave(
@@ -378,20 +232,17 @@ def test_ces_eval_table_raises_for_media_in_raise_mode(mock_ces_client):
     mock_ces_client.eval_tables.create.assert_not_called()
 
 
-def test_default_writer_validates_cells_during_serialization(mock_ces_client, run):
+def test_default_writer_validates_cells_during_construction(mock_ces_client):
     from PIL import Image as PILImage
 
     image = wandb.Image(PILImage.new("RGB", (2, 2), color="red"))
-    table = wandb.EvalTable(
-        columns=["image"],
-        data=[[image]],
-        unsupported_media_mode="raise",
-    )
-
-    table.bind_to_run(run, "eval", 0)
 
     with pytest.raises(TypeError, match="unsupported wandb media type 'Image'"):
-        table.to_json(run)
+        wandb.EvalTable(
+            columns=["image"],
+            data=[[image]],
+            unsupported_media_mode="raise",
+        )
 
     mock_ces_client.eval_tables.create.assert_not_called()
 
