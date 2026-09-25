@@ -85,6 +85,7 @@ func TestRemoteRun_DoesNotStartLocalWatcherAfterBootLoad(t *testing.T) {
 	}
 	var m tea.Model = leet.NewRun(runParams, cfg, logger)
 	m, _ = m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	m, _ = m.Update(leet.InitMsg{Source: &stubHistorySource{}})
 
 	m, _ = m.Update(leet.ChunkedBatchMsg{
 		Msgs: []tea.Msg{

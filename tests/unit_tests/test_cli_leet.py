@@ -179,3 +179,31 @@ def test_beta_leet_is_an_alias(runner, core_calls, tmp_path: pathlib.Path):
     assert core_calls == [
         ["wandb-core", "leet", "--base-url", _BASE_URL, str(wandb_dir.resolve())]
     ]
+
+
+@pytest.mark.parametrize(
+    ("url", "expected_remote_url"),
+    [
+        (
+            "https://wandb.ai/my-entity/my-project/workspace?nw=abc",
+            "https://api.wandb.ai/my-entity/my-project/workspace",
+        ),
+        (
+            "https://wandb.ai/my-entity/my-project/runs/abc123?workspace=user",
+            "https://api.wandb.ai/my-entity/my-project/runs/abc123",
+        ),
+    ],
+)
+def test_leet_parse_remote_url_accepts_projects_and_runs(
+    url: str,
+    expected_remote_url: str,
+):
+    base_url, remote_url = leet._parse_remote_url(url)
+
+    assert base_url == "https://api.wandb.ai"
+    assert remote_url == expected_remote_url
+
+
+def test_leet_parse_remote_url_requires_entity_and_project():
+    with pytest.raises(SystemExit):
+        leet._parse_remote_url("https://wandb.ai/my-entity")

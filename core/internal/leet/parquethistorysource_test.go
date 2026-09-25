@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -54,6 +55,7 @@ func testRunInfo(runSummary map[string]any) *RunInfo {
 		runId:       "run-id",
 		runSummary:  runSummary,
 		displayName: "run_display_name",
+		runState:    RunStateFinished,
 	}
 }
 
@@ -69,7 +71,9 @@ func TestParquetHistorySource_Read(t *testing.T) {
 		t.Context(),
 		testRunInfo(map[string]any{"_step": int64(1000), "loss": 0.1}),
 		reader,
+		&fakeStepReader{},
 		observability.NewNoOpLogger(),
+		nil,
 	)
 
 	msg, err := source.Read(100, 10*time.Second)
@@ -78,7 +82,7 @@ func TestParquetHistorySource_Read(t *testing.T) {
 	batch, ok := msg.(ChunkedBatchMsg)
 	require.True(t, ok)
 	require.False(t, batch.HasMore)
-	require.Len(t, batch.Msgs, 4)
+	require.Len(t, batch.Msgs, 3)
 
 	runMsg, ok := batch.Msgs[0].(RunMsg)
 	require.True(t, ok)
@@ -87,6 +91,7 @@ func TestParquetHistorySource_Read(t *testing.T) {
 	assert.Equal(t, "project", runMsg.Project)
 	assert.Equal(t, "run_display_name", runMsg.DisplayName)
 	assert.Nil(t, runMsg.Config)
+	assert.Equal(t, RunStateFinished, *runMsg.State)
 
 	summaryMsg, ok := batch.Msgs[1].(SummaryMsg)
 	require.True(t, ok)
@@ -98,8 +103,6 @@ func TestParquetHistorySource_Read(t *testing.T) {
 	assert.Equal(t, "entity/project/run-id", historyMsg.RunPath)
 	assert.Equal(t, []float64{0, 50, 1000}, historyMsg.Metrics["loss"].X)
 	assert.Equal(t, []float64{1.0, 0.5, 0.1}, historyMsg.Metrics["loss"].Y)
-
-	require.IsType(t, FileCompleteMsg{}, batch.Msgs[3])
 
 	// The source is exhausted.
 	_, err = source.Read(100, 10*time.Second)
@@ -117,7 +120,9 @@ func TestParquetHistorySource_Read_WithoutSummaryStepStopsAtEmptyWindow(t *testi
 		t.Context(),
 		testRunInfo(map[string]any{"loss": 0.1}), // no "_step" bound
 		reader,
+		&fakeStepReader{},
 		observability.NewNoOpLogger(),
+		nil,
 	)
 
 	msg, err := source.Read(100, 10*time.Second)
@@ -133,13 +138,63 @@ func TestParquetHistorySource_Read_WithoutSummaryStepStopsAtEmptyWindow(t *testi
 	assert.Equal(t, []float64{1.0, 0.1}, historyMsg.Metrics["loss"].Y)
 }
 
+func TestParquetHistorySource_LiveRun(t *testing.T) {
+	runInfoResponse := func(state, summary string) string {
+		return fmt.Sprintf(`{
+			"project": {
+				"run": {"name": "run-id", "state": %q, "summaryMetrics": %q}
+			}
+		}`, state, summary)
+	}
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("QueryRunInfo"),
+		runInfoResponse("running", `{"_step":0}`),
+	)
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("QueryRunInfo"),
+		runInfoResponse("finished", `{"_step":1}`),
+	)
+	runInfo := testRunInfo(map[string]any{"_step": int64(0)})
+	runInfo.runState = RunStateRunning
+	source := newParquetHistorySource(
+		t.Context(),
+		runInfo,
+		&fakeStepReader{steps: []parquet.KeyValueList{lossRow(0, 1.0)}},
+		&fakeStepReader{steps: []parquet.KeyValueList{lossRow(1, 0.8)}},
+		observability.NewNoOpLogger(),
+		mockGQL,
+	)
+	readCmd := func() tea.Msg { return nil }
+
+	// The first read loads the history up to the summary's step.
+	msg, err := source.Read(100, 10*time.Second)
+	require.NoError(t, err)
+	batch := msg.(ChunkedBatchMsg)
+	require.False(t, batch.HasMore)
+	assert.Equal(t, []float64{0}, batch.Msgs[2].(HistoryMsg).Metrics["loss"].X)
+	require.NotNil(t, source.NextLiveReadCmd(readCmd, false))
+
+	// Polling picks up new history along with the current state and summary.
+	msg, err = source.Read(100, 10*time.Second)
+	require.NoError(t, err)
+	batch = msg.(ChunkedBatchMsg)
+	require.Len(t, batch.Msgs, 3)
+	assert.Equal(t, RunStateFinished, *batch.Msgs[0].(RunMsg).State)
+	assert.Equal(t, "1", batch.Msgs[1].(SummaryMsg).Summary[0].Update[0].ValueJson)
+	assert.Equal(t, []float64{1}, batch.Msgs[2].(HistoryMsg).Metrics["loss"].X)
+	require.Nil(t, source.NextLiveReadCmd(readCmd, false))
+}
+
 func TestParquetHistorySource_Close(t *testing.T) {
 	reader := &fakeStepReader{steps: []parquet.KeyValueList{lossRow(0, 1.0)}}
 	source := newParquetHistorySource(
 		t.Context(),
 		testRunInfo(nil),
 		reader,
+		&fakeStepReader{},
 		observability.NewNoOpLogger(),
+		nil,
 	)
 
 	source.Close()
@@ -187,6 +242,7 @@ func TestLoadRunInfo(t *testing.T) {
 		fmt.Sprintf(`{
 			"project": {
 				"run": {
+					"name": "run-id",
 					"displayName": "run_display_name",
 					"summaryMetrics": %q
 				}
@@ -194,7 +250,8 @@ func TestLoadRunInfo(t *testing.T) {
 		}`, `{"_step":1000,"loss":0.1}`),
 	)
 
-	runInfo, err := loadRunInfo(t.Context(), mockGQL, "entity", "project", "run-id")
+	runInfo, err := loadRunInfo(
+		t.Context(), mockGQL, "entity", "project", "run-id", observability.NewNoOpLogger())
 	require.NoError(t, err)
 
 	assert.Equal(t, "entity", runInfo.entity)
@@ -211,6 +268,7 @@ func TestLoadRunInfo_RunNotFound(t *testing.T) {
 		`{"project": {"run": null}}`,
 	)
 
-	_, err := loadRunInfo(t.Context(), mockGQL, "entity", "project", "run-id")
+	_, err := loadRunInfo(
+		t.Context(), mockGQL, "entity", "project", "run-id", observability.NewNoOpLogger())
 	require.ErrorContains(t, err, `run "run-id" not found in entity/project`)
 }
