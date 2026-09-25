@@ -1,13 +1,13 @@
 package leet_test
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -57,47 +57,39 @@ func TestDumpRecords_JSON(t *testing.T) {
 }
 
 func TestDumpRecords_FollowPrintsAppendedRecords(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "run-follow.wandb")
-	w, err := transactionlog.OpenWriter(path)
-	require.NoError(t, err)
-	require.NoError(t, w.Write(&spb.Record{
-		RecordType: &spb.Record_Run{Run: &spb.RunRecord{RunId: "live"}},
-	}))
-	require.NoError(t, w.Flush())
-
-	stdout, output := io.Pipe()
-	done := make(chan error, 1)
-	go func() {
-		done <- leet.DumpRecords(path, "", output, io.Discard,
-			leet.DumpOptions{JSON: true, Follow: true})
-		_ = output.Close()
-	}()
-	lines := bufio.NewScanner(stdout)
-
-	require.True(t, lines.Scan())
-	assert.Contains(t, lines.Text(), `"type":"run"`)
-
-	require.NoError(t, w.Write(&spb.Record{
-		RecordType: &spb.Record_History{History: &spb.HistoryRecord{
-			Item: []*spb.HistoryItem{{Key: "loss", ValueJson: "0.5"}},
-		}},
-	}))
-	require.NoError(t, w.Write(&spb.Record{
-		RecordType: &spb.Record_Exit{Exit: &spb.RunExitRecord{ExitCode: 0}},
-	}))
-	require.NoError(t, w.Close())
-
-	require.True(t, lines.Scan())
-	assert.Contains(t, lines.Text(), `"loss":0.5`)
-	require.True(t, lines.Scan())
-	assert.Contains(t, lines.Text(), `"exit_code":0`)
-
-	select {
-	case err := <-done:
+	synctest.Test(t, func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "run-follow.wandb")
+		w, err := transactionlog.OpenWriter(path)
 		require.NoError(t, err)
-	case <-time.After(10 * time.Second):
-		t.Fatal("DumpRecords kept following after the run exited")
-	}
+		require.NoError(t, w.Write(&spb.Record{
+			RecordType: &spb.Record_Run{Run: &spb.RunRecord{RunId: "live"}},
+		}))
+		require.NoError(t, w.Flush())
+
+		var out bytes.Buffer
+		done := make(chan error, 1)
+		go func() {
+			done <- leet.DumpRecords(path, "", &out, io.Discard,
+				leet.DumpOptions{JSON: true, Follow: true})
+		}()
+
+		synctest.Wait() // until the follower has printed the run record and waits for more
+		assert.Contains(t, out.String(), `"type":"run"`)
+
+		require.NoError(t, w.Write(&spb.Record{
+			RecordType: &spb.Record_History{History: &spb.HistoryRecord{
+				Item: []*spb.HistoryItem{{Key: "loss", ValueJson: "0.5"}},
+			}},
+		}))
+		require.NoError(t, w.Write(&spb.Record{
+			RecordType: &spb.Record_Exit{Exit: &spb.RunExitRecord{ExitCode: 0}},
+		}))
+		require.NoError(t, w.Close())
+
+		require.NoError(t, <-done)
+		assert.Contains(t, out.String(), `"loss":0.5`)
+		assert.Contains(t, out.String(), `"exit_code":0`)
+	})
 }
 
 func TestDumpRecords_FollowStopsForDeadRun(t *testing.T) {
@@ -105,18 +97,8 @@ func TestDumpRecords_FollowStopsForDeadRun(t *testing.T) {
 	hourAgo := time.Now().Add(-time.Hour)
 	require.NoError(t, os.Chtimes(path, hourAgo, hourAgo))
 
-	done := make(chan error, 1)
-	go func() {
-		done <- leet.DumpRecords(path, "", io.Discard, io.Discard,
-			leet.DumpOptions{JSON: true, Follow: true, IdleTimeout: time.Minute})
-	}()
-
-	select {
-	case err := <-done:
-		require.NoError(t, err)
-	case <-time.After(5 * time.Second):
-		t.Fatal("DumpRecords kept following a run that stopped writing an hour ago")
-	}
+	require.NoError(t, leet.DumpRecords(path, "", io.Discard, io.Discard,
+		leet.DumpOptions{JSON: true, Follow: true, IdleTimeout: time.Minute}))
 }
 
 func TestPrintSummary(t *testing.T) {
