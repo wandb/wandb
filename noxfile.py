@@ -537,7 +537,7 @@ def _ensure_no_diff(
     saved = session.create_tmp()
     session.run("cp", "-r", in_directory, saved, external=True)
     after()
-    session.run("diff", in_directory, saved, external=True)
+    session.run("diff", "-r", in_directory, saved, external=True)
     session.run("rm", "-rf", saved, external=True)
 
 
@@ -560,11 +560,15 @@ def proto_check_python(session: nox.Session, pb: int) -> None:
 @nox.session(name="proto-check-go", tags=["proto-check"])
 def proto_check_go(session: nox.Session) -> None:
     """Regenerates Go protobuf files and ensures nothing changed."""
-    _ensure_no_diff(
-        session,
-        after=lambda: _generate_proto_go(session),
-        in_directory="core/pkg/service_go_proto/.",
-    )
+    for directory in (
+        "core/pkg/service_go_proto/.",
+        "core/internal/filestream/proto/.",
+    ):
+        _ensure_no_diff(
+            session,
+            after=lambda: _generate_proto_go(session),
+            in_directory=directory,
+        )
 
 
 def python_coverage_env(session: nox.Session) -> dict[str, str]:

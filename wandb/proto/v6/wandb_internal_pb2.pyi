@@ -1,4 +1,5 @@
 from google.protobuf import empty_pb2 as _empty_pb2
+from google.protobuf import struct_pb2 as _struct_pb2
 from google.protobuf import timestamp_pb2 as _timestamp_pb2
 from wandb.proto import wandb_base_pb2 as _wandb_base_pb2
 from wandb.proto import wandb_telemetry_pb2 as _wandb_telemetry_pb2
@@ -378,15 +379,33 @@ class HistoryRecord(_message.Message):
     _info: _wandb_base_pb2._RecordInfo
     def __init__(self, item: _Optional[_Iterable[_Union[HistoryItem, _Mapping]]] = ..., step: _Optional[_Union[HistoryStep, _Mapping]] = ..., _info: _Optional[_Union[_wandb_base_pb2._RecordInfo, _Mapping]] = ...) -> None: ...
 
+class HistoryValue(_message.Message):
+    __slots__ = ("none", "boolean", "integer", "number", "text", "json")
+    NONE_FIELD_NUMBER: _ClassVar[int]
+    BOOLEAN_FIELD_NUMBER: _ClassVar[int]
+    INTEGER_FIELD_NUMBER: _ClassVar[int]
+    NUMBER_FIELD_NUMBER: _ClassVar[int]
+    TEXT_FIELD_NUMBER: _ClassVar[int]
+    JSON_FIELD_NUMBER: _ClassVar[int]
+    none: _struct_pb2.NullValue
+    boolean: bool
+    integer: int
+    number: float
+    text: str
+    json: str
+    def __init__(self, none: _Optional[_Union[_struct_pb2.NullValue, str]] = ..., boolean: bool = ..., integer: _Optional[int] = ..., number: _Optional[float] = ..., text: _Optional[str] = ..., json: _Optional[str] = ...) -> None: ...
+
 class HistoryItem(_message.Message):
-    __slots__ = ("key", "nested_key", "value_json")
+    __slots__ = ("key", "nested_key", "value", "value_json")
     KEY_FIELD_NUMBER: _ClassVar[int]
     NESTED_KEY_FIELD_NUMBER: _ClassVar[int]
+    VALUE_FIELD_NUMBER: _ClassVar[int]
     VALUE_JSON_FIELD_NUMBER: _ClassVar[int]
     key: str
     nested_key: _containers.RepeatedScalarFieldContainer[str]
+    value: HistoryValue
     value_json: str
-    def __init__(self, key: _Optional[str] = ..., nested_key: _Optional[_Iterable[str]] = ..., value_json: _Optional[str] = ...) -> None: ...
+    def __init__(self, key: _Optional[str] = ..., nested_key: _Optional[_Iterable[str]] = ..., value: _Optional[_Union[HistoryValue, _Mapping]] = ..., value_json: _Optional[str] = ...) -> None: ...
 
 class HistoryResult(_message.Message):
     __slots__ = ()
