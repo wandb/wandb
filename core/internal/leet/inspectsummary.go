@@ -198,7 +198,7 @@ func (d *runDigest) writeText(w io.Writer) error {
 // W&B's internal "_wandb" entries.
 func writeTextSection(b *strings.Builder, title string, tree map[string]any) {
 	var items []KeyValuePair
-	flattenMap(compactValue(tree, true).(map[string]any), "", &items, nil)
+	flattenMap(compactValue(tree).(map[string]any), "", &items, nil)
 
 	var shown []KeyValuePair
 	width := 0
@@ -222,9 +222,9 @@ func writeTextSection(b *strings.Builder, title string, tree map[string]any) {
 func (d *runDigest) writeJSON(w io.Writer) error {
 	state, _ := d.state()
 
-	summary := compactValue(d.overview.runSummary.ToNestedMaps(), false).(map[string]any)
+	summary := d.overview.runSummary.ToNestedMaps()
 	delete(summary, "_wandb")
-	config := compactValue(d.overview.runConfig.CloneTree(), false).(map[string]any)
+	config := d.overview.runConfig.CloneTree()
 	delete(config, "_wandb")
 
 	tail, total := d.consoleTail()
@@ -273,35 +273,25 @@ func (d *runDigest) writeJSON(w io.Writer) error {
 }
 
 // compactValue replaces each W&B data type such as a histogram or an image,
-// which is a map with a "_type" key, with its type and file path. For text,
-// that becomes one "type path" string, and each list becomes its JSON,
-// truncated.
+// which is a map with a "_type" key, with one "type path" string, and each
+// list with its JSON, truncated.
 //
 // The result is a new tree: the summary can hold its values by reference.
-func compactValue(v any, forText bool) any {
+func compactValue(v any) any {
 	switch v := v.(type) {
 	case map[string]any:
-		typ, isTyped := v["_type"].(string)
-		path, hasPath := v["path"].(string)
-		switch {
-		case isTyped && forText:
+		if typ, ok := v["_type"].(string); ok {
+			path, _ := v["path"].(string)
 			return strings.TrimSpace(typ + " " + path)
-		case isTyped && hasPath:
-			return map[string]any{"_type": typ, "path": path}
-		case isTyped:
-			return map[string]any{"_type": typ}
 		}
-
 		out := make(map[string]any, len(v))
 		for k, e := range v {
-			out[k] = compactValue(e, forText)
+			out[k] = compactValue(e)
 		}
 		return out
 	case []any:
-		if forText {
-			s, _ := simplejsonext.MarshalToString(v)
-			return truncateValue(s, summaryListWidth)
-		}
+		s, _ := simplejsonext.MarshalToString(v)
+		return truncateValue(s, summaryListWidth)
 	}
 	return v
 }
