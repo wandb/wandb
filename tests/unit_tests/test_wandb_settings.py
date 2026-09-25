@@ -724,3 +724,20 @@ def test_infer_git_root_skips_if_disable_git(tmp_path):
     s.infer_git_root()
 
     assert s.git_root is None
+
+
+def test_x_provenance_logs_to_proto():
+    assert Settings().x_provenance_logs is False
+    assert Settings(x_provenance_logs=True).to_proto().x_provenance_logs.value is True
+
+
+def test_x_provenance_step_metric_to_proto():
+    assert Settings().x_provenance_step_metric is None
+    proto = Settings(x_provenance_step_metric="trainer/global_step").to_proto()
+    assert proto.x_provenance_step_metric.value == "trainer/global_step"
+
+
+def test_x_provenance_flush_interval_to_proto():
+    assert Settings().to_proto().x_provenance_flush_interval.value == 60.0
+    proto = Settings(x_provenance_flush_interval=300).to_proto()
+    assert proto.x_provenance_flush_interval.value == 300.0

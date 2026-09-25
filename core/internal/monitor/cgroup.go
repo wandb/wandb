@@ -114,24 +114,7 @@ type cgroupResourceLimits struct {
 // collapse them here to keep the consumer (System.collectSystemMemoryMetrics
 // and System.cpuCapacity) simple.
 func detectCgroupResourceLimits(paths cgroupPaths) *cgroupResourceLimits {
-	procInfo, mounts, err := readCgroupProcInfo(paths)
-	if err != nil {
-		return nil
-	}
-	if procInfo.cgroupV2Path == "" {
-		return nil
-	}
-
-	// Cgroup v2 has a single unified hierarchy per mount namespace, so we
-	// expect at most one cgroup2 mount visible to the process. Use the
-	// first one and skip cgroup v1 entries.
-	var leafDir string
-	for _, mount := range mounts {
-		if mount.FSType == cgroupV2FSType {
-			leafDir = cgroupDir(mount, procInfo.cgroupV2Path)
-			break
-		}
-	}
+	leafDir, procInfo := cgroupV2Dir(paths)
 	if leafDir == "" {
 		return nil
 	}
@@ -153,6 +136,21 @@ func detectCgroupResourceLimits(paths cgroupPaths) *cgroupResourceLimits {
 		return nil
 	}
 	return limits
+}
+
+// cgroupV2Dir returns the process's cgroup v2 directory, or "" if there is none.
+func cgroupV2Dir(paths cgroupPaths) (string, procCgroupInfo) {
+	procInfo, mounts, err := readCgroupProcInfo(paths)
+	if err != nil || procInfo.cgroupV2Path == "" {
+		return "", procInfo
+	}
+	// Cgroup v2 has one unified hierarchy per mount namespace; use the first cgroup2 mount.
+	for _, mount := range mounts {
+		if mount.FSType == cgroupV2FSType {
+			return cgroupDir(mount, procInfo.cgroupV2Path), procInfo
+		}
+	}
+	return "", procInfo
 }
 
 // procCgroupInfo carries the per-process facts read from /proc that we

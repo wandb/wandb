@@ -49,6 +49,9 @@ struct GpuStaticInfo {
     /// Note that when using the Multi-Instance GPU (MIG) feature, one physical GPU can be
     /// partitioned into multiple GPU instances, all sharing the same UUID.
     uuid: String,
+
+    pci_bus_id: String,
+    serial: String,
 }
 
 /// Tracks the availability of GPU metrics for the current system.
@@ -72,6 +75,7 @@ struct GpuMetricAvailability {
     max_link_gen: bool,
     max_link_width: bool,
     gpm: bool,
+    throttle_reasons: bool,
 }
 
 impl Default for GpuMetricAvailability {
@@ -96,6 +100,7 @@ impl Default for GpuMetricAvailability {
             max_link_gen: false,
             max_link_width: false,
             gpm: false,
+            throttle_reasons: true,
         }
     }
 }
@@ -187,6 +192,12 @@ impl NvidiaGpu {
             if let Ok(architecture) = device.architecture() {
                 static_info.architecture = format!("{:?}", architecture);
             }
+            if let Ok(pci) = device.pci_info() {
+                static_info.pci_bus_id = pci.bus_id;
+            }
+            if let Ok(serial) = device.serial() {
+                static_info.serial = serial;
+            }
 
             gpu_static_info.push(static_info);
         }
@@ -218,14 +229,9 @@ impl NvidiaGpu {
         })
     }
 
-    /// Check if a GPU is being used by a specific process or its descendants.
+    /// Check if a GPU is being used by any pid in the given process tree.
     #[cfg(target_os = "linux")]
-    fn gpu_in_use_by_process(&self, device: &Device, pid: i32) -> bool {
-        let mut our_pids = Vec::new();
-        if let Ok(descendant_pids) = self.get_descendant_pids(pid) {
-            our_pids.extend(descendant_pids);
-        }
-
+    fn gpu_in_use_by_process(&self, device: &Device, our_pids: &[i32]) -> bool {
         let compute_processes = device.running_compute_processes().unwrap_or_default();
         let graphics_processes = device.running_graphics_processes().unwrap_or_default();
 
@@ -238,43 +244,8 @@ impl NvidiaGpu {
         our_pids.iter().any(|&p| device_pids.contains(&p))
     }
 
-    /// Get descendant process IDs for a given parent PID.
-    #[cfg(target_os = "linux")]
-    fn get_descendant_pids(&self, parent_pid: i32) -> Result<Vec<i32>, std::io::Error> {
-        use std::collections::HashSet;
-        use std::fs::read_to_string;
-
-        let mut descendant_pids = Vec::new();
-        let mut visited_pids = HashSet::new();
-        let mut stack = vec![parent_pid];
-
-        while let Some(pid) = stack.pop() {
-            // Skip if we've already visited this PID
-            if !visited_pids.insert(pid) {
-                continue;
-            }
-
-            let children_path = format!("/proc/{}/task/{}/children", pid, pid);
-            match read_to_string(&children_path) {
-                Ok(contents) => {
-                    let child_pids: Vec<i32> = contents
-                        .split_whitespace()
-                        .filter_map(|s| s.parse::<i32>().ok())
-                        .collect();
-                    stack.extend(&child_pids);
-                    descendant_pids.extend(&child_pids);
-                }
-                Err(_) => {
-                    continue; // Skip to the next PID
-                }
-            }
-        }
-
-        Ok(descendant_pids)
-    }
-
     #[cfg(not(target_os = "linux"))]
-    fn gpu_in_use_by_process(&self, _device: &Device, _pid: i32) -> bool {
+    fn gpu_in_use_by_process(&self, _device: &Device, _our_pids: &[i32]) -> bool {
         // TODO: Implement for other platforms
         false
     }
@@ -349,6 +320,7 @@ impl NvidiaGpu {
         &mut self,
         pid: i32,
         gpu_device_ids: Option<Vec<i32>>,
+        include_throttle_reasons: bool,
     ) -> Result<Vec<(String, MetricValue)>, NvmlError> {
         let mut metrics: Vec<(String, MetricValue)> = vec![];
 
@@ -360,6 +332,16 @@ impl NvidiaGpu {
             "_gpu.count".to_string(),
             MetricValue::Int(self.device_count as i64),
         ));
+
+        // Computed once per call and shared across devices, rather than walked per device.
+        #[cfg(target_os = "linux")]
+        let pid_tree: Vec<i32> = if pid == 0 {
+            Vec::new()
+        } else {
+            process_tree_pids(pid)
+        };
+        #[cfg(not(target_os = "linux"))]
+        let pid_tree: Vec<i32> = Vec::new();
 
         let gpm_metric_ids: Vec<GpmMetricId> = GPM_METRICS.iter().map(|(id, _)| *id).collect();
 
@@ -415,6 +397,14 @@ impl NvidiaGpu {
                 MetricValue::String(self.gpu_static_info[di as usize].uuid.clone()),
             ));
             metrics.push((
+                format!("_gpu.{}.pciBusId", di),
+                MetricValue::String(self.gpu_static_info[di as usize].pci_bus_id.clone()),
+            ));
+            metrics.push((
+                format!("_gpu.{}.serial", di),
+                MetricValue::String(self.gpu_static_info[di as usize].serial.clone()),
+            ));
+            metrics.push((
                 format!("_gpu.{}.brand", di),
                 MetricValue::String(self.gpu_static_info[di as usize].brand.clone()),
             ));
@@ -430,7 +420,7 @@ impl NvidiaGpu {
             // Collect dynamic metrics for the GPU if pid != 0
             let gpu_in_use = match pid {
                 0 => false,
-                _ => self.gpu_in_use_by_process(&device, pid),
+                _ => self.gpu_in_use_by_process(&device, &pid_tree),
             };
 
             let availability = &mut self.gpu_metric_availability[di as usize];
@@ -587,6 +577,16 @@ impl NvidiaGpu {
                     Err(_) => {
                         availability.sm_clock = false;
                     }
+                }
+            }
+
+            if availability.throttle_reasons && include_throttle_reasons {
+                match device.current_throttle_reasons() {
+                    Ok(reasons) => metrics.push((
+                        format!("gpu.{}.clockThrottleReasons", di),
+                        MetricValue::Int(reasons.bits() as i64),
+                    )),
+                    Err(_) => availability.throttle_reasons = false,
                 }
             }
 
@@ -881,9 +881,67 @@ impl NvidiaGpu {
                     gpu_nvidia.uuid = uuid.clone();
                 }
             }
+            if let Some(MetricValue::String(v)) = samples.get(&format!("_gpu.{}.pciBusId", i)) {
+                gpu_nvidia.pci_bus_id = v.clone();
+            }
+            if let Some(MetricValue::String(v)) = samples.get(&format!("_gpu.{}.serial", i)) {
+                gpu_nvidia.serial = v.clone();
+            }
             metadata.gpu_nvidia.push(gpu_nvidia);
         }
 
         metadata
+    }
+}
+
+/// Returns `root` and all of its descendant PIDs.
+#[cfg(target_os = "linux")]
+fn process_tree_pids(root: i32) -> Vec<i32> {
+    use std::collections::HashSet;
+    use std::fs::{read_dir, read_to_string};
+
+    let mut pids = vec![root];
+    let mut visited = HashSet::new();
+    let mut stack = vec![root];
+
+    while let Some(pid) = stack.pop() {
+        if !visited.insert(pid) {
+            continue;
+        }
+        // Each thread lists only the children it spawned.
+        let Ok(tasks) = read_dir(format!("/proc/{}/task", pid)) else {
+            continue;
+        };
+        for task in tasks.flatten() {
+            if let Ok(contents) = read_to_string(task.path().join("children")) {
+                let children: Vec<i32> = contents
+                    .split_whitespace()
+                    .filter_map(|s| s.parse::<i32>().ok())
+                    .collect();
+                stack.extend(&children);
+                pids.extend(&children);
+            }
+        }
+    }
+    pids
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod tests {
+    use super::process_tree_pids;
+
+    #[test]
+    fn process_tree_pids_includes_root_and_children() {
+        let mut child = std::process::Command::new("sleep")
+            .arg("5")
+            .spawn()
+            .unwrap();
+        let root = std::process::id() as i32;
+
+        let pids = process_tree_pids(root);
+
+        assert!(pids.contains(&root));
+        assert!(pids.contains(&(child.id() as i32)));
+        child.kill().unwrap();
     }
 }

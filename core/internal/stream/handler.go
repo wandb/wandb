@@ -226,6 +226,8 @@ func (h *Handler) handleRecord(record *spb.Record, request *runwork.Request) {
 	case *spb.Record_Environment:
 	// The above are no-ops in the handler.
 
+	case *spb.Record_DeviceBinding:
+		h.systemMonitor.SetDeviceBinding(x.DeviceBinding)
 	case *spb.Record_Exit:
 		h.handleExit(record, x.Exit, request)
 	case *spb.Record_Header:
@@ -710,6 +712,11 @@ func (h *Handler) handleExit(
 	// Stop generating system statistics events.
 	h.systemMonitor.Finish()
 
+	// Forwarded directly: extraWork is drained by this goroutine, so queuing there could block.
+	for _, record := range h.systemMonitor.DrainProvenance() {
+		h.fwdRecord(record, nil)
+	}
+
 	// Flush any history data---any further history records must
 	// be configured to flush.
 	if h.settings.IsSharedMode() {
@@ -1051,6 +1058,10 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 			pathtree.PathOf("_step"),
 			h.partialHistoryStep,
 		)
+	}
+
+	if h.settings.IsProvenanceLogs() {
+		h.systemMonitor.ObserveHistoryRow(h.partialHistory, useStep, h.partialHistoryStep)
 	}
 
 	// Expand any new metrics that match a `define_metric()` glob.

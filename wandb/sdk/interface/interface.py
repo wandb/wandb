@@ -903,6 +903,26 @@ class InterfaceBase(abc.ABC):
     ) -> None:
         raise NotImplementedError
 
+    def publish_device_binding(
+        self,
+        *,
+        uuid: str,
+        pci_bus_id: str,
+        cuda_index: int,
+        source: str,
+    ) -> None:
+        binding = pb.DeviceBindingRecord(
+            uuid=uuid,
+            pci_bus_id=pci_bus_id,
+            cuda_index=cuda_index,
+            source=source,
+        )
+        self._publish_device_binding(binding)
+
+    @abc.abstractmethod
+    def _publish_device_binding(self, binding: pb.DeviceBindingRecord) -> None:
+        raise NotImplementedError
+
     def publish_pause(self) -> None:
         pause = pb.PauseRequest()
         self._publish_pause(pause)

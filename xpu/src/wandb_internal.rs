@@ -588,7 +588,7 @@ pub struct Deprecated {
 /// sync an older transaction log, it is important to follow proper protobuf
 /// versioning practices: <https://protobuf.dev/best-practices/>
 ///
-/// Next ID: 28
+/// Next ID: 29
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Record {
     #[prost(int64, tag = "1")]
@@ -601,7 +601,7 @@ pub struct Record {
     pub info: ::core::option::Option<RecordInfo>,
     #[prost(
         oneof = "record::RecordType",
-        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 26, 27, 100"
+        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 26, 27, 28, 100"
     )]
     pub record_type: ::core::option::Option<record::RecordType>,
 }
@@ -656,6 +656,8 @@ pub mod record {
         Environment(super::EnvironmentRecord),
         #[prost(message, tag = "27")]
         OutputLogger(super::OutputLoggerRecord),
+        #[prost(message, tag = "28")]
+        DeviceBinding(super::DeviceBindingRecord),
         /// request field does not belong here longterm
         #[prost(message, tag = "100")]
         Request(super::Request),
@@ -1142,6 +1144,20 @@ pub struct OutputRawResult {}
 pub struct OutputLoggerRecord {
     #[prost(string, tag = "1")]
     pub line: ::prost::alloc::string::String,
+}
+/// DeviceBindingRecord: the CUDA device a writer process reports it is bound to.
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct DeviceBindingRecord {
+    #[prost(string, tag = "1")]
+    pub uuid: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub pci_bus_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub source: ::prost::alloc::string::String,
+    #[prost(int32, tag = "4")]
+    pub cuda_index: i32,
+    #[prost(message, optional, tag = "200")]
+    pub info: ::core::option::Option<RecordInfo>,
 }
 /// MetricRecord: wandb/sdk/wandb_metric/Metric
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
@@ -2697,6 +2713,10 @@ pub struct GpuNvidiaInfo {
     pub architecture: ::prost::alloc::string::String,
     #[prost(string, tag = "5")]
     pub uuid: ::prost::alloc::string::String,
+    #[prost(string, tag = "6")]
+    pub pci_bus_id: ::prost::alloc::string::String,
+    #[prost(string, tag = "7")]
+    pub serial: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct GpuAmdInfo {
@@ -3196,6 +3216,9 @@ pub struct GetStatsRequest {
     /// If not set, metrics for all GPUs will be captured.
     #[prost(int32, repeated, tag = "2")]
     pub gpu_device_ids: ::prost::alloc::vec::Vec<i32>,
+    /// Also sample clock throttle reasons; used only by provenance logs.
+    #[prost(bool, tag = "3")]
+    pub include_throttle_reasons: bool,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetStatsResponse {

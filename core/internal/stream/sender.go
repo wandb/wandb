@@ -390,6 +390,8 @@ func (s *Sender) sendRecord(record *spb.Record, request *runwork.Request) {
 		s.sendOutputRaw(record, x.OutputRaw)
 	case *spb.Record_OutputLogger:
 		s.sendOutputLogger(record, x.OutputLogger)
+	case *spb.Record_DeviceBinding:
+		// Consumed by the handler.
 	case *spb.Record_Output:
 		s.sendOutput(record, x.Output)
 	case *spb.Record_Telemetry:
