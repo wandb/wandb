@@ -36,9 +36,8 @@ def create_writer(
     )
 
 
-def require_eval_table_server_feature(run: LocalRun) -> ServiceApi:
+def require_eval_table_server_feature(run: LocalRun) -> None:
     """Return a service API after verifying that the server supports EvalTables."""
     service_api = ServiceApi(run._settings)
     if not service_api.feature_enabled(pb.ServerFeature.EVAL_TABLES_CES):
         raise UsageError("This W&B server does not support EvalTable logging.")
-    return service_api
