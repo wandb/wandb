@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import getpass
-import importlib.util
 import json
 import logging
 import os
@@ -16,9 +15,8 @@ import tempfile
 import textwrap
 import time
 import traceback
-from collections.abc import Callable
 from functools import wraps
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 import click
 import yaml
@@ -46,6 +44,7 @@ from wandb.sdk.lib.filenames import DIFF_FNAME
 from wandb.sdk.lib.hashutil import md5_file_b64
 from wandb.sdk.lib.service.service_connection import WandbApiFailedError
 from wandb.sdk.sweeps import SweepNotFoundError
+from wandb.sdk.sweeps.scheduler.client import load_optimizer_config, load_source_object
 
 if TYPE_CHECKING:
     from wandb.sdk.sweeps.scheduler.ax import AxOptimizer
@@ -1988,67 +1987,6 @@ def scheduler(
         raise
 
 
-def _load_source_object(source: str, name: str) -> Any:
-    """Import the python file at `source` and return its `name` attribute.
-
-    Used to load a user-defined `search_space` (define-by-run trial
-    constructor) or `optimizer` (engine object and optional terminator
-    factory) referenced by name from a sweep's scheduler config.
-    """
-    if not source:
-        raise ClickException(
-            f"scheduler.source must name the python file that defines "
-            f"{name!r}, but is missing or empty."
-        )
-    module_name = f"wandb_sweep_source_{pathlib.Path(source).stem}"
-    spec = importlib.util.spec_from_file_location(module_name, source)
-    if spec is None or spec.loader is None:
-        raise ClickException(f"Could not import source file: {source}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    try:
-        return getattr(module, name)
-    except AttributeError:
-        raise ClickException(f"{source} has no attribute {name!r}") from None
-
-
-def _load_optimizer_config(
-    source: str, name: str, optimizer_type: str
-) -> tuple[Any, Callable[[Any], bool] | None]:
-    """Run a configured optimizer factory and normalize its return value.
-
-    The factory may return either the engine's native optimizer object or an
-    `(optimizer, terminator)` tuple. A terminator, when present, must be
-    callable.
-
-    Args:
-        source: The python file that defines the factory.
-        name: The factory's name in `source`.
-        optimizer_type: The full path of the engine's optimizer type, shown
-            in errors.
-    """
-    configured: object = _load_source_object(source, name)()
-    if not isinstance(configured, tuple):
-        return configured, None
-    parts = cast("tuple[object, ...]", configured)
-    terminator_type = f"Callable[[{optimizer_type}], bool]"
-    if len(parts) != 2:
-        raise ClickException(
-            f"scheduler.optimizer {name!r} must return an instance of "
-            f"{optimizer_type} or a tuple of ({optimizer_type}, "
-            f"{terminator_type}), but returned a tuple of {len(parts)} items."
-        )
-    optimizer, terminator = parts
-    if terminator is not None and not callable(terminator):
-        raise ClickException(
-            f"The terminator returned by scheduler.optimizer {name!r} must be "
-            f"of type {terminator_type} or None, but is of type "
-            f"{type(terminator).__name__}."
-        )
-    # Only callability can be checked; the signature is the user's contract.
-    return optimizer, cast("Callable[[Any], bool] | None", terminator)
-
-
 def _build_optuna_scheduler_optimizer(
     sweep: SweepInfo, scheduler_config: dict[str, Any]
 ) -> OptunaOptimizer:
@@ -2076,16 +2014,22 @@ def _build_optuna_scheduler_optimizer(
     search_space = None
     distributions = None
     if search_space_name is not None:
-        search_space = _load_source_object(source, search_space_name)
+        try:
+            search_space = load_source_object(source, search_space_name)
+        except ValueError as e:
+            raise ClickException(e)
     else:
         distributions = optuna_scheduler.search_space_from_sweep_config(
             sweep.config.get("parameters", {})
         )
     terminator = None
     if optimizer_name:
-        study, terminator = _load_optimizer_config(
-            source, optimizer_name, "optuna.study.Study"
-        )
+        try:
+            study, terminator = load_optimizer_config(
+                source, optimizer_name, "optuna.study.Study"
+            )
+        except ValueError as e:
+            raise ClickException(e)
     else:
         study = optuna_scheduler.create_study_from_sweep_config(sweep.config)
 
@@ -2123,9 +2067,12 @@ def _build_ax_scheduler_optimizer(
         wandb.termwarn("search_space config is not supported by the Ax engine.")
     terminator = None
     if optimizer_name:
-        client, terminator = _load_optimizer_config(
-            source, optimizer_name, "ax.api.client.Client"
-        )
+        try:
+            client, terminator = load_optimizer_config(
+                source, optimizer_name, "ax.api.client.Client"
+            )
+        except ValueError as e:
+            raise ClickException(e)
     else:
         client = ax_scheduler.create_default_client(sweep.config)
 
@@ -2181,23 +2128,33 @@ def sweep_scheduler(
     A scheduler-enabled sweep must have been previously created with the config
     `scheduler: {engine: wandb}` (or `optuna`/`ax`). This CLI will then attempt
     to maintain `batch_size` runs in flight at once, and poll the sweep's runs
-    every `poll_interval` seconds. The CLI may be stopped and restarted at any time,
-    and will resume the sweep from the last known state.
+    every `poll_interval` seconds. The CLI may be stopped and restarted at any
+    time, and will resume the sweep from the last known state.
 
-    **Do not** run multiple instances of this CLI for the same sweep. It will cause
-    duplicate runs to be generated as multiple instances will not know the other's runs.
+    **Do not** run multiple instances of this CLI for the same sweep. It will
+    cause duplicate runs to be generated as multiple instances will not know
+    the other's runs.
 
     If the `source` field is used in the scheduler config, this command must be
     run in a directory containing the Python file referenced by `source`.
 
-    The optional `optimizer` field in the sweep scheduler configmust name a function
-    that returns the client for the search engine (Optuna `Study` or Ax `Client`).
-    This client **must not** be persisted to disk, as it will be re-created on each restart.
-    This custom function may be used to configure the engine's sampler and pruner.
+    The optional `optimizer` field in the sweep scheduler config must name a
+    function that returns the client for the search engine (Optuna `Study` or
+    Ax `Client`). This client **must not** be persisted to disk, as it will be
+    re-created on each restart. This custom function may be used to configure
+    the engine's sampler and pruner.
     """
+    from wandb.sdk.sweeps.scheduler import client
+
     if batch_size < 1:
         wandb.termerror("--batch-size must be at least 1")
         sys.exit(1)
+
+    telemetry_recorder = get_telemetry_recorder().with_context(
+        high_cardinality_attributes={
+            "process_context": "sweep_scheduler",
+        }
+    )
 
     # Resolve the sweep the user already created with `wandb sweep`.
     # `run_scheduler` authenticates the session itself, so the defaults are
@@ -2215,8 +2172,6 @@ def sweep_scheduler(
             "Pass the sweep as entity/project/sweep_id or provide "
             "--entity and --project."
         )
-
-    from wandb.sdk.sweeps.scheduler import client
 
     def make_optimizer(sweep: SweepInfo) -> Optimizer:
         # The local scheduler only drives sweeps that opted out of
@@ -2241,8 +2196,9 @@ def sweep_scheduler(
             batch_size=batch_size,
             poll_interval=poll_interval,
         )
-    except wandb.Error:
+    except wandb.Error as e:
         # run_scheduler already explained the failure.
+        telemetry_recorder.exception(e)
         sys.exit(1)
 
 
