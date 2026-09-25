@@ -170,6 +170,23 @@ class TestCreateDefaultClient:
             create_default_client({"metric": {"goal": "minimize"}, "parameters": {}})
 
 
+class TestBuildAxSchedulerOptimizer:
+    def test_builds_a_default_client(self) -> None:
+        from wandb.cli import cli
+
+        config = {
+            "metric": {"name": "loss", "goal": "minimize"},
+            "parameters": {"x": {"distribution": "uniform", "min": 0.0, "max": 1.0}},
+            "scheduler": {"engine": "ax"},
+        }
+        sweep = make_scheduler_grid_sweep(config=config)
+
+        optimizer = cli._build_ax_scheduler_optimizer(sweep, config["scheduler"])
+
+        assert isinstance(optimizer, AxOptimizer)
+        assert optimizer.should_terminate_sweep() is False
+
+
 class TestUnparseableMetricName:
     def test_hyphenated_metric_completes_its_trial(self) -> None:
         """A name Ax's objective parser splits in two still drives a sweep."""
