@@ -10,7 +10,6 @@ from unittest.mock import MagicMock
 import pytest
 import wandb
 from wandb.errors import UsageError
-from wandb.sdk.data_types.eval_table._writer_factory import create_writer
 from wandb.sdk.lib import telemetry
 
 
@@ -67,27 +66,10 @@ def run(mock_run):
 
 
 @pytest.fixture(autouse=True)
-def use_weave_writer(monkeypatch):
+def enable_eval_table_server_feature(monkeypatch):
     monkeypatch.setattr(
         "wandb.sdk.data_types.eval_table._writer_factory.ServiceApi.feature_enabled",
         lambda self, feature: True,
-    )
-
-    def create_weave_writer(
-        _backend,
-        *,
-        allow_mixed_types,
-        unsupported_media_mode,
-    ):
-        return create_writer(
-            "weave",
-            allow_mixed_types=allow_mixed_types,
-            unsupported_media_mode=unsupported_media_mode,
-        )
-
-    monkeypatch.setattr(
-        "wandb.sdk.data_types.eval_table.eval_table.create_writer",
-        create_weave_writer,
     )
 
 
@@ -103,7 +85,9 @@ def _install_fake_weave(monkeypatch, **attrs):
 
 def test_eval_table_offline_run_fails_fast(monkeypatch, mock_eval_logger, mock_run):
     run = mock_run(settings={"entity": "e", "project": "p", "mode": "offline"})
-    et = wandb.EvalTable(columns=["input", "output"], data=[["x", "y"]])
+    et = wandb.EvalTable(
+        backend="weave", columns=["input", "output"], data=[["x", "y"]]
+    )
     init_weave_for_run = MagicMock()
     monkeypatch.setattr(
         "wandb.sdk.data_types.eval_table._writer_weave.weave_integration.init_weave",
@@ -121,7 +105,7 @@ def test_eval_table_rewrites_weave_import_error(monkeypatch):
     monkeypatch.setitem(sys.modules, "weave", None)
 
     with pytest.raises(ImportError) as exc_info:
-        wandb.EvalTable(columns=["input", "output"], data=[["x", "y"]])
+        wandb.EvalTable(backend="weave", columns=["input", "output"], data=[["x", "y"]])
 
     message = str(exc_info.value)
     assert "EvalTable dependency error" in message
@@ -134,7 +118,9 @@ def test_eval_table_disabled_weave_raises(monkeypatch, mock_run):
     _install_fake_weave(monkeypatch, __version__="999.0.0")
     monkeypatch.setenv("WANDB_DISABLE_WEAVE", "1")
 
-    et = wandb.EvalTable(columns=["input", "output"], data=[["x", "y"]])
+    et = wandb.EvalTable(
+        backend="weave", columns=["input", "output"], data=[["x", "y"]]
+    )
 
     with pytest.raises(UsageError, match="WANDB_DISABLE_WEAVE"):
         run.log({"my_eval": et})
@@ -191,7 +177,9 @@ def test_eval_table_imports_evaluation_logger_after_weave_init(monkeypatch, run)
         init_weave,
     )
 
-    et = wandb.EvalTable(columns=["input", "output"], data=[["x", "y"]])
+    et = wandb.EvalTable(
+        backend="weave", columns=["input", "output"], data=[["x", "y"]]
+    )
     et.bind_to_run(run, "eval", 0)
 
     assert et.to_json(run)["evaluate_call_id"] == "eval-1"
@@ -209,7 +197,9 @@ def test_eval_table_bind_initializes_weave_for_run(monkeypatch, mock_run):
         settings={"entity": "entity", "project": "project", "mode": "online"}
     )
 
-    et = wandb.EvalTable(columns=["input", "output"], data=[["x", "y"]])
+    et = wandb.EvalTable(
+        backend="weave", columns=["input", "output"], data=[["x", "y"]]
+    )
     et.bind_to_run(run, "eval", 0)
 
     init_weave.assert_called_once_with("entity", "project")
@@ -232,7 +222,9 @@ def test_eval_table_rejects_rebind_to_different_project(monkeypatch, mock_run):
     run1 = mock_run(settings={"entity": "e", "project": "p1", "mode": "online"})
     run2 = mock_run(settings={"entity": "e", "project": "p2", "mode": "online"})
 
-    et = wandb.EvalTable(columns=["input", "output"], data=[["x", "y"]])
+    et = wandb.EvalTable(
+        backend="weave", columns=["input", "output"], data=[["x", "y"]]
+    )
     et.bind_to_run(run1, "eval", 0)
 
     with pytest.raises(UsageError, match="already initialized"):
@@ -244,7 +236,7 @@ def test_eval_table_version_mismatch_error_includes_actual_version(monkeypatch):
     _install_fake_weave(monkeypatch, __version__="0.1.0")
 
     with pytest.raises(ImportError) as exc_info:
-        wandb.EvalTable(columns=["input", "output"], data=[["x", "y"]])
+        wandb.EvalTable(backend="weave", columns=["input", "output"], data=[["x", "y"]])
 
     message = str(exc_info.value)
     assert message.startswith("EvalTable dependency error")
@@ -260,6 +252,7 @@ def test_standard_immutable_log(mock_eval_logger, mock_wandb_log, run, monkeypat
     )
 
     et = wandb.EvalTable(
+        backend="weave",
         columns=["in1", "in2", "out1", "out2", "score1", "score2"],
         data=[
             ["in1-val", "in2-val", "out1-val", "out2-val", 0.5, 0.7],
@@ -308,7 +301,9 @@ def test_eval_table_records_telemetry(mock_eval_logger, run):
     """Logging an EvalTable marks the run-level eval_table telemetry feature."""
     assert not run._telemetry_obj.feature.eval_table
 
-    et = wandb.EvalTable(columns=["input", "output"], data=[["x", "y"]])
+    et = wandb.EvalTable(
+        backend="weave", columns=["input", "output"], data=[["x", "y"]]
+    )
     run.log({"eval": et})
 
     assert run._telemetry_obj.feature.eval_table is True
@@ -325,7 +320,7 @@ def test_telemetry_failure_does_not_repeat_immutable_write(
         "context",
         MagicMock(return_value=telemetry_context),
     )
-    et = wandb.EvalTable(columns=["output"], data=[["value"]])
+    et = wandb.EvalTable(backend="weave", columns=["output"], data=[["value"]])
     et.bind_to_run(run, "eval", 0)
 
     with pytest.raises(RuntimeError, match="telemetry failed"):
@@ -339,7 +334,7 @@ def test_telemetry_failure_does_not_repeat_immutable_write(
 def test_immutable_mutation_after_log_warns_and_still_noops(
     mock_eval_logger, mock_wandb_log, run
 ):
-    et = wandb.EvalTable(columns=["out"], data=[["x"]])
+    et = wandb.EvalTable(backend="weave", columns=["out"], data=[["x"]])
     run.log({"my_eval": et})
     ev = mock_eval_logger.created_loggers[0]
 
@@ -373,7 +368,7 @@ def test_mutation_after_failed_log_does_not_warn_as_already_logged(
         fail_init_weave,
     )
 
-    et = wandb.EvalTable(columns=["out"], data=[["x"]])
+    et = wandb.EvalTable(backend="weave", columns=["out"], data=[["x"]])
 
     with pytest.raises(ImportError):
         run.log({"my_eval": et})
@@ -389,7 +384,7 @@ def test_mutation_after_failed_log_does_not_warn_as_already_logged(
 def test_immutable_relog_returns_original_json_after_mutation(
     mock_eval_logger, mock_wandb_log, run
 ):
-    et = wandb.EvalTable(columns=["out"], data=[["x"]])
+    et = wandb.EvalTable(backend="weave", columns=["out"], data=[["x"]])
     et.bind_to_run(run, "my_eval", 0)
 
     first_json = et.to_json(run)
@@ -408,7 +403,7 @@ def test_immutable_relog_returns_original_json_after_mutation(
 
 def test_to_json_rejects_different_run_after_first_log(mock_eval_logger, mock_run, run):
     other_run = mock_run(settings={"entity": "e", "project": "other", "mode": "online"})
-    et = wandb.EvalTable(columns=["out"], data=[["x"]])
+    et = wandb.EvalTable(backend="weave", columns=["out"], data=[["x"]])
     run.log({"my_eval": et})
 
     with pytest.raises(UsageError, match="different run"):
@@ -420,6 +415,7 @@ def test_to_json_rejects_different_run_after_first_log(mock_eval_logger, mock_ru
 # No input/output/score categorization: row index injected, all default to output.
 def test_no_categorization_injects_row_index(mock_eval_logger, run):
     et = wandb.EvalTable(
+        backend="weave",
         columns=["out1", "out2"],
         data=[["x", 1], ["y", 2]],
     )
@@ -442,6 +438,7 @@ def test_no_categorization_injects_row_index(mock_eval_logger, run):
 # No input columns but score columns: row injected, unspecified default to output.
 def test_no_input_with_score_columns(mock_eval_logger, run):
     et = wandb.EvalTable(
+        backend="weave",
         columns=["out1", "out2", "score"],
         data=[["x", 1, 0.9]],
         score_columns=["score"],
@@ -458,6 +455,7 @@ def test_no_input_with_score_columns(mock_eval_logger, run):
 
 def test_int_columns_match_role_columns_as_strings(mock_eval_logger, run):
     et = wandb.EvalTable(
+        backend="weave",
         columns=[1, 2, 3],
         data=[["in-val", "out-val", 0.9]],
         input_columns=["1"],
@@ -476,6 +474,7 @@ def test_int_columns_match_role_columns_as_strings(mock_eval_logger, run):
 
 def test_int_columns_default_to_string_output_columns(mock_eval_logger, run):
     et = wandb.EvalTable(
+        backend="weave",
         columns=[1, 2],
         data=[["x", 1]],
     )
@@ -492,6 +491,7 @@ def test_int_columns_default_to_string_output_columns(mock_eval_logger, run):
 @pytest.mark.usefixtures("mock_eval_logger")
 def test_stringified_duplicate_columns_raise(run):
     et = wandb.EvalTable(
+        backend="weave",
         columns=[1, "1"],
         data=[["x", "y"]],
     )
@@ -503,6 +503,7 @@ def test_stringified_duplicate_columns_raise(run):
 # All columns assigned to input/score roles: no output payload is logged.
 def test_no_output_columns_logs_none_output(mock_eval_logger, run):
     et = wandb.EvalTable(
+        backend="weave",
         columns=["in", "score"],
         data=[["x", 0.9]],
         input_columns=["in"],
@@ -521,6 +522,7 @@ def test_no_output_columns_logs_none_output(mock_eval_logger, run):
 # columns=None but role lists provided → columns derived from role lists.
 def test_columns_derived_from_role_lists(mock_eval_logger, run):
     et = wandb.EvalTable(
+        backend="weave",
         data=[["in-val", "out-val", 0.5]],
         input_columns=["in"],
         output_columns=["out"],
@@ -544,6 +546,7 @@ def test_derived_columns_count_mismatch_raises():
     # Role lists imply 3 columns; data rows have 4 values.
     with pytest.raises(ValueError):
         wandb.EvalTable(
+            backend="weave",
             data=[[1, 2, 3, 4]],
             input_columns=["in"],
             output_columns=["out"],
@@ -589,6 +592,7 @@ def test_dataframe_input(mock_eval_logger, run, monkeypatch):
         rows=[["in1", "out1", 0.5], ["in2", "out2", 0.6]],
     )
     et = wandb.EvalTable(
+        backend="weave",
         dataframe=df,
         input_columns=["in"],
         score_columns=["score"],
@@ -619,6 +623,7 @@ def test_dataframe_numpy_values_normalized_for_weave(
         rows=[[np.int64(1), np.float64(np.nan), np.bool_(True)]],
     )
     et = wandb.EvalTable(
+        backend="weave",
         dataframe=df,
         input_columns=["in"],
         output_columns=["out"],
@@ -639,6 +644,7 @@ def test_numpy_array_values_normalized_for_weave(mock_eval_logger, run):
     np = pytest.importorskip("numpy")
     array_value = np.arange(40)
     et = wandb.EvalTable(
+        backend="weave",
         columns=["array_value"],
         data=[[array_value]],
         input_columns=["array_value"],
@@ -672,6 +678,7 @@ def test_python_datetime_values_preserved_for_weave(mock_eval_logger, run):
         tzinfo=datetime.timezone.utc,
     )
     et = wandb.EvalTable(
+        backend="weave",
         columns=["py_datetime", "py_date"],
         data=[[py_datetime, py_date]],
         input_columns=["py_datetime", "py_date"],
@@ -725,6 +732,7 @@ def test_numpy_datetime_values_preserved_for_weave(mock_eval_logger, run):
     )
     np_nat = np.datetime64("NaT")
     et = wandb.EvalTable(
+        backend="weave",
         columns=[
             "np_datetime",
             "np_date",
@@ -757,6 +765,7 @@ def test_numpy_datetime_values_preserved_for_weave(mock_eval_logger, run):
 
 def test_list_dict_and_tuple_values_normalized_for_weave(mock_eval_logger, run):
     et = wandb.EvalTable(
+        backend="weave",
         columns=["list_value", "dict_value", "tuple_value"],
         data=[
             [
@@ -791,6 +800,7 @@ def test_wandb_media_in_dict_unwrapped_on_log(
 
     image = wandb.Image(PILImage.new("RGB", (2, 2), color="red"))
     et = wandb.EvalTable(
+        backend="weave",
         columns=["metadata"],
         data=[[{"image": image, "label": "sample"}]],
         input_columns=["metadata"],
@@ -812,13 +822,14 @@ def test_dataframe_nested_table_cell_raises(monkeypatch):
     df = _fake_dataframe(monkeypatch, columns=["t", "n"], rows=[[inner, 1]])
 
     with pytest.raises(TypeError, match="does not support nested Tables"):
-        wandb.EvalTable(dataframe=df)
+        wandb.EvalTable(backend="weave", dataframe=df)
 
 
 # Column-role mismatch: column listed in input/output/score but not in columns.
 @pytest.mark.usefixtures("mock_eval_logger")
 def test_column_role_mismatch_raises(run):
     et = wandb.EvalTable(
+        backend="weave",
         columns=["out1", "out2"],
         data=[["x", 1]],
         input_columns=["nonexistent"],
@@ -829,6 +840,7 @@ def test_column_role_mismatch_raises(run):
 
 def test_duplicate_role_columns_warn(mock_eval_logger, mock_wandb_log, run):
     et = wandb.EvalTable(
+        backend="weave",
         columns=["shared", "score"],
         data=[["x", 0.9]],
         input_columns=["shared"],
@@ -853,13 +865,13 @@ def test_nested_table_cell_raises_from_constructor():
     inner = wandb.Table(columns=["x"], data=[["v"]])
 
     with pytest.raises(TypeError, match="does not support nested Tables"):
-        wandb.EvalTable(columns=["t", "n"], data=[[inner, 1]])
+        wandb.EvalTable(backend="weave", columns=["t", "n"], data=[[inner, 1]])
 
 
 @pytest.mark.usefixtures("mock_eval_logger")
 def test_add_data_nested_table_cell_raises():
     inner = wandb.Table(columns=["x"], data=[["v"]])
-    et = wandb.EvalTable(columns=["t", "n"])
+    et = wandb.EvalTable(backend="weave", columns=["t", "n"])
 
     with pytest.raises(TypeError, match="does not support nested Tables"):
         et.add_data(inner, 1)
@@ -870,7 +882,7 @@ def test_add_data_nested_table_cell_raises():
 @pytest.mark.usefixtures("mock_eval_logger")
 def test_add_column_nested_table_cell_raises():
     inner = wandb.Table(columns=["x"], data=[["v"]])
-    et = wandb.EvalTable(columns=["n"], data=[[1]])
+    et = wandb.EvalTable(backend="weave", columns=["n"], data=[[1]])
 
     with pytest.raises(TypeError, match="does not support nested Tables"):
         et.add_column("t", [inner])
@@ -885,9 +897,9 @@ def test_unsupported_wandb_media_cell_raises_in_raise_mode():
 
     with pytest.raises(TypeError) as exc_info:
         wandb.EvalTable(
+            backend="weave",
             columns=["html"],
             data=[[html]],
-            backend="weave",
             unsupported_media_mode="raise",
         )
     assert "unsupported wandb media type 'Html'" in str(exc_info.value)
@@ -898,8 +910,8 @@ def test_unsupported_wandb_media_cell_raises_in_raise_mode():
 def test_add_data_unsupported_wandb_value_cell_raises_in_raise_mode():
     histogram = wandb.Histogram([1, 2, 3])
     et = wandb.EvalTable(
-        columns=["histogram"],
         backend="weave",
+        columns=["histogram"],
         unsupported_media_mode="raise",
     )
 
@@ -911,13 +923,12 @@ def test_add_data_unsupported_wandb_value_cell_raises_in_raise_mode():
     assert et.data == []
 
 
-@pytest.mark.parametrize("backend", [None, "weave", "ces"])
 @pytest.mark.usefixtures("mock_eval_logger")
-def test_unsupported_media_mode_rejects_unknown_mode(backend):
+def test_unsupported_media_mode_rejects_unknown_mode():
     with pytest.raises(ValueError, match="unsupported_media_mode"):
         wandb.EvalTable(
+            backend="weave",
             columns=["x"],
-            backend=backend,
             unsupported_media_mode="ignore",
         )
 
@@ -930,6 +941,7 @@ def test_unsupported_wandb_media_stubbed_on_log(
     html = wandb.Html("<p>hi</p>", inject=False)
 
     et = wandb.EvalTable(
+        backend="weave",
         columns=["html", "label"],
         data=[[html, "ok"]],
         input_columns=["html"],
@@ -958,6 +970,7 @@ def test_external_image_reference_stubbed_on_log(
     image = wandb.Image("https://example.com/image.png")
 
     et = wandb.EvalTable(
+        backend="weave",
         columns=["img", "label"],
         data=[[image, "ok"]],
         input_columns=["img"],
@@ -983,6 +996,7 @@ def test_external_image_reference_stubbed_on_log(
 def test_weave_media_error_uses_original_integer_column(mock_eval_logger, run):
     image = wandb.Image("https://example.com/image.png")
     et = wandb.EvalTable(
+        backend="weave",
         columns=[1],
         data=[[image]],
         unsupported_media_mode="raise",
@@ -1001,6 +1015,7 @@ def test_unsupported_wandb_value_without_natural_hash_stubbed_on_log(
 ):
     histogram = wandb.Histogram([1, 2, 3])
     et = wandb.EvalTable(
+        backend="weave",
         columns=["histogram"],
         data=[[histogram]],
     )
@@ -1017,7 +1032,7 @@ def test_unsupported_wandb_value_without_natural_hash_stubbed_on_log(
 # Logging an EvalTable to an Artifact: rejected.
 @pytest.mark.usefixtures("mock_eval_logger")
 def test_artifact_path_raises():
-    et = wandb.EvalTable(columns=["out"], data=[["x"]])
+    et = wandb.EvalTable(backend="weave", columns=["out"], data=[["x"]])
     fake_artifact = MagicMock(spec=wandb.Artifact)
 
     with pytest.raises(TypeError, match="cannot be logged to a wandb.Artifact"):
@@ -1027,7 +1042,7 @@ def test_artifact_path_raises():
 # Parent wandb.Table rejects EvalTable cells through artifact serialization.
 @pytest.mark.usefixtures("mock_eval_logger")
 def test_parent_table_rejects_evaltable_cell():
-    et = wandb.EvalTable(columns=["out"], data=[["x"]])
+    et = wandb.EvalTable(backend="weave", columns=["out"], data=[["x"]])
     parent = wandb.Table(columns=["c1", "c2"], data=[[et, "other"]])
     fake_artifact = MagicMock(spec=wandb.Artifact)
 
@@ -1044,6 +1059,7 @@ def test_wandb_image_cell_unwrapped_to_pil(mock_eval_logger, run):
     wb_img = wandb.Image(pil_in)
 
     et = wandb.EvalTable(
+        backend="weave",
         columns=["img"],
         data=[[wb_img]],
     )
@@ -1072,6 +1088,7 @@ def test_wandb_image_with_int_column_unwrapped_to_pil(mock_eval_logger, run):
     wb_img = wandb.Image(pil_in)
 
     et = wandb.EvalTable(
+        backend="weave",
         columns=[1],
         data=[[wb_img]],
     )
