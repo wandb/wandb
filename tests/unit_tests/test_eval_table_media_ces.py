@@ -136,6 +136,16 @@ def _mask_overlay(class_labels, *, fill=1):
     }
 
 
+def _audio_write_rows(audio):
+    return [
+        _writer.WriteRow(
+            inputs={"audio": audio},
+            output=None,
+            scores={},
+        )
+    ]
+
+
 @pytest.fixture
 def artifact_image_factory(tmp_path, monkeypatch):
     def make(
@@ -553,6 +563,45 @@ def test_external_reference_artifact_image_raises_in_raise_mode(
         writer._build_write_payloads(
             name="eval",
             rows=_image_write_rows(image),
+        )
+
+
+def test_external_reference_audio_is_null_by_default(run_factory, monkeypatch):
+    run = run_factory("run-one")
+    audio = wandb.Audio("s3://bucket/sound.wav")
+    warning = MagicMock()
+    monkeypatch.setattr(wandb, "termwarn", warning)
+    writer = _writer_ces.CESWriter()
+    writer.bind_to_run(run, "eval", 0)
+
+    prepared = writer._build_write_payloads(
+        name="eval",
+        rows=_audio_write_rows(audio),
+    )
+
+    assert prepared.row_batches[0][0]["input"]["audio"] is None
+    assert prepared.dataset_fields == [
+        {
+            "source": "input",
+            "name": "audio",
+            "value_type": "json",
+            "extension_type": "wandb-audio",
+            "extension_schema_version": 1,
+        }
+    ]
+    warning.assert_called_once()
+
+
+def test_external_reference_audio_raises_in_raise_mode(run_factory):
+    run = run_factory("run-one")
+    audio = wandb.Audio("s3://bucket/sound.wav")
+    writer = _writer_ces.CESWriter(unsupported_media_mode="raise")
+    writer.bind_to_run(run, "eval", 0)
+
+    with pytest.raises(TypeError, match="reference external storage"):
+        writer._build_write_payloads(
+            name="eval",
+            rows=_audio_write_rows(audio),
         )
 
 

@@ -396,9 +396,15 @@ def _ensure_eval_table_run_file(
     _check_external_reference_artifact(media, parent_extension_type)
 
     if media.path_is_reference(media._path):
-        raise ValueError(
-            f"{type(media).__name__} media created by a reference to external "
-            "storage cannot currently be added to a run"
+        type_name = type(media).__name__
+        raise UnsupportedMediaVariantError(
+            f"EvalTable does not support wandb.{type_name} values that reference "
+            "external storage. Pass unsupported_media_mode='stub' to log null instead.",
+            stub_warning=(
+                f"wandb.{type_name} values that reference external storage are not "
+                "supported by EvalTable. They will be logged as null."
+            ),
+            extension_type=parent_extension_type,
         )
 
     if not media.file_is_set():
