@@ -11,10 +11,13 @@ from __future__ import annotations
 import abc
 import importlib.util
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 from wandb.sdk.sweeps.run_state import RunState
+from wandb.sdk.sweeps.scheduler import client as scheduler_client
 from wandb.sdk.sweeps.scheduler.optimizer import (
     Optimizer,
     RunConfig,
@@ -665,3 +668,84 @@ class TestAxOptimizerTermination(TerminatorContractTests):
 
         client = create_default_client(SCHEDULER_GRID_SWEEP_CONFIG)
         return AxOptimizer(client, make_scheduler_grid_sweep(), terminator), client
+
+
+class TestLoadSourceObject:
+    def test_loads_named_function(self, tmp_path: Path) -> None:
+        source = tmp_path / "source.py"
+        source.write_text("def configure():\n    return 42\n", encoding="utf-8")
+
+        loaded = scheduler_client.load_source_object(str(source), "configure")
+
+        assert loaded() == 42
+
+    def test_empty_source_raises(self) -> None:
+        with pytest.raises(ValueError, match="scheduler.source.*'configure'"):
+            scheduler_client.load_source_object("", "configure")
+
+    def test_missing_attribute_raises(self, tmp_path: Path) -> None:
+        source = tmp_path / "source.py"
+        source.write_text("OTHER = 1\n", encoding="utf-8")
+
+        with pytest.raises(ValueError, match="has no attribute 'configure'"):
+            scheduler_client.load_source_object(str(source), "configure")
+
+
+class TestLoadOptimizerConfig:
+    def test_returns_bare_optimizer(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        optimizer = object()
+        configure = MagicMock(return_value=optimizer)
+        monkeypatch.setattr(
+            scheduler_client, "load_source_object", lambda *_: configure
+        )
+
+        loaded, terminator = scheduler_client.load_optimizer_config(
+            "optimizer.py", "configure", "engine.Optimizer"
+        )
+
+        assert loaded is optimizer
+        assert terminator is None
+
+    def test_returns_optimizer_and_terminator(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        optimizer = object()
+        terminator = MagicMock(return_value=True)
+        configure = MagicMock(return_value=(optimizer, terminator))
+        monkeypatch.setattr(
+            scheduler_client, "load_source_object", lambda *_: configure
+        )
+
+        loaded, loaded_terminator = scheduler_client.load_optimizer_config(
+            "optimizer.py", "configure", "engine.Optimizer"
+        )
+
+        assert loaded is optimizer
+        assert loaded_terminator is terminator
+
+    def test_returns_only_optimizer(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        optimizer = object()
+        configure = MagicMock(return_value=(optimizer, None))
+        monkeypatch.setattr(
+            scheduler_client, "load_source_object", lambda *_: configure
+        )
+
+        loaded, terminator = scheduler_client.load_optimizer_config(
+            "optimizer.py", "configure", "engine.Optimizer"
+        )
+
+        assert loaded is optimizer
+        assert terminator is None
+
+    def test_non_callable_terminator_raises(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        configure = MagicMock(return_value=(object(), "not-callable"))
+        monkeypatch.setattr(
+            scheduler_client, "load_source_object", lambda *_: configure
+        )
+
+        with pytest.raises(ValueError, match="terminator.*Callable"):
+            scheduler_client.load_optimizer_config(
+                "optimizer.py", "configure", "engine.Optimizer"
+            )
