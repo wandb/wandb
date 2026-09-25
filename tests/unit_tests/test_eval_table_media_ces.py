@@ -103,6 +103,25 @@ def _image_write_rows(image):
     ]
 
 
+def _box(class_id=1):
+    return {
+        "position": {"minX": 0.1, "minY": 0.2, "maxX": 0.3, "maxY": 0.4},
+        "class_id": class_id,
+    }
+
+
+def _box_overlay(class_labels, *, class_id=1):
+    return {"box_data": [_box(class_id)], "class_labels": class_labels}
+
+
+def _mask_overlay(class_labels, *, fill=1):
+    np = pytest.importorskip("numpy")
+    return {
+        "mask_data": np.full((2, 2), fill, dtype=np.uint8),
+        "class_labels": class_labels,
+    }
+
+
 @pytest.fixture
 def artifact_image_factory(tmp_path, monkeypatch):
     def make(
@@ -433,19 +452,7 @@ def test_artifact_rehydrated_image_boxes_register_parent_class_labels(
     image, artifact_uri = artifact_image_factory(
         name="image",
         class_labels=class_labels,
-        boxes={
-            "predictions": [
-                {
-                    "position": {
-                        "minX": 0.1,
-                        "minY": 0.2,
-                        "maxX": 0.3,
-                        "maxY": 0.4,
-                    },
-                    "class_id": 2,
-                }
-            ]
-        },
+        boxes={"predictions": [_box(2)]},
     )
 
     prepared = _media_ces.prepare_image(image, run, _IMAGE_FIELD)
@@ -461,32 +468,11 @@ def test_artifact_rehydrated_image_boxes_register_parent_class_labels(
 
 
 def test_image_with_masks_and_boxes_uses_run_file_uris(run_factory, tmp_path):
-    np = pytest.importorskip("numpy")
     run = run_factory("run-one")
     image = wandb.Image(
         _png(tmp_path),
-        boxes={
-            "predictions": {
-                "box_data": [
-                    {
-                        "position": {
-                            "minX": 0.1,
-                            "minY": 0.2,
-                            "maxX": 0.3,
-                            "maxY": 0.4,
-                        },
-                        "class_id": 1,
-                    }
-                ],
-                "class_labels": {1: "cat"},
-            }
-        },
-        masks={
-            "predictions": {
-                "mask_data": np.zeros((2, 2), dtype=np.uint8),
-                "class_labels": {0: "background"},
-            }
-        },
+        boxes={"predictions": _box_overlay({1: "cat"})},
+        masks={"predictions": _mask_overlay({0: "background"}, fill=0)},
     )
     box_media = image._boxes["predictions"]
     mask_media = image._masks["predictions"]
@@ -521,7 +507,6 @@ def test_image_overlay_keys_register_distinct_class_labels(
     mock_ces_client,
     tmp_path,
 ):
-    np = pytest.importorskip("numpy")
     run = run_factory("run-one")
     run._add_singleton = MagicMock(
         wraps=wandb.Run._add_singleton.__get__(run, wandb.Run)
@@ -529,44 +514,12 @@ def test_image_overlay_keys_register_distinct_class_labels(
     image = wandb.Image(
         _png(tmp_path),
         boxes={
-            "ground_truth": {
-                "box_data": [
-                    {
-                        "position": {
-                            "minX": 0.1,
-                            "minY": 0.2,
-                            "maxX": 0.3,
-                            "maxY": 0.4,
-                        },
-                        "class_id": 1,
-                    }
-                ],
-                "class_labels": {1: "truth"},
-            },
-            "predictions": {
-                "box_data": [
-                    {
-                        "position": {
-                            "minX": 0.2,
-                            "minY": 0.3,
-                            "maxX": 0.4,
-                            "maxY": 0.5,
-                        },
-                        "class_id": 1,
-                    }
-                ],
-                "class_labels": {1: "prediction"},
-            },
+            "ground_truth": _box_overlay({1: "truth"}),
+            "predictions": _box_overlay({1: "prediction"}),
         },
         masks={
-            "ground_truth": {
-                "mask_data": np.ones((2, 2), dtype=np.uint8),
-                "class_labels": {1: "truth"},
-            },
-            "predictions": {
-                "mask_data": np.ones((2, 2), dtype=np.uint8),
-                "class_labels": {1: "prediction"},
-            },
+            "ground_truth": _mask_overlay({1: "truth"}),
+            "predictions": _mask_overlay({1: "prediction"}),
         },
     )
     table = wandb.EvalTable(
@@ -610,7 +563,6 @@ def test_image_rows_merge_overlay_class_labels(
     mock_ces_client,
     tmp_path,
 ):
-    np = pytest.importorskip("numpy")
     run = run_factory("run-one")
     run._add_singleton = MagicMock(
         wraps=wandb.Run._add_singleton.__get__(run, wandb.Run)
@@ -619,28 +571,8 @@ def test_image_rows_merge_overlay_class_labels(
     def image(name, class_labels):
         return wandb.Image(
             _png(tmp_path, name),
-            boxes={
-                "comparison": {
-                    "box_data": [
-                        {
-                            "position": {
-                                "minX": 0.1,
-                                "minY": 0.2,
-                                "maxX": 0.3,
-                                "maxY": 0.4,
-                            },
-                            "class_id": 1,
-                        }
-                    ],
-                    "class_labels": class_labels,
-                }
-            },
-            masks={
-                "comparison": {
-                    "mask_data": np.ones((2, 2), dtype=np.uint8),
-                    "class_labels": class_labels,
-                }
-            },
+            boxes={"comparison": _box_overlay(class_labels)},
+            masks={"comparison": _mask_overlay(class_labels)},
         )
 
     table = wandb.EvalTable(
@@ -674,50 +606,17 @@ def test_image_columns_register_distinct_overlay_class_labels(
     tmp_path,
     artifact_image_factory,
 ):
-    np = pytest.importorskip("numpy")
     run = run_factory("run-one")
     local_image = wandb.Image(
         _png(tmp_path, "local.png"),
-        boxes={
-            "comparison": {
-                "box_data": [
-                    {
-                        "position": {
-                            "minX": 0.1,
-                            "minY": 0.2,
-                            "maxX": 0.3,
-                            "maxY": 0.4,
-                        },
-                        "class_id": 1,
-                    }
-                ],
-                "class_labels": {1: "local"},
-            }
-        },
-        masks={
-            "comparison": {
-                "mask_data": np.ones((2, 2), dtype=np.uint8),
-                "class_labels": {1: "local"},
-            }
-        },
+        boxes={"comparison": _box_overlay({1: "local"})},
+        masks={"comparison": _mask_overlay({1: "local"})},
     )
 
     artifact_image, _ = artifact_image_factory(
         name="artifact",
         class_labels={2: "artifact"},
-        boxes={
-            "comparison": [
-                {
-                    "position": {
-                        "minX": 0.2,
-                        "minY": 0.3,
-                        "maxX": 0.4,
-                        "maxY": 0.5,
-                    },
-                    "class_id": 2,
-                }
-            ]
-        },
+        boxes={"comparison": [_box(2)]},
         mask_keys=("comparison",),
     )
     table = wandb.EvalTable(
