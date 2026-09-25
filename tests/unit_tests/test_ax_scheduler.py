@@ -325,7 +325,7 @@ class TestPersistedClientWarmStart:
     def test_the_experiment_is_listed_once_and_only_by_warm_start(
         self, client: Client, sweep: SweepInfo, reload, persisted_trials
     ) -> None:
-        """A large experiment is not listed for a sweep with nothing to resume."""
+        """A large experiment isn't listed for a sweep with none to resume."""
         first = AxOptimizer(client, sweep)
         suggestions = first.ask_n_runs(2)
         runs = [
@@ -409,7 +409,7 @@ class TestPersistedClientWarmStart:
     def test_an_unpolled_trial_is_matched_to_its_run_by_params(
         self, client: Client, sweep: SweepInfo, reload
     ) -> None:
-        """A scheduler that stopped before the first poll never saw the run id."""
+        """A scheduler that stopped before a poll reported the run."""
         first = AxOptimizer(client, sweep)
         suggestion = next(iter(first.ask_n_runs(1)))
 
