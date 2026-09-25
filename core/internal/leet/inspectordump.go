@@ -286,6 +286,8 @@ func loggedItems(list []any) (map[string]any, bool) {
 		if !ok {
 			return nil, false
 		}
+		// TODO: also read the typed HistoryItem.value; a writer may set it
+		// instead of value_json, though none does yet.
 		valueJSON, ok := item["value_json"].(string)
 		if !ok {
 			return nil, false
