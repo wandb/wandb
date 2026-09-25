@@ -600,6 +600,42 @@ def test_image_rows_merge_overlay_class_labels(
     ]
 
 
+def test_image_overlay_class_labels_merge_with_resumed_string_ids(
+    run_factory,
+    mock_ces_client,
+    tmp_path,
+):
+    run = run_factory("run-one")
+    singleton_key = "eval/inputs/image_wandb_delimeter_comparison"
+    # Resumed runs load config through JSON, so class IDs come back as strings.
+    wandb.Run._add_singleton(
+        run, "bounding_box/class_labels", singleton_key, {"1": "established"}
+    )
+    run._add_singleton = MagicMock(
+        wraps=wandb.Run._add_singleton.__get__(run, wandb.Run)
+    )
+    image = wandb.Image(
+        _png(tmp_path),
+        boxes={"comparison": _box_overlay({1: "new", 2: "B"})},
+    )
+    table = wandb.EvalTable(
+        columns=["image"],
+        data=[[image]],
+        input_columns=["image"],
+        backend="ces",
+    )
+
+    run.log({"eval": table})
+
+    assert run._add_singleton.call_args_list == [
+        call(
+            "bounding_box/class_labels",
+            singleton_key,
+            {"1": "established", 2: "B"},
+        ),
+    ]
+
+
 def test_image_columns_register_distinct_overlay_class_labels(
     run_factory,
     mock_ces_client,

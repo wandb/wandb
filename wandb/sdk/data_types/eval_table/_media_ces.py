@@ -78,6 +78,22 @@ class EvalTableMediaField:
         return f"{media_key}_wandb_delimeter_{overlay_key}"
 
 
+def _add_missing_class_labels(
+    labels: dict[int | str, str],
+    new_labels: dict[int | str, str],
+) -> None:
+    """Adds entries from new_labels whose class IDs are missing from labels.
+
+    IDs are compared as strings because resumed runs load config through JSON,
+    which turns integer class IDs into string keys.
+    """
+    known_ids = {str(class_id) for class_id in labels}
+    for class_id, name in new_labels.items():
+        if str(class_id) not in known_ids:
+            labels[class_id] = name
+            known_ids.add(str(class_id))
+
+
 class ClassLabelAccumulator:
     def __init__(self) -> None:
         self._labels: dict[
@@ -102,9 +118,7 @@ class ClassLabelAccumulator:
             return
 
         key = (singleton_type, field.singleton_key(media._key))
-        merged_labels = self._labels.setdefault(key, {})
-        for class_id, name in class_labels.items():
-            merged_labels.setdefault(class_id, name)
+        _add_missing_class_labels(self._labels.setdefault(key, {}), class_labels)
 
     def flush(self, run: Run) -> None:
         for (singleton_type, singleton_key), class_labels in self._labels.items():
@@ -116,10 +130,11 @@ class ClassLabelAccumulator:
                 if isinstance(existing_entry, dict)
                 else None
             )
-            merged_labels = dict(class_labels)
-            if isinstance(existing_labels, dict):
-                # Preserve established names on ID collisions, matching Table schemas.
-                merged_labels.update(existing_labels)
+            merged_labels = (
+                dict(existing_labels) if isinstance(existing_labels, dict) else {}
+            )
+            # Preserve established names on ID collisions, matching Table schemas.
+            _add_missing_class_labels(merged_labels, class_labels)
             run._add_singleton(singleton_type, singleton_key, merged_labels)
 
 
