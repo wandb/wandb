@@ -15,7 +15,7 @@ from wandb.sdk.data_types.eval_table._writer_factory import (
     Backend,
     create_default_writer,
     create_writer,
-    require_ces_server_feature,
+    require_eval_table_server_feature,
 )
 from wandb.sdk.data_types.table import ColumnKey, InputRow, LogMode, Table
 from wandb.sdk.lib import telemetry
@@ -99,8 +99,8 @@ class EvalTable(Table):
                 These represent derived scores for the outputs. By default, we will
                 auto-summarize any numeric and boolean scores.
             backend: Optional storage-backend override. If omitted, CES is used when
-                the bound run's server advertises support. Pass "weave" to use the
-                Weave backend instead. Passing "ces" still requires server support.
+                the bound run's server advertises EvalTable support. Pass "weave" to
+                use the Weave backend instead. All backends require server support.
             unsupported_media_mode: How to handle unsupported wandb media/value types.
                 - "stub" (default): log unsupported values as short placeholder strings
                   like "[wandb.Html not yet supported]". (This is a temporary flag
@@ -218,8 +218,8 @@ class EvalTable(Table):
                 unsupported_media_mode=self._unsupported_media_mode,
             )
             self._validate_cells_for_writer(writer)
-        elif self._backend == "ces":
-            require_ces_server_feature(run)
+        else:
+            require_eval_table_server_feature(run)
 
         # Initialize writer with run context while intentionally
         # skipping the file-copy behavior in Table.bind_to_run().

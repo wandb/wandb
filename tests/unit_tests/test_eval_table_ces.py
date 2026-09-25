@@ -143,7 +143,7 @@ def test_eval_table_default_fails_when_server_feature_disabled(
     )
     table = wandb.EvalTable(columns=["value"], data=[[1]])
 
-    with pytest.raises(UsageError, match="backend='weave'"):
+    with pytest.raises(UsageError, match="does not support EvalTable logging"):
         run.log({"eval": table})
 
     feature_enabled.assert_called_once_with(pb.ServerFeature.EVAL_TABLES_CES)
@@ -151,15 +151,34 @@ def test_eval_table_default_fails_when_server_feature_disabled(
     mock_eval_logger._create_with_meta.assert_not_called()
 
 
-@pytest.mark.parametrize("server_feature_enabled", [False, True])
-def test_eval_table_explicit_weave_skips_server_feature(
-    server_feature_enabled,
+def test_eval_table_explicit_weave_requires_server_feature(
     monkeypatch,
     mock_eval_logger,
     mock_ces_client,
     run,
 ):
-    feature_enabled = MagicMock(return_value=server_feature_enabled)
+    feature_enabled = MagicMock(return_value=False)
+    monkeypatch.setattr(
+        "wandb.sdk.data_types.eval_table._writer_factory.ServiceApi.feature_enabled",
+        feature_enabled,
+    )
+    table = wandb.EvalTable(columns=["value"], data=[[1]], backend="weave")
+
+    with pytest.raises(UsageError, match="does not support EvalTable logging"):
+        run.log({"eval": table})
+
+    feature_enabled.assert_called_once_with(pb.ServerFeature.EVAL_TABLES_CES)
+    mock_eval_logger._create_with_meta.assert_not_called()
+    mock_ces_client.eval_tables.create.assert_not_called()
+
+
+def test_eval_table_explicit_weave_allowed_when_server_feature_enabled(
+    monkeypatch,
+    mock_eval_logger,
+    mock_ces_client,
+    run,
+):
+    feature_enabled = MagicMock(return_value=True)
     monkeypatch.setattr(
         "wandb.sdk.data_types.eval_table._writer_factory.ServiceApi.feature_enabled",
         feature_enabled,
@@ -169,7 +188,7 @@ def test_eval_table_explicit_weave_skips_server_feature(
     run.log({"eval": table})
 
     assert table.to_json(run)["_type"] == "eval-table"
-    feature_enabled.assert_not_called()
+    feature_enabled.assert_called_once_with(pb.ServerFeature.EVAL_TABLES_CES)
     mock_eval_logger._create_with_meta.assert_called_once()
     mock_ces_client.eval_tables.create.assert_not_called()
 
@@ -187,7 +206,7 @@ def test_eval_table_explicit_ces_requires_server_feature(
     )
     table = wandb.EvalTable(columns=["value"], data=[[1]], backend="ces")
 
-    with pytest.raises(UsageError, match="backend='weave'"):
+    with pytest.raises(UsageError, match="does not support EvalTable logging"):
         run.log({"eval": table})
 
     feature_enabled.assert_called_once_with(pb.ServerFeature.EVAL_TABLES_CES)
