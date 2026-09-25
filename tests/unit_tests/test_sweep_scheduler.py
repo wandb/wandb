@@ -566,7 +566,7 @@ class TestAxOptimizerAcceptance(OptimizerAcceptanceTests):
         run_ids: Sequence[str],
         runs: Sequence[RunWithMetrics],
     ) -> Sequence[str]:
-        """Stub Ax's statistical early-stopping verdict to flag the first run."""
+        """Stub Ax's statistical early-stopping verdict to flag run one."""
         from unittest.mock import patch
 
         with patch.object(
