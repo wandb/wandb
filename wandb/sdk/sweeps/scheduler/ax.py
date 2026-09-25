@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, TypeAlias
 
@@ -324,12 +324,6 @@ class AxOptimizer(Optimizer):
         self._warm_start_over = False
         self._persisted_index: _PersistedIndex | None = None
 
-    def _persisted_trials(self) -> Iterator[Any]:
-        """Yield the experiment's trials one at a time, uncopied."""
-        # The client holds its whole experiment in memory; the trials are
-        # handed over from it as they are.
-        yield from _experiment(self.client).trials.values()
-
     def _index_persisted_trials(self) -> _PersistedIndex:
         """Index the trials a caller's client already holds for this sweep.
 
@@ -340,10 +334,10 @@ class AxOptimizer(Optimizer):
         """
         from ax.core.base_trial import TrialStatus
 
-        if self._persisted_index is not None:
-            return self._persisted_index
         index = _PersistedIndex()
-        for trial in self._persisted_trials():
+        # The client holds its whole experiment in memory; its trials are
+        # read in place, uncopied.
+        for trial in _experiment(self.client).trials.values():
             wandb_run_id = trial.run_metadata.get(_WANDB_RUN_ID_KEY)
             running = trial.status == TrialStatus.RUNNING
             if wandb_run_id is not None:
@@ -353,7 +347,6 @@ class AxOptimizer(Optimizer):
                     index.finished_runs.add(wandb_run_id)
             elif running and trial.run_metadata.get(_SWEEP_KEY) == self._sweep_path:
                 index.unlinked_running.append(trial.index)
-        self._persisted_index = index
         return index
 
     def _claim_persisted_trial(self, data: Run) -> Any:
@@ -365,7 +358,9 @@ class AxOptimizer(Optimizer):
         """
         if self._warm_start_over:
             return None
-        index = self._index_persisted_trials()
+        if self._persisted_index is None:
+            self._persisted_index = self._index_persisted_trials()
+        index = self._persisted_index
         if data.wandb_run_id in index.finished_runs:
             index.finished_runs.discard(data.wandb_run_id)
             return _FINISHED

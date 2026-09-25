@@ -316,9 +316,9 @@ class TestPersistedClientWarmStart:
         """Spy on the optimizer listing every trial in its experiment."""
         with patch.object(
             AxOptimizer,
-            "_persisted_trials",
+            "_index_persisted_trials",
             autospec=True,
-            side_effect=AxOptimizer._persisted_trials,
+            side_effect=AxOptimizer._index_persisted_trials,
         ) as persisted_trials:
             yield persisted_trials
 
