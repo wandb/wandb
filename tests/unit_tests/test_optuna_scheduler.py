@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -387,9 +388,14 @@ class TestPersistedStudyWarmStart:
     }
     DISTRIBUTIONS = {"x": optuna.distributions.FloatDistribution(0.0, 1.0)}
 
+    def journal(self, path: Path) -> optuna.storages.JournalStorage:
+        return optuna.storages.JournalStorage(
+            optuna.storages.journal.JournalFileBackend(str(path / "journal.log"))
+        )
+
     @pytest.fixture(params=["declarative", "imperative"])
-    def make_optimizer(self, request: pytest.FixtureRequest):
-        storage = optuna.storages.InMemoryStorage()
+    def make_optimizer(self, request: pytest.FixtureRequest, tmp_path: Path):
+        storage = self.journal(tmp_path)
         optuna.create_study(study_name="study", storage=storage, direction="minimize")
         sweep = make_scheduler_grid_sweep(config=self.CONFIG)
 
@@ -560,8 +566,8 @@ class TestPersistedStudyWarmStart:
         assert warm_start(second, active=[running]) == {}
         assert len(second.study.get_trials(deepcopy=False)) == 1
 
-    def test_another_sweeps_running_trial_is_not_adopted(self) -> None:
-        storage = optuna.storages.InMemoryStorage()
+    def test_another_sweeps_running_trial_is_not_adopted(self, tmp_path: Path) -> None:
+        storage = self.journal(tmp_path)
         study = optuna.create_study(storage=storage, direction="minimize")
         foreign = study.ask(self.DISTRIBUTIONS)
         sweep = make_scheduler_grid_sweep(config=self.CONFIG)
@@ -579,3 +585,23 @@ class TestPersistedStudyWarmStart:
         )
 
         assert adoptions["run-a"] != str(foreign.number)
+
+    def test_an_in_memory_study_is_neither_labeled_nor_listed(self, get_trials) -> None:
+        """An in-memory study cannot be reloaded, so there is nothing to resume."""
+        study = optuna.create_study(direction="minimize")
+        sweep = make_scheduler_grid_sweep(config=self.CONFIG)
+        optimizer = OptunaDeclarativeOptimizer(study, self.DISTRIBUTIONS, sweep)
+        suggestion = RunSuggestion(
+            config=RunConfig.from_values({"x": 0.5}), run_id="unused"
+        )
+
+        warm_start(
+            optimizer,
+            finished=[
+                self.run(suggestion, RunState.FINISHED, [{"loss": 1.0, "_step": 0}])
+            ],
+            active=[self.run(suggestion, RunState.RUNNING, [], wandb_run_id="run-b")],
+        )
+
+        assert get_trials.call_count == 0
+        assert [t.user_attrs for t in study.get_trials(deepcopy=False)] == [{}, {}]

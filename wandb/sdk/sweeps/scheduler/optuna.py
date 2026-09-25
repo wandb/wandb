@@ -45,8 +45,8 @@ TerminatorCallback: TypeAlias = Callable[["optuna.Study"], bool]
 # https://github.com/optuna/optuna/issues/4121.
 _STOP_OUTSIDE_OPTIMIZE_LOOP = "`Study.stop` is supposed to be invoked inside"
 
-# Trial user attrs linking a study's trials to the sweep, so a study the
-# caller persisted and reloaded is resumed on warm start instead of refilled.
+# Trial user attrs linking a persisted study's trials to the sweep, so a
+# reloaded study is resumed on warm start instead of refilled.
 _SWEEP_ATTR = "wandb_sweep"
 _WANDB_RUN_ID_ATTR = "wandb_run_id"
 
@@ -79,7 +79,8 @@ class OptunaOptions:
     sweep's trials: each trial records its W&B run id as the
     `wandb_run_id` user attr. Warm start resumes those trials rather than
     adding the sweep's runs again, and adopts in-flight runs onto their
-    still-running trials.
+    still-running trials. A study on `InMemoryStorage` can't be reloaded,
+    so its trials are neither labeled nor resumed.
 
     `terminator` decides when the search itself is exhausted -- e.g.
     wrapping optuna's or OptunaHub's `Terminator.should_terminate`, or any
@@ -245,6 +246,10 @@ class OptunaOptimizer(Optimizer):
         super().__init__(sweep)
 
         self._sweep_path = f"{sweep.entity}/{sweep.project}/{sweep.id}"
+        # An in-memory study can't be reloaded, so never label or resume it.
+        self._persisted = not isinstance(
+            study._storage, optuna.storages.InMemoryStorage
+        )
         # Built on the first warm-start call and dropped once generation
         # starts; see `_index_persisted_trials`.
         self._warm_start_over = False
@@ -279,7 +284,7 @@ class OptunaOptimizer(Optimizer):
             The run id of the run's still-running trial, `_FINISHED` if its
             trial already finished, or None if the study has none.
         """
-        if self._warm_start_over:
+        if self._warm_start_over or not self._persisted:
             return None
         if self._persisted_index is None:
             self._persisted_index = self._index_persisted_trials()
@@ -327,9 +332,15 @@ class OptunaOptimizer(Optimizer):
         self._link(run_id, wandb_run_id)
         return run_id
 
+    def _run_attrs(self, wandb_run_id: str) -> dict[str, Any]:
+        """The user attrs marking a trial as a given run of this sweep."""
+        if not self._persisted:
+            return {}
+        return {_SWEEP_ATTR: self._sweep_path, _WANDB_RUN_ID_ATTR: wandb_run_id}
+
     def _link(self, run_id: str, wandb_run_id: str) -> None:
         """Record a live trial's W&B run id in the study, once."""
-        if run_id in self._linked or not wandb_run_id:
+        if not self._persisted or run_id in self._linked or not wandb_run_id:
             return
         self.trials[run_id].set_user_attr(_WANDB_RUN_ID_ATTR, wandb_run_id)
         self._linked.add(run_id)
@@ -404,7 +415,8 @@ class OptunaOptimizer(Optimizer):
         """
         run_id = str(trial.number)
         self.trials[run_id] = trial
-        trial.set_user_attr(_SWEEP_ATTR, self._sweep_path)
+        if self._persisted:
+            trial.set_user_attr(_SWEEP_ATTR, self._sweep_path)
         return RunSuggestion(config=RunConfig.from_values(params), run_id=run_id)
 
     @override
@@ -709,10 +721,7 @@ class OptunaDeclarativeOptimizer(OptunaOptimizer):
                 distributions=self.distributions,
                 values=values,
                 state=trial_state,
-                user_attrs={
-                    _SWEEP_ATTR: self._sweep_path,
-                    _WANDB_RUN_ID_ATTR: data.wandb_run_id,
-                },
+                user_attrs=self._run_attrs(data.wandb_run_id),
             )
         )
 
