@@ -147,6 +147,26 @@ def test_leet_inspect_resolves_run_directory(
     ]
 
 
+def test_leet_inspect_passes_output_flags(runner, core_calls, tmp_path: pathlib.Path):
+    wandb_dir = tmp_path / "wandb"
+    wandb_dir.mkdir()
+
+    result = runner.invoke(cli.cli, ["leet", "inspect", "--summary", str(wandb_dir)])
+
+    assert result.exit_code == 0
+    assert core_calls == [
+        [
+            "wandb-core",
+            "leet",
+            "--base-url",
+            _BASE_URL,
+            "--inspect",
+            "--summary",
+            str(wandb_dir.resolve()),
+        ]
+    ]
+
+
 def test_leet_inspect_wandb_dir_uses_latest_run(
     runner, core_calls, tmp_path: pathlib.Path
 ):

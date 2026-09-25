@@ -1,0 +1,297 @@
+name: SDK CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, release-*]
+  workflow_dispatch:
+    inputs:
+      windows:
+        description: Run the Windows unit tests
+        type: boolean
+        default: true
+      server-image:
+        description: local-testcontainer image for the server tests (defaults to the master build)
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  SERVER_IMAGE: ${{ inputs.server-image || 'us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer:master' }}
+  MIN_SERVER_IMAGE: us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer:0.70.0
+
+jobs:
+  build-wheel:
+    name: Build wheel · ${{ matrix.os }}
+    runs-on: ${{ matrix.runs-on }}
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        os: [Linux, macOS]
+        include:
+          - os: Linux
+            runs-on: ubuntu-latest-8-cores
+          - os: macOS
+            runs-on: macos-15-xlarge
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/build-wheel
+
+  build-wheel-windows:
+    name: Build wheel · Windows
+    # Windows tests run on pushes, on branches named *-ci-win, and on request.
+    if: github.event_name == 'push' || inputs.windows || endsWith(github.head_ref, '-ci-win')
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/build-wheel
+
+  unit-tests-linux:
+    name: Unit tests · Linux
+    needs: build-wheel
+    uses: ./.github/workflows/sdk-unit-tests.yml
+    with:
+      runs-on: ubuntu-latest-8-cores
+
+  unit-tests-macos:
+    name: Unit tests · macOS
+    needs: build-wheel
+    uses: ./.github/workflows/sdk-unit-tests.yml
+    with:
+      runs-on: macos-15-xlarge
+
+  unit-tests-windows:
+    name: Unit tests · Windows
+    needs: build-wheel-windows
+    uses: ./.github/workflows/sdk-unit-tests.yml
+    with:
+      runs-on: windows-2022
+
+  unit-tests-go:
+    name: Unit tests · Go
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.sum
+      - name: Run tests
+        working-directory: core
+        run: go test -count=1 -race -coverprofile=coverage.txt -covermode=atomic ./...
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: ${{ !cancelled() }}
+        with:
+          name: unit-go
+          path: core/coverage.txt
+          if-no-files-found: warn
+          retention-days: 7
+
+  unit-tests-rust:
+    name: Unit tests · Rust
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: |
+            parquet-rust-wrapper
+            xpu
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Test parquet-rust-wrapper
+        working-directory: parquet-rust-wrapper
+        run: cargo test --verbose
+      - name: Test wandb-xpu
+        working-directory: xpu
+        run: |
+          cargo test --verbose
+          cargo check --features build-proto --bin build_proto
+
+  code-check:
+    name: Code checks
+    runs-on: ubuntu-latest-8-cores
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          # The size check compares against the merge base with main.
+          fetch-depth: 0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.13"
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          version: "0.12.11"
+          enable-cache: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.sum
+      - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
+        with:
+          toolchain: stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: |
+            parquet-rust-wrapper
+            xpu
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Check generated files
+        run: |
+          uvx nox -vt proto-check
+          uvx nox -vs codegen-check
+      - name: Check that the package imports
+        run: |
+          uv venv .venv-deps
+          source .venv-deps/bin/activate
+          uv pip install .
+          python -c 'import wandb'
+      - name: Compare binary sizes and import time with main
+        run: |
+          uvx nox -s binary-size-check
+          uvx nox -s wandb-import-time-check
+
+  system-tests:
+    name: >-
+      System tests
+      · Python ${{ matrix.python }}
+      · Server ${{ matrix.server }}
+      · ${{ matrix.group }} of 8
+    needs: build-wheel
+    # Pulling the private server image needs this repository's GCP identity.
+    if: ${{ !github.event.pull_request.head.repo.fork }}
+    runs-on: ubuntu-latest-8-cores
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.13"]
+        server: [current, minimum]
+        group: [1, 2, 3, 4, 5, 6, 7, 8]
+        exclude:
+          - python: "3.10"
+            server: minimum
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_REGISTRY_SA }}
+      - uses: ./.github/actions/run-tests
+        with:
+          session: system_tests
+          python: ${{ matrix.python }}
+          server-image: ${{ matrix.server == 'current' && env.SERVER_IMAGE || env.MIN_SERVER_IMAGE }}
+          group-index: ${{ matrix.group }}
+          group-count: 8
+          artifact-name: system-${{ matrix.python }}-${{ matrix.server }}-${{ matrix.group }}
+
+  extra-tests:
+    name: ${{ matrix.name }} · Python ${{ matrix.python }}
+    needs: build-wheel
+    if: ${{ !github.event.pull_request.head.repo.fork }}
+    runs-on: ubuntu-latest-8-cores
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: Notebook tests, session: notebook_tests, python: "3.10", coverage: system }
+          - { name: Notebook tests, session: notebook_tests, python: "3.13", coverage: system }
+          - { name: Functional tests, session: functional_tests, python: "3.13", coverage: func }
+          - { name: Experimental client tests, session: experimental_tests, python: "3.13", coverage: func }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_REGISTRY_SA }}
+      - uses: ./.github/actions/run-tests
+        with:
+          session: ${{ matrix.session }}
+          python: ${{ matrix.python }}
+          server-image: ${{ env.SERVER_IMAGE }}
+          artifact-name: ${{ matrix.coverage }}-${{ matrix.session }}-${{ matrix.python }}
+
+  coverage:
+    name: Upload coverage · ${{ matrix.flags }}
+    needs:
+      - build-wheel
+      - unit-tests-linux
+      - unit-tests-macos
+      - unit-tests-windows
+      - unit-tests-go
+      - system-tests
+      - extra-tests
+    # Uploads the reports of every test job that ran, passed or failed. Forks cannot read the Datadog key.
+    if: ${{ !cancelled() && needs.build-wheel.result == 'success' && !github.event.pull_request.head.repo.fork }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        flags: [unit, system, func]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: ${{ matrix.flags }}-*
+          path: coverage-reports
+      - uses: DataDog/coverage-upload-github-action@d9548b1c3c4ab639d5d3ab29a1508af188975f77 # v1.0.5
+        with:
+          api_key: ${{ secrets.DD_API_KEY }}
+          site: us5.datadoghq.com
+          files: coverage-reports/*/coverage.*
+          flags: ${{ matrix.flags }}
+
+  result:
+    name: SDK CI
+    if: ${{ !cancelled() }}
+    needs:
+      - build-wheel
+      - build-wheel-windows
+      - unit-tests-linux
+      - unit-tests-macos
+      - unit-tests-windows
+      - unit-tests-go
+      - unit-tests-rust
+      - code-check
+      - system-tests
+      - extra-tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Fail if any job failed
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1

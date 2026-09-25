@@ -67,6 +67,7 @@ def leet() -> None:
         wandb leet <run-url>          View a remote W&B run
         wandb leet symon              View live local system metrics
         wandb leet inspect [PATH]     Browse the raw records in a .wandb log
+        wandb leet inspect --summary  Print the latest run's state and metrics
     """  # noqa: D301 -- the \b escape is click's marker to not rewrap Examples.
 
 
@@ -112,20 +113,29 @@ def symon(pprof: str = "", interval: str = "") -> None:
 
 @leet.command()
 @click.argument("path", nargs=1, type=click.STRING, required=False)
+@click.option(
+    "--summary",
+    is_flag=True,
+    help="Print the run's state, latest metric values, config and console"
+    " tail instead of its records.",
+)
 @click.help_option("-h", "--help")
-def inspect(path: str | None = None) -> None:
-    """Browse the raw records in a run's .wandb transaction log.
+def inspect(path: str | None = None, summary: bool = False) -> None:
+    """Inspect a run's .wandb transaction log.
 
     Opens a browsable list of the records stored in the log next to a
     text view of the selected record. When stdout is not a terminal,
-    prints the records as text instead, e.g.:
+    prints the records instead.
 
-        wandb leet inspect run.wandb | less
+    \b
+    Examples:
+        wandb leet inspect --summary            State, latest metrics, console tail
+        wandb leet inspect run.wandb | less     Browse the records as text
 
     PATH can be a .wandb file, a run directory containing one, or a
     wandb directory. If PATH is not provided, the latest run is used.
-    """
-    launch_inspect(path)
+    """  # noqa: D301 -- the \b escape is click's marker to not rewrap Examples.
+    launch_inspect(path, summary=summary)
 
 
 @leet.command()
@@ -269,7 +279,7 @@ def launch(path: str | None, pprof: str) -> Never:
     _run_core(args, env)
 
 
-def launch_inspect(path: str | None) -> Never:
+def launch_inspect(path: str | None, summary: bool = False) -> Never:
     """Launch the transaction log record inspector."""
     config = _resolve_path(path)
     if not isinstance(config, LocalLaunchConfig):
@@ -277,6 +287,8 @@ def launch_inspect(path: str | None) -> Never:
 
     args = _base_args()
     args.append("--inspect")
+    if summary:
+        args.append("--summary")
     args.extend(_get_local_launch_args(config))
 
     _run_core(args)

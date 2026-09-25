@@ -170,6 +170,8 @@ commands:
           name: "Run nox session: <<parameters.session>>"
           no_output_timeout: 10m
           command: >
+            WANDB_TEST_GROUP_INDEX=$((CIRCLE_NODE_INDEX + 1))
+            WANDB_TEST_GROUP_COUNT=$CIRCLE_NODE_TOTAL
             nox -s "<<parameters.session>>" --python <<parameters.python>> --verbose
 
       - store-coverage: { flags: <<parameters.coverage_flags>> }
@@ -457,8 +459,8 @@ jobs:
             uv pip install .
             python -c 'import wandb'
       - run:
-          name: Check wandb-core binary size vs main branch
-          command: nox -s wandb-core-size-check
+          name: Check binary sizes vs merge base with main
+          command: nox -s binary-size-check
       - run:
           name: Check wandb library import time vs main branch
           command: nox -s wandb-import-time-check

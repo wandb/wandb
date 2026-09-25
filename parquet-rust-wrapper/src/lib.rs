@@ -5,9 +5,8 @@ use parquet::arrow::arrow_reader::{
     ParquetRecordBatchReaderBuilder,
 };
 use parquet::arrow::ProjectionMask;
-use arrow::array::{Array, Int64Array, RecordBatch};
-use arrow::compute::cast;
-use arrow::datatypes::DataType;
+use arrow::array::{downcast_primitive_array, Array, AsArray, RecordBatch};
+use arrow::datatypes::{ArrowNativeType, DataType, Float32Type, Float64Type};
 
 mod httpfile;
 pub mod serialize;
@@ -463,14 +462,20 @@ fn error_to_c_string(error: &str) -> *mut libc::c_char {
 }
 
 fn step_values_as_i64(step_column: &dyn Array, num_rows: usize) -> Result<Vec<Option<i64>>, String> {
-    let casted = cast(step_column, &DataType::Int64)
-        .map_err(|e| format!("failed to cast '{}' column to Int64: {}", STEP_COLUMN_NAME, e))?;
-    let arr = casted
-        .as_any()
-        .downcast_ref::<Int64Array>()
-        .ok_or_else(|| format!("failed to read '{}' as Int64 after cast", STEP_COLUMN_NAME))?;
+    let value: fn(&dyn Array, usize) -> Option<i64> = match step_column.data_type() {
+        DataType::Float64 => |a, i| float_step(a.as_primitive::<Float64Type>().value(i)),
+        DataType::Float32 => |a, i| float_step(a.as_primitive::<Float32Type>().value(i) as f64),
+        t if t.is_integer() => |a, i| downcast_primitive_array!(a => a.value(i).to_i64(), _ => None),
+        t => return Err(format!("unsupported '{}' column type {:?}", STEP_COLUMN_NAME, t)),
+    };
 
     Ok((0..num_rows)
-        .map(|i| if arr.is_null(i) { None } else { Some(arr.value(i)) })
+        .map(|i| if step_column.is_null(i) { None } else { value(step_column, i) })
         .collect())
+}
+
+/// Truncates like arrow's cast to Int64, with None for NaN and out-of-range values.
+fn float_step(v: f64) -> Option<i64> {
+    let t = v.trunc();
+    (t >= i64::MIN as f64 && t < i64::MAX as f64).then_some(t as i64)
 }

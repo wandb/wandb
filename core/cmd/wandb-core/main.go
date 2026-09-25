@@ -13,6 +13,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -242,11 +243,11 @@ func leetMain(args []string) int {
 	started := time.Now()
 	exitCode := runLeetCommand(&opts, logger)
 	duration := time.Since(started)
-	recorder.RecordDuration(
+	recorder.RecordHistogram(
 		context.Background(),
 		"leet_session_duration",
-		duration,
-		analytics.LowCardinalityAttributes{},
+		duration.Seconds(),
+		&analytics.LowCardinalityAttributes{},
 	)
 
 	sessionAttributes := leet.SessionAttributes()
@@ -267,6 +268,7 @@ type leetOptions struct {
 	symonMode        bool
 	symonInterval    time.Duration
 	inspect          bool
+	summary          bool
 	wandbDir         string
 
 	// remoteURL is the W&B URL of the run to open
@@ -309,7 +311,7 @@ func bindLeetFlags(fs *flag.FlagSet, opts *leetOptions) {
 	fs.BoolVar(
 		&opts.disableAnalytics,
 		"no-observability",
-		false,
+		version.Environment == "development",
 		"Disables observability features such as metrics and logging analytics.",
 	)
 	fs.StringVar(
@@ -340,6 +342,13 @@ func bindLeetFlags(fs *flag.FlagSet, opts *leetOptions) {
 		"Open the record inspector for the run's .wandb transaction log."+
 			" Prints records as text when stdout is not a terminal.",
 	)
+	fs.BoolVar(
+		&opts.summary,
+		"summary",
+		false,
+		"With --inspect, print the run's state, latest metric values,"+
+			" config and console tail instead of its records.",
+	)
 	fs.DurationVar(
 		&opts.symonInterval,
 		"interval",
@@ -363,7 +372,7 @@ Usage:
   wandb-core leet [flags] <wandb-directory>
   wandb-core leet --run-file <wandb-file> <wandb-directory>
   wandb-core leet --remote-url <wandb-run-url>
-  wandb-core leet --inspect [--run-file <wandb-file>] [<wandb-directory>]
+  wandb-core leet --inspect [--summary] [--run-file <wandb-file>] [<wandb-directory>]
   wandb-core leet --config
   wandb-core leet --symon [flags]
 
@@ -379,6 +388,12 @@ Flags:
 }
 
 func validateLeetOptions(fs *flag.FlagSet, opts *leetOptions) error {
+	if err := validateInspectorOutputOptions(opts); err != nil {
+		fmt.Fprintln(os.Stderr, "Error:", err)
+		fs.Usage()
+		return err
+	}
+
 	if opts.remoteURL != "" {
 		remote, err := leet.ParseRemoteURL(opts.remoteURL)
 		if err != nil {
@@ -419,6 +434,13 @@ func validateLeetOptions(fs *flag.FlagSet, opts *leetOptions) error {
 	default:
 		return nil
 	}
+}
+
+func validateInspectorOutputOptions(opts *leetOptions) error {
+	if opts.summary && !opts.inspect {
+		return errors.New("--summary requires --inspect")
+	}
+	return nil
 }
 
 func startLeetPprof(addr string) (func(context.Context) error, error) {
@@ -493,17 +515,27 @@ func runLeetCommand(opts *leetOptions, logger *observability.CoreLogger) int {
 	return runLeetWorkspace(opts, logger)
 }
 
-// runLeetInspector runs the transaction log record inspector. When stdout
-// is not a terminal, it prints the records as prototext instead.
+// runLeetInspector runs the transaction log record inspector, or prints
+// the run's summary or records when asked to or when stdout is not
+// a terminal.
 func runLeetInspector(opts *leetOptions, logger *observability.CoreLogger) int {
-	if !stdoutIsTerminal() {
-		if err := leet.DumpRecords(opts.runFile, opts.wandbDir, os.Stdout); err != nil {
-			fmt.Fprintln(os.Stderr, "Error:", err)
-			return exitCodeErrorInternal
-		}
-		return exitCodeSuccess
+	var err error
+	switch {
+	case opts.summary:
+		err = leet.PrintSummary(opts.runFile, opts.wandbDir, os.Stdout)
+	case !stdoutIsTerminal():
+		err = leet.DumpRecords(opts.runFile, opts.wandbDir, os.Stdout)
+	default:
+		return runLeetInspectorTUI(opts, logger)
 	}
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "Error:", err)
+		return exitCodeErrorInternal
+	}
+	return exitCodeSuccess
+}
 
+func runLeetInspectorTUI(opts *leetOptions, logger *observability.CoreLogger) int {
 	m := leet.NewInspector(leet.InspectorParams{
 		RunFile:  opts.runFile,
 		WandbDir: opts.wandbDir,

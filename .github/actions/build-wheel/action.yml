@@ -1,0 +1,45 @@
+name: Build wheel
+description: >-
+  Build a test wheel for this platform, with the Go race detector and Go coverage enabled
+  except on Windows, and upload it as the wheel-Linux, wheel-macOS, or wheel-Windows
+  artifact, named after runner.os. Release wheels are built by release-sdk.yml.
+
+runs:
+  using: composite
+  steps:
+    - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+      with:
+        version: "0.12.11"
+        python-version: "3.13"
+    - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+      with:
+        go-version-file: core/go.mod
+        # Keyed apart from the Go unit tests, which compile with different flags.
+        cache-dependency-path: |
+          core/go.sum
+          hatch_build.py
+    - uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
+      with:
+        toolchain: stable
+    - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      with:
+        workspaces: |
+          parquet-rust-wrapper
+          xpu
+        save-if: ${{ github.ref == 'refs/heads/main' }}
+
+    - name: Build wheel
+      shell: bash
+      env:
+        # Linux already covers the race detector and Go coverage. Skipping them
+        # and the wandb-xpu binary keeps the Windows build short.
+        WANDB_BUILD_COVERAGE: ${{ runner.os != 'Windows' }}
+        WANDB_BUILD_GORACEDETECT: ${{ runner.os != 'Windows' }}
+        WANDB_BUILD_SKIP_WANDB_XPU: ${{ runner.os == 'Windows' }}
+      run: uv build --wheel
+    - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+      with:
+        name: wheel-${{ runner.os }}
+        path: dist/*.whl
+        if-no-files-found: error
+        retention-days: 1

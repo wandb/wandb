@@ -54,7 +54,7 @@ def install_timed(session: nox.Session, *args, **kwargs):
 
 
 def install_wandb(session: nox.Session, dev: bool = True):
-    """Builds and installs wandb.
+    """Installs wandb from the WANDB_TEST_WHEEL file, or builds it from source.
 
     Args:
         dev: Whether to set dev build flags. Note that this
@@ -64,10 +64,20 @@ def install_wandb(session: nox.Session, dev: bool = True):
         session.env["WANDB_BUILD_COVERAGE"] = "true"
         session.env["WANDB_BUILD_GORACEDETECT"] = "true"
 
+    wheel = os.environ.get("WANDB_TEST_WHEEL")
+    package = wheel or "."
     if session.venv_backend == "uv":
-        install_timed(session, "--reinstall", "--refresh-package", "wandb", ".")
+        install_timed(session, "--reinstall", "--refresh-package", "wandb", package)
     else:
-        install_timed(session, "--force-reinstall", ".")
+        install_timed(session, "--force-reinstall", package)
+
+    if wheel:
+        # Tests import wandb from the source tree, which needs the wheel's binaries.
+        shutil.copytree(
+            site_packages_dir(session) / "wandb" / "bin",
+            pathlib.Path("wandb", "bin"),
+            dirs_exist_ok=True,
+        )
 
 
 def get_session_file_name(session: nox.Session) -> str:
@@ -105,25 +115,6 @@ def _requirements_file(python_version: str) -> str:
         return name
 
     return "requirements/requirements_dev.txt"
-
-
-def get_circleci_splits() -> tuple[int, int]:
-    """Returns the test splitting arguments from our CircleCI config.
-
-    When using test splitting, CircleCI sets the CIRCLE_NODE_TOTAL and
-    CIRCLE_NODE_INDEX environment variables to indicate which group of
-    tests we should run.
-
-    This returns (index, total), with 0 <= index < total, if the variables
-    are set. Otherwise, returns (0, 0).
-    """
-    circle_node_total = os.environ.get("CIRCLE_NODE_TOTAL")
-    circle_node_index = os.environ.get("CIRCLE_NODE_INDEX")
-
-    if circle_node_total and circle_node_index:
-        return (int(circle_node_index), int(circle_node_total))
-
-    return (0, 0)
 
 
 def run_pytest(
@@ -165,11 +156,10 @@ def run_pytest(
     # time-dependent tests.
     pytest_opts.append("--maxprocesses=10")
 
-    # (pytest-split) Run a subset of tests only (for external parallelism).
-    (circle_node_index, circle_node_total) = get_circleci_splits()
-    if circle_node_total > 0:
-        pytest_opts.append(f"--splits={circle_node_total}")
-        pytest_opts.append(f"--group={int(circle_node_index) + 1}")
+    # (pytest-split) Run one group of tests only (for external parallelism).
+    if count := os.environ.get("WANDB_TEST_GROUP_COUNT"):
+        pytest_opts.append(f"--splits={count}")
+        pytest_opts.append(f"--group={os.environ['WANDB_TEST_GROUP_INDEX']}")
 
     # (pytest-cov) Enable Python code coverage collection.
     # We set "--cov-report=" to suppress terminal output.
@@ -547,7 +537,7 @@ def _ensure_no_diff(
     saved = session.create_tmp()
     session.run("cp", "-r", in_directory, saved, external=True)
     after()
-    session.run("diff", in_directory, saved, external=True)
+    session.run("diff", "-r", in_directory, saved, external=True)
     session.run("rm", "-rf", saved, external=True)
 
 
@@ -570,11 +560,15 @@ def proto_check_python(session: nox.Session, pb: int) -> None:
 @nox.session(name="proto-check-go", tags=["proto-check"])
 def proto_check_go(session: nox.Session) -> None:
     """Regenerates Go protobuf files and ensures nothing changed."""
-    _ensure_no_diff(
-        session,
-        after=lambda: _generate_proto_go(session),
-        in_directory="core/pkg/service_go_proto/.",
-    )
+    for directory in (
+        "core/pkg/service_go_proto/.",
+        "core/internal/filestream/proto/.",
+    ):
+        _ensure_no_diff(
+            session,
+            after=lambda: _generate_proto_go(session),
+            in_directory=directory,
+        )
 
 
 def python_coverage_env(session: nox.Session) -> dict[str, str]:
@@ -651,10 +645,8 @@ def coverage(session: nox.Session) -> None:
     )
     shutil.rmtree(_NOX_GO_COVERAGE_DIR, ignore_errors=True)
 
-    # The output directory won't be created if there was no Go coverage
-    # collected. This can happen if only a subset of tests was run that
-    # didn't spin up wandb-core.
-    if go_combined.exists():
+    # There is no Go coverage if none of the tests spun up wandb-core.
+    if any(go_combined.iterdir()):
         session.run(
             "go",
             "tool",
@@ -687,27 +679,29 @@ def combine_test_results(session: nox.Session) -> None:
     shutil.rmtree(_NOX_PYTEST_RESULTS_DIR, ignore_errors=True)
 
 
-@nox.session(name="wandb-core-size-check", python="3.12")
-def wandb_core_size_check(session: nox.Session) -> None:
-    """Compare wandb-core binary size against main branch."""
-    # Build and install main branch version.
+@nox.session(name="binary-size-check", python="3.12")
+def binary_size_check(session: nox.Session) -> None:
+    """Compare the sizes of the binaries in wandb/bin against the merge base with main."""
     session.run("git", "fetch", "origin", "main", external=True)
-    session.run("git", "switch", "--detach", "origin/main", external=True)
-    install_wandb(session, dev=False)
+    base = session.run(
+        "git", "merge-base", "HEAD", "origin/main", external=True, silent=True
+    ).strip()
+    head = session.run("git", "rev-parse", "HEAD", external=True, silent=True).strip()
+    if base == head:
+        session.log("HEAD is on main; nothing to compare.")
+        return
 
-    main_binary = list(
-        (site_packages_dir(session) / "wandb" / "bin").glob("wandb-core*")
-    )[0]
-    main_size = main_binary.stat().st_size
+    def binary_sizes() -> dict[str, int]:
+        install_wandb(session, dev=False)
+        bin_dir = site_packages_dir(session) / "wandb" / "bin"
+        return {
+            p.name: p.stat().st_size for p in sorted(bin_dir.iterdir()) if p.is_file()
+        }
 
-    # Build and install current branch version.
-    session.run("git", "switch", "-", external=True)
-    install_wandb(session, dev=False)
-
-    current_binary = list(
-        (site_packages_dir(session) / "wandb" / "bin").glob("wandb-core*")
-    )[0]
-    current_size = current_binary.stat().st_size
+    session.run("git", "switch", "--detach", base, external=True)
+    base_sizes = binary_sizes()
+    session.run("git", "checkout", "-", external=True)
+    current_sizes = binary_sizes()
 
     def fmt_size(b: int) -> str:
         for unit in ["B", "KB", "MB"]:
@@ -716,16 +710,24 @@ def wandb_core_size_check(session: nox.Session) -> None:
             b /= 1024
         return f"{b:.1f} GB"
 
-    diff = current_size - main_size
-    pct = (diff / main_size) if main_size else 0
-
+    over_threshold = []
     session.log("=" * 60)
-    session.log(f"Main branch:  {fmt_size(main_size)} ({main_size:,} bytes)")
-    session.log(f"Current:      {fmt_size(current_size)} ({current_size:,} bytes)")
-    session.log(f"Difference:   {fmt_size(abs(diff))} ({pct:+.0%})")
+    for name, current in current_sizes.items():
+        if name not in base_sizes:
+            session.log(f"{name}: {fmt_size(current)} (new)")
+            continue
+        base_size = base_sizes[name]
+        pct = (current - base_size) / base_size if base_size else 0
+        session.log(
+            f"{name}: {fmt_size(base_size)} -> {fmt_size(current)} ({pct:+.0%})"
+        )
+        if pct > 0.10:
+            over_threshold.append(name)
+        elif pct > 0.05:
+            session.warn(f"{name} grew by {pct:+.0%}")
     session.log("=" * 60)
 
-    if pct > 0.10:
+    if over_threshold:
         session.log(
             textwrap.dedent("""\
 
@@ -736,12 +738,7 @@ def wandb_core_size_check(session: nox.Session) -> None:
                   2. Document the reason in your PR description.
             """)
         )
-        session.error(f"Binary size increased by {pct:+.0%} (>10% threshold)")
-    # If the binary size has increased due to lib upgrades
-    # It maybe related to some locally modified changes in the vendored arrow-go code.
-    # See: https://github.com/wandb/wandb/pull/10712 for the files that were modified.
-    elif pct > 0.05:
-        session.warn(f"Binary size increased by {pct:+.0%}")
+        session.error(f"{', '.join(over_threshold)} grew by more than 10%")
 
 
 @nox.session(name="wandb-import-time-check", python="3.12")
@@ -767,7 +764,7 @@ def wandb_import_time_check(session: nox.Session) -> None:
     install_wandb(session, dev=False)
     main_time = measure_import_time()
 
-    session.run("git", "switch", "-", external=True)
+    session.run("git", "checkout", "-", external=True)
     install_wandb(session, dev=False)
     current_time = measure_import_time()
 

@@ -221,7 +221,7 @@ impl NvidiaGpu {
     /// Check if a GPU is being used by a specific process or its descendants.
     #[cfg(target_os = "linux")]
     fn gpu_in_use_by_process(&self, device: &Device, pid: i32) -> bool {
-        let mut our_pids = Vec::new();
+        let mut our_pids = vec![pid];
         if let Ok(descendant_pids) = self.get_descendant_pids(pid) {
             our_pids.extend(descendant_pids);
         }

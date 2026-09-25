@@ -169,21 +169,7 @@ func (hs *LevelDBHistorySource) Read(
 func (hs *LevelDBHistorySource) recordToMsg(record *spb.Record) tea.Msg {
 	switch rec := record.RecordType.(type) {
 	case *spb.Record_Run:
-		msg := RunMsg{
-			RunPath:     hs.runPath,
-			ID:          rec.Run.GetRunId(),
-			Entity:      rec.Run.GetEntity(),
-			DisplayName: rec.Run.GetDisplayName(),
-			Project:     rec.Run.GetProject(),
-			Notes:       rec.Run.GetNotes(),
-			Tags:        slices.Clone(rec.Run.GetTags()),
-			Config:      rec.Run.GetConfig(),
-			Telemetry:   rec.Run.GetTelemetry(),
-		}
-		if ts := rec.Run.GetStartTime(); ts != nil {
-			msg.StartTime = ts.AsTime()
-		}
-		return msg
+		return runMsgFromRecord(hs.runPath, rec.Run)
 	case *spb.Record_Metric:
 		_ = hs.metricHandler.ProcessRecord(rec.Metric)
 		return nil
@@ -198,6 +184,24 @@ func (hs *LevelDBHistorySource) recordToMsg(record *spb.Record) tea.Msg {
 	default:
 		return nil
 	}
+}
+
+func runMsgFromRecord(runPath string, run *spb.RunRecord) RunMsg {
+	msg := RunMsg{
+		RunPath:     runPath,
+		ID:          run.GetRunId(),
+		Entity:      run.GetEntity(),
+		DisplayName: run.GetDisplayName(),
+		Project:     run.GetProject(),
+		Notes:       run.GetNotes(),
+		Tags:        slices.Clone(run.GetTags()),
+		Config:      run.GetConfig(),
+		Telemetry:   run.GetTelemetry(),
+	}
+	if ts := run.GetStartTime(); ts != nil {
+		msg.StartTime = ts.AsTime()
+	}
+	return msg
 }
 
 func (hs *LevelDBHistorySource) Close() {
@@ -227,7 +231,8 @@ func (acc *historyAccumulator) addRecord(runPath string, history *spb.HistoryRec
 		return
 	}
 
-	step := int(historyStep(history))
+	s, _ := historyStep(history)
+	step := int(s)
 	var mediaFieldsByKey map[string]map[string]string
 
 	if acc.values == nil {
