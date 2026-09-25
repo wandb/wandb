@@ -23,7 +23,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - It is now possible to use resume="must" for offline runs. Syncing will fail if there's no run to resume (@geoffhardy in https://github.com/wandb/wandb/pull/12110)
 - Added a `--max-consecutive-failed-runs` flag to `wandb agent`, which shuts an agent down once that many runs have failed consecutively at any point in the agent's life (@nathancy-wandb in https://github.com/wandb/wandb/pull/12821)
 - System metrics now include PCIe throughput (`gpu.N.pcieTxBytes`, `gpu.N.pcieRxBytes`) for NVIDIA GPUs older than Hopper (@dmitryduev in https://github.com/wandb/wandb/pull/12989)
-- System metrics now include each GPU's cumulative energy consumption in joules as `gpu.N.energyJoules`, for NVIDIA and AMD GPUs (@dmitryduev in https://github.com/wandb/wandb/pull/PRNUM)
+- System metrics now include each GPU's cumulative energy consumption in joules as `gpu.N.energyJoules`, for NVIDIA and AMD GPUs (@dmitryduev in https://github.com/wandb/wandb/pull/12991)
 
 ### Changed
 
