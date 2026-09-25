@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any, Generic, TypeVar
 
@@ -28,8 +28,8 @@ class ResumableTrials(ABC, Generic[TrialT]):
     """
 
     @abstractmethod
-    def existing(self) -> Iterator[TrialT]:
-        """Yield every trial the library holds, one at a time, uncopied."""
+    def existing(self) -> Iterable[TrialT]:
+        """Return every trial the library holds, uncopied."""
         ...
 
     @abstractmethod
@@ -133,8 +133,6 @@ class TrialResumer(Generic[TrialT]):
         but never saw polled carry no run id; running ones are kept so warm
         start can still match them to their run by params.
         """
-        if self._index is not None:
-            return self._index
         index = _Index()
         for trial in self._trials.existing():
             labels = self._trials.labels(trial)
@@ -147,7 +145,6 @@ class TrialResumer(Generic[TrialT]):
                     index.finished_runs.add(wandb_run_id)
             elif running and labels.get(SWEEP_LABEL) == self._sweep_path:
                 index.unlinked_running.append(self._trials.run_id(trial))
-        self._index = index
         return index
 
     def end_warm_start(self) -> None:
@@ -183,7 +180,9 @@ class TrialResumer(Generic[TrialT]):
         """
         if self._warm_start_over:
             return None
-        index = self._build_index()
+        if self._index is None:
+            self._index = self._build_index()
+        index = self._index
         if data.wandb_run_id in index.finished_runs:
             index.finished_runs.discard(data.wandb_run_id)
             return _FINISHED

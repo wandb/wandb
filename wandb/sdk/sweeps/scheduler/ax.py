@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import TYPE_CHECKING, Any, Literal, TypeAlias
 
 from typing_extensions import override
@@ -272,10 +272,10 @@ class _ExperimentTrials(ResumableTrials[Any]):
         return _experiment(self._optimizer.client).trials
 
     @override
-    def existing(self) -> Iterator[Any]:
-        # The client holds its whole experiment in memory; the trials are
-        # handed over from it as they are.
-        yield from self._trials().values()
+    def existing(self) -> Iterable[Any]:
+        # The client holds its whole experiment in memory; its trials are
+        # read in place, uncopied.
+        return self._trials().values()
 
     @override
     def run_id(self, trial: Any) -> int:
