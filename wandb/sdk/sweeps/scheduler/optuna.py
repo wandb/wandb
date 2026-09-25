@@ -300,8 +300,6 @@ class OptunaOptimizer(Optimizer):
     def _release(self, run_id: str) -> optuna.Trial | None:
         """Stop tracking a live trial, returning it if it was tracked."""
         self._last_reported_step.pop(run_id, None)
-        if self._resumer is not None:
-            self._resumer.unlink(run_id)
         return self.trials.pop(run_id, None)
 
     @property
@@ -497,8 +495,6 @@ class OptunaOptimizer(Optimizer):
         trial = self.trials.get(run_id)
         if trial is None:
             return
-        if self._resumer is not None:
-            self._resumer.link(run_id, data.wandb_run_id)
         # optuna's intermediate values feed its pruners, which are
         # single-objective only, so a multi-objective study rejects them.
         if not self._is_multi_objective:
@@ -578,6 +574,12 @@ class OptunaOptimizer(Optimizer):
         self._tell_study(trial, state=optuna.trial.TrialState.PRUNED)
         self._release(run_id)
         return True
+
+    @override
+    def tell_enqueued_run(self, run_id: Any, wandb_run_id: str) -> None:
+        """Label the enqueued run's trial with its W&B run id."""
+        if self._resumer is not None:
+            self._resumer.link(run_id, wandb_run_id)
 
     @override
     def tell_existing_active_run(self, data: Run) -> Any:
@@ -733,7 +735,10 @@ class OptunaImperativeOptimizer(OptunaOptimizer):
         self.study.enqueue_trial(data.config.flat_dict())
         # Asks directly rather than through ask_n_runs, as the enqueued params
         # are fixed and so cost an exhausted space nothing.
-        self.tell_run(self._ask_suggestion().run_id, data)
+        run_id = self._ask_suggestion().run_id
+        if self._resumer is not None:
+            self._resumer.link(run_id, data.wandb_run_id)
+        self.tell_run(run_id, data)
 
 
 # ---------------------------------------------------------------------------

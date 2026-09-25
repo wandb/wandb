@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 import traceback
+from collections.abc import Mapping
 
 from wandb.proto import wandb_sweep_scheduler_pb2 as sspb
 from wandb.sdk.lib.service.service_connection import ServiceConnection
@@ -114,6 +115,9 @@ class SchedulerTaskExchange:
                 raise
 
             if response.WhichOneof("task") == "done":
+                await asyncio.to_thread(
+                    self._tell_enqueued_runs, response.done.enqueued_runs
+                )
                 return response.done
 
             # Optimizer calls can block for minutes; run them off the
@@ -186,6 +190,7 @@ class SchedulerTaskExchange:
 
         for run_id in task.discarded_optimizer_run_ids:
             self._optimizer.forget_run(run_id)
+        self._tell_enqueued_runs(task.enqueued_runs)
 
         told: dict[str, RunWithMetrics] = {}
         for update in task.updates:
@@ -218,6 +223,10 @@ class SchedulerTaskExchange:
             self._execute_ask(task.ask_up_to, result)
 
         return result
+
+    def _tell_enqueued_runs(self, enqueued_runs: Mapping[str, str]) -> None:
+        for run_id, wandb_run_id in enqueued_runs.items():
+            self._optimizer.tell_enqueued_run(run_id, wandb_run_id)
 
     def _execute_ask(
         self,

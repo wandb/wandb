@@ -883,6 +883,7 @@ class ResumableOptimizerAcceptanceTests(abc.ABC):
             for i, suggestion in enumerate(suggestions)
         ]
         for suggestion, run in zip(suggestions, runs, strict=True):
+            optimizer.tell_enqueued_run(suggestion.run_id, run.wandb_run_id)
             optimizer.tell_run(suggestion.run_id, run)
 
         second = reload(optimizer)
@@ -908,6 +909,7 @@ class ResumableOptimizerAcceptanceTests(abc.ABC):
     ) -> None:
         suggestion = next(iter(optimizer.ask_n_runs(1)))
         finished = make_run(suggestion, state=RunState.FINISHED, summary={"loss": 1.0})
+        optimizer.tell_enqueued_run(suggestion.run_id, finished.wandb_run_id)
         optimizer.tell_run(suggestion.run_id, finished)
 
         second = reload(optimizer)
@@ -939,6 +941,7 @@ class ResumableOptimizerAcceptanceTests(abc.ABC):
             summary={},
             history=[{"loss": 3.0, "_step": 0}],
         )
+        optimizer.tell_enqueued_run(suggestion.run_id, running.wandb_run_id)
         optimizer.tell_run(suggestion.run_id, running)
 
         second = reload(optimizer)
@@ -951,10 +954,10 @@ class ResumableOptimizerAcceptanceTests(abc.ABC):
         assert adoptions == {running.wandb_run_id: suggestion.run_id}
         assert self.completed(second) == [True]
 
-    def test_an_unpolled_trial_is_matched_to_its_run_by_params(
+    def test_an_unlinked_trial_is_matched_to_its_run_by_params(
         self, optimizer: Optimizer, reload
     ) -> None:
-        """A scheduler that stopped before a poll reported the run."""
+        """A scheduler that stopped before reporting the enqueued run."""
         suggestion = next(iter(optimizer.ask_n_runs(1)))
 
         second = reload(optimizer)
@@ -964,14 +967,40 @@ class ResumableOptimizerAcceptanceTests(abc.ABC):
         assert adoptions == {running.wandb_run_id: suggestion.run_id}
         assert self.completed(second) == [False]
 
+    def test_an_unlinked_trial_that_finished_is_not_added_again(
+        self, optimizer: Optimizer, reload
+    ) -> None:
+        suggestion = next(iter(optimizer.ask_n_runs(1)))
+        finished = make_run(suggestion, state=RunState.FINISHED, summary={"loss": 2.0})
+
+        second = reload(optimizer)
+        warm_start(second, finished=[finished])
+        third = reload(second)
+        warm_start(third, finished=[finished])
+
+        assert self.completed(third) == [True]
+
+    def test_an_enqueued_run_resumes_its_trial_by_run_id(
+        self, optimizer: Optimizer, reload
+    ) -> None:
+        suggestion = next(iter(optimizer.ask_n_runs(1)))
+        running = make_run(suggestion, state=RunState.RUNNING, summary={})
+        optimizer.tell_enqueued_run(suggestion.run_id, running.wandb_run_id)
+
+        second = reload(optimizer)
+        moved = dataclasses.replace(running, config=RunConfig.from_values({"x": 2}))
+        adoptions = warm_start(second, active=[moved])
+
+        assert adoptions == {running.wandb_run_id: suggestion.run_id}
+        assert self.completed(second) == [False]
+
     def test_a_run_that_finished_unwatched_completes_its_trial(
         self, optimizer: Optimizer, reload
     ) -> None:
         suggestion = next(iter(optimizer.ask_n_runs(1)))
-        optimizer.tell_run(
-            suggestion.run_id,
-            make_run(suggestion, state=RunState.RUNNING, summary={}),
-        )
+        running = make_run(suggestion, state=RunState.RUNNING, summary={})
+        optimizer.tell_enqueued_run(suggestion.run_id, running.wandb_run_id)
+        optimizer.tell_run(suggestion.run_id, running)
 
         second = reload(optimizer)
         warm_start(
@@ -988,6 +1017,7 @@ class ResumableOptimizerAcceptanceTests(abc.ABC):
     ) -> None:
         suggestion = next(iter(optimizer.ask_n_runs(1)))
         running = make_run(suggestion, state=RunState.RUNNING, summary={})
+        optimizer.tell_enqueued_run(suggestion.run_id, running.wandb_run_id)
         optimizer.tell_run(suggestion.run_id, running)
         optimizer.forget_run(suggestion.run_id)
 
@@ -1078,6 +1108,7 @@ class OptunaResumableAcceptanceTests(ResumableOptimizerAcceptanceTests):
         running = make_run(
             suggestion, state=RunState.RUNNING, summary={}, history=history
         )
+        optimizer.tell_enqueued_run(suggestion.run_id, running.wandb_run_id)
         optimizer.tell_run(suggestion.run_id, running)
 
         second = reload(optimizer)
@@ -1106,6 +1137,7 @@ class OptunaResumableAcceptanceTests(ResumableOptimizerAcceptanceTests):
         first = self.make_optimizer(study, sweep)
         suggestion = next(iter(first.ask_n_runs(1)))
         running = make_run(suggestion, state=RunState.RUNNING, summary={})
+        first.tell_enqueued_run(suggestion.run_id, running.wandb_run_id)
         first.tell_run(suggestion.run_id, running)
 
         warm_start(self.make_optimizer(study, sweep), active=[running])
