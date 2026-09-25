@@ -254,8 +254,8 @@ def _resolve_path(path: str | None) -> LaunchConfig:
     _fatal(f"Path does not exist: {resolved}")
 
 
-def _base_args() -> list[str]:
-    """Build the common base arguments for wandb-core leet commands."""
+def _base_args(command: str) -> list[str]:
+    """Build the arguments for a wandb-core leet command and its common flags."""
     try:
         core_path = get_core_path()
     except WandbCoreNotAvailableError as e:
@@ -265,7 +265,7 @@ def _base_args() -> list[str]:
         )
         _fatal(str(e))
 
-    args = [core_path, "leet"]
+    args = [core_path, "leet", command]
 
     settings = wandb_setup.singleton().settings
     if settings._offline or settings._noop or not error_reporting_enabled():
@@ -296,7 +296,7 @@ def launch(path: str | None, pprof: str) -> Never:
     else:
         config = _resolve_path(path)
 
-    args = _base_args()
+    args = _base_args("run")
     env = os.environ.copy()
 
     if pprof:
@@ -325,8 +325,7 @@ def launch_inspect(
     if not isinstance(config, LocalLaunchConfig):
         _fatal("`wandb leet inspect` requires a local .wandb file.")
 
-    args = _base_args()
-    args.append("--inspect")
+    args = _base_args("inspect")
     if summary:
         args.append("--summary")
     if json_output:
@@ -342,16 +341,12 @@ def launch_inspect(
 
 def launch_config() -> Never:
     """Launch the LEET configuration editor."""
-    args = _base_args()
-    args.append("--config")
-
-    _run_core(args)
+    _run_core(_base_args("config"))
 
 
 def launch_symon(pprof: str = "", interval: str = "") -> Never:
     """Launch the standalone system monitor."""
-    args = _base_args()
-    args.append("--symon")
+    args = _base_args("symon")
 
     if pprof:
         args.extend(["--pprof", pprof])
