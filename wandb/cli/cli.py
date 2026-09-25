@@ -2013,28 +2013,37 @@ def _load_source_object(source: str, name: str) -> Any:
 
 
 def _load_optimizer_config(
-    source: str, name: str
+    source: str, name: str, optimizer_type: str
 ) -> tuple[Any, Callable[[Any], bool] | None]:
     """Run a configured optimizer factory and normalize its return value.
 
     The factory may return either the engine's native optimizer object or an
     `(optimizer, terminator)` tuple. A terminator, when present, must be
     callable.
+
+    Args:
+        source: The python file that defines the factory.
+        name: The factory's name in `source`.
+        optimizer_type: The full path of the engine's optimizer type, shown
+            in errors.
     """
     configured: object = _load_source_object(source, name)()
     if not isinstance(configured, tuple):
         return configured, None
     parts = cast("tuple[object, ...]", configured)
+    terminator_type = f"Callable[[{optimizer_type}], bool]"
     if len(parts) != 2:
         raise ClickException(
-            f"scheduler.optimizer {name!r} must return an optimizer object "
-            "or an (optimizer, terminator) tuple."
+            f"scheduler.optimizer {name!r} must return an instance of "
+            f"{optimizer_type} or a tuple of ({optimizer_type}, "
+            f"{terminator_type}), but returned a tuple of {len(parts)} items."
         )
     optimizer, terminator = parts
     if terminator is not None and not callable(terminator):
         raise ClickException(
-            f"The terminator returned by scheduler.optimizer "
-            f"{name!r} must be callable or None."
+            f"The terminator returned by scheduler.optimizer {name!r} must be "
+            f"of type {terminator_type} or None, but is of type "
+            f"{type(terminator).__name__}."
         )
     # Only callability can be checked; the signature is the user's contract.
     return optimizer, cast("Callable[[Any], bool] | None", terminator)
@@ -2074,7 +2083,9 @@ def _build_optuna_scheduler_optimizer(
         )
     terminator = None
     if optimizer_name:
-        study, terminator = _load_optimizer_config(source, optimizer_name)
+        study, terminator = _load_optimizer_config(
+            source, optimizer_name, "optuna.study.Study"
+        )
     else:
         study = optuna_scheduler.create_study_from_sweep_config(sweep.config)
 
@@ -2112,7 +2123,9 @@ def _build_ax_scheduler_optimizer(
         wandb.termwarn("search_space config is not supported by the Ax engine.")
     terminator = None
     if optimizer_name:
-        client, terminator = _load_optimizer_config(source, optimizer_name)
+        client, terminator = _load_optimizer_config(
+            source, optimizer_name, "ax.api.client.Client"
+        )
     else:
         client = ax_scheduler.create_default_client(sweep.config)
 
@@ -2163,23 +2176,24 @@ def sweep_scheduler(
     poll_interval: float,
     sweep_id: str,
 ) -> None:
-    """Drive an existing sweep with a locally chosen search strategy.
+    """Drive a scheduler-enabled sweep locally using external search engines.
 
-    Create the sweep first with `wandb sweep sweep.yaml`; its config must
-    set `scheduler: {engine: wandb}` (or `optuna`/`ax`) so the server leaves
-    the search to this scheduler. wandb-core runs the scheduling loop; this
-    process hosts the optimizer that proposes runs and learns from their
-    results.
+    A scheduler-enabled sweep must have been previously created with the config
+    `scheduler: {engine: wandb}` (or `optuna`/`ax`). This CLI will then attempt
+    to maintain `batch_size` runs in flight at once, and poll the sweep's runs
+    every `poll_interval` seconds. The CLI may be stopped and restarted at any time,
+    and will resume the sweep from the last known state.
 
-    For Optuna, `scheduler.source` names a Python file and
-    `scheduler.optimizer` names a zero-argument function in that file. The
-    function must return either an Optuna `Study` or a `(Study, terminator)`
-    tuple. A terminator is a one-argument function that receives the study
-    after each generation and ends the sweep by returning `True`, such as
-    `optuna.terminator.Terminator().should_terminate`.
+    **Do not** run multiple instances of this CLI for the same sweep. It will cause
+    duplicate runs to be generated as multiple instances will not know the other's runs.
 
-    The Ax form is equivalent: its function returns either an Ax `Client` or
-    a `(Client, terminator)` tuple, and its terminator receives the client.
+    If the `source` field is used in the scheduler config, this command must be
+    run in a directory containing the Python file referenced by `source`.
+
+    The optional `optimizer` field in the sweep scheduler configmust name a function
+    that returns the client for the search engine (Optuna `Study` or Ax `Client`).
+    This client **must not** be persisted to disk, as it will be re-created on each restart.
+    This custom function may be used to configure the engine's sampler and pruner.
     """
     if batch_size < 1:
         wandb.termerror("--batch-size must be at least 1")
