@@ -248,14 +248,11 @@ class EvalTable(Table):
     def has_been_logged(self) -> bool:
         return self._immutable_write_result is not None
 
-    def _validate_cell_value(self, val: Any, col: ColumnKey) -> None:
-        self._writer.validate_cell_value(val, col)
-
     @override
     def add_data(self, *data: Any) -> None:
         if len(data) == len(self.columns):
             for col, val in zip(self.columns, data, strict=True):
-                self._validate_cell_value(val, col)
+                self._writer.validate_cell_value(val, col)
 
         super().add_data(*data)
 
@@ -268,7 +265,7 @@ class EvalTable(Table):
     ) -> None:
         if isinstance(data, list) or wandb.util.is_numpy_array(data):
             for val in data:
-                self._validate_cell_value(val, name)
+                self._writer.validate_cell_value(val, name)
 
         super().add_column(name, data, optional=optional)
 
