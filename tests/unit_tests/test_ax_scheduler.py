@@ -21,9 +21,19 @@ from wandb.sdk.sweeps.scheduler.ax import (
     create_default_client,
     sweep_parameter_to_parameter,
 )
+from wandb.sdk.sweeps.scheduler.optimizer import (
+    Run,
+    RunConfig,
+    RunSuggestion,
+    RunWithMetrics,
+)
 from wandb.sdk.sweeps.sweep_info import SweepInfo
 
-from tests.unit_tests.test_sweep_scheduler import make_run, make_scheduler_grid_sweep
+from tests.unit_tests.test_sweep_scheduler import (
+    make_run,
+    make_scheduler_grid_sweep,
+    warm_start,
+)
 
 DEFAULT_CONFIG = {"metric": {"name": "loss", "goal": "minimize"}, "parameters": {}}
 
@@ -264,3 +274,203 @@ class TestMultiObjective:
 
         with pytest.raises(ValueError, match="disagree on the objectives"):
             AxOptimizer(client, sweep)
+
+
+class TestPersistedClientWarmStart:
+    """A reloaded client already holding the sweep's trials is resumed.
+
+    Each test drives one optimizer, saves its client to JSON, then rebuilds a
+    second optimizer on the reloaded client, as a restarted scheduler would.
+    """
+
+    @pytest.fixture
+    def reload(self, tmp_path, sweep: SweepInfo):
+        path = str(tmp_path / "client.json")
+
+        def reload(optimizer: AxOptimizer) -> AxOptimizer:
+            optimizer.client.save_to_json_file(path)
+            return AxOptimizer(Client.load_from_json_file(path), sweep)
+
+        return reload
+
+    def run(
+        self,
+        suggestion: RunSuggestion,
+        state: RunState,
+        history: list[dict[str, Any]],
+        wandb_run_id: str = "run-a",
+    ) -> RunWithMetrics:
+        return RunWithMetrics(
+            config=suggestion.config,
+            state=state,
+            wandb_run_id=wandb_run_id,
+            summary_metrics=history[-1] if history else {},
+            history_metrics=history,
+        )
+
+    def trials(self, optimizer: AxOptimizer) -> dict[int, Any]:
+        return _experiment(optimizer.client).trials
+
+    @pytest.fixture
+    def persisted_trials(self):
+        """Spy on the optimizer listing every trial in its experiment."""
+        with patch.object(
+            AxOptimizer,
+            "_index_persisted_trials",
+            autospec=True,
+            side_effect=AxOptimizer._index_persisted_trials,
+        ) as persisted_trials:
+            yield persisted_trials
+
+    def test_the_experiment_is_listed_once_and_only_by_warm_start(
+        self, client: Client, sweep: SweepInfo, reload, persisted_trials
+    ) -> None:
+        """A large experiment isn't listed for a sweep with none to resume."""
+        first = AxOptimizer(client, sweep)
+        suggestions = first.ask_n_runs(2)
+        runs = [
+            self.run(suggestion, RunState.RUNNING, [], wandb_run_id=f"run-{i}")
+            for i, suggestion in enumerate(suggestions)
+        ]
+        for suggestion, run in zip(suggestions, runs, strict=True):
+            first.tell_run(suggestion.run_id, run)
+
+        second = reload(first)
+        assert persisted_trials.call_count == 0
+
+        warm_start(second, active=runs)
+        assert persisted_trials.call_count == 1
+
+    def test_a_warm_start_after_generation_does_not_list_the_experiment(
+        self, client: Client, sweep: SweepInfo, persisted_trials
+    ) -> None:
+        optimizer = AxOptimizer(client, sweep)
+        suggestion = next(iter(optimizer.ask_n_runs(1)))
+
+        warm_start(optimizer, active=[self.run(suggestion, RunState.RUNNING, [])])
+
+        assert persisted_trials.call_count == 0
+
+    def test_a_recorded_finished_run_is_not_attached_again(
+        self, client: Client, sweep: SweepInfo, reload
+    ) -> None:
+        first = AxOptimizer(client, sweep)
+        suggestion = next(iter(first.ask_n_runs(1)))
+        finished = self.run(suggestion, RunState.FINISHED, [{"loss": 1.0, "_step": 0}])
+        first.tell_run(suggestion.run_id, finished)
+
+        second = reload(first)
+        warm_start(second, finished=[finished])
+
+        assert len(self.trials(second)) == 1
+
+    def test_a_warm_started_run_is_not_attached_again(
+        self, client: Client, sweep: SweepInfo, reload
+    ) -> None:
+        suggestion = RunSuggestion(
+            config=RunConfig.from_values({"x": 0.5}), run_id="unused"
+        )
+        finished = self.run(suggestion, RunState.FINISHED, [{"loss": 1.0, "_step": 0}])
+        first = AxOptimizer(client, sweep)
+        warm_start(first, finished=[finished])
+
+        second = reload(first)
+        warm_start(second, finished=[finished])
+
+        assert len(self.trials(second)) == 1
+
+    def test_an_active_run_resumes_its_running_trial(
+        self, client: Client, sweep: SweepInfo, reload
+    ) -> None:
+        first = AxOptimizer(client, sweep)
+        suggestion = next(iter(first.ask_n_runs(1)))
+        first.tell_run(
+            suggestion.run_id,
+            self.run(suggestion, RunState.RUNNING, [{"loss": 3.0, "_step": 0}]),
+        )
+
+        second = reload(first)
+        adoptions = warm_start(
+            second, active=[self.run(suggestion, RunState.RUNNING, [])]
+        )
+        second.tell_run(
+            adoptions["run-a"],
+            self.run(
+                suggestion,
+                RunState.FINISHED,
+                [{"loss": 3.0, "_step": 0}, {"loss": 2.0, "_step": 1}],
+            ),
+        )
+
+        (trial,) = self.trials(second).values()
+        assert adoptions == {"run-a": suggestion.run_id}
+        assert trial.status.is_completed
+
+    def test_an_unpolled_trial_is_matched_to_its_run_by_params(
+        self, client: Client, sweep: SweepInfo, reload
+    ) -> None:
+        """A scheduler that stopped before a poll reported the run."""
+        first = AxOptimizer(client, sweep)
+        suggestion = next(iter(first.ask_n_runs(1)))
+
+        second = reload(first)
+        adoptions = warm_start(
+            second, active=[self.run(suggestion, RunState.RUNNING, [])]
+        )
+
+        assert adoptions == {"run-a": suggestion.run_id}
+        assert len(self.trials(second)) == 1
+
+    def test_a_run_that_finished_unwatched_completes_its_trial(
+        self, client: Client, sweep: SweepInfo, reload
+    ) -> None:
+        first = AxOptimizer(client, sweep)
+        suggestion = next(iter(first.ask_n_runs(1)))
+        first.tell_run(
+            suggestion.run_id,
+            self.run(suggestion, RunState.RUNNING, [{"loss": 3.0, "_step": 0}]),
+        )
+
+        second = reload(first)
+        warm_start(
+            second,
+            finished=[
+                self.run(suggestion, RunState.FINISHED, [{"loss": 2.0, "_step": 1}])
+            ],
+        )
+
+        (trial,) = self.trials(second).values()
+        assert trial.status.is_completed
+
+    def test_an_active_run_whose_trial_finished_is_not_adopted(
+        self, client: Client, sweep: SweepInfo, reload
+    ) -> None:
+        first = AxOptimizer(client, sweep)
+        suggestion = next(iter(first.ask_n_runs(1)))
+        running = self.run(suggestion, RunState.RUNNING, [{"loss": 3.0, "_step": 0}])
+        first.tell_run(suggestion.run_id, running)
+        first.forget_run(suggestion.run_id)
+
+        second = reload(first)
+
+        assert warm_start(second, active=[running]) == {}
+        assert len(self.trials(second)) == 1
+
+    def test_another_sweeps_running_trial_is_not_adopted(
+        self, client: Client, sweep: SweepInfo
+    ) -> None:
+        foreign = client.attach_trial(parameters={"x": 0.5})
+        optimizer = AxOptimizer(client, sweep)
+
+        adoptions = warm_start(
+            optimizer,
+            active=[
+                Run(
+                    config=RunConfig.from_values({"x": 0.5}),
+                    state=RunState.RUNNING,
+                    wandb_run_id="run-a",
+                )
+            ],
+        )
+
+        assert adoptions["run-a"] != str(foreign)
