@@ -309,7 +309,7 @@ func bindLeetFlags(fs *flag.FlagSet, opts *leetOptions) {
 	fs.BoolVar(
 		&opts.disableAnalytics,
 		"no-observability",
-		false,
+		version.Environment == "development",
 		"Disables observability features such as metrics and logging analytics.",
 	)
 	fs.StringVar(
