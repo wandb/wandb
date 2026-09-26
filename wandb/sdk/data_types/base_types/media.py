@@ -48,6 +48,11 @@ def _wb_filename(key: str | int, step: str | int, id: str | int, extension: str)
     return f"{str(key)}_{str(step)}_{str(id)}{extension}"
 
 
+def _overlay_singleton_key(media_key: str, overlay_key: str) -> str:
+    """Config key the frontend uses to look up an image overlay's class labels."""
+    return f"{media_key}_wandb_delimeter_{overlay_key}"
+
+
 class Media(WBValue):
     """A WBValue stored as a file outside JSON that can be rendered in a media panel.
 
