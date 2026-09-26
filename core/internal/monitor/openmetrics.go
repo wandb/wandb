@@ -5,14 +5,17 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
+	"maps"
 	"net/http"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
 	lru "github.com/hashicorp/golang-lru"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/wandb/wandb/core/internal/clients"
@@ -218,7 +221,7 @@ func (o *OpenMetrics) ShouldCaptureMetric(metricName string, metricLabels map[st
 }
 
 // Sample fetches and processes metrics from the OpenMetrics endpoint.
-func (o *OpenMetrics) Sample() (*spb.StatsRecord, error) {
+func (o *OpenMetrics) Sample() (*spb.SystemMetricsRecord, error) {
 	req, err := retryablehttp.NewRequest("GET", o.url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
@@ -252,7 +255,7 @@ func (o *OpenMetrics) Sample() (*spb.StatsRecord, error) {
 		return nil, err
 	}
 
-	metrics := make(map[string]any)
+	var generic []*spb.GenericMetric
 
 	for name, mf := range metricFamilies {
 		for _, m := range mf.Metric {
@@ -281,27 +284,37 @@ func (o *OpenMetrics) Sample() (*spb.StatsRecord, error) {
 			}
 			index := o.labelMap[name][labelHash]
 
-			var value float64
-			if m.Gauge != nil {
-				value = m.Gauge.GetValue()
-			} else if m.Counter != nil {
-				value = m.Counter.GetValue()
+			metric := &spb.GenericMetric{
+				Source: o.Name(),
+				Name:   name,
+				Kind:   spb.MetricInfo_GAUGE,
+				Unit:   mf.GetUnit(),
+				Help:   mf.GetHelp(),
+				// The frontend groups openmetrics.<endpoint>.<metric>.<index> series
+				// by <index>, an ordinal of the label set within this session.
+				LegacySeriesIndex: uint32(index),
 			}
-
-			// the frontend understands the format openmetrics.<endpoint>.<metric>.<index>
-			// and aggregates the metrics based on <index>, which is a unique identifier
-			// for the metric based on its labels. the openmetrics prefix is stripped off
-			// and not displayed in the frontend.
-			key := fmt.Sprintf("openmetrics.%s.%s.%d", o.Name(), name, index)
-			metrics[key] = value
+			for _, key := range slices.Sorted(maps.Keys(labels)) {
+				metric.Labels = append(
+					metric.Labels,
+					&spb.MetricLabel{Key: key, Value: labels[key]},
+				)
+			}
+			if m.Gauge != nil {
+				metric.Value = proto.Float64(m.Gauge.GetValue())
+			} else {
+				metric.Kind = spb.MetricInfo_COUNTER
+				metric.Value = proto.Float64(m.Counter.GetValue())
+			}
+			generic = append(generic, metric)
 		}
 	}
 
-	if len(metrics) == 0 {
+	if len(generic) == 0 {
 		return nil, nil
 	}
 
-	return marshal(metrics, timestamppb.Now()), nil
+	return &spb.SystemMetricsRecord{Timestamp: timestamppb.Now(), Generic: generic}, nil
 }
 
 // GenerateLabelHash creates a hash of the label map for consistent indexing.

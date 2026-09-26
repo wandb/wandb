@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/monitor"
+	"github.com/wandb/wandb/core/internal/systemmetrics"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -103,18 +104,17 @@ func TestCollectDiskIOMetrics(t *testing.T) {
 		}, nil
 	}
 
-	metrics := make(map[string]any)
-	err := sys.CollectDiskIOMetrics(metrics)
-	require.NoError(t, err)
+	host := &spb.HostMetrics{}
+	require.NoError(t, sys.CollectDiskIOMetrics(host))
 
-	wantInMB := float64(deltaRead) / 1024 / 1024
-	wantOutMB := float64(deltaWrite) / 1024 / 1024
+	require.Len(t, host.DiskIo, 1)
+	require.Equal(t, "nvme0n1", host.DiskIo[0].GetDevice())
+	require.Equal(t, deltaRead, host.DiskIo[0].GetReadBytes())
+	require.Equal(t, deltaWrite, host.DiskIo[0].GetWriteBytes())
 
-	gotIn, okIn := metrics["disk.nvme0n1.in"].(float64)
-	gotOut, okOut := metrics["disk.nvme0n1.out"].(float64)
-	require.True(t, okIn, "disk.nvme0n1.in missing")
-	require.True(t, okOut, "disk.nvme0n1.out missing")
-
-	require.InEpsilon(t, wantInMB, gotIn, 1e-6, "read MB")
-	require.InEpsilon(t, wantOutMB, gotOut, 1e-6, "write MB")
+	// The legacy keys report MiB read and written.
+	require.Equal(t, []systemmetrics.Item{
+		{Key: "disk.nvme0n1.in", Value: 5},
+		{Key: "disk.nvme0n1.out", Value: 10},
+	}, systemmetrics.Items(&spb.SystemMetricsRecord{Host: host}))
 }

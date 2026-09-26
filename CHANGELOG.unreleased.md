@@ -34,6 +34,8 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Fixed
 
+- System metrics scraped through `x_stats_dcgm_exporter` now report the DCGM profiling ratios (`smActive`, `smOccupancy`, `pipeTensorActive` and the other `DCGM_FI_PROF_*` fields) as percentages, matching the values the `wandb-xpu` sidecar reports under the same keys (@dmitryduev in https://github.com/wandb/wandb/pull/PRNUM)
+- The in-memory system metrics buffer behind `x_stats_buffer_size` no longer drops samples whose value is a whole number (@dmitryduev in https://github.com/wandb/wandb/pull/PRNUM)
 - `wandb leet inspect` no longer prints "skipped corrupt data" forever when its output is piped and the file is not a `.wandb` log it can read; it now exits with an error (@dmitryduev in https://github.com/wandb/wandb/pull/12950)
 - Changing system metrics grid rows or columns in LEET, including `wandb leet symon`, no longer crashes and takes effect immediately without waiting for new data (@dmitryduev in https://github.com/wandb/wandb/pull/12763)
 - `wandb beta sync` no longer overwrites the earlier history of a resumed run when the backend reports a stale step. The starting step is now reconciled against the summary `_step`, the history tail `_step`, and the history row count (@geoffhardy in https://github.com/wandb/wandb/pull/12668)
