@@ -34,6 +34,7 @@ type FnGetU64 = unsafe extern "C" fn(u32, *mut u64) -> RsmiStatus;
 type FnGetU64Indexed = unsafe extern "C" fn(u32, u32, *mut u64) -> RsmiStatus;
 type FnGetTemp = unsafe extern "C" fn(u32, u32, u32, *mut i64) -> RsmiStatus;
 type FnGetPower = unsafe extern "C" fn(u32, *mut u64, *mut u32) -> RsmiStatus;
+type FnGetEnergy = unsafe extern "C" fn(u32, *mut u64, *mut f32, *mut u64) -> RsmiStatus;
 type FnGetName = unsafe extern "C" fn(u32, *mut c_char, usize) -> RsmiStatus;
 type FnGetVbios = unsafe extern "C" fn(u32, *mut c_char, u32) -> RsmiStatus;
 type FnGetOdVolt = unsafe extern "C" fn(u32, *mut RsmiOdVoltFreqData) -> RsmiStatus;
@@ -141,6 +142,9 @@ impl GpuAmd {
             }
             if let Some(v) = self.temperature_celsius(device) {
                 push(device, "temp", v);
+            }
+            if let Some(joules) = self.energy_joules(device) {
+                push(device, "energyJoules", joules);
             }
             if let Some(watts) = self.power_watts(device) {
                 push(device, "powerWatts", watts);
@@ -281,6 +285,16 @@ impl GpuAmd {
             None => self.get_u64_indexed(b"rsmi_dev_power_ave_get\0", device, 0),
         }?;
         Some(microwatts as f64 / 1e6)
+    }
+
+    /// Cumulative energy consumption in joules.
+    fn energy_joules(&self, device: u32) -> Option<f64> {
+        let f: Symbol<FnGetEnergy> = self.symbol(b"rsmi_dev_energy_count_get\0")?;
+        let (mut count, mut resolution, mut timestamp) = (0u64, 0f32, 0u64);
+        let status = unsafe { f(device, &mut count, &mut resolution, &mut timestamp) };
+        // The counter times its resolution is in microjoules.
+        (status == RSMI_STATUS_SUCCESS && resolution > 0.0)
+            .then(|| count as f64 * resolution as f64 / 1e6)
     }
 
     fn power_cap_watts(&self, device: u32) -> Option<f64> {
