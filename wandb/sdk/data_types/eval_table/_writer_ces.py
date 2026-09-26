@@ -17,6 +17,7 @@ from wandb.errors import UsageError
 from wandb.sdk.data_types.base_types.media import Media
 from wandb.sdk.data_types.base_types.wb_value import WBValue
 from wandb.sdk.data_types.eval_table import _media_ces
+from wandb.sdk.data_types.eval_table._media_ces import _encode_json
 from wandb.sdk.data_types.eval_table._writer import WriteResult, WriteRow
 from wandb.sdk.data_types.table import Table
 
@@ -114,16 +115,6 @@ class _CESScopeContext:
     scope_id: str
     api_key: str | None = field(repr=False)
     access_token: str | None = field(repr=False)
-
-
-def _encode_json(value: Any) -> bytes:
-    """Encode JSON exactly as the CES client does for body-size checks."""
-    return json.dumps(
-        value,
-        allow_nan=False,
-        ensure_ascii=False,
-        separators=(",", ":"),
-    ).encode()
 
 
 # Bytes in a row-add body other than encoded rows and their separating commas.
@@ -505,6 +496,11 @@ class CESWriter:
                     max_length=_MAX_SCORER_NAME_LENGTH,
                 )
                 order[name] = None
+            if _media_ces.is_supported_wandb_media(value):
+                raise UsageError(
+                    f"EvalTable score column {column!r} contains unsupported value "
+                    f"type {type(value).__name__!r}; only primitive values are supported."
+                )
             normalized, value_type = self._normalize_primitive(value, column)
             if value_type is not None:
                 types[name] = self._merge_type(column, types.get(name), value_type)
@@ -517,11 +513,25 @@ class CESWriter:
         bound_run: _BoundRun,
     ) -> tuple[Any, _CESFieldType, int | None]:
         """Return a CES extension value, its field type, and oversized byte count."""
-        media_cell = _media_ces.prepare_media(
-            value,
-            bound_run.run,
-            bound_run.eval_table_key,
-        )
+        try:
+            media_cell = _media_ces.prepare_media(
+                value,
+                bound_run.run,
+                bound_run.eval_table_key,
+            )
+        except _media_ces.UnsupportedMediaVariantError as error:
+            if self._unsupported_media_mode == "raise":
+                raise
+            wandb.termwarn(error.stub_warning, repeat=False)
+            return (
+                None,
+                _CESFieldType(
+                    value_type="json",
+                    extension_type=error.extension_type,
+                    extension_schema_version=1,
+                ),
+                None,
+            )
         field_type = _CESFieldType(
             value_type="json",
             extension_type=media_cell.extension_type,
