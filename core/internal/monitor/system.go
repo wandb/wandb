@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -78,6 +79,10 @@ type System struct {
 	// oomKillsInit is the memory.events oom_kill count at the first sample,
 	// or nil before it.
 	oomKillsInit *uint64
+
+	// selfProcesses tracks wandb-core and its child processes between
+	// samples so their CPU use is measured over the sampling interval.
+	selfProcesses map[int32]*process.Process
 }
 
 // cpuStatCounters are the cumulative CFS bandwidth counters read from cpu.stat.
@@ -285,6 +290,7 @@ func (s *System) Sample() (*spb.StatsRecord, error) {
 
 	s.collectCPUThrottlingMetrics(metrics)
 	s.collectOOMKillMetrics(metrics)
+	s.collectSelfUsageMetrics(metrics)
 
 	// Collect process-specific metrics.
 	if s.pid > 0 {
@@ -499,6 +505,82 @@ func (s *System) collectOOMKillMetrics(metrics map[string]any) {
 		s.oomKillsInit = &kills
 	}
 	metrics["proc.memory.oomKills"] = float64(kills - *s.oomKillsInit)
+}
+
+// collectSelfUsageMetrics reports the CPU and memory used by wandb-core and
+// its child processes, such as the wandb-xpu sidecar.
+//
+// CPU is normalized by the same capacity as the run's own cpu metric. It is
+// measured between samples, so it is left out of the sample in which a
+// process is first seen.
+func (s *System) collectSelfUsageMetrics(metrics map[string]any) {
+	self := os.Getpid()
+	pids := append([]int32{int32(self)}, childPIDs(self)...)
+
+	if s.selfProcesses == nil {
+		s.selfProcesses = make(map[int32]*process.Process)
+	}
+	seen := make(map[int32]bool, len(pids))
+
+	var (
+		totalRSS   uint64
+		totalCPU   float64
+		newProcess bool
+	)
+	for _, pid := range pids {
+		seen[pid] = true
+		p, ok := s.selfProcesses[pid]
+		if !ok {
+			var err error
+			if p, err = process.NewProcess(pid); err != nil {
+				continue
+			}
+			s.selfProcesses[pid] = p
+			newProcess = true
+		}
+		// The first call on a process only records a baseline.
+		if pcpu, err := p.Percent(0); err == nil {
+			totalCPU += pcpu
+		}
+		if mi, err := p.MemoryInfo(); err == nil {
+			totalRSS += mi.RSS
+		}
+	}
+	for pid := range s.selfProcesses {
+		if !seen[pid] {
+			delete(s.selfProcesses, pid)
+		}
+	}
+
+	metrics["wandb.memory.rssMB"] = float64(totalRSS) / 1024 / 1024
+	if newProcess {
+		return
+	}
+	if cpuCapacity := s.cpuCapacity(); cpuCapacity > 0 {
+		metrics["wandb.cpu"] = totalCPU / cpuCapacity
+	} else {
+		metrics["wandb.cpu"] = totalCPU
+	}
+}
+
+// childPIDs lists the direct children of a process on Linux, where each
+// thread's /proc/<pid>/task/<tid>/children records the processes it forked.
+func childPIDs(pid int) []int32 {
+	files, _ := filepath.Glob(fmt.Sprintf("/proc/%d/task/*/children", pid))
+
+	var pids []int32
+	for _, file := range files {
+		text, err := os.ReadFile(file)
+		if err != nil {
+			continue
+		}
+		for _, field := range strings.Fields(string(text)) {
+			if child, err := strconv.ParseInt(field, 10, 32); err == nil {
+				pids = append(pids, int32(child))
+			}
+		}
+	}
+	return pids
 }
 
 func (s *System) cpuCapacity() float64 {
