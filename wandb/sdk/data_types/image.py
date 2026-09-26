@@ -236,8 +236,9 @@ class Image(BatchableMedia):
                 elif isinstance(mask_item, dict):
                     # TODO: Consider injecting top-level classes if user-provided is empty
                     masks_final[key] = ImageMask(mask_item, key)
-                if hasattr(masks_final[key], "_val"):
-                    total_classes.update(masks_final[key]._val["class_labels"])
+                mask_class_labels = masks_final[key]._class_labels
+                if mask_class_labels is not None:
+                    total_classes.update(mask_class_labels)
             self._masks = masks_final
 
         if classes is not None:
@@ -944,23 +945,16 @@ class _ImageFileType(_dtypes.Type):
 
             if hasattr(py_obj, "_masks") and py_obj._masks:
                 mask_layers = {
-                    str(key): set(
-                        py_obj._masks[key]._val["class_labels"].keys()
-                        if hasattr(py_obj._masks[key], "_val")
-                        else []
-                    )
-                    for key in py_obj._masks
+                    str(key): set(mask._class_labels or [])
+                    for key, mask in py_obj._masks.items()
                 }
                 mask_class_maps = {
                     str(key): {
                         str(class_id): name
-                        for class_id, name in py_obj._masks[key]
-                        ._val["class_labels"]
-                        .items()
+                        for class_id, name in mask._class_labels.items()
                     }
-                    for key in py_obj._masks
-                    if hasattr(py_obj._masks[key], "_val")
-                    and "class_labels" in py_obj._masks[key]._val
+                    for key, mask in py_obj._masks.items()
+                    if mask._class_labels is not None
                 }
             else:
                 mask_layers = {}
