@@ -17,6 +17,7 @@ from wandb.errors import UsageError
 from wandb.sdk.data_types.base_types.media import Media
 from wandb.sdk.data_types.base_types.wb_value import WBValue
 from wandb.sdk.data_types.eval_table import _media_ces
+from wandb.sdk.data_types.eval_table._media_ces import _encode_json
 from wandb.sdk.data_types.eval_table._writer import WriteResult, WriteRow
 from wandb.sdk.data_types.table import Table
 
@@ -114,16 +115,6 @@ class _CESScopeContext:
     scope_id: str
     api_key: str | None = field(repr=False)
     access_token: str | None = field(repr=False)
-
-
-def _encode_json(value: Any) -> bytes:
-    """Encode JSON exactly as the CES client does for body-size checks."""
-    return json.dumps(
-        value,
-        allow_nan=False,
-        ensure_ascii=False,
-        separators=(",", ":"),
-    ).encode()
 
 
 # Bytes in a row-add body other than encoded rows and their separating commas.
