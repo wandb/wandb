@@ -6,6 +6,7 @@ import "google/protobuf/empty.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "wandb/proto/wandb_base.proto";
+import "wandb/proto/wandb_system_metrics.proto";
 import "wandb/proto/wandb_telemetry.proto";
 
 option go_package = "core/pkg/service_go_proto";
@@ -60,6 +61,7 @@ message Record {
     UseArtifactRecord use_artifact = 25;
     EnvironmentRecord environment = 26;
     OutputLoggerRecord output_logger = 27;
+    SystemMetricsRecord system_metrics = 28;
 
     // request field does not belong here longterm
     Request request = 100;

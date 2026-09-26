@@ -730,6 +730,7 @@ type Record struct {
 	//	*Record_UseArtifact
 	//	*Record_Environment
 	//	*Record_OutputLogger
+	//	*Record_SystemMetrics
 	//	*Record_Request
 	RecordType    isRecord_RecordType `protobuf_oneof:"record_type"`
 	Control       *Control            `protobuf:"bytes,16,opt,name=control,proto3" json:"control,omitempty"`
@@ -981,6 +982,15 @@ func (x *Record) GetOutputLogger() *OutputLoggerRecord {
 	return nil
 }
 
+func (x *Record) GetSystemMetrics() *SystemMetricsRecord {
+	if x != nil {
+		if x, ok := x.RecordType.(*Record_SystemMetrics); ok {
+			return x.SystemMetrics
+		}
+	}
+	return nil
+}
+
 func (x *Record) GetRequest() *Request {
 	if x != nil {
 		if x, ok := x.RecordType.(*Record_Request); ok {
@@ -1106,6 +1116,10 @@ type Record_OutputLogger struct {
 	OutputLogger *OutputLoggerRecord `protobuf:"bytes,27,opt,name=output_logger,json=outputLogger,proto3,oneof"`
 }
 
+type Record_SystemMetrics struct {
+	SystemMetrics *SystemMetricsRecord `protobuf:"bytes,28,opt,name=system_metrics,json=systemMetrics,proto3,oneof"`
+}
+
 type Record_Request struct {
 	// request field does not belong here longterm
 	Request *Request `protobuf:"bytes,100,opt,name=request,proto3,oneof"`
@@ -1154,6 +1168,8 @@ func (*Record_UseArtifact) isRecord_RecordType() {}
 func (*Record_Environment) isRecord_RecordType() {}
 
 func (*Record_OutputLogger) isRecord_RecordType() {}
+
+func (*Record_SystemMetrics) isRecord_RecordType() {}
 
 func (*Record_Request) isRecord_RecordType() {}
 
@@ -12016,7 +12032,7 @@ var File_wandb_proto_wandb_internal_proto protoreflect.FileDescriptor
 
 const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\n" +
-	" wandb/proto/wandb_internal.proto\x12\x0ewandb_internal\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1cwandb/proto/wandb_base.proto\x1a!wandb/proto/wandb_telemetry.proto\"\x80\f\n" +
+	" wandb/proto/wandb_internal.proto\x12\x0ewandb_internal\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1cgoogle/protobuf/struct.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1cwandb/proto/wandb_base.proto\x1a&wandb/proto/wandb_system_metrics.proto\x1a!wandb/proto/wandb_telemetry.proto\"\xce\f\n" +
 	"\x06Record\x12\x10\n" +
 	"\x03num\x18\x01 \x01(\x03R\x03num\x129\n" +
 	"\ahistory\x18\x02 \x01(\v2\x1d.wandb_internal.HistoryRecordH\x00R\ahistory\x129\n" +
@@ -12044,7 +12060,8 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x12noop_link_artifact\x18\x18 \x01(\v2\x16.google.protobuf.EmptyH\x00R\x10noopLinkArtifact\x12F\n" +
 	"\fuse_artifact\x18\x19 \x01(\v2!.wandb_internal.UseArtifactRecordH\x00R\vuseArtifact\x12E\n" +
 	"\venvironment\x18\x1a \x01(\v2!.wandb_internal.EnvironmentRecordH\x00R\venvironment\x12I\n" +
-	"\routput_logger\x18\x1b \x01(\v2\".wandb_internal.OutputLoggerRecordH\x00R\foutputLogger\x123\n" +
+	"\routput_logger\x18\x1b \x01(\v2\".wandb_internal.OutputLoggerRecordH\x00R\foutputLogger\x12L\n" +
+	"\x0esystem_metrics\x18\x1c \x01(\v2#.wandb_internal.SystemMetricsRecordH\x00R\rsystemMetrics\x123\n" +
 	"\arequest\x18d \x01(\v2\x17.wandb_internal.RequestH\x00R\arequest\x121\n" +
 	"\acontrol\x18\x10 \x01(\v2\x17.wandb_internal.ControlR\acontrol\x12\x12\n" +
 	"\x04uuid\x18\x13 \x01(\tR\x04uuid\x121\n" +
@@ -13123,11 +13140,12 @@ var file_wandb_proto_wandb_internal_proto_goTypes = []any{
 	(*JobInputSource_ConfigFileSource)(nil),     // 173: wandb_internal.JobInputSource.ConfigFileSource
 	(*TelemetryRecord)(nil),                     // 174: wandb_internal.TelemetryRecord
 	(*emptypb.Empty)(nil),                       // 175: google.protobuf.Empty
-	(*XRecordInfo)(nil),                         // 176: wandb_internal._RecordInfo
-	(*XResultInfo)(nil),                         // 177: wandb_internal._ResultInfo
-	(*timestamppb.Timestamp)(nil),               // 178: google.protobuf.Timestamp
-	(structpb.NullValue)(0),                     // 179: google.protobuf.NullValue
-	(*XRequestInfo)(nil),                        // 180: wandb_internal._RequestInfo
+	(*SystemMetricsRecord)(nil),                 // 176: wandb_internal.SystemMetricsRecord
+	(*XRecordInfo)(nil),                         // 177: wandb_internal._RecordInfo
+	(*XResultInfo)(nil),                         // 178: wandb_internal._ResultInfo
+	(*timestamppb.Timestamp)(nil),               // 179: google.protobuf.Timestamp
+	(structpb.NullValue)(0),                     // 180: google.protobuf.NullValue
+	(*XRequestInfo)(nil),                        // 181: wandb_internal._RequestInfo
 }
 var file_wandb_proto_wandb_internal_proto_depIdxs = []int32{
 	29,  // 0: wandb_internal.Record.history:type_name -> wandb_internal.HistoryRecord
@@ -13152,229 +13170,230 @@ var file_wandb_proto_wandb_internal_proto_depIdxs = []int32{
 	149, // 19: wandb_internal.Record.use_artifact:type_name -> wandb_internal.UseArtifactRecord
 	163, // 20: wandb_internal.Record.environment:type_name -> wandb_internal.EnvironmentRecord
 	37,  // 21: wandb_internal.Record.output_logger:type_name -> wandb_internal.OutputLoggerRecord
-	67,  // 22: wandb_internal.Record.request:type_name -> wandb_internal.Request
-	11,  // 23: wandb_internal.Record.control:type_name -> wandb_internal.Control
-	176, // 24: wandb_internal.Record._info:type_name -> wandb_internal._RecordInfo
-	20,  // 25: wandb_internal.Result.run_result:type_name -> wandb_internal.RunUpdateResult
-	23,  // 26: wandb_internal.Result.exit_result:type_name -> wandb_internal.RunExitResult
-	32,  // 27: wandb_internal.Result.log_result:type_name -> wandb_internal.HistoryResult
-	48,  // 28: wandb_internal.Result.summary_result:type_name -> wandb_internal.SummaryResult
-	34,  // 29: wandb_internal.Result.output_result:type_name -> wandb_internal.OutputResult
-	45,  // 30: wandb_internal.Result.config_result:type_name -> wandb_internal.ConfigResult
-	68,  // 31: wandb_internal.Result.response:type_name -> wandb_internal.Response
-	11,  // 32: wandb_internal.Result.control:type_name -> wandb_internal.Control
-	177, // 33: wandb_internal.Result._info:type_name -> wandb_internal._ResultInfo
-	176, // 34: wandb_internal.FinalRecord._info:type_name -> wandb_internal._RecordInfo
-	176, // 35: wandb_internal.VersionInfo._info:type_name -> wandb_internal._RecordInfo
-	14,  // 36: wandb_internal.HeaderRecord.version_info:type_name -> wandb_internal.VersionInfo
-	176, // 37: wandb_internal.HeaderRecord._info:type_name -> wandb_internal._RecordInfo
-	176, // 38: wandb_internal.FooterRecord._info:type_name -> wandb_internal._RecordInfo
-	43,  // 39: wandb_internal.RunRecord.config:type_name -> wandb_internal.ConfigRecord
-	46,  // 40: wandb_internal.RunRecord.summary:type_name -> wandb_internal.SummaryRecord
-	26,  // 41: wandb_internal.RunRecord.settings:type_name -> wandb_internal.SettingsRecord
-	178, // 42: wandb_internal.RunRecord.start_time:type_name -> google.protobuf.Timestamp
-	174, // 43: wandb_internal.RunRecord.telemetry:type_name -> wandb_internal.TelemetryRecord
-	19,  // 44: wandb_internal.RunRecord.git:type_name -> wandb_internal.GitRepoRecord
-	17,  // 45: wandb_internal.RunRecord.branch_point:type_name -> wandb_internal.BranchPoint
-	176, // 46: wandb_internal.RunRecord._info:type_name -> wandb_internal._RecordInfo
-	18,  // 47: wandb_internal.RunUpdateResult.run:type_name -> wandb_internal.RunRecord
-	21,  // 48: wandb_internal.RunUpdateResult.error:type_name -> wandb_internal.ErrorInfo
-	1,   // 49: wandb_internal.ErrorInfo.code:type_name -> wandb_internal.ErrorInfo.ErrorCode
-	176, // 50: wandb_internal.RunExitRecord._info:type_name -> wandb_internal._RecordInfo
-	176, // 51: wandb_internal.RunPreemptingRecord._info:type_name -> wandb_internal._RecordInfo
-	27,  // 52: wandb_internal.SettingsRecord.item:type_name -> wandb_internal.SettingsItem
-	176, // 53: wandb_internal.SettingsRecord._info:type_name -> wandb_internal._RecordInfo
-	31,  // 54: wandb_internal.HistoryRecord.item:type_name -> wandb_internal.HistoryItem
-	28,  // 55: wandb_internal.HistoryRecord.step:type_name -> wandb_internal.HistoryStep
-	176, // 56: wandb_internal.HistoryRecord._info:type_name -> wandb_internal._RecordInfo
-	179, // 57: wandb_internal.HistoryValue.none:type_name -> google.protobuf.NullValue
-	30,  // 58: wandb_internal.HistoryItem.value:type_name -> wandb_internal.HistoryValue
-	2,   // 59: wandb_internal.OutputRecord.output_type:type_name -> wandb_internal.OutputRecord.OutputType
-	178, // 60: wandb_internal.OutputRecord.timestamp:type_name -> google.protobuf.Timestamp
-	176, // 61: wandb_internal.OutputRecord._info:type_name -> wandb_internal._RecordInfo
-	3,   // 62: wandb_internal.OutputRawRecord.output_type:type_name -> wandb_internal.OutputRawRecord.OutputType
-	178, // 63: wandb_internal.OutputRawRecord.timestamp:type_name -> google.protobuf.Timestamp
-	176, // 64: wandb_internal.OutputRawRecord._info:type_name -> wandb_internal._RecordInfo
-	40,  // 65: wandb_internal.MetricRecord.options:type_name -> wandb_internal.MetricOptions
-	42,  // 66: wandb_internal.MetricRecord.summary:type_name -> wandb_internal.MetricSummary
-	4,   // 67: wandb_internal.MetricRecord.goal:type_name -> wandb_internal.MetricRecord.MetricGoal
-	41,  // 68: wandb_internal.MetricRecord._control:type_name -> wandb_internal.MetricControl
-	176, // 69: wandb_internal.MetricRecord._info:type_name -> wandb_internal._RecordInfo
-	44,  // 70: wandb_internal.ConfigRecord.update:type_name -> wandb_internal.ConfigItem
-	44,  // 71: wandb_internal.ConfigRecord.remove:type_name -> wandb_internal.ConfigItem
-	176, // 72: wandb_internal.ConfigRecord._info:type_name -> wandb_internal._RecordInfo
-	47,  // 73: wandb_internal.SummaryRecord.update:type_name -> wandb_internal.SummaryItem
-	47,  // 74: wandb_internal.SummaryRecord.remove:type_name -> wandb_internal.SummaryItem
-	176, // 75: wandb_internal.SummaryRecord._info:type_name -> wandb_internal._RecordInfo
-	50,  // 76: wandb_internal.FilesRecord.files:type_name -> wandb_internal.FilesItem
-	176, // 77: wandb_internal.FilesRecord._info:type_name -> wandb_internal._RecordInfo
-	5,   // 78: wandb_internal.FilesItem.policy:type_name -> wandb_internal.FilesItem.PolicyType
-	6,   // 79: wandb_internal.FilesItem.type:type_name -> wandb_internal.FilesItem.FileType
-	7,   // 80: wandb_internal.StatsRecord.stats_type:type_name -> wandb_internal.StatsRecord.StatsType
-	178, // 81: wandb_internal.StatsRecord.timestamp:type_name -> google.protobuf.Timestamp
-	53,  // 82: wandb_internal.StatsRecord.item:type_name -> wandb_internal.StatsItem
-	176, // 83: wandb_internal.StatsRecord._info:type_name -> wandb_internal._RecordInfo
-	55,  // 84: wandb_internal.ArtifactRecord.manifest:type_name -> wandb_internal.ArtifactManifest
-	176, // 85: wandb_internal.ArtifactRecord._info:type_name -> wandb_internal._RecordInfo
-	58,  // 86: wandb_internal.ArtifactManifest.storage_policy_config:type_name -> wandb_internal.StoragePolicyConfigItem
-	56,  // 87: wandb_internal.ArtifactManifest.contents:type_name -> wandb_internal.ArtifactManifestEntry
-	57,  // 88: wandb_internal.ArtifactManifestEntry.extra:type_name -> wandb_internal.ExtraItem
-	176, // 89: wandb_internal.LinkArtifactRequest._info:type_name -> wandb_internal._RecordInfo
-	176, // 90: wandb_internal.TBRecord._info:type_name -> wandb_internal._RecordInfo
-	176, // 91: wandb_internal.AlertRecord._info:type_name -> wandb_internal._RecordInfo
-	84,  // 92: wandb_internal.Request.stop_status:type_name -> wandb_internal.StopStatusRequest
-	86,  // 93: wandb_internal.Request.network_status:type_name -> wandb_internal.NetworkStatusRequest
-	69,  // 94: wandb_internal.Request.defer:type_name -> wandb_internal.DeferRequest
-	76,  // 95: wandb_internal.Request.get_summary:type_name -> wandb_internal.GetSummaryRequest
-	74,  // 96: wandb_internal.Request.login:type_name -> wandb_internal.LoginRequest
-	70,  // 97: wandb_internal.Request.pause:type_name -> wandb_internal.PauseRequest
-	72,  // 98: wandb_internal.Request.resume:type_name -> wandb_internal.ResumeRequest
-	92,  // 99: wandb_internal.Request.poll_exit:type_name -> wandb_internal.PollExitRequest
-	125, // 100: wandb_internal.Request.sampled_history:type_name -> wandb_internal.SampledHistoryRequest
-	121, // 101: wandb_internal.Request.partial_history:type_name -> wandb_internal.PartialHistoryRequest
-	123, // 102: wandb_internal.Request.history_step:type_name -> wandb_internal.HistoryStepRequest
-	130, // 103: wandb_internal.Request.run_start:type_name -> wandb_internal.RunStartRequest
-	132, // 104: wandb_internal.Request.check_version:type_name -> wandb_internal.CheckVersionRequest
-	136, // 105: wandb_internal.Request.log_artifact:type_name -> wandb_internal.LogArtifactRequest
-	138, // 106: wandb_internal.Request.download_artifact:type_name -> wandb_internal.DownloadArtifactRequest
-	140, // 107: wandb_internal.Request.keepalive:type_name -> wandb_internal.KeepaliveRequest
-	128, // 108: wandb_internal.Request.run_status:type_name -> wandb_internal.RunStatusRequest
-	151, // 109: wandb_internal.Request.cancel:type_name -> wandb_internal.CancelRequest
-	89,  // 110: wandb_internal.Request.internal_messages:type_name -> wandb_internal.InternalMessagesRequest
-	164, // 111: wandb_internal.Request.python_packages:type_name -> wandb_internal.PythonPackagesRequest
-	114, // 112: wandb_internal.Request.shutdown:type_name -> wandb_internal.ShutdownRequest
-	116, // 113: wandb_internal.Request.attach:type_name -> wandb_internal.AttachRequest
-	82,  // 114: wandb_internal.Request.status:type_name -> wandb_internal.StatusRequest
-	105, // 115: wandb_internal.Request.server_info:type_name -> wandb_internal.ServerInfoRequest
-	98,  // 116: wandb_internal.Request.sender_mark:type_name -> wandb_internal.SenderMarkRequest
-	101, // 117: wandb_internal.Request.sender_read:type_name -> wandb_internal.SenderReadRequest
-	102, // 118: wandb_internal.Request.status_report:type_name -> wandb_internal.StatusReportRequest
-	103, // 119: wandb_internal.Request.summary_record:type_name -> wandb_internal.SummaryRecordRequest
-	104, // 120: wandb_internal.Request.telemetry_record:type_name -> wandb_internal.TelemetryRecordRequest
-	134, // 121: wandb_internal.Request.job_info:type_name -> wandb_internal.JobInfoRequest
-	78,  // 122: wandb_internal.Request.get_system_metrics:type_name -> wandb_internal.GetSystemMetricsRequest
-	167, // 123: wandb_internal.Request.job_input:type_name -> wandb_internal.JobInputRequest
-	61,  // 124: wandb_internal.Request.link_artifact:type_name -> wandb_internal.LinkArtifactRequest
-	99,  // 125: wandb_internal.Request.sync_finish:type_name -> wandb_internal.SyncFinishRequest
-	94,  // 126: wandb_internal.Request.operations:type_name -> wandb_internal.OperationStatsRequest
-	153, // 127: wandb_internal.Request.probe_system_info:type_name -> wandb_internal.ProbeSystemInfoRequest
-	118, // 128: wandb_internal.Request.test_inject:type_name -> wandb_internal.TestInjectRequest
-	141, // 129: wandb_internal.Response.keepalive_response:type_name -> wandb_internal.KeepaliveResponse
-	85,  // 130: wandb_internal.Response.stop_status_response:type_name -> wandb_internal.StopStatusResponse
-	87,  // 131: wandb_internal.Response.network_status_response:type_name -> wandb_internal.NetworkStatusResponse
-	75,  // 132: wandb_internal.Response.login_response:type_name -> wandb_internal.LoginResponse
-	77,  // 133: wandb_internal.Response.get_summary_response:type_name -> wandb_internal.GetSummaryResponse
-	93,  // 134: wandb_internal.Response.poll_exit_response:type_name -> wandb_internal.PollExitResponse
-	127, // 135: wandb_internal.Response.sampled_history_response:type_name -> wandb_internal.SampledHistoryResponse
-	124, // 136: wandb_internal.Response.history_step_response:type_name -> wandb_internal.HistoryStepResponse
-	131, // 137: wandb_internal.Response.run_start_response:type_name -> wandb_internal.RunStartResponse
-	133, // 138: wandb_internal.Response.check_version_response:type_name -> wandb_internal.CheckVersionResponse
-	137, // 139: wandb_internal.Response.log_artifact_response:type_name -> wandb_internal.LogArtifactResponse
-	139, // 140: wandb_internal.Response.download_artifact_response:type_name -> wandb_internal.DownloadArtifactResponse
-	129, // 141: wandb_internal.Response.run_status_response:type_name -> wandb_internal.RunStatusResponse
-	152, // 142: wandb_internal.Response.cancel_response:type_name -> wandb_internal.CancelResponse
-	90,  // 143: wandb_internal.Response.internal_messages_response:type_name -> wandb_internal.InternalMessagesResponse
-	115, // 144: wandb_internal.Response.shutdown_response:type_name -> wandb_internal.ShutdownResponse
-	117, // 145: wandb_internal.Response.attach_response:type_name -> wandb_internal.AttachResponse
-	83,  // 146: wandb_internal.Response.status_response:type_name -> wandb_internal.StatusResponse
-	106, // 147: wandb_internal.Response.server_info_response:type_name -> wandb_internal.ServerInfoResponse
-	135, // 148: wandb_internal.Response.job_info_response:type_name -> wandb_internal.JobInfoResponse
-	81,  // 149: wandb_internal.Response.get_system_metrics_response:type_name -> wandb_internal.GetSystemMetricsResponse
-	62,  // 150: wandb_internal.Response.link_artifact_response:type_name -> wandb_internal.LinkArtifactResponse
-	100, // 151: wandb_internal.Response.sync_response:type_name -> wandb_internal.SyncResponse
-	95,  // 152: wandb_internal.Response.operations_response:type_name -> wandb_internal.OperationStatsResponse
-	119, // 153: wandb_internal.Response.test_inject_response:type_name -> wandb_internal.TestInjectResponse
-	8,   // 154: wandb_internal.DeferRequest.state:type_name -> wandb_internal.DeferRequest.DeferState
-	180, // 155: wandb_internal.PauseRequest._info:type_name -> wandb_internal._RequestInfo
-	180, // 156: wandb_internal.ResumeRequest._info:type_name -> wandb_internal._RequestInfo
-	180, // 157: wandb_internal.LoginRequest._info:type_name -> wandb_internal._RequestInfo
-	180, // 158: wandb_internal.GetSummaryRequest._info:type_name -> wandb_internal._RequestInfo
-	47,  // 159: wandb_internal.GetSummaryResponse.item:type_name -> wandb_internal.SummaryItem
-	180, // 160: wandb_internal.GetSystemMetricsRequest._info:type_name -> wandb_internal._RequestInfo
-	178, // 161: wandb_internal.SystemMetricSample.timestamp:type_name -> google.protobuf.Timestamp
-	79,  // 162: wandb_internal.SystemMetricsBuffer.record:type_name -> wandb_internal.SystemMetricSample
-	168, // 163: wandb_internal.GetSystemMetricsResponse.system_metrics:type_name -> wandb_internal.GetSystemMetricsResponse.SystemMetricsEntry
-	180, // 164: wandb_internal.StatusRequest._info:type_name -> wandb_internal._RequestInfo
-	180, // 165: wandb_internal.StopStatusRequest._info:type_name -> wandb_internal._RequestInfo
-	180, // 166: wandb_internal.NetworkStatusRequest._info:type_name -> wandb_internal._RequestInfo
-	88,  // 167: wandb_internal.NetworkStatusResponse.network_responses:type_name -> wandb_internal.HttpResponse
-	180, // 168: wandb_internal.InternalMessagesRequest._info:type_name -> wandb_internal._RequestInfo
-	91,  // 169: wandb_internal.InternalMessagesResponse.messages:type_name -> wandb_internal.InternalMessages
-	180, // 170: wandb_internal.PollExitRequest._info:type_name -> wandb_internal._RequestInfo
-	23,  // 171: wandb_internal.PollExitResponse.exit_result:type_name -> wandb_internal.RunExitResult
-	110, // 172: wandb_internal.PollExitResponse.pusher_stats:type_name -> wandb_internal.FilePusherStats
-	109, // 173: wandb_internal.PollExitResponse.file_counts:type_name -> wandb_internal.FileCounts
-	96,  // 174: wandb_internal.PollExitResponse.operation_stats:type_name -> wandb_internal.OperationStats
-	180, // 175: wandb_internal.OperationStatsRequest._info:type_name -> wandb_internal._RequestInfo
-	96,  // 176: wandb_internal.OperationStatsResponse.operation_stats:type_name -> wandb_internal.OperationStats
-	97,  // 177: wandb_internal.OperationStats.operations:type_name -> wandb_internal.Operation
-	97,  // 178: wandb_internal.Operation.subtasks:type_name -> wandb_internal.Operation
-	21,  // 179: wandb_internal.SyncResponse.error:type_name -> wandb_internal.ErrorInfo
-	178, // 180: wandb_internal.StatusReportRequest.sync_time:type_name -> google.protobuf.Timestamp
-	46,  // 181: wandb_internal.SummaryRecordRequest.summary:type_name -> wandb_internal.SummaryRecord
-	174, // 182: wandb_internal.TelemetryRecordRequest.telemetry:type_name -> wandb_internal.TelemetryRecord
-	180, // 183: wandb_internal.ServerInfoRequest._info:type_name -> wandb_internal._RequestInfo
-	113, // 184: wandb_internal.ServerInfoResponse.local_info:type_name -> wandb_internal.LocalInfo
-	107, // 185: wandb_internal.ServerInfoResponse.server_messages:type_name -> wandb_internal.ServerMessages
-	108, // 186: wandb_internal.ServerMessages.item:type_name -> wandb_internal.ServerMessage
-	9,   // 187: wandb_internal.FileTransferInfoRequest.type:type_name -> wandb_internal.FileTransferInfoRequest.TransferType
-	109, // 188: wandb_internal.FileTransferInfoRequest.file_counts:type_name -> wandb_internal.FileCounts
-	180, // 189: wandb_internal.ShutdownRequest._info:type_name -> wandb_internal._RequestInfo
-	180, // 190: wandb_internal.AttachRequest._info:type_name -> wandb_internal._RequestInfo
-	18,  // 191: wandb_internal.AttachResponse.run:type_name -> wandb_internal.RunRecord
-	21,  // 192: wandb_internal.AttachResponse.error:type_name -> wandb_internal.ErrorInfo
-	180, // 193: wandb_internal.TestInjectRequest._info:type_name -> wandb_internal._RequestInfo
-	31,  // 194: wandb_internal.PartialHistoryRequest.item:type_name -> wandb_internal.HistoryItem
-	28,  // 195: wandb_internal.PartialHistoryRequest.step:type_name -> wandb_internal.HistoryStep
-	120, // 196: wandb_internal.PartialHistoryRequest.action:type_name -> wandb_internal.HistoryAction
-	180, // 197: wandb_internal.PartialHistoryRequest._info:type_name -> wandb_internal._RequestInfo
-	180, // 198: wandb_internal.SampledHistoryRequest._info:type_name -> wandb_internal._RequestInfo
-	126, // 199: wandb_internal.SampledHistoryResponse.item:type_name -> wandb_internal.SampledHistoryItem
-	180, // 200: wandb_internal.RunStatusRequest._info:type_name -> wandb_internal._RequestInfo
-	178, // 201: wandb_internal.RunStatusResponse.sync_time:type_name -> google.protobuf.Timestamp
-	18,  // 202: wandb_internal.RunStartRequest.run:type_name -> wandb_internal.RunRecord
-	180, // 203: wandb_internal.RunStartRequest._info:type_name -> wandb_internal._RequestInfo
-	180, // 204: wandb_internal.CheckVersionRequest._info:type_name -> wandb_internal._RequestInfo
-	180, // 205: wandb_internal.JobInfoRequest._info:type_name -> wandb_internal._RequestInfo
-	54,  // 206: wandb_internal.LogArtifactRequest.artifact:type_name -> wandb_internal.ArtifactRecord
-	180, // 207: wandb_internal.LogArtifactRequest._info:type_name -> wandb_internal._RequestInfo
-	180, // 208: wandb_internal.DownloadArtifactRequest._info:type_name -> wandb_internal._RequestInfo
-	180, // 209: wandb_internal.KeepaliveRequest._info:type_name -> wandb_internal._RequestInfo
-	143, // 210: wandb_internal.GitSource.git_info:type_name -> wandb_internal.GitInfo
-	144, // 211: wandb_internal.Source.git:type_name -> wandb_internal.GitSource
-	142, // 212: wandb_internal.Source.artifact:type_name -> wandb_internal.ArtifactInfo
-	145, // 213: wandb_internal.Source.image:type_name -> wandb_internal.ImageSource
-	146, // 214: wandb_internal.JobSource.source:type_name -> wandb_internal.Source
-	147, // 215: wandb_internal.PartialJobArtifact.source_info:type_name -> wandb_internal.JobSource
-	148, // 216: wandb_internal.UseArtifactRecord.partial:type_name -> wandb_internal.PartialJobArtifact
-	176, // 217: wandb_internal.UseArtifactRecord._info:type_name -> wandb_internal._RecordInfo
-	180, // 218: wandb_internal.CancelRequest._info:type_name -> wandb_internal._RequestInfo
-	178, // 219: wandb_internal.EnvironmentRecord.started_at:type_name -> google.protobuf.Timestamp
-	19,  // 220: wandb_internal.EnvironmentRecord.git:type_name -> wandb_internal.GitRepoRecord
-	169, // 221: wandb_internal.EnvironmentRecord.disk:type_name -> wandb_internal.EnvironmentRecord.DiskEntry
-	155, // 222: wandb_internal.EnvironmentRecord.memory:type_name -> wandb_internal.MemoryInfo
-	156, // 223: wandb_internal.EnvironmentRecord.cpu:type_name -> wandb_internal.CpuInfo
-	157, // 224: wandb_internal.EnvironmentRecord.apple:type_name -> wandb_internal.AppleInfo
-	158, // 225: wandb_internal.EnvironmentRecord.gpu_nvidia:type_name -> wandb_internal.GpuNvidiaInfo
-	159, // 226: wandb_internal.EnvironmentRecord.gpu_amd:type_name -> wandb_internal.GpuAmdInfo
-	170, // 227: wandb_internal.EnvironmentRecord.slurm:type_name -> wandb_internal.EnvironmentRecord.SlurmEntry
-	160, // 228: wandb_internal.EnvironmentRecord.trainium:type_name -> wandb_internal.TrainiumInfo
-	161, // 229: wandb_internal.EnvironmentRecord.tpu:type_name -> wandb_internal.TPUInfo
-	162, // 230: wandb_internal.EnvironmentRecord.coreweave:type_name -> wandb_internal.CoreWeaveInfo
-	176, // 231: wandb_internal.EnvironmentRecord._info:type_name -> wandb_internal._RecordInfo
-	171, // 232: wandb_internal.PythonPackagesRequest.package:type_name -> wandb_internal.PythonPackagesRequest.PythonPackage
-	172, // 233: wandb_internal.JobInputSource.run_config:type_name -> wandb_internal.JobInputSource.RunConfigSource
-	173, // 234: wandb_internal.JobInputSource.file:type_name -> wandb_internal.JobInputSource.ConfigFileSource
-	166, // 235: wandb_internal.JobInputRequest.input_source:type_name -> wandb_internal.JobInputSource
-	165, // 236: wandb_internal.JobInputRequest.include_paths:type_name -> wandb_internal.JobInputPath
-	165, // 237: wandb_internal.JobInputRequest.exclude_paths:type_name -> wandb_internal.JobInputPath
-	80,  // 238: wandb_internal.GetSystemMetricsResponse.SystemMetricsEntry.value:type_name -> wandb_internal.SystemMetricsBuffer
-	154, // 239: wandb_internal.EnvironmentRecord.DiskEntry.value:type_name -> wandb_internal.DiskInfo
-	240, // [240:240] is the sub-list for method output_type
-	240, // [240:240] is the sub-list for method input_type
-	240, // [240:240] is the sub-list for extension type_name
-	240, // [240:240] is the sub-list for extension extendee
-	0,   // [0:240] is the sub-list for field type_name
+	176, // 22: wandb_internal.Record.system_metrics:type_name -> wandb_internal.SystemMetricsRecord
+	67,  // 23: wandb_internal.Record.request:type_name -> wandb_internal.Request
+	11,  // 24: wandb_internal.Record.control:type_name -> wandb_internal.Control
+	177, // 25: wandb_internal.Record._info:type_name -> wandb_internal._RecordInfo
+	20,  // 26: wandb_internal.Result.run_result:type_name -> wandb_internal.RunUpdateResult
+	23,  // 27: wandb_internal.Result.exit_result:type_name -> wandb_internal.RunExitResult
+	32,  // 28: wandb_internal.Result.log_result:type_name -> wandb_internal.HistoryResult
+	48,  // 29: wandb_internal.Result.summary_result:type_name -> wandb_internal.SummaryResult
+	34,  // 30: wandb_internal.Result.output_result:type_name -> wandb_internal.OutputResult
+	45,  // 31: wandb_internal.Result.config_result:type_name -> wandb_internal.ConfigResult
+	68,  // 32: wandb_internal.Result.response:type_name -> wandb_internal.Response
+	11,  // 33: wandb_internal.Result.control:type_name -> wandb_internal.Control
+	178, // 34: wandb_internal.Result._info:type_name -> wandb_internal._ResultInfo
+	177, // 35: wandb_internal.FinalRecord._info:type_name -> wandb_internal._RecordInfo
+	177, // 36: wandb_internal.VersionInfo._info:type_name -> wandb_internal._RecordInfo
+	14,  // 37: wandb_internal.HeaderRecord.version_info:type_name -> wandb_internal.VersionInfo
+	177, // 38: wandb_internal.HeaderRecord._info:type_name -> wandb_internal._RecordInfo
+	177, // 39: wandb_internal.FooterRecord._info:type_name -> wandb_internal._RecordInfo
+	43,  // 40: wandb_internal.RunRecord.config:type_name -> wandb_internal.ConfigRecord
+	46,  // 41: wandb_internal.RunRecord.summary:type_name -> wandb_internal.SummaryRecord
+	26,  // 42: wandb_internal.RunRecord.settings:type_name -> wandb_internal.SettingsRecord
+	179, // 43: wandb_internal.RunRecord.start_time:type_name -> google.protobuf.Timestamp
+	174, // 44: wandb_internal.RunRecord.telemetry:type_name -> wandb_internal.TelemetryRecord
+	19,  // 45: wandb_internal.RunRecord.git:type_name -> wandb_internal.GitRepoRecord
+	17,  // 46: wandb_internal.RunRecord.branch_point:type_name -> wandb_internal.BranchPoint
+	177, // 47: wandb_internal.RunRecord._info:type_name -> wandb_internal._RecordInfo
+	18,  // 48: wandb_internal.RunUpdateResult.run:type_name -> wandb_internal.RunRecord
+	21,  // 49: wandb_internal.RunUpdateResult.error:type_name -> wandb_internal.ErrorInfo
+	1,   // 50: wandb_internal.ErrorInfo.code:type_name -> wandb_internal.ErrorInfo.ErrorCode
+	177, // 51: wandb_internal.RunExitRecord._info:type_name -> wandb_internal._RecordInfo
+	177, // 52: wandb_internal.RunPreemptingRecord._info:type_name -> wandb_internal._RecordInfo
+	27,  // 53: wandb_internal.SettingsRecord.item:type_name -> wandb_internal.SettingsItem
+	177, // 54: wandb_internal.SettingsRecord._info:type_name -> wandb_internal._RecordInfo
+	31,  // 55: wandb_internal.HistoryRecord.item:type_name -> wandb_internal.HistoryItem
+	28,  // 56: wandb_internal.HistoryRecord.step:type_name -> wandb_internal.HistoryStep
+	177, // 57: wandb_internal.HistoryRecord._info:type_name -> wandb_internal._RecordInfo
+	180, // 58: wandb_internal.HistoryValue.none:type_name -> google.protobuf.NullValue
+	30,  // 59: wandb_internal.HistoryItem.value:type_name -> wandb_internal.HistoryValue
+	2,   // 60: wandb_internal.OutputRecord.output_type:type_name -> wandb_internal.OutputRecord.OutputType
+	179, // 61: wandb_internal.OutputRecord.timestamp:type_name -> google.protobuf.Timestamp
+	177, // 62: wandb_internal.OutputRecord._info:type_name -> wandb_internal._RecordInfo
+	3,   // 63: wandb_internal.OutputRawRecord.output_type:type_name -> wandb_internal.OutputRawRecord.OutputType
+	179, // 64: wandb_internal.OutputRawRecord.timestamp:type_name -> google.protobuf.Timestamp
+	177, // 65: wandb_internal.OutputRawRecord._info:type_name -> wandb_internal._RecordInfo
+	40,  // 66: wandb_internal.MetricRecord.options:type_name -> wandb_internal.MetricOptions
+	42,  // 67: wandb_internal.MetricRecord.summary:type_name -> wandb_internal.MetricSummary
+	4,   // 68: wandb_internal.MetricRecord.goal:type_name -> wandb_internal.MetricRecord.MetricGoal
+	41,  // 69: wandb_internal.MetricRecord._control:type_name -> wandb_internal.MetricControl
+	177, // 70: wandb_internal.MetricRecord._info:type_name -> wandb_internal._RecordInfo
+	44,  // 71: wandb_internal.ConfigRecord.update:type_name -> wandb_internal.ConfigItem
+	44,  // 72: wandb_internal.ConfigRecord.remove:type_name -> wandb_internal.ConfigItem
+	177, // 73: wandb_internal.ConfigRecord._info:type_name -> wandb_internal._RecordInfo
+	47,  // 74: wandb_internal.SummaryRecord.update:type_name -> wandb_internal.SummaryItem
+	47,  // 75: wandb_internal.SummaryRecord.remove:type_name -> wandb_internal.SummaryItem
+	177, // 76: wandb_internal.SummaryRecord._info:type_name -> wandb_internal._RecordInfo
+	50,  // 77: wandb_internal.FilesRecord.files:type_name -> wandb_internal.FilesItem
+	177, // 78: wandb_internal.FilesRecord._info:type_name -> wandb_internal._RecordInfo
+	5,   // 79: wandb_internal.FilesItem.policy:type_name -> wandb_internal.FilesItem.PolicyType
+	6,   // 80: wandb_internal.FilesItem.type:type_name -> wandb_internal.FilesItem.FileType
+	7,   // 81: wandb_internal.StatsRecord.stats_type:type_name -> wandb_internal.StatsRecord.StatsType
+	179, // 82: wandb_internal.StatsRecord.timestamp:type_name -> google.protobuf.Timestamp
+	53,  // 83: wandb_internal.StatsRecord.item:type_name -> wandb_internal.StatsItem
+	177, // 84: wandb_internal.StatsRecord._info:type_name -> wandb_internal._RecordInfo
+	55,  // 85: wandb_internal.ArtifactRecord.manifest:type_name -> wandb_internal.ArtifactManifest
+	177, // 86: wandb_internal.ArtifactRecord._info:type_name -> wandb_internal._RecordInfo
+	58,  // 87: wandb_internal.ArtifactManifest.storage_policy_config:type_name -> wandb_internal.StoragePolicyConfigItem
+	56,  // 88: wandb_internal.ArtifactManifest.contents:type_name -> wandb_internal.ArtifactManifestEntry
+	57,  // 89: wandb_internal.ArtifactManifestEntry.extra:type_name -> wandb_internal.ExtraItem
+	177, // 90: wandb_internal.LinkArtifactRequest._info:type_name -> wandb_internal._RecordInfo
+	177, // 91: wandb_internal.TBRecord._info:type_name -> wandb_internal._RecordInfo
+	177, // 92: wandb_internal.AlertRecord._info:type_name -> wandb_internal._RecordInfo
+	84,  // 93: wandb_internal.Request.stop_status:type_name -> wandb_internal.StopStatusRequest
+	86,  // 94: wandb_internal.Request.network_status:type_name -> wandb_internal.NetworkStatusRequest
+	69,  // 95: wandb_internal.Request.defer:type_name -> wandb_internal.DeferRequest
+	76,  // 96: wandb_internal.Request.get_summary:type_name -> wandb_internal.GetSummaryRequest
+	74,  // 97: wandb_internal.Request.login:type_name -> wandb_internal.LoginRequest
+	70,  // 98: wandb_internal.Request.pause:type_name -> wandb_internal.PauseRequest
+	72,  // 99: wandb_internal.Request.resume:type_name -> wandb_internal.ResumeRequest
+	92,  // 100: wandb_internal.Request.poll_exit:type_name -> wandb_internal.PollExitRequest
+	125, // 101: wandb_internal.Request.sampled_history:type_name -> wandb_internal.SampledHistoryRequest
+	121, // 102: wandb_internal.Request.partial_history:type_name -> wandb_internal.PartialHistoryRequest
+	123, // 103: wandb_internal.Request.history_step:type_name -> wandb_internal.HistoryStepRequest
+	130, // 104: wandb_internal.Request.run_start:type_name -> wandb_internal.RunStartRequest
+	132, // 105: wandb_internal.Request.check_version:type_name -> wandb_internal.CheckVersionRequest
+	136, // 106: wandb_internal.Request.log_artifact:type_name -> wandb_internal.LogArtifactRequest
+	138, // 107: wandb_internal.Request.download_artifact:type_name -> wandb_internal.DownloadArtifactRequest
+	140, // 108: wandb_internal.Request.keepalive:type_name -> wandb_internal.KeepaliveRequest
+	128, // 109: wandb_internal.Request.run_status:type_name -> wandb_internal.RunStatusRequest
+	151, // 110: wandb_internal.Request.cancel:type_name -> wandb_internal.CancelRequest
+	89,  // 111: wandb_internal.Request.internal_messages:type_name -> wandb_internal.InternalMessagesRequest
+	164, // 112: wandb_internal.Request.python_packages:type_name -> wandb_internal.PythonPackagesRequest
+	114, // 113: wandb_internal.Request.shutdown:type_name -> wandb_internal.ShutdownRequest
+	116, // 114: wandb_internal.Request.attach:type_name -> wandb_internal.AttachRequest
+	82,  // 115: wandb_internal.Request.status:type_name -> wandb_internal.StatusRequest
+	105, // 116: wandb_internal.Request.server_info:type_name -> wandb_internal.ServerInfoRequest
+	98,  // 117: wandb_internal.Request.sender_mark:type_name -> wandb_internal.SenderMarkRequest
+	101, // 118: wandb_internal.Request.sender_read:type_name -> wandb_internal.SenderReadRequest
+	102, // 119: wandb_internal.Request.status_report:type_name -> wandb_internal.StatusReportRequest
+	103, // 120: wandb_internal.Request.summary_record:type_name -> wandb_internal.SummaryRecordRequest
+	104, // 121: wandb_internal.Request.telemetry_record:type_name -> wandb_internal.TelemetryRecordRequest
+	134, // 122: wandb_internal.Request.job_info:type_name -> wandb_internal.JobInfoRequest
+	78,  // 123: wandb_internal.Request.get_system_metrics:type_name -> wandb_internal.GetSystemMetricsRequest
+	167, // 124: wandb_internal.Request.job_input:type_name -> wandb_internal.JobInputRequest
+	61,  // 125: wandb_internal.Request.link_artifact:type_name -> wandb_internal.LinkArtifactRequest
+	99,  // 126: wandb_internal.Request.sync_finish:type_name -> wandb_internal.SyncFinishRequest
+	94,  // 127: wandb_internal.Request.operations:type_name -> wandb_internal.OperationStatsRequest
+	153, // 128: wandb_internal.Request.probe_system_info:type_name -> wandb_internal.ProbeSystemInfoRequest
+	118, // 129: wandb_internal.Request.test_inject:type_name -> wandb_internal.TestInjectRequest
+	141, // 130: wandb_internal.Response.keepalive_response:type_name -> wandb_internal.KeepaliveResponse
+	85,  // 131: wandb_internal.Response.stop_status_response:type_name -> wandb_internal.StopStatusResponse
+	87,  // 132: wandb_internal.Response.network_status_response:type_name -> wandb_internal.NetworkStatusResponse
+	75,  // 133: wandb_internal.Response.login_response:type_name -> wandb_internal.LoginResponse
+	77,  // 134: wandb_internal.Response.get_summary_response:type_name -> wandb_internal.GetSummaryResponse
+	93,  // 135: wandb_internal.Response.poll_exit_response:type_name -> wandb_internal.PollExitResponse
+	127, // 136: wandb_internal.Response.sampled_history_response:type_name -> wandb_internal.SampledHistoryResponse
+	124, // 137: wandb_internal.Response.history_step_response:type_name -> wandb_internal.HistoryStepResponse
+	131, // 138: wandb_internal.Response.run_start_response:type_name -> wandb_internal.RunStartResponse
+	133, // 139: wandb_internal.Response.check_version_response:type_name -> wandb_internal.CheckVersionResponse
+	137, // 140: wandb_internal.Response.log_artifact_response:type_name -> wandb_internal.LogArtifactResponse
+	139, // 141: wandb_internal.Response.download_artifact_response:type_name -> wandb_internal.DownloadArtifactResponse
+	129, // 142: wandb_internal.Response.run_status_response:type_name -> wandb_internal.RunStatusResponse
+	152, // 143: wandb_internal.Response.cancel_response:type_name -> wandb_internal.CancelResponse
+	90,  // 144: wandb_internal.Response.internal_messages_response:type_name -> wandb_internal.InternalMessagesResponse
+	115, // 145: wandb_internal.Response.shutdown_response:type_name -> wandb_internal.ShutdownResponse
+	117, // 146: wandb_internal.Response.attach_response:type_name -> wandb_internal.AttachResponse
+	83,  // 147: wandb_internal.Response.status_response:type_name -> wandb_internal.StatusResponse
+	106, // 148: wandb_internal.Response.server_info_response:type_name -> wandb_internal.ServerInfoResponse
+	135, // 149: wandb_internal.Response.job_info_response:type_name -> wandb_internal.JobInfoResponse
+	81,  // 150: wandb_internal.Response.get_system_metrics_response:type_name -> wandb_internal.GetSystemMetricsResponse
+	62,  // 151: wandb_internal.Response.link_artifact_response:type_name -> wandb_internal.LinkArtifactResponse
+	100, // 152: wandb_internal.Response.sync_response:type_name -> wandb_internal.SyncResponse
+	95,  // 153: wandb_internal.Response.operations_response:type_name -> wandb_internal.OperationStatsResponse
+	119, // 154: wandb_internal.Response.test_inject_response:type_name -> wandb_internal.TestInjectResponse
+	8,   // 155: wandb_internal.DeferRequest.state:type_name -> wandb_internal.DeferRequest.DeferState
+	181, // 156: wandb_internal.PauseRequest._info:type_name -> wandb_internal._RequestInfo
+	181, // 157: wandb_internal.ResumeRequest._info:type_name -> wandb_internal._RequestInfo
+	181, // 158: wandb_internal.LoginRequest._info:type_name -> wandb_internal._RequestInfo
+	181, // 159: wandb_internal.GetSummaryRequest._info:type_name -> wandb_internal._RequestInfo
+	47,  // 160: wandb_internal.GetSummaryResponse.item:type_name -> wandb_internal.SummaryItem
+	181, // 161: wandb_internal.GetSystemMetricsRequest._info:type_name -> wandb_internal._RequestInfo
+	179, // 162: wandb_internal.SystemMetricSample.timestamp:type_name -> google.protobuf.Timestamp
+	79,  // 163: wandb_internal.SystemMetricsBuffer.record:type_name -> wandb_internal.SystemMetricSample
+	168, // 164: wandb_internal.GetSystemMetricsResponse.system_metrics:type_name -> wandb_internal.GetSystemMetricsResponse.SystemMetricsEntry
+	181, // 165: wandb_internal.StatusRequest._info:type_name -> wandb_internal._RequestInfo
+	181, // 166: wandb_internal.StopStatusRequest._info:type_name -> wandb_internal._RequestInfo
+	181, // 167: wandb_internal.NetworkStatusRequest._info:type_name -> wandb_internal._RequestInfo
+	88,  // 168: wandb_internal.NetworkStatusResponse.network_responses:type_name -> wandb_internal.HttpResponse
+	181, // 169: wandb_internal.InternalMessagesRequest._info:type_name -> wandb_internal._RequestInfo
+	91,  // 170: wandb_internal.InternalMessagesResponse.messages:type_name -> wandb_internal.InternalMessages
+	181, // 171: wandb_internal.PollExitRequest._info:type_name -> wandb_internal._RequestInfo
+	23,  // 172: wandb_internal.PollExitResponse.exit_result:type_name -> wandb_internal.RunExitResult
+	110, // 173: wandb_internal.PollExitResponse.pusher_stats:type_name -> wandb_internal.FilePusherStats
+	109, // 174: wandb_internal.PollExitResponse.file_counts:type_name -> wandb_internal.FileCounts
+	96,  // 175: wandb_internal.PollExitResponse.operation_stats:type_name -> wandb_internal.OperationStats
+	181, // 176: wandb_internal.OperationStatsRequest._info:type_name -> wandb_internal._RequestInfo
+	96,  // 177: wandb_internal.OperationStatsResponse.operation_stats:type_name -> wandb_internal.OperationStats
+	97,  // 178: wandb_internal.OperationStats.operations:type_name -> wandb_internal.Operation
+	97,  // 179: wandb_internal.Operation.subtasks:type_name -> wandb_internal.Operation
+	21,  // 180: wandb_internal.SyncResponse.error:type_name -> wandb_internal.ErrorInfo
+	179, // 181: wandb_internal.StatusReportRequest.sync_time:type_name -> google.protobuf.Timestamp
+	46,  // 182: wandb_internal.SummaryRecordRequest.summary:type_name -> wandb_internal.SummaryRecord
+	174, // 183: wandb_internal.TelemetryRecordRequest.telemetry:type_name -> wandb_internal.TelemetryRecord
+	181, // 184: wandb_internal.ServerInfoRequest._info:type_name -> wandb_internal._RequestInfo
+	113, // 185: wandb_internal.ServerInfoResponse.local_info:type_name -> wandb_internal.LocalInfo
+	107, // 186: wandb_internal.ServerInfoResponse.server_messages:type_name -> wandb_internal.ServerMessages
+	108, // 187: wandb_internal.ServerMessages.item:type_name -> wandb_internal.ServerMessage
+	9,   // 188: wandb_internal.FileTransferInfoRequest.type:type_name -> wandb_internal.FileTransferInfoRequest.TransferType
+	109, // 189: wandb_internal.FileTransferInfoRequest.file_counts:type_name -> wandb_internal.FileCounts
+	181, // 190: wandb_internal.ShutdownRequest._info:type_name -> wandb_internal._RequestInfo
+	181, // 191: wandb_internal.AttachRequest._info:type_name -> wandb_internal._RequestInfo
+	18,  // 192: wandb_internal.AttachResponse.run:type_name -> wandb_internal.RunRecord
+	21,  // 193: wandb_internal.AttachResponse.error:type_name -> wandb_internal.ErrorInfo
+	181, // 194: wandb_internal.TestInjectRequest._info:type_name -> wandb_internal._RequestInfo
+	31,  // 195: wandb_internal.PartialHistoryRequest.item:type_name -> wandb_internal.HistoryItem
+	28,  // 196: wandb_internal.PartialHistoryRequest.step:type_name -> wandb_internal.HistoryStep
+	120, // 197: wandb_internal.PartialHistoryRequest.action:type_name -> wandb_internal.HistoryAction
+	181, // 198: wandb_internal.PartialHistoryRequest._info:type_name -> wandb_internal._RequestInfo
+	181, // 199: wandb_internal.SampledHistoryRequest._info:type_name -> wandb_internal._RequestInfo
+	126, // 200: wandb_internal.SampledHistoryResponse.item:type_name -> wandb_internal.SampledHistoryItem
+	181, // 201: wandb_internal.RunStatusRequest._info:type_name -> wandb_internal._RequestInfo
+	179, // 202: wandb_internal.RunStatusResponse.sync_time:type_name -> google.protobuf.Timestamp
+	18,  // 203: wandb_internal.RunStartRequest.run:type_name -> wandb_internal.RunRecord
+	181, // 204: wandb_internal.RunStartRequest._info:type_name -> wandb_internal._RequestInfo
+	181, // 205: wandb_internal.CheckVersionRequest._info:type_name -> wandb_internal._RequestInfo
+	181, // 206: wandb_internal.JobInfoRequest._info:type_name -> wandb_internal._RequestInfo
+	54,  // 207: wandb_internal.LogArtifactRequest.artifact:type_name -> wandb_internal.ArtifactRecord
+	181, // 208: wandb_internal.LogArtifactRequest._info:type_name -> wandb_internal._RequestInfo
+	181, // 209: wandb_internal.DownloadArtifactRequest._info:type_name -> wandb_internal._RequestInfo
+	181, // 210: wandb_internal.KeepaliveRequest._info:type_name -> wandb_internal._RequestInfo
+	143, // 211: wandb_internal.GitSource.git_info:type_name -> wandb_internal.GitInfo
+	144, // 212: wandb_internal.Source.git:type_name -> wandb_internal.GitSource
+	142, // 213: wandb_internal.Source.artifact:type_name -> wandb_internal.ArtifactInfo
+	145, // 214: wandb_internal.Source.image:type_name -> wandb_internal.ImageSource
+	146, // 215: wandb_internal.JobSource.source:type_name -> wandb_internal.Source
+	147, // 216: wandb_internal.PartialJobArtifact.source_info:type_name -> wandb_internal.JobSource
+	148, // 217: wandb_internal.UseArtifactRecord.partial:type_name -> wandb_internal.PartialJobArtifact
+	177, // 218: wandb_internal.UseArtifactRecord._info:type_name -> wandb_internal._RecordInfo
+	181, // 219: wandb_internal.CancelRequest._info:type_name -> wandb_internal._RequestInfo
+	179, // 220: wandb_internal.EnvironmentRecord.started_at:type_name -> google.protobuf.Timestamp
+	19,  // 221: wandb_internal.EnvironmentRecord.git:type_name -> wandb_internal.GitRepoRecord
+	169, // 222: wandb_internal.EnvironmentRecord.disk:type_name -> wandb_internal.EnvironmentRecord.DiskEntry
+	155, // 223: wandb_internal.EnvironmentRecord.memory:type_name -> wandb_internal.MemoryInfo
+	156, // 224: wandb_internal.EnvironmentRecord.cpu:type_name -> wandb_internal.CpuInfo
+	157, // 225: wandb_internal.EnvironmentRecord.apple:type_name -> wandb_internal.AppleInfo
+	158, // 226: wandb_internal.EnvironmentRecord.gpu_nvidia:type_name -> wandb_internal.GpuNvidiaInfo
+	159, // 227: wandb_internal.EnvironmentRecord.gpu_amd:type_name -> wandb_internal.GpuAmdInfo
+	170, // 228: wandb_internal.EnvironmentRecord.slurm:type_name -> wandb_internal.EnvironmentRecord.SlurmEntry
+	160, // 229: wandb_internal.EnvironmentRecord.trainium:type_name -> wandb_internal.TrainiumInfo
+	161, // 230: wandb_internal.EnvironmentRecord.tpu:type_name -> wandb_internal.TPUInfo
+	162, // 231: wandb_internal.EnvironmentRecord.coreweave:type_name -> wandb_internal.CoreWeaveInfo
+	177, // 232: wandb_internal.EnvironmentRecord._info:type_name -> wandb_internal._RecordInfo
+	171, // 233: wandb_internal.PythonPackagesRequest.package:type_name -> wandb_internal.PythonPackagesRequest.PythonPackage
+	172, // 234: wandb_internal.JobInputSource.run_config:type_name -> wandb_internal.JobInputSource.RunConfigSource
+	173, // 235: wandb_internal.JobInputSource.file:type_name -> wandb_internal.JobInputSource.ConfigFileSource
+	166, // 236: wandb_internal.JobInputRequest.input_source:type_name -> wandb_internal.JobInputSource
+	165, // 237: wandb_internal.JobInputRequest.include_paths:type_name -> wandb_internal.JobInputPath
+	165, // 238: wandb_internal.JobInputRequest.exclude_paths:type_name -> wandb_internal.JobInputPath
+	80,  // 239: wandb_internal.GetSystemMetricsResponse.SystemMetricsEntry.value:type_name -> wandb_internal.SystemMetricsBuffer
+	154, // 240: wandb_internal.EnvironmentRecord.DiskEntry.value:type_name -> wandb_internal.DiskInfo
+	241, // [241:241] is the sub-list for method output_type
+	241, // [241:241] is the sub-list for method input_type
+	241, // [241:241] is the sub-list for extension type_name
+	241, // [241:241] is the sub-list for extension extendee
+	0,   // [0:241] is the sub-list for field type_name
 }
 
 func init() { file_wandb_proto_wandb_internal_proto_init() }
@@ -13383,6 +13402,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 		return
 	}
 	file_wandb_proto_wandb_base_proto_init()
+	file_wandb_proto_wandb_system_metrics_proto_init()
 	file_wandb_proto_wandb_telemetry_proto_init()
 	file_wandb_proto_wandb_internal_proto_msgTypes[0].OneofWrappers = []any{
 		(*Record_History)(nil),
@@ -13407,6 +13427,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 		(*Record_UseArtifact)(nil),
 		(*Record_Environment)(nil),
 		(*Record_OutputLogger)(nil),
+		(*Record_SystemMetrics)(nil),
 		(*Record_Request)(nil),
 	}
 	file_wandb_proto_wandb_internal_proto_msgTypes[2].OneofWrappers = []any{

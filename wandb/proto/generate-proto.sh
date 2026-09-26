@@ -34,6 +34,7 @@ PROTO_FILES=(
     wandb_sweep_scheduler.proto
     wandb_sync.proto
     wandb_api.proto
+    wandb_system_metrics.proto
 )
 
 # ---------------------------------------------------------------------------
