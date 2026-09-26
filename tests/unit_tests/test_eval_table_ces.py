@@ -19,6 +19,14 @@ def run(mock_run):
     return mock_run(settings={"entity": "e", "project": "p", "mode": "online"})
 
 
+@pytest.fixture(autouse=True)
+def default_eval_table_server_feature_enabled(monkeypatch):
+    monkeypatch.setattr(
+        "wandb.sdk.data_types.eval_table._writer_factory.ServiceApi.feature_enabled",
+        lambda self, feature: True,
+    )
+
+
 @pytest.fixture
 def coreweave_evaluations_module(monkeypatch):
     client_module = ModuleType("coreweave_evaluations")
@@ -271,6 +279,16 @@ def test_ces_eval_table_writes_supported_media_in_raise_mode(mock_ces_client, ru
 
     rows = mock_ces_client.eval_tables.rows.add.call_args.kwargs["rows"]
     assert rows[0]["output"]["image"]["extension_type"] == "wandb-image"
+
+
+def test_default_writer_validates_cells_during_construction():
+    nested_table = wandb.Table(columns=["value"], data=[[1]])
+
+    with pytest.raises(TypeError, match="does not support nested Tables"):
+        wandb.EvalTable(
+            columns=["table"],
+            data=[[nested_table]],
+        )
 
 
 def test_ces_eval_table_batches_rows_by_encoded_bytes(

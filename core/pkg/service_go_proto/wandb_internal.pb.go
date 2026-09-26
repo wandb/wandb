@@ -108,6 +108,8 @@ const (
 	ServerFeature_ARTIFACT_DIGEST_ALGORITHM ServerFeature = 36
 	// Indicates that the server supports automation action ARIA.
 	ServerFeature_AUTOMATION_ACTION_ARIA ServerFeature = 37
+	// Indicates that the server supports CoreWeave Evaluation Service.
+	ServerFeature_EVAL_TABLES_CES ServerFeature = 38
 )
 
 // Enum value maps for ServerFeature.
@@ -150,6 +152,7 @@ var (
 		35: "SWEEPS_LOCAL_SCHEDULER",
 		36: "ARTIFACT_DIGEST_ALGORITHM",
 		37: "AUTOMATION_ACTION_ARIA",
+		38: "EVAL_TABLES_CES",
 	}
 	ServerFeature_value = map[string]int32{
 		"SERVER_FEATURE_UNSPECIFIED":                           0,
@@ -189,6 +192,7 @@ var (
 		"SWEEPS_LOCAL_SCHEDULER":                               35,
 		"ARTIFACT_DIGEST_ALGORITHM":                            36,
 		"AUTOMATION_ACTION_ARIA":                               37,
+		"EVAL_TABLES_CES":                                      38,
 	}
 )
 
@@ -12889,7 +12893,7 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\finput_source\x18\x01 \x01(\v2\x1e.wandb_internal.JobInputSourceR\vinputSource\x12A\n" +
 	"\rinclude_paths\x18\x02 \x03(\v2\x1c.wandb_internal.JobInputPathR\fincludePaths\x12A\n" +
 	"\rexclude_paths\x18\x03 \x03(\v2\x1c.wandb_internal.JobInputPathR\fexcludePaths\x12!\n" +
-	"\finput_schema\x18\x04 \x01(\tR\vinputSchema*\xba\n" +
+	"\finput_schema\x18\x04 \x01(\tR\vinputSchema*\xcf\n" +
 	"\n" +
 	"\rServerFeature\x12\x1e\n" +
 	"\x1aSERVER_FEATURE_UNSPECIFIED\x10\x00\x12\x13\n" +
@@ -12930,7 +12934,8 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x0fFILESTREAM_GZIP\x10\"\x12\x1a\n" +
 	"\x16SWEEPS_LOCAL_SCHEDULER\x10#\x12\x1d\n" +
 	"\x19ARTIFACT_DIGEST_ALGORITHM\x10$\x12\x1a\n" +
-	"\x16AUTOMATION_ACTION_ARIA\x10%\"\x04\b\b\x10\bB\x1bZ\x19core/pkg/service_go_protob\x06proto3"
+	"\x16AUTOMATION_ACTION_ARIA\x10%\x12\x13\n" +
+	"\x0fEVAL_TABLES_CES\x10&\"\x04\b\b\x10\bB\x1bZ\x19core/pkg/service_go_protob\x06proto3"
 
 var (
 	file_wandb_proto_wandb_internal_proto_rawDescOnce sync.Once
