@@ -143,6 +143,13 @@ def _ensure_eval_table_run_file(
 def _place_media_file_in_run(media: Media, run: Run, logical_path: str) -> None:
     assert media._path is not None
     new_path = os.path.join(run.dir, logical_path)
+    # Media repeated across rows shares one content-addressed file, so copy and
+    # publish it once.
+    if not media._is_tmp and os.path.exists(new_path):
+        media._path = new_path
+        media._run = run
+        return
+
     filesystem.mkdir_exists_ok(os.path.dirname(new_path))
 
     if media._is_tmp:

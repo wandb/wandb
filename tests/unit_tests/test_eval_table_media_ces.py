@@ -105,6 +105,20 @@ def test_unbound_media_is_bound_in_place_to_eval_table_path(run_factory, tmp_pat
     run._publish_file.assert_called_once_with(expected_path)
 
 
+def test_repeated_media_content_is_placed_once(run_factory, tmp_path):
+    run = run_factory("run-one")
+    path = _png(tmp_path)
+    first = wandb.Image(path)
+    second = wandb.Image(path)
+
+    _media_ces._ensure_eval_table_run_file(first, run, "eval")
+    _media_ces._ensure_eval_table_run_file(second, run, "eval")
+
+    assert second._run is run
+    assert second._path == first._path
+    run._publish_file.assert_called_once()
+
+
 def test_media_already_bound_to_active_run_reuses_existing_path(
     run_factory,
     tmp_path,
