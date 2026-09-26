@@ -101,7 +101,6 @@ SYMBOLS_ROOT_OTHER = {
     "sandbox",
     "save",
     "sdk",
-    "set_trace",
     "os",
     "setup",
     "sklearn",

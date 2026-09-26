@@ -38,9 +38,6 @@
 # Hardware accelerator metrics
 /xpu/ @wandb/sdk-team
 
-# CircleCI configuration
-/.circleci @wandb/sdk-team
-
 # GitHub configuration
 /.github @wandb/sdk-team
 

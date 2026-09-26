@@ -148,12 +148,6 @@ api = _deprecated_api.DeprecatedApi()
 ensure_configured = _deprecated_api.ensure_configured
 
 
-def set_trace():
-    import pdb
-
-    pdb.set_trace()
-
-
 if wandb_sdk.lib.ipython.in_notebook():
     from IPython import get_ipython  # type: ignore[import-not-found]
 
