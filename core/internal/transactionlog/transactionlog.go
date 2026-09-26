@@ -9,7 +9,7 @@ import "errors"
 // files in a new format. It may also prevent the next SDK version from reading
 // old .wandb files, depending on the implementation of ensureSupportedVersion.
 // Update the error messages below.
-const wandbStoreVersion = 0
+const wandbStoreVersion = 1
 
 // ensureSupportedVersion returns an error for an unsupported version.
 //
@@ -18,6 +18,9 @@ const wandbStoreVersion = 0
 // the user when using `wandb sync`.
 func ensureSupportedVersion(version uint8) error {
 	switch {
+	case version < 1:
+		return errors.New("wandb<=0.30.0 is required to read this file")
+
 	case version > wandbStoreVersion:
 		// In this case, we can't provide any more useful info unless we
 		// attempt to read the SDK version from the file.
@@ -26,10 +29,9 @@ func ensureSupportedVersion(version uint8) error {
 		return errors.New("a newer wandb version is required to read this file")
 
 	case version < wandbStoreVersion:
-		// This is not currently possible, but it's here as a safe default.
+		// This is a fallback that should never be reached.
 		//
-		// When we do bump `wandbStoreVersion`, we should ensure this message
-		// includes the required wandb Python version.
+		// Add cases above for specific old versions.
 		return errors.New("an older wandb version is required to read this file")
 
 	default:
