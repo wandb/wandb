@@ -67,6 +67,10 @@ type System struct {
 	// networkBytesRecvInit stores the initial network bytes received to calculate deltas
 	networkBytesRecvInit int
 
+	// tcpRetransmitsInit is the TCP RetransSegs counter at startup, or nil
+	// where the counter is unavailable.
+	tcpRetransmitsInit *int64
+
 	// cpuStatLast holds the cpu.stat counters from the previous sample, or
 	// nil before the first one.
 	cpuStatLast *cpuStatCounters
@@ -116,6 +120,9 @@ func NewSystem(params SystemParams) *System {
 	if sent, recv, err := networkTotals(); err == nil {
 		s.networkBytesSentInit = int(sent)
 		s.networkBytesRecvInit = int(recv)
+	}
+	if retransmits, err := tcpRetransmits(); err == nil {
+		s.tcpRetransmitsInit = &retransmits
 	}
 
 	return s
@@ -364,7 +371,28 @@ func (s *System) collectNetworkMetrics(metrics map[string]any) error {
 
 	metrics["network.sent"] = float64(int(sent) - s.networkBytesSentInit)
 	metrics["network.recv"] = float64(int(recv) - s.networkBytesRecvInit)
+
+	if s.tcpRetransmitsInit != nil {
+		if retransmits, err := tcpRetransmits(); err == nil {
+			metrics["network.tcpRetransmits"] = float64(retransmits - *s.tcpRetransmitsInit)
+		}
+	}
 	return nil
+}
+
+// tcpRetransmits returns the cumulative number of retransmitted TCP segments
+// in the process's network namespace, from the kernel's RetransSegs counter.
+func tcpRetransmits() (int64, error) {
+	counters, err := net.ProtoCounters([]string{"tcp"})
+	if err != nil {
+		return 0, err
+	}
+	for _, c := range counters {
+		if retransmits, ok := c.Stats["RetransSegs"]; ok {
+			return retransmits, nil
+		}
+	}
+	return 0, errors.New("system: no TCP RetransSegs counter")
 }
 
 // networkTotals sums the bytes sent and received over the interfaces that
