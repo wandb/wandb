@@ -723,25 +723,7 @@ func (h *Handler) handleRequestGetSummary(
 	record *spb.Record,
 	request *runwork.Request,
 ) {
-	response := &spb.Response{}
-
-	items, err := h.runSummary.ToRecords()
-
-	// If there's an error, we still respond with the records we were
-	// able to produce.
-	if err != nil {
-		h.logger.CaptureError(
-			"stream",
-			fmt.Errorf("handler: error flattening run summary: %v", err),
-		)
-	}
-
-	response.ResponseType = &spb.Response_GetSummaryResponse{
-		GetSummaryResponse: &spb.GetSummaryResponse{
-			Item: items,
-		},
-	}
-	h.respond(request, response)
+	h.fwdRecord(record, request)
 }
 
 func (h *Handler) handleRequestGetSystemMetrics(

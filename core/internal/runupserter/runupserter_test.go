@@ -503,7 +503,7 @@ func TestUpdate_Debounces(t *testing.T) {
 		vars.Upserter.Update(&spb.RunRecord{})
 		vars.Upserter.UpdateConfig(&spb.ConfigRecord{})
 		vars.Upserter.UpdateTelemetry(&spb.TelemetryRecord{})
-		vars.Upserter.UpdateMetrics(&spb.MetricRecord{})
+		vars.Upserter.UpdateMetrics([]map[string]any{})
 		vars.Upserter.Finish()
 
 		requests := vars.MockClient.AllRequests()
@@ -609,7 +609,10 @@ func TestUpdateMetrics_Uploads(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		vars := setupUpdateTest(t)
 
-		vars.Upserter.UpdateMetrics(&spb.MetricRecord{Name: "test metric"})
+		vars.Upserter.UpdateMetrics([]map[string]any{
+			{"1": "metric A"},
+			{"1": "metric B"},
+		})
 		vars.Upserter.Finish()
 
 		requests := vars.MockClient.AllRequests()
@@ -619,7 +622,7 @@ func TestUpdateMetrics_Uploads(t *testing.T) {
 			gqlmock.GQLVar("config", gqlmock.JSONEq(fmt.Sprintf(`
 					{
 						"_wandb": {"value": {
-							"m": [{"1": "test metric", "6": [3], "7": []}],
+							"m": [{"1": "metric A"}, {"1": "metric B"}],
 							"t": {"12": "%s"}
 						}}
 					}
