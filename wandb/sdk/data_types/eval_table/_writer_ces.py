@@ -334,6 +334,7 @@ class CESWriter:
         media_cells_examined = 0
         oversized_media_cells = 0
         oversized_locations: list[str] = []
+        class_label_accumulator = _media_ces.ClassLabelAccumulator()
 
         for row_index, row in enumerate(rows):
             inputs, input_media, input_oversized = (
@@ -345,6 +346,7 @@ class CESWriter:
                     bound_run=bound_run,
                     row_index=row_index,
                     oversized_locations=oversized_locations,
+                    class_label_accumulator=class_label_accumulator,
                 )
             )
             media_cells_examined += input_media
@@ -360,6 +362,7 @@ class CESWriter:
                         bound_run=bound_run,
                         row_index=row_index,
                         oversized_locations=oversized_locations,
+                        class_label_accumulator=class_label_accumulator,
                     )
                 )
                 media_cells_examined += output_media
@@ -411,18 +414,20 @@ class CESWriter:
         self._validate_body_size(
             "columns", {"dataset_fields": dataset_fields, "scorers": scorers}
         )
+        # Materialize batches so every size error precedes config updates and requests.
+        row_batches = list(
+            _iter_row_batches(
+                normalized_rows,
+                max_request_body_bytes=_MAX_REQUEST_BODY_BYTES,
+                target_batch_body_bytes=_TARGET_ROW_BATCH_BODY_BYTES,
+                max_rows_per_batch=_MAX_ROWS_PER_BATCH,
+            )
+        )
+        class_label_accumulator.flush(bound_run.run)
         return _CESWritePayloads(
             dataset_fields=dataset_fields,
             scorers=scorers,
-            # Materialize batches so every size error precedes the first request.
-            row_batches=list(
-                _iter_row_batches(
-                    normalized_rows,
-                    max_request_body_bytes=_MAX_REQUEST_BODY_BYTES,
-                    target_batch_body_bytes=_TARGET_ROW_BATCH_BODY_BYTES,
-                    max_rows_per_batch=_MAX_ROWS_PER_BATCH,
-                )
-            ),
+            row_batches=row_batches,
             media_cells_examined=media_cells_examined,
             oversized_media_cells=oversized_media_cells,
             oversized_locations=tuple(oversized_locations),
@@ -438,6 +443,7 @@ class CESWriter:
         bound_run: _BoundRun,
         row_index: int,
         oversized_locations: list[str],
+        class_label_accumulator: _media_ces.ClassLabelAccumulator,
     ) -> tuple[dict[str, Any], int, int]:
         """Normalize one input/output mapping and accumulate its inferred types."""
         normalized_values: dict[str, Any] = {}
@@ -458,6 +464,9 @@ class CESWriter:
                 normalized, value_type, oversized_size = self._normalize_media(
                     value,
                     bound_run,
+                    source=source,
+                    column_name=name,
+                    class_label_accumulator=class_label_accumulator,
                 )
                 if oversized_size is not None:
                     oversized_cells += 1
@@ -511,13 +520,22 @@ class CESWriter:
         self,
         value: Media,
         bound_run: _BoundRun,
+        *,
+        source: _CESFieldSource,
+        column_name: str,
+        class_label_accumulator: _media_ces.ClassLabelAccumulator,
     ) -> tuple[Any, _CESFieldType, int | None]:
         """Return a CES extension value, its field type, and oversized byte count."""
         try:
             media_cell = _media_ces.prepare_media(
                 value,
                 bound_run.run,
-                bound_run.eval_table_key,
+                _media_ces.EvalTableMediaField(
+                    eval_table_key=bound_run.eval_table_key,
+                    source="inputs" if source == "input" else "outputs",
+                    column_name=column_name,
+                ),
+                class_label_accumulator=class_label_accumulator,
             )
         except _media_ces.UnsupportedMediaVariantError as error:
             if self._unsupported_media_mode == "raise":
