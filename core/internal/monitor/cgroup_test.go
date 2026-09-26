@@ -99,6 +99,34 @@ func TestCgroupV2IgnoresParentLimits(t *testing.T) {
 	require.InEpsilon(t, 4.0, limits.CPULimit(), 1e-9)
 }
 
+func TestCgroupV2CPUThrottling(t *testing.T) {
+	root := t.TempDir()
+	mountPoint := filepath.Join(root, "sys", "fs", "cgroup")
+	cgroupPath := filepath.Join(mountPoint, "container456")
+	cpuStat := filepath.Join(cgroupPath, "cpu.stat")
+
+	writeTestFile(t, testProcCgroupPath(root), "0::/container456\n")
+	writeTestFile(
+		t,
+		testProcMountInfoPath(root),
+		fmt.Sprintf("1 0 0:1 / %s rw,relatime - cgroup2 cgroup rw\n", mountPoint),
+	)
+	writeCgroupFile(t, filepath.Join(cgroupPath, "cpu.max"), "200000 100000")
+	writeCgroupFile(t, cpuStat, "usage_usec 500\nnr_periods 100\nnr_throttled 10\nthrottled_usec 20")
+
+	sys := &System{cgroup: detectCgroupResourceLimits(testCgroupPaths(root))}
+	require.NotNil(t, sys.cgroup)
+
+	first := make(map[string]any)
+	sys.collectCPUThrottlingMetrics(first)
+	require.NotContains(t, first, "proc.cpu.throttledPercent")
+
+	writeCgroupFile(t, cpuStat, "usage_usec 900\nnr_periods 140\nnr_throttled 20\nthrottled_usec 60")
+	second := make(map[string]any)
+	sys.collectCPUThrottlingMetrics(second)
+	require.InEpsilon(t, 25.0, second["proc.cpu.throttledPercent"], 1e-9)
+}
+
 func TestCgroupV1ResourceLimitsIgnored(t *testing.T) {
 	root := t.TempDir()
 	memoryMount := filepath.Join(root, "sys", "fs", "cgroup", "memory")

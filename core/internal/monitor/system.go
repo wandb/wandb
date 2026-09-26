@@ -66,6 +66,16 @@ type System struct {
 
 	// networkBytesRecvInit stores the initial network bytes received to calculate deltas
 	networkBytesRecvInit int
+
+	// cpuStatLast holds the cpu.stat counters from the previous sample, or
+	// nil before the first one.
+	cpuStatLast *cpuStatCounters
+}
+
+// cpuStatCounters are the cumulative CFS bandwidth counters read from cpu.stat.
+type cpuStatCounters struct {
+	periods   uint64
+	throttled uint64
 }
 
 type SystemParams struct {
@@ -262,6 +272,8 @@ func (s *System) Sample() (*spb.StatsRecord, error) {
 		errs = append(errs, err)
 	}
 
+	s.collectCPUThrottlingMetrics(metrics)
+
 	// Collect process-specific metrics.
 	if s.pid > 0 {
 		proc, err := process.NewProcess(s.pid)
@@ -413,6 +425,31 @@ func (s *System) collectSystemMemoryMetrics(
 	metrics["proc.memory.availableMB"] = float64(virtualMem.Available) / 1024 / 1024
 
 	return virtualMem.Total, nil
+}
+
+// collectCPUThrottlingMetrics reports the percentage of CFS scheduling
+// periods since the previous sample in which the cgroup's CPU quota
+// throttled the run.
+//
+// Nothing is reported without a quota, on the first sample, or when no
+// period elapsed.
+func (s *System) collectCPUThrottlingMetrics(metrics map[string]any) {
+	if s.cgroup == nil {
+		return
+	}
+	periods, throttled, ok := s.cgroup.CPUThrottling()
+	if !ok {
+		return
+	}
+
+	last := s.cpuStatLast
+	s.cpuStatLast = &cpuStatCounters{periods: periods, throttled: throttled}
+	if last == nil || periods <= last.periods || throttled < last.throttled {
+		return
+	}
+
+	metrics["proc.cpu.throttledPercent"] =
+		float64(throttled-last.throttled) / float64(periods-last.periods) * 100
 }
 
 func (s *System) cpuCapacity() float64 {
