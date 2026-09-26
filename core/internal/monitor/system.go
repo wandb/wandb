@@ -70,6 +70,10 @@ type System struct {
 	// cpuStatLast holds the cpu.stat counters from the previous sample, or
 	// nil before the first one.
 	cpuStatLast *cpuStatCounters
+
+	// oomKillsInit is the memory.events oom_kill count at the first sample,
+	// or nil before it.
+	oomKillsInit *uint64
 }
 
 // cpuStatCounters are the cumulative CFS bandwidth counters read from cpu.stat.
@@ -273,6 +277,7 @@ func (s *System) Sample() (*spb.StatsRecord, error) {
 	}
 
 	s.collectCPUThrottlingMetrics(metrics)
+	s.collectOOMKillMetrics(metrics)
 
 	// Collect process-specific metrics.
 	if s.pid > 0 {
@@ -450,6 +455,22 @@ func (s *System) collectCPUThrottlingMetrics(metrics map[string]any) {
 
 	metrics["proc.cpu.throttledPercent"] =
 		float64(throttled-last.throttled) / float64(periods-last.periods) * 100
+}
+
+// collectOOMKillMetrics reports how many processes in the run's cgroup the
+// OOM killer has killed since monitoring started.
+func (s *System) collectOOMKillMetrics(metrics map[string]any) {
+	if s.cgroup == nil {
+		return
+	}
+	kills, ok := s.cgroup.OOMKills()
+	if !ok {
+		return
+	}
+	if s.oomKillsInit == nil || kills < *s.oomKillsInit {
+		s.oomKillsInit = &kills
+	}
+	metrics["proc.memory.oomKills"] = float64(kills - *s.oomKillsInit)
 }
 
 func (s *System) cpuCapacity() float64 {

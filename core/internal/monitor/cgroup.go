@@ -43,6 +43,7 @@ const (
 
 	cgroupV2MemoryCurrentFile = "memory.current"
 	cgroupV2MemoryMaxFile     = "memory.max"
+	cgroupV2MemoryEventsFile  = "memory.events"
 
 	cgroupV2CPUMaxFile  = "cpu.max"
 	cgroupV2CPUStatFile = "cpu.stat"
@@ -100,6 +101,10 @@ type cgroupResourceLimits struct {
 	// whose cpu.max sets a quota. Empty when no quota applied at startup;
 	// only a quota can throttle.
 	cpuStatFile string
+
+	// memoryEventsFile is the absolute path to memory.events in the
+	// process's cgroup directory.
+	memoryEventsFile string
 }
 
 // detectCgroupResourceLimits resolves the cgroup v2 limits that apply to
@@ -142,7 +147,9 @@ func detectCgroupResourceLimits(paths cgroupPaths) *cgroupResourceLimits {
 		return nil
 	}
 
-	limits := &cgroupResourceLimits{}
+	limits := &cgroupResourceLimits{
+		memoryEventsFile: filepath.Join(leafDir, cgroupV2MemoryEventsFile),
+	}
 	limits.memoryCurrentFile, limits.memoryLimitBytes = memoryLimit(leafDir)
 	// cpu.max and the cpuset affinity list are independent restrictions:
 	// either may be unset, both may apply. Take the binding constraint.
@@ -290,6 +297,19 @@ func (c *cgroupResourceLimits) MemoryLimit() (uint64, bool) {
 // when zero is returned.
 func (c *cgroupResourceLimits) CPULimit() float64 {
 	return c.cpuLimit
+}
+
+// OOMKills returns the cumulative number of processes in the cgroup killed
+// by any OOM killer, from memory.events.
+//
+// ok is false when memory.events cannot be read.
+func (c *cgroupResourceLimits) OOMKills() (uint64, bool) {
+	values, ok := readCgroupKeyValues(c.memoryEventsFile)
+	if !ok {
+		return 0, false
+	}
+	kills, ok := values["oom_kill"]
+	return kills, ok
 }
 
 // CPUThrottling returns the cumulative counts of CFS scheduling periods and
