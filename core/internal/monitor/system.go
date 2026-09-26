@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -97,10 +99,9 @@ func NewSystem(params SystemParams) *System {
 	s.initializeDisk()
 
 	// Initialize network I/O counters.
-	netIOCounters, err := net.IOCounters(false)
-	if err == nil && len(netIOCounters) > 0 {
-		s.networkBytesSentInit = int(netIOCounters[0].BytesSent)
-		s.networkBytesRecvInit = int(netIOCounters[0].BytesRecv)
+	if sent, recv, err := networkTotals(); err == nil {
+		s.networkBytesSentInit = int(sent)
+		s.networkBytesRecvInit = int(recv)
 	}
 
 	return s
@@ -339,17 +340,51 @@ func (s *System) collectProcessTreeMetrics(
 
 // collectNetworkMetrics gathers network traffic statistics.
 func (s *System) collectNetworkMetrics(metrics map[string]any) error {
-	netIOCounters, err := net.IOCounters(false)
+	sent, recv, err := networkTotals()
 	if err != nil {
 		return err
 	}
 
-	if len(netIOCounters) > 0 {
-		metrics["network.sent"] = float64(int(netIOCounters[0].BytesSent) - s.networkBytesSentInit)
-		metrics["network.recv"] = float64(int(netIOCounters[0].BytesRecv) - s.networkBytesRecvInit)
+	metrics["network.sent"] = float64(int(sent) - s.networkBytesSentInit)
+	metrics["network.recv"] = float64(int(recv) - s.networkBytesRecvInit)
+	return nil
+}
+
+// networkTotals sums the bytes sent and received over the interfaces that
+// carry the machine's traffic once.
+//
+// Loopback interfaces are skipped, and so are interfaces enslaved to a bond,
+// bridge or team master, whose traffic the master already reports.
+func networkTotals() (sent, recv uint64, err error) {
+	counters, err := net.IOCounters(true)
+	if err != nil {
+		return 0, 0, err
 	}
 
-	return nil
+	loopback := make(map[string]bool)
+	if interfaces, err := net.Interfaces(); err == nil {
+		for _, iface := range interfaces {
+			if slices.Contains(iface.Flags, "loopback") {
+				loopback[iface.Name] = true
+			}
+		}
+	}
+
+	for _, c := range counters {
+		if loopback[c.Name] || isEnslavedInterface(c.Name) {
+			continue
+		}
+		sent += c.BytesSent
+		recv += c.BytesRecv
+	}
+	return sent, recv, nil
+}
+
+// isEnslavedInterface reports whether a Linux network interface has a master
+// device, as a bond or bridge member does.
+func isEnslavedInterface(name string) bool {
+	_, err := os.Stat(filepath.Join("/sys/class/net", name, "master"))
+	return err == nil
 }
 
 // collectSystemMemoryMetrics gathers system-wide memory statistics.
