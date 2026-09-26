@@ -127,6 +127,34 @@ func TestCgroupV2CPUThrottling(t *testing.T) {
 	require.InEpsilon(t, 25.0, second["proc.cpu.throttledPercent"], 1e-9)
 }
 
+func TestCgroupV2OOMKills(t *testing.T) {
+	root := t.TempDir()
+	mountPoint := filepath.Join(root, "sys", "fs", "cgroup")
+	cgroupPath := filepath.Join(mountPoint, "container456")
+	events := filepath.Join(cgroupPath, "memory.events")
+
+	writeTestFile(t, testProcCgroupPath(root), "0::/container456\n")
+	writeTestFile(
+		t,
+		testProcMountInfoPath(root),
+		fmt.Sprintf("1 0 0:1 / %s rw,relatime - cgroup2 cgroup rw\n", mountPoint),
+	)
+	writeCgroupFile(t, filepath.Join(cgroupPath, "memory.max"), fmt.Sprint(8*1024*1024*1024))
+	writeCgroupFile(t, events, "low 0\nhigh 3\nmax 1\noom 1\noom_kill 1\noom_group_kill 0")
+
+	sys := &System{cgroup: detectCgroupResourceLimits(testCgroupPaths(root))}
+	require.NotNil(t, sys.cgroup)
+
+	first := make(map[string]any)
+	sys.collectOOMKillMetrics(first)
+	require.Equal(t, 0.0, first["proc.memory.oomKills"])
+
+	writeCgroupFile(t, events, "low 0\nhigh 5\nmax 2\noom 3\noom_kill 3\noom_group_kill 0")
+	second := make(map[string]any)
+	sys.collectOOMKillMetrics(second)
+	require.Equal(t, 2.0, second["proc.memory.oomKills"])
+}
+
 func TestCgroupV1ResourceLimitsIgnored(t *testing.T) {
 	root := t.TempDir()
 	memoryMount := filepath.Join(root, "sys", "fs", "cgroup", "memory")
