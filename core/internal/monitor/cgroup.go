@@ -44,7 +44,8 @@ const (
 	cgroupV2MemoryCurrentFile = "memory.current"
 	cgroupV2MemoryMaxFile     = "memory.max"
 
-	cgroupV2CPUMaxFile = "cpu.max"
+	cgroupV2CPUMaxFile  = "cpu.max"
+	cgroupV2CPUStatFile = "cpu.stat"
 )
 
 // defaultCgroupPaths is the production configuration: read the real /proc
@@ -94,6 +95,11 @@ type cgroupResourceLimits struct {
 	// quota/period and the size of Cpus_allowed_list (when smaller than
 	// the host). Zero means no CPU limit applied at startup.
 	cpuLimit float64
+
+	// cpuStatFile is the absolute path to cpu.stat in the cgroup directory
+	// whose cpu.max sets a quota. Empty when no quota applied at startup;
+	// only a quota can throttle.
+	cpuStatFile string
 }
 
 // detectCgroupResourceLimits resolves the cgroup v2 limits that apply to
@@ -142,10 +148,14 @@ func detectCgroupResourceLimits(paths cgroupPaths) *cgroupResourceLimits {
 	// either may be unset, both may apply. Take the binding constraint.
 	// minPositive (instead of plain min) avoids letting an unset 0 win
 	// over a real positive limit.
+	quotaLimit := cpuQuotaLimit(leafDir)
 	limits.cpuLimit = minPositive(
-		cpuQuotaLimit(leafDir),
+		quotaLimit,
 		cpuAllowedLimit(procInfo.cpuAllowed, paths.logicalCPUCount),
 	)
+	if quotaLimit > 0 {
+		limits.cpuStatFile = filepath.Join(leafDir, cgroupV2CPUStatFile)
+	}
 
 	hasMemoryLimit := limits.memoryLimitBytes > 0
 	hasCPULimit := limits.cpuLimit > 0
@@ -280,6 +290,24 @@ func (c *cgroupResourceLimits) MemoryLimit() (uint64, bool) {
 // when zero is returned.
 func (c *cgroupResourceLimits) CPULimit() float64 {
 	return c.cpuLimit
+}
+
+// CPUThrottling returns the cumulative counts of CFS scheduling periods and
+// of periods in which the cgroup was throttled, from cpu.stat.
+//
+// ok is false when no CPU quota applied at startup or cpu.stat cannot be
+// read.
+func (c *cgroupResourceLimits) CPUThrottling() (periods, throttled uint64, ok bool) {
+	if c.cpuStatFile == "" {
+		return 0, 0, false
+	}
+	values, ok := readCgroupKeyValues(c.cpuStatFile)
+	if !ok {
+		return 0, 0, false
+	}
+	periods, hasPeriods := values["nr_periods"]
+	throttled, hasThrottled := values["nr_throttled"]
+	return periods, throttled, hasPeriods && hasThrottled
 }
 
 // memoryLimit reads memory.max from a cgroup directory and returns it
@@ -451,6 +479,30 @@ func readCgroupV2CPUMax(path string) (quota, period int64, ok bool) {
 		return 0, 0, false
 	}
 	return quota, period, true
+}
+
+// readCgroupKeyValues reads a cgroup v2 file of "key value" lines with
+// decimal uint64 values (e.g. cpu.stat, memory.events).
+//
+// Lines that do not fit that shape are skipped. ok is false when the file
+// cannot be read.
+func readCgroupKeyValues(path string) (map[string]uint64, bool) {
+	text, err := os.ReadFile(path)
+	if err != nil {
+		return nil, false
+	}
+
+	values := make(map[string]uint64)
+	for _, line := range strings.Split(string(text), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) != 2 {
+			continue
+		}
+		if value, err := strconv.ParseUint(fields[1], 10, 64); err == nil {
+			values[fields[0]] = value
+		}
+	}
+	return values, true
 }
 
 // readCgroupUint reads a cgroup v2 file containing a single decimal
