@@ -145,16 +145,9 @@ class ClassLabelAccumulator:
 class UnsupportedMediaVariantError(TypeError):
     """Raised when EvalTable supports a media type but not its backing data."""
 
-    def __init__(
-        self,
-        message: str,
-        *,
-        stub_warning: str,
-        extension_type: CESExtensionType,
-    ) -> None:
+    def __init__(self, message: str, *, stub_warning: str) -> None:
         super().__init__(message)
         self.stub_warning = stub_warning
-        self.extension_type = extension_type
 
 
 @dataclass(frozen=True)
@@ -164,19 +157,21 @@ class _MediaSerializer:
     build_value: Callable[[dict[str, Any], Run], _CESMediaExtensionValue]
 
 
-def _media_serializer(media: Media) -> _MediaSerializer | None:
-    return next(
-        (
-            serializer
-            for serializer in _MEDIA_SERIALIZERS
-            if isinstance(media, serializer.media_type)
-        ),
-        None,
+def _media_serializer(media: Media) -> _MediaSerializer:
+    for serializer in _MEDIA_SERIALIZERS:
+        if isinstance(media, serializer.media_type):
+            return serializer
+    raise UsageError(
+        f"CES EvalTable does not support media type {type(media).__name__!r}."
     )
 
 
 def is_supported_wandb_media(value: Any) -> bool:
     return isinstance(value, SUPPORTED_WANDB_MEDIA_TYPES)
+
+
+def media_extension_type(media: Media) -> CESExtensionType:
+    return _media_serializer(media).extension_type
 
 
 def prepare_media(
@@ -187,80 +182,15 @@ def prepare_media(
 ) -> PreparedMediaCell:
     """Prepare supported media for one EvalTable cell in the active run."""
     serializer = _media_serializer(media)
-    if serializer is None:
-        raise UsageError(
-            f"CES EvalTable does not support media type {type(media).__name__!r}."
-        )
-
-    if isinstance(media, Image):
-        return prepare_image(media, run, field, class_label_accumulator)
-    return _prepare_file_media(media, run, field, serializer)
-
-
-def prepare_image(
-    image: Image,
-    run: Run,
-    field: EvalTableMediaField,
-    class_label_accumulator: ClassLabelAccumulator | None = None,
-) -> PreparedMediaCell:
-    accumulated_labels = class_label_accumulator or ClassLabelAccumulator()
-    working_image = _image_for_run(image, run)
-    if (
-        _committed_artifact_ref_url(
-            working_image,
-            parent_extension_type="wandb-image",
-        )
-        is None
-    ):
-        _ensure_eval_table_run_file(
-            working_image,
-            run,
-            field.eval_table_key,
-            parent_extension_type="wandb-image",
-        )
-
-    for overlay in _image_overlays(working_image):
-        _ensure_eval_table_run_file(
-            overlay,
-            run,
-            field.eval_table_key,
-            parent_extension_type="wandb-image",
-        )
-        accumulated_labels.add(
-            overlay,
-            field,
-            _overlay_class_labels(overlay, working_image._classes),
-        )
-
-    if class_label_accumulator is None:
-        accumulated_labels.flush(run)
-
-    image_json = working_image.to_json(run)
-    extension_value = _image_ces_extension_value(image_json, run)
-    _rewrite_image_overlay_references(extension_value, run)
-    return _prepared_media_cell(extension_value, extension_type="wandb-image")
-
-
-def _prepare_file_media(
-    media: Media,
-    run: Run,
-    field: EvalTableMediaField,
-    serializer: _MediaSerializer,
-) -> PreparedMediaCell:
-    working_media = _media_for_run(media, run)
-    if (
-        _committed_artifact_ref_url(
-            working_media,
-            parent_extension_type=serializer.extension_type,
-        )
-        is None
-    ):
-        _ensure_eval_table_run_file(
-            working_media,
-            run,
-            field.eval_table_key,
-            parent_extension_type=serializer.extension_type,
-        )
+    working_media = (
+        _image_for_run(media, run)
+        if isinstance(media, Image)
+        else _media_for_run(media, run)
+    )
+    if _committed_artifact_ref_url(working_media) is None:
+        _ensure_eval_table_run_file(working_media, run, field.eval_table_key)
+    if isinstance(working_media, Image):
+        _prepare_image_overlays(working_media, run, field, class_label_accumulator)
 
     media_json = working_media.to_json(run)
     extension_value = serializer.build_value(media_json, run)
@@ -268,6 +198,25 @@ def _prepare_file_media(
         extension_value,
         extension_type=serializer.extension_type,
     )
+
+
+def _prepare_image_overlays(
+    image: Image,
+    run: Run,
+    field: EvalTableMediaField,
+    class_label_accumulator: ClassLabelAccumulator | None,
+) -> None:
+    accumulated_labels = class_label_accumulator or ClassLabelAccumulator()
+    for overlay in _image_overlays(image):
+        _ensure_eval_table_run_file(overlay, run, field.eval_table_key)
+        accumulated_labels.add(
+            overlay,
+            field,
+            _overlay_class_labels(overlay, image._classes),
+        )
+
+    if class_label_accumulator is None:
+        accumulated_labels.flush(run)
 
 
 def _prepared_media_cell(
@@ -326,22 +275,15 @@ def _image_overlays(image: Image) -> list[Media]:
     return overlays
 
 
-def _committed_artifact_ref_url(
-    media: Media,
-    *,
-    parent_extension_type: CESExtensionType,
-) -> str | None:
+def _committed_artifact_ref_url(media: Media) -> str | None:
     ref_url = media._get_artifact_entry_ref_url()
     if util._is_artifact_string(ref_url):
-        _check_external_reference_artifact(media, parent_extension_type)
+        _check_external_reference_artifact(media)
         return ref_url
     return None
 
 
-def _check_external_reference_artifact(
-    media: Media,
-    parent_extension_type: CESExtensionType,
-) -> None:
+def _check_external_reference_artifact(media: Media) -> None:
     source = media._artifact_source
     if source is None:
         return
@@ -372,7 +314,6 @@ def _check_external_reference_artifact(
                     f"wandb.{type_name} values backed by external reference artifacts "
                     "are not supported by EvalTable. They will be logged as null."
                 ),
-                extension_type=parent_extension_type,
             )
 
 
@@ -382,8 +323,6 @@ def _ensure_eval_table_run_file(
     media: Media,
     run: Run,
     eval_table_key: str,
-    *,
-    parent_extension_type: CESExtensionType,
 ) -> str:
     if media._run is run:
         return _run_file_uri(run, _logical_run_file_path(media, run))
@@ -393,7 +332,7 @@ def _ensure_eval_table_run_file(
             f"Cannot rebind {type(media).__name__} from a different run in place."
         )
 
-    _check_external_reference_artifact(media, parent_extension_type)
+    _check_external_reference_artifact(media)
 
     if media.path_is_reference(media._path):
         type_name = type(media).__name__
@@ -404,7 +343,6 @@ def _ensure_eval_table_run_file(
                 f"wandb.{type_name} values that reference external storage are not "
                 "supported by EvalTable. They will be logged as null."
             ),
-            extension_type=parent_extension_type,
         )
 
     if not media.file_is_set():
@@ -513,6 +451,7 @@ def _image_ces_extension_value(
     for key in ("caption", "width", "height", "boxes", "masks"):
         if key in image_json:
             extension_value[key] = image_json[key]
+    _rewrite_image_overlay_references(extension_value, run)
     return extension_value
 
 

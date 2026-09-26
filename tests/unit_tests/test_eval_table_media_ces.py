@@ -279,7 +279,6 @@ def test_committed_artifact_media_returns_artifact_ref_url(tmp_path, monkeypatch
     assert (
         _media_ces._committed_artifact_ref_url(
             image,
-            parent_extension_type="wandb-image",
         )
         == artifact_ref_url
     )
@@ -310,7 +309,6 @@ def test_unbound_media_is_bound_in_place_to_eval_table_path(run_factory, tmp_pat
         image,
         run,
         "eval/key",
-        parent_extension_type="wandb-image",
     )
 
     expected_path = os.path.join(
@@ -337,13 +335,11 @@ def test_repeated_media_content_is_placed_once(run_factory, tmp_path):
         first,
         run,
         "eval",
-        parent_extension_type="wandb-image",
     )
     _media_ces._ensure_eval_table_run_file(
         second,
         run,
         "eval",
-        parent_extension_type="wandb-image",
     )
 
     assert second._run is run
@@ -366,7 +362,6 @@ def test_media_already_bound_to_active_run_reuses_existing_path(
         working_image,
         run,
         "eval",
-        parent_extension_type="wandb-image",
     )
 
     assert working_image is image
@@ -387,7 +382,6 @@ def test_media_for_another_run_is_copied_before_binding(run_factory, tmp_path):
         working_image,
         destination_run,
         "eval",
-        parent_extension_type="wandb-image",
     )
 
     assert image._run is source_run
@@ -405,13 +399,13 @@ def test_ces_eval_table_supports_registered_media_types():
     )
 
 
-def test_prepare_image_creates_ces_extension_value(run_factory, tmp_path):
+def test_prepare_media_creates_ces_image_extension_value(run_factory, tmp_path):
     run = run_factory("run-one")
     path = _png(tmp_path)
     image = wandb.Image(path, grouping=7)
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
 
-    prepared = _media_ces.prepare_image(image, run, _IMAGE_FIELD)
+    prepared = _media_ces.prepare_media(image, run, _IMAGE_FIELD)
 
     assert prepared.value == {
         "sha256": digest,
@@ -512,7 +506,7 @@ def test_committed_artifact_image_preserves_artifact_ref_url(
     artifact_uri = "wandb-artifact://abc123/media/images/image.png"
     monkeypatch.setattr(image, "_get_artifact_entry_ref_url", lambda: artifact_uri)
 
-    prepared = _media_ces.prepare_image(image, run, _IMAGE_FIELD)
+    prepared = _media_ces.prepare_media(image, run, _IMAGE_FIELD)
 
     assert prepared.value["uri"] == artifact_uri
     assert image._run is None
@@ -617,7 +611,7 @@ def test_artifact_rehydrated_image_mask_registers_parent_class_labels(
         mask_keys=("predictions",),
     )
 
-    prepared = _media_ces.prepare_image(image, run, _IMAGE_FIELD)
+    prepared = _media_ces.prepare_media(image, run, _IMAGE_FIELD)
 
     assert prepared.value["uri"] == artifact_uri
     mask = prepared.value["masks"]["predictions"]
@@ -642,7 +636,7 @@ def test_artifact_rehydrated_image_boxes_register_parent_class_labels(
         boxes={"predictions": [_box(2)]},
     )
 
-    prepared = _media_ces.prepare_image(image, run, _IMAGE_FIELD)
+    prepared = _media_ces.prepare_media(image, run, _IMAGE_FIELD)
 
     assert prepared.value["uri"] == artifact_uri
     boxes = prepared.value["boxes"]["predictions"]
@@ -667,7 +661,7 @@ def test_image_with_masks_and_boxes_uses_run_file_uris(run_factory, tmp_path):
     box_path = box_media._path
     mask_path = mask_media._path
 
-    prepared = _media_ces.prepare_image(image, run, _IMAGE_FIELD)
+    prepared = _media_ces.prepare_media(image, run, _IMAGE_FIELD)
 
     box = prepared.value["boxes"]["predictions"]
     mask = prepared.value["masks"]["predictions"]
@@ -925,7 +919,7 @@ def test_external_reference_artifact_image_overlays_raise_in_raise_mode(
 def test_cell_at_size_limit_becomes_null(run_factory, tmp_path, monkeypatch):
     run = run_factory("run-one")
     first = wandb.Image(_png(tmp_path, "first.png"), caption="caption")
-    first_result = _media_ces.prepare_image(first, run, _IMAGE_FIELD)
+    first_result = _media_ces.prepare_media(first, run, _IMAGE_FIELD)
     second_path = tmp_path / "second.png"
     second_path.write_bytes(Path(first._path).read_bytes())
     second = wandb.Image(second_path, caption="caption")
@@ -935,7 +929,7 @@ def test_cell_at_size_limit_becomes_null(run_factory, tmp_path, monkeypatch):
         first_result.encoded_size,
     )
 
-    result = _media_ces.prepare_image(second, run, _IMAGE_FIELD)
+    result = _media_ces.prepare_media(second, run, _IMAGE_FIELD)
 
     assert result.encoded_size == first_result.encoded_size
     assert result.value is None
