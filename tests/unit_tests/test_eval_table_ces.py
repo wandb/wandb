@@ -190,6 +190,43 @@ def test_ces_eval_table_stubs_media_until_native_support_exists(
     )
 
 
+@pytest.mark.parametrize(
+    ("oversized_media_cells", "expected_metrics"),
+    [
+        (0, ["eval_table_ces_media_write"]),
+        (
+            1,
+            [
+                "eval_table_ces_media_write",
+                "eval_table_ces_media_write_with_oversized_cells",
+            ],
+        ),
+    ],
+)
+def test_ces_eval_table_media_telemetry_counts_affected_writes(
+    monkeypatch,
+    oversized_media_cells,
+    expected_metrics,
+):
+    recorder = MagicMock()
+    monkeypatch.setattr(ces, "get_telemetry_recorder", lambda: recorder)
+    prepared = ces._CESWritePayloads(
+        dataset_fields=[],
+        scorers=[],
+        row_batches=[],
+        media_cells_examined=1,
+        oversized_media_cells=oversized_media_cells,
+        oversized_locations=(),
+    )
+
+    ces.CESWriter()._record_media_telemetry(prepared)
+
+    assert [
+        call.args[0] for call in recorder.increment_counter.call_args_list
+    ] == expected_metrics
+    recorder.log.assert_not_called()
+
+
 def test_ces_eval_table_raises_for_media_in_raise_mode(mock_ces_client):
     from PIL import Image as PILImage
 
@@ -479,6 +516,17 @@ def test_ces_eval_table_rejects_mixed_types_with_permissive_dtype_before_network
         run.log({"mixed_eval": et})
 
     mock_ces_client.eval_tables.create.assert_not_called()
+
+
+def test_ces_eval_table_reports_extension_types_in_mixed_column_error():
+    writer = ces.CESWriter()
+
+    with pytest.raises(UsageError, match="mixes 'wandb-image' and 'wandb-audio'"):
+        writer._merge_field_type(
+            "media",
+            ces._CESFieldType("json", "wandb-image", 1),
+            ces._CESFieldType("json", "wandb-audio", 1),
+        )
 
 
 @pytest.mark.parametrize(
