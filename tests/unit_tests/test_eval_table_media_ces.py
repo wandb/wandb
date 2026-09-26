@@ -624,6 +624,26 @@ def test_artifact_rehydrated_image_mask_registers_parent_class_labels(
     assert "mask_data" not in mask
 
 
+def test_path_backed_image_mask_registers_parent_class_labels(run_factory, tmp_path):
+    run = run_factory("run-one")
+    mask_path = tmp_path / "mask.png"
+    PILImage.new("L", (2, 2), color=1).save(mask_path)
+    mask = wandb.data_types.ImageMask({"path": str(mask_path)}, key="predictions")
+    image = wandb.Image(
+        _png(tmp_path),
+        masks={"predictions": mask},
+        classes=[{"id": 1, "name": "car"}],
+    )
+
+    _media_ces.prepare_media(image, run, _IMAGE_FIELD)
+
+    assert run._add_singleton.call_args == call(
+        "mask/class_labels",
+        "eval/inputs/image_wandb_delimeter_predictions",
+        {1: "car"},
+    )
+
+
 def test_artifact_rehydrated_image_boxes_register_parent_class_labels(
     run_factory,
     artifact_image_factory,
