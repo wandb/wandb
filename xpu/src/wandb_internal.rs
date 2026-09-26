@@ -2697,6 +2697,12 @@ pub struct GpuNvidiaInfo {
     pub architecture: ::prost::alloc::string::String,
     #[prost(string, tag = "5")]
     pub uuid: ::prost::alloc::string::String,
+    /// PCI bus ID as reported by NVML, e.g. "00000000:1B:00.0".
+    #[prost(string, tag = "6")]
+    pub pci_bus_id: ::prost::alloc::string::String,
+    /// NUMA node the GPU is attached to, when known.
+    #[prost(uint32, optional, tag = "7")]
+    pub numa_node: ::core::option::Option<u32>,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct GpuAmdInfo {

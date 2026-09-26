@@ -1427,6 +1427,10 @@ message GpuNvidiaInfo {
   uint32 cuda_cores = 3;
   string architecture = 4;
   string uuid = 5;
+  // PCI bus ID as reported by NVML, e.g. "00000000:1B:00.0".
+  string pci_bus_id = 6;
+  // NUMA node the GPU is attached to, when known.
+  optional uint32 numa_node = 7;
 }
 
 message GpuAmdInfo {

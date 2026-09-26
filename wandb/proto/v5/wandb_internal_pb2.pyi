@@ -1708,18 +1708,22 @@ class AppleInfo(_message.Message):
     def __init__(self, name: _Optional[str] = ..., ecpu_cores: _Optional[int] = ..., pcpu_cores: _Optional[int] = ..., gpu_cores: _Optional[int] = ..., memory_gb: _Optional[int] = ..., swap_total_bytes: _Optional[int] = ..., ram_total_bytes: _Optional[int] = ..., mac_model: _Optional[str] = ...) -> None: ...
 
 class GpuNvidiaInfo(_message.Message):
-    __slots__ = ("name", "memory_total", "cuda_cores", "architecture", "uuid")
+    __slots__ = ("name", "memory_total", "cuda_cores", "architecture", "uuid", "pci_bus_id", "numa_node")
     NAME_FIELD_NUMBER: _ClassVar[int]
     MEMORY_TOTAL_FIELD_NUMBER: _ClassVar[int]
     CUDA_CORES_FIELD_NUMBER: _ClassVar[int]
     ARCHITECTURE_FIELD_NUMBER: _ClassVar[int]
     UUID_FIELD_NUMBER: _ClassVar[int]
+    PCI_BUS_ID_FIELD_NUMBER: _ClassVar[int]
+    NUMA_NODE_FIELD_NUMBER: _ClassVar[int]
     name: str
     memory_total: int
     cuda_cores: int
     architecture: str
     uuid: str
-    def __init__(self, name: _Optional[str] = ..., memory_total: _Optional[int] = ..., cuda_cores: _Optional[int] = ..., architecture: _Optional[str] = ..., uuid: _Optional[str] = ...) -> None: ...
+    pci_bus_id: str
+    numa_node: int
+    def __init__(self, name: _Optional[str] = ..., memory_total: _Optional[int] = ..., cuda_cores: _Optional[int] = ..., architecture: _Optional[str] = ..., uuid: _Optional[str] = ..., pci_bus_id: _Optional[str] = ..., numa_node: _Optional[int] = ...) -> None: ...
 
 class GpuAmdInfo(_message.Message):
     __slots__ = ("id", "unique_id", "vbios_version", "performance_level", "gpu_overdrive", "gpu_memory_overdrive", "max_power", "series", "model", "vendor", "sku", "sclk_range", "mclk_range")
