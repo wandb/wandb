@@ -295,6 +295,7 @@ func TestInitRun_ReusesSyncStartState(t *testing.T) {
 	// The values in the syncstate file take precedence over the loaded values.
 	assert.EqualValues(t, 6, run.StartingStep)
 	assert.EqualValues(t, 5, run.Runtime)
+	assert.Equal(t, 5*time.Second, upserter.StartRuntime())
 }
 
 func TestInitRun_RunRecordResumeTrue_ReconcilesWithBackend(t *testing.T) {
