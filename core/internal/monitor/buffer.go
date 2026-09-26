@@ -4,9 +4,9 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/wandb/simplejsonext"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/wandb/wandb/core/internal/systemmetrics"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -56,19 +56,10 @@ func NewBuffer(maxSize int32) *Buffer {
 	}
 }
 
-// Push adds the metrics from a StatsRecord to the buffer.
-func (mb *Buffer) Push(metrics *spb.StatsRecord) {
-	for _, item := range metrics.Item {
-		k := item.Key
-		ts := metrics.Timestamp
-		v := item.ValueJson
-
-		// unmashal the value to a float64 and push it to the buffer
-		if v, err := simplejsonext.UnmarshalString(v); err == nil {
-			if v, ok := v.(float64); ok {
-				mb.push(k, ts, v)
-			}
-		}
+// Push adds the legacy items of a system metrics record to the buffer.
+func (mb *Buffer) Push(metrics *spb.SystemMetricsRecord) {
+	for _, item := range systemmetrics.Items(metrics) {
+		mb.push(item.Key, metrics.GetTimestamp(), item.Value)
 	}
 }
 

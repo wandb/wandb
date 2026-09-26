@@ -177,6 +177,11 @@ func recordSummary(record *spb.Record) string {
 			return time.Unix(ts.GetSeconds(), 0).Format("15:04:05")
 		}
 		return ""
+	case *spb.Record_SystemMetrics:
+		if ts := t.SystemMetrics.GetTimestamp(); ts != nil {
+			return time.Unix(ts.GetSeconds(), 0).Format("15:04:05")
+		}
+		return ""
 	case *spb.Record_OutputRaw:
 		return sanitizeRecordSummary(t.OutputRaw.GetLine())
 	case *spb.Record_Output:

@@ -15,6 +15,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runmetric"
+	"github.com/wandb/wandb/core/internal/systemmetrics"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -175,6 +176,8 @@ func (hs *LevelDBHistorySource) recordToMsg(record *spb.Record) tea.Msg {
 		return nil
 	case *spb.Record_Stats:
 		return ParseStats(hs.runPath, rec.Stats)
+	case *spb.Record_SystemMetrics:
+		return ParseSystemMetrics(hs.runPath, rec.SystemMetrics)
 	case *spb.Record_Summary:
 		return SummaryMsg{RunPath: hs.runPath, Summary: []*spb.SummaryRecord{rec.Summary}}
 	case *spb.Record_Environment:
@@ -473,6 +476,26 @@ func ParseStats(runPath string, stats *spb.StatsRecord) tea.Msg {
 		return StatsMsg{RunPath: runPath, Timestamp: timestamp, Metrics: metrics}
 	}
 	return nil
+}
+
+// ParseSystemMetrics extracts metrics from a typed system metrics record,
+// keyed by their legacy names so they chart like StatsRecord metrics.
+func ParseSystemMetrics(runPath string, rec *spb.SystemMetricsRecord) tea.Msg {
+	items := systemmetrics.Items(rec)
+	if len(items) == 0 {
+		return nil
+	}
+
+	metrics := make(map[string]float64, len(items))
+	for _, item := range items {
+		metrics[item.Key] = item.Value
+	}
+
+	return StatsMsg{
+		RunPath:   runPath,
+		Timestamp: rec.GetTimestamp().GetSeconds(),
+		Metrics:   metrics,
+	}
 }
 
 // parseOutputRaw extracts a ConsoleLogMsg from an OutputRawRecord.

@@ -386,6 +386,8 @@ func (s *Sender) sendRecord(record *spb.Record, request *runwork.Request) {
 		s.sendConfig(record, x.Config)
 	case *spb.Record_Stats:
 		s.sendSystemMetrics(x.Stats)
+	case *spb.Record_SystemMetrics:
+		s.sendTypedSystemMetrics(x.SystemMetrics)
 	case *spb.Record_OutputRaw:
 		s.sendOutputRaw(record, x.OutputRaw)
 	case *spb.Record_OutputLogger:
@@ -1088,36 +1090,12 @@ func (s *Sender) sendConfig(_ *spb.Record, configRecord *spb.ConfigRecord) {
 	upserter.UpdateConfig(configRecord)
 }
 
-// sendSystemMetrics sends a system metrics record via the file stream
+// sendSystemMetrics sends a legacy system metrics record via the file stream.
+//
+// Transaction logs written before the typed record contain these.
 func (s *Sender) sendSystemMetrics(record *spb.StatsRecord) {
-	if s.receivedExit() {
-		s.logCalledAfterExit("sendSystemMetrics")
-		return
-	}
-
-	if s.fileStream == nil {
-		return
-	}
-
-	upserter, err := s.runHandle.Upserter()
-	if err != nil {
-		s.logger.CaptureError(
-			"stream",
-			fmt.Errorf("sender: sendSystemMetrics: %v", err),
-		)
-		return
-	}
-
-	// This is a sanity check to ensure that the start time is set
-	// before sending system metrics, it should always be set
-	// when the run is initialized
-	// If it's not set, we log an error and return
-	startTime := upserter.StartTime()
-	if startTime.IsZero() {
-		s.logger.CaptureError(
-			"stream",
-			errors.New("sender: sendSystemMetrics: start time not set"),
-		)
+	startTime, ok := s.systemMetricsStartTime("sendSystemMetrics")
+	if !ok {
 		return
 	}
 
@@ -1125,6 +1103,54 @@ func (s *Sender) sendSystemMetrics(record *spb.StatsRecord) {
 		StartTime: startTime,
 		Record:    record,
 	})
+}
+
+// sendTypedSystemMetrics sends a system metrics record via the file stream.
+func (s *Sender) sendTypedSystemMetrics(record *spb.SystemMetricsRecord) {
+	startTime, ok := s.systemMetricsStartTime("sendTypedSystemMetrics")
+	if !ok {
+		return
+	}
+
+	s.fileStream.StreamUpdate(&fs.SystemMetricsUpdate{
+		StartTime: startTime,
+		Record:    record,
+	})
+}
+
+// systemMetricsStartTime returns the run's start time, needed to compute the
+// _runtime of a sample, and whether system metrics can be sent at all.
+func (s *Sender) systemMetricsStartTime(caller string) (time.Time, bool) {
+	if s.receivedExit() {
+		s.logCalledAfterExit(caller)
+		return time.Time{}, false
+	}
+
+	if s.fileStream == nil {
+		return time.Time{}, false
+	}
+
+	upserter, err := s.runHandle.Upserter()
+	if err != nil {
+		s.logger.CaptureError(
+			"stream",
+			fmt.Errorf("sender: %s: %v", caller, err),
+		)
+		return time.Time{}, false
+	}
+
+	// The start time is set when the run is initialized, so it should always
+	// be available here.
+	startTime := upserter.StartTime()
+	if startTime.IsZero() {
+		s.logger.CaptureError(
+			"stream",
+			fmt.Errorf("sender: %s: start time not set", caller),
+		)
+		return time.Time{}, false
+	}
+
+	return startTime, true
 }
 
 func (s *Sender) sendOutput(_ *spb.Record, _ *spb.OutputRecord) {
