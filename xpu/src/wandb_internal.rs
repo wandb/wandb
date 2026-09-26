@@ -1183,8 +1183,8 @@ pub struct GenericMetric {
     /// From "# HELP" when present.
     #[prost(string, tag = "6")]
     pub help: ::prost::alloc::string::String,
-    #[prost(double, tag = "7")]
-    pub value: f64,
+    #[prost(double, optional, tag = "7")]
+    pub value: ::core::option::Option<f64>,
     /// Compat only: ordinal of this label set within the writer session, the
     /// <index> in the legacy key. Dropped when keys are regularized.
     #[prost(uint32, tag = "8")]

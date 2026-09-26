@@ -2176,8 +2176,8 @@ type GenericMetric struct {
 	// From "# UNIT" when present.
 	Unit string `protobuf:"bytes,5,opt,name=unit,proto3" json:"unit,omitempty"`
 	// From "# HELP" when present.
-	Help  string  `protobuf:"bytes,6,opt,name=help,proto3" json:"help,omitempty"`
-	Value float64 `protobuf:"fixed64,7,opt,name=value,proto3" json:"value,omitempty"`
+	Help  string   `protobuf:"bytes,6,opt,name=help,proto3" json:"help,omitempty"`
+	Value *float64 `protobuf:"fixed64,7,opt,name=value,proto3,oneof" json:"value,omitempty"`
 	// Compat only: ordinal of this label set within the writer session, the
 	// <index> in the legacy key. Dropped when keys are regularized.
 	LegacySeriesIndex uint32 `protobuf:"varint,8,opt,name=legacy_series_index,json=legacySeriesIndex,proto3" json:"legacy_series_index,omitempty"`
@@ -2258,8 +2258,8 @@ func (x *GenericMetric) GetHelp() string {
 }
 
 func (x *GenericMetric) GetValue() float64 {
-	if x != nil {
-		return x.Value
+	if x != nil && x.Value != nil {
+		return *x.Value
 	}
 	return 0
 }
@@ -2921,16 +2921,17 @@ const file_wandb_proto_wandb_system_metrics_proto_rawDesc = "" +
 	"\x1e_host_memory_application_bytesB\x1e\n" +
 	"\x1c_host_memory_constants_bytesB \n" +
 	"\x1e_host_memory_dma_buffers_bytesB\x1c\n" +
-	"\x1a_host_memory_tensors_bytes\"\xc1\x02\n" +
+	"\x1a_host_memory_tensors_bytes\"\xd0\x02\n" +
 	"\rGenericMetric\x12\x16\n" +
 	"\x06source\x18\x01 \x01(\tR\x06source\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x123\n" +
 	"\x06labels\x18\x03 \x03(\v2\x1b.wandb_internal.MetricLabelR\x06labels\x123\n" +
 	"\x04kind\x18\x04 \x01(\x0e2\x1f.wandb_internal.MetricInfo.KindR\x04kind\x12\x12\n" +
 	"\x04unit\x18\x05 \x01(\tR\x04unit\x12\x12\n" +
-	"\x04help\x18\x06 \x01(\tR\x04help\x12B\n" +
-	"\x05value\x18\a \x01(\x01B,\xa2\xbb\x18(\"&\x1a$openmetrics.{source}.{name}.{series}R\x05value\x12.\n" +
-	"\x13legacy_series_index\x18\b \x01(\rR\x11legacySeriesIndex\"5\n" +
+	"\x04help\x18\x06 \x01(\tR\x04help\x12G\n" +
+	"\x05value\x18\a \x01(\x01B,\xa2\xbb\x18(\"&\x1a$openmetrics.{source}.{name}.{series}H\x00R\x05value\x88\x01\x01\x12.\n" +
+	"\x13legacy_series_index\x18\b \x01(\rR\x11legacySeriesIndexB\b\n" +
+	"\x06_value\"5\n" +
 	"\vMetricLabel\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value*\x8b\x01\n" +
@@ -3063,6 +3064,7 @@ func file_wandb_proto_wandb_system_metrics_proto_init() {
 	file_wandb_proto_wandb_system_metrics_proto_msgTypes[18].OneofWrappers = []any{}
 	file_wandb_proto_wandb_system_metrics_proto_msgTypes[19].OneofWrappers = []any{}
 	file_wandb_proto_wandb_system_metrics_proto_msgTypes[21].OneofWrappers = []any{}
+	file_wandb_proto_wandb_system_metrics_proto_msgTypes[22].OneofWrappers = []any{}
 	file_wandb_proto_wandb_system_metrics_proto_msgTypes[24].OneofWrappers = []any{}
 	file_wandb_proto_wandb_system_metrics_proto_msgTypes[25].OneofWrappers = []any{}
 	type x struct{}

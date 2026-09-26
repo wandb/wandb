@@ -861,7 +861,7 @@ message GenericMetric {
   string unit = 5;
   // From "# HELP" when present.
   string help = 6;
-  double value = 7 [(metric) = { legacy: [ { template: "openmetrics.{source}.{name}.{series}" } ] }];
+  optional double value = 7 [(metric) = { legacy: [ { template: "openmetrics.{source}.{name}.{series}" } ] }];
   // Compat only: ordinal of this label set within the writer session, the
   // <index> in the legacy key. Dropped when keys are regularized.
   uint32 legacy_series_index = 8;
