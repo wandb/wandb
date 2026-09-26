@@ -545,7 +545,7 @@ class CESWriter:
                 None,
                 _CESFieldType(
                     value_type="json",
-                    extension_type=error.extension_type,
+                    extension_type=_media_ces.media_extension_type(value),
                     extension_schema_version=1,
                 ),
                 None,
