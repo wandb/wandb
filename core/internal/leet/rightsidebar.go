@@ -173,8 +173,11 @@ func (rs *RightSidebar) ClearFocus() {
 
 // Update handles animation updates and stats processing.
 func (rs *RightSidebar) Update(msg tea.Msg) (*RightSidebar, tea.Cmd) {
-	if statsMsg, ok := msg.(StatsMsg); ok {
-		rs.ProcessStatsMsg(statsMsg)
+	switch m := msg.(type) {
+	case StatsMsg:
+		rs.ProcessStatsMsg(m)
+	case SystemMetricsMsg:
+		rs.ProcessSystemMetricsMsg(m)
 	}
 
 	if rs.animState.IsAnimating() && !rs.animState.Update(time.Now()) {
@@ -257,9 +260,14 @@ func (rs *RightSidebar) IsFiltering() bool {
 	return !rs.metricsGrid.filter.IsActive() && rs.metricsGrid.filter.Query() != ""
 }
 
-// ProcessStatsMsg processes a stats message and updates the metrics.
+// ProcessStatsMsg processes a legacy stats message and updates the metrics.
 func (rs *RightSidebar) ProcessStatsMsg(msg StatsMsg) {
 	rs.metricsGrid.ProcessStats(msg)
+}
+
+// ProcessSystemMetricsMsg processes a typed system metrics message.
+func (rs *RightSidebar) ProcessSystemMetricsMsg(msg SystemMetricsMsg) {
+	rs.metricsGrid.ProcessSamples(msg)
 }
 
 // calculateGridHeight returns the available height for the metrics grid.

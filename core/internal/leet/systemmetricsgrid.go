@@ -33,6 +33,9 @@ type SystemMetricsGrid struct {
 	// repeat the same names and the match scans ~115 regexes.
 	classified map[string]metricClassification
 
+	// typedDefs caches the chart definition built for each typed chart key.
+	typedDefs map[string]*MetricDef
+
 	// Filter state.
 	filter *Filter
 
@@ -64,6 +67,7 @@ func NewSystemMetricsGrid(
 		ordered:    make([]systemMetricChart, 0),
 		filtered:   make([]systemMetricChart, 0),
 		classified: make(map[string]metricClassification),
+		typedDefs:  make(map[string]*MetricDef),
 		filter:     filter,
 		focus:      focusState,
 		width:      width,

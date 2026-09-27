@@ -6,9 +6,12 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 func expandRightSidebar(t *testing.T, rs *leet.RightSidebar, termWidth int, leftVisible bool) {
@@ -102,6 +105,31 @@ func TestRightSidebar_HeaderShowsPaginationInfo(t *testing.T) {
 	require.Contains(t, view, "System Metrics")
 	// Header includes "[start-end of total]".
 	require.Contains(t, view, "[1-1 of 3]")
+}
+
+func TestRightSidebar_ProcessSystemMetricsMsg_ChartsFromSchema(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+	_, _ = cfg.SetSystemRows(1), cfg.SetSystemCols(1)
+	_, _ = cfg.SetLeftSidebarVisible(false), cfg.SetRightSidebarVisible(false)
+
+	rs := leet.NewRightSidebar(cfg, &leet.Focus{}, logger)
+	expandRightSidebar(t, rs, 140, false)
+
+	msg := leet.ParseSystemMetrics("/run", &spb.SystemMetricsRecord{
+		Timestamp: timestamppb.Now(),
+		Process:   &spb.ProcessMetrics{CpuPercent: proto.Float64(12.5)},
+		Accelerators: []*spb.AcceleratorMetrics{
+			{Type: spb.AcceleratorType_NVIDIA_GPU, Index: 0, TemperatureC: proto.Float64(40)},
+			{Type: spb.AcceleratorType_NVIDIA_GPU, Index: 1, TemperatureC: proto.Float64(42)},
+		},
+	})
+	rs.ProcessSystemMetricsMsg(msg.(leet.SystemMetricsMsg))
+
+	// Two charts: one per field, the two GPUs are series on the same chart.
+	view := rs.View(12, false)
+	require.Contains(t, view, "[1-1 of 2]")
+	require.Contains(t, view, "GPU Temperature (°C)")
 }
 
 func TestRightSidebar_Update_ReturnsAnimationCmdWhileAnimating(t *testing.T) {

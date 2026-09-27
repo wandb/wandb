@@ -26,6 +26,20 @@ type UnitFormatter interface {
 // Dimensionless numbers (epoch charts, counters, etc.).
 var UnitScalar UnitFormatter = unitNone{}
 
+// UnitNamed formats a scalar and shows name as the unit; for units without a
+// dedicated formatter, such as seconds or joules.
+func UnitNamed(name string) UnitFormatter { return unitNamed{name: name} }
+
+type unitNamed struct{ name string }
+
+func (u unitNamed) Name() string { return u.name }
+func (u unitNamed) Format(v float64) string {
+	if v == 0 {
+		return "0"
+	}
+	return unitNone{}.Format(v) + u.name
+}
+
 // Percentages (0..100).
 var UnitPercent UnitFormatter = unitPercent{}
 
