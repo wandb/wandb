@@ -136,6 +136,8 @@ var metricDefs = []MetricDef{
 		Regex: regexp.MustCompile(`^gpu\.\d+\.powerPercent(/l:.+)?$`)},
 	{Name: "GPU Power", Unit: UnitWatt, MinY: 0, MaxY: 500, AutoRange: true,
 		Regex: regexp.MustCompile(`^gpu\.\d+\.powerWatts(/l:.+)?$`)},
+	{Name: "GPU Energy", Unit: UnitJoule, MinY: 0, MaxY: 1000, AutoRange: true,
+		Regex: regexp.MustCompile(`^gpu\.\d+\.energyJoules(/l:.+)?$`)},
 	{Name: "GPU SM Clock", Unit: UnitMHz, MinY: 0, MaxY: 3000, AutoRange: true,
 		Regex: regexp.MustCompile(`^gpu\.\d+\.smClock(/l:.+)?$`)},
 	{Name: "GPU Graphics Clock", Unit: UnitMHz, MinY: 0, MaxY: 3000, AutoRange: true,
