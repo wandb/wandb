@@ -82,6 +82,8 @@ var metricDefs = []MetricDef{
 		Regex: regexp.MustCompile(`^proc\.memory\.availableMB(/l:.+)?$`)},
 	{Name: "Process CPU Threads", Unit: UnitScalar, MinY: 0, MaxY: 100, AutoRange: true,
 		Regex: regexp.MustCompile(`^proc\.cpu\.threads(/l:.+)?$`)},
+	{Name: "Process CPU Throttled", Unit: UnitPercent, MinY: 0, MaxY: 100, Percentage: true,
+		Regex: regexp.MustCompile(`^proc\.cpu\.throttledPercent(/l:.+)?$`)},
 
 	// Disk metrics - handle both aggregated and per-device
 	{Name: "Disk", Unit: UnitPercent, MinY: 0, MaxY: 100, Percentage: true,

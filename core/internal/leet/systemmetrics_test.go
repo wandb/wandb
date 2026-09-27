@@ -27,6 +27,7 @@ func TestMatchMetricDef_BasicFamilies(t *testing.T) {
 		{"TPU runtime HBM util", "tpu.0.runtimeHbmUtilization", "TPU Runtime HBM Utilization", "%"},
 		{"TPU tensorcore idle duration", "tpu.1.tensorcoreIdleDuration",
 			"TPU Tensorcore Idle Duration", ""},
+		{"Process CPU throttled", "proc.cpu.throttledPercent", "Process CPU Throttled", "%"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
