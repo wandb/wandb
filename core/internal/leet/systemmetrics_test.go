@@ -29,6 +29,7 @@ func TestMatchMetricDef_BasicFamilies(t *testing.T) {
 			"TPU Tensorcore Idle Duration", ""},
 		{"Process CPU throttled", "proc.cpu.throttledPercent", "Process CPU Throttled", "%"},
 		{"Process OOM kills", "proc.memory.oomKills", "Process OOM Kills", ""},
+		{"Network TCP retransmits", "network.tcpRetransmits", "Network TCP Retransmits", ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
