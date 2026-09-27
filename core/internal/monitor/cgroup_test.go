@@ -112,7 +112,11 @@ func TestCgroupV2CPUThrottling(t *testing.T) {
 		fmt.Sprintf("1 0 0:1 / %s rw,relatime - cgroup2 cgroup rw\n", mountPoint),
 	)
 	writeCgroupFile(t, filepath.Join(cgroupPath, "cpu.max"), "200000 100000")
-	writeCgroupFile(t, cpuStat, "usage_usec 500\nnr_periods 100\nnr_throttled 10\nthrottled_usec 20")
+	writeCgroupFile(
+		t,
+		cpuStat,
+		"usage_usec 500\nnr_periods 100\nnr_throttled 10\nthrottled_usec 20",
+	)
 
 	sys := &System{cgroup: detectCgroupResourceLimits(testCgroupPaths(root))}
 	require.NotNil(t, sys.cgroup)
@@ -121,7 +125,11 @@ func TestCgroupV2CPUThrottling(t *testing.T) {
 	sys.collectCPUThrottlingMetrics(first)
 	require.NotContains(t, first, "proc.cpu.throttledPercent")
 
-	writeCgroupFile(t, cpuStat, "usage_usec 900\nnr_periods 140\nnr_throttled 20\nthrottled_usec 60")
+	writeCgroupFile(
+		t,
+		cpuStat,
+		"usage_usec 900\nnr_periods 140\nnr_throttled 20\nthrottled_usec 60",
+	)
 	second := make(map[string]any)
 	sys.collectCPUThrottlingMetrics(second)
 	require.InEpsilon(t, 25.0, second["proc.cpu.throttledPercent"], 1e-9)
