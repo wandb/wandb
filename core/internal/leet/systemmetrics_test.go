@@ -30,6 +30,8 @@ func TestMatchMetricDef_BasicFamilies(t *testing.T) {
 		{"Process CPU throttled", "proc.cpu.throttledPercent", "Process CPU Throttled", "%"},
 		{"Process OOM kills", "proc.memory.oomKills", "Process OOM Kills", ""},
 		{"Network TCP retransmits", "network.tcpRetransmits", "Network TCP Retransmits", ""},
+		{"W&B CPU", "wandb.cpu", "W&B CPU", "%"},
+		{"W&B memory", "wandb.memory.rssMB", "W&B Memory", "B"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
