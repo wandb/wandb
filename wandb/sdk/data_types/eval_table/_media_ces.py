@@ -109,6 +109,7 @@ class ClassLabelAccumulator:
         self,
         media: Media,
         field: EvalTableMediaField,
+        overlay_key: str,
         class_labels: dict[int | str, str] | None,
     ) -> None:
         if class_labels is None:
@@ -121,7 +122,7 @@ class ClassLabelAccumulator:
         else:
             return
 
-        key = (singleton_type, field.singleton_key(media._key))
+        key = (singleton_type, field.singleton_key(overlay_key))
         _add_missing_class_labels(self._labels.setdefault(key, {}), class_labels)
 
     def flush(self, run: Run) -> None:
@@ -207,11 +208,12 @@ def _prepare_image_overlays(
     class_label_accumulator: ClassLabelAccumulator | None,
 ) -> None:
     accumulated_labels = class_label_accumulator or ClassLabelAccumulator()
-    for overlay in _image_overlays(image):
+    for overlay_key, overlay in _image_overlays(image):
         _ensure_eval_table_run_file(overlay, run, field.eval_table_key)
         accumulated_labels.add(
             overlay,
             field,
+            overlay_key,
             _overlay_class_labels(overlay, image._classes),
         )
 
@@ -266,12 +268,14 @@ def _unbound_copy(media: _MediaT) -> _MediaT:
     return cloned
 
 
-def _image_overlays(image: Image) -> list[Media]:
-    overlays: list[Media] = []
+# Keyed by the Image's overlay dict key, which `Image.to_json` emits and the
+# frontend joins labels on. Path-backed masks never set their own `_key`.
+def _image_overlays(image: Image) -> list[tuple[str, Media]]:
+    overlays: list[tuple[str, Media]] = []
     if image._boxes:
-        overlays.extend(image._boxes.values())
+        overlays.extend(image._boxes.items())
     if image._masks:
-        overlays.extend(image._masks.values())
+        overlays.extend(image._masks.items())
     return overlays
 
 
