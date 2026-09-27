@@ -380,10 +380,13 @@ func networkTotals() (sent, recv uint64, err error) {
 	return sent, recv, nil
 }
 
+// sysClassNet is where Linux describes network interfaces.
+const sysClassNet = "/sys/class/net"
+
 // isEnslavedInterface reports whether a Linux network interface has a master
 // device, as a bond or bridge member does.
 func isEnslavedInterface(name string) bool {
-	_, err := os.Stat(filepath.Join("/sys/class/net", name, "master"))
+	_, err := os.Stat(filepath.Join(sysClassNet, name, "master"))
 	return err == nil
 }
 
