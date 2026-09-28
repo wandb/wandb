@@ -1757,6 +1757,14 @@ def test_log_uint8_image():
             torch.rand(4, 3, 3) * 255,
             id="pytorch_tensor",
         ),
+        pytest.param(
+            Image.new("RGBA", (2, 2)),
+            id="pil_rgba_image",
+        ),
+        pytest.param(
+            Image.new("LA", (2, 2)),
+            id="pil_la_image",
+        ),
     ],
 )
 def test_init_image_jpeg_removes_transparency(data, file_type, mock_wandb_log):
