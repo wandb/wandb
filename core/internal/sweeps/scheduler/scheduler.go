@@ -291,14 +291,14 @@ func (s *Scheduler) Step(
 	ctx context.Context,
 	result *spb.SweepSchedulerClientTaskResult,
 ) *spb.SweepSchedulerServerNextTaskResponse {
+	ctx, cancel := s.withStopCancel(ctx)
+	defer cancel()
+
 	if result != nil {
 		if done := s.applyResult(ctx, result); done != nil {
 			return done
 		}
 	}
-
-	ctx, cancel := s.withStopCancel(ctx)
-	defer cancel()
 
 	if !s.warmDone {
 		return s.warmStartStep(ctx)
@@ -459,7 +459,6 @@ func NewTaskResolverFactory(
 	logger *observability.CoreLogger,
 ) TaskResolverFactory {
 	return func(
-		schedCtx context.Context,
 		reqCtx context.Context,
 		req *spb.SweepSchedulerClientInitRequest,
 		sweepAPI SweepAPI,

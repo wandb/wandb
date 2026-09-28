@@ -22,7 +22,6 @@ var ErrAlreadyScheduled = errors.New(
 // TaskResolverFactory builds the resolver for a new scheduler session
 // over the API the broker opened for the session's sweep.
 type TaskResolverFactory func(
-	schedCtx context.Context,
 	reqCtx context.Context,
 	req *spb.SweepSchedulerClientInitRequest,
 	sweepAPI SweepAPI,
@@ -51,9 +50,6 @@ type session struct {
 	// connection, so liveness checks see a dead client's session.
 	ctx    context.Context
 	cancel context.CancelCauseFunc
-
-	// stopCleanup unregisters the cleanup function on the session's context
-	stopCleanup func() bool
 }
 
 // NewIPCSessionBroker creates a new IPCSessionBroker.
@@ -98,7 +94,7 @@ func (b *IPCSessionBroker) InitScheduler(
 
 	schedCtx, cancel := context.WithCancelCause(connCtx)
 
-	resolver, response, err := b.factory(schedCtx, reqCtx, req, sweepAPI)
+	resolver, response, err := b.factory(reqCtx, req, sweepAPI)
 	if err != nil {
 		b.logger.Error(
 			"scheduler: init failed",
@@ -126,7 +122,6 @@ func (b *IPCSessionBroker) InitScheduler(
 		id:       id,
 		sweepKey: sweepKey,
 		machine: newSchedulerStateMachine(
-			schedCtx,
 			resolver,
 			b.logger.With([]any{"id", id, "sweep", sweepKey}, nil),
 		),
@@ -136,9 +131,8 @@ func (b *IPCSessionBroker) InitScheduler(
 	b.sessions[id] = s
 	b.bySweep[sweepKey] = id
 
-	// A client killed between polls leaves no poll to notice, so the
-	// session's own context is what drops it in that case
-	s.stopCleanup = context.AfterFunc(schedCtx, func() { b.dropOnClose(s) })
+	// stop and drop the session on connection cancel
+	context.AfterFunc(schedCtx, func() { b.dropOnClose(s) })
 
 	b.logger.Info(
 		"scheduler: session started",
@@ -235,6 +229,8 @@ func (b *IPCSessionBroker) release(
 // dropOnClose retires a session whose client's connection ended before
 // the session reached a terminal task.
 func (b *IPCSessionBroker) dropOnClose(s *session) {
+	s.machine.Stop()
+
 	if b.drop(s) {
 		b.logger.Debug(
 			"scheduler: session dropped, its client is gone",
@@ -266,8 +262,6 @@ func (b *IPCSessionBroker) dropLocked(s *session) bool {
 		delete(b.bySweep, s.sweepKey)
 	}
 
-	// Nothing is left for the watcher to drop.
-	s.stopCleanup()
 	return true
 }
 
@@ -286,20 +280,6 @@ func (b *IPCSessionBroker) Stop(req *spb.SweepSchedulerClientStopRequest) {
 
 	b.logger.Info("scheduler: stop requested", "id", req.SessionId)
 	s.machine.Stop()
-}
-
-// Shutdown retires every session because the server is exiting.
-func (b *IPCSessionBroker) Shutdown() {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-
-	b.logger.Info(
-		"scheduler: cancelling all sessions for server shutdown",
-		"count", len(b.sessions))
-	for _, s := range b.sessions {
-		b.dropLocked(s)
-		s.cancel(context.Canceled)
-	}
 }
 
 func (b *IPCSessionBroker) lookup(id string) *session {
