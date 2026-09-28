@@ -4,6 +4,13 @@
 // FitMode controls whether images contain, fill, or cover the target cell
 // rectangle.
 //
+// picture.Model renders an image.Image and never decodes bytes itself, so it
+// registers no image-format decoders — importing it stays lightweight.
+// Callers that decode their own sources register the formats they use
+// (e.g. import _ "image/png"), or blank-import picture/decoders for PNG,
+// JPEG, GIF, WebP, BMP, and TIFF at once. The picture/pictureurl layer
+// decodes fetched bytes but also registers nothing itself; see that package.
+//
 // Use picture/pictureurl for URL-driven fetching on top of this base.
 
 package picture
@@ -12,9 +19,6 @@ import (
 	"fmt"
 	"image"
 	"image/color"
-	_ "image/gif"  // decoder registration
-	_ "image/jpeg" // decoder registration
-	_ "image/png"  // decoder registration
 	"strings"
 	"sync/atomic"
 
@@ -442,11 +446,12 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 		// next renderCmd, and any SetSize that arrives between the APC
 		// emission and the deferred grid apply must see this snapshot
 		// to compute delete-prev correctly.
+		cpw, cph := m.kittyCellPixelSize()
 		m.lastRenderedGeom = kittyGeom{
 			cols:       m.cols,
 			rows:       m.rows,
-			cellPixelW: m.cellPixelW,
-			cellPixelH: m.cellPixelH,
+			cellPixelW: cpw,
+			cellPixelH: cph,
 			fit:        m.fit,
 			anchor:     m.anchor,
 		}
@@ -560,6 +565,13 @@ func (m *Model) invalidateKitty() {
 	m.kittyGrid = ""
 }
 
+// kittyCellPixelSize is shared by encoding and placement bookkeeping so
+// fractional resolution factors and one-pixel clamping compare identically.
+func (m *Model) kittyCellPixelSize() (int, int) {
+	return max(1, int(float64(m.cellPixelW)*m.kittyResolutionFactor)),
+		max(1, int(float64(m.cellPixelH)*m.kittyResolutionFactor))
+}
+
 func (m *Model) renderCmd() tea.Cmd {
 	if m.mode != PictureKitty || m.img == nil || m.cols <= 0 || m.rows <= 0 {
 		return nil
@@ -576,14 +588,7 @@ func (m *Model) renderCmd() tea.Cmd {
 	// transmitted image. The placement rectangle (cols × rows cells) is
 	// unchanged, so the terminal upscales the smaller source image to
 	// fill the cell area on display.
-	cpw := int(float64(m.cellPixelW) * m.kittyResolutionFactor)
-	cph := int(float64(m.cellPixelH) * m.kittyResolutionFactor)
-	if cpw < 1 {
-		cpw = 1
-	}
-	if cph < 1 {
-		cph = 1
-	}
+	cpw, cph := m.kittyCellPixelSize()
 	prevGeom := m.lastRenderedGeom
 	return func() tea.Msg {
 		prepared := prepareSource(img, fit, cols, rows, cpw, cph, bg, anchor)
