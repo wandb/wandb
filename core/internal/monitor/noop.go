@@ -21,7 +21,7 @@ func NewTrainium(
 	return nil
 }
 
-func (t *Trainium) Sample() (*spb.StatsRecord, error) { return nil, nil }
+func (t *Trainium) Sample() (*spb.SystemMetricsRecord, error) { return nil, nil }
 
 func (t *Trainium) Probe(_ context.Context) *spb.EnvironmentRecord {
 	return nil

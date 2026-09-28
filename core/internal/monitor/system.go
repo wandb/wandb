@@ -4,17 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
+	"slices"
 	"strings"
 	"time"
-
-	"maps"
 
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/disk"
 	"github.com/shirou/gopsutil/v4/mem"
 	"github.com/shirou/gopsutil/v4/net"
 	"github.com/shirou/gopsutil/v4/process"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -236,65 +237,62 @@ func (s *System) processAndDescendants(ctx context.Context, pid int32) ([]*proce
 //   - CPU utilization (process-specific)
 //   - Thread count (process-specific)
 //   - Disk usage and I/O metrics
-func (s *System) Sample() (*spb.StatsRecord, error) {
-	metrics := make(map[string]any)
+func (s *System) Sample() (*spb.SystemMetricsRecord, error) {
+	host := &spb.HostMetrics{}
 	var errs []error
 
-	// Collect network metrics.
-	if err := s.collectNetworkMetrics(metrics); err != nil {
+	if err := s.collectNetworkMetrics(host); err != nil {
 		errs = append(errs, err)
 	}
-
-	// Collect disk usage metrics.
-	if err := s.collectDiskUsageMetrics(metrics); err != nil {
+	if err := s.collectDiskUsageMetrics(host); err != nil {
 		errs = append(errs, err)
 	}
-
-	// Collect disk I/O metrics.
-	if err := s.CollectDiskIOMetrics(metrics); err != nil {
+	if err := s.CollectDiskIOMetrics(host); err != nil {
 		errs = append(errs, err)
 	}
-
-	// Collect memory metrics.
-	memoryPercentDenominator, err := s.collectSystemMemoryMetrics(metrics)
+	memoryPercentDenominator, err := s.collectSystemMemoryMetrics(host)
 	if err != nil {
 		errs = append(errs, err)
 	}
 
-	// Collect process-specific metrics.
+	var proc *spb.ProcessMetrics
 	if s.pid > 0 {
-		proc, err := process.NewProcess(s.pid)
+		root, err := process.NewProcess(s.pid)
 		if err != nil {
 			return nil, err
 		}
-		if err := s.collectProcessTreeMetrics(proc, memoryPercentDenominator, metrics); err != nil {
+		proc, err = s.collectProcessTreeMetrics(root, memoryPercentDenominator)
+		if err != nil {
 			errs = append(errs, err)
 		}
 	}
 
-	if len(metrics) == 0 {
+	if proto.Size(host) == 0 && proc == nil {
 		return nil, errors.Join(errs...)
 	}
 
-	return marshal(metrics, timestamppb.Now()), errors.Join(errs...)
+	return &spb.SystemMetricsRecord{
+		Timestamp: timestamppb.Now(),
+		Host:      host,
+		Process:   proc,
+	}, errors.Join(errs...)
 }
 
-// collectProcessTreeMetrics gathers RSS, CPU%, and thread count for a process and its descendants.
+// collectProcessTreeMetrics gathers RSS, CPU and thread count for a process and its descendants.
 func (s *System) collectProcessTreeMetrics(
 	root *process.Process,
 	memoryPercentDenominator uint64,
-	metrics map[string]any,
-) error {
+) (*spb.ProcessMetrics, error) {
 	// Safeguard to prevent processAndDescendants from taking too long.
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	procs, err := s.processAndDescendants(ctx, root.Pid)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if len(procs) == 0 {
-		return fmt.Errorf("system: empty process tree")
+		return nil, fmt.Errorf("system: empty process tree")
 	}
 
 	var (
@@ -304,65 +302,78 @@ func (s *System) collectProcessTreeMetrics(
 	)
 
 	for _, p := range procs {
-		// Memory
 		if mi, err := p.MemoryInfo(); err == nil { // accumulate if there is no error.
 			totalRSS += mi.RSS
 		}
-
-		// CPU
-		if pcpu, err := p.CPUPercent(); err == nil { // accumulate if there is no error.
-			totalCPU += pcpu // raw – we'll normalise later
+		if pcpu, err := p.CPUPercent(); err == nil {
+			totalCPU += pcpu
 		}
-
-		// Threads
-		if th, err := p.NumThreads(); err == nil { // accumulate if there is no error.
+		if th, err := p.NumThreads(); err == nil {
 			totalThreads += th
 		}
 	}
 
-	metrics["proc.memory.rssMB"] = float64(totalRSS) / 1024 / 1024
+	metrics := &spb.ProcessMetrics{
+		RssBytes: proto.Uint64(totalRSS),
+		Threads:  proto.Uint32(uint32(totalThreads)),
+	}
 	if memoryPercentDenominator > 0 {
-		metrics["proc.memory.percent"] =
-			(float64(totalRSS) / float64(memoryPercentDenominator)) * 100
+		metrics.MemoryPercent = proto.Float64(
+			float64(totalRSS) / float64(memoryPercentDenominator) * 100,
+		)
 	}
 
-	// Normalise CPU by available CPU capacity.
+	// Normalize CPU by the available CPU capacity.
 	if cpuCapacity := s.cpuCapacity(); cpuCapacity > 0 {
-		metrics["cpu"] = totalCPU / cpuCapacity
+		metrics.CpuPercent = proto.Float64(totalCPU / cpuCapacity)
 	} else {
-		metrics["cpu"] = totalCPU
+		metrics.CpuPercent = proto.Float64(totalCPU)
 	}
 
-	metrics["proc.cpu.threads"] = float64(totalThreads)
-	return nil
+	return metrics, nil
 }
 
-// collectNetworkMetrics gathers network traffic statistics.
-func (s *System) collectNetworkMetrics(metrics map[string]any) error {
+// collectNetworkMetrics gathers bytes sent and received since the monitor started.
+func (s *System) collectNetworkMetrics(host *spb.HostMetrics) error {
 	netIOCounters, err := net.IOCounters(false)
 	if err != nil {
 		return err
 	}
 
 	if len(netIOCounters) > 0 {
-		metrics["network.sent"] = float64(int(netIOCounters[0].BytesSent) - s.networkBytesSentInit)
-		metrics["network.recv"] = float64(int(netIOCounters[0].BytesRecv) - s.networkBytesRecvInit)
+		host.Network = &spb.NetworkMetrics{
+			SentBytes: proto.Uint64(deltaBytes(netIOCounters[0].BytesSent, s.networkBytesSentInit)),
+			RecvBytes: proto.Uint64(deltaBytes(netIOCounters[0].BytesRecv, s.networkBytesRecvInit)),
+		}
 	}
 
 	return nil
 }
 
+// deltaBytes returns current minus initial, or zero if the counter went backwards.
+func deltaBytes(current uint64, initial int) uint64 {
+	if delta := int64(current) - int64(initial); delta > 0 {
+		return uint64(delta)
+	}
+	return 0
+}
+
 // collectSystemMemoryMetrics gathers system-wide memory statistics.
+//
+// It returns the denominator for process memory percentages: the cgroup
+// memory limit when one applies, otherwise the total system memory.
 func (s *System) collectSystemMemoryMetrics(
-	metrics map[string]any,
+	host *spb.HostMetrics,
 ) (memoryPercentDenominator uint64, err error) {
 	if s.cgroup != nil {
 		if current, limit, ok := s.cgroup.MemoryStats(); ok {
-			metrics["memory_percent"] = (float64(current) / float64(limit)) * 100
+			var available uint64
 			if current < limit {
-				metrics["proc.memory.availableMB"] = float64(limit-current) / 1024 / 1024
-			} else {
-				metrics["proc.memory.availableMB"] = 0.0
+				available = limit - current
+			}
+			host.Memory = &spb.MemoryMetrics{
+				UsedPercent:    proto.Float64(float64(current) / float64(limit) * 100),
+				AvailableBytes: proto.Uint64(available),
 			}
 			return limit, nil
 		}
@@ -372,10 +383,10 @@ func (s *System) collectSystemMemoryMetrics(
 	if err != nil {
 		return 0, err
 	}
-	// Total system memory usage in percent
-	metrics["memory_percent"] = virtualMem.UsedPercent
-	// Total system memory available in MB
-	metrics["proc.memory.availableMB"] = float64(virtualMem.Available) / 1024 / 1024
+	host.Memory = &spb.MemoryMetrics{
+		UsedPercent:    proto.Float64(virtualMem.UsedPercent),
+		AvailableBytes: proto.Uint64(virtualMem.Available),
+	}
 
 	return virtualMem.Total, nil
 }
@@ -394,8 +405,8 @@ func (s *System) cpuCapacity() float64 {
 	return 0
 }
 
-// collectDiskUsageMetrics gathers disk space utilization statistics.
-func (s *System) collectDiskUsageMetrics(metrics map[string]any) error {
+// collectDiskUsageMetrics gathers disk space utilization for the monitored paths.
+func (s *System) collectDiskUsageMetrics(host *spb.HostMetrics) error {
 	var firstErr error
 
 	for _, diskPath := range s.diskPaths {
@@ -407,17 +418,18 @@ func (s *System) collectDiskUsageMetrics(metrics map[string]any) error {
 			continue
 		}
 
-		// Used disk space as a percentage
-		metrics[fmt.Sprintf("disk.%s.usagePercent", diskPath)] = usage.UsedPercent
-		// Used disk space in GB
-		metrics[fmt.Sprintf("disk.%s.usageGB", diskPath)] = float64(usage.Used) / 1024 / 1024 / 1024
+		host.DiskUsage = append(host.DiskUsage, &spb.DiskUsageMetrics{
+			Path:        diskPath,
+			UsedPercent: proto.Float64(usage.UsedPercent),
+			UsedBytes:   proto.Uint64(usage.Used),
+		})
 	}
 
 	return firstErr
 }
 
-// collectDiskIOMetrics gathers disk I/O statistics.
-func (s *System) CollectDiskIOMetrics(metrics map[string]any) error {
+// CollectDiskIOMetrics gathers bytes read and written per device since the monitor started.
+func (s *System) CollectDiskIOMetrics(host *spb.HostMetrics) error {
 	ios, err := DiskIOCounters()
 	if err != nil {
 		if !strings.Contains(err.Error(), "not implemented yet") {
@@ -426,18 +438,17 @@ func (s *System) CollectDiskIOMetrics(metrics map[string]any) error {
 		return nil
 	}
 
-	for dev := range s.diskDevices {
+	for _, dev := range slices.Sorted(maps.Keys(s.diskDevices)) {
 		c, ok := ios[dev]
 		if !ok {
 			continue // device disappeared?
 		}
 
-		inBytes := c.ReadBytes - s.diskIntialReadBytes[dev]
-		outBytes := c.WriteBytes - s.diskInitialWriteBytes[dev]
-
-		// MB read / written per device
-		metrics[fmt.Sprintf("disk.%s.in", dev)] = float64(inBytes) / 1024 / 1024
-		metrics[fmt.Sprintf("disk.%s.out", dev)] = float64(outBytes) / 1024 / 1024
+		host.DiskIo = append(host.DiskIo, &spb.DiskIoMetrics{
+			Device:     dev,
+			ReadBytes:  proto.Uint64(c.ReadBytes - s.diskIntialReadBytes[dev]),
+			WriteBytes: proto.Uint64(c.WriteBytes - s.diskInitialWriteBytes[dev]),
+		})
 	}
 	return nil
 }

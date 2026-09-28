@@ -3,7 +3,6 @@ package monitor_test
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
+	"github.com/wandb/wandb/core/internal/systemmetrics"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -163,12 +163,19 @@ func TestSample(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, record)
 
-	fmt.Println(record)
+	require.Len(t, record.Accelerators, 1)
+	gpu := record.Accelerators[0]
+	assert.Equal(t, spb.AcceleratorType_NVIDIA_GPU, gpu.GetType())
+	assert.Equal(t, uint32(0), gpu.GetIndex())
+	assert.Equal(t, "node1", gpu.GetHost())
+	assert.Equal(t, "dcgm-exporter", gpu.GetSource())
+	assert.Equal(t, 23.0, gpu.GetTemperatureC())
 
-	// Check if the temperature metric was correctly mapped
-	temp := record.Item[0]
-	assert.Equal(t, "gpu.0.temp/l:node1", temp.Key)
-	assert.Equal(t, "23", temp.ValueJson)
+	// The legacy key keeps the node as its label suffix.
+	assert.Equal(t,
+		[]systemmetrics.Item{{Key: "gpu.0.temp/l:node1", Value: 23}},
+		systemmetrics.Items(record),
+	)
 }
 
 func TestProbe(t *testing.T) {

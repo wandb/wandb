@@ -7,13 +7,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
 
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/wandb/wandb/core/internal/observability"
@@ -259,7 +262,7 @@ func (t *Trainium) isMatchingEntry(entry map[string]any) bool {
 // The stats are parsed into a TrainiumStats struct, flattened and returned as a map.
 //
 //gocyclo:ignore
-func (t *Trainium) Sample() (*spb.StatsRecord, error) {
+func (t *Trainium) Sample() (*spb.SystemMetricsRecord, error) {
 	if !t.isRunning {
 		return nil, nil
 	}
@@ -384,67 +387,56 @@ func (t *Trainium) Sample() (*spb.StatsRecord, error) {
 		NeuroncoreMemoryUsage:        neuroncoreMemoryUsage,
 	}
 
-	metrics := t.flattenStats(stats)
-
-	if len(metrics) == 0 {
-		return nil, nil
-	}
-
-	return marshal(metrics, timestamppb.Now()), nil
+	return trainiumRecord(stats), nil
 }
 
-// flattenStats recursively flattens the stats into a map.
-//
-// Keys are prepended with "trn." to be recognized by the frontend.
-func (t *Trainium) flattenStats(sample TrainiumStats) map[string]any {
-	flattened := make(map[string]any)
+// trainiumRecord maps neuron-monitor stats to one accelerator entry per
+// NeuronCore plus the host-level memory totals.
+func trainiumRecord(stats TrainiumStats) *spb.SystemMetricsRecord {
+	cores := make(map[int]struct{})
+	for core := range stats.NeuroncoreUtilization {
+		cores[core] = struct{}{}
+	}
+	for core := range stats.NeuroncoreMemoryUsage {
+		cores[core] = struct{}{}
+	}
 
-	var flatten func(string, any)
-	flatten = func(key string, value any) {
-		switch v := value.(type) {
-		case int:
-			flattened[key] = float64(v)
-		case float64:
-			flattened[key] = v
-		case map[int]float64:
-			for k, vv := range v {
-				flatten(fmt.Sprintf("%d.%s", k, key), vv)
-			}
-		case map[int]NeuronCoreMemoryUsage:
-			for k, vv := range v {
-				flatten(fmt.Sprintf("%d.%s", k, key), vv)
-			}
-		case HostMemoryUsage, NeuronCoreMemoryUsage:
-			jsonBytes, _ := json.Marshal(v)
-			var subMap map[string]any
-			err := json.Unmarshal(jsonBytes, &subMap)
-			if err != nil {
-				t.logger.CaptureError(
-					"monitor",
-					fmt.Errorf("trainium: failed to unmarshal submap: %v", err),
-				)
-				return
-			}
-			for subKey, subValue := range subMap {
-				flatten(fmt.Sprintf("%s.%s", key, subKey), subValue)
-			}
+	var accelerators []*spb.AcceleratorMetrics
+	for _, core := range slices.Sorted(maps.Keys(cores)) {
+		acc := &spb.AcceleratorMetrics{
+			Type:   spb.AcceleratorType_AWS_TRAINIUM,
+			Index:  uint32(core),
+			Source: "neuron-monitor",
 		}
+		if utilization, ok := stats.NeuroncoreUtilization[core]; ok {
+			acc.UtilizationPercent = proto.Float64(utilization)
+		}
+		if m, ok := stats.NeuroncoreMemoryUsage[core]; ok {
+			acc.Ext = &spb.AcceleratorMetrics_Trainium{Trainium: &spb.TrainiumMetrics{
+				MemoryConstantsBytes:             proto.Uint64(uint64(m.Constants)),
+				MemoryModelCodeBytes:             proto.Uint64(uint64(m.ModelCode)),
+				MemoryModelSharedScratchpadBytes: proto.Uint64(uint64(m.ModelSharedScratchpad)),
+				MemoryRuntimeBytes:               proto.Uint64(uint64(m.RuntimeMemory)),
+				MemoryTensorsBytes:               proto.Uint64(uint64(m.Tensors)),
+			}}
+		}
+		accelerators = append(accelerators, acc)
 	}
 
-	flatten("neuroncore_utilization", sample.NeuroncoreUtilization)
-	flatten("host_total_memory_usage", sample.HostTotalMemoryUsage)
-	flatten("neuron_device_total_memory_usage", sample.NeuronDeviceTotalMemoryUsage)
-	flatten("host_memory_usage", sample.HostMemoryUsage)
-	flatten("neuroncore_memory_usage", sample.NeuroncoreMemoryUsage)
-
-	// Prepend "trn." to each key. This is necessary for the frontend to recognize the keys.
-	result := make(map[string]any, len(flattened))
-	for k, v := range flattened {
-		newKey := "trn." + k
-		result[newKey] = v
+	return &spb.SystemMetricsRecord{
+		Timestamp:    timestamppb.Now(),
+		Accelerators: accelerators,
+		TrainiumHost: &spb.TrainiumHostMetrics{
+			HostMemoryTotalBytes:   proto.Uint64(uint64(stats.HostTotalMemoryUsage)),
+			DeviceMemoryTotalBytes: proto.Uint64(uint64(stats.NeuronDeviceTotalMemoryUsage)),
+			HostMemoryApplicationBytes: proto.Uint64(
+				uint64(stats.HostMemoryUsage.ApplicationMemory),
+			),
+			HostMemoryConstantsBytes:  proto.Uint64(uint64(stats.HostMemoryUsage.Constants)),
+			HostMemoryDmaBuffersBytes: proto.Uint64(uint64(stats.HostMemoryUsage.DmaBuffers)),
+			HostMemoryTensorsBytes:    proto.Uint64(uint64(stats.HostMemoryUsage.Tensors)),
+		},
 	}
-
-	return result
 }
 
 // Close stops the neuron-monitor command and sets isRunning to false.

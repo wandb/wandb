@@ -6,6 +6,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/wandb/wandb/core/internal/systemmetrics"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -30,6 +31,10 @@ type XPU struct {
 	client      spb.SystemMonitorServiceClient
 	resourceRef XPUResourceManagerRef
 	startErr    error
+
+	// accelType is the vendor the sidecar reported, once typeResolved.
+	accelType    spb.AcceleratorType
+	typeResolved bool
 }
 
 // NewXPU returns an XPU resource whose sidecar start and requests are
@@ -51,7 +56,7 @@ func NewXPU(
 // Sample collects hardware metrics.
 //
 // A sidecar start failure is returned once; later samples return nothing.
-func (a *XPU) Sample() (*spb.StatsRecord, error) {
+func (a *XPU) Sample() (*spb.SystemMetricsRecord, error) {
 	ctx, cancel := context.WithTimeout(a.ctx, defaultSamplingInterval)
 	defer cancel()
 
@@ -71,10 +76,46 @@ func (a *XPU) Sample() (*spb.StatsRecord, error) {
 		return nil, err
 	}
 	metrics := stats.GetRecord().GetStats()
-	if len(metrics.Item) == 0 {
+	if len(metrics.GetItem()) == 0 {
 		return nil, nil
 	}
-	return metrics, nil
+	return systemmetrics.FromStatsRecord(metrics, a.acceleratorType(ctx, client)), nil
+}
+
+// acceleratorType is the vendor the sidecar found, from its metadata, so that
+// keys several vendors share (gpu.<i>.temp) land on the right accelerator
+// type. Resolved once; a failed lookup is retried on the next sample.
+func (a *XPU) acceleratorType(
+	ctx context.Context,
+	client spb.SystemMonitorServiceClient,
+) spb.AcceleratorType {
+	a.mu.Lock()
+	resolved, accelType := a.typeResolved, a.accelType
+	a.mu.Unlock()
+	if resolved {
+		return accelType
+	}
+
+	resp, err := client.GetMetadata(ctx, &spb.GetMetadataRequest{})
+	if err != nil {
+		return spb.AcceleratorType_ACCELERATOR_UNSPECIFIED
+	}
+	env := resp.GetRecord().GetEnvironment()
+	switch {
+	case len(env.GetGpuNvidia()) > 0:
+		accelType = spb.AcceleratorType_NVIDIA_GPU
+	case len(env.GetGpuAmd()) > 0:
+		accelType = spb.AcceleratorType_AMD_GPU
+	case env.GetTpu() != nil:
+		accelType = spb.AcceleratorType_GOOGLE_TPU
+	case env.GetApple() != nil:
+		accelType = spb.AcceleratorType_APPLE_GPU
+	}
+
+	a.mu.Lock()
+	a.accelType, a.typeResolved = accelType, true
+	a.mu.Unlock()
+	return accelType
 }
 
 func (a *XPU) Probe(ctx context.Context) *spb.EnvironmentRecord {

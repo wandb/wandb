@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 func TestCgroupV2ResourceLimits(t *testing.T) {
@@ -35,13 +37,13 @@ func TestCgroupV2ResourceLimits(t *testing.T) {
 	require.InEpsilon(t, 4.0, limits.CPULimit(), 1e-9)
 
 	sys := &System{cgroup: limits}
-	metrics := make(map[string]any)
-	denominator, err := sys.collectSystemMemoryMetrics(metrics)
+	host := &spb.HostMetrics{}
+	denominator, err := sys.collectSystemMemoryMetrics(host)
 
 	require.NoError(t, err)
 	require.Equal(t, uint64(8*1024*1024*1024), denominator)
-	require.InEpsilon(t, 87.5, metrics["memory_percent"], 1e-9)
-	require.InEpsilon(t, 1024.0, metrics["proc.memory.availableMB"], 1e-9)
+	require.InEpsilon(t, 87.5, host.GetMemory().GetUsedPercent(), 1e-9)
+	require.Equal(t, uint64(1024*1024*1024), host.GetMemory().GetAvailableBytes())
 }
 
 func TestCgroupV2BindMountRoot(t *testing.T) {

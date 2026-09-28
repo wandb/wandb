@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/go-retryablehttp"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/wandb/wandb/core/internal/clients"
@@ -277,87 +278,81 @@ func newGPUMetric(sample promSample) (*gpuMetric, error) {
 	}, nil
 }
 
-// wandbName maps a GPU metric from DCGM to a WandB GPU metric name.
+// host returns the node the GPU belongs to, from the node or hostname label.
+func (gm *gpuMetric) host() string {
+	if gm.node != "" {
+		return gm.node
+	}
+	return gm.hostname
+}
+
+// apply sets the typed field for a DCGM field id, converting DCGM units (MiB
+// for framebuffer sizes, mJ for energy, 0 to 1 ratios for profiling metrics)
+// to the schema's. Unknown fields are ignored.
 //
-// The WandB GPU metric name is in the format: `gpu.<index>.<metricName>/l:<label>`.
-// The label is used to differentiate between GPUs from different nodes.
-//
-// The full list of DCGM metrics and their descriptions can be found here:
 // https://docs.nvidia.com/datacenter/dcgm/latest/dcgm-api/dcgm-api-field-ids.html
 //
 //gocyclo:ignore
-func (gm *gpuMetric) wandbName() string {
-	var mappedName string
+func (gm *gpuMetric) apply(acc *spb.AcceleratorMetrics) {
+	const mib = 1 << 20
+	nvidia := func() *spb.NvidiaMetrics {
+		if acc.GetNvidia() == nil {
+			acc.Ext = &spb.AcceleratorMetrics_Nvidia{Nvidia: &spb.NvidiaMetrics{}}
+		}
+		return acc.GetNvidia()
+	}
+	v := gm.value
+
 	switch gm.name {
 	case "DCGM_FI_DEV_GPU_TEMP":
-		mappedName = fmt.Sprintf("gpu.%s.temp", gm.index)
+		acc.TemperatureC = &v
 	case "DCGM_FI_DEV_POWER_USAGE":
-		mappedName = fmt.Sprintf("gpu.%s.powerWatts", gm.index)
+		acc.PowerW = &v
 	case "DCGM_FI_DEV_GPU_UTIL":
-		mappedName = fmt.Sprintf("gpu.%s.gpu", gm.index)
+		acc.UtilizationPercent = &v
 	case "DCGM_FI_DEV_MEM_COPY_UTIL":
-		mappedName = fmt.Sprintf("gpu.%s.memory", gm.index)
+		acc.MemoryActivityPercent = &v
 	case "DCGM_FI_DEV_SM_CLOCK":
-		mappedName = fmt.Sprintf("gpu.%s.smClock", gm.index)
+		nvidia().SmClockMhz = &v
 	case "DCGM_FI_DEV_FB_USED":
-		mappedName = fmt.Sprintf("gpu.%s.memoryUsed", gm.index)
+		acc.MemoryUsedBytes = proto.Uint64(uint64(v * mib))
 	case "DCGM_FI_DEV_FB_TOTAL":
-		mappedName = fmt.Sprintf("gpu.%s.memoryTotal", gm.index)
-	case "DCGM_FI_PROF_PCIE_TX_BYTES":
-		mappedName = fmt.Sprintf("gpu.%s.pcieTxBytes", gm.index)
-	case "DCGM_FI_PROF_PCIE_RX_BYTES":
-		mappedName = fmt.Sprintf("gpu.%s.pcieRxBytes", gm.index)
-	case "DCGM_FI_PROF_NVLINK_TX_BYTES":
-		mappedName = fmt.Sprintf("gpu.%s.nvlinkTxBytes", gm.index)
-	case "DCGM_FI_PROF_NVLINK_RX_BYTES":
-		mappedName = fmt.Sprintf("gpu.%s.nvlinkRxBytes", gm.index)
-
-	// TODO: require new aggregations on the frontend
-	case "DCGM_FI_DEV_MEMORY_TEMP":
-		mappedName = fmt.Sprintf("gpu.%s.memoryTemp", gm.index)
-	case "DCGM_FI_DEV_GPU_MAX_OP_TEMP":
-		mappedName = fmt.Sprintf("gpu.%s.maxOpTemp", gm.index)
-	case "DCGM_FI_DEV_MEM_MAX_OP_TEMP":
-		mappedName = fmt.Sprintf("gpu.%s.memoryMaxOpTemp", gm.index)
-	case "DCGM_FI_DEV_TOTAL_ENERGY_CONSUMPTION":
-		mappedName = fmt.Sprintf("gpu.%s.totalEnergyConsumption", gm.index)
-	case "DCGM_FI_PROF_SM_ACTIVE":
-		mappedName = fmt.Sprintf("gpu.%s.smActive", gm.index)
-	case "DCGM_FI_PROF_SM_OCCUPANCY":
-		mappedName = fmt.Sprintf("gpu.%s.smOccupancy", gm.index)
-	case "DCGM_FI_PROF_PIPE_TENSOR_ACTIVE":
-		mappedName = fmt.Sprintf("gpu.%s.pipeTensorActive", gm.index)
-	case "DCGM_FI_PROF_PIPE_FP64_ACTIVE":
-		mappedName = fmt.Sprintf("gpu.%s.pipeFp64Active", gm.index)
-	case "DCGM_FI_PROF_PIPE_FP32_ACTIVE":
-		mappedName = fmt.Sprintf("gpu.%s.pipeFp32Active", gm.index)
-	case "DCGM_FI_PROF_PIPE_FP16_ACTIVE":
-		mappedName = fmt.Sprintf("gpu.%s.pipeFp16Active", gm.index)
+		acc.MemoryTotalBytes = proto.Uint64(uint64(v * mib))
 	case "DCGM_FI_DEV_FB_FREE":
-		mappedName = fmt.Sprintf("gpu.%s.memoryFree", gm.index)
-	default:
-		// Skip unknown metrics
-		return ""
+		nvidia().MemoryFreeBytes = proto.Uint64(uint64(v * mib))
+	case "DCGM_FI_PROF_PCIE_TX_BYTES":
+		nvidia().PcieTxBytesPerS = &v
+	case "DCGM_FI_PROF_PCIE_RX_BYTES":
+		nvidia().PcieRxBytesPerS = &v
+	case "DCGM_FI_PROF_NVLINK_TX_BYTES":
+		nvidia().NvlinkTxBytesPerS = &v
+	case "DCGM_FI_PROF_NVLINK_RX_BYTES":
+		nvidia().NvlinkRxBytesPerS = &v
+	case "DCGM_FI_DEV_MEMORY_TEMP":
+		nvidia().MemoryTemperatureC = &v
+	case "DCGM_FI_DEV_GPU_MAX_OP_TEMP":
+		nvidia().MaxOperatingTemperatureC = &v
+	case "DCGM_FI_DEV_MEM_MAX_OP_TEMP":
+		nvidia().MemoryMaxOperatingTemperatureC = &v
+	case "DCGM_FI_DEV_TOTAL_ENERGY_CONSUMPTION":
+		acc.EnergyJ = proto.Float64(v / 1000)
+	case "DCGM_FI_PROF_SM_ACTIVE":
+		nvidia().SmActivePercent = proto.Float64(v * 100)
+	case "DCGM_FI_PROF_SM_OCCUPANCY":
+		nvidia().SmOccupancyPercent = proto.Float64(v * 100)
+	case "DCGM_FI_PROF_PIPE_TENSOR_ACTIVE":
+		nvidia().PipeTensorActivePercent = proto.Float64(v * 100)
+	case "DCGM_FI_PROF_PIPE_FP64_ACTIVE":
+		nvidia().PipeFp64ActivePercent = proto.Float64(v * 100)
+	case "DCGM_FI_PROF_PIPE_FP32_ACTIVE":
+		nvidia().PipeFp32ActivePercent = proto.Float64(v * 100)
+	case "DCGM_FI_PROF_PIPE_FP16_ACTIVE":
+		nvidia().PipeFp16ActivePercent = proto.Float64(v * 100)
 	}
-
-	// Add a label to the metric name. Use node or hostname as the label
-	// to differentiate between GPUs from different nodes (e.g. in multi-node training).
-	// Example: `gpu.0.owerWatts/l:node1`
-	label := ""
-	if gm.node != "" {
-		label = gm.node
-	} else if gm.hostname != "" {
-		label = gm.hostname
-	}
-	if label != "" {
-		mappedName = fmt.Sprintf("%s/l:%s", mappedName, label)
-	}
-
-	return mappedName
 }
 
-// Sample fetches and parses the metrics from the endpoint and returns them as a StatsRecord.
-func (de *DCGMExporter) Sample() (*spb.StatsRecord, error) {
+// Sample queries the exporter and returns one accelerator entry per GPU.
+func (de *DCGMExporter) Sample() (*spb.SystemMetricsRecord, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), DefaultOpenMetricsTimeout)
 	defer cancel()
 
@@ -366,16 +361,36 @@ func (de *DCGMExporter) Sample() (*spb.StatsRecord, error) {
 		return nil, err
 	}
 
-	metrics := make(map[string]any)
+	byIndex := make(map[string]*spb.AcceleratorMetrics)
+	var accelerators []*spb.AcceleratorMetrics
 	for _, gm := range gpuMetrics {
-		metrics[gm.wandbName()] = gm.value
+		acc, ok := byIndex[gm.index]
+		if !ok {
+			index, err := strconv.ParseUint(gm.index, 10, 32)
+			if err != nil {
+				continue
+			}
+			acc = &spb.AcceleratorMetrics{
+				Type:   spb.AcceleratorType_NVIDIA_GPU,
+				Index:  uint32(index),
+				Uuid:   gm.uuid,
+				Host:   gm.host(),
+				Source: "dcgm-exporter",
+			}
+			byIndex[gm.index] = acc
+			accelerators = append(accelerators, acc)
+		}
+		gm.apply(acc)
 	}
 
-	if len(metrics) == 0 {
+	if len(accelerators) == 0 {
 		return nil, fmt.Errorf("no metrics found")
 	}
 
-	return marshal(metrics, timestamppb.Now()), nil
+	return &spb.SystemMetricsRecord{
+		Timestamp:    timestamppb.Now(),
+		Accelerators: accelerators,
+	}, nil
 }
 
 // Probe fetches the Nvidia GPU metadata from the endpoint and returns it as an EnvironmentRecord.

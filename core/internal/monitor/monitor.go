@@ -19,7 +19,6 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/wandb/simplejsonext"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/wandb/wandb/core/internal/observability"
@@ -27,6 +26,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sharedmode"
+	"github.com/wandb/wandb/core/internal/systemmetrics"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -49,7 +49,7 @@ var SystemMonitorProviders = wire.NewSet(
 
 // Resource defines the interface for system resources to be monitored.
 type Resource interface {
-	Sample() (*spb.StatsRecord, error)
+	Sample() (*spb.SystemMetricsRecord, error)
 	Probe(ctx context.Context) *spb.EnvironmentRecord
 }
 
@@ -245,31 +245,6 @@ func (sm *SystemMonitor) initializeResources(xpuResourceManager *XPUResourceMana
 				sm.addResource(om)
 			}
 		}
-	}
-}
-
-// marshal constructs a StatsRecord protobuf message from the provided stats map and timestamp.
-func marshal(
-	stats map[string]any,
-	timeStamp *timestamppb.Timestamp,
-) *spb.StatsRecord {
-	statsItems := make([]*spb.StatsItem, 0, len(stats))
-	for k, v := range stats {
-		jsonData, err := simplejsonext.Marshal(v)
-		if err != nil {
-			continue
-		}
-		key := k
-		statsItems = append(statsItems, &spb.StatsItem{
-			Key:       key,
-			ValueJson: string(jsonData),
-		})
-	}
-
-	return &spb.StatsRecord{
-		StatsType: spb.StatsRecord_SYSTEM,
-		Timestamp: timeStamp,
-		Item:      statsItems,
 	}
 }
 
@@ -486,26 +461,26 @@ func (sm *SystemMonitor) sample() {
 				}
 			}
 
-			if metrics == nil || len(metrics.Item) == 0 {
+			if metrics == nil || len(systemmetrics.Items(metrics)) == 0 {
 				return // nothing to do
 			}
+
+			if metrics.Timestamp == nil {
+				metrics.Timestamp = timestamppb.Now()
+			}
+			metrics.WriterId = string(sm.writerID)
+			// Label for custom grouping of stats, e.g. per node in a multi-node run.
+			metrics.Label = sm.settings.GetLabel()
 
 			// Push metrics to the in-memory buffer when enabled.
 			if sm.buffer != nil {
 				sm.buffer.Push(metrics)
 			}
 
-			// Label for custom grouping of stats, e.g. per node in a multi-node run.
-			if label := sm.settings.GetLabel(); label != "" {
-				for _, item := range metrics.Item {
-					item.Key = fmt.Sprintf("%s/l:%s", item.Key, label)
-				}
-			}
-
 			// Publish metrics.
 			record := &spb.Record{
-				RecordType: &spb.Record_Stats{
-					Stats: metrics,
+				RecordType: &spb.Record_SystemMetrics{
+					SystemMetrics: metrics,
 				},
 			}
 			sm.extraWork.AddWorkOrCancel(

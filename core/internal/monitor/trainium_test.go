@@ -3,12 +3,13 @@
 package monitor_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/wandb/simplejsonext"
 
 	"github.com/wandb/wandb/core/internal/monitor"
+	"github.com/wandb/wandb/core/internal/systemmetrics"
 )
 
 func TestTrainiumSample(t *testing.T) {
@@ -64,9 +65,9 @@ func TestTrainiumSample(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, sample)
 
-	metrics := make(map[string]any)
-	for _, item := range sample.Item {
-		metrics[item.Key], _ = simplejsonext.UnmarshalString(item.ValueJson)
+	metrics := make(map[string]float64)
+	for _, item := range systemmetrics.Items(sample) {
+		metrics[item.Key] = item.Value
 	}
 
 	// Check for some expected keys and values
@@ -75,7 +76,7 @@ func TestTrainiumSample(t *testing.T) {
 	assert.Equal(t, float64(609656832), metrics["trn.host_memory_usage.application_memory"])
 
 	// Check that keys are properly prefixed with "trn."
-	for _, item := range sample.Item {
-		assert.True(t, len(item.Key) > 4 && item.Key[:4] == "trn.")
+	for key := range metrics {
+		assert.True(t, strings.HasPrefix(key, "trn."), key)
 	}
 }

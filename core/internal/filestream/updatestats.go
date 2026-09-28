@@ -6,10 +6,13 @@ import (
 
 	"github.com/wandb/simplejsonext"
 
+	"github.com/wandb/wandb/core/internal/systemmetrics"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// StatsUpdate contains system metrics collected at a point in time.
+// StatsUpdate contains system metrics collected at a point in time as the
+// legacy StatsRecord, which transaction logs written before the typed record
+// still contain.
 type StatsUpdate struct {
 	StartTime time.Time
 	Record    *spb.StatsRecord
@@ -38,6 +41,24 @@ func (u *StatsUpdate) Apply(ctx UpdateContext) error {
 		row["system."+item.Key] = val
 	}
 
+	return sendEventsRow(ctx, row)
+}
+
+// SystemMetricsUpdate contains one typed system metrics sample.
+type SystemMetricsUpdate struct {
+	StartTime time.Time
+	Record    *spb.SystemMetricsRecord
+}
+
+func (u *SystemMetricsUpdate) Apply(ctx UpdateContext) error {
+	return sendEventsRow(ctx, systemmetrics.LegacyRow(u.Record, u.StartTime))
+}
+
+// sendEventsRow appends one line to wandb-events.jsonl.
+//
+// A row that fails to marshal or exceeds the maximum line length is dropped
+// with a logged error; neither blocks the stream.
+func sendEventsRow(ctx UpdateContext, row map[string]any) error {
 	line, err := simplejsonext.Marshal(row)
 
 	// Override the default max line length if the user has set a custom value.
@@ -48,7 +69,6 @@ func (u *StatsUpdate) Apply(ctx UpdateContext) error {
 
 	switch {
 	case err != nil:
-		// This is a non-blocking failure, so we don't return an error.
 		ctx.Logger.CaptureError(
 			"filestream",
 			fmt.Errorf(
@@ -57,7 +77,6 @@ func (u *StatsUpdate) Apply(ctx UpdateContext) error {
 			),
 		)
 	case len(line) > int(maxLineBytes):
-		// This is a non-blocking failure as well.
 		ctx.Logger.CaptureWarn(
 			"filestream: system metrics line too long, skipping",
 			"len", len(line),

@@ -113,7 +113,7 @@ func (s *SymonSampler) Sample() StatsMsg {
 			// Align all metrics from one sampling pass to the same wall-clock tick.
 			record.Timestamp = timestamppb.New(now)
 
-			msg, ok := ParseStats("", record).(StatsMsg)
+			msg, ok := ParseSystemMetrics("", record).(StatsMsg)
 			if !ok || len(msg.Metrics) == 0 {
 				return nil
 			}
