@@ -46,6 +46,7 @@ func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceM
 	fileTransferStats := filetransfer.NewFileTransferStats()
 	mailboxMailbox := mailbox.New()
 	wandbOperations := wboperation.NewOperations()
+	stats := streamFileStreamStats(coreLogger)
 	systemMonitorFactory := &monitor.SystemMonitorFactory{
 		Logger:             coreLogger,
 		RunHandle:          runHandle,
@@ -63,6 +64,7 @@ func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceM
 		Operations:           wandbOperations,
 		RunHandle:            runHandle,
 		Settings:             settings2,
+		Stats:                stats,
 		SystemMonitorFactory: systemMonitorFactory,
 		TerminalPrinter:      printer,
 	}
@@ -82,6 +84,7 @@ func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceM
 		Operations:      wandbOperations,
 		Printer:         printer,
 		Settings:        settings2,
+		Stats:           stats,
 	}
 	fileTransferManager := NewFileTransferManager(wbBaseURL, fileTransferStats, coreLogger, settings2)
 	watcher := provideFileWatcher(coreLogger)
@@ -114,6 +117,7 @@ func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceM
 		RunHandle:               runHandle,
 		Mailbox:                 mailboxMailbox,
 		HistoryStepTracker:      historyStepTracker,
+		Stats:                   stats,
 	}
 	tbHandlerFactory := &tensorboard.TBHandlerFactory{
 		Logger:   coreLogger,
@@ -122,6 +126,7 @@ func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceM
 	writerFactory := &WriterFactory{
 		Logger:   coreLogger,
 		Settings: settings2,
+		Stats:    stats,
 	}
 	stream := NewStream(clientID, debugCorePath, featureProvider, flowControlFactory, client, handlerFactory, streamStreamLoggerFile, coreLogger, openTelemetryProxy, wandbOperations, recordParserFactory, senderFactory, settings2, runHandle, tbHandlerFactory, writerFactory)
 	return stream
@@ -131,7 +136,7 @@ func InjectStream(commit GitCommitHash, xpuResourceManager *monitor.XPUResourceM
 
 var streamProviders = wire.NewSet(
 	NewStream, wire.Bind(new(api.Peeker), new(*observability.Peeker)), wire.Struct(new(observability.Peeker)), BaseURLFromSettings,
-	CredentialsFromSettings, featurechecker.New, filestream.FileStreamProviders, filetransfer.NewFileTransferStats, flowControlProviders,
+	CredentialsFromSettings, featurechecker.New, filestream.FileStreamProviders, fileStreamStatsProviders, filetransfer.NewFileTransferStats, flowControlProviders,
 	handlerProviders, mailbox.New, monitor.SystemMonitorProviders, NewFileTransferManager,
 	NewGraphQLClient,
 	provideFileWatcher,

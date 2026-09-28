@@ -32,6 +32,7 @@ func (f *testFactory) make(
 	schedCtx context.Context,
 	reqCtx context.Context,
 	req *spb.SweepSchedulerClientInitRequest,
+	sweepAPI scheduler.SweepAPI,
 ) (scheduler.TaskResolver, *spb.SweepSchedulerServerInitResponse, error) {
 	if f.err != nil {
 		return nil, nil, f.err
@@ -46,9 +47,10 @@ func (f *testFactory) make(
 
 func initRequest(sweepID string) *spb.SweepSchedulerClientInitRequest {
 	return &spb.SweepSchedulerClientInitRequest{
-		Entity:  "test-entity",
-		Project: "test-project",
-		SweepId: sweepID,
+		Entity:   "test-entity",
+		Project:  "test-project",
+		SweepId:  sweepID,
+		Settings: &spb.Settings{},
 	}
 }
 

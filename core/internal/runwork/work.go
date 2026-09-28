@@ -70,10 +70,6 @@ type WorkImpl interface {
 	// Otherwise, the value must not be modified.
 	ToRecord() *spb.Record
 
-	// BypassOfflineMode reports whether Process needs to happen
-	// even if we're offline.
-	BypassOfflineMode() bool
-
 	// Process performs the work.
 	//
 	// The second function is the Sender method containing legacy
@@ -126,11 +122,7 @@ func (m AlwaysAcceptMixin) Accept(
 }
 
 // NoopProcessMixin implements WorkImpl.Process by doing nothing.
-//
-// Since Process is a no-op, BypassOfflineMode is implemented to return false
 type NoopProcessMixin struct{}
-
-func (m NoopProcessMixin) BypassOfflineMode() bool { return false }
 
 func (m NoopProcessMixin) Process(
 	*Request,

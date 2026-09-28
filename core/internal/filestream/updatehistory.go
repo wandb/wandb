@@ -1,41 +1,36 @@
 package filestream
 
 import (
+	"context"
 	"fmt"
 	"time"
 
+	"github.com/wandb/wandb/core/internal/filestreamstats"
 	"github.com/wandb/wandb/core/internal/runhistory"
-	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // HistoryUpdate contains run metrics from `run.log()`.
 type HistoryUpdate struct {
-	Record *spb.HistoryRecord
+	Row   *runhistory.RunHistory
+	Cells int
 }
 
 func (u *HistoryUpdate) Apply(ctx UpdateContext) error {
-	rh := runhistory.New()
+	applyTime := time.Now()
 
-	for _, item := range u.Record.Item {
-		err := rh.SetFromRecord(item)
-		if err != nil {
-
-			ctx.Logger.CaptureError(
-				"filestream",
-				fmt.Errorf(
-					"filestream: failed to apply history record: %v",
-					err,
-				),
-				"key", item.Key,
-				"nested_key", item.NestedKey,
-			)
-		}
-	}
-	line, err := rh.ToExtendedJSON()
+	line, err := u.Row.ToExtendedJSON()
+	renderDuration := time.Since(applyTime)
 	if err != nil {
 		return fmt.Errorf(
 			"filestream: failed to serialize history: %v", err)
 	}
+
+	ctx.Stats.RecordSegment(
+		context.Background(),
+		filestreamstats.SegmentUploadRender,
+		filestreamstats.StreamHistory,
+		renderDuration,
+	)
 
 	// Override the default max line length if the user has set a custom value.
 	maxLineBytes := ctx.Settings.GetFileStreamMaxLineBytes()
@@ -64,6 +59,7 @@ func (u *HistoryUpdate) Apply(ctx UpdateContext) error {
 		ctx.MakeRequest(&FileStreamRequest{
 			HistoryLines: []string{string(line)},
 		})
+		ctx.Stats.AddRow(u.Cells)
 	}
 
 	return nil

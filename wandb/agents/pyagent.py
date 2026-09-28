@@ -6,6 +6,7 @@ Manage wandb agent.
 
 import ctypes
 import logging
+import math
 import os
 import queue
 import socket
@@ -84,7 +85,13 @@ class Agent:
     HEARTBEAT_SLEEP_SECONDS = 5
 
     def __init__(
-        self, sweep_id=None, project=None, entity=None, function=None, count=None
+        self,
+        sweep_id=None,
+        project=None,
+        entity=None,
+        function=None,
+        count=None,
+        max_consecutive_failed_runs=None,
     ):
         self._sweep_path = sweep_id
         self._sweep_id = None
@@ -101,6 +108,11 @@ class Agent:
         self._max_initial_failures = wandb.env.get_agent_max_initial_failures(
             self.MAX_INITIAL_FAILURES
         )
+        self._max_consecutive_failed_runs = (
+            math.inf
+            if max_consecutive_failed_runs is None
+            else max_consecutive_failed_runs
+        )
         # if the directory to log to is not set, set it
         if os.environ.get(wandb.env.DIR) is None:
             os.environ[wandb.env.DIR] = os.path.abspath(os.getcwd())
@@ -113,6 +125,7 @@ class Agent:
         self._exit_flag = False
         self._sweep_not_found = False
         self._exceptions = {}
+        self._consecutive_failed_runs = 0
         self._start_time = time.time()
 
     def _register(self):
@@ -168,6 +181,45 @@ class Agent:
     def _has_running_thread(self) -> bool:
         """True while an in-process trial thread is still running."""
         return any(t.is_alive() for t in self._run_threads.values())
+
+    def _handle_errored_run(self, run_id, count) -> bool:
+        """Record errored run, emit logs if checks fail, and return whether we should stop the agent."""
+        exc = self._exceptions[run_id]
+
+        log_str, term_str = _get_exception_logger_and_term_strs(exc)
+        logger.error(f"Run {run_id} errored:\n{log_str}")
+        wandb.termerror(f"Run {run_id} errored:{term_str}")
+
+        self._consecutive_failed_runs += 1
+        if self._consecutive_failed_runs >= self._max_consecutive_failed_runs:
+            msg = f"Detected {self._consecutive_failed_runs} consecutive failed runs, killing sweep."
+            logger.error(msg)
+            wandb.termerror(msg)
+            return True
+
+        if os.getenv(wandb.env.AGENT_DISABLE_FLAPPING) == "true":
+            return True
+        elif (time.time() - self._start_time < self.FLAPPING_MAX_SECONDS) and (
+            len(self._exceptions) >= self.FLAPPING_MAX_FAILURES
+        ):
+            msg = f"Detected {self.FLAPPING_MAX_FAILURES} failed runs in the first {self.FLAPPING_MAX_SECONDS} seconds, killing sweep."
+            logger.error(msg)
+            wandb.termerror(msg)
+            wandb.termlog("To disable this check set WANDB_AGENT_DISABLE_FLAPPING=true")
+            return True
+
+        if self._max_initial_failures < len(self._exceptions) and (
+            len(self._exceptions) >= count
+        ):
+            msg = f"Detected {self._max_initial_failures} failed runs in a row at start, killing sweep."
+            logger.error(msg)
+            wandb.termerror(msg)
+            wandb.termlog(
+                "To change this value set WANDB_AGENT_MAX_INITIAL_FAILURES=val"
+            )
+            return True
+
+        return False
 
     def _heartbeat_commands(self, run_status: dict) -> list[dict[str, Any]]:
         """Fetch the next batch of agent commands from the server."""
@@ -263,42 +315,15 @@ class Agent:
                     logger.debug(f"Spawning new thread for run {run_id}.")
                     thread = threading.Thread(target=self._run_job, args=(job,))
                     self._run_threads[run_id] = thread
-                    thread.start()
                     self._run_status[run_id] = RunStatus.RUNNING
+                    thread.start()
                     thread.join()
                     logger.debug(f"Thread joined for run {run_id}.")
                     if self._run_status[run_id] == RunStatus.RUNNING:
                         self._run_status[run_id] = RunStatus.DONE
+                        self._consecutive_failed_runs = 0
                     elif self._run_status[run_id] == RunStatus.ERRORED:
-                        exc = self._exceptions[run_id]
-                        # Extract to reduce a decision point to avoid ruff c901
-                        log_str, term_str = _get_exception_logger_and_term_strs(exc)
-                        logger.error(f"Run {run_id} errored:\n{log_str}")
-                        wandb.termerror(f"Run {run_id} errored:{term_str}")
-                        if os.getenv(wandb.env.AGENT_DISABLE_FLAPPING) == "true":
-                            self._exit_flag = True
-                            return
-                        elif (
-                            time.time() - self._start_time < self.FLAPPING_MAX_SECONDS
-                        ) and (len(self._exceptions) >= self.FLAPPING_MAX_FAILURES):
-                            msg = f"Detected {self.FLAPPING_MAX_FAILURES} failed runs in the first {self.FLAPPING_MAX_SECONDS} seconds, killing sweep."
-                            logger.error(msg)
-                            wandb.termerror(msg)
-                            wandb.termlog(
-                                "To disable this check set WANDB_AGENT_DISABLE_FLAPPING=true"
-                            )
-                            self._exit_flag = True
-                            return
-                        if (
-                            self._max_initial_failures < len(self._exceptions)
-                            and len(self._exceptions) >= count
-                        ):
-                            msg = f"Detected {self._max_initial_failures} failed runs in a row at start, killing sweep."
-                            logger.error(msg)
-                            wandb.termerror(msg)
-                            wandb.termlog(
-                                "To change this value set WANDB_AGENT_MAX_INITIAL_FAILURES=val"
-                            )
+                        if self._handle_errored_run(run_id, count):
                             self._exit_flag = True
                             return
                     if self._count and self._count == count:
@@ -383,7 +408,14 @@ class Agent:
         self._run_jobs_from_queue()
 
 
-def pyagent(sweep_id, function, entity=None, project=None, count=None):
+def pyagent(
+    sweep_id,
+    function,
+    entity=None,
+    project=None,
+    count=None,
+    max_consecutive_failed_runs=None,
+):
     """Generic agent entrypoint, used for CLI or jupyter.
 
     Args:
@@ -392,6 +424,8 @@ def pyagent(sweep_id, function, entity=None, project=None, count=None):
         entity (str, optional): W&B Entity
         project (str, optional): W&B Project
         count (int, optional): the number of trials to run.
+        max_consecutive_failed_runs (int, optional): Shut the agent down once this
+            many runs have failed back to back.
     """
     if not callable(function):
         raise TypeError("function parameter must be callable!")
@@ -401,6 +435,7 @@ def pyagent(sweep_id, function, entity=None, project=None, count=None):
         entity=entity,
         project=project,
         count=count,
+        max_consecutive_failed_runs=max_consecutive_failed_runs,
     )
     agent.run()
 

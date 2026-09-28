@@ -67,7 +67,7 @@ type RunUpserter struct {
 	params      *runbranch.RunParams
 	config      *runconfig.RunConfig
 	telemetry   *spb.TelemetryRecord
-	metrics     *runmetric.RunConfigMetrics
+	metrics     *runmetric.MetricHandler
 	environment *runenvironment.RunEnvironment
 }
 
@@ -159,20 +159,6 @@ func InitRun(
 		defer cancel()
 	}
 
-	// Initialize the run metrics.
-	enableServerExpandedMetrics := params.Settings.IsEnableServerSideExpandGlobMetrics()
-	if enableServerExpandedMetrics && !params.FeatureProvider.Enabled(
-		ctx,
-		spb.ServerFeature_EXPAND_DEFINED_METRIC_GLOBS,
-	) {
-		params.Logger.Warn(
-			"runupserter: server does not expand metric globs" +
-				" but the x_server_side_expand_glob_metrics setting is set;" +
-				" ignoring")
-		enableServerExpandedMetrics = false
-	}
-	metrics := runmetric.NewRunConfigMetrics(enableServerExpandedMetrics)
-
 	upserter := &RunUpserter{
 		debounceDelay: params.DebounceDelay,
 
@@ -189,7 +175,7 @@ func InitRun(
 		params:      runParams,
 		config:      config,
 		telemetry:   telemetry,
-		metrics:     metrics,
+		metrics:     runmetric.New(),
 		environment: environment,
 	}
 
@@ -337,8 +323,7 @@ func (upserter *RunUpserter) UpdateMetrics(metric *spb.MetricRecord) {
 	defer upserter.mu.Unlock()
 
 	// Skip uploading expanded metrics if the server expands them itself.
-	if upserter.metrics.IsServerExpandGlobMetrics() &&
-		metric.GetExpandedFromGlob() {
+	if metric.GetExpandedFromGlob() {
 		return
 	}
 
@@ -484,6 +469,7 @@ func (upserter *RunUpserter) updateMetadataForResume(
 		ctx,
 		upserter.graphqlClientOrNil,
 		resumeSetting,
+		upserter.logger,
 	).UpdateForResume(
 		upserter.params,
 		upserter.config,

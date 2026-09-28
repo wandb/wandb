@@ -2,7 +2,9 @@ use arrow::array::{
     Array,
     BinaryArray,
     BooleanArray,
+    DictionaryArray,
     Float64Array,
+    Int32Array,
     Int64Array,
     ListArray,
     MapArray,
@@ -12,7 +14,7 @@ use arrow::array::{
     UInt64Array,
 };
 use arrow::buffer::OffsetBuffer;
-use arrow::datatypes::{DataType, Field, Fields, Schema};
+use arrow::datatypes::{DataType, Field, Fields, Int32Type, Schema};
 use arrow_rs_wrapper::serialize::*;
 use std::sync::Arc;
 
@@ -325,4 +327,18 @@ fn test_serialize_map_with_non_string_keys_returns_error() {
         err_msg.contains("unsupported map key type"),
         "expected 'unsupported map key type' in error, got: {err_msg}"
     );
+}
+
+#[test]
+fn test_serialize_dictionary() {
+    let keys = Int32Array::from(vec![1]);
+    let values = Arc::new(StringArray::from(vec!["a", "bb"]));
+    let dict = DictionaryArray::<Int32Type>::try_new(keys, values).unwrap();
+    let (buf, mut offset) =
+        serialize_single_column(Field::new("v", dict.data_type().clone(), false), Arc::new(dict));
+
+    assert_eq!(buf[offset], TYPE_STRING);
+    offset += 1;
+    let len = read_u32(&buf, &mut offset) as usize;
+    assert_eq!(&buf[offset..offset + len], b"bb");
 }

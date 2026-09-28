@@ -3,7 +3,6 @@ package scheduler_test
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -19,7 +18,7 @@ import (
 func newTestAPI(
 	client *gqlmock.MockClient,
 	features map[spb.ServerFeature]bool,
-) *scheduler.SweepAPI {
+) scheduler.SweepAPI {
 	return scheduler.NewSweepAPI(
 		client,
 		featurechecker.NewPreloaded(features),
@@ -91,7 +90,7 @@ func TestFetchSweepNotFound(t *testing.T) {
 	assert.ErrorIs(t, err, scheduler.ErrSweepNotFound)
 }
 
-func TestPollPage(t *testing.T) {
+func TestWarmStartPage(t *testing.T) {
 	client := gqlmock.NewMockClient()
 	client.StubMatchOnce(
 		gqlmock.WithOpName("SweepRunsWithHistory"),
@@ -120,7 +119,7 @@ func TestPollPage(t *testing.T) {
 	)
 	api := newTestAPI(client, supported())
 
-	page, err := api.PollPage(context.Background(), 200, nil, "loss")
+	page, err := api.WarmStartPage(context.Background(), 200, nil, []string{"loss"})
 
 	require.NoError(t, err)
 	assert.Equal(t, "RUNNING", page.SweepState)
@@ -149,7 +148,59 @@ func TestPollPage(t *testing.T) {
 	)
 }
 
-func TestPollPageWithoutMetricSkipsHistory(t *testing.T) {
+// TestWarmStartPageMultipleMetrics covers multi-objective sweeps, which
+// track more than one metric and need every metric sampled at the same
+// steps to compare runs against each other.
+func TestWarmStartPageMultipleMetrics(t *testing.T) {
+	client := gqlmock.NewMockClient()
+	client.StubMatchOnce(
+		gqlmock.WithOpName("SweepRunsWithHistory"),
+		`{
+			"project": {
+				"sweep": {
+					"state": "RUNNING",
+					"runs": {
+						"pageInfo": {"hasNextPage": false, "endCursor": null},
+						"edges": [
+							{
+								"node": {
+									"id": "UnVuOjE=",
+									"name": "run-1",
+									"state": "running",
+									"config": "{}",
+									"summaryMetrics": "{}",
+									"sampledHistory": [[{"loss": 1.0, "accuracy": 0.9, "_step": 0}]]
+								}
+							}
+						]
+					}
+				}
+			}
+		}`,
+	)
+	api := newTestAPI(client, supported())
+
+	page, err := api.WarmStartPage(
+		context.Background(), 200, nil, []string{"loss", "accuracy"})
+
+	require.NoError(t, err)
+	require.Len(t, page.Runs, 1)
+	assert.JSONEq(
+		t,
+		`[{"loss": 1.0, "accuracy": 0.9, "_step": 0}]`,
+		page.Runs[0].HistoryJSON,
+	)
+
+	gqlmock.AssertVariables(
+		t,
+		client.AllRequests()[0],
+		gqlmock.GQLVar(
+			"historySpecs", historySpecsWantKeys("loss", "accuracy", "_step"),
+		),
+	)
+}
+
+func TestWarmStartPageWithoutMetricSkipsHistory(t *testing.T) {
 	client := gqlmock.NewMockClient()
 	client.StubMatchOnce(
 		gqlmock.WithOpName("SweepRunsWithHistory"),
@@ -178,7 +229,7 @@ func TestPollPageWithoutMetricSkipsHistory(t *testing.T) {
 	)
 	api := newTestAPI(client, supported())
 
-	page, err := api.PollPage(context.Background(), 200, nil, "")
+	page, err := api.WarmStartPage(context.Background(), 200, nil, nil)
 
 	require.NoError(t, err)
 	assert.Nil(t, page.NextCursor)
@@ -186,7 +237,7 @@ func TestPollPageWithoutMetricSkipsHistory(t *testing.T) {
 	assert.Equal(t, "", page.Runs[0].HistoryJSON)
 }
 
-func TestPollPageSweepNotFound(t *testing.T) {
+func TestWarmStartPageSweepNotFound(t *testing.T) {
 	client := gqlmock.NewMockClient()
 	client.StubMatchOnce(
 		gqlmock.WithOpName("SweepRunsWithHistory"),
@@ -194,7 +245,72 @@ func TestPollPageSweepNotFound(t *testing.T) {
 	)
 	api := newTestAPI(client, supported())
 
-	_, err := api.PollPage(context.Background(), 200, nil, "loss")
+	_, err := api.WarmStartPage(context.Background(), 200, nil, []string{"loss"})
+
+	assert.ErrorIs(t, err, scheduler.ErrSweepNotFound)
+}
+
+func TestFetchWatchedRuns(t *testing.T) {
+	client := gqlmock.NewMockClient()
+	client.StubMatchOnce(
+		gqlmock.WithOpName("SweepWatchedRuns"),
+		`{
+			"project": {
+				"sweep": {"state": "RUNNING"},
+				"runs": {
+					"pageInfo": {"hasNextPage": true, "endCursor": "abc"},
+					"edges": [
+						{
+							"node": {
+								"id": "UnVuOjE=",
+								"name": "run-1",
+								"state": "running",
+								"config": "{\"param1\": {\"value\": 1}}",
+								"summaryMetrics": "{\"loss\": 0.5}",
+								"sampledHistory": [[{"loss": 1.0, "_step": 0}]]
+							}
+						}
+					]
+				}
+			}
+		}`,
+	)
+	api := newTestAPI(client, supported())
+
+	page, err := api.FetchWatchedRuns(
+		context.Background(), []string{"run-1", "run-2"}, 200, nil, []string{"loss"})
+
+	require.NoError(t, err)
+	assert.Equal(t, "RUNNING", page.SweepState)
+	require.NotNil(t, page.NextCursor)
+	assert.Equal(t, "abc", *page.NextCursor)
+	require.Len(t, page.Runs, 1)
+	run := page.Runs[0]
+	assert.Equal(t, "UnVuOjE=", run.StorageID)
+	assert.Equal(t, "run-1", run.Name)
+	assert.Equal(t, "running", run.State)
+	assert.Equal(t, `{"param1": {"value": 1}}`, run.ConfigJSON)
+	assert.JSONEq(t, `[{"loss": 1.0, "_step": 0}]`, run.HistoryJSON)
+
+	// The whole point of the query: the backend is asked for exactly the
+	// named runs rather than the whole sweep.
+	gqlmock.AssertVariables(
+		t,
+		client.AllRequests()[0],
+		gqlmock.GQLVar("filters", gomock.Eq(`{"name":{"$in":["run-1","run-2"]}}`)),
+	)
+}
+
+func TestFetchWatchedRunsSweepNotFound(t *testing.T) {
+	client := gqlmock.NewMockClient()
+	client.StubMatchOnce(
+		gqlmock.WithOpName("SweepWatchedRuns"),
+		`{"project": {"sweep": null, "runs": null}}`,
+	)
+	api := newTestAPI(client, supported())
+
+	_, err := api.FetchWatchedRuns(
+		context.Background(), []string{"run-1"}, 200, nil, nil)
 
 	assert.ErrorIs(t, err, scheduler.ErrSweepNotFound)
 }
@@ -202,33 +318,22 @@ func TestPollPageSweepNotFound(t *testing.T) {
 // historySpecsWantKeys matches a historySpecs variable whose first spec
 // requests exactly the given "keys", in order.
 func historySpecsWantKeys(keys ...string) gomock.Matcher {
-	return &historySpecsKeysMatcher{keys}
-}
+	return gomock.Cond(func(specs []any) bool {
+		if len(specs) == 0 {
+			return false
+		}
+		specJSON, ok := specs[0].(string)
+		if !ok {
+			return false
+		}
 
-type historySpecsKeysMatcher struct {
-	keys []string
-}
+		var spec struct {
+			Keys []string `json:"keys"`
+		}
+		if err := json.Unmarshal([]byte(specJSON), &spec); err != nil {
+			return false
+		}
 
-func (m *historySpecsKeysMatcher) Matches(x any) bool {
-	specs, ok := x.([]any)
-	if !ok || len(specs) == 0 {
-		return false
-	}
-	specJSON, ok := specs[0].(string)
-	if !ok {
-		return false
-	}
-
-	var spec struct {
-		Keys []string `json:"keys"`
-	}
-	if err := json.Unmarshal([]byte(specJSON), &spec); err != nil {
-		return false
-	}
-
-	return assert.ObjectsAreEqual(m.keys, spec.Keys)
-}
-
-func (m *historySpecsKeysMatcher) String() string {
-	return fmt.Sprintf("has first history spec with keys %v", m.keys)
+		return assert.ObjectsAreEqual(keys, spec.Keys)
+	})
 }

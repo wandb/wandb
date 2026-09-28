@@ -17,6 +17,7 @@ import (
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/internal/tensorboard"
+	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -113,6 +114,15 @@ func (rs *RunSyncer) Init(ctx context.Context) (*RunInfo, error) {
 	rs.mu.Lock()
 	rs.runInfo = runInfo
 	rs.mu.Unlock()
+
+	// NOTE: Print after setting runInfo for a useful message prefix.
+	if version.Compare(runInfo.SDKVersion, version.Version) > 0 {
+		rs.printer.Warnf(
+			"Syncing a run generated with a newer SDK version (%s) may"+
+				" not work as expected.",
+			version.PyPI(runInfo.SDKVersion),
+		)
+	}
 
 	return runInfo, nil
 }

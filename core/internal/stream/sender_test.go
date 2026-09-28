@@ -113,6 +113,7 @@ func makeSenderWithFileStream(
 		RunfilesUploaderFactory: runfilesUploaderFactory,
 		Mailbox:                 mailbox.New(),
 		GraphqlClient:           client,
+		Peeker:                  &observability.Peeker{},
 		FeatureProvider:         featurechecker.New(nil, logger),
 		RunHandle:               runHandle,
 		HistoryStepTracker:      stream.NewHistoryStepTracker(logger, runHandle),

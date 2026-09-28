@@ -20,3 +20,9 @@ tempfile = "3.27.0"
 
 [lib]
 crate-type = ["cdylib", "rlib"] # rlib needed for integration tests
+
+[profile.release]
+strip = "symbols"
+lto = "fat"
+codegen-units = 1
+panic = "abort"

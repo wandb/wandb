@@ -153,6 +153,7 @@ class WandbAgentTestEnv:
         sweep_id: str | None = None,
         entity: str | None = None,
         project: str | None = None,
+        max_consecutive_failed_runs: int | None = None,
     ) -> pyagent.Agent:
         """Build an in-process sweep agent for unit tests."""
         return pyagent.Agent(
@@ -161,6 +162,7 @@ class WandbAgentTestEnv:
             entity=entity or self.entity,
             project=project or self.project,
             count=count,
+            max_consecutive_failed_runs=max_consecutive_failed_runs,
         )
 
     def make_cli_agent(
@@ -218,8 +220,8 @@ class WandbAgentTestEnv:
 def _wandb_agent_base_patches(monkeypatch: pytest.MonkeyPatch) -> None:
     """Patches shared by all sweep-agent unit tests in this package."""
     monkeypatch.setattr("wandb.sdk.wandb_login._login", lambda *args, **kwargs: None)
+    # Yield between heartbeats so they do not starve the run thread.
     monkeypatch.setattr(pyagent.Agent, "HEARTBEAT_SLEEP_SECONDS", 0.05)
-    monkeypatch.setattr("wandb.agents.pyagent.time.sleep", lambda *args, **kwargs: None)
 
 
 @pytest.fixture

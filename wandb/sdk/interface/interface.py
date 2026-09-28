@@ -10,6 +10,11 @@ from secrets import token_hex
 from typing import TYPE_CHECKING, Any
 
 from wandb import termwarn
+from wandb.analytics import (
+    LowCardinalityAttributes,
+    TelemetryRecorder,
+    get_telemetry_recorder,
+)
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
 from wandb.sdk.lib import json_util as json
@@ -29,6 +34,45 @@ from ..data_types.utils import history_dict_to_json, val_to_json
 from . import summary_record as sr
 
 MANIFEST_FILE_SIZE_THRESHOLD = 100_000
+
+# Telemetry for the client half of the filestream upload pipeline.
+#
+# The metric and attribute names are shared with Go core, which owns the rest
+# of the pipeline; see core/internal/filestreamstats.
+_ENCODE_DURATION_METRIC = "wandb.filestream.encode.duration"
+_SEGMENT_CLIENT_ENCODE = "client_encode"
+_STREAM_HISTORY = "history"
+_VALUE_ENCODING_JSON = "json"
+
+# Bucket boundaries for the encode duration histogram, in microseconds.
+#
+# These must stay identical to encodeDurationBoundaries in Go core's
+# internal/filestreamstats.
+_ENCODE_DURATION_BOUNDARIES = (
+    100,
+    250,
+    500,
+    1_000,
+    2_500,
+    5_000,
+    10_000,
+    25_000,
+    50_000,
+    100_000,
+    250_000,
+    500_000,
+    1_000_000,
+    2_500_000,
+    5_000_000,
+    30_000_000,
+    60_000_000,
+    300_000_000,
+    900_000_000,
+    1_800_000_000,
+    3_600_000_000,
+    10_800_000_000,
+    36_000_000_000,
+)
 
 if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
@@ -71,6 +115,35 @@ class InterfaceBase(abc.ABC):
 
     def __init__(self) -> None:
         self._drop = False
+        self._telemetry_recorder: TelemetryRecorder | None = None
+
+    def _record_client_encode(self, seconds: float) -> None:
+        """Report how long encoding one logged map took.
+
+        The recorder is resolved once and cached: this runs on every
+        `run.log()` call, and the process-wide lookup takes a lock.
+        """
+        microseconds = seconds * 1_000_000.0
+        if self._telemetry_recorder is None:
+            self._telemetry_recorder = get_telemetry_recorder()
+            # The boundaries can only be set when the instrument is created,
+            # so declare the histogram before the first measurement.
+            self._telemetry_recorder.define_histogram(
+                _ENCODE_DURATION_METRIC,
+                "us",
+                "Time spent encoding run data for upload.",
+                _ENCODE_DURATION_BOUNDARIES,
+            )
+
+        self._telemetry_recorder.record_histogram(
+            _ENCODE_DURATION_METRIC,
+            microseconds,
+            LowCardinalityAttributes(
+                segment=_SEGMENT_CLIENT_ENCODE,
+                stream=_STREAM_HISTORY,
+                value_encoding=_VALUE_ENCODING_JSON,
+            ),
+        )
 
     @abc.abstractmethod
     async def deliver_async(
@@ -693,6 +766,8 @@ class InterfaceBase(abc.ABC):
         flush: bool | None = None,
         publish_step: bool = True,
     ) -> None:
+        encode_start = time.monotonic()
+
         data = history_dict_to_json(run, data, step=user_step, ignore_copy_err=True)
         data.pop("_step", None)
 
@@ -711,6 +786,11 @@ class InterfaceBase(abc.ABC):
             partial_history.step.num = step
         if flush is not None:
             partial_history.action.flush = flush
+
+        # Measured before the hand-off, so the interval is the encode alone
+        # and excludes serializing and writing the record to core.
+        self._record_client_encode(time.monotonic() - encode_start)
+
         self._publish_partial_history(partial_history)
 
     @abc.abstractmethod

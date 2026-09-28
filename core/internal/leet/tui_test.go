@@ -14,12 +14,11 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/exp/teatest/v2"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/wandb/wandb/core/internal/leet"
 	"github.com/wandb/wandb/core/internal/observability"
-	"github.com/wandb/wandb/core/pkg/leveldb"
+	"github.com/wandb/wandb/core/internal/transactionlog"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -67,17 +66,6 @@ func newTestModel(
 	return tm
 }
 
-// writeRecord marshals and writes a single protobuf record to the leveldb writer.
-func writeRecord(t *testing.T, w *leveldb.Writer, rec *spb.Record) {
-	t.Helper()
-	data, err := proto.Marshal(rec)
-	require.NoError(t, err)
-	dst, err := w.Next()
-	require.NoError(t, err)
-	_, err = dst.Write(data)
-	require.NoError(t, err)
-}
-
 // forceRepaint nudges Bubble Tea to produce a fresh frame.
 // Why needed: teatest.WaitFor consumes tm.Output(). Without a new render, a second
 // WaitFor may time out even if the content is already on-screen. Sending a slightly
@@ -104,12 +92,12 @@ func waitForFrame(t *testing.T, tm *teatest.TestModel, w, h int, cond func(strin
 func TestLoadingScreenAndQuit(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
-	tmp, err := os.CreateTemp(t.TempDir(), "loading-*.wandb")
+	path := filepath.Join(t.TempDir(), "loading.wandb")
+	writer, err := transactionlog.OpenWriter(path)
 	require.NoError(t, err)
-	writer := leveldb.NewWriterExt(tmp, leveldb.CRCAlgoIEEE, 0)
 	t.Cleanup(func() { _ = writer.Close() })
 
-	tm := newTestModel(t, cfg, tmp.Name(), 100, 30)
+	tm := newTestModel(t, cfg, path, 100, 30)
 
 	// Wait for loading screen text.
 	waitForContent(t, tm.Output(),
@@ -133,15 +121,13 @@ func TestMetricsAndSystemMetrics_RenderAndSeriesCount(t *testing.T) {
 	_ = cfg.SetRightSidebarVisible(true)
 
 	// Create a writable .wandb file and keep it open to simulate a live run.
-	tmp, err := os.CreateTemp(t.TempDir(), "test-*.wandb")
-	if err != nil {
-		t.Fatalf("CreateTemp: %v", err)
-	}
-	defer tmp.Close()
-	writer := leveldb.NewWriterExt(tmp, leveldb.CRCAlgoIEEE, 0)
+	path := filepath.Join(t.TempDir(), "test.wandb")
+	writer, err := transactionlog.OpenWriter(path)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = writer.Close() })
 
 	// Seed minimal run + metrics so both the main grid and system grid can render.
-	writeRecord(t, writer, &spb.Record{
+	require.NoError(t, writer.Write(&spb.Record{
 		RecordType: &spb.Record_Run{
 			Run: &spb.RunRecord{
 				RunId:       "test-run",
@@ -149,8 +135,8 @@ func TestMetricsAndSystemMetrics_RenderAndSeriesCount(t *testing.T) {
 				Project:     "test-project",
 			},
 		},
-	})
-	writeRecord(t, writer, &spb.Record{
+	}))
+	require.NoError(t, writer.Write(&spb.Record{
 		RecordType: &spb.Record_History{
 			History: &spb.HistoryRecord{
 				Step: &spb.HistoryStep{Num: 1},
@@ -160,10 +146,10 @@ func TestMetricsAndSystemMetrics_RenderAndSeriesCount(t *testing.T) {
 				},
 			},
 		},
-	})
+	}))
 
 	ts := time.Now().Unix()
-	writeRecord(t, writer, &spb.Record{
+	require.NoError(t, writer.Write(&spb.Record{
 		RecordType: &spb.Record_Stats{
 			Stats: &spb.StatsRecord{
 				Timestamp: &timestamppb.Timestamp{Seconds: ts},
@@ -174,12 +160,12 @@ func TestMetricsAndSystemMetrics_RenderAndSeriesCount(t *testing.T) {
 				},
 			},
 		},
-	})
+	}))
 	require.NoError(t, writer.Flush())
 
 	// Spin up the TUI against the live file.
 	const W, H = 240, 80
-	tm := newTestModel(t, cfg, tmp.Name(), W, H)
+	tm := newTestModel(t, cfg, path, W, H)
 
 	// Track width bumps so each forceRepaint produces a distinct layout,
 	// forcing the Cursed Renderer to re-send content.
@@ -202,7 +188,7 @@ func TestMetricsAndSystemMetrics_RenderAndSeriesCount(t *testing.T) {
 	)
 
 	// Append more stats (2 GPUs -> series count [2]) and notify the app.
-	writeRecord(t, writer, &spb.Record{
+	require.NoError(t, writer.Write(&spb.Record{
 		RecordType: &spb.Record_Stats{
 			Stats: &spb.StatsRecord{
 				Timestamp: &timestamppb.Timestamp{Seconds: ts + 1},
@@ -213,7 +199,7 @@ func TestMetricsAndSystemMetrics_RenderAndSeriesCount(t *testing.T) {
 				},
 			},
 		},
-	})
+	}))
 	require.NoError(t, writer.Flush())
 	tm.Send(leet.FileChangedMsg{}) // triggers ReadAvailableRecords + redraw in Update.
 
@@ -231,7 +217,7 @@ func TestMetricsAndSystemMetrics_RenderAndSeriesCount(t *testing.T) {
 	)
 
 	// Add a 3rd GPU and then a RunExit, close the writer, and notify again.
-	writeRecord(t, writer, &spb.Record{
+	require.NoError(t, writer.Write(&spb.Record{
 		RecordType: &spb.Record_Stats{
 			Stats: &spb.StatsRecord{
 				Timestamp: &timestamppb.Timestamp{Seconds: ts + 2},
@@ -243,12 +229,12 @@ func TestMetricsAndSystemMetrics_RenderAndSeriesCount(t *testing.T) {
 				},
 			},
 		},
-	})
-	writeRecord(t, writer, &spb.Record{
+	}))
+	require.NoError(t, writer.Write(&spb.Record{
 		RecordType: &spb.Record_Exit{
 			Exit: &spb.RunExitRecord{ExitCode: 0},
 		},
-	})
+	}))
 	require.NoError(t, writer.Close())
 	tm.Send(leet.FileChangedMsg{}) // live read + redraw.
 
@@ -302,14 +288,11 @@ func writeWorkspaceRunWandbFile(
 	runFile := filepath.Join(wandbDir, runKey, "run-"+runID+".wandb")
 	require.NoError(t, os.MkdirAll(filepath.Dir(runFile), 0o755))
 
-	f, err := os.Create(runFile)
+	writer, err := transactionlog.OpenWriter(runFile)
 	require.NoError(t, err)
-	defer func() { _ = f.Close() }()
-
-	writer := leveldb.NewWriterExt(f, leveldb.CRCAlgoIEEE, 0)
 
 	// Minimal Run record (powers run overview preload + nicer UI).
-	writeRecord(t, writer, &spb.Record{
+	require.NoError(t, writer.Write(&spb.Record{
 		RecordType: &spb.Record_Run{
 			Run: &spb.RunRecord{
 				RunId:       runID,
@@ -317,10 +300,10 @@ func writeWorkspaceRunWandbFile(
 				Project:     "test-project",
 			},
 		},
-	})
+	}))
 
 	// Minimal History record with a single metric ("loss") so the MetricsGrid renders.
-	writeRecord(t, writer, &spb.Record{
+	require.NoError(t, writer.Write(&spb.Record{
 		RecordType: &spb.Record_History{
 			History: &spb.HistoryRecord{
 				Step: &spb.HistoryStep{Num: 1},
@@ -330,7 +313,7 @@ func writeWorkspaceRunWandbFile(
 				},
 			},
 		},
-	})
+	}))
 
 	require.NoError(t, writer.Flush())
 	require.NoError(t, writer.Close())
@@ -494,15 +477,13 @@ func TestConsoleLogsPanel_ToggleAppendAndNavigate(t *testing.T) {
 	require.NoError(t, cfg.SetRightSidebarVisible(false))
 
 	// Create a writable .wandb file and keep it open to simulate a live run.
-	tmp, err := os.CreateTemp(t.TempDir(), "logs-*.wandb")
+	path := filepath.Join(t.TempDir(), "logs.wandb")
+	writer, err := transactionlog.OpenWriter(path)
 	require.NoError(t, err)
-	defer tmp.Close()
-
-	writer := leveldb.NewWriterExt(tmp, leveldb.CRCAlgoIEEE, 0)
-	defer func() { _ = writer.Close() }()
+	t.Cleanup(func() { _ = writer.Close() })
 
 	// Minimal Run record (avoid loading screen).
-	writeRecord(t, writer, &spb.Record{
+	require.NoError(t, writer.Write(&spb.Record{
 		RecordType: &spb.Record_Run{
 			Run: &spb.RunRecord{
 				RunId:       "test-run",
@@ -510,10 +491,10 @@ func TestConsoleLogsPanel_ToggleAppendAndNavigate(t *testing.T) {
 				Project:     "test-project",
 			},
 		},
-	})
+	}))
 
 	// Minimal History record so the MetricsGrid renders ("loss").
-	writeRecord(t, writer, &spb.Record{
+	require.NoError(t, writer.Write(&spb.Record{
 		RecordType: &spb.Record_History{
 			History: &spb.HistoryRecord{
 				Step: &spb.HistoryStep{Num: 1},
@@ -523,13 +504,13 @@ func TestConsoleLogsPanel_ToggleAppendAndNavigate(t *testing.T) {
 				},
 			},
 		},
-	})
+	}))
 	require.NoError(t, writer.Flush())
 
 	// Height chosen so ConsoleLogsPane expands to 4 lines (ratio * (H-1) => 4),
 	// which yields 2 content lines. That makes paging assertions crisp.
 	const W, H = 120, 15
-	tm := newTestModel(t, cfg, tmp.Name(), W, H)
+	tm := newTestModel(t, cfg, path, W, H)
 
 	// Wait for the main chart to show.
 	waitForContent(t, tm.Output(),
@@ -563,7 +544,7 @@ func TestConsoleLogsPanel_ToggleAppendAndNavigate(t *testing.T) {
 	const numLogs = 10
 	baseTS := time.Now().Unix()
 	for i := 1; i <= numLogs; i++ {
-		writeRecord(t, writer, &spb.Record{
+		require.NoError(t, writer.Write(&spb.Record{
 			RecordType: &spb.Record_OutputRaw{
 				OutputRaw: &spb.OutputRawRecord{
 					Line:       fmt.Sprintf("log %02d\n", i),
@@ -571,7 +552,7 @@ func TestConsoleLogsPanel_ToggleAppendAndNavigate(t *testing.T) {
 					Timestamp:  &timestamppb.Timestamp{Seconds: baseTS + int64(i)},
 				},
 			},
-		})
+		}))
 	}
 	require.NoError(t, writer.Flush())
 
@@ -634,14 +615,11 @@ func writeWorkspaceRunWandbFileWithStatsAndLogs(
 	runFile := filepath.Join(wandbDir, runKey, "run-"+runID+".wandb")
 	require.NoError(t, os.MkdirAll(filepath.Dir(runFile), 0o755))
 
-	f, err := os.Create(runFile)
+	writer, err := transactionlog.OpenWriter(runFile)
 	require.NoError(t, err)
-	defer func() { _ = f.Close() }()
-
-	writer := leveldb.NewWriterExt(f, leveldb.CRCAlgoIEEE, 0)
 
 	// Run record.
-	writeRecord(t, writer, &spb.Record{
+	require.NoError(t, writer.Write(&spb.Record{
 		RecordType: &spb.Record_Run{
 			Run: &spb.RunRecord{
 				RunId:       runID,
@@ -649,10 +627,10 @@ func writeWorkspaceRunWandbFileWithStatsAndLogs(
 				Project:     "test-project",
 			},
 		},
-	})
+	}))
 
 	// History record.
-	writeRecord(t, writer, &spb.Record{
+	require.NoError(t, writer.Write(&spb.Record{
 		RecordType: &spb.Record_History{
 			History: &spb.HistoryRecord{
 				Step: &spb.HistoryStep{Num: 1},
@@ -662,11 +640,11 @@ func writeWorkspaceRunWandbFileWithStatsAndLogs(
 				},
 			},
 		},
-	})
+	}))
 
 	// Stats records (two timestamps -> chart can render).
 	ts := time.Now().Unix()
-	writeRecord(t, writer, &spb.Record{
+	require.NoError(t, writer.Write(&spb.Record{
 		RecordType: &spb.Record_Stats{
 			Stats: &spb.StatsRecord{
 				Timestamp: &timestamppb.Timestamp{Seconds: ts},
@@ -676,8 +654,8 @@ func writeWorkspaceRunWandbFileWithStatsAndLogs(
 				},
 			},
 		},
-	})
-	writeRecord(t, writer, &spb.Record{
+	}))
+	require.NoError(t, writer.Write(&spb.Record{
 		RecordType: &spb.Record_Stats{
 			Stats: &spb.StatsRecord{
 				Timestamp: &timestamppb.Timestamp{Seconds: ts + 1},
@@ -687,10 +665,10 @@ func writeWorkspaceRunWandbFileWithStatsAndLogs(
 				},
 			},
 		},
-	})
+	}))
 
 	// Console log record.
-	writeRecord(t, writer, &spb.Record{
+	require.NoError(t, writer.Write(&spb.Record{
 		RecordType: &spb.Record_OutputRaw{
 			OutputRaw: &spb.OutputRawRecord{
 				Line:       "epoch 1 complete\n",
@@ -698,14 +676,14 @@ func writeWorkspaceRunWandbFileWithStatsAndLogs(
 				Timestamp:  &timestamppb.Timestamp{Seconds: ts},
 			},
 		},
-	})
+	}))
 
 	// Exit record so the reader processes everything.
-	writeRecord(t, writer, &spb.Record{
+	require.NoError(t, writer.Write(&spb.Record{
 		RecordType: &spb.Record_Exit{
 			Exit: &spb.RunExitRecord{ExitCode: 0},
 		},
-	})
+	}))
 
 	require.NoError(t, writer.Flush())
 	require.NoError(t, writer.Close())

@@ -112,7 +112,7 @@ func (cl *CoreLogger) With(
 	// Derive a child telemetry context so the new attributes are attached
 	// to telemetry emitted through the derived logger only.
 	telemetryRecorder := cl.TelemetryRecorder.With(
-		analytics.LowCardinalityAttributes{},
+		&analytics.LowCardinalityAttributes{},
 		map[string]string(newTags),
 	)
 
@@ -267,7 +267,7 @@ func (cl *CoreLogger) RecordTelemetry(
 		context.Background(),
 		event,
 		attributes,
-		analytics.LowCardinalityAttributes{},
+		&analytics.LowCardinalityAttributes{},
 	)
 }
 
