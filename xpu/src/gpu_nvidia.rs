@@ -1,7 +1,7 @@
 use crate::metrics::MetricValue;
 use crate::wandb_internal::{EnvironmentRecord, GpuNvidiaInfo};
 
-use nvml_wrapper::enum_wrappers::device::{Clock, TemperatureSensor};
+use nvml_wrapper::enum_wrappers::device::{Clock, PcieUtilCounter, TemperatureSensor};
 use nvml_wrapper::enums::gpm::GpmMetricId;
 use nvml_wrapper::error::NvmlError;
 use nvml_wrapper::gpm;
@@ -76,6 +76,7 @@ struct GpuMetricAvailability {
     link_width: bool,
     max_link_gen: bool,
     max_link_width: bool,
+    pcie_throughput: bool,
     gpm: bool,
 }
 
@@ -100,6 +101,7 @@ impl Default for GpuMetricAvailability {
             link_width: false,
             max_link_gen: false,
             max_link_width: false,
+            pcie_throughput: true,
             gpm: false,
         }
     }
@@ -314,6 +316,8 @@ impl NvidiaGpu {
     /// gpu.{i}.pcieLinkWidth: The current PCIe link width of the GPU at index i.
     /// gpu.{i}.maxPcieLinkGen: The maximum PCIe link generation supported by the GPU at index i.
     /// gpu.{i}.maxPcieLinkWidth: The maximum PCIe link width supported by the GPU at index i.
+    /// gpu.{i}.pcieTxBytes / pcieRxBytes: PCIe throughput (bytes/sec). On GPUs without GPM this
+    ///    is NVML's reading over a 20 ms window.
     /// gpu.{i}.cudaCores: The number of CUDA cores in the GPU at index i.
     /// gpu.{i}.architecture: The architecture of the GPU at index i (e.g., Ampere, Turing).
     /// gpu.process.{i}.*: Various metrics specific to the monitored process
@@ -745,6 +749,28 @@ impl NvidiaGpu {
                     }
                     Err(_) => {
                         availability.max_link_width = false;
+                    }
+                }
+            }
+
+            // PCIe throughput. GPUs with GPM report it among the GPM metrics below.
+            if availability.pcie_throughput && !availability.gpm {
+                match (
+                    device.pcie_throughput(PcieUtilCounter::Send),
+                    device.pcie_throughput(PcieUtilCounter::Receive),
+                ) {
+                    (Ok(tx), Ok(rx)) => {
+                        metrics.push((
+                            format!("gpu.{}.pcieTxBytes", di),
+                            MetricValue::Float(tx as f64 * 1024.0),
+                        ));
+                        metrics.push((
+                            format!("gpu.{}.pcieRxBytes", di),
+                            MetricValue::Float(rx as f64 * 1024.0),
+                        ));
+                    }
+                    _ => {
+                        availability.pcie_throughput = false;
                     }
                 }
             }
