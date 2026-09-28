@@ -120,6 +120,7 @@ class Agent:
     def _init(self):
         # These are not in constructor so that Agent instance can be rerun
         self._run_threads = {}
+        self._run_done = {}
         self._run_status = {}
         self._queue = queue.Queue()
         self._exit_flag = False
@@ -315,8 +316,13 @@ class Agent:
                     logger.debug(f"Spawning new thread for run {run_id}.")
                     thread = threading.Thread(target=self._run_job, args=(job,))
                     self._run_threads[run_id] = thread
+                    self._run_done[run_id] = threading.Event()
                     self._run_status[run_id] = RunStatus.RUNNING
                     thread.start()
+                    # Wait on an Event rather than join(): on Python <3.13, a
+                    # join() interrupted by Ctrl-C marks the thread stopped
+                    # while it is still running.
+                    self._run_done[run_id].wait()
                     thread.join()
                     logger.debug(f"Thread joined for run {run_id}.")
                     if self._run_status[run_id] == RunStatus.RUNNING:
@@ -393,6 +399,7 @@ class Agent:
             os.environ.pop(wandb.env.RUN_ID, None)
             os.environ.pop(wandb.env.SWEEP_ID, None)
             os.environ.pop(wandb.env.SWEEP_PARAM_PATH, None)
+            self._run_done[job.run_id].set()
 
     def run(self):
         logger.info(
