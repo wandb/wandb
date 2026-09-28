@@ -9,9 +9,9 @@ use nvml_wrapper::{Device, Nvml};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-/// Minimum interval between GPM sample pairs. NVML hardware counters require
-/// at least 100ms between samples; we use 200ms for margin.
-const GPM_SAMPLE_INTERVAL: Duration = Duration::from_millis(200);
+/// Minimum age of the previous GPM sample before a new one is paired with it.
+/// NVML requires at least 100 ms between the two samples of a pair.
+const GPM_MIN_SAMPLE_INTERVAL: Duration = Duration::from_millis(100);
 
 /// GPM (GPU Performance Monitoring) metrics to collect and their output names.
 ///
@@ -19,8 +19,9 @@ const GPM_SAMPLE_INTERVAL: Duration = Duration::from_millis(200);
 /// consumers (LEET, the web UI, etc.) work identically regardless of whether
 /// metrics came from DCGM or NVML GPM.
 ///
-/// GPM is supported on Hopper+ architectures (H100 and newer). It computes
-/// metrics from two time-separated samples taken during each polling cycle.
+/// GPM is supported on Hopper+ architectures (H100 and newer). Each metric is
+/// computed between the sample taken on the previous poll and a fresh one, so
+/// it is an average over the whole polling interval.
 const GPM_METRICS: &[(GpmMetricId, &str)] = &[
     (GpmMetricId::SmUtil, "smActive"),
     (GpmMetricId::SmOccupancy, "smOccupancy"),
@@ -138,11 +139,14 @@ fn get_lib_path() -> Result<std::path::PathBuf, NvmlError> {
 
 /// NvidiaGpu collects metadata and metrics from NVIDIA GPUs using NVML.
 pub struct NvidiaGpu {
-    nvml: Nvml,
+    /// Leaked so that the GPM samples, which borrow it, can be stored alongside.
+    nvml: &'static Nvml,
     cuda_version: String,
     device_count: u32,
     gpu_static_info: Vec<GpuStaticInfo>,
     gpu_metric_availability: Vec<GpuMetricAvailability>,
+    /// The GPM sample from the previous poll and when it was taken, per device.
+    gpm_samples: Vec<Option<(gpm::GpmSample<'static>, Instant)>>,
 }
 
 impl NvidiaGpu {
@@ -153,6 +157,7 @@ impl NvidiaGpu {
             .init()?;
         #[cfg(not(target_os = "windows"))]
         let nvml = Nvml::init()?;
+        let nvml: &'static Nvml = Box::leak(Box::new(nvml));
         let cuda_version = nvml.sys_cuda_driver_version()?;
         let device_count = nvml.device_count()?;
 
@@ -206,6 +211,7 @@ impl NvidiaGpu {
             device_count,
             gpu_static_info,
             gpu_metric_availability,
+            gpm_samples: (0..device_count).map(|_| None).collect(),
         })
     }
 
@@ -353,32 +359,6 @@ impl NvidiaGpu {
         ));
 
         let gpm_metric_ids: Vec<GpmMetricId> = GPM_METRICS.iter().map(|(id, _)| *id).collect();
-
-        // GPM phase 1: take the first sample for every GPM-capable device
-        // up front so the normal NVML collection fills the sampling window
-        // instead of sleeping serially per GPU.
-        let mut gpm_first_samples: Vec<Option<gpm::GpmSample<'_>>> =
-            (0..self.device_count).map(|_| None).collect();
-        let gpm_start = Instant::now();
-        for di in 0..self.device_count {
-            if let Some(ref ids) = gpu_device_ids {
-                if !ids.contains(&(di as i32)) {
-                    continue;
-                }
-            }
-            if self.gpu_metric_availability[di as usize].gpm {
-                if let Ok(device) = self.nvml.device_by_index(di) {
-                    match device.gpm_sample() {
-                        Ok(sample) => {
-                            gpm_first_samples[di as usize] = Some(sample);
-                        }
-                        Err(_) => {
-                            self.gpu_metric_availability[di as usize].gpm = false;
-                        }
-                    }
-                }
-            }
-        }
 
         for di in 0..self.device_count {
             // Skip GPU if not in the list of device IDs to monitor.
@@ -763,49 +743,42 @@ impl NvidiaGpu {
                     }
                 }
             }
-        }
 
-        // GPM phase 2: the normal NVML collection above filled part of the
-        // sampling window. Sleep only the remaining time (if any), then take
-        // the second sample for each device and compute the derived metrics.
-        let has_gpm_samples = gpm_first_samples.iter().any(|s| s.is_some());
-        if has_gpm_samples {
-            let elapsed = gpm_start.elapsed();
-            if elapsed < GPM_SAMPLE_INTERVAL {
-                std::thread::sleep(GPM_SAMPLE_INTERVAL - elapsed);
-            }
-
-            for di in 0..self.device_count {
-                if let Some(sample1) = gpm_first_samples[di as usize].take() {
-                    let device = match self.nvml.device_by_index(di) {
-                        Ok(d) => d,
-                        Err(_) => continue,
-                    };
+            // GPM metrics, computed between the previous poll's sample and a fresh one.
+            if availability.gpm {
+                let slot = &mut self.gpm_samples[di as usize];
+                let due = slot
+                    .as_ref()
+                    .is_none_or(|(_, taken_at)| taken_at.elapsed() >= GPM_MIN_SAMPLE_INTERVAL);
+                if due {
                     match device.gpm_sample() {
-                        Ok(sample2) => {
-                            match gpm::gpm_metrics_get(
-                                &self.nvml,
-                                &sample1,
-                                &sample2,
-                                &gpm_metric_ids,
-                            ) {
-                                Ok(results) => {
-                                    for (result, (_, name)) in results.iter().zip(GPM_METRICS) {
-                                        if let Ok(m) = result {
-                                            metrics.push((
-                                                format!("gpu.{}.{}", di, name),
-                                                MetricValue::Float(m.value),
-                                            ));
+                        Ok(sample) => {
+                            if let Some((previous, _)) = slot.take() {
+                                match gpm::gpm_metrics_get(
+                                    self.nvml,
+                                    &previous,
+                                    &sample,
+                                    &gpm_metric_ids,
+                                ) {
+                                    Ok(results) => {
+                                        for (result, (_, name)) in results.iter().zip(GPM_METRICS) {
+                                            if let Ok(m) = result {
+                                                metrics.push((
+                                                    format!("gpu.{}.{}", di, name),
+                                                    MetricValue::Float(m.value),
+                                                ));
+                                            }
                                         }
                                     }
-                                }
-                                Err(_) => {
-                                    self.gpu_metric_availability[di as usize].gpm = false;
+                                    Err(_) => {
+                                        availability.gpm = false;
+                                    }
                                 }
                             }
+                            *slot = Some((sample, Instant::now()));
                         }
                         Err(_) => {
-                            self.gpu_metric_availability[di as usize].gpm = false;
+                            availability.gpm = false;
                         }
                     }
                 }
