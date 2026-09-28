@@ -22,20 +22,25 @@ const GPM_MIN_SAMPLE_INTERVAL: Duration = Duration::from_millis(100);
 /// GPM is supported on Hopper+ architectures (H100 and newer). Each metric is
 /// computed between the sample taken on the previous poll and a fresh one, so
 /// it is an average over the whole polling interval.
-const GPM_METRICS: &[(GpmMetricId, &str)] = &[
-    (GpmMetricId::SmUtil, "smActive"),
-    (GpmMetricId::SmOccupancy, "smOccupancy"),
-    (GpmMetricId::AnyTensorUtil, "pipeTensorActive"),
-    (GpmMetricId::DramBwUtil, "dramActive"),
-    (GpmMetricId::Fp64Util, "pipeFp64Active"),
-    (GpmMetricId::Fp32Util, "pipeFp32Active"),
-    (GpmMetricId::Fp16Util, "pipeFp16Active"),
-    (GpmMetricId::HmmaTensorUtil, "pipeTensorHmmaActive"),
-    (GpmMetricId::PcieTxPerSec, "pcieTxBytes"),
-    (GpmMetricId::PcieRxPerSec, "pcieRxBytes"),
-    (GpmMetricId::NvlinkTotalTxPerSec, "nvlinkTxBytes"),
-    (GpmMetricId::NvlinkTotalRxPerSec, "nvlinkRxBytes"),
+///
+/// The third element scales NVML's value into the unit the name implies:
+/// percentages are used as is, throughput comes from NVML in MiB/s.
+const GPM_METRICS: &[(GpmMetricId, &str, f64)] = &[
+    (GpmMetricId::SmUtil, "smActive", 1.0),
+    (GpmMetricId::SmOccupancy, "smOccupancy", 1.0),
+    (GpmMetricId::AnyTensorUtil, "pipeTensorActive", 1.0),
+    (GpmMetricId::DramBwUtil, "dramActive", 1.0),
+    (GpmMetricId::Fp64Util, "pipeFp64Active", 1.0),
+    (GpmMetricId::Fp32Util, "pipeFp32Active", 1.0),
+    (GpmMetricId::Fp16Util, "pipeFp16Active", 1.0),
+    (GpmMetricId::HmmaTensorUtil, "pipeTensorHmmaActive", 1.0),
+    (GpmMetricId::PcieTxPerSec, "pcieTxBytes", MIB),
+    (GpmMetricId::PcieRxPerSec, "pcieRxBytes", MIB),
+    (GpmMetricId::NvlinkTotalTxPerSec, "nvlinkTxBytes", MIB),
+    (GpmMetricId::NvlinkTotalRxPerSec, "nvlinkRxBytes", MIB),
 ];
+
+const MIB: f64 = 1024.0 * 1024.0;
 
 /// Static information about a GPU.
 #[derive(Default)]
@@ -358,7 +363,7 @@ impl NvidiaGpu {
             MetricValue::Int(self.device_count as i64),
         ));
 
-        let gpm_metric_ids: Vec<GpmMetricId> = GPM_METRICS.iter().map(|(id, _)| *id).collect();
+        let gpm_metric_ids: Vec<GpmMetricId> = GPM_METRICS.iter().map(|(id, _, _)| *id).collect();
 
         for di in 0..self.device_count {
             // Skip GPU if not in the list of device IDs to monitor.
@@ -761,11 +766,13 @@ impl NvidiaGpu {
                                     &gpm_metric_ids,
                                 ) {
                                     Ok(results) => {
-                                        for (result, (_, name)) in results.iter().zip(GPM_METRICS) {
+                                        for (result, (_, name, scale)) in
+                                            results.iter().zip(GPM_METRICS)
+                                        {
                                             if let Ok(m) = result {
                                                 metrics.push((
                                                     format!("gpu.{}.{}", di, name),
-                                                    MetricValue::Float(m.value),
+                                                    MetricValue::Float(m.value * scale),
                                                 ));
                                             }
                                         }
