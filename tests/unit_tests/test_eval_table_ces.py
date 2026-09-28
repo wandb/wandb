@@ -368,6 +368,19 @@ def test_ces_eval_table_logs_batch_sizes_in_debug_mode(
     monkeypatch.setattr(ces, "_MAX_ROWS_PER_BATCH", 2)
     termlog = MagicMock()
     monkeypatch.setattr(wandb, "termlog", termlog)
+    # The scope lookup is the first network request.
+    termlog_calls_before_requests = []
+    resolve_scope_context = ces.CESWriter._resolve_scope_context
+
+    def record_then_resolve_scope_context(self, bound_run):
+        termlog_calls_before_requests.append(termlog.call_count)
+        return resolve_scope_context(self, bound_run)
+
+    monkeypatch.setattr(
+        ces.CESWriter,
+        "_resolve_scope_context",
+        record_then_resolve_scope_context,
+    )
     et = wandb.EvalTable(
         columns=["prompt", "answer", "score"],
         data=[["q", "a", 1.0]] * 3,
@@ -393,6 +406,7 @@ def test_ces_eval_table_logs_batch_sizes_in_debug_mode(
         f"EvalTable CES rows batch 2/2: 1 rows, 3 columns, {body_sizes[1]:,} bytes "
         f"({body_sizes[1] / (1 << 20):.2f} MiB)",
     ]
+    assert termlog_calls_before_requests == [2]
 
 
 def test_ces_eval_table_rejects_oversized_row_before_network(
