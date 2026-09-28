@@ -5,6 +5,7 @@ import json
 import logging
 import math
 import os
+import time
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
@@ -247,7 +248,16 @@ class CESWriter:
                 "CES EvalTable logging requires the coreweave_evaluations package."
             ) from exc
 
+        debug = env.is_debug()
+        if debug:
+            wandb.termlog(f"EvalTable CES preparing {len(rows):,} rows")
+        prepare_start = time.monotonic()
         write_payloads = self._build_write_payloads(name=name, rows=rows)
+        if debug:
+            wandb.termlog(
+                f"EvalTable CES prepared {len(rows):,} rows in "
+                f"{time.monotonic() - prepare_start:.1f}s"
+            )
         self._record_media_telemetry(write_payloads)
         if write_payloads.oversized_media_cells:
             locations = ", ".join(write_payloads.oversized_locations)
@@ -259,7 +269,7 @@ class CESWriter:
                 f"{_media_ces.CES_MAX_CELL_BYTES / 1_000_000:g} MB limit. "
                 f"First affected: {locations}.",
             )
-        if env.is_debug():
+        if debug:
             _log_row_batch_sizes(
                 write_payloads.row_batches,
                 len(write_payloads.dataset_fields) + len(write_payloads.scorers),

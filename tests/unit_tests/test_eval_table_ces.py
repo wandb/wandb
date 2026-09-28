@@ -400,13 +400,16 @@ def test_ces_eval_table_logs_batch_sizes_in_debug_mode(
         for call in mock_ces_client.eval_tables.rows.add.call_args_list
     ]
     body_sizes = [len(ces._encode_json({"rows": batch})) for batch in batches]
-    assert [call.args[0] for call in termlog.call_args_list] == [
+    lines = [call.args[0] for call in termlog.call_args_list]
+    assert lines[0] == "EvalTable CES preparing 3 rows"
+    assert lines[1].startswith("EvalTable CES prepared 3 rows in ")
+    assert lines[2:] == [
         f"EvalTable CES rows batch 1/2: 2 rows, 3 columns, {body_sizes[0]:,} bytes "
         f"({body_sizes[0] / (1 << 20):.2f} MiB)",
         f"EvalTable CES rows batch 2/2: 1 rows, 3 columns, {body_sizes[1]:,} bytes "
         f"({body_sizes[1] / (1 << 20):.2f} MiB)",
     ]
-    assert termlog_calls_before_requests == [2]
+    assert termlog_calls_before_requests == [4]
 
 
 def test_ces_eval_table_rejects_oversized_row_before_network(
