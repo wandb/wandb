@@ -321,6 +321,13 @@ class Image(BatchableMedia):
             util.ensure_matplotlib_figure(data).savefig(buf, format=self.format)
             self._image = pil_image.open(buf)
         elif isinstance(data, pil_image.Image):
+            if self.format in ("jpg", "jpeg") and data.mode in ("RGBA", "LA"):
+                wandb.termwarn(
+                    "JPEG format does not support transparency. "
+                    "Ignoring alpha channel.",
+                    repeat=False,
+                )
+                data = data.convert("RGB" if data.mode == "RGBA" else "L")
             self._image = data
         elif util.is_pytorch_tensor_typename(util.get_full_typename(data)):
             if hasattr(data, "requires_grad") and data.requires_grad:
