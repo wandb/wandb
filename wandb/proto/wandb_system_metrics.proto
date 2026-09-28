@@ -1,0 +1,873 @@
+syntax = "proto3";
+
+// Typed system metrics: the record wandb-core and wandb-xpu use for system
+// metric samples. Design notes: core/internal/monitor/typed_system_metrics.md.
+
+package wandb_internal;
+
+import "google/protobuf/descriptor.proto";
+import "google/protobuf/timestamp.proto";
+import "wandb/proto/wandb_base.proto";
+
+option go_package = "core/pkg/service_go_proto";
+
+// =============================================================================
+// Schema annotations
+//
+// Every leaf metric field carries a MetricInfo option. The option is the whole
+// catalog: unit and title for renderers, chart range, and the legacy filestream
+// key template so today's stored key strings are produced from the typed record
+// by one generated function (the SDK's legacy JSONL renderer now, the server's
+// ingress flatten in phase 2). Nothing else describes a metric anywhere.
+// =============================================================================
+
+message MetricInfo {
+  enum Kind {
+    GAUGE = 0;
+    // Cumulative and monotonic. Renderers may show a rate.
+    COUNTER = 1;
+  }
+
+  // UCUM unit: "%", "By", "W", "Cel", "MHz", "s", "us", "J", "bit/s", "1".
+  string unit = 1;
+  // Title without unit, e.g. "GPU Temperature".
+  string display = 2;
+  Kind kind = 3;
+
+  // Legacy filestream key templates. Placeholders: {index} {path} {device}
+  // {source} {name} {series} {label} {stat}. The renderer prefixes "system.",
+  // appends "/l:<host>" for accelerators with `host` set, and "/l:<label>"
+  // when the writer label is set. More than one entry when the legacy key
+  // depends on accelerator type or source. A field with no matching entry has
+  // no legacy key and is visible on the typed path only.
+  repeated LegacyKey legacy = 4;
+
+  // The legacy renderer also emits this field under gpu.process.{index}.*
+  // when AcceleratorMetrics.in_use_by_process is true.
+  bool legacy_process_copy = 5;
+
+  // Chart range hints.
+  optional double range_min = 6;
+  optional double range_max = 7;
+}
+
+// Producers emit a field only when they measured it. Absent is not zero:
+// rocm-smi writes 0.0 for missing fields today and the Apple averages read 0
+// when no sensor is valid; both stop with presence.
+
+message LegacyKey {
+  // Unset means any accelerator type (or a non-accelerator field).
+  AcceleratorType accelerator_type = 1;
+  // Unset means any source. Set when two collectors named the same quantity
+  // differently (NVML vs DCGM).
+  string source = 2;
+  string template = 3;
+  // Unit the legacy JSON value used when it differs from MetricInfo.unit,
+  // e.g. "MiBy" for proc.memory.rssMB. The renderer converts.
+  string unit = 4;
+}
+
+extend google.protobuf.FieldOptions {
+  MetricInfo metric = 50100;
+}
+
+enum AcceleratorType {
+  ACCELERATOR_UNSPECIFIED = 0;
+  NVIDIA_GPU = 1;
+  AMD_GPU = 2;
+  APPLE_GPU = 3;
+  APPLE_ANE = 4;
+  GOOGLE_TPU = 5;
+  // One entry per NeuronCore.
+  AWS_TRAINIUM = 6;
+}
+
+// =============================================================================
+// The record
+// =============================================================================
+
+// One sample from one writer.
+//
+// Each monitor resource publishes its own partial record per tick (host and
+// process from system.go, accelerators from wandb-xpu, DCGM and Trainium, and
+// generic metrics from OpenMetrics scrapes). Consumers must treat every field
+// as optional and merge by (writer_id, timestamp) if they need a full picture.
+//
+// Replaces StatsRecord (Record.stats = 7), which stays readable for old
+// transaction logs. Carried as Record.system_metrics = 28.
+message SystemMetricsRecord {
+  google.protobuf.Timestamp timestamp = 1;
+
+  // Attribution. Set by wandb-core, never by the client. Stored in the
+  // transaction log so that `wandb sync` replays the original writer and
+  // label (the syncer runs with a fresh ClientID and without the settings).
+  string writer_id = 2;
+  // Optional user label (Settings.label, today x_label). Distinguishes writers
+  // of the same run in shared mode. Legacy: "/l:<label>" on every key.
+  string label = 3;
+
+  HostMetrics host = 4;
+  ProcessMetrics process = 5;
+  repeated AcceleratorMetrics accelerators = 6;
+  TpuRuntimeMetrics tpu_runtime = 7;
+  TrainiumHostMetrics trainium_host = 8;
+  repeated GenericMetric generic = 9;
+
+  _RecordInfo _info = 200;
+}
+
+// =============================================================================
+// Host
+// =============================================================================
+
+message HostMetrics {
+  CpuMetrics cpu = 1;
+  MemoryMetrics memory = 2;
+  SwapMetrics swap = 3;
+  repeated DiskUsageMetrics disk_usage = 4;
+  repeated DiskIoMetrics disk_io = 5;
+  NetworkMetrics network = 6;
+  PowerMetrics power = 7;
+}
+
+message CpuMetrics {
+  // Per-core utilization. Emitted by the legacy Python SDK only; wandb-core
+  // does not collect it. Kept so the schema covers old runs and a future opt-in.
+  repeated CpuCoreMetrics cores = 1;
+  // Apple Silicon cluster metrics (wandb-xpu, IOReport).
+  AppleCpuMetrics apple = 2;
+}
+
+message CpuCoreMetrics {
+  uint32 index = 1;
+  optional double utilization_percent = 2 [(metric) = {
+    unit: "%",
+    display: "CPU Core Utilization",
+    range_min: 0,
+    range_max: 100,
+    legacy: [ { template: "cpu.{index}.cpu_percent" } ]
+  }];
+}
+
+message AppleCpuMetrics {
+  optional double ecpu_utilization_percent = 1 [(metric) = {
+    unit: "%",
+    display: "Efficiency Cores Utilization",
+    range_min: 0,
+    range_max: 100,
+    legacy: [ { template: "cpu.ecpu_percent" } ]
+  }];
+  optional double ecpu_frequency_mhz = 2 [(metric) = {
+    unit: "MHz",
+    display: "Efficiency Cores Frequency",
+    legacy: [ { template: "cpu.ecpu_freq" } ]
+  }];
+  optional double pcpu_utilization_percent = 3 [(metric) = {
+    unit: "%",
+    display: "Performance Cores Utilization",
+    range_min: 0,
+    range_max: 100,
+    legacy: [ { template: "cpu.pcpu_percent" } ]
+  }];
+  optional double pcpu_frequency_mhz = 4 [(metric) = {
+    unit: "MHz",
+    display: "Performance Cores Frequency",
+    legacy: [ { template: "cpu.pcpu_freq" } ]
+  }];
+  optional double temperature_c = 5 [(metric) = {
+    unit: "Cel",
+    display: "CPU Temperature",
+    legacy: [ { template: "cpu.avg_temp" } ]
+  }];
+  optional double power_w = 6 [(metric) = {
+    unit: "W",
+    display: "CPU Power",
+    legacy: [ { template: "cpu.powerWatts" } ]
+  }];
+}
+
+message MemoryMetrics {
+  // System memory used, or cgroup usage over its limit when limited. gopsutil.
+  optional double used_percent = 1 [(metric) = {
+    unit: "%",
+    display: "System Memory Utilization",
+    range_min: 0,
+    range_max: 100,
+    legacy: [ { template: "memory_percent" } ]
+  }];
+  // Bytes available to the process: cgroup headroom when limited, else system available.
+  optional uint64 available_bytes = 2 [(metric) = {
+    unit: "By",
+    display: "Memory Available",
+    legacy: [ { template: "proc.memory.availableMB", unit: "MiBy" } ]
+  }];
+  // Apple Silicon view of the same host (wandb-xpu). Redundant with the two
+  // fields above on macOS; candidate for removal at 1.0.
+  AppleMemoryMetrics apple = 3;
+}
+
+message AppleMemoryMetrics {
+  // Emitted as a float of bytes today, only when non-zero.
+  optional uint64 used_bytes = 1 [(metric) = {
+    unit: "By",
+    display: "RAM Used",
+    legacy: [ { template: "memory.used" } ]
+  }];
+  optional double used_percent = 2 [(metric) = {
+    unit: "%",
+    display: "RAM Used",
+    range_min: 0,
+    range_max: 100,
+    legacy: [ { template: "memory.used_percent" } ]
+  }];
+}
+
+// Apple Silicon only today.
+message SwapMetrics {
+  optional uint64 used_bytes = 1 [(metric) = {
+    unit: "By",
+    display: "Swap Used",
+    legacy: [ { template: "swap.used" } ]
+  }];
+  optional double used_percent = 2 [(metric) = {
+    unit: "%",
+    display: "Swap Used",
+    range_min: 0,
+    range_max: 100,
+    legacy: [ { template: "swap.used_percent" } ]
+  }];
+}
+
+// One entry per path in x_stats_disk_paths.
+message DiskUsageMetrics {
+  string path = 1;
+  optional double used_percent = 2 [(metric) = {
+    unit: "%",
+    display: "Disk Utilization",
+    range_min: 0,
+    range_max: 100,
+    legacy: [ { template: "disk.{path}.usagePercent" } ]
+  }];
+  optional uint64 used_bytes = 3 [(metric) = {
+    unit: "By",
+    display: "Disk Used",
+    legacy: [ { template: "disk.{path}.usageGB", unit: "GiBy" } ]
+  }];
+}
+
+// One entry per block device. Counters are since writer start.
+message DiskIoMetrics {
+  string device = 1;
+  optional uint64 read_bytes = 2 [(metric) = {
+    unit: "By",
+    display: "Disk Read",
+    kind: COUNTER,
+    legacy: [ { template: "disk.{device}.in", unit: "MiBy" } ]
+  }];
+  optional uint64 write_bytes = 3 [(metric) = {
+    unit: "By",
+    display: "Disk Write",
+    kind: COUNTER,
+    legacy: [ { template: "disk.{device}.out", unit: "MiBy" } ]
+  }];
+}
+
+// All interfaces summed, since writer start.
+message NetworkMetrics {
+  optional uint64 sent_bytes = 1 [(metric) = {
+    unit: "By",
+    display: "Network Sent",
+    kind: COUNTER,
+    legacy: [ { template: "network.sent" } ]
+  }];
+  optional uint64 recv_bytes = 2 [(metric) = {
+    unit: "By",
+    display: "Network Received",
+    kind: COUNTER,
+    legacy: [ { template: "network.recv" } ]
+  }];
+}
+
+// Apple Silicon only today.
+message PowerMetrics {
+  // Legacy wire key is system.system.powerWatts (collector key plus the
+  // renderer's prefix); the UI matches exactly that.
+  optional double total_w = 1 [(metric) = {
+    unit: "W",
+    display: "System Power",
+    legacy: [ { template: "system.powerWatts" } ]
+  }];
+}
+
+// =============================================================================
+// The monitored process tree (x_stats_pid, optionally its children)
+// =============================================================================
+
+message ProcessMetrics {
+  // Sum of per-process CPU percent over the tree, divided by CPU capacity
+  // (cgroup CPU limit when set, else logical CPU count).
+  optional double cpu_percent = 1 [(metric) = {
+    unit: "%",
+    display: "Process CPU Utilization",
+    range_min: 0,
+    range_max: 100,
+    legacy: [ { template: "cpu" } ]
+  }];
+  optional uint64 rss_bytes = 2 [(metric) = {
+    unit: "By",
+    display: "Process Memory In Use",
+    legacy: [ { template: "proc.memory.rssMB", unit: "MiBy" } ]
+  }];
+  // RSS over the same denominator as MemoryMetrics.used_percent.
+  optional double memory_percent = 3 [(metric) = {
+    unit: "%",
+    display: "Process Memory In Use",
+    range_min: 0,
+    range_max: 100,
+    legacy: [ { template: "proc.memory.percent" } ]
+  }];
+  optional uint32 threads = 4 [(metric) = {
+    unit: "1",
+    display: "Process Threads",
+    legacy: [ { template: "proc.cpu.threads" } ]
+  }];
+}
+
+// =============================================================================
+// Accelerators
+// =============================================================================
+
+message AcceleratorMetrics {
+  AcceleratorType type = 1;
+  // Device index as the runtime numbers it: CUDA or ROCm ordinal, TPU chip,
+  // NeuronCore.
+  uint32 index = 2;
+  // Stable device id when the vendor exposes one (NVML UUID, AMD unique_id).
+  string uuid = 3;
+  // Host the device belongs to when the sample comes from another machine
+  // (DCGM through Prometheus). Legacy: "/l:<host>" appended to every key of
+  // this device.
+  string host = 4;
+  // Collector that produced the sample: "nvml" (NVML and GPM in wandb-xpu),
+  // "dcgm" (in-process DCGM in wandb-xpu), "dcgm-exporter" (Prometheus query
+  // in Go), "rocm-smi", "ioreport", "libtpu", "neuron-monitor". Selects
+  // source-specific legacy keys, explains missing metrics, and keeps two
+  // producers of the same device apart (GPM and DCGM can both be active on
+  // Hopper; today their keys collide and the last write wins).
+  string source = 5;
+  // The monitored process tree has this device in use. NVIDIA on Linux only.
+  // Legacy: fields marked legacy_process_copy are repeated under
+  // gpu.process.{index}.*; those were always copies of the device values,
+  // not per-process accounting.
+  optional bool in_use_by_process = 6;
+  // Stable identity independent of enumeration order (CUDA_VISIBLE_DEVICES,
+  // MIG, DCGM entity ids). Typed path only.
+  string pci_bus_id = 7;
+
+  // Common core: vendor-neutral semantics, vendor-specific legacy names.
+
+  // Fraction of time the compute units were busy. Vendor meanings differ and
+  // are kept: NVML busy time, rocm-smi "GPU use", Apple frequency-weighted
+  // residency, TPU TensorCore utilization, NeuronCore utilization.
+  optional double utilization_percent = 10 [(metric) = {
+    unit: "%",
+    display: "Utilization",
+    range_min: 0,
+    range_max: 100,
+    legacy_process_copy: true,
+    legacy: [
+      { accelerator_type: NVIDIA_GPU, template: "gpu.{index}.gpu" },
+      { accelerator_type: AMD_GPU, template: "gpu.{index}.gpu" },
+      { accelerator_type: APPLE_GPU, template: "gpu.{index}.gpu" },
+      { accelerator_type: GOOGLE_TPU, template: "tpu.{index}.tensorcoreUtilization" },
+      { accelerator_type: AWS_TRAINIUM, template: "trn.{index}.neuroncore_utilization" }
+    ]
+  }];
+  // Fraction of time the memory controller was busy.
+  optional double memory_activity_percent = 11 [(metric) = {
+    unit: "%",
+    display: "Memory Controller Activity",
+    range_min: 0,
+    range_max: 100,
+    legacy_process_copy: true,
+    legacy: [
+      { accelerator_type: NVIDIA_GPU, template: "gpu.{index}.memory" },
+      { accelerator_type: AMD_GPU, template: "gpu.{index}.memoryReadWriteActivity" }
+    ]
+  }];
+  optional double memory_used_percent = 12 [(metric) = {
+    unit: "%",
+    display: "Memory Used",
+    range_min: 0,
+    range_max: 100,
+    legacy_process_copy: true,
+    legacy: [
+      { accelerator_type: NVIDIA_GPU, template: "gpu.{index}.memoryAllocated" },
+      { accelerator_type: AMD_GPU, template: "gpu.{index}.memoryAllocated" },
+      { accelerator_type: GOOGLE_TPU, template: "tpu.{index}.hbmMemoryUsage" }
+    ]
+  }];
+  optional uint64 memory_used_bytes = 13 [(metric) = {
+    unit: "By",
+    display: "Memory Used",
+    legacy_process_copy: true,
+    legacy: [
+      { accelerator_type: NVIDIA_GPU, source: "nvml", template: "gpu.{index}.memoryAllocatedBytes" },
+      { accelerator_type: NVIDIA_GPU, source: "dcgm-exporter", template: "gpu.{index}.memoryUsed", unit: "MiBy" },
+      { accelerator_type: GOOGLE_TPU, template: "tpu.{index}.hbmCapacityUsage" }
+    ]
+  }];
+  // NVML keeps this internal today (xpu key _gpu.{index}.memoryTotal, never shipped);
+  // static copy lives in EnvironmentRecord. DCGM and TPU ship it.
+  optional uint64 memory_total_bytes = 14 [(metric) = {
+    unit: "By",
+    display: "Memory Total",
+    legacy: [
+      { accelerator_type: NVIDIA_GPU, source: "dcgm-exporter", template: "gpu.{index}.memoryTotal", unit: "MiBy" },
+      { accelerator_type: GOOGLE_TPU, template: "tpu.{index}.hbmCapacityTotal" }
+    ]
+  }];
+  // NVIDIA die sensor, Apple average of the GPU sensors. rocm-smi reads the
+  // memory sensor today; switching AMD to the edge or junction sensor is a
+  // behavior change to decide separately.
+  optional double temperature_c = 15 [(metric) = {
+    unit: "Cel",
+    display: "Temperature",
+    legacy_process_copy: true,
+    legacy: [
+      { accelerator_type: NVIDIA_GPU, template: "gpu.{index}.temp" },
+      { accelerator_type: AMD_GPU, template: "gpu.{index}.temp" },
+      { accelerator_type: APPLE_GPU, template: "gpu.{index}.temp" }
+    ]
+  }];
+  optional double power_w = 16 [(metric) = {
+    unit: "W",
+    display: "Power",
+    legacy_process_copy: true,
+    legacy: [
+      { accelerator_type: NVIDIA_GPU, template: "gpu.{index}.powerWatts" },
+      { accelerator_type: AMD_GPU, template: "gpu.{index}.powerWatts" },
+      { accelerator_type: APPLE_GPU, template: "gpu.{index}.powerWatts" },
+      { accelerator_type: APPLE_ANE, template: "ane.power" }
+    ]
+  }];
+  // Power over the enforced limit.
+  optional double power_percent = 17 [(metric) = {
+    unit: "%",
+    display: "Power",
+    range_min: 0,
+    range_max: 100,
+    legacy_process_copy: true,
+    legacy: [
+      { accelerator_type: NVIDIA_GPU, template: "gpu.{index}.powerPercent" },
+      { accelerator_type: AMD_GPU, template: "gpu.{index}.powerPercent" }
+    ]
+  }];
+  optional double power_limit_w = 18 [(metric) = {
+    unit: "W",
+    display: "Enforced Power Limit",
+    legacy_process_copy: true,
+    legacy: [ { accelerator_type: NVIDIA_GPU, template: "gpu.{index}.enforcedPowerLimitWatts" } ]
+  }];
+  // Core (graphics) clock.
+  optional double clock_mhz = 19 [(metric) = {
+    unit: "MHz",
+    display: "Clock",
+    legacy: [
+      { accelerator_type: NVIDIA_GPU, template: "gpu.{index}.graphicsClock" },
+      { accelerator_type: APPLE_GPU, template: "gpu.{index}.freq" }
+    ]
+  }];
+  optional double fan_speed_percent = 20 [(metric) = {
+    unit: "%",
+    display: "Fan Speed",
+    range_min: 0,
+    range_max: 100,
+    legacy: [ { accelerator_type: NVIDIA_GPU, template: "gpu.{index}.fanSpeed" } ]
+  }];
+  // Since device boot. DCGM only today.
+  optional double energy_j = 21 [(metric) = {
+    unit: "J",
+    display: "Energy",
+    kind: COUNTER,
+    legacy: [ {
+      accelerator_type: NVIDIA_GPU,
+      source: "dcgm-exporter",
+      template: "gpu.{index}.totalEnergyConsumption",
+      unit: "mJ"
+    } ]
+  }];
+  // Memory used by the monitored process tree on this device, from the
+  // per-process accounting NVML exposes (running compute processes). Typed
+  // path only; the first real per-process metric.
+  optional uint64 process_memory_used_bytes = 22 [(metric) = { unit: "By", display: "Process Memory Used" }];
+
+  oneof ext {
+    NvidiaMetrics nvidia = 30;
+    AmdMetrics amd = 31;
+    TpuMetrics tpu = 32;
+    TrainiumMetrics trainium = 33;
+  }
+}
+
+// NVML (wandb-xpu) and DCGM (Prometheus in Go, DCGM in wandb-xpu). PROF_* and
+// GPM fields need Hopper or newer.
+message NvidiaMetrics {
+  optional double sm_clock_mhz = 1 [(metric) = {
+    unit: "MHz",
+    display: "SM Clock",
+    legacy: [ { template: "gpu.{index}.smClock" } ]
+  }];
+  optional double memory_clock_mhz = 2 [(metric) = {
+    unit: "MHz",
+    display: "Memory Clock",
+    legacy: [ { template: "gpu.{index}.memoryClock" } ]
+  }];
+  optional uint64 corrected_memory_errors = 3 [(metric) = {
+    unit: "1",
+    display: "Corrected Memory Errors",
+    kind: COUNTER,
+    legacy: [ { template: "gpu.{index}.correctedMemoryErrors" } ]
+  }];
+  optional uint64 uncorrected_memory_errors = 4 [(metric) = {
+    unit: "1",
+    display: "Uncorrected Memory Errors",
+    kind: COUNTER,
+    legacy: [ { template: "gpu.{index}.uncorrectedMemoryErrors" } ]
+  }];
+  optional double encoder_utilization_percent = 5 [(metric) = {
+    unit: "%",
+    display: "Encoder Utilization",
+    range_min: 0,
+    range_max: 100,
+    legacy: [ { template: "gpu.{index}.encoderUtilization" } ]
+  }];
+
+  // PCIe link fields are collected only when enabled; off by default since
+  // #9125 (2024-12).
+  optional uint32 pcie_link_gen = 10 [(metric) = {
+    unit: "1",
+    display: "PCIe Link Generation",
+    legacy: [ { template: "gpu.{index}.pcieLinkGen" } ]
+  }];
+  optional uint32 pcie_link_width = 11 [(metric) = {
+    unit: "1",
+    display: "PCIe Link Width",
+    legacy: [ { template: "gpu.{index}.pcieLinkWidth" } ]
+  }];
+  optional double pcie_link_speed_bps = 12 [(metric) = {
+    unit: "bit/s",
+    display: "PCIe Link Speed",
+    legacy: [ { template: "gpu.{index}.pcieLinkSpeed" } ]
+  }];
+  optional uint32 pcie_link_gen_max = 13 [(metric) = {
+    unit: "1",
+    display: "Max PCIe Link Generation",
+    legacy: [ { template: "gpu.{index}.maxPcieLinkGen" } ]
+  }];
+  optional uint32 pcie_link_width_max = 14 [(metric) = {
+    unit: "1",
+    display: "Max PCIe Link Width",
+    legacy: [ { template: "gpu.{index}.maxPcieLinkWidth" } ]
+  }];
+  // Throughput fields are normalized to bytes per second. NVML GPM reports
+  // MiB/s and DCGM reports bytes; today both ship under one key unconverted.
+  optional double pcie_tx_bytes_per_s = 15 [(metric) = {
+    unit: "By/s",
+    display: "PCIe Transmit",
+    legacy: [ { template: "gpu.{index}.pcieTxBytes" } ]
+  }];
+  optional double pcie_rx_bytes_per_s = 16 [(metric) = {
+    unit: "By/s",
+    display: "PCIe Receive",
+    legacy: [ { template: "gpu.{index}.pcieRxBytes" } ]
+  }];
+  optional double nvlink_tx_bytes_per_s = 17 [(metric) = {
+    unit: "By/s",
+    display: "NVLink Transmit",
+    legacy: [ { template: "gpu.{index}.nvlinkTxBytes" } ]
+  }];
+  optional double nvlink_rx_bytes_per_s = 18 [(metric) = {
+    unit: "By/s",
+    display: "NVLink Receive",
+    legacy: [ { template: "gpu.{index}.nvlinkRxBytes" } ]
+  }];
+
+  // GPM / DCGM_FI_PROF_*. Normalized to percent. wandb-xpu already emits
+  // percent; the Go dcgm-exporter path passes DCGM's 0-1 ratios through
+  // today under the same keys and must scale.
+  optional double sm_active_percent = 20 [(metric) = {
+    unit: "%",
+    display: "SM Active",
+    range_min: 0,
+    range_max: 100,
+    legacy: [ { template: "gpu.{index}.smActive" } ]
+  }];
+  optional double sm_occupancy_percent = 21 [(metric) = {
+    unit: "%",
+    display: "SM Occupancy",
+    range_min: 0,
+    range_max: 100,
+    legacy: [ { template: "gpu.{index}.smOccupancy" } ]
+  }];
+  optional double dram_active_percent = 22 [(metric) = {
+    unit: "%",
+    display: "DRAM Active",
+    range_min: 0,
+    range_max: 100,
+    legacy: [ { template: "gpu.{index}.dramActive" } ]
+  }];
+  optional double pipe_tensor_active_percent = 23 [(metric) = {
+    unit: "%",
+    display: "Tensor Pipe Active",
+    range_min: 0,
+    range_max: 100,
+    legacy: [ { template: "gpu.{index}.pipeTensorActive" } ]
+  }];
+  optional double pipe_tensor_hmma_active_percent = 24 [(metric) = {
+    unit: "%",
+    display: "Tensor HMMA Pipe Active",
+    range_min: 0,
+    range_max: 100,
+    legacy: [ { template: "gpu.{index}.pipeTensorHmmaActive" } ]
+  }];
+  optional double pipe_fp64_active_percent = 25 [(metric) = {
+    unit: "%",
+    display: "FP64 Pipe Active",
+    range_min: 0,
+    range_max: 100,
+    legacy: [ { template: "gpu.{index}.pipeFp64Active" } ]
+  }];
+  optional double pipe_fp32_active_percent = 26 [(metric) = {
+    unit: "%",
+    display: "FP32 Pipe Active",
+    range_min: 0,
+    range_max: 100,
+    legacy: [ { template: "gpu.{index}.pipeFp32Active" } ]
+  }];
+  optional double pipe_fp16_active_percent = 27 [(metric) = {
+    unit: "%",
+    display: "FP16 Pipe Active",
+    range_min: 0,
+    range_max: 100,
+    legacy: [ { template: "gpu.{index}.pipeFp16Active" } ]
+  }];
+
+  // DCGM only.
+  optional double memory_temperature_c = 30 [(metric) = {
+    unit: "Cel",
+    display: "Memory Temperature",
+    legacy: [ { template: "gpu.{index}.memoryTemp" } ]
+  }];
+  optional double max_operating_temperature_c = 31 [(metric) = {
+    unit: "Cel",
+    display: "Max Operating Temperature",
+    legacy: [ { template: "gpu.{index}.maxOpTemp" } ]
+  }];
+  optional double memory_max_operating_temperature_c = 32 [(metric) = {
+    unit: "Cel",
+    display: "Memory Max Operating Temperature",
+    legacy: [ { template: "gpu.{index}.memoryMaxOpTemp" } ]
+  }];
+  optional uint64 memory_free_bytes = 33 [(metric) = {
+    unit: "By",
+    display: "Memory Free",
+    legacy: [ { template: "gpu.{index}.memoryFree", unit: "MiBy" } ]
+  }];
+}
+
+// rocm-smi (wandb-xpu).
+message AmdMetrics {
+  // A static configuration value, already in EnvironmentRecord.gpu_amd
+  // (gpu_memory_overdrive). Kept for its legacy key; drop at 1.0.
+  optional double memory_overdrive_percent = 1 [(metric) = {
+    unit: "%",
+    display: "Memory OverDrive",
+    legacy: [ { template: "gpu.{index}.memoryOverDrive" } ]
+  }];
+}
+
+// libtpu runtime metrics, per chip (wandb-xpu).
+message TpuMetrics {
+  optional double duty_cycle_percent = 1 [(metric) = {
+    unit: "%",
+    display: "Duty Cycle",
+    range_min: 0,
+    range_max: 100,
+    legacy: [ { template: "tpu.{index}.dutyCycle" } ]
+  }];
+  optional double tensorcore_idle_duration_s = 2 [(metric) = {
+    unit: "s",
+    display: "TensorCore Idle Duration",
+    legacy: [ { template: "tpu.{index}.tensorcoreIdleDuration" } ]
+  }];
+  optional double runtime_hbm_utilization_percent = 3 [(metric) = {
+    unit: "%",
+    display: "Runtime HBM Utilization",
+    range_min: 0,
+    range_max: 100,
+    legacy: [ { template: "tpu.{index}.runtimeHbmUtilization" } ]
+  }];
+  optional double ici_link_health = 4 [(metric) = {
+    unit: "1",
+    display: "ICI Link Health",
+    legacy: [ { template: "tpu.{index}.iciLinkHealth" } ]
+  }];
+  optional double throttle_score = 5 [(metric) = {
+    unit: "1",
+    display: "Throttle Score",
+    legacy: [ { template: "tpu.{index}.throttleScore" } ]
+  }];
+}
+
+// neuron-monitor, per NeuronCore (Go).
+message TrainiumMetrics {
+  optional uint64 memory_constants_bytes = 1 [(metric) = {
+    unit: "By",
+    display: "NeuronCore Memory: Constants",
+    legacy: [ { template: "trn.{index}.neuroncore_memory_usage.constants" } ]
+  }];
+  optional uint64 memory_model_code_bytes = 2 [(metric) = {
+    unit: "By",
+    display: "NeuronCore Memory: Model Code",
+    legacy: [ { template: "trn.{index}.neuroncore_memory_usage.model_code" } ]
+  }];
+  optional uint64 memory_model_shared_scratchpad_bytes = 3 [(metric) = {
+    unit: "By",
+    display: "NeuronCore Memory: Shared Scratchpad",
+    legacy: [ { template: "trn.{index}.neuroncore_memory_usage.model_shared_scratchpad" } ]
+  }];
+  optional uint64 memory_runtime_bytes = 4 [(metric) = {
+    unit: "By",
+    display: "NeuronCore Memory: Runtime",
+    legacy: [ { template: "trn.{index}.neuroncore_memory_usage.runtime_memory" } ]
+  }];
+  optional uint64 memory_tensors_bytes = 5 [(metric) = {
+    unit: "By",
+    display: "NeuronCore Memory: Tensors",
+    legacy: [ { template: "trn.{index}.neuroncore_memory_usage.tensors" } ]
+  }];
+}
+
+// =============================================================================
+// Accelerator runtime metrics that are not per device
+// =============================================================================
+
+// libtpu host-level distributions and queues (wandb-xpu).
+message TpuRuntimeMetrics {
+  enum DistributionKind {
+    DISTRIBUTION_UNSPECIFIED = 0;
+    BUFFER_TRANSFER_LATENCY = 1;
+    INBOUND_BUFFER_TRANSFER_LATENCY = 2;
+    HOST_TO_DEVICE_TRANSFER_LATENCY = 3;
+    DEVICE_TO_HOST_TRANSFER_LATENCY = 4;
+    COLLECTIVE_E2E_LATENCY = 5;
+    HOST_COMPUTE_LATENCY = 6;
+    GRPC_TCP_MIN_RTT = 7;
+    GRPC_TCP_DELIVERY_RATE = 8;
+    HLO_EXEC_TIMING = 9;
+  }
+
+  // Legacy keys: tpu.<name>.<label>.<stat><Unit> for labeled kinds,
+  // tpu.<name>.<stat><Unit> for flat ones; <stat> in mean, p50, p90, p95, p99,
+  // p999; <Unit> is "Us" for latencies and "Mbps" for the delivery rate.
+  message Distribution {
+    DistributionKind kind = 1;
+    // Program name for HLO_EXEC_TIMING, buffer class for transfer latencies,
+    // empty for flat distributions.
+    string label = 2;
+    optional double mean = 3;
+    optional double p50 = 4;
+    optional double p90 = 5;
+    optional double p95 = 6;
+    optional double p99 = 7;
+    optional double p999 = 8;
+    // Full histogram when the gRPC backend answered (the SDK backend gives
+    // percentiles only). Typed path only; today the buckets are interpolated
+    // into percentiles and discarded.
+    optional uint64 count = 9;
+    optional double sum = 10;
+    repeated double bucket_bounds = 11;
+    repeated uint64 bucket_counts = 12;
+  }
+  // Which backend answered decides the stat set and, today, the key shape
+  // (flat distributions gain a label segment on gRPC). The typed record
+  // carries the label as a field, so the shape difference disappears.
+  repeated Distribution distributions = 1;
+
+  // Legacy key: tpu.hloQueueSize.<label>.
+  message QueueSize {
+    string label = 1;
+    optional double size = 2 [(metric) = {
+      unit: "1",
+      display: "HLO Queue Size",
+      legacy: [ { template: "tpu.hloQueueSize.{label}" } ]
+    }];
+  }
+  repeated QueueSize hlo_queue_size = 2;
+}
+
+// neuron-monitor host-level memory (Go).
+message TrainiumHostMetrics {
+  optional uint64 host_memory_total_bytes = 1 [(metric) = {
+    unit: "By",
+    display: "Host Memory Used",
+    legacy: [ { template: "trn.host_total_memory_usage" } ]
+  }];
+  optional uint64 device_memory_total_bytes = 2 [(metric) = {
+    unit: "By",
+    display: "Neuron Device Memory Used",
+    legacy: [ { template: "trn.neuron_device_total_memory_usage" } ]
+  }];
+  optional uint64 host_memory_application_bytes = 3 [(metric) = {
+    unit: "By",
+    display: "Host Memory: Application",
+    legacy: [ { template: "trn.host_memory_usage.application_memory" } ]
+  }];
+  optional uint64 host_memory_constants_bytes = 4 [(metric) = {
+    unit: "By",
+    display: "Host Memory: Constants",
+    legacy: [ { template: "trn.host_memory_usage.constants" } ]
+  }];
+  optional uint64 host_memory_dma_buffers_bytes = 5 [(metric) = {
+    unit: "By",
+    display: "Host Memory: DMA Buffers",
+    legacy: [ { template: "trn.host_memory_usage.dma_buffers" } ]
+  }];
+  optional uint64 host_memory_tensors_bytes = 6 [(metric) = {
+    unit: "By",
+    display: "Host Memory: Tensors",
+    legacy: [ { template: "trn.host_memory_usage.tensors" } ]
+  }];
+}
+
+// =============================================================================
+// Escape hatch
+// =============================================================================
+
+// A metric the schema does not know: OpenMetrics scrapes today
+// (x_stats_open_metrics_endpoints), vendor collectors and user-pushed system
+// metrics later. Rendered generically: one chart per (source, name), one
+// series per label set.
+message GenericMetric {
+  // Producer: the endpoint name from x_stats_open_metrics_endpoints, a vendor
+  // id, or "user".
+  string source = 1;
+  // Metric family name as the producer names it.
+  string name = 2;
+  repeated MetricLabel labels = 3;
+  MetricInfo.Kind kind = 4;
+  // From "# UNIT" when present.
+  string unit = 5;
+  // From "# HELP" when present.
+  string help = 6;
+  optional double value = 7 [(metric) = { legacy: [ { template: "openmetrics.{source}.{name}.{series}" } ] }];
+  // Compat only: ordinal of this label set within the writer session, the
+  // <index> in the legacy key. Dropped when keys are regularized.
+  uint32 legacy_series_index = 8;
+}
+
+message MetricLabel {
+  string key = 1;
+  string value = 2;
+}

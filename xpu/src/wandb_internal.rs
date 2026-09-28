@@ -579,6 +579,666 @@ pub struct Deprecated {
     #[prost(bool, tag = "32")]
     pub wandb_api: bool,
 }
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct MetricInfo {
+    /// UCUM unit: "%", "By", "W", "Cel", "MHz", "s", "us", "J", "bit/s", "1".
+    #[prost(string, tag = "1")]
+    pub unit: ::prost::alloc::string::String,
+    /// Title without unit, e.g. "GPU Temperature".
+    #[prost(string, tag = "2")]
+    pub display: ::prost::alloc::string::String,
+    #[prost(enumeration = "metric_info::Kind", tag = "3")]
+    pub kind: i32,
+    /// Legacy filestream key templates. Placeholders: {index} {path} {device}
+    /// {source} {name} {series} {label} {stat}. The renderer prefixes "system.",
+    /// appends "/l:<host>" for accelerators with `host` set, and "/l:<label>"
+    /// when the writer label is set. More than one entry when the legacy key
+    /// depends on accelerator type or source. A field with no matching entry has
+    /// no legacy key and is visible on the typed path only.
+    #[prost(message, repeated, tag = "4")]
+    pub legacy: ::prost::alloc::vec::Vec<LegacyKey>,
+    /// The legacy renderer also emits this field under gpu.process.{index}.\*
+    /// when AcceleratorMetrics.in_use_by_process is true.
+    #[prost(bool, tag = "5")]
+    pub legacy_process_copy: bool,
+    /// Chart range hints.
+    #[prost(double, optional, tag = "6")]
+    pub range_min: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "7")]
+    pub range_max: ::core::option::Option<f64>,
+}
+/// Nested message and enum types in `MetricInfo`.
+pub mod metric_info {
+    #[derive(
+        Clone,
+        Copy,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash,
+        PartialOrd,
+        Ord,
+        ::prost::Enumeration
+    )]
+    #[repr(i32)]
+    pub enum Kind {
+        Gauge = 0,
+        /// Cumulative and monotonic. Renderers may show a rate.
+        Counter = 1,
+    }
+    impl Kind {
+        /// String value of the enum field names used in the ProtoBuf definition.
+        ///
+        /// The values are not transformed in any way and thus are considered stable
+        /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+        pub fn as_str_name(&self) -> &'static str {
+            match self {
+                Self::Gauge => "GAUGE",
+                Self::Counter => "COUNTER",
+            }
+        }
+        /// Creates an enum from field names used in the ProtoBuf definition.
+        pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+            match value {
+                "GAUGE" => Some(Self::Gauge),
+                "COUNTER" => Some(Self::Counter),
+                _ => None,
+            }
+        }
+    }
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct LegacyKey {
+    /// Unset means any accelerator type (or a non-accelerator field).
+    #[prost(enumeration = "AcceleratorType", tag = "1")]
+    pub accelerator_type: i32,
+    /// Unset means any source. Set when two collectors named the same quantity
+    /// differently (NVML vs DCGM).
+    #[prost(string, tag = "2")]
+    pub source: ::prost::alloc::string::String,
+    #[prost(string, tag = "3")]
+    pub template: ::prost::alloc::string::String,
+    /// Unit the legacy JSON value used when it differs from MetricInfo.unit,
+    /// e.g. "MiBy" for proc.memory.rssMB. The renderer converts.
+    #[prost(string, tag = "4")]
+    pub unit: ::prost::alloc::string::String,
+}
+/// One sample from one writer.
+///
+/// Each monitor resource publishes its own partial record per tick (host and
+/// process from system.go, accelerators from wandb-xpu, DCGM and Trainium, and
+/// generic metrics from OpenMetrics scrapes). Consumers must treat every field
+/// as optional and merge by (writer_id, timestamp) if they need a full picture.
+///
+/// Replaces StatsRecord (Record.stats = 7), which stays readable for old
+/// transaction logs. Carried as Record.system_metrics = 28.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct SystemMetricsRecord {
+    #[prost(message, optional, tag = "1")]
+    pub timestamp: ::core::option::Option<::prost_types::Timestamp>,
+    /// Attribution. Set by wandb-core, never by the client. Stored in the
+    /// transaction log so that `wandb sync` replays the original writer and
+    /// label (the syncer runs with a fresh ClientID and without the settings).
+    #[prost(string, tag = "2")]
+    pub writer_id: ::prost::alloc::string::String,
+    /// Optional user label (Settings.label, today x_label). Distinguishes writers
+    /// of the same run in shared mode. Legacy: "/l:<label>" on every key.
+    #[prost(string, tag = "3")]
+    pub label: ::prost::alloc::string::String,
+    #[prost(message, optional, tag = "4")]
+    pub host: ::core::option::Option<HostMetrics>,
+    #[prost(message, optional, tag = "5")]
+    pub process: ::core::option::Option<ProcessMetrics>,
+    #[prost(message, repeated, tag = "6")]
+    pub accelerators: ::prost::alloc::vec::Vec<AcceleratorMetrics>,
+    #[prost(message, optional, tag = "7")]
+    pub tpu_runtime: ::core::option::Option<TpuRuntimeMetrics>,
+    #[prost(message, optional, tag = "8")]
+    pub trainium_host: ::core::option::Option<TrainiumHostMetrics>,
+    #[prost(message, repeated, tag = "9")]
+    pub generic: ::prost::alloc::vec::Vec<GenericMetric>,
+    #[prost(message, optional, tag = "200")]
+    pub info: ::core::option::Option<RecordInfo>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct HostMetrics {
+    #[prost(message, optional, tag = "1")]
+    pub cpu: ::core::option::Option<CpuMetrics>,
+    #[prost(message, optional, tag = "2")]
+    pub memory: ::core::option::Option<MemoryMetrics>,
+    #[prost(message, optional, tag = "3")]
+    pub swap: ::core::option::Option<SwapMetrics>,
+    #[prost(message, repeated, tag = "4")]
+    pub disk_usage: ::prost::alloc::vec::Vec<DiskUsageMetrics>,
+    #[prost(message, repeated, tag = "5")]
+    pub disk_io: ::prost::alloc::vec::Vec<DiskIoMetrics>,
+    #[prost(message, optional, tag = "6")]
+    pub network: ::core::option::Option<NetworkMetrics>,
+    #[prost(message, optional, tag = "7")]
+    pub power: ::core::option::Option<PowerMetrics>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct CpuMetrics {
+    /// Per-core utilization. Emitted by the legacy Python SDK only; wandb-core
+    /// does not collect it. Kept so the schema covers old runs and a future opt-in.
+    #[prost(message, repeated, tag = "1")]
+    pub cores: ::prost::alloc::vec::Vec<CpuCoreMetrics>,
+    /// Apple Silicon cluster metrics (wandb-xpu, IOReport).
+    #[prost(message, optional, tag = "2")]
+    pub apple: ::core::option::Option<AppleCpuMetrics>,
+}
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct CpuCoreMetrics {
+    #[prost(uint32, tag = "1")]
+    pub index: u32,
+    #[prost(double, optional, tag = "2")]
+    pub utilization_percent: ::core::option::Option<f64>,
+}
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct AppleCpuMetrics {
+    #[prost(double, optional, tag = "1")]
+    pub ecpu_utilization_percent: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "2")]
+    pub ecpu_frequency_mhz: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "3")]
+    pub pcpu_utilization_percent: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "4")]
+    pub pcpu_frequency_mhz: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "5")]
+    pub temperature_c: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "6")]
+    pub power_w: ::core::option::Option<f64>,
+}
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct MemoryMetrics {
+    /// System memory used, or cgroup usage over its limit when limited. gopsutil.
+    #[prost(double, optional, tag = "1")]
+    pub used_percent: ::core::option::Option<f64>,
+    /// Bytes available to the process: cgroup headroom when limited, else system available.
+    #[prost(uint64, optional, tag = "2")]
+    pub available_bytes: ::core::option::Option<u64>,
+    /// Apple Silicon view of the same host (wandb-xpu). Redundant with the two
+    /// fields above on macOS; candidate for removal at 1.0.
+    #[prost(message, optional, tag = "3")]
+    pub apple: ::core::option::Option<AppleMemoryMetrics>,
+}
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct AppleMemoryMetrics {
+    /// Emitted as a float of bytes today, only when non-zero.
+    #[prost(uint64, optional, tag = "1")]
+    pub used_bytes: ::core::option::Option<u64>,
+    #[prost(double, optional, tag = "2")]
+    pub used_percent: ::core::option::Option<f64>,
+}
+/// Apple Silicon only today.
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct SwapMetrics {
+    #[prost(uint64, optional, tag = "1")]
+    pub used_bytes: ::core::option::Option<u64>,
+    #[prost(double, optional, tag = "2")]
+    pub used_percent: ::core::option::Option<f64>,
+}
+/// One entry per path in x_stats_disk_paths.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct DiskUsageMetrics {
+    #[prost(string, tag = "1")]
+    pub path: ::prost::alloc::string::String,
+    #[prost(double, optional, tag = "2")]
+    pub used_percent: ::core::option::Option<f64>,
+    #[prost(uint64, optional, tag = "3")]
+    pub used_bytes: ::core::option::Option<u64>,
+}
+/// One entry per block device. Counters are since writer start.
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct DiskIoMetrics {
+    #[prost(string, tag = "1")]
+    pub device: ::prost::alloc::string::String,
+    #[prost(uint64, optional, tag = "2")]
+    pub read_bytes: ::core::option::Option<u64>,
+    #[prost(uint64, optional, tag = "3")]
+    pub write_bytes: ::core::option::Option<u64>,
+}
+/// All interfaces summed, since writer start.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct NetworkMetrics {
+    #[prost(uint64, optional, tag = "1")]
+    pub sent_bytes: ::core::option::Option<u64>,
+    #[prost(uint64, optional, tag = "2")]
+    pub recv_bytes: ::core::option::Option<u64>,
+}
+/// Apple Silicon only today.
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct PowerMetrics {
+    /// Legacy wire key is system.system.powerWatts (collector key plus the
+    /// renderer's prefix); the UI matches exactly that.
+    #[prost(double, optional, tag = "1")]
+    pub total_w: ::core::option::Option<f64>,
+}
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct ProcessMetrics {
+    /// Sum of per-process CPU percent over the tree, divided by CPU capacity
+    /// (cgroup CPU limit when set, else logical CPU count).
+    #[prost(double, optional, tag = "1")]
+    pub cpu_percent: ::core::option::Option<f64>,
+    #[prost(uint64, optional, tag = "2")]
+    pub rss_bytes: ::core::option::Option<u64>,
+    /// RSS over the same denominator as MemoryMetrics.used_percent.
+    #[prost(double, optional, tag = "3")]
+    pub memory_percent: ::core::option::Option<f64>,
+    #[prost(uint32, optional, tag = "4")]
+    pub threads: ::core::option::Option<u32>,
+}
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct AcceleratorMetrics {
+    #[prost(enumeration = "AcceleratorType", tag = "1")]
+    pub r#type: i32,
+    /// Device index as the runtime numbers it: CUDA or ROCm ordinal, TPU chip,
+    /// NeuronCore.
+    #[prost(uint32, tag = "2")]
+    pub index: u32,
+    /// Stable device id when the vendor exposes one (NVML UUID, AMD unique_id).
+    #[prost(string, tag = "3")]
+    pub uuid: ::prost::alloc::string::String,
+    /// Host the device belongs to when the sample comes from another machine
+    /// (DCGM through Prometheus). Legacy: "/l:<host>" appended to every key of
+    /// this device.
+    #[prost(string, tag = "4")]
+    pub host: ::prost::alloc::string::String,
+    /// Collector that produced the sample: "nvml" (NVML and GPM in wandb-xpu),
+    /// "dcgm" (in-process DCGM in wandb-xpu), "dcgm-exporter" (Prometheus query
+    /// in Go), "rocm-smi", "ioreport", "libtpu", "neuron-monitor". Selects
+    /// source-specific legacy keys, explains missing metrics, and keeps two
+    /// producers of the same device apart (GPM and DCGM can both be active on
+    /// Hopper; today their keys collide and the last write wins).
+    #[prost(string, tag = "5")]
+    pub source: ::prost::alloc::string::String,
+    /// The monitored process tree has this device in use. NVIDIA on Linux only.
+    /// Legacy: fields marked legacy_process_copy are repeated under
+    /// gpu.process.{index}.\*; those were always copies of the device values,
+    /// not per-process accounting.
+    #[prost(bool, optional, tag = "6")]
+    pub in_use_by_process: ::core::option::Option<bool>,
+    /// Stable identity independent of enumeration order (CUDA_VISIBLE_DEVICES,
+    /// MIG, DCGM entity ids). Typed path only.
+    #[prost(string, tag = "7")]
+    pub pci_bus_id: ::prost::alloc::string::String,
+    /// Fraction of time the compute units were busy. Vendor meanings differ and
+    /// are kept: NVML busy time, rocm-smi "GPU use", Apple frequency-weighted
+    /// residency, TPU TensorCore utilization, NeuronCore utilization.
+    #[prost(double, optional, tag = "10")]
+    pub utilization_percent: ::core::option::Option<f64>,
+    /// Fraction of time the memory controller was busy.
+    #[prost(double, optional, tag = "11")]
+    pub memory_activity_percent: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "12")]
+    pub memory_used_percent: ::core::option::Option<f64>,
+    #[prost(uint64, optional, tag = "13")]
+    pub memory_used_bytes: ::core::option::Option<u64>,
+    /// NVML keeps this internal today (xpu key \_gpu.{index}.memoryTotal, never shipped);
+    /// static copy lives in EnvironmentRecord. DCGM and TPU ship it.
+    #[prost(uint64, optional, tag = "14")]
+    pub memory_total_bytes: ::core::option::Option<u64>,
+    /// NVIDIA die sensor, Apple average of the GPU sensors. rocm-smi reads the
+    /// memory sensor today; switching AMD to the edge or junction sensor is a
+    /// behavior change to decide separately.
+    #[prost(double, optional, tag = "15")]
+    pub temperature_c: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "16")]
+    pub power_w: ::core::option::Option<f64>,
+    /// Power over the enforced limit.
+    #[prost(double, optional, tag = "17")]
+    pub power_percent: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "18")]
+    pub power_limit_w: ::core::option::Option<f64>,
+    /// Core (graphics) clock.
+    #[prost(double, optional, tag = "19")]
+    pub clock_mhz: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "20")]
+    pub fan_speed_percent: ::core::option::Option<f64>,
+    /// Since device boot. DCGM only today.
+    #[prost(double, optional, tag = "21")]
+    pub energy_j: ::core::option::Option<f64>,
+    /// Memory used by the monitored process tree on this device, from the
+    /// per-process accounting NVML exposes (running compute processes). Typed
+    /// path only; the first real per-process metric.
+    #[prost(uint64, optional, tag = "22")]
+    pub process_memory_used_bytes: ::core::option::Option<u64>,
+    #[prost(oneof = "accelerator_metrics::Ext", tags = "30, 31, 32, 33")]
+    pub ext: ::core::option::Option<accelerator_metrics::Ext>,
+}
+/// Nested message and enum types in `AcceleratorMetrics`.
+pub mod accelerator_metrics {
+    #[derive(Clone, Copy, PartialEq, ::prost::Oneof)]
+    pub enum Ext {
+        #[prost(message, tag = "30")]
+        Nvidia(super::NvidiaMetrics),
+        #[prost(message, tag = "31")]
+        Amd(super::AmdMetrics),
+        #[prost(message, tag = "32")]
+        Tpu(super::TpuMetrics),
+        #[prost(message, tag = "33")]
+        Trainium(super::TrainiumMetrics),
+    }
+}
+/// NVML (wandb-xpu) and DCGM (Prometheus in Go, DCGM in wandb-xpu). PROF\_\* and
+/// GPM fields need Hopper or newer.
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct NvidiaMetrics {
+    #[prost(double, optional, tag = "1")]
+    pub sm_clock_mhz: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "2")]
+    pub memory_clock_mhz: ::core::option::Option<f64>,
+    #[prost(uint64, optional, tag = "3")]
+    pub corrected_memory_errors: ::core::option::Option<u64>,
+    #[prost(uint64, optional, tag = "4")]
+    pub uncorrected_memory_errors: ::core::option::Option<u64>,
+    #[prost(double, optional, tag = "5")]
+    pub encoder_utilization_percent: ::core::option::Option<f64>,
+    /// PCIe link fields are collected only when enabled; off by default since
+    /// \#9125 (2024-12).
+    #[prost(uint32, optional, tag = "10")]
+    pub pcie_link_gen: ::core::option::Option<u32>,
+    #[prost(uint32, optional, tag = "11")]
+    pub pcie_link_width: ::core::option::Option<u32>,
+    #[prost(double, optional, tag = "12")]
+    pub pcie_link_speed_bps: ::core::option::Option<f64>,
+    #[prost(uint32, optional, tag = "13")]
+    pub pcie_link_gen_max: ::core::option::Option<u32>,
+    #[prost(uint32, optional, tag = "14")]
+    pub pcie_link_width_max: ::core::option::Option<u32>,
+    /// Throughput fields are normalized to bytes per second. NVML GPM reports
+    /// MiB/s and DCGM reports bytes; today both ship under one key unconverted.
+    #[prost(double, optional, tag = "15")]
+    pub pcie_tx_bytes_per_s: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "16")]
+    pub pcie_rx_bytes_per_s: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "17")]
+    pub nvlink_tx_bytes_per_s: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "18")]
+    pub nvlink_rx_bytes_per_s: ::core::option::Option<f64>,
+    /// GPM / DCGM_FI_PROF\_\*. Normalized to percent. wandb-xpu already emits
+    /// percent; the Go dcgm-exporter path passes DCGM's 0-1 ratios through
+    /// today under the same keys and must scale.
+    #[prost(double, optional, tag = "20")]
+    pub sm_active_percent: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "21")]
+    pub sm_occupancy_percent: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "22")]
+    pub dram_active_percent: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "23")]
+    pub pipe_tensor_active_percent: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "24")]
+    pub pipe_tensor_hmma_active_percent: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "25")]
+    pub pipe_fp64_active_percent: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "26")]
+    pub pipe_fp32_active_percent: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "27")]
+    pub pipe_fp16_active_percent: ::core::option::Option<f64>,
+    /// DCGM only.
+    #[prost(double, optional, tag = "30")]
+    pub memory_temperature_c: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "31")]
+    pub max_operating_temperature_c: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "32")]
+    pub memory_max_operating_temperature_c: ::core::option::Option<f64>,
+    #[prost(uint64, optional, tag = "33")]
+    pub memory_free_bytes: ::core::option::Option<u64>,
+}
+/// rocm-smi (wandb-xpu).
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct AmdMetrics {
+    /// A static configuration value, already in EnvironmentRecord.gpu_amd
+    /// (gpu_memory_overdrive). Kept for its legacy key; drop at 1.0.
+    #[prost(double, optional, tag = "1")]
+    pub memory_overdrive_percent: ::core::option::Option<f64>,
+}
+/// libtpu runtime metrics, per chip (wandb-xpu).
+#[derive(Clone, Copy, PartialEq, ::prost::Message)]
+pub struct TpuMetrics {
+    #[prost(double, optional, tag = "1")]
+    pub duty_cycle_percent: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "2")]
+    pub tensorcore_idle_duration_s: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "3")]
+    pub runtime_hbm_utilization_percent: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "4")]
+    pub ici_link_health: ::core::option::Option<f64>,
+    #[prost(double, optional, tag = "5")]
+    pub throttle_score: ::core::option::Option<f64>,
+}
+/// neuron-monitor, per NeuronCore (Go).
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct TrainiumMetrics {
+    #[prost(uint64, optional, tag = "1")]
+    pub memory_constants_bytes: ::core::option::Option<u64>,
+    #[prost(uint64, optional, tag = "2")]
+    pub memory_model_code_bytes: ::core::option::Option<u64>,
+    #[prost(uint64, optional, tag = "3")]
+    pub memory_model_shared_scratchpad_bytes: ::core::option::Option<u64>,
+    #[prost(uint64, optional, tag = "4")]
+    pub memory_runtime_bytes: ::core::option::Option<u64>,
+    #[prost(uint64, optional, tag = "5")]
+    pub memory_tensors_bytes: ::core::option::Option<u64>,
+}
+/// libtpu host-level distributions and queues (wandb-xpu).
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct TpuRuntimeMetrics {
+    /// Which backend answered decides the stat set and, today, the key shape
+    /// (flat distributions gain a label segment on gRPC). The typed record
+    /// carries the label as a field, so the shape difference disappears.
+    #[prost(message, repeated, tag = "1")]
+    pub distributions: ::prost::alloc::vec::Vec<tpu_runtime_metrics::Distribution>,
+    #[prost(message, repeated, tag = "2")]
+    pub hlo_queue_size: ::prost::alloc::vec::Vec<tpu_runtime_metrics::QueueSize>,
+}
+/// Nested message and enum types in `TpuRuntimeMetrics`.
+pub mod tpu_runtime_metrics {
+    /// Legacy keys: tpu.<name>.<label>.<stat><Unit> for labeled kinds,
+    /// tpu.<name>.<stat><Unit> for flat ones; <stat> in mean, p50, p90, p95, p99,
+    /// p999; <Unit> is "Us" for latencies and "Mbps" for the delivery rate.
+    #[derive(Clone, PartialEq, ::prost::Message)]
+    pub struct Distribution {
+        #[prost(enumeration = "DistributionKind", tag = "1")]
+        pub kind: i32,
+        /// Program name for HLO_EXEC_TIMING, buffer class for transfer latencies,
+        /// empty for flat distributions.
+        #[prost(string, tag = "2")]
+        pub label: ::prost::alloc::string::String,
+        #[prost(double, optional, tag = "3")]
+        pub mean: ::core::option::Option<f64>,
+        #[prost(double, optional, tag = "4")]
+        pub p50: ::core::option::Option<f64>,
+        #[prost(double, optional, tag = "5")]
+        pub p90: ::core::option::Option<f64>,
+        #[prost(double, optional, tag = "6")]
+        pub p95: ::core::option::Option<f64>,
+        #[prost(double, optional, tag = "7")]
+        pub p99: ::core::option::Option<f64>,
+        #[prost(double, optional, tag = "8")]
+        pub p999: ::core::option::Option<f64>,
+        /// Full histogram when the gRPC backend answered (the SDK backend gives
+        /// percentiles only). Typed path only; today the buckets are interpolated
+        /// into percentiles and discarded.
+        #[prost(uint64, optional, tag = "9")]
+        pub count: ::core::option::Option<u64>,
+        #[prost(double, optional, tag = "10")]
+        pub sum: ::core::option::Option<f64>,
+        #[prost(double, repeated, tag = "11")]
+        pub bucket_bounds: ::prost::alloc::vec::Vec<f64>,
+        #[prost(uint64, repeated, tag = "12")]
+        pub bucket_counts: ::prost::alloc::vec::Vec<u64>,
+    }
+    /// Legacy key: tpu.hloQueueSize.<label>.
+    #[derive(Clone, PartialEq, ::prost::Message)]
+    pub struct QueueSize {
+        #[prost(string, tag = "1")]
+        pub label: ::prost::alloc::string::String,
+        #[prost(double, optional, tag = "2")]
+        pub size: ::core::option::Option<f64>,
+    }
+    #[derive(
+        Clone,
+        Copy,
+        Debug,
+        PartialEq,
+        Eq,
+        Hash,
+        PartialOrd,
+        Ord,
+        ::prost::Enumeration
+    )]
+    #[repr(i32)]
+    pub enum DistributionKind {
+        DistributionUnspecified = 0,
+        BufferTransferLatency = 1,
+        InboundBufferTransferLatency = 2,
+        HostToDeviceTransferLatency = 3,
+        DeviceToHostTransferLatency = 4,
+        CollectiveE2eLatency = 5,
+        HostComputeLatency = 6,
+        GrpcTcpMinRtt = 7,
+        GrpcTcpDeliveryRate = 8,
+        HloExecTiming = 9,
+    }
+    impl DistributionKind {
+        /// String value of the enum field names used in the ProtoBuf definition.
+        ///
+        /// The values are not transformed in any way and thus are considered stable
+        /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+        pub fn as_str_name(&self) -> &'static str {
+            match self {
+                Self::DistributionUnspecified => "DISTRIBUTION_UNSPECIFIED",
+                Self::BufferTransferLatency => "BUFFER_TRANSFER_LATENCY",
+                Self::InboundBufferTransferLatency => "INBOUND_BUFFER_TRANSFER_LATENCY",
+                Self::HostToDeviceTransferLatency => "HOST_TO_DEVICE_TRANSFER_LATENCY",
+                Self::DeviceToHostTransferLatency => "DEVICE_TO_HOST_TRANSFER_LATENCY",
+                Self::CollectiveE2eLatency => "COLLECTIVE_E2E_LATENCY",
+                Self::HostComputeLatency => "HOST_COMPUTE_LATENCY",
+                Self::GrpcTcpMinRtt => "GRPC_TCP_MIN_RTT",
+                Self::GrpcTcpDeliveryRate => "GRPC_TCP_DELIVERY_RATE",
+                Self::HloExecTiming => "HLO_EXEC_TIMING",
+            }
+        }
+        /// Creates an enum from field names used in the ProtoBuf definition.
+        pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+            match value {
+                "DISTRIBUTION_UNSPECIFIED" => Some(Self::DistributionUnspecified),
+                "BUFFER_TRANSFER_LATENCY" => Some(Self::BufferTransferLatency),
+                "INBOUND_BUFFER_TRANSFER_LATENCY" => {
+                    Some(Self::InboundBufferTransferLatency)
+                }
+                "HOST_TO_DEVICE_TRANSFER_LATENCY" => {
+                    Some(Self::HostToDeviceTransferLatency)
+                }
+                "DEVICE_TO_HOST_TRANSFER_LATENCY" => {
+                    Some(Self::DeviceToHostTransferLatency)
+                }
+                "COLLECTIVE_E2E_LATENCY" => Some(Self::CollectiveE2eLatency),
+                "HOST_COMPUTE_LATENCY" => Some(Self::HostComputeLatency),
+                "GRPC_TCP_MIN_RTT" => Some(Self::GrpcTcpMinRtt),
+                "GRPC_TCP_DELIVERY_RATE" => Some(Self::GrpcTcpDeliveryRate),
+                "HLO_EXEC_TIMING" => Some(Self::HloExecTiming),
+                _ => None,
+            }
+        }
+    }
+}
+/// neuron-monitor host-level memory (Go).
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct TrainiumHostMetrics {
+    #[prost(uint64, optional, tag = "1")]
+    pub host_memory_total_bytes: ::core::option::Option<u64>,
+    #[prost(uint64, optional, tag = "2")]
+    pub device_memory_total_bytes: ::core::option::Option<u64>,
+    #[prost(uint64, optional, tag = "3")]
+    pub host_memory_application_bytes: ::core::option::Option<u64>,
+    #[prost(uint64, optional, tag = "4")]
+    pub host_memory_constants_bytes: ::core::option::Option<u64>,
+    #[prost(uint64, optional, tag = "5")]
+    pub host_memory_dma_buffers_bytes: ::core::option::Option<u64>,
+    #[prost(uint64, optional, tag = "6")]
+    pub host_memory_tensors_bytes: ::core::option::Option<u64>,
+}
+/// A metric the schema does not know: OpenMetrics scrapes today
+/// (x_stats_open_metrics_endpoints), vendor collectors and user-pushed system
+/// metrics later. Rendered generically: one chart per (source, name), one
+/// series per label set.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct GenericMetric {
+    /// Producer: the endpoint name from x_stats_open_metrics_endpoints, a vendor
+    /// id, or "user".
+    #[prost(string, tag = "1")]
+    pub source: ::prost::alloc::string::String,
+    /// Metric family name as the producer names it.
+    #[prost(string, tag = "2")]
+    pub name: ::prost::alloc::string::String,
+    #[prost(message, repeated, tag = "3")]
+    pub labels: ::prost::alloc::vec::Vec<MetricLabel>,
+    #[prost(enumeration = "metric_info::Kind", tag = "4")]
+    pub kind: i32,
+    /// From "# UNIT" when present.
+    #[prost(string, tag = "5")]
+    pub unit: ::prost::alloc::string::String,
+    /// From "# HELP" when present.
+    #[prost(string, tag = "6")]
+    pub help: ::prost::alloc::string::String,
+    #[prost(double, optional, tag = "7")]
+    pub value: ::core::option::Option<f64>,
+    /// Compat only: ordinal of this label set within the writer session, the
+    /// <index> in the legacy key. Dropped when keys are regularized.
+    #[prost(uint32, tag = "8")]
+    pub legacy_series_index: u32,
+}
+#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct MetricLabel {
+    #[prost(string, tag = "1")]
+    pub key: ::prost::alloc::string::String,
+    #[prost(string, tag = "2")]
+    pub value: ::prost::alloc::string::String,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum AcceleratorType {
+    AcceleratorUnspecified = 0,
+    NvidiaGpu = 1,
+    AmdGpu = 2,
+    AppleGpu = 3,
+    AppleAne = 4,
+    GoogleTpu = 5,
+    /// One entry per NeuronCore.
+    AwsTrainium = 6,
+}
+impl AcceleratorType {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            Self::AcceleratorUnspecified => "ACCELERATOR_UNSPECIFIED",
+            Self::NvidiaGpu => "NVIDIA_GPU",
+            Self::AmdGpu => "AMD_GPU",
+            Self::AppleGpu => "APPLE_GPU",
+            Self::AppleAne => "APPLE_ANE",
+            Self::GoogleTpu => "GOOGLE_TPU",
+            Self::AwsTrainium => "AWS_TRAINIUM",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "ACCELERATOR_UNSPECIFIED" => Some(Self::AcceleratorUnspecified),
+            "NVIDIA_GPU" => Some(Self::NvidiaGpu),
+            "AMD_GPU" => Some(Self::AmdGpu),
+            "APPLE_GPU" => Some(Self::AppleGpu),
+            "APPLE_ANE" => Some(Self::AppleAne),
+            "GOOGLE_TPU" => Some(Self::GoogleTpu),
+            "AWS_TRAINIUM" => Some(Self::AwsTrainium),
+            _ => None,
+        }
+    }
+}
 /// A sequence of Records fully defines a run.
 ///
 /// Records make up a run's transaction log, which can be replayed to reupload
@@ -601,7 +1261,7 @@ pub struct Record {
     pub info: ::core::option::Option<RecordInfo>,
     #[prost(
         oneof = "record::RecordType",
-        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 26, 27, 100"
+        tags = "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 20, 21, 22, 23, 24, 25, 26, 27, 28, 100"
     )]
     pub record_type: ::core::option::Option<record::RecordType>,
 }
@@ -656,6 +1316,8 @@ pub mod record {
         Environment(super::EnvironmentRecord),
         #[prost(message, tag = "27")]
         OutputLogger(super::OutputLoggerRecord),
+        #[prost(message, tag = "28")]
+        SystemMetrics(super::SystemMetricsRecord),
         /// request field does not belong here longterm
         #[prost(message, tag = "100")]
         Request(super::Request),
