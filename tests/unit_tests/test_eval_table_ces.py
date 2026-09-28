@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import re
 import sys
 from dataclasses import replace
 from types import ModuleType, SimpleNamespace
-from unittest.mock import ANY, MagicMock
+from unittest.mock import ANY, DEFAULT, MagicMock
 
 import pytest
 import wandb
@@ -358,7 +359,7 @@ def test_ces_eval_table_batches_rows_by_count(
 
 
 @pytest.mark.parametrize("debug", [True, False])
-def test_ces_eval_table_logs_batch_sizes_in_debug_mode(
+def test_ces_eval_table_logs_progress_before_each_request_in_debug_mode(
     mock_ces_client,
     run,
     monkeypatch,
@@ -366,14 +367,23 @@ def test_ces_eval_table_logs_batch_sizes_in_debug_mode(
 ):
     monkeypatch.setenv("WANDB_DEBUG", str(debug).lower())
     monkeypatch.setattr(ces, "_MAX_ROWS_PER_BATCH", 2)
-    termlog = MagicMock()
+    events = []
+
+    def termlog(message):
+        events.append(re.sub(r"^EvalTable CES \[\+\d+\.\d+s\] ", "", message))
+
+    def record_request(name):
+        def side_effect(*_, **__):
+            events.append(f"<{name}>")
+            return DEFAULT
+
+        return side_effect
+
     monkeypatch.setattr(wandb, "termlog", termlog)
-    # The scope lookup is the first network request.
-    termlog_calls_before_requests = []
     resolve_scope_context = ces.CESWriter._resolve_scope_context
 
     def record_then_resolve_scope_context(self, bound_run):
-        termlog_calls_before_requests.append(termlog.call_count)
+        events.append("<scope>")
         return resolve_scope_context(self, bound_run)
 
     monkeypatch.setattr(
@@ -381,6 +391,11 @@ def test_ces_eval_table_logs_batch_sizes_in_debug_mode(
         "_resolve_scope_context",
         record_then_resolve_scope_context,
     )
+    tables = mock_ces_client.eval_tables
+    tables.create.side_effect = record_request("create")
+    tables.columns.create.side_effect = record_request("columns")
+    tables.rows.add.side_effect = record_request("rows")
+    tables.versions.create.side_effect = record_request("version")
     et = wandb.EvalTable(
         columns=["prompt", "answer", "score"],
         data=[["q", "a", 1.0]] * 3,
@@ -393,23 +408,31 @@ def test_ces_eval_table_logs_batch_sizes_in_debug_mode(
     run.log({"eval": et})
 
     if not debug:
-        termlog.assert_not_called()
+        assert all(event.startswith("<") for event in events)
         return
-    batches = [
-        call.kwargs["rows"]
-        for call in mock_ces_client.eval_tables.rows.add.call_args_list
+    body_sizes = [
+        len(ces._encode_json({"rows": call.kwargs["rows"]}))
+        for call in tables.rows.add.call_args_list
     ]
-    body_sizes = [len(ces._encode_json({"rows": batch})) for batch in batches]
-    lines = [call.args[0] for call in termlog.call_args_list]
-    assert lines[0] == "EvalTable CES preparing 3 rows"
-    assert lines[1].startswith("EvalTable CES prepared 3 rows in ")
-    assert lines[2:] == [
-        f"EvalTable CES rows batch 1/2: 2 rows, 3 columns, {body_sizes[0]:,} bytes "
+    assert events == [
+        "preparing 3 rows",
+        "prepared 3 rows into 2 batches",
+        "resolving project scope",
+        "<scope>",
+        "creating eval table at https://evaluations.example.test",
+        "<create>",
+        "creating 3 columns",
+        "<columns>",
+        f"uploading rows batch 1/2: 2 rows, 3 columns, {body_sizes[0]:,} bytes "
         f"({body_sizes[0] / (1 << 20):.2f} MiB)",
-        f"EvalTable CES rows batch 2/2: 1 rows, 3 columns, {body_sizes[1]:,} bytes "
+        "<rows>",
+        f"uploading rows batch 2/2: 1 rows, 3 columns, {body_sizes[1]:,} bytes "
         f"({body_sizes[1] / (1 << 20):.2f} MiB)",
+        "<rows>",
+        "creating version",
+        "<version>",
+        "finished",
     ]
-    assert termlog_calls_before_requests == [4]
 
 
 def test_ces_eval_table_rejects_oversized_row_before_network(
