@@ -64,6 +64,7 @@ struct GpuMetricAvailability {
     temperature: bool,
     power_usage: bool,
     enforced_power_limit: bool,
+    energy: bool,
     sm_clock: bool,
     mem_clock: bool,
     graphics_clock: bool,
@@ -88,6 +89,7 @@ impl Default for GpuMetricAvailability {
             temperature: true,
             power_usage: true,
             enforced_power_limit: true,
+            energy: true,
             sm_clock: true,
             mem_clock: true,
             graphics_clock: false, // TODO: questionable utility, expensive to retrieve
@@ -306,6 +308,7 @@ impl NvidiaGpu {
     /// gpu.{i}.powerWatts: The power consumption of the GPU at index i (in Watts).
     /// gpu.{i}.enforcedPowerLimitWatts: The enforced power limit of the GPU at index i (in Watts).
     /// gpu.{i}.powerPercent: The percentage of power limit being used by the GPU at index i.
+    /// gpu.{i}.energyJoules: Energy consumed by the GPU at index i since its driver loaded (in Joules).
     /// gpu.{i}.graphicsClock: The current graphics clock speed of the GPU at index i (in MHz).
     /// gpu.{i}.memoryClock: The current memory clock speed of the GPU at index i (in MHz).
     /// gpu.{i}.smClock: The current SM clock speed of the GPU at index i (in MHz).
@@ -551,6 +554,21 @@ impl NvidiaGpu {
                     }
                     Err(_) => {
                         availability.power_usage = false;
+                    }
+                }
+            }
+
+            // Energy
+            if availability.energy {
+                match device.total_energy_consumption() {
+                    Ok(millijoules) => {
+                        metrics.push((
+                            format!("gpu.{}.energyJoules", di),
+                            MetricValue::Float(millijoules as f64 / 1000.0),
+                        ));
+                    }
+                    Err(_) => {
+                        availability.energy = false;
                     }
                 }
             }
