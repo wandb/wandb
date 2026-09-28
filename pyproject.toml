@@ -12,7 +12,8 @@ license = { file = "LICENSE" }
 requires-python = ">=3.10"
 dependencies = [
     "Click>=8.2.0",
-    "cwevals",
+    # Pin exact cwevals version during preview as API is subject to change.
+    "cwevals==0.0.1b1",
     "requests>=2.0.0,<3",
     "protobuf>=5,!=5.28.0,!=5.29.0,<8",
     "PyYAML",
