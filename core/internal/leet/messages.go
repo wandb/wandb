@@ -5,6 +5,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/wandb/wandb/core/internal/systemmetrics"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -57,11 +58,18 @@ type FileCompleteMsg struct {
 	ExitCode int32
 }
 
-// StatsMsg contains system metrics data from a wandb stats record.
+// StatsMsg contains system metrics data from a legacy wandb stats record.
 type StatsMsg struct {
 	RunPath   string
 	Timestamp int64              // Unix timestamp in seconds
 	Metrics   map[string]float64 // metric name -> value
+}
+
+// SystemMetricsMsg carries the samples of one typed system metrics record.
+type SystemMetricsMsg struct {
+	RunPath   string
+	Timestamp int64 // Unix timestamp in seconds
+	Samples   []systemmetrics.Sample
 }
 
 // ConsoleLogMsg carries a raw console output record to be assembled

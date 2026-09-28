@@ -147,6 +147,12 @@ func (s *Symon) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd := s.sampleLaterCmd()
 		return s, cmd
 
+	case SystemMetricsMsg:
+		s.grid.ProcessSamples(msg)
+		s.grid.drawVisible()
+		cmd := s.sampleLaterCmd()
+		return s, cmd
+
 	default:
 		return s, nil
 	}

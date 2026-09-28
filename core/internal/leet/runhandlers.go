@@ -51,6 +51,15 @@ func (r *Run) handleRecordMsg(msg tea.Msg) tea.Cmd {
 		}
 		r.rightSidebar.ProcessStatsMsg(msg)
 
+	case SystemMetricsMsg:
+		r.logger.Debug(
+			fmt.Sprintf("model: processing SystemMetricsMsg with timestamp %d", msg.Timestamp),
+		)
+		if r.shouldResetLiveHeartbeat() {
+			r.heartbeatMgr.Reset(r.isRunning)
+		}
+		r.rightSidebar.ProcessSystemMetricsMsg(msg)
+
 	case SystemInfoMsg:
 		r.logger.Debug("model: processing SystemInfoMsg")
 		r.runOverview.ProcessSystemInfoMsg(msg.Record)

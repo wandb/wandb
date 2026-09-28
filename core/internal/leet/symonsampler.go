@@ -3,7 +3,6 @@ package leet
 import (
 	"context"
 	"fmt"
-	"maps"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -11,10 +10,10 @@ import (
 	"time"
 
 	"golang.org/x/sync/errgroup"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/wandb/wandb/core/internal/monitor"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/systemmetrics"
 )
 
 // DefaultSymonSamplingInterval is the sampling cadence used by SYMON when the
@@ -31,12 +30,12 @@ type SymonSamplerParams struct {
 	Logger *observability.CoreLogger
 }
 
-// SymonSampler produces live StatsMsg updates using the shared monitor
+// SymonSampler produces live SystemMetricsMsg updates using the shared monitor
 // resources.
 //
 // Each call to Sample collects one point-in-time snapshot across the available
 // system and accelerator resources. The resulting metrics are aligned to a single
-// wall-clock timestamp before they are merged into one StatsMsg for the UI.
+// wall-clock timestamp before they are merged into one SystemMetricsMsg for the UI.
 type SymonSampler struct {
 	interval  time.Duration
 	resources []monitor.Resource
@@ -77,12 +76,9 @@ func (s *SymonSampler) Interval() time.Duration {
 }
 
 // Sample gathers one aligned snapshot across all resources.
-func (s *SymonSampler) Sample() StatsMsg {
+func (s *SymonSampler) Sample() SystemMetricsMsg {
 	now := time.Now()
-	out := StatsMsg{
-		Timestamp: now.Unix(),
-		Metrics:   make(map[string]float64),
-	}
+	out := SystemMetricsMsg{Timestamp: now.Unix()}
 
 	var mu sync.Mutex
 	var g errgroup.Group
@@ -110,16 +106,14 @@ func (s *SymonSampler) Sample() StatsMsg {
 				return nil
 			}
 
-			// Align all metrics from one sampling pass to the same wall-clock tick.
-			record.Timestamp = timestamppb.New(now)
-
-			msg, ok := ParseSystemMetrics("", record).(StatsMsg)
-			if !ok || len(msg.Metrics) == 0 {
+			samples := systemmetrics.Samples(record)
+			if len(samples) == 0 {
 				return nil
 			}
 
+			// Align all metrics from one sampling pass to the same wall-clock tick.
 			mu.Lock()
-			maps.Copy(out.Metrics, msg.Metrics)
+			out.Samples = append(out.Samples, samples...)
 			mu.Unlock()
 			return nil
 		})

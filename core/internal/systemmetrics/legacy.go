@@ -44,7 +44,7 @@ func Items(rec *spb.SystemMetricsRecord) []Item {
 		items = append(items, Item{Key: key, Value: value})
 	}
 
-	walk(rec.ProtoReflect(), scope{}, emit)
+	walk(rec.ProtoReflect(), scope{}, "", func(l leaf) { renderLegacy(l, emit) })
 	tpuDistributionItems(rec.GetTpuRuntime(), emit)
 
 	sort.SliceStable(items, func(i, j int) bool { return items[i].Key < items[j].Key })
@@ -80,6 +80,7 @@ type scope struct {
 	source string
 	host   string
 	inUse  bool
+	kind   spb.MetricInfo_Kind
 	vars   map[string]string
 }
 
@@ -92,6 +93,7 @@ func (s scope) child(m protoreflect.Message) scope {
 		source: s.source,
 		host:   s.host,
 		inUse:  s.inUse,
+		kind:   s.kind,
 		vars:   make(map[string]string, len(s.vars)+4),
 	}
 	maps.Copy(c.vars, s.vars)
@@ -99,7 +101,13 @@ func (s scope) child(m protoreflect.Message) scope {
 	fields := m.Descriptor().Fields()
 	for i := 0; i < fields.Len(); i++ {
 		fd := fields.Get(i)
-		if fd.Kind() == protoreflect.MessageKind || fd.IsList() || metricInfo(fd) != nil {
+		if fd.IsList() {
+			if fd.Name() == "labels" {
+				c.vars["labels"] = labelPairs(m.Get(fd).List())
+			}
+			continue
+		}
+		if fd.Kind() == protoreflect.MessageKind || metricInfo(fd) != nil {
 			continue
 		}
 		v := m.Get(fd)
@@ -108,8 +116,10 @@ func (s scope) child(m protoreflect.Message) scope {
 			c.vars["index"] = strconv.FormatUint(v.Uint(), 10)
 		case "legacy_series_index":
 			c.vars["series"] = strconv.FormatUint(v.Uint(), 10)
-		case "path", "device", "label", "name":
+		case "path", "device", "label", "name", "unit":
 			c.vars[string(fd.Name())] = v.String()
+		case "kind":
+			c.kind = spb.MetricInfo_Kind(v.Enum())
 		case "source":
 			c.vars["source"] = v.String()
 			c.source = v.String()
@@ -117,6 +127,7 @@ func (s scope) child(m protoreflect.Message) scope {
 			c.accel = spb.AcceleratorType(v.Enum())
 		case "host":
 			c.host = v.String()
+			c.vars["host"] = v.String()
 		case "in_use_by_process":
 			c.inUse = v.Bool()
 		}
@@ -124,45 +135,52 @@ func (s scope) child(m protoreflect.Message) scope {
 	return c
 }
 
-func walk(m protoreflect.Message, parent scope, emit func(string, float64)) {
+// leaf is one measured field of a record as the walk found it.
+type leaf struct {
+	fd    protoreflect.FieldDescriptor
+	path  string // dotted field path from the record root
+	info  *spb.MetricInfo
+	scope scope
+	value float64 // in info.Unit
+}
+
+// walk visits every populated field with a MetricInfo option, depth first.
+func walk(m protoreflect.Message, parent scope, path string, visit func(leaf)) {
 	s := parent.child(m)
 	m.Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
+		name := string(fd.Name())
+		if path != "" {
+			name = path + "." + name
+		}
 		switch {
 		case fd.IsMap():
 		case fd.IsList() && fd.Kind() == protoreflect.MessageKind:
 			list := v.List()
 			for i := 0; i < list.Len(); i++ {
-				walk(list.Get(i).Message(), s, emit)
+				walk(list.Get(i).Message(), s, name, visit)
 			}
 		case fd.Kind() == protoreflect.MessageKind:
-			walk(v.Message(), s, emit)
+			walk(v.Message(), s, name, visit)
 		default:
 			if info := metricInfo(fd); info != nil {
-				emitLeaf(fd, v, info, s, emit)
+				visit(leaf{fd: fd, path: name, info: info, scope: s, value: numeric(fd, v)})
 			}
 		}
 		return true
 	})
 }
 
-func emitLeaf(
-	fd protoreflect.FieldDescriptor,
-	v protoreflect.Value,
-	info *spb.MetricInfo,
-	s scope,
-	emit func(string, float64),
-) {
-	lk := pickLegacy(info.GetLegacy(), s.accel, s.source)
+func renderLegacy(l leaf, emit func(string, float64)) {
+	lk := pickLegacy(l.info.GetLegacy(), l.scope.accel, l.scope.source)
 	if lk == nil {
 		return
 	}
-	value := toLegacyUnit(numeric(fd, v), info.GetUnit(), lk.GetUnit())
+	value := toLegacyUnit(l.value, l.info.GetUnit(), lk.GetUnit())
 
-	key := s.expand(lk.GetTemplate())
-	emit(key, value)
+	emit(l.scope.expand(lk.GetTemplate()), value)
 
-	if info.GetLegacyProcessCopy() && s.inUse {
-		emit(s.expand(processCopyTemplate(lk.GetTemplate())), value)
+	if l.info.GetLegacyProcessCopy() && l.scope.inUse {
+		emit(l.scope.expand(processCopyTemplate(lk.GetTemplate())), value)
 	}
 }
 
@@ -268,23 +286,35 @@ func metricInfo(fd protoreflect.FieldDescriptor) *spb.MetricInfo {
 	return info
 }
 
-// tpuDistribution is the legacy key name and stat unit suffix of a TPU runtime
-// distribution kind. Keys are tpu.<name>[.<label>].<stat><unit>.
+// tpuDistribution describes a TPU runtime distribution kind: its legacy key
+// name and stat unit suffix (keys are tpu.<name>[.<label>].<stat><unit>), and
+// its title and UCUM unit for charts.
 type tpuDistribution struct {
-	name string
-	unit string
+	name          string
+	unit          string
+	display       string
+	canonicalUnit string
 }
 
 var tpuDistributions = map[spb.TpuRuntimeMetrics_DistributionKind]tpuDistribution{
-	spb.TpuRuntimeMetrics_BUFFER_TRANSFER_LATENCY:         {"bufferTransferLatency", "Us"},
-	spb.TpuRuntimeMetrics_INBOUND_BUFFER_TRANSFER_LATENCY: {"inboundBufferTransferLatency", "Us"},
-	spb.TpuRuntimeMetrics_HOST_TO_DEVICE_TRANSFER_LATENCY: {"hostToDeviceTransferLatency", "Us"},
-	spb.TpuRuntimeMetrics_DEVICE_TO_HOST_TRANSFER_LATENCY: {"deviceToHostTransferLatency", "Us"},
-	spb.TpuRuntimeMetrics_COLLECTIVE_E2E_LATENCY:          {"collectiveE2ELatency", "Us"},
-	spb.TpuRuntimeMetrics_HOST_COMPUTE_LATENCY:            {"hostComputeLatency", "Us"},
-	spb.TpuRuntimeMetrics_GRPC_TCP_MIN_RTT:                {"grpcTcpMinRtt", "Us"},
-	spb.TpuRuntimeMetrics_GRPC_TCP_DELIVERY_RATE:          {"grpcTcpDeliveryRate", "Mbps"},
-	spb.TpuRuntimeMetrics_HLO_EXEC_TIMING:                 {"hloExecTiming", "Us"},
+	spb.TpuRuntimeMetrics_BUFFER_TRANSFER_LATENCY: {
+		"bufferTransferLatency", "Us", "Buffer Transfer Latency", "us"},
+	spb.TpuRuntimeMetrics_INBOUND_BUFFER_TRANSFER_LATENCY: {
+		"inboundBufferTransferLatency", "Us", "Inbound Buffer Transfer Latency", "us"},
+	spb.TpuRuntimeMetrics_HOST_TO_DEVICE_TRANSFER_LATENCY: {
+		"hostToDeviceTransferLatency", "Us", "Host to Device Transfer Latency", "us"},
+	spb.TpuRuntimeMetrics_DEVICE_TO_HOST_TRANSFER_LATENCY: {
+		"deviceToHostTransferLatency", "Us", "Device to Host Transfer Latency", "us"},
+	spb.TpuRuntimeMetrics_COLLECTIVE_E2E_LATENCY: {
+		"collectiveE2ELatency", "Us", "Collective End-to-End Latency", "us"},
+	spb.TpuRuntimeMetrics_HOST_COMPUTE_LATENCY: {
+		"hostComputeLatency", "Us", "Host Compute Latency", "us"},
+	spb.TpuRuntimeMetrics_GRPC_TCP_MIN_RTT: {
+		"grpcTcpMinRtt", "Us", "gRPC TCP Min RTT", "us"},
+	spb.TpuRuntimeMetrics_GRPC_TCP_DELIVERY_RATE: {
+		"grpcTcpDeliveryRate", "Mbps", "gRPC TCP Delivery Rate", "Mbit/s"},
+	spb.TpuRuntimeMetrics_HLO_EXEC_TIMING: {
+		"hloExecTiming", "Us", "HLO Execution Timing", "us"},
 }
 
 var tpuStats = []string{"mean", "p50", "p90", "p95", "p99", "p999"}

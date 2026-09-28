@@ -478,23 +478,17 @@ func ParseStats(runPath string, stats *spb.StatsRecord) tea.Msg {
 	return nil
 }
 
-// ParseSystemMetrics extracts metrics from a typed system metrics record,
-// keyed by their legacy names so they chart like StatsRecord metrics.
+// ParseSystemMetrics extracts the samples of a typed system metrics record.
 func ParseSystemMetrics(runPath string, rec *spb.SystemMetricsRecord) tea.Msg {
-	items := systemmetrics.Items(rec)
-	if len(items) == 0 {
+	samples := systemmetrics.Samples(rec)
+	if len(samples) == 0 {
 		return nil
 	}
 
-	metrics := make(map[string]float64, len(items))
-	for _, item := range items {
-		metrics[item.Key] = item.Value
-	}
-
-	return StatsMsg{
+	return SystemMetricsMsg{
 		RunPath:   runPath,
 		Timestamp: rec.GetTimestamp().GetSeconds(),
-		Metrics:   metrics,
+		Samples:   samples,
 	}
 }
 

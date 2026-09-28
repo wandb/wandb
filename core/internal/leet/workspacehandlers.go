@@ -770,6 +770,10 @@ func (w *Workspace) handleWorkspaceRecord(run *WorkspaceRun, msg tea.Msg) {
 		grid := w.getOrCreateSystemMetricsGrid(run.Key)
 		grid.ProcessStats(m)
 
+	case SystemMetricsMsg:
+		grid := w.getOrCreateSystemMetricsGrid(run.Key)
+		grid.ProcessSamples(m)
+
 	case SystemInfoMsg:
 		w.getOrCreateRunOverview(run.Key).ProcessSystemInfoMsg(m.Record)
 
