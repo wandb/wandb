@@ -646,17 +646,15 @@ def test_ces_error_uses_original_integer_column(mock_ces_client, run):
     mock_ces_client.eval_tables.create.assert_not_called()
 
 
-def test_ces_eval_table_requires_base_url(monkeypatch, mock_run):
+def test_ces_base_url(monkeypatch):
     monkeypatch.delenv("CES_BASE_URL", raising=False)
-    run = mock_run(settings={"entity": "e", "project": "p", "mode": "online"})
-    et = wandb.EvalTable(
-        columns=["value"],
-        data=[[1]],
-        backend="ces",
+    assert ces._ces_base_url("https://api.wandb.ai") == "https://evaluations.wandb.ai"
+    assert (
+        ces._ces_base_url("https://example.test") == "https://example.test/evaluations"
     )
 
-    with pytest.raises(UsageError, match="CES_BASE_URL"):
-        run.log({"eval": et})
+    monkeypatch.setenv("CES_BASE_URL", "https://ces.test")
+    assert ces._ces_base_url("https://api.wandb.ai") == "https://ces.test"
 
 
 def test_ces_eval_table_requires_client_before_scope_lookup(monkeypatch, run):
@@ -669,6 +667,7 @@ def test_ces_eval_table_requires_client_before_scope_lookup(monkeypatch, run):
     writer._bound = replace(
         writer._require_bound(),
         service_api=SimpleNamespace(
+            base_url="https://api.wandb.ai",
             api_key="secret",
             access_token=MagicMock(),
             execute_graphql=execute_graphql,

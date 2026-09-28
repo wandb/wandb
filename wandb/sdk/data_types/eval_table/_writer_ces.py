@@ -38,6 +38,8 @@ if TYPE_CHECKING:
 _logger = logging.getLogger(__name__)
 
 _CES_BASE_URL_ENV = "CES_BASE_URL"
+_MTSAAS_WANDB_BASE_URL = "https://api.wandb.ai"
+_MTSAAS_CES_BASE_URL = "https://evaluations.wandb.ai"
 _WANDB_SCOPE_NAMESPACE = "wandb"
 _PROJECT_SCOPE_QUERY = """
 query EvalTableProjectScope($entity: String!, $project: String!) {
@@ -115,6 +117,17 @@ class _CESScopeContext:
     scope_id: str
     api_key: str | None = field(repr=False)
     access_token: str | None = field(repr=False)
+
+
+def _ces_base_url(wandb_base_url: str) -> str:
+    """Return the Evaluations service URL for a W&B server."""
+    base_url = os.environ.get(_CES_BASE_URL_ENV)
+    if base_url:
+        return base_url
+    if wandb_base_url == _MTSAAS_WANDB_BASE_URL:
+        return _MTSAAS_CES_BASE_URL
+    # Dedicated servers route it under the W&B origin.
+    return f"{wandb_base_url}/evaluations"
 
 
 # Bytes in a row-add body other than encoded rows and their separating commas.
@@ -211,13 +224,7 @@ class CESWriter:
     ) -> WriteResult:
         """Prepare and persist the CES resources, then return their history value."""
         bound_run = self._require_bound()
-
-        base_url = os.environ.get(_CES_BASE_URL_ENV)
-        if not base_url:
-            raise UsageError(
-                f"Set {_CES_BASE_URL_ENV} to the Evaluations service URL "
-                "before logging a CES EvalTable."
-            )
+        base_url = _ces_base_url(bound_run.service_api.base_url)
 
         # TODO: coreweave_evaluations is new and under development. This will become
         # obsolete once we actually publish the package and add it to wandb deps.
