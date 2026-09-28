@@ -324,6 +324,7 @@ class Agent:
                     # while it is still running.
                     self._run_done[run_id].wait()
                     thread.join()
+                    del self._run_done[run_id]
                     logger.debug(f"Thread joined for run {run_id}.")
                     if self._run_status[run_id] == RunStatus.RUNNING:
                         self._run_status[run_id] = RunStatus.DONE
