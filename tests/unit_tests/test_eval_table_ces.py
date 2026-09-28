@@ -649,7 +649,9 @@ def test_ces_error_uses_original_integer_column(mock_ces_client, run):
 def test_ces_base_url(monkeypatch):
     monkeypatch.delenv("CES_BASE_URL", raising=False)
     assert ces._ces_base_url("https://api.wandb.ai") == "https://evaluations.wandb.ai"
-    assert ces._ces_base_url("https://acme.test") == "https://acme.test/evaluations"
+    assert (
+        ces._ces_base_url("https://example.test") == "https://example.test/evaluations"
+    )
 
     monkeypatch.setenv("CES_BASE_URL", "https://ces.test")
     assert ces._ces_base_url("https://api.wandb.ai") == "https://ces.test"
