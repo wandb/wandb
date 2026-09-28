@@ -88,26 +88,21 @@ impl GpuAmd {
             return None;
         };
 
-        let mut gpu = GpuAmd {
-            lib,
-            device_count: 0,
-        };
-        let init: Symbol<FnInit> = gpu.symbol(b"rsmi_init\0")?;
+        let init: Symbol<FnInit> = symbol(&lib, b"rsmi_init\0")?;
         let status = unsafe { init(0) };
         if status != RSMI_STATUS_SUCCESS {
             warn!("rsmi_init failed with status {status}; AMD GPU metrics disabled");
             return None;
         }
 
-        let num_devices: Symbol<FnNumDevices> = gpu.symbol(b"rsmi_num_monitor_devices\0")?;
-        let mut device_count = 0u32;
-        if unsafe { num_devices(&mut device_count) } != RSMI_STATUS_SUCCESS || device_count == 0 {
+        let device_count = monitored_device_count(&lib);
+        if device_count == 0 {
             debug!("no AMD GPUs reported by the ROCm SMI library");
+            shut_down(&lib);
             return None;
         }
 
-        gpu.device_count = device_count;
-        Some(gpu)
+        Some(GpuAmd { lib, device_count })
     }
 
     /// Metrics for every device, keyed as `gpu.<index>.<name>`. Readings a device
@@ -217,7 +212,7 @@ impl GpuAmd {
     }
 
     fn symbol<T>(&self, name: &[u8]) -> Option<Symbol<'_, T>> {
-        unsafe { self.lib.get(name) }.ok()
+        symbol(&self.lib, name)
     }
 
     fn get_u16(&self, name: &[u8], device: u32) -> Option<u16> {
@@ -313,9 +308,30 @@ impl GpuAmd {
 
 impl Drop for GpuAmd {
     fn drop(&mut self) {
-        if let Some(shut_down) = self.symbol::<FnShutDown>(b"rsmi_shut_down\0") {
-            unsafe { shut_down() };
-        }
+        shut_down(&self.lib);
+    }
+}
+
+/// Looks up a function in the loaded library.
+fn symbol<'lib, T>(lib: &'lib Library, name: &[u8]) -> Option<Symbol<'lib, T>> {
+    unsafe { lib.get(name) }.ok()
+}
+
+/// The number of devices the initialized library monitors, or 0 when it cannot say.
+fn monitored_device_count(lib: &Library) -> u32 {
+    let Some(f) = symbol::<FnNumDevices>(lib, b"rsmi_num_monitor_devices\0") else {
+        return 0;
+    };
+    let mut count = 0u32;
+    if unsafe { f(&mut count) } != RSMI_STATUS_SUCCESS {
+        return 0;
+    }
+    count
+}
+
+fn shut_down(lib: &Library) {
+    if let Some(f) = symbol::<FnShutDown>(lib, b"rsmi_shut_down\0") {
+        unsafe { f() };
     }
 }
 
