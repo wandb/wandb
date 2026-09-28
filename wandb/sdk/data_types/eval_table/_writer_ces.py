@@ -219,14 +219,8 @@ class CESWriter:
                 "before logging a CES EvalTable."
             )
 
-        # TODO: coreweave_evaluations is new and under development. This will become
-        # obsolete once we actually publish the package and add it to wandb deps.
-        try:
-            from coreweave_evaluations import Client
-        except ImportError as exc:
-            raise UsageError(
-                "CES EvalTable logging requires the coreweave_evaluations package."
-            ) from exc
+        # Import lazily so the CES client only loads when a CES EvalTable is written.
+        from coreweave_evaluations import Client
 
         write_payloads = self._build_write_payloads(name=name, rows=rows)
         self._record_media_telemetry(write_payloads)
