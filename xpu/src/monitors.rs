@@ -166,6 +166,8 @@ impl GpuMonitor for AppleGpuMonitor {
 // ===== Nvidia GPU Monitor =====
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 use crate::gpu_nvidia;
+#[cfg(any(target_os = "linux", target_os = "windows"))]
+use nvml_wrapper::error::NvmlError;
 
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 struct NvidiaGpuMonitor {
@@ -182,8 +184,17 @@ impl NvidiaGpuMonitor {
                     gpu: tokio::sync::Mutex::new(gpu),
                 })
             }
+            Err(
+                NvmlError::LibloadingError(_)
+                | NvmlError::LibraryNotFound
+                | NvmlError::DriverNotLoaded
+                | NvmlError::NotFound,
+            ) => {
+                debug!("No NVIDIA driver found; NVIDIA GPU monitoring disabled");
+                None
+            }
             Err(e) => {
-                debug!("Failed to initialize NVIDIA GPU monitoring: {}", e);
+                warn!("Failed to initialize NVIDIA GPU monitoring: {e}");
                 None
             }
         }
