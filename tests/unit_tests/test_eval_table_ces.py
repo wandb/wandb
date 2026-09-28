@@ -357,6 +357,44 @@ def test_ces_eval_table_batches_rows_by_count(
     ]
 
 
+@pytest.mark.parametrize("debug", [True, False])
+def test_ces_eval_table_logs_batch_sizes_in_debug_mode(
+    mock_ces_client,
+    run,
+    monkeypatch,
+    debug,
+):
+    monkeypatch.setenv("WANDB_DEBUG", str(debug).lower())
+    monkeypatch.setattr(ces, "_MAX_ROWS_PER_BATCH", 2)
+    termlog = MagicMock()
+    monkeypatch.setattr(wandb, "termlog", termlog)
+    et = wandb.EvalTable(
+        columns=["prompt", "answer", "score"],
+        data=[["q", "a", 1.0]] * 3,
+        input_columns=["prompt"],
+        output_columns=["answer"],
+        score_columns=["score"],
+        backend="ces",
+    )
+
+    run.log({"eval": et})
+
+    if not debug:
+        termlog.assert_not_called()
+        return
+    batches = [
+        call.kwargs["rows"]
+        for call in mock_ces_client.eval_tables.rows.add.call_args_list
+    ]
+    body_sizes = [len(ces._encode_json({"rows": batch})) for batch in batches]
+    assert [call.args[0] for call in termlog.call_args_list] == [
+        f"EvalTable CES rows batch 1/2: 2 rows, 3 columns, {body_sizes[0]:,} bytes "
+        f"({body_sizes[0] / (1 << 20):.2f} MiB)",
+        f"EvalTable CES rows batch 2/2: 1 rows, 3 columns, {body_sizes[1]:,} bytes "
+        f"({body_sizes[1] / (1 << 20):.2f} MiB)",
+    ]
+
+
 def test_ces_eval_table_rejects_oversized_row_before_network(
     mock_ces_client,
     run,

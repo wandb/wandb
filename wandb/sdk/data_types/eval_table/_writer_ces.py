@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 
 import wandb
+from wandb import env
 from wandb.analytics import get_telemetry_recorder
 from wandb.analytics.opentelemetry.opentelemetry_proxy import LowCardinalityAttributes
 from wandb.apis.public.service_api import ServiceApi
@@ -170,6 +171,17 @@ def _iter_row_batches(
         yield batch
 
 
+def _log_row_batch_sizes(row_batches: Sequence[list[_CESRow]], ncols: int) -> None:
+    """Print the shape and encoded body size of each row-add request."""
+    for batch_index, row_batch in enumerate(row_batches):
+        body_bytes = len(_encode_json({"rows": row_batch}))
+        wandb.termlog(
+            f"EvalTable CES rows batch {batch_index + 1}/{len(row_batches)}: "
+            f"{len(row_batch)} rows, {ncols} columns, "
+            f"{body_bytes:,} bytes ({body_bytes / (1 << 20):.2f} MiB)"
+        )
+
+
 class CESWriter:
     """Write an immutable EvalTable through the Evaluations service."""
 
@@ -246,6 +258,11 @@ class CESWriter:
                 "their encoded payload reached the "
                 f"{_media_ces.CES_MAX_CELL_BYTES / 1_000_000:g} MB limit. "
                 f"First affected: {locations}.",
+            )
+        if env.is_debug():
+            _log_row_batch_sizes(
+                write_payloads.row_batches,
+                len(write_payloads.dataset_fields) + len(write_payloads.scorers),
             )
         scope = self._resolve_scope_context(bound_run)
         with self._create_client(
