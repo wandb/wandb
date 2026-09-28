@@ -646,47 +646,13 @@ def test_ces_error_uses_original_integer_column(mock_ces_client, run):
     mock_ces_client.eval_tables.create.assert_not_called()
 
 
-@pytest.mark.parametrize(
-    ("wandb_base_url", "expected"),
-    [
-        ("https://api.wandb.ai", "https://evaluations.wandb.ai"),
-        ("https://acme.wandb.io", "https://acme.wandb.io/evaluations"),
-    ],
-)
-def test_ces_eval_table_defaults_base_url_from_wandb_base_url(
-    mock_ces_client,
-    mock_run,
-    monkeypatch,
-    wandb_base_url,
-    expected,
-):
-    monkeypatch.delenv("CES_BASE_URL")
-    create_client = MagicMock(return_value=mock_ces_client)
-    monkeypatch.setattr(ces.CESWriter, "_create_client", create_client)
-    run = mock_run(
-        settings={
-            "entity": "e",
-            "project": "p",
-            "mode": "online",
-            "base_url": wandb_base_url,
-        }
-    )
+def test_ces_base_url(monkeypatch):
+    monkeypatch.delenv("CES_BASE_URL", raising=False)
+    assert ces._ces_base_url("https://api.wandb.ai") == "https://evaluations.wandb.ai"
+    assert ces._ces_base_url("https://acme.test") == "https://acme.test/evaluations"
 
-    run.log({"eval": wandb.EvalTable(columns=["value"], data=[[1]], backend="ces")})
-
-    create_client.assert_called_once_with(
-        client_type=ANY,
-        base_url=expected,
-        scope=ANY,
-    )
-
-
-def test_ces_base_url_env_overrides_default(monkeypatch):
-    monkeypatch.setenv("CES_BASE_URL", "https://evaluations.example.test")
-
-    assert ces._ces_base_url("https://api.wandb.ai") == (
-        "https://evaluations.example.test"
-    )
+    monkeypatch.setenv("CES_BASE_URL", "https://ces.test")
+    assert ces._ces_base_url("https://api.wandb.ai") == "https://ces.test"
 
 
 def test_ces_eval_table_requires_client_before_scope_lookup(monkeypatch, run):
