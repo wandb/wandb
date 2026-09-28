@@ -38,8 +38,8 @@ if TYPE_CHECKING:
 _logger = logging.getLogger(__name__)
 
 _CES_BASE_URL_ENV = "CES_BASE_URL"
-_SAAS_WANDB_BASE_URL = "https://api.wandb.ai"
-_SAAS_CES_BASE_URL = "https://evaluations.wandb.ai"
+_MTSAAS_WANDB_BASE_URL = "https://api.wandb.ai"
+_MTSAAS_CES_BASE_URL = "https://evaluations.wandb.ai"
 _WANDB_SCOPE_NAMESPACE = "wandb"
 _PROJECT_SCOPE_QUERY = """
 query EvalTableProjectScope($entity: String!, $project: String!) {
@@ -124,8 +124,8 @@ def _ces_base_url(wandb_base_url: str) -> str:
     base_url = os.environ.get(_CES_BASE_URL_ENV)
     if base_url:
         return base_url
-    if wandb_base_url == _SAAS_WANDB_BASE_URL:
-        return _SAAS_CES_BASE_URL
+    if wandb_base_url == _MTSAAS_WANDB_BASE_URL:
+        return _MTSAAS_CES_BASE_URL
     # Dedicated servers route it under the W&B origin.
     return f"{wandb_base_url}/evaluations"
 
