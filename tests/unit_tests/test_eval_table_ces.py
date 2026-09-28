@@ -646,17 +646,48 @@ def test_ces_error_uses_original_integer_column(mock_ces_client, run):
     mock_ces_client.eval_tables.create.assert_not_called()
 
 
-def test_ces_eval_table_requires_base_url(monkeypatch, mock_run):
-    monkeypatch.delenv("CES_BASE_URL", raising=False)
-    run = mock_run(settings={"entity": "e", "project": "p", "mode": "online"})
-    et = wandb.EvalTable(
-        columns=["value"],
-        data=[[1]],
-        backend="ces",
+@pytest.mark.parametrize(
+    ("wandb_base_url", "expected"),
+    [
+        ("https://api.wandb.ai", "https://evaluations.wandb.ai"),
+        ("https://api.qa.wandb.ai", "https://evaluations.qa.wandb.ai"),
+        ("https://acme.wandb.io", "https://acme.wandb.io/evaluations"),
+    ],
+)
+def test_ces_eval_table_defaults_base_url_from_wandb_base_url(
+    mock_ces_client,
+    mock_run,
+    monkeypatch,
+    wandb_base_url,
+    expected,
+):
+    monkeypatch.delenv("CES_BASE_URL")
+    create_client = MagicMock(return_value=mock_ces_client)
+    monkeypatch.setattr(ces.CESWriter, "_create_client", create_client)
+    run = mock_run(
+        settings={
+            "entity": "e",
+            "project": "p",
+            "mode": "online",
+            "base_url": wandb_base_url,
+        }
     )
 
-    with pytest.raises(UsageError, match="CES_BASE_URL"):
-        run.log({"eval": et})
+    run.log({"eval": wandb.EvalTable(columns=["value"], data=[[1]], backend="ces")})
+
+    create_client.assert_called_once_with(
+        client_type=ANY,
+        base_url=expected,
+        scope=ANY,
+    )
+
+
+def test_ces_base_url_env_overrides_default(monkeypatch):
+    monkeypatch.setenv("CES_BASE_URL", "https://evaluations.example.test")
+
+    assert ces._ces_base_url("https://api.wandb.ai") == (
+        "https://evaluations.example.test"
+    )
 
 
 def test_ces_eval_table_requires_client_before_scope_lookup(monkeypatch, run):
@@ -669,6 +700,7 @@ def test_ces_eval_table_requires_client_before_scope_lookup(monkeypatch, run):
     writer._bound = replace(
         writer._require_bound(),
         service_api=SimpleNamespace(
+            base_url="https://api.wandb.ai",
             api_key="secret",
             access_token=MagicMock(),
             execute_graphql=execute_graphql,

@@ -8,6 +8,7 @@ import os
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
+from urllib.parse import urlsplit
 
 import wandb
 from wandb.analytics import get_telemetry_recorder
@@ -117,6 +118,20 @@ class _CESScopeContext:
     access_token: str | None = field(repr=False)
 
 
+def _ces_base_url(wandb_base_url: str) -> str:
+    """Return the Evaluations service URL for a W&B server."""
+    base_url = os.environ.get(_CES_BASE_URL_ENV)
+    if base_url:
+        return base_url
+    # Multi-tenant servers serve it on a sibling host, e.g. api.qa.wandb.ai
+    # -> evaluations.qa.wandb.ai.
+    host = urlsplit(wandb_base_url).hostname or ""
+    if host.startswith("api.") and host.endswith(".wandb.ai"):
+        return wandb_base_url.replace("://api.", "://evaluations.", 1)
+    # Dedicated servers route it under the W&B origin.
+    return f"{wandb_base_url}/evaluations"
+
+
 # Bytes in a row-add body other than encoded rows and their separating commas.
 _ROW_BATCH_ENVELOPE_BYTES = len(_encode_json({"rows": []}))
 
@@ -211,13 +226,7 @@ class CESWriter:
     ) -> WriteResult:
         """Prepare and persist the CES resources, then return their history value."""
         bound_run = self._require_bound()
-
-        base_url = os.environ.get(_CES_BASE_URL_ENV)
-        if not base_url:
-            raise UsageError(
-                f"Set {_CES_BASE_URL_ENV} to the Evaluations service URL "
-                "before logging a CES EvalTable."
-            )
+        base_url = _ces_base_url(bound_run.service_api.base_url)
 
         # TODO: coreweave_evaluations is new and under development. This will become
         # obsolete once we actually publish the package and add it to wandb deps.
