@@ -40,3 +40,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 - Fixed a memory leak where every `wandb.Api()` object permanently retained a few MiB in the background service process after it was garbage collected (@dmitryduev in https://github.com/wandb/wandb/pull/12920)
 - `Run.scan_history(keys=...)` no longer fails with `403 Forbidden` on W&B deployments that store run history in Amazon S3 (@dmitryduev in https://github.com/wandb/wandb/pull/12930)
 - Per-process GPU metrics (`gpu.process.*`) are logged again for NVIDIA GPUs used by the process that called `wandb.init()`. Since v0.18.2, they were logged only when a subprocess used the GPU (@dmitryduev in https://github.com/wandb/wandb/pull/12978)
+- `wandb.sklearn.plot_confusion_matrix()` and `wandb.sklearn.plot_classifier()` no longer swap the predicted and actual classes in the logged confusion matrix (@MohammadHijjawi97 in https://github.com/wandb/wandb/pull/13029)
