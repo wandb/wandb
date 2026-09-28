@@ -8,7 +8,6 @@ import os
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
-from urllib.parse import urlsplit
 
 import wandb
 from wandb.analytics import get_telemetry_recorder
@@ -39,6 +38,8 @@ if TYPE_CHECKING:
 _logger = logging.getLogger(__name__)
 
 _CES_BASE_URL_ENV = "CES_BASE_URL"
+_SAAS_WANDB_BASE_URL = "https://api.wandb.ai"
+_SAAS_CES_BASE_URL = "https://evaluations.wandb.ai"
 _WANDB_SCOPE_NAMESPACE = "wandb"
 _PROJECT_SCOPE_QUERY = """
 query EvalTableProjectScope($entity: String!, $project: String!) {
@@ -123,11 +124,8 @@ def _ces_base_url(wandb_base_url: str) -> str:
     base_url = os.environ.get(_CES_BASE_URL_ENV)
     if base_url:
         return base_url
-    # Multi-tenant servers serve it on a sibling host, e.g. api.qa.wandb.ai
-    # -> evaluations.qa.wandb.ai.
-    host = urlsplit(wandb_base_url).hostname or ""
-    if host.startswith("api.") and host.endswith(".wandb.ai"):
-        return wandb_base_url.replace("://api.", "://evaluations.", 1)
+    if wandb_base_url == _SAAS_WANDB_BASE_URL:
+        return _SAAS_CES_BASE_URL
     # Dedicated servers route it under the W&B origin.
     return f"{wandb_base_url}/evaluations"
 

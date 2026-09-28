@@ -650,7 +650,6 @@ def test_ces_error_uses_original_integer_column(mock_ces_client, run):
     ("wandb_base_url", "expected"),
     [
         ("https://api.wandb.ai", "https://evaluations.wandb.ai"),
-        ("https://api.qa.wandb.ai", "https://evaluations.qa.wandb.ai"),
         ("https://acme.wandb.io", "https://acme.wandb.io/evaluations"),
     ],
 )
