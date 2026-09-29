@@ -41,6 +41,7 @@ type TimeSeriesLineChart struct {
 
 	tailWindow time.Duration
 	viewWindow time.Duration
+	retention  time.Duration
 
 	viewInitialized bool
 	autoTrail       bool
@@ -97,6 +98,18 @@ func (c *TimeSeriesLineChart) SetTailWindow(window time.Duration) {
 	c.applyRanges()
 }
 
+// SetRetention bounds the kept history to d; zero keeps the full history.
+func (c *TimeSeriesLineChart) SetRetention(d time.Duration) {
+	c.retention = d
+}
+
+// pruneAge is how old a chart's oldest sample may get before the chart
+// prunes back to its retention window. Pruning shifts every series, so it
+// runs once per quarter window rather than on every sample.
+func pruneAge(retention time.Duration) time.Duration {
+	return retention + retention/4
+}
+
 // AddDataPoint adds a data point to this chart, creating series as needed.
 func (c *TimeSeriesLineChart) AddDataPoint(seriesName string, timestamp int64, value float64) {
 	seriesKey, created := c.ensureSeries(seriesName)
@@ -111,6 +124,9 @@ func (c *TimeSeriesLineChart) AddDataPoint(seriesName string, timestamp int64, v
 	}
 
 	c.addPoint(seriesKey, float64(timestamp), value)
+	if c.retention > 0 && c.xMin < float64(timestamp)-pruneAge(c.retention).Seconds() {
+		c.trimBefore(float64(timestamp) - c.retention.Seconds())
+	}
 
 	if created {
 		style := lipgloss.NewStyle().Foreground(c.seriesColors[seriesKey])
@@ -262,6 +278,21 @@ func (c *TimeSeriesLineChart) addPoint(seriesKey string, x, y float64) {
 	c.xMax = max(c.xMax, x)
 	c.yMin = min(c.yMin, y)
 	c.yMax = max(c.yMax, y)
+	c.dirty = true
+}
+
+// trimBefore drops the samples older than minX from every series and
+// recomputes the bounds from what remains.
+func (c *TimeSeriesLineChart) trimBefore(minX float64) {
+	trimmed := false
+	for _, s := range c.data {
+		trimmed = s.TrimBefore(minX) || trimmed
+	}
+	if !trimmed {
+		return
+	}
+	c.recomputeBounds()
+	c.minValue, c.maxValue = c.yMin, c.yMax
 	c.dirty = true
 }
 
