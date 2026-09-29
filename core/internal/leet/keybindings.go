@@ -504,6 +504,11 @@ func SymonKeyBindings() []BindingCategory[Symon] {
 					Description: "Toggle the vitals sidebar",
 					Handler:     (*Symon).handleToggleSidebar,
 				},
+				{
+					Keys:        []string{"t"},
+					Description: "Sort the processes by CPU or by memory",
+					Handler:     (*Symon).handleToggleProcessSort,
+				},
 			},
 		},
 		{

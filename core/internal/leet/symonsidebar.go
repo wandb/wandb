@@ -10,6 +10,7 @@ import (
 
 	"charm.land/lipgloss/v2"
 
+	"github.com/wandb/wandb/core/internal/monitor"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -19,11 +20,14 @@ const symonSidebarLabelWidth = 8
 
 // symonSidebar renders the standalone system monitor's vitals: what the
 // machine is, then a meter or value line per resource from the latest
-// sample, the way htop's header does.
+// sample, the way htop's header does, and the busiest processes below.
 type symonSidebar struct {
 	config  *ConfigManager
 	visible bool
 	probe   SymonProbeMsg
+
+	procs        []monitor.ProcessStat
+	sortByMemory bool
 }
 
 func newSymonSidebar(config *ConfigManager) *symonSidebar {
@@ -50,6 +54,10 @@ func (sb *symonSidebar) View(width, height int, latest map[string]float64) strin
 			lines = append(lines, "")
 		}
 		lines = append(lines, vitals...)
+	}
+	if procs := sb.processLines(contentWidth, height-len(lines)-1); len(procs) > 0 {
+		lines = append(lines, "")
+		lines = append(lines, procs...)
 	}
 
 	block := leftSidebarStyle.
@@ -211,6 +219,41 @@ func (sb *symonSidebar) vitalLines(width int, latest map[string]float64) []strin
 
 	if watts, ok := latest["system.powerWatts"]; ok {
 		lines = append(lines, textRow("Power", UnitWatt.Format(watts)))
+	}
+	return lines
+}
+
+// processLines renders the busiest processes in the rows available below
+// the vitals: a title, a column header and one row per process.
+func (sb *symonSidebar) processLines(width, rows int) []string {
+	if len(sb.procs) == 0 || rows < 3 {
+		return nil
+	}
+
+	procs := slices.Clone(sb.procs)
+	slices.SortFunc(procs, func(a, b monitor.ProcessStat) int {
+		byCPU := cmp.Compare(b.CPUPercent, a.CPUPercent)
+		byMemory := cmp.Compare(b.RSS, a.RSS)
+		if sb.sortByMemory {
+			return cmp.Or(byMemory, byCPU)
+		}
+		return cmp.Or(byCPU, byMemory)
+	})
+
+	sortKey := "CPU"
+	if sb.sortByMemory {
+		sortKey = "memory"
+	}
+	lines := []string{
+		leftSidebarHeaderStyle.Render(truncateValue("Top processes by "+sortKey, width)),
+		runOverviewSidebarKeyStyle.Render(truncateValue(
+			fmt.Sprintf("%7s %6s %8s  %s", "PID", "CPU%", "MEM", "COMMAND"), width)),
+	}
+	for _, proc := range procs[:min(len(procs), rows-2)] {
+		lines = append(lines, runOverviewSidebarValueStyle.Render(truncateValue(
+			fmt.Sprintf("%7d %6.1f %8s  %s",
+				proc.PID, proc.CPUPercent, formatBytesBinary(float64(proc.RSS)), proc.Name),
+			width)))
 	}
 	return lines
 }
