@@ -15,7 +15,10 @@ import pytest
 
 
 class ParquetFileHandler(http.server.SimpleHTTPRequestHandler):
-    """HTTP handler that serves parquet files from memory."""
+    """HTTP handler that serves parquet files from memory.
+
+    Like a GET-presigned S3 URL, it rejects HEAD requests.
+    """
 
     parquet_files: dict[str, bytes] = {}
 
@@ -24,15 +27,8 @@ class ParquetFileHandler(http.server.SimpleHTTPRequestHandler):
         return self.parquet_files.get(path)
 
     def do_HEAD(self):
-        content = self._resolve_content()
-        if content is not None:
-            self.send_response(200)
-            self.send_header("Content-Length", str(len(content)))
-            self.send_header("Accept-Ranges", "bytes")
-            self.end_headers()
-        else:
-            self.send_response(404)
-            self.end_headers()
+        self.send_response(403)
+        self.end_headers()
 
     def do_GET(self):
         content = self._resolve_content()

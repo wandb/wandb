@@ -606,12 +606,14 @@ type CreateMultipartUploadInput struct {
 	// This functionality is not supported for directory buckets.
 	ObjectLockEventHold types.ObjectLockEventHold
 
-	// Specifies the event hold duration in days to apply to the uploaded object.
+	// Specifies the event hold duration in days to apply to the uploaded object. You
+	// cannot specify a duration in both days and years.
 	//
 	// This functionality is not supported for directory buckets.
 	ObjectLockEventHoldDurationDays *int32
 
-	// Specifies the event hold duration in years to apply to the uploaded object.
+	// Specifies the event hold duration in years to apply to the uploaded object. You
+	// cannot specify a duration in both days and years.
 	//
 	// This functionality is not supported for directory buckets.
 	ObjectLockEventHoldDurationYears *int32
@@ -918,6 +920,9 @@ func (c *Client) addOperationCreateMultipartUploadMiddlewares(stack *middleware.
 		return err
 	}
 	if err = disableAcceptEncodingGzip(stack); err != nil {
+		return err
+	}
+	if err = s3cust.HandleResponseErrorWith200Status(stack); err != nil {
 		return err
 	}
 	if err = addRequestResponseLogging(stack, options); err != nil {

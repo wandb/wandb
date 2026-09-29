@@ -23,10 +23,6 @@ const (
 	IntervalCheckParentPidMilliseconds = 100
 )
 
-// ErrForcedShutdown is returned from Serve when the server shuts down without
-// waiting for in-flight work to finish.
-var ErrForcedShutdown = errors.New("forced shutdown")
-
 // Server is the top-level object for the wandb-core process.
 type Server struct {
 	// connNumber is the number of the last connection created.
@@ -40,12 +36,9 @@ type Server struct {
 	// stopServer cancels serverLifetimeCtx.
 	stopServer context.CancelFunc
 
-	// forceStopCtx is cancelled when the server should shut down immediately
-	// without waiting for in-flight work to finish.
-	forceStopCtx context.Context
-
-	// forceStopCancelFunc cancels forceStopCtx.
-	forceStopCancelFunc context.CancelFunc
+	// forceShutdown reports whether Serve should return without waiting for
+	// in-flight connections to finish.
+	forceShutdown bool
 
 	// streamMux maps stream IDs to streams.
 	streamMux *stream.StreamMux
@@ -99,9 +92,9 @@ type Server struct {
 	logLevel slog.Level
 }
 
-// Stop forces the server to shut down without waiting for in-flight work.
+// ForceStop shuts down the server without waiting for in-flight work.
 func (s *Server) ForceStop() {
-	s.forceStopCancelFunc()
+	s.forceShutdown = true
 	s.stopServer()
 }
 
@@ -118,24 +111,21 @@ type ServerParams struct {
 
 func NewServer(params ServerParams) *Server {
 	serverLifetimeCtx, stopServer := context.WithCancel(context.Background())
-	forceStopCtx, forceStopCancelFunc := context.WithCancel(context.Background())
 
 	return &Server{
-		serverLifetimeCtx:   serverLifetimeCtx,
-		stopServer:          stopServer,
-		forceStopCtx:        forceStopCtx,
-		forceStopCancelFunc: forceStopCancelFunc,
-		streamMux:           stream.NewStreamMux(),
-		runSyncManager:      runsync.NewRunSyncManager(),
-		xpuResourceManager:  monitor.NewXPUResourceManager(params.EnableDCGMProfiling),
-		connectionsWG:       sync.WaitGroup{},
-		parentPID:           params.ParentPID,
-		detached:            params.Detached,
-		idleTimeout:         params.IdleTimeout,
-		commit:              params.Commit,
-		listenOnLocalhost:   params.ListenOnLocalhost,
-		loggerPath:          params.LoggerPath,
-		logLevel:            params.LogLevel,
+		serverLifetimeCtx:  serverLifetimeCtx,
+		stopServer:         stopServer,
+		streamMux:          stream.NewStreamMux(),
+		runSyncManager:     runsync.NewRunSyncManager(),
+		xpuResourceManager: monitor.NewXPUResourceManager(params.EnableDCGMProfiling),
+		connectionsWG:      sync.WaitGroup{},
+		parentPID:          params.ParentPID,
+		detached:           params.Detached,
+		idleTimeout:        params.IdleTimeout,
+		commit:             params.Commit,
+		listenOnLocalhost:  params.ListenOnLocalhost,
+		loggerPath:         params.LoggerPath,
+		logLevel:           params.LogLevel,
 	}
 }
 
@@ -206,14 +196,14 @@ func (s *Server) Serve(portFile string) error {
 	// Stop accepting new connections.
 	closeListeners()
 
-	select {
-	case <-s.forceStopCtx.Done():
+	if s.forceShutdown {
 		slog.Info("server: forced shutdown")
-		return ErrForcedShutdown
-	case <-s.waitForConnectionsToFinish():
-		slog.Info("server: all connections closed")
 		return nil
 	}
+
+	<-s.waitForConnectionsToFinish()
+	slog.Info("server: all connections closed")
+	return nil
 }
 
 func (s *Server) waitForConnectionsToFinish() chan struct{} {

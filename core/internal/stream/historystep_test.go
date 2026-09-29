@@ -5,23 +5,23 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/observabilitytest"
+	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runhandle"
+	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/runupserter"
 	"github.com/wandb/wandb/core/internal/runupsertertest"
-	wbsettings "github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/stream"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-func makeHistoryStepTracker(t *testing.T, startingStep int64) *stream.HistoryStepTracker {
+func makeHistoryStepTracker(
+	t *testing.T,
+	startingStep int64,
+) *stream.HistoryStepTracker {
 	t.Helper()
 	logger := observabilitytest.NewTestLogger(t)
-	settings := wbsettings.From(&spb.Settings{
-		RunId: &wrapperspb.StringValue{Value: "run1"},
-	})
 
 	run := &spb.RunRecord{
 		Entity:       "test-entity",
@@ -30,167 +30,84 @@ func makeHistoryStepTracker(t *testing.T, startingStep int64) *stream.HistorySte
 		StartingStep: startingStep,
 	}
 	handle := runhandle.New()
-	require.NoError(t, handle.Init(
-		runupsertertest.NewTestUpserterFromRun(t, run, runupserter.RunUpserterParams{}),
-	))
-	factory := &stream.HistoryStepTrackerFactory{
-		Logger:    logger,
-		Settings:  settings,
-		RunHandle: handle,
-	}
+	require.NoError(t,
+		handle.Init(
+			runupsertertest.NewTestUpserterFromRun(
+				t, run, runupserter.RunUpserterParams{}),
+		))
 
-	return factory.New()
+	return stream.NewHistoryStepTracker(logger, handle)
 }
 
-func historyStepValue(record *spb.HistoryRecord) string {
-	for _, item := range record.Item {
-		if item.GetKey() == "_step" ||
-			(len(item.GetNestedKey()) == 1 && item.GetNestedKey()[0] == "_step") {
-			return item.ValueJson
-		}
-	}
-	return ""
+// historyStepValue asserts that the _step is set and returns its value.
+func historyStepValue(t *testing.T, history *runhistory.RunHistory) int64 {
+	t.Helper()
+
+	step, exists := history.GetInt(pathtree.PathOf("_step"))
+
+	require.True(t, exists)
+	return step
 }
 
 func TestHistoryStepTracker_AssignsMissingStep(t *testing.T) {
 	tracker := makeHistoryStepTracker(t, 0)
-
-	history := &spb.HistoryRecord{
-		Item: []*spb.HistoryItem{{
-			NestedKey: []string{"loss"},
-			ValueJson: "1.23",
-		}},
-	}
+	history := runhistory.New()
 
 	step, err := tracker.ApplyHistoryStep(history)
 	require.NoError(t, err)
 
 	assert.Equal(t, int64(0), step)
-	assert.Equal(t, []*spb.HistoryItem{
-		{NestedKey: []string{"loss"}, ValueJson: "1.23"},
-		{NestedKey: []string{"_step"}, ValueJson: "0"},
-	}, history.Item)
+	assert.Equal(t, int64(0), historyStepValue(t, history))
 }
 
 func TestHistoryStepTracker_PreservesExistingStep(t *testing.T) {
 	tracker := makeHistoryStepTracker(t, 0)
-
-	history := &spb.HistoryRecord{
-		Item: []*spb.HistoryItem{
-			{NestedKey: []string{"loss"}, ValueJson: "1.23"},
-			{NestedKey: []string{"_step"}, ValueJson: "7"},
-		},
-	}
+	history := runhistory.New()
+	history.SetInt(pathtree.PathOf("_step"), 7)
 
 	step, err := tracker.ApplyHistoryStep(history)
 	require.NoError(t, err)
 
 	assert.Equal(t, int64(7), step)
-	assert.Equal(t, []*spb.HistoryItem{
-		{NestedKey: []string{"loss"}, ValueJson: "1.23"},
-		{NestedKey: []string{"_step"}, ValueJson: "7"},
-	}, history.Item)
+	assert.Equal(t, int64(7), historyStepValue(t, history))
 }
 
 func TestHistoryStepTracker_ClampsHistoryItemStep(t *testing.T) {
 	tracker := makeHistoryStepTracker(t, 2)
 
-	history1 := &spb.HistoryRecord{
-		Item: []*spb.HistoryItem{
-			{NestedKey: []string{"loss"}, ValueJson: "0.6"},
-			{NestedKey: []string{"_step"}, ValueJson: "0"},
-		},
-	}
+	history1 := runhistory.New()
+	history1.SetInt(pathtree.PathOf("_step"), 0)
 	step1, err := tracker.ApplyHistoryStep(history1)
 	require.NoError(t, err)
+
+	history2 := runhistory.New()
+	history2.SetInt(pathtree.PathOf("_step"), 1)
+	step2, err := tracker.ApplyHistoryStep(history2)
+	require.NoError(t, err)
+
 	assert.Equal(t, int64(2), step1)
-	assert.Equal(t, "2", historyStepValue(history1))
-
-	history2 := &spb.HistoryRecord{
-		Item: []*spb.HistoryItem{
-			{NestedKey: []string{"loss"}, ValueJson: "0.4"},
-			{NestedKey: []string{"_step"}, ValueJson: "1"},
-		},
-	}
-	step2, err := tracker.ApplyHistoryStep(history2)
-	require.NoError(t, err)
+	assert.Equal(t, int64(2), historyStepValue(t, history1))
 	assert.Equal(t, int64(3), step2)
-	assert.Equal(t, "3", historyStepValue(history2))
+	assert.Equal(t, int64(3), historyStepValue(t, history2))
 }
 
-func TestHistoryStepTracker_AppliesRecordStep(t *testing.T) {
-	tracker := makeHistoryStepTracker(t, 0)
-
-	history := &spb.HistoryRecord{
-		Item: []*spb.HistoryItem{{
-			NestedKey: []string{"loss"},
-			ValueJson: "1.23",
-		}},
-		Step: &spb.HistoryStep{Num: 5},
-	}
-
-	step, err := tracker.ApplyHistoryStep(history)
-	require.NoError(t, err)
-
-	assert.Equal(t, int64(5), step)
-	assert.Equal(t, []*spb.HistoryItem{
-		{NestedKey: []string{"loss"}, ValueJson: "1.23"},
-		{NestedKey: []string{"_step"}, ValueJson: "5"},
-	}, history.Item)
-}
-
-func TestHistoryStepTracker_ClampsRecordStep(t *testing.T) {
-	tracker := makeHistoryStepTracker(t, 5)
-
-	history1 := &spb.HistoryRecord{}
-	step1, err := tracker.ApplyHistoryStep(history1)
-	require.NoError(t, err)
-	assert.Equal(t, int64(5), step1)
-	assert.Equal(t, "5", historyStepValue(history1))
-
-	history2 := &spb.HistoryRecord{Step: &spb.HistoryStep{Num: 1}}
-	step2, err := tracker.ApplyHistoryStep(history2)
-	require.NoError(t, err)
-
-	assert.Equal(t, int64(6), step2)
-	assert.Equal(t, "6", historyStepValue(history2))
-}
-
-func TestHistoryStepTracker_RewritesUnparseableStep(t *testing.T) {
+func TestHistoryStepTracker_RewritesIncorrectStepType(t *testing.T) {
 	tracker := makeHistoryStepTracker(t, 2)
-
-	history := &spb.HistoryRecord{
-		Item: []*spb.HistoryItem{
-			{NestedKey: []string{"loss"}, ValueJson: "0.6"},
-			{NestedKey: []string{"_step"}, ValueJson: "not-a-number"},
-		},
-	}
+	history := runhistory.New()
+	history.SetFloat(pathtree.PathOf("_step"), 37.0)
 
 	step, err := tracker.ApplyHistoryStep(history)
 	require.NoError(t, err)
 
 	assert.Equal(t, int64(2), step)
-	assert.Equal(t, "2", historyStepValue(history))
+	assert.Equal(t, int64(2), historyStepValue(t, history))
 }
 
 func TestHistoryStepTracker_FailsWhenRunNotInitialized(t *testing.T) {
 	logger := observabilitytest.NewTestLogger(t)
-	settings := wbsettings.From(&spb.Settings{
-		RunId: &wrapperspb.StringValue{Value: "run1"},
-	})
-	uninit := (&stream.HistoryStepTrackerFactory{
-		Logger:    logger,
-		Settings:  settings,
-		RunHandle: runhandle.New(),
-	}).New()
+	uninit := stream.NewHistoryStepTracker(logger, runhandle.New())
 
-	history := &spb.HistoryRecord{
-		Item: []*spb.HistoryItem{{
-			NestedKey: []string{"loss"},
-			ValueJson: "1.23",
-		}},
-	}
+	_, err := uninit.ApplyHistoryStep(runhistory.New())
 
-	_, err := uninit.ApplyHistoryStep(history)
-	require.Error(t, err)
+	assert.Error(t, err)
 }

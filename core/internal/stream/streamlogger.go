@@ -71,7 +71,6 @@ func streamLogger(
 	telemetryTags := observability.Tags{
 		"run_id":   s.GetRunID(),
 		"run_url":  s.GetRunURL(),
-		"project":  s.GetProject(),
 		"base_url": s.GetBaseURL(),
 	}
 	if s.GetSweepURL() != "" {

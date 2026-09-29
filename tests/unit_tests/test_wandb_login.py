@@ -195,27 +195,3 @@ def test_login_explicit_valid_key_updates_netrc(
 
     write_netrc.assert_called_once()
     assert write_netrc.call_args.kwargs["api_key"] == "X" * 40
-
-
-def test_login_verify_with_token_file(federated_identity):
-    """Regression test for gh-11722: federated identity in wandb.login().
-
-    Verification goes through wandb-core, which exchanges the identity
-    token for an access token and authenticates with it as a Bearer token.
-    """
-    logged_in = wandb.login(verify=True)
-
-    assert logged_in is True
-    assert federated_identity.token_exchanges >= 1
-    assert federated_identity.graphql_auth_headers
-    assert all(
-        header == f"Bearer {federated_identity.access_token}"
-        for header in federated_identity.graphql_auth_headers
-    )
-
-
-def test_login_verify_with_token_file_rejected(federated_identity):
-    federated_identity.valid = False
-
-    with pytest.raises(wandb.errors.AuthenticationError):
-        wandb.login(verify=True)

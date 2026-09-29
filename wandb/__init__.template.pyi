@@ -231,6 +231,7 @@ def agent(
     count: int | None = None,
     forward_signals: bool = False,
     term_timeout: int | None = None,
+    max_consecutive_failed_runs: int | None = None,
 ) -> None:
     """<wandb_agent.py::agent>"""
     ...

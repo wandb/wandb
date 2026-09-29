@@ -675,9 +675,6 @@ pub struct Control {
     /// mailbox slot
     #[prost(string, tag = "4")]
     pub mailbox_slot: ::prost::alloc::string::String,
-    /// message to sender
-    #[prost(bool, tag = "5")]
-    pub always_send: bool,
     /// message should be passed to flow control
     #[prost(bool, tag = "6")]
     pub flow_control: bool,
@@ -990,17 +987,45 @@ pub struct HistoryRecord {
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }
+/// A logged value with its type.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct HistoryValue {
+    #[prost(oneof = "history_value::Value", tags = "1, 2, 3, 4, 5, 6")]
+    pub value: ::core::option::Option<history_value::Value>,
+}
+/// Nested message and enum types in `HistoryValue`.
+pub mod history_value {
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(enumeration = "::prost_types::NullValue", tag = "1")]
+        None(i32),
+        #[prost(bool, tag = "2")]
+        Boolean(bool),
+        #[prost(sint64, tag = "3")]
+        Integer(i64),
+        #[prost(double, tag = "4")]
+        Number(f64),
+        #[prost(string, tag = "5")]
+        Text(::prost::alloc::string::String),
+        #[prost(string, tag = "6")]
+        Json(::prost::alloc::string::String),
+    }
+}
 /// HistoryItem:
 ///
 /// key and nested_key are mutually exclusive. Only one of them should be set.
 /// key is supposedly more performant than nested_key, so nested_key should be
 /// only used for nested keys.
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct HistoryItem {
     #[prost(string, tag = "1")]
     pub key: ::prost::alloc::string::String,
     #[prost(string, repeated, tag = "2")]
     pub nested_key: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    /// The typed form of `value_json`. A writer may set one,
+    /// or both. A reader prefers `value` and falls back to `value_json`.
+    #[prost(message, optional, tag = "3")]
+    pub value: ::core::option::Option<HistoryValue>,
     #[prost(string, tag = "16")]
     pub value_json: ::prost::alloc::string::String,
 }
@@ -2952,8 +2977,6 @@ pub enum ServerFeature {
     ArtifactCollectionMembershipFileDownloadHandler = 6,
     /// Indicates that the server supports passing the artifact's entity and project to the useArtifact mutation.
     UseArtifactWithEntityAndProjectInformation = 7,
-    /// Indicates that the server supports expanding defined metric globs on the server side.
-    ExpandDefinedMetricGlobs = 8,
     /// Indicates that the server supports automation event RUN_METRIC.
     AutomationEventRunMetric = 9,
     /// Indicates that the server supports automation event RUN_METRIC_CHANGE.
@@ -3037,7 +3060,6 @@ impl ServerFeature {
             Self::UseArtifactWithEntityAndProjectInformation => {
                 "USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION"
             }
-            Self::ExpandDefinedMetricGlobs => "EXPAND_DEFINED_METRIC_GLOBS",
             Self::AutomationEventRunMetric => "AUTOMATION_EVENT_RUN_METRIC",
             Self::AutomationEventRunMetricChange => "AUTOMATION_EVENT_RUN_METRIC_CHANGE",
             Self::AutomationActionNoOp => "AUTOMATION_ACTION_NO_OP",
@@ -3104,7 +3126,6 @@ impl ServerFeature {
             "USE_ARTIFACT_WITH_ENTITY_AND_PROJECT_INFORMATION" => {
                 Some(Self::UseArtifactWithEntityAndProjectInformation)
             }
-            "EXPAND_DEFINED_METRIC_GLOBS" => Some(Self::ExpandDefinedMetricGlobs),
             "AUTOMATION_EVENT_RUN_METRIC" => Some(Self::AutomationEventRunMetric),
             "AUTOMATION_EVENT_RUN_METRIC_CHANGE" => {
                 Some(Self::AutomationEventRunMetricChange)

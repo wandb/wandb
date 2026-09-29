@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/monitor"
@@ -86,9 +87,10 @@ func TestCoreWeaveMetadataProbeDoesNotLogCredentials(t *testing.T) {
 	))
 	defer server.Close()
 
-	s := settings.New()
-	s.UpdateStatsCoreWeaveMetadataBaseURL(server.URL)
-	s.UpdateStatsCoreWeaveMetadataEndpoint(testEndpointPath)
+	s := settings.From(&spb.Settings{
+		XStatsCoreweaveMetadataBaseUrl:  wrapperspb.String(server.URL),
+		XStatsCoreweaveMetadataEndpoint: wrapperspb.String(testEndpointPath),
+	})
 
 	runHandle := runhandle.New()
 	require.NoError(t, runHandle.Init(runupsertertest.NewOfflineUpserter(t)))
@@ -268,20 +270,19 @@ func TestCoreWeaveMetadataProbe(t *testing.T) {
 				tc.setupGQLMock(mockGQLClient)
 			}
 
-			s := settings.New()
-
-			var server *httptest.Server
+			// A valid URL is needed even if no call is expected, to
+			// prevent NewCoreWeaveMetadata from erroring on URL parsing.
+			baseURL := "http://localhost:12345"
 			if tc.httpServerHandler != nil {
-				server = httptest.NewServer(http.HandlerFunc(tc.httpServerHandler))
+				server := httptest.NewServer(http.HandlerFunc(tc.httpServerHandler))
 				defer server.Close()
-				s.UpdateStatsCoreWeaveMetadataBaseURL(server.URL)
-				s.UpdateStatsCoreWeaveMetadataEndpoint(testEndpointPath)
-			} else {
-				// Provide a default valid URL even if not expecting a call,
-				// to prevent NewCoreWeaveMetadata from erroring on URL parsing
-				s.UpdateStatsCoreWeaveMetadataBaseURL("http://localhost:12345")
-				s.UpdateStatsCoreWeaveMetadataEndpoint(testEndpointPath)
+				baseURL = server.URL
 			}
+
+			s := settings.From(&spb.Settings{
+				XStatsCoreweaveMetadataBaseUrl:  wrapperspb.String(baseURL),
+				XStatsCoreweaveMetadataEndpoint: wrapperspb.String(testEndpointPath),
+			})
 
 			runHandle := runhandle.New()
 			err := runHandle.Init(runupsertertest.NewOfflineUpserter(t))

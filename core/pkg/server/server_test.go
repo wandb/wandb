@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"net"
 	"path/filepath"
 	"testing"
 	"testing/synctest"
@@ -106,7 +107,21 @@ func TestServer_IdleTimerStopsServerAfterTimeout(t *testing.T) {
 	})
 }
 
-func TestServe_ForceStopShutsDownServer(t *testing.T) {
+func addTestConnection(t *testing.T, s *Server) net.Conn {
+	t.Helper()
+
+	serverConn, clientConn := net.Pipe()
+	s.connectionsWG.Go(func() {
+		s.onConnectionStart()
+		defer s.onConnectionEnd()
+		s.handleConnection(serverConn)
+	})
+	t.Cleanup(func() { _ = clientConn.Close() })
+
+	return clientConn
+}
+
+func TestServe_ForceStopReturnsWithoutWaitingForConnections(t *testing.T) {
 	tempRoot := t.TempDir()
 	t.Setenv("TMPDIR", tempRoot)
 
@@ -118,11 +133,13 @@ func TestServe_ForceStopShutsDownServer(t *testing.T) {
 
 	srvCh := make(chan error, 1)
 	go func() { srvCh <- s.Serve(portFile) }()
+
+	addTestConnection(t, s)
 	s.ForceStop()
 
 	select {
 	case err := <-srvCh:
-		require.ErrorIs(t, err, ErrForcedShutdown)
+		require.NoError(t, err)
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for Serve() to return")
 	}

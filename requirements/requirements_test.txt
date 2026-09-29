@@ -36,3 +36,6 @@ hypothesis>=6.131.7
 hypothesis-fspaths
 
 .[sweeps]
+.[optuna]
+# ax-platform requires Python >=3.11.
+.[ax]; python_version >= '3.11'

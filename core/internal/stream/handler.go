@@ -1,6 +1,7 @@
 package stream
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/google/wire"
 
+	"github.com/wandb/wandb/core/internal/filestreamstats"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/gitops"
@@ -55,6 +57,7 @@ type HandlerFactory struct {
 	Operations           *wboperation.WandbOperations
 	RunHandle            *runhandle.RunHandle
 	Settings             *settings.Settings
+	Stats                *filestreamstats.Stats
 	SystemMonitorFactory *monitor.SystemMonitorFactory
 	TerminalPrinter      *observability.Printer
 }
@@ -91,12 +94,6 @@ type Handler struct {
 	// pollExitLogRateLimit limits log messages when handling PollExit requests
 	pollExitLogRateLimit *rate.Limiter
 
-	// runHistorySampler tracks samples of all metrics in the run's history.
-	//
-	// This is used to display the sparkline in the terminal at the end of
-	// the run.
-	runHistorySampler *runhistory.RunHistorySampler
-
 	// runRecord is the runRecord record received from the server
 	runRecord *spb.RunRecord
 
@@ -113,6 +110,9 @@ type Handler struct {
 
 	// settings is the settings for the handler
 	settings *settings.Settings
+
+	// stats measures the cost of the upload pipeline. It may be nil.
+	stats *filestreamstats.Stats
 
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
@@ -137,10 +137,10 @@ func (f *HandlerFactory) New(extraWork runwork.ExtraWork) *Handler {
 		metricHandler:        runmetric.New(),
 		operations:           f.Operations,
 		pollExitLogRateLimit: rate.NewLimiter(rate.Every(time.Minute), 1),
-		runHistorySampler:    runhistory.NewRunHistorySampler(),
 		runSummary:           runsummary.New(),
 		runHandle:            f.RunHandle,
 		settings:             f.Settings,
+		stats:                f.Stats,
 		systemMonitor:        systemMonitor,
 		terminalPrinter:      f.TerminalPrinter,
 	}
@@ -231,7 +231,7 @@ func (h *Handler) handleRecord(record *spb.Record, request *runwork.Request) {
 	case *spb.Record_Header:
 		h.handleHeader(record)
 	case *spb.Record_Metric:
-		h.handleMetric(record)
+		h.handleMetric(x.Metric)
 	case *spb.Record_Request:
 		h.handleRequest(record, request)
 	case *spb.Record_Summary:
@@ -293,7 +293,7 @@ func (h *Handler) handleRequest(
 	case *spb.Request_PollExit:
 		h.handleRequestPollExit(record, request)
 	case *spb.Request_RunStart:
-		h.handleRequestRunStart(record, x.RunStart, request)
+		h.handleRequestRunStart(x.RunStart, request)
 	case *spb.Request_SampledHistory:
 		h.handleRequestSampledHistory(record, request)
 	case *spb.Request_PythonPackages:
@@ -375,16 +375,7 @@ func (h *Handler) handleRequestShutdown(
 	h.respond(request, &spb.Response{})
 }
 
-func (h *Handler) handleMetric(record *spb.Record) {
-	metric := record.GetMetric()
-	if metric == nil {
-		h.logger.CaptureError(
-			"stream",
-			errors.New("handler: bad record type for handleMetric"),
-		)
-		return
-	}
-
+func (h *Handler) handleMetric(metric *spb.MetricRecord) {
 	if err := h.metricHandler.ProcessRecord(metric); err != nil {
 		h.logger.CaptureError(
 			"stream",
@@ -489,7 +480,6 @@ func (h *Handler) handleHeader(record *spb.Record) {
 }
 
 func (h *Handler) handleRequestRunStart(
-	record *spb.Record,
 	req *spb.RunStartRequest,
 	request *runwork.Request,
 ) {
@@ -502,7 +492,6 @@ func (h *Handler) handleRequestRunStart(
 			errors.New("handleRunStart: failed to clone run"),
 		)
 	}
-	h.fwdRecord(record, request)
 
 	// TODO: Move computation of git state to wandb-core.
 	var git *spb.GitRepoRecord
@@ -728,13 +717,6 @@ func (h *Handler) handleExit(
 	} else {
 		h.flushPartialHistory(true, h.partialHistoryStep+1)
 	}
-
-	if record.Control == nil {
-		record.Control = &spb.Control{}
-	}
-	record.Control.AlwaysSend = true
-
-	h.fwdRecord(record, request)
 }
 
 func (h *Handler) handleRequestGetSummary(
@@ -953,6 +935,7 @@ func (h *Handler) handlePartialHistoryAsync(request *spb.PartialHistoryRequest) 
 	//
 	// We do this on a best-effort basis: errors are logged and problematic
 	// metrics are ignored.
+	ingestStart := time.Now()
 	for _, item := range request.GetItem() {
 		err := h.partialHistory.SetFromRecord(item)
 
@@ -964,6 +947,12 @@ func (h *Handler) handlePartialHistoryAsync(request *spb.PartialHistoryRequest) 
 			)
 		}
 	}
+	h.stats.RecordSegment(
+		context.Background(),
+		filestreamstats.SegmentHandlerIngest,
+		filestreamstats.StreamHistory,
+		time.Since(ingestStart),
+	)
 
 	if request.GetAction() == nil || request.Action.GetFlush() {
 		h.flushPartialHistory(false, 0)
@@ -1005,6 +994,7 @@ func (h *Handler) handlePartialHistorySync(request *spb.PartialHistoryRequest) {
 		}
 	}
 
+	ingestStart := time.Now()
 	for _, item := range request.GetItem() {
 		err := h.partialHistory.SetFromRecord(item)
 		if err != nil {
@@ -1015,6 +1005,12 @@ func (h *Handler) handlePartialHistorySync(request *spb.PartialHistoryRequest) {
 			)
 		}
 	}
+	h.stats.RecordSegment(
+		context.Background(),
+		filestreamstats.SegmentHandlerIngest,
+		filestreamstats.StreamHistory,
+		time.Since(ingestStart),
+	)
 
 	var shouldFlush bool
 	if request.GetAction() != nil {
@@ -1057,20 +1053,15 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 		)
 	}
 
+	// Expand any new metrics that match a `define_metric()` glob.
 	newMetricDefs := h.metricHandler.UpdateMetrics(h.partialHistory)
 	for _, newMetric := range newMetricDefs {
-		// We don't mark the record 'Local' because partial history updates
-		// are not already written to the transaction log.
 		newMetric.ExpandedFromGlob = true
-		rec := &spb.Record{
-			RecordType: &spb.Record_Metric{Metric: newMetric},
-		}
-		h.handleMetric(rec)
-		h.fwdRecord(rec, nil)
+		_ = h.metricHandler.ProcessRecord(newMetric)
+		h.metricHandler.UpdateSummary(newMetric.Name, h.runSummary)
 	}
-	h.metricHandler.InsertStepMetrics(h.partialHistory)
 
-	h.runHistorySampler.SampleNext(h.partialHistory)
+	h.metricHandler.InsertStepMetrics(h.partialHistory)
 
 	// Update the summary if server-side derived summaries are disabled.
 	if !h.settings.IsEnableServerSideDerivedSummary() {
@@ -1078,7 +1069,15 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 		h.updateSummary()
 	}
 
+	emitStart := time.Now()
 	items, err := h.partialHistory.ToRecords()
+	h.stats.RecordSegment(
+		context.Background(),
+		filestreamstats.SegmentHandlerEmit,
+		filestreamstats.StreamHistory,
+		time.Since(emitStart),
+	)
+
 	currentStep := h.partialHistoryStep
 
 	h.partialHistory = runhistory.New()
@@ -1139,20 +1138,9 @@ func (h *Handler) updateSummary() {
 	}, nil)
 }
 
-// samples history items and updates the history record with the sampled values
-//
-// This function samples history items and updates the history record with the
-// sampled values. It is used to display a subset of the history items in the
-// terminal. The sampling is done using a reservoir sampling algorithm.
 func (h *Handler) handleRequestSampledHistory(
 	record *spb.Record,
 	request *runwork.Request,
 ) {
-	h.respond(request, &spb.Response{
-		ResponseType: &spb.Response_SampledHistoryResponse{
-			SampledHistoryResponse: &spb.SampledHistoryResponse{
-				Item: h.runHistorySampler.Get(),
-			},
-		},
-	})
+	h.fwdRecord(record, request)
 }

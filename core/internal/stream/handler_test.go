@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/observabilitytest"
@@ -26,8 +27,9 @@ func makeHandler(
 ) *stream.Handler {
 	t.Helper()
 
-	s := settings.New()
-	s.UpdateServerSideDerivedSummary(skipDerivedSummary)
+	s := settings.From(&spb.Settings{
+		XServerSideDerivedSummary: wrapperspb.Bool(skipDerivedSummary),
+	})
 
 	handlerFactory := stream.HandlerFactory{
 		Logger:          observabilitytest.NewTestLogger(t),

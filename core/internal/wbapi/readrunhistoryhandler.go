@@ -215,11 +215,11 @@ func (f *RunHistoryAPIHandler) handleScanRunHistoryRead(
 		}
 	}
 	getHistoryStepsEnd := time.Now()
-	f.logger.TelemetryRecorder.RecordDuration(
+	f.logger.TelemetryRecorder.RecordHistogram(
 		ctx,
 		"scan_run_history_read",
-		getHistoryStepsEnd.Sub(getHistoryStepsStart),
-		analytics.LowCardinalityAttributes{},
+		getHistoryStepsEnd.Sub(getHistoryStepsStart).Seconds(),
+		&analytics.LowCardinalityAttributes{},
 	)
 
 	historyRows := make([]*spb.HistoryRow, 0, len(historySteps))

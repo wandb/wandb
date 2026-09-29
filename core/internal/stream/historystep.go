@@ -2,20 +2,14 @@ package stream
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runhandle"
-	"github.com/wandb/wandb/core/internal/settings"
-	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+	"github.com/wandb/wandb/core/internal/runhistory"
 )
 
-// HistoryStepTrackerFactory constructs a HistoryStepTracker.
-type HistoryStepTrackerFactory struct {
-	Logger    *observability.CoreLogger
-	Settings  *settings.Settings
-	RunHandle *runhandle.RunHandle
-}
+var stepKey = pathtree.PathOf("_step")
 
 // HistoryStepTracker assigns increasing _step values to history rows.
 type HistoryStepTracker struct {
@@ -27,50 +21,37 @@ type HistoryStepTracker struct {
 	initialized bool
 }
 
-// New returns a tracker that owns history step assignment.
-func (f *HistoryStepTrackerFactory) New() *HistoryStepTracker {
+func NewHistoryStepTracker(
+	logger *observability.CoreLogger,
+	runHandle *runhandle.RunHandle,
+) *HistoryStepTracker {
 	return &HistoryStepTracker{
-		logger:    f.Logger,
-		runHandle: f.RunHandle,
+		logger:    logger,
+		runHandle: runHandle,
 	}
 }
 
-// ApplyHistoryStep writes an increasing _step onto record.
+// ApplyHistoryStep ensures there is a valid "_step" metric, at least one
+// larger than for the previous row.
 //
 // err is non-nil when the run is not initialized; the caller must skip
 // the history row.
 func (t *HistoryStepTracker) ApplyHistoryStep(
-	record *spb.HistoryRecord,
+	history *runhistory.RunHistory,
 ) (int64, error) {
 	if err := t.ensureInit(); err != nil {
 		return 0, err
 	}
 
-	item := explicitHistoryStepItem(record)
+	step, exists := history.GetInt(stepKey)
 
-	var step int64
-	switch {
-	case item != nil:
-		parsedStep := t.parseStep(item.GetValueJson())
-		step = t.clampStep(parsedStep)
-
-	case record.Step != nil:
-		step = t.clampStep(record.Step.Num)
-
-	default:
+	if exists {
+		step = t.clampStep(step)
+	} else {
 		step = t.nextStep
 	}
 
-	stepValue := strconv.FormatInt(step, 10)
-	if item != nil {
-		item.ValueJson = stepValue
-	} else {
-		record.Item = append(record.Item, &spb.HistoryItem{
-			NestedKey: []string{"_step"},
-			ValueJson: stepValue,
-		})
-	}
-
+	history.SetInt(stepKey, step)
 	t.advancePast(step)
 	return step, nil
 }
@@ -104,33 +85,4 @@ func (t *HistoryStepTracker) advancePast(step int64) {
 	if step >= t.nextStep {
 		t.nextStep = step + 1
 	}
-}
-
-func isStepItem(item *spb.HistoryItem) bool {
-	if item.GetKey() == "_step" {
-		return true
-	}
-	nestedKey := item.GetNestedKey()
-	return len(nestedKey) == 1 && nestedKey[0] == "_step"
-}
-
-func explicitHistoryStepItem(record *spb.HistoryRecord) *spb.HistoryItem {
-	for _, item := range record.GetItem() {
-		if isStepItem(item) {
-			return item
-		}
-	}
-	return nil
-}
-
-func (t *HistoryStepTracker) parseStep(value string) int64 {
-	step, err := strconv.ParseInt(value, 10, 64)
-	if err != nil {
-		t.logger.CaptureWarn(
-			"historystep: ignoring unparseable history _step",
-			"value", value,
-		)
-		return t.nextStep
-	}
-	return step
 }

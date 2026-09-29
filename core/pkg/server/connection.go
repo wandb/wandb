@@ -14,7 +14,6 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 
-	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/gql"
@@ -689,39 +688,7 @@ func (nc *Connection) handleSyncStatus(
 func (nc *Connection) handleApiInit(id string, request *spb.ServerApiInitRequest) {
 	s := settings.From(request.GetSettings())
 
-	telemetryProxy := analytics.NewOpenTelemetryProxy(
-		context.Background(),
-		s,
-		"wandb-core",
-	)
-	go func() {
-		<-nc.connLifetimeCtx.Done()
-		if telemetryProxy != nil {
-			shutdownCtx, cancel := context.WithTimeout(
-				context.Background(),
-				2*time.Second,
-			)
-			defer cancel()
-
-			err := telemetryProxy.Shutdown(shutdownCtx)
-			if err != nil {
-				slog.Error(
-					"connection: failed to shut down telemetry proxy",
-					"error",
-					err,
-				)
-			}
-		}
-	}()
-
-	logger := observability.NewCoreLogger(
-		slog.Default(),
-		analytics.NewTelemetryRecorder(
-			telemetryProxy,
-			analytics.NewTelemetryContext(),
-		),
-	)
-	wbapiInstance, err := wbapi.New(s, request.GetServiceName(), logger)
+	wbapiInstance, err := wbapi.New(s, request.GetServiceName())
 	if err != nil {
 		nc.Respond(&spb.ServerResponse{
 			RequestId: id,

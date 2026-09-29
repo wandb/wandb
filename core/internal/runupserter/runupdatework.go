@@ -163,11 +163,6 @@ func runInitErrorResult(err error) *spb.RunUpdateResult {
 	}
 }
 
-// BypassOfflineMode implements WorkImpl.BypassOfflineMode.
-func (w *RunUpdateWork) BypassOfflineMode() bool {
-	return true
-}
-
 // DebugInfo implements WorkImpl.DebugInfo.
 func (w *RunUpdateWork) DebugInfo() string {
 	return fmt.Sprintf("RunUpdateWork; Control(%v)", w.Record.GetControl())

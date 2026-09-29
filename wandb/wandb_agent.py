@@ -3,10 +3,10 @@ from __future__ import annotations
 import contextlib
 import enum
 import logging
+import math
 import multiprocessing
 import os
 import platform
-import queue
 import re
 import signal
 import socket
@@ -96,8 +96,6 @@ class AgentProcess:
     ):
         self._popen = None
         self._proc = None
-        self._finished_q = multiprocessing.Queue()
-        self._proc_killed = False
 
         # Store original handlers
         self._original_handlers = {}
@@ -160,7 +158,7 @@ class AgentProcess:
         elif function:
             self._proc = multiprocessing.Process(
                 target=self._start,
-                args=(self._finished_q, env, function, run_id, in_jupyter),
+                args=(env, function, run_id, in_jupyter),
             )
             self._proc.start()
         else:
@@ -190,7 +188,7 @@ class AgentProcess:
         elif signum in _TERMINATING_SIGNALS:
             raise ShutdownSignal(signum)
 
-    def _start(self, finished_q, env, function, run_id, in_jupyter):
+    def _start(self, env, function, run_id, in_jupyter):
         if env:
             for k, v in env.items():
                 os.environ[k] = v
@@ -206,23 +204,14 @@ class AgentProcess:
         if run:
             wandb.join()
 
-        # signal that the process is finished
-        finished_q.put(True)
-
-    def poll(self):
+    def poll(self) -> int | None:
         if self._popen:
             return self._popen.poll()
-        if self._proc_killed:
-            # we need to join process to prevent zombies
+
+        exit_code = self._proc.exitcode
+        if exit_code is not None:
             self._proc.join()
-            return True
-        try:
-            finished = self._finished_q.get(False, 0)
-            if finished:
-                return True
-        except queue.Empty:
-            pass
-        return
+        return exit_code
 
     def wait(self, timeout: float | None = None):
         """Wait for process or function to finish running.
@@ -253,12 +242,7 @@ class AgentProcess:
     def kill(self):
         if self._popen:
             return self._popen.kill()
-        pid = self._proc.pid
-        if pid:
-            ret = os.kill(pid, signal.SIGKILL)
-            self._proc_killed = True
-            return ret
-        return
+        return self._proc.kill()
 
     def terminate(self):
         if self._popen:
@@ -294,6 +278,7 @@ class Agent:
         count=None,
         forward_signals=False,
         term_timeout: int | None = None,
+        max_consecutive_failed_runs: int | None = None,
     ):
         self._api = api
         self._queue = queue
@@ -312,10 +297,16 @@ class Agent:
         self._kill_delay = wandb.env.get_agent_kill_delay(self.KILL_DELAY)
         self._finished = 0
         self._failed = 0
+        self._consecutive_failed_runs = 0
         self._count = count
         self._sweep_command = []
         self._max_initial_failures = wandb.env.get_agent_max_initial_failures(
             self.MAX_INITIAL_FAILURES
+        )
+        self._max_consecutive_failed_runs = (
+            math.inf
+            if max_consecutive_failed_runs is None
+            else max_consecutive_failed_runs
         )
         self._forward_signals = forward_signals
         self._term_timeout = term_timeout
@@ -380,12 +371,28 @@ class Agent:
                     if poll_result is None:
                         run_status[run_id] = True
                         continue
-                    elif (
-                        not isinstance(poll_result, bool)
-                        and isinstance(poll_result, int)
-                        and poll_result > 0
-                    ):
+
+                    exited_with_error = poll_result > 0
+                    if exited_with_error:
                         self._failed += 1
+                        self._consecutive_failed_runs += 1
+                    else:
+                        self._consecutive_failed_runs = 0
+
+                    if (
+                        self._consecutive_failed_runs
+                        >= self._max_consecutive_failed_runs
+                    ):
+                        msg = (
+                            f"Detected {self._consecutive_failed_runs} consecutive "
+                            "failed runs, shutting down."
+                        )
+                        logger.error(msg)
+                        wandb.termerror(msg)
+                        self._running = False
+                        break
+
+                    if exited_with_error:
                         # TODO: raise an exception
                         if self.is_flapping():
                             logger.error(
@@ -418,12 +425,7 @@ class Agent:
                     # service process open for all the agent instances and inform_finish when
                     # the run should be marked complete.  This however could require
                     # inform_finish on every run created by this process.
-                    exit_code = 0
-                    if isinstance(poll_result, int):
-                        exit_code = poll_result
-                    elif isinstance(poll_result, bool):
-                        exit_code = -1
-                    wandb.teardown(exit_code)
+                    wandb.teardown(poll_result)
                     # The agent outlives user jobs, but teardown closes
                     # the service-backed API resources used for the
                     # subsequent heartbeats.
@@ -694,6 +696,7 @@ class Agent:
     def _command_exit(self, command):
         logger.info("Received exit command. Killing runs and quitting.")
         for _, proc in self._run_processes.items():
+            proc.last_sigterm_time = time.monotonic()
             try:
                 proc.kill()
             except OSError:
@@ -711,6 +714,7 @@ def run_agent(
     count=None,
     forward_signals=False,
     term_timeout: int | None = None,
+    max_consecutive_failed_runs: int | None = None,
 ):
     from wandb.sdk.launch.sweeps import utils as sweep_utils
 
@@ -754,6 +758,7 @@ def run_agent(
             count=count,
             forward_signals=forward_signals,
             term_timeout=term_timeout,
+            max_consecutive_failed_runs=max_consecutive_failed_runs,
         )
         agent.run()
     finally:
@@ -769,6 +774,7 @@ def agent(
     count: int | None = None,
     forward_signals: bool = False,
     term_timeout: int | None = None,
+    max_consecutive_failed_runs: int | None = None,
 ) -> None:
     """Start one or more sweep agents.
 
@@ -792,9 +798,18 @@ def agent(
         count: The number of sweep config trials to try.
         forward_signals: Whether to forward signals the agent receives
             to the child processes. Only supported by CLI agent.
-
+        max_consecutive_failed_runs: Shut the agent down once this many runs
+            have failed back to back.
     """
     from wandb.agents.pyagent import pyagent
+
+    if max_consecutive_failed_runs is not None:
+        if isinstance(max_consecutive_failed_runs, bool) or not isinstance(
+            max_consecutive_failed_runs, int
+        ):
+            raise TypeError("max_consecutive_failed_runs must be an integer or None")
+        if max_consecutive_failed_runs < 1:
+            raise ValueError("max_consecutive_failed_runs must be at least 1")
 
     global _INSTANCES
     _INSTANCES += 1
@@ -802,7 +817,14 @@ def agent(
         # make sure we are logged in
         wandb_login._login(_silent=True)
         if function:
-            return pyagent(sweep_id, function, entity, project, count)
+            return pyagent(
+                sweep_id,
+                function,
+                entity,
+                project,
+                count,
+                max_consecutive_failed_runs=max_consecutive_failed_runs,
+            )
         return run_agent(
             sweep_id,
             function=function,
@@ -812,6 +834,7 @@ def agent(
             count=count,
             forward_signals=forward_signals,
             term_timeout=term_timeout,
+            max_consecutive_failed_runs=max_consecutive_failed_runs,
         )
     finally:
         _INSTANCES -= 1

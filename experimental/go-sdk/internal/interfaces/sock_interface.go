@@ -191,8 +191,7 @@ func (s *SockInterface) DeliverShutdownRequest() (*mailbox.MailboxHandle, error)
 				},
 			}},
 		Control: &spb.Control{
-			AlwaysSend: true,
-			ReqResp:    true,
+			ReqResp: true,
 		},
 	}
 	serverRecord := spb.ServerRequest{
