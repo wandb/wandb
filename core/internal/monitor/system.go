@@ -50,6 +50,9 @@ type System struct {
 	// starting from the process with PID `pid`.
 	trackProcessTree bool
 
+	// Whether to report the CPU and memory used by wandb-core and its children.
+	reportSelfUsage bool
+
 	// diskPaths are the file system paths to monitor.
 	diskPaths []string
 
@@ -96,12 +99,14 @@ type SystemParams struct {
 	DiskPaths                   []string
 	TrackProcessTree            bool
 	DisableCgroupResourceLimits bool
+	ReportSelfUsage             bool
 }
 
 func NewSystem(params SystemParams) *System {
 	s := &System{
 		pid:                   params.Pid,
 		trackProcessTree:      params.TrackProcessTree,
+		reportSelfUsage:       params.ReportSelfUsage,
 		diskPaths:             params.DiskPaths,
 		diskDevices:           make(map[string]struct{}),
 		diskIntialReadBytes:   make(map[string]uint64),
@@ -290,7 +295,9 @@ func (s *System) Sample() (*spb.StatsRecord, error) {
 
 	s.collectCPUThrottlingMetrics(metrics)
 	s.collectOOMKillMetrics(metrics)
-	s.collectSelfUsageMetrics(metrics)
+	if s.reportSelfUsage {
+		s.collectSelfUsageMetrics(metrics)
+	}
 
 	// Collect process-specific metrics.
 	if s.pid > 0 {

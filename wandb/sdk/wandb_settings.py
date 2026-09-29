@@ -990,6 +990,13 @@ class Settings(BaseModel, validate_assignment=True):
     x_stats_no_cgroup: bool = False
     """Disable cgroup v2 CPU and memory limits for system metric percentages."""
 
+    x_stats_self_usage: bool = "dev" in wandb.__version__ or "rc" in wandb.__version__
+    """Report the CPU and memory used by W&B's own processes.
+
+    Adds the `wandb.cpu` and `wandb.memory.rssMB` system metrics. On by default
+    in development and release-candidate versions, off in releases.
+    """
+
     x_sync: bool = False
     """Flag to indicate whether we are syncing a run from the transaction log.
 
