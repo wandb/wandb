@@ -115,6 +115,12 @@ var metricDefs = []MetricDef{
 	{Name: "System Power", Unit: UnitWatt, MinY: 0, MaxY: 500, AutoRange: true,
 		Regex: regexp.MustCompile(`^system\.powerWatts(/l:.+)?$`)},
 
+	// W&B's own processes
+	{Name: "W&B CPU", Unit: UnitPercent, MinY: 0, MaxY: 100, Percentage: true,
+		Regex: regexp.MustCompile(`^wandb\.cpu(/l:.+)?$`)},
+	{Name: "W&B Memory", Unit: UnitMiB, MinY: 0, MaxY: 1024, AutoRange: true,
+		Regex: regexp.MustCompile(`^wandb\.memory\.rssMB(/l:.+)?$`)},
+
 	// Apple Neural Engine
 	{Name: "Neural Engine Power", Unit: UnitWatt, MinY: 0, MaxY: 50, AutoRange: true,
 		Regex: regexp.MustCompile(`^ane\.power(/l:.+)?$`)},
