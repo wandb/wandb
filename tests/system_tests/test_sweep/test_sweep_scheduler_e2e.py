@@ -58,9 +58,17 @@ class _SpyOptimizer(WandbOptimizer):
         return super().tell_run(run_id, data)
 
 
-def _wait_until(predicate, *, timeout: float = _WAIT_TIMEOUT_SECONDS) -> None:
+def _raise_if_failed(done_box: list) -> None:
+    if done_box and isinstance(done_box[0], BaseException):
+        raise done_box[0]
+
+
+def _wait_until(
+    predicate, *, done_box: list, timeout: float = _WAIT_TIMEOUT_SECONDS
+) -> None:
     deadline = time.monotonic() + timeout
     while not predicate():
+        _raise_if_failed(done_box)
         if time.monotonic() > deadline:
             raise TimeoutError("timed out waiting for the scheduler")
         time.sleep(0.05)
@@ -108,7 +116,10 @@ def _start_scheduler(
     done_box: list = []
 
     def drive() -> None:
-        done_box.append(singleton.asyncer.run(exchange.run))
+        try:
+            done_box.append(singleton.asyncer.run(exchange.run))
+        except Exception as e:
+            done_box.append(e)
 
     thread = threading.Thread(target=drive, daemon=True)
     thread.start()
@@ -125,6 +136,7 @@ def _stop_and_join(session_id: str, thread: threading.Thread, done_box: list):
     singleton.asyncer.run(stop)
     thread.join(timeout=_WAIT_TIMEOUT_SECONDS)
     assert not thread.is_alive(), "the scheduler did not stop in time"
+    _raise_if_failed(done_box)
     return done_box[0]
 
 
@@ -154,7 +166,10 @@ def test_warm_start_adopts_prior_runs(
         entity, project, sweep_id
     )
     try:
-        _wait_until(lambda: optimizer.finished_told and optimizer.active_adopted)
+        _wait_until(
+            lambda: optimizer.finished_told and optimizer.active_adopted,
+            done_box=done_box,
+        )
         assert optimizer.finished_told[0].state == RunState.FINISHED
         assert optimizer.active_adopted[0].state == RunState.RUNNING
     finally:
@@ -174,7 +189,10 @@ def test_generation_step_reports_a_finished_run(
     try:
         # The scheduler enqueues one grid point (batch_size=1); wait for
         # the optimizer to learn the real wandb run id EnqueueRun minted.
-        _wait_until(lambda: any(data.wandb_run_id for _, data in optimizer.told))
+        _wait_until(
+            lambda: any(data.wandb_run_id for _, data in optimizer.told),
+            done_box=done_box,
+        )
         wandb_run_id = next(
             data.wandb_run_id for _, data in optimizer.told if data.wandb_run_id
         )
@@ -191,7 +209,8 @@ def test_generation_step_reports_a_finished_run(
             lambda: any(
                 data.wandb_run_id == wandb_run_id and data.state == RunState.FINISHED
                 for _, data in optimizer.told
-            )
+            ),
+            done_box=done_box,
         )
     finally:
         _stop_and_join(session_id, thread, done_box)
