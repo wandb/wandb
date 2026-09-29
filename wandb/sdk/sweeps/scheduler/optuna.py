@@ -11,6 +11,7 @@ from typing_extensions import override
 import wandb
 from wandb import util
 from wandb.sdk.sweeps.run_state import RunState
+from wandb.sdk.sweeps.scheduler.client import load_optimizer_config, load_source_object
 from wandb.sdk.sweeps.scheduler.optimizer import (
     Optimizer,
     Run,
@@ -692,4 +693,55 @@ def make_optimizer(
     assert options.search_space is not None  # guaranteed by the check above
     return OptunaImperativeOptimizer(
         study, options.search_space, sweep, options.terminator
+    )
+
+
+def build_optuna_optimizer(
+    sweep: SweepInfo, scheduler_config: dict[str, Any]
+) -> OptunaOptimizer:
+    """Build the optimizer for a sweep whose `scheduler.engine` is `optuna`.
+
+    `scheduler.optimizer` names a zero-argument function in
+    `scheduler.source`. The function may return either an Optuna `Study` or
+    a `(Study, terminator)` tuple. A terminator is a one-argument function
+    that receives the study after each generation and finishes the sweep by
+    returning `True`, such as `optuna.terminator.Terminator().should_terminate`.
+    """
+    optimizer_name: str = scheduler_config.get("optimizer", "")
+    search_space_name: str | None = scheduler_config.get("search_space")
+    source: str = scheduler_config.get("source", "")
+
+    # `search_space` picks how the parameter space is defined: when given,
+    # the loaded function is the define-by-run trial constructor; otherwise
+    # a declarative parameter space is derived from the sweep's
+    # `parameters`. Independently, `optimizer` names a study factory to
+    # call instead of building the study from the config.
+    search_space = None
+    distributions = None
+    try:
+        if search_space_name is not None:
+            search_space = load_source_object(source, search_space_name)
+        else:
+            distributions = search_space_from_sweep_config(
+                sweep.config.get("parameters", {})
+            )
+        terminator = None
+        if optimizer_name:
+            study, terminator = load_optimizer_config(
+                source, optimizer_name, "optuna.study.Study"
+            )
+        else:
+            study = create_study_from_sweep_config(sweep.config)
+    except ValueError as e:
+        raise wandb.Error(str(e)) from e
+
+    return make_optimizer(
+        study,
+        sweep,
+        OptunaOptions(
+            study=study,
+            distributions=distributions,
+            search_space=search_space,
+            terminator=terminator,
+        ),
     )

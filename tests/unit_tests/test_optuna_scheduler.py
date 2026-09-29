@@ -11,6 +11,7 @@ from wandb.sdk.sweeps.scheduler.optuna import (
     OptunaDeclarativeOptimizer,
     OptunaImperativeOptimizer,
     OptunaOptions,
+    build_optuna_optimizer,
     create_study_from_sweep_config,
     make_optimizer,
     sweep_parameter_to_distribution,
@@ -179,8 +180,6 @@ class TestCreateStudyFromSweepConfig:
 
 class TestBuildOptunaSchedulerOptimizer:
     def test_builds_declarative_optimizer_from_parameters(self) -> None:
-        from wandb.cli import cli
-
         config = {
             "metrics": [
                 {"name": "loss", "goal": "minimize"},
@@ -191,13 +190,11 @@ class TestBuildOptunaSchedulerOptimizer:
         }
         sweep = make_scheduler_grid_sweep(config=config)
 
-        optimizer = cli._build_optuna_scheduler_optimizer(sweep, config["scheduler"])
+        optimizer = build_optuna_optimizer(sweep, config["scheduler"])
 
         assert isinstance(optimizer, OptunaDeclarativeOptimizer)
 
     def test_builds_imperative_optimizer_from_search_space(self, tmp_path) -> None:
-        from wandb.cli import cli
-
         source = tmp_path / "search_space.py"
         source.write_text(
             "def define_by_run(trial):\n"
@@ -215,7 +212,7 @@ class TestBuildOptunaSchedulerOptimizer:
         }
         sweep = make_scheduler_grid_sweep(config=config)
 
-        optimizer = cli._build_optuna_scheduler_optimizer(sweep, config["scheduler"])
+        optimizer = build_optuna_optimizer(sweep, config["scheduler"])
 
         assert isinstance(optimizer, OptunaImperativeOptimizer)
 

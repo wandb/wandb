@@ -6,8 +6,10 @@ from typing import TYPE_CHECKING, Any, Literal, TypeAlias
 
 from typing_extensions import override
 
+import wandb
 from wandb import util
 from wandb.sdk.sweeps.run_state import RunState
+from wandb.sdk.sweeps.scheduler.client import load_optimizer_config
 from wandb.sdk.sweeps.scheduler.optimizer import (
     Optimizer,
     Run,
@@ -587,3 +589,33 @@ def create_default_client(config: dict[str, Any]) -> ax.Client:
     client.configure_experiment(parameters=sweep_config_to_search_space(config))
     configure_sweep_objective(client, config)
     return client
+
+
+def build_ax_optimizer(
+    sweep: SweepInfo, scheduler_config: dict[str, Any]
+) -> AxOptimizer:
+    """Build the optimizer for a sweep whose `scheduler.engine` is `ax`.
+
+    `scheduler.optimizer` names a zero-argument function in
+    `scheduler.source`. The function may return either an Ax `Client` or a
+    `(Client, terminator)` tuple. A terminator is a one-argument function
+    that receives the client after each generation and finishes the sweep by
+    returning `True`.
+    """
+    optimizer_name: str = scheduler_config.get("optimizer", "")
+    source: str = scheduler_config.get("source", "")
+
+    if scheduler_config.get("search_space") is not None:
+        wandb.termwarn("search_space config is not supported by the Ax engine.")
+    terminator = None
+    if optimizer_name:
+        try:
+            client, terminator = load_optimizer_config(
+                source, optimizer_name, "ax.api.client.Client"
+            )
+        except ValueError as e:
+            raise wandb.Error(str(e)) from e
+    else:
+        client = create_default_client(sweep.config)
+
+    return AxOptimizer(client, sweep, terminator)

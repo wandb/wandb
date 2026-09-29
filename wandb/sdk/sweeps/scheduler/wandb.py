@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from typing_extensions import override
 
+import wandb
 from wandb import util
 from wandb.sdk.sweeps.run_state import RunState
 from wandb.sdk.sweeps.scheduler.optimizer import (
@@ -233,3 +234,15 @@ class WandbOptimizer(Optimizer):
             state=_to_sweeps_state(data.state),
         )
         return run_id
+
+
+def build_wandb_optimizer(
+    sweep: SweepInfo, scheduler_config: dict[str, Any]
+) -> WandbOptimizer:
+    """Build the optimizer for a sweep whose `scheduler.engine` is `wandb`."""
+    if scheduler_config.get("optimizer") is not None:
+        wandb.termwarn("optimizer config is not supported by the wandb engine.")
+    if scheduler_config.get("search_space") is not None:
+        wandb.termwarn("search_space config is not supported by the wandb engine.")
+
+    return WandbOptimizer(sweep=sweep)

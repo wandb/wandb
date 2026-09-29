@@ -6,6 +6,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+import wandb
 from wandb.sdk.sweeps.run_state import RunState
 from wandb.sdk.sweeps.sweep_info import SweepInfo
 
@@ -310,3 +311,32 @@ class Optimizer(ABC):
     def should_terminate_sweep(self) -> bool:
         """Return True if the sweep should be terminated."""
         return False
+
+
+def make_optimizer(sweep: SweepInfo) -> Optimizer:
+    """Build the optimizer for the engine a scheduler-enabled sweep names.
+
+    The local scheduler only drives sweeps that opted out of server-side
+    search, which the `scheduler.engine` block records.
+
+    Raises:
+        wandb.Error: If the engine is missing or unsupported, or its
+            configuration can't be loaded.
+    """
+    # Each engine module is imported lazily so a missing engine dependency
+    # only fails sweeps that use it.
+    scheduler_config: dict[str, Any] = sweep.config.get("scheduler") or {}
+    engine: str | None = scheduler_config.get("engine")
+    if engine == "wandb":
+        from wandb.sdk.sweeps.scheduler.wandb import build_wandb_optimizer
+
+        return build_wandb_optimizer(sweep, scheduler_config)
+    if engine == "optuna":
+        from wandb.sdk.sweeps.scheduler.optuna import build_optuna_optimizer
+
+        return build_optuna_optimizer(sweep, scheduler_config)
+    if engine == "ax":
+        from wandb.sdk.sweeps.scheduler.ax import build_ax_optimizer
+
+        return build_ax_optimizer(sweep, scheduler_config)
+    raise wandb.Error(f"Unsupported engine: {engine}")
