@@ -38,6 +38,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 
 ### Fixed
 
+- Single-element NumPy arrays stored in run config are now converted to native scalar values instead of strings. (@tandede, https://github.com/wandb/wandb/issues/1184)
 - Resumed runs no longer report a huge or negative `_runtime` and run duration, a regression in v0.30.0 (@dmitryduev in https://github.com/wandb/wandb/pull/12999)
 - `wandb leet inspect` no longer prints "skipped corrupt data" forever when its output is piped and the file is not a `.wandb` log it can read; it now exits with an error (@dmitryduev in https://github.com/wandb/wandb/pull/12950)
 - Changing system metrics grid rows or columns in LEET, including `wandb leet symon`, no longer crashes and takes effect immediately without waiting for new data (@dmitryduev in https://github.com/wandb/wandb/pull/12763)
