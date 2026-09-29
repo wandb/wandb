@@ -152,3 +152,35 @@ func TestSymon_ProcessesSortedByCPUThenMemory(t *testing.T) {
 	view = m.View().Content
 	require.Less(t, strings.Index(view, "chrome"), strings.Index(view, "python"))
 }
+
+func TestSymon_ProcessFilterAndFocus(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	sym := leet.NewSymon(leet.SymonParams{Config: cfg, Logger: logger})
+	var m tea.Model = sym
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 160, Height: 45})
+	m, _ = m.Update(leet.SymonSampleMsg{
+		StatsMsg: leet.StatsMsg{Timestamp: 100, Metrics: map[string]float64{"memory_percent": 50}},
+		Processes: []monitor.ProcessStat{
+			{PID: 1, Name: "chrome", CPUPercent: 10, RSS: 8 << 30},
+			{PID: 2, Name: "python", CPUPercent: 300, RSS: 1 << 30},
+		},
+	})
+
+	for _, key := range []rune{'f', 'p', 'y', 't', 'h'} {
+		m, _ = m.Update(tea.KeyPressMsg{Code: key, Text: string(key)})
+	}
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	view := m.View().Content
+	require.Contains(t, view, "python")
+	require.NotContains(t, view, "chrome")
+
+	m, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	m, _ = m.Update(tea.KeyPressMsg{Code: 's', Text: "s"})
+	require.Equal(t, leet.FocusNone, sym.TestFocusState().Type,
+		"navigation keys stay in the process list while it has focus")
+
+	_, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	require.Equal(t, leet.FocusSystemChart, sym.TestFocusState().Type)
+}
