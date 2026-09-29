@@ -198,7 +198,7 @@ func NewScheduler(params SchedulerParams) *Scheduler {
 // A suggestion passes through TrackingInFlight and
 // TrackingTerminalDelivered, then settles in TrackingDormant or
 // TrackingRetired; before the scheduler has a record for it, it is
-// merely proposed.
+// merely proposed. Stopped pruned runs and uningestible runs skip to TrackingRetired.
 type TrackingState int
 
 const (
@@ -237,6 +237,9 @@ type trackedRun struct {
 
 	// warnedResumed means the resume warning was already logged for it
 	warnedResumed bool
+
+	// pruned means StopRun is retried until accepted and the run is never a candidate again
+	pruned bool
 }
 
 // isTracked reports whether the run is reported to the optimizer: its
@@ -337,9 +340,8 @@ func (s *Scheduler) doneTask(
 	return &spb.SweepSchedulerServerNextTaskResponse{
 		Task: &spb.SweepSchedulerServerNextTaskResponse_Done{
 			Done: &spb.SweepSchedulerServerDoneTask{
-				Reason:                   reason,
-				Message:                  message,
-				DiscardedOptimizerRunIds: s.takeDiscards(),
+				Reason:  reason,
+				Message: message,
 			},
 		},
 	}
@@ -580,8 +582,18 @@ func (s *Scheduler) applyWarmStartResult(
 	for _, wandbRunID := range slices.Sorted(maps.Keys(result.Adoptions)) {
 		optimizerRunID := result.Adoptions[wandbRunID]
 
-		// Rejecting an adoption the scheduler cannot use lands in a
-		// later slice; every id here is taken at face value.
+		// Dropped, but never reported as a discard: the id names a run
+		// this scheduler already tracks, and the client forgets
+		// discarded ids before applying the task's updates, so
+		// reporting it would drop that run from the optimizer and make
+		// its own update in the same task fail.
+		if s.runs[optimizerRunID] != nil {
+			s.logger.Warn(
+				"scheduler: dropping an adoption whose optimizer run id "+
+					"is already in use",
+				"run", wandbRunID, "id", optimizerRunID)
+			continue
+		}
 		if run := s.runsByName[wandbRunID]; run != nil && run.isTracked() {
 			// Already tracked: adopted on an earlier page, or scheduled
 			// by this scheduler.
@@ -613,18 +625,15 @@ func (s *Scheduler) applyWarmStartResult(
 	}
 }
 
-// applyGenerationResult applies the optimizer's tells. A non-nil return
-// ends the scheduler with that Done task.
-//
-// result.Suggestions and result.Prune are still ignored: enqueueing a
-// suggested run, and stopping a pruned one, land in the slices on top
-// of this one.
+// applyGenerationResult applies tells, prunes and suggestions. A non-nil
+// return ends the scheduler with that Done task.
 func (s *Scheduler) applyGenerationResult(
 	ctx context.Context,
 	result *spb.SweepSchedulerClientGenerationResult,
 ) *spb.SweepSchedulerServerNextTaskResponse {
 	s.popDeliveredTerminals()
 	s.popTellErrors(result.TellErrors)
+	s.applyPrunes(ctx, result.Prune)
 
 	if result.Terminate {
 		s.finishSweep(ctx)
@@ -647,9 +656,7 @@ func (s *Scheduler) applyGenerationResult(
 		return s.finishExhausted(ctx)
 
 	case spb.SweepSchedulerClientGenerationResult_ASK_OUTCOME_SUGGESTED:
-		// Scheduling them is the next slice; until then an ask that
-		// suggested runs is as good as one that declined.
-		return nil
+		return s.enqueueSuggestions(ctx, result.Suggestions)
 
 	default:
 		// Declined or not asked; nothing to schedule this generation.

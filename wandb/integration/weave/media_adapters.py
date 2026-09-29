@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, get_args
+from typing import TYPE_CHECKING, Any
 
 import wandb
 from wandb.sdk.data_types.audio import Audio
@@ -17,8 +17,6 @@ from wandb.sdk.data_types.video import Video
 if TYPE_CHECKING:
     from PIL.Image import Image as PILImage
 
-UnsupportedMediaMode = Literal["stub", "raise"]
-_UNSUPPORTED_MEDIA_MODES = get_args(UnsupportedMediaMode)
 _UnwrapValueFn = Callable[[Any, str | int], Any]
 _SupportedValueAdapter = tuple[str, _UnwrapValueFn]
 _MOVIEPY_EDITOR_INSTALL_HINT = (
@@ -157,18 +155,10 @@ def _unsupported_media_mode_hint() -> str:
     )
 
 
-def validate_unsupported_media_mode(mode: str) -> None:
-    if mode not in _UNSUPPORTED_MEDIA_MODES:
-        raise ValueError(
-            "unsupported_media_mode must be one of "
-            f"{_UNSUPPORTED_MEDIA_MODES}, got {mode!r}."
-        )
-
-
 def validate_supported_value(
     val: Any,
     column: str | int,
-    unsupported_media_mode: UnsupportedMediaMode,
+    unsupported_media_mode: str,
 ) -> None:
     """Raise if a wandb value is not supported by EvalTable's Weave adapter."""
     if isinstance(val, _SUPPORTED_WANDB_VALUE_TYPES):
@@ -245,7 +235,7 @@ def _stub_unsupported_media_variant(
 def handle_nested_wandb_values(
     val: Any,
     column: str | int,
-    unsupported_media_mode: UnsupportedMediaMode,
+    unsupported_media_mode: str,
     *,
     nested: bool = False,
     inside_sequence: bool = False,
@@ -299,7 +289,7 @@ def handle_nested_wandb_values(
 def unwrap_value(
     val: Any,
     column: str | int,
-    unsupported_media_mode: UnsupportedMediaMode,
+    unsupported_media_mode: str,
 ) -> Any:
     """Convert a wandb media cell value to an appropriate type for Weave logging.
 

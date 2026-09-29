@@ -35,6 +35,9 @@ var UnitCelsius UnitFormatter = unitCelsius{}
 // Power in Watts.
 var UnitWatt UnitFormatter = unitWatt{}
 
+// Energy in Joules.
+var UnitJoule UnitFormatter = unitJoule{}
+
 // Frequency measured in MHz, titled in Hz.
 var UnitMHz UnitFormatter = unitMHz{}
 
@@ -93,6 +96,26 @@ func (unitWatt) Format(v float64) string {
 		return formatSigFigs(v/1000, 3) + "kW"
 	default:
 		return formatSigFigs(v, 3) + "W"
+	}
+}
+
+type unitJoule struct{}
+
+func (unitJoule) Name() string { return "J" }
+func (unitJoule) Format(v float64) string {
+	if v == 0 {
+		return "0"
+	}
+	absV := math.Abs(v)
+	switch {
+	case absV >= 1e9:
+		return formatSigFigs(v/1e9, 3) + "GJ"
+	case absV >= 1e6:
+		return formatSigFigs(v/1e6, 3) + "MJ"
+	case absV >= 1e3:
+		return formatSigFigs(v/1e3, 3) + "kJ"
+	default:
+		return formatSigFigs(v, 3) + "J"
 	}
 }
 

@@ -3,6 +3,7 @@ syntax = "proto3";
 package wandb_internal;
 
 import "google/protobuf/empty.proto";
+import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "wandb/proto/wandb_base.proto";
 import "wandb/proto/wandb_telemetry.proto";
@@ -296,6 +297,18 @@ message HistoryRecord {
   _RecordInfo _info = 200;
 }
 
+// A logged value with its type.
+message HistoryValue {
+  oneof value {
+    google.protobuf.NullValue none = 1;
+    bool boolean = 2;
+    sint64 integer = 3;
+    double number = 4;
+    string text = 5;
+    string json = 6;
+  }
+}
+
 /*
  * HistoryItem:
  *
@@ -306,6 +319,11 @@ message HistoryRecord {
 message HistoryItem {
   string key = 1;
   repeated string nested_key = 2;
+
+  // The typed form of `value_json`. A writer may set one,
+  // or both. A reader prefers `value` and falls back to `value_json`.
+  HistoryValue value = 3;
+
   string value_json = 16;
 }
 

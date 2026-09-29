@@ -1,6 +1,7 @@
 package stream
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/google/wire"
 
+	"github.com/wandb/wandb/core/internal/filestreamstats"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/gitops"
@@ -55,6 +57,7 @@ type HandlerFactory struct {
 	Operations           *wboperation.WandbOperations
 	RunHandle            *runhandle.RunHandle
 	Settings             *settings.Settings
+	Stats                *filestreamstats.Stats
 	SystemMonitorFactory *monitor.SystemMonitorFactory
 	TerminalPrinter      *observability.Printer
 }
@@ -108,6 +111,9 @@ type Handler struct {
 	// settings is the settings for the handler
 	settings *settings.Settings
 
+	// stats measures the cost of the upload pipeline. It may be nil.
+	stats *filestreamstats.Stats
+
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
 
@@ -134,6 +140,7 @@ func (f *HandlerFactory) New(extraWork runwork.ExtraWork) *Handler {
 		runSummary:           runsummary.New(),
 		runHandle:            f.RunHandle,
 		settings:             f.Settings,
+		stats:                f.Stats,
 		systemMonitor:        systemMonitor,
 		terminalPrinter:      f.TerminalPrinter,
 	}
@@ -928,6 +935,7 @@ func (h *Handler) handlePartialHistoryAsync(request *spb.PartialHistoryRequest) 
 	//
 	// We do this on a best-effort basis: errors are logged and problematic
 	// metrics are ignored.
+	ingestStart := time.Now()
 	for _, item := range request.GetItem() {
 		err := h.partialHistory.SetFromRecord(item)
 
@@ -939,6 +947,12 @@ func (h *Handler) handlePartialHistoryAsync(request *spb.PartialHistoryRequest) 
 			)
 		}
 	}
+	h.stats.RecordSegment(
+		context.Background(),
+		filestreamstats.SegmentHandlerIngest,
+		filestreamstats.StreamHistory,
+		time.Since(ingestStart),
+	)
 
 	if request.GetAction() == nil || request.Action.GetFlush() {
 		h.flushPartialHistory(false, 0)
@@ -980,6 +994,7 @@ func (h *Handler) handlePartialHistorySync(request *spb.PartialHistoryRequest) {
 		}
 	}
 
+	ingestStart := time.Now()
 	for _, item := range request.GetItem() {
 		err := h.partialHistory.SetFromRecord(item)
 		if err != nil {
@@ -990,6 +1005,12 @@ func (h *Handler) handlePartialHistorySync(request *spb.PartialHistoryRequest) {
 			)
 		}
 	}
+	h.stats.RecordSegment(
+		context.Background(),
+		filestreamstats.SegmentHandlerIngest,
+		filestreamstats.StreamHistory,
+		time.Since(ingestStart),
+	)
 
 	var shouldFlush bool
 	if request.GetAction() != nil {
@@ -1048,7 +1069,15 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 		h.updateSummary()
 	}
 
+	emitStart := time.Now()
 	items, err := h.partialHistory.ToRecords()
+	h.stats.RecordSegment(
+		context.Background(),
+		filestreamstats.SegmentHandlerEmit,
+		filestreamstats.StreamHistory,
+		time.Since(emitStart),
+	)
+
 	currentStep := h.partialHistoryStep
 
 	h.partialHistory = runhistory.New()

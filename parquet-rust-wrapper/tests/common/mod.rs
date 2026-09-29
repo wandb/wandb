@@ -7,7 +7,7 @@ use std::thread;
 /// Returns (server_url, request_counter)
 ///
 /// The server handles:
-/// - HEAD requests
+/// - HEAD requests, rejected with 403 like a GET-presigned S3 URL
 /// - Range requests
 /// - Full file requests
 ///
@@ -69,18 +69,10 @@ pub fn start_http_server(file_path: &str) -> (String, Arc<Mutex<usize>>) {
 
                 let request = String::from_utf8_lossy(&buffer);
 
-                // Handle HEAD request
                 if request.starts_with("HEAD") {
-                    let response = format!(
-                        "HTTP/1.1 200 OK\r\n\
-                         Content-Length: {}\r\n\
-                         Content-Type: application/octet-stream\r\n\
-                         Accept-Ranges: bytes\r\n\
-                         Connection: close\r\n\
-                         \r\n",
-                        size
+                    let _ = stream.write_all(
+                        b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
                     );
-                    let _ = stream.write_all(response.as_bytes());
                     let _ = stream.flush();
                     return;
                 }
@@ -198,15 +190,9 @@ pub fn start_http_server_no_range_support(file_path: &str) -> String {
                 let request = String::from_utf8_lossy(&buffer);
 
                 if request.starts_with("HEAD") {
-                    let response = format!(
-                        "HTTP/1.1 200 OK\r\n\
-                         Content-Length: {}\r\n\
-                         Content-Type: application/octet-stream\r\n\
-                         Connection: close\r\n\
-                         \r\n",
-                        size
+                    let _ = stream.write_all(
+                        b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
                     );
-                    let _ = stream.write_all(response.as_bytes());
                     let _ = stream.flush();
                     return;
                 }

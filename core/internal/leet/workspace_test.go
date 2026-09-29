@@ -82,6 +82,57 @@ func TestModel_FiltersPersistPerWandbDir(t *testing.T) {
 	require.Contains(t, stripANSI(reopened.View().Content), `"train"`)
 }
 
+func TestModel_SelectedRunsPersistPerWandbDir(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	wandbDir := t.TempDir()
+	run1 := "run-20250731_170601-aaaaaaaa"
+	run2 := "run-20250731_170602-bbbbbbbb"
+	run3 := "run-20250731_170603-cccccccc"
+	run4 := "run-20250731_170604-dddddddd"
+	open := func(runKeys ...string) *leet.Model {
+		cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+		model := leet.NewModel(leet.ModelParams{
+			WandbDir: wandbDir,
+			Config:   cfg,
+			Logger:   logger,
+		})
+		model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+		model.Update(leet.WorkspaceRunDirsMsg{RunKeys: runKeys})
+		return model
+	}
+
+	// Deselect run3, which was selected as the latest; select run2 and
+	// run1, pin run1.
+	model := open(run3, run2, run1)
+	model.Update(tea.KeyPressMsg{Code: tea.KeySpace})
+	model.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	model.Update(tea.KeyPressMsg{Code: tea.KeySpace})
+	model.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	model.Update(tea.KeyPressMsg{Code: tea.KeySpace})
+	model.Update(tea.KeyPressMsg{Code: 'p'})
+
+	// run2 is gone; run3 is not new, so it stays deselected.
+	w := open(run3, run1).TestWorkspace()
+	require.Equal(t, 1, w.TestSelectedRunCount())
+	require.True(t, w.TestIsRunSelected(run1))
+	require.Equal(t, run1, w.TestPinnedRun())
+
+	// run4 started since the last session.
+	w = open(run4, run3, run1).TestWorkspace()
+	require.Equal(t, 2, w.TestSelectedRunCount())
+	require.True(t, w.TestIsRunSelected(run1))
+	require.True(t, w.TestIsRunSelected(run4))
+
+	// run4 is gone and run3 is older, so run3 is not new; unpin run1.
+	model = open(run3, run1)
+	require.Equal(t, 1, model.TestWorkspace().TestSelectedRunCount())
+	model.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	model.Update(tea.KeyPressMsg{Code: 'p'})
+
+	w = open(run3, run1).TestWorkspace()
+	require.Equal(t, "", w.TestPinnedRun())
+}
+
 func TestModel_CtrlLInRunViewDoesNotClearWorkspaceFilter(t *testing.T) {
 	logger := observability.NewNoOpLogger()
 	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)

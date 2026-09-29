@@ -78,7 +78,7 @@ func (h *OpenTelemetryHandler) IncrementCounter(
 	h.telemetryRecorder.IncrementCounter(
 		ctx,
 		request.Name,
-		lowCardinalityAttributes,
+		&lowCardinalityAttributes,
 	)
 }
 

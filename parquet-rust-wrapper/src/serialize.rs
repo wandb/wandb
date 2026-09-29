@@ -18,9 +18,9 @@ use arrow::array::{
     UInt16Array,
     UInt32Array,
     UInt64Array,
+    downcast_dictionary_array,
 };
-use arrow::compute::cast;
-use arrow::datatypes::DataType;
+use arrow::datatypes::{ArrowNativeType, DataType};
 
 /// Type tags for the binary wire format between Rust and Go.
 pub const TYPE_NULL: u8 = 0;
@@ -162,9 +162,11 @@ fn write_value(buf: &mut Vec<u8>, arr: &dyn Array, idx: usize) -> Result<(), io:
                 write_value(buf, values.as_ref(), i)?;
             }
         }
-        DataType::Dictionary(_, value_type) => {
-            let casted = cast(arr, value_type).expect("failed to cast dictionary array");
-            write_value(buf, casted.as_ref(), idx)?;
+        DataType::Dictionary(_, _) => {
+            downcast_dictionary_array!(
+                arr => write_value(buf, arr.values().as_ref(), arr.keys().value(idx).as_usize())?,
+                _ => unreachable!()
+            )
         }
         DataType::Struct(_) => {
             write_struct_as_map(buf, arr, idx)?;

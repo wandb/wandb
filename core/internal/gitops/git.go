@@ -7,8 +7,6 @@ import (
 	"os/exec"
 	"strings"
 
-	git "github.com/go-git/go-git/v5"
-
 	"github.com/wandb/wandb/core/internal/observability"
 )
 
@@ -53,7 +51,8 @@ func New(path string, logger *observability.CoreLogger) *Git {
 
 func (g *Git) IsAvailable() bool {
 	// check if repoPath is a git repository
-	if _, err := git.PlainOpen(g.path); err != nil {
+	_, err := runCommandWithOutput([]string{"git", "rev-parse", "--git-dir"}, g.path)
+	if err != nil {
 		g.logger.Error("git repo not found", "error", err)
 		return false
 	}

@@ -8,8 +8,10 @@ package wbapi
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/url"
 
+	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filetransfer"
@@ -30,7 +32,9 @@ type WandbAPI struct {
 	// semaphore is a buffered channel limiting concurrent request handling
 	semaphore chan struct{}
 
-	logger *observability.CoreLogger
+	// telemetryProxy records the logger's telemetry until Shutdown.
+	telemetryProxy *analytics.OpenTelemetryProxy
+	logger         *observability.CoreLogger
 
 	settings *settings.Settings
 
@@ -47,20 +51,29 @@ type WandbAPI struct {
 }
 
 // New returns a new WandbAPI.
-func New(
-	s *settings.Settings,
-	serviceName string,
-	logger *observability.CoreLogger,
-) (*WandbAPI, error) {
+func New(s *settings.Settings, serviceName string) (*WandbAPI, error) {
 	baseURL, err := url.Parse(s.GetBaseURL())
 	if err != nil {
 		return nil, fmt.Errorf("error parsing base URL: %v", err)
 	}
 
-	credentialProvider, err := api.NewCredentialProvider(s, logger.Logger)
+	credentialProvider, err := api.NewCredentialProvider(s, slog.Default())
 	if err != nil {
 		return nil, fmt.Errorf("error reading credentials: %v", err)
 	}
+
+	telemetryProxy := analytics.NewOpenTelemetryProxy(
+		context.Background(),
+		s,
+		"wandb-core",
+	)
+	logger := observability.NewCoreLogger(
+		slog.Default(),
+		analytics.NewTelemetryRecorder(
+			telemetryProxy,
+			analytics.NewTelemetryContext(),
+		),
+	)
 
 	graphqlClient := api.NewGQLClient(
 		api.WBBaseURL(baseURL),
@@ -94,9 +107,10 @@ func New(
 	featureProvider := featurechecker.New(graphqlClient, logger)
 
 	return &WandbAPI{
-		semaphore: make(chan struct{}, maxConcurrency),
-		logger:    logger,
-		settings:  s,
+		semaphore:      make(chan struct{}, maxConcurrency),
+		telemetryProxy: telemetryProxy,
+		logger:         logger,
+		settings:       s,
 
 		authHandler:          NewAuthHandler(graphqlClient, credentialProvider),
 		featuresHandler:      NewFeaturesHandler(featureProvider),
@@ -216,6 +230,13 @@ func (p *WandbAPI) Shutdown(ctx context.Context) {
 	if err := p.opentelemetryHandler.Shutdown(ctx); err != nil {
 		p.logger.Error(
 			"wbapi: error shutting down OpenTelemetry handler",
+			"error",
+			err,
+		)
+	}
+	if err := p.telemetryProxy.Shutdown(ctx); err != nil {
+		p.logger.Error(
+			"wbapi: error shutting down telemetry proxy",
 			"error",
 			err,
 		)

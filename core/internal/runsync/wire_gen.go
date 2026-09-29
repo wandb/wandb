@@ -11,6 +11,7 @@ import (
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/featurechecker"
 	"github.com/wandb/wandb/core/internal/filestream"
+	"github.com/wandb/wandb/core/internal/filestreamstats"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/observability"
@@ -49,6 +50,7 @@ func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.
 		Logger:     logger,
 		Operations: wandbOperations,
 	}
+	stats := provideNoFileStreamStats()
 	fileStreamFactory := &filestream.FileStreamFactory{
 		BaseURL:         wbBaseURL,
 		FeatureProvider: featureProvider,
@@ -56,6 +58,7 @@ func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.
 		Operations:      wandbOperations,
 		Printer:         printer,
 		Settings:        settings2,
+		Stats:           stats,
 	}
 	fileTransferStats := filetransfer.NewFileTransferStats()
 	fileTransferManager := stream.NewFileTransferManager(wbBaseURL, fileTransferStats, logger, settings2)
@@ -90,6 +93,7 @@ func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.
 		RunHandle:               runHandle,
 		Mailbox:                 mailboxMailbox,
 		HistoryStepTracker:      historyStepTracker,
+		Stats:                   stats,
 	}
 	tbHandlerFactory := &tensorboard.TBHandlerFactory{
 		Logger:   logger,
@@ -113,7 +117,7 @@ func InjectRunSyncerFactory(settings2 *settings.Settings, logger *observability.
 
 var runSyncerFactoryBindings = wire.NewSet(wire.Bind(new(api.Peeker), new(*observability.Peeker)), wire.Struct(new(observability.Peeker)), featurechecker.New, filestream.FileStreamProviders, filetransfer.NewFileTransferStats, mailbox.New, provideFileWatcher,
 	providePrinter, runfiles.UploaderProviders, runhandle.New, runReaderProviders,
-	runSyncerProviders, sharedmode.RandomClientID, stream.BaseURLFromSettings, stream.CredentialsFromSettings, stream.NewFileTransferManager, stream.NewGraphQLClient, stream.RecordParserProviders, stream.SenderProviders, tensorboard.TBHandlerProviders, wboperation.NewOperations,
+	runSyncerProviders, sharedmode.RandomClientID, stream.BaseURLFromSettings, stream.CredentialsFromSettings, stream.NewFileTransferManager, stream.NewGraphQLClient, stream.RecordParserProviders, stream.SenderProviders, tensorboard.TBHandlerProviders, wboperation.NewOperations, provideNoFileStreamStats,
 )
 
 func providePrinter() *observability.Printer {
@@ -122,4 +126,9 @@ func providePrinter() *observability.Printer {
 
 func provideFileWatcher(logger *observability.CoreLogger) watcher.Watcher {
 	return watcher.New(watcher.Params{Logger: logger})
+}
+
+// provideNoFileStreamStats disables upload-cost telemetry during offline sync.
+func provideNoFileStreamStats() *filestreamstats.Stats {
+	return nil
 }
