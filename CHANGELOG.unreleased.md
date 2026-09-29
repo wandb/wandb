@@ -27,7 +27,7 @@ Section headings should be at level 3 (e.g. `### Added`).
 - System metrics now include `proc.cpu.throttledPercent`, the percentage of CPU scheduler periods in which the container's CPU limit throttled the run (@dmitryduev in https://github.com/wandb/wandb/pull/13001)
 - System metrics now include `proc.memory.oomKills`, how many processes in the run's container the out-of-memory killer has killed since the run started (@dmitryduev in https://github.com/wandb/wandb/pull/13002)
 - System metrics now include `network.tcpRetransmits`, the number of TCP segments retransmitted since the run started (@dmitryduev in https://github.com/wandb/wandb/pull/13003)
-- System metrics now include the CPU and memory used by W&B's own background processes, as `wandb.cpu` and `wandb.memory.rssMB` (@dmitryduev in https://github.com/wandb/wandb/pull/13004)
+- System metrics can include the CPU and memory used by W&B's own background processes, as `wandb.cpu` and `wandb.memory.rssMB`. They are on by default in development and release-candidate versions and off otherwise; turn them on with the `x_stats_self_usage` setting (@dmitryduev in https://github.com/wandb/wandb/pull/13004, https://github.com/wandb/wandb/pull/13038)
 - Run metadata now records each NVIDIA GPU's PCI bus ID and, on Linux, the NUMA node it is attached to (@dmitryduev in https://github.com/wandb/wandb/pull/13005)
 - `EvalTable` backed by the new CoreWeave Evaluation Service is now in public preview. See: https://docs.wandb.ai/models/evaltables (@kelu-wandb in https://github.com/wandb/wandb/pull/12979)
 
