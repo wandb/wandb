@@ -27,6 +27,11 @@ func TestMatchMetricDef_BasicFamilies(t *testing.T) {
 		{"TPU runtime HBM util", "tpu.0.runtimeHbmUtilization", "TPU Runtime HBM Utilization", "%"},
 		{"TPU tensorcore idle duration", "tpu.1.tensorcoreIdleDuration",
 			"TPU Tensorcore Idle Duration", ""},
+		{"Process CPU throttled", "proc.cpu.throttledPercent", "Process CPU Throttled", "%"},
+		{"Process OOM kills", "proc.memory.oomKills", "Process OOM Kills", ""},
+		{"Network TCP retransmits", "network.tcpRetransmits", "Network TCP Retransmits", ""},
+		{"W&B CPU", "wandb.cpu", "W&B CPU", "%"},
+		{"W&B memory", "wandb.memory.rssMB", "W&B Memory", "B"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -94,6 +99,9 @@ func TestUnitFormat(t *testing.T) {
 		{256, leet.UnitGiB, "256GiB"},
 		{1536, leet.UnitGiB, "1.5TiB"},
 		{2048, leet.UnitMiBps, "2.15GB/s"},
+		{750, leet.UnitJoule, "750J"},
+		{1500, leet.UnitJoule, "1.5kJ"},
+		{2.5e6, leet.UnitJoule, "2.5MJ"},
 		{0.005, leet.UnitScalar, "0.005"},
 		{0.5, leet.UnitScalar, "0.5"},
 		{3.14, leet.UnitScalar, "3.14"},

@@ -261,6 +261,23 @@ func LowerBlockElementFromFloat64(f float64) rune {
 	return lowerBlockElements[e]
 }
 
+// InverseLowerBlockElement returns the lower block element whose height is
+// the complement of the given rune: Null and FullBlock swap, ▁ becomes ▇,
+// and so on. Drawn in reverse video, the result fills the top of the cell
+// with the foreground color, which is how bars extending below an axis
+// render their fractional end. Returns Null for any other rune.
+func InverseLowerBlockElement(r rune) rune {
+	if r == Null {
+		return FullBlock
+	}
+	for i, e := range lowerBlockElements {
+		if e == r {
+			return lowerBlockElements[8-i]
+		}
+	}
+	return Null
+}
+
 var leftBlockElements = [9]rune{
 	Null,
 	LeftBlockOne,
@@ -566,4 +583,21 @@ func CombineCandlesticks(r1 rune, r2 rune) (r rune) {
 	}
 	r = CandlestickFromCandlestickSegments(c)
 	return
+}
+
+// InverseLeftBlockElement returns the left block element whose width is
+// the complement of the given rune: Null and FullBlock swap, ▏ becomes ▉,
+// and so on. Drawn in reverse video, the result fills the right of the
+// cell with the foreground color, which is how bars extending left of an
+// axis render their fractional end. Returns Null for any other rune.
+func InverseLeftBlockElement(r rune) rune {
+	if r == Null {
+		return FullBlock
+	}
+	for i, e := range leftBlockElements {
+		if e == r {
+			return leftBlockElements[8-i]
+		}
+	}
+	return Null
 }

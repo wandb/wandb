@@ -166,6 +166,8 @@ impl GpuMonitor for AppleGpuMonitor {
 // ===== Nvidia GPU Monitor =====
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 use crate::gpu_nvidia;
+#[cfg(any(target_os = "linux", target_os = "windows"))]
+use nvml_wrapper::error::NvmlError;
 
 #[cfg(any(target_os = "linux", target_os = "windows"))]
 struct NvidiaGpuMonitor {
@@ -182,8 +184,17 @@ impl NvidiaGpuMonitor {
                     gpu: tokio::sync::Mutex::new(gpu),
                 })
             }
+            Err(
+                NvmlError::LibloadingError(_)
+                | NvmlError::LibraryNotFound
+                | NvmlError::DriverNotLoaded
+                | NvmlError::NotFound,
+            ) => {
+                debug!("No NVIDIA driver found; NVIDIA GPU monitoring disabled");
+                None
+            }
             Err(e) => {
-                debug!("Failed to initialize NVIDIA GPU monitoring: {}", e);
+                warn!("Failed to initialize NVIDIA GPU monitoring: {e}");
                 None
             }
         }
@@ -278,7 +289,7 @@ use crate::gpu_amd;
 
 #[cfg(target_os = "linux")]
 struct AmdGpuMonitor {
-    gpu: gpu_amd::GpuAmd,
+    gpu: tokio::sync::Mutex<gpu_amd::GpuAmd>,
 }
 
 #[cfg(target_os = "linux")]
@@ -286,7 +297,9 @@ impl AmdGpuMonitor {
     fn new() -> Option<Self> {
         gpu_amd::GpuAmd::new().map(|gpu| {
             debug!("Successfully initialized AMD GPU monitoring");
-            Self { gpu }
+            Self {
+                gpu: tokio::sync::Mutex::new(gpu),
+            }
         })
     }
 }
@@ -299,23 +312,13 @@ impl GpuMonitor for AmdGpuMonitor {
         _pid: i32,
         _gpu_device_ids: Option<Vec<i32>>,
     ) -> Result<Vec<(String, metrics::MetricValue)>, Box<dyn std::error::Error>> {
-        Ok(self.gpu.get_metrics()?)
+        Ok(self.gpu.lock().await.get_metrics())
     }
 
     async fn collect_metadata(
         &self,
         _samples: &HashMap<String, &metrics::MetricValue>,
     ) -> EnvironmentRecord {
-        let mut metadata = EnvironmentRecord::default();
-
-        if let Ok(amd_metadata) = self.gpu.get_metadata() {
-            if amd_metadata.gpu_count > 0 {
-                metadata.gpu_count = amd_metadata.gpu_count;
-                metadata.gpu_type = amd_metadata.gpu_type;
-                metadata.gpu_amd = amd_metadata.gpu_amd;
-            }
-        }
-
-        metadata
+        self.gpu.lock().await.get_metadata()
     }
 }
