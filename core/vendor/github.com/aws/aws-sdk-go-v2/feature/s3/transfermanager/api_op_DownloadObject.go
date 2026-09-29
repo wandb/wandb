@@ -909,11 +909,11 @@ func getRespRange(rng string) (int64, int64, error) {
 	ranges := strings.Split(strings.Split(strings.Split(rng, " ")[1], "/")[0], "-")
 	start, err := strconv.ParseInt(ranges[0], 10, 64)
 	if err != nil {
-		return 0, 0, fmt.Errorf("error when parsing response start: %v", err)
+		return -1, -1, fmt.Errorf("error when parsing response start: %v", err)
 	}
 	end, err := strconv.ParseInt(ranges[1], 10, 64)
 	if err != nil {
-		return 0, 0, fmt.Errorf("error when parsing response end: %v", err)
+		return -1, -1, fmt.Errorf("error when parsing response end: %v", err)
 	}
 	return start, end, nil
 }
