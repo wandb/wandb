@@ -108,6 +108,8 @@ var metricDefs = []MetricDef{
 		Regex: regexp.MustCompile(`^network\.recv(/l:.+)?$`)},
 	{Name: "Network Tx", Unit: UnitBytes, MinY: 0, MaxY: 100, AutoRange: true,
 		Regex: regexp.MustCompile(`^network\.sent(/l:.+)?$`)},
+	{Name: "Network TCP Retransmits", Unit: UnitScalar, MinY: 0, MaxY: 100, AutoRange: true,
+		Regex: regexp.MustCompile(`^network\.tcpRetransmits(/l:.+)?$`)},
 
 	// System power
 	{Name: "System Power", Unit: UnitWatt, MinY: 0, MaxY: 500, AutoRange: true,
