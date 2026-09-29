@@ -497,6 +497,16 @@ func SymonKeyBindings() []BindingCategory[Symon] {
 			},
 		},
 		{
+			Name: "Panels",
+			Bindings: []KeyBinding[Symon]{
+				{
+					Keys:        []string{"["},
+					Description: "Toggle the vitals sidebar",
+					Handler:     (*Symon).handleToggleSidebar,
+				},
+			},
+		},
+		{
 			Name: "Navigation",
 			Bindings: []KeyBinding[Symon]{
 				{

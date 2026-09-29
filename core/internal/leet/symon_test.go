@@ -2,6 +2,7 @@ package leet_test
 
 import (
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -103,4 +104,27 @@ func TestSymon_HeaderShowsUptimeAndLoad(t *testing.T) {
 	})
 
 	require.Contains(t, m.View().Content, "up 1d 2h • load 1.50 0.80 0.60")
+}
+
+func TestSymon_SidebarMetersAndToggle(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	cfg := leet.NewConfigManager(filepath.Join(t.TempDir(), "config.json"), logger)
+
+	var m tea.Model = leet.NewSymon(leet.SymonParams{Config: cfg, Logger: logger})
+	m, _ = m.Update(tea.WindowSizeMsg{Width: 160, Height: 45})
+	m, _ = m.Update(leet.StatsMsg{
+		Timestamp: 100,
+		Metrics: map[string]float64{
+			"memory_percent":    50,
+			"cpu.0.cpu_percent": 20,
+			"cpu.1.cpu_percent": 60,
+		},
+	})
+
+	cpuMeter := regexp.MustCompile(`CPU\s+\S+\s+40%`)
+	require.Regexp(t, cpuMeter, stripANSI(m.View().Content))
+
+	m, _ = m.Update(tea.KeyPressMsg{Code: '[', Text: "["})
+	require.NotRegexp(t, cpuMeter, stripANSI(m.View().Content))
+	require.False(t, cfg.SymonSidebarVisible())
 }

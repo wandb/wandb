@@ -42,11 +42,12 @@ type Symon struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	config *ConfigManager
-	keyMap map[string]func(*Symon, tea.KeyPressMsg) tea.Cmd
-	focus  *Focus
-	grid   *SystemMetricsGrid
-	help   *HelpModel
+	config  *ConfigManager
+	keyMap  map[string]func(*Symon, tea.KeyPressMsg) tea.Cmd
+	focus   *Focus
+	grid    *SystemMetricsGrid
+	sidebar *symonSidebar
+	help    *HelpModel
 
 	width  int
 	height int
@@ -102,6 +103,7 @@ func NewSymon(params SymonParams) *Symon {
 		keyMap:   buildKeyMap(SymonKeyBindings()),
 		focus:    focus,
 		grid:     grid,
+		sidebar:  newSymonSidebar(cfg),
 		help:     help,
 		hostname: hostname,
 		sampler: NewSymonSampler(SymonSamplerParams{
@@ -138,9 +140,9 @@ func symonChartRank(baseKey string) int {
 	return len(symonChartOrder)
 }
 
-// Init starts the initial sampling pass.
+// Init starts the initial sampling pass and the host probe.
 func (s *Symon) Init() tea.Cmd {
-	return tea.Batch(tea.RequestBackgroundColor, s.sampleNowCmd())
+	return tea.Batch(tea.RequestBackgroundColor, s.sampleNowCmd(), s.probeCmd())
 }
 
 // Update handles resize events, help/restart shortcuts, user input, and live
@@ -189,6 +191,10 @@ func (s *Symon) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.grid.drawVisible()
 		cmd := s.sampleLaterCmd()
 		return s, cmd
+
+	case SymonProbeMsg:
+		s.sidebar.probe = msg
+		return s, nil
 
 	default:
 		return s, nil
@@ -344,6 +350,15 @@ func (s *Symon) handleClearSystemMetricsFilter(tea.KeyPressMsg) tea.Cmd {
 	return nil
 }
 
+func (s *Symon) handleToggleSidebar(tea.KeyPressMsg) tea.Cmd {
+	s.sidebar.visible = !s.sidebar.visible
+	if err := s.config.SetSymonSidebarVisible(s.sidebar.visible); err != nil {
+		s.logger.Error(fmt.Sprintf("symon: failed to save sidebar visibility: %v", err))
+	}
+	s.resizeGrid()
+	return nil
+}
+
 func (s *Symon) handleConfigSystemCols(tea.KeyPressMsg) tea.Cmd {
 	s.config.SetPendingGridConfig(gridConfigSymonCols)
 	return nil
@@ -380,14 +395,16 @@ func (s *Symon) handleMouse(msg tea.MouseMsg) tea.Cmd {
 	mouse := msg.Mouse()
 	alt := mouse.Mod == tea.ModAlt
 
-	if mouse.Y < symonHeaderLines || mouse.Y >= s.height-StatusBarHeight {
+	sidebarWidth := s.sidebar.width(s.width)
+	if mouse.X < sidebarWidth ||
+		mouse.Y < symonHeaderLines || mouse.Y >= s.height-StatusBarHeight {
 		if _, ok := msg.(tea.MouseClickMsg); ok {
 			s.grid.ClearFocus()
 		}
 		return nil
 	}
 
-	adjustedX := mouse.X - ContentPadding
+	adjustedX := mouse.X - sidebarWidth - ContentPadding
 	adjustedY := mouse.Y - symonHeaderLines
 	if adjustedX < 0 || adjustedY < 0 {
 		return nil
@@ -431,22 +448,30 @@ func (s *Symon) handleMouse(msg tea.MouseMsg) tea.Cmd {
 // Rendering helpers
 // --------------------------------------------------------------------
 
-// renderMainView renders the header, system metrics grid, and status bar.
+// renderMainView renders the sidebar, the header and system metrics grid,
+// and the status bar.
 func (s *Symon) renderMainView() string {
-	innerW := max(s.width-ContentPaddingCols, 0)
+	sidebarWidth := s.sidebar.width(s.width)
+	contentHeight := max(s.height-StatusBarHeight, 0)
+	innerW := max(s.width-sidebarWidth-ContentPaddingCols, 0)
+
 	header := symonContainerStyle.Render(
 		renderSystemMetricsHeader(innerW, s.hostname, s.hostStatus(), s.grid))
-	bodyHeight := max(s.height-StatusBarHeight-symonHeaderLines, 0)
 	body := symonContainerStyle.Render(renderSystemMetricsBody(
 		innerW,
-		bodyHeight,
+		max(contentHeight-symonHeaderLines, 0),
 		s.grid,
 		"Collecting system metrics...",
 		"No matching system metrics.",
 	))
+	mainView := lipgloss.JoinVertical(lipgloss.Left, header, body)
+	if sidebarWidth > 0 {
+		sidebar := s.sidebar.View(sidebarWidth, contentHeight, s.latest)
+		mainView = lipgloss.JoinHorizontal(lipgloss.Top, sidebar, mainView)
+	}
 	statusBar := s.renderStatusBar()
 
-	fullView := lipgloss.JoinVertical(lipgloss.Left, header, body, statusBar)
+	fullView := lipgloss.JoinVertical(lipgloss.Left, mainView, statusBar)
 	return lipgloss.Place(s.width, s.height, lipgloss.Left, lipgloss.Top, fullView)
 }
 
@@ -579,7 +604,7 @@ func (s *Symon) resizeGrid() {
 		return
 	}
 	s.grid.Resize(
-		max(s.width-ContentPaddingCols, 0),
+		max(s.width-s.sidebar.width(s.width)-ContentPaddingCols, 0),
 		max(s.height-StatusBarHeight-symonHeaderLines, 1),
 	)
 }
@@ -588,6 +613,14 @@ func (s *Symon) resizeGrid() {
 // keyboard input.
 func (s *Symon) isAwaitingUserInput() bool {
 	return s.grid.IsFilterMode() || s.config.IsAwaitingGridConfig()
+}
+
+// probeCmd gathers the host facts shown in the sidebar.
+func (s *Symon) probeCmd() tea.Cmd {
+	ctx := s.ctx
+	return func() tea.Msg {
+		return s.sampler.Probe(ctx)
+	}
 }
 
 // sampleNowCmd triggers an immediate sampling pass.
