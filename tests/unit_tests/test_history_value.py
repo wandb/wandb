@@ -77,6 +77,33 @@ def test_typed_value_nan():
     assert math.isnan(value_pb.number)
 
 
+@pytest.mark.parametrize(
+    "field, value,expected",
+    [
+        ("text", "café", "café"),
+        ("text", "💥", "💥"),
+        ("json", "\ud800", '"\\ud800"'),
+        ("json", "\udcff", '"\\udcff"'),
+        ("json", "x\udcffy", '"x\\udcffy"'),
+        ("json", "\ud83d\udca5", '"\\ud83d\\udca5"'),
+    ],
+)
+def test_unicode(value, field, expected):
+    item = pb.HistoryItem(key="k")
+
+    set_history_value(
+        item,
+        value,
+        json_form=False,
+        typed_form=True,
+    )
+
+    assert item.value.WhichOneof("value") == field
+    assert getattr(item.value, field) == expected
+    assert item.value_json == ""
+    item.SerializeToString()
+
+
 def test_typed_value_numpy_scalars():
     np = pytest.importorskip("numpy")
 

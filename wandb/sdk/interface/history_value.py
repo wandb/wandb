@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from google.protobuf.struct_pb2 import NULL_VALUE
@@ -79,7 +80,11 @@ def _set_scalar(typed: pb.HistoryValue, value: Any) -> bool:
         typed.number = value
 
     elif isinstance(value, str):
-        typed.text = value
+        try:
+            typed.text = value
+        except UnicodeEncodeError:
+            # Fall back to JSON if the text is not valid Unicode.
+            typed.json = json.dumps(value)
 
     else:
         return False
