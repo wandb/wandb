@@ -1059,12 +1059,11 @@ def sweep(
 
     styled_path = click.style(f"wandb agent {sweep_path}", fg="yellow")
     wandb.termlog(f"Run sweep agent with: {styled_path}")
-    # Hidden until the sweep-scheduler command is public.
-    # if config is not None and config.get("scheduler") is not None:
-    #     styled_scheduler = click.style(
-    #         f"wandb sweep-scheduler {sweep_path}", fg="yellow"
-    #     )
-    #     wandb.termlog(f"Run scheduler with: {styled_scheduler}")
+    if config is not None and config.get("scheduler") is not None:
+        styled_scheduler = click.style(
+            f"wandb sweep-scheduler {sweep_path}", fg="yellow"
+        )
+        wandb.termlog(f"Run scheduler with: {styled_scheduler}")
     if controller:
         wandb.termlog("Starting wandb controller...")
         from wandb import controller as wandb_controller

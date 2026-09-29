@@ -429,6 +429,14 @@ class TestSweepSchedulerCli:
         monkeypatch.setattr(wandb, "Api", lambda *a, **k: api)
         return api
 
+    def test_command_is_hidden_from_help(self) -> None:
+        from click.testing import CliRunner
+        from wandb.cli import cli
+
+        result = CliRunner().invoke(cli.cli, ["--help"])
+
+        assert "sweep-scheduler" not in result.output
+
     def invoke(self, *args: str):
         from click.testing import CliRunner
         from wandb.cli import cli
