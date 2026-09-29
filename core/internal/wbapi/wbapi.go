@@ -8,6 +8,7 @@ package wbapi
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/url"
 
 	"github.com/wandb/wandb/core/internal/api"
@@ -47,22 +48,22 @@ type WandbAPI struct {
 }
 
 // New returns a new WandbAPI.
-func New(
-	s *settings.Settings,
-	serviceName string,
-	logger *observability.CoreLogger,
-) (*WandbAPI, error) {
+func New(s *settings.Settings, serviceName string) (*WandbAPI, error) {
 	baseURL, err := url.Parse(s.GetBaseURL())
 	if err != nil {
 		return nil, fmt.Errorf("error parsing base URL: %v", err)
 	}
 
-	credentialProvider, err := api.NewCredentialProvider(s, logger.Logger)
+	credentialProvider, err := api.NewCredentialProvider(s, slog.Default())
 	if err != nil {
 		return nil, fmt.Errorf("error reading credentials: %v", err)
 	}
 
 	opentelemetryHandler := NewOpenTelemetryHandler(s, serviceName)
+	logger := observability.NewCoreLogger(
+		slog.Default(),
+		opentelemetryHandler.TelemetryRecorder(),
+	)
 
 	graphqlClient := api.NewGQLClient(
 		api.WBBaseURL(baseURL),

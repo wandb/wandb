@@ -1,18 +1,17 @@
 use crate::metrics::MetricValue;
 use crate::wandb_internal::{EnvironmentRecord, GpuNvidiaInfo};
 
-use nvml_wrapper::enum_wrappers::device::{Clock, TemperatureSensor};
+use nvml_wrapper::enum_wrappers::device::{Clock, PcieUtilCounter, TemperatureSensor};
 use nvml_wrapper::enums::gpm::GpmMetricId;
 use nvml_wrapper::error::NvmlError;
 use nvml_wrapper::gpm;
 use nvml_wrapper::{Device, Nvml};
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-/// Minimum interval between GPM sample pairs. NVML hardware counters require
-/// at least 100ms between samples; we use 200ms for margin.
-const GPM_SAMPLE_INTERVAL: Duration = Duration::from_millis(200);
+/// Minimum age of the previous GPM sample before a new one is paired with it.
+/// NVML requires at least 100 ms between the two samples of a pair.
+const GPM_MIN_SAMPLE_INTERVAL: Duration = Duration::from_millis(100);
 
 /// GPM (GPU Performance Monitoring) metrics to collect and their output names.
 ///
@@ -20,22 +19,28 @@ const GPM_SAMPLE_INTERVAL: Duration = Duration::from_millis(200);
 /// consumers (LEET, the web UI, etc.) work identically regardless of whether
 /// metrics came from DCGM or NVML GPM.
 ///
-/// GPM is supported on Hopper+ architectures (H100 and newer). It computes
-/// metrics from two time-separated samples taken during each polling cycle.
-const GPM_METRICS: &[(GpmMetricId, &str)] = &[
-    (GpmMetricId::SmUtil, "smActive"),
-    (GpmMetricId::SmOccupancy, "smOccupancy"),
-    (GpmMetricId::AnyTensorUtil, "pipeTensorActive"),
-    (GpmMetricId::DramBwUtil, "dramActive"),
-    (GpmMetricId::Fp64Util, "pipeFp64Active"),
-    (GpmMetricId::Fp32Util, "pipeFp32Active"),
-    (GpmMetricId::Fp16Util, "pipeFp16Active"),
-    (GpmMetricId::HmmaTensorUtil, "pipeTensorHmmaActive"),
-    (GpmMetricId::PcieTxPerSec, "pcieTxBytes"),
-    (GpmMetricId::PcieRxPerSec, "pcieRxBytes"),
-    (GpmMetricId::NvlinkTotalTxPerSec, "nvlinkTxBytes"),
-    (GpmMetricId::NvlinkTotalRxPerSec, "nvlinkRxBytes"),
+/// GPM is supported on Hopper+ architectures (H100 and newer). Each metric is
+/// computed between the sample taken on the previous poll and a fresh one, so
+/// it is an average over the whole polling interval.
+///
+/// The third element scales NVML's value into the unit the name implies:
+/// percentages are used as is, throughput comes from NVML in MiB/s.
+const GPM_METRICS: &[(GpmMetricId, &str, f64)] = &[
+    (GpmMetricId::SmUtil, "smActive", 1.0),
+    (GpmMetricId::SmOccupancy, "smOccupancy", 1.0),
+    (GpmMetricId::AnyTensorUtil, "pipeTensorActive", 1.0),
+    (GpmMetricId::DramBwUtil, "dramActive", 1.0),
+    (GpmMetricId::Fp64Util, "pipeFp64Active", 1.0),
+    (GpmMetricId::Fp32Util, "pipeFp32Active", 1.0),
+    (GpmMetricId::Fp16Util, "pipeFp16Active", 1.0),
+    (GpmMetricId::HmmaTensorUtil, "pipeTensorHmmaActive", 1.0),
+    (GpmMetricId::PcieTxPerSec, "pcieTxBytes", MIB),
+    (GpmMetricId::PcieRxPerSec, "pcieRxBytes", MIB),
+    (GpmMetricId::NvlinkTotalTxPerSec, "nvlinkTxBytes", MIB),
+    (GpmMetricId::NvlinkTotalRxPerSec, "nvlinkRxBytes", MIB),
 ];
+
+const MIB: f64 = 1024.0 * 1024.0;
 
 /// Static information about a GPU.
 #[derive(Default)]
@@ -49,6 +54,10 @@ struct GpuStaticInfo {
     /// Note that when using the Multi-Instance GPU (MIG) feature, one physical GPU can be
     /// partitioned into multiple GPU instances, all sharing the same UUID.
     uuid: String,
+    /// PCI bus ID as NVML formats it, e.g. "00000000:1B:00.0".
+    pci_bus_id: String,
+    /// NUMA node the GPU is attached to, when the platform reports one.
+    numa_node: Option<u32>,
 }
 
 /// Tracks the availability of GPU metrics for the current system.
@@ -59,6 +68,7 @@ struct GpuMetricAvailability {
     temperature: bool,
     power_usage: bool,
     enforced_power_limit: bool,
+    energy: bool,
     sm_clock: bool,
     mem_clock: bool,
     graphics_clock: bool,
@@ -71,6 +81,7 @@ struct GpuMetricAvailability {
     link_width: bool,
     max_link_gen: bool,
     max_link_width: bool,
+    pcie_throughput: bool,
     gpm: bool,
 }
 
@@ -82,6 +93,7 @@ impl Default for GpuMetricAvailability {
             temperature: true,
             power_usage: true,
             enforced_power_limit: true,
+            energy: true,
             sm_clock: true,
             mem_clock: true,
             graphics_clock: false, // TODO: questionable utility, expensive to retrieve
@@ -95,73 +107,89 @@ impl Default for GpuMetricAvailability {
             link_width: false,
             max_link_gen: false,
             max_link_width: false,
+            pcie_throughput: true,
             gpm: false,
         }
     }
 }
 
 /// Get the path to the NVML library.
-pub fn get_lib_path() -> Result<PathBuf, NvmlError> {
-    #[cfg(target_os = "windows")]
-    {
-        use std::env;
-        use std::path::Path;
+#[cfg(target_os = "windows")]
+fn get_lib_path() -> Result<std::path::PathBuf, NvmlError> {
+    use std::env;
+    use std::path::{Path, PathBuf};
 
-        let mut search_paths = Vec::new();
+    let mut search_paths = Vec::new();
 
-        // First, check for nvml.dll in System32 for DCH drivers
-        let windir = env::var("WINDIR").unwrap_or_else(|_| "C:\\Windows".to_string());
-        let path1 = Path::new(&windir).join("System32").join("nvml.dll");
-        search_paths.push(path1);
+    // First, check for nvml.dll in System32 for DCH drivers
+    let windir = env::var("WINDIR").unwrap_or_else(|_| "C:\\Windows".to_string());
+    let path1 = Path::new(&windir).join("System32").join("nvml.dll");
+    search_paths.push(path1);
 
-        // Then, check in Program Files
-        let program_files =
-            env::var("ProgramFiles").unwrap_or_else(|_| "C:\\Program Files".to_string());
-        let path2 = Path::new(&program_files)
-            .join("NVIDIA Corporation")
-            .join("NVSMI")
-            .join("nvml.dll");
-        search_paths.push(path2);
+    // Then, check in Program Files
+    let program_files =
+        env::var("ProgramFiles").unwrap_or_else(|_| "C:\\Program Files".to_string());
+    let path2 = Path::new(&program_files)
+        .join("NVIDIA Corporation")
+        .join("NVSMI")
+        .join("nvml.dll");
+    search_paths.push(path2);
 
-        // Finally, check for NVML_DLL_PATH environment variable
-        if let Ok(nvml_path) = env::var("NVML_DLL_PATH") {
-            search_paths.push(PathBuf::from(nvml_path));
-        }
-
-        // Check if nvml.dll exists in any of the search paths
-        for path in &search_paths {
-            if path.exists() {
-                return Ok(path.clone());
-            }
-        }
-
-        return Err(NvmlError::NotFound);
+    // Finally, check for NVML_DLL_PATH environment variable
+    if let Ok(nvml_path) = env::var("NVML_DLL_PATH") {
+        search_paths.push(PathBuf::from(nvml_path));
     }
 
-    #[cfg(not(target_os = "windows"))]
-    {
-        // On Linux, Nvml::init() attempts to load libnvidia-ml.so, which is usually a symlink
-        // to libnvidia-ml.so.1 and not available in certain environments.
-        // We follow NVIDIA's go-nvml example and attempt to load libnvidia-ml.so.1 directly, see:
-        // https://github.com/NVIDIA/go-nvml/blob/0e815c71ca6e8184387d8b502b2ef2d2722165b9/pkg/nvml/lib.go#L30
-        Ok(PathBuf::from("libnvidia-ml.so.1"))
+    // Check if nvml.dll exists in any of the search paths
+    for path in &search_paths {
+        if path.exists() {
+            return Ok(path.clone());
+        }
     }
+
+    Err(NvmlError::NotFound)
+}
+
+/// The NUMA node a PCI device is attached to, from sysfs. `None` where the
+/// platform does not report one.
+///
+/// NVML's own `nvmlDeviceGetNumaNodeId` is not used: it applies only to
+/// platforms where the GPU itself is a NUMA node.
+#[cfg(target_os = "linux")]
+fn pci_numa_node(pci_info: &nvml_wrapper::struct_wrappers::device::PciInfo) -> Option<u32> {
+    let path = format!(
+        "/sys/bus/pci/devices/{:04x}:{:02x}:{:02x}.0/numa_node",
+        pci_info.domain, pci_info.bus, pci_info.device
+    );
+    std::fs::read_to_string(path).ok()?.trim().parse().ok()
+}
+
+#[cfg(not(target_os = "linux"))]
+fn pci_numa_node(_pci_info: &nvml_wrapper::struct_wrappers::device::PciInfo) -> Option<u32> {
+    None
 }
 
 /// NvidiaGpu collects metadata and metrics from NVIDIA GPUs using NVML.
 pub struct NvidiaGpu {
-    nvml: Nvml,
+    /// Leaked so that the GPM samples, which borrow it, can be stored alongside.
+    nvml: &'static Nvml,
     cuda_version: String,
     device_count: u32,
     gpu_static_info: Vec<GpuStaticInfo>,
     gpu_metric_availability: Vec<GpuMetricAvailability>,
+    /// The GPM sample from the previous poll and when it was taken, per device.
+    gpm_samples: Vec<Option<(gpm::GpmSample<'static>, Instant)>>,
 }
 
 impl NvidiaGpu {
     pub fn new() -> Result<Self, NvmlError> {
-        let lib_path = get_lib_path()?;
-
-        let nvml = Nvml::builder().lib_path(lib_path.as_os_str()).init()?;
+        #[cfg(target_os = "windows")]
+        let nvml = Nvml::builder()
+            .lib_path(get_lib_path()?.as_os_str())
+            .init()?;
+        #[cfg(not(target_os = "windows"))]
+        let nvml = Nvml::init()?;
+        let nvml: &'static Nvml = Box::leak(Box::new(nvml));
         let cuda_version = nvml.sys_cuda_driver_version()?;
         let device_count = nvml.device_count()?;
 
@@ -186,6 +214,10 @@ impl NvidiaGpu {
             }
             if let Ok(architecture) = device.architecture() {
                 static_info.architecture = format!("{:?}", architecture);
+            }
+            if let Ok(pci_info) = device.pci_info() {
+                static_info.numa_node = pci_numa_node(&pci_info);
+                static_info.pci_bus_id = pci_info.bus_id;
             }
 
             gpu_static_info.push(static_info);
@@ -215,13 +247,14 @@ impl NvidiaGpu {
             device_count,
             gpu_static_info,
             gpu_metric_availability,
+            gpm_samples: (0..device_count).map(|_| None).collect(),
         })
     }
 
     /// Check if a GPU is being used by a specific process or its descendants.
     #[cfg(target_os = "linux")]
     fn gpu_in_use_by_process(&self, device: &Device, pid: i32) -> bool {
-        let mut our_pids = Vec::new();
+        let mut our_pids = vec![pid];
         if let Ok(descendant_pids) = self.get_descendant_pids(pid) {
             our_pids.extend(descendant_pids);
         }
@@ -302,6 +335,7 @@ impl NvidiaGpu {
     /// gpu.{i}.powerWatts: The power consumption of the GPU at index i (in Watts).
     /// gpu.{i}.enforcedPowerLimitWatts: The enforced power limit of the GPU at index i (in Watts).
     /// gpu.{i}.powerPercent: The percentage of power limit being used by the GPU at index i.
+    /// gpu.{i}.energyJoules: Energy consumed by the GPU at index i since its driver loaded (in Joules).
     /// gpu.{i}.graphicsClock: The current graphics clock speed of the GPU at index i (in MHz).
     /// gpu.{i}.memoryClock: The current memory clock speed of the GPU at index i (in MHz).
     /// gpu.{i}.smClock: The current SM clock speed of the GPU at index i (in MHz).
@@ -312,6 +346,8 @@ impl NvidiaGpu {
     /// gpu.{i}.pcieLinkWidth: The current PCIe link width of the GPU at index i.
     /// gpu.{i}.maxPcieLinkGen: The maximum PCIe link generation supported by the GPU at index i.
     /// gpu.{i}.maxPcieLinkWidth: The maximum PCIe link width supported by the GPU at index i.
+    /// gpu.{i}.pcieTxBytes / pcieRxBytes: PCIe throughput (bytes/sec). On GPUs without GPM this
+    ///    is NVML's reading over a 20 ms window.
     /// gpu.{i}.cudaCores: The number of CUDA cores in the GPU at index i.
     /// gpu.{i}.architecture: The architecture of the GPU at index i (e.g., Ampere, Turing).
     /// gpu.process.{i}.*: Various metrics specific to the monitored process
@@ -361,33 +397,7 @@ impl NvidiaGpu {
             MetricValue::Int(self.device_count as i64),
         ));
 
-        let gpm_metric_ids: Vec<GpmMetricId> = GPM_METRICS.iter().map(|(id, _)| *id).collect();
-
-        // GPM phase 1: take the first sample for every GPM-capable device
-        // up front so the normal NVML collection fills the sampling window
-        // instead of sleeping serially per GPU.
-        let mut gpm_first_samples: Vec<Option<gpm::GpmSample<'_>>> =
-            (0..self.device_count).map(|_| None).collect();
-        let gpm_start = Instant::now();
-        for di in 0..self.device_count {
-            if let Some(ref ids) = gpu_device_ids {
-                if !ids.contains(&(di as i32)) {
-                    continue;
-                }
-            }
-            if self.gpu_metric_availability[di as usize].gpm {
-                if let Ok(device) = self.nvml.device_by_index(di) {
-                    match device.gpm_sample() {
-                        Ok(sample) => {
-                            gpm_first_samples[di as usize] = Some(sample);
-                        }
-                        Err(_) => {
-                            self.gpu_metric_availability[di as usize].gpm = false;
-                        }
-                    }
-                }
-            }
-        }
+        let gpm_metric_ids: Vec<GpmMetricId> = GPM_METRICS.iter().map(|(id, _, _)| *id).collect();
 
         for di in 0..self.device_count {
             // Skip GPU if not in the list of device IDs to monitor.
@@ -426,6 +436,16 @@ impl NvidiaGpu {
                 format!("_gpu.{}.architecture", di),
                 MetricValue::String(self.gpu_static_info[di as usize].architecture.clone()),
             ));
+            metrics.push((
+                format!("_gpu.{}.pciBusId", di),
+                MetricValue::String(self.gpu_static_info[di as usize].pci_bus_id.clone()),
+            ));
+            if let Some(numa_node) = self.gpu_static_info[di as usize].numa_node {
+                metrics.push((
+                    format!("_gpu.{}.numaNode", di),
+                    MetricValue::Int(numa_node as i64),
+                ));
+            }
 
             // Collect dynamic metrics for the GPU if pid != 0
             let gpu_in_use = match pid {
@@ -571,6 +591,21 @@ impl NvidiaGpu {
                     }
                     Err(_) => {
                         availability.power_usage = false;
+                    }
+                }
+            }
+
+            // Energy
+            if availability.energy {
+                match device.total_energy_consumption() {
+                    Ok(millijoules) => {
+                        metrics.push((
+                            format!("gpu.{}.energyJoules", di),
+                            MetricValue::Float(millijoules as f64 / 1000.0),
+                        ));
+                    }
+                    Err(_) => {
+                        availability.energy = false;
                     }
                 }
             }
@@ -772,49 +807,66 @@ impl NvidiaGpu {
                     }
                 }
             }
-        }
 
-        // GPM phase 2: the normal NVML collection above filled part of the
-        // sampling window. Sleep only the remaining time (if any), then take
-        // the second sample for each device and compute the derived metrics.
-        let has_gpm_samples = gpm_first_samples.iter().any(|s| s.is_some());
-        if has_gpm_samples {
-            let elapsed = gpm_start.elapsed();
-            if elapsed < GPM_SAMPLE_INTERVAL {
-                std::thread::sleep(GPM_SAMPLE_INTERVAL - elapsed);
+            // PCIe throughput. GPUs with GPM report it among the GPM metrics below.
+            if availability.pcie_throughput && !availability.gpm {
+                match (
+                    device.pcie_throughput(PcieUtilCounter::Send),
+                    device.pcie_throughput(PcieUtilCounter::Receive),
+                ) {
+                    (Ok(tx), Ok(rx)) => {
+                        metrics.push((
+                            format!("gpu.{}.pcieTxBytes", di),
+                            MetricValue::Float(tx as f64 * 1024.0),
+                        ));
+                        metrics.push((
+                            format!("gpu.{}.pcieRxBytes", di),
+                            MetricValue::Float(rx as f64 * 1024.0),
+                        ));
+                    }
+                    _ => {
+                        availability.pcie_throughput = false;
+                    }
+                }
             }
 
-            for di in 0..self.device_count {
-                if let Some(sample1) = gpm_first_samples[di as usize].take() {
-                    let device = match self.nvml.device_by_index(di) {
-                        Ok(d) => d,
-                        Err(_) => continue,
-                    };
+            // GPM metrics, computed between the previous poll's sample and a fresh one.
+            if availability.gpm {
+                let slot = &mut self.gpm_samples[di as usize];
+                let due = slot
+                    .as_ref()
+                    .is_none_or(|(_, taken_at)| taken_at.elapsed() >= GPM_MIN_SAMPLE_INTERVAL);
+                if due {
                     match device.gpm_sample() {
-                        Ok(sample2) => {
-                            match gpm::gpm_metrics_get(
-                                &self.nvml,
-                                &sample1,
-                                &sample2,
-                                &gpm_metric_ids,
-                            ) {
-                                Ok(results) => {
-                                    for (result, (_, name)) in results.iter().zip(GPM_METRICS) {
-                                        if let Ok(m) = result {
-                                            metrics.push((
-                                                format!("gpu.{}.{}", di, name),
-                                                MetricValue::Float(m.value),
-                                            ));
+                        Ok(sample) => {
+                            if let Some((previous, _)) = slot.take() {
+                                match gpm::gpm_metrics_get(
+                                    self.nvml,
+                                    &previous,
+                                    &sample,
+                                    &gpm_metric_ids,
+                                ) {
+                                    Ok(results) => {
+                                        for (result, (_, name, scale)) in
+                                            results.iter().zip(GPM_METRICS)
+                                        {
+                                            if let Ok(m) = result {
+                                                metrics.push((
+                                                    format!("gpu.{}.{}", di, name),
+                                                    MetricValue::Float(m.value * scale),
+                                                ));
+                                            }
                                         }
                                     }
-                                }
-                                Err(_) => {
-                                    self.gpu_metric_availability[di as usize].gpm = false;
+                                    Err(_) => {
+                                        availability.gpm = false;
+                                    }
                                 }
                             }
+                            *slot = Some((sample, Instant::now()));
                         }
                         Err(_) => {
-                            self.gpu_metric_availability[di as usize].gpm = false;
+                            availability.gpm = false;
                         }
                     }
                 }
@@ -879,6 +931,16 @@ impl NvidiaGpu {
             if let Some(value) = samples.get(&format!("_gpu.{}.uuid", i)) {
                 if let MetricValue::String(uuid) = value {
                     gpu_nvidia.uuid = uuid.clone();
+                }
+            }
+            if let Some(value) = samples.get(&format!("_gpu.{}.pciBusId", i)) {
+                if let MetricValue::String(pci_bus_id) = value {
+                    gpu_nvidia.pci_bus_id = pci_bus_id.clone();
+                }
+            }
+            if let Some(value) = samples.get(&format!("_gpu.{}.numaNode", i)) {
+                if let MetricValue::Int(numa_node) = value {
+                    gpu_nvidia.numa_node = Some(*numa_node as u32);
                 }
             }
             metadata.gpu_nvidia.push(gpu_nvidia);

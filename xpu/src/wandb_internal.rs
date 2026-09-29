@@ -987,17 +987,45 @@ pub struct HistoryRecord {
     #[prost(message, optional, tag = "200")]
     pub info: ::core::option::Option<RecordInfo>,
 }
+/// A logged value with its type.
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct HistoryValue {
+    #[prost(oneof = "history_value::Value", tags = "1, 2, 3, 4, 5, 6")]
+    pub value: ::core::option::Option<history_value::Value>,
+}
+/// Nested message and enum types in `HistoryValue`.
+pub mod history_value {
+    #[derive(Clone, PartialEq, ::prost::Oneof)]
+    pub enum Value {
+        #[prost(enumeration = "::prost_types::NullValue", tag = "1")]
+        None(i32),
+        #[prost(bool, tag = "2")]
+        Boolean(bool),
+        #[prost(sint64, tag = "3")]
+        Integer(i64),
+        #[prost(double, tag = "4")]
+        Number(f64),
+        #[prost(string, tag = "5")]
+        Text(::prost::alloc::string::String),
+        #[prost(string, tag = "6")]
+        Json(::prost::alloc::string::String),
+    }
+}
 /// HistoryItem:
 ///
 /// key and nested_key are mutually exclusive. Only one of them should be set.
 /// key is supposedly more performant than nested_key, so nested_key should be
 /// only used for nested keys.
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct HistoryItem {
     #[prost(string, tag = "1")]
     pub key: ::prost::alloc::string::String,
     #[prost(string, repeated, tag = "2")]
     pub nested_key: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    /// The typed form of `value_json`. A writer may set one,
+    /// or both. A reader prefers `value` and falls back to `value_json`.
+    #[prost(message, optional, tag = "3")]
+    pub value: ::core::option::Option<HistoryValue>,
     #[prost(string, tag = "16")]
     pub value_json: ::prost::alloc::string::String,
 }
@@ -2669,6 +2697,12 @@ pub struct GpuNvidiaInfo {
     pub architecture: ::prost::alloc::string::String,
     #[prost(string, tag = "5")]
     pub uuid: ::prost::alloc::string::String,
+    /// PCI bus ID as reported by NVML, e.g. "00000000:1B:00.0".
+    #[prost(string, tag = "6")]
+    pub pci_bus_id: ::prost::alloc::string::String,
+    /// NUMA node the GPU is attached to, when known.
+    #[prost(uint32, optional, tag = "7")]
+    pub numa_node: ::core::option::Option<u32>,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct GpuAmdInfo {
@@ -3009,6 +3043,8 @@ pub enum ServerFeature {
     ArtifactDigestAlgorithm = 36,
     /// Indicates that the server supports automation action ARIA.
     AutomationActionAria = 37,
+    /// Indicates that the server supports CoreWeave Evaluation Service.
+    EvalTablesCes = 38,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -3078,6 +3114,7 @@ impl ServerFeature {
             Self::SweepsLocalScheduler => "SWEEPS_LOCAL_SCHEDULER",
             Self::ArtifactDigestAlgorithm => "ARTIFACT_DIGEST_ALGORITHM",
             Self::AutomationActionAria => "AUTOMATION_ACTION_ARIA",
+            Self::EvalTablesCes => "EVAL_TABLES_CES",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -3152,6 +3189,7 @@ impl ServerFeature {
             "SWEEPS_LOCAL_SCHEDULER" => Some(Self::SweepsLocalScheduler),
             "ARTIFACT_DIGEST_ALGORITHM" => Some(Self::ArtifactDigestAlgorithm),
             "AUTOMATION_ACTION_ARIA" => Some(Self::AutomationActionAria),
+            "EVAL_TABLES_CES" => Some(Self::EvalTablesCes),
             _ => None,
         }
     }

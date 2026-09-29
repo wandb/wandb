@@ -1,12 +1,14 @@
 package stream
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
 
 	"github.com/google/wire"
 
+	"github.com/wandb/wandb/core/internal/filestreamstats"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -21,6 +23,7 @@ var WriterProviders = wire.NewSet(
 type WriterFactory struct {
 	Logger   *observability.CoreLogger
 	Settings *settings.Settings
+	Stats    *filestreamstats.Stats
 }
 
 // Writer saves work to the transaction log.
@@ -48,6 +51,9 @@ type Writer struct {
 
 	// recordNum the number of records we've attempted to save.
 	recordNum int64
+
+	// stats measures the cost of the upload pipeline. It may be nil.
+	stats *filestreamstats.Stats
 }
 
 // New returns a new Writer.
@@ -57,6 +63,7 @@ func (f *WriterFactory) New(writer *transactionlog.Writer) *Writer {
 		settings: f.Settings,
 		out:      make(chan runwork.MaybeSavedWork),
 		writer:   writer,
+		stats:    f.Stats,
 	}
 }
 
@@ -164,11 +171,28 @@ func (w *Writer) write(record *spb.Record) (int64, error) {
 	w.writerMu.Lock()
 	defer w.writerMu.Unlock()
 
-	if err := w.writer.Write(record); err != nil {
+	start := time.Now()
+	err := w.writer.Write(record)
+	marshalDuration := time.Since(start)
+	if err != nil {
 		return 0, err
 	}
 
-	return w.writer.LastRecordOffset()
+	if record.GetHistory() != nil {
+		w.stats.RecordSegment(
+			context.Background(),
+			filestreamstats.SegmentTxLogMarshal,
+			filestreamstats.StreamHistory,
+			marshalDuration,
+		)
+	}
+
+	offset, err := w.writer.LastRecordOffset()
+	if err == nil {
+		// The offset after the last record is the size of the log so far.
+		w.stats.SetTxLogBytes(offset)
+	}
+	return offset, err
 }
 
 // Flush ensures all Work the Writer has output has been written to disk.

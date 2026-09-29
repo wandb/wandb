@@ -180,16 +180,6 @@ func (r *RunReader) ProcessTransactionLog(ctx context.Context) (err error) {
 			if err != nil {
 				return err
 			}
-
-			// The RunStart request is required to come after a Run record,
-			// but its contents are irrelevant when syncing. It causes
-			// the Sender to start FileStream.
-			r.parseAndAddWork(
-				&spb.Record{RecordType: &spb.Record_Request{
-					Request: &spb.Request{RequestType: &spb.Request_RunStart{
-						RunStart: &spb.RunStartRequest{},
-					}},
-				}})
 		}
 	}
 }

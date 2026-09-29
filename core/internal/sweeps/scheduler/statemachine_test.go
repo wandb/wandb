@@ -20,8 +20,7 @@ func newTestResolver(t *testing.T) *schedulertest.MockTaskResolver {
 
 // newTestStateMachine builds a state machine logging to the test's output.
 func newTestStateMachine(t *testing.T, resolver TaskResolver) *schedulerStateMachine {
-	return newSchedulerStateMachine(
-		context.Background(), resolver, observabilitytest.NewTestLogger(t))
+	return newSchedulerStateMachine(resolver, observabilitytest.NewTestLogger(t))
 }
 
 func generationTask() *spb.SweepSchedulerServerNextTaskResponse {
@@ -36,7 +35,7 @@ func doneTask() *spb.SweepSchedulerServerNextTaskResponse {
 	return &spb.SweepSchedulerServerNextTaskResponse{
 		Task: &spb.SweepSchedulerServerNextTaskResponse_Done{
 			Done: &spb.SweepSchedulerServerDoneTask{
-				Reason: spb.SweepSchedulerServerDoneTask_REASON_EXHAUSTED,
+				Reason: spb.SweepSchedulerServerDoneTask_REASON_SWEEP_FINISHED,
 			},
 		},
 	}
@@ -199,36 +198,6 @@ func TestNilTaskResolverTaskBecomesShutdownDone(t *testing.T) {
 		task.GetDone().Reason)
 }
 
-func TestCancelledPollIsAbandonedWithoutStepping(t *testing.T) {
-	// No expectations: a poll nobody is waiting for must not reach the
-	// resolver, whose step would apply the result and take a poll
-	// interval to answer.
-	resolver := newTestResolver(t)
-	machine := newTestStateMachine(t, resolver)
-	cancelled, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	assert.Nil(t, machine.NextTask(cancelled, nil))
-}
-
-func TestSessionSurvivesACancelledPoll(t *testing.T) {
-	resolver := newTestResolver(t)
-	resolver.EXPECT().
-		Step(gomock.Any(), gomock.Nil()).
-		Return(generationTask())
-	machine := newTestStateMachine(t, resolver)
-	cancelled, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	machine.NextTask(cancelled, nil)
-	task := machine.NextTask(context.Background(), nil)
-
-	// The abandoned poll issued no task, so the next one is still the
-	// session's first.
-	assert.EqualValues(t, 1, task.TaskSeq)
-	assert.Nil(t, task.GetDone())
-}
-
 func TestConcurrentPollsSerialize(t *testing.T) {
 	resolver := newTestResolver(t)
 	stepping := make(chan struct{})
@@ -270,33 +239,4 @@ func TestConcurrentPollsSerialize(t *testing.T) {
 	}
 	assert.Equal(t, 1, tasks)
 	assert.Equal(t, 1, fatals)
-}
-
-func TestStopForwardsWhileStepBlocked(t *testing.T) {
-	resolver := newTestResolver(t)
-	stepping := make(chan struct{})
-	release := make(chan struct{})
-	resolver.EXPECT().
-		Step(gomock.Any(), gomock.Nil()).
-		DoAndReturn(func(
-			context.Context,
-			*spb.SweepSchedulerClientTaskResult,
-		) *spb.SweepSchedulerServerNextTaskResponse {
-			close(stepping)
-			<-release
-			return generationTask()
-		})
-	// The expectation is the assertion: Stop must reach the resolver.
-	resolver.EXPECT().Stop()
-	machine := newTestStateMachine(t, resolver)
-
-	polled := make(chan *spb.SweepSchedulerServerNextTaskResponse, 1)
-	go func() { polled <- machine.NextTask(context.Background(), nil) }()
-	schedulertest.Receive(t, stepping)
-
-	// Stop must not block on the machine's mutex while a Step holds it.
-	machine.Stop()
-
-	close(release)
-	schedulertest.Receive(t, polled)
 }

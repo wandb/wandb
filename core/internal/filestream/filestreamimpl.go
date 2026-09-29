@@ -3,15 +3,18 @@ package filestream
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
 
+	"github.com/wandb/wandb/core/internal/filestreamstats"
 	"github.com/wandb/wandb/core/internal/wboperation"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -39,6 +42,7 @@ func (fs *fileStream) startProcessingUpdates(
 
 				Logger:  fs.logger,
 				Printer: fs.printer,
+				Stats:   fs.stats,
 			})
 
 			if err != nil {
@@ -131,7 +135,9 @@ func (fs *fileStream) send(
 		return fmt.Errorf("filestream: can't send because I am dead")
 	}
 
+	marshalStart := time.Now()
 	jsonData, err := json.Marshal(data)
+	marshalDuration := time.Since(marshalStart)
 	if err != nil {
 		return fmt.Errorf("filestream: json marshal error in send(): %v", err)
 	}
@@ -143,8 +149,10 @@ func (fs *fileStream) send(
 			spb.ServerFeature_FILESTREAM_GZIP,
 		)
 
+	var compressDuration time.Duration
 	requestBody := jsonData
 	if useGzip {
+		compressStart := time.Now()
 		var compressed bytes.Buffer
 		gzipWriter := gzip.NewWriter(&compressed)
 		if _, err := gzipWriter.Write(jsonData); err != nil {
@@ -154,7 +162,35 @@ func (fs *fileStream) send(
 			return fmt.Errorf("filestream: gzip close error in send(): %v", err)
 		}
 		requestBody = compressed.Bytes()
+		compressDuration = time.Since(compressStart)
 	}
+
+	// These two segments belong to the request, not to a data stream: one
+	// request carries history, events, summary and console output together.
+	fs.stats.RecordSegment(
+		context.Background(),
+		filestreamstats.SegmentRequestMarshal,
+		filestreamstats.StreamNone,
+		marshalDuration,
+	)
+	if useGzip {
+		fs.stats.RecordSegment(
+			context.Background(),
+			filestreamstats.SegmentRequestCompress,
+			filestreamstats.StreamNone,
+			compressDuration,
+		)
+	}
+
+	report := filestreamstats.RequestReport{
+		UncompressedBytes: len(jsonData),
+		CompressedBytes:   len(requestBody),
+		Compressed:        useGzip,
+	}
+
+	// A heartbeat carries nothing and runs on a fixed cadence, so it is not
+	// reported. Counting it would swamp the request count of an idle run.
+	isHeartbeat := data.IsHeartbeat()
 
 	op := fs.trackUploadOperation(data)
 	defer op.Finish()
@@ -178,7 +214,14 @@ func (fs *fileStream) send(
 		fs.logRequestSummary(data)
 	}
 
+	httpStart := time.Now()
 	resp, err := fs.apiClient.Do(req)
+	httpDuration := time.Since(httpStart)
+
+	if !isHeartbeat {
+		report.HTTPDuration = httpDuration
+		fs.stats.RecordRequest(context.Background(), report)
+	}
 
 	switch {
 	case err != nil:

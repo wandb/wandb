@@ -1,4 +1,4 @@
-use arrow::array::{Array, ArrayRef, Int64Array, RecordBatch, StringArray, StructArray};
+use arrow::array::{Array, ArrayRef, Float64Array, Int64Array, RecordBatch, StringArray, StructArray};
 use arrow::datatypes::{DataType, Field, Schema};
 use arrow_rs_wrapper::*;
 use parquet::arrow::ArrowWriter;
@@ -696,9 +696,10 @@ fn test_reader_scan_step_range_http_with_columns_subset() {
     }
 }
 
-fn create_test_parquet_file_with_int64_step(path: &str, num_rows: usize) -> std::io::Result<()> {
+fn create_test_parquet_file_with_step_column(path: &str, steps: ArrayRef) -> std::io::Result<()> {
+    let num_rows = steps.len();
     let schema = Arc::new(Schema::new(vec![
-        Field::new(STEP_COLUMN_NAME, DataType::Int64, false),
+        Field::new(STEP_COLUMN_NAME, steps.data_type().clone(), false),
         Field::new("value", DataType::Int64, false),
         Field::new("name", DataType::Utf8, false),
     ]));
@@ -708,7 +709,6 @@ fn create_test_parquet_file_with_int64_step(path: &str, num_rows: usize) -> std:
     let mut writer = ArrowWriter::try_new(file, schema.clone(), Some(props))
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
-    let step_values: Vec<i64> = (0..num_rows).map(|i| i as i64).collect();
     let int_values: Vec<i64> = (0..num_rows).map(|i| (i * 10) as i64).collect();
     let string_values: Vec<&str> = (0..num_rows)
         .map(|i| if i % 2 == 0 { "even" } else { "odd" })
@@ -717,7 +717,7 @@ fn create_test_parquet_file_with_int64_step(path: &str, num_rows: usize) -> std:
     let batch = RecordBatch::try_new(
         schema,
         vec![
-            Arc::new(Int64Array::from(step_values)),
+            steps,
             Arc::new(Int64Array::from(int_values)),
             Arc::new(StringArray::from(string_values)),
         ],
@@ -738,7 +738,9 @@ fn create_test_parquet_file_with_int64_step(path: &str, num_rows: usize) -> std:
 fn test_reader_scan_with_int64_step_column() {
     let temp_dir = TempDir::new().unwrap();
     let file_path = temp_dir.path().join("test_int64.parquet");
-    create_test_parquet_file_with_int64_step(file_path.to_str().unwrap(), 100).unwrap();
+    let steps: Vec<i64> = (0..100).collect();
+    create_test_parquet_file_with_step_column(file_path.to_str().unwrap(), Arc::new(Int64Array::from(steps)))
+        .unwrap();
 
     let path_cstring = CString::new(file_path.to_str().unwrap()).unwrap();
     let mut out_error: *mut libc::c_char = std::ptr::null_mut();
@@ -765,6 +767,44 @@ fn test_reader_scan_with_int64_step_column() {
         string_values,
         vec!["even", "odd", "even", "odd", "even", "odd", "even", "odd", "even", "odd"]
     );
+
+    unsafe {
+        free_buffer(result.vec_ptr as *mut Vec<u8>);
+        free_reader(reader_ptr);
+    }
+}
+
+#[test]
+fn test_reader_scan_with_float64_step_column() {
+    let temp_dir = TempDir::new().unwrap();
+    let file_path = temp_dir.path().join("test_float64.parquet");
+    let steps: Vec<f64> = (0..100).map(|i| i as f64 + 0.5).collect();
+    create_test_parquet_file_with_step_column(file_path.to_str().unwrap(), Arc::new(Float64Array::from(steps)))
+        .unwrap();
+
+    let path_cstring = CString::new(file_path.to_str().unwrap()).unwrap();
+    let mut out_error: *mut libc::c_char = std::ptr::null_mut();
+    let reader_ptr = unsafe {
+        create_reader(path_cstring.as_ptr(), std::ptr::null(), 0, &mut out_error)
+    };
+    assert!(!reader_ptr.is_null());
+
+    let mut result = StepScanResult {
+        vec_ptr: 0, data_ptr: 0, data_len: 0, num_rows_returned: 0,
+    };
+
+    let error = unsafe { reader_scan_step_range(reader_ptr, 10, 20, &mut result) };
+    assert!(error.is_null());
+
+    // Steps are truncated for the range check and serialized as written.
+    let steps: Vec<f64> = parse_result(&result)
+        .iter()
+        .map(|row| match &row.columns[0] {
+            (name, KvValue::Float64(v)) if name == STEP_COLUMN_NAME => *v,
+            other => panic!("unexpected step column {other:?}"),
+        })
+        .collect();
+    assert_eq!(steps, (10..20).map(|i| i as f64 + 0.5).collect::<Vec<_>>());
 
     unsafe {
         free_buffer(result.vec_ptr as *mut Vec<u8>);

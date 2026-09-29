@@ -53,7 +53,7 @@ class JupyterServerManager:
                 "--no-browser",
                 f"--ServerApp.root_dir={server_dir}",
                 "--ServerApp.disable_check_xsrf=True",
-                "--allow-root",  # CircleCI runs as root
+                "--allow-root",  # Jupyter refuses to start as root, which tests in containers are.
             ]
         )
         self.server_thread = threading.Thread(target=self.server_app.start, daemon=True)

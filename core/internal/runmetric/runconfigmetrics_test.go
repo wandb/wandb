@@ -10,17 +10,17 @@ import (
 )
 
 func TestMetricSelfStep(t *testing.T) {
-	rcm := runmetric.NewRunConfigMetrics()
+	rh := runmetric.New()
 
-	_ = rcm.ProcessRecord(&spb.MetricRecord{
+	_ = rh.ProcessRecord(&spb.MetricRecord{
 		Name:       "x",
 		StepMetric: "y",
 	})
-	_ = rcm.ProcessRecord(&spb.MetricRecord{
+	_ = rh.ProcessRecord(&spb.MetricRecord{
 		Name:       "y",
 		StepMetric: "x",
 	})
-	config := rcm.ToRunConfigData()
+	config := rh.ToRunConfigData()
 
 	assert.Len(t, config, 2)
 
@@ -33,13 +33,13 @@ func TestMetricSelfStep(t *testing.T) {
 }
 
 func TestMetricGlob(t *testing.T) {
-	rcm := runmetric.NewRunConfigMetrics()
+	rh := runmetric.New()
 
-	_ = rcm.ProcessRecord(&spb.MetricRecord{
+	_ = rh.ProcessRecord(&spb.MetricRecord{
 		GlobName:   "x/*",
 		StepMetric: "y",
 	})
-	config := rcm.ToRunConfigData()
+	config := rh.ToRunConfigData()
 
 	assert.Len(t, config, 2)
 

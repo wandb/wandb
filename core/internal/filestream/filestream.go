@@ -14,6 +14,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/featurechecker"
+	"github.com/wandb/wandb/core/internal/filestreamstats"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/wboperation"
@@ -138,6 +139,11 @@ type fileStream struct {
 	//
 	// Once it becomes true, it does not switch back to false.
 	stopState atomic.Bool
+
+	// stats measures the cost of the upload pipeline for this run.
+	//
+	// It may be nil, in which case nothing is measured.
+	stats *filestreamstats.Stats
 }
 
 // FileStreamProviders binds FileStreamFactory.
@@ -152,6 +158,7 @@ type FileStreamFactory struct {
 	Operations      *wboperation.WandbOperations
 	Printer         *observability.Printer
 	Settings        *settings.Settings
+	Stats           *filestreamstats.Stats
 }
 
 // New returns a new FileStream.
@@ -184,6 +191,7 @@ func (f *FileStreamFactory) New(
 		feedbackWait:    &sync.WaitGroup{},
 		deadChanOnce:    &sync.Once{},
 		deadChan:        make(chan struct{}),
+		stats:           f.Stats,
 	}
 
 	fs.heartbeatPeriod = heartbeatPeriod

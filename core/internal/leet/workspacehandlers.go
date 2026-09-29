@@ -4,7 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
+	"slices"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -80,6 +82,10 @@ func (w *Workspace) handleKeyPressMsg(msg tea.KeyPressMsg) tea.Cmd {
 	if w.consoleLogsPane.IsFilterMode() {
 		w.consoleLogsPane.HandleFilterKey(msg)
 		return nil
+	}
+
+	if w.pendingSelectAll != nil {
+		return w.confirmSelectAll(msg)
 	}
 
 	// Grid config capture takes priority.
@@ -640,6 +646,7 @@ func (w *Workspace) handleWorkspaceInitErr(msg WorkspaceInitErrMsg) tea.Cmd {
 	// Revert selection state so we don't get stuck with "selected but never loads".
 	if msg.RunKey != "" {
 		w.dropRun(msg.RunKey)
+		w.rememberRuns()
 	}
 
 	if msg.Err != nil && !os.IsNotExist(msg.Err) {
@@ -1230,9 +1237,17 @@ func (w *Workspace) toggleRunSelected(runKey string) tea.Cmd {
 
 	if _, selected := w.selectedRuns[runKey]; selected {
 		w.dropRun(runKey)
+		w.rememberRuns()
 		return nil
 	}
 
+	cmd := w.selectRun(runKey)
+	w.rememberRuns()
+	return cmd
+}
+
+// selectRun selects the run, pins it if no run is pinned, and starts loading it.
+func (w *Workspace) selectRun(runKey string) tea.Cmd {
 	// Resolve the run file before mutating selection state so we don't end up
 	// "selected but unloadable" if the key can't be mapped to a .wandb file.
 	wandbFile := runWandbFile(w.wandbDir, runKey)
@@ -1251,6 +1266,17 @@ func (w *Workspace) toggleRunSelected(runKey string) tea.Cmd {
 	}
 
 	return w.initReaderCmd(runKey, wandbFile)
+}
+
+// rememberRuns saves the selection for the next time the directory is
+// opened, with the newest run so a run that starts later shows up as new.
+func (w *Workspace) rememberRuns() {
+	w.dirState.SelectedRuns = slices.Sorted(maps.Keys(w.selectedRuns))
+	w.dirState.PinnedRun = w.pinnedRun
+	if len(w.runs.Items) > 0 {
+		w.dirState.LatestRun = w.runs.Items[0].Key
+	}
+	w.dirState.save()
 }
 
 func (w *Workspace) handleToggleRunSelectedKey(msg tea.KeyPressMsg) tea.Cmd {
@@ -1272,13 +1298,12 @@ func (w *Workspace) togglePin(runKey string) {
 	if w.pinnedRun == runKey {
 		// Unpin but keep selection unchanged.
 		w.pinnedRun = ""
-		w.metricsGrid.drawVisible()
-		return
+	} else {
+		w.pinnedRun = runKey
+		w.refreshPinnedRun()
 	}
-
-	w.pinnedRun = runKey
-	w.refreshPinnedRun()
 	w.metricsGrid.drawVisible()
+	w.rememberRuns()
 }
 
 func (w *Workspace) handlePinRunKey(msg tea.KeyPressMsg) tea.Cmd {
@@ -1308,6 +1333,49 @@ func (w *Workspace) handlePinRunKey(msg tea.KeyPressMsg) tea.Cmd {
 	}
 
 	w.togglePin(runKey)
+	return nil
+}
+
+// handleSelectAllRunsKey asks to confirm selecting every run matching the
+// runs filter, since that loads all of them.
+func (w *Workspace) handleSelectAllRunsKey(tea.KeyPressMsg) tea.Cmd {
+	if !w.runSelectorActive() {
+		return nil
+	}
+	for _, item := range w.runs.FilteredItems {
+		if !w.selectedRuns[item.Key] {
+			w.pendingSelectAll = append(w.pendingSelectAll, item.Key)
+		}
+	}
+	return nil
+}
+
+// confirmSelectAll selects the pending runs on y; any other key cancels.
+func (w *Workspace) confirmSelectAll(msg tea.KeyPressMsg) tea.Cmd {
+	keys := w.pendingSelectAll
+	w.pendingSelectAll = nil
+	if msg.String() != "y" {
+		return nil
+	}
+	var cmds []tea.Cmd
+	for _, key := range keys {
+		cmds = append(cmds, w.selectRun(key))
+	}
+	w.rememberRuns()
+	return batchCmds(cmds...)
+}
+
+// handleDeselectAllRunsKey deselects every run except the pinned one.
+func (w *Workspace) handleDeselectAllRunsKey(tea.KeyPressMsg) tea.Cmd {
+	if !w.runSelectorActive() {
+		return nil
+	}
+	for key := range w.selectedRuns {
+		if key != w.pinnedRun {
+			w.dropRun(key)
+		}
+	}
+	w.rememberRuns()
 	return nil
 }
 
