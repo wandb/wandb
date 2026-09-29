@@ -31,7 +31,7 @@ type SymonProbeMsg struct {
 type SymonSampleMsg struct {
 	StatsMsg
 	Processes []monitor.ProcessStat
-	Runs      []monitor.LiveRun
+	Runs      []SymonRun
 }
 
 // DefaultSymonSamplingInterval is the sampling cadence used by SYMON when the
@@ -58,6 +58,7 @@ type SymonSampler struct {
 	interval  time.Duration
 	resources []monitor.Resource
 	processes *monitor.Processes
+	tails     *runTails
 	logger    *observability.CoreLogger
 
 	// prev and prevAt are the previous sample's metrics and time, from
@@ -80,6 +81,7 @@ func NewSymonSampler(params SymonSamplerParams) *SymonSampler {
 	sampler := &SymonSampler{
 		interval:  interval,
 		processes: monitor.NewProcesses(),
+		tails:     newRunTails(logger),
 		logger:    logger,
 	}
 
@@ -156,7 +158,7 @@ func (s *SymonSampler) Sample() SymonSampleMsg {
 
 	_ = g.Wait()
 
-	out.Runs = monitor.SampleLiveRuns(out.Processes)
+	out.Runs = s.tails.update(monitor.SampleLiveRuns(out.Processes))
 
 	metrics := out.Metrics
 	counters := maps.Clone(metrics)
@@ -242,8 +244,9 @@ func (s *SymonSampler) Probe(ctx context.Context) SymonProbeMsg {
 }
 
 // Cleanup releases any resources that need explicit shutdown, such as the wandb-xpu
-// sidecar process managed by the monitor package.
+// sidecar process managed by the monitor package and the run logs being tailed.
 func (s *SymonSampler) Cleanup() {
+	s.tails.close()
 	for _, resource := range s.resources {
 		if closer, ok := resource.(interface{ Close() }); ok {
 			closer.Close()
