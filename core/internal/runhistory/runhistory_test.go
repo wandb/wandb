@@ -102,7 +102,7 @@ func TestToRecords(t *testing.T) {
 			input:    &spb.HistoryItem{Key: "integer", ValueJson: "-9223372036854775808"},
 			wantJSON: "-9223372036854775808",
 			wantTyped: &spb.HistoryValue{
-				Value: &spb.HistoryValue_Integer{Integer: -math.MaxInt64 - 1},
+				Value: &spb.HistoryValue_Integer{Integer: math.MinInt64},
 			},
 		},
 		{
