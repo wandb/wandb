@@ -136,6 +136,14 @@ func (s *SymonSampler) Sample() StatsMsg {
 	counters := maps.Clone(out.Metrics)
 	deriveRates(s.prev, out.Metrics, now.Sub(s.prevAt))
 	s.prev, s.prevAt = counters, now
+
+	// Disk usage is charted as a percentage and memory as used, so the
+	// flat used-bytes and available-memory lines only take up cells.
+	for key := range out.Metrics {
+		if strings.HasSuffix(key, ".usageGB") || key == "proc.memory.availableMB" {
+			delete(out.Metrics, key)
+		}
+	}
 	return out
 }
 
