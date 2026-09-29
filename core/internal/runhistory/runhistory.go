@@ -205,6 +205,10 @@ func (rh *RunHistory) SetFromRecord(record *spb.HistoryItem) error {
 		return rh.setFromTypedValue(path, typed)
 	}
 
+	if record.ValueJson == "" {
+		return errors.New("both value and value_json are unset")
+	}
+
 	value, err := simplejsonext.UnmarshalString(record.ValueJson)
 	if err != nil {
 		return fmt.Errorf("failed to unmarshal history item value: %v", err)

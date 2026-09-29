@@ -264,12 +264,12 @@ func TestSetFromRecord_TypedNonFiniteFloats(t *testing.T) {
 	assert.True(t, math.IsNaN(asMap["nan"].(float64))) // NaN != NaN
 }
 
-func TestSetFromRecord_TypedUnsetValue(t *testing.T) {
+func TestSetFromRecord_BothValueAndValueJsonUnset(t *testing.T) {
 	rh := runhistory.New()
 
 	err := rh.SetFromRecord(typedItem("a", &spb.HistoryValue{}))
 
-	assert.ErrorContains(t, err, "unknown history value type")
+	assert.ErrorContains(t, err, "both value and value_json are unset")
 }
 
 func TestSetFromRecord_TypedJsonUnmarshalError(t *testing.T) {
