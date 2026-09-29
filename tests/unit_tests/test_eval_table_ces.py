@@ -22,7 +22,7 @@ def run(mock_run):
 @pytest.fixture(autouse=True)
 def default_eval_table_server_feature_enabled(monkeypatch):
     monkeypatch.setattr(
-        "wandb.sdk.data_types.eval_table._writer_factory.ServiceApi.feature_enabled",
+        "wandb.apis.public.service_api.ServiceApi.feature_enabled",
         lambda self, feature: True,
     )
 
