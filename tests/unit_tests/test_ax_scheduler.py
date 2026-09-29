@@ -128,6 +128,19 @@ class TestForgetRun:
         mark_failed.assert_called_once_with(trial_index=7)
 
 
+class TestPruneRun:
+    def test_a_client_without_an_early_stopping_strategy_never_prunes(
+        self, client: Client, sweep: SweepInfo
+    ) -> None:
+        optimizer = AxOptimizer(client, sweep)
+        suggestion = next(iter(optimizer.ask_n_runs(1)))
+        run = make_run(suggestion, state=RunState.RUNNING, summary={})
+        with patch.object(client, "should_stop_trial_early") as should_stop:
+            assert optimizer.prune_run(suggestion.run_id, run) is False
+
+        should_stop.assert_not_called()
+
+
 class TestCreateDefaultClient:
     def test_configures_experiment_and_optimization_from_config(self) -> None:
         config = {

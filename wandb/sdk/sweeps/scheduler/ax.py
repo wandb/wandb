@@ -430,15 +430,17 @@ class AxOptimizer(Optimizer):
 
     @override
     def prune_run(self, run_id: Any, data: RunWithMetrics) -> bool:
-        """Return True if Ax's early-stopping strategy says to stop the run.
+        """Return True if the early-stopping strategy says to stop the run.
 
-        A run whose trial was already finalized is never pruned again.
+        Only a client configured with `Client.set_early_stopping_strategy`
+        prunes. A run whose trial was already finalized is never pruned again.
         """
-        # On the first call Ax lazily configures a default (Percentile) early
-        # stopping strategy if none was set explicitly, then judges this trial's
-        # attached progressions against its peers at the same step.
         trial_index = int(run_id)
         if trial_index in self._finalized:
+            return False
+        # Ax installs a default strategy on the first should_stop_trial_early,
+        # and exposes no public getter to check for one first.
+        if getattr(self.client, "_maybe_early_stopping_strategy", None) is None:
             return False
         try:
             if not self.client.should_stop_trial_early(trial_index=trial_index):
