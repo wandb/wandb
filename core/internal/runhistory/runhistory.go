@@ -201,7 +201,7 @@ func (rh *RunHistory) SetFromRecord(record *spb.HistoryItem) error {
 		return errors.New("empty history item key")
 	}
 
-	if typed := record.GetValue(); typed != nil {
+	if typed := record.GetValue(); typed != nil && typed.Value != nil {
 		return rh.setFromTypedValue(path, typed)
 	}
 
@@ -244,7 +244,7 @@ func (rh *RunHistory) setFromTypedValue(
 		rh.setFromUnmarshalledJSON(path, decoded)
 
 	default:
-		// An unknown value may have been written by a newer SDK. Ignore it.
+		// An unknown value may have been written by a newer SDK.
 		return fmt.Errorf("unknown history value type %T", typed.Value)
 	}
 
