@@ -8,8 +8,7 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// typedHistoryValue returns the typed value when the writer set a known case.
-// An unset or unknown case sends the caller to value_json.
+// typedHistoryValue returns the typed value or nil otherwise.
 func typedHistoryValue(item *spb.HistoryItem) (*spb.HistoryValue, bool) {
 	v := item.GetValue()
 	if v == nil || v.GetValue() == nil {
@@ -19,8 +18,7 @@ func typedHistoryValue(item *spb.HistoryItem) (*spb.HistoryValue, bool) {
 }
 
 // historyItemFloat returns the item's value as a chart point.
-//
-// Null and bool values do not plot.
+// The boolean return value is false if the value is not a number.
 func historyItemFloat(item *spb.HistoryItem) (float64, bool) {
 	if v, ok := typedHistoryValue(item); ok {
 		switch value := v.GetValue().(type) {

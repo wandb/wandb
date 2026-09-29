@@ -53,8 +53,6 @@ func parseOneMetric(t *testing.T, item *spb.HistoryItem) (leet.MetricData, bool)
 	return md, found
 }
 
-// The typed value is authoritative when a writer sets both forms. The two
-// disagree here only to show which one the reader used.
 func TestParseHistory_PrefersTypedValue(t *testing.T) {
 	md, found := parseOneMetric(t, &spb.HistoryItem{
 		NestedKey: []string{"m"},
@@ -76,8 +74,6 @@ func TestParseHistory_FallsBackToValueJSONWhenTypedUnset(t *testing.T) {
 	require.Equal(t, []float64{0.75}, md.Y)
 }
 
-// An empty message can contain a value case from a newer writer. The old
-// reader keeps its unknown bytes and uses value_json.
 func TestParseHistory_FallsBackWhenTypedValueHasNoKnownCase(t *testing.T) {
 	md, found := parseOneMetric(t, &spb.HistoryItem{
 		NestedKey: []string{"m"},
@@ -89,8 +85,6 @@ func TestParseHistory_FallsBackWhenTypedValueHasNoKnownCase(t *testing.T) {
 	require.Equal(t, []float64{0.75}, md.Y)
 }
 
-// Dual-write writes both forms of one value. A reader of either form must
-// get the same result, because Stage 1 rollback depends on it.
 func TestParseHistory_TypedAndJSONAgree(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -180,8 +174,7 @@ func TestParseHistory_TypedAndJSONAgree(t *testing.T) {
 	}
 }
 
-// A record without an explicit step falls back to the "_step" item, which
-// a typed writer sets as an int.
+// Check different ways of representing _step in typed form.
 func TestParseHistory_TypedStep(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -208,8 +201,6 @@ func TestParseHistory_TypedStep(t *testing.T) {
 	}
 }
 
-// Media fields come off the same history items, so they read the typed
-// value too. Width and height arrive as ints and the path as a string.
 func TestParseHistory_TypedMediaFields(t *testing.T) {
 	runPath := filepath.Join("tmp", "offline-run-123", "run-123.wandb")
 	relPath := filepath.Join("media", "images", "sample_7.png")
@@ -239,8 +230,6 @@ func TestParseHistory_TypedMediaFields(t *testing.T) {
 	require.Equal(t, 32, point.Height)
 }
 
-// A list of images logged under one key carries its filenames as JSON
-// text, which the typed form holds verbatim.
 func TestParseHistory_TypedSeparatedImages(t *testing.T) {
 	runPath := filepath.Join("tmp", "offline-run-123", "run-123.wandb")
 
