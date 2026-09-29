@@ -82,6 +82,10 @@ var metricDefs = []MetricDef{
 		Regex: regexp.MustCompile(`^proc\.memory\.availableMB(/l:.+)?$`)},
 	{Name: "Process CPU Threads", Unit: UnitScalar, MinY: 0, MaxY: 100, AutoRange: true,
 		Regex: regexp.MustCompile(`^proc\.cpu\.threads(/l:.+)?$`)},
+	{Name: "Process CPU Throttled", Unit: UnitPercent, MinY: 0, MaxY: 100, Percentage: true,
+		Regex: regexp.MustCompile(`^proc\.cpu\.throttledPercent(/l:.+)?$`)},
+	{Name: "Process OOM Kills", Unit: UnitScalar, MinY: 0, MaxY: 10, AutoRange: true,
+		Regex: regexp.MustCompile(`^proc\.memory\.oomKills(/l:.+)?$`)},
 
 	// Disk metrics - handle both aggregated and per-device
 	{Name: "Disk", Unit: UnitPercent, MinY: 0, MaxY: 100, Percentage: true,
@@ -104,10 +108,18 @@ var metricDefs = []MetricDef{
 		Regex: regexp.MustCompile(`^network\.recv(/l:.+)?$`)},
 	{Name: "Network Tx", Unit: UnitBytes, MinY: 0, MaxY: 100, AutoRange: true,
 		Regex: regexp.MustCompile(`^network\.sent(/l:.+)?$`)},
+	{Name: "Network TCP Retransmits", Unit: UnitScalar, MinY: 0, MaxY: 100, AutoRange: true,
+		Regex: regexp.MustCompile(`^network\.tcpRetransmits(/l:.+)?$`)},
 
 	// System power
 	{Name: "System Power", Unit: UnitWatt, MinY: 0, MaxY: 500, AutoRange: true,
 		Regex: regexp.MustCompile(`^system\.powerWatts(/l:.+)?$`)},
+
+	// W&B's own processes
+	{Name: "W&B CPU", Unit: UnitPercent, MinY: 0, MaxY: 100, Percentage: true,
+		Regex: regexp.MustCompile(`^wandb\.cpu(/l:.+)?$`)},
+	{Name: "W&B Memory", Unit: UnitMiB, MinY: 0, MaxY: 1024, AutoRange: true,
+		Regex: regexp.MustCompile(`^wandb\.memory\.rssMB(/l:.+)?$`)},
 
 	// Apple Neural Engine
 	{Name: "Neural Engine Power", Unit: UnitWatt, MinY: 0, MaxY: 50, AutoRange: true,

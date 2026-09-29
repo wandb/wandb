@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -64,6 +67,28 @@ type System struct {
 
 	// networkBytesRecvInit stores the initial network bytes received to calculate deltas
 	networkBytesRecvInit int
+
+	// tcpRetransmitsInit is the TCP RetransSegs counter at startup, or nil
+	// where the counter is unavailable.
+	tcpRetransmitsInit *int64
+
+	// cpuStatLast holds the cpu.stat counters from the previous sample, or
+	// nil before the first one.
+	cpuStatLast *cpuStatCounters
+
+	// oomKillsInit is the memory.events oom_kill count at the first sample,
+	// or nil before it.
+	oomKillsInit *uint64
+
+	// selfProcesses tracks wandb-core and its child processes between
+	// samples so their CPU use is measured over the sampling interval.
+	selfProcesses map[int32]*process.Process
+}
+
+// cpuStatCounters are the cumulative CFS bandwidth counters read from cpu.stat.
+type cpuStatCounters struct {
+	periods   uint64
+	throttled uint64
 }
 
 type SystemParams struct {
@@ -97,10 +122,12 @@ func NewSystem(params SystemParams) *System {
 	s.initializeDisk()
 
 	// Initialize network I/O counters.
-	netIOCounters, err := net.IOCounters(false)
-	if err == nil && len(netIOCounters) > 0 {
-		s.networkBytesSentInit = int(netIOCounters[0].BytesSent)
-		s.networkBytesRecvInit = int(netIOCounters[0].BytesRecv)
+	if sent, recv, err := networkTotals(); err == nil {
+		s.networkBytesSentInit = int(sent)
+		s.networkBytesRecvInit = int(recv)
+	}
+	if retransmits, err := tcpRetransmits(); err == nil {
+		s.tcpRetransmitsInit = &retransmits
 	}
 
 	return s
@@ -261,6 +288,10 @@ func (s *System) Sample() (*spb.StatsRecord, error) {
 		errs = append(errs, err)
 	}
 
+	s.collectCPUThrottlingMetrics(metrics)
+	s.collectOOMKillMetrics(metrics)
+	s.collectSelfUsageMetrics(metrics)
+
 	// Collect process-specific metrics.
 	if s.pid > 0 {
 		proc, err := process.NewProcess(s.pid)
@@ -339,17 +370,75 @@ func (s *System) collectProcessTreeMetrics(
 
 // collectNetworkMetrics gathers network traffic statistics.
 func (s *System) collectNetworkMetrics(metrics map[string]any) error {
-	netIOCounters, err := net.IOCounters(false)
+	sent, recv, err := networkTotals()
 	if err != nil {
 		return err
 	}
 
-	if len(netIOCounters) > 0 {
-		metrics["network.sent"] = float64(int(netIOCounters[0].BytesSent) - s.networkBytesSentInit)
-		metrics["network.recv"] = float64(int(netIOCounters[0].BytesRecv) - s.networkBytesRecvInit)
+	metrics["network.sent"] = float64(int(sent) - s.networkBytesSentInit)
+	metrics["network.recv"] = float64(int(recv) - s.networkBytesRecvInit)
+
+	if s.tcpRetransmitsInit != nil {
+		if retransmits, err := tcpRetransmits(); err == nil {
+			metrics["network.tcpRetransmits"] = float64(retransmits - *s.tcpRetransmitsInit)
+		}
+	}
+	return nil
+}
+
+// tcpRetransmits returns the cumulative number of retransmitted TCP segments
+// in the process's network namespace, from the kernel's RetransSegs counter.
+func tcpRetransmits() (int64, error) {
+	counters, err := net.ProtoCounters([]string{"tcp"})
+	if err != nil {
+		return 0, err
+	}
+	for _, c := range counters {
+		if retransmits, ok := c.Stats["RetransSegs"]; ok {
+			return retransmits, nil
+		}
+	}
+	return 0, errors.New("system: no TCP RetransSegs counter")
+}
+
+// networkTotals sums the bytes sent and received over the interfaces that
+// carry the machine's traffic once.
+//
+// Loopback interfaces are skipped, and so are interfaces enslaved to a bond,
+// bridge or team master, whose traffic the master already reports.
+func networkTotals() (sent, recv uint64, err error) {
+	counters, err := net.IOCounters(true)
+	if err != nil {
+		return 0, 0, err
 	}
 
-	return nil
+	loopback := make(map[string]bool)
+	if interfaces, err := net.Interfaces(); err == nil {
+		for _, iface := range interfaces {
+			if slices.Contains(iface.Flags, "loopback") {
+				loopback[iface.Name] = true
+			}
+		}
+	}
+
+	for _, c := range counters {
+		if loopback[c.Name] || isEnslavedInterface(c.Name) {
+			continue
+		}
+		sent += c.BytesSent
+		recv += c.BytesRecv
+	}
+	return sent, recv, nil
+}
+
+// sysClassNet is where Linux describes network interfaces.
+const sysClassNet = "/sys/class/net"
+
+// isEnslavedInterface reports whether a Linux network interface has a master
+// device, as a bond or bridge member does.
+func isEnslavedInterface(name string) bool {
+	_, err := os.Stat(filepath.Join(sysClassNet, name, "master"))
+	return err == nil
 }
 
 // collectSystemMemoryMetrics gathers system-wide memory statistics.
@@ -378,6 +467,123 @@ func (s *System) collectSystemMemoryMetrics(
 	metrics["proc.memory.availableMB"] = float64(virtualMem.Available) / 1024 / 1024
 
 	return virtualMem.Total, nil
+}
+
+// collectCPUThrottlingMetrics reports the percentage of CFS scheduling
+// periods since the previous sample in which the cgroup's CPU quota
+// throttled the run.
+//
+// Nothing is reported without a quota, on the first sample, or when no
+// period elapsed.
+func (s *System) collectCPUThrottlingMetrics(metrics map[string]any) {
+	if s.cgroup == nil {
+		return
+	}
+	periods, throttled, ok := s.cgroup.CPUThrottling()
+	if !ok {
+		return
+	}
+
+	last := s.cpuStatLast
+	s.cpuStatLast = &cpuStatCounters{periods: periods, throttled: throttled}
+	if last == nil || periods <= last.periods || throttled < last.throttled {
+		return
+	}
+
+	metrics["proc.cpu.throttledPercent"] =
+		float64(throttled-last.throttled) / float64(periods-last.periods) * 100
+}
+
+// collectOOMKillMetrics reports how many processes in the run's cgroup the
+// OOM killer has killed since monitoring started.
+func (s *System) collectOOMKillMetrics(metrics map[string]any) {
+	if s.cgroup == nil {
+		return
+	}
+	kills, ok := s.cgroup.OOMKills()
+	if !ok {
+		return
+	}
+	if s.oomKillsInit == nil || kills < *s.oomKillsInit {
+		s.oomKillsInit = &kills
+	}
+	metrics["proc.memory.oomKills"] = float64(kills - *s.oomKillsInit)
+}
+
+// collectSelfUsageMetrics reports the CPU and memory used by wandb-core and
+// its child processes, such as the wandb-xpu sidecar.
+//
+// CPU is normalized by the same capacity as the run's own cpu metric. It is
+// measured between samples, so it is left out of the sample in which a
+// process is first seen.
+func (s *System) collectSelfUsageMetrics(metrics map[string]any) {
+	self := os.Getpid()
+	pids := append([]int32{int32(self)}, childPIDs(self)...)
+
+	if s.selfProcesses == nil {
+		s.selfProcesses = make(map[int32]*process.Process)
+	}
+	seen := make(map[int32]bool, len(pids))
+
+	var (
+		totalRSS   uint64
+		totalCPU   float64
+		newProcess bool
+	)
+	for _, pid := range pids {
+		seen[pid] = true
+		p, ok := s.selfProcesses[pid]
+		if !ok {
+			var err error
+			if p, err = process.NewProcess(pid); err != nil {
+				continue
+			}
+			s.selfProcesses[pid] = p
+			newProcess = true
+		}
+		// The first call on a process only records a baseline.
+		if pcpu, err := p.Percent(0); err == nil {
+			totalCPU += pcpu
+		}
+		if mi, err := p.MemoryInfo(); err == nil {
+			totalRSS += mi.RSS
+		}
+	}
+	for pid := range s.selfProcesses {
+		if !seen[pid] {
+			delete(s.selfProcesses, pid)
+		}
+	}
+
+	metrics["wandb.memory.rssMB"] = float64(totalRSS) / 1024 / 1024
+	if newProcess {
+		return
+	}
+	if cpuCapacity := s.cpuCapacity(); cpuCapacity > 0 {
+		metrics["wandb.cpu"] = totalCPU / cpuCapacity
+	} else {
+		metrics["wandb.cpu"] = totalCPU
+	}
+}
+
+// childPIDs lists the direct children of a process on Linux, where each
+// thread's /proc/<pid>/task/<tid>/children records the processes it forked.
+func childPIDs(pid int) []int32 {
+	files, _ := filepath.Glob(fmt.Sprintf("/proc/%d/task/*/children", pid))
+
+	var pids []int32
+	for _, file := range files {
+		text, err := os.ReadFile(file)
+		if err != nil {
+			continue
+		}
+		for _, field := range strings.Fields(string(text)) {
+			if child, err := strconv.ParseInt(field, 10, 32); err == nil {
+				pids = append(pids, int32(child))
+			}
+		}
+	}
+	return pids
 }
 
 func (s *System) cpuCapacity() float64 {

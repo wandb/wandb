@@ -533,15 +533,12 @@ func startSpan(ctx context.Context, ct *ClientTracing) (context.Context, trace.S
 	}
 	spanName := resolveSpanName(ctx)
 	staticAttrs := ct.attributes()
-	attrs := make([]attribute.KeyValue, 0, len(staticAttrs)+2)
+	attrs := make([]attribute.KeyValue, 0, len(staticAttrs)+1)
 	attrs = append(attrs, staticAttrs...)
 	if urlTemplate, ok := callctx.TelemetryFromContext(ctx, "url_template"); ok && urlTemplate != "" {
 		if sanitized := sanitizeURLTemplate(urlTemplate); sanitized != "" {
 			attrs = append(attrs, attribute.String("url.template", sanitized))
 		}
-	}
-	if resName, ok := callctx.TelemetryFromContext(ctx, "resource_name"); ok && resName != "" {
-		attrs = append(attrs, attribute.String("gcp.resource.destination.id", resName))
 	}
 	return tracer.Start(
 		ctx,
@@ -691,16 +688,45 @@ func (ct *ClientTracing) attributes() []attribute.KeyValue {
 	return ct.get().attr
 }
 
+// formatServiceMethod formats a protobuf RPC name (such as
+// "google.cloud.secretmanager.v1.SecretManagerService/GetSecret")
+// into a span name formatted as "Service.Method" (such as "SecretManager.GetSecret").
+// If the input does not contain a slash separator, it returns the input unchanged.
+func formatServiceMethod(rpcMethod string) string {
+	slashIdx := strings.LastIndex(rpcMethod, "/")
+	if slashIdx == -1 {
+		return rpcMethod
+	}
+
+	service := rpcMethod[:slashIdx]
+	if dotIdx := strings.LastIndex(service, "."); dotIdx != -1 {
+		service = service[dotIdx+1:]
+	}
+	if trimmed := strings.TrimSuffix(service, "Service"); trimmed != "" {
+		service = trimmed
+	}
+
+	method := rpcMethod[slashIdx+1:]
+	if service == "" || method == "" {
+		return rpcMethod
+	}
+
+	return service + "." + method
+}
+
 func resolveSpanName(ctx context.Context) string {
+	if clientMethod, ok := callctx.TelemetryFromContext(ctx, "client_method"); ok && clientMethod != "" {
+		return clientMethod
+	}
+	if rpcMethod, ok := callctx.TelemetryFromContext(ctx, "rpc_method"); ok && rpcMethod != "" {
+		return formatServiceMethod(rpcMethod)
+	}
 	httpMethod, okHTTP := callctx.TelemetryFromContext(ctx, "http_method")
 	urlTemplate, okURL := callctx.TelemetryFromContext(ctx, "url_template")
 	if okHTTP && httpMethod != "" && okURL && urlTemplate != "" {
 		if sanitized := sanitizeURLTemplate(urlTemplate); sanitized != "" {
 			return httpMethod + " " + sanitized
 		}
-	}
-	if rpcMethod, ok := callctx.TelemetryFromContext(ctx, "rpc_method"); ok && rpcMethod != "" {
-		return rpcMethod
 	}
 	return "gcp.client.request"
 }
