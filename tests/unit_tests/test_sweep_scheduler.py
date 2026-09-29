@@ -23,15 +23,28 @@ SCHEDULER_GRID_SWEEP_CONFIG: dict[str, Any] = {
 }
 
 
-def make_scheduler_grid_sweep() -> SweepInfo:
-    """Return the `SweepInfo` of a grid sweep with hyperband early termination."""
+def make_scheduler_grid_sweep(config: dict[str, Any] | None = None) -> SweepInfo:
+    """Return the `SweepInfo` of a grid sweep with hyperband early termination.
+
+    Args:
+        config: An override for the sweep's config.
+    """
     return SweepInfo(
         id="test_sweep",
         name="test_sweep",
         entity="test_entity",
         project="test_project",
-        config=SCHEDULER_GRID_SWEEP_CONFIG,
+        config=SCHEDULER_GRID_SWEEP_CONFIG if config is None else config,
     )
+
+
+MULTI_OBJECTIVE_SWEEP_CONFIG: dict[str, Any] = {
+    "metrics": [
+        {"name": "loss", "goal": "minimize"},
+        {"name": "accuracy", "goal": "maximize"},
+    ],
+    "parameters": {"x": {"min": 0.0, "max": 1.0}},
+}
 
 
 def make_run(
@@ -204,6 +217,142 @@ class OptimizerAcceptanceTests(abc.ABC):
         optimizer.tell_run(pruned_id, runs[0])
 
         assert self.prune(optimizer, [pruned_id], [runs[0]]) == []
+
+
+class MultiObjectiveOptimizerAcceptanceTests(abc.ABC):
+    """Contract tests every Optimizer that accepts `metrics` must satisfy.
+
+    A multi-objective sweep declares a goal per metric, so a run's result
+    counts only once every objective is in, and no pruner ranking a single
+    value can judge the runs producing them.
+    """
+
+    RESULT = {"loss": 0.25, "accuracy": 0.9}
+
+    @pytest.fixture
+    def sweep(self) -> SweepInfo:
+        return make_scheduler_grid_sweep(config=MULTI_OBJECTIVE_SWEEP_CONFIG)
+
+    @abc.abstractmethod
+    @pytest.fixture
+    def optimizer(self, sweep: SweepInfo) -> Optimizer:
+        """Return an Optimizer searching `sweep`'s two objectives."""
+        ...
+
+    @abc.abstractmethod
+    def recorded_objectives(self, optimizer: Optimizer) -> list[list[Any] | None]:
+        """Return the objective values of each result the optimizer recorded.
+
+        Ordered as recorded, with None for a run it declined to score.
+
+        Args:
+            optimizer: The optimizer under test.
+        """
+        ...
+
+    def finish(
+        self, optimizer: Optimizer, suggestion: RunSuggestion, summary: dict[str, Any]
+    ) -> None:
+        optimizer.tell_run(
+            suggestion.run_id,
+            make_run(suggestion, state=RunState.FINISHED, summary=summary),
+        )
+
+    @pytest.mark.parametrize(
+        ("summary", "recorded"),
+        [
+            ({"loss": 0.25, "accuracy": 0.9}, [[0.25, 0.9]]),
+            ({"loss": 0.25}, [None]),
+        ],
+        ids=["every_objective", "missing_an_objective"],
+    )
+    def test_a_result_counts_only_with_every_objective(
+        self,
+        optimizer: Optimizer,
+        summary: dict[str, Any],
+        recorded: list[list[Any] | None],
+    ) -> None:
+        suggestion = next(iter(optimizer.ask_n_runs(1)))
+
+        self.finish(optimizer, suggestion, summary)
+
+        assert self.recorded_objectives(optimizer) == recorded
+
+    def test_the_search_continues_after_a_result(self, optimizer: Optimizer) -> None:
+        """Nothing is left in flight, so the next ask must propose a run."""
+        suggestion = next(iter(optimizer.ask_n_runs(1)))
+        self.finish(optimizer, suggestion, self.RESULT)
+
+        assert optimizer.ask_n_runs(1)
+
+    def test_warm_start_records_every_objective(self, optimizer: Optimizer) -> None:
+        existing = RunSuggestion(
+            config=RunConfig.from_values({"x": 0.25}), run_id="prior"
+        )
+
+        optimizer.tell_existing_finished_run(
+            make_run(existing, state=RunState.FINISHED, summary=self.RESULT)
+        )
+
+        assert self.recorded_objectives(optimizer) == [[0.25, 0.9]]
+
+    def test_pruning_never_stops_a_run(self, optimizer: Optimizer) -> None:
+        """Pruners rank one value, so they cannot judge a Pareto front."""
+        suggestion = next(iter(optimizer.ask_n_runs(1)))
+        run = make_run(
+            suggestion,
+            state=RunState.RUNNING,
+            summary={"loss": 9.0, "accuracy": 0.1},
+            history=[{"loss": 9.0, "accuracy": 0.1, "_step": 0}],
+        )
+        optimizer.tell_run(suggestion.run_id, run)
+
+        assert optimizer.prune_runs([suggestion.run_id], [run]) == []
+
+
+class TestObjectiveMetrics:
+    """The base Optimizer reads its objectives from `metric` or `metrics`."""
+
+    def make_optimizer(self, config: dict[str, Any]) -> Optimizer:
+        from wandb.sdk.sweeps.scheduler.wandb import WandbOptimizer
+
+        return WandbOptimizer(sweep=make_scheduler_grid_sweep(config=config))
+
+    @pytest.mark.parametrize(
+        ("config", "names", "goals"),
+        [
+            (SCHEDULER_GRID_SWEEP_CONFIG, ["loss"], ["minimize"]),
+            (
+                MULTI_OBJECTIVE_SWEEP_CONFIG,
+                ["loss", "accuracy"],
+                ["minimize", "maximize"],
+            ),
+        ],
+        ids=["metric", "metrics"],
+    )
+    def test_names_and_goals_keep_the_declaration_order(
+        self, config: dict[str, Any], names: list[str], goals: list[str]
+    ) -> None:
+        optimizer = self.make_optimizer(config)
+
+        assert optimizer.metric_names() == names
+        assert optimizer.metric_goals() == goals
+
+    @pytest.mark.parametrize(
+        ("summary", "values"),
+        [
+            ({"loss": 1.0, "accuracy": 0.5}, [1.0, 0.5]),
+            ({"loss": 1.0}, None),
+            ({}, None),
+        ],
+        ids=["every_objective", "missing_an_objective", "nothing_logged"],
+    )
+    def test_objective_values_needs_every_objective(
+        self, summary: dict[str, Any], values: list[Any] | None
+    ) -> None:
+        optimizer = self.make_optimizer(MULTI_OBJECTIVE_SWEEP_CONFIG)
+
+        assert optimizer.objective_values(summary) == values
 
 
 class TestWandbOptimizerAcceptance(OptimizerAcceptanceTests):
