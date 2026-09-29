@@ -4,11 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
+	"time"
 
+	"github.com/wandb/wandb/core/internal/analytics"
 	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
+
+// telemetryShutdownTimeout bounds flushing a session's telemetry on exit.
+const telemetryShutdownTimeout = 5 * time.Second
 
 // errSessionFinished is the cancel cause of a session that reached its
 // terminal task.
@@ -25,19 +32,19 @@ type TaskResolverFactory func(
 	reqCtx context.Context,
 	req *spb.SweepSchedulerClientInitRequest,
 	sweepAPI SweepAPI,
+	logger *observability.CoreLogger,
 ) (TaskResolver, *spb.SweepSchedulerServerInitResponse, error)
 
-var _ TaskResolverFactory = NewTaskResolverFactory(nil)
+var _ TaskResolverFactory = NewTaskResolverFactory()
 
 // NewTaskResolverFactory returns the factory the session broker uses
 // to start scheduler sessions.
-func NewTaskResolverFactory(
-	logger *observability.CoreLogger,
-) TaskResolverFactory {
+func NewTaskResolverFactory() TaskResolverFactory {
 	return func(
 		reqCtx context.Context,
 		req *spb.SweepSchedulerClientInitRequest,
 		sweepAPI SweepAPI,
+		logger *observability.CoreLogger,
 	) (TaskResolver, *spb.SweepSchedulerServerInitResponse, error) {
 		if err := sweepAPI.CheckLocalSchedulerSupported(reqCtx); err != nil {
 			return nil, nil, err
@@ -77,7 +84,6 @@ type IPCSessionBroker struct {
 
 	nextID   int
 	factory  TaskResolverFactory
-	logger   *observability.CoreLogger
 	sessions map[string]*session
 
 	// bySweep maps sweep ids to session ids.
@@ -99,11 +105,9 @@ type session struct {
 // NewIPCSessionBroker creates a new IPCSessionBroker.
 func NewIPCSessionBroker(
 	factory TaskResolverFactory,
-	logger *observability.CoreLogger,
 ) *IPCSessionBroker {
 	return &IPCSessionBroker{
 		factory:  factory,
-		logger:   logger,
 		sessions: make(map[string]*session),
 		bySweep:  make(map[string]string),
 	}
@@ -125,27 +129,28 @@ func (b *IPCSessionBroker) InitScheduler(
 		return nil, err
 	}
 
-	// The session's own API: it talks to the backend the client's
-	// settings name, with the client's credentials.
-	sweepAPI, err := newSweepAPIFromSettings(req, b.logger)
-	if err != nil {
-		b.logger.Error(
-			"scheduler: init failed",
-			"sweep", sweepKey,
-			"error", err)
+	schedCtx, cancel := context.WithCancelCause(connCtx)
+
+	cancelAndRespond := func(err error) (*spb.SweepSchedulerServerInitResponse, error) {
+		cancel(err)
 		return nil, err
 	}
 
-	schedCtx, cancel := context.WithCancelCause(connCtx)
-
-	resolver, response, err := b.factory(reqCtx, req, sweepAPI)
+	logger, err := newLoggerFromRequestSettings(schedCtx, req)
 	if err != nil {
-		b.logger.Error(
-			"scheduler: init failed",
-			"sweep", sweepKey,
-			"error", err)
-		cancel(err)
-		return nil, err
+		return cancelAndRespond(err)
+	}
+
+	// The session's own API: it talks to the backend the client's
+	// settings name, with the client's credentials.
+	sweepAPI, err := newSweepAPIFromSettings(req, logger)
+	if err != nil {
+		return cancelAndRespond(err)
+	}
+
+	resolver, response, err := b.factory(reqCtx, req, sweepAPI, logger)
+	if err != nil {
+		return cancelAndRespond(err)
 	}
 
 	b.mu.Lock()
@@ -153,11 +158,10 @@ func (b *IPCSessionBroker) InitScheduler(
 
 	if b.liveSessionLocked(sweepKey) != nil {
 		// A concurrent init for the same sweep won the race.
-		b.logger.Warn(
+		slog.Warn(
 			"scheduler: init rejected, sweep already has a live scheduler",
 			"sweep", sweepKey)
-		cancel(ErrAlreadyScheduled)
-		return nil, ErrAlreadyScheduled
+		return cancelAndRespond(ErrAlreadyScheduled)
 	}
 
 	id := fmt.Sprintf("scheduler-%d", b.nextID)
@@ -167,7 +171,7 @@ func (b *IPCSessionBroker) InitScheduler(
 		sweepKey: sweepKey,
 		machine: newSchedulerStateMachine(
 			resolver,
-			b.logger.With([]any{"id", id, "sweep", sweepKey}, nil),
+			logger.With([]any{"id", id, "sweep", sweepKey}, nil),
 		),
 		ctx:    schedCtx,
 		cancel: cancel,
@@ -178,7 +182,7 @@ func (b *IPCSessionBroker) InitScheduler(
 	// stop and drop the session on connection cancel
 	context.AfterFunc(schedCtx, func() { b.dropOnClose(s) })
 
-	b.logger.Info(
+	slog.Info(
 		"scheduler: session started",
 		"id", id,
 		"sweep", sweepKey)
@@ -194,7 +198,7 @@ func (b *IPCSessionBroker) checkNotScheduled(sweepKey string) error {
 	defer b.mu.Unlock()
 
 	if b.liveSessionLocked(sweepKey) != nil {
-		b.logger.Warn(
+		slog.Warn(
 			"scheduler: init rejected, sweep already has a live scheduler",
 			"sweep", sweepKey)
 		return ErrAlreadyScheduled
@@ -230,7 +234,7 @@ func (b *IPCSessionBroker) NextTask(
 	s := b.lookup(req.SessionId)
 	if s == nil {
 		// The id predates this process: wandb-core restarted.
-		b.logger.Warn(
+		slog.Warn(
 			"scheduler: poll for unknown scheduler id",
 			"id", req.SessionId)
 		return &spb.SweepSchedulerServerNextTaskResponse{
@@ -261,7 +265,7 @@ func (b *IPCSessionBroker) release(
 	done *spb.SweepSchedulerServerDoneTask,
 ) {
 	if b.drop(s) {
-		b.logger.Info(
+		slog.Info(
 			"scheduler: session finished",
 			"id", s.id,
 			"sweep", s.sweepKey,
@@ -276,7 +280,7 @@ func (b *IPCSessionBroker) dropOnClose(s *session) {
 	s.machine.Stop()
 
 	if b.drop(s) {
-		b.logger.Debug(
+		slog.Debug(
 			"scheduler: session dropped, its client is gone",
 			"id", s.id,
 			"sweep", s.sweepKey)
@@ -316,13 +320,13 @@ func (b *IPCSessionBroker) dropLocked(s *session) bool {
 func (b *IPCSessionBroker) Stop(req *spb.SweepSchedulerClientStopRequest) {
 	s := b.lookup(req.SessionId)
 	if s == nil {
-		b.logger.Debug(
+		slog.Debug(
 			"scheduler: stop for unknown scheduler id",
 			"id", req.SessionId)
 		return
 	}
 
-	b.logger.Info("scheduler: stop requested", "id", req.SessionId)
+	slog.Info("scheduler: stop requested", "id", req.SessionId)
 	s.machine.Stop()
 }
 
@@ -330,4 +334,42 @@ func (b *IPCSessionBroker) lookup(id string) *session {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	return b.sessions[id]
+}
+
+// newLoggerFromRequestSettings builds the session's logger, exporting
+// telemetry through a proxy that is shut down when ctx ends.
+func newLoggerFromRequestSettings(
+	ctx context.Context,
+	req *spb.SweepSchedulerClientInitRequest,
+) (*observability.CoreLogger, error) {
+	if req.Settings == nil {
+		return nil, fmt.Errorf("scheduler: the init request carries no settings")
+	}
+	s := settings.From(req.Settings)
+
+	telemetryProxy := analytics.NewOpenTelemetryProxy(
+		context.Background(), s, "wandb-core")
+	context.AfterFunc(ctx, func() {
+		shutdownCtx, cancel := context.WithTimeout(
+			context.Background(), telemetryShutdownTimeout)
+		defer cancel()
+		if err := telemetryProxy.Shutdown(shutdownCtx); err != nil {
+			slog.Debug("scheduler: telemetry shutdown failed", "error", err)
+		}
+	})
+
+	telemetryTags := observability.Tags{
+		"base_url":  s.GetBaseURL(),
+		"sweep_url": s.GetSweepURL(),
+	}
+
+	telemetryRecorder := analytics.NewTelemetryRecorder(
+		telemetryProxy,
+		analytics.NewTelemetryContext(),
+	)
+
+	return observability.NewCoreLogger(
+		slog.Default(),
+		telemetryRecorder,
+	).With(nil, telemetryTags), nil
 }

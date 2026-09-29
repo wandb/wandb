@@ -11,7 +11,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/wandb/wandb/core/internal/gqlmock"
-	"github.com/wandb/wandb/core/internal/observabilitytest"
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/sweeps/scheduler"
 	"github.com/wandb/wandb/core/internal/sweeps/schedulertest"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -32,6 +32,7 @@ func (f *testFactory) make(
 	reqCtx context.Context,
 	req *spb.SweepSchedulerClientInitRequest,
 	sweepAPI scheduler.SweepAPI,
+	logger *observability.CoreLogger,
 ) (scheduler.TaskResolver, *spb.SweepSchedulerServerInitResponse, error) {
 	if f.err != nil {
 		return nil, nil, f.err
@@ -52,10 +53,9 @@ func initRequest(sweepID string) *spb.SweepSchedulerClientInitRequest {
 	}
 }
 
-// newTestBroker builds a broker logging to the test's output.
+// newTestBroker builds a broker that uses the given factory.
 func newTestBroker(t *testing.T, factory *testFactory) *scheduler.IPCSessionBroker {
-	return scheduler.NewIPCSessionBroker(
-		factory.make, observabilitytest.NewTestLogger(t))
+	return scheduler.NewIPCSessionBroker(factory.make)
 }
 
 // expectStopped expects Stop at least once and closes the channel on the first.
@@ -424,10 +424,10 @@ func TestStoppedSessionAbandonsPendingSuggestions(t *testing.T) {
 			context.Context,
 			*spb.SweepSchedulerClientInitRequest,
 			scheduler.SweepAPI,
+			*observability.CoreLogger,
 		) (scheduler.TaskResolver, *spb.SweepSchedulerServerInitResponse, error) {
 			return fixture.scheduler, &spb.SweepSchedulerServerInitResponse{}, nil
-		},
-		observabilitytest.NewTestLogger(t))
+		})
 	ctx := context.Background()
 	initResponse, err := broker.InitScheduler(ctx, ctx, initRequest("sweep-a"))
 	require.NoError(t, err)

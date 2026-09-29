@@ -951,7 +951,7 @@ func (f *factoryFixture) startSession(t *testing.T) (
 		"test-entity", "test-project", "test-sweep",
 	)
 
-	factory := scheduler.NewTaskResolverFactory(observability.NewNoOpLogger())
+	factory := scheduler.NewTaskResolverFactory()
 	return factory(
 		t.Context(),
 		&spb.SweepSchedulerClientInitRequest{
@@ -961,7 +961,8 @@ func (f *factoryFixture) startSession(t *testing.T) (
 			BatchSize:           2,
 			PollIntervalSeconds: 5,
 		},
-		sweepAPI)
+		sweepAPI,
+		observability.NewNoOpLogger())
 }
 
 func TestFactoryStartsASession(t *testing.T) {
