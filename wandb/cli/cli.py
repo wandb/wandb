@@ -2098,6 +2098,7 @@ def _build_wandb_scheduler_optimizer(
 @cli.command(
     name="sweep-scheduler",
     context_settings=CONTEXT,
+    hidden=True,
     help="Run a local scheduler that suggests a sweep's runs (Experimental).",
 )
 @click.option("--entity", "-e", default=None, help="Entity that owns the sweep.")
