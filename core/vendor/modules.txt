@@ -64,7 +64,7 @@ cloud.google.com/go/storage/experimental
 cloud.google.com/go/storage/internal
 cloud.google.com/go/storage/internal/apiv2
 cloud.google.com/go/storage/internal/apiv2/storagepb
-# github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.1
+# github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.2
 ## explicit; go 1.25.0
 github.com/Azure/azure-sdk-for-go/sdk/azcore
 github.com/Azure/azure-sdk-for-go/sdk/azcore/arm/internal/resource
@@ -117,7 +117,7 @@ github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/internal/shared
 github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/pageblob
 github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/sas
 github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/service
-# github.com/AzureAD/microsoft-authentication-library-for-go v1.10.0
+# github.com/AzureAD/microsoft-authentication-library-for-go v1.10.1
 ## explicit; go 1.18
 github.com/AzureAD/microsoft-authentication-library-for-go/apps/cache
 github.com/AzureAD/microsoft-authentication-library-for-go/apps/confidential
@@ -154,11 +154,12 @@ github.com/GoogleCloudPlatform/opentelemetry-operations-go/internal/resourcemapp
 ## explicit; go 1.22.5
 github.com/Khan/genqlient/generate
 github.com/Khan/genqlient/graphql
-# github.com/NimbleMarkets/ntcharts/v2 v2.2.0
-## explicit; go 1.25.0
+# github.com/NimbleMarkets/ntcharts/v2 v2.4.0
+## explicit; go 1.26.8
 github.com/NimbleMarkets/ntcharts/v2/canvas
 github.com/NimbleMarkets/ntcharts/v2/canvas/graph
 github.com/NimbleMarkets/ntcharts/v2/canvas/runes
+github.com/NimbleMarkets/ntcharts/v2/internal/kittyshm
 github.com/NimbleMarkets/ntcharts/v2/linechart
 github.com/NimbleMarkets/ntcharts/v2/picture
 # github.com/NimbleMarkets/pixterm v0.0.0-20260501211346-dc18ac6c1a0f
@@ -247,7 +248,7 @@ github.com/aws/aws-sdk-go-v2/credentials/stscreds
 ## explicit; go 1.24
 github.com/aws/aws-sdk-go-v2/feature/ec2/imds
 github.com/aws/aws-sdk-go-v2/feature/ec2/imds/internal/config
-# github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager v0.4.10
+# github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager v0.4.11
 ## explicit; go 1.24
 github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager
 github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager/types
@@ -351,7 +352,7 @@ github.com/cespare/xxhash/v2
 # github.com/charmbracelet/colorprofile v0.4.3
 ## explicit; go 1.25.0
 github.com/charmbracelet/colorprofile
-# github.com/charmbracelet/ultraviolet v0.0.0-20260922123528-4e49372c11f9
+# github.com/charmbracelet/ultraviolet v0.0.0-20260929091141-666ce5eec9fc
 ## explicit; go 1.26.0
 github.com/charmbracelet/ultraviolet
 # github.com/charmbracelet/x/ansi v0.11.8
@@ -362,7 +363,7 @@ github.com/charmbracelet/x/ansi/parser
 # github.com/charmbracelet/x/exp/golden v0.1.0
 ## explicit; go 1.24.0
 github.com/charmbracelet/x/exp/golden
-# github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20260924144451-d676b019604b
+# github.com/charmbracelet/x/exp/teatest/v2 v2.0.0-20260927004216-9c77d672503d
 ## explicit; go 1.24.2
 github.com/charmbracelet/x/exp/teatest/v2
 # github.com/charmbracelet/x/term v0.2.2
@@ -523,7 +524,7 @@ github.com/google/wire/internal/wire
 ## explicit; go 1.25.0
 github.com/googleapis/enterprise-certificate-proxy/client
 github.com/googleapis/enterprise-certificate-proxy/client/util
-# github.com/googleapis/gax-go/v2 v2.26.0
+# github.com/googleapis/gax-go/v2 v2.26.2
 ## explicit; go 1.26.0
 github.com/googleapis/gax-go/v2
 github.com/googleapis/gax-go/v2/apierror
@@ -534,8 +535,8 @@ github.com/googleapis/gax-go/v2/internallog
 github.com/googleapis/gax-go/v2/internallog/grpclog
 github.com/googleapis/gax-go/v2/internallog/internal
 github.com/googleapis/gax-go/v2/iterator
-# github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0
-## explicit; go 1.25.0
+# github.com/grpc-ecosystem/grpc-gateway/v2 v2.31.0
+## explicit; go 1.26.0
 github.com/grpc-ecosystem/grpc-gateway/v2/internal/httprule
 github.com/grpc-ecosystem/grpc-gateway/v2/runtime
 github.com/grpc-ecosystem/grpc-gateway/v2/utilities
@@ -562,6 +563,8 @@ github.com/klauspost/compress/zstd/internal/xxhash
 # github.com/klauspost/cpuid/v2 v2.4.0
 ## explicit; go 1.24.0
 github.com/klauspost/cpuid/v2
+# github.com/kr/text v0.2.0
+## explicit
 # github.com/kylelemons/godebug v1.1.0
 ## explicit; go 1.11
 github.com/kylelemons/godebug/diff
@@ -589,8 +592,8 @@ github.com/muesli/cancelreader
 # github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822
 ## explicit
 github.com/munnerz/goautoneg
-# github.com/pierrec/lz4/v4 v4.1.30
-## explicit; go 1.17
+# github.com/pierrec/lz4/v4 v4.1.31
+## explicit; go 1.22
 github.com/pierrec/lz4/v4
 github.com/pierrec/lz4/v4/internal/lz4block
 github.com/pierrec/lz4/v4/internal/lz4errors
@@ -617,8 +620,8 @@ github.com/power-devops/perfstat
 # github.com/prometheus/client_model v0.6.3
 ## explicit; go 1.23
 github.com/prometheus/client_model/go
-# github.com/prometheus/common v0.71.0
-## explicit; go 1.25.0
+# github.com/prometheus/common v0.72.0
+## explicit; go 1.26.0
 github.com/prometheus/common/expfmt
 github.com/prometheus/common/model
 # github.com/prometheus/procfs v0.22.0
@@ -949,13 +952,13 @@ google.golang.org/api/storage/v1
 google.golang.org/api/transport
 google.golang.org/api/transport/grpc
 google.golang.org/api/transport/http
-# google.golang.org/genproto v0.0.0-20260921155816-b14227669459
+# google.golang.org/genproto v0.0.0-20260928230214-8a89bd6388cc
 ## explicit; go 1.26.0
 google.golang.org/genproto/googleapis/type/calendarperiod
 google.golang.org/genproto/googleapis/type/date
 google.golang.org/genproto/googleapis/type/expr
 google.golang.org/genproto/googleapis/type/timeofday
-# google.golang.org/genproto/googleapis/api v0.0.0-20260921155816-b14227669459
+# google.golang.org/genproto/googleapis/api v0.0.0-20260928230214-8a89bd6388cc
 ## explicit; go 1.26.0
 google.golang.org/genproto/googleapis/api
 google.golang.org/genproto/googleapis/api/annotations
@@ -965,7 +968,7 @@ google.golang.org/genproto/googleapis/api/httpbody
 google.golang.org/genproto/googleapis/api/label
 google.golang.org/genproto/googleapis/api/metric
 google.golang.org/genproto/googleapis/api/monitoredres
-# google.golang.org/genproto/googleapis/rpc v0.0.0-20260921155816-b14227669459
+# google.golang.org/genproto/googleapis/rpc v0.0.0-20260928230214-8a89bd6388cc
 ## explicit; go 1.26.0
 google.golang.org/genproto/googleapis/rpc/code
 google.golang.org/genproto/googleapis/rpc/errdetails

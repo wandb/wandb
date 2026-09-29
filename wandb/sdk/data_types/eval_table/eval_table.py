@@ -5,18 +5,15 @@ from typing import TYPE_CHECKING, Any, Literal, get_args
 from typing_extensions import override
 
 import wandb
+from wandb.apis.public.service_api import ServiceApi
 from wandb.errors import UsageError
+from wandb.proto import wandb_internal_pb2 as pb
 from wandb.sdk.data_types.eval_table._writer import (
     EvalTableWriter,
     WriteResult,
     WriteRow,
 )
-from wandb.sdk.data_types.eval_table._writer_factory import (
-    Backend,
-    create_default_writer,
-    create_writer,
-)
-from wandb.sdk.data_types.eval_table._writer_weave import validate_weave_cell_value
+from wandb.sdk.data_types.eval_table._writer_factory import Backend, create_writer
 from wandb.sdk.data_types.table import ColumnKey, InputRow, LogMode, Table
 from wandb.sdk.lib import telemetry
 
@@ -98,8 +95,9 @@ class EvalTable(Table):
             score_columns: Names of the score columns.
                 These represent derived scores for the outputs. By default, we will
                 auto-summarize any numeric and boolean scores.
-            backend: Optional storage-backend override. If omitted, the default is
-                "weave". Use "ces" to write through the Evaluations service.
+            backend: Optional storage-backend override. CES is the default. Pass "weave"
+                to use the Weave backend from the private preview phase which will be
+                removed soon.
             unsupported_media_mode: How to handle unsupported wandb media/value types.
                 - "stub" (default): log unsupported values as short placeholder strings
                   like "[wandb.Html not yet supported]". (This is a temporary flag
@@ -142,17 +140,11 @@ class EvalTable(Table):
             raise UsageError("EvalTable currently only supports log_mode='IMMUTABLE'.")
 
         validate_unsupported_media_mode(unsupported_media_mode)
-        self._allow_mixed_types = allow_mixed_types
-        self._writer: EvalTableWriter | None = (
-            create_writer(
-                backend,
-                allow_mixed_types=allow_mixed_types,
-                unsupported_media_mode=unsupported_media_mode,
-            )
-            if backend is not None
-            else None
+        self._writer: EvalTableWriter = create_writer(
+            backend if backend is not None else "ces",
+            allow_mixed_types=allow_mixed_types,
+            unsupported_media_mode=unsupported_media_mode,
         )
-        self._unsupported_media_mode = unsupported_media_mode
 
         self._input_columns = list(input_columns or [])
         self._output_columns = list(output_columns or [])
@@ -207,19 +199,13 @@ class EvalTable(Table):
                 "Use wandb.init(mode='online') or unset WANDB_MODE."
             )
 
-        writer = self._writer
-        if writer is None:
-            # Select the default writer here so its choice can depend on the run.
-            writer = create_default_writer(
-                run,
-                allow_mixed_types=self._allow_mixed_types,
-                unsupported_media_mode=self._unsupported_media_mode,
-            )
+        service_api = ServiceApi(run._settings)
+        if not service_api.feature_enabled(pb.ServerFeature.EVAL_TABLES_CES):
+            raise UsageError("This W&B server does not support EvalTable logging.")
 
         # Initialize writer with run context while intentionally
         # skipping the file-copy behavior in Table.bind_to_run().
-        writer.bind_to_run(run, str(key), step)
-        self._writer = writer
+        self._writer.bind_to_run(run, str(key), step)
         self._run = run
         self._run_log_key = str(key)
 
@@ -236,8 +222,7 @@ class EvalTable(Table):
 
         run = run_or_artifact
 
-        writer = self._writer
-        if writer is None or self._run_log_key is None:
+        if self._run_log_key is None:
             raise UsageError("EvalTable must be logged with run.log().")
 
         # This check also ensures that we've initialized Weave via bind_to_run.
@@ -263,21 +248,11 @@ class EvalTable(Table):
     def has_been_logged(self) -> bool:
         return self._immutable_write_result is not None
 
-    def _validate_cell_value(self, val: Any, col: ColumnKey) -> None:
-        if self._writer is not None:
-            self._writer.validate_cell_value(val, col)
-        else:
-            validate_weave_cell_value(
-                val,
-                col,
-                self._unsupported_media_mode,
-            )
-
     @override
     def add_data(self, *data: Any) -> None:
         if len(data) == len(self.columns):
             for col, val in zip(self.columns, data, strict=True):
-                self._validate_cell_value(val, col)
+                self._writer.validate_cell_value(val, col)
 
         super().add_data(*data)
 
@@ -290,7 +265,7 @@ class EvalTable(Table):
     ) -> None:
         if isinstance(data, list) or wandb.util.is_numpy_array(data):
             for val in data:
-                self._validate_cell_value(val, name)
+                self._writer.validate_cell_value(val, name)
 
         super().add_column(name, data, optional=optional)
 
@@ -341,7 +316,6 @@ class EvalTable(Table):
 
     def _write_to_backend(self) -> WriteResult:
         """Partition table rows by role and pass them to the bound writer."""
-        assert self._writer is not None
         assert self._run_log_key is not None
 
         self._validate_column_mappings(

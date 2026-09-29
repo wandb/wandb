@@ -108,6 +108,8 @@ const (
 	ServerFeature_ARTIFACT_DIGEST_ALGORITHM ServerFeature = 36
 	// Indicates that the server supports automation action ARIA.
 	ServerFeature_AUTOMATION_ACTION_ARIA ServerFeature = 37
+	// Indicates that the server supports CoreWeave Evaluation Service.
+	ServerFeature_EVAL_TABLES_CES ServerFeature = 38
 )
 
 // Enum value maps for ServerFeature.
@@ -150,6 +152,7 @@ var (
 		35: "SWEEPS_LOCAL_SCHEDULER",
 		36: "ARTIFACT_DIGEST_ALGORITHM",
 		37: "AUTOMATION_ACTION_ARIA",
+		38: "EVAL_TABLES_CES",
 	}
 	ServerFeature_value = map[string]int32{
 		"SERVER_FEATURE_UNSPECIFIED":                           0,
@@ -189,6 +192,7 @@ var (
 		"SWEEPS_LOCAL_SCHEDULER":                               35,
 		"ARTIFACT_DIGEST_ALGORITHM":                            36,
 		"AUTOMATION_ACTION_ARIA":                               37,
+		"EVAL_TABLES_CES":                                      38,
 	}
 )
 
@@ -10870,12 +10874,16 @@ func (x *AppleInfo) GetMacModel() string {
 }
 
 type GpuNvidiaInfo struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	MemoryTotal   uint64                 `protobuf:"varint,2,opt,name=memory_total,json=memoryTotal,proto3" json:"memory_total,omitempty"`
-	CudaCores     uint32                 `protobuf:"varint,3,opt,name=cuda_cores,json=cudaCores,proto3" json:"cuda_cores,omitempty"`
-	Architecture  string                 `protobuf:"bytes,4,opt,name=architecture,proto3" json:"architecture,omitempty"`
-	Uuid          string                 `protobuf:"bytes,5,opt,name=uuid,proto3" json:"uuid,omitempty"`
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	Name         string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	MemoryTotal  uint64                 `protobuf:"varint,2,opt,name=memory_total,json=memoryTotal,proto3" json:"memory_total,omitempty"`
+	CudaCores    uint32                 `protobuf:"varint,3,opt,name=cuda_cores,json=cudaCores,proto3" json:"cuda_cores,omitempty"`
+	Architecture string                 `protobuf:"bytes,4,opt,name=architecture,proto3" json:"architecture,omitempty"`
+	Uuid         string                 `protobuf:"bytes,5,opt,name=uuid,proto3" json:"uuid,omitempty"`
+	// PCI bus ID as reported by NVML, e.g. "00000000:1B:00.0".
+	PciBusId string `protobuf:"bytes,6,opt,name=pci_bus_id,json=pciBusId,proto3" json:"pci_bus_id,omitempty"`
+	// NUMA node the GPU is attached to, when known.
+	NumaNode      *uint32 `protobuf:"varint,7,opt,name=numa_node,json=numaNode,proto3,oneof" json:"numa_node,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -10943,6 +10951,20 @@ func (x *GpuNvidiaInfo) GetUuid() string {
 		return x.Uuid
 	}
 	return ""
+}
+
+func (x *GpuNvidiaInfo) GetPciBusId() string {
+	if x != nil {
+		return x.PciBusId
+	}
+	return ""
+}
+
+func (x *GpuNvidiaInfo) GetNumaNode() uint32 {
+	if x != nil && x.NumaNode != nil {
+		return *x.NumaNode
+	}
+	return 0
 }
 
 type GpuAmdInfo struct {
@@ -12783,14 +12805,19 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\tmemory_gb\x18\x05 \x01(\rR\bmemoryGb\x12(\n" +
 	"\x10swap_total_bytes\x18\x06 \x01(\x04R\x0eswapTotalBytes\x12&\n" +
 	"\x0fram_total_bytes\x18\a \x01(\x04R\rramTotalBytes\x12\x1b\n" +
-	"\tmac_model\x18\b \x01(\tR\bmacModel\"\x9d\x01\n" +
+	"\tmac_model\x18\b \x01(\tR\bmacModel\"\xeb\x01\n" +
 	"\rGpuNvidiaInfo\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12!\n" +
 	"\fmemory_total\x18\x02 \x01(\x04R\vmemoryTotal\x12\x1d\n" +
 	"\n" +
 	"cuda_cores\x18\x03 \x01(\rR\tcudaCores\x12\"\n" +
 	"\farchitecture\x18\x04 \x01(\tR\farchitecture\x12\x12\n" +
-	"\x04uuid\x18\x05 \x01(\tR\x04uuid\"\x95\x03\n" +
+	"\x04uuid\x18\x05 \x01(\tR\x04uuid\x12\x1c\n" +
+	"\n" +
+	"pci_bus_id\x18\x06 \x01(\tR\bpciBusId\x12 \n" +
+	"\tnuma_node\x18\a \x01(\rH\x00R\bnumaNode\x88\x01\x01B\f\n" +
+	"\n" +
+	"_numa_node\"\x95\x03\n" +
 	"\n" +
 	"GpuAmdInfo\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1b\n" +
@@ -12889,7 +12916,7 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\finput_source\x18\x01 \x01(\v2\x1e.wandb_internal.JobInputSourceR\vinputSource\x12A\n" +
 	"\rinclude_paths\x18\x02 \x03(\v2\x1c.wandb_internal.JobInputPathR\fincludePaths\x12A\n" +
 	"\rexclude_paths\x18\x03 \x03(\v2\x1c.wandb_internal.JobInputPathR\fexcludePaths\x12!\n" +
-	"\finput_schema\x18\x04 \x01(\tR\vinputSchema*\xba\n" +
+	"\finput_schema\x18\x04 \x01(\tR\vinputSchema*\xcf\n" +
 	"\n" +
 	"\rServerFeature\x12\x1e\n" +
 	"\x1aSERVER_FEATURE_UNSPECIFIED\x10\x00\x12\x13\n" +
@@ -12930,7 +12957,8 @@ const file_wandb_proto_wandb_internal_proto_rawDesc = "" +
 	"\x0fFILESTREAM_GZIP\x10\"\x12\x1a\n" +
 	"\x16SWEEPS_LOCAL_SCHEDULER\x10#\x12\x1d\n" +
 	"\x19ARTIFACT_DIGEST_ALGORITHM\x10$\x12\x1a\n" +
-	"\x16AUTOMATION_ACTION_ARIA\x10%\"\x04\b\b\x10\bB\x1bZ\x19core/pkg/service_go_protob\x06proto3"
+	"\x16AUTOMATION_ACTION_ARIA\x10%\x12\x13\n" +
+	"\x0fEVAL_TABLES_CES\x10&\"\x04\b\b\x10\bB\x1bZ\x19core/pkg/service_go_protob\x06proto3"
 
 var (
 	file_wandb_proto_wandb_internal_proto_rawDescOnce sync.Once
@@ -13494,6 +13522,7 @@ func file_wandb_proto_wandb_internal_proto_init() {
 		(*Response_OperationsResponse)(nil),
 		(*Response_TestInjectResponse)(nil),
 	}
+	file_wandb_proto_wandb_internal_proto_msgTypes[148].OneofWrappers = []any{}
 	file_wandb_proto_wandb_internal_proto_msgTypes[156].OneofWrappers = []any{
 		(*JobInputSource_RunConfig)(nil),
 		(*JobInputSource_File)(nil),

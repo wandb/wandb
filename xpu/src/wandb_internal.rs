@@ -2697,6 +2697,12 @@ pub struct GpuNvidiaInfo {
     pub architecture: ::prost::alloc::string::String,
     #[prost(string, tag = "5")]
     pub uuid: ::prost::alloc::string::String,
+    /// PCI bus ID as reported by NVML, e.g. "00000000:1B:00.0".
+    #[prost(string, tag = "6")]
+    pub pci_bus_id: ::prost::alloc::string::String,
+    /// NUMA node the GPU is attached to, when known.
+    #[prost(uint32, optional, tag = "7")]
+    pub numa_node: ::core::option::Option<u32>,
 }
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct GpuAmdInfo {
@@ -3037,6 +3043,8 @@ pub enum ServerFeature {
     ArtifactDigestAlgorithm = 36,
     /// Indicates that the server supports automation action ARIA.
     AutomationActionAria = 37,
+    /// Indicates that the server supports CoreWeave Evaluation Service.
+    EvalTablesCes = 38,
 }
 impl ServerFeature {
     /// String value of the enum field names used in the ProtoBuf definition.
@@ -3106,6 +3114,7 @@ impl ServerFeature {
             Self::SweepsLocalScheduler => "SWEEPS_LOCAL_SCHEDULER",
             Self::ArtifactDigestAlgorithm => "ARTIFACT_DIGEST_ALGORITHM",
             Self::AutomationActionAria => "AUTOMATION_ACTION_ARIA",
+            Self::EvalTablesCes => "EVAL_TABLES_CES",
         }
     }
     /// Creates an enum from field names used in the ProtoBuf definition.
@@ -3180,6 +3189,7 @@ impl ServerFeature {
             "SWEEPS_LOCAL_SCHEDULER" => Some(Self::SweepsLocalScheduler),
             "ARTIFACT_DIGEST_ALGORITHM" => Some(Self::ArtifactDigestAlgorithm),
             "AUTOMATION_ACTION_ARIA" => Some(Self::AutomationActionAria),
+            "EVAL_TABLES_CES" => Some(Self::EvalTablesCes),
             _ => None,
         }
     }
