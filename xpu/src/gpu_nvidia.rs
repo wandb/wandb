@@ -54,6 +54,10 @@ struct GpuStaticInfo {
     /// Note that when using the Multi-Instance GPU (MIG) feature, one physical GPU can be
     /// partitioned into multiple GPU instances, all sharing the same UUID.
     uuid: String,
+    /// PCI bus ID as NVML formats it, e.g. "00000000:1B:00.0".
+    pci_bus_id: String,
+    /// NUMA node the GPU is attached to, when the platform reports one.
+    numa_node: Option<u32>,
 }
 
 /// Tracks the availability of GPU metrics for the current system.
@@ -64,6 +68,7 @@ struct GpuMetricAvailability {
     temperature: bool,
     power_usage: bool,
     enforced_power_limit: bool,
+    energy: bool,
     sm_clock: bool,
     mem_clock: bool,
     graphics_clock: bool,
@@ -88,6 +93,7 @@ impl Default for GpuMetricAvailability {
             temperature: true,
             power_usage: true,
             enforced_power_limit: true,
+            energy: true,
             sm_clock: true,
             mem_clock: true,
             graphics_clock: false, // TODO: questionable utility, expensive to retrieve
@@ -144,6 +150,25 @@ fn get_lib_path() -> Result<std::path::PathBuf, NvmlError> {
     Err(NvmlError::NotFound)
 }
 
+/// The NUMA node a PCI device is attached to, from sysfs. `None` where the
+/// platform does not report one.
+///
+/// NVML's own `nvmlDeviceGetNumaNodeId` is not used: it applies only to
+/// platforms where the GPU itself is a NUMA node.
+#[cfg(target_os = "linux")]
+fn pci_numa_node(pci_info: &nvml_wrapper::struct_wrappers::device::PciInfo) -> Option<u32> {
+    let path = format!(
+        "/sys/bus/pci/devices/{:04x}:{:02x}:{:02x}.0/numa_node",
+        pci_info.domain, pci_info.bus, pci_info.device
+    );
+    std::fs::read_to_string(path).ok()?.trim().parse().ok()
+}
+
+#[cfg(not(target_os = "linux"))]
+fn pci_numa_node(_pci_info: &nvml_wrapper::struct_wrappers::device::PciInfo) -> Option<u32> {
+    None
+}
+
 /// NvidiaGpu collects metadata and metrics from NVIDIA GPUs using NVML.
 pub struct NvidiaGpu {
     /// Leaked so that the GPM samples, which borrow it, can be stored alongside.
@@ -189,6 +214,10 @@ impl NvidiaGpu {
             }
             if let Ok(architecture) = device.architecture() {
                 static_info.architecture = format!("{:?}", architecture);
+            }
+            if let Ok(pci_info) = device.pci_info() {
+                static_info.numa_node = pci_numa_node(&pci_info);
+                static_info.pci_bus_id = pci_info.bus_id;
             }
 
             gpu_static_info.push(static_info);
@@ -306,6 +335,7 @@ impl NvidiaGpu {
     /// gpu.{i}.powerWatts: The power consumption of the GPU at index i (in Watts).
     /// gpu.{i}.enforcedPowerLimitWatts: The enforced power limit of the GPU at index i (in Watts).
     /// gpu.{i}.powerPercent: The percentage of power limit being used by the GPU at index i.
+    /// gpu.{i}.energyJoules: Energy consumed by the GPU at index i since its driver loaded (in Joules).
     /// gpu.{i}.graphicsClock: The current graphics clock speed of the GPU at index i (in MHz).
     /// gpu.{i}.memoryClock: The current memory clock speed of the GPU at index i (in MHz).
     /// gpu.{i}.smClock: The current SM clock speed of the GPU at index i (in MHz).
@@ -406,6 +436,16 @@ impl NvidiaGpu {
                 format!("_gpu.{}.architecture", di),
                 MetricValue::String(self.gpu_static_info[di as usize].architecture.clone()),
             ));
+            metrics.push((
+                format!("_gpu.{}.pciBusId", di),
+                MetricValue::String(self.gpu_static_info[di as usize].pci_bus_id.clone()),
+            ));
+            if let Some(numa_node) = self.gpu_static_info[di as usize].numa_node {
+                metrics.push((
+                    format!("_gpu.{}.numaNode", di),
+                    MetricValue::Int(numa_node as i64),
+                ));
+            }
 
             // Collect dynamic metrics for the GPU if pid != 0
             let gpu_in_use = match pid {
@@ -551,6 +591,21 @@ impl NvidiaGpu {
                     }
                     Err(_) => {
                         availability.power_usage = false;
+                    }
+                }
+            }
+
+            // Energy
+            if availability.energy {
+                match device.total_energy_consumption() {
+                    Ok(millijoules) => {
+                        metrics.push((
+                            format!("gpu.{}.energyJoules", di),
+                            MetricValue::Float(millijoules as f64 / 1000.0),
+                        ));
+                    }
+                    Err(_) => {
+                        availability.energy = false;
                     }
                 }
             }
@@ -876,6 +931,16 @@ impl NvidiaGpu {
             if let Some(value) = samples.get(&format!("_gpu.{}.uuid", i)) {
                 if let MetricValue::String(uuid) = value {
                     gpu_nvidia.uuid = uuid.clone();
+                }
+            }
+            if let Some(value) = samples.get(&format!("_gpu.{}.pciBusId", i)) {
+                if let MetricValue::String(pci_bus_id) = value {
+                    gpu_nvidia.pci_bus_id = pci_bus_id.clone();
+                }
+            }
+            if let Some(value) = samples.get(&format!("_gpu.{}.numaNode", i)) {
+                if let MetricValue::Int(numa_node) = value {
+                    gpu_nvidia.numa_node = Some(*numa_node as u32);
                 }
             }
             metadata.gpu_nvidia.push(gpu_nvidia);

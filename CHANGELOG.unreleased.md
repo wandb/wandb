@@ -23,12 +23,19 @@ Section headings should be at level 3 (e.g. `### Added`).
 - It is now possible to use resume="must" for offline runs. Syncing will fail if there's no run to resume (@geoffhardy in https://github.com/wandb/wandb/pull/12110)
 - Added a `--max-consecutive-failed-runs` flag to `wandb agent`, which shuts an agent down once that many runs have failed consecutively at any point in the agent's life (@nathancy-wandb in https://github.com/wandb/wandb/pull/12821)
 - System metrics now include PCIe throughput (`gpu.N.pcieTxBytes`, `gpu.N.pcieRxBytes`) for NVIDIA GPUs older than Hopper (@dmitryduev in https://github.com/wandb/wandb/pull/12989)
+- System metrics now include each GPU's cumulative energy consumption in joules as `gpu.N.energyJoules`, for NVIDIA and AMD GPUs (@dmitryduev in https://github.com/wandb/wandb/pull/12991)
+- System metrics now include `proc.cpu.throttledPercent`, the percentage of CPU scheduler periods in which the container's CPU limit throttled the run (@dmitryduev in https://github.com/wandb/wandb/pull/13001)
+- System metrics now include `proc.memory.oomKills`, how many processes in the run's container the out-of-memory killer has killed since the run started (@dmitryduev in https://github.com/wandb/wandb/pull/13002)
+- System metrics now include `network.tcpRetransmits`, the number of TCP segments retransmitted since the run started (@dmitryduev in https://github.com/wandb/wandb/pull/13003)
+- System metrics now include the CPU and memory used by W&B's own background processes, as `wandb.cpu` and `wandb.memory.rssMB` (@dmitryduev in https://github.com/wandb/wandb/pull/13004)
+- Run metadata now records each NVIDIA GPU's PCI bus ID and, on Linux, the NUMA node it is attached to (@dmitryduev in https://github.com/wandb/wandb/pull/13005)
 
 ### Changed
 
 - Runs now write data to disk every 15 seconds, so that wandb leet updates sooner for runs that don't log a lot of data (@dmitryduev in https://github.com/wandb/wandb/pull/12742)
 - Reduced the size of the `wandb-core` binary by about a third, from 52 MB to 35 MB on Linux x86_64 (@dmitryduev in https://github.com/wandb/wandb/pull/12923)
 - NVIDIA GPM system metrics such as `gpu.N.smActive` and `gpu.N.dramActive` are now averaged over the whole interval between samples instead of a 200 ms window (@dmitryduev in https://github.com/wandb/wandb/pull/12987)
+- AMD GPU system metrics are now read through the ROCm SMI library (`librocm_smi64.so`) instead of running the `rocm-smi` tool on every sample, and readings a GPU does not provide are left out instead of reported as 0 (@dmitryduev in https://github.com/wandb/wandb/pull/12990)
 
 ### Removed
 
@@ -44,3 +51,4 @@ Section headings should be at level 3 (e.g. `### Added`).
 - `Run.scan_history(keys=...)` no longer fails with `403 Forbidden` on W&B deployments that store run history in Amazon S3 (@dmitryduev in https://github.com/wandb/wandb/pull/12930)
 - Per-process GPU metrics (`gpu.process.*`) are logged again for NVIDIA GPUs used by the process that called `wandb.init()`. Since v0.18.2, they were logged only when a subprocess used the GPU (@dmitryduev in https://github.com/wandb/wandb/pull/12978)
 - NVIDIA PCIe and NVLink throughput system metrics from GPM (`gpu.N.pcieTxBytes`, `gpu.N.pcieRxBytes`, `gpu.N.nvlinkTxBytes`, `gpu.N.nvlinkRxBytes`) are now reported in bytes per second as their names say. They were in mebibytes per second (@dmitryduev in https://github.com/wandb/wandb/pull/12988)
+- `network.sent` and `network.recv` system metrics no longer count loopback traffic, or count traffic twice through bonded and bridged interfaces (@dmitryduev in https://github.com/wandb/wandb/pull/13000)
