@@ -90,10 +90,6 @@ func historyItemStep(item *spb.HistoryItem) (int64, bool) {
 
 // formatJSONFloat renders a float the way the JSON writer does, so typed
 // and JSON reads of one value produce the same text.
-//
-// Go prints a whole float as "1" and Python prints "1.0", so a positional
-// result with no fraction gets one. Non-finite values keep the JSON
-// writer's spelling.
 func formatJSONFloat(f float64) string {
 	switch {
 	case math.IsNaN(f):
@@ -106,6 +102,8 @@ func formatJSONFloat(f float64) string {
 
 	s := strconv.FormatFloat(f, 'g', -1, 64)
 	if !strings.ContainsAny(s, ".e") {
+		// Go prints a whole float as "1" and Python prints "1.0"
+		// Ensure that both readers get the same text.
 		s += ".0"
 	}
 	return s
