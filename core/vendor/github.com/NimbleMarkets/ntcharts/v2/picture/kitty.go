@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"image"
+	"image/color"
 	"image/png"
 	"os"
 	"strings"
@@ -60,21 +61,131 @@ func tmuxWrap(seq string) string {
 // (cols*cellPixelW × rows*cellPixelH) — do that via prepareSource. Kitty
 // places the image into the cell rectangle preserving source AR, which is
 // a no-op when source AR matches cell-rect AR.
-func buildKittyAPC(img image.Image, id, cols, rows int) string {
+func buildKittyAPC(img image.Image, id, cols, rows int, format KittyFormat, z ...int) string {
+	if format == KittyFormatRGBA {
+		b := img.Bounds()
+		data := kittyRGBABytes(img)
+		if data == nil {
+			return ""
+		}
+		return buildKittyRGBAAPC(data, b.Dx(), b.Dy(), id, cols, rows, z...)
+	}
 	var buf bytes.Buffer
 	encoder := png.Encoder{CompressionLevel: png.BestSpeed}
 	if err := encoder.Encode(&buf, img); err != nil {
 		return ""
 	}
-	return buildKittyPNGAPC(buf.Bytes(), id, cols, rows)
+	return buildKittyPNGAPC(buf.Bytes(), id, cols, rows, z...)
 }
 
-// kittyPNGOptions builds the transmit options for a PNG image. When tmux
-// passthrough is enabled each 4 KiB chunk is wrapped in its own DCS rather
-// than wrapping the whole transmission: tmux discards any single DCS larger
-// than its input buffer (1 MiB by default), which large images exceed.
-func kittyPNGOptions(id, cols, rows int) *kitty.Options {
-	o := &kitty.Options{
+// KittyFormat selects how a Kitty frame's pixels are transmitted.
+type KittyFormat int8
+
+const (
+	// KittyFormatPNG encodes each frame as a BestSpeed PNG (f=100). Small
+	// on the wire; costs an encode per frame, which dominates on WASM.
+	KittyFormatPNG KittyFormat = iota
+	// KittyFormatRGBA sends raw straight-alpha RGBA bytes (f=32). No
+	// encode, no decode in the terminal, but 4 bytes per pixel before
+	// base64 — about 5.3 bytes per pixel through the terminal stream.
+	KittyFormatRGBA
+)
+
+func (f KittyFormat) String() string {
+	if f == KittyFormatRGBA {
+		return "rgba"
+	}
+	return "png"
+}
+
+func normalizeKittyFormat(f KittyFormat) KittyFormat {
+	if f != KittyFormatRGBA {
+		return KittyFormatPNG
+	}
+	return f
+}
+
+func kittyRGBAOptions(width, height, id, cols, rows int, z ...int) *kitty.Options {
+	o := kittyPNGOptions(id, cols, rows, z...)
+	o.Format = kitty.RGBA
+	o.ImageWidth = width
+	o.ImageHeight = height
+	return o
+}
+
+func buildKittyRGBAAPC(data []byte, width, height, id, cols, rows int, z ...int) string {
+	var buf bytes.Buffer
+	if err := encodeKittyGraphicsData(&buf, data, kittyRGBAOptions(width, height, id, cols, rows, z...)); err != nil {
+		return ""
+	}
+	return buf.String()
+}
+
+// kittyRGBABytes returns img as tightly packed straight-alpha RGBA rows.
+func kittyRGBABytes(img image.Image) []byte {
+	b := img.Bounds()
+	if b.Empty() {
+		return nil
+	}
+	out := make([]byte, 4*b.Dx()*b.Dy())
+	writeKittyRGBA(out, img)
+	return out
+}
+
+// writeKittyRGBA fills a caller-owned buffer of 4*width*height bytes. Shared
+// memory uses this directly, avoiding an intermediate full-frame allocation.
+// NRGBA rows are copied; RGBA pixels are un-premultiplied where translucent.
+func writeKittyRGBA(out []byte, img image.Image) {
+	b := img.Bounds()
+	w, h := b.Dx(), b.Dy()
+	rowBytes := 4 * w
+	switch src := img.(type) {
+	case *image.NRGBA:
+		for y := range h {
+			copy(out[y*rowBytes:(y+1)*rowBytes], src.Pix[y*src.Stride:y*src.Stride+rowBytes])
+		}
+	case *image.RGBA:
+		for y := range h {
+			row := src.Pix[y*src.Stride : y*src.Stride+rowBytes]
+			dst := out[y*rowBytes : (y+1)*rowBytes]
+			for x := 0; x < rowBytes; x += 4 {
+				switch a := row[x+3]; a {
+				case 255:
+					copy(dst[x:x+4], row[x:x+4])
+				case 0:
+					clear(dst[x : x+4])
+				default:
+					// Same 16-bit un-premultiply and rounding as
+					// color.NRGBAModel, inlined so no colour values
+					// are boxed per pixel.
+					a16 := uint32(a) * 0x101
+					dst[x] = byte((uint32(row[x]) * 0x101 * 0xffff / a16) >> 8)
+					dst[x+1] = byte((uint32(row[x+1]) * 0x101 * 0xffff / a16) >> 8)
+					dst[x+2] = byte((uint32(row[x+2]) * 0x101 * 0xffff / a16) >> 8)
+					dst[x+3] = a
+				}
+			}
+		}
+	default:
+		at := 0
+		for y := b.Min.Y; y < b.Max.Y; y++ {
+			for x := b.Min.X; x < b.Max.X; x++ {
+				c := color.NRGBAModel.Convert(img.At(x, y)).(color.NRGBA)
+				out[at], out[at+1], out[at+2], out[at+3] = c.R, c.G, c.B, c.A
+				at += 4
+			}
+		}
+	}
+}
+
+// kittyPNGOptions wraps each chunk separately for tmux, including RGBA
+// and shared-memory payloads that reuse these options.
+func kittyPNGOptions(id, cols, rows int, z ...int) *kitty.Options {
+	depth := 0
+	if len(z) > 0 {
+		depth = z[0]
+	}
+	o := &kitty.Options{Z: depth,
 		Action:           kitty.TransmitAndPut,
 		Transmission:     kitty.Direct,
 		Format:           kitty.PNG,
@@ -92,9 +203,9 @@ func kittyPNGOptions(id, cols, rows int) *kitty.Options {
 }
 
 // buildKittyPNGAPC is also used by framing regression tests and benchmarks.
-func buildKittyPNGAPC(data []byte, id, cols, rows int) string {
+func buildKittyPNGAPC(data []byte, id, cols, rows int, z ...int) string {
 	var buf bytes.Buffer
-	if err := encodeKittyGraphicsData(&buf, data, kittyPNGOptions(id, cols, rows)); err != nil {
+	if err := encodeKittyGraphicsData(&buf, data, kittyPNGOptions(id, cols, rows, z...)); err != nil {
 		return ""
 	}
 	return buf.String()
