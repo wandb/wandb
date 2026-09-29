@@ -29,9 +29,6 @@ type TaskResolver interface {
 type schedulerStateMachine struct {
 	mu sync.Mutex
 
-	// sessionCtx is the session's lifetime, which bounds every step.
-	sessionCtx context.Context
-
 	resolver TaskResolver
 
 	// logger is bound with the session's id and sweep.
@@ -44,14 +41,12 @@ type schedulerStateMachine struct {
 }
 
 func newSchedulerStateMachine(
-	sessionCtx context.Context,
 	resolver TaskResolver,
 	logger *observability.CoreLogger,
 ) *schedulerStateMachine {
 	return &schedulerStateMachine{
-		sessionCtx: sessionCtx,
-		resolver:   resolver,
-		logger:     logger,
+		resolver: resolver,
+		logger:   logger,
 	}
 }
 
@@ -99,7 +94,7 @@ func (m *schedulerStateMachine) NextTask(
 			"scheduler: applying task result",
 			"seq", result.TaskSeq)
 	}
-	return m.step(result)
+	return m.step(pollCtx, result)
 }
 
 // checkAnswersLastTask verifies that a poll's result answers the task the
@@ -140,9 +135,10 @@ func (m *schedulerStateMachine) Stop() {
 
 // step runs the resolver once and records the task it returns.
 func (m *schedulerStateMachine) step(
+	pollCtx context.Context,
 	result *spb.SweepSchedulerClientTaskResult,
 ) *spb.SweepSchedulerServerNextTaskResponse {
-	task := m.resolver.Step(m.sessionCtx, result)
+	task := m.resolver.Step(pollCtx, result)
 	if task == nil {
 		// A resolver must always produce a task; treat a missing one
 		// as shutdown so the client always gets a reply.

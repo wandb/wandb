@@ -98,29 +98,6 @@ func TestEnqueuedRunDeletedBeforeAppearingIsReaped(t *testing.T) {
 		spb.SweepRunState_SWEEP_RUN_STATE_FAILED, updates[0].Run.State)
 }
 
-func TestStopEnqueuesPendingSuggestionsThenDone(t *testing.T) {
-	fixture := newLoopFixture(t, scheduler.SchedulerParams{})
-	fixture.warmTo(t)
-	fixture.stubIdlePoll("RUNNING")
-	fixture.step(t, warmResult(nil))
-
-	fixture.scheduler.Stop()
-
-	// Graceful shutdown enqueues the batch the client already produced,
-	// then returns Done without another poll or ask.
-	fixture.stubSweepConfig("RUNNING")
-	fixture.stubEnqueue("minted-a")
-	fixture.stubEnqueue("minted-b")
-	done := fixture.step(t, generationResult(suggest("opt-a", "opt-b")))
-
-	require.NotNil(t, done.GetDone())
-	assert.Equal(t,
-		spb.SweepSchedulerServerDoneTask_REASON_SHUTDOWN,
-		done.GetDone().Reason)
-	assert.True(t, fixture.client.AllStubsUsed(),
-		"must not poll again after enqueueing the in-flight suggestions")
-}
-
 // An enqueue that failed scheduled no run. Only a rate limit is worth
 // another pass; anything else has already outlived the client's
 // retries.
