@@ -644,17 +644,24 @@ func formatUptime(d time.Duration) string {
 // renderStatusBar renders the left-aligned state summary and right-aligned help
 // hint shown at the bottom of the screen.
 func (s *Symon) renderStatusBar() string {
-	statusText := s.buildStatusText()
-	helpText := s.buildHelpText()
+	return s.renderStatusBarWith(s.buildStatusText(), s.buildHelpText())
+}
 
-	innerWidth := max(s.width-2*StatusBarPadding, 0)
+// renderStatusBarWith lays out the W&B LEET badge, the status text and the
+// right-aligned help hint across the terminal width.
+func (s *Symon) renderStatusBarWith(statusText, helpText string) string {
+	badge := statusBarBadgeStyle.Render(statusBarBadge)
+	barWidth := max(s.width-lipgloss.Width(badge), 0)
+
+	innerWidth := max(barWidth-2*StatusBarPadding, 0)
 	spaceForHelp := max(innerWidth-lipgloss.Width(statusText), 0)
 	rightAligned := lipgloss.PlaceHorizontal(spaceForHelp, lipgloss.Right, helpText)
 
-	return statusBarStyle.
-		Width(s.width).
-		MaxWidth(s.width).
+	bar := statusBarStyle.
+		Width(barWidth).
+		MaxWidth(barWidth).
 		Render(statusText + rightAligned)
+	return lipgloss.JoinHorizontal(lipgloss.Top, badge, bar)
 }
 
 // buildStatusText chooses the status-bar text for the current interaction mode.
@@ -736,15 +743,7 @@ func (s *Symon) buildHelpText() string {
 // status bar treatment.
 func (s *Symon) renderHelpScreen() string {
 	helpView := s.help.View().Content
-
-	helpText := "h: help"
-	spaceForHelp := max(s.width-2*StatusBarPadding, 0)
-	rightAligned := lipgloss.PlaceHorizontal(spaceForHelp, lipgloss.Right, helpText)
-
-	statusBar := statusBarStyle.
-		Width(s.width).
-		MaxWidth(s.width).
-		Render(rightAligned)
+	statusBar := s.renderStatusBarWith("symon", "h: help")
 
 	content := lipgloss.JoinVertical(lipgloss.Left, helpView, statusBar)
 	return lipgloss.Place(s.width, s.height, lipgloss.Left, lipgloss.Top, content)

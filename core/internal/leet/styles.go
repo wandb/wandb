@@ -602,10 +602,20 @@ var (
 // Status bar styles.
 var (
 	statusBarStyle = lipgloss.NewStyle().
-		Foreground(moon900).
-		Background(colorLayoutHighlight).
-		Padding(0, StatusBarPadding)
+			Foreground(moon900).
+			Background(colorLayoutHighlight).
+			Padding(0, StatusBarPadding)
+
+	// statusBarBadgeStyle is the W&B LEET badge at the left of a status bar.
+	statusBarBadgeStyle = lipgloss.NewStyle().
+				Bold(true).
+				Foreground(moon900).
+				Background(wandbColor).
+				Padding(0, StatusBarPadding)
 )
+
+// statusBarBadge is the badge text; the mode label follows it in the bar.
+const statusBarBadge = "W&B LEET"
 
 var errorStyle = lipgloss.NewStyle()
 
