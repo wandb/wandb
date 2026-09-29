@@ -319,10 +319,15 @@ class Agent:
                     self._run_done[run_id] = threading.Event()
                     self._run_status[run_id] = RunStatus.RUNNING
                     thread.start()
+
                     # Wait on an Event rather than join(): on Python <3.13, a
                     # join() interrupted by Ctrl-C marks the thread stopped
                     # while it is still running.
                     self._run_done[run_id].wait()
+
+                    # We should still join on the thread to make sure it fully finishes
+                    # before starting the next one. Technically the wait on _run_done
+                    # doesn't guarantee that the thread is actually finished.
                     thread.join()
                     del self._run_done[run_id]
                     logger.debug(f"Thread joined for run {run_id}.")
