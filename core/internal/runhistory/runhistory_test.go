@@ -103,48 +103,49 @@ func TestForEachNumber(t *testing.T) {
 	assert.True(t, math.IsNaN(numbers["x.e"])) // NaN != NaN
 }
 
-func typedItem(key string, value *spb.HistoryValue) *spb.HistoryItem {
-	return &spb.HistoryItem{Key: key, Value: value}
-}
-
 func TestSetFromRecord_TypedValues(t *testing.T) {
 	tests := []struct {
-		name  string
-		value *spb.HistoryValue
-		want  string
+		name string
+		item *spb.HistoryItem
+		want string
 	}{
 		{
 			"null",
-			&spb.HistoryValue{
-				Value: &spb.HistoryValue_None{},
+			&spb.HistoryItem{
+				Key:   "a",
+				Value: &spb.HistoryItem_None{},
 			},
 			`{"a": null}`,
 		},
 		{
 			"float",
-			&spb.HistoryValue{
-				Value: &spb.HistoryValue_Number{Number: 2.5},
+			&spb.HistoryItem{
+				Key:   "a",
+				Value: &spb.HistoryItem_Number{Number: 2.5},
 			},
 			`{"a": 2.5}`,
 		},
 		{
 			"int",
-			&spb.HistoryValue{
-				Value: &spb.HistoryValue_Integer{Integer: -7},
+			&spb.HistoryItem{
+				Key:   "a",
+				Value: &spb.HistoryItem_Integer{Integer: -7},
 			},
 			`{"a": -7}`,
 		},
 		{
 			"bool",
-			&spb.HistoryValue{
-				Value: &spb.HistoryValue_Boolean{Boolean: true},
+			&spb.HistoryItem{
+				Key:   "a",
+				Value: &spb.HistoryItem_Boolean{Boolean: true},
 			},
 			`{"a": true}`,
 		},
 		{
 			"string",
-			&spb.HistoryValue{
-				Value: &spb.HistoryValue_Text{Text: "hi"},
+			&spb.HistoryItem{
+				Key:   "a",
+				Value: &spb.HistoryItem_Text{Text: "hi"},
 			},
 			`{"a": "hi"}`,
 		},
@@ -152,8 +153,9 @@ func TestSetFromRecord_TypedValues(t *testing.T) {
 			// An object keeps its tree structure, so that a nested key
 			// reads the same through either form.
 			"json object",
-			&spb.HistoryValue{
-				Value: &spb.HistoryValue_Json{
+			&spb.HistoryItem{
+				Key: "a",
+				Value: &spb.HistoryItem_Json{
 					Json: `{"b": 1, "c": {"d": 2.5}}`,
 				},
 			},
@@ -161,8 +163,9 @@ func TestSetFromRecord_TypedValues(t *testing.T) {
 		},
 		{
 			"json array",
-			&spb.HistoryValue{
-				Value: &spb.HistoryValue_Json{
+			&spb.HistoryItem{
+				Key: "a",
+				Value: &spb.HistoryItem_Json{
 					Json: `[1, 2]`,
 				},
 			},
@@ -174,7 +177,7 @@ func TestSetFromRecord_TypedValues(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			rh := runhistory.New()
 
-			require.NoError(t, rh.SetFromRecord(typedItem("a", test.value)))
+			require.NoError(t, rh.SetFromRecord(test.item))
 
 			encoded, err := rh.ToExtendedJSON()
 			require.NoError(t, err)
@@ -187,10 +190,8 @@ func TestSetFromRecord_TypedValuePreferredOverValueJson(t *testing.T) {
 	rh := runhistory.New()
 
 	err := rh.SetFromRecord(&spb.HistoryItem{
-		Key: "a",
-		Value: &spb.HistoryValue{
-			Value: &spb.HistoryValue_Integer{Integer: 1},
-		},
+		Key:       "a",
+		Value:     &spb.HistoryItem_Integer{Integer: 1},
 		ValueJson: "2",
 	})
 
@@ -217,9 +218,7 @@ func TestSetFromRecord_TypedNestedKey(t *testing.T) {
 
 	err := rh.SetFromRecord(&spb.HistoryItem{
 		NestedKey: []string{"a", "b"},
-		Value: &spb.HistoryValue{
-			Value: &spb.HistoryValue_Integer{Integer: 1},
-		},
+		Value:     &spb.HistoryItem_Integer{Integer: 1},
 	})
 
 	require.NoError(t, err)
@@ -232,9 +231,10 @@ func TestSetFromRecord_TypedIntKeepsExactValueAbove2To53(t *testing.T) {
 	rh := runhistory.New()
 
 	const exact = int64(1)<<53 + 1
-	err := rh.SetFromRecord(typedItem("a", &spb.HistoryValue{
-		Value: &spb.HistoryValue_Integer{Integer: exact},
-	}))
+	err := rh.SetFromRecord(&spb.HistoryItem{
+		Key:   "a",
+		Value: &spb.HistoryItem_Integer{Integer: exact},
+	})
 
 	require.NoError(t, err)
 	encoded, err := rh.ToExtendedJSON()
@@ -250,9 +250,10 @@ func TestSetFromRecord_TypedNonFiniteFloats(t *testing.T) {
 		"-inf": math.Inf(-1),
 		"nan":  math.NaN(),
 	} {
-		require.NoError(t, rh.SetFromRecord(typedItem(key, &spb.HistoryValue{
-			Value: &spb.HistoryValue_Number{Number: value},
-		})))
+		require.NoError(t, rh.SetFromRecord(&spb.HistoryItem{
+			Key:   key,
+			Value: &spb.HistoryItem_Number{Number: value},
+		}))
 	}
 
 	encoded, err := rh.ToExtendedJSON()
@@ -267,7 +268,7 @@ func TestSetFromRecord_TypedNonFiniteFloats(t *testing.T) {
 func TestSetFromRecord_BothValueAndValueJsonUnset(t *testing.T) {
 	rh := runhistory.New()
 
-	err := rh.SetFromRecord(typedItem("a", &spb.HistoryValue{}))
+	err := rh.SetFromRecord(&spb.HistoryItem{Key: "a"})
 
 	assert.ErrorContains(t, err, "both value and value_json are unset")
 }
@@ -275,9 +276,10 @@ func TestSetFromRecord_BothValueAndValueJsonUnset(t *testing.T) {
 func TestSetFromRecord_TypedJsonUnmarshalError(t *testing.T) {
 	rh := runhistory.New()
 
-	err := rh.SetFromRecord(typedItem("a", &spb.HistoryValue{
-		Value: &spb.HistoryValue_Json{Json: "invalid"},
-	}))
+	err := rh.SetFromRecord(&spb.HistoryItem{
+		Key:   "a",
+		Value: &spb.HistoryItem_Json{Json: "invalid"},
+	})
 
 	assert.ErrorContains(t, err, "failed to unmarshal typed history item value")
 }
@@ -285,9 +287,10 @@ func TestSetFromRecord_TypedJsonUnmarshalError(t *testing.T) {
 func TestSetFromRecord_TypedEmptyKey(t *testing.T) {
 	rh := runhistory.New()
 
-	err := rh.SetFromRecord(typedItem("", &spb.HistoryValue{
-		Value: &spb.HistoryValue_None{},
-	}))
+	err := rh.SetFromRecord(&spb.HistoryItem{
+		Key:   "",
+		Value: &spb.HistoryItem_None{},
+	})
 
 	assert.ErrorContains(t, err, "empty history item key")
 }

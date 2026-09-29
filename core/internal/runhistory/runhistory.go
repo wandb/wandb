@@ -201,8 +201,8 @@ func (rh *RunHistory) SetFromRecord(record *spb.HistoryItem) error {
 		return errors.New("empty history item key")
 	}
 
-	if typed := record.GetValue(); typed != nil && typed.Value != nil {
-		return rh.setFromTypedValue(path, typed)
+	if typed := record.GetValue(); typed != nil {
+		return rh.setFromTypedValue(path, record)
 	}
 
 	if record.ValueJson == "" {
@@ -220,25 +220,25 @@ func (rh *RunHistory) SetFromRecord(record *spb.HistoryItem) error {
 
 func (rh *RunHistory) setFromTypedValue(
 	path pathtree.TreePath,
-	typed *spb.HistoryValue,
+	item *spb.HistoryItem,
 ) error {
-	switch value := typed.Value.(type) {
-	case *spb.HistoryValue_None:
+	switch value := item.Value.(type) {
+	case *spb.HistoryItem_None:
 		rh.metrics.Set(path, nil)
 
-	case *spb.HistoryValue_Number:
+	case *spb.HistoryItem_Number:
 		rh.metrics.Set(path, value.Number)
 
-	case *spb.HistoryValue_Integer:
+	case *spb.HistoryItem_Integer:
 		rh.metrics.Set(path, value.Integer)
 
-	case *spb.HistoryValue_Boolean:
+	case *spb.HistoryItem_Boolean:
 		rh.metrics.Set(path, value.Boolean)
 
-	case *spb.HistoryValue_Text:
+	case *spb.HistoryItem_Text:
 		rh.metrics.Set(path, value.Text)
 
-	case *spb.HistoryValue_Json:
+	case *spb.HistoryItem_Json:
 		// An object keeps its tree structure, the same as the JSON form.
 		decoded, err := simplejsonext.UnmarshalString(value.Json)
 		if err != nil {
@@ -249,7 +249,7 @@ func (rh *RunHistory) setFromTypedValue(
 
 	default:
 		// An unknown value may have been written by a newer SDK.
-		return fmt.Errorf("unknown history value type %T", typed.Value)
+		return fmt.Errorf("unknown history value type %T", item.Value)
 	}
 
 	return nil
