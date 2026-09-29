@@ -607,12 +607,14 @@ class TestAxOptimizerAcceptance(OptimizerAcceptanceTests):
 
     @pytest.fixture
     def optimizer(self, sweep: SweepInfo) -> Optimizer:
+        from ax.early_stopping.strategies import PercentileEarlyStoppingStrategy
         from wandb.sdk.sweeps.scheduler.ax import AxOptimizer, create_default_client
 
         client = create_default_client(SCHEDULER_GRID_SWEEP_CONFIG)
         client.set_generation_strategy(
             _sequential_ax_generation_strategy("param1", [1, 2, 3])
         )
+        client.set_early_stopping_strategy(PercentileEarlyStoppingStrategy())
         return AxOptimizer(client, sweep)
 
     def prune(
