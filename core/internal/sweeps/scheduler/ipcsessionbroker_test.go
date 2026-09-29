@@ -427,7 +427,8 @@ func TestStoppedSessionAbandonsPendingSuggestions(t *testing.T) {
 			*observability.CoreLogger,
 		) (scheduler.TaskResolver, *spb.SweepSchedulerServerInitResponse, error) {
 			return fixture.scheduler, &spb.SweepSchedulerServerInitResponse{}, nil
-		})
+		},
+	)
 	ctx := context.Background()
 	initResponse, err := broker.InitScheduler(ctx, ctx, initRequest("sweep-a"))
 	require.NoError(t, err)

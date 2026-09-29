@@ -951,8 +951,7 @@ func (f *factoryFixture) startSession(t *testing.T) (
 		"test-entity", "test-project", "test-sweep",
 	)
 
-	factory := scheduler.NewTaskResolverFactory()
-	return factory(
+	return scheduler.NewTaskResolver(
 		t.Context(),
 		&spb.SweepSchedulerClientInitRequest{
 			Entity:              "test-entity",

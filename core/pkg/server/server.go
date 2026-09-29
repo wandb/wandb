@@ -117,13 +117,11 @@ func NewServer(params ServerParams) *Server {
 	serverLifetimeCtx, stopServer := context.WithCancel(context.Background())
 
 	return &Server{
-		serverLifetimeCtx: serverLifetimeCtx,
-		stopServer:        stopServer,
-		streamMux:         stream.NewStreamMux(),
-		runSyncManager:    runsync.NewRunSyncManager(),
-		sweepSchedBroker: scheduler.NewIPCSessionBroker(
-			scheduler.NewTaskResolverFactory(),
-		),
+		serverLifetimeCtx:  serverLifetimeCtx,
+		stopServer:         stopServer,
+		streamMux:          stream.NewStreamMux(),
+		runSyncManager:     runsync.NewRunSyncManager(),
+		sweepSchedBroker:   scheduler.NewIPCSessionBroker(scheduler.NewTaskResolver),
 		xpuResourceManager: monitor.NewXPUResourceManager(params.EnableDCGMProfiling),
 		connectionsWG:      sync.WaitGroup{},
 		parentPID:          params.ParentPID,
