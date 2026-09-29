@@ -58,17 +58,17 @@ class _SpyOptimizer(WandbOptimizer):
         return super().tell_run(run_id, data)
 
 
-def _raise_if_failed(task_list: list) -> None:
-    if task_list and isinstance(task_list[0], BaseException):
-        raise task_list[0]
+def _raise_if_failed(future_list: list) -> None:
+    if future_list and isinstance(future_list[0], BaseException):
+        raise future_list[0]
 
 
 def _wait_until(
-    predicate, *, task_list: list, timeout: float = _WAIT_TIMEOUT_SECONDS
+    predicate, *, future_list: list, timeout: float = _WAIT_TIMEOUT_SECONDS
 ) -> None:
     deadline = time.monotonic() + timeout
     while not predicate():
-        _raise_if_failed(task_list)
+        _raise_if_failed(future_list)
         if time.monotonic() > deadline:
             raise TimeoutError("timed out waiting for the scheduler")
         time.sleep(0.05)
@@ -113,20 +113,20 @@ def _start_scheduler(
     optimizer = _SpyOptimizer(sweep)
     exchange = SchedulerTaskExchange(service, init_response.session_id, optimizer)
 
-    task_list: list = []
+    future_list: list = []
 
     def drive() -> None:
         try:
-            task_list.append(singleton.asyncer.run(exchange.run))
+            future_list.append(singleton.asyncer.run(exchange.run))
         except Exception as e:
-            task_list.append(e)
+            future_list.append(e)
 
     thread = threading.Thread(target=drive, daemon=True)
     thread.start()
-    return optimizer, init_response.session_id, thread, task_list
+    return optimizer, init_response.session_id, thread, future_list
 
 
-def _stop_and_join(session_id: str, thread: threading.Thread, task_list: list):
+def _stop_and_join(session_id: str, thread: threading.Thread, future_list: list):
     singleton = wandb_setup.singleton()
     service = singleton.ensure_service()
 
@@ -136,8 +136,8 @@ def _stop_and_join(session_id: str, thread: threading.Thread, task_list: list):
     singleton.asyncer.run(stop)
     thread.join(timeout=_WAIT_TIMEOUT_SECONDS)
     assert not thread.is_alive(), "the scheduler did not stop in time"
-    _raise_if_failed(task_list)
-    return task_list[0]
+    _raise_if_failed(future_list)
+    return future_list[0]
 
 
 @pytest.fixture
@@ -162,18 +162,18 @@ def test_warm_start_adopts_prior_runs(
     # Left running: the scheduler should adopt it as in-flight, not tell it.
     wandb.init(entity=entity, project=project, settings={"sweep_id": sweep_id})
 
-    optimizer, session_id, thread, task_list = _start_scheduler(
+    optimizer, session_id, thread, future_list = _start_scheduler(
         entity, project, sweep_id
     )
     try:
         _wait_until(
             lambda: optimizer.finished_told and optimizer.active_adopted,
-            task_list=task_list,
+            future_list=future_list,
         )
         assert optimizer.finished_told[0].state == RunState.FINISHED
         assert optimizer.active_adopted[0].state == RunState.RUNNING
     finally:
-        _stop_and_join(session_id, thread, task_list)
+        _stop_and_join(session_id, thread, future_list)
 
 
 def test_generation_step_reports_a_finished_run(
@@ -183,7 +183,7 @@ def test_generation_step_reports_a_finished_run(
     entity, project = user, "sweep-scheduler-e2e-finish"
     sweep_id = wandb.sweep(SWEEP_CONFIG, entity=entity, project=project)
 
-    optimizer, session_id, thread, task_list = _start_scheduler(
+    optimizer, session_id, thread, future_list = _start_scheduler(
         entity, project, sweep_id
     )
     try:
@@ -191,7 +191,7 @@ def test_generation_step_reports_a_finished_run(
         # the optimizer to learn the real wandb run id EnqueueRun minted.
         _wait_until(
             lambda: any(data.wandb_run_id for _, data in optimizer.told),
-            task_list=task_list,
+            future_list=future_list,
         )
         wandb_run_id = next(
             data.wandb_run_id for _, data in optimizer.told if data.wandb_run_id
@@ -210,10 +210,10 @@ def test_generation_step_reports_a_finished_run(
                 data.wandb_run_id == wandb_run_id and data.state == RunState.FINISHED
                 for _, data in optimizer.told
             ),
-            task_list=task_list,
+            future_list=future_list,
         )
     finally:
-        _stop_and_join(session_id, thread, task_list)
+        _stop_and_join(session_id, thread, future_list)
 
 
 def test_stop_request_ends_the_exchange_with_shutdown(
@@ -223,9 +223,9 @@ def test_stop_request_ends_the_exchange_with_shutdown(
     entity, project = user, "sweep-scheduler-e2e-stop"
     sweep_id = wandb.sweep(SWEEP_CONFIG, entity=entity, project=project)
 
-    _optimizer, session_id, thread, task_list = _start_scheduler(
+    _optimizer, session_id, thread, future_list = _start_scheduler(
         entity, project, sweep_id
     )
-    done = _stop_and_join(session_id, thread, task_list)
+    done = _stop_and_join(session_id, thread, future_list)
 
     assert done.reason == done.REASON_SHUTDOWN
