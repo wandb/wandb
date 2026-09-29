@@ -440,7 +440,7 @@ def _image_ces_extension_value(
     image_json: dict[str, Any],
     run: Run,
 ) -> WandbImageV1Param:
-    # Keep the generated CES client optional until CES media is serialized.
+    # Import lazily so the CES client only loads when CES media is serialized.
     from coreweave_evaluations.types.wandb_image_v1_param import WandbImageV1Param
 
     extension_value = WandbImageV1Param(
