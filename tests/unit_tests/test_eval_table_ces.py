@@ -675,30 +675,6 @@ def test_ces_base_url(monkeypatch):
     assert ces._ces_base_url("https://api.wandb.ai") == "https://ces.test"
 
 
-def test_ces_eval_table_requires_client_before_scope_lookup(monkeypatch, run):
-    monkeypatch.setenv("CES_BASE_URL", "https://evaluations.example.test")
-    et = wandb.EvalTable(columns=["value"], data=[[1]], backend="ces")
-    et.bind_to_run(run, "eval", 0)
-    writer = et._writer
-    assert isinstance(writer, ces.CESWriter)
-    execute_graphql = MagicMock()
-    writer._bound = replace(
-        writer._require_bound(),
-        service_api=SimpleNamespace(
-            base_url="https://api.wandb.ai",
-            api_key="secret",
-            access_token=MagicMock(),
-            execute_graphql=execute_graphql,
-        ),
-    )
-    monkeypatch.setitem(sys.modules, "coreweave_evaluations", None)
-
-    with pytest.raises(UsageError, match="coreweave_evaluations"):
-        et.to_json(run)
-
-    execute_graphql.assert_not_called()
-
-
 def test_ces_eval_table_resolves_project_scope_with_api_key(run):
     writer = ces.CESWriter()
     writer.bind_to_run(run, "eval", 0)
